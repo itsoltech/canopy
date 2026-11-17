@@ -1,3 +1,5 @@
+import { GrokSessionCost, grokPromptUsage, type GrokCompletion } from "./consumed-usage.ts";
+import { type ConsumedUsage } from "../token-usage.ts";
 import { clone, create } from "@bufbuild/protobuf";
 import { ItemDeltaField, ItemSchema, ItemStatus, type Item } from "@canopy/contracts";
 import type { SessionUpdate, ToolCall } from "@canopy/grok-acp";
@@ -19,10 +21,34 @@ export class GrokEventMapper {
   readonly #tools = new Map<string, ToolCall>();
   #message: Item | undefined;
   #sequence = 0;
+  #usage: ConsumedUsage[] = [];
+  #cost: number | undefined;
   constructor(
     readonly turnId: string,
     readonly cwd: string,
-  ) {}
+    readonly model = "",
+    readonly costs = new GrokSessionCost(),
+  ) {
+    costs.beginTurn();
+  }
+
+  get usage(): ConsumedUsage[] {
+    return this.#usage;
+  }
+
+  complete(event: GrokCompletion): ThreadEventInit[] {
+    this.#usage = grokPromptUsage(event).map((usage) => ({ ...usage, requestedServiceTier: "default" }));
+
+    if (this.#usage.length === 1 && this.#cost !== undefined) this.#usage[0]!.reportedCostUsd = this.#cost;
+
+    return [
+      { turnId: this.turnId, rawJson: JSON.stringify(event) },
+      ...this.#usage.map((usage): ThreadEventInit => ({
+        turnId: this.turnId,
+        body: { case: "usageUpdated", value: { usage } },
+      })),
+    ];
+  }
 
   update(update: SessionUpdate): ThreadEventInit[] {
     const out: ThreadEventInit[] = [];
@@ -94,6 +120,7 @@ export class GrokEventMapper {
 
       out.push(mapped);
     } else if (update.sessionUpdate === "usage_update") {
+      this.#cost = this.costs.observe(update.cost) ?? this.#cost;
       out.push(
         event({
           case: "usageUpdated",
@@ -104,7 +131,6 @@ export class GrokEventMapper {
             },
             usage: {
               contextWindowTokens: Number.isSafeInteger(update.size) && update.size > 0 ? BigInt(update.size) : 0n,
-              ...(update.cost?.currency === "USD" && { costUsd: update.cost.amount }),
             },
           },
         }),

@@ -14,6 +14,7 @@
   import { updateCenter } from "#lib/features/workers/updates.svelte.ts";
   import { MediaQuery } from "svelte/reactivity";
   import AppSidebar from "#lib/features/navigation/AppSidebar.svelte";
+  import UsageDialog from "#lib/features/usage/UsageDialog.svelte";
   import { appearanceFromDocument, applyAppearance } from "#lib/features/settings/appearance.ts";
   import { SettingsState, provideSettings } from "#lib/features/settings/settings-state.svelte.ts";
   import { isSettingsRoute } from "#lib/features/settings/settings-route.ts";
@@ -62,6 +63,12 @@
   import { receiveThreadHeads } from "#lib/features/threads/warming.ts";
 
   let { children }: { children: Snippet } = $props();
+  let usageOpen = $state(false);
+
+  function openUsage() {
+    menuOpen = false;
+    usageOpen = true;
+  }
 
   onDestroy(() => {
     threadCache.clear();
@@ -301,10 +308,10 @@
   data-sidebar-settling={sidebar.settling || undefined}
 >
   <SidebarColumn {sidebar}>
-    {#if wide.current}<AppSidebar currentThreadId={page.params.threadId} />{/if}
+    {#if wide.current}<AppSidebar currentThreadId={page.params.threadId} onOpenUsage={openUsage} />{/if}
   </SidebarColumn>
   <Drawer bind:open={menuOpen} label="Navigation">
-    {#if !wide.current}<AppSidebar currentThreadId={page.params.threadId} />{/if}
+    {#if !wide.current}<AppSidebar currentThreadId={page.params.threadId} onOpenUsage={openUsage} />{/if}
   </Drawer>
 
   <div
@@ -351,3 +358,4 @@
 <WebVersionBanner />
 <WhatsNewHost />
 <WorkspaceExit />
+<UsageDialog bind:open={usageOpen} />

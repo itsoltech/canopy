@@ -2,10 +2,11 @@ import { mapItem, providerToolCall, shellCommandItem, outputText } from "./item-
 
 export { mapItem } from "./item-mapping.ts";
 
-import { turnEndSource, turnOutcome, threadStatus, usageOf, snake } from "./status-mapping.ts";
+import { turnEndSource, turnOutcome, threadStatus, snake } from "./status-mapping.ts";
 
 export { codexErrorCode } from "./status-mapping.ts";
 
+import { CodexConsumedUsage } from "./consumed-usage.ts";
 import { timestampNow } from "@bufbuild/protobuf/wkt";
 import type { FunctionCallOutputBody, ResponseItem, ServerNotification, v2 } from "@canopy/codex-protocol";
 import {
@@ -72,8 +73,7 @@ interface RunningCommand {
 
 export class CodexEventMapper {
   readonly #ctx: MapperContext;
-  /** Last usage per Codex turn, attached to turn_finished. */
-  readonly #usage = new Map<string, v2.TokenUsageBreakdown>();
+  readonly #usage = new CodexConsumedUsage();
   /** In-progress command items with a process, by item id. */
   readonly #commands = new Map<string, RunningCommand>();
   /** Code-mode cells and waits by call id: they become tool_call items (docs/codex-adapter.md, "Code mode"). */
@@ -93,6 +93,14 @@ export class CodexEventMapper {
 
   constructor(ctx: MapperContext) {
     this.#ctx = ctx;
+  }
+
+  setModel(model: string, turnId?: string): void {
+    this.#usage.setModel(model, turnId);
+  }
+
+  setRequestedServiceTier(tier: string, turnId?: string): void {
+    this.#usage.setRequestedServiceTier(tier, turnId);
   }
 
   /** Enrichment runs after mapping: retain its image refs across notify() and later cell outputs. */
@@ -134,6 +142,7 @@ export class CodexEventMapper {
       case "turn/started": {
         const { turn } = notification.params;
         this.#latestTurn = turn.id;
+        this.#usage.beginTurn(turn.id);
         const turnId = this.#ctx.startTurn(turn.id);
 
         return [
@@ -153,8 +162,8 @@ export class CodexEventMapper {
 
       case "turn/completed": {
         const { turn } = notification.params;
-        const usage = this.#usage.get(turn.id);
-        this.#usage.delete(turn.id);
+        const snapshots = this.#usage.snapshots(turn.id);
+        const usage = snapshots.length === 1 ? snapshots[0] : undefined;
 
         return [
           ...this.#unreportedShellCalls(event, turn.id),
@@ -166,7 +175,7 @@ export class CodexEventMapper {
               providerTurnRef: turn.id,
               ...turnEndSource(turn, this.#ctx.interruptRequested?.(turn.id) ?? true),
               ...(turn.error && { reason: turn.error.message }),
-              ...(usage && { usage: usageOf(usage) }),
+              ...(usage && { usage }),
             },
           }),
         ];
@@ -249,7 +258,7 @@ export class CodexEventMapper {
       default: {
         const mapped = this.#metadata(notification, event);
 
-        if (mapped) return mapped;
+        if (mapped) return mapped.map((init, index) => (index ? { ...init, rawJson: "" } : init));
         // Hooks, read state, moderation metadata, diffs, ...: kept raw for the timeline and later projections.
         const turnId = jsonObject(decodeJson(notification.params ?? null))?.["turnId"];
 
@@ -286,27 +295,6 @@ export class CodexEventMapper {
 
       case "thread/compacted":
         return [event(notification.params.turnId, { case: "usageUpdated", value: { contextUsage: {} } })];
-
-      case "thread/tokenUsage/updated": {
-        const { turnId, tokenUsage } = notification.params;
-        this.#usage.set(turnId, tokenUsage.total);
-
-        return [
-          event(turnId, {
-            case: "usageUpdated",
-            value: {
-              usage: { ...usageOf(tokenUsage.total), contextWindowTokens: BigInt(tokenUsage.modelContextWindow ?? 0) },
-              contextUsage: {
-                usedTokens: BigInt(tokenUsage.last.totalTokens),
-                ...(tokenUsage.modelContextWindow != null &&
-                  tokenUsage.modelContextWindow > 0 && {
-                    limitTokens: BigInt(tokenUsage.modelContextWindow),
-                  }),
-              },
-            },
-          }),
-        ];
-      }
 
       case "error": {
         const { error, willRetry, turnId } = notification.params;
@@ -352,7 +340,7 @@ export class CodexEventMapper {
         return [event(undefined, { case: "goalState", value: { cleared: true } })];
 
       default:
-        return undefined;
+        return this.#usage.events(notification, (turnId) => !!this.#ctx.turnId(turnId), event);
     }
   }
 

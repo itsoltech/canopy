@@ -4,6 +4,23 @@ package canopy.link.v1;
 import "canopy/ui/v1/gateway.proto";
 import "canopy/ui/v1/bots.proto";
 import "canopy/ui/v1/diagnostics.proto";
+import "canopy/ui/v1/usage.proto";
+import "google/protobuf/timestamp.proto";
+
+// Source-local accounting only; never recursively gathers linked homes.
+service UsageService {
+  rpc GetUsageBuckets(UsageBucketsRequest) returns (UsageBucketsResponse);
+}
+message UsageBucketsRequest {
+  uint64 after_revision = 1;
+  uint32 limit = 2;
+}
+message UsageBucketsResponse {
+  repeated canopy.ui.v1.UsageBucket buckets = 1;
+  uint64 next_revision = 2;
+  bool has_more = 3;
+  google.protobuf.Timestamp tracking_since = 4;
+}
 
 // Local-only snapshot. Never gathers the receiving home's partners.
 service DiagnosticsService {

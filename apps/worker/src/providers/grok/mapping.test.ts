@@ -28,5 +28,5 @@ test("ACP context reports replace used/size independently of cumulative dollar c
   expect(usage(0, 0).contextUsage?.limitTokens).toBeUndefined();
   expect(usage(NaN, Infinity).contextUsage?.usedTokens).toBeUndefined();
   expect(usage(NaN, Infinity).contextUsage?.limitTokens).toBeUndefined();
-  expect(usage(12000, 100000).usage?.costUsd).toBe(2);
+  expect(usage(12000, 100000).usage?.reportedCostUsd).toBeUndefined();
 });

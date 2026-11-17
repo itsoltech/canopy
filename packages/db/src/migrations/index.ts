@@ -56,6 +56,7 @@ import transcriptRawPayloadRefs from "./0155_transcript_raw_payload_refs.sql" wi
 import storageCleanup from "./0156_storage_cleanup.sql" with { type: "text" };
 import threadContextUsage from "./0161_thread_context_usage.sql" with { type: "text" };
 import serviceTiers from "./0162_service_tiers.sql" with { type: "text" };
+import usageAccounting from "./0164_usage_accounting.sql" with { type: "text" };
 import agentHopPolicy from "./0160_agent_hop_policy.sql" with { type: "text" };
 import threadMergeArchive from "./0159_thread_merge_archive.sql" with { type: "text" };
 import threadCleanupRetention from "./0158_thread_cleanup_retention.sql" with { type: "text" };
@@ -340,6 +341,7 @@ export const migrations = Migrator.fromRecord({
   "0161_thread_context_usage": sqlFile(threadContextUsage),
   "0162_service_tiers": sqlFile(serviceTiers),
   "0163_bot_channels": sqlFile(botChannels),
+  "0164_usage_accounting": sqlFile(usageAccounting),
 });
 
 /** Applies pending migrations in a transaction with a lock, safe to call from a deploy step. */

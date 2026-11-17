@@ -45,6 +45,7 @@ test.skipIf(!Bun.which("grok"))(
       for (let turn = 0; turn < 2; turn += 1) {
         input.turnId = crypto.randomUUID();
         const session = botSession(input, { dataDir: root, sourceHome: root, linkLogin: false });
+        const usage: bigint[] = [];
         await runGrokBot({
           input,
           session,
@@ -61,12 +62,17 @@ test.skipIf(!Bun.which("grok"))(
             runtime: {},
           },
           mcp: { url: "", headers: {} },
-          record: async () => {},
+          record: async (event) => {
+            if (event.body?.case === "usageUpdated" && event.body.value.usage?.scope === 1)
+              usage.push(event.body.value.usage.inputTokens ?? 0n);
+          },
           content: async () => ({ text: input.input, images: [], documents: [] }),
           noteHarness: async (value) => {
             harness = value;
           },
         });
+
+        expect(usage).toEqual([1n]);
 
         if (!harness) throw new Error("Harness record missing");
 

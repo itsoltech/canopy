@@ -19,6 +19,16 @@ const notify = (method: string, params: JsonObject) => send({ method, params });
 const turn = (status: string) => ({ id: nativeTurn, status, items: [], error: null });
 let initial = true;
 
+function usage(threadId = session, turnId = nativeTurn) {
+  notify("rawResponse/completed", {
+    threadId,
+    turnId,
+    responseId: crypto.randomUUID(),
+    usage: { inputTokens: 1, outputTokens: 1, cachedInputTokens: 0, reasoningOutputTokens: 0, totalTokens: 2 },
+    usageMetadata: { amount: "123", metadata: null },
+  });
+}
+
 function textOf(value: JsonObject): string {
   const content = value["input"] ?? jsonObject(value["message"])?.["content"];
 
@@ -80,6 +90,9 @@ function consume(id: string, text: string) {
     if (text === "FOREIGN_ECHO") return;
     notify("item/started", { threadId: session, turnId: nativeTurn, item });
     notify("item/completed", { threadId: session, turnId: nativeTurn, item });
+    usage(crypto.randomUUID());
+    usage(session, crypto.randomUUID());
+    usage();
   }
 }
 
@@ -150,5 +163,8 @@ for await (const line of createInterface({ input: process.stdin })) {
 
   send({ id, result });
 
-  if (method === "turn/start") notify("turn/started", { threadId: session, turn: turn("inProgress") });
+  if (method === "turn/start") {
+    notify("turn/started", { threadId: session, turn: turn("inProgress") });
+    usage();
+  }
 }

@@ -175,6 +175,7 @@ describe.skipIf(!dockerAvailable)("schema on PostgreSQL 17", () => {
       "161_thread_context_usage",
       "162_service_tiers",
       "163_bot_channels",
+      "164_usage_accounting",
     ]);
   }, 60_000);
 
@@ -182,6 +183,32 @@ describe.skipIf(!dockerAvailable)("schema on PostgreSQL 17", () => {
 
   test("migrations are idempotent", async () => {
     expect(await runMigrations()).toEqual([]);
+  });
+
+  test("usage watermarks purge with turns while aggregates remain independent", async () => {
+    const w = await world();
+    const thread = await mainThread(w);
+    const turn = id();
+    await query(
+      `INSERT INTO turns(id,thread_id,ordinal,status,trigger,input)
+      VALUES($1,$2,1,'running','provider','{}'::jsonb)`,
+      [turn, thread],
+    );
+    await query(
+      `INSERT INTO usage_buckets(owner_user_id,bucket_start,provider,model,input_tokens,revision)
+      VALUES($1,date_trunc('hour',now()),'claude','model',7,1)`,
+      [w.user],
+    );
+    await query(
+      `INSERT INTO usage_counters(owner_user_id,subject_id,thread_id,thread_turn_id,provider,model,counter_id,first_bucket,totals)
+      VALUES($1,$2,$3,$4::uuid,'claude','model',$4::text,date_trunc('hour',now()),'{}'::jsonb)`,
+      [w.user, `thread:${thread}`, thread, turn],
+    );
+    await query("DELETE FROM turns WHERE id=$1::uuid", [turn]);
+    expect(await query("SELECT 1 FROM usage_counters WHERE owner_user_id=$1::uuid", [w.user])).toEqual([]);
+    expect(await query("SELECT input_tokens FROM usage_buckets WHERE owner_user_id=$1::uuid", [w.user])).toEqual([
+      { input_tokens: 7n },
+    ]);
   });
 
   test("release metadata fits existing JSONB without overwriting worker capabilities or user preferences", async () => {

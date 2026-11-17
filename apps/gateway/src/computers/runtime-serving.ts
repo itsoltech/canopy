@@ -34,6 +34,7 @@ import { watchTiming } from "./watch-liveness.ts";
 import { readThreadRange } from "./range-source.ts";
 import { serveHomeLogs } from "../diagnostics/log-serving.ts";
 import { serveHomeTrace } from "../diagnostics/trace-serving.ts";
+import { serveUsageBuckets } from "./usage-serving.ts";
 
 // ------------------------------------------------------------------ stage 2: remote threads
 
@@ -48,6 +49,14 @@ export async function* computersServeRemote(
   signal: AbortSignal,
   route?: RelayRoute,
 ): AsyncGenerator<Message> {
+  if (method.parent.typeName === link.UsageService.typeName) {
+    if (route?.targetNodeId || route?.originNodeId || route?.relayHops)
+      throw new ConnectError("Usage statistics require a direct link", Code.PermissionDenied);
+    yield await serveUsageBuckets(hostContext, nodeId, connection, method, request);
+
+    return;
+  }
+
   if (fileHighlightDraft(method, request) && (route?.targetNodeId || route?.originNodeId || route?.relayHops))
     throw new ConnectError(
       "Preview changes requires a direct connection to the thread's computer.",

@@ -1,4 +1,6 @@
-import { type ThreadEvent } from "@canopy/contracts";
+import { lockUsageOwner } from "../usage/storage.ts";
+import { accountThreadUsage, eventUsage } from "../usage/accounting.ts";
+import { UsageScope, type ThreadEvent } from "@canopy/contracts";
 import { Context, Effect, Layer } from "effect";
 import { SqlClient, type SqlError } from "effect/sql";
 import { ENDED, applyItemDeltaRun, applySideEffects, applySteer, insertEvent, resolveTurn } from "./ingest-events.ts";
@@ -66,18 +68,26 @@ export const ingestThread = (
     Effect.gen(function* () {
       const locked = yield* sql<{
         last_seq: string;
+        owner_user_id: string;
         archived_at: Date | null;
         deleted_at: Date | null;
         worker_id: string | null;
         rewind_pending_id: string | null;
-      }>`SELECT last_seq, archived_at, deleted_at, worker_id,rewind_pending_id FROM threads WHERE id = ${threadId}::uuid FOR UPDATE`;
+      }>`SELECT last_seq, owner_user_id, archived_at, deleted_at, worker_id,rewind_pending_id FROM threads WHERE id = ${threadId}::uuid FOR UPDATE`;
 
       const thread = locked[0];
 
       if (!thread || thread.worker_id !== workerId) return undefined;
+
+      if (origin === "worker" && events.some((event) => eventUsage(event)?.scope === UsageScope.TURN))
+        yield* lockUsageOwner(sql, thread.owner_user_id);
       const outcomes: IngestOutcome[] = [];
 
       if (thread.deleted_at) {
+        if (origin === "worker") {
+          for (const event of events) yield* accountThreadUsage(sql, threadId, storageEvent(event));
+        }
+
         const previous = yield* sql<{ acked_seq: string }>`SELECT acked_seq FROM worker_journal_cursors
           WHERE worker_id=${workerId}::uuid AND journal_id=${journalId} AND thread_id=${threadId}::uuid`;
 
@@ -144,6 +154,7 @@ export const ingestThread = (
           ? yield* quarantineEvent(sql, workerId, journalId, incoming, rejection.code, rejection.reason)
           : yield* resolveTurn(sql, threadId, storageEvent(incoming), !suppressed);
 
+        if (origin === "worker" && !rejection) yield* accountThreadUsage(sql, threadId, event);
         yield* insertEvent(sql, threadId, seq, event, rejection ? "gateway" : origin);
 
         const delta = !suppressed && event.body.case === "itemDelta" ? event.body.value : undefined;
@@ -317,6 +328,13 @@ const isolateDataErrors = (
 ) =>
   sql.withTransaction(
     Effect.gen(function* () {
+      if (events.some((event) => eventUsage(event)?.scope === UsageScope.TURN)) {
+        const owner = (yield* sql<{ owner_user_id: string }>`SELECT owner_user_id FROM threads
+          WHERE id=${threadId}::uuid FOR UPDATE`)[0];
+
+        if (owner) yield* lockUsageOwner(sql, owner.owner_user_id);
+      }
+
       const stored: StoredEvent[] = [];
       const outcomes: IngestOutcome[] = [];
       let ack = 0n;

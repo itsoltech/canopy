@@ -2,6 +2,7 @@ import { GrokClient } from "@canopy/grok-acp";
 import { statSync } from "node:fs";
 import { join } from "node:path";
 import { grokLaunch } from "../providers/grok/launch.ts";
+import { GrokSessionCost } from "../providers/grok/consumed-usage.ts";
 import { GrokEventMapper } from "../providers/grok/mapping.ts";
 import { grokStopReason, grokTranscriptPath } from "../providers/grok/transcript.ts";
 import { BotHarnessFailure, type BotHarnessContext } from "./types.ts";
@@ -92,7 +93,7 @@ export async function runGrokBot(ctx: BotHarnessContext): Promise<void> {
 
     if (opened.models && opened.models.currentModelId !== input.model) await client.setModel(id, input.model);
     signal.throwIfAborted();
-    const mapper = new GrokEventMapper(input.turnId, session.cwd);
+    const mapper = new GrokEventMapper(input.turnId, session.cwd, input.model, new GrokSessionCost(Boolean(resumed)));
     let complete = false;
 
     const content = await ctx.content(Boolean(resumed));
@@ -105,11 +106,14 @@ export async function runGrokBot(ctx: BotHarnessContext): Promise<void> {
         mimeType: image.mimeType,
       })),
     ])) {
-      signal.throwIfAborted();
-
       if (event.type === "update") {
+        signal.throwIfAborted();
+
         for (const init of mapper.update(event.update)) await ctx.record(init);
       } else {
+        for (const init of mapper.complete(event)) await ctx.record(init);
+        signal.throwIfAborted();
+
         if (event.stopReason !== "end_turn") throw new BotHarnessFailure(grokStopReason(event.stopReason));
         complete = true;
       }

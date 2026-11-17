@@ -823,6 +823,10 @@ message CommandResult {
   MentionCatalog mention_catalog = 140;
   FileSearchResult file_search = 141;
   string generated_text = 200;
+  // Usage of this generate_text command, including failed/interrupted attempts when reported.
+  Usage consumed_usage = 236;
+  // Per-model command counters, superseding the singular field when nonempty.
+  repeated Usage consumed_usages = 237;
   // Wynik ListGitRefs.
   GitRefs git_refs = 210;
   // Wynik CreateWorktree i RenameWorktreeBranch.
@@ -1226,12 +1230,27 @@ message ThreadActivity {
   repeated string pending_interaction_ids = 4;
 }
 
+enum UsageScope {
+  USAGE_SCOPE_UNSPECIFIED = 0;
+  // Cumulative within one platform turn; session totals must be differenced by the adapter.
+  USAGE_SCOPE_TURN = 1;
+}
+
 message Usage {
   uint64 input_tokens = 1;
   uint64 output_tokens = 2;
   uint64 cached_input_tokens = 3;
   double cost_usd = 4;
   uint64 context_window_tokens = 5;
+  uint64 cache_write_input_tokens = 6;
+  uint64 reasoning_output_tokens = 7;
+  // Explicit provider-reported USD, including a known zero. No inferred model pricing.
+  optional double reported_cost_usd = 8;
+  string model = 9;
+  UsageScope scope = 10;
+  reserved 11; // A future actual billing observation needs a separately proven source.
+  // Effective requested execution speed; not a claim about the billed tier.
+  string requested_service_tier = 12;
 }
 
 // Latest provider observation of the main session context, independent of accounting totals.

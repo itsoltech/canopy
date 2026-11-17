@@ -11,6 +11,8 @@ import { decodeJson } from "./json.ts";
 export interface HarnessRecord {
   /** The turn's items in the order the harness wrote them; IN_PROGRESS = started but never finished. */
   readonly items: MessageInitShape<typeof ItemSchema>[];
+  /** Provable per-model consumption, also when the process never wrote a terminal outcome. */
+  readonly consumedUsages?: MessageInitShape<typeof UsageSchema>[];
   /** How the harness ended the turn; undefined when it never did (its process stopped mid-turn). */
   readonly end?: TurnEnd;
 }

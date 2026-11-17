@@ -1,0 +1,102 @@
+import { create } from "@bufbuild/protobuf";
+import { timestampFromDate } from "@bufbuild/protobuf/wkt";
+import { ui } from "@canopy/contracts";
+import { Effect } from "effect";
+import type { SqlClient } from "effect/sql";
+
+export interface UsageState {
+  computer_id: string;
+  tracking_since: Date;
+  updated_at: Date;
+  revision: bigint;
+}
+
+export interface BucketRow {
+  bucket_start: Date;
+  provider: string;
+  model: string;
+  requested_service_tier: string;
+  input_tokens: bigint;
+  output_tokens: bigint;
+  cached_input_tokens: bigint;
+  cache_write_input_tokens: bigint;
+  reasoning_output_tokens: bigint;
+  reported_cost_usd: number;
+  reports: bigint;
+  unknown_cost_reports: bigint;
+  revision: bigint;
+}
+
+export function ensureUsageState(sql: SqlClient.SqlClient, owner: string) {
+  return Effect.gen(function* () {
+    yield* sql`INSERT INTO usage_state(owner_user_id,computer_id)
+      SELECT ${owner}::uuid,coalesce((SELECT node_id FROM computer_identity WHERE owner_user_id=${owner}::uuid),'server:' || ${owner})
+      ON CONFLICT DO NOTHING`;
+
+    // SAFETY: the insert establishes this owner row or fails its user foreign key.
+    return (yield* sql<UsageState>`SELECT * FROM usage_state WHERE owner_user_id=${owner}::uuid`)[0]!;
+  });
+}
+
+export function bucketMessage(row: BucketRow, computerId: string): ui.UsageBucket {
+  return create(ui.UsageBucketSchema, {
+    bucketStart: timestampFromDate(row.bucket_start),
+    provider: row.provider,
+    model: row.model,
+    revision: BigInt(row.revision),
+    computerId,
+    requestedServiceTier: row.requested_service_tier,
+    totals: {
+      inputTokens: BigInt(row.input_tokens),
+      outputTokens: BigInt(row.output_tokens),
+      cachedInputTokens: BigInt(row.cached_input_tokens),
+      cacheWriteInputTokens: BigInt(row.cache_write_input_tokens),
+      reasoningOutputTokens: BigInt(row.reasoning_output_tokens),
+      reportedCostUsd: row.reported_cost_usd,
+      reports: BigInt(row.reports),
+      unknownCostReports: BigInt(row.unknown_cost_reports),
+    },
+  });
+}
+
+/** Caller holds usage_state's owner lock; revision order therefore follows commit order. */
+export function incrementBucket(
+  sql: SqlClient.SqlClient,
+  owner: string,
+  hour: Date,
+  provider: string,
+  model: string,
+  requestedServiceTier: string,
+  delta: ui.UsageTotals,
+) {
+  return Effect.gen(function* () {
+    const state = yield* sql<{ revision: bigint }>`UPDATE usage_state SET revision=revision+1,updated_at=now()
+      WHERE owner_user_id=${owner}::uuid RETURNING revision`;
+
+    // SAFETY: the caller holds the existing owner state row lock until this transaction commits.
+    yield* sql`INSERT INTO usage_buckets(owner_user_id,bucket_start,provider,model,requested_service_tier,input_tokens,output_tokens,
+      cached_input_tokens,cache_write_input_tokens,reasoning_output_tokens,reported_cost_usd,reports,unknown_cost_reports,revision)
+      VALUES(${owner}::uuid,${hour},${provider},${model},${requestedServiceTier},${delta.inputTokens},${delta.outputTokens},
+        ${delta.cachedInputTokens},${delta.cacheWriteInputTokens},${delta.reasoningOutputTokens},${delta.reportedCostUsd},
+        ${delta.reports},${delta.unknownCostReports},${state[0]!.revision})
+      ON CONFLICT(owner_user_id,bucket_start,provider,model,requested_service_tier) DO UPDATE SET
+        input_tokens=usage_buckets.input_tokens+excluded.input_tokens,
+        output_tokens=usage_buckets.output_tokens+excluded.output_tokens,
+        cached_input_tokens=usage_buckets.cached_input_tokens+excluded.cached_input_tokens,
+        cache_write_input_tokens=usage_buckets.cache_write_input_tokens+excluded.cache_write_input_tokens,
+        reasoning_output_tokens=usage_buckets.reasoning_output_tokens+excluded.reasoning_output_tokens,
+        reported_cost_usd=CASE WHEN usage_buckets.reports+excluded.reports=0 THEN 0
+          ELSE greatest(0,usage_buckets.reported_cost_usd+excluded.reported_cost_usd) END,
+        reports=usage_buckets.reports+excluded.reports,
+        unknown_cost_reports=usage_buckets.unknown_cost_reports+excluded.unknown_cost_reports,
+        revision=excluded.revision`;
+  });
+}
+
+/** Acquire before transcript mutations, whose mirror journal also serializes writes. */
+export function lockUsageOwner(sql: SqlClient.SqlClient, owner: string) {
+  return Effect.gen(function* () {
+    yield* ensureUsageState(sql, owner);
+    yield* sql`SELECT revision FROM usage_state WHERE owner_user_id=${owner}::uuid FOR UPDATE`;
+  });
+}

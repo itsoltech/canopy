@@ -17,7 +17,7 @@ export function sessionTurns(ctx: ClaudeThreadContext, record: ReturnType<typeof
     if (session.closeTimer) clearTimeout(session.closeTimer);
     session.closeTimer = undefined;
     session.turn = { turnId, steers: new Map(), ended: false, interrupting: false };
-    session.mapper.beginTurn(turnId);
+    session.mapper.beginTurn(turnId, session.serviceTier);
     // Where Claude Code records this turn: everything after the transcript's current end.
     const transcript = transcriptPath(session.home, session.sessionId);
     await Effect.runPromise(

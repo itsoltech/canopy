@@ -134,7 +134,13 @@ for await (const line of createInterface({ input: process.stdin })) {
       "agent_message_chunk",
       text.includes("<type>/<slug>") ? "fix/grok-text-generation" : "Grok title",
     );
-    send({ id: m.id, result: { stopReason: text.includes("REFUSE") ? "refusal" : "end_turn" } });
+    send({
+      id: m.id,
+      result: {
+        stopReason: text.includes("REFUSE") ? "refusal" : "end_turn",
+        _meta: { modelId: "grok-4.7-fast", usage: { inputTokens: 3, outputTokens: 2 } },
+      },
+    });
   } else if (m.id === "reject" || m.id === "cancel") {
     record({ event: "permission", id: m.id, result: m.result });
 

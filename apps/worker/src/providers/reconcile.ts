@@ -89,6 +89,9 @@ export function reconcileEvents(open: OpenTurn, record: HarnessRecord | undefine
     events.push(finished({ case: "itemCompleted", value: { item: ended } }));
   }
 
+  for (const usage of record?.consumedUsages ?? [])
+    events.push({ turnId, body: { case: "usageUpdated", value: { usage } } });
+
   const recorded = record?.end;
 
   const end: TurnEnd =

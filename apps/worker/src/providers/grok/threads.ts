@@ -28,8 +28,9 @@ import type { TurnSettings } from "../turn-input.ts";
 import { grokPrompt } from "./input.ts";
 import { grokLaunch } from "./launch.ts";
 import { grokBus, platformToolName } from "./bus.ts";
+import { GrokSessionCost } from "./consumed-usage.ts";
 import { GrokEventMapper } from "./mapping.ts";
-import { ModelDiscovery, effortRank } from "./model-discovery.ts";
+import { discoveredModels } from "./model-discovery.ts";
 import { automationMcp, automationMcpKey } from "../local-automation.ts";
 import type { LocalAgentToolMcpServer } from "../../agent-tools/index.ts";
 import { closeGrokResources, grokPermission } from "./lifecycle.ts";
@@ -65,6 +66,7 @@ interface Entry {
   mode: PermissionMode;
   interrupted: boolean;
   settings: string;
+  costs: GrokSessionCost;
   toolUses: Map<string, { name: string; args: JsonValue }>;
   approvals: Set<string>;
   idleTimer?: ReturnType<typeof setTimeout>;
@@ -225,6 +227,7 @@ export class GrokThreads {
         mode: chosen.permissionMode,
         interrupted: false,
         settings: key,
+        costs: new GrokSessionCost(Boolean(sessionId)),
         toolUses: new Map(),
         approvals: new Set(),
       };
@@ -272,7 +275,7 @@ export class GrokThreads {
     entry.turnId = turnId;
     entry.interrupted = false;
     entry.toolUses.clear();
-    const mapper = new GrokEventMapper(turnId, spec.cwd);
+    const mapper = new GrokEventMapper(turnId, spec.cwd, settings?.model || spec.model, entry.costs);
     const record = (init: ThreadEventInit) => this.options.record(spec.threadId, init);
     await record({ turnId, body: { case: "turnStarted", value: { model: settings?.model || spec.model } } });
     await record({
@@ -315,13 +318,17 @@ export class GrokThreads {
           }
 
           for (const init of mapper.update(update)) await record(init);
-        } else if (event.stopReason === "cancelled") {
-          outcome = TurnOutcome.INTERRUPTED;
-          reason = "Grok cancelled the turn";
-        } else if (["max_tokens", "max_turn_requests", "refusal"].includes(event.stopReason)) {
-          outcome = TurnOutcome.FAILED;
-          reason = `Grok stopped: ${event.stopReason}`;
-          errorCode = classifyFailure(reason);
+        } else {
+          for (const init of mapper.complete(event)) await record(init);
+
+          if (event.stopReason === "cancelled") {
+            outcome = TurnOutcome.INTERRUPTED;
+            reason = "Grok cancelled the turn";
+          } else if (["max_tokens", "max_turn_requests", "refusal"].includes(event.stopReason)) {
+            outcome = TurnOutcome.FAILED;
+            reason = `Grok stopped: ${event.stopReason}`;
+            errorCode = classifyFailure(reason);
+          }
         }
       }
 
@@ -353,6 +360,7 @@ export class GrokThreads {
             errorCode,
             source: entry.interrupted ? TurnEndSource.USER : TurnEndSource.HARNESS,
             providerTurnRef: entry.session.sessionId,
+            ...(mapper.usage.length === 1 && { usage: mapper.usage[0] }),
           },
         },
       });
@@ -416,24 +424,7 @@ export class GrokThreads {
 
     try {
       const info = await client.initialize();
-      const state = Schema.decodeUnknownSync(ModelDiscovery)(info)._meta?.modelState;
-
-      const known: ModelInit[] = (state?.availableModels ?? []).map((m) => {
-        const meta = m._meta;
-
-        const efforts = (meta?.reasoningEfforts?.map((e) => e.id) ?? []).sort(
-          (a, b) => (effortRank.get(a) ?? 100) - (effortRank.get(b) ?? 100),
-        );
-
-        return {
-          id: m.modelId,
-          displayName: m.name,
-          description: m.description ?? "",
-          isDefault: m.modelId === state?.currentModelId,
-          efforts,
-          defaultEffort: meta?.reasoningEfforts?.find((e) => e.default)?.id ?? "",
-        };
-      });
+      const known = discoveredModels(info);
 
       if (profile.kind !== "cliproxyapi") return { models: known };
       const models = (await proxyModels(profile)).filter((m) => proxyModelFits("grok", m));

@@ -1,3 +1,4 @@
+import { usageHandlers } from "./ui-usage.ts";
 import { createThreadProgress } from "../core/thread-progress.ts";
 import { ui } from "@canopy/contracts";
 import { type ConnectRouter, type ServiceImpl } from "@connectrpc/connect";
@@ -76,6 +77,7 @@ function withFeedNudges(core: GatewayCore, handlers: UiHandlers): UiHandlers {
 /** This computer's own GatewayService. Thin: validation and state live in the core and the store. */
 export function uiHandlers(core: GatewayCore): UiHandlers {
   return withFeedNudges(core, {
+    ...usageHandlers(core),
     ...composerDraftHandlers(core),
     ...agentToolsHandlers(core),
     ...diagnosticsHandlers(core),

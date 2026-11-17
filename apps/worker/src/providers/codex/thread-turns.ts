@@ -50,6 +50,7 @@ export function threadTurns(
       const chosen = yield* turnSettings(spec, settings);
 
       if (byPlatform.get(spec.threadId) !== entry || settings?.canSubmit?.() === false) return "";
+      // record() buffers notifications until the response binds this accepted choice to its native turn.
       entry.pendingTurns.push(turnId);
 
       if (input.mentions.length > 0 || settings?.connectorNote)
@@ -74,6 +75,8 @@ export function threadTurns(
             Effect.sync(() => {
               entry.serviceTier = chosen.serviceTier;
               const codexTurn = response.turn.id;
+              entry.mapper.setRequestedServiceTier(chosen.serviceTier || "default", codexTurn);
+              entry.mapper.setModel(chosen.model ?? "", codexTurn);
               entry.commandTurns.add(codexTurn);
               entry.codexToPlatform.set(codexTurn, turnId);
               entry.platformToCodex.set(turnId, codexTurn);

@@ -1,7 +1,8 @@
 # Diagnostyka wydajności
 
-Status (2026-11-16): **v1 wdrożone**: metryki RPC, procesu, DB, workerów i klientów,
+Status (2026-11-17): **v1 wdrożone**: metryki RPC, procesu, DB, workerów i klientów,
 trwałe agregaty, findings, raport, zbieranie logów i czasowy tracing.
+Limit katalogu 640 deskryptorów obejmuje także RPC statystyk użycia i postępu przygotowania wątku.
 Settings → Diagnostics jest dostępne w web/desktop/mobile i pokazuje lokalny
 komputer oraz znane połączone komputery, ich gatewaye, workery i łącza.
 Telefon korzysta ze sparowanego gatewaya. Brak dostępu, starsza wersja i offline
@@ -87,7 +88,7 @@ VmHWM wynosi **≤10 MiB** względem wyłączonego kolektora. Rezerwacje live s�
 do 6 MiB dla metod i 2 MiB dla łączy, historyczny widok DB do 1 MiB.
 Histogramy zarówno w RAM, jak i na dysku zawierają tylko niezerowe pary indeks/licznik;
 na dysku indeksy i liczniki są pakowanymi varintami. Zerowe kubełki nie mają alokacji.
-Gateway dopuszcza do 576 deskryptorów i 16 łączy worker/komputer; cache overview
+Gateway dopuszcza do 640 deskryptorów i 16 łączy worker/komputer; cache overview
 do 32 partnerów. Nadmiarowe serie łączy są pomijane z jawnym licznikiem strat,
 bez nieograniczonego rejestru identyfikatorów. Przykład: 24 metody × 60 minut ×
 4 niezerowe kubełki to 5760 par, zamiast 187 200 kubełków jednego pełnego histogramu;

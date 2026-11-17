@@ -1,3 +1,5 @@
+import { CodexConsumedUsage } from "./consumed-usage.ts";
+import type { ConsumedUsage } from "../token-usage.ts";
 import type { v2 } from "@canopy/codex-protocol";
 import { ItemStatus, TurnEndSource, TurnOutcome } from "@canopy/contracts";
 import type { ThreadEventInit } from "../../journal/index.ts";
@@ -10,6 +12,8 @@ import { decodeResponseItem } from "./rollout.ts";
 
 const TokenUsage = Schema.Struct({
   input_tokens: Schema.optionalKey(Schema.Number),
+  cache_write_input_tokens: Schema.optionalKey(Schema.Number),
+  total_tokens: Schema.optionalKey(Schema.Number),
   cached_input_tokens: Schema.optionalKey(Schema.Number),
   output_tokens: Schema.optionalKey(Schema.Number),
   reasoning_output_tokens: Schema.optionalKey(Schema.Number),
@@ -45,7 +49,9 @@ export async function readCodexTurn(
 
   const events: ThreadEventInit[] = [];
   let end: TurnEnd | undefined;
-  let usage: TokenUsage | undefined;
+  const consumed = new CodexConsumedUsage();
+  let usages: ConsumedUsage[] = [];
+  let provenModel = "";
   let seen = false;
 
   for (const raw of records) {
@@ -59,11 +65,39 @@ export async function readCodexTurn(
 
     if (record["type"] === "turn_context" || (record["type"] === "event_msg" && payload["type"] === "task_started")) {
       current = turnOf;
+      // turn_context.model is requested configuration, not proof of the model that served a rerouted response.
+      provenModel = "";
       // Without the Codex turn id, the first turn after the offset is this one (one turn at a time per thread).
       target ??= current;
 
       if (current === target) seen = true;
       continue;
+    }
+
+    if (record["type"] === "event_msg" && payload["type"] === "model_rerouted" && current === target)
+      provenModel = jsonString(payload["to_model"]) ?? "";
+
+    if (record["type"] === "event_msg" && payload["type"] === "token_count") {
+      const info = jsonObject(payload["info"]);
+      const total = info?.["total_token_usage"];
+      const last = info?.["last_token_usage"];
+      const model = jsonString(payload["model"]) || jsonString(info?.["model"]) || provenModel;
+
+      if (model && current === target) consumed.setModel(model, current);
+
+      if (total != null && last != null) {
+        const snapshots = consumed.cumulative(
+          current ?? "",
+          {
+            total: rolloutUsage(Schema.decodeUnknownSync(TokenUsage)(total)),
+            last: rolloutUsage(Schema.decodeUnknownSync(TokenUsage)(last)),
+            modelContextWindow: null,
+          },
+          current === target && !!model,
+        );
+
+        if (current === target && model) usages = snapshots;
+      }
     }
 
     if (!target) continue;
@@ -85,10 +119,6 @@ export async function readCodexTurn(
           params: { threadId: "", turnId: target, item: decodeResponseItem(payload) },
         }),
       );
-    } else if (record["type"] === "event_msg" && payload["type"] === "token_count" && current === target) {
-      const total = jsonObject(payload["info"])?.["total_token_usage"];
-
-      if (total != null) usage = Schema.decodeUnknownSync(TokenUsage)(total);
     } else if (record["type"] === "event_msg" && payload["type"] === "task_complete" && turnOf === target) {
       const error = jsonObject(payload["error"]);
       end = error
@@ -133,19 +163,24 @@ export async function readCodexTurn(
 
   return {
     items: itemsOf(events),
+    consumedUsages: usages,
     ...(end && {
       end: {
         ...end,
         providerTurnRef: target,
-        ...(usage && {
-          usage: {
-            inputTokens: BigInt(usage.input_tokens ?? 0),
-            outputTokens: BigInt((usage.output_tokens ?? 0) + (usage.reasoning_output_tokens ?? 0)),
-            cachedInputTokens: BigInt(usage.cached_input_tokens ?? 0),
-          },
-        }),
       },
     }),
+  };
+}
+
+function rolloutUsage(usage: TokenUsage): v2.TokenUsageBreakdown {
+  return {
+    inputTokens: usage.input_tokens ?? 0,
+    outputTokens: usage.output_tokens ?? 0,
+    cachedInputTokens: usage.cached_input_tokens ?? 0,
+    cacheWriteInputTokens: usage.cache_write_input_tokens ?? 0,
+    reasoningOutputTokens: usage.reasoning_output_tokens ?? 0,
+    totalTokens: usage.total_tokens ?? (usage.input_tokens ?? 0) + (usage.output_tokens ?? 0),
   };
 }
 

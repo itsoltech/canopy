@@ -1,4 +1,6 @@
 import { Schema } from "effect";
+import type { InitializeResult } from "@canopy/grok-acp";
+import type { ModelInit } from "../models.ts";
 
 const ModelMetadata = Schema.Struct({
   reasoningEfforts: Schema.optionalKey(
@@ -37,3 +39,24 @@ export const effortRank = new Map([
   ["max", 6],
   ["ultra", 7],
 ]);
+
+export function discoveredModels(info: InitializeResult): ModelInit[] {
+  const state = Schema.decodeUnknownSync(ModelDiscovery)(info)._meta?.modelState;
+
+  return (state?.availableModels ?? []).map((model) => {
+    const meta = model._meta;
+
+    const efforts = (meta?.reasoningEfforts?.map((effort) => effort.id) ?? []).sort(
+      (a, b) => (effortRank.get(a) ?? 100) - (effortRank.get(b) ?? 100),
+    );
+
+    return {
+      id: model.modelId,
+      displayName: model.name,
+      description: model.description ?? "",
+      isDefault: model.modelId === state?.currentModelId,
+      efforts,
+      defaultEffort: meta?.reasoningEfforts?.find((effort) => effort.default)?.id ?? "",
+    };
+  });
+}

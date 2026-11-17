@@ -159,6 +159,7 @@ export async function computersTick(hostContext: LinkedComputers) {
         await computersStatus(hostContext, peer.node_id, "unreachable");
       computersSyncMirror(hostContext, peer.node_id);
       syncConfig(hostContext, peer.node_id);
+      hostContext.usage.tick(peer.node_id);
       const active = hostContext[computersState].active.get(peer.node_id);
 
       if (active?.size) continue;

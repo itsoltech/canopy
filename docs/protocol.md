@@ -40,6 +40,39 @@ reguły modelu.
 Fork, kontynuacja w nowym worktree, wątki boczne i nowe wątki harmonogramu
 przenoszą wybór. `RunBotTurn.service_tier` (16) przenosi ustawienie bota.
 
+## Statystyki tokenów i kosztów
+
+Status (2026-11-17): zaimplementowane w kodzie; dostępność nightly/beta/stable
+wynika z promocji wydań ([release.md](release.md)).
+
+`Usage` zachowuje pola 1–5 i addytywnie dodaje `cache_write_input_tokens` (6),
+`reasoning_output_tokens` (7), opcjonalny `reported_cost_usd` (8), `model` (9),
+`scope` (10) i `requested_service_tier` (12). Pole 11 jest zarezerwowane.
+`requested_service_tier` opisuje utrwalony wybór wykonania: `default` oznacza
+Standard, pusty string brak wiedzy, pozostałe wartości są natywnymi
+identyfikatorami bez normalizacji (`priority` nie jest aliasem `fast`).
+Nie potwierdza prędkości naliczania opłat i nie dziedziczy bieżących ustawień
+wątku. Tożsamość deduplikacji pozostaje niezależna od prędkości; późniejsze
+uzupełnienie unknown → known przenosi wcześniejszy wkład bez ponownego naliczenia.
+`UsageScope.TURN` oznacza skumulowany pomiar jednej tury
+platformy i modelu. Gateway rozlicza przyrost względem ostatniego przyjętego
+pomiaru; aktualizacja i koniec tury nie są oddzielnymi porcjami zużycia.
+Nie rozlicza starszych raportów bez jawnego zakresu, ponieważ mogły zawierać
+sumę całej sesji. Adapter normalizuje zakres przed zapisaniem do journalu.
+
+Input zawiera cache read/write, a reasoning jest częścią output. Odrębny
+`ContextUsage` nadal mierzy bieżące okno kontekstu. Brak `reported_cost_usd`
+oznacza brak wyceny; jawne zero jest poprawną kwotą. Pole `cost_usd` pozostaje
+dla starszych klientów i nie dostarcza informacji o kompletności wyceny.
+Agregaty są zatwierdzane razem ze zdarzeniem przed ACK i przeżywają usunięcie
+historii. Nie zmienia się `WORKER_LINK_PROTOCOL` ani zamrożone `update/v1`.
+Pomocnicze generowanie zwraca per-modelowe `CommandResult.consumed_usages`
+(237), z pojedynczym `consumed_usage` (236) jako fallbackiem. Gateway zapisuje
+otrzymane pomiary także przy błędzie komendy i deduplikuje je po jej ID oraz modelu.
+Nietrwałe oczekiwanie na wynik `GenerateText` nie odtwarza raportu utraconego
+przed odbiorem przez gateway.
+Szczegóły: [usage.md](usage.md).
+
 ## Postęp tworzenia worktree
 
 Status (2026-11-17): zaimplementowany w kodzie; dostępność nightly/beta/stable

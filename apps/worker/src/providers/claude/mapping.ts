@@ -3,6 +3,7 @@ import { claudeLimitError } from "../usage-limits.ts";
 
 export { isTaskNotificationAck, startsTurn, type GoalVerdict } from "./goal-mapping.ts";
 
+import { ClaudeConsumedUsage } from "./consumed-usage.ts";
 import { ClaudeContextUsage } from "./context-usage.ts";
 import { ClaudeBackgroundMapper } from "./background-mapping.ts";
 import { emptyContent, textContent, toolContent, withOutput, resultText } from "./content-mapping.ts";
@@ -64,6 +65,7 @@ type Block = JsonObject;
 const decodeBlocks = Schema.decodeUnknownSync(Schema.Array(Schema.JsonObject));
 
 export class ClaudeEventMapper {
+  readonly #consumed: ClaudeConsumedUsage;
   readonly #context = new ClaudeContextUsage();
   readonly #background = new ClaudeBackgroundMapper();
   #turnId: string | undefined;
@@ -83,12 +85,14 @@ export class ClaudeEventMapper {
   /** Not-met evaluator verdicts of the current goal. */
   #goalChecks = 0;
 
-  constructor(turnId?: string) {
+  constructor(turnId?: string, resumed = false, requestedServiceTier = "") {
+    this.#consumed = new ClaudeConsumedUsage(resumed, requestedServiceTier);
     this.#turnId = turnId;
   }
 
   /** Turn the next messages belong to (platform or provider turn). */
-  beginTurn(turnId: string): void {
+  beginTurn(turnId: string, requestedServiceTier = ""): void {
+    this.#consumed.beginTurn(requestedServiceTier);
     this.#turnId = turnId;
     this.#lastUuid = undefined;
     this.#interrupted = false;
@@ -165,7 +169,17 @@ export class ClaudeEventMapper {
   }
 
   map(message: SDKMessage): ThreadEventInit[] {
-    return [...this.#context.map(message, this.#turnId), ...this.#map(message)];
+    const snapshots = this.#consumed.observe(message);
+    const turnId = this.#turnId;
+
+    const consumed: ThreadEventInit[] = turnId
+      ? snapshots.map((usage) => ({
+          turnId,
+          body: { case: "usageUpdated", value: { usage } },
+        }))
+      : [];
+
+    return [...this.#context.map(message, this.#turnId), ...consumed, ...this.#map(message)];
   }
 
   #map(message: SDKMessage): ThreadEventInit[] {
@@ -425,8 +439,6 @@ export class ClaudeEventMapper {
   }
 
   #result(message: Extract<SDKMessage, { type: "result" }>): NonNullable<ThreadEventInit["body"]> {
-    const usage = message.usage;
-
     const outcome =
       message.subtype === "success" && !message.is_error
         ? TurnOutcome.COMPLETED
@@ -463,16 +475,8 @@ export class ClaudeEventMapper {
         }),
         providerTurnRef: this.#lastUuid ?? "",
         ...(outcome !== TurnOutcome.COMPLETED && reason && { reason }),
-        usage: {
-          inputTokens: BigInt(
-            (usage["input_tokens"] ?? 0) +
-              (usage["cache_creation_input_tokens"] ?? 0) +
-              (usage["cache_read_input_tokens"] ?? 0),
-          ),
-          outputTokens: BigInt(usage["output_tokens"] ?? 0),
-          cachedInputTokens: BigInt(usage["cache_read_input_tokens"] ?? 0),
-          costUsd: message.total_cost_usd ?? 0,
-        },
+        // Multi-model snapshots are emitted separately; never add a mixed-model accounting bucket.
+        ...(this.#consumed.snapshots().length === 1 && { usage: this.#consumed.snapshots()[0] }),
       },
     };
   }

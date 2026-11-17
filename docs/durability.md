@@ -22,7 +22,7 @@ z wynikiem jego narzędzia i deduplikowane po wywołaniu. Wynik zleconej pracy
 dziedziczy UUID rozmowy źródłowej; usunięcie subskrypcji blokuje późniejsze
 doręczenie zamiast przenosić je do prywatnego czatu.
 
-Status: **w części zaimplementowany** (2026-11-17), w tym trwały odbiór kanałów Slack, potwierdzenia aktualizacji botów oraz trwałe przypisanie domu sesji Claude i ochrona jego historii podczas purge; pozostałe plany oznaczono w sekcjach. Wymaganie: zatrzymanie lub aktualizacja dowolnego procesu nie gubi stanu i nie kończy się błędem widocznym dla użytkownika. Wyjątkiem jest tura agenta przerwana twardym zabiciem procesu (patrz [macierz awarii](#9-macierz-awarii)).
+Status: **w części zaimplementowany** (2026-11-17), w tym trwałe agregaty tokenów i kosztów, trwały odbiór kanałów Slack, potwierdzenia aktualizacji botów oraz trwałe przypisanie domu sesji Claude i ochrona jego historii podczas purge; pozostałe plany oznaczono w sekcjach. Wymaganie: zatrzymanie lub aktualizacja dowolnego procesu nie gubi stanu i nie kończy się błędem widocznym dla użytkownika. Wyjątkiem jest tura agenta przerwana twardym zabiciem procesu (patrz [macierz awarii](#9-macierz-awarii)).
 
 Powiązane: [architecture.md](architecture.md), [protocol.md](protocol.md), [data-model.md](data-model.md).
 
@@ -217,7 +217,7 @@ sequenceDiagram
 
 | Harness | Plik | Itemy | Koniec tury |
 |---|---|---|---|
-| Codex | rollout `sessions/YYYY/MM/DD/rollout-*-<thread id>.jsonl`, tura po `turn_id` (bez niego: pierwsza tura po offsecie) | `event_msg item_completed` (te same id co w app-server: wiadomości, rozumowanie, komendy, zmiany plików, narzędzia) przez ten sam mapper co powiadomienia na żywo; `response_item` (komórki code mode, komendy shell bez itemu) | `task_complete` → `completed`, a z polem `error` → `failed` przez harness (komunikat, kod z `codex_error_info`, np. `http_connection_failed:401`); `turn_aborted` → `interrupted` (powód z rolloutu); zużycie z ostatniego `token_count` |
+| Codex | rollout `sessions/YYYY/MM/DD/rollout-*-<thread id>.jsonl`, tura po `turn_id` (bez niego: pierwsza tura po offsecie) | `event_msg item_completed` (te same id co w app-server: wiadomości, rozumowanie, komendy, zmiany plików, narzędzia) przez ten sam mapper co powiadomienia na żywo; `response_item` (komórki code mode, komendy shell bez itemu) | `task_complete` → `completed`, a z polem `error` → `failed` przez harness (komunikat, kod z `codex_error_info`, np. `http_connection_failed:401`); `turn_aborted` → `interrupted` (powód z rolloutu); potwierdzone zużycie jest odtwarzane osobno |
 | Claude Code | `<config>/projects/<katalog projektu>/<sesja>.jsonl`, wszystko po offsecie (jedna tura naraz w sesji), bez wpisów `isSidechain` | blok asystenta (jeden na wpis) pod id `<message.id>:<indeks bloku>` jak na żywo; `tool_use` otwiera item narzędzia, `tool_result` go kończy | wpis z `isApiErrorMessage` → `failed` przez harness (kod `apiError`/`error`, np. `usage_limit_reached`); „[Request interrupted by user…]” → `interrupted`; ostatni wpis asystenta zatrzymany (`end_turn`, `stop_sequence`, `max_tokens`, `refusal`) bez czekającego narzędzia → `completed` |
 
 **Reguły:**
@@ -229,6 +229,14 @@ sequenceDiagram
 5. **Brak zapisu** (brak pliku, nieczytelny, nic z tury): reguły 3 i 4 i tak wszystko zamykają.
 
 Zdarzenia rekoncyliacji mają w `raw_json` znacznik `{"reconciled": "<harness> transcript", "found": …}`.
+
+Pomiary zużycia są odtwarzane niezależnie od końca tury i emitowane przed jej
+zamknięciem. Claude deduplikuje dostępne raporty wiadomości po ID i zachowuje
+model wiadomości. Codex odtwarza tylko liczniki z potwierdzoną tożsamością modelu
+obsługującego wywołanie. Bezmodelowy `token_count` oraz model żądany w
+`turn_context` nie wystarczają po reroutingu: przypisanie ich do wybranego modelu
+mogłoby ponownie naliczyć już zapisane zużycie rzeczywistego modelu.
+Brak takiego dowodu pozostawia lukę w pokryciu, bez szacowania tokenów i kosztu.
 
 ### 3.6 Zmiana konfiguracji instancji
 
@@ -308,6 +316,12 @@ sequenceDiagram
 
 ### 4.3 Transkrypt i zdarzenia live
 
+- Raporty zużycia z jawnym zakresem jednej tury aktualizują licznik deduplikacji
+  i agregat godzinny w transakcji przyjęcia zdarzenia, przed ACK. Powtórzenie
+  journalu ani końcowy raport nie naliczają drugi raz tych samych tokenów.
+  Agregaty nie mają kaskady do wątku ani tury: archiwizacja, rewind, przeniesienie
+  i trwałe usunięcie historii nie cofają naliczonego zużycia. Szczegóły pokrycia
+  i synchronizacji połączonych komputerów: [usage.md](usage.md).
 - `INSERT ... ON CONFLICT (thread_id, seq) DO NOTHING`, `EventAck` po commicie (już w protokole).
 - **Jeden wątek nie blokuje pozostałych.** Zdarzenia są zapisywane w transakcji na wątek (`Ingest`). Gdy zapis wątku się nie uda, ten wątek nie dostaje `EventAck`, a jego kolejne zdarzenia na tym połączeniu są pomijane (żeby nie trafiły do bazy w złej kolejności). Pozostałe wątki są zapisywane i potwierdzane. Gateway prosi workera o ponowne połączenie (`Drain`, 10 s), a worker wysyła niepotwierdzone zdarzenia ponownie ze swojego dziennika.
 - **Utracone `turn_finished`.** Dostawca prowadzi jedną turę naraz w wątku. Gdy zaczyna kolejną, a tura w bazie nadal jest `running` (np. po awarii dostawcy), gateway zamyka ją jako `interrupted` (`superseded`). Wcześniej ten stan łamał `turns_one_running` i zatrzymywał cały strumień workera (zdarzenie, które po każdym połączeniu psuło zapis od nowa).

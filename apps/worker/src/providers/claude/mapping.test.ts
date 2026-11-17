@@ -84,7 +84,10 @@ describe("Claude event mapping on recorded turns", () => {
       const mapper = new ClaudeEventMapper("pending");
       const message = { ...ack, ...patch } as SDKMessage;
       expect(startsTurn(message)).toBe(true);
-      expect(mapper.map(message)[0]).toMatchObject({ turnId: "pending", body: { case: "turnFinished" } });
+      expect(mapper.map(message).find((event) => event.body?.case === "turnFinished")).toMatchObject({
+        turnId: "pending",
+        body: { case: "turnFinished" },
+      });
     }
   });
 
@@ -103,9 +106,15 @@ describe("Claude event mapping on recorded turns", () => {
     };
 
     expect(finished.outcome).toBe(TurnOutcome.COMPLETED);
-    expect(finished.usage.outputTokens).toBe(4n);
+    expect(finished.usage.outputTokens).toBe(15n);
     expect(finished.providerTurnRef).toBe(mapper.lastEntry!);
-    expect(events.every((e) => e.rawJson.length > 0 && e.turnId === "turn-1")).toBe(true);
+    expect(
+      events.every(
+        (event) =>
+          event.turnId === "turn-1" &&
+          (event.rawJson.length > 0 || (event.body.case === "usageUpdated" && event.body.value.usage?.scope === 1)),
+      ),
+    ).toBe(true);
   });
 
   test("tools turn: file write, tool search, shell command with output, MCP tool, final message", () => {
@@ -137,7 +146,7 @@ describe("Claude event mapping on recorded turns", () => {
     const { events } = replay(messages);
 
     const observations = events.flatMap((event) =>
-      event.body.case === "usageUpdated" ? [event.body.value.contextUsage] : [],
+      event.body.case === "usageUpdated" && event.body.value.contextUsage ? [event.body.value.contextUsage] : [],
     );
 
     expect(observations.at(-1)).toMatchObject({ usedTokens: 16891n, limitTokens: 1000000n });
@@ -148,10 +157,10 @@ describe("Claude event mapping on recorded turns", () => {
     const mapper = new ClaudeEventMapper("next");
     const assistant = messages.find((message) => message.type === "assistant")!;
     const child = mapper.map({ ...assistant, parent_tool_use_id: "child" });
-    expect(child.some((event) => event.body?.case === "usageUpdated")).toBe(false);
+    expect(child.some((event) => event.body?.case === "usageUpdated" && event.body.value.contextUsage)).toBe(false);
     const result = messages.find((message) => message.type === "result")!;
     const unmapped = mapper.map({ ...result, modelUsage: {} });
-    expect(unmapped.some((event) => event.body?.case === "usageUpdated")).toBe(false);
+    expect(unmapped.some((event) => event.body?.case === "usageUpdated" && event.body.value.contextUsage)).toBe(false);
   });
 
   test("compaction invalidates the previous context until the next main-model report", () => {
@@ -208,7 +217,9 @@ describe("Claude event mapping on recorded turns", () => {
     const { events } = replay(messages);
 
     const last = events
-      .flatMap((event) => (event.body.case === "usageUpdated" ? [event.body.value.contextUsage] : []))
+      .flatMap((event) =>
+        event.body.case === "usageUpdated" && event.body.value.contextUsage ? [event.body.value.contextUsage] : [],
+      )
       .at(-1);
 
     expect(last?.usedTokens).toBe(16027n);
@@ -297,14 +308,16 @@ describe("Claude event mapping on recorded turns", () => {
     const mapper = new ClaudeEventMapper("t");
     mapper.markInterrupted();
 
-    const [finished] = mapper.map({
-      type: "result",
-      subtype: "error_during_execution",
-      is_error: true,
-      errors: ["aborted"],
-      usage: {},
-      total_cost_usd: 0,
-    } as never);
+    const finished = mapper
+      .map({
+        type: "result",
+        subtype: "error_during_execution",
+        is_error: true,
+        errors: ["aborted"],
+        usage: {},
+        total_cost_usd: 0,
+      } as never)
+      .find((event) => event.body?.case === "turnFinished");
 
     expect(finished?.body).toMatchObject({ case: "turnFinished", value: { outcome: TurnOutcome.INTERRUPTED } });
   });

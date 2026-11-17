@@ -8,7 +8,7 @@ import { diagnosticMethodId as methodId } from "@canopy/domain/diagnostics";
 
 export type RegisteredMethod = { id: number; name: string; layer: string; stream: boolean; interactive: boolean };
 
-export const MAX_METHODS = 576;
+export const MAX_METHODS = 640;
 
 /** Stable across additive contracts; descriptor collisions are a startup error, never merged series. */
 export function registered(method: DescMethod, layer = "rpc"): RegisteredMethod {
@@ -48,6 +48,7 @@ export const COMMAND_METHODS = CommandSchema.fields.flatMap((field) =>
 export const LINKED_METHODS = [
   ...ui.GatewayService.methods,
   ...computerLink.DiagnosticsService.methods,
+  ...computerLink.UsageService.methods,
   ...computerLink.ThreadMirrorService.methods,
   ...computerLink.LinkedAgentsService.methods,
   ...computerLink.ConfigSyncService.methods,

@@ -1,5 +1,5 @@
 import { expect, test } from "bun:test";
-import { writeFileSync } from "node:fs";
+import { readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { tempDir } from "@canopy/testing";
 import { codexTextCatalog, codexTextOverrides } from "./generate-text.ts";
@@ -9,6 +9,23 @@ import { codexAppServerLaunch } from "./codex/launch.ts";
 import { resolveProfiles } from "./profiles.ts";
 
 const dir = tempDir("canopy-text-config-");
+
+test("Claude generation reports requested default and explicitly disables inherited fast mode", async () => {
+  const consumed: import("./token-usage.ts").ConsumedUsage[] = [];
+  expect(
+    await generateClaudeText(
+      { model: "fixture", effort: "", prompt: "Say Done", onConsumedUsage: (usage) => consumed.push(usage) },
+      {
+        cwd: dir,
+        pathToClaudeCodeExecutable: join(import.meta.dir, "fixtures/service-tiers.ts"),
+        env: { ...process.env, CLAUDE_CONFIG_DIR: dir, TIER_TRACE: join(dir, "generation-tiers.jsonl") },
+      },
+      AbortSignal.timeout(5000),
+    ),
+  ).toBe("Done");
+  expect(consumed.at(-1)).toMatchObject({ requestedServiceTier: "default", inputTokens: 1n, reportedCostUsd: 0 });
+  expect(readFileSync(join(dir, "generation-tiers.jsonl"), "utf8")).toContain('"fastMode":false');
+});
 
 test("Claude refuses a missing installed CLI instead of using the SDK's optional bundled binary", async () => {
   await expect(
@@ -144,4 +161,81 @@ test.skipIf(!Bun.which("claude"))(
     }
   },
   20_000,
+);
+
+test.skipIf(!Bun.which("codex"))(
+  "Codex generation reports real response usage with cached input and reasoning as subsets",
+  async () => {
+    const output = [
+      {
+        type: "message",
+        id: "answer",
+        role: "assistant",
+        status: "completed",
+        content: [{ type: "output_text", text: "Done", annotations: [] }],
+      },
+    ];
+
+    const server = Bun.serve({
+      hostname: "127.0.0.1",
+      port: 0,
+      fetch: () =>
+        new Response(
+          [
+            { type: "response.output_item.done", output_index: 0, item: output[0] },
+            {
+              type: "response.completed",
+              response: {
+                id: "response",
+                status: "completed",
+                output,
+                usage: {
+                  input_tokens: 11,
+                  output_tokens: 7,
+                  total_tokens: 18,
+                  input_tokens_details: { cached_tokens: 3 },
+                  output_tokens_details: { reasoning_tokens: 2 },
+                },
+              },
+            },
+          ]
+            .map((event) => `data: ${JSON.stringify(event)}\n\n`)
+            .join(""),
+          { headers: { "content-type": "text/event-stream" } },
+        ),
+    });
+
+    const profile = resolveProfiles([
+      { kind: "cliproxyapi", id: "fixture", baseUrl: server.url.toString(), apiKey: "test", providers: ["codex"] },
+    ]).find((entry) => entry.config.id === "fixture")!.resolved!;
+
+    const consumed: import("./token-usage.ts").ConsumedUsage[] = [];
+
+    try {
+      expect(
+        await generateCodexText(
+          { model: "gpt-6.1-sol", effort: "low", prompt: "Say Done", onConsumedUsage: (usage) => consumed.push(usage) },
+          {
+            launch: codexAppServerLaunch([profile], process.env, "codex", undefined, dir),
+            profile,
+            dataDir: dir,
+            clientVersion: "test",
+          },
+          AbortSignal.timeout(10000),
+        ),
+      ).toBe("Done");
+      expect(consumed.at(-1)).toMatchObject({
+        model: "gpt-6.1-sol",
+        requestedServiceTier: "default",
+        inputTokens: 11n,
+        outputTokens: 7n,
+        cachedInputTokens: 3n,
+        reasoningOutputTokens: 2n,
+      });
+      expect(consumed.at(-1)?.reportedCostUsd).toBeUndefined();
+    } finally {
+      server.stop(true);
+    }
+  },
+  15000,
 );

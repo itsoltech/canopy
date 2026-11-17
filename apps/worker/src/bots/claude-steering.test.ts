@@ -120,6 +120,19 @@ test.skipIf(!Bun.which("claude"))(
       expect(
         notices.filter((event) => event.body?.case === "notice" && event.body.value.code === "bot_steer_applied"),
       ).toHaveLength(1);
+
+      const consumed = notices.flatMap((event) =>
+        event.body?.case === "usageUpdated" && event.body.value.usage?.scope ? [event] : [],
+      );
+
+      expect(consumed.length).toBeGreaterThan(0);
+      expect(consumed.every((event) => event.turnId === input.turnId)).toBe(true);
+      const last = consumed.at(-1)?.body;
+      expect(last?.case === "usageUpdated" && last.value.usage).toMatchObject({
+        inputTokens: BigInt(requests.length),
+        requestedServiceTier: "default",
+      });
+      expect(requests.length).toBeGreaterThan(1);
     } finally {
       release.resolve();
       abort.abort();

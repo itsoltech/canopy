@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { untrack } from "svelte";
+  import { untrack, type Snippet } from "svelte";
   import type { ClassValue, HTMLButtonAttributes } from "svelte/elements";
   import { useField } from "./field.ts";
   import Icon from "./Icon.svelte";
@@ -30,6 +30,7 @@
     required?: boolean;
     placeholder?: string;
     inline?: boolean | "muted";
+    leading?: Snippet<[SelectOption]> | undefined;
   };
 
   let {
@@ -41,6 +42,7 @@
     required,
     placeholder = "Choose…",
     inline = false,
+    leading,
     disabled,
     form,
     id: explicitId,
@@ -199,6 +201,7 @@
     ]}
   >
     {#snippet trigger(props)}
+      {#snippet selectedLeading()}{#if selected && leading}{@render leading(selected)}{/if}{/snippet}
       <PickerTrigger
         {...props}
         {...rest}
@@ -218,6 +221,7 @@
         onkeydown={keyboard}
         text={selected?.label ?? placeholder}
         leadingIcon={selected?.icon}
+        leading={selected && leading ? selectedLeading : undefined}
         icon={inline ? "chevron-down" : "chevron-up-down"}
       />
     {/snippet}
@@ -270,7 +274,7 @@
                     {#snippet leading()}<StatusDot tone={option.online ? "emerald" : "neutral"} />{/snippet}
                   </PickerRow>
                 {:else}
-                  {#if option.icon}<Icon name={option.icon} />{/if}
+                  {#if leading}{@render leading(option)}{:else if option.icon}<Icon name={option.icon} />{/if}
                   <div class="min-w-0 flex-1">
                     <TruncatedText text={option.label} />
                     {#if option.description}<p

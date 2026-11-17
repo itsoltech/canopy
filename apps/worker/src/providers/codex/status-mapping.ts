@@ -1,3 +1,4 @@
+import { codexTokens } from "./consumed-usage.ts";
 import type { v2 } from "@canopy/codex-protocol";
 import { ThreadStatus, TurnEndSource, TurnOutcome } from "@canopy/contracts";
 import type { JsonValue } from "@canopy/domain";
@@ -62,11 +63,7 @@ export function threadStatus(status: v2.ThreadStatus): ThreadStatus | undefined 
 }
 
 export function usageOf(usage: v2.TokenUsageBreakdown) {
-  return {
-    inputTokens: BigInt(usage.inputTokens),
-    outputTokens: BigInt(usage.outputTokens + usage.reasoningOutputTokens),
-    cachedInputTokens: BigInt(usage.cachedInputTokens),
-  };
+  return codexTokens(usage);
 }
 
 export function snake(value: string): string {

@@ -63,8 +63,24 @@ async function codex() {
       });
     } else if (method === "turn/start") {
       const turn = { id: crypto.randomUUID(), status: "inProgress", items: [], error: null };
-      send({ id, result: { turn } });
       send({ method: "turn/started", params: { threadId: params["threadId"] ?? "", turn } });
+      send({
+        method: "rawResponse/completed",
+        params: {
+          threadId: params["threadId"] ?? "",
+          turnId: turn.id,
+          responseId: crypto.randomUUID(),
+          usage: {
+            inputTokens: 1,
+            outputTokens: 1,
+            cachedInputTokens: 0,
+            cacheWriteInputTokens: 0,
+            reasoningOutputTokens: 0,
+            totalTokens: 2,
+          },
+          usageMetadata: { amount: "42", metadata: null },
+        },
+      });
 
       // Keep adapter-test turns running; bot probes complete without model inference.
       if (process.env["TIER_BOT_COMPLETE"])
@@ -72,6 +88,9 @@ async function codex() {
           method: "turn/completed",
           params: { threadId: params["threadId"] ?? "", turn: { ...turn, status: "completed" } },
         });
+      // Exercise the runtime admission buffer: usage arrives before the RPC can bind this native turn.
+      await Bun.sleep(10);
+      send({ id, result: { turn } });
     } else send({ id, result: {} });
   }
 }
@@ -179,8 +198,17 @@ async function claude() {
         num_turns: 1,
         result: "Done",
         total_cost_usd: 0,
-        usage: {},
+        usage: { input_tokens: 1, output_tokens: 1 },
         modelUsage: {},
+        model_usage_since_last_result: {
+          fixture: {
+            inputTokens: 1,
+            outputTokens: 1,
+            cacheReadInputTokens: 0,
+            cacheCreationInputTokens: 0,
+            costUSD: 0,
+          },
+        },
         permission_denials: [],
         stop_reason: "end_turn",
       });

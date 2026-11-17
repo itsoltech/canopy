@@ -361,6 +361,7 @@ export class WorkerHost {
         ...(output.providerAccounts && { providerAccounts: output.providerAccounts }),
         ...(output.mentionCatalog && { mentionCatalog: output.mentionCatalog }),
         ...(output.fileSearch && { fileSearch: output.fileSearch }),
+        ...(output.consumedUsages && { consumedUsages: output.consumedUsages }),
         ...(output.generatedText !== undefined && { generatedText: output.generatedText }),
         ...(output.gitRefs && { gitRefs: output.gitRefs }),
         ...(output.threadGitStatus && { threadGitStatus: output.threadGitStatus }),
@@ -407,6 +408,7 @@ export class WorkerHost {
       const result: CommandResultInit = {
         commandId: command.commandId,
         ok: false,
+        consumedUsages: failure.consumedUsages,
         errorCode: failure.code,
         errorMessage: failure.message,
       };

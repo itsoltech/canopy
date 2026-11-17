@@ -11,6 +11,7 @@ import {
   REMOTE_THREAD_PANEL,
 } from "@canopy/domain/computers";
 import { AsyncChannel } from "@canopy/transport";
+import { USAGE_STATS } from "../../apps/gateway/src/computers/capabilities.ts";
 import { ComputerStore } from "../../apps/gateway/src/computers/store.ts";
 import { startComputerLinks } from "../../apps/gateway/src/computers/start.ts";
 import { linkClient } from "../../apps/gateway/src/computers/transport.ts";
@@ -120,6 +121,7 @@ describe.skipIf(!dockerAvailable)("production desktop capability compatibility",
     expect(paired.hello!.capabilities).toHaveLength(32);
     expect(paired.hello!.additionalCapabilities).toContain(REMOTE_THREAD_PANEL);
     expect(paired.hello!.additionalCapabilities).toContain(REMOTE_GIT_STATUS);
+    expect(paired.hello!.additionalCapabilities).toContain(USAGE_STATS);
     expect(paired.hello!.additionalCapabilities).toContain("thread_creation_progress_v1");
     const frames = new AsyncChannel<link.LinkFrame>();
     frames.push(create(link.LinkFrameSchema, { body: { case: "hello", value: hello } }));
@@ -177,6 +179,7 @@ describe.skipIf(!dockerAvailable)("production desktop capability compatibility",
       expect(peer.capabilities).toContain(REMOTE_APP_UPDATE);
       expect(peer.capabilities).not.toContain(REMOTE_THREAD_PANEL);
       expect(peer.capabilities).not.toContain(REMOTE_GIT_STATUS);
+      expect(peer.capabilities).not.toContain(USAGE_STATS);
       expect(peer.capabilities).not.toContain("thread_creation_progress_v1");
     }
   }, 60_000);

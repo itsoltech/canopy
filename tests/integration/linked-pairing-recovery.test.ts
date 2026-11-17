@@ -233,6 +233,62 @@ describe.skipIf(!dockerAvailable)("pairing recovery over gateway TLS links", () 
     await reconnect();
   }, 20_000);
 
+  test("unlink during a pinned handshake keeps revocation deliverable past an in-flight usage request", async () => {
+    const pinned = await peer();
+    await stopB();
+    const received: string[] = [];
+    const output = new AsyncChannel<link.LinkFrame>();
+    replacement = await listenLink({
+      host: "127.0.0.1",
+      port,
+      identity: lb.identity,
+      routes: (router) =>
+        router.service(link.ComputerLinkService, {
+          connect: async function* (request) {
+            const reader = (async () => {
+              for await (const frame of request) {
+                if (frame.body.case === "hello") {
+                  // Unlink commits after our hello left, before the welcome is handled.
+                  // The other computer can already have started its automatic usage pull.
+                  await sa.remove(pinned.node_id, true);
+                  output.push(
+                    create(link.LinkFrameSchema, {
+                      body: { case: "welcome", value: { hello: lb.hello(), protocol: 1 } },
+                    }),
+                  );
+                  output.push(
+                    create(link.LinkFrameSchema, {
+                      body: {
+                        case: "remoteRequest",
+                        value: { callId: 1n, method: "GetUsageBuckets" },
+                      },
+                    }),
+                  );
+                } else if (frame.body.case === "unlinked") {
+                  received.push(frame.body.case);
+
+                  // Both queued frames must keep the authenticated control channel usable.
+                  if (received.length === 2) output.close();
+                }
+              }
+            })();
+
+            try {
+              yield* output;
+            } finally {
+              output.close();
+              void reader.catch(() => {});
+            }
+          },
+        }),
+    });
+
+    await computersDial(la, pinned, new AbortController());
+    expect(received).toEqual(["unlinked", "unlinked"]);
+    expect(await sa.peer(pinned.node_id)).toBeUndefined();
+    expect(await new Routes(sa).list(pinned.node_id)).toEqual([]);
+  }, 10_000);
+
   test("both gateway restarts reuse the encrypted identity, certificate, routes and trust", async () => {
     const identityA = await sa.identity();
     const identityB = await sb.identity();

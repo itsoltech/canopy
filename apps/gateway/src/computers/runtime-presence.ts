@@ -1,5 +1,5 @@
 import { create } from "@bufbuild/protobuf";
-import { AGENT_PREVIEW_CLIENT_ACK, DIAGNOSTICS_LOGS } from "./capabilities.ts";
+import { AGENT_PREVIEW_CLIENT_ACK, DIAGNOSTICS_LOGS, USAGE_STATS } from "./capabilities.ts";
 
 import { Code, ConnectError } from "@connectrpc/connect";
 
@@ -137,6 +137,7 @@ export const computersPresenceMethods: ComputersPresenceMethods = {
         // Batched, resumable workspace copies (docs/workspace-copy.md); peers with the 32-entry guard never see it.
         ...(this.options.serve ? [WORKSPACE_COPY_CAPABILITY] : []),
         ...(this.options.serve ? ["thread_creation_progress_v1"] : []),
+        USAGE_STATS,
       ],
     });
   },

@@ -12,6 +12,7 @@
     label,
     size = "md",
     opacity = 1,
+    color,
     class: className,
   }: {
     provider: ProviderKey;
@@ -19,6 +20,7 @@
     size?: "sm" | "md";
     class?: ClassValue;
     opacity?: number;
+    color?: string | undefined;
   } = $props();
 
   // Shared CC0 / MIT provider marks, also rendered by react-native-svg.
@@ -33,8 +35,8 @@
     "fill-(--provider-light) dark:fill-(--provider-dark)",
     className,
   ]}
-  style:--provider-light={provider === "CLAUDE" ? providerColors.CLAUDE : providerColors.light}
-  style:--provider-dark={provider === "CLAUDE" ? providerColors.CLAUDE : providerColors.dark}
+  style:--provider-light={color ?? (provider === "CLAUDE" ? providerColors.CLAUDE : providerColors.light)}
+  style:--provider-dark={color ?? (provider === "CLAUDE" ? providerColors.CLAUDE : providerColors.dark)}
   {opacity}
   aria-hidden={label ? undefined : "true"}
   role={label ? "img" : undefined}

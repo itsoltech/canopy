@@ -1,8 +1,14 @@
 # Adapter Grok
 
-Status (2026-11-17): runtime ACP i lokalny MCP automatyzacji są zaimplementowane;
-zweryfikowano brak niezależnych poziomów szybkości w obsługiwanym kontrakcie CLI/ACP;
+Status (2026-11-17): runtime ACP, lokalny MCP automatyzacji i rozliczenia tokenów
+z metadanych zakończonego promptu są zaimplementowane; zweryfikowano brak niezależnych
+poziomów szybkości w obsługiwanym kontrakcie CLI/ACP;
 dostępność kanałów według [release.md](release.md).
+
+Snapshoty zużycia zaakceptowanych promptów wątków, botów i `GenerateText` mają
+`requestedServiceTier: default`, bo obsługiwany kontrakt ACP nie udostępnia
+niezależnej szybkości. Pole opisuje zaakceptowany wybór żądania, nie rzeczywisty
+poziom rozliczeń dostawcy; odzyskiwanie nie wnioskuje go z późniejszych ustawień.
 
 Opis protokołu dotyczy CLI `grok 1.0.70 (f50904eaee6c)`.
 
@@ -105,13 +111,38 @@ Nie ma sprawdzonego mid-turn steer w bazowym ACP: worker odrzuca go `STEER_REJEC
 | Pozostałe tool calls | `toolCall`: nazwa, input JSON, output, błąd; patche zachowują poprzednie pola |
 | `plan` | `plan`, statusy kroków |
 | MCP Canopy | `agentBusCall` z wynikiem gatewaya; wrapper `use_tool` zostaje wyłącznie w raw transcript |
-| `usage_update` | rozmiar context window i koszt USD, gdy zgłoszone; `used` nie jest licznikiem input/output tokens |
-| wynik `session/prompt` | `turnFinished`: completed, failed (refusal/limit), interrupted (cancel) |
+| `usage_update` | bieżący kontekst `used`/`size`; sesyjny koszt USD służy wyłącznie do różnicowania przy znanej bazie |
+| wynik `session/prompt` | `_meta.usage` → per-modelowe zużycie promptu; `turnFinished`: completed, failed (refusal/limit), interrupted (cancel) |
 | crash/timeout | failed, przerwanie użytkownika → interrupted |
 
 CLI 1.0.70 raportuje `loadSession`, obraz i embedded context, MCP HTTP/SSE oraz rozszerzenia x.ai. `session/new` może nie zwrócić listy `modes`, mimo obsługi `session/set_mode` i `session/set_model`. Nie traktujemy braku listy trybów jako zgody na zgadywanie identyfikatorów ani jako dowodu wymuszania polityki. Metody są dostępne w SDK, a adapter uprawnienia realizuje przez własne callbacki i konfigurację procesu. Narzędzia prawdziwego CLI mogą nie mieć `kind`; komendy mogą mieć `title=run_terminal_command`, a MCP może być wykonywane przez `search_tool` / `use_tool`.
 
 Handshake ogłosił metodę auth `grok.com` („Sign in with Grok”), `image=true`, `audio=false`, `embeddedContext=true` i rozszerzenia sesji list/resume/close. SDK udostępnia bazowe `session/load`; nie opiera trwałości na nieprzenośnych rozszerzeniach resume. Klient nie ogłasza obsługi fs/terminal w adapterze workera: CLI wykonuje własne narzędzia, a SDK potrafi przekazać te callbacki aplikacji, która je implementuje. Alternatywny headless tryb CLI (`grok -p`, formaty `plain`, `json`, `streaming-json`, `streaming-messages-json`, flaga `--include-partial-messages`) nie jest transportem adaptera — interaktywne zgody i MCP idą przez ACP.
+
+### Zużycie i koszt
+
+CLI 1.0.70 zwraca w zakończeniu `session/prompt` rozszerzenie `_meta.usage`:
+`inputTokens`, `outputTokens`, `cachedReadTokens`, `cacheCreationTokens`,
+`reasoningTokens` oraz mapę `modelUsage`. Są to liczniki pojedynczego promptu,
+bez tokenów odziedziczonej sesji. Potwierdza to test prawdziwego CLI z lokalną
+atrapą endpointu: dwa kolejne prompty, także po `session/load`, raportują
+oddzielne zużycie. Bez mapy modeli adapter używa `_meta.modelId`.
+
+Adapter publikuje te dane jako `usageUpdated` ze `scope=TURN` osobno dla każdego
+modelu; input obejmuje cache read/write, a reasoning jest podzbiorem outputu.
+Zakończenie błędne lub `cancelled` także zachowuje zgłoszone metadane.
+Ukryte boty i `GenerateText` korzystają z tego samego parsera. Z samego tekstu
+streamingu i `usage_update.used`/`size` nie wyliczamy przepływu tokenów.
+Zużycie pojawia się dopiero z metadanymi promptu; awaria bez zakończenia może
+pozostawić nieznane liczniki. Prawdziwy proxy smoke nie emitował tokenów live.
+
+`usage_update.cost` jest sesyjną kwotą; adapter przyjmuje wyłącznie poprawne,
+nieujemne USD i odejmuje bazę z początku promptu. Nowa sesja zaczyna od zera;
+pierwszy prompt po wznowieniu bez znanej bazy nie dostaje odziedziczonego kosztu.
+Kwota trafia do opcjonalnego `reportedCostUsd` tylko przy jednoznacznym modelu
+z metadanych zakończenia. Przy wielu modelach bez kosztów per model pozostaje
+nieznana; nie rozdzielamy jej proporcją tokenów. Brak kwoty i znane zero są
+odrębne. Nie stosujemy cennika ani estymacji kosztu na podstawie tokenów.
 
 ## Uprawnienia i narzędzia platformy
 

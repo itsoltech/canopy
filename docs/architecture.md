@@ -1,6 +1,7 @@
 # Canopy — architektura
 
 Status: opis zaimplementowanego kodu (2026-11-17): gateway, workery, web BFF,
+trwałe statystyki zużycia tokenów i zgłoszonych kosztów,
 Canopy Desktop (tryb lokalny, zdalny, sesja dostępu do BFF i połączone komputery),
 interaktywny i automatyczny mini podgląd automatyzacji w wątku oraz aplikacja mobilna
 z ręcznym Preview Browser/Desktop/Device oraz kanały botów Slack przez Socket Mode
@@ -23,6 +24,7 @@ Powiązane dokumenty:
 - [worker-config.md](worker-config.md) — zdalna konfiguracja workerów (lokalnie tylko połączenie z gateway)
 - [updates.md](updates.md) — niezależny UpdateService, zgodność protokołów, mirror i rollback binarek
 - [provider-cli.md](provider-cli.md) — CLI dostawców na workerach: wykrywanie, najnowsze wersje, instalacja i aktualizacja na kliknięcie (nigdy dołączane do Canopy)
+- [usage.md](usage.md) — agregaty tokenów i zgłoszonych kosztów, niezależne od retencji wątków i synchronizowane między połączonymi komputerami.
 - [automation-tools.md](automation-tools.md) — lokalne `agent-browser`, `agent-desktop` i `agent-device`: gotowość, granty, bridge MCP i podgląd
 - [codex-adapter.md](codex-adapter.md) — adapter Codex app-server: protokół, testy na żywo, izolacja `CODEX_HOME`
 - [grok-adapter.md](grok-adapter.md) — własny SDK ACP stdio Grok CLI, native/CLIProxyAPI i MCP narzędzi platformy
