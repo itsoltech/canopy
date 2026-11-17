@@ -21,6 +21,8 @@ mają szerokość 40 dp, zgodną z web/desktop. Preview obsługuje Browser/Deskt
 przez natywny transport, z wyborem celu i bezpośrednim sterowaniem.
 Szczegóły wątku pokazują stan connectorów w bieżącej turze oraz nadpisanie
 Auto-archive after merge.
+Settings → Projects pokazuje zwartą listę projektów i osobne szczegóły; dodawanie
+prowadzi przez workera, źródło i katalog z wirtualizowaną listą oraz stałą stopką.
 Dostępność w wydaniach zależy od kanału.
 
 Natywna aplikacja Expo/React Native działa na iOS i Androidzie. Obsługuje wątki,
@@ -961,7 +963,24 @@ trasowania ani właściciela. Wybór workera pokazuje jeden wiersz na worker i g
 komputerów; dla scratch uwzględnia też wyłączone workery bez katalogu scratch.
 Osobne projekty o tej samej nazwie mają w szczegółach komputer i workspace.
 Settings → Projects scala prezentację, lecz edytuje lokalny rekord i jego ustawienia;
-zdalne workspace'y pozostają tylko do odczytu. Nazwy komputerów opisują również
+zdalne workspace'y pozostają tylko do odczytu. Lista używa zwartych wierszy z sygnetem,
+nazwą, liczbą workspace'ów, komputerami/workerami i skróconymi ścieżkami. Dotknięcie
+wiersza otwiera osobny arkusz ze zmianą nazwy, workspace'ami i domyślnymi ustawieniami
+nowych wątków, zamiast rozwijać te formularze przy każdym projekcie.
+
+Add project prowadzi kolejno przez wybór workera, źródła (Existing directory,
+New project, GitHub repository albo Git URL) i katalogu. Jeden dostępny worker jest
+wybrany od razu; Back pozwala go zmienić. Niedostępne workery oraz źródła wymagające
+aktualizacji mają wyjaśnienie. Existing directory otwiera bezpośrednio przeglądarkę
+z polem ścieżki, przejściem do rodzica i wirtualizowaną listą katalogów; ikona,
+nazwa, oznaczenie Git i chevron mieszczą się w jednym wierszu o celu co najmniej
+48 dp. Wybrana ścieżka i Add project są w stałej stopce. Tworzenie i klonowanie
+mają osobny formularz ze stałą akcją oraz dotychczasowym postępem i anulowaniem
+klonowania. Wspólny DirectoryBrowser w formularzach workspace'u jest zwartym polem
+otwierającym ten sam picker w osobnym arkuszu, bez zagnieżdżania list w scrollu.
+Ścieżki i nawigacja do rodzica respektują separatory workera, także korzenie dysków
+Windows. Zmiana dotyczy JS i istniejących komponentów; nie zmienia runtime'u
+natywnego ani wymagań fingerprintu. Nazwy komputerów opisują również
 workery w ustawieniach. Sekcje pickerów mają stabilne klucze niezależne od nazw.
 
 Pierwszy odczyt danych pokazuje szkielety z `src/ui/Skeleton.tsx`, zgodne z web:

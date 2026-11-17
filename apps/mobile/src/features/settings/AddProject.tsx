@@ -1,123 +1,122 @@
 import { useState } from "react";
+import { ScrollView, Text, View } from "react-native";
 import { create } from "@bufbuild/protobuf";
 import { ui } from "@canopy/contracts";
 import { useOverview } from "../../state/overview";
-import { Button, Field, Notice } from "../../ui/components";
-import { SettingChoice } from "./SettingsGroup";
-import { DirectoryBrowser } from "./DirectoryBrowser";
+import { IconButton, Notice } from "../../ui/components";
+import { useColors, useTypography } from "../../ui/theme";
 import { useWorkerPresence } from "../computers/presence";
 import { useWorkerOptions } from "../computers/worker-options";
 import { useAddProject } from "./use-add-project";
-import { CloneProgress } from "./CloneProgress";
+import { DirectoryPicker } from "./DirectoryPicker";
+import { NewProjectFields } from "./NewProjectFields";
+import { ProjectChoiceRow, ProjectSourceChoices, projectSources, type ProjectSource } from "./ProjectSourceChoices";
 
+/** The same worker → source → destination flow as the desktop project picker. */
 export function AddProject({ onSaved, onBusy }: { onSaved: () => void; onBusy: (busy: boolean) => void }) {
   const { workers } = useOverview();
   const presence = useWorkerPresence();
-  const workerOptions = useWorkerOptions();
-  const [workerId, setWorker] = useState(workers[0]?.id ?? "");
-  const [kind, setKind] = useState("directory");
-  const [path, setPath] = useState("");
-  const [name, setName] = useState("");
-  const [url, setUrl] = useState("");
-  const worker = workers.find((w) => w.id === workerId);
+  const options = useWorkerOptions()(workers.filter((worker) => !worker.revokedAt));
+  const available = options.filter((option) => !option.disabled);
+  const [workerId, setWorker] = useState(available.length === 1 ? available[0]!.value : "");
+  const [kind, setKind] = useState<ProjectSource>();
   const action = useAddProject(onSaved, onBusy);
-  const { busy, error } = action;
-  const cloning = kind === "clone" || kind === "github";
+  const worker = workers.find((w) => w.id === workerId);
+  const online = presence(worker).online;
+  const c = useColors();
+  const type = useTypography();
 
-  const repository = url
-    .trim()
-    .replace(/^https:\/\/github\.com\//i, "")
-    .replace(/\.git$/i, "");
+  function back() {
+    if (action.busy) return;
+    action.reset();
 
-  const cloneUrl =
-    kind === "github" && /^[\w.-]+\/[\w.-]+$/.test(repository) ? `https://github.com/${repository}.git` : url.trim();
+    if (kind) setKind(undefined);
+    else setWorker("");
+  }
 
   return (
-    <>
-      <SettingChoice
-        title="Worker"
-        value={workerId}
-        onChange={(value) => {
-          setWorker(value);
-          action.reset();
+    <View style={{ flex: 1, minHeight: 0 }}>
+      <View
+        style={{
+          flexDirection: "row",
+          alignItems: "center",
+          gap: 8,
+          paddingHorizontal: 12,
+          paddingVertical: 8,
+          borderBottomWidth: 1,
+          borderColor: c.line,
         }}
-        options={workerOptions(workers).map((option) => ({
-          ...option,
-          disabled: busy || option.disabled,
-        }))}
-      />
-      <SettingChoice
-        title="Source"
-        value={kind}
-        onChange={(value) => {
-          setKind(value);
-          action.reset();
-        }}
-        options={[
-          { value: "directory", label: "Existing directory", disabled: busy },
-          { value: "init", label: "New project", disabled: busy || !worker?.projectSources },
-          { value: "clone", label: "Git URL", disabled: busy || !worker?.projectSources },
-          { value: "github", label: "GitHub repository", disabled: busy || !worker?.projectSources },
-        ]}
-      />
-      {cloning && (
-        <>
-          <Field
-            label={kind === "github" ? "GitHub repository" : "Git URL"}
-            value={url}
-            onChangeText={setUrl}
-            editable={!busy}
-            autoCapitalize="none"
-            autoCorrect={false}
+      >
+        {!!workerId && (
+          <IconButton
+            icon="chevron-left"
+            label={kind ? "Choose source" : "Choose worker"}
+            disabled={action.busy}
+            onPress={back}
           />
-          <Notice>
-            {worker?.name || "This computer"} clones with its own Git sign-in. Private repositories need access there.
-          </Notice>
-        </>
+        )}
+        <View style={{ flex: 1, minWidth: 0, gap: 2, paddingHorizontal: workerId ? 0 : 8 }}>
+          <Text style={[type.chrome, { color: c.text }]}>
+            {kind
+              ? projectSources.find((source) => source.value === kind)?.title
+              : workerId
+                ? "Choose source"
+                : "Choose worker"}
+          </Text>
+          {!!worker && (
+            <Text numberOfLines={1} style={[type.meta, { color: c.muted }]}>
+              {worker.name}
+            </Text>
+          )}
+        </View>
+      </View>
+      {!!kind && !online && (
+        <View style={{ paddingHorizontal: 20, paddingVertical: 12 }}>
+          <Notice>{presence(worker).reason || "This worker is offline. Start it and try again."}</Notice>
+        </View>
       )}
-      {kind !== "directory" && <Field label="Directory name" value={name} onChangeText={setName} editable={!busy} />}
-      {!busy && workerId && presence(worker).online && (
-        <DirectoryBrowser workerId={workerId} value={path} onChange={setPath} />
-      )}
-      {cloning && action.attempted && (
-        <CloneProgress
-          capable={worker?.cloneProgress ?? false}
-          progress={action.progress}
-          busy={busy}
-          failed={!!error}
-          onCancel={worker?.cloneProgress ? action.cancel : undefined}
+      {!workerId || !kind ? (
+        <ScrollView keyboardShouldPersistTaps="handled" contentContainerStyle={{ padding: 8, gap: 4 }}>
+          {!workerId ? (
+            options.map((option) => (
+              <ProjectChoiceRow
+                key={option.value}
+                title={[option.label, option.suffix].filter(Boolean).join(" · ")}
+                description={option.description || (option.online ? "Online" : "Offline")}
+                icon="computer-desktop"
+                disabled={option.disabled}
+                onPress={() => setWorker(option.value)}
+              />
+            ))
+          ) : (
+            <ProjectSourceChoices capable={worker?.projectSources ?? false} onChoose={setKind} />
+          )}
+          {!options.length && (
+            <View style={{ padding: 12 }}>
+              <Notice>No workers available. Add a worker in Settings → Workers.</Notice>
+            </View>
+          )}
+        </ScrollView>
+      ) : kind === "directory" ? (
+        <DirectoryPicker
+          key={workerId}
+          workerId={workerId}
+          actionLabel={action.error ? "Retry" : "Add project"}
+          busy={action.busy}
+          disabled={!online}
+          notice={action.error ? <Notice error>{action.error}</Notice> : undefined}
+          onChoose={(path) =>
+            void action.add(
+              create(ui.AddProjectRequestSchema, { workerId, source: { case: "directoryPath", value: path } }),
+              false,
+            )
+          }
         />
+      ) : (
+        worker && (
+          <NewProjectFields key={`${workerId}:${kind}`} worker={worker} kind={kind} action={action} online={online} />
+        )
       )}
-      {!!error && <Notice error>{error}</Notice>}
-      <Button
-        variant="primary"
-        title={
-          error ? "Retry" : kind === "directory" ? "Add project" : kind === "init" ? "Create project" : "Clone project"
-        }
-        busy={busy}
-        disabled={
-          !workerId ||
-          !presence(worker).online ||
-          !path ||
-          (kind !== "directory" && (!name.trim() || !worker?.projectSources)) ||
-          (kind === "github" && !/^[\w.-]+\/[\w.-]+$/.test(repository)) ||
-          (kind === "clone" && !/^(?:[\w.-]+@[\w.-]+:\S+|(?:https?|ssh|git|file):\/\/\S+)$/i.test(cloneUrl))
-        }
-        onPress={() =>
-          void action.add(
-            create(ui.AddProjectRequestSchema, {
-              workerId,
-              source:
-                kind === "directory"
-                  ? { case: "directoryPath", value: path }
-                  : kind === "init"
-                    ? { case: "init", value: { parentPath: path, name } }
-                    : { case: "clone", value: { parentPath: path, name, url: cloneUrl } },
-            }),
-            worker?.cloneProgress ?? false,
-          )
-        }
-      />
-    </>
+    </View>
   );
 }
