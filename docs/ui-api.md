@@ -1,6 +1,8 @@
 # API dla UI i architektura frontendu
 
 Status (2026-11-17): Claude zachowuje 330 s dla interakcji mimo 15-minutowego limitu MCP dla publikacji obrazów;
+Preview web/desktop używa potwierdzeń klienta po narysowaniu klatki i zachowuje
+subskrypcję przy odświeżaniu metadanych celu oraz naprawie kursora historii;
 propozycje odpowiedzi pomijają zużyte i wysterowane wpisy kolejki;
 porzucone notatki platformy nie udają oczekującego wejścia i nie blokują późniejszych propozycji;
 watch odzyskuje stan po powtarzającym się nieokreślonym błędzie gatewaya;
@@ -1039,6 +1041,14 @@ opisuje [automation-tools.md](automation-tools.md#domyślne-ustawienia-sesji).
 wyłącznie narzędzie i cel. Gateway wyprowadza sesję i worker z własnego wątku,
 sprawdza grant i `agent_preview_v1`. `SendAgentPreviewInput` wiąże ograniczoną
 partię wejścia z tym samym `thread_id` i wydanym `preview_id`.
+Addytywne `client_ack=true` włącza potwierdzanie klatek przez klienta:
+`AckAgentPreview(thread_id, preview_id, frame_id)` potwierdza wyłącznie klatkę
+przekazaną przez tę subskrypcję, po sprawdzeniu właściciela, aktualnego grantu
+i tego samego żywego łącza workera. Web/desktop wysyła ACK po narysowaniu obrazu,
+zamiast pozwalać BFF odbierać i kolejno buforować następne klatki. Domyślne
+`false` zachowuje dotychczasowy odbiór mobile i starszych klientów.
+Jeśli cel Desktop/Device zmieni się przed dekodowaniem obrazu, klient potwierdza
+odrzucenie starej klatki, aby nie blokowała pierwszej klatki nowego celu.
 Device może otworzyć katalog przed Ready po sprawdzeniu instalacji dokładnej
 wersji `0.21.37`, grantu i braku trwającej instalacji; Browser/Desktop oraz
 wywołania modelu/MCP/`RunAgentTool` nadal wymagają Ready.
@@ -1054,6 +1064,10 @@ zamyka watch przez RPC aż do workera. Klatki i wejście nie przechodzą przez
 `WatchThread` ani historię, a klient nie otrzymuje adresu lub portu strumienia
 workera. Granice ACK, dzierżawy i rozmiarów:
 [protocol.md](protocol.md#interaktywny-podgląd-wątku).
+`POST /api/threads/[id]/preview/ack` przekazuje potwierdzenie narysowania klatki.
+Połączony dom musi ogłaszać `agent_preview_client_ack_v1`; brak capability
+odrzuca nowy tryb przed otwarciem watcha. Sam worker nie wymaga aktualizacji
+protokołu, ponieważ gateway używa dotychczasowego `AgentPreviewAck`.
 
 Screenshot zwrócony modelowi przez MCP ma osobny limit mostka 6 MiB i jest
 zapisywany w transkrypcie providera oraz `PreviewStore`; końcową trwałą galerię

@@ -8,7 +8,7 @@ import {
   type RunAgentTool,
 } from "@canopy/contracts";
 import { PreviewInputQueue } from "./preview-input.ts";
-import { sendAgentPreviewInput, watchAgentPreview } from "./preview-client.ts";
+import { acknowledgePreviewFrame, sendAgentPreviewInput, watchAgentPreview } from "./preview-client.ts";
 
 /** One visible preview only. Streams, frames and pending input are discarded together when its scope changes. */
 export class PreviewSession {
@@ -25,6 +25,8 @@ export class PreviewSession {
   #queue: PreviewInputQueue | undefined;
   #stop: (() => void) | undefined;
   #noticeTimer: ReturnType<typeof setTimeout> | undefined;
+  #acknowledge: ((frame: AgentPreviewEvent) => void) | undefined;
+  #fail: (() => void) | undefined;
 
   #setNotice(detail: string): void {
     clearTimeout(this.#noticeTimer);
@@ -41,6 +43,42 @@ export class PreviewSession {
     if (this.state === "ready" || this.state === "frame") this.#queue?.push(input);
   }
 
+  painted(frame: AgentPreviewEvent): void {
+    this.#acknowledge?.(frame);
+  }
+
+  frameError(frame: AgentPreviewEvent): void {
+    if (frame.previewId === this.previewId && frame.frameId === this.frame?.frameId) this.#fail?.();
+  }
+
+  #receive(event: AgentPreviewEvent, tool: AgentTool): void {
+    this.previewId = event.previewId;
+    this.state = event.state;
+    this.detail = event.detail;
+
+    if (event.state === "ready" || event.state === "frame") {
+      if (
+        event.state === "ready" &&
+        tool !== AgentTool.BROWSER &&
+        (!event.targetId || this.targetId !== event.targetId)
+      ) {
+        // A target can disappear before its in-flight image decodes. Consume that obsolete
+        // frame too, otherwise the worker cannot send the first frame of the replacement target.
+        if (this.frame) this.#acknowledge?.(this.frame);
+        this.frame = undefined;
+      }
+
+      if (event.detail) this.#setNotice(event.detail);
+      this.url = event.url;
+      this.title = event.title;
+      this.mode = event.mode;
+      this.targets = event.targets;
+      this.targetId = event.targetId;
+    }
+
+    if (event.data.length) this.frame = event;
+  }
+
   connect(threadId: string, scope: RunAgentTool, maxFps = 15): () => void {
     this.#stop?.();
     const controller = new AbortController();
@@ -55,6 +93,7 @@ export class PreviewSession {
     this.targets = [];
     this.frame = undefined;
     let stopped = false;
+    let acknowledged = 0n;
 
     const release = () => {
       if (!this.previewId) return;
@@ -91,34 +130,23 @@ export class PreviewSession {
     );
 
     this.#queue = queue;
+    this.#fail = fail;
+    this.#acknowledge = (frame) => {
+      if (stopped || controller.signal.aborted || frame.previewId !== this.previewId || frame.frameId <= acknowledged)
+        return;
+      acknowledged = frame.frameId;
+      void acknowledgePreviewFrame(threadId, frame, controller.signal).catch(() => {
+        if (!controller.signal.aborted) fail();
+      });
+    };
 
     void watchAgentPreview(
       threadId,
       scope,
       maxFps,
       (event) => {
-        if (stopped) return;
-        this.previewId = event.previewId;
-        this.state = event.state;
-        this.detail = event.detail;
-
-        if (event.state === "ready" || event.state === "frame") {
-          if (
-            event.state === "ready" &&
-            scope.tool !== AgentTool.BROWSER &&
-            (!event.targetId || this.targetId !== event.targetId)
-          )
-            this.frame = undefined;
-
-          if (event.detail) this.#setNotice(event.detail);
-          this.url = event.url;
-          this.title = event.title;
-          this.mode = event.mode;
-          this.targets = event.targets;
-          this.targetId = event.targetId;
-        }
-
-        if (event.data.length) this.frame = event;
+        if (stopped || controller.signal.aborted) return;
+        this.#receive(event, scope.tool);
 
         if (event.state === "closed" || event.state === "error")
           fail(event.detail || "The preview closed. Retry to reconnect.");
@@ -146,6 +174,9 @@ export class PreviewSession {
       if (this.#queue === queue) this.#queue = undefined;
 
       if (this.#stop === stop) this.#stop = undefined;
+
+      this.#acknowledge = undefined;
+      this.#fail = undefined;
     };
 
     this.#stop = stop;

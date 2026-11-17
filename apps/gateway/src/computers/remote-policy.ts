@@ -263,6 +263,7 @@ export const SERVED = new Set([
   "RunAgentTool",
   "SetAgentToolEnabled",
   "WatchAgentPreview",
+  "AckAgentPreview",
   "SendAgentPreviewInput",
   "ListSchedules",
   "CreateSchedule",

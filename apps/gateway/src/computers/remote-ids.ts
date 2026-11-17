@@ -33,7 +33,7 @@ export function mapIds(
   // Preview and OS target identifiers are opaque live-session selectors, never Canopy entities.
   if (["canopy.worker.v1.AgentPreviewEvent", "canopy.worker.v1.AgentPreviewTarget"].includes(desc.typeName)) return;
 
-  if (desc.typeName === "canopy.ui.v1.SendAgentPreviewInputRequest") {
+  if (["canopy.ui.v1.SendAgentPreviewInputRequest", "canopy.ui.v1.AckAgentPreviewRequest"].includes(desc.typeName)) {
     const field = desc.field["threadId"]!;
     record.set(field, map(String(record.get(field)), "thread_id"));
 

@@ -1,5 +1,5 @@
 import { create } from "@bufbuild/protobuf";
-import { DIAGNOSTICS_LOGS } from "./capabilities.ts";
+import { AGENT_PREVIEW_CLIENT_ACK, DIAGNOSTICS_LOGS } from "./capabilities.ts";
 
 import { Code, ConnectError } from "@connectrpc/connect";
 
@@ -130,7 +130,7 @@ export const computersPresenceMethods: ComputersPresenceMethods = {
         ...(this.options.serve
           ? [REMOTE_THREAD_PANEL, REMOTE_BRANCH_STASH, REMOTE_WORKSPACE_BRANCH_SWITCH, REMOTE_GIT_STATUS]
           : []),
-        ...(this.options.serve ? ["thread_files_watch_v1"] : []),
+        ...(this.options.serve ? ["thread_files_watch_v1", AGENT_PREVIEW_CLIENT_ACK] : []),
         ...(this.options.core?.diagnostics.collector.enabled ? ["diagnostics_v1"] : []),
         ...(this.options.core?.diagnostics.logs.enabled ? [DIAGNOSTICS_LOGS] : []),
         ...(this.options.core?.diagnostics.collector.enabled ? ["diagnostics_trace_v1"] : []),

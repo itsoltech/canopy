@@ -6,7 +6,8 @@
   import IconButton from "#lib/shared/ui/IconButton.svelte";
   import Spinner from "#lib/shared/ui/Spinner.svelte";
   import TruncatedText from "#lib/shared/ui/TruncatedText.svelte";
-  import { previewScope } from "./preview-client.ts";
+  import { previewScope, previewScopeKey } from "./preview-client.ts";
+  import { paintPreviewFrame } from "./preview-frame.ts";
   import { isPreviewReady } from "./preview-readiness.ts";
   import { PreviewSession } from "./preview-session.svelte.ts";
 
@@ -43,7 +44,7 @@
   let foreground = $state(false);
   let visible = $state(false);
   let connected = $state(false);
-  let frameUrl = $state("");
+  let canvas = $state<HTMLCanvasElement>();
   let retry = $state(0);
   let stopWatch: (() => void) | undefined;
   let watchedScope = "";
@@ -55,6 +56,7 @@
 
   const caption = $derived(target?.label || session.title);
   const workerId = $derived(worker?.id ?? "");
+  const scopeKey = $derived(previewScopeKey(threadId, workerId, tool, target));
   const item = $derived(worker?.agentTools.find((entry) => entry.tool?.tool === tool));
   const ready = $derived(isPreviewReady(item?.tool));
   const installing = $derived(item?.tool?.install?.state === "running");
@@ -116,14 +118,12 @@
   });
 
   $effect(() => {
-    const id = threadId;
-    const scope = previewScope(tool, target);
-    void workerId;
+    const key = scopeKey;
     void retry;
 
     if (!watching) return;
-    watchedScope = scopeKey();
-    const stop = untrack(() => session.connect(id, scope, 4));
+    watchedScope = key;
+    const stop = untrack(() => session.connect(threadId, previewScope(tool, target), 4));
     stopWatch = stop;
 
     return () => {
@@ -135,17 +135,16 @@
 
   $effect(() => {
     const frame = session.frame;
+    const surface = canvas;
 
-    if (!frame?.data.length) {
-      frameUrl = "";
+    if (!frame?.data.length || !surface) return;
 
-      return;
-    }
-
-    const url = URL.createObjectURL(new Blob([new Uint8Array(frame.data)], { type: frame.mimeType || "image/png" }));
-    frameUrl = url;
-
-    return () => URL.revokeObjectURL(url);
+    return paintPreviewFrame(
+      surface,
+      frame,
+      (value) => session.painted(value),
+      (value) => session.frameError(value),
+    );
   });
 
   function handoff(action: () => void): void {
@@ -156,13 +155,9 @@
 
   function expand(): void {
     const selected =
-      watchedScope === scopeKey() ? (session.targets.find((entry) => entry.id === session.targetId) ?? target) : target;
+      watchedScope === scopeKey ? (session.targets.find((entry) => entry.id === session.targetId) ?? target) : target;
 
     handoff(() => onexpand(selected));
-  }
-
-  function scopeKey(): string {
-    return JSON.stringify([threadId, tool, target?.platform, target?.deviceId, target?.windowId, target?.app]);
   }
 
   async function toggle(): Promise<void> {
@@ -203,8 +198,8 @@
   </div>
   {#if !minimized}
     <div class="relative aspect-2/1 max-h-40 min-h-0 overflow-hidden bg-panel">
-      {#if frameUrl && watching && !failed}
-        <img src={frameUrl} alt={`Live ${name} preview`} draggable="false" class="size-full object-contain" />
+      {#if session.frame && watching && !failed}
+        <canvas bind:this={canvas} aria-label={`Live ${name} preview`} class="size-full object-contain"></canvas>
       {:else}
         <div class="absolute inset-0 flex flex-col items-center justify-center gap-1.5 px-5 text-center" role="status">
           {#if watching && !failed && !status.detail}<Spinner class="mb-1 text-muted" />{/if}

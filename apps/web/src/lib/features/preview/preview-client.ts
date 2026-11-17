@@ -27,7 +27,7 @@ export async function watchAgentPreview(
 ): Promise<void> {
   const body = encode(
     ui.WatchAgentPreviewRequestSchema,
-    create(ui.WatchAgentPreviewRequestSchema, { threadId, scope, maxFps }),
+    create(ui.WatchAgentPreviewRequestSchema, { threadId, scope, maxFps, clientAck: true }),
   );
 
   const response = await fetch(`/api/threads/${encodeURIComponent(threadId)}/preview/events`, {
@@ -58,6 +58,19 @@ export async function sendAgentPreviewInput(
   );
 
   await requestJson("POST", `/api/threads/${encodeURIComponent(threadId)}/preview/input`, body, 15_000, signal);
+}
+
+export async function acknowledgePreviewFrame(
+  threadId: string,
+  event: AgentPreviewEvent,
+  signal: AbortSignal,
+): Promise<void> {
+  const body = encode(
+    ui.AckAgentPreviewRequestSchema,
+    create(ui.AckAgentPreviewRequestSchema, { threadId, previewId: event.previewId, frameId: event.frameId }),
+  );
+
+  await requestJson("POST", `/api/threads/${encodeURIComponent(threadId)}/preview/ack`, body, 10_000, signal);
 }
 
 async function readEvents(
@@ -127,4 +140,22 @@ export function previewScope(tool: AgentTool, target?: AgentPreviewTarget): RunA
     windowId: target?.windowId ?? "",
     deviceId: target?.deviceId ?? "",
   });
+}
+
+/** Compare the requested scope by value: refreshed labels and protobuf objects do not restart a live watch. */
+export function previewScopeKey(
+  threadId: string,
+  workerId: string,
+  tool: AgentTool,
+  target?: AgentPreviewTarget,
+): string {
+  return JSON.stringify([
+    threadId,
+    workerId,
+    tool,
+    target?.platform ?? "",
+    target?.app ?? "",
+    target?.windowId ?? "",
+    target?.deviceId ?? "",
+  ]);
 }
