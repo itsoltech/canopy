@@ -7,6 +7,7 @@
 
 <script lang="ts">
   import { headLabel } from "@canopy/domain/git-heads";
+  import { composerChoices } from "@canopy/domain/composer-choices";
   import type { ui } from "@canopy/contracts";
   import type { Snippet } from "svelte";
   import { goalLook } from "#lib/features/goals/goals.ts";
@@ -69,7 +70,8 @@
   {@const instance = providerKeyOf(thread.provider)
     ? instanceOf(worker, providerKeyOf(thread.provider)!, thread.providerProfileId)
     : undefined}
-  {@const permission = permissionLook(thread.permissionMode)}
+  {@const permissionMode = composerChoices(thread, []).permissionMode}
+  {@const permission = permissionLook(permissionMode)}
   {@const goal = thread.goalStatus ? goalLook(thread.goalStatus) : undefined}
   {@const sides = isSide(thread)
     ? []
@@ -136,8 +138,8 @@
       </SummaryRow>
       <SummaryRow>
         {#snippet mark()}<Icon name={permission.icon} class={["size-4", permission.iconClass]} />{/snippet}
-        <span class={["truncate", isUnprompted(thread.permissionMode) && permission.textClass]}
-          >{permissionLabel(thread.permissionMode)}</span
+        <span class={["truncate", isUnprompted(permissionMode) && permission.textClass]}
+          >{permissionLabel(permissionMode)}</span
         >
       </SummaryRow>
       <SummaryRow>
