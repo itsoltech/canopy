@@ -1,4 +1,4 @@
-import { afterAll, beforeAll, describe, expect, test } from "bun:test";
+import { afterAll, beforeAll, describe, expect, spyOn, test } from "bun:test";
 import { create } from "@bufbuild/protobuf";
 import { ItemStatus, Provider, TurnOutcome, ui } from "@canopy/contracts";
 import { dockerAvailable } from "@canopy/db/testing";
@@ -286,25 +286,48 @@ describe.skipIf(!dockerAvailable)("authoritative suggested replies (gateway + wo
   });
 
   test("a durable undelivered steer invalidates choices before its fallback turn exists", async () => {
-    const source = await completed();
-    // The durable state after a lost steer reply and a turn end, before recovery creates its fallback turn.
-    await gw.runtime.runPromise(
-      SteerStore.use((s) =>
-        s.create({
-          threadId: source.threadId,
-          turnId: source.turnId,
-          text: "Wait for my review",
-          userId: gw.userId,
-          clientRequestId: crypto.randomUUID(),
-          model: "",
-          effort: "",
-          permissionMode: "",
-        }),
-      ),
+    const turn = await running();
+    const source = { ...turn, itemId: `msg-${turn.turnId}` };
+    const pump = gw.core.pump.bind(gw.core);
+
+    // Completion is durable before its pump finishes. Hold recovery at this crash boundary.
+    const paused = spyOn(gw.core, "pump").mockImplementation((threadId) =>
+      threadId === source.threadId ? Promise.resolve() : pump(threadId),
     );
-    expect((await snapshot(source.threadId)).turns).toHaveLength(1);
-    expect(await code(send(source))).toBe(Code.FailedPrecondition);
-    expect((await snapshot(source.threadId)).turns).toHaveLength(1);
+
+    try {
+      gw.worker.finish(source.threadId, source.turnId, answer);
+      await eventually(
+        () => snapshot(source.threadId),
+        (state) => state.turns[0]?.status === "completed",
+      );
+      // The durable state after a lost steer reply and a turn end, before recovery creates its fallback turn.
+      await gw.runtime.runPromise(
+        SteerStore.use((s) =>
+          s.create({
+            threadId: source.threadId,
+            turnId: source.turnId,
+            text: "Wait for my review",
+            userId: gw.userId,
+            clientRequestId: crypto.randomUUID(),
+            model: "",
+            effort: "",
+            permissionMode: "",
+          }),
+        ),
+      );
+      expect((await snapshot(source.threadId)).turns).toHaveLength(1);
+      expect(await code(send(source))).toBe(Code.FailedPrecondition);
+      expect((await snapshot(source.threadId)).turns).toHaveLength(1);
+    } finally {
+      paused.mockRestore();
+    }
+
+    await gw.core.pump(source.threadId);
+    expect((await snapshot(source.threadId)).turns.map((entry) => entry.input.text)).toEqual([
+      "Prepare it",
+      "Wait for my review",
+    ]);
   });
 
   test.each([false, true])(
