@@ -90,7 +90,7 @@
             <TouchTarget />
           </button>
         {/snippet}
-        <div class="grid gap-2">
+        <div class="grid gap-2 text-base/6 sm:text-sm/5">
           <p class="font-medium text-zinc-900 dark:text-zinc-100">{measurement.percent}% of context used</p>
           <p class="text-zinc-600 tabular-nums dark:text-zinc-400">
             {exact.format(measurement.used)} / {exact.format(measurement.limit)} tokens
