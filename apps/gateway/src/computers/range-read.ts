@@ -117,22 +117,12 @@ export function readRangeWindow(
         ))[0]!.more
       : false;
 
-    const missingTurns = items.flatMap((record) =>
-      record.value.case === "item" && record.value.value.turnId ? [record.value.value.turnId] : [],
-    );
-
-    const supporting = records(
-      yield* sql.unsafe<Row>(
-        `SELECT payload FROM thread_range_entities
-      WHERE owner_user_id=$1::uuid AND origin_node_id=$2 AND thread_id=$3::uuid AND epoch=$4::uuid
-      AND kind='turn' AND turn_id=ANY($5::text[]) ORDER BY ordinal`,
-        [...params, missingTurns],
-      ),
-    );
+    const selectedItems = items.slice(0, itemLimit);
+    const supporting = yield* readItemDependencies(sql, params, selectedItems);
 
     appendClientWindow(
       snapshot,
-      [...metadata, ...turns.slice(0, limit), ...queued, ...items.slice(0, itemLimit), ...supporting],
+      [...metadata, ...turns.slice(0, limit), ...queued, ...selectedItems, ...supporting],
       turns.slice(0, limit).flatMap((record) => (record.value.case === "turn" ? [record.value.value.id] : [])),
     );
     snapshot.historyBeforeTurnId ||= before;
@@ -141,5 +131,31 @@ export function readRangeWindow(
     qualify(ui.ThreadSnapshotSchema, snapshot, node);
 
     return { snapshot, cursor: snapshot.cursor };
+  });
+}
+
+function readItemDependencies(sql: SqlClient.SqlClient, scope: string[], items: ui.ThreadSyncRecord[]) {
+  return Effect.gen(function* () {
+    const turnIds = items.flatMap((record) =>
+      record.value.case === "item" && record.value.value.turnId ? [record.value.value.turnId] : [],
+    );
+
+    const steerKeys = items.flatMap((record) => {
+      const item = record.value.case === "item" ? record.value.value.item : undefined;
+
+      return item?.content.case === "userMessage" && item.content.value.clientId
+        ? [`steer:${item.content.value.clientId}`, `legacy_steer:${item.content.value.clientId}`]
+        : [];
+    });
+
+    const rows = yield* sql.unsafe<Row>(
+      `SELECT payload FROM thread_range_entities
+      WHERE owner_user_id=$1::uuid AND origin_node_id=$2 AND thread_id=$3::uuid AND epoch=$4::uuid
+      AND ((kind='turn' AND turn_id=ANY($5::text[])) OR (kind='steer' AND entity_key=ANY($6::text[])))
+      ORDER BY ordinal`,
+      [...scope, turnIds, steerKeys],
+    );
+
+    return rows.map((row) => fromBinary(ui.ThreadSyncRecordSchema, row.payload));
   });
 }

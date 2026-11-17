@@ -2,7 +2,7 @@ import { toBinary } from "@bufbuild/protobuf";
 import { ui } from "@canopy/contracts";
 import { appendRecord } from "./range-record.ts";
 
-/** Keep continuous item/turn prefixes, charging each item's supporting turn to its byte budget. */
+/** Keep continuous prefixes, charging each item's turn and steer to its byte budget. */
 export function appendClientWindow(
   snapshot: ui.ThreadSnapshot,
   records: ui.ThreadSyncRecord[],
@@ -15,18 +15,36 @@ export function appendClientWindow(
     records.flatMap((record) => (record.value.case === "turn" ? [[record.value.value.id, record] as const] : [])),
   );
 
+  const steers = new Map(
+    records.flatMap((record) => (record.value.case === "steer" ? [[record.value.value.id, record] as const] : [])),
+  );
+
+  const referenced = new Set(
+    records.flatMap((record) => {
+      const item = record.value.case === "item" ? record.value.value.item : undefined;
+
+      return item?.content.case === "userMessage" ? [item.content.value.clientId] : [];
+    }),
+  );
+
   const present = new Set<string>();
+  const presentSteers = new Set<string>();
   let metadataBytes = 0;
   let turnBytes = 0;
   let itemBytes = 0;
 
   for (const record of records) {
     if (record.value.case === "item" || record.value.case === "turn") continue;
+    const steerId = record.value.case === "steer" ? record.value.value.id : undefined;
+
+    if (steerId !== undefined && (referenced.has(steerId) || presentSteers.has(steerId))) continue;
     const size = sizes.get(record)!;
 
     if (metadataBytes + size > 64 * 1024) continue;
     metadataBytes += size;
     appendRecord(snapshot, record);
+
+    if (steerId !== undefined) presentSteers.add(steerId);
   }
 
   let beforeTurn = "";
@@ -54,11 +72,19 @@ export function appendClientWindow(
     if (record.value.case !== "item") continue;
     const turnId = record.value.value.turnId;
     const supporting = !present.has(turnId) ? turns.get(turnId) : undefined;
-    const size = sizes.get(record)! + (supporting ? sizes.get(supporting)! : 0);
+    const item = record.value.value.item;
+    const steerId = item?.content.case === "userMessage" ? item.content.value.clientId : "";
+    const steer = !presentSteers.has(steerId) ? steers.get(steerId) : undefined;
+    const size = sizes.get(record)! + (supporting ? sizes.get(supporting)! : 0) + (steer ? sizes.get(steer)! : 0);
 
     if (itemBytes + size > 384 * 1024) {
       snapshot.historyItemsHasMore = true;
       break;
+    }
+
+    if (steer) {
+      appendRecord(snapshot, steer);
+      presentSteers.add(steerId);
     }
 
     itemBytes += size;

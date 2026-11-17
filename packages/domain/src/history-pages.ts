@@ -20,6 +20,7 @@ export function prependThreadPage(
     throw new Error("Thread history changed");
   const turns = new Set(current.turns.map((turn) => turn.id));
   const items = new Set(current.items.map((entry) => `${entry.fromThreadId}:${entry.item?.itemId}`));
+  const steers = new Set(current.steers.map((steer) => steer.id));
   const sequence = /^range:([^:]+):(\d+)$/.exec(checkpoint);
 
   return create(ui.ThreadSnapshotSchema, {
@@ -34,6 +35,7 @@ export function prependThreadPage(
       ...page.items.filter((entry) => !items.has(`${entry.fromThreadId}:${entry.item?.itemId}`)),
       ...current.items,
     ],
+    steers: [...page.steers.filter((steer) => !steers.has(steer.id)), ...current.steers],
     historyBeforeTurnId: page.historyBeforeTurnId,
     historyHasMore: page.historyHasMore,
     historyBeforeItemId: page.historyBeforeItemId,

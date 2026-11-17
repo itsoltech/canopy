@@ -67,8 +67,9 @@ export function projectRange(thread: string, keys: readonly RangeKey[]) {
     if (ids("steer").length) {
       const steers = yield* SteerStore;
 
-      for (const steer of yield* steers.ofThread(thread, ids("steer")))
-        records.set(`steer:${steer.id}`, { case: "steer", value: toUiSteer(steer) });
+      for (const source of chain)
+        for (const steer of yield* steers.ofThread(source.thread_id, ids("steer")))
+          records.set(`steer:${steer.id}`, { case: "steer", value: toUiSteer(steer) });
     }
 
     if (ids("delivery").length) {

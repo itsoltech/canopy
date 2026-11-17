@@ -42,6 +42,13 @@ export function clientWindowKeys(sql: SqlClient.SqlClient, thread: string, reque
     const selectedTurns = turns.slice(0, size);
     const selectedItems = items.slice(0, itemLimit);
 
+    const steers = yield* sql<{ kind: string; entity_id: string }>`
+      SELECT 'steer' AS kind,s.id::text AS entity_id
+      FROM thread_fork_chain(${thread}::uuid) c JOIN thread_items i ON i.thread_id=c.thread_id
+      JOIN turn_steers s ON s.thread_id=i.thread_id AND s.id::text=i.content->'userMessage'->>'clientId'
+      WHERE i.item_id=ANY(${selectedItems.filter((item) => item.kind === "item").map((item) => item.entity_id)}::text[])
+        AND (c.upto_seq IS NULL OR i.first_seq<=c.upto_seq) AND thread_turn_visible_at(i.turn_id,c.upto_seq)`;
+
     const supporting = selectedItems.flatMap((item) =>
       item.turn_id ? [{ kind: item.kind === "legacy_item" ? "legacy_turn" : "turn", entity_id: item.turn_id }] : [],
     );
@@ -51,6 +58,7 @@ export function clientWindowKeys(sql: SqlClient.SqlClient, thread: string, reque
         ...selectedTurns,
         ...selectedItems,
         ...supporting,
+        ...steers,
         ...metadata,
         ...extras,
         { kind: "thread", entity_id: thread },

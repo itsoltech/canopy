@@ -15,6 +15,8 @@ a zapowiedziana aktualizacja gatewaya pokazuje w wątku spokojny komunikat bez a
 a wygaszany kompozytor zachowuje własny szkic bez odczytu nieaktywnego derived.
 Usuwanie wierszy osi czasu łączy natychmiastowe wyjścia z animowanym zwijaniem pracy
 bez pozostawiania dostarczonego steera jako wiersza oczekującego w DOM.
+Stronicowana historia i cache zachowują nadawcę oraz treść starszych wiadomości
+od agentów razem z itemami, które je pokazują.
 Formularze instancji Claude rozdzielają źródło logowania, prywatny stan i konfigurację użytkownika.
 Zakres workera pokazuje też efektywne katalogi z jego ostatniego raportu.
 Tekst jest streamowany wyłącznie pełnymi liniami, z kursorem inline.
@@ -513,6 +515,14 @@ Pusta strona jednego okna zachowuje jego ostatnią granicę, dopóki drugie okno
 ma starsze dane. Tury dołączone jako kontekst itemów pozostają w cache również
 po następnej partii live. Offline odczyt lustra zachowuje te same granice i seq;
 router nie stronicuje ponownie już ograniczonej odpowiedzi.
+
+Item `user_message` z `client_id` steera otrzymuje odpowiadający rekord `Steer`,
+także poza 32 ostatnimi steerami oraz w odziedziczonej historii forka. Razem
+z itemem mieści się w budżecie itemów; limit opcjonalnych metadanych nie usuwa
+jego nadawcy, treści bez notatki platformy, cytatów ani załączników. Doklejanie
+stron i zapis ogona cache zachowują te zależności, z pierwszeństwem nowszego
+rekordu już obecnego w otwartym wątku. Starsza wiadomość agenta zachowuje więc
+ten sam zwinięty widok i podpis nadawcy co wiadomość na żywo.
 
 Gateway współdzieli ostatnie okna przez LRU o limicie 8 wpisów w całym procesie
 (do 4 MiB publicznych rekordów, dodatkowo obiekty i kopie aktywnych odbiorców).

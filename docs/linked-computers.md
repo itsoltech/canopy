@@ -1,6 +1,7 @@
 # Połączone komputery
 
-Status: opis zaimplementowanej synchronizacji (2026-11-16), w tym wspólnego
+Status: opis zaimplementowanej synchronizacji (2026-11-17), w tym zachowania
+nadawców historycznych steerów przy stronicowaniu lokalnym i offline oraz wspólnego
 limitu 256 kroków automatycznej rozmowy i domyślnego
 steera między rodzicem a dzieckiem oraz deduplikacji raportów jednej tury,
 retencji dziennika źródłowego i dzierżaw treści (migracja 0154). Dostępność w kanałach
@@ -1223,6 +1224,12 @@ content-addressed treści są owner-scoped i wygasają po godzinie. Bieżąca tr
 każdej encji ma jeden dodatkowy wskaźnik, więc odebrany offline snapshot nadal
 może pobrać aktualny duży wynik po wygaśnięciu lease'u partii; poprzednie wersje
 treści są sprzątane po wygaśnięciu wszystkich lease'ów.
+
+Okno historii dobiera rekord steera po `client_id` widocznego itemu wiadomości,
+również gdy nadawca nie mieści się w ostatnich metadanych. Dom i lustro offline
+dołączają tę zależność razem z itemem w jego budżecie bajtów. Dzięki temu starsze
+wiadomości agentów zachowują podpis nadawcy i właściwą treść przy przewijaniu;
+scalanie stron i cache klienta nie odrzucają tych rekordów.
 
 Wskaźnik bieżącej encji jest unieważniany atomowo przy zmianie źródła, a nowa
 projekcja zapisuje nowy hash. Odtwarzanie starej zapieczętowanej partii nie
