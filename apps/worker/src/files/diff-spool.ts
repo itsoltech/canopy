@@ -8,6 +8,7 @@ import {
 } from "@canopy/contracts";
 import { diffBytes, DiffLimit, type DiffBudget } from "./diff-process.ts";
 import { StringDecoder } from "node:string_decoder";
+import { DIFF_LINE_BYTES, DIFF_PAGE_CONTENT_BYTES } from "@canopy/domain/thread-diff-limits";
 
 export interface DiffSpool {
   filename: string;
@@ -39,7 +40,7 @@ export class DiffSpoolWriter {
   append(line: ThreadDiffLine) {
     const encoded = toBinary(ThreadDiffLineSchema, line);
 
-    if (encoded.byteLength > 48 * 1024) throw new DiffLimit();
+    if (encoded.byteLength > DIFF_LINE_BYTES) throw new DiffLimit();
     const length = Buffer.alloc(4);
     length.writeUInt32LE(encoded.byteLength);
     diffBytes(this.budget, encoded.byteLength + 4);
@@ -65,11 +66,11 @@ export class DiffSpoolWriter {
 
     this.#pending = this.#pending.slice(start);
 
-    if (Buffer.byteLength(this.#pending) > 48 * 1024) throw new DiffLimit();
+    if (Buffer.byteLength(this.#pending) > DIFF_LINE_BYTES) throw new DiffLimit();
   }
 
   #parse(text: string) {
-    if (Buffer.byteLength(text) > 48 * 1024) throw new DiffLimit();
+    if (Buffer.byteLength(text) > DIFF_LINE_BYTES) throw new DiffLimit();
     const hunk = /^@@ -(\d+)(?:,\d+)? \+(\d+)(?:,\d+)? @@/.exec(text);
 
     if (hunk) {
@@ -146,7 +147,7 @@ export function readDiffSpool(spool: DiffSpool, offset: number, limit: number): 
       position += 4;
 
       if (index >= offset) {
-        if (bytes + size > 56 * 1024 && result.length) break;
+        if (bytes + size > DIFF_PAGE_CONTENT_BYTES && result.length) break;
         const data = Buffer.alloc(size);
 
         if (readSync(fd, data, 0, size, position) !== size) throw new Error("Changes unavailable");

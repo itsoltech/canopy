@@ -7,7 +7,8 @@ import {
   ThreadDiffLineSchema,
   type ThreadDiffFile,
 } from "@canopy/contracts";
-import { DIFF_FILES, diffGit, diffGitConfig, DiffLimit, streamDiffGit, type DiffBudget } from "./diff-process.ts";
+import { DIFF_FILES, DIFF_METADATA_BYTES } from "@canopy/domain/thread-diff-limits";
+import { diffGit, diffGitConfig, DiffLimit, streamDiffGit, type DiffBudget } from "./diff-process.ts";
 import { copyDiffSource, diffRefused, validDiffPath } from "./diff-source.ts";
 import { DiffSpoolWriter, type DiffSpool } from "./diff-spool.ts";
 
@@ -260,7 +261,7 @@ export async function buildDiff(root: string, directory: string, budget: DiffBud
     const spool = await buildFile(root, directory, change, index, budget);
     metadataBytes += toBinary(ThreadDiffFileSchema, spool.file).byteLength + 8;
 
-    if (metadataBytes > 512 * 1024) throw new DiffLimit();
+    if (metadataBytes > DIFF_METADATA_BYTES) throw new DiffLimit();
     files.push(spool.file);
     spools.set(change.path, spool);
   }

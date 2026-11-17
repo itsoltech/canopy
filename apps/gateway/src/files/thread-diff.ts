@@ -1,6 +1,7 @@
 import { toBinary } from "@bufbuild/protobuf";
 import { ThreadDiffPageSchema, ThreadDiffSnapshotSchema, type ui } from "@canopy/contracts";
 import { THREAD_DIFF_CAPABILITY } from "@canopy/domain/release/protocol";
+import { DIFF_FILES, DIFF_METADATA_BYTES, DIFF_PAGE_BYTES } from "@canopy/domain/thread-diff-limits";
 import type { GatewayCore } from "../core/core.ts";
 import { coreRun } from "../core/core-broadcast.ts";
 import { coreState, InvalidError, UnavailableError } from "../core/core-context.ts";
@@ -45,8 +46,8 @@ export class ThreadDiff {
 
     if (
       !snapshot ||
-      snapshot.files.length > 2000 ||
-      toBinary(ThreadDiffSnapshotSchema, snapshot).byteLength > 512 * 1024 ||
+      snapshot.files.length > DIFF_FILES ||
+      toBinary(ThreadDiffSnapshotSchema, snapshot).byteLength > DIFF_METADATA_BYTES ||
       snapshot.files.some((file) => !validPath(file.path) || (file.oldPath && !validPath(file.oldPath))) ||
       new Set(snapshot.files.map((file) => file.path)).size !== snapshot.files.length ||
       (snapshot.complete && (!snapshot.snapshotId || snapshot.error))
@@ -77,7 +78,7 @@ export class ThreadDiff {
     if (
       !page ||
       page.lines.length > limit ||
-      toBinary(ThreadDiffPageSchema, page).byteLength > 64 * 1024 ||
+      toBinary(ThreadDiffPageSchema, page).byteLength > DIFF_PAGE_BYTES ||
       page.snapshotId !== request.snapshotId ||
       page.path !== request.path ||
       page.offset !== request.offset ||

@@ -3099,7 +3099,8 @@ między różnymi wątkami i oknami. Szczegóły:
 
 ## API zmian Git w workspace wątku
 
-Status (2026-11-17): zaimplementowane w kodzie; kanały wydań wynikają z promocji
+Status (2026-11-17): zaimplementowane w kodzie, strony diffu do 512 KiB;
+kanały wydań wynikają z promocji
 nightly/beta/stable. `ListThreadDiff` i `ReadThreadDiff` są odczytami owner-scoped,
 trasowanymi tak samo jak `ListThreadDirectory`, również do domu połączonego komputera.
 
@@ -3113,7 +3114,7 @@ linii, dokładną liczbę wierszy podglądu i flagę binarną. `complete=false` 
 `{snapshotId, path, offset, limit}` i zwraca `ThreadDiffPage` z wierszami,
 zerowym offsetem, `lineCount` oraz ewentualnym błędem. Wiersze mają `kind`
 (context/addition/deletion/hunk/meta), `text`, opcjonalne `oldLine` i `newLine`.
-Limit wynosi 1–200, domyślny klient używa 128; budżet 64 KiB może skrócić stronę,
+Limit wynosi 1–200, domyślny klient używa 128; budżet 512 KiB może skrócić stronę,
 ale nie pełną treść zmiany. Kolejną stronę wyznacza liczba otrzymanych wierszy.
 
 Klient `features/workspace/diff-api.ts` udostępnia
