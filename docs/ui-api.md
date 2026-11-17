@@ -2,7 +2,7 @@
 
 Status (2026-11-17): watch odzyskuje stan po powtarzającym się nieokreślonym błędzie gatewaya;
 API workspace udostępnia lokalne `RevealThreadFile`
-oraz stabilne, stronicowane zmiany Git wątku;
+oraz stabilne, stronicowane zmiany Git wątku i podgląd dostępnych plików spoza workspace tylko do odczytu;
 Settings → Agent tools grupuje Browser/Desktop/Device z dostępem per worker,
 zbiorczym przełącznikiem trójstanowym, automatyczną instalacją przy włączeniu
 i zapisanymi domyślnymi ustawieniami sesji narzędzi;
@@ -2993,8 +2993,15 @@ kartę workspace'u (`features/workspace/WorkspaceFile.svelte`), **Default app**
 otwiera jawną ścieżkę od razu w domyślnej aplikacji, ale tylko gdy plik leży na tym komputerze (`onThisComputer`: własny gateway desktopu, wątek bez `nodeId`, worker `desktop_bundled`). Goła nazwa najpierw otwiera podgląd, aby umożliwić wybór przy wielu dopasowaniach. Plik innej maszyny zawsze otwiera się w przeglądarce, a przycisk **Open in default app** jest wtedy ukryty.
 
 Przeglądarka czyta plik przez `GET /api/threads/:id/files?path=&itemId=` (`ReadThreadFile`, do 2 MiB).
+Pełna ścieżka lub `~/…` może wskazywać plik spoza workspace; symlinki są rozwiązywane
+na workerze. Warunkiem jest prawo odczytu konta systemowego workera. Plik zewnętrzny
+ma `read_only=true`, pusty `relative_path` i pusty `sha256`, więc pozostaje tylko do odczytu
+i nie trafia do obserwacji zmian workspace. Odświeża go `Reload`.
+Kliknięcie linku przy preferencji `Default app` przechodzi do podglądu Canopy,
+jeżeli aplikacja systemowa nie może otworzyć pliku.
 `itemId` wskazuje turn źródłowej wiadomości dla podpowiedzi ścieżki. Goła nazwa rozstrzyga się na
-domowym workerze w katalogu wątku/worktree; pojedyncze dopasowanie otwiera plik, wiele daje wybór
+domowym workerze: ścieżki z tego samego turnu mogą wskazywać pliki zewnętrzne,
+a wyszukiwanie po nazwie pozostaje w katalogu wątku/worktree; pojedyncze dopasowanie otwiera plik, wiele daje wybór
 ścieżki. Brak dopasowania pokazuje „Couldn't find … in this workspace.” i rozwijane przeszukane ścieżki;
 „moved or deleted” pojawia się dopiero przy braku ścieżki z hashem poprzedniego odczytu. Błędy transportu
 pozostają błędami połączenia. Tytuł zawiera nazwę, opis ścieżkę względną i komputer; plik w korzeniu ma `./`.

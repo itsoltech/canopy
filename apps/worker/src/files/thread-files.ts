@@ -26,14 +26,13 @@ type FileContentInit = MessageInitShape<typeof FileContentSchema>;
 
 const refuse = (code: string, message: string) => new CommandError(code, message, true);
 
-/**
- * The real path of an existing regular file under one of `roots` (the gateway's thread directory)
- * or `extraRoots` (this worker's own thread attachments). `~` expands
- * to the worker's home; symlinks resolve before the check, so a link cannot reach outside the roots.
- */
-export function resolveThreadFile(request: FileRequest, extraRoots: readonly string[]): string {
-  const raw = request.path.trim();
-  const expanded = raw === "~" || raw.startsWith("~/") || raw.startsWith("~\\") ? join(homedir(), raw.slice(1)) : raw;
+export function expandFileHome(path: string): string {
+  return path === "~" || path.startsWith("~/") || path.startsWith("~\\") ? join(homedir(), path.slice(1)) : path;
+}
+
+/** Resolve an existing regular file using the worker account's filesystem permissions. */
+export function resolveReadableFile(path: string): string {
+  const expanded = expandFileHome(path.trim());
 
   if (!expanded || !isAbsolute(expanded))
     throw refuse("FILE_PATH_INVALID", "Use an absolute path or a path inside the thread's folder.");
@@ -48,6 +47,19 @@ export function resolveThreadFile(request: FileRequest, extraRoots: readonly str
   }
 
   if (!statSync(real).isFile()) throw refuse("FILE_NOT_REGULAR", "Only files can be opened, not folders.");
+
+  try {
+    accessSync(real, constants.R_OK);
+  } catch {
+    throw refuse("FILE_READ_FAILED", "Could not read this file. Check its permissions, then reload.");
+  }
+
+  return real;
+}
+
+/** Mutations and native app actions remain confined after resolving symlinks. */
+export function resolveThreadFile(request: FileRequest, extraRoots: readonly string[]): string {
+  const real = resolveReadableFile(request.path);
 
   const roots = [...request.roots, ...extraRoots].flatMap((root) =>
     root && isAbsolute(root) && existsSync(root) ? [realpathSync(root)] : [],
