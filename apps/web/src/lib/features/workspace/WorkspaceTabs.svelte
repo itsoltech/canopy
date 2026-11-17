@@ -22,7 +22,7 @@
     pending = 0,
     class: className = "",
   }: {
-    state: ThreadWorkspace;
+    state?: ThreadWorkspace;
     title: string;
     titleGenerating?: boolean;
     working?: boolean;
@@ -30,8 +30,8 @@
     class?: string;
   } = $props();
 
-  const view = $derived(workspace.view);
-  const onclose = (id: string) => workspace.close(id);
+  const view = $derived(workspace?.view);
+  const onclose = (id: string) => workspace?.close(id);
   let width = $state(0);
   let threadWidth = $state(0);
   let root = $state<HTMLDivElement>();
@@ -60,7 +60,7 @@
 
     return [
       { id: "thread", name: title, path: "", preview: false, dirty: false, busy: false, error: "" },
-      ...view.tabs.map((tab) => ({
+      ...(view?.tabs ?? []).map((tab) => ({
         id: tab.id,
         name: tabName(tab),
         path: tabPath(tab),
@@ -76,7 +76,7 @@
     ];
   });
 
-  const active = $derived(tabs.find((tab) => tab.id === view.active) ?? tabs[0]!);
+  const active = $derived(tabs.find((tab) => tab.id === (view?.active ?? "thread")) ?? tabs[0]!);
 
   $effect(() => {
     focused = active.id;
@@ -108,7 +108,7 @@
   const hidden = $derived(tabs.slice(1).filter((tab) => !shown.includes(tab)));
 
   async function select(id: string) {
-    view.select(id);
+    view?.select(id);
     await tick();
     root?.querySelector<HTMLButtonElement>(`[data-workspace-tab][aria-selected="true"]`)?.focus();
   }
@@ -204,8 +204,8 @@
             tab.id === "thread" ? "px-2.5" : "pl-2.5",
             tab.id === active.id ? "text-zinc-950 dark:text-white" : "text-muted",
           ]}
-          onclick={() => view.select(tab.id)}
-          ondblclick={() => view.keep(tab.id)}
+          onclick={() => view?.select(tab.id)}
+          ondblclick={() => view?.keep(tab.id)}
           {@attach tooltip(
             tab.id === "thread" ? title : [tab.path, statuses[tab.id], tab.error].filter(Boolean).join(" · "),
           )}
@@ -257,12 +257,14 @@
   {/if}
 </div>
 
-<WorkspaceCommands {workspace} {title} />
-<WorkspaceClose
-  tabs={workspace.closing}
-  oncancel={() => (workspace.closing = [])}
-  onclose={(save) => workspace.confirmClose(save)}
-/>
+{#if workspace}
+  <WorkspaceCommands {workspace} {title} />
+  <WorkspaceClose
+    tabs={workspace.closing}
+    oncancel={() => (workspace.closing = [])}
+    onclose={(save) => workspace.confirmClose(save)}
+  />
+{/if}
 
 <style>
   /* Only the active tab is a surface: it rises from the chrome and continues into the content below,

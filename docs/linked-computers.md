@@ -6,7 +6,8 @@ synchronizacji agregatów użycia z żądaną szybkością wykonania przez bezpo
 steerów przy stronicowaniu lokalnym i offline oraz wspólnego
 limitu 256 kroków automatycznej rozmowy i domyślnego
 steera między rodzicem a dzieckiem oraz deduplikacji raportów jednej tury,
-retencji dziennika źródłowego i dzierżaw treści (migracja 0154). Dostępność w kanałach
+retencji dziennika źródłowego i dzierżaw treści (migracja 0154) oraz postępu
+przygotowania wątku negocjowanego poza historyczną listą capabilities. Dostępność w kanałach
 nightly, beta i stable wynika z [wydań](release.md), nie z daty tego opisu.
 
 ## Kanały komunikatorów botów
@@ -666,6 +667,8 @@ listy przed zapisem i negocjacją; akceptuje też dawne hello z ponad 32 wpisami
 uwierzytelnienia. Wszystkie wysyłane hello (pairing, connect, welcome i zmiana nazwy) używają
 tego samego podziału. Nowe domyślne capabilities dopisujemy na końcu listy: pierwsze 32
 z nightly.133 zachowują m.in. konfigurację, przenoszenie i aktualizacje aplikacji.
+`thread_creation_progress_v1` należy do nowych wpisów na końcu listy. Starszy dom
+bez tej funkcji zachowuje zbiorczy krok startu wątku zamiast szczegółowej checklisty.
 
 Brak przecięcia zakresów utrzymuje wyłącznie kanał kontrolny i stan `needs_update` na obu stronach.
 Oba gatewaye wyliczają tę samą tożsamość wymagającą aktualizacji; UI pokazuje nazwę partnera albo

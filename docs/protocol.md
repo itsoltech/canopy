@@ -73,6 +73,25 @@ Nietrwałe oczekiwanie na wynik `GenerateText` nie odtwarza raportu utraconego
 przed odbiorem przez gateway.
 Szczegóły: [usage.md](usage.md).
 
+## Postęp tworzenia worktree
+
+Status (2026-11-17): zaimplementowany w kodzie; dostępność nightly/beta/stable
+wynika z promocji wydań ([release.md](release.md)). `WORKER_LINK_PROTOCOL` bez zmian.
+
+Worker z capability `worktree_progress_v1` wysyła addytywne `WorkerMessage.query_progress`
+dla trwającego `CreateWorktree`. `QueryProgress` zawiera `command_id`, `step`, `status`
+i `detail`; kroki to `check_workspace`, `fetch_remote` i `create_worktree`.
+Gateway przekazuje raport wyłącznie do oczekującego zapytania na tym samym
+uwierzytelnionym łączu workera; obce, zakończone i nieznane komendy są ignorowane.
+Raporty nie przechodzą przez outbox ani dziennik zdarzeń i nie potwierdzają wykonania
+komendy: ostateczny wynik nadal przychodzi jako `CommandResult`.
+
+Gateway łączy te raporty z walidacją i startem wątku w `CreateThreadWithProgress`
+([ui-api.md](ui-api.md#przygotowanie-nowego-wątku)). Starszy worker nadal obsługuje
+`CreateWorktree` i dostaje zbiorczy status tworzenia bez szczegółowych etapów.
+Fetch jest opcjonalny; brak remote albo nieudane pobranie kończy ten krok jako
+pominięty i zachowuje start z lokalnej bazy.
+
 ## Domyślne ustawienia narzędzi agentów
 
 Status (2026-11-17): zaimplementowane w kodzie; dostępność nightly/beta/stable

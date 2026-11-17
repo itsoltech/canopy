@@ -25,6 +25,7 @@ export class MobileComposerState {
   version = 0;
   pendingSend: ui.SendMessageRequest | undefined;
   pendingCreate: ui.CreateThreadRequest | undefined;
+  creationRecoveryOwned = false;
   preparing = false;
   reconciling = false;
   deliveryChecked = false;
@@ -351,6 +352,7 @@ export class MobileComposerState {
     this.persist();
   }
   clear() {
+    this.creationRecoveryOwned = false;
     this.moved = "";
     this.pendingSend = undefined;
     this.pendingCreate = undefined;
@@ -382,6 +384,8 @@ export class MobileComposerState {
     await this.local.checkpoint();
   }
   cancelSend(fork = false, api?: Client<typeof ui.GatewayService>) {
+    this.creationRecoveryOwned = false;
+
     if (fork) this.pendingAbort?.();
     const draft = this.#entry.draft;
 

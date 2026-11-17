@@ -1,3 +1,4 @@
+import type { CreationProgress } from "../core/thread-progress.ts";
 import { create } from "@bufbuild/protobuf";
 import { timestampFromDate } from "@bufbuild/protobuf/wkt";
 import { ui } from "@canopy/contracts";
@@ -96,7 +97,7 @@ function worktreeLink(hostContext: GatewayCore, workerId: string) {
 }
 
 /** A new worktree for a new main thread, created on the workspace's worker before the thread. */
-async function createWorktree(hostContext: GatewayCore, request: ui.CreateThreadRequest) {
+async function createWorktree(hostContext: GatewayCore, request: ui.CreateThreadRequest, progress?: CreationProgress) {
   const { project, workspace, worker } = await ownWorkspace(hostContext, request.workspaceId);
 
   if (project.id !== request.projectId) throw new InvalidError("workspace not found");
@@ -116,6 +117,10 @@ async function createWorktree(hostContext: GatewayCore, request: ui.CreateThread
 
   const semantic = settings.branchNaming === ui.BranchNaming.SEMANTIC;
 
+  const detailed = connection?.hello.capabilities.includes("worktree_progress_v1");
+
+  if (!detailed) progress?.("create_worktree", "running");
+
   const result = await coreWorkerQuery(
     hostContext,
     workspace.workerId,
@@ -131,6 +136,17 @@ async function createWorktree(hostContext: GatewayCore, request: ui.CreateThread
       },
     },
     CREATE_TIMEOUT_MS,
+    {
+      queryProgress: (event) => {
+        if (!detailed) return;
+
+        if (event.step !== "check_workspace" && event.step !== "fetch_remote" && event.step !== "create_worktree")
+          return;
+
+        if (event.status !== "running" && event.status !== "completed" && event.status !== "skipped") return;
+        progress?.(event.step, event.status, event.detail);
+      },
+    },
   );
 
   const info = result.worktree;
@@ -164,6 +180,8 @@ async function createWorktree(hostContext: GatewayCore, request: ui.CreateThread
     }),
   );
 
+  if (!detailed) progress?.("create_worktree", "completed");
+
   return { row, semantic, location: settings.location ?? "" };
 }
 
@@ -180,6 +198,7 @@ export interface PreparedWorkspace {
 export async function corePrepareWorkspace(
   hostContext: GatewayCore,
   request: ui.CreateThreadRequest,
+  progress?: CreationProgress,
 ): Promise<PreparedWorkspace> {
   if (request.parentThreadId) {
     const parent = await coreRun(hostContext, (s) => s.thread(request.parentThreadId));
@@ -216,7 +235,7 @@ export async function corePrepareWorkspace(
   }
 
   if (request.workspaceMode !== ui.WorkspaceMode.NEW_WORKTREE) return { request };
-  const made = await createWorktree(hostContext, request);
+  const made = await createWorktree(hostContext, request, progress);
   const next = create(ui.CreateThreadRequestSchema, { ...request, worktreeId: made.row.id, cwd: made.row.path });
 
   return {

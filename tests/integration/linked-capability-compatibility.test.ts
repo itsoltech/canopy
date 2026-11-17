@@ -122,6 +122,7 @@ describe.skipIf(!dockerAvailable)("production desktop capability compatibility",
     expect(paired.hello!.additionalCapabilities).toContain(REMOTE_THREAD_PANEL);
     expect(paired.hello!.additionalCapabilities).toContain(REMOTE_GIT_STATUS);
     expect(paired.hello!.additionalCapabilities).toContain(USAGE_STATS);
+    expect(paired.hello!.additionalCapabilities).toContain("thread_creation_progress_v1");
     const frames = new AsyncChannel<link.LinkFrame>();
     frames.push(create(link.LinkFrameSchema, { body: { case: "hello", value: hello } }));
     const abort = new AbortController();
@@ -179,6 +180,7 @@ describe.skipIf(!dockerAvailable)("production desktop capability compatibility",
       expect(peer.capabilities).not.toContain(REMOTE_THREAD_PANEL);
       expect(peer.capabilities).not.toContain(REMOTE_GIT_STATUS);
       expect(peer.capabilities).not.toContain(USAGE_STATS);
+      expect(peer.capabilities).not.toContain("thread_creation_progress_v1");
     }
   }, 60_000);
 });

@@ -92,6 +92,9 @@ message GetComposerDraftDeliveryRequest {
 message ComposerDraftDelivery {
   bool confirmed = 1;
   bool in_flight = 2;
+  // Owner-scoped identity; only confirmed establishes completed admission.
+  // May be empty after deletion or when returned by an older gateway.
+  string thread_id = 3;
 }
 
 // Device-private persistence. These messages are never sent to the gateway.

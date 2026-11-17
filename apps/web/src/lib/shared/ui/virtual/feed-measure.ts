@@ -68,3 +68,62 @@ export function publishViewport(
 
   return () => cancelAnimationFrame(frame);
 }
+
+/** Mount the scroller and list together; seed the viewport before the observer's first frame. */
+export function observeFeed(
+  observer: ResizeObserver | undefined,
+  scroller: HTMLElement | undefined,
+  list: HTMLElement | undefined,
+  footer: HTMLElement | undefined,
+  seed: (scroller: HTMLElement) => void,
+) {
+  if (!observer || !scroller || !list || !footer) return;
+  seed(scroller);
+
+  for (const element of [scroller, list]) observer.observe(element);
+
+  return () => {
+    for (const element of [scroller, list]) observer.unobserve(element);
+  };
+}
+
+/** Batch observer state into one frame; synchronous settling still keeps the current rows anchored. */
+export class FeedMeasurements {
+  viewport = 0;
+  #frame = 0;
+  readonly observer: ResizeObserver | undefined;
+
+  constructor(
+    index: SizeIndex,
+    read: () => {
+      positions: ReadonlyMap<string, number>;
+      sized: readonly { group: string }[];
+      scroller: HTMLElement | undefined;
+      list: HTMLElement | undefined;
+    },
+    settle: () => void,
+    publish: (size: { viewport: number; gutter: number; listTop: number }) => void,
+  ) {
+    this.observer = feedObserver(index, read, (height) => {
+      this.viewport = height ?? this.viewport;
+      settle();
+      this.#frame ||= requestAnimationFrame(() => {
+        this.#frame = 0;
+        const { scroller, list } = read();
+        publish({
+          viewport: this.viewport,
+          gutter: scroller ? scroller.offsetWidth - scroller.clientWidth : 0,
+          listTop:
+            scroller && list
+              ? list.getBoundingClientRect().top - scroller.getBoundingClientRect().top + scroller.scrollTop
+              : 0,
+        });
+      });
+    });
+  }
+
+  dispose() {
+    this.observer?.disconnect();
+    cancelAnimationFrame(this.#frame);
+  }
+}

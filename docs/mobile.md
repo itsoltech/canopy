@@ -1,7 +1,9 @@
 # Canopy na iOS i Android
 
-Status: opis zaimplementowanego kodu (2026-11-17); kompozytory i ustawienia botów
-pokazują zwarte menu Speed z ikonami szybkości i wspólnym glifem podwójnego pioruna dla Ultrafast,
+Status: opis zaimplementowanego kodu (2026-11-17); nowy wątek od razu pokazuje prompt
+i checklistę rzeczywistego przygotowania przed startem agenta, we wspólnej geometrii
+nagłówka, osi czasu i kompozytora. Kompozytory i ustawienia botów pokazują zwarte
+menu Speed z ikonami szybkości i wspólnym glifem podwójnego pioruna dla Ultrafast,
 zgodnie z katalogiem modeli danego konta. iOS utrzymuje najnowsze wiadomości
 nad kompozytorem po nadejściu kolejnych tur, a „Show latest” ma okrągły stan naciśnięcia.
 Korekta przewijania chroni przed rekurencyjnym `scrollTo` podczas zmian insetów klawiatury na iOS.
@@ -68,6 +70,54 @@ Procedury: [development build Androida](#android-emulator-lokalny-development-bu
 [wydania TestFlight i OTA](#wydania-mobilne-testflight-i-ota).
 Opis funkcji poniżej dotyczy bieżącego `dev`; ich dostępność zależy od wersji
 gatewaya i klienta, kanału oraz runtime zainstalowanego buildu.
+
+## Przygotowanie nowego wątku
+
+Wysłanie promptu otwiera natychmiast `/thread-starting/<clientRequestId>`: widok
+z oryginalną wiadomością, wzmiankami, załącznikami, cytatami i checklistą. Dopiero
+po przygotowaniu aplikacja przechodzi do właściwego wątku. Kroki i ich statusy
+pochodzą bezpośrednio z `CreateThreadWithProgress` przez natywny Connect i przypięty TLS,
+bez BFF. Starszy gateway może przejść na unary `CreateThread` wyłącznie po
+`Unimplemented` przed pierwszym zdarzeniem; wtedy lista pokazuje tylko zbiorczy start.
+Starszy worker lub dom połączonego komputera także nie otrzymuje wymyślonego postępu.
+
+Przygotowanie używa tego samego `ThreadHeaderBar`, `TimelineList`, granicy dnia
+oraz `FloatingComposer` z zablokowanym `ComposerBox`; nie tworzy fikcyjnego wątku
+ani tury. Szerokość rozmowy, safe area i wysokość rezerwy kompozytora są wspólne.
+Krótki prompt jest zakotwiczony u góry także w świeżym wątku z jedną turą:
+dodawanie prawdziwych kroków poniżej nie przesuwa promptu, dopóki treść mieści się
+w widoku. Dla długiej treści przygotowanie zapamiętuje położenie promptu względem
+viewportu, utrzymuje je podczas zmian checklisty dla czytającego historię
+i odtwarza po zmianie trasy oraz nadejściu pierwszego snapshotu,
+zamiast wracać do końca. Kotwica czytającego pozostaje aktywna przy zmianach
+wysokości pierwszej tury, także po dodaniu stopki zakończenia; nowy gest przewijania
+lub druga tura kończy tę ochronę. To nietrwały stan pojedynczego przygotowania; późniejsze
+przewijanie podlega regułom czytania historii i `Show latest`. Zastąpienie trasy nie
+uruchamia animacji slajdu. Do nadejścia pierwszej rzeczywistej tury pozostaje
+widoczny prompt z checklistą, bez zastępowania ich szkieletem.
+
+Menedżer parowania utrzymuje do 40 przygotowań i deduplikuje aktywną operację po
+niezmiennym `clientRequestId`. Nawigacja następuje przed checkpointem szkicu i RPC;
+opuszczenie ekranu nie anuluje tworzenia. Potwierdzony wynik czyści tylko odpowiedni
+szkic i zastępuje ekran przygotowania, jeżeli użytkownik nadal go ogląda. Gotowa
+checklista pozostaje pod pierwszą wiadomością w bieżącej sesji; nie jest zapisywana
+w transkrypcie ani odtwarzana z historii po restarcie. Zmiana parowania usuwa cache
+i odcina stare subskrypcje przed zamknięciem magazynu szkiców.
+
+Po zerwaniu strumienia lub restarcie klient odczytuje `GetComposerDraftDelivery`
+z trwałego requestu i sprawdza aktywną operację co 3 sekundy. Nie wysyła ponownie
+niepotwierdzonego tworzenia. Dla wysyłki powiązanej ze szkicem gateway utrzymuje
+przygotowanie i rozliczenie potwierdzenia niezależnie od subskrypcji telefonu,
+z własnym limitem oczekiwania 120 s, także na połączonym komputerze.
+Potwierdzenie zwraca `threadId` w tym samym odczycie, bez ponownego RPC tworzenia;
+utracone statusy pośrednie nie udają zakończonych kroków. Niepewny wynik i błąd
+zachowują prompt oraz akcję
+`Return to draft`; istniejące `Edit draft` rozpoczyna nową wiadomość po świadomym
+wyborze użytkownika. Błąd kroku ma widoczny status `Failed`, a szczegóły są pod
+`Show details`. Powrót na pierwszy plan lub zmiana sieci wznawia sprawdzenie
+wyniku, bez automatycznego ponawiania tworzenia worktree. Błędy odczytu mają do
+5 prób z odstępem do 30 s oraz ręczne `Check delivery`. Jeżeli starszy gateway
+potwierdzi start bez identyfikatora, klient udostępnia `Open threads`.
 
 ## Szkice i kompozytor
 

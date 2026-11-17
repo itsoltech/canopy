@@ -14,6 +14,47 @@ import { BotSender, SenderLabel } from "./SenderLabel";
 import { UserMessageView } from "./UserMessageView";
 import { MessageAttachments } from "../attachments/MessageAttachments";
 import { useMessageActions } from "./useMessageActions";
+import { useThreadCreation } from "../new-thread/useThreadCreation";
+import { ThreadPreparation } from "../new-thread/ThreadPreparation";
+
+function InitialPreparation({ threadId }: { threadId: string }) {
+  const job = useThreadCreation(threadId, true);
+
+  return job ? (
+    <ThreadPreparation steps={job.steps} done={Boolean(job.threadId) || job.confirmed} active={false} />
+  ) : null;
+}
+
+function UserTurnInput({ turn }: { turn: ui.Turn }) {
+  const directory = useTimelineDirectory();
+  const fallback = directory.queuedFallback?.(turn.id);
+  const text = turn.quotes.length ? turn.messageText : turn.messageText || turn.inputText;
+
+  return (
+    <View style={{ gap: 16 }}>
+      <UserMessageView
+        onEdit={
+          !turn.inherited && !turn.rewindId && turn.startedAt && directory.editFrom
+            ? () => directory.editFrom?.(turn)
+            : undefined
+        }
+        text={text}
+        attachments={turn.attachments}
+        quotes={turn.quotes}
+        mentions={turn.messageText ? turn.mentions : []}
+        note={
+          turn.status === "queued"
+            ? {
+                text: fallback?.reason ? `Queued instead: ${fallback.reason}` : turn.dispatched ? "Starting" : "Queued",
+                ...(fallback && { tone: "amber" }),
+              }
+            : undefined
+        }
+      />
+      {!turn.inherited && !turn.rewindId && turn.ordinal === 1 && <InitialPreparation threadId={directory.currentId} />}
+    </View>
+  );
+}
 
 const ICONS = new Map<string, IconName>([
   ["task", "sparkles"],
@@ -47,7 +88,6 @@ export function TurnInput({ turn }: { turn: ui.Turn }) {
   const type = useTypography();
   const directory = useTimelineDirectory();
   const origin = turnOrigin(turn);
-  const fallback = directory.queuedFallback?.(turn.id);
 
   const fromAgent =
     ["task", "message", "report"].includes(origin.kind) ||
@@ -55,33 +95,11 @@ export function TurnInput({ turn }: { turn: ui.Turn }) {
 
   const tone: Tone = origin.kind === "question" ? "amber" : origin.kind === "schedule" ? "sky" : "violet";
   const look = useTone(tone);
-  const text = turn.quotes.length ? turn.messageText : turn.messageText || turn.inputText;
   const actions = useMessageActions(turn.messageText, "agent_message", fromAgent);
 
   if (origin.kind === "background_task" || origin.kind === "pr_checks") return <PlatformNoteRow origin={origin} />;
 
-  if (origin.kind === "user")
-    return (
-      <UserMessageView
-        onEdit={
-          !turn.inherited && !turn.rewindId && turn.startedAt && directory.editFrom
-            ? () => directory.editFrom?.(turn)
-            : undefined
-        }
-        text={text}
-        attachments={turn.attachments}
-        quotes={turn.quotes}
-        mentions={turn.messageText ? turn.mentions : []}
-        note={
-          turn.status === "queued"
-            ? {
-                text: fallback?.reason ? `Queued instead: ${fallback.reason}` : turn.dispatched ? "Starting" : "Queued",
-                ...(fallback && { tone: "amber" }),
-              }
-            : undefined
-        }
-      />
-    );
+  if (origin.kind === "user") return <UserTurnInput turn={turn} />;
 
   const hops = turn.hops > 0 ? `${turn.hops} ${turn.hops === 1 ? "hop" : "hops"}` : undefined;
   const icon = <Icon name={ICONS.get(origin.kind) ?? "sparkles"} size={14} color={look.text} />;

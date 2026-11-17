@@ -146,7 +146,7 @@ export class CommandHandlers {
 
     if (kind.case === "cancelCloneRepository") return this.ctx.ops.cancelCloneRepository(kind.value.commandId);
 
-    if (kind.case === "createWorktree") return this.ctx.ops.createWorktree(kind);
+    if (kind.case === "createWorktree") return this.ctx.ops.createWorktree(kind, command.commandId);
 
     if (kind.case === "renameWorktreeBranch") return this.ctx.ops.renameWorktreeBranch(kind);
 

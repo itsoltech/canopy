@@ -33,9 +33,11 @@ export async function reconcileDraftDelivery(
       )
     : undefined;
 
-  if (receipt?.sent) return create(ui.ComposerDraftDeliverySchema, { confirmed: true });
+  if (receipt?.sent && request.threadId)
+    return create(ui.ComposerDraftDeliverySchema, { confirmed: true, threadId: request.threadId });
   const node = splitId(request.threadId || request.workspaceId).node;
-  let confirmed = false;
+  let confirmed = Boolean(receipt?.sent);
+  let threadId = "";
 
   if (node) {
     const method = ui.GatewayService.method.getComposerDraftDelivery;
@@ -50,20 +52,25 @@ export async function reconcileDraftDelivery(
       ),
     );
 
-    confirmed = response.confirmed;
+    confirmed ||= response.confirmed;
+    threadId = response.threadId;
   } else if (!request.threadId) {
-    confirmed = await runtime.runPromise(
+    const creation = await runtime.runPromise(
       Effect.gen(function* () {
         const sql = yield* SqlClient.SqlClient;
 
-        return (
-          (yield* sql`SELECT t.id FROM threads t JOIN turns r ON r.thread_id=t.id
-            AND r.client_request_id=${request.clientRequestId}
-            WHERE t.owner_user_id=${userId}::uuid AND t.creation_request_id=${request.clientRequestId} LIMIT 1`)
-            .length > 0
-        );
+        return (yield* sql<{ id: string; admitted: boolean }>`SELECT t.id,
+          EXISTS (SELECT 1 FROM turns r WHERE r.thread_id=t.id
+            AND r.client_request_id=${request.clientRequestId}) AS admitted
+          FROM threads t WHERE t.owner_user_id=${userId}::uuid AND t.deleted_at IS NULL
+            AND t.creation_request_id=${request.clientRequestId} LIMIT 1`)[0];
       }),
     );
+
+    confirmed ||= Boolean(creation?.admitted);
+    // A linked caller can hold the sent receipt while this home holds a /goal
+    // thread with no initial turn. Identity alone never confirms that creation.
+    threadId = creation?.id ?? "";
   } else if (uuid.test(request.threadId)) {
     confirmed = await runtime.runPromise(
       Effect.gen(function* () {
@@ -83,9 +90,11 @@ export async function reconcileDraftDelivery(
         );
       }),
     );
+
+    if (confirmed) threadId = request.threadId;
   }
 
-  if (confirmed && receipt)
+  if (confirmed && receipt && !receipt.sent)
     await runtime.runPromise(
       Effect.gen(function* () {
         const sql = yield* SqlClient.SqlClient;
@@ -102,5 +111,9 @@ export async function reconcileDraftDelivery(
       }),
     );
 
-  return create(ui.ComposerDraftDeliverySchema, { confirmed, inFlight: !confirmed && Boolean(receipt?.active) });
+  return create(ui.ComposerDraftDeliverySchema, {
+    confirmed,
+    inFlight: !confirmed && Boolean(receipt?.active),
+    threadId,
+  });
 }
