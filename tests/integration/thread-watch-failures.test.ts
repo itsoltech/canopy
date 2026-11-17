@@ -148,6 +148,78 @@ describe.skipIf(!dockerAvailable)("thread failures stay scoped over real gRPC", 
       await server.close();
     }
   }, 10000);
+  test("repeated untyped gRPC failures through SSE recover with a fresh window", async () => {
+    let state: ui.ThreadSnapshot | undefined;
+
+    for await (const update of gateway.api.watchThread(
+      { threadId: thread, sequence: true },
+      { signal: AbortSignal.timeout(5000) },
+    )) {
+      state = applyThreadUpdate(state, update);
+      break;
+    }
+
+    const original = state!;
+    const requests: boolean[] = [];
+
+    const server = await startGrpcServer({
+      routes: (router) =>
+        router.service(ui.GatewayService, {
+          async *watchThread(request, context) {
+            requests.push(Boolean(request.syncCursor));
+
+            if (request.syncCursor)
+              throw new ConnectError("Private failed range details", Code.Unknown, {
+                "canopy-sync-reason": "watch_failed",
+              });
+
+            for await (const update of gateway.api.watchThread(request, { signal: context.signal })) {
+              yield update;
+
+              if (update.change.case === "snapshot") return;
+            }
+          },
+        }),
+    });
+
+    const api = createClient(ui.GatewayService, createGrpcTransport({ baseUrl: server.url }));
+    const recovery = new ThreadWatchRecovery();
+    const actions: string[] = [];
+
+    try {
+      for (let attempt = 0; attempt < 4; attempt++) {
+        const response = sseResponse(
+          new Request("http://localhost/events"),
+          (signal) => api.watchThread({ threadId: thread, sequence: true, syncCursor: state?.syncCursor }, { signal }),
+          (update) => {
+            state = applyThreadUpdate(state, update);
+
+            return null;
+          },
+        );
+
+        const text = await response.text();
+        expect(text).not.toContain("Private failed range details");
+
+        if (!text.includes("event: failure")) break;
+        const failure = readThreadWatchFailure(text.split("event: failure\ndata: ")[1]!.trim());
+        expect(failure).toMatchObject({ code: Code.Unknown, reason: "watch_failed" });
+        const decision = recovery.failed(failure);
+        actions.push(decision.action);
+
+        if (decision.action === "reset") state = { ...state!, cursor: "", syncCursor: undefined };
+        expect(state!.thread?.title).toBe(original.thread?.title);
+        expect(state!.items).toEqual(original.items);
+      }
+
+      expect(actions).toEqual(["resume", "resume", "reset"]);
+      expect(requests).toEqual([true, true, true, false]);
+      expect(state!.syncCursor).toBeDefined();
+      expect(state!.thread?.id).toBe(thread);
+    } finally {
+      await server.close();
+    }
+  });
   test.each(["grpc", "mobile"])(
     "%s rejects an oversized frame atomically and resumes a bounded watch",
     async (kind) => {

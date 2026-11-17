@@ -13,17 +13,32 @@ export function retainCurrentContent(
   records: readonly ui.ThreadSyncRecord[],
 ) {
   return Effect.gen(function* () {
-    const values = records.flatMap((record) => {
-      const hash = contentHash(record);
+    const latest = new Map<string, ui.ThreadSyncRecord>();
 
-      return hash ? [{ key: record.key, hash, seq: record.seq.toString() }] : [];
-    });
+    for (const record of records) {
+      const previous = latest.get(record.key);
+
+      if (!previous || previous.seq <= record.seq) latest.set(record.key, record);
+    }
+
+    // Snapshot checkpoints can leave several unsealed revisions of one entity.
+    // Keep the latest revision before filtering hashes, including inline/deleted values.
+    const values = [...latest.values()].map((record) => ({
+      key: record.key,
+      hash: record.removed ? null : (contentHash(record) ?? null),
+      seq: record.seq.toString(),
+    }));
 
     if (!values.length) return;
-    yield* sql`INSERT INTO thread_replication_entity_content(thread_id,entity_key,sha256,seq)
-      SELECT ${thread}::uuid,p.key,p.hash,p.seq FROM jsonb_to_recordset(${JSON.stringify(values)}::jsonb)
-        p(key text,hash text,seq bigint)
-      ON CONFLICT(thread_id,entity_key) DO UPDATE SET sha256=excluded.sha256,seq=excluded.seq`;
+    yield* sql`WITH revisions AS (
+        SELECT * FROM jsonb_to_recordset(${JSON.stringify(values)}::jsonb) p(key text,hash text,seq bigint)
+      ), removed AS (
+        DELETE FROM thread_replication_entity_content c USING revisions p
+        WHERE c.thread_id=${thread}::uuid AND c.entity_key=p.key AND p.hash IS NULL AND c.seq<=p.seq
+      ) INSERT INTO thread_replication_entity_content(thread_id,entity_key,sha256,seq)
+      SELECT ${thread}::uuid,p.key,p.hash,p.seq FROM revisions p WHERE p.hash IS NOT NULL
+      ON CONFLICT(thread_id,entity_key) DO UPDATE SET sha256=excluded.sha256,seq=excluded.seq
+        WHERE thread_replication_entity_content.seq<=excluded.seq`;
   });
 }
 

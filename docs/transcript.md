@@ -1,8 +1,10 @@
 # Transkrypt: zapis wszystkiego, co dzieje się w wątku
 
-Status (2026-11-16): log zdarzeń, projekcja itemów i bloby obrazów są zaimplementowane,
+Status (2026-11-17): log zdarzeń, projekcja itemów i bloby obrazów są zaimplementowane,
 w tym bezstratne wyniesienie obrazów wyników trybu kodu Codexa z `raw_json`
 oraz trwały, oddzielny od rozliczeń pomiar bieżącego kontekstu głównej sesji.
+Wznowienie zakresu zachowuje wiele rewizji tego samego dużego itemu, a wskaźnik
+bieżącej treści wybiera najnowszą z nich.
 Plany retencji oznaczono osobno poniżej; dostępność wydań opisuje [release.md](release.md).
 
 Wymaganie: frontend pokazuje **wszystko**: wiadomości, rozumowanie, każde narzędzie z wejściem i pełnym wynikiem, zmiany plików, plany, subagentów, zadania w tle, zgody, wywołania innych agentów i zdarzenia systemowe. Także to, co dzieje się **między turami**.
@@ -201,6 +203,13 @@ nie jest dostarczany agentowi. Limity i restart opisuje [protocol.md](protocol.m
 2. **Na żywo:** subskrypcja zdarzeń z `seq > max(last_seq)` i ten sam `reduceItem` po stronie przeglądarki.
 3. **Wznowienie** po zerwaniu: od ostatniego `seq`.
 4. **Pełna historia surowa** (debug, audyt): `thread_timeline(thread_id)`.
+
+Checkpoint innego czytelnika może pozostawić w zakresie kilka jeszcze
+nieopublikowanych rewizji tego samego itemu. Replay zachowuje wszystkie seq,
+natomiast zapis wskaźników bieżącej dużej treści scala je po kluczu itemu,
+wybierając najwyższy seq. Nowsza treść inline albo usunięcie usuwa wskaźnik;
+starsza rewizja nie nadpisuje nowszego wskaźnika. Dzierżawy wcześniej wydanych
+hashy pozostają niezależne od tego wskaźnika.
 
 Dla itemów odziedziczonych z forka, które zmieniały się w źródle po punkcie forka (`changed_after_fork`, np. zadanie w tle), stan w punkcie forka odtwarza się z `thread_timeline`.
 
