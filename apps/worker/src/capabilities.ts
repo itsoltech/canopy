@@ -73,6 +73,7 @@ export function workerCapabilities(options: { localWorker: boolean; fullAccess: 
     "thread_image_replies_v1",
     "thread_file_preview_v1",
     "thread_directory_v1",
+    "thread_diff_v1",
     "thread_file_highlight_v1",
     "thread_files_watch_v1",
     // thread_visuals_v1: render_visual is offered to every harness; the gateway validates and stores it.

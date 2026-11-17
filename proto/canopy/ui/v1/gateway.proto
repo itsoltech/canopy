@@ -12,6 +12,7 @@ import "google/protobuf/timestamp.proto";
 import "canopy/worker/v1/worker_link.proto";
 import "canopy/worker/v1/agent_tools.proto";
 import "canopy/worker/v1/thread_directory.proto";
+import "canopy/worker/v1/thread_diff.proto";
 import "canopy/worker/v1/thread_highlight.proto";
 import "canopy/worker/v1/thread_watch.proto";
 import "canopy/ui/v1/bots.proto";
@@ -353,6 +354,8 @@ service GatewayService {
   // dostęp tylko pod katalogiem wątku, workspace'ami właściciela na tym workerze i katalogami workera.
   rpc ReadThreadFile(ThreadFileRequest) returns (ThreadFile);
   rpc ListThreadDirectory(ListThreadDirectoryRequest) returns (canopy.worker.v1.ThreadDirectoryPage);
+  rpc ListThreadDiff(ListThreadDiffRequest) returns (canopy.worker.v1.ThreadDiffSnapshot);
+  rpc ReadThreadDiff(ReadThreadDiffRequest) returns (canopy.worker.v1.ThreadDiffPage);
   rpc GetThreadFileHighlight(ThreadFileHighlightRequest) returns (canopy.worker.v1.ThreadFileHighlight);
   rpc WatchThreadFiles(WatchThreadFilesRequest) returns (stream canopy.worker.v1.ThreadFilesUpdate);
   rpc WriteThreadFile(WriteThreadFileRequest) returns (ThreadFile);
@@ -3242,4 +3245,15 @@ message ThreadGitStatusResponse {
   bool supported = 1;
   string detail = 2;
   canopy.worker.v1.ThreadGitStatus status = 3;
+}
+
+message ListThreadDiffRequest {
+  string thread_id = 1;
+}
+message ReadThreadDiffRequest {
+  string thread_id = 1;
+  string snapshot_id = 2;
+  string path = 3;
+  uint32 offset = 4;
+  uint32 limit = 5;
 }

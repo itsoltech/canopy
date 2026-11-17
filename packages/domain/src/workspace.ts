@@ -25,7 +25,7 @@ const DRAFT_BYTES = 4 * 1024 * 1024;
 
 export interface WorkspacePanel {
   open: boolean;
-  mode: "files" | "preview";
+  mode: "files" | "diff" | "preview";
   tool: AgentTool;
 }
 

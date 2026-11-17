@@ -1,6 +1,6 @@
 # Canopy — architektura
 
-Status: opis zaimplementowanego kodu (2026-11-16): gateway, workery, web BFF,
+Status: opis zaimplementowanego kodu (2026-11-17): gateway, workery, web BFF,
 Canopy Desktop (tryb lokalny, zdalny, sesja dostępu do BFF i połączone komputery),
 interaktywny i automatyczny mini podgląd automatyzacji w wątku oraz aplikacja mobilna
 z ręcznym Preview Browser/Desktop/Device.
@@ -116,7 +116,8 @@ Wątek web/desktop i mobile ma lokalny workspace: rozmowę jako pierwszą kartę
 (w web/desktop pod tytułem wątku), karty plików (jeden zastępowalny preview
 i karty utrwalone), pełnego PR oraz wyniku zadania w tle. Podsumowanie wątku
 to pływająca karta w rogu obszaru rozmowy (pigułka, popover albo arkusz),
-a prawy panel web/desktop łączy drzewo Files z interaktywnym Preview
+a prawy panel web/desktop łączy drzewo Files, listę zmian Git `Diff`
+z wirtualizowaną kartą wszystkich zmian i zbiorczym review dla agenta oraz interaktywny Preview
 (Browser/Desktop/Device), a podsumowanie może mieć pod sobą automatyczny mini
 podgląd; natywny mobile ma tytuł jako kartę rozmowy, przełącznik kart i arkusze
 `Thread details`, `Files` oraz ręczny `Preview` Browser/Desktop/Device, przesyłany

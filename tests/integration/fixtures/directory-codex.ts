@@ -26,6 +26,9 @@ for await (const chunk of process.stdin) {
 
     if (request.method === "initialize") result = { userAgent: "directory-fixture" };
     else if (request.method === "model/list") result = { data: [], nextCursor: null };
+    else if (request.method === "thread/goal/get") result = { goal: null };
+    else if (["thread/unsubscribe", "thread/backgroundTerminals/clean", "thread/archive"].includes(request.method))
+      result = {};
     else if (request.method === "thread/start") {
       process.chdir(request.params.cwd);
       writeFileSync("worker-started.txt", process.cwd());

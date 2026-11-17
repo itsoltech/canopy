@@ -52,6 +52,7 @@
     file?: string | undefined;
     pullRequest?: string | undefined;
     livePreview?: boolean;
+    diff?: boolean | undefined;
   }
 
   const tabs = $derived.by((): TabRow[] => {
@@ -70,6 +71,7 @@
         livePreview: tab.kind === "module" && tab.module === "preview",
         file: tab.kind === "file" ? tab.document.path : undefined,
         pullRequest: tab.kind === "module" && tab.module === "pull-requests" ? tab.resource : undefined,
+        diff: tab.kind === "module" && tab.module === "diff",
       })),
     ];
   });
@@ -207,7 +209,9 @@
               />{:else if tab.file}<FileIcon path={tab.file} />{:else if tab.pullRequest}<PullRequestTabIcon
                 id={tab.pullRequest}
                 onlabel={(label) => (statuses[tab.id] = label)}
-              />{:else}<Icon name={tab.livePreview ? "globe-alt" : "command-line"} />{/if}
+              />{:else if tab.diff}<Icon name="arrows-right-left" />{:else}<Icon
+                name={tab.livePreview ? "globe-alt" : "command-line"}
+              />{/if}
             <span class={["truncate", tab.preview && "pr-0.5 italic"]}>{tab.name}</span>
           {/if}
         </button>

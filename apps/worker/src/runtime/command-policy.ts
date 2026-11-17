@@ -34,6 +34,8 @@ export const NOT_REMEMBERED: ReadonlySet<Command["kind"]["case"]> = new Set([
   // Explicit owner actions on one file: answered once, never redelivered.
   "readFile",
   "listThreadDirectory",
+  "listThreadDiff",
+  "readThreadDiff",
   "getThreadFileHighlight",
   "watchThreadFiles",
   "exportThreadImage",

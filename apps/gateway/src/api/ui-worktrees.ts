@@ -4,6 +4,7 @@ import type { UiHandlers } from "./ui-service.ts";
 import { WorkspaceBranches } from "../worktrees/workspace-branches.ts";
 import { ThreadBranches } from "../worktrees/thread-branches.ts";
 import { ThreadFiles } from "../files/thread-files.ts";
+import { ThreadDiff } from "../files/thread-diff.ts";
 import { ThreadDirectory } from "../files/thread-directory.ts";
 import { ThreadHighlight } from "../files/thread-highlight.ts";
 import { ThreadWatch } from "../files/thread-watch.ts";
@@ -29,6 +30,8 @@ export function worktreesHandlers(
   | "revealThreadDirectory"
   | "readThreadFile"
   | "listThreadDirectory"
+  | "listThreadDiff"
+  | "readThreadDiff"
   | "getThreadFileHighlight"
   | "watchThreadFiles"
   | "writeThreadFile"
@@ -39,6 +42,7 @@ export function worktreesHandlers(
   const workspaceBranches = new WorkspaceBranches(core);
   const files = new ThreadFiles(core);
   const directory = new ThreadDirectory(core);
+  const diff = new ThreadDiff(core);
   const highlight = new ThreadHighlight(core);
   const watch = new ThreadWatch(core);
 
@@ -68,6 +72,8 @@ export function worktreesHandlers(
         return {};
       }),
     readThreadFile: (request) => guard(() => files.read(request)),
+    listThreadDiff: (request) => guard(() => diff.list(request)),
+    readThreadDiff: (request) => guard(() => diff.read(request)),
     listThreadDirectory: (request) => guard(() => directory.list(request)),
     getThreadFileHighlight: (request) => guard(() => highlight.read(request)),
     watchThreadFiles: async function* (request, context) {

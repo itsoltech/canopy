@@ -12,6 +12,7 @@ import { ProviderLogins } from "./provider-logins.ts";
 import { withProcessPriority } from "@canopy/process-governor";
 import { revealInFileManager } from "./reveal.ts";
 import { isFileCommand, runFileCommand } from "./file-commands.ts";
+import { ThreadDiffs } from "../files/thread-diff.ts";
 import { ThreadDirectories } from "../files/thread-directory.ts";
 import { ThreadHighlights } from "../files/thread-highlight.ts";
 import { ThreadFilesWatcher } from "../files/thread-watch.ts";
@@ -21,31 +22,44 @@ import { updateTurnPermissions } from "./permission-commands.ts";
 export class CommandHandlers {
   readonly #logins: ProviderLogins;
   readonly #directories = new ThreadDirectories();
+  readonly #diffs: ThreadDiffs;
   readonly #highlights = new ThreadHighlights();
   readonly #filesWatcher = new ThreadFilesWatcher();
   constructor(readonly ctx: HostContext) {
     this.#logins = new ProviderLogins(ctx);
+    this.#diffs = new ThreadDiffs(ctx.state.options.dataDir);
   }
 
   closeDirectories() {
     this.#filesWatcher.close();
     this.#highlights.close();
 
-    return this.#directories.close();
+    return Promise.all([this.#directories.close(), this.#diffs.close()]);
   }
 
   async closeThreadResources(threadId: string): Promise<void> {
     this.#highlights.closeThread(threadId);
-    await Promise.all([this.#filesWatcher.closeThread(threadId), this.#directories.closeThread(threadId)]);
+    await Promise.all([
+      this.#filesWatcher.closeThread(threadId),
+      this.#directories.closeThread(threadId),
+      this.#diffs.closeThread(threadId),
+    ]);
   }
 
   #checkFileThread(kind: Command["kind"]): void {
     if (
       (kind.case === "listThreadDirectory" && !kind.value.release) ||
       kind.case === "getThreadFileHighlight" ||
+      kind.case === "listThreadDiff" ||
+      kind.case === "readThreadDiff" ||
       (kind.case === "watchThreadFiles" && !kind.value.release)
     ) {
-      if (this.ctx.state.closedThreads.has(kind.value.threadId))
+      // Archive releases existing snapshots, but authorized read-only diff queries may reopen them.
+      if (
+        this.ctx.state.closedThreads.has(kind.value.threadId) &&
+        kind.case !== "listThreadDiff" &&
+        kind.case !== "readThreadDiff"
+      )
         throw new CommandError(
           "THREAD_CLOSED",
           "This thread is archived or deleted. Unarchive or restore it to continue.",
@@ -59,6 +73,14 @@ export class CommandHandlers {
           false,
         );
     }
+  }
+
+  async #diff(kind: Extract<Command["kind"], { case: "listThreadDiff" | "readThreadDiff" }>): Promise<CommandOutput> {
+    this.ctx.ops.checkCwd(kind.value.workspace);
+
+    return kind.case === "listThreadDiff"
+      ? { threadDiff: await this.#diffs.list(kind.value) }
+      : { threadDiffPage: await this.#diffs.read(kind.value) };
   }
 
   async execute(command: Command): Promise<CommandOutput> {
@@ -81,6 +103,8 @@ export class CommandHandlers {
 
       return { threadDirectory: await this.#directories.list(kind.value) };
     }
+
+    if (kind.case === "listThreadDiff" || kind.case === "readThreadDiff") return this.#diff(kind);
 
     if (kind.case === "getThreadFileHighlight") {
       this.ctx.ops.checkCwd(kind.value.workspace);

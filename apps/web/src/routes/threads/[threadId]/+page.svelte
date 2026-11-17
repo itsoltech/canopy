@@ -548,6 +548,13 @@
         />
         <IconButton
           size="sm"
+          icon="arrows-right-left"
+          label={workspaceState.panelOpen && workspaceState.panelMode === "diff" ? "Close diff" : "Open diff"}
+          aria-pressed={workspaceState.panelOpen && workspaceState.panelMode === "diff"}
+          onclick={() => workspaceState.showPanel("diff")}
+        />
+        <IconButton
+          size="sm"
           icon="computer-desktop"
           label={workspaceState.filesOpen && workspaceState.panelMode === "preview" ? "Close preview" : "Open preview"}
           aria-pressed={workspaceState.filesOpen && workspaceState.panelMode === "preview"}
@@ -872,6 +879,10 @@
 {#snippet renderModule(target: WorkspaceModuleTarget)}
   {#if target.module === "preview"}
     <WorkspacePreview state={workspaceState} {worker} offline={away ?? ""} location="tab" active />
+  {:else if target.module === "diff"}
+    {#await import("#lib/features/workspace/WorkspaceDiff.svelte") then module}
+      <module.default view={workspaceState.view} disabled={closed} />
+    {/await}
   {:else if target.module === "pull-requests" && target.resource}
     <PullRequestPanel id={target.resource} {threadId} onclose={() => workspaceState.view.select("thread")} />
   {:else if target.module === "tasks" && target.resource}
