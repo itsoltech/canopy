@@ -43,9 +43,15 @@ export interface ClaudeBusOptions {
 /** Longer than the longest wait_threads (300 s): the gateway answers every call, a timeout would orphan it. */
 export const BUS_TIMEOUT_MS = 330_000;
 
-/** The same bound configures the SDK and cancels the durable gateway wait. */
+/** Image publication gets a longer deadline; the SDK only supports a server-wide bound. */
+const IMAGE_PUBLICATION_TIMEOUT_MS = 15 * 60_000;
+
+/** Cancel the durable gateway wait at the tool's deadline, within the SDK's server-wide bound. */
 function timedCall(options: ClaudeBusOptions, call: AgentToolCall): Promise<AgentToolResult> {
-  const deadline = Date.now() + BUS_TIMEOUT_MS;
+  const timeout =
+    call.toolName === "show_images" && !call.connectorAccountId ? IMAGE_PUBLICATION_TIMEOUT_MS : BUS_TIMEOUT_MS;
+
+  const deadline = Date.now() + timeout;
   call.expiresAt = timestampFromDate(new Date(deadline));
 
   return options.callTool(call, AbortSignal.timeout(Math.max(0, deadline - Date.now())));
@@ -62,7 +68,7 @@ export function claudeBusServer(options: ClaudeBusOptions): McpSdkServerConfigWi
     name: BUS_SERVER,
     // Always in the prompt: deferred behind tool search, models do not find them (seen live).
     alwaysLoad: true,
-    timeout: BUS_TIMEOUT_MS,
+    timeout: IMAGE_PUBLICATION_TIMEOUT_MS,
     tools: [
       ...(options.agentBus ? busTools(options) : []),
       ...(options.connectorTools ?? []).map(

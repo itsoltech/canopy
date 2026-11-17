@@ -1,6 +1,6 @@
 # Adapter Claude (Agent SDK)
 
-Status: **działa** (2026-11-17), w tym osobiste hooki `PreToolUse` i `PermissionRequest`, import dokumentów pomocniczych i pustych opcjonalnych metadanych osobistych skilli oraz zmiana uprawnień i sandboxa podczas bieżącej tury:
+Status: **działa** (2026-11-17), w tym 15-minutowy limit `show_images`, osobiste hooki `PreToolUse` i `PermissionRequest`, import dokumentów pomocniczych i pustych opcjonalnych metadanych osobistych skilli oraz zmiana uprawnień i sandboxa podczas bieżącej tury:
 - runtime wątków: `ClaudeThreads` w `apps/worker/src/providers/claude/threads.ts`,
 - mapowanie wiadomości SDK na zdarzenia transkryptu: `ClaudeEventMapper` w `mapping.ts`, z testami na nagranych strumieniach (`fixtures/*.jsonl`),
 - tryby uprawnień: `permissions.ts`,
@@ -101,7 +101,7 @@ Pełne wiadomości nigdy nie giną: bez mapowania trafiają do dziennika jako `r
 
 - Serwer MCP `canopy` w procesie workera (`createSdkMcpServer`), narzędzia `mcp__canopy__<nazwa>` z tych samych definicji co `dynamicTools` Codexa (`packages/domain`, Effect Schema → JSON Schema → `z.fromJSONSchema`).
 - `alwaysLoad`: bez tego Claude Code chowa narzędzia MCP za wyszukiwaniem narzędzi i model musi je najpierw znaleźć (zaobserwowane na żywo).
-- Limit czasu wywołania 330 s, dłuższy niż najdłuższe `wait_threads` (300 s).
+- `show_images` ma limit 15 min; pozostałe wywołania do gatewaya zachowują 330 s, dłużej niż najdłuższe `wait_threads` (300 s). SDK ma wspólny limit serwera 15 min, a worker przekazuje termin konkretnego narzędzia do gatewaya i anuluje oczekiwanie po jego przekroczeniu.
 - `call_id` z id `tool_use` (z `_meta` wywołania albo dopasowany po nazwie i argumentach ze strumienia), więc ponowione wywołanie po ponownym połączeniu dostaje zapisany wynik.
 - Narzędzia szyny są dozwolone w każdym trybie uprawnień (`allowedTools`); autoryzuje je gateway.
 - Zmiana konektorów dotyczy następnej tury. Nowe query/resume dostaje aktualne `mcpServers`; query z zadaniami w tle usuwa i dodaje serwer przez `setMcpServers`, ponieważ SDK zachowuje instancję przy samej podmianie tej samej nazwy. Worker czeka do 15 s na `connected` i aktualny katalog w `mcpServerStatus`: samo zakończenie rejestracji może jeszcze zwrócić `pending`. Notatka `[canopy]` informuje model tylko o zmianach ([connectors.md](connectors.md#ograniczenia-sesji-harnessów)).

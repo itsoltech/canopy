@@ -1,6 +1,7 @@
 # API dla UI i architektura frontendu
 
-Status (2026-11-17): propozycje odpowiedzi pomijają zużyte i wysterowane wpisy kolejki;
+Status (2026-11-17): Claude zachowuje 330 s dla interakcji mimo 15-minutowego limitu MCP dla publikacji obrazów;
+propozycje odpowiedzi pomijają zużyte i wysterowane wpisy kolejki;
 porzucone notatki platformy nie udają oczekującego wejścia i nie blokują późniejszych propozycji;
 watch odzyskuje stan po powtarzającym się nieokreślonym błędzie gatewaya;
 usunięte worktree pokazuje wątek tylko do odczytu z kontynuacją w nowym worktree;
@@ -1533,8 +1534,8 @@ czasu i publikowany w strumieniu. `AnswerInteraction` odrzuca spóźnioną odpow
 Znany termin odpowiedzi jest trwałym `expires_at` w `Interaction`, osi czasu
 (`InteractionPrompt`) i `BotApproval`. Synchroniczne `ask_user` zapisuje termin 120 s
 przy utworzeniu; ponowienie nie zaczyna odliczania od nowa. Wcześniejszy termin
-transportu wygrywa. In-process MCP Claude przekazuje i egzekwuje 330 s z tej samej
-stałej, która konfiguruje SDK. Natywne interakcje bez znanego limitu, asynchroniczne
+transportu wygrywa. In-process MCP Claude przekazuje i egzekwuje 330 s dla interakcji;
+wspólny limit serwera SDK wynosi 15 min, aby objąć `show_images`. Natywne interakcje bez znanego limitu, asynchroniczne
 pytania i HTTP MCP botów bez limitu Canopy nie dostają terminu.
 
 Web i mobile pokazują `Expires in 1:45` przy tytule karty, bursztynowo w ostatnich 25 s.

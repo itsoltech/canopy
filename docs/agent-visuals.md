@@ -1,7 +1,8 @@
 # Obrazy w odpowiedziach i interaktywne visuals
 
-Status (2026-11-16): **obrazy, `render_visual` i `render_html` zaimplementowane** w web/desktop/mobile;
-własny HTML na desktopie ma interaktywny podgląd w rozmowie z odizolowanego procesu.
+Status (2026-11-17): **obrazy, `render_visual` i `render_html` zaimplementowane** w web/desktop/mobile;
+Claude ma 15-minutowy limit wywołania `show_images`.
+Własny HTML na desktopie ma interaktywny podgląd w rozmowie z odizolowanego procesu.
 Interaktywny podgląd lokalnej automatyzacji w wątku web/desktop również jest
 zaimplementowany. Galerie `show_images` pojawiają się po zakończeniu ich tury.
 To stan kodu, nie deklaracja wdrożenia; dostępność kanałów
@@ -87,6 +88,11 @@ opcjonalny podpis pojedynczego obrazu ma do 500 znaków, `caption` do 1000.
 `before`/`after`. Brak par oznacza zwykłą galerię. Nadmiarowe pola są błędem.
 Gateway wyprowadza ownera, wątek, turę i workera z wywołania, nigdy z argumentów.
 Wynik dla modelu zawiera referencje i metadane, bez bajtów obrazów.
+
+W adapterze Claude `show_images` ma limit 15 min zamiast 330 s. Wspólny limit
+serwera MCP i termin przekazywany do gatewaya obejmują te 15 min; pozostałe
+wywołania do gatewaya zachowują 330 s. Limity samego transferu opisane poniżej
+obowiązują niezależnie.
 
 Wywołanie tworzy samodzielny item odpowiedzi `image_gallery`, widoczny w strumieniu
 odpowiedzi agenta także po zwinięciu pracy. Nie jest schowane wewnątrz tool calla.
