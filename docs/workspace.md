@@ -2,7 +2,7 @@
 
 Status (2026-11-17): **zaimplementowane; układ v3**, lokalne `Reveal in Finder/Explorer`
 przy ścieżkach i w menu pliku, podgląd dostępnych plików spoza workspace tylko do odczytu,
-panel Diff z wirtualizowanym przeglądem zmian Git
+panel Diff z wirtualizowanym przeglądem zmian Git i zwiększonymi limitami odczytu
 i lokalnym szkicem review wysyłanym agentowi jako jedna wiadomość oraz wcześniejszym
 pobieraniem treści diffu poza ekranem, karta Preview w web/desktop
 i różne ikony skali 1:1 oraz dopasowania, kompaktowa typografia zakładek,
@@ -322,6 +322,10 @@ Odczyty odnoszą się do nietrwałej migawki zmian na workerze. `Refresh changes
 nową migawkę, zamiast mieszać strony ze zmieniających się plików. Brak repozytorium,
 wygaśnięcie migawki, niedostępność komputera lub przekroczenie limitu odczytu mają
 jawny stan i akcję odzyskiwania; limit nigdy nie oznacza kompletnego pustego diffu.
+Budowa migawki ma budżet 1 GiB przetworzonych bajtów, do 10 000 plików
+i 2 MiB metadanych. Pojedynczy wiersz może mieć do 256 KiB, a strona do
+512 KiB protobuf; krótsza strona nie ucina treści, klient doczytuje kolejne wiersze.
+Pozostają cztery migawki na worker, pięć minut ważności i 30 sekund na budowę.
 
 Komentarz wybiera linię i stronę diffu oraz zachowuje ścieżkę, numer, tekst kodu
 i tożsamość migawki. Szkic review pozwala przejrzeć, poprawić i usunąć uwagi przed

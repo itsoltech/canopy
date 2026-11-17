@@ -1,8 +1,7 @@
 import { spawn } from "node:child_process";
 import { governNodeSpawn, killProcessTree, runProcess } from "@canopy/process-governor";
+import { DIFF_BYTES, DIFF_METADATA_BYTES } from "@canopy/domain/thread-diff-limits";
 
-export const DIFF_BYTES = 256 * 1024 * 1024;
-export const DIFF_FILES = 2000;
 export const DIFF_TTL = 5 * 60_000;
 
 export class DiffLimit extends Error {}
@@ -83,7 +82,7 @@ export async function diffGit(root: string, args: string[], budget: DiffBudget) 
       env: env(),
       signal: budget.signal,
       timeoutMs: 30_000,
-      maxBytes: 1024 * 1024,
+      maxBytes: 4 * DIFF_METADATA_BYTES,
     },
     { kind: "git" },
   );

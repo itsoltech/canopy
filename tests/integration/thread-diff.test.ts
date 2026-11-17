@@ -11,6 +11,7 @@ import {
 } from "@canopy/contracts";
 import { dockerAvailable } from "@canopy/db/testing";
 import { qualifyId } from "@canopy/domain/computers";
+import { DIFF_LINE_BYTES, DIFF_PAGE_BYTES } from "@canopy/domain/thread-diff-limits";
 import { GatewayStore } from "@canopy/gateway/store";
 import { remoteServe, uiHandlers } from "@canopy/gateway/api";
 import { tempDir } from "@canopy/testing";
@@ -129,12 +130,68 @@ describe.skipIf(!dockerAvailable)("thread diff over worker, gateway and linked c
       expect(page.offset).toBe(offset);
       expect(page.lineCount).toBe(file.lineCount);
       expect(page.lines.length).toBe(Math.min(128, file.lineCount - offset));
-      expect(toBinary(ThreadDiffPageSchema, page).byteLength).toBeLessThan(64 * 1024);
+      expect(toBinary(ThreadDiffPageSchema, page).byteLength).toBeLessThan(DIFF_PAGE_BYTES);
       expect(page.lines.filter((line) => line.kind === Kind.ADDITION).every((line) => line.text === "long")).toBe(true);
     }
 
     unlinkSync(join(thread.cwd, "million.txt"));
   }, 40_000);
+
+  test("long UTF-8 lines survive chunk boundaries and bounded pages through the linked gateway", async () => {
+    const selected = await home.tree();
+    const source = "界".repeat(32 * 1024);
+    writeFileSync(join(selected.cwd, "long-lines.txt"), `${source}\n`.repeat(8));
+    const snapshot = await caller.api.listThreadDiff({ threadId: q(selected.id) });
+    expect(snapshot.complete).toBe(true);
+    const file = snapshot.files.find((entry) => entry.path === "long-lines.txt")!;
+    expect(file.additions).toBe(8);
+    let offset = 0;
+    let additions = 0;
+
+    while (offset < file.lineCount) {
+      const page = await caller.api.readThreadDiff({
+        threadId: q(selected.id),
+        snapshotId: snapshot.snapshotId,
+        path: file.path,
+        offset,
+        limit: 128,
+      });
+
+      expect(page.error).toBe(Failure.UNSPECIFIED);
+      expect(page.lines.length).toBeGreaterThan(0);
+      expect(page.lines.length).toBeLessThan(file.lineCount);
+      expect(toBinary(ThreadDiffPageSchema, page).byteLength).toBeLessThanOrEqual(DIFF_PAGE_BYTES);
+
+      for (const line of page.lines.filter((line) => line.kind === Kind.ADDITION)) {
+        expect(line.text).toBe(source);
+        expect(line.newLine).toBe(++additions);
+      }
+
+      offset += page.lines.length;
+    }
+
+    expect(additions).toBe(8);
+  });
+
+  test("more than two thousand changes and 512 KiB of metadata survive linked reads", async () => {
+    const selected = await home.tree();
+
+    for (let index = 0; index < 2100; index++)
+      symlinkSync("missing-target", join(selected.cwd, `${index}-${"x".repeat(245)}`));
+    const snapshot = await caller.api.listThreadDiff({ threadId: q(selected.id) });
+    expect(snapshot.complete).toBe(true);
+    expect(snapshot.files).toHaveLength(2100);
+    const path = snapshot.files.at(-1)!.path;
+
+    const page = await caller.api.readThreadDiff({
+      threadId: q(selected.id),
+      snapshotId: snapshot.snapshotId,
+      path,
+    });
+
+    expect(page.error).toBe(Failure.UNSPECIFIED);
+    expect(page.lines[0]?.text).toBe("Link or submodule changed");
+  });
 
   test("refresh replaces snapshots without exhausting capacity and coalesces concurrent callers", async () => {
     for (let index = 0; index < 6; index++) {
@@ -449,7 +506,7 @@ describe.skipIf(!dockerAvailable)("thread diff over worker, gateway and linked c
   }, 30_000);
 
   test("resource limits are explicit and restart expires retained snapshots", async () => {
-    writeFileSync(join(thread.cwd, "oversize.txt"), "x".repeat(60 * 1024));
+    writeFileSync(join(thread.cwd, "oversize.txt"), "x".repeat(DIFF_LINE_BYTES + 1));
     const failed = await caller.api.listThreadDiff({ threadId: q() });
     expect(failed).toMatchObject({ complete: false, error: Failure.TOO_LARGE, files: [], snapshotId: "" });
     unlinkSync(join(thread.cwd, "oversize.txt"));

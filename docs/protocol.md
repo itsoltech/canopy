@@ -1117,7 +1117,8 @@ profile po analizie. Nie zapisuj ich ani wyników pomiaru w repozytorium.
 
 ## Migawki zmian Git wątku
 
-Status (2026-11-17): zaimplementowane w kodzie; dostępność nightly/beta/stable
+Status (2026-11-17): zaimplementowane w kodzie, zwiększone limity migawek i stron;
+dostępność nightly/beta/stable
 wynika z promocji wydań. Addytywna capability `thread_diff_v1` nie zmienia
 `WORKER_LINK_PROTOCOL = 1`.
 
@@ -1142,7 +1143,7 @@ i jawny `error`. `ThreadDiffPage` przyjmuje identyfikator, ścieżkę, zerowy
 `offset` i `limit` (domyślnie 128, maksymalnie 200). Linia ma rodzaj
 context/addition/deletion/hunk/meta, tekst i opcjonalne numery starej/nowej
 linii. `line_count` obejmuje wszystkie wiersze, także nagłówki hunk i metadane.
-Strona ma maksymalnie 64 KiB protobuf; może zwrócić mniej wierszy niż limit,
+Strona ma maksymalnie 512 KiB protobuf; może zwrócić mniej wierszy niż limit,
 więc następny offset wynika z liczby otrzymanych wierszy.
 
 Worker zapisuje linie na prywatnym dysku z rzadkim indeksem co 128 rekordów;
@@ -1159,8 +1160,11 @@ sprzątania autoryzowane odczyty mogą utworzyć nowy snapshot archiwalnego wąt
 Nie otwiera to sesji harnessu. Trwające sprzątanie nadal blokuje nowe odczyty,
 a gateway odrzuca usunięte wątki przed wysłaniem komendy.
 
-Limity workera: cztery snapshoty/otwarcia, 2000 plików, 512 KiB metadanych,
-256 MiB przetworzonych bajtów na budowę, 48 KiB na linię i 30 sekund na budowę.
+Limity workera: cztery snapshoty/otwarcia, 10 000 plików, 2 MiB metadanych,
+1 GiB przetworzonych bajtów na budowę, 256 KiB na zakodowany rekord linii
+i 30 sekund na budowę. Budżet bajtów obejmuje odczyty źródeł, wyjście Git
+i zapis rekordów, a nie sam rozmiar patcha. Worker i gateway używają wspólnych
+limitów metadanych i stron z `@canopy/domain/thread-diff-limits`.
 Procesy Git podlegają governorowi; stderr nie opuszcza procesu, a anulowanie
 zabija wyłącznie własną grupę procesu. Worker najpierw odczytuje nazwy sterowników
 filtrów ze skutecznej konfiguracji Git (również globalnej i include), a następnie
