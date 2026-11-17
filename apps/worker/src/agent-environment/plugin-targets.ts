@@ -6,6 +6,7 @@ import { providersOf } from "../providers/profiles.ts";
 import type { EnvironmentHomes } from "./targets.ts";
 import type { SkillLedger } from "./skill-ledger.ts";
 import type { SkillTarget } from "./skill-targets.ts";
+import { codexPluginVersion } from "./codex-plugin-cache.ts";
 
 export const pluginHome = (path: string) => resolve(path, "../../../../..");
 export const pluginNamespace = (id: string, harness: string) => `canopy-${id}-${harness}`;
@@ -16,11 +17,27 @@ export function pluginTargets(desired: AgentEnvironmentDesired, homes: Environme
   for (const plugin of desired.plugins) {
     for (const harness of plugin.harnesses) {
       if (harness !== "claude" && harness !== "codex") throw new Error("Unsupported plugin harness.");
+      let version = "local";
+      let problem: string | undefined;
+
+      try {
+        if (harness === "codex") version = codexPluginVersion(plugin.artifact!.files);
+      } catch {
+        problem = "Couldn't read this plugin's version. Check its plugin.json manifest and sync again.";
+      }
 
       const add = (home: string, scope: string) => {
-        const path = join(home, "plugins/cache", pluginNamespace(plugin.id, harness), plugin.artifact!.name, "local");
+        const path = join(home, "plugins/cache", pluginNamespace(plugin.id, harness), plugin.artifact!.name, version);
         const targetId = environmentDigest(`skill:${path}`);
-        targets.set(targetId, { targetId, path, skillId: plugin.id, harness, scope, desired: plugin });
+        targets.set(targetId, {
+          targetId,
+          path,
+          skillId: plugin.id,
+          harness,
+          scope,
+          desired: plugin,
+          ...(problem && { problem }),
+        });
       };
 
       if (plugin.deviceHome) add(homes.deviceHomes[harness], "device");

@@ -55,6 +55,19 @@ export class SkillLedger {
 
     if (entry) next.set(id, entry);
     else next.delete(id);
+    this.save(next);
+  }
+
+  /** Transfer an exact owned bundle after the harness moved its cache; publish both keys atomically. */
+  relocate(id: string, entry: ManagedSkill): void {
+    if (this.entries.has(entry.targetId)) throw new Error("The plugin cache destination already has an owner.");
+    const next = new Map(this.entries);
+    next.delete(id);
+    next.set(entry.targetId, entry);
+    this.save(next);
+  }
+
+  private save(next: Map<string, ManagedSkill>): void {
     replaceInstructionFile(
       this.path,
       readInstructionFile(this.path, LEDGER_BYTES),

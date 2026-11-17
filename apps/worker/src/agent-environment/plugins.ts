@@ -10,7 +10,9 @@ import {
 import { validatePluginFiles } from "@canopy/domain/plugin-artifact";
 import { InstructionLedger } from "./ledger.ts";
 import { SkillLedger } from "./skill-ledger.ts";
-import { reconcileSkill } from "./skill-reconcile.ts";
+import { reconcilePlugin } from "./plugin-reconcile.ts";
+import { recoverPluginCaches } from "./plugin-cache-recovery.ts";
+import { installedSkillDigest } from "./installed-manifest.ts";
 import { pluginHome, pluginNamespace, pluginTargets } from "./plugin-targets.ts";
 import {
   pluginConfigHome,
@@ -54,14 +56,23 @@ function localBundle(target: SkillTarget): SkillTarget {
 export class WorkerPlugins {
   readonly ledger: SkillLedger;
   readonly config: InstructionLedger;
-  constructor(dataDir: string) {
+  constructor(
+    dataDir: string,
+    readonly platform: NodeJS.Platform = process.platform,
+  ) {
     this.ledger = new SkillLedger(dataDir, "plugins.json");
     this.config = new InstructionLedger(dataDir, "plugin-config.json");
   }
 
   reconcile(desired: AgentEnvironmentDesired, homes: EnvironmentHomes): EnvironmentSkillStatus[] {
     const result: EnvironmentSkillStatus[] = [];
-    const targets = pluginTargets(desired, homes, this.ledger).map(localBundle);
+    recoverPluginCaches(this.ledger, this.platform);
+
+    // Retire owned older versions before checking which slot the native reader can select.
+    const targets = pluginTargets(desired, homes, this.ledger)
+      .map(localBundle)
+      .sort((a, b) => Number(Boolean(a.desired)) - Number(Boolean(b.desired)));
+
     const locations = new Map<string, { home: string; harness: "claude" | "codex"; scope: "device" | "platform" }>();
 
     for (const target of targets) {
@@ -95,80 +106,83 @@ export class WorkerPlugins {
       ];
 
     for (const target of targets) {
-      const status = reconcileSkill(
-        target,
-        this.ledger,
-        desired.pluginResolutions.find((r) => r.targetId === target.targetId),
-        true,
-      );
-
-      status.importable = false;
-
-      if (status.status === "applied")
-        status.detail = "Reviewed plugin synced. Start a new harness session to load it.";
-      result.push(status);
-    }
-
-    for (const location of locations.values()) {
-      const selected = targets.filter(
-        (t) => t.harness === location.harness && pluginHome(t.path) === location.home && t.desired,
-      );
-
-      const ready = selected.filter((t) => result.find((s) => s.targetId === t.targetId)?.status === "applied");
-      const configs = activationConfigs(location, ready);
-      let blocked = ready.length !== selected.length;
-
-      for (const config of configs) {
-        const status = reconcilePluginConfig(
-          config,
-          this.config,
-          desired.pluginResolutions.find((r) => r.targetId === Bun.CryptoHasher.hash("sha256", config.path, "hex")),
-        );
-
-        if (!["applied", "removed"].includes(status.status)) blocked = true;
-        result.push(status);
-      }
-
-      const entries = Object.fromEntries(
-        ready.map((t) => [
-          pluginNamespace(t.skillId, t.harness),
-          { path: t.path, checksum: t.desired!.artifact!.checksum },
-        ]),
-      );
-
       result.push(
-        reconcilePluginConfig(
-          {
-            ...location,
-            path: pluginIndexPath(location.home, location.harness),
-            active: selected.length > 0 || blocked,
-            content: {
-              kind: "json",
-              value: {
-                plugins: entries,
-                checks:
-                  selected.length > 0 || blocked
-                    ? Object.fromEntries(
-                        configs.map((config) => [
-                          `canopy-${Bun.CryptoHasher.hash("sha256", config.path, "hex")}`,
-                          pluginConfigCheck(config),
-                        ]),
-                      )
-                    : {},
-                status: selected.length > 0 || blocked ? { "canopy-state": { blocked } } : {},
-              },
-            },
-          },
-          this.config,
-          desired.pluginResolutions.find(
-            (r) =>
-              r.targetId === Bun.CryptoHasher.hash("sha256", pluginIndexPath(location.home, location.harness), "hex"),
-          ),
+        reconcilePlugin(
+          target,
+          this.ledger,
+          desired.pluginResolutions.find((r) => r.targetId === target.targetId),
+          this.platform,
         ),
       );
     }
 
+    for (const location of locations.values()) this.syncLocation(location, targets, result, desired);
+
     return result;
+  }
+
+  private syncLocation(
+    location: { home: string; harness: "claude" | "codex"; scope: "device" | "platform" },
+    targets: SkillTarget[],
+    result: EnvironmentSkillStatus[],
+    desired: AgentEnvironmentDesired,
+  ): void {
+    const selected = targets.filter(
+      (t) => t.harness === location.harness && pluginHome(t.path) === location.home && t.desired,
+    );
+
+    const ready = selected.filter((t) => result.find((s) => s.targetId === t.targetId)?.status === "applied");
+    const configs = activationConfigs(location, ready);
+    let blocked = ready.length !== selected.length;
+
+    for (const config of configs) {
+      const status = reconcilePluginConfig(
+        config,
+        this.config,
+        desired.pluginResolutions.find((r) => r.targetId === Bun.CryptoHasher.hash("sha256", config.path, "hex")),
+      );
+
+      if (!["applied", "removed"].includes(status.status)) blocked = true;
+      result.push(status);
+    }
+
+    const entries = Object.fromEntries(
+      ready.map((t) => [
+        pluginNamespace(t.skillId, t.harness),
+        { path: t.path, checksum: installedSkillDigest(t.desired!.artifact!.files, this.platform) },
+      ]),
+    );
+
+    result.push(
+      reconcilePluginConfig(
+        {
+          ...location,
+          path: pluginIndexPath(location.home, location.harness),
+          active: selected.length > 0 || blocked,
+          content: {
+            kind: "json",
+            value: {
+              plugins: entries,
+              checks:
+                selected.length > 0 || blocked
+                  ? Object.fromEntries(
+                      configs.map((config) => [
+                        `canopy-${Bun.CryptoHasher.hash("sha256", config.path, "hex")}`,
+                        pluginConfigCheck(config),
+                      ]),
+                    )
+                  : {},
+              status: selected.length > 0 || blocked ? { "canopy-state": { blocked } } : {},
+            },
+          },
+        },
+        this.config,
+        desired.pluginResolutions.find(
+          (r) =>
+            r.targetId === Bun.CryptoHasher.hash("sha256", pluginIndexPath(location.home, location.harness), "hex"),
+        ),
+      ),
+    );
   }
 }
 

@@ -8,6 +8,10 @@ domyślną aplikację Desktop oraz platformę, start emulatorów i oczekiwanie D
 Polityka konfiguracji użytkownika Claude i oddzielny
 wybór katalogów logowania, konfiguracji, sesji oraz prywatnych plików platformy
 są zaimplementowane w kodzie. Dostępność nightly/beta/stable wynika z promocji wydań.
+Synchronizacja skilli i pluginów na Windows uwzględnia brak bitów wykonywalności
+POSIX. Pluginy Codexa używają natywnej wersji cache i odzyskują niezmienione
+katalogi przeniesione przez wcześniejszy harness; zasady własności i driftu
+opisuje [agent-environment.md](agent-environment.md#marketplace-i-pluginy--protokół-etapu-4).
 
 Status kont per instancja i worker (CLI, cache, prywatność):
 [provider-accounts.md](provider-accounts.md). Ochrona przed lawiną procesów:
@@ -656,9 +660,11 @@ Grok łączy disposable process home z trwałym `<actual home>/skills`. Manifest
 własności w `data_dir` pozwala usuwać tylko pliki Canopy; lokalne zmiany wymagają
 rozstrzygnięcia driftu. Nie instalujemy zależności ani nie uruchamiamy skryptów.
 Pluginy Claude/Codex negocjują `agent_plugins_v1`. Worker zapisuje zatwierdzone
-bundle do `plugins/cache/canopy-<uuid>-<harness>/<name>/local` w tych samych
+bundle do `plugins/cache/canopy-<uuid>-<harness>/<name>/<version>` w tych samych
 rzeczywistych domach. Zarządza wyłącznie własnymi namespace w Claude settings
 i registry v2 oraz blokiem pluginów/marketplace w Codex `config.toml`.
+Claude używa `local`, a Codex wersji z preferowanego manifestu (lub `local`, jeśli
+pole nie istnieje), żeby natywne odświeżenie nie przenosiło katalogu poza receipt.
 Nie włącza prywatnych user settings w SDK Claude. Drift plików/aktywacji blokuje
 nowe sesje; zgoda i commit są audytowane w gateway. Usunięcie przypisania usuwa
 własny kod/aktywację, zachowuje lokalne dodatki. Działający Codex app-server może

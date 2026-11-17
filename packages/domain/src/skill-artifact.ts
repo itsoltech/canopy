@@ -31,7 +31,7 @@ export function checkSkillPath(path: string): void {
 }
 
 /** Canonical manifest includes content digests and executable bits, independent of archive ordering. */
-export function skillManifestDigest(files: readonly SkillFile[]): string {
+export function skillManifestDigest(files: readonly Pick<SkillFile, "path" | "checksum" | "executable">[]): string {
   return skillDigest(
     Buffer.from(
       JSON.stringify(
