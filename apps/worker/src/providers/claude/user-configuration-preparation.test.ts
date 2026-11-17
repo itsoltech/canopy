@@ -345,25 +345,24 @@ test("invalid hook definitions are ignored until explicit hook opt-in and fail w
   }
 });
 
-test("user hooks cannot grant native tool permissions ahead of Canopy approvals", async () => {
+test("permission hooks are included only with explicit user hook opt-in", async () => {
   const paths = fixture();
 
   for (const event of ["PreToolUse", "PermissionRequest"]) {
-    writeFileSync(
-      join(paths.source, "settings.json"),
-      JSON.stringify({
-        hooks: { [event]: [{ hooks: [{ type: "command", command: "SYNTHETIC_PERMISSION_OVERRIDE" }] }] },
-      }),
-    );
+    const hooks: NonNullable<Settings["hooks"]> = {
+      [event]: [{ matcher: "Bash", hooks: [{ type: "command", command: "SYNTHETIC_PERMISSION_OVERRIDE" }] }],
+    };
 
-    await expect(prepare(paths, { instructions: false, skills: false, hooks: true })).rejects.toThrow(
-      "Claude user hooks cannot include PreToolUse or PermissionRequest because they can override Canopy approvals.",
-    );
+    writeFileSync(join(paths.source, "settings.json"), JSON.stringify({ hooks }));
+    const enabled = await prepare(paths, { instructions: false, skills: false, hooks: true });
     const disabled = await prepare(paths, { instructions: false, skills: false });
 
     try {
+      expect(enabled.settings.hooks).toEqual(hooks);
+      expect(JSON.parse(readFileSync(await enabled.settingsFile(enabled.settings), "utf8"))).toEqual({ hooks });
       expect(disabled.settings.hooks).toBeUndefined();
     } finally {
+      await enabled.close();
       await disabled.close();
     }
   }

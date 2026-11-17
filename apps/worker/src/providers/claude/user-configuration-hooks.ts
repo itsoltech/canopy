@@ -64,20 +64,11 @@ const HookSettings = Schema.Struct({
 
 /** Only explicit hook definitions cross this boundary; helpers, auth and permission settings never do. */
 export function readClaudeUserHooks(sourceHome: string): Settings["hooks"] {
-  let hooks: Settings["hooks"];
-
   try {
     const text = readClaudeConfigurationFile(join(sourceHome, "settings.json"));
 
-    hooks = text === undefined ? undefined : Schema.decodeUnknownSync(HookSettings)(JSON.parse(text)).hooks;
+    return text === undefined ? undefined : Schema.decodeUnknownSync(HookSettings)(JSON.parse(text)).hooks;
   } catch {
     throw new Error("Invalid Claude user hooks. Check the selected settings file.");
   }
-
-  if (["PreToolUse", "PermissionRequest"].some((event) => hooks?.[event]?.some((matcher) => matcher.hooks.length)))
-    throw new Error(
-      "Claude user hooks cannot include PreToolUse or PermissionRequest because they can override Canopy approvals. Remove these events or turn off user hooks.",
-    );
-
-  return hooks;
 }
