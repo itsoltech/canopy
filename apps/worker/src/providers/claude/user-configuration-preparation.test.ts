@@ -447,6 +447,131 @@ test("skill snapshots keep descriptive metadata and assets while removing runtim
   expect(existsSync(plugin)).toBe(false);
 });
 
+test("skill reference Markdown stays unchanged while command and skill entry points are sanitized", async () => {
+  const paths = fixture();
+  const skill = join(paths.source, "skills", "reference-check");
+  const commands = join(paths.source, "commands", "nested");
+
+  const references = {
+    "README.md": "---\n# Reference\nA Markdown horizontal rule, without YAML frontmatter.\n",
+    "guide.markdown":
+      "---\nname: [example, schema]\ndescription: {type: string}\nhooks: {example: true}\n---\nReference metadata.\n",
+    "binary.md": Buffer.from([0xff, 0xfe, 0x00]),
+  };
+
+  mkdirSync(join(skill, "references"), { recursive: true });
+  mkdirSync(commands, { recursive: true });
+  writeFileSync(
+    join(skill, "SKILL.md"),
+    "---\nname: reference-check\ndescription: Read fixture references\nallowed-tools: Bash(*)\n---\nRead references/README.md.\n",
+  );
+  writeFileSync(
+    join(commands, "fixture.md"),
+    "---\ndescription: A nested fixture command\nhooks: {}\n---\nCommand body.\n",
+  );
+
+  for (const [name, content] of Object.entries(references)) writeFileSync(join(skill, "references", name), content);
+
+  const prepared = await prepare(paths);
+  const plugin = prepared.plugins[0]!.path;
+
+  try {
+    for (const [name, content] of Object.entries(references)) {
+      expect(readFileSync(join(plugin, "skills", "reference-check", "references", name))).toEqual(Buffer.from(content));
+      expect(readFileSync(join(skill, "references", name))).toEqual(Buffer.from(content));
+    }
+
+    expect(readFileSync(join(plugin, "skills", "reference-check", "SKILL.md"), "utf8")).not.toContain("allowed-tools");
+    expect(readFileSync(join(plugin, "commands", "nested", "fixture.md"), "utf8")).not.toContain("hooks");
+
+    if (executable) {
+      const listed = await inventory(paths, prepared);
+      const names = listed.commands.map((command) => command.name);
+
+      expect(names).toContain("canopy-user:reference-check");
+      expect(names).toContain("canopy-user:nested:fixture");
+    }
+  } finally {
+    await prepared.close();
+  }
+
+  expect(existsSync(plugin)).toBe(false);
+});
+
+test("skill snapshots accept empty optional metadata and scalar descriptions without runtime overrides", async () => {
+  const paths = fixture();
+  const skill = join(paths.source, "skills", "scalar-check");
+
+  const metadata = {
+    name: "scalar-check",
+    description: 123,
+    "argument-hint": null,
+    "user-invocable": true,
+    "disable-model-invocation": null,
+  };
+
+  const source = `---\n${Bun.YAML.stringify({ ...metadata, "allowed-tools": "Bash(*)", hooks: {} })}\n---\nFixture.\n`;
+
+  mkdirSync(skill, { recursive: true });
+  mkdirSync(join(paths.source, "commands"));
+  writeFileSync(join(skill, "SKILL.md"), source);
+  writeFileSync(join(paths.source, "commands", "hidden.md"), "---\nuser-invocable:\n---\nA hidden fixture command.\n");
+  const prepared = await prepare(paths);
+
+  try {
+    const snapshot = readFileSync(join(prepared.plugins[0]!.path, "skills", "scalar-check", "SKILL.md"), "utf8");
+    const frontmatter = /^---\n([^]*?)\n---\n/.exec(snapshot);
+
+    expect(decodeJsonObject(Bun.YAML.parse(frontmatter![1]!))).toEqual(metadata);
+    expect(readFileSync(join(skill, "SKILL.md"), "utf8")).toBe(source);
+
+    if (executable) {
+      const listed = await inventory(paths, prepared);
+
+      expect(listed.commands.find((command) => command.name === "canopy-user:scalar-check")?.description).toContain(
+        "123",
+      );
+      expect(listed.commands.map((command) => command.name)).not.toContain("canopy-user:hidden");
+    }
+  } finally {
+    await prepared.close();
+  }
+});
+
+test.each([
+  { file: "skills/invalid/SKILL.md", content: "---\nPRIVATE_UNCLOSED", reason: "unclosed YAML frontmatter" },
+  {
+    file: "commands/nested/invalid.md",
+    content: "---\ndescription: [PRIVATE_INVALID\n---\n",
+    reason: "invalid YAML metadata",
+  },
+  {
+    file: "skills/invalid/SKILL.md",
+    content: "---\ndescription: {PRIVATE_FIELD: PRIVATE_VALUE}\n---\n",
+    reason: "invalid YAML metadata",
+  },
+  { file: "commands/nested/invalid.md", content: Buffer.from([0xff, 0xfe]), reason: "not valid UTF-8" },
+])("invalid definition $file reports a safe reason", async ({ file, content, reason }) => {
+  const paths = fixture();
+  const target = join(paths.source, file);
+
+  mkdirSync(dirname(target), { recursive: true });
+  writeFileSync(target, content);
+  let message = "";
+
+  try {
+    await prepare(paths);
+  } catch (error) {
+    message = error instanceof Error ? error.message : "";
+  }
+
+  expect(message).toContain(reason);
+  expect(message).toContain("turn off Personal skills in Settings → Providers");
+  expect(message).not.toContain(paths.source);
+  expect(message).not.toContain(file);
+  expect(message).not.toContain("PRIVATE_");
+});
+
 test.skipIf(process.platform === "win32")(
   "symlinked skill libraries produce immutable sanitized regular snapshots",
   async () => {
@@ -525,6 +650,7 @@ test.skipIf(process.platform === "win32")(
     }
 
     expect(message).toContain("Cannot import Claude skills and commands.");
+    expect(message).toContain("A directory link creates a cycle.");
     expect(message).not.toContain(paths.source);
     expect(message).not.toContain("PRIVATE_FILENAME");
     expect(message).not.toContain("PRIVATE_CONTENT");
@@ -571,7 +697,7 @@ test.skipIf(process.platform === "win32" || !Bun.which("mkfifo"))(
     const fifo = join(skills, "pipe");
 
     expect(Bun.spawnSync(["mkfifo", fifo]).exitCode).toBe(0);
-    await expect(prepare(paths)).rejects.toThrow("Cannot import Claude skills and commands.");
+    await expect(prepare(paths)).rejects.toThrow("not a regular file");
     expect(lstatSync(fifo).isFIFO()).toBe(true);
   },
 );
