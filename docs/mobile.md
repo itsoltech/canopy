@@ -2,6 +2,8 @@
 
 Status: opis zaimplementowanego kodu (2026-11-17); iOS utrzymuje najnowsze wiadomości
 nad kompozytorem po nadejściu kolejnych tur, a „Show latest” ma okrągły stan naciśnięcia.
+Propozycje odpowiedzi pomijają wpisy kolejki zużyte przez odczyt agenta lub steer;
+starsze, porzucone notatki platformy nie blokują późniejszych propozycji ([ui-api.md](ui-api.md#proponowane-odpowiedzi)).
 Pole nie powiększa się od kolejnych cykli fokusu i chowania klawiatury.
 Subagenci i kolejka otwierają wspólne arkusze z przewijaną listą zamiast małych popoverów;
 akcja „Steer” ma widoczną etykietę obok ikony.

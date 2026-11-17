@@ -31,7 +31,10 @@ export function activeReplySource(snapshot: ui.ThreadSnapshot | undefined) {
     thread.import?.mode === "history"
   )
     return undefined;
-  const turn = orderThreadTurns(snapshot.turns.filter((row) => !row.rewindId)).at(-1);
+
+  const turn = orderThreadTurns(
+    snapshot.turns.filter((row) => !row.rewindId && !["consumed", "steered"].includes(row.withdrawn)),
+  ).at(-1);
 
   if (!turn || turn.inherited || (turn.fromThreadId && turn.fromThreadId !== thread.id)) return undefined;
   const entries = snapshot.items.filter((row) => row.turnId === turn.id && !row.inherited);

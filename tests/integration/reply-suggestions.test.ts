@@ -3,7 +3,7 @@ import { create } from "@bufbuild/protobuf";
 import { ItemStatus, Provider, TurnOutcome, ui } from "@canopy/contracts";
 import { dockerAvailable } from "@canopy/db/testing";
 import { GatewayCore } from "@canopy/gateway/core";
-import { GatewayStore, SteerStore } from "@canopy/gateway/store";
+import { GatewayStore, SteerStore, toUiSteer } from "@canopy/gateway/store";
 import { Code, ConnectError } from "@connectrpc/connect";
 import { Effect } from "effect";
 import { SqlClient } from "effect/sql";
@@ -248,6 +248,101 @@ describe.skipIf(!dockerAvailable)("authoritative suggested replies (gateway + wo
     expect((await snapshot(source.threadId)).turns).toHaveLength(2);
   });
 
+  test("an agent message consumed before the answer does not block its choices", async () => {
+    const source = await running();
+
+    const child = (
+      await gw.api.createThread({
+        projectId,
+        workspaceId,
+        provider: Provider.CODEX,
+        parentThreadId: source.threadId,
+        initialMessage: "Review it",
+      })
+    ).thread!;
+
+    const childState = await eventually(
+      () => snapshot(child.id),
+      (state) => state.turns[0]?.status === "running",
+    );
+
+    const sent = await gw.worker.callTool({
+      threadId: child.id,
+      turnId: childState.turns[0]!.id,
+      tool: "send_message",
+      args: { thread_id: source.threadId, prompt: "Review passed", delivery: "queue", notify: false },
+    });
+
+    expect(sent.isError).toBe(false);
+
+    const read = await gw.worker.callTool({
+      threadId: source.threadId,
+      turnId: source.turnId,
+      tool: "get_thread",
+      args: { thread_id: child.id },
+    });
+
+    expect(read.isError).toBe(false);
+    expect((await snapshot(source.threadId)).turns[1]?.withdrawn).toBe("consumed");
+    gw.worker.finish(child.id, childState.turns[0]!.id);
+    gw.worker.finish(source.threadId, source.turnId, answer);
+    await eventually(
+      () => snapshot(source.threadId),
+      (state) => state.turns[0]?.status === "completed",
+    );
+    expect((await send({ ...source, itemId: `msg-${source.turnId}` })).turn?.inputText).toBe("Create the PR");
+  });
+
+  test.each([false, true])(
+    "a steered queued turn expires only an earlier answer (steer after answer: %s)",
+    async (after) => {
+      const source = await running();
+
+      const emitAnswer = async () => {
+        gw.worker.emit(source.threadId, source.turnId, {
+          case: "itemCompleted",
+          value: {
+            item: {
+              itemId: "final",
+              status: ItemStatus.COMPLETED,
+              content: { case: "agentMessage", value: { phase: "final_answer", text: answer } },
+            },
+          },
+        });
+        await eventually(
+          () => snapshot(source.threadId),
+          (state) => state.items.some((entry) => entry.item?.itemId === "final"),
+        );
+      };
+
+      if (after) await emitAnswer();
+
+      const queued = await gw.api.sendMessage({
+        threadId: source.threadId,
+        text: "Also review it",
+        clientRequestId: crypto.randomUUID(),
+      });
+
+      const steered = await gw.api.steerQueuedTurn({ turnId: queued.turn!.id });
+      await eventually(
+        () => gw.runtime.runPromise(SteerStore.use((store) => store.steer(steered.steer!.id))),
+        (steer) => steer.status === "delivered",
+      );
+      expect((await snapshot(source.threadId)).turns[1]?.withdrawn).toBe("steered");
+
+      if (!after) await emitAnswer();
+      gw.worker.emit(source.threadId, source.turnId, {
+        case: "turnFinished",
+        value: { outcome: TurnOutcome.COMPLETED },
+      });
+      await eventually(
+        () => snapshot(source.threadId),
+        (state) => state.turns[0]?.status === "completed",
+      );
+      expect(await code(send({ ...source, itemId: "final" }))).toBe(after ? Code.FailedPrecondition : 0);
+    },
+  );
+
   test("a steer delivered after the final item invalidates its choices even in the same completed turn", async () => {
     const source = await running();
     gw.worker.emit(source.threadId, source.turnId, {
@@ -437,6 +532,9 @@ describe.skipIf(!dockerAvailable)("authoritative suggested replies (gateway + wo
           input=CASE WHEN ${legacy} THEN input-'admittedAfterSeq' ELSE input END WHERE id=${steer.id}::uuid`;
         }),
       );
+      const stored = await gw.runtime.runPromise(SteerStore.use((store) => store.steer(steer.id)));
+
+      expect(toUiSteer(stored).status).toBe("dropped");
 
       if (!after) await emitAnswer();
       gw.worker.emit(source.threadId, source.turnId, {

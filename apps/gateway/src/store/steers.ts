@@ -269,7 +269,8 @@ export function toUiSteer(row: SteerRow & SenderColumns): ui.Steer {
     threadId: row.thread_id,
     turnId: row.turn_id,
     text: row.input.message ?? row.input.text,
-    status: row.status === "dropped" ? "accepted" : row.status,
+    // Ordinary dropped input still awaits fallback. A released platform note cannot join this turn.
+    status: row.status === "dropped" && !row.background_note ? "accepted" : row.status,
     reason: row.reason ?? "",
     queuedTurnId: row.queued_turn_id ?? "",
     createdAt: timestampFromDate(new Date(row.created_at)),
