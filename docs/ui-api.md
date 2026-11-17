@@ -2995,7 +2995,10 @@ Odczyt ma deadline 35 s, pull 130 s; worker kończy operację przed deadline gat
 UI nie wysyła ścieżek ani nazw refów do tych akcji. Panel czyta przy otwarciu,
 zmianie HEAD i zmianie stanu tury oraz na ręczne odświeżenie, bez pollingu.
 Renderer scala zdarzenia przez 150 ms. Wspólny QueryCache łączy równoczesne odczyty
-jednego wątku, bez używania starego snapshotu po zakończeniu tury. Kolejne zdarzenie
+jednego wątku. Po ponownym zamontowaniu podsumowania renderer natychmiast pokazuje
+ostatni wynik z tego cache i odświeża go w tle bez spinnera; pierwszy odczyt i ręczne
+odświeżenie mają wskaźnik pracy. Nowe zdarzenie zawsze wymusza świeży odczyt,
+również po zakończeniu tury. Kolejne zdarzenie
 podczas odczytu oznacza najwyżej jeden odczyt po jego zakończeniu, bez nakładania.
 Mutacja zapisuje nowy wynik do tego samego cache. Worker dodatkowo współdzieli odczyt całego checkoutu
 między różnymi wątkami i oknami. Szczegóły:
