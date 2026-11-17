@@ -178,7 +178,8 @@ export class CodexRuntimes {
       interact: (request) => this.ctx.ops.interact(request),
       callTool: (call, signal) => this.ctx.ops.callTool(call, signal),
       viewImage: (threadId, path) => this.ctx.ops.viewImage(threadId, this.ctx.state.cwds.get(threadId) ?? "", path),
-      localMcpServers: (tools, threadId) => this.ctx.state.agentTools.localMcpServers(tools, threadId),
+      localMcpServers: (tools, threadId, defaults) =>
+        this.ctx.state.agentTools.localMcpServers(tools, threadId, defaults),
       enrich: (init) => this.ctx.state.previews.enrich(usage.failure(init)),
       connectors: config.nativeTools.nativeConnectors === true,
     });

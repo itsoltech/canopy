@@ -120,6 +120,7 @@ export const coreSettingsMethods: CoreSettingsMethods = {
         ...(request.general && { general: request.general }),
         ...(request.cliUpdates && { cliUpdates: request.cliUpdates }),
         ...(request.threadRetention && { threadRetention: request.threadRetention }),
+        ...(request.agentToolDefaults && { agentToolDefaults: request.agentToolDefaults }),
         ...(request.textGeneration && { textGeneration: request.textGeneration }),
         ...(request.sidebar && {
           sidebar: {

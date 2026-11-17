@@ -10,6 +10,7 @@
    */
   let {
     checked = $bindable(false),
+    indeterminate = false,
     label,
     description,
     name,
@@ -19,6 +20,8 @@
     class: className,
   }: {
     checked?: boolean;
+    /** Mixed access across several items; clicking enables all items. */
+    indeterminate?: boolean;
     label: string;
     description?: string;
     name: string;
@@ -46,14 +49,15 @@
     }
   }}
   class={[
-    "group relative inline-flex shrink-0 rounded-full bg-zinc-200 p-0.5 inset-ring inset-ring-zinc-900/5 outline-offset-2 outline-brand-600 transition-colors duration-(--duration-fast) ease-smooth-out has-checked:bg-brand-600 has-focus-visible:outline-2 has-disabled:opacity-50 motion-reduce:transition-none dark:bg-white/5 dark:inset-ring-white/10 dark:outline-brand-500 dark:has-checked:bg-brand-500",
+    "group relative inline-flex shrink-0 rounded-full bg-zinc-200 p-0.5 inset-ring inset-ring-zinc-900/5 outline-offset-2 outline-brand-600 transition-colors duration-(--duration-fast) ease-smooth-out has-checked:bg-brand-600 has-indeterminate:bg-brand-600/35 has-focus-visible:outline-2 has-disabled:opacity-50 motion-reduce:transition-none dark:bg-white/5 dark:inset-ring-white/10 dark:outline-brand-500 dark:has-checked:bg-brand-500 dark:has-indeterminate:bg-brand-500/35",
     width,
     className,
   ]}
 >
   <span
-    class="aspect-square w-1/2 rounded-full bg-white shadow-xs ring-1 ring-zinc-900/5 transition-transform duration-(--duration-fast) ease-smooth-out group-has-checked:translate-x-full group-has-checked:bg-on-control motion-reduce:transition-none"
-  ></span>
+    class="flex aspect-square w-1/2 items-center justify-center rounded-full bg-white shadow-xs ring-1 ring-zinc-900/5 transition-transform duration-(--duration-fast) ease-smooth-out group-has-checked:translate-x-full group-has-checked:bg-on-control group-has-indeterminate:translate-x-1/2 motion-reduce:transition-none"
+    >{#if indeterminate}<span class="h-px w-1.5 bg-zinc-500"></span>{/if}</span
+  >
   <input
     bind:this={input}
     type="checkbox"
@@ -61,8 +65,13 @@
     aria-label={label}
     {@attach tooltip(description)}
     {disabled}
+    {indeterminate}
     bind:checked
-    onchange={(event) => onchange?.(event.currentTarget.checked)}
+    onchange={(event) => {
+      const value = indeterminate || event.currentTarget.checked;
+      event.currentTarget.indeterminate = indeterminate;
+      onchange?.(value);
+    }}
     class="absolute inset-0 size-full cursor-pointer appearance-none focus:outline-hidden disabled:cursor-not-allowed"
   />
   <TouchTarget />

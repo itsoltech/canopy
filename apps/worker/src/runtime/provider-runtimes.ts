@@ -51,7 +51,8 @@ export class ProviderRuntimes {
         interact: (request, signal) => this.ctx.ops.interact(request, signal),
         callTool: (call, signal) => this.ctx.ops.callTool(call, signal),
         viewImage: (threadId, cwd, path) => this.ctx.ops.viewImage(threadId, cwd, path),
-        localMcpServers: (tools, threadId) => this.ctx.state.agentTools.localMcpServers(tools, threadId),
+        localMcpServers: (tools, threadId, defaults) =>
+          this.ctx.state.agentTools.localMcpServers(tools, threadId, defaults),
       }),
     });
   }

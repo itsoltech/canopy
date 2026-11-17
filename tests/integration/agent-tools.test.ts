@@ -22,6 +22,7 @@ import { Effect } from "effect";
 import { SqlClient } from "effect/sql";
 import { eventually, startTestGateway, type ScriptedWorker, type TestGateway } from "./support/gateway.ts";
 import { expectLinkedAgentToolRouting } from "./support/agent-tools-linked.ts";
+import { expectAgentToolEnablement } from "./support/agent-tools-enable.ts";
 
 const capabilities = ["agent_tools_v1"];
 const tools = [AgentTool.BROWSER, AgentTool.DESKTOP, AgentTool.DEVICE];
@@ -60,7 +61,7 @@ const run = (operation = "snapshot", workerId = gateway.workerId, tool = AgentTo
   gateway.api.runAgentTool({ workerId, operation: { tool, operation } });
 
 function report(overrides: MessageInitShape<typeof AgentToolInfoSchema> = {}): AgentToolsReport {
-  const version = `1.2.${++revision}`;
+  const detail = `Automation report ${++revision}`;
 
   return create(AgentToolsReportSchema, {
     os: "linux",
@@ -72,7 +73,8 @@ function report(overrides: MessageInitShape<typeof AgentToolInfoSchema> = {}): A
         ready: true,
         installable: true,
         screenshot: true,
-        version: tool === AgentTool.DEVICE ? "0.21.37" : version,
+        version: tool === AgentTool.DEVICE ? "0.21.37" : tool === AgentTool.DESKTOP ? "1.3.1" : "0.43.0",
+        detail,
         ...overrides,
       }),
     ),
@@ -84,10 +86,10 @@ async function publish(value = report(), worker = gateway.worker, workerId = gat
 
   const found = await eventually(
     () => view(workerId),
-    (item) => item?.agentTools[0]?.tool?.version === value.tools[0]?.version,
+    (item) => item?.agentTools[0]?.tool?.detail === value.tools[0]?.detail,
   );
 
-  expect(found?.agentTools[0]?.tool?.version).toBe(value.tools[0]?.version);
+  expect(found?.agentTools[0]?.tool?.detail).toBe(value.tools[0]?.detail);
 
   return value;
 }
@@ -197,6 +199,11 @@ describe.skipIf(!dockerAvailable)("automation owner grants and transient gateway
   afterAll(async () => {
     await gateway?.close();
   }, 30_000);
+
+  test("enabling tools prepares installation and runtime without duplicating running or ready tools", async () => {
+    await expectAgentToolEnablement(gateway);
+    expect(await outbox()).toEqual([]);
+  });
 
   test("installation and ready reports never grant tools; explicit grants reach turns and revocation is immediate", async () => {
     expect((await view())?.agentTools.map((item) => item.enabled)).toEqual([false, false, false]);
@@ -571,6 +578,7 @@ describe.skipIf(!dockerAvailable)("automation owner grants and transient gateway
       Code.Unavailable,
     );
     expect((await gateway.api.refreshAgentTools({ workerId: capable.workerId })).skipped.join()).toContain("offline");
+    expect(await code(grant(true, AgentTool.BROWSER, capable.workerId))).toBe(Code.Unavailable);
     expect(await code(grant(false, AgentTool.BROWSER, capable.workerId))).toBe(0);
     expect((await view(capable.workerId))?.agentTools[0]?.enabled).toBe(false);
     expect(await outbox()).toEqual([]);

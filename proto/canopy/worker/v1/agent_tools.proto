@@ -13,6 +13,29 @@ enum AgentTool {
   AGENT_TOOL_DEVICE = 3;
 }
 
+// Account defaults used when a tool call does not select its own session options.
+message AgentToolSessionDefaults {
+  BrowserSessionDefaults browser = 1;
+  DesktopSessionDefaults desktop = 2;
+  DeviceSessionDefaults device = 3;
+}
+
+message BrowserSessionDefaults {
+  optional uint32 viewport_width = 1;
+  optional uint32 viewport_height = 2;
+  string color_scheme = 3; // empty | light | dark | no-preference
+}
+
+message DesktopSessionDefaults {
+  string app = 1;
+}
+
+message DeviceSessionDefaults {
+  string platform = 1; // empty | ios | android | apple
+  optional bool allow_boot = 2;
+  optional uint32 acquire_timeout_seconds = 3;
+}
+
 message AgentToolInstallStatus {
   string install_id = 1;
   string state = 2; // running | succeeded | failed
@@ -98,6 +121,7 @@ message StartAgentPreview {
   string thread_id = 2;
   RunAgentTool scope = 3;
   uint32 max_fps = 4;
+  AgentToolSessionDefaults agent_tool_defaults = 5;
 }
 
 message StopAgentPreview { string preview_id = 1; }

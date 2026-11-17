@@ -309,7 +309,7 @@ describe.skipIf(!dockerAvailable)("live Claude permissions through gateway and s
   test("gateway automation waits for a restrictive switch and pending automation advances after elevation", async () => {
     gw.worker.link.send({
       case: "agentToolsReport",
-      value: { tools: [{ tool: AgentTool.BROWSER, installed: true, ready: true, version: "1.2.3" }] },
+      value: { tools: [{ tool: AgentTool.BROWSER, installed: true, ready: true, version: "0.43.0" }] },
     });
     await eventually(
       () => gw.api.getOverview({}),

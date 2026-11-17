@@ -6,6 +6,7 @@ import {
   AgentToolsReportSchema,
   AgentToolProgressSchema,
   type AgentToolInstallStatus,
+  type AgentToolSessionDefaults,
   type AgentToolProgress,
   type InstallAgentTool,
   type RunAgentTool,
@@ -22,6 +23,7 @@ import { AgentToolDiscoveryCache } from "./cache.ts";
 import { AgentToolLifecycle } from "./lifecycle.ts";
 import { closeAgentToolSession } from "./cleanup.ts";
 import { DeviceAutomation } from "./device-automation.ts";
+import { browserDefaultsInitializer } from "./browser-defaults.ts";
 import type { LocalAutomationServer } from "../agent-tools-mcp/stdio.ts";
 
 type ReportInit = MessageInitShape<typeof AgentToolsReportSchema>;
@@ -103,7 +105,11 @@ export class AgentTools {
   }
 
   /** Ready local MCP servers for a gateway-approved ThreadSpec snapshot. */
-  localMcpServers(tools: readonly AgentTool[], threadId?: string): LocalAgentToolMcpServer[] {
+  localMcpServers(
+    tools: readonly AgentTool[],
+    threadId?: string,
+    defaults?: AgentToolSessionDefaults,
+  ): LocalAgentToolMcpServer[] {
     if (threadId && this.#lifecycle.isClosed(threadId)) return [];
     const env = toolEnvironment(this.#probeOptions().env ?? process.env);
 
@@ -132,10 +138,16 @@ export class AgentTools {
           ? [
               {
                 name: localMcpName(tool),
-                ...(session && tool === AgentTool.DEVICE && { managed: this.#devices.managed(session) }),
+                ...(session &&
+                  tool === AgentTool.DEVICE && { managed: this.#devices.managed(session, defaults?.device) }),
                 command,
                 args,
-                ...(session && { scope: { tool, session } }),
+                ...(session && { scope: { tool, session, ...(defaults && { defaults }) } }),
+                ...(session &&
+                  tool === AgentTool.BROWSER &&
+                  defaults?.browser && {
+                    prepare: browserDefaultsInitializer(path, env, session, defaults?.browser),
+                  }),
                 ...(session &&
                   tool !== AgentTool.DESKTOP && {
                     env:
@@ -301,11 +313,12 @@ export class AgentTools {
   }
 
   /** Preview backends resolve once, then retain this pinned runtime until their lease ends. */
-  async resolvePreviewScope(scope: RunAgentTool) {
-    return this.#lifecycle.run(scope.session, () => this.#resolvePreviewScope(scope));
+  async resolvePreviewScope(scope: RunAgentTool, defaults?: AgentToolSessionDefaults) {
+    return this.#lifecycle.run(scope.session, () => this.#resolvePreviewScope(scope, defaults));
   }
 
-  async #resolvePreviewScope(scope: RunAgentTool) {
+  async #resolvePreviewScope(scope: RunAgentTool, defaults?: AgentToolSessionDefaults) {
+    if (scope.tool === AgentTool.DESKTOP && !scope.app && !scope.windowId) scope.app = defaults?.desktop?.app ?? "";
     validateAgentToolCommand(scope);
     const spec = agentToolSpec(scope.tool);
 
@@ -330,7 +343,19 @@ export class AgentTools {
     const { secrets } = installEnv(source);
 
     return {
-      useDevice: <T>(signal: AbortSignal, work: () => Promise<T>) => this.#devices.use(scope, signal, work),
+      ...(scope.tool === AgentTool.DEVICE && {
+        devicePlatform: this.#devices.currentPlatform(scope.session) ?? defaults?.device?.platform ?? "",
+      }),
+      useDevice: <T>(signal: AbortSignal, work: () => Promise<T>) =>
+        this.#devices.use(scope, signal, work, defaults?.device),
+      ...(scope.tool === AgentTool.BROWSER && {
+        initializeBrowser: browserDefaultsInitializer(
+          found.path,
+          toolEnvironment(source),
+          agentToolSession(scope.session),
+          defaults?.browser,
+        ),
+      }),
       executable: found.path,
       env: toolEnvironment(source),
       scope,

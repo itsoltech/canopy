@@ -1,6 +1,7 @@
 import { create } from "@bufbuild/protobuf";
 import { ui, type AgentPreviewEvent, type AgentTool } from "@canopy/contracts";
 import { Code, ConnectError } from "@connectrpc/connect";
+import { coreSettings } from "./core-settings.ts";
 import { coreRun } from "./core-broadcast.ts";
 import { coreState } from "./core-context.ts";
 import { AGENT_WORKER_ID } from "./agent-tools-validation.ts";
@@ -60,6 +61,7 @@ export class AgentPreviews {
   async *watch(request: ui.WatchAgentPreviewRequest, signal: AbortSignal): AsyncIterable<AgentPreviewEvent> {
     const scope = agentPreviewScope(request);
     const worker = await this.#authorize(request.threadId, scope.tool);
+    const settings = await coreSettings(this.core, (s) => s.user(this.core[coreState].options.userId));
     signal.throwIfAborted();
 
     if (this.#sessions.size >= 64 || worker.previewWatches.size >= 4)
@@ -99,6 +101,7 @@ export class AgentPreviews {
               threadId: request.threadId,
               scope,
               maxFps: request.maxFps || 12,
+              agentToolDefaults: settings.agentToolDefaults,
             },
           },
         },

@@ -5,7 +5,7 @@ import type { CodexThreadContext } from "./thread-types.ts";
 import { CodexThreadError, fail, type Entry } from "./thread-types.ts";
 import { connectorSessionCatalog } from "@canopy/domain/connector-session";
 import type { threadSessions } from "./thread-sessions.ts";
-import { automationMcp } from "../local-automation.ts";
+import { automationMcp, automationMcpKey } from "../local-automation.ts";
 
 /** A private transport per thread; external credentials and authorization remain in the gateway. */
 export function codexConnectorMcp(ctx: CodexThreadContext) {
@@ -58,7 +58,7 @@ export function codexConnectorMcp(ctx: CodexThreadContext) {
     }
 
     const server = bridge.server;
-    const key = JSON.stringify(spec.localMcpTools);
+    const key = automationMcpKey(spec);
     let local = automation.get(spec.threadId);
 
     if (!local || local.key !== key) {
@@ -132,7 +132,7 @@ export const refreshCodexConnectors = (
       (previous !== undefined &&
         JSON.stringify(connectorSessionCatalog(previous ?? [])) !==
           JSON.stringify(connectorSessionCatalog(spec.connectorTools))) ||
-      (previousAutomation !== undefined && previousAutomation !== JSON.stringify(spec.localMcpTools))
+      (previousAutomation !== undefined && previousAutomation !== automationMcpKey(spec))
     )
       entry = yield* reconfigure(spec, entry);
 

@@ -159,6 +159,7 @@ async function handle(
 
     try {
       effective = bindAutomationCall(params.data, endpoint.scope);
+      effective = await endpoint.stdio.bindDefaults(effective, signal);
     } catch (error) {
       return failure(rpc.id, -32602, error instanceof Error ? error.message : "Invalid automation arguments");
     }

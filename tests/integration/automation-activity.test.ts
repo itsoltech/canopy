@@ -21,7 +21,7 @@ async function running(gateway: TestGateway, mode = PermissionMode.FULL_AUTO) {
         tool,
         installed: true,
         ready: true,
-        version: tool === AgentTool.DEVICE ? "0.21.37" : "1.2.3",
+        version: tool === AgentTool.DEVICE ? "0.21.37" : tool === AgentTool.DESKTOP ? "1.3.1" : "0.43.0",
       })),
     },
   });

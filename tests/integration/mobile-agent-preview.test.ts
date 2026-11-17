@@ -143,7 +143,7 @@ describe.skipIf(!dockerAvailable)("paired mobile Connect agent preview", () => {
           installed: true,
           ready: true,
           screenshot: true,
-          version: tool === AgentTool.DEVICE ? "0.21.37" : "1.0.0",
+          version: tool === AgentTool.DEVICE ? "0.21.37" : tool === AgentTool.DESKTOP ? "1.3.1" : "0.43.0",
         })),
       },
     });

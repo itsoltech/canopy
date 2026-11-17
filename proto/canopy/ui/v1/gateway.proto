@@ -1931,6 +1931,7 @@ message UserSettings {
   GeneralSettings general = 900;
   CliUpdateSettings cli_updates = 901;
   ThreadRetentionSettings thread_retention = 902;
+  canopy.worker.v1.AgentToolSessionDefaults agent_tool_defaults = 903;
 }
 
 message ThreadRetentionSettings {
@@ -2017,6 +2018,7 @@ message UpdateUserSettingsRequest {
   GeneralSettings general = 900;
   CliUpdateSettings cli_updates = 901;
   ThreadRetentionSettings thread_retention = 902;
+  canopy.worker.v1.AgentToolSessionDefaults agent_tool_defaults = 903;
 }
 
 message UpdateUserSettingsResponse {

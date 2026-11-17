@@ -1,5 +1,6 @@
 import { afterAll, beforeAll, describe, expect, test } from "bun:test";
-import { Provider } from "@canopy/contracts";
+import { create } from "@bufbuild/protobuf";
+import { AgentToolSessionDefaultsSchema, Provider } from "@canopy/contracts";
 import { dockerAvailable } from "@canopy/db/testing";
 import { GatewayStore } from "@canopy/gateway/store";
 import { Effect } from "effect";
@@ -117,6 +118,15 @@ describe.skipIf(!dockerAvailable)("first session creation after archive", () => 
         { provider_thread_id: null },
       ]);
 
+      const defaults = create(AgentToolSessionDefaultsSchema, {
+        browser: { viewportWidth: 1366, viewportHeight: 768, colorScheme: "dark" },
+      });
+
+      await gw.api.updateUserSettings({
+        expectedVersion: (await gw.api.getSettings({})).user!.version,
+        agentToolDefaults: defaults,
+      });
+
       const sent = (
         await gw.api.sendMessage({ threadId: target.id, text: "New user work", clientRequestId: Bun.randomUUIDv7() })
       ).turn!;
@@ -130,6 +140,9 @@ describe.skipIf(!dockerAvailable)("first session creation after archive", () => 
         (c) => c.case === "createThread" && c.value.thread?.threadId === target.id,
       );
 
+      // Delivery refreshes tool defaults; the archived placement and fork must stay identical.
+      if (original.case !== "createThread" || !original.value.thread) throw new Error("Missing original creation");
+      original.value.thread.agentToolDefaults = defaults;
       expect(recreated).toEqual(original);
       expect(reconnected.inputs.get(target.id)).toEqual(["New user work"]);
       expect((await gw.api.getThread({ threadId: target.id })).thread?.cwd).toBe(target.cwd);

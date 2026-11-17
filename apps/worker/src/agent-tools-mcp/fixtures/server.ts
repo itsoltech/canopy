@@ -26,7 +26,12 @@ function desktopTools() {
       inputSchema: {
         type: "object",
         additionalProperties: false,
-        properties: toolName === "session_end" ? { id: { type: "string" } } : {},
+        properties:
+          toolName === "session_end"
+            ? { id: { type: "string" } }
+            : ["snapshot", "screenshot", "click"].includes(toolName)
+              ? { app: { type: "string" }, window_id: { type: "string" }, ref_id: { type: "string" } }
+              : {},
       },
     }),
   );

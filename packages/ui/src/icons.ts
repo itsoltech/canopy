@@ -228,6 +228,8 @@ export const icons = {
   ],
   // device-desktop
   "computer-desktop": ["M3 5a1 1 0 0 1 1-1h16a1 1 0 0 1 1 1v10a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1zm4 15h10m-8-4v4m6-4v4"],
+  // device-mobile
+  "device-mobile": ["M7 4a1 1 0 0 1 1-1h8a1 1 0 0 1 1 1v16a1 1 0 0 1-1 1H8a1 1 0 0 1-1-1zm4 0h2m-1 13v.01"],
   // corner-up-right
   "arrow-turn-up-right": ["M6 18v-6a3 3 0 0 1 3-3h10l-4-4m0 8l4-4"],
   // corner-down-right

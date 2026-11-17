@@ -5,7 +5,6 @@
   import Alert from "#lib/shared/ui/Alert.svelte";
   import WorkerAccounts from "./WorkerAccounts.svelte";
   import WorkerCliTools from "./WorkerCliTools.svelte";
-  import WorkerAutomationTools from "./WorkerAutomationTools.svelte";
   import WorkerConfiguration from "./WorkerConfiguration.svelte";
   import WorkerTagEditor from "./WorkerTagEditor.svelte";
   import type { LinkedWorker } from "./worker-records.svelte.ts";
@@ -39,7 +38,6 @@
       <Alert title={reason ? readOnly : undefined}>These are the last saved settings.</Alert>
     </div>{/if}
   <WorkerCliTools {worker} {readOnly} />
-  <WorkerAutomationTools {worker} {readOnly} />
   <WorkerConfiguration {worker} />
   <WorkerAccounts {worker} online={worker.online && !readOnly} />
   {#key worker.id}<WorkerTagEditor {worker} {environment} {linked} {onchanged} />{/key}

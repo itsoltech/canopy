@@ -12,7 +12,111 @@ import type { Message } from "@bufbuild/protobuf";
  * Describes the file canopy/worker/v1/agent_tools.proto.
  */
 export const file_canopy_worker_v1_agent_tools: GenFile = /*@__PURE__*/
-  fileDesc("CiJjYW5vcHkvd29ya2VyL3YxL2FnZW50X3Rvb2xzLnByb3RvEhBjYW5vcHkud29ya2VyLnYxIsMBChZBZ2VudFRvb2xJbnN0YWxsU3RhdHVzEhIKCmluc3RhbGxfaWQYASABKAkSDQoFc3RhdGUYAiABKAkSFgoOdGFyZ2V0X3ZlcnNpb24YAyABKAkSDQoFZXJyb3IYBCABKAkSLgoKc3RhcnRlZF9hdBgFIAEoCzIaLmdvb2dsZS5wcm90b2J1Zi5UaW1lc3RhbXASLwoLZmluaXNoZWRfYXQYBiABKAsyGi5nb29nbGUucHJvdG9idWYuVGltZXN0YW1wIpUCCg1BZ2VudFRvb2xJbmZvEikKBHRvb2wYASABKA4yGy5jYW5vcHkud29ya2VyLnYxLkFnZW50VG9vbBIUCgxwYWNrYWdlX25hbWUYAiABKAkSDAoEcGF0aBgDIAEoCRIPCgd2ZXJzaW9uGAQgASgJEhEKCWluc3RhbGxlZBgFIAEoCBINCgVyZWFkeRgGIAEoCBITCgtpbnN0YWxsYWJsZRgHIAEoCBIOCgZkZXRhaWwYCCABKAkSEgoKc2NyZWVuc2hvdBgJIAEoCBIOCgZzdHJlYW0YCiABKAgSOQoHaW5zdGFsbBgLIAEoCzIoLmNhbm9weS53b3JrZXIudjEuQWdlbnRUb29sSW5zdGFsbFN0YXR1cyKMAQoQQWdlbnRUb29sc1JlcG9ydBIuCgV0b29scxgBIAMoCzIfLmNhbm9weS53b3JrZXIudjEuQWdlbnRUb29sSW5mbxIKCgJvcxgCIAEoCRIMCgRhcmNoGAMgASgJEi4KCmNoZWNrZWRfYXQYBCABKAsyGi5nb29nbGUucHJvdG9idWYuVGltZXN0YW1wInsKEEluc3RhbGxBZ2VudFRvb2wSKQoEdG9vbBgBIAEoDjIbLmNhbm9weS53b3JrZXIudjEuQWdlbnRUb29sEg8KB3ZlcnNpb24YAiABKAkSEgoKaW5zdGFsbF9pZBgDIAEoCRIXCg9pbnN0YWxsX3J1bnRpbWUYBCABKAgiYQoRQWdlbnRUb29sUHJvZ3Jlc3MSEgoKaW5zdGFsbF9pZBgBIAEoCRIpCgR0b29sGAIgASgOMhsuY2Fub3B5Lndvcmtlci52MS5BZ2VudFRvb2wSDQoFbGluZXMYAyADKAkiwQEKDFJ1bkFnZW50VG9vbBIpCgR0b29sGAEgASgOMhsuY2Fub3B5Lndvcmtlci52MS5BZ2VudFRvb2wSEQoJb3BlcmF0aW9uGAIgASgJEg4KBnRhcmdldBgDIAEoCRINCgV2YWx1ZRgEIAEoCRIQCghwbGF0Zm9ybRgFIAEoCRIPCgdzZXNzaW9uGAYgASgJEgsKA2FwcBgHIAEoCRIRCgl3aW5kb3dfaWQYCCABKAkSEQoJZGV2aWNlX2lkGAkgASgJImYKD0FnZW50VG9vbE91dHB1dBIRCglvcGVyYXRpb24YASABKAkSDAoEdGV4dBgCIAEoCRIRCgltaW1lX3R5cGUYAyABKAkSDAoEZGF0YRgEIAEoDBIRCgl0cnVuY2F0ZWQYBSABKAgihAEKEkFnZW50UHJldmlld1RhcmdldBIKCgJpZBgBIAEoCRINCgVsYWJlbBgCIAEoCRIQCghwbGF0Zm9ybRgDIAEoCRILCgNhcHAYBCABKAkSEQoJd2luZG93X2lkGAUgASgJEhEKCWRldmljZV9pZBgGIAEoCRIOCgZhY3RpdmUYByABKAgiegoRU3RhcnRBZ2VudFByZXZpZXcSEgoKcHJldmlld19pZBgBIAEoCRIRCgl0aHJlYWRfaWQYAiABKAkSLQoFc2NvcGUYAyABKAsyHi5jYW5vcHkud29ya2VyLnYxLlJ1bkFnZW50VG9vbBIPCgdtYXhfZnBzGAQgASgNIiYKEFN0b3BBZ2VudFByZXZpZXcSEgoKcHJldmlld19pZBgBIAEoCSI3Cg9BZ2VudFByZXZpZXdBY2sSEgoKcHJldmlld19pZBgBIAEoCRIQCghmcmFtZV9pZBgCIAEoBCLVAQoRQWdlbnRQcmV2aWV3SW5wdXQSDAoEa2luZBgBIAEoCRIJCgF4GAIgASgBEgkKAXkYAyABKAESDwoHZGVsdGFfeBgEIAEoARIPCgdkZWx0YV95GAUgASgBEg4KBmJ1dHRvbhgGIAEoDRIPCgdidXR0b25zGAcgASgNEgsKA2tleRgIIAEoCRIMCgRjb2RlGAkgASgJEgwKBHRleHQYCiABKAkSEQoJbW9kaWZpZXJzGAsgASgNEg0KBXdpZHRoGAwgASgNEg4KBmhlaWdodBgNIAEoDSJhChZBZ2VudFByZXZpZXdJbnB1dEJhdGNoEhIKCnByZXZpZXdfaWQYASABKAkSMwoGaW5wdXRzGAIgAygLMiMuY2Fub3B5Lndvcmtlci52MS5BZ2VudFByZXZpZXdJbnB1dCL0AQoTQWdlbnRQcmV2aWV3Q29tbWFuZBI0CgVzdGFydBgBIAEoCzIjLmNhbm9weS53b3JrZXIudjEuU3RhcnRBZ2VudFByZXZpZXdIABIyCgRzdG9wGAIgASgLMiIuY2Fub3B5Lndvcmtlci52MS5TdG9wQWdlbnRQcmV2aWV3SAASOQoFaW5wdXQYAyABKAsyKC5jYW5vcHkud29ya2VyLnYxLkFnZW50UHJldmlld0lucHV0QmF0Y2hIABIwCgNhY2sYBCABKAsyIS5jYW5vcHkud29ya2VyLnYxLkFnZW50UHJldmlld0Fja0gAQgYKBGtpbmQivQIKEUFnZW50UHJldmlld0V2ZW50EhIKCnByZXZpZXdfaWQYASABKAkSDQoFc3RhdGUYAiABKAkSEAoIZnJhbWVfaWQYAyABKAQSDAoEZGF0YRgEIAEoDBIRCgltaW1lX3R5cGUYBSABKAkSDQoFd2lkdGgYBiABKA0SDgoGaGVpZ2h0GAcgASgNEhYKDnZpZXdwb3J0X3dpZHRoGAggASgNEhcKD3ZpZXdwb3J0X2hlaWdodBgJIAEoDRILCgN1cmwYCiABKAkSDQoFdGl0bGUYCyABKAkSDgoGZGV0YWlsGAwgASgJEjUKB3RhcmdldHMYDSADKAsyJC5jYW5vcHkud29ya2VyLnYxLkFnZW50UHJldmlld1RhcmdldBIRCgl0YXJnZXRfaWQYDiABKAkSDAoEbW9kZRgPIAEoCSpuCglBZ2VudFRvb2wSGgoWQUdFTlRfVE9PTF9VTlNQRUNJRklFRBAAEhYKEkFHRU5UX1RPT0xfQlJPV1NFUhABEhYKEkFHRU5UX1RPT0xfREVTS1RPUBACEhUKEUFHRU5UX1RPT0xfREVWSUNFEANiBnByb3RvMw", [file_google_protobuf_timestamp]);
+  fileDesc("CiJjYW5vcHkvd29ya2VyL3YxL2FnZW50X3Rvb2xzLnByb3RvEhBjYW5vcHkud29ya2VyLnYxIskBChhBZ2VudFRvb2xTZXNzaW9uRGVmYXVsdHMSOQoHYnJvd3NlchgBIAEoCzIoLmNhbm9weS53b3JrZXIudjEuQnJvd3NlclNlc3Npb25EZWZhdWx0cxI5CgdkZXNrdG9wGAIgASgLMiguY2Fub3B5Lndvcmtlci52MS5EZXNrdG9wU2Vzc2lvbkRlZmF1bHRzEjcKBmRldmljZRgDIAEoCzInLmNhbm9weS53b3JrZXIudjEuRGV2aWNlU2Vzc2lvbkRlZmF1bHRzIpABChZCcm93c2VyU2Vzc2lvbkRlZmF1bHRzEhsKDnZpZXdwb3J0X3dpZHRoGAEgASgNSACIAQESHAoPdmlld3BvcnRfaGVpZ2h0GAIgASgNSAGIAQESFAoMY29sb3Jfc2NoZW1lGAMgASgJQhEKD192aWV3cG9ydF93aWR0aEISChBfdmlld3BvcnRfaGVpZ2h0IiUKFkRlc2t0b3BTZXNzaW9uRGVmYXVsdHMSCwoDYXBwGAEgASgJIpMBChVEZXZpY2VTZXNzaW9uRGVmYXVsdHMSEAoIcGxhdGZvcm0YASABKAkSFwoKYWxsb3dfYm9vdBgCIAEoCEgAiAEBEiQKF2FjcXVpcmVfdGltZW91dF9zZWNvbmRzGAMgASgNSAGIAQFCDQoLX2FsbG93X2Jvb3RCGgoYX2FjcXVpcmVfdGltZW91dF9zZWNvbmRzIsMBChZBZ2VudFRvb2xJbnN0YWxsU3RhdHVzEhIKCmluc3RhbGxfaWQYASABKAkSDQoFc3RhdGUYAiABKAkSFgoOdGFyZ2V0X3ZlcnNpb24YAyABKAkSDQoFZXJyb3IYBCABKAkSLgoKc3RhcnRlZF9hdBgFIAEoCzIaLmdvb2dsZS5wcm90b2J1Zi5UaW1lc3RhbXASLwoLZmluaXNoZWRfYXQYBiABKAsyGi5nb29nbGUucHJvdG9idWYuVGltZXN0YW1wIpUCCg1BZ2VudFRvb2xJbmZvEikKBHRvb2wYASABKA4yGy5jYW5vcHkud29ya2VyLnYxLkFnZW50VG9vbBIUCgxwYWNrYWdlX25hbWUYAiABKAkSDAoEcGF0aBgDIAEoCRIPCgd2ZXJzaW9uGAQgASgJEhEKCWluc3RhbGxlZBgFIAEoCBINCgVyZWFkeRgGIAEoCBITCgtpbnN0YWxsYWJsZRgHIAEoCBIOCgZkZXRhaWwYCCABKAkSEgoKc2NyZWVuc2hvdBgJIAEoCBIOCgZzdHJlYW0YCiABKAgSOQoHaW5zdGFsbBgLIAEoCzIoLmNhbm9weS53b3JrZXIudjEuQWdlbnRUb29sSW5zdGFsbFN0YXR1cyKMAQoQQWdlbnRUb29sc1JlcG9ydBIuCgV0b29scxgBIAMoCzIfLmNhbm9weS53b3JrZXIudjEuQWdlbnRUb29sSW5mbxIKCgJvcxgCIAEoCRIMCgRhcmNoGAMgASgJEi4KCmNoZWNrZWRfYXQYBCABKAsyGi5nb29nbGUucHJvdG9idWYuVGltZXN0YW1wInsKEEluc3RhbGxBZ2VudFRvb2wSKQoEdG9vbBgBIAEoDjIbLmNhbm9weS53b3JrZXIudjEuQWdlbnRUb29sEg8KB3ZlcnNpb24YAiABKAkSEgoKaW5zdGFsbF9pZBgDIAEoCRIXCg9pbnN0YWxsX3J1bnRpbWUYBCABKAgiYQoRQWdlbnRUb29sUHJvZ3Jlc3MSEgoKaW5zdGFsbF9pZBgBIAEoCRIpCgR0b29sGAIgASgOMhsuY2Fub3B5Lndvcmtlci52MS5BZ2VudFRvb2wSDQoFbGluZXMYAyADKAkiwQEKDFJ1bkFnZW50VG9vbBIpCgR0b29sGAEgASgOMhsuY2Fub3B5Lndvcmtlci52MS5BZ2VudFRvb2wSEQoJb3BlcmF0aW9uGAIgASgJEg4KBnRhcmdldBgDIAEoCRINCgV2YWx1ZRgEIAEoCRIQCghwbGF0Zm9ybRgFIAEoCRIPCgdzZXNzaW9uGAYgASgJEgsKA2FwcBgHIAEoCRIRCgl3aW5kb3dfaWQYCCABKAkSEQoJZGV2aWNlX2lkGAkgASgJImYKD0FnZW50VG9vbE91dHB1dBIRCglvcGVyYXRpb24YASABKAkSDAoEdGV4dBgCIAEoCRIRCgltaW1lX3R5cGUYAyABKAkSDAoEZGF0YRgEIAEoDBIRCgl0cnVuY2F0ZWQYBSABKAgihAEKEkFnZW50UHJldmlld1RhcmdldBIKCgJpZBgBIAEoCRINCgVsYWJlbBgCIAEoCRIQCghwbGF0Zm9ybRgDIAEoCRILCgNhcHAYBCABKAkSEQoJd2luZG93X2lkGAUgASgJEhEKCWRldmljZV9pZBgGIAEoCRIOCgZhY3RpdmUYByABKAgiwwEKEVN0YXJ0QWdlbnRQcmV2aWV3EhIKCnByZXZpZXdfaWQYASABKAkSEQoJdGhyZWFkX2lkGAIgASgJEi0KBXNjb3BlGAMgASgLMh4uY2Fub3B5Lndvcmtlci52MS5SdW5BZ2VudFRvb2wSDwoHbWF4X2ZwcxgEIAEoDRJHChNhZ2VudF90b29sX2RlZmF1bHRzGAUgASgLMiouY2Fub3B5Lndvcmtlci52MS5BZ2VudFRvb2xTZXNzaW9uRGVmYXVsdHMiJgoQU3RvcEFnZW50UHJldmlldxISCgpwcmV2aWV3X2lkGAEgASgJIjcKD0FnZW50UHJldmlld0FjaxISCgpwcmV2aWV3X2lkGAEgASgJEhAKCGZyYW1lX2lkGAIgASgEItUBChFBZ2VudFByZXZpZXdJbnB1dBIMCgRraW5kGAEgASgJEgkKAXgYAiABKAESCQoBeRgDIAEoARIPCgdkZWx0YV94GAQgASgBEg8KB2RlbHRhX3kYBSABKAESDgoGYnV0dG9uGAYgASgNEg8KB2J1dHRvbnMYByABKA0SCwoDa2V5GAggASgJEgwKBGNvZGUYCSABKAkSDAoEdGV4dBgKIAEoCRIRCgltb2RpZmllcnMYCyABKA0SDQoFd2lkdGgYDCABKA0SDgoGaGVpZ2h0GA0gASgNImEKFkFnZW50UHJldmlld0lucHV0QmF0Y2gSEgoKcHJldmlld19pZBgBIAEoCRIzCgZpbnB1dHMYAiADKAsyIy5jYW5vcHkud29ya2VyLnYxLkFnZW50UHJldmlld0lucHV0IvQBChNBZ2VudFByZXZpZXdDb21tYW5kEjQKBXN0YXJ0GAEgASgLMiMuY2Fub3B5Lndvcmtlci52MS5TdGFydEFnZW50UHJldmlld0gAEjIKBHN0b3AYAiABKAsyIi5jYW5vcHkud29ya2VyLnYxLlN0b3BBZ2VudFByZXZpZXdIABI5CgVpbnB1dBgDIAEoCzIoLmNhbm9weS53b3JrZXIudjEuQWdlbnRQcmV2aWV3SW5wdXRCYXRjaEgAEjAKA2FjaxgEIAEoCzIhLmNhbm9weS53b3JrZXIudjEuQWdlbnRQcmV2aWV3QWNrSABCBgoEa2luZCK9AgoRQWdlbnRQcmV2aWV3RXZlbnQSEgoKcHJldmlld19pZBgBIAEoCRINCgVzdGF0ZRgCIAEoCRIQCghmcmFtZV9pZBgDIAEoBBIMCgRkYXRhGAQgASgMEhEKCW1pbWVfdHlwZRgFIAEoCRINCgV3aWR0aBgGIAEoDRIOCgZoZWlnaHQYByABKA0SFgoOdmlld3BvcnRfd2lkdGgYCCABKA0SFwoPdmlld3BvcnRfaGVpZ2h0GAkgASgNEgsKA3VybBgKIAEoCRINCgV0aXRsZRgLIAEoCRIOCgZkZXRhaWwYDCABKAkSNQoHdGFyZ2V0cxgNIAMoCzIkLmNhbm9weS53b3JrZXIudjEuQWdlbnRQcmV2aWV3VGFyZ2V0EhEKCXRhcmdldF9pZBgOIAEoCRIMCgRtb2RlGA8gASgJKm4KCUFnZW50VG9vbBIaChZBR0VOVF9UT09MX1VOU1BFQ0lGSUVEEAASFgoSQUdFTlRfVE9PTF9CUk9XU0VSEAESFgoSQUdFTlRfVE9PTF9ERVNLVE9QEAISFQoRQUdFTlRfVE9PTF9ERVZJQ0UQA2IGcHJvdG8z", [file_google_protobuf_timestamp]);
+
+/**
+ * Account defaults used when a tool call does not select its own session options.
+ *
+ * @generated from message canopy.worker.v1.AgentToolSessionDefaults
+ */
+export type AgentToolSessionDefaults = Message<"canopy.worker.v1.AgentToolSessionDefaults"> & {
+  /**
+   * @generated from field: canopy.worker.v1.BrowserSessionDefaults browser = 1;
+   */
+  browser?: BrowserSessionDefaults | undefined;
+
+  /**
+   * @generated from field: canopy.worker.v1.DesktopSessionDefaults desktop = 2;
+   */
+  desktop?: DesktopSessionDefaults | undefined;
+
+  /**
+   * @generated from field: canopy.worker.v1.DeviceSessionDefaults device = 3;
+   */
+  device?: DeviceSessionDefaults | undefined;
+};
+
+/**
+ * Describes the message canopy.worker.v1.AgentToolSessionDefaults.
+ * Use `create(AgentToolSessionDefaultsSchema)` to create a new message.
+ */
+export const AgentToolSessionDefaultsSchema: GenMessage<AgentToolSessionDefaults> = /*@__PURE__*/
+  messageDesc(file_canopy_worker_v1_agent_tools, 0);
+
+/**
+ * @generated from message canopy.worker.v1.BrowserSessionDefaults
+ */
+export type BrowserSessionDefaults = Message<"canopy.worker.v1.BrowserSessionDefaults"> & {
+  /**
+   * @generated from field: optional uint32 viewport_width = 1;
+   */
+  viewportWidth?: number | undefined;
+
+  /**
+   * @generated from field: optional uint32 viewport_height = 2;
+   */
+  viewportHeight?: number | undefined;
+
+  /**
+   * empty | light | dark | no-preference
+   *
+   * @generated from field: string color_scheme = 3;
+   */
+  colorScheme: string;
+};
+
+/**
+ * Describes the message canopy.worker.v1.BrowserSessionDefaults.
+ * Use `create(BrowserSessionDefaultsSchema)` to create a new message.
+ */
+export const BrowserSessionDefaultsSchema: GenMessage<BrowserSessionDefaults> = /*@__PURE__*/
+  messageDesc(file_canopy_worker_v1_agent_tools, 1);
+
+/**
+ * @generated from message canopy.worker.v1.DesktopSessionDefaults
+ */
+export type DesktopSessionDefaults = Message<"canopy.worker.v1.DesktopSessionDefaults"> & {
+  /**
+   * @generated from field: string app = 1;
+   */
+  app: string;
+};
+
+/**
+ * Describes the message canopy.worker.v1.DesktopSessionDefaults.
+ * Use `create(DesktopSessionDefaultsSchema)` to create a new message.
+ */
+export const DesktopSessionDefaultsSchema: GenMessage<DesktopSessionDefaults> = /*@__PURE__*/
+  messageDesc(file_canopy_worker_v1_agent_tools, 2);
+
+/**
+ * @generated from message canopy.worker.v1.DeviceSessionDefaults
+ */
+export type DeviceSessionDefaults = Message<"canopy.worker.v1.DeviceSessionDefaults"> & {
+  /**
+   * empty | ios | android | apple
+   *
+   * @generated from field: string platform = 1;
+   */
+  platform: string;
+
+  /**
+   * @generated from field: optional bool allow_boot = 2;
+   */
+  allowBoot?: boolean | undefined;
+
+  /**
+   * @generated from field: optional uint32 acquire_timeout_seconds = 3;
+   */
+  acquireTimeoutSeconds?: number | undefined;
+};
+
+/**
+ * Describes the message canopy.worker.v1.DeviceSessionDefaults.
+ * Use `create(DeviceSessionDefaultsSchema)` to create a new message.
+ */
+export const DeviceSessionDefaultsSchema: GenMessage<DeviceSessionDefaults> = /*@__PURE__*/
+  messageDesc(file_canopy_worker_v1_agent_tools, 3);
 
 /**
  * @generated from message canopy.worker.v1.AgentToolInstallStatus
@@ -56,7 +160,7 @@ export type AgentToolInstallStatus = Message<"canopy.worker.v1.AgentToolInstallS
  * Use `create(AgentToolInstallStatusSchema)` to create a new message.
  */
 export const AgentToolInstallStatusSchema: GenMessage<AgentToolInstallStatus> = /*@__PURE__*/
-  messageDesc(file_canopy_worker_v1_agent_tools, 0);
+  messageDesc(file_canopy_worker_v1_agent_tools, 4);
 
 /**
  * @generated from message canopy.worker.v1.AgentToolInfo
@@ -123,7 +227,7 @@ export type AgentToolInfo = Message<"canopy.worker.v1.AgentToolInfo"> & {
  * Use `create(AgentToolInfoSchema)` to create a new message.
  */
 export const AgentToolInfoSchema: GenMessage<AgentToolInfo> = /*@__PURE__*/
-  messageDesc(file_canopy_worker_v1_agent_tools, 1);
+  messageDesc(file_canopy_worker_v1_agent_tools, 5);
 
 /**
  * @generated from message canopy.worker.v1.AgentToolsReport
@@ -155,7 +259,7 @@ export type AgentToolsReport = Message<"canopy.worker.v1.AgentToolsReport"> & {
  * Use `create(AgentToolsReportSchema)` to create a new message.
  */
 export const AgentToolsReportSchema: GenMessage<AgentToolsReport> = /*@__PURE__*/
-  messageDesc(file_canopy_worker_v1_agent_tools, 2);
+  messageDesc(file_canopy_worker_v1_agent_tools, 6);
 
 /**
  * @generated from message canopy.worker.v1.InstallAgentTool
@@ -191,7 +295,7 @@ export type InstallAgentTool = Message<"canopy.worker.v1.InstallAgentTool"> & {
  * Use `create(InstallAgentToolSchema)` to create a new message.
  */
 export const InstallAgentToolSchema: GenMessage<InstallAgentTool> = /*@__PURE__*/
-  messageDesc(file_canopy_worker_v1_agent_tools, 3);
+  messageDesc(file_canopy_worker_v1_agent_tools, 7);
 
 /**
  * @generated from message canopy.worker.v1.AgentToolProgress
@@ -218,7 +322,7 @@ export type AgentToolProgress = Message<"canopy.worker.v1.AgentToolProgress"> & 
  * Use `create(AgentToolProgressSchema)` to create a new message.
  */
 export const AgentToolProgressSchema: GenMessage<AgentToolProgress> = /*@__PURE__*/
-  messageDesc(file_canopy_worker_v1_agent_tools, 4);
+  messageDesc(file_canopy_worker_v1_agent_tools, 8);
 
 /**
  * A bounded operation set. target/value are interpreted by the worker per tool;
@@ -284,7 +388,7 @@ export type RunAgentTool = Message<"canopy.worker.v1.RunAgentTool"> & {
  * Use `create(RunAgentToolSchema)` to create a new message.
  */
 export const RunAgentToolSchema: GenMessage<RunAgentTool> = /*@__PURE__*/
-  messageDesc(file_canopy_worker_v1_agent_tools, 5);
+  messageDesc(file_canopy_worker_v1_agent_tools, 9);
 
 /**
  * @generated from message canopy.worker.v1.AgentToolOutput
@@ -321,7 +425,7 @@ export type AgentToolOutput = Message<"canopy.worker.v1.AgentToolOutput"> & {
  * Use `create(AgentToolOutputSchema)` to create a new message.
  */
 export const AgentToolOutputSchema: GenMessage<AgentToolOutput> = /*@__PURE__*/
-  messageDesc(file_canopy_worker_v1_agent_tools, 6);
+  messageDesc(file_canopy_worker_v1_agent_tools, 10);
 
 /**
  * Ephemeral, frame-acknowledged previews. These messages never enter a journal,
@@ -371,7 +475,7 @@ export type AgentPreviewTarget = Message<"canopy.worker.v1.AgentPreviewTarget"> 
  * Use `create(AgentPreviewTargetSchema)` to create a new message.
  */
 export const AgentPreviewTargetSchema: GenMessage<AgentPreviewTarget> = /*@__PURE__*/
-  messageDesc(file_canopy_worker_v1_agent_tools, 7);
+  messageDesc(file_canopy_worker_v1_agent_tools, 11);
 
 /**
  * @generated from message canopy.worker.v1.StartAgentPreview
@@ -396,6 +500,11 @@ export type StartAgentPreview = Message<"canopy.worker.v1.StartAgentPreview"> & 
    * @generated from field: uint32 max_fps = 4;
    */
   maxFps: number;
+
+  /**
+   * @generated from field: canopy.worker.v1.AgentToolSessionDefaults agent_tool_defaults = 5;
+   */
+  agentToolDefaults?: AgentToolSessionDefaults | undefined;
 };
 
 /**
@@ -403,7 +512,7 @@ export type StartAgentPreview = Message<"canopy.worker.v1.StartAgentPreview"> & 
  * Use `create(StartAgentPreviewSchema)` to create a new message.
  */
 export const StartAgentPreviewSchema: GenMessage<StartAgentPreview> = /*@__PURE__*/
-  messageDesc(file_canopy_worker_v1_agent_tools, 8);
+  messageDesc(file_canopy_worker_v1_agent_tools, 12);
 
 /**
  * @generated from message canopy.worker.v1.StopAgentPreview
@@ -420,7 +529,7 @@ export type StopAgentPreview = Message<"canopy.worker.v1.StopAgentPreview"> & {
  * Use `create(StopAgentPreviewSchema)` to create a new message.
  */
 export const StopAgentPreviewSchema: GenMessage<StopAgentPreview> = /*@__PURE__*/
-  messageDesc(file_canopy_worker_v1_agent_tools, 9);
+  messageDesc(file_canopy_worker_v1_agent_tools, 13);
 
 /**
  * @generated from message canopy.worker.v1.AgentPreviewAck
@@ -442,7 +551,7 @@ export type AgentPreviewAck = Message<"canopy.worker.v1.AgentPreviewAck"> & {
  * Use `create(AgentPreviewAckSchema)` to create a new message.
  */
 export const AgentPreviewAckSchema: GenMessage<AgentPreviewAck> = /*@__PURE__*/
-  messageDesc(file_canopy_worker_v1_agent_tools, 10);
+  messageDesc(file_canopy_worker_v1_agent_tools, 14);
 
 /**
  * @generated from message canopy.worker.v1.AgentPreviewInput
@@ -528,7 +637,7 @@ export type AgentPreviewInput = Message<"canopy.worker.v1.AgentPreviewInput"> & 
  * Use `create(AgentPreviewInputSchema)` to create a new message.
  */
 export const AgentPreviewInputSchema: GenMessage<AgentPreviewInput> = /*@__PURE__*/
-  messageDesc(file_canopy_worker_v1_agent_tools, 11);
+  messageDesc(file_canopy_worker_v1_agent_tools, 15);
 
 /**
  * @generated from message canopy.worker.v1.AgentPreviewInputBatch
@@ -550,7 +659,7 @@ export type AgentPreviewInputBatch = Message<"canopy.worker.v1.AgentPreviewInput
  * Use `create(AgentPreviewInputBatchSchema)` to create a new message.
  */
 export const AgentPreviewInputBatchSchema: GenMessage<AgentPreviewInputBatch> = /*@__PURE__*/
-  messageDesc(file_canopy_worker_v1_agent_tools, 12);
+  messageDesc(file_canopy_worker_v1_agent_tools, 16);
 
 /**
  * @generated from message canopy.worker.v1.AgentPreviewCommand
@@ -591,7 +700,7 @@ export type AgentPreviewCommand = Message<"canopy.worker.v1.AgentPreviewCommand"
  * Use `create(AgentPreviewCommandSchema)` to create a new message.
  */
 export const AgentPreviewCommandSchema: GenMessage<AgentPreviewCommand> = /*@__PURE__*/
-  messageDesc(file_canopy_worker_v1_agent_tools, 13);
+  messageDesc(file_canopy_worker_v1_agent_tools, 17);
 
 /**
  * @generated from message canopy.worker.v1.AgentPreviewEvent
@@ -682,7 +791,7 @@ export type AgentPreviewEvent = Message<"canopy.worker.v1.AgentPreviewEvent"> & 
  * Use `create(AgentPreviewEventSchema)` to create a new message.
  */
 export const AgentPreviewEventSchema: GenMessage<AgentPreviewEvent> = /*@__PURE__*/
-  messageDesc(file_canopy_worker_v1_agent_tools, 14);
+  messageDesc(file_canopy_worker_v1_agent_tools, 18);
 
 /**
  * Local automation binaries installed on, and executed by, the worker.

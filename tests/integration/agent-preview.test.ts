@@ -59,32 +59,47 @@ async function ready(
   workerId = gateway.workerId,
   override: MessageInitShape<typeof AgentToolInfoSchema> = {},
 ) {
-  const version = `1.0.${++revision}`;
+  const detail = `Preview report ${++revision}`;
   worker.previewHandler = (command) => {
     if (command.kind.case === "start")
       worker.link.send({ case: "agentPreview", value: { previewId: command.kind.value.previewId, state: "ready" } });
   };
 
-  worker.link.send({
-    case: "agentToolsReport",
-    value: {
-      tools: [AgentTool.BROWSER, AgentTool.DESKTOP, AgentTool.DEVICE].map((tool) => ({
-        tool,
-        installed: true,
-        ready: true,
-        screenshot: true,
-        version: tool === AgentTool.DEVICE ? "0.21.37" : version,
-        ...(override.tool === tool && override),
-      })),
-    },
-  });
+  const value = {
+    tools: [AgentTool.BROWSER, AgentTool.DESKTOP, AgentTool.DEVICE].map((tool) => ({
+      tool,
+      installed: true,
+      ready: true,
+      screenshot: true,
+      version: tool === AgentTool.DEVICE ? "0.21.37" : tool === AgentTool.DESKTOP ? "1.3.1" : "0.43.0",
+      detail,
+    })),
+  };
+
+  worker.link.send({ case: "agentToolsReport", value });
   await eventually(
     async () => (await gateway.api.getOverview({})).workers.find((worker) => worker.id === workerId),
-    (worker) => worker?.agentTools[0]?.tool?.version === version,
+    (worker) => worker?.agentTools[0]?.tool?.detail === detail,
   );
 
   for (const tool of [AgentTool.BROWSER, AgentTool.DESKTOP, AgentTool.DEVICE])
     await gateway.api.setAgentToolEnabled({ workerId, tool, enabled: true });
+
+  if (override.tool) {
+    const changed = `${detail} changed`;
+
+    const tools = value.tools.map((tool) => ({
+      ...tool,
+      ...(override.tool === tool.tool && override),
+      detail: changed,
+    }));
+
+    worker.link.send({ case: "agentToolsReport", value: { tools } });
+    await eventually(
+      async () => (await gateway.api.getOverview({})).workers.find((worker) => worker.id === workerId),
+      (worker) => worker?.agentTools[0]?.tool?.detail === changed,
+    );
+  }
 }
 
 async function makeThread(workerId = gateway.workerId) {

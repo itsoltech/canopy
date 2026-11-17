@@ -1,5 +1,5 @@
 import type { ConnectorTool, ThreadSpec } from "@canopy/contracts";
-import { automationMcp } from "../local-automation.ts";
+import { automationMcp, automationMcpKey } from "../local-automation.ts";
 import { CLAUDE_VIEW_IMAGE_TOOL, claudeBusServer, claudeBusToolNames } from "./bus.ts";
 import { BUS_SERVER } from "./mapping.ts";
 import { callKey } from "./session-io.ts";
@@ -12,7 +12,7 @@ export function claudeSessionMcp(
   turnId: () => string,
   calls: Map<string, string[]>,
 ) {
-  let key = JSON.stringify(spec.localMcpTools);
+  let key = automationMcpKey(spec);
   let automation = automationMcp(options, spec, turnId);
 
   return {
@@ -44,7 +44,7 @@ export function claudeSessionMcp(
       ),
     }),
     async refresh(current: ThreadSpec) {
-      const next = JSON.stringify(current.localMcpTools);
+      const next = automationMcpKey(current);
 
       if (key === next) return;
       await automation?.close();

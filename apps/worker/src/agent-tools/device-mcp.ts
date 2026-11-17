@@ -1,3 +1,4 @@
+import type { DeviceSessionDefaults } from "@canopy/contracts";
 import { z } from "zod";
 import type { CallToolResult, Tool } from "@modelcontextprotocol/sdk/types.js";
 import type { AutomationCall } from "../agent-tools-mcp/session-policy.ts";
@@ -88,9 +89,38 @@ export function managedDeviceMcp(
   pool: DevicePool,
   session: string,
   release: () => Promise<void>,
+  defaults?: DeviceSessionDefaults,
 ): NonNullable<LocalAutomationServer["managed"]> {
+  const selection = (args: AutomationCall["arguments"]) => {
+    const explicit = deviceSelection(args);
+
+    return !pool.current(session) && !explicit.platform && !explicit.deviceId && defaults?.platform
+      ? { platform: defaults.platform }
+      : explicit;
+  };
+
   return {
-    tools,
+    tools: tools.map((tool) =>
+      tool.name !== "acquire_device"
+        ? tool
+        : {
+            ...tool,
+            inputSchema: {
+              ...tool.inputSchema,
+              properties: {
+                ...tool.inputSchema.properties,
+                ...(defaults?.platform && {
+                  platform: { type: "string", enum: ["ios", "android", "apple"], default: defaults.platform },
+                }),
+                boot: { ...tool.inputSchema.properties?.["boot"], default: defaults?.allowBoot ?? true },
+                timeoutMs: {
+                  ...tool.inputSchema.properties?.["timeoutMs"],
+                  default: (defaults?.acquireTimeoutSeconds ?? 60) * 1000,
+                },
+              },
+            },
+          },
+    ),
     catalog: (catalog) =>
       catalog
         .filter((tool) => tool.name !== "replay")
@@ -100,11 +130,15 @@ export function managedDeviceMcp(
         })),
     async call(params, signal, next) {
       if (params.name === "acquire_device" || params.name === "boot") {
-        const input = acquire.parse(params.arguments);
+        const input = acquire.parse({
+          boot: defaults?.allowBoot ?? true,
+          timeoutMs: (defaults?.acquireTimeoutSeconds ?? 60) * 1000,
+          ...params.arguments,
+        });
 
         const device = await pool.acquire(
           session,
-          { ...deviceSelection(params.arguments), boot: input.boot, timeoutMs: input.timeoutMs },
+          { ...selection(params.arguments), boot: input.boot, timeoutMs: input.timeoutMs },
           signal,
         );
 
@@ -130,7 +164,7 @@ export function managedDeviceMcp(
 
       const device = await pool.acquire(
         session,
-        { ...deviceSelection(params.arguments), boot: false, wait: false, timeoutMs: 15_000 },
+        { ...selection(params.arguments), boot: false, wait: false, timeoutMs: 15_000 },
         signal,
       );
 

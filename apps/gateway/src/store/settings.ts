@@ -1,6 +1,6 @@
 import { create, fromJson, toJson, type JsonValue } from "@bufbuild/protobuf";
 import { timestampFromDate } from "@bufbuild/protobuf/wkt";
-import { ui } from "@canopy/contracts";
+import { AgentToolSessionDefaultsSchema, type AgentToolSessionDefaults, ui } from "@canopy/contracts";
 import { Context, Effect, Layer } from "effect";
 import { SqlClient, type SqlError } from "effect/sql";
 import { isUniqueViolation } from "./agent-bus.ts";
@@ -48,6 +48,7 @@ interface Stored {
   general?: JsonValue;
   cliUpdates?: JsonValue;
   threadRetention?: JsonValue;
+  agentToolDefaults?: JsonValue;
 }
 
 const appearance = (stored: Stored) =>
@@ -79,6 +80,9 @@ const toUser = (row: Row | undefined) => {
     timezone: stored.timezone ?? "",
     appearance: appearance(stored),
     threadDefaults: threadDefaults(stored),
+    agentToolDefaults: fromJson(AgentToolSessionDefaultsSchema, stored.agentToolDefaults ?? {}, {
+      ignoreUnknownFields: true,
+    }),
     threadRetention: fromJson(ui.ThreadRetentionSettingsSchema, stored.threadRetention ?? {}, {
       ignoreUnknownFields: true,
     }),
@@ -155,6 +159,7 @@ export class SettingsStore extends Context.Service<
       general?: ui.GeneralSettings;
       cliUpdates?: ui.CliUpdateSettings;
       threadRetention?: ui.ThreadRetentionSettings;
+      agentToolDefaults?: AgentToolSessionDefaults;
       timezone?: string;
       workerGatewayUrl?: string;
       attachmentLimits?: ui.AttachmentLimits;
@@ -200,6 +205,7 @@ export class SettingsStore extends Context.Service<
           general,
           cliUpdates,
           threadRetention,
+          agentToolDefaults,
           timezone,
           workerGatewayUrl,
           attachmentLimits,
@@ -229,6 +235,9 @@ export class SettingsStore extends Context.Service<
                 ...(general && { general: toJson(ui.GeneralSettingsSchema, general) }),
                 ...(cliUpdates && { cliUpdates: toJson(ui.CliUpdateSettingsSchema, cliUpdates) }),
                 ...(threadRetention && { threadRetention: toJson(ui.ThreadRetentionSettingsSchema, threadRetention) }),
+                ...(agentToolDefaults && {
+                  agentToolDefaults: toJson(AgentToolSessionDefaultsSchema, agentToolDefaults),
+                }),
               };
 
               const row = yield* write({

@@ -1,7 +1,8 @@
 import { expect, test } from "bun:test";
 import { existsSync } from "node:fs";
 import { join } from "node:path";
-import { AgentTool } from "@canopy/contracts";
+import { create } from "@bufbuild/protobuf";
+import { AgentTool, AgentToolSessionDefaultsSchema } from "@canopy/contracts";
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { StreamableHTTPClientTransport } from "@modelcontextprotocol/sdk/client/streamableHttp.js";
 import { tempDirs } from "@canopy/testing";
@@ -15,7 +16,7 @@ const rpcError = z.object({ error: z.object({ code: z.number() }) });
 const toolReply = z.object({ content: z.array(z.object({ type: z.literal("text"), text: z.string() })) });
 const forwarded = z.object({ arguments: z.record(z.string(), z.json()), args: z.array(z.string()) });
 
-function fixture() {
+function fixture(app?: string) {
   const path = join(temporary("canopy-desktop-mcp-policy-"), "events.jsonl");
   const authorized: string[] = [];
 
@@ -25,7 +26,11 @@ function fixture() {
         name: "agent_desktop",
         command: process.execPath,
         args: [join(import.meta.dir, "fixtures/server.ts"), path, "--session", session, "mcp"],
-        scope: { tool: AgentTool.DESKTOP, session },
+        scope: {
+          tool: AgentTool.DESKTOP,
+          session,
+          ...(app && { defaults: create(AgentToolSessionDefaultsSchema, { desktop: { app } }) }),
+        },
       },
     ],
     env: { CANOPY_MCP_DESKTOP_POLICY: "1" },
@@ -146,6 +151,46 @@ test("desktop keeps startup session and batch scope aligned without unsupported 
       // SAFETY: each call has a corresponding expected argument object at the same index.
       expect(actual.arguments).toEqual(expected[index]!);
       // SAFETY: authorization finishes before the fixture returns this call's response.
+      expect(JSON.parse(f.authorized[index]!)).toEqual(actual.arguments);
+    }
+  } finally {
+    await client.close();
+    await f.bridge.close();
+  }
+});
+
+test("desktop defaults only target app-aware tools and preserve explicit app, window and reference choices", async () => {
+  const f = fixture("Preferred Editor");
+  const client = new Client({ name: "Canopy desktop defaults fixture", version: "1" });
+
+  try {
+    await client.connect(
+      new StreamableHTTPClientTransport(new URL(f.endpoint.url), { requestInit: { headers: f.endpoint.headers } }),
+    );
+
+    const calls: AutomationCall[] = [
+      { name: "desktop_snapshot", arguments: {} },
+      { name: "desktop_screenshot", arguments: { app: "Another Editor" } },
+      { name: "desktop_click", arguments: { window_id: "chosen-window" } },
+      { name: "desktop_click", arguments: { ref_id: "@chosen-window:e1" } },
+      { name: "desktop_session_end", arguments: {} },
+    ];
+
+    const expected = [
+      { app: "Preferred Editor" },
+      { app: "Another Editor" },
+      { window_id: "chosen-window" },
+      { ref_id: "@chosen-window:e1" },
+      { id: session },
+    ];
+
+    for (const [index, call] of calls.entries()) {
+      const result = toolReply.parse(await client.callTool(call));
+      // SAFETY: the fixture returns exactly one text block for each forwarded call.
+      const actual = forwarded.parse(JSON.parse(result.content[0]!.text));
+      // SAFETY: each fixture call has a corresponding expected object.
+      expect(actual.arguments).toEqual(expected[index]!);
+      // SAFETY: the authorization hook records the call before the response resolves.
       expect(JSON.parse(f.authorized[index]!)).toEqual(actual.arguments);
     }
   } finally {

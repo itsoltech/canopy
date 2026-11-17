@@ -65,20 +65,35 @@ export class AgentPreviews {
     this.#stop(start.previewId);
 
     if (this.#watches.size >= 4) throw new Error("This worker already has four active preview viewers");
-    const key = JSON.stringify([scope.tool, scope.session, scope.platform, scope.deviceId, scope.app, scope.windowId]);
+
+    const key = JSON.stringify([
+      scope.tool,
+      scope.session,
+      scope.platform,
+      scope.deviceId,
+      scope.app,
+      scope.windowId,
+      start.agentToolDefaults,
+    ]);
+
     let group = this.#groups.get(key);
 
     if (!group) {
       if (this.#groups.size + this.#closing.size >= 4)
         throw new Error("Preview backends are busy closing; retry shortly");
-      group = new PreviewGroup(this.#options.tools, scope, (detail) => {
-        for (const [id, entry] of this.#watches) {
-          if (entry.key === key) {
-            this.#error(id, detail);
-            this.#stop(id);
+      group = new PreviewGroup(
+        this.#options.tools,
+        scope,
+        (detail) => {
+          for (const [id, entry] of this.#watches) {
+            if (entry.key === key) {
+              this.#error(id, detail);
+              this.#stop(id);
+            }
           }
-        }
-      });
+        },
+        start.agentToolDefaults,
+      );
       this.#groups.set(key, group);
     }
 

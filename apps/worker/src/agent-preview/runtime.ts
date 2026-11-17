@@ -39,6 +39,10 @@ export class PreviewRuntime {
     this.#deviceName = name;
   }
 
+  get devicePlatform(): string {
+    return this.#resolved.devicePlatform ?? "";
+  }
+
   get env() {
     return this.#resolved.env;
   }
@@ -53,6 +57,9 @@ export class PreviewRuntime {
   ): Promise<JsonValue> {
     const signal = options.cleanup ? AbortSignal.timeout(2_000) : this.#signal;
     signal.throwIfAborted();
+
+    if (this.scope.tool === AgentTool.BROWSER && !options.cleanup && ["open", "set"].includes(args[0] ?? ""))
+      await this.#resolved.initializeBrowser?.("agent_browser_open", signal);
 
     const execute = () =>
       serializeAgentTool(

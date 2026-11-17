@@ -125,7 +125,11 @@ export async function deviceCatalog(runtime: PreviewRuntime) {
   const sessions = sessionsSchema.parse(await runtime.command(["session", "list"])).sessions;
   const devices = devicesSchema.parse(await runtime.command(["devices"])).devices;
   const active = sessions.find((session) => session.name === runtime.scope.session);
-  const matching = devices.filter((device) => matchesPlatform(device.platform, scope.platform));
+
+  const platform =
+    scope.platform || (!scope.deviceId && active?.platform) || (!scope.deviceId && runtime.devicePlatform) || "";
+
+  const matching = devices.filter((device) => matchesPlatform(device.platform, platform));
 
   const selected = scope.deviceId
     ? matching.find((device) => device.id === scope.deviceId)

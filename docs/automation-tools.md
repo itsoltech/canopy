@@ -4,6 +4,9 @@ Status (2026-11-17): **narzędzia, interaktywny Preview z podglądem zmiany view
 automatyczny mini Preview wątku, pełna karta Preview w web/desktop, ikony obu stanów skali
 oraz rezerwacje urządzeń z oczekiwaniem, uruchamianiem skonfigurowanych emulatorów
 i sprzątaniem sesji przy archiwizacji zaimplementowane**.
+Osobna zakładka Settings → Agent tools grupuje dostęp i instalacje według narzędzia;
+włączenie na połączonym workerze automatycznie rozpoczyna potrzebną instalację.
+Karty mają zapisane ustawienia początkowe sesji wspólne dla workerów użytkownika.
 Natywny mobile ma ręczny pełnoekranowy Preview Browser/Desktop/Device z wyborem celu,
 dotykiem, nawigacją i wpisywaniem tekstu przez Connect z przypiętym TLS. Wszystkie
 trzy narzędzia mają stałą belkę zamknięcia i możliwość ukrycia kontrolek.
@@ -60,6 +63,37 @@ Oryginalne materiały opisują pełny zakres i lokalne wymagania narzędzi:
 Te wymagania są lokalne dla komputera użytkownika. Canopy ich nie instaluje
 poza opcjonalnym Chrome for Testing i nie może nadać workerowi uprawnień OS.
 
+## Domyślne ustawienia sesji
+
+Settings → Agent tools → Session defaults zapisuje ustawienia użytkownika,
+wspólne dla jego workerów. Każda karta ma własne Save defaults i Reset defaults;
+reset przygotowuje wartości fabryczne, a Save defaults je zapisuje. Formularz
+zachowuje szkic po nieudanym zapisie. Ustawienia nie nadają dostępu do narzędzia
+ani nie rozpoczynają instalacji.
+
+- **Browser:** początkowy viewport (gotowe rozmiary albo własna para szerokość/wysokość
+  320–8192 px) i preferencja kolorów stron: domyślna, jasna, ciemna lub brak preferencji.
+  Worker sprawdza natywną sesję i stosuje wartości tylko przed pierwszym aktywnym,
+  autoryzowanym użyciem przeglądarki. Odczyt katalogu MCP i bierne Preview nie otwierają
+  przeglądarki. Istniejąca sesja zachowuje wymiary i wygląd, także po odtworzeniu bridge’a
+  lub restarcie workera; ręczna zmiana w Preview i późniejsze wybory agenta pozostają.
+- **Desktop:** domyślna aplikacja dla wywołań, które obsługują argument `app`
+  i nie wskazują jawnie aplikacji, okna ani referencji elementu. Preview używa jej
+  jako początkowego filtra celu, zachowując jawny wybór okna. Rozmiar pochodzi
+  z rzeczywistego okna lub ekranu; ustawienie nie zmienia rozdzielczości monitora.
+- **Device:** preferowana platforma (dowolna, iOS, Android lub Apple), zgoda na
+  uruchamianie skonfigurowanych emulatorów/symulatorów (domyślnie tak) i oczekiwanie
+  na urządzenie 1–240 s (domyślnie 60 s). Jawny cel agenta ma pierwszeństwo,
+  a istniejąca rezerwacja zachowuje urządzenie. Bierne Preview nie uruchamia emulatora
+  i nie oczekuje na jego dostępność. Rozmiar obrazu wynika z wybranego urządzenia.
+
+Gateway waliduje i wersjonuje sekcję `UserSettings.agent_tool_defaults` w istniejącym
+magazynie ustawień. Synchronizacja konfiguracji połączonych komputerów obejmuje
+również reset pól opcjonalnych. Gateway przekazuje wartości użytkownika w addytywnych
+polach `ThreadSpec.agent_tool_defaults` i `StartAgentPreview.agent_tool_defaults`;
+worker nie otrzymuje ich od modelu i nie odczytuje z ustawień obcego właściciela.
+Brak ustawień zachowuje dotychczasowe zachowanie. Starszy worker pomija nowe pola.
+
 ## Wykrywanie, instalacja i gotowość
 
 Worker najpierw wyszukuje istniejącą binarkę w swoim środowisku oraz w swoim
@@ -69,8 +103,26 @@ Nieprawidłowa wersja znaleziona w PATH nie jest używana ani modyfikowana;
 właściciel może zainstalować właściwą wersję w zarządzanym prefiksie workera.
 Ponowna instalacja w tym prefiksie może zastąpić jego wcześniejszą, błędną wersję.
 
-Jeśli narzędzia brakuje albo wymaga przygotowania, właściciel może opcjonalnie
-uruchomić instalację per worker w **Settings → Workers → Automation tools**.
+Jeśli narzędzia brakuje albo wymaga przygotowania, właściciel może
+uruchomić instalację per worker w **Settings → Agent tools**.
+Zakładka zawiera niezależnie rozwijane karty **Agent Browser**, **Agent Desktop**
+i **Agent Device**. Każda pokazuje workery, wersje, gotowość, instalację lub
+aktualizację i log na żądanie. Przełącznik w nagłówku zbiorczo zmienia dostęp
+na dostępnych workerach; stan pośredni (kreska na środku) oznacza mieszane granty.
+Licznik obejmuje wszystkie widoczne workery, także offline i tylko do odczytu;
+niedostępne cele pozostają widoczne i nie są pomijane w podsumowaniu stanu.
+
+Włączenie dostępu na połączonym workerze rozpoczyna instalację brakującej
+lub niezgodnej binarki; Browser przygotowuje także swój runtime, gdy nie jest gotowy.
+Grant zapisuje się po potwierdzeniu startu przez worker, bez czekania na koniec
+instalacji. Trwająca instalacja nie jest uruchamiana ponownie. Brak instalatora
+lub raportu i odmowa startu pozostawiają poprzedni grant; błąd jest przy workerze.
+Gotowa binarka nie jest reinstalowana. Poprawne Desktop/Device z brakującymi
+uprawnieniami OS lub SDK mogą dostać grant, ale wymagają ręcznego przygotowania.
+Nie ma kolejki instalacji po ponownym połączeniu: włączanie wymaga dostępnego
+workera i jego komputera. Lokalny grant można wyłączyć również offline.
+Operacja zbiorcza zachowuje wyniki i błędy osobno dla każdego workera.
+
 Instalator używa `npm` z prywatnym prefiksem workera i działa jako użytkownik
 usługi workera; nie instaluje pakietu systemowo. Dla `agent-browser` przycisk
 instalacji może również wykonać instalację Chrome for Testing. Instalacja kończy
@@ -105,8 +157,8 @@ wiele workerów w partiach najwyżej po cztery.
 
 ## Grant workera i uprawnienia tury
 
-Każde narzędzie ma osobny, jawny przełącznik **Allow agent access** w Settings →
-Workers. Domyślnie jest wyłączony. Sama obecność lub gotowość binarki nie daje
+Każde narzędzie ma osobny, jawny przełącznik dostępu przy workerze w Settings →
+Agent tools. Domyślnie jest wyłączony. Sama obecność lub gotowość binarki nie daje
 agentowi dostępu. Grant jest zapisany dla konkretnego workera i właściciela;
 wyłączenie go usuwa narzędzie z kolejnych `ThreadSpec`.
 
@@ -286,11 +338,13 @@ potwierdza zakończenia opóźnionego startu w daemonie; taki niejednoznaczny wp
 wymaga wyjaśnienia przed zwolnieniem rezerwacji.
 Nie jest to gwarancja sprzątania przy niedostępnych SDK lub uszkodzonej binarce.
 
-## Instalacja i dostęp w Settings → Workers
+## Instalacja i dostęp w Settings → Agent tools
 
-Panel **Automation tools** pokazuje wykrycie, wersję, gotowość, ścieżkę,
-redagowany log instalacji i przełącznik dostępu dla każdego narzędzia. **Check
-tools** ponawia badanie na wybranym workerze.
+Zakładka **Agent tools** grupuje narzędzia, a wewnątrz ich kart pokazuje workery.
+Udostępnia wersję, gotowość, ścieżkę, redagowany log instalacji i przełączniki
+dostępu per worker oraz zbiorczo. **Check tools** ponawia badanie na wszystkich
+dostępnych workerach, także na połączonych komputerach; BFF wysyła identyfikator
+każdego workera, aby gateway trasował żądanie do właściwego domu.
 
 Sterowanie należy do wątku, którego worker i sesja wyznaczają zakres podglądu.
 

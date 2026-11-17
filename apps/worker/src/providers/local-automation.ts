@@ -12,7 +12,11 @@ import { toolEnvironment } from "../agent-tools/paths.ts";
 import type { LocalAgentToolMcpServer } from "../agent-tools/index.ts";
 
 export interface AutomationMcpOptions {
-  localMcpServers?(tools: readonly AgentTool[], threadId: string): readonly LocalAgentToolMcpServer[];
+  localMcpServers?(
+    tools: readonly AgentTool[],
+    threadId: string,
+    defaults?: ThreadSpec["agentToolDefaults"],
+  ): readonly LocalAgentToolMcpServer[];
   callTool(call: AgentToolCall, signal?: AbortSignal): Promise<AgentToolResult>;
 }
 
@@ -24,7 +28,7 @@ const toolIds = new Map([
 
 /** One authenticated bridge per harness session. The subprocess never inherits provider credentials. */
 export function automationMcp(options: AutomationMcpOptions, spec: ThreadSpec, turnId: () => string) {
-  const servers = options.localMcpServers?.(spec.localMcpTools, spec.threadId) ?? [];
+  const servers = options.localMcpServers?.(spec.localMcpTools, spec.threadId, spec.agentToolDefaults) ?? [];
 
   if (!servers.length) return undefined;
 
@@ -57,3 +61,7 @@ export function automationMcp(options: AutomationMcpOptions, spec: ThreadSpec, t
     },
   });
 }
+
+/** Defaults changes refresh the private bridge without resetting native sessions. */
+export const automationMcpKey = (spec: ThreadSpec): string =>
+  JSON.stringify([spec.localMcpTools, spec.agentToolDefaults]);
