@@ -1,9 +1,11 @@
 import { useState } from "react";
-import { Button, Field, Notice } from "../../ui/components";
-import { SettingsRow } from "./SettingsGroup";
-import { ResourceState, useSettingsResource } from "./resource";
-import { SettingsSkeletonRows } from "./SettingsSkeleton";
+import { Pressable, Text, View } from "react-native";
+import { Sheet } from "../../ui/components";
+import { Icon } from "../../ui/Icon";
+import { font, useColors, useTypography } from "../../ui/theme";
+import { DirectoryPicker } from "./DirectoryPicker";
 
+/** A compact destination field; directory navigation has its own bounded list. */
 export function DirectoryBrowser({
   workerId,
   value,
@@ -13,38 +15,54 @@ export function DirectoryBrowser({
   value: string;
   onChange: (path: string) => void;
 }) {
-  const [path, setPath] = useState("");
-
-  const resource = useSettingsResource(`ListDirectory:${workerId}:${path}`, (api) =>
-    api.listDirectory({ workerId, path }),
-  );
+  const [open, setOpen] = useState(false);
+  const c = useColors();
+  const type = useTypography();
 
   return (
-    <ResourceState resource={resource}>
-      <Field label="Directory path" value={value} onChangeText={onChange} autoCapitalize="none" autoCorrect={false} />
-      <Button title="Browse directory" disabled={!workerId} onPress={() => setPath(value)} />
-      <SettingsSkeletonRows rows={4} />
-      {resource.data && (
-        <>
-          <Button title="Use this directory" onPress={() => onChange(resource.data!.path)} />
-          <Button
-            title="Parent directory"
-            onPress={() => setPath(resource.data!.path.replace(/[\\/][^\\/]+[\\/]?$/, "/"))}
+    <View style={{ gap: 6 }}>
+      <Text style={[type.body, { fontFamily: font.medium, color: c.text }]}>Directory</Text>
+      <Pressable
+        accessibilityRole="button"
+        accessibilityLabel={value ? `Choose directory: ${value}` : "Choose directory"}
+        disabled={!workerId}
+        onPress={() => setOpen(true)}
+        style={({ pressed }) => ({
+          flexDirection: "row",
+          alignItems: "center",
+          gap: 10,
+          minHeight: 48,
+          paddingHorizontal: 12,
+          paddingVertical: 10,
+          borderWidth: 1,
+          borderColor: c.line,
+          borderRadius: 8,
+          backgroundColor: pressed ? c.pressed : c.surface,
+        })}
+      >
+        <Icon name="folder" />
+        <Text
+          numberOfLines={1}
+          ellipsizeMode="middle"
+          style={[type.chrome, { flex: 1, color: value ? c.text : c.muted }]}
+        >
+          {value || "Choose directory"}
+        </Text>
+        <Icon name="chevron-right" />
+      </Pressable>
+      <Sheet title="Choose directory" visible={open} scroll={false} onClose={() => setOpen(false)}>
+        {open && (
+          <DirectoryPicker
+            key={workerId}
+            workerId={workerId}
+            initialPath={value}
+            onChoose={(path) => {
+              onChange(path);
+              setOpen(false);
+            }}
           />
-          {resource.data.entries.flatMap((entry) =>
-            entry.isDir
-              ? [
-                  <SettingsRow
-                    key={entry.name}
-                    title={entry.name}
-                    onPress={() => setPath(`${resource.data?.path}/${entry.name}`)}
-                  />,
-                ]
-              : [],
-          )}
-          {!resource.data.entries.some((e) => e.isDir) && <Notice>No subdirectories here.</Notice>}
-        </>
-      )}
-    </ResourceState>
+        )}
+      </Sheet>
+    </View>
   );
 }
