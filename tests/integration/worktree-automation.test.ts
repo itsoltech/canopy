@@ -207,13 +207,27 @@ describe.skipIf(!dockerAvailable)("automation worktrees over gRPC", () => {
     rmSync(join(child.cwd, "worker-started.txt"));
     await f.gw.api.deleteThread({ threadId: child.id });
     await f.settings({ cleanupDeletedThreads: true });
-    expect(await f.entry(child.worktree!.id)).toMatchObject({ wouldRemove: true, status: { dirtyFiles: 0 } });
+    expect(await f.entry(child.worktree!.id)).toMatchObject({
+      wouldRemove: true,
+      confirmationRequired: false,
+      status: { dirtyFiles: 0 },
+    });
     // A preview must notice external edits in both directions, even immediately after another scan.
     const localChange = join(child.cwd, "local-change.txt");
-    writeFileSync(localChange, "Keep this worktree");
-    expect(await f.entry(child.worktree!.id)).toMatchObject({ wouldRemove: false, status: { dirtyFiles: 1 } });
+    writeFileSync(localChange, "Left by automation");
+    expect(await f.entry(child.worktree!.id)).toMatchObject({
+      wouldRemove: true,
+      confirmationRequired: true,
+      detail: "All threads deleted",
+      status: { dirtyFiles: 1 },
+    });
     rmSync(localChange);
-    expect(await f.entry(child.worktree!.id)).toMatchObject({ wouldRemove: true, status: { dirtyFiles: 0 } });
+    expect(await f.entry(child.worktree!.id)).toMatchObject({
+      wouldRemove: true,
+      confirmationRequired: false,
+      status: { dirtyFiles: 0 },
+    });
+    writeFileSync(localChange, "Discard after every sharing thread is deleted");
     expect((await f.cleanup(false)).entries.find((e) => e.worktree?.id === child.worktree!.id)?.removed).toBe(true);
     const foreign = await f.gw.runtime.runPromise(GatewayStore.use((s) => s.ensureUser("foreign@x", "Foreign")));
     const foreignProject = await f.gw.runtime.runPromise(GatewayStore.use((s) => s.createProject(foreign, "Foreign")));
