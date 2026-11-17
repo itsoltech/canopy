@@ -8,7 +8,8 @@ ręcznego odzyskiwania aktualizacji Windows
 i odmowy startu lokalnej bazy z uprawnieniami administratora, sesji dostępu do lokalnego BFF,
 podglądu bieżącej zajętości plików Canopy w Diagnostics oraz własnego HTML w rozmowie
 z odizolowanego renderera offscreen, bezpiecznego zamykania po zniszczeniu głównego okna
-oraz stałego zakresu preferencji urządzenia po restarcie lokalnego gatewaya.
+oraz stałego zakresu preferencji urządzenia po restarcie lokalnego gatewaya
+i toastów w prawym dolnym rogu, które nie zawieszają przeciągania okna.
 Dostępność w nightly/beta/stable określają [zasady wydań](release.md) i GitHub Releases.
 
 Implementacja: `apps/desktop`. Cele wydania na każdym kanale: **Linux x64,
@@ -307,8 +308,9 @@ Akcja `windowModal` oznacza ostatni otwarty modal przez `data-window-modal-top`.
 Paski pod nim nie mają deklaracji regionu; `no-drag` na zasłoniętym pasku odejmowałby
 obszar szuflady występującej wcześniej w DOM. Zamknięcie przez Escape, przycisk lub
 odmontowanie przywraca poprzedni modal. Obserwowany jest wyłącznie atrybut `open`
-samego dialogu. Otwarty popover lub toast zawiesza paski, bez regionów na nakładce.
-Baner braku gatewaya i toasty są odsunięte poniżej kontrolek okna.
+samego dialogu. Otwarty popover zawiesza paski, bez regionów na nakładce.
+Toast w prawym dolnym rogu nie zawiesza pasków i nie deklaruje regionu.
+Baner braku gatewaya jest odsunięty poniżej kontrolek okna.
 
 Typowany bridge `windowState()` / `onWindowState()` przenosi `{ zoomFactor, fullscreen }`
 przez `canopy:window-state`; odczyt wymaga tego samego sprawdzenia nadawcy i originu
@@ -852,8 +854,8 @@ Poza sidebarem powierzchnie UI omijają obszar świateł. Dialogi (także zagnie
 Settings, drawer, paleta komend i lightbox mają górne wcięcie oraz wysokość ograniczoną
 do bezpiecznego viewportu. Dotyczy to również pełnoekranowych arkuszy w wąskim oknie
 desktopowym. Przesuwa się krawędź panelu, nie jego wnętrze; backdrop nadal pokrywa
-całe okno. Toasty używają safe top, a baner niedostępnego gatewaya pozostaje pod
-paskiem tytułu, którego wysokość uwzględnia tę samą rezerwę. Warstwa Quit i baner
+całe okno. Toasty omijają dolny i boczne safe area, a baner niedostępnego gatewaya
+pozostaje pod paskiem tytułu, którego wysokość uwzględnia tę samą rezerwę. Warstwa Quit i baner
 aktualizacji ograniczają zawartość do bezpiecznego viewportu. Menu, popovery,
 hover cards i tooltipy współdzielą `shared/ui/floating.ts`: safe top ogranicza
 miejsce nad kotwicą, przesuwanie i dostępną wysokość; otwarte menu przelicza pozycję
@@ -880,14 +882,16 @@ traci kliknięcia. Zasady:
 - **Kontrolki w pasku** (`a`, `button`, pola, `label`, role `button`/`tab`/`menuitem`/…,
   elementy z `tabindex`) są `no-drag`; przeciąga tylko pusta przestrzeń i tekst.
 - **Warstwy nad oknem** nie dodają własnych regionów `app-region` na swoich
-  kontenerach: `dialog`, `[popover]` i `data-window-no-drag` (toasty, warstwa Quit).
+  kontenerach: `dialog`, `[popover]` i `data-window-no-drag` (np. warstwa Quit).
   `windowModal` oznacza ostatnio otwarty modal przez `data-window-modal-top`;
   przeciągać mogą wyłącznie jego jawne paski, nigdy paski pod nim. Otwarcie popovera
   lub warstwy `data-window-no-drag` zawiesza wszystkie paski. Klik w backdrop nie
   łapie okna. Zamknięcie zagnieżdżonego modalu przywraca pasek poprzedniego.
 
 Nowy pasek: daj mu `data-window-drag` (zawsze) albo `data-window-titlebar` (tylko przy
-schowanym sidebarze). Nowa warstwa nad oknem poza `dialog`/`[popover]`: `data-window-no-drag`.
+schowanym sidebarze). Nowa warstwa nad paskami poza `dialog`/`[popover]`: `data-window-no-drag`.
+Toast w dolnym rogu nie zasłania pasków, więc nie dostaje tego znacznika i nie
+wyłącza przeciągania okna ([notifications.md](notifications.md#toasty-w-aplikacji)).
 
 ## Zamykanie i skrót Quit
 
