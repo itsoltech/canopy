@@ -17,7 +17,7 @@ export interface WorkFoldChoice {
   readonly state: WorkFoldState;
 }
 
-/** Live choices expire at the final answer or end; choices made after the end survive late items. */
+/** Live choices expire at a steer, final answer or end; choices made after the end survive late items. */
 export function workFoldOpen(state: WorkFoldState, preferences: WorkFoldPreferences, manual?: WorkFoldChoice): boolean {
   if (
     manual &&
@@ -81,7 +81,7 @@ export interface WorkSegment {
   readonly inputs: number;
   /** Body index of the answer shown below the fold, or -1. */
   readonly answer: number;
-  /** The turn is live and no later final-answer boundary has ended this stretch of work. */
+  /** The turn is live and no later steer or final answer has ended this stretch of work. */
   readonly live: boolean;
   /** Its answer is marked final: the fold follows "After the turn" instead of "While working". */
   readonly answered: boolean;
@@ -94,9 +94,9 @@ export const foldId = (turnId: string, segment: number): string => (segment ? `$
 
 /**
  * Split at final answers and before visible boundaries, keeping every injected input outside hidden work.
- * Consecutive leading boundaries share a segment. A boundary does not expire live fold choices: all work
- * since the previous final answer follows the next answer/end boundary. Only the last segment of
- * that stretch can supply its answer. Everything derives from persisted rows, including on replay.
+ * Consecutive leading boundaries share a segment. A steer ends preceding work and expires its live
+ * fold choices; compaction alone preserves them. Only the last segment before a final answer can
+ * supply that answer. Everything derives from persisted rows, including on replay.
  */
 export function workSegments(
   body: readonly BodyRow[],
@@ -104,6 +104,7 @@ export function workSegments(
   open: (segment: number) => boolean,
 ): WorkSegment[] {
   const segments: WorkSegment[] = [];
+  const lastSteer = body.findLastIndex((row) => row.steer);
   let from = 0;
 
   const stretch = (end: number) => {
@@ -127,7 +128,7 @@ export function workSegments(
         end: to,
         inputs,
         answer: at < 0 ? -1 : start + inputs + at,
-        live,
+        live: live && to > lastSteer,
         answered: answerBoundary >= 0,
         answerBoundary,
       });
