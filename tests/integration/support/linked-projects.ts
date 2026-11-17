@@ -10,7 +10,7 @@ import { worktreeFixture } from "./worktrees.ts";
 /** Two desktop homes, real Git origin reads over gRPC, and isolated provider stand-ins. */
 export async function linkedProjectFixture(
   dir: string,
-  options: { shared?: boolean; cloneProgress?: boolean; diagnostics?: boolean } = {},
+  options: { shared?: boolean; cloneProgress?: boolean; worktreeProgress?: boolean; diagnostics?: boolean } = {},
 ) {
   mkdirSync(join(dir, "a"));
   mkdirSync(join(dir, "b"));
@@ -19,13 +19,19 @@ export async function linkedProjectFixture(
     role: "desktop",
     ...(options.diagnostics && { diagnostics: true }),
     originUrl: "git@GitHub.com:itsoltech/pinpoint.git",
+    ...(options.worktreeProgress && { capabilities: ["worktree_progress_v1"] }),
   });
 
   const b = await worktreeFixture(join(dir, "b"), {
     role: "desktop",
     ...(options.diagnostics && { diagnostics: true }),
     originUrl: "https://github.com/itsoltech/pinpoint/",
-    ...(options.cloneProgress && { capabilities: ["git_clone_progress_v1"] }),
+    ...((options.cloneProgress || options.worktreeProgress) && {
+      capabilities: [
+        ...(options.cloneProgress ? ["git_clone_progress_v1"] : []),
+        ...(options.worktreeProgress ? ["worktree_progress_v1"] : []),
+      ],
+    }),
   });
 
   const connect = (fixture: typeof a) =>

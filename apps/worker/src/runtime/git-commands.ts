@@ -92,7 +92,10 @@ export class GitCommands {
     });
   }
 
-  async createWorktree(kind: Extract<Command["kind"], { case: "createWorktree" }>): Promise<CommandOutput> {
+  async createWorktree(
+    kind: Extract<Command["kind"], { case: "createWorktree" }>,
+    commandId: string,
+  ): Promise<CommandOutput> {
     this.ctx.ops.checkCwd(kind.value.repoPath);
 
     return gitStep(async () => {
@@ -104,7 +107,14 @@ export class GitCommands {
 
       const key = realpathSync(common.trim());
       const previous = this.#creating.get(key) ?? Promise.resolve();
-      const next = previous.then(() => freshGit(() => createWorktree(this.worktreesRoot, kind.value)));
+
+      const next = previous.then(() =>
+        freshGit(() =>
+          createWorktree(this.worktreesRoot, kind.value, (progress) =>
+            this.ctx.ops.send({ case: "queryProgress", value: { ...progress, commandId } }),
+          ),
+        ),
+      );
 
       const settled = next.then(
         () => {},

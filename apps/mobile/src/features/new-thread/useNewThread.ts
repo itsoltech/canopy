@@ -1,4 +1,4 @@
-import { useRef, useState } from "react";
+import { useState } from "react";
 import { create as createMessage } from "@bufbuild/protobuf";
 import { router, useLocalSearchParams } from "expo-router";
 import { PermissionMode, ui } from "@canopy/contracts";
@@ -10,7 +10,6 @@ import type { ModelChoice } from "../models/catalog";
 import { modelSections, useModelCatalog } from "../models/catalog";
 import { effectiveThreadDefaults } from "@canopy/domain/new-thread-choices";
 import { usePersistentMessage } from "../drafts/usePersistentMessage";
-import { createFromDraft } from "../drafts/create";
 import { useWorkerPresence } from "../computers/presence";
 import { useWorkspaceDraft } from "./useWorkspaceDraft";
 import { defaultProject, defaultWorkspace } from "./placement";
@@ -117,7 +116,7 @@ export function useNewThread() {
         })
       : undefined;
 
-  const { busy, error, create } = useNewThreadSubmit(request, message, initialLoading || Boolean(blocker));
+  const { busy, error, create } = useNewThreadSubmit(request, message, !!blocker || initialLoading, project);
 
   return {
     projects,
@@ -153,45 +152,40 @@ function useNewThreadSubmit(
   request: ui.CreateThreadRequest | undefined,
   message: ReturnType<typeof usePersistentMessage>,
   blocked: boolean,
+  project: ui.Project | undefined,
 ) {
-  const { client } = useSession();
-  const [busy, setBusy] = useState(false);
+  const { threadCreations } = useSession();
   const [error, setError] = useState("");
-  const sending = useRef(false);
 
-  async function create() {
-    if (!client || !request || blocked || sending.current) return;
-    sending.current = true;
-    setBusy(true);
+  function create() {
+    if (!threadCreations || !request || blocked || message.persistent?.preparing) return;
     setError("");
     const outgoing = message.outgoing();
 
-    try {
-      const result = await createFromDraft(
-        client.api,
-        message.persistent,
-        createMessage(ui.CreateThreadRequestSchema, {
-          ...request,
-          initialMessage: outgoing.text,
-          initialAttachmentIds: outgoing.attachmentIds,
-          initialMentions: outgoing.mentions,
-          initialQuotes: outgoing.quotes,
-        }),
-      );
+    const job = threadCreations.prepare(
+      createMessage(ui.CreateThreadRequestSchema, {
+        ...request,
+        initialMessage: outgoing.text,
+        initialAttachmentIds: outgoing.attachmentIds,
+        initialMentions: outgoing.mentions,
+        initialQuotes: outgoing.quotes,
+      }),
+      message.persistent,
+      message.files.files.flatMap((file) => (file.attachment ? [file.attachment] : [])),
+      project?.name ?? "",
+    );
 
-      if (result.thread) {
-        message.clear();
-        router.replace({ pathname: "/thread/[id]", params: { id: result.thread.id } });
-      }
-    } catch {
-      setError("Could not start the thread. Check the worker and try again.");
-    } finally {
-      sending.current = false;
-      setBusy(false);
+    if (!job) {
+      setError("Could not start another thread. Wait for the current preparations to finish and try again.");
+
+      return;
     }
+
+    router.replace({ pathname: "/thread-starting/[id]", params: { id: job.id } });
+    threadCreations.start(job.id);
   }
 
-  return { busy, error, create };
+  return { busy: false, error, create };
 }
 
 function modelActions(

@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState, useSyncExternalStore } from "react";
 import { BackHandler, View } from "react-native";
 import { create } from "@bufbuild/protobuf";
 import { ConversationSkeleton, SkeletonScope } from "../../ui/Skeleton";
-import { Redirect, router, useLocalSearchParams } from "expo-router";
+import { Redirect, Stack, router, useLocalSearchParams } from "expo-router";
 import { useContextDraft } from "../github/useContextDraft";
 import { ScreenFrame } from "../../ui/ScreenFrame";
 import { useColors } from "../../ui/theme";
@@ -211,7 +211,7 @@ export function ThreadScreen({ id }: { id: string }) {
   const composer = useThreadComposer(state);
 
   const [sheet, setSheet] = useState<"goal" | "side" | "files" | "preview" | null>(null);
-  const params = useLocalSearchParams<{ draftSideThread?: string }>();
+  const params = useLocalSearchParams<{ draftSideThread?: string; preparation?: string }>();
   useEffect(() => {
     if (params.draftSideThread === "1") {
       setSheet("side");
@@ -220,8 +220,6 @@ export function ThreadScreen({ id }: { id: string }) {
   }, [params.draftSideThread]);
 
   const { session, ready, snapshot, following, setDetails, projects, thread, turns, blocked } = state;
-
-  const { atBottom } = following;
 
   if (!ready) return <ConversationSkeleton />;
 
@@ -268,6 +266,7 @@ export function ThreadScreen({ id }: { id: string }) {
           </>
         }
       >
+        {params.preparation === "1" && <Stack.Screen options={{ animation: "none" }} />}
         <ChatKeyboard composerHeight={composer.height}>
           <View
             style={[
@@ -286,7 +285,7 @@ export function ThreadScreen({ id }: { id: string }) {
                   coverage={following.composerInset}
                   onLayout={composer.measure}
                   onExpand={composer.expand}
-                  onLatest={atBottom ? undefined : composer.showLatest}
+                  onLatest={following.atBottom ? undefined : composer.showLatest}
                   overlay={<ThreadSuggestions state={state} />}
                   accessory={<ThreadStatus state={state} />}
                   tray={<ThreadTray state={state} onGoal={() => setSheet("goal")} />}

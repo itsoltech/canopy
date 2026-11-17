@@ -1,3 +1,4 @@
+import { createThreadProgress } from "../core/thread-progress.ts";
 import { ui } from "@canopy/contracts";
 import { type ConnectRouter, type ServiceImpl } from "@connectrpc/connect";
 import { type GatewayCore } from "../core/core.ts";
@@ -83,6 +84,7 @@ export function uiHandlers(core: GatewayCore): UiHandlers {
     ...computersHandlers(core),
     ...workersHandlers(core),
     ...threadsHandlers(core),
+    createThreadWithProgress: (request, context) => createThreadProgress(core, request, context.signal),
     ...liveTurnPermissionHandlers(core),
     ...mobileHandlers(core),
     ...networkHandlers(core),

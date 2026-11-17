@@ -89,6 +89,7 @@ export function workerCapabilities(options: { localWorker: boolean; fullAccess: 
     "provisional_branches",
     "project_sources",
     "git_clone_progress_v1",
+    "worktree_progress_v1",
     "workspace_copy_v1",
     WORKSPACE_COPY_LEGACY_CAPABILITY,
     // workspace_copy_batch_v3: batched frames side by side, resumable staging (docs/workspace-copy.md).

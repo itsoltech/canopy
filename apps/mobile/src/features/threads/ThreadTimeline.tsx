@@ -2,7 +2,6 @@ import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { View } from "react-native";
 import Animated from "react-native-reanimated";
 import { ProviderProfileKind, ui, type Item } from "@canopy/contracts";
-import { useAppearance } from "../../state/appearance";
 import { useOverview } from "../../state/overview";
 import { FeedAnchorCell, FeedAnchorProvider, useFeedAnchor } from "../../ui/feed-anchor";
 import { Notice } from "../../ui/components";
@@ -28,6 +27,9 @@ import { RewindGroup, useRewindTimeline } from "./rewind-timeline";
 import { useThreadSeen } from "./useThreadSeen";
 import { ReplySendContext } from "../timeline/ReplySuggestions";
 import type { NoticeState } from "@canopy/domain/turn-notices";
+import { useThreadCreation } from "../new-thread/useThreadCreation";
+import { ThreadPreparationTimeline } from "../new-thread/ThreadPreparationTimeline";
+import { useThreadTimelineStyle } from "./timeline-layout";
 
 /** What the timeline's items look up: other threads, items, deliveries, and its tasks by their command. */
 function useTimelineData(state: ThreadState) {
@@ -154,12 +156,10 @@ export function ThreadTimeline({
   state: ThreadState;
   composer: ReturnType<typeof useFloatingComposer<ui.Turn>>;
 }) {
-  const { appearance } = useAppearance();
-
-  const maxWidth =
-    appearance?.chatWidth === ui.ChatWidth.FULL ? undefined : appearance?.chatWidth === ui.ChatWidth.WIDE ? 1024 : 768;
-
   const { turns, following, snapshot } = state;
+  const creation = useThreadCreation(state.id, true);
+  const initial = Boolean(creation && turns.length === 1 && turns[0]?.ordinal === 1);
+  const contentStyle = useThreadTimelineStyle(initial);
   const { directory, context } = useTimelineData(state);
   const anchor = useFeedAnchor(following);
   const rewind = useRewindTimeline(turns);
@@ -168,10 +168,11 @@ export function ThreadTimeline({
   const memory = useThreadScrollMemory(
     state.id,
     latestFirst,
-    Boolean(snapshot),
+    Boolean(snapshot && (!creation || turns.length)),
     following,
     composer.listProps.onScroll,
     composer.restoreReading,
+    creation,
   );
 
   useThreadSeen(state, memory.positioned);
@@ -187,6 +188,9 @@ export function ThreadTimeline({
   const [entryIndex] = useState(() => new TimelineEntries());
   const entries = useMemo(() => entryIndex.build(snapshot?.items ?? []), [entryIndex, snapshot?.items]);
 
+  if ((!snapshot || !turns.length) && creation)
+    return <ThreadPreparationTimeline job={creation} inset={following.composerInset} />;
+
   return (
     <ReplySendContext.Provider value={state.replies}>
       <TimelineDirectoryProvider value={directory}>
@@ -197,6 +201,7 @@ export function ThreadTimeline({
                 {...composer.listProps}
                 CellRendererComponent={FeedAnchorCell}
                 onScroll={memory.onScroll}
+                onTouchStart={memory.onTouchStart}
                 onScrollToIndexFailed={memory.onScrollToIndexFailed}
                 onViewableItemsChanged={memory.onViewableItemsChanged}
                 composerInset={following.composerInset}
@@ -218,7 +223,7 @@ export function ThreadTimeline({
                 data={latestFirst}
                 keyExtractor={scrollTurnKey}
                 style={[styles.fill, { opacity: memory.positioned ? 1 : 0 }]}
-                contentContainerStyle={{ maxWidth, paddingTop: 24, flexGrow: 1, gap: 0 }}
+                contentContainerStyle={contentStyle}
                 keyboardShouldPersistTaps="handled"
                 // Inverted: the footer is the top of the feed, the header sits under the latest turn.
                 ListFooterComponent={

@@ -129,9 +129,13 @@ describe.skipIf(!dockerAvailable)("live permissions when spawning across linked 
       expect((await switching).turn?.permissionMode).toBe(PermissionMode.READ_ONLY);
       const result = await spawning;
       expect(result.isError).toBe(false);
-      expect(b.gateway.worker.created).toContainEqual(
-        expect.objectContaining({ permissionMode: PermissionMode.READ_ONLY }),
-      );
+      // Admission commits before the outbox delivers the create command to the remote worker.
+      expect(
+        await eventually(
+          async () => b.gateway.worker.created,
+          (created) => created.length > 0,
+        ),
+      ).toContainEqual(expect.objectContaining({ permissionMode: PermissionMode.READ_ONLY }));
     } finally {
       observing.mockRestore();
       complete();

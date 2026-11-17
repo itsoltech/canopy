@@ -258,6 +258,7 @@ service GatewayService {
   rpc ListArchivedThreads(ListArchivedThreadsRequest) returns (ListArchivedThreadsResponse);
   rpc GetThread(GetThreadRequest) returns (GetThreadResponse);
   rpc CreateThread(CreateThreadRequest) returns (CreateThreadResponse);
+  rpc CreateThreadWithProgress(CreateThreadRequest) returns (stream CreateThreadProgress);
   rpc ContinueThreadInWorktree(ContinueThreadInWorktreeRequest) returns (CreateThreadResponse);
   rpc SendMessage(SendMessageRequest) returns (SendMessageResponse);
   rpc InterruptThread(InterruptThreadRequest) returns (InterruptThreadResponse);
@@ -1417,6 +1418,16 @@ message ContinueThreadInWorktreeRequest {
   string thread_id = 1;
   string base_ref = 2;
   string client_request_id = 3;
+}
+
+// Ephemeral preparation progress; the final completed start_thread event carries the created thread.
+message CreateThreadProgress {
+  string step = 1;
+  string label = 2;
+  // pending | running | completed | skipped | failed
+  string status = 3;
+  string detail = 4;
+  Thread thread = 5;
 }
 
 message CreateThreadResponse {

@@ -8,6 +8,7 @@ export async function createFromDraft(
   api: Client<typeof ui.GatewayService>,
   draft: MobileComposerState | undefined,
   request: ui.CreateThreadRequest,
+  send = (outgoing: ui.CreateThreadRequest) => api.createThread(outgoing, { timeoutMs: 100_000 }),
 ) {
   if (draft?.preparing)
     throw new ConnectError("Wait for the draft to finish loading, then retry.", Code.FailedPrecondition);
@@ -27,17 +28,22 @@ export async function createFromDraft(
       await draft?.beginCreate(outgoing);
     }
 
-    const result = await api.createThread(outgoing, { timeoutMs: 100_000 });
-    draft?.clear();
+    const result = await send(outgoing);
+
+    if (result.thread && draft && !draft.local.closed && draft.requestId === outgoing.clientRequestId) draft.clear();
 
     return result;
   } catch (cause) {
-    if (!uncertainDelivery(cause))
+    if (
+      !draft?.local.closed &&
+      (!outgoing || draft?.requestId === outgoing.clientRequestId) &&
+      !uncertainDelivery(cause)
+    )
       draft?.cancelSend([Code.NotFound, Code.FailedPrecondition].includes(ConnectError.from(cause).code));
     throw cause;
   } finally {
     if (draft) draft.preparing = false;
 
-    if (draft) void draft.reconcile(api);
+    if (draft && !draft.local.closed) void draft.reconcile(api);
   }
 }

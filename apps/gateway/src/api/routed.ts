@@ -113,7 +113,11 @@ export function routed(core: GatewayCore, local: UiHandlers): UiHandlers {
             if (!node) {
               await refuseFrozen(core, method, request);
               yield* stream(handler, request, context);
-            } else yield* forward(core, await peerOf(core, node, method, request), method, request, context.signal);
+            } else {
+              const home = await peerOf(core, node, method, request);
+              refuseRemoteWorktree(method, request, core.computers?.capabilities(home).includes(REMOTE_WORKTREES));
+              yield* forward(core, home, method, request, context.signal);
+            }
           };
   }
 
@@ -225,7 +229,7 @@ export function remoteServe(local: UiHandlers, core?: GatewayCore): RemoteServe 
 
     if (core && peerNodeId) await receiveHomeAction(core, method, request, peerNodeId);
 
-    if (core && peerNodeId && method.name === "CreateThread") {
+    if (core && peerNodeId && ["CreateThread", "CreateThreadWithProgress"].includes(method.name)) {
       const thread = linkedMessage(ui.CreateThreadRequestSchema, request);
       await refuseMissingInstance(core, harnessOf(thread.provider) ?? "", thread.providerProfileId);
     }

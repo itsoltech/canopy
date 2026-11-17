@@ -1,5 +1,6 @@
 import { inheritThreadServiceTier } from "./thread-service-tier.ts";
 import { create, type MessageInitShape } from "@bufbuild/protobuf";
+import type { CreationProgress } from "./thread-progress.ts";
 import { coreShellInput } from "./core-shell.ts";
 import { ForkSpecSchema, Provider, ui } from "@canopy/contracts";
 import { Effect } from "effect";
@@ -188,6 +189,45 @@ export async function coreArchiveThread(
   }
 }
 
+async function prepareCreation(
+  core: GatewayCore,
+  input: ui.CreateThreadRequest,
+  automated?: AutomatedAccess,
+  progress?: CreationProgress,
+) {
+  const source = input.forkAtTurnId && !input.parentThreadId ? await coreForkRequest(core, input) : input;
+
+  const asked = await inheritThreadServiceTier(
+    core,
+    automated ? { ...source, permissionMode: input.permissionMode } : source,
+  );
+
+  await coreCheckProvider(core, asked, automated !== undefined);
+
+  const where = {
+    workspaceId: asked.workspaceId,
+    provider: asked.provider,
+    profileId: asked.providerProfileId,
+  };
+
+  await coreCheckModel(core, where, asked.model, asked.effort, asked.serviceTier);
+  // A model without efforts keeps none as the thread's default.
+  const effort = turnEffort((await coreProfileModels(core, where)).models, asked.model, asked.effort);
+  // A new worktree is made before the thread, which then works in it (docs/worktrees.md).
+  const prepared = await corePrepareWorkspace(core, asked, progress);
+  const request = prepared.request;
+  progress?.("check_workspace", "completed");
+
+  if (request.workspaceMode !== ui.WorkspaceMode.NEW_WORKTREE) {
+    progress?.("fetch_remote", "skipped");
+    progress?.("create_worktree", "skipped");
+  }
+
+  progress?.("prepare_message", "running");
+
+  return { prepared, request, effort };
+}
+
 export interface CoreThreadsMethods {
   reorderThread(request: ui.ReorderThreadRequest): Promise<ui.Thread>;
   listThreads(projectId: string, includeArchived?: boolean, sidebarOnly?: boolean): Promise<ui.Thread[]>;
@@ -209,6 +249,7 @@ export interface CoreThreadsMethods {
     },
     ownerInput?: boolean,
     automated?: AutomatedAccess,
+    progress?: CreationProgress,
   ): Promise<ui.Thread>;
 }
 
@@ -302,25 +343,21 @@ export const coreThreadsMethods: CoreThreadsMethods = {
     },
     ownerInput = false,
     automated = remoteParent ? { permissionModeNote: remoteParent.permissionModeNote ?? "" } : undefined,
+    progress?: CreationProgress,
   ): Promise<ui.Thread> {
+    progress?.("check_workspace", "running");
     const previous = await completedCreation(this, input);
 
-    if (previous) return previous;
-    const asked = await creationRequest(this, input, automated !== undefined);
-    await coreCheckProvider(this, asked, automated !== undefined);
+    if (previous) {
+      progress?.("check_workspace", "completed");
+      progress?.("fetch_remote", "skipped", "Thread already created.");
+      progress?.("create_worktree", "skipped", "Thread already created.");
+      progress?.("prepare_message", "skipped", "Thread already created.");
 
-    const where = {
-      workspaceId: asked.workspaceId,
-      provider: asked.provider,
-      profileId: asked.providerProfileId,
-    };
+      return previous;
+    }
 
-    await coreCheckModel(this, where, asked.model, asked.effort, asked.serviceTier);
-    // A model without efforts keeps none as the thread's default.
-    const effort = turnEffort((await coreProfileModels(this, where)).models, asked.model, asked.effort);
-    // A new worktree is made before the thread, which then works in it (docs/worktrees.md).
-    const prepared = await corePrepareWorkspace(this, asked);
-    const request = prepared.request;
+    const { prepared, request, effort } = await prepareCreation(this, input, automated, progress);
 
     const nameBranch = (row: ThreadRow) =>
       prepared.nameLater && coreNameBranchLater(this, row, request.initialMessage, prepared.nameLater.worktree);
@@ -331,6 +368,9 @@ export const coreThreadsMethods: CoreThreadsMethods = {
       request.initialQuotes.length === 0 &&
       !(ownerInput && request.initialMessage.startsWith("!"))
     ) {
+      progress?.("prepare_message", "completed");
+      progress?.("start_thread", "running");
+
       const row = await coreRun(this, (s) =>
         s.createThread(
           this[coreState].options.userId,
@@ -386,6 +426,9 @@ export const coreThreadsMethods: CoreThreadsMethods = {
       ? coreShellInput(request.initialMessage, Boolean(files || request.initialMentions.length))
       : undefined;
 
+    progress?.("prepare_message", "completed");
+    progress?.("start_thread", "running");
+
     const row = await coreRun(this, (s) =>
       s.createThread(this[coreState].options.userId, { ...request, effort, initialMessage: "" }, undefined, automated),
     );
@@ -435,9 +478,3 @@ export const coreThreadsMethods: CoreThreadsMethods = {
     return coreUiThread(this, row);
   },
 };
-
-async function creationRequest(core: GatewayCore, input: ui.CreateThreadRequest, automated: boolean) {
-  const source = input.forkAtTurnId && !input.parentThreadId ? await coreForkRequest(core, input) : input;
-
-  return inheritThreadServiceTier(core, automated ? { ...source, permissionMode: input.permissionMode } : source);
-}

@@ -23,8 +23,10 @@ export function ThreadHeaderBar({
   onDetails,
   onFiles,
   onPreview,
+  preparingTitle,
 }: {
   thread?: ui.Thread;
+  preparingTitle?: string;
   project?: ui.Project;
   syncing: boolean;
   syncStatus?: ui.ThreadSyncStatus;
@@ -73,9 +75,13 @@ export function ThreadHeaderBar({
         />
       ) : (
         <View style={[s.identity, { backgroundColor: c.background }]}>
-          {thread ? (
-            <Text numberOfLines={1} accessibilityLabel={thread.title} style={[type.chrome, { color: c.text }]}>
-              {thread.title}
+          {thread || preparingTitle ? (
+            <Text
+              numberOfLines={1}
+              accessibilityLabel={thread?.title ?? preparingTitle}
+              style={[type.chrome, { color: c.text }]}
+            >
+              {thread?.title ?? preparingTitle}
             </Text>
           ) : (
             <Skeleton style={{ width: "80%", height: 16 }} />
@@ -83,17 +89,34 @@ export function ThreadHeaderBar({
         </View>
       )}
       <ThreadSyncProgress status={syncStatus} compact />
-      {expanded && <HeaderAction icon="magnifying-glass" label="Search thread" onPress={onSearch} />}
-      {(!workspace || expanded) && (
+      {expanded && (
+        <HeaderAction
+          icon="magnifying-glass"
+          label="Search thread"
+          disabled={Boolean(preparingTitle)}
+          onPress={onSearch}
+        />
+      )}
+      {((!workspace && !preparingTitle) || expanded) && (
         <HeaderAction icon="ellipsis-horizontal" label="Thread actions" disabled={!thread} onPress={onActions} />
       )}
-      <HeaderAction icon="information-circle" label="Thread details" onPress={onDetails} />
-      <HeaderAction icon="folder" label="Files" disabled={Boolean(thread?.worktree?.removedAt)} onPress={onFiles} />
+      <HeaderAction
+        icon="information-circle"
+        label="Thread details"
+        disabled={Boolean(preparingTitle)}
+        onPress={onDetails}
+      />
+      <HeaderAction
+        icon="folder"
+        label="Files"
+        disabled={Boolean(preparingTitle || thread?.worktree?.removedAt)}
+        onPress={onFiles}
+      />
       {onPreview && (
         <HeaderAction
           icon="eye"
           label="Open preview"
-          disabled={Boolean(thread?.worktree?.removedAt)}
+          disabled={Boolean(preparingTitle || thread?.worktree?.removedAt)}
           onPress={onPreview}
         />
       )}

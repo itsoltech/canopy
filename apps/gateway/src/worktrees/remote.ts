@@ -65,7 +65,10 @@ export function refuseRemoteWorktree(method: DescMethod, request: Message, suppo
     schedule?.target === "new_thread" ? schedule.newThread?.workspaceMode : undefined;
 
   const mode = Match.value(method.name).pipe(
-    Match.when("CreateThread", () => linkedMessage(ui.CreateThreadRequestSchema, request).workspaceMode),
+    Match.when(
+      (name) => name === "CreateThread" || name === "CreateThreadWithProgress",
+      () => linkedMessage(ui.CreateThreadRequestSchema, request).workspaceMode,
+    ),
     Match.when("CreateSchedule", () => scheduled(linkedMessage(ui.CreateScheduleRequestSchema, request))),
     Match.when("UpdateSchedule", () => scheduled(linkedMessage(ui.UpdateScheduleRequestSchema, request).configuration)),
     Match.orElse(() => undefined),

@@ -6,7 +6,12 @@ import { feedScrollKey, resolveFeedScrollKey, type FeedRow } from "./feed.ts";
 import type { WorkFolds } from "./work-folds.svelte.ts";
 import { timelineRecovery } from "#lib/features/diagnostics/client.ts";
 
-export function threadScrollMemory(id: string, compaction: ComposerCompaction, publish: (compact: boolean) => void) {
+export function threadScrollMemory(
+  id: string,
+  compaction: ComposerCompaction,
+  publish: (compact: boolean) => void,
+  creation?: ThreadScrollPosition,
+) {
   let prepared = $state(false);
   let current = $state.raw<readonly FeedRow[]>([]);
 
@@ -15,9 +20,22 @@ export function threadScrollMemory(id: string, compaction: ComposerCompaction, p
       return prepared;
     },
     get initial() {
-      return untrack(() => device.view.threadScroll.find((entry) => entry.threadId === id)?.position);
+      return creation ?? untrack(() => device.view.threadScroll.find((entry) => entry.threadId === id)?.position);
     },
     key(identity: string) {
+      if (identity.startsWith("creation:")) {
+        const row = current.find(
+          (row) =>
+            row.kind === "timeline" &&
+            !row.history &&
+            (identity === "creation:start"
+              ? row.row.kind === "turn-start"
+              : row.row.kind === "input" || (row.row.kind === "item" && Boolean(row.row.inputOf))),
+        );
+
+        return row?.key ?? identity;
+      }
+
       return resolveFeedScrollKey(current, identity);
     },
     identity(key: string) {
@@ -56,7 +74,7 @@ export function threadScrollMemory(id: string, compaction: ComposerCompaction, p
       device.setView({ threadScroll: rememberThreadScroll(device.view.threadScroll, id, saved) });
     },
     restored(following: boolean) {
-      if (!following) {
+      if (!following && !creation) {
         compaction.fold();
         publish(true);
       }

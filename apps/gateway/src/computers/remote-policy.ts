@@ -153,6 +153,7 @@ export const SERVED = new Set([
   "SetThreadConnectorGrant",
   "WatchThread",
   "CreateThread",
+  "CreateThreadWithProgress",
   "ContinueThreadInWorktree",
   "SendMessage",
   "PrepareThreadRewind",

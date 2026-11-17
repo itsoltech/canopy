@@ -5,6 +5,7 @@ import {
   WorkerConfigSchema,
   type CommandResult,
   type CloneProgress,
+  type QueryProgress,
   type GatewayMessage,
   type Hello,
   type WorkerMessage,
@@ -30,6 +31,7 @@ interface PendingCommand {
   reject(cause: unknown): void;
   timer: Timer;
   progress?: (progress: CloneProgress) => void;
+  queryProgress?: (progress: QueryProgress) => void;
   observation: RpcObservation | undefined;
 }
 
@@ -98,6 +100,7 @@ export class WorkerConnection {
     timeoutMs = 10_000,
     commandId = Bun.randomUUIDv7(),
     progress?: (progress: CloneProgress) => void,
+    queryProgress?: (progress: QueryProgress) => void,
   ): Promise<CommandResult> {
     const existing = this.#pending.get(commandId);
 
@@ -111,7 +114,15 @@ export class WorkerConnection {
       reject(new ConnectError(`command ${commandId} timed out`, Code.DeadlineExceeded));
     }, timeoutMs);
 
-    this.#pending.set(commandId, { promise, resolve, reject, timer, observation, ...(progress && { progress }) });
+    this.#pending.set(commandId, {
+      promise,
+      resolve,
+      reject,
+      timer,
+      observation,
+      ...(progress && { progress }),
+      ...(queryProgress && { queryProgress }),
+    });
 
     try {
       this.send({ case: "command", value: create(CommandSchema, { commandId, kind: command }) });
@@ -162,6 +173,12 @@ export class WorkerConnection {
 
     if (message.payload.case === "diagnosticsLogReply") {
       this.logSource.receive(message.payload.value);
+
+      return;
+    }
+
+    if (message.payload.case === "queryProgress") {
+      this.#pending.get(message.payload.value.commandId)?.queryProgress?.(message.payload.value);
 
       return;
     }

@@ -4,9 +4,11 @@ Status (2026-11-17): kontrakt kompozytora i wątków udostępnia szybkość wyko
 Claude zachowuje 330 s dla interakcji mimo 15-minutowego limitu MCP dla publikacji obrazów;
 Preview web/desktop używa potwierdzeń klienta po narysowaniu klatki i zachowuje
 subskrypcję przy odświeżaniu metadanych celu oraz naprawie kursora historii;
-Status (2026-11-17): Bot settings → Messengers udostępnia lokalne konta Slack
+Bot settings → Messengers udostępnia lokalne konta Slack
 i trasy wiadomości przez sześć owner-scoped RPC i BFF; instrukcje tras określają
 trwałe zachowanie dla źródła, a rozmowy korzystają z narzędzi przyznanych botowi;
+nowy wątek web/desktop i natywnego mobile od razu pokazuje prompt i rzeczywisty postęp przygotowania worktree;
+web/desktop zachowuje geometrię osi czasu i kotwicę wiadomości przy przejściu z przygotowania do wątku;
 propozycje odpowiedzi pomijają zużyte i wysterowane wpisy kolejki;
 porzucone notatki platformy nie udają oczekującego wejścia i nie blokują późniejszych propozycji;
 watch odzyskuje stan po powtarzającym się nieokreślonym błędzie gatewaya;
@@ -78,6 +80,74 @@ czytelną odmowę; gateway nie zamienia go automatycznie na Standard. Jawny
 standard i brak wyboru są akceptowane bez katalogu. Fallback ze steera na
 kolejną turę zachowuje nadpisanie. Szczegóły trwałości i walidacji:
 [protocol.md](protocol.md#szybkość-wykonania-dostawcy).
+
+## Przygotowanie nowego wątku
+
+Kompozytor nowego wątku w web/desktop otwiera `/threads/starting/<clientRequestId>`
+od razu po wysłaniu, przed oczekiwaniem na Git. Pokazuje tę samą wiadomość użytkownika
+oraz zwartą listę kroków z osobnymi stanami oczekiwania, wykonywania, ukończenia,
+pominięcia i błędu. Widok pracy agenta pojawia się dopiero po przygotowaniu.
+Po potwierdzeniu utworzenia wątku klient zastępuje adres przez `/threads/<id>`;
+nie przenosi użytkownika, który w międzyczasie otworzył inną stronę.
+
+Web/desktop używa podczas przygotowania tego samego paska kart workspace,
+kolumny `chat-column`, guttera paska przewijania, rezerwy na podsumowanie i stopki
+`VirtualFeed` co gotowy wątek. Współdzielony separator dnia oraz rezerwa wiersza
+akcji pod promptem zachowują odstępy pierwszej wiadomości i checklisty (`mt-3`).
+Kompozytor od początku zajmuje docelowe miejsce; podczas przygotowania jest
+zablokowany i nie tworzy zastępczego rekordu wątku ani szkicu nowego wątku.
+Kotwica początku osi czasu utrzymuje prompt podczas dopisywania rzeczywistych
+kroków i zmiany ich opisów, również gdy lista przestaje mieścić się na ekranie.
+Ręczne przewijanie wybiera własną kotwicę czytelnika.
+
+Potwierdzenie `threadId` zmienia adres, ale ta sama scena przygotowania pozostaje
+widoczna do wczytania i zmierzenia pierwszej osi czasu. Klient mapuje identyfikator
+widocznego wiersza przygotowania na rzeczywistą granicę tury albo wejście i odtwarza
+jego offset przed odsłonięciem wątku, bez animacji przewijania ani przejścia maskującego
+zmianę układu. Tytuł, przyciski, podsumowanie i aktywność agenta uzupełniają się
+po potwierdzeniu; ich obecność nie zmienia zarezerwowanej kolumny promptu.
+Gdy pierwszy widok mieści się w całości, dalsze odpowiedzi korzystają ze zwykłego
+śledzenia końca; przy długim wejściu pozostaje odtworzona pozycja czytelnika.
+Wczytany snapshot bez pierwszej tury (np. cel Codex) odsłania wątek od razu.
+Nieudane odtworzenie kotwicy ma limit 2 sekund, aby nie blokować gotowego wątku.
+
+`CreateThreadWithProgress(CreateThreadRequest)` jest addytywnym RPC strumieniowym.
+Przenosi `CreateThreadProgress` (`step`, `label`, `status`, `detail`, opcjonalny `thread`)
+i korzysta z tej samej walidacji, uprawnień, obsługi szkiców i zapisu wiadomości co
+dotychczasowe `CreateThread`. Ostatni potwierdzony wynik zawiera wątek.
+Starszy gateway lub dom połączonego komputera może użyć dotychczasowego RPC
+ze zbiorczym krokiem startu; klient nie wymyśla wtedy szczegółów operacji.
+Natywny mobile korzysta z tego strumienia bezpośrednio przez Connect z przypiętym TLS,
+bez BFF. Widok `/thread-starting/<clientRequestId>` otwiera się przed checkpointem
+szkicu i RPC; cache parowania przechowuje do 40 przygotowań. Utrata strumienia
+lub restart prowadzą najpierw do `GetComposerDraftDelivery`, bez ponownego tworzenia.
+Potwierdzony odczyt zwraca `ComposerDraftDelivery.threadId`; klient nie ponawia
+mutującego RPC, aby uzyskać identyfikator. Starszy gateway bez tego pola prowadzi
+do listy wątków przez `Open threads`. Lista pozostaje pod pierwszą wiadomością tylko
+w bieżącej sesji. Szczegóły: [mobile.md](mobile.md#przygotowanie-nowego-wątku).
+Zwykłe formularze bez JavaScript zachowują dotychczasowe RPC.
+
+`POST /api/thread-creations` przyjmuje istniejący formularz kompozytora oraz
+`X-Requested-With: canopy`, uruchamia zadanie BFF i zwraca `202 { requestId }`.
+Id pochodzi z `clientRequestId`; identyczne ponowienie dołącza do istniejącego
+zadania, inna treść z tym samym id jest odrzucana. `GET /api/thread-creations/<id>`
+zwraca snapshot: prompt, projekt, kroki, wynikowy `threadId`, `done` i publiczny
+komunikat błędu. Obie odpowiedzi mają `no-store`. Klient odpytuje tylko trwające
+przygotowanie, co około 400 ms; odświeżenie widoku korzysta z tego samego zadania.
+Zamknięcie strony nie przerywa operacji na workerze.
+
+Zadania są prywatnym, ograniczonym cache'em procesu BFF, nie nowym trwałym rekordem
+wątku. Zakończone wpisy wygasają po 15 minutach; restart BFF usuwa cache, a zmiana
+celu gatewaya anuluje subskrypcje i usuwa poprzednie dane. Niepewny wynik nie powoduje
+automatycznego ponownego wysłania promptu z nowym kluczem. Lokalny szkic pozostaje
+do potwierdzenia wyniku, a standardowe odzyskiwanie szkicu sprawdza dostarczenie.
+Jednoznaczne odrzucenie POST przed przyjęciem zadania (400/403/413/429) pozwala
+użytkownikowi ponowić wysyłkę z tym samym niezmiennym formularzem i identyfikatorem.
+Utrata odpowiedzi ani brak wpisu GET nie uprawniają do takiego ponowienia.
+Po utworzeniu wątku klient zachowuje listę pod pierwszą wiadomością w bieżącej
+sesji aplikacji (cache do 40 przygotowań, czyszczony przy zmianie gatewaya).
+Postęp nie trafia do wejścia modelu ani trwałego transkryptu; odświeżenie strony
+gotowego wątku nie odtwarza tej listy z historii.
 
 ## Archiwizacja po merge
 

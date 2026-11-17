@@ -1,7 +1,7 @@
 import { existsSync, lstatSync, mkdirSync, realpathSync } from "node:fs";
 import { basename, isAbsolute, join, relative, sep } from "node:path";
 import type { MessageInitShape } from "@bufbuild/protobuf";
-import type { CreateWorktree, RenameWorktreeBranch, WorktreeInfoSchema } from "@canopy/contracts";
+import type { CreateWorktree, RenameWorktreeBranch, WorktreeInfoSchema, QueryProgress } from "@canopy/contracts";
 import { FETCH_TIMEOUT_MS, git, GitError, gitMessage, gitOk, validBranch } from "./git.ts";
 import { listGitRefs, repoRoot } from "./refs.ts";
 
@@ -120,7 +120,12 @@ export async function freeFolder(repo: string, parent: string, draw: () => strin
  * same-named branch on `remote`; fetched first. Undefined (start from the local ref) when there is none or the
  * fetch fails.
  */
-async function remoteStart(root: string, base: string, remote: string): Promise<string | undefined> {
+async function remoteStart(
+  root: string,
+  base: string,
+  remote: string,
+  progress?: WorktreeProgress,
+): Promise<string | undefined> {
   const remotes = (await git(root, ["remote"])).stdout.split("\n").filter(Boolean);
   const tracked = await git(root, ["rev-parse", "--abbrev-ref", "--symbolic-full-name", `${base}@{upstream}`]);
   const upstream = tracked.ok ? tracked.stdout.trim() : "";
@@ -128,9 +133,25 @@ async function remoteStart(root: string, base: string, remote: string): Promise<
   const candidate = upstream || remoteRef || (remotes.includes(remote) ? `${remote}/${base}` : "");
   const owner = remotes.find((r) => candidate.startsWith(`${r}/`));
 
-  if (!candidate || !owner) return undefined;
+  if (!candidate || !owner) {
+    progress?.({
+      step: "fetch_remote",
+      status: "skipped",
+      detail: "No remote branch is configured. Using the local base.",
+    });
+
+    return undefined;
+  }
+
   const branch = candidate.slice(owner.length + 1);
+  progress?.({ step: "fetch_remote", status: "running" });
   const fetched = await git(root, ["fetch", "--no-tags", "--", owner, branch], FETCH_TIMEOUT_MS).catch(() => undefined);
+
+  progress?.({
+    step: "fetch_remote",
+    status: fetched?.ok ? "completed" : "skipped",
+    detail: fetched?.ok ? "" : "Fetch failed. Using the local base.",
+  });
 
   if (!fetched?.ok) return undefined;
 
@@ -138,7 +159,14 @@ async function remoteStart(root: string, base: string, remote: string): Promise<
 }
 
 /** A new branch in a new worktree under the root, from the base (or its remote branch). */
-export async function createWorktree(managedRoot: string, request: CreateWorktree): Promise<WorktreeInfoInit> {
+export type WorktreeProgress = (progress: Pick<QueryProgress, "step" | "status"> & { detail?: string }) => void;
+
+export async function createWorktree(
+  managedRoot: string,
+  request: CreateWorktree,
+  progress?: WorktreeProgress,
+): Promise<WorktreeInfoInit> {
+  progress?.({ step: "check_workspace", status: "running" });
   const repo = await repoRoot(request.repoPath);
 
   if (!repo) throw new GitError("NOT_A_REPOSITORY", `${request.repoPath} is not in a git repository`);
@@ -147,7 +175,14 @@ export async function createWorktree(managedRoot: string, request: CreateWorktre
 
   if (base.startsWith("-") || !(await commitOf(repo, base)))
     throw new GitError("BAD_REF", `${base} is not a branch or commit of this repository`);
-  const start = (request.startFromRemote && (await remoteStart(repo, base, request.remote || "origin"))) || base;
+  progress?.({ step: "check_workspace", status: "completed" });
+
+  if (!request.startFromRemote) progress?.({ step: "fetch_remote", status: "skipped" });
+
+  const start =
+    (request.startFromRemote && (await remoteStart(repo, base, request.remote || "origin", progress))) || base;
+
+  progress?.({ step: "create_worktree", status: "running" });
   const commit = (await commitOf(repo, start)) ?? "";
   const branch = await freeBranch(repo, request.branch);
   const parent = join(root, folderName(basename(repo)));
@@ -171,6 +206,8 @@ export async function createWorktree(managedRoot: string, request: CreateWorktre
 
   // Preserve the configured root's spelling (it may itself be a symlink); containment uses its real path above.
   const visiblePath = request.location ? join(request.location, relative(root, path)) : path;
+
+  progress?.({ step: "create_worktree", status: "completed" });
 
   return { path: visiblePath, branch, repoRoot: repo, baseRef: start, baseCommit: commit };
 }
