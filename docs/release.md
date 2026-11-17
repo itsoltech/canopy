@@ -1,7 +1,8 @@
 # Wydania: wersje, CI, artefakty
 
-Status: opis zaimplementowanego workflow (2026-11-16), z ośmioma shardami i wagami
-odświeżonymi z pełnych raportów CI. Pomiary poniżej opisują przebieg sprzed tej zmiany;
+Status: opis zaimplementowanego workflow (2026-11-17); beta nie buduje ani nie wysyła iOS
+do TestFlight, zachowując zgodne OTA. CI ma osiem shardów i wagi
+odświeżone z pełnych raportów CI. Pomiary poniżej opisują przebieg sprzed zmiany shardów;
 wpływ na czas CI wymaga pomiaru kolejnych przebiegów.
 
 Jedna wersja dla wszystkich aplikacji (gateway, worker, web, desktop, mobile). Wersję wyznacza
@@ -1056,7 +1057,9 @@ wywołać ten sam krok przed `eas build`; instrukcja i reset do `0.0.0-dev` są 
 
 Fingerprint natywnego runtime jest liczony osobno dla iOS i Androida. Jeśli na kanale istnieje
 ukończony store build iOS o tym runtime, wydanie JS trafia jako niepodpisane OTA zamiast nowego IPA.
-Inaczej EAS buduje iOS i wysyła do TestFlight. Android jest zawsze budowany ręcznie; zgodny
+Inaczej dla nightly i stable EAS buduje iOS i wysyła do TestFlight. Beta nie tworzy ani nie wysyła
+buildów iOS, także przy ręcznym dispatchu z `force`; nowy runtime bety wymaga ręcznego buildu.
+Zgodne OTA bety nadal są publikowane. Android jest zawsze budowany ręcznie; zgodny
 zainstalowany APK otrzymuje OTA razem z iOS (`--platform all`). Kanały nie współdzielą gałęzi OTA.
 Ponowienia korzystają z historii EAS i pełnego SHA w wiadomości; aktywne buildy są deduplikowane.
 Pierwsze wydanie z `expo-updates` musi zbudować nową binarkę, OTA rusza od następnej zmiany JS.

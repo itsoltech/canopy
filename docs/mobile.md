@@ -2,6 +2,7 @@
 
 Status: opis zaimplementowanego kodu (2026-11-17); iOS utrzymuje najnowsze wiadomości
 nad kompozytorem po nadejściu kolejnych tur, a „Show latest” ma okrągły stan naciśnięcia.
+Wydania beta pomijają buildy iOS i wysyłkę do TestFlight, zachowując zgodne OTA.
 Propozycje odpowiedzi pomijają wpisy kolejki zużyte przez odczyt agenta lub steer;
 starsze, porzucone notatki platformy nie blokują późniejszych propozycji ([ui-api.md](ui-api.md#proponowane-odpowiedzi)).
 Pole nie powiększa się od kolejnych cykli fokusu i chowania klawiatury.
@@ -51,7 +52,8 @@ nie usuwa plików workspace. Szczegóły: [database-retention.md](database-reten
 ## Instalacja i dostępność
 
 - **iOS:** dystrybucja przez TestFlight. Workflow wydania wysyła nowy build,
-  jeśli zmienił się runtime natywny; dostęp do TestFlight wymaga zaproszenia.
+  jeśli zmienił się runtime natywny nightly lub stable; buildy bety są ręczne.
+  Dostęp do TestFlight wymaga zaproszenia.
 - **Android:** instalacja ręcznie zbudowanego APK. Publikacja wydania nie tworzy
   APK automatycznie; maintainer buduje zgodny runtime osobno.
 - **Aktualizacje OTA:** zgodne zmiany JS i assetów trafiają do zainstalowanej
@@ -758,7 +760,9 @@ JS, teksty i zgodne assety mogą trafić przez OTA.
    korzystają z tego samego środowiska EAS `production`, niezależnie od kanału.
 2. Wyszukuje ukończone buildy po kanale i `runtimeVersion`. Zgodny iOS store build oznacza OTA
    zamiast nowego buildu. Brak zgodnego iOS oznacza pełny build i wysyłkę do TestFlight przez
-   profil submit `production`. Aktywny build tego runtime blokuje kolejne zlecenie.
+   profil submit `production` tylko dla nightly i stable. Beta pomija build i wysyłkę także przy
+   ręcznym dispatchu z `force`; nowy runtime bety wymaga ręcznego buildu.
+   Aktywny build tego runtime blokuje kolejne zlecenie.
 3. Jeśli choć jedna platforma ma zgodny build, osobny publisher wysyła niepodpisane OTA przez
    `eas update --channel … --platform all --environment production`. Android nie wymusza buildu
    iOS. Gdy zmieniło się wyłącznie native iOS, zgodny Android nadal może otrzymać OTA.
@@ -783,7 +787,7 @@ podpisane OTA. Nie otrzyma niepodpisanych aktualizacji; trzeba zastąpić go now
 | Kanał | Gałąź | Profil iOS/TestFlight | Ręczny profil APK |
 |---|---|---|---|
 | `nightly` | `dev` | `production` | `preview` |
-| `beta` | `next` | `production-beta` | `preview-beta` |
+| `beta` | `next` | `production-beta` (tylko ręcznie) | `preview-beta` |
 | `stable` | `main` | `production-stable` | `preview-stable` |
 
 Kanał jest wpisany do binarki; nie ma przełącznika kanału w aplikacji. Każdy kanał EAS musi
