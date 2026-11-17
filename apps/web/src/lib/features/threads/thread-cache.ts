@@ -18,10 +18,15 @@ class ClientThreadCache extends ThreadCache {
     return () => this.#released.delete(listener);
   }
 
-  forget(id: string) {
+  /** Drop an unusable history checkpoint while keeping the active view and its automation selection. */
+  invalidate(id: string) {
     this.#generation++;
     super.delete(id);
     removeHistory(`thread_${id}`);
+  }
+
+  forget(id: string) {
+    this.invalidate(id);
 
     for (const listener of this.#released) listener(id);
   }

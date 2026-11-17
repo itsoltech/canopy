@@ -25,6 +25,7 @@ import { watchRemoteThread } from "../computers/thread-watch.ts";
 import { boundRoutedThread } from "./routed-thread-batch.ts";
 import { remoteAttachment } from "./routed-attachments.ts";
 import { forgetGitHub, offlineGitHub, rememberGitHub } from "./routed-github-cache.ts";
+import { AGENT_PREVIEW_CLIENT_ACK } from "../computers/capabilities.ts";
 
 export async function peerOf(core: GatewayCore, ref: string, method?: DescMethod, request?: Message) {
   if (!core.computers) throw new ConnectError("That computer is no longer linked", Code.NotFound);
@@ -268,6 +269,13 @@ async function* send(
   signal: AbortSignal,
 ): AsyncGenerator<Message> {
   const outbound = clone(method.input, request);
+
+  if (
+    (method.name === "AckAgentPreview" ||
+      (method.name === "WatchAgentPreview" && linkedMessage(ui.WatchAgentPreviewRequestSchema, request).clientAck)) &&
+    !computers.capabilities(nodeId).includes(AGENT_PREVIEW_CLIENT_ACK)
+  )
+    throw new ConnectError("Update Canopy on the linked computer to acknowledge preview frames", Code.Unimplemented);
 
   if (method.name === "WatchThreadFiles" && !computers.capabilities(nodeId).includes("thread_files_watch_v1"))
     throw new ConnectError("Update Canopy on the linked computer to watch file changes.", Code.Unimplemented);

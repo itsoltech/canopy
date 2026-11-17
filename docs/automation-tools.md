@@ -4,6 +4,8 @@ Status (2026-11-17): **narzędzia, interaktywny Preview z podglądem zmiany view
 automatyczny mini Preview wątku, pełna karta Preview w web/desktop, ikony obu stanów skali
 oraz rezerwacje urządzeń z oczekiwaniem, uruchamianiem skonfigurowanych emulatorów
 i sprzątaniem sesji przy archiwizacji zaimplementowane**.
+Web/desktop potwierdza klatki po narysowaniu obrazu; odświeżanie metadanych celu
+i naprawa kursora historii zachowują działający podgląd.
 Osobna zakładka Settings → Agent tools grupuje dostęp i instalacje według narzędzia;
 włączenie na połączonym workerze automatycznie rozpoczyna potrzebną instalację.
 Karty mają zapisane ustawienia początkowe sesji wspólne dla workerów użytkownika.
@@ -411,6 +413,14 @@ Desktop i Device przesyłają kolejne obrazy, nie wideo. Worker pobiera obraz
 lokalnie. Klatki i wejście przechodzą przez istniejący
 WorkerLink → gateway → BFF; BFF wysyła SSE do klienta. Przeglądarka użytkownika
 nie dostaje bezpośredniego URL ani portu strumienia zdalnego workera.
+Web/desktop żąda `client_ack`: po dekodowaniu i narysowaniu obrazu na canvasie
+potwierdza `frame_id` przez `AckAgentPreview`. Dopiero to potwierdzenie zwalnia
+następną klatkę workera. Wolny klient nie zbiera kolejki starych obrazów w BFF
+ani w transporcie; worker zachowuje tylko najnowszą oczekującą klatkę.
+Canvas zachowuje poprzedni obraz do narysowania następnego. Natywny mobile
+i starsi klienci bez `client_ack` zachowują potwierdzenie przy odbiorze gRPC.
+Utrata lub zmiana celu Desktop/Device odrzuca i potwierdza nieaktualną klatkę
+także przed jej narysowaniem, aby zwolnić transmisję obrazu nowego celu.
 
 Gateway wyprowadza sesję z właściciela i wątku, wymaga aktualnego grantu
 narzędzia i capability `agent_preview_v1`. Browser i Desktop wymagają Ready.
@@ -461,6 +471,10 @@ agenta, bez jej uruchamiania ani automatycznej nawigacji. Używa istniejących
 limitów i autoryzacji Preview, a po kolejnych wywołaniach zmienia narzędzie i
 bezpieczny cel na najnowsze wartości. Aktywności dla tego samego zakresu zachowują
 działający stream; aktualizacja statusu tego samego workera także go zachowuje.
+Zakres subskrypcji jest porównywany po wartościach identyfikujących cel, bez
+tożsamości obiektu, etykiety i pozostałych metadanych. Reset kursora podczas
+naprawy historii usuwa jej cache, ale zachowuje wybór mini Preview i jego
+działającą subskrypcję. Usunięcie prywatnej kopii wątku nadal czyści oba stany.
 Nowy odbiorca aktywnej grupy Preview od razu dostaje jej ostatnią klatkę, bez
 czekania na zmianę obrazu. Grupa trzyma tylko jedną ograniczoną klatkę w pamięci;
 zmiana celu, utrata celu Desktop/Device i zamknięcie grupy ją usuwają.

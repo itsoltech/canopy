@@ -21,6 +21,7 @@ import { SqlClient } from "effect/sql";
 import { ComputerStore, type PeerRow } from "./store.ts";
 import { linkedMessage, SERVED, UPDATE_METHODS, WORKER_SETTINGS } from "./remote.ts";
 import { GITHUB_METHODS } from "./remote-policy.ts";
+import { AGENT_PREVIEW_CLIENT_ACK } from "./capabilities.ts";
 
 // Configuration (which can contain credentials) is deliberately absent, even when
 // every participant supports stage 4. Routes and relay itself are never inherited.
@@ -28,6 +29,7 @@ const FEATURES = new Set([
   "diagnostics_v1",
   "diagnostics_logs_v1",
   "thread_files_watch_v1",
+  AGENT_PREVIEW_CLIENT_ACK,
   REMOTE_THREADS,
   "remote_worktrees",
   REMOTE_BRANCH_SWITCH,

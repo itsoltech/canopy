@@ -8,7 +8,7 @@
   import StatusDot from "#lib/shared/ui/StatusDot.svelte";
   import Disclosure from "#lib/shared/ui/Disclosure.svelte";
   import { PreviewSession } from "./preview-session.svelte.ts";
-  import { previewScope } from "./preview-client.ts";
+  import { previewScope, previewScopeKey } from "./preview-client.ts";
   import { isPreviewReady } from "./preview-readiness.ts";
   import AgentPreviewCanvas from "./AgentPreviewCanvas.svelte";
   import PreviewToolbar from "./PreviewToolbar.svelte";
@@ -64,6 +64,7 @@
   const allowed = $derived(!unavailable && Boolean(item?.enabled && isPreviewReady(item.tool) && !item.blockedReason));
   const live = $derived(["ready", "frame"].includes(session.state));
   const failed = $derived(["error", "closed"].includes(session.state));
+  const scopeKey = $derived(previewScopeKey(threadId, worker?.id ?? "", tool, target));
 
   $effect(() => {
     const requested = selection;
@@ -105,13 +106,12 @@
   });
 
   $effect(() => {
-    const id = threadId;
-    const scope = previewScope(tool, target);
+    void scopeKey;
     void retry;
 
     if (!active || !foreground || !visible || !allowed) return;
 
-    return untrack(() => session.connect(id, scope));
+    return untrack(() => session.connect(threadId, previewScope(tool, target)));
   });
 
   function chooseTool(value: string): void {
@@ -242,6 +242,8 @@
           browser={tool === AgentTool.BROWSER}
           onaddress={tool === AgentTool.BROWSER ? focusAddress : undefined}
           oninput={(input) => session.input(input)}
+          onpaint={(frame) => session.painted(frame)}
+          onframeerror={(frame) => session.frameError(frame)}
         />
       </div>
     {/if}

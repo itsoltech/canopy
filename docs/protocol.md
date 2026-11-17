@@ -142,6 +142,10 @@ Zasady rozpoznawania celu i przekazania do interaktywnego panelu:
 
 ### Interaktywny podgląd wątku
 
+Status (2026-11-17): potwierdzenia klienta web/desktop po narysowaniu klatki
+zaimplementowane w kodzie; dostępność kanałów wynika z promocji wydań
+([release.md](release.md)).
+
 Capability `agent_preview_v1` dopuszcza `GatewayMessage.agent_preview = 823`
 (`AgentPreviewCommand`: start, stop, input, ack) oraz
 `WorkerMessage.agent_preview = 823` (`AgentPreviewEvent`: connecting, ready,
@@ -171,7 +175,7 @@ i komendy wybranego backendu. Wyjątek nie obejmuje MCP/modelu ani `RunAgentTool
 | Wejście | Do 64 zdarzeń i 32 KiB zakodowanej partii, tekst pojedynczego zdarzenia do 8 KiB, `key`/`code` do 128 B. |
 | Wskaźnik | Współrzędne znormalizowane 0–1 względem obrazu bez letterboxingu; skończone delty kółka o wartości bezwzględnej do 100 000, `button` 0–2, maska `buttons` do 7, `modifiers` do 15. |
 | Tempo wejścia | Na podgląd: 256 zdarzeń/s, z zapasem na jednorazową serię 256 zdarzeń. |
-| ACK i dzierżawa | Jedna niepotwierdzona klatka i najnowsza oczekująca; wyłącznie ACK jej `frame_id` zwalnia następną wysyłkę. Znany ACK, również 0 przed pierwszą klatką, odnawia 15-sekundową dzierżawę. Gateway potwierdza klatkę, gdy odbiorca pobiera kolejną wiadomość po `yield`, i co sekundę ponawia ostatni taki ACK. |
+| ACK i dzierżawa | Jedna niepotwierdzona klatka i najnowsza oczekująca; wyłącznie ACK jej `frame_id` zwalnia następną wysyłkę. Znany ACK, również 0 przed pierwszą klatką, odnawia 15-sekundową dzierżawę. Dla `WatchAgentPreviewRequest.client_ack=true` gateway czeka na `AckAgentPreview` po narysowaniu klatki w UI. Domyślnie potwierdza odbiór kolejnej wiadomości po `yield`. Co sekundę ponawia ostatni rzeczywiście potwierdzony ACK; heartbeat nie potwierdza nieobejrzanej klatki. |
 | Trwałość | Klatki, wejście i sterowanie mają wyłącznie przejściowy stan bieżącej sesji: bez outboxa, journala, transkryptu, replay ani lustra komputera. Tymczasowe pliki zrzutów są sprzątane przy zamknięciu backendu. |
 
 Błąd pojedynczej operacji wejścia wraca jako `ready` z `detail` i zwalnia

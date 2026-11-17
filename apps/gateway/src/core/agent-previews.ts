@@ -18,11 +18,13 @@ interface Preview {
   readonly mailbox: AgentPreviewMailbox;
   readonly signal: AbortSignal;
   readonly abort: () => void;
+  readonly clientAck: boolean;
   timer?: Timer;
   stopped: boolean;
   terminal: boolean;
   checking: boolean;
   seen: bigint;
+  delivered: bigint;
   acknowledged: bigint;
   inputTokens: number;
   inputTime: number;
@@ -76,10 +78,12 @@ export class AgentPreviews {
       signal,
       mailbox: new AgentPreviewMailbox(),
       abort: () => this.#stop(preview),
+      clientAck: request.clientAck,
       stopped: false,
       terminal: false,
       checking: false,
       seen: 0n,
+      delivered: 0n,
       acknowledged: 0n,
       inputTokens: 256,
       inputTime: Date.now(),
@@ -111,11 +115,13 @@ export class AgentPreviews {
         const event = await preview.mailbox.next();
 
         if (!event || preview.stopped) break;
+
+        if (event.state === "frame") preview.delivered = event.frameId;
         yield event;
 
         if (event.state === "closed" || event.state === "error") break;
 
-        if (event.state === "frame" && !preview.stopped) {
+        if (event.state === "frame" && !preview.stopped && !preview.clientAck) {
           preview.acknowledged = event.frameId;
           this.#ack(preview);
         }
@@ -179,6 +185,30 @@ export class AgentPreviews {
         },
       },
     });
+
+    return create(ui.WorkerOperationResponseSchema);
+  }
+
+  async acknowledge(request: ui.AckAgentPreviewRequest): Promise<ui.WorkerOperationResponse> {
+    if (!AGENT_WORKER_ID.test(request.previewId) || request.frameId <= 0n)
+      throw new ConnectError("Invalid preview acknowledgement", Code.InvalidArgument);
+    const preview = this.#sessions.get(request.previewId);
+
+    if (!preview || preview.threadId !== request.threadId || preview.stopped || preview.terminal)
+      throw new ConnectError("Preview unavailable; reopen it", Code.NotFound);
+    await this.#authorize(request.threadId, preview.tool, preview.worker);
+
+    if (preview.stopped || preview.terminal || this.#sessions.get(preview.id) !== preview)
+      throw new ConnectError("Preview unavailable; reopen it", Code.NotFound);
+
+    if (!preview.clientAck)
+      throw new ConnectError("This preview acknowledges frames through its stream", Code.FailedPrecondition);
+
+    // Receiving worker data does not prove delivery: the mailbox may still hold or replace it.
+    if (request.frameId !== preview.delivered && request.frameId !== preview.acknowledged)
+      throw new ConnectError("Acknowledge a frame delivered by this preview", Code.InvalidArgument);
+    preview.acknowledged = request.frameId;
+    this.#ack(preview);
 
     return create(ui.WorkerOperationResponseSchema);
   }

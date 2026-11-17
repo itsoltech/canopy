@@ -7,6 +7,7 @@
   import type { ClassValue } from "svelte/elements";
   import ViewportControls from "./ViewportControls.svelte";
   import ViewportResizeHandles from "./ViewportResizeHandles.svelte";
+  import { paintPreviewFrame } from "./preview-frame.ts";
 
   let {
     event,
@@ -18,6 +19,8 @@
     onaddress,
     fit = $bindable("fit"),
     oninput,
+    onpaint,
+    onframeerror,
     class: className,
   }: {
     event?: AgentPreviewEvent;
@@ -29,6 +32,8 @@
     onaddress?: () => void;
     fit?: "fit" | "actual";
     oninput: (input: AgentPreviewInput) => void;
+    onpaint: (frame: AgentPreviewEvent) => void;
+    onframeerror: (frame: AgentPreviewEvent) => void;
     class?: ClassValue;
   } = $props();
 
@@ -38,7 +43,6 @@
   let keyboard = $state<HTMLTextAreaElement>();
   let viewport = $state<HTMLDivElement>();
   let focused = $state(false);
-  let currentUrl: string | undefined;
   const pressed = new Map<string, string>();
   let composing = false;
 
@@ -59,48 +63,11 @@
 
     if (!frame?.data.length || !target) return;
 
-    const url = URL.createObjectURL(new Blob([new Uint8Array(frame.data)], { type: frame.mimeType || "image/png" }));
-    const image = new Image();
-    currentUrl = url;
-    image.onload = () => {
-      if (currentUrl !== url) {
-        URL.revokeObjectURL(url);
-
-        return;
-      }
-
-      target.width = frame.width || image.naturalWidth;
-      target.height = frame.height || image.naturalHeight;
-      target.getContext("2d")?.drawImage(image, 0, 0, target.width, target.height);
-      currentUrl = undefined;
-      URL.revokeObjectURL(url);
-    };
-
-    image.onerror = () => {
-      if (currentUrl === url) {
-        currentUrl = undefined;
-      }
-
-      URL.revokeObjectURL(url);
-    };
-
-    image.src = url;
-
-    return () => {
-      image.onload = null;
-      image.onerror = null;
-
-      if (currentUrl === url) {
-        currentUrl = undefined;
-        URL.revokeObjectURL(url);
-      }
-    };
+    return paintPreviewFrame(target, frame, onpaint, onframeerror);
   });
 
   onDestroy(() => {
     releaseKeys();
-
-    if (currentUrl) URL.revokeObjectURL(currentUrl);
   });
 
   onMount(() => {

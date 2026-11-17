@@ -5,7 +5,15 @@ import { configComputer, pairConfig, type ConfigComputer } from "./config-sync.t
 import { eventually } from "./gateway.ts";
 
 /** A live preview routes only the thread entity; native targets and preview IDs remain opaque. */
-export async function expectLinkedAgentPreview(): Promise<void> {
+export function expectLinkedAgentPreview(): Promise<void> {
+  return linkedAgentPreview(false);
+}
+
+export function expectLinkedAgentPreviewWithClientAck(): Promise<void> {
+  return linkedAgentPreview(true);
+}
+
+async function linkedAgentPreview(clientAck: boolean): Promise<void> {
   let viewer: ConfigComputer | undefined;
   let home: ConfigComputer | undefined;
   const abort = new AbortController();
@@ -77,7 +85,7 @@ export async function expectLinkedAgentPreview(): Promise<void> {
     consume = (async () => {
       try {
         for await (const event of api.watchAgentPreview(
-          { threadId, scope: { tool: AgentTool.DEVICE, platform: "ios", deviceId } },
+          { threadId, scope: { tool: AgentTool.DEVICE, platform: "ios", deviceId }, clientAck },
           { signal: abort.signal, timeoutMs: 0 },
         ))
           events.push(event);
@@ -123,6 +131,19 @@ export async function expectLinkedAgentPreview(): Promise<void> {
     );
     expect(events[1]).toMatchObject({ previewId: events[0]?.previewId, state: "frame", frameId: 1n });
     expect(events[1]?.data).toEqual(new Uint8Array(data));
+
+    if (clientAck) {
+      await eventually(
+        async () => worker.previewCommands.some((command) => command.kind.case === "ack"),
+        Boolean,
+        2000,
+      );
+      expect(
+        worker.previewCommands.some((command) => command.kind.case === "ack" && command.kind.value.frameId > 0n),
+      ).toBe(false);
+      await api.ackAgentPreview({ threadId, previewId: events[0]!.previewId, frameId: 1n });
+    }
+
     expect(
       await eventually(
         async () =>

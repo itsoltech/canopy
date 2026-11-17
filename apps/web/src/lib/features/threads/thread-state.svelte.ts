@@ -79,7 +79,7 @@ export class ThreadState {
     () => {
       if (this.#snapshot) this.#snapshot = { ...this.#snapshot, cursor: "", syncCursor: undefined };
 
-      if (this.thread) threadCache.forget(this.thread.id);
+      if (this.thread) threadCache.invalidate(this.thread.id);
     },
   );
   hasMore = $state(false);

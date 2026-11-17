@@ -328,6 +328,7 @@ service GatewayService {
   rpc RunAgentTool(RunAgentToolRequest) returns (RunAgentToolResponse);
   rpc SetAgentToolEnabled(SetAgentToolEnabledRequest) returns (WorkerOperationResponse);
   rpc WatchAgentPreview(WatchAgentPreviewRequest) returns (stream canopy.worker.v1.AgentPreviewEvent);
+  rpc AckAgentPreview(AckAgentPreviewRequest) returns (WorkerOperationResponse);
   rpc SendAgentPreviewInput(SendAgentPreviewInputRequest) returns (WorkerOperationResponse);
 
   // Załączniki (sekcja na końcu pliku): plik użytkownika do wiadomości, jego bajty i podglądy obrazów z transkryptu.
@@ -2742,6 +2743,15 @@ message WatchAgentPreviewRequest {
   // derives the session from the owned thread and refuses command arguments.
   canopy.worker.v1.RunAgentTool scope = 2;
   uint32 max_fps = 3;
+  // Confirm frames after painting them through AckAgentPreview. By default,
+  // consuming the gRPC stream acknowledges frames for older clients.
+  bool client_ack = 4;
+}
+
+message AckAgentPreviewRequest {
+  string thread_id = 1;
+  string preview_id = 2;
+  uint64 frame_id = 3;
 }
 
 message SendAgentPreviewInputRequest {

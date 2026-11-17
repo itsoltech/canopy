@@ -11,6 +11,7 @@ export function agentToolsHandlers(
   | "runAgentTool"
   | "setAgentToolEnabled"
   | "watchAgentPreview"
+  | "ackAgentPreview"
   | "sendAgentPreviewInput"
 > {
   return {
@@ -26,5 +27,6 @@ export function agentToolsHandlers(
       }
     },
     sendAgentPreviewInput: (request) => guard(() => core.agentPreviews.input(request)),
+    ackAgentPreview: (request) => guard(() => core.agentPreviews.acknowledge(request)),
   };
 }
