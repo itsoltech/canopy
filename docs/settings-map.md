@@ -1,6 +1,7 @@
 # Mapa ustawień Canopy
 
-Status (2026-11-16): mapa zaimplementowanych ustawień, w tym wspólnego wyboru
+Status (2026-11-17): mapa zaimplementowanych ustawień, w tym zgody reguł Archived/Deleted
+threads na sprzątanie lokalnych plików worktree oraz wspólnego wyboru
 grupowania sidebara w web/desktop i mobile, opcjonalnej retencji archiwum wątków
 oraz wspólnego dopasowania słów w wyszukiwaniu ustawień i opcjonalnego wskaźnika kontekstu w composerze web/desktop;
 dostępność kanałów według [release.md](release.md).
@@ -96,7 +97,7 @@ projektów, poświadczeń, zaproszeń ani zasobów. Domyślne „brak” oznacza
 | Worktrees / Creation | Location; Start from remote; Remote | konto/zakres: managed (`~/canopy/worktrees` workera; w zakresie komputera UI pokazuje zgłoszoną ścieżkę), Off, origin | Tworzenie katalogu i wybór podstawy gałęzi |
 | Worktrees / Branches | Branch naming; Branch prefix; default workspace mode | konto/zakres: semantic, canopy, current checkout | Nowe gałęzie i początkowy tryb kompozytora. Opcja Thread title jest „Soon”: nowe wątki nie wysyłają tytułu, a gałąź nie zmienia nazwy po wygenerowaniu tytułu |
 | Worktrees / Cleanup | Deleted threads; Merged branches; Archived threads; Unchanged worktrees | konto/zakres: wszystkie Off | Reguły usuwania worktree bez aktywnych wątków; pojedynczy reset przywraca dziedziczenie |
-| Worktrees / Cleanup | Inactive for days; Keep worktrees with local changes; Delete safe local branches | konto/zakres: 0 (Off); On; Off | Retencja i ochrona lokalnej pracy; destrukcyjne wyjątki wymagają potwierdzeń. Keep worktrees with local changes jest „Soon”: sprzątanie zawsze zachowuje lokalną pracę, a przełącznik zmieniał tylko etykietę |
+| Worktrees / Cleanup | Inactive for days; Keep worktrees with local changes; Delete safe local branches | konto/zakres: 0 (Off); On; Off | Reguły Archived/Deleted threads zezwalają odrzucić lokalne pliki po zamknięciu wszystkich współdzielących wątków; gałęzie z niewypchniętą pracą zostają. Pozostałe reguły chronią zwykłe lokalne zmiany; pliki ignorowane przez Git nie blokują sprzątania. Keep worktrees with local changes pozostaje „Soon” i zmienia tylko etykietę dla pozostałych reguł |
 | Agent environment | Instruction fragments; files; skills; sources; plugins; tags; machine targeting; synchronization | konto/zasoby: brak | Konfiguracja środowiska agentów na wybranych workerach |
 | Providers | Instances; display name; proxy/native; models; favorites; environment; worker enablement; CLI login/install/updates | konto/zasoby: native, wykryty katalog | Dostępność modeli i konfiguracja harnessów; poświadczenia w gateway |
 | Connectors | Accounts; OAuth apps; grants; access targets; test/disconnect | konto/zasoby: brak | Uprawnienia zewnętrznych MCP |

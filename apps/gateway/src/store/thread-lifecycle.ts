@@ -29,6 +29,19 @@ const owned = (sql: SqlClient.SqlClient, userId: string, threadId: string, delet
     return row;
   });
 
+/** Reopening takes the same thread → worktree locks as cleanup before exposing local work again. */
+const requireReopenableWorktrees = (sql: SqlClient.SqlClient, ids: string[]) =>
+  Effect.gen(function* () {
+    yield* sql`SELECT id FROM threads WHERE id = ANY(${ids}::uuid[]) ORDER BY id FOR UPDATE`;
+
+    const trees = yield* sql<{ removal_token: string | null }>`SELECT w.removal_token FROM worktrees w
+      WHERE w.id IN (SELECT worktree_id FROM threads WHERE id = ANY(${ids}::uuid[]))
+      ORDER BY w.id FOR UPDATE`;
+
+    if (trees.some((tree) => tree.removal_token))
+      return yield* Effect.fail(new Invalid("Worktree cleanup is in progress. Wait for it to finish, then retry."));
+  });
+
 /** All lifecycle transitions lock the same thread rows as the turn queue. Interrupts go into the durable
  * outbox before a thread is hidden, including an offline worker. Restoring never restarts work. */
 export function threadLifecycle(sql: SqlClient.SqlClient, dispatch: Dispatch) {
@@ -70,6 +83,8 @@ export function threadLifecycle(sql: SqlClient.SqlClient, dispatch: Dispatch) {
         ORDER BY id FOR UPDATE`;
 
           const ids = [threadId, ...children.map((child) => child.id)];
+
+          if (!archived) yield* requireReopenableWorktrees(sql, ids);
 
           if (reason === "merge" && !(yield* mergeArchiveIdle(sql, ids))) return { ids: [], commands: [] };
           const commands = archived ? yield* stopThreadResources(sql, dispatch, ids) : [];
@@ -129,12 +144,21 @@ export function threadLifecycle(sql: SqlClient.SqlClient, dispatch: Dispatch) {
           )
             return yield* Effect.fail(new Invalid("restore the parent thread first"));
 
+          const restored = yield* sql<{ id: string }>`SELECT id FROM threads
+            WHERE owner_user_id = ${userId}::uuid AND deleted_at IS NOT NULL AND moved_to IS NULL AND purged_at IS NULL AND
+            (id = ${threadId}::uuid OR (deletion_batch_id = ${threadId}::uuid AND parent_thread_id = ${threadId}::uuid))
+            ORDER BY id FOR UPDATE`;
+
+          yield* requireReopenableWorktrees(
+            sql,
+            restored.map((thread) => thread.id),
+          );
+
           const rows = yield* sql<{ id: string }>`UPDATE threads SET deleted_at = NULL, deletion_batch_id = NULL,
         status = CASE WHEN archived_at IS NOT NULL THEN 'archived'
           WHEN EXISTS (SELECT 1 FROM turns u WHERE u.thread_id = threads.id AND u.status = 'running') THEN 'running'
           WHEN runtime = 'worker' AND provider_thread_id IS NULL THEN CASE WHEN status_detail IS NULL THEN 'creating' ELSE 'failed' END ELSE 'idle' END
-        WHERE owner_user_id = ${userId}::uuid AND deleted_at IS NOT NULL AND moved_to IS NULL AND purged_at IS NULL AND
-        (id = ${threadId}::uuid OR (deletion_batch_id = ${threadId}::uuid AND parent_thread_id = ${threadId}::uuid)) RETURNING id`;
+        WHERE id = ANY(${restored.map((thread) => thread.id)}::uuid[]) RETURNING id`;
 
           return rows.map((r) => r.id);
         }),

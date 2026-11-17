@@ -74,11 +74,22 @@ describe.skipIf(!dockerAvailable)("worktree lifecycle over gRPC", () => {
 
     await f.settled(shared);
     rmSync(join(t.cwd, "worker-started.txt"));
-    await f.settings({ cleanupDeletedThreads: true });
+    const head = commit(t.cwd, "deleted-local.txt");
+    writeFileSync(join(t.cwd, "untracked.txt"), "discard only after every thread is deleted");
+    await f.settings({ cleanupDeletedThreads: true, deleteLocalBranch: true });
     await f.gw.api.deleteThread({ threadId: t.id });
     expect((await f.cleanup()).entries.find((e) => e.worktree?.id === t.worktree!.id)?.wouldRemove).toBe(false);
     await f.gw.api.deleteThread({ threadId: shared.id });
-    expect((await f.cleanup(false)).entries.find((e) => e.worktree?.id === t.worktree!.id)?.removed).toBe(true);
+    expect((await f.cleanup()).entries.find((e) => e.worktree?.id === t.worktree!.id)).toMatchObject({
+      confirmationRequired: true,
+      wouldRemove: true,
+      detail: "All threads deleted",
+    });
+    expect((await f.cleanup(false)).entries.find((e) => e.worktree?.id === t.worktree!.id)).toMatchObject({
+      removed: true,
+      branchDeleted: false,
+    });
+    expect(git(f.repo, "rev-parse", t.worktree!.branch)).toBe(head);
   });
 
   test("merged policy fetches, verifies ancestry, and deletes only a safe branch when enabled", async () => {
@@ -111,8 +122,13 @@ describe.skipIf(!dockerAvailable)("worktree lifecycle over gRPC", () => {
     expect((await f.cleanup(false)).entries.find((e) => e.worktree?.id === t.worktree!.id)?.removed).toBe(true);
   });
 
-  test("settled policy includes archived threads and respects a live sharing thread", async () => {
+  test("settled policy requires archival after a completed turn", async () => {
     const t = await f.tree();
+    await f.sql(
+      (sql) => sql`INSERT INTO turns (id, thread_id, ordinal, status, trigger, author_user_id, input,
+      first_seq, last_seq, completed_at) VALUES
+      (${Bun.randomUUIDv7()}::uuid, ${t.id}::uuid, 1, 'completed', 'user', ${f.gw.userId}::uuid, '{}', 1, 1, now())`,
+    );
     await f.settings({ cleanupSettled: true });
     expect((await f.cleanup()).entries.find((e) => e.worktree?.id === t.worktree!.id)?.wouldRemove).toBe(false);
     await f.gw.api.setThreadArchived({ threadId: t.id, archived: true });
@@ -144,7 +160,7 @@ describe.skipIf(!dockerAvailable)("worktree lifecycle over gRPC", () => {
   test("dirty files require explicit confirmation even with keep-local-changes off; branch survives", async () => {
     const t = await f.tree();
     writeFileSync(join(t.cwd, "local.txt"), "do not lose");
-    await f.settings({ cleanupSettled: true, keepLocalChanges: false, deleteLocalBranch: true });
+    await f.settings({ cleanupMerged: true, keepLocalChanges: false, deleteLocalBranch: true });
     await f.gw.api.setThreadArchived({ threadId: t.id, archived: true });
     const preview = (await f.cleanup()).entries.find((e) => e.worktree?.id === t.worktree!.id)!;
     expect(preview).toMatchObject({ confirmationRequired: true, wouldRemove: false });
@@ -158,7 +174,7 @@ describe.skipIf(!dockerAvailable)("worktree lifecycle over gRPC", () => {
   test("unpushed commits are protected and recoverable from the branch after confirmed removal", async () => {
     const t = await f.tree();
     const head = commit(t.cwd, "unpushed.txt");
-    await f.settings({ cleanupSettled: true, deleteLocalBranch: true });
+    await f.settings({ cleanupMerged: true, deleteLocalBranch: true });
     await f.gw.api.setThreadArchived({ threadId: t.id, archived: true });
     expect((await f.entry(t.worktree!.id)).status?.unpushed).toBe(true);
     expect((await f.cleanup()).entries.find((e) => e.worktree?.id === t.worktree!.id)?.wouldRemove).toBe(false);
@@ -230,13 +246,16 @@ describe.skipIf(!dockerAvailable)("worktree lifecycle over gRPC", () => {
     await f.settings({ cleanupInactiveDays: undefined }, f.project.id, "");
   });
 
-  test("gateway refuses removal during queued turns and pending interactions", async () => {
+  test("gateway blocks removal while turns or interactions are pending, then cleans up after archival", async () => {
     const t = await f.tree();
+    writeFileSync(join(t.cwd, "local.txt"), "discard only while idle");
+    await f.settings({ cleanupSettled: true });
     await f.sql(
       (sql) => sql`INSERT INTO turns (id, thread_id, ordinal, status, trigger, author_user_id, input)
       VALUES (${Bun.randomUUIDv7()}::uuid, ${t.id}::uuid, 1, 'queued', 'user', ${f.gw.userId}::uuid, '{}'::jsonb)`,
     );
     expect((await f.entry(t.worktree!.id)).busy).toBe(true);
+    expect((await f.cleanup(false)).entries.find((e) => e.worktree?.id === t.worktree!.id)?.removed).toBe(false);
     expect(await failure(f.remove(t.worktree!.id, true))).toContain("still using");
     await f.sql((sql) => sql`UPDATE turns SET status = 'completed', last_seq = 1 WHERE thread_id = ${t.id}::uuid`);
     await f.sql(
@@ -244,11 +263,14 @@ describe.skipIf(!dockerAvailable)("worktree lifecycle over gRPC", () => {
       VALUES (${Bun.randomUUIDv7()}::uuid, ${t.id}::uuid, 'permission', '{}'::jsonb, 'human')`,
     );
     expect((await f.entry(t.worktree!.id)).busy).toBe(true);
+    expect((await f.cleanup(false)).entries.find((e) => e.worktree?.id === t.worktree!.id)?.removed).toBe(false);
     expect(await failure(f.remove(t.worktree!.id, true))).toContain("still using");
     await f.sql(
       (sql) =>
         sql`UPDATE interaction_requests SET status = 'expired', answered_at = now() WHERE thread_id = ${t.id}::uuid`,
     );
+    await f.gw.api.setThreadArchived({ threadId: t.id, archived: true });
+    expect((await f.cleanup(false)).entries.find((e) => e.worktree?.id === t.worktree!.id)?.removed).toBe(true);
   });
 
   test("worker rechecks dirty files, unpushed commits, HEAD and active background work", async () => {

@@ -3,6 +3,7 @@
 Status: opis działającego kodu na `dev` (2026-11-17); safe area nad wątkiem ma tło
 chrome nagłówka, karta ma górny odstęp, a powrót do listy używa strzałki.
 Switch tab pozwala zamykać karty plików i podglądów bezpośrednio z listy.
+Worktrees opisuje odrzucanie lokalnych plików przez reguły Archived/Deleted threads.
 „What's new” sortuje notatki
 metodami dostępnymi w Hermesie bez `Array.prototype.toSorted`.
 Zasobnik nad kompozytorem przylega do jego ramki bez pustego pasa pod ostatnim nagłówkiem.

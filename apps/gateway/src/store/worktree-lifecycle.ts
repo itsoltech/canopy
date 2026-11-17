@@ -32,7 +32,8 @@ const snapshot = `SELECT w.*,
     EXISTS (SELECT 1 FROM turns u WHERE u.thread_id = t.id AND u.status IN ('queued', 'running')) OR
     EXISTS (SELECT 1 FROM interaction_requests i WHERE i.thread_id = t.id AND i.status = 'pending') OR
     EXISTS (SELECT 1 FROM thread_items i WHERE i.thread_id = t.id AND i.type = 'background_task' AND i.status = 'in_progress') OR
-    EXISTS (SELECT 1 FROM goals g WHERE g.thread_id = t.id AND g.status NOT IN ('achieved', 'cancelled')) OR
+    EXISTS (SELECT 1 FROM goals g WHERE g.thread_id = t.id AND g.status NOT IN ('achieved', 'cancelled')
+      AND (t.archived_at IS NULL AND t.deleted_at IS NULL OR g.status IN ('active', 'proposed'))) OR
     EXISTS (SELECT 1 FROM worker_commands c WHERE c.thread_id = t.id AND c.status IN ('pending', 'delivered')
       AND c.kind IN ('startTurn', 'createThread', 'setGoal') AND c.expires_at > now()))) AS busy
   FROM worktrees w`;
@@ -58,7 +59,12 @@ export function worktreeLifecycleStore(sql: SqlClient.SqlClient) {
         return rows;
       }),
 
-    reserveWorktreeRemoval: (owner: string, id: string, command: MessageInitShape<typeof CommandSchema>) =>
+    reserveWorktreeRemoval: (
+      owner: string,
+      id: string,
+      command: MessageInitShape<typeof CommandSchema>,
+      closedThreads?: { archived: boolean; deleted: boolean },
+    ) =>
       sql.withTransaction(
         Effect.gen(function* () {
           // Queue/lifecycle writers take thread locks first, then the availability trigger locks the worktree.
@@ -80,6 +86,13 @@ export function worktreeLifecycleStore(sql: SqlClient.SqlClient) {
           );
 
           if (state.busy) return yield* Effect.fail(new Invalid("a thread is still using this worktree"));
+
+          if (
+            closedThreads &&
+            !((closedThreads.archived && state.all_archived) || (closedThreads.deleted && state.all_deleted))
+          )
+            return yield* Effect.fail(new Invalid("The cleanup policy no longer matches"));
+
           const message = create(CommandSchema, command);
           yield* sql`UPDATE worktrees SET removal_token = ${message.commandId}::uuid,
           removal_started_at = now(), removal_command = ${toBinary(CommandSchema, message)} WHERE id = ${id}::uuid`;

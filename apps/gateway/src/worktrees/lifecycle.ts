@@ -8,7 +8,7 @@ import { coreBroadcastThread, coreRun } from "../core/core-broadcast.ts";
 import { coreWorkerQuery } from "../core/core-mentions.ts";
 import type { GatewayCore } from "../core/core.ts";
 import { coreWorktreeScope, toUiWorktree } from "./core-worktrees.ts";
-import { cleanupReason, lastActivity, matchesCleanup } from "./cleanup-policy.ts";
+import { cleanupReason, closedThreadCleanup, lastActivity, matchesCleanup } from "./cleanup-policy.ts";
 import { discoverWorkspace, mergeWorktrees } from "./discovery.ts";
 import { ownWorkspace } from "./core-worktrees.ts";
 import { githubCleanupProof } from "../github/cleanup-proof.ts";
@@ -137,10 +137,13 @@ export async function scanEntry(core: GatewayCore, row: WorktreeLifecycleRow, fe
   if (!entry.detail && status) {
     entry.lastActivityAt = timestampFromDate(lastActivity(row, status));
     entry.confirmationRequired = Boolean(status.dirtyFiles || status.unpushed);
-    entry.wouldRemove = !row.busy && !entry.confirmationRequired && matchesCleanup(row, status, settings);
+    entry.wouldRemove =
+      !row.busy &&
+      (closedThreadCleanup(row, settings) || !entry.confirmationRequired) &&
+      matchesCleanup(row, status, settings);
     entry.detail = row.busy
       ? "A thread is still using this worktree"
-      : entry.confirmationRequired
+      : entry.confirmationRequired && !entry.wouldRemove
         ? settings.keepLocalChanges
           ? "Kept: local changes or unpushed commits"
           : "Explicit confirmation required for local changes or unpushed commits"
@@ -162,6 +165,9 @@ export async function removeEntry(
   if (row.external) throw new InvalidError("Canopy cannot remove worktrees created outside Canopy.");
 
   if (row.busy) throw new InvalidError("a thread is still using this worktree");
+
+  const closedCleanup = policy && closedThreadCleanup(row, settings);
+  confirmation ||= closedCleanup;
 
   if ((status.dirtyFiles || status.unpushed) && !confirmation)
     throw new InvalidError("Local changes or unpushed commits require explicit confirmation");
@@ -195,9 +201,21 @@ export async function removeEntry(
     },
   });
 
-  const current = await coreRun(core, (s) => s.reserveWorktreeRemoval(core[coreState].options.userId, row.id, command));
+  const current = await coreRun(core, (s) =>
+    s.reserveWorktreeRemoval(
+      core[coreState].options.userId,
+      row.id,
+      command,
+      closedCleanup
+        ? { archived: Boolean(settings.cleanupSettled), deleted: Boolean(settings.cleanupDeletedThreads) }
+        : undefined,
+    ),
+  );
 
-  if (policy && !matchesCleanup(current, status, settings)) {
+  if (
+    policy &&
+    (!matchesCleanup(current, status, settings) || (closedCleanup && !closedThreadCleanup(current, settings)))
+  ) {
     await coreRun(core, (s) => s.cancelWorktreeRemoval(core[coreState].options.userId, row.id, command.commandId));
     throw new InvalidError("The cleanup policy no longer matches");
   }

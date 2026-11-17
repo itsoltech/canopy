@@ -5,7 +5,7 @@ import { dirname } from "node:path";
 import { git, GitError, gitOk, validBranch } from "./git.ts";
 import { checkedWorktree, scanWorktree } from "./worktree-status.ts";
 
-/** Recheck immediately before removal. Only a manual confirmation permits discarding local files. */
+/** Recheck before removal; the gateway grants disposal manually or through a closed-thread policy. */
 export async function removeWorktree(
   managedRoots: readonly string[],
   request: RemoveWorktree,

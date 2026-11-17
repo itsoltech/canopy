@@ -5,7 +5,8 @@ Kopiowanie workspace'u na nowy worker tworzy samodzielny checkout także ze
 wybór obejmuje tylko ignorowane pliki lokalne bez zależności i wyniku builda. Ograniczenia Git:
 [workspace-copy.md](workspace-copy.md).
 
-Status: **etapy 1–3 zaimplementowane** (2026-11-17), w tym status lokalnych zmian i pull origin
+Status: **etapy 1–3 zaimplementowane** (2026-11-17), w tym sprzątanie zamkniętych worktree
+z odrzucaniem lokalnych plików, pomijanie plików ignorowanych przez Git, status lokalnych zmian i pull origin
 w web/desktop, przełączanie gałęzi z kompozytora oraz przywracanie lokalnych zmian
 po potwierdzeniu stash & pop.
 Opis dotyczy kodu; dostępność nightly/beta/stable wynika z promocji wydań ([release.md](release.md)).
@@ -114,12 +115,12 @@ Pola Cleanup korzystają z tych samych zakresów, dziedziczenia i wersji:
 
 | Pole | Domyślnie | Znaczenie |
 |---|---|---|
-| `cleanup_deleted_threads` | `false` | Wszystkie wątki współdzielące worktree zostały usunięte. |
+| `cleanup_deleted_threads` | `false` | Wszystkie wątki współdzielące worktree zostały usunięte. Włączenie zezwala odrzucić lokalne pliki i usunąć checkout także przy niewypchniętych commitach; lokalna gałąź pozostaje. |
 | `cleanup_merged` | `false` | HEAD worktree zawarty w domyślnej lub bazowej gałęzi po fetch. |
 | `cleanup_inactive_days` | `0` | Liczba dni bez aktywności wątków i lokalnego katalogu; 0 wyłącza, maksimum 3650. |
-| `cleanup_settled` | `false` | Wszystkie żywe wątki zarchiwizowane (nazwa pola historyczna; zakończona tura nie wystarcza). |
+| `cleanup_settled` | `false` | Wszystkie nieusunięte wątki zarchiwizowane (nazwa pola historyczna; zakończona tura nie wystarcza). Włączenie zezwala odrzucić lokalne pliki i usunąć checkout także przy niewypchniętych commitach; lokalna gałąź pozostaje. |
 | `cleanup_unchanged` | `false` | HEAD równy commitowi utworzenia i brak zmian plików. |
-| `keep_local_changes` | `true` | Zmiany lokalne są chronione; wyłączenie wskazuje wymóg ręcznego potwierdzenia, nigdy nie zezwala na automatyczną utratę danych. |
+| `keep_local_changes` | `true` | Dla pozostałych reguł zmiany lokalne wymagają ręcznego potwierdzenia; pole zmienia etykietę, a jego kontrolka pozostaje „Soon”. Reguły zamkniętych wątków mają własną zgodę na odrzucenie plików. |
 | `delete_local_branch` | `false` | Po usunięciu checkoutu spróbuj usunąć tylko bezpieczną gałąź. |
 
 ### Rekord worktree
@@ -303,7 +304,7 @@ i `--` przed ścieżkami.
 Capability `worktree_lifecycle` dodaje nietrwałe `ScanWorktrees` (213) i `RevealWorktree` (215)
 oraz trwałe `RemoveWorktree` (214). Starszy worker z samym `worktrees` nadal tworzy worktree,
 ale do ich zarządzania UI prosi o aktualizację. Skan zwraca gałąź, ahead/behind (upstream albo baza),
-liczbę zmienionych plików (również untracked/ignored), niewypchnięte commity, stan merged/unchanged,
+liczbę zmienionych plików (również untracked, bez plików ignorowanych przez Git), niewypchnięte commity, stan merged/unchanged,
 HEAD i czas lokalnej aktywności. Skan omija cache wyników procesów git, także bez fetch:
 podgląd sprzątania od razu uwzględnia dodanie lub usunięcie zmian lokalnych poza Canopy.
 Błąd skanu blokuje usunięcie.
@@ -518,10 +519,17 @@ pokazuje pełną ścieżkę i osobny picker gałęzi opisany wyżej; „Manage w
   właściciela × projektu × komputera, pyta właściciela katalogu przez `ScanWorktrees` po fetch,
   stosuje alternatywne reguły i wysyła `RemoveWorktree`. Inaktywność uwzględnia aktywność wszystkich
   współdzielących wątków, plików, indeksu i refloga worktree.
-- Nigdy automatycznie nie usuwa niezatwierdzonych plików ani niewypchniętych commitów, także po
-  wyłączeniu „Keep worktrees with local changes”. Ręczne Remove pokazuje ostrzeżenie i wymaga
-  jawnego potwierdzenia odrzucenia plików. Gałąź z lokalnymi zmianami lub niewypchniętymi commitami
-  zawsze zostaje. Czysty worktree bez własnych commitów może być usunięty, choć nie miał upstreamu.
+- Włączenie reguły „Archived threads” lub „Deleted threads” jest zgodą na usunięcie checkoutu
+  wraz z lokalnymi plikami, gdy wszystkie współdzielące wątki spełniają tę regułę. Nie wymaga
+  dowodu merge ani braku niewypchniętych commitów: squash i usunięcie gałęzi z remote nie blokują
+  tej decyzji. Gałąź z lokalnymi zmianami lub niewypchniętymi commitami zawsze pozostaje.
+  Samo zakończenie tury ani włączenie innej reguły nie udziela takiej zgody.
+- Pliki ignorowane przez Git (np. zależności i wyniki buildów) nie uczestniczą w ocenie zmian,
+  unchanged ani lokalnej aktywności plików; znikają razem z checkoutem. Zmiany katalogu lub indeksu
+  nadal mogą aktualizować czas aktywności. Pozostałe reguły i ręczne Remove wymagają jawnego
+  potwierdzenia zwykłych zmian lokalnych lub niewypchniętych commitów, także przy wyłączonym
+  „Keep worktrees with local changes”. Czysty worktree bez własnych commitów może być usunięty,
+  choć nie miał upstreamu.
 - „Merged”: po udanym fetch do gałęzi domyślnej lub bazowej: przodek (`merge-base --is-ancestor`),
   wszystkie commity patch-equivalent (`git cherry`, bez pomijania własnych merge commitów) albo cały
   diff merge-base → HEAD zawarty w bazie. Ostatni wariant sprawdza odwrócenie patcha w osobnym indeksie,
@@ -534,7 +542,11 @@ pokazuje pełną ścieżkę i osobny picker gałęzi opisany wyżej; „Manage w
 - Raport **dry-run** w Settings → Worktrees → Cleanup: lista „would remove / kept because …” przed
   włączeniem reguł i przycisk „Run cleanup now”.
 - Gateway rezerwuje rekord w transakcji z blokadami wątków i worktree, a triggery blokują wyścig
-  z nową turą/wątkiem/celem. Worker niezależnie sprawdza własny journal i blokuje nowe starty pod usuwaną
+  z nową turą/wątkiem/celem. Przed utrwaleniem komendy w rezerwacji ponownie sprawdza zgodę reguły zamkniętych wątków;
+  otwarcie albo przywrócenie wątku podczas rezerwacji jest odrzucane. Po usunięciu checkoutu można
+  przywrócić historię, ale nie uruchomić nowej pracy w usuniętym katalogu. Wstrzymany cel zamkniętego
+  wątku sam nie oznacza aktywnej pracy; aktywne zasoby nadal blokują usunięcie.
+  Worker niezależnie sprawdza własny journal i blokuje nowe starty pod usuwaną
   ścieżką. Główny checkout, ścieżka poza pierwotnym korzeniem, dowiązanie poza korzeń, inna gałąź,
   brak rejestracji git albo zablokowane worktree są odrzucane.
 - Historia zostaje zawsze. Opcjonalne usunięcie gałęzi wymaga czystego drzewa, braku niewypchniętych
@@ -596,6 +608,12 @@ Kontrolki opcji automatyzacji w UI mogą zostać dodane osobno; edytor harmonogr
   i niewypchniętych commitów, zachowanie/usuwanie gałęzi, offline/reconnect, utracone potwierdzenie,
   pojedynczy audyt, aktywne tury/interakcje/zadania, rezerwacja kontra nowa tura, pierwotny folder,
   błąd fetch, owner scoping i konfinacja ścieżek. Lista migracji zawiera `0067`.
+- `tests/integration/worktree-closed-cleanup.test.ts`: pliki ignorowane przy każdej regule i ręcznym
+  Remove, zgoda Archived/Deleted na odrzucenie zwykłych plików i usunięcie checkoutu przy
+  niewypchniętych commitach, zachowanie gałęzi, otwarty współdzielący wątek, wstrzymany cel,
+  przywrócenie przed i podczas rezerwacji oraz ponowne sprawdzenie HEAD i pracy w tle na workerze.
+  `worktree-merged.test.ts` obejmuje również squash, usunięcie gałęzi z origin i późniejszą edycję
+  tych samych linii na bazie, gdy aktualny diff nie pozwala już potwierdzić scalenia.
 
 ## Weryfikacja (bieżąca gałąź)
 

@@ -85,7 +85,7 @@
   {#if error}<Alert class="mt-4" tone="error">{error}</Alert>{/if}
   {#if previewed}<p class="mt-4 text-base font-medium sm:text-sm" role="status">
       Cleanup removes {count}
-      {count === 1 ? "worktree" : "worktrees"}. Local work that needs confirmation stays.
+      {count === 1 ? "worktree" : "worktrees"}. Archived and deleted thread rules can discard local files.
     </p>{/if}
   {#if loading && !loaded}<Skeleton class="mt-4 h-32 w-full" />
   {:else if !entries.length && !error}<p class="mt-4 text-base text-zinc-500 sm:text-sm dark:text-zinc-400">
