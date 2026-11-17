@@ -5,7 +5,8 @@ przy ścieżkach i w menu pliku, podgląd dostępnych plików spoza workspace ty
 panel Diff z wirtualizowanym przeglądem zmian Git
 i lokalnym szkicem review wysyłanym agentowi jako jedna wiadomość oraz wcześniejszym
 pobieraniem treści diffu poza ekranem, karta Preview w web/desktop
-i różne ikony skali 1:1 oraz dopasowania, kompaktowa typografia zakładek, diagramy Mermaid w trybie
+i różne ikony skali 1:1 oraz dopasowania, kompaktowa typografia zakładek,
+zamykanie kart web/desktop środkowym przyciskiem myszy, diagramy Mermaid w trybie
 `Rendered`, bezpieczny HTML i lokalne obrazy w Markdown w web/desktop,
 cytowanie zaznaczeń z plików, przeciąganie plików do wiadomości
 i interaktywny Preview automatyzacji w panelu web/desktop oraz automatyczny mini Preview
@@ -158,6 +159,12 @@ modelu. Roving tabindex obejmuje widoczne nagłówki, a wybór z menu przenosi f
 do nowego aktywnego nagłówka. Nagłówek nie ma `+` ani stałego przełącznika `⌄`.
 Na telefonie tytuł pozostaje skrócony, a nazwa aktywnej karty także ma ellipsis.
 Nie dokładamy drugiego rzędu ani poziomego scrolla strony.
+
+Środkowy przycisk myszy zamyka kartę pliku lub modułu po zwolnieniu przycisku,
+również nad jej ikoną zamknięcia, bez wcześniejszego przełączania na tę kartę
+i bez uruchamiania automatycznego przewijania. Karta rozmowy pozostaje niezamykalna.
+Obowiązują te same reguły co dla przycisku zamknięcia: niezapisane zmiany wymagają
+decyzji o zapisie lub odrzuceniu, a zapis w toku blokuje zamknięcie.
 
 Chrome nagłówka (sygnet, tytuł, zakładki i akcje) używa tokenu `chrome`, opartego
 na `panel` wybranego motywu. Pas zakładek nie ma własnego tła. Tylko aktywna karta

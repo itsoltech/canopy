@@ -113,6 +113,17 @@
     root?.querySelector<HTMLButtonElement>(`[data-workspace-tab][aria-selected="true"]`)?.focus();
   }
 
+  function middleClick(event: MouseEvent) {
+    if (event.button !== 1 || !(event.target instanceof Element)) return;
+    const id = event.target.closest<HTMLElement>(".workspace-tab")?.dataset["tabId"];
+
+    if (!id) return;
+    // Prevent autoscroll on press; close on release without selecting the tab.
+    event.preventDefault();
+
+    if (event.type === "auxclick" && id !== "thread") onclose(id);
+  }
+
   function keydown(event: KeyboardEvent) {
     if (event.isComposing) return;
     const buttons = [...(root?.querySelectorAll<HTMLButtonElement>("[data-workspace-tab]") ?? [])];
@@ -156,6 +167,8 @@
   bind:clientWidth={width}
   class={["density-chrome relative flex h-full min-w-0 items-center gap-1", className]}
   onkeydown={keydown}
+  onmousedown={middleClick}
+  onauxclick={middleClick}
 >
   <span class="pointer-events-none invisible absolute w-[1rem]" bind:clientWidth={rem}></span>
   <div role="tablist" aria-label="Workspace tabs" class="flex h-full min-w-0 flex-1">
@@ -172,6 +185,7 @@
               : "max-w-48 shrink-100000",
         ]}
         data-active={tab.id === active.id}
+        data-tab-id={tab.id}
         {@attach tab.id === "thread" ? measureThread : undefined}
       >
         <button
