@@ -2,9 +2,17 @@ import { PgClient, PgPool } from "@effect/sql-pg";
 import { Layer, ManagedRuntime, Redacted } from "effect";
 import { SQL } from "bun";
 import { migrate } from "./migrations/index.ts";
+import { POSTGRES_MAX_MESSAGE_BYTES } from "./limits.ts";
 
 export const testDatabase = (port: number, database: string) =>
-  PgClient.layer({ host: "127.0.0.1", port, database, username: "postgres", password: Redacted.make("test") });
+  PgClient.layer({
+    host: "127.0.0.1",
+    port,
+    database,
+    username: "postgres",
+    password: Redacted.make("test"),
+    maxMessageSize: POSTGRES_MAX_MESSAGE_BYTES,
+  });
 
 export const testDatabasePool = (port: number, database: string) =>
   Layer.effect(
@@ -15,6 +23,7 @@ export const testDatabasePool = (port: number, database: string) =>
       database,
       username: "postgres",
       password: Redacted.make("test"),
+      maxMessageSize: POSTGRES_MAX_MESSAGE_BYTES,
     }),
   );
 
