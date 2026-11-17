@@ -5,6 +5,7 @@ import { readSkillTree } from "./skill-files.ts";
 import { recoverSkillSwap, swapSkillTree } from "./skill-transaction.ts";
 import type { SkillLedger, ManagedSkill } from "./skill-ledger.ts";
 import type { SkillTarget } from "./skill-targets.ts";
+import { isClaudeCacheMarker } from "./claude-cache.ts";
 
 export function reconcileSkill(
   target: SkillTarget,
@@ -34,8 +35,11 @@ export function reconcileSkill(
     const owned = previous?.owned && previous.skillId === target.skillId;
     status.owned = Boolean(owned);
     const managed = owned ? current.files.filter((f) => previous.files.some((p) => p.path === f.path)) : [];
-    // Claude creates this cache liveness marker even for read-only plugin/list commands.
-    const markers = strict && target.harness === "claude" ? current.files.filter((f) => f.path === ".in_use") : [];
+
+    // Active Claude sessions keep per-process files in the cache liveness directory.
+    const markers =
+      strict && target.harness === "claude" ? current.files.filter((f) => isClaudeCacheMarker(f.path)) : [];
+
     const extras = current.files.filter((f) => !managed.includes(f) && !markers.includes(f));
 
     const changed =

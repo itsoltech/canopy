@@ -70,6 +70,14 @@ describe("skill filesystem transactions and harness destinations", () => {
     expect(claudeSkillPlugins(root)).toEqual([]);
     writeSkillTree(join(plugin, "skills/code-review"), skillFiles());
     expect(claudeSkillPlugins(root)).toEqual([{ type: "local", path: plugin }]);
+    const marker = join(plugin, ".in_use/12345");
+    mkdirSync(dirname(marker));
+    writeFileSync(marker, JSON.stringify({ pid: 12345 }));
+    expect(claudeSkillPlugins(root)).toEqual([{ type: "local", path: plugin }]);
+    rmSync(marker);
+    symlinkSync(join(plugin, "skills/code-review/SKILL.md"), marker);
+    expect(() => claudeSkillPlugins(root)).toThrow("Symlinks");
+    rmSync(marker);
 
     for (const name of ["hooks", ".mcp.json", ".claude-plugin"]) {
       writeFileSync(join(plugin, name), "unapproved");

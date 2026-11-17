@@ -4,6 +4,7 @@ import { skillManifestDigest } from "@canopy/domain/skill-artifact";
 import { readInstructionFile } from "./files.ts";
 import { readSkillTree } from "./skill-files.ts";
 import { pluginIndexPath, observedPluginConfig } from "./plugin-config.ts";
+import { isClaudeCacheMarker } from "./claude-cache.ts";
 
 const Index = Schema.Struct({
   plugins: Schema.Record(Schema.String, Schema.Struct({ path: Schema.String, checksum: Schema.String })),
@@ -43,7 +44,7 @@ export function managedPlugins(home: string, harness: string): { type: "local"; 
   return Object.values(index.plugins).map((plugin) => {
     const tree = readSkillTree(plugin.path);
 
-    const files = harness === "claude" ? tree.files.filter((f) => f.path !== ".in_use") : tree.files;
+    const files = harness === "claude" ? tree.files.filter((f) => !isClaudeCacheMarker(f.path)) : tree.files;
 
     if (!tree.exists || skillManifestDigest(files) !== plugin.checksum)
       throw new Error(
