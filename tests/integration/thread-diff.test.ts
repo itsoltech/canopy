@@ -312,7 +312,7 @@ describe.skipIf(!dockerAvailable)("thread diff over worker, gateway and linked c
 
     expect(raw?.ok).toBe(true);
     expect(raw?.threadDiff?.complete).toBe(true);
-    expect(raw?.threadDiff?.files.map((file) => file.path)).toEqual(["inside.txt"]);
+    expect(raw?.threadDiff?.files?.map((file) => file.path)).toEqual(["inside.txt"]);
   });
 
   test("Git display settings cannot shift comment line numbers or break blank context", async () => {
@@ -371,8 +371,8 @@ describe.skipIf(!dockerAvailable)("thread diff over worker, gateway and linked c
     writeFileSync(configuration, "");
     git(selected.cwd, "config", "--file", configuration, "filter.global-marker.clean", "touch filter-global-ran; cat");
     git(selected.cwd, "config", "--file", configuration, "filter.global-marker.required", "true");
-    const previous = process.env.GIT_CONFIG_GLOBAL;
-    process.env.GIT_CONFIG_GLOBAL = configuration;
+    const previous = process.env["GIT_CONFIG_GLOBAL"];
+    process.env["GIT_CONFIG_GLOBAL"] = configuration;
 
     try {
       for (const path of ["local.txt", "global.txt", "process.txt"])
@@ -393,8 +393,8 @@ describe.skipIf(!dockerAvailable)("thread diff over worker, gateway and linked c
       for (const path of ["filter-local-ran", "filter-global-ran", "filter-process-ran"])
         expect(existsSync(join(selected.cwd, path))).toBe(false);
     } finally {
-      if (previous === undefined) delete process.env.GIT_CONFIG_GLOBAL;
-      else process.env.GIT_CONFIG_GLOBAL = previous;
+      if (previous === undefined) delete process.env["GIT_CONFIG_GLOBAL"];
+      else process.env["GIT_CONFIG_GLOBAL"] = previous;
       git(selected.cwd, "config", "--remove-section", "filter.local-marker");
       git(selected.cwd, "config", "--remove-section", "filter.process-marker");
     }
