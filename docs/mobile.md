@@ -2,6 +2,7 @@
 
 Status: opis zaimplementowanego kodu (2026-11-17); iOS utrzymuje najnowsze wiadomości
 nad kompozytorem po nadejściu kolejnych tur, a „Show latest” ma okrągły stan naciśnięcia.
+Korekta przewijania chroni przed rekurencyjnym `scrollTo` podczas zmian insetów klawiatury na iOS.
 Wydania beta pomijają buildy iOS i wysyłkę do TestFlight, zachowując zgodne OTA.
 Propozycje odpowiedzi pomijają wpisy kolejki zużyte przez odczyt agenta lub steer;
 starsze, porzucone notatki platformy nie blokują późniejszych propozycji ([ui-api.md](ui-api.md#proponowane-odpowiedzi)).
@@ -1309,6 +1310,10 @@ nadejściu nowych wiadomości, gdy czytelnik śledzi koniec. Na iOS celem jest u
 offset uwzględniający kompozytor, safe area i klawiaturę, a nie zero. Korekta nie
 przerywa gestów ani rozpędu czytelnika, animowanego powrotu na koniec, odtwarzania
 historii ani kotwiczenia rozwijanej sekcji.
+Na czas synchronicznego `scrollTo` blokuje ponowną korektę: UIKit może ograniczyć
+offset do bieżącego insetu i od razu wywołać kolejne `onScroll`. Zagnieżdżone zdarzenie
+zapisuje rzeczywistą pozycję, ale nie wysyła następnego polecenia ani nie wyłącza
+podążania za końcem. Blokada jest zwalniana również przy wyjątku.
 Lista podpowiedzi jest osobną
 nakładką poza mierzonym kompozytorem: otwieranie, filtrowanie, doczytywanie i zamykanie
 nie zmieniają rezerwy ani pozycji feedu. Nakładka mieści się między nagłówkiem a kompozytorem,

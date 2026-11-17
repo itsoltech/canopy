@@ -27,6 +27,7 @@ export function useFollowingList<Item>(keyboardChat = false, initialComposerHeig
   const scrollY = useSharedValue(0);
   const corrections = useSharedValue(0);
   const bottom = useSharedValue(true);
+  const correcting = useSharedValue(false);
   const anchoring = useSharedValue(false);
   const reader = useReaderMotion(anchoring);
   const keyboard = useKeyboardFrame();
@@ -62,16 +63,26 @@ export function useFollowingList<Item>(keyboardChat = false, initialComposerHeig
       const away = distance(y);
 
       if (away <= 0.5) reader.arrived();
+      scrollY.set(y);
+
+      // UIKit may clamp a correction and synchronously emit another scroll event while keyboard insets change.
+      // Record its actual position without issuing a nested command or dropping the intent to follow latest.
+      if (correcting.get()) return;
 
       // Native anchoring keeps the first visible row in place when rows arrive under it (a sent message, the answer it
       // starts): a reader following the end stays there instead, as on the web.
       if (!own && away > 0.5 && bottom.get() && !anchoring.get() && reader.idle()) {
-        scrollTo(list, 0, minimum.get(), false);
+        correcting.set(true);
+        corrections.set(corrections.get() + 1);
+
+        try {
+          scrollTo(list, 0, minimum.get(), false);
+        } finally {
+          correcting.set(false);
+        }
 
         return;
       }
-
-      scrollY.set(y);
 
       if (anchoring.get()) return;
       const at = away <= FOLLOW_THRESHOLD;
@@ -80,7 +91,7 @@ export function useFollowingList<Item>(keyboardChat = false, initialComposerHeig
       bottom.set(at);
       scheduleOnRN(setAtBottom, at);
     },
-    [scrollY, bottom, distance, anchoring, reader, list, minimum],
+    [scrollY, bottom, correcting, corrections, distance, anchoring, reader, list, minimum],
   );
 
   function jump(animated: boolean) {
