@@ -1,6 +1,7 @@
 # API dla UI i architektura frontendu
 
-Status (2026-11-17): API workspace udostępnia stabilne, stronicowane zmiany Git wątku;
+Status (2026-11-17): API workspace udostępnia lokalne `RevealThreadFile`
+oraz stabilne, stronicowane zmiany Git wątku;
 podsumowanie wątku web/desktop pokazuje lokalne zmiany Git
 i pozwala pobrać origin przez bezpieczny fast-forward;
 kompozytor przełącza gałęzie checkoutu i wybranego worktree.
@@ -2930,6 +2931,26 @@ ustawia `provideThreadDirectory`, więc działa tylko w wątku; poza nim ścież
 Zaznaczenie i kopiowanie zachowują widoczny tekst linków, wzmianek i chipów załączników.
 **Cite** zachowuje także ścieżki plików. Zwykłe kliknięcie lub Enter otwiera plik;
 przeciągnięcie zaznaczenia przez link nie otwiera podglądu.
+
+Menu kontekstowe lokalnej ścieżki (`MarkdownFileLink`) udostępnia `Open file`,
+`Reveal in Finder` / `Reveal in Explorer` / `Reveal in file manager` i `Copy path`.
+Otwiera się prawym przyciskiem, `Shift+F10`, klawiszem menu lub długim
+przytrzymaniem. Ta sama akcja reveal jest w menu `File actions` karty pliku.
+Interfejs wymaga bridge desktopu, własnego gatewaya, lokalnego wątku,
+flagi BFF `localDesktop` (dodatni lokalny cel; sama rola gatewaya nie wystarcza),
+połączonego workera `desktop_bundled` z `Worker.file_reveal` oraz RPC
+`RevealThreadFile` w negocjowanych metodach. Nazwa akcji pochodzi z OS workera.
+
+`POST /api/threads/:id/files/reveal` przyjmuje `path` i opcjonalne `itemId`,
+wywołując `RevealThreadFile(ThreadFileRequest)`. Pozycje linii są usuwane przed RPC.
+BFF wymaga chronionego origin desktopu i dodatniego lokalnego celu bez
+`desktopClient`; serwerowy web i desktop remote dostają 403. Gateway wymaga
+pozytywnego kontekstu uwierzytelnienia tokenem usługi, roli `desktop` i własnego
+wbudowanego workera w żywym Hello. Token telefonu, sparowanego desktopu ani
+wywołanie przez linked computers nie upoważniają do otwarcia okna na innym komputerze.
+Rozstrzyganie ścieżki i granice katalogu powtarza worker; niejednoznaczna nazwa
+nie wybiera pliku automatycznie. Niedostępna akcja jest ukryta; błąd wywołania
+pokazuje krótką informację z możliwością ponowienia po odświeżeniu wątku.
 
 Ustawienie urządzenia **Open files in** (Settings → Interface, `fileLinks`): **Canopy** otwiera
 kartę workspace'u (`features/workspace/WorkspaceFile.svelte`), **Default app**

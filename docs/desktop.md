@@ -1,6 +1,7 @@
 # Canopy Desktop
 
-Status: opis zaimplementowanego runtime (2026-11-17), w tym pomijania cache przy ręcznym
+Status: opis zaimplementowanego runtime (2026-11-17), w tym lokalnego wskazywania
+plików z rozmowy w Finder/Explorer i pomijania cache przy ręcznym
 sprawdzaniu aktualizacji, wykrywania pojedynczego procesu przez instalator Windows
 i wykluczenia własnego PID instalatora/deinstalatora z wyszukiwania i zamykania procesów,
 ręcznego odzyskiwania aktualizacji Windows
@@ -15,6 +16,13 @@ macOS arm64 i Windows x64**. Linux arm64 pozostaje eksperymentalny.
 Produkt: **Canopy** — jedna instalacja z lokalnym wyborem kanału aktualizacji.
 
 ## Decyzje
+
+Ścieżki plików w rozmowie i menu `File actions` udostępniają `Reveal in Finder`
+na macOS, `Reveal in Explorer` na Windows oraz `Reveal in file manager` na Linux.
+Akcja działa wyłącznie w lokalnym trybie desktopu dla jego wbudowanego workera;
+nie otwiera okna na komputerze zdalnego workera, sparowanego desktopu ani linked computer.
+Lokalność egzekwuje także gateway przy `RevealThreadFile`, niezależnie od widoczności
+menu. Szczegóły kontraktu i kontroli dostępu: [ui-api.md](ui-api.md#pliki-wątku).
 
 1. **Runtime:** Electron main (Node) uruchamia kontroler Bun przez prywatne stdin/stdout
    z typowanymi komunikatami JSON. Kontroler nadzoruje PostgreSQL → gateway → enrollment

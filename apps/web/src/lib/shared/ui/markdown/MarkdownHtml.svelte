@@ -8,6 +8,7 @@
   import MarkdownImage from "./MarkdownImage.svelte";
   import MarkdownInline from "./MarkdownInline.svelte";
   import MarkdownBlocks from "./MarkdownBlocks.svelte";
+  import MarkdownFileLink from "./MarkdownFileLink.svelte";
 
   let {
     nodes,
@@ -29,11 +30,17 @@
   {:else if node.tag === "hr"}<hr class="border-zinc-950/10 dark:border-white/10" />
   {:else if node.tag === "a"}
     {@const path = node.href ? fileLinkHrefOf(node.href) : undefined}
-    {#if node.href && (!path || files)}
+    {#if path && files}
+      <MarkdownFileLink
+        {path}
+        title={node.title}
+        class="font-medium text-sky-700 underline decoration-sky-700/30 underline-offset-2 focus-ring hover:decoration-sky-700 dark:text-sky-400 dark:decoration-sky-400/30 dark:hover:decoration-sky-400"
+        ><MarkdownHtml nodes={node.children} {inline} {streaming} {breaks} /></MarkdownFileLink
+      >
+    {:else if node.href && !path}
       <InlineLink
-        href={path ? undefined : node.href}
-        onactivate={files && path ? () => files.open(path) : undefined}
-        target={node.href.startsWith("#") || path ? undefined : "_blank"}
+        href={node.href}
+        target={node.href.startsWith("#") ? undefined : "_blank"}
         rel="noopener noreferrer nofollow"
         title={node.title}
         class="font-medium text-sky-700 underline decoration-sky-700/30 underline-offset-2 focus-ring hover:decoration-sky-700 dark:text-sky-400 dark:decoration-sky-400/30 dark:hover:decoration-sky-400"

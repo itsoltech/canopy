@@ -518,6 +518,8 @@ message Command {
     // Transient, thread_diff_v1; immutable disk-backed pages, never queued or replayed.
     ListThreadDiff list_thread_diff = 234;
     ReadThreadDiff read_thread_diff = 235;
+    // Transient, thread_file_reveal_v1; select an authorized file in the native file manager.
+    FileRequest reveal_file = 236;
     // CLI dostawców (sekcja na końcu pliku). Nietrwała: nigdy z outboxa.
     InstallCli install_cli = 800;
     // Local automation tools. These commands are transient and never enter the outbox.

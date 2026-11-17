@@ -6,6 +6,7 @@ import { Effect } from "effect";
 import {
   CLONE_PROGRESS_CAPABILITY,
   CLAUDE_LIVE_PERMISSIONS_CAPABILITY,
+  THREAD_FILE_REVEAL_CAPABILITY,
   WORKSPACE_COPY_CAPABILITY,
   workerLinkCompatible,
 } from "@canopy/domain/release/protocol";
@@ -46,6 +47,7 @@ interface WorkerListRow {
     branchStash?: boolean;
     workspaceBranchSwitch?: boolean;
     desktopBundled?: boolean;
+    fileReveal?: boolean;
     claudeLivePermissions?: boolean;
   };
   last_seen_at: Date | null;
@@ -86,6 +88,7 @@ function listedWorker(r: WorkerListRow, online: ReadonlySet<string>) {
     branchStash: r.capabilities?.branchStash === true,
     workspaceBranchSwitch: r.capabilities?.workspaceBranchSwitch === true,
     desktopBundled: r.capabilities?.desktopBundled === true,
+    fileReveal: r.capabilities?.fileReveal === true,
     claudeLivePermissions: r.capabilities?.claudeLivePermissions === true,
     configVersion: r.config_version ? BigInt(r.config_version) : 0n,
     appliedVersion: r.applied_version ? BigInt(r.applied_version) : 0n,
@@ -149,6 +152,7 @@ export function workerStore(sql: SqlClient.SqlClient): WorkerStore {
           workerDiagnosticsV1: hello.capabilities.includes("worker_diagnostics_v1"),
           // The desktop app's own local-mode worker: it updates with the app (docs/updates.md).
           desktopBundled: hello.capabilities.includes("desktop_bundled"),
+          fileReveal: hello.capabilities.includes(THREAD_FILE_REVEAL_CAPABILITY),
           fullAccess: hello.capabilities.includes("full_access"),
           claudeLivePermissions: hello.capabilities.includes(CLAUDE_LIVE_PERMISSIONS_CAPABILITY),
         });
@@ -197,6 +201,7 @@ export function workerStore(sql: SqlClient.SqlClient): WorkerStore {
                          'gitStatus',w.capabilities->'gitStatus',
                          'branchStash',w.capabilities->'branchStash','workspaceBranchSwitch',w.capabilities->'workspaceBranchSwitch',
                          'desktopBundled',w.capabilities->'desktopBundled',
+                         'fileReveal',w.capabilities->'fileReveal',
                          'claudeLivePermissions',w.capabilities->'claudeLivePermissions') AS capabilities, w.last_seen_at, w.revoked_at,
                        coalesce(c.profile_names,'{}'::jsonb) AS profile_names,
                        c.version AS config_version, c.applied_version, c.apply_report

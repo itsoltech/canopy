@@ -1,6 +1,8 @@
 import { spawn, type ChildProcess } from "node:child_process";
 import { governNodeSpawn } from "@canopy/process-governor";
 import { CommandError } from "./host-types.ts";
+import { dirname } from "node:path";
+import { pathToFileURL } from "node:url";
 
 /** The system opener: a folder opens in the file manager, a file in its default app. */
 function openerArgs(path: string): [string, ...string[]] {
@@ -37,8 +39,12 @@ const failed = (what: "folder" | "file") =>
  * hidden, so nothing would appear. Explorer exits with 1 even after opening a path, so on Windows a started
  * process counts as success; elsewhere the opener's exit code tells, and one still running after 5 s is left be.
  */
-function openWithSystem(path: string, what: "folder" | "file"): Promise<void> {
-  const [command, ...args] = openerArgs(path);
+function openWithSystem(
+  path: string,
+  what: "folder" | "file",
+  argv: [string, ...string[]] = openerArgs(path),
+): Promise<void> {
+  const [command, ...args] = argv;
 
   return new Promise((resolve, reject) => {
     let opener: ChildProcess;
@@ -74,3 +80,28 @@ export const revealInFileManager = (path: string): Promise<void> => openWithSyst
 
 /** Opens a file in its default app on this worker's computer (the caller checked the path). */
 export const openInDefaultApp = (path: string): Promise<void> => openWithSystem(path, "file");
+
+/** Selects the checked regular file; Linux falls back to its folder when ShowItems is unavailable. */
+export async function revealFileInFileManager(path: string): Promise<void> {
+  if (process.platform === "darwin") return openWithSystem(path, "folder", ["open", "-R", path]);
+
+  if (process.platform === "win32") return openWithSystem(path, "folder", ["explorer.exe", "/select,", path]);
+
+  try {
+    await openWithSystem(path, "folder", [
+      "gdbus",
+      "call",
+      "--session",
+      "--dest",
+      "org.freedesktop.FileManager1",
+      "--object-path",
+      "/org/freedesktop/FileManager1",
+      "--method",
+      "org.freedesktop.FileManager1.ShowItems",
+      JSON.stringify([pathToFileURL(path).href]),
+      "",
+    ]);
+  } catch {
+    await revealInFileManager(dirname(path));
+  }
+}

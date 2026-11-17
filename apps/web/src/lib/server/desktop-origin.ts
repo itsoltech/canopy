@@ -1,3 +1,5 @@
+import { bffTarget } from "@canopy/domain/bff-target";
+
 /**
  * The desktop's single web origin (CANOPY_WEB_ORIGIN), undefined for a server web. A web served inside the gateway
  * process (CANOPY_WEB_IN_PROCESS) shares the gateway's environment, where CANOPY_WEB_ORIGIN is the gateway's
@@ -5,6 +7,13 @@
  */
 export function desktopWebOrigin(): string | undefined {
   return process.env["CANOPY_WEB_IN_PROCESS"] === "1" ? undefined : process.env["CANOPY_WEB_ORIGIN"] || undefined;
+}
+
+/** Positive process-local proof: this authenticated desktop BFF talks to its own gateway. */
+export function isLocalDesktop(): boolean {
+  const target = bffTarget()?.target;
+
+  return Boolean(desktopWebOrigin() && target && !target.desktopClient);
 }
 
 /** The OAuth return is the only external navigation allowed into the desktop BFF. */
