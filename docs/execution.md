@@ -1,6 +1,7 @@
 # Wykonanie wątku: tury, praca w tle, subagenci, interakcje
 
-Status: **częściowo zaimplementowane** (2026-11-16). Na `dev` automatyczne
+Status: **częściowo zaimplementowane** (2026-11-17). Na `dev` notatki zadań w tle
+pokazują status i jednoliniową, ucinaną nazwę otwierającą pełny output. Automatyczne
 łańcuchy mają wspólny limit 256 kroków; notatki zadań w tle zachowują pełny
 licznik przy kontynuacji. Dostępność kanałów według [release.md](release.md). Tury, interakcje, steer, widoczna granica `context_compaction` i **praca w tle** (sekcja 4: procesy Codexa, background Bash Claude, zatrzymanie z UI, notatki dla agenta o każdym końcu zadania, narzędzia agenta) działają. Archiwizacja zamyka zasoby wątku, a przywrócenie nie wznawia zatrzymanej pracy. Subagenci pierwszoplanowi, `BackgroundItem` (Ctrl+B) i limity zasobów (sekcja 7) jeszcze nie.
 
@@ -150,7 +151,7 @@ Zaimplementowane (2026-11-02). Codex nigdy nie budzi się sam, a Claude tylko po
   może dosłać próbę takiej tury: gateway izoluje ją bez rozłączania połączenia.
   Dla usuniętego wątku gateway zapisuje tylko kursor i potwierdza odrzucenie
   zdarzeń, bez zachowania treści ani przywracania wątku.
-- **UI:** tura `background_task` i steer notatki to zwarty wiersz systemowy na osi czasu (`BackgroundNoteRow`: „Background task stopped: worker restarted for a deploy · <nazwa>”, link do outputu zadania), nie wiadomość; `ui.Turn.background_item_ids`, `ui.Steer.background_item_ids`. Panel zadań pokazuje powód słowami i czas końca.
+- **UI:** tura `background_task` i steer notatki to zwarty wpis systemowy na osi czasu (`BackgroundNoteRow`), nie wiadomość; `ui.Turn.background_item_ids`, `ui.Steer.background_item_ids`. Pierwsza linia podaje status (np. „Background task stopped: worker restarted for a deploy”), druga nazwę zadania. Długa nazwa lub komenda jest ucinana wielokropkiem w jednej linii; komenda bez opisu ma font monospace. Cały wpis otwiera pełny output i komendę w karcie zadania, bez wieloliniowego, podkreślonego linku w historii. Bez dostępnej akcji otwarcia pozostaje zwykłym tekstem. Panel zadań pokazuje powód słowami i czas końca.
 - Testy: `tests/integration/background-task-notes.test.ts` (skryptowany worker), `background-task-notes.live.test.ts` (Codex i Claude przez CLIProxyAPI: restart workera w trakcie zadania, notatka po restarcie, agent odpowiada, co się stało).
 
 ## 5. Subagenci
