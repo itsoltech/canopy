@@ -1,7 +1,8 @@
 # Canopy Desktop
 
 Status: opis zaimplementowanego runtime (2026-11-17), w tym pomijania cache przy ręcznym
-sprawdzaniu aktualizacji i wykrywania pojedynczego procesu przez instalator Windows,
+sprawdzaniu aktualizacji, wykrywania pojedynczego procesu przez instalator Windows
+i wykluczenia własnego PID instalatora/deinstalatora z wyszukiwania i zamykania procesów,
 ręcznego odzyskiwania aktualizacji Windows
 i odmowy startu lokalnej bazy z uprawnieniami administratora, sesji dostępu do lokalnego BFF,
 podglądu bieżącej zajętości plików Canopy w Diagnostics oraz własnego HTML w rozmowie
@@ -1131,10 +1132,14 @@ Przypięte `app-builder-lib` 26.18.0 ma patch w `patches/`, zarejestrowany
 w `package.json` i `bun.lock`: `FIND_PROCESS` opakowuje wynik `Get-CimInstance`
 w `@(...)`. Windows PowerShell 5.1 bez tego zwraca pusty `.Count` dla pojedynczego
 `CimInstance`, przez co instalator przeocza ostatni proces, a deinstalator może
-zakończyć wymianę zablokowanych plików kodem 2. Patch obejmuje nowe instalatory
+zakończyć wymianę zablokowanych plików kodem 2. Wyszukiwanie i zamykanie pomijają
+własny PID NSIS, aby deinstalator uruchomiony z katalogu instalacji nie wykrywał
+i nie kończył sam siebie. Patch obejmuje nowe instalatory
 i deinstalatory; stary zainstalowany deinstalator nie jest przepisywany.
 Windows smoke ponownie instaluje paczkę z jednym pozostawionym procesem Bun
 z jej katalogu i sprawdza jego zakończenie oraz uruchomienie sidecarów z `--version`.
+Preflight porównuje politykę PowerShell z nazwą `Restricted`; sprzątanie uruchamia
+deinstalator w miejscu i zachowuje pierwotny błąd testu, jeśli deinstalacja też zawiedzie.
 Przyczynę błędu konkretnej instalacji nadal trzeba potwierdzić stanem procesów
 lub logiem instalatora; sam kod 2 nie identyfikuje blokującego procesu.
 Zgłoszenie upstream: [electron-builder #10454](https://github.com/electron-userland/electron-builder/issues/10454).
