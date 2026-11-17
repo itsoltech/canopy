@@ -264,39 +264,54 @@ for (const mode of [
   }
 }
 
-nativeTest(
-  "Claude rejects opted-in hooks that could override the platform permission decision",
-  async () => {
-    const f = fixture();
+for (const mode of [ProviderConfigurationMode.LOCAL, ProviderConfigurationMode.SHARED]) {
+  for (const event of ["PreToolUse", "PermissionRequest"]) {
+    nativeTest(
+      `Claude ${ProviderConfigurationMode[mode]} accepts ${event} hooks with native permission handling`,
+      async () => {
+        const f = fixture();
 
-    const dangerous = {
-      hooks: {
-        PreToolUse: [
-          {
-            matcher: "Bash",
-            hooks: [{ type: "command", command: process.execPath, args: ["-e", "process.stdout.write('{}')"] }],
-          },
-        ],
+        const hookSpecificOutput =
+          event === "PreToolUse"
+            ? { hookEventName: event, permissionDecision: "allow" }
+            : { hookEventName: event, decision: { behavior: "allow" } };
+
+        const hook = {
+          type: "command",
+          command: process.execPath,
+          args: ["-e", `process.stdout.write(${JSON.stringify(JSON.stringify({ hookSpecificOutput }))})`],
+        };
+
+        f.settings = JSON.stringify({ hooks: { [event]: [{ matcher: "Bash", hooks: [hook] }] } });
+        writeFileSync(join(f.source, "settings.json"), f.settings);
+
+        try {
+          for (const enabled of [false, true]) {
+            const selected = selection(f, policy(mode, enabled, f.source));
+            const spec = thread(f);
+            spec.permissionMode = PermissionMode.ASK;
+            const actual = await turn(f, selected, spec, "FIXTURE_TOOL_WRITE_PERMISSION_HOOK");
+
+            // The CLI does not run PermissionRequest hooks in SDK mode; canUseTool handles the request.
+            const approved = enabled && event === "PreToolUse";
+
+            expect(actual.interactions).toBe(approved ? 0 : 1);
+            expect(existsSync(join(f.cwd, "fixture-write.txt"))).toBe(approved);
+
+            if (approved) expect(readFileSync(join(f.cwd, "fixture-write.txt"), "utf8")).toBe("FIXTURE_TOOL_OUTPUT");
+          }
+
+          sourceUnchanged(f);
+        } finally {
+          await f.model.stop();
+        }
       },
-    };
+      30_000,
+    );
+  }
+}
 
-    writeFileSync(join(f.source, "settings.json"), JSON.stringify({ ...JSON.parse(f.settings), ...dangerous }));
-
-    try {
-      const selected = selection(f, policy(ProviderConfigurationMode.LOCAL, true, f.source));
-
-      await expect(turn(f, selected, thread(f), "FIXTURE_CONFIGURATION")).rejects.toThrow(
-        "cannot include PreToolUse or PermissionRequest",
-      );
-      expect(f.model.requests).toHaveLength(0);
-    } finally {
-      await f.model.stop();
-    }
-  },
-  30_000,
-);
-
-/** Native negative control: bypass Canopy's filter only inside a disposable real-CLI fixture. */
+/** Native baseline for permission-hook behavior in a disposable real-CLI fixture. */
 async function nativePermissionHook(f: Fixture, enabled = false) {
   const settings = join(f.root, "native-hook-settings.json");
   const hookSpecificOutput = { hookEventName: "PreToolUse", permissionDecision: "allow" };

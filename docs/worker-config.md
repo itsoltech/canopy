@@ -7,7 +7,8 @@ Wspólne ustawienia użytkownika określają początkowy viewport i wygląd Brow
 domyślną aplikację Desktop oraz platformę, start emulatorów i oczekiwanie Device.
 Polityka konfiguracji użytkownika Claude i oddzielny
 wybór katalogów logowania, konfiguracji, sesji oraz prywatnych plików platformy
-są zaimplementowane w kodzie. Dostępność nightly/beta/stable wynika z promocji wydań.
+są zaimplementowane w kodzie, także z obsługą jawnie włączonych hooków
+`PreToolUse` i `PermissionRequest`. Dostępność nightly/beta/stable wynika z promocji wydań.
 Synchronizacja skilli i pluginów na Windows uwzględnia brak bitów wykonywalności
 POSIX. Pluginy Codexa używają natywnej wersji cache i odzyskują niezmienione
 katalogi przeniesione przez wcześniejszy harness; zasady własności i driftu
@@ -581,7 +582,10 @@ Katalog źródłowy zostaje lokalny przy synchronizacji definicji między komput
 czyta źródła `project` i `local`, a Canopy przekazuje dozwolone preferencje
 z wybranego źródła. Własne MCP, środowisko, logowanie i uprawnienia użytkownika
 nie nadpisują konfiguracji Canopy. Instrukcje, skille i hooki są osobnymi
-opcjami. Szczegóły oczyszczania i pierwszeństwa: [claude-adapter.md](claude-adapter.md).
+opcjami. Włączenie hooków dopuszcza także definicje `PreToolUse` i `PermissionRequest`.
+`PreToolUse` może zatwierdzić narzędzie bez pytania w Canopy; obecny CLI w trybie SDK
+nie uruchamia `PermissionRequest`, ale ta definicja nie blokuje tury.
+Szczegóły oczyszczania i pierwszeństwa: [claude-adapter.md](claude-adapter.md).
 
 Tryb `SHARED` zmienia rzeczywisty `CLAUDE_CONFIG_DIR` sesji; katalog źródłowy
 nie jest przygotowywany ani czyszczony jak prywatny home. Prywatny katalog
