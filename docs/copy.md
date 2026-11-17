@@ -74,6 +74,7 @@ appear only as the literal name used by an external tool).
 | agent | Claude, Codex or Grok working in a thread | assistant, AI, model (a model is something else) |
 | subagent | an agent started by another agent in a side thread | sub-agent, child agent |
 | model | the model an agent uses | engine, LLM |
+| speed | the provider's execution speed, such as Standard, Fast or Ultrafast | service tier (outside technical details) |
 | context | the model's context window; variant labels use `1M context` | context length |
 | legacy model | an older model version kept in the collapsible `Legacy models` group | deprecated model (unless the provider declares it deprecated) |
 | agent CLI | the provider's tool installed on a worker | provider CLI, binary, tool |

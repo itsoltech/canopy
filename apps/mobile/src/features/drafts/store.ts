@@ -19,7 +19,7 @@ export { MobileDrafts } from "./manager";
 export class MobileComposerState {
   value: { current: MessageValue };
   files: { current: DraftFile[] };
-  choices: Pick<ui.ComposerDraftContent, "model" | "effort" | "permissionMode" | "provider" | "providerProfileId">;
+  choices: ComposerChoices;
   #entry: ui.LocalComposerDraft;
   #listeners = new Set<() => void>();
   version = 0;
@@ -69,6 +69,7 @@ export class MobileComposerState {
     this.choices = {
       model: content?.model,
       effort: content?.effort,
+      serviceTier: content?.serviceTier,
       permissionMode: content?.permissionMode,
       provider: content?.provider ?? 0,
       providerProfileId: content?.providerProfileId ?? "",
@@ -340,6 +341,7 @@ export class MobileComposerState {
     this.choices = {
       model: content?.model,
       effort: content?.effort,
+      serviceTier: content?.serviceTier,
       permissionMode: content?.permissionMode,
       provider: content?.provider ?? 0,
       providerProfileId: content?.providerProfileId ?? "",

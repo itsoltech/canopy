@@ -12,6 +12,7 @@ import { BotHarnessFailure } from "./types.ts";
 import { codexErrorCode } from "../providers/codex/status-mapping.ts";
 import { decodeJson } from "../providers/json.ts";
 import { isolatedHomeEnvironment } from "../providers/home.ts";
+import { verifyCodexBotTier } from "./codex-service-tier.ts";
 import { rejectBotToolApproval } from "./failures.ts";
 
 async function botCodexLaunch(ctx: BotHarnessContext): Promise<CodexAppServerLaunch> {
@@ -59,6 +60,7 @@ function codexFailure(error: import("@canopy/codex-protocol").v2.TurnError | nul
 function botThreadParams(ctx: BotHarnessContext) {
   return {
     model: ctx.input.model,
+    serviceTier: ctx.input.serviceTier || "default",
     ...codexThreadProvider(ctx.profile),
     cwd: ctx.session.cwd,
     approvalPolicy: "never" as const,
@@ -95,6 +97,7 @@ function codexBotProgram(ctx: BotHarnessContext, launch: CodexAppServerLaunch) {
 
   const program = Effect.gen(function* () {
     const server = yield* CodexAppServer;
+    yield* verifyCodexBotTier(server, input.model, input.serviceTier);
     const done = yield* Deferred.make<void, Error>();
     yield* Effect.forkScoped(
       server.exited.pipe(Effect.flatMap(() => Deferred.fail(done, new BotHarnessFailure("process_exit")))),
@@ -198,6 +201,7 @@ function codexBotProgram(ctx: BotHarnessContext, launch: CodexAppServerLaunch) {
 
     const turn = yield* server.request("turn/start", {
       threadId: id,
+      serviceTier: input.serviceTier || "default",
       input: yield* Effect.promise(() => imageInput(ctx, Boolean(resumed))),
       ...(input.effort && { effort: input.effort }),
       approvalPolicy: "never",

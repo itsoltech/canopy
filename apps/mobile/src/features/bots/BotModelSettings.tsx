@@ -6,6 +6,7 @@ import { useOverview } from "../../state/overview";
 import { PickerSheet, SelectField } from "../../ui/Picker";
 import { useModelCatalog, modelSections } from "../models/catalog";
 import { ModelPickerSheet, EffortPickerSheet } from "../models/ModelPicker";
+import { SpeedIcon, SpeedPickerSheet, effectiveSpeed, speedLabel } from "../models/SpeedPicker";
 import { useWorkerOptions } from "../computers/worker-options";
 import { Notice } from "../../ui/components";
 
@@ -64,6 +65,15 @@ export function BotModelSettings({
         disabled={disabled || !choice?.efforts.length}
         onPress={() => setPicker("effort")}
       />
+      {choice?.serviceTiers.length || config.serviceTier ? (
+        <SelectField
+          label="Speed"
+          value={speedLabel(choice, config.serviceTier)}
+          leading={<SpeedIcon value={effectiveSpeed(choice, config.serviceTier)} />}
+          disabled={disabled}
+          onPress={() => setPicker("speed")}
+        />
+      ) : null}
       <PickerSheet
         title="Runs on"
         visible={picker === "worker"}
@@ -74,7 +84,7 @@ export function BotModelSettings({
             options: [{ value: "", label: "Automatic", badge: undefined }, ...workerOptions(homeWorkers)],
           },
         ]}
-        onSelect={(workerId) => onChange({ ...config, workerId })}
+        onSelect={(workerId) => onChange({ ...config, workerId, serviceTier: "" })}
       />
       <ModelPickerSheet
         visible={picker === "model"}
@@ -88,8 +98,21 @@ export function BotModelSettings({
             providerInstance: m.profileId || "native",
             model: m.model,
             effort: m.defaultEffort,
+            serviceTier:
+              m.provider === config.provider &&
+              (m.profileId || "native") === config.providerInstance &&
+              (config.serviceTier === "default" || m.serviceTiers.includes(config.serviceTier))
+                ? config.serviceTier
+                : "",
           })
         }
+      />
+      <SpeedPickerSheet
+        visible={picker === "speed"}
+        onClose={() => setPicker("")}
+        choice={choice}
+        value={config.serviceTier}
+        onSelect={(serviceTier) => onChange({ ...config, serviceTier })}
       />
       <EffortPickerSheet
         visible={picker === "effort"}

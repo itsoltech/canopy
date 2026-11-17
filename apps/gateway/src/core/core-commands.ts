@@ -11,6 +11,7 @@ import type { PendingCommand } from "../store/outbox.ts";
 import { coreState, HARNESS_ERROR_CODES, SETTLE_TURN_ENDED } from "./core-context.ts";
 import { coreEndLostTurns, coreSettle } from "./core-work-loop.ts";
 import { fullAccessRefusal } from "./full-access.ts";
+import { serviceTierRefusal } from "./service-tier-compatibility.ts";
 import type { GatewayCore } from "./core.ts";
 import { coreSteerAnswered } from "./core-messages.ts";
 import { coreBroadcastThread, coreBroadcastTurn, coreLog, coreRun } from "./core-broadcast.ts";
@@ -157,14 +158,7 @@ async function deliverCommand(
     return;
   }
 
-  let result: CommandResult | undefined = fullAccessRefusal(connection.hello.capabilities, command);
-
-  if (command.kind.case === "rewindThread" && !connection.hello.capabilities.includes(THREAD_REWIND_CAPABILITY))
-    result = create(CommandResultSchema, {
-      commandId: command.commandId,
-      errorCode: "REWIND_UNSUPPORTED",
-      errorMessage: "Update this thread's worker to use Edit from here.",
-    });
+  let result = capabilityRefusal(connection.hello.capabilities, command);
 
   try {
     await prepareThreadTools(hostContext, workerId, command);
@@ -269,6 +263,17 @@ async function deliverCommand(
   await commandFailed(hostContext, workerId, command, result);
 
   return undefined;
+}
+
+function capabilityRefusal(capabilities: readonly string[], command: Command): CommandResult | undefined {
+  if (command.kind.case === "rewindThread" && !capabilities.includes(THREAD_REWIND_CAPABILITY))
+    return create(CommandResultSchema, {
+      commandId: command.commandId,
+      errorCode: "REWIND_UNSUPPORTED",
+      errorMessage: "Update this thread's worker to use Edit from here.",
+    });
+
+  return fullAccessRefusal(capabilities, command) ?? serviceTierRefusal(capabilities, command);
 }
 
 function lifecycleCommand(command: Command): boolean {

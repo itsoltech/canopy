@@ -12,7 +12,7 @@ import { CodexThreadError, fail, type CodexThreadContext } from "./thread-types.
 
 export function threadCatalog(ctx: CodexThreadContext) {
   const { options, codex } = ctx;
-  // The bundled catalog (the same for every model provider), listed once per process.
+  // One instance process has its own account-aware catalog.
   let catalog: v2.Model[] | undefined;
 
   const loadCatalog = Effect.gen(function* () {
@@ -51,7 +51,7 @@ export function threadCatalog(ctx: CodexThreadContext) {
       const configured = options.configuredEffort?.();
 
       const models = (yield* loadCatalog.pipe(Effect.mapError(fail("", "model/list")))).map((m) =>
-        codexModel(m, configured),
+        codexModel(profile.kind === "cliproxyapi" ? { ...m, serviceTiers: [] } : m, configured),
       );
 
       if (profile.kind !== "cliproxyapi") return { models };
@@ -127,7 +127,21 @@ export function threadTurnSettings(
           )) ||
         "";
 
+      const serviceTier = settings?.serviceTier || spec.serviceTier || "default";
+
+      if (
+        serviceTier !== "default" &&
+        (options.profile(spec.providerProfileId)?.kind === "cliproxyapi" ||
+          !listed?.serviceTiers?.some((tier) => tier.id === serviceTier))
+      )
+        return yield* new CodexThreadError({
+          threadId: spec.threadId,
+          operation: "turn/start",
+          message: "The selected speed is unavailable for this model and account. Refresh the model list.",
+        });
+
       return {
+        serviceTier,
         ...(model && { model }),
         ...(effort && { effort }),
         ...codexTurnPermissions(settings?.permissionMode || spec.permissionMode),

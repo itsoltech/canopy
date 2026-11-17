@@ -70,6 +70,7 @@ export function botWizardInstances(
           ...modelOption(provider, instance.id, name, id, undefined),
           efforts: [],
           defaultEffort: undefined,
+          serviceTiers: [],
         });
     }
 

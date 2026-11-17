@@ -109,6 +109,7 @@ export async function coreScheduleConfiguration(
         { workspaceId: workspace.id, provider: spec.provider, profileId: spec.providerProfileId },
         spec.model,
         spec.effort,
+        spec.serviceTier,
       );
     newThread = create(ui.NewThreadScheduleSchema, {
       ...spec,

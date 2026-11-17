@@ -1,3 +1,4 @@
+import { inheritThreadServiceTier } from "./thread-service-tier.ts";
 import { create, type MessageInitShape } from "@bufbuild/protobuf";
 import { coreShellInput } from "./core-shell.ts";
 import { ForkSpecSchema, Provider, ui } from "@canopy/contracts";
@@ -91,6 +92,7 @@ export async function coreForkRequest(
     providerProfileId: source.providerProfileId,
     model: source.model,
     effort: source.effort,
+    serviceTier: source.serviceTier,
     // Full access is chosen again in the fork, never inherited (docs/threads.md).
     permissionMode: inheritedPermissionMode(source.permissionMode),
     instructions: from.settings.instructions ?? "",
@@ -304,8 +306,7 @@ export const coreThreadsMethods: CoreThreadsMethods = {
     const previous = await completedCreation(this, input);
 
     if (previous) return previous;
-    const source = input.forkAtTurnId && !input.parentThreadId ? await coreForkRequest(this, input) : input;
-    const asked = automated ? { ...source, permissionMode: input.permissionMode } : source;
+    const asked = await creationRequest(this, input, automated !== undefined);
     await coreCheckProvider(this, asked, automated !== undefined);
 
     const where = {
@@ -314,7 +315,7 @@ export const coreThreadsMethods: CoreThreadsMethods = {
       profileId: asked.providerProfileId,
     };
 
-    await coreCheckModel(this, where, asked.model, asked.effort);
+    await coreCheckModel(this, where, asked.model, asked.effort, asked.serviceTier);
     // A model without efforts keeps none as the thread's default.
     const effort = turnEffort((await coreProfileModels(this, where)).models, asked.model, asked.effort);
     // A new worktree is made before the thread, which then works in it (docs/worktrees.md).
@@ -434,3 +435,9 @@ export const coreThreadsMethods: CoreThreadsMethods = {
     return coreUiThread(this, row);
   },
 };
+
+async function creationRequest(core: GatewayCore, input: ui.CreateThreadRequest, automated: boolean) {
+  const source = input.forkAtTurnId && !input.parentThreadId ? await coreForkRequest(core, input) : input;
+
+  return inheritThreadServiceTier(core, automated ? { ...source, permissionMode: input.permissionMode } : source);
+}

@@ -594,6 +594,8 @@ message ThreadSpec {
   bool native_scheduling = 12;
   // Poziom wątku: 0 = główny (orkiestrator), 1 = boczny. Wyznacza zestaw narzędzi szyny (agentBusToolsFor).
   uint32 depth = 13;
+  // Puste = domyślne profilu; default = jawne standardowe wykonanie.
+  string service_tier = 43;
 }
 
 message ConnectorTool {
@@ -637,6 +639,8 @@ message StartTurn {
   // Tryb uprawnień tej tury: nadpisanie z wiadomości albo domyślny wątku (gateway rozstrzyga; zawsze ustawiony).
   // UNSPECIFIED = thread.permission_mode (starszy gateway). Zgody czekające w turze w toku się nie zmieniają.
   PermissionMode permission_mode = 42;
+  // Puste = domyślne profilu; default = jawne standardowe wykonanie.
+  string service_tier = 43;
 }
 
 message UserInput {
@@ -725,6 +729,8 @@ message SteerTurn {
   string turn_id = 2;
   string input_id = 3;   // idempotencja
   UserInput input = 4;
+  // Puste = domyślne profilu; default = jawne standardowe wykonanie.
+  string service_tier = 43;
 }
 
 // Zatrzymuje jedno zadanie w tle albo subagenta w tle (Claude stopTask, Codex thread/backgroundTerminals/terminate).
@@ -1041,6 +1047,8 @@ message RunBotTurn {
   // Gateway-resolved bot setting; absent for legacy commands and tool-free handoffs.
   bool web_access = 14;
   bool files = 15;
+  // Puste = domyślne profilu; default = jawne standardowe wykonanie.
+  string service_tier = 16;
 }
 
 message BotFileOperation {
@@ -1670,6 +1678,13 @@ message AgentToolResult {
 
 // ---------- Modele (docs/protocol.md#modele-effort-i-steer) ----------
 
+// Tryb wykonania oferowany przez model na konkretnym koncie.
+message ServiceTier {
+  string id = 1;
+  string name = 2;
+  string description = 3;
+}
+
 // Model, który profil oferuje dla dostawcy.
 message ModelInfo {
   // Wartość dla StartTurn.model / ThreadSpec.model.
@@ -1692,6 +1707,8 @@ message ModelInfo {
   bool legacy = 9;
   // Inne zapisane id tego samego modelu i wariantu, scalone w jeden wiersz katalogu.
   repeated string aliases = 10;
+  // Dostępne tryby wykonania dla modelu i konta; puste = brak wyboru.
+  repeated ServiceTier service_tiers = 11;
 }
 
 // Modele jednej pary dostawca + profil na workerze.

@@ -35,6 +35,7 @@ export interface TurnStore {
     clientRequestId: string;
     model?: string;
     effort?: string;
+    serviceTier?: string;
     permissionMode?: string;
     input?: TurnRow["input"];
     linked?: { callId: string; hops: number };
@@ -44,7 +45,13 @@ export interface TurnStore {
   /** Records the turn's settings and the thread default at dispatch, before any later owner change. */
   setTurnSettings(
     turnId: string,
-    settings: { model: string; effort: string; permissionMode: string; threadPermissionMode: string },
+    settings: {
+      model: string;
+      effort: string;
+      serviceTier?: string;
+      permissionMode: string;
+      threadPermissionMode: string;
+    },
   ): Fx<void>;
   /** Oldest queued user turn of an idle, ready thread with no StartTurn in the outbox yet. */
   nextTurn(threadId: string): Fx<TurnRow | undefined>;
@@ -83,6 +90,7 @@ export function turnStore(sql: SqlClient.SqlClient): TurnStore {
       clientRequestId,
       model = "",
       effort = "",
+      serviceTier = "",
       permissionMode = "",
       input,
       linked,
@@ -103,9 +111,9 @@ export function turnStore(sql: SqlClient.SqlClient): TurnStore {
           const id = Bun.randomUUIDv7();
 
           const rows = yield* sql<TurnRow>`
-                  INSERT INTO turns (id, thread_id, ordinal, trigger, author_user_id, client_request_id, input, model, effort, permission_mode, linked_call_id, hops)
+                  INSERT INTO turns (id, thread_id, ordinal, trigger, author_user_id, client_request_id, input, model, effort, service_tier, permission_mode, linked_call_id, hops)
                   SELECT ${id}::uuid, ${threadId}::uuid, coalesce(max(ordinal), 0) + 1, ${linked ? "linked_agent" : "user"}, ${linked ? null : userId}::uuid,
-                         ${clientRequestId || null}, ${JSON.stringify(input ?? { text })}::jsonb, ${model}, ${effort}, ${permissionMode}, ${linked?.callId ?? null}::uuid, ${linked?.hops ?? 0}
+                         ${clientRequestId || null}, ${JSON.stringify(input ?? { text })}::jsonb, ${model}, ${effort}, ${serviceTier}, ${permissionMode}, ${linked?.callId ?? null}::uuid, ${linked?.hops ?? 0}
                     FROM turns WHERE thread_id = ${threadId}::uuid
                   ON CONFLICT (thread_id, client_request_id) WHERE client_request_id IS NOT NULL DO NOTHING
                   RETURNING *`;
@@ -142,8 +150,8 @@ export function turnStore(sql: SqlClient.SqlClient): TurnStore {
             .pipe(Effect.map((rows) => rows[0]))
         : Effect.succeed(undefined),
 
-    setTurnSettings: (turnId, { model, effort, permissionMode, threadPermissionMode }) =>
-      sql`UPDATE turns SET model = ${model}, effort = ${effort}, permission_mode = ${permissionMode},
+    setTurnSettings: (turnId, { model, effort, serviceTier = "", permissionMode, threadPermissionMode }) =>
+      sql`UPDATE turns SET model = ${model}, effort = ${effort}, service_tier = ${serviceTier}, permission_mode = ${permissionMode},
           thread_permission_mode = ${threadPermissionMode} WHERE id = ${turnId}::uuid`.pipe(Effect.asVoid),
 
     nextTurn: (threadId) => nextTurn(sql, threadId),

@@ -1,5 +1,22 @@
 # Boty przez oficjalne harnessy
 
+Status prędkości (2026-11-17): zaimplementowana w kodzie; dostępność
+nightly/beta/stable wynika z promocji wydań. Ustawienie **Speed** korzysta z
+katalogu modelu, instancji i workera bota. `BotConfiguration.service_tier`
+przechowuje wybór, a `RunBotTurn.service_tier` przekazuje go do harnessu.
+`default` jawnie wybiera standardową prędkość; pusta wartość pozostawia domyślny
+tryb dostawcy. Codex udostępnia tryby konta przez `model/list`, Claude przez
+metadane SDK i dostępność Fast. Samo „fast” w nazwie modelu Groka nie oznacza
+oddzielnego ustawienia prędkości. Zmiana wyboru obejmuje kolejną turę.
+
+Jawny wybór szybkości, również `default`, wymaga capability `service_tiers_v1`.
+Automatyczny wybór **Runs on** pomija workery bez niej; jeśli żaden pasujący
+worker nie jest online, bot czeka na worker. Przypięty starszy worker daje
+czytelny błąd konfiguracji. Gateway ponownie sprawdza capability przy każdym
+dostarczeniu trwałej komendy, także po restarcie lub downgrade workera:
+`SERVICE_TIERS_UNSUPPORTED` zapobiega cichemu pominięciu ustawienia. Bot bez
+jawnego wyboru szybkości nadal może korzystać ze starszego workera.
+
 Boty nie korzystają już z bezpośredniego API modelu (dawny wariant B). Canopy
 nie wysyła żadnych żądań inferencji HTTP. Claude działa przez Agent SDK i oficjalny
 `claude`, Codex przez oficjalny `codex app-server`, Grok przez CLI i adapter ACP.

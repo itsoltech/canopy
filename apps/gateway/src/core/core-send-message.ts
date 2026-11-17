@@ -1,3 +1,4 @@
+import { messageServiceTier } from "./message-service-tier.ts";
 import { create } from "@bufbuild/protobuf";
 import { ui } from "@canopy/contracts";
 import { toUiSteer, toUiTurn, type ThreadRow } from "../store/index.ts";
@@ -91,7 +92,13 @@ export async function prepareMessage(
   }
 
   // Only the message's own effort is judged: the thread's default falls back when the turn starts (turnEffort).
-  await coreCheckModel(core, { thread }, request.model || thread.settings.model || "", request.effort);
+  await coreCheckModel(
+    core,
+    { thread },
+    request.model || thread.settings.model || "",
+    request.effort,
+    await messageServiceTier(core, thread, request),
+  );
   const permissionMode = checkedPermissionMode(request.permissionMode);
   coreCheckFullAccess(core, thread.worker_id, request.permissionMode);
 
@@ -162,6 +169,7 @@ export async function admitMessage(
         clientRequestId,
         model: request.model,
         effort: request.effort,
+        serviceTier: request.serviceTier ?? "",
         permissionMode,
         ...(linked && { linked }),
         ...(input && { input: { ...input, text: input.text ?? request.text } }),
@@ -187,6 +195,7 @@ export async function admitMessage(
     clientRequestId,
     model: request.model,
     effort: request.effort,
+    serviceTier: request.serviceTier ?? "",
     permissionMode,
     ...(linked && { linked }),
     ...(input && { input }),

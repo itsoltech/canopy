@@ -7,7 +7,19 @@ import type { SteerStore } from "./steers.ts";
 export function createSteer(sql: SqlClient.SqlClient, request: Parameters<SteerStore["Service"]["create"]>[0]) {
   return sql.withTransaction(
     Effect.gen(function* () {
-      const { threadId, turnId, text, userId, clientRequestId, model, effort, permissionMode, input, linked } = request;
+      const {
+        threadId,
+        turnId,
+        text,
+        userId,
+        clientRequestId,
+        model,
+        effort,
+        serviceTier = "",
+        permissionMode,
+        input,
+        linked,
+      } = request;
 
       const admission = yield* sql<{
         rewind_pending_id: string | null;
@@ -26,9 +38,9 @@ export function createSteer(sql: SqlClient.SqlClient, request: Parameters<SteerS
       const stored = { ...(input ?? { text }), admittedAfterSeq: String(thread.last_seq) };
 
       const rows = yield* sql<{ id: string }>`
-        INSERT INTO turn_steers (id, thread_id, turn_id, input, author_user_id, client_request_id, model, effort, permission_mode, linked_call_id, hops)
+        INSERT INTO turn_steers (id, thread_id, turn_id, input, author_user_id, client_request_id, model, effort, service_tier, permission_mode, linked_call_id, hops)
         VALUES (${id}::uuid, ${threadId}::uuid, ${turnId}::uuid, ${JSON.stringify(stored)}::jsonb, ${linked ? null : userId}::uuid,
-                ${clientRequestId || null}, ${model}, ${effort}, ${permissionMode}, ${linked?.callId ?? null}::uuid, ${linked?.hops ?? 0})
+                ${clientRequestId || null}, ${model}, ${effort}, ${serviceTier}, ${permissionMode}, ${linked?.callId ?? null}::uuid, ${linked?.hops ?? 0})
         ON CONFLICT (thread_id, client_request_id) WHERE client_request_id IS NOT NULL DO NOTHING RETURNING id`;
 
       if (!rows[0]) {

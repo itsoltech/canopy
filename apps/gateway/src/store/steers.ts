@@ -55,6 +55,7 @@ export interface SteerRow {
   client_request_id: string | null;
   model: string;
   effort: string;
+  service_tier?: string;
   /** Override for the fallback turn only ('' = the thread's default); a steer that joins keeps the turn's mode. */
   permission_mode: string;
   status: "pending" | "accepted" | "delivered" | "dropped" | "queued" | "failed";
@@ -85,6 +86,7 @@ export class SteerStore extends Context.Service<
       clientRequestId: string;
       model: string;
       effort: string;
+      serviceTier?: string;
       permissionMode: string;
       /** Prepared input (mentions: the composed text, the message and both sets of ranges; quotes); default { text }. */
       input?: SteerRow["input"];
@@ -222,10 +224,10 @@ export class SteerStore extends Context.Service<
               const rows = back[0]
                 ? back
                 : yield* sql<TurnRow>`
-                INSERT INTO turns (id, thread_id, ordinal, trigger, author_user_id, agent_call_id, bot_call_id, linked_call_id, hops, input, model, effort, permission_mode)
+                INSERT INTO turns (id, thread_id, ordinal, trigger, author_user_id, agent_call_id, bot_call_id, linked_call_id, hops, input, model, effort, service_tier, permission_mode)
                 SELECT ${Bun.randomUUIDv7()}::uuid, ${steer.thread_id}::uuid, coalesce(max(ordinal), 0) + 1, ${steer.linked_call_id ? "linked_agent" : bot ? "bot" : agent ? "agent_bus" : "user"},
                        ${steer.author_user_id}::uuid, ${steer.agent_call_id ?? steer.notification_call_id ?? null}::uuid, ${steer.bot_call_id ?? null}::uuid, ${steer.linked_call_id ?? null}::uuid, ${steer.hops}, ${JSON.stringify(steer.input)}::jsonb,
-                       ${steer.model}, ${steer.effort}, ${steer.permission_mode}
+                       ${steer.model}, ${steer.effort}, ${steer.service_tier ?? ""}, ${steer.permission_mode}
                   FROM turns WHERE thread_id = ${steer.thread_id}::uuid
                 RETURNING *`;
 

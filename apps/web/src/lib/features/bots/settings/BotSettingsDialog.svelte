@@ -59,6 +59,7 @@
   const workerInstances = $derived(botInstancesOnWorker(instances, workerId));
   let option = $state.raw<ModelOption>();
   let effort = $state<string>();
+  let serviceTier = $state<string>();
   let modelChanged = $state(false);
   let policy = $state("safe");
   let threadPermission = $state("user_default");
@@ -84,6 +85,7 @@
         modelChanged = false;
         option = instances.find((i) => i.id === instanceId)?.models.find((m) => m.model === c.model);
         effort = c.effort || undefined;
+        serviceTier = c.serviceTier || undefined;
         policy = c.approvalPolicy || "safe";
         webAccess = c.webAccess !== false;
         files = c.files !== false;
@@ -104,7 +106,7 @@
     if (error) return;
 
     // An unavailable existing model need not prevent an appearance/instructions edit.
-    if (modelChanged) error = selectionError(workerInstances, instanceId, option, effort) ?? "";
+    if (modelChanged) error = selectionError(workerInstances, instanceId, option, effort, serviceTier) ?? "";
 
     if (error) return;
     const provider = providers.find((p) => instanceKeyOf(p) === instanceId);
@@ -126,6 +128,7 @@
           providerInstance: provider.id,
           model: option.model,
           effort: effort ?? "",
+          serviceTier: serviceTier ?? "",
         }),
     });
 
@@ -199,6 +202,7 @@
             bind:instanceId
             bind:option
             bind:effort
+            bind:serviceTier
             disabled={busy}
             onchange={() => (modelChanged = true)}
           />

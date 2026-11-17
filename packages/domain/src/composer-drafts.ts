@@ -37,6 +37,7 @@ export function mergeComposerContent(local: ui.ComposerDraftContent, incoming: u
     ...local,
     model: local.model ?? incoming.model,
     effort: local.effort ?? incoming.effort,
+    serviceTier: local.serviceTier ?? incoming.serviceTier,
     permissionMode: local.permissionMode ?? incoming.permissionMode,
     provider: local.provider || incoming.provider,
     providerProfileId: local.providerProfileId || incoming.providerProfileId,

@@ -160,6 +160,7 @@ export class ScriptedWorker {
   readonly attachments = new Map<string, InputAttachment[]>();
   /** Model and effort each turn was started with, by turn id. */
   readonly turnSettings = new Map<string, { model: string; effort: string }>();
+  readonly turnServiceTiers = new Map<string, string>();
   /** StartTurn.permission_mode and the thread's mode (ThreadSpec) per turn. */
   readonly turnModes = new Map<string, { turn: PermissionMode; thread: PermissionMode }>();
   /** Steers this worker got: input id -> text. */
@@ -517,6 +518,7 @@ export class ScriptedWorker {
           this.attachments.set(turnId, input!.attachments);
           this.started.set(turnId, input!);
           this.turnSettings.set(turnId, { model, effort });
+          this.turnServiceTiers.set(turnId, kind.value.serviceTier);
           this.turnModes.set(turnId, { turn: permissionMode, thread: thread!.permissionMode });
           reply(true);
           this.emit(threadId, turnId, {

@@ -62,6 +62,8 @@ export interface ModelOption {
   readonly efforts: readonly EffortLevel[];
   /** The model's default effort; undefined = the provider's own default (shown as "Default"). */
   readonly defaultEffort: string | undefined;
+  /** Execution speeds reported for this model and provider account; never inferred. */
+  readonly serviceTiers: readonly { readonly id: string; readonly name: string; readonly description: string }[];
   readonly origin: "catalog" | "default" | "alias" | "recent" | "custom";
   /** The profile's list is incomplete: why (from the catalog). */
   readonly listDetail: string;
@@ -192,6 +194,7 @@ function fromCatalog(
     legacy: info.legacy,
     efforts: info.efforts.map(effortLevel),
     defaultEffort: info.defaultEffort || undefined,
+    serviceTiers: info.serviceTiers,
     origin: "catalog",
     listDetail: list.detail,
   };
@@ -225,6 +228,7 @@ function standIn(
     legacy: false,
     efforts: effort?.efforts.map(effortLevel) ?? [],
     defaultEffort: effort?.default,
+    serviceTiers: [],
     origin,
     listDetail: list?.detail ?? "",
   };

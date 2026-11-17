@@ -19,6 +19,7 @@ const Body = Schema.Struct({
   // This turn only; missing or "" = the thread's defaults.
   model: Schema.optionalKey(Schema.String.check(Schema.isMaxLength(200))),
   effort: Schema.optionalKey(Schema.String.check(Schema.isMaxLength(40))),
+  serviceTier: Schema.optionalKey(Schema.String.check(Schema.isMaxLength(100))),
   // This turn's permission mode (enum key); missing = the thread's default.
   permissionMode: Schema.optionalKey(Schema.Literals(["ASK", "ACCEPT_EDITS", "READ_ONLY", "FULL_AUTO", "FULL_ACCESS"])),
   // queue (default): the next turn; steer: into the running turn (queued when none runs).

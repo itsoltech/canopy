@@ -7,7 +7,7 @@ import { ui } from "@canopy/contracts";
 import { agentCatalog, type AgentBusCall, type SpawnTarget } from "@canopy/domain";
 import { Predicate, type Effect } from "effect";
 import { AgentBusStore, GatewayStore, type CallSource, type ThreadRow } from "../store/index.ts";
-import { busState, callerTarget, scheduleIdOf } from "./agent-bus-context.ts";
+import { busState, scheduleIdOf } from "./agent-bus-context.ts";
 import { busWait } from "./agent-bus-waiting.ts";
 import { busRead } from "./agent-bus-reads.ts";
 import type { AgentBus } from "./agent-bus.ts";
@@ -55,7 +55,7 @@ export async function busExecute(
     case "get_answers":
       return busAnswers(hostContext, source, call.args.question_set_id, call.args.wait ?? false);
     case "list_agents":
-      return agentCatalog(callerTarget(caller), await hostContext[busState].host.spawnInstances(caller));
+      return agentCatalog(target, await hostContext[busState].host.spawnInstances(caller));
     case "spawn_thread": {
       const placement = await hostContext[busState].host.prepareWorkspace?.(caller, call.args);
 

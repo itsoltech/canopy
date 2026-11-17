@@ -1,6 +1,6 @@
 # Adapter Claude (Agent SDK)
 
-Status: **działa** (2026-11-17), w tym 15-minutowy limit `show_images`, osobiste hooki `PreToolUse` i `PermissionRequest`, import dokumentów pomocniczych i pustych opcjonalnych metadanych osobistych skilli oraz zmiana uprawnień i sandboxa podczas bieżącej tury:
+Status: **działa** (2026-11-17), w tym odkrywanie i wybór fast per model/konto, 15-minutowy limit `show_images`, osobiste hooki `PreToolUse` i `PermissionRequest`, import dokumentów pomocniczych i pustych opcjonalnych metadanych osobistych skilli oraz zmiana uprawnień i sandboxa podczas bieżącej tury:
 - runtime wątków: `ClaudeThreads` w `apps/worker/src/providers/claude/threads.ts`,
 - mapowanie wiadomości SDK na zdarzenia transkryptu: `ClaudeEventMapper` w `mapping.ts`, z testami na nagranych strumieniach (`fixtures/*.jsonl`),
 - tryby uprawnień: `permissions.ts`,
@@ -137,3 +137,38 @@ Pełne wiadomości nigdy nie giną: bez mapowania trafiają do dziennika jako `r
 2. **Sandbox w `FULL_AUTO`** wymaga bubblewrap (Linux) albo Seatbelt (macOS). Na Windows Claude Code go nie udostępnia, więc komendy shella w `FULL_AUTO` pytają o zgodę; gdy Claude Code go tam włączy, wrócić do `failIfUnavailable: true` i pełnej automatycznej zgody.
 3. Cel `/goal` żyje w procesie: nie sprawdzono, czy wznowiona sesja go odtwarza. Werdykty są czytane z wewnętrznego formatu transkryptu.
 4. Zadania w tle typu agent i workflow są mapowane, ale nie testowane (natywni subagenci są domyślnie wyłączeni).
+
+## Szybkość niezależna od wysiłku
+
+SDK 0.3.316 udostępnia `ModelInfo.supportsFastMode`,
+`Query.initializationResult().fast_mode_state` i `fast_mode_disabled_reason`
+oraz `Settings.fastMode` / `Query.applyFlagSettings({ fastMode })`.
+Jawne `fastMode: true` w warstwie ustawień flag jest wymaganym opt-in sesji SDK;
+nie ustawiamy nieudokumentowanych flag środowiska i nie wyprowadzamy wsparcia z nazwy modelu.
+Katalog uruchamia query bez promptu z tym opt-in, a następnie czyta wynik
+inicjalizacji. `fast` pojawia się tylko dla modelu z `supportsFastMode: true`,
+gdy CLI raportuje stan szybkości i brak powodu blokady konta. Brak metadanych,
+`pending`, wyłączone extra usage, konto free i inne blokady nie ogłaszają fast.
+Instancje proxy nie dziedziczą natywnych poziomów. Claude nie raportuje `ultrafast`.
+
+Każdy proces otrzymuje jawne `settings.fastMode`, także na resume; nakładka
+wygrywa z ustawieniami projektu. Przed wejściem każdej tury worker stosuje
+`applyFlagSettings`, więc proces utrzymywany przez zadania w tle też wraca do
+zwykłej szybkości. Wybór tury wygrywa z wyborem wątku; puste pole tury dziedziczy
+wątek, a `default` jawnie wyłącza fast. Wybrany fast wymaga następnie świeżej
+inicjalizacji potwierdzającej stan `on` lub `cooldown` bez blokady; odmowa nie
+wysyła promptu. Zmiana szybkości w steer odrzuca dołączenie (`STEER_REJECTED`),
+żeby kolejka mogła rozpocząć osobną turę. Botowe query przekazuje ten sam
+wybór w `settings.fastMode`, również na resume. Dla wybranego fast jego strumień
+wejściowy czeka na świeżą inicjalizację CLI: ta sama kontrola wsparcia modelu,
+blokady konta i stanu szybkości poprzedza wysłanie pierwszej wiadomości. Utrata
+uprawnień po zapisaniu konfiguracji kończy botową turę błędem
+`SERVICE_TIER_UNAVAILABLE`, bez promptu i cichego przejścia na zwykłą szybkość;
+zamknięcie query zwalnia także oczekujący strumień i proces.
+
+`providers/claude/service-tiers.test.ts` używa prawdziwego SDK ze skryptowanym CLI:
+sprawdza odkrywanie bez inferencji, różne blokady konta, metadane modelu,
+zmianę szybkości w żywym procesie oraz reset po zimnym resume.
+`bots/service-tiers.test.ts` sprawdza również zmianę wyboru botów na istniejącej sesji,
+utratę uprawnień przed wznowioną turą oraz zakończenie procesu po odmowie. Nie wykonuje
+płatnej inferencji; źródłem kontraktu jest opublikowane `sdk.d.ts` przypiętego SDK.

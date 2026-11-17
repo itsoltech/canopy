@@ -89,6 +89,7 @@ export interface ClaudeInstanceRuntime {
 }
 
 export interface Session {
+  serviceTier?: string;
   refreshConnectors(spec: ThreadSpec): Promise<void>;
   readonly threadId: string;
   readonly sessionId: string;

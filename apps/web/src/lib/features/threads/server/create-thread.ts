@@ -73,6 +73,7 @@ export async function createThreadFromForm(
         providerProfileId: profileId,
         model: text(form, "model"),
         effort: text(form, "effort"),
+        serviceTier: text(form, "serviceTier"),
         permissionMode: PermissionMode[mode],
         initialMessage,
         initialQuotes: content.quotes,

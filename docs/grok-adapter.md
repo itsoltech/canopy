@@ -1,6 +1,7 @@
 # Adapter Grok
 
-Status (2026-11-15): runtime ACP i lokalny MCP automatyzacji są zaimplementowane;
+Status (2026-11-17): runtime ACP i lokalny MCP automatyzacji są zaimplementowane;
+zweryfikowano brak niezależnych poziomów szybkości w obsługiwanym kontrakcie CLI/ACP;
 dostępność kanałów według [release.md](release.md).
 
 Opis protokołu dotyczy CLI `grok 1.0.70 (f50904eaee6c)`.
@@ -21,6 +22,15 @@ domyślny model i metadane wysiłku). Z proxy lista jest przecinana z `/v1/model
 zostaje rodzina xAI/Grok zgodna z `chat_completions`, a dodatkowe modele dostają
 nazwę proxy lub czytelny formatter id. Filtry modalności oraz rodziny/protokołu,
 nazwy i grupa starszych wersji: [protocol.md](protocol.md#modele-effort-i-steer).
+
+Grok 1.0.70 nie raportuje niezależnych poziomów szybkości w ACP `modelState`,
+a opcje agenta i referencja konfiguracji nie udostępniają odpowiednika service tier.
+Dlatego katalog Canopy ma pustą listę `service_tiers`; identyfikatory modeli
+zawierające `fast` pozostają osobnymi modelami. Worker i bot odrzucają
+niepusty poziom inny niż `default`, zamiast ignorować wybór użytkownika.
+Puste pole i `default` używają zwykłego zachowania modelu.
+`providers/grok/service-tiers.test.ts` sprawdza katalog, odmowę przed wysłaniem
+promptu i start ze zwykłą szybkością przez skryptowany ACP.
 
 ## Endpointy i izolacja
 

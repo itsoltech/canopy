@@ -4,6 +4,7 @@ import { Effect } from "effect";
 import { SqlClient, type SqlError } from "effect/sql";
 import { Invalid } from "../store/store.ts";
 import { harnessOf, type InstanceRow } from "../store/instance-config.ts";
+import { serviceTierProblem } from "../store/models.ts";
 import { nextHop } from "./policy.ts";
 import type { BotRow } from "./types.ts";
 import { MAX_BOTS_PER_USER, botConfiguration, botView, uuid } from "./store-views.ts";
@@ -103,6 +104,15 @@ function botValidate(
 
       if (config.effort && efforts.length && !efforts.includes(config.effort))
         return yield* Effect.fail(new Invalid("this model does not offer that effort"));
+
+      if (config.serviceTier && config.serviceTier !== "default") {
+        const problems = catalog.map((profile) => serviceTierProblem(profile, config.model, config.serviceTier));
+
+        if (!problems.length || problems.every(Boolean))
+          return yield* Effect.fail(
+            new Invalid(problems[0] || "Execution speed is unavailable for this model and account."),
+          );
+      }
 
       return create(bots.BotConfigurationSchema, {
         ...config,

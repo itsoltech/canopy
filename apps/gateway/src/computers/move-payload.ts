@@ -33,6 +33,7 @@ export const ThreadRowSchema = Schema.Struct({
   settings: Schema.Struct({
     model: Schema.optionalKey(Schema.String),
     effort: Schema.optionalKey(Schema.String),
+    serviceTier: Schema.optionalKey(Schema.String),
     permissionMode: Schema.optionalKey(Schema.String),
     instructions: Schema.optionalKey(Schema.String),
   }),

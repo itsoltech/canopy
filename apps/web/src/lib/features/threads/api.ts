@@ -24,7 +24,13 @@ export async function sendMessage(
   threadId: string,
   text: string,
   clientRequestId: string,
-  turn: { model?: string; effort?: string; permissionMode?: PermissionModeKey; replySuggestionItemId?: string } = {},
+  turn: {
+    model?: string;
+    effort?: string;
+    serviceTier?: string;
+    permissionMode?: PermissionModeKey;
+    replySuggestionItemId?: string;
+  } = {},
   delivery: Delivery = "queue",
   attachmentIds: readonly string[] = [],
   mentions: readonly Mention[] = [],
@@ -69,6 +75,7 @@ export async function updateThread(
   change: {
     model?: string;
     effort?: string;
+    serviceTier?: string;
     permissionMode?: PermissionModeKey;
     title?: string;
     autoArchiveOnMerge?: boolean;

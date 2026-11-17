@@ -29,7 +29,10 @@ export class WebComposerDraft {
   text = $state("");
   mentions = $state<Mention[]>([]);
   choices = $state<
-    Pick<ui.ComposerDraftContent, "model" | "effort" | "permissionMode" | "provider" | "providerProfileId">
+    Pick<
+      ui.ComposerDraftContent,
+      "model" | "effort" | "serviceTier" | "permissionMode" | "provider" | "providerProfileId"
+    >
   >({ provider: 0, providerProfileId: "" });
   error = $state("");
   moved = $state("");
@@ -74,6 +77,7 @@ export class WebComposerDraft {
     this.choices = {
       model: content?.model,
       effort: content?.effort,
+      serviceTier: content?.serviceTier,
       permissionMode: content?.permissionMode,
       provider: content?.provider ?? 0,
       providerProfileId: content?.providerProfileId ?? "",

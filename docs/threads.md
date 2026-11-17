@@ -1,6 +1,7 @@
 # Projekty, wątki i wątki boczne
 
-Status (2026-11-17): zaimplementowane, w tym stan tylko do odczytu po usunięciu worktree
+Status (2026-11-17): zaimplementowane, w tym propagacja odmowy prędkości do błędu celu,
+wybór prędkości dostawcy oraz stan tylko do odczytu po usunięciu worktree
 i kontynuacja w nowym wątku z nowym worktree oraz uprawnienia ostatniej tury użytkownika
 w karcie hover oraz automatyczna archiwizacja po merge PR-ów
 z nadpisaniami projektu i wątku (przełącznik w szczegółach także na mobile),
@@ -17,6 +18,16 @@ Ręczne Delete uruchamia trwałe usuwanie historii po 31 dniach.
 Opis dotyczy kodu; dostępność nightly/beta/stable określają [wydania](release.md).
 
 Niewysłane szkice synchronizują się automatycznie, są przechowywane przez 30 dni i widoczne wyłącznie na urządzeniach właściciela.
+
+**Execution speed** przy wyborze modelu udostępnia tryby z katalogu konkretnego
+modelu i konta: Fast w Claude oraz tryby raportowane przez Codexa, w tym Ultrafast
+na uprawnionych kontach. Ustawienie jest niezależne od wysiłku rozumowania.
+`Default` dziedziczy ustawienie wątku; `Standard` jawnie wyłącza przyspieszenie.
+Wybór jest dostępny przy tworzeniu wątku, w kompozytorze oraz w **Model settings**,
+przechowywany w szkicach i odtwarzany z ostatniej tury użytkownika.
+Po utracie dostępności trybu pozostaje możliwość wyboru Standard.
+Zmiana prędkości w trakcie odpowiedzi jest kolejkowana do osobnej tury.
+Szczegóły walidacji i trwałości: [ui-api.md](ui-api.md#szybkość-wykonania).
 
 Niewysłane szkice synchronizują się automatycznie po 1,5 s bez edycji oraz przy
 opuszczaniu kompozytora. Inne urządzenie otwarte na tym samym wątku udostępnia

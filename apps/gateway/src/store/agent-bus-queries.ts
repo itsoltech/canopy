@@ -136,6 +136,7 @@ export const summary = (sql: SqlClient.SqlClient, threadId: string): Fx<ThreadSu
       waiting_for_user: row.for_user,
       model: row.settings.model ?? "",
       effort: row.settings.effort ?? "",
+      service_tier: row.settings.serviceTier ?? "",
       permission_mode: busPermissionMode(row.settings.permissionMode),
       ...(ended && {
         last_turn: {

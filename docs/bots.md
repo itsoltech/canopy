@@ -1,6 +1,7 @@
 # Boty
 
-Status (2026-11-16): na `dev` limit automatycznej wymiany wynosi 256 kroków;
+Status (2026-11-17): konfiguracja bota przenosi `service_tier` do `RunBotTurn`;
+ na `dev` limit automatycznej wymiany wynosi 256 kroków;
 walidacja budżetu przed zgodą i diagnostyka wyników narzędzi są zaimplementowane.
 Dostępność nightly/beta/stable według [release.md](release.md).
 
@@ -1264,3 +1265,11 @@ Undo i kontrolki kompozytora; brak błędów transportu nie dowodzi poprawnego u
 
 Dalej: reakcje i odpowiedzi w API, liczniki nieprzeczytanych, harmonogramy cykliczne
 botów, kompakcja kontekstu, stronicowanie i wirtualizacja długich rozmów.
+
+## Szybkość wykonania
+
+`BotConfiguration.service_tier` zachowuje wybór w JSON konfiguracji i trwałej
+komendzie harnessu. Pusty wybór korzysta z profilu, `default` wymusza Standard,
+a przyspieszenie musi pochodzić z katalogu modelu danej instancji i workera.
+Zmiana trybu wywołuje tę samą ścieżkę handoff co zmiana modelu i wysiłku.
+Kontrakt: [protocol.md](protocol.md#szybkość-wykonania-dostawcy).

@@ -17,6 +17,7 @@ export function threadParams(ctx: CodexThreadContext, spec: ThreadSpec) {
 
   return {
     cwd: spec.cwd,
+    serviceTier: spec.serviceTier || "default",
     // Scratch sessions must not discover instructions above their isolated directory.
     config: {
       ...(spec.scratch && { project_root_markers: [] }),

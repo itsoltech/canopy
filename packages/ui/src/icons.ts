@@ -1,6 +1,7 @@
 /**
  * Tabler outline, MIT — @iconify-json/tabler 1.2.43 (24-unit geometry).
  * Source: https://github.com/tabler/tabler-icons; notice: ../THIRD_PARTY_NOTICES.md.
+ * bolt-double uses Griddy Icons flash-double (MIT), with its original filled outline.
  * Values contain only validated inert path data; comments name the upstream glyph.
  */
 export const icons = {
@@ -208,6 +209,10 @@ export const icons = {
   "magnifying-glass": ["M3 10a7 7 0 1 0 14 0a7 7 0 1 0-14 0m18 11l-6-6"],
   // bolt
   bolt: ["M13 3v7h6l-8 11v-7H5z"],
+  // Griddy Icons: flash-double
+  "bolt-double": [
+    "m12.23 20.71 1.035 1.085h.005l9.37-8.905a1.246 1.246 0 0 0-.51-2.105l-4.505-1.32.73-6.805a1.246 1.246 0 0 0-.684-1.25 1.23 1.23 0 0 0-1.41.2l-2.52 2.34 1.02 1.1 2.03-1.885-.796 7.39 5.29 1.55-9.055 8.605Zm-5.89 1.86c.175.085.365.13.555.13.315 0 .62-.115.86-.345l8.885-8.465c.325-.31.455-.76.35-1.2a1.24 1.24 0 0 0-.865-.905l-4.505-1.32.73-6.78a1.24 1.24 0 0 0-.69-1.255 1.24 1.24 0 0 0-1.415.215l-8.88 8.46a1.246 1.246 0 0 0 .51 2.105l4.505 1.31-.73 6.795a1.24 1.24 0 0 0 .69 1.255Zm1.665-9.145L2.71 11.89l8.075-7.69-.79 7.35 5.295 1.55-8.075 7.695.79-7.37Z",
+  ],
   // minus
   minus: ["M5 12h14"],
   // square
@@ -352,3 +357,6 @@ export const icons = {
 export const iconStyle = { viewBox: "0 0 24 24", strokeWidth: 2.25 } as const;
 
 export type IconName = keyof typeof icons;
+
+/** Filled outline geometry keeps its own line weight instead of receiving another stroke. */
+export const filledIcons: ReadonlySet<IconName> = new Set<IconName>(["bolt-double"]);

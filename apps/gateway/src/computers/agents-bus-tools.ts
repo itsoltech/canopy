@@ -177,6 +177,7 @@ export const agentsBusToolsMethods: AgentsBusToolsMethods = {
               providerProfileId: instance,
               model: call.args.model ?? "",
               effort: call.args.effort ?? "",
+              serviceTier: remoteSpawnServiceTier(caller, call.args, provider, instance),
               clientRequestId: request.callId,
               workspaceMode: ui.WorkspaceMode.CHECKOUT,
               permissionMode: permissionModeOf(access.permissionMode),
@@ -377,4 +378,19 @@ async function waitLinkedThreads(
     if (done || Date.now() >= deadline) return { done, threads };
     await Bun.sleep(250);
   }
+}
+
+function remoteSpawnServiceTier(
+  caller: ThreadRow,
+  args: Extract<AgentBusCall, { tool: "spawn_thread" }>["args"],
+  provider: string | undefined,
+  instance: string,
+) {
+  if (args.service_tier !== undefined) return args.service_tier;
+
+  return provider === caller.provider &&
+    instance === (caller.provider_profile_id || "native") &&
+    (args.model === undefined || args.model === (caller.settings.model ?? ""))
+    ? (caller.settings.serviceTier ?? "")
+    : "";
 }

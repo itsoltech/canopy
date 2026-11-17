@@ -6,6 +6,7 @@
   import type { ClassValue } from "svelte/elements";
   import { modelOption, modelOptions, type ModelOption } from "#lib/features/models/catalog.ts";
   import { useModelCatalog } from "#lib/features/models/model-catalog.svelte.ts";
+  import { supportedServiceTier } from "#lib/features/models/service-tier.ts";
   import ModelControls from "#lib/features/models/ModelControls.svelte";
   import { useOverview } from "#lib/features/overview/overview-state.svelte.ts";
   import PermissionPicker from "#lib/features/threads/components/PermissionPicker.svelte";
@@ -66,6 +67,7 @@
   );
 
   let effort = $state<string | undefined>(initial?.effort || undefined);
+  let serviceTier = $state<string | undefined>(initial?.serviceTier || undefined);
 
   let permission = $state<PermissionModeKey>(initial ? inheritedMode(permissionKey(initial.permissionMode)) : "ASK");
 
@@ -130,6 +132,7 @@
     ) {
       option = options[0];
       effort = undefined;
+      serviceTier = undefined;
     }
   });
 
@@ -143,6 +146,7 @@
       providerProfileId: option?.profileId ?? "",
       model: option?.model ?? "",
       effort: option?.efforts.length ? (effort ?? "") : "",
+      serviceTier: supportedServiceTier(option, serviceTier),
       permissionMode: PermissionMode[permission],
       title,
       workspaceMode: initial?.workspaceMode,
@@ -200,7 +204,7 @@
   <fieldset class="grid min-w-0 gap-2">
     <legend class="mb-2 text-base/6 font-medium sm:text-sm/6">Agent and permissions</legend>
     <div class="flex min-w-0 flex-wrap items-center gap-2">
-      <ModelControls {options} bind:option bind:effort workerId={modelWorker?.id} />
+      <ModelControls {options} bind:option bind:effort bind:serviceTier showSpeed workerId={modelWorker?.id} />
       <PermissionPicker value={permission} fullAccess={false} onselect={(next) => (permission = next)} />
     </div>
     {#if option}<p class="text-base/6 text-zinc-500 sm:text-sm/5 dark:text-zinc-400">

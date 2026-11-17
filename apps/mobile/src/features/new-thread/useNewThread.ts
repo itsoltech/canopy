@@ -5,6 +5,8 @@ import { PermissionMode, ui } from "@canopy/contracts";
 import { useSession } from "../../state/session";
 import { useOverview } from "../../state/overview";
 import { useAppearance } from "../../state/appearance";
+import type { MobileComposerState } from "../drafts/store";
+import type { ModelChoice } from "../models/catalog";
 import { modelSections, useModelCatalog } from "../models/catalog";
 import { effectiveThreadDefaults } from "@canopy/domain/new-thread-choices";
 import { usePersistentMessage } from "../drafts/usePersistentMessage";
@@ -66,7 +68,12 @@ export function useNewThread() {
       ? [...overview.threads, lastUsedAgent]
       : overview.threads;
 
-  const { selected, model, effort } = newThreadChoices(sections, defaults, choiceThreads, persistent?.choices);
+  const { selected, model, effort, serviceTier } = newThreadChoices(
+    sections,
+    defaults,
+    choiceThreads,
+    persistent?.choices,
+  );
 
   // A new message each render is fine: the suggestions key their requests by the scope's values.
   const mentionScope =
@@ -103,6 +110,7 @@ export function useNewThread() {
           providerProfileId: selected.profileId,
           model,
           effort,
+          serviceTier,
           permissionMode,
           ...workspaceDraft.form,
           clientRequestId: persistent?.requestId ?? "",
@@ -121,6 +129,8 @@ export function useNewThread() {
     sections,
     selected,
     effort,
+    serviceTier,
+    hasConfiguredSpeed: Boolean(serviceTier || persistent?.choices.serviceTier),
     permissionMode,
     message,
     workspaceDraft,
@@ -133,28 +143,7 @@ export function useNewThread() {
     blocker,
     pickProject: (projectId: string) => setPicks({ ...picks, projectId, workspaceId: undefined }),
     pickWorkspace: (workspaceId: string) => setPicks({ ...picks, workspaceId }),
-    pickModel: (key: string) => {
-      const choice = choices.find((c) => c.key === key);
-
-      if (choice)
-        persistent?.setChoices({
-          model: choice.model,
-          provider: choice.provider,
-          providerProfileId: choice.profileId,
-          effort:
-            choice.provider === selected?.provider &&
-            choice.profileId === selected.profileId &&
-            choice.efforts.includes(effort)
-              ? effort
-              : "",
-        });
-    },
-    setEffort: (next: string) =>
-      persistent?.setChoices({
-        effort: next,
-        provider: selected?.provider,
-        providerProfileId: selected?.profileId,
-      }),
+    ...modelActions(persistent, choices, selected, effort, serviceTier),
     setPermission: (next: PermissionMode) => persistent?.setChoices({ permissionMode: next }),
     create,
   };
@@ -203,4 +192,42 @@ function useNewThreadSubmit(
   }
 
   return { busy, error, create };
+}
+
+function modelActions(
+  persistent: MobileComposerState | undefined,
+  choices: ModelChoice[],
+  selected: ModelChoice | undefined,
+  effort: string,
+  serviceTier: string,
+) {
+  return {
+    pickModel: (key: string) => {
+      const choice = choices.find((c) => c.key === key);
+
+      if (!choice) return;
+      const sameAgent = choice.provider === selected?.provider && choice.profileId === selected.profileId;
+
+      persistent?.setChoices({
+        model: choice.model,
+        provider: choice.provider,
+        providerProfileId: choice.profileId,
+        serviceTier:
+          sameAgent && (serviceTier === "default" || choice.serviceTiers.includes(serviceTier)) ? serviceTier : "",
+        effort: sameAgent && choice.efforts.includes(effort) ? effort : "",
+      });
+    },
+    setEffort: (effort: string) =>
+      persistent?.setChoices({
+        effort,
+        provider: selected?.provider,
+        providerProfileId: selected?.profileId,
+      }),
+    setServiceTier: (serviceTier: string) =>
+      persistent?.setChoices({
+        serviceTier,
+        provider: selected?.provider,
+        providerProfileId: selected?.profileId,
+      }),
+  };
 }

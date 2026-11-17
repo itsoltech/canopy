@@ -90,7 +90,7 @@
 </PreferenceRow>
 <PreferenceRow
   title="Agent"
-  description="Use the last agent, model and reasoning effort, or set a default."
+  description="Use the last agent and model settings, or set a default."
   changed={value.provider !== Provider.UNSPECIFIED || value.useLastAgent !== undefined}
   onreset={() => set({ provider: Provider.UNSPECIFIED, providerProfileId: "", useLastAgent: undefined })}
 >

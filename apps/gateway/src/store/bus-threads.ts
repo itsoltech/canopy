@@ -101,6 +101,7 @@ const spawn = (
         ...access,
         model: target.model,
         effort: target.effort,
+        serviceTier: target.serviceTier ?? "",
         ...(args.instructions !== undefined && {
           instructions: [caller.settings.instructions, args.instructions].filter(Boolean).join("\n\n"),
         }),
@@ -138,6 +139,7 @@ const spawn = (
         provider: agentKey(target),
         model: settings.model ?? "",
         effort: settings.effort ?? "",
+        service_tier: settings.serviceTier ?? "",
         permission_mode: busPermissionMode(settings.permissionMode),
         note: notify
           ? "The side thread is working. You will get a message in this thread when it finishes its turn; continue meanwhile or call wait_threads."

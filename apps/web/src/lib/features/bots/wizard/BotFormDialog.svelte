@@ -55,6 +55,7 @@
   const workerInstances = $derived(botInstancesOnWorker(instances, workerId));
   let option = $state.raw<ModelOption>();
   let effort = $state<string>();
+  let serviceTier = $state<string>();
   let busy = $state(false);
   let submitted = $state(false);
   let appearanceOpen = $state(false);
@@ -85,6 +86,7 @@
         workerId = "";
         option = undefined;
         effort = undefined;
+        serviceTier = undefined;
         error = undefined;
         submitted = false;
         appearanceOpen = false;
@@ -112,7 +114,7 @@
       return;
     }
 
-    if (!editing) error = selectionError(workerInstances, instanceId, option, effort);
+    if (!editing) error = selectionError(workerInstances, instanceId, option, effort, serviceTier);
 
     if (error) return;
     const appearance: BotAppearanceDraft = { name: name.trim().normalize("NFC"), shape, color: normalizeColor(color)! };
@@ -121,7 +123,14 @@
     try {
       if (editing && onsave) await onsave(appearance);
       else if (oncreate && option)
-        await oncreate({ ...appearance, providerInstanceId: instanceId, workerId, model: option.model, effort });
+        await oncreate({
+          ...appearance,
+          providerInstanceId: instanceId,
+          workerId,
+          model: option.model,
+          effort,
+          serviceTier,
+        });
       else throw new Error("No save handler is configured.");
       open = false;
     } catch (cause) {
@@ -195,6 +204,7 @@
                 bind:instanceId
                 bind:option
                 bind:effort
+                bind:serviceTier
                 disabled={busy}
               />{/if}
           </div>

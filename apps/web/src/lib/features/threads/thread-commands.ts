@@ -93,10 +93,10 @@ function threadActionCommands(current: ui.Thread, context: ThreadCommandContext)
     },
     {
       id: "thread:model",
-      title: "Model and effort…",
+      title: "Change model settings",
       group: "actions",
       icon: "cpu-chip",
-      keywords: "model reasoning effort",
+      keywords: "model reasoning effort speed fast standard",
       rank: -7,
       when: () => !context.closed,
       run: context.openModel,

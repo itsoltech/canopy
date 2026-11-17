@@ -69,7 +69,13 @@ export class ClaudeThreads extends Context.Service<
       canUpdate?: () => boolean,
     ): Effect.Effect<void, PermissionUpdateError>;
     /** Adds input to the running turn (the input stream); idempotent by inputId. */
-    steer(threadId: string, turnId: string, inputId: string, input: UserInput): Effect.Effect<void, SteerError>;
+    steer(
+      threadId: string,
+      turnId: string,
+      inputId: string,
+      input: UserInput,
+      settings?: Pick<TurnSettings, "serviceTier">,
+    ): Effect.Effect<void, SteerError>;
     /** Whether a turn of this thread runs in this process. */
     running(threadId: string): boolean;
     /** Releases this thread's process and MCP resources, retaining its durable history. */

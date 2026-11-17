@@ -17,6 +17,7 @@
     providerInstanceId: string;
     model: string;
     effort: string | undefined;
+    serviceTier?: string | undefined;
   }
 
   let {
@@ -36,6 +37,7 @@
   let instanceId = $state("");
   let option = $state.raw<ModelOption>();
   let effort = $state<string>();
+  let serviceTier = $state<string>();
   let busy = $state(false);
   let error = $state<string>();
   let wasOpen = false;
@@ -48,6 +50,7 @@
           .find((i) => i.id === initial.providerInstanceId)
           ?.models.find((m) => m.model === initial.model);
         effort = initial.effort;
+        serviceTier = initial.serviceTier;
         error = undefined;
       });
     wasOpen = open;
@@ -60,7 +63,7 @@
     busy = true;
 
     try {
-      await onsave({ providerInstanceId: instanceId, model: option.model, effort });
+      await onsave({ providerInstanceId: instanceId, model: option.model, effort, serviceTier });
       open = false;
     } catch (cause) {
       error = (cause instanceof Error && cause.message) || "Could not change the model. Please try again.";
@@ -77,7 +80,7 @@
   dismissible={!busy}
 >
   <form class="grid gap-5" onsubmit={submit} aria-busy={busy || undefined}>
-    <ProviderModelFields {instances} bind:instanceId bind:option bind:effort disabled={busy} />
+    <ProviderModelFields {instances} bind:instanceId bind:option bind:effort bind:serviceTier disabled={busy} />
     {#if error}<Alert tone="error">{error}</Alert>{/if}
     <DialogActions>
       <Button disabled={busy} onclick={() => (open = false)}>Cancel</Button>

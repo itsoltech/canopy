@@ -11,7 +11,17 @@ import {
 } from "@canopy/domain";
 import { Result } from "effect";
 import { AgentBusStore, GatewayStore, type CallSource } from "../store/index.ts";
-import { busState, callerTarget, failure, ok, safeJson, STORES_ITS_CALL, targetsOf } from "./agent-bus-context.ts";
+import {
+  busState,
+  callerTarget,
+  callerWithServiceTier,
+  failure,
+  ok,
+  safeJson,
+  STORES_ITS_CALL,
+  targetsOf,
+  type BusHost,
+} from "./agent-bus-context.ts";
 import type { AgentBus } from "./agent-bus.ts";
 import { busExecute } from "./agent-bus-tools.ts";
 import { busCancel } from "./agent-bus-cancellation.ts";
@@ -44,13 +54,10 @@ export const busRequestsMethods: BusRequestsMethods = {
 
     if (request.cancelled) return busCancel(this, request, source, workerId);
 
-    const rewound =
-      request.turnId &&
-      (
-        await this[busState].host.run(GatewayStore.use((store) => store.turnsOf(request.threadId, [request.turnId])))
-      ).some((turn) => turn.rewind_id);
+    const sourceTurn = await sourceTurnOf(this[busState].host, request);
 
-    if (calling.rewind_pending_id || rewound) return failure(request.callId, "This message has been rewound.");
+    if (calling.rewind_pending_id || sourceTurn?.rewind_id)
+      return failure(request.callId, "This message has been rewound.");
 
     const stored = await this[busState].host.run(AgentBusStore.use((s) => s.storedCall(request.callId)));
 
@@ -88,7 +95,7 @@ export const busRequestsMethods: BusRequestsMethods = {
 
     if (calling && this[busState].host.linked) {
       try {
-        const result = await this[busState].host.linked(request, call, calling);
+        const result = await this[busState].host.linked(request, call, callerWithServiceTier(calling, sourceTurn));
 
         if (result !== undefined) {
           await this[busState].host.run(
@@ -114,7 +121,11 @@ export const busRequestsMethods: BusRequestsMethods = {
     let spawn: SpawnResolution | undefined;
 
     if (call.tool === "spawn_thread" && calling)
-      spawn = resolveSpawnTarget(call.args, callerTarget(calling), await this[busState].host.spawnInstances(calling));
+      spawn = resolveSpawnTarget(
+        call.args,
+        callerTarget(calling, sourceTurn),
+        await this[busState].host.spawnInstances(calling),
+      );
 
     const { caller, facts } = await this[busState].host.run(
       AgentBusStore.use((s) =>
@@ -139,7 +150,14 @@ export const busRequestsMethods: BusRequestsMethods = {
     const hops = decision.hops ?? facts.callerHops + 1;
 
     try {
-      let result = await busExecute(this, call, source, caller, hops, spawn?.ok ? spawn.target : callerTarget(caller));
+      let result = await busExecute(
+        this,
+        call,
+        source,
+        caller,
+        hops,
+        spawn?.ok ? spawn.target : callerTarget(caller, sourceTurn),
+      );
 
       if (this[busState].host.extend) result = await this[busState].host.extend(call, caller, result);
 
@@ -171,3 +189,9 @@ export const busRequestsMethods: BusRequestsMethods = {
     }
   },
 };
+
+async function sourceTurnOf(host: BusHost, request: AgentToolCall) {
+  if (!request.turnId) return undefined;
+
+  return (await host.run(GatewayStore.use((store) => store.turnsOf(request.threadId, [request.turnId]))))[0];
+}

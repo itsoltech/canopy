@@ -63,6 +63,27 @@ const target = (
 };
 
 describe("spawn_thread on any provider", () => {
+  test("speed stays on a matching model and is checked against the target account", () => {
+    const list: SpawnInstance[] = instances.map((instance) => ({
+      ...instance,
+      models: (instance.models ?? []).map((model) => ({
+        ...model,
+        serviceTiers: instance.harness === "codex" && model.id === "gpt-6.1-sol" ? ["fast", "ultrafast"] : [],
+      })),
+    }));
+
+    const caller = { ...codexCaller, model: "gpt-6.1-sol", serviceTier: "ultrafast" };
+
+    expect(target({}, caller, list)).toEqual(caller);
+    expect(target({ model: "gpt-5.5" }, caller, list)).toEqual({ ...codexCaller });
+    expect(target({ service_tier: "default" }, caller, list)).toEqual({ ...caller, serviceTier: "default" });
+    expect(target({ provider: "claude", service_tier: "ultrafast" }, caller, list)).toContain("not available");
+    expect(target({ provider: "codex/cliproxyapi", service_tier: "fast" }, caller, list)).toMatchObject({
+      serviceTier: "fast",
+    });
+    expect(agentCatalog(caller, list).agents[0]?.models[0]).toMatchObject({ service_tiers: ["fast", "ultrafast"] });
+  });
+
   test("without provider the subagent is a copy of the caller (its model and effort unless narrowed)", () => {
     expect(target({})).toEqual(codexCaller);
     expect(target({ model: "gpt-6.1-sol" })).toEqual({ ...codexCaller, model: "gpt-6.1-sol" });

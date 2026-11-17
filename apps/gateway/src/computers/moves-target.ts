@@ -229,6 +229,7 @@ export async function movesApplyThread(
       providerProfileId: row.provider_profile_id ?? "",
       model: row.settings.model ?? "",
       effort: row.settings.effort ?? "",
+      serviceTier: row.settings.serviceTier ?? "",
       permissionMode: permissionModeOf(row.settings.permissionMode || "ASK"),
       instructions: row.settings.instructions ?? "",
       parentThreadId: row.kind === "side" ? (row.parent_thread_id ?? "") : "",

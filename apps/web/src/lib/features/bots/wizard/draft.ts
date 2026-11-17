@@ -1,3 +1,4 @@
+import { supportedServiceTier } from "#lib/features/models/service-tier.ts";
 import type { ModelOption } from "#lib/features/models/catalog.ts";
 import type { ProviderKey } from "#lib/features/threads/providers.ts";
 import type { BotAppearance } from "../mascot.ts";
@@ -24,6 +25,7 @@ export interface CreateBotDraft extends BotAppearanceDraft {
   model: string;
   /** undefined means the selected model's default. */
   effort: string | undefined;
+  serviceTier?: string | undefined;
 }
 
 /** Revalidate against live props immediately before invoking the caller. */
@@ -32,6 +34,7 @@ export function selectionError(
   instanceId: string,
   option: ModelOption | undefined,
   effort: string | undefined,
+  serviceTier?: string | undefined,
 ): string | undefined {
   const instance = instances.find((i) => i.id === instanceId);
 
@@ -40,6 +43,9 @@ export function selectionError(
 
   if (effort !== undefined && !option.efforts.some((e) => e.id === effort))
     return "Choose an effort supported by this model.";
+
+  if (serviceTier && serviceTier !== supportedServiceTier(option, serviceTier))
+    return "Choose a speed supported by this model.";
 
   return undefined;
 }

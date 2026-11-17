@@ -44,6 +44,7 @@ export interface ThreadRow {
   settings: {
     model?: string;
     effort?: string;
+    serviceTier?: string;
     permissionMode?: string;
     permissionModeNote?: string;
     instructions?: string;
@@ -161,6 +162,7 @@ export interface TurnRow {
   /** The message's override while queued; the values sent to the worker once started ('' = default). */
   model?: string;
   effort?: string;
+  service_tier?: string;
   /** Same as model: the override ('' = the thread's default), then the mode sent (PermissionMode enum name). */
   permission_mode?: string;
   /** Thread default at dispatch; distinguishes a turn override from a later change to the parent. */

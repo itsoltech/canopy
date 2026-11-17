@@ -111,6 +111,7 @@
     ).map((option) => ({
       ...option,
       efforts: option.efforts.map((e) => e.id),
+      serviceTiers: option.serviceTiers.map((tier) => tier.id),
       option,
     })),
   );
@@ -119,11 +120,17 @@
   const option = $derived(selected.option?.option);
   const effort = $derived(selected.effort || undefined);
   const mode = $derived(permissionKey(selected.permissionMode));
-  const override = $derived({ model: option?.model, effort: selected.effort, permissionMode: mode });
+
+  const override = $derived({
+    model: option?.model,
+    effort: selected.effort,
+    serviceTier: selected.serviceTier,
+    permissionMode: mode,
+  });
 
   function pickModel(next: ModelOption | undefined) {
     if (!next) return;
-    saved.choices = { ...mine, model: next.model, effort: selected.effort };
+    saved.choices = { ...mine, model: next.model, effort: selected.effort, serviceTier: selected.serviceTier };
   }
 
   function pickEffort(next: string | undefined) {
@@ -290,6 +297,7 @@
         {
           model: request.model,
           effort: request.effort,
+          serviceTier: request.serviceTier,
           permissionMode: request.permissionMode ? permissionKey(request.permissionMode) : undefined,
         },
         request.delivery === ui.MessageDelivery.STEER ? "steer" : "queue",
@@ -428,6 +436,11 @@
             options={offer.options}
             bind:option={() => option, pickModel}
             bind:effort={() => effort, pickEffort}
+            bind:serviceTier={
+              () => selected.serviceTier, (next) => (saved.choices = { ...mine, serviceTier: next ?? "" })
+            }
+            inheritedServiceTier={thread.serviceTier}
+            showSpeed
             inherited={thread.effort || undefined}
             workerId={thread.workerId}
             class="flex-1 justify-end"

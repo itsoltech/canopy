@@ -349,6 +349,7 @@
         providerInstance: instance.id,
         model: choice.model,
         effort: choice.effort ?? "",
+        serviceTier: choice.serviceTier ?? "",
       }),
     );
   }
@@ -540,6 +541,7 @@
     providerInstanceId: instanceKeyOf({ harness: config.provider, id: config.providerInstance }),
     model: config.model,
     effort: config.effort || undefined,
+    serviceTier: config.serviceTier || undefined,
   }}
   onsave={changeModel}
 />

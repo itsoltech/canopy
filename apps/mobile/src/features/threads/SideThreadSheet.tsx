@@ -3,6 +3,9 @@ import { Text, View } from "react-native";
 import { create } from "@bufbuild/protobuf";
 import { ConnectError } from "@connectrpc/connect";
 import { PermissionMode, ui } from "@canopy/contracts";
+import { useComposerSettings } from "./useComposerSettings";
+import { ComposerControls, ComposerPickers } from "./ComposerModelControls";
+import { useOverview } from "../../state/overview";
 import { useSession } from "../../state/session";
 import { useLayout } from "../../state/layout";
 import { Button } from "../../ui/components";
@@ -21,7 +24,7 @@ import { styles, useColors } from "../../ui/theme";
 const hint = "The side thread starts from the main thread's last completed turn.";
 
 /**
- * A side thread of this thread, as on the web: same project, worker, folder, agent and model; it can start from the
+ * A side thread of this thread, as on the web: same project, worker, directory and provider instance; it can start from the
  * main thread's history. Full access is never taken over: the side thread gets full auto instead.
  */
 export function SideThreadSheet({
@@ -53,6 +56,9 @@ function SideThreadForm({ main, onClose }: { main: ui.Thread; onClose: () => voi
     }),
   );
 
+  const worker = useOverview().workers.find((worker) => worker.id === main.workerId);
+  const settings = useComposerSettings(main, worker, message.persistent);
+
   const [fork, setFork] = useState(true);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
@@ -76,8 +82,9 @@ function SideThreadForm({ main, onClose }: { main: ui.Thread; onClose: () => voi
           workspaceId: main.workspaceId,
           provider: main.provider,
           providerProfileId: main.providerProfileId,
-          model: draft?.choices.model ?? main.model,
-          effort: draft?.choices.effort ?? main.effort,
+          model: settings.override.model ?? main.model,
+          effort: settings.effort,
+          serviceTier: settings.serviceTier,
           permissionMode:
             draft?.choices.permissionMode ??
             (main.permissionMode === PermissionMode.FULL_ACCESS ? PermissionMode.FULL_AUTO : main.permissionMode),
@@ -120,6 +127,7 @@ function SideThreadForm({ main, onClose }: { main: ui.Thread; onClose: () => voi
         busy={busy}
         readonly={Boolean(message.persistent?.pendingCreate)}
         files={message.files.ids.length}
+        controls={<ComposerControls state={settings} thread={main} />}
         top={<AttachmentChips files={message.files.files} onRemove={message.remove} />}
         attachment={
           <AttachButton draft={message.files} disabled={busy || Boolean(message.persistent?.pendingCreate)} />
@@ -131,6 +139,7 @@ function SideThreadForm({ main, onClose }: { main: ui.Thread; onClose: () => voi
           <DraftMoveNotice draft={message.persistent} />
         </>
       )}
+      <ComposerPickers state={settings} />
       <Checkbox label="Use main thread history" description={hint} checked={fork} onChange={setFork} />
       {closed || error ? (
         <Text accessibilityRole="alert" style={[styles.meta, { color: closed ? c.muted : c.danger }]}>

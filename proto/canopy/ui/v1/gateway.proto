@@ -813,6 +813,8 @@ message Thread {
   // Latest main-session context observation from the harness; absent until reported.
   // Independent of turn/session token accounting; unknown fields remain absent.
   canopy.worker.v1.ContextUsage context_usage = 1070;
+  // Puste = dziedziczenie/domyślne profilu; default = jawny standard.
+  string service_tier = 43;
 }
 
 message ReorderThreadRequest {
@@ -831,6 +833,8 @@ message ComposerTurnChoices {
   canopy.worker.v1.PermissionMode permission_mode = 4;
   // Creation time of the selected user turn, independent of later thread activity.
   google.protobuf.Timestamp created_at = 5;
+  // Puste = dziedziczenie/domyślne profilu; default = jawny standard.
+  string service_tier = 6;
 }
 
 message ThreadImport {
@@ -1006,6 +1010,8 @@ message Turn {
   // Numery od 480: tura z notatką platformy o checkach CI podlinkowanych PR (trigger pr_checks, source_kind pr_checks;
   // docs/agent-bus.md, „Checki CI”): notatki watchy, które w niej dotarły do agenta.
   repeated PullRequestChecksNote pr_checks = 480;
+  // Puste = dziedziczenie/domyślne profilu; default = jawny standard.
+  string service_tier = 43;
 }
 
 // Notatka watcha checków CI (watch_pr_checks) dla osi czasu. Treść dla modelu jest w input_text / platform_note.
@@ -1395,6 +1401,8 @@ message CreateThreadRequest {
   string base_ref = 901;
   // EXISTING_WORKTREE: rekord worktree tego projektu i workspace'u.
   string worktree_id = 902;
+  // Puste = dziedziczenie/domyślne profilu; default = jawny standard.
+  string service_tier = 43;
 }
 
 // Continue a removed managed worktree in a new main thread without resuming its provider session.
@@ -1434,6 +1442,8 @@ message SendMessageRequest {
   // Wybrana propozycja odpowiedzi z końcowej wiadomości agenta w tym wątku.
   // Gateway atomowo sprawdza źródło, aktualność i zgodność text z propozycją.
   optional string reply_suggestion_item_id = 930;
+  // Puste = dziedziczenie/domyślne profilu; default = jawny standard.
+  optional string service_tier = 43;
 }
 
 message SendMessageResponse {
@@ -1766,6 +1776,8 @@ message NewThreadSchedule {
   string parent_thread_id = 12;
   // Gateway explanation when the configured mode was limited by a policy ceiling.
   string permission_mode_note = 13;
+  // Puste = dziedziczenie/domyślne profilu; default = jawny standard.
+  string service_tier = 14;
 }
 
 message ScheduleRun {
@@ -2128,6 +2140,8 @@ message UpdateThreadRequest {
   optional bool auto_archive_on_merge = 1060;
   // Restores inheritance; cannot be combined with auto_archive_on_merge.
   bool reset_auto_archive_on_merge = 1061;
+  // Puste = dziedziczenie/domyślne profilu; default = jawny standard.
+  optional string service_tier = 43;
 }
 
 message RegenerateTitleRequest {

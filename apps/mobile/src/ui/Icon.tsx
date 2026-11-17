@@ -1,5 +1,5 @@
 import Svg, { Path } from "react-native-svg";
-import { icons, iconStyle, type IconName } from "@canopy/ui/icons";
+import { icons, iconStyle, filledIcons, type IconName } from "@canopy/ui/icons";
 import { useColors } from "./theme";
 
 export function Icon({
@@ -16,6 +16,7 @@ export function Icon({
   const c = useColors();
   const paths = icons[name];
   const ink = color ?? c.muted;
+  const filled = filledIcons.has(name);
 
   return (
     <Svg
@@ -23,7 +24,7 @@ export function Icon({
       height={size}
       viewBox={iconStyle.viewBox}
       fill="none"
-      stroke={ink}
+      stroke={filled ? "none" : ink}
       strokeWidth={iconStyle.strokeWidth}
       strokeLinecap="round"
       strokeLinejoin="round"
@@ -31,7 +32,7 @@ export function Icon({
       accessible={Boolean(label)}
     >
       {paths.map((d) => (
-        <Path key={d} d={d} />
+        <Path key={d} d={d} fill={filled ? ink : "none"} fillRule="evenodd" />
       ))}
     </Svg>
   );

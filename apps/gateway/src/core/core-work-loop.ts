@@ -5,14 +5,18 @@ import { joinNotes } from "@canopy/domain";
 import { mentionsFromJson, mentionsToJson } from "./mentions.ts";
 import {
   GatewayStore,
+  GoalStore,
   Ingest,
   permissionModeName,
   permissionModeOf,
   QueueStore,
   turnEffort,
+  serviceTierProblem,
+  inheritedServiceTier,
   type ThreadRow,
   type TurnRow,
 } from "../store/index.ts";
+import { coreBroadcastGoal } from "./core-goals.ts";
 import { coreDeliver } from "./core-commands.ts";
 import {
   coreState,
@@ -152,6 +156,8 @@ export async function coreStartTurn(hostContext: GatewayCore, thread: ThreadRow,
   const models = (await coreProfileModels(hostContext, { thread })).models;
 
   let stored: Command | undefined;
+  let rejected = false;
+  let rejectedGoal = false;
 
   try {
     stored = await hostContext[coreState].actions.run(
@@ -165,6 +171,24 @@ export async function coreStartTurn(hostContext: GatewayCore, thread: ThreadRow,
               const spec = s.threadSpec(current);
               const model = turn.model || current.settings.model || "";
               const effort = turnEffort(models, model, turn.effort || current.settings.effort || "");
+
+              const serviceTier = turn.thread_permission_mode
+                ? (turn.service_tier ?? "")
+                : turn.service_tier ||
+                  inheritedServiceTier(models, model, current.settings.model ?? "", current.settings.serviceTier ?? "");
+
+              const problem = serviceTierProblem(models, model, serviceTier);
+
+              if (problem) {
+                yield* s.failTurn(turn.id, problem, "platform", "SERVICE_TIER_UNAVAILABLE");
+                rejectedGoal = Boolean(
+                  yield* GoalStore.use((goals) => goals.turnFailed(turn.id, `SERVICE_TIER_UNAVAILABLE: ${problem}`)),
+                );
+                rejected = true;
+
+                return;
+              }
+
               const threadPermissionMode = permissionModeName(spec.permissionMode) || "ASK";
               const permissionMode = turn.permission_mode || threadPermissionMode;
 
@@ -193,6 +217,7 @@ export async function coreStartTurn(hostContext: GatewayCore, thread: ThreadRow,
                     },
                     model,
                     effort,
+                    serviceTier,
                     permissionMode: permissionModeOf(permissionMode),
                   },
                 },
@@ -223,10 +248,11 @@ export async function coreStartTurn(hostContext: GatewayCore, thread: ThreadRow,
               if (
                 model !== (turn.model ?? "") ||
                 effort !== (turn.effort ?? "") ||
+                serviceTier !== (turn.service_tier ?? "") ||
                 permissionMode !== (turn.permission_mode ?? "") ||
                 threadPermissionMode !== (turn.thread_permission_mode ?? "")
               ) {
-                yield* s.setTurnSettings(turn.id, { model, effort, permissionMode, threadPermissionMode });
+                yield* s.setTurnSettings(turn.id, { model, effort, serviceTier, permissionMode, threadPermissionMode });
               }
 
               return yield* s.enqueueCommand({
@@ -247,7 +273,14 @@ export async function coreStartTurn(hostContext: GatewayCore, thread: ThreadRow,
     throw error;
   }
 
-  if (!stored) return false;
+  if (!stored) {
+    if (rejected) await coreBroadcastTurn(hostContext, threadId, turn.id, "finished");
+
+    if (rejectedGoal) await coreBroadcastGoal(hostContext, threadId);
+
+    return false;
+  }
+
   await coreBroadcastTurn(hostContext, threadId, turn.id);
   await coreBroadcastThread(hostContext, threadId);
   const commandToDeliver = stored;

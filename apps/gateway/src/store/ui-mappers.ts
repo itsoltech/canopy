@@ -65,6 +65,7 @@ export function toUiComposerChoices(row: ComposerChoiceColumns): ui.ComposerTurn
     createdAt: timestampFromDate(new Date(row.created_at)),
     model: row.model,
     effort: row.effort,
+    serviceTier: row.service_tier ?? "",
     permissionMode: permissionModeOf(row.permission_mode),
   });
 }
@@ -91,6 +92,7 @@ export function toUiThread(row: ThreadRow): ui.Thread {
     providerProfileId: row.provider_profile_id ?? "",
     model: row.settings.model ?? "",
     effort: row.settings.effort ?? "",
+    serviceTier: row.settings.serviceTier ?? "",
     permissionMode: permissionModeOf(row.settings.permissionMode || "ASK"),
     permissionModeNote: row.settings.permissionModeNote ?? "",
     workerId: row.worker_id ?? "",
@@ -234,6 +236,7 @@ export function toUiTurn(row: TurnRow & { inherited?: boolean }): ui.Turn {
     interactionRequestId: row.interaction_request_id ?? "",
     model: row.model ?? "",
     effort: row.effort ?? "",
+    serviceTier: row.service_tier ?? "",
     permissionMode: permissionModeOf(row.permission_mode),
     goalId: row.goal_id ?? "",
     attachments: (row.input?.attachments ?? []).map(toUiAttachment),

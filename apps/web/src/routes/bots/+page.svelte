@@ -136,6 +136,7 @@
               workerId: result.workerId,
               model: result.model,
               effort: result.effort ?? "",
+              serviceTier: result.serviceTier ?? "",
               approvalPolicy: "safe",
             },
           }),

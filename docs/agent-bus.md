@@ -1,5 +1,14 @@
 # Szyna agentów: delegowanie, interakcje, harmonogram
 
+Status trybów prędkości (2026-11-17): zaimplementowane w kodzie; dostępność
+nightly/beta/stable wynika z promocji wydań. `list_agents` zwraca
+`service_tiers` modelu z katalogu konkretnej instancji i konta.
+`spawn_thread.service_tier` wybiera jedną z tych wartości; `default` oznacza
+standardową prędkość. Bez nadpisania dziecko dziedziczy prędkość rodzica dla tego
+samego modelu i instancji. Inny model dziedziczy przyspieszony tryb tylko wtedy,
+gdy jego katalog go obsługuje; zmiana instancji przywraca jej domyślną prędkość.
+Brak katalogu nie uprawnia do wyboru niepotwierdzonego trybu przyspieszonego.
+
 Status (2026-11-17): Claude daje `show_images` 15 min, zachowując 330 s dla pozostałych wywołań do gatewaya;
 na `dev` wspólny limit automatycznego łańcucha wynosi 256
 kroków, z jawnym komunikatem o możliwości kontynuacji po wiadomości użytkownika;

@@ -1,5 +1,45 @@
 # Protokół gateway ↔ worker
 
+## Szybkość wykonania dostawcy
+
+Status (2026-11-17): zaimplementowane w kodzie; dostępność nightly/beta/stable
+wynika z promocji wydań ([release.md](release.md)). Zmiana addytywna,
+bez podnoszenia `WORKER_LINK_PROTOCOL`.
+
+Worker ogłasza addytywną capability `service_tiers_v1`. Każde dostarczenie
+`StartTurn`, `SteerTurn` i `RunBotTurn` sprawdza ją względem zapisanego wyboru,
+także przy odtwarzaniu outboxa po restarcie lub połączeniu starszego workera.
+Jawny tryb, również `default` (Standard), bez tej capability kończy komendę
+błędem `SERVICE_TIERS_UNSUPPORTED`, zanim trafi ona do workera. Puste pole
+zachowuje zgodność ze starszym workerem; w `StartTurn` uwzględniany jest także
+wybór odziedziczony z `ThreadSpec`. Odrzucony steer przechodzi do kolejki
+z zachowaniem wyboru, a jej start podlega tej samej kontroli.
+
+`ModelInfo.service_tiers` (11) zawiera wiadomości `ServiceTier` z `id`, `name`
+i `description`, osobno dla modelu i konta instancji. Identyfikatory, np. `fast`,
+`priority` i `ultrafast`, pochodzą z katalogu; gateway nie tworzy listy trybów
+na podstawie samej nazwy modelu. Pusty katalog nie uprawnia do przyspieszenia.
+
+`ThreadSpec`, `StartTurn` i `SteerTurn` przenoszą `service_tier` (43). Pusty
+wybór wątku oznacza domyślne zachowanie profilu; pusty wybór wiadomości
+dziedziczy wątek. Jawne `default` wymusza standardowe wykonanie i pozwala
+wyłączyć przyspieszenie odziedziczone z wątku albo sesji dostawcy. Gateway
+sprawdza przyspieszenie podczas tworzenia, zmiany i wysyłania oraz przed
+startem kolejki. Utrata możliwości kończy turę błędem
+`SERVICE_TIER_UNAVAILABLE`, nigdy cichym przejściem na standard.
+
+Wybór jest zapisywany w ustawieniach wątku, turach i steerach oraz w outboxie.
+Fallback steer → kolejka zachowuje nadpisanie, także po restarcie. Steer bez
+wyboru pozostaje przy działającej turze; adapter, który nie może zmienić
+wybranego trybu w trakcie tury, odrzuca steer, a gateway kolejkuje wejście.
+Przy zmianie modelu dziedziczone przyspieszenie pozostaje tylko wtedy, gdy nowy
+model je oferuje; inaczej nowa tura dostaje jawne `default`, aby wyłączyć też
+przyspieszenie zapisane w sesji. Jawny wybór spoza katalogu nadal daje odmowę.
+Wątki boczne dziedziczą szybkość w obrębie tego samego konta, według tej samej
+reguły modelu.
+Fork, kontynuacja w nowym worktree, wątki boczne i nowe wątki harmonogramu
+przenoszą wybór. `RunBotTurn.service_tier` (16) przenosi ustawienie bota.
+
 ## Domyślne ustawienia narzędzi agentów
 
 Status (2026-11-17): zaimplementowane w kodzie; dostępność nightly/beta/stable

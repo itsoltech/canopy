@@ -69,7 +69,7 @@ export class ModelStore extends Context.Service<
 }
 
 /** The catalog entry a model id names (also by the model an alias resolves to); the default model for "". */
-function findModel(catalog: ProfileModels, model: string): ModelInfo | undefined {
+export function findModel(catalog: ProfileModels, model: string): ModelInfo | undefined {
   return model
     ? catalog.models.find((m) => m.id === model || m.resolvedModel === model || m.aliases.includes(model))
     : catalog.models.find((m) => m.isDefault);
@@ -116,4 +116,30 @@ export function modelProblem(
   }
 
   return undefined;
+}
+
+/** Accelerated execution is offered per model and account. Missing capability data never grants it. */
+export function serviceTierProblem(
+  catalog: ProfileModels | undefined,
+  model: string,
+  serviceTier: string,
+): string | undefined {
+  if (!serviceTier || serviceTier === "default") return undefined;
+
+  if (serviceTier.length > 100 || !/^[a-z][a-z0-9_-]*$/.test(serviceTier)) return "invalid execution speed";
+  const info = catalog && findModel(catalog, model);
+
+  if (info?.serviceTiers.some((tier) => tier.id === serviceTier)) return undefined;
+
+  return `Execution speed "${serviceTier}" is unavailable for this model and account. Refresh the model list or choose Standard.`;
+}
+
+/** Only implicit inheritance can drop an accelerated tier when the user chooses another model. */
+export function inheritedServiceTier(
+  catalog: ProfileModels | undefined,
+  model: string,
+  sourceModel: string,
+  serviceTier: string,
+): string {
+  return model !== sourceModel && serviceTierProblem(catalog, model, serviceTier) ? "default" : serviceTier;
 }

@@ -219,7 +219,7 @@ function ComposerControls({
         bounces={false}
         showsHorizontalScrollIndicator={false}
         keyboardShouldPersistTaps="handled"
-        // Keep effort beside Send as the catalog loads or the available width changes.
+        // Keep the trailing choices beside Send as the catalog or available width changes.
         onContentSizeChange={() => scroll.current?.scrollToEnd({ animated: false })}
         onLayout={() => scroll.current?.scrollToEnd({ animated: false })}
         contentContainerStyle={[styles.row, { flexGrow: 1, justifyContent: "flex-end", gap: 4 }]}
@@ -240,6 +240,7 @@ function ComposerControls({
 export function ComposerPill({
   icon,
   title,
+  accessibilityLabel = title,
   onPress,
   warning = false,
   danger = false,
@@ -249,6 +250,7 @@ export function ComposerPill({
 }: {
   icon: Parameters<typeof Icon>[0]["name"];
   title: string;
+  accessibilityLabel?: string;
   onPress: () => void;
   warning?: boolean;
   danger?: boolean;
@@ -263,7 +265,7 @@ export function ComposerPill({
     <Skeleton loading={loading}>
       <Pressable
         accessibilityRole="button"
-        accessibilityLabel={title}
+        accessibilityLabel={accessibilityLabel}
         onPress={onPress}
         style={({ pressed }) => ({
           minHeight: composerGeometry.secondary,

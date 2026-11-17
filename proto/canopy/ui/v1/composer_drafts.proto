@@ -17,6 +17,7 @@ message ComposerDraftContent {
   string client_request_id = 8;
   string provider_profile_id = 9;
   canopy.worker.v1.Provider provider = 10;
+  optional string service_tier = 11;
 }
 
 message ComposerDraftTarget {

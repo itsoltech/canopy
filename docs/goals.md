@@ -2,7 +2,8 @@
 
 Grok ACP nie ma w tym adapterze mapowania natywnych goals. Gateway odrzuca operacje celów dla Groka, UI ukrywa kontrolki. Zwykłe tury, kolejka i platformowe harmonogramy pozostają dostępne. [Szczegóły](grok-adapter.md).
 
-Status: **zaimplementowane** (2026-11-16), w tym pauza przy archiwizacji bez
+Status: **zaimplementowane** (2026-11-17), w tym błąd celu przy odmowie
+prędkości wykonania przed wysłaniem tury oraz pauza przy archiwizacji bez
 automatycznego wznowienia po przywróceniu wątku:
 
 - worker: Codex `thread/goal/*` (`apps/worker/src/providers/codex`), Claude `/goal` (`apps/worker/src/providers/claude`),
@@ -56,6 +57,13 @@ Szyna agentów nie ma narzędzi celów: model używa narzędzi harnessu ([agent-
 
 - Decyzja użytkownika jest zapisywana od razu (`SetGoal` zmienia wiersz celu), raport harnessu ją potwierdza (`native_status`). Spóźniony raport `active` nie cofa pauzy (`goalStatusFromHarness`).
 - **Komenda nie dotarła do harnessu** (worker odpowiedział błędem na `SetGoal`, np. wątek nie dał się wznowić): `Goal.error` i `Goal.error_at` (na żywo w `ThreadUpdate.goal`), a status wraca do ostatniego raportu harnessu (`goalStatusAfterFailure`): pauza i usunięcie wracają do `active`, a cel, którego harness nigdy nie potwierdził (`native_status` pusty), jest `blocked`. Wyjątek: inny cel wątku jest już otwarty (wtedy tylko błąd). Wznowienie takiego celu wysyła ponownie treść i budżet. Błąd znika przy następnej komendzie celu i przy jej powodzeniu. Claude: tura `/goal …`, której nie udało się zacząć, zapisuje błąd przy celu tury (bez zmiany statusu).
+- **Odmowa prędkości przed wysłaniem tury Claude**, np. po utracie dostępu do Fast:
+  tura dostaje `SERVICE_TIER_UNAVAILABLE`, a `Goal.error` i `Goal.error_at` są
+  zapisywane atomowo z błędem tury i publikowane przez `ThreadUpdate.goal`.
+  Harness nie otrzymuje wtedy `/goal`; status celu pozostaje bez zmian.
+  Odpowiedź `SetGoal` i jej końcowa aktualizacja odczytują zapisany stan, więc
+  natychmiastowa odmowa nie zastępuje błędu wcześniejszym stanem bez błędu.
+  Dostępność w nightly/beta/stable wynika z [promocji wydań](release.md).
 - Zakończony cel (`achieved`, `cancelled`) zostaje zakończony; późne raporty aktualizują tylko zużycie i `native_status`.
 - Raport z inną treścią niż otwarty cel (i nie z tury tego celu) to nowy cel harnessu: `created_by = provider`, poprzedni `cancelled`.
 

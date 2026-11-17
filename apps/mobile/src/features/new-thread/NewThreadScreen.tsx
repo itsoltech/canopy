@@ -15,6 +15,7 @@ import { ComposerBox, ComposerPill } from "../threads/ComposerBox";
 import { AttachButton, AttachmentChips } from "../attachments/Attachments";
 import { DropZone, PasteTarget } from "../attachments/FileIntake";
 import { EffortPickerSheet, ModelPickerSheet } from "../models/ModelPicker";
+import { SpeedIcon, SpeedPickerSheet, effectiveSpeed, speedLabel } from "../models/SpeedPicker";
 import { useEffortLabel } from "../settings/display";
 import { permissionLabel, permissionLook, PermissionPickerSheet } from "../threads/permissions";
 import { useNewThread } from "./useNewThread";
@@ -30,7 +31,7 @@ import { PendingDraft } from "../drafts/PendingDraft";
 
 type State = ReturnType<typeof useNewThread>;
 
-type Picker = "project" | "worker" | "model" | "effort" | "permission";
+type Picker = "project" | "worker" | "model" | "effort" | "speed" | "permission";
 
 /** One screen: the message box with model, effort and files; under it project, worker and permissions. */
 export function NewThreadScreen() {
@@ -38,8 +39,7 @@ export function NewThreadScreen() {
   const { session } = useSession();
   const state = useNewThread();
   const [picker, setPicker] = useState<Picker | null>(null);
-  const { project, worker, selected, effort, permissionMode, message, blocker, error } = state;
-  const effortLabel = useEffortLabel();
+  const { project, worker, permissionMode, message, blocker, error } = state;
   const look = permissionLook(permissionMode);
 
   if (!session) return <Redirect href="/pair" />;
@@ -83,25 +83,7 @@ export function NewThreadScreen() {
                           disabled={state.busy || Boolean(message.persistent?.pendingCreate)}
                         />
                       }
-                      controls={
-                        <>
-                          {selected && (
-                            <ComposerPill
-                              icon="cpu-chip"
-                              leading={<ProviderIcon provider={selected.provider} />}
-                              title={selected.name}
-                              onPress={() => setPicker("model")}
-                            />
-                          )}
-                          {selected?.efforts.length ? (
-                            <ComposerPill
-                              icon="light-bulb"
-                              title={effortLabel(effort)}
-                              onPress={() => setPicker("effort")}
-                            />
-                          ) : null}
-                        </>
-                      }
+                      controls={<NewThreadControls state={state} setPicker={setPicker} />}
                     />
                   </View>
                 </ComposerViewport>
@@ -156,7 +138,7 @@ export function NewThreadScreen() {
 }
 
 function NewThreadPickers({ state, picker, close }: { state: State; picker: Picker | null; close: () => void }) {
-  const { projects, workers, project, workspace, sections, selected, effort, permissionMode } = state;
+  const { projects, workers, project, workspace, sections, selected, effort, serviceTier, permissionMode } = state;
   const details = useProjectDetails();
 
   return (
@@ -205,12 +187,50 @@ function NewThreadPickers({ state, picker, close }: { state: State; picker: Pick
         value={effort}
         onSelect={state.setEffort}
       />
+      <SpeedPickerSheet
+        visible={picker === "speed"}
+        onClose={close}
+        choice={selected}
+        value={serviceTier}
+        configured={state.hasConfiguredSpeed}
+        onSelect={state.setServiceTier}
+      />
       <PermissionPickerSheet
         visible={picker === "permission"}
         onClose={close}
         value={permissionMode}
         onSelect={state.setPermission}
       />
+    </>
+  );
+}
+
+function NewThreadControls({ state, setPicker }: { state: State; setPicker: (picker: Picker) => void }) {
+  const { selected, effort, serviceTier } = state;
+  const effortLabel = useEffortLabel();
+
+  return (
+    <>
+      {selected && (
+        <ComposerPill
+          icon="cpu-chip"
+          leading={<ProviderIcon provider={selected.provider} />}
+          title={selected.name}
+          onPress={() => setPicker("model")}
+        />
+      )}
+      {selected?.efforts.length ? (
+        <ComposerPill icon="light-bulb" title={effortLabel(effort)} onPress={() => setPicker("effort")} />
+      ) : null}
+      {selected?.serviceTiers.length || state.hasConfiguredSpeed ? (
+        <ComposerPill
+          icon="bolt"
+          leading={<SpeedIcon value={effectiveSpeed(selected, serviceTier)} />}
+          title={speedLabel(selected, serviceTier)}
+          accessibilityLabel={`Speed: ${speedLabel(selected, serviceTier)}`}
+          onPress={() => setPicker("speed")}
+        />
+      ) : null}
     </>
   );
 }

@@ -55,7 +55,13 @@ export class CodexThreads extends Context.Service<
     ): Effect.Effect<string, CodexThreadError>;
     interrupt(threadId: string, turnId: string): Effect.Effect<void, CodexThreadError>;
     /** Adds input to the running turn (turn/steer); idempotent by inputId. */
-    steer(threadId: string, turnId: string, inputId: string, input: UserInput): Effect.Effect<void, SteerError>;
+    steer(
+      threadId: string,
+      turnId: string,
+      inputId: string,
+      input: UserInput,
+      settings?: Pick<TurnSettings, "serviceTier">,
+    ): Effect.Effect<void, SteerError>;
     /** Models a profile offers (model/list, plus the proxy's models for a CLIProxyAPI profile). */
     listModels(profileId: string): Effect.Effect<{ models: ModelInit[]; detail?: string }, CodexThreadError>;
     /** Skills, plugins and apps for the composer in a folder (codex/catalog.ts); refresh = re-scan skills. */

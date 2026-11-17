@@ -1,4 +1,5 @@
 import {
+  SERVICE_TIERS_CAPABILITY,
   CLAUDE_LIVE_PERMISSIONS_CAPABILITY,
   CLAUDE_USER_CONFIGURATION_CAPABILITY,
   STEER_ATTACHMENTS_CAPABILITY,
@@ -39,6 +40,7 @@ export function workerCapabilities(options: { localWorker: boolean; fullAccess: 
     "provider_cli_auth_v1",
     "generate_text",
     "bot_harness_v1",
+    SERVICE_TIERS_CAPABILITY,
     "bot_web_v1",
     "bot_workspace_v1",
     "bot_outgoing_files_v1",

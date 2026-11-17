@@ -3,7 +3,10 @@ import { effectiveThreadDefaults, latestThreadChoices } from "@canopy/domain/new
 import { findChoice, profileValue, type ModelChoice, type ModelSection } from "../models/catalog";
 import { modelFor } from "./placement";
 
-type DraftChoices = Pick<ui.ComposerDraftContent, "provider" | "providerProfileId" | "model" | "effort">;
+type DraftChoices = Pick<
+  ui.ComposerDraftContent,
+  "provider" | "providerProfileId" | "model" | "effort" | "serviceTier"
+>;
 
 /** Draft choices win; remembered effort belongs only to the matching provider and profile. */
 export function newThreadChoices(
@@ -45,10 +48,20 @@ export function newThreadChoices(
         ? remembered?.effort
         : "";
 
+  const askedTier =
+    draft?.serviceTier !== undefined
+      ? !draft.provider || sameAgent(draft.provider, draft.providerProfileId)
+        ? draft.serviceTier
+        : ""
+      : latest && sameAgent(latest.provider, latest.providerProfileId)
+        ? (remembered?.serviceTier ?? latest.serviceTier)
+        : "";
+
   return {
     selected,
     model: selected && !picked && !previous && selected.isDefault ? "" : (selected?.model ?? ""),
     effort: supportedEffort(selected, asked),
+    serviceTier: askedTier === "default" || selected?.serviceTiers.includes(askedTier ?? "") ? (askedTier ?? "") : "",
   };
 }
 
