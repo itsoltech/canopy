@@ -119,9 +119,10 @@ async function canceledCreation(fixture: Awaited<ReturnType<typeof linkedProject
     expect(result.confirmed).toBe(true);
     expect(result.inFlight).toBe(false);
     const thread = (await a.gw.api.getThread({ threadId: result.threadId })).thread!;
+    const localThreadId = thread.id.replace(/~.*$/, "");
     expect(thread.worktree).toBeDefined();
-    expect(thread.id).toBe(`${thread.id.split("~")[0]}${suffix}`);
-    await home.settled((await home.gw.api.getThread({ threadId: thread.id.split("~")[0] })).thread!);
+    expect(thread.id).toBe(`${localThreadId}${suffix}`);
+    await home.settled((await home.gw.api.getThread({ threadId: localThreadId })).thread!);
 
     const rows = await home.sql(
       (sql) => sql<{ count: number }>`SELECT count(*)::int AS count FROM threads
@@ -170,7 +171,7 @@ describe.skipIf(!dockerAvailable)("read-only creation recovery", () => {
     draftId: crypto.randomUUID(),
   });
 
-  const delivery = (input: ReturnType<typeof request>, id = input.draftId) =>
+  const delivery = (input: ReturnType<typeof request>, id: string = input.draftId) =>
     gw.api.getComposerDraftDelivery({ id, clientRequestId: input.clientRequestId, workspaceId });
 
   test("an inner stream ending after preparation stays uncertain and recovers its admitted thread", async () => {
