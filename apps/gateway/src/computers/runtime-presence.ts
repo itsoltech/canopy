@@ -92,7 +92,6 @@ export const computersPresenceMethods: ComputersPresenceMethods = {
       capabilities: this.options.capabilities ?? [
         "presence",
         "unlink",
-        USAGE_STATS,
         RESTART_PRESENCE,
         LAN_ROUTES,
         ...(this.options.serve
@@ -137,6 +136,7 @@ export const computersPresenceMethods: ComputersPresenceMethods = {
         ...(this.options.core?.diagnostics.collector.enabled ? ["diagnostics_trace_v1"] : []),
         // Batched, resumable workspace copies (docs/workspace-copy.md); peers with the 32-entry guard never see it.
         ...(this.options.serve ? [WORKSPACE_COPY_CAPABILITY] : []),
+        USAGE_STATS,
       ],
     });
   },

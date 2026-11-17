@@ -2,7 +2,7 @@
 
 Status: opis zaimplementowanej synchronizacji (2026-11-17), w tym przyrostowej
 synchronizacji agregatów użycia z żądaną szybkością wykonania przez bezpośrednie
-łącza, zachowania lokalnych kanałów Slack botów i nadawców historycznych
+łącza, odwołania zaufania w trakcie handshake, zachowania lokalnych kanałów Slack botów i nadawców historycznych
 steerów przy stronicowaniu lokalnym i offline oraz wspólnego
 limitu 256 kroków automatycznej rozmowy i domyślnego
 steera między rodzicem a dzieckiem oraz deduplikacji raportów jednej tury,
@@ -26,7 +26,9 @@ desktopu wymieniać godzinowe agregaty przez prywatne `UsageService.GetUsageBuck
 w `RemoteRequest`. Nie jest to publiczny RPC. Obie strony muszą ogłaszać capability;
 odbiorca sprawdza deskryptor usługi, przypiętą tożsamość łącza i nadal istniejące
 powiązanie właściciela z partnerem. Payload nie wybiera właściciela ani komputera
-źródłowego. Relay jest obecnie wykluczony, również przy ręcznie spreparowanej
+źródłowego. Capability jest dopisywane po dotychczasowych wpisach hello, aby zachować
+pierwsze 32 funkcje dla starszych partnerów, którzy ignorują pole rozszerzeń.
+Relay jest obecnie wykluczony, również przy ręcznie spreparowanej
 kopercie przekazania; statystyki obejmują lokalny dom oraz bezpośrednich partnerów.
 Dom widoczny wyłącznie przez relay pozostaje źródłem bez pokrycia i oznacza wynik
 jako częściowy, dopóki filtr nie wyłączy tego komputera.
@@ -678,6 +680,11 @@ Heartbeat co 5 s, brak odbioru przez 20 s zamyka strumień; transport dodatkowo 
 Reconnect próbuje znanych tras kolejno, z backoff 1–30 s i jitterem; po handshake zachowuje adresy
 ogłoszone przez partnera. Nie ma outboxu pracy ani zdalnych akcji w etapie 1.
 
+Unlink zatwierdzony w trakcie handshake odrzuca późny `welcome` i wywołania RPC
+od partnera odpowiedzią `unlinked`. Żądanie synchronizacji użycia wysłane zaraz
+po handshake nie przerywa kanału kontrolnego przed dostarczeniem odwołania.
+Usunięty partner nie odzyskuje tras ani prawa do obsługi RPC.
+
 ### Obecność i odwołanie
 
 Obecność zapisuje stan, czas lokalnego zaobserwowania zmiany i last seen. Udany handshake
@@ -744,6 +751,8 @@ przy zachowanym pinie (trasy ręczne i LAN), gotowość listenera, restart obu g
 z ich bazami i zaszyfrowanymi kluczami, handshake starszych capabilities bez zmiany
 protokołu, potwierdzenie innego klucza bez wysłania RPC, powrót przypiętej tożsamości,
 usunięcie utrwalonego błędnego ostrzeżenia oraz działającą trasę obok starego adresu.
+Wymusza też Unlink między wysłaniem hello a odbiorem welcome i żądania agregatów
+użycia przez prawdziwe przypięte TLS: odwołanie dociera, a trasy nie wracają.
 
 ## Konkretny protokół etapu 2
 

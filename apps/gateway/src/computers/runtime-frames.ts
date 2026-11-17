@@ -57,7 +57,18 @@ export async function computersReceive(
 
   if (body.case === "remoteRequest" || body.case === "remoteResponse" || body.case === "remoteCancel") {
     // Only after a handshake with a common protocol; the peer was verified then and unlink closes the stream.
-    if (!connection.remote) throw new ConnectError("Remote calls need a compatible link", Code.FailedPrecondition);
+    if (!connection.remote) {
+      // Unlink can commit while hello/welcome is in flight. Keep the control channel
+      // alive long enough to deliver revocation, even if the peer already started a call.
+      if (!(await hostContext.store.peer(nodeId))) {
+        connection.send({ body: { case: "unlinked", value: {} } });
+
+        return;
+      }
+
+      throw new ConnectError("Remote calls need a compatible link", Code.FailedPrecondition);
+    }
+
     connection.seen = Date.now();
     connection.remote.receive(body);
 
