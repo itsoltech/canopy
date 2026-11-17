@@ -6,6 +6,7 @@ import { codexUsage } from "../providers/usage-limits.ts";
 import { decodeJson } from "../providers/json.ts";
 import { BotHarnessFailure, type BotHarnessContext } from "./types.ts";
 import { rejectBotToolApproval } from "./failures.ts";
+import type { CodexConsumedUsage } from "../providers/codex/consumed-usage.ts";
 
 function codexFailure(error: import("@canopy/codex-protocol").v2.TurnError | null | undefined) {
   return new BotHarnessFailure(codexErrorCode(decodeJson(error?.codexErrorInfo)) || "HARNESS_ERROR", error?.message);
@@ -16,6 +17,7 @@ export function codexBotEvents(
   server: CodexAppServer["Service"],
   done: Deferred.Deferred<void, Error>,
   native: { id: string; turn: string; completed: boolean },
+  consumed: CodexConsumedUsage,
 ) {
   return server.notifications.pipe(
     Stream.runForEach((event) => {
@@ -27,8 +29,17 @@ export function codexBotEvents(
       if (event.method === "turn/started") {
         if (!native.turn) native.turn = event.params.turn.id;
 
+        if (event.params.turn.id === native.turn) consumed.beginTurn(native.turn);
+
         return Effect.void;
       }
+
+      const snapshots = consumed.observe(event, "turnId" in event.params && event.params.turnId === native.turn);
+
+      if (snapshots.length)
+        return Effect.promise(async () => {
+          for (const usage of snapshots) await ctx.record({ body: { case: "usageUpdated", value: { usage } } });
+        });
 
       if (
         (event.method === "item/started" || event.method === "item/completed") &&

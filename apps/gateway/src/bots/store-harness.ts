@@ -1,3 +1,4 @@
+import { accountBotUsage } from "../usage/accounting.ts";
 import { fromBinary, toBinary, type JsonValue } from "@bufbuild/protobuf";
 import {
   CommandSchema,
@@ -202,6 +203,7 @@ export function botHarnessStore(sql: SqlClient.SqlClient, access: BotAccess) {
 
             if (!row) return false;
 
+            yield* accountBotUsage(sql, row.bot_id, event);
             yield* recordCursor(sql, workerId, journalId, row.bot_id, event.journalSeq);
 
             // The durable watermark acknowledges terminal replay without recreating pruned raw events.

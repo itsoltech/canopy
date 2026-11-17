@@ -1,7 +1,8 @@
 # Adapter Codex (app-server)
 
-Status (2026-11-17): runtime wątków, lokalny MCP, poziomy szybkości z katalogu konta
-oraz bezstratny zapis obrazów wyników trybu kodu poza `raw_json` są zaimplementowane;
+Status (2026-11-17): runtime wątków, lokalny MCP, poziomy szybkości z katalogu konta,
+bezstratny zapis obrazów wyników trybu kodu oraz per-modelowe liczniki tokenów i kosztów USD tur
+są zaimplementowane;
 ograniczenia i dalsze prace opisano poniżej. Dostępność wydań według [release.md](release.md).
 
 Gotowe:
@@ -73,7 +74,8 @@ Gotowe:
 | `item/started` / `item/completed` | `item_started` / `item_completed` z itemem: wiadomość (z `phase`: komentarz / odpowiedź końcowa), rozumowanie, komenda, zmiana plików, MCP, narzędzie dynamiczne (narzędzia szyny → `agent_bus_call`), wyszukiwanie, plan, obraz, kompaktowanie, subagent; reszta → `provider_item` |
 | `item/agentMessage/delta`, `item/reasoning/*Delta`, `item/commandExecution/outputDelta` | `item_delta` (`text`, `summary`, `output`) |
 | `turn/plan/updated` | item `plan:<turn>` z krokami (każda aktualizacja zastępuje stan) |
-| `thread/tokenUsage/updated` | `usage_updated` |
+| `thread/tokenUsage/updated` | `usage_updated`: przyrost zużycia sesji przypisany do bieżącej tury; kontekst osobno z `last` |
+| `rawResponse/completed` | per-response tokeny scalane bez podwójnego naliczania; `usageMetadata.amount` jest kosztem odpowiedzi w USD, z rozróżnieniem zera i braku kwoty |
 | `error` | `notice` (`warning`, gdy Codex ponowi; inaczej `error`) |
 | `thread/goal/updated` / `cleared` | `goal_state` (status, `objective`, `tokensUsed`, `timeUsedSeconds`, `tokenBudget`; `cleared`) |
 | `commandExecution` z `processId` w toku przy `turn/completed` | item `background_task` `bg:<id>` (`kind = PROCESS`, `task_id = processId`) tuż przed `turn_finished`; dalsze `outputDelta` i `item/completed` (kod wyjścia, zatrzymanie) trafiają do niego, bez `turn_id` |
@@ -97,6 +99,57 @@ skryptowanym app-serverem: koniec zadania w tle dostarcza jeden platformowy stee
 bez Stop, trzy błędy proxy bez ID zachowują turę, a poprawny koniec daje jedno
 ostrzeżenie po live sync i ponownym odczycie. Spóźnione Stop i steer nie dochodzą
 do app-servera. Nie odtwarza to połączenia upstream ani konkretnego urządzenia.
+
+### Rozliczanie zużycia
+
+`Usage.scope=TURN` oznacza narastający snapshot jednej tury platformy i jednego
+modelu, a nie przyrost do bezwarunkowego dodania. `inputTokens` zawiera tokeny
+cache read/write; `reasoningOutputTokens` jest podzbiorem `outputTokens`.
+Nie dodajemy rozumowania ponownie do outputu. `reportedCostUsd` jest opcjonalną
+kwotą przekazaną przez dostawcę; znane zero pozostaje zerem, brak kwoty jest
+nieznanym kosztem. Adapter nie stosuje cennika modeli.
+
+`thread/tokenUsage/updated.total` jest licznikiem sesji. Adapter odejmuje poprzedni
+snapshot; przy pierwszej obserwacji bez bazowego licznika przyjmuje wyłącznie
+`last`, a historyczne powiadomienie po resume/fork służy tylko jako baza.
+Późne liczniki wcześniejszej tury nie zmieniają bazy trwającej tury. Dzięki temu
+odziedziczona historia i fork nie zwiększają zużycia. Rekoncyliacja rolloutu
+stosuje tę samą zasadę i zachowuje reasoning jako podzbiór outputu.
+Odzyskane snapshoty są niezależne od zapisanego zakończenia tury i trafiają do
+dziennika przed jej zamknięciem. Model musi być udowodniony w źródle; sam
+`turn_context.model` jest żądanym modelem, a model-less `token_count` nie pozwala
+przypisać sumy po reroute. Taki niejednoznaczny pomiar nie tworzy drugiego
+licznika pod żądanym modelem. Niejednoznacznego zużycia po awarii nie szacujemy.
+
+Nowe wątki włączają `experimentalRawEvents`. Każde `rawResponse/completed`
+dostarcza tokeny jednej odpowiedzi i ewentualne `usageMetadata.amount`; adapter
+deduplikuje `responseId`. Liczniki raw i sesyjne opisują te same wywołania,
+więc nie są do siebie dodawane. Model pochodzi z konfiguracji tury oraz
+`model/rerouted`; zmiana modelu zachowuje osobne snapshoty.
+`usageMetadata.amount` jest dziesiętną kwotą USD jednej odpowiedzi. Adapter sumuje
+te kwoty per tura/model, bez przeliczania według szybkości. Jawne `"0"` oznacza
+znany zerowy koszt; null, brak, kwota ujemna lub niepoprawna pozostają nieznane.
+`reportedCostUsd` jest dostępny, gdy wszystkie odpowiedzi mają poprawne kwoty,
+a liczniki sesyjne nie wskazują dodatkowego zużycia poza odpowiedziami raw.
+Opóźnione metadane raw mogą uzupełnić wycenę; odtworzenie tej samej odpowiedzi
+nie dodaje kosztu ponownie.
+Natywne raw itemy pozostają w historii, ale ich normalizacja nie dubluje
+itemów odczytanych z rolloutu.
+
+`thread/resume` i `thread/fork` nie udostępniają przełącznika raw, więc po
+zimnym wznowieniu/forku tokeny nadal są rozliczane z liczników sesji, a koszt
+pozostaje nieznany bez raportów `usageMetadata.amount`. Snapshoty
+napływają w trakcie pracy także dla tur później przerwanych lub błędnych;
+niezgłoszonego zużycia po awarii nie szacujemy. Tury ukrytych botów emitują
+te same snapshoty, a izolowane `GenerateText` przekazuje je do workera przez
+callback rozliczeń.
+
+Każdy snapshot ma `requestedServiceTier`: zaakceptowany wybór przechwycony
+przy wysłaniu tury, zachowany także po zmianie ustawień wątku. Wartości natywne
+(np. `priority`) pozostają bez zmian; `GenerateText` jawnie żąda `default`.
+To atrybucja żądanej szybkości, nie dowód rzeczywistego poziomu rozliczeń.
+Odzyskiwanie nie zgaduje tego pola z bieżących ustawień; brakujące dane może
+uzupełnić tylko trwały zapis pierwotnej tury.
 
 ## Załączniki i obrazy
 

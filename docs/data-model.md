@@ -1,6 +1,6 @@
 # Model danych (PostgreSQL)
 
-Status (2026-11-16): zaimplementowany model, w tym migracje `0153_thread_notice_replication` i `0160_agent_hop_policy`;
+Status (2026-11-17): zaimplementowany model, w tym migracje `0153_thread_notice_replication`, `0160_agent_hop_policy`, `0162_service_tiers` i `0164_usage_accounting`;
 dostępność nightly/beta/stable według [release.md](release.md).
 
 Migracja `0160_agent_hop_policy` rozszerza wszystkie 12 kolumn `hops` do
@@ -42,6 +42,31 @@ Migracja `0135_video_attachments` rozszerza `attachments.kind` o `video` i dodaj
 opcjonalny `duration_ms` (dodatnie milisekundy, zakres uint32). Nie przepisuje
 historycznych załączników ani blobów. Nowe filmy zachowują oryginał oraz neutralną
 miniaturę WebP w istniejącej kolumnie `thumb_sha256`.
+
+## Zużycie tokenów i kosztów
+
+Migracja `0164_usage_accounting` oddziela trwałe sumy od historii rozmów.
+`usage_buckets` agreguje zaobserwowane zużycie per właściciel, godzina UTC,
+provider, model i żądaną szybkość wykonania; nie ma FK do wątków, tur ani botów.
+`usage_state` utrzymuje
+początek pokrycia, tożsamość źródła i rewizję przydzielaną pod blokadą właściciela,
+więc eksport przyrostowy nie omija transakcji commitujących w innej kolejności.
+`usage_counters` przechowuje jedynie watermark narastającej próbki tura/model
+lub komendy generowania, z zamrożoną pierwszą znaną żądaną szybkością
+(`requested_service_tier`). Nie jest to potwierdzony tier rozliczenia providera.
+Korekta nieznanego trybu przenosi agregat atomowo bez zmiany tożsamości
+watermarku; stary koszyk pozostaje jako wyzerowany snapshot z nową rewizją.
+FK do tur i rozmów usuwa watermarki przy purge, zachowując niezależne sumy.
+
+Księgowanie jest atomowe z transkryptem i ACK dziennika; dotyczy również
+przerwanych/nieudanych tur i ukrytych harnessów botów. Liczy wyłącznie jawne
+`Usage.scope=TURN`, a nie `ContextUsage`, limity konta ani historyczny import.
+Koszt pochodzi tylko z opcjonalnego `reported_cost_usd`; brak ceny ma własny
+licznik pokrycia. `remote_usage_buckets` oraz `remote_usage_state` trzymają
+zastępowalne sumy domu partnera i kursor synchronizacji (w tym `has_more`),
+ze złożonym FK właściciel/komputer do relacji `computer_peers` i `ON DELETE CASCADE`.
+Dane offline pozostają widoczne do usunięcia relacji. Kontrakt, przypisanie tury
+do pierwszej zaobserwowanej godziny i ograniczenia: [usage.md](usage.md).
 
 ## Szkice kompozytora
 

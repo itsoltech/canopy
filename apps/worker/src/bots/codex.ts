@@ -7,6 +7,7 @@ import { codexTextOverrides } from "../providers/generate-text.ts";
 import { codexBotCatalog, codexModelEntry } from "./codex-catalog.ts";
 import type { BotHarnessContext } from "./types.ts";
 import { BotHarnessFailure } from "./types.ts";
+import { CodexConsumedUsage } from "../providers/codex/consumed-usage.ts";
 import { isolatedHomeEnvironment } from "../providers/home.ts";
 import { verifyCodexBotTier } from "./codex-service-tier.ts";
 import { codexBotEvents } from "./codex-events.ts";
@@ -95,7 +96,10 @@ function codexBotProgram(ctx: BotHarnessContext, launch: CodexAppServerLaunch) {
       server.exited.pipe(Effect.flatMap(() => Deferred.fail(done, new BotHarnessFailure("process_exit")))),
     );
     const native = { id: "", turn: "", completed: false };
-    yield* Effect.forkScoped(codexBotEvents(ctx, server, done, native));
+    const consumed = new CodexConsumedUsage();
+    consumed.setModel(input.model);
+    consumed.setRequestedServiceTier(input.serviceTier || "default");
+    yield* Effect.forkScoped(codexBotEvents(ctx, server, done, native, consumed));
 
     const params = botThreadParams(ctx);
 
@@ -113,7 +117,13 @@ function codexBotProgram(ctx: BotHarnessContext, launch: CodexAppServerLaunch) {
 
     const started =
       resumed ??
-      (yield* server.request("thread/start", { ...params, ephemeral: false, dynamicTools: [], environments: [] }));
+      (yield* server.request("thread/start", {
+        ...params,
+        ephemeral: false,
+        experimentalRawEvents: true,
+        dynamicTools: [],
+        environments: [],
+      }));
 
     const id = started.thread.id;
     native.id = id;
@@ -178,6 +188,7 @@ function codexBotProgram(ctx: BotHarnessContext, launch: CodexAppServerLaunch) {
 }
 
 export async function runCodexBot(ctx: BotHarnessContext): Promise<void> {
+  ctx = { ...ctx, input: { ...ctx.input } };
   ctx.signal.throwIfAborted();
   const exit = await Effect.runPromiseExit(codexBotProgram(ctx, await botCodexLaunch(ctx)), { signal: ctx.signal });
 

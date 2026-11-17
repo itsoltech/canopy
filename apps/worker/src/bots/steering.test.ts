@@ -182,6 +182,20 @@ for (const provider of [Provider.CLAUDE, Provider.CODEX]) {
       expect(f.records().join("\n")).not.toContain('"text":"FOREIGN"');
       expect(botSession(f.input, { dataDir: f.dataDir, sourceHome: "", linkLogin: false }).id).toBe("");
       expect((await f.steer("LATE")).dataJson).toContain("unsupported");
+
+      if (provider === Provider.CODEX) {
+        const usages = finished.flatMap((event) =>
+          event.body.case === "usageUpdated" && event.body.value.usage?.scope ? [event.body.value.usage] : [],
+        );
+
+        expect(usages.at(-1)).toMatchObject({
+          inputTokens: 2n,
+          outputTokens: 2n,
+          reportedCostUsd: 246,
+          requestedServiceTier: "default",
+        });
+        expect(usages.map((usage) => usage.reportedCostUsd)).toEqual([123, 246]);
+      }
     } finally {
       await f.close();
     }
@@ -205,6 +219,16 @@ for (const provider of [Provider.CLAUDE, Provider.CODEX]) {
       const saved = events.map((e) => e.eventId);
       expect((await f.events()).map((e) => e.eventId)).toEqual(saved);
       expect(botSession(f.input, { dataDir: f.dataDir, sourceHome: "", linkLogin: false }).id).toBe("");
+
+      if (provider === Provider.CODEX) {
+        const usage = events
+          .flatMap((event) =>
+            event.body.case === "usageUpdated" && event.body.value.usage?.scope ? [event.body.value.usage] : [],
+          )
+          .at(-1);
+
+        expect(usage).toMatchObject({ inputTokens: 1n, reportedCostUsd: 123, requestedServiceTier: "default" });
+      }
     } finally {
       await f.close();
     }

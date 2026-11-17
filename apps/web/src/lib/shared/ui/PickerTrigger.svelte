@@ -1,5 +1,6 @@
 <script lang="ts">
   import type { ClassValue, HTMLButtonAttributes } from "svelte/elements";
+  import type { Snippet } from "svelte";
   import { controlClasses, useField } from "./field.ts";
   import Icon from "./Icon.svelte";
   import type { IconName } from "./icons.ts";
@@ -12,6 +13,7 @@
     text: string;
     icon: IconName;
     leadingIcon?: IconName | undefined;
+    leading?: Snippet | undefined;
     element?: HTMLButtonElement | undefined;
     class?: ClassValue;
     /** Muted inline controls keep label-sized visuals, with the kit's expanded touch target. */
@@ -22,6 +24,7 @@
     text,
     icon,
     leadingIcon,
+    leading,
     inline = false,
     element = $bindable(),
     class: className,
@@ -53,7 +56,7 @@
     className,
   ]}
 >
-  {#if leadingIcon}<Icon name={leadingIcon} />{/if}
+  {#if leading}{@render leading()}{:else if leadingIcon}<Icon name={leadingIcon} />{/if}
   <span class="min-w-0 flex-1 truncate">{text}</span>
   <Icon name={icon} class={["fill-zinc-500 dark:fill-zinc-400", inline === "muted" && "size-3"]} />
   <TouchTarget />

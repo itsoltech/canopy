@@ -1,5 +1,5 @@
 import { create } from "@bufbuild/protobuf";
-import { AGENT_PREVIEW_CLIENT_ACK, DIAGNOSTICS_LOGS } from "./capabilities.ts";
+import { AGENT_PREVIEW_CLIENT_ACK, DIAGNOSTICS_LOGS, USAGE_STATS } from "./capabilities.ts";
 
 import { Code, ConnectError } from "@connectrpc/connect";
 
@@ -92,6 +92,7 @@ export const computersPresenceMethods: ComputersPresenceMethods = {
       capabilities: this.options.capabilities ?? [
         "presence",
         "unlink",
+        USAGE_STATS,
         RESTART_PRESENCE,
         LAN_ROUTES,
         ...(this.options.serve

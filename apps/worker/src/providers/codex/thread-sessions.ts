@@ -43,7 +43,11 @@ function reconfigureThread(ctx: CodexThreadContext, spec: ThreadSpec, entry: Ent
 
           // An empty session has no rollout until its first turn. Recreate only that empty session.
           const started = yield* codex
-            .request("thread/start", { ...params, ...dynamicTools(spec, ctx.options.viewImage !== undefined) })
+            .request("thread/start", {
+              ...params,
+              experimentalRawEvents: true,
+              ...dynamicTools(spec, ctx.options.viewImage !== undefined),
+            })
             .pipe(Effect.mapError(fail(spec.threadId, "connectors")));
 
           const replacement = registerThread(ctx, spec.threadId, started.thread.id, started.thread.path);
@@ -67,6 +71,21 @@ function resumeInstructions(ctx: CodexThreadContext, spec: ThreadSpec, codexId: 
     .pipe(Effect.mapError(fail(spec.threadId, "instructions")));
 }
 
+function startThread(
+  ctx: CodexThreadContext,
+  spec: ThreadSpec,
+  params: ReturnType<typeof paramsOf>,
+  operation: string,
+) {
+  return ctx.codex
+    .request("thread/start", {
+      ...params,
+      experimentalRawEvents: true,
+      ...dynamicTools(spec, ctx.options.viewImage !== undefined),
+    })
+    .pipe(Effect.mapError(fail(spec.threadId, operation)));
+}
+
 export function threadSessions(ctx: CodexThreadContext) {
   const { options, codex, byPlatform } = ctx;
   const loading = Semaphore.makeUnsafe(1);
@@ -74,11 +93,6 @@ export function threadSessions(ctx: CodexThreadContext) {
   const register = registerThread.bind(undefined, ctx);
 
   const threadParams = (spec: ThreadSpec) => paramsOf(ctx, spec);
-
-  const startThread = (spec: ThreadSpec, params: ReturnType<typeof threadParams>, operation: string) =>
-    codex
-      .request("thread/start", { ...params, ...dynamicTools(spec, options.viewImage !== undefined) })
-      .pipe(Effect.mapError(fail(spec.threadId, operation)));
 
   const ensureLoaded = (spec: ThreadSpec, recoveryContext = "") =>
     Effect.gen(function* () {
@@ -129,6 +143,7 @@ export function threadSessions(ctx: CodexThreadContext) {
       // process that created it. Nothing is lost by starting it again; the gateway keeps the platform
       // thread and takes the new Codex id (thread_ready replaces the old one).
       const started = yield* startThread(
+        ctx,
         spec,
         {
           ...params,
@@ -184,7 +199,7 @@ export function threadSessions(ctx: CodexThreadContext) {
       const params = threadParams(spec);
 
       const response = request.empty
-        ? yield* startThread(spec, params, "rewind")
+        ? yield* startThread(ctx, spec, params, "rewind")
         : yield* codex
             .request("thread/fork", {
               ...params,
@@ -212,7 +227,7 @@ export function threadSessions(ctx: CodexThreadContext) {
               ...params,
             })
             .pipe(Effect.mapError(fail(spec.threadId, "fork")))
-        : yield* startThread(spec, params, "create");
+        : yield* startThread(ctx, spec, params, "create");
 
       if (fork) yield* resumeInstructions(ctx, spec, response.thread.id, params.developerInstructions);
       const entry = register(spec.threadId, response.thread.id, response.thread.path);

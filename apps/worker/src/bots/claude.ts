@@ -58,7 +58,8 @@ function botClaudeProcess() {
 export async function runClaudeBot(ctx: BotHarnessContext): Promise<void> {
   const { input, session, signal } = ctx;
   signal.throwIfAborted();
-  const fast = claudeFastMode(input.serviceTier);
+  const requestedServiceTier = input.serviceTier || "default";
+  const fast = claudeFastMode(requestedServiceTier);
   const resumed = Boolean(session.id && transcriptPath(session.home, session.id));
   const id = resumed ? session.id : crypto.randomUUID();
   session.save(id);
@@ -110,7 +111,7 @@ export async function runClaudeBot(ctx: BotHarnessContext): Promise<void> {
       },
     });
 
-    const mapper = new ClaudeEventMapper(input.turnId);
+    const mapper = new ClaudeEventMapper(input.turnId, resumed, requestedServiceTier);
     const textItems = new Set<string>();
 
     admitted.resolve(await admitClaudeBotInput(q, fast, input.model, signal));
@@ -132,6 +133,10 @@ export async function runClaudeBot(ctx: BotHarnessContext): Promise<void> {
       const message = next.value;
       nextMessage = messages.next();
       void nextMessage.catch(() => {});
+      const events = mapper.map(message);
+
+      for (const event of events) if (event.body?.case === "usageUpdated") await ctx.record(event);
+
       signal.throwIfAborted();
 
       await observeUsage(ctx, usage, message);
@@ -139,17 +144,15 @@ export async function runClaudeBot(ctx: BotHarnessContext): Promise<void> {
 
       if (started || message.type === "assistant" || message.type === "stream_event") deferred = false;
 
-      if (message.type === "assistant") {
-        if (message.error)
-          throw new BotHarnessFailure(
-            message.error,
-            message.message.content.map((block) => (block.type === "text" ? block.text : "")).join(""),
-          );
-      }
+      if (message.type === "assistant" && message.error)
+        throw new BotHarnessFailure(
+          message.error,
+          message.message.content.map((block) => (block.type === "text" ? block.text : "")).join(""),
+        );
 
       // SDK assistant messages may contain only one block: its array index is not the stream index.
       // The thread mapper matches completed text to the open streamed block, including after thinking/tools.
-      for (const event of mapper.map(message)) {
+      for (const event of events) {
         const body = event.body;
 
         if (body?.case === "itemStarted" && body.value.item?.content?.case === "agentMessage")
@@ -177,6 +180,7 @@ export async function runClaudeBot(ctx: BotHarnessContext): Promise<void> {
           );
 
         if (ctx.steering?.pending) {
+          mapper.continueTurn(input.turnId);
           deferred = true;
           continue;
         }

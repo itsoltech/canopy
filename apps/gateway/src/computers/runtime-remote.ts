@@ -28,6 +28,7 @@ import { computersState, ms, peerMessage, STATE_TEXT } from "./runtime-context.t
 import { computersEmit } from "./runtime-mirrors.ts";
 import type { LinkedComputers } from "./runtime.ts";
 import { alternativeConfigPath, configAllowed, stopConfig } from "./runtime-config.ts";
+import { USAGE_STATS } from "./capabilities.ts";
 
 export async function computersStatus(hostContext: LinkedComputers, nodeId: string, status: string, updateNodeId = "") {
   await hostContext.store.status(
@@ -39,9 +40,9 @@ export async function computersStatus(hostContext: LinkedComputers, nodeId: stri
   computersEmit(hostContext, nodeId);
 }
 
-export function computersChannel(hostContext: LinkedComputers, nodeId: string) {
+export function computersChannel(hostContext: LinkedComputers, nodeId: string, feature = REMOTE_THREADS) {
   for (const c of hostContext[computersState].active.get(nodeId) ?? [])
-    if (c.ready && c.protocol && c.capabilities?.has(REMOTE_THREADS) && c.remote && !c.remote.closed) return c.remote;
+    if (c.ready && c.protocol && c.capabilities?.has(feature) && c.remote && !c.remote.closed) return c.remote;
 
   return undefined;
 }
@@ -238,11 +239,13 @@ export const computersRemoteMethods: ComputersRemoteMethods = {
       return;
     }
 
-    const remote = computersChannel(this, nodeId);
+    const remote = computersChannel(this, nodeId, method.name === "GetUsageBuckets" ? USAGE_STATS : REMOTE_THREADS);
 
     if (!remote) throw await this.unavailable(nodeId);
 
     let feature = botFeature(method, request);
+
+    if (method.name === "GetUsageBuckets") feature = USAGE_STATS;
 
     if (method.name === "ResetDiagnosticsCounters") feature = "diagnostics_v1";
 
@@ -337,6 +340,7 @@ export const computersRemoteMethods: ComputersRemoteMethods = {
     if (this[computersState].stopped) return;
     this[computersState].stopped = true;
     const reads = this.reads.close();
+    const usage = this.usage.close();
     // No move starts settling while the presence goes out: a stopping computer only finishes what runs.
     const moves = this.moves?.close();
     const announced = this[computersState].announced;
@@ -360,6 +364,7 @@ export const computersRemoteMethods: ComputersRemoteMethods = {
     this.options.network.mount("link", undefined);
     await moves;
     await reads;
+    await usage;
     await Promise.allSettled(this[computersState].tasks);
   },
 };

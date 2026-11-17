@@ -1,7 +1,9 @@
 # Połączone komputery
 
-Status: opis zaimplementowanej synchronizacji (2026-11-17), w tym zachowania
-lokalnych kanałów Slack botów, nadawców historycznych steerów przy stronicowaniu lokalnym i offline oraz wspólnego
+Status: opis zaimplementowanej synchronizacji (2026-11-17), w tym przyrostowej
+synchronizacji agregatów użycia z żądaną szybkością wykonania przez bezpośrednie
+łącza, zachowania lokalnych kanałów Slack botów i nadawców historycznych
+steerów przy stronicowaniu lokalnym i offline oraz wspólnego
 limitu 256 kroków automatycznej rozmowy i domyślnego
 steera między rodzicem a dzieckiem oraz deduplikacji raportów jednej tury,
 retencji dziennika źródłowego i dzierżaw treści (migracja 0154). Dostępność w kanałach
@@ -16,6 +18,52 @@ zewnętrznych rozmów. Ta historia pozostaje w źródłowym gatewayu; bot przeni
 nie odbiera tam nowych zdarzeń. Na nowym domu właściciel osobno konfiguruje
 Messengers i przypisuje kanały. Mirror prywatnego czatu nie zawiera treści
 zewnętrznych rozmów poza świadomie wysłanym powiadomieniem.
+
+## Statystyki użycia i kosztów
+
+Capability `usage_stats_v1` pozwala bezpośrednio połączonym lokalnym gatewayom
+desktopu wymieniać godzinowe agregaty przez prywatne `UsageService.GetUsageBuckets`
+w `RemoteRequest`. Nie jest to publiczny RPC. Obie strony muszą ogłaszać capability;
+odbiorca sprawdza deskryptor usługi, przypiętą tożsamość łącza i nadal istniejące
+powiązanie właściciela z partnerem. Payload nie wybiera właściciela ani komputera
+źródłowego. Relay jest obecnie wykluczony, również przy ręcznie spreparowanej
+kopercie przekazania; statystyki obejmują lokalny dom oraz bezpośrednich partnerów.
+Dom widoczny wyłącznie przez relay pozostaje źródłem bez pokrycia i oznacza wynik
+jako częściowy, dopóki filtr nie wyłączy tego komputera.
+
+Źródło eksportuje wyłącznie własny rejestr rozliczeń: dostawcę, model, godzinę,
+żądaną szybkość wykonania (`requested_service_tier`), liczniki tokenów, koszt
+i rewizję. Lustra, zaimportowana historia przeniesionego
+wątku, cache statystyk innych komputerów i limity kont dostawców nie są źródłem
+agregacji. Dlatego połączenie A–B–C nie powoduje przekazania użycia C przez B.
+Archiwizacja, usunięcie albo przeniesienie wątku nie usuwa wcześniejszych agregatów.
+Dalsza aktywność po przeniesieniu należy do gatewaya, który ją rozlicza; odtworzenie
+historii nie stanowi nowego użycia.
+
+Odbiorca zapisuje ostatni pełny stan każdego koszyka pod kluczem właściciela,
+uwierzytelnionego komputera źródłowego, dostawcy, modelu, godziny i żądanej
+szybkości wykonania. `default`, `fast`, `ultrafast`, natywne identyfikatory
+(np. `priority`) i pusty ciąg dla nieznanej szybkości pozostają odrębnymi
+koszykami; pusty ciąg nie oznacza Standard. Pole opisuje żądanie, nie potwierdza
+szybkości faktycznie zastosowanej przez dostawcę. Nowa rewizja
+**zastępuje** wartości; ponowiona strona nigdy nie dodaje tego samego snapshotu.
+Korekta z nieznanej szybkości do znanej zachowuje nowszy zerowy snapshot starego
+koszyka. Odbiorca zapisuje również takie snapshoty, aby wyzerować poprzedni wkład
+bez ponownego doliczania użycia.
+Koszyki, kursor partnera i informacja o pozostałych stronach zatwierdzane są
+w jednej transakcji. Niedokończona synchronizacja pozostaje wynikiem częściowym,
+także gdy ostatnia zapisana strona jest świeża. Restart wznawia
+pobieranie od trwałego kursora; utrata połączenia zachowuje zatwierdzone dane.
+Odłączenie partnera usuwa jego cache przez klucze obce do relacji komputerów.
+
+Synchronizacja rusza w tle po handshake i ponownym połączeniu, a następnie co
+30 s przy aktywnym łączu. Jeden przebieg ma termin 15 s i najwyżej 8 stron po
+256 koszyków; najwyżej 2 partnerów synchronizuje się równocześnie. Dalsze strony
+czekają na kolejny heartbeat, a błędy ponawiane są z backoffem od 5 s do 5 min.
+Odczyt statystyk sumuje wyłącznie lokalną bazę, stosując filtry również do cache;
+nie wykonuje zdalnego I/O. Źródła zachowują czas ostatniej udanej synchronizacji,
+początek śledzenia i oznaczenie nieaktualności. Komputer offline pozostaje w
+wynikach z ostatnio zapisanymi licznikami; brak capability nie udaje zerowego użycia.
 
 ## Dom szkiców
 

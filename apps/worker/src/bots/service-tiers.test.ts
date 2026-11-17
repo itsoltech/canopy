@@ -38,6 +38,7 @@ for (const provider of [Provider.CODEX, Provider.CLAUDE])
       const session = botSession(input, options);
 
       if (serviceTier === "default") expect(session.id).not.toBe("");
+      const consumed: string[] = [];
       await execute({
         input,
         session,
@@ -46,10 +47,19 @@ for (const provider of [Provider.CODEX, Provider.CLAUDE])
         signal: AbortSignal.timeout(5000),
         clientVersion: "test",
         mcp: { url: "http://127.0.0.1:1", headers: {} },
-        record: async () => {},
+        record: async (event) => {
+          if (event.body?.case === "usageUpdated" && event.body.value.usage?.scope)
+            consumed.push(event.body.value.usage.requestedServiceTier ?? "");
+        },
         noteHarness: async () => {},
-        content: async () => ({ text: "Hello", images: [], documents: [] }),
+        content: async () => {
+          input.serviceTier = serviceTier === "fast" ? "default" : "fast";
+
+          return { text: "Hello", images: [], documents: [] };
+        },
       });
+      expect(consumed.length).toBeGreaterThan(0);
+      expect(new Set(consumed)).toEqual(new Set([serviceTier]));
     }
 
     const records = readFileSync(trace, "utf8")

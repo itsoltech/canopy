@@ -64,13 +64,23 @@ function cleaned(dir: string, trace: Trace[]) {
 
 test("Grok native requests use separate disposable ACP homes, no workspace, skills, MCP or client tools", async () => {
   const f = fixture();
-  const input = { model: "grok-4.7-fast", effort: "low", prompt: "Describe the task" };
+  const consumed: import("../token-usage.ts").ConsumedUsage[] = [];
+
+  const input = {
+    model: "grok-4.7-fast",
+    effort: "low",
+    prompt: "Describe the task",
+    onConsumedUsage: (usage: import("../token-usage.ts").ConsumedUsage) => consumed.push(usage),
+  };
+
   expect(
     await Promise.all([
       generateGrokText(input, f.options, new AbortController().signal),
       generateGrokText(input, f.options, new AbortController().signal),
     ]),
   ).toEqual(["Grok title", "Grok title"]);
+  expect(consumed).toHaveLength(2);
+  expect(consumed.every((usage) => usage.requestedServiceTier === "default" && usage.inputTokens === 3n)).toBe(true);
   const trace = f.trace();
   const sessions = trace.filter((t) => t.event === "session");
   expect(new Set(sessions.map((s) => s.home)).size).toBe(2);

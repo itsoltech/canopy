@@ -4,9 +4,11 @@ Status (2026-11-17): kontrakt kompozytora i wątków udostępnia szybkość wyko
 Claude zachowuje 330 s dla interakcji mimo 15-minutowego limitu MCP dla publikacji obrazów;
 Preview web/desktop używa potwierdzeń klienta po narysowaniu klatki i zachowuje
 subskrypcję przy odświeżaniu metadanych celu oraz naprawie kursora historii;
-Status (2026-11-17): Bot settings → Messengers udostępnia lokalne konta Slack
+Bot settings → Messengers udostępnia lokalne konta Slack
 i trasy wiadomości przez sześć owner-scoped RPC i BFF; instrukcje tras określają
 trwałe zachowanie dla źródła, a rozmowy korzystają z narzędzi przyznanych botowi;
+web/desktop ma osobny modal Usage z kosztami raportowanymi przez providerów,
+tokenami, filtrami czasu, providera, komputera i żądanej szybkości oraz zakresem rejestrowania;
 propozycje odpowiedzi pomijają zużyte i wysterowane wpisy kolejki;
 porzucone notatki platformy nie udają oczekującego wejścia i nie blokują późniejszych propozycji;
 watch odzyskuje stan po powtarzającym się nieokreślonym błędzie gatewaya;
@@ -158,6 +160,69 @@ harnessu. `WatchOverview.worker` aktualizuje konkretny worker; Settings → Prov
 scala usage bez dodatkowego odczytu listy. Mierniki, ostrzeżenia composera i karty
 błędów web/desktop/mobile korzystają z `domain/provider-usage`. Brak raportu
 nie oznacza zerowego użycia. Zasady źródeł i kredytów: [provider-accounts.md](provider-accounts.md#limity-planu-i-dodatkowe-użycie).
+
+## Statystyki zużycia w web/desktop
+
+Menu Settings and usage w stopce sidebara ma akcje Open settings oraz Open usage.
+Druga otwiera osobny modal, pozostawiając bazową stronę zamontowaną.
+Host modalu pozostaje w AppShell niezależnie od szerokości sidebara;
+otwarcie na telefonie zamyka nawigację. Starszy gateway bez `GetUsageStats`
+nie pokazuje akcji Open usage.
+Używa wspólnego `Dialog`: natywnego ograniczenia fokusu,
+Escape, powrotu fokusu do wyzwalacza i tokenów ruchu; na telefonie zajmuje cały ekran.
+Kontrolki zachowują gęstość Settings, a pickery korzystają ze zwartej skali nakładek.
+
+`features/usage` udostępnia widoki Cost i Tokens, okres Today / 7 / 30 / 90 days,
+filtry providera, komputera i Requested speed, wykres dzienny oraz zestawienie
+według providera, modelu, żądanej prędkości albo dnia. Okres obejmuje dni kalendarzowe UTC łącznie z bieżącym dniem;
+Today nie oznacza ruchomych 24 godzin. Dni na wykresie pokazują dokładną wartość
+po wskazaniu, dotknięciu lub fokusie; klawiatura używa strzałek, Home i End.
+Zestawienie dzienne udostępnia te same wartości w tabeli.
+
+Wykres liniowy pokazuje osobne serie providerów ze wspólną skalą pionową,
+cienkimi, wygładzonymi liniami i delikatnym wypełnieniem. Krzywe przechodzą
+przez rzeczywiste punkty; interpolacja monotoniczna nie tworzy dodatkowych ekstremów
+ani wartości ujemnych. Wypełnienie używa tej samej krzywej, a luki pozostają rozdzielone.
+Claude ma przygaszoną terakotę,
+Codex chłodny szaroniebieski, a Grok ciepły szary; odcienie dostosowują się do motywu.
+Logotypy w filtrze, legendzie i tabeli zachowują oryginalne kolory:
+Claude pomarańczowy, Codex czarny, Grok biały, z kontrastowym tłem.
+Znacznik obok nazwy w legendzie łączy ją z odcieniem serii. Legenda podaje wartości
+providerów dla wskazanego dnia; nagłówek sumę tego dnia. Domyślnie wybrany jest
+ostatni dzień. Nieznany koszt pozostaje przerwą w serii, bez łączenia przez lukę
+ani przedstawiania braku wyceny jako zera. Pojedynczy dzień pozostaje widoczny
+jako punkt. Nazwy i wartości są dostępne bez rozpoznawania koloru.
+Dane per dzień/provider pochodzą z `UsageDay.providers`, agregowanych
+z istniejących koszyków bez dodatkowych zapytań.
+
+`GET /api/usage?days=30&provider=&computerId=` wywołuje owner-scoped
+`GetUsageStats` i zwraca protobuf JSON z `Cache-Control: no-store`.
+BFF przyjmuje wyłącznie okresy 1, 7, 30 i 90. Modal pobiera dane przy otwarciu,
+zmianie filtra lub ręcznym Refresh; przerywa nieaktualny odczyt i ignoruje jego wynik.
+Zmiana widoku Cost / Tokens korzysta z już pobranej odpowiedzi.
+Opcjonalny parametr `requestedServiceTier` filtruje żądaną prędkość:
+brak parametru oznacza wszystkie, pusty parametr Unknown, `default` Standard.
+Fast, Ultrafast i natywne identyfikatory (np. `priority`) pozostają osobne.
+Zestawienie Speed oraz filtr opisują wybór utrwalony dla wykonania, nie
+potwierdzony tryb naliczania opłaty; modal jawnie wyjaśnia tę różnicę.
+Kwoty nie są mnożone według prędkości. Późniejsza zmiana ustawień wątku
+nie zmienia klasyfikacji wcześniejszego zużycia.
+
+Reported cost to wyłącznie szacunkowe kwoty USD zgłoszone przez providera,
+nie faktura ani przeliczenie cennika. Brak raportu kosztu pokazuje Unknown;
+znana część dodatniej kwoty pozostaje widoczna także przy niepełnej wycenie.
+Liczba kompletnie wycenionych raportów ujawnia pokrycie. Liczniki Input, Output,
+Cache read, Cache write i Reasoning nie są sumowane podwójnie: cache jest
+częścią input, reasoning częścią output, a Total tokens to input + output.
+Szczegóły tokenów zależą od danych providera.
+
+Recording coverage pokazuje dla każdego źródła początek rejestrowania,
+ostatni raport i stan: aktualne dane, synchronizacja, wymagane uaktualnienie,
+wymagane bezpośrednie połączenie, ostatnie zapisane dane albo offline.
+Niepełna partia synchronizacji pozostaje oznaczona do jej zakończenia.
+Brak wcześniejszych danych oraz nieznany koszt nie są przedstawiane jako awaria połączenia. Komunikat o komputerach z niepełnymi danymi
+wynika z ich jawnego stanu, a nie z ogólnego `partial`. Pusty zakres i błąd odczytu
+mają osobne stany z podpowiedzią zmiany filtrów albo ponowieniem.
 
 ## Szkice kompozytora i przekazywanie między urządzeniami
 

@@ -45,8 +45,8 @@ describe("Codex rollout", () => {
     expect(record?.end).toMatchObject({
       outcome: TurnOutcome.COMPLETED,
       providerTurnRef: "turn-done",
-      usage: { inputTokens: 1200n, outputTokens: 50n, cachedInputTokens: 200n },
     });
+    expect(record?.consumedUsages).toEqual([]);
     expect(summary(record!.items)).toEqual([
       ["user-item-1", "COMPLETED", "userMessage"],
       ["msg_commentary", "COMPLETED", "agentMessage"],
@@ -67,6 +67,79 @@ describe("Codex rollout", () => {
     });
     const user = record!.items[0]!.content;
     expect(user).toMatchObject({ case: "userMessage", value: { clientId: "01a19900-0000-7000-8000-000000000001" } });
+  });
+
+  test("recovered consumption subtracts earlier turns and counts reasoning only inside output", async () => {
+    const path = join(tempDir("canopy-rollout-usage-"), "rollout.jsonl");
+
+    const tokenCount = (input: number, output: number) => ({
+      input_tokens: input,
+      output_tokens: output,
+      reasoning_output_tokens: 2,
+      total_tokens: input + output,
+    });
+
+    const records = [
+      { type: "turn_context", payload: { turn_id: "old" } },
+      {
+        type: "event_msg",
+        payload: {
+          type: "token_count",
+          model: "served-model",
+          info: { total_token_usage: tokenCount(1000, 100), last_token_usage: tokenCount(1000, 100) },
+        },
+      },
+      { type: "turn_context", payload: { turn_id: "new" } },
+      {
+        type: "event_msg",
+        payload: {
+          type: "token_count",
+          model: "served-model",
+          info: { total_token_usage: tokenCount(1011, 107), last_token_usage: tokenCount(11, 7) },
+        },
+      },
+      { type: "event_msg", payload: { type: "task_complete", turn_id: "new" } },
+    ];
+
+    writeFileSync(path, `${records.map((record) => JSON.stringify(record)).join("\n")}\n`);
+    const record = await readCodexTurn(path, 0, "new", "platform");
+
+    expect(record?.consumedUsages).toMatchObject([{ model: "served-model", inputTokens: 11n, outputTokens: 7n }]);
+  });
+
+  test("crash recovery keeps the serving model across reroutes and skips ambiguous requested-model totals", async () => {
+    const path = join(tempDir("canopy-rollout-crash-usage-"), "rollout.jsonl");
+    const counters = { input_tokens: 11, output_tokens: 7, total_tokens: 18 };
+    const start = { type: "turn_context", payload: { turn_id: "new", model: "requested-model" } };
+
+    const count = {
+      type: "event_msg",
+      payload: {
+        type: "token_count",
+        model: "served-model",
+        info: { total_token_usage: counters, last_token_usage: counters },
+      },
+    };
+
+    writeFileSync(path, `${JSON.stringify(start)}\n${JSON.stringify(count)}\n`);
+    const record = await readCodexTurn(path, 0, "new", "platform");
+
+    expect(record?.end).toBeUndefined();
+    expect(record?.consumedUsages).toMatchObject([{ model: "served-model", inputTokens: 11n }]);
+
+    const usageEvents = reconcileEvents(
+      { threadId: "thread", turnId: "platform", items: [], interruptRequested: false },
+      record,
+      WORKER_RESTARTED,
+    );
+
+    expect(usageEvents.map((event) => event.body?.case)).toEqual(["usageUpdated", "turnFinished"]);
+    expect(usageEvents[0]?.body).toMatchObject({ case: "usageUpdated", value: { usage: { model: "served-model" } } });
+    expect(usageEvents[1]?.body).not.toHaveProperty("value.usage");
+
+    const ambiguous = { ...count, payload: { ...count.payload, model: undefined } };
+    writeFileSync(path, `${JSON.stringify(start)}\n${JSON.stringify(ambiguous)}\n`);
+    expect((await readCodexTurn(path, 0, "new", "platform"))?.consumedUsages).toEqual([]);
   });
 
   test("a turn cut off mid-command has no end; the shell call without an item still shows", async () => {
@@ -149,6 +222,37 @@ describe("Codex rollout", () => {
 });
 
 describe("Claude session transcript", () => {
+  test("a durable assistant response recovers consumption without a terminal outcome", async () => {
+    const sessionId = "usage-crash";
+
+    const message = {
+      type: "assistant",
+      uuid: "one",
+      message: {
+        id: "response",
+        model: "actual-model",
+        usage: { input_tokens: 11, output_tokens: 7 },
+        content: [{ type: "text", text: "partial" }],
+        stop_reason: null,
+      },
+    };
+
+    const home = claudeHome(sessionId, `${JSON.stringify(message)}\n${JSON.stringify({ ...message, uuid: "two" })}\n`);
+    const record = await readClaudeTurn(home, sessionId, 0);
+
+    expect(record?.end).toBeUndefined();
+    expect(record?.consumedUsages).toMatchObject([{ model: "actual-model", inputTokens: 11n, outputTokens: 7n }]);
+
+    const events = reconcileEvents(
+      { threadId: "thread", turnId: "platform", items: [], interruptRequested: false },
+      record,
+      WORKER_RESTARTED,
+    );
+
+    expect(events.at(-2)?.body).toMatchObject({ case: "usageUpdated", value: { usage: { model: "actual-model" } } });
+    expect(events.at(-1)?.body?.case).toBe("turnFinished");
+  });
+
   const content = readFileSync(fixture("claude-session.jsonl"), "utf8");
   const home = claudeHome("5e55-1", content);
 

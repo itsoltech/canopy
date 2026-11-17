@@ -48,6 +48,7 @@ export const COMMAND_METHODS = CommandSchema.fields.flatMap((field) =>
 export const LINKED_METHODS = [
   ...ui.GatewayService.methods,
   ...computerLink.DiagnosticsService.methods,
+  ...computerLink.UsageService.methods,
   ...computerLink.ThreadMirrorService.methods,
   ...computerLink.LinkedAgentsService.methods,
   ...computerLink.ConfigSyncService.methods,

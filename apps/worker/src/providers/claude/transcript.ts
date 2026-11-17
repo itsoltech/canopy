@@ -1,3 +1,4 @@
+import { ClaudeTranscriptUsage } from "./transcript-usage.ts";
 import { existsSync, readdirSync } from "node:fs";
 import { join } from "node:path";
 import { ItemStatus, TurnEndSource, TurnOutcome } from "@canopy/contracts";
@@ -48,6 +49,7 @@ export async function readClaudeTurn(
 
   if (!path) return undefined;
   const entries = await readJsonl(path, offset);
+  const consumed = new ClaudeTranscriptUsage();
   const items = new Map<string, HarnessRecord["items"][number]>();
   const tools = new Map<string, NonNullable<HarnessRecord["items"][number]["content"]>>();
   const blocks = new Map<string, number>();
@@ -57,6 +59,8 @@ export async function readClaudeTurn(
 
   for (const raw of entries) {
     const record = jsonObject(raw);
+
+    if (record) consumed.observe(record);
 
     if (!record || record["isSidechain"] || (record["type"] !== "assistant" && record["type"] !== "user")) continue;
     const entry = Schema.decodeUnknownSync(TranscriptEntry)(record);
@@ -137,7 +141,7 @@ export async function readClaudeTurn(
     }
   }
 
-  if (!seen) return undefined;
+  if (!seen && consumed.snapshots().length === 0) return undefined;
   const waiting = [...items.values()].some((i) => i.status === ItemStatus.IN_PROGRESS);
   let end: TurnEnd | undefined;
 
@@ -154,6 +158,7 @@ export async function readClaudeTurn(
 
   return {
     items: [...items.values()],
+    consumedUsages: consumed.snapshots(),
     ...(end && { end: { ...end, ...(last?.uuid && { providerTurnRef: last.uuid }) } }),
   };
 }

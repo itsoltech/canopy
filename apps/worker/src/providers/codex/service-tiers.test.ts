@@ -8,6 +8,7 @@ import {
   ForkSpecSchema,
   ThreadSpecSchema,
   UserInputSchema,
+  type ThreadEvent,
 } from "@canopy/contracts";
 import { tempDirs } from "@canopy/testing";
 import { Effect, Layer, ManagedRuntime, Schema } from "effect";
@@ -27,6 +28,7 @@ for (const disabled of [false, true])
   test(`Codex forwards account tiers and resets every native lifecycle request; disabled=${disabled}`, async () => {
     const root = temporary("canopy-codex-tiers-");
     const trace = join(root, "trace.jsonl");
+    const events: ThreadEvent[] = [];
     const profile = resolveProfiles([{ id: "native", kind: "native", providers: ["codex"] }])[0]!.resolved!;
 
     const runtime = ManagedRuntime.make(
@@ -37,7 +39,7 @@ for (const disabled of [false, true])
         },
         clientVersion: "test",
         profile: () => profile,
-        publish: () => {},
+        publish: (event) => events.push(event),
         interact: async () => create(InteractionResponseSchema),
         callTool: async () => create(AgentToolResultSchema),
       }).pipe(Layer.provideMerge(Journal.layer(join(root, "journal.db")))),
@@ -128,6 +130,25 @@ for (const disabled of [false, true])
         ),
       );
       const wire = records(trace);
+
+      const usage = () =>
+        events.flatMap((event) =>
+          event.body.case === "usageUpdated" && event.body.value.usage?.scope ? [event.body.value.usage] : [],
+        );
+
+      await runtime.runPromise(
+        Effect.gen(function* () {
+          while (usage().length < 5) yield* Effect.sleep("5 millis");
+        }).pipe(Effect.timeout("5 seconds")),
+      );
+      expect(usage().map((snapshot) => snapshot.requestedServiceTier)).toEqual([
+        disabled ? "default" : "ultrafast",
+        "default",
+        disabled ? "default" : "fast",
+        "default",
+        "default",
+      ]);
+      expect(usage().map((snapshot) => snapshot.reportedCostUsd)).toEqual([42, 42, 42, 42, 42]);
 
       const native = wire.filter((row) =>
         ["thread/start", "thread/resume", "thread/fork", "turn/start"].includes(String(row["method"])),

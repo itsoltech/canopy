@@ -1,3 +1,4 @@
+import { accountGeneration } from "../usage/generation.ts";
 import { ui } from "@canopy/contracts";
 import { toUiThread, turnEffort, type ThreadRow } from "../store/index.ts";
 import { provisionalTitle, sanitizeTitle, titleContext, titleModel, titlePrompt } from "./thread-titles.ts";
@@ -105,6 +106,8 @@ export async function coreGenerateText(
     },
     32_000,
   );
+
+  await accountGeneration(hostContext[coreState].options.runtime, thread.owner_user_id, provider, choice.model, result);
 
   if (!result.ok) throw new Error("text generation failed");
 

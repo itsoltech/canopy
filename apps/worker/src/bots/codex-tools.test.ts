@@ -18,6 +18,7 @@ test.skipIf(!Bun.which("codex"))(
     const model = codexToolModel(["fixture_write"], "mcp__canopy");
     const { requests } = model;
     let calls = 0;
+    const usage: bigint[] = [];
 
     const bus = grokBus({
       threadId: "fixture-bot",
@@ -70,12 +71,16 @@ test.skipIf(!Bun.which("codex"))(
         signal: abort.signal,
         session: botSession(input, { dataDir: dir, sourceHome: dir, linkLogin: false }),
         mcp: { url: bus.server.url, headers: Object.fromEntries(bus.server.headers.map((h) => [h.name, h.value])) },
-        record: async () => {},
+        record: async (event) => {
+          if (event.body?.case === "usageUpdated" && event.body.value.usage?.scope === 1)
+            usage.push(event.body.value.usage.inputTokens ?? 0n);
+        },
         noteHarness: async () => {},
         content: async () => ({ text: input.input, images: [], documents: [] }),
       });
       expect(requests.at(-1)).toContain("GATEWAY_APPROVAL_RESULT");
       expect(calls).toBe(1);
+      expect(usage.at(-1)).toBe(BigInt(requests.length));
       expect(requests.join("\n")).not.toContain("approval policy is never");
     } finally {
       clearTimeout(timer);

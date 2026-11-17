@@ -1,5 +1,6 @@
 import { join } from "node:path";
-import { Provider, type Command } from "@canopy/contracts";
+import { create } from "@bufbuild/protobuf";
+import { Provider, UsageSchema, type Usage, type Command } from "@canopy/contracts";
 import { Match } from "effect";
 import { instanceShadowHome, type AppliedConfig } from "../config/remote.ts";
 import { codexAppServerLaunch } from "../providers/codex/launch.ts";
@@ -25,14 +26,7 @@ export class TextGeneration {
     if (!input.prompt || input.prompt.length > 20_000)
       throw new CommandError("INVALID_PROMPT", "prompt must contain 1–20000 characters", true);
 
-    const provider =
-      input.provider === Provider.CLAUDE
-        ? "claude"
-        : input.provider === Provider.CODEX
-          ? "codex"
-          : input.provider === Provider.GROK
-            ? "grok"
-            : undefined;
+    const provider = generationProvider(input.provider);
 
     const profile = config.profiles.find(
       (p) => p.resolved?.id === (input.profileId || "native") && provider && usableBy(p.resolved, provider),
@@ -44,6 +38,7 @@ export class TextGeneration {
     const completed = Promise.withResolvers<void>();
     this.ctx.state.generations.set(abort, completed.promise);
     const timer = setTimeout(() => abort.abort(), 30_000);
+    const consumed = new Map<string, Usage>();
 
     try {
       const runtime = profile.runtime ?? {};
@@ -77,6 +72,9 @@ export class TextGeneration {
       const chosen = {
         ...input,
         model,
+        onConsumedUsage: (usage: import("../providers/token-usage.ts").ConsumedUsage) => {
+          consumed.set(usage.model || model, create(UsageSchema, usage));
+        },
         onUsage: this.ctx.state.usageObservers.get(usageKey)?.report,
         usageSnapshot: this.ctx.state.usage.get(usageKey)?.snapshot,
       };
@@ -131,13 +129,14 @@ export class TextGeneration {
         ),
       );
 
-      return { generatedText: text };
+      return { generatedText: text, consumedUsages: [...consumed.values()] };
     } catch {
       // Harness errors may contain an endpoint or auth env; do not forward them to logs or the gateway.
       throw new CommandError(
         abort.signal.aborted ? "TEXT_GENERATION_CANCELLED" : "TEXT_GENERATION_FAILED",
         "text generation failed or exceeded 30 seconds",
         false,
+        [...consumed.values()],
       );
     } finally {
       clearTimeout(timer);
@@ -145,4 +144,14 @@ export class TextGeneration {
       completed.resolve();
     }
   }
+}
+
+function generationProvider(provider: Provider) {
+  return provider === Provider.CLAUDE
+    ? "claude"
+    : provider === Provider.CODEX
+      ? "codex"
+      : provider === Provider.GROK
+        ? "grok"
+        : undefined;
 }

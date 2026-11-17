@@ -331,6 +331,7 @@ async function receiveHandshake(
 
   connection.ready = true;
   hostContext.reads.connected(nodeId);
+  hostContext.usage.connected(nodeId);
   const addresses = hostContext[computersState].advertised;
 
   // Addresses that changed during the handshake were not announced: only ready links get announcements.

@@ -32,11 +32,13 @@ import { fetchConfigBlob } from "./runtime-blobs.ts";
 import { ConfigSync } from "../config-sync/engine.ts";
 import { PeerReads } from "./reads.ts";
 import { wireHello } from "./hello.ts";
+import { UsageSync } from "./usage.ts";
 
 export { computerGuard, type ComputerChange } from "./runtime-context.ts";
 
 export class LinkedComputers {
   readonly reads = new PeerReads();
+  readonly usage = new UsageSync(this);
   declare hello: ComputersPresenceMethods["hello"];
   declare start: ComputersPresenceMethods["start"];
   declare snapshot: ComputersPresenceMethods["snapshot"];

@@ -4,6 +4,7 @@ import { GrokClient } from "@canopy/grok-acp";
 import type { TextInput } from "../generate-text.ts";
 import type { ResolvedProfile } from "../profiles.ts";
 import { grokLaunch } from "./launch.ts";
+import { GrokSessionCost, grokPromptUsage } from "./consumed-usage.ts";
 import { textAgent } from "./text-agent.ts";
 
 const OUTPUT_BYTES = 16_384;
@@ -68,19 +69,30 @@ export async function generateGrokText(
       autoMode: false,
     });
 
+    const costs = new GrokSessionCost();
+    costs.beginTurn();
+    let cost: number | undefined;
     let output = "";
     let bytes = 0;
 
     for await (const event of client.prompt(session.sessionId, [{ type: "text", text: input.prompt }], deadline)) {
-      deadline.throwIfAborted();
-
       if (event.type === "complete") {
+        const snapshots = grokPromptUsage(event);
+
+        if (snapshots.length === 1 && cost !== undefined) snapshots[0]!.reportedCostUsd = cost;
+
+        for (const usage of snapshots) input.onConsumedUsage?.({ ...usage, requestedServiceTier: "default" });
+        deadline.throwIfAborted();
+
         if (event.stopReason !== "end_turn") throw new Error("Incomplete Grok text generation");
 
         return output;
       }
 
+      deadline.throwIfAborted();
       const update = event.update;
+
+      if (update.sessionUpdate === "usage_update") cost = costs.observe(update.cost) ?? cost;
 
       if (update.sessionUpdate === "tool_call" || update.sessionUpdate === "tool_call_update")
         throw new Error("Text generation has no tools");

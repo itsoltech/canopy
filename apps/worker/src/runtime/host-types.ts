@@ -46,6 +46,7 @@ export interface CommandOutput {
   worktreeBranchDeleted?: boolean;
   readonly directoryPath?: string;
   readonly generatedText?: string;
+  readonly consumedUsages?: MessageInitShape<typeof CommandResultSchema>["consumedUsages"];
   readonly entries?: DirectoryEntryInit[];
   readonly models?: ProfileModelsInit[];
   readonly login?: { verificationUrl: string; userCode: string; loginId: string; requiresCode?: boolean };
@@ -117,6 +118,7 @@ export class CommandError extends Error {
     message: string,
     /** Deterministic failures are remembered for redelivery; transient ones are not. */
     readonly final: boolean,
+    readonly consumedUsages: NonNullable<MessageInitShape<typeof CommandResultSchema>["consumedUsages"]> = [],
   ) {
     super(message);
   }

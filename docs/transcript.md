@@ -3,6 +3,8 @@
 Status (2026-11-17): log zdarzeń, projekcja itemów i bloby obrazów są zaimplementowane,
 w tym bezstratne wyniesienie obrazów wyników trybu kodu Codexa z `raw_json`
 oraz trwały, oddzielny od rozliczeń pomiar bieżącego kontekstu głównej sesji.
+Jawne raporty zużycia jednej tury zasilają też niezależne od retencji agregaty
+tokenów i zgłoszonych kosztów ([usage.md](usage.md)).
 Wznowienie zakresu zachowuje wiele rewizji tego samego dużego itemu, a wskaźnik
 bieżącej treści wybiera najnowszą z nich.
 Plany retencji oznaczono osobno poniżej; dostępność wydań opisuje [release.md](release.md).
@@ -92,7 +94,8 @@ ani katalogu modeli.
 
 - **Codex 0.164.0:** `thread/tokenUsage/updated.tokenUsage.last.totalTokens`
   opisuje ostatnie wywołanie modelu (input wraz z output); `total` jest
-  skumulowanym rozliczeniem sesji i pozostaje w dotychczasowym `Usage`.
+  skumulowanym rozliczeniem sesji. Adapter wyprowadza rozliczenie bieżącej tury
+  z raportów odpowiedzi lub przyrostów licznika, z pominięciem odziedziczonej historii.
   `modelContextWindow` to limit zgłoszony przez harness, bez lokalnego fallbacku.
   `cachedInputTokens` jest częścią input i nie powiększa `last.totalTokens`.
   Źródła: [przypięty kontrakt ThreadTokenUsage](../packages/codex-protocol/src/gen/v2/ThreadTokenUsage.ts),

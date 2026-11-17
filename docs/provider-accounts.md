@@ -1,6 +1,6 @@
 # Status kont dostawców
 
-Status: opis zaimplementowanego kodu (2026-11-16), w tym szerszego wskaźnika
+Status: opis zaimplementowanego kodu (2026-11-17), w tym szerszego wskaźnika
 limitów w sidebarze web/desktop. Dostępność w wydaniach: [release.md](release.md).
 
 Konta proxy mają osobny ręczny wybór planu w Settings → Proxies → Accounts (web i mobile).
@@ -196,6 +196,10 @@ rozmywania dowolnych nazw. Nazwa organizacji pozostaje jawna; org ID nie
 jest przesyłane.
 
 ## Limity planu i dodatkowe użycie
+
+Historyczne statystyki tokenów i zgłoszonych kosztów są osobną funkcją Usage:
+[usage.md](usage.md). Okna limitów konta nie są źródłem tych agregatów ani
+rachunkiem za użycie.
 
 Limity mają osobny, trwały kontrakt `ProviderUsageReport`, niezależny od statusu
 logowania. Jedynym źródłem są oficjalne harnessy; Canopy nie odpytuje endpointów

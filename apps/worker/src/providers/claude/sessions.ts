@@ -125,7 +125,7 @@ export function claudeSessions(
       cwd: spec.cwd,
       query: q,
       input,
-      mapper: new ClaudeEventMapper(),
+      mapper: new ClaudeEventMapper(undefined, resume),
       abort,
       busCalls,
       turn: undefined,

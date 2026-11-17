@@ -7,6 +7,7 @@ import { botCache } from "../bots/cache.ts";
 import { queries } from "#lib/shared/queries.svelte.ts";
 
 const sections = {
+  "/usage": ["GetUsageStats"],
   "/bots": ["ListBots", "GetBot", "SendBotMessage"],
   "/settings/providers": ["ListProviderInstances", "SaveProviderInstance"],
   "/settings/connectors": ["ListConnectors", "SaveConnectorAccount"],

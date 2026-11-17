@@ -88,6 +88,15 @@ test("Claude resets live and resumed fast sessions, and preserves the thread def
       );
       await runtime.runPromise(finished(events, turnId));
 
+      const usage = events.flatMap((event) =>
+        event.turnId === turnId && event.body.case === "usageUpdated" && event.body.value.usage?.scope
+          ? [event.body.value.usage]
+          : [],
+      );
+
+      expect(usage.length).toBeGreaterThan(0);
+      expect(new Set(usage.map((snapshot) => snapshot.requestedServiceTier))).toEqual(new Set([serviceTier || "fast"]));
+
       if (serviceTier === "default") await runtime.runPromise(threads.unload(spec.threadId));
     }
 

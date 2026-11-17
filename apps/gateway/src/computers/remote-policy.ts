@@ -139,6 +139,7 @@ export const SERVED = new Set([
   ...GITHUB_PR_METHODS,
   ...GITHUB_MUTATION_METHODS,
   ...GITHUB_REVIEW_METHODS,
+  "GetUsageBuckets",
   "ReadDiagnosticsSnapshot",
   "CollectHomeDiagnosticsLogs",
   "ResetDiagnosticsCounters",
@@ -316,7 +317,8 @@ export const methodNamed = (name: string) =>
   link.ConfigSyncService.methods.find((m) => m.name === name) ??
   link.ComputerMoveService.methods.find((m) => m.name === name) ??
   link.ComputerUpdateService.methods.find((m) => m.name === name) ??
-  link.DiagnosticsService.methods.find((m) => m.name === name);
+  link.DiagnosticsService.methods.find((m) => m.name === name) ??
+  link.UsageService.methods.find((m) => m.name === name);
 
 /** Link messages have already been decoded; verify their descriptor before accessing a concrete message. */
 export function linkedMessage<D extends DescMessage>(desc: D, message: Message): MessageShape<D> {

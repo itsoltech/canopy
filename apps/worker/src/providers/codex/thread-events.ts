@@ -65,7 +65,13 @@ export function threadEvents(ctx: CodexThreadContext) {
 
       // Enrich and journal each notification before mapping the next: a cell can emit several outputs.
       for (const next of notifications) {
-        const inits = entry.mapper.map(next).map((init) => withUserMentions(init, entry.mentions));
+        // Native raw items duplicate the authoritative rollout tail when raw usage metadata is enabled.
+        const mapped =
+          next === notification && next.method === "rawResponseItem/completed" && entry.rollout
+            ? [{ rawJson: JSON.stringify(next) }]
+            : entry.mapper.map(next);
+
+        const inits = mapped.map((init) => withUserMentions(init, entry.mentions));
 
         // Mapping turn/started establishes its platform id before we record the recovery source.
         if (next.method === "turn/started" && entry.rolloutPath) {
