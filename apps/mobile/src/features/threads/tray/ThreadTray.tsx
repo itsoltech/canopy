@@ -7,7 +7,7 @@ import type { ThreadState } from "../ThreadScreen";
 import { ComposerTray } from "./ComposerTray";
 import { GoalPanel } from "./GoalPanel";
 import { QueuePanel } from "./QueuePanel";
-import { SubagentsPanel } from "./SubagentsPanel";
+import { useSubagentsPanel } from "./SubagentsPanel";
 
 /**
  * The thread's tray in web order (goal, subagents, queue, then what waits for you, nearest the input). Without any
@@ -16,6 +16,7 @@ import { SubagentsPanel } from "./SubagentsPanel";
 export function ThreadTray({ state, onGoal }: { state: ThreadState; onGoal: () => void }) {
   const settings = useAppearance();
   const { thread, snapshot, queue, requests } = state;
+  const subagents = useSubagentsPanel(state.activeSubagents);
   const goal = showsGoal(snapshot?.goal, state.dismissedGoals) ? snapshot?.goal : undefined;
   const disabled = state.home.away || state.stream.connection !== "live";
 
@@ -26,30 +27,35 @@ export function ThreadTray({ state, onGoal }: { state: ThreadState; onGoal: () =
 
   if (!thread || thread.import?.mode === "history") return null;
 
-  if (!goal && !state.activeSubagents.length && !queue.rows.length && !requests.requests.length) return null;
+  const hasPanels = Boolean(goal || state.activeSubagents.length || queue.rows.length || requests.requests.length);
 
   return (
-    <ComposerTray>
-      {goal ? (
-        <GoalPanel
-          goal={goal}
-          threadId={thread.id}
-          disabled={disabled}
-          onOpen={onGoal}
-          onDismiss={() => state.dismissGoal(goal.id)}
-        />
-      ) : null}
-      <SubagentsPanel subagents={state.activeSubagents} />
-      <QueuePanel
-        queue={queue}
-        disabled={disabled}
-        delivery={delivery}
-        onDelivery={(runningDelivery) =>
-          void settings.update({ composer: create(ui.ComposerSettingsSchema, { runningDelivery }) })
-        }
-        onEdit={state.setEditing}
-      />
-      <QuestionPanel requests={requests} items={snapshot?.items} disabled={disabled} />
-    </ComposerTray>
+    <>
+      {hasPanels && (
+        <ComposerTray>
+          {goal ? (
+            <GoalPanel
+              goal={goal}
+              threadId={thread.id}
+              disabled={disabled}
+              onOpen={onGoal}
+              onDismiss={() => state.dismissGoal(goal.id)}
+            />
+          ) : null}
+          {subagents.panel}
+          <QueuePanel
+            queue={queue}
+            disabled={disabled}
+            delivery={delivery}
+            onDelivery={(runningDelivery) =>
+              void settings.update({ composer: create(ui.ComposerSettingsSchema, { runningDelivery }) })
+            }
+            onEdit={state.setEditing}
+          />
+          <QuestionPanel requests={requests} items={snapshot?.items} disabled={disabled} />
+        </ComposerTray>
+      )}
+      {subagents.sheet}
+    </>
   );
 }

@@ -63,9 +63,9 @@ export function useFollowingList<Item>(keyboardChat = false, initialComposerHeig
 
       if (away <= 0.5) reader.arrived();
 
-      // Android keeps the first visible row in place when rows arrive under it (a sent message, the answer it
+      // Native anchoring keeps the first visible row in place when rows arrive under it (a sent message, the answer it
       // starts): a reader following the end stays there instead, as on the web.
-      if (!ios && !own && away > 0.5 && bottom.get() && !anchoring.get() && reader.idle()) {
+      if (!own && away > 0.5 && bottom.get() && !anchoring.get() && reader.idle()) {
         scrollTo(list, 0, minimum.get(), false);
 
         return;
@@ -80,7 +80,7 @@ export function useFollowingList<Item>(keyboardChat = false, initialComposerHeig
       bottom.set(at);
       scheduleOnRN(setAtBottom, at);
     },
-    [scrollY, bottom, distance, anchoring, reader, list, minimum, ios],
+    [scrollY, bottom, distance, anchoring, reader, list, minimum],
   );
 
   function jump(animated: boolean) {

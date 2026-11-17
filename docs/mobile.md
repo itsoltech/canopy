@@ -1,7 +1,12 @@
 # Canopy na iOS i Android
 
-Status: opis działającego kodu na `dev` (2026-11-17); safe area nad wątkiem ma tło
-chrome nagłówka, karta ma górny odstęp, a powrót do listy używa strzałki.
+Status: opis zaimplementowanego kodu (2026-11-17); iOS utrzymuje najnowsze wiadomości
+nad kompozytorem po nadejściu kolejnych tur, a „Show latest” ma okrągły stan naciśnięcia.
+Pole nie powiększa się od kolejnych cykli fokusu i chowania klawiatury.
+Subagenci i kolejka otwierają wspólne arkusze z przewijaną listą zamiast małych popoverów;
+akcja „Steer” ma widoczną etykietę obok ikony.
+Safe area nad wątkiem ma tło chrome nagłówka, karta ma górny odstęp,
+a powrót do listy używa strzałki.
 Switch tab pozwala zamykać karty plików i podglądów bezpośrednio z listy.
 Worktrees opisuje odrzucanie lokalnych plików przez reguły Archived/Deleted threads.
 „What's new” sortuje notatki
@@ -1292,6 +1297,11 @@ przebytej drogi w stronę starszych wiadomości. Każda zmiana foldu zużywa ges
 nowego dotknięcia listy; samo zdarzenie momentum go nie tworzy. Zmiana wymiarów listy, insetu
 klawiatury lub programowa korekta kotwicy unieważnia trwający gest. „Show latest” otwiera
 kompozytor jawnie, bez rozpoznawania programowego scrolla jako gestu.
+Na iOS i Androidzie `useFollowingList` koryguje przesunięcia natywnej kotwicy po
+nadejściu nowych wiadomości, gdy czytelnik śledzi koniec. Na iOS celem jest ujemny
+offset uwzględniający kompozytor, safe area i klawiaturę, a nie zero. Korekta nie
+przerywa gestów ani rozpędu czytelnika, animowanego powrotu na koniec, odtwarzania
+historii ani kotwiczenia rozwijanej sekcji.
 Lista podpowiedzi jest osobną
 nakładką poza mierzonym kompozytorem: otwieranie, filtrowanie, doczytywanie i zamykanie
 nie zmieniają rezerwy ani pozycji feedu. Nakładka mieści się między nagłówkiem a kompozytorem,
@@ -1300,6 +1310,7 @@ chowania klawiatury. Wejście i wyjście używają `pop`, przy ograniczeniu ruch
 pomija ten nagłówek. „Show latest” wątku jest wyśrodkowany nad zmierzonym stosem,
 8 dp ponad fade, poza klipem i rezerwą osi. Pozostaje widoczny także przy rozwiniętym
 kompozytorze; wejście i wyjście używają `pop` z obsługą ograniczenia ruchu.
+Podświetlenie po naciśnięciu zachowuje okrągły kształt przycisku.
 
 Reguły zwijania pochodzą z webowego `ComposerCompaction`: co najmniej 192 dp od końca
 i 96 dp ruchu ku starszym wiadomościom, rozwinięcie do 8 dp od końca albo po tapnięciu,
@@ -1314,7 +1325,12 @@ to listy Reanimated (`TimelineList`, `Animated.FlatList`). Wszystkie części ko
 czytają jedną wartość postępu (`ComposerMotionContext`): `ComposerFold` animuje własną
 przyciętą wysokość i przezroczystość, a pole tekstowe i przycisk wysyłania swoje rozmiary
 i położenie (tokeny `motion.slow` / `motion.medium`, `smoothOut`); ograniczenie ruchu
-przełącza od razu. Androidowe pole tekstowe nie przyjmuje animowanych rozmiarów, więc
+przełącza od razu. Wysokość tekstu jest mierzona niezależnie od dodatkowego miejsca
+przekazywanego polu podczas pisania: natywny `TextInput` nie rozciąga się do jego
+wypełnienia, a pusta przestrzeń nadal przyjmuje tapnięcie ustawiające fokus. Ponowny
+fokus liczy wysokość spoczynkową z treści, bez zapisywania pośredniego rozmiaru
+animacji. `keyboardDidHide` kończy pisanie także po pominiętym zdarzeniu strumienia
+klatek klawiatury. Androidowe pole tekstowe nie przyjmuje animowanych rozmiarów, więc
 animuje się ramka wokół niego.
 
 Podczas pisania (fokus pola) dolny pasek pozostaje widoczny: przycisk załączników, model,
@@ -1520,8 +1536,14 @@ więc ostatni nagłówek dochodzi bezpośrednio do ramki pola. Każdy panel ma
 nagłówek `TrayHeader` (40 dp, cel dotyku 48 dp, tekst 14, ikona 16, chevron 12, padding poziomy 10 dp) i linię nad sobą;
 obramowanie stosu przykrywa pierwszą. Bez paneli zasobnika nie ma; nie ma go też przy historii
 importu (bez pola). W układzie zostają tylko nagłówki; dotknięcie subagentów lub kolejki otwiera
-osobną nakładkę rosnącą w górę nad historią. Rozwinięcie nie zmienia wysokości zasobnika,
-rezerwy feedu ani jego scrolla. Nagłówki działają także przy zwiniętym kompozytorze.
+osobny arkusz `TraySheet` oparty o wspólne `Overlay`: pełna szerokość telefonu, karta od 600 dp,
+stały nagłówek z zamknięciem i przewijana lista. Wspólny korpus `OverlaySurface` może się
+kurczyć do limitu arkusza, dzięki czemu ostatni wiersz i jego akcje pozostają nad dolną
+safe area. Chevron w prawo oznacza otwarcie arkusza.
+Klawiatura zamyka się przed jego pokazaniem, a gest zamknięcia, safe area i ograniczenie ruchu
+pochodzą ze wspólnego kitu. Otwarcie nie zmienia wysokości zasobnika ani rezerwy feedu;
+zwykłe korekty po schowaniu klawiatury pozostają aktywne.
+Nagłówki działają także przy zwiniętym kompozytorze.
 Nad zasobnikiem są wiersze statusu
 („Syncing…”, sekrety, „Sending…”, błąd wysyłki, komputer offline) i chip zadań w tle.
 Wiersze statusu i zasobnik leżą na tle kompozytora z własnym wygaszeniem 16–32 dp, poza pomiarem
@@ -1533,16 +1555,18 @@ Zasobnik wchodzi i wychodzi przez `rise`, wiersze kolejki dodatkowo przez `layou
 Panel subagentów (`SubagentsPanel`, web: `SubagentsPanel`) pokazuje tylko pracujących
 i czekających na odpowiedź (`subagentsOf` z `@canopy/domain/subagents`). Nagłówek liczy tylko
 aktywnych („2 subagents working · 1 needs you”, ten sam `subagentSummary` co web) i pokazuje ikony
-ich dostawców. Rozwinięcie (nakładka `AnchoredOverlay`, chevron `useTween`) pokazuje wiersz na subagenta:
-kropka stanu, tytuł, etykieta stanu i pierwsza linia ostatniej wiadomości. Dotknięcie otwiera
-wątek z historią i możliwością dalszej wiadomości. Zakończeni znikają z zasobnika; pełna linia
+ich dostawców. Arkusz pokazuje wiersz na subagenta: kropkę stanu, tytuł do dwóch linii,
+osobną etykietę stanu i podgląd ostatniej wiadomości do dwóch linii. Dotknięcie zamyka arkusz,
+a po zakończeniu jego zamykania otwiera wątek z historią i możliwością dalszej wiadomości.
+Zakończeni znikają z zasobnika; pełna linia
 („N finished”, „Previous subagents”) jest w szczegółach wątku. Otwarcie jest lokalnym stanem
 panelu, bez zapisu preferencji urządzenia i bez aktualizacji całego feedu. Kolejka również
-zaczyna od samego nagłówka. Chip zadań otwiera ten sam rodzaj nakładki z akcjami i podglądem wyjścia.
-Wspólny `TrayChevron` wskazuje w górę przed otwarciem, a w dół po otwarciu. Nakładki kolejki,
-subagentów i zadań używają `disclosure-motion`: wysokość, przenikanie i przesunięcie o
+zaczyna od samego nagłówka. Chip zadań nadal otwiera kotwiczoną nakładkę z akcjami i podglądem wyjścia.
+Chip zadań używa `TrayChevron`, wskazującego w górę przed otwarciem, a w dół po otwarciu.
+Jego nakładka używa `disclosure-motion`: wysokość, przenikanie i przesunięcie o
 `distance.micro`, otwarcie na `slow`, zamknięcie na `medium`, z `smoothOut`. Ograniczenie ruchu
-wyłącza te przejścia. Arkusze odpowiedzi zachowują chevron wskazujący przejście do osobnego widoku.
+wyłącza te przejścia. Arkusze subagentów, kolejki i odpowiedzi mają chevron wskazujący
+przejście do osobnego widoku oraz wspólny ruch modalnych arkuszy.
 
 Szczegóły wątku pokazują linię subagentów z webowym grupowaniem z `@canopy/domain/subagents`:
 przy „Keep finished subagents in the list” = Off zakończeni, także archiwalni, są pod rozwijanym
@@ -1685,13 +1709,16 @@ trafia za nią. Pole tekstowe nie pokazuje postępu, dlatego pliki wysyłane lub
 nad tekstem chip ze stanem i przyciskiem Remove; zapisany plik ma już tylko plakietkę. Wysłana
 wiadomość pokazuje plakietki w tych samych miejscach (`Turn.mentions`), a chipy tylko dla plików
 spoza tekstu. Kolejka ma stały nagłówek „N queued” w zasobniku (web: `QueuePanel`),
-a po dotknięciu pokazuje nakładkę z wierszem na własną wiadomość użytkownika w kolejności startu (reguły
-`@canopy/domain/queue` wspólne z web), tekst w jednej linii z nazwami plakietek, ostrzeżenie,
-gdy steer nie wszedł do tury, oraz akcje: Steer (`SteerQueuedTurn`, tylko gdy tura trwa, także
+a po dotknięciu pokazuje arkusz z wierszem na własną wiadomość użytkownika w kolejności startu (reguły
+`@canopy/domain/queue` wspólne z web), tekst do trzech linii z nazwami plakietek, ostrzeżenie,
+gdy steer nie wszedł do tury, oraz akcje: Steer z ikoną i widoczną etykietą (`SteerQueuedTurn`, tylko gdy tura trwa, także
 z plikami), Delete (`DeleteQueuedTurn`, toast z „Undo” przez 8 sekund, `RestoreQueuedTurn`)
-i „…”. Arkusz „…” ma notę „Runs with …” z nadpisaniami (model, effort, uprawnienia, pliki,
+i „…”, w osobnym rzędzie pod tekstem. Cele akcji mają co najmniej 48 dp z hit slopem
+i nie nakładają się na siebie. Arkusz „…” otwiera się nad listą i po zamknięciu wraca
+do kolejki; ma notę „Runs with …” z nadpisaniami (model, effort, uprawnienia, pliki,
 cytaty), Edit message, przesuwanie o jedno miejsce i na początek/koniec (`ReorderQueuedTurns`)
-oraz „Turn on/off queueing” (domyślne zachowanie podczas tury). Edit message otwiera edytor
+oraz „Turn on/off queueing” (domyślne zachowanie podczas tury). Edit message zamyka menu
+i listę przed pokazaniem edytora
 z tymi samymi plakietkami (`EditQueuedTurn` z `mentions_complete`, linia „‹name› leaves the
 message when you save.”). Zmiany widać od razu (`useQueue`: lokalna kolejność, ukryte usunięte
 i wysterowane); odpowiedź gatewaya trafia do snapshotu, a odmowa przywraca stan i mówi
