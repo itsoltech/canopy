@@ -1,5 +1,4 @@
-import { mkdtempSync, rmSync } from "node:fs";
-import { tmpdir } from "node:os";
+import { rmSync } from "node:fs";
 import { join } from "node:path";
 import { AgentTool, type AgentPreviewInput } from "@canopy/contracts";
 import { z } from "zod";
@@ -7,6 +6,7 @@ import { DesktopCatalog, deviceCatalog } from "./catalog.ts";
 import { DesktopInput } from "./desktop-input.ts";
 import { DeviceInput } from "./device-input.ts";
 import { jpegFrame, readPreviewImage } from "./frames.ts";
+import { screenshotDirectory } from "./screenshot-storage.ts";
 import type { PreviewBackend, PreviewContext, PreviewUpdate } from "./types.ts";
 
 const screenshot = z.object({
@@ -56,7 +56,6 @@ class ScreenshotPreview implements PreviewBackend {
   async start(): Promise<void> {
     await this.#catalog();
     this.#context.signal.throwIfAborted();
-    this.#dir = mkdtempSync(join(tmpdir(), "canopy-agent-preview-"));
     this.#loop = this.#captureLoop();
     void this.#loop.catch(() => undefined);
   }
@@ -105,6 +104,7 @@ class ScreenshotPreview implements PreviewBackend {
 
   async #capture(): Promise<void> {
     const { runtime, signal } = this.#context;
+    this.#dir ||= screenshotDirectory(runtime.env);
     const path = join(this.#dir, "frame.png");
     rmSync(path, { force: true });
 
@@ -112,8 +112,16 @@ class ScreenshotPreview implements PreviewBackend {
       ? ["screenshot", ...this.#desktop.scopeArgs(), path]
       : ["screenshot", "--no-stabilize", "--", path];
 
-    const info = screenshot.parse(await runtime.command(args));
-    const source = readPreviewImage(path);
+    let info: z.infer<typeof screenshot>;
+    let source: Uint8Array;
+
+    try {
+      info = screenshot.parse(await runtime.command(args));
+      source = readPreviewImage(path);
+    } finally {
+      rmSync(path, { force: true });
+    }
+
     const image = await jpegFrame(source);
     signal.throwIfAborted();
     const size = this.#desktop?.logicalSize();

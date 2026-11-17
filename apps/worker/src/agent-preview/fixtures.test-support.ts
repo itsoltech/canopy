@@ -17,7 +17,14 @@ export interface PreviewFixtureState {
     is_focused: boolean;
     bounds: { x: number; y: number; width: number; height: number };
   }[];
-  devices?: { id: string; name: string; platform: string }[];
+  devices?: {
+    id: string;
+    name: string;
+    platform: string;
+    booted?: boolean;
+    kind?: "emulator" | "simulator" | "device";
+    claimedBy?: { session: string; workspace: string };
+  }[];
   sessions?: { name: string; id: string; platform: string }[];
   screenshotDelay?: number;
   readiness?: boolean;
@@ -70,6 +77,7 @@ if(command==="doctor"){
  const ready=state.readiness!==false;
  console.log(JSON.stringify({success:true,data:{status:ready?"pass":"fail",checks:[{id:"device",status:ready?"pass":"fail",summary:"Choose a device"}]}}));process.exit(0);
 }
+if(args.includes("daemon")){ok({state:"stopped"});process.exit(0);}
 if(command==="status"){ok({platform:"linux",supported_surfaces:["window"],permissions:{accessibility:{state:"granted"},screen_recording:{state:"not_required"}}});process.exit(0);}
 if(command==="list-windows")ok(state.windows);
 else if(command==="devices")ok({devices:state.devices});

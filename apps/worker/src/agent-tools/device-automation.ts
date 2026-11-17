@@ -65,6 +65,10 @@ export class DeviceAutomation {
     return this.#pool.current(agentToolSession(session))?.platform;
   }
 
+  canPreview(session: string, deviceId: string, platform: string): boolean {
+    return this.#pool.canPreview(agentToolSession(session), deviceId, platform);
+  }
+
   async use<T>(
     scope: RunAgentTool,
     signal: AbortSignal,

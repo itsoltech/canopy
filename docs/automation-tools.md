@@ -4,6 +4,9 @@ Status (2026-11-17): **narzędzia, interaktywny Preview z podglądem zmiany view
 automatyczny mini Preview wątku, pełna karta Preview w web/desktop, ikony obu stanów skali
 oraz rezerwacje urządzeń z oczekiwaniem, uruchamianiem skonfigurowanych emulatorów
 i sprzątaniem sesji przy archiwizacji zaimplementowane**.
+Katalog Device Preview jest ograniczony do urządzenia sesji lub wolnych,
+uruchomionych celów przed rezerwacją; przejściowe pliki klatek używają prywatnego
+katalogu cache workera zamiast współdzielonego katalogu tymczasowego.
 Web/desktop potwierdza klatki po narysowaniu obrazu; odświeżanie metadanych celu
 i naprawa kursora historii zachowują działający podgląd.
 Osobna zakładka Settings → Agent tools grupuje dostęp i instalacje według narzędzia;
@@ -391,7 +394,17 @@ poza krawędzią panelu; oba pola i `Apply` pozostają dostępne.
 |---|---|---|
 | Browser | Natywny WebSocket `agent-browser` dla sesji Chrome wątku; przekazuje listę kart i pozwala wybrać aktywną kartę w pasku Preview. | Pointer, przyciski, kółko, klawisze i tekst przez natywny strumień; nawigacja oraz przełączanie kart przez CLI. Preview nie zmienia viewportu przy zmianie szerokości panelu; pola `Width` i `Height` oraz uchwyty krawędzi wysyłają jawne `Resize`, a ich wartości są niezależne od rozmiaru panelu. Zamknięcie Preview zwalnia jego WebSocket i utworzony przez niego stream, zachowując sesję agenta. |
 | Desktop | Współdzielona, anulowalna pętla zrzutów; domyślny cel podąża za aktywnym oknem. Jawny wybór okna pozostaje przypięty; filtr aplikacji może wybrać jej jedyne dostępne okno także bez fokusu. | Kliknięcie i przeciągnięcie są atomowymi operacjami po puszczeniu przycisku; drag obsługuje tylko przycisk główny. Backend nie utrzymuje wciśniętej myszy ani klawisza. Klawisze używają `press`, tekst — świeżego refa aktywnego pola accessibility i `type`, bez schowka systemowego. |
-| Device | Współdzielona, anulowalna pętla zrzutów; domyślny cel podąża za urządzeniem sesji wątku albo jedynym zgodnym z platformą. Jawny wybór urządzenia pozostaje przypięty; alias `apple` dopasowuje iOS i macOS. | Tap i swipe głównym wskaźnikiem po puszczeniu, kierunkowy scroll oraz `type`. Enter/Back/Home działają według możliwości backendu; edycję klawiaturą Android opisano niżej. Skróty z modyfikatorami zwracają jawny błąd. |
+| Device | Współdzielona, anulowalna pętla zrzutów; domyślny cel podąża za urządzeniem sesji wątku albo jedynym dostępnym, zgodnym z platformą. Jawny wybór urządzenia pozostaje przypięty w granicach sesji; alias `apple` dopasowuje iOS i macOS. | Tap i swipe głównym wskaźnikiem po puszczeniu, kierunkowy scroll oraz `type`. Enter/Back/Home działają według możliwości backendu; edycję klawiaturą Android opisano niżej. Skróty z modyfikatorami zwracają jawny błąd. |
+
+Katalog Device Preview pokazuje wyłącznie urządzenie bieżącej sesji lub rezerwacji
+wątku. Przed rezerwacją udostępnia wolne cele zgodne z wybraną platformą; pomija
+wyłączone emulatory i symulatory, urządzenia zajęte przez inne sesje daemona oraz
+obce rezerwacje puli workera. Rezerwacje są sprawdzane przy każdym odświeżeniu,
+także zanim daemon zgłosi sesję i podczas jej zwalniania. Jawny selektor nie
+przywraca obcego urządzenia do katalogu. Odczyt katalogu nie rezerwuje ani nie
+uruchamia urządzenia; rzeczywiste przechwycenie i wejście nadal wymagają
+wyłącznej rezerwacji w puli, więc zmiana dostępności po odczycie katalogu nie
+pozwala przejąć cudzego celu.
 
 Samo otwarcie Browser Preview nie uruchamia przeglądarki ani nie nawiguje.
 Bez działającej przeglądarki sesji podgląd czeka na agenta; użytkownik może ją
@@ -506,8 +519,14 @@ klatkę.
 ## Obrazy i trwałość
 
 Klatki Preview są przejściowe: nie tworzą itemu, outboxa, journala, lustra
-ani trwałej galerii. Pliki tymczasowe zrzutów są sprzątane przy zamknięciu backendu;
-zamknięcie podglądu usuwa jego obraz z klienta.
+ani trwałej galerii. Desktop/Device tworzą prywatny katalog przechwytywania
+dopiero przy pierwszym zrzucie, w systemowym cache użytkownika workera
+(Linux respektuje bezwzględny `XDG_CACHE_HOME`). Nie używają współdzielonego
+katalogu tymczasowego, którego limit użytkownika może blokować zapis mimo
+wolnego miejsca pokazywanego przez system plików (`EDQUOT`, errno 122 na Linuksie).
+Plik PNG jest usuwany bezpośrednio po odczycie, także po błędzie polecenia lub
+odczytu; zamknięcie backendu usuwa jego prywatny katalog. Sam katalog celów
+nie tworzy plików klatek. Zamknięcie podglądu usuwa jego obraz z klienta.
 
 Modelowy MCP ma inną ścieżkę. Wynik native MCP trafia do transcriptu providera
 i jest zapisywany w journalu. Jeśli wynik zawiera obraz, worker zapisuje blob w

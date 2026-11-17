@@ -76,7 +76,7 @@ test("shared screenshot viewers capture once, gate on exact ACK, and stopThread 
     expect(events.filter((update) => update.previewId === "two" && update.state === "frame")).toHaveLength(1);
     const screenshotCalls = f.calls().filter((call) => call.command === "screenshot" && call.event === "start");
     const path = screenshotCalls[0]?.args.at(-1) ?? "";
-    expect(existsSync(path)).toBe(true);
+    expect(existsSync(path)).toBe(false);
     f.update({ screenshotDelay: 5000 });
     ack("one", 2n);
     await eventually(
@@ -215,7 +215,7 @@ test("device catalog keeps selection usable without an active session and maps t
   ).toEqual(["--", "--literal"]);
 });
 
-test("device defaults follow session changes without losing explicit device or platform selection", async () => {
+test("device catalog follows its session and hides pinned targets outside that session", async () => {
   const f = await previewFixture(AgentTool.DEVICE);
 
   const devices = [
@@ -239,14 +239,14 @@ test("device defaults follow session changes without losing explicit device or p
   select("emulator-5556", "android");
   expect((await deviceCatalog(following)).targetId).toBe("android:emulator-5556");
   expect((await deviceCatalog(filtered)).targetId).toBe("android:emulator-5556");
-  expect((await deviceCatalog(pinned)).targetId).toBe("android:emulator-5554");
+  expect((await deviceCatalog(pinned)).targetId).toBe("");
   await following.command(["home"]);
   expect(f.calls().find((call) => call.command === "home")?.args).toContain("emulator-5556");
 
   select("sim-1", "ios");
   expect((await deviceCatalog(following)).targetId).toBe("ios:sim-1");
   expect((await deviceCatalog(filtered)).targetId).toBe("");
-  expect((await deviceCatalog(pinned)).targetId).toBe("android:emulator-5554");
+  expect((await deviceCatalog(pinned)).targetId).toBe("");
   f.update({ devices: devices.filter((device) => device.id !== "emulator-5554") });
   expect((await deviceCatalog(pinned)).targetId).toBe("");
 });
@@ -274,7 +274,7 @@ test("Apple device selection accepts public iOS and macOS platforms and preserve
 
   f.update({ sessions: [{ name: "thread", id: "mac-1", platform: "macos" }] });
   expect((await deviceCatalog(apple)).targetId).toBe("macos:mac-1");
-  expect((await deviceCatalog(pinned)).targetId).toBe("ios:sim-1");
+  expect((await deviceCatalog(pinned)).targetId).toBe("");
   await apple.command(["home"]);
   expect(f.calls().find((call) => call.command === "home")?.args).toEqual([
     "--json",

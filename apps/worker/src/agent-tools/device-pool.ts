@@ -356,6 +356,16 @@ export class DevicePool {
     return state?.lease?.ready && !state.releasing && !state.fenced ? { ...state.lease.device } : undefined;
   }
 
+  canPreview(session: string, deviceId: string, platform: string): boolean {
+    const current = this.current(session);
+
+    if (current) return current.id === deviceId && current.platform === platform;
+
+    if (this.#sessions.get(session)?.lease) return false;
+
+    return ![...this.#owned.entries.values()].some((entry) => entry.key === deviceId || entry.device.id === deviceId);
+  }
+
   recover(): Promise<void> {
     if (this.#recovery) return this.#recovery;
     const task = this.#recover();
