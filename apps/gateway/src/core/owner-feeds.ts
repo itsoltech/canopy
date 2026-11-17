@@ -36,9 +36,14 @@ const CONNECTOR_REVISION = `SELECT md5(coalesce((SELECT string_agg(concat_ws(':'
   FROM connector_accounts a WHERE a.owner_user_id = $1::uuid), '') || '#' ||
   coalesce((SELECT string_agg(o.connector_type, ',' ORDER BY o.connector_type) FROM connector_oauth_apps o WHERE o.owner_user_id = $1::uuid), '')) AS revision`;
 
-// Account reads by another gateway process count too; their read time alone does not.
+// Include usedBy references and worker names; account read time alone does not change the list.
 const PROXY_REVISION = `SELECT md5(coalesce(string_agg(concat_ws(':', p.id, p.revision, p.updated_at,
-    md5((p.management_status - 'checkedAt')::text), p.account_plans::text), ',' ORDER BY p.id), '')) AS revision
+    md5((p.management_status - 'checkedAt')::text), p.account_plans::text,
+    (SELECT string_agg(i.harness || '/' || i.id, ',' ORDER BY i.harness, i.id)
+      FROM provider_instances i WHERE i.proxy_id = p.id),
+    (SELECT string_agg(w.harness || '/' || w.instance_id || ' on ' || d.name, ',' ORDER BY w.harness, w.instance_id, w.worker_id)
+      FROM provider_instance_workers w JOIN workers d ON d.id = w.worker_id WHERE w.proxy_id = p.id)),
+    ',' ORDER BY p.id), '')) AS revision
   FROM proxies p WHERE p.owner_user_id = $1::uuid`;
 
 // Notices can be dismissed without advancing the configuration clock. Include their open set too.

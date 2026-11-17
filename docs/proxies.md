@@ -1,8 +1,9 @@
 # Współdzielone połączenia proxy
 
-Status: opis działającego kodu na `dev` (2026-11-15), w tym aktywny odczyt limitów
-Claude, wybór odczytów kont i modeli CLIProxyAPI oraz wyrównanie tożsamości kont
-w web/desktop. Dostępność nightly/beta/stable wynika
+Status: opis działającego kodu na `dev` (2026-11-17), w tym aktywny odczyt limitów
+Claude, wybór odczytów kont i modeli CLIProxyAPI, wyrównanie tożsamości kont
+oraz odświeżanie powiązań proxy po zmianie lub usunięciu instancji w web/desktop.
+Dostępność nightly/beta/stable wynika
 z promocji wydań ([release.md](release.md)).
 
 Settings → **Proxies** przechowuje połączenie raz: nazwę, rodzaj, URL, zaszyfrowany
@@ -121,6 +122,13 @@ Tworzenie, edycja, wymiana sekretu, migracja, przeniesienie env i usunięcie zap
 audyt `proxy.*` bez URL, klucza i body żądania. Usunięcie proxy używanego przez
 instancje lub nadpisania jest blokowane z listą referencji; najpierw wybierz inne
 połączenie w tych profilach. FK zamyka wyścig z równoczesnym przypięciem.
+
+Sygnatura strumienia proxy uwzględnia referencje instancji i nadpisań workerów
+oraz nazwy workerów. Dodanie, przepięcie lub usunięcie powiązania wywołuje
+`proxies_changed`, które odświeża współdzielony odczyt `ListProxies` w BFF
+i klientach. Po usunięciu ostatniej instancji lista **Used by** jest pusta,
+a **Delete** staje się dostępne bez przeładowania aplikacji. Obejmuje to również
+kaskadowo usuwane nadpisania workerów i zmiany zapisane przez inny proces gatewaya.
 
 ## Wbudowany login i ręczne zmienne
 
