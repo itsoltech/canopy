@@ -38,7 +38,7 @@ function Invoke-SmokeProcess([string]$File, [string]$Arguments, [int]$Timeout = 
 
 function Test-SingleProcessUpdate([string]$Bun) {
   $powershell = Join-Path $env:SystemRoot 'System32/WindowsPowerShell/v1.0/powershell.exe'
-  Invoke-SmokeProcess $powershell '-NoProfile -NonInteractive -C "Get-Command Get-CimInstance -ErrorAction Stop | Out-Null; if ((Get-ExecutionPolicy -Scope Process) -eq [System.Management.Automation.ExecutionPolicy]::Restricted) { exit 1 }"'
+  Invoke-SmokeProcess $powershell '-NoProfile -NonInteractive -C "Get-Command Get-CimInstance -ErrorAction Stop | Out-Null; if ((Get-ExecutionPolicy -Scope Process) -eq ''Restricted'') { exit 1 }"'
   $info = [System.Diagnostics.ProcessStartInfo]::new($Bun)
   $info.UseShellExecute = $false
   $info.CreateNoWindow = $true
@@ -67,6 +67,7 @@ function Test-SingleProcessUpdate([string]$Bun) {
   }
 }
 
+$failure = $null
 try {
   Invoke-SmokeProcess $installers[0].FullName "/S /D=$installation"
   if (-not (Test-Path "$installation/canopy.exe" -PathType Leaf)) { throw 'NSIS did not install the app' }
@@ -80,8 +81,17 @@ try {
     if ($actual -ne $env:CANOPY_VERSION) { throw "$app version mismatch: $actual (expected $env:CANOPY_VERSION)" }
     Write-Output "Installed $app sidecar: $actual"
   }
+} catch {
+  $failure = $_
 } finally {
   $uninstaller = Join-Path $installation 'Uninstall Canopy.exe'
-  if (Test-Path $uninstaller) { Invoke-SmokeProcess $uninstaller "/S _?=$installation" }
-  Remove-Item $scratch -Recurse -Force -ErrorAction SilentlyContinue
+  try {
+    if (Test-Path $uninstaller) { Invoke-SmokeProcess $uninstaller "/S _?=$installation" }
+  } catch {
+    if ($null -eq $failure) { $failure = $_ }
+    else { Write-Warning "Smoke cleanup also failed: $_" }
+  } finally {
+    Remove-Item $scratch -Recurse -Force -ErrorAction SilentlyContinue
+  }
 }
+if ($null -ne $failure) { throw $failure }
