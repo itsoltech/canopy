@@ -15,12 +15,16 @@ import { styles, useColors } from "./theme";
 export function FullScreenViewer({
   title,
   onClose,
+  closeLabel = "Close viewer",
+  onRequestClose = onClose,
   actions,
   fade,
   children,
 }: {
   title: string;
   onClose: () => void;
+  closeLabel?: string;
+  onRequestClose?: () => void;
   actions?: ReactNode;
   fade?: SharedValue<number>;
   children: ReactNode;
@@ -35,7 +39,7 @@ export function FullScreenViewer({
       transparent={!!fade}
       animationType="none"
       presentationStyle={fade ? "overFullScreen" : "fullScreen"}
-      onRequestClose={onClose}
+      onRequestClose={onRequestClose}
     >
       <GestureHandlerRootView style={{ flex: 1 }}>
         <SafeAreaProvider>
@@ -49,7 +53,7 @@ export function FullScreenViewer({
                   opacity,
                 ]}
               >
-                <IconButton icon="x-mark" label="Close viewer" onPress={onClose} />
+                <IconButton icon="x-mark" label={closeLabel} onPress={onClose} />
                 <Text numberOfLines={1} style={[styles.chrome, { flex: 1, minWidth: 0, color: c.text }]}>
                   {title}
                 </Text>

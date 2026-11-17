@@ -1,16 +1,16 @@
 import { useState, type ReactNode } from "react";
-import { ScrollView, Text, View, useWindowDimensions } from "react-native";
-import { create } from "@bufbuild/protobuf";
-import { AgentPreviewInputSchema, AgentTool, type AgentPreviewTarget, type ui } from "@canopy/contracts";
-import { Sheet } from "../../ui/components";
+import { Keyboard, Text, TextInput, View, useWindowDimensions } from "react-native";
+import { KeyboardController } from "react-native-keyboard-controller";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { AgentTool, type AgentPreviewTarget, type ui } from "@canopy/contracts";
+import { FullScreenViewer } from "../../ui/FullScreenViewer";
+import { KeyboardWindow, useKeyboardFrame } from "../../ui/KeyboardWindow";
+import Animated, { useAnimatedStyle } from "react-native-reanimated";
 import { Button } from "../../ui/Button";
-import { PickerSheet, SelectField } from "../../ui/Picker";
-import { Segmented } from "../../ui/Segmented";
 import { styles, useColors } from "../../ui/theme";
 import { useSession } from "../../state/session";
-import { useCopyText } from "../viewers/useCopyText";
-import { PreviewCanvas } from "./PreviewCanvas";
-import { PreviewControls } from "./PreviewControls";
+import { PreviewStage, PreviewStatus } from "./PreviewStage";
+import { PreviewToolbar } from "./PreviewToolbar";
 import { useAgentPreview } from "./useAgentPreview";
 
 export function PreviewSheet({
@@ -26,21 +26,29 @@ export function PreviewSheet({
   offline: boolean;
   onClose: () => void;
 }) {
-  return (
-    <Sheet title="Preview" visible={visible} onClose={onClose} scroll={false}>
-      {visible && <PreviewBody key={threadId} threadId={threadId} worker={worker} offline={offline} />}
-    </Sheet>
-  );
+  if (!visible) return null;
+
+  return <PreviewBody key={threadId} threadId={threadId} worker={worker} offline={offline} onClose={onClose} />;
 }
 
-function PreviewBody({ threadId, worker, offline }: { threadId: string; worker?: ui.Worker; offline: boolean }) {
+function PreviewBody({
+  threadId,
+  worker,
+  offline,
+  onClose,
+}: {
+  threadId: string;
+  worker?: ui.Worker;
+  offline: boolean;
+  onClose: () => void;
+}) {
   const c = useColors();
   const { height } = useWindowDimensions();
   const compact = height < 500;
+  const [controls, setControls] = useState(true);
   const { online } = useSession();
   const [tool, setTool] = useState(AgentTool.BROWSER);
   const [target, setTarget] = useState<AgentPreviewTarget>();
-  const [picker, setPicker] = useState(false);
   const item = worker?.agentTools.find((entry) => entry.tool?.tool === tool);
 
   const ready =
@@ -55,193 +63,83 @@ function PreviewBody({ threadId, worker, offline }: { threadId: string; worker?:
   const failed = ["error", "closed"].includes(preview.state);
   const targetId = target?.id || preview.targetId;
 
-  function chooseTarget(id: string) {
-    const next = preview.targets.find((entry) => entry.id === id);
-
-    if (tool === AgentTool.BROWSER) preview.input(create(AgentPreviewInputSchema, { kind: "tab", text: id }));
-    else setTarget(next);
-  }
-
   return (
-    <PreviewLayout compact={compact}>
-      <PreviewToolPicker
-        tool={tool}
-        onChange={(value) => {
-          setTool(value);
-          setTarget(undefined);
-        }}
-      />
-      <PreviewStatus
-        unavailable={unavailable}
-        allowed={allowed}
-        failed={failed}
-        live={live}
-        frame={Boolean(preview.frame)}
-      />
-      {allowed ? (
-        <>
-          {preview.targets.length > 0 && (
-            <SelectField
-              label={tool === AgentTool.BROWSER ? "Browser tab" : tool === AgentTool.DEVICE ? "Device" : "Window"}
-              hideLabel
-              value={preview.targets.find((entry) => entry.id === targetId)?.label || "Choose a target"}
-              disabled={!live}
-              onPress={() => setPicker(true)}
-            />
-          )}
-          {failed ? (
-            <PreviewFailure detail={preview.detail} retry={preview.retry} />
-          ) : (
-            <>
-              <View style={compact ? { height: Math.max(160, height / 2) } : { flex: 1, minHeight: 80 }}>
-                <PreviewCanvas
-                  key={`${tool}:${targetId}`}
-                  frame={preview.frame}
-                  uri={preview.uri}
-                  enabled={live}
-                  input={preview.input}
-                />
-              </View>
-              {preview.notice ? (
-                <Text accessibilityLiveRegion="polite" style={[styles.overlayMeta, { color: c.muted }]}>
-                  {preview.notice}
-                </Text>
-              ) : null}
-              <ScrollView
-                keyboardShouldPersistTaps="handled"
-                scrollEnabled={!compact}
-                style={{ flexGrow: 0, flexShrink: 1, maxHeight: compact ? undefined : "45%" }}
-              >
-                <PreviewControls
-                  key={`${tool}:${targetId}`}
-                  tool={tool}
-                  url={preview.url}
-                  enabled={live}
-                  input={preview.input}
-                />
-              </ScrollView>
-            </>
-          )}
-        </>
-      ) : (
-        <View style={{ flex: 1, justifyContent: "center" }}>
-          <Text style={[styles.overlay, { color: c.muted }]}>
-            {unavailable
-              ? "Reconnect this computer and device to open a live preview."
-              : !item?.enabled
-                ? "Allow agent access to this tool in Settings → Workers on web or desktop, then reopen Preview."
-                : "Check this tool in Settings → Workers on web or desktop, then reopen Preview."}
-          </Text>
-        </View>
-      )}
-      <Text numberOfLines={1} style={[styles.overlayMeta, { color: c.muted }]}>
-        {worker?.name || "Computer"}
-        {preview.title ? ` · ${preview.title}` : ""}
-      </Text>
-      <PickerSheet
-        title="Preview target"
-        visible={picker}
-        onClose={() => setPicker(false)}
-        value={targetId}
-        sections={[
-          {
-            options: preview.targets.map((entry) => ({
-              value: entry.id,
-              label: entry.label,
-              description: entry.platform || entry.app,
-            })),
-          },
-        ]}
-        onSelect={chooseTarget}
-      />
-    </PreviewLayout>
-  );
-}
-
-function PreviewToolPicker({ tool, onChange }: { tool: AgentTool; onChange: (tool: AgentTool) => void }) {
-  return (
-    <Segmented
-      value={String(tool)}
-      options={[
-        { value: String(AgentTool.BROWSER), label: "Browser" },
-        { value: String(AgentTool.DESKTOP), label: "Desktop" },
-        { value: String(AgentTool.DEVICE), label: "Device" },
-      ]}
-      onChange={(value) => onChange(Number(value))}
-    />
-  );
-}
-
-/** Short windows scroll the image and controls together, without shrinking either over its neighbours. */
-function PreviewLayout({ compact, children }: { compact: boolean; children: ReactNode }) {
-  return compact ? (
-    <ScrollView keyboardShouldPersistTaps="handled" contentContainerStyle={{ padding: 12, gap: 12 }}>
-      {children}
-    </ScrollView>
-  ) : (
-    <View style={{ flex: 1, minHeight: 0, padding: 12, gap: 12 }}>{children}</View>
-  );
-}
-
-function PreviewFailure({ detail, retry }: { detail: string; retry: () => void }) {
-  const c = useColors();
-  const [details, setDetails] = useState(false);
-  const { copy } = useCopyText(detail);
-
-  return (
-    <View style={{ flex: 1, justifyContent: "center", gap: 12 }}>
-      <Text style={[styles.overlay, { color: c.text }]}>Preview unavailable</Text>
-      <Text style={[styles.overlay, { color: c.muted }]}>Check the connection and tool status, then retry.</Text>
-      <Button title="Retry preview" onPress={retry} />
-      {detail && (
+    <FullScreenViewer
+      title="Preview"
+      closeLabel="Close preview"
+      onClose={onClose}
+      onRequestClose={() => {
+        if (Keyboard.isVisible() || KeyboardController.isVisible() || TextInput.State.currentlyFocusedInput()) {
+          Keyboard.dismiss();
+          void KeyboardController.dismiss();
+        } else onClose();
+      }}
+      actions={
         <Button
-          title={details ? "Hide details" : "Show details"}
+          title={controls ? "Hide controls" : "Show controls"}
           variant="ghost"
-          onPress={() => setDetails(!details)}
+          style={{ minWidth: 112 }}
+          onPress={() => {
+            Keyboard.dismiss();
+            void KeyboardController.dismiss();
+            setControls(!controls);
+          }}
         />
-      )}
-      {details && (
-        <>
-          <Text selectable style={[styles.overlayMeta, { color: c.muted }]}>
-            {detail}
-          </Text>
-          <Button title="Copy details" variant="ghost" onPress={() => void copy()} />
-        </>
-      )}
-    </View>
+      }
+    >
+      <KeyboardWindow preload={false}>
+        <PreviewLayout>
+          <View style={{ paddingHorizontal: 12, paddingVertical: 4 }}>
+            <PreviewStatus
+              unavailable={unavailable}
+              allowed={allowed}
+              failed={failed}
+              live={live}
+              frame={Boolean(preview.frame)}
+            />
+          </View>
+          <View style={{ flex: 1, minHeight: 0, flexDirection: compact && controls ? "row" : "column" }}>
+            <View style={{ flex: 1, minWidth: 0, minHeight: 0 }}>
+              <PreviewStage
+                preview={preview}
+                unavailable={unavailable}
+                allowed={allowed}
+                failed={failed}
+                enabled={Boolean(item?.enabled)}
+                live={live}
+                scope={`${tool}:${targetId}`}
+              />
+            </View>
+            <PreviewToolbar
+              preview={preview}
+              tool={tool}
+              targetId={targetId}
+              live={live}
+              compact={compact}
+              visible={controls}
+              onToolChange={(value) => {
+                setTool(value);
+                setTarget(undefined);
+              }}
+              onTargetChange={setTarget}
+            />
+          </View>
+          <View style={{ paddingHorizontal: 12, paddingVertical: 4 }}>
+            <Text accessibilityLiveRegion="polite" numberOfLines={1} style={[styles.overlayMeta, { color: c.muted }]}>
+              {preview.notice || `${worker?.name || "Computer"}${preview.title ? ` · ${preview.title}` : ""}`}
+            </Text>
+          </View>
+        </PreviewLayout>
+      </KeyboardWindow>
+    </FullScreenViewer>
   );
 }
 
-function PreviewStatus({
-  unavailable,
-  allowed,
-  failed,
-  live,
-  frame,
-}: {
-  unavailable: boolean;
-  allowed: boolean;
-  failed: boolean;
-  live: boolean;
-  frame: boolean;
-}) {
-  const c = useColors();
+/** Keep the return bar outside keyboard movement and all remote gesture responders. */
+function PreviewLayout({ children }: { children: ReactNode }) {
+  const keyboard = useKeyboardFrame();
+  const { bottom } = useSafeAreaInsets();
+  const style = useAnimatedStyle(() => ({ paddingBottom: Math.max(0, -keyboard.height.get() - bottom) }));
 
-  const status = unavailable
-    ? "Offline"
-    : !allowed
-      ? "Not ready"
-      : failed
-        ? "Disconnected"
-        : live
-          ? frame
-            ? "Live"
-            : "Waiting"
-          : "Connecting…";
-
-  return (
-    <Text accessibilityLiveRegion="polite" style={[styles.overlayMeta, { color: c.muted }]}>
-      {status}
-    </Text>
-  );
+  return <Animated.View style={[{ flex: 1, minHeight: 0 }, style]}>{children}</Animated.View>;
 }

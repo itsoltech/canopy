@@ -1,6 +1,6 @@
 # Canopy na iOS i Android
 
-Status: opis działającego kodu na `dev` (2026-11-16); „What's new” sortuje notatki
+Status: opis działającego kodu na `dev` (2026-11-17); „What's new” sortuje notatki
 metodami dostępnymi w Hermesie bez `Array.prototype.toSorted`.
 Zasobnik nad kompozytorem przylega do jego ramki bez pustego pasa pod ostatnim nagłówkiem.
 Sidebar ma zwijane grupy projektów i worktree, zwarte wiersze oraz jeden wybór „Group by”.
@@ -15,7 +15,9 @@ Edytor cytatu ma podgląd fragmentu i stałą stopkę z komentarzem oraz zapisem
 klawiaturą; przycinanie fragmentu otwiera osobny tryb edycji w tym samym arkuszu.
 Nagłówek wątku używa tytułu rozmowy jako karty, a wskaźniki limitów w sidebarze
 mają szerokość 40 dp, zgodną z web/desktop. Preview obsługuje Browser/Desktop/Device
-przez natywny transport, z wyborem celu i bezpośrednim sterowaniem.
+przez natywny transport, z wyborem celu i bezpośrednim sterowaniem. Otwiera pełny
+ekran ze stałą belką zamknięcia i opcjonalnie ukrytymi kontrolkami; ładowanie
+celów i komunikaty nie zmieniają obszaru obrazu.
 Szczegóły wątku pokazują stan connectorów w bieżącej turze oraz nadpisanie
 Auto-archive after merge.
 Dostępność w wydaniach zależy od kanału.
@@ -135,26 +137,40 @@ w `apps/mobile` przez `CANOPY_CHANNEL=nightly bunx expo config --type public`.
 
 ## Podgląd automatyzacji i limity kont
 
-`Open preview` obok Files otwiera natywny arkusz Preview. Browser, Desktop i Device
+`Open preview` obok Files otwiera natywny pełnoekranowy Preview. Browser, Desktop i Device
 korzystają z `WatchAgentPreview` i `SendAgentPreviewInput` przez ten sam Connect
 z przypiętym TLS co pozostałe odczyty aplikacji. Telefon nie dostaje adresu ani
 portu narzędzia na workerze. Gateway nadal sprawdza właściciela wątku, grant,
 stan archiwizacji i bieżące łącze workera.
 
-Arkusz wybiera kartę przeglądarki, okno lub urządzenie. Obraz zachowuje proporcje
+Wszystkie trzy narzędzia — `agent-browser`, `agent-desktop` i `agent-device` —
+korzystają z tego samego pełnego ekranu, belki zamknięcia i ukrywania kontrolek.
+Powiększenie podglądu jest dostępne niezależnie od wybranego narzędzia i celu.
+
+Preview wybiera kartę przeglądarki, okno lub urządzenie. Obraz zachowuje proporcje
 i dopasowuje się do wolnego miejsca; letterboxing nie jest obszarem sterowania.
 Tap wysyła kliknięcie, swipe — drag, a jawne kontrolki pozwalają przewijać,
 wpisywać tekst i wysyłać Enter/Escape oraz Back/Home urządzenia. Browser ma adres
-i Back/Forward/Reload page. Na niskim ekranie obraz i kontrolki przewijają się razem;
-w pionie kontrolki mają własny przewijany obszar, pozostawiający miejsce na obraz.
+i Back/Forward/Reload page. Stała belka z `Close preview` oraz `Hide controls` /
+`Show controls` pozostaje poza obrazem i obszarem przechwytywania gestów. Ukrycie
+kontrolek powiększa obraz bez restartu subskrypcji, zmiany celu ani utraty szkicu
+wpisywanego tekstu. Kontrolki mają osobny przewijany obszar: poniżej obrazu
+w pionie, a na ekranie niższym niż 500 dp — obok. Klawiatura zmniejsza obszar
+treści, zachowując belkę zamknięcia. Preview nie ma gestu przeciągania arkusza.
+
+Wybór celu i kontrolki są zamontowane również przed pierwszą klatką i przy błędzie,
+a brakujące dane jedynie wyłączają akcje. Status i pojedynczy wiersz metadanych
+lub komunikatu mają stałe miejsce. Ładowanie listy celów, nadejście klatki, zmiana
+tytułu oraz pojawianie się i znikanie komunikatów nie przesuwają obrazu. Błąd
+i szczegóły przewijają się wewnątrz tego samego obszaru co podgląd.
 
 Subskrypcja ma maks. 5 klatek/s, przechowuje tylko bieżącą klatkę w pamięci
-i kończy się po zamknięciu arkusza, zmianie zakresu, utracie dostępu lub przejściu
+i kończy się po zamknięciu Preview, zmianie zakresu, utracie dostępu lub przejściu
 aplikacji w tło. Kolejka wejścia ma ograniczone partie, wykonuje je sekwencyjnie
 i nie odtwarza ich po zerwaniu łącza. Retry preview otwiera nową subskrypcję.
 Instalację i granty narzędzi ustawia się w Settings → Workers na web/desktop.
 Automatyczny mini Preview pod podsumowaniem i zmiana wymiarów viewportu pozostają
-funkcjami web/desktop; mobile udostępnia ręcznie otwierany arkusz.
+funkcjami web/desktop; mobile udostępnia ręcznie otwierany pełny ekran.
 
 Wskaźniki limitów w sidebarze mają 40 dp w stałym slocie 56 dp; nadejście odczytu
 nie przesuwa przycisków stopki. Arkusz Provider usage zachowuje pełną szerokość

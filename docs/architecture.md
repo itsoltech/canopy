@@ -120,7 +120,7 @@ a prawy panel web/desktop łączy drzewo Files, listę zmian Git `Diff`
 z wirtualizowaną kartą wszystkich zmian i zbiorczym review dla agenta oraz interaktywny Preview
 (Browser/Desktop/Device), a podsumowanie może mieć pod sobą automatyczny mini
 podgląd; natywny mobile ma tytuł jako kartę rozmowy, przełącznik kart i arkusze
-`Thread details`, `Files` oraz ręczny `Preview` Browser/Desktop/Device, przesyłany
+`Thread details`, `Files` oraz ręczny, pełnoekranowy `Preview` Browser/Desktop/Device, przesyłany
 bezpośrednio przez Connect i przypięty TLS. Metadane kart są stanem urządzenia,
 bez synchronizacji między klientami. Treści plików i ich niezapisane edycje
 pozostają w ograniczonych cache pamięci, niezależnie od dogrzewania transkryptów.

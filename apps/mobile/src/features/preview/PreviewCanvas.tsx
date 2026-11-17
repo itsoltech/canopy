@@ -48,7 +48,7 @@ export function PreviewCanvas({
   return (
     <View
       onLayout={(event) => setBox(event.nativeEvent.layout)}
-      style={{ flex: 1, minHeight: 80, alignItems: "center", justifyContent: "center", backgroundColor: c.well }}
+      style={{ flex: 1, minHeight: 0, alignItems: "center", justifyContent: "center", backgroundColor: c.well }}
     >
       {uri && frame && width > 0 && height > 0 ? (
         <View
