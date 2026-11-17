@@ -17,6 +17,7 @@ import { applyWorkerConfig } from "../config/remote.ts";
 import { Journal } from "../journal/index.ts";
 import { HostState } from "../runtime/host-state.ts";
 import { HostContext } from "../runtime/host-context.ts";
+import { runtimeKeys, stopRuntime } from "../runtime/instance-runtimes.ts";
 import { HeadTracker } from "../git/heads.ts";
 import { botSession } from "./session.ts";
 
@@ -121,8 +122,15 @@ function fixture(provider: Provider) {
     steer,
     records: () => (existsSync(trace) ? readFileSync(trace, "utf8").trim().split("\n") : []),
     close: async () => {
+      // Final events schedule reconciliation, which can start ordinary provider runtimes too.
+      // Follow WorkerHost.close: prevent new starts, drain pending starts, then stop their handles.
+      state.closing = true;
       await ctx.ops.closeBots();
+      await state.runtimeReconcile;
+
+      for (const key of runtimeKeys(ctx).keys()) await stopRuntime(ctx, key);
       state.heads.close();
+      state.secrets.close();
       await runtime.dispose();
     },
   };
