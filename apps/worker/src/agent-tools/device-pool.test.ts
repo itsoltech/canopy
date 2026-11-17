@@ -110,6 +110,31 @@ test("free booted devices are preferred; external and physical devices are never
   expect(backend.calls).toContain("close:two");
 });
 
+test("Preview excludes pending and releasing reservations and follows the owned runtime identity", async () => {
+  const { pool, backend } = fixture([device("avd"), device("free", true)]);
+  const boot = deferred();
+  backend.bootGate = boot.promise;
+  backend.runtimeIds = true;
+  const acquiring = pool.acquire("thread", { deviceId: "avd", boot: true }, signal());
+  await until(() => backend.calls.includes("boot:avd"));
+  expect(pool.canPreview("thread", "free", "android")).toBe(false);
+  expect(pool.canPreview("another", "avd", "android")).toBe(false);
+  boot.resolve();
+  await acquiring;
+  expect(pool.canPreview("thread", "runtime-avd", "android")).toBe(true);
+  expect(pool.canPreview("thread", "free", "android")).toBe(false);
+  expect(pool.canPreview("another", "runtime-avd", "android")).toBe(false);
+  const shutdown = deferred();
+  backend.shutdownGate = shutdown.promise;
+  const releasing = pool.release("thread");
+  await until(() => backend.calls.includes("shutdown:runtime-avd"));
+  expect(pool.canPreview("thread", "free", "android")).toBe(false);
+  expect(pool.canPreview("another", "runtime-avd", "android")).toBe(false);
+  shutdown.resolve();
+  await releasing;
+  expect(pool.canPreview("thread", "free", "android")).toBe(true);
+});
+
 test("session reacquisition is idempotent, validates selectors and does not expose mutable lease state", async () => {
   const { pool, backend } = fixture([device("one", true), device("two", true)]);
   const first = await pool.acquire("thread", { deviceId: "Device one" }, signal());

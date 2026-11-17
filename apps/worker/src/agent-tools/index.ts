@@ -345,6 +345,8 @@ export class AgentTools {
     return {
       ...(scope.tool === AgentTool.DEVICE && {
         devicePlatform: this.#devices.currentPlatform(scope.session) ?? defaults?.device?.platform ?? "",
+        canPreviewDevice: (deviceId: string, platform: string) =>
+          this.#devices.canPreview(scope.session, deviceId, platform),
       }),
       useDevice: <T>(signal: AbortSignal, work: () => Promise<T>) =>
         this.#devices.use(scope, signal, work, defaults?.device),

@@ -43,6 +43,10 @@ export class PreviewRuntime {
     return this.#resolved.devicePlatform ?? "";
   }
 
+  canPreviewDevice(deviceId: string, platform: string): boolean {
+    return this.#resolved.canPreviewDevice?.(deviceId, platform) ?? true;
+  }
+
   get env() {
     return this.#resolved.env;
   }

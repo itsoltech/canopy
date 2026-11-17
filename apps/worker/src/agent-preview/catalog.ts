@@ -103,7 +103,9 @@ const deviceSchema = z.object({
   name: label,
   platform: z.enum(["ios", "android", "harmonyos", "vega", "macos", "linux", "web", "apple"]),
   appleOs: z.string().optional(),
+  kind: z.enum(["emulator", "simulator", "device"]).optional(),
   booted: z.boolean().optional(),
+  claimedBy: z.object({ session: z.string(), workspace: z.string() }).optional(),
 });
 
 const devicesSchema = z.object({ devices: z.array(deviceSchema).max(2048) });
@@ -129,7 +131,21 @@ export async function deviceCatalog(runtime: PreviewRuntime) {
   const platform =
     scope.platform || (!scope.deviceId && active?.platform) || (!scope.deviceId && runtime.devicePlatform) || "";
 
-  const matching = devices.filter((device) => matchesPlatform(device.platform, platform));
+  const matching = devices.filter(
+    (device) =>
+      matchesPlatform(device.platform, platform) &&
+      runtime.canPreviewDevice(device.id, device.platform) &&
+      (!device.claimedBy || device.claimedBy.session === runtime.scope.session) &&
+      !sessions.some(
+        (session) =>
+          session.name !== runtime.scope.session && session.id === device.id && session.platform === device.platform,
+      ) &&
+      (active
+        ? device.id === active.id && device.platform === active.platform
+        : device.kind === "emulator" || device.kind === "simulator"
+          ? device.booted === true
+          : device.booted !== false),
+  );
 
   const selected = scope.deviceId
     ? matching.find((device) => device.id === scope.deviceId)
@@ -145,7 +161,7 @@ export async function deviceCatalog(runtime: PreviewRuntime) {
     targetId: selected ? `${selected.platform}:${selected.id}` : "",
     title: selected?.name ?? "Choose a device",
     detail: selected ? "" : "Choose an available device to start the preview",
-    targets: devices.slice(0, 64).map((device): PreviewTarget => ({
+    targets: matching.slice(0, 64).map((device): PreviewTarget => ({
       id: `${device.platform}:${device.id}`,
       label: `${device.name} (${device.platform})`.slice(0, 400),
       deviceId: device.id,
