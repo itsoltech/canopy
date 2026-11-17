@@ -282,7 +282,11 @@ describe.skipIf(!dockerAvailable)("thread diff over worker, gateway and linked c
     const side = git(conflicted.cwd, "rev-parse", "HEAD");
     git(conflicted.cwd, "checkout", "--detach", base);
     commit(conflicted.cwd, "conflict.txt", "ours\n");
-    const merge = Bun.spawnSync(["git", "merge", "--no-edit", side], { cwd: conflicted.cwd });
+
+    const merge = Bun.spawnSync(["git", "-c", "user.name=T", "-c", "user.email=t@x", "merge", "--no-edit", side], {
+      cwd: conflicted.cwd,
+    });
+
     expect(merge.exitCode).toBe(1);
     const snapshot = await home.gw.api.listThreadDiff({ threadId: conflicted.id });
     expect(snapshot.complete).toBe(true);
