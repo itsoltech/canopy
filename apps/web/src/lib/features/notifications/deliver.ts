@@ -1,6 +1,6 @@
 import { goto } from "$app/navigation";
 import { devicePreferences } from "#lib/features/settings/device-preferences.svelte.ts";
-import { toast } from "#lib/shared/ui/toast.svelte.ts";
+import { toast, type ToastTone } from "#lib/shared/ui/toast.svelte.ts";
 import { playNotificationSound } from "./notification-sound.ts";
 import { claimNotice, viewedElsewhere } from "./notice-claims.ts";
 
@@ -13,10 +13,11 @@ export interface Notice {
   readonly path: string;
   readonly title: string;
   readonly body: string;
-  /** In-app toast, one past-tense sentence. */
+  /** In-app event heading, followed by the thread title or bot name. */
   readonly toast: string;
+  readonly toastDescription: string;
   readonly action: string;
-  readonly tone: "info" | "error";
+  readonly tone: ToastTone;
   /** Already read on another device: only a window showing it still plays the sound. */
   readonly read?: boolean;
 }
@@ -76,7 +77,11 @@ export async function deliver(notice: Notice, currentPath: string): Promise<void
   if (notice.read) return;
 
   if (here && device.inAppNotifications === "on")
-    toast(notice.toast, { tone: notice.tone, action: { label: notice.action, run: () => open(notice.path) } });
+    toast(notice.toast, {
+      description: notice.toastDescription,
+      tone: notice.tone,
+      action: { label: notice.action, run: () => open(notice.path) },
+    });
 
   if (choice !== "off" && (await claimNotice(notice.key))) showSystem(notice, sound);
 }

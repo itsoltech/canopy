@@ -10,6 +10,7 @@ export type ToastTone = "success" | "info" | "error";
 export interface Toast {
   readonly id: number;
   readonly text: string;
+  readonly description?: string | undefined;
   readonly tone: ToastTone;
   readonly action?: ToastAction | undefined;
   closing: boolean;
@@ -28,9 +29,9 @@ export const toasts = $state<Toast[]>([]);
 
 export function toast(
   text: string,
-  { tone = "success", action }: { tone?: ToastTone; action?: ToastAction } = {},
+  { tone = "success", description, action }: { tone?: ToastTone; description?: string; action?: ToastAction } = {},
 ): void {
-  const entry: Toast = { id: ++counter, text, tone, action, closing: false };
+  const entry: Toast = { id: ++counter, text, description, tone, action, closing: false };
 
   // One at a time: a new confirmation replaces the previous one.
   for (const old of toasts) dismiss(old.id);

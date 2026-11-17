@@ -2,7 +2,8 @@
 
 Status (2026-11-17): zaimplementowane; powiadomienia wątków web/desktop obejmują
 tylko wątki główne i wątki boczne użytkownika. Toasty są kartami w prawym dolnym
-rogu, bez wyłączania przeciągania okna desktopu. Opis dotyczy kodu; dostępność
+rogu, z osobnym nagłówkiem zdarzenia, nazwą i akcją pod treścią oraz większą ikoną
+statusu, bez wyłączania przeciągania okna desktopu. Opis dotyczy kodu; dostępność
 nightly/beta/stable określają [wydania](release.md).
 
 Web i desktop pokazują alerty systemowe o wątkach i botach, tylko gdy otwarte jest
@@ -14,17 +15,18 @@ Kod: `apps/web/src/lib/features/notifications`, `apps/desktop/src/notifications.
 
 | Źródło | Zdarzenie | Tytuł | Treść | Toast w aplikacji |
 |---|---|---|---|---|
-| Wątek | koniec tury | tytuł wątku (`Untitled thread`) | `Finished · ‹projekt›` + podgląd odpowiedzi | `“‹tytuł›” finished.` |
-| Wątek | błąd tury | jw. | `Failed · ‹projekt›` + podgląd błędu | `“‹tytuł›” failed.` |
-| Wątek | tura zatrzymana przez system | jw. | `Stopped · ‹projekt›` + podgląd | `“‹tytuł›” stopped.` |
-| Wątek | zgoda | jw. | `Needs your approval · ‹projekt›` + powód, opis albo komenda | `“‹tytuł›” needs your approval.` |
-| Wątek | pytanie lub formularz | jw. | `Needs your answer · ‹projekt›` + pierwsze pytanie | `“‹tytuł›” needs your answer.` |
-| Bot | wiadomość do użytkownika | nazwa bota | podgląd wiadomości | `“‹nazwa›” sent a message.` |
-| Bot | karta zgody | nazwa bota | `Needs your approval` (+ `· From routine “‹rutyna›”`) + akcja z karty | `“‹nazwa›” needs your approval.` |
-| Bot | pytanie `ask_user` | nazwa bota | `Needs your answer` (+ rutyna) + pytanie | `“‹nazwa›” needs your answer.` |
+| Wątek | koniec tury | tytuł wątku (`Untitled thread`) | `Finished · ‹projekt›` + podgląd odpowiedzi | `Thread completed` |
+| Wątek | błąd tury | jw. | `Failed · ‹projekt›` + podgląd błędu | `Thread failed` |
+| Wątek | tura zatrzymana przez system | jw. | `Stopped · ‹projekt›` + podgląd | `Thread stopped` |
+| Wątek | zgoda | jw. | `Needs your approval · ‹projekt›` + powód, opis albo komenda | `Thread needs your approval` |
+| Wątek | pytanie lub formularz | jw. | `Needs your answer · ‹projekt›` + pierwsze pytanie | `Thread needs your answer` |
+| Bot | wiadomość do użytkownika | nazwa bota | podgląd wiadomości | `New bot message` |
+| Bot | karta zgody | nazwa bota | `Needs your approval` (+ `· From routine “‹rutyna›”`) + akcja z karty | `Bot needs your approval` |
+| Bot | pytanie `ask_user` | nazwa bota | `Needs your answer` (+ rutyna) + pytanie | `Bot needs your answer` |
 
 Miejsce wątku to nazwa projektu (bez systemowego No project), a dla wątku połączonego
 komputera `‹projekt› on ‹komputer›`. Toast ma akcję `Open thread` albo `Open chat`.
+Pod nagłówkiem toastu widnieje tytuł wątku albo nazwa bota, bez cudzysłowu.
 Wiadomość bota obejmuje odpowiedź, `message_user` rutyny, przypomnienie i odpowiedź
 z wymiany bot–bot skierowaną do użytkownika. Wiadomości między botami i błędy odpowiedzi
 nie powiadamiają. Tury zatrzymanej przez użytkownika (`Thread.interrupted_by_user`) też nie.
@@ -73,8 +75,12 @@ z zapisanej rozmowy.
 Wspólny `shared/ui/Toaster.svelte` pokazuje krótkie potwierdzenia i powiadomienia
 w prawym dolnym rogu okna, 16 px od krawędzi lub poza systemowym safe area.
 Na telefonie karta mieści się między bocznymi wcięciami; na desktopie ma 24 rem
-szerokości. Długie teksty zawijają się, a akcja i zamknięcie zachowują swoje miejsce.
-Karta ma zwarty padding: 6 px w obu osiach przy domyślnej skali.
+szerokości. Nagłówek zdarzenia i zamknięcie zajmują pierwszy wiersz, a opcjonalny
+opis zawija się pod nim. Akcja ma własny wiersz pod treścią, wyrównany do prawej,
+więc nie zwęża tekstu. Krótkie potwierdzenia bez opisu zachowują pojedynczy wiersz.
+Karta ma padding 12 px w obu osiach przy domyślnej skali i ikony statusu 20 px.
+Koniec tury pokazuje zielone kółko z haczykiem, błąd — czerwony wykrzyknik,
+a pozostałe zdarzenia — niebieską ikonę informacji. Nagłówek zawsze nazywa zdarzenie.
 Jasny i ciemny motyw mają własne tło, obrys i kolory ikon.
 
 Toast ma opcjonalną akcję (`Undo`, `Open thread`, `Open chat`) i przycisk

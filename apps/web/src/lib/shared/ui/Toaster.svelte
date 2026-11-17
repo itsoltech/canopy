@@ -7,7 +7,7 @@
 
   /**
    * A polite live region in the bottom-right, clear of the desktop's drag strips. Only the cards take
-   * pointer events. A toast rises in (`t-toast`) and leaves a little faster; actions stay beside its text.
+   * pointer events. A toast rises in (`t-toast`) and leaves a little faster; actions sit below its text.
    */
   provideDensity("overlay");
 </script>
@@ -19,35 +19,38 @@
 >
   {#each toasts as entry (entry.id)}
     <div
-      class="t-toast pointer-events-auto col-start-1 row-start-1 flex items-start gap-3 rounded-xl bg-white p-1.5 text-base/6 text-zinc-950 shadow-lg ring-1 ring-zinc-950/10 data-closing:pointer-events-none sm:text-sm/5 dark:bg-zinc-800 dark:text-zinc-100 dark:shadow-none dark:ring-white/10"
+      class="t-toast pointer-events-auto col-start-1 row-start-1 grid grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-x-3 gap-y-2 rounded-xl bg-white p-3 text-base/6 text-zinc-950 shadow-lg ring-1 ring-zinc-950/10 data-closing:pointer-events-none sm:text-sm/5 dark:bg-zinc-900 dark:text-zinc-100 dark:shadow-none dark:ring-white/10"
       data-closing={entry.closing || undefined}
     >
-      <div class="flex h-8 shrink-0 items-center sm:h-7">
-        {#if entry.tone === "success"}
-          <span class="t-success-check text-emerald-600 dark:text-emerald-400" aria-hidden="true">
-            <svg viewBox="0 0 16 16" fill="none" class="size-4"
-              ><path
-                d="M4 8.5l2.5 2.5L12 5"
-                stroke="currentColor"
-                stroke-width="2"
-                stroke-linecap="round"
-                stroke-linejoin="round"
-              /></svg
-            >
-          </span>
-        {:else}
-          <Icon
-            name={entry.tone === "error" ? "exclamation-circle" : "information-circle"}
-            class={entry.tone === "error" ? "text-rose-600 dark:text-rose-400" : "text-sky-600 dark:text-sky-400"}
-          />
-        {/if}
+      <div class="size-5 self-start py-1 [&>svg]:size-5">
+        <Icon
+          name={entry.tone === "success"
+            ? "check-circle"
+            : entry.tone === "error"
+              ? "exclamation-circle"
+              : "information-circle"}
+          tone="inherit"
+          class={entry.tone === "success"
+            ? "text-emerald-600 dark:text-emerald-400"
+            : entry.tone === "error"
+              ? "text-rose-600 dark:text-rose-400"
+              : "text-sky-600 dark:text-sky-400"}
+        />
       </div>
-      <p class="min-w-0 flex-1 py-1 wrap-anywhere">{entry.text}</p>
-      <div class="flex shrink-0 items-center gap-1">
-        {#if entry.action}
-          {@const action = entry.action}
+      <p class="min-w-0 py-1 wrap-anywhere" class:font-medium={Boolean(entry.description)}>{entry.text}</p>
+      <div class="self-start">
+        <IconButton icon="x-mark" label="Dismiss notification" onclick={() => dismiss(entry.id)} />
+      </div>
+      {#if entry.description}
+        <p class="col-span-2 col-start-2 min-w-0 wrap-anywhere text-zinc-600 dark:text-zinc-400">
+          {entry.description}
+        </p>
+      {/if}
+      {#if entry.action}
+        {@const action = entry.action}
+        <div class="col-span-2 col-start-2 flex justify-end">
           <Button
-            variant="secondary"
+            variant="primary"
             onclick={() => {
               dismiss(entry.id);
               action.run();
@@ -55,9 +58,8 @@
           >
             {action.label}
           </Button>
-        {/if}
-        <IconButton icon="x-mark" label="Dismiss notification" onclick={() => dismiss(entry.id)} />
-      </div>
+        </div>
+      {/if}
     </div>
   {/each}
 </div>
