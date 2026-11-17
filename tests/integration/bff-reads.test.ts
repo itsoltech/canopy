@@ -1,6 +1,6 @@
 import { afterAll, beforeAll, describe, expect, test } from "bun:test";
 import { create } from "@bufbuild/protobuf";
-import { bots, github, Provider, ui } from "@canopy/contracts";
+import { bots, github, Provider, ProviderProfileKind, ui } from "@canopy/contracts";
 import { dockerAvailable } from "@canopy/db/testing";
 import { BffReads, type BffReadProjection } from "../../apps/web/src/lib/server/bff-reads.ts";
 import { eventually, startTestGateway, type TestGateway } from "./support/gateway.ts";
@@ -121,6 +121,103 @@ describe.skipIf(!dockerAvailable)("BFF shared reads", () => {
       reads.close();
     }
   }, 30_000);
+
+  test.each([false, true])(
+    "proxy references stay current after provider deletion (worker override: %s)",
+    async (override) => {
+      const reads = new BffReads();
+      const controller = new AbortController();
+      const ready = Promise.withResolvers<void>();
+
+      const watching = (async () => {
+        try {
+          for await (const update of gateway.api.watchOverview({}, { signal: controller.signal })) {
+            reads.apply(update);
+
+            if (update.change.case === "feeds") ready.resolve();
+          }
+        } catch (cause) {
+          if (!controller.signal.aborted) throw cause;
+        }
+      })();
+
+      try {
+        await ready.promise;
+
+        const proxy = (
+          await gateway.api.saveProxy({
+            name: "Provider deletion",
+            kind: "cliproxyapi",
+            baseUrl: "https://deleted-provider.example",
+            secret: "test-only-proxy-key",
+          })
+        ).proxy!;
+
+        const id = override ? "deleted-override" : "deleted-instance";
+        await gateway.api.saveProviderInstance({
+          harness: Provider.CODEX,
+          id,
+          create: true,
+          label: "Deleted provider",
+          kind: ProviderProfileKind.CLIPROXYAPI,
+          proxyId: proxy.id,
+          allWorkers: true,
+        });
+
+        if (override) {
+          await gateway.api.setInstanceWorker({
+            harness: Provider.CODEX,
+            id,
+            workerId: gateway.workerId,
+            overrides: { proxyId: proxy.id },
+          });
+        }
+
+        const fetch = () => gateway.api.listProxies({});
+        const cached = () => reads.read("ListProxies", ui.ListProxiesResponseSchema, fetch);
+
+        const references = (response: ui.ListProxiesResponse) =>
+          response.proxies.find((p) => p.id === proxy.id)?.usedBy;
+
+        expect(references(await cached())?.length).toBe(override ? 2 : 1);
+        // Establish the feed baseline before deleting: reconnect must not hide a missed invalidation.
+        await Bun.sleep(300);
+
+        if (override) {
+          await gateway.api.setInstanceWorker({
+            harness: Provider.CODEX,
+            id,
+            workerId: gateway.workerId,
+            overrides: { proxyId: "" },
+          });
+          await eventually(cached, (response) => references(response)?.length === 1);
+          expect(references(await cached())).toEqual([`codex/${id}`]);
+          await gateway.api.setInstanceWorker({
+            harness: Provider.CODEX,
+            id,
+            workerId: gateway.workerId,
+            overrides: { proxyId: proxy.id },
+          });
+          await eventually(cached, (response) => references(response)?.length === 2);
+          expect(references(await cached())).toHaveLength(2);
+        }
+
+        await gateway.api.deleteProviderInstance({ harness: Provider.CODEX, id });
+        expect(references(await fetch())).toEqual([]);
+        await eventually(cached, (response) => references(response)?.length === 0);
+        expect(references(await cached())).toEqual([]);
+
+        await gateway.api.deleteProxy({ id: proxy.id });
+        await eventually(cached, (response) => !response.proxies.some((p) => p.id === proxy.id));
+        expect((await cached()).proxies.some((p) => p.id === proxy.id)).toBe(false);
+      } finally {
+        controller.abort();
+        await watching;
+        reads.close();
+      }
+    },
+    20_000,
+  );
 
   test("a soft snapshot gap refreshes loaded projections without private reset frames", async () => {
     const reads = new BffReads();
