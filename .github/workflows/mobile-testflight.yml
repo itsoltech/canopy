@@ -1,4 +1,5 @@
-# Native changes build iOS/TestFlight; compatible JS changes publish unsigned updates for both platforms.
+# Native changes build iOS/TestFlight for nightly and stable; beta native builds are manual.
+# Compatible JS changes publish unsigned updates for both platforms on every channel.
 # Android binaries are always built manually. See docs/mobile.md.
 name: Mobile release
 
@@ -115,8 +116,9 @@ jobs:
 
       # EAS copies app.json and canopy-version.json prepared by the planner for both build and OTA.
       # Remote autoIncrement owns the iOS build number.
+      # Beta must not replace the nightly build in TestFlight, including on manual dispatch.
       - name: Build iOS and submit to TestFlight
-        if: steps.plan.outputs.build == 'true'
+        if: steps.plan.outputs.build == 'true' && steps.version.outputs.channel != 'beta'
         working-directory: apps/mobile
         env:
           PROFILE: ${{ steps.version.outputs.profile }}
