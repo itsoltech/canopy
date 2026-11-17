@@ -175,9 +175,9 @@ describe("segments after a shown answer", () => {
     const [first, second] = workSegments([tool, final, steer, tool, final], "live", closed);
     expect(first).toMatchObject({ answer: 1, inputs: 0 });
     expect(second).toEqual({ start: 2, end: 5, inputs: 1, answer: 4, live: true, answered: true, answerBoundary: 4 });
-    // A steer also splits running work, without expiring its live choices.
+    // A steer ends preceding running work and expires its live choices.
     expect(workSegments([tool, steer, tool], "live", closed)).toMatchObject([
-      { start: 0, end: 1, inputs: 0, answer: -1, live: true },
+      { start: 0, end: 1, inputs: 0, answer: -1, live: false },
       { start: 1, end: 3, inputs: 1, answer: -1, live: true },
     ]);
   });

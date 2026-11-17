@@ -77,6 +77,8 @@ describe("steered input outside work", () => {
     ["work", "steer", "work", "steer", "work", "final"],
     ["steer", "steer", "work", "steer", "steer"],
     ["work", "final", "steer", "work", "steer", "final"],
+    ["work", "steer"],
+    ["work", "compaction", "work", "steer", "work"],
   ];
 
   test("start, middle, end and repeated steers keep their chronological rows with any fold collapsed", () => {
@@ -103,19 +105,32 @@ describe("steered input outside work", () => {
     }
   });
 
-  test("a steer preserves earlier choices and reading anchors; the final answer closes all preceding work", () => {
+  test("a steer applies after-turn preferences, preserving reading anchors and choices made after it", () => {
     const items = entries(["work", "steer", "work", "final"]);
     const before = planFolds([turn], items.slice(0, 1), []).folds[0]!;
-    const split = planFolds([turn], items.slice(0, 3), []);
-    expect(split.folds.map((fold) => workFoldOpen(fold, preferences))).toEqual([true, true]);
-    expect(workFoldOpen(split.folds[0]!, preferences, { open: false, state: before })).toBe(false);
+    const split = planFolds([turn], items.slice(0, 2), []);
+    expect(split.folds.map((fold) => workFoldOpen(fold, preferences))).toEqual([false, true]);
+
+    for (const expandWhileWorking of [false, true])
+      for (const keepAfterTurn of [false, true]) {
+        const mode = { expandWhileWorking, keepAfterTurn };
+        expect(split.folds.map((fold) => workFoldOpen(fold, mode))).toEqual([keepAfterTurn, expandWhileWorking]);
+
+        for (const open of [false, true])
+          expect(workFoldOpen(split.folds[0]!, mode, { open, state: before })).toBe(keepAfterTurn);
+      }
+
     expect(readWork(["turn"], ["item:work-0"], split.workOf)).toEqual(new Map([["turn", "item:work-0"]]));
+    const reopened = { open: true, state: split.folds[0]! };
+    const steeredAgain = planFolds([turn], entries(["work", "steer", "work", "steer", "work"]), []);
+    expect(workFoldOpen(steeredAgain.folds[0]!, preferences, reopened)).toBe(true);
     const final = planFolds([turn], items, []);
     expect(final.folds.map((fold) => fold.answerSeq)).toEqual([4n, 4n]);
     expect(final.folds.map((fold) => workFoldOpen(fold, preferences, { open: true, state: before }))).toEqual([
       false,
       false,
     ]);
+    expect(workFoldOpen(final.folds[0]!, preferences, reopened)).toBe(true);
 
     const ended = planFolds([{ ...turn, status: "completed" }], items, []);
 
@@ -126,6 +141,7 @@ describe("steered input outside work", () => {
     );
 
     expect(ended.folds.map((fold) => workFoldOpen(fold, preferences))).toEqual([false, false]);
+    expect(workFoldOpen(ended.folds[0]!, preferences, reopened)).toBe(true);
     expect(workFoldOpen(late.folds[0]!, preferences, { open: true, state: ended.folds[0]! })).toBe(true);
   });
 
