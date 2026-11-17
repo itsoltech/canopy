@@ -102,7 +102,7 @@ export function OverlaySurface({
                 style={{ position: "absolute", top: "100%", left: 0, right: 0, height, backgroundColor: c.overlay }}
               />
             )}
-            <Animated.View style={[{ minHeight: 0, overflow: "hidden" }, body]}>
+            <Animated.View style={[{ minHeight: 0, flexShrink: 1, overflow: "hidden" }, body]}>
               <SheetHandle />
               <LayoutAnimationConfig skipEntering skipExiting>
                 {children}

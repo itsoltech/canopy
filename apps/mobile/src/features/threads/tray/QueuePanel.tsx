@@ -1,12 +1,11 @@
-import { useRef, useState, type ComponentRef } from "react";
+import { useState } from "react";
 import { Text, View } from "react-native";
 import Animated from "react-native-reanimated";
 import { PermissionMode, ui } from "@canopy/contracts";
 import { modelDisplayName } from "@canopy/domain/model-name";
 import { queuePreview } from "@canopy/domain/queue";
-import { IconButton } from "../../../ui/components";
+import { Button, IconButton } from "../../../ui/components";
 import { Icon } from "../../../ui/Icon";
-import { AnchoredOverlay } from "../../../ui/AnchoredOverlay";
 import { useMotion } from "../../../ui/motion";
 import { styles, useColors } from "../../../ui/theme";
 import { effortLabel } from "../../models/catalog";
@@ -14,7 +13,8 @@ import { permissionLabel } from "../permissions";
 import { TrayPanel } from "./ComposerTray";
 import { QueueMenu } from "./QueueMenu";
 import { QueueSummary } from "./QueueSummary";
-import { TRAY_ROW, TrayHeader, TrayIcon } from "./TrayHeader";
+import { TrayHeader, TrayIcon } from "./TrayHeader";
+import { TraySheet } from "./TraySheet";
 import type { Queue } from "./useQueue";
 
 /** What the message runs with instead of the thread's defaults (web: `overrides`). */
@@ -27,7 +27,7 @@ export function overrides(turn: ui.Turn): string[] {
 }
 
 /**
- * The queued messages above the tray (web: QueuePanel): one row per message in the order they run,
+ * The queued messages in a sheet (web: QueuePanel): one row per message in the order they run,
  * with Steer (into the running turn now), Delete and "…" (edit, move, the composer's default while a turn runs).
  * Rows rise in, leave and glide to a new place (`layout`).
  */
@@ -46,10 +46,8 @@ export function QueuePanel({
 }) {
   const c = useColors();
   const [open, setOpen] = useState(false);
-  const triggerRef = useRef<ComponentRef<typeof View>>(null);
   const [menu, setMenu] = useState<string>();
   const { rise, layout } = useMotion();
-  const expanded = open;
   const { rows } = queue;
   const label = `${rows.length} queued`;
   const selected = rows.find((t) => t.id === menu);
@@ -58,24 +56,16 @@ export function QueuePanel({
 
   return (
     <TrayPanel>
-      <AnchoredOverlay
-        disclosure
-        visible={expanded}
-        onClose={() => setOpen(false)}
-        label="Queued messages"
-        triggerRef={triggerRef}
-        anchor={
-          <TrayHeader triggerRef={triggerRef} label={label} expanded={expanded} onPress={() => setOpen(!expanded)}>
-            <TrayIcon name="queue-list" />
-            <Text
-              numberOfLines={1}
-              style={[styles.meta, { flex: 1, minWidth: 0, color: c.soft, fontVariant: ["tabular-nums"] }]}
-            >
-              {label}
-            </Text>
-          </TrayHeader>
-        }
-      >
+      <TrayHeader label={label} opens="sheet" onPress={() => setOpen(true)}>
+        <TrayIcon name="queue-list" />
+        <Text
+          numberOfLines={1}
+          style={[styles.meta, { flex: 1, minWidth: 0, color: c.soft, fontVariant: ["tabular-nums"] }]}
+        >
+          {label}
+        </Text>
+      </TrayHeader>
+      <TraySheet visible={open} onClose={() => setOpen(false)} title="Queued messages">
         <View style={{ paddingBottom: 4 }}>
           {rows.map((turn) => (
             <Animated.View key={turn.id} entering={rise.entering} exiting={rise.exiting} layout={layout}>
@@ -86,27 +76,27 @@ export function QueuePanel({
                 disabled={disabled}
                 onSteer={() => void queue.steer(turn)}
                 onDelete={() => void queue.remove(turn)}
-                onMore={() => {
-                  setOpen(false);
-                  setMenu(turn.id);
-                }}
+                onMore={() => setMenu(turn.id)}
               />
             </Animated.View>
           ))}
         </View>
-      </AnchoredOverlay>
-      <QueueMenu
-        turn={selected}
-        index={selected ? rows.indexOf(selected) : -1}
-        count={rows.length}
-        hints={selected ? overrides(selected) : []}
-        delivery={delivery}
-        disabled={disabled}
-        onClose={() => setMenu(undefined)}
-        onEdit={onEdit}
-        onMove={(turn, index) => void queue.move(turn.id, index)}
-        onDelivery={onDelivery}
-      />
+        <QueueMenu
+          turn={selected}
+          index={selected ? rows.indexOf(selected) : -1}
+          count={rows.length}
+          hints={selected ? overrides(selected) : []}
+          delivery={delivery}
+          disabled={disabled}
+          onClose={() => setMenu(undefined)}
+          onEdit={(turn) => {
+            setOpen(false);
+            onEdit(turn);
+          }}
+          onMove={(turn, index) => void queue.move(turn.id, index)}
+          onDelivery={onDelivery}
+        />
+      </TraySheet>
     </TrayPanel>
   );
 }
@@ -132,30 +122,36 @@ function QueueRow({
   const preview = queuePreview(turn);
 
   return (
-    <View style={[styles.row, { minHeight: TRAY_ROW, gap: 4, paddingLeft: 10, paddingRight: 2 }]}>
-      <TrayIcon name="queue-list" />
-      <View style={[styles.row, { flex: 1, minWidth: 0, gap: 4 }]}>
+    <View style={{ gap: 8, padding: 8, paddingVertical: 12 }}>
+      <View style={[styles.row, { alignItems: "flex-start" }]}>
+        <TrayIcon name="queue-list" />
         {preview.text ? (
-          <Text numberOfLines={1} style={[styles.meta, { flex: 1, minWidth: 0, color: c.soft }]}>
+          <Text numberOfLines={3} style={[styles.overlay, { flex: 1, minWidth: 0, color: c.text }]}>
             {preview.text}
           </Text>
+        ) : preview.summary ? (
+          <QueueSummary preview={preview} />
         ) : null}
-        {preview.summary ? <QueueSummary preview={preview} /> : null}
+        {fallback ? (
+          <Icon name="exclamation-circle" size={16} color={c.warning} label="Could not join the running turn" />
+        ) : null}
       </View>
-      {fallback ? (
-        <Icon name="exclamation-circle" size={16} color={c.warning} label="Could not join the running turn" />
-      ) : null}
-      {running ? (
-        <IconButton
-          icon="arrow-turn-down-right"
-          label="Steer into the running turn now"
-          size="sm"
-          disabled={disabled}
-          onPress={onSteer}
-        />
-      ) : null}
-      <IconButton icon="trash" label="Delete" size="sm" disabled={disabled} onPress={onDelete} />
-      <IconButton icon="ellipsis-horizontal" label="More actions" size="sm" onPress={onMore} />
+      <View style={[styles.row, { justifyContent: "flex-end", gap: 8 }]}>
+        {preview.text && preview.summary ? <QueueSummary preview={preview} /> : null}
+        <View style={{ flex: 1 }} />
+        {running ? (
+          <Button
+            title="Steer"
+            variant="ghost"
+            icon="arrow-turn-down-right"
+            label="Steer into the running turn now"
+            disabled={disabled}
+            onPress={onSteer}
+          />
+        ) : null}
+        <IconButton icon="trash" label="Delete queued message" disabled={disabled} onPress={onDelete} />
+        <IconButton icon="ellipsis-horizontal" label="More actions" onPress={onMore} />
+      </View>
     </View>
   );
 }

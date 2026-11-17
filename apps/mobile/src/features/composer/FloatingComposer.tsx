@@ -148,7 +148,7 @@ function LatestButton({ onPress }: { onPress: () => void }) {
           boxShadow: "0px 2px 8px #0000001a",
         }}
       >
-        <IconButton icon="arrow-down" label="Show latest messages" onPress={onPress} />
+        <IconButton icon="arrow-down" label="Show latest messages" onPress={onPress} style={{ borderRadius: 20 }} />
       </View>
     </Animated.View>
   );

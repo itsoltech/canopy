@@ -1,4 +1,3 @@
-import { useRef } from "react";
 import { Pressable, Text, View } from "react-native";
 import Animated, { interpolate, useAnimatedStyle, useSharedValue } from "react-native-reanimated";
 import { inputTypography, TextInput } from "../../ui/TextInput";
@@ -27,6 +26,8 @@ type Props = Pick<
   | "triggers"
 > & { sendInset?: number };
 
+const expandedPadding = { top: 14, bottom: 12 };
+
 export function ComposerInput({
   text,
   onChange,
@@ -42,14 +43,13 @@ export function ComposerInput({
   sendInset = 60,
 }: Props) {
   const c = useColors();
-  const { progress, writing, room, focused, onFocus } = useComposerMotion();
+  const { progress, writing, room, onFocus } = useComposerMotion();
   const { input, edit, editor } = useCitationInput(badges);
   const nativeID = useChatInputID();
-  useKeyboardBlur(input, focused);
+  useKeyboardBlur(input);
 
   const lines = useSharedValue(0);
   const resting = useSharedValue(0);
-  const laidOut = useRef(0);
 
   const expand = () => {
     onExpand?.();
@@ -60,8 +60,8 @@ export function ComposerInput({
   const fold = useAnimatedStyle(() => {
     const t = progress.get();
     const writes = inline ? 0 : writing.get() * t;
-    const padTop = interpolate(t, [0, 1], [10, 14]);
-    const padBottom = interpolate(t, [0, 1], [10, 12]);
+    const padTop = interpolate(t, [0, 1], [10, expandedPadding.top]);
+    const padBottom = interpolate(t, [0, 1], [10, expandedPadding.bottom]);
     const max = interpolate(t, [0, 1], [44, 160]);
 
     const natural = Math.min(
@@ -83,13 +83,12 @@ export function ComposerInput({
   return (
     <Animated.View
       onTouchStart={compact ? expand : undefined}
-      onLayout={(event) => {
-        laidOut.current = event.nativeEvent.layout.height;
-      }}
       style={[{ flex: inline ? 1 : undefined, paddingLeft: 16, flexDirection: "row", gap: 8 }, fold]}
     >
       {compact && pending.length ? <ComposerPending items={pending} onExpand={expand} /> : null}
       <View style={{ flex: 1, minWidth: 0 }}>
+        {/* The field keeps its intrinsic height; the remaining writing room still accepts taps. */}
+        <Pressable accessible={false} focusable={false} onPress={expand} style={{ position: "absolute", inset: 0 }} />
         <TextInput
           nativeID={nativeID}
           ref={input}
@@ -103,7 +102,16 @@ export function ComposerInput({
             onChange(next);
           }}
           onFocus={() => {
-            resting.set(laidOut.current);
+            // A rapid refocus must not capture the extra room from an unfinished blur animation.
+            resting.set(
+              Math.min(
+                160,
+                Math.max(
+                  inline ? 44 : composerGeometry.input,
+                  lines.get() + expandedPadding.top + expandedPadding.bottom,
+                ),
+              ),
+            );
             onExpand?.();
             onFocus(true);
           }}
@@ -121,7 +129,7 @@ export function ComposerInput({
           style={[
             styles.body,
             {
-              flexGrow: 1,
+              // Stretching to fill the writing room can feed that height back through onContentSizeChange.
               flexShrink: 1,
               padding: 0,
               color: c.text,
