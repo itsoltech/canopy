@@ -71,6 +71,7 @@ type RecoveryDecision = { action: ThreadWatchAction; reason: string };
 export class ThreadWatchRecovery {
   #repairs = 0;
   #failures = 0;
+  #unknownFailures = 0;
   #seq = 0n;
   #liveSince: number | undefined;
   failed(failure: ThreadWatchFailure): RecoveryDecision {
@@ -78,14 +79,19 @@ export class ThreadWatchRecovery {
 
     if (failure.computer) return { action: "resume", reason: "computer_unreachable" };
 
-    // A raw exception from the gateway watch path is serialized as Unknown/watch_failed.
-    // It is still a stream failure, not evidence that the cursor or its records are corrupt.
-    // Keep retrying so a transient server-side race can recover without a page reload.
-    if (
-      (failure.transport && [4, 14].includes(failure.code) && !failure.reason) ||
-      (failure.code === 2 && failure.reason === "watch_failed")
-    )
+    if (failure.transport && [4, 14].includes(failure.code) && !failure.reason)
       return { action: "resume", reason: "stream_unavailable" };
+
+    // Give an untyped gateway exception two transient retries. Replaying the same
+    // checkpoint forever cannot repair a persistent failure in that range.
+    if (failure.code === 2 && failure.reason === "watch_failed") {
+      if (++this.#unknownFailures <= 2) return { action: "resume", reason: "stream_unavailable" };
+
+      return {
+        action: (["reset", "smaller", "stop"] as const)[Math.min(this.#repairs++, 2)]!,
+        reason: "stream_unavailable",
+      };
+    }
 
     this.#failures++;
 
@@ -127,6 +133,7 @@ export class ThreadWatchRecovery {
 
     if (seq >= this.#seq && now - this.#liveSince >= 10_000) {
       this.#failures = 0;
+      this.#unknownFailures = 0;
       this.#repairs = 0;
     }
 
@@ -135,6 +142,7 @@ export class ThreadWatchRecovery {
   reset() {
     this.#repairs = 0;
     this.#failures = 0;
+    this.#unknownFailures = 0;
     this.#liveSince = undefined;
   }
 }

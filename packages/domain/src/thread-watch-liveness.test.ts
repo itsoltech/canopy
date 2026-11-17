@@ -22,14 +22,23 @@ test("transport losses do not exhaust the scoped repair budget or hide determini
   expect(new ThreadWatchRecovery().failed({ code: 7, transport: true }).action).toBe("stop");
 });
 
-test("an untyped gateway watch failure keeps retrying as a transient stream error", () => {
+test("persistent untyped gateway failures escalate after transient retries", () => {
   const recovery = new ThreadWatchRecovery();
 
-  for (let attempt = 0; attempt < 5; attempt++)
+  for (const action of ["resume", "resume", "reset", "smaller", "stop"] as const) {
+    recovery.advanced(1n, 0);
     expect(recovery.failed({ code: 2, reason: "watch_failed" })).toEqual({
-      action: "resume",
+      action,
       reason: "stream_unavailable",
     });
+    expect(recovery.failed({ code: 14, transport: true }).action).toBe("resume");
+  }
+
+  recovery.advanced(1n, 1000);
+  recovery.advanced(1n, 11000);
+  expect(recovery.failed({ code: 2, reason: "watch_failed" }).action).toBe("resume");
+  recovery.reset();
+  expect(recovery.failed({ code: 2, reason: "watch_failed" }).action).toBe("resume");
 
   expect(new ThreadWatchRecovery().failed({ code: 2, reason: "decode_error" }).action).toBe("reset");
 });

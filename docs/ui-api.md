@@ -1,6 +1,7 @@
 # API dla UI i architektura frontendu
 
-Status (2026-11-17): API workspace udostępnia lokalne `RevealThreadFile`
+Status (2026-11-17): watch odzyskuje stan po powtarzającym się nieokreślonym błędzie gatewaya;
+API workspace udostępnia lokalne `RevealThreadFile`
 oraz stabilne, stronicowane zmiany Git wątku;
 podsumowanie wątku web/desktop pokazuje lokalne zmiany Git
 i pozwala pobrać origin przez bezpieczny fast-forward;
@@ -565,8 +566,11 @@ awaria zatrzymuje watch. Zwykłe zerwanie transportu (natywne `EventSource.onerr
 na mobile nieskopowane `Unavailable`/`DeadlineExceeded`) nie zużywa tego budżetu:
 połączenie ponawia się z backoffem do 30 s. Błąd zgłoszony przez gateway dla wątku
 oraz przedwczesny koniec strumienia nadal zużywają budżet napraw.
-Nieokreślony błąd strumienia bez kategorii danych jest traktowany jak chwilowa
-utrata połączenia i ponawiany z backoffem; nie wymaga ręcznego odświeżenia strony.
+Nieokreślony błąd gatewaya `Unknown/watch_failed` ma dwie próby wznowienia
+z dotychczasowym kursorem i backoffem. Kolejne takie błędy uruchamiają próbę
+bez kursora, następnie mniejsze okno i zatrzymanie z akcjami odzyskania.
+Zapobiega to odtwarzaniu w nieskończoność zakresu, którego gateway nie potrafi
+odczytać. Widoczne wiadomości pozostają do czasu otrzymania nowego snapshotu.
 Krótki sukces ani rosnący seq nie zerują budżetu prób
 i backoffu: potrzebne jest 10 s stabilnego live. Niedostępny dom emituje
 `sync_status.reason=computer_unreachable`; zmiana obecności kończy oczekiwanie,
