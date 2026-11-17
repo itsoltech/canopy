@@ -29,6 +29,8 @@ export class GatewayCapabilities {
   message = $state("");
   methods = $state<string[]>();
   linkedComputers = $state(false);
+  /** Set by the BFF only in this desktop's local mode, independent of the gateway's role. */
+  localDesktop = $state(false);
   clientPreferencesScope = $state("");
   /** This web app is "older" or "newer" than the gateway; "" when they match or it doesn't apply. */
   webLag = $state("");
@@ -65,6 +67,7 @@ export class GatewayCapabilities {
       )
         return;
       this.state = value["state"];
+      this.localDesktop = value["localDesktop"] === true;
 
       if (isString(value["clientPreferencesScope"])) this.clientPreferencesScope = value["clientPreferencesScope"];
 

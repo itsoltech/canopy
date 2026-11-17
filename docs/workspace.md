@@ -1,6 +1,7 @@
 # Zakładki wątku i panel Files/Diff/Preview
 
-Status (2026-11-17): **zaimplementowane; układ v3**, panel Diff z wirtualizowanym przeglądem zmian Git
+Status (2026-11-17): **zaimplementowane; układ v3**, lokalne `Reveal in Finder/Explorer`
+przy ścieżkach i w menu pliku, panel Diff z wirtualizowanym przeglądem zmian Git
 i lokalnym szkicem review wysyłanym agentowi jako jedna wiadomość, karta Preview w web/desktop
 i różne ikony skali 1:1 oraz dopasowania, kompaktowa typografia zakładek, diagramy Mermaid w trybie
 `Rendered`, bezpieczny HTML i lokalne obrazy w Markdown w web/desktop,
@@ -215,6 +216,21 @@ pełny widok PR otwiera wiersz PR w podsumowaniu (lub link `?pr=`), a wynik zada
 w tle — wiersz zadania.
 
 ### Pliki w wiadomości
+
+Ścieżki w wiadomościach web/desktop mają menu pod prawym przyciskiem myszy
+(także `Shift+F10`, klawisz menu i długie przytrzymanie). Na własnym desktopie,
+gdy wątek działa na jego wbudowanym workerze, menu zawiera `Reveal in Finder`
+na macOS, `Reveal in Explorer` na Windows albo `Reveal in file manager` na Linux.
+Ta sama akcja jest w `File actions` podglądu. Zwykłe kliknięcie nadal otwiera plik
+według ustawienia urządzenia. Pozycja linii jest usuwana przed wywołaniem;
+menedżer plików wskazuje plik, bez uruchamiania jego zawartości.
+
+Akcja wymaga aktualnego, połączonego workera z capability `thread_file_reveal_v1`.
+Nie pojawia się w przeglądarce, na telefonie, w trybie desktop remote ani dla
+wątków połączonego komputera lub innego workera. Ograniczenie egzekwują także BFF
+i gateway: tylko lokalny desktopowy token usługi, własny wątek i własny wbudowany
+worker; RPC nie jest przekazywane przez linked computers. Bezpośrednie wywołanie
+zdalnym tokenem urządzenia nie uruchomi okna na tamtym komputerze.
 
 W web/desktop zaznaczenie treści pliku pokazuje wspólną akcję `Cite`; dostępne są
 także menu kontekstowe i `Alt+Q`. Działa w `Rendered`, źródle i edytorze kodu.

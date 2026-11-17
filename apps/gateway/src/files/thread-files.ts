@@ -1,6 +1,10 @@
 import { create } from "@bufbuild/protobuf";
 import { ui, type CommandResult } from "@canopy/contracts";
-import { THREAD_FILES_CAPABILITY, THREAD_FILE_PREVIEW_CAPABILITY } from "@canopy/domain/release/protocol";
+import {
+  THREAD_FILES_CAPABILITY,
+  THREAD_FILE_PREVIEW_CAPABILITY,
+  THREAD_FILE_REVEAL_CAPABILITY,
+} from "@canopy/domain/release/protocol";
 import { joinThreadPath } from "@canopy/domain/thread-files";
 import type { GatewayCore } from "../core/core.ts";
 import { coreRun } from "../core/core-broadcast.ts";
@@ -69,6 +73,8 @@ export class ThreadFiles {
       cwd: thread.cwd,
       preview: connection.hello.capabilities.includes(THREAD_FILE_PREVIEW_CAPABILITY),
       rootCheckpoint: connection.hello.capabilities.includes("thread_files_watch_v1"),
+      fileReveal: connection.hello.capabilities.includes(THREAD_FILE_REVEAL_CAPABILITY),
+      desktopBundled: connection.hello.capabilities.includes("desktop_bundled"),
       request: {
         threadId: thread.id,
         path: joinThreadPath(thread.cwd, path),
@@ -143,6 +149,20 @@ export class ThreadFiles {
   async open(request: ui.ThreadFileRequest): Promise<void> {
     const target = await this.#target(request.threadId, request.path);
     await this.#query(target.workerId, { case: "openFile", value: target.request });
+  }
+
+  async reveal(request: ui.ThreadFileRequest): Promise<void> {
+    const target = await this.#target(request.threadId, request.path);
+
+    if (!target.desktopBundled) throw new InvalidError("Reveal files on this computer only.");
+
+    if (!target.fileReveal) throw new InvalidError("Update Canopy on this computer to reveal files.");
+
+    const preferredPaths = await referencePaths(this.core, request.threadId, request.itemId, request.path);
+    await this.#query(target.workerId, {
+      case: "revealFile",
+      value: { ...target.request, path: request.path, workspace: target.cwd, preferredPaths },
+    });
   }
 
   #checkpoint(identity: string, supported: boolean) {

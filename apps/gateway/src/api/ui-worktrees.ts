@@ -8,6 +8,8 @@ import { ThreadDiff } from "../files/thread-diff.ts";
 import { ThreadDirectory } from "../files/thread-directory.ts";
 import { ThreadHighlight } from "../files/thread-highlight.ts";
 import { ThreadWatch } from "../files/thread-watch.ts";
+import { Code, ConnectError } from "@connectrpc/connect";
+import { serviceIdentity } from "./auth.ts";
 
 /** Git worktrees (docs/worktrees.md): settings scopes and the composer's refs; a thread's folder and files. */
 export function worktreesHandlers(
@@ -37,6 +39,7 @@ export function worktreesHandlers(
   | "writeThreadFile"
   | "deleteThreadFile"
   | "openThreadFile"
+  | "revealThreadFile"
 > {
   const branches = new ThreadBranches(core);
   const workspaceBranches = new WorkspaceBranches(core);
@@ -93,6 +96,14 @@ export function worktreesHandlers(
     openThreadFile: (request) =>
       guard(async () => {
         await files.open(request);
+
+        return {};
+      }),
+    revealThreadFile: (request, context) =>
+      guard(async () => {
+        if (core.role !== "desktop" || !context.values.get(serviceIdentity))
+          throw new ConnectError("Reveal files from the Canopy app on this computer.", Code.PermissionDenied);
+        await files.reveal(request);
 
         return {};
       }),

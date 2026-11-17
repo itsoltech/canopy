@@ -50,3 +50,8 @@ export async function deleteFile(
 export async function openFile(threadId: string, path: string): Promise<void> {
   await requestJson("POST", `${filesPath(threadId)}/open`, { path }, TIMEOUT_MS);
 }
+
+/** Selects the file in this desktop's native file manager. */
+export async function revealFile(threadId: string, path: string, itemId = ""): Promise<void> {
+  await requestJson("POST", `${filesPath(threadId)}/reveal`, { path, itemId }, TIMEOUT_MS);
+}

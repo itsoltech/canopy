@@ -362,6 +362,8 @@ service GatewayService {
   rpc DeleteThreadFile(ThreadFileRequest) returns (google.protobuf.Empty);
   // Otwiera plik w domyślnej aplikacji systemu na komputerze workera.
   rpc OpenThreadFile(ThreadFileRequest) returns (google.protobuf.Empty);
+  // Local desktop UI only: select a file in this computer's file manager. Never routed to linked computers.
+  rpc RevealThreadFile(ThreadFileRequest) returns (google.protobuf.Empty);
   rpc GetThreadBlob(GetThreadBlobRequest) returns (GetThreadBlobResponse);
   // A version of a thread visual, owner-scoped (docs/agent-visuals.md). Capability thread_visuals_v1.
   rpc GetVisual(GetVisualRequest) returns (GetVisualResponse);
@@ -649,6 +651,8 @@ message Worker {
   bool git_status = 863;
   bool branch_stash = 871;
   bool workspace_branch_switch = 872;
+  // Capability thread_file_reveal_v1; the gateway separately requires its own bundled desktop worker.
+  bool file_reveal = 873;
   optional uint32 cli_update_check_minutes = 900; // nadpisanie; brak = konto
   uint32 effective_cli_update_check_minutes = 901;
   google.protobuf.Timestamp cli_updates_checked_at = 902;

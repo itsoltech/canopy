@@ -6,6 +6,7 @@
     children,
     href,
     onactivate,
+    onkeydown,
     element = $bindable<HTMLAnchorElement>(),
     class: className,
     ...rest
@@ -48,6 +49,9 @@
   }}
   onclick={click}
   onkeydown={(event) => {
+    onkeydown?.(event);
+
+    if (event.defaultPrevented) return;
     if (!href && event.key === "Enter") {
       event.preventDefault();
       onactivate?.();

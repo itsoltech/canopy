@@ -11,6 +11,7 @@
   import { openInApp } from "#lib/features/files/file-links.svelte.ts";
   import FileNoticePill from "./FileNoticePill.svelte";
   import type { FileNotice } from "./file-notice.ts";
+  import { useFileReveal } from "#lib/features/files/file-reveal.svelte.ts";
 
   /**
    * One row above a file: its path, Source/Rendered for Markdown, Save and one menu with everything else.
@@ -59,6 +60,8 @@
   const slash = $derived(state.path.lastIndexOf("/"));
   const parent = $derived(slash >= 0 ? state.path.slice(0, slash + 1) : "");
   const leaf = $derived(state.path.slice(slash + 1));
+  const native = useFileReveal();
+  const revealLabel = $derived(local ? native.label(document.target.threadId) : undefined);
 </script>
 
 <div class="@container flex h-10 shrink-0 items-center gap-2 border-b border-divider bg-surface pr-2 pl-3">
@@ -109,6 +112,11 @@
     {#if state.text !== undefined}<MenuItem icon="bars-3" onselect={ongoline}>Go to line</MenuItem>{/if}
     <MenuSeparator />
     <MenuItem icon="copy" onselect={() => void copyText(document.path)}>Copy path</MenuItem>
+    {#if revealLabel}<MenuItem
+        icon="folder-open"
+        onselect={() => void native.reveal(document.target.threadId, document.path, document.target.itemId)}
+        >{revealLabel}</MenuItem
+      >{/if}
     {#if state.text !== undefined}<MenuItem icon="document-duplicate" onselect={() => void copyText(state.text ?? "")}
         >Copy text</MenuItem
       >{/if}

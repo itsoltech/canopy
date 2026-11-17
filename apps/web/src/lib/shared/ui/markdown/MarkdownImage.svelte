@@ -5,6 +5,7 @@
   import InlineLink from "../InlineLink.svelte";
   import { useFileLinks } from "./file-links.ts";
   import { useImages } from "./images.ts";
+  import MarkdownFileLink from "./MarkdownFileLink.svelte";
 
   let { value }: { value: GitHubImage } = $props();
   const files = useFileLinks();
@@ -16,11 +17,8 @@
 {#if images.render}
   {@render images.render(value)}
 {:else if files && path}
-  <InlineLink
-    onactivate={() => {
-      if (path) files.open(path);
-    }}
-    class="text-sky-700 underline focus-ring dark:text-sky-400">{value.alt || value.src}</InlineLink
+  <MarkdownFileLink {path} class="text-sky-700 underline focus-ring dark:text-sky-400"
+    >{value.alt || value.src}</MarkdownFileLink
   >
 {:else if href}
   <InlineLink

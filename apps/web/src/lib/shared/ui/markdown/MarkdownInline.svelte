@@ -4,13 +4,13 @@
   import { isMathToken, safeHref, normalizeHtmlTokens, isHtmlToken } from "@canopy/domain/markdown";
   import MarkdownInline from "./MarkdownInline.svelte";
   import { splitSentinels, useInlineElements } from "./inline-elements.ts";
-  import { tooltip } from "../tooltip.ts";
   import { useFileLinks } from "./file-links.ts";
   import { fileLinkHrefOf, filePathOf } from "./file-paths.ts";
   import InlineLink from "../InlineLink.svelte";
   import MarkdownHtml from "./MarkdownHtml.svelte";
   import MarkdownImage from "./MarkdownImage.svelte";
   import { imageFilePathOf } from "@canopy/domain/file-references";
+  import MarkdownFileLink from "./MarkdownFileLink.svelte";
 
   let { tokens }: { tokens: Token[] } = $props();
   const elements = useInlineElements();
@@ -36,10 +36,10 @@
     {@const path = files ? filePathOf(text) : undefined}
     {#if files && path}
       <!-- A file the agent named: opens in the viewer or the default app (docs/ui-api.md, "Pliki wątku"). -->
-      <InlineLink
+      <MarkdownFileLink
+        path={text}
         class="cursor-pointer rounded-sm bg-zinc-950/5 box-decoration-clone px-1 py-px text-left font-mono text-[0.875em] text-sky-700 underline decoration-sky-700/30 decoration-dotted underline-offset-2 focus-ring hover:decoration-sky-700 dark:bg-white/10 dark:text-sky-400 dark:decoration-sky-400/30 dark:hover:decoration-sky-400"
-        onactivate={() => files.open(text)}
-        {@attach tooltip(`Open ${path}`)}>{text}</InlineLink
+        >{text}</MarkdownFileLink
       >
     {:else}
       <code
@@ -52,10 +52,10 @@
     {@const href = safeHref(link.href)}
     {@const path = files ? fileLinkHrefOf(link.href) : undefined}
     {#if files && path}
-      <InlineLink
+      <MarkdownFileLink
+        {path}
         class="cursor-pointer text-left font-medium text-sky-700 underline decoration-sky-700/30 underline-offset-2 focus-ring hover:decoration-sky-700 dark:text-sky-400 dark:decoration-sky-400/30 dark:hover:decoration-sky-400"
-        onactivate={() => files.open(path)}
-        {@attach tooltip(`Open ${path}`)}><MarkdownInline tokens={link.tokens} /></InlineLink
+        ><MarkdownInline tokens={link.tokens} /></MarkdownFileLink
       >
     {:else if href}
       <InlineLink
@@ -82,9 +82,10 @@
             part,
           )}{:else}{part}{/if}{/each}
     {:else if imagePath && files}
-      <InlineLink
+      <MarkdownFileLink
+        path={imagePath}
         class="rounded-sm bg-zinc-950/5 px-1 font-mono text-[0.875em] text-sky-700 underline focus-ring dark:bg-white/10 dark:text-sky-400"
-        onactivate={() => files.open(imagePath)}>{(token as Tokens.Text).text}</InlineLink
+        >{(token as Tokens.Text).text}</MarkdownFileLink
       >
     {:else}
       {(token as Tokens.Text).text}

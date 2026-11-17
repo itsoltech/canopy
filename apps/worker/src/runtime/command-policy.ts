@@ -40,6 +40,7 @@ export const NOT_REMEMBERED: ReadonlySet<Command["kind"]["case"]> = new Set([
   "watchThreadFiles",
   "exportThreadImage",
   "openFile",
+  "revealFile",
   "writeFile",
   "deleteFile",
   "scanImportSources",

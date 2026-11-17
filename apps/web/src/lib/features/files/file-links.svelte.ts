@@ -9,6 +9,7 @@ import { fileLocation } from "@canopy/domain/file-references";
 import { useWorkspace, workspaceStore } from "#lib/features/workspace/workspace.svelte.ts";
 import { goto } from "$app/navigation";
 import type { Workspace } from "@canopy/domain/workspace";
+import { useFileReveal } from "./file-reveal.svelte.ts";
 
 export interface FileTarget {
   readonly threadId: string;
@@ -29,7 +30,20 @@ class ThreadFileLinks implements FileLinkHandler {
     readonly local: (threadId: string) => boolean,
     readonly itemId: () => string = () => "",
     readonly workspace?: () => Workspace,
+    readonly native?: ReturnType<typeof useFileReveal>,
   ) {}
+
+  get revealLabel(): string | undefined {
+    const threadId = this.threadId();
+
+    return threadId ? this.native?.label(threadId) : undefined;
+  }
+
+  reveal(path: string): void {
+    const threadId = this.threadId();
+
+    if (threadId) void this.native?.reveal(threadId, path, this.itemId());
+  }
 
   open(path: string): void {
     const threadId = this.threadId();
@@ -57,7 +71,7 @@ export function provideThreadFileLinks(threadId: () => string | undefined, itemI
     return thread ? onThisComputer(thread, overview.worker(thread.workerId), capabilities?.ownGateway ?? false) : false;
   };
 
-  provideFileLinks(new ThreadFileLinks(threadId, local, itemId, useWorkspace()));
+  provideFileLinks(new ThreadFileLinks(threadId, local, itemId, useWorkspace(), useFileReveal()));
 }
 
 /** This computer opens the file in its default app; failures show as a toast. */

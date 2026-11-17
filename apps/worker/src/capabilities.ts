@@ -4,6 +4,7 @@ import {
   STEER_ATTACHMENTS_CAPABILITY,
   THREAD_VISUALS_CAPABILITY,
   THREAD_HTML_CAPABILITY,
+  THREAD_FILE_REVEAL_CAPABILITY,
   WORKSPACE_COPY_CAPABILITY,
   WORKSPACE_COPY_LEGACY_CAPABILITY,
 } from "@canopy/domain/release/protocol";
@@ -70,6 +71,7 @@ export function workerCapabilities(options: { localWorker: boolean; fullAccess: 
     "reveal_path",
     // thread_files_v1: read, write, delete and open a thread's files (ReadFile and the others).
     "thread_files_v1",
+    THREAD_FILE_REVEAL_CAPABILITY,
     "thread_image_replies_v1",
     "thread_file_preview_v1",
     "thread_directory_v1",

@@ -1,8 +1,11 @@
 import { WEB_VERSION_HEADER } from "@canopy/domain/release/web-version";
 import { timingSafeEqual } from "node:crypto";
-import { Code, ConnectError, type Interceptor } from "@connectrpc/connect";
+import { Code, ConnectError, createContextKey, type Interceptor } from "@connectrpc/connect";
 import { ui } from "@canopy/contracts";
 import { mobileIdentity, type MobileDevices } from "../core/mobile-devices.ts";
+
+/** Set only after authenticating the private BFF service token, never from a client header. */
+export const serviceIdentity = createContextKey(false);
 
 /**
  * The web BFF uses a service token. Paired devices use their own revocable bearer
@@ -25,6 +28,7 @@ export function serviceTokenAuth(
       const presented = Buffer.from(bearer);
 
       if (presented.length === expected.length && timingSafeEqual(presented, expected)) {
+        request.contextValues.set(serviceIdentity, true);
         web?.(request.header.get(WEB_VERSION_HEADER) ?? "");
 
         return next(request);

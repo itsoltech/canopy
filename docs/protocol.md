@@ -762,6 +762,20 @@ i własnego remote. Konektor oraz poświadczenia pozostają w gatewayu. Pola są
 
 ## Folder i pliki wątku
 
+Status (2026-11-17): lokalne wskazywanie pliku w menedżerze systemowym
+jest zaimplementowane; dostępność nightly/beta/stable wynika z [release.md](release.md).
+
+Capability `thread_file_reveal_v1` dodaje nietrwałe `RevealFile` (236) z `FileRequest`
+oraz `Worker.file_reveal` (873). `RevealThreadFile(ThreadFileRequest)` jest dostępne
+wyłącznie dla lokalnego BFF desktopu uwierzytelnionego tokenem usługi; gateway
+sprawdza dodatni kontekst uwierzytelnienia, rolę `desktop`, właściciela wątku
+i `desktop_bundled` w aktualnym Hello workera. Nie przekazuje tej metody do
+połączonych komputerów i nie przyjmuje zdalnych tokenów urządzeń.
+Worker rozstrzyga ścieżkę w katalogu wątku z tymi samymi ograniczeniami co podgląd.
+Finder/Explorer wskazuje plik; Linux używa `org.freedesktop.FileManager1.ShowItems`
+albo otwiera katalog nadrzędny, gdy interfejs wskazywania nie jest dostępny.
+Argumenty trafiają bezpośrednio do procesów, bez interpretacji przez shell.
+
 Capability `thread_file_highlight_v1` dodaje nietrwałe `GetThreadFileHighlight`
 (229) oraz wynik `thread_file_highlight` (229). Gateway wyprowadza owner, worker
 i cwd z wątku; kontrola ścieżki i hash odczytu obowiązują ponownie na workerze.

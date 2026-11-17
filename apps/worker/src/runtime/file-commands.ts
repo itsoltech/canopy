@@ -1,16 +1,25 @@
 import { FileResolution, type Command, type FileRequest } from "@canopy/contracts";
 import { deleteThreadFile, readThreadFile, resolveThreadFile, writeThreadFile } from "../files/thread-files.ts";
 import { resolvePreview } from "../files/resolve-preview.ts";
-import type { CommandOutput } from "./host-types.ts";
+import { CommandError, type CommandOutput } from "./host-types.ts";
 import type { HostContext } from "./host-context.ts";
-import { openInDefaultApp } from "./reveal.ts";
+import { openInDefaultApp, revealFileInFileManager } from "./reveal.ts";
 import { fileImageMetadata } from "../files/file-image.ts";
 import { checkFileRoot } from "../files/file-root.ts";
+import { isAbsolute } from "node:path";
+import { isWithin } from "../git/worktrees.ts";
 
-type FileCommand = Extract<Command["kind"], { case: "readFile" | "openFile" | "writeFile" | "deleteFile" }>;
+type FileCommand = Extract<
+  Command["kind"],
+  { case: "readFile" | "openFile" | "revealFile" | "writeFile" | "deleteFile" }
+>;
 
 export const isFileCommand = (kind: Command["kind"]): kind is FileCommand =>
-  kind.case === "readFile" || kind.case === "openFile" || kind.case === "writeFile" || kind.case === "deleteFile";
+  kind.case === "readFile" ||
+  kind.case === "openFile" ||
+  kind.case === "revealFile" ||
+  kind.case === "writeFile" ||
+  kind.case === "deleteFile";
 
 /**
  * Files the thread's owner opens from the UI (capability thread_files_v1, docs/protocol.md). The gateway names the
@@ -26,12 +35,26 @@ export async function runFileCommand(ctx: HostContext, kind: FileCommand): Promi
 
   const extraRoots = [ctx.state.files.threadDir(target.threadId)];
 
+  // An absolute attachment path is checked against this thread's own attachment root below.
+  const revealPreview =
+    kind.case === "revealFile" && (!isAbsolute(target.path) || isWithin(target.workspace, target.path));
+
   const resolution =
-    target.workspace && (kind.case === "readFile" || kind.case === "openFile")
+    target.workspace && (kind.case === "readFile" || kind.case === "openFile" || revealPreview)
       ? await resolvePreview(target, extraRoots)
       : undefined;
 
-  if (resolution && resolution.resolution !== FileResolution.FOUND) return { file: resolution };
+  if (resolution && resolution.resolution !== FileResolution.FOUND) {
+    if (kind.case === "revealFile")
+      throw new CommandError(
+        "FILE_NOT_RESOLVED",
+        "Choose a single existing file in this workspace, then try again.",
+        true,
+      );
+
+    return { file: resolution };
+  }
+
   const path = resolution?.path || resolveThreadFile(target, extraRoots);
   checkFileRoot(workspace, rootIdentity);
 
@@ -46,6 +69,10 @@ export async function runFileCommand(ctx: HostContext, kind: FileCommand): Promi
       };
     case "openFile":
       await openInDefaultApp(path);
+
+      return {};
+    case "revealFile":
+      await revealFileInFileManager(path);
 
       return {};
     case "writeFile":

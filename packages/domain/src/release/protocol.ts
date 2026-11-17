@@ -38,6 +38,9 @@ export const WORKSPACE_COPY_LEGACY_CAPABILITY = "workspace_copy_scope_v2";
 /** Explicit owner actions on a thread's files: read, write, delete, open in the default app. */
 export const THREAD_FILES_CAPABILITY = "thread_files_v1";
 
+/** Explicit local desktop action: select a thread file in the native file manager. */
+export const THREAD_FILE_REVEAL_CAPABILITY = "thread_file_reveal_v1";
+
 /** Home-workspace name resolution and bounded binary bytes for file previews. */
 export const THREAD_FILE_PREVIEW_CAPABILITY = "thread_file_preview_v1";
 
