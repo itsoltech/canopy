@@ -15,6 +15,7 @@ import { join } from "node:path";
 import { Effect } from "effect";
 import { SqlClient } from "effect/sql";
 import { routed } from "../../apps/gateway/src/api/routed.ts";
+import { ConfigIds } from "../../apps/gateway/src/api/routed-config.ts";
 import { withDraftDelivery } from "../../apps/gateway/src/drafts/delivery.ts";
 import { reconcileDraftDelivery } from "../../apps/gateway/src/drafts/reconcile.ts";
 import { creationEvent } from "../../apps/gateway/src/core/thread-progress.ts";
@@ -23,10 +24,26 @@ import { eventually, SERVICE_TOKEN, startTestGateway, type TestGateway } from ".
 import { linkedProjectFixture } from "./support/linked-projects.ts";
 import { git } from "./support/worktrees.ts";
 
+async function recoveryWorkspace(fixture: Awaited<ReturnType<typeof linkedProjectFixture>>, remote: boolean) {
+  const { a, b, lb } = fixture;
+  const home = remote ? b : a;
+  const workerId = remote ? `${b.workerId}~${nodeRef(lb.hello().nodeId)}` : a.workerId;
+  const overview = await a.gw.api.getOverview({});
+
+  const workspace = overview.projects
+    .flatMap((project) => project.workspaces)
+    .find((candidate) => candidate.workerId === workerId && candidate.rootPath === home.repo);
+
+  if (!workspace) throw new Error("Recovery workspace missing from the linked overview");
+
+  return workspace;
+}
+
 async function canceledCreation(fixture: Awaited<ReturnType<typeof linkedProjectFixture>>, remote: boolean) {
   const { a, b, lb } = fixture;
   const home = remote ? b : a;
   const suffix = remote ? `~${nodeRef(lb.hello().nodeId)}` : "";
+  const workspace = await recoveryWorkspace(fixture, remote);
   const hooks = join(home.dir, "recovery-checkout-hooks");
   mkdirSync(hooks);
   writeFileSync(
@@ -82,8 +99,8 @@ async function canceledCreation(fixture: Awaited<ReturnType<typeof linkedProject
   );
 
   const input = {
-    projectId: `${home.project.id}${suffix}`,
-    workspaceId: `${home.workspace.id}${suffix}`,
+    projectId: workspace.projectId,
+    workspaceId: workspace.id,
     provider: Provider.CODEX,
     workspaceMode: ui.WorkspaceMode.NEW_WORKTREE,
     baseRef: "main",
@@ -349,6 +366,30 @@ describe.skipIf(!dockerAvailable)("linked creation recovery", () => {
 
   beforeAll(async () => {
     fixture = await linkedProjectFixture(directory, { shared: true, worktreeProgress: true });
+    const { a, b, la, lb } = fixture;
+    const canonical = [a.project.id, b.project.id].sort()[0]!;
+
+    // The fixture waits for mirrored workspaces, which can precede shared-project
+    // alias materialization. Both homes must agree before testing mutations.
+    const ready = await eventually(
+      async () => {
+        const aliases = await Promise.all([
+          (await ConfigIds.for(a.gw.core, lb.hello().nodeId)).projects(),
+          (await ConfigIds.for(b.gw.core, la.hello().nodeId)).projects(),
+        ]);
+
+        return aliases.every(
+          (ids, index) =>
+            ids.toGlobal(a.project.id) === canonical &&
+            ids.toGlobal(b.project.id) === canonical &&
+            ids.toLocal(canonical) === (index === 0 ? a.project.id : b.project.id),
+        );
+      },
+      Boolean,
+      10_000,
+    );
+
+    expect(ready).toBe(true);
   }, 60_000);
 
   afterAll(async () => {
@@ -358,10 +399,13 @@ describe.skipIf(!dockerAvailable)("linked creation recovery", () => {
   test("the local sent receipt recovers the qualified peer identity without an initial turn", async () => {
     const { a, b, lb } = fixture;
     const node = nodeRef(lb.hello().nodeId);
+    const workspace = await recoveryWorkspace(fixture, true);
+    expect(workspace.projectId).toBe(a.project.id);
+    expect(workspace.id).toBe(`${b.workspace.id}~${node}`);
 
     const input = {
-      projectId: `${b.project.id}~${node}`,
-      workspaceId: `${b.workspace.id}~${node}`,
+      projectId: workspace.projectId,
+      workspaceId: workspace.id,
       provider: Provider.CODEX,
       initialMessage: "/goal Recover a linked creation",
       initialMentions: [

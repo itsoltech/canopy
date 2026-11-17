@@ -99,7 +99,6 @@ export const computersPresenceMethods: ComputersPresenceMethods = {
               REMOTE_THREADS,
               "project_workspaces",
               "git_clone_progress_v1",
-              "thread_creation_progress_v1",
               "workspace_copy_v1",
               "workspace_copy_scope_v2",
               GITHUB_ACCOUNTS,
@@ -137,6 +136,7 @@ export const computersPresenceMethods: ComputersPresenceMethods = {
         ...(this.options.core?.diagnostics.collector.enabled ? ["diagnostics_trace_v1"] : []),
         // Batched, resumable workspace copies (docs/workspace-copy.md); peers with the 32-entry guard never see it.
         ...(this.options.serve ? [WORKSPACE_COPY_CAPABILITY] : []),
+        ...(this.options.serve ? ["thread_creation_progress_v1"] : []),
       ],
     });
   },
