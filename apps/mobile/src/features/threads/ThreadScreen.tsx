@@ -47,6 +47,7 @@ import { WorkspaceModule } from "../workspace/WorkspaceModule";
 import { useThreadRewind } from "./useThreadRewind";
 import { RewindSheet } from "./RewindSheet";
 import { Button } from "../../ui/Button";
+import { RemovedWorktree } from "./RemovedWorktree";
 import { activeReplySource } from "./reply-suggestions";
 
 export type ThreadState = ReturnType<typeof useThreadState>;
@@ -92,13 +93,19 @@ function useThreadState(id: string) {
   const tray = useThreadTray({ id, snapshot, setSnapshot, thread, threads });
 
   const turns = useMemo(() => visibleTurns(snapshot), [snapshot]);
-  const rewind = useThreadRewind(id, message, busy || replies.unconfirmed, following.resumeFollowing);
+
+  const rewind = useThreadRewind(
+    id,
+    message,
+    busy || replies.unconfirmed || Boolean(thread?.worktree?.removedAt),
+    following.resumeFollowing,
+  );
 
   const hardBlocked =
     home.away ||
     !client ||
     !thread ||
-    Boolean(thread.archivedAt || thread.deletedAt) ||
+    Boolean(thread.archivedAt || thread.deletedAt || thread.worktree?.removedAt) ||
     thread.status === "archived" ||
     stream.connection === "error";
 
@@ -130,10 +137,13 @@ function useThreadState(id: string) {
     history,
     syncStatus,
     thread,
+    worktreeRemoved: Boolean(thread?.worktree?.removedAt),
     worker,
     ...tray,
     turns,
-    send,
+    send: (delivery: ui.MessageDelivery, choices?: Parameters<typeof send>[1]) => {
+      if (!blocked) return send(delivery, choices);
+    },
     stop,
     stopDisabled: hardBlocked || stopping,
     blocked,
@@ -286,13 +296,15 @@ export function ThreadScreen({ id }: { id: string }) {
               </DropZone>
             </VisibilityScope>
           </View>
-          {fileTab && <WorkspaceFile key={`${id}:${fileTab.id}`} view={workspace} tab={fileTab} />}
+          {fileTab && (
+            <WorkspaceFile key={`${id}:${fileTab.id}`} view={workspace} tab={fileTab} removed={state.worktreeRemoved} />
+          )}
           {activeTab?.kind === "module" && (
             <WorkspaceModule key={`${id}:${activeTab.id}`} state={state} target={activeTab} />
           )}
         </ChatKeyboard>
         <ThreadSheets state={state} sheet={sheet} onClose={() => setSheet(null)} />
-        <RewindSheet state={state.rewind} />
+        {!state.worktreeRemoved && <RewindSheet state={state.rewind} />}
       </ScreenFrame>
     </WorkspaceContext.Provider>
   );
@@ -301,6 +313,8 @@ export function ThreadScreen({ id }: { id: string }) {
 /** What floats above the tray: secrets, sending and delivery notes, and running background tasks. */
 function ThreadStatus({ state }: { state: ThreadState }) {
   const { home, error } = state;
+
+  if (state.worktreeRemoved) return null;
 
   return (
     <>
@@ -335,6 +349,8 @@ function ThreadStatus({ state }: { state: ThreadState }) {
 }
 
 function ThreadComposer({ state, composer }: { state: ThreadState; composer: ReturnType<typeof useThreadComposer> }) {
+  if (state.worktreeRemoved && state.thread) return <RemovedWorktree key={state.thread.id} thread={state.thread} />;
+
   return (
     <ImportedThreadComposer thread={state.thread} disabled={state.blocked}>
       <SkeletonScope loading={!state.thread}>
@@ -360,7 +376,7 @@ function ThreadComposer({ state, composer }: { state: ThreadState; composer: Ret
 function ThreadSuggestions({ state }: { state: ThreadState }) {
   const { thread, message } = state;
 
-  if (!message.trigger) return null;
+  if (!message.trigger || state.worktreeRemoved) return null;
 
   return (
     <MentionSuggestions

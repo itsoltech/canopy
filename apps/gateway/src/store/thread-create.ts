@@ -81,7 +81,7 @@ export function threadCreation(
   self: () => Pick<ThreadStore, "thread"> & Pick<WorktreeStore, "ownWorktree">,
 ): Pick<ThreadStore, "createThread"> {
   return {
-    createThread: (ownerUserId, request, movedId, automated) =>
+    createThread: (ownerUserId, request, movedId, automated, handoff) =>
       sql.withTransaction(
         Effect.gen(function* () {
           if (request.clientRequestId) {
@@ -200,12 +200,7 @@ export function threadCreation(
 
           const access = yield* creationAccess(sql, ownerUserId, workspace.worker_id, request, automated);
 
-          const settings = JSON.stringify({
-            model: request.model,
-            effort: request.effort,
-            ...access,
-            instructions: request.instructions,
-          });
+          const settings = creationSettings(request, access, handoff);
 
           yield* sql`
                   INSERT INTO threads (id, project_id, owner_user_id, kind, parent_thread_id, root_thread_id, depth, runtime, provider,
@@ -228,4 +223,19 @@ export function threadCreation(
         }),
       ),
   };
+}
+
+/** Only internal callers can supply a platform handoff; public requests carry no settings object. */
+function creationSettings(
+  request: ui.CreateThreadRequest,
+  access: { permissionMode: string; permissionModeNote?: string },
+  handoff?: string,
+): string {
+  return JSON.stringify({
+    model: request.model,
+    effort: request.effort,
+    ...access,
+    instructions: request.instructions,
+    ...(handoff && { handoff }),
+  });
 }

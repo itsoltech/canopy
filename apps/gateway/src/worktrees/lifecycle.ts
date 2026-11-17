@@ -143,11 +143,13 @@ export async function scanEntry(core: GatewayCore, row: WorktreeLifecycleRow, fe
       matchesCleanup(row, status, settings);
     entry.detail = row.busy
       ? "A thread is still using this worktree"
-      : entry.confirmationRequired && !entry.wouldRemove
-        ? settings.keepLocalChanges
-          ? "Kept: local changes or unpushed commits"
-          : "Explicit confirmation required for local changes or unpushed commits"
-        : cleanupReason(row, status, settings);
+      : row.archive_grace_period
+        ? cleanupReason(row, status, settings)
+        : entry.confirmationRequired && !entry.wouldRemove
+          ? settings.keepLocalChanges
+            ? "Kept: local changes or unpushed commits"
+            : "Explicit confirmation required for local changes or unpushed commits"
+          : cleanupReason(row, status, settings);
   }
 
   return { entry, settings };
@@ -209,6 +211,7 @@ export async function removeEntry(
       closedCleanup
         ? { archived: Boolean(settings.cleanupSettled), deleted: Boolean(settings.cleanupDeletedThreads) }
         : undefined,
+      policy,
     ),
   );
 

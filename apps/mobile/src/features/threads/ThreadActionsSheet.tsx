@@ -66,7 +66,7 @@ export function ThreadActionsSheet({
                 value: "side" as const,
                 label: "New side thread",
                 icon: "arrows-right-left" as const,
-                disabled: state.archived,
+                disabled: state.archived || Boolean(thread.worktree?.removedAt),
               },
             ]
           : []),
@@ -76,7 +76,7 @@ export function ThreadActionsSheet({
                 value: "goal" as const,
                 label: goalOpen ? "Replace goal" : "Set goal",
                 icon: "flag" as const,
-                disabled: state.archived,
+                disabled: state.archived || Boolean(thread.worktree?.removedAt),
               },
             ]
           : []),

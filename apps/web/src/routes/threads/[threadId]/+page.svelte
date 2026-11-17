@@ -130,6 +130,7 @@
   });
 
   const thread = $derived(view.thread);
+  const worktreeRemoved = $derived(Boolean(thread?.worktree?.removedAt));
 
   $effect(() => {
     if (thread?.deletedAt) void goto("/");
@@ -193,7 +194,7 @@
   });
 
   providePageDirectory(
-    () => ({ id: threadId, view, readOnly: Boolean(away), canFork }),
+    () => ({ id: threadId, view, readOnly: Boolean(away) || worktreeRemoved, canFork }),
     (id) => (id === thread?.id ? thread : overview.threads.get(id)),
     (quote) => revealQuote(quote.sourceItemId),
   );
@@ -244,7 +245,11 @@
   const subagents = $derived(keepSubagents(thread ? subagentsOf(threads, thread.id) : []));
   const parent = $derived(thread?.parentThreadId ? threads.find((t) => t.id === thread.parentThreadId) : undefined);
   const itemsById = $derived(new Map(view.ownEntries.map((e) => [e.id, e.item])));
-  const closed = $derived(!thread || thread.status === "failed" || thread.status === "archived" || Boolean(away));
+
+  const closed = $derived(
+    !thread || thread.status === "failed" || thread.status === "archived" || Boolean(away) || worktreeRemoved,
+  );
+
   const working = $derived(!away && view.running && thread?.status !== "waiting_input");
 
   // The feed: inherited history (folded), the thread's own timeline, the working indicator, steers on
@@ -343,12 +348,13 @@
     Boolean(
       automaticPreview.selection &&
       automaticPreview.workerId === worker?.id &&
+      !worktreeRemoved &&
       !thread?.archivedAt &&
       !thread?.deletedAt,
     ),
   );
 
-  const canBranch = $derived(!away && Boolean(tree && thread && thread.status !== "archived"));
+  const canBranch = $derived(!away && !worktreeRemoved && Boolean(tree && thread && thread.status !== "archived"));
 
   const openSide = () => {
     if (!tree) return;
@@ -357,14 +363,20 @@
 
   // "Fork thread" forks after the latest ended turn; "Fork from here" (TurnDetails) after the one it is under.
   const canFork = $derived(
-    !away && thread?.runtime === "worker" && thread.provider !== Provider.GROK && thread.status !== "creating",
+    !away &&
+      !worktreeRemoved &&
+      thread?.runtime === "worker" &&
+      thread.provider !== Provider.GROK &&
+      thread.status !== "creating",
   );
 
   const forkPoint = $derived(canFork ? lastForkPoint(view.ownTurns, view.inheritedTurns) : undefined);
   const forkThread = () => forkPoint && forkFrom(threadId, forkPoint.id);
   let scheduling = $state(false);
 
-  const canSchedule = $derived(Boolean(thread && thread.status !== "archived" && thread.status !== "failed"));
+  const canSchedule = $derived(
+    !worktreeRemoved && Boolean(thread && thread.status !== "archived" && thread.status !== "failed"),
+  );
 
   const openSchedule = () => {
     if (!workspaceState.wide) workspaceState.panelOpen = false;
@@ -505,7 +517,7 @@
 
 <WorkspaceFrame state={workspaceState}>
   <div class="relative flex min-h-0 min-w-0 flex-1 flex-col bg-surface" {@attach intake.zone}>
-    <TopBar description={away ? `Read-only. ${away}` : undefined}>
+    <TopBar description={worktreeRemoved ? "Read-only · Worktree removed" : away ? `Read-only. ${away}` : undefined}>
       {#if thread}
         <Crumb
           markOnly
@@ -721,7 +733,7 @@
                         class={["grid gap-3 p-px", away && "opacity-60"]}
                         role="region"
                         aria-label="Waiting for you"
-                        inert={Boolean(away)}
+                        inert={Boolean(away) || worktreeRemoved}
                       >
                         <PendingDecisions
                           interactions={view.pending.filter((i) => i.kind !== InteractionKind.QUESTION)}
@@ -751,7 +763,7 @@
                         <SubagentsPanel {subagents} compact={composer.compact} embedded />
                       </div>
                     {/if}
-                    <div inert={Boolean(away)} class={away ? "opacity-60" : undefined}>
+                    <div inert={Boolean(away) || worktreeRemoved} class={away ? "opacity-60" : undefined}>
                       <QueuePanel
                         {queue}
                         compact={composer.compact}
@@ -765,7 +777,7 @@
                     {#snippet computerStatus()}
                       {#if away}<ComputerAwayBar computer={overview.computer(thread.nodeId)} reason={away} />{/if}
                     {/snippet}
-                    <ThreadComposerSlot {thread} {parent} compact={composer.compact}>
+                    <ThreadComposerSlot {thread} {parent} {worker} away={Boolean(away)} compact={composer.compact}>
                       <Composer
                         status={away ? computerStatus : undefined}
                         compact={composer.compact}
@@ -811,7 +823,11 @@
             </VirtualFeed>{/if}
         {/key}
       </div>
-      <WorkspaceContent state={workspaceState} module={renderModule} />
+      <WorkspaceContent
+        state={workspaceState}
+        module={renderModule}
+        unavailable={worktreeRemoved ? "This worktree was removed. Continue in a new worktree to edit files." : ""}
+      />
     </div>
     <FileDropOverlay {intake} />
   </div>
@@ -822,6 +838,7 @@
       {threadId}
       {worker}
       offline={away ?? ""}
+      unavailable={worktreeRemoved ? "Continue in a new worktree to access files and Preview." : ""}
       root={(thread?.worktree?.path || thread?.cwd || "").split(/[\\/]/).filter(Boolean).at(-1) ?? ""}
       {width}
     />
@@ -877,7 +894,9 @@
 {/snippet}
 
 {#snippet renderModule(target: WorkspaceModuleTarget)}
-  {#if target.module === "preview"}
+  {#if worktreeRemoved && (target.module === "preview" || target.module === "diff")}
+    <EmptyState title="Worktree removed" description="Continue in a new worktree to access files and Preview." />
+  {:else if target.module === "preview"}
     <WorkspacePreview state={workspaceState} {worker} offline={away ?? ""} location="tab" active />
   {:else if target.module === "diff"}
     {#await import("#lib/features/workspace/WorkspaceDiff.svelte") then module}

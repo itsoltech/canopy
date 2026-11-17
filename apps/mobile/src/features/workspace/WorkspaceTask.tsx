@@ -27,7 +27,7 @@ export function WorkspaceTask({ state, id }: { state: ThreadState; id: string })
             <BackgroundTaskStop
               threadId={state.thread?.id ?? ""}
               itemId={item.itemId}
-              disabled={state.home.away || state.stream.connection !== "live"}
+              disabled={state.home.away || state.worktreeRemoved || state.stream.connection !== "live"}
             />
           )
         }

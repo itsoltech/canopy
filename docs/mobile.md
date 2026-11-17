@@ -8,6 +8,7 @@ akcja „Steer” ma widoczną etykietę obok ikony.
 Safe area nad wątkiem ma tło chrome nagłówka, karta ma górny odstęp,
 a powrót do listy używa strzałki.
 Switch tab pozwala zamykać karty plików i podglądów bezpośrednio z listy.
+Wątek z usuniętym worktree pozostaje tylko do odczytu i pozwala kontynuować w nowym worktree.
 Worktrees opisuje odrzucanie lokalnych plików przez reguły Archived/Deleted threads.
 „What's new” sortuje notatki
 metodami dostępnymi w Hermesie bez `Array.prototype.toSorted`.
@@ -1728,6 +1729,26 @@ zadaniami (status, „Show full output”, „Stop task”), która zamyka się 
 domyślny workspace, agenta i uprawnienia.
 Są tworzenie wątku, rename/archive/unread, wyszukiwanie treści, zwinięta praca/narzędzia,
 subagents i panel worker/cwd/model/status/schedules/lineage/connectors.
+
+Wątek z `worktree.removedAt` pokazuje „This thread is read-only” zamiast kompozytora,
+także gdy jest zarchiwizowany lub zaimportowany jako historia. Historia pozostaje czytelna;
+brak katalogu blokuje wysyłanie, sugerowane odpowiedzi, rewind, forki/wątki boczne,
+zmianę gałęzi, cele, harmonogramy, podgląd automatyzacji oraz edycję plików.
+Metadane, archiwizacja, usuwanie i nawigacja po historii zachowują swoje akcje.
+„Continue work” otwiera arkusz „Continue in a new worktree” z istniejącym pickerem Base ref
+(Branches / Remote branches), zasilanym przez `ListGitRefs` źródłowego workspace'u.
+Domyślnie wybiera zachowaną gałąź, potem poprzedni `baseRef`, gałąź domyślną, bieżącą
+lub pierwszy dostępny ref, jeżeli wcześniejsze nie istnieją. Arkusz nazywa brak workspace'u, nieaktywny worker,
+nieosiągalny komputer i brak obsługi worktree; ma ładowanie, ponowienie oraz szczegóły błędów.
+`ContinueThreadInWorktree` tworzy nowy wątek główny we własnym zarządzanym worktree
+tego samego projektu/workspace'u/workera i zachowuje ustawienia agenta.
+Przenosi ograniczony fragment historii jako kontekst bez inferencji po naciśnięciu.
+Źródło pozostaje bez zmian i nie wymaga odarchiwizowania; lokalne niezacommitowane
+pliki nie są odtwarzane. Powtórne naciśnięcie podczas żądania jest blokowane,
+a po błędzie o nieznanym wyniku ten sam `clientRequestId` i ref pozostają do ponowienia,
+także po zamknięciu i ponownym otwarciu arkusza. Jawne odrzucenie żądania odblokowuje
+wybór innej bazy i odświeżenie refów. Sukces otwiera utworzony wątek.
+Dostępność wymaga zgodnego gatewaya i workera; wydania przechodzą przez nightly, beta i stable.
 
 Nagłówek oraz przytrzymanie wiersza sidebara poza trybem Custom otwierają ten sam arkusz akcji wątku:
 pin/unpin, zmiana lub regeneracja tytułu, read/unread, archive/unarchive i delete;

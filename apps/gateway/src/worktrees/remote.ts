@@ -76,7 +76,14 @@ export function refuseRemoteWorktree(method: DescMethod, request: Message, suppo
       [ui.WorkspaceMode.NEW_WORKTREE, ui.WorkspaceMode.EXISTING_WORKTREE, ui.WorkspaceMode.INHERIT_PARENT].includes(
         mode,
       )) ||
-    ["ListGitRefs", "ListWorktrees", "CleanupWorktrees", "RemoveWorktree", "RevealWorktree"].includes(method.name)
+    [
+      "ContinueThreadInWorktree",
+      "ListGitRefs",
+      "ListWorktrees",
+      "CleanupWorktrees",
+      "RemoveWorktree",
+      "RevealWorktree",
+    ].includes(method.name)
   )
     throw new ConnectError(
       "Worktrees on linked computers are not supported yet. Open Canopy on the workspace's home computer to use a worktree.",

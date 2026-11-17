@@ -88,8 +88,15 @@ export function ThreadHeaderBar({
         <HeaderAction icon="ellipsis-horizontal" label="Thread actions" disabled={!thread} onPress={onActions} />
       )}
       <HeaderAction icon="information-circle" label="Thread details" onPress={onDetails} />
-      <HeaderAction icon="folder" label="Files" onPress={onFiles} />
-      {onPreview && <HeaderAction icon="eye" label="Open preview" onPress={onPreview} />}
+      <HeaderAction icon="folder" label="Files" disabled={Boolean(thread?.worktree?.removedAt)} onPress={onFiles} />
+      {onPreview && (
+        <HeaderAction
+          icon="eye"
+          label="Open preview"
+          disabled={Boolean(thread?.worktree?.removedAt)}
+          onPress={onPreview}
+        />
+      )}
     </View>
   );
 }

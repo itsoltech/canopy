@@ -25,7 +25,7 @@ export function ThreadTray({ state, onGoal }: { state: ThreadState; onGoal: () =
       ? ui.MessageDelivery.QUEUE
       : ui.MessageDelivery.STEER;
 
-  if (!thread || thread.import?.mode === "history") return null;
+  if (!thread || thread.worktree?.removedAt || thread.import?.mode === "history") return null;
 
   const hasPanels = Boolean(goal || state.activeSubagents.length || queue.rows.length || requests.requests.length);
 

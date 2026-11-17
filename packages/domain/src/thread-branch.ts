@@ -3,6 +3,8 @@ import { REMOTE_BRANCH_SWITCH } from "./computers.ts";
 
 /** Shared web/mobile availability; the home and worker independently enforce these conditions. */
 export function branchSwitchReason(thread: ui.Thread, worker: ui.Worker | undefined, home?: ui.LinkedComputer): string {
+  if (thread.worktree?.removedAt) return "This worktree was removed. Continue in a new worktree.";
+
   if (thread.nodeId && !home?.capabilities.includes(REMOTE_BRANCH_SWITCH))
     return "Update the home computer to switch branches.";
 

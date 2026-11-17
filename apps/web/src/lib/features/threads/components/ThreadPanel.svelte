@@ -78,7 +78,11 @@
   const away = $derived(thread.nodeId ? awayReason(overview.computer(thread.nodeId)) : undefined);
 
   const stale = $derived(
-    !!away || syncStatus?.reason === "computer_unreachable" || !!panel.data?.stale || !!panel.error,
+    !!away ||
+      Boolean(thread.worktree?.removedAt) ||
+      syncStatus?.reason === "computer_unreachable" ||
+      !!panel.data?.stale ||
+      !!panel.error,
   );
 
   // The thread stream carries schedule changes immediately, including an empty list after the last

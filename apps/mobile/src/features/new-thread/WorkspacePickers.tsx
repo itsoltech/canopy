@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { Text, View } from "react-native";
-import type { GitRef } from "@canopy/contracts";
+import type { GitRef, GitRefs } from "@canopy/contracts";
 import { headLabel, shortWorktreePath } from "@canopy/domain/git-heads";
 import { PickerSheet } from "../../ui/Picker";
 import { Icon } from "../../ui/Icon";
@@ -102,14 +102,31 @@ export function WorkspacePills({ draft }: { draft: WorkspaceDraft }) {
           })),
         ]}
       />
-      <RefPickerSheet visible={picker === "ref"} onClose={close} draft={draft} />
+      <RefPickerSheet
+        visible={picker === "ref"}
+        onClose={close}
+        refs={draft.gitRefs}
+        value={draft.baseRef}
+        onSelect={draft.chooseBase}
+      />
     </View>
   );
 }
 
 /** The base of a new worktree: local branches first (default, current), then remote ones. */
-function RefPickerSheet({ visible, onClose, draft }: { visible: boolean; onClose: () => void; draft: WorkspaceDraft }) {
-  const refs = draft.gitRefs;
+export function RefPickerSheet({
+  visible,
+  onClose,
+  refs,
+  value,
+  onSelect,
+}: {
+  visible: boolean;
+  onClose: () => void;
+  refs?: GitRefs;
+  value: string;
+  onSelect: (value: string) => void;
+}) {
   const priority = (ref: GitRef) => (ref.name === refs?.defaultBranch ? 0 : ref.name === refs?.currentBranch ? 1 : 2);
   const sorted = [...(refs?.refs ?? [])].sort((a, b) => priority(a) - priority(b));
 
@@ -131,8 +148,8 @@ function RefPickerSheet({ visible, onClose, draft }: { visible: boolean; onClose
       visible={visible}
       onClose={onClose}
       search={sorted.length > 6 ? "Search refs" : undefined}
-      value={draft.baseRef}
-      onSelect={draft.chooseBase}
+      value={value}
+      onSelect={onSelect}
       sections={[
         { title: "Branches", options: sorted.filter((r) => !r.remote).map(option) },
         { title: "Remote branches", options: sorted.filter((r) => r.remote).map(option) },

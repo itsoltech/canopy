@@ -18,9 +18,12 @@ export function ScheduleSettings() {
     api.listSchedules({ threadId, includeFinished: true }),
   );
 
-  const { computers } = useOverview();
+  const { computers, threads } = useOverview();
 
   const reason = (schedule: ui.Schedule) => {
+    if (threads.find((row) => row.id === schedule.threadId)?.worktree?.removedAt)
+      return "This worktree was removed. Continue in a new worktree.";
+
     const node = splitId(schedule.id).node;
 
     return node

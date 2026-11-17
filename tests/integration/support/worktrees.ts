@@ -46,6 +46,8 @@ export async function worktreeFixture(
   dir: string,
   options: {
     botModel?: BotModel;
+    /** Optional provider stand-in for observing harness creation. */
+    codexFixture?: URL;
     role?: "desktop" | "server";
     diagnostics?: boolean;
     log?: (message: string) => void;
@@ -64,7 +66,7 @@ export async function worktreeFixture(
   mkdirSync(data);
   mkdirSync(home);
   writeFileSync(join(home, "auth.json"), JSON.stringify({ tokens: { access_token: "fixture" } }));
-  copyFileSync(new URL("../fixtures/directory-codex.ts", import.meta.url), executable);
+  copyFileSync(options.codexFixture ?? new URL("../fixtures/directory-codex.ts", import.meta.url), executable);
   chmodSync(executable, 0o755);
   git(dir, "init", "-q", "--bare", "-b", "main", origin);
   git(dir, "clone", "-q", origin, repo);

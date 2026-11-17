@@ -1,6 +1,7 @@
 # API dla UI i architektura frontendu
 
 Status (2026-11-17): watch odzyskuje stan po powtarzającym się nieokreślonym błędzie gatewaya;
+usunięte worktree pokazuje wątek tylko do odczytu z kontynuacją w nowym worktree;
 API workspace udostępnia lokalne `RevealThreadFile`
 oraz stabilne, stronicowane zmiany Git wątku i podgląd dostępnych plików spoza workspace tylko do odczytu;
 Settings → Agent tools grupuje Browser/Desktop/Device z dostępem per worker,
@@ -1153,6 +1154,14 @@ folder na workerze. BFF: `/api/worktrees` (POST lista, DELETE usunięcie),
 `/api/worktrees/cleanup` i `/api/worktrees/reveal` (POST). Wszystkie operacje są owner-scoped,
 zdalne przez linked computers wymagają capability `remote_worktrees`. `Thread.worktree.removed_at` zachowuje historię
 i wyłącza akcje usuniętego katalogu. Pola Cleanup dziedziczą zakresy ustawień Creation/Branches.
+
+`ContinueThreadInWorktree(thread_id, base_ref, client_request_id)` tworzy nowy wątek główny z nowym
+worktree w workspace źródła, zachowując ustawienia agenta i dodając skrót widocznej rozmowy przed
+uruchomieniem sesji. Źródło musi mieć usunięte zarządzane worktree i pozostaje tylko do odczytu;
+może być zarchiwizowane. BFF: `POST /api/threads/[threadId]/continue-worktree`.
+Idempotencja obejmuje przygotowanie worktree; powtórzenie żądania zwraca ten sam nowy wątek.
+Pełna historia dostawcy i niezapisane lokalne pliki nie są odtwarzane. Starszy gateway wymaga
+aktualizacji; bez dostępnego workera lub domu akcja pozostaje nieaktywna.
 
 `ThreadWorktree.external`, `locked`, `prunable`, `missing`, `unavailable_reason` opisują pochodzenie
 i dostępność. Lista łączy git z rejestrem; wybór odkrytego id rejestruje wpis jako zewnętrzny

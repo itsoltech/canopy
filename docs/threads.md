@@ -1,6 +1,7 @@
 # Projekty, wątki i wątki boczne
 
-Status (2026-11-17): zaimplementowane, w tym uprawnienia ostatniej tury użytkownika
+Status (2026-11-17): zaimplementowane, w tym stan tylko do odczytu po usunięciu worktree
+i kontynuacja w nowym wątku z nowym worktree oraz uprawnienia ostatniej tury użytkownika
 w karcie hover oraz automatyczna archiwizacja po merge PR-ów
 z nadpisaniami projektu i wątku (przełącznik w szczegółach także na mobile),
 zamykanie zasobów przy archiwizacji,
@@ -236,6 +237,27 @@ Archiwum zachowuje czytelną oś czasu. Zamiast kompozytora pokazuje ikonę, cza
 (użytkownik, agent albo archiwizacja razem z rodzicem), „Unarchive” i odnośnik do rodzica subagenta.
 Przywrócenie płynnie przywraca kompozytor. Starsze archiwum pokazuje tylko znane informacje.
 Gateway odrzuca wiadomości do archiwum.
+
+### Kontynuacja po usunięciu worktree
+
+Wątek z `Thread.worktree.removed_at` zachowuje rozmowę, ale jest tylko do odczytu.
+Web/desktop i mobile zastępują kompozytor kartą „This thread is read-only” i akcją
+„Continue work”, również gdy wątek jest zarchiwizowany. Akcje wymagające starego katalogu
+(wiadomości, fork, rewind, cel, harmonogram, zmiana gałęzi i edycja plików) są niedostępne.
+
+„Continue in a new worktree” tworzy osobny wątek główny i nowe worktree na tym samym workerze,
+w tym samym projekcie i workspace. Picker bazy proponuje poprzednią gałąź, jeśli istnieje,
+następnie poprzednią bazę, gałąź domyślną, bieżącą lub pierwszy dostępny ref.
+Użytkownik może wybrać inną dostępną gałąź.
+Źródło zachowuje id, cwd, worktree i archiwizację; przywrócenie go nie jest wymagane.
+
+Nowa sesja dziedziczy instancję, model, wysiłek i instrukcje, a Full access zostaje ograniczony
+do Full auto tak jak przy forku użytkownika. Zapisany przed uruchomieniem sesji handoff
+przekazuje ograniczony fragment widocznej rozmowy (także odziedziczonej), id źródła i informację
+o zmianie katalogu. Jest to skrót kontekstu, nie natywny fork ani pełna historia dostawcy;
+działa także dla Groka i bez plików starej sesji. Kliknięcie nie uruchamia inferencji.
+Nowy checkout zawiera pliki wybranej bazy; niezapisane pliki usuniętego worktree nie wracają.
+Ponowienia tego samego żądania nie tworzą kolejnych wątków ani worktree.
 
 ### Automatyczna archiwizacja po merge
 

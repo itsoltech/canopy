@@ -9,6 +9,7 @@ export interface WorktreeLifecycleRow extends WorktreeRow {
   last_activity_at: Date;
   all_deleted: boolean;
   all_archived: boolean;
+  archive_grace_period: boolean;
   busy: boolean;
   removal_token: string | null;
   removal_command: Uint8Array | null;
@@ -27,6 +28,8 @@ const snapshot = `SELECT w.*,
     NOT EXISTS (SELECT 1 FROM threads t WHERE t.worktree_id = w.id AND t.deleted_at IS NULL) AS all_deleted,
   EXISTS (SELECT 1 FROM threads t WHERE t.worktree_id = w.id AND t.deleted_at IS NULL) AND NOT EXISTS (
     SELECT 1 FROM threads t WHERE t.worktree_id = w.id AND t.deleted_at IS NULL AND t.archived_at IS NULL) AS all_archived,
+  EXISTS (SELECT 1 FROM threads t WHERE t.worktree_id = w.id AND t.deleted_at IS NULL
+    AND t.archived_at > now() - interval '24 hours') AS archive_grace_period,
   EXISTS (SELECT 1 FROM threads t WHERE t.worktree_id = w.id AND (
     t.status = 'creating' AND t.deleted_at IS NULL OR
     EXISTS (SELECT 1 FROM turns u WHERE u.thread_id = t.id AND u.status IN ('queued', 'running')) OR
@@ -64,6 +67,7 @@ export function worktreeLifecycleStore(sql: SqlClient.SqlClient) {
       id: string,
       command: MessageInitShape<typeof CommandSchema>,
       closedThreads?: { archived: boolean; deleted: boolean },
+      policy = false,
     ) =>
       sql.withTransaction(
         Effect.gen(function* () {
@@ -86,6 +90,9 @@ export function worktreeLifecycleStore(sql: SqlClient.SqlClient) {
           );
 
           if (state.busy) return yield* Effect.fail(new Invalid("a thread is still using this worktree"));
+
+          if (policy && state.archive_grace_period)
+            return yield* Effect.fail(new Invalid("The cleanup policy no longer matches"));
 
           if (
             closedThreads &&

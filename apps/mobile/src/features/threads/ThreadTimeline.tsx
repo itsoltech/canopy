@@ -73,10 +73,11 @@ function useTimelineData(state: ThreadState) {
         !thread.spawnedByAgent &&
         !thread.scheduleId &&
         !thread.archivedAt &&
-        !thread.rewindPending
+        !thread.rewindPending &&
+        !thread.worktree?.removedAt
           ? editFrom
           : undefined,
-      readOnly: away || !thread || Boolean(thread.archivedAt || thread.deletedAt),
+      readOnly: away || !thread || Boolean(thread.archivedAt || thread.deletedAt || thread.worktree?.removedAt),
       thread: (id) => threads.find((t) => t.id === id) ?? (id === thread?.id ? thread : undefined),
       item: (id) => items.get(id),
       quoteTime: (id) => {

@@ -31,19 +31,26 @@ export function ThreadSheets({
       <GoalSheet
         thread={thread}
         goal={snapshot?.goal}
-        visible={!state.home.away && sheet === "goal"}
+        visible={!state.home.away && !state.worktreeRemoved && sheet === "goal"}
         onClose={onClose}
       />
       <PreviewSheet
         threadId={state.id}
         worker={state.worker}
-        visible={sheet === "preview"}
+        visible={!state.worktreeRemoved && sheet === "preview"}
         offline={state.home.away || Boolean(thread?.archivedAt || thread?.deletedAt)}
         onClose={onClose}
       />
-      <WorkspaceFiles visible={sheet === "files"} onClose={onClose} />
-      <SideThreadSheet main={thread} visible={!state.home.away && sheet === "side"} onClose={onClose} />
-      <QueueEditor turn={state.home.away ? undefined : state.editing} onClose={() => state.setEditing(undefined)} />
+      <WorkspaceFiles visible={!state.worktreeRemoved && sheet === "files"} onClose={onClose} />
+      <SideThreadSheet
+        main={thread}
+        visible={!state.home.away && !state.worktreeRemoved && sheet === "side"}
+        onClose={onClose}
+      />
+      <QueueEditor
+        turn={state.home.away || state.worktreeRemoved ? undefined : state.editing}
+        onClose={() => state.setEditing(undefined)}
+      />
     </>
   );
 }
@@ -54,7 +61,8 @@ function viewerDirectory(state: ThreadState): TimelineDirectory {
   return {
     currentId: thread?.id ?? "",
     quote: state.quotes.add,
-    readOnly: state.home.away || !thread || Boolean(thread.archivedAt || thread.deletedAt),
+    readOnly:
+      state.home.away || !thread || Boolean(thread.archivedAt || thread.deletedAt || thread.worktree?.removedAt),
     thread: (id) => (id === thread?.id ? thread : undefined),
     item: (id) => snapshot?.items.find((entry) => entry.item?.itemId === id)?.item,
     delivery: (id) => snapshot?.busDeliveries.find((delivery) => delivery.callId === id),

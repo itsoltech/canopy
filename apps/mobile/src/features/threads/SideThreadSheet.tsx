@@ -56,10 +56,11 @@ function SideThreadForm({ main, onClose }: { main: ui.Thread; onClose: () => voi
   const [fork, setFork] = useState(true);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
-  const closed = main.status === "archived" || Boolean(main.deletedAt);
+  const closed = main.status === "archived" || Boolean(main.archivedAt || main.deletedAt || main.worktree?.removedAt);
 
   async function start() {
-    if (!client || (!message.value.text.trim() && !message.files.ids.length) || message.files.blocker || busy) return;
+    if (!client || closed || (!message.value.text.trim() && !message.files.ids.length) || message.files.blocker || busy)
+      return;
     setBusy(true);
     setError("");
 

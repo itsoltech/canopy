@@ -17,7 +17,13 @@ import { useAppActive } from "../../ui/active";
 import { WorkspaceConflict } from "./WorkspaceConflict";
 import { useOverview } from "../../state/overview";
 
-export function WorkspaceFile({ view, tab }: { view: Workspace; tab: WorkspaceTab }) {
+interface WorkspaceFileProps {
+  view: Workspace;
+  tab: WorkspaceTab;
+  removed?: boolean;
+}
+
+export function WorkspaceFile({ view, tab, removed = false }: WorkspaceFileProps) {
   useSyncExternalStore(view.store.subscribe, view.store.getVersion);
   const document = tab.document;
   const overview = useOverview();
@@ -25,13 +31,15 @@ export function WorkspaceFile({ view, tab }: { view: Workspace; tab: WorkspaceTa
   const worker = overview.workers.find((item) => item.id === thread?.workerId);
   useEffect(() => {
     document.availability(
-      worker?.nodeId
-        ? "Files on another computer are read only."
-        : worker && !worker.online
-          ? "This computer is offline. Reconnect it to edit files."
-          : "",
+      removed || thread?.worktree?.removedAt
+        ? "This worktree was removed. Continue in a new worktree to edit files."
+        : worker?.nodeId
+          ? "Files on another computer are read only."
+          : worker && !worker.online
+            ? "This computer is offline. Reconnect it to edit files."
+            : "",
     );
-  }, [document, worker?.nodeId, worker?.online]);
+  }, [document, worker?.nodeId, worker?.online, thread?.worktree?.removedAt, removed]);
   const active = useAppActive();
   const padding = useContentPadding(0);
   const [confirmation, setConfirmation] = useState<FileConfirmationKind>();

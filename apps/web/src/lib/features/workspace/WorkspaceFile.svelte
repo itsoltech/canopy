@@ -40,6 +40,7 @@
     preview,
     tabActions,
     oncite,
+    unavailable = "",
   }: {
     document: WorkspaceFile;
     threadId: string;
@@ -49,6 +50,7 @@
     /** Tab management for the file's ⋯ menu (move, close others). */
     tabActions?: Snippet;
     oncite: () => Promise<void>;
+    unavailable?: string;
   } = $props();
 
   let scroller = $state<HTMLDivElement>();
@@ -78,11 +80,14 @@
 
   $effect(() => {
     document.availability(
-      worker?.nodeId
-        ? "Files on another computer are read only."
-        : worker && !worker.online
-          ? "This computer is offline. Reconnect it to edit files."
-          : "",
+      unavailable ||
+        (thread?.worktree?.removedAt
+          ? "This worktree was removed. Continue in a new worktree to edit files."
+          : worker?.nodeId
+            ? "Files on another computer are read only."
+            : worker && !worker.online
+              ? "This computer is offline. Reconnect it to edit files."
+              : ""),
     );
   });
 

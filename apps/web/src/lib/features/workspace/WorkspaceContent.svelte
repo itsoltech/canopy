@@ -6,7 +6,11 @@
   import MenuItem from "#lib/shared/ui/MenuItem.svelte";
   import { refreshActivities } from "#lib/shared/activity.ts";
 
-  let { state, module }: { state: ThreadWorkspace; module: Snippet<[WorkspaceModuleTarget]> } = $props();
+  let {
+    state,
+    module,
+    unavailable = "",
+  }: { state: ThreadWorkspace; module: Snippet<[WorkspaceModuleTarget]>; unavailable?: string } = $props();
 
   const selection = $derived.by(() => {
     const tab = state.current;
@@ -29,6 +33,7 @@
           tab,
         )}{/key}{:else}{#await import("./WorkspaceFile.svelte") then file}{#key tab.document}<file.default
             document={tab.document}
+            {unavailable}
             threadId={state.threadId()}
             preview={tab.preview}
             onkeep={() => state.view.keep(tab.id)}
