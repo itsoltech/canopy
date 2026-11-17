@@ -22,8 +22,9 @@ mają szerokość 40 dp, zgodną z web/desktop. Preview obsługuje Browser/Deskt
 przez natywny transport, z wyborem celu i bezpośrednim sterowaniem. Otwiera pełny
 ekran ze stałą belką zamknięcia i opcjonalnie ukrytymi kontrolkami; ładowanie
 celów i komunikaty nie zmieniają obszaru obrazu.
-Szczegóły wątku pokazują stan connectorów w bieżącej turze oraz nadpisanie
-Auto-archive after merge.
+Szczegóły wątku używają zwartego układu web/desktop: jednoliniowych metadanych,
+subtelnych separatorów i akcji przy nagłówkach sekcji. Pokazują stan connectorów
+w bieżącej turze oraz mały przełącznik Auto-archive after merge z opisem pod ikoną informacji.
 Settings → Projects pokazuje zwartą listę projektów i osobne szczegóły; dodawanie
 prowadzi przez workera, źródło i katalog z wirtualizowaną listą oraz stałą stopką.
 Dostępność w wydaniach zależy od kanału.
@@ -1723,6 +1724,16 @@ pokazuje ikonę stanu, nazwę w jednej linii, czas trwania i wiek zakończenia p
 krawędzi. Działające zadanie ma widoczny przycisk Stop, zakończone wykorzystuje pełną
 szerokość wiersza. Etykieta dostępności zawiera pełną nazwę, stan i kod wyjścia;
 dotknięcie wiersza otwiera pełny wynik. To zmiana wyłącznie JS.
+Arkusz `Thread details` zachowuje gęstość chrome także na telefonie: ma kompaktowy
+nagłówek, sekcje bez kart z obramowaniem i jednoliniowy wiersz workera ze stanem
+po prawej. Kolejność sekcji odpowiada web/desktop: położenie, pull requesty,
+zadania w tle, aktywne sekrety, harmonogramy, connectory i powiązane wątki.
+Puste zadania w tle i lineage nie zajmują miejsca. Linkowanie i tworzenie PR są
+małymi akcjami nagłówka z pełnymi etykietami dostępności; zarządzanie harmonogramami
+pozostaje akcją wiersza. Opis źródła i warunków automatycznej archiwizacji rozwija
+ikona informacji; zapis nadal używa nadpisania wątku i domyślnych wartości projektu/konta.
+Układ i przełącznik korzystają ze wspólnej skali, kolorów motywu i ruchu z obsługą
+ograniczonych animacji; zmiana nie wymaga nowego runtime natywnego.
 Snapshot strony zachowuje także itemy zadań w tle spoza okna załadowanych tur.
 „Show full output” korzysta ze wspólnego `TextViewer`, także dla wyniku zapisanego jako blob.
 

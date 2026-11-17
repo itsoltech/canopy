@@ -10,7 +10,7 @@ import { SheetCloseButton } from "./SheetDragArea";
 import { router } from "expo-router";
 import { LayoutAnimationConfig } from "react-native-reanimated";
 import { Skeleton } from "./Skeleton";
-import { useSettingsDensity } from "./density";
+import { CompactControls, useSettingsDensity } from "./density";
 
 export const SheetContent = createContext(false);
 
@@ -86,6 +86,7 @@ export function Sheet({
   scroll = true,
   footer,
   snap = false,
+  compact = false,
 }: {
   title: string;
   visible: boolean;
@@ -94,36 +95,51 @@ export function Sheet({
   scroll?: boolean;
   footer?: ReactNode;
   snap?: boolean;
+  /** Compact chrome for a sheet of summary rows rather than a form. */
+  compact?: boolean;
 }) {
   const c = useColors();
+  const type = useTypography();
 
   return (
-    <SheetSurface
-      scroll={scroll}
-      snap={snap}
-      visible={visible}
-      label={title}
-      onClose={onClose}
-      footer={
-        footer && (
-          <View style={{ padding: 16, gap: 12, borderTopWidth: 1, borderColor: c.line, backgroundColor: c.surface }}>
-            {footer}
+    <CompactControls.Provider value={compact}>
+      <SheetSurface
+        scroll={scroll}
+        snap={snap}
+        contentStyle={compact ? { padding: 8, paddingTop: 0, gap: 0 } : undefined}
+        visible={visible}
+        label={title}
+        onClose={onClose}
+        footer={
+          footer && (
+            <View style={{ padding: 16, gap: 12, borderTopWidth: 1, borderColor: c.line, backgroundColor: c.surface }}>
+              {footer}
+            </View>
+          )
+        }
+        header={
+          <View
+            style={[
+              styles.row,
+              { paddingLeft: compact ? 16 : 20, paddingRight: 12, paddingTop: compact ? 4 : 16, paddingBottom: 4 },
+            ]}
+          >
+            <Text
+              accessibilityRole="header"
+              numberOfLines={2}
+              style={[compact ? type.chrome : styles.heading, { fontFamily: font.semibold, flex: 1, color: c.text }]}
+            >
+              {title}
+            </Text>
+            <SheetCloseButton label={`Close ${title}`} />
           </View>
-        )
-      }
-      header={
-        <View style={[styles.row, { paddingLeft: 20, paddingRight: 12, paddingTop: 16, paddingBottom: 4 }]}>
-          <Text accessibilityRole="header" numberOfLines={2} style={[styles.heading, { flex: 1, color: c.text }]}>
-            {title}
-          </Text>
-          <SheetCloseButton label={`Close ${title}`} />
-        </View>
-      }
-    >
-      <LayoutAnimationConfig skipEntering skipExiting>
-        <SheetContent.Provider value={true}>{children}</SheetContent.Provider>
-      </LayoutAnimationConfig>
-    </SheetSurface>
+        }
+      >
+        <LayoutAnimationConfig skipEntering skipExiting>
+          <SheetContent.Provider value={true}>{children}</SheetContent.Provider>
+        </LayoutAnimationConfig>
+      </SheetSurface>
+    </CompactControls.Provider>
   );
 }
 

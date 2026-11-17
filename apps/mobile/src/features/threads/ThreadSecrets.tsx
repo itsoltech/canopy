@@ -4,7 +4,9 @@ import { timestampMs } from "@bufbuild/protobuf/wkt";
 import type { ui } from "@canopy/contracts";
 import { useSession } from "../../state/session";
 import { Button, Field, Notice, Sheet } from "../../ui/components";
-import { styles, useColors } from "../../ui/theme";
+import { styles, useColors, useTypography } from "../../ui/theme";
+import { useCompactControls } from "../../ui/density";
+import { ThreadPanelSection } from "./ThreadPanelSection";
 import { TextInput } from "../../ui/TextInput";
 import { useUpdateBlocker } from "../updates/useUpdateBlocker";
 import { useLiveTime } from "../../ui/time";
@@ -132,24 +134,24 @@ function SecretRequest({ secret, disabled }: { secret: ui.ThreadSecret; disabled
 
 /** Active grants contain metadata only; a saved value is never returned by the API. */
 export function SecretGrants({ secrets, disabled }: { secrets: readonly ui.ThreadSecret[]; disabled: boolean }) {
-  const c = useColors();
   const now = useLiveTime(secrets.some((secret) => secret.status === "saved" && !!secret.expiresAt));
   const active = secrets.filter((s) => s.status === "saved" && (!s.expiresAt || timestampMs(s.expiresAt) > now));
 
   if (!active.length) return null;
 
   return (
-    <View style={{ gap: 12 }}>
-      <Text style={[styles.label, { color: c.text }]}>Active secrets</Text>
+    <ThreadPanelSection title="Active secrets" count={active.length}>
       {active.map((secret) => (
         <SecretGrant key={secret.requestId} secret={secret} disabled={disabled} />
       ))}
-    </View>
+    </ThreadPanelSection>
   );
 }
 
 function SecretGrant({ secret, disabled }: { secret: ui.ThreadSecret; disabled: boolean }) {
   const c = useColors();
+  const type = useTypography();
+  const compact = useCompactControls();
   const { client } = useSession();
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
@@ -172,7 +174,7 @@ function SecretGrant({ secret, disabled }: { secret: ui.ThreadSecret; disabled: 
     <View style={{ gap: 6 }}>
       <View style={styles.row}>
         <View style={{ flex: 1, gap: 4 }}>
-          <Text numberOfLines={2} style={[styles.body, { color: c.text }]}>
+          <Text numberOfLines={compact ? 1 : 2} style={[compact ? type.chrome : styles.body, { color: c.text }]}>
             {secret.label || "Secret"}
           </Text>
           {secret.expiresAt && (

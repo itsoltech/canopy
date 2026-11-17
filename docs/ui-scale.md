@@ -1,6 +1,7 @@
 # Skala typografii i gęstości UI
 
-Status (2026-11-16): opis zaimplementowanej skali web/desktop, w tym dwuliniowych
+Status (2026-11-17): opis zaimplementowanej skali web/desktop i zwartego arkusza
+szczegółów wątku na natywnym mobile, w tym dwuliniowych
 kart sidebara, ich jednoliniowego wariantu w worktree, ikon projektów, wcięć i linii hierarchii
 oraz kompaktowego wariantu przełącznika i adaptacyjnych pickerów composera.
 Dostępność kanałów: [release.md](release.md).
@@ -213,6 +214,10 @@ natywne działanie przeglądarki na zaznaczalnych obszarach.
   i dostaje kontekst sama. Własny panel w top layer dostaje klasę `density-overlay`
   i `provideDensity("overlay")`.
 - Panel szczegółów wątku korzysta z `density-chrome`, także w arkuszu telefonu.
+  Natywny mobile stosuje te same stopnie chrome, małe akcje sekcji i przełącznik
+  `sm` (32 × 18 dp); cel dotykowy pozostaje co najmniej 48 dp. Nagłówek arkusza
+  jest kompaktowy, sekcje dzielą delikatne linie, a puste zadania w tle i lineage
+  nie są renderowane.
   Wiersze mają co najmniej 36 / 32 px, odstęp ikon 8 px i pionowy padding sekcji 4 px.
   Położenie i gałąź mają po jednym wierszu bez osobnej etykiety: worktree pokazuje swoją
   nazwę, katalog skraca początek ścieżki, gałąź skraca środek; nie łamiemy ścieżek ani nazw.

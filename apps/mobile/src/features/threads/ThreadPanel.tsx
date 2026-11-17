@@ -4,7 +4,7 @@ import type { ui } from "@canopy/contracts";
 import { useOverview } from "../../state/overview";
 import { Button, Sheet } from "../../ui/components";
 import { Icon } from "../../ui/Icon";
-import { styles, useColors } from "../../ui/theme";
+import { styles, useColors, useTypography } from "../../ui/theme";
 import { ThreadConnectors } from "./ThreadConnectors";
 import { useThreadPanel } from "./use-thread-panel";
 import { ThreadPlacement } from "./ThreadPlacement";
@@ -13,9 +13,10 @@ import { SubagentLineage } from "./SubagentLineage";
 import { SecretGrants } from "./ThreadSecrets";
 import { useComputerHome } from "../computers/presence";
 import { useSession } from "../../state/session";
-import { openSettingsSection } from "../settings/navigation";
 import { ThreadPullRequests } from "../github/ThreadPullRequests";
 import { ThreadAutoArchive } from "./ThreadAutoArchive";
+import { ThreadPanelSection } from "./ThreadPanelSection";
+import { ThreadSchedules } from "./ThreadSchedules";
 
 export function PanelRow({
   title,
@@ -64,6 +65,7 @@ export function ThreadPanel({
   const thread = snapshot?.thread;
   const home = useComputerHome(thread?.nodeId);
   const { online } = useSession();
+  const type = useTypography();
   const panel = useThreadPanel(thread?.id ?? "", visible && !!thread);
 
   const stale =
@@ -89,7 +91,7 @@ export function ThreadPanel({
   }
 
   return (
-    <Sheet title="Thread details" visible={visible} onClose={onClose} snap>
+    <Sheet title="Thread details" visible={visible} onClose={onClose} snap compact>
       {thread && (
         <>
           {stale && (
@@ -99,31 +101,26 @@ export function ThreadPanel({
                 : `${home.reason || `Thread details on ${home.name} are unreachable.`} Showing last known details.`}
             </Text>
           )}
-          <ThreadConnectors {...{ thread, panel }} disabled={stale} homeName={home.name} />
-          <View
-            style={{
-              borderWidth: 1,
-              borderColor: c.line,
-              borderRadius: 16,
-              paddingHorizontal: 16,
-            }}
-          >
-            <PanelRow
-              title="Worker"
-              value={`${worker?.name ?? "Unknown worker"} · ${worker?.online ? "Online" : "Offline"}`}
-              icon="computer-desktop"
-            />
+          <ThreadPanelSection>
+            <View style={[styles.row, { minHeight: 40 }]}>
+              <Icon name="computer-desktop" />
+              <Text numberOfLines={1} style={[type.chrome, { flex: 1, color: c.text }]}>
+                {worker?.name ?? "Unknown worker"}
+              </Text>
+              <Text style={[type.meta, { color: c.muted }]}>{worker?.online ? "Online" : "Offline"}</Text>
+            </View>
             <ThreadPlacement thread={thread} onClose={onClose} />
             {!!thread.permissionModeNote && (
-              <Text style={[styles.meta, { color: c.muted }]}>{thread.permissionModeNote}</Text>
+              <Text style={[type.meta, { color: c.muted }]}>{thread.permissionModeNote}</Text>
             )}
-          </View>
+          </ThreadPanelSection>
           {visible && (
-            <View style={{ gap: 4, minWidth: 0 }}>
+            <View style={{ minWidth: 0 }}>
               <ThreadPullRequests thread={thread} onClose={onClose} />
               <ThreadAutoArchive key={thread.id} thread={thread} disabled={stale} />
             </View>
           )}
+          {snapshot && <ThreadBackgroundTasks snapshot={snapshot} disabled={home.away || !online} onOpen={onClose} />}
           {visible && <SecretGrants secrets={snapshot?.secrets ?? []} disabled={home.away || !online} />}
           {snapshot && (
             <ThreadSchedules
@@ -138,53 +135,24 @@ export function ThreadPanel({
               onClose={onClose}
             />
           )}
-          {snapshot && <ThreadBackgroundTasks snapshot={snapshot} disabled={home.away || !online} onOpen={onClose} />}
-          <Text style={[styles.label, { color: c.text }]}>Lineage</Text>
-          {lineage.length || subagents.length ? (
-            lineage.map((t) => <Button key={t.id} title={t.title} onPress={() => openThread(t.id)} />)
-          ) : (
-            <Text style={[styles.meta, { color: c.muted }]}>Main thread</Text>
+          <ThreadConnectors {...{ thread, panel }} disabled={stale} homeName={home.name} />
+          {(lineage.length > 0 || subagents.length > 0) && (
+            <ThreadPanelSection title="Lineage">
+              {lineage.map((t) => (
+                <Button
+                  key={t.id}
+                  title={t.title}
+                  variant="ghost"
+                  icon="chat-bubble-left-right"
+                  style={{ justifyContent: "flex-start", minHeight: 40 }}
+                  onPress={() => openThread(t.id)}
+                />
+              ))}
+              <SubagentLineage threads={subagents} onOpen={openThread} />
+            </ThreadPanelSection>
           )}
-          <SubagentLineage threads={subagents} onOpen={openThread} />
         </>
       )}
     </Sheet>
-  );
-}
-
-export function ThreadSchedules({
-  snapshot,
-  schedules,
-  unavailable,
-  disabled,
-  onClose,
-}: {
-  snapshot: ui.ThreadSnapshot;
-  schedules: readonly ui.Schedule[];
-  unavailable: boolean;
-  disabled: boolean;
-  onClose: () => void;
-}) {
-  const c = useColors();
-
-  return (
-    <View style={{ gap: 8 }}>
-      <Text style={[styles.label, { color: c.text }]}>Scheduled tasks</Text>
-      {schedules.length ? (
-        schedules.map((s) => <PanelRow key={s.id} title={s.name || "Scheduled task"} value={s.status} icon="clock" />)
-      ) : (
-        <Text style={[styles.meta, { color: c.muted }]}>
-          {unavailable ? "Connect to load scheduled tasks" : "No scheduled tasks"}
-        </Text>
-      )}
-      <Button
-        title="Manage thread schedules"
-        disabled={disabled}
-        onPress={() => {
-          onClose();
-          openSettingsSection("schedules", { threadId: snapshot.thread?.id ?? "" });
-        }}
-      />
-    </View>
   );
 }

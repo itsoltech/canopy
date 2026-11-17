@@ -3,17 +3,18 @@ import { Text, View } from "react-native";
 import type { ui, github } from "@canopy/contracts";
 import { useSession } from "../../state/session";
 import { useSharedQuery } from "../../state/queries";
-import { Button, Notice } from "../../ui/components";
-import { styles, useColors } from "../../ui/theme";
+import { Notice } from "../../ui/components";
+import { Button, IconButton } from "../../ui/Button";
+import { useColors, useTypography } from "../../ui/theme";
 import { LinkPullRequest } from "./LinkPullRequest";
 import { CreatePullRequest } from "./CreatePullRequest";
 import { LinkedPullRequestRow } from "./LinkedPullRequestRow";
 import { pullRequestsRefreshing } from "@canopy/domain/github-pr";
 import { useQueryRefresh } from "../../state/query-refresh";
+import { ThreadPanelSection } from "../threads/ThreadPanelSection";
 
 export function ThreadPullRequests({ thread, onClose }: { thread: ui.Thread; onClose: () => void }) {
   const { client, queries, online } = useSession();
-  const c = useColors();
   const [expanded, setExpanded] = useState(false);
   const [offset, setOffset] = useState(0);
   const [linking, setLinking] = useState(false);
@@ -46,8 +47,35 @@ export function ThreadPullRequests({ thread, onClose }: { thread: ui.Thread; onC
   }, [read.data, offset, total]);
 
   return (
-    <View style={{ gap: 10, minWidth: 0 }}>
-      <Text style={[styles.label, { color: c.text }]}>Pull requests · {total}</Text>
+    <ThreadPanelSection
+      title="Pull requests"
+      count={total}
+      style={{ borderBottomWidth: 0 }}
+      action={
+        <View style={{ flexDirection: "row", height: 48 }}>
+          <View style={{ width: 48, height: 48, alignItems: "center", justifyContent: "center" }}>
+            <IconButton
+              icon="link"
+              label="Link pull request"
+              size="sm"
+              disabled={!online || read.data?.stale}
+              onPress={() => setLinking(true)}
+            />
+          </View>
+          <View style={{ width: 48, height: 48, alignItems: "center", justifyContent: "center" }}>
+            {!read.data?.hasCurrentBranch && !links.some((link) => link.currentBranch) && (
+              <IconButton
+                icon="plus"
+                label="Create pull request"
+                size="sm"
+                disabled={!online || read.data?.stale}
+                onPress={() => setCreating(true)}
+              />
+            )}
+          </View>
+        </View>
+      }
+    >
       {(expanded ? links : links.slice(0, 4)).map((link) => (
         <LinkedPullRequestRow
           key={link.summary?.ref?.id}
@@ -63,29 +91,11 @@ export function ThreadPullRequests({ thread, onClose }: { thread: ui.Thread; onC
         />
       ))}
       {expanded && total > 20 && (
-        <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between" }}>
-          <Button
-            variant="ghost"
-            size="sm"
-            title="Previous"
-            disabled={!offset}
-            onPress={() => setOffset(Math.max(0, offset - 20))}
-          />
-          <Text style={{ color: c.text }}>
-            {offset + 1}–{Math.min(offset + 20, total)} of {total}
-          </Text>
-          <Button
-            variant="ghost"
-            size="sm"
-            title="Next"
-            disabled={!read.data?.nextOffset}
-            onPress={() => setOffset(read.data?.nextOffset ?? 0)}
-          />
-        </View>
+        <PullRequestPagination offset={offset} total={total} nextOffset={read.data?.nextOffset} onPage={setOffset} />
       )}
       {total > 4 && (
         <Button
-          variant="ghost"
+          variant="text"
           size="sm"
           title={expanded ? "Show less" : `Show ${total - 4} more`}
           onPress={() => {
@@ -97,15 +107,9 @@ export function ThreadPullRequests({ thread, onClose }: { thread: ui.Thread; onC
       {!!read.error && (
         <>
           <Notice error>Could not load pull requests. Check the connection, then retry.</Notice>
-          <Button title="Retry" onPress={() => void read.reload()} />
+          <Button title="Retry" variant="text" size="sm" onPress={() => void read.reload()} />
         </>
       )}
-      <Button
-        variant="ghost"
-        title={linking ? "Cancel" : "+ Link pull request"}
-        disabled={!online || read.data?.stale}
-        onPress={() => setLinking(!linking)}
-      />
       <LinkPullRequest
         visible={linking}
         onClose={() => setLinking(false)}
@@ -116,14 +120,6 @@ export function ThreadPullRequests({ thread, onClose }: { thread: ui.Thread; onC
           queries.set(`ListThreadPullRequests:${thread.id}:${thread.pullRequestRevision}:0`, value);
         }}
       />
-      {!read.data?.hasCurrentBranch && !links.some((link) => link.currentBranch) && (
-        <Button
-          variant="ghost"
-          title="Create pull request"
-          disabled={!online || read.data?.stale}
-          onPress={() => setCreating(true)}
-        />
-      )}
       <CreatePullRequest
         threadId={thread.id}
         visible={creating}
@@ -131,6 +127,37 @@ export function ThreadPullRequests({ thread, onClose }: { thread: ui.Thread; onC
         oncreated={() => void read.reload()}
         ondrafted={onClose}
       />
+    </ThreadPanelSection>
+  );
+}
+
+function PullRequestPagination({
+  offset,
+  total,
+  nextOffset,
+  onPage,
+}: {
+  offset: number;
+  total: number;
+  nextOffset: number | undefined;
+  onPage: (offset: number) => void;
+}) {
+  const c = useColors();
+  const type = useTypography();
+
+  return (
+    <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 8 }}>
+      <Button
+        variant="text"
+        size="sm"
+        title="Previous"
+        disabled={!offset}
+        onPress={() => onPage(Math.max(0, offset - 20))}
+      />
+      <Text accessibilityLiveRegion="polite" style={[type.meta, { color: c.muted, fontVariant: ["tabular-nums"] }]}>
+        {offset + 1}–{Math.min(offset + 20, total)} of {total}
+      </Text>
+      <Button variant="text" size="sm" title="Next" disabled={!nextOffset} onPress={() => onPage(nextOffset ?? 0)} />
     </View>
   );
 }

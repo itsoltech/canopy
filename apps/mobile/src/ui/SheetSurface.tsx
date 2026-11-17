@@ -1,5 +1,5 @@
 import type { ReactNode } from "react";
-import { ScrollView, View } from "react-native";
+import { ScrollView, View, type StyleProp, type ViewStyle } from "react-native";
 import { Overlay } from "./Overlay";
 import { SheetDragArea } from "./SheetDragArea";
 import { ContentInsets, PaneInsets } from "./ScreenFrame";
@@ -16,6 +16,7 @@ export function SheetSurface({
   scroll = true,
   footer,
   snap = false,
+  contentStyle,
 }: {
   visible: boolean;
   onClose: () => void;
@@ -25,6 +26,7 @@ export function SheetSurface({
   scroll?: boolean;
   footer?: ReactNode;
   snap?: boolean;
+  contentStyle?: StyleProp<ViewStyle>;
 }) {
   return (
     <Overlay visible={visible} onClose={onClose} label={label} fullHeight snap={snap}>
@@ -39,7 +41,10 @@ export function SheetSurface({
               keyboardShouldPersistTaps="handled"
               contentInsetAdjustmentBehavior="never"
               automaticallyAdjustContentInsets={false}
-              contentContainerStyle={{ padding: 20, gap: 16, width: "100%", maxWidth: 600, alignSelf: "center" }}
+              contentContainerStyle={[
+                { padding: 20, gap: 16, width: "100%", maxWidth: 600, alignSelf: "center" },
+                contentStyle,
+              ]}
             >
               {children}
             </ScrollView>

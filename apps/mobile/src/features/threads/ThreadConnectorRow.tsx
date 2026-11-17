@@ -51,11 +51,15 @@ export function ThreadConnectorRow({ account }: { account: ui.ThreadConnector })
   const { copy } = useCopyText(detail);
 
   return (
-    <View style={{ gap: 2, minWidth: 0, paddingVertical: 4 }}>
-      <View style={[styles.row, { minHeight: 36, flexWrap: "wrap", rowGap: 4 }]}>
+    <View style={{ gap: 2, minWidth: 0, paddingVertical: 2 }}>
+      <View style={[styles.row, { minHeight: 32, flexWrap: "wrap", rowGap: 4 }]}>
         <View style={[styles.row, { flexGrow: 1, flexShrink: 1, flexBasis: 144, minWidth: 0 }]}>
           <Icon name="link" />
-          <Text numberOfLines={1} style={[type.chrome, { minWidth: 0, flexShrink: 1, color: c.text }]}>
+          <Text
+            accessibilityLabel={name}
+            numberOfLines={1}
+            style={[type.chrome, { minWidth: 0, flexShrink: 1, color: c.text }]}
+          >
             {name}
           </Text>
         </View>

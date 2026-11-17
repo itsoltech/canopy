@@ -7,22 +7,28 @@ import { useMinimumTouchTarget } from "./density";
 
 /**
  * Web: Switch. 44 × 24 dp on phones: a zinc-200 (white/5) track turns brand when on; the white thumb travels on the
- * fast token, without motion under reduced motion. The 44 dp row height is the touch target.
+ * fast token, without motion under reduced motion. `sm` uses 32 × 18 dp with a 48 dp touch target.
  */
 export function Switch({
   label,
   value,
   onChange,
   disabled,
+  size = "md",
 }: {
   label: string;
   value: boolean;
   onChange: (value: boolean) => void;
   disabled?: boolean;
+  size?: "md" | "sm";
 }) {
   const c = useColors();
   const touchTarget = useMinimumTouchTarget();
   const reduced = useReducedMotion();
+  const width = size === "sm" ? 32 : 44;
+  const height = size === "sm" ? 18 : 24;
+  const thumb = height - 4;
+  const travel = width - height;
   const [x] = useState(() => new Animated.Value(value ? 1 : 0));
 
   useEffect(() => {
@@ -51,13 +57,22 @@ export function Switch({
       accessibilityState={{ checked: value, disabled }}
       disabled={disabled}
       onPress={() => onChange(!value)}
-      hitSlop={Math.max(10, (touchTarget - 24) / 2)}
+      hitSlop={
+        size === "sm"
+          ? {
+              top: (Math.max(48, touchTarget) - height) / 2,
+              bottom: (Math.max(48, touchTarget) - height) / 2,
+              left: (Math.max(48, touchTarget) - width) / 2,
+              right: (Math.max(48, touchTarget) - width) / 2,
+            }
+          : Math.max(10, (touchTarget - height) / 2)
+      }
       style={{
-        width: 44,
-        height: 24,
-        // The 1 dp ring and 1 dp padding leave 40 dp inside: a 20 dp thumb travelling 20 dp (web: p-0.5 inset-ring).
+        width,
+        height,
+        // The ring and padding each take 1 dp on either side (web: p-0.5 inset-ring).
         padding: 1,
-        borderRadius: 12,
+        borderRadius: height / 2,
         backgroundColor: value ? c.brand : c.track,
         borderWidth: 1,
         borderColor: c.dark ? "#ffffff1a" : "#18181b0d",
@@ -67,9 +82,9 @@ export function Switch({
     >
       <Animated.View
         style={{
-          width: 20,
-          height: 20,
-          borderRadius: 10,
+          width: thumb,
+          height: thumb,
+          borderRadius: thumb / 2,
           backgroundColor: value ? c.onControl : "#ffffff",
           borderWidth: 1,
           borderColor: "#18181b0d",
@@ -78,7 +93,7 @@ export function Switch({
           shadowRadius: 1,
           shadowOffset: { width: 0, height: 1 },
           elevation: 1,
-          transform: [{ translateX: x.interpolate({ inputRange: [0, 1], outputRange: [0, 20] }) }],
+          transform: [{ translateX: x.interpolate({ inputRange: [0, 1], outputRange: [0, travel] }) }],
         }}
       />
     </Pressable>
