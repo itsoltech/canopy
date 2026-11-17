@@ -28,11 +28,20 @@ export function runAgentToolOperation(
   command: RunAgentTool,
   executable: string,
   env: ToolEnv = process.env,
+  beforeExecute?: () => void,
 ): Promise<AgentToolOutput> {
   // Validate before queuing or starting a process, including flags hidden in target/value.
   agentToolOperationArgs(command, "screenshot.png");
 
-  return serializeAgentTool("operations", () => execute(command, executable, env), 2_500);
+  return serializeAgentTool(
+    "operations",
+    () => {
+      beforeExecute?.();
+
+      return execute(command, executable, env);
+    },
+    2_500,
+  );
 }
 
 async function execute(command: RunAgentTool, executable: string, sourceEnv: ToolEnv): Promise<AgentToolOutput> {

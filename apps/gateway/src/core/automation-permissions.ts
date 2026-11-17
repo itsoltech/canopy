@@ -108,7 +108,7 @@ async function execute(core: GatewayCore, request: AgentToolCall, lease: Authori
       throw new Error("Invalid automation arguments");
     const input = inputOf(args.arguments);
     const workerId = lease.connection.workerId;
-    await core.agentTools.authorize(workerId, args.tool);
+    await core.agentTools.authorizePreview(workerId, args.tool);
     const mode = await active(core, request, lease);
 
     if (mode === "READ_ONLY") throw new Error("Read-only threads cannot control automation tools");
@@ -140,7 +140,7 @@ async function execute(core: GatewayCore, request: AgentToolCall, lease: Authori
 
       for (;;) {
         await active(core, request, lease);
-        await core.agentTools.authorize(workerId, args.tool);
+        await core.agentTools.authorizePreview(workerId, args.tool);
         await allowFullAccessPermission(core, interaction, true);
         const answer = await coreRun(core, (store) => store.interactionAnswer(interaction.requestId));
 
@@ -155,7 +155,7 @@ async function execute(core: GatewayCore, request: AgentToolCall, lease: Authori
 
     if ((await active(core, request, lease)) === "READ_ONLY")
       throw new Error("Read-only threads cannot control automation tools");
-    await core.agentTools.authorize(workerId, args.tool);
+    await core.agentTools.authorizePreview(workerId, args.tool);
     ensureLive(core, lease);
     allowed = true;
     const activity = automationActivity(request, workerId, args.tool, args.name, input);

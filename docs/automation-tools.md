@@ -2,7 +2,8 @@
 
 Status (2026-11-17): **narzędzia, interaktywny Preview z podglądem zmiany viewportu,
 automatyczny mini Preview wątku, pełna karta Preview w web/desktop, ikony obu stanów skali
-oraz sprzątanie sesji przy archiwizacji zaimplementowane**.
+oraz rezerwacje urządzeń z oczekiwaniem, uruchamianiem skonfigurowanych emulatorów
+i sprzątaniem sesji przy archiwizacji zaimplementowane**.
 Natywny mobile ma ręczny pełnoekranowy Preview Browser/Desktop/Device z wyborem celu,
 dotykiem, nawigacją i wpisywaniem tekstu przez Connect z przypiętym TLS. Wszystkie
 trzy narzędzia mają stałą belkę zamknięcia i możliwość ukrycia kontrolek.
@@ -109,7 +110,12 @@ Workers. Domyślnie jest wyłączony. Sama obecność lub gotowość binarki nie
 agentowi dostępu. Grant jest zapisany dla konkretnego workera i właściciela;
 wyłączenie go usuwa narzędzie z kolejnych `ThreadSpec`.
 
-Gateway dołącza do wątku wyłącznie gotowe i przyznane identyfikatory narzędzi.
+Gateway dołącza do wątku gotowe i przyznane identyfikatory narzędzi. Device jest
+wyjątkiem od gotowości celu: przyznana, zainstalowana binarka w przypiętej wersji,
+poza trwającą instalacją, udostępnia MCP także bez uruchomionego urządzenia.
+Pozwala to odkryć cele i zaczekać na rezerwację albo uruchomić emulator.
+Zwykłe `RunAgentTool` nadal wymaga gotowości; samo MCP przy wykonywaniu operacji
+sprawdza rezerwację i rzeczywiste urządzenie.
 Przy każdym wywołaniu MCP worker wysyła do gatewaya wewnętrzne żądanie
 autoryzacji. Gateway sprawdza właściciela, workera przypiętego do wątku, bieżącą
 turę i jej `turn_id`, stan archiwizacji/cofania, aktualny grant oraz wygaśnięcie
@@ -170,8 +176,11 @@ wywołania Browser/Device MCP, w tym w `input` kroków Device `batch`.
 Sam domyślny env nie wystarcza: jawna nazwa sesji mogłaby odłączyć automatyzację
 od Preview, które zawsze używa sesji wątku.
 Device nie udostępnia `test`, także w batch: runner suite tworzy osobne sesje
-każdej próby, niezależnie od przypiętego `session`. Skrypty można wykonywać przez
-`replay` osobno, w sesji tego samego wątku; katalog i błędy wskazują tę drogę.
+każdej próby, niezależnie od przypiętego `session`. Zarządzane MCP nie udostępnia
+też `replay`: skrypt może wewnętrznie zmienić cel lub uruchomić albo wyłączyć
+urządzenie z pominięciem rezerwacji. Kroki skryptu należy wykonywać osobnymi
+wywołaniami narzędzi albo przez `batch`; zmiany cyklu życia urządzenia, `close`
+i zagnieżdżone batch są w batch odrzucane.
 Bridge obsługuje dokładnie te dwa opcjonalne klucze env,
 usuwa ich ambient/base wartości i kopiuje tylko wartości z descriptora. Zmienne
 sesji dotyczą wyłącznie odpowiedniego procesu. UUID-y wątku pozostają bez zmian.
@@ -186,7 +195,9 @@ wyłącznie dla deterministycznej sesji wątku: Browser zamyka przeglądarkę,
 Desktop wyłącza jej cursor overlay, a Device zamyka sesję i należące do niej
 helpery oraz zarządzaną przeglądarkę. Desktop nie dostaje trwałego `session end`,
 więc ten sam wątek może ponownie korzystać z automatyzacji po przywróceniu.
-Wspólny daemon Device oraz aplikacje i sesje innych wątków pozostają dostępne.
+Rezerwacja Device jest zwalniana po zamknięciu jego sesji; emulator lub symulator
+uruchomiony przez pulę workera jest wtedy wyłączany. Wspólny daemon Device oraz
+aplikacje i sesje innych wątków pozostają dostępne.
 Historia i artefakty na dysku są zachowane. Sprawdzenia istniejących sesji nie
 uruchamiają nieużywanego daemona; brak obsługiwanej binarki albo błąd zamykania
 ograniczają możliwość zwolnienia zasobów natywnych. Błąd wykonanej operacji
@@ -220,11 +231,60 @@ bearer, liczba żądań, czas oczekiwania, katalog narzędzi i rozmiary odpowied
 mają limity; narzędzie nie może zmienić komendy ani środowiska procesu.
 
 Żądanie i odpowiedź HTTP MCP mają limit 6 MiB, deadline HTTP wynosi 300 sekund,
-a każde połączenie i wywołanie procesu stdio ma deadline 60 sekund. Bridge
+połączenie i zwykłe wywołanie procesu stdio mają deadline 60 sekund,
+a wywołanie Device — 90 sekund. Zarządzane oczekiwanie na rezerwację używa
+własnego limitu do 240 sekund w ramach deadline HTTP. Anulowanie rezerwacji
+zwraca wynik od razu; już wysłany start urządzenia ma osobny, skończony deadline,
+a worker czeka na jego wynik i sprząta urządzenie po potwierdzeniu tożsamości. Bridge
 przekazuje upstreamowe bloki odpowiedzi wraz z ich MIME, zamiast zamieniać je na
 lokalny format obrazu. Jeden endpoint przyjmuje najwyżej 32 oczekujące RPC,
 a bridge najwyżej 64 aktywne ciała żądań łącznie. Timer deadline i listenery
 anulowania są usuwane po zakończeniu żądania.
+
+## Rezerwacje urządzeń i emulatory
+
+Worker ma jedną pulę rezerwacji współdzieloną przez Claude, Codexa, Groka,
+`RunAgentTool` i Preview. Urządzenie należy wyłącznie do jednego wątku;
+różne wątki nie mogą wysyłać na nie równoległych gestów ani przejmować jego celu.
+Pula korzysta z lokalnego daemona przez socket i natywnych identyfikatorów AVD
+lub symulatora. Odrzuca zdalne adresy daemona oraz identyfikatory dostawców
+chmurowych. Niestandardowe pluginy dostawców nie są obsługiwane: format inventory
+nie pozwala odróżnić ich urządzeń, jeśli podszywają się pod natywny identyfikator.
+
+- `acquire_device` czeka na wolny cel: domyślnie 60 sekund, maksymalnie
+  240 sekund (`timeoutMs`). Można podać `platform` i nazwę lub ID w `device`.
+  Anulowanie wywołania, zamknięcie bridge'a albo archiwizacja przerywa oczekiwanie.
+- Domyślne `boot: true` pozwala uruchomić kolejny już skonfigurowany Android AVD
+  albo symulator iOS, gdy pasujące uruchomione urządzenia są zajęte. Worker
+  uruchamia najwyżej dwa własne urządzenia wirtualne równocześnie. Nie tworzy
+  obrazów, nie instaluje SDK i nie klonuje urządzeń. `boot: false` tylko rezerwuje
+  już uruchomiony cel. Brak konfiguracji lub wymaganych SDK jest błędem.
+- Kolejne operacje używają rezerwacji bez konieczności powtarzania selektora.
+  Jawny inny cel jest błędem; trzeba najpierw zwolnić bieżący.
+  `batch` przypina wszystkie kroki do tego samego urządzenia. Preview i zwykłe
+  operacje mogą zarezerwować wolny, uruchomiony cel bez oczekiwania w kolejce;
+  zajęty cel zgłasza błąd zamiast przejąć urządzenie innego wątku.
+- `release_device` zamyka sesję Device i zwalnia rezerwację po zakończeniu
+  operacji w toku. `shutdown` w MCP ma tę samą semantykę i dotyczy wyłącznie
+  rezerwacji bieżącego wątku. Emulator uruchomiony wcześniej przez użytkownika
+  oraz urządzenie fizyczne nie są wyłączane przez pulę.
+- Pięć minut bez wywołań lub aktywnego Preview zwalnia rezerwację i wyłącza
+  własną instancję. Operacja w toku wstrzymuje ten licznik. Archiwizacja
+  zwalnia ją od razu po anulowaniu oczekujących wywołań i opróżnieniu operacji;
+  zatrzymanie workera również sprząta jego instancje.
+
+Worker zapisuje rezerwacje i własność uruchamianych instancji atomowo w swoim katalogu danych,
+przed startem i ponownie po uzyskaniu identyfikatora działającego urządzenia.
+Po restarcie zamyka zapisane sesje rezerwacji, także na urządzeniach fizycznych
+i instancjach uruchomionych wcześniej przez użytkownika, a wyłącza tylko własne
+urządzenia wirtualne. Robi to przed nowymi rezerwacjami. Nieudane sprzątanie zachowuje wpis do ponowienia; nie zwalnia
+w ciemno urządzenia trzymanego przez inną sesję. Wąskie okno awarii podczas
+startu Android AVD może pozostawić tylko nazwę konfiguracji, bez serialu
+uruchomionej instancji. Worker zachowuje wtedy błąd i zapis własności zamiast
+zgadywać, który proces wyłączyć. Nawet chwilowy brak działającego AVD nie
+potwierdza zakończenia opóźnionego startu w daemonie; taki niejednoznaczny wpis
+wymaga wyjaśnienia przed zwolnieniem rezerwacji.
+Nie jest to gwarancja sprzątania przy niedostępnych SDK lub uszkodzonej binarce.
 
 ## Instalacja i dostęp w Settings → Workers
 

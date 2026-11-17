@@ -24,7 +24,10 @@ export const AGENT_TOOL_LOG_LINES = 200;
 const enabledOf = Schema.decodeUnknownOption(Schema.Record(Schema.String, Schema.Boolean));
 const MAX_TEXT = 512 * 1024;
 const MAX_IMAGE = 4 * 1024 * 1024;
-const DEVICE_PREVIEW_VERSION = "0.21.37";
+const DEVICE_VERSION = "0.21.37";
+
+const deviceAvailable = (info: AgentToolsReport["tools"][number] | undefined) =>
+  Boolean(info?.installed && info.version === DEVICE_VERSION && info.install?.state !== "running");
 
 interface AgentToolRow {
   id: string;
@@ -158,14 +161,19 @@ export class AgentTools {
     }
   }
 
-  /** An installed binary is available to agents only after the owner's explicit grant. */
+  /** Device MCP can acquire a target before doctor is ready; every tool needs the owner's grant. */
   async readyTools(id: string): Promise<AgentTool[]> {
     if (!UUID.test(id) || !this.#supported(id)) return [];
     const row = (await this.#rows([id])).get(id);
 
     return (
       row?.report?.tools.flatMap((tool) =>
-        TOOLS.has(tool.tool) && row.enabled[String(tool.tool)] && tool.installed && tool.ready ? [tool.tool] : [],
+        TOOLS.has(tool.tool) &&
+        row.enabled[String(tool.tool)] &&
+        tool.installed &&
+        (tool.tool === AgentTool.DEVICE ? deviceAvailable(tool) : tool.ready)
+          ? [tool.tool]
+          : [],
       ) ?? []
     );
   }
@@ -187,7 +195,7 @@ export class AgentTools {
       throw new ConnectError("enable this automation tool on the worker first", Code.PermissionDenied);
     const info = row.report?.tools.find((item) => item.tool === tool);
 
-    if (!info?.installed || info.version !== DEVICE_PREVIEW_VERSION || info.install?.state === "running")
+    if (!deviceAvailable(info))
       throw new ConnectError(
         "install the pinned agent-device version before opening its preview",
         Code.FailedPrecondition,

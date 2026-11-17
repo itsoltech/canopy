@@ -86,7 +86,7 @@ export class DeviceInput {
     }
 
     if (input.kind === "key-down") {
-      if (await deviceKey(this.#runtime, input)) return;
+      if (await this.#runtime.useDevice(() => deviceKey(this.#runtime, input))) return;
 
       if (["Alt", "Control", "Meta", "Shift"].includes(input.key)) return;
 

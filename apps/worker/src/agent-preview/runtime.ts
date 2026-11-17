@@ -54,43 +54,52 @@ export class PreviewRuntime {
     const signal = options.cleanup ? AbortSignal.timeout(2_000) : this.#signal;
     signal.throwIfAborted();
 
-    return serializeAgentTool(
-      "operations",
-      async () => {
-        signal.throwIfAborted();
+    const execute = () =>
+      serializeAgentTool(
+        "operations",
+        async () => {
+          signal.throwIfAborted();
 
-        const result = await runProcess(
-          {
-            argv: toolArgv(this.#resolved.executable, [...this.#prefix(args), ...args], this.#resolved.env),
-            env: this.#resolved.env,
-            signal,
-            timeoutMs: options.timeoutMs ?? 12_000,
-            maxBytes: 512 * 1024,
-            ...(options.input !== undefined && { input: options.input }),
-          },
-          { kind: "utility", maxQueueMs: 1_000, signal },
-        );
-
-        let parsed: z.infer<typeof envelope>;
-
-        try {
-          parsed = envelope.parse(JSON.parse(result.stdout));
-        } catch {
-          throw new Error(this.redact(result.stderr || result.stdout || "Preview command returned invalid JSON"));
-        }
-
-        if (result.code !== 0 || parsed.ok === false || parsed.success === false) {
-          const error = z.string().safeParse(parsed.error);
-          const object = z.object({ message: z.string() }).safeParse(parsed.error);
-          throw new Error(
-            this.redact(error.success ? error.data : object.success ? object.data.message : "Preview command failed"),
+          const result = await runProcess(
+            {
+              argv: toolArgv(this.#resolved.executable, [...this.#prefix(args), ...args], this.#resolved.env),
+              env: this.#resolved.env,
+              signal,
+              timeoutMs: options.timeoutMs ?? 12_000,
+              maxBytes: 512 * 1024,
+              ...(options.input !== undefined && { input: options.input }),
+            },
+            { kind: "utility", maxQueueMs: 1_000, signal },
           );
-        }
 
-        return parsed.data ?? null;
-      },
-      1_000,
-    );
+          let parsed: z.infer<typeof envelope>;
+
+          try {
+            parsed = envelope.parse(JSON.parse(result.stdout));
+          } catch {
+            throw new Error(this.redact(result.stderr || result.stdout || "Preview command returned invalid JSON"));
+          }
+
+          if (result.code !== 0 || parsed.ok === false || parsed.success === false) {
+            const error = z.string().safeParse(parsed.error);
+            const object = z.object({ message: z.string() }).safeParse(parsed.error);
+            throw new Error(
+              this.redact(error.success ? error.data : object.success ? object.data.message : "Preview command failed"),
+            );
+          }
+
+          return parsed.data ?? null;
+        },
+        1_000,
+      );
+
+    return this.scope.tool === AgentTool.DEVICE && !["devices", "session"].includes(args[0] ?? "")
+      ? this.useDevice(execute)
+      : execute();
+  }
+
+  useDevice<T>(work: () => Promise<T>): Promise<T> {
+    return this.#resolved.useDevice(this.#signal, work);
   }
 
   #prefix(args: readonly string[]): string[] {

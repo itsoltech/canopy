@@ -72,7 +72,7 @@ function report(overrides: MessageInitShape<typeof AgentToolInfoSchema> = {}): A
         ready: true,
         installable: true,
         screenshot: true,
-        version,
+        version: tool === AgentTool.DEVICE ? "0.21.37" : version,
         ...overrides,
       }),
     ),
@@ -142,19 +142,25 @@ async function heldThread(mode = PermissionMode.ASK, worker = gateway.worker, wo
   return { threadId: thread.id, turnId: turn.id };
 }
 
-function authorization(target: { threadId: string; turnId: string }, ttl = 5000) {
+function authorization(target: { threadId: string; turnId: string }, ttl = 5000, tool = AgentTool.BROWSER) {
   return create(AgentToolCallSchema, {
     ...target,
     callId: crypto.randomUUID(),
     itemId: "private-automation",
     toolName: "authorize_local_automation",
-    argumentsJson: JSON.stringify({ tool: AgentTool.BROWSER, name: "click", arguments: '{"target":"@e1"}' }),
+    argumentsJson: JSON.stringify({ tool, name: "click", arguments: '{"target":"@e1"}' }),
     expiresAt: timestampFromDate(new Date(Date.now() + ttl)),
   });
 }
 
 const pending = (threadId: string) =>
   gateway.runtime.runPromise(GatewayStore.use((store) => store.pendingInteractions(threadId)));
+
+const pendingPrompt = (threadId: string) =>
+  eventually(
+    () => pending(threadId),
+    (items) => items.length === 1,
+  );
 
 const connection = (workerId = gateway.workerId) => {
   const found = gateway.core.link.connections.get(workerId);
@@ -307,6 +313,9 @@ describe.skipIf(!dockerAvailable)("automation owner grants and transient gateway
     );
     expect(await code(gateway.api.refreshAgentTools({ workerId: foreign.workerId }))).toBe(Code.NotFound);
     expect(await code(gateway.core.agentTools.authorize(foreign.workerId, AgentTool.BROWSER))).toBe(Code.NotFound);
+    expect(await code(gateway.core.agentTools.authorizePreview(foreign.workerId, AgentTool.DEVICE))).toBe(
+      Code.NotFound,
+    );
     expect(await gateway.core.agentTools.readyTools(foreign.workerId)).toEqual([]);
     expect(
       await query<{ report: string | null }>(
@@ -478,22 +487,23 @@ describe.skipIf(!dockerAvailable)("automation owner grants and transient gateway
     expect(automation(gateway.worker)).toHaveLength(before);
   });
 
-  test("readiness and screenshot capability are gateway gates even when the owner enabled the tool", async () => {
-    await grant(true);
-    await publish(report({ ready: false }));
-    expect((await view())?.agentTools.map((item) => item.action)).toEqual(["install", "install", "install"]);
-    expect(await gateway.core.agentTools.readyTools(gateway.workerId)).toEqual([]);
-    expect(await code(run())).toBe(Code.FailedPrecondition);
-    expect(await code(gateway.core.agentTools.authorize(gateway.workerId, AgentTool.BROWSER))).toBe(
-      Code.FailedPrecondition,
-    );
-    await publish(report({ installed: false }));
-    expect(await code(run())).toBe(Code.FailedPrecondition);
-    await publish(report({ screenshot: false }));
-    expect(await code(run("screenshot"))).toBe(Code.FailedPrecondition);
-    expect(automation(gateway.worker)).toEqual([]);
-    expect((await run()).result?.text).toBe("automation snapshot");
-  });
+  test.each([AgentTool.BROWSER, AgentTool.DESKTOP])(
+    "tool %s requires readiness and screenshot capability",
+    async (tool) => {
+      await grant(true, tool);
+      await publish(report({ ready: false }));
+      expect((await view())?.agentTools.map((item) => item.action)).toEqual(["install", "install", "install"]);
+      expect(await gateway.core.agentTools.readyTools(gateway.workerId)).toEqual([]);
+      expect(await code(run("snapshot", gateway.workerId, tool))).toBe(Code.FailedPrecondition);
+      expect(await code(gateway.core.agentTools.authorize(gateway.workerId, tool))).toBe(Code.FailedPrecondition);
+      await publish(report({ installed: false }));
+      expect(await code(run("snapshot", gateway.workerId, tool))).toBe(Code.FailedPrecondition);
+      await publish(report({ screenshot: false }));
+      expect(await code(run("screenshot", gateway.workerId, tool))).toBe(Code.FailedPrecondition);
+      expect(automation(gateway.worker)).toEqual([]);
+      expect((await run("snapshot", gateway.workerId, tool)).result?.text).toBe("automation snapshot");
+    },
+  );
 
   test("malformed reports cannot replace the last valid facts and install progress is bounded and transient", async () => {
     const current = await publish(report({ install: { installId: "current-install", state: "running" } }));
@@ -630,178 +640,180 @@ describe.skipIf(!dockerAvailable)("automation owner grants and transient gateway
     expect(automation(reconnected)).toEqual([]);
   });
 
-  test("the private MCP bridge rechecks the live grant, active turn, worker and permission mode on every call", async () => {
-    await grant(true);
-    gateway.worker.holdTurns = true;
-    const project = (await gateway.api.createProject({ name: "Automation authorization" })).project!;
+  test.each([AgentTool.BROWSER, AgentTool.DEVICE])(
+    "MCP tool %s rechecks grants, turns, ownership and permissions",
+    async (tool) => {
+      await publish(report({ ready: tool !== AgentTool.DEVICE }));
+      await grant(true, tool);
+      const target = await heldThread(PermissionMode.FULL_AUTO);
 
-    const workspace = (
-      await gateway.api.createWorkspace({
-        projectId: project.id,
-        workerId: gateway.workerId,
-        rootPath: "/repo/automation-auth",
-      })
-    ).workspace!;
+      const authorize = (worker = gateway.worker, turnId = target.turnId, expiresAt = new Date(Date.now() + 60_000)) =>
+        worker.callTool({
+          ...target,
+          turnId,
+          tool: "authorize_local_automation",
+          args: { tool, name: "devices", arguments: "{}" },
+          expiresAt,
+        });
 
-    const thread = (
-      await gateway.api.createThread({
-        projectId: project.id,
-        workspaceId: workspace.id,
-        provider: Provider.CODEX,
-        permissionMode: PermissionMode.FULL_AUTO,
-      })
-    ).thread!;
+      try {
+        const start = gateway.worker.commands.find(
+          (command) => command.case === "startTurn" && command.value.turnId === target.turnId,
+        );
 
-    await gateway.worker.createdThread(thread.id);
+        expect(start?.case === "startTurn" && start.value.thread?.localMcpTools).toEqual([tool]);
+        expect((await authorize()).isError).toBe(false);
 
-    const turn = (
-      await gateway.api.sendMessage({
-        threadId: thread.id,
-        text: "Inspect the app",
-        clientRequestId: crypto.randomUUID(),
-      })
-    ).turn!;
+        if (tool === AgentTool.DEVICE) {
+          expect(await code(run("snapshot", gateway.workerId, tool))).toBe(Code.FailedPrecondition);
 
-    await eventually(async () => gateway.worker.started.has(turn.id), Boolean);
-    const args = { tool: AgentTool.BROWSER, name: "click", arguments: '{"target":"@e1"}' };
+          for (const invalid of [{ installed: false }, { version: "0.21.36" }, { install: { state: "running" } }]) {
+            await publish(report({ ...invalid }));
+            expect(await gateway.core.agentTools.readyTools(gateway.workerId)).toEqual([]);
+            expect((await authorize()).isError).toBe(true);
+          }
 
-    const authorize = (worker = gateway.worker, turnId = turn.id, expiresAt = new Date(Date.now() + 60_000)) =>
-      worker.callTool({ threadId: thread.id, turnId, tool: "authorize_local_automation", args, expiresAt });
+          await publish(report({ ready: false }));
+        }
 
-    try {
-      expect((await authorize()).isError).toBe(false);
-      await grant(false);
-      expect((await authorize()).isError).toBe(true);
-      await grant(true);
-      expect((await authorize()).isError).toBe(false);
-      expect((await authorize(gateway.worker, crypto.randomUUID())).isError).toBe(true);
-      expect((await authorize(gateway.worker, turn.id, new Date(Date.now() - 1000))).isError).toBe(true);
-      const other = await readyWorker("Wrong automation caller");
-      expect((await authorize(other.worker)).isError).toBe(true);
-      gateway.worker.finish(thread.id, turn.id);
-      await eventually(
-        () => gateway.api.getThread({ threadId: thread.id }),
-        (item) => item.thread?.status === "idle",
-      );
-      expect((await authorize()).isError).toBe(true);
+        await grant(false, tool);
+        expect((await authorize()).isError).toBe(true);
+        await grant(true, tool);
+        expect((await authorize()).isError).toBe(false);
+        expect((await authorize(gateway.worker, crypto.randomUUID())).isError).toBe(true);
+        expect((await authorize(gateway.worker, target.turnId, new Date(Date.now() - 1000))).isError).toBe(true);
+        const other = await readyWorker("Wrong automation caller");
+        await publish(report(), other.worker, other.workerId);
+        await grant(true, tool, other.workerId);
+        expect((await authorize(other.worker)).isError).toBe(true);
 
-      const readOnly = (
-        await gateway.api.sendMessage({
-          threadId: thread.id,
-          text: "Read only",
-          permissionMode: PermissionMode.READ_ONLY,
-          clientRequestId: crypto.randomUUID(),
-        })
-      ).turn!;
+        await query("UPDATE threads SET archived_at = now() WHERE id = $1", [target.threadId]);
+        expect((await authorize()).isError).toBe(true);
+        await query("UPDATE threads SET archived_at = NULL WHERE id = $1", [target.threadId]);
+        gateway.worker.finish(target.threadId, target.turnId);
+        await eventually(
+          () => gateway.api.getThread({ threadId: target.threadId }),
+          (item) => item.thread?.status === "idle",
+        );
+        expect((await authorize()).isError).toBe(true);
 
-      await eventually(async () => gateway.worker.started.has(readOnly.id), Boolean);
-      expect((await authorize(gateway.worker, readOnly.id)).isError).toBe(true);
-      gateway.worker.finish(thread.id, readOnly.id);
-    } finally {
-      gateway.worker.holdTurns = false;
-    }
-  });
+        const readOnly = (
+          await gateway.api.sendMessage({
+            threadId: target.threadId,
+            text: "Read only",
+            permissionMode: PermissionMode.READ_ONLY,
+            clientRequestId: crypto.randomUUID(),
+          })
+        ).turn!;
 
-  test("one pending MCP authorization cannot grant a duplicate envelope or reuse an earlier approval", async () => {
-    await grant(true);
-    const target = await heldThread();
-    const source = connection();
-    const call = authorization(target);
-    const original = authorizeLocalAutomation(gateway.core, call, source);
+        await eventually(async () => gateway.worker.started.has(readOnly.id), Boolean);
+        expect((await authorize(gateway.worker, readOnly.id)).isError).toBe(true);
+        gateway.worker.finish(target.threadId, readOnly.id);
+      } finally {
+        gateway.worker.holdTurns = false;
+      }
+    },
+  );
 
-    const prompts = await eventually(
-      () => pending(target.threadId),
-      (items) => items.length === 1,
-    );
-
-    expect(prompts).toHaveLength(1);
-    expect(prompts[0]?.requestId).not.toBe(call.callId);
-    expect(prompts[0]?.expiresAt).toEqual(call.expiresAt);
-    expect((await authorizeLocalAutomation(gateway.core, call, source)).isError).toBe(true);
-    expect(
-      (
-        await authorizeLocalAutomation(
-          gateway.core,
-          create(AgentToolCallSchema, {
-            ...call,
-            argumentsJson: JSON.stringify({ tool: AgentTool.BROWSER, name: "click", arguments: '{"target":"@e2"}' }),
-          }),
-          source,
-        )
-      ).isError,
-    ).toBe(true);
-    expect(await pending(target.threadId)).toHaveLength(1);
-    await gateway.api.answerInteraction({ requestId: prompts[0]!.requestId, allow: true });
-    expect((await original).isError).toBe(false);
-    expect((await authorizeLocalAutomation(gateway.core, call, source)).isError).toBe(true);
-    const stale = authorization(target);
-    await gateway.runtime.runPromise(
-      GatewayStore.use((store) =>
-        store.recordInteraction(
-          create(InteractionRequestSchema, {
-            requestId: stale.callId,
-            ...target,
-            kind: InteractionKind.PERMISSION,
-            toolName: "previous approval",
-            requestJson: "{}",
-          }),
-        ),
-      ),
-    );
-    await gateway.api.answerInteraction({ requestId: stale.callId, allow: true });
-    const fresh = authorizeLocalAutomation(gateway.core, stale, source);
-
-    const asked = await eventually(
-      () => pending(target.threadId),
-      (items) => items.length === 1,
-    );
-
-    expect(asked[0]?.requestId).not.toBe(stale.callId);
-    await gateway.api.answerInteraction({ requestId: asked[0]!.requestId, allow: false });
-    expect((await fresh).isError).toBe(true);
-    gateway.worker.finish(target.threadId, target.turnId);
-    gateway.worker.holdTurns = false;
-  });
-
-  test("cancellation, expiry and revocation close the original pending authorization and its UI prompt", async () => {
-    await grant(true);
-    const target = await heldThread();
-    const source = connection();
-
-    for (const reason of ["cancel", "expire", "revoke"]) {
-      const call = authorization(target, reason === "expire" ? 400 : 5000);
+  test.each([AgentTool.BROWSER, AgentTool.DEVICE])(
+    "MCP tool %s cannot duplicate or reuse an approval",
+    async (tool) => {
+      await publish(report({ ready: tool !== AgentTool.DEVICE }));
+      await grant(true, tool);
+      const target = await heldThread();
+      const source = connection();
+      const call = authorization(target, 5000, tool);
       const original = authorizeLocalAutomation(gateway.core, call, source);
 
-      const prompts = await eventually(
-        () => pending(target.threadId),
-        (items) => items.length === 1,
-      );
+      const prompts = await pendingPrompt(target.threadId);
 
       expect(prompts).toHaveLength(1);
-
-      if (reason === "cancel")
-        expect(
-          (
-            await authorizeLocalAutomation(
-              gateway.core,
-              create(AgentToolCallSchema, { ...call, cancelled: true }),
-              source,
-            )
-          ).isError,
-        ).toBe(true);
-
-      if (reason === "revoke") await grant(false);
-      expect((await original).isError).toBe(true);
-      expect(await pending(target.threadId)).toEqual([]);
-      expect(await code(gateway.api.answerInteraction({ requestId: prompts[0]!.requestId, allow: true }))).toBe(
-        Code.FailedPrecondition,
+      expect(prompts[0]?.requestId).not.toBe(call.callId);
+      expect(prompts[0]?.expiresAt).toEqual(call.expiresAt);
+      expect((await authorizeLocalAutomation(gateway.core, call, source)).isError).toBe(true);
+      expect(
+        (
+          await authorizeLocalAutomation(
+            gateway.core,
+            create(AgentToolCallSchema, {
+              ...call,
+              argumentsJson: JSON.stringify({ tool, name: "click", arguments: '{"target":"@e2"}' }),
+            }),
+            source,
+          )
+        ).isError,
+      ).toBe(true);
+      expect(await pending(target.threadId)).toHaveLength(1);
+      await gateway.api.answerInteraction({ requestId: prompts[0]!.requestId, allow: true });
+      expect((await original).isError).toBe(false);
+      expect((await authorizeLocalAutomation(gateway.core, call, source)).isError).toBe(true);
+      const stale = authorization(target, 5000, tool);
+      await gateway.runtime.runPromise(
+        GatewayStore.use((store) =>
+          store.recordInteraction(
+            create(InteractionRequestSchema, {
+              requestId: stale.callId,
+              ...target,
+              kind: InteractionKind.PERMISSION,
+              toolName: "previous approval",
+              requestJson: "{}",
+            }),
+          ),
+        ),
       );
-      await grant(true);
-    }
+      await gateway.api.answerInteraction({ requestId: stale.callId, allow: true });
+      const fresh = authorizeLocalAutomation(gateway.core, stale, source);
 
-    gateway.worker.finish(target.threadId, target.turnId);
-    gateway.worker.holdTurns = false;
-  });
+      const asked = await pendingPrompt(target.threadId);
+
+      expect(asked[0]?.requestId).not.toBe(stale.callId);
+      await gateway.api.answerInteraction({ requestId: asked[0]!.requestId, allow: false });
+      expect((await fresh).isError).toBe(true);
+      gateway.worker.finish(target.threadId, target.turnId);
+      gateway.worker.holdTurns = false;
+    },
+  );
+
+  test.each([AgentTool.BROWSER, AgentTool.DEVICE])(
+    "MCP tool %s expires prompts on cancellation, expiry and revocation",
+    async (tool) => {
+      await publish(report({ ready: tool !== AgentTool.DEVICE }));
+      await grant(true, tool);
+      const target = await heldThread();
+      const source = connection();
+
+      for (const reason of ["cancel", "expire", "revoke"]) {
+        const call = authorization(target, reason === "expire" ? 400 : 5000, tool);
+        const original = authorizeLocalAutomation(gateway.core, call, source);
+
+        const prompts = await pendingPrompt(target.threadId);
+
+        expect(prompts).toHaveLength(1);
+
+        if (reason === "cancel")
+          expect(
+            (
+              await authorizeLocalAutomation(
+                gateway.core,
+                create(AgentToolCallSchema, { ...call, cancelled: true }),
+                source,
+              )
+            ).isError,
+          ).toBe(true);
+
+        if (reason === "revoke") await grant(false, tool);
+        expect((await original).isError).toBe(true);
+        expect(await pending(target.threadId)).toEqual([]);
+        expect(await code(gateway.api.answerInteraction({ requestId: prompts[0]!.requestId, allow: true }))).toBe(
+          Code.FailedPrecondition,
+        );
+        await grant(true, tool);
+      }
+
+      gateway.worker.finish(target.threadId, target.turnId);
+      gateway.worker.holdTurns = false;
+    },
+  );
 
   test("worker replacement expires old approvals and fences buffered requests from the previous connection", async () => {
     const registered = await readyWorker("Automation source fence");
@@ -812,10 +824,7 @@ describe.skipIf(!dockerAvailable)("automation owner grants and transient gateway
     const call = authorization(target);
     const original = authorizeLocalAutomation(gateway.core, call, previous);
 
-    const prompts = await eventually(
-      () => pending(target.threadId),
-      (items) => items.length === 1,
-    );
+    const prompts = await pendingPrompt(target.threadId);
 
     expect(prompts).toHaveLength(1);
 

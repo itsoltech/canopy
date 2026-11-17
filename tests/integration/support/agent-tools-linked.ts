@@ -31,7 +31,7 @@ export async function expectLinkedAgentToolRouting(): Promise<void> {
           tool,
           installed: true,
           ready: true,
-          version: "1.2.3",
+          version: tool === AgentTool.DEVICE ? "0.21.37" : "1.2.3",
           screenshot: true,
         })),
       },

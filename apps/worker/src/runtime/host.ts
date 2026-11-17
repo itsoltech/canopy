@@ -129,6 +129,9 @@ export class WorkerHost {
       send: (report) => this.#ctx.ops.send({ case: "agentToolsReport", value: report }),
       progress: (progress) => this.#ctx.ops.send({ case: "agentToolProgress", value: progress }),
     });
+    void this.#ctx.state.agentTools
+      .recoverDevices()
+      .catch(() => this.#ctx.ops.log("Managed device cleanup is pending; it will retry before device automation"));
     this.previews = new HostPreviews(
       this.#ctx.state.agentTools,
       (id) => this.threadClosed(id) || this.#ctx.state.unloadingThreads.has(id),
@@ -454,7 +457,11 @@ export class WorkerHost {
       await Promise.allSettled(this.#commands.values());
     } finally {
       // Keep masking late provider output until its processes have stopped.
-      this.#ctx.state.secrets.close();
+      try {
+        await this.#ctx.state.agentTools.close();
+      } finally {
+        this.#ctx.state.secrets.close();
+      }
     }
   }
 

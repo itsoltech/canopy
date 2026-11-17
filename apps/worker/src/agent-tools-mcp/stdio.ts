@@ -1,15 +1,16 @@
+import { AgentTool } from "@canopy/contracts";
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { DEFAULT_INHERITED_ENV_VARS, StdioClientTransport } from "@modelcontextprotocol/sdk/client/stdio.js";
 import {
   CallToolResultSchema,
   ListToolsResultSchema,
   type ListToolsRequest,
+  type CallToolResult,
   type Tool,
 } from "@modelcontextprotocol/sdk/types.js";
-import type { z } from "zod";
-import { abortable, MAX_BYTES, requestDeadline, STDIO_TIMEOUT_MS, type ToolCall } from "./protocol.ts";
+import { abortable, MAX_BYTES, requestDeadline, STDIO_TIMEOUT_MS } from "./protocol.ts";
 import { automationCatalog } from "./policy.ts";
-import type { AutomationScope } from "./session-policy.ts";
+import type { AutomationCall, AutomationScope } from "./session-policy.ts";
 
 export interface LocalAutomationServer {
   name: string;
@@ -17,6 +18,15 @@ export interface LocalAutomationServer {
   args: readonly string[];
   readonly scope?: AutomationScope;
   readonly env?: Readonly<{ AGENT_BROWSER_SESSION?: string; AGENT_DEVICE_SESSION?: string }>;
+  readonly managed?: {
+    tools: Tool[];
+    catalog?(tools: Tool[]): Tool[];
+    call(
+      params: AutomationCall,
+      signal: AbortSignal,
+      next: (params: AutomationCall, signal: AbortSignal) => Promise<CallToolResult | undefined>,
+    ): Promise<CallToolResult | undefined>;
+  };
 }
 
 /** The SDK also closes on framing failures; join that shutdown rather than racing a second close. */
@@ -41,9 +51,11 @@ export class AutomationStdio {
   private catalog: Promise<{ tools: Tool[] }> | undefined;
   private closing: Promise<void> | undefined;
   private readonly scope: AutomationScope | undefined;
+  private readonly managed: LocalAutomationServer["managed"];
 
   constructor(server: LocalAutomationServer, env: Record<string, string>) {
     this.scope = server.scope;
+    this.managed = server.managed;
     // The SDK merges its default environment even with an explicit env. Mask omitted values.
     const isolatedEnv = Object.fromEntries(DEFAULT_INHERITED_ENV_VARS.map((key) => [key, ""]));
     Object.assign(isolatedEnv, env);
@@ -90,6 +102,17 @@ export class AutomationStdio {
   }
 
   async list(signal: AbortSignal): Promise<{ tools: Tool[] }> {
+    const catalog = await this.listUpstream(signal);
+    const tools = new Map(catalog.tools.map((tool) => [tool.name, tool]));
+
+    for (const tool of this.managed?.tools ?? []) tools.set(tool.name, tool);
+
+    const merged = [...tools.values()];
+
+    return { tools: this.managed?.catalog?.(merged) ?? merged };
+  }
+
+  private async listUpstream(signal: AbortSignal): Promise<{ tools: Tool[] }> {
     await this.initialize(signal);
     this.catalog ??= this.loadTools();
 
@@ -128,15 +151,30 @@ export class AutomationStdio {
     }
   }
 
-  async call(params: z.infer<typeof ToolCall>, signal: AbortSignal) {
-    const catalog = await this.list(signal);
+  async call(params: AutomationCall, signal: AbortSignal): Promise<CallToolResult | undefined> {
+    const requestSignal = AbortSignal.any([signal, this.stopped.signal]);
+    requestSignal.throwIfAborted();
+
+    if (this.managed)
+      return abortable(
+        this.managed.call(params, requestSignal, (nextParams, nextSignal) =>
+          this.callUpstream(nextParams, AbortSignal.any([requestSignal, nextSignal])),
+        ),
+        requestSignal,
+      );
+
+    return this.callUpstream(params, requestSignal);
+  }
+
+  private async callUpstream(params: AutomationCall, signal: AbortSignal): Promise<CallToolResult | undefined> {
+    const catalog = await this.listUpstream(signal);
 
     if (!catalog.tools.some((tool) => tool.name === params.name)) return undefined;
     signal.throwIfAborted();
 
     return this.client.request({ method: "tools/call", params }, CallToolResultSchema, {
       signal,
-      timeout: STDIO_TIMEOUT_MS,
+      timeout: this.scope?.tool === AgentTool.DEVICE ? 90_000 : STDIO_TIMEOUT_MS,
     });
   }
 

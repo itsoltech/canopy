@@ -5,6 +5,7 @@ import { create } from "@bufbuild/protobuf";
 import { AgentTool, RunAgentToolSchema } from "@canopy/contracts";
 import { agentToolSession } from "./scope.ts";
 import { cleanupFixture, waitFor } from "./cleanup.test-support.ts";
+import { serializeAgentTool } from "./queue.ts";
 import { AgentTools } from "./index.ts";
 import { fixture } from "./fixtures.test-support.ts";
 
@@ -194,4 +195,29 @@ test("a delayed reopen cannot remove a newer archive fence or start native autom
   await manager.threadOpened("thread");
   await manager.run(scope);
   expect(f.read(DESKTOP).snapshots).toBe(1);
+});
+
+test("an operation queued behind another session cannot start its native command after archive", async () => {
+  const f = cleanupFixture();
+  const manager = f.manager();
+  const scope = create(RunAgentToolSchema, { tool: DESKTOP, operation: "snapshot", session: "thread" });
+  await manager.run(scope);
+  const gate = Promise.withResolvers<void>();
+  const queued = serializeAgentTool("operations", () => gate.promise);
+  const pending = manager.run(scope).catch((error: Error) => error);
+
+  try {
+    // Discovery is cached; advance microtasks until runAgentToolOperation has joined the operations lane.
+    await Bun.sleep(10);
+    manager.fenceThread("thread");
+    gate.resolve();
+    await queued;
+    expect(await pending).toBeInstanceOf(Error);
+    expect(f.read(DESKTOP).snapshots).toBe(1);
+    await manager.closeThread("thread");
+  } finally {
+    gate.resolve();
+    await queued;
+    await pending;
+  }
 });
