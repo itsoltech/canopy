@@ -1,6 +1,7 @@
 # Projekty, wątki i wątki boczne
 
-Status (2026-11-16): zaimplementowane, w tym automatyczna archiwizacja po merge PR-ów
+Status (2026-11-17): zaimplementowane, w tym uprawnienia ostatniej tury użytkownika
+w karcie hover oraz automatyczna archiwizacja po merge PR-ów
 z nadpisaniami projektu i wątku (przełącznik w szczegółach także na mobile),
 zamykanie zasobów przy archiwizacji,
 opcjonalna retencja archiwum, grupowanie
@@ -122,6 +123,10 @@ funkcją (`threadRowPlace`, `packages/domain/src/git-heads.ts`):
   `+X more` dla pozostałych, bez paginacji ani rozwijania. Odczyt
   montuje się dopiero po otwarciu karty i współdzieli cache z panelem szczegółów.
   Nieaktualne dane pozostają widoczne podczas odświeżania; brak odpowiedzi daje Retry.
+- Uprawnienia w karcie hover pochodzą z ostatniej własnej tury użytkownika
+  (`last_user_turn_choices`), z domyślnym trybem wątku jako wartością zastępczą,
+  tak samo jak zapisany wybór kompozytora. Etykieta, ikona i kolor używają tego
+  samego trybu. Odczyt korzysta z metadanych overview, bez pobierania historii.
 - Komputer i katalog zajmują najwyżej 2/5 linii, gałąź resztę. Status w pierwszej linii i slot znaku
   dostawcy mają stały rozmiar, więc zmiana stanu niczego nie przesuwa.
 
