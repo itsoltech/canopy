@@ -2,7 +2,8 @@
 
 Status: zaimplementowane (2026-11-17), w tym odczyt dużych artefaktów i raportów
 z PostgreSQL, obsługa znaczników aktywnych sesji Claude i porównywanie konfiguracji
-pluginów niezależnie od kolejności kluczy JSON.
+pluginów niezależnie od kolejności kluczy JSON, porównywanie instalacji Windows
+bez bitów wykonywalności POSIX oraz natywne wersjonowanie cache pluginów Codexa.
 Dostępność w kanałach nightly/beta/stable wynika z wydań ([release.md](release.md)).
 Settings → **Agent environment** zarządza oczekiwanym stanem
 instrukcji, umiejętności i pluginów na komputerach właściciela. Ustawienia należą
@@ -350,7 +351,12 @@ i blokuje start sesji z czytelnym błędem.
 
 Worker utrzymuje trwały `data_dir/agent-environment/skills.json`: własność celu,
 ścieżki, checksumy i bity executable, bez treści. Całe drzewo odczytuje z limitami
-i kontrolą symlinków. Przy instalacji tworzy staging na tym samym filesystemie,
+i kontrolą symlinków. Windows nie zachowuje bitów wykonywalności POSIX: worker
+pomija je wyłącznie przy porównywaniu lokalnej instalacji skilli i pluginów.
+Digest artefaktu, zgoda, oczekiwany checksum raportu i manifest własności nadal
+zawierają oryginalne flagi. Na POSIX zmiana tych flag nadal oznacza drift.
+Zmieniona treść, brakujące pliki, dodatki i symlinki zachowują dotychczasowe reguły.
+Przy instalacji tworzy staging na tym samym filesystemie,
 fsyncuje pliki, ponownie porównuje cały katalog i publikuje katalog przez rename.
 Przenosi dawny katalog do backupu, sprawdza go ponownie i dopiero zapisuje manifest.
 Błąd zapisu manifestu wycofuje niezmieniony zapis; journal pozwala odtworzyć stan
@@ -560,11 +566,27 @@ bundle/aktywacji. Porównania skilli
 i pluginów współdzielą budżet raportu 96 MiB (gateway 128 MiB).
 
 Worker instaluje do każdego faktycznego domu platformy, także jawnego shadow home,
-oraz opcjonalnego domu CLI: `plugins/cache/canopy-<uuid>-<harness>/<name>/local`.
+oraz opcjonalnego domu CLI: `plugins/cache/canopy-<uuid>-<harness>/<name>/<version>`.
+Claude używa `local`. Codex używa wersji z `.codex-plugin/plugin.json`, a przy
+braku tego manifestu — z `.claude-plugin/plugin.json`; brak pola wersji lub `null`
+oznacza `local`. Wersja musi być niepustym, bezpiecznym segmentem ścieżki.
+Błędna wersja blokuje dany cel, bez przerywania usuwania poprzednich przypisań
+i uzgadniania aktywacji pozostałych pluginów. Zgodność
+potwierdzono z Codex 0.164.0 i 0.169.0, także przy wymuszonym odświeżeniu
+marketplace. Codex nie przenosi wtedy zatwierdzonego katalogu podczas sesji.
 Sufiks harnessu zapobiega kolizji, gdy dwa harnessy dzielą jeden shadow home.
 Dodaje deterministyczny lokalny katalog `.claude-plugin/marketplace.json` wskazujący
 wyłącznie zatwierdzony bundle; raport plików obejmuje też ten wygenerowany plik.
 Digest zgody w gateway pozostaje digestem oryginalnego artefaktu.
+
+Istniejący własny katalog `local` jest usuwany przed instalacją natywnej wersji.
+Jeśli wcześniejszy Codex już przeniósł go do wersjonowanego cache, worker odzyskuje
+własność wyłącznie po zgodności pełnego manifestu plików z dziennikiem, w tym samym
+domu, namespace i nazwie pluginu, bez dodatków, obcych pustych katalogów i symlinków.
+Zmiana klucza celu w dzienniku jest atomowa. Zmodyfikowane albo niejednoznaczne
+katalogi pozostają do rozstrzygnięcia. Aktualizacja i powrót do starszej wersji
+najpierw usuwają poprzedni własny katalog; obce lub zachowane katalogi obok wersji
+blokują aktywację i start sesji, ponieważ natywny Codex mógłby wybrać inny cache.
 
 Claude: własne namespace w `settings.json` (`enabledPlugins`,
 `extraKnownMarketplaces`) i `plugins/installed_plugins.json` v2; SDK ładuje gotowe
@@ -583,12 +605,17 @@ startu sesji, pozostają lokalne, są zachowywane przy aktualizacji/usunięciu i
 trafiają do porównań. Ta sama reguła dotyczy wrappera skilli Claude. Kontrola nadal
 odrzuca symlinki i pliki specjalne w znacznikach; wyjątek nie dotyczy Codexa.
 Dziennik zachowuje własność resztek cache, dzięki czemu
-ponowne przypisanie nie przejmuje obcego katalogu. Prywatne dodatki nie trafiają
+ponowne przypisanie nie przejmuje obcego katalogu. Przy usuwaniu pusty wpis
+własności pozostaje do zakończenia sprzątania transakcji i usunięcia katalogu;
+restart kończy przerwaną operację przed instalacją następnej wersji. Prywatne dodatki nie trafiają
 do porównań i blokują ponowne włączenie do czasu ich przeniesienia.
 
 Receipt `canopy-<harness>-plugins.json` opisuje gotowe bundle i digest zarządzanych
 części konfiguracji. Start nowej sesji platformy sprawdza receipt, pliki i aktywację;
 zmiana lub niekompletny reconcile daje błąd. Reconcile nie wykonuje pluginów.
+Digest instalacji w receipt stosuje tę samą projekcję flag Windows co reconcile;
+starsze własne receipt są aktualizowane po poprawnej synchronizacji, bez obejścia
+kontroli przy starcie. Dziennik swapu nadal porównuje rzeczywiste snapshoty dysku.
 Zarządzane obiekty JSON są porównywane po uporządkowaniu kluczy, także zagnieżdżonych;
 sama kolejność kluczy nie powoduje driftu. Kolejność tablic i wartości nadal mają
 znaczenie. Reconcile odczytuje też wcześniejsze digesty i aktualizuje własne

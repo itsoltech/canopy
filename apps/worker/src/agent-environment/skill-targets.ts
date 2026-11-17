@@ -13,6 +13,7 @@ export interface SkillTarget {
   readonly harness: string;
   readonly scope: string;
   readonly desired?: EnvironmentSkill;
+  readonly problem?: string;
 }
 
 export const platformSkillRoot = (home: string, harness: string): string =>

@@ -1,6 +1,7 @@
 import { Schema } from "effect";
 import { join } from "node:path";
-import { skillManifestDigest } from "@canopy/domain/skill-artifact";
+import { installedSkillDigest } from "./installed-manifest.ts";
+import { assertCodexPluginSlot } from "./codex-plugin-cache.ts";
 import { readInstructionFile } from "./files.ts";
 import { readSkillTree } from "./skill-files.ts";
 import { pluginIndexPath, observedPluginConfig } from "./plugin-config.ts";
@@ -21,7 +22,11 @@ const Index = Schema.Struct({
 });
 
 /** No user settings are enabled for Claude. Only fully reconciled, exact approved bundles may load. */
-export function managedPlugins(home: string, harness: string): { type: "local"; path: string }[] {
+export function managedPlugins(
+  home: string,
+  harness: string,
+  platform: NodeJS.Platform = process.platform,
+): { type: "local"; path: string }[] {
   const file = readInstructionFile(pluginIndexPath(home, harness));
 
   if (!file.text) {
@@ -42,11 +47,12 @@ export function managedPlugins(home: string, harness: string): { type: "local"; 
     throw new Error("Managed plugin activation changed locally. Resolve its drift before starting a new session.");
 
   return Object.values(index.plugins).map((plugin) => {
+    if (harness === "codex") assertCodexPluginSlot(plugin.path);
     const tree = readSkillTree(plugin.path);
 
     const files = harness === "claude" ? tree.files.filter((f) => !isClaudeCacheMarker(f.path)) : tree.files;
 
-    if (!tree.exists || skillManifestDigest(files) !== plugin.checksum)
+    if (!tree.exists || installedSkillDigest(files, platform) !== plugin.checksum)
       throw new Error(
         "A managed plugin changed locally. Resolve its drift in Settings → Agent environment before starting a session.",
       );

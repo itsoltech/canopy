@@ -6,12 +6,14 @@ import { recoverSkillSwap, swapSkillTree } from "./skill-transaction.ts";
 import type { SkillLedger, ManagedSkill } from "./skill-ledger.ts";
 import type { SkillTarget } from "./skill-targets.ts";
 import { isClaudeCacheMarker } from "./claude-cache.ts";
+import { installedSkillDigest } from "./installed-manifest.ts";
 
 export function reconcileSkill(
   target: SkillTarget,
   ledger: SkillLedger,
   resolution?: EnvironmentResolution,
   strict = false,
+  platform: NodeJS.Platform = process.platform,
 ) {
   const artifact = target.desired?.artifact;
 
@@ -44,7 +46,9 @@ export function reconcileSkill(
 
     const changed =
       owned &&
-      (skillManifestDigest(managed) !== previous.checksum || (strict && artifact !== undefined && extras.length > 0));
+      (installedSkillDigest(managed, platform) !==
+        (platform === "win32" ? installedSkillDigest(previous.files, platform) : previous.checksum) ||
+        (strict && artifact !== undefined && extras.length > 0));
 
     const conflict = Boolean((current.exists && !owned) || changed || (owned && !current.exists && artifact));
 
@@ -105,13 +109,16 @@ export function reconcileSkill(
             checksum: artifact.checksum,
             files: next.map((f) => ({ path: f.path, checksum: f.checksum, executable: f.executable })),
           }
-        : strict && (files.length || directories.length)
+        : // Keep plugin removal discoverable until transaction cleanup and directory retirement finish.
+          strict
           ? { ...base, owned: true, checksum: skillManifestDigest([]), files: [] }
           : undefined;
 
       if (strict && artifact && extras.length)
         throw new Error("Move user-added plugin files before enabling it. Additional components are not approved.");
-      const same = current.exists && skillManifestDigest(current.files) === skillManifestDigest(files);
+
+      const same =
+        current.exists && installedSkillDigest(current.files, platform) === installedSkillDigest(files, platform);
 
       if (!same && (artifact || current.exists))
         swapSkillTree(target.path, current, files, ledger, entry, target.targetId, directories);
