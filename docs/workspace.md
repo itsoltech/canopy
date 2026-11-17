@@ -2,7 +2,8 @@
 
 Status (2026-11-17): **zaimplementowane; układ v3**, lokalne `Reveal in Finder/Explorer`
 przy ścieżkach i w menu pliku, panel Diff z wirtualizowanym przeglądem zmian Git
-i lokalnym szkicem review wysyłanym agentowi jako jedna wiadomość, karta Preview w web/desktop
+i lokalnym szkicem review wysyłanym agentowi jako jedna wiadomość oraz wcześniejszym
+pobieraniem treści diffu poza ekranem, karta Preview w web/desktop
 i różne ikony skali 1:1 oraz dopasowania, kompaktowa typografia zakładek, diagramy Mermaid w trybie
 `Rendered`, bezpieczny HTML i lokalne obrazy w Markdown w web/desktop,
 cytowanie zaznaczeń z plików, przeciąganie plików do wiadomości
@@ -290,9 +291,15 @@ Kolejne wybory używają tej samej karty; przewijanie przechodzi przez wszystkie
 Na telefonie wybór zamyka arkusz listy i pokazuje kartę diffów.
 
 Lista plików i wspólny czytnik są wirtualizowane. Pozycje plików wynikają z liczby
-wierszy w metadanych; worker dostarcza tylko strony widocznej treści z buforem.
-Cache stron ma limit, a logiczna wysokość przewijania jest skalowana do wysokości
-obsługiwanej przez przeglądarkę. Dzięki temu miliony wierszy nie tworzą milionów
+wierszy w metadanych. Czytnik pobiera strony po 128 linii, z buforem co najmniej
+128 wierszy lub trzech okien renderowania po obu stronach widoku, także między
+plikami. Najpierw kolejkuje widoczne wiersze, potem bufor w kierunku przewijania
+i bufor po przeciwnej stronie. DOM zachowuje mały bufor ośmiu wierszy;
+wcześniejsze pobieranie nie zwiększa liczby renderowanych elementów. Odczyty
+poza buforem są anulowane, równolegle działają najwyżej trzy, kolejka obejmuje
+najwyżej 128 stron, a cache zachowuje limit 128 stron i 16 MiB. Logiczna wysokość
+przewijania jest skalowana do wysokości obsługiwanej przez przeglądarkę.
+Dzięki temu miliony wierszy nie tworzą milionów
 węzłów DOM ani jednego wielkiego odczytu do przeglądarki. Binaria i zmiany samych
 metadanych mają jawny opis zamiast pustego diffu.
 

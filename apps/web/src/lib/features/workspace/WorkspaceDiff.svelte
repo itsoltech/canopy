@@ -8,7 +8,7 @@
   import DiffRow from "./DiffRow.svelte";
   import DiffReview from "./DiffReview.svelte";
   import { getDiffState } from "./diff-state.svelte.ts";
-  import { diffPageTargets } from "./diff-pages.svelte.ts";
+  import { DIFF_PAGE_LINES, diffPageTargets } from "./diff-pages.svelte.ts";
   import { DiffLayout } from "./diff-layout.ts";
   import type { DiffComment } from "./diff-drafts.svelte.ts";
 
@@ -27,6 +27,7 @@
   let rowHeight = $state(28);
   let top = $state(0);
   let physicalTop = $state(0);
+  let direction = $state(1);
   const totalHeight = $derived(layout.rows * rowHeight + Math.max(0, height - rowHeight));
   const physicalHeight = $derived(Math.min(8_000_000, totalHeight));
   const ratio = $derived(Math.max(1, (totalHeight - height) / Math.max(1, physicalHeight - height)));
@@ -51,7 +52,15 @@
   $effect(() => {
     const current = diff;
     const snapshot = current.snapshotId;
-    const targets = diffPageTargets(rows);
+    const ahead = Math.max(DIFF_PAGE_LINES, count * 3);
+    const before = layout.window(Math.max(0, first - ahead), Math.min(first, ahead));
+    const after = layout.window(first + count, ahead);
+
+    const targets = diffPageTargets([
+      ...rows,
+      ...(direction > 0 ? after : before),
+      ...(direction > 0 ? before : after),
+    ]);
 
     if (snapshot) untrack(() => current.pages.window(snapshot, targets));
     else untrack(() => current.pages.pause());
@@ -152,9 +161,11 @@
       aria-label="Local Git diff"
       class="min-h-0 min-w-0 flex-1 scroll-stable overflow-auto overscroll-contain font-mono text-base focus-ring select-text focus-visible:-outline-offset-2 sm:text-sm"
       onscroll={() => {
+        const previousTop = top;
         physicalTop = scroller?.scrollTop ?? 0;
         horizontalLeft = scroller?.scrollLeft ?? 0;
         top = physicalTop * ratio;
+        if (top !== previousTop) direction = top > previousTop ? 1 : -1;
         diff.scroll = top;
       }}
     >
