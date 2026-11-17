@@ -1,7 +1,8 @@
 # Powiadomienia wątków i botów
 
-Status (2026-11-16): zaimplementowane; powiadomienia wątków web/desktop obejmują
-tylko wątki główne i wątki boczne użytkownika. Opis dotyczy kodu; dostępność
+Status (2026-11-17): zaimplementowane; powiadomienia wątków web/desktop obejmują
+tylko wątki główne i wątki boczne użytkownika. Toasty są kartami w prawym dolnym
+rogu, bez wyłączania przeciągania okna desktopu. Opis dotyczy kodu; dostępność
 nightly/beta/stable określają [wydania](release.md).
 
 Web i desktop pokazują alerty systemowe o wątkach i botach, tylko gdy otwarte jest
@@ -66,6 +67,24 @@ z zapisanej rozmowy.
   wiadomości nie cofa znanego stanu.
 - Wiadomość bota już przeczytana na innym urządzeniu (`unread_count = 0`) nie
   pokazuje alertu. Okno, które ją wyświetla, nadal gra dźwięk.
+
+## Toasty w aplikacji
+
+Wspólny `shared/ui/Toaster.svelte` pokazuje krótkie potwierdzenia i powiadomienia
+w prawym dolnym rogu okna, 16 px od krawędzi lub poza systemowym safe area.
+Na telefonie karta mieści się między bocznymi wcięciami; na desktopie ma 24 rem
+szerokości. Długie teksty zawijają się, a akcja i zamknięcie zachowują swoje miejsce.
+Karta ma zwarty padding: 6 px w obu osiach przy domyślnej skali.
+Jasny i ciemny motyw mają własne tło, obrys i kolory ikon.
+
+Toast ma opcjonalną akcję (`Undo`, `Open thread`, `Open chat`) i przycisk
+`Dismiss notification`. Nowy zastępuje poprzedni w tym samym miejscu, bez
+przesuwania zawartości strony. Potwierdzenie znika po 2 s, z akcją po 6 s;
+wybranie akcji albo zamknięcia rozpoczyna wcześniejsze znikanie.
+Animacja korzysta ze wspólnych tokenów i respektuje `prefers-reduced-motion`.
+
+Kontener przepuszcza kliknięcia poza kartą. Toast nie ma `data-window-no-drag`,
+bo leży poza paskami tytułu i nie powinien zawieszać przeciągania całego okna.
 
 ## Fokus i dźwięk
 
