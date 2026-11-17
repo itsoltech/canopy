@@ -1,6 +1,8 @@
 # API dla UI i architektura frontendu
 
-Status (2026-11-17): watch odzyskuje stan po powtarzającym się nieokreślonym błędzie gatewaya;
+Status (2026-11-17): propozycje odpowiedzi pomijają zużyte i wysterowane wpisy kolejki;
+porzucone notatki platformy nie udają oczekującego wejścia i nie blokują późniejszych propozycji;
+watch odzyskuje stan po powtarzającym się nieokreślonym błędzie gatewaya;
 usunięte worktree pokazuje wątek tylko do odczytu z kontynuacją w nowym worktree;
 API workspace udostępnia lokalne `RevealThreadFile`
 oraz stabilne, stronicowane zmiany Git wątku i podgląd dostępnych plików spoza workspace tylko do odczytu;
@@ -75,6 +77,15 @@ szkicu w kompozytorze. Wybór natychmiast blokuje pozostałe przyciski; ponowien
 niepewnym wyniku używa tego samego klucza i tej samej treści. Każda kolejna wiadomość,
 także zakolejkowana albo steered, unieważnia poprzednią grupę. Nieaktywne propozycje
 pozostają w historii, ale nie można ich wysłać.
+
+Wpisy kolejki z `withdrawn = consumed` lub `steered` nie zastępują ostatniej własnej
+tury przy sprawdzaniu propozycji. Wiadomość już odebrana przez agenta albo dołączona
+do bieżącej tury nie blokuje jej późniejszej odpowiedzi. Dostarczone wejście po
+źródłowej odpowiedzi nadal unieważnia propozycje. Usunięty wpis użytkownika
+(`withdrawn = deleted`) zachowuje dotychczasowe unieważnienie.
+Porzucone steery notatek platformy zachowują w API stan `dropped`, zamiast `accepted`;
+starsza notatka nie blokuje propozycji z późniejszej odpowiedzi. Zwykłe porzucone
+wiadomości nadal mają stan oczekiwania na przeniesienie do kolejki.
 
 Gateway pod blokadą przyjęcia wiadomości sprawdza właściciela, źródłowy item, dokładną
 treść propozycji i aktualność ostatniej zakończonej własnej tury. Stare, odziedziczone,

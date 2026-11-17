@@ -48,7 +48,11 @@ export function replyDirectory(source: () => Source) {
     canReply: (itemId: string) => {
       const { id, view, readOnly } = source();
       const thread = view.thread;
-      const last = view.ownTurns.findLast((turn) => !turn.rewindId);
+
+      const last = view.ownTurns.findLast(
+        (turn) => !turn.rewindId && !["consumed", "steered"].includes(turn.withdrawn),
+      );
+
       const entry = view.ownEntries.find((entry) => entry.id === itemId);
 
       const draft = webDrafts.get(create(ui.ComposerDraftTargetSchema, { threadId: id }), () =>

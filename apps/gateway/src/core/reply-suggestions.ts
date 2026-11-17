@@ -27,8 +27,9 @@ export async function checkReplySuggestion(core: GatewayCore, request: ui.SendMe
         WHERE i.thread_id=${request.threadId}::uuid AND i.item_id=${itemId}
           AND t.owner_user_id=${core[coreState].options.userId}::uuid
           AND i.parent_item_id IS NULL AND i.type='agent_message' AND i.status='completed'
-          AND u.status='completed' AND u.rewind_id IS NULL
+          AND u.status='completed' AND u.rewind_id IS NULL AND u.withdrawn IS NULL
           AND NOT EXISTS (SELECT 1 FROM turns newer WHERE newer.thread_id=t.id
+            AND coalesce(newer.withdrawn,'') NOT IN ('consumed','steered')
             AND newer.rewind_id IS NULL AND (newer.ordinal>u.ordinal OR newer.status IN ('queued','running')))
           AND NOT EXISTS (SELECT 1 FROM thread_items newer WHERE newer.thread_id=t.id
             AND newer.turn_id=u.id AND newer.parent_item_id IS NULL
