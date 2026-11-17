@@ -1,5 +1,19 @@
 # Protokół gateway ↔ worker
 
+## Domyślne ustawienia narzędzi agentów
+
+Status (2026-11-17): zaimplementowane w kodzie; dostępność nightly/beta/stable
+wynika z promocji wydań ([release.md](release.md)).
+
+Addytywne `ThreadSpec.agent_tool_defaults` (522) i
+`StartAgentPreview.agent_tool_defaults` (5) przenoszą `AgentToolSessionDefaults`
+z ustawień właściciela do workera. Wiadomość zawiera opcjonalne sekcje Browser,
+Desktop i Device. Brak sekcji lub wartości oznacza dotychczasowe domyślne zachowanie;
+opcjonalne `allow_boot=false` zachowuje jawne wyłączenie. Starsze workery ignorują
+nowe pola, a `WORKER_LINK_PROTOCOL` pozostaje bez zmian. Worker zachowuje istniejącą
+sesję Browser, stosuje aplikację Desktop tylko jako brakujący cel i nie uruchamia
+urządzeń przy biernym Preview. Szczegóły: [automation-tools.md](automation-tools.md#domyślne-ustawienia-sesji).
+
 ## Status zmian i pull wątku
 
 Status (2026-11-17): zaimplementowane; dostępność nightly/beta/stable wynika

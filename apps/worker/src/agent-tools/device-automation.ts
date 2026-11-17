@@ -1,4 +1,4 @@
-import type { RunAgentTool } from "@canopy/contracts";
+import type { DeviceSessionDefaults, RunAgentTool } from "@canopy/contracts";
 import type { LocalAutomationServer } from "../agent-tools-mcp/stdio.ts";
 import { DevicePool } from "./device-pool.ts";
 import { createDeviceBackend } from "./device-backend.ts";
@@ -24,8 +24,8 @@ export class DeviceAutomation {
     return this.#recovering;
   }
 
-  managed(session: string): NonNullable<LocalAutomationServer["managed"]> {
-    const managed = managedDeviceMcp(this.#pool, session, () => this.#pool.release(session));
+  managed(session: string, defaults?: DeviceSessionDefaults): NonNullable<LocalAutomationServer["managed"]> {
+    const managed = managedDeviceMcp(this.#pool, session, () => this.#pool.release(session), defaults);
 
     return {
       tools: managed.tools,
@@ -61,14 +61,25 @@ export class DeviceAutomation {
     return this.#pool.close();
   }
 
-  async use<T>(scope: RunAgentTool, signal: AbortSignal, work: () => Promise<T>): Promise<T> {
+  currentPlatform(session: string): string | undefined {
+    return this.#pool.current(agentToolSession(session))?.platform;
+  }
+
+  async use<T>(
+    scope: RunAgentTool,
+    signal: AbortSignal,
+    work: () => Promise<T>,
+    defaults?: DeviceSessionDefaults,
+  ): Promise<T> {
     await this.recover();
     const session = agentToolSession(scope.session);
 
     const device = await this.#pool.acquire(
       session,
       {
-        ...(scope.platform && { platform: scope.platform }),
+        ...((scope.platform || (!scope.deviceId && !this.#pool.current(session) && defaults?.platform)) && {
+          platform: scope.platform || defaults?.platform,
+        }),
         ...(scope.deviceId && { deviceId: scope.deviceId }),
         boot: false,
         wait: false,

@@ -1,5 +1,5 @@
 import { create, fromJson, toJson, type DescMessage, type JsonValue } from "@bufbuild/protobuf";
-import { ui } from "@canopy/contracts";
+import { AgentToolSessionDefaultsSchema, ui } from "@canopy/contracts";
 import { nodeRef, splitId } from "@canopy/domain/computers";
 import { Predicate, Schema } from "effect";
 
@@ -33,6 +33,7 @@ const SECTIONS = {
   sidebar: ui.SidebarSettingsSchema,
   cliUpdates: ui.CliUpdateSettingsSchema,
   threadRetention: ui.ThreadRetentionSettingsSchema,
+  agentToolDefaults: AgentToolSessionDefaultsSchema,
 } satisfies Record<string, DescMessage>;
 
 const PINS = new Set(["sidebar.pinnedThreadIds", "sidebar.pinnedBotIds"]);
@@ -58,6 +59,13 @@ export function settingsValues(stored: SettingsJson, self: string, nodes: readon
       "cliUpdates.intervalMinutes": null,
       "threadDefaults.useLastAgent": null,
       "threadDefaults.autoArchiveOnMerge": null,
+      "agentToolDefaults.browser.viewportWidth": null,
+      "agentToolDefaults.browser.viewportHeight": null,
+      "agentToolDefaults.browser.colorScheme": "",
+      "agentToolDefaults.desktop.app": "",
+      "agentToolDefaults.device.platform": "",
+      "agentToolDefaults.device.allowBoot": null,
+      "agentToolDefaults.device.acquireTimeoutSeconds": null,
     }),
   };
 
@@ -134,6 +142,7 @@ export function settingsRequest(stored: SettingsJson, version: bigint) {
     textGeneration: user.textGeneration,
     cliUpdates: user.cliUpdates,
     threadRetention: user.threadRetention,
+    agentToolDefaults: user.agentToolDefaults,
     ...(user.timezone && { timezone: user.timezone }),
   });
 }

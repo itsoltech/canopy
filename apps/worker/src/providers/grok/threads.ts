@@ -30,7 +30,7 @@ import { grokLaunch } from "./launch.ts";
 import { grokBus, platformToolName } from "./bus.ts";
 import { GrokEventMapper } from "./mapping.ts";
 import { ModelDiscovery, effortRank } from "./model-discovery.ts";
-import { automationMcp } from "../local-automation.ts";
+import { automationMcp, automationMcpKey } from "../local-automation.ts";
 import type { LocalAgentToolMcpServer } from "../../agent-tools/index.ts";
 import { closeGrokResources, grokPermission } from "./lifecycle.ts";
 
@@ -50,7 +50,11 @@ interface Options {
   callTool(call: AgentToolCall, signal?: AbortSignal): Promise<AgentToolResult>;
   viewImage?(threadId: string, cwd: string, path: string): Promise<ViewImageResult>;
   /** Local automation MCP servers resolved by the worker from gateway-approved tool ids. */
-  localMcpServers?(tools: readonly AgentTool[], threadId: string): readonly LocalAgentToolMcpServer[];
+  localMcpServers?(
+    tools: readonly AgentTool[],
+    threadId: string,
+    defaults?: ThreadSpec["agentToolDefaults"],
+  ): readonly LocalAgentToolMcpServer[];
 }
 
 interface Entry {
@@ -107,7 +111,7 @@ export class GrokThreads {
       permissionMode: settings?.permissionMode || spec.permissionMode,
     };
 
-    const key = JSON.stringify({ ...chosen, connectorTools: spec.connectorTools, localMcpTools: spec.localMcpTools });
+    const key = JSON.stringify([chosen, spec.connectorTools, automationMcpKey(spec)]);
     const previous = this.#entries.get(spec.threadId);
 
     if (previous?.turnId) throw new Error("Grok turn already running");

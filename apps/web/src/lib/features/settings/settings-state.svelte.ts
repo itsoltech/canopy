@@ -1,6 +1,6 @@
 import { create, equals, type DescMessage, type MessageShape } from "@bufbuild/protobuf";
 import { getContext, setContext } from "svelte";
-import { ui } from "@canopy/contracts";
+import { AgentToolSessionDefaultsSchema, type AgentToolSessionDefaults, ui } from "@canopy/contracts";
 import { deviceSidebarSettings, type DeviceSidebarValues } from "@canopy/domain/device-view";
 import { devicePreferences } from "./device-preferences.svelte.ts";
 import { HttpError, requestJson } from "#lib/shared/http.ts";
@@ -22,7 +22,8 @@ type UserSection =
   | "sidebar"
   | "general"
   | "threadRetention"
-  | "cliUpdates";
+  | "cliUpdates"
+  | "agentToolDefaults";
 
 const userSchemas = {
   appearance: ui.AppearanceSettingsSchema,
@@ -34,6 +35,7 @@ const userSchemas = {
   general: ui.GeneralSettingsSchema,
   threadRetention: ui.ThreadRetentionSettingsSchema,
   cliUpdates: ui.CliUpdateSettingsSchema,
+  agentToolDefaults: AgentToolSessionDefaultsSchema,
 } as const;
 
 interface ServerSettings {
@@ -98,6 +100,17 @@ export class SettingsState {
   updateCliUpdates(intervalMinutes: number | undefined): Promise<void> {
     return this.#writeUser("cliUpdates", () =>
       create(ui.CliUpdateSettingsSchema, { ...(intervalMinutes !== undefined && { intervalMinutes }) }),
+    );
+  }
+
+  async updateAgentToolDefaults(change: Partial<Omit<AgentToolSessionDefaults, "$typeName">>): Promise<boolean> {
+    await this.#writeUser("agentToolDefaults", (current) => ({ ...current, ...change }));
+    const saved = this.#server.user.agentToolDefaults ?? create(AgentToolSessionDefaultsSchema);
+
+    return equals(
+      AgentToolSessionDefaultsSchema,
+      saved,
+      create(AgentToolSessionDefaultsSchema, { ...saved, ...change }),
     );
   }
 

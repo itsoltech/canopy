@@ -1,6 +1,11 @@
 # Konfiguracja workerów
 
-Aktualizacja (2026-11-16): polityka konfiguracji użytkownika Claude i oddzielny
+Aktualizacja (2026-11-17): zarządzanie narzędziami automatyzacji jest w osobnej
+zakładce Settings → Agent tools, z grantami per worker, zbiorczym stanem mieszanym
+i automatycznym startem potrzebnej instalacji przy włączaniu dostępu.
+Wspólne ustawienia użytkownika określają początkowy viewport i wygląd Browsera,
+domyślną aplikację Desktop oraz platformę, start emulatorów i oczekiwanie Device.
+Polityka konfiguracji użytkownika Claude i oddzielny
 wybór katalogów logowania, konfiguracji, sesji oraz prywatnych plików platformy
 są zaimplementowane w kodzie. Dostępność nightly/beta/stable wynika z promocji wydań.
 
@@ -11,8 +16,8 @@ Status kont per instancja i worker (CLI, cache, prywatność):
 Aktualizacja (2026-11-15): lokalne narzędzia `agent-browser` `0.43.0`,
 `agent-desktop` `1.3.1` i `agent-device` `0.21.37` oraz interaktywny Preview
 wątku web/desktop są zaimplementowane w kodzie; dostępność nightly/beta/stable
-wynika ze zwykłej promocji wydań. Settings → Workers służy instalacji,
-statusowi i grantom; sterowanie jest w panelu Files/Preview wątku. Preview
+wynika ze zwykłej promocji wydań. Settings → Agent tools służy instalacji,
+statusowi, grantom i domyślnym ustawieniom sesji; sterowanie jest w panelu Files/Preview wątku. Preview
 wymaga capability `agent_preview_v1`, używa istniejącego WorkerLink i nie
 wymaga otwierania portów ani lokalnego ustawienia adresu strumienia.
 Konfiguracja, readiness i granty: [automation-tools.md](automation-tools.md).

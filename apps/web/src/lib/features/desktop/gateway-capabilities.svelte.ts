@@ -13,6 +13,7 @@ const sections = {
   "/settings/github": ["ListGitHubAccounts", "BeginGitHubDeviceAuth"],
   "/pull-requests": ["GetPullRequest", "LinkThreadPullRequest"],
   "/settings/workers": ["GetWorkerSetup", "CreateWorkerEnrollment"],
+  "/settings/agent-tools": ["SetAgentToolEnabled", "InstallAgentTool", "RefreshAgentTools"],
   "/settings/network": ["GetNetworkAccess", "UpdateNetworkAccess"],
   "/settings/mobile": ["GetMobileDevices", "CreateDesktopPairing"],
   "/settings/computers": ["GetComputers", "ManageComputer"],

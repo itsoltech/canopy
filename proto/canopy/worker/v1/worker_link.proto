@@ -569,6 +569,7 @@ message ThreadSpec {
   // Lokalne serwery MCP automatyzacji wybrane przez gateway na podstawie gotowości workera.
   // Zawiera wyłącznie identyfikatory; worker rozwiązuje binarki i uruchamia je przez stdio.
   repeated AgentTool local_mcp_tools = 521;
+  AgentToolSessionDefaults agent_tool_defaults = 522;
   // Utwórz zarządzany katalog scratch przed uruchomieniem harnessu.
   bool scratch = 410;
   string thread_id = 1;

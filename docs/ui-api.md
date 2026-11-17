@@ -3,6 +3,9 @@
 Status (2026-11-17): watch odzyskuje stan po powtarzającym się nieokreślonym błędzie gatewaya;
 API workspace udostępnia lokalne `RevealThreadFile`
 oraz stabilne, stronicowane zmiany Git wątku;
+Settings → Agent tools grupuje Browser/Desktop/Device z dostępem per worker,
+zbiorczym przełącznikiem trójstanowym, automatyczną instalacją przy włączeniu
+i zapisanymi domyślnymi ustawieniami sesji narzędzi;
 podsumowanie wątku web/desktop pokazuje lokalne zmiany Git
 i pozwala pobrać origin przez bezpieczny fast-forward;
 kompozytor przełącza gałęzie checkoutu i wybranego worktree.
@@ -983,7 +986,8 @@ w rozwiniętym workerze, „Agent CLI updates” z „Update all” i kropka prz
 
 ### Narzędzia automatyzacji
 
-Status (2026-11-15): narzędzia i interaktywny Preview są zaimplementowane w kodzie;
+Status (2026-11-17): narzędzia, interaktywny Preview i osobna zakładka Agent tools
+z automatycznym startem instalacji przy włączeniu i ustawieniami sesji są zaimplementowane w kodzie;
 dostępność w wydaniach wynika z promocji kanałów. Szczegóły kontraktu:
 [automation-tools.md](automation-tools.md).
 
@@ -996,9 +1000,27 @@ online/capability oraz grant przed wysłaniem komendy do workera.
 Jednorazowy `RunAgentTool` zachowuje ograniczony wynik diagnostyczny inline
 (PNG do 4 MiB, tekst do 512 KiB), bez publikacji w transkrypcie.
 
-Settings → Workers pokazuje osobny przełącznik **Allow agent access** domyślnie
-wyłączony, status gotowości i log instalacji. Sterowanie użytkownika jest
-w Preview wątku.
+Settings → Agent tools pokazuje niezależnie rozwijane karty Agent Browser,
+Agent Desktop i Agent Device. Każda ma domyślnie wyłączone granty per worker,
+status gotowości, wersję, instalację/aktualizację i log na żądanie.
+Zbiorczy przełącznik ma stan włączony, wyłączony i mieszany; kliknięcie mieszanego
+włącza dostęp na dostępnych workerach. Niedostępne cele pozostają w liczniku
+i mają wyjaśnienie blokady. Stan i błędy operacji są wspólne dla kart także po
+zwinięciu; podsumowanie sygnalizuje instalacje i błędy bez rozwijania.
+`SetAgentToolEnabled(enabled=true)` uruchamia potrzebną instalację przez
+istniejący workerowy instalator, z runtime Browser, a potem zapisuje grant.
+Włączenie wymaga online; wyłączenie lokalnego grantu działa też offline.
+Szczegóły ręcznego przygotowania OS/SDK i ograniczeń są w automation-tools.md.
+Sterowanie użytkownika pozostaje w Preview wątku.
+
+`UserSettings.agent_tool_defaults` i odpowiadające pole `UpdateUserSettingsRequest`
+przechowują Browser (viewport i preferencja kolorów), Desktop (aplikacja) oraz Device
+(platforma, start emulatorów i czas oczekiwania). UI korzysta ze wspólnego
+`PUT /api/settings/user`, wersjonowania i synchronizacji overview; zapis jednej karty
+zachowuje pozostałe narzędzia. Formularz potwierdza sukces według stanu zapisanego
+przez gateway, a nie optymistycznego podglądu. Reset wymaga Save defaults.
+Zakres to wszystkie workery użytkownika; wartości i pierwszeństwo jawnych argumentów
+opisuje [automation-tools.md](automation-tools.md#domyślne-ustawienia-sesji).
 
 `WatchAgentPreview` przyjmuje `thread_id`, `scope` i `max_fps`; `scope` wybiera
 wyłącznie narzędzie i cel. Gateway wyprowadza sesję i worker z własnego wątku,

@@ -9,6 +9,7 @@ import {
   type Tool,
 } from "@modelcontextprotocol/sdk/types.js";
 import { abortable, MAX_BYTES, requestDeadline, STDIO_TIMEOUT_MS } from "./protocol.ts";
+import { desktopDefaultApp } from "./desktop-policy.ts";
 import { automationCatalog } from "./policy.ts";
 import type { AutomationCall, AutomationScope } from "./session-policy.ts";
 
@@ -17,6 +18,7 @@ export interface LocalAutomationServer {
   command: string;
   args: readonly string[];
   readonly scope?: AutomationScope;
+  readonly prepare?: (tool: string, signal: AbortSignal) => Promise<void>;
   readonly env?: Readonly<{ AGENT_BROWSER_SESSION?: string; AGENT_DEVICE_SESSION?: string }>;
   readonly managed?: {
     tools: Tool[];
@@ -51,11 +53,13 @@ export class AutomationStdio {
   private catalog: Promise<{ tools: Tool[] }> | undefined;
   private closing: Promise<void> | undefined;
   private readonly scope: AutomationScope | undefined;
+  private readonly prepare: LocalAutomationServer["prepare"];
   private readonly managed: LocalAutomationServer["managed"];
 
   constructor(server: LocalAutomationServer, env: Record<string, string>) {
     this.scope = server.scope;
     this.managed = server.managed;
+    this.prepare = server.prepare;
     // The SDK merges its default environment even with an explicit env. Mask omitted values.
     const isolatedEnv = Object.fromEntries(DEFAULT_INHERITED_ENV_VARS.map((key) => [key, ""]));
     Object.assign(isolatedEnv, env);
@@ -151,6 +155,15 @@ export class AutomationStdio {
     }
   }
 
+  /** Resolve schema-aware fallback targets before gateway authorization and activity publication. */
+  async bindDefaults(params: AutomationCall, signal: AbortSignal): Promise<AutomationCall> {
+    if (this.scope?.tool !== AgentTool.DESKTOP || !this.scope.defaults?.desktop?.app) return params;
+    const catalog = await this.listUpstream(signal);
+    const tool = catalog.tools.find((item) => item.name === params.name);
+
+    return tool ? desktopDefaultApp(params, tool, this.scope.defaults.desktop.app) : params;
+  }
+
   async call(params: AutomationCall, signal: AbortSignal): Promise<CallToolResult | undefined> {
     const requestSignal = AbortSignal.any([signal, this.stopped.signal]);
     requestSignal.throwIfAborted();
@@ -169,7 +182,11 @@ export class AutomationStdio {
   private async callUpstream(params: AutomationCall, signal: AbortSignal): Promise<CallToolResult | undefined> {
     const catalog = await this.listUpstream(signal);
 
-    if (!catalog.tools.some((tool) => tool.name === params.name)) return undefined;
+    const tool = catalog.tools.find((item) => item.name === params.name);
+
+    if (!tool) return undefined;
+    signal.throwIfAborted();
+    await this.prepare?.(params.name, signal);
     signal.throwIfAborted();
 
     return this.client.request({ method: "tools/call", params }, CallToolResultSchema, {

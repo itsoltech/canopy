@@ -2,6 +2,13 @@ import { AgentTool, type RunAgentTool } from "@canopy/contracts";
 import { Code, ConnectError } from "@connectrpc/connect";
 
 export const AGENT_TOOLS = new Set([AgentTool.BROWSER, AgentTool.DESKTOP, AgentTool.DEVICE]);
+
+export const AGENT_TOOL_VERSIONS = new Map([
+  [AgentTool.BROWSER, "0.43.0"],
+  [AgentTool.DESKTOP, "1.3.1"],
+  [AgentTool.DEVICE, "0.21.37"],
+]);
+
 export const AGENT_WORKER_ID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const OPERATIONS = new Set(["open", "snapshot", "screenshot", "click", "fill", "type", "press", "close"]);
 const DEVICE_PLATFORMS = new Set(["ios", "android", "harmonyos", "vega", "macos", "linux", "web", "apple"]);

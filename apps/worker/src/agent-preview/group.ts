@@ -1,4 +1,4 @@
-import { AgentTool, type RunAgentTool } from "@canopy/contracts";
+import { AgentTool, type RunAgentTool, type AgentToolSessionDefaults } from "@canopy/contracts";
 import type { AgentTools } from "../agent-tools/index.ts";
 import { browserPreview } from "./browser.ts";
 import { screenshotPreview } from "./screenshots.ts";
@@ -37,8 +37,13 @@ export class PreviewGroup {
   #frame: PreviewUpdate | undefined;
   #closed: Promise<void> | undefined;
 
-  constructor(tools: AgentTools, scope: RunAgentTool, fail: (detail: string) => void) {
-    this.#ready = this.#open(tools, scope, fail);
+  constructor(
+    tools: AgentTools,
+    scope: RunAgentTool,
+    fail: (detail: string) => void,
+    defaults?: AgentToolSessionDefaults,
+  ) {
+    this.#ready = this.#open(tools, scope, fail, defaults);
     void this.#ready.catch((error) => {
       if (!this.#abort.signal.aborted) fail(error instanceof Error ? error.message : "Preview could not start");
     });
@@ -50,9 +55,14 @@ export class PreviewGroup {
     );
   }
 
-  async #open(tools: AgentTools, scope: RunAgentTool, fail: (detail: string) => void): Promise<PreviewBackend> {
+  async #open(
+    tools: AgentTools,
+    scope: RunAgentTool,
+    fail: (detail: string) => void,
+    defaults?: AgentToolSessionDefaults,
+  ): Promise<PreviewBackend> {
     const signal = this.#abort.signal;
-    const resolved = await cancellable(tools.resolvePreviewScope(scope), signal);
+    const resolved = await cancellable(tools.resolvePreviewScope(scope, defaults), signal);
     signal.throwIfAborted();
     const runtime = new PreviewRuntime(resolved, signal);
 

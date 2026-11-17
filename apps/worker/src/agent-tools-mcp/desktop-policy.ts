@@ -90,3 +90,17 @@ export function desktopCatalog(tools: Tool[], session: string): Tool[] {
     ];
   });
 }
+
+/** Only tools advertising app can receive it; refs and explicit windows carry their own target. */
+export function desktopDefaultApp(params: Call, tool: Tool, app?: string): Call {
+  if (
+    !app ||
+    !Object.hasOwn(tool.inputSchema.properties ?? {}, "app") ||
+    ["app", "window_id", "windowId", "ref", "ref_id", "target", "from_ref", "to_ref"].some((key) =>
+      Boolean(params.arguments[key]),
+    )
+  )
+    return params;
+
+  return { ...params, arguments: { ...params.arguments, app } };
+}

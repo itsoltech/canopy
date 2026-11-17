@@ -92,7 +92,7 @@
   {/if}
   {#if worker && !offline && (item?.blockedReason || (item?.tool && !ready && !item.action))}<ButtonLink
       size="sm"
-      href={`/settings/workers/${encodeURIComponent(worker.id)}`}>Open tool settings</ButtonLink
+      href="/settings/agent-tools">Open tool settings</ButtonLink
     >{/if}
   {#if error}<p class="max-w-72 text-sm/5 text-rose-700 dark:text-rose-400" role="alert">{error}</p>{/if}
 </div>

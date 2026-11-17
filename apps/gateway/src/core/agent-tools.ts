@@ -14,6 +14,7 @@ import type { CoreRuntime, GatewayCore } from "./core.ts";
 import { queryFamily, queryRpc } from "../diagnostics/query-context.ts";
 import {
   AGENT_TOOLS as TOOLS,
+  AGENT_TOOL_VERSIONS as VERSIONS,
   AGENT_WORKER_ID as UUID,
   agentToolWorkerId as workerId,
   validateAgentTool as validateTool,
@@ -24,10 +25,9 @@ export const AGENT_TOOL_LOG_LINES = 200;
 const enabledOf = Schema.decodeUnknownOption(Schema.Record(Schema.String, Schema.Boolean));
 const MAX_TEXT = 512 * 1024;
 const MAX_IMAGE = 4 * 1024 * 1024;
-const DEVICE_VERSION = "0.21.37";
 
 const deviceAvailable = (info: AgentToolsReport["tools"][number] | undefined) =>
-  Boolean(info?.installed && info.version === DEVICE_VERSION && info.install?.state !== "running");
+  Boolean(info?.installed && info.version === VERSIONS.get(AgentTool.DEVICE) && info.install?.state !== "running");
 
 interface AgentToolRow {
   id: string;
@@ -45,6 +45,7 @@ export interface AgentToolsOptions {
 export class AgentTools {
   readonly #options: AgentToolsOptions;
   readonly #logs = new Map<string, string[]>();
+  readonly #accessChanges = new Map<string, symbol>();
 
   constructor(options: AgentToolsOptions) {
     this.#options = options;
@@ -214,7 +215,8 @@ export class AgentTools {
   }
 
   #view(worker: ui.Worker, row: AgentToolRow, tool: AgentToolsReport["tools"][number]): ui.WorkerAgentTool {
-    const canInstall = tool.installable && (!tool.installed || !tool.ready);
+    const update = tool.installed && tool.version !== VERSIONS.get(tool.tool);
+    const canInstall = tool.installable && (!tool.installed || !tool.ready || update);
 
     const blockedReason = !worker.online
       ? "The worker is offline"
@@ -227,7 +229,7 @@ export class AgentTools {
     return create(ui.WorkerAgentToolSchema, {
       tool,
       enabled: row.enabled[String(tool.tool)] === true,
-      action: canInstall && !blockedReason ? "install" : "",
+      action: canInstall && !blockedReason ? (update ? "update" : "install") : "",
       blockedReason,
       log: this.#logs.get(`${worker.id}/${tool.tool}`) ?? [],
     });
@@ -236,8 +238,22 @@ export class AgentTools {
   async setEnabled(request: ui.SetAgentToolEnabledRequest): Promise<ui.WorkerOperationResponse> {
     const row = await this.#owned(workerId(request.workerId));
     validateTool(request.tool);
+    const key = `${row.id}/${request.tool}`;
+    const change = Symbol();
+    this.#accessChanges.set(key, change);
 
-    if (request.enabled) this.#connection(row.id);
+    try {
+      if (request.enabled) await this.#prepare(row, request.tool);
+
+      if (this.#accessChanges.get(key) === change) await this.#setEnabled(row.id, request);
+    } finally {
+      if (this.#accessChanges.get(key) === change) this.#accessChanges.delete(key);
+    }
+
+    return create(ui.WorkerOperationResponseSchema);
+  }
+
+  async #setEnabled(id: string, request: ui.SetAgentToolEnabledRequest): Promise<void> {
     const userId = this.#options.userId;
     const key = String(request.tool);
     const enabled = request.enabled;
@@ -248,14 +264,33 @@ export class AgentTools {
 
         return yield* sql`UPDATE workers SET capabilities = jsonb_set(capabilities, '{agentToolsEnabled}',
         coalesce(capabilities->'agentToolsEnabled', '{}'::jsonb) || jsonb_build_object(${key}::text, ${enabled}::boolean))
-        WHERE id = ${row.id}::uuid AND owner_user_id = ${userId}::uuid AND archived_at IS NULL AND revoked_at IS NULL RETURNING id`;
+        WHERE id = ${id}::uuid AND owner_user_id = ${userId}::uuid AND archived_at IS NULL AND revoked_at IS NULL RETURNING id`;
       }),
     );
 
     if (!rows.length) throw new ConnectError("worker not found", Code.NotFound);
     await this.#options.changed();
+  }
 
-    return create(ui.WorkerOperationResponseSchema);
+  async #prepare(row: AgentToolRow, tool: AgentTool): Promise<void> {
+    this.#connection(row.id);
+    const info = row.report?.tools.find((item) => item.tool === tool);
+
+    if (!info) throw new ConnectError("the worker has not reported automation tools yet", Code.FailedPrecondition);
+
+    if (info.install?.state === "running") return;
+
+    // Local OS permissions and device SDKs need user setup, rather than reinstalling a pinned binary.
+    if (info.installed && info.version === VERSIONS.get(tool) && (info.ready || tool !== AgentTool.BROWSER)) return;
+    await this.#install(
+      row,
+      create(ui.InstallAgentToolRequestSchema, {
+        workerId: row.id,
+        tool,
+        installRuntime: tool === AgentTool.BROWSER,
+      }),
+      true,
+    );
   }
 
   async install(request: ui.InstallAgentToolRequest): Promise<ui.InstallAgentToolResponse> {
@@ -267,16 +302,24 @@ export class AgentTools {
 
     if (request.version.length > 64 || (request.installRuntime && request.tool !== AgentTool.BROWSER))
       throw new ConnectError("invalid automation install options", Code.InvalidArgument);
+    await this.#install(row, request, false);
+
+    return create(ui.InstallAgentToolResponseSchema, { started: [row.id] });
+  }
+
+  async #install(row: AgentToolRow, request: ui.InstallAgentToolRequest, enabling: boolean): Promise<void> {
     const connection = this.#connection(row.id);
     const tool = row.report?.tools.find((item) => item.tool === request.tool);
 
     if (!tool) throw new ConnectError("the worker has not reported automation tools yet", Code.FailedPrecondition);
 
-    if (!tool.installable)
-      throw new ConnectError(tool.detail || "this tool cannot be installed here", Code.FailedPrecondition);
+    if (tool.install?.state === "running" && enabling) return;
 
     if (tool.install?.state === "running")
       throw new ConnectError("this tool is already being installed", Code.FailedPrecondition);
+
+    if (!tool.installable)
+      throw new ConnectError(tool.detail || "this tool cannot be installed here", Code.FailedPrecondition);
 
     const result = await connection.sendCommand(
       {
@@ -291,14 +334,15 @@ export class AgentTools {
       15_000,
     );
 
+    // A report can lag a concurrent install command; the worker remains the installation lock.
+    if (!result.ok && enabling && result.errorCode === "AGENT_TOOL_INSTALL_RUNNING") return;
+
     if (!result.ok)
       throw new ConnectError(
         result.errorMessage || result.errorCode || "the install did not start",
         Code.FailedPrecondition,
       );
     this.#logs.delete(`${row.id}/${request.tool}`);
-
-    return create(ui.InstallAgentToolResponseSchema, { started: [row.id] });
   }
 
   async refresh(request: ui.RefreshAgentToolsRequest): Promise<ui.RefreshAgentToolsResponse> {

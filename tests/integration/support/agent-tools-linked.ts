@@ -31,7 +31,7 @@ export async function expectLinkedAgentToolRouting(): Promise<void> {
           tool,
           installed: true,
           ready: true,
-          version: tool === AgentTool.DEVICE ? "0.21.37" : "1.2.3",
+          version: tool === AgentTool.DEVICE ? "0.21.37" : "1.3.1",
           screenshot: true,
         })),
       },
@@ -111,10 +111,41 @@ export async function expectLinkedAgentToolRouting(): Promise<void> {
 
     expect(refused).toBe(Code.PermissionDenied);
     expect(worker.commands.filter((command) => command.case === "runAgentTool")).toHaveLength(2);
+    await expectLinkedInstallation(viewer, home, worker, registered.workerId);
     await expectTransientInstallationLog(viewer, home, worker, registered.workerId);
   } finally {
     await Promise.allSettled([viewer?.close(), home?.close()]);
   }
+}
+
+async function expectLinkedInstallation(
+  viewer: ConfigComputer,
+  home: ConfigComputer,
+  worker: ScriptedWorker,
+  workerId: string,
+): Promise<void> {
+  worker.link.send({
+    case: "agentToolsReport",
+    value: { tools: [{ tool: AgentTool.BROWSER, installed: false, installable: true }] },
+  });
+
+  const current = await eventually(
+    async () => (await home.gateway.api.getOverview({})).workers.find((item) => item.id === workerId),
+    (item) => item?.agentTools[0]?.tool?.tool === AgentTool.BROWSER,
+  );
+
+  expect(current?.agentTools[0]?.tool?.tool).toBe(AgentTool.BROWSER);
+  await viewer.gateway.api.setAgentToolEnabled({
+    workerId: qualifyId(workerId, home.node),
+    tool: AgentTool.BROWSER,
+    enabled: true,
+  });
+  const installations = worker.commands.filter((command) => command.case === "installAgentTool");
+  expect(installations).toHaveLength(1);
+  expect(installations[0]?.value).toMatchObject({ tool: AgentTool.BROWSER, installRuntime: true });
+  const enabled = (await home.gateway.api.getOverview({})).workers.find((item) => item.id === workerId);
+  expect(enabled?.agentTools[0]?.enabled).toBe(true);
+  expect(viewer.gateway.worker.commands.some((command) => command.case === "installAgentTool")).toBe(false);
 }
 
 async function expectTransientInstallationLog(

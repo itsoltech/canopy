@@ -123,6 +123,13 @@ export const settingsSections: readonly SettingsSection[] = [
     keywords: "instructions claude.md agents.md fragments skills plugins tags machines sync drift",
   },
   {
+    href: "/settings/agent-tools",
+    label: "Agent tools",
+    icon: "wrench",
+    group: "Code",
+    keywords: "automation agent browser desktop device simulator emulator worker access install update tools",
+  },
+  {
     href: "/settings/import",
     label: "Import",
     icon: "arrow-down-tray",

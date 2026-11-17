@@ -1,7 +1,8 @@
 import { expect, test } from "bun:test";
 import { existsSync, readFileSync } from "node:fs";
 import { join } from "node:path";
-import { AgentTool } from "@canopy/contracts";
+import { create } from "@bufbuild/protobuf";
+import { AgentTool, DeviceSessionDefaultsSchema, type DeviceSessionDefaults } from "@canopy/contracts";
 import { tempDirs } from "@canopy/testing";
 import { z } from "zod";
 import { createLocalAutomationMcp } from "../agent-tools-mcp/index.ts";
@@ -37,7 +38,7 @@ const ios: Device = {
   booted: true,
 };
 
-function fixture(initial: Device[]) {
+function fixture(initial: Device[], defaults?: DeviceSessionDefaults) {
   const dataDir = temporary("canopy-device-managed-");
   const devices = initial.map((device) => ({ ...device }));
   const booted: string[] = [];
@@ -81,7 +82,7 @@ function fixture(initial: Device[]) {
       command: process.execPath,
       args: [join(import.meta.dir, "../agent-tools-mcp/fixtures/server.ts"), paths[index]!],
       scope: { tool: AgentTool.DEVICE, session },
-      managed: managedDeviceMcp(pool, session, () => pool.release(session)),
+      managed: managedDeviceMcp(pool, session, () => pool.release(session), defaults),
     })),
     env: { CANOPY_MCP_DEVICE_POLICY: "1" },
     authorize: async () => {},
@@ -324,3 +325,40 @@ test("busy targets reject all target tool calls before upstream MCP receives the
     await f.close();
   }
 });
+
+test("device defaults prefer a platform while explicit selectors and held reservations keep their target", async () => {
+  const f = fixture(
+    [android, ios],
+    create(DeviceSessionDefaultsSchema, { platform: "ios", allowBoot: false, acquireTimeoutSeconds: 1 }),
+  );
+
+  try {
+    expect((await f.call(0, "acquire_device")).error).toBeUndefined();
+    expect(f.pool.current(sessions[0])?.id).toBe(ios.id);
+    expect((await f.call(1, "acquire_device", { serial: android.id })).error).toBeUndefined();
+    expect(f.pool.current(sessions[1])?.id).toBe(android.id);
+    expect((await f.call(1, "acquire_device")).error).toBeUndefined();
+    expect(argumentsOf(await f.call(1, "snapshot"))["serial"]).toBe(android.id);
+    expect(f.booted).toEqual([]);
+  } finally {
+    await f.close();
+  }
+});
+
+test("device acquisition respects boot and wait defaults and permits explicit acquisition overrides", async () => {
+  const f = fixture(
+    [{ ...android, booted: false }],
+    create(DeviceSessionDefaultsSchema, { platform: "android", allowBoot: false, acquireTimeoutSeconds: 1 }),
+  );
+
+  try {
+    const start = Date.now();
+    expect((await f.call(0, "acquire_device")).error).toBeDefined();
+    expect(Date.now() - start).toBeLessThan(2500);
+    expect(f.booted).toEqual([]);
+    expect((await f.call(0, "acquire_device", { boot: true, timeoutMs: 2000 })).error).toBeUndefined();
+    expect(f.booted).toEqual([android.id]);
+  } finally {
+    await f.close();
+  }
+}, 5000);

@@ -3,10 +3,12 @@ import { isEntityId } from "@canopy/domain/computers";
 import { isCheckInterval } from "@canopy/domain/update-checks";
 import { harnessOf } from "../store/index.ts";
 import { checkFavorites, InvalidError } from "./core-context.ts";
+import { validateAgentToolDefaults } from "./agent-tool-defaults-validation.ts";
 import { checkWorkerGatewayUrl } from "./worker-administration.ts";
 
 /** Shared by local UI writes and config materialization before the domain store is changed. */
 export function validateUserSettings(request: ui.UpdateUserSettingsRequest) {
+  if (request.agentToolDefaults) validateAgentToolDefaults(request.agentToolDefaults);
   const interval = request.cliUpdates?.intervalMinutes;
 
   if (interval !== undefined && !isCheckInterval(interval)) throw new InvalidError("invalid CLI update check interval");

@@ -1,3 +1,4 @@
+import { coreSettings } from "./core-settings.ts";
 import { create, toJson, type MessageInitShape } from "@bufbuild/protobuf";
 import { coreNameBranchAfterTurn } from "../worktrees/branch-naming.ts";
 import { SHELL_INPUT_CAPABILITY, SHELL_INPUT_TIMEOUT_MS } from "@canopy/domain";
@@ -287,6 +288,7 @@ async function prepareThreadTools(core: GatewayCore, workerId: string, command: 
   const thread = await coreRun(core, (s) => s.thread(spec.threadId));
   spec.connectorTools = await core.connectors.tools(thread.owner_user_id, { workerId });
   spec.localMcpTools = await core.agentTools.readyTools(workerId);
+  spec.agentToolDefaults = (await coreSettings(core, (s) => s.user(thread.owner_user_id))).agentToolDefaults;
 }
 
 async function commandFailed(

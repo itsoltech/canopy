@@ -4,6 +4,7 @@ import { join } from "node:path";
 import { create } from "@bufbuild/protobuf";
 import {
   AgentTool,
+  AgentToolSessionDefaultsSchema,
   AgentPreviewCommandSchema,
   AgentPreviewEventSchema,
   AgentPreviewInputSchema,
@@ -11,6 +12,7 @@ import {
   type AgentPreviewEvent,
   type AgentPreviewInput,
 } from "@canopy/contracts";
+import { PreviewRuntime } from "./runtime.ts";
 import { AgentPreviews } from "./index.ts";
 import { screenshotPreview } from "./screenshots.ts";
 import { DesktopCatalog, deviceCatalog } from "./catalog.ts";
@@ -361,4 +363,104 @@ test("preview file reads reject symlinks and oversized files before reading", as
   expect(() => readPreviewImage(path)).toThrow("regular");
   writeFileSync(join(f.dir, "invalid.png"), "not an image");
   expect(readPreviewImage(join(f.dir, "invalid.png"))).toHaveLength(12);
+});
+
+test("Preview command app defaults filter the initial window while explicit window selection takes precedence", async () => {
+  const f = await previewFixture();
+  const events: AgentPreviewEvent[] = [];
+
+  const manager = new AgentPreviews({
+    tools: f.tools,
+    send: (event) => {
+      events.push(create(AgentPreviewEventSchema, event));
+    },
+  });
+
+  const editor = {
+    id: "editor",
+    title: "Document",
+    app_name: "Editor",
+    is_focused: false,
+    bounds: { x: 0, y: 0, width: 800, height: 600 },
+  };
+
+  const terminal = { ...editor, id: "terminal", title: "Shell", app_name: "Terminal", is_focused: true };
+  f.update({ windows: [editor, terminal] });
+
+  try {
+    manager.accept(
+      create(AgentPreviewCommandSchema, {
+        kind: {
+          case: "start",
+          value: {
+            previewId: "default-app",
+            threadId: "thread",
+            scope: f.scope,
+            agentToolDefaults: { desktop: { app: "Editor" } },
+          },
+        },
+      }),
+    );
+    await eventually(() => events.some((event) => event.previewId === "default-app" && event.state === "frame"));
+    expect(events.find((event) => event.previewId === "default-app" && event.state === "frame")?.targetId).toBe(
+      "editor",
+    );
+    await manager.stopThread("thread");
+    manager.accept(
+      create(AgentPreviewCommandSchema, {
+        kind: {
+          case: "start",
+          value: {
+            previewId: "explicit-window",
+            threadId: "thread",
+            scope: { ...f.scope, windowId: "terminal" },
+            agentToolDefaults: { desktop: { app: "Editor" } },
+          },
+        },
+      }),
+    );
+    await eventually(() => events.some((event) => event.previewId === "explicit-window" && event.state === "frame"));
+    expect(events.find((event) => event.previewId === "explicit-window" && event.state === "frame")?.targetId).toBe(
+      "terminal",
+    );
+  } finally {
+    await manager.close();
+    await f.tools.close();
+  }
+});
+
+test("Device Preview prefers the held session over defaults and only catalogs devices without boot or waiting", async () => {
+  const f = await previewFixture(AgentTool.DEVICE);
+
+  const defaults = create(AgentToolSessionDefaultsSchema, {
+    device: { platform: "ios", allowBoot: true, acquireTimeoutSeconds: 240 },
+  });
+
+  f.update({
+    devices: [
+      { id: "emulator-5554", name: "Android", platform: "android" },
+      { id: "ios-udid", name: "iPhone", platform: "ios" },
+    ],
+  });
+
+  const runtime = async (platform = "", deviceId = "") =>
+    new PreviewRuntime(
+      await f.tools.resolvePreviewScope(create(RunAgentToolSchema, { ...f.scope, platform, deviceId }), defaults),
+      new AbortController().signal,
+    );
+
+  try {
+    expect((await deviceCatalog(await runtime())).targetId).toBe("android:emulator-5554");
+    f.update({ sessions: [] });
+    expect((await deviceCatalog(await runtime())).targetId).toBe("ios:ios-udid");
+    expect((await deviceCatalog(await runtime("android"))).targetId).toBe("android:emulator-5554");
+    expect((await deviceCatalog(await runtime("", "emulator-5554"))).targetId).toBe("android:emulator-5554");
+    expect(
+      f
+        .calls()
+        .every((call) => ["session", "devices", "doctor"].includes(call.command) || call.args.includes("--version")),
+    ).toBe(true);
+  } finally {
+    await f.tools.close();
+  }
 });

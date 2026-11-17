@@ -68,7 +68,11 @@ export interface ClaudeThreadsOptions {
   /** The platform's view_image (worker-side; docs/agent-bus.md). */
   viewImage?(threadId: string, cwd: string, path: string): Promise<ViewImageResult>;
   /** Local automation MCP servers resolved by the worker from gateway-approved tool ids. */
-  localMcpServers?(tools: readonly AgentTool[], threadId: string): readonly LocalAgentToolMcpServer[];
+  localMcpServers?(
+    tools: readonly AgentTool[],
+    threadId: string,
+    defaults?: ThreadSpec["agentToolDefaults"],
+  ): readonly LocalAgentToolMcpServer[];
   /** Adds what the transcript shows of an event (image previews) before it is journaled. */
   enrich?(init: ThreadEventInit): Promise<ThreadEventInit>;
 }

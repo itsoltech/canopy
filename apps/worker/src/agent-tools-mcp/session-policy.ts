@@ -1,9 +1,9 @@
-import { AgentTool } from "@canopy/contracts";
+import { AgentTool, type AgentToolSessionDefaults } from "@canopy/contracts";
 import type { Tool } from "@modelcontextprotocol/sdk/types.js";
 import { z } from "zod";
 import type { ToolCall } from "./protocol.ts";
 
-export type AutomationScope = Readonly<{ tool: AgentTool; session: string }>;
+export type AutomationScope = Readonly<{ tool: AgentTool; session: string; defaults?: AgentToolSessionDefaults }>;
 
 export type AutomationCall = z.infer<typeof ToolCall>;
 
