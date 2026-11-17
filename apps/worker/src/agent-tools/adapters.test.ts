@@ -71,7 +71,11 @@ test("runtime loss, missing permissions and absent devices defeat version and ol
   });
 
   expect((await manager.probe()).tools?.map((tool) => tool.ready)).toEqual([false, false, false]);
-  expect(manager.localMcpServers([browser, desktop, device])).toEqual([]);
+  expect(manager.localMcpServers([browser, desktop])).toEqual([]);
+  const servers = manager.localMcpServers([device], "thread");
+  expect(servers).toHaveLength(1);
+  expect(servers[0]?.managed?.tools.map((tool) => tool.name)).toEqual(["acquire_device", "release_device"]);
+  await expect(manager.run(request(device, "snapshot"))).rejects.toThrow();
   await expect(manager.run(request(browser, "snapshot"))).rejects.toThrow("Runtime is missing");
   f.state(desktop, { emptySurfaces: true });
   expect((await discoverAgentTool(agentToolSpec(desktop), { which: f.which, env: f.env })).ready).toBe(false);

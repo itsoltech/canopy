@@ -16,7 +16,14 @@ async function running(gateway: TestGateway, mode = PermissionMode.FULL_AUTO) {
   gateway.worker.holdTurns = true;
   gateway.worker.link.send({
     case: "agentToolsReport",
-    value: { tools: tools.map((tool) => ({ tool, installed: true, ready: true, version: "1.2.3" })) },
+    value: {
+      tools: tools.map((tool) => ({
+        tool,
+        installed: true,
+        ready: true,
+        version: tool === AgentTool.DEVICE ? "0.21.37" : "1.2.3",
+      })),
+    },
   });
   expect(
     await eventually(

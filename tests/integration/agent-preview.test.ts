@@ -382,7 +382,7 @@ describe.skipIf(!dockerAvailable)("thread preview streaming and human input", ()
     }
   });
 
-  test("device preview discovery selects an unready device while manual and MCP calls still require readiness", async () => {
+  test("device preview and MCP can select an unready device while manual calls still require readiness", async () => {
     await ready(gateway.worker, gateway.workerId, { tool: AgentTool.DEVICE, ready: false });
     gateway.worker.previewHandler = (command) => {
       if (command.kind.case !== "start") return;
@@ -434,7 +434,7 @@ describe.skipIf(!dockerAvailable)("thread preview streaming and human input", ()
     expect(await code(gateway.core.agentTools.authorize(gateway.workerId, AgentTool.DEVICE))).toBe(
       Code.FailedPrecondition,
     );
-    expect(await gateway.core.agentTools.readyTools(gateway.workerId)).not.toContain(AgentTool.DEVICE);
+    expect(await gateway.core.agentTools.readyTools(gateway.workerId)).toContain(AgentTool.DEVICE);
     expect(
       await code(
         gateway.api.runAgentTool({
@@ -474,7 +474,7 @@ describe.skipIf(!dockerAvailable)("thread preview streaming and human input", ()
         });
 
       expect((await authorize(AgentTool.BROWSER)).isError).toBe(false);
-      expect((await authorize(AgentTool.DEVICE)).isError).toBe(true);
+      expect((await authorize(AgentTool.DEVICE)).isError).toBe(false);
     } finally {
       gateway.worker.finish(threadId, turn.id);
       gateway.worker.holdTurns = false;
