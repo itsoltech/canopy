@@ -100,15 +100,19 @@ describe.skipIf(!dockerAvailable)("mirror metadata listing and backfill", () => 
     expect(await other.threads(node, create(ui.ListThreadsRequestSchema))).toEqual([]);
   }, 15_000);
 
-  test("listing survives a snapshot row above the SQL driver's wire-message limit", async () => {
+  test("listing uses metadata even when a large readable snapshot is not valid protobuf", async () => {
     await store.query(
       `UPDATE computer_mirror_threads SET snapshot=repeat('x',17*1024*1024)::bytea
       WHERE owner_user_id=$1::uuid AND origin_node_id=$2 AND thread_id=$3::uuid`,
       [gateway.userId, node, ids[0]!],
     );
-    await expect(
-      store.query("SELECT snapshot FROM computer_mirror_threads WHERE thread_id=$1::uuid", [ids[0]!]),
-    ).rejects.toThrow("Failed to parse server messages");
+
+    const rows = await store.query<{ snapshot: Uint8Array }>(
+      "SELECT snapshot FROM computer_mirror_threads WHERE thread_id=$1::uuid",
+      [ids[0]!],
+    );
+
+    expect(rows[0]?.snapshot.byteLength).toBe(17 * 1024 * 1024);
     expect(await mirror.threads(node, create(ui.ListThreadsRequestSchema, { includeArchived: true }))).toHaveLength(
       100,
     );
