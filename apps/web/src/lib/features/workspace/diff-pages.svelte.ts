@@ -1,7 +1,7 @@
 import { HttpError } from "#lib/shared/http.ts";
 import { readThreadDiff, ThreadDiffError, type ThreadDiffFile, type ThreadDiffLine } from "./diff-api.ts";
 
-export const DIFF_PAGE_LINES = 16;
+export const DIFF_PAGE_LINES = 128;
 const MAX_PAGES = 128;
 const MAX_BYTES = 16 * 1024 * 1024;
 
@@ -13,7 +13,7 @@ export interface DiffPageTarget {
 
 const pageKey = (target: DiffPageTarget) => `${target.path}\0${target.offset}`;
 
-/** Only viewport pages are queued; moving away cancels obsolete work, including queued pages. */
+/** Viewport pages precede nearby prefetch; leaving that window cancels obsolete work. */
 export class DiffPages {
   revision = $state(0);
   error = $state("");
@@ -173,5 +173,5 @@ export function diffPageTargets(rows: readonly { file: ThreadDiffFile; offset: n
     targets.set(pageKey(target), target);
   }
 
-  return [...targets.values()];
+  return [...targets.values()].slice(0, MAX_PAGES);
 }
