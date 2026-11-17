@@ -8,6 +8,7 @@ import {
   ui,
   type CommandResult,
   type CloneProgress,
+  type QueryProgress,
   type Mention,
   type MentionCatalog,
 } from "@canopy/contracts";
@@ -78,7 +79,11 @@ export async function coreWorkerQuery(
   workerId: string,
   kind: CommandInit,
   timeoutMs: number,
-  options?: { commandId: string; progress: (progress: CloneProgress) => void },
+  options?: {
+    commandId?: string;
+    progress?: (progress: CloneProgress) => void;
+    queryProgress?: (progress: QueryProgress) => void;
+  },
 ): Promise<CommandResult> {
   const connection = hostContext.link.connections.get(workerId);
 
@@ -90,7 +95,13 @@ export async function coreWorkerQuery(
     throw new UnavailableError(`${worker?.name || "the worker"} is offline`);
   }
 
-  const result = await connection.sendCommand(kind, timeoutMs, options?.commandId, options?.progress);
+  const result = await connection.sendCommand(
+    kind,
+    timeoutMs,
+    options?.commandId,
+    options?.progress,
+    options?.queryProgress,
+  );
 
   if (!result.ok) {
     if (result.errorCode === "FILE_CHANGED")

@@ -22,6 +22,7 @@ import { useWorkspaceStore, forgetWorkspace } from "../features/workspace/store"
 import { prepareMobileDrafts } from "../features/drafts/storage";
 import { clearVisualCaches } from "../features/visuals/visual-source";
 import type { MobileDrafts } from "../features/drafts/store";
+import { useThreadCreations } from "../features/new-thread/useThreadCreations";
 
 const SHARED_READ_FAILED = "Could not load settings. Check the connection and retry.";
 
@@ -31,9 +32,12 @@ const unpaired = new QueryCache();
 unpaired.dispose();
 
 function useSessionState() {
-  const [session, setSession] = useState<DeviceSession | null>(null);
+  const [{ session, drafts }, setPairing] = useState<{ session: DeviceSession | null; drafts: MobileDrafts | null }>({
+    session: null,
+    drafts: null,
+  });
+
   const [ready, setReady] = useState(false);
-  const [drafts, setDrafts] = useState<MobileDrafts | null>(null);
   const [threadCache, setThreadCache] = useState<PersistentThreadCache | null>(null);
   const [archivedCache, setArchivedCache] = useState<PersistentArchivedCache | null>(null);
   const [botCache, setBotCache] = useState<PersistentBotCache | null>(null);
@@ -57,12 +61,12 @@ function useSessionState() {
     void persistence
       .load()
       .then(async (value) => {
-        setDrafts(await prepareMobileDrafts(value));
+        const loadedDrafts = await prepareMobileDrafts(value);
         setThreadCache(await prepareThreadCache(value));
         setArchivedCache(await prepareArchivedCache(value));
         setBotCache(await prepareBotCache(value));
         setImageCache(await prepareImageCache(value));
-        setSession(value);
+        setPairing({ session: value, drafts: loadedDrafts });
       })
       .catch((cause) =>
         setError(cause instanceof Error ? cause.message : "Could not read secure storage. Pair this phone again."),
@@ -71,6 +75,7 @@ function useSessionState() {
   }, [persistence]);
 
   const client = usePairedClient(session, persistence, setError);
+  const threadCreations = useThreadCreations(client?.api, drafts, active, epoch);
   const workspace = useWorkspaceStore(client, session);
   useEffect(() => (client ? startMobileDiagnostics(client.api) : undefined), [client]);
   useEffect(() => {
@@ -88,12 +93,13 @@ function useSessionState() {
   useSessionConnections(client, setActive, setEpoch);
 
   async function clearHistory(revoked = false) {
+    threadCreations?.dispose();
     workspace.clear();
     await clearVisualCaches();
     forgetWorkspace(session);
     await drafts?.close();
     await prepareMobileDrafts(null);
-    setDrafts(null);
+    setPairing({ session: null, drafts: null });
     clearDiagnosticLogs();
 
     const cleared = await clearPairedHistory([threadCache, botCache, archivedCache, imageCache], () =>
@@ -105,13 +111,13 @@ function useSessionState() {
     setBotCache(null);
     setImageCache(null);
     setBots([]);
-    setSession(null);
     setError(historyMessage(cleared, revoked));
   }
 
   const removal = useSessionRemoval(client, session?.deviceId, clearHistory);
 
   return {
+    threadCreations,
     drafts,
     session,
     client,
@@ -134,9 +140,10 @@ function useSessionState() {
     // A private tailnet gateway may be reachable even when public internet probes fail.
     online: network.isConnected !== false,
     async pair(value: DeviceSession) {
+      threadCreations?.dispose();
       await clearVisualCaches();
       await drafts?.close();
-      setDrafts(await prepareMobileDrafts(value));
+      const nextDrafts = await prepareMobileDrafts(value);
       await threadCache?.close();
       await archivedCache?.close();
       await botCache?.close();
@@ -151,7 +158,7 @@ function useSessionState() {
       setBotCache(botHistory);
       setImageCache(images);
       setBots([]);
-      setSession(value);
+      setPairing({ session: value, drafts: nextDrafts });
       setError("");
     },
     ...removal,

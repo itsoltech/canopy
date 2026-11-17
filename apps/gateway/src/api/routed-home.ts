@@ -1,3 +1,4 @@
+import { creationEvent } from "../core/thread-progress.ts";
 import { clone, create, type DescMethod, type Message } from "@bufbuild/protobuf";
 import { bots, MentionKind, MentionSchema, ui, type Mention } from "@canopy/contracts";
 import {
@@ -81,7 +82,7 @@ export async function* forward(
       // A reply lost after write admission is not an offline rejection. Preserve
       // uncertainty before presence decoration can turn it into FailedPrecondition.
       if (
-        ["SendMessage", "CreateThread"].includes(method.name) &&
+        ["SendMessage", "CreateThread", "CreateThreadWithProgress"].includes(method.name) &&
         (error.code === Code.DeadlineExceeded || error.metadata.get("canopy-link-closed") === "true")
       )
         throw new ConnectError("Send not confirmed. Retry with the same request.", Code.DeadlineExceeded);
@@ -314,6 +315,28 @@ async function* send(
   unqualify(method.input, outbound, nodeId, new Set([...(await ids.projects()).known, ...(await ids.proxies()).known]));
   await ids.map(method.input, outbound, "toGlobal", true);
 
+  if (
+    method.name === "CreateThreadWithProgress" &&
+    !computers.capabilities(nodeId).includes("thread_creation_progress_v1")
+  ) {
+    yield creationEvent("start_thread", "running");
+
+    const result = await single<ui.CreateThreadResponse>(
+      computers.remote(nodeId, methodNamed("CreateThread")!, outbound, signal),
+    );
+
+    const response = create(ui.CreateThreadProgressSchema, {
+      ...creationEvent("start_thread", "completed"),
+      thread: result.thread,
+    });
+
+    await ids.map(method.output, response, "toLocal");
+    qualify(method.output, response, nodeId);
+    yield response;
+
+    return;
+  }
+
   const responses = Match.value(method.name).pipe(
     Match.when("WatchThread", () =>
       watchRemoteThread(computers, nodeId, linkedMessage(ui.WatchThreadRequestSchema, outbound), signal),
@@ -358,7 +381,10 @@ export async function carryAttachments(
   const field = Match.value(method.name).pipe(
     Match.when("SendMessage", () => ({ ids: "attachmentIds", mentions: "mentions" }) as const),
     Match.when("SendBotMessage", () => ({ ids: "attachmentIds", mentions: "mentions" }) as const),
-    Match.when("CreateThread", () => ({ ids: "initialAttachmentIds", mentions: "initialMentions" }) as const),
+    Match.when(
+      (name) => name === "CreateThread" || name === "CreateThreadWithProgress",
+      () => ({ ids: "initialAttachmentIds", mentions: "initialMentions" }) as const,
+    ),
     Match.orElse(() => undefined),
   );
 

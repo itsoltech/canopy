@@ -5,7 +5,8 @@ Kopiowanie workspace'u na nowy worker tworzy samodzielny checkout także ze
 wybór obejmuje tylko ignorowane pliki lokalne bez zależności i wyniku builda. Ograniczenia Git:
 [workspace-copy.md](workspace-copy.md).
 
-Status: **etapy 1–3 zaimplementowane** (2026-11-17), w tym 24-godzinna ochrona worktree po archiwizacji
+Status: **etapy 1–3 zaimplementowane** (2026-11-17), w tym natychmiastowy widok przygotowania
+nowego wątku z postępem operacji worktree w web/desktop i natywnym mobile, 24-godzinna ochrona worktree po archiwizacji
 i kontynuacja po usunięciu worktree w nowym wątku oraz sprzątanie zamkniętych worktree
 z odrzucaniem lokalnych plików, pomijanie plików ignorowanych przez Git,
 status lokalnych zmian i pull origin
@@ -457,6 +458,26 @@ projekt) mają grupę **Worktrees** z tym samym Default workspace w zakresie pro
 checkoutu albo nowego worktree per projekt bez szukania zakresu na stronie Worktrees.
 
 ### Kompozytor nowego wątku
+
+W web/desktop i natywnym mobile wysłanie pierwszej wiadomości od razu otwiera widok przygotowania
+wątku: wiadomość użytkownika i listę kroków przed pracą agenta. Lista pokazuje
+sprawdzenie workspace'u, opcjonalny fetch zdalnej gałęzi, utworzenie worktree,
+przygotowanie wiadomości i start wątku. Statusy wynikają z faktycznych operacji,
+bez pozorowanego postępu i bez wykonywania `git pull` w źródłowym checkoutcie.
+Worker z capability `worktree_progress_v1` raportuje osobno sprawdzenie repozytorium,
+fetch i checkout; starszy pokazuje zbiorczy krok tworzenia worktree. Nieudany
+opcjonalny fetch zachowuje dotychczasowy fallback do lokalnej bazy i wyjaśnia go
+przy pominiętym kroku.
+
+Worktree nadal powstaje przed rekordem wątku, więc `cwd` i `worktree_id` pozostają
+niezmienne. Po zakończeniu przygotowania klient zastępuje adres widoku adresem
+utworzonego wątku. Wcześniejsze opuszczenie strony nie przerywa przygotowania.
+BFF przechowuje krótkotrwały postęp, aby odświeżenie widoku mogło go wznowić;
+nie jest to trwała historia operacji Git. Natywny mobile odbiera strumień bez BFF,
+a po utracie połączenia lub restarcie najpierw sprawdza dostarczenie trwałego requestu,
+bez automatycznego ponawiania tworzenia worktree
+([mobile.md](mobile.md#przygotowanie-nowego-wątku)). Błąd pozostawia prompt w lokalnym szkicu
+i pokazuje nieudany krok. Szczegóły retencji i API: [ui-api.md](ui-api.md#przygotowanie-nowego-wątku).
 
 Pod polem wiadomości, obok pickera maszyny: **workspace picker** (pill z ikoną gałęzi):
 

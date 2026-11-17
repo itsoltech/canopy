@@ -1,4 +1,5 @@
 <script lang="ts" generics="T">
+  import { FeedHandoff } from "./feed-handoff.ts";
   import type { Snippet } from "svelte";
   import { tick, untrack } from "svelte";
   import { on } from "svelte/events";
@@ -9,7 +10,7 @@
   import { followScroll } from "./feed-anchor.ts";
   import { FeedEntrances } from "./feed-entrances.ts";
   import { EndScroll } from "./end-scroll.ts";
-  import { feedObserver, publishViewport, rowAttachment } from "./feed-measure.ts";
+  import { FeedMeasurements, observeFeed, publishViewport, rowAttachment } from "./feed-measure.ts";
   import { FeedRows } from "./feed-rows.ts";
   import { COLD_OVERSCAN, feedRange, OVERSCAN_STEP, rowAlignmentSpace } from "./feed-range.ts";
   import { feedRowKey, focusFeedRow, navigateFeedKey } from "./feed-keys.ts";
@@ -67,6 +68,7 @@
     scrollMemory,
     sizes,
     ready = true,
+    onready,
   }: {
     rows: readonly T[];
     key: (row: T) => string;
@@ -102,6 +104,8 @@
     /** Row heights owned by the caller (kept across remounts, e.g. per thread); the feed's own otherwise. */
     sizes?: SizeIndex;
     ready?: boolean;
+    /** The initial snapshot is measured and positioned; a retained creation view can hand off now. */
+    onready?: () => void;
   } = $props();
 
   const uid = $props.id();
@@ -226,56 +230,34 @@
 
   // --- Measuring ------------------------------------------------------------------------------------
   const elements = new Map<string, HTMLElement>();
-  let commitFrame = 0;
-  let measuredViewport = 0;
 
-  // Reactive updates from measurements wait for the next frame: changing the DOM inside the observer
-  // callback would postpone the new rows' notifications (a ResizeObserver loop).
-  const commit = () => {
-    commitFrame ||= requestAnimationFrame(() => {
-      commitFrame = 0;
-      measured++;
-      viewport = measuredViewport;
-
-      if (scroller) gutter = scroller.offsetWidth - scroller.clientWidth;
-
-      if (scroller && list)
-        listTop = list.getBoundingClientRect().top - scroller.getBoundingClientRect().top + scroller.scrollTop;
-    });
-  };
-
-  const observer = feedObserver(
+  const measurements = new FeedMeasurements(
     index,
-    () => ({ positions, sized, scroller }),
-    (height) => {
-      measuredViewport = height ?? measuredViewport;
-      settle();
-      commit();
+    () => ({ positions, sized, scroller, list }),
+    settle,
+    (size) => {
+      measured++;
+      viewport = size.viewport;
+      gutter = size.gutter;
+      listTop = size.listTop;
     },
   );
 
+  const observer = measurements.observer;
+
   const measure = rowAttachment(elements, observer);
 
-  $effect(() => {
-    if (!observer || !scroller || !list || !footerShell) return;
-
-    // Rows measured before (a return to a thread) can be positioned before the first paint, without
-    // waiting a frame for the observer's first viewport height.
-    if (untrack(() => viewport) === 0) viewport = measuredViewport = scroller.clientHeight;
-
-    for (const element of [scroller, list]) observer.observe(element);
-
-    return () => {
-      for (const element of [scroller, list]) if (element) observer.unobserve(element);
-    };
-  });
+  $effect(() =>
+    observeFeed(observer, scroller, list, footerShell, (node) => {
+      if (untrack(() => viewport) === 0) viewport = measurements.viewport = node.clientHeight;
+    }),
+  );
 
   // A footer that just finished folding or opening: its settled height is the new baseline.
   $effect(() => footerReserve.settled(footerFit.fold === "moving" ? undefined : footerShell, footerState, setTop));
 
   $effect(() => () => {
-    observer?.disconnect();
-    cancelAnimationFrame(commitFrame);
+    measurements.dispose();
     entrances.dispose();
     endScroll.cancel();
     clearTimeout(rowTimer);
@@ -292,6 +274,8 @@
     void viewport;
 
     untrack(settle);
+
+    if (ready && opening.positioned) untrack(() => onready?.());
   });
 
   // --- Keeping the place ----------------------------------------------------------------------------
@@ -467,12 +451,22 @@
   }
 
   // --- Keyboard ---------------------------------------------------------------------------------------
-  /** Read-only estimated/measured row offset, relative to the start of the list. */
-  export function rowOffset(at: number): number {
-    void layout;
+  const handoff = new FeedHandoff(
+    () => ({ scroller, elements, memory: scrollMemory }),
+    (value) => {
+      stuck = !value || !extent.overflows;
+      anchor = value;
+      identifyAnchor();
+    },
+    () => opening.save(stuck, anchor),
+    setTop,
+  );
 
-    return index.offset(at);
-  }
+  export const savePosition = () => handoff.save();
+  export const restorePosition = (position: Parameters<FeedHandoff["restore"]>[0]) => handoff.restore(position);
+
+  /** Read-only estimated/measured row offset, relative to the start of the list. */
+  export const rowOffset = (at: number): number => (void layout, index.offset(at));
 
   /** Jump even to an unmounted row; measurements then keep its start exactly at the top. */
   export async function scrollToRow(

@@ -12,7 +12,8 @@ export function recoverDraft(draft: MobileComposerState, api: Client<typeof ui.G
   clearTimeout(timers.get(draft));
   const request = draft.pendingSend || draft.pendingCreate;
 
-  if (!request || draft.preparing || draft.local.closed) return Promise.resolve();
+  if (!request || draft.preparing || draft.local.closed || (draft.pendingCreate && draft.creationRecoveryOwned))
+    return Promise.resolve();
   draft.reconciling = true;
   draft.deliveryChecked = false;
   draft.persist();
@@ -28,7 +29,12 @@ export function recoverDraft(draft: MobileComposerState, api: Client<typeof ui.G
       { timeoutMs: 15_000 },
     )
     .then((status) => {
-      if (draft.requestId !== request.clientRequestId || draft.preparing) return;
+      if (
+        draft.requestId !== request.clientRequestId ||
+        draft.preparing ||
+        (draft.pendingCreate && draft.creationRecoveryOwned)
+      )
+        return;
 
       if (status.confirmed) draft.clear();
       else if (status.inFlight)
@@ -39,7 +45,12 @@ export function recoverDraft(draft: MobileComposerState, api: Client<typeof ui.G
       else draft.deliveryChecked = true;
     })
     .catch(() => {
-      if (draft.requestId === request.clientRequestId) draft.deliveryChecked = true;
+      if (
+        draft.requestId === request.clientRequestId &&
+        !draft.preparing &&
+        !(draft.pendingCreate && draft.creationRecoveryOwned)
+      )
+        draft.deliveryChecked = true;
     })
     .finally(() => {
       draft.reconciling = false;

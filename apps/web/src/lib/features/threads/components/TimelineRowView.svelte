@@ -11,6 +11,8 @@
   import TurnInput from "./TurnInput.svelte";
   import TurnStart from "./TurnStart.svelte";
   import ShellMessage from "./ShellMessage.svelte";
+  import ThreadPreparation from "./ThreadPreparation.svelte";
+  import { threadCreations } from "../thread-creation.svelte.ts";
 
   /**
    * One row of a thread's timeline: a turn's start, input or end, an item (with nested items; a message
@@ -18,6 +20,9 @@
    */
   let { row }: { row: TimelineRow } = $props();
   const directory = useThreadDirectory();
+
+  const preparation = $derived(threadCreations.completed(directory.currentId));
+  const input = $derived(row.kind === "input" ? row.turn : row.kind === "item" ? row.inputOf : undefined);
 
   // A steered message with quotes got them as a platform note: show its own text and the quotes instead.
   const steer = $derived(
@@ -59,4 +64,8 @@
   <NoticeRow notice={row.notice} />
 {:else}
   <TurnEnd turn={row.turn} result={row.result} answer={row.answer} />
+{/if}
+
+{#if input?.ordinal === 1 && preparation}
+  <div class="mt-3"><ThreadPreparation steps={preparation.steps} done failed={Boolean(preparation.error)} /></div>
 {/if}

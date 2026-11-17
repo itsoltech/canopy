@@ -9,7 +9,7 @@
   import DraftActions from "#lib/features/drafts/DraftActions.svelte";
   import PendingDraft from "#lib/features/drafts/PendingDraft.svelte";
   import DraftMoveNotice from "#lib/features/drafts/DraftMoveNotice.svelte";
-  import { prepareDraftForm, watchDraftForm } from "#lib/features/drafts/form.ts";
+  import { threadCreations } from "#lib/features/threads/thread-creation.svelte.ts";
   import type { ProjectChoice } from "@canopy/domain/projects";
   import { awayReason } from "#lib/features/computers/computers.ts";
   import Crumb from "#lib/features/navigation/Crumb.svelte";
@@ -275,32 +275,13 @@
         method="POST"
         action="?/createThread"
         class="grid gap-3"
-        use:enhance={async ({ cancel, formData, controller }) => {
-          if (blockedReason || busy || saved.preparing) return cancel();
-          const composer = saved;
+        use:enhance={({ cancel, formData }) => {
+          cancel();
+          if (blockedReason || busy || saved.preparing) return;
           busy = true;
-          composer.preparing = true;
-          try {
-            await prepareDraftForm(composer, formData);
-          } catch {
-            composer.preparing = false;
+          void threadCreations.start(saved, formData).catch(() => {
             busy = false;
-            return cancel();
-          }
-          const outgoingRequestId = composer.requestId;
-          const finish = watchDraftForm(composer, controller, () => (busy = false));
-          return async ({ result, update }) => {
-            try {
-              if (result.type === "redirect" && composer.requestId === outgoingRequestId) composer.clear();
-              if (controller.signal.aborted) return;
-              if (result.type === "failure" && ![408, 502, 504].includes(result.status))
-                composer.cancelSend(result.status === 409 || result.status === 404);
-              if (result.type === "error" && result.status === 500) composer.cancelSend();
-              await update({ reset: false });
-            } finally {
-              finish();
-            }
-          };
+          });
         }}
       >
         <input type="hidden" name="projectId" value={workspace?.projectId ?? project.id} />

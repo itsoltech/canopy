@@ -1,7 +1,8 @@
 <script lang="ts">
   import type { ui } from "@canopy/contracts";
   import { goalLook } from "#lib/features/goals/goals.ts";
-  import { formatDateTime, formatDay, formatTime, isoDateTime } from "#lib/shared/format.ts";
+  import { formatDateTime, formatTime, isoDateTime } from "#lib/shared/format.ts";
+  import ThreadDay from "./ThreadDay.svelte";
   import Icon from "#lib/shared/ui/Icon.svelte";
   import { tooltip } from "#lib/shared/ui/tooltip.ts";
   import { useThreadDirectory } from "../thread-directory.ts";
@@ -23,11 +24,7 @@
   const goal = $derived(turn.goalId ? directory.goal(turn.goalId) : undefined);
 
   const ownMessage = $derived(
-    !turn.inherited &&
-      turn.trigger === "user" &&
-      !turn.withdrawn &&
-      turn.shellCommand === undefined &&
-      Boolean(turn.startedAt),
+    !turn.inherited && turn.trigger === "user" && !turn.withdrawn && turn.shellCommand === undefined && Boolean(at),
   );
 
   turnReveal.listen();
@@ -35,13 +32,7 @@
 
 <div data-shown={turnReveal.shows(turn.id) || undefined}>
   {#if newDay && at}
-    <p class="flex justify-center pb-2">
-      <time
-        datetime={isoDateTime(at)}
-        class="rounded-full bg-zinc-950/5 px-2.5 py-0.5 text-sm/5 font-medium text-zinc-600 sm:text-xs/5 dark:bg-white/8 dark:text-zinc-400"
-        >{formatDay(at)}</time
-      >
-    </p>
+    <ThreadDay {at} />
   {/if}
   <span class="sr-only"
     >Turn {number}{#if at}, {formatDateTime(at)}{/if}</span

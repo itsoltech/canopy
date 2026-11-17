@@ -1,4 +1,11 @@
 <script lang="ts">
+  import {
+    threadCreations,
+    finishCreationHandoff,
+    type CreationFeedReader,
+  } from "#lib/features/threads/thread-creation.svelte.ts";
+  import ThreadStartingScene from "#lib/features/threads/components/ThreadStartingScene.svelte";
+  import { rememberThreadPlacement } from "#lib/features/threads/thread-placement.svelte.ts";
   import { applicationName } from "#lib/application-name.ts";
   import { InteractionKind, ItemStatus, Provider, ui } from "@canopy/contracts";
   import { tick, untrack } from "svelte";
@@ -97,6 +104,8 @@
   const threadId = $derived(page.params.threadId ?? "");
   const overview = useOverview();
   const settings = useSettings();
+  const creation = $derived(threadCreations.forThread(threadId));
+  const handoff = $derived(creation && !creation.handoff ? creation : undefined);
   const workspaceState = new ThreadWorkspace(() => threadId);
   const fileTab = $derived(workspaceState.current);
 
@@ -146,25 +155,9 @@
     });
   });
 
-  // A linked computer's project and worker leave the overview while it is away; the open thread keeps their names.
-  interface Known {
-    project?: ui.Project;
-    worker?: ui.Worker;
-  }
-
-  let known: Known = {};
-
-  const worker = $derived(
-    overview.worker(thread?.workerId ?? "") ?? (known.worker?.id === thread?.workerId ? known.worker : undefined),
-  );
-
-  const project = $derived(
-    overview.project(thread?.projectId ?? "") ?? (known.project?.id === thread?.projectId ? known.project : undefined),
-  );
-
-  $effect(() => {
-    known = { ...(project && { project }), ...(worker && { worker }) };
-  });
+  const placement = rememberThreadPlacement(() => thread, overview);
+  const worker = $derived(placement.worker);
+  const project = $derived(placement.project);
 
   // A thread whose home is a linked computer: read and driven there, unusable while that computer is away.
   const away = $derived(thread?.nodeId ? awayReason(overview.computer(thread.nodeId)) : undefined);
@@ -261,7 +254,14 @@
   const folds = $derived(memory.folds);
   const builder = $derived(memory.builder);
 
-  const scrollMemory = $derived(threadScrollMemory(threadId, composer.compaction, (value) => composer.set(value)));
+  const scrollMemory = $derived(
+    threadScrollMemory(
+      threadId,
+      composer.compaction,
+      (value) => composer.set(value),
+      untrack(() => handoff?.scroll),
+    ),
+  );
 
   // The composer starts as the thread was left (compact where the reader had scrolled up) in its first frame,
   // not as the previous thread had it.
@@ -421,11 +421,12 @@
   provideBackgroundOutput(openOutput);
 
   let feed = $state<
-    FoldReader & {
-      reveal: (key: string) => Promise<boolean>;
-      keep: (key: string) => void;
-      scrollToRow: (index: number, options: { align: "start"; smooth?: boolean }) => Promise<boolean>;
-    }
+    FoldReader &
+      CreationFeedReader & {
+        reveal: (key: string) => Promise<boolean>;
+        keep: (key: string) => void;
+        scrollToRow: (index: number, options: { align: "start"; smooth?: boolean }) => Promise<boolean>;
+      }
   >();
 
   /**
@@ -515,335 +516,349 @@
 
 <svelte:head><title>{thread?.title ?? "Thread"} · {applicationName}</title></svelte:head>
 
-<WorkspaceFrame state={workspaceState}>
-  <div class="relative flex min-h-0 min-w-0 flex-1 flex-col bg-surface" {@attach intake.zone}>
-    <TopBar description={worktreeRemoved ? "Read-only · Worktree removed" : away ? `Read-only. ${away}` : undefined}>
-      {#if thread}
-        <Crumb
-          markOnly
-          href={project
-            ? project.kind === "scratch"
-              ? "/settings/threads"
-              : `/settings/projects/${project.id}`
-            : undefined}
-          >{#snippet mark()}{#key thread.id}<ThreadSyncStatus
-                syncing={!away && !view.failure && view.connection !== "live"}
-              >
-                <ProjectMark name={project?.name ?? "?"} kind={project?.kind} />
-              </ThreadSyncStatus>{/key}{/snippet}<span class="sr-only">{project?.name ?? "Project"}</span></Crumb
+<div class="relative h-full min-h-0">
+  {#if handoff}<div class="absolute inset-0 z-30"><ThreadStartingScene job={handoff} /></div>{/if}
+  <div class="h-full min-h-0" inert={Boolean(handoff)} aria-hidden={handoff ? "true" : undefined}>
+    <WorkspaceFrame state={workspaceState}>
+      <div class="relative flex min-h-0 min-w-0 flex-1 flex-col bg-surface" {@attach intake.zone}>
+        <TopBar
+          description={worktreeRemoved ? "Read-only · Worktree removed" : away ? `Read-only. ${away}` : undefined}
         >
-      {:else}
-        <Crumb><Skeleton class="size-5" /></Crumb>
-      {/if}
-      {#snippet workspace()}<WorkspaceTabs
-          state={workspaceState}
-          title={thread?.title ?? "Thread"}
-          titleGenerating={thread?.titleGenerating}
-          {working}
-          pending={blockingQuestions}
-        />{/snippet}
-      {#snippet actions()}
-        <ThreadSyncProgress status={view.syncStatus} />
-        {#if thread}<div class="max-sm:hidden">
-            <DropdownMenu label="Thread actions" placement="bottom-end">
-              {#snippet trigger(props)}<IconButton
-                  icon="ellipsis-horizontal"
-                  label="Thread actions"
-                  {...props}
-                />{/snippet}
-              {@render threadActions()}
-            </DropdownMenu>
-          </div>{/if}
-        <WorkspaceFilesToggle
-          pressed={workspaceState.wide ? workspaceState.filesOpen && workspaceState.panelMode === "files" : undefined}
-          onclick={toggleFiles}
-        />
-        <IconButton
-          size="sm"
-          icon="arrows-right-left"
-          label={workspaceState.panelOpen && workspaceState.panelMode === "diff" ? "Close diff" : "Open diff"}
-          aria-pressed={workspaceState.panelOpen && workspaceState.panelMode === "diff"}
-          onclick={() => workspaceState.showPanel("diff")}
-        />
-        <IconButton
-          size="sm"
-          icon="computer-desktop"
-          label={workspaceState.filesOpen && workspaceState.panelMode === "preview" ? "Close preview" : "Open preview"}
-          aria-pressed={workspaceState.filesOpen && workspaceState.panelMode === "preview"}
-          onclick={togglePreview}
-        />
-      {/snippet}
-    </TopBar>
-    <ThreadSearch
-      bind:open={searchOpen}
-      {view}
-      reveal={async (turnId, itemId) => {
-        if (itemId) {
-          await revealQuote(itemId);
-          return;
-        }
-        historyOpen = true;
-        await tick();
-        const row = rows.find(
-          (row) => row.kind === "timeline" && row.row.kind === "turn-start" && row.row.turn.id === turnId,
-        );
-        if (row) await feed?.reveal(row.key);
-      }}
-    />
-
-    {#if thread?.status === "failed" && thread.statusDetail}
-      <Alert tone="error" banner title="The thread failed">{thread.statusDetail}</Alert>
-    {/if}
-    <ThreadWatchNotice {view} departure={overview.gatewayDeparture} />
-
-    <div class="relative flex min-h-0 flex-1 flex-col">
-      <div
-        id={fileTab ? undefined : "workspace-content"}
-        role="tabpanel"
-        aria-label="Thread"
-        class="absolute inset-0 min-h-0 md:pl-9 md:[--chat-area-start:--spacing(9)]"
-        class:invisible={Boolean(fileTab)}
-        inert={Boolean(fileTab)}
-        bind:this={feedRegion}
-        bind:clientWidth={summary.width}
-        style:--sidebar-width={workspaceState.sidebarWidth}
-        data-chat-placement
-        data-chat-card={summary.card || undefined}
-        data-chat-settling={summary.settling || undefined}
-      >
-        <span
-          aria-hidden="true"
-          class="pointer-events-none invisible absolute inset-x-0 md:left-9"
-          {@attach summary.measure}
-        ></span>
-        {#if thread}<ThreadSummary
-            {thread}
-            {tree}
-            floating={summary.floating}
-            docked={summary.docked}
-            preview={miniEligible && !previewOpen ? miniPreview : undefined}>{@render threadPanel()}</ThreadSummary
-          >{/if}
-        {#key threadId}
-          {#if turnsOnRail.length >= 3}
-            <div class="absolute inset-y-6 left-1 z-20 w-8 max-md:hidden">
-              <TurnRail
-                turns={turnsOnRail}
-                viewport={feedViewport}
-                onjump={(row) => {
-                  void feed?.scrollToRow(row, { align: "start", smooth: true });
-                }}
-              />
-            </div>
-          {/if}
-          {#if device.viewLoaded}<VirtualFeed
-              bind:this={feed}
-              bind:atEnd
-              footerFit={{ fold: composer.footer, margin: 40 }}
-              {rows}
-              {scrollMemory}
-              sizes={memory.sizes}
-              ready={view.loaded && scrollMemory.prepared && !prefetchHistory.waiting}
-              key={(row: FeedRow) => row.key}
-              group={feedGroup}
-              estimate={feedEstimate}
-              inserted={feedInserted}
-              label="Timeline"
-              busy={working}
-              onreaderscroll={readerScroll}
-              onreaderscrollend={() => composer.rest()}
-              onlatest={() => composer.expand()}
-              onviewport={(viewport) => {
-                feedViewport = viewport;
-              }}
-              onwindow={prefetchHistory.update}
+          {#if thread}
+            <Crumb
+              markOnly
+              href={project
+                ? project.kind === "scratch"
+                  ? "/settings/threads"
+                  : `/settings/projects/${project.id}`
+                : undefined}
+              >{#snippet mark()}{#key thread.id}<ThreadSyncStatus
+                    syncing={!away && !view.failure && view.connection !== "live"}
+                  >
+                    <ProjectMark name={project?.name ?? "?"} kind={project?.kind} />
+                  </ThreadSyncStatus>{/key}{/snippet}<span class="sr-only">{project?.name ?? "Project"}</span></Crumb
             >
-              {#snippet placeholder()}
-                {#if !view.loaded}<TimelineSkeleton />{/if}
-              {/snippet}
-              {#snippet top()}
-                {#if view.hasMore}
-                  <div class="flex justify-center py-3">
-                    <Button
-                      size="sm"
-                      variant="ghost"
-                      disabled={view.history.loading}
-                      onclick={() => void view.history.load()}
-                      >{view.history.loading ? "Loading earlier messages…" : "Show earlier messages"}</Button
-                    >
-                    {#if view.history.error}<p role="status" class="text-sm text-red-600 dark:text-red-400">
-                        {view.history.error}
-                      </p>{/if}
-                  </div>
-                {/if}
-                {#if thread?.scheduleId}<ScheduleOrigin {thread} class="pt-4" />{/if}
-                {#if thread?.spawnedByAgent && thread.parentThreadId}
-                  <SubagentOrigin parentThreadId={thread.parentThreadId} parentTitle={parent?.title} class="mt-4" />
-                {/if}
-                {#if view.loaded && rows.length === 0}
-                  <EmptyState
-                    icon={thread?.status === "creating" ? "arrow-path" : "sparkles"}
-                    title={thread?.status === "creating" ? "Starting the thread" : "No messages yet"}
-                    description={thread?.status === "creating"
-                      ? `Setting up the agent on ${worker?.name ?? "the worker"}.`
-                      : closed
-                        ? "This thread closed before anyone said a word."
-                        : "Send a message below to start."}
-                    class="mt-8"
+          {:else}
+            <Crumb><Skeleton class="size-5" /></Crumb>
+          {/if}
+          {#snippet workspace()}<WorkspaceTabs
+              state={workspaceState}
+              title={thread?.title ?? "Thread"}
+              titleGenerating={thread?.titleGenerating}
+              {working}
+              pending={blockingQuestions}
+            />{/snippet}
+          {#snippet actions()}
+            <ThreadSyncProgress status={view.syncStatus} />
+            {#if thread}<div class="max-sm:hidden">
+                <DropdownMenu label="Thread actions" placement="bottom-end">
+                  {#snippet trigger(props)}<IconButton
+                      icon="ellipsis-horizontal"
+                      label="Thread actions"
+                      {...props}
+                    />{/snippet}
+                  {@render threadActions()}
+                </DropdownMenu>
+              </div>{/if}
+            <WorkspaceFilesToggle
+              pressed={workspaceState.wide
+                ? workspaceState.filesOpen && workspaceState.panelMode === "files"
+                : undefined}
+              onclick={toggleFiles}
+            />
+            <IconButton
+              size="sm"
+              icon="arrows-right-left"
+              label={workspaceState.panelOpen && workspaceState.panelMode === "diff" ? "Close diff" : "Open diff"}
+              aria-pressed={workspaceState.panelOpen && workspaceState.panelMode === "diff"}
+              onclick={() => workspaceState.showPanel("diff")}
+            />
+            <IconButton
+              size="sm"
+              icon="computer-desktop"
+              label={workspaceState.filesOpen && workspaceState.panelMode === "preview"
+                ? "Close preview"
+                : "Open preview"}
+              aria-pressed={workspaceState.filesOpen && workspaceState.panelMode === "preview"}
+              onclick={togglePreview}
+            />
+          {/snippet}
+        </TopBar>
+        <ThreadSearch
+          bind:open={searchOpen}
+          {view}
+          reveal={async (turnId, itemId) => {
+            if (itemId) {
+              await revealQuote(itemId);
+              return;
+            }
+            historyOpen = true;
+            await tick();
+            const row = rows.find(
+              (row) => row.kind === "timeline" && row.row.kind === "turn-start" && row.row.turn.id === turnId,
+            );
+            if (row) await feed?.reveal(row.key);
+          }}
+        />
+
+        {#if thread?.status === "failed" && thread.statusDetail}
+          <Alert tone="error" banner title="The thread failed">{thread.statusDetail}</Alert>
+        {/if}
+        <ThreadWatchNotice {view} departure={overview.gatewayDeparture} />
+
+        <div class="relative flex min-h-0 flex-1 flex-col">
+          <div
+            id={fileTab ? undefined : "workspace-content"}
+            role="tabpanel"
+            aria-label="Thread"
+            class="absolute inset-0 min-h-0 md:pl-9 md:[--chat-area-start:--spacing(9)]"
+            class:invisible={Boolean(fileTab)}
+            inert={Boolean(fileTab)}
+            bind:this={feedRegion}
+            bind:clientWidth={summary.width}
+            style:--sidebar-width={workspaceState.sidebarWidth}
+            data-chat-placement
+            data-chat-card={summary.card || undefined}
+            data-chat-settling={summary.settling || undefined}
+          >
+            <span
+              aria-hidden="true"
+              class="pointer-events-none invisible absolute inset-x-0 md:left-9"
+              {@attach summary.measure}
+            ></span>
+            {#if thread}<ThreadSummary
+                {thread}
+                {tree}
+                floating={summary.floating}
+                docked={summary.docked}
+                preview={miniEligible && !previewOpen ? miniPreview : undefined}>{@render threadPanel()}</ThreadSummary
+              >{/if}
+            {#key threadId}
+              {#if turnsOnRail.length >= 3}
+                <div class="absolute inset-y-6 left-1 z-20 w-8 max-md:hidden">
+                  <TurnRail
+                    turns={turnsOnRail}
+                    viewport={feedViewport}
+                    onjump={(row) => {
+                      void feed?.scrollToRow(row, { align: "start", smooth: true });
+                    }}
                   />
-                {/if}
-              {/snippet}
-              {#snippet row(row: FeedRow)}
-                <FeedRowView
-                  {row}
-                  onhistory={() => void view.history.load()}
-                  historyLoading={view.history.loading}
-                  historyError={view.history.error}
-                  ontoggle={() => (historyOpen = !historyOpen)}
-                  onwork={(fold, rowKey) => {
-                    keepToggled(rowKey);
-                    folds.toggle(fold);
+                </div>
+              {/if}
+              {#if device.viewLoaded}<VirtualFeed
+                  bind:this={feed}
+                  bind:atEnd
+                  footerFit={{ fold: composer.footer, margin: 40 }}
+                  {rows}
+                  {scrollMemory}
+                  sizes={memory.sizes}
+                  ready={view.loaded && scrollMemory.prepared && !prefetchHistory.waiting}
+                  key={(row: FeedRow) => row.key}
+                  group={feedGroup}
+                  estimate={feedEstimate}
+                  inserted={feedInserted}
+                  label="Timeline"
+                  onready={() => finishCreationHandoff(handoff, feed, view.ownTurns.length > 0)}
+                  busy={working}
+                  onreaderscroll={readerScroll}
+                  onreaderscrollend={() => composer.rest()}
+                  onlatest={() => composer.expand()}
+                  onviewport={(viewport) => {
+                    feedViewport = viewport;
                   }}
-                  ongroup={(key, rowKey) => {
-                    keepToggled(rowKey);
-                    folds.toggleGroup(key);
-                  }}
-                />
-              {/snippet}
-              {#snippet footerAccessory()}
-                {#if runningBackgroundTasks.length > 0}
-                  <GrowIn overlay>
-                    <BackgroundTasksChip tasks={runningBackgroundTasks} onjump={(task) => openOutput(task.id)} />
-                  </GrowIn>
-                {/if}
-              {/snippet}
-              {#snippet footer()}
-                <!-- What comes and goes above the composer grows in and out (each carries its own gap below). -->
-                <div class="grid grid-cols-1 pt-2" bind:this={feedFooter}>
-                  {#if view.secrets.some((s) => s.status === "pending")}
-                    <GrowIn overlay class="pb-3"
-                      ><ThreadSecretsPanel
-                        secrets={view.secrets.filter((s) => s.status === "pending")}
-                        onchange={(secret) => view.upsertSecret(secret)}
-                      /></GrowIn
-                    >
-                  {/if}
-                  {#if view.pending.some((i) => i.kind !== InteractionKind.QUESTION)}
-                    <GrowIn overlay class="pb-3">
-                      <div
-                        class={["grid gap-3 p-px", away && "opacity-60"]}
-                        role="region"
-                        aria-label="Waiting for you"
-                        inert={Boolean(away) || worktreeRemoved}
-                      >
-                        <PendingDecisions
-                          interactions={view.pending.filter((i) => i.kind !== InteractionKind.QUESTION)}
-                          items={itemsById}
-                          {parent}
-                        />
-                      </div>
-                    </GrowIn>
-                  {/if}
-                  {#snippet composerPanels()}
-                    {#if thread && shownGoal}
-                      <div class="t-rise">
-                        <GoalBar
-                          goal={shownGoal}
-                          provider={thread.provider}
-                          threadId={thread.id}
-                          disabled={closed}
-                          embedded
-                          compact={composer.compact}
-                          onchange={(goal) => view.upsertGoal(goal)}
-                          ondismiss={() => (dismissedGoals = new Set(dismissedGoals).add(shownGoal.id))}
-                        />
+                  onwindow={prefetchHistory.update}
+                >
+                  {#snippet placeholder()}
+                    {#if !view.loaded}<TimelineSkeleton />{/if}
+                  {/snippet}
+                  {#snippet top()}
+                    {#if view.hasMore}
+                      <div class="flex justify-center py-3">
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          disabled={view.history.loading}
+                          onclick={() => void view.history.load()}
+                          >{view.history.loading ? "Loading earlier messages…" : "Show earlier messages"}</Button
+                        >
+                        {#if view.history.error}<p role="status" class="text-sm text-red-600 dark:text-red-400">
+                            {view.history.error}
+                          </p>{/if}
                       </div>
                     {/if}
-                    {#if subagents.length > 0}
-                      <div class="t-rise" out:subagentPresence|global>
-                        <SubagentsPanel {subagents} compact={composer.compact} embedded />
-                      </div>
+                    {#if thread?.scheduleId}<ScheduleOrigin {thread} class="pt-4" />{/if}
+                    {#if thread?.spawnedByAgent && thread.parentThreadId}
+                      <SubagentOrigin parentThreadId={thread.parentThreadId} parentTitle={parent?.title} class="mt-4" />
                     {/if}
-                    <div inert={Boolean(away) || worktreeRemoved} class={away ? "opacity-60" : undefined}>
-                      <QueuePanel
-                        {queue}
-                        compact={composer.compact}
-                        embedded
-                        delivery={settings.runningDelivery}
-                        ondelivery={(delivery) => void settings.updateRunningDelivery(delivery)}
+                    {#if view.loaded && rows.length === 0}
+                      <EmptyState
+                        icon={thread?.status === "creating" ? "arrow-path" : "sparkles"}
+                        title={thread?.status === "creating" ? "Starting the thread" : "No messages yet"}
+                        description={thread?.status === "creating"
+                          ? `Setting up the agent on ${worker?.name ?? "the worker"}.`
+                          : closed
+                            ? "This thread closed before anyone said a word."
+                            : "Send a message below to start."}
+                        class="mt-8"
                       />
+                    {/if}
+                  {/snippet}
+                  {#snippet row(row: FeedRow)}
+                    <FeedRowView
+                      {row}
+                      onhistory={() => void view.history.load()}
+                      historyLoading={view.history.loading}
+                      historyError={view.history.error}
+                      ontoggle={() => (historyOpen = !historyOpen)}
+                      onwork={(fold, rowKey) => {
+                        keepToggled(rowKey);
+                        folds.toggle(fold);
+                      }}
+                      ongroup={(key, rowKey) => {
+                        keepToggled(rowKey);
+                        folds.toggleGroup(key);
+                      }}
+                    />
+                  {/snippet}
+                  {#snippet footerAccessory()}
+                    {#if runningBackgroundTasks.length > 0}
+                      <GrowIn overlay>
+                        <BackgroundTasksChip tasks={runningBackgroundTasks} onjump={(task) => openOutput(task.id)} />
+                      </GrowIn>
+                    {/if}
+                  {/snippet}
+                  {#snippet footer()}
+                    <!-- What comes and goes above the composer grows in and out (each carries its own gap below). -->
+                    <div class="grid grid-cols-1 pt-2" bind:this={feedFooter}>
+                      {#if view.secrets.some((s) => s.status === "pending")}
+                        <GrowIn overlay class="pb-3"
+                          ><ThreadSecretsPanel
+                            secrets={view.secrets.filter((s) => s.status === "pending")}
+                            onchange={(secret) => view.upsertSecret(secret)}
+                          /></GrowIn
+                        >
+                      {/if}
+                      {#if view.pending.some((i) => i.kind !== InteractionKind.QUESTION)}
+                        <GrowIn overlay class="pb-3">
+                          <div
+                            class={["grid gap-3 p-px", away && "opacity-60"]}
+                            role="region"
+                            aria-label="Waiting for you"
+                            inert={Boolean(away) || worktreeRemoved}
+                          >
+                            <PendingDecisions
+                              interactions={view.pending.filter((i) => i.kind !== InteractionKind.QUESTION)}
+                              items={itemsById}
+                              {parent}
+                            />
+                          </div>
+                        </GrowIn>
+                      {/if}
+                      {#snippet composerPanels()}
+                        {#if thread && shownGoal}
+                          <div class="t-rise">
+                            <GoalBar
+                              goal={shownGoal}
+                              provider={thread.provider}
+                              threadId={thread.id}
+                              disabled={closed}
+                              embedded
+                              compact={composer.compact}
+                              onchange={(goal) => view.upsertGoal(goal)}
+                              ondismiss={() => (dismissedGoals = new Set(dismissedGoals).add(shownGoal.id))}
+                            />
+                          </div>
+                        {/if}
+                        {#if subagents.length > 0}
+                          <div class="t-rise" out:subagentPresence|global>
+                            <SubagentsPanel {subagents} compact={composer.compact} embedded />
+                          </div>
+                        {/if}
+                        <div inert={Boolean(away) || worktreeRemoved} class={away ? "opacity-60" : undefined}>
+                          <QueuePanel
+                            {queue}
+                            compact={composer.compact}
+                            embedded
+                            delivery={settings.runningDelivery}
+                            ondelivery={(delivery) => void settings.updateRunningDelivery(delivery)}
+                          />
+                        </div>
+                      {/snippet}
+                      {#if thread}
+                        {#snippet computerStatus()}
+                          {#if away}<ComputerAwayBar computer={overview.computer(thread.nodeId)} reason={away} />{/if}
+                        {/snippet}
+                        <ThreadComposerSlot {thread} {parent} {worker} away={Boolean(away)} compact={composer.compact}>
+                          <Composer
+                            status={away ? computerStatus : undefined}
+                            compact={composer.compact}
+                            panelsLabel={queue.rows.length > 0 || subagents.length > 0
+                              ? `${subagents.length} agents · ${queue.rows.length} queued`
+                              : shownGoal
+                                ? "Goal"
+                                : undefined}
+                            onexpand={(activity) => composer.expand(activity)}
+                            onfocuschange={(focused) => composer.focus(focused)}
+                            class="relative"
+                            top={queue.rows.length > 0 || subagents.length > 0 || shownGoal
+                              ? composerPanels
+                              : undefined}
+                            questions={view.pending}
+                            {thread}
+                            {worker}
+                            running={view.running}
+                            runningTurn={view.ownTurns.find((turn) => turn.status === "running")}
+                            onturn={(turn) => {
+                              const current = view.ownTurns.find((entry) => entry.id === turn.id);
+
+                              if (current) view.upsertTurn({ ...current, permissionMode: turn.permissionMode });
+                            }}
+                            connection={view.composerConnection}
+                            disabled={closed ||
+                              !view.loaded ||
+                              Boolean(away) ||
+                              view.connection === "error" ||
+                              thread.rewindPending ||
+                              rewind.busy}
+                            note={composerNote}
+                            onsent={(response) => {
+                              if (response.turn) view.upsertTurn(response.turn);
+                              if (response.steer) view.upsertSteer(response.steer);
+                            }}
+                            ongoal={canGoal && !openGoal ? () => (goalDialog = true) : undefined}
+                          />
+                        </ThreadComposerSlot>
+                      {:else}
+                        <Skeleton class="h-28 rounded-2xl" />
+                      {/if}
                     </div>
                   {/snippet}
-                  {#if thread}
-                    {#snippet computerStatus()}
-                      {#if away}<ComputerAwayBar computer={overview.computer(thread.nodeId)} reason={away} />{/if}
-                    {/snippet}
-                    <ThreadComposerSlot {thread} {parent} {worker} away={Boolean(away)} compact={composer.compact}>
-                      <Composer
-                        status={away ? computerStatus : undefined}
-                        compact={composer.compact}
-                        panelsLabel={queue.rows.length > 0 || subagents.length > 0
-                          ? `${subagents.length} agents · ${queue.rows.length} queued`
-                          : shownGoal
-                            ? "Goal"
-                            : undefined}
-                        onexpand={(activity) => composer.expand(activity)}
-                        onfocuschange={(focused) => composer.focus(focused)}
-                        class="relative"
-                        top={queue.rows.length > 0 || subagents.length > 0 || shownGoal ? composerPanels : undefined}
-                        questions={view.pending}
-                        {thread}
-                        {worker}
-                        running={view.running}
-                        runningTurn={view.ownTurns.find((turn) => turn.status === "running")}
-                        onturn={(turn) => {
-                          const current = view.ownTurns.find((entry) => entry.id === turn.id);
-
-                          if (current) view.upsertTurn({ ...current, permissionMode: turn.permissionMode });
-                        }}
-                        connection={view.composerConnection}
-                        disabled={closed ||
-                          !view.loaded ||
-                          Boolean(away) ||
-                          view.connection === "error" ||
-                          thread.rewindPending ||
-                          rewind.busy}
-                        note={composerNote}
-                        onsent={(response) => {
-                          if (response.turn) view.upsertTurn(response.turn);
-                          if (response.steer) view.upsertSteer(response.steer);
-                        }}
-                        ongoal={canGoal && !openGoal ? () => (goalDialog = true) : undefined}
-                      />
-                    </ThreadComposerSlot>
-                  {:else}
-                    <Skeleton class="h-28 rounded-2xl" />
-                  {/if}
-                </div>
-              {/snippet}
-            </VirtualFeed>{/if}
-        {/key}
+                </VirtualFeed>{/if}
+            {/key}
+          </div>
+          <WorkspaceContent
+            state={workspaceState}
+            module={renderModule}
+            unavailable={worktreeRemoved ? "This worktree was removed. Continue in a new worktree to edit files." : ""}
+          />
+        </div>
+        <FileDropOverlay {intake} />
       </div>
-      <WorkspaceContent
-        state={workspaceState}
-        module={renderModule}
-        unavailable={worktreeRemoved ? "This worktree was removed. Continue in a new worktree to edit files." : ""}
-      />
-    </div>
-    <FileDropOverlay {intake} />
-  </div>
 
-  {#snippet panel(width: number)}
-    <WorkspaceSidePanel
-      state={workspaceState}
-      {threadId}
-      {worker}
-      offline={away ?? ""}
-      unavailable={worktreeRemoved ? "Continue in a new worktree to access files and Preview." : ""}
-      root={(thread?.worktree?.path || thread?.cwd || "").split(/[\\/]/).filter(Boolean).at(-1) ?? ""}
-      {width}
-    />
-  {/snippet}
-</WorkspaceFrame>
+      {#snippet panel(width: number)}
+        <WorkspaceSidePanel
+          state={workspaceState}
+          {threadId}
+          {worker}
+          offline={away ?? ""}
+          unavailable={worktreeRemoved ? "Continue in a new worktree to access files and Preview." : ""}
+          root={(thread?.worktree?.path || thread?.cwd || "").split(/[\\/]/).filter(Boolean).at(-1) ?? ""}
+          {width}
+        />
+      {/snippet}
+    </WorkspaceFrame>
+  </div>
+</div>
 
 {#snippet threadActions()}
   {#if thread}<ThreadMenuItems {thread} omit={["open"]} />{/if}

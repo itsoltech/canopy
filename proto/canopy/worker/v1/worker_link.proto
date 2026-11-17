@@ -82,6 +82,8 @@ message WorkerMessage {
     GitHeads git_heads = 840;
     // Transient, capability git_clone_progress_v1; never journaled.
     CloneProgress clone_progress = 841;
+    // Ephemeral progress scoped to a pending query on this authenticated link.
+    QueryProgress query_progress = 845;
     ThreadFilesUpdate thread_files_update = 842;
     ProviderUsageReport provider_usage = 843;
     canopy.ui.v1.WorkerLinkDiagnostics diagnostics = 850;
@@ -2321,4 +2323,12 @@ message ThreadGitStatus {
   string pull_branch = 13;
   string pull_disabled_reason = 14;
   string branch = 15;
+}
+
+// Transient worktree preparation stages; never journaled or persisted in the outbox.
+message QueryProgress {
+  string command_id = 1;
+  string step = 2;
+  string status = 3;
+  string detail = 4;
 }

@@ -1,3 +1,4 @@
+import { draftCreationProgress } from "./creation-progress.ts";
 import { clone, create, toBinary } from "@bufbuild/protobuf";
 import { ui } from "@canopy/contracts";
 import { Effect } from "effect";
@@ -47,6 +48,7 @@ export function withDraftDelivery(core: GatewayCore, handlers: UiHandlers): UiHa
               },
             ),
           ),
+    createThreadWithProgress: (request, context) => draftCreationProgress(core, handlers, request, context),
     createThread: (request, context) =>
       !request.draftId
         ? handlers.createThread(request, context)

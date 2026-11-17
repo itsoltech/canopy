@@ -5,14 +5,16 @@
 
   let {
     pressed,
+    disabled = false,
     onclick,
     class: className,
-  }: { pressed?: boolean | undefined; onclick: () => void; class?: ClassValue } = $props();
+  }: { pressed?: boolean | undefined; disabled?: boolean; onclick?: () => void; class?: ClassValue } = $props();
 </script>
 
 <div class={["shrink-0", className]}>
   <div class="sm:hidden">
     <IconButton
+      {disabled}
       size="sm"
       icon="folder"
       label="Files"
@@ -23,6 +25,7 @@
   </div>
   <div class="max-sm:hidden">
     <Button
+      {disabled}
       variant="ghost"
       size="sm"
       icon="folder"

@@ -14,7 +14,6 @@ import { useClock } from "../settings/display";
 export function TurnStart({ turn, newDay }: { turn: ui.Turn; newDay: boolean }) {
   const c = useColors();
   const sky = useTone("sky").text;
-  const clock = useClock();
   const label = silentTriggerLabel(turn);
   const at = turn.startedAt ?? turn.queuedAt;
 
@@ -23,26 +22,7 @@ export function TurnStart({ turn, newDay }: { turn: ui.Turn; newDay: boolean }) 
 
   return (
     <View style={{ gap: 8, minHeight: 20 }}>
-      {newDay && at && (
-        <View style={{ alignItems: "center" }}>
-          <Text
-            style={[
-              styles.meta,
-              {
-                fontFamily: font.medium,
-                color: c.muted,
-                paddingHorizontal: 10,
-                paddingVertical: 2,
-                borderRadius: 9999,
-                overflow: "hidden",
-                backgroundColor: c.dark ? "#ffffff14" : "#09090b0d",
-              },
-            ]}
-          >
-            {clock.day(new Date(Number(at.seconds) * 1000))}
-          </Text>
-        </View>
-      )}
+      {newDay && at && <TurnDay date={new Date(Number(at.seconds) * 1000)} />}
       {(turn.goalId || label) && (
         <View style={[styles.row, { gap: 12, minHeight: 20 }]}>
           {turn.goalId ? (
@@ -58,6 +38,33 @@ export function TurnStart({ turn, newDay }: { turn: ui.Turn; newDay: boolean }) 
           ) : null}
         </View>
       )}
+    </View>
+  );
+}
+
+/** Shared with preparation so the first prompt already has its real timeline boundary. */
+export function TurnDay({ date }: { date: Date }) {
+  const c = useColors();
+  const clock = useClock();
+
+  return (
+    <View style={{ alignItems: "center" }}>
+      <Text
+        style={[
+          styles.meta,
+          {
+            fontFamily: font.medium,
+            color: c.muted,
+            paddingHorizontal: 10,
+            paddingVertical: 2,
+            borderRadius: 9999,
+            overflow: "hidden",
+            backgroundColor: c.dark ? "#ffffff14" : "#09090b0d",
+          },
+        ]}
+      >
+        {clock.day(date)}
+      </Text>
     </View>
   );
 }

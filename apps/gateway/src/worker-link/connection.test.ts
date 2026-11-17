@@ -34,3 +34,38 @@ test("outbox retries preserve command id across connections; concurrent sends sh
     }
   }
 });
+
+test("query progress reaches only the pending query on its authenticated worker connection", async () => {
+  const first = new WorkerConnection("first", create(HelloSchema), new AsyncChannel<GatewayMessage>());
+  const other = new WorkerConnection("other", create(HelloSchema), new AsyncChannel<GatewayMessage>());
+  const commandId = Bun.randomUUIDv7();
+  const observed: string[] = [];
+
+  const query = first.sendCommand(
+    { case: "createWorktree", value: { repoPath: "/fixture" } },
+    1000,
+    commandId,
+    undefined,
+    (progress) => observed.push(progress.step),
+  );
+
+  const progress = (id: string) =>
+    create(WorkerMessageSchema, {
+      payload: { case: "queryProgress", value: { commandId: id, step: "create_worktree", status: "running" } },
+    });
+
+  try {
+    other.deliver(progress(commandId));
+    first.deliver(progress(Bun.randomUUIDv7()));
+    expect(observed).toEqual([]);
+    first.deliver(progress(commandId));
+    expect(observed).toEqual(["create_worktree"]);
+    first.deliver(create(WorkerMessageSchema, { payload: { case: "commandResult", value: { commandId, ok: true } } }));
+    await query;
+    first.deliver(progress(commandId));
+    expect(observed).toEqual(["create_worktree"]);
+  } finally {
+    first.close();
+    other.close();
+  }
+});
