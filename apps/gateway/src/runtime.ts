@@ -1,5 +1,5 @@
 import { PgClient, PgPool } from "@effect/sql-pg";
-import { migrate, migrateOnline } from "@canopy/db";
+import { migrate, migrateOnline, POSTGRES_MAX_MESSAGE_BYTES } from "@canopy/db";
 import { Effect, Layer, ManagedRuntime, Redacted } from "effect";
 import { DatabaseMonitor, bindDatabaseMonitor, observedSql } from "./diagnostics/database.ts";
 import { BotStore } from "./bots/store.ts";
@@ -27,7 +27,13 @@ export function gatewayRuntime(
   const url = env["CANOPY_DATABASE_URL"];
 
   if (!url) throw new Error("CANOPY_DATABASE_URL is not set, e.g. postgres://canopy:...@127.0.0.1:5432/canopy");
-  const databaseConfig = { url: Redacted.make(url), applicationName: "canopy-gateway" };
+
+  const databaseConfig = {
+    url: Redacted.make(url),
+    applicationName: "canopy-gateway",
+    maxMessageSize: POSTGRES_MAX_MESSAGE_BYTES,
+  };
+
   const secretsKey = loadSecretsKey(env);
   const monitor = new DatabaseMonitor();
 

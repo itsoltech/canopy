@@ -1,4 +1,5 @@
 import { PgClient } from "@effect/sql-pg";
+import { POSTGRES_MAX_MESSAGE_BYTES } from "@canopy/db";
 import { Layer, ManagedRuntime, Redacted } from "effect";
 import { gatewayServices } from "../../apps/gateway/src/runtime.ts";
 import { tracedSql, type Recorder } from "./trace.ts";
@@ -11,6 +12,7 @@ export function runtime(
   const database = PgClient.layer({
     url: Redacted.make(url),
     applicationName: "canopy-db-bench",
+    maxMessageSize: POSTGRES_MAX_MESSAGE_BYTES,
     maxConnections: options.pool ?? 8,
     startupParameters: { statement_timeout: String(options.statementTimeoutMs ?? 0) },
   });

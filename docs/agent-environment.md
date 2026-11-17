@@ -1,7 +1,8 @@
 # Środowisko agentów
 
-Status: zaimplementowane (2026-11-17), w tym obsługa znaczników aktywnych sesji
-Claude i porównywanie konfiguracji pluginów niezależnie od kolejności kluczy JSON.
+Status: zaimplementowane (2026-11-17), w tym odczyt dużych artefaktów i raportów
+z PostgreSQL, obsługa znaczników aktywnych sesji Claude i porównywanie konfiguracji
+pluginów niezależnie od kolejności kluczy JSON.
 Dostępność w kanałach nightly/beta/stable wynika z wydań ([release.md](release.md)).
 Settings → **Agent environment** zarządza oczekiwanym stanem
 instrukcji, umiejętności i pluginów na komputerach właściciela. Ustawienia należą
@@ -321,6 +322,14 @@ porównań (gateway przyjmuje do 128 MiB). Kolejne cele zachowują pliki i pokaz
 widoczny komunikat oczekiwania. Rozwiązanie wcześniejszych konfliktów zwalnia
 budżet i udostępnia ich diff przy następnym reconcile; status nie znika przez
 odrzucenie całego raportu.
+
+Połączenia PostgreSQL gatewaya mają jawny limit 256 MiB na wiadomość protokołu,
+zarówno z diagnostyką bazy, jak i bez niej. Obejmuje to raport do 128 MiB JSON,
+formatowanie `jsonb` i pozostałe pola wiersza. Domyślne 16 MiB sterownika nie
+wystarcza dla poprawnych artefaktów i raportów z plikami zakodowanymi w base64:
+przekroczenie zrywało odczyt biblioteki oraz łącze workera. Limity uploadu,
+przypisań i raportów pozostają takie same; zapisane wcześniej dane nie wymagają
+migracji ani ponownego dodawania skilli.
 
 Rzeczywiste cele (również każdy jawny shadow home / own-login instancji):
 
