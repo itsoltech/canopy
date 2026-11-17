@@ -4,6 +4,7 @@ Status (2026-11-17): opis zaimplementowanej skali web/desktop i zwartego arkusza
 szczegółów wątku na natywnym mobile, w tym dwuliniowych
 kart sidebara, ich jednoliniowego wariantu w worktree, ikon projektów, wcięć i linii hierarchii
 oraz kompaktowego wariantu przełącznika i adaptacyjnych pickerów composera.
+Karta zużycia kontekstu composera używa skali nakładek (15 / 13).
 Dostępność kanałów: [release.md](release.md).
 
 Jedna skala dla całego web UI. Każdy fragment interfejsu należy do jednego **kontekstu**; kontekst
