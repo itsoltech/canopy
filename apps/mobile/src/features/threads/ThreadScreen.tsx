@@ -5,6 +5,7 @@ import { ConversationSkeleton, SkeletonScope } from "../../ui/Skeleton";
 import { Redirect, router, useLocalSearchParams } from "expo-router";
 import { useContextDraft } from "../github/useContextDraft";
 import { ScreenFrame } from "../../ui/ScreenFrame";
+import { useColors } from "../../ui/theme";
 import { InteractionKind, ui } from "@canopy/contracts";
 import { useSession } from "../../state/session";
 import { useThreadSnapshot } from "../../state/thread";
@@ -170,6 +171,7 @@ function useThreadComposer(state: ThreadState) {
 }
 
 export function ThreadScreen({ id }: { id: string }) {
+  const c = useColors();
   const state = useThreadState(id);
   const { viewLoaded } = useDevicePreferences();
   const { warming } = useOverview();
@@ -218,6 +220,7 @@ export function ThreadScreen({ id }: { id: string }) {
   return (
     <WorkspaceContext.Provider value={workspace}>
       <ScreenFrame
+        headerBackgroundColor={c.sidebar}
         header={
           <>
             <ThreadHeader

@@ -2,13 +2,12 @@ import { useState, useSyncExternalStore } from "react";
 import { Pressable, StyleSheet, Text, View } from "react-native";
 import type { Workspace, WorkspaceEntry } from "@canopy/domain/workspace";
 import { tabName, tabPath, tabDirty } from "@canopy/domain/workspace-modules";
-import { PickerSheet } from "../../ui/Picker";
-import { Button } from "../../ui/Button";
 import { Icon } from "../../ui/Icon";
 import { MinimumTouchTarget } from "../../ui/density";
 import { Skeleton } from "../../ui/Skeleton";
-import { font, styles, useColors, useTypography } from "../../ui/theme";
+import { font, useColors, useTypography } from "../../ui/theme";
 import { WorkspaceTabActions } from "./WorkspaceTabActions";
+import { WorkspaceTabPicker } from "./WorkspaceTabPicker";
 
 export function WorkspaceTabs({
   view,
@@ -24,7 +23,6 @@ export function WorkspaceTabs({
   onThreadActions?: () => void;
 }) {
   useSyncExternalStore(view.store.subscribe, view.store.getVersion);
-  const c = useColors();
   const [open, setOpen] = useState(false);
   const [actions, setActions] = useState<WorkspaceEntry>();
   const [observedError, setObservedError] = useState(view.error);
@@ -58,55 +56,13 @@ export function WorkspaceTabs({
           onLongPress={current ? () => setActions(current) : onThreadActions}
         />
       </View>
-      <PickerSheet
-        title="Switch tab"
+      <WorkspaceTabPicker
+        view={view}
+        title={title}
         visible={open}
         onClose={() => setOpen(false)}
-        value={view.active}
-        sections={[
-          {
-            options: [
-              { value: "thread", label: title },
-              ...view.tabs.map((tab) => ({
-                value: tab.id,
-                label: tabName(tab),
-                description: tabPath(tab),
-                badge: tabDirty(tab) ? "Unsaved changes" : tab.preview ? "Preview" : undefined,
-              })),
-            ],
-          },
-        ]}
-        onSelect={(id) => {
-          view.select(id);
-          setOpen(false);
-        }}
-        footer={
-          <View style={s.footer}>
-            {onThreadActions && (
-              <Button
-                title="Thread actions"
-                onPress={() => {
-                  setOpen(false);
-                  onThreadActions();
-                }}
-              />
-            )}
-            {view.error ? (
-              <Text accessibilityRole="alert" style={[styles.body, { color: c.danger }]}>
-                {view.error}
-              </Text>
-            ) : null}
-            {current ? (
-              <Button
-                title="Tab actions"
-                onPress={() => {
-                  setOpen(false);
-                  setActions(current);
-                }}
-              />
-            ) : null}
-          </View>
-        }
+        onThreadActions={onThreadActions}
+        onTabActions={setActions}
       />
       <WorkspaceTabActions view={view} tab={actions} onClose={() => setActions(undefined)} />
     </MinimumTouchTarget.Provider>
@@ -193,5 +149,4 @@ const s = StyleSheet.create({
   name: { flex: 1, minWidth: 0 },
   dirty: { width: 8, flexShrink: 0, alignItems: "center" },
   dot: { width: 5, height: 5, borderRadius: 3 },
-  footer: { padding: 8, gap: 8 },
 });

@@ -10,7 +10,9 @@ pod podsumowaniem wątku, przywracanie mini Preview oraz osobnego stanu prawego 
 po powrocie do wątku bez animacji panelu, kompaktowe pola wymiarów Preview bez +/−
 oraz kompaktowy przełącznik automatycznej archiwizacji po merge z ikoną informacji w podsumowaniu,
 lokalne zmiany Git i grupa przycisków Git z akcją Pull pod gałęzią,
-wyrównany nagłówek natywnego mobile i ręczny arkusz Preview Browser/Desktop/Device
+wyrównany nagłówek natywnego mobile z jednolitym tłem chrome safe area,
+odstępem nad aktywną kartą i strzałką powrotu, zamykanie kart plików i modułów
+bezpośrednio z mobilnej listy Switch tab oraz ręczny arkusz Preview Browser/Desktop/Device
 (2026-11-17; stos #640–#648, potem #710, #711, #737, #740, #787 i #823).
 Opis dotyczy kodu; dostępność nightly/beta/stable określają [wydania](release.md).
 W web/desktop zakładki dzielą rząd z sygnetem projektu, a **tytuł wątku jest pierwszą,
