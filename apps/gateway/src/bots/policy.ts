@@ -7,11 +7,39 @@ import { areaTool, areaTools } from "./tools/index.ts";
 import { alwaysAsk } from "./approval-rules.ts";
 import { Invalid } from "../store/errors.ts";
 
+// External messages can request work with existing grants, never administer the owner's account.
+// New platform tools stay private until their external provenance and result routing are reviewed.
+const EXTERNAL_WORK_TOOLS = new Set([
+  "list_projects",
+  "list_workers",
+  "list_provider_instances",
+  "list_models",
+  "list_threads",
+  "get_thread",
+  "read_thread",
+  "start_thread",
+  "send_message",
+  "interrupt_thread",
+  "rename_thread",
+  "regenerate_title",
+  "set_goal",
+  "list_background_tasks",
+  "stop_background_task",
+  "list_attachments",
+  "list_files",
+  "read_file",
+  "write_file",
+  "delete_file",
+  "download_file",
+  "ask_user",
+]);
+
 export function botPlatformTools(config: bots.BotConfiguration, turn: BotTurn): ToolSpec[] {
   if (turn.handoff_configuration) return [];
 
   return PLATFORM_TOOLS.filter(
     (tool) =>
+      (!turn.conversation_id || EXTERNAL_WORK_TOOLS.has(tool.name)) &&
       (config.files !== false || !BOT_FILE_TOOLS.includes(tool.name)) &&
       (turn.routine_id
         ? !["create_routine", "update_routine", "delete_routine", "update_self"].includes(tool.name)

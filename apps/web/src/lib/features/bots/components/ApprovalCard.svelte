@@ -116,7 +116,7 @@
       </p>{/if}
     <h3
       id="{id}-title"
-      class="px-4 pt-1 text-base/6 font-medium text-pretty text-zinc-950 sm:text-sm/6 dark:text-white"
+      class="px-4 pt-1 text-base/6 font-medium text-pretty wrap-anywhere text-zinc-950 sm:text-sm/6 dark:text-white"
     >
       {approval.action}
     </h3>

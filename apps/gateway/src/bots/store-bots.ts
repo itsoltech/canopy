@@ -117,7 +117,7 @@ export function botMethods(sql: SqlClient.SqlClient, core: BotCore) {
 
         const latest =
           yield* sql<MessageRow>`SELECT DISTINCT ON(m.bot_id) m.*, t.status AS turn_status FROM bot_messages m JOIN bots b ON b.id = m.bot_id JOIN bot_turns t ON t.id = m.turn_id
-        WHERE b.owner_user_id = ${user}::uuid AND b.deleted_at IS NULL ORDER BY m.bot_id, m.seq DESC`;
+        WHERE b.owner_user_id = ${user}::uuid AND b.deleted_at IS NULL AND t.conversation_id IS NULL ORDER BY m.bot_id, m.seq DESC`;
 
         // Notifications: the newest card waiting for the owner, without its fields or proposal.
         const pending =

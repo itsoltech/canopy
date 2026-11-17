@@ -1,0 +1,47 @@
+// Owner-managed messenger accounts. Credentials are write-only.
+syntax = "proto3";
+package canopy.ui.v1;
+
+message MessengerAccount {
+  string id = 1;
+  string name = 2;
+  string provider = 3;
+  string external_id = 4;
+  bool enabled = 5;
+  string status = 6;
+}
+message ListMessengerAccountsRequest {}
+message ListMessengerAccountsResponse {
+  repeated MessengerAccount accounts = 1;
+  string slack_app_manifest = 2;
+  string slack_app_create_url = 3;
+}
+message SaveMessengerAccountRequest {
+  string id = 1;
+  string name = 2;
+  optional bool enabled = 3;
+  optional string app_token = 4;
+  optional string bot_token = 5;
+}
+message SaveMessengerAccountResponse { MessengerAccount account = 1; }
+message DeleteMessengerAccountRequest { string account_id = 1; }
+message DeleteMessengerAccountResponse {}
+
+message BotMessengerRoute {
+  string id = 1;
+  string bot_id = 2;
+  string account_id = 3;
+  repeated string channel_ids = 4;
+  repeated string user_ids = 5;
+  bool direct_messages = 6;
+  bool mentions = 7;
+  bool observe = 8;
+  string delivery = 9; // reply | notify
+  string instructions = 10;
+}
+message ListBotMessengerRoutesRequest { string bot_id = 1; }
+message ListBotMessengerRoutesResponse { repeated BotMessengerRoute routes = 1; }
+message SaveBotMessengerRouteRequest { BotMessengerRoute route = 1; }
+message SaveBotMessengerRouteResponse { BotMessengerRoute route = 1; }
+message DeleteBotMessengerRouteRequest { string route_id = 1; }
+message DeleteBotMessengerRouteResponse {}

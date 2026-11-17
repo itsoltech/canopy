@@ -3,7 +3,9 @@
 Status: opis zaimplementowanego kodu (2026-11-17): gateway, workery, web BFF,
 Canopy Desktop (tryb lokalny, zdalny, sesja dostępu do BFF i połączone komputery),
 interaktywny i automatyczny mini podgląd automatyzacji w wątku oraz aplikacja mobilna
-z ręcznym Preview Browser/Desktop/Device.
+z ręcznym Preview Browser/Desktop/Device oraz kanały botów Slack przez Socket Mode
+z trwałym buforem wiadomości, aktualizacjami aktywnej tury i konfiguracją
+nasłuchiwania przez prywatną rozmowę z botem.
 BFF materializuje stan odczytu ze wspólnego gRPC overview
 i współdzieli go między oknami; dogrzewanie historii odbywa się w BFF.
 Logowanie użytkowników nie istnieje; otwarte decyzje są w §11. Ten dokument opisuje
@@ -283,6 +285,26 @@ Agent to szablon bez miejsca uruchomienia. Wątek przypina agenta (snapshot konf
 Boty mają własne tabele (`bots`, `bot_turns`, `bot_messages`, `bot_harness_*` i inne),
 a nie projekt ani wątek; ich rozmowa nie trafia do `thread_events`. Szczegóły:
 [bots.md](bots.md), [bots-harness.md](bots-harness.md).
+
+Kanały komunikatorów są odrębne od narzędzi connectorów MCP. Gateway odbiera
+zdarzenia Slack przez wychodzące połączenie Socket Mode, zapisuje je przed ACK
+i grupuje wiadomości bez inferencji. Właściciel przypisuje konto do bota,
+wybiera kanały i nadawców oraz odpowiedź na Slacku albo powiadomienie w Canopy.
+Może też zlecić botowi konfigurację w prywatnej rozmowie: bot rozpoznaje kanały
+i uczestników oraz zapisuje instrukcje reakcji. Te instrukcje są trwałe i wracają
+z kontekstem źródła; nie powstaje osobna mapa narzędzi dla każdego kanału.
+Kolejne paczki tej samej rozmowy trafiają do aktywnej tury przez nietrwały
+`SteerBotTurn`; dopiero potwierdzenie konsumpcji w journalu oznacza dostarczenie.
+Brak obsługi lub potwierdzenia zachowuje wiadomości do kolejnej tury.
+
+Każda rozmowa zewnętrzna ma osobną historię, home harnessu i scratch; nie dostaje
+prywatnej historii ani handoffu bota. Bot dobiera zwykłe przyznane narzędzia
+connectorów i pracy z wątkami; obowiązują jego ustawienia Web access, Files,
+granty i zgody. Zmiana ustawień właściciela i nasłuchiwania wymaga prywatnej
+rozmowy właściciela. Wynik zleconego wątku wraca do rozmowy źródłowej, także gdy
+przyjdzie później lub po restarcie. Sekrety Slacka pozostają zaszyfrowane
+w gatewayu, a lease konta wybiera jednego odbiorcę zdarzeń. Inferencję nadal
+wykonuje worker; idle kanału i buforowanie nie zużywają tokenów modelu.
 
 Wątki używają komend workera; boty mają osobną trwałą komendę `RunBotTurn`, bez
 sztucznego projektu lub wątku. Gateway wykonuje narzędzia i autoryzuje efekty;

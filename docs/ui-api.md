@@ -4,6 +4,9 @@ Status (2026-11-17): kontrakt kompozytora i wątków udostępnia szybkość wyko
 Claude zachowuje 330 s dla interakcji mimo 15-minutowego limitu MCP dla publikacji obrazów;
 Preview web/desktop używa potwierdzeń klienta po narysowaniu klatki i zachowuje
 subskrypcję przy odświeżaniu metadanych celu oraz naprawie kursora historii;
+Status (2026-11-17): Bot settings → Messengers udostępnia lokalne konta Slack
+i trasy wiadomości przez sześć owner-scoped RPC i BFF; instrukcje tras określają
+trwałe zachowanie dla źródła, a rozmowy korzystają z narzędzi przyznanych botowi;
 propozycje odpowiedzi pomijają zużyte i wysterowane wpisy kolejki;
 porzucone notatki platformy nie udają oczekującego wejścia i nie blokują późniejszych propozycji;
 watch odzyskuje stan po powtarzającym się nieokreślonym błędzie gatewaya;
@@ -3127,3 +3130,41 @@ sprzątania zasobów workera; archiwizacja wygasza wcześniejszy snapshot.
 Usunięty wątek jest odrzucany przez gateway.
 Gateway nie zapisuje patchy w bazie. Szczegóły granic i limitów:
 [protocol.md](protocol.md#migawki-zmian-git-wątku).
+
+## Konta komunikatorów i trasy botów
+
+`bot_channels.proto` definiuje sześć RPC `GatewayService`:
+`ListMessengerAccounts`, `SaveMessengerAccount`, `DeleteMessengerAccount`,
+`ListBotMessengerRoutes`, `SaveBotMessengerRoute`, `DeleteBotMessengerRoute`.
+Publiczne konto zawiera nazwę, provider, identyfikator zewnętrzny, enabled i status;
+żaden odczyt nie zawiera tokenów. Lista kont dodaje manifest i URL utworzenia
+aplikacji zdarzeniowej Slack. Save przyjmuje opcjonalne, wyłącznie zapisywalne
+app_token i bot_token; ich brak zachowuje poprzednie wartości. Identyfikator
+zewnętrzny wynika z weryfikacji w Slack, nie z żądania klienta.
+
+BFF wystawia `GET/POST /api/messengers/accounts`,
+`DELETE /api/messengers/accounts/:accountId`,
+`GET/POST /api/bots/:botId/messengers` i
+`DELETE /api/messengers/routes/:routeId`. Operacje kont nie są cache’owane.
+Dekoder tych zapisów odrzuca nieznane pola i nie zwraca danych wejściowych
+w komunikacie błędu. Poświadczenia trafiają tylko do gatewaya: brak zapisu
+w preferencjach, szkicach lub localStorage. Gateway wyprowadza właściciela
+z kontekstu, a store sprawdza własność kont i botów.
+
+Bot settings → Messengers ma niezależne zapisy konta i trasy, własne komunikaty
+błędów, potwierdzenie odłączenia konta i usunięcia trasy. Konto można nazwać,
+włączyć, edytować z zachowaniem tokenów albo odłączyć dla wszystkich botów.
+Trasa wymaga jawnej listy użytkowników, waliduje identyfikatory kanałów,
+wybiera DM, wzmianki i monitorowanie oraz dostawę do Slack lub Canopy.
+Monitorowanie jawnie informuje o turach i kosztach modelu. Instrukcje trasy są
+trwałymi instrukcjami zachowania dla wskazanych kanałów i nadawców, np. zapisu
+podsumowań w Notion albo delegowania pracy do wątku. Bot może też zarządzać
+trasami i ich instrukcjami na prośbę właściciela w prywatnej rozmowie.
+
+Rozmowy komunikatora używają zwykłego katalogu narzędzi przyznanych botowi;
+istniejące granty i zasady zatwierdzania nadal obowiązują. Kanał ani trasa nie
+nadają osobnego zestawu uprawnień do narzędzi. Każda rozmowa ma odrębną historię,
+bez dołączania prywatnej rozmowy właściciela. Ustawienia właściciela i administracja
+komunikatorami pozostają prywatne; wiadomość z komunikatora nie może ich zmienić.
+Zdalne boty pokazują nazwę domu i kierują do zarządzania na tym komputerze.
+Setup aplikacji jest opisany w [connectors.md](connectors.md#slack-jako-komunikator-bota).

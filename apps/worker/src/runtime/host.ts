@@ -350,6 +350,7 @@ export class WorkerHost {
       const result: CommandResultInit = {
         commandId: command.commandId,
         ok: true,
+        ...(output.dataJson !== undefined && { dataJson: output.dataJson }),
         ...(output.workspaceCopy && { workspaceCopy: output.workspaceCopy }),
         ...(output.botFile && { botFile: output.botFile }),
         ...(output.entries && { entries: output.entries }),

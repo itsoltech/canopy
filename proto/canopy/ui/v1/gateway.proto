@@ -16,6 +16,7 @@ import "canopy/worker/v1/thread_diff.proto";
 import "canopy/worker/v1/thread_highlight.proto";
 import "canopy/worker/v1/thread_watch.proto";
 import "canopy/ui/v1/bots.proto";
+import "canopy/ui/v1/bot_channels.proto";
 import "canopy/ui/v1/quotes.proto";
 import "canopy/ui/v1/connectors.proto";
 import "canopy/ui/v1/mobile.proto";
@@ -29,6 +30,12 @@ import "canopy/ui/v1/diagnostics.proto";
 import "canopy/ui/v1/composer_drafts.proto";
 
 service GatewayService {
+  rpc ListMessengerAccounts(ListMessengerAccountsRequest) returns (ListMessengerAccountsResponse);
+  rpc SaveMessengerAccount(SaveMessengerAccountRequest) returns (SaveMessengerAccountResponse);
+  rpc DeleteMessengerAccount(DeleteMessengerAccountRequest) returns (DeleteMessengerAccountResponse);
+  rpc ListBotMessengerRoutes(ListBotMessengerRoutesRequest) returns (ListBotMessengerRoutesResponse);
+  rpc SaveBotMessengerRoute(SaveBotMessengerRouteRequest) returns (SaveBotMessengerRouteResponse);
+  rpc DeleteBotMessengerRoute(DeleteBotMessengerRouteRequest) returns (DeleteBotMessengerRouteResponse);
   rpc SaveComposerDraft(SaveComposerDraftRequest) returns (ComposerDraft);
   rpc ListComposerDrafts(ListComposerDraftsRequest) returns (ComposerDraftPage);
   rpc ContinueComposerDraft(ContinueComposerDraftRequest) returns (ComposerDraft);

@@ -279,9 +279,9 @@ export async function exportBot(store: ComputerStore, botId: string, sourceName:
     await store.query<{ rows: BotRows }>(
       `SELECT json_build_object(
       'bot', (SELECT row_to_json(b) FROM bots b WHERE b.id = $1::uuid AND b.owner_user_id = $2::uuid),
-      'turns', coalesce((SELECT json_agg(t ORDER BY t.created_at, t.id) FROM bot_turns t WHERE t.bot_id = $1::uuid), '[]'),
-      'messages', coalesce((SELECT json_agg(m ORDER BY m.seq) FROM bot_messages m WHERE m.bot_id = $1::uuid), '[]'),
-      'tool_calls', coalesce((SELECT json_agg(c) FROM bot_tool_calls c JOIN bot_turns t ON t.id = c.turn_id WHERE t.bot_id = $1::uuid), '[]'),
+      'turns', coalesce((SELECT json_agg(t ORDER BY t.created_at, t.id) FROM bot_turns t WHERE t.bot_id = $1::uuid AND t.conversation_id IS NULL), '[]'),
+      'messages', coalesce((SELECT json_agg(m ORDER BY m.seq) FROM bot_messages m JOIN bot_turns t ON t.id=m.turn_id WHERE m.bot_id = $1::uuid AND t.conversation_id IS NULL), '[]'),
+      'tool_calls', coalesce((SELECT json_agg(c) FROM bot_tool_calls c JOIN bot_turns t ON t.id = c.turn_id WHERE t.bot_id = $1::uuid AND t.conversation_id IS NULL), '[]'),
       'approvals', coalesce((SELECT json_agg(a) FROM bot_approvals a WHERE a.bot_id = $1::uuid), '[]'),
       'handoff_notes', coalesce((SELECT json_agg(n) FROM bot_handoff_notes n WHERE n.bot_id = $1::uuid), '[]'),
       'routines', coalesce((SELECT json_agg(r) FROM bot_routines r WHERE r.bot_id = $1::uuid), '[]'),

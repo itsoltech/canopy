@@ -2,7 +2,9 @@
 
 Projekt i wdrożenie: 2026-11-02. Zakres: konta zdalnych serwerów MCP,
 OAuth w gateway, dostęp wybranych workerów i botów oraz jeden kanał wykonania.
-Status (2026-11-16): panel web/desktop jest odświeżany reaktywnie w pamięci BFF
+Status (2026-11-17): ustawienia bota udostępniają osobną sekcję Messengers
+dla kont Slack Socket Mode i tras wiadomości; konto MCP Slack pozostaje niezależne.
+Panel web/desktop jest odświeżany reaktywnie w pamięci BFF
 i dostarczany przez SSE; autoryzacja uwzględnia zmiany uprawnień bieżącej tury Claude.
 Panel natywnego mobile rozróżnia dostęp workera i katalog bieżącej tury:
 Available, Available next turn, Access removed, Unavailable oraz Error.
@@ -403,3 +405,52 @@ sprawdza dodanie i usunięcie w tym samym query prawdziwego SDK/CLI, wraz z ocze
 na gotowość katalogu. Opt-in
 `connector-refresh.live.test.ts` (`CANOPY_LIVE=1`) odkrywa i wywołuje nowo dodane
 narzędzie w rzeczywistym modelu Codexa.
+
+## Slack jako komunikator bota
+
+Bot settings → Messengers zarządza kontami Slack i trasami tego bota na jego
+lokalnym gatewayu. Konto jest współdzielone między botami właściciela;
+wyłączenie wstrzymuje wszystkie jego trasy, a odłączenie usuwa je. Sekcja ma
+osobne przyciski Save account i Save route: zapis nie czeka na Save changes bota.
+Dla bota z połączonego komputera UI kieruje do zarządzania na jego komputerze;
+poświadczenia i administracja nie są przekazywane do innego domu.
+
+To osobna aplikacja zdarzeniowa Slack, niezależna od konektora MCP opisanego
+wyżej. Create Slack app używa manifestu z `settings.socket_mode_enabled`,
+subskrypcjami wiadomości bota i bot scopes; Copy manifest daje ręczny wariant.
+Należy zainstalować aplikację w workspace, wygenerować app-level token `xapp-…`
+z `connections:write`, skopiować bot token `xoxb-…` z OAuth & Permissions
+i zaprosić aplikację do wybranych kanałów. Po zmianie scopes lub manifestu
+trzeba ją ponownie zainstalować. Nie wymaga publicznego webhooka ani OAuth MCP.
+
+Wyszukiwanie kanałów przez bota korzysta z `conversations.list` i wymaga bot scopes
+`channels:read` oraz `groups:read` zawartych w manifeście. Starszą instalację należy
+ponownie zainstalować po dodaniu tych uprawnień. Lista zawiera tylko niearchiwalne
+kanały, do których aplikacja została zaproszona; bot otrzymuje nazwy i identyfikatory,
+a token pozostaje w gatewayu. To nie nadaje narzędzi connectora ani nie łączy kanałów
+z konkretnymi narzędziami bota.
+Odczyt członków kanału (`conversations.members`) i katalogu nazw (`users.list`,
+scope `users:read` już obecny w manifeście) pozwala botowi rozpoznać osoby wskazane
+przez właściciela. Wynik katalogu pomija e-maile i pozostałe pola profilu;
+niejednoznaczne dopasowanie wymaga wyjaśnienia z właścicielem, bez rozszerzania
+listy dozwolonych autorów na wszystkich członków kanału.
+
+Gateway przed zapisem sprawdza oba tokeny i ich tożsamość przez adapter Slack;
+nie przyjmuje identyfikatora workspace od klienta. Zachowuje niepodane tokeny
+przy edycji. Tokeny są zaszyfrowane w gatewayu, pola są typu password, odczyty
+zwracają tylko publiczne metadane. Po zapisaniu nie można odzyskać tokenów z UI.
+
+Trasa wybiera konto, dozwolone identyfikatory użytkowników i kanałów, wiadomości
+prywatne, wzmianki oraz opcjonalne monitorowanie kanałów. Lista użytkowników
+jest obowiązkowa: osoby spoza niej nie uruchamiają bota. Monitorowanie każdej
+pasującej wiadomości uruchamia turę i zużywa tokeny modelu; instrukcje trasy nie
+są bezkosztowym filtrem semantycznym. Odpowiedź trafia do Slack (Reply in Slack)
+albo jako powiadomienie do właściciela w Canopy (Notify me in Canopy).
+Zewnętrzna rozmowa nie otrzymuje automatycznie prywatnej historii właściciela.
+Bot wybiera działania zgodnie z instrukcjami, korzystając ze swoich zwykłych
+przyznanych narzędzi i obowiązujących zasad zatwierdzania. Kanał nie otrzymuje
+osobnego przypisania narzędzi. Zarządzanie kontami i nasłuchiwaniem wymaga
+prywatnej wiadomości właściciela.
+
+Opis dotyczy implementacji; dostępność wydań wskazuje [release.md](release.md).
+Testy z atrapą transportu nie potwierdzają poprawnej instalacji na żywym Slacku.

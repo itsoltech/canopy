@@ -46,7 +46,7 @@ export function botConversation(sql: SqlClient.SqlClient, core: BotCore) {
           const rows =
             yield* sql<MessageRow>`SELECT * FROM (SELECT m.*, t.status AS turn_status, c.result -> 'changes' AS setting_changes
         FROM bot_messages m JOIN bot_turns t ON t.id = m.turn_id LEFT JOIN bot_tool_calls c ON m.message_key = 'self:' || c.id::text
-        WHERE m.bot_id = ${id}::uuid AND (${!selection} OR m.id=ANY(${selection?.ids ?? []}::uuid[])
+        WHERE m.bot_id = ${id}::uuid AND t.conversation_id IS NULL AND (${!selection} OR m.id=ANY(${selection?.ids ?? []}::uuid[])
           OR m.turn_id=ANY(${selection?.turns ?? []}::uuid[]))
           AND (${before === 0n} OR m.seq<${before}) ORDER BY m.seq DESC LIMIT ${limit ? limit + 1 : null}) recent ORDER BY seq`;
 
@@ -57,22 +57,18 @@ export function botConversation(sql: SqlClient.SqlClient, core: BotCore) {
             selection || before > 0n
               ? (yield* sql<MessageRow>`SELECT m.*,t.status AS turn_status,c.result -> 'changes' AS setting_changes
                 FROM bot_messages m JOIN bot_turns t ON t.id=m.turn_id LEFT JOIN bot_tool_calls c ON m.message_key='self:' || c.id::text
-                WHERE m.bot_id=${id}::uuid ORDER BY m.seq DESC LIMIT 1`)[0]
+                WHERE m.bot_id=${id}::uuid AND t.conversation_id IS NULL ORDER BY m.seq DESC LIMIT 1`)[0]
               : messages.at(-1);
 
-          // A question's options are the arguments of its ask_user call (the approval id is the call id).
-          const approvals = yield* sql<ApprovalRow>`SELECT a.*, c.arguments,
-              (c.tool ->> 'source' = 'platform' AND c.tool ->> 'name' = 'answer_interaction') AS prepared,
-              t.routine_title, CASE WHEN a.kind = 'question' THEN c.arguments -> 'options' END AS options
-        FROM bot_approvals a JOIN bot_turns t ON t.id = a.turn_id LEFT JOIN bot_tool_calls c ON c.id = a.id WHERE a.bot_id = ${id}::uuid ORDER BY a.created_at, a.id`;
+          const approvals = yield* ownerApprovals(sql, id);
 
           const active =
-            yield* sql`SELECT id FROM bot_turns WHERE bot_id = ${id}::uuid AND handoff_configuration IS NULL AND status IN ('queued','running','waiting') AND (routine_id IS NULL OR status = 'waiting') LIMIT 1`;
+            yield* sql`SELECT id FROM bot_turns WHERE bot_id = ${id}::uuid AND handoff_configuration IS NULL AND conversation_id IS NULL AND status IN ('queued','running','waiting') AND (routine_id IS NULL OR status = 'waiting') LIMIT 1`;
 
           const streaming =
             (yield* sql<{
               text: string;
-            }>`SELECT h.text FROM bot_harness_turns h JOIN bot_turns t ON t.id = h.turn_id WHERE h.bot_id = ${id}::uuid AND t.status = 'running' AND t.routine_id IS NULL AND t.handoff_configuration IS NULL ORDER BY t.created_at LIMIT 1`)[0]
+            }>`SELECT h.text FROM bot_harness_turns h JOIN bot_turns t ON t.id = h.turn_id WHERE h.bot_id = ${id}::uuid AND t.status = 'running' AND t.routine_id IS NULL AND t.handoff_configuration IS NULL AND t.conversation_id IS NULL ORDER BY t.created_at LIMIT 1`)[0]
               ?.text ?? "";
 
           const reminders = yield* sql<{
@@ -87,7 +83,10 @@ export function botConversation(sql: SqlClient.SqlClient, core: BotCore) {
               lastMessage: latest ? messageView(latest) : undefined,
             }),
             messages: messages.map(messageView),
-            approvals: [...approvals.map(approvalView), ...(yield* botThreadApprovals(sql).threadApprovals(user, id))],
+            approvals: [
+              ...approvals.map(ownerApprovalView),
+              ...(yield* botThreadApprovals(sql).threadApprovals(user, id)),
+            ],
             statusLine: active.length ? bot.status_line : "",
             working: active.length > 0,
             streamingText: streaming,
@@ -119,7 +118,7 @@ export function botConversation(sql: SqlClient.SqlClient, core: BotCore) {
       sql<
         MessageRow & { model_text: string }
       >`SELECT * FROM (SELECT m.*, CASE WHEN m.message_key='input' THEN t.input ELSE m.text END AS model_text, t.created_at AS turn_created, t.id AS turn_order FROM bot_messages m JOIN bot_turns t ON t.id = m.turn_id
-      WHERE m.bot_id = ${turn.bot_id}::uuid AND m.sender_id <> 'self' AND (${Boolean(turn.handoff_configuration)} OR (t.created_at, t.id) <= (SELECT created_at, id FROM bot_turns WHERE id = ${turn.id}::uuid))
+      WHERE m.bot_id = ${turn.bot_id}::uuid AND t.conversation_id IS NOT DISTINCT FROM ${turn.conversation_id ?? null}::uuid AND m.sender_id <> 'self' AND (${Boolean(turn.handoff_configuration)} OR (t.created_at, t.id) <= (SELECT created_at, id FROM bot_turns WHERE id = ${turn.id}::uuid))
       ORDER BY t.created_at DESC, t.id DESC, m.seq DESC LIMIT ${turn.routine_id ? 60 : 2147483647}) recent ORDER BY turn_created, turn_order, seq`.pipe(
         Effect.map((rows): ModelMessage[] => [
           ...rows.map((r): ModelMessage => ({
@@ -183,7 +182,7 @@ function markBotRead(sql: SqlClient.SqlClient, core: BotCore, user: string, id: 
       yield* sql`UPDATE bots SET last_read_seq = greatest(last_read_seq, least(${throughSeq}, coalesce((SELECT max(seq) FROM bot_messages WHERE bot_id = ${id}::uuid), 0))), revision = revision + 1 WHERE id = ${id}::uuid`;
 
       const latest =
-        (yield* sql<MessageRow>`SELECT m.*, t.status AS turn_status FROM bot_messages m JOIN bot_turns t ON t.id = m.turn_id WHERE m.bot_id = ${id}::uuid ORDER BY m.seq DESC LIMIT 1`)[0];
+        (yield* sql<MessageRow>`SELECT m.*, t.status AS turn_status FROM bot_messages m JOIN bot_turns t ON t.id = m.turn_id WHERE m.bot_id = ${id}::uuid AND t.conversation_id IS NULL ORDER BY m.seq DESC LIMIT 1`)[0];
 
       return create(bots.BotSchema, {
         ...botView(yield* core.owned(user, id)),
@@ -246,4 +245,27 @@ export function botMcp(sql: SqlClient.SqlClient, core: BotCore) {
         }),
       ),
   };
+}
+
+function ownerApprovalView(a: ApprovalRow & { source_context: string | null }) {
+  // The UI reads the first line as the action, even when typed fields replace the remaining lines.
+  const separator = a.kind === "question" ? "\n" : " · ";
+  const prompt = a.kind === "question" ? a.prompt : a.prompt.replace(/^Needs approval · /, "");
+
+  return approvalView({ ...a, prompt: a.source_context ? `${a.source_context}${separator}${prompt}` : a.prompt });
+}
+
+function ownerApprovals(sql: SqlClient.SqlClient, id: string) {
+  // Cards deliberately reach the owner; external messages and streaming remain conversation scoped.
+  return sql<ApprovalRow & { source_context: string | null }>`SELECT a.*, c.arguments,
+              (c.tool ->> 'source' = 'platform' AND c.tool ->> 'name' = 'answer_interaction') AS prepared,
+              t.routine_title, CASE WHEN a.kind = 'question' THEN c.arguments -> 'options' END AS options,
+              CASE WHEN x.id IS NOT NULL THEN concat('External task · Slack account ', ma.name,
+                ' · channel ', x.channel_id, ' · thread ', x.thread_id,
+                CASE WHEN a.kind = 'question' THEN E'\nYour answer goes to the bot for this external task. Keep private details out.' ELSE '' END)
+              END AS source_context
+        FROM bot_approvals a JOIN bot_turns t ON t.id = a.turn_id LEFT JOIN bot_tool_calls c ON c.id = a.id
+        LEFT JOIN bot_channel_conversations x ON x.id=t.conversation_id
+        LEFT JOIN bot_channel_routes r ON r.id=x.route_id LEFT JOIN messenger_accounts ma ON ma.id=r.account_id
+        WHERE a.bot_id = ${id}::uuid ORDER BY a.created_at, a.id`;
 }

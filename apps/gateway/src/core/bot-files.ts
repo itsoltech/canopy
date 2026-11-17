@@ -26,9 +26,10 @@ export async function conversationFiles(core: GatewayCore, turn: BotTurn, ids?: 
       const sql = yield* SqlClient.SqlClient;
 
       const rows = yield* sql<AttachmentRow>`SELECT a.* FROM attachments a JOIN bots b ON b.id=a.bot_id
+        JOIN bot_turns t ON t.id=a.bot_turn_id AND t.bot_id=b.id
       WHERE a.owner_user_id=${owner}::uuid AND b.owner_user_id=${owner}::uuid
         AND b.id=${turn.bot_id}::uuid AND b.deleted_at IS NULL AND b.archived_at IS NULL AND b.moved_to IS NULL
-        AND a.bot_turn_id IS NOT NULL ORDER BY a.id`;
+        AND t.conversation_id IS NOT DISTINCT FROM ${turn.conversation_id ?? null}::uuid ORDER BY a.id`;
 
       if (ids === undefined) return rows;
       const byId = new Map(rows.map((r) => [r.id, r]));

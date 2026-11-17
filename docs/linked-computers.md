@@ -1,11 +1,21 @@
 # Połączone komputery
 
 Status: opis zaimplementowanej synchronizacji (2026-11-17), w tym zachowania
-nadawców historycznych steerów przy stronicowaniu lokalnym i offline oraz wspólnego
+lokalnych kanałów Slack botów, nadawców historycznych steerów przy stronicowaniu lokalnym i offline oraz wspólnego
 limitu 256 kroków automatycznej rozmowy i domyślnego
 steera między rodzicem a dzieckiem oraz deduplikacji raportów jednej tury,
 retencji dziennika źródłowego i dzierżaw treści (migracja 0154). Dostępność w kanałach
 nightly, beta i stable wynika z [wydań](release.md), nie z daty tego opisu.
+
+## Kanały komunikatorów botów
+
+Konta i trasy komunikatorów botów są zarządzane wyłącznie na ich domu.
+Przenoszenie bota zachowuje prywatną rozmowę i celowo wysłane do niej
+powiadomienia, ale nie przenosi kont Slack, ich sekretów ani historii
+zewnętrznych rozmów. Ta historia pozostaje w źródłowym gatewayu; bot przeniesiony
+nie odbiera tam nowych zdarzeń. Na nowym domu właściciel osobno konfiguruje
+Messengers i przypisuje kanały. Mirror prywatnego czatu nie zawiera treści
+zewnętrznych rozmów poza świadomie wysłanym powiadomieniem.
 
 ## Dom szkiców
 

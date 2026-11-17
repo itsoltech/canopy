@@ -3,6 +3,7 @@ import type { ThreadEventInit, TurnHarness } from "../journal/index.ts";
 import type { ResolvedProfile } from "../providers/profiles.ts";
 import type { BotSession } from "./session.ts";
 import type { BotContent } from "./images.ts";
+import type { BotSteering } from "./steering.ts";
 
 /** Stable harness code only; provider payloads and stderr never enter gateway-visible reasons. */
 export class BotHarnessFailure extends Error {
@@ -15,6 +16,7 @@ export class BotHarnessFailure extends Error {
 }
 
 export interface BotHarnessContext {
+  steering?: BotSteering;
   onUsage?: ((snapshot: ProviderUsageSnapshot) => void) | undefined;
   usageSnapshot?: ProviderUsageSnapshot | undefined;
   input: RunBotTurn;

@@ -9,6 +9,7 @@ import {
   TurnOutcome,
   type BotFileOperation,
   type RunBotTurn,
+  type SteerBotTurn,
 } from "@canopy/contracts";
 import { instanceShadowHome, type AppliedConfig } from "../config/remote.ts";
 import { Journal, type ThreadEventInit } from "../journal/index.ts";
@@ -26,6 +27,7 @@ import { providersOf, type ResolvedProfile } from "../providers/profiles.ts";
 import { botImages } from "./images.ts";
 import { BotFileError, BotWorkspace, cleanupBotWorkspaces } from "./workspace.ts";
 import { BotFileOperations } from "./file-operations.ts";
+import { BotSteering } from "./steering.ts";
 
 function botProvider(provider: Provider) {
   return Match.value(provider).pipe(
@@ -63,11 +65,33 @@ function sessionOptions(
   };
 }
 
+function botToolBus(ctx: HostContext, input: RunBotTurn, turnSignal: AbortSignal) {
+  return grokBus({
+    threadId: input.botId,
+    depth: 0,
+    agentBus: false,
+    connectorTools: input.tools,
+    turnId: () => input.turnId,
+    callTool: (call, signal) =>
+      ctx.ops.callTool(
+        create(AgentToolCallSchema, { ...call, botId: input.botId }),
+        signal ? AbortSignal.any([turnSignal, signal]) : turnSignal,
+      ),
+  });
+}
+
 /** Hidden bot sessions own no project workspace and expose only gateway-executed MCP. */
 export class BotTurns {
   readonly #active = new Map<
     string,
-    { abort: AbortController; done: Promise<void>; workspace?: BotWorkspace; files?: boolean; busy?: boolean }
+    {
+      abort: AbortController;
+      done: Promise<void>;
+      workspace?: BotWorkspace;
+      files?: boolean;
+      busy?: boolean;
+      steering?: BotSteering;
+    }
   >();
   readonly #cleanup: ReturnType<typeof setInterval>;
   readonly #files: BotFileOperations;
@@ -130,6 +154,19 @@ export class BotTurns {
       throw error;
     }
   }
+  async steerBotTurn(input: SteerBotTurn): Promise<CommandOutput> {
+    const active = this.#active.get(`${input.botId}/${input.turnId}`);
+
+    const status =
+      active &&
+      !active.abort.signal.aborted &&
+      input.text.trim() &&
+      /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(input.inputId)
+        ? (active.steering?.submit(input.inputId, input.text) ?? "unsupported")
+        : "unsupported";
+
+    return { dataJson: JSON.stringify({ status }) };
+  }
   async #start(
     input: RunBotTurn,
     commandId: string,
@@ -176,18 +213,7 @@ export class BotTurns {
         );
     };
 
-    const bus = grokBus({
-      threadId: input.botId,
-      depth: 0,
-      agentBus: false,
-      connectorTools: input.tools,
-      turnId: () => input.turnId,
-      callTool: (call, signal) =>
-        this.ctx.ops.callTool(
-          create(AgentToolCallSchema, { ...call, botId: input.botId }),
-          signal ? AbortSignal.any([abort.signal, signal]) : abort.signal,
-        ),
-    });
+    const bus = botToolBus(this.ctx, input, abort.signal);
 
     try {
       const started = await this.ctx.state.options.runtime.runPromise(
@@ -210,7 +236,12 @@ export class BotTurns {
       throw error;
     }
 
+    const steering = provider === "grok" ? undefined : new BotSteering(session, record);
+
+    if (steering) active.steering = steering;
+
     const context = {
+      ...(steering && { steering }),
       onUsage: usage?.report,
       usageSnapshot: this.ctx.state.usage.get(`${input.provider}/${profile.id}`)?.snapshot,
       input,
@@ -240,15 +271,24 @@ export class BotTurns {
         Match.exhaustive,
       )
       .then(
-        () =>
-          record({
+        async () => {
+          await steering?.close();
+          await record({
             body: {
               case: "turnFinished",
               value: { outcome: abort.signal.aborted ? TurnOutcome.INTERRUPTED : TurnOutcome.COMPLETED },
             },
-          }),
-        (error) =>
-          this.#failed(input, abort.signal.aborted, record, error instanceof Error ? error : new Error(String(error))),
+          });
+        },
+        async (error) => {
+          await steering?.close();
+          await this.#failed(
+            input,
+            abort.signal.aborted,
+            record,
+            error instanceof Error ? error : new Error(String(error)),
+          );
+        },
       )
       .catch(() => this.ctx.ops.log("bots: harness journal failed"))
       .finally(() => {

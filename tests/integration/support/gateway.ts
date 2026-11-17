@@ -58,6 +58,7 @@ import { Layer, ManagedRuntime } from "effect";
 import type { SqlClient } from "effect/sql";
 import { DatabaseMonitor, bindDatabaseMonitor, observedSql } from "../../../apps/gateway/src/diagnostics/database.ts";
 import { BotStore } from "../../../apps/gateway/src/bots/store.ts";
+import { MessengerStore } from "../../../apps/gateway/src/messengers/store.ts";
 import type { LogPullSource } from "@canopy/logs";
 import type { BotModel } from "../../../apps/gateway/src/bots/types.ts";
 import type { WorkerTracing } from "../../../apps/worker/src/diagnostics/tracing.ts";
@@ -78,6 +79,7 @@ export type TestRuntime = ManagedRuntime.ManagedRuntime<
   | BackgroundTaskStore
   | PrCheckWatchStore
   | BotStore
+  | MessengerStore
   | SqlClient.SqlClient,
   unknown
 >;
@@ -591,6 +593,7 @@ export async function startTestGateway(
     backgroundGraceMs?: number;
     botModel?: BotModel;
     botClock?: GatewayCoreOptions["botClock"];
+    messengerTransport?: GatewayCoreOptions["messengerTransport"];
     worker?: ScriptedWorkerOptions;
     secretTtlMs?: number;
     watchProbeMs?: number;
@@ -629,6 +632,7 @@ export async function startTestGateway(
       BackgroundTaskStore.layer,
       PrCheckWatchStore.layer,
       BotStore.layer(secretsKey),
+      MessengerStore.layer(secretsKey),
     ).pipe(Layer.provideMerge(measured)),
   );
 
@@ -668,6 +672,7 @@ export async function startTestGateway(
     instanceId: "test",
     userId,
     sshSecretsKey: secretsKey,
+    ...(options.messengerTransport && { messengerTransport: options.messengerTransport }),
     ...(options.logSources && { logSources: options.logSources }),
     ...(options.diagnosticsLogDirectory && { diagnosticsLogDirectory: options.diagnosticsLogDirectory }),
     ...(options.diagnosticsStorage && { diagnosticsStorage: options.diagnosticsStorage }),
@@ -767,6 +772,7 @@ export async function startTestGateway(
     connect,
     close: async (keepDatabase = false) => {
       await core.stopSweep();
+      await core.messengers.stop();
       await core.bots.stop();
 
       for (const w of workers) {

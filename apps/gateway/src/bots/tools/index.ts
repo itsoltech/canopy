@@ -9,6 +9,7 @@ import { routineTools } from "./routines.ts";
 import { attachmentTools } from "./attachments.ts";
 import { workspaceTools } from "./workspace.ts";
 import { outgoingFileTools } from "./outgoing-files.ts";
+import { messengerTools } from "./messengers.ts";
 
 /** Grouped in the model's catalogue; a single allowlisted descriptor owns dispatch and status. */
 export const areaTools = [
@@ -23,6 +24,7 @@ export const areaTools = [
   ...settingsTools,
   createBotTool,
   ...routineTools,
+  ...messengerTools,
 ];
 
 export const areaTool = new Map(areaTools.map((t) => [t.spec.name, t]));

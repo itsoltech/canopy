@@ -16,6 +16,7 @@ import { fail, record, text, uuid, type Arguments, type Reference } from "./agen
 import type { LinkedAgents } from "./agents.ts";
 import { receivedAgentSender } from "./agents-senders.ts";
 import { threadNotice } from "../bots/thread-notice.ts";
+import { botDeliveryOrigin } from "./bot-delivery-origin.ts";
 
 /** Linked work reserves one step for its reply; deliveries may use the final step. */
 export function requireLinkedChainCapacity(hops: number, reserveReply: boolean) {
@@ -79,20 +80,23 @@ export async function agentsDeliverAtHome(
   if (ref.actor_kind === "bot" && call.operation === "question" && args["kind"] === "permission")
     return { delivered: true };
 
-  if (ref.actor_kind === "bot")
+  if (ref.actor_kind === "bot") {
+    const origin = await botDeliveryOrigin(hostContext, ref);
+
+    if (!origin) return { delivered: false };
     await hostContext.scope.run(
       BotStore.use((s) =>
         s.enqueue(hostContext.owner, ref.actor_id, input, key, {
           hops: call.hops,
           sender: ref.target_id ? qualifyId(ref.target_id, node) : "system",
           ...(ref.target_kind === "bot" && { exchangeId: call.callId }),
-          ...(ref.source_routine_id && { routineId: ref.source_routine_id, routineTitle: ref.source_routine_title }),
+          ...origin,
           event: true,
           ...(displayText && { displayText }),
         }),
       ),
     );
-  else
+  } else
     await hostContext.scope.transaction(async () => {
       if (call.operation === "question") {
         const sent = await hostContext.core.sendMessage(

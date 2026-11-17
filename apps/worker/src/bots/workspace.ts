@@ -141,24 +141,41 @@ export function cleanupBotWorkspaces(dataDir: string, now = Date.now()): void {
   const root = join(dataDir, "bots");
   mkdirSync(root, { recursive: true, mode: 0o700 });
 
-  for (const entry of readdirSync(root, { withFileTypes: true })) {
-    if (!entry.isDirectory() || !/^[a-f0-9-]{36}$/i.test(entry.name)) continue;
-    const path = join(root, entry.name, "workspace");
+  const conversations = (parent: string) =>
+    readdirSync(parent, { withFileTypes: true })
+      .filter((entry) => entry.isDirectory() && /^[a-f0-9-]{36}$/i.test(entry.name))
+      .map((entry) => join(parent, entry.name));
 
-    if (active.has(path)) continue;
+  for (const bot of conversations(root)) {
+    cleanupWorkspace(join(bot, "workspace"), now);
+    const external = join(bot, "conversations");
 
     try {
-      const stat = lstatSync(path);
+      const stat = lstatSync(external);
 
       if (stat.isSymbolicLink() || !stat.isDirectory()) continue;
 
-      if (now - stat.mtimeMs > BOT_RETENTION_MS) rmSync(path, { recursive: true });
-      else
-        for (const file of readdirSync(path)) {
-          if (file.startsWith(".write-")) rmSync(join(path, file), { force: true });
-        }
+      for (const conversation of conversations(external)) cleanupWorkspace(join(conversation, "workspace"), now);
     } catch {
-      // A missing or concurrently removed workspace needs no cleanup.
+      // Bots without external conversations retain only their private workspace.
     }
+  }
+}
+
+function cleanupWorkspace(path: string, now: number): void {
+  if (active.has(path)) return;
+
+  try {
+    const stat = lstatSync(path);
+
+    if (stat.isSymbolicLink() || !stat.isDirectory()) return;
+
+    if (now - stat.mtimeMs > BOT_RETENTION_MS) rmSync(path, { recursive: true });
+    else
+      for (const file of readdirSync(path)) {
+        if (file.startsWith(".write-")) rmSync(join(path, file), { force: true });
+      }
+  } catch {
+    // A missing or concurrently removed workspace needs no cleanup.
   }
 }

@@ -14,7 +14,7 @@ export function interruptBot(sql: SqlClient.SqlClient, core: BotCore, user: stri
       yield* core.owned(user, botId, true);
 
       const turn = (yield* sql<BotTurn>`SELECT * FROM bot_turns
-        WHERE bot_id = ${botId}::uuid AND handoff_configuration IS NULL
+        WHERE bot_id = ${botId}::uuid AND handoff_configuration IS NULL AND conversation_id IS NULL
           AND status IN ('running','waiting','queued') AND (routine_id IS NULL OR status = 'waiting')
         ORDER BY CASE WHEN status IN ('running','waiting') THEN 0 ELSE 1 END, created_at, id LIMIT 1 FOR UPDATE`)[0];
 

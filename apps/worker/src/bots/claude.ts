@@ -8,12 +8,12 @@ import { statSync } from "node:fs";
 import type { BotHarnessContext } from "./types.ts";
 import { BotHarnessFailure } from "./types.ts";
 import { rejectBotToolApproval } from "./failures.ts";
-import { claudeBotPrompt } from "./claude-input.ts";
-import { claudeFastAvailable, claudeFastMode } from "../providers/claude/service-tier.ts";
 import { spawnClaude } from "../providers/claude/spawn.ts";
 import { ClaudeUsage } from "../providers/claude/usage.ts";
 import { NoticeLevel } from "@canopy/contracts";
 import { claudeLimitError } from "../providers/usage-limits.ts";
+import { claudeFastMode } from "../providers/claude/service-tier.ts";
+import { admitClaudeBotInput, botClaudePrompts, consumedBotInput, nextBotMessage } from "./claude-input.ts";
 
 async function observeUsage(ctx: BotHarnessContext, usage: ClaudeUsage, message: SDKMessage) {
   if (usage.observe(message))
@@ -74,14 +74,12 @@ export async function runClaudeBot(ctx: BotHarnessContext): Promise<void> {
   signal.addEventListener("abort", cancel, { once: true });
 
   const admitted = Promise.withResolvers<boolean>();
+  const prompts = botClaudePrompts(ctx, id, content, fast ? admitted.promise : undefined);
   let q: Query | undefined;
 
   try {
     q = query({
-      prompt:
-        fast || content.images.length || content.documents.length
-          ? claudeBotPrompt(content, id, fast ? admitted.promise : undefined)
-          : content.text,
+      prompt: prompts,
       options: {
         ...profile,
         env: {
@@ -106,6 +104,7 @@ export async function runClaudeBot(ctx: BotHarnessContext): Promise<void> {
         systemPrompt: input.instructions,
         maxTurns: 32,
         includePartialMessages: true,
+        extraArgs: { "replay-user-messages": null },
         abortController: abort,
         spawnClaudeCodeProcess: harness.spawn,
       },
@@ -114,22 +113,31 @@ export async function runClaudeBot(ctx: BotHarnessContext): Promise<void> {
     const mapper = new ClaudeEventMapper(input.turnId);
     const textItems = new Set<string>();
 
-    if (fast) {
-      if (!claudeFastAvailable(await q.initializationResult(), input.model))
-        throw new BotHarnessFailure(
-          "SERVICE_TIER_UNAVAILABLE",
-          "Fast speed is unavailable for this model and account.",
-        );
-      signal.throwIfAborted();
-      admitted.resolve(true);
-    }
+    admitted.resolve(await admitClaudeBotInput(q, fast, input.model, signal));
 
     const usage = new ClaudeUsage(ctx.onUsage, ctx.usageSnapshot);
 
-    for await (const message of q) {
+    const messages = q[Symbol.asyncIterator]();
+    let nextMessage = messages.next();
+    let deferred = false;
+
+    for (;;) {
+      const next = deferred ? await nextBotMessage(nextMessage, signal) : await nextMessage;
+
+      if (!next || next.done) {
+        if (deferred) return;
+        break;
+      }
+
+      const message = next.value;
+      nextMessage = messages.next();
+      void nextMessage.catch(() => {});
       signal.throwIfAborted();
 
       await observeUsage(ctx, usage, message);
+      const started = await consumedBotInput(ctx, message);
+
+      if (started || message.type === "assistant" || message.type === "stream_event") deferred = false;
 
       if (message.type === "assistant") {
         if (message.error)
@@ -168,6 +176,11 @@ export async function runClaudeBot(ctx: BotHarnessContext): Promise<void> {
             message.subtype === "success" ? message.result : message.errors.join("; "),
           );
 
+        if (ctx.steering?.pending) {
+          deferred = true;
+          continue;
+        }
+
         return;
       }
     }
@@ -176,6 +189,7 @@ export async function runClaudeBot(ctx: BotHarnessContext): Promise<void> {
   } finally {
     admitted.resolve(false);
     signal.removeEventListener("abort", cancel);
+    prompts.close();
     abort.abort();
     q?.close();
     await harness.closed();

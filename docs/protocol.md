@@ -366,6 +366,29 @@ Bot używa istniejących `ThreadEvent` i ACK (thread_id = bot_id), przechowywany
 oddzielnie od wątków projektowych. `AgentToolCall.bot_id` kieruje MCP do wykonawców
 botów w gateway; gateway sprawdza właściciela, przypięcie workera, turę i zgody.
 Starsze workery nie dostają tych komend. [Projekt i trwałość](bots-harness.md).
+
+Status (2026-11-17): izolacja rozmów zewnętrznych i wejścia do aktywnej tury
+zaimplementowane w workerze; dostępność wynika z promocji wydań.
+`bot_conversations_v1` dodaje `RunBotTurn.conversation_id = 16` (UUID);
+puste pole zachowuje prywatną sesję. Home i workspace są izolowane per
+bot–rozmowa, natomiast journal i autoryzacja narzędzi nadal używają `bot_id`.
+Gateway nie może wysłać zewnętrznej rozmowy do starszego workera ignorującego pole.
+
+`bot_steer_v1` dodaje nietrwałe `Command.steer_bot_turn = 833`:
+`SteerBotTurn {bot_id=1, turn_id=2, input_id=3, text=4}`. To jednorazowe,
+tekstowe wejście do dokładnej aktywnej tury; nie jest ponawiane z outboxa ani
+odtwarzane po restarcie. `CommandResult.data_json = 833` zawiera
+`{status:"queued"|"delivered"|"unsupported"}`. `queued` nie jest doręczeniem.
+Dopiero konsumpcja UUID przez harness daje trwały notice `bot_steer_applied`
+z `data_json={"input_id":"…"}`; native RPC acceptance nie wystarcza. Zakończenie
+bez dowodu daje `bot_steer_dropped` przed końcem tury. Notice może wyprzedzić
+wynik komendy. `delivered` wolno zwrócić dopiero po trwałym `applied`.
+Grok zwraca `unsupported`, Claude i Codex używają natywnego wejścia harnessu.
+Niepotwierdzony zapis unieważnia cache sesji, a twarda awaria może pozostawić
+tylko brak `applied`; gateway zachowuje taką wiadomość i rozstrzyga ją po końcu
+tury, bez ponowienia nieznanych efektów. Bez zmiany `WORKER_LINK_PROTOCOL`.
+[Szczegóły konsumpcji i odzyskiwania](bots-harness.md#trwałość-i-prezentacja).
+
 `InterruptBotTurn` jest zapisywane razem z zatrzymaniem tury w outboxie gatewaya;
 worker potwierdza komendę po zamknięciu jej harnessu. Gateway odrzuca spóźnioną treść
 i przed kolejną komendą tej rozmowy czeka na ACK przerwania. Nie zmienia to pól

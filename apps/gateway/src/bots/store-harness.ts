@@ -7,7 +7,8 @@ import {
   type Command,
   type ThreadEvent,
 } from "@canopy/contracts";
-import { Effect } from "effect";
+import { Effect, Schema } from "effect";
+import { messengerDispatch } from "../messengers/store-dispatch.ts";
 import { classifyFailure } from "@canopy/domain";
 import type { SqlClient } from "effect/sql";
 import { Invalid } from "../store/store.ts";
@@ -54,6 +55,35 @@ const commandFailure = (sql: SqlClient.SqlClient, id: string) =>
   }>`SELECT c.result FROM bot_harness_turns h JOIN worker_commands c ON c.id = h.command_id WHERE h.turn_id = ${id}::uuid AND c.status = 'failed'`.pipe(
     Effect.map((r) => r[0]?.result),
   );
+
+const steerNotice = Schema.decodeUnknownSync(Schema.Struct({ input_id: Schema.String }));
+
+function settleSteerNotice(sql: SqlClient.SqlClient, event: ThreadEvent) {
+  return Effect.gen(function* () {
+    const body = event.body;
+
+    if (body.case !== "notice" || !["bot_steer_applied", "bot_steer_dropped"].includes(body.value.code)) return;
+
+    const input = yield* Effect.try({
+      try: () => steerNotice(JSON.parse(body.value.dataJson)),
+      catch: () => undefined,
+    }).pipe(Effect.catch(() => Effect.succeed(undefined)));
+
+    if (!input || !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(input.input_id)) return;
+
+    const owner = (yield* sql<{
+      owner_user_id: string;
+    }>`SELECT owner_user_id FROM bots WHERE id=${event.threadId}::uuid`)[0];
+
+    if (owner)
+      yield* messengerDispatch(sql).settleSteer(
+        owner.owner_user_id,
+        input.input_id,
+        body.value.code === "bot_steer_applied",
+        event.turnId,
+      );
+  });
+}
 
 function updateItems(row: HarnessTurnRow, event: ThreadEvent): void {
   const body = event.body;
@@ -183,6 +213,7 @@ export function botHarnessStore(sql: SqlClient.SqlClient, access: BotAccess) {
             if (!saved.length) return true;
 
             const body = event.body;
+            yield* settleSteerNotice(sql, event);
 
             updateItems(row, event);
             const text = Object.values(row.items).join("\n");
