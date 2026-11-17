@@ -3,6 +3,7 @@ import { create } from "@bufbuild/protobuf";
 import { EnvironmentSkillStatusSchema, SkillFileSchema, type EnvironmentResolution } from "@canopy/contracts";
 import { Schema } from "effect";
 import { environmentDigest } from "@canopy/domain/agent-environment";
+import { isJsonArray, isJsonObject, type JsonValue } from "@canopy/domain/json";
 import { InstructionLedger } from "./ledger.ts";
 import { readInstructionFile, replaceInstructionFile, restoreInstructionFile } from "./files.ts";
 
@@ -12,6 +13,21 @@ const ownKey = (key: string) => key.startsWith("canopy-") || key.includes("@cano
 const ObjectSchema = Schema.Record(Schema.String, Schema.MutableJson);
 
 type JsonObject = Record<string, typeof Schema.MutableJson.Type>;
+
+function canonicalJsonValue(value: JsonValue): JsonValue {
+  if (isJsonArray(value)) return value.map(canonicalJsonValue);
+
+  if (isJsonObject(value))
+    return Object.fromEntries(
+      Object.keys(value)
+        .sort()
+        .map((key) => [key, canonicalJsonValue(value[key]!)]),
+    );
+
+  return value;
+}
+
+const canonicalJson = (value: JsonValue) => JSON.stringify(canonicalJsonValue(value));
 
 /** Extract only owned namespaces, preserving all unrelated settings and secrets on the device. */
 function jsonConfig(text: string, desired: JsonObject, versioned: boolean) {
@@ -36,7 +52,11 @@ function jsonConfig(text: string, desired: JsonObject, versioned: boolean) {
     current[field] = { ...others, ...next };
   }
 
-  return { managed: JSON.stringify(managed), next: `${JSON.stringify(current, null, 2)}\n` };
+  return {
+    managed: canonicalJson(managed),
+    legacyManaged: JSON.stringify(managed),
+    next: `${JSON.stringify(current, null, 2)}\n`,
+  };
 }
 
 function tomlConfig(text: string, desired: string) {
@@ -58,7 +78,7 @@ function tomlConfig(text: string, desired: string) {
 
   Bun.TOML.parse(next); // Duplicate or conflicting tables fail closed, including outside-block collisions.
 
-  return { managed, next };
+  return { managed, legacyManaged: managed, next };
 }
 
 export interface PluginConfigTarget {
@@ -76,20 +96,28 @@ export function pluginConfigCheck(target: PluginConfigTarget) {
     kind: target.content.kind,
     fields: target.content.kind === "json" ? Object.keys(target.content.value) : [],
     checksum: environmentDigest(
-      target.content.kind === "toml" ? target.content.value : JSON.stringify(target.content.value),
+      target.content.kind === "toml" ? target.content.value : canonicalJson(target.content.value),
     ),
   };
 }
 
-export function observedPluginConfig(check: { path: string; kind: "toml" | "json"; fields: readonly string[] }) {
+export function observedPluginConfig(check: {
+  path: string;
+  kind: "toml" | "json";
+  fields: readonly string[];
+  checksum?: string;
+}) {
   const text = readInstructionFile(check.path).text ?? "";
 
-  const managed =
+  const rendered =
     check.kind === "toml"
-      ? tomlConfig(text, "").managed
-      : jsonConfig(text, Object.fromEntries(check.fields.map((field) => [field, {}])), false).managed;
+      ? tomlConfig(text, "")
+      : jsonConfig(text, Object.fromEntries(check.fields.map((field) => [field, {}])), false);
 
-  return environmentDigest(managed);
+  // Receipts written before canonical JSON hashing remain valid until the next reconcile.
+  const legacy = environmentDigest(rendered.legacyManaged);
+
+  return legacy === check.checksum ? legacy : environmentDigest(rendered.managed);
 }
 
 export function reconcilePluginConfig(
@@ -116,12 +144,12 @@ export function reconcilePluginConfig(
         ? tomlConfig(current.text ?? "", target.content.value)
         : jsonConfig(current.text ?? "{}", target.content.value, target.path.endsWith("installed_plugins.json"));
 
-    const expected = target.content.kind === "toml" ? target.content.value : JSON.stringify(target.content.value);
+    const expected = target.content.kind === "toml" ? target.content.value : canonicalJson(target.content.value);
 
     const empty =
       target.content.kind === "toml"
         ? ""
-        : JSON.stringify(Object.fromEntries(Object.keys(target.content.value).map((key) => [key, {}])));
+        : canonicalJson(Object.fromEntries(Object.keys(target.content.value).map((key) => [key, {}])));
 
     const previous = ledger.entries.get(id);
     const observed = environmentDigest(rendered.managed);
@@ -129,9 +157,23 @@ export function reconcilePluginConfig(
     status.desiredChecksum = wanted;
     status.observedChecksum = current.checksum;
     status.owned = Boolean(previous);
-    const conflict = previous ? previous.checksum !== observed : rendered.managed !== empty;
+
+    // Older journals hash insertion order. Already-desired owned JSON can migrate even after keys were reordered.
+    const conflict = previous
+      ? previous.checksum !== observed &&
+        previous.checksum !== environmentDigest(rendered.legacyManaged) &&
+        !(target.content.kind === "json" && observed === wanted)
+      : rendered.managed !== empty;
+
     const force = resolution?.observedChecksum === current.checksum && resolution.desiredChecksum === wanted;
-    const kept = previous?.keptDesired === wanted && previous.keptObserved === current.checksum;
+
+    const legacyWanted = environmentDigest(
+      target.content.kind === "toml" ? target.content.value : JSON.stringify(target.content.value),
+    );
+
+    const kept =
+      (previous?.keptDesired === wanted || previous?.keptDesired === legacyWanted) &&
+      previous?.keptObserved === current.checksum;
 
     if (
       (kept && !(force && resolution?.action === "overwrite")) ||

@@ -1,6 +1,9 @@
 # Środowisko agentów
 
-Projekt: 2026-11-04. Settings → **Agent environment** zarządza oczekiwanym stanem
+Status: zaimplementowane (2026-11-17), w tym obsługa znaczników aktywnych sesji
+Claude i porównywanie konfiguracji pluginów niezależnie od kolejności kluczy JSON.
+Dostępność w kanałach nightly/beta/stable wynika z wydań ([release.md](release.md)).
+Settings → **Agent environment** zarządza oczekiwanym stanem
 instrukcji, umiejętności i pluginów na komputerach właściciela. Ustawienia należą
 do bazy gatewaya; użytkownik nie konfiguruje zmiennych środowiskowych ani plików
 usług. Etapy 1–4 obejmują instrukcje Claude/Codex, tagi, upload i synchronizację
@@ -565,14 +568,22 @@ Własność: `data_dir/agent-environment/plugins.json`, konfiguracja aktywacji:
 `plugin-config.json`; transakcja katalogu i journal jak dla skilli. Lokalne zmiany
 lub nowe pliki zatrzymują aktywację. Keep/Overwrite korzystają z jednorazowego CAS;
 import plugin driftu nie istnieje, bo omijałby przegląd kodu. Usunięcie zachowuje
-obce pliki i puste katalogi, a przy drifcie czeka na decyzję. Pusty znacznik Claude
-`.in_use` pozostaje na dysku; dziennik zachowuje własność resztek cache, dzięki czemu
+obce pliki i puste katalogi, a przy drifcie czeka na decyzję. Znaczniki Claude
+`.in_use` i `.in_use/<pid>` nie są kodem pluginu: nie powodują driftu ani blokady
+startu sesji, pozostają lokalne, są zachowywane przy aktualizacji/usunięciu i nie
+trafiają do porównań. Ta sama reguła dotyczy wrappera skilli Claude. Kontrola nadal
+odrzuca symlinki i pliki specjalne w znacznikach; wyjątek nie dotyczy Codexa.
+Dziennik zachowuje własność resztek cache, dzięki czemu
 ponowne przypisanie nie przejmuje obcego katalogu. Prywatne dodatki nie trafiają
 do porównań i blokują ponowne włączenie do czasu ich przeniesienia.
 
 Receipt `canopy-<harness>-plugins.json` opisuje gotowe bundle i digest zarządzanych
 części konfiguracji. Start nowej sesji platformy sprawdza receipt, pliki i aktywację;
 zmiana lub niekompletny reconcile daje błąd. Reconcile nie wykonuje pluginów.
+Zarządzane obiekty JSON są porównywane po uporządkowaniu kluczy, także zagnieżdżonych;
+sama kolejność kluczy nie powoduje driftu. Kolejność tablic i wartości nadal mają
+znaczenie. Reconcile odczytuje też wcześniejsze digesty i aktualizuje własne
+potwierdzenia bez przejmowania obcej konfiguracji.
 Stan applied potwierdza zapis plików; nie dowodzi dostępności binariów wymaganych
 przez MCP/hook ani ich poprawnego działania. Test zgodności używa natywnych
 `claude plugin list --json` i `codex plugin list --json --marketplace …`.
