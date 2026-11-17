@@ -39,12 +39,14 @@ export function ScreenFrame({
   header,
   footer,
   backgroundColor,
+  headerBackgroundColor,
   fullWindow = false,
 }: {
   children: ReactNode;
   header?: ReactNode;
   footer?: ReactNode;
   backgroundColor?: string;
+  headerBackgroundColor?: string;
   fullWindow?: boolean;
 }) {
   const c = useColors();
@@ -78,7 +80,7 @@ export function ScreenFrame({
                   paddingTop: insets.top,
                   paddingLeft: insets.left,
                   paddingRight: insets.right,
-                  backgroundColor: background,
+                  backgroundColor: headerBackgroundColor ?? background,
                 }}
               >
                 <View onLayout={(event) => setHeaderSize(event.nativeEvent.layout.height)}>{header}</View>

@@ -51,8 +51,8 @@ export function ThreadHeaderBar({
         </View>
       ) : (
         <HeaderAction
-          icon="bars-3"
-          label="Threads"
+          icon="chevron-left"
+          label="Back to threads"
           onPress={() => (router.canGoBack() ? router.back() : router.replace("/"))}
         />
       )}
@@ -103,7 +103,7 @@ function HeaderAction(props: ComponentProps<typeof IconButton>) {
 }
 
 const s = StyleSheet.create({
-  bar: { minHeight: 48, flexDirection: "row", alignItems: "center", paddingHorizontal: 4 },
+  bar: { minHeight: 52, flexDirection: "row", alignItems: "center", paddingTop: 4, paddingHorizontal: 4 },
   action: { width: 48, height: 48, flexShrink: 0, alignItems: "center", justifyContent: "center" },
   project: { width: 26, flexShrink: 0, paddingRight: 8 },
   identity: {
