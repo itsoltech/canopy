@@ -54,4 +54,39 @@ describe.skipIf(!dockerAvailable)("squash/rebase cleanup over gateway-worker gRP
     expect((await f.cleanup(false)).entries.find((e) => e.worktree?.id === thread.worktree!.id)?.removed).toBe(false);
     expect(existsSync(thread.cwd)).toBe(true);
   });
+
+  test("archival removes a pushed squash branch after upstream deletion and later edits obscure the merge", async () => {
+    const thread = await f.tree();
+    commit(thread.cwd, "squash-edited.txt", "first version\n");
+    const head = commit(thread.cwd, "squash-edited.txt", "squashed version\n");
+    git(thread.cwd, "push", "-qu", "origin", thread.worktree!.branch);
+    git(f.repo, "merge", "--squash", thread.worktree!.branch);
+    git(f.repo, "commit", "-qm", "squash edited lines");
+    git(f.repo, "push", "-q", "origin", "main");
+    git(f.repo, "push", "-q", "origin", "--delete", thread.worktree!.branch);
+    commit(f.repo, "squash-edited.txt", "later base version\n");
+    git(f.repo, "push", "-q", "origin", "main");
+    const before = (await f.cleanup()).entries.find((e) => e.worktree?.id === thread.worktree!.id)!;
+    expect(before.status).toMatchObject({ merged: false, unpushed: true, dirtyFiles: 0 });
+    expect(before).toMatchObject({ wouldRemove: false, confirmationRequired: true });
+    await f.settings({ cleanupSettled: true, deleteLocalBranch: true });
+    await f.gw.api.setThreadArchived({ threadId: thread.id, archived: true });
+
+    try {
+      const preview = (await f.cleanup()).entries.find((e) => e.worktree?.id === thread.worktree!.id)!;
+      expect(preview.status).toMatchObject({ merged: false, unpushed: true });
+      expect(preview).toMatchObject({
+        wouldRemove: true,
+        confirmationRequired: true,
+        detail: "All threads archived",
+      });
+      const removed = (await f.cleanup(false)).entries.find((e) => e.worktree?.id === thread.worktree!.id);
+      expect(removed).toMatchObject({ removed: true, branchDeleted: false });
+      expect(existsSync(thread.cwd)).toBe(false);
+      expect(git(f.repo, "rev-parse", thread.worktree!.branch)).toBe(head);
+      expect(git(f.repo, "show", `${thread.worktree!.branch}:squash-edited.txt`)).toBe("squashed version");
+    } finally {
+      await f.settings({ cleanupSettled: false, deleteLocalBranch: false });
+    }
+  });
 });

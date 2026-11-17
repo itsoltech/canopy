@@ -19,7 +19,7 @@
     {
       field: "cleanupDeletedThreads",
       title: "Deleted threads",
-      description: "Remove a worktree once all its threads are deleted.",
+      description: "Remove a worktree and discard local files once all its threads are deleted.",
     },
     {
       field: "cleanupMerged",
@@ -29,7 +29,7 @@
     {
       field: "cleanupSettled",
       title: "Archived threads",
-      description: "Remove a worktree once all its threads are archived.",
+      description: "Remove a worktree and discard local files once all remaining threads are archived.",
     },
     {
       field: "cleanupUnchanged",
@@ -39,8 +39,8 @@
     {
       field: "keepLocalChanges",
       title: "Keep worktrees with local changes",
-      description: "When off, Canopy still asks before it removes each worktree with local changes.",
-      // Removal always needs confirmation for local work; this switch only changes a label (docs/settings-map.md).
+      description: "Other cleanup rules need your confirmation before discarding local changes.",
+      // Other cleanup rules protect local changes; this switch only changes a label (docs/settings-map.md).
       soon: true,
     },
     {
@@ -54,7 +54,7 @@
 {#if effective && inherited}
   <SettingsGroup
     title="Cleanup"
-    description="Runs hourly and when a computer reconnects. Any matching rule can remove a worktree without active threads or protected local work."
+    description="Runs hourly and when a computer reconnects, removing matching worktrees without active threads, goals or tasks."
     class={className}
   >
     {#each toggles as toggle (toggle.field)}

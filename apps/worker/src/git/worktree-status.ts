@@ -67,11 +67,7 @@ export async function scanWorktree(managedRoots: readonly string[], target: Work
 
   // --no-renames makes every NUL record one file, including untracked files.
   const dirty = (
-    await gitOk(
-      path,
-      ["status", "--porcelain=v1", "-z", "--untracked-files=all", "--ignored=matching", "--no-renames"],
-      "GIT_FAILED",
-    )
+    await gitOk(path, ["status", "--porcelain=v1", "-z", "--untracked-files=all", "--no-renames"], "GIT_FAILED")
   )
     .split("\0")
     .filter(Boolean);

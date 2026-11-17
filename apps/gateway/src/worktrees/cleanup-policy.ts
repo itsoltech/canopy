@@ -11,7 +11,12 @@ export function lastActivity(row: WorktreeLifecycleRow, status?: WorktreeStatus)
   );
 }
 
-/** Rules are alternatives; safety checks apply to every rule, including manual removal. */
+/** Closing every sharing thread grants disposal only through its enabled lifecycle rule. */
+export function closedThreadCleanup(row: WorktreeLifecycleRow, settings: ui.WorktreeSettings): boolean {
+  return Boolean((settings.cleanupDeletedThreads && row.all_deleted) || (settings.cleanupSettled && row.all_archived));
+}
+
+/** Rules are alternatives; active resources and worktree boundaries always block removal. */
 export function cleanupReason(
   row: WorktreeLifecycleRow,
   status: WorktreeStatus,

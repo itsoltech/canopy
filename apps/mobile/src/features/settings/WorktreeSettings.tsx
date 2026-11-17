@@ -227,7 +227,7 @@ const cleanupFields = [
   {
     field: "cleanupDeletedThreads",
     title: "Deleted threads",
-    description: "Remove worktrees after all their threads are deleted.",
+    description: "Remove a worktree and discard local files once all its threads are deleted.",
   },
   {
     field: "cleanupMerged",
@@ -236,8 +236,8 @@ const cleanupFields = [
   },
   {
     field: "cleanupSettled",
-    title: "Settled threads",
-    description: "Remove worktrees after all their threads finish or are archived.",
+    title: "Archived threads",
+    description: "Remove a worktree and discard local files once all remaining threads are archived.",
   },
   {
     field: "cleanupUnchanged",
@@ -283,7 +283,7 @@ function WorktreeCleanup({ response, busy, save }: Fields) {
       </WorktreeField>
       <SettingsRow
         title="Keep local changes"
-        description="Local edits always require a separate confirmation before removal."
+        description="Other cleanup rules need your confirmation before discarding local changes."
         soon
       />
     </SettingsGroup>
@@ -352,8 +352,8 @@ function WorktreeList({ scope, worktreeId }: { scope: { projectId: string; worke
               busy={resource.busy}
               onPress={() =>
                 confirmAction(
-                  "Clean up worktrees",
-                  "Canopy checks the policy again and removes safe worktrees. Local changes stay.",
+                  "Clean up worktrees?",
+                  "Canopy removes worktrees that match the cleanup rules. Archived and deleted thread rules can discard local files. Thread history stays.",
                   () =>
                     void resource
                       .run((api) => api.cleanupWorktrees({ ...scope, dryRun: false }))
