@@ -100,8 +100,8 @@ function ThreadBranchPicker({ thread, reason }: { thread: ui.Thread; reason: str
           </Text>
         }
       />
-      {reason ? <Text style={[styles.meta, { color: c.muted }]}>{reason}</Text> : null}
-      {checkoutReason ? <Text style={[styles.meta, { color: c.muted }]}>{checkoutReason}</Text> : null}
+      {reason ? <Text style={[type.meta, { color: c.muted, paddingLeft: 24, paddingBottom: 4 }]}>{reason}</Text> : null}
+      {checkoutReason ? <Text style={[type.meta, { color: c.muted }]}>{checkoutReason}</Text> : null}
       {error ? (
         <Text accessibilityRole="alert" style={[styles.meta, { color: c.danger }]}>
           {error}

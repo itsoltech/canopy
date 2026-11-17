@@ -6,6 +6,7 @@ import { useOverview } from "../../state/overview";
 import { useSession } from "../../state/session";
 import { Notice } from "../../ui/Alert";
 import { Switch } from "../../ui/Switch";
+import { IconButton } from "../../ui/Button";
 import { styles, useColors, useTypography } from "../../ui/theme";
 
 /** The thread override uses project and owner defaults until explicitly changed. */
@@ -18,6 +19,7 @@ export function ThreadAutoArchive({ thread, disabled }: { thread: ui.Thread; dis
   const running = useRef(false);
   const [draft, setDraft] = useState<boolean>();
   const [failed, setFailed] = useState(false);
+  const [help, setHelp] = useState(false);
   const project = settings.projectDefaults(thread.projectId)?.autoArchiveOnMerge;
   const inherited = project ?? settings.user?.threadDefaults?.autoArchiveOnMerge ?? false;
   const override = draft ?? thread.autoArchiveOnMerge;
@@ -59,19 +61,34 @@ export function ThreadAutoArchive({ thread, disabled }: { thread: ui.Thread; dis
   }
 
   return (
-    <View style={{ gap: 4, minWidth: 0 }}>
-      <View style={[styles.row, { minHeight: 44 }]}>
+    <View
+      style={{ minWidth: 0, paddingHorizontal: 8, paddingBottom: 4, borderBottomWidth: 1, borderBottomColor: c.rule }}
+    >
+      <View style={[styles.row, { minHeight: 48, gap: 0 }]}>
         <Text style={[type.chrome, { flex: 1, minWidth: 0, color: c.soft }]}>Auto-archive after merge</Text>
-        <Switch
-          label="Auto-archive after merge"
-          value={enabled}
-          disabled={inactive}
-          onChange={(value) => void save(value)}
-        />
+        <View style={{ width: 48, height: 48, alignItems: "center", justifyContent: "center" }}>
+          <IconButton
+            icon="information-circle"
+            size="sm"
+            label="About auto-archive after merge"
+            onPress={() => setHelp(!help)}
+          />
+        </View>
+        <View style={{ width: 48, height: 48, alignItems: "center", justifyContent: "center" }}>
+          <Switch
+            size="sm"
+            label="Auto-archive after merge"
+            value={enabled}
+            disabled={inactive}
+            onChange={(value) => void save(value)}
+          />
+        </View>
       </View>
-      <Text style={[type.meta, { color: c.muted }]}>
-        {source} Waits for all linked pull requests to merge and active work to finish.
-      </Text>
+      {help && (
+        <Text style={[type.meta, { color: c.muted, paddingBottom: 8 }]}>
+          {source} Waits for all linked pull requests to merge and active work to finish.
+        </Text>
+      )}
       {failed ? <Notice error>Could not save auto-archive. Check the connection, then retry.</Notice> : null}
     </View>
   );

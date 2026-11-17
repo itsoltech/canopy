@@ -1,11 +1,12 @@
 import { useState } from "react";
-import { Text, View } from "react-native";
+import { Text } from "react-native";
 import type { ui } from "@canopy/contracts";
 import { Button } from "../../ui/Button";
-import { font, styles, useColors, useTypography } from "../../ui/theme";
+import { useColors, useTypography } from "../../ui/theme";
 import { ThreadConnectorAccess } from "./ThreadConnectorAccess";
 import { ThreadConnectorRow } from "./ThreadConnectorRow";
 import type { useThreadPanel } from "./use-thread-panel";
+import { ThreadPanelSection } from "./ThreadPanelSection";
 
 export function ThreadConnectors({
   thread,
@@ -32,14 +33,9 @@ export function ThreadConnectors({
         : "";
 
   return (
-    <View style={{ gap: 4, minWidth: 0 }}>
-      <View style={[styles.row, { justifyContent: "space-between", minHeight: 44 }]}>
-        <View style={[styles.row, { flex: 1, minWidth: 0 }]}>
-          <Text accessibilityRole="header" style={[type.meta, { fontFamily: font.medium, color: c.muted }]}>
-            Connectors
-          </Text>
-          {!status && !accounts.length ? <Text style={[type.meta, { color: c.muted }]}>None</Text> : null}
-        </View>
+    <ThreadPanelSection
+      title="Connectors"
+      action={
         <Button
           title="Manage"
           label="Manage connector access"
@@ -48,7 +44,8 @@ export function ThreadConnectors({
           disabled={disabled || !panel.data}
           onPress={() => setManaging(true)}
         />
-      </View>
+      }
+    >
       {status ? (
         <Text accessibilityLiveRegion="polite" style={[type.meta, { color: c.muted }]}>
           {status}
@@ -65,6 +62,6 @@ export function ThreadConnectors({
         visible={managing}
         onClose={() => setManaging(false)}
       />
-    </View>
+    </ThreadPanelSection>
   );
 }

@@ -1,13 +1,14 @@
 import { useState } from "react";
-import { Pressable, Text, View } from "react-native";
+import { Pressable, View } from "react-native";
 import { ItemStatus, type ui } from "@canopy/contracts";
 import { backgroundStopLabel, backgroundTitle } from "@canopy/domain/background-tasks";
-import { styles, useColors } from "../../ui/theme";
+import { useColors } from "../../ui/theme";
 import { TextViewer } from "../viewers/TextViewer";
 import { QuoteItem } from "../quotes/QuoteAction";
 import { BackgroundTaskSummary } from "./BackgroundTaskSummary";
 import { BackgroundTaskStop } from "./BackgroundTaskStop";
 import { useWorkspace } from "../workspace/context";
+import { ThreadPanelSection } from "./ThreadPanelSection";
 
 export function ThreadBackgroundTasks({
   snapshot,
@@ -18,8 +19,6 @@ export function ThreadBackgroundTasks({
   disabled: boolean;
   onOpen?: () => void;
 }) {
-  const c = useColors();
-
   const tasks = snapshot.items
     .filter((entry) => !entry.inherited && entry.item?.content.case === "backgroundTask")
     .sort(
@@ -28,10 +27,10 @@ export function ThreadBackgroundTasks({
         (a.firstSeq === b.firstSeq ? 0 : a.firstSeq > b.firstSeq ? -1 : 1),
     );
 
+  if (!tasks.length) return null;
+
   return (
-    <View style={{ gap: 4 }}>
-      <Text style={[styles.label, { color: c.text }]}>Background tasks</Text>
-      {!tasks.length && <Text style={[styles.meta, { color: c.muted }]}>No background tasks</Text>}
+    <ThreadPanelSection title="Background tasks" count={tasks.length}>
       {tasks.map((entry) => (
         <TaskRow
           key={entry.item?.itemId}
@@ -41,7 +40,7 @@ export function ThreadBackgroundTasks({
           onOpen={onOpen}
         />
       ))}
-    </View>
+    </ThreadPanelSection>
   );
 }
 
