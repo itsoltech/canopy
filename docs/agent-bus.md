@@ -1,6 +1,7 @@
 # Szyna agentów: delegowanie, interakcje, harmonogram
 
-Status (2026-11-16): na `dev` wspólny limit automatycznego łańcucha wynosi 256
+Status (2026-11-17): Claude daje `show_images` 15 min, zachowując 330 s dla pozostałych wywołań do gatewaya;
+na `dev` wspólny limit automatycznego łańcucha wynosi 256
 kroków, z jawnym komunikatem o możliwości kontynuacji po wiadomości użytkownika;
 `close_thread` korzysta ze wspólnego sprzątania zasobów
 archiwizowanego wątku; doprecyzowania między rodzicem i pracującym subagentem domyślnie
@@ -361,7 +362,7 @@ spóźniona decyzja człowieka lub rodzica zwraca `FailedPrecondition`.
 Odpowiedź zapisana przed końcem tury nadal korzysta z trwałego outboxa opisanego niżej.
 Pytania opcjonalne (`wait: false`) pozostają aktywne po zakończeniu tury.
 
-**Limity transportu:** przypięty Claude Agent SDK **0.3.316** definiuje `createSdkMcpServer.timeout` jako twardy limit wall-clock, którego progress nie przedłuża. Serwer szyny ma 330000 ms, więcej niż pojedyncze oczekiwanie `get_answers` lub `wait_threads`. W Codex **0.164.0** [`request_dynamic_tool`](https://github.com/openai/codex/blob/rust-v0.164.0/codex-rs/core/src/tools/handlers/dynamic.rs) czeka na `rx_response.or_cancel(...)` bez lokalnego timera. Nie zakładamy bezterminowości pozostałych warstw transportu.
+**Limity transportu:** przypięty Claude Agent SDK **0.3.316** definiuje `createSdkMcpServer.timeout` jako twardy limit wall-clock, którego progress nie przedłuża. Serwer szyny ma 900000 ms (15 min), aby objąć publikację `show_images`. Worker przekazuje i egzekwuje ten sam termin dla `show_images`; pozostałe wywołania do gatewaya zachowują 330000 ms, więcej niż pojedyncze oczekiwanie `get_answers` lub `wait_threads`. W Codex **0.164.0** [`request_dynamic_tool`](https://github.com/openai/codex/blob/rust-v0.164.0/codex-rs/core/src/tools/handlers/dynamic.rs) czeka na `rx_response.or_cancel(...)` bez lokalnego timera. Nie zakładamy bezterminowości pozostałych warstw transportu.
 
 **Asynchronicznie:** zapis odpowiedzi tworzy trwały outbox. Gdy trwa tura, gateway zapisuje `turn_steers` i komendę workera w jednej transakcji. Odmowa lub upuszczenie steera uruchamia istniejący fallback kolejki. Gdy tury już nie ma, odpowiedź zaczyna nową turę `agent_bus`. W obu przypadkach `hops` = `hops` tury pytającej + 1; odpowiedź człowieka nie zeruje tego łańcucha.
 

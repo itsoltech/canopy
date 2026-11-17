@@ -326,8 +326,9 @@ i gatewayu; UI dostaje klasę i bezpieczny komunikat, bez endpointów i stderr.
 Oczekiwanie na zgodę lub offline nie ma limitu czasu generacji.
 To nie wyłącza limitów klienta MCP dostawcy. Bot Claude używa HTTP MCP bez jawnego
 `timeout`; przypięty SDK opisuje domyślny limit jako praktycznie nieograniczony,
-z możliwością nadpisania przez `MCP_TOOL_TIMEOUT`. Nie jest to limit 330000 ms
-serwera in-process używanego przez wątki. Canopy nie zmienia tych wartości.
+z możliwością nadpisania przez `MCP_TOOL_TIMEOUT`. To osobna konfiguracja od
+[limitów serwera in-process używanego przez wątki](claude-adapter.md#szyna-agentów).
+Canopy nie zmienia tych wartości dla botów.
 HTTP MCP obsługuje `notifications/cancelled` i przerwanie żądania. Worker przekazuje
 `AgentToolCall.cancelled` i zachowuje je do potwierdzenia, także przez reconnect.
 Gateway zapisuje tombstone wywołania i wygasza jego oczekującą kartę; późniejszy
