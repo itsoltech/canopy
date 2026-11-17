@@ -123,7 +123,7 @@ describe.skipIf(!dockerAvailable)("bounded mirror windows retain steer attributi
         create(ui.ThreadSyncRecordSchema, {
           key: `notice:${index}`,
           seq: BigInt(index + 1000),
-          value: { case: "notice", value: { seq: BigInt(index + 1000), message: "n".repeat(300) } },
+          value: { case: "notice", value: { seq: BigInt(index + 1000), notice: { message: "n".repeat(300) } } },
         }),
       ),
     ]);
@@ -132,6 +132,9 @@ describe.skipIf(!dockerAvailable)("bounded mirror windows retain steer attributi
     expect(latest.steers.map((record) => record.id)).toEqual([qualifyId(recent, node)]);
 
     const older = (await readRangeMirror(store, node, thread, {
+      pageSize: 24,
+      targetItemId: "",
+      fromTurnId: "",
       beforeItemId: latest.historyBeforeItemId,
       beforeTurnId: latest.historyBeforeTurnId,
       historyVersion: latest.historyVersion,
@@ -173,8 +176,14 @@ describe.skipIf(!dockerAvailable)("bounded mirror windows retain steer attributi
     expect(snapshot.historyBeforeItemId).toBe("item-3");
     expect(toBinary(ui.ThreadSnapshotSchema, snapshot).length).toBeLessThanOrEqual(512 * 1024);
 
-    const older = (await readRangeMirror(store, node, thread, { beforeItemId: snapshot.historyBeforeItemId }))!
-      .snapshot;
+    const older = (await readRangeMirror(store, node, thread, {
+      pageSize: 24,
+      beforeTurnId: "",
+      targetItemId: "",
+      historyVersion: "",
+      fromTurnId: "",
+      beforeItemId: snapshot.historyBeforeItemId,
+    }))!.snapshot;
 
     expect(older.items.map((entry) => entry.item?.itemId)).toEqual(["item-1", "item-2"]);
     expect(older.steers.map((entry) => entry.id)).toEqual([qualifyId(blocked, node)]);
