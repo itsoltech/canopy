@@ -45,8 +45,8 @@ const MAX_WRITE_BYTES = 2 * 1024 * 1024;
 
 /**
  * Files of a thread (docs/protocol.md, thread_files_v1): the owner opens, edits, deletes or hands a file to its
- * default app. The gateway confines access to the thread's directory; the worker resolves symlinks before
- * checking the boundary. Preview lookups never widen it to another workspace.
+ * default app. The gateway selects the owner's worker and directory. Read previews use that worker account's
+ * filesystem permissions; mutations and native app actions stay confined to the thread's roots.
  */
 export class ThreadFiles {
   constructor(readonly core: GatewayCore) {}
@@ -66,7 +66,7 @@ export class ThreadFiles {
       throw new InvalidError("Update this computer to open files from Canopy.");
 
     if (!path.trim() || path.length > 4096 || path.includes("\0") || path.split(/[\\/]/).includes(".."))
-      throw new InvalidError("Use a path inside this workspace, then reload.");
+      throw new InvalidError("This file path is invalid. Check the path, then reload.");
 
     return {
       workerId: thread.worker_id,

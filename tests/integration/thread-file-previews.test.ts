@@ -1,5 +1,15 @@
 import { afterAll, beforeAll, describe, expect, test } from "bun:test";
-import { mkdirSync, readFileSync, symlinkSync, unlinkSync, writeFileSync } from "node:fs";
+import { createHash } from "node:crypto";
+import {
+  chmodSync,
+  mkdirSync,
+  readFileSync,
+  realpathSync,
+  statSync,
+  symlinkSync,
+  unlinkSync,
+  writeFileSync,
+} from "node:fs";
 import { join } from "node:path";
 import sharp from "sharp";
 import { create, toJson } from "@bufbuild/protobuf";
@@ -282,6 +292,8 @@ describe.skipIf(!dockerAvailable)("thread file previews through a real home work
       GatewayStore.use((store) => store.ensureUser("file-owner@example.test", "Other owner")),
     );
 
+    const outside = join(dir, "private.txt");
+    writeFileSync(outside, "private bytes");
     put("private.txt", "private bytes");
     const privateThread = await copyThread(owner);
 
@@ -289,30 +301,188 @@ describe.skipIf(!dockerAvailable)("thread file previews through a real home work
       [home.gw.api, privateThread],
       [caller.api, q(privateThread)],
     ] as const) {
-      const error = await failure(api.readThreadFile({ threadId, path: "private.txt" }));
-      expect(error).toContain("Thread unavailable");
-      expect(error).not.toContain("private bytes");
+      for (const path of ["private.txt", outside]) {
+        const error = await failure(api.readThreadFile({ threadId, path }));
+        expect(error).toContain("Thread unavailable");
+        expect(error).not.toContain("private bytes");
+      }
     }
   });
 
-  test("traversal, another checkout and symlinks outside the workspace are rejected", async () => {
+  test("external paths and workspace symlinks are read-only previews locally and through a computer link", async () => {
     const outside = join(dir, "outside.txt");
     writeFileSync(outside, "outside bytes");
     symlinkSync(outside, join(thread.cwd, "escape.txt"));
     symlinkSync(dir, join(thread.cwd, "escape-dir"));
+    const source = join(home.repo, "README.md");
 
-    for (const path of [
-      "../outside.txt",
-      "public/../../outside.txt",
-      "..\\outside.txt",
-      outside,
-      join(home.repo, "README.md"),
-      "escape.txt",
-      "escape-dir/outside.txt",
-    ]) {
-      const error = await failure(caller.api.readThreadFile({ threadId: q(), path }));
-      expect(error).toMatch(/inside this workspace|outside.*(workspace|folders)/);
-      expect(error).not.toContain("outside bytes");
+    for (const [api, threadId] of [
+      [home.gw.api, thread.id],
+      [caller.api, q()],
+    ] as const) {
+      for (const [path, target] of [
+        [outside, outside],
+        [source, source],
+        ["escape.txt", outside],
+        ["escape-dir/outside.txt", outside],
+      ] as const) {
+        const file = await api.readThreadFile({ threadId, path });
+        expect(file).toMatchObject({
+          path: realpathSync(target),
+          resolution: FileResolution.FOUND,
+          readOnly: true,
+          relativePath: "",
+          sha256: "",
+        });
+        expect(text(file)).toBe(readFileSync(target, "utf8"));
+      }
+    }
+  });
+
+  test("workspace name search keeps external symlink targets read-only without searching outside", async () => {
+    const outside = join(dir, "external-search.txt");
+    writeFileSync(outside, "external search bytes");
+    const missing = await caller.api.readThreadFile({ threadId: q(), path: "external-search.txt" });
+    expect(missing.resolution).toBe(FileResolution.NOT_FOUND);
+    symlinkSync(outside, join(thread.cwd, "public/external-search.txt"));
+
+    for (const [api, threadId] of [
+      [home.gw.api, thread.id],
+      [caller.api, q()],
+    ] as const) {
+      const file = await api.readThreadFile({ threadId, path: "external-search.txt" });
+      expect(file).toMatchObject({
+        path: realpathSync(outside),
+        resolution: FileResolution.FOUND,
+        readOnly: true,
+        relativePath: "",
+        sha256: "",
+      });
+      expect(text(file)).toBe("external search bytes");
+    }
+  });
+
+  test("external hints stay within the source turn and bounded ambiguous choices use absolute paths", async () => {
+    const folder = join(dir, "external-hints");
+    mkdirSync(folder);
+    const outside = join(folder, "external-hint.txt");
+    writeFileSync(outside, "external preferred");
+    put("external-hint.txt", "workspace fallback");
+    const source = await turnItems(thread.id, ["Open `external-hint.txt`", `cat ${outside}`]);
+    const otherTurn = await turnItems(thread.id, ["Read `external-hint.txt`"]);
+    const foreign = await turnItems((await home.tree()).id, [`cat ${outside}`]);
+
+    for (const [api, threadId, itemId] of [
+      [home.gw.api, thread.id, source],
+      [caller.api, q(), q(source)],
+    ] as const) {
+      const file = await api.readThreadFile({ threadId, itemId, path: "external-hint.txt" });
+      expect(file).toMatchObject({ path: realpathSync(outside), readOnly: true, sha256: "", relativePath: "" });
+      expect(text(file)).toBe("external preferred");
+    }
+
+    for (const itemId of [otherTurn, foreign])
+      expect(
+        text(await caller.api.readThreadFile({ threadId: q(), itemId: q(itemId), path: "external-hint.txt" })),
+      ).toBe("workspace fallback");
+
+    const paths = Array.from({ length: 34 }, (_, index) => {
+      const child = join(folder, String(index));
+      mkdirSync(child);
+      const path = join(child, "external-choice.txt");
+      writeFileSync(path, `choice ${index}`);
+
+      return realpathSync(path);
+    });
+
+    const choices = await turnItems(thread.id, [
+      "Open `external-choice.txt`",
+      paths.map((path) => `cat ${path}`).join(" "),
+    ]);
+
+    for (const [api, threadId, itemId] of [
+      [home.gw.api, thread.id, choices],
+      [caller.api, q(), q(choices)],
+    ] as const) {
+      const file = await api.readThreadFile({ threadId, itemId, path: "external-choice.txt" });
+      expect(file.resolution).toBe(FileResolution.AMBIGUOUS);
+      expect(file.matches.toSorted()).toEqual(paths.slice(0, 32).toSorted());
+      expect(file.content).toHaveLength(0);
+      expect(file.sha256).toBe("");
+      const selected = await api.readThreadFile({ threadId, path: file.matches[0]! });
+      expect(text(selected)).toBe("choice 0");
+      expect(selected).toMatchObject({ readOnly: true, relativePath: "", sha256: "" });
+    }
+  });
+
+  test.skipIf(process.platform === "win32" || process.getuid?.() === 0)(
+    "external previews respect the worker account's read permissions",
+    async () => {
+      const path = join(dir, "unreadable.txt");
+      writeFileSync(path, "unreadable bytes");
+      const mode = statSync(path).mode;
+      chmodSync(path, 0);
+
+      try {
+        for (const [api, threadId] of [
+          [home.gw.api, thread.id],
+          [caller.api, q()],
+        ] as const) {
+          const error = await failure(api.readThreadFile({ threadId, path }));
+          expect(error).toMatch(/permissions/i);
+          expect(error).not.toContain("unreadable bytes");
+        }
+      } finally {
+        chmodSync(path, mode);
+      }
+
+      expect(text(await caller.api.readThreadFile({ threadId: q(), path }))).toBe("unreadable bytes");
+    },
+  );
+
+  test("traversal remains invalid for local and linked previews", async () => {
+    for (const [api, threadId] of [
+      [home.gw.api, thread.id],
+      [caller.api, q()],
+    ] as const) {
+      for (const path of ["../outside.txt", "public/../../outside.txt", "..\\outside.txt"])
+        expect(await failure(api.readThreadFile({ threadId, path }))).toContain("file path is invalid");
+    }
+  });
+
+  test("external previews cannot authorize mutations or native actions even with a forged correct hash", async () => {
+    const outside = join(dir, "immutable-external.txt");
+    const original = "external original";
+    writeFileSync(outside, original);
+    const link = join(thread.cwd, "public/immutable-external.txt");
+    symlinkSync(outside, link);
+    const sha256 = createHash("sha256").update(original).digest("hex");
+
+    for (const path of [outside, link]) {
+      for (const [api, threadId] of [
+        [home.gw.api, thread.id],
+        [caller.api, q()],
+      ] as const) {
+        const target = { threadId, path, expectedSha256: sha256 };
+        expect(await failure(api.writeThreadFile({ ...target, content: new TextEncoder().encode("changed") }))).toMatch(
+          /outside.*(workspace|folders)/,
+        );
+        expect(await failure(api.deleteThreadFile(target))).toMatch(/outside.*(workspace|folders)/);
+      }
+
+      for (const action of ["openFile", "revealFile"] as const) {
+        const result = await home.command({
+          commandId: Bun.randomUUIDv7(),
+          kind: {
+            case: action,
+            value: { threadId: thread.id, path, workspace: thread.cwd, roots: [thread.cwd], expectedSha256: sha256 },
+          },
+        });
+
+        expect(result).toMatchObject({ ok: false, errorCode: "FILE_OUTSIDE_ROOTS" });
+      }
+
+      expect(readFileSync(outside, "utf8")).toBe(original);
     }
   });
 

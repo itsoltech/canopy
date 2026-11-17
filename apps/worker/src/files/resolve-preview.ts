@@ -1,31 +1,42 @@
 import { realpathSync } from "node:fs";
-import { basename, isAbsolute, join, relative, resolve } from "node:path";
+import { basename, isAbsolute, relative, resolve } from "node:path";
 import { create, type MessageInitShape } from "@bufbuild/protobuf";
 import { FileContentSchema, FileRequestSchema, FileResolution, type FileRequest } from "@canopy/contracts";
 import { isWithin } from "../git/worktrees.ts";
 import { CommandError } from "../runtime/host-types.ts";
 import { exactFileMatches } from "./search.ts";
-import { resolveThreadFile } from "./thread-files.ts";
+import { expandFileHome, resolveReadableFile, resolveThreadFile } from "./thread-files.ts";
 
 type Resolution = MessageInitShape<typeof FileContentSchema>;
 
-function checkedPath(root: string, path: string, workspace = root): string {
+type Access = "workspace" | "readable";
+
+function checkedPath(root: string, path: string, workspace = root, access: Access = "workspace"): string {
   if (!path || path.length > 4096 || path.includes("\0") || path.split(/[\\/]/).includes(".."))
-    throw new CommandError("FILE_PATH_INVALID", "Use a path inside this workspace, then reload.", true);
+    throw new CommandError("FILE_PATH_INVALID", "This file path is invalid. Check the path, then reload.", true);
+
+  path = expandFileHome(path);
 
   const absolute =
     isAbsolute(path) && isWithin(workspace, path) ? resolve(root, relative(workspace, path)) : resolve(root, path);
 
-  if (!isWithin(root, absolute))
+  if (access === "workspace" && !isWithin(root, absolute))
     throw new CommandError("FILE_OUTSIDE_ROOTS", "This file is outside this workspace. Choose a file inside it.", true);
 
   return absolute;
 }
 
 /** Reads only existing files, keeping permission, symlink and I/O failures distinct from a missing path. */
-function existing(request: FileRequest, path: string, extraRoots: readonly string[]): string | undefined {
+function existing(
+  request: FileRequest,
+  path: string,
+  extraRoots: readonly string[],
+  access: Access,
+): string | undefined {
   try {
-    return resolveThreadFile(create(FileRequestSchema, { ...request, path }), extraRoots);
+    return access === "readable"
+      ? resolveReadableFile(path)
+      : resolveThreadFile(create(FileRequestSchema, { ...request, path }), extraRoots);
   } catch (cause) {
     if (cause instanceof CommandError && cause.code === "FILE_NOT_FOUND") return undefined;
     throw cause;
@@ -33,16 +44,23 @@ function existing(request: FileRequest, path: string, extraRoots: readonly strin
 }
 
 /** Resolve on the thread's worker, with exact same-turn hints before root and gitignore-aware name lookup. */
-export async function resolvePreview(request: FileRequest, extraRoots: readonly string[]): Promise<Resolution> {
+export async function resolvePreview(
+  request: FileRequest,
+  extraRoots: readonly string[],
+  access: Access = "workspace",
+): Promise<Resolution> {
   const root = realpathSync(request.workspace);
   const raw = request.path.trim();
-  const absolute = checkedPath(root, raw, request.workspace);
-  const searchedPaths = [relative(root, absolute) || "."];
+  const absolute = checkedPath(root, raw, request.workspace, access);
+  const displayPath = (path: string) => (isWithin(root, path) ? relative(root, path) : path);
+  const searchedPaths = [displayPath(absolute) || "."];
   const bare = !isAbsolute(raw) && !/[\\/]/.test(raw.replace(/^\.[\\/]/, ""));
 
   const found = (path: string): Resolution => ({
     path,
-    relativePath: relative(root, path),
+    // External previews never enter workspace watches or authorize mutations in any client.
+    relativePath: isWithin(root, path) ? relative(root, path) : "",
+    ...(!isWithin(root, path) && { readOnly: true, sha256: "" }),
     resolution: FileResolution.FOUND,
     searchedPaths,
   });
@@ -55,13 +73,13 @@ export async function resolvePreview(request: FileRequest, extraRoots: readonly 
       let candidate: string;
 
       try {
-        candidate = checkedPath(root, hint, request.workspace);
+        candidate = checkedPath(root, hint, request.workspace, access);
       } catch {
-        continue; // A transcript hint grants no access and never widens the workspace.
+        continue; // Invalid hints never change the access policy for this command.
       }
 
-      searchedPaths.push(relative(root, candidate));
-      const path = existing(request, candidate, extraRoots);
+      searchedPaths.push(displayPath(candidate));
+      const path = existing(request, candidate, extraRoots, access);
 
       if (path) preferred.add(path);
     }
@@ -71,17 +89,21 @@ export async function resolvePreview(request: FileRequest, extraRoots: readonly 
     if (preferred.size > 1)
       return {
         resolution: FileResolution.AMBIGUOUS,
-        matches: [...preferred].map((p) => relative(root, p)),
+        matches: [...preferred].map(displayPath),
         searchedPaths,
       };
   }
 
-  const direct = existing(request, absolute, extraRoots);
+  const direct = existing(request, absolute, extraRoots, access);
 
   if (direct) return found(direct);
 
   if (request.expectedSha256)
-    return { resolution: FileResolution.DELETED, relativePath: relative(root, absolute), searchedPaths };
+    return {
+      resolution: FileResolution.DELETED,
+      relativePath: isWithin(root, absolute) ? relative(root, absolute) : "",
+      searchedPaths,
+    };
 
   if (!bare) return { resolution: FileResolution.NOT_FOUND, searchedPaths };
   const listing = await exactFileMatches(root, basename(raw));
@@ -89,16 +111,16 @@ export async function resolvePreview(request: FileRequest, extraRoots: readonly 
   const matches: string[] = [];
 
   for (const path of listing.matches) {
-    const actual = existing(request, checkedPath(root, path), extraRoots);
+    const actual = existing(request, checkedPath(root, path), extraRoots, access);
 
-    if (actual) matches.push(path);
+    if (actual) matches.push(actual);
   }
 
-  if (matches.length === 1 && !listing.incomplete) return found(join(root, matches[0]!));
+  if (matches.length === 1 && !listing.incomplete) return found(matches[0]!);
 
   return {
     resolution: matches.length ? FileResolution.AMBIGUOUS : FileResolution.NOT_FOUND,
-    matches,
+    matches: matches.map(displayPath),
     searchedPaths,
     searchIncomplete: listing.incomplete,
   };

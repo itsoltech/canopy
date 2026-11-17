@@ -777,7 +777,8 @@ i własnego remote. Konektor oraz poświadczenia pozostają w gatewayu. Pola są
 ## Folder i pliki wątku
 
 Status (2026-11-17): lokalne wskazywanie pliku w menedżerze systemowym
-jest zaimplementowane; dostępność nightly/beta/stable wynika z [release.md](release.md).
+oraz podgląd dostępnych plików spoza workspace tylko do odczytu są zaimplementowane;
+dostępność nightly/beta/stable wynika z [release.md](release.md).
 
 Capability `thread_file_reveal_v1` dodaje nietrwałe `RevealFile` (236) z `FileRequest`
 oraz `Worker.file_reveal` (873). `RevealThreadFile(ThreadFileRequest)` jest dostępne
@@ -785,7 +786,8 @@ wyłącznie dla lokalnego BFF desktopu uwierzytelnionego tokenem usługi; gatewa
 sprawdza dodatni kontekst uwierzytelnienia, rolę `desktop`, właściciela wątku
 i `desktop_bundled` w aktualnym Hello workera. Nie przekazuje tej metody do
 połączonych komputerów i nie przyjmuje zdalnych tokenów urządzeń.
-Worker rozstrzyga ścieżkę w katalogu wątku z tymi samymi ograniczeniami co podgląd.
+Worker rozstrzyga ścieżkę w katalogach wątku, z kontrolą granicy po `realpath`;
+szerszy zakres odczytu podglądu nie rozszerza tej akcji.
 Finder/Explorer wskazuje plik; Linux używa `org.freedesktop.FileManager1.ShowItems`
 albo otwiera katalog nadrzędny, gdy interfejs wskazywania nie jest dostępny.
 Argumenty trafiają bezpośrednio do procesów, bez interpretacji przez shell.
@@ -885,12 +887,18 @@ Capability `thread_files_v1`: nietrwałe, nigdy z outboxa `ReadFile` (222), `Ope
 UI woła `ReadThreadFile`, `WriteThreadFile`, `DeleteThreadFile` i `OpenThreadFile` z ID wątku i ścieżką;
 względna ścieżka liczy się od `threads.cwd` (`@canopy/domain/thread-files`). Gateway sprawdza właściciela
 i wysyła `roots`: katalog wątku, także gdy jest osobnym worktree. Worker rozwiązuje symlinki
-i przyjmuje tylko istniejący zwykły plik wewnątrz dozwolonego korzenia (`FILE_OUTSIDE_ROOTS`).
+i przyjmuje tylko istniejący zwykły plik. Zapis, usunięcie i akcje aplikacji systemowych
+wymagają dozwolonego korzenia (`FILE_OUTSIDE_ROOTS`); odczyt podglądu z `workspace`
+dopuszcza również dostępne pliki spoza niego.
 Starsze komendy bez rozstrzygania podglądu dopuszczają również katalog załączników danego wątku.
 Odczyt zwraca do 2 MiB (`truncated`); przekroczenie limitu nie oblicza hasha całego pliku i zwraca pusty
 `sha256`. `FileContent.read_only` (19), przekazywane do `ThreadFile.read_only` (20),
-informuje o braku prawa zapisu procesu workera (`W_OK`); nie zastępuje kontroli systemu
+informuje o braku prawa zapisu procesu workera (`W_OK`) albo o podglądzie spoza workspace;
+nie zastępuje kontroli systemu
 plików przy zapisie. Plik tylko do odczytu nie otrzymuje edytowalnego pola.
+Podgląd spoza workspace ma pusty `relative_path`, aby nie trafiał do obserwacji zmian,
+oraz pusty `sha256`, aby nie udostępniał akcji edycji i usunięcia w istniejących klientach.
+Odświeżanie takiego pliku jest ręczne; natywny mobile pokazuje go bez tokenizacji workera.
 Pusty `sha256` nie uprawnia do edycji ani usunięcia. Zapis i usunięcie wymagają `expected_sha256` z odczytu; inna treść na
 dysku daje `FILE_CHANGED`, więc edycja nie nadpisze cudzej zmiany. `OpenFile` używa `open`,
 `explorer.exe` albo `xdg-open`. Połączone komputery przekazują do domu wątku odczyt, zapis i usunięcie, ale nie `OpenThreadFile`: plik otworzyłby się na innym komputerze.
@@ -900,9 +908,14 @@ Addytywne `thread_file_preview_v1` dodaje do `FileRequest` `workspace`, `preferr
 nazwę na komputerze wykonującym wątek. Goła nazwa preferuje ścieżki z tego samego turnu (wskazanego
 przez `ThreadFileRequest.item_id`), potem plik bezpośrednio w katalogu wątku, potem dokładne dopasowanie
 nazwy z `git ls-files --cached --others --exclude-standard`. Hints: maksymalnie 32 ścieżki z 64 elementów
-po 64 KiB; nie poszerzają dostępu. Lista git ma limit 100 tys. ścieżek, 8 MiB i 5 s; poza git ograniczony
+po 64 KiB; podlegają prawom odczytu konta systemowego workera. Lista git ma limit 100 tys. ścieżek, 8 MiB i 5 s; poza git ograniczony
 przegląd ma limit 20 tys. wpisów i 12 poziomów. Niepełna lista nigdy nie daje automatycznego wyboru.
-`..`, NUL i ścieżki bezwzględne poza workspace są odrzucane; symlinki sprawdzane są po `realpath`.
+`..` i NUL są odrzucane. Odczyt dopuszcza ścieżki bezwzględne poza workspace i `~/…`,
+rozwijane na workerze; symlinki wskazują kanoniczny plik po `realpath`.
+Uprawnienia odczytu egzekwuje system plików konta uruchamiającego worker (`R_OK` i odczyt pliku).
+Nie jest to osobna tożsamość systemowa właściciela Canopy. Wyszukiwanie po nazwie
+pozostaje ograniczone do workspace; zewnętrzne dopasowania z hints mają pełne ścieżki.
+Zmiana nie dodaje pól proto ani capability; starszy worker zachowuje wcześniejszą odmowę.
 
 Wynik zawiera `resolution` (`FOUND`, `NOT_FOUND`, `DELETED`, `AMBIGUOUS`), `relative_path`, `mime_type`,
 `matches`, `searched_paths` i `search_incomplete`; UI dodaje nazwę komputera domowego. `DELETED` oznacza

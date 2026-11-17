@@ -51,11 +51,16 @@ class ThreadFileLinks implements FileLinkHandler {
     if (!threadId) return;
     const target = { threadId, ...fileLocation(path), local: this.local(threadId), itemId: this.itemId() };
 
-    if (target.local && /[\\/]/.test(path) && devicePreferences.values.fileLinks === "app") void openInApp(target);
-    else if (this.workspace) this.workspace().open(target);
+    if (target.local && /[\\/]/.test(path) && devicePreferences.values.fileLinks === "app")
+      void openInApp(target, () => this.#preview(target));
+    else this.#preview(target);
+  }
+
+  #preview(target: FileTarget): void {
+    if (this.workspace) this.workspace().open(target);
     else {
-      workspaceStore.view(threadId).open(target);
-      void goto(`/threads/${encodeURIComponent(threadId)}`);
+      workspaceStore.view(target.threadId).open(target);
+      void goto(`/threads/${encodeURIComponent(target.threadId)}`);
     }
   }
 }
@@ -75,13 +80,14 @@ export function provideThreadFileLinks(threadId: () => string | undefined, itemI
 }
 
 /** This computer opens the file in its default app; failures show as a toast. */
-export async function openInApp(target: FileTarget): Promise<boolean> {
+export async function openInApp(target: FileTarget, fallback?: () => void): Promise<boolean> {
   try {
     await openFile(target.threadId, target.path);
 
     return true;
   } catch (cause) {
-    toast(cause instanceof Error ? cause.message : "Could not open the file", { tone: "error" });
+    if (fallback) fallback();
+    else toast(cause instanceof Error ? cause.message : "Could not open the file", { tone: "error" });
 
     return false;
   }

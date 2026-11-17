@@ -1,7 +1,8 @@
 # Zakładki wątku i panel Files/Diff/Preview
 
 Status (2026-11-17): **zaimplementowane; układ v3**, lokalne `Reveal in Finder/Explorer`
-przy ścieżkach i w menu pliku, panel Diff z wirtualizowanym przeglądem zmian Git
+przy ścieżkach i w menu pliku, podgląd dostępnych plików spoza workspace tylko do odczytu,
+panel Diff z wirtualizowanym przeglądem zmian Git
 i lokalnym szkicem review wysyłanym agentowi jako jedna wiadomość oraz wcześniejszym
 pobieraniem treści diffu poza ekranem, karta Preview w web/desktop
 i różne ikony skali 1:1 oraz dopasowania, kompaktowa typografia zakładek, diagramy Mermaid w trybie
@@ -30,6 +31,12 @@ obszaru wątku, niezależną od prawego panelu. Prawy panel web/desktop łączy
 zastępowalną czystą kartą, utrwalaną przez pierwszą zmianę/Keep tab/dwuklik.
 Drzewo pozostaje ograniczone do cwd/worktree wątku; mobilna edycja jest natywna
 i bez kolorów podczas pisania (kolory w viewerze i Preview changes).
+Link może otworzyć istniejący zwykły plik spoza workspace, jeżeli konto systemowe
+workera ma prawo odczytu. Dotyczy to ścieżek bezwzględnych, `~/…` i symlinków.
+Takie pliki są tylko do odczytu, bez obserwacji zmian; aktualizuje je `Reload`.
+Wyszukiwanie po nazwie nadal przegląda wyłącznie workspace; dokładne ścieżki
+z tego samego turnu mogą wskazywać plik zewnętrzny. Odmowa otwarcia w domyślnej
+aplikacji przy kliknięciu linku przechodzi do podglądu Canopy.
 
 Cel: czytać i edytować pliki obok kontekstu wątku bez wielokrotnego otwierania modala.
 Priorytet: otwarcie wątku, pisanie i streaming nie płacą za nieotwarte moduły.
@@ -742,7 +749,8 @@ Wspólny parser zwraca `{ path, startLine?, endLine?, column? }`. Akceptuje
 `path:31`, `path:31:4`, `path:31-40`, `path#L31`, `path#L31-L40` i `path#L31-40`
 w inline code i lokalnym linku Markdown. Nie zmienia obsługi URL HTTP(S).
 Litera dysku w ścieżce nie jest numerem linii. Procentowe kodowanie dekodujemy raz;
-NUL, próby wyjścia poza korzeń i nieprawidłowe URI są odrzucane na granicy API.
+NUL, segmenty `..` i nieprawidłowe URI są odrzucane na granicy API.
+Pliki spoza korzenia otwieramy przez pełną ścieżkę lub `~/…`.
 Nieprawidłowa/odwrócona pozycja otwiera plik z informacją i `Go to line`, bez
 odejmowania 1 od niezweryfikowanej wartości. Numeracja jest od 1, zakres jest domknięty.
 
@@ -894,16 +902,21 @@ Zmiana zakładki nigdy nie otwiera drugiego watcha historii.
 
 Gateway sprawdza właściciela i bieżący dostęp do wątku **przed cache**, ustala
 worker, cwd i korzeń, a dom powtarza kontrolę przy wywołaniu z linked computer.
-Klient nie może poszerzyć scope parametrem. Worker sprawdza każdy segment,
-realpath i granicę korzenia także przy kontynuacji strony i przed mutacją.
-Symlink/junction poza korzeń, pętle, urządzenia, sockety i FIFO nie są odczytywane.
+Klient nie wybiera innego workera ani właściciela parametrem. Worker sprawdza każdy segment,
+realpath i granicę korzenia drzewa także przy kontynuacji strony i przed mutacją.
+Jawny podgląd istniejącego zwykłego pliku może wyjść poza korzeń, również przez
+symlink/junction, zgodnie z prawami odczytu konta systemowego workera. Zwraca
+kanoniczną ścieżkę, `read_only=true`, pusty `relative_path` i pusty `sha256`:
+nie wchodzi do obserwacji workspace ani nie uprawnia do edycji lub usunięcia.
+Zapis, usunięcie i akcje aplikacji systemowych zachowują granicę katalogów wątku.
+Pętle, urządzenia, sockety i FIFO nie są odczytywane.
 Wyścigi symlinków wymagają bezpiecznego otwarcia i kontroli uchwytu odpowiedniej
 dla systemu; samo sprawdzenie tekstowego prefiksu nie spełnia kryterium.
 
 Odwołanie urządzenia, unlink, usunięcie wątku lub utrata grantu zamykają aktywne
 odczyty i usuwają cache zakresu. Po reconnect prawa są sprawdzane ponownie;
 zapamiętana zakładka nie jest grantem. Ścieżka z wiadomości agenta nie upoważnia
-do uruchomienia aplikacji, odczytu spoza katalogu ani wykonywania treści.
+do omijania uprawnień systemu plików ani wykonywania treści.
 
 Treści traktujemy jako tekst/dane, bez wykonywania HTML/JS/SVG, z istniejącą
 polityką bezpiecznych linków Markdown. Brak poświadczeń w DTO modułów, workerowych
