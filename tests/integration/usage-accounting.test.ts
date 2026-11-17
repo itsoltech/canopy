@@ -124,7 +124,7 @@ describe.skipIf(!dockerAvailable)("durable usage accounting", () => {
       expect(initial.totals).toMatchObject({ reports: 1n, unknownCostReports: 0n, reportedCostUsd: 1 });
       let seq = 0n;
 
-      const event = (turnId: string, body: MessageInitShape<typeof ThreadEventSchema>["body"]) =>
+      const event = (turnId: string, body: NonNullable<MessageInitShape<typeof ThreadEventSchema>["body"]>) =>
         create(ThreadEventSchema, {
           eventId: Bun.randomUUIDv7(),
           threadId: target.threadId,
@@ -308,12 +308,10 @@ describe.skipIf(!dockerAvailable)("durable usage accounting", () => {
       expect(stats.days[0]?.providers.map((provider) => provider.totals?.inputTokens)).toEqual([20n, 5n]);
       expect(stats.days[0]?.providers.map((provider) => provider.totals?.unknownCostReports)).toEqual([1n, 0n]);
       const dailyProviders = stats.days.flatMap((day) => day.providers);
-      expect(dailyProviders.reduce((sum, provider) => sum + (provider.totals?.inputTokens ?? 0n), 0n)).toBe(
-        stats.totals?.inputTokens,
-      );
-      expect(dailyProviders.reduce((sum, provider) => sum + (provider.totals?.reportedCostUsd ?? 0), 0)).toBe(
-        stats.totals?.reportedCostUsd,
-      );
+      expect(stats.totals).toMatchObject({
+        inputTokens: dailyProviders.reduce((sum, provider) => sum + (provider.totals?.inputTokens ?? 0n), 0n),
+        reportedCostUsd: dailyProviders.reduce((sum, provider) => sum + (provider.totals?.reportedCostUsd ?? 0), 0),
+      });
       expect(stats.models.map((m) => m.key)).toEqual(["large", "small"]);
       expect(stats.speeds.map((speed) => [speed.key, speed.totals?.inputTokens])).toEqual([
         ["", 5n],
