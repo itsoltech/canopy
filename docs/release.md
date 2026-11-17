@@ -1,6 +1,7 @@
 # Wydania: wersje, CI, artefakty
 
-Status: opis zaimplementowanego workflow (2026-11-17); beta nie buduje ani nie wysyła iOS
+Status: opis zaimplementowanego workflow (2026-11-17), z ponawianiem pakowania macOS
+i Windows po błędzie; beta nie buduje ani nie wysyła iOS
 do TestFlight, zachowując zgodne OTA. CI ma osiem shardów i wagi
 odświeżone z pełnych raportów CI. Pomiary poniżej opisują przebieg sprzed zmiany shardów;
 wpływ na czas CI wymaga pomiaru kolejnych przebiegów.
@@ -413,6 +414,16 @@ Godzina nie jest gwarancją czasu dostępności aktualizacji. Pilne wydanie uruc
 przez dispatch na `dev` z aktualnym SHA (również czeka na aktywny nightly).
 Desktop przywraca cache Electron/electron-builder przed instalacją zależności;
 cache pakietów Bun pozostaje rozdzielony według OS, architektury i lockfile.
+Wspólna akcja `.github/actions/package-desktop` buduje runtime raz, a pakowanie
+macOS i Windows ponawia maksymalnie dwa razy po przerwach 30 i 60 sekund.
+Obejmuje to podpisywanie, notaryzację i tworzenie instalatorów. Ponawianie reaguje
+na niezerowy kod wyjścia pakowania, bez dopasowywania komunikatów usług Apple/Azure;
+błąd kompilacji kończy job od razu. Przed ponowną próbą usuwa cały katalog
+`apps/desktop/release/<kanał>`, zachowując runtime i cache pobrań. Linux ma jedną próbę.
+Anulowanie nie jest ponawiane; po ostatnim błędzie job zachowuje kod wyjścia pakowania.
+Weryfikacja podpisów, smoke i upload nadal wymagają udanego pakowania.
+Ta sama akcja działa w ręcznym `desktop-windows.yml`; lokalne polecenia `package:*`
+zachowują pojedynczą próbę.
 
 ```text
 plan ─┬─ checks ────────────────────────────────────┐

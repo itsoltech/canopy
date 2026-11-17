@@ -1,6 +1,7 @@
 # Canopy Desktop
 
-Status: opis zaimplementowanego runtime (2026-11-17), w tym lokalnego wskazywania
+Status: opis zaimplementowanego runtime i pakowania (2026-11-17), w tym ponawiania
+pakowania macOS i Windows w CI oraz lokalnego wskazywania
 plików z rozmowy w Finder/Explorer i pomijania cache przy ręcznym
 sprawdzaniu aktualizacji, wykrywania pojedynczego procesu przez instalator Windows
 i wykluczenia własnego PID instalatora/deinstalatora z wyszukiwania i zamykania procesów,
@@ -574,7 +575,7 @@ beta i stable. Linux arm64 pozostaje eksperymentalny (`continue-on-error`): beta
 i stable budują go zawsze, nightly tylko z `desktop_all_targets: true`.
 Windows buduje się, podpisuje i weryfikuje tylko w wydaniu (`release.yml`); PR-y go nie budują.
 Workflow `desktop-windows.yml` uruchamiany ręcznie (`workflow_dispatch`) buduje
-`package:windows` na `windows-2025`, wymaga sekretów Azure i kontroli podpisów.
+Windows na `windows-2025`, wymaga sekretów Azure i kontroli podpisów.
 Instaluje NSIS i uruchamia zainstalowane
 sidecary gateway/worker z `--version` (ten sam zakres co binarny smoke wydania).
 Nie publikuje tagów ani wydań; artefakt Actions przechowuje przez 3 dni.
@@ -582,12 +583,22 @@ Nie publikuje tagów ani wydań; artefakt Actions przechowuje przez 3 dni.
 Te joby realizuje `desktop` w `.github/workflows/release.yml` ([release.md](release.md)):
 z `CANOPY_VERSION` i `CANOPY_CHANNEL` nazwy plików to `Canopy-<wersja>-<linux|darwin|windows>-<x64|arm64>.<ext>`,
 macOS dostaje też `zip`, podpisywanie jest warunkowe. Każdy job CI: checkout tego samego commita → instalacja Node/Bun → `bun install`
-→ `package:linux`, `package:mac` albo `package:windows` → zachowanie plików z
+→ wspólna akcja `.github/actions/package-desktop` (build runtime, potem pakowanie) → zachowanie plików z
 `apps/desktop/release/<kanał>`. Przed budową sprawdź `process.platform/process.arch`;
 host musi odpowiadać wierszowi tabeli. Brak Windows arm64 jest celowy.
 Runner nie potrzebuje sekretów gatewaya ani kluczy providerów. Publikowanie
 wyłączono (`--publish never`). Metadata `homepage` używa identyfikatora `canopy://desktop`;
 repozytorium nie deklaruje publicznej strony produktu.
+
+W CI pakowanie macOS i Windows ma maksymalnie trzy próby z przerwami 30 i 60 sekund,
+aby przetrwać przejściowe błędy podpisywania i notaryzacji Apple/Azure. Ponawiane jest
+całe wywołanie `scripts/package.ts` po niezerowym kodzie wyjścia, bez analizy tekstu błędu.
+Runtime buduje się raz; błąd kompilacji nie uruchamia retry. Przed ponownym pakowaniem
+akcja usuwa katalog wynikowy bieżącego kanału, aby nie zachować częściowych instalatorów,
+feedów ani podpisów. Cache pobrań i zbudowany runtime pozostają. Anulowanie i ostatni
+błąd kończą job; kontrola podpisów i smoke nadal blokują upload. Linux i lokalne
+polecenia `package:*` zachowują jedną próbę. Istniejący retry staplera macOS działa
+niezależnie, wewnątrz próby pakowania.
 
 Układ zasobów jest taki sam dla każdego celu (`.exe` wyłącznie przy Bun na Windows):
 

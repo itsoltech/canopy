@@ -1,0 +1,43 @@
+name: Package desktop
+description: Build once and retry macOS and Windows packaging after signing service failures.
+runs:
+  using: composite
+  steps:
+    - name: Build desktop runtime
+      shell: bash
+      run: bun run --cwd apps/desktop build
+    - name: Package desktop
+      shell: bash
+      run: |
+        case "$CANOPY_CHANNEL" in
+          stable|beta|nightly) ;;
+          *) echo "::error::Invalid desktop channel"; exit 1 ;;
+        esac
+
+        attempts=1
+        case "$RUNNER_OS" in
+          macOS|Windows) attempts=3 ;;
+        esac
+
+        for ((attempt = 1; attempt <= attempts; attempt++)); do
+          echo "Desktop packaging attempt $attempt/$attempts"
+          if bun run --cwd apps/desktop scripts/package.ts; then
+            exit 0
+          else
+            status=$?
+          fi
+
+          # Preserve cancellation and the last failure; signing is never made optional.
+          case "$status" in
+            130|137|143) exit "$status" ;;
+          esac
+          if [ "$attempt" -eq "$attempts" ]; then
+            exit "$status"
+          fi
+
+          delay=$((30 * attempt))
+          echo "::warning::Desktop packaging failed (exit $status); retrying in $delay seconds."
+          sleep "$delay"
+          # Keep the built runtime and download caches, but discard partial installers and feeds.
+          rm -rf -- "apps/desktop/release/$CANOPY_CHANNEL"
+        done

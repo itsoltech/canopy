@@ -40,12 +40,12 @@ jobs:
           }
           if ($missing.Count -gt 0) { throw "Missing Azure signing secrets: $($missing -join ', ')" }
       - name: Package Windows desktop
+        uses: ./.github/actions/package-desktop
         env:
           CSC_IDENTITY_AUTO_DISCOVERY: "false"
           AZURE_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
           AZURE_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
           AZURE_CLIENT_SECRET: ${{ secrets.AZURE_CLIENT_SECRET }}
-        run: bun run --cwd apps/desktop package:windows
       - name: Verify Windows signatures
         run: ./apps/desktop/scripts/verify-windows.ps1 -ReleaseDirectory apps/desktop/release/nightly
       - name: Install package and smoke sidecars
