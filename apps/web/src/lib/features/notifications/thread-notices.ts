@@ -1,6 +1,7 @@
 import type { ui } from "@canopy/contracts";
 import type { OverviewState } from "#lib/features/overview/overview-state.svelte.ts";
 import { needsYou, unseenResult, type TurnResult } from "#lib/features/threads/activity.ts";
+import type { ToastTone } from "#lib/shared/ui/toast.svelte.ts";
 import type { Notice } from "./deliver.ts";
 
 export type ThreadEvent = "completed" | "failed" | "stopped" | "approval" | "answer";
@@ -29,12 +30,12 @@ export function notificationEvent(before: ui.Thread | undefined, next: ui.Thread
   return result && (result !== before.unseenResult || busy(before)) ? results[result] : undefined;
 }
 
-const status: Record<ThreadEvent, { body: string; toast: string }> = {
-  completed: { body: "Finished", toast: "finished" },
-  failed: { body: "Failed", toast: "failed" },
-  stopped: { body: "Stopped", toast: "stopped" },
-  approval: { body: "Needs your approval", toast: "needs your approval" },
-  answer: { body: "Needs your answer", toast: "needs your answer" },
+const status: Record<ThreadEvent, { body: string; toast: string; tone: ToastTone }> = {
+  completed: { body: "Finished", toast: "Thread completed", tone: "success" },
+  failed: { body: "Failed", toast: "Thread failed", tone: "error" },
+  stopped: { body: "Stopped", toast: "Thread stopped", tone: "info" },
+  approval: { body: "Needs your approval", toast: "Thread needs your approval", tone: "info" },
+  answer: { body: "Needs your answer", toast: "Thread needs your answer", tone: "info" },
 };
 
 /** The same event of a thread mirrored from a linked computer has the same key as on its home. */
@@ -62,8 +63,9 @@ export function threadNotice(overview: OverviewState, thread: ui.Thread, event: 
     path: `/threads/${encodeURIComponent(thread.id)}`,
     title,
     body: thread.noticePreview ? `${headline}\n${thread.noticePreview}` : headline,
-    toast: `“${title}” ${status[event].toast}.`,
+    toast: status[event].toast,
+    toastDescription: title,
     action: "Open thread",
-    tone: event === "failed" ? "error" : "info",
+    tone: status[event].tone,
   };
 }

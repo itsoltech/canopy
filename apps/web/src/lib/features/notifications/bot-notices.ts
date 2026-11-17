@@ -10,14 +10,20 @@ import { baseId } from "./thread-notices.ts";
 
 export function botNotice(bot: bots.Bot, event: BotEvent): Notice {
   const name = bot.configuration?.name || "Bot";
-  const common = { setting: "botNotifications", path: `/bots/${encodeURIComponent(bot.id)}`, title: name } as const;
+
+  const common = {
+    setting: "botNotifications",
+    path: `/bots/${encodeURIComponent(bot.id)}`,
+    title: name,
+    toastDescription: name,
+  } as const;
 
   if (event.kind === "message")
     return {
       ...common,
       key: `bot:${baseId(bot.id)}:message:${event.message.seq}`,
       body: noticePreview(displayText(event.message)) || "New message",
-      toast: `“${name}” sent a message.`,
+      toast: "New bot message",
       read: bot.unreadCount === 0,
       action: "Open chat",
       tone: "info",
@@ -38,7 +44,7 @@ export function botNotice(bot: bots.Bot, event: BotEvent): Notice {
     ...common,
     key: `bot:${baseId(bot.id)}:${event.kind}:${baseId(approval.id)}`,
     body: preview ? `${routine}\n${preview}` : routine,
-    toast: `“${name}” ${headline.toLowerCase()}.`,
+    toast: event.kind === "approval" ? "Bot needs your approval" : "Bot needs your answer",
     action: "Open chat",
     tone: "info",
   };
