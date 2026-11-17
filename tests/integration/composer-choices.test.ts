@@ -59,12 +59,21 @@ describe.skipIf(!dockerAvailable)("durable composer choices", () => {
   }
 
   test("last user choices survive a fresh gateway and a history window of newer provider turns", async () => {
+    gw.worker.models = gw.worker.models.map((profile) => ({
+      ...profile,
+      models: profile.models?.map((model) => ({
+        ...model,
+        serviceTiers: [{ id: "fast", name: "Fast", description: "Faster execution" }],
+      })),
+    }));
+    await gw.api.listModels({ refresh: true });
     const thread = await createThread("Remember my turn");
     expect(thread.lastUserTurnChoices).toBeUndefined();
 
     const sent = await gw.api.sendMessage({
       threadId: thread.id,
       text: "Use these choices again",
+      serviceTier: "fast",
       model: "gpt-6.1-sol",
       effort: "high",
       permissionMode: PermissionMode.READ_ONLY,
@@ -92,6 +101,7 @@ describe.skipIf(!dockerAvailable)("durable composer choices", () => {
 
     const expected = {
       turnId: sent.turn!.id,
+      serviceTier: "fast",
       model: "gpt-6.1-sol",
       effort: "high",
       permissionMode: PermissionMode.READ_ONLY,

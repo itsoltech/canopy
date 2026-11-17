@@ -97,6 +97,12 @@ export const SpawnThread = Schema.Struct({
         "Reasoning effort, one of the model's efforts in list_agents (e.g. low, medium, high). Defaults to yours, or the model's default on another provider.",
     }),
   ),
+  service_tier: Schema.optionalKey(
+    Schema.String.check(Schema.isMinLength(1), Schema.isMaxLength(40)).annotate({
+      description:
+        "Execution speed from the model's service_tiers in list_agents. Use default for standard speed. Inherits yours on the same model and provider.",
+    }),
+  ),
   permission_mode: Schema.optionalKey(
     Schema.Literals(SPAWN_PERMISSION_MODES).annotate({
       description:

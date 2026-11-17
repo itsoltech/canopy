@@ -48,7 +48,7 @@ export interface ThreadStore {
   /** The thread's default model, effort and permission mode (unset = unchanged). */
   updateThreadSettings(
     threadId: string,
-    settings: { model?: string; effort?: string; permissionMode?: string },
+    settings: { model?: string; effort?: string; serviceTier?: string; permissionMode?: string },
     autoArchiveOnMerge?: boolean | null,
   ): Fx<ThreadRow>;
   renameThread(threadId: string, title: string): Fx<ThreadRow>;
@@ -185,6 +185,7 @@ export function threadStore(sql: SqlClient.SqlClient): Omit<ThreadStore, "create
         cwd: row.cwd ?? "",
         scratch: row.project_kind === "scratch",
         model: row.settings.model ?? "",
+        serviceTier: row.settings.serviceTier ?? "",
         // A thread moved from a linked computer continues with its handoff note (stage 8).
         instructions: [
           row.runtime === "worker"

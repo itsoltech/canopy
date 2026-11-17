@@ -67,6 +67,7 @@ export interface CodexThreadsOptions {
 }
 
 export interface Entry {
+  serviceTier?: string;
   readonly platformId: string;
   readonly codexId: string;
   readonly mapper: CodexEventMapper;

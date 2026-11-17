@@ -39,7 +39,8 @@ export function handoffStore(sql: SqlClient.SqlClient) {
           before.provider === next.provider &&
           before.providerInstance === next.providerInstance &&
           before.model === next.model &&
-          before.effort === next.effort
+          before.effort === next.effort &&
+          before.serviceTier === next.serviceTier
         )
           return;
 

@@ -244,9 +244,9 @@ export class QueueStore extends Context.Service<
                 return yield* Effect.fail(new QueueConflict("no turn is running; the message stays in the queue"));
               const id = Bun.randomUUIDv7();
               yield* sql`
-                INSERT INTO turn_steers (id, thread_id, turn_id, input, author_user_id, model, effort, permission_mode, from_turn_id)
+                INSERT INTO turn_steers (id, thread_id, turn_id, input, author_user_id, model, effort, service_tier, permission_mode, from_turn_id)
                 VALUES (${id}::uuid, ${turn.thread_id}::uuid, ${running[0].id}::uuid, ${JSON.stringify(turn.input)}::jsonb,
-                        ${turn.author_user_id}::uuid, ${turn.model ?? ""}, ${turn.effort ?? ""}, ${turn.permission_mode ?? ""}, ${turnId}::uuid)`;
+                        ${turn.author_user_id}::uuid, ${turn.model ?? ""}, ${turn.effort ?? ""}, ${turn.service_tier ?? ""}, ${turn.permission_mode ?? ""}, ${turnId}::uuid)`;
               yield* sql`UPDATE turns SET status = 'cancelled', withdrawn = 'steered', completed_at = now() WHERE id = ${turnId}::uuid`;
               const steer = (yield* sql<SteerRow>`SELECT * FROM turn_steers WHERE id = ${id}::uuid`)[0]!;
 

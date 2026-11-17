@@ -44,6 +44,7 @@ export async function coreSendSteer(hostContext: GatewayCore, steerId: string): 
           threadId: steer.thread_id,
           turnId: steer.turn_id,
           inputId: steer.id,
+          serviceTier: steer.service_tier ?? "",
           input: {
             text: steer.input.text,
             shellCommand: steer.input.shellCommand,
@@ -238,6 +239,9 @@ const messageActions: Omit<CoreMessagesMethods, "sendMessage"> = {
       effort = turnEffort((await coreProfileModels(this, { thread })).models, model, request.effort ?? current);
     }
 
+    if (request.model !== undefined || request.serviceTier !== undefined)
+      await coreCheckModel(this, { thread }, model, "", request.serviceTier ?? thread.settings.serviceTier ?? "");
+
     // Only the owner (UI) changes the mode; agents have no bus tool for it (docs/ui-api.md, FULL_AUTO and
     // FULL_ACCESS only deliberately).
     const permissionMode = request.permissionMode === undefined ? "" : checkedPermissionMode(request.permissionMode);
@@ -251,6 +255,7 @@ const messageActions: Omit<CoreMessagesMethods, "sendMessage"> = {
         request.threadId,
         {
           ...(request.model !== undefined && { model: request.model }),
+          ...(request.serviceTier !== undefined && { serviceTier: request.serviceTier }),
           ...((request.effort !== undefined || effort !== current) && { effort }),
           ...(permissionMode && { permissionMode }),
         },

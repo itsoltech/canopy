@@ -5,7 +5,7 @@ import type { MessageValue } from "./message-value";
 
 export type ComposerChoices = Pick<
   ui.ComposerDraftContent,
-  "model" | "effort" | "permissionMode" | "provider" | "providerProfileId"
+  "model" | "effort" | "serviceTier" | "permissionMode" | "provider" | "providerProfileId"
 >;
 
 export interface MessageSnapshot {

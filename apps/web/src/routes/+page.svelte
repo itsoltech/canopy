@@ -26,6 +26,7 @@
   import { limitsOf } from "#lib/features/attachments/draft.svelte.ts";
   import { MentionSources } from "#lib/features/mentions/sources.svelte.ts";
   import { modelOptions, type ModelOption } from "#lib/features/models/catalog.ts";
+  import { supportedServiceTier } from "#lib/features/models/service-tier.ts";
   import { newThreadModel } from "#lib/features/models/new-thread-model.ts";
   import { useModelCatalog } from "#lib/features/models/model-catalog.svelte.ts";
   import ModelControls from "#lib/features/models/ModelControls.svelte";
@@ -152,6 +153,7 @@
         provider: Provider[option.provider],
         providerProfileId: option.profileId,
         effort: effort && option.efforts.some((e) => e.id === effort) ? effort : "",
+        serviceTier: supportedServiceTier(option, serviceTier),
       };
   }
 
@@ -164,6 +166,10 @@
 
   const effort = $derived(
     requestedEffort && selected?.efforts.some((e) => e.id === requestedEffort) ? requestedEffort : undefined,
+  );
+
+  const serviceTier = $derived(
+    supportedServiceTier(selected, saved.choices.serviceTier ?? (!picked ? initial.serviceTier : undefined)),
   );
 
   // Only an effort the model takes (switching the workspace can change the model).
@@ -308,6 +314,7 @@
         <input type="hidden" name="profileId" value={selected?.profileId ?? ""} />
         <input type="hidden" name="model" value={model} />
         <input type="hidden" name="effort" value={sentEffort} />
+        <input type="hidden" name="serviceTier" value={serviceTier} />
         <input type="hidden" name="workspaceId" value={workspace?.id ?? ""} />
         <input type="hidden" name="permissionMode" value={permissionMode} />
         <input type="hidden" name="workspaceMode" value={place.form.workspaceMode} />
@@ -337,6 +344,10 @@
                 {options}
                 bind:option={() => selected, pickModel}
                 bind:effort={() => effort, (next) => (saved.choices = { ...saved.choices, effort: next ?? "" })}
+                bind:serviceTier={
+                  () => serviceTier, (next) => (saved.choices = { ...saved.choices, serviceTier: next ?? "" })
+                }
+                showSpeed
                 preferFavorites
                 {workerId}
                 class="flex-1 justify-end"

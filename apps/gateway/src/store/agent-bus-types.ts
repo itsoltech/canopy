@@ -54,6 +54,7 @@ export interface ThreadSummary {
   /** What the thread runs with ('' = the provider's default). */
   readonly model: string;
   readonly effort: string;
+  readonly service_tier?: string;
   readonly permission_mode: SpawnPermissionMode;
   /** The latest finished turn: completed, interrupted, failed or cancelled, with the reason. Absent before the first one ends. */
   readonly last_turn?: { readonly turn_id: string; readonly status: string; readonly reason?: string };

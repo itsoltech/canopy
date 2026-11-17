@@ -11,6 +11,7 @@ import type { claudeSessions } from "./sessions.ts";
 import type { sessionOutput } from "./session-output.ts";
 import type { sessionTurns } from "./session-turns.ts";
 import { userMessage } from "./session-io.ts";
+import { configureClaudeSpeed } from "./service-tier.ts";
 import { submitClaudeTurn } from "./turn-admission.ts";
 import { claudeSessionHomes, requireClaudeSessionHome } from "./session-home.ts";
 
@@ -95,6 +96,7 @@ export function threadStart(
       const model = settings?.model || spec.model;
       const mode = settings?.permissionMode || spec.permissionMode;
       const requested = settings?.effort ?? "";
+      const serviceTier = settings?.serviceTier || spec.serviceTier || "default";
 
       if (requested && !isClaudeEffort(requested)) {
         return yield* new ClaudeThreadError({
@@ -143,7 +145,7 @@ export function threadStart(
             const effort = isClaudeEffort(requested) ? requested : fits ? configured : undefined;
 
             try {
-              session = await open(spec, model, effort, mode, settings?.recoveryContext, canSubmit);
+              session = await open(spec, model, effort, mode, settings?.recoveryContext, canSubmit, serviceTier);
             } catch (error) {
               if (error instanceof TurnAdmissionCancelled) return;
               throw error;
@@ -158,6 +160,8 @@ export function threadStart(
               await session.query.setModel(model);
               session.model = model;
             }
+
+            await configureClaudeSpeed(session, serviceTier);
 
             if (mode !== session.mode) await switchMode(session, mode);
             await session.refreshConnectors(spec);
@@ -213,6 +217,7 @@ export function threadControls(ctx: ClaudeThreadContext) {
       turnId: string,
       inputId: string,
       input: UserInput,
+      settings?: Pick<TurnSettings, "serviceTier">,
     ) {
       const session = sessions.get(threadId);
       const turn = session?.turn;
@@ -225,6 +230,12 @@ export function threadControls(ctx: ClaudeThreadContext) {
           message: "the turn is not running on this worker",
         });
       }
+
+      if (settings?.serviceTier && settings.serviceTier !== (session.serviceTier || "default"))
+        return yield* new SteerError({
+          code: "STEER_REJECTED",
+          message: "A speed change starts a new turn; queue this message.",
+        });
 
       // The uuid names the message in command_lifecycle (queued -> started -> completed).
       if (

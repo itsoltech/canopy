@@ -34,6 +34,7 @@ export function claudeSessions(
     mode: PermissionMode,
     recoveryContext = "",
     canSubmit: () => boolean = () => true,
+    serviceTier = "default",
   ): Promise<Session> => {
     const profile = options.profile(spec.providerProfileId);
 
@@ -57,6 +58,7 @@ export function claudeSessions(
       spec.scratch,
       options.baseEnv,
       queryRuntime(profile, runtime),
+      serviceTier,
     );
 
     const instructions = [configuration.instructions, threadInstructions(spec.instructions), !resume && recoveryContext]
@@ -129,6 +131,7 @@ export function claudeSessions(
       turn: undefined,
       admitting: true,
       model,
+      serviceTier,
       mode,
       autoAllow: permissions.autoAllow,
       outputs: new Map(),

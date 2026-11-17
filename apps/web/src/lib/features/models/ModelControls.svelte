@@ -4,6 +4,8 @@
   import EffortPicker from "./EffortPicker.svelte";
   import { useModelCatalog } from "./model-catalog.svelte.ts";
   import ModelPicker from "./ModelPicker.svelte";
+  import SpeedPicker from "./SpeedPicker.svelte";
+  import { supportedServiceTier } from "./service-tier.ts";
 
   /**
    * The composer's model and effort pills, wired together: the effort pill names the effort in force, the
@@ -16,6 +18,9 @@
     options,
     option = $bindable(),
     effort = $bindable(),
+    serviceTier = $bindable(),
+    inheritedServiceTier,
+    showSpeed = false,
     inherited,
     workerId,
     allowCustom = true,
@@ -27,6 +32,10 @@
     option?: ModelOption | undefined;
     /** Chosen effort id; undefined = the default. */
     effort?: string | undefined;
+    serviceTier?: string | undefined;
+    inheritedServiceTier?: string | undefined;
+    /** Enable only when the caller persists and sends the speed choice. */
+    showSpeed?: boolean;
     /** Effort that applies when none is chosen (a thread's default). */
     inherited?: string | undefined;
     /** Worker whose catalog the options come from. */
@@ -50,9 +59,13 @@
   });
 
   function select(next: ModelOption) {
+    const nextServiceTier = supportedServiceTier(next, serviceTier);
+
     option = next;
 
     if (effort && !next.efforts.some((e) => e.id === effort)) effort = undefined;
+
+    if (showSpeed) serviceTier = nextServiceTier;
   }
 </script>
 
@@ -83,6 +96,11 @@
         {adaptive}
         onmodel={() => (modelOpen = true)}
       />
+    </span>
+  {/if}
+  {#if showSpeed && option && (option.serviceTiers.length > 0 || serviceTier || inheritedServiceTier)}
+    <span class="flex shrink-0 items-center">
+      <SpeedPicker bind:value={serviceTier} {option} inherited={inheritedServiceTier} {adaptive} />
     </span>
   {/if}
 </span>

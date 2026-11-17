@@ -11,6 +11,8 @@ export async function runGrokBot(ctx: BotHarnessContext): Promise<void> {
   const { input, session, signal } = ctx;
   signal.throwIfAborted();
 
+  if (input.serviceTier && input.serviceTier !== "default") throw new BotHarnessFailure("SPEED_UNAVAILABLE");
+
   const launch = grokLaunch({
     dataDir: session.home,
     executable: ctx.executable,

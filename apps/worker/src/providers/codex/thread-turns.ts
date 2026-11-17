@@ -72,6 +72,7 @@ export function threadTurns(
           Effect.tapError(() => Effect.sync(() => workerDiagnostics.turns.finish(spec.threadId, turnId, true))),
           Effect.tap((response) =>
             Effect.sync(() => {
+              entry.serviceTier = chosen.serviceTier;
               const codexTurn = response.turn.id;
               entry.commandTurns.add(codexTurn);
               entry.codexToPlatform.set(codexTurn, turnId);
@@ -104,11 +105,20 @@ export function threadTurns(
       );
     }),
 
+    ...threadSteering(ctx),
+  };
+}
+
+function threadSteering(ctx: CodexThreadContext) {
+  const { codex, byPlatform } = ctx;
+
+  return {
     steer: Effect.fn("CodexThreads.steer")(function* (
       threadId: string,
       turnId: string,
       inputId: string,
       input: UserInput,
+      settings?: Pick<TurnSettings, "serviceTier">,
     ) {
       const entry = byPlatform.get(threadId);
 
@@ -121,6 +131,12 @@ export function threadTurns(
           message: "the turn is not running on this worker",
         });
       }
+
+      if (settings?.serviceTier && settings.serviceTier !== (entry.serviceTier || "default"))
+        return yield* new SteerError({
+          code: "STEER_REJECTED",
+          message: "A speed change starts a new turn; queue this message.",
+        });
 
       if (input.mentions.length > 0) entry.mentions.set(inputId, { text: input.text, mentions: input.mentions });
       // expectedTurnId: Codex refuses when another turn (or none) is active by now.

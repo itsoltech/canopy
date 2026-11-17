@@ -85,6 +85,7 @@ export const coreWatchMethods: CoreWatchMethods = {
     );
 
     const chosen = known ? request : create(ui.CreateThreadRequestSchema, { ...request, model: "", effort: "" });
+    await coreCheckModel(this, where, chosen.model, "", chosen.serviceTier);
     const effort = turnEffort((await coreProfileModels(this, where)).models, chosen.model, chosen.effort);
     await coreRun(this, (s) => s.createThread(this[coreState].options.userId, { ...chosen, effort }, id));
     await prepare();

@@ -25,10 +25,19 @@
   const offer = useThreadModels(() => ({ thread, worker }));
 
   // Edits start from the thread's defaults each time the dialog opens.
-  let edit = $state<{ option?: ModelOption | undefined; effort?: string | undefined }>({});
+  let edit = $state<{
+    option?: ModelOption | undefined;
+    effort?: string | undefined;
+    serviceTier?: string | undefined;
+  }>({});
 
   $effect.pre(() => {
-    if (open) edit = { option: undefined, effort: untrack(() => thread.effort) || undefined };
+    if (open)
+      edit = {
+        option: undefined,
+        effort: untrack(() => thread.effort) || undefined,
+        serviceTier: untrack(() => thread.serviceTier),
+      };
   });
 
   const option = $derived(edit.option ?? offer.current);
@@ -41,6 +50,7 @@
     const change = {
       ...(option && offer.current && option.key !== offer.current.key && { model: option.model }),
       ...((edit.effort ?? "") !== thread.effort && { effort: edit.effort ?? "" }),
+      ...((edit.serviceTier ?? "") !== thread.serviceTier && { serviceTier: edit.serviceTier ?? "" }),
     };
 
     if (Object.keys(change).length === 0) return void (open = false);
@@ -60,7 +70,7 @@
 
 <Dialog
   bind:open
-  title="Model and effort"
+  title="Model settings"
   description="Turns use these unless you choose otherwise in the composer for a message."
 >
   <form class="grid gap-4" onsubmit={save}>
@@ -76,6 +86,8 @@
           options={offer.options}
           bind:option={() => option, (next) => (edit = { ...edit, option: next })}
           bind:effort={() => edit.effort, (next) => (edit = { ...edit, effort: next })}
+          bind:serviceTier={() => edit.serviceTier, (next) => (edit = { ...edit, serviceTier: next })}
+          showSpeed
           workerId={thread.workerId}
           class="ml-auto"
         />

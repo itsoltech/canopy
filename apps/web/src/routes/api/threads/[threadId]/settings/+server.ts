@@ -10,6 +10,7 @@ import type { RequestHandler } from "./$types";
 const Body = Schema.Struct({
   model: Schema.optionalKey(Schema.String.check(Schema.isMaxLength(200))),
   effort: Schema.optionalKey(Schema.String.check(Schema.isMaxLength(40))),
+  serviceTier: Schema.optionalKey(Schema.String.check(Schema.isMaxLength(100))),
   title: Schema.optionalKey(Schema.String.check(Schema.isMaxLength(200))),
   autoArchiveOnMerge: Schema.optionalKey(Schema.Boolean),
   resetAutoArchiveOnMerge: Schema.optionalKey(Schema.Boolean),

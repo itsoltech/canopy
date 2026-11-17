@@ -28,6 +28,7 @@ message BotConfiguration {
   // Owner-only. Omitted on create = enabled; omitted on update = preserve.
   optional bool web_access = 1002;
   optional bool files = 1003;
+  string service_tier = 1004;
 }
 message Bot {
   string id = 1;

@@ -1,6 +1,7 @@
 # API dla UI i architektura frontendu
 
-Status (2026-11-17): Claude zachowuje 330 s dla interakcji mimo 15-minutowego limitu MCP dla publikacji obrazów;
+Status (2026-11-17): kontrakt kompozytora i wątków udostępnia szybkość wykonania `service_tier`;
+Claude zachowuje 330 s dla interakcji mimo 15-minutowego limitu MCP dla publikacji obrazów;
 Preview web/desktop używa potwierdzeń klienta po narysowaniu klatki i zachowuje
 subskrypcję przy odświeżaniu metadanych celu oraz naprawie kursora historii;
 propozycje odpowiedzi pomijają zużyte i wysterowane wpisy kolejki;
@@ -50,6 +51,30 @@ Sekcja Working uwzględnia ponownie pracujące wątki i ignoruje wyniki zakończ
 BFF materializuje overview, indeks wątków i ustawienia ze wspólnego strumienia gRPC,
 aktualizuje wczytane odczyty oraz dogrzewa ogony historii bez cyklicznych HTTP renderera.
 Opis dotyczy kodu, nie wdrożenia; dostępność kanałów według [release.md](release.md).
+
+## Szybkość wykonania
+
+Status (2026-11-17): zaimplementowane w kodzie; dostępność w kanałach zgodnie
+z [release.md](release.md). Szybkość jest niezależna od wysiłku rozumowania.
+
+`CreateThreadRequest`, `Thread`, `Turn`, `ComposerTurnChoices` i
+`NewThreadSchedule` mają `service_tier`. `UpdateThreadRequest.service_tier`
+jest opcjonalne: brak pozostawia wybór, pusty przywraca domyślne profilu,
+a `default` wymusza Standard. `SendMessageRequest.service_tier` jest opcjonalne;
+brak i pusty dziedziczą wybór wątku, `default` jawnie go wyłącza dla wiadomości.
+Po zmianie modelu odziedziczone przyspieszenie przechodzi tylko wtedy, gdy
+model je oferuje; inaczej tura dostaje Standard. Jawne nieobsługiwane
+przyspieszenie daje odmowę.
+`ComposerDraftContent.service_tier` zachowuje obecność pola i przeżywa
+synchronizację szkicu. Ostatni wybór właściciela jest odczytywany bez historii,
+również po restarcie gatewaya i przy stronicowanej historii.
+
+Dostępne przyspieszenia i ich opisy dostarcza `ModelInfo.service_tiers` per
+model i konto. Przyspieszenie spoza listy, także przy pustej liście, daje
+czytelną odmowę; gateway nie zamienia go automatycznie na Standard. Jawny
+standard i brak wyboru są akceptowane bez katalogu. Fallback ze steera na
+kolejną turę zachowuje nadpisanie. Szczegóły trwałości i walidacji:
+[protocol.md](protocol.md#szybkość-wykonania-dostawcy).
 
 ## Archiwizacja po merge
 

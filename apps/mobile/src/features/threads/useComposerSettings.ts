@@ -4,7 +4,7 @@ import { composerChoices, type ComposerPick } from "@canopy/domain/composer-choi
 import { modelSections, useModelCatalog } from "../models/catalog";
 import type { MobileComposerState } from "../drafts/store";
 
-type Picker = "model" | "effort" | "permission";
+type Picker = "model" | "effort" | "speed" | "permission";
 
 /** Explicit draft picks take precedence over the last user turn; sends store them on that turn. */
 export function useComposerSettings(
@@ -20,11 +20,8 @@ export function useComposerSettings(
     ? modelSections(worker, catalog, { provider: thread.provider, profileId: thread.providerProfileId })[0]
     : undefined;
 
-  const selected = composerChoices(
-    thread,
-    section?.choices ?? [],
-    draft?.choices ?? (thread ? picks[thread.id] : undefined),
-  );
+  const pick = draft?.choices ?? (thread ? picks[thread.id] : undefined);
+  const selected = composerChoices(thread, section?.choices ?? [], pick);
 
   function update(patch: ComposerPick) {
     if (!thread) return;
@@ -44,10 +41,16 @@ export function useComposerSettings(
     section,
     current: selected.option,
     effort: selected.effort,
+    serviceTier: selected.serviceTier,
+    inheritedServiceTier: thread?.serviceTier ?? "",
+    hasConfiguredSpeed: Boolean(
+      selected.serviceTier || pick?.serviceTier || thread?.serviceTier || thread?.lastUserTurnChoices?.serviceTier,
+    ),
     permissionMode: selected.permissionMode,
     override: {
       model: selected.option?.model,
       effort: selected.effort,
+      serviceTier: selected.serviceTier,
       permissionMode: selected.permissionMode,
     },
     update,

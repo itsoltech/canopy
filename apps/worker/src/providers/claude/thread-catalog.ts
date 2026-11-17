@@ -84,7 +84,7 @@ export function threadCatalog(ctx: ClaudeThreadContext, runtime: ReturnType<type
       const prompt = new AsyncChannel<SDKUserMessage>();
       const abort = new AbortController();
 
-      const models = yield* Effect.tryPromise({
+      const initialized = yield* Effect.tryPromise({
         try: async () => {
           const q = query({
             prompt,
@@ -92,6 +92,8 @@ export function threadCatalog(ctx: ClaudeThreadContext, runtime: ReturnType<type
               cwd: runtimeOf(profile).platformHome ?? runtimeOf(profile).home,
               ...queryRuntime(profile, runtimeOf(profile)),
               settingSources: [],
+              // Explicit SDK opt-in for discovery; this query receives no prompt.
+              settings: { fastMode: true },
               persistSession: false,
               strictMcpConfig: true,
               mcpServers: {},
@@ -100,7 +102,7 @@ export function threadCatalog(ctx: ClaudeThreadContext, runtime: ReturnType<type
           });
 
           try {
-            return await withDeadline(q.supportedModels(), 30_000, () => {
+            return await withDeadline(q.initializationResult(), 30_000, () => {
               throw new Error("Claude Code did not list its models within 30 s");
             });
           } finally {
@@ -117,7 +119,12 @@ export function threadCatalog(ctx: ClaudeThreadContext, runtime: ReturnType<type
           ? yield* Effect.tryPromise(() => proxyModels(profile)).pipe(Effect.orElseSucceed((): ProxyModel[] => []))
           : [];
 
-      const agentModels = claudeAgentModels(models, capabilities);
+      const agentModels = claudeAgentModels(initialized.models, capabilities);
+
+      const fastAvailable =
+        profile.kind !== "cliproxyapi" &&
+        initialized.fast_mode_state !== undefined &&
+        !initialized.fast_mode_disabled_reason;
 
       for (const m of agentModels) {
         if (m.resolvedModel) resolvedModels.set(m.value, m.resolvedModel);
@@ -125,7 +132,9 @@ export function threadCatalog(ctx: ClaudeThreadContext, runtime: ReturnType<type
       }
 
       return {
-        models: agentModels.map((m) => claudeModel(m, options.configuredEffort?.([m.value, m.resolvedModel ?? ""]))),
+        models: agentModels.map((m) =>
+          claudeModel(m, options.configuredEffort?.([m.value, m.resolvedModel ?? ""]), fastAvailable),
+        ),
       };
     }),
   };

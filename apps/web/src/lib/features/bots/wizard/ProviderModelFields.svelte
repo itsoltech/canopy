@@ -2,6 +2,8 @@
   import type { ClassValue } from "svelte/elements";
   import { untrack } from "svelte";
   import ModelPicker from "#lib/features/models/ModelPicker.svelte";
+  import SpeedPicker from "#lib/features/models/SpeedPicker.svelte";
+  import { supportedServiceTier } from "#lib/features/models/service-tier.ts";
   import EffortPicker from "#lib/features/models/EffortPicker.svelte";
   import ProviderIcon from "#lib/features/models/ProviderIcon.svelte";
   import type { ModelOption } from "#lib/features/models/catalog.ts";
@@ -14,6 +16,7 @@
     instanceId = $bindable(""),
     option = $bindable<ModelOption | undefined>(undefined),
     effort = $bindable<string | undefined>(undefined),
+    serviceTier = $bindable<string | undefined>(undefined),
     disabled = false,
     onchange,
     class: className,
@@ -22,6 +25,7 @@
     instanceId?: string;
     option?: ModelOption | undefined;
     effort?: string | undefined;
+    serviceTier?: string | undefined;
     disabled?: boolean;
     onchange?: () => void;
     class?: ClassValue;
@@ -64,6 +68,8 @@
     const supported = option?.efforts ?? [];
 
     if (effort && !supported.some((e) => e.id === effort)) effort = undefined;
+
+    if (serviceTier && serviceTier !== supportedServiceTier(option, serviceTier)) serviceTier = "";
   });
 </script>
 
@@ -87,6 +93,7 @@
         instanceId = v;
         option = undefined;
         effort = undefined;
+        serviceTier = "";
         modelOpen = false;
         effortOpen = false;
         onchange?.();
@@ -105,7 +112,7 @@
     </ChoiceGrid>
     {#if instance && option}
       <div class="grid gap-1.5">
-        <p class="text-base/6 font-medium sm:text-sm/6">Model & reasoning</p>
+        <p class="text-base/6 font-medium sm:text-sm/6">Model settings</p>
         <!-- The pickers own their positioning/padding; the wrapper controls layout. -->
         <div class="flex min-h-11 min-w-0 flex-wrap items-center gap-1" inert={disabled || undefined}>
           <ModelPicker
@@ -116,6 +123,7 @@
             onselect={(next) => {
               option = next;
               effort = undefined;
+              serviceTier = supportedServiceTier(next, serviceTier);
               onchange?.();
             }}
           />
@@ -131,6 +139,18 @@
               }
               {option}
               onmodel={() => (modelOpen = true)}
+            />
+          {/if}
+          {#if option.serviceTiers.length > 0 || serviceTier}
+            <SpeedPicker
+              {option}
+              bind:value={
+                () => serviceTier,
+                (next) => {
+                  serviceTier = next;
+                  onchange?.();
+                }
+              }
             />
           {/if}
         </div>

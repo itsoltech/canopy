@@ -94,7 +94,7 @@ export const STORES_ITS_CALL = new Set([
 ]);
 
 /** What the calling thread runs on: a subagent's default. */
-export function callerTarget(thread: ThreadRow): SpawnTarget {
+export function callerTarget(thread: ThreadRow, turn?: TurnRow): SpawnTarget {
   return {
     harness: Match.value(thread.provider).pipe(
       Match.when("claude", () => "claude" as const),
@@ -104,6 +104,7 @@ export function callerTarget(thread: ThreadRow): SpawnTarget {
     instance: thread.provider_profile_id || "native",
     model: thread.settings.model ?? "",
     effort: thread.settings.effort ?? "",
+    serviceTier: turn?.thread_permission_mode ? (turn.service_tier ?? "") : (thread.settings.serviceTier ?? ""),
   };
 }
 
@@ -166,4 +167,9 @@ export class AgentBusState {
   host!: BusHost;
   notificationCursor: string | undefined;
   fallbackCursor: string | undefined;
+}
+
+/** Linked delegation receives the active tier even when this turn overrides the stored default. */
+export function callerWithServiceTier(thread: ThreadRow, turn?: TurnRow): ThreadRow {
+  return { ...thread, settings: { ...thread.settings, serviceTier: callerTarget(thread, turn).serviceTier ?? "" } };
 }

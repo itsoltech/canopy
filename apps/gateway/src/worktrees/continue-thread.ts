@@ -51,6 +51,7 @@ export async function continueThreadInWorktree(
       providerProfileId: original.providerProfileId,
       model: source.settings.model ?? "",
       effort: source.settings.effort ?? "",
+      serviceTier: source.settings.serviceTier ?? "",
       instructions: source.settings.instructions ?? "",
       permissionMode: inheritedPermissionMode(original.permissionMode),
       title: `${source.title} (continued)`.slice(0, 200),
@@ -69,6 +70,7 @@ export async function continueThreadInWorktree(
       },
       request.model,
       request.effort,
+      request.serviceTier,
     );
     const handoff = await removedWorktreeHandoff(core, source);
     const prepared = await corePrepareWorkspace(core, request);

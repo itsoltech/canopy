@@ -12,6 +12,7 @@ import { coreDeliver, coreDispatch } from "./core-commands.ts";
 import { coreRun } from "./core-broadcast.ts";
 import type { GatewayCore } from "./core.ts";
 import { workerThreadSnapshot } from "./worker-thread-lifecycle.ts";
+import { SERVICE_TIERS_UNSUPPORTED, supportsServiceTier } from "./service-tier-compatibility.ts";
 
 const configurationKey = (configuration: ModelInput["configuration"]) =>
   createHash("sha256")
@@ -55,6 +56,10 @@ async function botWorker(core: GatewayCore, input: ModelInput, turn: BotTurn, wo
       (w) =>
         w.online &&
         core.link.connections.get(w.id)?.hello.capabilities.includes("bot_harness_v1") &&
+        supportsServiceTier(
+          core.link.connections.get(w.id)?.hello.capabilities ?? [],
+          input.configuration.serviceTier,
+        ) &&
         w.providerInstances.some(
           (i) =>
             i.harness === input.configuration.provider &&
@@ -103,8 +108,11 @@ function harnessReply(job: HarnessTurnRow): ModelReply {
 
 /** Assemble the turn's files and require the worker capability before persisting its command. */
 async function botTurnInput(core: GatewayCore, input: ModelInput, workerId: string, botId: string) {
-  const images = await botImageInput(core, botId, workerId, input.messages);
   const connection = core.link.connections.get(workerId);
+
+  if (connection?.isOpen && !supportsServiceTier(connection.hello.capabilities, input.configuration.serviceTier))
+    throw new ProviderFailure("configuration", SERVICE_TIERS_UNSUPPORTED, "platform");
+  const images = await botImageInput(core, botId, workerId, input.messages);
 
   if (connection?.isOpen && !connection.hello.capabilities.includes("bot_web_v1"))
     throw new ProviderFailure(
@@ -185,6 +193,7 @@ export async function runBotHarness(core: GatewayCore, input: ModelInput): Promi
               profileId: input.configuration.providerInstance,
               model: input.configuration.model,
               effort: input.configuration.effort,
+              serviceTier: input.configuration.serviceTier,
               instructions: input.instructions,
               configurationKey: configurationKey(input.configuration),
               webAccess: !turn.handoff_configuration && (input.configuration.webAccess ?? true),
@@ -213,6 +222,9 @@ export async function runBotHarness(core: GatewayCore, input: ModelInput): Promi
 
       if (failure) {
         const result = fromJson(CommandResultSchema, failure);
+
+        if (result.errorCode === "SERVICE_TIERS_UNSUPPORTED")
+          throw new ProviderFailure("configuration", SERVICE_TIERS_UNSUPPORTED, "platform");
         throw new ProviderFailure(
           classifyFailure(result.errorMessage, result.errorCode || "HARNESS_ERROR"),
           "Bot worker could not start this turn",

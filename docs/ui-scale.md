@@ -3,7 +3,8 @@
 Status (2026-11-17): opis zaimplementowanej skali web/desktop i zwartego arkusza
 szczegółów wątku na natywnym mobile, w tym dwuliniowych
 kart sidebara, ich jednoliniowego wariantu w worktree, ikon projektów, wcięć i linii hierarchii
-oraz kompaktowego wariantu przełącznika i adaptacyjnych pickerów composera.
+oraz kompaktowego wariantu przełącznika i adaptacyjnych pickerów modelu, wysiłku i prędkości composera,
+z jednoliniowym menu prędkości i oznaczeniami poziomu przyspieszenia.
 Karta zużycia kontekstu composera używa skali nakładek (15 / 13).
 Dostępność kanałów: [release.md](release.md).
 
@@ -48,7 +49,7 @@ i sidebarze.
 
 ## Kontrolki
 
-Para pickerów modelu i wysiłku w composerze ma własny kontener szerokości
+Grupa pickerów modelu, wysiłku i prędkości w composerze ma własny kontener szerokości
 i minimum 5,25 rem. Przy mniej niż 16 rem pomija strzałki i dodatkowe ikony;
 poniżej 12 rem wysiłek pokazuje paski, a poniżej 9 rem model zachowuje sam znak
 providera. W przedziale 9–16 rem nazwę modelu chroni pominięcie jego znaku.
@@ -57,6 +58,15 @@ zachowują dotychczasowy wygląd. Poniżej 24 rem szerokości composera odstęp 
 maleje do 4 px, Steer/Queue pokazuje ikonę i menu, Text składa licznik i limit w dwie
 linie, a Bar skraca pasek. Gdy dodatkowe kontrolki nadal nie mieszczą się obok
 minimalnej pary, pasek zawija wiersz, zachowując miejsce na Send/Steer/Queue.
+
+Picker prędkości pojawia się dla modeli z przyspieszonymi trybami w katalogu konta
+oraz wtedy, gdy zapisany wybór wymaga możliwości powrotu do Standard.
+Poniżej 22 rem kontenera grupy pomija strzałkę, a poniżej 18 rem zachowuje samą
+ikonę z pełną nazwą w aria-label. Menu używa skali nakładek i ogranicza szerokość
+do viewportu; nie przesuwa przycisku wysyłki. Opcje są jednoliniowe, bez opisów.
+Fast ma jeden piorun, Ultrafast dwa, a Standard neutralną ikonę zegara.
+Ikona zajmuje stały slot również na zamkniętym przycisku; przy Default odpowiada
+odziedziczonej prędkości. Nazwy pozostają widoczne w menu.
 
 | Kontrolka | Standard | Nakładka (domyślnie) |
 | --- | --- | --- |

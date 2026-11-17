@@ -6,6 +6,7 @@ import {
   applyInstanceModels,
   harnessOf,
   modelProblem,
+  serviceTierProblem,
   ModelStore,
   withCustomModels,
   type ThreadRow,
@@ -53,9 +54,12 @@ export async function coreCheckModel(
   where: ModelScope,
   model: string,
   effort: string,
+  serviceTier = "",
 ): Promise<void> {
   const { models, provider, profile } = await coreProfileModels(hostContext, where);
-  const problem = modelProblem(models, provider, profile, model, effort);
+
+  const problem =
+    modelProblem(models, provider, profile, model, effort) ?? serviceTierProblem(models, model, serviceTier);
 
   if (problem) throw new InvalidError(problem);
 }
@@ -135,6 +139,7 @@ export async function coreSpawnInstances(
             resolvedModel: m.resolvedModel,
             label: m.displayName,
             efforts: m.efforts,
+            serviceTiers: m.serviceTiers.map((tier) => tier.id),
             defaultEffort: m.defaultEffort,
             isDefault: m.isDefault,
             hidden: m.hidden,

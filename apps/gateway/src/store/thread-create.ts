@@ -234,6 +234,7 @@ function creationSettings(
   return JSON.stringify({
     model: request.model,
     effort: request.effort,
+    serviceTier: request.serviceTier,
     ...access,
     instructions: request.instructions,
     ...(handoff && { handoff }),

@@ -17,6 +17,8 @@ export interface ModelChoice {
   name: string;
   efforts: string[];
   defaultEffort: string;
+  serviceTiers: string[];
+  serviceTierOptions: ModelInfo["serviceTiers"];
   isDefault: boolean;
   aliases: string[];
   resolvedModel: string;
@@ -71,6 +73,8 @@ function choice(provider: Provider, profileId: string, m: ModelInfo, favorites: 
     name: m.displayName || m.id,
     efforts: m.efforts,
     defaultEffort: m.defaultEffort,
+    serviceTiers: m.serviceTiers.map((tier) => tier.id),
+    serviceTierOptions: m.serviceTiers,
     isDefault: m.isDefault,
     aliases: m.aliases,
     resolvedModel: m.resolvedModel,

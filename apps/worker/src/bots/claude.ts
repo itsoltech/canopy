@@ -1,4 +1,4 @@
-import { query, type SDKUserMessage, type SpawnOptions, type SDKMessage } from "@anthropic-ai/claude-agent-sdk";
+import { query, type SpawnOptions, type SDKMessage, type Query } from "@anthropic-ai/claude-agent-sdk";
 import { ClaudeEventMapper } from "../providers/claude/mapping.ts";
 import { claudeProfileOptions } from "../providers/claude/profile.ts";
 import { claudeExecutable } from "../providers/claude/executable.ts";
@@ -8,6 +8,8 @@ import { statSync } from "node:fs";
 import type { BotHarnessContext } from "./types.ts";
 import { BotHarnessFailure } from "./types.ts";
 import { rejectBotToolApproval } from "./failures.ts";
+import { claudeBotPrompt } from "./claude-input.ts";
+import { claudeFastAvailable, claudeFastMode } from "../providers/claude/service-tier.ts";
 import { spawnClaude } from "../providers/claude/spawn.ts";
 import { ClaudeUsage } from "../providers/claude/usage.ts";
 import { NoticeLevel } from "@canopy/contracts";
@@ -56,6 +58,7 @@ function botClaudeProcess() {
 export async function runClaudeBot(ctx: BotHarnessContext): Promise<void> {
   const { input, session, signal } = ctx;
   signal.throwIfAborted();
+  const fast = claudeFastMode(input.serviceTier);
   const resumed = Boolean(session.id && transcriptPath(session.home, session.id));
   const id = resumed ? session.id : crypto.randomUUID();
   session.save(id);
@@ -70,68 +73,57 @@ export async function runClaudeBot(ctx: BotHarnessContext): Promise<void> {
   const cancel = () => abort.abort();
   signal.addEventListener("abort", cancel, { once: true });
 
-  async function* prompt(): AsyncGenerator<SDKUserMessage> {
-    yield {
-      type: "user",
-      session_id: id,
-      parent_tool_use_id: null,
-      message: {
-        role: "user",
-        content: [
-          { type: "text", text: content.text },
-          ...content.documents.map((document) => ({
-            type: "document" as const,
-            title: document.name,
-            source: { type: "base64" as const, media_type: "application/pdf" as const, data: document.data },
-          })),
-          ...content.images.map((image) => ({
-            type: "image" as const,
-            source: {
-              type: "base64" as const,
-              media_type: image.mimeType,
-              data: Buffer.from(image.data).toString("base64"),
-            },
-          })),
-        ],
-      },
-    };
-  }
-
-  const q = query({
-    prompt: content.images.length || content.documents.length ? prompt() : content.text,
-    options: {
-      ...profile,
-      env: {
-        ...profile.env,
-        CLAUDE_CONFIG_DIR: session.home,
-        CLAUDE_SECURESTORAGE_CONFIG_DIR: session.secureStorageDir,
-        ENABLE_TOOL_SEARCH: "false",
-      },
-      pathToClaudeCodeExecutable: claudeExecutable(ctx.executable),
-      cwd: session.cwd,
-      model: input.model,
-      ...(isClaudeEffort(input.effort) && { effort: input.effort }),
-      ...(resumed ? { resume: id } : { sessionId: id }),
-      persistSession: true,
-      settingSources: [],
-      tools: webTools,
-      allowedTools,
-      strictMcpConfig: true,
-      mcpServers: input.tools.length ? { canopy: { type: "http", ...ctx.mcp, alwaysLoad: true } } : {},
-      plugins: [],
-      settings: { disableAllHooks: true },
-      systemPrompt: input.instructions,
-      maxTurns: 32,
-      includePartialMessages: true,
-      abortController: abort,
-      spawnClaudeCodeProcess: harness.spawn,
-    },
-  });
-
-  const mapper = new ClaudeEventMapper(input.turnId);
-  const textItems = new Set<string>();
+  const admitted = Promise.withResolvers<boolean>();
+  let q: Query | undefined;
 
   try {
+    q = query({
+      prompt:
+        fast || content.images.length || content.documents.length
+          ? claudeBotPrompt(content, id, fast ? admitted.promise : undefined)
+          : content.text,
+      options: {
+        ...profile,
+        env: {
+          ...profile.env,
+          CLAUDE_CONFIG_DIR: session.home,
+          CLAUDE_SECURESTORAGE_CONFIG_DIR: session.secureStorageDir,
+          ENABLE_TOOL_SEARCH: "false",
+        },
+        pathToClaudeCodeExecutable: claudeExecutable(ctx.executable),
+        cwd: session.cwd,
+        model: input.model,
+        ...(isClaudeEffort(input.effort) && { effort: input.effort }),
+        ...(resumed ? { resume: id } : { sessionId: id }),
+        persistSession: true,
+        settingSources: [],
+        tools: webTools,
+        allowedTools,
+        strictMcpConfig: true,
+        mcpServers: input.tools.length ? { canopy: { type: "http", ...ctx.mcp, alwaysLoad: true } } : {},
+        plugins: [],
+        settings: { disableAllHooks: true, fastMode: fast },
+        systemPrompt: input.instructions,
+        maxTurns: 32,
+        includePartialMessages: true,
+        abortController: abort,
+        spawnClaudeCodeProcess: harness.spawn,
+      },
+    });
+
+    const mapper = new ClaudeEventMapper(input.turnId);
+    const textItems = new Set<string>();
+
+    if (fast) {
+      if (!claudeFastAvailable(await q.initializationResult(), input.model))
+        throw new BotHarnessFailure(
+          "SERVICE_TIER_UNAVAILABLE",
+          "Fast speed is unavailable for this model and account.",
+        );
+      signal.throwIfAborted();
+      admitted.resolve(true);
+    }
+
     const usage = new ClaudeUsage(ctx.onUsage, ctx.usageSnapshot);
 
     for await (const message of q) {
@@ -182,9 +174,10 @@ export async function runClaudeBot(ctx: BotHarnessContext): Promise<void> {
 
     throw new BotHarnessFailure("process_exit");
   } finally {
+    admitted.resolve(false);
     signal.removeEventListener("abort", cancel);
     abort.abort();
-    q.close();
+    q?.close();
     await harness.closed();
   }
 }

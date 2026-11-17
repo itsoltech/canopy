@@ -5,6 +5,7 @@ export interface ComposerChoiceColumns {
   created_at: Date | string;
   model: string;
   effort: string;
+  service_tier?: string;
   permission_mode: string;
 }
 
@@ -14,6 +15,8 @@ export const COMPOSER_CHOICE_SELECT = `SELECT u.id AS turn_id,u.queued_at AS cre
     THEN coalesce(nullif(u.model,''),t.list_settings->>'model','') ELSE u.model END AS model,
   CASE WHEN u.status='queued' AND NOT ${DISPATCHED}
     THEN coalesce(nullif(u.effort,''),t.list_settings->>'effort','') ELSE u.effort END AS effort,
+  CASE WHEN u.status='queued' AND NOT ${DISPATCHED}
+    THEN coalesce(nullif(u.service_tier,''),t.list_settings->>'serviceTier','') ELSE u.service_tier END AS service_tier,
   coalesce(nullif(u.permission_mode,''),t.list_settings->>'permissionMode','ASK') AS permission_mode
   FROM turns u WHERE u.thread_id=t.id AND u.author_user_id=t.owner_user_id
     AND u.trigger='user' AND u.withdrawn IS NULL AND u.rewind_id IS NULL

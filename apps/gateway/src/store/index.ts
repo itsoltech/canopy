@@ -34,7 +34,7 @@ export {
 
 export { decryptSecret, encryptSecret, loadSecretsKey } from "./secrets.ts";
 
-export { ModelStore, modelProblem, turnEffort } from "./models.ts";
+export { ModelStore, modelProblem, inheritedServiceTier, serviceTierProblem, turnEffort } from "./models.ts";
 
 export { applyInstanceModels, harnessOf, withCustomModels, type InstanceModelsRule } from "./instance-config.ts";
 

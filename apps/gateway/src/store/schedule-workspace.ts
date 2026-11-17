@@ -53,6 +53,7 @@ export const prepareSchedule = (sql: SqlClient.SqlClient, input: Parameters<BusS
       providerProfileId: spec.providerProfileId,
       model: spec.model,
       effort: spec.effort,
+      serviceTier: spec.serviceTier,
       permissionMode: spec.permissionMode,
       title: spec.title,
       workspaceMode: spec.workspaceMode,

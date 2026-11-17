@@ -215,6 +215,7 @@ test("append preserves both prompts and ranges; incoming explicit choices fill u
     text: "Incoming",
     model: "model",
     effort: "high",
+    serviceTier: "ultrafast",
     permissionMode: PermissionMode.FULL_AUTO,
     mentions: [{ name: "file-id", start: 0, end: 8 }],
     quotes: [{ text: "Quote", comment: "Note", start: 0, end: 8 }],
@@ -228,6 +229,10 @@ test("append preserves both prompts and ranges; incoming explicit choices fill u
   expect(merged.quotes[0]?.start).toBe(7);
   expect(merged.quotes[0]?.comment).toBe("Note");
   expect(merged.model).toBe("model");
+  expect(merged.serviceTier).toBe("ultrafast");
+  expect(
+    mergeComposerContent(create(ui.ComposerDraftContentSchema, { serviceTier: "default" }), incoming).serviceTier,
+  ).toBe("default");
   expect(merged.permissionMode).toBe(PermissionMode.ASK);
   expect(merged.clientRequestId).toBe("stable-send");
 });

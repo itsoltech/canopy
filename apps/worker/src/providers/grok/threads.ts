@@ -94,7 +94,13 @@ export class GrokThreads {
     return Effect.runPromise(
       this.#lifecycle.run(spec.threadId, (current) =>
         Effect.tryPromise({
-          try: () => this.#openSession(spec, settings, current),
+          try: () => {
+            const serviceTier = settings?.serviceTier || spec.serviceTier || "default";
+
+            if (serviceTier !== "default") throw new Error("Grok ACP does not support independent speed tiers.");
+
+            return this.#openSession(spec, settings, current);
+          },
           catch: (error) => (error instanceof Error ? error : new Error(String(error))),
         }),
       ),

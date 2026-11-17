@@ -7,11 +7,13 @@ interface ComposerModel {
   isDefault: boolean;
   efforts: readonly string[];
   defaultEffort?: string;
+  serviceTiers?: readonly string[];
 }
 
 export interface ComposerPick {
   model?: string;
   effort?: string;
+  serviceTier?: string;
   permissionMode?: PermissionMode;
 }
 
@@ -45,6 +47,8 @@ export function composerChoices<Model extends ComposerModel>(
         : "";
 
   const permissionMode = pick?.permissionMode ?? last?.permissionMode ?? thread?.permissionMode ?? PermissionMode.ASK;
+  const askedTier = pick?.serviceTier ?? last?.serviceTier ?? thread?.serviceTier ?? "";
+  const serviceTier = askedTier === "default" || option?.serviceTiers?.includes(askedTier) ? askedTier : "";
 
-  return { option, effort, permissionMode };
+  return { option, effort, serviceTier, permissionMode };
 }

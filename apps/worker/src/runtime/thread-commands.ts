@@ -110,7 +110,7 @@ export class ThreadCommands {
     commandId: string,
     current: () => boolean,
   ): Promise<CommandOutput> {
-    const { thread: spec, turnId, input: rawInput, model, effort, permissionMode } = kind.value;
+    const { thread: spec, turnId, input: rawInput, model, effort, permissionMode, serviceTier } = kind.value;
 
     if (!spec || !rawInput) throw new CommandError("INVALID_COMMAND", "thread spec or input missing", true);
 
@@ -173,6 +173,7 @@ export class ThreadCommands {
     const settings = {
       model,
       effort,
+      serviceTier,
       permissionMode: permissionMode || spec.permissionMode,
       recoveryContext,
       ...connectors,
@@ -226,7 +227,7 @@ export class ThreadCommands {
   }
 
   async steerTurn(kind: Extract<Command["kind"], { case: "steerTurn" }>, commandId: string): Promise<CommandOutput> {
-    const { threadId, turnId, inputId, input: rawInput } = kind.value;
+    const { threadId, turnId, inputId, input: rawInput, serviceTier } = kind.value;
 
     if (!rawInput || !inputId) throw new CommandError("INVALID_COMMAND", "input or input_id missing", true);
 
@@ -258,14 +259,14 @@ export class ThreadCommands {
       throw new CommandError("STEER_REJECTED", "Grok ACP does not support mid-turn input; queue this message", true);
     } else if (claude) {
       await this.ctx.ops.runClaude(
-        (threads) => steer(threads.steer(threadId, turnId, inputId, input)),
+        (threads) => steer(threads.steer(threadId, turnId, inputId, input, { serviceTier })),
         claude[0],
         true,
       );
     } else if (this.ctx.state.codex.size > 0) {
       await this.ctx.ops.runCodex(
         Provider.CODEX,
-        (threads) => steer(threads.steer(threadId, turnId, inputId, input)),
+        (threads) => steer(threads.steer(threadId, turnId, inputId, input, { serviceTier })),
         this.ctx.ops.codexGroupWith(threadId),
         true,
       );

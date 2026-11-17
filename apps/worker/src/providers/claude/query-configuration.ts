@@ -2,6 +2,7 @@ import type { Options } from "@anthropic-ai/claude-agent-sdk";
 import type { Env } from "../profiles.ts";
 import type { ClaudeInstanceRuntime } from "./thread-types.ts";
 import { claudeInstructionSettings, managedClaudeInstructions } from "./instructions.ts";
+import { claudeFastMode } from "./service-tier.ts";
 import { prepareClaudeUserConfiguration } from "./user-configuration.ts";
 
 /** One subprocess gets one configuration snapshot; local files are read again for the next process. */
@@ -11,6 +12,7 @@ export async function claudeQueryConfiguration(
   scratch: boolean,
   env: Env,
   launch: Options,
+  serviceTier = "default",
 ) {
   const user = await prepareClaudeUserConfiguration(runtime, cwd);
 
@@ -22,6 +24,8 @@ export async function claudeQueryConfiguration(
       ...exclusions,
       // User skill bodies must not execute inline shell substitutions before Canopy permissions run.
       disableSkillShellExecution: true,
+      // Override project settings and restored transcript state on every subprocess.
+      fastMode: claudeFastMode(serviceTier),
     };
 
     // Hook settings must stay in a private file so they never enter SDK argv. Inline settings are safe when the

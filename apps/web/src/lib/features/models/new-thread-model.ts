@@ -2,6 +2,7 @@ import { Provider, type ui } from "@canopy/contracts";
 import { latestThreadChoices } from "@canopy/domain/new-thread-choices";
 import { modelFor } from "#lib/features/settings/thread-defaults.ts";
 import { profileIdValue, providerKeyOf } from "#lib/features/threads/providers.ts";
+import { supportedServiceTier } from "./service-tier.ts";
 import { findOption, type ModelOption } from "./catalog.ts";
 
 /** Resolve remembered choices against this worker's offered models before applying draft picks. */
@@ -35,5 +36,8 @@ export function newThreadModel(
   const effort =
     (remembered || sameProfile) && asked && option?.efforts.some((e) => e.id === asked) ? asked : undefined;
 
-  return { option, effort, remembered: !!remembered };
+  const serviceTier =
+    remembered || sameProfile ? supportedServiceTier(option, latest?.lastUserTurnChoices?.serviceTier) : "";
+
+  return { option, effort, serviceTier, remembered: !!remembered };
 }

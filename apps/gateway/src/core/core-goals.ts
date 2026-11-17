@@ -197,7 +197,7 @@ export const coreGoalsMethods: CoreGoalsMethods = {
         throw new InvalidError("action is set, pause, resume or clear");
     }
 
-    const update = toUiGoal(goal);
+    const update = toUiGoal(await coreGoals(this, (store) => store.goal(goal.id)));
     this.hub.publishThread(thread.id, create(ui.ThreadUpdateSchema, { change: { case: "goal", value: update } }));
     await coreBroadcastThread(this, thread.id);
 

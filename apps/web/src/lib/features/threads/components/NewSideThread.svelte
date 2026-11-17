@@ -14,6 +14,7 @@
   import { limitsOf } from "#lib/features/attachments/draft.svelte.ts";
   import { MentionSources } from "#lib/features/mentions/sources.svelte.ts";
   import { effectiveEffort, type ModelOption } from "#lib/features/models/catalog.ts";
+  import { supportedServiceTier } from "#lib/features/models/service-tier.ts";
   import ModelControls from "#lib/features/models/ModelControls.svelte";
   import { useThreadModels } from "#lib/features/models/model-catalog.svelte.ts";
   import Crumb from "#lib/features/navigation/Crumb.svelte";
@@ -54,6 +55,8 @@
   const picked = $derived(offer.options.find((o) => o.model === saved.choices.model));
   const option = $derived(picked ?? offer.current);
   const effort = $derived(saved.choices.effort);
+  const serviceTier = $derived(supportedServiceTier(option, saved.choices.serviceTier));
+  const sentServiceTier = $derived(supportedServiceTier(option, saved.choices.serviceTier || main.serviceTier));
 
   const sentEffort = $derived(
     option && option.efforts.length > 0 ? (effort ?? effectiveEffort(option, main.effort)) : undefined,
@@ -152,6 +155,7 @@
       />
       <input type="hidden" name="model" value={picked?.model ?? main.model} />
       <input type="hidden" name="effort" value={sentEffort ?? ""} />
+      <input type="hidden" name="serviceTier" value={sentServiceTier} />
       <input type="hidden" name="permissionMode" value={mode} />
       <input type="hidden" name="fork" value={fork ? "on" : ""} />
       {#each draft.ids as id (id)}<input type="hidden" name="attachmentId" value={id} />{/each}
@@ -189,6 +193,11 @@
                 }
               }
               bind:effort={() => effort, (next) => (saved.choices = { ...saved.choices, effort: next })}
+              bind:serviceTier={
+                () => serviceTier, (next) => (saved.choices = { ...saved.choices, serviceTier: next ?? "" })
+              }
+              inheritedServiceTier={main.serviceTier}
+              showSpeed
               inherited={main.effort || undefined}
               workerId={main.workerId}
               class="flex-1 justify-end"

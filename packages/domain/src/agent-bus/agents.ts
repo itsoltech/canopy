@@ -17,6 +17,7 @@ export interface SpawnModel {
   /** Empty = the model takes no effort (or it is not known). */
   readonly efforts: readonly string[];
   readonly defaultEffort: string;
+  readonly serviceTiers?: readonly string[];
   readonly isDefault: boolean;
   /** Not shown in the pickers (still accepted, like a user may type it). */
   readonly hidden: boolean;
@@ -44,6 +45,7 @@ export interface SpawnTarget {
   readonly model: string;
   /** "" = the model's default effort, or none. */
   readonly effort: string;
+  readonly serviceTier?: string;
 }
 
 export type SpawnResolution =
@@ -70,6 +72,7 @@ export function resolveSpawnTarget(
     readonly provider?: string | undefined;
     readonly model?: string | undefined;
     readonly effort?: string | undefined;
+    readonly service_tier?: string | undefined;
   },
   caller: SpawnTarget,
   instances: readonly SpawnInstance[] | undefined,
@@ -78,6 +81,9 @@ export function resolveSpawnTarget(
 
   if (args.effort !== undefined && !/^[a-z][a-z0-9_-]*$/.test(args.effort))
     return fail(`invalid reasoning effort "${args.effort}"`);
+
+  if (args.service_tier !== undefined && !/^[a-z][a-z0-9_-]{0,39}$/.test(args.service_tier))
+    return fail("Choose a speed from list_agents.");
   const own = { harness: caller.harness, instance: caller.instance || "native" };
   let chosen: SpawnInstance | undefined;
 
@@ -94,6 +100,20 @@ export function resolveSpawnTarget(
     const instance = instances?.find((i) => i.harness === own.harness && i.id === own.instance);
     const model = args.model ?? caller.model;
     const effort = args.effort ?? caller.effort;
+    const info = instance && findModel(instance, model);
+
+    const inheritedTier =
+      args.model === undefined || model === caller.model || info?.serviceTiers?.includes(caller.serviceTier ?? "")
+        ? caller.serviceTier
+        : undefined;
+
+    const serviceTier = args.service_tier ?? inheritedTier;
+
+    if (args.service_tier !== undefined) {
+      const problem = serviceTierProblem(info, args.service_tier);
+
+      if (problem) return fail(problem);
+    }
 
     // The caller's own settings are not judged again; what the call changes is.
     if (instance && (args.model !== undefined || args.effort !== undefined)) {
@@ -102,7 +122,7 @@ export function resolveSpawnTarget(
       if (problem) return fail(problem);
     }
 
-    return { ok: true, target: { ...own, model, effort } };
+    return { ok: true, target: { ...own, model, effort, ...(serviceTier && { serviceTier }) } };
   }
 
   const instance = chosen!;
@@ -116,9 +136,27 @@ export function resolveSpawnTarget(
   const problem = modelProblem(instance, model, args.effort ?? "");
 
   if (problem) return fail(problem);
+  const tierProblem = serviceTierProblem(info, args.service_tier);
+
+  if (tierProblem) return fail(tierProblem);
   const effort = info && info.efforts.length === 0 ? "" : (args.effort ?? info?.defaultEffort ?? "");
 
-  return { ok: true, target: { harness: instance.harness, instance: instance.id, model, effort } };
+  return {
+    ok: true,
+    target: {
+      harness: instance.harness,
+      instance: instance.id,
+      model,
+      effort,
+      ...(args.service_tier && { serviceTier: args.service_tier }),
+    },
+  };
+}
+
+function serviceTierProblem(model: SpawnModel | undefined, tier: string | undefined): string | undefined {
+  if (!tier || tier === "default" || model?.serviceTiers?.includes(tier)) return undefined;
+
+  return "This speed is not available for this model. Choose a speed from list_agents.";
 }
 
 /**
@@ -219,6 +257,7 @@ export function agentCatalog(caller: SpawnTarget, instances: readonly SpawnInsta
           ...(m.label && m.label !== m.id && { name: m.label }),
           ...(m.efforts.length > 0 && { efforts: [...m.efforts] }),
           ...(m.defaultEffort && { default_effort: m.defaultEffort }),
+          ...(m.serviceTiers?.length && { service_tiers: [...m.serviceTiers] }),
           ...(m.isDefault && { default: true }),
         })),
         ...(!i.models || i.models.length === 0
@@ -230,7 +269,12 @@ export function agentCatalog(caller: SpawnTarget, instances: readonly SpawnInsta
     });
 
   return {
-    you: { provider: you, model: caller.model, effort: caller.effort },
+    you: {
+      provider: you,
+      model: caller.model,
+      effort: caller.effort,
+      ...(caller.serviceTier && { service_tier: caller.serviceTier }),
+    },
     agents,
     note:
       "Pass provider (and optionally model and effort from its list) to spawn_thread to run the subagent there, e.g. a Claude subagent " +

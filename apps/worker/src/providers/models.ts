@@ -11,7 +11,7 @@ import { claudeModelName, concreteModelName } from "./model-metadata.ts";
 /**
  * Model catalogs (docs/protocol.md#modele-effort-i-steer): what each provider + profile offers, with the
  * reasoning efforts per model. Listed without running a model turn:
- * - Codex: app-server `model/list` (its bundled catalog, the same for every model provider),
+ * - Codex: app-server `model/list` (model metadata and account service tiers of this instance),
  * - Claude: `Query.supportedModels()` of a query that never gets a prompt,
  * - a CLIProxyAPI profile also asks the proxy (`GET /v1/models`): Codex keeps the catalog models the proxy
  *   serves and adds compatible proxy models (no effort data); Claude Code discovers proxy models itself
@@ -43,7 +43,7 @@ type CatalogModel = Pick<
   | "supportedReasoningEfforts"
   | "defaultReasoningEffort"
 > &
-  Partial<Pick<v2.Model, "upgrade" | "upgradeInfo">>;
+  Partial<Pick<v2.Model, "upgrade" | "upgradeInfo" | "serviceTiers">>;
 
 export function codexModel(model: CatalogModel, configuredEffort?: string): ModelInit {
   const efforts = model.supportedReasoningEfforts.map((e) => e.reasoningEffort);
@@ -57,12 +57,13 @@ export function codexModel(model: CatalogModel, configuredEffort?: string): Mode
     legacy: model.hidden || Boolean(model.upgrade || model.upgradeInfo),
     isDefault: model.isDefault,
     efforts,
+    ...(model.serviceTiers?.length && { serviceTiers: model.serviceTiers }),
     ...(defaultEffort && { defaultEffort }),
   };
 }
 
 /** `configuredEffort`: the device owner's default for this model (Claude Code reports no default of its own). */
-export function claudeModel(model: ClaudeModelInfo, configuredEffort?: string): ModelInit {
+export function claudeModel(model: ClaudeModelInfo, configuredEffort?: string, fastAvailable = false): ModelInit {
   const efforts = model.supportsEffort === false ? [] : [...(model.supportedEffortLevels ?? [])];
   const defaultEffort = pickDefaultEffort(efforts, configuredEffort);
 
@@ -71,6 +72,10 @@ export function claudeModel(model: ClaudeModelInfo, configuredEffort?: string): 
     ...(model.resolvedModel && model.resolvedModel !== model.value && { resolvedModel: model.resolvedModel }),
     displayName: claudeModelName(model),
     description: model.description,
+    ...(fastAvailable &&
+      model.supportsFastMode && {
+        serviceTiers: [{ id: "fast", name: "Fast", description: "Faster output with extra usage pricing." }],
+      }),
     // The "default" row is what Claude Code runs when no model is chosen.
     isDefault: model.value === "default",
     efforts,
@@ -248,7 +253,8 @@ function strings(value: JsonValue | undefined): string[] | undefined {
  */
 export function codexProxyModels(catalog: readonly ModelInit[], proxy: readonly ProxyModel[]): ModelInit[] {
   const served = new Set(proxy.flatMap((m) => (proxyModelFits("codex", m) ? [m.id] : [])));
-  const known = catalog.filter((m) => served.has(m.id ?? ""));
+  // Native account entitlements do not establish proxy support.
+  const known = catalog.flatMap((m) => (served.has(m.id ?? "") ? [{ ...m, serviceTiers: [] }] : []));
   const knownIds = new Set(known.map((m) => m.id));
 
   const extra = proxy

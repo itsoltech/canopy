@@ -8,6 +8,8 @@ import { Schema } from "effect";
 export interface TurnSettings {
   readonly model: string;
   readonly effort: string;
+  /** Empty inherits the thread; "default" explicitly selects standard speed. */
+  readonly serviceTier?: string;
   readonly permissionMode?: PermissionMode;
   /** Previous request, used privately only when a retry has to create a fresh provider session. */
   readonly recoveryContext?: string;
