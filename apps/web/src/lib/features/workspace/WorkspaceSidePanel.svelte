@@ -6,6 +6,7 @@
   import SegmentedChoice from "#lib/shared/ui/SegmentedChoice.svelte";
   import WorkspaceFiles from "./WorkspaceFiles.svelte";
   import WorkspacePreview from "./WorkspacePreview.svelte";
+  import EmptyState from "#lib/shared/ui/EmptyState.svelte";
 
   let {
     state: workspace,
@@ -14,6 +15,7 @@
     threadId,
     worker,
     offline = "",
+    unavailable = "",
   }: {
     state: ThreadWorkspace;
     root: string;
@@ -21,6 +23,7 @@
     threadId: string;
     worker?: ui.Worker;
     offline?: string;
+    unavailable?: string;
   } = $props();
 
   const open = $derived(workspace.filesOpen);
@@ -68,49 +71,55 @@
       <IconButton size="sm" icon="x-mark" label="Close side panel" onclick={() => (workspace.panelOpen = false)} />
     </div>
     <div class="min-h-0 flex-1">
-      <div class="h-full min-h-0" class:hidden={workspace.panelMode !== "diff"} inert={workspace.panelMode !== "diff"}>
-        {#if diffUsed}
-          {#await import("./WorkspaceDiffList.svelte") then module}
-            {#key workspace.view}<module.default
-                view={workspace.view}
-                active={active && workspace.panelMode === "diff"}
-                onopen={() => {
-                  if (!workspace.wide) workspace.panelOpen = false;
-                }}
-              />{/key}
-          {/await}
-        {/if}
-      </div>
-      <div
-        class="h-full min-h-0"
-        class:hidden={workspace.panelMode !== "files"}
-        inert={workspace.panelMode !== "files"}
-      >
-        {#if filesUsed}
-          <WorkspaceFiles
-            view={workspace.view}
-            {root}
-            onopen={() => {
-              if (!workspace.wide) workspace.panelOpen = false;
-            }}
-          />
-        {/if}
-      </div>
-      <div
-        class="h-full min-h-0"
-        class:hidden={workspace.panelMode !== "preview"}
-        inert={workspace.panelMode !== "preview"}
-      >
-        {#if previewUsed}
-          <WorkspacePreview
-            state={workspace}
-            {worker}
-            {offline}
-            location="sidebar"
-            active={active && workspace.panelMode === "preview" && !workspace.previewTabActive}
-          />
-        {/if}
-      </div>
+      {#if unavailable}<EmptyState title="Worktree removed" description={unavailable} />{:else}
+        <div
+          class="h-full min-h-0"
+          class:hidden={workspace.panelMode !== "diff"}
+          inert={workspace.panelMode !== "diff"}
+        >
+          {#if diffUsed}
+            {#await import("./WorkspaceDiffList.svelte") then module}
+              {#key workspace.view}<module.default
+                  view={workspace.view}
+                  active={active && workspace.panelMode === "diff"}
+                  onopen={() => {
+                    if (!workspace.wide) workspace.panelOpen = false;
+                  }}
+                />{/key}
+            {/await}
+          {/if}
+        </div>
+        <div
+          class="h-full min-h-0"
+          class:hidden={workspace.panelMode !== "files"}
+          inert={workspace.panelMode !== "files"}
+        >
+          {#if filesUsed}
+            <WorkspaceFiles
+              view={workspace.view}
+              {root}
+              onopen={() => {
+                if (!workspace.wide) workspace.panelOpen = false;
+              }}
+            />
+          {/if}
+        </div>
+        <div
+          class="h-full min-h-0"
+          class:hidden={workspace.panelMode !== "preview"}
+          inert={workspace.panelMode !== "preview"}
+        >
+          {#if previewUsed}
+            <WorkspacePreview
+              state={workspace}
+              {worker}
+              {offline}
+              location="sidebar"
+              active={active && workspace.panelMode === "preview" && !workspace.previewTabActive}
+            />
+          {/if}
+        </div>
+      {/if}
     </div>
   </div>
 {/snippet}

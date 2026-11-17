@@ -33,10 +33,13 @@ describe.skipIf(!dockerAvailable)("closed-thread worktree cleanup over gRPC", ()
     });
   });
 
+  const archivePastGrace = async (id: string) => {
+    await f.gw.api.setThreadArchived({ threadId: id, archived: true });
+    await f.sql((sql) => sql`UPDATE threads SET archived_at=now()-interval '25 hours' WHERE id=${id}::uuid`);
+  };
+
   const closeThread = (id: string, closed: string) =>
-    closed === "archived"
-      ? f.gw.api.setThreadArchived({ threadId: id, archived: true })
-      : f.gw.api.deleteThread({ threadId: id });
+    closed === "archived" ? archivePastGrace(id) : f.gw.api.deleteThread({ threadId: id });
 
   const enableClosed = (closed: string) =>
     f.settings({ cleanupSettled: closed === "archived", cleanupDeletedThreads: closed === "deleted" });
@@ -219,7 +222,7 @@ describe.skipIf(!dockerAvailable)("closed-thread worktree cleanup over gRPC", ()
       expect(await f.entry(t.worktree!.id)).toMatchObject({ wouldRemove: false, confirmationRequired: true });
       expect((await f.cleanup(false)).entries.find((e) => e.worktree?.id === t.worktree!.id)?.removed).toBe(false);
       expect(existsSync(join(t.cwd, "local.txt"))).toBe(true);
-      await f.gw.api.setThreadArchived({ threadId: shared.id, archived: true });
+      await archivePastGrace(shared.id);
       expect(await f.entry(t.worktree!.id)).toMatchObject({ wouldRemove: true, detail: "All threads archived" });
       expect((await f.cleanup(false)).entries.find((e) => e.worktree?.id === t.worktree!.id)?.removed).toBe(true);
     },
@@ -229,7 +232,7 @@ describe.skipIf(!dockerAvailable)("closed-thread worktree cleanup over gRPC", ()
     const t = await f.tree();
     writeFileSync(join(t.cwd, "local.txt"), "must survive reopening\n");
     await f.settings({ cleanupSettled: true, cleanupMerged: true });
-    await f.gw.api.setThreadArchived({ threadId: t.id, archived: true });
+    await archivePastGrace(t.id);
     expect(await f.entry(t.worktree!.id)).toMatchObject({ wouldRemove: true, confirmationRequired: true });
     const handle = f.host.handleCommand.bind(f.host);
     let reopened = false;
@@ -292,11 +295,88 @@ describe.skipIf(!dockerAvailable)("closed-thread worktree cleanup over gRPC", ()
     }
   });
 
+  test.each(["archived", "merged", "unchanged"])(
+    "rearchival after a %s scan blocks reservation before a removal command is persisted",
+    async (rule) => {
+      const t = await f.tree();
+      await f.settings({
+        cleanupSettled: rule === "archived",
+        cleanupMerged: rule === "merged",
+        cleanupUnchanged: rule === "unchanged",
+      });
+      await archivePastGrace(t.id);
+      expect((await f.entry(t.worktree!.id)).wouldRemove).toBe(true);
+      const handle = f.host.handleCommand.bind(f.host);
+      const store = await f.gw.runtime.runPromise(GatewayStore);
+      const reserve = store.reserveWorktreeRemoval;
+      let rearchived = false;
+      let reservations = 0;
+      let removals = 0;
+
+      // A reservation that is committed and then cancelled would still expose the durable command to replay.
+      const reservation = spyOn(store, "reserveWorktreeRemoval").mockImplementation((...args) =>
+        reserve(...args).pipe(
+          Effect.tap((row) =>
+            Effect.sync(() => {
+              if (row.id === t.worktree!.id) reservations++;
+            }),
+          ),
+        ),
+      );
+
+      f.host.handleCommand = async (command) => {
+        if (command.kind.case === "removeWorktree" && command.kind.value.target?.id === t.worktree!.id) removals++;
+        const result = await handle(command);
+
+        if (
+          !rearchived &&
+          command.kind.case === "scanWorktrees" &&
+          command.kind.value.fetch &&
+          command.kind.value.targets.some((target) => target.id === t.worktree!.id)
+        ) {
+          rearchived = true;
+          await f.gw.api.setThreadArchived({ threadId: t.id, archived: false });
+          await f.gw.api.setThreadArchived({ threadId: t.id, archived: true });
+        }
+
+        return result;
+      };
+
+      try {
+        const result = (await f.cleanup(false)).entries.find((e) => e.worktree?.id === t.worktree!.id)!;
+        expect(rearchived).toBe(true);
+        expect(result).toMatchObject({ removed: false, detail: "The cleanup policy no longer matches" });
+        expect(reservations).toBe(0);
+        expect(removals).toBe(0);
+
+        const rows = await f.sql(
+          (sql) =>
+            sql<{
+              removal_token: string | null;
+              removal_command: Uint8Array | null;
+              removal_started_at: Date | null;
+            }>`SELECT removal_token,removal_command,removal_started_at FROM worktrees
+            WHERE id=${t.worktree!.id}::uuid`,
+        );
+
+        expect(rows[0]).toMatchObject({ removal_token: null, removal_command: null, removal_started_at: null });
+        expect(await f.entry(t.worktree!.id)).toMatchObject({
+          wouldRemove: false,
+          detail: "Kept: archived less than 24 hours ago",
+        });
+        expect(existsSync(t.cwd)).toBe(true);
+      } finally {
+        f.host.handleCommand = handle;
+        reservation.mockRestore();
+      }
+    },
+  );
+
   test("worker rejects HEAD changes after closed-thread cleanup is reserved", async () => {
     const t = await f.tree();
     writeFileSync(join(t.cwd, "local.txt"), "discard only at the scanned HEAD\n");
     await f.settings({ cleanupSettled: true });
-    await f.gw.api.setThreadArchived({ threadId: t.id, archived: true });
+    await archivePastGrace(t.id);
     const handle = f.host.handleCommand.bind(f.host);
     let changed = false;
     f.host.handleCommand = async (command) => {
@@ -325,7 +405,7 @@ describe.skipIf(!dockerAvailable)("closed-thread worktree cleanup over gRPC", ()
     const t = await f.tree();
     writeFileSync(join(t.cwd, "local.txt"), "discard only while idle\n");
     await f.settings({ cleanupSettled: true });
-    await f.gw.api.setThreadArchived({ threadId: t.id, archived: true });
+    await archivePastGrace(t.id);
 
     // Inject after unload has finished closing orphan tasks, so the worker sees genuinely new activity.
     const unloaded = await eventually(

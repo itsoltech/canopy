@@ -23,6 +23,8 @@ export function cleanupReason(
   settings: ui.WorktreeSettings,
   now = new Date(),
 ): string {
+  if (row.archive_grace_period) return "Kept: archived less than 24 hours ago";
+
   if (settings.cleanupDeletedThreads && row.all_deleted) return "All threads deleted";
 
   // The proto field keeps its old name; the rule now covers archived threads only.
@@ -46,5 +48,5 @@ export function matchesCleanup(
   status: WorktreeStatus,
   settings: ui.WorktreeSettings,
 ): boolean {
-  return cleanupReason(row, status, settings) !== "No cleanup policy matches";
+  return !row.archive_grace_period && cleanupReason(row, status, settings) !== "No cleanup policy matches";
 }

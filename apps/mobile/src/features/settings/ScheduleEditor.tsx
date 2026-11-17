@@ -3,7 +3,7 @@ import { create } from "@bufbuild/protobuf";
 import { timestampDate, timestampFromDate, type Timestamp } from "@bufbuild/protobuf/wkt";
 import { ui } from "@canopy/contracts";
 import { useOverview } from "../../state/overview";
-import { Button, Field } from "../../ui/components";
+import { Button, Field, Notice } from "../../ui/components";
 import { SettingChoice } from "./SettingsGroup";
 import { ResourceState, useSettingsResource } from "./resource";
 import { SettingsModel } from "./SettingsModels";
@@ -56,12 +56,18 @@ export function ScheduleEditor({
   const workspace = project?.workspaces.find((row) => row.id === draft.newThread?.workspaceId);
   const workspaceHome = useComputerHome(splitId(workspace?.workerId ?? "").node);
 
+  const removed =
+    draft.target === "thread" &&
+    Boolean(overview.threads.find((row) => row.id === draft.threadId)?.worktree?.removedAt);
+
   const targetAway =
     draft.target === "thread"
       ? threadHome.away
       : workspaceHome.away || Boolean(project && projectAwayReason(project, overview.workers, overview.computers));
 
   const save = () => {
+    if (removed) return;
+
     const configuration = create(ui.CreateScheduleRequestSchema, {
       ...draft,
       when:
@@ -88,6 +94,7 @@ export function ScheduleEditor({
       <Field label="Name" value={draft.name} onChangeText={(name) => change({ name })} />
       <Field label="Message" multiline value={draft.prompt} onChangeText={(prompt) => change({ prompt })} />
       <ScheduleTarget draft={draft} change={change} />
+      {removed && <Notice>This worktree was removed. Choose another thread or continue in a new worktree.</Notice>}
       <SettingChoice
         title="When"
         value={kind}
@@ -136,7 +143,7 @@ export function ScheduleEditor({
         variant="primary"
         title={schedule ? "Save schedule" : template ? "Duplicate schedule" : "Create schedule"}
         busy={resource.busy}
-        disabled={home.away || targetAway || !complete({ draft, kind, date, cron, until })}
+        disabled={home.away || targetAway || removed || !complete({ draft, kind, date, cron, until })}
         onPress={save}
       />
     </ResourceState>
@@ -208,7 +215,7 @@ function ScheduleTarget({
           value={draft.threadId}
           onChange={(threadId) => change({ threadId })}
           options={threads
-            .filter((t) => !t.archivedAt)
+            .filter((t) => !t.archivedAt && !t.worktree?.removedAt)
             .map((t) => {
               const reason = t.nodeId
                 ? awayReason(

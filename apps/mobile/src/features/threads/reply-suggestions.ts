@@ -25,6 +25,7 @@ export function activeReplySource(snapshot: ui.ThreadSnapshot | undefined) {
     !thread ||
     thread.status !== "idle" ||
     thread.archivedAt ||
+    thread.worktree?.removedAt ||
     thread.deletedAt ||
     thread.rewindPending ||
     thread.import?.mode === "history"

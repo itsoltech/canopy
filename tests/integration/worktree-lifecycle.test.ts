@@ -31,6 +31,137 @@ describe.skipIf(!dockerAvailable)("worktree lifecycle over gRPC", () => {
     });
   });
 
+  test.each(["archived", "merged", "unchanged", "inactive"])(
+    "archive grace blocks %s cleanup until the 24-hour boundary",
+    async (rule) => {
+      const t = await f.tree();
+      await f.settings({
+        cleanupSettled: rule === "archived",
+        cleanupMerged: rule === "merged",
+        cleanupUnchanged: rule === "unchanged",
+        cleanupInactiveDays: rule === "inactive" ? 7 : 0,
+      });
+
+      if (rule === "archived") {
+        commit(t.cwd, "recoverable.txt");
+        writeFileSync(join(t.cwd, "local.txt"), "preserve during the archive delay");
+      }
+
+      if (rule === "inactive") {
+        const old = new Date(Date.now() - 10 * 86_400_000);
+        await f.sql((sql) => sql`UPDATE threads SET created_at=${old} WHERE id=${t.id}::uuid`);
+        await f.sql((sql) => sql`UPDATE worktrees SET last_used_at=${old} WHERE id=${t.worktree!.id}::uuid`);
+
+        for (const path of [
+          t.cwd,
+          git(t.cwd, "rev-parse", "--path-format=absolute", "--git-path", "index"),
+          git(t.cwd, "rev-parse", "--path-format=absolute", "--git-path", "logs/HEAD"),
+        ])
+          utimesSync(path, old, old);
+      }
+
+      if (rule !== "archived") expect((await f.entry(t.worktree!.id)).wouldRemove).toBe(true);
+      await f.gw.api.setThreadArchived({ threadId: t.id, archived: true });
+      expect(await f.entry(t.worktree!.id)).toMatchObject({
+        wouldRemove: false,
+        detail: "Kept: archived less than 24 hours ago",
+      });
+
+      for (const dryRun of [true, false]) {
+        const result = await f.gw.api.cleanupWorktrees({ projectId: f.project.id, workerId: f.workerId, dryRun });
+        expect(result.entries.find((e) => e.worktree?.id === t.worktree!.id)).toMatchObject({
+          wouldRemove: false,
+          removed: false,
+          detail: "Kept: archived less than 24 hours ago",
+        });
+        expect(existsSync(t.cwd)).toBe(true);
+      }
+
+      if (rule === "archived") {
+        await f.gw.core.worktreeCleanup.tick(f.workerId);
+        expect(existsSync(join(t.cwd, "local.txt"))).toBe(true);
+        expect((await f.entry(t.worktree!.id)).removed).toBe(false);
+      }
+
+      await f.sql((sql) => sql`UPDATE threads SET archived_at=now()-interval '23 hours' WHERE id=${t.id}::uuid`);
+      expect((await f.cleanup()).entries.find((e) => e.worktree?.id === t.worktree!.id)).toMatchObject({
+        wouldRemove: false,
+        detail: "Kept: archived less than 24 hours ago",
+      });
+      await f.sql((sql) => sql`UPDATE threads SET archived_at=now()-interval '24 hours' WHERE id=${t.id}::uuid`);
+      expect((await f.cleanup()).entries.find((e) => e.worktree?.id === t.worktree!.id)?.wouldRemove).toBe(true);
+      expect((await f.cleanup(false)).entries.find((e) => e.worktree?.id === t.worktree!.id)?.removed).toBe(true);
+      expect(existsSync(t.cwd)).toBe(false);
+    },
+  );
+
+  test("the latest nondeleted sharing archive controls grace and rearchival restarts it", async () => {
+    const t = await f.tree();
+
+    const shared = (
+      await f.gw.api.createThread({
+        projectId: f.project.id,
+        workspaceId: f.workspace.id,
+        provider: Provider.CODEX,
+        workspaceMode: ui.WorkspaceMode.EXISTING_WORKTREE,
+        worktreeId: t.worktree!.id,
+      })
+    ).thread!;
+
+    await f.settled(shared);
+    rmSync(join(t.cwd, "worker-started.txt"));
+    await f.settings({ cleanupSettled: true, cleanupMerged: true });
+    await f.gw.api.setThreadArchived({ threadId: t.id, archived: true });
+    expect(await f.entry(t.worktree!.id)).toMatchObject({
+      wouldRemove: false,
+      detail: "Kept: archived less than 24 hours ago",
+    });
+    await f.sql((sql) => sql`UPDATE threads SET archived_at=now()-interval '25 hours' WHERE id=${t.id}::uuid`);
+    expect(await f.entry(t.worktree!.id)).toMatchObject({
+      wouldRemove: true,
+      detail: "Branch merged into the default or base branch",
+    });
+    await f.gw.api.setThreadArchived({ threadId: shared.id, archived: true });
+    expect(await f.entry(t.worktree!.id)).toMatchObject({
+      wouldRemove: false,
+      detail: "Kept: archived less than 24 hours ago",
+    });
+    await f.sql((sql) => sql`UPDATE threads SET archived_at=now()-interval '25 hours' WHERE id=${shared.id}::uuid`);
+    expect((await f.entry(t.worktree!.id)).wouldRemove).toBe(true);
+    await f.gw.api.setThreadArchived({ threadId: shared.id, archived: false });
+    expect(await f.entry(t.worktree!.id)).toMatchObject({
+      wouldRemove: true,
+      detail: "Branch merged into the default or base branch",
+    });
+    await f.gw.api.setThreadArchived({ threadId: shared.id, archived: true });
+    expect((await f.cleanup(false)).entries.find((e) => e.worktree?.id === t.worktree!.id)).toMatchObject({
+      removed: false,
+      detail: "Kept: archived less than 24 hours ago",
+    });
+    expect(existsSync(t.cwd)).toBe(true);
+    await f.gw.api.deleteThread({ threadId: shared.id });
+    expect(await f.entry(t.worktree!.id)).toMatchObject({ wouldRemove: true, detail: "All threads archived" });
+    expect((await f.cleanup(false)).entries.find((e) => e.worktree?.id === t.worktree!.id)?.removed).toBe(true);
+  });
+
+  test("manual removal bypasses archive grace and still requires confirmation for local work", async () => {
+    const t = await f.tree();
+    const head = commit(t.cwd, "manual-recovery.txt");
+    writeFileSync(join(t.cwd, "local.txt"), "discard only after confirmation");
+    await f.settings({ cleanupSettled: true, deleteLocalBranch: true });
+    await f.gw.api.setThreadArchived({ threadId: t.id, archived: true });
+    expect(await f.entry(t.worktree!.id)).toMatchObject({
+      confirmationRequired: true,
+      wouldRemove: false,
+      detail: "Kept: archived less than 24 hours ago",
+    });
+    expect(await failure(f.remove(t.worktree!.id))).toContain("explicit confirmation");
+    expect(existsSync(t.cwd)).toBe(true);
+    expect(await f.remove(t.worktree!.id, true)).toMatchObject({ removed: true, branchDeleted: false });
+    expect(existsSync(t.cwd)).toBe(false);
+    expect(git(f.repo, "rev-parse", t.worktree!.branch)).toBe(head);
+  });
+
   test("unchanged policy: preview is read-only; execute removes and audits once, preserves history", async () => {
     const t = await f.tree();
     await f.settings({ cleanupUnchanged: true });
@@ -132,6 +263,7 @@ describe.skipIf(!dockerAvailable)("worktree lifecycle over gRPC", () => {
     await f.settings({ cleanupSettled: true });
     expect((await f.cleanup()).entries.find((e) => e.worktree?.id === t.worktree!.id)?.wouldRemove).toBe(false);
     await f.gw.api.setThreadArchived({ threadId: t.id, archived: true });
+    await f.sql((sql) => sql`UPDATE threads SET archived_at=now()-interval '25 hours' WHERE id=${t.id}::uuid`);
     expect((await f.cleanup(false)).entries.find((e) => e.worktree?.id === t.worktree!.id)?.removed).toBe(true);
   });
 
@@ -162,6 +294,7 @@ describe.skipIf(!dockerAvailable)("worktree lifecycle over gRPC", () => {
     writeFileSync(join(t.cwd, "local.txt"), "do not lose");
     await f.settings({ cleanupMerged: true, keepLocalChanges: false, deleteLocalBranch: true });
     await f.gw.api.setThreadArchived({ threadId: t.id, archived: true });
+    await f.sql((sql) => sql`UPDATE threads SET archived_at=now()-interval '25 hours' WHERE id=${t.id}::uuid`);
     const preview = (await f.cleanup()).entries.find((e) => e.worktree?.id === t.worktree!.id)!;
     expect(preview).toMatchObject({ confirmationRequired: true, wouldRemove: false });
     expect((await f.cleanup(false)).entries.find((e) => e.worktree?.id === t.worktree!.id)?.removed).toBe(false);
@@ -176,6 +309,7 @@ describe.skipIf(!dockerAvailable)("worktree lifecycle over gRPC", () => {
     const head = commit(t.cwd, "unpushed.txt");
     await f.settings({ cleanupMerged: true, deleteLocalBranch: true });
     await f.gw.api.setThreadArchived({ threadId: t.id, archived: true });
+    await f.sql((sql) => sql`UPDATE threads SET archived_at=now()-interval '25 hours' WHERE id=${t.id}::uuid`);
     expect((await f.entry(t.worktree!.id)).status?.unpushed).toBe(true);
     expect((await f.cleanup()).entries.find((e) => e.worktree?.id === t.worktree!.id)?.wouldRemove).toBe(false);
     expect(await failure(f.remove(t.worktree!.id))).toContain("explicit confirmation");
@@ -270,6 +404,7 @@ describe.skipIf(!dockerAvailable)("worktree lifecycle over gRPC", () => {
         sql`UPDATE interaction_requests SET status = 'expired', answered_at = now() WHERE thread_id = ${t.id}::uuid`,
     );
     await f.gw.api.setThreadArchived({ threadId: t.id, archived: true });
+    await f.sql((sql) => sql`UPDATE threads SET archived_at=now()-interval '25 hours' WHERE id=${t.id}::uuid`);
     expect((await f.cleanup(false)).entries.find((e) => e.worktree?.id === t.worktree!.id)?.removed).toBe(true);
   });
 

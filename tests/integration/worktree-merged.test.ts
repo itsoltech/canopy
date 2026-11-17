@@ -71,6 +71,9 @@ describe.skipIf(!dockerAvailable)("squash/rebase cleanup over gateway-worker gRP
     expect(before).toMatchObject({ wouldRemove: false, confirmationRequired: true });
     await f.settings({ cleanupSettled: true, deleteLocalBranch: true });
     await f.gw.api.setThreadArchived({ threadId: thread.id, archived: true });
+    await f.sql(
+      (sql) => sql`UPDATE threads SET archived_at = now() - interval '24 hours' WHERE id = ${thread.id}::uuid`,
+    );
 
     try {
       const preview = (await f.cleanup()).entries.find((e) => e.worktree?.id === thread.worktree!.id)!;

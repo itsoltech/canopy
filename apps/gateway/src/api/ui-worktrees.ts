@@ -1,3 +1,6 @@
+import { create } from "@bufbuild/protobuf";
+import { ui } from "@canopy/contracts";
+import { continueThreadInWorktree } from "../worktrees/continue-thread.ts";
 import { type GatewayCore } from "../core/core.ts";
 import { guard, toConnectError } from "./ui-errors.ts";
 import type { UiHandlers } from "./ui-service.ts";
@@ -16,6 +19,7 @@ export function worktreesHandlers(
   core: GatewayCore,
 ): Pick<
   UiHandlers,
+  | "continueThreadInWorktree"
   | "getWorktreeSettings"
   | "updateWorktreeSettings"
   | "listGitRefs"
@@ -50,6 +54,10 @@ export function worktreesHandlers(
   const watch = new ThreadWatch(core);
 
   return {
+    continueThreadInWorktree: (request) =>
+      guard(async () =>
+        create(ui.CreateThreadResponseSchema, { thread: await continueThreadInWorktree(core, request) }),
+      ),
     listWorkspaceBranches: (request) => guard(() => workspaceBranches.list(request)),
     switchWorkspaceBranch: (request) => guard(() => workspaceBranches.switch(request)),
     listThreadBranches: (request) => guard(() => branches.list(request)),

@@ -271,6 +271,9 @@ describe.skipIf(!dockerAvailable)("automation worktrees over gRPC", () => {
     await f.settled(thread);
     rmSync(join(thread.cwd, "worker-started.txt"));
     await f.gw.api.setThreadArchived({ threadId: thread.id, archived: true });
+    await f.sql(
+      (sql) => sql`UPDATE threads SET archived_at = now() - interval '24 hours' WHERE id = ${thread.id}::uuid`,
+    );
     await f.settings({ cleanupSettled: true, cleanupDeletedThreads: false });
     expect((await f.entry(thread.worktree!.id)).wouldRemove).toBe(true);
     expect((await f.cleanup(false)).entries.find((e) => e.worktree?.id === thread.worktree!.id)?.removed).toBe(true);

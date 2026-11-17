@@ -71,6 +71,7 @@ export function ThreadPanel({
   const stale =
     home.away || !online || syncStatus?.reason === "computer_unreachable" || !!panel.data?.stale || !!panel.error;
 
+  const removed = Boolean(thread?.worktree?.removedAt);
   const worker = workers.find((w) => w.id === thread?.workerId);
 
   const lineage = thread
@@ -117,11 +118,13 @@ export function ThreadPanel({
           {visible && (
             <View style={{ minWidth: 0 }}>
               <ThreadPullRequests thread={thread} onClose={onClose} />
-              <ThreadAutoArchive key={thread.id} thread={thread} disabled={stale} />
+              <ThreadAutoArchive key={thread.id} thread={thread} disabled={stale || removed} />
             </View>
           )}
-          {snapshot && <ThreadBackgroundTasks snapshot={snapshot} disabled={home.away || !online} onOpen={onClose} />}
-          {visible && <SecretGrants secrets={snapshot?.secrets ?? []} disabled={home.away || !online} />}
+          {snapshot && (
+            <ThreadBackgroundTasks snapshot={snapshot} disabled={home.away || !online || removed} onOpen={onClose} />
+          )}
+          {visible && <SecretGrants secrets={snapshot?.secrets ?? []} disabled={home.away || !online || removed} />}
           {snapshot && (
             <ThreadSchedules
               snapshot={snapshot}
@@ -131,11 +134,11 @@ export function ThreadPanel({
                   : snapshot.schedules
               }
               unavailable={!!panel.data?.unavailable}
-              disabled={stale}
+              disabled={stale || removed}
               onClose={onClose}
             />
           )}
-          <ThreadConnectors {...{ thread, panel }} disabled={stale} homeName={home.name} />
+          <ThreadConnectors {...{ thread, panel }} disabled={stale || removed} homeName={home.name} />
           {(lineage.length > 0 || subagents.length > 0) && (
             <ThreadPanelSection title="Lineage">
               {lineage.map((t) => (
