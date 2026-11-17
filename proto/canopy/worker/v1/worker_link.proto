@@ -533,6 +533,8 @@ message Command {
     InterruptTurn interrupt_bot_turn = 831;
     // Transient, active bot turn only; no model-selected host path.
     BotFileOperation bot_file = 832;
+    // Transient, bot_steer_v1; never replay a native write with an unknown outcome.
+    SteerBotTurn steer_bot_turn = 833;
     // Import z CLI agentów (cli_import.proto, docs/import.md). Nietrwałe: nigdy z outboxa.
     ScanImportSources scan_import_sources = 850;
     ReadImportPage read_import_page = 851;
@@ -853,6 +855,8 @@ message CommandResult {
   // Wynik ReadImportSecret.
   ImportSecretValue import_secret = 854;
   BotFileResult bot_file = 832;
+  // SteerBotTurn admission: {status: delivered|queued|unsupported}. Notices prove consumption.
+  string data_json = 833;
   AgentToolOutput agent_tool = 870;
   AgentToolsReport agent_tools = 871;
 }
@@ -1049,6 +1053,15 @@ message RunBotTurn {
   bool files = 15;
   // Puste = domyślne profilu; default = jawne standardowe wykonanie.
   string service_tier = 16;
+  // bot_conversations_v1: external conversation UUID; empty preserves the private bot session.
+  string conversation_id = 17;
+}
+
+message SteerBotTurn {
+  string bot_id = 1;
+  string turn_id = 2;
+  string input_id = 3;
+  string text = 4;
 }
 
 message BotFileOperation {

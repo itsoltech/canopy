@@ -3,6 +3,8 @@ import { bots, MentionKind, MentionSchema, type Mention, type ui } from "@canopy
 import { ConnectorFailure } from "../connectors/store.ts";
 import { connectorType } from "../connectors/catalog.ts";
 import { checkMentions, DEFAULT_BUS_LIMITS, mentionPlaceholder, type AttachmentLimits } from "@canopy/domain";
+import { finishChannelTurn } from "../messengers/store-outbound.ts";
+import { activeConversation } from "../messengers/conversation-access.ts";
 import { botImages, storedBotImage } from "./attachments.ts";
 import { Effect } from "effect";
 import { SqlClient } from "effect/sql";
@@ -49,6 +51,9 @@ function botEnqueue(
           (yield* sql<BotTurnKey>`SELECT id FROM bot_turns WHERE bot_id = ${botId}::uuid AND client_request_id = ${requestId}`)[0];
 
         if (previous) return previous.id;
+
+        if (options.conversationId && !(yield* activeConversation(sql, botId, options.conversationId)))
+          return yield* Effect.fail(new Invalid("Messenger subscription is no longer active"));
 
         const quotes = yield* botQuotes(
           sql,
@@ -135,8 +140,8 @@ function botEnqueue(
           : input;
 
         const inserted =
-          yield* sql<BotTurnKey>`INSERT INTO bot_turns(id, bot_id, client_request_id, input, hops, reply_to_bot_id, exchange_id, routine_id, routine_title)
-      VALUES (${turnId}::uuid, ${botId}::uuid, ${requestId}, ${storedInput}, ${options.hops ?? 0}, ${options.replyTo ?? null}::uuid, ${options.exchangeId ?? null}::uuid, ${options.routineId ?? null}::uuid, ${options.routineTitle ?? ""})
+          yield* sql<BotTurnKey>`INSERT INTO bot_turns(id, bot_id, client_request_id, input, hops, reply_to_bot_id, exchange_id, routine_id, routine_title, conversation_id)
+      VALUES (${turnId}::uuid, ${botId}::uuid, ${requestId}, ${storedInput}, ${options.hops ?? 0}, ${options.replyTo ?? null}::uuid, ${options.exchangeId ?? null}::uuid, ${options.routineId ?? null}::uuid, ${options.routineTitle ?? ""}, ${options.conversationId ?? null}::uuid)
       ON CONFLICT(bot_id, client_request_id) DO NOTHING RETURNING id`;
 
         const turn =
@@ -175,8 +180,10 @@ export function botQueue(sql: SqlClient.SqlClient, access: BotAccess) {
 
         if (text && !turn.routine_id && !turn.handoff_configuration)
           yield* sql`INSERT INTO bot_messages(id, bot_id, turn_id, message_key, sender_id, recipient_id, kind, text, exchange_id, error_code, error_source)
-      VALUES (${uuid()}::uuid, ${turn.bot_id}::uuid, ${turn.id}::uuid, 'answer', ${turn.bot_id}, ${turn.reply_to_bot_id ?? turn.remote_recipient_ref ?? "user"}, ${status === "completed" ? "message" : "event"}, ${text}, ${turn.exchange_id}::uuid, ${errorCode}, ${errorSource})
+      VALUES (${uuid()}::uuid, ${turn.bot_id}::uuid, ${turn.id}::uuid, 'answer', ${turn.bot_id}, ${turn.conversation_id ? "channel" : (turn.reply_to_bot_id ?? turn.remote_recipient_ref ?? "user")}, ${status === "completed" ? "message" : "event"}, ${text}, ${turn.exchange_id}::uuid, ${errorCode}, ${errorSource})
       ON CONFLICT(turn_id, message_key) DO NOTHING`;
+
+        if (turn.conversation_id) yield* finishChannelTurn(sql, turn, status, text);
         yield* sql`UPDATE bot_turns SET status = ${status}, lease_token = NULL, lease_until = NULL, finished_at = now() WHERE id = ${turn.id}::uuid`;
         yield* sql`UPDATE bot_approvals SET status = 'expired', answered_at = now() WHERE turn_id = ${turn.id}::uuid AND status = 'pending'`;
         yield* sql`UPDATE bots SET status_line = '', revision = revision + 1, updated_at = now() WHERE id = ${turn.bot_id}::uuid`;
@@ -220,11 +227,16 @@ export function botQueue(sql: SqlClient.SqlClient, access: BotAccess) {
   const routines = routineStore(sql, { owned, changed, enqueue });
 
   const originEnabled = (turn: BotTurn | undefined) =>
-    turn?.routine_id
-      ? sql`SELECT id FROM bot_routines WHERE id = ${turn.routine_id}::uuid AND enabled AND deleted_at IS NULL`.pipe(
-          Effect.map((r) => r.length > 0),
-        )
-      : Effect.succeed(true);
+    Effect.gen(function* () {
+      if (turn?.conversation_id && !(yield* activeConversation(sql, turn.bot_id, turn.conversation_id))) return false;
+
+      if (!turn?.routine_id) return true;
+
+      return (
+        (yield* sql`SELECT id FROM bot_routines WHERE id=${turn.routine_id}::uuid AND enabled AND deleted_at IS NULL`)
+          .length > 0
+      );
+    });
 
   return { enqueue, finish, routines, originEnabled };
 }

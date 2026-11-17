@@ -33,6 +33,7 @@ interface RoutineRow {
 export interface RoutineOrigin {
   routineId?: string;
   routineTitle?: string;
+  conversationId?: string;
 }
 
 export interface RoutinePatch {
@@ -77,8 +78,12 @@ export const routineView = (r: RoutineRow) =>
     runCount: r.run_count,
   });
 
-export const originOf = (turn: Pick<BotTurn, "routine_id" | "routine_title"> | undefined): RoutineOrigin =>
-  turn?.routine_id ? { routineId: turn.routine_id, routineTitle: turn.routine_title } : {};
+export const originOf = (
+  turn: Pick<BotTurn, "routine_id" | "routine_title" | "conversation_id"> | undefined,
+): RoutineOrigin => ({
+  ...(turn?.routine_id && { routineId: turn.routine_id, routineTitle: turn.routine_title }),
+  ...(turn?.conversation_id && { conversationId: turn.conversation_id }),
+});
 
 const checked = (patch: RoutinePatch, now: Date) =>
   Effect.try({

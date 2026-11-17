@@ -23,6 +23,7 @@ import {
   type TurnRow,
 } from "../store/index.ts";
 import { BotStore } from "../bots/store.ts";
+import { MessengerStore } from "../messengers/store.ts";
 import type { BotModel } from "../bots/types.ts";
 import { ActionContext } from "./action-context.ts";
 import { type GatewayUpdatesOptions } from "../updates/runtime.ts";
@@ -56,6 +57,7 @@ export type CoreServices =
   | BackgroundTaskStore
   | PrCheckWatchStore
   | BotStore
+  | MessengerStore
   | SqlClient.SqlClient;
 
 export type CoreRuntime = ManagedRuntime.ManagedRuntime<CoreServices, unknown>;
@@ -93,6 +95,8 @@ export interface GatewayCoreOptions {
   readonly backgroundGraceMs?: number;
   readonly botModel?: BotModel;
   readonly botClock?: () => Date;
+  /** Test-only Slack HTTP/socket transport; never supplied by an account or model. */
+  readonly messengerTransport?: import("../messengers/slack.ts").SlackTransport;
   readonly secretTtlMs?: number;
 }
 

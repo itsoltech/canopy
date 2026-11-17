@@ -41,6 +41,8 @@ export function workerCapabilities(options: { localWorker: boolean; fullAccess: 
     "generate_text",
     "bot_harness_v1",
     SERVICE_TIERS_CAPABILITY,
+    "bot_conversations_v1",
+    "bot_steer_v1",
     "bot_web_v1",
     "bot_workspace_v1",
     "bot_outgoing_files_v1",

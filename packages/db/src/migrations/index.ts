@@ -2,6 +2,7 @@
 /// <reference path="../sql-modules.d.ts" />
 import { Effect } from "effect";
 import { Migrator, SqlClient } from "effect/sql";
+import botChannels from "./0163_bot_channels.sql" with { type: "text" };
 import init from "./0001_init.sql" with { type: "text" };
 import videoAttachments from "./0135_video_attachments.sql" with { type: "text" };
 import threadVisuals from "./0139_thread_visuals.sql" with { type: "text" };
@@ -338,6 +339,7 @@ export const migrations = Migrator.fromRecord({
   "0160_agent_hop_policy": sqlFile(agentHopPolicy),
   "0161_thread_context_usage": sqlFile(threadContextUsage),
   "0162_service_tiers": sqlFile(serviceTiers),
+  "0163_bot_channels": sqlFile(botChannels),
 });
 
 /** Applies pending migrations in a transaction with a lock, safe to call from a deploy step. */

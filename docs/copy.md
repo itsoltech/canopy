@@ -96,6 +96,8 @@ appear only as the literal name used by an external tool).
 | directory | a directory on disk | folder (exception: a "skill folder" picked in the file manager) |
 | worktree | a git worktree, managed by Canopy or created outside it | branch copy, checkout |
 | bot | a conversational partner on the gateway that remembers the conversation | assistant, agent |
+| messenger account | a reusable Slack authorization for bot message events, managed in Bot settings → Messengers | connector, MCP account |
+| message route | a bot’s allowed senders, channels and response destination for a messenger account | subscription, webhook |
 | connected account | an external app account from Settings → Connectors | integration, service, app login |
 | allowed action | a standing bot approval rule explicitly saved by the owner | trusted prompt, automatic grant |
 | schedule | a scheduled message or wake-up | cron, job, timer |

@@ -1,9 +1,143 @@
 # Boty
 
-Status (2026-11-17): konfiguracja bota przenosi `service_tier` do `RunBotTurn`;
- na `dev` limit automatycznej wymiany wynosi 256 kroków;
-walidacja budżetu przed zgodą i diagnostyka wyników narzędzi są zaimplementowane.
+Status (2026-11-17): zaimplementowano trwałe rozmowy botów przez Slack Socket Mode,
+buforowanie, izolację historii kanałów i zwykłe przyznane narzędzia w turach zewnętrznych.
+Konfiguracja bota przenosi `service_tier` do `RunBotTurn`.
+Limit automatycznej wymiany wynosi 256 kroków; walidacja budżetu przed zgodą
+i diagnostyka wyników narzędzi są zaimplementowane.
 Dostępność nightly/beta/stable według [release.md](release.md).
+
+## Rozmowy przez komunikatory
+
+Gateway przechowuje osobne konta aplikacji Slack Socket Mode: jedna instalacja
+aplikacji w workspace może mieć wiele tras do botów. Token aplikacji i token bota
+są szyfrowane kluczem gatewaya; listy, protobuf, worker i model nie otrzymują tokenów.
+Konta Slack MCP pozostają niezależne. Walidacja obu tokenów i ich przynależności do
+aplikacji odbywa się przed zapisem przez API. Konsument konta utrzymuje odnawiany
+lease w PostgreSQL; nowy token lease odcina poprzedni proces także po restarcie.
+
+Właściciel wybiera dla każdej pary bot–konto listę kanałów, obowiązkową listę
+użytkowników, wiadomości prywatne, wzmianki i obserwowanie oraz sposób dostarczenia
+wyniku: odpowiedź w Slack albo celową notkę w prywatnej rozmowie bota. Pusta lista
+użytkowników nie otwiera dostępu wszystkim. Trasa nie odpowiada na autorów spoza
+listy, również we wcześniej otwartej rozmowie. Jeden kanał lub DM ma najwyżej jedną
+trasę odpowiadającą; niezależne trasy obserwujące mogą wysyłać właścicielowi notki.
+Dodatkowe instrukcje trasy uzupełniają personę bota. Usunięcie trasy/konta odcina
+odbiór i wysyłkę, zachowując wcześniejszą historię w jej zewnętrznym zakresie.
+Usunięcie kanału blokuje również odpowiedź już działającej tury i odbiór z outboxa;
+wiadomości oczekujące od odebranego autora nie wracają po ponownym dodaniu go do listy.
+
+Odpowiedź na wzmiankę w głównym kanale trafia do wątku tej wiadomości. Kolejne
+fragmenty tego samego autora bez wzmianki w głównym kanale dołączają do otwartego
+kontekstu; jawne odpowiedzi w tym wątku trafiają do tej samej rozmowy. Nowa wzmianka
+w kanale tworzy odrębny wątek. Obserwacja głównego kanału ma własną rozmowę,
+odrębną od jego wątków. Otwarcie kontekstu trwa 5 minut od ostatniej przyjętej
+wiadomości oraz przez czas aktywnej tury. DM ma osobny kontekst danego kanału DM.
+
+Wiadomości, autorzy, identyfikatory i kolejność odbioru są trwałe. Gateway usuwa
+duplikaty zarówno po identyfikatorze zdarzenia, jak i po wiadomości w rozmowie
+(`message` i `app_mention` mogą opisywać tę samą wiadomość). Zegar odbioru gatewaya,
+a nie czas klienta Slack, steruje buforem: rozmowa czeka 3 s ciszy, najwyżej 10 s;
+obserwator 10 s ciszy, najwyżej 30 s. Obserwacja rozpoczyna nowe tury nie częściej
+niż co 60 s; ten limit nie opóźnia uzupełniania już aktywnej tury tej samej rozmowy.
+Partia zawiera najwyżej 40 fragmentów i 32 kB wejścia. Długie wiadomości dzielą się
+na oznaczone części; pełna treść pozostaje w bazie, a dalsze części trafiają do
+kolejnych partii. Edycje aktualizują wyłącznie nieprzetworzone wiadomości z zachowaniem
+kolejności; usunięcia wycofują nieprzetworzone części. Nie powtarzają wykonanych działań.
+
+Kolejka serializuje pracę całego bota. Gotowa partia uruchamia turę z trwałym UUID
+rozmowy albo trafia przez pojedynczy, nietrwały `steer_bot_turn` do działającej tury
+**tej samej rozmowy**. Tylko zapisane w journalu `bot_steer_applied` potwierdza
+zużycie wejścia; odrzucone wejście czeka na kolejną turę. Nieznany wynik po restarcie
+nie powoduje ponowienia komendy steer. Po zakończeniu tury niepotwierdzone teksty
+wracają jako kolejna partia z informacją o niepewnym dostarczeniu i zakazem
+powtarzania już ukończonych działań.
+
+Historia modelu zewnętrznego obejmuje tylko dany UUID rozmowy. Prywatna rozmowa,
+handoff, lista botów, licznik nieprzeczytanych i podgląd generowania nie ujawniają
+surowej treści kanałów. Zewnętrzna tura korzysta ze zwykłych grantów connectorów
+oraz narzędzi pracy, w tym delegowania przez `start_thread`, a Web access i Files
+respektują konfigurację bota. Pliki pozostają w workspace danego UUID rozmowy.
+Subskrypcja wybiera źródło i trwałe instrukcje zachowania właściciela; nie tworzy
+mapowania kanał–narzędzia ani dodatkowych uprawnień. Prompt podaje konto, kanał
+i wątek, odróżnia zaufane instrukcje subskrypcji od niezaufanych wiadomości autorów
+i zakazuje automatycznego importowania prywatnej historii oraz handoffów.
+Gateway nadal egzekwuje politykę zgód i reguły Allowed actions; odwołanie grantu
+lub wyłączenie źródła blokuje nowe wywołania również w aktywnej turze.
+Tury zewnętrzne nie mogą zmieniać konfiguracji właściciela/bota, rutyn,
+subskrypcji ani grantów; narzędzia tych operacji nie trafiają do ich katalogu,
+a gateway odrzuca wywołania spoza niego. Nowe narzędzia platformy domyślnie
+pozostają prywatne. Świadome zgody i pytania `ask_user` pojawiają się wyłącznie
+w prywatnej rozmowie właściciela, z opisem konta/kanału/wątku zadania zewnętrznego,
+bez surowej historii kanału. Odpowiedź właściciela wraca do tej tury; pytania,
+karty, odpowiedzi i szczegóły grantów nie są automatycznie wysyłane do Slacka.
+O wyjaśnienia od autora wiadomości bot pyta zwykłą odpowiedzią w kanale.
+Trasa „Notify me” prosi o zwięzłe podsumowanie dla właściciela. Jej wynik tworzy
+osobną, ukończoną prywatną turę z notką; pełny wynik może pojawić się
+w prywatnej historii i handoff.
+To świadome dostarczenie wyniku, bez importowania całego kanału.
+
+Zakończenie tury zapisuje odpowiedź do outboxa w tej samej transakcji co jej wynik.
+Żadne wywołanie Slack nie działa wewnątrz transakcji. Osobny nadawca oznacza wpis
+jako wysyłany przed siecią; potwierdzony błąd przejściowy może odroczyć wysyłkę.
+Nieznany wynik zapisu lub przerwany proces nie powoduje automatycznego wysłania
+kolejnej kopii. Właściciel otrzymuje jedną prywatną notkę o niepotwierdzonym
+dostarczeniu albo o jawnej odmowie dostawcy; pełna odpowiedź pozostaje w outboxie.
+Przeniesienie bota nie przenosi kont, tras ani surowych zewnętrznych
+rozmów; cel otrzymuje prywatną historię wraz z jawnymi notkami, a kanały wymagają
+ponownego połączenia w domu docelowym.
+
+Testy `tests/integration/bot-channels.test.ts` sprawdzają szyfrowanie i zakres
+właściciela, fencing, restart bufora, autorów/kolejność, terminy, wzmiankę główną
+i jej wątek, izolację historii, fallback steer, notki obserwatora oraz nieznany
+wynik wysyłki. Adapter i przepływ przez gateway mają osobne testy integracyjne;
+atrapy nie dowodzą poprawności uprawnień konkretnej instalacji Slack.
+
+### Konfiguracja nasłuchiwania przez prywatną rozmowę
+
+Właściciel najpierw łączy aplikację Slack w Bot settings → Messengers. Instalacja
+wymaga `channels:read` i `groups:read` do wyszukiwania kanałów; po dodaniu tych
+scopes należy ponownie zainstalować aplikację i zaprosić ją do kanałów. Tokenów
+nie przekazuje się botowi. Bot odczytuje publiczne metadane kont przez
+`list_messenger_accounts`, a nazwy i identyfikatory kanałów przez
+`list_messenger_channels`. Odkrywanie korzysta z tokenu wyłącznie w gatewayu,
+pokazuje niearchiwalne kanały, do których aplikacja należy, i nie dołącza jej do
+nowych kanałów. Opcjonalna nazwa filtruje stronę; `next_cursor` trzeba kontynuować
+aż do pustego kursora, także gdy bieżąca strona nie zawiera dopasowania.
+
+`list_messenger_channel_members` odczytuje identyfikatory członków kanału, a
+`list_messenger_users` wyszukuje nazwy, nazwy użytkowników i nazwy wyświetlane
+bez przekazywania adresów e-mail ani pozostałych danych profilu. Obie listy są
+stronicowane. Bot może w ten sposób dopasować wskazane osoby do identyfikatorów
+Slack; przy kilku dopasowaniach albo niejasnej liście dozwolonych autorów pyta
+właściciela. Odczyt członkostwa nie nadaje wszystkim członkom prawa do uruchamiania
+bota i nie rozszerza zapisanej listy autorów.
+
+W prywatnej rozmowie można polecić botowi np. obserwowanie kanału produktu,
+zapisywanie ustaleń przyznanymi narzędziami oraz wyjaśnianie problemów z autorami.
+`save_messenger_subscription` utrwala pełną konfigurację: konto, kanały, obowiązkową
+listę dozwolonych autorów, wzmianki/obserwację/DM, dostarczenie `reply` lub `notify`
+i instrukcje reakcji. Wybór działań wynika z instrukcji i zwykłych uprawnień bota;
+trasa nie wiąże kanału z konkretnymi narzędziami. Pasujące wiadomości trafiają do
+opisanego wyżej bufora; model przetwarza gotowe partie z zachowaniem limitu
+częstotliwości nowych tur. Przetwarzanie partii zużywa tokeny również wtedy,
+gdy model uzna, że nie ma powodu do reakcji.
+
+`list_messenger_subscriptions` pokazuje wyłącznie własne trasy bota. Zapis bez
+identyfikatora aktualizuje jego trasę dla wybranego konta albo tworzy nową;
+przed zmianą należy odczytać istniejącą konfigurację i zachować pozostałe kanały
+oraz instrukcje. `stop_messenger_subscription` usuwa własną trasę i odcina jej
+odbiór oraz oczekujące odpowiedzi. Zapis/usunięcie i wynik wywołania zatwierdzają się
+w jednej transakcji, więc ponowienie tego samego wywołania po restarcie nie
+powtarza mutacji ani nie nadpisuje późniejszych zmian.
+
+Wszystkie narzędzia administracji komunikatorami wymagają prywatnej wiadomości
+właściciela. Gateway sprawdza zapisane pochodzenie tury i autora, także przy
+bezpośrednim wywołaniu: kanał, inny bot, wymiana automatyczna, rutyna i handoff
+nie mogą zmieniać nasłuchiwania ani odkrywać kont. Autoryzacja nie opiera się na
+treści promptu. Testy `tests/integration/bot-messenger-setup.test.ts` obejmują
+odkrywanie bez poświadczeń w wyniku, paginację, trwałe instrukcje, idempotencję,
+zakres własnego bota oraz odrzucenie nieuprawnionego pochodzenia.
 
 ## Bezczynna kolejka
 

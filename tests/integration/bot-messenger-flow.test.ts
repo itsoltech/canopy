@@ -1,0 +1,220 @@
+import { expect, test } from "bun:test";
+import { Provider, type ui } from "@canopy/contracts";
+import { dockerAvailable } from "@canopy/db/testing";
+import { eventually } from "./support/gateway.ts";
+import { harnessBots, type HarnessBots } from "./support/harness-bots.ts";
+import { slackMessengerFixture } from "./support/slack-messenger.ts";
+
+async function refusedMessage(
+  f: HarnessBots,
+  slack: ReturnType<typeof slackMessengerFixture>,
+  botId: string,
+  advance: () => void,
+) {
+  slack.refuseNextSend("msg_too_long");
+  slack.emit("event-refused", "<@UAPP> a reply that Slack rejects", "300.1", "300.1");
+  expect(await eventually(async () => slack.acknowledged.has("event-refused"), Boolean)).toBe(true);
+  advance();
+  await f.gw.core.messengers.tick();
+
+  const notices = await eventually(
+    () => f.read(botId),
+    (r) => r.messages.some((m) => m.text.includes("The reply was not sent")),
+  );
+
+  expect(notices.messages.some((m) => m.text.includes("The reply was not sent"))).toBe(true);
+  slack.emit("event-after-refused", "<@UAPP> another question", "400.1", "400.1");
+  expect(await eventually(async () => slack.acknowledged.has("event-after-refused"), Boolean)).toBe(true);
+  advance();
+  await f.gw.core.messengers.tick();
+  expect(
+    await eventually(
+      async () => slack.sent.length,
+      (n) => n === 5,
+    ),
+  ).toBe(5);
+  expect(slack.sent.at(-1)!.get("thread_ts")).toBe("400.1");
+  expect(
+    await eventually(
+      async () => f.query<{ status: string }>("SELECT status FROM messenger_outbound WHERE thread_id='400.1'"),
+      (r) => r[0]?.status === "sent",
+    ),
+  ).toEqual([{ status: "sent" }]);
+}
+
+async function changedInstructions(
+  f: HarnessBots,
+  slack: ReturnType<typeof slackMessengerFixture>,
+  route: ui.BotMessengerRoute,
+  advance: () => void,
+) {
+  const before = f.records().findLast((r) => r.event === "turn" && r.home.includes("/conversations/"))!;
+  await f.gw.api.saveBotMessengerRoute({ route: { ...route, instructions: "Answer with the revised instructions." } });
+  slack.emit("event-revised", "Continue after the instruction change", "100.4", "100.1");
+  expect(await eventually(async () => slack.acknowledged.has("event-revised"), Boolean)).toBe(true);
+  advance();
+  await f.gw.core.messengers.tick();
+  expect(
+    await eventually(
+      async () => slack.sent.length,
+      (n) => n === 2,
+    ),
+  ).toBe(2);
+  const after = f.records().findLast((r) => r.event === "turn" && r.home.includes("/conversations/"))!;
+
+  expect(after.home).toBe(before.home);
+  expect(after.session).not.toBe(before.session);
+  expect(
+    f
+      .inputs()
+      .at(-1)!
+      .parts.map((p) => p.text ?? "")
+      .join("\n"),
+  ).toContain("Only Safari");
+}
+
+test.skipIf(!dockerAvailable)(
+  "Socket Mode buffers messages, steers a live harness and keeps conversations private",
+  async () => {
+    const slack = slackMessengerFixture();
+    let clockOffset = 0;
+
+    const f = await harnessBots({
+      messengerTransport: slack.transport,
+      botClock: () => new Date(Date.now() + clockOffset),
+    });
+
+    try {
+      const bot = await f.add(Provider.CODEX);
+      await f.send(bot.id, "PRIVATE_OWNER_CONTEXT");
+      expect((await f.settled(bot.id)).messages.at(-1)?.text).toBe("FIXTURE_OK");
+
+      const account = (
+        await f.gw.api.saveMessengerAccount({
+          name: "Fixture Slack",
+          appToken: "xapp-fixture",
+          botToken: "xoxb-fixture",
+        })
+      ).account!;
+
+      const route = (
+        await f.gw.api.saveBotMessengerRoute({
+          route: {
+            botId: bot.id,
+            accountId: account.id,
+            channelIds: ["CGENERAL"],
+            userIds: ["UOWNER"],
+            directMessages: false,
+            mentions: true,
+            observe: false,
+            delivery: "reply",
+            instructions: "Answer the conversation.",
+          },
+        })
+      ).route!;
+
+      f.gw.core.messengers.start();
+      await eventually(
+        () => f.gw.api.listMessengerAccounts({}),
+        (r) => r.accounts.some((a) => a.status === "connected"),
+      );
+
+      slack.emit("event-1", "<@UAPP> HOLD:messenger check login", "100.1");
+      slack.emit("event-2", "on production", "100.2");
+      await eventually(
+        async () => slack.acknowledged.size,
+        (n) => n === 2,
+      );
+      expect(slack.acknowledged.size).toBe(2);
+      expect(f.inputs()).toHaveLength(1);
+      clockOffset += 4000;
+      await f.gw.core.messengers.tick();
+      await eventually(
+        async () => f.inputs(),
+        (r) => r.some((i) => i.parts.some((p) => p.text?.includes("HOLD:messenger"))),
+        10_000,
+      );
+
+      const initial = f
+        .inputs()
+        .at(-1)!
+        .parts.map((p) => p.text ?? "")
+        .join("\n");
+
+      expect(initial).toContain("HOLD:messenger");
+      expect(initial).toContain("on production");
+      expect(initial).not.toContain("PRIVATE_OWNER_CONTEXT");
+
+      slack.emit("event-3", "Only Safari is affected", "100.3");
+      await eventually(async () => slack.acknowledged.has("event-3"), Boolean);
+      clockOffset += 4000;
+      await f.gw.core.messengers.tick();
+      await eventually(
+        async () => f.records(),
+        (r) => r.some((p) => p.event === "turn/steer"),
+      );
+
+      const consumed = await eventually(
+        () => f.query<{ state: string }>("SELECT state FROM bot_channel_messages WHERE source_message_id='100.3'"),
+        (r) => r[0]?.state === "consumed",
+      );
+
+      expect(consumed[0]?.state).toBe("consumed");
+      expect(
+        f
+          .inputs()
+          .at(-1)!
+          .parts.some((p) => p.text?.includes("Only Safari")),
+      ).toBe(true);
+
+      const turns = await f.query<{ count: string }>(
+        "SELECT count(*)::text AS count FROM bot_turns WHERE conversation_id IS NOT NULL",
+      );
+
+      expect(turns[0]?.count).toBe("1");
+
+      await f.release("messenger");
+      await eventually(
+        async () => slack.sent.length,
+        (n) => n === 1,
+      );
+      expect(slack.sent[0]!.get("thread_ts")).toBe("100.1");
+      expect(slack.sent[0]!.get("text")).toContain("FIXTURE_OK");
+      const privateChat = await f.read(bot.id);
+
+      expect(
+        privateChat.messages.some((m) => m.text.includes("HOLD:messenger") || m.text.includes("Only Safari")),
+      ).toBe(false);
+
+      await changedInstructions(f, slack, route, () => {
+        clockOffset += 4000;
+      });
+
+      slack.emit("event-4", "<@UAPP> a separate question", "200.1", "200.1");
+      await eventually(async () => slack.acknowledged.has("event-4"), Boolean);
+      clockOffset += 4000;
+      await f.gw.core.messengers.tick();
+      await eventually(
+        async () => slack.sent.length,
+        (n) => n === 3,
+      );
+
+      const separate = f
+        .inputs()
+        .at(-1)!
+        .parts.map((p) => p.text ?? "")
+        .join("\n");
+
+      expect(separate).toContain("a separate question");
+      expect(separate).not.toContain("Only Safari");
+      expect(separate).not.toContain("PRIVATE_OWNER_CONTEXT");
+      await refusedMessage(f, slack, bot.id, () => {
+        clockOffset += 4000;
+      });
+    } finally {
+      await f.close();
+      await slack.close();
+    }
+  },
+  60_000,
+);

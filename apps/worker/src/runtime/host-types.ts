@@ -30,6 +30,7 @@ export type DirectoryEntryInit = MessageInitShape<typeof DirectoryEntrySchema>;
 export type ProfileModelsInit = MessageInitShape<typeof ProfileModelsSchema>;
 
 export interface CommandOutput {
+  readonly dataJson?: string;
   readonly rewind?: MessageInitShape<typeof CommandResultSchema>["rewind"];
   readonly threadImageExport?: MessageInitShape<typeof CommandResultSchema>["threadImageExport"];
   readonly botFile?: MessageInitShape<typeof CommandResultSchema>["botFile"];

@@ -198,6 +198,8 @@ export class CommandHandlers {
     switch (kind.case) {
       case "runBotTurn":
         return this.ctx.ops.runBotTurn(kind.value, command.commandId);
+      case "steerBotTurn":
+        return this.ctx.ops.steerBotTurn(kind.value);
       case "botFile":
         return this.ctx.ops.botFile(kind.value);
       case "interruptBotTurn":

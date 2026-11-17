@@ -1,19 +1,15 @@
 import { statSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
-import { Cause, Deferred, Effect, Exit, Stream } from "effect";
-import { ItemDeltaField, ItemStatus } from "@canopy/contracts";
+import { Cause, Deferred, Effect, Exit } from "effect";
 import { CodexAppServer } from "../providers/codex/app-server.ts";
 import { codexAppServerLaunch, codexThreadProvider, type CodexAppServerLaunch } from "../providers/codex/launch.ts";
 import { codexTextOverrides } from "../providers/generate-text.ts";
 import { codexBotCatalog, codexModelEntry } from "./codex-catalog.ts";
-import { codexUsage } from "../providers/usage-limits.ts";
 import type { BotHarnessContext } from "./types.ts";
 import { BotHarnessFailure } from "./types.ts";
-import { codexErrorCode } from "../providers/codex/status-mapping.ts";
-import { decodeJson } from "../providers/json.ts";
 import { isolatedHomeEnvironment } from "../providers/home.ts";
 import { verifyCodexBotTier } from "./codex-service-tier.ts";
-import { rejectBotToolApproval } from "./failures.ts";
+import { codexBotEvents } from "./codex-events.ts";
 
 async function botCodexLaunch(ctx: BotHarnessContext): Promise<CodexAppServerLaunch> {
   const { input, session } = ctx;
@@ -51,10 +47,6 @@ async function botCodexLaunch(ctx: BotHarnessContext): Promise<CodexAppServerLau
       "features.skip_host_skill_discovery=true",
     ],
   };
-}
-
-function codexFailure(error: import("@canopy/codex-protocol").v2.TurnError | null | undefined) {
-  return new BotHarnessFailure(codexErrorCode(decodeJson(error?.codexErrorInfo)) || "HARNESS_ERROR", error?.message);
 }
 
 function botThreadParams(ctx: BotHarnessContext) {
@@ -102,66 +94,8 @@ function codexBotProgram(ctx: BotHarnessContext, launch: CodexAppServerLaunch) {
     yield* Effect.forkScoped(
       server.exited.pipe(Effect.flatMap(() => Deferred.fail(done, new BotHarnessFailure("process_exit")))),
     );
-    let id = "";
-    yield* Effect.forkScoped(
-      server.notifications.pipe(
-        Stream.runForEach((event) => {
-          if (event.method === "account/rateLimits/updated")
-            return Effect.sync(() => ctx.onUsage?.(codexUsage(event.params.rateLimits)));
-
-          if (!("threadId" in event.params) || event.params.threadId !== id) return Effect.void;
-
-          if (
-            event.method === "item/completed" &&
-            event.params.item.type === "mcpToolCall" &&
-            event.params.item.server === "canopy" &&
-            /MCP tool call requires approval|approval required.*approval policy.*never/i.test(
-              event.params.item.error?.message ?? "",
-            )
-          )
-            return Effect.tryPromise({
-              try: () => rejectBotToolApproval(ctx),
-              catch: () => new BotHarnessFailure("tool_approval"),
-            }).pipe(Effect.catch((error) => Deferred.fail(done, error)));
-
-          if (event.method === "item/agentMessage/delta")
-            return Effect.promise(() =>
-              ctx.record({
-                body: {
-                  case: "itemDelta",
-                  value: { itemId: event.params.itemId, field: ItemDeltaField.TEXT, chunk: event.params.delta },
-                },
-              }),
-            );
-
-          if (event.method === "item/completed" && event.params.item.type === "agentMessage") {
-            const item = event.params.item;
-
-            return Effect.promise(() =>
-              ctx.record({
-                body: {
-                  case: "itemCompleted",
-                  value: {
-                    item: {
-                      itemId: item.id,
-                      status: ItemStatus.COMPLETED,
-                      content: { case: "agentMessage", value: { text: item.text } },
-                    },
-                  },
-                },
-              }),
-            );
-          }
-
-          if (event.method === "turn/completed")
-            return event.params.turn.status === "completed"
-              ? Deferred.succeed(done, undefined)
-              : Deferred.fail(done, codexFailure(event.params.turn.error));
-
-          return Effect.void;
-        }),
-      ),
-    );
+    const native = { id: "", turn: "", completed: false };
+    yield* Effect.forkScoped(codexBotEvents(ctx, server, done, native));
 
     const params = botThreadParams(ctx);
 
@@ -181,7 +115,8 @@ function codexBotProgram(ctx: BotHarnessContext, launch: CodexAppServerLaunch) {
       resumed ??
       (yield* server.request("thread/start", { ...params, ephemeral: false, dynamicTools: [], environments: [] }));
 
-    id = started.thread.id;
+    const id = started.thread.id;
+    native.id = id;
     session.save(id);
     const path = started.thread.path || "";
 
@@ -208,9 +143,23 @@ function codexBotProgram(ctx: BotHarnessContext, launch: CodexAppServerLaunch) {
       sandboxPolicy: { type: "readOnly", networkAccess: false },
     });
 
+    native.turn = turn.turn.id;
+
     yield* Effect.promise(() =>
       ctx.noteHarness({ harness: "codex", transcript: path, sessionId: id, offset, providerTurn: turn.turn.id }),
     );
+    ctx.steering?.ready(async (inputId, text) => {
+      if (native.completed || ctx.signal.aborted) throw new Error("Bot turn ended");
+      await Effect.runPromise(
+        server.request("turn/steer", {
+          threadId: id,
+          expectedTurnId: native.turn,
+          clientUserMessageId: inputId,
+          input: [{ type: "text", text, text_elements: [] }],
+        }),
+        { signal: ctx.signal },
+      );
+    });
     yield* Deferred.await(done);
   }).pipe(
     Effect.provide(

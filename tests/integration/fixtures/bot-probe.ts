@@ -22,6 +22,22 @@ const ContextProbe = Schema.Struct({
   names: Schema.Array(Schema.String),
 });
 
+const MessengerMessage = Schema.fromJsonString(
+  Schema.Struct({ author: Schema.String, timestamp: Schema.String, text: Schema.String }),
+);
+
+/** The fake model reads the same structured external message envelope as real harnesses. */
+function messengerInput(text: string): string {
+  try {
+    return (text.split("\n\n")[0] ?? text)
+      .split("\n")
+      .map((line) => Schema.decodeSync(MessengerMessage)(line).text)
+      .join("\n");
+  } catch {
+    return text;
+  }
+}
+
 /** Controlled fixture prompts only; no environment, configuration, headers or credentials. */
 export function botContexts(trace: string): (typeof ContextProbe.Type)[] {
   return existsSync(trace)
@@ -77,7 +93,7 @@ export function codexBotConfig(config: Schema.Json) {
 
 export async function botTool(text: string, server: typeof Mcp.Type | undefined, instructions = ""): Promise<string> {
   const prompt = text;
-  text = text.split("\n\nCurrent input:\n").at(-1) ?? text;
+  text = messengerInput(text.split("\n\nCurrent input:\n").at(-1) ?? text);
   const trace = process.env["BOT_TRACE"];
 
   if (server && trace && text.includes("PROBE_CONTEXT")) {

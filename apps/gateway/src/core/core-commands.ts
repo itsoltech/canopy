@@ -134,18 +134,7 @@ async function deliverCommand(
   )
     return;
 
-  if (command.kind.case === "runBotTurn" && !connection.hello.capabilities.includes("bot_harness_v1")) return;
-
-  if (
-    command.kind.case === "runBotTurn" &&
-    (command.kind.value.attachments.length || command.kind.value.historyAttachments.length) &&
-    !connection.hello.capabilities.includes(
-      [...command.kind.value.attachments, ...command.kind.value.historyAttachments].some((a) => a.kind !== "image")
-        ? "bot_files_v1"
-        : "bot_images_v1",
-    )
-  )
-    return;
+  if (!botCommandSupported(command, connection.hello.capabilities)) return;
 
   if (
     command.kind.case === "runBotTurn" &&
@@ -274,6 +263,21 @@ function capabilityRefusal(capabilities: readonly string[], command: Command): C
     });
 
   return fullAccessRefusal(capabilities, command) ?? serviceTierRefusal(capabilities, command);
+}
+
+function botCommandSupported(command: Command, capabilities: readonly string[]): boolean {
+  if (command.kind.case !== "runBotTurn") return true;
+  const input = command.kind.value;
+
+  if (!capabilities.includes("bot_harness_v1")) return false;
+
+  if (input.conversationId && !capabilities.includes("bot_conversations_v1")) return false;
+  const attachments = [...input.attachments, ...input.historyAttachments];
+
+  return (
+    !attachments.length ||
+    capabilities.includes(attachments.some((a) => a.kind !== "image") ? "bot_files_v1" : "bot_images_v1")
+  );
 }
 
 function lifecycleCommand(command: Command): boolean {

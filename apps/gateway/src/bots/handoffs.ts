@@ -52,7 +52,7 @@ export function handoffStore(sql: SqlClient.SqlClient) {
 
         // A single accepted human message is meaningful knowledge, even without a reply yet.
         const history =
-          yield* sql`SELECT id FROM bot_turns WHERE bot_id = ${botId}::uuid AND handoff_configuration IS NULL LIMIT 1`;
+          yield* sql`SELECT id FROM bot_turns WHERE bot_id = ${botId}::uuid AND handoff_configuration IS NULL AND conversation_id IS NULL LIMIT 1`;
 
         if (!history.length) return;
 
@@ -76,7 +76,7 @@ export function handoffStore(sql: SqlClient.SqlClient) {
           input: string;
           checkpoint: ModelMessage[];
           routine_title: string;
-        }>`SELECT input, checkpoint, routine_title FROM bot_turns WHERE bot_id = ${turn.bot_id}::uuid AND id <> ${turn.id}::uuid AND handoff_configuration IS NULL ORDER BY created_at DESC, id DESC LIMIT 12`;
+        }>`SELECT input, checkpoint, routine_title FROM bot_turns WHERE bot_id = ${turn.bot_id}::uuid AND id <> ${turn.id}::uuid AND handoff_configuration IS NULL AND conversation_id IS NULL ORDER BY created_at DESC, id DESC LIMIT 12`;
 
         const excerpts = audit.map((r) => {
           // Checkpoints include the entire visible history. Preserve this turn's own
@@ -102,7 +102,7 @@ export function handoffStore(sql: SqlClient.SqlClient) {
         const messages = yield* sql<{
           sender_id: string;
           text: string;
-        }>`SELECT sender_id, text FROM (SELECT seq, sender_id, text FROM bot_messages WHERE bot_id = ${turn.bot_id}::uuid AND sender_id <> 'self' ORDER BY seq DESC LIMIT 60) recent ORDER BY seq`;
+        }>`SELECT sender_id, text FROM (SELECT m.seq, m.sender_id, m.text FROM bot_messages m JOIN bot_turns t ON t.id=m.turn_id WHERE m.bot_id = ${turn.bot_id}::uuid AND t.conversation_id IS NULL AND m.sender_id <> 'self' ORDER BY seq DESC LIMIT 60) recent ORDER BY seq`;
 
         const previous = yield* latest(turn.bot_id);
         const pending = yield* state(turn.bot_id, true);

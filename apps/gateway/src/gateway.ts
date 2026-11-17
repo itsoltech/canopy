@@ -235,6 +235,8 @@ core.backgroundTasks.start();
 
 core.bots.start();
 
+core.messengers.start();
+
 await core.updates.start();
 
 core.updateCenter.start();
@@ -254,6 +256,7 @@ async function stop(presence = "shutting_down") {
   await maintenance.stop();
   await core.stopSweep();
   core.backgroundTasks.stop();
+  await core.messengers.stop();
   await core.bots.stop();
   await core.link.shutdown();
   await core.diagnostics.stop();

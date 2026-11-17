@@ -10,7 +10,19 @@ Lease z tokenem blokuje zapis starego wykonawcy; platformowe efekty i wyniki są
 atomowe. MCP przerwane awarią wraca jako `interrupted`, bez ponowienia.
 Szczegóły implementacji i testów: [bots.md](bots.md#3-wykonanie-i-odtwarzanie).
 
-Status: **w części zaimplementowany** (2026-11-16), w tym trwałe przypisanie domu sesji Claude i ochrona jego historii podczas purge; pozostałe plany oznaczono w sekcjach. Wymaganie: zatrzymanie lub aktualizacja dowolnego procesu nie gubi stanu i nie kończy się błędem widocznym dla użytkownika. Wyjątkiem jest tura agenta przerwana twardym zabiciem procesu (patrz [macierz awarii](#9-macierz-awarii)).
+Kanały botów Slack mają trwały inbox, deduplikację zdarzeń, zegary buforów
+i outbox odpowiedzi. Socket Mode potwierdza zdarzenie dopiero po commicie;
+lease konta z tokenem odcina starego odbiorcę. Steer jest nietrwały i nie jest
+ponawiany po utracie odpowiedzi. Zapisane potwierdzenie harnessu rozstrzyga
+konsumpcję, a niepotwierdzona paczka po zakończeniu tury wraca jako kolejne
+wejście z informacją o niepewnym dostarczeniu. Nieznany wynik wysyłki do Slacka
+pozostaje niepewny, bez automatycznego ponowienia wiadomości.
+Konfiguracja nasłuchiwania i instrukcje reakcji zapisane przez bota są atomowe
+z wynikiem jego narzędzia i deduplikowane po wywołaniu. Wynik zleconej pracy
+dziedziczy UUID rozmowy źródłowej; usunięcie subskrypcji blokuje późniejsze
+doręczenie zamiast przenosić je do prywatnego czatu.
+
+Status: **w części zaimplementowany** (2026-11-17), w tym trwały odbiór kanałów Slack, potwierdzenia aktualizacji botów oraz trwałe przypisanie domu sesji Claude i ochrona jego historii podczas purge; pozostałe plany oznaczono w sekcjach. Wymaganie: zatrzymanie lub aktualizacja dowolnego procesu nie gubi stanu i nie kończy się błędem widocznym dla użytkownika. Wyjątkiem jest tura agenta przerwana twardym zabiciem procesu (patrz [macierz awarii](#9-macierz-awarii)).
 
 Powiązane: [architecture.md](architecture.md), [protocol.md](protocol.md), [data-model.md](data-model.md).
 

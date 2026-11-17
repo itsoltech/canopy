@@ -14,7 +14,10 @@ import type { GatewayCore } from "./core.ts";
 import { workerThreadSnapshot } from "./worker-thread-lifecycle.ts";
 import { SERVICE_TIERS_UNSUPPORTED, supportsServiceTier } from "./service-tier-compatibility.ts";
 
-const configurationKey = (configuration: ModelInput["configuration"]) =>
+const configurationKey = (
+  configuration: ModelInput["configuration"],
+  conversation?: { instructions: string; delivery: "reply" | "notify" },
+) =>
   createHash("sha256")
     .update(
       JSON.stringify({
@@ -23,6 +26,7 @@ const configurationKey = (configuration: ModelInput["configuration"]) =>
         approvalPolicy: configuration.approvalPolicy,
         webAccess: configuration.webAccess ?? true,
         files: configuration.files ?? true,
+        conversation: conversation && { instructions: conversation.instructions, delivery: conversation.delivery },
       }),
     )
     .digest("hex");
@@ -161,6 +165,13 @@ export async function runBotHarness(core: GatewayCore, input: ModelInput): Promi
     await waitForBotInterrupt(core, input, workerId, turn.bot_id);
     const connection = core.link.connections.get(workerId);
 
+    if (turn.conversation_id && connection?.isOpen && !connection.hello.capabilities.includes("bot_conversations_v1"))
+      throw new ProviderFailure(
+        "configuration",
+        "Update this worker to receive messages from external conversations.",
+        "platform",
+      );
+
     if (connection?.isOpen && !connection.hello.capabilities.includes("bot_harness_v1"))
       throw new ProviderFailure("configuration", "Update this worker to run bots, or pick another worker.", "platform");
     const worker = (await coreWorkers(core)).find((w) => w.id === workerId);
@@ -177,6 +188,7 @@ export async function runBotHarness(core: GatewayCore, input: ModelInput): Promi
       );
     await run((s) => s.assignWorker(core[coreState].options.userId, turn.bot_id, workerId));
     const images = await botTurnInput(core, input, workerId, turn.bot_id);
+    const conversation = await run((s) => s.conversationContext(turn));
 
     const command = await run((s) =>
       s.harnessCommand(
@@ -195,7 +207,8 @@ export async function runBotHarness(core: GatewayCore, input: ModelInput): Promi
               effort: input.configuration.effort,
               serviceTier: input.configuration.serviceTier,
               instructions: input.instructions,
-              configurationKey: configurationKey(input.configuration),
+              configurationKey: configurationKey(input.configuration, conversation),
+              conversationId: turn.conversation_id ?? "",
               webAccess: !turn.handoff_configuration && (input.configuration.webAccess ?? true),
               files: !turn.handoff_configuration && (input.configuration.files ?? true),
               ...images,

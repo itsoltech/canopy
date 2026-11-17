@@ -79,6 +79,8 @@ export interface BotRow {
 }
 
 export interface BotTurn {
+  /** Null for the private owner conversation; external history is scoped to this UUID. */
+  conversation_id?: string | null;
   id: string;
   bot_id: string;
   input: string;

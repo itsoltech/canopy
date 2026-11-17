@@ -27,6 +27,7 @@ import { BotsRuntime } from "../bots/runtime.ts";
 import { ThreadSecrets } from "./thread-secrets.ts";
 import { ActionContext } from "./action-context.ts";
 import { ConnectorsRuntime } from "../connectors/runtime.ts";
+import { MessengerRuntime } from "../messengers/runtime.ts";
 import { WorkerAdministration } from "./worker-administration.ts";
 import { MobileDevices } from "./mobile-devices.ts";
 import { DesktopControl } from "../desktop-updates/control.ts";
@@ -227,6 +228,7 @@ export class GatewayCore {
   readonly environment: AgentEnvironment;
 
   readonly connectors: ConnectorsRuntime;
+  readonly messengers: MessengerRuntime;
   readonly github: GitHubAccounts;
   #githubDetection: GitHubDetection | undefined;
   get githubDetection() {
@@ -307,6 +309,7 @@ export class GatewayCore {
     this.github = createCoreGitHub(this, options);
     this.bots = createCoreBots(this, options);
     this.link = createCoreWorkerLink(this);
+    this.messengers = new MessengerRuntime(this, options);
     this.updates = createCoreUpdates(this, options);
     this.workers = new WorkerAdministration({
       runtime: options.runtime,

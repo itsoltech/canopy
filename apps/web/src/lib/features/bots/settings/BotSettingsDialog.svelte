@@ -25,6 +25,7 @@
   import BotWorkerField from "../wizard/BotWorkerField.svelte";
   import { botInstancesOnWorker } from "../live.ts";
   import BotConnections from "./BotConnections.svelte";
+  import BotMessengers from "../messengers/BotMessengers.svelte";
   import SettingsSection from "./SettingsSection.svelte";
   import BotHome from "../components/BotHome.svelte";
   import { useBotHome } from "../home.svelte.ts";
@@ -237,6 +238,11 @@
           {#if bot.nodeId}<p class="text-zinc-500 dark:text-zinc-400">
               Connections belong to {home.name}. Manage account authorization on that computer.
             </p>{:else}<BotConnections botId={bot.id} />{/if}
+        </SettingsSection>
+        <SettingsSection title="Messengers">
+          {#if bot.nodeId}
+            <p class="text-zinc-500 dark:text-zinc-400">Manage messenger accounts and routes on {home.name}.</p>
+          {:else}<BotMessengers botId={bot.id} />{/if}
         </SettingsSection>
         <SettingsSection
           title="Danger zone"

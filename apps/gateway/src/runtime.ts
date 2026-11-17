@@ -3,6 +3,7 @@ import { migrate, migrateOnline, POSTGRES_MAX_MESSAGE_BYTES } from "@canopy/db";
 import { Effect, Layer, ManagedRuntime, Redacted } from "effect";
 import { DatabaseMonitor, bindDatabaseMonitor, observedSql } from "./diagnostics/database.ts";
 import { BotStore } from "./bots/store.ts";
+import { MessengerStore } from "./messengers/store.ts";
 import {
   AgentBusStore,
   AttachmentStore,
@@ -64,6 +65,7 @@ export function gatewayServices(secretsKey: Buffer) {
     BackgroundTaskStore.layer,
     PrCheckWatchStore.layer,
     BotStore.layer(secretsKey),
+    MessengerStore.layer(secretsKey),
   );
 }
 

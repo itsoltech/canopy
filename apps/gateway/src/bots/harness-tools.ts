@@ -80,6 +80,9 @@ export class HarnessTools {
 
       if (active.abort.signal.aborted) return reply("Bot turn interrupted", true);
       const turn = active.turn;
+
+      if (turn.conversation_id && !(await this.run((s) => s.originEnabled(turn))))
+        return reply("External conversation is unavailable", true);
       const config = botConfiguration(await this.run((s) => s.owned(this.options.userId, turn.bot_id)));
 
       const tools = botPlatformTools(config, turn);

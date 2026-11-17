@@ -52,7 +52,10 @@
   <div class="flex items-start gap-2 px-3 pt-2.5 pb-2 text-base/6 sm:text-sm/6">
     <Icon name="question-mark-circle" class="h-lh shrink-0 text-sky-500 dark:text-sky-400" />
     <RequestHeader expiresAt={question.expiresAt} pending={!answered}>
-      <h3 id="{id}-prompt" class="font-medium text-pretty wrap-anywhere text-zinc-950 select-text dark:text-white">
+      <h3
+        id="{id}-prompt"
+        class="font-medium text-pretty wrap-anywhere whitespace-pre-line text-zinc-950 select-text dark:text-white"
+      >
         {question.prompt}
       </h3>
     </RequestHeader>

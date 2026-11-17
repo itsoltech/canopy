@@ -113,7 +113,7 @@ export function botDeliveries(sql: SqlClient.SqlClient, core: BotCore) {
             const text = results.get(watch.target_turn_id) ?? "";
             const source = watchSources.get(watch.call_id);
 
-            if (source?.origin_enabled ?? true)
+            if ((source?.origin_enabled ?? true) && (yield* core.originEnabled(source)))
               yield* enqueue(
                 watch.owner_user_id,
                 watch.bot_id,
@@ -147,7 +147,7 @@ export function botDeliveries(sql: SqlClient.SqlClient, core: BotCore) {
           for (const wake of wakeups) {
             const source = wakeSources.get(wake.id);
 
-            if (source?.origin_enabled ?? true)
+            if ((source?.origin_enabled ?? true) && (yield* core.originEnabled(source)))
               yield* enqueue(wake.owner_user_id, wake.bot_id, wake.prompt, `wakeup:${wake.id}`, {
                 hops: wake.hops,
                 sender: "system",

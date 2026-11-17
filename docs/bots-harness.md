@@ -1,5 +1,9 @@
 # Boty przez oficjalne harnessy
 
+Status (2026-11-17): zaimplementowane w kodzie, także zwykłe przyznane narzędzia i izolacja rozmów zewnętrznych
+i nietrwałe wejścia do aktywnej tury. Dostępność nightly/beta/stable wynika z
+promocji wydań ([release.md](release.md)).
+
 Status prędkości (2026-11-17): zaimplementowana w kodzie; dostępność
 nightly/beta/stable wynika z promocji wydań. Ustawienie **Speed** korzysta z
 katalogu modelu, instancji i workera bota. `BotConfiguration.service_tier`
@@ -89,9 +93,41 @@ Sekrety połączeń i dane logowania nigdy nie są częścią promptu.
 
 ## Sesja i kontekst
 
+`bot_conversations_v1` dodaje `RunBotTurn.conversation_id` (16): UUID rozmowy
+zewnętrznej. Puste pole zachowuje dotychczasową prywatną sesję i jej pliki.
+Niepuste pole wybiera osobny home harnessu i workspace dla pary bot–rozmowa;
+zmiana dostawcy współdzieli pliki tylko wewnątrz tej rozmowy. Retencja obejmuje
+również te workspace'y i pomija aktywne rozmowy oraz dowiązania. Gateway musi
+odmówić wykonania na workerze bez tej capability i dostarczyć historię oraz
+handoff należące wyłącznie do wskazanej rozmowy. Worker nie rozpoznaje pochodzenia
+tekstu `history_json`. Journal, pobieranie blobów i autoryzacja MCP nadal używają
+rzeczywistego `bot_id` oraz `turn_id`; UUID rozmowy nie zastępuje tożsamości bota.
+
+Zewnętrzna tura dostaje przyznane botowi narzędzia connectorów oraz katalog
+narzędzi pracy, w tym odczyty projektów/wątków i `start_thread`/`send_message`.
+Web access i Files pochodzą z konfiguracji bota; pliki i referencje załączników
+są ograniczone do tej rozmowy. `send_attachment` pozostaje prywatnym dostarczaniem
+plików do Canopy i nie występuje w katalogu zewnętrznym. Zmiany konfiguracji
+właściciela, bota, rutyn, subskrypcji i grantów oraz odpowiadanie za właściciela
+na zgody są niedostępne. Katalog komendy workera, runtime modelu i dyspozytor MCP
+korzystają z tej samej polityki gatewaya. Dyspozytor ponownie sprawdza aktualny
+grant connectora, aktywność źródła i lease; wyłączenie źródła blokuje nowe narzędzia.
+Nie istnieje osobne mapowanie uprawnień kanałów na narzędzia.
+
+System prompt podaje identyfikatory konta, kanału, wątku i rozmowy oraz zapisane
+przez właściciela instrukcje subskrypcji. Wiadomości autorów są niezaufanymi danymi
+zadania, nie instrukcjami właściciela ani zgodą na zmianę uprawnień.
+Prywatna historia i handoff nie trafiają automatycznie do tego promptu.
+Polityka zgód i Allowed actions działają jak w zwykłej turze. Karty zgód i pytania
+`ask_user` są celowo widoczne w Canopy właściciela z etykietą źródła zewnętrznego;
+surowe wiadomości i streaming zewnętrzny nadal są odfiltrowane. Karta pytania
+uprzedza, że odpowiedź trafi do modelu wykonującego to zadanie. Slack otrzymuje
+wyłącznie końcowy wynik; nie serializujemy tam kart, pytań, odpowiedzi właściciela
+ani reguł/grantów. Prompt zabrania ich ujawniania w odpowiedzi modelu.
+
 Rozmowa bota ma ukrytą sesję harnessu, bez sztucznego projektu lub wątku w UI.
 Worker trzyma prywatny home pod swoim data dir, oddzielnie dla
-bota oraz pary harness/instancja. Scratch jest osobny dla rozmowy bota,
+rozmowy bota oraz pary harness/instancja. Scratch jest osobny dla rozmowy bota,
 wspólny przy zmianie dostawcy, bez dostępu do home harnessu. **Files** (domyślnie
 włączone) udostępnia platformowe `list_files`, `read_file`, `write_file` i
 `delete_file`, zawsze przez gateway i aktywną turę workera. Nazwy są płaskie,
@@ -174,8 +210,10 @@ restart UI, gatewaya albo workera nadal wybierał tę samą sesję i jej dawny k
 
 Gateway przesyła stabilny SHA-256 nazwy, standing instructions i polityki zgód
 w addytywnym `RunBotTurn.configuration_key` (11). Worker włącza go oraz effort
-do trwałego fingerprintu obok modelu i pełnych deskryptorów narzędzi. Zmiana
-tych wartości unieważnia wyłącznie identyfikator ukrytej sesji. Sam czas, hops,
+do trwałego fingerprintu obok modelu i pełnych deskryptorów narzędzi. Dla rozmów
+zewnętrznych klucz obejmuje także instrukcje i tryb dostarczania trasy komunikatora.
+Zmiana tych wartości unieważnia wyłącznie identyfikator ukrytej sesji; następna tura
+odbudowuje ją z historii właściwej rozmowy. Sam czas, hops,
 treść wiadomości, kolor, kształt i ponowny zapis tych samych ustawień jej nie rotują.
 Dostawca/instancja mają osobną przestrzeń sesji; Runs on wybiera workera.
 Skille i pluginy urządzenia/biblioteki nadal są wyłączone dla botów.
@@ -287,6 +325,37 @@ deduplikację i kontrolę grantów connectorów. Model nie dostaje credentiali.
 Historyczny wynik narzędzia nigdy nie jest upoważnieniem do nowej akcji.
 
 ## Trwałość i prezentacja
+
+Capability `bot_steer_v1` negocjuje nietrwałe `SteerBotTurn` (833), wyłącznie
+tekstowe wejście z UUID `input_id` do dokładnej pary bot–aktywna tura. Komenda
+nie trafia do outboxa ani cache wyników komend. `CommandResult.data_json` (833)
+zwraca `{status:"queued"|"delivered"|"unsupported"}`. `queued` oznacza jedynie
+przyjęcie przez worker; potwierdzenie RPC dostawcy nie dowodzi konsumpcji.
+`delivered` jest możliwe po trwałym zapisie dowodu konsumpcji (np. odpowiedź
+na zduplikowane wejście tej samej aktywnej tury), nigdy po samym zapisie na stdin.
+
+Codex wysyła natywne `turn/steer` z `expectedTurnId` i `clientUserMessageId`.
+Dopiero `item/started` lub `item/completed` z pasującym `clientId`, natywnym
+wątkiem i turą potwierdza wejście. Claude utrzymuje kolejkę wejścia stream SDK;
+dowodem jest `command_lifecycle.started` albo oznaczenie konsumowanego UUID
+w odpowiedzi harnessu. Echo `replay-user-messages` potwierdza tylko przyjęcie
+do kolejki stdin, więc nie daje `applied`. Oczekujące wejście może ruszyć po poprzednim `result`;
+worker czeka do 60 sekund na tę zmianę, bez limitowania trwającej generacji.
+Grok zwraca `unsupported`; gateway zachowuje wiadomość dla następnej tury.
+
+Dowód trafia do journala jako notice `bot_steer_applied` z
+`data_json={"input_id":"…"}`. Wejścia bez dowodu przy zamykaniu harnessu dają
+`bot_steer_dropped` z takim samym polem, przed `turnFinished`. `dropped` znaczy
+brak potwierdzenia; nie gwarantuje, że dostawca nie odczytał bajtów. Gateway musi
+zapisać wejście przed wysłaniem komendy i obsłużyć notice także przed jej wynikiem.
+Po zerwaniu łącza lub restarcie nie wolno ponawiać nieznanego zapisu natywnego.
+Przed wysłaniem worker zapisuje znacznik niepewnego wejścia w cache sesji;
+usuwa go dopiero po trwałym `applied`. Pozostały znacznik lub `dropped` wymusza
+odbudowę następnej sesji z historii gatewaya, żeby nie wznowić niepewnego kontekstu.
+Twarda awaria może uniemożliwić zapis notice: rekoncyliacja kończy turę według
+dotychczasowych zasad, a gateway rozstrzyga zachowane wejście jako niepotwierdzone.
+Nie odtwarzamy nieznanych efektów ani dowodów konsumpcji z samego faktu istnienia
+wiadomości w transkrypcie providera.
 
 `download_file` pobiera do scratch przez ograniczony transport HTTP(S) workera:
 50 MiB, 60 s łącznie, 10 s bezczynności i 5 przekierowań. Każdy URL oraz
@@ -431,6 +500,17 @@ konkretną wersję CLI. Nie wymagają logowania ani zewnętrznej inferencji.
 sprawdza autora oraz treść wiadomości i steerów, czytelny event zakończenia,
 wznowienie bota i pojedynczy tekst po strumieniu z blokiem rozumowania.
 
+`apps/worker/src/bots/steering.test.ts` sprawdza przez prawdziwy SDK Claude
+i protokół app-server Codexa z kontrolowanymi procesami: UUID konsumpcji,
+odrzucanie innego bota/tury, deduplikację wejścia, wyścig z końcem i awarię bez
+ponowienia zapisu. Grok zachowuje aktywną turę i zwraca `unsupported`.
+`claude-steering.test.ts` sprawdza rzeczywisty CLI z lokalnym endpointem modelu:
+wejście nie jest potwierdzane podczas zablokowanego wcześniejszego żądania,
+a po jego zakończeniu trafia do następnego żądania tej samej sesji.
+`conversation-isolation.test.ts` obejmuje prywatną rozmowę, dwie zewnętrzne,
+zmianę dostawcy, odmowę traversal/dowiązań, retencję i odtworzenie journala
+ze znacznikiem niepewnego wejścia po restarcie. Nie jest to test płatnych modeli.
+
 Poprawione regresje: `create_bot` odrzucał jawny wybór Groka mimo poprawnego schematu;
 awaria startu instancji Codexa mogła przerwać obsługę konfiguracji WorkerLink.
 Błąd SDK Claude w wiadomości assistant jest błędem tury, a nie tekstem odpowiedzi.
@@ -443,5 +523,6 @@ przez wspólny synchronizator klientów. Sprawdza zarówno trwałe komendy gatew
 jak i natywne części wejścia kontrolowanych CLI. `bot-files.test.ts` chroni tę
 samą granicę dla tekstu i PDF, a `bots/images.test.ts` sprawdza ignorowanie
 historycznych plików przesłanych przez starszy gateway, bez ich pobierania.
-Repozytorium nie implementuje kanałów Telegram/Discord/WhatsApp dla botów.
+Worker nie konfiguruje kanałów komunikatorów; przypisania i przyjmowanie zdarzeń
+należą do gatewaya.
 Opt-in testy live (`CANOPY_LIVE=1`) nie mają wpisanych hostów ani kluczy.

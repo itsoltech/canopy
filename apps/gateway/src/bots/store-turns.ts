@@ -63,7 +63,7 @@ export function botTurns(sql: SqlClient.SqlClient, core: BotCore) {
           const turn = turns[0]!;
           // A remote side effect may already have happened. Never repeat it after a crash.
           yield* sql`UPDATE bot_tool_calls SET status = 'interrupted', result = '{"error":"interrupted: gateway restarted during remote call; outcome unknown; do not retry without user confirmation"}'::jsonb WHERE turn_id = ${turn.id}::uuid AND status = 'running' AND (tool ->> 'source' = 'mcp' OR linked_remote)`;
-          yield* sql`UPDATE bots SET status_line = ${turn.routine_id || turn.handoff_configuration ? "" : "Typing…"}, revision = revision + 1 WHERE id = ${id}::uuid`;
+          yield* sql`UPDATE bots SET status_line = ${turn.routine_id || turn.handoff_configuration || turn.conversation_id ? "" : "Typing…"}, revision = revision + 1 WHERE id = ${id}::uuid`;
 
           return turn;
         }),
@@ -77,7 +77,7 @@ export function botTurns(sql: SqlClient.SqlClient, core: BotCore) {
         Effect.gen(function* () {
           yield* fenced(turn);
 
-          if (!turn.routine_id && !turn.handoff_configuration)
+          if (!turn.routine_id && !turn.handoff_configuration && !turn.conversation_id)
             yield* sql`UPDATE bots SET status_line = ${text}, revision = revision + 1 WHERE id = ${turn.bot_id}::uuid`;
         }),
       ),
@@ -145,7 +145,7 @@ export function botTurns(sql: SqlClient.SqlClient, core: BotCore) {
           const last = (yield* sql<{
             id: string;
             status: string;
-          }>`SELECT id, status FROM bot_turns WHERE bot_id = ${id}::uuid AND handoff_configuration IS NULL ORDER BY created_at DESC, id DESC LIMIT 1`)[0];
+          }>`SELECT id, status FROM bot_turns WHERE bot_id = ${id}::uuid AND handoff_configuration IS NULL AND conversation_id IS NULL ORDER BY created_at DESC, id DESC LIMIT 1`)[0];
 
           if (last?.status !== "failed")
             return yield* Effect.fail(new Invalid("only a failed last reply can be retried"));

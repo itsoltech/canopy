@@ -272,7 +272,7 @@ describe.skipIf(!dockerAvailable)("background continuation collisions over gRPC"
     await restart();
     // The harness survived the gateway restart; replay its acceptance of the recovered steer.
     gw.worker.handlers.set("steerTurn", (value, reply) => {
-      if (!("inputId" in value)) throw new Error("Expected SteerTurn");
+      if (value.$typeName !== "canopy.worker.v1.SteerTurn") throw new Error("Expected SteerTurn");
       reply(true);
       gw.worker.emit(threadId, held.id, {
         case: "itemCompleted",
