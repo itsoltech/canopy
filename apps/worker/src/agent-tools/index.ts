@@ -21,6 +21,7 @@ import { agentToolSession } from "./scope.ts";
 import { AgentToolDiscoveryCache } from "./cache.ts";
 import { AgentToolLifecycle } from "./lifecycle.ts";
 import { closeAgentToolSession } from "./cleanup.ts";
+import { DeviceAutomation } from "./device-automation.ts";
 import type { LocalAutomationServer } from "../agent-tools-mcp/stdio.ts";
 
 type ReportInit = MessageInitShape<typeof AgentToolsReportSchema>;
@@ -63,10 +64,12 @@ export class AgentTools {
   readonly #installing = new Map<AgentTool, Promise<void>>();
   readonly #cache = new AgentToolDiscoveryCache();
   readonly #lifecycle = new AgentToolLifecycle();
+  readonly #devices: DeviceAutomation;
   #last: ReportInit | undefined;
 
   constructor(options: AgentToolsOptions) {
     this.#options = options;
+    this.#devices = new DeviceAutomation(options.dataDir, () => this.#probeOptions());
   }
 
   get last(): ReportInit | undefined {
@@ -107,7 +110,7 @@ export class AgentTools {
     const available = new Map(
       (this.#last?.tools ?? []).flatMap((tool) =>
         tool.installed &&
-        tool.ready &&
+        (tool.ready || (tool.tool === AgentTool.DEVICE && tool.version === agentToolSpec(AgentTool.DEVICE).version)) &&
         tool.path &&
         this.#status.get(tool.tool ?? AgentTool.UNSPECIFIED)?.state !== "running"
           ? [[tool.tool, tool.path]]
@@ -129,6 +132,7 @@ export class AgentTools {
           ? [
               {
                 name: localMcpName(tool),
+                ...(session && tool === AgentTool.DEVICE && { managed: this.#devices.managed(session) }),
                 command,
                 args,
                 ...(session && { scope: { tool, session } }),
@@ -238,16 +242,22 @@ export class AgentTools {
   /** Archive/unload fences admission immediately and drains native operations before closing their sessions. */
   fenceThread(threadId: string): void {
     this.#lifecycle.fence(threadId);
+    this.#devices.fence(threadId);
   }
 
   closeThread(threadId: string): Promise<void> {
-    return this.#lifecycle.close(threadId, () =>
-      closeAgentToolSession(agentToolSession(threadId), this.#probeOptions()),
-    );
+    this.#devices.fence(threadId);
+
+    return this.#lifecycle.close(threadId, async () => {
+      await closeAgentToolSession(agentToolSession(threadId), this.#probeOptions());
+      await this.#devices.release(threadId);
+    });
   }
 
   async threadOpened(threadId: string): Promise<void> {
     await this.#lifecycle.open(threadId);
+
+    if (!this.#lifecycle.isClosed(threadId)) this.#devices.open(threadId);
   }
 
   async run(command: RunAgentTool): Promise<Awaited<ReturnType<typeof runAgentToolOperation>>> {
@@ -268,11 +278,26 @@ export class AgentTools {
     this.#lifecycle.assertOpen(command.session);
 
     try {
-      return await runAgentToolOperation(command, found.path, this.#probeOptions().env ?? process.env);
+      const run = () =>
+        runAgentToolOperation(command, found.path, this.#probeOptions().env ?? process.env, () =>
+          this.#lifecycle.assertOpen(command.session),
+        );
+
+      return command.tool === AgentTool.DEVICE
+        ? await this.#devices.use(command, AbortSignal.timeout(60_000), run)
+        : await run();
     } catch (error) {
       this.#cache.invalidate(command.tool);
       throw error;
     }
+  }
+
+  recoverDevices(): Promise<void> {
+    return this.#devices.recover();
+  }
+
+  close(): Promise<void> {
+    return this.#devices.close();
   }
 
   /** Preview backends resolve once, then retain this pinned runtime until their lease ends. */
@@ -305,6 +330,7 @@ export class AgentTools {
     const { secrets } = installEnv(source);
 
     return {
+      useDevice: <T>(signal: AbortSignal, work: () => Promise<T>) => this.#devices.use(scope, signal, work),
       executable: found.path,
       env: toolEnvironment(source),
       scope,

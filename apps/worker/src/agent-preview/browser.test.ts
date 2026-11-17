@@ -112,6 +112,7 @@ console.log(JSON.stringify({ success: true, data }));
 
   const runtime = new PreviewRuntime(
     {
+      useDevice: (_signal, work) => work(),
       executable: cli,
       env: {},
       redact: (detail) => detail,

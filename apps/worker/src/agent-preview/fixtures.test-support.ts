@@ -97,6 +97,7 @@ record("end");
   const runtime = (signal = new AbortController().signal) =>
     new PreviewRuntime(
       {
+        useDevice: (_signal, work) => work(),
         executable: f.path(tool),
         env: toolEnvironment(f.env),
         scope: clone(RunAgentToolSchema, scope),
