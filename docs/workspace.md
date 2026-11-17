@@ -12,7 +12,8 @@ oraz kompaktowy przełącznik automatycznej archiwizacji po merge z ikoną infor
 lokalne zmiany Git i grupa przycisków Git z akcją Pull pod gałęzią,
 wyrównany nagłówek natywnego mobile z jednolitym tłem chrome safe area,
 odstępem nad aktywną kartą i strzałką powrotu, zamykanie kart plików i modułów
-bezpośrednio z mobilnej listy Switch tab oraz ręczny arkusz Preview Browser/Desktop/Device
+bezpośrednio z mobilnej listy Switch tab oraz ręczny pełnoekranowy Preview Browser/Desktop/Device
+ze stałą belką zamknięcia i możliwością ukrycia kontrolek
 (2026-11-17; stos #640–#648, potem #710, #711, #737, #740, #787 i #823).
 Opis dotyczy kodu; dostępność nightly/beta/stable określają [wydania](release.md).
 W web/desktop zakładki dzielą rząd z sygnetem projektu, a **tytuł wątku jest pierwszą,
@@ -402,7 +403,7 @@ i tryb dopasowania są wspólne dla obu miejsc; zmiana miejsca nie zmienia viewp
 ani sesji automatyzacji. Karta korzysta ze zwykłego zamykania, przełącznika i skrótów
 workspace’u. Jej obecność i wybór są lokalnymi metadanymi urządzenia; cel oraz skala
 pozostają tylko w pamięci. Ponowne wybranie karty ukrywa boczny Preview, a Files
-może działać obok niej. Natywny mobile zachowuje ręczny arkusz Preview.
+może działać obok niej. Natywny mobile ma ręczny pełnoekranowy Preview.
 Browser pokazuje karty sesji wątku i pozwala przełączyć aktywną kartę; zachowuje ustawiony przez agenta viewport
 przy zmianie szerokości panelu i udostępnia pasek z polami szerokości oraz wysokości
 oraz uchwyty krawędzi do jawnej zmiany viewportu.
