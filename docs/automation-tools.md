@@ -1,9 +1,10 @@
 # Narzędzia automatyzacji agentów
 
-Status (2026-11-17): **narzędzia, interaktywny Preview z podglądem zmiany viewportu,
+Status (2026-11-18): **narzędzia, interaktywny Preview z podglądem zmiany viewportu,
 automatyczny mini Preview wątku, pełna karta Preview w web/desktop, ikony obu stanów skali
 oraz rezerwacje urządzeń z oczekiwaniem, uruchamianiem skonfigurowanych emulatorów
 i sprzątaniem sesji przy archiwizacji zaimplementowane**.
+Zaległe sprzątanie rezerwacji nie blokuje restartu ani raportu aktualizacji workera.
 Katalog Device Preview jest ograniczony do urządzenia sesji lub wolnych,
 uruchomionych celów przed rezerwacją; przejściowe pliki klatek używają prywatnego
 katalogu cache workera zamiast współdzielonego katalogu tymczasowego.
@@ -341,6 +342,7 @@ uruchomionej instancji. Worker zachowuje wtedy błąd i zapis własności zamias
 zgadywać, który proces wyłączyć. Nawet chwilowy brak działającego AVD nie
 potwierdza zakończenia opóźnionego startu w daemonie; taki niejednoznaczny wpis
 wymaga wyjaśnienia przed zwolnieniem rezerwacji.
+Worker może w tym czasie uruchomić się ponownie i obsługiwać zwykłe tury.
 Nie jest to gwarancja sprzątania przy niedostępnych SDK lub uszkodzonej binarce.
 
 ## Instalacja i dostęp w Settings → Agent tools
