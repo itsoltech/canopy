@@ -1,6 +1,7 @@
 # API dla UI i architektura frontendu
 
-Status (2026-11-17): kontrakt kompozytora i wątków udostępnia szybkość wykonania `service_tier`;
+Status (2026-11-18): web/desktop automatycznie zwija kroki pomyślnie zakończonego przygotowania wątku;
+kontrakt kompozytora i wątków udostępnia szybkość wykonania `service_tier`;
 Claude zachowuje 330 s dla interakcji mimo 15-minutowego limitu MCP dla publikacji obrazów;
 Preview web/desktop używa potwierdzeń klienta po narysowaniu klatki i zachowuje
 subskrypcję przy odświeżaniu metadanych celu oraz naprawie kursora historii;
@@ -91,6 +92,12 @@ oraz zwartą listę kroków z osobnymi stanami oczekiwania, wykonywania, ukończ
 pominięcia i błędu. Widok pracy agenta pojawia się dopiero po przygotowaniu.
 Po potwierdzeniu utworzenia wątku klient zastępuje adres przez `/threads/<id>`;
 nie przenosi użytkownika, który w międzyczasie otworzył inną stronę.
+
+Po pomyślnym przygotowaniu web/desktop automatycznie zwija listę do wiersza
+„Thread prepared”, ze strzałką i separatorem jak przy aktywności tury.
+Rozwinięcie pokazuje wszystkie kroki, ich statusy i szczegóły; ręczny wybór
+przetrwa wirtualizację wiersza osi czasu. Przygotowanie w toku i nieudane
+pozostaje rozwinięte, a pusty wynik nie pokazuje przełącznika.
 
 Web/desktop używa podczas przygotowania tego samego paska kart workspace,
 kolumny `chat-column`, guttera paska przewijania, rezerwy na podsumowanie i stopki
