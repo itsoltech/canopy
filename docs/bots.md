@@ -4,6 +4,7 @@ Status (2026-11-18): zaimplementowano trwałe rozmowy botów przez Slack Socket 
 buforowanie, izolację historii kanałów i zwykłe przyznane narzędzia w turach zewnętrznych.
 W prywatnej rozmowie z właścicielem bot może wysyłać jako Canopy na Slacku ze
 stałą zgodą dla konkretnego konta i rozmowy Slack.
+Instrukcje odpowiedzi kierują wyniki pracy delegowanej przez Messages.
 Konfiguracja bota przenosi `service_tier` do `RunBotTurn`.
 Historia w web/desktop korzysta z wirtualizacji i automatycznie dołącza
 starsze strony podczas przewijania, zachowując pozycję czytania.
@@ -80,6 +81,11 @@ w prywatnej rozmowie właściciela, z opisem konta/kanału/wątku zadania zewnę
 bez surowej historii kanału. Odpowiedź właściciela wraca do tej tury; pytania,
 karty, odpowiedzi i szczegóły grantów nie są automatycznie wysyłane do Slacka.
 O wyjaśnienia od autora wiadomości bot pyta zwykłą odpowiedzią w kanale.
+Bot publikuje odpowiedzi, aktualizacje i wyniki delegowania przez skonfigurowaną
+trasę Messages. Przy uruchomieniu wątku roboczego i przy kolejnych wiadomościach
+do niego Canopy dołącza instrukcję zwrócenia pytań i wyników do bota.
+Instrukcja zabrania wysyłania i szkicowania odpowiedzi do rozmowy źródłowej
+przez konektor Slack. Dotychczasowe granty konektora obowiązują nadal.
 Trasa „Notify me” prosi o zwięzłe podsumowanie dla właściciela. Jej wynik tworzy
 osobną, ukończoną prywatną turę z notką; pełny wynik może pojawić się
 w prywatnej historii i handoff.
