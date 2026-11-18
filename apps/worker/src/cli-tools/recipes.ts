@@ -9,13 +9,18 @@ import { miseRecipe } from "./mise.ts";
  * Fixed install/update recipes per provider and install method (docs/provider-cli.md). The UI only picks a provider
  * and a version; nothing else from the gateway reaches an argv, and the version is validated here. No sudo, no
  * shell strings: an argv array, or the CLI's official installer script downloaded from its fixed HTTPS address and
- * run with bash. A CLI managed by Homebrew, asdf or a container image gets no recipe, only the
+ * run with bash or PowerShell. A CLI managed by Homebrew, asdf or a container image gets no recipe, only the
  * command to run there.
  */
 
 export type Recipe =
   | { readonly kind: "run"; readonly argv: readonly string[] }
-  | { readonly kind: "script"; readonly url: string; readonly args: readonly string[] };
+  | {
+      readonly kind: "script";
+      readonly url: string;
+      readonly args: readonly string[];
+      readonly shell?: "powershell";
+    };
 
 export interface RecipePlan {
   readonly recipe?: Recipe;
@@ -47,6 +52,27 @@ function managerOf(tools: RecipeTools, command: string, homes: readonly (string 
   const exe = tools.platform === "win32" ? `${command}.exe` : command;
 
   return homes.map((dir) => dir && join(dir, exe)).find((p): p is string => Boolean(p && existsSync(p))) ?? null;
+}
+
+function nativeRecipe(cli: DiscoveredCli, version: string, posix: boolean): RecipePlan {
+  const { spec } = cli;
+
+  if (spec.name === "claude") return { recipe: { kind: "run", argv: [cli.path, "install", version] } };
+
+  if (spec.name === "codex" && !posix)
+    return {
+      recipe: {
+        kind: "script",
+        shell: "powershell",
+        url: "https://chatgpt.com/codex/install.ps1",
+        args: ["-Release", version],
+      },
+    };
+
+  if (spec.script && posix)
+    return { recipe: { kind: "script", url: spec.script, args: version === "latest" ? [] : [version] } };
+
+  return { managedBy: "you", detail: "No recipe for this platform yet." };
 }
 
 export function planRecipe(cli: DiscoveredCli, version: string, tools: RecipeTools): RecipePlan {
@@ -87,12 +113,7 @@ export function planRecipe(cli: DiscoveredCli, version: string, tools: RecipeToo
         detail: `Installed outside a known installer (${cli.resolvedPath || cli.path}). Update it the way you installed it.`,
       };
     case CliInstallMethod.NATIVE:
-      if (spec.name === "claude") return { recipe: { kind: "run", argv: [cli.path, "install", version] } };
-
-      if (spec.script && posix)
-        return { recipe: { kind: "script", url: spec.script, args: version === "latest" ? [] : [version] } };
-
-      return { managedBy: "you", detail: "No recipe for this platform yet." };
+      return nativeRecipe(cli, version, posix);
     case CliInstallMethod.NPM: {
       const npm = npmOf(cli.owner);
 

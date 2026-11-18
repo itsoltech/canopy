@@ -105,7 +105,7 @@ function scriptUrl(url: string, name: string, env: Readonly<Record<string, strin
   return new URL(url);
 }
 
-async function downloadScript(url: URL, dir: string): Promise<string> {
+async function downloadScript(url: URL, dir: string, name: string): Promise<string> {
   const loopback = url.protocol === "http:" && ["127.0.0.1", "localhost", "[::1]"].includes(url.hostname);
 
   if (url.protocol !== "https:" && !loopback) throw new Error("installer scripts are only downloaded over HTTPS");
@@ -120,7 +120,7 @@ async function downloadScript(url: URL, dir: string): Promise<string> {
   if (body.byteLength === 0 || body.byteLength > SCRIPT_LIMIT)
     throw new Error("the installer script has an unexpected size");
   mkdirSync(dir, { recursive: true, mode: 0o700 });
-  const file = join(dir, "install.sh");
+  const file = join(dir, name);
   writeFileSync(file, body, { mode: 0o600 });
   chmodSync(file, 0o600);
 
@@ -213,14 +213,40 @@ export async function runInstall(input: InstallInput): Promise<InstallOutcome> {
 
   const execute = async (recipe: Recipe, timeoutMs: number): Promise<string | undefined> => {
     let argv: readonly string[];
+    let commandEnv: Record<string, string> = env;
+    let scriptName: string | undefined;
+    let script: string | undefined;
 
     if (recipe.kind === "script") {
-      const url = scriptUrl(recipe.url, before.spec.name, input.env ?? process.env);
+      const powershell = recipe.shell === "powershell";
+      scriptName = powershell ? "install.ps1" : "install.sh";
+      const url = powershell ? new URL(recipe.url) : scriptUrl(recipe.url, before.spec.name, input.env ?? process.env);
       emit(`Downloading the official installer from ${url.origin}`);
-      argv = ["bash", await downloadScript(url, scriptDir), ...recipe.args];
+      script = await downloadScript(url, scriptDir, scriptName);
+      argv = powershell
+        ? [
+            "powershell.exe",
+            "-NoProfile",
+            "-NonInteractive",
+            "-ExecutionPolicy",
+            "Bypass",
+            "-File",
+            script,
+            ...recipe.args,
+          ]
+        : ["bash", script, ...recipe.args];
+
+      if (powershell) {
+        commandEnv = Object.fromEntries(
+          Object.entries(env).filter(
+            ([key]) => !/^CODEX_(?:INSTALL_|NON_INTERACTIVE$|UPDATE_FROM_RELEASE$)/i.test(key),
+          ),
+        );
+        commandEnv["CODEX_NON_INTERACTIVE"] = "1";
+      }
     } else argv = recipe.argv;
-    emit(`$ ${argv.map((a, i) => (i === 1 && recipe.kind === "script" ? "install.sh" : a)).join(" ")}`);
-    const code = await run(argv, tools.home, env, timeoutMs, emit);
+    emit(`$ ${argv.map((arg) => (arg === script ? scriptName : arg)).join(" ")}`);
+    const code = await run(argv, tools.home, commandEnv, timeoutMs, emit);
 
     if (code === null) return `the installer did not finish within ${Math.round(timeoutMs / 60_000)} minutes`;
 

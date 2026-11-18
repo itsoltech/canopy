@@ -2,7 +2,8 @@
 
 Status: opis zaimplementowanego kodu (2026-11-18), w tym aktualizacji globalnych instalacji mise
 i powiązania wyników Update all z konkretną próbą instalacji oraz uruchamiania skryptów CLI
-z katalogów ze spacjami na Windows.
+z katalogów ze spacjami na Windows oraz aktualizacji natywnych instalacji Claude Code
+i Codex Standalone na Windows.
 Dostępność w nightly, beta i stable wynika z promocji opisanych w [release.md](release.md).
 
 Odczyt statusu konta przez oficjalne CLI, jego ograniczenia oraz zasady
@@ -111,7 +112,8 @@ CLI (do 8, także zepsute symlinki; bez bitu wykonywania są pomijane) w tej kol
     `/home/linuxbrew/.linuxbrew/bin`, `~/.linuxbrew/bin`.
 
 Windows (`<cli>.exe`, npm-owe `<cli>.cmd` i `<cli>.bat`): `PATH`, `%APPDATA%\npm`, `%VOLTA_HOME%\bin`,
-`%LOCALAPPDATA%\Volta\bin`, `~/scoop/shims`, Bun, `%PNPM_HOME%`, `~/.local/bin`.
+`%LOCALAPPDATA%\Volta\bin`, `~/scoop/shims`, Bun, `%PNPM_HOME%`, dla Codexa
+`%LOCALAPPDATA%\Programs\OpenAI\Codex\bin`, potem `~/.local/bin`.
 Worker przekazuje skrypty `.cmd` i `.bat` do `cmd.exe` bez ponownego cytowania przez Bun.
 Skrypt npm przekazuje argumenty dalej przez `%*`, więc worker uwzględnia oba przebiegi
 interpretacji powłoki, zachowując m.in. cudzysłowy w argumentach Codexa.
@@ -143,7 +145,7 @@ kolejności. Sam prefiks nie decyduje: `npm i -g` z node z Homebrew instaluje do
 | `DOCKER` | worker w kontenerze (`CANOPY_INSTALL_KIND=docker`, `/.dockerenv`, `/run/.containerenv`) | obraz |
 | `MISE` / `ASDF` | `…/mise/installs/<narzędzie>/…`, `…/mise/shims/…`, także `$MISE_DATA_DIR` (narzędzie z `mise which`), `~/.asdf/installs|shims` | przepis mise poniżej / ręcznie `asdf install …` |
 | `HOMEBREW` | `…/Cellar/<formuła>/…`, `…/Caskroom/<cask>/…` | `brew upgrade [--cask] <nazwa>` |
-| `NATIVE` | Claude: `~/.local/share/claude/versions/…`; Grok: `~/.grok/bin|downloads/…` | własny updater / skrypt |
+| `NATIVE` | Claude: `~/.local/share/claude/versions/…` lub `~/.local/bin/claude.exe` na Windows; Codex: domyślny launcher Windows wskazujący wersję w `<CODEX_HOME>/packages/standalone/releases/…` (domyślnie `~/.codex`); Grok: `~/.grok/bin|downloads/…` | własny updater / skrypt |
 | `VOLTA` | link do `volta-shim`, `…/.volta/tools/image/…`, `$VOLTA_HOME/tools/image/…` | `volta install <pakiet>@<w>` |
 | `BUN` | `~/.bun/install/global/…`, `$BUN_INSTALL/install/global/…`, shim z tą ścieżką | `bun add -g <pakiet>@<w>` |
 | `PNPM` | `…/pnpm/global/…`, `…/.pnpm/…`, shim skryptowy w `$PNPM_HOME` z `global/5/node_modules/<pakiet>` | `pnpm add -g <pakiet>@<w>` |
@@ -186,11 +188,11 @@ updates: …”; nic nie blokuje. Adresy można podmienić wyłącznie opcją `G
 Stałe, per dostawca i metoda (`apps/worker/src/cli-tools/recipes.ts`). Z UI przychodzi tylko dostawca i wersja,
 sprawdzana na gatewayu i ponownie na workerze (`X.Y.Z[-pre]` albo `latest`). Bez `sudo`, bez łańcuchów powłoki:
 tablica argv albo oficjalny skrypt instalatora pobrany z jego stałego adresu HTTPS do prywatnego katalogu
-`<data_dir>/cli-install/<id>/` i uruchomiony `bash install.sh [wersja]`, potem usunięty.
+`<data_dir>/cli-install/<id>/` i uruchomiony przez Bash (POSIX) lub PowerShell (Codex Standalone na Windows), potem usunięty.
 
 | Metoda | Claude Code | Codex | Grok |
 |---|---|---|---|
-| `NATIVE` | `claude install <wersja>` (własny updater) | — | `https://x.ai/cli/install.sh [wersja]` (POSIX) |
+| `NATIVE` | `claude install <wersja>` (własny updater) | Windows: oficjalny `https://chatgpt.com/codex/install.ps1` z `-Release <wersja>` w trybie nieinteraktywnym | `https://x.ai/cli/install.sh [wersja]` (POSIX) |
 | `NPM` | `<prefix>/bin/npm install --global --prefix <prefix> @anthropic-ai/claude-code@<w>` | to samo z `@openai/codex` | to samo z `@xai-official/grok` |
 | `BUN` | `<bun> add --global <pakiet>@<w>` (`bun` z PATH, `$BUN_INSTALL/bin`, `~/.bun/bin`) | jw. | jw. |
 | `VOLTA` | `<volta> install <pakiet>@<w>` (`volta` z PATH, `$VOLTA_HOME/bin`, `~/.volta/bin`) | jw. | jw. |
