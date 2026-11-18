@@ -1,8 +1,10 @@
 # Boty przez oficjalne harnessy
 
 Status (2026-11-18): zaimplementowane w kodzie, także zwykłe przyznane narzędzia, izolacja rozmów zewnętrznych
-i nietrwałe wejścia do aktywnej tury rozmowy zewnętrznej lub prywatnego czatu. Dostępność nightly/beta/stable wynika z
-promocji wydań ([release.md](release.md)).
+i nietrwałe wejścia do aktywnej tury rozmowy zewnętrznej lub prywatnego czatu.
+Pobieranie plików wysyła stały `User-Agent: Canopy-Bot`.
+Prywatne rozmowy i rutyny z Web access mogą czytać changelogi Canopy według PR-a.
+Dostępność nightly/beta/stable wynika z promocji wydań ([release.md](release.md)).
 
 Status prędkości (2026-11-17): zaimplementowana w kodzie; dostępność
 nightly/beta/stable wynika z promocji wydań. Ustawienie **Speed** korzysta z
@@ -369,8 +371,9 @@ przekierowanie rozwiązuje DNS; jakikolwiek adres niepubliczny odrzuca całe ż�
 Połączenie używa wybranego literalnego IP, bez drugiego lookup; HTTPS zachowuje
 SNI i walidację certyfikatu dla oryginalnego hosta. Prywatne, metadata, mapowane
 IPv4, link-local, multicast i zarezerwowane zakresy są blokowane. Transport nie
-dziedziczy proxy, ciasteczek ani nagłówków z kont. MIME pochodzi z odpowiedzi
-i jest zapisany w wyniku narzędzia; gateway rozpoznaje typ ponownie z bajtów.
+dziedziczy proxy, ciasteczek ani nagłówków z kont. Wysyła stały `User-Agent: Canopy-Bot`
+także przy przekierowaniach. MIME pochodzi z odpowiedzi i jest zapisany w wyniku
+narzędzia; gateway rozpoznaje typ ponownie z bajtów.
 
 `send_attachment` odczytuje pojedynczy zwykły plik z prywatnego workspace przez
 ograniczone fragmenty 1 MiB. Worker utrzymuje jedną niemodyfikowalną kopię

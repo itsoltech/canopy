@@ -1,6 +1,13 @@
 import { expect, test } from "bun:test";
 import { aggregateNotes, appVersionIncreased } from "./note-range.ts";
-import { fetchReleaseNotes, parseNotesIndex, recentNotes, type NoteEntry, type NotesIndex } from "./notes.ts";
+import {
+  fetchReleaseNotes,
+  parseNotesIndex,
+  recentNotes,
+  releaseVersionsForPullRequests,
+  type NoteEntry,
+  type NotesIndex,
+} from "./notes.ts";
 import { ReleaseHttp } from "./http.ts";
 import { AppUpdateHistory } from "./app-history.ts";
 
@@ -108,6 +115,45 @@ test("release note ordering preserves immutable data without Array.prototype.toS
   }));
 
   expect(result).toEqual({ recent: ["0.3.0-nightly.42", "0.3.0-nightly.41"], range: [42] });
+});
+
+test("a PR lookup returns the earliest indexed publication per channel and preserves missing matches", () => {
+  const notes = index([
+    { ...release("0.3.0-nightly.3", [entry(604)]), date: "2026-11-15" },
+    { ...release("0.3.0", [entry(604), entry(980)]), date: "2026-11-18" },
+    { ...release("0.3.0-nightly.11", [entry(604), entry(604)]), date: "2026-11-14" },
+    { ...release("0.3.0-beta.2", [entry(980)]), date: "2026-11-16" },
+  ]);
+
+  expect(releaseVersionsForPullRequests(notes, [604, 60, 980, 604])).toEqual([
+    {
+      pull_request: 604,
+      nightly: {
+        version: "0.3.0-nightly.11",
+        published_at: "2026-11-14",
+        url: "https://github.com/itsoltech/canopy/releases/tag/v0.3.0-nightly.11",
+      },
+      stable: {
+        version: "0.3.0",
+        published_at: "2026-11-18",
+        url: "https://github.com/itsoltech/canopy/releases/tag/v0.3.0",
+      },
+    },
+    { pull_request: 60 },
+    {
+      pull_request: 980,
+      beta: {
+        version: "0.3.0-beta.2",
+        published_at: "2026-11-16",
+        url: "https://github.com/itsoltech/canopy/releases/tag/v0.3.0-beta.2",
+      },
+      stable: {
+        version: "0.3.0",
+        published_at: "2026-11-18",
+        url: "https://github.com/itsoltech/canopy/releases/tag/v0.3.0",
+      },
+    },
+  ]);
 });
 
 test("unknown versions, first installs, repeated launches and downgrades do not open full history", () => {

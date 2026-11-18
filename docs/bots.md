@@ -12,6 +12,8 @@ Kolejne wiadomości tekstowe w prywatnym czacie mogą dołączyć do trwającej 
 Limit automatycznej wymiany wynosi 256 kroków; walidacja budżetu przed zgodą
 i diagnostyka wyników narzędzi są zaimplementowane. Bot zlecający pracę lokalnej
 turze dostaje powiadomienia o oczekujących pytaniach i zakończeniu tury.
+`download_file` wysyła identyfikator klienta `Canopy-Bot` w nagłówku `User-Agent`.
+Boty i rutyny mogą sprawdzić w opublikowanych changelogach Canopy wersję według numeru PR-a.
 Dostępność nightly/beta/stable według [release.md](release.md).
 
 ## Kolejne wiadomości w prywatnym czacie
@@ -210,7 +212,7 @@ Worker jawnie konfiguruje narzędzia dla każdej nowej i wznawianej sesji:
 Claude otrzymuje `WebSearch` i `WebFetch`, Codex natywne web search, Grok wyłącznie
 narzędzia wyszukiwania/pobierania rzeczywiście dostępne w przypiętym CLI.
 Transport MCP `search_tool` Groka sam w sobie nie oznacza dostępu do internetu.
-Wyłączenie Web access usuwa natywne narzędzia sieciowe. Nie odbiera osobnych
+Wyłączenie Web access usuwa natywne narzędzia sieciowe i odczyt changelogów Canopy. Nie odbiera osobnych
 grantów connectorów; ich dostęp i zgody nadal egzekwuje gateway.
 Handoff nie otrzymuje żadnych narzędzi, niezależnie od ustawień bota.
 Zmiana uprawnień unieważnia ukrytą sesję przed następną turą; aktywna tura
@@ -246,13 +248,25 @@ tymczasowych. Archiwum pozostaje zwykłym plikiem, nigdy nie jest rozpakowywane
 ani wykonywane. Wyłączenie Files blokuje narzędzia, nie usuwa dostarczonych
 wcześniej załączników z gatewaya.
 
+### Ustalanie wersji wydania według PR-a
+
+`get_canopy_release_versions` przyjmuje do 50 numerów PR z `itsoltech/canopy`.
+Gateway korzysta z publicznego, współdzielonego indeksu changelogów
+([release.md](release.md)). Zwraca dla każdego PR-a najwcześniejsze zindeksowane
+wydanie z wyraźnym odnośnikiem do niego, osobno dla Nightly, Beta i Stable,
+wraz z datą publikacji, URL-em wydania i informacją o skróconej historii kanałów.
+Brak dopasowania oznacza brak potwierdzenia w indeksie. Prywatne rozmowy
+i rutyny z włączonym Web access dostają narzędzie tylko do odczytu, bez grantu
+GitHub i bez poświadczeń.
+
 ### Pobieranie i wysyłanie plików
 
 `download_file(url, filename?)` wykonuje worker w scratch rozmowy. Files musi
 być włączone; pobieranie jest jawną operacją sieciową tego narzędzia, niezależną
 od natywnego Web access. Dozwolone są wyłącznie HTTP/HTTPS, bez userinfo,
-ciasteczek i nagłówków uwierzytelniających. Limit to 50 MiB na plik, najwyżej
-5 przekierowań i 60 s całej operacji, z osobnym limitem bezczynności połączenia.
+ciasteczek i nagłówków uwierzytelniających. Worker wysyła stały `User-Agent: Canopy-Bot`,
+którego wymagają niektóre publiczne API, w tym GitHub. Limit to 50 MiB na plik,
+najwyżej 5 przekierowań i 60 s całej operacji, z osobnym limitem bezczynności połączenia.
 Content-Length jest sprawdzany przed odczytem, a strumień ma niezależny licznik
 bajtów również bez tego nagłówka. MIME jest zachowywany jako metadane;
 gateway ponownie rozpoznaje typ z bajtów i stosuje zwykłe limity załączników

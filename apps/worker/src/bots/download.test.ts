@@ -88,7 +88,7 @@ test("downloads block nonpublic IPv4, IPv6, mapped IPv4, metadata and ambiguous 
   expect(connected).toBe(false);
 });
 
-test("local fixtures cover pinning, private redirects, streamed size limits, timeout and MIME", async () => {
+test("local fixtures cover pinning, private redirects, download headers, size limits, timeout and MIME", async () => {
   const fixture = Bun.serve({
     hostname: "127.0.0.1",
     port: 0,
@@ -117,6 +117,8 @@ test("local fixtures cover pinning, private redirects, streamed size limits, tim
             },
           }),
         );
+
+      if (request.headers.get("User-Agent") !== "Canopy-Bot") return new Response(null, { status: 403 });
 
       return new Response("# Note", { headers: { "Content-Type": "text/markdown", "Content-Length": "6" } });
     },
