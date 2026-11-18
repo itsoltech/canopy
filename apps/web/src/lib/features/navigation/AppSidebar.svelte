@@ -92,7 +92,7 @@
 
   <div class="sidebar-inset flex items-center gap-1 pb-2">
     <label
-      class="sidebar-row-padding flex min-w-0 flex-1 items-center gap-2 rounded-lg py-2 text-zinc-500 has-focus-visible:outline-2 has-focus-visible:outline-brand-500 sm:py-1.5 dark:text-zinc-400"
+      class="sidebar-row-padding flex min-w-0 flex-1 items-center gap-1.5 rounded-lg py-2 text-zinc-500 has-focus-visible:outline-2 has-focus-visible:outline-brand-500 sm:py-1.5 dark:text-zinc-400"
     >
       <Icon name="magnifying-glass" class="fill-zinc-400 dark:fill-zinc-500" />
       <span class="sr-only">Search {section === "threads" ? "threads" : "bots"}</span>
@@ -104,8 +104,8 @@
         autocomplete="off"
         class="min-w-0 flex-1 bg-transparent text-base/6 text-zinc-950 placeholder:text-zinc-500 focus:outline-none sm:text-sm/6 dark:text-white dark:placeholder:text-zinc-400 [&::-webkit-search-cancel-button]:appearance-none"
       />
-      <span class="flex size-6 shrink-0 items-center justify-center">
-        {#if queries[section]}
+      {#if queries[section]}
+        <span class="flex size-6 shrink-0 items-center justify-center">
           <button
             type="button"
             aria-label="Clear search"
@@ -114,8 +114,8 @@
           >
             <Icon name="x-mark" class="size-3.5" />
           </button>
-        {/if}
-      </span>
+        </span>
+      {/if}
     </label>
     {#if section === "threads"}
       <div class="flex shrink-0 items-center gap-1">
