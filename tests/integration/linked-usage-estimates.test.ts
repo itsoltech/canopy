@@ -6,10 +6,12 @@ import { computerLink as link } from "@canopy/contracts";
 import { dockerAvailable } from "@canopy/db/testing";
 import { ComputerStore } from "../../apps/gateway/src/computers/store.ts";
 import { saveUsagePage, usageCursor } from "../../apps/gateway/src/computers/usage-store.ts";
+import { exportUsageBuckets } from "../../apps/gateway/src/usage/export.ts";
 import { linkedComputers } from "./support/computers.ts";
 import { eventually, startTestGateway, type TestGateway } from "./support/gateway.ts";
 
 const hour = new Date(new Date().toISOString().slice(0, 13) + ":00:00.000Z");
+const botId = Bun.randomUUIDv7();
 
 describe.skipIf(!dockerAvailable)("estimated API costs across pinned computer links", () => {
   let a: TestGateway;
@@ -50,10 +52,11 @@ describe.skipIf(!dockerAvailable)("estimated API costs across pinned computer li
     await lb.start();
     node = lb.hello().nodeId;
     await sb.query(
-      `INSERT INTO usage_buckets(owner_user_id,bucket_start,provider,model,requested_service_tier,input_tokens,
+      `INSERT INTO usage_buckets(owner_user_id,bucket_start,provider,model,requested_service_tier,activity_key,bot_name,input_tokens,
        reports,unknown_cost_reports,estimated_cost_usd,effective_cost_usd,effective_estimated_cost_reports,revision)
-       VALUES($1::uuid,$2,'codex','gpt-6.1-sol','fast',100,1,1,1.5,1.5,1,1)`,
-      [sb.owner, hour],
+       VALUES($1::uuid,$2,'codex','gpt-6.1-sol','fast',$3,'Build bot',100,1,1,1.5,1.5,1,1),
+         ($1::uuid,$2,'codex','gpt-6.1-sol','fast','thread','',200,1,0,0,0,0,1)`,
+      [sb.owner, hour, `bot:${botId}`],
     );
     await sb.query(
       `INSERT INTO usage_state(owner_user_id,computer_id,revision)
@@ -73,7 +76,7 @@ describe.skipIf(!dockerAvailable)("estimated API costs across pinned computer li
   }, 20_000);
 
   test("source estimates survive import and a lower reported correction replaces their displayed cost", async () => {
-    const request = { days: 1, computerId: node, requestedServiceTier: "fast" };
+    const request = { days: 1, computerId: node, requestedServiceTier: "fast", botId };
     const first = await a.api.getUsageStats(request);
 
     expect(first.totals).toMatchObject({
@@ -83,10 +86,19 @@ describe.skipIf(!dockerAvailable)("estimated API costs across pinned computer li
       effectiveEstimatedCostReports: 1n,
       unknownEffectiveCostReports: 0n,
     });
+    expect(first.bots).toMatchObject([{ botId, name: "Build bot", totals: { inputTokens: 100n } }]);
+    const all = await a.api.getUsageStats({ days: 1, computerId: node });
+    expect(all.totals?.inputTokens).toBe(300n);
+    expect(all.hasUnattributedUsage).toBe(false);
+    expect(all.activities).toMatchObject([
+      { key: "bot", totals: { inputTokens: 100n } },
+      { key: "thread", totals: { inputTokens: 200n } },
+    ]);
     await sb.query(
       `UPDATE usage_buckets SET reported_cost_usd=1.2,unknown_cost_reports=0,effective_cost_usd=1.2,
-       effective_reported_cost_reports=1,effective_estimated_cost_reports=0,revision=2 WHERE owner_user_id=$1::uuid`,
-      [sb.owner],
+       effective_reported_cost_reports=1,effective_estimated_cost_reports=0,revision=2
+       WHERE owner_user_id=$1::uuid AND activity_key=$2`,
+      [sb.owner, `bot:${botId}`],
     );
     await sb.query("UPDATE usage_state SET revision=2 WHERE owner_user_id=$1::uuid", [sb.owner]);
     await synced(2n);
@@ -110,6 +122,28 @@ describe.skipIf(!dockerAvailable)("estimated API costs across pinned computer li
     expect(offline.totals).toMatchObject({ effectiveCostUsd: 1.2, estimatedCostUsd: 1.5, reports: 1n });
     expect(offline.sources.find((source) => source.computerId === node)?.online).toBe(false);
   }, 20_000);
+
+  test("upgraded receivers can restore attribution to an already cached revision", async () => {
+    // Simulate a receiver that originally understood only the base bucket.
+    await sa.query(
+      "UPDATE remote_usage_buckets SET payload=payload-'activities' WHERE owner_user_id=$1 AND node_id=$2",
+      [sa.owner, node],
+    );
+    const request = { days: 1, computerId: node };
+    const before = await a.api.getUsageStats(request);
+    expect(before).toMatchObject({ totals: { inputTokens: 300n }, hasUnattributedUsage: true, bots: [] });
+    await sa.query("UPDATE remote_usage_state SET cursor=0,has_more=true WHERE owner_user_id=$1 AND node_id=$2", [
+      sa.owner,
+      node,
+    ]);
+    const page = await exportUsageBuckets(sb, create(link.UsageBucketsRequestSchema, { limit: 256 }));
+    expect(page.buckets).toHaveLength(1);
+    expect(page.buckets[0]).toMatchObject({ totals: { inputTokens: 300n }, revision: 2n });
+    await saveUsagePage(sa, node, 0n, page, 256);
+    const after = await a.api.getUsageStats(request);
+    expect(after.totals).toEqual(before.totals);
+    expect(after).toMatchObject({ hasUnattributedUsage: false, bots: [{ botId, name: "Build bot" }] });
+  });
 
   test("invalid monetary or source coverage totals cannot advance the checkpoint", async () => {
     const page = create(link.UsageBucketsResponseSchema, {
@@ -186,7 +220,10 @@ describe.skipIf(!dockerAvailable)("estimated API costs across pinned computer li
       unknownEstimatedCostReports: 2n,
       unknownEffectiveCostReports: 2n,
     });
-    expect(stats.totals?.reports).toBe(4n);
+    expect(stats.totals?.reports).toBe(5n);
     expect(stats.totals?.effectiveCostUsd).toBe(1.7);
+    expect(stats.hasUnattributedUsage).toBe(true);
+    const filtered = await a.api.getUsageStats({ days: 1, computerId: node, botId });
+    expect(filtered).toMatchObject({ totals: { inputTokens: 100n }, hasUnattributedUsage: true });
   });
 });

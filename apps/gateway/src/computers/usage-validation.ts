@@ -1,7 +1,9 @@
+import { create } from "@bufbuild/protobuf";
 import { timestampDate } from "@bufbuild/protobuf/wkt";
-import type { computerLink as link } from "@canopy/contracts";
+import { type computerLink as link, ui } from "@canopy/contracts";
 import { Code, ConnectError } from "@connectrpc/connect";
-import { normalizeUsageTotals } from "../usage/totals.ts";
+import { readActivityKey } from "../usage/activity.ts";
+import { addTotals, COST_FIELDS, COUNT_FIELDS, normalizeUsageTotals } from "../usage/totals.ts";
 
 const invalid = () => new ConnectError("Invalid linked usage page", Code.DataLoss);
 
@@ -41,31 +43,8 @@ export function validateUsagePage(node: string, after: bigint, response: link.Us
 
     if (!Number.isFinite(hour) || hour % 3_600_000 !== 0 || keys.has(key)) throw invalid();
 
-    if (
-      !Number.isFinite(bucket.totals.reportedCostUsd) ||
-      bucket.totals.reportedCostUsd < 0 ||
-      bucket.totals.unknownCostReports > bucket.totals.reports ||
-      bucket.totals.cachedInputTokens + bucket.totals.cacheWriteInputTokens > bucket.totals.inputTokens ||
-      bucket.totals.reasoningOutputTokens > bucket.totals.outputTokens
-    )
-      throw invalid();
-    const totals = normalizeUsageTotals(bucket.totals);
-
-    if (
-      !Number.isFinite(totals.estimatedCostUsd) ||
-      totals.estimatedCostUsd < 0 ||
-      !Number.isFinite(totals.effectiveCostUsd) ||
-      totals.effectiveCostUsd < 0 ||
-      totals.unknownEstimatedCostReports > totals.reports ||
-      totals.unknownEffectiveCostReports +
-        totals.effectiveReportedCostReports +
-        totals.effectiveEstimatedCostReports !==
-        totals.reports ||
-      totals.effectiveReportedCostReports > totals.reports - totals.unknownCostReports ||
-      totals.effectiveEstimatedCostReports > totals.reports - totals.unknownEstimatedCostReports ||
-      (totals.unknownEffectiveCostReports === totals.reports && totals.effectiveCostUsd !== 0)
-    )
-      throw invalid();
+    const totals = validatedTotals(bucket.totals);
+    validateActivities(bucket.activities, totals);
     keys.add(key);
     previous = bucket.revision;
   }
@@ -73,4 +52,65 @@ export function validateUsagePage(node: string, after: bigint, response: link.Us
   if (response.nextRevision !== previous) throw invalid();
 
   return since;
+}
+
+function validatedTotals(input: ui.UsageTotals) {
+  if (
+    !Number.isFinite(input.reportedCostUsd) ||
+    input.reportedCostUsd < 0 ||
+    input.unknownCostReports > input.reports ||
+    input.cachedInputTokens + input.cacheWriteInputTokens > input.inputTokens ||
+    input.reasoningOutputTokens > input.outputTokens
+  )
+    throw invalid();
+  const totals = normalizeUsageTotals(input);
+
+  if (
+    !Number.isFinite(totals.estimatedCostUsd) ||
+    totals.estimatedCostUsd < 0 ||
+    !Number.isFinite(totals.effectiveCostUsd) ||
+    totals.effectiveCostUsd < 0 ||
+    totals.unknownEstimatedCostReports > totals.reports ||
+    totals.unknownEffectiveCostReports + totals.effectiveReportedCostReports + totals.effectiveEstimatedCostReports !==
+      totals.reports ||
+    totals.effectiveReportedCostReports > totals.reports - totals.unknownCostReports ||
+    totals.effectiveEstimatedCostReports > totals.reports - totals.unknownEstimatedCostReports ||
+    (totals.unknownEffectiveCostReports === totals.reports && totals.effectiveCostUsd !== 0)
+  )
+    throw invalid();
+
+  return totals;
+}
+
+function validateActivities(parts: ui.UsageActivityBucket[], totals: ui.UsageTotals) {
+  if (!parts.length) return;
+  const sum = create(ui.UsageTotalsSchema);
+  const keys = new Set<string>();
+
+  for (const part of parts) {
+    const activity = readActivityKey(part.key);
+
+    if (!activity || !part.totals?.reports) throw invalid();
+    const key = activity.botId || activity.kind;
+
+    if (
+      keys.has(key) ||
+      (part.botName && !activity.botId) ||
+      part.botName.length > 160 ||
+      part.botName.includes("\u0000")
+    )
+      throw invalid();
+    keys.add(key);
+    addTotals(sum, validatedTotals(part.totals));
+  }
+
+  if (COUNT_FIELDS.some((field) => sum[field] !== totals[field])) throw invalid();
+
+  if (
+    COST_FIELDS.some(
+      (field) =>
+        !Number.isFinite(sum[field]) || Math.abs(sum[field] - totals[field]) > Math.max(1, totals[field]) * 1e-9,
+    )
+  )
+    throw invalid();
 }

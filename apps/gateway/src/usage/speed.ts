@@ -32,8 +32,8 @@ export function freezeRequestedTier(sql: SqlClient.SqlClient, identity: UsageIde
 
       for (const field of COST_FIELDS) reverse[field] = -reverse[field];
       // Zero-value old buckets remain revisioned replacement snapshots so remote caches clear them.
-      yield* incrementBucket(sql, owner, row.first_bucket, provider, row.model, "", reverse);
-      yield* incrementBucket(sql, owner, row.first_bucket, provider, row.model, tier, totals);
+      yield* incrementBucket(sql, owner, row.first_bucket, provider, row.model, "", identity.activity, reverse);
+      yield* incrementBucket(sql, owner, row.first_bucket, provider, row.model, tier, identity.activity, totals);
     }
 
     yield* sql`UPDATE usage_counters SET requested_service_tier=${tier}

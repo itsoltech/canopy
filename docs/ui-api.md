@@ -14,7 +14,8 @@ a Bot settings → Messengers wybiera konto i trasy przez owner-scoped RPC i BFF
 trwałe zachowanie dla źródła, a rozmowy korzystają z narzędzi przyznanych botowi;
 web/desktop ma osobny modal Usage z kosztami raportowanymi przez providerów
 i estymowaną równowartością API według cen OpenAI, wyświetlanymi z dokładnością do centa,
-tokenami, filtrami czasu, providera, komputera i żądanej szybkości oraz zakresem rejestrowania;
+tokenami, zakresem rejestrowania i filtrami czasu, providera, komputera, żądanej
+szybkości oraz aktywności, w tym z podziałem według bota;
 nowy wątek web/desktop i natywnego mobile od razu pokazuje prompt i rzeczywisty postęp przygotowania worktree;
 web/desktop zachowuje geometrię osi czasu i kotwicę wiadomości przy przejściu z przygotowania do wątku;
 czat bota używa `VirtualFeed` i dołącza starsze strony przy przewijaniu, a Home/End przesuwają okno bez animacji;
@@ -278,8 +279,12 @@ Escape, powrotu fokusu do wyzwalacza i tokenów ruchu; na telefonie zajmuje cał
 Kontrolki zachowują gęstość Settings, a pickery korzystają ze zwartej skali nakładek.
 
 `features/usage` udostępnia widoki Cost i Tokens, okres Today / 7 / 30 / 90 days,
-filtry providera, komputera i Requested speed, wykres dzienny oraz zestawienie
-według providera, modelu, żądanej prędkości albo dnia. Okres obejmuje dni kalendarzowe UTC łącznie z bieżącym dniem;
+filtry providera, komputera, Requested speed i Activity, wykres dzienny oraz
+zestawienie według providera, modelu, żądanej prędkości, dnia albo bota.
+**Usage by activity** pokazuje zużycie wątków, botów, generowania pomocniczego
+i nieprzypisanych raportów. **Breakdown → Bot** sortuje boty według wybranej
+miary. Lista **Activity** zawęża sumy, wykres dzienny i tabelę do wybranego
+rodzaju aktywności albo jednego bota. Okres obejmuje dni kalendarzowe UTC łącznie z bieżącym dniem;
 Today nie oznacza ruchomych 24 godzin. Dni na wykresie pokazują wartość
 po wskazaniu, dotknięciu lub fokusie; klawiatura używa strzałek, Home i End.
 Zestawienie dzienne udostępnia te same wartości w tabeli.
@@ -316,6 +321,11 @@ Zestawienie Speed oraz filtr opisują wybór utrwalony dla wykonania, nie
 potwierdzony tryb naliczania opłaty; modal jawnie wyjaśnia tę różnicę.
 UI nie stosuje własnych mnożników prędkości; kwoty wyprowadza gateway z zapisanych
 pomiarów. Późniejsza zmiana ustawień wątku nie zmienia klasyfikacji wcześniejszego zużycia.
+
+Parametry `activityKind` i `botId` przekazują filtry aktywności i identyfikatora
+bota. Starszy gateway bez `supportsActivityBreakdown` pokazuje dotychczasowe
+filtry i zestawienia. Informacja o nieprzypisanym zużyciu jest widoczna także
+po wybraniu jednego bota. Szczegóły przypisania: [usage.md](usage.md).
 
 Widok Cost, wykres i pierwsza kolumna kwot w tabeli używają `effectiveCostUsd`.
 Gateway dla każdego raportu wybiera kompletny Reported cost (również znane zero),

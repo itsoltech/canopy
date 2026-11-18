@@ -12,7 +12,7 @@ import type { Message } from "@bufbuild/protobuf";
  * Describes the file canopy/ui/v1/usage.proto.
  */
 export const file_canopy_ui_v1_usage: GenFile = /*@__PURE__*/
-  fileDesc("ChhjYW5vcHkvdWkvdjEvdXNhZ2UucHJvdG8SDGNhbm9weS51aS52MSK/AwoLVXNhZ2VUb3RhbHMSFAoMaW5wdXRfdG9rZW5zGAEgASgEEhUKDW91dHB1dF90b2tlbnMYAiABKAQSGwoTY2FjaGVkX2lucHV0X3Rva2VucxgDIAEoBBIgChhjYWNoZV93cml0ZV9pbnB1dF90b2tlbnMYBCABKAQSHwoXcmVhc29uaW5nX291dHB1dF90b2tlbnMYBSABKAQSGQoRcmVwb3J0ZWRfY29zdF91c2QYBiABKAESDwoHcmVwb3J0cxgHIAEoBBIcChR1bmtub3duX2Nvc3RfcmVwb3J0cxgIIAEoBBIaChJlc3RpbWF0ZWRfY29zdF91c2QYCSABKAESJgoedW5rbm93bl9lc3RpbWF0ZWRfY29zdF9yZXBvcnRzGAogASgEEhoKEmVmZmVjdGl2ZV9jb3N0X3VzZBgLIAEoARImCh51bmtub3duX2VmZmVjdGl2ZV9jb3N0X3JlcG9ydHMYDCABKAQSJwofZWZmZWN0aXZlX3JlcG9ydGVkX2Nvc3RfcmVwb3J0cxgNIAEoBBIoCiBlZmZlY3RpdmVfZXN0aW1hdGVkX2Nvc3RfcmVwb3J0cxgOIAEoBCLSAQoLVXNhZ2VCdWNrZXQSMAoMYnVja2V0X3N0YXJ0GAEgASgLMhouZ29vZ2xlLnByb3RvYnVmLlRpbWVzdGFtcBIQCghwcm92aWRlchgCIAEoCRINCgVtb2RlbBgDIAEoCRIpCgZ0b3RhbHMYBCABKAsyGS5jYW5vcHkudWkudjEuVXNhZ2VUb3RhbHMSEAoIcmV2aXNpb24YBSABKAQSEwoLY29tcHV0ZXJfaWQYBiABKAkSHgoWcmVxdWVzdGVkX3NlcnZpY2VfdGllchgHIAEoCSLDAQoLVXNhZ2VTb3VyY2USEwoLY29tcHV0ZXJfaWQYASABKAkSDAoEbmFtZRgCIAEoCRIOCgZvbmxpbmUYAyABKAgSMgoOdHJhY2tpbmdfc2luY2UYBCABKAsyGi5nb29nbGUucHJvdG9idWYuVGltZXN0YW1wEi4KCnVwZGF0ZWRfYXQYBSABKAsyGi5nb29nbGUucHJvdG9idWYuVGltZXN0YW1wEg0KBWxvY2FsGAYgASgIEg4KBnN0YXR1cxgHIAEoCSJICg5Vc2FnZUJyZWFrZG93bhILCgNrZXkYASABKAkSKQoGdG90YWxzGAIgASgLMhkuY2Fub3B5LnVpLnYxLlVzYWdlVG90YWxzIo8BCghVc2FnZURheRInCgNkYXkYASABKAsyGi5nb29nbGUucHJvdG9idWYuVGltZXN0YW1wEikKBnRvdGFscxgCIAEoCzIZLmNhbm9weS51aS52MS5Vc2FnZVRvdGFscxIvCglwcm92aWRlcnMYAyADKAsyHC5jYW5vcHkudWkudjEuVXNhZ2VCcmVha2Rvd24iiwEKFEdldFVzYWdlU3RhdHNSZXF1ZXN0EgwKBGRheXMYASABKA0SEAoIcHJvdmlkZXIYAiABKAkSEwoLY29tcHV0ZXJfaWQYAyABKAkSIwoWcmVxdWVzdGVkX3NlcnZpY2VfdGllchgEIAEoCUgAiAEBQhkKF19yZXF1ZXN0ZWRfc2VydmljZV90aWVyIo4DChVHZXRVc2FnZVN0YXRzUmVzcG9uc2USKQoGdG90YWxzGAEgASgLMhkuY2Fub3B5LnVpLnYxLlVzYWdlVG90YWxzEiQKBGRheXMYAiADKAsyFi5jYW5vcHkudWkudjEuVXNhZ2VEYXkSLwoJcHJvdmlkZXJzGAMgAygLMhwuY2Fub3B5LnVpLnYxLlVzYWdlQnJlYWtkb3duEiwKBm1vZGVscxgEIAMoCzIcLmNhbm9weS51aS52MS5Vc2FnZUJyZWFrZG93bhIqCgdzb3VyY2VzGAUgAygLMhkuY2Fub3B5LnVpLnYxLlVzYWdlU291cmNlEi0KCXN0YXJ0c19hdBgGIAEoCzIaLmdvb2dsZS5wcm90b2J1Zi5UaW1lc3RhbXASKwoHZW5kc19hdBgHIAEoCzIaLmdvb2dsZS5wcm90b2J1Zi5UaW1lc3RhbXASDwoHcGFydGlhbBgIIAEoCBIsCgZzcGVlZHMYCSADKAsyHC5jYW5vcHkudWkudjEuVXNhZ2VCcmVha2Rvd25iBnByb3RvMw", [file_google_protobuf_timestamp]);
+  fileDesc("ChhjYW5vcHkvdWkvdjEvdXNhZ2UucHJvdG8SDGNhbm9weS51aS52MSK/AwoLVXNhZ2VUb3RhbHMSFAoMaW5wdXRfdG9rZW5zGAEgASgEEhUKDW91dHB1dF90b2tlbnMYAiABKAQSGwoTY2FjaGVkX2lucHV0X3Rva2VucxgDIAEoBBIgChhjYWNoZV93cml0ZV9pbnB1dF90b2tlbnMYBCABKAQSHwoXcmVhc29uaW5nX291dHB1dF90b2tlbnMYBSABKAQSGQoRcmVwb3J0ZWRfY29zdF91c2QYBiABKAESDwoHcmVwb3J0cxgHIAEoBBIcChR1bmtub3duX2Nvc3RfcmVwb3J0cxgIIAEoBBIaChJlc3RpbWF0ZWRfY29zdF91c2QYCSABKAESJgoedW5rbm93bl9lc3RpbWF0ZWRfY29zdF9yZXBvcnRzGAogASgEEhoKEmVmZmVjdGl2ZV9jb3N0X3VzZBgLIAEoARImCh51bmtub3duX2VmZmVjdGl2ZV9jb3N0X3JlcG9ydHMYDCABKAQSJwofZWZmZWN0aXZlX3JlcG9ydGVkX2Nvc3RfcmVwb3J0cxgNIAEoBBIoCiBlZmZlY3RpdmVfZXN0aW1hdGVkX2Nvc3RfcmVwb3J0cxgOIAEoBCKJAgoLVXNhZ2VCdWNrZXQSMAoMYnVja2V0X3N0YXJ0GAEgASgLMhouZ29vZ2xlLnByb3RvYnVmLlRpbWVzdGFtcBIQCghwcm92aWRlchgCIAEoCRINCgVtb2RlbBgDIAEoCRIpCgZ0b3RhbHMYBCABKAsyGS5jYW5vcHkudWkudjEuVXNhZ2VUb3RhbHMSEAoIcmV2aXNpb24YBSABKAQSEwoLY29tcHV0ZXJfaWQYBiABKAkSHgoWcmVxdWVzdGVkX3NlcnZpY2VfdGllchgHIAEoCRI1CgphY3Rpdml0aWVzGAggAygLMiEuY2Fub3B5LnVpLnYxLlVzYWdlQWN0aXZpdHlCdWNrZXQiXwoTVXNhZ2VBY3Rpdml0eUJ1Y2tldBILCgNrZXkYASABKAkSEAoIYm90X25hbWUYAiABKAkSKQoGdG90YWxzGAMgASgLMhkuY2Fub3B5LnVpLnYxLlVzYWdlVG90YWxzIsMBCgtVc2FnZVNvdXJjZRITCgtjb21wdXRlcl9pZBgBIAEoCRIMCgRuYW1lGAIgASgJEg4KBm9ubGluZRgDIAEoCBIyCg50cmFja2luZ19zaW5jZRgEIAEoCzIaLmdvb2dsZS5wcm90b2J1Zi5UaW1lc3RhbXASLgoKdXBkYXRlZF9hdBgFIAEoCzIaLmdvb2dsZS5wcm90b2J1Zi5UaW1lc3RhbXASDQoFbG9jYWwYBiABKAgSDgoGc3RhdHVzGAcgASgJIkgKDlVzYWdlQnJlYWtkb3duEgsKA2tleRgBIAEoCRIpCgZ0b3RhbHMYAiABKAsyGS5jYW5vcHkudWkudjEuVXNhZ2VUb3RhbHMiXAoRVXNhZ2VCb3RCcmVha2Rvd24SDgoGYm90X2lkGAEgASgJEgwKBG5hbWUYAiABKAkSKQoGdG90YWxzGAMgASgLMhkuY2Fub3B5LnVpLnYxLlVzYWdlVG90YWxzIo8BCghVc2FnZURheRInCgNkYXkYASABKAsyGi5nb29nbGUucHJvdG9idWYuVGltZXN0YW1wEikKBnRvdGFscxgCIAEoCzIZLmNhbm9weS51aS52MS5Vc2FnZVRvdGFscxIvCglwcm92aWRlcnMYAyADKAsyHC5jYW5vcHkudWkudjEuVXNhZ2VCcmVha2Rvd24isgEKFEdldFVzYWdlU3RhdHNSZXF1ZXN0EgwKBGRheXMYASABKA0SEAoIcHJvdmlkZXIYAiABKAkSEwoLY29tcHV0ZXJfaWQYAyABKAkSIwoWcmVxdWVzdGVkX3NlcnZpY2VfdGllchgEIAEoCUgAiAEBEhUKDWFjdGl2aXR5X2tpbmQYBSABKAkSDgoGYm90X2lkGAYgASgJQhkKF19yZXF1ZXN0ZWRfc2VydmljZV90aWVyIrQEChVHZXRVc2FnZVN0YXRzUmVzcG9uc2USKQoGdG90YWxzGAEgASgLMhkuY2Fub3B5LnVpLnYxLlVzYWdlVG90YWxzEiQKBGRheXMYAiADKAsyFi5jYW5vcHkudWkudjEuVXNhZ2VEYXkSLwoJcHJvdmlkZXJzGAMgAygLMhwuY2Fub3B5LnVpLnYxLlVzYWdlQnJlYWtkb3duEiwKBm1vZGVscxgEIAMoCzIcLmNhbm9weS51aS52MS5Vc2FnZUJyZWFrZG93bhIqCgdzb3VyY2VzGAUgAygLMhkuY2Fub3B5LnVpLnYxLlVzYWdlU291cmNlEi0KCXN0YXJ0c19hdBgGIAEoCzIaLmdvb2dsZS5wcm90b2J1Zi5UaW1lc3RhbXASKwoHZW5kc19hdBgHIAEoCzIaLmdvb2dsZS5wcm90b2J1Zi5UaW1lc3RhbXASDwoHcGFydGlhbBgIIAEoCBIsCgZzcGVlZHMYCSADKAsyHC5jYW5vcHkudWkudjEuVXNhZ2VCcmVha2Rvd24SMAoKYWN0aXZpdGllcxgKIAMoCzIcLmNhbm9weS51aS52MS5Vc2FnZUJyZWFrZG93bhItCgRib3RzGAsgAygLMh8uY2Fub3B5LnVpLnYxLlVzYWdlQm90QnJlYWtkb3duEiMKG3N1cHBvcnRzX2FjdGl2aXR5X2JyZWFrZG93bhgMIAEoCBIeChZoYXNfdW5hdHRyaWJ1dGVkX3VzYWdlGA0gASgIYgZwcm90bzM", [file_google_protobuf_timestamp]);
 
 /**
  * Input includes cache read/write; reasoning is part of output. Never sum subsets twice.
@@ -144,6 +144,13 @@ export type UsageBucket = Message<"canopy.ui.v1.UsageBucket"> & {
    * @generated from field: string requested_service_tier = 7;
    */
   requestedServiceTier: string;
+
+  /**
+   * Same totals split by activity. Older sources omit this field.
+   *
+   * @generated from field: repeated canopy.ui.v1.UsageActivityBucket activities = 8;
+   */
+  activities: UsageActivityBucket[];
 };
 
 /**
@@ -152,6 +159,35 @@ export type UsageBucket = Message<"canopy.ui.v1.UsageBucket"> & {
  */
 export const UsageBucketSchema: GenMessage<UsageBucket> = /*@__PURE__*/
   messageDesc(file_canopy_ui_v1_usage, 1);
+
+/**
+ * @generated from message canopy.ui.v1.UsageActivityBucket
+ */
+export type UsageActivityBucket = Message<"canopy.ui.v1.UsageActivityBucket"> & {
+  /**
+   * thread | generation | unattributed | bot:<bot UUID>
+   *
+   * @generated from field: string key = 1;
+   */
+  key: string;
+
+  /**
+   * @generated from field: string bot_name = 2;
+   */
+  botName: string;
+
+  /**
+   * @generated from field: canopy.ui.v1.UsageTotals totals = 3;
+   */
+  totals?: UsageTotals | undefined;
+};
+
+/**
+ * Describes the message canopy.ui.v1.UsageActivityBucket.
+ * Use `create(UsageActivityBucketSchema)` to create a new message.
+ */
+export const UsageActivityBucketSchema: GenMessage<UsageActivityBucket> = /*@__PURE__*/
+  messageDesc(file_canopy_ui_v1_usage, 2);
 
 /**
  * @generated from message canopy.ui.v1.UsageSource
@@ -200,7 +236,7 @@ export type UsageSource = Message<"canopy.ui.v1.UsageSource"> & {
  * Use `create(UsageSourceSchema)` to create a new message.
  */
 export const UsageSourceSchema: GenMessage<UsageSource> = /*@__PURE__*/
-  messageDesc(file_canopy_ui_v1_usage, 2);
+  messageDesc(file_canopy_ui_v1_usage, 3);
 
 /**
  * @generated from message canopy.ui.v1.UsageBreakdown
@@ -222,7 +258,34 @@ export type UsageBreakdown = Message<"canopy.ui.v1.UsageBreakdown"> & {
  * Use `create(UsageBreakdownSchema)` to create a new message.
  */
 export const UsageBreakdownSchema: GenMessage<UsageBreakdown> = /*@__PURE__*/
-  messageDesc(file_canopy_ui_v1_usage, 3);
+  messageDesc(file_canopy_ui_v1_usage, 4);
+
+/**
+ * @generated from message canopy.ui.v1.UsageBotBreakdown
+ */
+export type UsageBotBreakdown = Message<"canopy.ui.v1.UsageBotBreakdown"> & {
+  /**
+   * @generated from field: string bot_id = 1;
+   */
+  botId: string;
+
+  /**
+   * @generated from field: string name = 2;
+   */
+  name: string;
+
+  /**
+   * @generated from field: canopy.ui.v1.UsageTotals totals = 3;
+   */
+  totals?: UsageTotals | undefined;
+};
+
+/**
+ * Describes the message canopy.ui.v1.UsageBotBreakdown.
+ * Use `create(UsageBotBreakdownSchema)` to create a new message.
+ */
+export const UsageBotBreakdownSchema: GenMessage<UsageBotBreakdown> = /*@__PURE__*/
+  messageDesc(file_canopy_ui_v1_usage, 5);
 
 /**
  * @generated from message canopy.ui.v1.UsageDay
@@ -249,7 +312,7 @@ export type UsageDay = Message<"canopy.ui.v1.UsageDay"> & {
  * Use `create(UsageDaySchema)` to create a new message.
  */
 export const UsageDaySchema: GenMessage<UsageDay> = /*@__PURE__*/
-  messageDesc(file_canopy_ui_v1_usage, 4);
+  messageDesc(file_canopy_ui_v1_usage, 6);
 
 /**
  * @generated from message canopy.ui.v1.GetUsageStatsRequest
@@ -278,6 +341,18 @@ export type GetUsageStatsRequest = Message<"canopy.ui.v1.GetUsageStatsRequest"> 
    * @generated from field: optional string requested_service_tier = 4;
    */
   requestedServiceTier?: string | undefined;
+
+  /**
+   * Empty selects all. Otherwise: thread | bot | generation | unattributed.
+   *
+   * @generated from field: string activity_kind = 5;
+   */
+  activityKind: string;
+
+  /**
+   * @generated from field: string bot_id = 6;
+   */
+  botId: string;
 };
 
 /**
@@ -285,7 +360,7 @@ export type GetUsageStatsRequest = Message<"canopy.ui.v1.GetUsageStatsRequest"> 
  * Use `create(GetUsageStatsRequestSchema)` to create a new message.
  */
 export const GetUsageStatsRequestSchema: GenMessage<GetUsageStatsRequest> = /*@__PURE__*/
-  messageDesc(file_canopy_ui_v1_usage, 5);
+  messageDesc(file_canopy_ui_v1_usage, 7);
 
 /**
  * @generated from message canopy.ui.v1.GetUsageStatsResponse
@@ -339,6 +414,28 @@ export type GetUsageStatsResponse = Message<"canopy.ui.v1.GetUsageStatsResponse"
    * @generated from field: repeated canopy.ui.v1.UsageBreakdown speeds = 9;
    */
   speeds: UsageBreakdown[];
+
+  /**
+   * @generated from field: repeated canopy.ui.v1.UsageBreakdown activities = 10;
+   */
+  activities: UsageBreakdown[];
+
+  /**
+   * @generated from field: repeated canopy.ui.v1.UsageBotBreakdown bots = 11;
+   */
+  bots: UsageBotBreakdown[];
+
+  /**
+   * @generated from field: bool supports_activity_breakdown = 12;
+   */
+  supportsActivityBreakdown: boolean;
+
+  /**
+   * Within the other filters, even if activity_kind or bot_id excludes it.
+   *
+   * @generated from field: bool has_unattributed_usage = 13;
+   */
+  hasUnattributedUsage: boolean;
 };
 
 /**
@@ -346,5 +443,5 @@ export type GetUsageStatsResponse = Message<"canopy.ui.v1.GetUsageStatsResponse"
  * Use `create(GetUsageStatsResponseSchema)` to create a new message.
  */
 export const GetUsageStatsResponseSchema: GenMessage<GetUsageStatsResponse> = /*@__PURE__*/
-  messageDesc(file_canopy_ui_v1_usage, 6);
+  messageDesc(file_canopy_ui_v1_usage, 8);
 

@@ -122,6 +122,7 @@ describe.skipIf(!dockerAvailable)("durable usage accounting", () => {
       );
 
       expect(initial.totals).toMatchObject({ reports: 1n, unknownCostReports: 0n, reportedCostUsd: 1 });
+      expect(initial.activities).toMatchObject([{ key: "thread", totals: { inputTokens: 100n } }]);
       let seq = 0n;
 
       const event = (turnId: string, body: NonNullable<MessageInitShape<typeof ThreadEventSchema>["body"]>) =>
@@ -313,6 +314,8 @@ describe.skipIf(!dockerAvailable)("durable usage accounting", () => {
         reportedCostUsd: dailyProviders.reduce((sum, provider) => sum + (provider.totals?.reportedCostUsd ?? 0), 0),
       });
       expect(stats.models.map((m) => m.key)).toEqual(["large", "small"]);
+      expect(stats.activities).toMatchObject([{ key: "generation", totals: { inputTokens: 25n } }]);
+      expect((await gw.api.getUsageStats({ days: 1, activityKind: "thread" })).totals?.reports).toBe(0n);
       expect(stats.speeds.map((speed) => [speed.key, speed.totals?.inputTokens])).toEqual([
         ["", 5n],
         ["default", 20n],
@@ -352,7 +355,7 @@ describe.skipIf(!dockerAvailable)("durable usage accounting", () => {
           sql.withTransaction(
             Effect.gen(function* () {
               yield* sql`INSERT INTO bots(id,owner_user_id,client_request_id,configuration,provider,provider_instance)
-          VALUES(${bot}::uuid,${gw.userId}::uuid,${bot},'{"serviceTier":"ultrafast"}'::jsonb,'codex','native')`;
+          VALUES(${bot}::uuid,${gw.userId}::uuid,${bot},'{"name":"Release bot","serviceTier":"ultrafast"}'::jsonb,'codex','native')`;
               yield* sql`INSERT INTO bot_turns(id,bot_id,client_request_id,input,status)
           VALUES(${turn}::uuid,${bot}::uuid,${turn},'Wait','running')`;
               yield* sql`INSERT INTO worker_commands(id,worker_id,kind,payload,status,expires_at)
@@ -388,6 +391,21 @@ describe.skipIf(!dockerAvailable)("durable usage accounting", () => {
       expect(stats.totals).toMatchObject({ reports: 1n, unknownCostReports: 0n, reportedCostUsd: 3 });
       expect(stats.providers[0]?.key).toBe("claude");
       expect(stats.speeds.map((speed) => speed.key)).toEqual(["fast"]);
+      expect(stats.activities).toMatchObject([{ key: "bot", totals: { inputTokens: 150n, reportedCostUsd: 3 } }]);
+      expect(stats.bots).toMatchObject([{ botId: bot, name: "Release bot", totals: { inputTokens: 150n } }]);
+
+      const filtered = await gw.api.getUsageStats({
+        days: 7,
+        botId: bot,
+        provider: "claude",
+        requestedServiceTier: "fast",
+      });
+
+      expect(filtered.totals).toEqual(stats.totals);
+      expect(filtered.days.flatMap((day) => day.providers)).toMatchObject([
+        { key: "claude", totals: { inputTokens: 150n, effectiveCostUsd: 3 } },
+      ]);
+      expect((await gw.api.getUsageStats({ days: 7, botId: Bun.randomUUIDv7() })).totals?.reports).toBe(0n);
       const wrongWorker = await gw.addWorker("Unrelated worker");
 
       const denied = await gw.runtime.runPromise(

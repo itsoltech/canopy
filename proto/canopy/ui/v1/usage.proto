@@ -31,6 +31,14 @@ message UsageBucket {
   uint64 revision = 5;
   string computer_id = 6;
   string requested_service_tier = 7;
+  // Same totals split by activity. Older sources omit this field.
+  repeated UsageActivityBucket activities = 8;
+}
+message UsageActivityBucket {
+  // thread | generation | unattributed | bot:<bot UUID>
+  string key = 1;
+  string bot_name = 2;
+  UsageTotals totals = 3;
 }
 message UsageSource {
   string computer_id = 1;
@@ -46,6 +54,11 @@ message UsageBreakdown {
   string key = 1;
   UsageTotals totals = 2;
 }
+message UsageBotBreakdown {
+  string bot_id = 1;
+  string name = 2;
+  UsageTotals totals = 3;
+}
 message UsageDay {
   google.protobuf.Timestamp day = 1;
   UsageTotals totals = 2;
@@ -58,6 +71,9 @@ message GetUsageStatsRequest {
   string computer_id = 3;
   // Absent selects all; empty selects unknown. Native tier IDs are preserved.
   optional string requested_service_tier = 4;
+  // Empty selects all. Otherwise: thread | bot | generation | unattributed.
+  string activity_kind = 5;
+  string bot_id = 6;
 }
 message GetUsageStatsResponse {
   UsageTotals totals = 1;
@@ -71,4 +87,9 @@ message GetUsageStatsResponse {
   bool partial = 8;
   // Requested speeds: default, fast, ultrafast, native IDs, or empty (unknown).
   repeated UsageBreakdown speeds = 9;
+  repeated UsageBreakdown activities = 10;
+  repeated UsageBotBreakdown bots = 11;
+  bool supports_activity_breakdown = 12;
+  // Within the other filters, even if activity_kind or bot_id excludes it.
+  bool has_unattributed_usage = 13;
 }

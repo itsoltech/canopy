@@ -16,6 +16,8 @@ i diagnostyka wyników narzędzi są zaimplementowane. Bot zlecający pracę lok
 turze dostaje powiadomienia o oczekujących pytaniach i zakończeniu tury.
 `download_file` wysyła identyfikator klienta `Canopy-Bot` w nagłówku `User-Agent`.
 Boty i rutyny mogą sprawdzić w opublikowanych changelogach Canopy wersję według numeru PR-a.
+Usage w web/desktop pokazuje łączne zużycie botów oraz tokeny i koszty poszczególnych
+botów, łącznie z turami ze Slacka i rutynami. Szczegóły: [usage.md](usage.md).
 Dostępność nightly/beta/stable według [release.md](release.md).
 
 ## Kolejne wiadomości w prywatnym czacie

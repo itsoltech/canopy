@@ -6,6 +6,7 @@ import { Effect } from "effect";
 import type { SqlClient } from "effect/sql";
 import { addTotals } from "./totals.ts";
 import { bucketMessage, ensureUsageState, type BucketRow } from "./storage.ts";
+import { isUsageBotId, readActivityKey } from "./activity.ts";
 
 interface SourceRow {
   node_id: string;
@@ -25,6 +26,12 @@ export function usageWindow(request: ui.GetUsageStatsRequest, now = new Date()) 
 
   if (request.provider && !["claude", "codex", "grok"].includes(request.provider))
     throw new ConnectError("Choose an available provider", Code.InvalidArgument);
+
+  if (request.activityKind && !["thread", "bot", "generation", "unattributed"].includes(request.activityKind))
+    throw new ConnectError("Choose an available activity", Code.InvalidArgument);
+
+  if (request.botId && (!isUsageBotId(request.botId) || (request.activityKind && request.activityKind !== "bot")))
+    throw new ConnectError("Choose a valid bot for this activity", Code.InvalidArgument);
 
   if (
     request.requestedServiceTier !== undefined &&
@@ -95,7 +102,7 @@ export function getUsageStats(sql: SqlClient.SqlClient, owner: string, request: 
     const buckets: ui.UsageBucket[] = [];
 
     if (!request.computerId || request.computerId === localId) {
-      const rows = yield* sql<BucketRow>`SELECT * FROM usage_buckets WHERE owner_user_id=${owner}::uuid
+      const rows = yield* sql<BucketRow>`SELECT * FROM usage_activity_buckets WHERE owner_user_id=${owner}::uuid
         AND bucket_start>=${start} AND bucket_start<=${end}
         ${request.provider ? sql`AND provider=${request.provider}` : sql``}
         ${request.requestedServiceTier !== undefined ? sql`AND requested_service_tier=${request.requestedServiceTier}` : sql``}`;
@@ -119,7 +126,7 @@ export function getUsageStats(sql: SqlClient.SqlClient, owner: string, request: 
         (peer.via_node_id !== null || peer.has_more !== false),
     );
 
-    const result = summarizeUsage(buckets, sources, selected, start, end);
+    const result = summarizeUsage(request, buckets, sources, selected, start, end);
     result.partial ||= incomplete;
 
     return result;
@@ -127,6 +134,7 @@ export function getUsageStats(sql: SqlClient.SqlClient, owner: string, request: 
 }
 
 function summarizeUsage(
+  request: ui.GetUsageStatsRequest,
   buckets: ui.UsageBucket[],
   sources: ui.UsageSource[],
   selected: ui.UsageSource[],
@@ -139,6 +147,12 @@ function summarizeUsage(
   const providers = new Map<string, ui.UsageTotals>();
   const models = new Map<string, ui.UsageTotals>();
   const speeds = new Map<string, ui.UsageTotals>();
+  const activities = new Map<string, ui.UsageTotals>();
+  const bots = new Map<string, ui.UsageTotals>();
+  const botNames = new Map<string, { name: string; time: number; local: boolean }>();
+  const localId = sources.find((source) => source.local)?.computerId;
+  const selectedBot = request.botId.toLowerCase();
+  let hasUnattributedUsage = false;
 
   for (let day = new Date(start); day <= end; day.setUTCDate(day.getUTCDate() + 1))
     days.set(day.toISOString(), create(ui.UsageTotalsSchema));
@@ -146,19 +160,46 @@ function summarizeUsage(
   for (const bucket of buckets) {
     if (!bucket.totals || !bucket.bucketStart || bucket.totals.reports === 0n) continue;
     const day = timestampDate(bucket.bucketStart);
+    const time = day.getTime();
     day.setUTCHours(0, 0, 0, 0);
-    addTotals(totals, bucket.totals);
-    accumulate(days, day.toISOString(), bucket.totals);
-    const daily = dayProviders.get(day.toISOString()) ?? new Map<string, ui.UsageTotals>();
-    accumulate(daily, bucket.provider, bucket.totals);
-    dayProviders.set(day.toISOString(), daily);
-    accumulate(providers, bucket.provider, bucket.totals);
-    accumulate(models, bucket.model, bucket.totals);
-    accumulate(speeds, bucket.requestedServiceTier, bucket.totals);
+    const date = day.toISOString();
+
+    const parts = bucket.activities.length
+      ? bucket.activities
+      : [{ key: "unattributed", totals: bucket.totals, botName: "" }];
+
+    for (const part of parts) {
+      const activity = readActivityKey(part.key);
+
+      if (!activity || !part.totals?.reports) continue;
+      const { kind, botId } = activity;
+      hasUnattributedUsage ||= kind === "unattributed";
+
+      if ((request.activityKind && request.activityKind !== kind) || (selectedBot && selectedBot !== botId)) continue;
+      addTotals(totals, part.totals);
+      accumulate(days, date, part.totals);
+      const daily = dayProviders.get(date) ?? new Map<string, ui.UsageTotals>();
+      accumulate(daily, bucket.provider, part.totals);
+      dayProviders.set(date, daily);
+      accumulate(providers, bucket.provider, part.totals);
+      accumulate(models, bucket.model, part.totals);
+      accumulate(speeds, bucket.requestedServiceTier, part.totals);
+      accumulate(activities, kind, part.totals);
+
+      if (!botId) continue;
+      accumulate(bots, botId, part.totals);
+      const previous = botNames.get(botId);
+      const local = bucket.computerId === localId;
+
+      if (part.botName && (!previous || time > previous.time || (time === previous.time && local && !previous.local)))
+        botNames.set(botId, { name: part.botName, time, local });
+    }
   }
 
   const partial =
     totals.unknownEffectiveCostReports > 0n ||
+    (hasUnattributedUsage &&
+      Boolean(selectedBot || (request.activityKind && request.activityKind !== "unattributed"))) ||
     selected.some(
       (source) =>
         source.status !== "ready" ||
@@ -178,6 +219,10 @@ function summarizeUsage(
     providers: breakdown(providers),
     models: breakdown(models),
     speeds: breakdown(speeds),
+    activities: breakdown(activities),
+    bots: [...bots].map(([botId, amounts]) => ({ botId, name: botNames.get(botId)?.name ?? "", totals: amounts })),
+    supportsActivityBreakdown: true,
+    hasUnattributedUsage,
     sources,
     startsAt: timestampFromDate(start),
     endsAt: timestampFromDate(end),

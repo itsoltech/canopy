@@ -85,6 +85,13 @@ wybraną kwotę, zachowując oba niezależne koszty. Eksport źródłowy przenos
 wszystkie sumy, również wyzerowane koszyki po korekcie szybkości.
 Starszy snapshot bez pól 9–14 ma nieznany szacunek i zachowawczo nieznany koszt
 wybrany, chyba że wszystkie jego koszty zgłoszone są kompletne.
+`ui.GetUsageStatsRequest` dodaje `activity_kind` (5) i `bot_id` (6).
+`ui.GetUsageStatsResponse` dodaje `activities` (10), `bots` (11),
+`supports_activity_breakdown` (12) i `has_unattributed_usage` (13).
+Prywatny snapshot łącza zachowuje dotychczasowy klucz i pełne sumy `UsageBucket`.
+Opcjonalne `UsageBucket.activities` (8) rozdziela te same liczniki i zawiera
+identyfikatory oraz nazwy botów przypisanych do zużycia. Starszy odbiorca
+korzysta z pełnych sum, a starszy snapshot bez podziału daje zużycie nieprzypisane.
 Szczegóły: [usage.md](usage.md).
 
 ## Postęp tworzenia worktree

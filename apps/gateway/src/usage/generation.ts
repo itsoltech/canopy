@@ -34,6 +34,7 @@ export function accountGeneration(
                 counter: result.commandId,
                 provider: provider === Provider.CLAUDE ? "claude" : provider === Provider.CODEX ? "codex" : "grok",
                 model,
+                activity: { key: "generation" },
               },
               usage,
               new Date(),
