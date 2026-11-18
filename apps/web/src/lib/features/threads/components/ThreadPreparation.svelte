@@ -2,6 +2,8 @@
   import type { PreparationStep } from "../thread-creation.svelte.ts";
   import Icon from "#lib/shared/ui/Icon.svelte";
   import Spinner from "#lib/shared/ui/Spinner.svelte";
+  import Disclosure from "#lib/shared/ui/Disclosure.svelte";
+  import Rule from "#lib/shared/ui/Rule.svelte";
 
   let {
     steps,
@@ -18,10 +20,7 @@
   };
 </script>
 
-<div role="status" class="text-base/6 sm:text-sm/6">
-  <p class="py-1 font-medium text-zinc-700 dark:text-zinc-300">
-    {failed ? "Could not start thread" : done ? "Thread prepared" : "Preparing thread…"}
-  </p>
+{#snippet stepList()}
   <ol role="list" class="grid gap-1 text-zinc-500 dark:text-zinc-400">
     {#each steps as step (step.step)}
       <li class="flex min-w-0 items-start gap-2">
@@ -48,4 +47,27 @@
       </li>
     {/each}
   </ol>
+{/snippet}
+
+<div role="status" class="text-base/6 sm:text-sm/6">
+  {#if done && !failed && steps.length}
+    <Disclosure
+      remember="thread-preparation"
+      class="text-zinc-500 dark:text-zinc-400"
+      summaryClass="py-2.5 hover:text-zinc-800 sm:py-1 dark:hover:text-zinc-200"
+    >
+      {#snippet summary()}
+        <span class="flex items-center gap-3">
+          <span class="shrink-0 font-medium">Thread prepared</span>
+          <Rule class="min-w-4" />
+        </span>
+      {/snippet}
+      <div class="pl-6">{@render stepList()}</div>
+    </Disclosure>
+  {:else}
+    <p class="py-1 font-medium text-zinc-700 dark:text-zinc-300">
+      {failed ? "Could not start thread" : done ? "Thread prepared" : "Preparing thread…"}
+    </p>
+    {@render stepList()}
+  {/if}
 </div>
