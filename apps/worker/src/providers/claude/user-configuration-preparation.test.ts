@@ -497,6 +497,48 @@ test("skill reference Markdown stays unchanged while command and skill entry poi
   expect(existsSync(plugin)).toBe(false);
 });
 
+test("personal skill libraries can exceed 2048 entries across skills, assets and commands", async () => {
+  const paths = fixture();
+  const commands = join(paths.source, "commands");
+
+  mkdirSync(commands);
+
+  for (let index = 0; index < 40; index++) {
+    const skill = join(paths.source, "skills", `skill-${index}`);
+
+    mkdirSync(join(skill, "references"), { recursive: true });
+    writeFileSync(
+      join(skill, "SKILL.md"),
+      `---\nname: skill-${index}\ndescription: Library fixture\nhooks: {}\n---\nRead references.\n`,
+    );
+
+    for (let reference = 0; reference < 50; reference++)
+      writeFileSync(join(skill, "references", `${reference}.md`), `Reference ${reference}.\n`);
+  }
+
+  writeFileSync(join(commands, "library-check.md"), "---\ndescription: Library command\nhooks: {}\n---\nReady.\n");
+  const prepared = await prepare(paths);
+  const plugin = prepared.plugins[0]!.path;
+
+  try {
+    expect(readdirSync(join(plugin, "skills"))).toHaveLength(40);
+
+    for (let index = 0; index < 40; index++) {
+      const copied = join(plugin, "skills", `skill-${index}`);
+
+      expect(readFileSync(join(copied, "SKILL.md"), "utf8")).not.toContain("hooks");
+      expect(readdirSync(join(copied, "references"))).toHaveLength(50);
+      expect(readFileSync(join(copied, "references", "49.md"), "utf8")).toBe("Reference 49.\n");
+    }
+
+    expect(readFileSync(join(plugin, "commands", "library-check.md"), "utf8")).not.toContain("hooks");
+  } finally {
+    await prepared.close();
+  }
+
+  expect(existsSync(plugin)).toBe(false);
+});
+
 test("skill snapshots accept empty optional metadata and scalar descriptions without runtime overrides", async () => {
   const paths = fixture();
   const skill = join(paths.source, "skills", "scalar-check");
