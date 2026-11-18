@@ -5,6 +5,7 @@ import {
   type AgentToolCall,
   type AgentToolResult,
   type ConnectorTool,
+  type InputAttachment,
   type ThreadEvent,
 } from "@canopy/contracts";
 import type { ThreadEventInit } from "../journal/index.ts";
@@ -40,6 +41,13 @@ export interface PlatformMcp {
   close(): void;
 }
 
+export type McpAttachmentContent = { type: "text"; text: string } | { type: "image"; data: string; mimeType: string };
+
+export interface McpAttachmentResult {
+  content: McpAttachmentContent[];
+  isError: boolean;
+}
+
 /** Stateless Streamable HTTP MCP bound to loopback, authenticated and scoped to a single thread. */
 export interface PlatformMcpOptions {
   threadId: string;
@@ -51,6 +59,7 @@ export interface PlatformMcpOptions {
   toolUseId?(tool: string, args: JsonValue): string | undefined;
   turnId(): string;
   callTool(call: AgentToolCall, signal?: AbortSignal): Promise<AgentToolResult>;
+  attachmentContent?(attachments: readonly InputAttachment[], signal: AbortSignal): Promise<McpAttachmentResult>;
 }
 
 export function platformMcp(options: PlatformMcpOptions): PlatformMcp {
@@ -230,9 +239,15 @@ async function callTool(
       signal,
     );
 
-    await record(result.isError ? ItemStatus.FAILED : ItemStatus.COMPLETED, result.content, result.isError);
+    const files =
+      connector && !result.isError && result.attachments.length
+        ? await options.attachmentContent?.(result.attachments, signal)
+        : undefined;
 
-    return reply({ content: [{ type: "text", text: result.content }], isError: result.isError });
+    const isError = result.isError || (files?.isError ?? false);
+    await record(isError ? ItemStatus.FAILED : ItemStatus.COMPLETED, result.content, isError);
+
+    return reply({ content: [{ type: "text", text: result.content }, ...(files?.content ?? [])], isError });
   } catch {
     await record(ItemStatus.FAILED, "Platform tool failed", true);
 

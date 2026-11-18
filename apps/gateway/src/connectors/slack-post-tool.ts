@@ -6,10 +6,16 @@ import { MessengerStore } from "../messengers/store.ts";
 import { postSlackMessage, SlackMessengerError, type SlackTransport } from "../messengers/slack.ts";
 import type { CoreRuntime } from "../core/core-context.ts";
 import { ConnectorFailure, type AccountRow } from "./store.ts";
+import {
+  SLACK_DOWNLOAD_ACTION,
+  SLACK_DOWNLOAD_SUFFIX,
+  slackDownloadTool,
+  supportsSlackDownload,
+} from "./slack-download-tool.ts";
 
 export const SLACK_POST_ACTION = "canopy.slack.post_message";
 
-type ToolAccount = Pick<AccountRow, "id" | "name" | "connector_type" | "namespace">;
+type ToolAccount = Pick<AccountRow, "id" | "name" | "connector_type" | "namespace" | "auth_kind">;
 
 const channelPattern = /^[CDG][A-Z0-9]{1,31}$/;
 const timestampPattern = /^\d{1,16}\.\d{1,16}$/;
@@ -47,14 +53,24 @@ export function slackPostTool(row: ToolAccount) {
   });
 }
 
-export function connectorToolCatalog(row: ToolAccount, remote: readonly ConnectorTool[], slackPost: boolean) {
+export function connectorToolCatalog(
+  row: ToolAccount,
+  remote: readonly ConnectorTool[],
+  slackPost: boolean,
+  slackDownload: boolean,
+) {
   const tools = remote.flatMap((tool) =>
-    tool.remoteName === SLACK_POST_ACTION || (row.connector_type === "slack" && tool.name === slackPostName(row))
+    tool.remoteName === SLACK_POST_ACTION ||
+    tool.remoteName === SLACK_DOWNLOAD_ACTION ||
+    tool.name.endsWith(SLACK_DOWNLOAD_SUFFIX) ||
+    (row.connector_type === "slack" && tool.name === slackPostName(row))
       ? []
       : [{ ...tool, accountName: row.name }],
   );
 
   if (slackPost && row.connector_type === "slack") tools.unshift(slackPostTool(row));
+
+  if (slackDownload && supportsSlackDownload(row)) tools.unshift(slackDownloadTool(row));
 
   return tools;
 }

@@ -64,6 +64,7 @@ export interface MessengerEvent {
   messageId: string;
   authorId: string;
   text: string;
+  fileIds?: readonly string[];
   timestamp: string;
   mention: boolean;
   direct: boolean;

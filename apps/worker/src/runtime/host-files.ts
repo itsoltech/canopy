@@ -63,9 +63,18 @@ export class HostFiles {
     return { entries, directoryPath };
   }
 
-  async ensureAttachments(threadId: string, attachments: readonly InputAttachment[]): Promise<void> {
+  async ensureAttachments(
+    threadId: string,
+    attachments: readonly InputAttachment[],
+    signal?: AbortSignal,
+  ): Promise<void> {
     try {
-      await this.ctx.state.files.ensure(threadId, attachments, (sha256) => this.ctx.ops.fetchBlob(threadId, sha256));
+      await this.ctx.state.files.ensure(threadId, attachments, async (sha256) => {
+        const data = await this.ctx.ops.fetchBlob(threadId, sha256, "", signal);
+        signal?.throwIfAborted();
+
+        return data;
+      });
     } catch (error) {
       if (error instanceof AttachmentError)
         throw new CommandError("ATTACHMENT_UNAVAILABLE", error.message, error.final);
@@ -77,22 +86,40 @@ export class HostFiles {
     }
   }
 
-  fetchBlob(threadId: string, sha256: string, botTurnId = ""): Promise<Uint8Array> {
+  fetchBlob(threadId: string, sha256: string, botTurnId = "", signal?: AbortSignal): Promise<Uint8Array> {
     const link = this.ctx.state.link;
 
     if (!link) return Promise.reject(new AttachmentError("not connected to the gateway", false));
     const requestId = Bun.randomUUIDv7();
 
     return new Promise<Uint8Array>((resolve, reject) => {
-      const timer = setTimeout(() => {
+      const cleanup = () => {
         this.ctx.state.fetches.delete(requestId);
+        signal?.removeEventListener("abort", abort);
+        clearTimeout(timer);
+      };
+
+      const abort = () => {
+        cleanup();
+        reject(new AttachmentError("attachment fetch was interrupted", false));
+      };
+
+      const timer = setTimeout(() => {
+        cleanup();
         reject(new AttachmentError("the gateway did not hand over the attachment in time", false));
       }, FETCH_TIMEOUT_MS);
 
+      if (signal?.aborted) {
+        abort();
+
+        return;
+      }
+
+      signal?.addEventListener("abort", abort, { once: true });
       this.ctx.state.fetches.set(requestId, {
         chunks: [],
-        resolve: (data) => (clearTimeout(timer), resolve(data)),
-        reject: (error) => (clearTimeout(timer), reject(error)),
+        resolve: (data) => (cleanup(), resolve(data)),
+        reject: (error) => (cleanup(), reject(error)),
       });
 
       try {
@@ -107,8 +134,7 @@ export class HostFiles {
           },
         });
       } catch {
-        this.ctx.state.fetches.delete(requestId);
-        clearTimeout(timer);
+        cleanup();
         reject(new AttachmentError("the gateway link closed", false));
       }
     });

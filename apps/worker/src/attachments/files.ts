@@ -67,9 +67,7 @@ export class AttachmentFiles {
       if (matches(path, attachment)) continue;
       const data = await fetch(attachment.sha256);
 
-      if (BigInt(data.length) !== attachment.sizeBytes || sha256(data) !== attachment.sha256) {
-        throw new AttachmentError(`attachment ${attachment.name} arrived damaged (size or sha256 differ)`, false);
-      }
+      verifyAttachment(attachment, data);
 
       mkdirSync(dirname(path), { recursive: true, mode: 0o700 });
       const tmp = `${path}.${process.pid}.part`;
@@ -77,6 +75,11 @@ export class AttachmentFiles {
       renameSync(tmp, path);
     }
   }
+}
+
+export function verifyAttachment(attachment: InputAttachment, data: Uint8Array): void {
+  if (BigInt(data.length) !== attachment.sizeBytes || sha256(data) !== attachment.sha256)
+    throw new AttachmentError(`attachment ${attachment.name} arrived damaged (size or sha256 differ)`, false);
 }
 
 function matches(path: string, attachment: InputAttachment): boolean {

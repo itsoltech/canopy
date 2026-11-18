@@ -105,7 +105,29 @@ export class HostEvents {
     });
   }
 
-  callTool(call: AgentToolCall, signal?: AbortSignal): Promise<AgentToolResult> {
+  async callTool(call: AgentToolCall, signal?: AbortSignal): Promise<AgentToolResult> {
+    const result = await this.#requestTool(call, signal);
+
+    if (result.isError || !call.connectorAccountId || call.botId || !result.attachments.length) return result;
+
+    try {
+      signal?.throwIfAborted();
+      await this.ctx.ops.ensureAttachments(call.threadId, result.attachments, signal);
+      signal?.throwIfAborted();
+
+      return result;
+    } catch (error) {
+      return create(AgentToolResultSchema, {
+        callId: call.callId,
+        isError: true,
+        content: signal?.aborted
+          ? "Turn interrupted"
+          : `Could not make the downloaded file available on this worker: ${error instanceof Error ? error.message : String(error)}`,
+      });
+    }
+  }
+
+  #requestTool(call: AgentToolCall, signal?: AbortSignal): Promise<AgentToolResult> {
     if (this.ctx.state.closedThreads.has(call.threadId) || this.ctx.state.unloadingThreads.has(call.threadId))
       return Promise.resolve(
         create(AgentToolResultSchema, { callId: call.callId, isError: true, content: "Thread closed" }),

@@ -3,7 +3,11 @@ import { join, resolve } from "node:path";
 import { Provider, ProviderProfileKind } from "@canopy/contracts";
 import { GatewayStore } from "@canopy/gateway/store";
 import { tempDirs } from "@canopy/testing";
-import { CLAUDE_LIVE_PERMISSIONS_CAPABILITY, STEER_ATTACHMENTS_CAPABILITY } from "@canopy/domain/release/protocol";
+import {
+  AGENT_TOOL_ATTACHMENTS_CAPABILITY,
+  CLAUDE_LIVE_PERMISSIONS_CAPABILITY,
+  STEER_ATTACHMENTS_CAPABILITY,
+} from "@canopy/domain/release/protocol";
 import { journalHello, openGatewayLink, resendPending } from "@canopy/worker/gateway-link";
 import { Journal } from "@canopy/worker/journal";
 import { WorkerHost, serveLink, type WorkerHostOptions } from "@canopy/worker/runtime";
@@ -91,6 +95,7 @@ export async function startInstanceFixture(
     "thread_lifecycle_v1",
     "full_access",
     CLAUDE_LIVE_PERMISSIONS_CAPABILITY,
+    AGENT_TOOL_ATTACHMENTS_CAPABILITY,
     "bot_harness_v1",
     "bot_conversations_v1",
     "bot_steer_v1",

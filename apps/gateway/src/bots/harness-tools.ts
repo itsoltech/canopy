@@ -8,6 +8,7 @@ import { botPlatformTools } from "./policy.ts";
 import { runToolCall, WAITING } from "./turn-steps.ts";
 import type { BotTurn } from "./types.ts";
 import { botConfiguration } from "./store-views.ts";
+import { slackDownloadAttachments } from "../connectors/slack-download-tool.ts";
 
 /** Uses the existing bot executors; MCP never bypasses approvals or the turn lease. */
 export class HarnessTools {
@@ -87,7 +88,8 @@ export class HarnessTools {
 
       const tools = botPlatformTools(config, turn);
 
-      if (!turn.handoff_configuration) tools.push(...(await this.options.connectors.botTools(turn.bot_id, turn)));
+      if (!turn.handoff_configuration)
+        tools.push(...(await this.options.connectors.botTools(turn.bot_id, turn, config.files !== false)));
 
       try {
         const args = Schema.decodeUnknownSync(Schema.JsonObject)(JSON.parse(call.argumentsJson));
@@ -112,7 +114,10 @@ export class HarnessTools {
 
         this.waiting(turn.id, false);
 
-        return reply(JSON.stringify(result ?? null));
+        const answer = reply(JSON.stringify(result ?? null));
+        answer.attachments = slackDownloadAttachments(result, call.toolName);
+
+        return answer;
       } catch {
         this.waiting(turn.id, false);
 

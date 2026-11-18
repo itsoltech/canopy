@@ -69,6 +69,36 @@ describe("Codex rollout", () => {
     expect(user).toMatchObject({ case: "userMessage", value: { clientId: "01a19900-0000-7000-8000-000000000001" } });
   });
 
+  test("bot connector image bytes are omitted from recovered Codex tool output", async () => {
+    const path = join(tempDir("canopy-rollout-bot-image-"), "rollout.jsonl");
+    const text = { type: "text", text: 'Downloaded attachment "report.png" [file-ref]' };
+    const image = { type: "image", data: "dGVzdCBpbWFnZSBwYXlsb2Fk", mimeType: "image/png" };
+    const result = { content: [text, image] };
+
+    const tool = {
+      type: "McpToolCall",
+      id: "slack-tool-call",
+      server: "canopy",
+      tool: "slack_download",
+      status: "completed",
+      result,
+    };
+
+    const records = [
+      { type: "event_msg", payload: { type: "task_started", turn_id: "bot-turn" } },
+      { type: "event_msg", payload: { type: "item_completed", turn_id: "bot-turn", item: tool } },
+      { type: "event_msg", payload: { type: "task_complete", turn_id: "bot-turn" } },
+    ];
+
+    writeFileSync(path, records.map((entry) => JSON.stringify(entry)).join("\n"));
+    const record = await readCodexTurn(path, 0, "bot-turn", "platform-turn");
+    expect(record?.items[0]?.content).toMatchObject({
+      case: "toolCall",
+      value: { output: JSON.stringify([text]) },
+    });
+    expect(threadItem({ ...tool, server: "canopy_connectors" })).toMatchObject({ result });
+  });
+
   test("recovered consumption subtracts earlier turns and counts reasoning only inside output", async () => {
     const path = join(tempDir("canopy-rollout-usage-"), "rollout.jsonl");
 

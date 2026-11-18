@@ -19,6 +19,9 @@ export const MIN_WORKER_LINK_PROTOCOL = 1;
 /** Additive WorkerLink capability: write and verify attachments before invoking a running turn's steer. */
 export const STEER_ATTACHMENTS_CAPABILITY = "steer_attachments_v1";
 
+/** Connector tool results can carry scoped attachment references. */
+export const AGENT_TOOL_ATTACHMENTS_CAPABILITY = "agent_tool_attachments_v1";
+
 /** On-demand checkout summary and owner-requested safe origin fast-forward. */
 export const GIT_STATUS_CAPABILITY = "git_status_v1";
 

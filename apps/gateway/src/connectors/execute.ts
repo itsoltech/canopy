@@ -1,6 +1,6 @@
 import type { JsonValue } from "@bufbuild/protobuf";
 import type { ConnectorTool } from "@canopy/contracts";
-import type { JsonObject } from "@canopy/domain";
+import type { AttachmentLimits, JsonObject } from "@canopy/domain";
 import { withTurnPermissionMutation } from "../core/turn-permission-state.ts";
 import { mcpCall } from "../bots/mcp.ts";
 import type { McpConnection } from "../bots/types.ts";
@@ -16,9 +16,19 @@ import {
 } from "./slack-post-tool.ts";
 import { ConnectorFailure, type AccountRow, type Credentials, type ExecutionSource } from "./store.ts";
 import { checkConnectorTurn } from "./turn-permissions.ts";
+import { downloadConnectorSlackFile, slackDownloadScope } from "./slack-download.ts";
+import {
+  SLACK_DOWNLOAD_ACTION,
+  SLACK_DOWNLOAD_SUFFIX,
+  slackDownloadFileId,
+  slackDownloadName,
+  slackDownloadTool,
+  supportsSlackDownload,
+} from "./slack-download-tool.ts";
 
 interface ExecutionContext extends PermissionContext {
   messengerTransport: SlackTransport | undefined;
+  attachmentLimits(): Promise<AttachmentLimits>;
   catalog(user: string, account: string): Promise<ConnectorTool[]>;
   connection(user: string, account: string): Promise<{ row: AccountRow; value: Credentials; server: McpConnection }>;
 }
@@ -38,10 +48,22 @@ export async function executeConnector(
   signal: AbortSignal,
 ): Promise<JsonValue> {
   const { runtime, run } = context;
+  const nativeDownload = supportsSlackDownload(account) && toolName === slackDownloadName(account);
+
+  if (!nativeDownload && toolName.endsWith(SLACK_DOWNLOAD_SUFFIX))
+    throw new ConnectorFailure("Connector tool is unavailable");
+  const fileId = nativeDownload ? slackDownloadFileId(args) : undefined;
+
+  if (nativeDownload && !fileId) return failure("Use a Slack file ID that starts with F.");
   const old = await run((s) => s.execution(callId));
 
   if (old) {
     if (old.fingerprint !== fingerprint) throw new ConnectorFailure("Connector call identity mismatch");
+
+    if (fileId) {
+      if (source.threadId) await checkConnectorTurn(runtime, source, true);
+      await slackDownloadScope(runtime, source, account, fileId);
+    }
 
     return old.result ?? failure("Outcome unknown after disconnect. Do not repeat a write without user confirmation.");
   }
@@ -49,11 +71,14 @@ export async function executeConnector(
   // Fresh annotations are authoritative for remote tools, never the worker's descriptor.
   const nativePost = account.connector_type === "slack" && toolName === slackPostName(account);
 
-  const tool = nativePost
-    ? slackPostTool(account)
-    : (await context.catalog(source.userId, source.accountId)).find((t) => t.name === toolName);
+  const tool = nativeDownload
+    ? slackDownloadTool(account)
+    : nativePost
+      ? slackPostTool(account)
+      : (await context.catalog(source.userId, source.accountId)).find((t) => t.name === toolName);
 
-  if (!tool) throw new ConnectorFailure("Connector tool is unavailable");
+  if (!tool || (!nativeDownload && tool.remoteName === SLACK_DOWNLOAD_ACTION))
+    throw new ConnectorFailure("Connector tool is unavailable");
 
   if (nativePost && !slackPostChannel(args))
     return failure(
@@ -68,7 +93,7 @@ export async function executeConnector(
   const dispatch = async () => {
     if (source.threadId) await checkConnectorTurn(runtime, source, tool.readOnly);
     const current = await run((s) => s.authorize(source));
-    const prepared = await prepareCall(context, source, current, tool, args, callId, signal);
+    const prepared = await prepareCall(context, source, current, tool, args, callId, signal, fileId);
     const claimed = await run((s) => s.claimExecution(callId, source, tool.remoteName, fingerprint));
 
     if (!claimed) throw new ConnectorFailure("Connector call already started; outcome unknown. Do not repeat writes.");
@@ -108,6 +133,7 @@ async function prepareCall(
   args: JsonObject,
   callId: string,
   signal: AbortSignal,
+  fileId: string | undefined,
 ): Promise<{ send(): Promise<JsonValue>; checkAccess?(): Promise<void> }> {
   if (tool.remoteName === SLACK_POST_ACTION) {
     const sender = await context.run((s) => s.slackMessagingSender(current));
@@ -141,6 +167,26 @@ async function prepareCall(
 
   if (BigInt(current.revision) !== BigInt(connection.row.revision))
     throw new ConnectorFailure("Connector changed; try again");
+
+  if (fileId) {
+    const token = connection.value.tokens?.access_token;
+
+    if (!token) return { send: async () => failure("Reconnect the Slack account to download this file.") };
+
+    return {
+      send: async () =>
+        downloadConnectorSlackFile({
+          runtime: context.runtime,
+          source,
+          account: current,
+          fileId,
+          limits: await context.attachmentLimits(),
+          token,
+          signal,
+          transport: context.messengerTransport,
+        }),
+    };
+  }
 
   return {
     send: async () => {

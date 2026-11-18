@@ -54,6 +54,7 @@ export interface ExecutionSource {
   threadId?: string;
   turnId?: string;
   botId?: string;
+  botLease?: string;
   readOnlyOnly?: boolean;
 }
 

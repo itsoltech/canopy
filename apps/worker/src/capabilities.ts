@@ -1,4 +1,5 @@
 import {
+  AGENT_TOOL_ATTACHMENTS_CAPABILITY,
   SERVICE_TIERS_CAPABILITY,
   CLAUDE_LIVE_PERMISSIONS_CAPABILITY,
   CLAUDE_USER_CONFIGURATION_CAPABILITY,
@@ -35,6 +36,7 @@ export function workerCapabilities(options: { localWorker: boolean; fullAccess: 
     CLAUDE_LIVE_PERMISSIONS_CAPABILITY,
     "attachments",
     STEER_ATTACHMENTS_CAPABILITY,
+    AGENT_TOOL_ATTACHMENTS_CAPABILITY,
     "probe_providers",
     "codex_device_login",
     "codex_device_login_linked",

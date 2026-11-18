@@ -1,31 +1,67 @@
 import { Effect } from "effect";
 import type { SqlClient } from "effect/sql";
 import { Invalid } from "../store/store.ts";
+import { boundedSlackFileIds } from "./slack-events.ts";
 import type { MessengerAccounts } from "./store-accounts.ts";
 import type { AccountLease, ConversationRow, MessengerEvent, RouteRow } from "./types.ts";
 
+interface RecordedMessage {
+  id: string;
+  received_at: Date;
+  author_id: string;
+  deleted: boolean;
+  state: string;
+  slack_file_ids: string[];
+  source_edited: boolean;
+}
+
 function bufferEvent(sql: SqlClient.SqlClient, route: RouteRow, event: MessengerEvent, now: Date) {
   return Effect.gen(function* () {
+    const kind = event.kind ?? "message";
     const threadId = route.delivery === "reply" && !event.direct && !event.threadId ? event.messageId : event.threadId;
+    const sourceKey = `${event.messageId}:0`;
+
+    const recognized = sql`EXISTS(SELECT 1 FROM bot_channel_messages m
+      WHERE m.conversation_id=c.id AND m.message_id=${sourceKey})`;
 
     let conversation = (yield* sql<ConversationRow>`SELECT c.* FROM bot_channel_conversations c
       WHERE c.route_id=${route.id}::uuid AND c.channel_id=${event.channelId} AND (
-        c.thread_id=${threadId} OR (${!event.threadId && !event.mention && !event.direct && route.delivery === "reply"}
+        ${recognized} OR (${kind === "message"} AND (
+          c.thread_id=${threadId} OR (${!event.threadId && !event.mention && !event.direct && route.delivery === "reply"}
           AND c.root_author_id=${event.authorId} AND (c.open_until>${now} OR EXISTS(
-            SELECT 1 FROM bot_turns t WHERE t.conversation_id=c.id AND t.status IN ('queued','running','waiting'))))
-        OR (${event.kind === "edit" || event.kind === "delete"} AND EXISTS(SELECT 1 FROM bot_channel_messages m
-          WHERE m.conversation_id=c.id AND m.source_message_id=${event.messageId})))
-      ORDER BY (c.thread_id=${threadId}) DESC,c.open_until DESC LIMIT 1 FOR UPDATE`)[0];
+            SELECT 1 FROM bot_turns t WHERE t.conversation_id=c.id AND t.status IN ('queued','running','waiting')))))))
+      ORDER BY ${recognized} DESC,(c.thread_id=${threadId}) DESC,c.open_until DESC LIMIT 1 FOR UPDATE`)[0];
 
-    const kind = event.kind ?? "message";
+    const original = conversation
+      ? (yield* sql<RecordedMessage>`SELECT * FROM bot_channel_messages WHERE conversation_id=${conversation.id}::uuid
+        AND message_id=${sourceKey}`)[0]
+      : undefined;
+
+    const fileIds = boundedSlackFileIds(event.fileIds ?? []);
     let receivedAt = now;
 
-    if (kind !== "message") {
-      if (!conversation) return;
+    if (conversation && original) {
+      if (
+        original.deleted ||
+        (kind !== "delete" && !route.user_ids.includes(original.author_id)) ||
+        (event.authorId && original.author_id !== event.authorId)
+      )
+        return;
 
       if (kind === "delete") {
-        yield* sql`UPDATE bot_channel_messages SET text='',deleted=true WHERE conversation_id=${conversation.id}::uuid
-          AND source_message_id=${event.messageId} AND state='buffered'`;
+        yield* sql`UPDATE bot_channel_messages SET text=CASE WHEN state='buffered' THEN '' ELSE text END,
+          deleted=true,slack_file_ids='{}' WHERE conversation_id=${conversation.id}::uuid
+          AND source_message_id=${event.messageId}`;
+
+        return;
+      }
+
+      if (kind === "message") {
+        // Socket Mode may report the same message as both app_mention and message, with files on only one.
+        // An original callback may complete a buffered message, but cannot overwrite an edit or reopen delivery.
+        if (fileIds.length && original.state === "buffered" && !original.source_edited)
+          yield* sql`UPDATE bot_channel_messages SET slack_file_ids=${boundedSlackFileIds([...original.slack_file_ids, ...fileIds])}::text[]
+            WHERE id=${original.id}::bigint`;
 
         return;
       }
@@ -33,19 +69,19 @@ function bufferEvent(sql: SqlClient.SqlClient, route: RouteRow, event: Messenger
       const processed = yield* sql`SELECT id FROM bot_channel_messages WHERE conversation_id=${conversation.id}::uuid
         AND source_message_id=${event.messageId} AND state<>'buffered' LIMIT 1`;
 
-      if (processed.length) return;
+      if (processed.length) {
+        // Processed text stays immutable. Removed Slack files stop authorizing new imports.
+        yield* sql`UPDATE bot_channel_messages SET slack_file_ids=ARRAY(
+          SELECT file_id FROM unnest(slack_file_ids) AS file_id WHERE file_id=ANY(${fileIds}::text[])),
+          source_edited=true WHERE id=${original.id}::bigint`;
 
-      const original = (yield* sql<{
-        received_at: Date;
-        author_id: string;
-        deleted: boolean;
-      }>`SELECT received_at,author_id,deleted FROM bot_channel_messages
-        WHERE conversation_id=${conversation.id}::uuid AND source_message_id=${event.messageId} ORDER BY id LIMIT 1`)[0];
+        return;
+      }
 
-      if (!original || original.deleted || original.author_id !== event.authorId) return;
       receivedAt = new Date(original.received_at);
-      yield* sql`DELETE FROM bot_channel_messages WHERE conversation_id=${conversation.id}::uuid AND source_message_id=${event.messageId}`;
-    }
+      yield* sql`DELETE FROM bot_channel_messages WHERE conversation_id=${conversation.id}::uuid
+        AND source_message_id=${event.messageId}`;
+    } else if (kind !== "message") return;
 
     const running = conversation
       ? yield* sql`SELECT id FROM bot_turns WHERE conversation_id=${conversation.id}::uuid
@@ -70,17 +106,13 @@ function bufferEvent(sql: SqlClient.SqlClient, route: RouteRow, event: Messenger
         RETURNING *`)[0]!;
     }
 
-    const duplicate = yield* sql`SELECT id FROM bot_channel_messages WHERE conversation_id=${conversation.id}::uuid
-      AND source_message_id=${event.messageId} LIMIT 1`;
-
-    if (duplicate.length) return;
     // Split by Unicode code points, retaining every fragment durably within the per-batch byte budget.
     const fragments = event.text.match(/[\s\S]{1,4000}/gu) ?? [""];
 
     for (const [index, fragment] of fragments.entries()) {
       const text = fragments.length > 1 ? `[Message part ${index + 1}/${fragments.length}]\n${fragment}` : fragment;
-      yield* sql`INSERT INTO bot_channel_messages(conversation_id,message_id,source_message_id,author_id,text,provider_timestamp,received_at)
-        VALUES(${conversation.id}::uuid,${`${event.messageId}:${index}`},${event.messageId},${event.authorId},${text},${event.timestamp},${receivedAt})
+      yield* sql`INSERT INTO bot_channel_messages(conversation_id,message_id,source_message_id,author_id,text,provider_timestamp,received_at,slack_file_ids,source_edited)
+        VALUES(${conversation.id}::uuid,${`${event.messageId}:${index}`},${event.messageId},${event.authorId},${text},${event.timestamp},${receivedAt},${index === 0 ? fileIds : []}::text[],${kind === "edit"})
         ON CONFLICT(conversation_id,message_id) DO NOTHING`;
     }
 
@@ -102,7 +134,7 @@ export function messengerIngest(sql: SqlClient.SqlClient, accounts: MessengerAcc
           !event.messageId ||
           event.messageId.length > 100 ||
           event.threadId.length > 100 ||
-          !event.authorId ||
+          (!event.authorId && event.kind !== "delete") ||
           event.authorId.length > 80 ||
           event.timestamp.length > 100 ||
           event.text.length > 100_000
@@ -118,7 +150,7 @@ export function messengerIngest(sql: SqlClient.SqlClient, accounts: MessengerAcc
         const routes = yield* sql<RouteRow>`SELECT r.* FROM bot_channel_routes r JOIN bots b ON b.id=r.bot_id
       WHERE r.account_id=${event.accountId}::uuid AND r.owner_user_id=${owner}::uuid AND b.owner_user_id=${owner}::uuid
       AND r.deleted_at IS NULL AND b.deleted_at IS NULL AND b.archived_at IS NULL AND b.moved_to IS NULL
-      AND (${event.authorId}=ANY(r.user_ids))
+      AND (${event.authorId}=ANY(r.user_ids) OR ${event.kind === "delete"})
       AND ((${event.direct} AND r.direct_messages) OR (NOT ${event.direct} AND ${event.channelId}=ANY(r.channel_ids)))`;
 
         for (const route of routes) yield* bufferEvent(sql, route, event, now);

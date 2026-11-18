@@ -243,7 +243,8 @@ export class AttachmentStore extends Context.Service<
                 SELECT octet_length(bl.data) AS stored, bl.mime_type, bl.size_bytes FROM blobs bl WHERE bl.sha256=${sha256}
                 AND EXISTS (SELECT 1 FROM attachments a JOIN bots b ON b.id=a.bot_id
                   JOIN bot_harness_turns h ON h.bot_id=b.id JOIN bot_turns t ON t.id=h.turn_id
-                  WHERE a.sha256=bl.sha256 AND b.id=${botId}::uuid
+                  JOIN bot_turns input ON input.id=a.bot_turn_id AND input.bot_id=b.id
+                  WHERE input.conversation_id IS NOT DISTINCT FROM t.conversation_id AND a.sha256=bl.sha256 AND b.id=${botId}::uuid
                     AND a.owner_user_id=b.owner_user_id AND b.deleted_at IS NULL AND b.archived_at IS NULL AND b.moved_to IS NULL
                     AND h.turn_id=${turnId}::uuid AND h.worker_id=${workerId}::uuid
                     AND h.outcome IS NULL AND t.status='running')`.pipe(

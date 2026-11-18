@@ -2,8 +2,10 @@
 
 Status (2026-11-18): zaimplementowane w kodzie, także zwykłe przyznane narzędzia, izolacja rozmów zewnętrznych
 i nietrwałe wejścia do aktywnej tury rozmowy zewnętrznej lub prywatnego czatu.
-Pobieranie plików wysyła stały `User-Agent: Canopy-Bot`.
-Prywatne rozmowy i rutyny z Web access mogą czytać changelogi Canopy według PR-a.
+Odbiór wiadomości Slack obsługuje pliki, a konektor Slack przekazuje je
+do harnessu przez wynik narzędzia. Pobieranie publicznych plików wysyła stały
+`User-Agent: Canopy-Bot`. Prywatne rozmowy i rutyny z Web access mogą czytać
+changelogi Canopy według PR-a.
 Dostępność nightly/beta/stable wynika z promocji wydań ([release.md](release.md)).
 
 Status prędkości (2026-11-17): zaimplementowana w kodzie; dostępność
@@ -72,7 +74,8 @@ zamiast uruchomić turę bez obrazów. Wersja WorkerLink pozostaje 1.
 
 Worker pobiera bajty przez `FetchBlob.bot_id` / `bot_turn_id` (4/5). Dostęp wymaga
 aktywnej, trwałej komendy harnessu przypisanej temu workerowi i temu botowi;
-obraz musi należeć do właściciela bota. Zakończona tura nie uprawnia do pobierania.
+plik musi należeć do właściciela bota i do tej samej rozmowy. Zakończona tura
+nie uprawnia do pobierania.
 Wspólny `AttachmentFiles` sprawdza ścieżkę, rozmiar i SHA-256 przed zapisem.
 Ścieżki są wyliczane dla aktualnego workera, również po zmianie Runs on.
 
@@ -85,8 +88,11 @@ pliki bieżącej wiadomości. Historia zawiera jedynie referencje dawnych plikó
 przy ich wiadomościach, z identyfikatorem i czasem UTC oraz jawną etykietą
 „references only; not attached to the current input”. Bieżąca wiadomość trafia
 osobno do `Current input`, bez powtórzenia w `history_json`.
-`list_attachments` nadal pozwala przekazać wcześniejszy plik do wątku; ponowny
-odczyt treści przez bota wymaga nowego załączenia przez użytkownika.
+`list_attachments` pozwala przekazać wcześniejszy plik do wątku. Ponowny
+odczyt wymaga nowego załączenia albo pobrania pliku przez konektor Slack.
+Przy pobraniu przez konektor worker przekazuje obraz jako wynik MCP,
+obsługiwany tekst lub PDF w granicach budżetu albo metadane pliku wraz
+z referencją do przekazania. Pobranie używa tego samego FetchBlob.
 Poprzednio odbudowa spłaszczała dawne obrazy, dokumenty i tekst plików do jednego
 nowego wejścia harnessu, co sugerowało ponowne wysłanie ich przez użytkownika.
 Wersja kontekstu załączników w kluczu sesji wymusza jednorazową odbudowę po

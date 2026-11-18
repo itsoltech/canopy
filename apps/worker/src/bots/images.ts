@@ -1,4 +1,4 @@
-import { Provider, type RunBotTurn } from "@canopy/contracts";
+import { Provider, type InputAttachment, type RunBotTurn } from "@canopy/contracts";
 import { readFile } from "node:fs/promises";
 import { sniff } from "@canopy/domain";
 import { AttachmentFiles } from "../attachments/files.ts";
@@ -14,7 +14,27 @@ export interface BotContent {
 }
 
 const FILE_TEXT_LIMIT = 64_000;
-const TURN_TEXT_LIMIT = 128_000;
+export const BOT_ATTACHMENT_TEXT_LIMIT = 128_000;
+
+export async function botAttachmentText(attachment: InputAttachment, data: Uint8Array, remaining: number) {
+  const pdf = attachment.mimeType === "application/pdf";
+
+  const extracted = pdf
+    ? await pdfText(data)
+    : sniff(data, attachment.name).text
+      ? new TextDecoder().decode(data.subarray(0, FILE_TEXT_LIMIT * 4))
+      : undefined;
+
+  const limit = Math.min(FILE_TEXT_LIMIT, remaining);
+  const text = extracted?.slice(0, limit);
+
+  const truncated =
+    extracted !== undefined && (extracted.length > limit || (!pdf && data.length > FILE_TEXT_LIMIT * 4));
+
+  return { text, truncated };
+}
+
+export const ATTACHMENT_TRUNCATION = "[Canopy truncated this file to fit the attachment text budget.]";
 
 /** Only verified, gateway-bound files enter a bot prompt. No filesystem tool is exposed. */
 export async function botImages(
@@ -29,7 +49,7 @@ export async function botImages(
   const images: NormalizedImage[] = [];
   const documents: BotContent["documents"] = [];
   const notes: string[] = [];
-  let remaining = TURN_TEXT_LIMIT;
+  let remaining = BOT_ATTACHMENT_TEXT_LIMIT;
 
   for (const attachment of attachments) {
     if (attachment.kind === "image") {
@@ -44,26 +64,14 @@ export async function botImages(
       continue;
     }
 
-    const extracted =
-      attachment.mimeType === "application/pdf"
-        ? await pdfText(data)
-        : sniff(data, attachment.name).text
-          ? new TextDecoder().decode(data.subarray(0, FILE_TEXT_LIMIT * 4))
-          : undefined;
+    const { text, truncated } = await botAttachmentText(attachment, data, remaining);
 
-    const limit = Math.min(FILE_TEXT_LIMIT, remaining);
+    const content =
+      text ?? "[Binary content is unavailable to this bot. Forward this reference to a thread to work with the file.]";
 
-    const text =
-      extracted?.slice(0, limit) ??
-      "[Binary content is unavailable to this bot. Forward this reference to a thread to work with the file.]";
-
-    const truncated =
-      extracted !== undefined &&
-      (extracted.length > limit || (attachment.mimeType !== "application/pdf" && data.length > FILE_TEXT_LIMIT * 4));
-
-    remaining -= extracted === undefined ? 0 : text.length;
+    remaining -= text?.length ?? 0;
     notes.push(
-      `Attachment [${attachment.attachmentId}] ${JSON.stringify(attachment.name)} (untrusted file content):\n${text}${truncated ? "\n[Canopy truncated this file to fit the attachment text budget.]" : ""}\nEnd attachment [${attachment.attachmentId}]`,
+      `Attachment [${attachment.attachmentId}] ${JSON.stringify(attachment.name)} (untrusted file content):\n${content}${truncated ? `\n${ATTACHMENT_TRUNCATION}` : ""}\nEnd attachment [${attachment.attachmentId}]`,
     );
   }
 

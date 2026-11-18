@@ -8,6 +8,7 @@ interface BufferedMessage {
   id: string;
   author_id: string;
   text: string;
+  slack_file_ids: string[];
   provider_timestamp: string;
   received_at: Date;
   input_id: string | null;
@@ -113,6 +114,9 @@ function dispatchConversation(sql: SqlClient.SqlClient, owner: string, id: strin
         selected.push(message);
         bytes += size;
       }
+
+      // A Slack file must enter the native attachment pipeline of a fresh durable turn.
+      if (active && selected.some((m) => m.slack_file_ids.length)) return undefined;
 
       const warning = selected.some((m) => m.unconfirmed)
         ? "Delivery of these messages to the previous turn was unconfirmed. Do not repeat completed actions.\n"

@@ -18,6 +18,7 @@ import { redactConnector } from "./oauth.ts";
 import { allowThreadConnector } from "../bots/thread-connector-rules.ts";
 import { checkConnectorTurn, connectorTurn } from "./turn-permissions.ts";
 import { SLACK_POST_ACTION } from "./slack-post-tool.ts";
+import { slackDownloadAttachments } from "./slack-download-tool.ts";
 
 /** MCP tool results report failure in-band. */
 export const failed = (result: JsonValue) => isJsonObject(result) && Boolean(result["isError"]);
@@ -145,6 +146,7 @@ export async function handleConnectorCall(
       isError,
       content: JSON.stringify(result),
       resultJson: JSON.stringify(result),
+      attachments: slackDownloadAttachments(result, request.toolName),
     });
   } catch {
     if (source) await context.run((s) => s.audit(source!, request.toolName, "denied_or_failed")).catch(() => undefined);

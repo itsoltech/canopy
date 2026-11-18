@@ -13,6 +13,7 @@ import { messengerDispatch } from "../messengers/store-dispatch.ts";
 import { classifyFailure } from "@canopy/domain";
 import type { SqlClient } from "effect/sql";
 import { Invalid } from "../store/store.ts";
+import type { StoredAttachment } from "../store/attachments.ts";
 import type { BotAccess } from "./store-access.ts";
 import type { BotTurn } from "./types.ts";
 import type { AgentToolCall } from "@canopy/contracts";
@@ -95,6 +96,35 @@ function updateItems(row: HarnessTurnRow, event: ThreadEvent): void {
 }
 
 /** Bot events use the worker journal, with independent storage and owner/worker checks. */
+function persistHarnessCommand(
+  sql: SqlClient.SqlClient,
+  access: BotAccess,
+  turn: BotTurn,
+  workerId: string,
+  command: Command,
+  sourceAttachments?: readonly StoredAttachment[],
+) {
+  return sql.withTransaction(
+    Effect.gen(function* () {
+      yield* access.fenced(turn);
+
+      const existing = (yield* sql<{
+        payload: Uint8Array;
+      }>`SELECT c.payload FROM bot_harness_turns h JOIN worker_commands c ON c.id = h.command_id WHERE h.turn_id = ${turn.id}::uuid`)[0];
+
+      if (existing) return fromBinary(CommandSchema, existing.payload);
+
+      if (turn.conversation_id && sourceAttachments?.length)
+        yield* sql`UPDATE bot_messages SET attachments=${JSON.stringify(sourceAttachments)}::jsonb
+        WHERE turn_id=${turn.id}::uuid AND bot_id=${turn.bot_id}::uuid AND message_key='input'`;
+      yield* sql`INSERT INTO worker_commands(id, worker_id, kind, payload, expires_at) VALUES (${command.commandId}::uuid, ${workerId}::uuid, 'runBotTurn', ${toBinary(CommandSchema, command)}, now() + interval '365 days')`;
+      yield* sql`INSERT INTO bot_harness_turns(turn_id, bot_id, worker_id, command_id) VALUES (${turn.id}::uuid, ${turn.bot_id}::uuid, ${workerId}::uuid, ${command.commandId}::uuid)`;
+
+      return command;
+    }),
+  );
+}
+
 export function botHarnessStore(sql: SqlClient.SqlClient, access: BotAccess) {
   return {
     abandonHarnessCall: (user: string, workerId: string, call: AgentToolCall) =>
@@ -123,22 +153,12 @@ export function botHarnessStore(sql: SqlClient.SqlClient, access: BotAccess) {
     harnessTurn: (id: string) =>
       sql<HarnessTurnRow>`SELECT * FROM bot_harness_turns WHERE turn_id = ${id}::uuid`.pipe(Effect.map((r) => r[0])),
     harnessInterruptPending: (workerId: string, botId: string) => interruptPending(sql, workerId, botId),
-    harnessCommand: (turn: BotTurn, workerId: string, command: Command) =>
-      sql.withTransaction(
-        Effect.gen(function* () {
-          yield* access.fenced(turn);
-
-          const existing = (yield* sql<{
-            payload: Uint8Array;
-          }>`SELECT c.payload FROM bot_harness_turns h JOIN worker_commands c ON c.id = h.command_id WHERE h.turn_id = ${turn.id}::uuid`)[0];
-
-          if (existing) return fromBinary(CommandSchema, existing.payload);
-          yield* sql`INSERT INTO worker_commands(id, worker_id, kind, payload, expires_at) VALUES (${command.commandId}::uuid, ${workerId}::uuid, 'runBotTurn', ${toBinary(CommandSchema, command)}, now() + interval '365 days')`;
-          yield* sql`INSERT INTO bot_harness_turns(turn_id, bot_id, worker_id, command_id) VALUES (${turn.id}::uuid, ${turn.bot_id}::uuid, ${workerId}::uuid, ${command.commandId}::uuid)`;
-
-          return command;
-        }),
-      ),
+    harnessCommand: (
+      turn: BotTurn,
+      workerId: string,
+      command: Command,
+      sourceAttachments?: readonly StoredAttachment[],
+    ) => persistHarnessCommand(sql, access, turn, workerId, command, sourceAttachments),
     harnessCommandFailure: (id: string) => commandFailure(sql, id),
     harnessDispatchable: (id: string) =>
       sql`SELECT h.turn_id FROM bot_harness_turns h JOIN bot_turns t ON t.id = h.turn_id JOIN bots b ON b.id = h.bot_id

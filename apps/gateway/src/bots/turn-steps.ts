@@ -8,6 +8,7 @@ import type { ModelMessage, ToolResult, ToolSpec, BotTurn } from "./types.ts";
 import type { bots } from "@canopy/contracts";
 import type { BotRuntimeOptions } from "./runtime.ts";
 import { logBotToolResult } from "./diagnostics.ts";
+import { SLACK_DOWNLOAD_ACTION } from "../connectors/slack-download-tool.ts";
 
 /** The runtime's options and store access, for the steps of a turn. */
 export interface TurnStep {
@@ -109,6 +110,7 @@ export async function runToolCall(
                 userId: ctx.options.userId,
                 botId: turn.bot_id,
                 accountId: tool.serverId!,
+                ...(tool.remoteName === SLACK_DOWNLOAD_ACTION && { turnId: turn.id, botLease: turn.lease_token }),
                 readOnlyOnly: tool.readOnly === true && !["always", "full_auto"].includes(currentConfig.approvalPolicy),
               },
               call.id,

@@ -11,6 +11,8 @@ import { botRowsJson } from "../../apps/gateway/src/computers/move-payload.ts";
 import { eventually, startTestGateway } from "./support/gateway.ts";
 import { BotStore } from "../../apps/gateway/src/bots/store.ts";
 import type { BotTurn } from "../../apps/gateway/src/bots/types.ts";
+import { allowedInboundSlackFile } from "../../apps/gateway/src/messengers/conversation-access.ts";
+import { inboundSlackTurnFiles } from "../../apps/gateway/src/messengers/store-inbound-files.ts";
 import { MessengerStore } from "../../apps/gateway/src/messengers/store.ts";
 import { connectorStore, type ConnectorStore } from "../../apps/gateway/src/connectors/store.ts";
 import { encryptSecret } from "../../apps/gateway/src/store/secrets.ts";
@@ -261,6 +263,64 @@ describe.skipIf(!dockerAvailable)("durable bot messenger channels", () => {
     expect(privateHistory).not.toContain("EXTERNAL ANSWER");
     expect(await botRun((s) => s.handoffContext(laterPrivate))).not.toContain("SECOND CONVERSATION");
     await botRun((s) => s.finish(laterPrivate, "completed", ""));
+  });
+
+  test("Slack attachment admission follows the canonical message, active route, author and turn lease", async () => {
+    const f = await fixture();
+    const connectorId = await linkAccount(f.account.id);
+    await f.ingest("root", "Start the current turn");
+    await f.dispatch(4000);
+    const active = (await botRun((s) => s.claim(owner)))!;
+
+    await f.ingest("mention", "Look at the report", 5000, { messageId: "shared" });
+    await f.ingest("message", "Duplicate source", 5100, {
+      messageId: "shared",
+      mention: false,
+      fileIds: ["FREPORT", "FREPORT", "https://invalid.example/file"],
+    });
+    await f.ingest("modified", "Before edit", 5200, { fileIds: ["FOLD"] });
+    await f.ingest("edit", "After edit", 5300, { kind: "edit", messageId: "modified", fileIds: ["FEDITED"] });
+    await f.ingest("late-copy", "Original copy", 5400, { messageId: "modified", fileIds: ["FOLD"] });
+    await f.ingest("untrusted", "Outside the allowlist", 5500, { authorId: "UDENIED", fileIds: ["FDENIED"] });
+
+    expect(await f.dispatch(9000)).toEqual([]);
+    expect(await f.turns()).toHaveLength(1);
+    await botRun((s) => s.finish(active, "completed", ""));
+    await f.dispatch(9000);
+    const turn = (await botRun((s) => s.claim(owner)))!;
+    expect(turn.input).toContain("Look at the report");
+    expect(turn.input).toContain("After edit");
+    expect(turn.input).not.toContain("Duplicate source");
+
+    const admitted = (lease = turn) =>
+      runtime.runPromise(SqlClient.SqlClient.use((sql) => inboundSlackTurnFiles(sql, owner, lease)));
+
+    const allowed = (fileId: string, accountId = connectorId) =>
+      runtime.runPromise(
+        SqlClient.SqlClient.use((sql) =>
+          allowedInboundSlackFile(sql, f.botId, turn.conversation_id!, accountId, fileId),
+        ),
+      );
+
+    expect((await admitted()).map((file) => file.file_id)).toEqual(["FREPORT", "FEDITED"]);
+    expect(await admitted({ ...turn, lease_token: Bun.randomUUIDv7() })).toEqual([]);
+
+    const currentFile = await runtime.runPromise(
+      SqlClient.SqlClient.use((sql) => inboundSlackTurnFiles(sql, owner, turn, "FREPORT")),
+    );
+
+    expect(currentFile.map((file) => file.file_id)).toEqual(["FREPORT"]);
+    expect(await allowed("FREPORT")).toBe(true);
+    expect(await allowed("FREPORT", Bun.randomUUIDv7())).toBe(false);
+    expect(await allowed("FOLD")).toBe(false);
+    expect(await allowed("FDENIED")).toBe(false);
+    await f.ingest("delete", "", 9100, { kind: "delete", messageId: "shared", authorId: "" });
+    expect(await allowed("FREPORT")).toBe(false);
+    expect((await admitted()).map((file) => file.file_id)).toEqual(["FEDITED"]);
+    await run((s) => s.saveRoute(owner, { ...f.route, userIds: ["U456"] }));
+    expect(await allowed("FEDITED")).toBe(false);
+    expect(await admitted()).toEqual([]);
+    await botRun((s) => s.finish(turn, "completed", ""));
   });
 
   test("max receipt wait flushes a noisy batch; provider duplicates and edits/deletes do not repeat actions", async () => {
