@@ -214,3 +214,8 @@
   height: 1.25rem;
   font-size: var(--type-sidebar-mark);
 }
+
+/* On a footer handoff the outgoing panel leaves the top layer before it can cover its neighbour. */
+.sidebar-footer-popover-superseded:not(:popover-open) {
+  transition: none;
+}

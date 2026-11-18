@@ -11,8 +11,9 @@
   import TextLink from "#lib/shared/ui/TextLink.svelte";
   import UsageGlance from "./UsageGlance.svelte";
   import UsageSummaryRow from "./UsageSummaryRow.svelte";
+  import type { FooterPopover } from "#lib/features/navigation/footer-popovers.svelte.ts";
 
-  let { class: className }: { class?: ClassValue } = $props();
+  let { panel, class: className }: { panel: FooterPopover; class?: ClassValue } = $props();
   const overview = useOverview();
   const accounts = $derived(sidebarUsageAccounts(overview.workers, clock.now));
 
@@ -30,39 +31,21 @@
     `Show provider usage. ${[...glance.map((item) => `${item.label}.`), ...notes.map((note) => note.text)].join(" ")}`,
   );
 
-  let open = $state(false);
-  let pinned = $state(false);
-  let closeTimer: ReturnType<typeof setTimeout> | undefined;
-
-  $effect(() => () => clearTimeout(closeTimer));
-
   $effect(() => {
-    if (!accounts.length && !usageProxies.length) open = false;
+    if (!glance.length && !usageProxies.length) panel.close();
   });
-
-  function hover(event: PointerEvent) {
-    clearTimeout(closeTimer);
-
-    if (event.pointerType === "mouse" && window.matchMedia("(min-width: 40rem)").matches) open = true;
-  }
-
-  // Touch fires pointerleave right after the tap, before its click: only a mouse leaving closes the hover popover.
-  function leave(event: PointerEvent) {
-    if (event.pointerType === "mouse" && !pinned) closeTimer = setTimeout(() => (open = false), 250);
-  }
 </script>
 
 <div class={["grid h-9 w-14 shrink-0 place-items-center sm:h-8 sm:w-13", className]}>
   {#if glance.length || usageProxies.length}
-    <div role="group" aria-label="Provider usage" onpointerenter={hover} onpointerleave={leave}>
+    <div role="group" aria-label="Provider usage" onpointerenter={panel.enter} onpointerleave={panel.leave}>
       <Popover
-        bind:open
+        bind:open={panel.isOpen, panel.setOpen}
         label="Provider usage"
         placement="top-start"
         sheet
-        focusOnOpen={pinned}
-        class="w-[min(21rem,calc(100vw-1rem))]"
-        onclose={() => (pinned = false)}
+        focusOnOpen={panel.pinned}
+        class={["w-[min(21rem,calc(100vw-1rem))]", panel.superseded && "sidebar-footer-popover-superseded"]}
       >
         {#snippet trigger(props)}
           <button
@@ -70,10 +53,7 @@
             type="button"
             aria-label={label}
             class="grid h-9 w-14 place-items-center rounded-lg focus-ring hover:bg-zinc-950/5 sm:h-8 sm:w-13 dark:hover:bg-white/5"
-            onclick={() => {
-              open = !pinned;
-              pinned = open;
-            }}
+            onclick={panel.press}
           >
             {#if glance.length}<UsageGlance {glance} />{:else}<Icon
                 name="link"
@@ -99,12 +79,12 @@
                 {note.text}
                 {#if !note.checking}<TextLink
                     href={`/settings/proxies#proxy-${note.proxyId}`}
-                    onclick={() => (open = false)}>Check proxy settings</TextLink
+                    onclick={panel.close}>Check proxy settings</TextLink
                   >{/if}
               </p>
             {/each}
           </div>
-          <ButtonLink href="/settings/providers" variant="ghost" onclick={() => (open = false)} class="justify-start"
+          <ButtonLink href="/settings/providers" variant="ghost" onclick={panel.close} class="justify-start"
             >Open provider settings</ButtonLink
           >
         </div>

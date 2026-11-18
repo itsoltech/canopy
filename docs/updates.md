@@ -1,6 +1,7 @@
 # Aktualizacje Canopy
 
-Status: opis zaimplementowanego kodu (2026-11-18), w tym równoległej aktualizacji
+Status: opis zaimplementowanego kodu (2026-11-18), w tym wspólnego otwierania paneli
+Updates i Provider usage w stopce oraz równoległej aktualizacji
 zdalnych desktopów i workerów binarnych, ponawiania raportu o błędzie workera,
 niezależnych akcji CLI i korelacji prób w Update all,
 aktualizacji CLI przez mise, restartu workera mimo błędu sprzątania urządzeń,
@@ -101,7 +102,11 @@ Zmiana telefonu dotyczy wyłącznie JS/TS i nie wymaga nowego runtime ani builda
 Trzecia ikona stopki (za Settings i licznikiem workerów) pokazuje aktualizacje
 własnej aplikacji desktopowej: stan spokojny, sprawdzanie, pobieranie z procentem
 oraz gotowość do restartu. Hover i klik otwierają ten sam przewijany popover;
-na telefonie jest to dolny panel. Animacja respektuje ograniczenie ruchu.
+na telefonie jest to dolny panel. Updates i Provider usage dzielą miejsce w stopce.
+Przejście kursorem na sąsiedni wyzwalacz od razu zastępuje panel otwarty najechaniem.
+Po wyjściu kursora poza wyzwalacz i panel zamknięcie ma 250 ms zwłoki, aby dało się
+przejść do treści przez odstęp. Aktywacja przycisku przypina jego panel i ma
+pierwszeństwo przed najechaniem. Animacja respektuje ograniczenie ruchu.
 Klient podłączony do gatewaya desktopowego pokazuje aplikację z jej raportu;
 gateway serwerowy nadal ma wyłącznie wiersz gatewaya.
 

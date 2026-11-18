@@ -1,6 +1,7 @@
 # API dla UI i architektura frontendu
 
-Status (2026-11-18): stopka sidebara ma osobne ikony Settings i Usage oraz samą kropkę statusu połączenia;
+Status (2026-11-18): stopka sidebara pokazuje tylko jeden z paneli Updates i Provider usage,
+ma osobne ikony Settings i Usage oraz samą kropkę statusu połączenia;
 web/desktop wysyła „Continue” jednym kliknięciem z pustego kompozytora istniejącego wątku między turami;
 `InstallCli` przyjmuje opcjonalne UUID próby do korelacji raportów;
 kontrakt kompozytora i wątków udostępnia szybkość wykonania `service_tier`;
