@@ -86,13 +86,16 @@ export class ComposerPermissionsState {
     return undefined;
   }
   get explanation() {
-    if (this.scope === "message")
-      return `The thread uses ${permissionLabel(this.#thread.permissionMode)}. Choose a mode to set it for future turns.`;
+    if (this.threadDefault) {
+      const description =
+        this.scope === "message"
+          ? `The thread uses ${permissionLabel(this.#thread.permissionMode)}. Choose a mode to set it for future turns.`
+          : "New turns in this thread use this mode.";
 
-    if (this.threadDefault)
       return this.context().running
-        ? "New turns use this mode. The running turn keeps its permissions."
-        : "New turns in this thread use this mode.";
+        ? `${description} Steered messages use the running turn’s permissions.`
+        : description;
+    }
 
     if (this.#live)
       return "Applies to this turn and future messages. Full access also allows pending permissions. Other modes keep pending shell approvals.";
