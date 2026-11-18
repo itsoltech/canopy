@@ -58,3 +58,45 @@ export function navigateFeedKey(
   event.preventDefault();
   void focus(at + (event.key === "PageDown" ? 1 : -1));
 }
+
+/** Keep native short scrolls, but mount the destination directly for a boundary jump. */
+export function handleFeedScrollKey(
+  event: KeyboardEvent,
+  scroller: HTMLElement | undefined,
+  list: HTMLElement | undefined,
+  gesture: () => void,
+  jump: (edge: "Home" | "End") => void,
+): void {
+  const target = event.target;
+
+  if (
+    event.defaultPrevented ||
+    !(target instanceof Element) ||
+    target.closest("textarea, input, select, [contenteditable]")
+  )
+    return;
+
+  if (list && (event.ctrlKey || event.metaKey) && !event.altKey && !event.shiftKey && event.key.toLowerCase() === "a") {
+    event.preventDefault();
+    getSelection()?.selectAllChildren(list);
+
+    return;
+  }
+
+  if (
+    target === scroller &&
+    !event.altKey &&
+    !event.ctrlKey &&
+    !event.metaKey &&
+    !event.shiftKey &&
+    (event.key === "Home" || event.key === "End")
+  ) {
+    event.preventDefault();
+    gesture();
+    jump(event.key);
+
+    return;
+  }
+
+  if (["PageUp", "PageDown", "Home", "End", "ArrowUp", "ArrowDown", " "].includes(event.key)) gesture();
+}

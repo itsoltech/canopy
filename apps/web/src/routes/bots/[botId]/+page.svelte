@@ -45,12 +45,9 @@
   const lifetime = $derived({ botId: scopeId, active: true });
   const capabilities = useGatewayCapabilities();
   const catalogs = useModelCatalog();
-  let snapshot = $state.raw(create(bots.BotConversationSchema));
-
-  const history = watchBot(
-    () => data.bot,
-    (next) => (snapshot = next),
-  );
+  const history = watchBot(() => data.bot.id);
+  const emptySnapshot = create(bots.BotConversationSchema);
+  let snapshot = $derived(history.snapshot ?? emptySnapshot);
 
   let connection = $state("");
   const expiredNotice = $derived(connection === "This request expired. No answer was sent.");
@@ -197,6 +194,7 @@
   $effect(() => {
     const view = lifetime;
     pending = [];
+    answering = {};
     connection = "";
     sending = false;
 
@@ -279,6 +277,7 @@
 
   async function reply(id: string, body: { approve: boolean; answer: string; ruleOptionId?: string }, mark: string) {
     if (!canAct || !canAnswerBotApproval(snapshot, id, history.live)) return;
+    const view = lifetime;
     answering = { ...answering, [id]: mark };
 
     try {
@@ -291,6 +290,7 @@
         ),
       );
     } catch (cause) {
+      if (!view.active) return;
       connection = cause instanceof Error ? cause.message : "Could not send your answer";
 
       if (connection.includes("This request expired.")) {
@@ -301,8 +301,10 @@
         connection = "This request expired. No answer was sent.";
       }
     } finally {
-      const { [id]: _, ...rest } = answering;
-      answering = rest;
+      if (view.active) {
+        const { [id]: _, ...rest } = answering;
+        answering = rest;
+      }
     }
   }
 
@@ -417,10 +419,7 @@
         />{/snippet}
       <ChatView
         {composerDraft}
-        hasMore={history.hasMore}
-        historyError={history.historyError}
-        loadingOlder={history.loadingOlder}
-        onloadOlder={history.loadOlder}
+        {history}
         {conversation}
         {entries}
         me={{ id: "me", kind: "user", name: "You" }}
@@ -437,7 +436,7 @@
         {retrying}
         {policy}
         composerDisabledReason={home.reason || (!history.live ? "Syncing…" : undefined)}
-        loading={!history.loaded}
+        loading={!history.snapshot}
         syncing={!history.live}
         onanswer={canAct ? answer : undefined}
         onapprove={canAct ? approve : undefined}

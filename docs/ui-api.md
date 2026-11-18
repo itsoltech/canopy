@@ -14,6 +14,7 @@ i estymowaną równowartością API według cen OpenAI, wyświetlanymi z dokład
 tokenami, filtrami czasu, providera, komputera i żądanej szybkości oraz zakresem rejestrowania;
 nowy wątek web/desktop i natywnego mobile od razu pokazuje prompt i rzeczywisty postęp przygotowania worktree;
 web/desktop zachowuje geometrię osi czasu i kotwicę wiadomości przy przejściu z przygotowania do wątku;
+czat bota używa `VirtualFeed` i dołącza starsze strony przy przewijaniu, a Home/End przesuwają okno bez animacji;
 propozycje odpowiedzi pomijają zużyte i wysterowane wpisy kolejki;
 porzucone notatki platformy nie udają oczekującego wejścia i nie blokują późniejszych propozycji;
 watch odzyskuje stan po powtarzającym się nieokreślonym błędzie gatewaya;
@@ -2618,7 +2619,7 @@ Upuszczanie działa na tym samym obszarze (`FileIntake.zone`): oś czasu, nagł�
 
 Pliki nie zmieniają wybranego trybu wysyłania ani domyślnej preferencji: wiadomość może wejść do trwającej tury przez kompozytor albo „Steer now” w kolejce, także na mobile. Starszy worker lub dom oraz odmowa harnessu oznaczają kolejkę z rzeczywistym powodem; koniec tury oznacza następną turę. Grok ACP korzysta z kolejki, bo nie obsługuje wejścia w trakcie tury. Wiadomość użytkownika na osi czasu (także steer) pokazuje umieszczone pliki jako te same plakietki w tych samych miejscach (`AttachmentChip`: obrazy i pliki tekstowe otwierają podgląd z pobieraniem, pozostałe pliki się pobierają), a pozostałe pliki (wiadomości bez pozycji) jako miniatury i chipy pod tekstem jak dotąd; pełny tekst z notatką platformy jest zwinięty pod „Full text the agent received”. Item `image` pokazuje podgląd tego, co zobaczył model („Viewed image” dla `view_image`, „Image” dla natywnego odczytu, „Generated image”), z wymiarami oryginału, gdy obraz był zmniejszony; nieudany `view_image` pokazuje powód. Item narzędzia z obrazami w wyniku (np. `Read` Claude) pokazuje je pod wejściem.
 
-Strona wątku przewija historię w jednym kontenerze (`VirtualFeed`): wirtualizowana oś `role="feed"` (artykuły z `aria-posinset` / `aria-setsize`). Nakładka kompozytora, gradient i „Jump to latest” są poza nim. `ResizeObserver` mierzy zamontowane wiersze, viewport i stałą rezerwę zwiniętego pola. Do pierwszego snapshotu SSE w miejscu wiadomości stoi `TimelineSkeleton`; snapshot montuje ostatnie wiersze i przypina dół przed malowaniem. Nie ma serwerowego pobrania końca wątku ani skryptu przed hydratacją. Gradient ma geometrię nakładki bez opóźnienia pomiaru. Nowe wiersze animują transform/przezroczystość; wiersze spoza widoku i dołożone na początku nie animują, a wstawione pośrodku tylko według `inserted` (`t-unfold`). Dół pozostaje przypięty podczas strumieniowania i zmiany viewportu przez klawiaturę; wzrost kompozytora nie przesuwa osi, a czytanie wyżej kotwiczy pierwszy widoczny wiersz. Klawiatura: Page Up/Down, Home/End w obszarze przewijania, Page Up/Down między artykułami, Ctrl+End do kompozytora. `/dev/long-thread` (tylko development) dostarcza syntetyczną historię i pomiary.
+Strona wątku przewija historię w jednym kontenerze (`VirtualFeed`): wirtualizowana oś `role="feed"` (artykuły z `aria-posinset` / `aria-setsize`). Nakładka kompozytora, gradient i „Jump to latest” są poza nim. `ResizeObserver` mierzy zamontowane wiersze, viewport i stałą rezerwę zwiniętego pola. Do pierwszego snapshotu SSE w miejscu wiadomości stoi `TimelineSkeleton`; snapshot montuje ostatnie wiersze i przypina dół przed malowaniem. Nie ma serwerowego pobrania końca wątku ani skryptu przed hydratacją. Gradient ma geometrię nakładki bez opóźnienia pomiaru. Nowe wiersze animują transform/przezroczystość; wiersze spoza widoku i dołożone na początku nie animują, a wstawione pośrodku tylko według `inserted` (`t-unfold`). Dół pozostaje przypięty podczas strumieniowania i zmiany viewportu przez klawiaturę; wzrost kompozytora nie przesuwa osi, a czytanie wyżej kotwiczy pierwszy widoczny wiersz. Page Up/Down przewijają obszar lub przechodzą między artykułami. Home/End przy fokusie obszaru montują docelowe okno bez animacji przewijania. Ctrl+End przenosi fokus do kompozytora. `/dev/long-thread` (tylko development) dostarcza syntetyczną historię i pomiary.
 
 Obsługa kółka w `VirtualFeed` jest pasywna i ograniczona do życia zamontowanego
 kontenera. Nadal rozpoznaje gest czytelnika i zwalnia przypięcie końca przy ruchu
@@ -3103,9 +3104,13 @@ Wszystkie odczyty, granice i itemy pozostają w zakresie właściciela w gateway
 Web i mobile proszą domyślnie o 24 pełne tury lub 50 wiadomości. W web pomocnicze
 `GET /api/threads/:id/history?before=…&version=…` i `/api/bots/:id/history?before=…&cursor=…`
 zamykają watch po pierwszym stanie; wymiany używają `GET /api/bot-exchanges/:id?before=…&incremental=1&cursor=…`.
-VirtualFeed kotwiczy istniejące klucze przy dołączaniu starszych wierszy; czat bota
-kompensuje wzrost wysokości scrolla. Cytat do niezaładowanego itemu pobiera okno przez
-`target_item_id` przed rozwinięciem folda i przewinięciem do celu.
+`VirtualFeed` kotwiczy widoczny wiersz przy dołączaniu starszej treści.
+Rozmowy z botami i wymiany w web/desktop pobierają starszą stronę automatycznie
+w pobliżu granicy wiadomości. Subskrypcja czatu zachowuje powiększone okno
+w pamięci podczas wznowienia, niezależnie od zapisania go w cache.
+Cytat w czacie bota odczytuje starsze strony aż do znalezienia źródła i odsłania
+jego wiersz w `VirtualFeed`. Cytat w wątku pobiera okno przez `target_item_id`
+przed rozwinięciem folda i przewinięciem do celu.
 Wyszukiwanie w wątku po wpisaniu zapytania doczytuje wcześniejsze strony aż do
 początku; obejmuje wejścia użytkownika i tekst odpowiedzi agenta, także dziedziczony.
 Wynik w web otwiera właściwy fold i przewija do tury lub itemu.

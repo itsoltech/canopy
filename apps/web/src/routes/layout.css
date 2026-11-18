@@ -301,7 +301,7 @@ html[data-canopy-platform]:not(:has(:popover-open, [data-window-no-drag])) {
    would collide it moves only as far as needed, then narrows. All of it is CSS from the sidebar's live width and the
    area's width (100% here), so it moves in the same frame as the sidebar and Files, never a frame behind. */
 .chat-column {
-  max-width: var(--chat-width);
+  max-width: var(--feed-column-width, var(--chat-width));
   margin-left: auto;
   margin-right: auto;
 }

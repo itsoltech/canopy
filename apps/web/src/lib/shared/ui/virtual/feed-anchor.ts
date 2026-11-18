@@ -65,12 +65,11 @@ export function captureAnchor(rows: HTMLCollection, edge: number, bottom: number
     else low = middle + 1;
   }
 
-  // Prepending a same-day turn moves the day label out of the old first start row.
-  // Anchor message content instead, so its position survives that header shrinking.
+  // Prepending same-day history can move or replace a day label. Anchor the content after it.
   while (low < rows.length - 1) {
     const row = rows[low];
 
-    if (!(row instanceof HTMLElement) || !/(^|:)(start|end):/.test(row.dataset.key ?? "")) break;
+    if (!(row instanceof HTMLElement) || !/^date:|(^|:)(start|end):/.test(row.dataset.key ?? "")) break;
     low++;
   }
 

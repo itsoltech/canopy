@@ -1,8 +1,11 @@
 <script lang="ts">
-  import { tick } from "svelte";
-  import type { ClassValue } from "svelte/elements";
-  import { rise } from "#lib/shared/ui/motion.ts";
-  import { layoutChat, type ExchangeSegment } from "../chat-timeline.ts";
+  import { untrack, type Snippet } from "svelte";
+  import VirtualFeed from "#lib/shared/ui/virtual/VirtualFeed.svelte";
+  import type { FeedViewport } from "#lib/shared/ui/virtual/viewport.ts";
+  import type { FeedScrollMemory } from "#lib/shared/ui/virtual/feed-scroll-memory.svelte.ts";
+  import Spinner from "#lib/shared/ui/Spinner.svelte";
+  import { layoutChat, type ChatRow, type ExchangeSegment } from "../chat-timeline.ts";
+  import type { ChatHistory } from "../chat-history.ts";
   import type {
     BotStatusView,
     ChatEntry,
@@ -25,8 +28,7 @@
   /**
    * The entries of a conversation, laid out by `layoutChat`: time separators, the "New" divider, runs of
    * bubbles, bot ⇄ bot markers, cards and failures, then what the bot is doing now (`status`) under its last
-   * message. Entries that arrive while the chat is open rise in; the ones it opened with do not. In a
-   * watched chat nothing can be answered or replied to.
+   * message. The shared feed renders around the viewport and anchors it when older messages arrive.
    */
   let {
     conversation,
@@ -47,7 +49,12 @@
     onchangeworker,
     onreact,
     onreply,
-    class: className,
+    history,
+    loading,
+    syncing,
+    top,
+    placeholder,
+    footer,
   }: {
     conversation: ConversationView;
     entries: readonly ChatEntry[];
@@ -70,7 +77,12 @@
     onchangeworker?: (() => void) | undefined;
     onreact?: ((message: ChatMessageView) => void) | undefined;
     onreply?: ((message: ChatMessageView) => void) | undefined;
-    class?: ClassValue;
+    history?: ChatHistory | undefined;
+    loading: boolean;
+    syncing: boolean;
+    top?: Snippet | undefined;
+    placeholder: Snippet;
+    footer: Snippet;
   } = $props();
 
   const watching = $derived(conversation.kind === "watch");
@@ -84,36 +96,124 @@
   );
 
   const bots = $derived([...participants.values()].filter((p) => p.kind === "bot"));
-  const rows = $derived(layoutChat({ entries, participants, me: me.id, kind: conversation.kind, firstUnreadId }));
-  const nameOf = (id: string) => participants.get(id)?.name;
 
-  // The entries the chat opens with are already there; only later ones rise in.
-  let live = $state(false);
+  type TimelineRow = ChatRow | { id: "status"; kind: "status"; status: BotStatusView };
 
-  $effect(() => {
-    if (entries.length > 0 && !live) void tick().then(() => (live = true));
+  const rows = $derived.by((): TimelineRow[] => {
+    if (loading) return [];
+
+    const list: TimelineRow[] = layoutChat({
+      entries,
+      participants,
+      me: me.id,
+      kind: conversation.kind,
+      firstUnreadId,
+    });
+
+    if (status) list.push({ id: "status", kind: "status", status });
+
+    return list;
   });
 
-  const enter = (node: HTMLElement) => (live ? rise(node) : { duration: 0 });
+  const estimates = new Map<string, number>([
+    ["date", 48],
+    ["message", 60],
+    ["question", 200],
+    ["approval", 150],
+  ]);
+
+  const estimate = (kind: string) => estimates.get(kind) ?? 52;
+  const rowKey = (row: TimelineRow) => row.id;
+  const group = (row: TimelineRow) => row.kind;
+  const nameOf = (id: string) => participants.get(id)?.name;
+
+  let feed: ReturnType<typeof VirtualFeed<TimelineRow>> | undefined;
+  let atEnd = $state(true);
+  let approachingHistory = $state(false);
+  let historyViewport = $state.raw<{ start: number; before: bigint }>();
+  const firstMessageId = $derived(history?.snapshot?.messages[0]?.id);
+
+  const historyRow = $derived(
+    Math.max(
+      0,
+      rows.findIndex(
+        (row) => row.id === firstMessageId || (firstMessageId && row.id === `exchanges:${firstMessageId}`),
+      ),
+    ),
+  );
+
+  // Approval cards can be older than the first paged message. Fetch before the reader crosses that boundary.
+  const rememberViewport = (viewport: FeedViewport) => {
+    const snapshot = history?.snapshot;
+
+    if (snapshot?.historyHasMore) historyViewport = { start: viewport.start, before: snapshot.historyBeforeSeq };
+  };
+
+  $effect(() => {
+    const current = history;
+
+    if (loading || syncing || !current || current.loadingOlder || current.historyError) return;
+    const snapshot = current.snapshot;
+
+    if (!snapshot?.historyHasMore || (!atEnd && !approachingHistory)) return;
+
+    if (historyViewport?.before !== snapshot.historyBeforeSeq || historyViewport.start > historyRow + 6) return;
+    const { start } = historyViewport;
+
+    untrack(() => {
+      // A large keyboard scroll may reach unmounted content in one step. Hold its first measured row
+      // before the response can add another page, and wait for fresh reader movement after a prepend.
+      const anchor = rows[start]?.kind === "date" ? rows[start + 1] : rows[start];
+
+      if (!atEnd && anchor) feed?.keep(anchor.id);
+      approachingHistory = false;
+      void current.loadOlder();
+    });
+  });
+
+  const scrollMemory = untrack((): FeedScrollMemory | undefined =>
+    firstUnreadId ? { initial: { mode: "anchor", key: `unread:${firstUnreadId}`, offset: 0 }, save() {} } : undefined,
+  );
+
+  export const reveal = (id: string) => feed?.reveal(id) ?? Promise.resolve(false);
+  export const followLatest = () => feed?.jumpToLatest();
 
   const approvalAnswering = (value: string | undefined) =>
     value === "approve" || value === "discard" || value === "edit" ? value : undefined;
 </script>
 
-<ol role="list" class={["flex flex-col", className]}>
-  {#each rows as row (row.id)}
+<VirtualFeed
+  bind:this={feed}
+  bind:atEnd
+  {rows}
+  key={rowKey}
+  {group}
+  {estimate}
+  {scrollMemory}
+  busy={loading || history?.loadingOlder}
+  ready={!loading}
+  label="Conversation"
+  {top}
+  {placeholder}
+  {footer}
+  onviewport={rememberViewport}
+  onreaderscroll={({ up }) => {
+    if (up > 0 && !history?.loadingOlder) approachingHistory = true;
+  }}
+>
+  {#snippet row(row: TimelineRow, index: number)}
     {#if row.kind === "date"}
-      <li class="pt-6 pb-2 first:pt-0" in:enter><ChatDateLine at={row.at} /></li>
+      <div class={["pb-2", index > 0 && "pt-6"]}><ChatDateLine at={row.at} /></div>
     {:else if row.kind === "unread"}
-      <li class="pt-4 pb-1"><UnreadDivider /></li>
+      <div class="pt-4 pb-1"><UnreadDivider /></div>
     {:else if row.kind === "event"}
-      <li class="py-2" in:enter><ChatEventLine event={row.event} /></li>
+      <div class="py-2"><ChatEventLine event={row.event} /></div>
     {:else if row.kind === "exchanges"}
-      <li class="py-2" in:enter>
+      <div class="py-2">
         <ExchangeLine segments={row.segments} hrefOf={(segment) => exchangeHref?.(segment) ?? "#"} />
-      </li>
+      </div>
     {:else if row.kind === "error"}
-      <li class="pt-3" in:enter>
+      <div class="pt-3">
         <ChatErrorLine
           error={row.error}
           sender={row.sender}
@@ -122,9 +222,9 @@
           onchangemodel={watching ? undefined : onchangemodel}
           onchangeworker={watching ? undefined : onchangeworker}
         />
-      </li>
+      </div>
     {:else if row.kind === "question"}
-      <li class="pt-3" in:enter>
+      <div class="pt-3">
         <MessageRow
           sender={row.sender}
           showName={conversation.kind !== "direct"}
@@ -137,9 +237,9 @@
             onanswer={watching || !onanswer ? undefined : (optionId) => onanswer(row.question.id, optionId)}
           />
         </MessageRow>
-      </li>
+      </div>
     {:else if row.kind === "approval"}
-      <li class="pt-3" in:enter>
+      <div class="pt-3">
         <MessageRow
           sender={row.sender}
           showName={conversation.kind !== "direct"}
@@ -154,9 +254,9 @@
             {onpolicy}
           />
         </MessageRow>
-      </li>
-    {:else}
-      <li class={row.first ? "pt-3" : "pt-0.5"} in:enter>
+      </div>
+    {:else if row.kind === "message"}
+      <div class={row.first ? "pt-3" : "pt-0.5"}>
         <ChatBubble
           conversationId={conversation.id}
           message={row.message}
@@ -172,20 +272,34 @@
           onreact={watching ? undefined : onreact}
           onreply={watching ? undefined : onreply}
         />
-      </li>
+      </div>
+    {:else}
+      <div class="pt-3">
+        <BotStatusRow bot={row.status.bot} text={row.status.text} waiting={row.status.waiting} />
+        {#if !row.status.waiting && row.status.text.startsWith("Waiting for") && onchangeworker && !watching}
+          <div class="pl-9">
+            <Button size="sm" variant="ghost" onclick={onchangeworker}>Change worker</Button>
+            <p class="text-sm/6 text-zinc-600 dark:text-zinc-400">
+              To use another worker for this message, stop this reply, change Runs on, then send the message again.
+            </p>
+          </div>
+        {/if}
+      </div>
     {/if}
-  {/each}
-  {#if status}
-    <li class="pt-3" in:rise out:rise={{}}>
-      <BotStatusRow bot={status.bot} text={status.text} waiting={status.waiting} />
-      {#if !status.waiting && status.text.startsWith("Waiting for") && onchangeworker && !watching}
-        <div class="pl-9">
-          <Button size="sm" variant="ghost" onclick={onchangeworker}>Change worker</Button>
-          <p class="text-sm/6 text-zinc-600 dark:text-zinc-400">
-            To use another worker for this message, stop this reply, change Runs on, then send the message again.
-          </p>
-        </div>
+  {/snippet}
+</VirtualFeed>
+
+{#if history?.historyError || history?.loadingOlder}
+  <div class="pointer-events-none absolute inset-x-0 top-2 z-10 flex justify-center px-4">
+    <div
+      class="pointer-events-auto flex max-w-full flex-wrap items-center justify-center gap-x-2 rounded-xl bg-surface px-3 py-1.5 text-center text-sm text-muted shadow-sm ring-1 ring-divider"
+    >
+      {#if history.historyError}
+        <p role="status">{history.historyError}</p>
+        <Button size="sm" variant="ghost" onclick={() => void history?.loadOlder()}>Try again</Button>
+      {:else}
+        <p role="status" class="flex items-center gap-2"><Spinner />Loading earlier messages…</p>
       {/if}
-    </li>
-  {/if}
-</ol>
+    </div>
+  </div>
+{/if}
