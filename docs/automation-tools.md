@@ -36,6 +36,8 @@ Uchwyty viewportu leżą poza obrazem; przeciąganie pokazuje lokalną ramkę,
 a zmianę rozmiaru wysyła dopiero puszczenie wskaźnika.
 Gotowość Desktop wymaga uprawnienia Screen Recording tylko na macOS;
 linuksowy stan `unknown` nie blokuje zainstalowanego narzędzia.
+Na Windows worker uruchamia bezrozszerzeniowy skrypt Node pakietu Desktop przez Node.js
+i zapisuje przyczynę nieudanego sprawdzenia wersji w logu instalacji.
 Ten opis dotyczy stanu kodu i nie oznacza, że funkcja jest już w wydanym buildzie.
 Dostępność nightly/beta/stable wynika ze zwykłej promocji wydań
 ([release.md](release.md)).
@@ -132,7 +134,10 @@ Operacja zbiorcza zachowuje wyniki i błędy osobno dla każdego workera.
 
 Instalator używa `npm` z prywatnym prefiksem workera i działa jako użytkownik
 usługi workera; nie instaluje pakietu systemowo. Dla `agent-browser` przycisk
-instalacji może również wykonać instalację Chrome for Testing. Instalacja kończy
+instalacji może również wykonać instalację Chrome for Testing. Na Windows worker
+odczytuje wpis `bin` z manifestu pakietu zamiast wykonywać shim npm `.cmd`.
+Rozpoznaje też bezrozszerzeniowy skrypt Node po nagłówku `#!/usr/bin/env node`
+i używa tego samego sposobu uruchamiania podczas weryfikacji i pracy narzędzia. Instalacja kończy
 się dopiero po sprawdzeniu wersji i gotowości runtime'u.
 Instalator dopuszcza skrypt instalacyjny wyłącznie wybranego pakietu przez
 `--allow-scripts=<package>`; obsługuje też politykę skryptów npm 11.

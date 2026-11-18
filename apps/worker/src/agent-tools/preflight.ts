@@ -119,7 +119,7 @@ export async function preflightAgentTool(
 
   try {
     const input = {
-      argv: toolArgv(path, args, env),
+      argv: toolArgv(path, args, env, platform),
       env,
       timeoutMs: 12_000,
       maxBytes: 256 * 1024,

@@ -18,20 +18,22 @@ export interface AgentToolProbe {
   readonly version?: (path: string) => Promise<{ line: string } | { error: string }>;
 }
 
-const VERSION = /\b\d+\.\d+\.\d+(?:-[0-9A-Za-z.]+)?\b/;
+const VERSION = /(?<![\w.])v?(\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?(?:\+[0-9A-Za-z.-]+)?)(?![\w.+-])/;
+export const reportedAgentToolVersion = (line: string): string => line.match(VERSION)?.[1] ?? "";
 const firstLine = (text: string) => text.trim().split("\n")[0]?.trim() ?? "";
 
 export async function agentToolVersion(
   path: string,
   sourceEnv: ToolEnv,
   signal?: AbortSignal,
+  platform: NodeJS.Platform = process.platform,
 ): Promise<{ line: string } | { error: string }> {
-  const env = toolEnvironment(sourceEnv);
+  const env = toolEnvironment(sourceEnv, platform);
   const { secrets } = installEnv(sourceEnv);
 
   try {
     const input = {
-      argv: toolArgv(path, ["--version"], env),
+      argv: toolArgv(path, ["--version"], env, platform),
       env,
       timeoutMs: 2_500,
       maxBytes: 64 * 1024,
@@ -106,8 +108,8 @@ async function discover(
     if (signal.aborted) break;
 
     if (!existsSync(path)) continue;
-    const result = await (provided.version?.(path) ?? agentToolVersion(path, env, signal));
-    const version = "line" in result ? (result.line.match(VERSION)?.[0] ?? "") : "";
+    const result = await (provided.version?.(path) ?? agentToolVersion(path, env, signal, platform));
+    const version = "line" in result ? reportedAgentToolVersion(result.line) : "";
 
     const detail = !supported
       ? "Unsupported operating system or architecture"
