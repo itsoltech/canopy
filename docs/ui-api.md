@@ -1,6 +1,7 @@
 # API dla UI i architektura frontendu
 
-Status (2026-11-17): kontrakt kompozytora i wątków udostępnia szybkość wykonania `service_tier`;
+Status (2026-11-18): `InstallCli` przyjmuje opcjonalne UUID próby do korelacji raportów;
+kontrakt kompozytora i wątków udostępnia szybkość wykonania `service_tier`;
 Claude zachowuje 330 s dla interakcji mimo 15-minutowego limitu MCP dla publikacji obrazów;
 Preview web/desktop używa potwierdzeń klienta po narysowaniu klatki i zachowuje
 subskrypcję przy odświeżaniu metadanych celu oraz naprawie kursora historii;
@@ -1161,6 +1162,13 @@ blokady. `InstallCli` (jeden worker albo `all_workers` dla dostawcy) i `CheckCli
 egzekwowane w gatewayu; BFF: `POST /api/workers/cli/install`, `POST /api/workers/cli/check`. UI: sekcja „Agent CLIs”
 w rozwiniętym workerze, „Agent CLI updates” z „Update all” i kropka przy Settings → Workers. Zasady:
 [provider-cli.md](provider-cli.md).
+
+Opcjonalne `InstallCliRequest.install_id` (**5**) jest UUID próby przekazywanym do workera;
+puste pole zachowuje generowanie id w gatewayu. To pole oraz raportowe
+`CliInstallStatus.install_id` i `UpdateStep.request_id` kroku CLI są nieprzezroczyste dla
+routingu komputerów: nie dostają sufiksu domu i nie wybierają trasy. `worker_id` nadal
+podlega zwykłemu routingowi i kontroli właściciela. Id służy wyłącznie korelacji;
+nie zapewnia trwałego uruchomienia, deduplikacji żądań ani odtwarzania po rozłączeniu.
 
 ### Narzędzia automatyzacji
 

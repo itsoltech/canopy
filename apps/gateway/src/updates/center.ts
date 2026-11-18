@@ -1,11 +1,11 @@
 import { create, clone } from "@bufbuild/protobuf";
 import { Code, ConnectError } from "@connectrpc/connect";
 import { ui } from "@canopy/contracts";
-import { reachedUpdateVersion } from "@canopy/domain/release/remote-update-state";
 import { plannedUpdateRun } from "@canopy/domain/release/update-plan";
 import { remoteStepCurrent, remoteStepDismissed } from "./remote-outcome.ts";
 import { pendingUpdate, UPDATE_CONCURRENCY, updateDependencies, updatesConflict } from "./center-scheduling.ts";
 import { computerUpdated } from "./computer-completion.ts";
+import { cliStepComplete, cliStepCurrent, stepCli, uncertainCliLaunch } from "./center-cli.ts";
 
 export interface UpdateCenterOptions {
   read(): Promise<ui.UpdateRun | undefined>;
@@ -99,13 +99,13 @@ export class UpdateCenter {
           if (launch?.settled) {
             this.launching.delete(key);
             step.requestId = launch.step.requestId;
-
-            if (launch.error) throw launch.error;
           }
 
-          if ((!launch || launch.settled) && (await this.complete(step, snapshot))) this.succeed(step);
+          if ((!launch || launch.settled || step.kind === "cli") && (await this.complete(step, snapshot)))
+            this.succeed(step);
+          else if (launch?.settled && launch.error && !uncertainCliLaunch(step, launch.error)) throw launch.error;
 
-          if (Date.now() - Date.parse(step.startedAt) > 35 * 60_000)
+          if (step.state === "running" && Date.now() - Date.parse(step.startedAt) > 35 * 60_000)
             throw new Error("Timed out waiting for completion. Retry Update all after checking this item.");
         } catch (cause) {
           this.fail(step, cause);
@@ -145,13 +145,29 @@ export class UpdateCenter {
           continue;
 
         try {
+          const install = step.kind === "cli" ? stepCli(step, snapshot)?.install : undefined;
+          const following = install?.state === "running" && install.targetVersion === step.version;
+
+          // A manual installation of another version must finish before this target can start.
+          if (install?.state === "running" && !following && !cliStepCurrent(step, snapshot)) {
+            step.startedAt ||= new Date().toISOString();
+
+            if (Date.now() - Date.parse(step.startedAt) > 35 * 60_000)
+              throw new Error("Timed out waiting for another CLI installation. Check the worker and retry.");
+
+            continue;
+          }
+
           step.state = "running";
           step.startedAt = new Date().toISOString();
+
+          if (step.kind === "cli") step.requestId = following ? install.installId : crypto.randomUUID();
+
           // Persist every reservation before sending; restart never replays an uncertain install.
           await this.options.write(run);
 
           if (await this.complete(step, snapshot, true)) this.succeed(step);
-          else {
+          else if (!following) {
             const launch: UpdateLaunch = {
               step: clone(ui.UpdateStepSchema, step),
               settled: false,
@@ -214,7 +230,7 @@ export class UpdateCenter {
         ? snapshot.computers.find((item) => item.nodeId === step.nodeId)?.updates
         : snapshot;
 
-    if (!home) throw new Error("This computer is unavailable. Reconnect it and retry.");
+    if (!home) throw new ConnectError("This computer is unavailable. Reconnect it and retry.", Code.FailedPrecondition);
 
     if (step.kind === "gateway") {
       if (snapshot.gatewayInstallKind !== "binary")
@@ -239,9 +255,17 @@ export class UpdateCenter {
       const worker = home.workers.find((w) => w.workerId === step.workerId);
 
       if (!worker || worker.compatibility !== "compatible")
-        throw new Error("Worker and gateway protocols are incompatible; update the worker first");
+        throw new ConnectError(
+          "Worker and gateway protocols are incompatible; update the worker first",
+          Code.FailedPrecondition,
+        );
       await this.options.install(
-        create(ui.InstallCliRequestSchema, { workerId: step.workerId, provider: step.provider, version: step.version }),
+        create(ui.InstallCliRequestSchema, {
+          workerId: step.workerId,
+          provider: step.provider,
+          version: step.version,
+          installId: step.requestId,
+        }),
         step.nodeId,
       );
     } else if (step.kind === "desktop") {
@@ -299,19 +323,7 @@ export class UpdateCenter {
         return true;
       }
     } else if (step.kind === "cli") {
-      const cli = home.cliWorkers
-        .find((w) => w.id === step.workerId)
-        ?.cliTools.find((t) => t.tool?.provider === step.provider);
-
-      if (!beforeLaunch && cli?.tool?.install?.state === "failed")
-        throw new Error(cli.tool.install.error || "CLI install failed");
-
-      if (cli?.tool?.install?.state === "running") return false;
-
-      if (cli?.tool?.version && reachedUpdateVersion(cli.tool.version, step.version)) return true;
-
-      if (!beforeLaunch && Date.now() - Date.parse(step.startedAt) > 60_000)
-        throw new Error("CLI install was interrupted or has not reported a result; check the worker and retry");
+      return cliStepComplete(step, snapshot, beforeLaunch);
     } else if (step.kind === "desktop") {
       if (remoteStepCurrent(step, snapshot)) return true;
 
@@ -348,7 +360,8 @@ export class UpdateCenter {
       for (const step of failed) {
         const dismissed = remoteStepDismissed(step, current);
 
-        if (!dismissed && !remoteStepCurrent(step, current)) continue;
+        if (!dismissed && !remoteStepCurrent(step, current) && !(step.kind === "cli" && cliStepCurrent(step, current)))
+          continue;
 
         if (dismissed) step.state = "dismissed";
         else this.succeed(step);

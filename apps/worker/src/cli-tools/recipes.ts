@@ -3,12 +3,13 @@ import { join } from "node:path";
 import { CliInstallMethod } from "@canopy/contracts";
 import type { DiscoveredCli } from "./discovery.ts";
 import type { Env } from "./shell-env.ts";
+import { miseRecipe } from "./mise.ts";
 
 /**
  * Fixed install/update recipes per provider and install method (docs/provider-cli.md). The UI only picks a provider
  * and a version; nothing else from the gateway reaches an argv, and the version is validated here. No sudo, no
  * shell strings: an argv array, or the CLI's official installer script downloaded from its fixed HTTPS address and
- * run with bash. A CLI managed by Homebrew, a version manager or a container image gets no recipe, only the
+ * run with bash. A CLI managed by Homebrew, asdf or a container image gets no recipe, only the
  * command to run there.
  */
 
@@ -78,11 +79,7 @@ export function planRecipe(cli: DiscoveredCli, version: string, tools: RecipeToo
         manualCommand: `brew upgrade ${cli.owner ?? (spec.name === "claude" ? "--cask claude-code" : spec.name)}`,
       };
     case CliInstallMethod.MISE:
-      return {
-        managedBy: "mise",
-        manualCommand:
-          cli.owner?.startsWith("npm-") || !cli.owner ? `mise upgrade npm:${spec.npm}` : `mise upgrade ${cli.owner}`,
-      };
+      return miseRecipe(cli, version, tools);
     case CliInstallMethod.ASDF:
       return { managedBy: "asdf", manualCommand: `asdf install ${cli.owner ?? spec.name} latest` };
     case CliInstallMethod.OTHER:

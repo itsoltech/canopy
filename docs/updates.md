@@ -1,6 +1,7 @@
 # Aktualizacje Canopy
 
-Status: opis zaimplementowanego kodu (2026-11-17), w tym pomijania cache metadanych
+Status: opis zaimplementowanego kodu (2026-11-18), w tym niezależnych akcji CLI i korelacji prób w Update all,
+aktualizacji CLI przez mise, pomijania cache metadanych
 przy ręcznym sprawdzaniu aktualizacji, wykrywania pojedynczego procesu przez
 instalator Windows i retencji dyskowego mirrora workerów gatewaya.
 Dostępność zmian w nightly, beta i stable wynika z promocji
@@ -170,8 +171,10 @@ własne wiersze; bez id ze starszego bridge'a nie ukrywamy workera.
 to Install, `information-circle` pokazuje szczegóły. Każda ma podpowiedź i
 `aria-label` z dokładną akcją („Update Studio”, „Restart to update”,
 „Retry”). Wiersz ma najwyżej jedną akcję; bez akcji kolumna zostaje pusta. W trakcie
-Update all akcje wierszy są wyłączone, także restart tej aplikacji: ten komputer
-restartuje się ostatni, w ramach przebiegu.
+Update all blokuje akcje CLI tylko dla danego celu w kolejce lub w trakcie instalacji,
+aktualizacji jego workera albo restartu jego komputera. Pozostałe CLI można aktualizować
+niezależnie. Akcje aktualizacji aplikacji i workerów zachowują blokadę przebiegu;
+ten komputer restartuje się ostatni, w ramach przebiegu.
 
 **Stopka.** Odnośnik Settings, „What's new” tylko przy nieobejrzanych notatkach
 i po prawej jedna nazwana akcja główna: Update all, Restart to update (sama pobrana
@@ -197,7 +200,8 @@ każdy połączony komputer), potem workery pogrupowane według komputera, na ko
 zwinięta sekcja „Agent CLIs · N” z jedną odznaką (najpilniejszy stan jej wierszy).
 Galeria `/dev/updates` (tylko tryb deweloperski) pokazuje centrum i stany na danych
 testowych, a `?view=settings` obie sekcje ustawień; `?run=failed` dodaje zatrzymany
-przebieg z akcjami ponowienia i odrzucenia. Długie nazwy i wersje mają skrót z pełną
+przebieg z akcjami ponowienia i odrzucenia, a `?run=partial` pokazuje dostępne
+niezależne CLI obok trwających i oczekujących aktualizacji. Długie nazwy i wersje mają skrót z pełną
 treścią w podpowiedzi. Popover nie pokazuje notatek wydań; są w Settings → Workers /
 App updates razem z pełnymi ustawieniami, wymuszeniem restartu i szczegółami instalatorów.
 
@@ -297,9 +301,10 @@ Worker ogłasza `CliTool.install_resource`, wyliczone z rzeczywistego przepisu:
 instalacje npm ze **wspólnym `--prefix`** są szeregowane (także rollback), różne
 prefiksy mogą działać jednocześnie. Pary instalowane przez Bun współdzielą globalny
 projekt i lockfile; pary pnpm współdzielą globalny projekt; pary Volta współdzielą
-inventory i shimy — każda z tych grup ma jeden slot na workerze. Natomiast natywne
+inventory i shimy; mise współdzieli konfigurację globalną i shimy (`mise:config`)
+— każda z tych grup ma jeden slot na workerze. Natomiast natywne
 Claude (`claude install`, `~/.local/share/claude/versions`) i Grok (`~/.grok/bin`)
-nie blokują siebie ani Codex instalowanego jako osobny pakiet npm. Homebrew, mise,
+nie blokują siebie ani Codex instalowanego jako osobny pakiet npm. Homebrew,
 asdf i Yarn nie uruchamiają instalatora Canopy. Ten sam provider na tym samym
 workerze jest deduplikowany w planie i ponownie chroniony przez worker przed
 równoległym poleceniem. Worker egzekwuje zasoby także dla pojedynczych instalacji.
@@ -347,13 +352,23 @@ przebieg bez drugiej kolejki. Odczyt postępu nie czeka na odpowiedź instalator
 Automatyczna aktualizacja po Hello workera i równoległe Update all współdzielą
 jedno trwałe polecenie; jego wynik nie ginie przez zastąpienie identyfikatora.
 Zmiany przebiegu ogłaszają `updates_changed`; panel i popover współdzielą wyniki,
-bieżącą pozycję, postęp, pominięcia i zakończenie. Timeout kroku to 35 minut. Nie odtwarzamy w ciemno przerwanej
-instalacji CLI; bez raportu po 60 sekundach należy sprawdzić worker i ponowić akcję.
+bieżącą pozycję, postęp, pominięcia i zakończenie. Timeout kroku to 35 minut.
+Id próby CLI jest zapisane w kroku przed wysłaniem i przekazane jako `InstallCliRequest.install_id`;
+raport błędu dotyczy kroku tylko przy zgodnym id. Poprzedni błąd nie kończy nowej instalacji.
+Brak lub utrata potwierdzenia startu pozostawia czas na raport workera do limitu kroku,
+także po restarcie gatewaya; nie odtwarzamy komendy instalacji. Jawna odmowa nadal kończy krok.
+Trwająca ręczna instalacja tej samej wersji jest śledzona bez drugiego polecenia;
+instalacja innej wersji musi się najpierw zakończyć. Raport z wersją docelową lub nowszą
+potwierdza sukces również po błędzie potwierdzenia i usuwa nieaktualny błąd zatrzymanego przebiegu.
+Trwająca próba o zgodnym id nadal czeka na zakończenie walidacji i ewentualnego rollbacku,
+nawet jeśli sonda widzi już docelowy plik.
+Starszy gateway ignorujący id nadal potwierdza sukces wersją; niepowiązany błąd instalacji
+nie kończy kroku przed jego limitem.
 Kolejka nie przyznaje force ani downgrade. Obejmuje tylko gateway binarny,
 workery binarne, zainstalowane CLI obsługiwane przez indywidualne `InstallCli`
-(natywne oraz npm, Bun, Volta i pnpm) i obsługiwane aplikacje Canopy.
+(natywne oraz npm, Bun, Volta, pnpm i globalne instalacje mise z przepisem) i obsługiwane aplikacje Canopy.
 Gateway Docker/source, zewnętrzne workery oraz CLI bez przepisu instalatora
-(Homebrew, mise, asdf, Yarn, Docker i inne nierozpoznane instalacje) mają krok
+(Homebrew, asdf, Yarn, Docker, mise bez obsługiwanego globalnego wpisu i inne nierozpoznane instalacje) mają krok
 `skipped` z powodem i wskazaniem instalatora. Offline, zajętość i odmowa uprawnień
 pozostają błędami lub blokadami z ponowieniem, nie pominięciami.
 Worker przechodzi na wersję działającego gatewaya,

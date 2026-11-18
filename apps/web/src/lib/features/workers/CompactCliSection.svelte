@@ -15,12 +15,10 @@
   let {
     groups,
     updates,
-    disabled = false,
     class: className,
   }: {
     groups: { name: string; nodeId: string; home: ui.UpdatesSnapshot }[];
     updates: UpdatesState;
-    disabled?: boolean;
     class?: ClassValue;
   } = $props();
 
@@ -96,7 +94,7 @@
     {#each sections as section (section.nodeId)}
       {#if sections.length > 1}<UpdateGroupLabel class="mt-1">{section.name}</UpdateGroupLabel>{/if}
       {#each section.items as entry (`${entry.worker.id}/${entry.item.tool?.provider}`)}
-        <CompactCliUpdate {...entry} {updates} nodeId={section.nodeId} {disabled} />
+        <CompactCliUpdate {...entry} {updates} nodeId={section.nodeId} />
       {/each}
     {/each}
   </Disclosure>
