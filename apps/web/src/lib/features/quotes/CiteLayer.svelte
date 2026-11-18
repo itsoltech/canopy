@@ -202,6 +202,7 @@
     {@attach place}
     {@attach tooltip("Quote in your message", { hotkey: CITE_HOTKEY })}
     popover="manual"
+    data-window-keep-drag
     class="t-tt fixed inset-auto top-(--float-y) left-(--float-x) m-0"
     onclick={cite}
   />

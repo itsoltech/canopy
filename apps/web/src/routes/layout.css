@@ -17,7 +17,8 @@
  * Only header strips and their controls participate. Never set a region (even `none`) on overlays or bodies:
  * animated descendants would continually rebuild the native region map. Covered strips have no declaration,
  * rather than no-drag boxes that could subtract from a later-opened drawer's strip in DOM order.
- * `windowModal` marks the last opened native modal. Popovers suspend all strips until they close.
+ * `windowModal` marks the last opened native modal. Open popovers suspend all strips by default.
+ * Popovers marked `data-window-keep-drag` stay clear of the strips or let pointer events pass through.
  * `macos:` styles an element for the desktop app on macOS only.
  */
 @custom-variant macos (&:where([data-canopy-platform="darwin"] *));
@@ -107,7 +108,7 @@ html:is([data-canopy-platform="linux"], [data-canopy-platform="win32"]):not([dat
     padding-right: revert-layer;
   }
 }
-html[data-canopy-platform]:not(:has(:popover-open, [data-window-no-drag])) {
+html[data-canopy-platform]:not(:has(:popover-open:not([data-window-keep-drag]), [data-window-no-drag])) {
   &:not(:has(dialog:modal)) :is([data-window-drag], [data-window-titlebar]):not(dialog *, [inert] *),
   & [data-window-modal-top]:modal :is([data-window-drag], [data-window-titlebar]):not([inert] *) {
     -webkit-app-region: drag;
