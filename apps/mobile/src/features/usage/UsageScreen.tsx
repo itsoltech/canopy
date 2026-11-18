@@ -66,10 +66,10 @@ export function UsageScreen() {
           <View style={{ gap: 12 }}>
             <Segmented options={views} value={view} onChange={setView} style={{ width: "100%", maxWidth: 300 }} />
             <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 8 }}>
-              <View style={{ flexBasis: 132, flexGrow: 1, minWidth: 0 }}>
+              <View style={{ flexBasis: 168, flexGrow: 1, minWidth: 0 }}>
                 <UsageChoice label="Period" value={days} options={periods} onChange={setDays} />
               </View>
-              <View style={{ flexBasis: 132, flexGrow: 1, minWidth: 0 }}>
+              <View style={{ flexBasis: 168, flexGrow: 1, minWidth: 0 }}>
                 <UsageChoice label="Provider" value={provider} options={providers} onChange={setProvider} />
               </View>
             </View>
