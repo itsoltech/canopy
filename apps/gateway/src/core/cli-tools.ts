@@ -48,6 +48,9 @@ export const MANAGED: Partial<Record<CliInstallMethod, string>> = {
   [CliInstallMethod.DOCKER]: "the image",
 };
 
+const managedBy = (tool: CliTool): string =>
+  tool.method === CliInstallMethod.MISE && tool.installable ? "" : (MANAGED[tool.method] ?? "");
+
 export interface CliToolsOptions {
   readonly runtime: CoreRuntime;
   readonly userId: string;
@@ -193,7 +196,7 @@ export class CliTools {
     const installed = tool.method !== CliInstallMethod.NOT_INSTALLED;
 
     const action =
-      !tool.installable || MANAGED[tool.method] || tool.method === CliInstallMethod.OTHER
+      !tool.installable || managedBy(tool) || tool.method === CliInstallMethod.OTHER
         ? ""
         : !installed
           ? "install"
@@ -230,7 +233,7 @@ export class CliTools {
       updateAvailable,
       action,
       blockedReason: blocked,
-      managedBy: MANAGED[tool.method] ?? "",
+      managedBy: managedBy(tool),
       runningTurns: running,
       log: this.#logs.get(`${worker.id}/${tool.provider}`) ?? [],
     });
@@ -241,6 +244,9 @@ export class CliTools {
     const key = keyOf(request.provider);
 
     if (!key) throw new ConnectError("choose Claude Code, Codex or Grok", Code.InvalidArgument);
+
+    if (request.installId && !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(request.installId))
+      throw new ConnectError("install_id must be a UUID", Code.InvalidArgument);
 
     const version =
       request.version ||
@@ -253,7 +259,7 @@ export class CliTools {
 
     if (!request.allWorkers) {
       if (!request.workerId) throw new ConnectError("choose a worker", Code.InvalidArgument);
-      await this.#installOn(request.workerId, request.provider, version, false);
+      await this.#installOn(request.workerId, request.provider, version, false, request.installId);
 
       return create(ui.InstallCliResponseSchema, { started: [request.workerId] });
     }
@@ -293,6 +299,7 @@ export class CliTools {
           request.provider,
           version === "latest" ? this.checks.get(row.id, request.provider)?.version || "latest" : version,
           true,
+          request.installId,
         );
         started.push(row.id);
       } catch (error) {
@@ -303,7 +310,13 @@ export class CliTools {
     return create(ui.InstallCliResponseSchema, { started, skipped });
   }
 
-  async #installOn(workerId: string, provider: Provider, version: string, bulk: boolean): Promise<void> {
+  async #installOn(
+    workerId: string,
+    provider: Provider,
+    version: string,
+    bulk: boolean,
+    attemptId = "",
+  ): Promise<void> {
     const label = LABELS[keyOf(provider)!];
     const row = (await this.#rows([workerId])).get(workerId);
 
@@ -323,9 +336,9 @@ export class CliTools {
         Code.FailedPrecondition,
       );
 
-    // A package manager or an image owns these, whatever a worker claims: never fought from here.
-    if (!tool.installable || MANAGED[tool.method] || tool.method === CliInstallMethod.OTHER) {
-      const managed = MANAGED[tool.method];
+    // Supported mise recipes opt in; other external managers and images stay blocked regardless of claims.
+    if (!tool.installable || managedBy(tool) || tool.method === CliInstallMethod.OTHER) {
+      const managed = managedBy(tool);
       const how = tool.manualCommand ? ` Run \`${tool.manualCommand}\` on the machine.` : "";
       throw new ConnectError(
         `${managed ? `${label} is managed by ${managed}.` : tool.detail || `${label} cannot be installed from Canopy here.`}${how}`,
@@ -342,7 +355,7 @@ export class CliTools {
         `${label} has ${running} running turn${running === 1 ? "" : "s"} on this worker; try again when ${running === 1 ? "it finishes" : "they finish"}`,
         Code.FailedPrecondition,
       );
-    const installId = Bun.randomUUIDv7();
+    const installId = attemptId || Bun.randomUUIDv7();
     this.#logs.delete(`${workerId}/${provider}`);
 
     const result = await connection.sendCommand(

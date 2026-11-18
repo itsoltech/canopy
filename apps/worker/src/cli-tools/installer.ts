@@ -203,7 +203,8 @@ export async function runInstall(input: InstallInput): Promise<InstallOutcome> {
   let launcher: string | undefined;
 
   try {
-    if (before.path && lstatSync(before.path).isSymbolicLink()) launcher = readlinkSync(before.path);
+    if (before.method !== CliInstallMethod.MISE && before.path && lstatSync(before.path).isSymbolicLink())
+      launcher = readlinkSync(before.path);
   } catch {
     launcher = undefined;
   }
@@ -276,7 +277,13 @@ export async function runInstall(input: InstallInput): Promise<InstallOutcome> {
 
   if (
     after.version !== before.version &&
-    [CliInstallMethod.NPM, CliInstallMethod.BUN, CliInstallMethod.VOLTA, CliInstallMethod.PNPM].includes(before.method)
+    [
+      CliInstallMethod.NPM,
+      CliInstallMethod.BUN,
+      CliInstallMethod.VOLTA,
+      CliInstallMethod.PNPM,
+      CliInstallMethod.MISE,
+    ].includes(before.method)
   ) {
     try {
       const plan = planRecipe(before, before.version, tools);

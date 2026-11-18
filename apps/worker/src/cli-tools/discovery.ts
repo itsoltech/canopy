@@ -5,13 +5,14 @@ import { ProcessTimeoutError, processKey, runProcess } from "@canopy/process-gov
 import { locate, type Location } from "./locations.ts";
 import { classify, readHead, type ClassifyContext } from "./managers.ts";
 import type { Env } from "./shell-env.ts";
+import { miseTool, singleGlobalMiseVersion } from "./mise.ts";
 
 /**
  * Provider CLIs on the device (docs/provider-cli.md). Canopy never bundles them: the worker finds the executable it
  * would run, asks its version and tells how it was installed, so the gateway can offer an install or an update that
  * the worker then runs with a fixed recipe (recipes.ts). Every copy on PATH and in the package managers' places is
  * considered; the first one that answers `--version` is used. Classification reads paths and shims only; it never
- * runs a package manager except `mise which` for a mise shim.
+ * runs a package manager except mise's read-only `which` and global-version queries.
  */
 
 export type CliName = "claude" | "codex" | "grok";
@@ -67,6 +68,8 @@ export interface CliProbe {
   head?(path: string): string | undefined;
   /** The tool behind a mise shim (`mise which <command>`), undefined when unknown. */
   miseWhich?(command: string): Promise<string | undefined>;
+  /** Exactly one installed global request, matching the chosen CLI's version. */
+  miseGlobal?(tool: string, version: string): Promise<boolean>;
   /** The executable discovery chose (the worker runs this one too). */
   chose?(command: string, path: string): void;
 }
@@ -89,6 +92,7 @@ export interface DiscoveredCli {
   readonly configuredPath: boolean;
   /** NPM: the global prefix the package lives under; MISE/ASDF/HOMEBREW: the tool name there. */
   readonly owner?: string;
+  readonly miseGlobal?: boolean;
   readonly detail?: string;
   /** Why `<executable> --version` failed for the chosen executable (its first error line, a timeout). */
   readonly versionError?: string;
@@ -228,7 +232,10 @@ export async function discoverCli(
     if (target) owner = classify(spec, target, target, classifyContext(probe)).owner;
   }
 
-  return { ...found, method, ...(owner && { owner }) };
+  const tool = method === CliInstallMethod.MISE ? miseTool({ spec, ...(owner && { owner }) }) : undefined;
+  const miseGlobal = tool && probe.miseGlobal ? await probe.miseGlobal(tool, version) : undefined;
+
+  return { ...found, method, ...(owner && { owner }), ...(miseGlobal !== undefined && { miseGlobal }) };
 }
 
 const VERSION_TIMEOUT_MS = 10_000;
@@ -239,12 +246,13 @@ const firstLine = (text: string) => text.trim().split("\n")[0]?.trim() ?? "";
 const plain = (text: string) => text.replace(/\x1b\[[0-9;?]*[ -/]*[@-~]/g, "").slice(0, 300);
 
 /** `<argv> --version`-style probe through the governor (≤2 at once, cached 60 s). */
-export async function probeLine(argv: readonly string[], env: Env): Promise<VersionProbe> {
+export async function probeLine(argv: readonly string[], env: Env, cwd?: string): Promise<VersionProbe> {
   const command = {
     argv,
     timeoutMs: VERSION_TIMEOUT_MS,
     maxBytes: VERSION_OUTPUT_LIMIT,
     env: { ...env, NO_COLOR: "1" },
+    ...(cwd && { cwd }),
   };
 
   try {
@@ -301,12 +309,17 @@ export function deviceCliProbe(options: DeviceCliOptions): CliProbe {
     which,
     realpath,
     head: readHead,
-    version: (executable) => probeLine([executable, "--version"], options.env()),
+    version: (executable) => probeLine([executable, "--version"], options.env(), options.home),
     miseWhich: async (command) => {
       const mise = which("mise");
-      const result = mise ? await probeLine([mise, "which", command], options.env()) : undefined;
+      const result = mise ? await probeLine([mise, "which", command], options.env(), options.home) : undefined;
 
       return result && "line" in result && result.line ? result.line : undefined;
+    },
+    miseGlobal: async (tool, version) => {
+      const mise = which("mise");
+
+      return mise ? singleGlobalMiseVersion(mise, tool, version, options.home, options.env()) : false;
     },
   };
 }

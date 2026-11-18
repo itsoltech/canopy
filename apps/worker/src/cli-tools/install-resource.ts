@@ -19,6 +19,8 @@ export function installResource(cli: DiscoveredCli, recipe: Recipe): string {
     case CliInstallMethod.VOLTA:
       // Volta updates its shared tools/user inventory and shims.
       return "volta:inventory";
+    case CliInstallMethod.MISE:
+      return "mise:config";
     default:
       return `tool:${cli.spec.name}`;
   }

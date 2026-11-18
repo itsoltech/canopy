@@ -13,6 +13,18 @@ import { Code, ConnectError } from "@connectrpc/connect";
 export const idField = (name: string) =>
   !["global_id", "snapshot_id"].includes(name) && (name === "id" || name.endsWith("_id") || name.endsWith("_ids"));
 
+/** Installation attempts correlate reports; they never identify a routed Canopy entity. */
+const opaqueAttempt = (desc: DescMessage, message: Message, name: string) =>
+  (name === "install_id" &&
+    [
+      "canopy.ui.v1.InstallCliRequest",
+      "canopy.worker.v1.CliInstallStatus",
+      "canopy.worker.v1.CliInstallProgress",
+    ].includes(desc.typeName)) ||
+  (name === "request_id" &&
+    desc.typeName === "canopy.ui.v1.UpdateStep" &&
+    reflect(desc, message).get(desc.field["kind"]!) === "cli");
+
 export const STAMPED = new Set([
   "canopy.ui.v1.Thread",
   "canopy.ui.v1.Worker",
@@ -86,6 +98,8 @@ export function mapIds(
   for (const field of desc.fields) {
     if (field.oneof && record.oneofCase(field.oneof) !== field) continue;
 
+    if (opaqueAttempt(desc, message, field.name)) continue;
+
     if (field.fieldKind === "scalar" && field.scalar === ScalarType.STRING && idField(field.name)) {
       const value = record.get(field);
 
@@ -132,6 +146,8 @@ export function nodesOf(desc: DescMessage, message: Message, topLevelOnly = fals
     const record = reflect(desc, message);
 
     for (const field of desc.fields) {
+      if (opaqueAttempt(desc, message, field.name)) continue;
+
       if (field.fieldKind === "scalar" && field.scalar === ScalarType.STRING && idField(field.name)) {
         const { node } = splitId(record.get(field));
 

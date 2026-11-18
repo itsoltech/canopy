@@ -1,5 +1,5 @@
 import { create, type MessageInitShape } from "@bufbuild/protobuf";
-import { ui } from "@canopy/contracts";
+import { ui, type Provider } from "@canopy/contracts";
 import { requestJson } from "#lib/shared/http.ts";
 import { decode, encode } from "#lib/shared/wire.ts";
 import { linkedDownloading } from "@canopy/domain/release/computer-update";
@@ -53,6 +53,30 @@ export class UpdatesState {
   /** An action is pending or Update all runs: row actions wait (this computer restarts last). */
   get active(): boolean {
     return !!this.pending || this.run?.state === "running";
+  }
+  /** Only this target's pending action or active plan step reserves its controls. */
+  targetBusy(key: string): boolean {
+    return (
+      this.optimistic?.rows.has(key) === true ||
+      (this.run?.state === "running" &&
+        this.run.steps.some((step) => updateTargetKey(step) === key && ["queued", "running"].includes(step.state)))
+    );
+  }
+  /** CLI actions wait for their own target and worker, or an actual restart of their computer. */
+  cliBlocked(workerId: string, provider: Provider, nodeId = ""): boolean {
+    const computer = this.snapshot?.computers.find((item) => item.nodeId === nodeId);
+    const home = nodeId ? computer?.updates : this.snapshot;
+    const worker = home?.workers.find((item) => item.workerId === workerId);
+
+    return (
+      this.targetBusy(updateTargetKey({ kind: "cli", nodeId, workerId, provider })) ||
+      this.targetBusy(updateTargetKey({ kind: "worker", nodeId, workerId })) ||
+      updateBusy(worker?.state ?? "") ||
+      ["waiting_idle", "restarting"].includes(worker?.desktop?.phase ?? "") ||
+      home?.gatewayState === "restarting" ||
+      ["waiting_idle", "restarting"].includes(home?.app?.phase ?? "") ||
+      (!!computer && computer.presence !== "connected")
+    );
   }
   /** A row's failed step in the stopped run, for its Retry; -1 without one. */
   failedStep(key: string): number {
