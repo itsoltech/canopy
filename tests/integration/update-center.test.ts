@@ -1,10 +1,19 @@
 import { afterEach, describe, expect, test } from "bun:test";
-import { create } from "@bufbuild/protobuf";
+import { create, isMessage } from "@bufbuild/protobuf";
 import { createClient } from "@connectrpc/connect";
 import { createHash } from "node:crypto";
 import { writeFile } from "node:fs/promises";
 import { join } from "node:path";
-import { CliInstallMethod, CliToolsReportSchema, InstallCliSchema, Provider, ui, update } from "@canopy/contracts";
+import {
+  CliInstallMethod,
+  CliInstallStatusSchema,
+  CliToolSchema,
+  CliToolsReportSchema,
+  InstallCliSchema,
+  Provider,
+  ui,
+  update,
+} from "@canopy/contracts";
 import { dockerAvailable } from "@canopy/db/testing";
 import { tempDir } from "@canopy/testing";
 import { createGrpcClientTransport } from "@canopy/transport";
@@ -18,6 +27,7 @@ import { updatesSnapshot } from "../../apps/gateway/src/updates/center-compositi
 import { eventually, failure, startTestGateway, type TestGateway } from "./support/gateway.ts";
 
 const cleanups: (() => Promise<void> | void)[] = [];
+const cliAttempts = new WeakMap<TestGateway, string>();
 
 afterEach(async () => {
   for (const close of cleanups.splice(0).reverse()) await close();
@@ -132,7 +142,8 @@ async function fixture(kind: "binary" | "docker" = "binary", version = "2.0.0") 
 
   await client.check(hello, { headers });
   gateway.worker.handlers.set("installCli", async (value, reply) => {
-    expect(value.$typeName).toBe(InstallCliSchema.typeName);
+    if (!isMessage(value, InstallCliSchema)) throw new Error("Expected an InstallCli command");
+    cliAttempts.set(gateway, value.installId);
     await cliReport(gateway, "1.0.0", "running");
     reply(true);
   });
@@ -141,20 +152,26 @@ async function fixture(kind: "binary" | "docker" = "binary", version = "2.0.0") 
 }
 
 function cliReport(gateway: TestGateway, version: string, state = "") {
+  const tool = create(CliToolSchema, {
+    provider: Provider.CLAUDE,
+    method: CliInstallMethod.NATIVE,
+    version,
+    installable: true,
+  });
+
+  if (state) {
+    const installId = cliAttempts.get(gateway);
+
+    if (!installId) throw new Error("CLI status reported before an installation command");
+    tool.install = create(CliInstallStatusSchema, { installId, state, targetVersion: "2.0.0" });
+  }
+
   return gateway.core.cli.report(
     gateway.workerId,
     create(CliToolsReportSchema, {
       os: "linux",
       arch: "x64",
-      tools: [
-        {
-          provider: Provider.CLAUDE,
-          method: CliInstallMethod.NATIVE,
-          version,
-          installable: true,
-          ...(state && { install: { installId: "fixture", state, targetVersion: "2.0.0" } }),
-        },
-      ],
+      tools: [tool],
     }),
   );
 }
@@ -185,7 +202,7 @@ function externalCliReport(gateway: TestGateway) {
       os: "linux",
       arch: "x64",
       tools: [
-        { provider: Provider.CLAUDE, method: CliInstallMethod.MISE, version: "1.0.0", installable: true },
+        { provider: Provider.CLAUDE, method: CliInstallMethod.ASDF, version: "1.0.0", installable: true },
         {
           provider: Provider.CODEX,
           method: CliInstallMethod.HOMEBREW,

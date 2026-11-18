@@ -3,7 +3,7 @@ import { create, toJsonString } from "@bufbuild/protobuf";
 import { createClient } from "@connectrpc/connect";
 import { CliInstallMethod, CliToolsReportSchema, Provider, ui, update } from "@canopy/contracts";
 import { dockerAvailable } from "@canopy/db/testing";
-import { REMOTE_APP_UPDATE, REMOTE_THREADS, CONFIG_SYNC } from "@canopy/domain/computers";
+import { REMOTE_APP_UPDATE, REMOTE_THREADS, CONFIG_SYNC, qualifyId } from "@canopy/domain/computers";
 import { createGrpcClientTransport } from "@canopy/transport";
 import { remoteServe, sharedHost, uiHandlers } from "@canopy/gateway/api";
 import { LocalDesktopControl } from "../../apps/desktop/src/local-control.ts";
@@ -170,19 +170,26 @@ async function clis(gateway: TestGateway, versions: [string, string], state = ""
     create(CliToolsReportSchema, {
       os: "linux",
       arch: "x64",
-      tools: [Provider.CLAUDE, Provider.CODEX].map((provider, index) => ({
-        provider,
-        version: versions[index] || "",
-        installable: true,
-        method: index === 0 ? CliInstallMethod.NATIVE : CliInstallMethod.NPM,
-        ...(state && {
-          install: {
-            installId: "fixture",
-            state: fail && index === 0 ? "failed" : state,
-            error: fail && index === 0 ? "Download failed. Retry the update." : "",
-          },
-        }),
-      })),
+      tools: [Provider.CLAUDE, Provider.CODEX].map((provider, index) => {
+        const command = gateway.worker.commands.findLast(
+          (command) => command.case === "installCli" && command.value.provider === provider,
+        );
+
+        return {
+          provider,
+          version: versions[index] || "",
+          installable: true,
+          method: index === 0 ? CliInstallMethod.NATIVE : CliInstallMethod.NPM,
+          ...(state &&
+            command?.case === "installCli" && {
+              install: {
+                installId: command.value.installId,
+                state: fail && index === 0 ? "failed" : state,
+                error: fail && index === 0 ? "Download failed. Retry the update." : "",
+              },
+            }),
+        };
+      }),
     }),
   );
   await gateway.core.cli.checks.tick(gateway.workerId, true);
@@ -203,6 +210,57 @@ async function tickUntil(gateway: TestGateway, predicate: (run: ui.UpdateRun | u
 }
 
 describe.skipIf(!dockerAvailable)("Update all across linked computers with fake updaters", () => {
+  test("the authenticated linked CLI route preserves a supplied UUID in commands and reports", async () => {
+    const a = await gateway();
+    const b = await gateway();
+    await clis(b, ["1.0.0", "2.0.0"]);
+    const nodeId = await linkGateways(a, b);
+    const workerId = qualifyId(b.workerId, nodeId);
+    const installId = crypto.randomUUID();
+
+    expect(
+      await failure(
+        a.api.installCli({
+          workerId,
+          provider: Provider.CLAUDE,
+          version: "2.0.0",
+          installId: qualifyId(installId, nodeId),
+        }),
+      ),
+    ).toContain("install_id must be a UUID");
+    expect(b.worker.commands.filter((command) => command.case === "installCli")).toHaveLength(0);
+
+    b.worker.handlers.set("installCli", async (value, reply) => {
+      if (value.$typeName !== "canopy.worker.v1.InstallCli") throw new Error("Expected CLI command");
+      await clis(b, ["1.0.0", "2.0.0"], "running");
+      reply(true);
+    });
+
+    const response = await a.api.installCli({ workerId, provider: Provider.CLAUDE, version: "2.0.0", installId });
+    expect(response.started).toEqual([b.workerId]);
+    expect(b.worker.commands.filter((command) => command.case === "installCli")).toMatchObject([
+      { case: "installCli", value: { provider: Provider.CLAUDE, version: "2.0.0", installId } },
+    ]);
+
+    const report = async () => {
+      refreshComputerUpdates(a.core, nodeId);
+      const computer = (await a.api.getUpdates({})).computers.find((computer) => computer.nodeId === nodeId);
+
+      return computer?.updates?.cliWorkers.find((worker) => worker.id === workerId);
+    };
+
+    const running = await eventually(report, (worker) => worker?.cliTools[0]?.tool?.install?.state === "running");
+    expect(running?.nodeId).toBe(nodeId);
+    expect(running?.cliTools[0]?.tool?.install?.installId).toBe(installId);
+    await clis(b, ["2.0.0", "2.0.0"], "succeeded");
+    const finished = await eventually(report, (worker) => worker?.cliTools[0]?.tool?.install?.state === "succeeded");
+    expect(finished?.cliTools[0]?.tool).toMatchObject({
+      version: "2.0.0",
+      install: { installId, state: "succeeded" },
+    });
+    expect(a.worker.commands.filter((command) => command.case === "installCli")).toHaveLength(0);
+  }, 60_000);
+
   test("linked apps overlap after their CLIs; duplicate clicks and a restart retain the same run", async () => {
     const a = await gateway();
     const b = await gateway();
@@ -223,12 +281,21 @@ describe.skipIf(!dockerAvailable)("Update all across linked computers with fake 
       ),
     ).toBe(true);
 
+    const attempts: { installId: string; persistedId: string | undefined }[] = [];
+
     for (const [target, name] of [
       [a, "local"],
       [b, "linked"],
     ] as const) {
       target.worker.handlers.set("installCli", async (value, reply) => {
         if (value.$typeName !== "canopy.worker.v1.InstallCli") throw new Error("Expected CLI command");
+        const run = await new UpdateRunStore(a.runtime, a.userId).read();
+        const workerId = name === "local" ? a.workerId : qualifyId(b.workerId, nodeId);
+        attempts.push({
+          installId: value.installId,
+          persistedId: run?.steps.find((step) => step.workerId === workerId && step.provider === value.provider)
+            ?.requestId,
+        });
         events.push(`${name} CLI ${value.provider}`);
         const codexDone = name === "local" || events.includes(`${name} CLI ${Provider.CODEX}`);
         await clis(target, ["2.0.0", codexDone ? "2.0.0" : "1.0.0"], "succeeded");
@@ -254,6 +321,21 @@ describe.skipIf(!dockerAvailable)("Update all across linked computers with fake 
     expect(events.filter((event) => event.includes(" CLI ")).sort()).toEqual(
       [`local CLI ${Provider.CLAUDE}`, `linked CLI ${Provider.CLAUDE}`, `linked CLI ${Provider.CODEX}`].sort(),
     );
+    expect(attempts).toHaveLength(3);
+
+    for (const attempt of attempts) {
+      expect(attempt.installId).toMatch(/^[0-9a-f-]{36}$/);
+      expect(attempt.persistedId).toBe(attempt.installId);
+    }
+
+    expect(new Set(attempts.map((attempt) => attempt.installId)).size).toBe(3);
+    const cliSteps = (await a.api.getUpdates({})).run?.steps.filter((step) => step.kind === "cli");
+    expect(cliSteps?.map((step) => [step.nodeId, step.workerId, step.provider])).toEqual([
+      ["", a.workerId, Provider.CLAUDE],
+      [nodeId, qualifyId(b.workerId, nodeId), Provider.CLAUDE],
+      [nodeId, qualifyId(b.workerId, nodeId), Provider.CODEX],
+    ]);
+    expect(cliSteps?.map((step) => step.requestId).sort()).toEqual(attempts.map((attempt) => attempt.installId).sort());
     expect(own.requests).toEqual([]);
     await tickUntil(a, () => second.requests.length === 1);
     expect(second.requests).toHaveLength(1);

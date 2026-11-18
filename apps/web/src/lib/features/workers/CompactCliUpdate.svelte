@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { CliInstallMethod, Provider, type ui } from "@canopy/contracts";
+  import { CliInstallMethod, type ui } from "@canopy/contracts";
   import type { ClassValue } from "svelte/elements";
   import { cliManagedExternally } from "@canopy/domain/release/update-actions";
   import IconButton from "#lib/shared/ui/IconButton.svelte";
@@ -15,7 +15,6 @@
     item,
     updates,
     nodeId = "",
-    disabled = false,
     class: className,
   }: {
     worker: ui.Worker;
@@ -23,7 +22,6 @@
     updates: UpdatesState;
     /** The linked computer the worker belongs to; empty for this computer. */
     nodeId?: string;
-    disabled?: boolean;
     class?: ClassValue;
   } = $props();
 
@@ -32,6 +30,13 @@
   const external = $derived(cliManagedExternally(item));
   const key = $derived(`${worker.id}/${tool?.provider}`);
   const busy = $derived(tool?.install?.state === "running" || cli.pending[key]);
+
+  const blocked = $derived(
+    !worker.online ||
+      !!item.blockedReason ||
+      !!busy ||
+      (!!tool && updates.cliBlocked(worker.id, tool.provider, nodeId)),
+  );
 
   const error = $derived(
     cli.errors[key] || (tool?.install?.state === "failed" ? tool.install.error : "") || item.latest?.error || "",
@@ -92,8 +97,9 @@
           icon="repeat"
           size="sm"
           label="Retry"
-          disabled={disabled || !worker.online || !!item.blockedReason || updates.active}
+          disabled={blocked || (step >= 0 && !!updates.pending)}
           onclick={() => {
+            if (blocked) return;
             const run = updates.snapshot?.run;
 
             if (step >= 0 && run)
@@ -107,8 +113,10 @@
           size="sm"
           label={`${item.action === "install" ? "Install" : "Update"} ${cliLabel(tool.provider)} on ${worker.name}`}
           tooltipText={`${item.action === "install" ? "Install" : "Update"} ${cliLabel(tool.provider)} on ${worker.name}${detail ? `. ${detail}` : ""}`}
-          disabled={disabled || !worker.online || !!item.blockedReason}
-          onclick={() => void cli.install(worker.id, tool.provider)}
+          disabled={blocked}
+          onclick={() => {
+            if (!blocked) void cli.install(worker.id, tool.provider);
+          }}
         />
       {:else if detail && !updateInProgress(status)}<IconButton
           icon="information-circle"

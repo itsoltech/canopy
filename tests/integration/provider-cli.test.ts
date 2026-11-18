@@ -105,6 +105,35 @@ const settled = (provider: Provider) => (w: ui.Worker | undefined) => {
   return state === "succeeded" || state === "failed";
 };
 
+const reportCodex = async (method: CliInstallMethod, installable: boolean, version = "0.164.0") => {
+  gw.worker.link.send({
+    case: "cliTools",
+    value: {
+      os: "linux",
+      arch: "x64",
+      tools: [
+        {
+          provider: Provider.CODEX,
+          method,
+          version,
+          path: "/home/test/.local/share/mise/shims/codex",
+          installable,
+          manualCommand: method === CliInstallMethod.MISE ? "mise upgrade npm:@openai/codex" : "",
+        },
+      ],
+    },
+  });
+
+  return eventually(
+    () => workerOf(gw.workerId),
+    (w) => {
+      const cli = tool(w, Provider.CODEX)?.tool;
+
+      return cli?.method === method && cli.installable === installable && cli.version === version;
+    },
+  );
+};
+
 describe.skipIf(!dockerAvailable)("provider CLIs (gateway + real worker + fake CLIs and registry)", () => {
   beforeAll(async () => {
     // Claude: native installer layout. Codex: npm global under its own prefix (with its npm). Grok: absent.
@@ -427,6 +456,79 @@ describe.skipIf(!dockerAvailable)("provider CLIs (gateway + real worker + fake C
     ]);
   });
 
+  test("supported mise installations offer an update and send a single-worker install command", async () => {
+    await reportCodex(CliInstallMethod.MISE, true);
+    await gw.api.checkCliUpdates({ workerId: gw.workerId });
+    expect(tool(await workerOf(gw.workerId), Provider.CODEX)).toMatchObject({
+      action: "update",
+      updateAvailable: true,
+      blockedReason: "",
+      managedBy: "",
+    });
+    const before = gw.worker.commands.length;
+    expect((await gw.api.installCli({ workerId: gw.workerId, provider: Provider.CODEX })).started).toEqual([
+      gw.workerId,
+    ]);
+    expect(gw.worker.commands.slice(before).filter((c) => c.case === "installCli")).toMatchObject([
+      { case: "installCli", value: { provider: Provider.CODEX, version: "0.170.0" } },
+    ]);
+
+    const updated = await reportCodex(CliInstallMethod.MISE, true, "0.170.0");
+    expect(tool(updated, Provider.CODEX)).toMatchObject({ action: "", updateAvailable: false, managedBy: "" });
+  });
+
+  test("Update all includes supported mise installations and leaves current workers alone", async () => {
+    await reportCodex(CliInstallMethod.MISE, true);
+    const before = gw.worker.commands.length;
+    const started = await gw.api.installCli({ provider: Provider.CODEX, allWorkers: true });
+    expect(started.started).toEqual([gw.workerId]);
+    expect(started.skipped).toEqual([]);
+    expect(gw.worker.commands.slice(before).filter((c) => c.case === "installCli")).toMatchObject([
+      { case: "installCli", value: { provider: Provider.CODEX, version: "0.170.0" } },
+    ]);
+    await reportCodex(CliInstallMethod.MISE, true, "0.170.0");
+    expect((await gw.api.installCli({ provider: Provider.CODEX, allWorkers: true })).started).toEqual([]);
+  });
+
+  test("older workers keep the mise manual fallback and are refused by single and bulk updates", async () => {
+    const worker = await reportCodex(CliInstallMethod.MISE, false);
+    expect(tool(worker, Provider.CODEX)).toMatchObject({
+      action: "",
+      updateAvailable: true,
+      managedBy: "mise",
+      tool: { installable: false, manualCommand: "mise upgrade npm:@openai/codex" },
+    });
+    const before = gw.worker.commands.length;
+    const refused = await failure(gw.api.installCli({ workerId: gw.workerId, provider: Provider.CODEX }));
+    expect(refused).toContain("managed by mise");
+    expect(refused).toContain("mise upgrade npm:@openai/codex");
+    const bulk = await gw.api.installCli({ provider: Provider.CODEX, allWorkers: true });
+    expect(bulk.started).toEqual([]);
+    expect(bulk.skipped).toHaveLength(1);
+    expect(bulk.skipped[0]).toContain("managed by mise");
+    expect(bulk.skipped[0]).toContain("mise upgrade npm:@openai/codex");
+    expect(gw.worker.commands.slice(before).filter((c) => c.case === "installCli")).toEqual([]);
+  });
+
+  test("other external managers remain blocked even when the worker claims an install recipe", async () => {
+    const before = gw.worker.commands.length;
+
+    for (const [method, label] of [
+      [CliInstallMethod.HOMEBREW, "Homebrew"],
+      [CliInstallMethod.ASDF, "asdf"],
+      [CliInstallMethod.YARN, "Yarn"],
+      [CliInstallMethod.DOCKER, "the image"],
+      [CliInstallMethod.OTHER, ""],
+    ] as const) {
+      const worker = await reportCodex(method, true);
+      expect(tool(worker, Provider.CODEX)).toMatchObject({ action: "", managedBy: label });
+      const refused = await failure(gw.api.installCli({ workerId: gw.workerId, provider: Provider.CODEX }));
+      expect(refused).toContain(label ? `managed by ${label}` : "cannot be installed from Canopy");
+    }
+
+    expect(gw.worker.commands.slice(before).filter((c) => c.case === "installCli")).toEqual([]);
+  });
+
   test("another owner's worker cannot be touched", async () => {
     const other = await gw.runtime.runPromise(GatewayStore.use((s) => s.ensureUser("other@localhost", "Other")));
 
@@ -449,7 +551,7 @@ describe.skipIf(!dockerAvailable)("provider CLIs (gateway + real worker + fake C
       }),
     );
 
-    expect(audit.length).toBe(5);
+    expect(audit.length).toBe(7);
     expect(audit.map((a) => a.target_id)).not.toContain(theirs.workerId);
     expect(readFileSync(join(home, ".local/bin/claude"), "utf8")).toContain('V="1.1.0"');
   });

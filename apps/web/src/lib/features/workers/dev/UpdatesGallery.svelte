@@ -3,7 +3,7 @@
   import { DesktopUpdatesState } from "#lib/features/desktop/desktop-updates.svelte.ts";
   import CompactUpdates from "../CompactUpdates.svelte";
   import { create } from "@bufbuild/protobuf";
-  import { ui } from "@canopy/contracts";
+  import { Provider, ui } from "@canopy/contracts";
   import type { DesktopUpdateStatus } from "@canopy/ui/desktop";
   import AppUpdates from "#lib/features/desktop/AppUpdates.svelte";
   import LinkedAppUpdates from "#lib/features/desktop/LinkedAppUpdates.svelte";
@@ -20,6 +20,7 @@
    * `slow`) has the linked computer restart for its update. Development only.
    * `remote=1` identifies this app's worker; `identity=missing` simulates an older desktop bridge.
    * `app=downloading|downloaded|failed|waiting` exercises the merged current-computer row.
+   * `run=partial` leaves Codex and Grok actionable beside running and queued Claude updates.
    */
   const updates = new UpdatesState();
 
@@ -114,6 +115,34 @@
   if (params.get("state") === "starting") {
     updates.optimistic = { run: plannedUpdateRun(updates.snapshot, ""), rows: new Map() };
     updates.pending = "update_all";
+  }
+
+  if (params.get("run") === "partial") {
+    const snapshot = updates.snapshot;
+
+    const codex = snapshot.cliWorkers
+      .flatMap((worker) => worker.cliTools)
+      .find((item) => item.tool?.provider === Provider.CODEX);
+
+    const grok = snapshot.cliWorkers
+      .flatMap((worker) => worker.cliTools)
+      .find((item) => item.tool?.provider === Provider.GROK);
+
+    const linked = snapshot.computers[0]?.updates;
+
+    for (const item of [codex, grok, linked?.cliWorkers[0]?.cliTools[0]]) {
+      if (!item?.tool || !item.latest) continue;
+
+      item.latest.version = "99.0.0";
+      item.action = "update";
+      item.updateAvailable = true;
+    }
+
+    const steps = bulkUpdateSteps(snapshot).filter((step) => step.kind === "cli" && step.provider === Provider.CLAUDE);
+
+    if (steps[0]) steps[0].state = "running";
+
+    snapshot.run = create(ui.UpdateRunSchema, { id: "partial-fixture", state: "running", steps });
   }
 
   const app = new DesktopUpdatesState();

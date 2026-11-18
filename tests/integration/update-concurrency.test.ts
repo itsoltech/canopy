@@ -36,6 +36,7 @@ function fleet(workers = 3, shared = false) {
   let stored: ui.UpdateRun | undefined;
   const started: string[] = [];
   const gates = new Map<string, ReturnType<typeof Promise.withResolvers<void>>>();
+  const attempts = new Map<string, string>();
   const key = (worker: string, provider: Provider) => `${worker}/${provider}`;
 
   const center = new UpdateCenter({
@@ -48,6 +49,7 @@ function fleet(workers = 3, shared = false) {
       const id = key(request.workerId, request.provider);
       const gate = Promise.withResolvers<void>();
       gates.set(id, gate);
+      attempts.set(id, request.installId);
       started.push(id);
       await gate.promise;
 
@@ -81,7 +83,17 @@ function fleet(workers = 3, shared = false) {
     if (!cli) throw new Error(`Missing fake CLI ${id}`);
     cli.version = failed ? "1.0.0" : "2.0.0";
 
-    if (failed) cli.install = create(CliInstallStatusSchema, { state: "failed", error: "Fixture install failed" });
+    if (failed) {
+      const installId = attempts.get(id);
+
+      if (!installId) throw new Error(`Missing installation attempt for ${id}`);
+      cli.install = create(CliInstallStatusSchema, {
+        installId,
+        state: "failed",
+        error: "Fixture install failed",
+      });
+    }
+
     gates.get(id)?.resolve();
   };
 
