@@ -47,7 +47,7 @@ export interface UsageData {
 
 const numbers = new Intl.NumberFormat(undefined);
 const compact = new Intl.NumberFormat(undefined, { notation: "compact", maximumFractionDigits: 1 });
-const dollars = new Intl.NumberFormat(undefined, { style: "currency", currency: "USD", maximumFractionDigits: 4 });
+const dollars = new Intl.NumberFormat(undefined, { style: "currency", currency: "USD" });
 
 export const count = (value: bigint) => numbers.format(value);
 export const shortCount = (value: bigint) => compact.format(value);
