@@ -2159,6 +2159,19 @@ message FileRequest {
   bool include_binary = 8;
   // Capability thread_files_watch_v1: mutacja tylko w korzeniu odczytanego dokumentu.
   string expected_root_identity = 9;
+  // Capability thread_file_download_v1: surowe bajty zamiast podglądu.
+  FileDownloadRange download_range = 10;
+}
+
+message FileDownloadRange {
+  uint64 offset = 1;
+  // Pierwsza porcja ma offset 0 i pustą rewizję. Kolejne używają zwróconej ścieżki i rewizji.
+  string expected_revision = 2;
+}
+
+message FileDownloadChunk {
+  uint64 offset = 1;
+  string revision = 2;
 }
 
 message WriteFile {
@@ -2189,6 +2202,7 @@ message FileContent {
   bytes image_preview = 17;
   string root_identity = 18;
   bool read_only = 19;
+  FileDownloadChunk download_chunk = 20;
 }
 
 enum FileResolution {

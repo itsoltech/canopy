@@ -4,11 +4,9 @@
   import DropdownMenu from "../DropdownMenu.svelte";
   import InlineLink from "../InlineLink.svelte";
   import MenuItem from "../MenuItem.svelte";
-  import { anchorOnly, type PopoverTriggerProps } from "../Popover.svelte";
+  import { anchorOnly } from "../Popover.svelte";
   import { longPress } from "../long-press.ts";
   import { tooltip } from "../tooltip.ts";
-  import { copyText } from "#lib/shared/clipboard.ts";
-  import { fileLocation } from "@canopy/domain/file-references";
   import { useFileLinks } from "./file-links.ts";
 
   let {
@@ -24,39 +22,38 @@
   const press = longPress(() => (open = true));
 
   function context(event: MouseEvent | KeyboardEvent) {
+    if (event.defaultPrevented) return;
     event.preventDefault();
     event.stopPropagation();
     open = true;
   }
 </script>
 
-{#snippet link(menu?: PopoverTriggerProps)}
-  <InlineLink
-    {...menu ? anchorOnly(menu) : {}}
-    {title}
-    class={className}
-    aria-haspopup={menu ? "menu" : undefined}
-    aria-expanded={menu ? open : undefined}
-    aria-controls={menu?.["aria-controls"]}
-    onactivate={() => files?.open(path)}
-    oncontextmenu={menu ? context : undefined}
-    onkeydown={menu
-      ? (event) => {
-          if (event.key === "ContextMenu" || (event.shiftKey && event.key === "F10")) context(event);
-        }
-      : undefined}
-    {@attach label ? press : undefined}
-    {@attach tooltip(`Open ${path}`)}>{@render children()}</InlineLink
-  >
-{/snippet}
-
-{#if label}
-  <DropdownMenu bind:open label="File actions" sheet>
-    {#snippet trigger(menu)}{@render link(menu)}{/snippet}
-    <MenuItem icon="arrow-top-right-on-square" onselect={() => files?.open(path)}>Open file</MenuItem>
+<DropdownMenu bind:open label="File actions" sheet>
+  {#snippet trigger(menu)}
+    <InlineLink
+      {...anchorOnly(menu)}
+      {title}
+      class={className}
+      aria-haspopup={menu["aria-haspopup"]}
+      aria-expanded={open}
+      aria-controls={open ? menu["aria-controls"] : undefined}
+      onactivate={() => files?.open(path)}
+      oncontextmenu={context}
+      onkeydown={(event) => {
+        if (event.key === "ContextMenu" || (event.shiftKey && event.key === "F10")) context(event);
+      }}
+      {@attach press}
+      {@attach open ? undefined : tooltip(`Open ${path}`)}>{@render children()}</InlineLink
+    >
+  {/snippet}
+  <MenuItem icon="arrow-top-right-on-square" onselect={() => files?.open(path)}>Open file</MenuItem>
+  {#if label}
     <MenuItem icon="folder-open" onselect={() => files?.reveal?.(path)}>{label}</MenuItem>
-    <MenuItem icon="copy" onselect={() => void copyText(fileLocation(path).path)}>Copy path</MenuItem>
-  </DropdownMenu>
-{:else}
-  {@render link()}
-{/if}
+  {/if}
+  <MenuItem icon="copy" onselect={() => files?.copyPath(path, "full")}>Copy full path</MenuItem>
+  <MenuItem icon="copy" onselect={() => files?.copyPath(path, "relative")}>Copy relative path</MenuItem>
+  {#if files?.canDownload}
+    <MenuItem icon="arrow-down-tray" onselect={() => files.download(path)}>Download file</MenuItem>
+  {/if}
+</DropdownMenu>

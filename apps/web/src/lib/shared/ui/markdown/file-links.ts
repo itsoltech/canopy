@@ -3,6 +3,9 @@ import { getContext, setContext } from "svelte";
 /** Opens a file path an agent wrote (features/files): Markdown turns such paths into selectable links. */
 export interface FileLinkHandler {
   open(path: string): void;
+  copyPath(path: string, kind: "full" | "relative"): void;
+  readonly canDownload: boolean;
+  download(path: string): void;
   /** Present only when the native file manager can reveal a file on this computer. */
   readonly revealLabel?: string | undefined;
   reveal?(path: string): void;

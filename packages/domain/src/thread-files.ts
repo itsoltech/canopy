@@ -1,5 +1,7 @@
 import { FileResolution } from "@canopy/contracts";
 
+export const THREAD_FILE_DOWNLOAD_CHUNK_BYTES = 1024 * 1024;
+
 /** An absolute path on any worker OS: POSIX `/…`, `~`, a Windows drive `C:\…` / `C:/…` or a UNC `\\…`. */
 export const isAbsoluteFilePath = (path: string): boolean =>
   path.startsWith("/") ||

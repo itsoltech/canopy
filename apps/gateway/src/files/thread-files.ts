@@ -1,7 +1,9 @@
 import { create } from "@bufbuild/protobuf";
+import { Code, ConnectError } from "@connectrpc/connect";
 import { ui, type CommandResult } from "@canopy/contracts";
 import {
   THREAD_FILES_CAPABILITY,
+  THREAD_FILE_DOWNLOAD_CAPABILITY,
   THREAD_FILE_PREVIEW_CAPABILITY,
   THREAD_FILE_REVEAL_CAPABILITY,
 } from "@canopy/domain/release/protocol";
@@ -37,6 +39,7 @@ const threadFile = ({ file }: CommandResult): ui.ThreadFile =>
         searchedPaths: file.searchedPaths,
         searchIncomplete: file.searchIncomplete,
         resolution: file.resolution,
+        ...(file.downloadChunk && { downloadChunk: file.downloadChunk }),
       })
     : create(ui.ThreadFileSchema);
 
@@ -72,6 +75,7 @@ export class ThreadFiles {
       workerId: thread.worker_id,
       cwd: thread.cwd,
       preview: connection.hello.capabilities.includes(THREAD_FILE_PREVIEW_CAPABILITY),
+      download: connection.hello.capabilities.includes(THREAD_FILE_DOWNLOAD_CAPABILITY),
       rootCheckpoint: connection.hello.capabilities.includes("thread_files_watch_v1"),
       fileReveal: connection.hello.capabilities.includes(THREAD_FILE_REVEAL_CAPABILITY),
       desktopBundled: connection.hello.capabilities.includes("desktop_bundled"),
@@ -89,21 +93,34 @@ export class ThreadFiles {
 
   async read(request: ui.ThreadFileRequest): Promise<ui.ThreadFile> {
     const target = await this.#target(request.threadId, request.path);
+    const download = request.downloadRange;
 
-    const preferredPaths = target.preview
-      ? await referencePaths(this.core, request.threadId, request.itemId, request.path)
-      : [];
+    if (download) {
+      if (!target.download || !target.preview)
+        throw new ConnectError("Update Canopy on this computer to download files.", Code.Unimplemented);
+
+      if (download.offset === 0n ? download.expectedRevision !== "" : !/^[a-f0-9]{64}$/.test(download.expectedRevision))
+        throw new InvalidError("Could not read this part of the file. Download it again.");
+    }
+
+    const preferredPaths =
+      target.preview && !download?.expectedRevision
+        ? await referencePaths(this.core, request.threadId, request.itemId, request.path)
+        : [];
 
     const result = await this.#query(target.workerId, {
       case: "readFile",
       value: {
         ...target.request,
         ...(target.preview && { path: request.path, workspace: target.cwd, preferredPaths, includeBinary: true }),
+        ...(download && { downloadRange: download }),
         expectedSha256: request.expectedSha256,
       },
     });
 
     const file = threadFile(result);
+
+    if (download) return file;
     file.computer =
       this.core.computers?.hello().name ||
       (await coreRun(this.core, (s) => s.listWorkers(this.core.online))).find((w) => w.id === target.workerId)?.name ||

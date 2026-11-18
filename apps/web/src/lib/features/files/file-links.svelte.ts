@@ -1,10 +1,14 @@
+import { browser } from "$app/env";
+import { FileResolution } from "@canopy/contracts";
 import { useGatewayCapabilities } from "#lib/features/desktop/gateway-capabilities.svelte.ts";
 import { useOverview } from "#lib/features/overview/overview-state.svelte.ts";
 import { devicePreferences } from "#lib/features/settings/device-preferences.svelte.ts";
 import { onThisComputer } from "#lib/features/threads/thread-actions.ts";
 import { provideFileLinks, type FileLinkHandler } from "#lib/shared/ui/markdown/file-links.ts";
+import { copyText } from "#lib/shared/clipboard.ts";
+import { HttpError } from "#lib/shared/http.ts";
 import { toast } from "#lib/shared/ui/toast.svelte.ts";
-import { openFile } from "./api.ts";
+import { downloadFile, openFile, readFile } from "./api.ts";
 import { fileLocation } from "@canopy/domain/file-references";
 import { useWorkspace, workspaceStore } from "#lib/features/workspace/workspace.svelte.ts";
 import { goto } from "$app/navigation";
@@ -39,6 +43,12 @@ class ThreadFileLinks implements FileLinkHandler {
     return threadId ? this.native?.label(threadId) : undefined;
   }
 
+  get canDownload(): boolean {
+    const threadId = this.threadId();
+
+    return !!threadId && !this.local(threadId);
+  }
+
   reveal(path: string): void {
     const threadId = this.threadId();
 
@@ -54,6 +64,44 @@ class ThreadFileLinks implements FileLinkHandler {
     if (target.local && /[\\/]/.test(path) && devicePreferences.values.fileLinks === "app")
       void openInApp(target, () => this.#preview(target));
     else this.#preview(target);
+  }
+
+  copyPath(path: string, kind: "full" | "relative"): void {
+    const threadId = this.threadId();
+
+    if (threadId) void copyText(this.#resolvePath(threadId, fileLocation(path).path, kind));
+  }
+
+  async #resolvePath(threadId: string, path: string, kind: "full" | "relative"): Promise<string> {
+    const file = await readFile(threadId, path, this.itemId()).catch((cause: unknown) => {
+      if (cause instanceof HttpError) throw cause;
+      throw new Error("Could not load the file path. Try again.");
+    });
+
+    if (file.resolution === FileResolution.AMBIGUOUS)
+      throw new Error("Several files match this name. Open the link to choose a path.");
+
+    if (!file.path) throw new Error("Could not find this file. Check its path, then try again.");
+
+    if (kind === "full") return file.path;
+
+    if (file.relativePath) return file.relativePath;
+
+    throw new Error("No relative path is available. Use Copy full path.");
+  }
+
+  async download(path: string): Promise<void> {
+    const threadId = this.threadId();
+
+    if (!threadId || this.local(threadId)) return;
+
+    try {
+      await downloadFile(threadId, fileLocation(path).path, this.itemId());
+    } catch (cause) {
+      toast(cause instanceof HttpError ? cause.message : "Could not download the file. Try again.", {
+        tone: "error",
+      });
+    }
   }
 
   #preview(target: FileTarget): void {
@@ -73,7 +121,13 @@ export function provideThreadFileLinks(threadId: () => string | undefined, itemI
   const local = (id: string) => {
     const thread = overview.threads.get(id);
 
-    return thread ? onThisComputer(thread, overview.worker(thread.workerId), capabilities?.ownGateway ?? false) : false;
+    return !!(
+      browser &&
+      window.canopyDesktop &&
+      capabilities?.localDesktop &&
+      thread &&
+      onThisComputer(thread, overview.worker(thread.workerId), capabilities.ownGateway)
+    );
   };
 
   provideFileLinks(new ThreadFileLinks(threadId, local, itemId, useWorkspace(), useFileReveal()));

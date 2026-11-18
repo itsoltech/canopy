@@ -1,7 +1,8 @@
 # Zakładki wątku i panel Files/Diff/Preview
 
-Status (2026-11-17): **zaimplementowane; układ v3**, lokalne `Reveal in Finder/Explorer`
-przy ścieżkach i w menu pliku, podgląd dostępnych plików spoza workspace tylko do odczytu,
+Status (2026-11-18): **zaimplementowane; układ v3**, menu ścieżek w rozmowie
+z kopiowaniem pełnej i względnej ścieżki, pobieraniem oraz lokalnym
+`Reveal in Finder/Explorer`, podgląd dostępnych plików spoza workspace tylko do odczytu,
 panel Diff z wirtualizowanym przeglądem zmian Git i zwiększonymi limitami odczytu
 i lokalnym szkicem review wysyłanym agentowi jako jedna wiadomość oraz wcześniejszym
 pobieraniem treści diffu poza ekranem, karta Preview w web/desktop
@@ -234,14 +235,23 @@ w tle — wiersz zadania.
 ### Pliki w wiadomości
 
 Ścieżki w wiadomościach web/desktop mają menu pod prawym przyciskiem myszy
-(także `Shift+F10`, klawisz menu i długie przytrzymanie). Na własnym desktopie,
-gdy wątek działa na jego wbudowanym workerze, menu zawiera `Reveal in Finder`
-na macOS, `Reveal in Explorer` na Windows albo `Reveal in file manager` na Linux.
-Ta sama akcja jest w `File actions` podglądu. Zwykłe kliknięcie nadal otwiera plik
-według ustawienia urządzenia. Pozycja linii jest usuwana przed wywołaniem;
-menedżer plików wskazuje plik, bez uruchamiania jego zawartości.
+(także `Shift+F10`, klawisz menu i długie przytrzymanie). `Open file` i zwykłe
+kliknięcie otwierają plik według ustawienia urządzenia. `Copy full path` kopiuje
+pełną ścieżkę rozstrzygniętą na workerze. `Copy relative path` kopiuje ścieżkę
+względem katalogu roboczego wątku (worktree, jeśli wątek w nim działa).
+Dla pliku spoza tego katalogu interfejs wskazuje akcję `Copy full path`.
+Kopiowanie i pobieranie pomijają numer linii i korzystają z kontekstu wiadomości
+przy rozstrzyganiu nazwy pliku. Podgląd otwiera się na wskazanej linii.
 
-Akcja wymaga aktualnego, połączonego workera z capability `thread_file_reveal_v1`.
+`Download file` zapisuje pełną treść przez mechanizm pobierania przeglądarki
+lub okno zapisu desktopu. Opcja jest dostępna w web oraz dla plików innych workerów
+w desktopie. Pobieranie wymaga obsługi `thread_file_download_v1` przez workera
+i jego gateway. Dla wbudowanego workera własnego desktopu menu oferuje
+`Reveal in Finder` na macOS, `Reveal in Explorer` na Windows albo `Reveal in file manager`
+na Linux, jeśli worker obsługuje tę akcję. Ta sama akcja jest w `File actions`
+podglądu. Menedżer plików wskazuje plik, bez uruchamiania jego zawartości.
+
+Wskazywanie w menedżerze plików wymaga połączonego workera z capability `thread_file_reveal_v1`.
 Nie pojawia się w przeglądarce, na telefonie, w trybie desktop remote ani dla
 wątków połączonego komputera lub innego workera. Ograniczenie egzekwują także BFF
 i gateway: tylko lokalny desktopowy token usługi, własny wątek i własny wbudowany

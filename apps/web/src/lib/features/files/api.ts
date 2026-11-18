@@ -22,6 +22,18 @@ export async function readFile(
   );
 }
 
+export async function downloadFile(threadId: string, path: string, itemId: string): Promise<void> {
+  const query = new URLSearchParams({ path, itemId });
+  const href = `${filesPath(threadId)}/download?${query}`;
+  await requestJson("GET", `${href}&check=1`, undefined, TIMEOUT_MS);
+
+  // Let the browser or Electron own the transfer and pick the save location.
+  const link = document.createElement("a");
+  link.href = href;
+  link.download = "";
+  link.click();
+}
+
 export async function writeFile(
   threadId: string,
   path: string,
