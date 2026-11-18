@@ -13,6 +13,7 @@ import { SidebarUsage } from "./SidebarUsage";
 export function SidebarFooter({ workers, stream }: { workers: ui.Worker[]; stream: StreamState }) {
   const c = useColors();
   const [compact, setCompact] = useState(true);
+  const [connectionCompact, setConnectionCompact] = useState(true);
   const online = workers.filter((worker) => worker.online).length;
 
   return (
@@ -47,8 +48,11 @@ export function SidebarFooter({ workers, stream }: { workers: ui.Worker[]; strea
       </Pressable>
       <UpdateCenterButton />
       <SidebarUsage workers={workers} />
-      <View style={{ flex: 1, minWidth: 0, alignItems: "flex-end" }}>
-        <ConnectionStatus stream={stream} compact={compact} />
+      <View
+        onLayout={(event) => setConnectionCompact(event.nativeEvent.layout.width < 128)}
+        style={{ flex: 1, minWidth: 0, alignItems: "flex-end" }}
+      >
+        <ConnectionStatus stream={stream} compact={connectionCompact} />
       </View>
     </View>
   );

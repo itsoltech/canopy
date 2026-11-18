@@ -2,10 +2,20 @@ import { Text, View } from "react-native";
 import { count, metricValue, type UsageAmounts, type UsageData, type UsageView } from "@canopy/domain/usage-report";
 import { Alert, EmptyState, Notice } from "../../ui/components";
 import { font, styles, useColors, useTypography } from "../../ui/theme";
-import { UsageBreakdown } from "./UsageBreakdown";
+import { UsageBreakdown, type UsageGroup } from "./UsageBreakdown";
 import { UsageSources } from "./UsageSources";
 
-export function UsageReportContent({ data, view }: { data: UsageData; view: UsageView }) {
+export function UsageReportContent({
+  data,
+  view,
+  group,
+  onGroupChange,
+}: {
+  data: UsageData;
+  view: UsageView;
+  group: UsageGroup;
+  onGroupChange: (group: UsageGroup) => void;
+}) {
   return (
     <>
       {data.partial && (
@@ -18,7 +28,7 @@ export function UsageReportContent({ data, view }: { data: UsageData; view: Usag
       ) : (
         <>
           <UsageTotals totals={data.totals} view={view} />
-          <UsageBreakdown data={data} view={view} />
+          <UsageBreakdown data={data} view={view} selected={group} onChange={onGroupChange} />
         </>
       )}
       <UsageSources computers={data.computers} />
@@ -51,7 +61,7 @@ function UsageTotals({ totals, view }: { totals: UsageAmounts; view: UsageView }
           <Notice>
             Usage costs may include estimates and may differ from your bill.
             {totals.unknownEffectiveCostReports > 0n &&
-              ` ${count(totals.unknownEffectiveCostReports)} ${totals.unknownEffectiveCostReports === 1n ? "report has" : "reports have"} no cost data.`}
+              ` ${count(totals.unknownEffectiveCostReports)} ${totals.unknownEffectiveCostReports === 1n ? "report lacks" : "reports lack"} a complete cost.`}
           </Notice>
         )}
       </View>

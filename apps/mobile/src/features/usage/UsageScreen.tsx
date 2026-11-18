@@ -5,6 +5,7 @@ import { Alert, Button, IconButton, ScreenHeader, Segmented } from "../../ui/com
 import { ScreenFrame } from "../../ui/ScreenFrame";
 import { ScreenScroll } from "../../ui/ScreenScroll";
 import { useColors, useTypography } from "../../ui/theme";
+import type { UsageGroup } from "./UsageBreakdown";
 import { UsageChoice } from "./UsageChoice";
 import { UsageReportContent } from "./UsageReportContent";
 import { useUsageReport } from "./useUsageReport";
@@ -30,6 +31,7 @@ export function UsageScreen() {
   const [days, setDays] = useState(30);
   const [provider, setProvider] = useState("");
   const [view, setView] = useState<UsageView>("cost");
+  const [group, setGroup] = useState<UsageGroup>("providers");
   const request = useMemo(() => ({ days, provider }), [days, provider]);
   const report = useUsageReport(request);
   const response = report.status === "ready" ? report.data : undefined;
@@ -98,7 +100,7 @@ export function UsageScreen() {
             <Button title="Retry" onPress={report.reload} />
           </View>
         )}
-        {data && <UsageReportContent data={data} view={view} />}
+        {data && <UsageReportContent data={data} view={view} group={group} onGroupChange={setGroup} />}
       </ScreenScroll>
     </ScreenFrame>
   );

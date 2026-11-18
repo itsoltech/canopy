@@ -48,7 +48,7 @@ describe("native Usage report over pinned Connect", () => {
     let calls = 0;
 
     const gateway = await usageGateway({
-      ...(methods && { getClientCapabilities: () => ({ methods }) }),
+      ...(methods && { getClientCapabilities: () => ({ methods: [...methods] }) }),
       getUsageStats: () => {
         calls++;
         throw new ConnectError("Report is unavailable on this build", Code.Unimplemented);
@@ -109,6 +109,7 @@ describe("native Usage report over pinned Connect", () => {
       if (result.status !== "ready") throw new Error("Expected a legacy Usage report");
       const { totals, providers } = usageReport(result.data, { legacyReportedCost: true });
       expect(hasEffectiveCost(totals)).toBe(false);
+      expect(totals.unknownEffectiveCostReports).toBe(1n);
       expect(providers.map(({ key, amounts }) => [key, hasEffectiveCost(amounts), amounts.effectiveCost])).toEqual([
         ["claude", true, 0],
         ["codex", true, 1.25],

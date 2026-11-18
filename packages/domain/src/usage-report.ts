@@ -173,7 +173,7 @@ function usageAmounts(totals: ui.UsageTotals | undefined, legacyReportedCost: bo
       effectiveCostReports = reports;
     } else {
       effectiveCost = 0;
-      unknownEffectiveCostReports = reports;
+      unknownEffectiveCostReports = totals.unknownCostReports || reports;
     }
   }
 

@@ -24,12 +24,21 @@ const activityGroups = [
   { value: "bots", label: "Bot" },
 ] as const;
 
-type Group = (typeof baseGroups | typeof activityGroups)[number]["value"];
+export type UsageGroup = (typeof baseGroups | typeof activityGroups)[number]["value"];
 
 const PAGE_SIZE = 12;
 
-export function UsageBreakdown({ data, view }: { data: UsageData; view: UsageView }) {
-  const [selected, select] = useState<Group>("providers");
+export function UsageBreakdown({
+  data,
+  view,
+  selected,
+  onChange,
+}: {
+  data: UsageData;
+  view: UsageView;
+  selected: UsageGroup;
+  onChange: (group: UsageGroup) => void;
+}) {
   const options = data.supportsActivityBreakdown ? [...baseGroups, ...activityGroups] : [...baseGroups];
   const group = options.some((option) => option.value === selected) ? selected : "providers";
   const rows = data[group];
@@ -41,7 +50,7 @@ export function UsageBreakdown({ data, view }: { data: UsageData; view: UsageVie
 
   return (
     <View style={{ gap: 8 }}>
-      <UsageChoice label="Breakdown" value={group} options={options} onChange={select} />
+      <UsageChoice label="Breakdown" value={group} options={options} onChange={onChange} />
       {data.hasUnattributedUsage && (group === "activities" || group === "bots") && (
         <Notice>Some usage has no recorded activity.</Notice>
       )}
