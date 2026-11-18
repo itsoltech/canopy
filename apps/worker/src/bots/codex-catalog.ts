@@ -22,6 +22,7 @@ const decodeCatalog = Schema.decodeUnknownOption(
 );
 
 const isTokens = Schema.is(Schema.Int.check(Schema.isGreaterThanOrEqualTo(1)));
+const isModalities = Schema.is(Schema.Array(Schema.String));
 
 /** The raw catalog entry (`codex debug models`) of the instance: same executable, env and CODEX_HOME. */
 export async function codexModelEntry(
@@ -66,6 +67,7 @@ export function codexBotCatalog(model: string, effort: string, real: JsonObject 
   const minimal = codexTextCatalog(model, effort).models[0]!;
   const window = isTokens(real?.["context_window"]) ? real["context_window"] : undefined;
   const limit = isTokens(real?.["auto_compact_token_limit"]) ? real["auto_compact_token_limit"] : undefined;
+  const modalities = real?.["input_modalities"];
 
   return {
     models: [
@@ -89,7 +91,9 @@ export function codexBotCatalog(model: string, effort: string, real: JsonObject 
         node_repl_disabled: true,
         // Responses-lite moves tool schemas into the input; keep the plain wire format the isolation test reads.
         use_responses_lite: false,
-        input_modalities: ["text"],
+        // Codex filters images from both messages and tool results when the catalog only allows text.
+        // Its default for models without modality metadata is text and images.
+        input_modalities: !isModalities(modalities) || modalities.includes("image") ? ["text", "image"] : ["text"],
         include_skills_usage_instructions: false,
         include_plugin_usage_instructions: false,
         include_apps_usage_instructions: false,

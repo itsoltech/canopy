@@ -52,7 +52,15 @@ test.skipIf(!Bun.which("codex"))("Codex bot catalog takes the real model limits 
     use_responses_lite: false,
   });
 
+  expect(
+    await parsed(home, codexBotCatalog(model, "low", { ...real, input_modalities: ["text", "image", "audio"] })),
+  ).toMatchObject({ input_modalities: ["text", "image"] });
+  expect(await parsed(home, codexBotCatalog(model, "low", { ...real, input_modalities: ["text"] }))).toMatchObject({
+    input_modalities: ["text"],
+  });
+
   expect(await parsed(home, codexBotCatalog("canopy-unknown-model", "low", undefined))).toMatchObject({
+    input_modalities: ["text", "image"],
     context_window: FALLBACK_CONTEXT_WINDOW,
     auto_compact_token_limit: FALLBACK_AUTO_COMPACT_LIMIT,
     shell_type: "disabled",
