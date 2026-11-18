@@ -26,7 +26,7 @@
   import Alert from "#lib/shared/ui/Alert.svelte";
   import ButtonLink from "#lib/shared/ui/ButtonLink.svelte";
   import Switch from "#lib/shared/ui/Switch.svelte";
-  import { inheritedMode, permissionKey } from "../labels.ts";
+  import { availablePermissionMode, fullAutoAvailable, inheritedMode, permissionKey } from "../labels.ts";
   import ComposerBox from "./ComposerBox.svelte";
   import HintIcon from "#lib/shared/ui/HintIcon.svelte";
   import PermissionPicker from "./PermissionPicker.svelte";
@@ -65,10 +65,15 @@
   // Your pick stays with this side thread's draft (leave and come back); unset = the main thread's mode.
 
   // Full access is picked again for a side thread, never taken over from the main thread.
+  const fullAuto = $derived(fullAutoAvailable(main.provider, worker?.os));
+
   const mode = $derived(
-    saved.choices.permissionMode
-      ? permissionKey(saved.choices.permissionMode)
-      : inheritedMode(permissionKey(main.permissionMode)),
+    availablePermissionMode(
+      saved.choices.permissionMode
+        ? permissionKey(saved.choices.permissionMode)
+        : inheritedMode(permissionKey(main.permissionMode)),
+      fullAuto,
+    ),
   );
 
   let fork = $state(true);
@@ -221,6 +226,7 @@
             />{/if}
           <PermissionPicker
             value={mode}
+            {fullAuto}
             onselect={(next) => (saved.choices = { ...saved.choices, permissionMode: PermissionMode[next] })}
             class="-mr-1.5 shrink-0"
           />

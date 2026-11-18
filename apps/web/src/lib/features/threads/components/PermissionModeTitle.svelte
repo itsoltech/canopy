@@ -3,14 +3,20 @@
   import Badge from "#lib/shared/ui/Badge.svelte";
   import { permissionLabel, permissionLook, type PermissionModeKey } from "../labels.ts";
 
-  /** Name of a permission mode in a list of choices: full auto says it never asks, full access that it has no sandbox; `note` is a quiet tag on the same line (e.g. "Default", "Current"). */
+  /** Name of a permission mode with its applicable badge and an optional note (e.g. "Current"). */
   let {
     mode,
+    fullAuto,
     note,
     class: className,
-  }: { mode: PermissionModeKey; note?: string | undefined; class?: ClassValue } = $props();
+  }: {
+    mode: PermissionModeKey;
+    fullAuto?: boolean | undefined;
+    note?: string | undefined;
+    class?: ClassValue;
+  } = $props();
 
-  const look = $derived(permissionLook(mode));
+  const look = $derived(permissionLook(mode, fullAuto));
 </script>
 
 <span class={["flex items-center gap-1.5", className]}>

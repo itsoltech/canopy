@@ -28,7 +28,8 @@ podsumowanie wątku web/desktop pokazuje lokalne zmiany Git
 i pozwala pobrać origin przez bezpieczny fast-forward;
 kompozytor przełącza gałęzie checkoutu i wybranego worktree.
 Lokalne zmiany przy przełączaniu wymagają potwierdzenia stash & pop, także w podsumowaniu wątku.
-Web/desktop — zmiana uprawnień bieżącej tury Claude działa bez restartu;
+Web/desktop — zmiana uprawnień bieżącej tury Claude działa bez restartu,
+a picker i dialog uprawnień ukrywają Full auto dla Claude na workerze Windows;
 opcjonalny wskaźnik kontekstu composera ma tryby Off / Circle / Text / Bar w Appearance,
 a pickery modelu i wysiłku dopasowują się do dostępnej szerokości;
 lokalne preferencje sidebara zachowują zakres po restarcie gatewaya desktopu na innym porcie;

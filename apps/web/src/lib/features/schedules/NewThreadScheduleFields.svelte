@@ -10,7 +10,13 @@
   import ModelControls from "#lib/features/models/ModelControls.svelte";
   import { useOverview } from "#lib/features/overview/overview-state.svelte.ts";
   import PermissionPicker from "#lib/features/threads/components/PermissionPicker.svelte";
-  import { inheritedMode, permissionKey, type PermissionModeKey } from "#lib/features/threads/labels.ts";
+  import {
+    availablePermissionMode,
+    fullAutoAvailable,
+    inheritedMode,
+    permissionKey,
+    type PermissionModeKey,
+  } from "#lib/features/threads/labels.ts";
   import Field from "#lib/shared/ui/Field.svelte";
   import Input from "#lib/shared/ui/Input.svelte";
   import Select from "#lib/shared/ui/Select.svelte";
@@ -108,6 +114,12 @@
     ),
   );
 
+  const fullAuto = $derived(
+    fullAutoAvailable(option && Provider[option.provider], placement === "specific" ? modelWorker?.os : undefined),
+  );
+
+  const effectivePermission = $derived(availablePermissionMode(permission, fullAuto));
+
   const eligible = $derived(value ? workers.filter((w) => scheduleWorkerEligible(w, value!)) : []);
 
   $effect(() => {
@@ -147,7 +159,7 @@
       model: option?.model ?? "",
       effort: option?.efforts.length ? (effort ?? "") : "",
       serviceTier: supportedServiceTier(option, serviceTier),
-      permissionMode: PermissionMode[permission],
+      permissionMode: PermissionMode[effectivePermission],
       title,
       workspaceMode: initial?.workspaceMode,
       baseRef: initial?.baseRef,
@@ -205,7 +217,12 @@
     <legend class="mb-2 text-base/6 font-medium sm:text-sm/6">Agent and permissions</legend>
     <div class="flex min-w-0 flex-wrap items-center gap-2">
       <ModelControls {options} bind:option bind:effort bind:serviceTier showSpeed workerId={modelWorker?.id} />
-      <PermissionPicker value={permission} fullAccess={false} onselect={(next) => (permission = next)} />
+      <PermissionPicker
+        value={effectivePermission}
+        {fullAuto}
+        fullAccess={false}
+        onselect={(next) => (permission = next)}
+      />
     </div>
     {#if option}<p class="text-base/6 text-zinc-500 sm:text-sm/5 dark:text-zinc-400">
         {option.provider === "CLAUDE" ? "Claude" : option.provider === "GROK" ? "Grok" : "Codex"} · {option.profileName}
