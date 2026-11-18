@@ -12,8 +12,8 @@ import { Effect, Schema } from "effect";
 import type { SqlClient } from "effect/sql";
 import { GatewayStore } from "../store/store.ts";
 import type { CoreRuntime } from "../core/core.ts";
-import { mcpCall, mcpTools } from "../bots/mcp.ts";
-import type { McpConnection, ToolSpec } from "../bots/types.ts";
+import { mcpTools } from "../bots/mcp.ts";
+import type { BotTurn, McpConnection, ToolSpec } from "../bots/types.ts";
 import { connectorCatalog, connectorType } from "./catalog.ts";
 import { completeOAuth } from "./oauth-completion.ts";
 import {
@@ -28,11 +28,11 @@ import { authorizeOAuth, redactConnector, revokeOAuth } from "./oauth.ts";
 import { beginConnectorOAuth } from "./oauth-begin.ts";
 import { slackUserCredentials } from "./slack-user-refresh.ts";
 import type { SlackTransport } from "../messengers/slack-http.ts";
-import { connectorPermission, failed, handleConnectorCall } from "./calls.ts";
+import { handleConnectorCall } from "./calls.ts";
+import { executeConnector } from "./execute.ts";
+import { connectorToolCatalog, SLACK_POST_ACTION, slackPostName } from "./slack-post-tool.ts";
 import { worktreeMerged } from "./merged-pr.ts";
 import { connectorTestError, ConnectorTestFailure } from "./test-error.ts";
-import { checkConnectorTurn } from "./turn-permissions.ts";
-import { withTurnPermissionMutation } from "../core/turn-permission-state.ts";
 
 /** Catalog input schemas are stored as the JSON text of the object the MCP server sent. */
 const inputSchema = Schema.decodeUnknownSync(Schema.fromJsonString(Schema.JsonObject));
@@ -191,6 +191,8 @@ export class ConnectorsRuntime {
       const tools = catalog
         .filter(
           (tool) =>
+            tool.remoteName !== SLACK_POST_ACTION &&
+            (connection.row.connector_type !== "slack" || tool.name !== slackPostName(connection.row)) &&
             redactConnector(tool.remoteName ?? tool.name, connection.value) === (tool.remoteName ?? tool.name) &&
             redactConnector(tool.name, connection.value) === tool.name,
         )
@@ -218,7 +220,11 @@ export class ConnectorsRuntime {
       throw new ConnectorTestFailure(account, error.message);
     }
   }
-  async tools(user: string, scope: { workerId?: string; botId?: string }): Promise<ConnectorTool[]> {
+  async tools(
+    user: string,
+    scope: { workerId?: string; botId?: string },
+    includeSlackPost = true,
+  ): Promise<ConnectorTool[]> {
     const rows = await this.run((s) => s.list(user, scope));
     const tools: ConnectorTool[] = [];
 
@@ -235,14 +241,27 @@ export class ConnectorsRuntime {
         }
       }
 
-      tools.push(...catalog.map((t) => ({ ...t, accountName: row.name })));
+      const post =
+        includeSlackPost && row.connector_type === "slack" && (await this.run((s) => s.slackMessagingConnected(row)));
+
+      tools.push(...connectorToolCatalog(row, catalog, post));
     }
 
     // A bounded prompt; account catalog pages are separately capped at 256.
     return tools.slice(0, 256);
   }
-  async botTools(botId: string): Promise<ToolSpec[]> {
-    return (await this.tools(this.options.userId, { botId })).map((t) => ({
+  async botTools(botId: string, turn?: BotTurn): Promise<ToolSpec[]> {
+    const privateConversation =
+      !!turn &&
+      !turn.conversation_id &&
+      !turn.exchange_id &&
+      !turn.routine_id &&
+      !turn.reply_to_bot_id &&
+      !turn.remote_recipient_ref;
+
+    const tools = await this.tools(this.options.userId, { botId }, privateConversation);
+
+    return tools.map((t) => ({
       name: t.name,
       description: t.description,
       parameters: inputSchema(t.inputSchemaJson),
@@ -313,7 +332,7 @@ export class ConnectorsRuntime {
     signal: AbortSignal,
   ): Promise<JsonValue> {
     // Authorization precedes even replay lookup, so a revoked account cannot disclose old results.
-    await this.run((s) => s.authorize(source));
+    const account = await this.run((s) => s.authorize(source));
     const fingerprint = digest(JSON.stringify([source, toolName, args]));
     const active = this.#active.get(callId);
 
@@ -323,7 +342,25 @@ export class ConnectorsRuntime {
       return active.promise;
     }
 
-    const promise = this.#execute(source, callId, toolName, args, fingerprint, signal);
+    const promise = executeConnector(
+      {
+        runtime: this.options.runtime,
+        messengerTransport: this.options.messengerTransport,
+        run: (use) => this.run(use),
+        interaction: (interaction) => this.options.interaction(interaction),
+        stopped: () => this.#stopped,
+        catalog: async (user, id) => (await this.test(id, user)).tools,
+        connection: (user, id) => this.#connection(user, id),
+      },
+      source,
+      account,
+      callId,
+      toolName,
+      args,
+      fingerprint,
+      signal,
+    );
+
     this.#active.set(callId, { fingerprint, promise });
 
     try {
@@ -331,114 +368,6 @@ export class ConnectorsRuntime {
     } finally {
       this.#active.delete(callId);
     }
-  }
-  async #execute(
-    source: ExecutionSource,
-    callId: string,
-    toolName: string,
-    args: JsonObject,
-    fingerprint: string,
-    signal: AbortSignal,
-  ): Promise<JsonValue> {
-    const old = await this.run((s) => s.execution(callId));
-
-    if (old) {
-      if (old.fingerprint !== fingerprint) throw new ConnectorFailure("Connector call identity mismatch");
-
-      return (
-        old.result ?? {
-          isError: true,
-          content: [
-            {
-              type: "text",
-              text: "Outcome unknown after disconnect. Do not repeat a write without user confirmation.",
-            },
-          ],
-        }
-      );
-    }
-
-    // Fresh annotations are authoritative for approval, never the worker's descriptor.
-    const catalog = await this.test(source.accountId, source.userId);
-    const tool = catalog.tools.find((t) => t.name === toolName);
-
-    if (!tool) throw new ConnectorFailure("Connector tool is unavailable");
-
-    if (source.botId && source.readOnlyOnly && !tool.readOnly)
-      throw new ConnectorFailure("The connector tool now requires approval. Ask the user before retrying.");
-
-    if (source.threadId) await this.#permission(source, callId, tool, args, signal);
-
-    const dispatch = async () => {
-      if (source.threadId) await checkConnectorTurn(this.options.runtime, source, tool.readOnly);
-      const current = await this.run((s) => s.authorize(source));
-      const connection = await this.#connection(source.userId, source.accountId);
-
-      if (BigInt(current.revision) !== BigInt(connection.row.revision))
-        throw new ConnectorFailure("Connector changed; try again");
-      const claimed = await this.run((s) => s.claimExecution(callId, source, tool.remoteName, fingerprint));
-
-      if (!claimed)
-        throw new ConnectorFailure("Connector call already started; outcome unknown. Do not repeat writes.");
-
-      if (source.threadId) await checkConnectorTurn(this.options.runtime, source, tool.readOnly);
-
-      return {
-        completion: mcpCall(
-          connection.server,
-          {
-            name: tool.name,
-            description: tool.description,
-            parameters: {},
-            source: "mcp",
-            remoteName: tool.remoteName,
-          },
-          args,
-          signal,
-        ),
-        credentials: connection.value,
-      };
-    };
-
-    const started = source.threadId
-      ? await withTurnPermissionMutation(this.options.runtime, source.threadId, dispatch)
-      : await dispatch();
-
-    let result: JsonValue;
-
-    try {
-      result = JSON.parse(redactConnector(JSON.stringify(await started.completion), started.credentials));
-    } catch {
-      result = {
-        isError: true,
-        content: [
-          {
-            type: "text",
-            text: "Connector call interrupted or failed; outcome may be unknown. Do not automatically retry writes.",
-          },
-        ],
-      };
-    }
-
-    const isError = failed(result);
-    await this.run((s) => s.finishExecution(callId, source, tool.remoteName, result, isError));
-
-    return result;
-  }
-  #permission(source: ExecutionSource, callId: string, tool: ConnectorTool, args: JsonObject, signal: AbortSignal) {
-    return connectorPermission(
-      {
-        runtime: this.options.runtime,
-        run: (use) => this.run(use),
-        interaction: (interaction) => this.options.interaction(interaction),
-        stopped: () => this.#stopped,
-      },
-      source,
-      callId,
-      tool,
-      args,
-      signal,
-    );
   }
   handle(request: AgentToolCall, workerId: string) {
     return handleConnectorCall(

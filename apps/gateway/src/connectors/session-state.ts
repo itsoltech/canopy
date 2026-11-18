@@ -1,5 +1,5 @@
-import { create, fromJson, type JsonValue } from "@bufbuild/protobuf";
-import { ConnectorToolSchema, ui } from "@canopy/contracts";
+import { create } from "@bufbuild/protobuf";
+import { type ConnectorTool, ui } from "@canopy/contracts";
 import { ConnectorSessionCatalog, connectorSessionCatalog } from "@canopy/domain/connector-session";
 import { Effect, Option, Schema } from "effect";
 import type { SqlClient } from "effect/sql";
@@ -13,7 +13,7 @@ export function connectorSessionState(
   sql: SqlClient.SqlClient,
   threadId: string,
   accounts: ui.ThreadConnector[],
-  tools: JsonValue[][],
+  tools: ConnectorTool[],
 ) {
   return Effect.gen(function* () {
     const reports = yield* sql<{ code: string; catalog: string; seq: string }>`
@@ -39,18 +39,7 @@ export function connectorSessionState(
     const sameCatalog = (a: ConnectorSessionCatalog, b: ConnectorSessionCatalog) =>
       JSON.stringify(a) === JSON.stringify(b);
 
-    const desired = connectorSessionCatalog(
-      accounts
-        .flatMap((account, i) =>
-          account.granted && account.status === "connected"
-            ? (tools[i] ?? []).map((tool) => ({
-                ...fromJson(ConnectorToolSchema, tool),
-                accountName: account.accountLabel,
-              }))
-            : [],
-        )
-        .slice(0, 256),
-    );
+    const desired = connectorSessionCatalog(tools.slice(0, 256));
 
     // Deleted accounts remain visible only until the session confirms their removal.
     for (const account of before)

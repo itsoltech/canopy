@@ -17,6 +17,7 @@ import { ConnectorFailure, type ConnectorStore, type ExecutionSource } from "./s
 import { redactConnector } from "./oauth.ts";
 import { allowThreadConnector } from "../bots/thread-connector-rules.ts";
 import { checkConnectorTurn, connectorTurn } from "./turn-permissions.ts";
+import { SLACK_POST_ACTION } from "./slack-post-tool.ts";
 
 /** MCP tool results report failure in-band. */
 export const failed = (result: JsonValue) => isJsonObject(result) && Boolean(result["isError"]);
@@ -65,8 +66,9 @@ export async function connectorPermission(
           toolName: tool.name,
           requestJson: redactConnector(
             JSON.stringify({
-              tool_name: `${connectorType(tool.connectorType)?.name} · ${tool.accountName} · ${tool.remoteName}`,
-              description: "Allow this connector action?",
+              tool_name: `${connectorType(tool.connectorType)?.name} · ${tool.accountName} · ${tool.remoteName === SLACK_POST_ACTION ? "Post as Canopy" : tool.remoteName}`,
+              description:
+                tool.remoteName === SLACK_POST_ACTION ? "Post this message in Slack?" : "Allow this connector action?",
               connector_account_id: tool.accountId,
               input: args,
             }),
@@ -77,7 +79,8 @@ export async function connectorPermission(
     ),
   );
 
-  interaction = await allowThreadConnector(context.runtime, source.userId, interaction, tool);
+  if (tool.remoteName !== SLACK_POST_ACTION)
+    interaction = await allowThreadConnector(context.runtime, source.userId, interaction, tool);
   await context.interaction(interaction);
 
   for (;;) {

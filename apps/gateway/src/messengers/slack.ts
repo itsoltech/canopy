@@ -146,43 +146,47 @@ export class SlackMessenger {
   }
 
   /** Never retries a write. The durable outbox must distinguish rate limits from ambiguous success. */
-  async send(message: SlackOutboundMessage, signal?: AbortSignal): Promise<{ messageId: string; channelId: string }> {
-    checkSlackCredentials(this.options.credentials);
-
-    if (
-      !message.id ||
-      !/^[CDG][A-Z\d]+$/.test(message.channelId) ||
-      (message.threadId && !/^\d+\.\d+$/.test(message.threadId))
-    )
-      throw new SlackMessengerError("configuration", "invalid_message_target");
-    const text = message.text.replaceAll("&", "&amp;").replaceAll("<", "&lt;").replaceAll(">", "&gt;");
-
-    if (!text.trim() || Array.from(text).length > 40_000 || Buffer.byteLength(text) > 160_000)
-      throw new SlackMessengerError("configuration", "message_size_limit");
-
-    const fields = new URLSearchParams({
-      channel: message.channelId,
-      text,
-      client_msg_id: clientMessageId(message.id),
-      parse: "none",
-      mrkdwn: "false",
-      link_names: "false",
-      unfurl_links: "false",
-      unfurl_media: "false",
-    });
-
-    if (message.threadId) fields.set("thread_ts", message.threadId);
-
-    const result = await slackRequest(
-      "chat.postMessage",
-      this.options.credentials.botToken,
-      fields,
-      signal,
-      this.options.transport,
-    );
-
-    if (!result.ts || !result.channel) throw new SlackMessengerError("unknown_write", "invalid_send_response");
-
-    return { messageId: result.ts, channelId: result.channel };
+  send(message: SlackOutboundMessage, signal?: AbortSignal) {
+    return postSlackMessage(this.options.credentials, message, signal, this.options.transport);
   }
+}
+
+/** Posts as the installed Slack app. The caller is responsible for authorization and deduplication. */
+export async function postSlackMessage(
+  credentials: SlackCredentials,
+  message: SlackOutboundMessage,
+  signal?: AbortSignal,
+  transport?: SlackTransport,
+): Promise<{ messageId: string; channelId: string }> {
+  checkSlackCredentials(credentials);
+
+  if (
+    !message.id ||
+    !/^[CDG][A-Z\d]+$/.test(message.channelId) ||
+    (message.threadId && !/^\d+\.\d+$/.test(message.threadId))
+  )
+    throw new SlackMessengerError("configuration", "invalid_message_target");
+  const text = message.text.replaceAll("&", "&amp;").replaceAll("<", "&lt;").replaceAll(">", "&gt;");
+
+  if (!text.trim() || Array.from(text).length > 40_000 || Buffer.byteLength(text) > 160_000)
+    throw new SlackMessengerError("configuration", "message_size_limit");
+
+  const fields = new URLSearchParams({
+    channel: message.channelId,
+    text,
+    client_msg_id: clientMessageId(message.id),
+    parse: "none",
+    mrkdwn: "false",
+    link_names: "false",
+    unfurl_links: "false",
+    unfurl_media: "false",
+  });
+
+  if (message.threadId) fields.set("thread_ts", message.threadId);
+
+  const result = await slackRequest("chat.postMessage", credentials.botToken, fields, signal, transport);
+
+  if (!result.ts || !result.channel) throw new SlackMessengerError("unknown_write", "invalid_send_response");
+
+  return { messageId: result.ts, channelId: result.channel };
 }

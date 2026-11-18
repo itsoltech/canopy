@@ -215,7 +215,7 @@ export class BotsRuntime {
 
       const tools = botPlatformTools(config, turn);
 
-      tools.push(...(await this.#options.connectors.botTools(turn.bot_id)));
+      tools.push(...(await this.#options.connectors.botTools(turn.bot_id, turn)));
       const messages = [...(turn.checkpoint.length ? turn.checkpoint : await this.run((s) => s.history(turn)))];
 
       const step = { options: this.#options, run: this.run.bind(this) };
