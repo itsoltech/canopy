@@ -58,8 +58,14 @@ export interface ProcessResult {
 }
 
 export class ProcessTimeoutError extends Error {
-  constructor() {
-    super("The process exceeded its time or output limit.");
+  constructor(readonly reason: "timeout" | "output" | "aborted") {
+    super(
+      reason === "timeout"
+        ? "The process exceeded its time limit."
+        : reason === "output"
+          ? "The process exceeded its output limit."
+          : "The process was cancelled.",
+    );
   }
 }
 
@@ -126,26 +132,28 @@ function capture(input: ProcessInput): Promise<ProcessResult> {
     });
 
     let bytes = 0;
-    let stopped = false;
+    let stopped: ProcessTimeoutError | undefined;
+    let termination: Promise<void> | undefined;
     const stdout: Buffer[] = [];
     const stderr: Buffer[] = [];
 
-    const stop = () => {
+    const stop = (reason: ProcessTimeoutError["reason"]) => {
       if (stopped) return;
-      stopped = true;
+      stopped = new ProcessTimeoutError(reason);
 
-      if (child.pid) void killProcessTree(child.pid);
+      if (child.pid) termination = killProcessTree(child.pid);
     };
 
     const append = (chunks: Buffer[], chunk: Buffer) => {
       bytes += chunk.length;
 
-      if (bytes > (input.maxBytes ?? 8 * 1024 * 1024)) stop();
+      if (bytes > (input.maxBytes ?? 8 * 1024 * 1024)) stop("output");
       else if (!stopped) chunks.push(chunk);
     };
 
-    const timer = setTimeout(stop, input.timeoutMs ?? 15_000);
-    input.signal?.addEventListener("abort", stop, { once: true });
+    const timer = setTimeout(() => stop("timeout"), input.timeoutMs ?? 15_000);
+    const abort = () => stop("aborted");
+    input.signal?.addEventListener("abort", abort, { once: true });
     child.stdout.on("data", (chunk: Buffer) => append(stdout, chunk));
     child.stderr.on("data", (chunk: Buffer) => {
       if (input.onStderr) input.onStderr(chunk);
@@ -157,7 +165,7 @@ function capture(input: ProcessInput): Promise<ProcessResult> {
 
     const cleanup = () => {
       clearTimeout(timer);
-      input.signal?.removeEventListener("abort", stop);
+      input.signal?.removeEventListener("abort", abort);
     };
 
     child.once("error", () => {
@@ -167,7 +175,7 @@ function capture(input: ProcessInput): Promise<ProcessResult> {
     child.once("close", (code) => {
       cleanup();
 
-      if (stopped) reject(new ProcessTimeoutError());
+      if (stopped) void Promise.resolve(termination).then(() => reject(stopped), reject);
       else resolve({ code, stdout: Buffer.concat(stdout).toString(), stderr: Buffer.concat(stderr).toString() });
     });
   });

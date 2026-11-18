@@ -73,7 +73,16 @@ export async function coreMentionScope(
   };
 }
 
-/** A read-only command to an online worker; offline = Unavailable with a message the popup shows. */
+export class WorkerQueryError extends InvalidError {
+  constructor(
+    readonly code: string,
+    message: string,
+  ) {
+    super(message);
+  }
+}
+
+/** A command sent directly to an online worker, with a bounded wait for the result. */
 export async function coreWorkerQuery(
   hostContext: GatewayCore,
   workerId: string,
@@ -114,7 +123,7 @@ export async function coreWorkerQuery(
       );
     }
 
-    throw new InvalidError(result.errorMessage || result.errorCode);
+    throw new WorkerQueryError(result.errorCode, result.errorMessage || result.errorCode);
   }
 
   return result;

@@ -1,5 +1,9 @@
 # Szyna agentów: delegowanie, interakcje, harmonogram
 
+Status błędów tworzenia worktree (2026-11-18): zaimplementowane w kodzie;
+dostępność nightly/beta/stable wynika z promocji wydań.
+`spawn_thread` zwraca komunikaty dla rozpoznanych błędów Git i łącza workera.
+
 Status trybów prędkości (2026-11-17): zaimplementowane w kodzie; dostępność
 nightly/beta/stable wynika z promocji wydań. `list_agents` zwraca
 `service_tiers` modelu z katalogu konkretnej instancji i konta.
@@ -243,6 +247,13 @@ domyślnie tworzy nowe worktree. `workspace_mode` pozwala wybrać `inherit_paren
 Dziecko pozostaje w tym samym projekcie i workspace na tym samym workerze. Sprzątanie obejmuje
 wszystkie wątki współdzielące rekord worktree, także te tworzone przez agentów. Przez połączone
 komputery wybór worktree lub dziedziczenia jest jawnie odrzucany do etapu 5; checkout działa jak dotąd.
+
+Przy tworzeniu worktree gateway mapuje kody błędów workera na stałe komunikaty,
+m.in. dla przekroczenia limitu czasu lub rozmiaru wyjścia Git, zajętości i niedostępności Git.
+Agent dostaje też stałą informację o niedokończonym sprzątaniu, jeśli worker to zgłosił.
+Brak potwierdzenia przed upływem limitu gatewaya lub utrata łącza skłania do
+sprawdzenia worktree i gałęzi przed ponowieniem. Nieznany kod dostaje ogólny
+komunikat, a surowe wyjście Git nie trafia do agenta.
 
 | Natywnie | Szyna |
 |---|---|

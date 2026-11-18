@@ -143,9 +143,14 @@ export async function git(
 
     if (error instanceof ProcessBusyError) throw new GitError("GIT_BUSY", error.message);
 
-    if (error instanceof ProcessTimeoutError)
-      throw new GitError("GIT_TIMEOUT", "git exceeded its time or output limit");
-    throw new GitError("GIT_UNAVAILABLE", "git is not installed on this worker");
+    if (error instanceof ProcessTimeoutError) {
+      if (error.reason === "output") throw new GitError("GIT_OUTPUT_LIMIT", "Git produced too much output.");
+
+      if (error.reason === "timeout") throw new GitError("GIT_TIMEOUT", "Git exceeded its time limit.");
+      throw new GitError("GIT_CANCELLED", "Git was cancelled.");
+    }
+
+    throw new GitError("GIT_UNAVAILABLE", "Git could not start on the worker. Check the Git installation.");
   } finally {
     timing?.end(failed);
 

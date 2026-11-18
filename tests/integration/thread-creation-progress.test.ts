@@ -153,6 +153,39 @@ describe.skipIf(!dockerAvailable)("thread preparation progress through real work
     expect(thread).toMatchObject({ status: "failed", statusDetail: failed.at(-1)?.detail, cwd: "" });
   }, 20_000);
 
+  test("Git output overflow fails the checkout step and a retry uses the original branch name", async () => {
+    const hooks = join(dir, "noisy-checkout-hooks");
+    mkdirSync(hooks);
+    writeFileSync(join(hooks, "post-checkout"), "#!/bin/sh\nhead -c 9437184 /dev/zero >&2\n", { mode: 0o755 });
+    git(f.repo, "config", "core.hooksPath", hooks);
+    const input = { ...request(), initialMessage: "Verify checkout cleanup" };
+    const before = git(f.repo, "worktree", "list", "--porcelain");
+    const branches = git(f.repo, "for-each-ref", "--format=%(refname)", "refs/heads");
+
+    try {
+      const events = await Array.fromAsync(f.gw.api.createThreadWithProgress(input));
+      expect(events.at(-1)).toMatchObject({
+        step: "create_worktree",
+        status: "failed",
+        detail: "Git produced too much output.",
+      });
+      expect(events.some((event) => event.thread)).toBe(false);
+      expect(git(f.repo, "worktree", "list", "--porcelain")).toBe(before);
+      expect(git(f.repo, "for-each-ref", "--format=%(refname)", "refs/heads")).toBe(branches);
+    } finally {
+      git(f.repo, "config", "--unset", "core.hooksPath");
+    }
+
+    const retried = await Array.fromAsync(
+      f.gw.api.createThreadWithProgress({ ...input, clientRequestId: Bun.randomUUIDv7() }),
+    );
+
+    const thread = retried.at(-1)?.thread;
+    expect(thread?.worktree?.branch).toBe("canopy/verify-checkout-cleanup");
+
+    if (thread) await f.settled(thread);
+  }, 20_000);
+
   test("fetch failure reports a local fallback and older workers only report broad creation", async () => {
     git(f.repo, "remote", "set-url", "origin", join(dir, "missing.git"));
 

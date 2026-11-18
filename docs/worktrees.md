@@ -12,8 +12,9 @@ i kontynuacja po usunięciu worktree w nowym wątku oraz sprzątanie zamkniętyc
 z odrzucaniem lokalnych plików, pomijanie plików ignorowanych przez Git,
 status lokalnych zmian i pull origin
 w web/desktop, przełączanie gałęzi z kompozytora oraz przywracanie lokalnych zmian
-po potwierdzeniu stash & pop oraz osobny limit tworzenia worktree dla dużych repozytoriów,
-także na Windows.
+po potwierdzeniu stash & pop oraz osobny limit tworzenia worktree dla dużych repozytoriów.
+Tworzenie rozróżnia przekroczenie limitu czasu, rozmiaru wyjścia i błąd Git.
+Worker sprząta po nieudanej próbie na podstawie oznaczeń tej próby.
 Opis dotyczy kodu; dostępność nightly/beta/stable wynika z promocji wydań ([release.md](release.md)).
 Etap 1: ustawienia (Creation, Branches,
 domyślny tryb), operacje git na workerze (refy, tworzenie worktree z bazy, start z remote, nazwy gałęzi
@@ -50,8 +51,19 @@ Zasady podziału odpowiedzialności:
 Tworzenie checkoutu (`git worktree add --quiet`) ma osobny limit 60 s, zamiast limitu
 15 s używanego do krótkich operacji Git. Tryb cichy pomija komunikaty postępu,
 zachowując błędy. Opcjonalny fetch nadal ma limit 20 s; gateway czeka na utworzenie
-worktree do 90 s. Pozwala to wypisać pliki dużego repozytorium także na wolniejszym
-dysku na Windows bez przerywania operacji po 15 s.
+worktree do 90 s. Limit dotyczy także filtrów i hooków uruchomionych przez checkout.
+Jeśli checkout osiągnie limit 8 MiB przechwyconego wyjścia, worker zgłasza inny
+błąd niż po upływie 60 s. Kod wyjścia Git różny od zera to osobna kategoria.
+
+Worker zakłada gałąź tylko, gdy nazwa jest wolna, i oznacza ją w reflogu.
+`git worktree add` rejestruje checkout z blokadą oznaczoną identyfikatorem tej samej
+próby. Po udanym checkoutcie worker zdejmuje blokadę. Po błędzie, gdy procesy
+checkoutu się zakończą, worker usuwa tylko pasującą rejestrację i niezmienioną,
+nigdzie nieużywaną gałąź tej próby. Usunięcie gałęzi porównuje jej bieżący commit
+z oczekiwanym. Jeśli własności albo stanu nie da się potwierdzić, zostawia
+pozostałości i zgłasza niedokończone sprzątanie. Pozostałości prób z wcześniejszych
+wersji pozostają do ręcznej obsługi. `spawn_thread` zwraca stałe, zredagowane komunikaty
+([agent-bus.md](agent-bus.md)).
 
 ## Model danych
 

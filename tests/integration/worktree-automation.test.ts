@@ -1,4 +1,4 @@
-import { afterAll, beforeAll, describe, expect, test } from "bun:test";
+import { afterAll, beforeAll, describe, expect, spyOn, test } from "bun:test";
 import { readFileSync, rmSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { create, type MessageInitShape } from "@bufbuild/protobuf";
@@ -65,6 +65,92 @@ describe.skipIf(!dockerAvailable)("automation worktrees over gRPC", () => {
     const scoped = await spawn(parent, { workspace_mode: "default" });
     expect(scoped.worktree?.id).not.toBe(parent.worktree!.id);
     await f.settings({ defaultMode: ui.WorkspaceMode.CHECKOUT });
+  });
+
+  test("failed worktree creation returns safe reasons and replays the refusal without creating a child", async () => {
+    const parent = await f.tree();
+
+    const failures = [
+      ["GIT_TIMEOUT", "Git timed out while creating the worktree."],
+      ["GIT_OUTPUT_LIMIT", "Git exceeded its output limit while creating the worktree."],
+      ["GIT_BUSY", "Git is busy on the worker. Try creating the worktree again shortly."],
+      ["GIT_UNAVAILABLE", "Git could not start on the worker. Check the Git installation."],
+      ["WORKTREE_CHECKOUT_FAILED", "Git could not check out the worktree. Check the Git settings and filters."],
+      [
+        "WORKTREE_FAILED",
+        "Git could not create the worktree. Canopy could not finish cleanup. Check the worktree and branch before retrying.",
+      ],
+      ["constructor", "Could not create a worktree."],
+    ] as const;
+
+    const handle = f.host.handleCommand.bind(f.host);
+    const attempts: string[] = [];
+
+    const worker = spyOn(f.host, "handleCommand").mockImplementation(async (command) => {
+      if (command.kind.case !== "createWorktree") return handle(command);
+      const errorCode = command.kind.value.baseRef;
+      attempts.push(errorCode);
+
+      const cleanup =
+        errorCode === "WORKTREE_FAILED"
+          ? " Canopy could not finish cleanup. Check the worktree and branch before retrying."
+          : "";
+
+      return {
+        commandId: command.commandId,
+        ok: false,
+        errorCode,
+        errorMessage: `fatal: cannot read /private/worker/repo during checkout${cleanup}`,
+      };
+    });
+
+    try {
+      for (const [code, reason] of failures) {
+        const args = { title: "Child", prompt: "Code task", workspace_mode: "new_worktree", base_ref: code };
+        const callId = Bun.randomUUIDv7();
+        const result = await f.callTool(parent.id, args, callId);
+        expect(result).toMatchObject({ isError: true, content: reason, resultJson: JSON.stringify({ error: reason }) });
+        expect(await f.callTool(parent.id, args, callId)).toEqual(result);
+      }
+
+      expect(attempts).toEqual(failures.map(([code]) => code));
+      expect(
+        await f.sql((sql) => sql`SELECT id FROM threads WHERE parent_thread_id = ${parent.id}::uuid`),
+      ).toHaveLength(0);
+    } finally {
+      worker.mockRestore();
+    }
+  });
+
+  test("spawn reports an unconfirmed worktree when the gateway's worker deadline expires", async () => {
+    const parent = await f.tree();
+    const link = f.gw.core.link.connections.get(f.workerId)!;
+    const send = link.sendCommand.bind(link);
+    const handle = f.host.handleCommand.bind(f.host);
+
+    const worker = spyOn(f.host, "handleCommand").mockImplementation((command) =>
+      command.kind.case === "createWorktree" ? Promise.resolve(undefined) : handle(command),
+    );
+
+    const gateway = spyOn(link, "sendCommand").mockImplementation((kind, timeout, ...rest) =>
+      send(kind, kind.case === "createWorktree" ? 50 : timeout, ...rest),
+    );
+
+    try {
+      const result = await f.callTool(parent.id, {
+        title: "Child",
+        prompt: "Code task",
+        workspace_mode: "new_worktree",
+      });
+
+      expect(result).toMatchObject({
+        isError: true,
+        content: "The worker did not confirm worktree creation in time. Check the worktree and branch before retrying.",
+      });
+    } finally {
+      gateway.mockRestore();
+      worker.mockRestore();
+    }
   });
 
   const schedule = async (spec: MessageInitShape<typeof ui.NewThreadScheduleSchema>) =>
