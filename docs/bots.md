@@ -3,6 +3,7 @@
 Status (2026-11-18): zaimplementowano trwałe rozmowy botów przez Slack Socket Mode,
 buforowanie, załączniki wiadomości, izolację historii kanałów i zwykłe przyznane narzędzia
 w turach zewnętrznych. Konektor Slack umożliwia pobranie pliku po jego identyfikatorze.
+Bot Codex może odczytać obraz z wiadomości lub konektora, jeśli jego model obsługuje obrazy.
 W prywatnej rozmowie z właścicielem bot może wysyłać jako Canopy na Slacku ze
 stałą zgodą dla konkretnego konta i rozmowy Slack.
 Instrukcje odpowiedzi kierują wyniki pracy delegowanej przez Messages.

@@ -3,7 +3,8 @@
 Status (2026-11-18): zaimplementowane w kodzie, także zwykłe przyznane narzędzia, izolacja rozmów zewnętrznych
 i nietrwałe wejścia do aktywnej tury rozmowy zewnętrznej lub prywatnego czatu.
 Odbiór wiadomości Slack obsługuje pliki, a konektor Slack przekazuje je
-do harnessu przez wynik narzędzia. Pobieranie publicznych plików wysyła stały
+do harnessu przez wynik narzędzia. Katalog bota Codex zachowuje obsługę obrazów
+dla modeli, które ją deklarują. Pobieranie publicznych plików wysyła stały
 `User-Agent: Canopy-Bot`. Prywatne rozmowy i rutyny z Web access mogą czytać
 changelogi Canopy według PR-a.
 Dostępność nightly/beta/stable wynika z promocji wydań ([release.md](release.md)).
@@ -263,8 +264,11 @@ Codex: `model_catalog_json` zastępuje metadane modelu, a Codex wylicza z nich p
 kompakcji. Worker czyta prawdziwy wpis modelu przez `codex debug models` z tym samym
 plikiem wykonywalnym, środowiskiem i `CODEX_HOME` co app-server bota (`model/list` nie
 podaje okna). Katalog bota zachowuje okno, limit kompakcji i `truncation_policy` tego
-wpisu; bez limitu ustawia jawnie 90% okna, jak Codex. Bez wpisu (model tylko z proxy,
-błąd CLI) używa 128k okna i 100k limitu. Instrukcje bazowe są neutralne; prompt
+wpisu; bez limitu ustawia jawnie 90% okna, jak Codex. Zachowuje obsługę obrazu
+z metadanych modelu, żeby Codex przekazał modelowi obrazy z wiadomości i wyników
+MCP. Bez metadanych modalności przyjmuje tekst i obraz, zgodnie z domyślnym
+zachowaniem Codexa. Bez wpisu (model tylko z proxy, błąd CLI) używa 128k okna
+i 100k limitu. Instrukcje bazowe są neutralne; prompt
 systemowy bota idzie w `baseInstructions` wątku. Generowanie tytułów ma osobny,
 minimalny katalog (`codexTextCatalog`).
 
