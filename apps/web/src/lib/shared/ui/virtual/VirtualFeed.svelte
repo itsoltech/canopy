@@ -13,7 +13,7 @@
   import { FeedMeasurements, observeFeed, publishViewport, rowAttachment } from "./feed-measure.ts";
   import { FeedRows } from "./feed-rows.ts";
   import { COLD_OVERSCAN, feedRange, OVERSCAN_STEP, rowAlignmentSpace } from "./feed-range.ts";
-  import { feedRowKey, focusFeedRow, navigateFeedKey } from "./feed-keys.ts";
+  import { feedRowKey, focusFeedRow, handleFeedScrollKey, navigateFeedKey } from "./feed-keys.ts";
   import { SizeIndex } from "./size-index.ts";
   import VirtualRow from "./VirtualRow.svelte";
   import { FEED_END_THRESHOLD, followingAfterScroll, ScrollIntent, scrollOrigin, type ReaderScroll } from "./scroll.ts";
@@ -433,7 +433,7 @@
     settle();
   }
 
-  function jump() {
+  export function jumpToLatest(animate = false) {
     if (!scroller) return;
     endScroll.cancel();
     smoothUntil = 0;
@@ -443,7 +443,7 @@
     onlatest?.();
     stuck = true;
     const distance = scroller.scrollHeight - scroller.scrollTop - scroller.clientHeight;
-    const smooth = distance < viewport * 2 && !matchMedia("(prefers-reduced-motion: reduce)").matches;
+    const smooth = animate && distance < viewport * 2 && !matchMedia("(prefers-reduced-motion: reduce)").matches;
 
     if (smooth) {
       endScroll.start(scroller, setTop, settle);
@@ -617,23 +617,24 @@
     onpointermove={(event) => {
       if (event.buttons === 1 && event.target === scroller) readerGesture();
     }}
-    onkeydown={(event) => {
-      if (event.defaultPrevented || (event.target as Element).closest("textarea, input, select, [contenteditable]"))
-        return;
-      if (
-        list &&
-        (event.ctrlKey || event.metaKey) &&
-        !event.altKey &&
-        !event.shiftKey &&
-        event.key.toLowerCase() === "a"
-      ) {
-        event.preventDefault();
-        getSelection()?.selectAllChildren(list);
+    onkeydown={(event) =>
+      handleFeedScrollKey(event, scroller, list, readerGesture, (edge) => {
+        if (!scroller) return;
+        alignedKey = undefined;
 
-        return;
-      }
-      if (["PageUp", "PageDown", "Home", "End", "ArrowUp", "ArrowDown", " "].includes(event.key)) readerGesture();
-    }}
+        if (edge === "End") handoff.restore({ mode: "following" });
+        else {
+          const previous = scroller.scrollTop;
+          stuck = !extent.overflows;
+          anchor = undefined;
+          setTop(0);
+
+          if (previous > 0)
+            onreaderscroll?.({ distance: Math.max(0, scroller.scrollHeight - scroller.clientHeight), up: previous });
+        }
+
+        opening.schedule(() => ({ following: stuck, anchor }));
+      })}
   >
     <div class="chat-column flex min-h-full flex-col px-4 sm:px-6">
       <!-- A steady containing block: row transitions start and cancel without relayout of the list. -->
@@ -722,7 +723,7 @@
         <FeedFooterActions
           accessory={footerAccessory}
           showJump={!stuck && extent.overflows && !extent.endVisible}
-          onjump={jump}
+          onjump={() => jumpToLatest(true)}
         />
       </div>
     </div>

@@ -1,39 +1,37 @@
-import { tick } from "svelte";
 import type { ui } from "@canopy/contracts";
 import type { ChatEntry } from "@canopy/domain/bot-chat";
 import { duration } from "#lib/shared/ui/motion.ts";
+import type { ChatHistory } from "./chat-history.ts";
 
-/** Bot citations share the editor's source action, including messages outside the loaded window. */
+/** Page in the cited message if needed, then let the virtual feed mount and reveal its row. */
 export async function revealBotCitation(
   quote: ui.Quote,
   view: {
     readonly entries: readonly ChatEntry[];
-    readonly hasMore: boolean;
     readonly root: HTMLElement | undefined;
-    load?: (() => Promise<void>) | undefined;
-    show: (index: number) => void;
+    readonly history: ChatHistory | undefined;
+    reveal: (id: string) => Promise<boolean>;
   },
 ): Promise<boolean> {
-  const find = () =>
-    view.entries.findIndex((entry) => entry.kind === "message" && entry.message.id === quote.sourceItemId);
+  const hasTarget = () =>
+    view.entries.some((entry) => entry.kind === "message" && entry.message.id === quote.sourceItemId);
 
-  while (find() < 0 && view.hasMore && view.load) {
-    const before = view.entries.length;
-    await view.load();
-    await tick();
+  while (view.root && !hasTarget()) {
+    const history = view.history;
 
-    if (view.entries.length <= before) break;
+    if (!history) return false;
+    const page = history.snapshot;
+
+    if (!page?.historyHasMore) return false;
+    await history.loadOlder();
+
+    if (view.history !== history || history.snapshot?.historyBeforeSeq === page.historyBeforeSeq) break;
   }
 
-  const index = find();
-
-  if (index < 0) return false;
-  view.show(index);
-  await tick();
-  const target = view.root?.querySelector<HTMLElement>(`[data-quote-item="${CSS.escape(quote.sourceItemId)}"]`);
+  if (!view.root || !hasTarget() || !(await view.reveal(quote.sourceItemId))) return false;
+  const target = view.root.querySelector<HTMLElement>(`[data-quote-item="${CSS.escape(quote.sourceItemId)}"]`);
 
   if (!target) return false;
-  target.scrollIntoView({ block: "nearest" });
   target.removeAttribute("data-flash");
   void target.offsetWidth;
   target.setAttribute("data-flash", "");

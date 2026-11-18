@@ -3,6 +3,8 @@
 Status (2026-11-18): zaimplementowano trwałe rozmowy botów przez Slack Socket Mode,
 buforowanie, izolację historii kanałów i zwykłe przyznane narzędzia w turach zewnętrznych.
 Konfiguracja bota przenosi `service_tier` do `RunBotTurn`.
+Historia w web/desktop korzysta z wirtualizacji i automatycznie dołącza
+starsze strony podczas przewijania, zachowując pozycję czytania.
 Limit automatycznej wymiany wynosi 256 kroków; walidacja budżetu przed zgodą
 i diagnostyka wyników narzędzi są zaimplementowane.
 Dostępność nightly/beta/stable według [release.md](release.md).
@@ -285,17 +287,21 @@ botów. Zimny widok pokazuje szkielet; nagłówek bierze nazwę i awatar z listy
 Przy ponownym otwarciu snapshot jest widoczny przed odczytem sieciowym, z cichym
 „Syncing…”. Composer i karty są nieaktywne do potwierdzenia bieżącej subskrypcji.
 
-Web otwiera ostatnie 100 wpisów rozmowy lub wymiany. „Show earlier messages”
-odsłania po 100 starszych wpisów z już posiadanego snapshotu, zachowując kotwicę
-przewijania. Zmiana stanu na żywo zachowuje zamontowany widok i pozycję historii.
+Rozmowy i wymiany w web/desktop otwierają się na końcu pobranego okna.
+Wspólny z wątkami `VirtualFeed` montuje wiersze w pobliżu widoku i mierzy ich
+wysokość. W miarę przewijania do najstarszej załadowanej wiadomości aplikacja
+automatycznie pobiera kolejną stronę do 50 wiadomości. Widoczny wiersz
+pozostaje w tym samym miejscu po dołączeniu strony. Po błędzie odczytu dostępne
+jest **Try again**. Po przełączeniu bota widok korzysta z historii i stanu
+subskrypcji wybranej rozmowy. Po dołączeniu strony subskrypcja wznawia odczyt
+z kursora sprzed pobrania, także gdy okno w pamięci przekroczy limit cache.
 Wymiany odświeżają przyrost po otwarciu, powrocie do okna i co 5 s widocznego okna.
 
-Wspólna projekcja `domain/bot-chat` scala wiadomości, pytania i zgody w kolejności
-czasu utworzenia **przed** wyborem okna. Dotyczy to także zgód przekazanych
-z wątków uruchomionych przez bota. Rozstrzygnięcie zgody nie zmienia jej miejsca.
-Starsze karty nie mogą wypchnąć nowszych wiadomości użytkownika ani odpowiedzi
-bota i rutyn z początkowego widoku. Samo sortowanie w `layoutChat` jest za późne:
-otrzymuje ono już wybrane okno.
+Wspólna projekcja `domain/bot-chat` scala wiadomości, pytania i zgody według
+czasu utworzenia, również zgody przekazane z wątków uruchomionych przez bota.
+Rozstrzygnięcie zgody nie zmienia jej miejsca. Niedokończone odpowiedzi na
+pytania i edycje zgód są przechowywane w pamięci widoku przy przewijaniu.
+Cytat pobiera brakujące strony i przewija do wiersza źródłowej wiadomości.
 
 Mobile utrwala oba rodzaje widoków w prywatnym cache aplikacji: osobny od wątków
 budżet 16 widoków / 32 MiB na dysku (8 MiB na wpis), 6 widoków / 16 MiB w pamięci.
@@ -1336,10 +1342,6 @@ gdzie wskazuje miejsce wykonywania akcji.
   zamiast composera ma „‹Bot› is archived” i **Unarchive**; nie oferuje odpowiedzi ani ponawiania.
   **Delete bot…** w archiwum i Danger zone wymaga potwierdzenia utraty rozmowy. Historyczne
   linie wymian w innych czatach pokazują neutralne „a deleted bot”, bez niedziałającego linku.
-
-Wirtualizacji nie dodano: rozmowa z botem to zwykle dziesiątki wpisów, a `VirtualFeed` jest
-zbudowany pod oś wątków (składanie tur, kotwice). Gdy historie urosną, rozmowa dostanie
-stronicowanie po stronie API i wirtualizację.
 
 ## 8. Weryfikacja i dalsza praca
 

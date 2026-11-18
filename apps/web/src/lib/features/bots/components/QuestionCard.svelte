@@ -5,6 +5,7 @@
   import Input from "#lib/shared/ui/Input.svelte";
   import Spinner from "#lib/shared/ui/Spinner.svelte";
   import RequestHeader from "#lib/shared/ui/RequestHeader.svelte";
+  import { useRemembered } from "#lib/shared/ui/memory.ts";
   import { timeLabel } from "../chat-timeline.ts";
   import type { QuestionView } from "@canopy/domain/bot-chat";
   import ChatCard from "./ChatCard.svelte";
@@ -28,10 +29,13 @@
   } = $props();
 
   const id = $props.id();
-  let text = $state("");
+  const memory = useRemembered<string>("question-answer");
+  let text = $state(memory?.get() ?? "");
   const letters = "ABCDEFGHIJ";
   const answered = $derived(Boolean(question.answer) || question.expired === true);
   const open = $derived(!answered && !answering && Boolean(onanswer));
+
+  $effect(() => memory?.set(answered ? "" : text));
 
   function onkeydown(event: KeyboardEvent) {
     if (event.target instanceof Element && event.target.closest("input, textarea, [contenteditable=true]")) return;

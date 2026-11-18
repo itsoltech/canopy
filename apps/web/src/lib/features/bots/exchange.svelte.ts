@@ -10,112 +10,122 @@ import { prependBotPage } from "@canopy/domain/history-pages";
 
 /** Exchanges are read-only projections; refresh on open, focus and while visible, with the latest cursor. */
 export function watchExchange(id: () => string) {
-  let snapshot = $state.raw<bots.ReadBotExchangeResponse>();
-  let syncing = $state(true);
-  let error = $state("");
-  let loadingOlder = $state(false);
-  let loadOlder = async () => {};
+  let watch = $state.raw<ReturnType<typeof openExchangeWatch>>();
+  const active = $derived(watch?.id === id() ? watch : undefined);
 
   $effect(() => {
     const exchangeId = id();
-    const key = botViewKey("exchange", exchangeId);
-    snapshot = botCache.get(key)?.exchange;
-    const abort = new AbortController();
-    let fetching = false;
+    const current = untrack(() => openExchangeWatch(exchangeId));
+    watch = current;
 
-    const refresh = async () => {
-      if (fetching || document.hidden) return;
-      fetching = true;
-      syncing = true;
-
-      try {
-        const read = async (cursor: string) => {
-          const response = await fetch(
-            `/api/bot-exchanges/${exchangeId}?incremental=1&cursor=${encodeURIComponent(cursor)}`,
-            { signal: AbortSignal.any([abort.signal, AbortSignal.timeout(15000)]) },
-          );
-
-          if (!response.ok) throw new Error("Exchange unavailable");
-
-          return bodyJson(response);
-        };
-
-        let next = decode(bots.ReadBotExchangeResponseSchema, await read(snapshot?.cursor ?? ""));
-
-        try {
-          next = applyBotExchange(snapshot, next);
-        } catch {
-          next = applyBotExchange(undefined, decode(bots.ReadBotExchangeResponseSchema, await read("")));
-        }
-
-        if (abort.signal.aborted) return;
-        snapshot = next;
-        botCache.set(create(bots.BotCachedViewSchema, { key, exchange: next }));
-        syncing = false;
-        error = "";
-      } catch {
-        if (!abort.signal.aborted) error = "Could not refresh this conversation. Reopen it to try again.";
-      } finally {
-        fetching = false;
-      }
-    };
-
-    untrack(() => void refresh());
-    loadOlder = async () => {
-      if (!snapshot?.historyHasMore || fetching || loadingOlder) return;
-      loadingOlder = true;
-      fetching = true;
-      const checkpoint = snapshot.cursor;
-
-      try {
-        const query = new URLSearchParams({
-          incremental: "1",
-          before: String(snapshot.historyBeforeSeq),
-          cursor: checkpoint,
-        });
-
-        const response = await fetch(`/api/bot-exchanges/${exchangeId}?${query}`, { signal: abort.signal });
-
-        if (!response.ok) throw new Error("History unavailable");
-        const page = decode(bots.ReadBotExchangeResponseSchema, await bodyJson(response));
-
-        if (abort.signal.aborted) return;
-
-        try {
-          snapshot = prependBotPage(snapshot, page, checkpoint);
-        } catch {
-          snapshot = { ...snapshot, cursor: "" };
-        }
-
-        botCache.set(create(bots.BotCachedViewSchema, { key, exchange: snapshot }));
-      } catch {
-        if (!abort.signal.aborted) error = "Could not load earlier messages. Try again.";
-      } finally {
-        fetching = false;
-        loadingOlder = false;
-      }
-
-      await refresh();
-    };
-
-    const timer = setInterval(() => void refresh(), 5000);
-    const resume = () => void refresh();
-    window.addEventListener("focus", resume);
-    document.addEventListener("visibilitychange", resume);
-
-    return () => {
-      abort.abort();
-      clearInterval(timer);
-      window.removeEventListener("focus", resume);
-      document.removeEventListener("visibilitychange", resume);
-    };
+    return current.close;
   });
 
   return {
-    loadOlder: () => loadOlder(),
-    get hasMore() {
-      return snapshot?.historyHasMore ?? false;
+    loadOlder: async () => active?.loadOlder(),
+    get loadingOlder() {
+      return active?.loadingOlder ?? false;
     },
+    get snapshot() {
+      return active?.snapshot;
+    },
+    get syncing() {
+      return active?.syncing ?? true;
+    },
+    get error() {
+      return active?.error ?? "";
+    },
+    get historyError() {
+      return active?.historyError ?? "";
+    },
+  };
+}
+
+function openExchangeWatch(id: string) {
+  const key = botViewKey("exchange", id);
+  const url = `/api/bot-exchanges/${id}`;
+  const abort = new AbortController();
+  let snapshot = $state.raw(botCache.get(key)?.exchange);
+  let syncing = $state(true);
+  let error = $state("");
+  let historyError = $state("");
+  let loadingOlder = $state(false);
+  let refreshing = false;
+
+  async function read(query: URLSearchParams) {
+    const response = await fetch(`${url}?${query}`, {
+      signal: AbortSignal.any([abort.signal, AbortSignal.timeout(15000)]),
+    });
+
+    if (!response.ok) throw new Error("Exchange unavailable");
+
+    return decode(bots.ReadBotExchangeResponseSchema, await bodyJson(response));
+  }
+
+  function remember(next: bots.ReadBotExchangeResponse) {
+    snapshot = next;
+    botCache.set(create(bots.BotCachedViewSchema, { key, exchange: next }));
+  }
+
+  async function refresh() {
+    if (refreshing || loadingOlder || document.hidden) return;
+    refreshing = true;
+    syncing = true;
+
+    try {
+      const current = snapshot;
+      const update = await read(new URLSearchParams({ incremental: "1", cursor: current?.cursor ?? "" }));
+      let next: bots.ReadBotExchangeResponse;
+
+      try {
+        next = applyBotExchange(current, update);
+      } catch {
+        next = applyBotExchange(undefined, await read(new URLSearchParams({ incremental: "1" })));
+      }
+
+      if (abort.signal.aborted) return;
+      remember(next);
+      error = "";
+    } catch {
+      if (!abort.signal.aborted) error = "Could not refresh this conversation. Reopen it to try again.";
+    } finally {
+      refreshing = false;
+      syncing = false;
+    }
+  }
+
+  async function loadOlder() {
+    const base = snapshot;
+
+    if (!base?.historyHasMore || refreshing || loadingOlder) return;
+    loadingOlder = true;
+    historyError = "";
+
+    try {
+      const page = await read(
+        new URLSearchParams({ incremental: "1", before: String(base.historyBeforeSeq), cursor: base.cursor }),
+      );
+
+      if (abort.signal.aborted) return;
+      remember(page.historyReset ? applyBotExchange(undefined, page) : prependBotPage(base, page));
+    } catch {
+      if (!abort.signal.aborted) historyError = "Could not load earlier messages.";
+    } finally {
+      loadingOlder = false;
+    }
+
+    if (!abort.signal.aborted) await refresh();
+  }
+
+  void refresh();
+  const timer = setInterval(() => void refresh(), 5000);
+  const resume = () => void refresh();
+  window.addEventListener("focus", resume);
+  document.addEventListener("visibilitychange", resume);
+
+  return {
+    id,
+    loadOlder,
     get loadingOlder() {
       return loadingOlder;
     },
@@ -127,6 +137,15 @@ export function watchExchange(id: () => string) {
     },
     get error() {
       return error;
+    },
+    get historyError() {
+      return historyError;
+    },
+    close() {
+      abort.abort();
+      clearInterval(timer);
+      window.removeEventListener("focus", resume);
+      document.removeEventListener("visibilitychange", resume);
     },
   };
 }

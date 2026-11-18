@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { tick } from "svelte";
   import type { ClassValue } from "svelte/elements";
   import Button from "#lib/shared/ui/Button.svelte";
   import DropdownMenu from "#lib/shared/ui/DropdownMenu.svelte";
@@ -9,6 +10,7 @@
   import RequestField from "#lib/shared/ui/RequestField.svelte";
   import RequestText from "#lib/shared/ui/RequestText.svelte";
   import RequestHeader from "#lib/shared/ui/RequestHeader.svelte";
+  import { useRemembered } from "#lib/shared/ui/memory.ts";
   import { BOT_APPROVAL_OPTIONS, type ApprovalView } from "@canopy/domain/bot-chat";
   import ChatCard from "./ChatCard.svelte";
   import CreateBotPreview from "./CreateBotPreview.svelte";
@@ -53,8 +55,13 @@
   );
 
   const open = $derived(approval.status === "pending" && !answering && Boolean(onanswer));
-  let editing = $state(false);
-  let draft = $state("");
+  const memory = useRemembered<string | undefined>("approval-edit");
+  const saved = memory?.get();
+  let editing = $state(saved !== undefined);
+  let draft = $state(saved ?? "");
+  let editor = $state<HTMLTextAreaElement>();
+
+  $effect(() => memory?.set(editing && approval.status === "pending" ? draft : undefined));
 
   const outcome: Record<Exclude<ApprovalView["status"], "pending">, string> = {
     approved: "Approved",
@@ -69,6 +76,7 @@
       preview?.value ??
       approval.fields.map((f) => (f.label ? `${f.label}: ${f.value}` : f.value)).join("\n");
     editing = true;
+    void tick().then(() => editor?.focus());
   }
 </script>
 
@@ -150,8 +158,7 @@
         }}
       >
         <label for="{id}-edit" class="sr-only">Your version</label>
-        <!-- svelte-ignore a11y_autofocus -->
-        <Textarea id="{id}-edit" name="edited" bind:value={draft} rows={4} autofocus maxlength={32000} />
+        <Textarea id="{id}-edit" name="edited" bind:element={editor} bind:value={draft} rows={4} maxlength={32000} />
         <div class="flex justify-end gap-2 pb-3">
           <Button size="sm" variant="ghost" onclick={() => (editing = false)}>Cancel</Button>
           <Button size="sm" type="submit" variant="primary" disabled={!draft.trim()}>Send edits</Button>

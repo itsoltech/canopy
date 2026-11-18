@@ -10,107 +10,147 @@ import { botList } from "./bot-list.svelte.ts";
 import { prependBotPage } from "@canopy/domain/history-pages";
 import { bodyJson } from "#lib/shared/json.ts";
 
-/** Reconnect reads the last applied checkpoint; a cache mismatch retries a full state. */
-export function watchBot(bot: () => bots.Bot, receive: (next: bots.BotConversation) => void) {
-  let live = $state(false);
-  let loaded = $state(false);
-  let retry = $state(0);
-  let hasMore = $state(false);
-  let loadingOlder = $state(false);
-  let historyError = $state("");
-  let loadOlder = async () => {};
+export function watchBot(botId: () => string) {
+  let watch = $state.raw<ReturnType<typeof openBotWatch>>();
+  // Navigation can render the new chat before the subscription effect has run.
+  const active = $derived(watch?.id === botId() ? watch : undefined);
 
   $effect(() => {
-    const initial = bot();
-    const key = botViewKey("chat", initial.id);
-    void retry;
-    let snapshot = botCache.get(key)?.conversation;
-    let cursor = snapshot?.cursor ?? "";
-    const abort = new AbortController();
-    live = false;
-    loaded = !!snapshot;
-    untrack(() => receive(snapshot ?? create(bots.BotConversationSchema, { bot: initial })));
+    const id = botId();
+    const view = untrack(() => openBotWatch(id));
+    watch = view;
 
-    const stop = liveSource(`/api/bots/${initial.id}/events`, {
-      url: () => `/api/bots/${initial.id}/events?incremental=1&cursor=${encodeURIComponent(cursor)}`,
+    return view.close;
+  });
+
+  return {
+    get snapshot() {
+      return active?.snapshot;
+    },
+    get historyError() {
+      return active?.historyError ?? "";
+    },
+    loadOlder: async () => active?.loadOlder(),
+    get loadingOlder() {
+      return active?.loadingOlder ?? false;
+    },
+    get live() {
+      return active?.live ?? false;
+    },
+  };
+}
+
+function openBotWatch(id: string) {
+  const key = botViewKey("chat", id);
+  const url = `/api/bots/${id}`;
+  const abort = new AbortController();
+  let snapshot = $state.raw(botCache.get(key)?.conversation);
+  let live = $state(false);
+  let loadingOlder = $state(false);
+  let historyError = $state("");
+  let olderRequest: Promise<void> | undefined;
+  let historyVersion = 0;
+  let stop = connect();
+
+  function remember(next: bots.BotConversation) {
+    snapshot = next;
+    botCache.set(create(bots.BotCachedViewSchema, { key, conversation: next }));
+  }
+
+  function reconnect() {
+    live = false;
+    stop();
+    stop = connect();
+  }
+
+  function resetCheckpoint() {
+    historyVersion++;
+
+    if (snapshot) snapshot = { ...snapshot, cursor: "" };
+    botCache.delete(key);
+    reconnect();
+  }
+
+  function connect() {
+    return liveSource(`${url}/events`, {
+      url: () => `${url}/events?incremental=1&cursor=${encodeURIComponent(snapshot?.cursor ?? "")}`,
       ondrop: () => (live = false),
       onmessage: (json) => {
+        let next: bots.BotConversation;
+
         try {
-          snapshot = applyBotConversation(snapshot, decode(bots.BotConversationSchema, JSON.parse(json)));
+          const update = decode(bots.BotConversationSchema, JSON.parse(json));
+          next = applyBotConversation(snapshot, update);
+
+          if (!update.delta) historyVersion++;
         } catch {
-          botCache.delete(key);
-          live = false;
-          retry++;
+          resetCheckpoint();
 
           return;
         }
 
-        cursor = snapshot.cursor;
-        botCache.set(create(bots.BotCachedViewSchema, { key, conversation: snapshot }));
-        receive(snapshot);
+        remember(next);
 
-        if (snapshot.bot) botList.upsert(snapshot.bot);
-        loaded = true;
+        if (next.bot) botList.upsert(next.bot);
         live = true;
-        hasMore = snapshot.historyHasMore;
       },
     });
+  }
 
-    loadOlder = async () => {
-      if (!snapshot?.historyHasMore || loadingOlder) return;
-      loadingOlder = true;
-      historyError = "";
-      const checkpoint = cursor;
+  function loadOlder() {
+    if (olderRequest) return olderRequest;
+    const base = snapshot;
 
-      try {
-        const query = new URLSearchParams({ before: String(snapshot.historyBeforeSeq), cursor });
-        const response = await fetch(`/api/bots/${initial.id}/history?${query}`, { signal: abort.signal });
+    if (!base?.historyHasMore || !base.cursor) return Promise.resolve();
+    loadingOlder = true;
+    historyError = "";
+    olderRequest = readOlder(base, historyVersion).finally(() => {
+      olderRequest = undefined;
+      loadingOlder = false;
+    });
 
-        if (!response.ok) throw new Error("History unavailable");
-        const page = decode(bots.BotConversationSchema, await bodyJson(response));
+    return olderRequest;
+  }
 
-        if (abort.signal.aborted) return;
+  async function readOlder(base: bots.BotConversation, version: number) {
+    try {
+      const query = new URLSearchParams({ before: String(base.historyBeforeSeq), cursor: base.cursor });
+      const response = await fetch(`${url}/history?${query}`, { signal: abort.signal });
 
-        try {
-          snapshot = prependBotPage(snapshot, page, checkpoint);
-        } catch {
-          snapshot = { ...snapshot, cursor: "" };
-        }
+      if (!response.ok) throw new Error("History unavailable");
+      const page = decode(bots.BotConversationSchema, await bodyJson(response));
 
-        botCache.set(create(bots.BotCachedViewSchema, { key, conversation: snapshot }));
-        receive(snapshot);
-        live = false;
-        stop();
-        retry++;
-      } catch {
-        if (!abort.signal.aborted) historyError = "Could not load earlier messages. Try again.";
-      } finally {
-        loadingOlder = false;
+      if (abort.signal.aborted || !snapshot || version !== historyVersion) return;
+
+      if (page.historyReset) resetCheckpoint();
+      else {
+        // Replay changes that arrived while the page was loading against the wider in-memory window.
+        remember(prependBotPage(snapshot, page, base.cursor));
+        reconnect();
       }
-    };
-
-    return () => {
-      stop();
-      abort.abort();
-    };
-  });
+    } catch {
+      if (!abort.signal.aborted) historyError = "Could not load earlier messages.";
+    }
+  }
 
   return {
+    id,
+    get snapshot() {
+      return snapshot;
+    },
     get historyError() {
       return historyError;
     },
-    loadOlder: () => loadOlder(),
-    get hasMore() {
-      return hasMore;
-    },
+    loadOlder,
     get loadingOlder() {
       return loadingOlder;
     },
     get live() {
       return live;
     },
-    get loaded() {
-      return loaded;
+    close() {
+      stop();
+      abort.abort();
     },
   };
 }

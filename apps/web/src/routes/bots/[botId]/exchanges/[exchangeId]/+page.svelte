@@ -65,21 +65,21 @@
       void close();
   }}
 />
-<ChatView
-  hasMore={history.hasMore}
-  loadingOlder={history.loadingOlder}
-  onloadOlder={history.loadOlder}
-  {conversation}
-  {entries}
-  loading={!history.snapshot && !data.exchange}
-  syncing={history.syncing}
-  me={{ id: "me", kind: "user", name: "You" }}
-  {directory}
-  subtitle="Bot conversation"
-  onsend={() => {}}
-  onclose={close}
-  class="h-full"
->
-  {#snippet notice()}{#if history.error}<Alert tone="warning" banner title="Sync interrupted">{history.error}</Alert
-      >{/if}{/snippet}
-</ChatView>
+{#key params.exchangeId}
+  <ChatView
+    {history}
+    {conversation}
+    {entries}
+    loading={!history.snapshot && !data.exchange}
+    syncing={history.syncing}
+    me={{ id: "me", kind: "user", name: "You" }}
+    {directory}
+    subtitle="Bot conversation"
+    onsend={() => {}}
+    onclose={close}
+    class="h-full"
+  >
+    {#snippet notice()}{#if history.error}<Alert tone="warning" banner title="Sync interrupted">{history.error}</Alert
+        >{/if}{/snippet}
+  </ChatView>
+{/key}
