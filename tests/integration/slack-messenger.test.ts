@@ -151,6 +151,7 @@ interface EventOverrides {
   channel?: string;
   channel_type?: string;
   thread_ts?: string;
+  files?: readonly ({ id: string; url_private?: string } | null)[];
   message?: object;
   previous_message?: object;
   deleted_ts?: string;
@@ -275,7 +276,18 @@ describe("Slack messenger provider transport", () => {
     await until(() => f.sockets.size > 0);
     f.send(envelope("self", { user: "UBOT" }));
     f.send(envelope("bot", { user: "UOTHERBOT", bot_id: "BOTHER" }));
-    f.send(envelope("file", { subtype: "file_share", text: "user fragment" }));
+    f.send(
+      envelope("file", {
+        subtype: "file_share",
+        text: "user fragment",
+        files: [
+          { id: "FREPORT", url_private: "https://files.slack.com/fixture-private" },
+          { id: "FREPORT" },
+          { id: "https://invalid.example/file" },
+          null,
+        ],
+      }),
+    );
     f.send(envelope("broadcast", { subtype: "thread_broadcast", thread_ts: "0.000001" }));
     f.send(
       envelope("edit", {
@@ -294,7 +306,11 @@ describe("Slack messenger provider transport", () => {
     f.send(envelope("im", { channel_type: "im", text: "hello" }));
     await until(() => f.acknowledgments.length === 8);
     expect(events.map((event) => event.id)).toEqual(["file", "broadcast", "edit", "delete", "direct", "im"]);
-    expect(events.find((event) => event.id === "file")?.text).toBe("user fragment");
+    expect(events.find((event) => event.id === "file")).toMatchObject({
+      text: "user fragment",
+      fileIds: ["FREPORT"],
+    });
+    expect(JSON.stringify(events)).not.toContain("fixture-private");
     expect(events.find((event) => event.id === "edit")).toMatchObject({
       kind: "edit",
       text: "edited",

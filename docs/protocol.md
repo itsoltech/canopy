@@ -398,6 +398,16 @@ ani zmieniać itemów `visual`: takie zdarzenia trafiają do kwarantanny.
 po reconnect. Gateway autoryzuje bota/workera i zapisuje anulowanie wywołania oraz
 `expired` na oczekującej karcie atomowo z blokadami decyzji i efektów.
 
+Status (2026-11-18): dostarczanie załączników z wyników narzędzi connectorów
+zaimplementowane w kodzie. Dostępność zależy od promocji wydań.
+`AgentToolResult.attachments = 5` zawiera referencje `InputAttachment` dla workera
+z capability `agent_tool_attachments_v1`. Bajty idą osobno przez `FetchBlob`.
+Dla wątku worker sprawdza zgodność z wyliczoną ścieżką pod `attachments_root`, rozmiar i SHA-256,
+zapisuje plik i dopiero wtedy zwraca modelowi wynik ze ścieżką.
+`FetchBlob` bota wskazuje `bot_id` i `bot_turn_id`; pusta ścieżka pozostaje pusta,
+a worker dostarcza obsługiwane obrazy jako bloki MCP i ograniczony tekst
+z dokumentów. Trwały wynik wywołania przechowuje tekst i referencje.
+
 `InteractionRequest.cancelled` (8) przekazuje analogiczne anulowanie natywnej
 interakcji dostawcy. Worker zachowuje kopertę do potwierdzenia, także po reconnect;
 gateway zapisuje `expired` i odsyła `InteractionResponse.cancelled`.

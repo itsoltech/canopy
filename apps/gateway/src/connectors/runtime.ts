@@ -7,9 +7,9 @@ import {
   type ConnectorTool,
   type ThreadEvent,
 } from "@canopy/contracts";
-import type { JsonObject } from "@canopy/domain";
+import { DEFAULT_ATTACHMENT_LIMITS, type AttachmentLimits, type JsonObject } from "@canopy/domain";
 import { Effect, Schema } from "effect";
-import type { SqlClient } from "effect/sql";
+import { SqlClient } from "effect/sql";
 import { GatewayStore } from "../store/store.ts";
 import type { CoreRuntime } from "../core/core.ts";
 import { mcpTools } from "../bots/mcp.ts";
@@ -31,6 +31,8 @@ import type { SlackTransport } from "../messengers/slack-http.ts";
 import { handleConnectorCall } from "./calls.ts";
 import { executeConnector } from "./execute.ts";
 import { connectorToolCatalog, SLACK_POST_ACTION, slackPostName } from "./slack-post-tool.ts";
+import { supportsSlackDownload } from "./slack-download-tool.ts";
+import { canDownloadSlackOnWorker } from "./slack-download.ts";
 import { worktreeMerged } from "./merged-pr.ts";
 import { connectorTestError, ConnectorTestFailure } from "./test-error.ts";
 
@@ -45,6 +47,7 @@ export class ConnectorsRuntime {
       runtime: CoreRuntime;
       userId: string;
       messengerTransport?: SlackTransport;
+      attachmentLimits?: () => Promise<AttachmentLimits>;
       interaction(interaction: ui.Interaction): Promise<void>;
     },
   ) {}
@@ -224,9 +227,20 @@ export class ConnectorsRuntime {
     user: string,
     scope: { workerId?: string; botId?: string },
     includeSlackPost = true,
+    includeSlackDownload = true,
   ): Promise<ConnectorTool[]> {
     const rows = await this.run((s) => s.list(user, scope));
     const tools: ConnectorTool[] = [];
+
+    const workerId = scope.workerId;
+
+    const download =
+      includeSlackDownload &&
+      rows.some(supportsSlackDownload) &&
+      (!workerId ||
+        (await this.options.runtime.runPromise(
+          SqlClient.SqlClient.use((sql) => canDownloadSlackOnWorker(sql, workerId)),
+        )));
 
     for (const row of rows) {
       if (row.status !== "connected" && row.status !== "error") continue;
@@ -244,13 +258,13 @@ export class ConnectorsRuntime {
       const post =
         includeSlackPost && row.connector_type === "slack" && (await this.run((s) => s.slackMessagingConnected(row)));
 
-      tools.push(...connectorToolCatalog(row, catalog, post));
+      tools.push(...connectorToolCatalog(row, catalog, post, download));
     }
 
     // A bounded prompt; account catalog pages are separately capped at 256.
     return tools.slice(0, 256);
   }
-  async botTools(botId: string, turn?: BotTurn): Promise<ToolSpec[]> {
+  async botTools(botId: string, turn?: BotTurn, filesEnabled = true): Promise<ToolSpec[]> {
     const privateConversation =
       !!turn &&
       !turn.conversation_id &&
@@ -259,7 +273,7 @@ export class ConnectorsRuntime {
       !turn.reply_to_bot_id &&
       !turn.remote_recipient_ref;
 
-    const tools = await this.tools(this.options.userId, { botId }, privateConversation);
+    const tools = await this.tools(this.options.userId, { botId }, privateConversation, filesEnabled);
 
     return tools.map((t) => ({
       name: t.name,
@@ -333,7 +347,8 @@ export class ConnectorsRuntime {
   ): Promise<JsonValue> {
     // Authorization precedes even replay lookup, so a revoked account cannot disclose old results.
     const account = await this.run((s) => s.authorize(source));
-    const fingerprint = digest(JSON.stringify([source, toolName, args]));
+    const { botLease: _botLease, ...identity } = source;
+    const fingerprint = digest(JSON.stringify([identity, toolName, args]));
     const active = this.#active.get(callId);
 
     if (active) {
@@ -346,6 +361,7 @@ export class ConnectorsRuntime {
       {
         runtime: this.options.runtime,
         messengerTransport: this.options.messengerTransport,
+        attachmentLimits: this.options.attachmentLimits ?? (async () => DEFAULT_ATTACHMENT_LIMITS),
         run: (use) => this.run(use),
         interaction: (interaction) => this.options.interaction(interaction),
         stopped: () => this.#stopped,

@@ -1,4 +1,5 @@
-import { GrokClient } from "@canopy/grok-acp";
+import { GrokClient, type SessionUpdate } from "@canopy/grok-acp";
+import type { JsonValue } from "@canopy/domain";
 import { statSync } from "node:fs";
 import { join } from "node:path";
 import { grokLaunch } from "../providers/grok/launch.ts";
@@ -6,6 +7,30 @@ import { GrokSessionCost } from "../providers/grok/consumed-usage.ts";
 import { GrokEventMapper } from "../providers/grok/mapping.ts";
 import { grokStopReason, grokTranscriptPath } from "../providers/grok/transcript.ts";
 import { BotHarnessFailure, type BotHarnessContext } from "./types.ts";
+import { inlineImages } from "../images/previews.ts";
+import { isString } from "../providers/json.ts";
+
+/** The CLI may echo MCP images in ACP tool updates. Leave their bytes out of Canopy's journal. */
+function withoutToolImages(update: SessionUpdate): SessionUpdate {
+  if (update.sessionUpdate !== "tool_call" && update.sessionUpdate !== "tool_call_update") return update;
+  const images = inlineImages(JSON.stringify(update), `:${update.toolCallId}`);
+
+  if (!images.length) return update;
+
+  const rawOutput = JSON.stringify(update.rawOutput, (_key, value: JsonValue) =>
+    isString(value)
+      ? images.reduce((text, image) => (image.base64 ? text.replaceAll(image.base64, "[image omitted]") : text), value)
+      : value,
+  );
+
+  return {
+    ...update,
+    ...(update.content && {
+      content: update.content.filter((block) => block.type !== "content" || block.content.type !== "image"),
+    }),
+    ...(rawOutput !== undefined && { rawOutput: JSON.parse(rawOutput) }),
+  };
+}
 
 /** ACP owns inference; the only tools exposed by the curated agent are Canopy MCP. */
 export async function runGrokBot(ctx: BotHarnessContext): Promise<void> {
@@ -109,7 +134,7 @@ export async function runGrokBot(ctx: BotHarnessContext): Promise<void> {
       if (event.type === "update") {
         signal.throwIfAborted();
 
-        for (const init of mapper.update(event.update)) await ctx.record(init);
+        for (const init of mapper.update(withoutToolImages(event.update))) await ctx.record(init);
       } else {
         for (const init of mapper.complete(event)) await ctx.record(init);
         signal.throwIfAborted();

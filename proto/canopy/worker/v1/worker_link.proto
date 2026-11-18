@@ -1714,6 +1714,9 @@ message AgentToolResult {
   string content = 3;
   // Ten sam wynik w formie strukturalnej, dla osi czasu i UI.
   string result_json = 4;
+  // Pliki zapisane przez gateway w zakresie wątku lub bieżącej tury bota.
+  // Worker pobiera ich bajty osobno przez FetchBlob (agent_tool_attachments_v1).
+  repeated InputAttachment attachments = 5;
 }
 
 // ---------- Modele (docs/protocol.md#modele-effort-i-steer) ----------

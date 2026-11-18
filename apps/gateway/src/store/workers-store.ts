@@ -4,6 +4,7 @@ import { timestampFromDate } from "@bufbuild/protobuf/wkt";
 import { ConfigAppliedSchema, Provider, ui, type Hello } from "@canopy/contracts";
 import { Effect } from "effect";
 import {
+  AGENT_TOOL_ATTACHMENTS_CAPABILITY,
   CLONE_PROGRESS_CAPABILITY,
   CLAUDE_LIVE_PERMISSIONS_CAPABILITY,
   THREAD_FILE_REVEAL_CAPABILITY,
@@ -134,6 +135,7 @@ export function workerStore(sql: SqlClient.SqlClient): WorkerStore {
           })),
           // Where the worker keeps attachments (paths in the platform note); empty = it cannot take them.
           attachmentsRoot: hello.attachmentsRoot,
+          agentToolAttachments: hello.capabilities.includes(AGENT_TOOL_ATTACHMENTS_CAPABILITY),
           scratchRoot: hello.scratchRoot,
           homeDirectory: hello.homeDirectory,
           // Git worktrees (docs/worktrees.md): empty = the worker cannot make them.

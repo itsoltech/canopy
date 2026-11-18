@@ -7,6 +7,7 @@ OAuth dla narzędzi MCP i wiadomości botów przez Socket Mode. Bot settings →
 wybiera podłączone konto i trasy; gateway odnawia rotowane tokeny użytkownika i bota.
 Po włączeniu wiadomości konto udostępnia też wysyłkę jako Canopy przez Slack Web API.
 Bot może korzystać ze stałej zgody właściciela na wysyłkę do wybranej rozmowy Slack.
+Boty i wątki mogą pobierać udostępnione pliki Slack, a wiadomości Socket Mode mogą zawierać załączniki.
 Panel web/desktop jest odświeżany reaktywnie w pamięci BFF
 i dostarczany przez SSE; autoryzacja uwzględnia zmiany uprawnień bieżącej tury Claude.
 Panel natywnego mobile rozróżnia dostęp workera i katalog bieżącej tury:
@@ -242,6 +243,22 @@ Szczegóły: [protocol.md](protocol.md#modele-effort-i-steer).
 Ponowienie call ID po reconnect nie wykonuje ponownie operacji. Nieznany wynik
 po awarii nie powoduje automatycznego powtórzenia zapisu.
 
+### Pobieranie plików ze Slacka
+
+Grant konta Slack OAuth udostępnia botowi z włączonym **Files** oraz wątkowi
+narzędzie odczytu `download_slack_file`. Argumentem jest identyfikator `F…` ze
+Slacka. Gateway ponownie sprawdza grant i aktywną turę, pobiera metadane przez
+`files.info` i używa tokenu użytkownika z zakresem `files:read` do ograniczonego
+pobrania z `https://files.slack.com`. Pobieranie i przekierowania pozostają na
+hoście plików Slack. Metadane połączenia, adres pliku Slack i jego token zostają
+w gatewayu. Obowiązują limity oraz walidacja formatu załączników Canopy.
+
+Bot w rozmowie zewnętrznej może pobrać wyłącznie plik udostępniony
+w tej rozmowie przez dopuszczonego autora, przez konto connectora powiązane
+z trasą. Pobrany plik otrzymuje referencję do przekazania przez `attachment_ids`.
+Wątek otrzymuje lokalną ścieżkę w katalogu załączników workera po zweryfikowaniu
+pobranych bajtów. Odczyt z konektora wymaga capability `agent_tool_attachments_v1`.
+
 ### Bezpośrednia wysyłka w Slacku
 
 Po włączeniu wiadomości na koncie Slack w Settings → Connectors gateway
@@ -448,7 +465,9 @@ powiązanie z właścicielem i przeglądarką oraz PKCE S256. Zgoda na wiadomoś
 nie nadpisuje tokenów MCP.
 
 Aplikację należy zaprosić do wybranych kanałów; po zmianie scopes lub manifestu
-trzeba ją ponownie zainstalować. Odbiór używa wychodzącego Socket Mode, bez
+trzeba ją ponownie zainstalować. Dla automatycznego odbioru udostępnionych plików
+aplikacja potrzebuje zakresu bota `files:read` i ponownej zgody na wiadomości
+w istniejących instalacjach. Odbiór używa wychodzącego Socket Mode, bez
 publicznego webhooka. Jedno konto obsługuje wiele botów. Bot settings → Messengers
 wybiera konto i zapisuje trasy niezależnie od Save changes bota; nie zakłada
 kolejnej aplikacji Slack. Dla bota z połączonego komputera UI kieruje do zarządzania

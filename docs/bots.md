@@ -1,7 +1,8 @@
 # Boty
 
 Status (2026-11-18): zaimplementowano trwałe rozmowy botów przez Slack Socket Mode,
-buforowanie, izolację historii kanałów i zwykłe przyznane narzędzia w turach zewnętrznych.
+buforowanie, załączniki wiadomości, izolację historii kanałów i zwykłe przyznane narzędzia
+w turach zewnętrznych. Konektor Slack umożliwia pobranie pliku po jego identyfikatorze.
 W prywatnej rozmowie z właścicielem bot może wysyłać jako Canopy na Slacku ze
 stałą zgodą dla konkretnego konta i rozmowy Slack.
 Instrukcje odpowiedzi kierują wyniki pracy delegowanej przez Messages.
@@ -430,21 +431,30 @@ dostaje wyłącznie bajty plików wysłanych z bieżącą wiadomością, także 
 sesji. Historia zachowuje referencje, nazwy, typy i rozmiary przy wcześniejszej
 wiadomości, oznaczone jej identyfikatorem i czasem UTC; nie są to załączniki
 nowego wejścia. Dawnych plików nie pobieramy ani nie wysyłamy ponownie do modelu.
-Bot może znaleźć referencje przez `list_attachments` i przekazać je do wątku;
-jeśli potrzebuje ponownie odczytać treść, prosi użytkownika o załączenie pliku.
+Bot może znaleźć referencje przez `list_attachments` i przekazać je do wątku.
+Do ponownego odczytu pliku można go załączyć, a plik Slack pobrać przez
+przyznany konektor.
 Wymagane capability workera:
 `bot_images_v1` dla samych obrazów, `bot_files_v1` dla pozostałych plików;
 starszy worker wymaga aktualizacji. `WORKER_LINK_PROTOCOL` pozostaje 1.
 
-Konta connectorów (w tym Slack) udostępniają botowi narzędzia MCP; nie są
-automatycznym kanałem odbioru wiadomości ani ponownego pobierania plików wątku.
-Samo wspomnienie connectora nie dodaje plików do wiadomości.
+W trasach Slack Socket Mode gateway pobiera załączniki dopuszczonej wiadomości
+przed uruchomieniem nowej tury. Wiadomości z plikami czekają na nową turę
+zamiast dołączać do trwającej odpowiedzi samym tekstem. Pliki podlegają
+ustawieniu **Files**, limitom Canopy i dostępowi aplikacji Slack. Niedostępny
+plik daje notatkę w wejściu. Bot nadal otrzymuje treść wiadomości. Obrazy i
+obsługiwane dokumenty używają tej samej ścieżki co pliki z prywatnej rozmowy.
+
+Alternatywnie bot może pobrać plik po id narzędziem przyznanego konektora
+Slack. Referencje pozostają w zakresie rozmowy, w której bot otrzymał lub
+pobrał plik. Szczegóły autoryzacji opisuje [connectors.md](connectors.md#pobieranie-plików-ze-slacka).
 
 ### Przekazywanie do wątków
 
 Wejście tury podaje stabilne `[id]`, nazwę, typ i rozmiar załączników. Narzędzie
-`list_attachments` odczytuje referencje wyłącznie wysłanych plików bieżącej
-rozmowy i właściciela, także starszych niż budżet wejścia. Szkice nie są źródłem.
+`list_attachments` odczytuje referencje załączników bieżącej rozmowy i
+właściciela, także pobranych przez konektor Slack i starszych niż budżet
+wejścia. Szkice nie są źródłem.
 `start_thread` i `send_message` przyjmują opcjonalne `attachment_ids`.
 Gateway ponownie sprawdza właściciela, rozmowę, duplikaty i bieżące limity
 przed zgodą i przy wykonaniu. Zgoda jest tą samą zgodą co uruchomienie lub

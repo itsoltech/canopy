@@ -76,7 +76,13 @@ export function slackMessengerFixture() {
     refuseNextSend: (code: string) => {
       refusal = code;
     },
-    emit: (id: string, text: string, timestamp: string, threadId = "100.1") => {
+    emit: (
+      id: string,
+      text: string,
+      timestamp: string,
+      threadId = "100.1",
+      files?: readonly { id: string; url_private?: string }[],
+    ) => {
       const message = JSON.stringify({
         type: "events_api",
         envelope_id: id,
@@ -93,6 +99,7 @@ export function slackMessengerFixture() {
             ts: timestamp,
             thread_ts: threadId,
             channel_type: "channel",
+            files,
           },
         },
       });

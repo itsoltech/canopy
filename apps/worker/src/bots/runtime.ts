@@ -1,9 +1,7 @@
-import { create } from "@bufbuild/protobuf";
 import { workerDiagnostics } from "../diagnostics/worker.ts";
 import { Match } from "effect";
 import { classifyFailure } from "@canopy/domain";
 import {
-  AgentToolCallSchema,
   Provider,
   TurnEndSource,
   TurnOutcome,
@@ -13,7 +11,6 @@ import {
 } from "@canopy/contracts";
 import { instanceShadowHome, type AppliedConfig } from "../config/remote.ts";
 import { Journal, type ThreadEventInit } from "../journal/index.ts";
-import { grokBus } from "../providers/grok/bus.ts";
 import { readHarnessRecord, reconcileEvents } from "../providers/reconcile.ts";
 import { CommandError, type CommandOutput } from "../runtime/host-types.ts";
 import type { HostContext } from "../runtime/host-context.ts";
@@ -25,6 +22,7 @@ import { BotHarnessFailure } from "./types.ts";
 import { botFailureEvent } from "./failures.ts";
 import { providersOf, type ResolvedProfile } from "../providers/profiles.ts";
 import { botImages } from "./images.ts";
+import { botConnectorMcp } from "./connector-mcp.ts";
 import { BotFileError, BotWorkspace, cleanupBotWorkspaces } from "./workspace.ts";
 import { BotFileOperations } from "./file-operations.ts";
 import { BotSteering } from "./steering.ts";
@@ -63,21 +61,6 @@ function sessionOptions(
       }),
     linkLogin: profile.kind === "native" && (runtime.ownLogin === true || config[provider].linkDeviceLogin),
   };
-}
-
-function botToolBus(ctx: HostContext, input: RunBotTurn, turnSignal: AbortSignal) {
-  return grokBus({
-    threadId: input.botId,
-    depth: 0,
-    agentBus: false,
-    connectorTools: input.tools,
-    turnId: () => input.turnId,
-    callTool: (call, signal) =>
-      ctx.ops.callTool(
-        create(AgentToolCallSchema, { ...call, botId: input.botId }),
-        signal ? AbortSignal.any([turnSignal, signal]) : turnSignal,
-      ),
-  });
 }
 
 /** Hidden bot sessions own no project workspace and expose only gateway-executed MCP. */
@@ -213,7 +196,7 @@ export class BotTurns {
         );
     };
 
-    const bus = botToolBus(this.ctx, input, abort.signal);
+    const bus = botConnectorMcp(this.ctx.ops, input, abort.signal);
 
     try {
       const started = await this.ctx.state.options.runtime.runPromise(

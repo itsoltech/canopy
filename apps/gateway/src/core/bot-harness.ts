@@ -3,6 +3,7 @@ import { createHash } from "node:crypto";
 import { CommandSchema, CommandResultSchema, TurnOutcome } from "@canopy/contracts";
 import { classifyFailure, ProviderFailure } from "@canopy/domain";
 import { botImageInput } from "./bot-images.ts";
+import { withSlackBotInput } from "./bot-slack-input.ts";
 import { BotStore } from "../bots/store.ts";
 import type { HarnessTurnRow } from "../bots/store-harness.ts";
 import type { BotTurn, ModelInput, ModelReply } from "../bots/types.ts";
@@ -111,12 +112,11 @@ function harnessReply(job: HarnessTurnRow): ModelReply {
 }
 
 /** Assemble the turn's files and require the worker capability before persisting its command. */
-async function botTurnInput(core: GatewayCore, input: ModelInput, workerId: string, botId: string) {
+async function botTurnInput(core: GatewayCore, input: ModelInput, workerId: string, turn: BotTurn) {
   const connection = core.link.connections.get(workerId);
 
   if (connection?.isOpen && !supportsServiceTier(connection.hello.capabilities, input.configuration.serviceTier))
     throw new ProviderFailure("configuration", SERVICE_TIERS_UNSUPPORTED, "platform");
-  const images = await botImageInput(core, botId, workerId, input.messages);
 
   if (connection?.isOpen && !connection.hello.capabilities.includes("bot_web_v1"))
     throw new ProviderFailure(
@@ -131,6 +131,9 @@ async function botTurnInput(core: GatewayCore, input: ModelInput, workerId: stri
       "Update this worker to use bot files, or choose another worker.",
       "platform",
     );
+
+  const messages = await withSlackBotInput(core, input, workerId, turn);
+  const images = await botImageInput(core, turn.bot_id, workerId, messages);
 
   if (
     (images.attachments.length || images.historyAttachments.length) &&
@@ -147,7 +150,27 @@ async function botTurnInput(core: GatewayCore, input: ModelInput, workerId: stri
       "platform",
     );
 
-  return images;
+  return {
+    images,
+    sourceAttachments: turn.conversation_id
+      ? messages.findLast((message) => message.role === "user")?.attachments
+      : undefined,
+  };
+}
+
+async function assertBotProvider(core: GatewayCore, input: ModelInput, workerId: string) {
+  const worker = (await coreWorkers(core)).find((w) => w.id === workerId);
+
+  if (
+    !worker?.providerInstances.some(
+      (i) => i.harness === input.configuration.provider && i.id === input.configuration.providerInstance && i.enabled,
+    )
+  )
+    throw new ProviderFailure(
+      "configuration",
+      "The bot's provider instance is not enabled on its pinned worker. Enable it in provider settings or pick another worker in Runs on.",
+      "platform",
+    );
 }
 
 /** A model call attaches to a durable worker command, including after a gateway restart. */
@@ -174,20 +197,9 @@ export async function runBotHarness(core: GatewayCore, input: ModelInput): Promi
 
     if (connection?.isOpen && !connection.hello.capabilities.includes("bot_harness_v1"))
       throw new ProviderFailure("configuration", "Update this worker to run bots, or pick another worker.", "platform");
-    const worker = (await coreWorkers(core)).find((w) => w.id === workerId);
-
-    if (
-      !worker?.providerInstances.some(
-        (i) => i.harness === input.configuration.provider && i.id === input.configuration.providerInstance && i.enabled,
-      )
-    )
-      throw new ProviderFailure(
-        "configuration",
-        "The bot's provider instance is not enabled on its pinned worker. Enable it in provider settings or pick another worker in Runs on.",
-        "platform",
-      );
+    await assertBotProvider(core, input, workerId);
     await run((s) => s.assignWorker(core[coreState].options.userId, turn.bot_id, workerId));
-    const images = await botTurnInput(core, input, workerId, turn.bot_id);
+    const { images, sourceAttachments } = await botTurnInput(core, input, workerId, turn);
     const conversation = await run((s) => s.conversationContext(turn));
 
     const command = await run((s) =>
@@ -216,6 +228,7 @@ export async function runBotHarness(core: GatewayCore, input: ModelInput): Promi
             },
           },
         }),
+        sourceAttachments,
       ),
     );
 

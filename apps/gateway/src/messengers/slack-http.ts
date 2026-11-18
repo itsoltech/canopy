@@ -51,6 +51,18 @@ const ResponseSchema = Schema.Struct({
   channel: Schema.optional(Schema.String),
   ts: Schema.optional(Schema.String),
   bot: Schema.optional(Schema.Struct({ app_id: Schema.optional(Schema.String) })),
+  file: Schema.optional(
+    Schema.Struct({
+      id: Schema.String,
+      name: Schema.optional(Schema.String),
+      size: Schema.optional(Schema.Number),
+      mode: Schema.optional(Schema.String),
+      is_external: Schema.optional(Schema.Boolean),
+      filetype: Schema.optional(Schema.String),
+      url_private: Schema.optional(Schema.String),
+      url_private_download: Schema.optional(Schema.String),
+    }),
+  ),
   channels: Schema.optional(
     Schema.Array(
       Schema.Struct({
@@ -103,6 +115,8 @@ const configurationCodes = new Set([
   "restricted_action",
   "team_access_not_granted",
   "bot_not_found",
+  "file_not_found",
+  "file_deleted",
 ]);
 
 function providerError(code: string, write: boolean, retryAfterMs: number): SlackMessengerError {
@@ -115,7 +129,7 @@ function providerError(code: string, write: boolean, retryAfterMs: number): Slac
   return new SlackMessengerError(write ? "unknown_write" : "retryable", "provider_error");
 }
 
-async function responseBody(response: Response) {
+export async function readSlackBody(response: Response, maxBytes: number) {
   if (!response.body) throw new Error("Empty response");
   const reader = response.body.getReader();
   const chunks: Uint8Array[] = [];
@@ -128,7 +142,7 @@ async function responseBody(response: Response) {
       if (next.done) break;
       bytes += next.value.byteLength;
 
-      if (bytes > 256 * 1024) throw new Error("Response limit");
+      if (bytes > maxBytes) return undefined;
       chunks.push(next.value);
     }
   } finally {
@@ -136,7 +150,15 @@ async function responseBody(response: Response) {
     reader.releaseLock();
   }
 
-  return Schema.decodeUnknownSync(ResponseSchema)(JSON.parse(Buffer.concat(chunks).toString("utf8")));
+  return Buffer.concat(chunks, bytes);
+}
+
+async function responseBody(response: Response) {
+  const bytes = await readSlackBody(response, 256 * 1024);
+
+  if (!bytes) throw new Error("Response limit");
+
+  return Schema.decodeUnknownSync(ResponseSchema)(JSON.parse(bytes.toString("utf8")));
 }
 
 export function checkSlackCredentials(credentials: SlackCredentials) {
@@ -152,6 +174,7 @@ export async function slackRequest(
     | "chat.postMessage"
     | "conversations.list"
     | "conversations.members"
+    | "files.info"
     | "users.list",
   token: string,
   fields: URLSearchParams,
@@ -164,16 +187,21 @@ export async function slackRequest(
   const requestSignal = signal ? AbortSignal.any([signal, timeout]) : timeout;
 
   try {
-    const response = await (transport.fetch ?? fetch)(
-      new URL(method, transport.apiBaseUrl ?? "https://slack.com/api/"),
-      {
-        method: "POST",
-        headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/x-www-form-urlencoded" },
-        body: fields,
-        redirect: "error",
-        signal: requestSignal,
-      },
-    );
+    const url = new URL(method, transport.apiBaseUrl ?? "https://slack.com/api/");
+    const headers = new Headers({ Authorization: `Bearer ${token}` });
+    const readFile = method === "files.info";
+
+    if (readFile) url.search = fields.toString();
+    else headers.set("Content-Type", "application/x-www-form-urlencoded");
+
+    const response = await (transport.fetch ?? fetch)(url, {
+      method: readFile ? "GET" : "POST",
+      headers,
+      ...(!readFile && { body: fields }),
+      redirect: "error",
+      credentials: "omit",
+      signal: requestSignal,
+    });
 
     const retrySeconds = Number(response.headers.get("retry-after") ?? "1");
 

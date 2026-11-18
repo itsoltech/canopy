@@ -6,7 +6,7 @@ import type { ThreadEventInit } from "../../journal/index.ts";
 import { readJsonl, type HarnessRecord, type TurnEnd } from "../harness-record.ts";
 import { CodexEventMapper, codexErrorCode } from "./mapping.ts";
 import { Schema } from "effect";
-import type { JsonObject, JsonValue } from "@canopy/domain";
+import { isPlatformServer, type JsonObject, type JsonValue } from "@canopy/domain";
 import { isBoolean, isNumber, isString, jsonObject, jsonString } from "../json.ts";
 import { decodeResponseItem } from "./rollout.ts";
 
@@ -275,14 +275,21 @@ export function threadItem(raw: JsonValue | undefined): v2.ThreadItem | undefine
 
     case "McpToolCall": {
       const error = item["error"];
+      const server = str(item["server"]);
+      const result = item["result"] ?? null;
+      const decoded = jsonObject(result);
 
       return as({
         type: "mcpToolCall",
-        server: str(item["server"]),
+        server,
         tool: str(item["tool"]),
         arguments: item["arguments"] ?? null,
         status,
-        result: item["result"] ?? null,
+        // Bot MCP image blocks are for the model. Recovery needs only the text and references.
+        result:
+          isPlatformServer(server) && Array.isArray(decoded?.["content"])
+            ? { ...decoded, content: decoded["content"].filter((block) => jsonObject(block)?.["type"] !== "image") }
+            : result,
         error: error
           ? {
               message: isString(error) ? error : str(jsonObject(error)?.["message"]) || JSON.stringify(error),

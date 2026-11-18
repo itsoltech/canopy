@@ -1,4 +1,34 @@
-import { Match, Schema } from "effect";
+import { Match, Option, Schema } from "effect";
+import { slackFileId } from "./slack-files.ts";
+
+export const MAX_SLACK_MESSAGE_FILES = 100;
+
+const SlackFiles = Schema.Array(Schema.Json);
+const SlackFileRef = Schema.Struct({ id: Schema.String });
+
+export function boundedSlackFileIds(values: readonly string[]): string[] {
+  const ids = new Set<string>();
+
+  for (const value of values) {
+    if (slackFileId(value)) ids.add(value);
+
+    if (ids.size === MAX_SLACK_MESSAGE_FILES) break;
+  }
+
+  return [...ids];
+}
+
+function messageFileIds(value: Schema.Json | undefined): string[] {
+  const files = Option.getOrElse(Schema.decodeUnknownOption(SlackFiles)(value), () => []);
+
+  const ids = files.flatMap((file) => {
+    const reference = Option.getOrUndefined(Schema.decodeUnknownOption(SlackFileRef)(file));
+
+    return reference ? [reference.id] : [];
+  });
+
+  return boundedSlackFileIds(ids);
+}
 
 const Message = Schema.Struct({
   type: Schema.optional(Schema.String),
@@ -10,6 +40,7 @@ const Message = Schema.Struct({
   text: Schema.optional(Schema.String),
   ts: Schema.optional(Schema.String),
   thread_ts: Schema.optional(Schema.String),
+  files: Schema.optional(Schema.Json),
 });
 
 const Event = Schema.Struct({
@@ -46,6 +77,7 @@ export interface SlackEvent {
   messageId: string;
   authorId: string;
   text: string;
+  fileIds?: readonly string[];
   timestamp: string;
   mention: boolean;
   direct: boolean;
@@ -120,6 +152,7 @@ export function slackEvent(
 
   if (!messageId || !/^\d+\.\d+$/.test(messageId)) return null;
   const text = message?.text ?? "";
+  const fileIds = kind === "delete" ? [] : messageFileIds(message?.files);
 
   return {
     id: payload.event_id,
@@ -129,6 +162,7 @@ export function slackEvent(
     messageId,
     authorId,
     text,
+    ...(fileIds.length && { fileIds }),
     timestamp: event.event_ts ?? event.ts ?? messageId,
     mention: event.type === "app_mention" || text.includes(`<@${identity.botUserId}>`),
     direct: event.channel.startsWith("D") || event.channel_type === "im",

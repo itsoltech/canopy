@@ -15,6 +15,7 @@ export function threadConnectorList(sql: SqlClient.SqlClient, user: string, work
   return sql<{
     id: string;
     connector_type: string;
+    auth_kind: string;
     name: string;
     namespace: string;
     status: string;
@@ -22,14 +23,17 @@ export function threadConnectorList(sql: SqlClient.SqlClient, user: string, work
     revision: string;
     granted: boolean;
     slack_post: boolean;
+    slack_download: boolean;
     tools: JsonValue[];
   }>`
-    SELECT c.id,c.connector_type,c.name,c.namespace,c.status,c.all_workers,c.revision::text,c.tools,
+    SELECT c.id,c.connector_type,c.auth_kind,c.name,c.namespace,c.status,c.all_workers,c.revision::text,c.tools,
       c.all_workers OR EXISTS(SELECT 1 FROM connector_worker_grants g
         WHERE g.account_id=c.id AND g.worker_id=${worker || null}::uuid) AS granted,
       c.connector_type='slack' AND EXISTS(SELECT 1 FROM messenger_accounts a
         WHERE a.connector_account_id=c.id AND a.owner_user_id=c.owner_user_id AND a.enabled AND a.deleted_at IS NULL
-          AND ${linkedMessengerActive(sql)}) AS slack_post
+          AND ${linkedMessengerActive(sql)}) AS slack_post,
+      EXISTS(SELECT 1 FROM workers w WHERE w.id=${worker || null}::uuid
+        AND w.capabilities->>'agentToolAttachments'='true' AND coalesce(w.capabilities->>'attachmentsRoot','')<>'') AS slack_download
     FROM connector_accounts c WHERE c.owner_user_id=${user}::uuid ORDER BY c.connector_type,c.name,c.id`.pipe(
     Effect.flatMap((rows) =>
       connectorSessionState(
@@ -52,6 +56,7 @@ export function threadConnectorList(sql: SqlClient.SqlClient, user: string, work
                 row,
                 row.tools.map((tool) => fromJson(ConnectorToolSchema, tool)),
                 row.slack_post,
+                row.slack_download,
               )
             : [],
         ),
