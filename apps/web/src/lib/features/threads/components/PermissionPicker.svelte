@@ -4,19 +4,27 @@
   import Icon from "#lib/shared/ui/Icon.svelte";
   import MenuCheckItem from "#lib/shared/ui/MenuCheckItem.svelte";
   import PillButton from "#lib/shared/ui/PillButton.svelte";
-  import { isFullAccess, permissionLabel, permissionLook, permissionModes, type PermissionModeKey } from "../labels.ts";
+  import {
+    isFullAccess,
+    isPermissionModeAvailable,
+    permissionDescription,
+    permissionLabel,
+    permissionLook,
+    permissionModes,
+    savedFullAutoDescription,
+    type PermissionModeKey,
+  } from "../labels.ts";
   import FullAccessConfirm from "./FullAccessConfirm.svelte";
   import PermissionModeTitle from "./PermissionModeTitle.svelte";
 
   /**
    * Composer pill for a thread's permission mode (new thread and side thread: the draft's pick; thread
-   * composer: the next turn's mode, restored from the last user turn). Full auto never asks before running anything,
-   * so the pill turns amber with a warning shield and says so in the menu. Full access has no sandbox either:
-   * rose with a crossed-out shield, and picking it asks for a confirmation first.
+   * composer: the next turn's mode, restored from the last user turn, or the running turn for Claude).
    */
   let {
     value,
     onselect,
+    fullAuto,
     fullAccess = true,
     disabled = false,
     nextTurn = false,
@@ -25,6 +33,8 @@
   }: {
     value: PermissionModeKey;
     onselect: (mode: PermissionModeKey) => void;
+    /** false hides Full auto for a selected worker without a sandbox. */
+    fullAuto?: boolean | undefined;
     /** false: Full access is not offered (schedules: nobody watches those runs start). */
     fullAccess?: boolean;
     disabled?: boolean;
@@ -33,10 +43,16 @@
     class?: ClassValue;
   } = $props();
 
-  const modes = $derived(permissionModes.filter((m) => fullAccess || !isFullAccess(m.value)));
+  const modes = $derived(
+    permissionModes.filter(
+      (m) => isPermissionModeAvailable(m.value, fullAuto) && (fullAccess || !isFullAccess(m.value)),
+    ),
+  );
 
   const look = $derived(permissionLook(value));
   const tone = $derived(look.tone);
+  const selected = $derived(permissionModes.find((mode) => mode.value === value));
+  const savedFullAuto = $derived(!isPermissionModeAvailable(value, fullAuto));
   let confirming = $state<() => void>();
 
   function pick(mode: PermissionModeKey) {
@@ -63,10 +79,10 @@
       aria-label={nextTurn
         ? `Next turn permissions: ${permissionLabel(value)}`
         : `Permissions: ${permissionLabel(value)}`}
-      title={tone === "rose"
-        ? "Full access: runs commands and edits without asking, with no sandbox"
-        : tone === "amber"
-          ? "Full auto: runs commands and edits without asking (sandboxed to the workspace)"
+      title={savedFullAuto
+        ? savedFullAutoDescription
+        : selected && tone !== "neutral"
+          ? permissionDescription(selected, fullAuto)
           : `Permissions: ${permissionLabel(value)}`}
     >
       <Icon name={look.icon} class={["size-3.5", tone !== "neutral" && look.iconClass]} />
@@ -77,15 +93,16 @@
       {/if}
     </PillButton>
   {/snippet}
+  {#if savedFullAuto}<p class="px-2 py-1.5 text-sm/5 text-muted sm:text-xs/4">{savedFullAutoDescription}</p>{/if}
   {#if explanation}<p class="px-2 py-1.5 text-sm/5 text-muted sm:text-xs/4">{explanation}</p>{/if}
   {#each modes as option (option.value)}
     <MenuCheckItem
       {disabled}
       checked={option.value === value}
-      description={option.description}
+      description={permissionDescription(option, fullAuto)}
       onselect={() => pick(option.value)}
     >
-      <PermissionModeTitle mode={option.value} />
+      <PermissionModeTitle mode={option.value} {fullAuto} />
     </MenuCheckItem>
   {/each}
 </DropdownMenu>

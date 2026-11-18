@@ -19,11 +19,36 @@ export const permissionModes = [
     description: "Edits files in the workspace, asks for everything else.",
   },
   { value: "READ_ONLY", label: "Read only", description: "Reads files, never changes them." },
-  { value: "FULL_AUTO", label: "Full auto", description: "Runs without asking, sandboxed to the workspace." },
+  {
+    value: "FULL_AUTO",
+    label: "Full auto",
+    description: "Runs in a workspace sandbox. Unavailable for Claude on native Windows.",
+  },
   { value: "FULL_ACCESS", label: "Full access", description: "Runs without asking and without a sandbox." },
 ] as const satisfies readonly { value: keyof typeof PermissionMode; label: string; description: string }[];
 
 export type PermissionModeKey = (typeof permissionModes)[number]["value"];
+
+/** A placement can leave Full auto availability unknown until it selects a worker. */
+export function fullAutoAvailable(provider: Provider | undefined, os: string | undefined): boolean | undefined {
+  if (!provider) return undefined;
+
+  if (provider !== Provider.CLAUDE) return true;
+
+  return os ? os !== "win32" : undefined;
+}
+
+export const isPermissionModeAvailable = (mode: PermissionModeKey, fullAuto: boolean | undefined): boolean =>
+  mode !== "FULL_AUTO" || fullAuto !== false;
+
+export const availablePermissionMode = (mode: PermissionModeKey, fullAuto: boolean | undefined): PermissionModeKey =>
+  isPermissionModeAvailable(mode, fullAuto) ? mode : "ASK";
+
+export const savedFullAutoDescription = "Full auto asks before running shell commands on this worker.";
+
+export function permissionDescription(mode: (typeof permissionModes)[number], fullAuto: boolean | undefined) {
+  return mode.value === "FULL_AUTO" && fullAuto ? "Runs without asking, sandboxed to the workspace." : mode.description;
+}
 
 /** A PermissionMode enum name ("ASK", "UNSPECIFIED"); not the enum's numeric reverse mapping or other keys. */
 export const isPermissionModeName = (name: string): name is keyof typeof PermissionMode =>
@@ -42,7 +67,7 @@ export function permissionLabel(mode: PermissionMode | PermissionModeKey): strin
   return permissionModes.find((m) => m.value === key)?.label ?? "Ask first";
 }
 
-/** FULL_AUTO runs without asking: shown with a warning wherever it is chosen or shown. */
+/** FULL_AUTO uses the amber treatment wherever it is chosen or shown. */
 export const isFullAuto = (mode: PermissionMode | PermissionModeKey): boolean =>
   mode === "FULL_AUTO" || mode === PermissionMode.FULL_AUTO;
 
@@ -50,7 +75,7 @@ export const isFullAuto = (mode: PermissionMode | PermissionModeKey): boolean =>
 export const isFullAccess = (mode: PermissionMode | PermissionModeKey): boolean =>
   mode === "FULL_ACCESS" || mode === PermissionMode.FULL_ACCESS;
 
-/** A mode that never asks (Full auto, Full access): shown with its tone wherever it is chosen or shown. */
+/** A mode shown with its own warning tone (Full auto, Full access). */
 export const isUnprompted = (mode: PermissionMode | PermissionModeKey): boolean =>
   isFullAuto(mode) || isFullAccess(mode);
 
@@ -71,7 +96,7 @@ export interface PermissionLook {
  * How a mode is shown (pills, panel, turn footer): full auto gets a warning shield and amber text, full access
  * a crossed-out shield and rose text.
  */
-export function permissionLook(mode: PermissionMode | PermissionModeKey): PermissionLook {
+export function permissionLook(mode: PermissionMode | PermissionModeKey, fullAuto?: boolean): PermissionLook {
   if (isFullAccess(mode))
     return {
       icon: "shield-off",
@@ -85,7 +110,7 @@ export function permissionLook(mode: PermissionMode | PermissionModeKey): Permis
     ? {
         icon: "shield-exclamation",
         tone: "amber",
-        badge: "No prompts",
+        ...(fullAuto && { badge: "No prompts" }),
         iconClass: "text-amber-600 dark:text-amber-400",
         textClass: "text-amber-700 dark:text-amber-400",
       }

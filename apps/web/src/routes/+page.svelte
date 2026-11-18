@@ -32,7 +32,7 @@
   import { useModelCatalog } from "#lib/features/models/model-catalog.svelte.ts";
   import ModelControls from "#lib/features/models/ModelControls.svelte";
   import PermissionPicker from "#lib/features/threads/components/PermissionPicker.svelte";
-  import { permissionKey } from "#lib/features/threads/labels.ts";
+  import { availablePermissionMode, fullAutoAvailable, permissionKey } from "#lib/features/threads/labels.ts";
   import Alert from "#lib/shared/ui/Alert.svelte";
   import ButtonLink from "#lib/shared/ui/ButtonLink.svelte";
   import EmptyState from "#lib/shared/ui/EmptyState.svelte";
@@ -185,7 +185,11 @@
   const sentEffort = $derived(effort ?? "");
 
   // Your pick stays with the new-thread draft (leave and come back); unset = the defaults (Settings → Threads).
-  const permissionMode = $derived(permissionKey(saved.choices.permissionMode ?? defaults.permissionMode));
+  const fullAuto = $derived(fullAutoAvailable(selected && Provider[selected.provider], worker?.os));
+
+  const permissionMode = $derived(
+    availablePermissionMode(permissionKey(saved.choices.permissionMode ?? defaults.permissionMode), fullAuto),
+  );
 
   // Mentions of the first message: commands, skills and files of the chosen worker, folder and agent.
   const sources = new MentionSources(() => {
@@ -405,6 +409,7 @@
               {#snippet permissionControl()}
                 <PermissionPicker
                   value={permissionMode}
+                  {fullAuto}
                   onselect={(mode) => (saved.choices = { ...saved.choices, permissionMode: PermissionMode[mode] })}
                 />
               {/snippet}

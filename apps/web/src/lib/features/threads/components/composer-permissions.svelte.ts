@@ -3,7 +3,7 @@ import { composerChoices } from "@canopy/domain/composer-choices";
 import type { WebComposerDraft } from "#lib/features/drafts/state.svelte.ts";
 import { HttpError } from "#lib/shared/http.ts";
 import { updateTurnPermissions } from "../api.ts";
-import { permissionKey, type PermissionModeKey } from "../labels.ts";
+import { fullAutoAvailable, permissionKey, type PermissionModeKey } from "../labels.ts";
 
 interface Context {
   thread: ui.Thread;
@@ -28,6 +28,11 @@ export class ComposerPermissionsState {
   }
   get nextTurn() {
     return this.context().running && !this.live;
+  }
+  get fullAuto() {
+    const { thread, worker } = this.context();
+
+    return fullAutoAvailable(thread.provider, worker?.os);
   }
   get value(): PermissionModeKey {
     const { thread, runningTurn, saved } = this.context();
