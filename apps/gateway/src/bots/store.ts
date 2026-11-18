@@ -15,6 +15,7 @@ import { botDrafts } from "./drafts.ts";
 import { queryMethods } from "../diagnostics/query-context.ts";
 import { conversationContext } from "../messengers/store-outbound.ts";
 import { botPoll } from "./poll.ts";
+import { settleChatSteer } from "./store-chat-steer.ts";
 
 export {
   botConfiguration,
@@ -43,6 +44,9 @@ function makeStore(sql: SqlClient.SqlClient, key: Buffer) {
     active: core.active,
     save: core.save,
     enqueue: core.enqueue,
+    submitInput: core.submitInput,
+    rejectChatSteer: (input: import("./types.ts").BotSteerDelivery) =>
+      settleChatSteer(sql, input.botId, input.turnId, input.inputId, false),
     finish: core.finish,
     changed: core.changed,
     fenced: core.fenced,

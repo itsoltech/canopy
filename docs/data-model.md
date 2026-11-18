@@ -1,7 +1,12 @@
 # Model danych (PostgreSQL)
 
-Status (2026-11-18): zaimplementowany model, w tym migracje `0153_thread_notice_replication`, `0160_agent_hop_policy`, `0162_service_tiers`, `0164_usage_accounting` i `0165_usage_estimated_cost`;
+Status (2026-11-18): zaimplementowany model, w tym migracje `0153_thread_notice_replication`, `0160_agent_hop_policy`, `0162_service_tiers`, `0164_usage_accounting`, `0165_usage_estimated_cost` i `0169_bot_chat_steer`;
 dostępność nightly/beta/stable według [release.md](release.md).
+
+Migracja `0169_bot_chat_steer` dodaje `bot_turns.steer_target_id` dla wiadomości
+z prywatnego czatu wysyłanych do aktywnej tury bota. Potwierdzenie przenosi
+wiadomość do historii tury docelowej i kończy wpis z kolejki, który zachowuje
+klucz idempotencji. Wpis bez potwierdzenia pozostaje dostępny dla kolejnej tury.
 
 Migracja `0160_agent_hop_policy` rozszerza wszystkie 12 kolumn `hops` do
 `integer` i usuwa sztywne górne granice 8/16. Zachowuje dolne granice,

@@ -66,7 +66,10 @@ export function botTurns(sql: SqlClient.SqlClient, core: BotCore) {
           const token = uuid();
 
           const turns =
-            yield* sql<BotTurn>`UPDATE bot_turns SET status = 'running', lease_token = ${token}::uuid, lease_until = now() + interval '30 seconds'
+            yield* sql<BotTurn>`UPDATE bot_turns SET status = 'running', lease_token = ${token}::uuid, lease_until = now() + interval '30 seconds',
+              input = CASE WHEN steer_target_id IS NULL THEN input
+                ELSE 'Delivery of this message to the previous turn was unconfirmed. Do not repeat completed actions.' || E'\\n\\n' || input END,
+              steer_target_id = NULL
         WHERE id = ${rows[0].next_turn_id}::uuid RETURNING *`;
 
           const turn = turns[0]!;
@@ -161,7 +164,8 @@ export function botTurns(sql: SqlClient.SqlClient, core: BotCore) {
           const last = (yield* sql<{
             id: string;
             status: string;
-          }>`SELECT id, status FROM bot_turns WHERE bot_id = ${id}::uuid AND handoff_configuration IS NULL AND conversation_id IS NULL ORDER BY created_at DESC, id DESC LIMIT 1`)[0];
+          }>`SELECT id, status FROM bot_turns WHERE bot_id = ${id}::uuid AND handoff_configuration IS NULL AND conversation_id IS NULL
+            AND NOT (status = 'completed' AND steer_target_id IS NOT NULL) ORDER BY created_at DESC, id DESC LIMIT 1`)[0];
 
           if (last?.status !== "failed")
             return yield* Effect.fail(new Invalid("only a failed last reply can be retried"));
@@ -174,7 +178,8 @@ export function botTurns(sql: SqlClient.SqlClient, core: BotCore) {
             const next = uuid();
             yield* sql`INSERT INTO bot_turns(id, bot_id, client_request_id, input, hops, reply_to_bot_id, exchange_id, remote_recipient_ref, routine_id)
               SELECT ${next}::uuid, bot_id, ${`retry:${last.id}`}, input, hops, reply_to_bot_id, exchange_id, remote_recipient_ref, routine_id FROM bot_turns WHERE id = ${last.id}::uuid`;
-            yield* sql`UPDATE bot_messages SET turn_id = ${next}::uuid WHERE turn_id = ${last.id}::uuid AND message_key = 'input'`;
+            yield* sql`UPDATE bot_messages SET turn_id = ${next}::uuid WHERE turn_id = ${last.id}::uuid
+              AND (message_key = 'input' OR message_key LIKE 'steer:%')`;
           } else
             yield* sql`UPDATE bot_turns SET status = 'queued', finished_at = NULL, lease_token = NULL, lease_until = NULL WHERE id = ${last.id}::uuid`;
           yield* changed(id);

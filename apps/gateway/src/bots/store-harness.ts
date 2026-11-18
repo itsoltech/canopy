@@ -18,6 +18,7 @@ import type { BotTurn } from "./types.ts";
 import type { AgentToolCall } from "@canopy/contracts";
 import { storageEvent } from "../store/event-text.ts";
 import { withEventQuarantine } from "../store/event-quarantine.ts";
+import { settleChatSteer } from "./store-chat-steer.ts";
 
 export interface HarnessTurnRow {
   turn_id: string;
@@ -59,7 +60,7 @@ const commandFailure = (sql: SqlClient.SqlClient, id: string) =>
 
 const steerNotice = Schema.decodeUnknownSync(Schema.Struct({ input_id: Schema.String }));
 
-function settleSteerNotice(sql: SqlClient.SqlClient, event: ThreadEvent) {
+function settleSteerNotice(sql: SqlClient.SqlClient, event: ThreadEvent, externalOwner?: string) {
   return Effect.gen(function* () {
     const body = event.body;
 
@@ -72,17 +73,11 @@ function settleSteerNotice(sql: SqlClient.SqlClient, event: ThreadEvent) {
 
     if (!input || !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(input.input_id)) return;
 
-    const owner = (yield* sql<{
-      owner_user_id: string;
-    }>`SELECT owner_user_id FROM bots WHERE id=${event.threadId}::uuid`)[0];
+    const applied = body.value.code === "bot_steer_applied";
 
-    if (owner)
-      yield* messengerDispatch(sql).settleSteer(
-        owner.owner_user_id,
-        input.input_id,
-        body.value.code === "bot_steer_applied",
-        event.turnId,
-      );
+    if (externalOwner) yield* messengerDispatch(sql).settleSteer(externalOwner, input.input_id, applied, event.turnId);
+    // A dropped notice doesn't prove the provider missed it. Keep the uncertainty on the queued chat input.
+    else if (applied) yield* settleChatSteer(sql, event.threadId, event.turnId, input.input_id, true);
   });
 }
 
@@ -193,10 +188,14 @@ export function botHarnessStore(sql: SqlClient.SqlClient, access: BotAccess) {
               };
             }
 
-            yield* sql`SELECT b.id FROM bots b JOIN bot_harness_turns h ON h.bot_id = b.id
+            const bot = (yield* sql<{
+              owner_user_id: string;
+            }>`SELECT b.owner_user_id FROM bots b JOIN bot_harness_turns h ON h.bot_id = b.id
             WHERE h.turn_id = ${event.turnId}::uuid AND h.bot_id = ${event.threadId}::uuid
-              AND h.worker_id = ${workerId}::uuid FOR UPDATE OF b`;
-            yield* sql`SELECT id FROM bot_turns WHERE id = ${event.turnId}::uuid FOR UPDATE`;
+              AND h.worker_id = ${workerId}::uuid FOR UPDATE OF b`)[0];
+
+            const turn = (yield* sql<{ conversation_id: string | null }>`SELECT conversation_id FROM bot_turns
+              WHERE id = ${event.turnId}::uuid FOR UPDATE`)[0];
 
             const row =
               (yield* sql<HarnessTurnRow>`SELECT h.* FROM bot_harness_turns h WHERE h.turn_id = ${event.turnId}::uuid AND h.bot_id = ${event.threadId}::uuid AND h.worker_id = ${workerId}::uuid FOR UPDATE`)[0];
@@ -215,7 +214,7 @@ export function botHarnessStore(sql: SqlClient.SqlClient, access: BotAccess) {
             if (!saved.length) return true;
 
             const body = event.body;
-            yield* settleSteerNotice(sql, event);
+            yield* settleSteerNotice(sql, event, turn?.conversation_id ? bot?.owner_user_id : undefined);
 
             updateItems(row, event);
             const text = Object.values(row.items).join("\n");

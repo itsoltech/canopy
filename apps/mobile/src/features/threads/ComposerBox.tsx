@@ -38,8 +38,6 @@ export interface ComposerBoxProps {
   primary?: "steer" | "queue";
   onStop?: () => void;
   running?: boolean;
-  /** Bot replies keep Stop reachable while the next message is being drafted. */
-  stopWhileRunning?: boolean;
   disabled?: boolean;
   readonly?: boolean;
   /** Thread Stop remains reachable during watch recovery, independently of Send. */
@@ -54,6 +52,8 @@ export interface ComposerBoxProps {
   pending?: readonly ComposerPendingItem[];
   /** Bot chats keep their one-row pill when expanded; long drafts still grow. */
   inline?: boolean;
+  /** An action slot before Send in an inline composer. Keeps the Send button visible. */
+  beforeSend?: ReactNode;
   onExpand?: () => void;
   placeholder?: string;
   /** Above the text (attachment chips). */
@@ -77,7 +77,6 @@ export function ComposerBox({
   primary = "steer",
   onStop,
   running = false,
-  stopWhileRunning = false,
   disabled,
   readonly,
   stopDisabled,
@@ -88,6 +87,7 @@ export function ComposerBox({
   compact = false,
   pending,
   inline = false,
+  beforeSend,
   onExpand,
   placeholder = "Ask anything…",
   top,
@@ -105,7 +105,7 @@ export function ComposerBox({
   // A leading "!" runs the text as a shell command on the worker when it is delivered (docs/ui-api.md).
   const shell = shellCommands && text.startsWith("!");
   const shellIssue = shell && (text.trim() === "!" || files > 0);
-  const stop = running && (empty || stopWhileRunning) && Boolean(onStop);
+  const stop = running && empty && Boolean(onStop);
 
   const unavailable = stop
     ? (stopDisabled ?? (disabled || busy || false))
@@ -162,15 +162,18 @@ export function ComposerBox({
             </ComposerControls>
           </ComposerFold>
         )}
-        {!inline || !empty || running ? (
+        {!inline || beforeSend || !empty || running ? (
           <Animated.View
             onLayout={(event) => setSendWidth(event.nativeEvent.layout.width)}
             style={[
               styles.row,
-              inline ? { padding: 4, paddingLeft: 0 } : [{ position: "absolute", right: 10 }, sendPosition],
+              inline
+                ? { padding: 4, paddingLeft: 0, flexShrink: 0 }
+                : [{ position: "absolute", right: 10 }, sendPosition],
               { gap: 4 },
             ]}
           >
+            {beforeSend}
             <SendButtons
               alternate={running && !empty ? onAlternate : undefined}
               primary={primary}

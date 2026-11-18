@@ -173,6 +173,10 @@ test.skipIf(!dockerAvailable)(
 
       expect(turns[0]?.count).toBe("1");
 
+      const privateFollowup = await f.send(bot.id, "PRIVATE_FOLLOWUP_WHILE_SLACK_IS_RUNNING");
+      expect(
+        await f.query("SELECT status, steer_target_id FROM bot_turns WHERE id = $1", [privateFollowup.turnId]),
+      ).toEqual([{ status: "queued", steer_target_id: null }]);
       await f.release("messenger");
       await eventually(
         async () => slack.sent.length,
@@ -180,8 +184,9 @@ test.skipIf(!dockerAvailable)(
       );
       expect(slack.sent[0]!.get("thread_ts")).toBe("100.1");
       expect(slack.sent[0]!.get("text")).toContain("FIXTURE_OK");
-      const privateChat = await f.read(bot.id);
+      const privateChat = await f.settled(bot.id);
 
+      expect(privateChat.messages.some((m) => m.text === "PRIVATE_FOLLOWUP_WHILE_SLACK_IS_RUNNING")).toBe(true);
       expect(
         privateChat.messages.some((m) => m.text.includes("HOLD:messenger") || m.text.includes("Only Safari")),
       ).toBe(false);

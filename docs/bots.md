@@ -8,10 +8,29 @@ Instrukcje odpowiedzi kierują wyniki pracy delegowanej przez Messages.
 Konfiguracja bota przenosi `service_tier` do `RunBotTurn`.
 Historia w web/desktop korzysta z wirtualizacji i automatycznie dołącza
 starsze strony podczas przewijania, zachowując pozycję czytania.
+Kolejne wiadomości tekstowe w prywatnym czacie mogą dołączyć do trwającej tury bota.
 Limit automatycznej wymiany wynosi 256 kroków; walidacja budżetu przed zgodą
 i diagnostyka wyników narzędzi są zaimplementowane. Bot zlecający pracę lokalnej
 turze dostaje powiadomienia o oczekujących pytaniach i zakończeniu tury.
 Dostępność nightly/beta/stable według [release.md](release.md).
+
+## Kolejne wiadomości w prywatnym czacie
+
+W web/desktop i mobile podczas odpowiedzi można wysłać kolejną wiadomość
+i niezależnie zatrzymać odpowiedź. `SendBotMessage` zapisuje wiadomość i klucz
+idempotencji przed próbą dostarczenia. Zwykły tekst wysłany podczas aktywnej
+tury rozpoczętej przez właściciela w tym czacie może dołączyć do niej przez
+`SteerBotTurn`. Dopiero `bot_steer_applied` dołącza zapisaną wiadomość do historii
+tej tury i usuwa ją z kolejki. Zachowuje identyfikator, treść i pozycję wiadomości
+w widocznym czacie.
+
+Bez aktywnej tury właściciela, po odrzuceniu przez worker lub w przypadku
+załączników, cytatów i wzmianek wiadomość czeka na następną turę. Dotyczy to także
+Grok i starszych workerów bez `bot_steer_v1`. Niepotwierdzone dostarczenie
+zostawia wiadomość w kolejce z informacją dla modelu, by nie powtarzał ukończonych
+działań. Gateway nigdy nie ponawia nietrwałej komendy po utracie łącza lub restarcie.
+Prywatna wiadomość nie trafia do aktywnej tury Slacka, rutyny, handoffu ani
+wymiany między botami.
 
 ## Rozmowy przez komunikatory
 

@@ -1,7 +1,7 @@
 # Boty przez oficjalne harnessy
 
-Status (2026-11-17): zaimplementowane w kodzie, także zwykłe przyznane narzędzia i izolacja rozmów zewnętrznych
-i nietrwałe wejścia do aktywnej tury. Dostępność nightly/beta/stable wynika z
+Status (2026-11-18): zaimplementowane w kodzie, także zwykłe przyznane narzędzia, izolacja rozmów zewnętrznych
+i nietrwałe wejścia do aktywnej tury rozmowy zewnętrznej lub prywatnego czatu. Dostępność nightly/beta/stable wynika z
 promocji wydań ([release.md](release.md)).
 
 Status prędkości (2026-11-17): zaimplementowana w kodzie; dostępność
@@ -356,6 +356,12 @@ Twarda awaria może uniemożliwić zapis notice: rekoncyliacja kończy turę wed
 dotychczasowych zasad, a gateway rozstrzyga zachowane wejście jako niepotwierdzone.
 Nie odtwarzamy nieznanych efektów ani dowodów konsumpcji z samego faktu istnienia
 wiadomości w transkrypcie providera.
+
+Prywatny czat właściciela i rozmowy Slacka korzystają z tego samego kontraktu.
+Gateway dopasowuje potwierdzenie do źródła i dokładnej tury zapisanej w bazie.
+Dla czatu prywatnego identyfikator wejścia jest identyfikatorem zapisu
+w kolejce, a potwierdzenie przenosi istniejącą wiadomość do historii aktywnej tury.
+Szczegóły zachowania czatu opisuje [bots.md](bots.md#kolejne-wiadomości-w-prywatnym-czacie).
 
 `download_file` pobiera do scratch przez ograniczony transport HTTP(S) workera:
 50 MiB, 60 s łącznie, 10 s bezczynności i 5 przekierowań. Każdy URL oraz

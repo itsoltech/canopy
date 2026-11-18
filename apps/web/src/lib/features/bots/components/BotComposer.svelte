@@ -22,8 +22,8 @@
   import { registerUnsentWork } from "#lib/features/workers/unsent-work.ts";
 
   /**
-   * Message box of a bot chat, one rounded pill: "+" on the left, the text growing up to a few lines, and
-   * the send button, which appears once there is text or a quote. Shared MentionEditor and QuoteTray own
+   * Message box of a bot chat with controls to attach files and send. Stop has its own slot during a reply
+   * so the editor and send button stay in place. Shared MentionEditor and QuoteTray own
    * rich text, atomic bot chips and removable quote drafts. Enter sends and Shift+Enter adds a line; on touch
    * keyboards Enter adds a line and the button sends. The shared intake uploads pasted, dropped or picked images.
    * `disabled` (with `disabledReason` as the placeholder) turns the box off.
@@ -131,7 +131,7 @@
   }
 
   function send() {
-    if (!ready || running) return;
+    if (!ready) return;
     const trimmed = trimValue({ text: value, mentions, quotes });
     onsend(
       trimmed.text,
@@ -213,29 +213,23 @@
       {/if}
     {/snippet}
   </MentionEditor>
-  {#if running || value.trim() || quotes.length > 0 || files?.attached.length}
-    <span class="col-start-3 row-start-3 flex" in:iconSwap>
+  <div class="col-start-3 row-start-3 flex items-center gap-1 pointer-coarse:gap-3 sm:pointer-coarse:gap-4">
+    <div class="grid size-9 place-items-center sm:size-8">
       {#if running}
-        <RoundButton
-          icon="stop"
-          label="Stop reply"
-          variant="primary"
-          unavailable={!onstop}
-          busy={stopping}
-          onclick={onstop}
-        />
-      {:else}
-        <RoundButton
-          icon="arrow-up"
-          label="Send"
-          variant="primary"
-          unavailable={!ready}
-          busy={sending}
-          onclick={send}
-        />
+        <div in:iconSwap>
+          <RoundButton
+            icon="stop"
+            label="Stop reply"
+            variant="secondary"
+            unavailable={!onstop}
+            busy={stopping}
+            onclick={onstop}
+          />
+        </div>
       {/if}
-    </span>
-  {/if}
+    </div>
+    <RoundButton icon="arrow-up" label="Send" variant="primary" unavailable={!ready} busy={sending} onclick={send} />
+  </div>
 </div>
 {#if files}<BotImageIntake
     bind:this={intake}

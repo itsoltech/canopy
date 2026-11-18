@@ -56,6 +56,11 @@ export interface ModelInput {
 
 export type BotModel = (input: ModelInput) => Promise<ModelReply>;
 
+export type BotSteerDelivery = Pick<
+  import("@canopy/contracts").SteerBotTurn,
+  "botId" | "turnId" | "inputId" | "text"
+> & { workerId: string };
+
 export interface BotRow {
   id: string;
   owner_user_id: string;

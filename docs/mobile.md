@@ -2,8 +2,9 @@
 
 Status: opis zaimplementowanego kodu (2026-11-18); nowy wątek od razu pokazuje prompt
 i checklistę rzeczywistego przygotowania przed startem agenta, we wspólnej geometrii
-nagłówka, osi czasu i kompozytora. Kompozytory i ustawienia botów pokazują zwarte
-menu Speed z ikonami szybkości i wspólnym glifem podwójnego pioruna dla Ultrafast,
+nagłówka, osi czasu i kompozytora. Czat bota pozwala wysyłać kolejne wiadomości
+podczas odpowiedzi i ma osobny przycisk zatrzymania. Kompozytory i ustawienia botów
+pokazują zwarte menu Speed z ikonami szybkości i wspólnym glifem podwójnego pioruna dla Ultrafast,
 zgodnie z katalogiem modeli danego konta. iOS utrzymuje najnowsze wiadomości
 nad kompozytorem po nadejściu kolejnych tur, a „Show latest” ma okrągły stan naciśnięcia.
 Korekta przewijania chroni przed rekurencyjnym `scrollTo` podczas zmian insetów klawiatury na iOS.
@@ -1263,6 +1264,11 @@ Unpair i revocation jednocześnie zamykają oba cache przed usunięciem poświad
 spóźnione zapisy nie mogą ich odtworzyć. Lista usuwa kopie botów zarchiwizowanych,
 usuniętych lub przeniesionych oraz wymiany, w których te boty uczestniczyły.
 
+W trakcie odpowiedzi można wysłać kolejną wiadomość przez `SendBotMessage`.
+Gateway przekazuje kwalifikujący się tekst jako wskazówkę do aktywnej tury w tym czacie,
+a pozostałe wiadomości, w tym wiadomości z załącznikami, cytatami lub wzmiankami,
+dopisuje do kolejki. **Stop reply** pozostaje dostępny obok wysyłania także podczas
+pisania lub wysyłki szkicu. Pole i przycisk wysyłania zachowują położenie po zakończeniu odpowiedzi.
 Wysłanie po timeout używa tego samego client_request_id do czasu zmiany treści/trybu,
 więc ręczny retry nie dubluje tury.
 

@@ -1,16 +1,11 @@
-import { Schema, type Effect } from "effect";
+import type { Effect } from "effect";
 import { BotStore } from "../bots/store.ts";
+import { deliverBotSteer } from "../core/bot-steer.ts";
 import type { GatewayCoreOptions } from "../core/core-context.ts";
 import type { GatewayCore } from "../core/core.ts";
 import { MessengerStore } from "./store.ts";
 import { credentialKey, MessengerAccountSession } from "./account-session.ts";
 import type { SteerInput } from "./types.ts";
-
-const steerResult = Schema.decodeUnknownSync(
-  Schema.Struct({
-    status: Schema.Literals(["delivered", "queued", "unsupported"]),
-  }),
-);
 
 /** Socket reception and durable buffers run independently of model inference. */
 export class MessengerRuntime {
@@ -136,36 +131,18 @@ export class MessengerRuntime {
 
   async #steer(input: SteerInput): Promise<void> {
     const job = await this.options.runtime.runPromise(BotStore.use((s) => s.harnessTurn(input.turnId)));
-    const connection = job ? this.core.link.connections.get(job.worker_id) : undefined;
 
-    if (
-      !job ||
-      job.outcome !== null ||
-      !connection?.isOpen ||
-      !connection.hello.capabilities.includes("bot_steer_v1")
-    ) {
-      await this.run((s) => s.settleSteer(this.owner, input.id, false));
+    const accepted =
+      job?.outcome === null &&
+      (await deliverBotSteer(this.core, {
+        workerId: job.worker_id,
+        botId: input.botId,
+        turnId: input.turnId,
+        inputId: input.id,
+        text: input.text,
+      }));
 
-      return;
-    }
-
-    const result = await connection.sendCommand(
-      {
-        case: "steerBotTurn",
-        value: {
-          botId: input.botId,
-          turnId: input.turnId,
-          inputId: input.id,
-          text: input.text,
-        },
-      },
-      10_000,
-      input.id,
-    );
-
-    if (!result.ok || (result.dataJson && steerResult(JSON.parse(result.dataJson)).status === "unsupported"))
-      await this.run((s) => s.settleSteer(this.owner, input.id, false));
-    // Successful command ACKs may only queue input. Applied/dropped journal notices settle it.
+    if (!accepted) await this.run((s) => s.settleSteer(this.owner, input.id, false));
   }
 
   async stop(): Promise<void> {

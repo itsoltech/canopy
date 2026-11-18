@@ -9,7 +9,7 @@ import { splitId } from "@canopy/domain/computers";
 import { runHandoff } from "./runtime-handoff.ts";
 import { botPlatformTools } from "./policy.ts";
 import { botConfiguration, botView, BotStore } from "./store.ts";
-import type { BotModel, BotTurn, ModelInput, StoredCall, ToolResult, ToolSpec } from "./types.ts";
+import type { BotModel, BotSteerDelivery, BotTurn, ModelInput, StoredCall, ToolResult, ToolSpec } from "./types.ts";
 import type { ConnectorsRuntime } from "../connectors/runtime.ts";
 import { runToolCall, turnInstructions, WAITING } from "./turn-steps.ts";
 import { HarnessTools } from "./harness-tools.ts";
@@ -26,6 +26,7 @@ export interface BotRuntimeOptions {
   model?: BotModel;
   harness?: BotModel;
   deliverInterrupt?: (workerId: string) => Promise<void>;
+  deliverSteer?: (input: BotSteerDelivery) => Promise<boolean>;
   now?: () => Date;
   platform: (turn: BotTurn, call: StoredCall) => Promise<ToolResult>;
   describeTool?: (tool: ToolSpec, args: JsonObject) => Promise<string>;
@@ -349,19 +350,30 @@ export class BotsRuntime {
     return bot;
   }
   async send(request: bots.SendBotMessageRequest, attachmentLimits?: import("@canopy/domain").AttachmentLimits) {
-    const turnId = await this.run((s) =>
-      s.enqueue(this.#options.userId, request.botId, request.text, request.clientRequestId, {
+    const deliver = this.#options.deliverSteer;
+
+    const input = await this.run((s) =>
+      s.submitInput(this.#options.userId, request.botId, request.text, request.clientRequestId, {
         mentions: request.mentions,
         quotes: request.quotes,
         attachmentIds: request.attachmentIds,
         attachmentLimits,
         draftRevision: request.draftRevision,
+        steer: !!deliver && !this.#options.model,
       }),
     );
 
+    const steer = input.steer;
+
+    if (deliver && steer)
+      void deliver(steer)
+        .then(async (accepted) => {
+          if (!accepted) await this.run((s) => s.rejectChatSteer(steer));
+        })
+        .catch(() => this.#options.log?.("bots: live update delivery is unconfirmed"));
     void this.tick().catch(() => undefined);
 
-    return turnId;
+    return input.id;
   }
   async interrupt(id: string) {
     const stopped = await this.run((s) => s.interrupt(this.#options.userId, id));
