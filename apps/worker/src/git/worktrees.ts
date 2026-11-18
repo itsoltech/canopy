@@ -4,14 +4,12 @@ import type { MessageInitShape } from "@bufbuild/protobuf";
 import type { CreateWorktree, RenameWorktreeBranch, WorktreeInfoSchema, QueryProgress } from "@canopy/contracts";
 import { FETCH_TIMEOUT_MS, git, GitError, gitMessage, gitOk, validBranch } from "./git.ts";
 import { listGitRefs, repoRoot } from "./refs.ts";
+import { addWorktree } from "./add-worktree.ts";
 
 export type WorktreeInfoInit = MessageInitShape<typeof WorktreeInfoSchema>;
 
 /** Attempts at a free branch name (`name-2`, `name-3`, ...) or a free random folder. */
 const MAX_SUFFIX = 50;
-
-/** Slow checkouts need more time than metadata reads; leave room for a fetch in the gateway's 90 s wait. */
-const WORKTREE_ADD_TIMEOUT_MS = 60_000;
 
 /** Lower-case letters and digits without i, l, o and u: 32 symbols, so every byte maps without bias. */
 const FOLDER_ALPHABET = "0123456789abcdefghjkmnpqrstvwxyz";
@@ -183,7 +181,10 @@ export async function createWorktree(
     (request.startFromRemote && (await remoteStart(repo, base, request.remote || "origin", progress))) || base;
 
   progress?.({ step: "create_worktree", status: "running" });
-  const commit = (await commitOf(repo, start)) ?? "";
+  const commit = await commitOf(repo, start);
+
+  if (!commit)
+    throw new GitError("BAD_REF", "The base ref changed during worktree creation. Select a base ref and retry.");
   const branch = await freeBranch(repo, request.branch);
   const parent = join(root, folderName(basename(repo)));
   mkdirSync(parent, { recursive: true, mode: 0o700 });
@@ -193,16 +194,7 @@ export async function createWorktree(
   const path = await freeFolder(repo, parent);
 
   if (!isWithin(root, path)) throw new GitError("PATH_OUTSIDE_ROOT", "the worktree path is outside its root");
-  // The commit (not the ref name) is the start point: nothing from the request reaches git as an option.
-  await gitOk(
-    repo,
-    ["worktree", "add", "--quiet", "--no-track", "-b", branch, "--", path, commit],
-    "WORKTREE_FAILED",
-    WORKTREE_ADD_TIMEOUT_MS,
-  );
-
-  if (!isWithin(root, realpathSync(path)))
-    throw new GitError("PATH_OUTSIDE_ROOT", "the worktree path is outside its root");
+  await addWorktree(repo, { path, branch, commit });
 
   // Preserve the configured root's spelling (it may itself be a symlink); containment uses its real path above.
   const visiblePath = request.location ? join(request.location, relative(root, path)) : path;

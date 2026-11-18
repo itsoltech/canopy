@@ -107,11 +107,21 @@ describe("process governor with owned subprocesses", () => {
       );
       await expect(
         runProcess({ argv: [process.execPath, fixture], timeoutMs: 500 }, { kind: "probe" }),
-      ).rejects.toBeInstanceOf(ProcessTimeoutError);
+      ).rejects.toMatchObject({ reason: "timeout" });
       const pid = Number(readFileSync(pidFile, "utf8"));
 
       await waitForProcessStopped(pid);
       expect(existsSync(marker)).toBe(false);
     },
   );
+
+  test("bounded capture distinguishes an output limit from an ordinary nonzero exit", async () => {
+    const argv = [process.execPath, "-e", "process.stderr.write('x'.repeat(8192)); process.exitCode = 3;"];
+    const result = await runProcess({ argv }, { kind: "probe" });
+    expect(result).toMatchObject({ code: 3, stderr: "x".repeat(8192) });
+
+    const limited = runProcess({ argv, maxBytes: 1024 }, { kind: "probe" });
+    await expect(limited).rejects.toBeInstanceOf(ProcessTimeoutError);
+    await expect(limited).rejects.toMatchObject({ reason: "output" });
+  });
 });

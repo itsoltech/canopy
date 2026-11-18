@@ -1,11 +1,14 @@
 import { create } from "@bufbuild/protobuf";
+import { Code, ConnectError } from "@connectrpc/connect";
 import { ui } from "@canopy/contracts";
 import { providerOf } from "../store/instance-config.ts";
 import type { AgentBusArgs } from "@canopy/domain";
 import type { ThreadRow } from "../store/index.ts";
-import { coreState, InvalidError } from "../core/core-context.ts";
+import { BusRefusal } from "../core/agent-bus-context.ts";
+import { coreState, InvalidError, UnavailableError } from "../core/core-context.ts";
 import { coreLog, coreRun } from "../core/core-broadcast.ts";
 import type { GatewayCore } from "../core/core.ts";
+import { WorkerQueryError } from "../core/core-mentions.ts";
 import { corePrepareWorkspace } from "./core-worktrees.ts";
 import { coreWorktreeScope } from "./core-worktrees.ts";
 import { coreNameBranchLater } from "./branch-naming.ts";
@@ -35,6 +38,44 @@ export function automationMode(name: string): ui.WorkspaceMode {
   }
 }
 
+const WORKTREE_REFUSALS = new Map([
+  ["GIT_TIMEOUT", "Git timed out while creating the worktree."],
+  ["GIT_OUTPUT_LIMIT", "Git exceeded its output limit while creating the worktree."],
+  ["GIT_BUSY", "Git is busy on the worker. Try creating the worktree again shortly."],
+  ["GIT_UNAVAILABLE", "Git could not start on the worker. Check the Git installation."],
+  ["WORKTREE_CHECKOUT_FAILED", "Git could not check out the worktree. Check the Git settings and filters."],
+  ["WORKTREE_FAILED", "Git could not create the worktree."],
+  ["BAD_REF", "The base ref is not a branch or commit in this repository."],
+  ["NOT_A_REPOSITORY", "The workspace is not in a Git repository."],
+]);
+
+const CLEANUP_INCOMPLETE = " Canopy could not finish cleanup. Check the worktree and branch before retrying.";
+
+function spawnWorktreeRefusal(cause: unknown): string | undefined {
+  if (cause instanceof WorkerQueryError) {
+    // Before workers distinguished the limits, this code covered both.
+    if (cause.code === "GIT_TIMEOUT" && cause.message === "git exceeded its time or output limit")
+      return "Git exceeded its time or output limit while creating the worktree.";
+
+    const reason = WORKTREE_REFUSALS.get(cause.code) ?? "Could not create a worktree.";
+
+    // Older workers can return raw Git output. Only a fixed cleanup notice may accompany the mapped reason.
+    return cause.message.endsWith(CLEANUP_INCOMPLETE) ? reason + CLEANUP_INCOMPLETE : reason;
+  }
+
+  if (cause instanceof UnavailableError) return "The worker is offline. Reconnect it to create a worktree.";
+
+  if (cause instanceof ConnectError) {
+    if (cause.code === Code.DeadlineExceeded)
+      return "The worker did not confirm worktree creation in time. Check the worktree and branch before retrying.";
+
+    if (cause.code === Code.Unavailable)
+      return "The worker connection was lost. Check the worktree and branch before retrying.";
+  }
+
+  return undefined;
+}
+
 /** Called only after bus authorization. An omitted option always inherits, even if the scoped default is new. */
 export async function prepareSpawnWorkspace(core: GatewayCore, caller: ThreadRow, args: AgentBusArgs["spawn_thread"]) {
   if (caller.owner_user_id !== core[coreState].options.userId) throw new InvalidError("thread not found");
@@ -51,19 +92,25 @@ export async function prepareSpawnWorkspace(core: GatewayCore, caller: ThreadRow
     mode = scope.effective?.defaultMode ?? ui.WorkspaceMode.CHECKOUT;
   }
 
-  return corePrepareWorkspace(
-    core,
-    create(ui.CreateThreadRequestSchema, {
-      parentThreadId: caller.id,
-      projectId: caller.project_id,
-      workspaceId: caller.workspace_id ?? "",
-      provider: providerOf(caller.provider),
-      workspaceMode: mode,
-      baseRef: args.base_ref ?? "",
-      title: args.title,
-      initialMessage: args.prompt,
-    }),
-  );
+  const request = create(ui.CreateThreadRequestSchema, {
+    parentThreadId: caller.id,
+    projectId: caller.project_id,
+    workspaceId: caller.workspace_id ?? "",
+    provider: providerOf(caller.provider),
+    workspaceMode: mode,
+    baseRef: args.base_ref ?? "",
+    title: args.title,
+    initialMessage: args.prompt,
+  });
+
+  try {
+    return await corePrepareWorkspace(core, request);
+  } catch (cause) {
+    const refusal = mode === ui.WorkspaceMode.NEW_WORKTREE && spawnWorktreeRefusal(cause);
+
+    if (refusal) throw new BusRefusal(refusal);
+    throw cause;
+  }
 }
 
 /** A schedule creates a main thread; its optional source supplies placement only, never provider history. */
