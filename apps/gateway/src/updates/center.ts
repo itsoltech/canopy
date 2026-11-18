@@ -7,6 +7,8 @@ import { pendingUpdate, UPDATE_CONCURRENCY, updateDependencies, updatesConflict 
 import { computerUpdated } from "./computer-completion.ts";
 import { cliStepComplete, cliStepCurrent, stepCli, uncertainCliLaunch } from "./center-cli.ts";
 
+const UPDATE_TIMEOUT_MS = 35 * 60_000;
+
 export interface UpdateCenterOptions {
   read(): Promise<ui.UpdateRun | undefined>;
   write(run: ui.UpdateRun): Promise<void>;
@@ -105,7 +107,7 @@ export class UpdateCenter {
             this.succeed(step);
           else if (launch?.settled && launch.error && !uncertainCliLaunch(step, launch.error)) throw launch.error;
 
-          if (step.state === "running" && Date.now() - Date.parse(step.startedAt) > 35 * 60_000)
+          if (step.state === "running" && Date.now() - Date.parse(step.startedAt) > UPDATE_TIMEOUT_MS)
             throw new Error("Timed out waiting for completion. Retry Update all after checking this item.");
         } catch (cause) {
           this.fail(step, cause);
@@ -145,6 +147,26 @@ export class UpdateCenter {
           continue;
 
         try {
+          if (
+            step.kind === "desktop" &&
+            dependencies.some((item) => item.kind === "gateway" && item.state === "succeeded") &&
+            snapshot.workers.some(
+              (worker) => worker.workerId === step.workerId && worker.desktop?.connected === false,
+            ) &&
+            !remoteStepCurrent(step, snapshot)
+          ) {
+            // The gateway is ready before every desktop control stream has reconnected.
+            step.startedAt ||= new Date().toISOString();
+
+            if (Date.now() - Date.parse(step.startedAt) > UPDATE_TIMEOUT_MS)
+              throw new ConnectError(
+                "Desktop app is offline. Open Canopy on that computer and reconnect.",
+                Code.FailedPrecondition,
+              );
+
+            continue;
+          }
+
           const install = step.kind === "cli" ? stepCli(step, snapshot)?.install : undefined;
           const following = install?.state === "running" && install.targetVersion === step.version;
 
@@ -152,7 +174,7 @@ export class UpdateCenter {
           if (install?.state === "running" && !following && !cliStepCurrent(step, snapshot)) {
             step.startedAt ||= new Date().toISOString();
 
-            if (Date.now() - Date.parse(step.startedAt) > 35 * 60_000)
+            if (Date.now() - Date.parse(step.startedAt) > UPDATE_TIMEOUT_MS)
               throw new Error("Timed out waiting for another CLI installation. Check the worker and retry.");
 
             continue;

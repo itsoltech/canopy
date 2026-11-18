@@ -111,6 +111,90 @@ function fleet(workers = 3, shared = false) {
 }
 
 describe("durable update scheduler with gated fake workers", () => {
+  test("desktop workers launch alongside binary workers after the gateway restarts", async () => {
+    const f = fleet(1);
+    f.snapshot.gatewayInstallKind = "binary";
+    f.snapshot.gatewayVersion = "1.0.0";
+    f.snapshot.availableVersion = "2.0.0";
+    f.snapshot.workers[0]!.version = "1.0.0";
+    f.snapshot.workers.push(
+      ...["laptop", "workstation"].map((workerId) =>
+        create(ui.WorkerUpdateSchema, {
+          workerId,
+          name: workerId,
+          installKind: "desktop",
+          desktop: { connected: true, version: "1.0.0", availableVersion: "2.0.0" },
+        }),
+      ),
+    );
+    const laptop = f.snapshot.workers[1]!.desktop!;
+    const workstation = f.snapshot.workers[2]!.desktop!;
+    const requested: string[] = [];
+    f.center.options.desktop = async (request) => {
+      requested.push(request.workerId);
+
+      return request.workerId;
+    };
+
+    await f.center.begin();
+    expect(f.started).toEqual(["gateway"]);
+    expect(requested).toEqual([]);
+    f.snapshot.gatewayVersion = "2.0.0";
+    workstation.connected = false;
+    await f.center.tick();
+    expect(f.started).toEqual(["gateway", "worker"]);
+    expect(requested).toEqual(["laptop"]);
+    expect(f.run()?.steps.find((step) => step.workerId === "workstation")?.state).toBe("queued");
+
+    workstation.connected = true;
+    await f.center.tick();
+    expect(requested).toEqual(["laptop", "workstation"]);
+    expect(
+      f
+        .run()
+        ?.steps.filter((step) => step.state === "running")
+        .map((step) => step.kind),
+    ).toEqual(["worker", "desktop", "desktop"]);
+
+    f.snapshot.workers[0]!.version = "2.0.0";
+    laptop.version = "2.0.0";
+    workstation.version = "2.0.0";
+    await f.tick();
+
+    for (const id of f.started.slice(2)) f.finish(id);
+    await f.tick();
+    expect(f.run()?.state).toBe("succeeded");
+  });
+
+  test("a desktop waits for its own CLI updates while other workers still install theirs", async () => {
+    const f = fleet(2);
+    const worker = f.snapshot.workers[1]!;
+    worker.installKind = "desktop";
+    worker.desktop = create(ui.DesktopUpdateStateSchema, {
+      connected: true,
+      version: "1.0.0",
+      availableVersion: "2.0.0",
+    });
+    await f.center.begin();
+    f.finish(`worker-1/${Provider.CLAUDE}`);
+    await f.tick();
+    expect(f.run()?.steps.at(-1)?.state).toBe("queued");
+    f.finish(`worker-1/${Provider.CODEX}`);
+    await f.tick();
+    expect(f.run()?.steps.map((step) => step.state)).toEqual([
+      "running",
+      "running",
+      "succeeded",
+      "succeeded",
+      "running",
+    ]);
+    worker.desktop.version = "2.0.0";
+    f.finish(`worker-0/${Provider.CLAUDE}`);
+    f.finish(`worker-0/${Provider.CODEX}`);
+    await f.tick();
+    expect(f.run()?.state).toBe("succeeded");
+  });
+
   test("older workers keep one slot and duplicate tool entries do not launch twice", async () => {
     const f = fleet(1);
     const tools = f.snapshot.cliWorkers[0]!.cliTools;
