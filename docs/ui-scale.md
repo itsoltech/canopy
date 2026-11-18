@@ -1,11 +1,12 @@
 # Skala typografii i gęstości UI
 
-Status (2026-11-17): opis zaimplementowanej skali web/desktop i zwartego arkusza
+Status (2026-11-18): opis zaimplementowanej skali web/desktop i zwartego arkusza
 szczegółów wątku na natywnym mobile, w tym dwuliniowych
 kart sidebara, ich jednoliniowego wariantu w worktree, ikon projektów, wcięć i linii hierarchii
 oraz kompaktowego wariantu przełącznika i adaptacyjnych pickerów modelu, wysiłku i prędkości composera,
 z jednoliniowym menu prędkości i oznaczeniami poziomu przyspieszenia.
 Karta zużycia kontekstu composera używa skali nakładek (15 / 13).
+Przycisk Continue używa skali Steer/Queue i zachowuje etykietę na telefonie.
 Dostępność kanałów: [release.md](release.md).
 
 Jedna skala dla całego web UI. Każdy fragment interfejsu należy do jednego **kontekstu**; kontekst
@@ -57,7 +58,7 @@ Pełne nazwy pozostają w aria-label i podpowiedziach. Poza composerem pickery
 zachowują dotychczasowy wygląd. Poniżej 24 rem szerokości composera odstęp paska
 maleje do 4 px, Steer/Queue pokazuje ikonę i menu, Text składa licznik i limit w dwie
 linie, a Bar skraca pasek. Gdy dodatkowe kontrolki nadal nie mieszczą się obok
-minimalnej pary, pasek zawija wiersz, zachowując miejsce na Send/Steer/Queue.
+minimalnej pary, pasek zawija wiersz, zachowując miejsce na akcję wysyłania.
 
 Picker prędkości pojawia się dla modeli z przyspieszonymi trybami w katalogu konta
 oraz wtedy, gdy zapisany wybór wymaga możliwości powrotu do Standard.
