@@ -168,7 +168,7 @@
             </div>
           {:else}
             <UsageTotals totals={data.totals} view={selectedView} />
-            <UsageChart days={data.days} providers={data.providers} view={selectedView} />
+            <UsageChart days={data.days} providers={data.providers} totals={data.totals} view={selectedView} />
             <UsageBreakdown {data} view={selectedView} />
           {/if}
           <UsageSources computers={data.computers} />

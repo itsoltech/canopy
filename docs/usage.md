@@ -2,7 +2,8 @@
 
 Status (2026-11-18): zaimplementowane agregaty zużycia w gatewayu, raporty
 harnessów, niezależne szacunki ekwiwalentu API OpenAI, wybór kosztu per licznik,
-API `GetUsageStats` i synchronizacja źródeł połączonych komputerów.
+API `GetUsageStats`, synchronizacja źródeł połączonych komputerów i stabilna
+wysokość wykresu dziennego przy zmianie dnia w modalu Usage.
 Dostępność nightly/beta/stable według [release.md](release.md).
 
 ## Co mierzymy
@@ -170,6 +171,9 @@ kalendarzowych UTC, łącznie z dzisiejszym; zero wybiera 30. Zwraca sumę, dni
 (z zerami wewnątrz wybranego okna), podział provider/model oraz źródła i ich
 pokrycie. Każdy dzień zawiera również `providers`: sumy tego samego zestawu
 koszyków osobno dla providera, do wykresu ze stałymi kolorami źródeł inferencji.
+W modalu Usage podsumowanie dnia i legenda rezerwują miejsce na informacje
+o źródłach kosztu. Zmiana dnia kursorem lub klawiaturą zachowuje pozycję wykresu
+i przewinięcie modalu.
 Opcjonalny filtr `requested_service_tier` bez pola wybiera wszystkie tryby,
 a jawne `""` wybiera wyłącznie nieznany tryb. `speeds` zwraca ten sam zestaw
 sum pogrupowany według żądanej szybkości. Filtr działa przed sumowaniem:
