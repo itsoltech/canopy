@@ -59,13 +59,8 @@ export interface ProcessResult {
 
 export class ProcessTimeoutError extends Error {
   constructor(readonly reason: "timeout" | "output" | "aborted") {
-    super(
-      reason === "timeout"
-        ? "The process exceeded its time limit."
-        : reason === "output"
-          ? "The process exceeded its output limit."
-          : "The process was cancelled.",
-    );
+    // Existing callers display this message. Use reason when the caller can report each limit separately.
+    super("The process exceeded its time or output limit.");
   }
 }
 
