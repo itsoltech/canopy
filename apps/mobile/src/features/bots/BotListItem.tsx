@@ -47,33 +47,31 @@ export function BotListItem({ bot }: { bot: bots.Bot }) {
       >
         <BotAvatar bot={bot} size={44} />
         <View style={{ flex: 1, minWidth: 0, gap: 2 }}>
-          <View style={[styles.row, { justifyContent: "space-between" }]}>
+          <View style={[styles.row, { alignItems: "baseline" }]}>
             <Text
               style={[type.title, { fontFamily: font.medium, color: c.text, flex: 1, minWidth: 0 }]}
               numberOfLines={1}
             >
               {bot.configuration?.name}
             </Text>
-            <Text
-              numberOfLines={1}
-              style={[type.caption, { maxWidth: 64, flexShrink: 0, textAlign: "right", color: c.muted }]}
-            >
+            <Text numberOfLines={1} style={[type.caption, { flexShrink: 0, color: c.muted }]}>
               {home.away ? "Read-only" : formatAge(bot.lastMessage?.createdAt)}
             </Text>
           </View>
-          <Text numberOfLines={1} style={[type.meta, { color: c.muted }]}>
-            {bot.lastMessage?.text || "Start a conversation"}
-          </Text>
-        </View>
-        {/* The unread count pops in and swaps as it grows (web `pop`, `swap`). */}
-        <View style={{ width: 28, alignItems: "flex-end" }}>
-          {bot.unreadCount > 0 && (
-            <Animated.View entering={pop.entering} exiting={pop.exiting}>
-              <Swap value={String(bot.unreadCount)}>
-                <Text style={[type.caption, { color: c.accent }]}>{bot.unreadCount}</Text>
-              </Swap>
-            </Animated.View>
-          )}
+          <View style={styles.row}>
+            <Text numberOfLines={1} style={[type.meta, { flex: 1, minWidth: 0, color: c.muted }]}>
+              {bot.lastMessage?.text || "Start a conversation"}
+            </Text>
+            {bot.unreadCount > 0 && (
+              <Animated.View entering={pop.entering} exiting={pop.exiting} style={{ maxWidth: "60%" }}>
+                <Swap value={String(bot.unreadCount)}>
+                  <Text numberOfLines={1} style={[type.caption, { color: c.accent }]}>
+                    {bot.unreadCount}
+                  </Text>
+                </Swap>
+              </Animated.View>
+            )}
+          </View>
         </View>
         <IconButton icon="ellipsis-horizontal" label="Bot actions" onPress={() => setActions(true)} />
       </Pressable>
