@@ -28,6 +28,7 @@ import { SidebarToggle } from "../navigation/SidebarToggle";
 import { FloatingComposer } from "../composer/FloatingComposer";
 import { useFloatingComposer } from "../composer/useFloatingComposer";
 import { useBotMessage } from "./useBotMessage";
+import { useBotRead } from "./useBotRead";
 import { BotComposer } from "./BotComposer";
 import { BotMentionSuggestions } from "./BotMentionSuggestions";
 import { DropZone } from "../attachments/FileIntake";
@@ -86,6 +87,7 @@ function useBotConversation(id: string) {
   const home = useComputerHome(conversation?.bot?.nodeId || splitId(id).node);
   const bot = conversation?.bot ?? known.find((bot) => bot.id === id);
   const live = stream.connection === "live" && !home.away && !bot?.archived;
+  useBotRead(conversation, live && following.atBottom);
   const message = useBotMessage(id, live, following.resumeFollowing, bot?.configuration?.name);
 
   const approvals =
