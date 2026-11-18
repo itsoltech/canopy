@@ -7,8 +7,9 @@
 import { describe, expect, test } from "bun:test";
 import { create } from "@bufbuild/protobuf";
 import { timestampDate } from "@bufbuild/protobuf/wkt";
-import { GitPrContextSchema, type AgentToolResult, type ui } from "@canopy/contracts";
+import { GitPrContextSchema, PermissionMode, type AgentToolResult, type ui } from "@canopy/contracts";
 import type { JsonObject } from "@canopy/domain";
+import { codexMessagePermission, composerChoices } from "@canopy/domain/composer-choices";
 import { dockerAvailable } from "@canopy/db/testing";
 import { Effect } from "effect";
 import { SqlClient } from "effect/sql";
@@ -52,7 +53,11 @@ async function pollUntil(gw: TestGateway, fixture: ReturnType<typeof pollingFixt
 describe.skipIf(!dockerAvailable)("CI check watches (gateway + scripted worker + GitHub fixture)", () => {
   test("a failed run, a followed commit and the passing run that ends the watch", async () => {
     const fixture = pollingFixture();
-    const gw = await startTestGateway({ github: fixture.options });
+
+    const gw = await startTestGateway({
+      github: fixture.options,
+      worker: { hello: { capabilities: ["full_access"] } },
+    });
 
     try {
       const { thread } = await linkedRead(gw, fixture);
@@ -98,6 +103,38 @@ describe.skipIf(!dockerAvailable)("CI check watches (gateway + scripted worker +
         String(json(started)["until"]),
       );
 
+      // Change the Codex default during a manual turn. The CI wakeup must pick it up without another user message.
+      gw.worker.holdTurns = true;
+
+      const { turn } = await gw.api.sendMessage({
+        threadId: thread,
+        text: "check CI",
+        clientRequestId: "before-ci",
+        permissionMode: PermissionMode.READ_ONLY,
+      });
+
+      await eventually(
+        () => turns(gw, thread),
+        (rows) => rows.some((row) => row.id === turn!.id && row.status === "running"),
+      );
+      const before = (await gw.api.getThread({ threadId: thread })).thread!;
+      expect(before.permissionModeSelected).toBe(false);
+      expect(codexMessagePermission(before)).toBe(PermissionMode.READ_ONLY);
+
+      await gw.api.updateThread({ threadId: thread, permissionMode: PermissionMode.FULL_ACCESS });
+      const saved = (await gw.api.getThread({ threadId: thread })).thread!;
+      expect(saved.permissionModeSelected).toBe(true);
+      expect(composerChoices(saved, []).permissionMode).toBe(PermissionMode.FULL_ACCESS);
+      expect(codexMessagePermission(saved)).toBe(PermissionMode.UNSPECIFIED);
+      expect(codexMessagePermission(saved, PermissionMode.READ_ONLY)).toBe(PermissionMode.READ_ONLY);
+      expect(gw.worker.turnModes.get(turn!.id)?.turn).toBe(PermissionMode.READ_ONLY);
+      gw.worker.holdTurns = false;
+      gw.worker.finish(thread, turn!.id);
+      await eventually(
+        () => turns(gw, thread),
+        (rows) => rows.some((row) => row.id === turn!.id && row.status === "completed"),
+      );
+
       // The run fails: one note for the commit (complete names the failed check), as a turn of its own.
       fixture.state.running = false;
       fixture.state.conclusion = "FAILURE";
@@ -105,6 +142,7 @@ describe.skipIf(!dockerAvailable)("CI check watches (gateway + scripted worker +
       await pollUntil(gw, fixture, async () => (await turns(gw, thread)).some((t) => t.trigger === "pr_checks"));
       const [failed] = await noteTurns(gw, thread, 1);
 
+      expect(gw.worker.turnModes.get(failed!.id)?.turn).toBe(PermissionMode.FULL_ACCESS);
       expect(failed?.hops).toBe(100);
       expect(failed?.text).toContain(
         "[canopy] CI checks of pull request itsoltech/canopy#42 (head aaaaaaa): 1 failed.",
@@ -126,6 +164,8 @@ describe.skipIf(!dockerAvailable)("CI check watches (gateway + scripted worker +
       expect((await turns(gw, thread)).filter((t) => t.trigger === "pr_checks")).toHaveLength(1);
 
       // ...and its passing run ends the watch, one hop further.
+      const restricted = await gw.api.updateThread({ threadId: thread, permissionMode: PermissionMode.READ_ONLY });
+      expect(codexMessagePermission(restricted.thread!, PermissionMode.FULL_ACCESS)).toBe(PermissionMode.UNSPECIFIED);
       fixture.state.running = false;
       fixture.state.conclusion = "SUCCESS";
       fixture.state.version++;
@@ -136,6 +176,7 @@ describe.skipIf(!dockerAvailable)("CI check watches (gateway + scripted worker +
       );
       const [, passed] = await noteTurns(gw, thread, 2);
 
+      expect(gw.worker.turnModes.get(passed!.id)?.turn).toBe(PermissionMode.READ_ONLY);
       expect(passed?.text).toContain("(new commit ccccccc): 1 passed.");
       expect(passed?.text).toContain("Every check passed.");
       expect(passed?.text).toContain("This watch is over");

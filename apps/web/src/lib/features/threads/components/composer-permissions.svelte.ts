@@ -1,9 +1,9 @@
 import { PermissionMode, Provider, type ui } from "@canopy/contracts";
-import { composerChoices } from "@canopy/domain/composer-choices";
+import { codexMessagePermission, composerChoices } from "@canopy/domain/composer-choices";
 import type { WebComposerDraft } from "#lib/features/drafts/state.svelte.ts";
 import { HttpError } from "#lib/shared/http.ts";
-import { updateTurnPermissions } from "../api.ts";
-import { fullAutoAvailable, permissionKey, type PermissionModeKey } from "../labels.ts";
+import { updateThread, updateTurnPermissions } from "../api.ts";
+import { fullAutoAvailable, permissionKey, permissionLabel, type PermissionModeKey } from "../labels.ts";
 
 interface Context {
   thread: ui.Thread;
@@ -14,44 +14,135 @@ interface Context {
   onturn: ((turn: ui.Turn) => void) | undefined;
 }
 
-/** One permission choice shared by the editor and its pending-approval tray. */
+/** One permission choice shared by the message, editor and pending-approval tray. */
 export class ComposerPermissionsState {
   busy = $state(false);
   error = $state("");
+  #confirmed = $state.raw<{ source: ui.Thread; updated: ui.Thread }>();
   #previous = $state<PermissionModeKey>();
   constructor(private readonly context: () => Context) {}
 
-  get live() {
+  get #thread() {
+    const { thread } = this.context();
+
+    const confirmed = this.#confirmed;
+
+    if (!confirmed || confirmed.updated.id !== thread.id) return thread;
+
+    // A pre-selection watch frame can arrive after the save reply. It cannot undo the first explicit choice.
+    if (confirmed.updated.permissionModeSelected && !thread.permissionModeSelected) return confirmed.updated;
+
+    return thread === confirmed.source ? confirmed.updated : thread;
+  }
+  get #live() {
     const { thread, worker, running, runningTurn } = this.context();
 
     return Boolean(running && runningTurn?.id && thread.provider === Provider.CLAUDE && worker?.claudeLivePermissions);
   }
-  get nextTurn() {
-    return this.context().running && !this.live;
+  get threadDefault() {
+    const thread = this.#thread;
+
+    return thread.provider === Provider.CODEX ? permissionKey(thread.permissionMode) : undefined;
+  }
+  #changesDefault(next: PermissionModeKey) {
+    return (
+      !this.#thread.permissionModeSelected ||
+      next !== this.threadDefault ||
+      this.context().saved.choices.permissionMode !== undefined
+    );
+  }
+  get confirmFullAccess() {
+    return Boolean(this.threadDefault && this.#changesDefault("FULL_ACCESS"));
+  }
+  get locked() {
+    return this.busy || Boolean(this.threadDefault && this.context().saved.locked);
+  }
+  get messageMode() {
+    const { saved } = this.context();
+    const thread = this.#thread;
+
+    if (thread.provider === Provider.CODEX)
+      return saved.pendingSend?.permissionMode ?? codexMessagePermission(thread, saved.choices.permissionMode);
+
+    return PermissionMode[permissionKey(composerChoices(thread, [], saved.choices).permissionMode)];
+  }
+  get value(): PermissionModeKey {
+    const { runningTurn } = this.context();
+
+    if (this.#previous) return this.#previous;
+
+    if (this.#live && runningTurn) return permissionKey(runningTurn.permissionMode);
+
+    return permissionKey(this.messageMode || this.#thread.permissionMode);
+  }
+  get scope(): "message" | "next" | undefined {
+    const { running, runningTurn } = this.context();
+
+    if (this.threadDefault && this.value !== this.threadDefault) return "message";
+
+    if (running && !this.#live && (!this.threadDefault || runningTurn?.permissionMode !== PermissionMode[this.value]))
+      return "next";
+
+    return undefined;
+  }
+  get explanation() {
+    if (this.threadDefault) {
+      const description =
+        this.scope === "message"
+          ? `The thread uses ${permissionLabel(this.#thread.permissionMode)}. Choose a mode to set it for future turns.`
+          : "New turns in this thread use this mode.";
+
+      return this.context().running
+        ? `${description} Steered messages use the running turn’s permissions.`
+        : description;
+    }
+
+    if (this.#live)
+      return "Applies to this turn and future messages. Full access also allows pending permissions. Other modes keep pending shell approvals.";
+
+    return this.scope === "next"
+      ? "Applies to the next turn. This turn and its pending approvals stay unchanged."
+      : undefined;
   }
   get fullAuto() {
     const { thread, worker } = this.context();
 
     return fullAutoAvailable(thread.provider, worker?.os);
   }
-  get value(): PermissionModeKey {
-    const { thread, runningTurn, saved } = this.context();
+  async #saveDefault(next: PermissionModeKey) {
+    const { thread, saved } = this.context();
+    const draftMode = saved.choices.permissionMode;
+    this.busy = true;
 
-    return (
-      this.#previous ??
-      permissionKey(
-        this.live && runningTurn
-          ? runningTurn.permissionMode
-          : composerChoices(thread, [], saved.choices).permissionMode,
-      )
-    );
+    try {
+      const updated = await updateThread(thread.id, { permissionMode: next });
+
+      if (!updated) throw new Error("Missing thread");
+      this.#confirmed = { source: thread, updated };
+
+      if (draftMode !== undefined && saved.choices.permissionMode === draftMode)
+        saved.choices = { ...saved.choices, permissionMode: undefined };
+    } catch (cause) {
+      this.error =
+        cause instanceof HttpError
+          ? cause.message
+          : "Could not save thread permissions. Check the connection, then retry.";
+    } finally {
+      this.busy = false;
+    }
   }
   async select(next: PermissionModeKey) {
-    if (this.busy) return;
-    const { thread, runningTurn, saved, onturn } = this.context();
+    if (this.locked) return;
+    const { runningTurn, thread, saved, onturn } = this.context();
     this.error = "";
 
-    if (!this.live || !runningTurn) {
+    if (this.threadDefault) {
+      if (this.#changesDefault(next)) await this.#saveDefault(next);
+
+      return;
+    }
+
+    if (!this.#live || !runningTurn) {
       saved.choices = { ...saved.choices, permissionMode: PermissionMode[next] };
 
       return;

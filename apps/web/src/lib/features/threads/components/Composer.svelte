@@ -170,6 +170,8 @@
       bind:saved
       runningTurnId={runningTurn?.id}
       permissions={permissionControl}
+      permissionMode={permissions.messageMode}
+      savingPermissions={Boolean(permissions.threadDefault) && permissions.busy}
       {connection}
       {disabled}
       {note}

@@ -1,6 +1,6 @@
 # Canopy na iOS i Android
 
-Status: opis zaimplementowanego kodu (2026-11-18); nowy wątek od razu pokazuje prompt
+Status: opis zaimplementowanego kodu (2026-11-18); kompozytor uwzględnia zapisane uprawnienia wątku Codexa. Nowy wątek od razu pokazuje prompt
 i checklistę rzeczywistego przygotowania przed startem agenta, we wspólnej geometrii
 nagłówka, osi czasu i kompozytora. Czat bota pozwala wysyłać kolejne wiadomości
 podczas odpowiedzi i ma osobny przycisk zatrzymania. Kompozytory i ustawienia botów
@@ -127,6 +127,9 @@ wyniku, bez automatycznego ponawiania tworzenia worktree. Błędy odczytu mają 
 potwierdzi start bez identyfikatora, klient udostępnia `Open threads`.
 
 ## Szkice i kompozytor
+
+Po jawnym zapisaniu domyślnego trybu uprawnień w istniejącym wątku Codexa
+mobile używa go przy kolejnej wiadomości bez własnego wyboru w szkicu.
 
 Kompozytory wątku, nowego wątku i wątku bocznego pokazują zwarty wybór `Speed`
 obok modelu i wysiłku tylko wtedy, gdy katalog bieżącego modelu i instancji

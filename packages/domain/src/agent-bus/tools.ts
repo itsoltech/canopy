@@ -1,4 +1,5 @@
 import { Result, Schema } from "effect";
+import { SPAWN_PERMISSION_MODES } from "../permission-modes.ts";
 import { QUESTION_TOOLS, questionsProblem } from "./questions.ts";
 import { BACKGROUND_TASK_TOOLS } from "./background-tasks.ts";
 import { PR_CHECK_TOOLS } from "./pr-checks.ts";
@@ -10,6 +11,8 @@ import { RENDER_VISUAL_MAX_ARGUMENTS, renderVisualProblem, renderHtmlProblem, VI
 import { HTML_DOCUMENT_BYTES, htmlBytes } from "../visuals/html-source.ts";
 
 export { RequestSecret } from "./secrets.ts";
+
+export { SPAWN_PERMISSION_MODES, type SpawnPermissionMode } from "../permission-modes.ts";
 
 /**
  * Agent bus tools: how agents delegate work to each other as side threads (docs/agent-bus.md).
@@ -44,11 +47,6 @@ const Notify = Schema.Boolean.annotate({
 });
 
 export const ListAgents = Schema.Struct({});
-
-/** Permission modes a side thread may ask for, narrowest first; never broader than the caller's (authorizeBusCall). */
-export const SPAWN_PERMISSION_MODES = ["read_only", "ask", "accept_edits", "full_auto", "full_access"] as const;
-
-export type SpawnPermissionMode = (typeof SPAWN_PERMISSION_MODES)[number];
 
 export const SpawnThread = Schema.Struct({
   workspace_mode: Schema.optionalKey(

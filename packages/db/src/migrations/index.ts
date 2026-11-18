@@ -7,6 +7,7 @@ import botThreadQuestions from "./0168_bot_thread_questions.sql" with { type: "t
 import threadWorktreePreparation from "./0167_thread_worktree_preparation.sql" with { type: "text" };
 import botChatSteer from "./0169_bot_chat_steer.sql" with { type: "text" };
 import slackAttachments from "./0170_slack_attachments.sql" with { type: "text" };
+import threadPermissionSelection from "./0171_thread_permission_selection.sql" with { type: "text" };
 import botChannels from "./0163_bot_channels.sql" with { type: "text" };
 import init from "./0001_init.sql" with { type: "text" };
 import videoAttachments from "./0135_video_attachments.sql" with { type: "text" };
@@ -354,6 +355,7 @@ export const migrations = Migrator.fromRecord({
   "0168_bot_thread_questions": sqlFile(botThreadQuestions),
   "0169_bot_chat_steer": sqlFile(botChatSteer),
   "0170_slack_attachments": sqlFile(slackAttachments),
+  "0171_thread_permission_selection": sqlFile(threadPermissionSelection),
 });
 
 /** Applies pending migrations in a transaction with a lock, safe to call from a deploy step. */

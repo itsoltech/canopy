@@ -15,7 +15,7 @@
   import { modelOption, type ModelOption } from "#lib/features/models/catalog.ts";
   import { composerChoices } from "@canopy/domain/composer-choices";
   import { providerKeyOf } from "../providers.ts";
-  import { PermissionMode, Provider } from "@canopy/contracts";
+  import { type PermissionMode, Provider } from "@canopy/contracts";
   import { useThreadModels } from "#lib/features/models/model-catalog.svelte.ts";
   import ModelControls from "#lib/features/models/ModelControls.svelte";
   import WorkerHoverCard from "#lib/features/overview/WorkerHoverCard.svelte";
@@ -62,6 +62,8 @@
     thread,
     saved = $bindable(),
     permissions,
+    savingPermissions,
+    permissionMode,
     worker,
     running,
     runningTurnId,
@@ -78,6 +80,8 @@
     thread: ui.Thread;
     saved: WebComposerDraft;
     permissions: Snippet;
+    savingPermissions: boolean;
+    permissionMode: PermissionMode;
     worker: ui.Worker | undefined;
     running: boolean;
     runningTurnId?: string | undefined;
@@ -119,13 +123,12 @@
   const selected = $derived(composerChoices(thread, models, mine));
   const option = $derived(selected.option?.option);
   const effort = $derived(selected.effort || undefined);
-  const mode = $derived(permissionKey(selected.permissionMode));
 
   const override = $derived({
     model: option?.model,
     effort: selected.effort,
     serviceTier: selected.serviceTier,
-    permissionMode: mode,
+    permissionMode,
   });
 
   function pickModel(next: ModelOption | undefined) {
@@ -242,6 +245,7 @@
       sending ||
       directory.replySuggestions?.sending ||
       composer.preparing ||
+      savingPermissions ||
       disabled ||
       !composerAvailable
     )
@@ -278,7 +282,6 @@
           text: continuation ? "Continue" : text,
           clientRequestId: composer.requestId,
           ...sentOverride,
-          permissionMode: PermissionMode[sentOverride.permissionMode],
           delivery: delivery === "steer" ? ui.MessageDelivery.STEER : ui.MessageDelivery.QUEUE,
           attachmentIds,
           mentions: files.wire(sentMentions),
@@ -411,6 +414,7 @@
     disabled={disabled || sending || !composerAvailable || directory.replySuggestions?.sending}
     readonly={saved.locked}
     stopDisabled={disabled}
+    canSend={!savingPermissions}
     {sending}
     {stopping}
     onstop={running ? interrupt : undefined}
@@ -419,7 +423,7 @@
     {primary}
     onalternate={running ? () => void send("steer") : undefined}
     {draft}
-    blockedReason={disabled ? note : undefined}
+    blockedReason={disabled ? note : savingPermissions ? "Saving thread permissions…" : undefined}
     deliveryNotice={outcome}
     elementCount={quotes.length}
     quoteKey={thread.id}
