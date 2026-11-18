@@ -145,6 +145,12 @@ Nie zależą od publicznych endpointów. Test przerywający proces najpierw czek
 potwierdzenie, że testowany proces i jego potomkowie osiągnęli właściwy stan.
 Teardown czeka na zakończenie własnych handlerów i procesów. Kolejka połączeń
 testowego gatewaya przekazuje każde połączenie dokładnie jednemu odbiorcy.
+Testy z celowo zatrzymanym HTTP lub SQL zwalniają bariery i czekają na wszystkie
+rozpoczęte operacje również po nieudanej asercji. Oczekiwanie na gotowość ściga
+się z wynikiem operacji, żeby jej błąd nie pozostawił nierozwiązywalnej bariery.
+Odczyt blokad SQL identyfikuje własną bazę i PID blokującej sesji. Osobne warianty
+scenariusza mają osobne przypadki testowe, a budżet wieloetapowej integracji
+obejmuje jej setup i oczekiwania na zdarzenia.
 
 `check:tmp` tworzy prywatny katalog przed uruchomieniem PostgreSQL i usuwa własny
 kontener oraz katalog także przy błędzie zapisu deskryptora lub startu testów.

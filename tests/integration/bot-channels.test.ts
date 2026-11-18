@@ -514,8 +514,9 @@ describe.skipIf(!dockerAvailable)("durable bot messenger channels", () => {
     await f.dispatch(4000);
     expect(await f.turns()).toHaveLength(0);
   });
-  test("linked Slack revocation fences active tools, steers, recovery, finish and stale outbound sessions", async () => {
-    for (const reason of ["disconnect", "delete", "app", "credentials", "reconnect", "authorization"]) {
+  test.each(["disconnect", "delete", "app", "credentials", "reconnect", "authorization"])(
+    "linked Slack %s fences active tools, steers, recovery, finish and stale outbound sessions",
+    async (reason) => {
       const f = await fixture();
       const connectorId = await linkAccount(f.account.id);
       await f.ingest("pending-reply", "Prepare a pending reply");
@@ -628,8 +629,8 @@ describe.skipIf(!dockerAvailable)("durable bot messenger channels", () => {
       expect(
         await run((s) => s.claimAccount(owner, f.account.id, "new-session", f.at(2 * 86_400_000))),
       ).toBeUndefined();
-    }
-  });
+    },
+  );
 
   test("linked Slack MCP errors allow separate messaging while client mismatches block buffered dispatch", async () => {
     const f = await fixture();

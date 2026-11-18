@@ -185,13 +185,21 @@ describe.skipIf(!dockerAvailable)("durable Slack MCP user refresh", () => {
     hold = release.promise;
     const before = mcp.refreshes;
     const probing = gw.api.testConnector({ accountId: alias });
-    await consumed.promise;
-
-    const refreshing = Promise.all(
-      Array.from({ length: 6 }, () => slackUserCredentials(gw.runtime, gw.userId, alias, false)),
-    );
+    const pending: PromiseLike<object>[] = [probing];
+    void probing.catch(consumed.reject);
 
     try {
+      await Promise.race([
+        consumed.promise,
+        probing.then(() => {
+          throw new Error("Connector test finished before the refresh barrier");
+        }),
+      ]);
+      const callers = Array.from({ length: 6 }, () => slackUserCredentials(gw.runtime, gw.userId, alias, false));
+      pending.push(...callers);
+      const refreshing = Promise.all(callers);
+      pending.push(refreshing);
+      void refreshing.catch(consumed.reject);
       const row = await connector((s) => s.owned(gw.userId, id));
       expect(row.slack_refresh_attempt).toBeTruthy();
 
@@ -203,19 +211,22 @@ describe.skipIf(!dockerAvailable)("durable Slack MCP user refresh", () => {
 
       expect(saved.account?.name).toBe("Renamed while refreshing");
       expect((await connector((s) => s.owned(gw.userId, id))).slack_refresh_attempt).toBeTruthy();
+      release.resolve();
+      const values = await refreshing;
+      expect((await probing).account?.status).toBe("connected");
+      expect(mcp.refreshes).toBe(before + 1);
+      expect(new Set(values.map((result) => digest(result.value.tokens?.refresh_token ?? ""))).size).toBe(1);
+      expect((await connector((s) => s.owned(gw.userId, id))).slack_refresh_attempt).toBeNull();
+      expect((await connector((s) => s.owned(gw.userId, id))).name).toBe("Renamed while refreshing");
+      expect(await messenger((s) => s.routes(gw.userId, f.route.botId))).toEqual([f.route]);
+      expect(await messenger((s) => s.active(gw.userId, f.linked.id))).toBe(true);
+      expect((await gw.api.testConnector({ accountId: alias })).account?.status).toBe("connected");
     } finally {
       release.resolve();
+      await Promise.allSettled(pending);
+      hold = undefined;
+      started = undefined;
     }
-
-    const values = await refreshing;
-    expect((await probing).account?.status).toBe("connected");
-    expect(mcp.refreshes).toBe(before + 1);
-    expect(new Set(values.map((result) => digest(result.value.tokens?.refresh_token ?? ""))).size).toBe(1);
-    expect((await connector((s) => s.owned(gw.userId, id))).slack_refresh_attempt).toBeNull();
-    expect((await connector((s) => s.owned(gw.userId, id))).name).toBe("Renamed while refreshing");
-    expect(await messenger((s) => s.routes(gw.userId, f.route.botId))).toEqual([f.route]);
-    expect(await messenger((s) => s.active(gw.userId, f.linked.id))).toBe(true);
-    expect((await gw.api.testConnector({ accountId: alias })).account?.status).toBe("connected");
   }, 30_000);
 
   test("a consumed refresh with a lost response survives gateway restart without replay", async () => {
@@ -228,37 +239,47 @@ describe.skipIf(!dockerAvailable)("durable Slack MCP user refresh", () => {
     started = consumed.resolve;
     const before = mcp.refreshes;
 
-    const refreshing = slackUserCredentials(gw.runtime, gw.userId, id, false).then(
-      () => "unexpected success",
-      (error: Error) => error.message,
-    );
+    const refreshing = slackUserCredentials(gw.runtime, gw.userId, id, false);
+    void refreshing.catch(consumed.reject);
 
-    await consumed.promise;
-    expect((await connector((s) => s.owned(gw.userId, id))).slack_refresh_attempt).toBeTruthy();
+    try {
+      await Promise.race([
+        consumed.promise,
+        refreshing.then(() => {
+          throw new Error("Refresh finished before the HTTP barrier");
+        }),
+      ]);
+      expect((await connector((s) => s.owned(gw.userId, id))).slack_refresh_attempt).toBeTruthy();
 
-    const storage = {
-      pg: gw.pg,
-      secretsKey: gw.secretsKey,
-      workerId: gw.workerId,
-      workerCredential: gw.workerCredential,
-    };
+      const storage = {
+        pg: gw.pg,
+        secretsKey: gw.secretsKey,
+        workerId: gw.workerId,
+        workerCredential: gw.workerCredential,
+      };
 
-    await gw.close(true);
-    release.resolve();
-    expect(await refreshing).toBe("Connector needs reconnect");
-    gw = await startTestGateway({ storage, messengerTransport: slack.transport });
-    await gw.core.messengers.stop();
-    await query(
-      (sql) =>
-        sql`UPDATE connector_accounts SET slack_refresh_started_at=now()-interval '1 minute' WHERE id=${id}::uuid`,
-    );
-    await expect(slackUserCredentials(gw.runtime, gw.userId, id, false)).rejects.toThrow("Connector needs reconnect");
-    expect(mcp.refreshes).toBe(before + 1);
-    expect(digest((await credentials(id)).tokens?.refresh_token ?? "")).toBe(previous);
-    expect((await connector((s) => s.owned(gw.userId, id))).status).toBe("needs_reconnect");
-    await authorize(id);
-    expect((await connector((s) => s.owned(gw.userId, id))).slack_refresh_attempt).toBeNull();
-    expect((await gw.api.testConnector({ accountId: id })).account?.status).toBe("connected");
+      await gw.close(true);
+      release.resolve();
+      await expect(refreshing).rejects.toThrow("Connector needs reconnect");
+      gw = await startTestGateway({ storage, messengerTransport: slack.transport });
+      await gw.core.messengers.stop();
+      await query(
+        (sql) =>
+          sql`UPDATE connector_accounts SET slack_refresh_started_at=now()-interval '1 minute' WHERE id=${id}::uuid`,
+      );
+      await expect(slackUserCredentials(gw.runtime, gw.userId, id, false)).rejects.toThrow("Connector needs reconnect");
+      expect(mcp.refreshes).toBe(before + 1);
+      expect(digest((await credentials(id)).tokens?.refresh_token ?? "")).toBe(previous);
+      expect((await connector((s) => s.owned(gw.userId, id))).status).toBe("needs_reconnect");
+      await authorize(id);
+      expect((await connector((s) => s.owned(gw.userId, id))).slack_refresh_attempt).toBeNull();
+      expect((await gw.api.testConnector({ accountId: id })).account?.status).toBe("connected");
+    } finally {
+      release.resolve();
+      await Promise.allSettled([refreshing]);
+      hold = undefined;
+      started = undefined;
+    }
   }, 30_000);
 
   test("credential replacement and fresh authorization fence late refresh settlement", async () => {
@@ -269,15 +290,18 @@ describe.skipIf(!dockerAvailable)("durable Slack MCP user refresh", () => {
     hold = release.promise;
     started = consumed.resolve;
 
-    const refreshing = slackUserCredentials(gw.runtime, gw.userId, id, false).then(
-      () => "unexpected success",
-      (error: Error) => error.message,
-    );
+    const refreshing = slackUserCredentials(gw.runtime, gw.userId, id, false);
+    void refreshing.catch(consumed.reject);
 
     let replacement = "";
 
     try {
-      await consumed.promise;
+      await Promise.race([
+        consumed.promise,
+        refreshing.then(() => {
+          throw new Error("Refresh finished before the HTTP barrier");
+        }),
+      ]);
       const row = await connector((s) => s.owned(gw.userId, id));
       await gw.api.saveConnectorAccount({
         id,
@@ -289,9 +313,12 @@ describe.skipIf(!dockerAvailable)("durable Slack MCP user refresh", () => {
       replacement = digest((await credentials(id)).tokens?.refresh_token ?? "");
     } finally {
       release.resolve();
+      await Promise.allSettled([refreshing]);
+      hold = undefined;
+      started = undefined;
     }
 
-    expect(await refreshing).toBe("Connector needs reconnect");
+    await expect(refreshing).rejects.toThrow("Connector needs reconnect");
     expect(digest((await credentials(id)).tokens?.refresh_token ?? "")).toBe(replacement);
     expect((await connector((s) => s.owned(gw.userId, id))).status).toBe("connected");
     expect((await gw.api.testConnector({ accountId: id })).account?.status).toBe("connected");
