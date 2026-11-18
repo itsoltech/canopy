@@ -20,7 +20,7 @@ test.skipIf(!dockerAvailable || process.platform === "win32")(
       join(bin, "docker"),
       `#!/bin/sh
 case "$1" in
-  run)
+  create)
     for path in "$TMPDIR"/canopy-tmpcheck-*; do
       mkdir "$path/.canopy-test-postgres-port" || exit 1
     done
@@ -59,9 +59,10 @@ exec "$CANOPY_TEST_DOCKER" "$@"
       expect(stderr).toContain("EISDIR");
       expect(readdirSync(tmp)).toEqual([]);
 
-      const name = readFileSync(removed, "utf8").trim();
-      expect(name).toStartWith("canopy-test-");
-      expect(Bun.spawnSync(["docker", "inspect", name], { stdout: "ignore", stderr: "ignore" }).exitCode).not.toBe(0);
+      const id = readFileSync(started, "utf8").trim();
+      expect(id).toMatch(/^[0-9a-f]{64}$/);
+      expect(readFileSync(removed, "utf8").trim()).toBe(id);
+      expect(Bun.spawnSync(["docker", "inspect", id], { stdout: "ignore", stderr: "ignore" }).exitCode).not.toBe(0);
     } finally {
       // A regression in the runner must not make this regression test leak its own container.
       const id = existsSync(started) ? readFileSync(started, "utf8").trim() : "";
