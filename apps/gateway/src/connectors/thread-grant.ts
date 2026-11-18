@@ -1,5 +1,5 @@
-import { ui } from "@canopy/contracts";
-import { create, type JsonValue } from "@bufbuild/protobuf";
+import { ConnectorToolSchema, ui } from "@canopy/contracts";
+import { create, fromJson, type JsonValue } from "@bufbuild/protobuf";
 import { Effect } from "effect";
 import type { SqlClient } from "effect/sql";
 import type { ConnectorBase } from "./accounts.ts";
@@ -7,6 +7,8 @@ import { fail } from "./records.ts";
 import { connectorTransaction } from "../config-sync/connector-records.ts";
 import { connectorType } from "./catalog.ts";
 import { connectorSessionState } from "./session-state.ts";
+import { linkedMessengerActive } from "../messengers/linked-account.ts";
+import { connectorToolCatalog } from "./slack-post-tool.ts";
 
 /** Read no credential-bearing columns, including when the account is disconnected. */
 export function threadConnectorList(sql: SqlClient.SqlClient, user: string, worker: string, threadId: string) {
@@ -14,16 +16,21 @@ export function threadConnectorList(sql: SqlClient.SqlClient, user: string, work
     id: string;
     connector_type: string;
     name: string;
+    namespace: string;
     status: string;
     all_workers: boolean;
     revision: string;
     granted: boolean;
+    slack_post: boolean;
     tools: JsonValue[];
   }>`
-    SELECT a.id,a.connector_type,a.name,a.status,a.all_workers,a.revision::text,a.tools,
-      a.all_workers OR EXISTS(SELECT 1 FROM connector_worker_grants g
-        WHERE g.account_id=a.id AND g.worker_id=${worker || null}::uuid) AS granted
-    FROM connector_accounts a WHERE a.owner_user_id=${user}::uuid ORDER BY a.connector_type,a.name,a.id`.pipe(
+    SELECT c.id,c.connector_type,c.name,c.namespace,c.status,c.all_workers,c.revision::text,c.tools,
+      c.all_workers OR EXISTS(SELECT 1 FROM connector_worker_grants g
+        WHERE g.account_id=c.id AND g.worker_id=${worker || null}::uuid) AS granted,
+      c.connector_type='slack' AND EXISTS(SELECT 1 FROM messenger_accounts a
+        WHERE a.connector_account_id=c.id AND a.owner_user_id=c.owner_user_id AND a.enabled AND a.deleted_at IS NULL
+          AND ${linkedMessengerActive(sql)}) AS slack_post
+    FROM connector_accounts c WHERE c.owner_user_id=${user}::uuid ORDER BY c.connector_type,c.name,c.id`.pipe(
     Effect.flatMap((rows) =>
       connectorSessionState(
         sql,
@@ -39,7 +46,15 @@ export function threadConnectorList(sql: SqlClient.SqlClient, user: string, work
             revision: BigInt(row.revision),
           }),
         ),
-        rows.map((row) => row.tools),
+        rows.flatMap((row) =>
+          row.granted && row.status === "connected"
+            ? connectorToolCatalog(
+                row,
+                row.tools.map((tool) => fromJson(ConnectorToolSchema, tool)),
+                row.slack_post,
+              )
+            : [],
+        ),
       ),
     ),
   );

@@ -34,7 +34,10 @@ const BOT_CARDS = `SELECT a.bot_id::text AS id, 'a' || count(*) || '/' || max(a.
 
 const CONNECTOR_REVISION = `SELECT md5(coalesce((SELECT string_agg(concat_ws(':', a.id, a.revision, a.status, a.updated_at, a.error), ',' ORDER BY a.id)
   FROM connector_accounts a WHERE a.owner_user_id = $1::uuid), '') || '#' ||
-  coalesce((SELECT string_agg(o.connector_type, ',' ORDER BY o.connector_type) FROM connector_oauth_apps o WHERE o.owner_user_id = $1::uuid), '')) AS revision`;
+  coalesce((SELECT string_agg(o.connector_type, ',' ORDER BY o.connector_type) FROM connector_oauth_apps o WHERE o.owner_user_id = $1::uuid), '') || '#' ||
+  coalesce((SELECT string_agg(concat_ws(':', m.id, m.revision,
+    m.enabled AND m.status NOT IN ('needs_authorization','needs_reconnect','disconnected')), ',' ORDER BY m.id)
+    FROM messenger_accounts m WHERE m.owner_user_id = $1::uuid AND m.connector_account_id IS NOT NULL AND m.deleted_at IS NULL), '')) AS revision`;
 
 // Include usedBy references and worker names; account read time alone does not change the list.
 const PROXY_REVISION = `SELECT md5(coalesce(string_agg(concat_ws(':', p.id, p.revision, p.updated_at,

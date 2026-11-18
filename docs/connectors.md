@@ -5,6 +5,8 @@ OAuth w gateway, dostęp wybranych workerów i botów oraz jeden kanał wykonani
 Status (2026-11-18): jedno konto Slack w Settings → Connectors współdzieli aplikację
 OAuth dla narzędzi MCP i wiadomości botów przez Socket Mode. Bot settings → Messengers
 wybiera podłączone konto i trasy; gateway odnawia rotowane tokeny użytkownika i bota.
+Po włączeniu wiadomości konto udostępnia też wysyłkę jako Canopy przez Slack Web API.
+Bot może korzystać ze stałej zgody właściciela na wysyłkę do wybranej rozmowy Slack.
 Panel web/desktop jest odświeżany reaktywnie w pamięci BFF
 i dostarczany przez SSE; autoryzacja uwzględnia zmiany uprawnień bieżącej tury Claude.
 Panel natywnego mobile rozróżnia dostęp workera i katalog bieżącej tury:
@@ -239,6 +241,28 @@ tury; gateway ponownie sprawdza bieżącą turę i tryb przed wykonaniem.
 Szczegóły: [protocol.md](protocol.md#modele-effort-i-steer).
 Ponowienie call ID po reconnect nie wykonuje ponownie operacji. Nieznany wynik
 po awarii nie powoduje automatycznego powtórzenia zapisu.
+
+### Bezpośrednia wysyłka w Slacku
+
+Po włączeniu wiadomości na koncie Slack w Settings → Connectors gateway
+udostępnia narzędzie `canopy_post_slack` botom i workerom z grantem tego konta.
+Aplikacja musi mieć dostęp do rozmowy w Slacku. Używa istniejącego bot scope
+`chat:write`. Trasa nasłuchiwania nie jest potrzebna do wysyłki.
+Gateway wywołuje `chat.postMessage` jako aplikacja Canopy z użyciem tokenu bota.
+Wiadomość jest zwykłym tekstem, do 4000 znaków. Identyfikator rozmowy wskazuje
+miejsce wysyłki, a opcjonalne `reply_to` pozwala odpowiedzieć w istniejącym wątku.
+Link do wysłanej wiadomości pojawia się po potwierdzeniu przez Slacka.
+Narzędzia Slack MCP do szkiców i wysyłki jako użytkownik zachowują własny proces
+przeglądu treści.
+
+W prywatnej rozmowie bota właściciel może zatwierdzić jedną wiadomość lub wybrać
+**Always allow** dla tego konta i rozmowy Slack. Reguła obejmuje kolejne posty i
+odpowiedzi w tej rozmowie, także po zakończeniu pracy zleconej agentowi. Pierwsza
+wysyłka wymaga tej decyzji również w trybie Full auto. Regułę można usunąć w
+**Allowed actions**. Narzędzie nie jest dostępne w turach botów z komunikatorów,
+wymianach między botami ani rutynach. Zwykłe wątki agentów stosują swój tryb
+uprawnień do zapisu w connectorze. Reguła rozmowy prywatnej bota nie przechodzi na
+wątki agentów. Odebranie grantu albo odłączenie wiadomości blokuje nowe wysyłki.
 
 ## Katalog dostawców
 

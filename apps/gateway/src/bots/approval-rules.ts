@@ -3,6 +3,7 @@ import { bots } from "@canopy/contracts";
 import type { JsonObject } from "@canopy/domain";
 import { Predicate } from "effect";
 import type { ToolSpec } from "./types.ts";
+import { SLACK_POST_ACTION, slackPostChannel } from "../connectors/slack-post-tool.ts";
 
 /** Explicit owner decisions only. These tools cannot be covered by a standing rule or full auto. */
 export const ALWAYS_ASK_TOOLS = new Set([
@@ -65,6 +66,14 @@ export function ruleOptions(tool: ToolSpec, args: JsonObject, phrase: string): b
 
   if (tool.source === "mcp" && tool.serverId && tool.remoteName) {
     const account = tool.serverName || "this connected account";
+
+    if (tool.remoteName === SLACK_POST_ACTION) {
+      const channel = slackPostChannel(args);
+
+      return channel
+        ? [choice("slack_post", `posting as Canopy in ${account} (${channel})`, tool.serverId, channel)]
+        : [];
+    }
 
     return [
       choice("connector", account, tool.serverId),
