@@ -1,5 +1,17 @@
 import { hasEffectiveCost, metricNumber, type UsageDay, type UsageRow, type UsageView } from "./format.ts";
 
+// Two intervals on the cost axis need at least one cent each for distinct labels.
+const minimumCostRange = 0.02;
+
+const costAxis = new Intl.NumberFormat(undefined, {
+  style: "currency",
+  currency: "USD",
+  currencyDisplay: "narrowSymbol",
+  notation: "compact",
+  minimumFractionDigits: 0,
+  maximumFractionDigits: 2,
+});
+
 export interface UsagePoint {
   x: number;
   y: number;
@@ -95,7 +107,8 @@ export function plotUsage(days: UsageDay[], providers: UsageRow[], view: UsageVi
     values: days.map((day) => value(day, provider.key, view)),
   }));
 
-  const maximum = ceiling(Math.max(0, ...values.flatMap((series) => series.values.map((value) => value ?? 0))));
+  const peak = Math.max(0, ...values.flatMap((series) => series.values.map((value) => value ?? 0)));
+  const maximum = view === "cost" ? Math.max(minimumCostRange, ceiling(peak)) : ceiling(peak);
 
   return {
     maximum,
@@ -110,10 +123,11 @@ export function plotUsage(days: UsageDay[], providers: UsageRow[], view: UsageVi
 }
 
 export function axisLabel(value: number, view: UsageView): string {
+  if (view === "cost") return costAxis.format(value);
+
   return new Intl.NumberFormat(undefined, {
     notation: value > 0 && value < 0.001 ? "scientific" : "compact",
     maximumSignificantDigits: 2,
     minimumFractionDigits: 0,
-    ...(view === "cost" && { style: "currency", currency: "USD" }),
   }).format(value);
 }

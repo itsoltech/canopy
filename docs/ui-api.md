@@ -10,7 +10,7 @@ Settings → Connectors zarządza wspólnym kontem Slack i zgodą na wiadomości
 a Bot settings → Messengers wybiera konto i trasy przez owner-scoped RPC i BFF; instrukcje tras określają
 trwałe zachowanie dla źródła, a rozmowy korzystają z narzędzi przyznanych botowi;
 web/desktop ma osobny modal Usage z kosztami raportowanymi przez providerów
-i estymowaną równowartością API według cen OpenAI,
+i estymowaną równowartością API według cen OpenAI, wyświetlanymi z dokładnością do centa,
 tokenami, filtrami czasu, providera, komputera i żądanej szybkości oraz zakresem rejestrowania;
 nowy wątek web/desktop i natywnego mobile od razu pokazuje prompt i rzeczywisty postęp przygotowania worktree;
 web/desktop zachowuje geometrię osi czasu i kotwicę wiadomości przy przejściu z przygotowania do wątku;
@@ -271,9 +271,13 @@ Kontrolki zachowują gęstość Settings, a pickery korzystają ze zwartej skali
 `features/usage` udostępnia widoki Cost i Tokens, okres Today / 7 / 30 / 90 days,
 filtry providera, komputera i Requested speed, wykres dzienny oraz zestawienie
 według providera, modelu, żądanej prędkości albo dnia. Okres obejmuje dni kalendarzowe UTC łącznie z bieżącym dniem;
-Today nie oznacza ruchomych 24 godzin. Dni na wykresie pokazują dokładną wartość
+Today nie oznacza ruchomych 24 godzin. Dni na wykresie pokazują wartość
 po wskazaniu, dotknięciu lub fokusie; klawiatura używa strzałek, Home i End.
 Zestawienie dzienne udostępnia te same wartości w tabeli.
+Kwoty USD są wyświetlane z dwoma miejscami po separatorze dziesiętnym.
+Obliczenia i położenie punktów na wykresie korzystają z niezaokrąglonych kwot.
+Podziałka osi kosztu pokazuje najwyżej dwa miejsca po separatorze, a odstęp między
+jej znacznikami wynosi co najmniej cent.
 
 Wykres liniowy pokazuje osobne serie providerów ze wspólną skalą pionową,
 cienkimi, wygładzonymi liniami i delikatnym wypełnieniem. Krzywe przechodzą
