@@ -1,6 +1,7 @@
 # Aktualizacje Canopy
 
-Status: opis zaimplementowanego kodu (2026-11-18), w tym niezależnych akcji CLI i korelacji prób w Update all,
+Status: opis zaimplementowanego kodu (2026-11-18), w tym ponawiania raportu o błędzie workera,
+niezależnych akcji CLI i korelacji prób w Update all,
 aktualizacji CLI przez mise, pomijania cache metadanych
 przy ręcznym sprawdzaniu aktualizacji, wykrywania pojedynczego procesu przez
 instalator Windows i retencji dyskowego mirrora workerów gatewaya.
@@ -844,6 +845,9 @@ executable ani jego `.bak`, `.next` lub rekordu aktualizacji obok binarki.
    odracza aktualizację, odblokowuje pracę i wymaga ponowienia. Tylko jawne `force`
    w administracyjnym `ManageUpdates` może przerwać aktywną pracę. Po błędzie
    worker odtwarza niepotwierdzone polecenia przez ponowne połączenie WorkerLink.
+   Jeśli gateway był niedostępny podczas wysyłania raportu o błędzie aktualizacji,
+   worker ponawia sam raport na kanale aktualizacji, z identyfikatorem tej samej próby.
+   Użytkownik może potem ponowić aktualizację z centrum aktualizacji.
 5. Zweryfikowane bajty trafiają do pliku `.next` obok executable (ten sam system
    plików), są synchronizowane, otrzymują prawa wykonania, poprzedni plik zostaje
    jako `.bak`, a atomowy rename podmienia executable. Manifest, rozmiar i SHA

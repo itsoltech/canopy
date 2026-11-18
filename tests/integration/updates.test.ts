@@ -617,6 +617,57 @@ describe("independent update service and gateway mirror", () => {
     expect(restarted).toBe(false);
     expect(draining).toBe(false);
   });
+  test("worker resends a lost failure report without repeating the update", async () => {
+    const f = await fixture();
+    const binaryPath = join(f.dir, "worker");
+    await writeFile(binaryPath, '#!/bin/sh\nprintf "1.0.0\\n"\n', { mode: 0o700 });
+    const manifest = structuredClone(f.manifest);
+    manifest.assets[0]!.sha256 = "0".repeat(64);
+
+    const command = create(update.UpdateCommandSchema, {
+      id: "interrupted-update",
+      version: "2.0.0",
+      manifestJson: JSON.stringify(manifest),
+      preferGatewayMirror: true,
+    });
+
+    let failureReports = 0;
+    const delivered = Promise.withResolvers<update.ReportRequest>();
+    const report = f.service.options.report;
+    f.service.options.command = async () => command;
+    f.service.options.report = async (id, request) => {
+      if (request.state === "failed" && ++failureReports === 1)
+        throw new ConnectError("Gateway is restarting", Code.Unavailable);
+      await report(id, request);
+
+      if (request.state === "failed") delivered.resolve(request);
+    };
+
+    const abort = new AbortController();
+
+    const worker = new WorkerUpdates({
+      baseUrl: f.server.url,
+      credential: "credential",
+      workerId: "worker",
+      kind: "binary",
+      version: "1.0.0",
+      binaryPath,
+      signal: abort.signal,
+      idle: () => true,
+      drain: () => {},
+      restart: async () => {},
+    });
+
+    const run = worker.run();
+    cleanups.push(async () => {
+      abort.abort();
+      await run;
+    });
+
+    await expect(delivered.promise).resolves.toMatchObject({ commandId: command.id, state: "failed" });
+    expect(failureReports).toBe(2);
+    expect(f.reports.map((item) => item.state)).toEqual(["downloading", "failed"]);
+  });
   test("a restarted gateway replaces an obsolete queued version through the independent channel", async () => {
     const f = await fixture();
     let queued = create(update.UpdateCommandSchema, { id: "obsolete", version: "1.5.0" });
