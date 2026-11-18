@@ -8,6 +8,7 @@ Zaległe sprzątanie rezerwacji nie blokuje restartu ani raportu aktualizacji wo
 Katalog Device Preview jest ograniczony do urządzenia sesji lub wolnych,
 uruchomionych celów przed rezerwacją; przejściowe pliki klatek używają prywatnego
 katalogu cache workera zamiast współdzielonego katalogu tymczasowego.
+Desktop Preview zachowuje katalog okien, gdy narzędzie zgłosi nieprawidłową geometrię okna.
 Web/desktop potwierdza klatki po narysowaniu obrazu; odświeżanie metadanych celu
 i naprawa kursora historii zachowują działający podgląd.
 Osobna zakładka Settings → Agent tools grupuje dostęp i instalacje według narzędzia;
@@ -413,8 +414,11 @@ Bez działającej przeglądarki sesji podgląd czeka na agenta; użytkownik moż
 uruchomić jawną nawigacją przez pole adresu interaktywnego panelu. Ta nawigacja
 oraz jednorazowe `RunAgentTool.open` także uruchamiają Browser headless.
 
-Sterowanie wskaźnikiem Desktop wymaga globalnych współrzędnych wybranego okna.
-Backend zgłasza brak geometrii zamiast wykonywać kliknięcie w innym miejscu.
+Desktop Preview traktuje nieprawidłową geometrię z `list-windows`, w tym zerową
+szerokość lub wysokość, jako brak współrzędnych danego okna. Zrzuty nadal są
+pobierane dla wybranego okna według jego identyfikatora, a wymiary obrazu logicznego
+mogą pochodzić z metadanych zrzutu. Sterowanie wskaźnikiem wymaga prawidłowych
+globalnych współrzędnych okna. Jeśli ich brakuje, backend zwraca błąd operacji.
 
 Android obsługuje także niemodyfikowane Backspace, Delete (usuwanie do przodu),
 Tab, strzałki, End i PageUp/PageDown przez stałą listę kodów już zainstalowanego ADB,
