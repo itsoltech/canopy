@@ -14,6 +14,8 @@ export const GET: RequestHandler = async ({ url }) => {
       days,
       provider: url.searchParams.get("provider") ?? "",
       computerId: url.searchParams.get("computerId") ?? "",
+      activityKind: url.searchParams.get("activityKind") ?? "",
+      botId: url.searchParams.get("botId") ?? "",
       ...(url.searchParams.has("requestedServiceTier") && {
         requestedServiceTier: url.searchParams.get("requestedServiceTier") ?? "",
       }),

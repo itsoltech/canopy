@@ -10,12 +10,14 @@
   import UsageTotals from "./UsageTotals.svelte";
   import UsageChart from "./UsageChart.svelte";
   import UsageBreakdown from "./UsageBreakdown.svelte";
+  import UsageActivityBreakdown from "./UsageActivityBreakdown.svelte";
   import UsageSources from "./UsageSources.svelte";
   import UsageProviderMark from "./UsageProviderMark.svelte";
   import SpeedIcon from "#lib/features/models/SpeedIcon.svelte";
   import Icon from "#lib/shared/ui/Icon.svelte";
   import { loadUsage } from "./api.ts";
-  import type { UsageData, UsageView } from "./format.ts";
+  import { usageActivities, type UsageData, type UsageView } from "./format.ts";
+  import type { SelectOption } from "#lib/shared/ui/listbox.ts";
   import "#lib/features/settings/density.css";
 
   let { open = $bindable(false) }: { open?: boolean } = $props();
@@ -24,13 +26,20 @@
   let provider = $state("");
   let computerId = $state("");
   let speed = $state("");
+  let activity = $state("");
   let revision = $state(0);
   let data = $state.raw<UsageData>();
   let computers = $state<UsageData["computers"]>([]);
   let speeds = $state<UsageData["speeds"]>([]);
+  let supportsActivityBreakdown = $state(false);
+  let availableBots = $state.raw<{ scope: string; options: SelectOption[] }>();
+  let selectedBot = $state.raw<SelectOption>();
   let loading = $state(false);
   let failed = $state(false);
   const selectedView = $derived<UsageView>(view === "tokens" ? "tokens" : "cost");
+  const botId = $derived(activity.startsWith("bot:") ? activity.slice(4) : "");
+  const activityKind = $derived(botId ? "bot" : activity);
+  const botScope = $derived(JSON.stringify([days, provider, computerId, speed]));
 
   const computerOptions = $derived([
     { value: "", label: "All computers" },
@@ -42,29 +51,69 @@
     ...speeds.map((row) => ({ value: `tier:${row.key}`, label: row.label })),
   ]);
 
+  const activityOptions = $derived.by(() => {
+    const bots = availableBots?.scope === botScope ? availableBots.options : [];
+    const options = [{ value: "", label: "All activity" }, ...usageActivities, ...bots];
+
+    if (selectedBot && !bots.some((option) => option.value === selectedBot?.value)) options.push(selectedBot);
+
+    return options;
+  });
+
+  function selectActivity(value: string) {
+    selectedBot = value.startsWith("bot:") ? activityOptions.find((option) => option.value === value) : undefined;
+    activity = value;
+  }
+
   $effect(() => {
     if (!open) return;
     const controller = new AbortController();
     const selectedComputer = computerId;
     const selectedSpeed = speed;
+    const selectedActivity = activityKind;
+    const selectedBotId = botId;
+    const scope = botScope;
     void revision;
     data = undefined;
     loading = true;
     failed = false;
     void loadUsage(
-      days,
-      provider,
-      selectedComputer,
-      selectedSpeed ? selectedSpeed.slice(5) : undefined,
+      {
+        days,
+        provider,
+        computerId: selectedComputer,
+        requestedServiceTier: selectedSpeed ? selectedSpeed.slice(5) : undefined,
+        activityKind: selectedActivity,
+        botId: selectedBotId,
+      },
       controller.signal,
     )
       .then((result) => {
         if (controller.signal.aborted) return;
         data = result;
+        supportsActivityBreakdown = result.supportsActivityBreakdown;
 
         if (!selectedComputer) computers = result.computers;
 
         if (!selectedSpeed) speeds = result.speeds;
+
+        if (!result.supportsActivityBreakdown) {
+          availableBots = undefined;
+          selectActivity("");
+        } else if (!selectedBotId && (!selectedActivity || selectedActivity === "bot")) {
+          availableBots = {
+            scope,
+            options: result.bots
+              .toSorted((a, b) => a.label.localeCompare(b.label))
+              .map((bot) => ({
+                value: `bot:${bot.key}`,
+                label: bot.label,
+                description: bot.detail,
+                tooltip: bot.detail ? `${bot.label} · ${bot.detail}` : bot.label,
+                group: "Individual bots",
+              })),
+          };
+        }
       })
       .catch(() => {
         if (!controller.signal.aborted) failed = true;
@@ -109,7 +158,12 @@
             ]}
           />
         </div>
-        <div class="grid min-w-0 grid-cols-1 gap-3 min-[360px]:grid-cols-2 sm:grid-cols-3">
+        <div
+          class={[
+            "grid min-w-0 grid-cols-1 gap-3 min-[360px]:grid-cols-2",
+            supportsActivityBreakdown ? "sm:grid-cols-4" : "sm:grid-cols-3",
+          ]}
+        >
           <Field label="Provider">
             <Select
               bind:value={provider}
@@ -125,10 +179,12 @@
               {/snippet}
             </Select>
           </Field>
-          <Field label="Computer"><Select bind:value={computerId} options={computerOptions} /></Field>
-          <div class="min-[360px]:col-span-2 sm:col-span-1">
-            <Field label="Requested speed">
-              <Select bind:value={speed} options={speedOptions}>
+          <Field label="Computer" class="min-w-0">
+            <Select bind:value={computerId} options={computerOptions} class="min-w-0" />
+          </Field>
+          <div class={["min-w-0", !supportsActivityBreakdown && "min-[360px]:col-span-2 sm:col-span-1"]}>
+            <Field label="Requested speed" class="min-w-0">
+              <Select bind:value={speed} options={speedOptions} class="min-w-0">
                 {#snippet leading(option)}
                   {#if option.value.slice(5)}
                     <SpeedIcon tier={option.value.slice(5)} />
@@ -139,6 +195,17 @@
               </Select>
             </Field>
           </div>
+          {#if supportsActivityBreakdown}
+            <Field label="Activity" class="min-w-0">
+              <Select
+                value={activity}
+                options={activityOptions}
+                onchange={selectActivity}
+                aria-label="Activity"
+                class="min-w-0"
+              />
+            </Field>
+          {/if}
         </div>
         <p class="-mt-3 text-xs/5 text-zinc-500 dark:text-zinc-400">
           Requested speed may differ from the speed served by the provider.
@@ -159,6 +226,12 @@
           {#if data.computers.some((computer) => computer.status !== "ready" && (!computerId || computer.id === computerId))}
             <Alert tone="info">Some computers have incomplete usage. Open Recording coverage for details.</Alert>
           {/if}
+          {#if data.supportsActivityBreakdown && data.hasUnattributedUsage}
+            <Alert tone="info">
+              Canopy can’t identify the activity for some recorded usage.
+              {#if activityKind && activityKind !== "unattributed"}Choose Unattributed to view it.{/if}
+            </Alert>
+          {/if}
           {#if data.totals.reports === 0n}
             <div class="py-12 text-center">
               <h3 class="text-base/6 font-medium sm:text-sm/6">No usage recorded</h3>
@@ -168,6 +241,9 @@
             </div>
           {:else}
             <UsageTotals totals={data.totals} view={selectedView} />
+            {#if data.supportsActivityBreakdown && !activityKind}
+              <UsageActivityBreakdown rows={data.activities} view={selectedView} />
+            {/if}
             <UsageChart days={data.days} providers={data.providers} totals={data.totals} view={selectedView} />
             <UsageBreakdown {data} view={selectedView} />
           {/if}

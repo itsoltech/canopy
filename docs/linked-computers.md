@@ -1,7 +1,8 @@
 # Połączone komputery
 
 Status: opis zaimplementowanej synchronizacji (2026-11-18), w tym przyrostowej
-synchronizacji agregatów użycia z żądaną szybkością wykonania przez bezpośrednie
+synchronizacji agregatów użycia z żądaną szybkością wykonania i podziałem
+według aktywności i botów przez bezpośrednie
 łącza, odwołania zaufania w trakcie handshake, zachowania lokalnych kanałów Slack botów i nadawców historycznych
 steerów przy stronicowaniu lokalnym i offline oraz wspólnego
 limitu 256 kroków automatycznej rozmowy i domyślnego
@@ -45,6 +46,11 @@ providera ma pierwszeństwo przed pełnym szacunkiem tego samego licznika.
 Odbiorca nie wycenia tokenów ponownie własnym cennikiem. Starszy snapshot bez
 nowych pól zachowuje zgłoszone kwoty; brak estymacji pozostaje nieznany.
 Starszy odbiorca pomija addytywne pola i nadal pokazuje dotychczasowy koszt zgłoszony.
+Ten sam koszyk godziny, dostawcy, modelu i szybkości zawiera teraz podział według
+aktywności oraz identyfikatory i nazwy botów. Suma koszyka pozostaje dostępna
+dla starszych odbiorców. Nowszy odbiorca czyta starszy koszyk jako nieprzypisany.
+Przy aktualizacji odbiorca ponownie pobiera snapshoty, zachowując zapisane sumy
+do czasu synchronizacji, także gdy partner jest offline.
 Archiwizacja, usunięcie albo przeniesienie wątku nie usuwa wcześniejszych agregatów.
 Dalsza aktywność po przeniesieniu należy do gatewaya, który ją rozlicza; odtworzenie
 historii nie stanowi nowego użycia.

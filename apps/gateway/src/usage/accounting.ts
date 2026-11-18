@@ -6,6 +6,7 @@ import type { SqlClient } from "effect/sql";
 import { counterDelta, usageTotals, COUNT_FIELDS, COST_FIELDS, TOKEN_FIELDS } from "./totals.ts";
 import { freezeRequestedTier, validRequestedTier } from "./speed.ts";
 import { lockUsageOwner, incrementBucket } from "./storage.ts";
+import type { UsageActivity } from "./activity.ts";
 
 export interface UsageIdentity {
   owner: string;
@@ -14,6 +15,7 @@ export interface UsageIdentity {
   provider: string;
   model: string;
   requestedServiceTier?: string;
+  activity: UsageActivity;
   threadId?: string;
   botId?: string;
 }
@@ -62,7 +64,7 @@ export function recordUsage(sql: SqlClient.SqlClient, identity: UsageIdentity, u
     const hour = old?.first_bucket ?? new Date(Math.floor(observedAt.getTime() / 3_600_000) * 3_600_000);
     // A turn/model stays in its first observed hour, including delayed corrections. Subset counters
     // therefore remain subsets of the same bucket even when fields arrive at different times.
-    yield* incrementBucket(sql, owner, hour, provider, model, requestedTier, delta);
+    yield* incrementBucket(sql, owner, hour, provider, model, requestedTier, identity.activity, delta);
     yield* sql`INSERT INTO usage_counters(owner_user_id,subject_id,thread_id,bot_id,thread_turn_id,bot_turn_id,provider,model,requested_service_tier,counter_id,first_bucket,totals,pricing_version)
       VALUES(${owner}::uuid,${subject},${identity.threadId ?? null}::uuid,${identity.botId ?? null}::uuid,
         ${identity.threadId ? counter : null}::uuid,${identity.botId ? counter : null}::uuid,${provider},${model},${requestedTier},${counter},${hour},${JSON.stringify(toJson(ui.UsageTotalsSchema, next))}::jsonb,${pricingVersion})
@@ -97,6 +99,7 @@ export function accountThreadUsage(sql: SqlClient.SqlClient, threadId: string, e
         provider: row.provider,
         model: row.model,
         requestedServiceTier: row.service_tier,
+        activity: { key: "thread" },
         threadId,
       },
       usage,
@@ -111,8 +114,8 @@ export function accountBotUsage(sql: SqlClient.SqlClient, botId: string, event: 
 
     if (!usage || usage.scope !== UsageScope.TURN || !event.turnId) return;
 
-    const row = (yield* sql<{ owner_user_id: string; payload: Uint8Array }>`
-      SELECT b.owner_user_id,c.payload
+    const row = (yield* sql<{ owner_user_id: string; payload: Uint8Array; name: string }>`
+      SELECT b.owner_user_id,c.payload,left(coalesce(b.configuration->>'name',''),80) AS name
       FROM bots b JOIN bot_harness_turns h ON h.bot_id=b.id JOIN worker_commands c ON c.id=h.command_id
       WHERE b.id=${botId}::uuid AND h.turn_id=${event.turnId}::uuid`)[0];
 
@@ -134,6 +137,7 @@ export function accountBotUsage(sql: SqlClient.SqlClient, botId: string, event: 
         provider,
         model: input.model,
         requestedServiceTier: input.serviceTier,
+        activity: { key: `bot:${botId.toLowerCase()}`, botName: row.name },
         botId,
       },
       usage,

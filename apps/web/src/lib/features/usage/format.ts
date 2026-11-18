@@ -33,6 +33,8 @@ export interface UsageData {
   providers: UsageRow[];
   models: UsageRow[];
   speeds: UsageRow[];
+  activities: UsageRow[];
+  bots: UsageRow[];
   days: UsageDay[];
   computers: {
     id: string;
@@ -43,7 +45,20 @@ export interface UsageData {
     updatedAt: string;
   }[];
   partial: boolean;
+  supportsActivityBreakdown: boolean;
+  hasUnattributedUsage: boolean;
 }
+
+export const usageActivities = [
+  { value: "thread", label: "Threads" },
+  { value: "bot", label: "Bots" },
+  {
+    value: "generation",
+    label: "Other generation",
+    description: "Text Canopy generates for features such as thread titles.",
+  },
+  { value: "unattributed", label: "Unattributed" },
+];
 
 const numbers = new Intl.NumberFormat(undefined);
 const compact = new Intl.NumberFormat(undefined, { notation: "compact", maximumFractionDigits: 1 });

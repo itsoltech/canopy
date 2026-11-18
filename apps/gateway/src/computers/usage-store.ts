@@ -82,7 +82,9 @@ export async function saveUsagePage(
                 AS b(bucket_start timestamptz,provider text,model text,requested_service_tier text,payload jsonb,revision bigint)
               ON CONFLICT(owner_user_id,node_id,bucket_start,provider,model,requested_service_tier)
               DO UPDATE SET payload=excluded.payload,revision=excluded.revision
-              WHERE remote_usage_buckets.revision < excluded.revision`;
+              WHERE remote_usage_buckets.revision < excluded.revision
+                 OR (remote_usage_buckets.revision = excluded.revision
+                     AND NOT remote_usage_buckets.payload ? 'activities' AND excluded.payload ? 'activities')`;
           yield* sql`UPDATE remote_usage_state SET cursor=${String(response.nextRevision)}::bigint,
             tracking_since=${since.toISOString()}::timestamptz,updated_at=now(),has_more=${response.hasMore}
             WHERE owner_user_id=${owner}::uuid AND node_id=${node}`;

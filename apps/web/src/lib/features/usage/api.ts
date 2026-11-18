@@ -2,7 +2,15 @@ import { ui } from "@canopy/contracts";
 import { timestampDate, type Timestamp } from "@bufbuild/protobuf/wkt";
 import { decode } from "#lib/shared/wire.ts";
 import { requestJson } from "#lib/shared/http.ts";
-import { dayLabel, providerName, speedName, type UsageAmounts, type UsageData } from "./format.ts";
+import {
+  dayLabel,
+  providerName,
+  speedName,
+  usageActivities,
+  type UsageAmounts,
+  type UsageData,
+  type UsageRow,
+} from "./format.ts";
 
 function amounts(totals: ui.UsageTotals | undefined): UsageAmounts {
   return {
@@ -25,16 +33,41 @@ function amounts(totals: ui.UsageTotals | undefined): UsageAmounts {
 
 const iso = (timestamp: Timestamp | undefined) => (timestamp ? timestampDate(timestamp).toISOString() : "");
 
-export async function loadUsage(
-  days: string,
-  provider: string,
-  computerId: string,
-  requestedServiceTier: string | undefined,
-  signal: AbortSignal,
-): Promise<UsageData> {
+function botRows(bots: ui.UsageBotBreakdown[]): UsageRow[] {
+  const unnamed = "Unnamed bot";
+  const names = new Map<string, number>();
+
+  for (const bot of bots) {
+    const label = bot.name || unnamed;
+    names.set(label, (names.get(label) ?? 0) + 1);
+  }
+
+  return bots.map(({ botId, name, totals }) => ({
+    key: botId,
+    label: name || unnamed,
+    ...((!name || (names.get(name) ?? 0) > 1) && { detail: botId }),
+    amounts: amounts(totals),
+  }));
+}
+
+interface UsageFilters {
+  days: string;
+  provider: string;
+  computerId: string;
+  requestedServiceTier: string | undefined;
+  activityKind: string;
+  botId: string;
+}
+
+export async function loadUsage(filters: UsageFilters, signal: AbortSignal): Promise<UsageData> {
+  const { days, provider, computerId, requestedServiceTier, activityKind, botId } = filters;
   const query = new URLSearchParams({ days, provider, computerId });
 
   if (requestedServiceTier !== undefined) query.set("requestedServiceTier", requestedServiceTier);
+
+  if (activityKind) query.set("activityKind", activityKind);
+
+  if (botId) query.set("botId", botId);
 
   const response = decode(
     ui.GetUsageStatsResponseSchema,
@@ -58,6 +91,12 @@ export async function loadUsage(
       label: speedName(row.key),
       amounts: amounts(row.totals),
     })),
+    activities: response.activities.map((row) => ({
+      key: row.key,
+      label: usageActivities.find((activity) => activity.value === row.key)?.label ?? row.key,
+      amounts: amounts(row.totals),
+    })),
+    bots: botRows(response.bots),
     days: response.days
       .filter((row) => row.day)
       .map((row) => {
@@ -84,5 +123,7 @@ export async function loadUsage(
       updatedAt: iso(source.updatedAt),
     })),
     partial: response.partial,
+    supportsActivityBreakdown: response.supportsActivityBreakdown,
+    hasUnattributedUsage: response.hasUnattributedUsage,
   };
 }
