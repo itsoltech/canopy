@@ -19,6 +19,7 @@
   import SidebarProjectFilter from "./SidebarProjectFilter.svelte";
   import SidebarCopyJobs from "#lib/features/projects/SidebarCopyJobs.svelte";
   import IconButton from "#lib/shared/ui/IconButton.svelte";
+  import { tooltip } from "#lib/shared/ui/tooltip.ts";
   import { keybindings } from "#lib/features/commands/keybindings.svelte.ts";
   import { useAddProject } from "#lib/features/projects/add/add-project.svelte.ts";
   import { useGatewayCapabilities } from "#lib/features/desktop/gateway-capabilities.svelte.ts";
@@ -27,7 +28,7 @@
   const addProject = useAddProject();
 
   /**
-   * App sidebar: logo and the section's "new" action, the Threads | Bots switch (follows the route;
+   * App sidebar: logo, the Threads | Bots switch (follows the route;
    * Settings keeps the last section), search over the current section, its list, and the footer.
    */
   let { currentThreadId, onOpenUsage }: { currentThreadId?: string | undefined; onOpenUsage: () => void } = $props();
@@ -75,11 +76,7 @@
 <!-- Compact chrome (docs/ui-scale.md): text one step below the pages beside it. -->
 <div class="density-chrome sidebar-scale @container flex h-full flex-col">
   <SidebarHeader>
-    {#if section === "threads"}
-      <a href="/" class={iconLink} aria-label="New thread" title="New thread">
-        <Icon name="pencil-square" />
-      </a>
-    {:else}
+    {#if section === "bots"}
       <a href="/bots?create=1" class={iconLink} aria-label="Create bot">
         <Icon name="pencil-square" />
       </a>
@@ -121,13 +118,18 @@
       </span>
     </label>
     {#if section === "threads"}
-      <SidebarProjectFilter />
-      {#if addProject}<IconButton
-          icon="folder-plus"
-          label="Add project"
-          tooltipOptions={{ hotkey: keybindings.get("new-project")[0] }}
-          onclick={() => addProject.show()}
-        />{/if}
+      <div class="flex shrink-0 items-center gap-1">
+        <SidebarProjectFilter />
+        {#if addProject}<IconButton
+            icon="folder-plus"
+            label="Add project"
+            tooltipOptions={{ hotkey: keybindings.get("new-project")[0] }}
+            onclick={() => addProject.show()}
+          />{/if}
+        <a href="/" class={iconLink} aria-label="New thread" {@attach tooltip("New thread")}>
+          <Icon name="pencil-square" />
+        </a>
+      </div>
     {/if}
   </div>
 
