@@ -3,7 +3,8 @@
   import TruncatedText from "#lib/shared/ui/TruncatedText.svelte";
   import UsageProviderMark from "./UsageProviderMark.svelte";
   import SpeedIcon from "#lib/features/models/SpeedIcon.svelte";
-  import { count, metricValue, type UsageData, type UsageRow, type UsageView } from "./format.ts";
+  import UsageCostCoverage from "./UsageCostCoverage.svelte";
+  import { estimatedCost, metricValue, reportedCost, type UsageData, type UsageRow, type UsageView } from "./format.ts";
 
   let { data, view }: { data: UsageData; view: UsageView } = $props();
   let group = $state("providers");
@@ -56,17 +57,18 @@
                   : "Provider"}</th
           >
           <th scope="col" class="px-4 py-2.5 text-right font-medium whitespace-nowrap"
-            >{view === "cost" ? "Reported cost" : "Tokens"}</th
+            >{view === "cost" ? "Cost" : "Tokens"}</th
           >
-          {#if view === "cost"}<th scope="col" class="px-4 py-2.5 text-right font-medium whitespace-nowrap"
-              >Cost coverage</th
-            >{/if}
+          {#if view === "cost"}
+            <th scope="col" class="px-4 py-2.5 text-right font-medium whitespace-nowrap">Reported cost</th>
+            <th scope="col" class="px-4 py-2.5 text-right font-medium whitespace-nowrap">Estimated API cost</th>
+            <th scope="col" class="px-4 py-2.5 text-right font-medium whitespace-nowrap">Cost coverage</th>{/if}
         </tr>
       </thead>
       <tbody class="divide-y divide-divider">
         {#each rows as row (row.key)}
           <tr>
-            <th scope="row" class="max-w-40 px-4 py-3 font-normal sm:max-w-72">
+            <th scope="row" class="max-w-40 min-w-36 px-4 py-3 font-normal sm:max-w-72">
               <div class="flex min-w-0 items-center gap-2">
                 {#if group === "providers"}<UsageProviderMark provider={row.key} />{/if}
                 {#if group === "speeds"}
@@ -83,10 +85,15 @@
             <td class="px-4 py-3 text-right whitespace-nowrap tabular-nums select-text"
               >{metricValue(row.amounts, view)}</td
             >
-            {#if view === "cost"}<td
-                class="px-4 py-3 text-right whitespace-nowrap text-zinc-500 tabular-nums dark:text-zinc-400"
-                >{count(row.amounts.costReports)} / {count(row.amounts.reports)}</td
-              >{/if}
+            {#if view === "cost"}
+              <td class="px-4 py-3 text-right whitespace-nowrap tabular-nums select-text"
+                >{reportedCost(row.amounts)}</td
+              >
+              <td class="px-4 py-3 text-right whitespace-nowrap tabular-nums select-text"
+                >{estimatedCost(row.amounts)}</td
+              >
+              <td class="min-w-40 px-4 py-3 text-right"><UsageCostCoverage amounts={row.amounts} /></td>
+            {/if}
           </tr>
         {/each}
       </tbody>

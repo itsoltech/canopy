@@ -1,8 +1,8 @@
 # Adapter Codex (app-server)
 
-Status (2026-11-17): runtime wątków, lokalny MCP, poziomy szybkości z katalogu konta,
+Status (2026-11-18): runtime wątków, lokalny MCP, poziomy szybkości z katalogu konta,
 bezstratny zapis obrazów wyników trybu kodu oraz per-modelowe liczniki tokenów i kosztów USD tur
-są zaimplementowane;
+oraz szacunki równowartości API OpenAI z trwałym cache cennika są zaimplementowane;
 ograniczenia i dalsze prace opisano poniżej. Dostępność wydań według [release.md](release.md).
 
 Gotowe:
@@ -107,7 +107,7 @@ modelu, a nie przyrost do bezwarunkowego dodania. `inputTokens` zawiera tokeny
 cache read/write; `reasoningOutputTokens` jest podzbiorem `outputTokens`.
 Nie dodajemy rozumowania ponownie do outputu. `reportedCostUsd` jest opcjonalną
 kwotą przekazaną przez dostawcę; znane zero pozostaje zerem, brak kwoty jest
-nieznanym kosztem. Adapter nie stosuje cennika modeli.
+nieznanym zgłoszonym kosztem. Osobny szacunek `estimatedCostUsd` korzysta z cennika OpenAI opisanego niżej.
 
 `thread/tokenUsage/updated.total` jest licznikiem sesji. Adapter odejmuje poprzedni
 snapshot; przy pierwszej obserwacji bez bazowego licznika przyjmuje wyłącznie
@@ -137,8 +137,9 @@ Natywne raw itemy pozostają w historii, ale ich normalizacja nie dubluje
 itemów odczytanych z rolloutu.
 
 `thread/resume` i `thread/fork` nie udostępniają przełącznika raw, więc po
-zimnym wznowieniu/forku tokeny nadal są rozliczane z liczników sesji, a koszt
-pozostaje nieznany bez raportów `usageMetadata.amount`. Snapshoty
+zimnym wznowieniu/forku tokeny nadal są rozliczane z liczników sesji, a zgłoszony koszt
+pozostaje nieznany bez raportów `usageMetadata.amount`. Pojedyncze udowodnione
+odpowiedzi mogą otrzymać osobny szacunek API opisany niżej. Snapshoty
 napływają w trakcie pracy także dla tur później przerwanych lub błędnych;
 niezgłoszonego zużycia po awarii nie szacujemy. Tury ukrytych botów emitują
 te same snapshoty, a izolowane `GenerateText` przekazuje je do workera przez
@@ -234,6 +235,58 @@ thread/status/changed (active) → turn/started → [mcpServer/startupStatus/upd
 ```
 
 Błąd konfiguracji dostawcy: `thread/status/changed (systemError)` → `error { error: { message, codexErrorInfo }, willRetry }` → `turn/completed { status: failed, error }`.
+
+## Szacunek równowartości API OpenAI
+
+Wątki, boty i generowanie tekstu współdzielą jeden `OpenAiPricingCatalog` workera,
+inicjalizowany z `dataDir`; plik `pricing/openai.json` zachowuje ostatni poprawny
+cennik, brakujące modele i cooldown także po restarcie. To wycena tokenów według
+API OpenAI, nie rachunek za subskrypcję ani deklaracja kosztu proxy. Kwota
+`usageMetadata.amount` pozostaje niezależnym `reportedCostUsd`.
+
+Przed mapowaniem własnej `rawResponse/completed` adapter przygotowuje cennik
+dokładnego identyfikatora modelu. Pobiera wyłącznie pliki TOML z katalogu
+`providers/openai/models/` w repozytorium [models.dev](https://github.com/anomalyco/models.dev),
+bez szukania modelu u innych dostawców i bez zgadywania aliasów. Jedno pobranie
+jest współdzielone między równoległymi wywołaniami; cały cache ma najwyżej 256 modeli,
+a odpowiedź HTTP limit 256 kB i timeout 4 s. Świeże ceny i brak modelu są ważne
+dobę. Odświeżanie jest leniwe; błąd HTTP, parsowania lub sieci daje pięciominutowy
+cooldown, zapisany przed żądaniem. Błąd nigdy nie przerywa tury. W tym czasie
+oraz podczas awarii dostępne są ostatnie poprawne ceny. Katalog nie jest pobierany
+przy każdym wywołaniu modelu ani przy licznikach odzyskanych z historii.
+
+Obsługiwany jest schemat 2: ceny tekstowego wejścia i wyjścia, odczyt cache,
+zapis cache oraz nadpisania `when.context.gt`. Próg dotyczy wejścia jednej
+odpowiedzi, nigdy sumy całej tury. Tokeny cache są podzbiorami wejścia; reasoning
+jest już częścią wyjścia i nie jest doliczany drugi raz. Codex nie przekazuje TTL
+zapisu cache: jeżeli stawki zapisu zależą od TTL (np. `30m` i `12h`), odpowiedź
+z zapisami pozostaje bez szacunku. Nie zgadujemy mnożników regionalnych.
+Obsługiwane mnożniki `service_tier` pochodzą z katalogu; `fast` mapuje się na
+`priority` wyłącznie na potrzeby wyceny. Natywne identyfikatory `fast`, `priority`,
+`ultrafast` i `default` zachowują osobną tożsamość w żądaniach i agregatach.
+Warunki czasowe mnożników (`date.lt`, `date.gte`) stosują datę zaobserwowania
+odpowiedzi w `America/Los_Angeles`, zgodnie z granicą Pacific time w cenniku OpenAI.
+Adapter zamraża ten czas przed ewentualnym pobieraniem katalogu; przekroczenie
+granicy w trakcie pobierania ani późniejszy duplikat nie zmienia wcześniejszej wyceny.
+Punktem odniesienia jest [oficjalny cennik OpenAI](https://developers.openai.com/api/docs/pricing).
+
+Każda odpowiedź zamraża kwotę i pochodzenie cennika: URL, datę źródła i SHA-256
+treści. `estimatedCostUsd` sumuje zamrożone kwoty w obrębie modelu i tury,
+a `pricingVersion` przechowuje do 16 opisów wersji oraz skrót dalszych wersji.
+Odświeżenie stawek nie przelicza wcześniejszych odpowiedzi. Brak surowego usage,
+nieobsługiwana cena lub licznik zbiorczy przewyższający pokrycie surowych
+odpowiedzi oznaczają nieznany szacunek, analogicznie do pokrycia zgłoszonego kosztu.
+Po wznowieniu bez raw adapter może wycenić pojedynczą odpowiedź z `last`, jeśli
+przyrost każdego licznika sesji jest dokładnie równy `last` (z wcześniejszym
+baseline lub dla sesji, której `total` równa się `last`). Powtórzony snapshot nie
+dodaje kosztu. Przyrost obejmujący kilka odpowiedzi albo brak baseline pozostaje
+bez szacunku; nigdy nie wyceniamy sumy tury jako jednego kontekstu. Surowy i
+zbiorczy strumień mają osobne sumy oraz współdzielą zamrożone wyceny odpowiadających
+sobie odpowiedzi; żaden snapshot nie sumuje obu źródeł.
+
+`providers/pricing/openai-catalog.test.ts` i `providers/codex/pricing.test.ts`
+sprawdzają cache HTTP, restart i adaptery na lokalnym serwerze oraz skryptowanym
+app-serverze, bez płatnej inferencji.
 
 ## Testy na żywo
 

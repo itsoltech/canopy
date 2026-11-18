@@ -1,6 +1,7 @@
 import { timestampDate } from "@bufbuild/protobuf/wkt";
 import type { computerLink as link } from "@canopy/contracts";
 import { Code, ConnectError } from "@connectrpc/connect";
+import { normalizeUsageTotals } from "../usage/totals.ts";
 
 const invalid = () => new ConnectError("Invalid linked usage page", Code.DataLoss);
 
@@ -46,6 +47,23 @@ export function validateUsagePage(node: string, after: bigint, response: link.Us
       bucket.totals.unknownCostReports > bucket.totals.reports ||
       bucket.totals.cachedInputTokens + bucket.totals.cacheWriteInputTokens > bucket.totals.inputTokens ||
       bucket.totals.reasoningOutputTokens > bucket.totals.outputTokens
+    )
+      throw invalid();
+    const totals = normalizeUsageTotals(bucket.totals);
+
+    if (
+      !Number.isFinite(totals.estimatedCostUsd) ||
+      totals.estimatedCostUsd < 0 ||
+      !Number.isFinite(totals.effectiveCostUsd) ||
+      totals.effectiveCostUsd < 0 ||
+      totals.unknownEstimatedCostReports > totals.reports ||
+      totals.unknownEffectiveCostReports +
+        totals.effectiveReportedCostReports +
+        totals.effectiveEstimatedCostReports !==
+        totals.reports ||
+      totals.effectiveReportedCostReports > totals.reports - totals.unknownCostReports ||
+      totals.effectiveEstimatedCostReports > totals.reports - totals.unknownEstimatedCostReports ||
+      (totals.unknownEffectiveCostReports === totals.reports && totals.effectiveCostUsd !== 0)
     )
       throw invalid();
     keys.add(key);

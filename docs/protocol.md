@@ -42,12 +42,16 @@ przenoszą wybór. `RunBotTurn.service_tier` (16) przenosi ustawienie bota.
 
 ## Statystyki tokenów i kosztów
 
-Status (2026-11-17): zaimplementowane w kodzie; dostępność nightly/beta/stable
+Status (2026-11-18): zaimplementowane w kodzie; dostępność nightly/beta/stable
 wynika z promocji wydań ([release.md](release.md)).
 
 `Usage` zachowuje pola 1–5 i addytywnie dodaje `cache_write_input_tokens` (6),
 `reasoning_output_tokens` (7), opcjonalny `reported_cost_usd` (8), `model` (9),
-`scope` (10) i `requested_service_tier` (12). Pole 11 jest zarezerwowane.
+`scope` (10), `requested_service_tier` (12), opcjonalny `estimated_cost_usd` (13)
+i `pricing_version` (14). Pole 11 jest zarezerwowane. Szacunek ekwiwalentu API
+OpenAI jest niezależny od kosztu zgłoszonego. `pricing_version` jest nieinterpretowanym,
+zwartym opisem zamrożonych próbek cennika użytych przez worker dla tego licznika;
+gateway zachowuje go w watermarku, bez tabeli odpowiedzi i bez przeliczania starych cen.
 `requested_service_tier` opisuje utrwalony wybór wykonania: `default` oznacza
 Standard, pusty string brak wiedzy, pozostałe wartości są natywnymi
 identyfikatorami bez normalizacji (`priority` nie jest aliasem `fast`).
@@ -62,7 +66,7 @@ sumę całej sesji. Adapter normalizuje zakres przed zapisaniem do journalu.
 
 Input zawiera cache read/write, a reasoning jest częścią output. Odrębny
 `ContextUsage` nadal mierzy bieżące okno kontekstu. Brak `reported_cost_usd`
-oznacza brak wyceny; jawne zero jest poprawną kwotą. Pole `cost_usd` pozostaje
+oznacza brak kosztu zgłoszonego; jawne zero jest poprawną kwotą. Pole `cost_usd` pozostaje
 dla starszych klientów i nie dostarcza informacji o kompletności wyceny.
 Agregaty są zatwierdzane razem ze zdarzeniem przed ACK i przeżywają usunięcie
 historii. Nie zmienia się `WORKER_LINK_PROTOCOL` ani zamrożone `update/v1`.
@@ -71,6 +75,16 @@ Pomocnicze generowanie zwraca per-modelowe `CommandResult.consumed_usages`
 otrzymane pomiary także przy błędzie komendy i deduplikuje je po jej ID oraz modelu.
 Nietrwałe oczekiwanie na wynik `GenerateText` nie odtwarza raportu utraconego
 przed odbiorem przez gateway.
+`ui.UsageTotals` dodaje `estimated_cost_usd` (9), `unknown_estimated_cost_reports`
+(10), `effective_cost_usd` (11), `unknown_effective_cost_reports` (12),
+`effective_reported_cost_reports` (13) i `effective_estimated_cost_reports` (14).
+Koszt wybrany powstaje per licznik: pełny zgłoszony koszt, inaczej pełny szacunek,
+inaczej nieznany. Trzy liczniki źródła wybranej kwoty razem dają `reports`;
+nie wolno dodawać dwóch niezależnych wycen. Późniejsza korekta może zmniejszyć
+wybraną kwotę, zachowując oba niezależne koszty. Eksport źródłowy przenosi
+wszystkie sumy, również wyzerowane koszyki po korekcie szybkości.
+Starszy snapshot bez pól 9–14 ma nieznany szacunek i zachowawczo nieznany koszt
+wybrany, chyba że wszystkie jego koszty zgłoszone są kompletne.
 Szczegóły: [usage.md](usage.md).
 
 ## Postęp tworzenia worktree

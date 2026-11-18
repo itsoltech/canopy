@@ -150,6 +150,7 @@ export class CodexRuntimes {
     );
 
     const layer = CodexThreads.layer({
+      pricing: this.ctx.state.pricing,
       launch: codexAppServerLaunch(
         profiles,
         process.env,

@@ -1,0 +1,29 @@
+/** Synthetic schema-2 prices exercising OpenAI's public rate dimensions; never contacts an inference API. */
+export const openAiPriceFixture = `
+schema = 2
+base_model = "openai/fixture"
+[cost.text.input]
+price = 2
+cache = { read = 0.1, write = { "30m" = 2.5, "12h" = 5 } }
+[[cost.text.input.overrides]]
+when = { context = { gt = 272000 } }
+price = 4
+cache = { read = 0.2, write = { "30m" = 5, "12h" = 10 } }
+[cost.text.output]
+price = 10
+[[cost.text.output.overrides]]
+when = { context = { gt = 272000 } }
+price = 15
+[[cost.multipliers]]
+when = { service_tier = { equals = "priority" } }
+factor = { text = 2 }
+[[cost.multipliers]]
+when = { service_tier = { equals = "ultrafast" } }
+factor = { text = 6 }
+[[cost.multipliers]]
+when = { service_tier = { equals = "flex" } }
+factor = { text = 0.5 }
+[[cost.multipliers]]
+when = { not = { region = { equals = "global" } } }
+factor = { text = 1.1 }
+`;

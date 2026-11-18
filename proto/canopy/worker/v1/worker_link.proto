@@ -1251,6 +1251,10 @@ message Usage {
   reserved 11; // A future actual billing observation needs a separately proven source.
   // Effective requested execution speed; not a claim about the billed tier.
   string requested_service_tier = 12;
+  // Independent API-equivalent estimate; absent means incomplete/unknown. Known zero is valid.
+  optional double estimated_cost_usd = 13;
+  // Opaque compact provenance of the immutable pricing snapshots used by this counter.
+  string pricing_version = 14;
 }
 
 // Latest provider observation of the main session context, independent of accounting totals.

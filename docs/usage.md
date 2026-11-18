@@ -1,7 +1,8 @@
 # Statystyki zużycia tokenów i kosztów
 
-Status (2026-11-17): zaimplementowane agregaty zużycia w gatewayu, raporty
-harnessów, API `GetUsageStats` i synchronizacja źródeł połączonych komputerów.
+Status (2026-11-18): zaimplementowane agregaty zużycia w gatewayu, raporty
+harnessów, niezależne szacunki ekwiwalentu API OpenAI, wybór kosztu per licznik,
+API `GetUsageStats` i synchronizacja źródeł połączonych komputerów.
 Dostępność nightly/beta/stable według [release.md](release.md).
 
 ## Co mierzymy
@@ -26,8 +27,13 @@ usuwa zużycia już zgłoszonego przez harness.
   zużyciem ponad output.
 - `reported_cost_usd` jest opcjonalną kwotą USD rzeczywiście zgłoszoną przez
   providera. Jawne zero jest znanym kosztem; brak pola oznacza nieznany koszt.
-  Nie stosujemy cenników modeli ani szacunków na podstawie tokenów. Starsze
-  nieopcjonalne `cost_usd` nie dowodzi znajomości ceny i nie zasila agregatów.
+  Starsze nieopcjonalne `cost_usd` nie dowodzi znajomości ceny i nie zasila agregatów.
+- `estimated_cost_usd` jest osobnym, opcjonalnym szacunkiem ekwiwalentu API OpenAI.
+  Nie jest rachunkiem za subskrypcję ani dowodem opłaty providera. Worker wycenia
+  odpowiedź Codexa według zamrożonej próbki cennika models.dev wyłącznie dla OpenAI;
+  brak dowodu modelu, tokenów lub odpowiedniej ceny oznacza nieznany szacunek.
+  Jawne zero jest znane. `pricing_version` zachowuje zwarty opis pochodzenia cen
+  użytych w liczniku (źródło, data, hash i tier), bez osobnego rekordu SQL odpowiedzi.
 - Model pochodzi z raportu harnessu; jeśli raport go nie podaje, gateway zachowuje
   wybrany model tury. Pusty model pozostaje nieznany. Osobne raporty różnych modeli
   nie zastępują siebie.
@@ -48,6 +54,13 @@ asystenta z deduplikacją ID. Codex nie przypisuje bezmodelowych `token_count`
 do wybranego modelu: po reroutingu mogłoby to ponownie rozliczyć zużycie
 już zapisane pod rzeczywistym modelem. Bez dowodu modelu obsługującego wywołanie
 takie zużycie pozostaje poza agregatami. Brak raportu nie oznacza zera.
+
+Worker utrzymuje trwały lokalny cache cennika OpenAI z models.dev i współdzieli
+odświeżenia w toku; nie wykonuje HTTP dla każdej inferencji. Nieznany model może
+wywołać odświeżenie z cooldownem. Nowy cennik służy kolejnym obserwacjom:
+wcześniejsze odpowiedzi zachowują swoje ceny i nie są przeliczane wstecz.
+Gateway nie pobiera cenników i przechowuje wynik obliczenia workera. Koszt zgłoszony
+i szacunek mają niezależne pokrycie; późniejszy raport jednego nie usuwa drugiego.
 
 ## Żądana szybkość wykonania
 
@@ -79,9 +92,18 @@ Migracja `0164_usage_accounting` tworzy:
 |---|---|
 | `usage_state` | Tożsamość źródła, początek pokrycia, czas zapisu i rewizja właściciela. |
 | `usage_buckets` | Sumy na godzinę UTC, providera, model i żądaną szybkość, niezależne od wątku/bota. |
-| `usage_counters` | Mały watermark tury/modelu lub komendy generowania; bez tekstów i zdarzeń. |
+| `usage_counters` | Mały watermark tury/modelu lub komendy generowania z `pricing_version`; bez tekstów i zdarzeń. |
 | `remote_usage_buckets` | Ostatnie zastępowalne agregaty otrzymane bezpośrednio z domu źródłowego. |
 | `remote_usage_state` | Kursor, pokrycie, czas synchronizacji i informacja o niepobranych stronach. |
+
+Migracja `0165_usage_estimated_cost` dodaje osobne kwoty i liczniki pokrycia
+szacunków oraz kosztu wybranego per licznik. Istniejące zgłoszone USD pozostają
+bez zmian. Dla starych koszyków z częściową ceną koszt wybrany obejmuje tylko
+kompletne zachowane watermarki; po usunięciu watermarków nie można rozdzielić
+historycznych częściowych kwot, więc pozostały wkład jest nieznany. Koszyk ze
+wszystkimi zgłoszonymi cenami kompletnymi zachowuje całą kwotę jako wybraną.
+Migracja nadaje koszykom nowe rewizje dla odbiorców już zsynchronizowanych.
+Nie odtwarza historycznych szacunków z obecnego cennika.
 
 Cała tura/model należy do godziny **pierwszej zaobserwowanej próbki**, również
 po spóźnionej korekcie cache, tokenów albo kosztu. Długa tura przekraczająca północ
@@ -119,6 +141,21 @@ zaobserwowane USD. Mniejsza spóźniona próbka z ceną nie oznacza większego z
 jako w pełni wycenione. Kwota jest więc sumą **zgłoszonych kosztów**, a przy
 nieznanych raportach stanowi częściową obserwację. Nie jest rachunkiem providera.
 
+`estimated_cost_usd` i `unknown_estimated_cost_reports` działają niezależnie,
+na tych samych zasadach kompletności. Niepoprawne kwoty (NaN, infinity, wartości
+ujemne) są nieznane, a nie zerowe. Wzrost tokenów bez kompletnej ceny zachowuje
+wcześniejsze kwoty jako częściowe; mniejsza spóźniona próbka nie naprawia pokrycia
+większego licznika. Tokeny pozostają monotoniczne. Późniejsza poprawna pełna cena
+może uzupełnić pokrycie bez dodatkowych tokenów.
+
+`effective_cost_usd` wybiera **przed agregacją**, osobno dla każdego licznika:
+kompletny koszt zgłoszony, następnie kompletny szacunek, w przeciwnym razie brak
+kwoty. `effective_reported_cost_reports`, `effective_estimated_cost_reports`
+i `unknown_effective_cost_reports` razem dają `reports`. Kwota wybrana może
+zmaleć, np. gdy zgłoszone zero zastąpi szacunek albo wzrost bez ceny unieważni
+kompletność. Niezależne sumy kosztów nie są dodawane do siebie: wyceniają to samo
+zużycie. Wybór po zsumowaniu providerów lub modeli prowadziłby do nakładania kwot.
+
 Początek pokrycia jest czasem uruchomienia nowego księgowania dla właściciela,
 nie datą najstarszej rozmowy. **Nie wykonujemy historycznego backfillu**:
 dawne JSON-y nie rozróżniały bezpiecznie kosztu zero od braku ceny ani zakresu
@@ -141,14 +178,18 @@ Dom serwerowy działa bez usług łączenia komputerów.
 
 Odczyt korzysta wyłącznie z lokalnej bazy: nie czeka na połączenie partnera.
 Prywatny `canopy.link.v1.UsageService.GetUsageBuckets` eksportuje ograniczone
-strony zastępowalnych koszyków z rewizją; nigdy nie zbiera źródeł partnerów.
+strony zastępowalnych koszyków z rewizją, obiema niezależnymi wycenami i kosztami
+wybranymi per licznik; nigdy nie zbiera źródeł partnerów. Starszy snapshot bez
+nowych pól nie dowodzi zerowego szacunku: odbiorca oznacza szacunki jako nieznane,
+a koszt wybrany odtwarza z całej zgłoszonej kwoty tylko przy kompletnym pokryciu.
+Przy częściowym pokryciu starego agregatu wybrany koszt pozostaje nieznany.
 Odbiorca wiąże źródło z uwierzytelnionym komputerem i atomowo zapisuje stronę
 razem z kursorem oraz `has_more`. Brak łącza zachowuje ostatni zatwierdzony stan.
 Usunięcie relacji usuwa jej cache przez FK, bez zmiany lokalnych sum źródła.
 
 Źródło ma status `ready`, `syncing`, `unsupported`, `relay`, `stale` lub `offline`.
 Relayed home wymaga bezpośredniego połączenia do synchronizacji statystyk;
-starszy partner wymaga obsługi `usage_stats_v1`. `partial` sygnalizuje nieznaną
-cenę, brak pokrycia całego okna albo niegotowe źródło, także po przerwaniu
-początkowego pobierania stron. Zsumowane źródła nie zawierają duplikatów
+starszy partner wymaga obsługi `usage_stats_v1`. `partial` sygnalizuje nieznany
+koszt wybrany (brak kompletnego raportu i szacunku), brak pokrycia całego okna
+albo niegotowe źródło, także po przerwaniu początkowego pobierania stron. Zsumowane źródła nie zawierają duplikatów
 pochodzących z luster ani pośredników.

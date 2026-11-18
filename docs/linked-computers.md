@@ -1,6 +1,6 @@
 # Połączone komputery
 
-Status: opis zaimplementowanej synchronizacji (2026-11-17), w tym przyrostowej
+Status: opis zaimplementowanej synchronizacji (2026-11-18), w tym przyrostowej
 synchronizacji agregatów użycia z żądaną szybkością wykonania przez bezpośrednie
 łącza, odwołania zaufania w trakcie handshake, zachowania lokalnych kanałów Slack botów i nadawców historycznych
 steerów przy stronicowaniu lokalnym i offline oraz wspólnego
@@ -39,6 +39,12 @@ jako częściowy, dopóki filtr nie wyłączy tego komputera.
 i rewizję. Lustra, zaimportowana historia przeniesionego
 wątku, cache statystyk innych komputerów i limity kont dostawców nie są źródłem
 agregacji. Dlatego połączenie A–B–C nie powoduje przekazania użycia C przez B.
+Snapshoty obejmują również oszacowaną równowartość użycia według cennika API
+OpenAI, jej pokrycie oraz kwotę do prezentacji: pełny koszt zgłoszony przez
+providera ma pierwszeństwo przed pełnym szacunkiem tego samego licznika.
+Odbiorca nie wycenia tokenów ponownie własnym cennikiem. Starszy snapshot bez
+nowych pól zachowuje zgłoszone kwoty; brak estymacji pozostaje nieznany.
+Starszy odbiorca pomija addytywne pola i nadal pokazuje dotychczasowy koszt zgłoszony.
 Archiwizacja, usunięcie albo przeniesienie wątku nie usuwa wcześniejszych agregatów.
 Dalsza aktywność po przeniesieniu należy do gatewaya, który ją rozlicza; odtworzenie
 historii nie stanowi nowego użycia.

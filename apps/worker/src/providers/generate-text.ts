@@ -15,6 +15,7 @@ import { CodexConsumedUsage } from "./codex/consumed-usage.ts";
 import type { ConsumedUsage } from "./token-usage.ts";
 import { ClaudeUsage } from "./claude/usage.ts";
 import { codexUsage } from "./usage-limits.ts";
+import type { OpenAiPricingCatalog } from "./pricing/openai-catalog.ts";
 
 export interface TextInput {
   readonly onConsumedUsage?: ((usage: ConsumedUsage) => void) | undefined;
@@ -153,7 +154,13 @@ export async function generateClaudeText(
  */
 export async function generateCodexText(
   input: TextInput,
-  options: { launch: CodexAppServerLaunch; profile: ResolvedProfile; dataDir: string; clientVersion: string },
+  options: {
+    launch: CodexAppServerLaunch;
+    profile: ResolvedProfile;
+    dataDir: string;
+    clientVersion: string;
+    pricing?: OpenAiPricingCatalog | undefined;
+  },
   signal: AbortSignal,
 ): Promise<string> {
   const scratch = join(options.dataDir, "text-generation", Bun.randomUUIDv7());
@@ -183,32 +190,36 @@ export async function generateCodexText(
       const server = yield* CodexAppServer;
       const done = yield* Deferred.make<string, Error>();
       let threadId = "";
-      const consumed = new CodexConsumedUsage();
+      const consumed = new CodexConsumedUsage(options.pricing);
       consumed.setModel(input.model);
       consumed.setRequestedServiceTier("default");
       const messages = new Map<string, string>();
       // Subscribe before starting the turn; notifications may arrive before turn/start's response.
       yield* Effect.forkScoped(
         server.notifications.pipe(
-          Stream.runForEach((event) => {
-            if (event.method === "account/rateLimits/updated")
-              return Effect.sync(() => input.onUsage?.(codexUsage(event.params.rateLimits)));
+          Stream.runForEach((event) =>
+            Effect.gen(function* () {
+              if (event.method === "account/rateLimits/updated")
+                return Effect.sync(() => input.onUsage?.(codexUsage(event.params.rateLimits)));
 
-            if (!("threadId" in event.params) || event.params.threadId !== threadId) return Effect.void;
+              if (!("threadId" in event.params) || event.params.threadId !== threadId) return Effect.void;
 
-            for (const usage of consumed.observe(event, true)) input.onConsumedUsage?.(usage);
+              yield* Effect.promise(() => consumed.prepare(event, true));
 
-            if (event.method === "item/completed" && event.params.item.type === "agentMessage")
-              messages.set(event.params.item.id, event.params.item.text);
+              for (const usage of consumed.observe(event, true)) input.onConsumedUsage?.(usage);
 
-            if (event.method === "turn/completed") {
-              return event.params.turn.status === "completed"
-                ? Deferred.succeed(done, [...messages.values()].join("\n"))
-                : Deferred.fail(done, new Error("Codex text generation failed"));
-            }
+              if (event.method === "item/completed" && event.params.item.type === "agentMessage")
+                messages.set(event.params.item.id, event.params.item.text);
 
-            return Effect.void;
-          }),
+              if (event.method === "turn/completed") {
+                return event.params.turn.status === "completed"
+                  ? Deferred.succeed(done, [...messages.values()].join("\n"))
+                  : Deferred.fail(done, new Error("Codex text generation failed"));
+              }
+
+              return Effect.void;
+            }).pipe(Effect.flatten),
+          ),
         ),
       );
 

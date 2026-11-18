@@ -12,6 +12,12 @@ function amounts(totals: ui.UsageTotals | undefined): UsageAmounts {
     cacheWrite: totals?.cacheWriteInputTokens ?? 0n,
     reasoning: totals?.reasoningOutputTokens ?? 0n,
     cost: totals?.reportedCostUsd ?? 0,
+    estimatedCost: totals?.estimatedCostUsd ?? 0,
+    effectiveCost: totals?.effectiveCostUsd ?? 0,
+    estimatedCostReports: (totals?.reports ?? 0n) - (totals?.unknownEstimatedCostReports ?? 0n),
+    effectiveReportedCostReports: totals?.effectiveReportedCostReports ?? 0n,
+    effectiveEstimatedCostReports: totals?.effectiveEstimatedCostReports ?? 0n,
+    unknownEffectiveCostReports: totals?.unknownEffectiveCostReports ?? 0n,
     reports: totals?.reports ?? 0n,
     costReports: (totals?.reports ?? 0n) - (totals?.unknownCostReports ?? 0n),
   };

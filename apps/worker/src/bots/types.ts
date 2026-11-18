@@ -16,6 +16,7 @@ export class BotHarnessFailure extends Error {
 }
 
 export interface BotHarnessContext {
+  pricing?: import("../providers/pricing/openai-catalog.ts").OpenAiPricingCatalog | undefined;
   steering?: BotSteering;
   onUsage?: ((snapshot: ProviderUsageSnapshot) => void) | undefined;
   usageSnapshot?: ProviderUsageSnapshot | undefined;

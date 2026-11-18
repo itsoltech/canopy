@@ -7,6 +7,7 @@ import { turnEndSource, turnOutcome, threadStatus, snake } from "./status-mappin
 export { codexErrorCode } from "./status-mapping.ts";
 
 import { CodexConsumedUsage } from "./consumed-usage.ts";
+import type { OpenAiPricingCatalog } from "../pricing/openai-catalog.ts";
 import { timestampNow } from "@bufbuild/protobuf/wkt";
 import type { FunctionCallOutputBody, ResponseItem, ServerNotification, v2 } from "@canopy/codex-protocol";
 import {
@@ -47,6 +48,7 @@ const CODE_MODE_WAIT = "wait";
 const SHELL_TOOLS: ReadonlySet<string> = new Set(["exec_command", "shell_command", "shell"]);
 
 export interface MapperContext {
+  pricing?: OpenAiPricingCatalog | undefined;
   /** Platform turn id for a starting Codex turn: the StartTurn mapping, or a fresh id for provider-started turns. */
   startTurn(codexTurnId: string): string;
   /**
@@ -73,7 +75,7 @@ interface RunningCommand {
 
 export class CodexEventMapper {
   readonly #ctx: MapperContext;
-  readonly #usage = new CodexConsumedUsage();
+  readonly #usage: CodexConsumedUsage;
   /** In-progress command items with a process, by item id. */
   readonly #commands = new Map<string, RunningCommand>();
   /** Code-mode cells and waits by call id: they become tool_call items (docs/codex-adapter.md, "Code mode"). */
@@ -93,6 +95,14 @@ export class CodexEventMapper {
 
   constructor(ctx: MapperContext) {
     this.#ctx = ctx;
+    this.#usage = new CodexConsumedUsage(ctx.pricing);
+  }
+
+  prepare(event: ServerNotification): Promise<void> {
+    return this.#usage.prepare(
+      event,
+      "turnId" in event.params && !!event.params.turnId && !!this.#ctx.turnId(event.params.turnId),
+    );
   }
 
   setModel(model: string, turnId?: string): void {
