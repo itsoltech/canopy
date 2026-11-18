@@ -78,6 +78,38 @@ export async function fetchReleaseNotes(http: ReleaseHttp = releaseHttp): Promis
   return parseNotesIndex(await http.text(RELEASE_NOTES_URL));
 }
 
+/** Earliest indexed publication in each channel with an explicit changelog match. */
+export function releaseVersionsForPullRequests(index: NotesIndex, pullRequests: readonly number[]) {
+  type Match = { version: string; published_at: string; url: string };
+
+  const matches = new Map<number, Partial<Record<NoteChannel, Match>>>();
+
+  for (const number of pullRequests) matches.set(number, {});
+
+  const releases = [...index.releases].sort(
+    (a, b) => Date.parse(a.date) - Date.parse(b.date) || compare(a.version, b.version),
+  );
+
+  for (const release of releases) {
+    const channel = releaseChannel(release.version);
+
+    if (channel === "development") continue;
+
+    for (const entry of release.entries) {
+      const channels = entry.pr === null ? undefined : matches.get(entry.pr);
+
+      if (channels && !channels[channel])
+        channels[channel] = {
+          version: release.version,
+          published_at: release.date,
+          url: `https://github.com/itsoltech/canopy/releases/tag/v${release.version}`,
+        };
+    }
+  }
+
+  return [...matches].map(([pull_request, channels]) => ({ pull_request, ...channels }));
+}
+
 /** Recent releases of the running build's channel; never preview a newer installed app. */
 export function recentNotes(index: NotesIndex, current: string): readonly VersionNotes[] {
   if (!valid(current)) return [];

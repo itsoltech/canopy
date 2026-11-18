@@ -42,6 +42,7 @@ export function botPlatformTools(config: bots.BotConfiguration, turn: BotTurn): 
     (tool) =>
       (!turn.conversation_id || EXTERNAL_WORK_TOOLS.has(tool.name)) &&
       (config.files !== false || !BOT_FILE_TOOLS.includes(tool.name)) &&
+      (config.webAccess !== false || tool.name !== "get_canopy_release_versions") &&
       (turn.routine_id
         ? !["create_routine", "update_routine", "delete_routine", "update_self"].includes(tool.name)
         : tool.name !== "message_user"),

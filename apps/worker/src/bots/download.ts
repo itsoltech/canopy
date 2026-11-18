@@ -83,7 +83,7 @@ export function connectBotDownload(
         port: url.port || (url.protocol === "https:" ? 443 : 80),
         path: url.pathname + url.search,
         servername: url.hostname.replace(/^\[|\]$/g, ""),
-        headers: { Host: url.host, Accept: "*/*", "Accept-Encoding": "identity" },
+        headers: { Host: url.host, Accept: "*/*", "Accept-Encoding": "identity", "User-Agent": "Canopy-Bot" },
         signal,
         agent: false,
       },
