@@ -29,7 +29,16 @@
   const shell = useShell();
   const snapshot = $derived(job.snapshot);
   const project = $derived(overview.projectChoice(snapshot?.projectId ?? ""));
-  const home = $derived(snapshot?.projectId ? `/?project=${encodeURIComponent(snapshot.projectId)}` : "/");
+
+  const home = $derived.by(() => {
+    if (!snapshot?.projectId) return "/";
+    const placement = new URLSearchParams({ project: snapshot.projectId });
+
+    if (snapshot.workspaceId) placement.set("workspace", snapshot.workspaceId);
+
+    return `/?${placement}`;
+  });
+
   const rows = ["creation:start", "creation:input"];
   let rem = $state(16);
   let feed = $state<{ savePosition(): void }>();
@@ -142,7 +151,11 @@
                 <div
                   class="mt-3 grid justify-items-start gap-2 text-sm/5 text-zinc-600 sm:text-xs/5 dark:text-zinc-400"
                 >
-                  <p role="status">{snapshot?.error ? "Your draft is saved. Return to it to continue." : job.notice}</p>
+                  <p role="status">
+                    {snapshot?.error && job.hasDraft
+                      ? "Your draft is saved. Return to it to continue."
+                      : snapshot?.error || job.notice}
+                  </p>
                   {#if snapshot?.error}<Disclosure
                       >{#snippet summary()}Show details{/snippet}
                       <div class="mt-1 grid gap-1 break-words whitespace-pre-wrap">
@@ -153,10 +166,9 @@
                       </div></Disclosure
                     >{/if}
                   <div class="flex flex-wrap gap-2">
-                    <ButtonLink href={home} size="sm">Return to draft</ButtonLink>{#if !snapshot?.done}<Button
-                        variant="ghost"
-                        size="sm"
-                        onclick={() => void job.refresh()}>Check progress</Button
+                    {#if job.hasDraft}<ButtonLink href={home} size="sm">Return to draft</ButtonLink>{/if}
+                    {#if !snapshot?.done}<Button variant="ghost" size="sm" onclick={() => void job.refresh()}
+                        >Check progress</Button
                       >{/if}
                   </div>
                 </div>

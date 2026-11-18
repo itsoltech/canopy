@@ -1,6 +1,7 @@
 # Projekty, wątki i wątki boczne
 
-Status (2026-11-17): zaimplementowane, w tym propagacja odmowy prędkości do błędu celu,
+Status (2026-11-18): zaimplementowane, w tym trwały wpis wątku przed przygotowaniem nowego worktree,
+propagacja odmowy prędkości do błędu celu,
 wybór prędkości dostawcy oraz stan tylko do odczytu po usunięciu worktree
 i kontynuacja w nowym wątku z nowym worktree oraz uprawnienia ostatniej tury użytkownika
 w karcie hover oraz automatyczna archiwizacja po merge PR-ów
@@ -547,11 +548,18 @@ samej akcji w menu przytrzymania. Ruch korzysta ze wspólnych tokenów.
 
 ## 4. Cykl życia wątku i tury
 
+Dla nowego głównego wątku użytkownika z identyfikatorem żądania i nowym
+worktree, gateway zapisuje `creating` przed operacjami Git. Wpis ma stałe ID,
+ale nie ma jeszcze `cwd`, sesji dostawcy ani pierwszej tury. Zapis docelowego
+katalogu, przyjęcie pierwszej wiadomości i komenda startowa tworzą jedną
+transakcję. Błąd przygotowania pozostawia wpis `failed` z powodem. Szczegóły:
+[worktrees.md](worktrees.md#kompozytor-nowego-wątku).
+
 ```mermaid
 stateDiagram-v2
-    [*] --> creating: INSERT threads + CreateThread
+    [*] --> creating: INSERT threads
     creating --> idle: thread_ready (provider_thread_id)
-    creating --> failed: błąd dostawcy
+    creating --> failed: błąd przygotowania lub dostawcy
     idle --> running: tura z kolejki → StartTurn
     running --> waiting_input: zgoda / pytanie / formularz
     waiting_input --> running: odpowiedź

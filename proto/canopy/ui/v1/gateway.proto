@@ -823,6 +823,8 @@ message Thread {
   // Latest main-session context observation from the harness; absent until reported.
   // Independent of turn/session token accounting; unknown fields remain absent.
   canopy.worker.v1.ContextUsage context_usage = 1070;
+  // Identifies the creation progress of a thread whose initial workspace is not ready.
+  string preparation_request_id = 1080;
   // Puste = dziedziczenie/domyślne profilu; default = jawny standard.
   string service_tier = 43;
 }

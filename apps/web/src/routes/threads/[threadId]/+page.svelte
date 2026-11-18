@@ -1,6 +1,6 @@
 <script lang="ts">
   import {
-    threadCreations,
+    threadCreationHandoff,
     finishCreationHandoff,
     type CreationFeedReader,
   } from "#lib/features/threads/thread-creation.svelte.ts";
@@ -104,8 +104,6 @@
   const threadId = $derived(page.params.threadId ?? "");
   const overview = useOverview();
   const settings = useSettings();
-  const creation = $derived(threadCreations.forThread(threadId));
-  const handoff = $derived(creation && !creation.handoff ? creation : undefined);
   const workspaceState = new ThreadWorkspace(() => threadId);
   const fileTab = $derived(workspaceState.current);
 
@@ -139,6 +137,13 @@
   });
 
   const thread = $derived(view.thread);
+  const preparationRequestId = $derived(thread?.preparationRequestId);
+  const readHandoff = threadCreationHandoff(() => ({ threadId, requestId: preparationRequestId }));
+  const handoff = $derived(readHandoff());
+
+  // Keep the same scene while the final thread and its first timeline rows come into view.
+  const preparing = $derived(Boolean(handoff && preparationRequestId));
+
   const worktreeRemoved = $derived(Boolean(thread?.worktree?.removedAt));
 
   $effect(() => {
@@ -517,8 +522,15 @@
 <svelte:head><title>{thread?.title ?? "Thread"} · {applicationName}</title></svelte:head>
 
 <div class="relative h-full min-h-0">
-  {#if handoff}<div class="absolute inset-0 z-30"><ThreadStartingScene job={handoff} /></div>{/if}
-  <div class="h-full min-h-0" inert={Boolean(handoff)} aria-hidden={handoff ? "true" : undefined}>
+  {#if handoff}{#key handoff}
+      <div class="absolute inset-0 z-30"><ThreadStartingScene job={handoff} /></div>
+    {/key}{/if}
+  <div
+    class="h-full min-h-0"
+    class:opacity-0={Boolean(handoff)}
+    inert={Boolean(handoff)}
+    aria-hidden={handoff ? "true" : undefined}
+  >
     <WorkspaceFrame state={workspaceState}>
       <div class="relative flex min-h-0 min-w-0 flex-1 flex-col bg-surface" {@attach intake.zone}>
         <TopBar
@@ -652,7 +664,7 @@
                   {rows}
                   {scrollMemory}
                   sizes={memory.sizes}
-                  ready={view.loaded && scrollMemory.prepared && !prefetchHistory.waiting}
+                  ready={view.loaded && scrollMemory.prepared && !prefetchHistory.waiting && !preparing}
                   key={(row: FeedRow) => row.key}
                   group={feedGroup}
                   estimate={feedEstimate}
@@ -815,6 +827,7 @@
                             }}
                             connection={view.composerConnection}
                             disabled={closed ||
+                              Boolean(preparationRequestId) ||
                               !view.loaded ||
                               Boolean(away) ||
                               view.connection === "error" ||

@@ -81,7 +81,7 @@ export function threadCreation(
   self: () => Pick<ThreadStore, "thread"> & Pick<WorktreeStore, "ownWorktree">,
 ): Pick<ThreadStore, "createThread"> {
   return {
-    createThread: (ownerUserId, request, movedId, automated, handoff) =>
+    createThread: (ownerUserId, request, movedId, automated, handoff, preparationFingerprint) =>
       sql.withTransaction(
         Effect.gen(function* () {
           if (request.clientRequestId) {
@@ -173,12 +173,13 @@ export function threadCreation(
           if (worktreeMode && workspace.project_kind === "scratch")
             return yield* Effect.fail(new Invalid("a no-project thread has no repository for a worktree"));
 
-          if (worktreeMode && !request.worktreeId)
+          if (worktreeMode && !request.worktreeId && !preparationFingerprint)
             return yield* Effect.fail(new Invalid("choose a worktree for the thread"));
 
-          const worktree = worktreeMode
-            ? yield* self().ownWorktree(ownerUserId, request.worktreeId, workspace.project_id, workspace.id)
-            : undefined;
+          const worktree =
+            worktreeMode && !preparationFingerprint
+              ? yield* self().ownWorktree(ownerUserId, request.worktreeId, workspace.project_id, workspace.id)
+              : undefined;
 
           const requested = !worktree && !inherited && request.cwd ? normalizePath(request.cwd, style) : undefined;
 
@@ -205,14 +206,14 @@ export function threadCreation(
           yield* sql`
                   INSERT INTO threads (id, project_id, owner_user_id, kind, parent_thread_id, root_thread_id, depth, runtime, provider,
                                        provider_profile_id, worker_id, workspace_id, cwd, fork_source_thread_id, fork_after_turn_id, settings, status, title, title_source,
-                                       worktree_id, creation_request_id)
+                                       worktree_id, creation_request_id, preparation_fingerprint)
                   VALUES (${id}::uuid, ${workspace.project_id}::uuid, ${ownerUserId}::uuid, ${parent ? "side" : "main"},
                           ${parent?.id ?? null}::uuid, ${parent?.root_thread_id ?? id}::uuid, ${parent ? parent.depth + 1 : 0}, 'worker', ${provider},
-                          ${request.providerProfileId && request.providerProfileId !== "native" ? request.providerProfileId : null}, ${workspace.worker_id}::uuid, ${workspace.id}::uuid, ${cwd},
+                          ${request.providerProfileId && request.providerProfileId !== "native" ? request.providerProfileId : null}, ${workspace.worker_id}::uuid, ${workspace.id}::uuid, ${preparationFingerprint ? null : cwd},
                           ${forkSource}::uuid, ${forkAfterTurn}::uuid, ${settings}::jsonb, 'creating', ${request.title.trim() || request.initialMessage.trim().split("\n")[0]?.slice(0, 60) || "New thread"}, ${request.title.trim() ? "user" : "provisional"},
-                          ${worktree?.id ?? inherited?.worktree_id ?? null}::uuid, ${request.clientRequestId || null})`;
+                          ${worktree?.id ?? inherited?.worktree_id ?? null}::uuid, ${request.clientRequestId || null}, ${preparationFingerprint ?? null})`;
 
-          if (request.initialMessage.trim()) {
+          if (request.initialMessage.trim() && !preparationFingerprint) {
             yield* sql`
                     INSERT INTO turns (id, thread_id, ordinal, trigger, author_user_id, client_request_id, input)
                     VALUES (${Bun.randomUUIDv7()}::uuid, ${id}::uuid, 1, 'user', ${ownerUserId}::uuid, ${request.clientRequestId || null},

@@ -3,6 +3,7 @@ import { CANOPY_VERSION } from "@canopy/domain/release/version";
 import { startGrpcServer } from "@canopy/transport";
 import { serviceTokenAuth, uiRoutes } from "./api/index.ts";
 import { GatewayCore } from "./core/core.ts";
+import { settleInterruptedWorktreePreparations } from "./core/worktree-preparation.ts";
 import { healthcheck } from "./healthcheck.ts";
 import { ensureDevUser, gatewayRuntime, migrateDatabase, networkPort, webOrigin } from "./runtime.ts";
 import {
@@ -172,6 +173,8 @@ const network = new NetworkAccess({
 });
 
 core.network = network;
+
+await settleInterruptedWorktreePreparations(core);
 
 const unmountMobile = mountMobileNetwork(core, network, serviceToken);
 

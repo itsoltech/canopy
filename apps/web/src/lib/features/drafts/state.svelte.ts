@@ -15,6 +15,7 @@ import { trimValue } from "#lib/features/mentions/editor.ts";
 import { toWire, type QuoteDraft } from "#lib/features/quotes/quote.ts";
 import { HttpError } from "#lib/shared/http.ts";
 import { recoverDraft } from "./recovery.ts";
+import { restoreLocalFiles } from "./local-files.ts";
 
 export interface ComposerSnapshot {
   text: string;
@@ -82,19 +83,7 @@ export class WebComposerDraft {
       provider: content?.provider ?? 0,
       providerProfileId: content?.providerProfileId ?? "",
     };
-    this.files.files = entry.files.map((f) => ({
-      key: f.key,
-      name: f.name,
-      size: Number(f.size),
-      image: f.kind === "image",
-      video: f.kind === "video",
-      contextScope: f.contextScope || undefined,
-      localUrl: undefined,
-      status: f.attachment ? "ready" : "failed",
-      progress: f.attachment ? 1 : 0,
-      error: f.attachment ? undefined : "Upload interrupted. Remove this file and add it again.",
-      attachment: f.attachment,
-    }));
+    this.files.files = restoreLocalFiles(entry.files);
     this.files.place(this.mentions);
   }
   activate() {
@@ -368,6 +357,19 @@ export class WebComposerDraft {
 
     if (fork) this.fork();
     this.persist();
+  }
+  rejectForm(requestId: string) {
+    const content = this.#entry.draft?.content;
+
+    if (
+      content?.clientRequestId !== requestId ||
+      new URLSearchParams(this.pendingForm).get("clientRequestId") !== requestId
+    )
+      return;
+    content.clientRequestId = crypto.randomUUID();
+    this.#mutation = crypto.randomUUID();
+    this.cancelSend();
+    this.local.flush();
   }
   async take(incoming: ui.ComposerDraft, replace = false) {
     if (this.locked || this.files.blocker)

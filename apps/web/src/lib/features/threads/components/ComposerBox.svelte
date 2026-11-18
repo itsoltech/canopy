@@ -99,6 +99,7 @@
     quoteKey,
     allowEmpty = false,
     sendLabel = "Send",
+    progressHref,
     secret = false,
     shell = false,
     compact = false,
@@ -140,6 +141,7 @@
     quoteKey?: string;
     allowEmpty?: boolean;
     sendLabel?: string;
+    progressHref?: string | undefined;
     secret?: boolean;
     /** Owner thread composers only; bots and other text inputs keep their existing semantics. */
     shell?: boolean;
@@ -489,6 +491,16 @@
             {#if stopping}<Spinner class="size-3.5" />{:else}<Icon name="stop" tone="inherit" class="size-3.5" />{/if}
             <TouchTarget />
           </button>
+        {:else if progressHref}
+          <a
+            href={progressHref}
+            class="relative grid size-9 shrink-0 place-items-center rounded-full bg-action text-on-accent focus-ring hover:bg-action-hover sm:size-8"
+            aria-label="Check progress"
+            {@attach tooltip("Check progress")}
+          >
+            <Icon name="arrow-path" tone="inherit" />
+            <TouchTarget />
+          </a>
         {:else}
           <DisabledControlHint reason={sendBlocker}>
             <button

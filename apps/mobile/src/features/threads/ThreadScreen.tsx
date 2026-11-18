@@ -105,7 +105,7 @@ function useThreadState(id: string) {
     home.away ||
     !client ||
     !thread ||
-    Boolean(thread.archivedAt || thread.deletedAt || thread.worktree?.removedAt) ||
+    Boolean(thread.archivedAt || thread.deletedAt || thread.worktree?.removedAt || thread.preparationRequestId) ||
     thread.status === "archived" ||
     stream.connection === "error";
 
@@ -322,6 +322,12 @@ function ThreadStatus({ state }: { state: ThreadState }) {
         <Notice>{state.waiting ? `Still waiting for ${home.name || "this computer"}…` : "Sending…"}</Notice>
       ) : null}
       {error ? <Notice error>{error}</Notice> : null}
+      {state.thread?.preparationRequestId &&
+        (state.thread.status === "creating" ? (
+          <Notice>Preparing worktree…</Notice>
+        ) : state.thread.status === "failed" ? (
+          <Notice error>Worktree setup failed. Return to your draft to try again.</Notice>
+        ) : null)}
       {state.replies.unconfirmed && (
         <Button title="Retry" variant="ghost" disabled={state.replies.retryDisabled} onPress={state.replies.retry} />
       )}

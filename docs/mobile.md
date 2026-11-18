@@ -1,6 +1,6 @@
 # Canopy na iOS i Android
 
-Status: opis zaimplementowanego kodu (2026-11-17); nowy wątek od razu pokazuje prompt
+Status: opis zaimplementowanego kodu (2026-11-18); nowy wątek od razu pokazuje prompt
 i checklistę rzeczywistego przygotowania przed startem agenta, we wspólnej geometrii
 nagłówka, osi czasu i kompozytora. Kompozytory i ustawienia botów pokazują zwarte
 menu Speed z ikonami szybkości i wspólnym glifem podwójnego pioruna dla Ultrafast,
@@ -80,6 +80,10 @@ pochodzą bezpośrednio z `CreateThreadWithProgress` przez natywny Connect i prz
 bez BFF. Starszy gateway może przejść na unary `CreateThread` wyłącznie po
 `Unimplemented` przed pierwszym zdarzeniem; wtedy lista pokazuje tylko zbiorczy start.
 Starszy worker lub dom połączonego komputera także nie otrzymuje wymyślonego postępu.
+
+Przy nowym worktree trwały wpis trafia na listę przed rozpoczęciem Git. Po otwarciu
+go z listy zwykły widok wątku pokazuje stan przygotowania albo błąd z informacją
+o powrocie do szkicu i blokuje kolejne wiadomości do zakończenia przygotowania.
 
 Przygotowanie używa tego samego `ThreadHeaderBar`, `TimelineList`, granicy dnia
 oraz `FloatingComposer` z zablokowanym `ComposerBox`; nie tworzy fikcyjnego wątku
