@@ -1,7 +1,8 @@
 # CLI dostawców: wykrywanie, instalacja i aktualizacja
 
 Status: opis zaimplementowanego kodu (2026-11-18), w tym aktualizacji globalnych instalacji mise
-i powiązania wyników Update all z konkretną próbą instalacji.
+i powiązania wyników Update all z konkretną próbą instalacji oraz uruchamiania skryptów CLI
+z katalogów ze spacjami na Windows.
 Dostępność w nightly, beta i stable wynika z promocji opisanych w [release.md](release.md).
 
 Odczyt statusu konta przez oficjalne CLI, jego ograniczenia oraz zasady
@@ -111,6 +112,9 @@ CLI (do 8, także zepsute symlinki; bez bitu wykonywania są pomijane) w tej kol
 
 Windows (`<cli>.exe`, npm-owe `<cli>.cmd` i `<cli>.bat`): `PATH`, `%APPDATA%\npm`, `%VOLTA_HOME%\bin`,
 `%LOCALAPPDATA%\Volta\bin`, `~/scoop/shims`, Bun, `%PNPM_HOME%`, `~/.local/bin`.
+Worker przekazuje skrypty `.cmd` i `.bat` do `cmd.exe` bez ponownego cytowania przez Bun.
+Skrypt npm przekazuje argumenty dalej przez `%*`, więc worker uwzględnia oba przebiegi
+interpretacji powłoki, zachowując m.in. cudzysłowy w argumentach Codexa.
 
 **Wybór:** kandydaci są sprawdzani po kolei przez `<plik> --version` (governor: ≤2 naraz, cache 60 s; ten sam klucz
 dla raportu CLI i konfiguracji). Pierwsza kopia, która odpowie, wygrywa, więc działająca kopia z Bun wygrywa ze

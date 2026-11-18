@@ -25,15 +25,18 @@ export async function startCliLogin(options: {
   const command = windowsCommand(
     [options.executable, ...(options.harness === "claude" ? ["auth", "login"] : ["login", "--device-auth"])],
     options.env,
+    process.platform,
+    options.cwd,
   );
 
   const child = governNodeSpawn("probe", () =>
-    spawn(command[0]!, command.slice(1), {
+    spawn(command.argv[0]!, command.argv.slice(1), {
       env: { ...options.env, BROWSER: "false" },
       cwd: options.cwd,
       stdio: ["pipe", "pipe", "pipe"],
       detached: process.platform !== "win32",
       windowsHide: true,
+      windowsVerbatimArguments: command.windowsVerbatimArguments,
     }),
   );
 

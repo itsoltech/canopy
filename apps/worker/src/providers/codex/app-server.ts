@@ -1,5 +1,5 @@
 import type { InitializeParams, ServerNotification, ServerRequest, v2 } from "@canopy/codex-protocol";
-import { Context, Effect, Layer, PubSub, Schema, Stream } from "effect";
+import { Context, Effect, Layer, Option, Predicate, PubSub, Schema, Stream } from "effect";
 import { governBunSpawn, windowsCommand } from "@canopy/process-governor";
 import type { JsonValue } from "@canopy/domain";
 import { decodeJson } from "../json.ts";
@@ -17,6 +17,11 @@ export class CodexAppServerError extends Schema.TaggedError<CodexAppServerError>
   message: Schema.String,
   code: Schema.optional(Schema.Number),
 }) {}
+
+export class CodexAppServerStartupError extends Schema.TaggedError<CodexAppServerStartupError>()(
+  "CodexAppServerStartupError",
+  { message: Schema.String },
+) {}
 
 /** Requests the adapter uses, with their params and results (bindings from the pinned Codex version). */
 export interface CodexMethods {
@@ -91,19 +96,23 @@ export class CodexAppServer extends Context.Service<
         const notifications = yield* PubSub.unbounded<ServerNotification>();
         const stderr: string[] = [];
 
-        const command = windowsCommand(options.launch.command, options.launch.env);
-
         const proc = yield* Effect.acquireRelease(
-          Effect.sync(() =>
-            governBunSpawn("harness", () =>
-              Bun.spawn([...command], {
-                env: options.launch.env,
-                stdin: "pipe",
-                stdout: "pipe",
-                stderr: "pipe",
-              }),
-            ),
-          ),
+          Effect.try({
+            try: () => {
+              const command = windowsCommand(options.launch.command, options.launch.env);
+
+              return governBunSpawn("harness", () =>
+                Bun.spawn([...command.argv], {
+                  env: options.launch.env,
+                  windowsVerbatimArguments: command.windowsVerbatimArguments,
+                  stdin: "pipe",
+                  stdout: "pipe",
+                  stderr: "pipe",
+                }),
+              );
+            },
+            catch: () => new CodexAppServerStartupError({ message: "Could not spawn the Codex app-server." }),
+          }),
           (proc) =>
             Effect.promise(async () => {
               proc.stdin.end();
@@ -166,8 +175,28 @@ export class CodexAppServer extends Context.Service<
           capabilities: { experimentalApi: true, requestAttestation: false },
         };
 
-        const initialized = Schema.decodeUnknownSync(Schema.Struct({ userAgent: Schema.String }))(
-          yield* call("initialize", initializeParams).pipe(Effect.timeout("30 seconds")),
+        const initialized = yield* call("initialize", initializeParams).pipe(
+          Effect.timeout("30 seconds"),
+          Effect.flatMap(Schema.decodeUnknownEffect(Schema.Struct({ userAgent: Schema.String }))),
+          Effect.catch((error) =>
+            Effect.gen(function* () {
+              // The RPC pipe can close before Bun reports the process exit.
+              const exit =
+                proc.exitCode ??
+                Option.getOrUndefined(
+                  yield* Effect.promise(() => proc.exited).pipe(Effect.timeoutOption("100 millis")),
+                );
+
+              const message =
+                exit !== undefined
+                  ? `Codex app-server exited during initialization (code ${exit}).`
+                  : Predicate.isTagged(error, "TimeoutError")
+                    ? "Codex app-server initialization timed out."
+                    : "Codex app-server initialization failed.";
+
+              return yield* new CodexAppServerStartupError({ message });
+            }),
+          ),
         );
 
         peer.notify("initialized");
