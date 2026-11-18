@@ -8,6 +8,8 @@ wybiera podłączone konto i trasy; gateway odnawia rotowane tokeny użytkownika
 Po włączeniu wiadomości konto udostępnia też sformatowaną wysyłkę jako Canopy przez Slack Web API.
 Bot może korzystać ze stałej zgody właściciela na wysyłkę do wybranej rozmowy Slack.
 Boty i wątki mogą pobierać udostępnione pliki Slack, a wiadomości Socket Mode mogą zawierać załączniki.
+Log gatewaya pokazuje odbiór zdarzeń Socket Mode, przyczyny pominięcia,
+wynik zapisu do kolejki i rozłączenia.
 Panel web/desktop jest odświeżany reaktywnie w pamięci BFF
 i dostarczany przez SSE; autoryzacja uwzględnia zmiany uprawnień bieżącej tury Claude.
 Panel natywnego mobile rozróżnia dostęp workera i katalog bieżącej tury:
@@ -518,6 +520,31 @@ Bot wybiera działania zgodnie z instrukcjami, korzystając ze swoich zwykłych
 przyznanych narzędzi i obowiązujących zasad zatwierdzania. Kanał nie otrzymuje
 osobnego przypisania narzędzi. Zarządzanie kontami i nasłuchiwaniem wymaga
 prywatnej wiadomości właściciela.
+
+### Diagnoza brakującej odpowiedzi na Slacku
+
+W logu gatewaya wyszukaj prefiks `messengers: slack`. Wpisy zawierają
+identyfikator konta Messages w Canopy oraz, jeśli przejdą walidację,
+identyfikator zdarzenia i kanału, typ zdarzenia oraz znaczniki czasu wiadomości
+(`message_ts`) i wiadomości nadrzędnej (`thread_ts`). Log nie zawiera treści
+wiadomości, autorów, tokenów, adresów załączników ani pełnych błędów dostawcy.
+
+- `stage=received` oznacza odebraną i zdekodowaną ramkę. Wpis `stage=ignored`
+  albo `stage=rejected` podaje powód pominięcia przed zapisem.
+- `stage=ingest outcome=buffered` potwierdza zapis w buforze po zatwierdzeniu
+  transakcji. `no_matching_route` oznacza brak aktywnej trasy pasującej do
+  kanału i autora, a `route_not_triggered` oznacza dopasowaną trasę bez
+  spełnionego warunku uruchomienia.
+- `duplicate_event` oznacza ponowne dostarczenie tego samego zdarzenia.
+  `duplicate_message` oznacza osobne zdarzenie opisujące już zapisaną wiadomość.
+  `outcome=failed` oznacza błąd zapisu, po którym Canopy nie potwierdza ramki.
+- Wpisy `connection=connected` i `connection=disconnected` pokazują zakres
+  połączenia oraz przyczynę rozłączenia, np. błąd dekodowania ramki.
+
+W prywatnym kanale testowym wyślij dwie odpowiedzi do tego samego wątku
+obsługiwanego przez trasę, jedną ze wzmianką o aplikacji i drugą bez wzmianki.
+Porównaj ich znaczniki czasu w Slacku z wpisami odbioru i wynikiem zapisu.
+Brak odebranej ramki nie wskazuje sam w sobie, dlaczego Slack jej nie dostarczył.
 
 Opis dotyczy implementacji; dostępność wydań wskazuje [release.md](release.md).
 Testy z atrapą transportu nie potwierdzają poprawnej instalacji na żywym Slacku.

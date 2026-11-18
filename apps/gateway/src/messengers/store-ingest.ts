@@ -4,7 +4,14 @@ import type { SqlClient } from "effect/sql";
 import { Invalid } from "../store/store.ts";
 import { boundedSlackFileIds } from "./slack-events.ts";
 import type { MessengerAccounts } from "./store-accounts.ts";
-import type { AccountLease, ConversationRow, MessengerEvent, RouteRow } from "./types.ts";
+import type {
+  AccountLease,
+  ConversationRow,
+  MessengerEvent,
+  MessengerIngestOutcome,
+  RouteIngestOutcome,
+  RouteRow,
+} from "./types.ts";
 
 interface RecordedMessage {
   id: string;
@@ -47,14 +54,14 @@ function bufferEvent(sql: SqlClient.SqlClient, route: RouteRow, event: Messenger
         (kind !== "delete" && !route.user_ids.includes(original.author_id)) ||
         (event.authorId && original.author_id !== event.authorId)
       )
-        return;
+        return "original_message_ignored" as const;
 
       if (kind === "delete") {
         yield* sql`UPDATE bot_channel_messages SET text=CASE WHEN state='buffered' THEN '' ELSE text END,
           deleted=true,slack_file_ids='{}' WHERE conversation_id=${conversation.id}::uuid
           AND source_message_id=${event.messageId}`;
 
-        return;
+        return "message_deleted" as const;
       }
 
       if (kind === "message") {
@@ -64,7 +71,7 @@ function bufferEvent(sql: SqlClient.SqlClient, route: RouteRow, event: Messenger
           yield* sql`UPDATE bot_channel_messages SET slack_file_ids=${boundedSlackFileIds([...original.slack_file_ids, ...fileIds])}::text[]
             WHERE id=${original.id}::bigint`;
 
-        return;
+        return "duplicate_message" as const;
       }
 
       const processed = yield* sql`SELECT id FROM bot_channel_messages WHERE conversation_id=${conversation.id}::uuid
@@ -76,13 +83,13 @@ function bufferEvent(sql: SqlClient.SqlClient, route: RouteRow, event: Messenger
           SELECT file_id FROM unnest(slack_file_ids) AS file_id WHERE file_id=ANY(${fileIds}::text[])),
           source_edited=true WHERE id=${original.id}::bigint`;
 
-        return;
+        return "message_updated" as const;
       }
 
       receivedAt = new Date(original.received_at);
       yield* sql`DELETE FROM bot_channel_messages WHERE conversation_id=${conversation.id}::uuid
         AND source_message_id=${event.messageId}`;
-    } else if (kind !== "message") return;
+    } else if (kind !== "message") return "original_message_missing" as const;
 
     const running = conversation
       ? yield* sql`SELECT id FROM bot_turns WHERE conversation_id=${conversation.id}::uuid
@@ -98,7 +105,7 @@ function bufferEvent(sql: SqlClient.SqlClient, route: RouteRow, event: Messenger
       !(event.mention && route.mentions) &&
       !follows
     )
-      return;
+      return "route_not_triggered" as const;
 
     if (!conversation) {
       conversation =
@@ -119,6 +126,8 @@ function bufferEvent(sql: SqlClient.SqlClient, route: RouteRow, event: Messenger
 
     yield* sql`UPDATE bot_channel_conversations SET first_received_at=coalesce(first_received_at,${now}),
       last_received_at=${now},open_until=${new Date(now.getTime() + 300_000)} WHERE id=${conversation.id}::uuid`;
+
+    return kind === "edit" ? ("message_updated" as const) : ("buffered" as const);
   });
 }
 
@@ -142,13 +151,14 @@ export function messengerIngest(sql: SqlClient.SqlClient, accounts: MessengerAcc
         )
           return yield* Effect.fail(new Invalid("Invalid messenger event"));
 
-        if (!(yield* lockedOwnerModule(sql, owner, "bots"))) return false;
+        if (!(yield* lockedOwnerModule(sql, owner, "bots")))
+          return ["bots_disabled"] satisfies MessengerIngestOutcome[];
         yield* accounts.fenced(owner, lease, now);
 
         const accepted = yield* sql`INSERT INTO messenger_events(account_id,event_id,received_at)
       VALUES(${event.accountId}::uuid,${event.id},${now}) ON CONFLICT DO NOTHING RETURNING event_id`;
 
-        if (!accepted.length) return false;
+        if (!accepted.length) return ["duplicate_event"] satisfies MessengerIngestOutcome[];
 
         const routes = yield* sql<RouteRow>`SELECT r.* FROM bot_channel_routes r JOIN bots b ON b.id=r.bot_id
       WHERE r.account_id=${event.accountId}::uuid AND r.owner_user_id=${owner}::uuid AND b.owner_user_id=${owner}::uuid
@@ -156,9 +166,13 @@ export function messengerIngest(sql: SqlClient.SqlClient, accounts: MessengerAcc
       AND (${event.authorId}=ANY(r.user_ids) OR ${event.kind === "delete"})
       AND ((${event.direct} AND r.direct_messages) OR (NOT ${event.direct} AND ${event.channelId}=ANY(r.channel_ids)))`;
 
-        for (const route of routes) yield* bufferEvent(sql, route, event, now);
+        if (!routes.length) return ["no_matching_route"] satisfies MessengerIngestOutcome[];
 
-        return true;
+        const outcomes = new Set<RouteIngestOutcome>();
+
+        for (const route of routes) outcomes.add(yield* bufferEvent(sql, route, event, now));
+
+        return [...outcomes];
       }),
     );
 }

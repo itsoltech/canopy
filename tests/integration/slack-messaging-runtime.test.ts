@@ -161,6 +161,72 @@ async function seedMessaging(gw: TestGateway) {
 }
 
 test.skipIf(!dockerAvailable)(
+  "Slack diagnostics correlate a private thread reply and distinguish filtering from duplicate delivery",
+  async () => {
+    const slack = slackMessengerFixture("group");
+    const logs: string[] = [];
+    let now = new Date();
+    let gateway: TestGateway | undefined;
+
+    try {
+      const gw = await startTestGateway({
+        messengerTransport: slack.transport,
+        botClock: () => now,
+        log: (message) => logs.push(message),
+      });
+
+      gateway = gw;
+      await gw.core.bots.stop();
+      const { account, bot } = await seedMessaging(gw);
+      const prefix = `messengers: slack account_id=${account.id} `;
+      gw.core.messengers.start();
+      await eventually(async () => logs.includes(`${prefix}connection=connected`), Boolean);
+
+      slack.emit("EvROOT", "<@UAPP> Start the thread", "100.1", null);
+      slack.emit("EvREPLY", "Private reply to the bot", "100.2", "100.1");
+      slack.emit("EvTAGGED", "<@UAPP> Tagged follow-up", "100.3", "100.1");
+      slack.emit("EvCOPY", "<@UAPP> Tagged follow-up", "100.3", "100.1", undefined, "app_mention");
+      slack.emit("EvREPLY", "Private reply to the bot", "100.2", "100.1");
+      slack.emit("EvSKIPPED", "Unrelated reply", "200.2", "200.1");
+      await eventually(async () => slack.acknowledged.has("EvSKIPPED"), Boolean);
+
+      const replyFields = "event_type=message event_id=EvREPLY channel=CGENERAL message_ts=100.2 thread_ts=100.1";
+
+      expect(logs).toContain(`${prefix}stage=received ${replyFields}`);
+      expect(logs).toContain(`${prefix}stage=ingest outcome=buffered ${replyFields}`);
+      expect(logs).toContain(`${prefix}stage=ingest outcome=duplicate_event ${replyFields}`);
+      expect(logs).toContain(
+        `${prefix}stage=ingest outcome=buffered event_type=message event_id=EvTAGGED channel=CGENERAL message_ts=100.3 thread_ts=100.1`,
+      );
+      expect(logs).toContain(
+        `${prefix}stage=ingest outcome=duplicate_message event_type=app_mention event_id=EvCOPY channel=CGENERAL message_ts=100.3 thread_ts=100.1`,
+      );
+      expect(logs).toContain(
+        `${prefix}stage=ingest outcome=route_not_triggered event_type=message event_id=EvSKIPPED channel=CGENERAL message_ts=200.2 thread_ts=200.1`,
+      );
+      expect(logs.join("\n")).not.toContain("Private reply to the bot");
+
+      now = new Date(now.getTime() + 4000);
+
+      const turns = await eventually(
+        () => query<{ input: string }>(gw, "SELECT input FROM bot_turns WHERE bot_id=$1", [bot.id]),
+        (rows) => rows.length > 0,
+      );
+
+      expect(turns).toHaveLength(1);
+      expect(turns[0]?.input).toContain("Start the thread");
+      expect(turns[0]?.input.match(/Private reply to the bot/g)).toHaveLength(1);
+      expect(turns[0]?.input.match(/Tagged follow-up/g)).toHaveLength(1);
+      expect(turns[0]?.input).not.toContain("Unrelated reply");
+    } finally {
+      await gateway?.close();
+      await slack.close();
+    }
+  },
+  30_000,
+);
+
+test.skipIf(!dockerAvailable)(
   "linked Slack bot token rotation replaces a live session and sends with refreshed credentials",
   async () => {
     let clockOffset = 0;

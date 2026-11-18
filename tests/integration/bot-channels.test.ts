@@ -192,7 +192,7 @@ describe.skipIf(!dockerAvailable)("durable bot messenger channels", () => {
     try {
       await runtime.dispose();
       runtime = services(db, key);
-      expect(await f.ingest("while-off", "Must never reach the bot", 6000)).toBe(false);
+      expect(await f.ingest("while-off", "Must never reach the bot", 6000)).toEqual(["bots_disabled"]);
       expect(await run((s) => s.renewAccount(owner, f.lease, f.at(6000)))).toBe(false);
       await f.dispatch(10_000);
       expect(await f.turns()).toHaveLength(1);
@@ -319,7 +319,9 @@ describe.skipIf(!dockerAvailable)("durable bot messenger channels", () => {
     await f.ingest("modified", "Before edit", 5200, { fileIds: ["FOLD"] });
     await f.ingest("edit", "After edit", 5300, { kind: "edit", messageId: "modified", fileIds: ["FEDITED"] });
     await f.ingest("late-copy", "Original copy", 5400, { messageId: "modified", fileIds: ["FOLD"] });
-    await f.ingest("untrusted", "Outside the allowlist", 5500, { authorId: "UDENIED", fileIds: ["FDENIED"] });
+    expect(
+      await f.ingest("untrusted", "Outside the allowlist", 5500, { authorId: "UDENIED", fileIds: ["FDENIED"] }),
+    ).toEqual(["no_matching_route"]);
 
     expect(await f.dispatch(9000)).toEqual([]);
     expect(await f.turns()).toHaveLength(1);
