@@ -3,7 +3,7 @@ import { AgentTool, type InstallAgentTool } from "@canopy/contracts";
 import { processGovernor, runProcess } from "@canopy/process-governor";
 import { installEnv, redactLine } from "../cli-tools/installer.ts";
 import { managedPrefix, toolArgv, toolCandidates, toolEnvironment, type ToolEnv } from "./paths.ts";
-import { agentToolVersion } from "./probe.ts";
+import { agentToolVersion, reportedAgentToolVersion } from "./probe.ts";
 import { preflightAgentTool } from "./preflight.ts";
 import { serializeAgentTool } from "./queue.ts";
 import type { AgentToolSpec } from "./specs.ts";
@@ -34,7 +34,13 @@ async function install(input: AgentToolInstallInput): Promise<void> {
 
   const run = async (path: string, args: readonly string[]) => {
     const result = await runProcess(
-      { argv: toolArgv(path, args, env), cwd: prefix, env, timeoutMs: INSTALL_TIMEOUT, maxBytes: 2 * 1024 * 1024 },
+      {
+        argv: toolArgv(path, args, env, platform),
+        cwd: prefix,
+        env,
+        timeoutMs: INSTALL_TIMEOUT,
+        maxBytes: 2 * 1024 * 1024,
+      },
       { kind: "install", maxQueueMs: INSTALL_TIMEOUT },
     );
 
@@ -62,13 +68,15 @@ async function install(input: AgentToolInstallInput): Promise<void> {
     const path = toolCandidates(spec, env, platform, dataDir, () => null)[0];
 
     if (!path) throw new Error(`${spec.label} was not found in its managed prefix after installation`);
-    const version = await agentToolVersion(path, env);
+    const version = await agentToolVersion(path, input.env, undefined, platform);
 
-    if (
-      !("line" in version) ||
-      !new RegExp(`(?:^|[^0-9.])${spec.version.replaceAll(".", "\\.")}(?:$|[^0-9.A-Za-z-])`).test(version.line)
-    )
-      throw new Error(`${spec.label} did not report the expected version ${spec.version}`);
+    if ("error" in version) throw new Error(`Could not check ${spec.label} version: ${version.error}`);
+    const reported = reportedAgentToolVersion(version.line);
+
+    if (reported !== spec.version)
+      throw new Error(
+        `${spec.label} did not report the expected version ${spec.version}${reported ? ` (found ${reported})` : ""}`,
+      );
 
     if (command.installRuntime && spec.tool === AgentTool.BROWSER) await run(path, ["install"]);
     const readiness = await preflightAgentTool(spec, path, input.env, platform);

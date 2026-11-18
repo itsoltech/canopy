@@ -1,5 +1,5 @@
 import { expect, test } from "bun:test";
-import { readFileSync, writeFileSync } from "node:fs";
+import { mkdirSync, readFileSync, symlinkSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { create } from "@bufbuild/protobuf";
 import {
@@ -99,6 +99,53 @@ test("installs use a managed prefix, exact package version, stripped env and ver
     "doctor",
     "doctor",
   ]);
+});
+
+test("Windows desktop install runs the extensionless npm entry through Node for version and readiness", async () => {
+  const f = fixture();
+  const spec = agentToolSpec(AgentTool.DESKTOP);
+  const dataDir = join(f.dir, "local worker data");
+  const nodeDir = join(f.dir, "node runtime");
+
+  mkdirSync(nodeDir);
+  symlinkSync(process.execPath, join(nodeDir, "node"));
+  f.state(AgentTool.DESKTOP, { platform: "windows" });
+
+  const npm = executable(
+    join(f.dir, "npm"),
+    `
+import { mkdirSync, writeFileSync } from "node:fs";
+import { join } from "node:path";
+const args = process.argv.slice(2);
+const prefix = args[args.indexOf("--prefix") + 1];
+const pkg = join(prefix, "node_modules", "agent-desktop");
+mkdirSync(join(pkg, "bin"), { recursive: true });
+writeFileSync(join(prefix, "agent-desktop.cmd"), "@echo off\\r\\nexit /b 1\\r\\n");
+writeFileSync(join(pkg, "package.json"), JSON.stringify({ bin: { "agent-desktop": "bin/agent-desktop" } }));
+writeFileSync(join(pkg, "bin", "agent-desktop"), ${JSON.stringify(`#!/usr/bin/env node\r\n${f.script(AgentTool.DESKTOP)}`)}, { mode: 0o600 });
+`,
+  );
+
+  const input: AgentToolInstallInput = {
+    command: command(AgentTool.DESKTOP),
+    spec,
+    npm,
+    dataDir,
+    env: { ...f.env, PATH: nodeDir },
+    platform: "win32",
+    emit: async () => {},
+  };
+
+  await installAgentTool(input);
+  expect(
+    f
+      .calls()
+      .filter((call) => call.event === "start")
+      .map((call) => call.args),
+  ).toEqual([["--version"], ["status"]]);
+
+  f.state(AgentTool.DESKTOP, { platform: "windows", version: "1.3.1-preview" });
+  await expect(installAgentTool(input)).rejects.toThrow("expected version 1.3.1 (found 1.3.1-preview)");
 });
 
 test("all AgentTools instances serialize npm recipes sharing their installation resources", async () => {

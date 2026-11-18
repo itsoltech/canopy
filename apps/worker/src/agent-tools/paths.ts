@@ -4,6 +4,7 @@ import { dirname, extname, join, resolve, sep } from "node:path";
 import { z } from "zod";
 import { searchDirectories, withNodeOnPath } from "../cli-tools/locations.ts";
 import { installEnv } from "../cli-tools/installer.ts";
+import { readHead } from "../cli-tools/managers.ts";
 import type { AgentToolSpec } from "./specs.ts";
 
 export type ToolEnv = Readonly<Record<string, string | undefined>>;
@@ -43,7 +44,7 @@ export function executablePaths(name: string, env: ToolEnv, platform: NodeJS.Pla
   );
 }
 
-/** npm's .cmd launchers cannot be passed to spawn without a shell. Resolve their package's JS entry instead. */
+/** npm's .cmd launchers cannot be passed to spawn without a shell. Resolve their package's bin entry instead. */
 export function resolveLauncher(path: string, name: string): string {
   if (extname(path).toLowerCase() !== ".cmd") return path;
   const root = join(dirname(path), "node_modules", name);
@@ -103,9 +104,22 @@ export function toolEnvironment(source: ToolEnv, platform: NodeJS.Platform = pro
   return { ...env, ...(path && { PATH: path }) };
 }
 
-export function toolArgv(path: string, args: readonly string[], env: ToolEnv): string[] {
-  if (![".js", ".mjs", ".cjs"].includes(extname(path).toLowerCase())) return [path, ...args];
-  const node = executablePaths("node", env, process.platform)[0];
+export function toolArgv(
+  path: string,
+  args: readonly string[],
+  env: ToolEnv,
+  platform: NodeJS.Platform = process.platform,
+): string[] {
+  const extension = extname(path).toLowerCase();
+
+  // Some npm bin entries, including Agent Desktop, are Node scripts with no extension.
+  const nodeShebang =
+    platform === "win32" &&
+    !extension &&
+    /^#!\/usr\/bin\/env[ \t]+node\r?$/.test(readHead(path)?.split("\n", 1)[0] ?? "");
+
+  if (!nodeShebang && ![".js", ".mjs", ".cjs"].includes(extension)) return [path, ...args];
+  const node = executablePaths("node", env, platform)[0];
 
   if (!node) throw new Error("Node.js is required to run this automation tool");
 
