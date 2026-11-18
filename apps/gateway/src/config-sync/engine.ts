@@ -1,3 +1,4 @@
+import { lockModuleChanges } from "../store/module-access.ts";
 import { type JsonValue } from "@bufbuild/protobuf";
 import { computerLink as link } from "@canopy/contracts";
 import { Code, ConnectError } from "@connectrpc/connect";
@@ -106,6 +107,7 @@ export class ConfigSync {
 
         return yield* sql.withTransaction(
           Effect.gen(function* () {
+            if (incoming.some(({ row }) => row.kind === "settings")) yield* lockModuleChanges(sql, store.owner);
             const clock = yield* configLock(sql, store.owner);
 
             const consent = (yield* sql`SELECT node_id FROM computer_peers WHERE owner_user_id=${store.owner}::uuid
@@ -114,7 +116,14 @@ export class ConfigSync {
             if (!consent || !allowed())
               return yield* Effect.fail(new ConnectError("Configuration sharing is off", Code.FailedPrecondition));
             const context = { sql, owner: store.owner, key: store.key, self: self(), peer, host };
-            const outcome: ReceiveResult = { last: clock.hlc, settings: false, cli: false, providers: false };
+
+            const outcome: ReceiveResult = {
+              last: clock.hlc,
+              settings: false,
+              moduleChanges: [],
+              cli: false,
+              providers: false,
+            };
 
             for (const item of incoming) yield* receiveItem(context, item, outcome);
 
@@ -151,7 +160,7 @@ export class ConfigSync {
     if (ahead > 300_000) this.ahead.set(peer, Math.ceil(ahead / 60_000));
     else this.ahead.delete(peer);
 
-    if (result.settings) await host.settingsChanged?.(result.cli);
+    if (result.settings) await host.settingsChanged?.(result.cli, result.moduleChanges);
 
     if (result.providers) await host.providersChanged?.(result.workers);
 

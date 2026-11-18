@@ -1,29 +1,47 @@
-/**
- * The sidebar's sections: Threads (coding agents on workers) and Bots (agents in the gateway). The
- * active one follows the route; switching goes back to the last page you had open in that section
- * (kept in memory for this tab) or to its home.
- */
-export type Section = "threads" | "bots";
+import type { ReadonlyURL } from "$app/state";
+import type { ModuleId } from "@canopy/domain";
 
-export const sections: readonly { id: Section; label: string; home: string }[] = [
-  { id: "threads", label: "Threads", home: "/" },
-  { id: "bots", label: "Bots", home: "/bots" },
-];
+export const sectionLabels: Record<ModuleId, string> = { threads: "Threads", bots: "Bots" };
 
-/** Section of a page; Settings belongs to none (the sidebar keeps the last one). */
-export function sectionOf(pathname: string): Section | undefined {
-  if (pathname.startsWith("/settings")) return undefined;
+export const sectionHome = (id: ModuleId): string => (id === "threads" ? "/threads/new" : "/bots");
 
-  return pathname === "/bots" || pathname.startsWith("/bots/") ? "bots" : "threads";
+/** Settings, the app entry point, and shared pages have no module of their own. */
+export function sectionOf(pathname: string): ModuleId | undefined {
+  const [, root] = pathname.split("/");
+
+  if (root === "bots" || pathname === "/dev/bots") return "bots";
+
+  if (
+    ["threads", "projects", "pull-requests"].includes(root ?? "") ||
+    pathname === "/dev/tool-calls" ||
+    pathname === "/dev/long-thread"
+  )
+    return "threads";
+
+  return undefined;
+}
+
+export function moduleRedirect(url: ReadonlyURL, enabled: readonly ModuleId[]): string | undefined {
+  const home = sectionHome(enabled[0] ?? "threads");
+
+  if (url.pathname === "/") {
+    // Bookmarked project/workspace links from the original new-thread composer.
+    if (enabled.includes("threads") && (url.searchParams.has("project") || url.searchParams.has("workspace")))
+      return `${sectionHome("threads")}${url.search}${url.hash}`;
+
+    return home;
+  }
+
+  const section = sectionOf(url.pathname);
+
+  return section && !enabled.includes(section) ? home : undefined;
 }
 
 class SectionMemory {
-  /** Section of the last page outside Settings. */
-  current = $state<Section>("threads");
-  #last = $state<Partial<Record<Section, string>>>({});
+  current = $state<ModuleId>();
+  #last = $state<Partial<Record<ModuleId, string>>>({});
 
-  /** Remembers a visited page (called after every navigation). */
-  visit(url: URL): void {
+  visit(url: ReadonlyURL): void {
     const section = sectionOf(url.pathname);
 
     if (!section) return;
@@ -31,9 +49,8 @@ class SectionMemory {
     this.#last[section] = `${url.pathname}${url.search}`;
   }
 
-  /** Where switching to `section` goes. */
-  href(section: Section): string {
-    return this.#last[section] ?? sections.find((s) => s.id === section)!.home;
+  href(section: ModuleId): string {
+    return this.#last[section] ?? sectionHome(section);
   }
 }
 

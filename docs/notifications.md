@@ -1,6 +1,7 @@
 # Powiadomienia wątków i botów
 
-Status (2026-11-17): zaimplementowane; powiadomienia wątków web/desktop obejmują
+Status (2026-11-18): web/desktop wysyła powiadomienia tylko z włączonych modułów.
+Powiadomienia wątków obejmują
 tylko wątki główne i wątki boczne użytkownika. Toasty są kartami w prawym dolnym
 rogu, z osobnym nagłówkiem zdarzenia, nazwą i akcją pod treścią oraz większą ikoną
 statusu, bez wyłączania przeciągania okna desktopu. Opis dotyczy kodu; dostępność

@@ -3,6 +3,7 @@
   import { applicationName } from "#lib/application-name.ts";
   import { useOverview } from "#lib/features/overview/overview-state.svelte.ts";
   import { workerRecords } from "#lib/features/workers/worker-records.svelte.ts";
+  import { useSettings } from "#lib/features/settings/settings-state.svelte.ts";
   import AgentToolCard from "#lib/features/agent-tools/AgentToolCard.svelte";
   import ToolActionNote from "#lib/features/agent-tools/ToolActionNote.svelte";
   import { AgentToolActions, agentTools, type ToolWorker } from "#lib/features/agent-tools/agent-tools.svelte.ts";
@@ -12,6 +13,7 @@
   import Alert from "#lib/shared/ui/Alert.svelte";
 
   const overview = useOverview();
+  const settings = useSettings();
   const records = workerRecords(overview);
   const actions = new AgentToolActions();
 
@@ -50,7 +52,9 @@
   {#if workers.length}
     {#each agentTools as tool (tool.tool)}<AgentToolCard {...tool} {workers} {actions} />{/each}
     <p class="px-1 text-sm/5 text-pretty text-zinc-500 dark:text-zinc-400">
-      Enabling a tool installs it if needed. Open Preview in a thread to see and control its screen.
+      Enabling a tool installs it if needed.
+      {#if settings.moduleEnabled("threads")}
+        Open Preview in a thread to see and control its screen.{/if}
     </p>
   {:else}
     <SettingsCard class="p-5">

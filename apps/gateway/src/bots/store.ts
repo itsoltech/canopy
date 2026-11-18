@@ -36,6 +36,11 @@ function makeStore(sql: SqlClient.SqlClient, key: Buffer) {
   return {
     conversationContext: (turn: import("./types.ts").BotTurn) => conversationContext(sql, turn),
     originEnabled: core.originEnabled,
+    interruptedTurns: (owner: string, ids: string[]) =>
+      sql<{ id: string }>`SELECT t.id FROM bot_turns t JOIN bots b ON b.id=t.bot_id
+      WHERE b.owner_user_id=${owner}::uuid AND t.id=ANY(${ids}::uuid[]) AND t.status='interrupted'`.pipe(
+        Effect.map((rows) => new Set(rows.map((t) => t.id))),
+      ),
     poll: (owner: string, now: Date) => botPoll(sql, owner, now),
     handoffContext: access.handoffs.context,
     handoffFallback: access.handoffs.fallback,

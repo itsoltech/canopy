@@ -9,6 +9,7 @@
   import Field from "#lib/shared/ui/Field.svelte";
   import Input from "#lib/shared/ui/Input.svelte";
   import Alert from "#lib/shared/ui/Alert.svelte";
+  import { useSettings } from "#lib/features/settings/settings-state.svelte.ts";
   import CommandBlock from "./CommandBlock.svelte";
   import { workerAction } from "./actions.ts";
   import type { WorkerSetup } from "./worker-setup.svelte.ts";
@@ -29,6 +30,7 @@
     class?: ClassValue;
   } = $props();
 
+  const settings = useSettings();
   let action = $state<"rename" | "rotate" | "revoke" | "archive">("rename");
   let open = $state(false);
   let name = $state("");
@@ -83,7 +85,7 @@
         label={`Actions for ${worker.name}`}
         {...props}
       />{/snippet}
-    {#if !linked && !worker.nodeId && worker.cliImport}<MenuItem
+    {#if settings.moduleEnabled("threads") && !linked && !worker.nodeId && worker.cliImport}<MenuItem
         href={`/settings/import?worker=${encodeURIComponent(worker.id)}`}
         disabled={!worker.online || Boolean(worker.revokedAt)}>Import from this computer</MenuItem
       >{/if}

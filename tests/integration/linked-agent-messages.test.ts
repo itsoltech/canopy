@@ -1,11 +1,12 @@
 import { afterAll, beforeAll, describe, expect, test } from "bun:test";
 import { fromJson, type JsonValue } from "@bufbuild/protobuf";
-import { Provider, ui } from "@canopy/contracts";
+import { InteractionKind, Provider, ui } from "@canopy/contracts";
 import { dockerAvailable } from "@canopy/db/testing";
 import { qualifyId } from "@canopy/domain/computers";
 import { remoteServe, uiHandlers } from "@canopy/gateway/api";
 import { ComputerStore } from "../../apps/gateway/src/computers/store.ts";
 import type { LinkedComputers } from "../../apps/gateway/src/computers/runtime.ts";
+import { BOT_THREADS_DISCONNECTED, moduleDisabledMessage } from "../../apps/gateway/src/store/module-access.ts";
 import type { BotTurn } from "../../apps/gateway/src/bots/types.ts";
 import { linkedComputers } from "./support/computers.ts";
 import { startInstanceFixture, type InstanceFixture } from "./support/instance-fixture.ts";
@@ -22,6 +23,12 @@ describe.skipIf(!dockerAvailable)("linked message authors and bot harness wakeup
   const message = "Great work, team! 💪";
   const read = () => a.core.bots.run((s) => s.conversation(a.userId, bot));
   const settle = () => eventually(read, (c) => !c.working, 15_000);
+
+  const settings = async (gw: TestGateway, enabled: string[]) =>
+    gw.api.updateUserSettings({
+      expectedVersion: (await gw.api.getSettings({})).user!.version,
+      modules: { enabled },
+    });
 
   beforeAll(async () => {
     fixture = await startInstanceFixture(true, { role: "desktop" });
@@ -219,4 +226,208 @@ describe.skipIf(!dockerAvailable)("linked message authors and bot harness wakeup
 
     b.worker.steerMode = "accept";
   }, 40_000);
+
+  test("user and same-module agent sends require an enabled module at both ends", async () => {
+    const aNode = la.hello().nodeId;
+    const bNode = lb.hello().nodeId;
+    const request = { text: "Blocked linked work", clientRequestId: crypto.randomUUID() };
+
+    try {
+      for (const changed of [a, b]) {
+        await settings(changed, ["threads"]);
+        expect(await failure(b.api.sendBotMessage({ ...request, botId: qualifyId(bot, aNode) }))).toContain(
+          moduleDisabledMessage("bots"),
+        );
+        expect(
+          await failure(
+            a.core.linkedAgents.send(
+              bNode,
+              "send",
+              { kind: "bot", id: bot, name: "Bot", hops: 1 },
+              crypto.randomUUID(),
+              { target: bot, target_kind: "bot", prompt: request.text },
+            ),
+          ),
+        ).toContain(moduleDisabledMessage("bots"));
+        await settings(changed, ["bots"]);
+        expect(await failure(a.api.sendMessage({ ...request, threadId: qualifyId(thread, bNode) }))).toContain(
+          moduleDisabledMessage("threads"),
+        );
+        expect(
+          await failure(
+            b.core.linkedAgents.send(
+              aNode,
+              "send",
+              { kind: "thread", id: thread, name: "Thread", hops: 1 },
+              crypto.randomUUID(),
+              { target: thread, prompt: request.text },
+            ),
+          ),
+        ).toContain(moduleDisabledMessage("threads"));
+        await settings(changed, ["threads", "bots"]);
+      }
+
+      expect((await read()).messages.some((m) => m.text.includes(request.text))).toBe(false);
+
+      const turns = await b.core.linkedAgents.query(
+        "SELECT id FROM turns WHERE thread_id=$1::uuid AND input::text LIKE $2",
+        [thread, `%${request.text}%`],
+      );
+
+      expect(turns).toHaveLength(0);
+    } finally {
+      await settings(a, ["threads", "bots"]);
+      await settings(b, ["threads", "bots"]);
+    }
+  }, 30_000);
+
+  test("both homes enforce live bot/thread access, including discovery and projected approvals", async () => {
+    const aNode = la.hello().nodeId;
+    const bNode = lb.hello().nodeId;
+    const placement = await b.core.getThread(thread);
+
+    const current = (
+      await b.api.createThread({
+        projectId: placement.projectId,
+        workspaceId: placement.workspaceId,
+        title: "Module access",
+        provider: Provider.CODEX,
+      })
+    ).thread!.id;
+
+    const remoteThread = qualifyId(current, bNode);
+    const remoteBot = qualifyId(bot, aNode);
+
+    const readThread = () => a.core.linkedAgents.snapshot(remoteThread, "bot-thread");
+
+    const sendToBot = () =>
+      b.core.linkedAgents.send(
+        aNode,
+        "send",
+        { kind: "thread", id: current, name: "Thread", hops: 1 },
+        crypto.randomUUID(),
+        { target: bot, target_kind: "bot", prompt: "cross-module" },
+      );
+
+    b.worker.holdTurns = true;
+
+    const held = (
+      await b.api.sendMessage({ threadId: current, text: "Approval test", clientRequestId: crypto.randomUUID() })
+    ).turn!;
+
+    const requestId = crypto.randomUUID();
+
+    try {
+      expect(await eventually(async () => b.worker.started.has(held.id), Boolean)).toBe(true);
+      b.worker.ask({
+        requestId,
+        threadId: current,
+        turnId: held.id,
+        kind: InteractionKind.PERMISSION,
+        toolName: "shell",
+        requestJson: "{}",
+      });
+
+      expect(
+        await eventually(
+          async () => (await readThread()).interactions.some((i) => i.requestId === qualifyId(requestId, bNode)),
+          Boolean,
+        ),
+      ).toBe(true);
+      expect(JSON.stringify(await b.core.linkedAgents.catalog())).toContain(remoteBot);
+
+      for (const [gw, enabled] of [
+        [a, ["bots"]],
+        [b, ["threads"]],
+      ] as const) {
+        await settings(gw, [...enabled]);
+        expect(await failure(readThread())).toContain(BOT_THREADS_DISCONNECTED);
+        expect(await failure(sendToBot())).toContain(BOT_THREADS_DISCONNECTED);
+
+        if (gw === b) {
+          await a.api.sendBotMessage({
+            botId: bot,
+            text: "TOOL:list_projects\nARGS:{}",
+            clientRequestId: crypto.randomUUID(),
+          });
+          const projects = (await settle()).messages.at(-1)?.text;
+          expect(projects).toStartWith("TOOL_RESULT:");
+          expect(projects).not.toContain(qualifyId(placement.workspaceId, bNode));
+        }
+
+        expect(JSON.stringify(await b.core.linkedAgents.catalog())).not.toContain(remoteBot);
+        expect(
+          await failure(a.api.answerBotApproval({ approvalId: qualifyId(requestId, bNode), approve: true })),
+        ).toContain(gw === b ? moduleDisabledMessage("bots") : BOT_THREADS_DISCONNECTED);
+        expect(b.worker.interactionAnswers.some((r) => r.requestId === requestId)).toBe(false);
+
+        // The owner's thread and bot views remain reachable over their ordinary routes.
+        expect((await a.api.getThread({ threadId: remoteThread })).thread?.id).toBe(remoteThread);
+        expect((await b.api.getBot({ botId: remoteBot })).bot?.id).toBe(remoteBot);
+        await settings(gw, ["threads", "bots"]);
+      }
+
+      expect((await readThread()).thread?.id).toBe(remoteThread);
+      expect(
+        (await a.api.answerBotApproval({ approvalId: qualifyId(requestId, bNode), approve: true })).approval?.status,
+      ).toBe("approved");
+    } finally {
+      b.worker.holdTurns = false;
+      b.worker.finish(current, held.id, "Approval test finished");
+    }
+  }, 30_000);
+
+  for (const home of ["bot", "thread"]) {
+    test(`re-enabling modules at the ${home} home does not revive a pending linked report`, async () => {
+      const changed = home === "bot" ? a : b;
+      const node = lb.hello().nodeId;
+      const placement = await b.core.getThread(thread);
+      const call = crypto.randomUUID();
+      b.worker.holdTurns = true;
+
+      try {
+        await a.core.linkedAgents.send(node, "spawn", { id: bot, kind: "bot", name: "Main Bot", hops: 1 }, call, {
+          request: {
+            workspaceId: placement.workspaceId,
+            projectId: placement.projectId,
+            title: "Detached task",
+            initialMessage: "Wait for completion",
+            provider: "PROVIDER_CODEX",
+          },
+          instructions: "",
+          interactions: "parent",
+          notify: true,
+        });
+
+        const child = (
+          await b.core.linkedAgents.query<{ target_id: string; target_turn_id: string }>(
+            "SELECT target_id,target_turn_id FROM computer_agent_calls WHERE call_id=$1::uuid AND direction='incoming'",
+            [call],
+          )
+        )[0]!;
+
+        expect(await eventually(async () => b.worker.started.has(child.target_turn_id), Boolean)).toBe(true);
+        await settings(changed, home === "bot" ? ["bots"] : ["threads"]);
+        await settings(changed, ["threads", "bots"]);
+        b.worker.finish(child.target_id, child.target_turn_id, "Private completion");
+
+        const status = await eventually(
+          async () =>
+            (
+              await b.core.linkedAgents.query<{ report_status: string }>(
+                "SELECT report_status FROM computer_agent_calls WHERE call_id=$1::uuid AND direction='incoming'",
+                [call],
+              )
+            )[0]?.report_status,
+          (s) => s === "dropped",
+        );
+
+        expect(status).toBe("dropped");
+        expect((await read()).messages.some((m) => m.text.includes("Detached task"))).toBe(false);
+      } finally {
+        b.worker.holdTurns = false;
+        await settings(changed, ["threads", "bots"]);
+      }
+    }, 30_000);
+  }
 });

@@ -8,6 +8,7 @@ import { SettingsGroup, SettingsRow, SettingChoice, SettingToggle } from "./Sett
 import { DeviceChoiceRow } from "./DeviceChoiceRow";
 import { useDevicePreferences } from "./device-preferences";
 import { ResetSetting } from "./ResetSetting";
+import { ModuleSettings } from "./ModuleSettings";
 import { AppUpdateStatus } from "./AppUpdateStatus";
 
 export function GeneralSettings() {
@@ -35,90 +36,97 @@ export function GeneralSettings() {
         style={{ alignSelf: "flex-start" }}
         onPress={() => device.reset(["inAppNotifications", "timeFormat"])}
       />
+      <ModuleSettings />
       <SettingsGroup title="Notifications" description="This device · Only while a Canopy window is open.">
-        <SettingChoice
-          title="Thread notifications"
-          description="Send system alerts when threads finish, fail or need you."
-          value="off"
-          disabled
-          options={[
-            { value: "off", label: "Off" },
-            { value: "notifications", label: "Notifications" },
-            { value: "sound", label: "Notifications with sound" },
-          ]}
-          onChange={() => {}}
-        />
-        <SettingsRow
-          title="System notifications unavailable"
-          description="This mobile build does not include system notifications."
-        />
+        {settings.threadsEnabled && (
+          <SettingChoice
+            title="Thread notifications"
+            description="Send system alerts when threads finish, fail or need you."
+            value="off"
+            disabled
+            options={[
+              { value: "off", label: "Off" },
+              { value: "notifications", label: "Notifications" },
+              { value: "sound", label: "Notifications with sound" },
+            ]}
+            onChange={() => {}}
+          />
+        )}
+        {settings.threadsEnabled && (
+          <SettingsRow
+            title="System notifications unavailable"
+            description="This mobile build does not include system notifications."
+          />
+        )}
         <DeviceChoiceRow
           preference="inAppNotifications"
           title="In-app notifications"
-          description="Show alerts from other threads and bot chats while Canopy has focus."
+          description="Show alerts from other conversations while Canopy has focus."
           options={[
             { value: "on", label: "On" },
             { value: "off", label: "Off" },
           ]}
         />
       </SettingsGroup>
-      <SettingsGroup title="Sidebar" description="This device">
-        <SettingChoice
-          title="Group by"
-          description="Choose how threads are grouped in the sidebar."
-          value={groupBy}
-          options={[
-            { value: "none", label: "None" },
-            { value: "project", label: "Project" },
-            { value: "project-worktree", label: "Project & worktree" },
-          ]}
-          disabled={disabled}
-          onChange={setGrouping}
-          accessory={
-            <ResetSetting
-              label="Reset group by"
-              changed={groupBy !== "none"}
-              disabled={disabled}
-              onReset={() => setGrouping("none")}
-            />
-          }
-        />
-        <SettingChoice
-          title="Project order"
-          description="Sort project groups by activity, name or creation time."
-          value={sidebar?.projectOrder ?? ui.ProjectOrder.ACTIVITY}
-          disabled={disabled || !sidebar?.groupByProject}
-          options={[
-            { value: ui.ProjectOrder.ACTIVITY, label: "Latest activity" },
-            { value: ui.ProjectOrder.NAME, label: "Name" },
-            { value: ui.ProjectOrder.CREATED, label: "Newest project" },
-          ]}
-          onChange={(projectOrder) => saveSidebar({ projectOrder })}
-          accessory={
-            <ResetSetting
-              label="Reset project order"
-              changed={(sidebar?.projectOrder ?? ui.ProjectOrder.ACTIVITY) !== ui.ProjectOrder.ACTIVITY}
-              disabled={disabled}
-              onReset={() => saveSidebar({ projectOrder: ui.ProjectOrder.ACTIVITY })}
-            />
-          }
-        />
-        <SettingToggle
-          title="Working section"
-          description="Group running and monitoring threads in a collapsible section."
-          value={sidebar?.workingSection ?? false}
-          disabled={disabled}
-          onChange={(workingSection) => saveSidebar({ workingSection })}
-          accessory={
-            <ResetSetting
-              label="Reset working section"
-              changed={!!sidebar?.workingSection}
-              disabled={disabled}
-              onReset={() => saveSidebar({ workingSection: false })}
-            />
-          }
-        />
-      </SettingsGroup>
+      {settings.threadsEnabled && (
+        <SettingsGroup title="Sidebar" description="This device">
+          <SettingChoice
+            title="Group by"
+            description="Choose how threads are grouped in the sidebar."
+            value={groupBy}
+            options={[
+              { value: "none", label: "None" },
+              { value: "project", label: "Project" },
+              { value: "project-worktree", label: "Project & worktree" },
+            ]}
+            disabled={disabled}
+            onChange={setGrouping}
+            accessory={
+              <ResetSetting
+                label="Reset group by"
+                changed={groupBy !== "none"}
+                disabled={disabled}
+                onReset={() => setGrouping("none")}
+              />
+            }
+          />
+          <SettingChoice
+            title="Project order"
+            description="Sort project groups by activity, name or creation time."
+            value={sidebar?.projectOrder ?? ui.ProjectOrder.ACTIVITY}
+            disabled={disabled || !sidebar?.groupByProject}
+            options={[
+              { value: ui.ProjectOrder.ACTIVITY, label: "Latest activity" },
+              { value: ui.ProjectOrder.NAME, label: "Name" },
+              { value: ui.ProjectOrder.CREATED, label: "Newest project" },
+            ]}
+            onChange={(projectOrder) => saveSidebar({ projectOrder })}
+            accessory={
+              <ResetSetting
+                label="Reset project order"
+                changed={(sidebar?.projectOrder ?? ui.ProjectOrder.ACTIVITY) !== ui.ProjectOrder.ACTIVITY}
+                disabled={disabled}
+                onReset={() => saveSidebar({ projectOrder: ui.ProjectOrder.ACTIVITY })}
+              />
+            }
+          />
+          <SettingToggle
+            title="Working section"
+            description="Group running and monitoring threads in a collapsible section."
+            value={sidebar?.workingSection ?? false}
+            disabled={disabled}
+            onChange={(workingSection) => saveSidebar({ workingSection })}
+            accessory={
+              <ResetSetting
+                label="Reset working section"
+                changed={!!sidebar?.workingSection}
+                disabled={disabled}
+                onReset={() => saveSidebar({ workingSection: false })}
+              />
+            }
+          />
+        </SettingsGroup>
+      )}
       <ConfirmationSettings />
       <DisplaySettings />
       <AppUpdateStatus />
@@ -142,7 +150,7 @@ function DisplaySettings() {
           { value: "24h", label: "24-hour" },
         ]}
       />
-      <SettingsRow title="Time zone" description="Bots and scheduled tasks use the time zone reported by this device.">
+      <SettingsRow title="Time zone" description="Use this device’s time zone for scheduled work.">
         <Text style={[styles.chrome, { color: c.text }]}>Account · {settings.user?.timezone || "UTC"}</Text>
       </SettingsRow>
     </SettingsGroup>
@@ -161,13 +169,15 @@ function ConfirmationSettings() {
           {
             key: "confirmUnpin",
             title: "Confirm unpin",
-            description: "Ask before removing a thread from Pinned.",
+            description: "Ask before removing a conversation from Pinned.",
             fallback: false,
           },
           {
             key: "confirmArchive",
             title: "Confirm archive",
-            description: "Ask before archiving a thread and its side threads.",
+            description: settings.threadsEnabled
+              ? "Ask before archiving a conversation, including any side threads."
+              : "Ask before archiving a bot.",
             fallback: false,
           },
           {
@@ -177,32 +187,34 @@ function ConfirmationSettings() {
             fallback: true,
           },
         ] as const
-      ).map((field) => (
-        <SettingToggle
-          key={field.key}
-          title={field.title}
-          description={field.description}
-          value={general?.[field.key] ?? field.fallback}
-          disabled={disabled}
-          accessory={
-            <ResetSetting
-              label={`Reset ${field.title.toLowerCase()}`}
-              changed={(general?.[field.key] ?? field.fallback) !== field.fallback}
-              disabled={disabled}
-              onReset={() =>
-                void settings.update({
-                  general: Object.assign(create(ui.GeneralSettingsSchema, general), { [field.key]: field.fallback }),
-                })
-              }
-            />
-          }
-          onChange={(value) =>
-            void settings.update({
-              general: Object.assign(create(ui.GeneralSettingsSchema, general), { [field.key]: value }),
-            })
-          }
-        />
-      ))}
+      ).map((field) =>
+        field.key === "confirmDelete" && !settings.threadsEnabled ? null : (
+          <SettingToggle
+            key={field.key}
+            title={field.title}
+            description={field.description}
+            value={general?.[field.key] ?? field.fallback}
+            disabled={disabled}
+            accessory={
+              <ResetSetting
+                label={`Reset ${field.title.toLowerCase()}`}
+                changed={(general?.[field.key] ?? field.fallback) !== field.fallback}
+                disabled={disabled}
+                onReset={() =>
+                  void settings.update({
+                    general: Object.assign(create(ui.GeneralSettingsSchema, general), { [field.key]: field.fallback }),
+                  })
+                }
+              />
+            }
+            onChange={(value) =>
+              void settings.update({
+                general: Object.assign(create(ui.GeneralSettingsSchema, general), { [field.key]: value }),
+              })
+            }
+          />
+        ),
+      )}
     </SettingsGroup>
   );
 }

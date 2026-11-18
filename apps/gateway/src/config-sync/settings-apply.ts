@@ -38,7 +38,7 @@ export function applySettings(sql: SqlClient.SqlClient, owner: string, row: Conf
     if (Result.isFailure(parsed)) {
       row.unsupported = "Not supported on this computer";
 
-      return false;
+      return { cli: false, moduleChanges: [] };
     }
 
     const request = parsed.success;
@@ -50,11 +50,12 @@ export function applySettings(sql: SqlClient.SqlClient, owner: string, row: Conf
     if (Result.isFailure(valid)) {
       row.unsupported = "Not supported on this computer";
 
-      return false;
+      return { cli: false, moduleChanges: [] };
     }
 
     const settings = yield* SettingsStore;
-    yield* settings.updateUser({
+
+    const { moduleChanges } = yield* settings.updateUser({
       userId: owner,
       synced: true,
       expectedVersion: request.expectedVersion,
@@ -65,14 +66,17 @@ export function applySettings(sql: SqlClient.SqlClient, owner: string, row: Conf
       ...(request.sidebar && { sidebar: request.sidebar }),
       ...(request.textGeneration && { textGeneration: request.textGeneration }),
       ...(request.cliUpdates && { cliUpdates: request.cliUpdates }),
+      ...(request.modules && { modules: request.modules }),
       ...(request.threadRetention && { threadRetention: request.threadRetention }),
       ...(request.agentToolDefaults && { agentToolDefaults: request.agentToolDefaults }),
       timezone: request.timezone ?? "",
     });
 
-    return (
-      JSON.stringify(current?.settings["cliUpdates"] ?? {}) !==
-      JSON.stringify(request.cliUpdates ? { intervalMinutes: request.cliUpdates.intervalMinutes } : {})
-    );
+    return {
+      moduleChanges,
+      cli:
+        JSON.stringify(current?.settings["cliUpdates"] ?? {}) !==
+        JSON.stringify(request.cliUpdates ? { intervalMinutes: request.cliUpdates.intervalMinutes } : {}),
+    };
   });
 }

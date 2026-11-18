@@ -18,7 +18,7 @@ const limits = { recent: 10, count: 16, intervalMs: 5000, retryMs: 30_000 };
 /** Pairing lifetime, one job, persistent sequence checkpoints, no inactive/background network work. */
 export function useThreadWarming(threads: ui.Thread[], projects: ui.Project[], live: boolean, query: string) {
   const { client, threadCache, active, online } = useSession();
-  const { sidebar } = useAppearance();
+  const { sidebar, threadsEnabled } = useAppearance();
   const setHeadIds = useOverviewHeadSelection();
   const lowPower = useLowPowerMode();
   const pathname = usePathname();
@@ -40,6 +40,7 @@ export function useThreadWarming(threads: ui.Thread[], projects: ui.Project[], l
   );
 
   const ids = useMemo(() => {
+    if (!threadsEnabled) return [];
     const choices = projectChoices(projects.filter((project) => !project.archivedAt));
     const settings = { ...sidebar, projectIds: expandProjectIds(sidebar.projectIds, choices) };
 
@@ -56,9 +57,9 @@ export function useThreadWarming(threads: ui.Thread[], projects: ui.Project[], l
       visible.map((thread) => thread.id),
       limits,
     );
-  }, [threads, projects, sidebar, query]);
+  }, [threads, projects, sidebar, query, threadsEnabled]);
 
-  const open = pathname.startsWith("/thread/") ? decodeURIComponent(pathname.slice(8)) : "";
+  const open = threadsEnabled && pathname.startsWith("/thread/") ? decodeURIComponent(pathname.slice(8)) : "";
   const selection = [...new Set([open, ...ids])].filter(Boolean).slice(0, 32).sort().join(",");
   const priority = ids.join(",");
 
@@ -69,11 +70,11 @@ export function useThreadWarming(threads: ui.Thread[], projects: ui.Project[], l
     warming?.select(priority ? priority.split(",") : []);
   }, [warming, priority]);
   useEffect(() => {
-    warming?.activate(pathname.startsWith("/thread/") ? decodeURIComponent(pathname.slice(8)) : "");
-  }, [warming, pathname]);
+    warming?.activate(open);
+  }, [warming, open]);
   useEffect(() => {
-    warming?.enable(active && online && live && !lowPower && AppState.currentState === "active");
-  }, [warming, active, online, live, lowPower]);
+    warming?.enable(threadsEnabled && active && online && live && !lowPower && AppState.currentState === "active");
+  }, [warming, active, online, live, lowPower, threadsEnabled]);
   useEffect(() => {
     const app = AppState.addEventListener("change", (state) => {
       if (state !== "active") warming?.enable(false);

@@ -1,13 +1,14 @@
 import { afterAll, beforeAll, describe, expect, test } from "bun:test";
 import { create } from "@bufbuild/protobuf";
-import { computerLink as link, ui } from "@canopy/contracts";
+import { computerLink as link, Provider, ui } from "@canopy/contracts";
 import { CONFIG_SYNC, REMOTE_THREADS } from "@canopy/domain/computers";
 import { dockerAvailable } from "@canopy/db/testing";
 import { Code, ConnectError } from "@connectrpc/connect";
 import { configAllowed } from "../../apps/gateway/src/computers/runtime-config.ts";
 import { linkedMessage } from "../../apps/gateway/src/computers/remote.ts";
 import { configComputer, pairConfig, type ConfigComputer } from "./support/config-sync.ts";
-import { eventually } from "./support/gateway.ts";
+import { eventually, failure } from "./support/gateway.ts";
+import { moduleDisabledMessage } from "../../apps/gateway/src/store/module-access.ts";
 
 const wait = async (predicate: () => Promise<boolean> | boolean) =>
   expect(await eventually(async () => predicate(), Boolean, 20_000)).toBe(true);
@@ -61,6 +62,7 @@ describe.skipIf(!dockerAvailable)("account configuration across three independen
       general: { confirmDelete: false },
       composer: { runningDelivery: ui.MessageDelivery.QUEUE },
       cliUpdates: { intervalMinutes: 60 },
+      modules: { enabled: ["bots", "threads"] },
       threadRetention: { archivedThreadDays: 31 },
       threadDefaults: { useLastAgent: true },
       sidebar: {
@@ -82,6 +84,7 @@ describe.skipIf(!dockerAvailable)("account configuration across three independen
     expect((await c.settings()).composer?.runningDelivery).toBe(ui.MessageDelivery.QUEUE);
     expect((await c.settings()).cliUpdates?.intervalMinutes).toBe(60);
     await wait(async () => (await c.settings()).threadRetention?.archivedThreadDays === 31);
+    expect((await c.settings()).modules?.enabled).toEqual(["bots", "threads"]);
     await a.update({ threadRetention: {} });
     await wait(async () => (await c.settings()).threadRetention?.archivedThreadDays === 0);
     await wait(async () => (await c.settings()).threadDefaults?.useLastAgent === true);
@@ -111,6 +114,47 @@ describe.skipIf(!dockerAvailable)("account configuration across three independen
     expect(a.links.hello().capabilities).toContain(CONFIG_SYNC);
     expect(a.links.hello().capabilities).not.toContain("shared_config");
   }, 30_000);
+
+  test("a received disable fences a running turn once and survives a gateway restart", async () => {
+    const project = (await c.gateway.core.overview()).projects.find((p) => p.kind === "scratch")!;
+    const workspace = project.workspaces.find((w) => w.workerId === c.gateway.workerId)!;
+    c.gateway.worker.holdTurns = true;
+
+    const { thread } = await c.gateway.api.createThread({
+      projectId: project.id,
+      workspaceId: workspace.id,
+      provider: Provider.CODEX,
+      initialMessage: "Hold this turn",
+    });
+
+    const interrupts = () =>
+      c.store.query("SELECT id FROM worker_commands WHERE thread_id=$1::uuid AND kind='interruptTurn'", [thread!.id]);
+
+    try {
+      await wait(() => c.gateway.worker.inputs.get(thread!.id)?.length === 1);
+      await a.update({ modules: { enabled: ["threads", "bots"] } });
+      await wait(async () => (await c.settings()).modules?.enabled[0] === "threads");
+      expect(await interrupts()).toHaveLength(0);
+
+      await a.update({ modules: { enabled: ["bots"] } });
+      await wait(async () => (await c.settings()).modules?.enabled.length === 1);
+      expect(await interrupts()).toHaveLength(1);
+      await a.update({ general: { confirmDelete: true } });
+      await wait(async () => (await c.settings()).general?.confirmDelete === true);
+      expect(await interrupts()).toHaveLength(1);
+
+      await c.restart();
+      await synced([b, c]);
+      expect((await c.settings()).modules?.enabled).toEqual(["bots"]);
+      const blocked = await failure(c.gateway.api.sendMessage({ threadId: thread!.id, text: "Must stay off" }));
+      expect(blocked).toContain(moduleDisabledMessage("threads"));
+      expect(await interrupts()).toHaveLength(1);
+    } finally {
+      c.gateway.worker.holdTurns = false;
+      await a.update({ modules: { enabled: ["bots", "threads"] }, general: { confirmDelete: false } });
+      await wait(async () => (await c.settings()).modules?.enabled.length === 2);
+    }
+  }, 45_000);
 
   test("different fields merge, conflicting values wait for a choice and Restore propagates", async () => {
     await a.sharing(b.node, false);

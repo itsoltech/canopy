@@ -13,6 +13,7 @@ import { Match, Predicate, Schema } from "effect";
 import { AgentBusStore, type ThreadRow } from "../store/index.ts";
 
 import { fail, record, text, type Actor, type Arguments, type Reference } from "./agents-context.ts";
+import { targetKind, requireAgentModules, requireLinkedModules } from "./agents-module-access.ts";
 import type { LinkedAgents } from "./agents.ts";
 import { requireLinkedChainCapacity } from "./agents-receive.ts";
 import { gather } from "../api/routed-overview.ts";
@@ -86,15 +87,13 @@ export const agentsBusToolsMethods: AgentsBusToolsMethods = {
 
     const args: Arguments = call.args;
 
-    const ref = Predicate.isString(args["workspace_id"])
-      ? args["workspace_id"]
-      : Predicate.isString(args["thread_id"])
-        ? args["thread_id"]
-        : Predicate.isString(args["request_id"])
-          ? args["request_id"]
-          : "";
+    const ref = [args["workspace_id"], args["thread_id"], args["request_id"]].find(Predicate.isString) ?? "";
 
-    if (!splitId(ref).node) return undefined;
+    if (!splitId(ref).node) {
+      if (call.tool === "send_message" && call.args.target_kind === "bot") await requireLinkedModules(this);
+
+      return undefined;
+    }
 
     if (caller.owner_user_id !== this.owner) return fail("Thread not found");
 
@@ -237,6 +236,8 @@ export const agentsBusToolsMethods: AgentsBusToolsMethods = {
         `${(await computers.computer(node))?.name || "The other computer"} needs an update for linked bots and agents`,
       );
     await this.scope.transaction(async () => {
+      await requireAgentModules(this, actor.kind, targetKind(operation, args), true);
+
       const active = await this.query(
         "SELECT node_id FROM computer_peers WHERE owner_user_id=$1::uuid AND node_id=$2 FOR UPDATE",
         [this.owner, node],
@@ -258,7 +259,7 @@ export const agentsBusToolsMethods: AgentsBusToolsMethods = {
           actor.routineId ?? null,
           actor.routineTitle ?? "",
           operation === "send" ? args["target"] : null,
-          operation === "send" ? args["target_kind"] : null,
+          operation === "send" && args["target_kind"] === "bot" ? "bot" : "thread",
         ],
       );
     });

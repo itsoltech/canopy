@@ -71,6 +71,7 @@ export function appearanceCommands(settings: SettingsState): Command[] {
     },
     {
       id: "chat-width",
+      when: () => settings.moduleEnabled("threads"),
       title: "Thread width",
       group: "actions",
       icon: "view-columns",

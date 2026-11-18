@@ -1,3 +1,4 @@
+import { setModules } from "./support/module-settings.ts";
 import { afterAll, beforeAll, describe, expect, test } from "bun:test";
 import { ItemStatus, Provider } from "@canopy/contracts";
 import { dockerAvailable } from "@canopy/db/testing";
@@ -265,6 +266,10 @@ describe.skipIf(!dockerAvailable)("archived thread retention", () => {
     await gateway.api.setThreadArchived({ threadId: reset.id, archived: false });
     await gateway.api.setThreadArchived({ threadId: reset.id, archived: true });
 
+    await setModules(gateway, "bots");
+    await prune();
+    expect((await retentionRow(expired.id))?.purged_at).toBeNull();
+    await setModules(gateway, "threads", "bots");
     await prune();
     expect((await retentionRow(expired.id))?.purged_at).toBeTruthy();
     expect((await retentionRow(recent.id))?.purged_at).toBeNull();

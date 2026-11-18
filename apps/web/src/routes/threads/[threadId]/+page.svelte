@@ -147,7 +147,7 @@
   const worktreeRemoved = $derived(Boolean(thread?.worktree?.removedAt));
 
   $effect(() => {
-    if (thread?.deletedAt) void goto("/");
+    if (thread?.deletedAt) void goto("/threads/new");
   });
 
   // An old link of a thread that moved to another computer: the gateway follows the move; open its new id (stage 8).

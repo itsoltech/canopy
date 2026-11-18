@@ -1,10 +1,13 @@
 <script lang="ts">
+  import { useSettings } from "./settings-state.svelte.ts";
   import DeviceChoiceRow from "./DeviceChoiceRow.svelte";
   import FontPicker from "./FontPicker.svelte";
   import SettingsGroup from "#lib/shared/ui/SettingsGroup.svelte";
   import Markdown from "#lib/shared/ui/markdown/Markdown.svelte";
   import Diff from "#lib/features/threads/components/Diff.svelte";
   import Terminal from "#lib/shared/ui/Terminal.svelte";
+
+  const settings = useSettings();
 
   const sample =
     'The agent can explain **changes** and inline math $E = mc^2$.\n\n```ts\nconst message = "A long code line follows your code wrapping preference without changing the saved source.";\n```';
@@ -37,28 +40,32 @@
       { value: "on", label: "On" },
     ]}
   />
-  <DeviceChoiceRow
-    preference="wrapDiffs"
-    title="Wrap diffs"
-    description="Fit long lines in diffs to the available width."
-    options={[
-      { value: "off", label: "Off" },
-      { value: "on", label: "On" },
-    ]}
-  />
+  {#if settings.moduleEnabled("threads")}
+    <DeviceChoiceRow
+      preference="wrapDiffs"
+      title="Wrap diffs"
+      description="Fit long lines in diffs to the available width."
+      options={[
+        { value: "off", label: "Off" },
+        { value: "on", label: "On" },
+      ]}
+    />
+  {/if}
 </SettingsGroup>
 <SettingsGroup title="Previews">
   <div class="grid min-w-0 gap-4 p-4">
     <Markdown text={sample} />
-    <Diff {diff} label="Typography diff preview" lang="typescript" />
-    <div class="h-64 min-w-0 overflow-hidden rounded-lg">
-      <Terminal
-        title="Terminal preview"
-        cwd="~/project"
-        command="bun run build"
-        output={"$ bun run build\nBuilt successfully in 1.2s\nReady."}
-        running={false}
-      />
-    </div>
+    {#if settings.moduleEnabled("threads")}
+      <Diff {diff} label="Typography diff preview" lang="typescript" />
+      <div class="h-64 min-w-0 overflow-hidden rounded-lg">
+        <Terminal
+          title="Terminal preview"
+          cwd="~/project"
+          command="bun run build"
+          output={"$ bun run build\nBuilt successfully in 1.2s\nReady."}
+          running={false}
+        />
+      </div>
+    {/if}
   </div>
 </SettingsGroup>

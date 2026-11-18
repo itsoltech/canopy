@@ -11,6 +11,7 @@ import { SidebarCopyJobs } from "../copy-jobs/SidebarCopyJobs";
 import { bots as botContract } from "@canopy/contracts";
 import { timestampMs } from "@bufbuild/protobuf/wkt";
 import { compareConversations } from "@canopy/domain/bot-chat";
+import { useLayout } from "../../state/layout";
 import { useSession } from "../../state/session";
 import { useBotList } from "../../state/bot-list";
 import { useAppearance } from "../../state/appearance";
@@ -29,7 +30,8 @@ import { useDevicePreferences } from "../settings/device-preferences";
 function useSidebarState() {
   const { session, ready, bots } = useSession();
   const { projects, workers, loaded, stream } = useOverview();
-  const [section, setSection] = useState<"threads" | "bots">("threads");
+  const { selectedModule: section, selectModule: setSection } = useLayout();
+  const { modules } = useAppearance();
   const [queries, setQueries] = useState({ threads: "", bots: "" });
   const [filterOpen, setFilterOpen] = useState(false);
   const navigation = useSidebarThreads(queries.threads);
@@ -47,6 +49,7 @@ function useSidebarState() {
 
   return {
     session,
+    modules,
     ready,
     projects,
     workers,
@@ -103,20 +106,19 @@ function SidebarHeader({ state }: { state: ReturnType<typeof useSidebarState> })
           onPress={() => (section === "bots" ? setCreating(true) : router.push("/new-thread"))}
         />
       </View>
-      <Segmented
-        options={[
-          { value: "threads", label: "Threads" },
-          {
-            value: "bots",
-            label: "Bots",
-            badge: unread,
-          },
-        ]}
-        value={section}
-        onChange={setSection}
-        style={{ marginHorizontal: 12, marginBottom: 8 }}
-      />
-      {creating && <CreateBot onClose={() => setCreating(false)} />}
+      {state.modules.length > 1 && (
+        <Segmented
+          options={state.modules.map((value) => ({
+            value,
+            label: value === "threads" ? "Threads" : "Bots",
+            badge: value === "bots" ? unread : 0,
+          }))}
+          value={section}
+          onChange={setSection}
+          style={{ marginHorizontal: 12, marginBottom: 8 }}
+        />
+      )}
+      {creating && section === "bots" && <CreateBot onClose={() => setCreating(false)} />}
       <View style={[styles.row, { paddingHorizontal: 12, paddingBottom: 8 }]}>
         <SearchField
           bare
@@ -309,18 +311,20 @@ export function AppSidebar() {
       }
       footer={
         <>
-          <SidebarCopyJobs />
+          {state.modules.includes("threads") && <SidebarCopyJobs />}
           <SidebarFooter workers={workers} stream={stream} />
         </>
       }
     >
       <SidebarLists state={state} />
-      <SidebarOptions
-        navigation={navigation}
-        projectId={projectId}
-        visible={filterOpen}
-        onClose={() => setFilterOpen(false)}
-      />
+      {state.section === "threads" && (
+        <SidebarOptions
+          navigation={navigation}
+          projectId={projectId}
+          visible={filterOpen}
+          onClose={() => setFilterOpen(false)}
+        />
+      )}
     </ScreenFrame>
   );
 }

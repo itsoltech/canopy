@@ -29,9 +29,9 @@ export const retryTurnStart = (sql: SqlClient.SqlClient, commandId: string, resu
       const command: Command = fromBinary(CommandSchema, rejected.payload);
       command.commandId = Bun.randomUUIDv7();
       yield* sql`
-        INSERT INTO worker_commands (id, worker_id, thread_id, turn_id, kind, payload, expires_at)
+        INSERT INTO worker_commands (id, worker_id, thread_id, turn_id, kind, payload, expires_at, delivered_epoch)
         VALUES (${command.commandId}::uuid, ${rejected.worker_id}::uuid, ${thread.id}::uuid,
-          ${rejected.turn_id}::uuid, 'startTurn', ${toBinary(CommandSchema, command)}, ${rejected.expires_at})`;
+          ${rejected.turn_id}::uuid, 'startTurn', ${toBinary(CommandSchema, command)}, ${rejected.expires_at}, 0)`;
 
       return command;
     }),

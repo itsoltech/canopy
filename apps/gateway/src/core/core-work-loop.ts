@@ -32,6 +32,7 @@ import type { GatewayCore } from "./core.ts";
 import { corePublishInteraction } from "./core-interactions.ts";
 import { corePublishSteer, coreQueueSteer, coreSteers } from "./core-messages.ts";
 import { coreProfileModels } from "./core-models.ts";
+import { queueAdmissionState, resumeModuleGoal, pumpResumedThreads } from "./thread-module-runtime.ts";
 import { recoverThreadCreation } from "./thread-creation-recovery.ts";
 import { storedShellResult } from "../store/shell-input.ts";
 import { takeBranchNote } from "../store/thread-branches.ts";
@@ -120,9 +121,11 @@ export async function corePump(hostContext: GatewayCore, threadId: string): Prom
 
 /** Shared admission path, also used inside the transaction accepting a user message. */
 export async function corePumpQueued(hostContext: GatewayCore, threadId: string): Promise<void> {
-  const state = await coreRun(hostContext, (s) => s.thread(threadId, true));
+  const state = await queueAdmissionState(hostContext, threadId);
 
-  if (state.deleted_at || state.archived_at || state.rewind_pending_id) return;
+  if (!state) return;
+
+  if (state.resume_goal) await resumeModuleGoal(hostContext, await coreRun(hostContext, (s) => s.thread(threadId)));
 
   if (!state.provider_thread_id) {
     await recoverThreadCreation(hostContext, threadId);
@@ -163,7 +166,7 @@ export async function coreStartTurn(hostContext: GatewayCore, thread: ThreadRow,
     stored = await hostContext[coreState].actions.run(
       QueueStore.use((q) =>
         q.whileHead(
-          { threadId, turnId: turn.id, revision: turn.revision ?? 0 },
+          { ownerUserId: thread.owner_user_id, threadId, turnId: turn.id, revision: turn.revision ?? 0 },
           GatewayStore.use((s) =>
             Effect.gen(function* () {
               // Read context under the admission lock: a branch switch may have completed while this turn queued.
@@ -309,6 +312,7 @@ export const coreWorkLoopMethods: CoreWorkLoopMethods = {
    * of finished turns. Idempotent; at gateway start and every few minutes. Returns the threads it changed.
    */
   async sweep(this: GatewayCore): Promise<string[]> {
+    await pumpResumedThreads(this);
     await this.bus.deliverAnswers();
     await this.bus.deliverNotifications();
 

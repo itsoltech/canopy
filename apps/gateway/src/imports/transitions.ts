@@ -1,8 +1,9 @@
 import { Effect } from "effect";
 import type { SqlClient } from "effect/sql";
 import type { JsonValue } from "@bufbuild/protobuf";
+import { ownerModule } from "../store/module-access.ts";
 import { restoreOwner, revertAppend, ThreadContinued, toHistory } from "./append.ts";
-import { importTransaction, type Locks } from "./locks.ts";
+import { admitImport, importTransaction, withImportModule, type Locks } from "./locks.ts";
 
 /**
  * Changes of import runs and items (docs/import.md, "Przebieg"), each one transaction through importTransaction:
@@ -14,7 +15,7 @@ export const setRunStatus = (sql: SqlClient.SqlClient, runId: string, status: st
              finished_at = CASE WHEN ${status} IN ('completed', 'failed', 'cancelled', 'undone') THEN now() END
        WHERE id = ${runId}::uuid`;
 
-/** The run was cancelled or undone while one of its threads was being imported; nothing more is written for it. */
+/** The run paused or stopped while one of its threads was being imported. */
 export class ImportStopped extends Error {
   constructor() {
     super("the import was stopped");
@@ -45,12 +46,44 @@ export const runnerRunStatus = (sql: SqlClient.SqlClient, runId: string, status:
     }),
   );
 
-/** A paused run continues (its worker is back), unless it was cancelled or undone meanwhile. */
-export const resumePaused = (sql: SqlClient.SqlClient, runId: string) =>
-  Effect.map(
-    sql`UPDATE import_runs SET status = 'running', error = NULL, updated_at = now()
-         WHERE id = ${runId}::uuid AND status = 'paused' RETURNING id`,
-    (rows) => rows.length > 0,
+/** Called under the owner's module lock. Take only run locks, in the same id order as importTransaction. */
+export const pauseThreadImports = (sql: SqlClient.SqlClient, owner: string) =>
+  Effect.gen(function* () {
+    const active = yield* sql<{ id: string }>`SELECT id FROM import_runs
+      WHERE owner_user_id = ${owner}::uuid AND status = 'running' ORDER BY id`;
+
+    for (const run of active)
+      yield* sql`UPDATE import_runs SET status = 'paused', updated_at = now(),
+        error = 'The import continues when Threads is enabled and the worker is online.'
+        WHERE id = ${run.id}::uuid AND status = 'running'`;
+  });
+
+/** Idle ticks only read the owner's open runs. A legacy running import can need pausing after a restart. */
+export const openImports = (sql: SqlClient.SqlClient, owner: string, workerId?: string) =>
+  Effect.gen(function* () {
+    const open = yield* sql<{ id: string; worker_id: string; status: string; enabled: boolean }>`
+      SELECT id, worker_id, status, ${ownerModule(sql, owner, "threads")} AS enabled FROM import_runs
+      WHERE owner_user_id = ${owner}::uuid AND status IN ('running', 'paused')
+        AND (${workerId ?? null}::uuid IS NULL OR worker_id = ${workerId ?? null}::uuid)`;
+
+    if (open[0]?.enabled) return open;
+
+    if (open.some((run) => run.status === "running"))
+      yield* withImportModule(sql, owner, (enabled) => (enabled ? Effect.void : pauseThreadImports(sql, owner)));
+
+    return [];
+  });
+
+/** Resume only a paused run whose worker is back and whose module is enabled. */
+export const resumePaused = (sql: SqlClient.SqlClient, owner: string, runId: string) =>
+  withImportModule(sql, owner, (enabled) =>
+    enabled
+      ? Effect.map(
+          sql`UPDATE import_runs SET status = 'running', error = NULL, updated_at = now()
+         WHERE id = ${runId}::uuid AND owner_user_id = ${owner}::uuid AND status = 'paused' RETURNING id`,
+          (rows) => rows.length > 0,
+        )
+      : Effect.succeed(false),
   );
 
 /** Resume from the UI: failed threads again and the run running, only from a state that allows it. */
@@ -70,7 +103,7 @@ export const resumeRun = (sql: SqlClient.SqlClient, ownerId: string, runId: stri
 
       return true;
     }),
-  );
+  ).pipe(admitImport(sql, ownerId));
 
 /**
  * The item failed, unless its run was stopped meanwhile (then nothing changes and `failed` is false). A thread that
@@ -126,7 +159,12 @@ export const finishItem = (
 ) =>
   importTransaction(sql, { items: [itemId], threads: adopted ? [adopted.threadId] : [] }, (locks) =>
     Effect.gen(function* () {
-      yield* fenceItem(locks, itemId);
+      // A copy already made on the worker needs its receipt, including when the module was paused in flight.
+      // Cancel/Undo still win when they have removed the item or rewound the thread.
+      const item = locks.items.get(itemId);
+
+      if (!(adopted && item?.status === "importing" && locks.runs.get(item.run_id)?.status === "paused"))
+        yield* fenceItem(locks, itemId);
 
       if (adopted) {
         const set = yield* sql`
@@ -177,8 +215,9 @@ export const finishEmpty = (sql: SqlClient.SqlClient, itemId: string, threadId: 
 
 /** The session could not be adopted: the thread stays as history (it continues in a new thread), with the reason. */
 export const adoptionFailed = (sql: SqlClient.SqlClient, itemId: string, threadId: string, reason: string) =>
-  importTransaction(sql, { items: [itemId], threads: [threadId] }, () =>
+  importTransaction(sql, { items: [itemId], threads: [threadId] }, (locks) =>
     Effect.gen(function* () {
+      yield* fenceItem(locks, itemId);
       yield* sql`UPDATE thread_imports SET mode = 'history' WHERE thread_id = ${threadId}::uuid`;
       yield* sql`UPDATE import_items SET warnings = warnings || ${JSON.stringify([reason])}::jsonb,
                         target = jsonb_set(target, '{mode}', '"history"') WHERE id = ${itemId}::uuid`;

@@ -139,8 +139,8 @@ describe.skipIf(!dockerAvailable)("messenger work callback origin", () => {
     const f = await external();
     const work = await delegated(f.turn);
     await finishTarget(work.thread.id, work.target.id);
-    await suite.current.bots.run((s) => s.deliver());
-    await suite.current.bots.run((s) => s.deliver());
+    await suite.current.bots.run((s) => s.deliver(suite.gw.userId));
+    await suite.current.bots.run((s) => s.deliver(suite.gw.userId));
 
     const callbacks = await query<BotTurn>("SELECT * FROM bot_turns WHERE client_request_id=$1", [
       `thread:${work.call.id}`,
@@ -162,7 +162,7 @@ describe.skipIf(!dockerAvailable)("messenger work callback origin", () => {
     const work = await delegated(f.turn);
     await messenger((s) => s.deleteRoute(suite.gw.userId, f.route.id));
     await finishTarget(work.thread.id, work.target.id);
-    await suite.current.bots.run((s) => s.deliver());
+    await suite.current.bots.run((s) => s.deliver(suite.gw.userId));
 
     expect(await query("SELECT id FROM bot_turns WHERE client_request_id=$1", [`thread:${work.call.id}`])).toEqual([]);
     expect((await read(f.botId)).messages).toHaveLength(0);

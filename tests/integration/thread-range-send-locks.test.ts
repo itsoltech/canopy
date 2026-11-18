@@ -7,7 +7,6 @@ import { SqlClient } from "effect/sql";
 import { ComputerStore } from "../../apps/gateway/src/computers/store.ts";
 import { readThreadRange } from "../../apps/gateway/src/computers/range-source.ts";
 import { freezeThread } from "../../apps/gateway/src/computers/move-source.ts";
-import { GatewayStore } from "../../apps/gateway/src/store/store.ts";
 import { ingestThread } from "../../apps/gateway/src/store/ingest.ts";
 import { eventually, failure, startTestGateway } from "./support/gateway.ts";
 
@@ -140,34 +139,23 @@ describe.skipIf(!dockerAvailable)("thread publication, sends and moves lock orde
 
   test("command completion, ingest and SendMessage cannot cycle through the journal clock FK", async () => {
     const thread = await newThread();
-    await gateway.api.sendMessage({
+    // Hold the first StartTurn ACK until the clock gate is ready for its completion.
+    const received = Promise.withResolvers<() => void>();
+    gateway.worker.handlers.set("startTurn", (_, reply) => {
+      gateway.worker.handlers.delete("startTurn");
+      received.resolve(() => reply(true));
+    });
+
+    const first = await gateway.api.sendMessage({
       threadId: thread,
       text: "before publication",
       clientRequestId: crypto.randomUUID(),
     });
 
-    const command = await eventually(
-      async () =>
-        (
-          await store.query<{ id: string }>(
-            "SELECT c.id FROM worker_commands c JOIN turns t ON t.id=c.turn_id WHERE c.thread_id=$1::uuid AND c.status='completed' AND t.status='completed' LIMIT 1",
-            [thread],
-          )
-        )[0],
-      Boolean,
-    );
-
-    expect(command).toBeDefined();
+    const acknowledge = await received.promise;
     const initial = await readThreadRange(store, create(ui.ThreadSyncCursorSchema, { threadId: thread }));
     const gate = await clockGate(thread);
     const gatePid = await gate.ready;
-
-    const completing = gateway.runtime.runPromise(
-      Effect.gen(function* () {
-        const outbox = yield* GatewayStore;
-        yield* outbox.commandDone(command!.id, true, { regression: "journal clock FK" });
-      }),
-    );
 
     let ingesting: ReturnType<typeof ingestNotice> | undefined;
     let sending: ReturnType<typeof gateway.api.sendMessage> | undefined;
@@ -176,6 +164,7 @@ describe.skipIf(!dockerAvailable)("thread publication, sends and moves lock orde
       // Completion owns global journal -> range barrier -> clock, paused before
       // the first UPDATE. Ingest owns threads and waits for that global lock.
       // SendMessage queues on ingest's tuple before completion rechecks its FK.
+      acknowledge();
       const completingPid = await blockedQuery("UPDATE worker_commands SET status", gatePid);
       ingesting = ingestNotice(thread);
       const ingestingPid = await blockedQuery("COMMIT", completingPid);
@@ -188,12 +177,18 @@ describe.skipIf(!dockerAvailable)("thread publication, sends and moves lock orde
       await blockedQuery("", ingestingPid);
     } finally {
       gate.release();
-      await Promise.allSettled([completing, ingesting, sending, gate.done]);
+      await Promise.allSettled([ingesting, sending, gate.done]);
     }
 
-    const [, , response] = await Promise.all([completing, ingesting, sending, gate.done]);
+    const [, response] = await Promise.all([ingesting, sending, gate.done]);
 
     expect(response?.turn).toBeDefined();
+    expect(
+      await store.query("SELECT status FROM worker_commands WHERE kind='startTurn' AND turn_id=$1::uuid", [
+        first.turn!.id,
+      ]),
+    ).toEqual([{ status: "completed" }]);
+    gateway.worker.finish(thread, first.turn!.id);
     expect(
       await eventually(
         async () => gateway.worker.inputs.get(thread) ?? [],

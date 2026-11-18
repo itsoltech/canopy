@@ -1,3 +1,4 @@
+import { ownerModuleEnabled } from "../store/module-access.ts";
 import type { Effect } from "effect";
 import { BotStore } from "../bots/store.ts";
 import { deliverBotSteer } from "../core/bot-steer.ts";
@@ -27,6 +28,10 @@ export class MessengerRuntime {
 
   run<A, E>(use: (store: MessengerStore["Service"]) => Effect.Effect<A, E>): Promise<A> {
     return this.options.runtime.runPromise(MessengerStore.use(use));
+  }
+
+  enabled(): Promise<boolean> {
+    return this.options.runtime.runPromise(ownerModuleEnabled(this.owner, "bots"));
   }
 
   now(): Date {
@@ -85,7 +90,7 @@ export class MessengerRuntime {
   }
 
   async #refresh(): Promise<void> {
-    const accounts = await this.run((s) => s.accounts(this.owner));
+    const accounts = (await this.enabled()) ? await this.run((s) => s.accounts(this.owner)) : [];
 
     const enabled = new Map(
       accounts

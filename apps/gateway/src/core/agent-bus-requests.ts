@@ -1,3 +1,5 @@
+import { THREADS_DISABLED_REASON } from "../store/module-worker-commands.ts";
+import { ownerModuleEnabled, moduleDisabledMessage } from "../store/module-access.ts";
 import { type JsonValue } from "@bufbuild/protobuf";
 import { timestampDate } from "@bufbuild/protobuf/wkt";
 import { type AgentToolCall, type AgentToolResult } from "@canopy/contracts";
@@ -33,13 +35,7 @@ export interface BusRequestsMethods {
 export const busRequestsMethods: BusRequestsMethods = {
   /** `workerId`: the worker the call came from; it speaks only for its own threads (messages now reach other workers). */
   async handle(this: AgentBus, request: AgentToolCall, workerId?: string): Promise<AgentToolResult> {
-    const source: CallSource = {
-      callId: request.callId,
-      threadId: request.threadId,
-      turnId: request.turnId,
-      itemId: request.itemId,
-      ...(request.expiresAt && { expiresAt: timestampDate(request.expiresAt) }),
-    };
+    const source = toolSource(request);
 
     const calling = await this[busState].host
       .run(GatewayStore.use((s) => s.thread(request.threadId)))
@@ -48,11 +44,14 @@ export const busRequestsMethods: BusRequestsMethods = {
     if (
       !calling ||
       (workerId !== undefined && calling.worker_id !== workerId) ||
-      (this[busState].host.ownerUserId && calling.owner_user_id !== this[busState].host.ownerUserId)
+      calling.owner_user_id !== this[busState].host.ownerUserId
     )
       return failure(request.callId, "Thread not found");
 
     if (request.cancelled) return busCancel(this, request, source, workerId);
+
+    if (!(await this[busState].host.run(ownerModuleEnabled(calling.owner_user_id, "threads"))))
+      return failure(request.callId, moduleDisabledMessage("threads"));
 
     const sourceTurn = await sourceTurnOf(this[busState].host, request);
 
@@ -73,6 +72,9 @@ export const busRequestsMethods: BusRequestsMethods = {
         ? ok(request.callId, stored.result ?? {})
         : failure(request.callId, stored.error ?? "failed");
     }
+
+    if (sourceTurn?.interrupt_reason === THREADS_DISABLED_REASON)
+      return failure(request.callId, "This turn stopped when Threads was turned off.");
 
     const decoded = decodeAgentBusCall(request.toolName, request.argumentsJson);
 
@@ -194,4 +196,14 @@ async function sourceTurnOf(host: BusHost, request: AgentToolCall) {
   if (!request.turnId) return undefined;
 
   return (await host.run(GatewayStore.use((store) => store.turnsOf(request.threadId, [request.turnId]))))[0];
+}
+
+function toolSource(request: AgentToolCall): CallSource {
+  return {
+    callId: request.callId,
+    threadId: request.threadId,
+    turnId: request.turnId,
+    itemId: request.itemId,
+    ...(request.expiresAt && { expiresAt: timestampDate(request.expiresAt) }),
+  };
 }

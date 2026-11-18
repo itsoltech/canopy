@@ -1,6 +1,6 @@
 # Wykonanie wątku: tury, praca w tle, subagenci, interakcje
 
-Status: **częściowo zaimplementowane** (2026-11-17). Na `dev` notatki zadań w tle
+Status: **częściowo zaimplementowane** (2026-11-18). W bieżącej zmianie wyłączenie modułu Threads zatrzymuje wykonanie wątków właściciela. Na `dev` notatki zadań w tle
 pokazują status i jednoliniową, ucinaną nazwę otwierającą pełny output. Automatyczne
 łańcuchy mają wspólny limit 256 kroków; notatki zadań w tle zachowują pełny
 licznik przy kontynuacji. Dostępność kanałów według [release.md](release.md). Tury, interakcje, steer, widoczna granica `context_compaction` i **praca w tle** (sekcja 4: procesy Codexa, background Bash Claude, zatrzymanie z UI, notatki dla agenta o każdym końcu zadania, narzędzia agenta) działają. Archiwizacja zamyka zasoby wątku, a przywrócenie nie wznawia zatrzymanej pracy. Subagenci pierwszoplanowi, `BackgroundItem` (Ctrl+B) i limity zasobów (sekcja 7) jeszcze nie.
@@ -25,6 +25,12 @@ katalogu — `CWD_NOT_DIRECTORY`. Nowe rozmowy No project tworzą prywatne katal
 | **Zadanie w tle** | model (Claude background Bash, subagent w tle, workflow; Codex proces unified exec) albo użytkownik (`BackgroundItem`, odpowiednik Ctrl+B) | **niezależnie od tury**, może trwać po jej końcu | item `background_task` (+ `subagent` dla agenta w tle) |
 | **Interakcja** | dostawca czeka na człowieka: zgoda, pytanie, formularz MCP | do odpowiedzi, wygaśnięcia albo zatrzymania wątku | item `interaction_prompt` + `interaction_requests` |
 | **Wątek boczny** | użytkownik albo agent przez szynę (`spawn_thread`) — **domyślny sposób delegowania** | trwały | osobny wątek w drzewie ([threads.md](threads.md), [agent-bus.md](agent-bus.md)) |
+
+### Wyłączenie modułu Threads
+
+Gateway wstrzymuje pobieranie harmonogramów właściciela i dopuszczanie tur z kolejki. Dla rozpoczętej pracy zapisuje polecenia przerwania i zwolnienia zasobów, które odłączony worker odbierze po powrocie. Niewysłane wiadomości z kolejki zachowują kolejność. Potwierdzenie z dziennika workera może dotrzeć już po wyłączeniu. Jeśli wysłany steer mógł dotrzeć do harnessu, gateway czeka na wynik dostawy i nie dodaje kopii do kolejki. Rozpoczęta tura pozostaje w historii jako przerwana. Wyłączenie wygasza sekrety wątków przechowywane przez workera.
+
+Po ponownym włączeniu zaległa pobudka jednorazowa wykonuje się raz zgodnie z domyślną polityką `run_once`. Przy polityce `skip` scheduler pomija pobudkę spóźnioną o ponad dwie minuty. Aktywny harmonogram cykliczny przechodzi do najbliższego przyszłego terminu w swojej strefie czasowej. Pauza ustawiona ręcznie pozostaje w mocy. Gateway podejmuje kolejkę po potwierdzeniu zwolnienia zasobów. Wznawia też te cele, które były aktywne w momencie wyłączenia i wciąż czekają na wznowienie.
 
 ### Subagenci dostawcy to nie wątki boczne
 

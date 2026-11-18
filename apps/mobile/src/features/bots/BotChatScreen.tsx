@@ -9,6 +9,7 @@ import type { bots } from "@canopy/contracts";
 import { splitId } from "@canopy/domain/computers";
 import { useComputerHome } from "../computers/presence";
 import { botParticipant, type ChatRow } from "@canopy/domain/bot-chat";
+import { useAppearance } from "../../state/appearance";
 import { useSession } from "../../state/session";
 import { useBotList } from "../../state/bot-list";
 import { useBotSnapshot } from "../../state/bot";
@@ -79,6 +80,7 @@ export function BotChatScreen({ id, rule = "" }: { id: string; rule?: string }) 
 
 function useBotConversation(id: string) {
   const chat = useBotChat(id);
+  const { threadsEnabled } = useAppearance();
   const { conversation, known, stream, following, seen } = chat;
 
   const home = useComputerHome(conversation?.bot?.nodeId || splitId(id).node);
@@ -88,7 +90,9 @@ function useBotConversation(id: string) {
 
   const approvals =
     conversation?.approvals.filter(
-      (a) => a.allowedByRule || a.status === "pending" || (a.status === "expired" && seen.has(a.id)),
+      (a) =>
+        (threadsEnabled || !a.threadId) &&
+        (a.allowedByRule || a.status === "pending" || (a.status === "expired" && seen.has(a.id))),
     ) ?? [];
 
   const rows = useChatRows(conversation, approvals, known);

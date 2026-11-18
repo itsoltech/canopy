@@ -1,5 +1,6 @@
 import type { ui } from "@canopy/contracts";
 import type { OverviewState } from "#lib/features/overview/overview-state.svelte.ts";
+import { settingsSectionEnabled } from "@canopy/ui/settings";
 import { settingsSections } from "#lib/features/settings/sections.ts";
 import type { SettingsState } from "#lib/features/settings/settings-state.svelte.ts";
 import { SIDEBAR_HOTKEY, type SidebarLayout } from "#lib/features/navigation/sidebar-layout.svelte.ts";
@@ -33,7 +34,7 @@ export interface AppCommandContext {
   readonly currentThreadId: () => string | undefined;
 }
 
-const newThreadHref = (project: ui.Project) => `/?project=${encodeURIComponent(project.id)}`;
+const newThreadHref = (project: ui.Project) => `/threads/new?project=${encodeURIComponent(project.id)}`;
 
 /** Palette titles of the settings sections ("Threads" alone would read as the thread list). */
 const sectionTitles = new Map<string, string>([["/settings/threads", "Thread defaults"]]);
@@ -61,9 +62,9 @@ const threadCommand = (overview: OverviewState, thread: ui.Thread, suggested: bo
   };
 };
 
-/** The fixed actions: new threads, the sidebar, appearance, settings and adding a project. */
-function actionCommands(context: AppCommandContext, current: ui.Project | undefined): Command[] {
-  const { overview, settings, sidebar } = context;
+/** Commands available when the Threads module is enabled. */
+function threadCreationCommands(context: AppCommandContext, current: ui.Project | undefined): Command[] {
+  const { overview } = context;
 
   return [
     {
@@ -73,7 +74,7 @@ function actionCommands(context: AppCommandContext, current: ui.Project | undefi
       icon: "pencil-square",
       keywords: "new thread chat start compose",
       hotkey: NEW_THREAD_HOTKEY,
-      href: current ? newThreadHref(current) : "/",
+      href: current ? newThreadHref(current) : "/threads/new",
       rank: -10,
     },
     {
@@ -100,6 +101,20 @@ function actionCommands(context: AppCommandContext, current: ui.Project | undefi
         })),
     },
     {
+      id: "new-project",
+      title: "Add project",
+      group: "actions",
+      icon: "plus",
+      keywords: "new create project directory clone git github repository workspace",
+      rank: 21,
+      run: () => context.addProject.show(),
+    },
+  ];
+}
+
+function appActions(context: AppCommandContext): Command[] {
+  return [
+    {
       id: "toggle-sidebar",
       title: "Toggle sidebar",
       group: "actions",
@@ -108,9 +123,9 @@ function actionCommands(context: AppCommandContext, current: ui.Project | undefi
       hotkey: SIDEBAR_HOTKEY,
       rank: 10,
       // The desktop sidebar from lg; below it the navigation is a drawer.
-      run: () => (matchMedia("(min-width: 64rem)").matches ? sidebar.toggle() : context.openMenu()),
+      run: () => (matchMedia("(min-width: 64rem)").matches ? context.sidebar.toggle() : context.openMenu()),
     },
-    ...appearanceCommands(settings),
+    ...appearanceCommands(context.settings),
     {
       id: "open-settings",
       title: "Open settings",
@@ -119,15 +134,6 @@ function actionCommands(context: AppCommandContext, current: ui.Project | undefi
       keywords: "preferences options configure",
       href: "/settings",
       rank: 20,
-    },
-    {
-      id: "new-project",
-      title: "Add project",
-      group: "actions",
-      icon: "plus",
-      keywords: "new create project directory clone git github repository workspace",
-      rank: 21,
-      run: () => context.addProject.show(),
     },
   ];
 }
@@ -189,40 +195,47 @@ function currentThreadCommands(context: AppCommandContext, thread: ui.Thread | u
     : [];
 }
 
-/** Commands of the whole app: new threads, navigation, appearance, settings, every thread and project. */
-export function appCommands(context: AppCommandContext): CommandSource {
+function threadModuleCommands(context: AppCommandContext): Command[] {
   const { overview, settings } = context;
+  const currentThreadId = context.currentThreadId();
 
-  return () => {
-    const projectId = context.currentProjectId();
-
-    const current =
-      overview.projectChoice(projectId ?? "") ??
-      defaultProject({
-        projects: overview.projectChoices,
-        threads: overview.threads.values(),
-        defaultWorkspaceId: settings.threadDefaults.workspaceId,
-      });
-
-    const threads = [...overview.threads.values()].sort(byActivity);
-    const currentThreadId = context.currentThreadId();
-    const actions = actionCommands(context, current);
-
-    // Recent threads: the main threads by activity on an empty query (side threads are found by searching).
-    let suggested = 0;
-
-    const threadCommands = threads.map((thread) => {
-      const show = !isSide(thread) && thread.id !== currentThreadId && suggested < 8;
-
-      if (show) suggested += 1;
-
-      return threadCommand(overview, thread, show);
+  const project =
+    overview.projectChoice(context.currentProjectId() ?? "") ??
+    defaultProject({
+      projects: overview.projectChoices,
+      threads: overview.threads.values(),
+      defaultWorkspaceId: settings.threadDefaults.workspaceId,
     });
 
-    const projects = projectCommands(overview, threads);
+  const threads = [...overview.threads.values()].sort(byActivity);
+  let suggested = 0;
+
+  const recent = threads.map((thread) => {
+    const show = !isSide(thread) && thread.id !== currentThreadId && suggested < 8;
+
+    if (show) suggested += 1;
+
+    return threadCommand(overview, thread, show);
+  });
+
+  return [
+    ...currentThreadCommands(context, overview.threads.get(currentThreadId ?? "")),
+    ...threadCreationCommands(context, project),
+    ...recent,
+    ...projectCommands(overview, threads),
+  ];
+}
+
+/** Available actions, hotkeys and settings follow the modules enabled on the owner account. */
+export function appCommands(context: AppCommandContext): CommandSource {
+  return () => {
+    const { settings, capabilities } = context;
 
     const sections: Command[] = settingsSections
-      .filter((section) => context.capabilities.supports(section.href))
+      .filter(
+        (section) =>
+          capabilities.supports(section.href) && settingsSectionEnabled(section.href, settings.enabledModules),
+      )
       .map((section) => ({
         id: `settings:${section.href}`,
         title: sectionTitles.get(section.href) ?? section.label,
@@ -232,9 +245,10 @@ export function appCommands(context: AppCommandContext): CommandSource {
         href: section.href,
       }));
 
-    const thread = overview.threads.get(currentThreadId ?? "");
-    const currentActions = currentThreadCommands(context, thread);
-
-    return [...currentActions, ...actions, ...threadCommands, ...projects, ...sections];
+    return [
+      ...appActions(context),
+      ...(settings.moduleEnabled("threads") ? threadModuleCommands(context) : []),
+      ...sections,
+    ];
   };
 }

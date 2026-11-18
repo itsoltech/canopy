@@ -1,3 +1,4 @@
+import { botThreadConnection } from "../store/module-access.ts";
 import type { Mention, ui } from "@canopy/contracts";
 import { Effect } from "effect";
 import type { SqlClient } from "effect/sql";
@@ -25,7 +26,7 @@ export function botQuotes(
 
       const owned =
         yield* sql`SELECT id FROM bots WHERE id::text=${quote.sourceThreadId} AND owner_user_id=${user}::uuid
-        UNION ALL SELECT id FROM threads WHERE id::text=${quote.sourceThreadId} AND owner_user_id=${user}::uuid`;
+        UNION ALL SELECT id FROM threads WHERE ${botThreadConnection(sql, user)} AND id::text=${quote.sourceThreadId} AND owner_user_id=${user}::uuid`;
 
       if (!owned.length) return yield* Effect.fail(new Invalid("citation source not found"));
     }

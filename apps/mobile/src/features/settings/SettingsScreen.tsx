@@ -1,3 +1,4 @@
+import { settingsSectionEnabled } from "@canopy/ui/settings";
 import { View } from "react-native";
 import { Redirect, router, useLocalSearchParams } from "expo-router";
 import { useSession } from "../../state/session";
@@ -49,6 +50,8 @@ export default function SettingsScreen() {
 
   if (!session) return <Redirect href="/pair" />;
 
+  if (!settingsSectionEnabled(`/settings/${section}`, settings.modules)) return <Redirect href="/settings/general" />;
+
   return (
     <SettingsLayout section={section} onSelect={selectSection}>
       {device.error ? <Notice error>{device.error}</Notice> : null}
@@ -73,7 +76,7 @@ export default function SettingsScreen() {
         {section === "diagnostics" && (
           <>
             <DiagnosticsSettings />
-            <ThreadSyncDiagnostics />
+            {settings.threadsEnabled && <ThreadSyncDiagnostics />}
           </>
         )}
         {section === "keybindings" && <KeybindingSettings />}

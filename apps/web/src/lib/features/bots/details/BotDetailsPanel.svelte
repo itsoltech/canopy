@@ -136,7 +136,7 @@
       <div class="grid gap-3 rounded-2xl bg-zinc-950/3 p-4 dark:bg-white/4">
         <p class="text-pretty text-zinc-600 dark:text-zinc-300">Ask {participant.name} to set up a routine.</p>
         <p class="text-pretty text-zinc-500 dark:text-zinc-400">
-          “Every weekday at 9, check my projects and tell me only if something needs my attention.”
+          “Every Friday at 3, ask me what I want to work on next week.”
         </p>
       </div>
     {/if}

@@ -15,7 +15,13 @@ import {
   type TurnInput,
 } from "./agent-bus-types.ts";
 import { insertCall, scheduleSelect, thread } from "./agent-bus-queries.ts";
+import { lockedOwnerModule, moduleDisabledMessage, ownerModule } from "./module-access.ts";
 import { placementAvailable, prepareSchedule, scheduleBusy, scheduledThread } from "./schedule-workspace.ts";
+
+const requireScheduleModule = (sql: SqlClient.SqlClient, owner: string) =>
+  lockedOwnerModule(sql, owner, "threads").pipe(
+    Effect.flatMap((enabled) => (enabled ? Effect.void : Effect.fail(new Invalid(moduleDisabledMessage("threads"))))),
+  );
 
 export interface BusScheduleStore {
   /** An agent's schedule (schedule_wakeup / schedule_recurring), stored with its call. */
@@ -41,13 +47,20 @@ export interface BusScheduleStore {
   }): Fx<ScheduleRow>;
   /** Pause (no next run), resume (with the next run) or cancel. */
   setScheduleStatus(input: {
+    userId: string;
     scheduleId: string;
     expectedVersion: number;
     status: "active" | "paused" | "cancelled";
     nextRunAt?: Date;
   }): Fx<ScheduleRow>;
   /** Leases due schedules for this gateway instance (safe with several instances). */
-  claimDueSchedules(owner: string, now: Date, leaseSeconds: number, limit?: number): Fx<ReadonlyArray<ScheduleRow>>;
+  claimDueSchedules(
+    owner: string,
+    now: Date,
+    leaseSeconds: number,
+    limit?: number,
+    ownerUserId?: string,
+  ): Fx<ReadonlyArray<ScheduleRow>>;
   /**
    * Records a run: queues the turn (unless skipped), counts it, sets the next run or completes the
    * schedule, releases the lease. A schedule of an archived thread is cancelled instead.
@@ -75,6 +88,12 @@ export const fireSchedule = (sql: SqlClient.SqlClient, args: Parameters<BusSched
 
     return yield* sql.withTransaction(
       Effect.gen(function* () {
+        const project = (yield* sql<{
+          owner_user_id: string;
+        }>`SELECT owner_user_id FROM projects WHERE id = ${claimed.project_id}::uuid`)[0];
+
+        if (!project || !(yield* lockedOwnerModule(sql, project.owner_user_id, "threads"))) return { threadId: "" };
+
         // Fence stale leases and already handled occurrences, including ticks racing a pause or restart.
         const schedule =
           (yield* sql<ScheduleRow>`SELECT * FROM schedules WHERE id = ${claimed.id}::uuid FOR UPDATE`)[0];
@@ -177,6 +196,8 @@ const updateSchedule = (
 ) =>
   sql.withTransaction(
     Effect.gen(function* () {
+      yield* requireScheduleModule(sql, userId);
+
       const current = (yield* sql<ScheduleRow>`SELECT s.* FROM schedules s JOIN projects p ON p.id = s.project_id
           WHERE s.id = ${scheduleId}::uuid AND p.owner_user_id = ${userId}::uuid FOR UPDATE OF s`)[0];
 
@@ -237,6 +258,8 @@ export function busScheduleStore(sql: SqlClient.SqlClient): BusScheduleStore {
     createSchedule: ({ source, tool, args, schedule }) =>
       sql.withTransaction(
         Effect.gen(function* () {
+          const caller = yield* thread(sql, source.threadId);
+          yield* requireScheduleModule(sql, caller.owner_user_id);
           const id = Bun.randomUUIDv7();
 
           const result = {
@@ -289,9 +312,11 @@ export function busScheduleStore(sql: SqlClient.SqlClient): BusScheduleStore {
         ),
 
     createUserSchedule: ({ userId, schedule }) =>
-      Effect.gen(function* () {
-        const id = Bun.randomUUIDv7();
-        yield* sql`
+      sql.withTransaction(
+        Effect.gen(function* () {
+          yield* requireScheduleModule(sql, userId);
+          const id = Bun.randomUUIDv7();
+          yield* sql`
               INSERT INTO schedules (id, thread_id, project_id, target, new_thread, concurrency, name, kind, prompt, run_at, cron, timezone, until, max_runs, next_run_at, missed_policy, created_by_user_id, hops)
               VALUES (${id}::uuid, ${schedule.threadId || null}::uuid,
                       coalesce(${schedule.newThread?.projectId ?? null}::uuid, (SELECT project_id FROM threads WHERE id = ${schedule.threadId || null}::uuid)),
@@ -300,14 +325,16 @@ export function busScheduleStore(sql: SqlClient.SqlClient): BusScheduleStore {
                       ${schedule.cron ?? null}, ${schedule.timezone}, ${schedule.until ?? null}, ${schedule.maxRuns ?? null},
                       ${schedule.nextRunAt}, ${schedule.missedPolicy ?? "run_once"}, ${userId}::uuid, 0)`;
 
-        return yield* store.schedule(id);
-      }),
+          return yield* store.schedule(id);
+        }),
+      ),
 
     updateSchedule: (input) => updateSchedule(sql, store, input),
 
-    setScheduleStatus: ({ scheduleId, expectedVersion, status, nextRunAt }) =>
+    setScheduleStatus: ({ userId, scheduleId, expectedVersion, status, nextRunAt }) =>
       sql.withTransaction(
         Effect.gen(function* () {
+          yield* requireScheduleModule(sql, userId);
           yield* sql`SELECT id FROM schedules WHERE id = ${scheduleId}::uuid FOR UPDATE`;
           const current = yield* store.schedule(scheduleId);
 
@@ -326,13 +353,15 @@ export function busScheduleStore(sql: SqlClient.SqlClient): BusScheduleStore {
         }),
       ),
 
-    claimDueSchedules: (owner, now, leaseSeconds, limit = 50) =>
+    claimDueSchedules: (owner, now, leaseSeconds, limit = 50, ownerUserId) =>
       sql<ScheduleRow>`
             UPDATE schedules SET lease_owner = ${owner}, lease_until = ${new Date(now.getTime() + leaseSeconds * 1000)},
               occurrence_at = coalesce(occurrence_at, next_run_at)
-             WHERE id IN (SELECT id FROM schedules
-                           WHERE status = 'active' AND next_run_at <= ${now} AND (lease_until IS NULL OR lease_until < ${now})
-                           ORDER BY next_run_at, id LIMIT ${Math.max(1, Math.min(50, limit))} FOR UPDATE SKIP LOCKED)
+             WHERE id IN (SELECT s.id FROM schedules s JOIN projects p ON p.id = s.project_id
+                           WHERE ${ownerModule(sql, sql`p.owner_user_id`, "threads")}
+                             ${ownerUserId ? sql`AND p.owner_user_id = ${ownerUserId}::uuid` : sql``}
+                             AND s.status = 'active' AND next_run_at <= ${now} AND (lease_until IS NULL OR lease_until < ${now})
+                           ORDER BY next_run_at, s.id LIMIT ${Math.max(1, Math.min(50, limit))} FOR UPDATE OF s SKIP LOCKED)
             RETURNING *`,
 
     fireSchedule: (input) => fireSchedule(sql, input),

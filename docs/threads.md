@@ -7,7 +7,7 @@ wybór prędkości dostawcy oraz stan tylko do odczytu po usunięciu worktree
 i kontynuacja w nowym wątku z nowym worktree oraz uprawnienia wątku w karcie hover oraz automatyczna archiwizacja po merge PR-ów
 z nadpisaniami projektu i wątku (przełącznik w szczegółach także na mobile),
 zamykanie zasobów przy archiwizacji,
-opcjonalna retencja archiwum, grupowanie
+retencja archiwum wstrzymywana przy wyłączonym module Threads, grupowanie
 pracujących drzew z nieprzeczytanymi wynikami wcześniejszych tur lub zakończonych subagentów
 wyróżnienie nieotwartych wątków ze szkicem w sidebarze web/desktop oraz
 „New thread” obok pozostałych akcji listy wątków.
@@ -316,6 +316,8 @@ wyłączona. Zmianę zatwierdza osobny przycisk **Save**; obejmuje ona również
 zarchiwizowane wątki. Ustawienie należy do konta i synchronizuje się przez istniejące
 udostępnianie konfiguracji między komputerami. Każdy gateway sprząta własne dane
 właściciela, także gdy żaden klient nie jest otwarty.
+
+Wyłączenie modułu **Threads** wstrzymuje kwalifikowanie i usuwanie treści wątków, wygaszanie szkiców oraz okresową kompakcję transkryptów. Po włączeniu gateway wraca do rozpoczętych partii i uwzględnia bieżący wiek archiwum.
 
 Termin wynika z `archived_at`, nie z ostatniej aktywności. Powtórna archiwizacja
 nie przedłuża czasu; przywrócenie wyłącza wątek z retencji, a kolejna archiwizacja

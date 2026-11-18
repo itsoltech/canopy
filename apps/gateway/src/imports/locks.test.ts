@@ -3,10 +3,10 @@ import { readdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 
 /**
- * Lock order of the CLI import (locks.ts): row locks and transactions come only from importTransaction, so no import
+ * Lock order of the CLI import (locks.ts): row locks and transactions come only from locks.ts, so no import
  * code can lock rows in an order of its own and deadlock against another import transaction.
  */
-test("import code takes row locks and transactions only through importTransaction", () => {
+test("import code defines row locks and transactions only in locks.ts", () => {
   const dir = import.meta.dir;
   const sources = readdirSync(dir).filter((f) => f.endsWith(".ts") && !f.endsWith(".test.ts") && f !== "locks.ts");
 

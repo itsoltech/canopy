@@ -1,6 +1,7 @@
+import { moduleDisabledMessage, ownerModuleEnabled } from "../store/module-access.ts";
 import { create } from "@bufbuild/protobuf";
 import { ui } from "@canopy/contracts";
-import { ConnectError } from "@connectrpc/connect";
+import { Code, ConnectError } from "@connectrpc/connect";
 import { splitId } from "@canopy/domain/computers";
 import { Effect } from "effect";
 import { SqlClient } from "effect/sql";
@@ -74,12 +75,17 @@ export class WorkspaceCopyJobs {
     if (this.#timer) clearInterval(this.#timer);
     this.#timer = undefined;
 
+    this.#suspend();
+    await Promise.allSettled([...this.#running.values()].map((r) => r.done));
+  }
+
+  /** Keep selections and staged files for a later attempt. */
+  #suspend(): void {
     for (const running of this.#running.values()) {
+      if (running.reason) continue;
       running.reason = "shutdown";
       running.stop.abort();
     }
-
-    await Promise.allSettled([...this.#running.values()].map((r) => r.done));
   }
 
   /** Starts a copy and returns once its selection is authorized and the destination prepared (or it is queued). */
@@ -166,13 +172,21 @@ export class WorkspaceCopyJobs {
   }
 
   /** Starts open jobs up to the limit: after a restart, a worker's return and periodically. */
-  async tick(): Promise<void> {
+  async tick(queuedOnly = false): Promise<void> {
     if (this.#stopped) return;
 
     try {
+      const { actions, options } = this.#core[coreState];
+
+      if (!(await actions.run(ownerModuleEnabled(options.userId, "threads")))) {
+        this.#suspend();
+
+        return;
+      }
+
       if (this.#ticks++ % 360 === 0) await this.store.prune();
 
-      for (const row of await this.store.open()) {
+      for (const row of await this.store.open(queuedOnly)) {
         if (this.#running.size >= RUNNING) break;
 
         if (!this.#running.has(row.id)) this.#drive(row);
@@ -195,7 +209,7 @@ export class WorkspaceCopyJobs {
         this.#running.delete(row.id);
         this.#live.delete(row.id);
         this.#fresh.delete(row.id);
-        void this.tick();
+        void this.tick(true);
       });
   }
 
@@ -245,6 +259,21 @@ export class WorkspaceCopyJobs {
         if (running.reason === "cancel") return this.#cancelled(row);
 
         if (running.reason === "shutdown") return;
+
+        // A linked home may have paused its own Threads module independently.
+        if (
+          error instanceof ConnectError &&
+          error.code === Code.FailedPrecondition &&
+          error.rawMessage === moduleDisabledMessage("threads")
+        ) {
+          await this.store.status(row.id, "waiting", {
+            error: "Turn on Threads on both computers to continue copying.",
+            from: [...OPEN_STATUSES],
+          });
+          this.#publish(await this.#row(row.id));
+
+          return;
+        }
 
         answered ||= reporter.started;
 

@@ -5,7 +5,7 @@ Kopiowanie workspace'u na nowy worker tworzy samodzielny checkout także ze
 wybór obejmuje tylko ignorowane pliki lokalne bez zależności i wyniku builda. Ograniczenia Git:
 [workspace-copy.md](workspace-copy.md).
 
-Status: **etapy 1–3 zaimplementowane** (2026-11-18), w tym zapis wątku przed utworzeniem worktree
+Status: **etapy 1–3 zaimplementowane** (2026-11-18), w tym ponowne wykorzystanie checkoutu terminu harmonogramu po wznowieniu Threads, wstrzymanie sprzątania worktree przy wyłączonym module Threads, zapis wątku przed utworzeniem worktree
 i powrót do przygotowania z listy wątków w web/desktop, natychmiastowy widok przygotowania
 nowego wątku z postępem operacji worktree w web/desktop i natywnym mobile, 24-godzinna ochrona worktree po archiwizacji
 i kontynuacja po usunięciu worktree w nowym wątku oraz sprzątanie zamkniętych worktree
@@ -14,6 +14,8 @@ odczyt lokalnych zmian uwzględniający dostępność katalogu i pull origin
 w web/desktop, przełączanie gałęzi z kompozytora oraz przywracanie lokalnych zmian
 po potwierdzeniu stash & pop oraz osobny limit tworzenia worktree dla dużych repozytoriów.
 Tworzenie rozróżnia przekroczenie limitu czasu, rozmiaru wyjścia i błąd Git.
+Przy wyłączonym **Threads** gateway wstrzymuje okresowe sprzątanie worktree właściciela i nadawanie nazw gałęzi na podstawie rozmowy. Po włączeniu ponownie ocenia polityki sprzątania i podejmuje zarezerwowane operacje usunięcia.
+
 Worker sprząta po nieudanej próbie na podstawie oznaczeń tej próby.
 Opis dotyczy kodu; dostępność nightly/beta/stable wynika z promocji wydań ([release.md](release.md)).
 Etap 1: ustawienia (Creation, Branches,
@@ -561,6 +563,14 @@ pokazuje pełną ścieżkę i osobny picker gałęzi opisany wyżej; „Manage w
   główny dziedziczący tylko miejsce, bez historii dostawcy. `base_ref` wybiera bazę nowego worktree.
   Ustawienia rozstrzygają się przy wykonaniu zadania. Nowy worktree wymaga workera online; offline
   harmonogram zachowuje termin i ponawia po powrocie workera, bez zwiększania liczby wykonań.
+  Dla konkretnego wystąpienia gateway rezerwuje workspace i identyfikator przygotowania przed
+  wywołaniem Git. Wyłączenie Threads unieważnia dzierżawę harmonogramu. Jeśli worker dokończy
+  wtedy checkout, gateway zapisuje go w inwentarzu. Ponowione wystąpienie używa tego samego
+  katalogu, również po restarcie gatewaya. Zaktualizowany worker zapisuje także udany
+  wynik komendy przygotowania w swoim journalu i oddaje go przy ponowieniu po utracie ACK.
+  Przy starszym workerze gateway wykorzystuje checkout zapisany już w inwentarzu, lecz nie ma lokalnego
+  potwierdzenia do odtworzenia po utracie pierwszego wyniku. Pominięte lub anulowane wystąpienie pozostawia
+  katalog dostępny do zwykłego sprzątania worktree zgodnie z regułami właściciela.
   Wakeup istniejącego wątku zachowuje jego niezmienne miejsce. Opcje są dostępne w narzędziach i API;
   ten etap nie dodaje kontrolek w interfejsie harmonogramów ani testów UI.
 - **Połączone komputery:** etap 1 odmawia tworzenia i wyboru worktree przez połączenie komputerów

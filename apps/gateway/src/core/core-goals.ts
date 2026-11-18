@@ -1,3 +1,4 @@
+import { requireThreadModule } from "./thread-module-runtime.ts";
 import { create } from "@bufbuild/protobuf";
 import { GoalDirective, ItemStatus, ui, type CommandResult } from "@canopy/contracts";
 import { Effect } from "effect";
@@ -51,6 +52,14 @@ export async function coreGoalToHarness(
     },
     { threadId: thread.id, ttlSeconds: TTL.setGoal },
   );
+}
+
+/** Resume a native goal in place to preserve its budget and usage; re-send a goal the worker never confirmed. */
+export function resumeHarnessGoal(core: GatewayCore, thread: ThreadRow, goal: GoalRow) {
+  if (goal.native_status && goal.native_status !== "cleared")
+    return coreGoalToHarness(core, thread, goal, GoalDirective.RUN);
+
+  return coreGoalToHarness(core, thread, goal, GoalDirective.RUN, goal.objective, BigInt(goal.token_budget ?? 0));
 }
 
 /** StopTask to the thread's worker for a background item (the user's Stop, an agent's stop_background_task). */
@@ -116,96 +125,99 @@ export interface CoreGoalsMethods {
   stopBackgroundTask(request: ui.StopBackgroundTaskRequest): Promise<void>;
 }
 
-export const coreGoalsMethods: CoreGoalsMethods = {
-  // ------------------------------------------------------------------ goals and background work (UI)
+/**
+ * The user's goal actions (docs/goals.md). The goal row records the decision at once; the harness confirms
+ * through goal_state events.
+ * - Codex: SetGoal to the worker (thread/goal/set|clear). Codex continues the thread by itself.
+ * - Claude: `/goal …` as a queued turn of the goal. Claude has no pause: pause and clear interrupt the
+ *   running turn (the evaluator keeps a goal turn going) and queue `/goal clear`; resume sets it again.
+ */
+async function setThreadGoal(this: GatewayCore, request: ui.SetGoalRequest): Promise<string> {
+  const thread = await coreRun(this, (s) => s.thread(request.threadId));
 
-  /**
-   * The user's goal actions (docs/goals.md). The goal row records the decision at once; the harness confirms
-   * through goal_state events.
-   * - Codex: SetGoal to the worker (thread/goal/set|clear). Codex continues the thread by itself.
-   * - Claude: `/goal …` as a queued turn of the goal. Claude has no pause: pause and clear interrupt the
-   *   running turn (the evaluator keeps a goal turn going) and queue `/goal clear`; resume sets it again.
-   */
-  async setGoal(this: GatewayCore, request: ui.SetGoalRequest): Promise<ui.Goal> {
-    const thread = await coreRun(this, (s) => s.thread(request.threadId));
+  if (thread.owner_user_id !== this[coreState].options.userId) throw new InvalidError("thread not found");
 
-    if (thread.owner_user_id !== this[coreState].options.userId) throw new InvalidError("thread not found");
+  if (thread.archived_at) throw new InvalidError("the thread is archived");
 
-    if (thread.archived_at) throw new InvalidError("the thread is archived");
+  if (thread.preparation_fingerprint) throw new InvalidError("This thread's worktree is not ready.");
 
-    if (thread.preparation_fingerprint) throw new InvalidError("This thread's worktree is not ready.");
+  if (thread.rewind_pending_id) throw new InvalidError("This thread is rewinding. Wait for it to finish.");
 
-    if (thread.rewind_pending_id) throw new InvalidError("This thread is rewinding. Wait for it to finish.");
+  if (thread.runtime !== "worker" || !thread.worker_id) throw new InvalidError("goals need a worker thread");
 
-    if (thread.runtime !== "worker" || !thread.worker_id) throw new InvalidError("goals need a worker thread");
+  if (thread.provider === "grok") throw new InvalidError("Grok ACP goals are not supported yet");
+  const claude = thread.provider === "claude";
+  const current = await coreGoals(this, (s) => s.latest(thread.id));
+  const open = current && !isFinished(current.status) ? current : undefined;
+  let goal: GoalRow;
 
-    if (thread.provider === "grok") throw new InvalidError("Grok ACP goals are not supported yet");
-    const claude = thread.provider === "claude";
-    const current = await coreGoals(this, (s) => s.latest(thread.id));
-    const open = current && !isFinished(current.status) ? current : undefined;
-    let goal: GoalRow;
+  switch (request.action) {
+    case "set": {
+      const objective = request.objective.trim();
 
-    switch (request.action) {
-      case "set": {
-        const objective = request.objective.trim();
+      if (!objective) throw new InvalidError("objective is required");
 
-        if (!objective) throw new InvalidError("objective is required");
+      if (objective.length > MAX_OBJECTIVE)
+        throw new InvalidError(`objective is limited to ${MAX_OBJECTIVE} characters`);
 
-        if (objective.length > MAX_OBJECTIVE)
-          throw new InvalidError(`objective is limited to ${MAX_OBJECTIVE} characters`);
+      if (claude && request.tokenBudget > 0n) throw new InvalidError("Claude goals have no token budget");
 
-        if (claude && request.tokenBudget > 0n) throw new InvalidError("Claude goals have no token budget");
-
-        if (claude && open?.status === "active") await this.interrupt(thread.id);
-        goal = await coreGoals(this, (s) =>
-          s.create({
-            threadId: thread.id,
-            objective,
-            tokenBudget: request.tokenBudget,
-            userId: this[coreState].options.userId,
-          }),
-        );
-        await coreGoalToHarness(this, thread, goal, GoalDirective.RUN, objective, request.tokenBudget);
-        break;
-      }
-
-      case "pause":
-        if (open?.status !== "active") throw new InvalidError("no active goal to pause");
-        goal = await coreGoals(this, (s) => s.setStatus(open.id, "paused"));
-        await coreGoalToHarness(this, thread, goal, GoalDirective.PAUSE);
-        break;
-      case "resume":
-        if (!open || open.status === "active") throw new InvalidError("no paused goal to resume");
-        goal = await coreGoals(this, (s) => s.setStatus(open.id, "active"));
-
-        // A goal the harness never confirmed (its set failed) is set again, with its objective and budget.
-        if (open.native_status) await coreGoalToHarness(this, thread, goal, GoalDirective.RUN);
-        else
-          await coreGoalToHarness(
-            this,
-            thread,
-            goal,
-            GoalDirective.RUN,
-            goal.objective,
-            BigInt(goal.token_budget ?? 0),
-          );
-        break;
-      case "clear":
-        if (!open) throw new InvalidError("no open goal to clear");
-        goal = await coreGoals(this, (s) => s.setStatus(open.id, "cancelled"));
-        await coreGoalToHarness(this, thread, goal, GoalDirective.CLEAR);
-        break;
-      default:
-        throw new InvalidError("action is set, pause, resume or clear");
+      if (claude && open?.status === "active") await this.interrupt(thread.id);
+      goal = await coreGoals(this, (s) =>
+        s.create({
+          threadId: thread.id,
+          objective,
+          tokenBudget: request.tokenBudget,
+          userId: this[coreState].options.userId,
+        }),
+      );
+      await coreGoalToHarness(this, thread, goal, GoalDirective.RUN, objective, request.tokenBudget);
+      break;
     }
 
-    const update = toUiGoal(await coreGoals(this, (store) => store.goal(goal.id)));
-    this.hub.publishThread(thread.id, create(ui.ThreadUpdateSchema, { change: { case: "goal", value: update } }));
-    await coreBroadcastThread(this, thread.id);
+    case "pause":
+      if (open?.status !== "active") throw new InvalidError("no active goal to pause");
+      goal = await coreGoals(this, (s) => s.setStatus(open.id, "paused"));
+      await coreGoalToHarness(this, thread, goal, GoalDirective.PAUSE);
+      break;
+    case "resume":
+      if (!open || open.status === "active") throw new InvalidError("no paused goal to resume");
+      goal = await coreGoals(this, (s) => s.setStatus(open.id, "active"));
 
-    if (request.action === "set") coreAutoTitle(this, thread.id, titleContext({ text: request.objective }));
+      await resumeHarnessGoal(this, thread, goal);
+      break;
+    case "clear":
+      if (!open) throw new InvalidError("no open goal to clear");
+      goal = await coreGoals(this, (s) => s.setStatus(open.id, "cancelled"));
+      await coreGoalToHarness(this, thread, goal, GoalDirective.CLEAR);
+      break;
+    default:
+      throw new InvalidError("action is set, pause, resume or clear");
+  }
 
-    return update;
+  return goal.id;
+}
+
+export const coreGoalsMethods: CoreGoalsMethods = {
+  async setGoal(this: GatewayCore, request: ui.SetGoalRequest) {
+    const { actions } = this[coreState];
+
+    const goalId = await actions.transaction(async () => {
+      await requireThreadModule(this);
+      const id = await setThreadGoal.call(this, request);
+
+      // Claude goal turns are admitted after commit. Publish the resulting state even for nested bot actions.
+      actions.defer(async () => {
+        await coreBroadcastGoal(this, request.threadId);
+        await coreBroadcastThread(this, request.threadId);
+      });
+
+      if (request.action === "set") coreAutoTitle(this, request.threadId, titleContext({ text: request.objective }));
+
+      return id;
+    });
+
+    return toUiGoal(await coreGoals(this, (store) => store.goal(goalId)));
   },
 
   /** Stops a running background task (StopTask to the worker; the item ends when the worker reports it). */

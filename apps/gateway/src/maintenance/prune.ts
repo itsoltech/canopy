@@ -5,6 +5,7 @@ import { pruneDiagnostics } from "./diagnostics.ts";
 import { queryFamily } from "../diagnostics/query-context.ts";
 import { pruneComposerDrafts } from "../drafts/query.ts";
 import { pruneStorage } from "./storage.ts";
+import { lockedOwnerModule } from "../store/module-access.ts";
 import { pruneExpiredThreads } from "./thread-retention.ts";
 import { compactTranscript } from "./transcript.ts";
 import { pruneThreadReplication } from "./thread-replication.ts";
@@ -27,10 +28,16 @@ export const pruneDatabase = (owner: string, threadsChanged?: (ids: readonly str
 
         if (!claimed.length) return { touched: 0, ids: [] };
         let touched = 0;
-        const threads = yield* pruneExpiredThreads(sql, owner);
-        touched += threads.touched;
-        touched += yield* compactTranscript(sql, owner);
-        touched += yield* pruneComposerDrafts(sql, owner);
+        let archivedIds: readonly string[] = [];
+
+        if (yield* lockedOwnerModule(sql, owner, "threads")) {
+          const threads = yield* pruneExpiredThreads(sql, owner);
+          archivedIds = threads.ids;
+          touched += threads.touched;
+          touched += yield* compactTranscript(sql, owner);
+          touched += yield* pruneComposerDrafts(sql, owner);
+        }
+
         touched += yield* pruneStorage(sql, owner);
         touched += yield* pruneGitHubCache(sql, owner);
 
@@ -69,7 +76,7 @@ export const pruneDatabase = (owner: string, threadsChanged?: (ids: readonly str
         yield* sql`UPDATE database_maintenance SET next_run_at=now()+make_interval(secs=>${touched ? 1 : 60})
       WHERE owner_user_id=${owner}::uuid`;
 
-        return { touched, ids: threads.ids };
+        return { touched, ids: archivedIds };
       }),
     );
 

@@ -24,18 +24,22 @@ export const busDeliveriesMethods: BusDeliveriesMethods = {
     const state = this[busState];
 
     if (!turnId) {
-      const fallbacks = await state.host.run(AgentBusStore.use((s) => s.notificationFallbacks(state.fallbackCursor)));
+      const fallbacks = await state.host.run(
+        AgentBusStore.use((s) => s.notificationFallbacks(state.host.ownerUserId, state.fallbackCursor)),
+      );
 
       for (const id of fallbacks) await this[busState].host.fallbackSteer(id);
       state.fallbackCursor = fallbacks.length === 64 ? fallbacks.at(-1) : undefined;
     }
 
     let due = await state.host.run(
-      AgentBusStore.use((s) => s.dueNotifications(turnId, turnId ? undefined : state.notificationCursor)),
+      AgentBusStore.use((s) =>
+        s.dueNotifications(state.host.ownerUserId, turnId, turnId ? undefined : state.notificationCursor),
+      ),
     );
 
     if (!turnId && !due.length && state.notificationCursor)
-      due = await state.host.run(AgentBusStore.use((s) => s.dueNotifications()));
+      due = await state.host.run(AgentBusStore.use((s) => s.dueNotifications(state.host.ownerUserId)));
 
     for (const { call, target, turnStatus, lastMessage, lastMessageLength } of due) {
       const label = target.kind === "side" ? "side thread" : "thread";
@@ -45,7 +49,10 @@ export const busDeliveriesMethods: BusDeliveriesMethods = {
         message: truncate(lastMessage, 20_000, lastMessageLength) || "(no message)",
       };
 
-      const delivery = await this[busState].host.run(AgentBusStore.use((s) => s.deliverNotification(call.id, input)));
+      const delivery = await this[busState].host.run(
+        AgentBusStore.use((s) => s.deliverNotification(state.host.ownerUserId, call.id, input)),
+      );
+
       await this[busState].host.inputsChanged(call.source_thread_id);
 
       if (delivery?.turn) await this[busState].host.queued(call.source_thread_id, delivery.turn);
@@ -56,7 +63,9 @@ export const busDeliveriesMethods: BusDeliveriesMethods = {
   },
 
   async deliverAnswers(this: AgentBus): Promise<void> {
-    const due = await this[busState].host.run(AgentBusStore.use((s) => s.deliverAnswers()));
+    const due = await this[busState].host.run(
+      AgentBusStore.use((s) => s.deliverAnswers(this[busState].host.ownerUserId)),
+    );
 
     for (const delivery of due) {
       if (delivery.turn) await this[busState].host.queued(delivery.threadId, delivery.turn);
@@ -71,6 +80,7 @@ export const busDeliveriesMethods: BusDeliveriesMethods = {
     const forwarded = await this[busState].host.run(
       AgentBusStore.use((s) =>
         s.forwardInteraction({
+          owner: this[busState].host.ownerUserId,
           requestId: interaction.requestId,
           maxHops: DEFAULT_BUS_LIMITS.maxHops,
           input: (thread) => {

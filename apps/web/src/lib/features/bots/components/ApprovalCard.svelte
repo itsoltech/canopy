@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { useSettings } from "#lib/features/settings/settings-state.svelte.ts";
   import { tick } from "svelte";
   import type { ClassValue } from "svelte/elements";
   import Button from "#lib/shared/ui/Button.svelte";
@@ -46,6 +47,7 @@
   } = $props();
 
   const id = $props.id();
+  const settings = useSettings();
 
   const preview = $derived(
     approval.fields.reduce<(typeof approval.fields)[number] | undefined>(
@@ -128,7 +130,7 @@
     >
       {approval.action}
     </h3>
-    {#if approval.threadId}<a
+    {#if approval.threadId && settings.moduleEnabled("threads")}<a
         class="mx-4 mt-1 inline-block text-sm text-zinc-500 underline focus-ring sm:text-xs dark:text-zinc-400"
         href="/threads/{approval.threadId}">Open thread</a
       >{/if}

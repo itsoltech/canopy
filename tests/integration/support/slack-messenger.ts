@@ -72,6 +72,7 @@ export function slackMessengerFixture() {
   return {
     transport,
     acknowledged,
+    connected: () => sockets.size,
     sent,
     refuseNextSend: (code: string) => {
       refusal = code;

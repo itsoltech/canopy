@@ -1,3 +1,4 @@
+import { setModules } from "./support/module-settings.ts";
 import { afterAll, beforeAll, describe, expect, test } from "bun:test";
 import { create } from "@bufbuild/protobuf";
 import { ui } from "@canopy/contracts";
@@ -230,13 +231,17 @@ describe.skipIf(!dockerAvailable)("background workspace copies over real workers
       workerCredential: gw.workerCredential,
     };
 
+    await setModules(gw, "bots");
     const stopping = gw.close(true);
     pause.release();
     await stopping;
     gw = await startTestGateway({ storage });
     await source.reconnect(gw);
     await target.reconnect(gw);
-    expect((await job(input.transferKey))?.status).toBe("copying");
+    await gw.core.copyJobs.tick();
+    expect((await gw.core.copyJobs.store.get(input.transferKey))?.status).toBe("copying");
+    expect(readdirSync(join(target.dir, "gateway-restart"))).toEqual([]);
+    await setModules(gw, "threads", "bots");
     gw.core.copyJobs.start();
     await settled(input.transferKey);
     expectCopy("gateway-restart");

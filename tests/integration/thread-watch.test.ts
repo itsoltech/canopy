@@ -161,6 +161,39 @@ describe.skipIf(!dockerAvailable)("scoped file invalidations over the real worke
     }
   });
 
+  test("disabling Threads at either gateway releases the remote worker watch and refuses stale clients", async () => {
+    const request = { threadId: q(), directories: ["folder"] };
+
+    for (const gw of [home.gw, caller]) {
+      const settings = async (enabled: string[]) =>
+        gw.api.updateUserSettings({
+          expectedVersion: (await gw.api.getSettings({})).user!.version,
+          modules: { enabled },
+        });
+
+      const watch = await start(request);
+      const settled = watch.done.catch(() => {});
+
+      try {
+        await settings(["bots"]);
+        expect(
+          await eventually(
+            () => Promise.resolve(worker().fileWatches.size),
+            (size) => size === 0,
+          ),
+        ).toBe(0);
+        expect(await rejected(request)).toBe(Code.FailedPrecondition);
+      } finally {
+        await watch.close().catch(() => {});
+        await settled;
+        await settings(["threads", "bots"]);
+      }
+    }
+
+    const resumed = await start(request);
+    await resumed.close();
+  }, 30_000);
+
   test("a live checkpoint replays invalidations, and the last cancellation destroys the checkout epoch", async () => {
     const first = await start({ threadId: q(), directories: ["folder"], files: ["folder/source.txt"] });
     const checkpoint = first.updates[0]!;

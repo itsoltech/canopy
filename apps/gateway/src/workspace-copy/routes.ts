@@ -44,6 +44,8 @@ export function sourceCall(core: GatewayCore, ends: CopyEnds, token: string, sig
     const call = create(ui.WorkspaceCopySourceRequestSchema, { ...input, workspaceId: ends.sourceRef, token });
     const node = splitId(ends.sourceRef).node;
 
+    abort.throwIfAborted();
+
     if (!node) return copySource(core, call);
 
     return single<ui.WorkspaceCopySourceResponse>(
@@ -70,6 +72,8 @@ export function targetCall(core: GatewayCore, ends: CopyEnds, signal: AbortSigna
           : ends.sourceRef,
       operation,
     });
+
+    abort.throwIfAborted();
 
     if (!node) return copyTarget(core, call);
     const home = await peerOf(core, node);

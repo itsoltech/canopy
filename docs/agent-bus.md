@@ -1,5 +1,14 @@
 # Szyna agentów: delegowanie, interakcje, harmonogram
 
+Status połączenia z botami (2026-11-18): zaimplementowane w kodzie. Wyłączenie
+Threads albo Bots przez właściciela blokuje komunikację wątek ↔ bot, także przez
+łącze komputerów. Przy włączonym Threads i wyłączonym Bots szyna nadal
+obsługuje komunikację między wątkami. Wyłączenie Threads zatrzymuje przyjmowanie
+wywołań narzędzi wątków i dostarczanie pytań, odpowiedzi, raportów i powiadomień
+o zadaniach w tle. Lokalny gateway zachowuje oczekujące dostarczenia i wznawia
+ich obsługę po włączeniu Threads. Dostępność w kanałach według [release.md](release.md).
+[Zachowanie botów, oczekujące zgody i wyniki delegowania](bots.md#połączenie-z-wątkami).
+
 Status błędów tworzenia worktree (2026-11-18): zaimplementowane w kodzie;
 dostępność nightly/beta/stable wynika z promocji wydań.
 `spawn_thread` zwraca komunikaty dla rozpoznanych błędów Git i łącza workera.
@@ -461,6 +470,11 @@ Okno terminowego wykonania wynosi 2 minuty. Po jego przekroczeniu `skip` zapisuj
 a `run_once` nadal czeka na jednego kwalifikującego się workera i nadrabia dokładnie raz; kolejne terminy
 cronu liczy od chwili wykonania. `until` kończy oczekiwanie. Wyłączona lub niedostępna instancja
 również wymaga oczekiwania, także przy `specific`. Jak dotąd, `skip` stosuje się też po przestoju gateway dłuższym niż 2 minuty.
+
+Wyłączenie modułu Threads wstrzymuje harmonogramy wszystkich projektów właściciela.
+Po włączeniu najbliższy termin cykliczny przypada w przyszłości, także przy `run_once`.
+Pobudki jednorazowe zachowują swój pierwotny termin i politykę spóźnienia.
+Harmonogramy wstrzymane ręcznie pozostają wstrzymane.
 
 W harmonogramach nowych wątków `concurrency = skip_if_running` jest domyślne: poprzednia tura
 w kolejce lub w toku albo zadanie w tle w toku powoduje pominięcie następnego terminu. `allow` pozwala

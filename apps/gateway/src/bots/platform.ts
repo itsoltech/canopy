@@ -12,10 +12,11 @@ import { forwardingApproval, forwardingIds, localForwardTarget } from "../core/b
 import type { BotTurn, StoredCall, ToolSpec } from "./types.ts";
 import { areaTool } from "./tools/index.ts";
 import { context, validate, type ToolResult } from "./tools/shared.ts";
-import { wakeupView } from "./tools/schedules.ts";
 import { automationMode, inheritedWorkspace } from "../worktrees/automation.ts";
 import { coreState } from "../core/core-context.ts";
 import { botThreadPermission } from "./thread-permission.ts";
+import { botThreadConnectionEnabled, BOT_THREADS_DISCONNECTED } from "../store/module-access.ts";
+import { threadToolNames, usesThreadConnection } from "./thread-tools.ts";
 import { SettingsStore } from "../store/settings.ts";
 
 /** Legacy tools: an unknown provider name keeps meaning Codex, as before. */
@@ -30,6 +31,13 @@ const legacyProvider = (name: string) =>
 export async function describeBotTool(core: GatewayCore, tool: ToolSpec, args: JsonObject): Promise<string> {
   if (tool.source !== "platform") return statusPhrase(tool, args);
   args = Object.fromEntries(Object.entries(args).filter(([key]) => !key.endsWith("_name")));
+  const options = core[coreState].options;
+
+  if (
+    (usesThreadConnection(tool.name) || args["thread_id"] || args["project_id"]) &&
+    !(await options.runtime.runPromise(botThreadConnectionEnabled(options.userId)))
+  )
+    return statusPhrase(tool);
   const ref = Object.values(args).find((v) => Predicate.isString(v) && splitId(v).node);
   const node = Predicate.isString(ref) ? await core.linkedAgents.peer(ref).catch(() => "") : "";
   const machine = node ? ` on ${await core.linkedAgents.machine(node)}` : "";
@@ -42,7 +50,9 @@ export async function describeBotTool(core: GatewayCore, tool: ToolSpec, args: J
     const botId = args["bot_id"];
 
     const overview =
-      Predicate.isString(projectId) || Predicate.isString(workerId) ? await core.linkedAgents.overview() : undefined;
+      Predicate.isString(projectId) || Predicate.isString(workerId)
+        ? await core.linkedAgents.overview(Predicate.isString(projectId) ? "bot-thread" : undefined)
+        : undefined;
 
     const projectName = overview?.projects.find((p) => p.id === projectId)?.name;
     const workerName = overview?.workers.find((w) => w.id === workerId)?.name;
@@ -58,7 +68,7 @@ export async function describeBotTool(core: GatewayCore, tool: ToolSpec, args: J
     }
 
     if (Predicate.isString(threadId))
-      return phrase({ ...args, thread_name: (await core.linkedAgents.thread(threadId)).title });
+      return phrase({ ...args, thread_name: (await core.linkedAgents.thread(threadId, "bot-thread")).title });
 
     if (tool.name === "send_bot_message" && Predicate.isString(botId)) {
       const bot = splitId(botId).node
@@ -90,6 +100,8 @@ export async function prepareBotTool(
   turn: BotTurn,
   call: StoredCall,
 ): Promise<{ prompt?: string } | undefined> {
+  if (call.tool.source === "platform") call = await availableBotCall(options, call);
+
   if (call.tool.source === "platform" && ["start_thread", "send_message", "send_bot_message"].includes(call.tool.name))
     nextReplyHop(turn.hops);
 
@@ -110,6 +122,21 @@ export async function prepareBotTool(
   validate(registered.spec.parameters, call.arguments);
 
   return registered.prepare(context(core, options, turn, call));
+}
+
+async function availableBotCall(options: GatewayCoreOptions, call: StoredCall): Promise<StoredCall> {
+  const name = call.tool.name;
+
+  if (!usesThreadConnection(name) || (await options.runtime.runPromise(botThreadConnectionEnabled(options.userId))))
+    return call;
+
+  if (threadToolNames.has(name) || call.arguments["scope"] === "platform") throw new Invalid(BOT_THREADS_DISCONNECTED);
+
+  // A disconnected bot can list and cancel its own reminders through the shared schedule tools.
+  return {
+    ...call,
+    arguments: { scope: "wakeup", ...(name === "cancel_schedule" && { schedule_id: call.arguments["schedule_id"]! }) },
+  };
 }
 
 export async function botPlatform(
@@ -137,6 +164,7 @@ export async function botPlatform(
     options.runtime.runPromise(BotStore.use((s) => s.action(turn, call, effect)));
 
   try {
+    call = await availableBotCall(options, call);
     validate(call.tool.parameters, args);
 
     if (["start_thread", "send_message"].includes(call.tool.name)) localForwardTarget(args, forwardingIds(args));
@@ -220,8 +248,6 @@ export async function botPlatform(
         return await action(BotStore.use((s) => s.sendToBot(user, turn, call)));
       case "schedule_wakeup":
         return action(BotStore.use((s) => s.wakeup(turn, call)));
-      case "list_schedules":
-        return (await core.bots.run((s) => s.wakeups(turn.bot_id))).map(wakeupView);
       case "cancel_schedule":
         return action(BotStore.use((s) => s.cancelWakeup(turn.bot_id, string("schedule_id"))));
       case "rename_thread":

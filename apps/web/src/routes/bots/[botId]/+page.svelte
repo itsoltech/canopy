@@ -47,7 +47,14 @@
   const catalogs = useModelCatalog();
   const history = watchBot(() => data.bot.id);
   const emptySnapshot = create(bots.BotConversationSchema);
-  let snapshot = $derived(history.snapshot ?? emptySnapshot);
+
+  let snapshot = $derived.by(() => {
+    const current = history.snapshot ?? emptySnapshot;
+
+    if (settings.moduleEnabled("threads")) return current;
+
+    return { ...current, approvals: current.approvals.filter((a) => !a.threadId || a.status !== "pending") };
+  });
 
   let connection = $state("");
   const expiredNotice = $derived(connection === "This request expired. No answer was sent.");

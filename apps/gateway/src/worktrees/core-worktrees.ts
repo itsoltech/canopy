@@ -97,7 +97,12 @@ function worktreeLink(hostContext: GatewayCore, workerId: string) {
 }
 
 /** A new worktree for a new main thread, created on the workspace's worker before the thread. */
-async function createWorktree(hostContext: GatewayCore, request: ui.CreateThreadRequest, progress?: CreationProgress) {
+async function createWorktree(
+  hostContext: GatewayCore,
+  request: ui.CreateThreadRequest,
+  progress?: CreationProgress,
+  scheduledId?: string,
+) {
   const { project, workspace, worker } = await ownWorkspace(hostContext, request.workspaceId);
 
   if (project.id !== request.projectId) throw new InvalidError("workspace not found");
@@ -107,7 +112,7 @@ async function createWorktree(hostContext: GatewayCore, request: ui.CreateThread
 
   if (connection === undefined && detail) throw new InvalidError(detail);
   const settings = (await coreWorktreeScope(hostContext, project.id, workspace.workerId)).effective;
-  const id = Bun.randomUUIDv7();
+  const id = scheduledId ?? Bun.randomUUIDv7();
 
   const branch = initialBranch(settings, {
     message: request.initialMessage,
@@ -137,6 +142,7 @@ async function createWorktree(hostContext: GatewayCore, request: ui.CreateThread
     },
     CREATE_TIMEOUT_MS,
     {
+      ...(scheduledId && { commandId: `schedule-worktree/${scheduledId}` }),
       queryProgress: (event) => {
         if (!detailed) return;
 
@@ -211,6 +217,7 @@ export async function corePrepareWorkspace(
   hostContext: GatewayCore,
   request: ui.CreateThreadRequest,
   progress?: CreationProgress,
+  scheduledId?: string,
 ): Promise<PreparedWorkspace> {
   if (request.parentThreadId) {
     const parent = await coreRun(hostContext, (s) => s.thread(request.parentThreadId));
@@ -238,7 +245,7 @@ export async function corePrepareWorkspace(
   }
 
   if (request.workspaceMode !== ui.WorkspaceMode.NEW_WORKTREE) return { request };
-  const made = await createWorktree(hostContext, request, progress);
+  const made = await createWorktree(hostContext, request, progress, scheduledId);
   const next = create(ui.CreateThreadRequestSchema, { ...request, worktreeId: made.row.id, cwd: made.row.path });
 
   return {

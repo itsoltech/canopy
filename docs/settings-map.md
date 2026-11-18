@@ -1,6 +1,7 @@
 # Mapa ustawień Canopy
 
-Status (2026-11-17): mapa zaimplementowanych ustawień, w tym zgody reguł Archived/Deleted
+Status (2026-11-18): mapa zaimplementowanych ustawień, w tym kolejności zakładek i wstrzymywania pracy modułów,
+zgody reguł Archived/Deleted
 threads na sprzątanie lokalnych plików worktree oraz wspólnego wyboru
 grupowania sidebara w web/desktop i mobile, opcjonalnej retencji archiwum wątków
 oraz wspólnego dopasowania słów w wyszukiwaniu ustawień i opcjonalnego wskaźnika kontekstu w composerze web/desktop;
@@ -46,6 +47,7 @@ bez zmian. Opcja wyboru bez działania jest wyłączona z opisem „Soon”.
 
 | Strona / sekcja | Ustawienie | Zakres | Domyślnie | Skutek |
 | --- | --- | --- | --- | --- |
+| General / Modules | First tab; Threads; Bots | konto | Threads, następnie Bots | Pierwszy moduł otwiera się przy starcie. Wyłączenie modułu zatrzymuje jego pracę, ukrywa widoki i rozłącza boty z wątkami. Ponowne włączenie przywraca historię i obsługę wcześniej aktywnych automatyzacji. |
 | Keybindings | Skróty komend, kompozytora, cytowania i modeli | urządzenie | przypisania rejestru | Wyszukiwanie, edycja, nagrywanie i dodatkowe przypisania z kontrolą konfliktów kontekstu |
 | General / Notifications | Thread notifications | urządzenie | Off | Alert systemowy, gdy wątek kończy turę, ma błąd, zatrzymuje go system albo czeka na zgodę/odpowiedź; tytuł wątku, projekt/komputer i krótki podgląd; tylko gdy otwarte jest okno Canopy (na macOS zamknięte okno nie wysyła alertów); z dźwiękiem oglądany wątek gra tylko dźwięk; web wymaga zgody Notification API i pokazuje odmowę lub zamknięty monit, desktop używa natywnego `Notification` przez IPC ([notifications.md](notifications.md)) |
 | General / Notifications | Bot notifications | urządzenie | Off | Alert systemowy o wiadomości bota do użytkownika, karcie zgody lub pytaniu; nazwa bota i krótki podgląd; te same zasady zgody, fokusu, dźwięku i duplikatów co dla wątków |

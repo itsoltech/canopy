@@ -1,3 +1,4 @@
+import { useAppearance } from "../../state/appearance";
 import { useState } from "react";
 import { Text, View } from "react-native";
 import { PermissionMode, type bots } from "@canopy/contracts";
@@ -22,6 +23,7 @@ export function BotPermissionSettings({
   disabled: boolean;
 }) {
   const c = useColors();
+  const { threadsEnabled } = useAppearance();
   const [picker, setPicker] = useState("");
   const options = picker === "policy" ? BOT_APPROVAL_OPTIONS : BOT_THREAD_PERMISSION_OPTIONS;
 
@@ -47,16 +49,20 @@ export function BotPermissionSettings({
         onPress={() => setPicker("policy")}
       />
       {botId && <BotApprovalRules botId={botId} selectedRule={selectedRule} />}
-      <SelectField
-        label="Threads started by this bot"
-        value={BOT_THREAD_PERMISSION_OPTIONS.find((o) => o.value === threadPermission)?.label ?? "Inherit default"}
-        disabled={disabled}
-        onPress={() => setPicker("thread")}
-      />
-      <Text style={[styles.meta, { color: c.muted }]}>Thread tool requests also appear in this bot’s chat.</Text>
+      {threadsEnabled && (
+        <>
+          <SelectField
+            label="Threads started by this bot"
+            value={BOT_THREAD_PERMISSION_OPTIONS.find((o) => o.value === threadPermission)?.label ?? "Inherit default"}
+            disabled={disabled}
+            onPress={() => setPicker("thread")}
+          />
+          <Text style={[styles.meta, { color: c.muted }]}>Thread tool requests also appear in this bot’s chat.</Text>
+        </>
+      )}
       <PickerSheet
         title={picker === "policy" ? "Ask for approval" : "Threads started by this bot"}
-        visible={!!picker}
+        visible={picker === "policy" || (picker === "thread" && threadsEnabled)}
         onClose={() => setPicker("")}
         value={picker === "policy" ? config.approvalPolicy || "safe" : threadPermission}
         sections={[{ options }]}

@@ -56,6 +56,7 @@ export class HostState {
   readonly threadProviders = new Map<string, Provider>();
   /** Turns being admitted per provider (between StartTurn and turnStarted). */
   readonly admittingBy = new Map<Provider, number>();
+  readonly generationRequests = new Map<string, AbortController>();
   readonly generations = new Map<AbortController, Promise<void>>();
   readonly shellRuns = new Map<
     string,

@@ -6,6 +6,7 @@
   import { requestJson } from "#lib/shared/http.ts";
   import type { JsonObject } from "#lib/shared/json.ts";
   import { decode } from "#lib/shared/wire.ts";
+  import { useSettings } from "#lib/features/settings/settings-state.svelte.ts";
   import ComputerDetails from "#lib/features/settings/ComputerDetails.svelte";
   import Button from "#lib/shared/ui/Button.svelte";
   import Dialog from "#lib/shared/ui/Dialog.svelte";
@@ -29,6 +30,8 @@
   import PairingChoice from "#lib/features/computers/PairingChoice.svelte";
   import PairingInvitation from "#lib/features/computers/PairingInvitation.svelte";
 
+  const settings = useSettings();
+  const allModules = $derived(settings.enabledModules.length === 2);
   const network = useNetworkAccess();
   const overview = useOverview();
 
@@ -67,6 +70,11 @@
   const shareComputer = $derived(setup.peers.find((p) => p.nodeId === shareFor));
   let moveFor = $state("");
   let moveOpen = $state(false);
+
+  $effect(() => {
+    if (!allModules) moveOpen = false;
+  });
+
   let now = $state(Date.now());
   const remaining = $derived(Math.max(0, Math.ceil((Number(invitation?.expiresAtMs ?? 0n) - now) / 1000)));
 
@@ -245,7 +253,7 @@
             shareOpen = true;
           }
         : undefined}
-      onmove={!computer.viaNodeId && computer.capabilities.includes(MOVE_ITEMS)
+      onmove={allModules && !computer.viaNodeId && computer.capabilities.includes(MOVE_ITEMS)
         ? () => {
             moveFor = computer.nodeId;
             moveOpen = true;
@@ -431,4 +439,4 @@
   {error}
   onchange={(shareOnwardNodeIds) => void run(() => manage("share_onward", { nodeId: shareFor, shareOnwardNodeIds }))}
 />
-<MoveDialog bind:open={moveOpen} everything nodeId={moveFor} />
+{#if allModules}<MoveDialog bind:open={moveOpen} everything nodeId={moveFor} />{/if}

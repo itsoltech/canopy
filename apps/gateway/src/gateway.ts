@@ -4,6 +4,7 @@ import { startGrpcServer } from "@canopy/transport";
 import { serviceTokenAuth, uiRoutes } from "./api/index.ts";
 import { GatewayCore } from "./core/core.ts";
 import { settleInterruptedWorktreePreparations } from "./core/worktree-preparation.ts";
+import { initializeModuleExecution } from "./store/module-transitions.ts";
 import { healthcheck } from "./healthcheck.ts";
 import { ensureDevUser, gatewayRuntime, migrateDatabase, networkPort, webOrigin } from "./runtime.ts";
 import {
@@ -96,6 +97,8 @@ if ((env["CANOPY_MIGRATE"] ?? "1") === "1") {
 
 // Single development user until authentication lands (docs/ui-api.md).
 const userId = await ensureDevUser(runtime, env["CANOPY_DEV_USER_EMAIL"] ?? "dev@localhost");
+
+await runtime.runPromise(initializeModuleExecution(userId));
 
 const core = new GatewayCore({
   role: gatewayRole(env),

@@ -3,6 +3,7 @@
  * gRPC link, WorkerHost and git. GenerateText is stubbed at the worker; everything else (claims, the worker's
  * rename rules, live heads) runs for real.
  */
+import { setModules } from "./support/module-settings.ts";
 import { afterAll, beforeAll, describe, expect, test } from "bun:test";
 import { join } from "node:path";
 import { create } from "@bufbuild/protobuf";
@@ -132,6 +133,33 @@ describe.skipIf(!dockerAvailable)("generated branch names over the worker link",
     expect(renamed.worktree).toMatchObject({ provisionalBranch: false, path: created.worktree!.path });
     expect(git(created.cwd, "symbolic-ref", "--short", "HEAD")).toBe("fix/login-redirect-loop");
     expect(prompts.at(-1)).toContain("User: Fix the login redirect loop after sign-out");
+  }, 30_000);
+
+  test("a legacy generation finishing after Threads is re-enabled keeps its provisional git branch", async () => {
+    const delayed = Promise.withResolvers<string>();
+    const before = prompts.length;
+    replies = [delayed.promise];
+
+    const created = await start("Resolve stale branch names");
+    const branch = created.worktree!.branch;
+
+    try {
+      expect(
+        await eventually(
+          async () => prompts.length,
+          (count) => count > before,
+        ),
+      ).toBeGreaterThan(before);
+      await setModules(f.gw, "bots");
+      await setModules(f.gw, "threads", "bots");
+      delayed.resolve("fix/stale-branch-name");
+      const kept = `worktree ${created.worktree!.id}: branch name unavailable; kept`;
+      expect(await eventually(async () => logs.includes(kept), Boolean)).toBe(true);
+      expect(git(created.cwd, "branch", "--show-current")).toBe(branch);
+      expect((await thread(created.id)).worktree?.branch).toBe(branch);
+    } finally {
+      delayed.resolve("unclear");
+    }
   }, 30_000);
 
   test("an attachment and a fenced name: renames while the first turn is still running", async () => {

@@ -1,3 +1,4 @@
+import { lockedOwnerModule } from "../store/module-access.ts";
 import { Effect } from "effect";
 import type { SqlClient } from "effect/sql";
 import { encryptSecret } from "../store/secrets.ts";
@@ -57,6 +58,7 @@ export function messengerAccounts(sql: SqlClient.SqlClient, key: Buffer) {
     claimAccount: (owner: string, id: string, holder: string, now: Date) =>
       sql.withTransaction(
         Effect.gen(function* () {
+          if (!(yield* lockedOwnerModule(sql, owner, "bots"))) return undefined;
           yield* sql`SELECT id FROM messenger_accounts WHERE id=${id}::uuid AND owner_user_id=${owner}::uuid FOR UPDATE`;
 
           if (!(yield* active(owner, id))) return undefined;
@@ -73,6 +75,7 @@ export function messengerAccounts(sql: SqlClient.SqlClient, key: Buffer) {
     renewAccount: (owner: string, lease: AccountLease, now: Date) =>
       sql.withTransaction(
         Effect.gen(function* () {
+          if (!(yield* lockedOwnerModule(sql, owner, "bots"))) return false;
           yield* sql`SELECT id FROM messenger_accounts WHERE id=${lease.accountId}::uuid AND owner_user_id=${owner}::uuid FOR UPDATE`;
 
           if (!(yield* active(owner, lease.accountId))) return false;

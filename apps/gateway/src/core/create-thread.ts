@@ -15,6 +15,7 @@ import { coreComposeInput, coreMessageMentions } from "./core-mentions.ts";
 import { coreCheckModel, coreProfileModels } from "./core-models.ts";
 import { coreGoals } from "./core-goals.ts";
 import { coreShellInput } from "./core-shell.ts";
+import { requireThreadModule } from "./thread-module-runtime.ts";
 import type { GatewayCore } from "./core.ts";
 import { checkedQuotes, coreCheckQuoteSources } from "./quotes.ts";
 import { isPlatformCommand } from "./mentions.ts";
@@ -155,6 +156,8 @@ async function startPreparedThread(
   } = core[coreState];
 
   const commit = async () => {
+    await requireThreadModule(core);
+
     const row = pending
       ? await finishWorktreePlacement(core, pending, request)
       : await coreRun(core, (s) =>
@@ -197,7 +200,7 @@ async function startPreparedThread(
     return row;
   };
 
-  const row = pending ? await actions.transaction(commit) : await commit();
+  const row = await actions.transaction(commit);
 
   if (prepared.nameLater) coreNameBranchLater(core, row, request.initialMessage, prepared.nameLater.worktree);
 

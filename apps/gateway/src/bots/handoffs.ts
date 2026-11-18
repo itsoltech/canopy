@@ -2,6 +2,8 @@ import { toJson } from "@bufbuild/protobuf";
 import { bots } from "@canopy/contracts";
 import { Effect, Predicate } from "effect";
 import type { SqlClient } from "effect/sql";
+import { moduleDisabledMessage } from "../store/module-access.ts";
+import { Invalid } from "../store/errors.ts";
 import { harnessOf } from "../store/instance-config.ts";
 import { isJsonObject } from "./json.ts";
 import type { BotTurn, ModelMessage } from "./types.ts";
@@ -33,7 +35,7 @@ export function handoffStore(sql: SqlClient.SqlClient) {
 
   return {
     latest,
-    enqueue: (botId: string, before: bots.BotConfiguration, next: bots.BotConfiguration) =>
+    enqueue: (botId: string, before: bots.BotConfiguration, next: bots.BotConfiguration, enabled: boolean) =>
       Effect.gen(function* () {
         if (
           before.provider === next.provider &&
@@ -55,6 +57,8 @@ export function handoffStore(sql: SqlClient.SqlClient) {
           yield* sql`SELECT id FROM bot_turns WHERE bot_id = ${botId}::uuid AND handoff_configuration IS NULL AND conversation_id IS NULL LIMIT 1`;
 
         if (!history.length) return;
+
+        if (!enabled) return yield* Effect.fail(new Invalid(moduleDisabledMessage("bots")));
 
         const label =
           (yield* sql<{

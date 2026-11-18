@@ -67,7 +67,7 @@ export class ThreadActions {
           if (!window.canopyDesktop) window.open(this.link(thread), "_blank", "noopener,noreferrer");
           break;
         case "new":
-          await goto(`/?project=${encodeURIComponent(thread.projectId)}`);
+          await goto(`/threads/new?project=${encodeURIComponent(thread.projectId)}`);
           break;
         case "pin":
           await this.settings.pinThread(thread.id, !this.settings.sidebar.pinnedThreadIds.includes(thread.id));
@@ -150,7 +150,7 @@ export class ThreadActions {
             });
         }
 
-        if (reopenId) await goto("/");
+        if (reopenId) await goto("/threads/new");
         toast("Thread deleted", {
           action: {
             label: "Undo",

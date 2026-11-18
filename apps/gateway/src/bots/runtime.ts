@@ -7,7 +7,7 @@ import type { CoreRuntime } from "../core/core.ts";
 import { Invalid, NotFound } from "../store/store.ts";
 import { splitId } from "@canopy/domain/computers";
 import { runHandoff } from "./runtime-handoff.ts";
-import { botPlatformTools } from "./policy.ts";
+import { currentBotTools } from "./policy.ts";
 import { botConfiguration, botView, BotStore } from "./store.ts";
 import type { BotModel, BotSteerDelivery, BotTurn, ModelInput, StoredCall, ToolResult, ToolSpec } from "./types.ts";
 import type { ConnectorsRuntime } from "../connectors/runtime.ts";
@@ -90,19 +90,6 @@ export class BotsRuntime {
       instructions: `${input.instructions}\n\n${privateContext}\n\n${identity} ${instance} Earlier messages may have been written by other models. When asked which model is answering, report this current model id and provider; do not infer your identity from conversation history.`,
     });
   }
-  async #handoff(turn: BotTurn, abort: AbortController): Promise<void> {
-    await runHandoff(
-      {
-        options: this.#options,
-        run: this.run.bind(this),
-        now: () => this.now(),
-        stopping: () => this.#stopped,
-        reply: this.#reply.bind(this),
-      },
-      turn,
-      abort,
-    );
-  }
   run<A, E>(use: (store: BotStore["Service"]) => Effect.Effect<A, E>): Promise<A> {
     return this.#options.runtime.runPromise(BotStore.use(use));
   }
@@ -159,7 +146,7 @@ export class BotsRuntime {
       this.#pollAt = state.configured || this.#active.size ? 0 : started + 5000;
 
       if (!state.ready) return;
-      await this.run((s) => s.deliver());
+      await this.run((s) => s.deliver(this.#options.userId));
       await this.run((s) => s.deliverRoutines(this.#options.userId, this.now()));
 
       while (this.#active.size - this.#waiting.size < 4 && !this.#stopped && !this.#options.draining?.()) {
@@ -206,7 +193,7 @@ export class BotsRuntime {
 
     try {
       if (turn.handoff_configuration) {
-        await this.#handoff(turn, abort);
+        await runHandoff(this, this.#options, this.#reply.bind(this), turn, abort);
 
         return;
       }
@@ -214,9 +201,8 @@ export class BotsRuntime {
       const row = await this.run((s) => s.owned(this.#options.userId, turn.bot_id));
       const config = botConfiguration(row);
 
-      const tools = botPlatformTools(config, turn);
+      const tools = await currentBotTools(this.#options, config, turn);
 
-      tools.push(...(await this.#options.connectors.botTools(turn.bot_id, turn, config.files !== false)));
       const messages = [...(turn.checkpoint.length ? turn.checkpoint : await this.run((s) => s.history(turn)))];
 
       const step = { options: this.#options, run: this.run.bind(this) };
@@ -374,6 +360,20 @@ export class BotsRuntime {
     void this.tick().catch(() => undefined);
 
     return input.id;
+  }
+  async abortInterrupted() {
+    const active = [...this.#active.values()];
+
+    if (!active.length) return;
+
+    const interrupted = await this.run((s) =>
+      s.interruptedTurns(
+        this.#options.userId,
+        active.map((a) => a.turn.id),
+      ),
+    );
+
+    for (const a of active) if (interrupted.has(a.turn.id)) a.abort.abort();
   }
   async interrupt(id: string) {
     const stopped = await this.run((s) => s.interrupt(this.#options.userId, id));

@@ -1,3 +1,4 @@
+import { useAppearance } from "../../state/appearance";
 import { useState } from "react";
 import { create } from "@bufbuild/protobuf";
 import type { MessageInitShape } from "@bufbuild/protobuf";
@@ -21,6 +22,7 @@ export function ComputerSettings() {
   const [pairing, setPairing] = useState(false);
   const [moving, setMoving] = useState<ui.LinkedComputer>();
   const data = resource.data;
+  const bulkMove = useAppearance().modules.length > 1;
   const change = async (operation: Operation) => !!(await resource.run((api) => api.manageComputer(operation)));
 
   return (
@@ -63,7 +65,7 @@ export function ComputerSettings() {
             peers={data.peers}
             busy={resource.busy}
             change={change}
-            onMove={() => setMoving(computer)}
+            {...(bulkMove && { onMove: () => setMoving(computer) })}
           />
         ))}
         {data && !data.peers.length && (
@@ -86,10 +88,10 @@ export function ComputerSettings() {
       )}
       <Sheet
         title={`Move everything to ${moving?.displayName || moving?.name || "computer"}`}
-        visible={!!moving}
+        visible={!!moving && bulkMove}
         onClose={() => setMoving(undefined)}
       >
-        {moving && <ComputerMove nodeId={moving.nodeId} />}
+        {moving && bulkMove && <ComputerMove nodeId={moving.nodeId} />}
       </Sheet>
     </ResourceState>
   );
@@ -171,8 +173,8 @@ function ComputerDetails({
           {(computer.capabilities.includes("relay") || computer.shareOnwardNodeIds.length > 0) && (
             <Button title="Share onward" onPress={() => setSharing(true)} />
           )}
-          {computer.capabilities.includes("move_items") && (
-            <Button title="Move everything here" onPress={() => onMove?.()} />
+          {onMove && computer.capabilities.includes("move_items") && (
+            <Button title="Move everything here" onPress={onMove} />
           )}
           <Button
             variant="danger"

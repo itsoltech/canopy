@@ -2,6 +2,7 @@
   import { create } from "@bufbuild/protobuf";
   import { bots, ui } from "@canopy/contracts";
   import { untrack } from "svelte";
+  import { useSettings } from "#lib/features/settings/settings-state.svelte.ts";
   import type { ClassValue } from "svelte/elements";
   import type { ModelOption } from "#lib/features/models/catalog.ts";
   import { instanceKeyOf } from "#lib/features/providers/instances.ts";
@@ -72,6 +73,7 @@
   let wasOpen = false;
   let session = $state(0);
   const existingNames = $derived(botList.list.map((b) => b.configuration?.name ?? ""));
+  const settings = useSettings();
   const home = useBotHome(() => bot.nodeId);
 
   $effect(() => {
@@ -218,18 +220,20 @@
             ><Select bind:value={policy} disabled={busy} options={BOT_APPROVAL_OPTIONS} /></Field
           >
           <BotApprovalRules botId={bot.id} disabled={busy || !!home.reason} />
-          <Field label="Threads started by this bot">
-            <Select
-              value={threadPermission}
-              disabled={busy}
-              options={BOT_THREAD_PERMISSION_OPTIONS}
-              onchange={(value) => {
-                if (value === "full_access") confirmAccess = () => (threadPermission = value);
-                else threadPermission = value;
-              }}
-            />
-          </Field>
-          <p class="text-sm text-zinc-500 dark:text-zinc-400">Thread tool requests also appear in this bot’s chat.</p>
+          {#if settings.moduleEnabled("threads")}
+            <Field label="Threads started by this bot">
+              <Select
+                value={threadPermission}
+                disabled={busy}
+                options={BOT_THREAD_PERMISSION_OPTIONS}
+                onchange={(value) => {
+                  if (value === "full_access") confirmAccess = () => (threadPermission = value);
+                  else threadPermission = value;
+                }}
+              />
+            </Field>
+            <p class="text-sm text-zinc-500 dark:text-zinc-400">Thread tool requests also appear in this bot’s chat.</p>
+          {/if}
         </SettingsSection>
         <SettingsSection
           title="Connections"

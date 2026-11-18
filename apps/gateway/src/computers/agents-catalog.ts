@@ -4,14 +4,16 @@ import { bots, ui } from "@canopy/contracts";
 
 import { AGENT_BUS } from "@canopy/domain/computers";
 
+import { linkedModulesConnected, requireLinkedModules } from "./agents-module-access.ts";
 import type { LinkedAgents } from "./agents.ts";
 import { linkedMessage, methodNamed } from "./remote.ts";
+import { PEER_CATALOG_BUDGET_MS } from "./timing.ts";
 import { forward } from "../api/routed-home.ts";
 import { single } from "../api/routed-context.ts";
 
 export interface AgentsCatalogMethods {
   catalog(): Promise<JsonValue[]>;
-  overview(): Promise<ui.GetOverviewResponse>;
+  overview(access?: "bot-thread"): Promise<ui.GetOverviewResponse>;
 }
 
 export const agentsCatalogMethods: AgentsCatalogMethods = {
@@ -19,7 +21,11 @@ export const agentsCatalogMethods: AgentsCatalogMethods = {
     const computers = this.core.computers;
 
     if (!computers) return [];
-    const peers = (await computers.snapshot()).peers;
+    const [snapshot, connected] = await Promise.all([computers.snapshot(), linkedModulesConnected(this)]);
+    const peers = snapshot.peers;
+    // Bot names require live authorization on each home. Give all peers one budget for this
+    // optional part of list_agents, so a stalled home cannot delay the local tool result.
+    const signal = AbortSignal.timeout(PEER_CATALOG_BUDGET_MS);
 
     const results = await Promise.all(
       peers.map(async (p) => {
@@ -47,16 +53,26 @@ export const agentsCatalogMethods: AgentsCatalogMethods = {
         };
 
         try {
-          const [overview, botList, models] = [
+          const [overview, models] = [
             get("GetOverview", create(ui.GetOverviewRequestSchema), ui.GetOverviewResponseSchema),
-            get("ListBots", create(bots.ListBotsRequestSchema), bots.ListBotsResponseSchema),
             get("ListModels", create(ui.ListModelsRequestSchema), ui.ListModelsResponseSchema),
           ];
+
+          const botList =
+            connected && reachable
+              ? await this.ui(
+                  "ListBots",
+                  create(bots.ListBotsRequestSchema, { botThreadAccess: true }),
+                  bots.ListBotsResponseSchema,
+                  p.nodeId,
+                  signal,
+                ).catch(() => undefined)
+              : undefined;
 
           return {
             ...machine,
             ...availability,
-            loading: reachable && (!overview || !botList || !models),
+            loading: reachable && (!overview || !models || (connected && !botList && signal.aborted)),
             projects: overview?.projects.map((v) => toJson(ui.ProjectSchema, v)) ?? [],
             workers:
               overview?.workers.map((w) => ({ worker_id: w.id, name: w.name, online: reachable && w.online })) ?? [],
@@ -72,7 +88,8 @@ export const agentsCatalogMethods: AgentsCatalogMethods = {
     return results;
   },
 
-  async overview(this: LinkedAgents): Promise<ui.GetOverviewResponse> {
+  async overview(this: LinkedAgents, access?: "bot-thread"): Promise<ui.GetOverviewResponse> {
+    if (access === "bot-thread") await requireLinkedModules(this);
     const own = await this.core.overview();
     const computers = this.core.computers;
 
@@ -85,18 +102,21 @@ export const agentsCatalogMethods: AgentsCatalogMethods = {
 
       try {
         const method = methodNamed("GetOverview")!;
-        const request = create(ui.GetOverviewRequestSchema);
+        const request = create(ui.GetOverviewRequestSchema, { botThreadAccess: access === "bot-thread" });
 
         const reachable = computers.reachable().includes(node);
 
-        const response = computers.reads.read(
-          node,
-          method,
-          request,
-          (signal) => single(forward(this.core, node, method, request, signal)),
-          undefined,
-          reachable,
-        );
+        const response =
+          access === "bot-thread"
+            ? reachable && (await this.ui("GetOverview", request, ui.GetOverviewResponseSchema, node))
+            : computers.reads.read(
+                node,
+                method,
+                request,
+                (signal) => single(forward(this.core, node, method, request, signal)),
+                undefined,
+                reachable,
+              );
 
         if (response) {
           const overview = linkedMessage(ui.GetOverviewResponseSchema, response);

@@ -1,6 +1,8 @@
-import { createContext, useContext, useEffect, useRef, type ReactNode } from "react";
+import { createContext, useContext, useEffect, useRef, useState, type ReactNode } from "react";
 import { useWindowDimensions } from "react-native";
 import { router, usePathname, type Href } from "expo-router";
+import type { ModuleId } from "@canopy/domain";
+import { useAppearance } from "./appearance";
 import { useSession } from "./session";
 import { useDevicePreferences } from "../features/settings/device-preferences";
 import { useOverview } from "./overview";
@@ -23,6 +25,7 @@ function useLayoutState() {
   const opening = useRef(0);
   const pathname = usePathname();
   const wide = width >= WIDE_LAYOUT;
+  const moduleSelection = useModuleSelection(pathname);
 
   useEffect(
     () => () => {
@@ -40,6 +43,7 @@ function useLayoutState() {
 
   return {
     wide,
+    ...moduleSelection,
     /** The sidebar takes about a third of the window, 260–320 dp. */
     sidebarWidth: Math.round(Math.min(320, Math.max(260, width * 0.36))),
     sidebarOpen: wide && sidebarOpen,
@@ -64,6 +68,32 @@ function useLayoutState() {
       // A later tap or pairing change wins over an outstanding local read.
       if (request === opening.current) open({ pathname: "/thread/[id]", params: { id } });
     },
+  };
+}
+
+function useModuleSelection(pathname: string) {
+  const { modules } = useAppearance();
+  const order = modules.join(",");
+  const screen = pathname.split("/")[1] ?? "";
+
+  const route: ModuleId | undefined = ["bot", "bot-exchange"].includes(screen)
+    ? "bots"
+    : ["thread", "thread-starting", "new-thread", "pull-request"].includes(screen)
+      ? "threads"
+      : undefined;
+
+  const initial = route && modules.includes(route) ? route : modules[0];
+  const [selection, setSelection] = useState({ order, route, value: initial });
+
+  // Follow an opened conversation. Returning to the list keeps its tab until the configured order changes.
+  if (selection.order !== order || selection.route !== route) {
+    const value = route || selection.order !== order ? initial : selection.value;
+    setSelection({ order, route, value });
+  }
+
+  return {
+    selectedModule: selection.value,
+    selectModule: (value: ModuleId) => setSelection({ order, route, value }),
   };
 }
 

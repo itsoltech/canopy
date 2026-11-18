@@ -20,6 +20,8 @@ export class GitHubBackground {
   }
   private async poll() {
     await this.prs.repositories.refresh();
+
+    if (!(await this.prs.accounts.threadsEnabled())) return;
     const { run, owner } = this.prs.accounts;
     const candidates = await run((s) => s.mergeArchivePullRequests(owner));
     await pollMergeArchivePullRequests(this.prs, new Map(candidates.map((p) => [p.id, p.refresh])));

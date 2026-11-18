@@ -1,8 +1,9 @@
 <script lang="ts">
+  import { useSettings } from "#lib/features/settings/settings-state.svelte.ts";
   import { botList } from "#lib/features/bots/bot-list.svelte.ts";
   import { onMount, untrack } from "svelte";
   import { create } from "@bufbuild/protobuf";
-  import { bots as botContract, connectors } from "@canopy/contracts";
+  import { connectors } from "@canopy/contracts";
   import { useOverview } from "#lib/features/overview/overview-state.svelte.ts";
   import { useSettingsRoute } from "#lib/features/settings/settings-route.ts";
   import SettingsHeading from "#lib/features/settings/SettingsHeading.svelte";
@@ -21,6 +22,7 @@
   import { workerAccessOptions } from "#lib/features/access/access-options.ts";
 
   let { data }: PageProps = $props();
+  const settings = useSettings();
   const overview = useOverview();
   const records = workerRecords(overview);
 
@@ -33,23 +35,24 @@
     untrack(() => decode(connectors.ListConnectorsResponseSchema, data.connections).accounts),
   );
 
-  let botCatalog = $state(untrack(() => decode(botContract.ListBotsResponseSchema, data.bots)));
   let reloading = false;
   let reloadAgain = false;
   const CONNECTORS_FALLBACK_MS = 30_000;
 
-  // The shared bot list follows pushed changes; the route's list covers the first paint.
-  $effect(() => botList.use());
+  // Connector grants use the shared bot list only while bot access controls are visible.
+  $effect(() => (settings.moduleEnabled("bots") ? botList.use() : undefined));
 
   const bots = $derived(
-    (botList.loaded ? botList.list.filter((b) => !b.archived) : botCatalog.bots).map((b) => ({
-      id: b.id,
-      name: b.configuration?.name ?? "Bot",
-    })),
+    botList.list
+      .filter((b) => !b.archived)
+      .map((b) => ({
+        id: b.id,
+        name: b.configuration?.name ?? "Bot",
+      })),
   );
 
-  const unavailable = $derived(botCatalog.unavailableComputers);
-  const refreshing = $derived(botCatalog.refreshingComputers);
+  const unavailable = $derived(settings.moduleEnabled("bots") ? botList.unavailableComputers : []);
+  const refreshing = $derived(settings.moduleEnabled("bots") ? botList.refreshingComputers : []);
 
   let selected = $state("");
   let connecting = $state(false);
@@ -62,7 +65,6 @@
     const next = decode(connectors.ListConnectorsResponseSchema, data.connections);
     catalog = next;
     accounts = next.accounts;
-    botCatalog = decode(botContract.ListBotsResponseSchema, data.bots);
   });
 
   // Route data refreshes on desktop returns, including when this page is already open.
@@ -154,11 +156,14 @@
 <svelte:document onvisibilitychange={refreshAccounts} />
 
 <div class="settings-stack">
-  <SettingsHeading
-    title="Connectors"
-    description="Connect your apps once. Choose which workers and bots can use each account."
-  />
+  <SettingsHeading title="Connectors" description="Connect your apps and choose who can use each account." />
   <ConfigNotices match={(n) => n.kind === "connector" || n.kind === "oauth_app"} onchange={() => void reload()} />
+  {#if settings.moduleEnabled("bots") && botList.error}
+    <Alert tone="error"
+      >Could not load bots for account access.
+      {#snippet actions()}<Button size="sm" onclick={() => void botList.refresh()}>Retry</Button>{/snippet}
+    </Alert>
+  {/if}
   {#each unavailable as computer (computer.nodeId)}
     <Alert>
       {computer.unavailableReason}{computer.unavailableReason.endsWith(".") ? "" : "."} Its bot list may be incomplete.

@@ -5,6 +5,14 @@ import { Context, Effect, Layer } from "effect";
 import { SqlClient, type SqlError } from "effect/sql";
 import { isUniqueViolation } from "./agent-bus.ts";
 import { NotFound } from "./store.ts";
+import { lockModuleChanges } from "./module-access.ts";
+import {
+  moduleSettings,
+  reconcileModuleChanges,
+  storeModules,
+  type ModuleChange,
+  type StoredModuleState,
+} from "./module-transitions.ts";
 import { configLock, configSettingsChanged } from "../config-sync/persistence.ts";
 import { recordProjects } from "../config-sync/project-records.ts";
 import { queryMethods } from "../diagnostics/query-context.ts";
@@ -35,7 +43,7 @@ interface ProjectRow extends Row {
 }
 
 /** Stored JSON: the protobuf JSON of each section. */
-interface Stored {
+interface Stored extends StoredModuleState {
   attachmentLimits?: JsonValue;
   workerGatewayUrl?: string;
   timezone?: string;
@@ -83,6 +91,7 @@ const toUser = (row: Row | undefined) => {
     agentToolDefaults: fromJson(AgentToolSessionDefaultsSchema, stored.agentToolDefaults ?? {}, {
       ignoreUnknownFields: true,
     }),
+    modules: moduleSettings(stored),
     threadRetention: fromJson(ui.ThreadRetentionSettingsSchema, stored.threadRetention ?? {}, {
       ignoreUnknownFields: true,
     }),
@@ -158,6 +167,7 @@ export class SettingsStore extends Context.Service<
       sidebar?: ui.SidebarSettings;
       general?: ui.GeneralSettings;
       cliUpdates?: ui.CliUpdateSettings;
+      modules?: ui.ModuleSettings;
       threadRetention?: ui.ThreadRetentionSettings;
       agentToolDefaults?: AgentToolSessionDefaults;
       timezone?: string;
@@ -166,7 +176,7 @@ export class SettingsStore extends Context.Service<
       expectedVersion: bigint;
       /** Runs last in the same transaction (an import records what it changed, docs/import.md "Blokady"). */
       receipt?: (sql: SqlClient.SqlClient) => Effect.Effect<void>;
-    }): Fx<ui.UserSettings>;
+    }): Fx<{ settings: ui.UserSettings; moduleChanges: ModuleChange[] }>;
     updateProject(input: {
       userId: string;
       projectId: string;
@@ -204,6 +214,7 @@ export class SettingsStore extends Context.Service<
           sidebar: nextSidebar,
           general,
           cliUpdates,
+          modules,
           threadRetention,
           agentToolDefaults,
           timezone,
@@ -214,6 +225,7 @@ export class SettingsStore extends Context.Service<
         }) =>
           sql.withTransaction(
             Effect.gen(function* () {
+              if (modules) yield* lockModuleChanges(sql, userId);
               yield* configLock(sql, userId);
 
               const current =
@@ -234,6 +246,7 @@ export class SettingsStore extends Context.Service<
                 ...(nextSidebar && { sidebar: toJson(ui.SidebarSettingsSchema, nextSidebar) }),
                 ...(general && { general: toJson(ui.GeneralSettingsSchema, general) }),
                 ...(cliUpdates && { cliUpdates: toJson(ui.CliUpdateSettingsSchema, cliUpdates) }),
+                ...(modules && storeModules(modules)),
                 ...(threadRetention && { threadRetention: toJson(ui.ThreadRetentionSettingsSchema, threadRetention) }),
                 ...(agentToolDefaults && {
                   agentToolDefaults: toJson(AgentToolSessionDefaultsSchema, agentToolDefaults),
@@ -252,11 +265,13 @@ export class SettingsStore extends Context.Service<
                    WHERE user_id = ${userId}::uuid AND version = ${version} RETURNING settings, version, updated_at`,
               });
 
+              const moduleChanges = modules ? yield* reconcileModuleChanges(sql, userId, stored, modules) : [];
+
               if (!synced) yield* configSettingsChanged(sql, userId, { ...stored }, { ...next });
 
               if (receipt) yield* receipt(sql);
 
-              return toUser(row);
+              return { settings: toUser(row), moduleChanges };
             }),
           ),
 

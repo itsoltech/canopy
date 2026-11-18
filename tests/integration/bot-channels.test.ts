@@ -177,6 +177,44 @@ describe.skipIf(!dockerAvailable)("durable bot messenger channels", () => {
     return id;
   };
 
+  test("turning Bots off fences the leased receiver and holds accepted inbound and outbound work across a restart", async () => {
+    const f = await fixture();
+    await f.ingest("accepted", "First");
+    await f.dispatch(4000);
+    const first = (await botRun((s) => s.claim(owner)))!;
+    await botRun((s) => s.finish(first, "completed", "Reply accepted before pause"));
+    await f.ingest("buffered", "Second", 5000);
+    await query("INSERT INTO user_settings(user_id,version,settings) VALUES ($1,1,$2::jsonb)", [
+      owner,
+      JSON.stringify({ modules: { enabled: ["threads"] } }),
+    ]);
+
+    try {
+      await runtime.dispose();
+      runtime = services(db, key);
+      expect(await f.ingest("while-off", "Must never reach the bot", 6000)).toBe(false);
+      expect(await run((s) => s.renewAccount(owner, f.lease, f.at(6000)))).toBe(false);
+      await f.dispatch(10_000);
+      expect(await f.turns()).toHaveLength(1);
+      expect(await run((s) => s.outbound(owner, f.lease, f.at(10_000)))).toEqual([]);
+      expect(
+        await run((s) => s.claimAccount(owner, f.account.id, "new-gateway", f.at(2 * 86_400_000))),
+      ).toBeUndefined();
+    } finally {
+      await query("DELETE FROM user_settings WHERE user_id=$1", [owner]);
+    }
+
+    await f.dispatch(11_000);
+    expect((await f.turns()).map((t) => t.input)).toHaveLength(2);
+    const second = (await botRun((s) => s.claim(owner)))!;
+    expect(second.input).toContain("Second");
+    expect(second.input).not.toContain("Must never reach the bot");
+    await botRun((s) => s.finish(second, "completed", ""));
+    const pending = await run((s) => s.outbound(owner, f.lease, f.at(11_000)));
+    expect(pending.map((message) => message.text)).toEqual(["Reply accepted before pause"]);
+    await run((s) => s.settleOutbound(owner, f.lease, pending[0]!.id, { sent: true }, f.at(12_000)));
+  });
+
   test("credentials are encrypted and owner scoped; leases fence stale gateways and route responders", async () => {
     const f = await fixture();
     expect(JSON.stringify(await run((s) => s.accounts(owner)))).not.toContain("xapp-");

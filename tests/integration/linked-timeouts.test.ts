@@ -267,6 +267,31 @@ describe.skipIf(!dockerAvailable)("linked computer read deadlines and recovery",
     }
   }, 30_000);
 
+  test("a warmed agent catalog withholds bot names when the home cannot confirm access", async () => {
+    const { bot } = await f.b.api.createBot({
+      clientRequestId: crypto.randomUUID(),
+      configuration: { ...f.bot.configuration!, workerId: f.b.workerId, name: "Remote catalog bot" },
+    });
+
+    const remoteId = qualifyId(bot!.id, f.node);
+    const catalog = () => f.a.worker.callTool({ threadId: f.localThread.id, tool: "list_agents", args: {} });
+    expect((await eventually(catalog, (result) => result.resultJson.includes(remoteId))).resultJson).toContain(
+      remoteId,
+    );
+    f.stall();
+
+    try {
+      const started = performance.now();
+      const result = await catalog();
+      expect(performance.now() - started).toBeLessThan(500);
+      expect(result.isError).toBe(false);
+      expect(result.resultJson).toContain("Studio B");
+      expect(result.resultJson).not.toContain(remoteId);
+    } finally {
+      f.resume();
+    }
+  });
+
   test("wake retires silent old paths immediately, before heartbeat expiry", async () => {
     await f.la.announce("sleeping");
     f.pa.freeze();

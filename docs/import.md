@@ -1,6 +1,6 @@
 # Import z CLI agentów
 
-Status: zaimplementowane (2026-11-16), w tym trwałe zapamiętanie domu kopii Claude i ochrona źródeł konfiguracji przed purge.
+Status: zaimplementowane (2026-11-18), w tym pauza importu po wyłączeniu modułu Threads i wznowienie od kursora.
 
 Settings → Code → **Import** przenosi do Canopy wątki, które użytkownik prowadził wcześniej w Claude Code,
 Codexie i Groku, tak żeby mógł je czytać i kontynuować. Wybór źródeł działa w webie, desktopie
@@ -93,8 +93,11 @@ Runner gatewaya (`apps/gateway/src/imports/runner.ts`) importuje wątki po kolei
 (`ReadImportPage`, domyślnie do 4 MB, zawsze co najmniej cała tura). Strona to jedna transakcja: tury,
 zdarzenia, `threads.last_seq` i kursor pozycji. Stany:
 
-- **paused**: worker zniknął; runner wraca przy jego połączeniu (hook w `coreServe`), co 10 s
-  i po **Resume**. Kontynuuje od zapisanego kursora. Automatyczne wznowienie to warunkowy `UPDATE` tylko
+- **paused**: worker jest offline lub właściciel wyłączył Threads. Wyłączenie modułu w tej samej transakcji
+  wstrzymuje jego aktywne przebiegi. Strona, która wróci w czasie pauzy, zostanie pobrana ponownie od ostatniego
+  zapisanego kursora. Jeśli worker przyjął już polecenie kopiowania sesji natywnej lub trwa zapis pozycji
+  biblioteki, gateway zachowuje potwierdzenie tej operacji potrzebne do Undo. Po włączeniu Threads i połączeniu workera runner kontynuuje przebieg.
+  Sprawdza go też po restarcie gatewaya, co 10 s oraz po **Resume**. Automatyczne wznowienie to warunkowy `UPDATE` tylko
   ze stanu `paused` (`resumePaused`), a **Resume** to transakcja, która najpierw blokuje przebieg i ponownie
   sprawdza dozwolony stan (`resumeRun`): decyzja podjęta na nieaktualnym odczycie nie wskrzesi przebiegu
   anulowanego albo cofniętego w międzyczasie.
@@ -420,18 +423,18 @@ pierwsza wiadomość). Tury mają `trigger = import`, czasy źródła i `provide
 to start pierwszej tury, więc sidebar sortuje go w przeszłość, a `thread_reads` oznacza historię jako
 przeczytaną. UI pokazuje turę `import` jak wiadomość użytkownika.
 
-Każda strona i zakończenie pozycji sprawdzają w tej samej transakcji, że import nadal trwa (blokady przebiegu
-i pozycji, zob. „Blokady”). Cancel to jedyna ścieżka sprzątania (runner tylko widzi stan końcowy i staje; jego własne przejścia, czyli
-pauza, błąd pozycji i koniec przebiegu, zachodzą tylko przy przebiegu `running`, więc stan końcowy zostaje), działa bez aktywnego runnera,
-w jednej transakcji: pozycje czekające i importowana
-zostają `cancelled`, jej wątek (tylko to, co zapisał import) jest usuwany, a źródło znów wolne; strona,
-która była w drodze, nie zapisuje już nic.
+Zapis strony sprawdza w tej samej transakcji, że import nadal trwa (blokady przebiegu i pozycji,
+zob. „Blokady”). Potwierdzenie kopii już utworzonej na workerze może zamknąć pozycję podczas pauzy.
+Cancel działa także bez aktywnego runnera. W jednej transakcji oznacza pozycje czekające i importowaną jako
+`cancelled`, usuwa historię zapisaną przez bieżący import i zwalnia źródło. Strona odczytana po anulowaniu
+zostaje odrzucona.
 
 ### Blokady
 
-Każda transakcja importu idzie przez `importTransaction` (`apps/gateway/src/imports/locks.ts`) i żadnej
-innej drogi nie ma (`locks.test.ts` sprawdza, że `FOR UPDATE` i `withTransaction` nie występują w innych plikach
-`apps/gateway/src/imports`). Helper:
+Start i wznowienie pobierają współdzieloną blokadę modułów właściciela, następnie sprawdzają stan Threads.
+Wyłączenie modułu pod blokadą wyłączną wstrzymuje przebiegi w kolejności ich id, zanim zablokuje wątki.
+Operacje importu na kilku tabelach używają `importTransaction` (`apps/gateway/src/imports/locks.ts`).
+Helper:
 
 1. wylicza pełny zbiór wierszy, które transakcja może zmienić: podane przebiegi i przebiegi podanych pozycji,
    wszystkie pozycje tych przebiegów i wszystkie pozycje dotkniętych wątków (także `superseded`), wątki tych pozycji;
@@ -692,7 +695,7 @@ Migracja `0093_cli_imports`:
   kolejności utworzenie dopisania, Undo, Cancel, Resume, zapis strony, błąd i koniec pozycji oraz zwolnienie usuniętych
   wątków na tych samych wątkach; żadnego `40P01`, każdy wątek ma dokładnie jedną żywą pozycję, a `last_seq`
   zgadza się ze zdarzeniami. Undo przebiegu, którego wątek kontynuował późniejszy import, jest odrzucane bez zmian.
-  `apps/gateway/src/imports/locks.test.ts` pilnuje, że blokady i transakcje biorą się tylko z `importTransaction`.
+  `apps/gateway/src/imports/locks.test.ts` pilnuje, że jawne blokady wierszy i definicje transakcji pozostają w `locks.ts`.
 - **Adapter Codex** (`apps/worker/src/import/codex-history.test.ts`): tury, komenda z wynikiem i te same id
   przy podziale na strony; syntetyczny starszy rollout (bez `item_completed`): wiadomości, rozumowanie,
   wywołanie powłoki, kompaktowanie, przerwana i nieudana tura, niepoprawna linia.

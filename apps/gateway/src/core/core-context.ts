@@ -1,3 +1,4 @@
+import { ModuleStreams } from "./module-streams.ts";
 import { isErrorObject } from "./error-cause.ts";
 import { PermissionMode, Provider, ui, type MentionCatalog, type ThreadEvent } from "@canopy/contracts";
 import { Predicate, Schema, type ManagedRuntime } from "effect";
@@ -254,6 +255,7 @@ export class GatewayCoreState {
 
   options!: GatewayCoreOptions;
 
+  readonly moduleStreams = new ModuleStreams();
   readonly journalIds = new Map<string, string>();
 
   /** Mention catalogs by worker + provider + profile + folder (the composer asks on every popup). */

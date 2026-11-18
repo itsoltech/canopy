@@ -9,6 +9,20 @@ export interface SettingsSection {
   readonly keywords: string;
 }
 
+export const moduleChoices = [
+  { value: "threads", label: "Threads", description: "Run threads and scheduled tasks.", other: "Bots" },
+  { value: "bots", label: "Bots", description: "Chat with bots and run routines and reminders.", other: "Threads" },
+] as const;
+
+export const moduleSettingsDescription = "Account · Turning off a module stops its work and hides its views.";
+
+/** A project detail URL belongs to the same section as the project list. */
+const threadSections = new Set(["threads", "text-generation", "schedules", "projects", "worktrees", "diffs", "import"]);
+
+export function settingsSectionEnabled(path: string, modules: readonly string[]): boolean {
+  return modules.includes("threads") || !threadSections.has(path.split("/")[2] ?? "");
+}
+
 /** Match every query word in any order, ignoring case, punctuation and extra spaces. */
 export function matchesSettingsSection(section: SettingsSection, query: string): boolean {
   const normalize = (value: string) =>
@@ -38,7 +52,7 @@ export const settingsSections: readonly SettingsSection[] = [
     icon: "cog-6-tooth",
     group: "General",
     keywords:
-      "notifications sound sidebar grouping projects confirmations unpin archive delete display time zone format",
+      "modules first tab default order threads bots enable disable notifications sound sidebar grouping projects confirmations unpin archive delete display time zone format",
   },
   {
     href: "/settings/appearance",

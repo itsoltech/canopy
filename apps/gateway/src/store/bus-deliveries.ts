@@ -1,3 +1,4 @@
+import { lockedOwnerModule, ownerModule } from "./module-access.ts";
 import { create, toBinary, type JsonValue } from "@bufbuild/protobuf";
 import { CommandSchema } from "@canopy/contracts";
 import { Effect } from "effect";
@@ -29,29 +30,38 @@ export interface BusDeliveryStore {
     by: { sourceThreadId: string; callIds?: string[] } | { turnId: string } | { steerId: string },
   ): Fx<ReadonlyArray<DeliveryRow>>;
   /** Notifications due because `turnId` finished. */
-  dueNotifications(turnId?: string, afterId?: string): Fx<Notification[]>;
+  dueNotifications(owner: string, turnId?: string, afterId?: string): Fx<Notification[]>;
   /** A report whose steer failed or whose receiving turn ended without it. Restart reconciliation. */
-  notificationFallbacks(afterId?: string): Fx<string[]>;
+  notificationFallbacks(owner: string, afterId?: string): Fx<string[]>;
   /** Steers into the caller's running turn, otherwise queues an agent_bus turn. */
-  deliverNotification(callId: string, input: TurnInput): Fx<{ turn?: TurnRow; steerId?: string } | undefined>;
+  deliverNotification(
+    owner: string,
+    callId: string,
+    input: TurnInput,
+  ): Fx<{ turn?: TurnRow; steerId?: string } | undefined>;
   /**
    * A side thread with interaction_route = parent asks: queue a turn in the parent (trigger = interaction)
    * unless one exists already or the automated chain reached its limit (then the user answers in the UI).
    */
   forwardInteraction(input: {
+    owner: string;
     requestId: string;
     input: (thread: ThreadRow) => TurnInput;
     maxHops: number;
   }): Fx<ForwardedInteraction | undefined>;
 }
 
-const deliverNotification = (sql: SqlClient.SqlClient, callId: string, input: TurnInput) =>
+const deliverNotification = (sql: SqlClient.SqlClient, owner: string, callId: string, input: TurnInput) =>
   sql.withTransaction(
     Effect.gen(function* () {
+      if (!(yield* lockedOwnerModule(sql, owner, "threads"))) return undefined;
+
       // Same lock order as consumption and QueueStore.whileHead.
       const sources =
         yield* sql<ThreadRow>`SELECT t.* FROM threads t JOIN agent_bus_calls c ON c.source_thread_id = t.id
-            WHERE c.id = ${callId}::uuid FOR UPDATE OF t`;
+            WHERE c.id = ${callId}::uuid AND t.owner_user_id = ${owner}::uuid FOR UPDATE OF t`;
+
+      if (!sources.length) return undefined;
 
       const rows = yield* sql<BusCallRow>`
             SELECT c.* FROM agent_bus_calls c
@@ -124,8 +134,8 @@ const deliverNotification = (sql: SqlClient.SqlClient, callId: string, input: Tu
           },
         });
 
-        yield* sql`INSERT INTO worker_commands(id, worker_id, thread_id, kind, payload, expires_at)
-              VALUES (${steerId}::uuid, ${caller.worker_id}::uuid, ${caller.id}::uuid, 'steerTurn', ${toBinary(CommandSchema, command)}, now() + interval '24 hours')`;
+        yield* sql`INSERT INTO worker_commands(id, worker_id, thread_id, kind, payload, expires_at, delivered_epoch)
+              VALUES (${steerId}::uuid, ${caller.worker_id}::uuid, ${caller.id}::uuid, 'steerTurn', ${toBinary(CommandSchema, command)}, now() + interval '24 hours', 0)`;
         yield* sql`UPDATE agent_bus_calls SET notify_status = 'steering', notified_steer_id = ${steerId}::uuid WHERE id = ${callId}::uuid`;
 
         return { steerId };
@@ -178,7 +188,7 @@ export function busDeliveryStore(sql: SqlClient.SqlClient): BusDeliveryStore {
           : sql.unsafe<DeliveryRow>(`${select} AND st.id = $1::uuid`, [by.steerId]);
     },
 
-    dueNotifications: (turnId, afterId) =>
+    dueNotifications: (owner, turnId, afterId) =>
       sql<{
         id: string;
         source_thread_id: string;
@@ -194,7 +204,7 @@ export function busDeliveryStore(sql: SqlClient.SqlClient): BusDeliveryStore {
                 t.id AS target_id,t.title AS target_title,t.kind AS target_kind,u.status AS turn_status
               FROM agent_bus_calls c JOIN turns u ON u.id = c.target_turn_id JOIN threads t ON t.id=c.target_thread_id
                WHERE (${turnId ?? null}::uuid IS NULL OR c.target_turn_id = ${turnId ?? null}::uuid) AND c.notify_status = 'pending'
-                 AND t.deleted_at IS NULL
+                 AND t.owner_user_id = ${owner}::uuid AND ${ownerModule(sql, owner, "threads")} AND t.deleted_at IS NULL
                  ${afterId ? sql`AND (c.created_at,c.id)>(SELECT created_at,id FROM agent_bus_calls WHERE id=${afterId}::uuid)` : sql``}
                  AND u.status IN ('completed', 'interrupted', 'failed', 'cancelled')
                ORDER BY c.created_at, c.id LIMIT 50
@@ -219,21 +229,23 @@ export function busDeliveryStore(sql: SqlClient.SqlClient): BusDeliveryStore {
         ),
       ),
 
-    notificationFallbacks: (afterId) =>
+    notificationFallbacks: (owner, afterId) =>
       sql<{ id: string }>`
           SELECT s.id FROM turn_steers s JOIN agent_bus_calls c ON c.id = s.notification_call_id
-            JOIN turns u ON u.id = s.turn_id LEFT JOIN worker_commands w ON w.id = s.id
-           WHERE c.notify_status = 'steering' AND s.status IN ('pending', 'accepted', 'dropped')
+            JOIN threads t ON t.id = s.thread_id JOIN turns u ON u.id = s.turn_id LEFT JOIN worker_commands w ON w.id = s.id
+           WHERE t.owner_user_id = ${owner}::uuid AND ${ownerModule(sql, owner, "threads")} AND c.notify_status = 'steering' AND s.status IN ('pending', 'accepted', 'dropped')
              AND (${afterId ?? null}::uuid IS NULL OR s.id>${afterId ?? null}::uuid)
              AND (s.status = 'dropped' OR u.status IN ('completed', 'interrupted', 'failed', 'cancelled')
                   OR w.status = 'failed' OR (w.status IN ('pending', 'delivered') AND w.expires_at <= now()))
            ORDER BY s.id LIMIT 64`.pipe(Effect.map((rows) => rows.map((r) => r.id))),
 
-    deliverNotification: (callId, input) => deliverNotification(sql, callId, input),
+    deliverNotification: (owner, callId, input) => deliverNotification(sql, owner, callId, input),
 
-    forwardInteraction: ({ requestId, input, maxHops }) =>
+    forwardInteraction: ({ owner, requestId, input, maxHops }) =>
       sql.withTransaction(
         Effect.gen(function* () {
+          if (!(yield* lockedOwnerModule(sql, owner, "threads"))) return undefined;
+
           const rows = yield* sql<{
             thread_id: string;
             hops: number | null;
@@ -243,8 +255,8 @@ export function busDeliveryStore(sql: SqlClient.SqlClient): BusDeliveryStore {
           }>`
                 SELECT i.thread_id, u.hops, i.status, i.routed_to,
                        EXISTS (SELECT 1 FROM turns f WHERE f.interaction_request_id = i.id) AS forwarded
-                  FROM interaction_requests i LEFT JOIN turns u ON u.id = i.turn_id
-                 WHERE i.id = ${requestId}::uuid FOR UPDATE OF i`;
+                  FROM interaction_requests i JOIN threads t ON t.id = i.thread_id LEFT JOIN turns u ON u.id = i.turn_id
+                 WHERE t.owner_user_id = ${owner}::uuid AND i.id = ${requestId}::uuid FOR UPDATE OF i`;
 
           const row = rows[0];
 

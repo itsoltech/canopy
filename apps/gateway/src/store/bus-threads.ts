@@ -1,9 +1,10 @@
+import { lockedOwnerModule, moduleDisabledMessage } from "./module-access.ts";
 import { type JsonValue } from "@bufbuild/protobuf";
 import { ui, type Command } from "@canopy/contracts";
 import { agentKey, fuzzyRank, SUBAGENT_REPORTING_RULES, type AgentBusArgs, type SpawnTarget } from "@canopy/domain";
 import { Effect } from "effect";
 import type { SqlClient } from "effect/sql";
-import { type ThreadRow, type TurnRow } from "./store.ts";
+import { Invalid, type ThreadRow, type TurnRow } from "./store.ts";
 import { finishedTurn } from "./notification-observation.ts";
 import { pendingMessages, waitingForMessage, type BusMessage } from "./bus-messages.ts";
 import { isJsonObject } from "../bots/json.ts";
@@ -80,6 +81,8 @@ const spawn = (
 ) =>
   sql.withTransaction(
     Effect.gen(function* () {
+      if (!(yield* lockedOwnerModule(sql, caller.owner_user_id, "threads")))
+        return yield* Effect.fail(new Invalid(moduleDisabledMessage("threads")));
       const notify = args.notify ?? true;
       yield* insertCall(sql, { source, tool: "spawn_thread", args, status: "completed", hops, notify });
       const id = Bun.randomUUIDv7();
@@ -157,6 +160,8 @@ const spawn = (
 const send = (sql: SqlClient.SqlClient, { source, caller, args, hops }: Parameters<BusThreadStore["send"]>[0]) =>
   sql.withTransaction(
     Effect.gen(function* () {
+      if (!(yield* lockedOwnerModule(sql, caller.owner_user_id, "threads")))
+        return yield* Effect.fail(new Invalid(moduleDisabledMessage("threads")));
       yield* sql`SELECT id FROM threads WHERE id = ${args.thread_id}::uuid FOR UPDATE`;
       const notify = args.notify ?? true;
       yield* insertCall(sql, { source, tool: "send_message", args, status: "completed", hops, notify });

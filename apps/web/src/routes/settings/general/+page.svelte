@@ -3,6 +3,7 @@
   import { ui } from "@canopy/contracts";
   import { useSettings } from "#lib/features/settings/settings-state.svelte.ts";
   import { devicePreferences as device, generalDeviceKeys } from "#lib/features/settings/device-preferences.svelte.ts";
+  import ModuleSettings from "#lib/features/settings/ModuleSettings.svelte";
   import NotificationSettings from "#lib/features/settings/NotificationSettings.svelte";
   import QuitShortcutSettings from "#lib/features/desktop/QuitShortcutSettings.svelte";
   import PreferenceRow from "#lib/features/settings/PreferenceRow.svelte";
@@ -61,79 +62,82 @@
     </p>
     <Button size="sm" icon="arrow-path" onclick={restoreDeviceDefaults}>Restore device defaults</Button>
   </div>
+  {#if settings.user.modules}<ModuleSettings />{/if}
   <NotificationSettings />
-  <SettingsGroup title="Sidebar" description="This device">
-    <PreferenceRow
-      title="Group by"
-      description="Choose how threads are grouped in the sidebar."
-      changed={groupBy !== "none"}
-      onreset={() => setGrouping("none")}
-    >
-      {#snippet control()}<div class="w-48">
-          <Select
-            aria-label="Group by"
-            value={groupBy}
-            options={[
-              { value: "none", label: "None" },
-              { value: "project", label: "Project" },
-              { value: "project-worktree", label: "Project & worktree" },
-            ]}
-            onchange={setGrouping}
-          />
-        </div>{/snippet}
-    </PreferenceRow>
-    <PreferenceRow
-      title="Project order"
-      description="Sort project groups by activity, name or creation time."
-      changed={settings.sidebar.projectOrder !== ui.ProjectOrder.ACTIVITY}
-      onreset={() => settings.updateSidebar({ projectOrder: ui.ProjectOrder.ACTIVITY })}
-    >
-      {#snippet control()}<div class="w-48">
-          <Select
-            aria-label="Project order"
-            value={String(settings.sidebar.projectOrder)}
-            options={[
-              { value: "0", label: "Latest activity" },
-              { value: "1", label: "Name" },
-              { value: "2", label: "Newest project" },
-            ]}
-            onchange={(value) => settings.updateSidebar({ projectOrder: Number(value) })}
-            disabled={!settings.sidebar.groupByProject}
-          />
-        </div>{/snippet}
-    </PreferenceRow>
-    <PreferenceRow
-      title="Working section"
-      description="Group running and monitoring threads in a collapsible section."
-      changed={settings.sidebar.workingSection}
-      onreset={() => settings.updateSidebar({ workingSection: false })}
-    >
-      {#snippet control()}<Switch
-          name="workingSection"
-          label="Working section"
-          checked={settings.sidebar.workingSection}
-          onchange={(workingSection) => settings.updateSidebar({ workingSection })}
-        />{/snippet}
-    </PreferenceRow>
-  </SettingsGroup>
-  <SettingsGroup title="Confirmations" description="Account">
-    {#each confirmations as preference (preference.key)}
-      {@const value = settings.general[preference.key] ?? preference.fallback}
+  {#if settings.moduleEnabled("threads")}
+    <SettingsGroup title="Sidebar" description="This device">
       <PreferenceRow
-        title={preference.title}
-        description={preference.description}
-        changed={value !== preference.fallback}
-        onreset={() => settings.updateGeneral({ [preference.key]: preference.fallback })}
+        title="Group by"
+        description="Choose how threads are grouped in the sidebar."
+        changed={groupBy !== "none"}
+        onreset={() => setGrouping("none")}
+      >
+        {#snippet control()}<div class="w-48">
+            <Select
+              aria-label="Group by"
+              value={groupBy}
+              options={[
+                { value: "none", label: "None" },
+                { value: "project", label: "Project" },
+                { value: "project-worktree", label: "Project & worktree" },
+              ]}
+              onchange={setGrouping}
+            />
+          </div>{/snippet}
+      </PreferenceRow>
+      <PreferenceRow
+        title="Project order"
+        description="Sort project groups by activity, name or creation time."
+        changed={settings.sidebar.projectOrder !== ui.ProjectOrder.ACTIVITY}
+        onreset={() => settings.updateSidebar({ projectOrder: ui.ProjectOrder.ACTIVITY })}
+      >
+        {#snippet control()}<div class="w-48">
+            <Select
+              aria-label="Project order"
+              value={String(settings.sidebar.projectOrder)}
+              options={[
+                { value: "0", label: "Latest activity" },
+                { value: "1", label: "Name" },
+                { value: "2", label: "Newest project" },
+              ]}
+              onchange={(value) => settings.updateSidebar({ projectOrder: Number(value) })}
+              disabled={!settings.sidebar.groupByProject}
+            />
+          </div>{/snippet}
+      </PreferenceRow>
+      <PreferenceRow
+        title="Working section"
+        description="Group running and monitoring threads in a collapsible section."
+        changed={settings.sidebar.workingSection}
+        onreset={() => settings.updateSidebar({ workingSection: false })}
       >
         {#snippet control()}<Switch
-            name={preference.key}
-            label={preference.title}
-            checked={value}
-            onchange={(checked) => settings.updateGeneral({ [preference.key]: checked })}
+            name="workingSection"
+            label="Working section"
+            checked={settings.sidebar.workingSection}
+            onchange={(workingSection) => settings.updateSidebar({ workingSection })}
           />{/snippet}
       </PreferenceRow>
-    {/each}
-  </SettingsGroup>
+    </SettingsGroup>
+    <SettingsGroup title="Confirmations" description="Account">
+      {#each confirmations as preference (preference.key)}
+        {@const value = settings.general[preference.key] ?? preference.fallback}
+        <PreferenceRow
+          title={preference.title}
+          description={preference.description}
+          changed={value !== preference.fallback}
+          onreset={() => settings.updateGeneral({ [preference.key]: preference.fallback })}
+        >
+          {#snippet control()}<Switch
+              name={preference.key}
+              label={preference.title}
+              checked={value}
+              onchange={(checked) => settings.updateGeneral({ [preference.key]: checked })}
+            />{/snippet}
+        </PreferenceRow>
+      {/each}
+    </SettingsGroup>
+  {/if}
   <QuitShortcutSettings bind:this={desktopSettings} />
   <SettingsGroup title="Display" description="This device unless marked Account">
     <DeviceChoiceRow
@@ -146,11 +150,12 @@
         { value: "24h", label: "24-hour" },
       ]}
     />
-    <SettingsRow title="Time zone" description="Bots and scheduled tasks use the time zone reported by this device.">
+    <SettingsRow title="Time zone" description="Canopy uses this device’s time zone when scheduling work.">
       {#snippet control()}<Badge>Account</Badge>
         <p class="text-sm/6 wrap-anywhere">{settings.user.timezone || "UTC"}</p>{/snippet}
     </SettingsRow>
   </SettingsGroup>
+  <AccountConfigNotices section="modules" />
   <AccountConfigNotices section="timezone" />
   <AccountConfigNotices section="general" />
   <AccountConfigNotices section="sidebar" />

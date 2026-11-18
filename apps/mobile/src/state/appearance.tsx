@@ -2,6 +2,7 @@ import { createContext, useCallback, useContext, useEffect, useRef, useState, ty
 import { useColorScheme } from "react-native";
 import { create } from "@bufbuild/protobuf";
 import { ui } from "@canopy/contracts";
+import { enabledModules } from "@canopy/domain";
 import { accents } from "@canopy/ui";
 import { useSession } from "./session";
 import { useOverviewEvents } from "./overview-bus";
@@ -14,7 +15,7 @@ function newer(current: ui.UserSettings | undefined, next: ui.UserSettings | und
 }
 
 function useAppearanceState() {
-  const { client } = useSession();
+  const { client, session, rememberModules, online } = useSession();
   const system = useColorScheme();
   const [user, setUser] = useState<ui.UserSettings>();
   const [projects, setProjects] = useState<ui.ProjectSettings[]>([]);
@@ -81,6 +82,14 @@ function useAppearanceState() {
     if (change.value.settings) loaded(change.value.settings);
     else void reload();
   });
+  const modules = enabledModules(user ? user.modules : { enabled: session?.moduleOrder?.split(",") ?? [] });
+  const moduleOrder = modules.join(",");
+  const deviceId = session?.deviceId;
+
+  useEffect(() => {
+    if (user && deviceId) void rememberModules(deviceId, moduleOrder).catch(() => {});
+  }, [deviceId, moduleOrder, rememberModules, user]);
+
   const appearance = user?.appearance;
   const device = useDevicePreferences();
 
@@ -95,6 +104,10 @@ function useAppearanceState() {
 
   return {
     user,
+    modules,
+    modulesReady: Boolean(user || session?.moduleOrder || error || !online),
+    threadsEnabled: modules.includes("threads"),
+    botsEnabled: modules.includes("bots"),
     sidebar: deviceSidebarSettings(user?.sidebar, device.view),
     updateSidebar: (change: Partial<DeviceSidebarValues>) => device.setView(change),
     limits,
@@ -119,14 +132,14 @@ function useAppearanceState() {
         });
 
         requests.current++;
-        setUser(result.settings);
+        setUser((current) => newer(current, result.settings));
 
         return true;
       } catch {
         setError("Could not save settings. Settings were refreshed; please try again.");
         void client.api
           .getSettings({})
-          .then((r) => setUser(r.user))
+          .then((r) => setUser((current) => newer(current, r.user)))
           .catch(() => undefined);
 
         return false;

@@ -1,22 +1,34 @@
 import { create } from "@bufbuild/protobuf";
 import { bots } from "@canopy/contracts";
 import { qualifyId } from "@canopy/domain/computers";
+import { linkedModulesConnected } from "./agents-module-access.ts";
 import type { LinkedAgents } from "./agents.ts";
 
 const snapshots = new WeakMap<LinkedAgents, Map<string, { at: number; cards: Promise<bots.BotApproval[]> }>>();
 
 /** Batch only pending requests through the existing owner-authenticated UI route. */
 export async function linkedBotThreadApprovals(host: LinkedAgents, botId: string) {
+  if (!host.core.computers || !(await linkedModulesConnected(host))) return [];
   let cache = snapshots.get(host);
 
   if (!cache) snapshots.set(host, (cache = new Map()));
   const previous = cache.get(botId);
 
   if (previous && Date.now() - previous.at < 1000) return previous.cards;
-  const cards = readLinkedApprovals(host, botId);
-  cache.set(botId, { at: Date.now(), cards });
+  const current = { at: Date.now(), cards: readLinkedApprovals(host, botId) };
+  cache.set(botId, current);
 
-  return cards;
+  try {
+    const cards = await current.cards;
+
+    // A positive result needs a fresh home decision on the next read after a module change.
+    if (cards.length && cache.get(botId) === current) cache.delete(botId);
+
+    return cards;
+  } catch (error) {
+    if (cache.get(botId) === current) cache.delete(botId);
+    throw error;
+  }
 }
 
 async function readLinkedApprovals(host: LinkedAgents, botId: string) {

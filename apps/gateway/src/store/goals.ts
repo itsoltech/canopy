@@ -203,7 +203,7 @@ export class GoalStore extends Context.Service<
           ),
         setStatus: (goalId, status) =>
           sql`
-            UPDATE goals SET status = ${status}, updated_at = now(), error = NULL, error_at = NULL,
+            UPDATE goals SET status = ${status}, resume_after_module_enable = FALSE, updated_at = now(), error = NULL, error_at = NULL,
                              finished_at = CASE WHEN ${status} IN ('achieved', 'cancelled') THEN coalesce(finished_at, now()) ELSE NULL END
              WHERE id = ${goalId}::uuid`.pipe(Effect.flatMap(() => goal(goalId))),
         commandFailed: (goalId, error) =>
@@ -228,7 +228,7 @@ export class GoalStore extends Context.Service<
                 UPDATE goals SET status = ${status}, error = ${error}, error_at = now(), updated_at = now(),
                                  finished_at = CASE WHEN ${status} IN ('achieved', 'cancelled') THEN coalesce(finished_at, now()) ELSE NULL END
                  WHERE id = ${goalId}::uuid
-                   AND (status <> 'paused' OR last_reason IS DISTINCT FROM 'thread closed')`;
+                   AND NOT resume_after_module_enable AND (status <> 'paused' OR last_reason IS DISTINCT FROM 'thread closed')`;
 
               return yield* goal(goalId);
             }),

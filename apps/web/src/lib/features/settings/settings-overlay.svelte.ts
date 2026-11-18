@@ -1,5 +1,7 @@
 import type { Component } from "svelte";
 import { SvelteMap } from "svelte/reactivity";
+import type { ModuleId } from "@canopy/domain";
+import { moduleRedirect } from "#lib/features/navigation/sections.svelte.ts";
 import { goto, preloadData } from "$app/navigation";
 import { match } from "$app/paths";
 import { page } from "$app/state";
@@ -98,18 +100,19 @@ class SettingsOverlay {
 
   /**
    * A settings page loaded on its own (a new tab, a reload) goes over the page it was opened from (kept
-   * in `page.state` across reloads) or else the new thread: that page replaces the history entry and the
+   * in `page.state` across reloads) or else the first enabled module: that page replaces the history entry and the
    * settings page is opened over it, so closing it goes there. The dialog stays on screen throughout.
    */
-  async handOver(): Promise<void> {
+  async handOver(enabled: readonly ModuleId[]): Promise<void> {
     if (this.#handingOver) return;
     this.#handingOver = true;
     const key = overlayKey(page.url);
     const routeId = page.route.id;
     const saved = page.state.settingsOver;
-    const over = saved && !isSettingsRoute((await match(saved))?.id) ? saved : "/";
 
     try {
+      const target = saved && !isSettingsRoute((await match(saved))?.id) ? saved : "/";
+      const over = moduleRedirect(new URL(target, page.url.origin), enabled) ?? target;
       const load = routeId ? modules[pageModule(routeId)] : undefined;
 
       if (load)

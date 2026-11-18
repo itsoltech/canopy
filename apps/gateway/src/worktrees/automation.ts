@@ -122,7 +122,7 @@ export async function prepareScheduledWorkspace(
 ) {
   request = await inheritedWorkspace(core, request, userId, sourceId);
 
-  return (await corePrepareWorkspace(core, request)).request;
+  return (await corePrepareWorkspace(core, request, undefined, request.clientRequestId || undefined)).request;
 }
 
 export async function inheritedWorkspace(

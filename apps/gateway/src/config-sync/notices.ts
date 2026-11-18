@@ -1,3 +1,5 @@
+import { lockModuleChanges } from "../store/module-access.ts";
+import type { ModuleChange } from "../store/module-transitions.ts";
 import { create, type JsonValue } from "@bufbuild/protobuf";
 import { ui } from "@canopy/contracts";
 import { Code, ConnectError } from "@connectrpc/connect";
@@ -189,10 +191,10 @@ function restore(sync: ConfigSync, row: ConfigRow, history: readonly HistoryRow[
       self(),
       cipherOf(yield* recordCiphers(sql, store.owner, row.kind, row.global_id)),
     );
-    let cli = false;
+    let settings: { cli: boolean; moduleChanges: ModuleChange[] } | undefined;
     let environment = false;
 
-    if (row.kind === "settings") cli = yield* applySettings(sql, store.owner, row, self(), host);
+    if (row.kind === "settings") settings = yield* applySettings(sql, store.owner, row, self(), host);
     else if (row.kind === "proxy") yield* applyProxy(sql, store.owner, store.key, row);
     else if (row.kind === "instance") yield* applyInstance(sql, store.owner, row);
     else if (row.kind === "project") yield* applyProject(sql, store.owner, row);
@@ -207,7 +209,7 @@ function restore(sync: ConfigSync, row: ConfigRow, history: readonly HistoryRow[
     // After the record: the worker sync compares the domain rows with it and must find them equal.
     const workers = PROVIDER_KINDS.has(row.kind) ? yield* syncWorkers(sql, store.owner, store.key) : [];
 
-    return { cli, workers, environment };
+    return { settings, workers, environment };
   });
 }
 
@@ -222,6 +224,7 @@ export async function manageConfigNotice(sync: ConfigSync, id: string, action: s
 
       return yield* sql.withTransaction(
         Effect.gen(function* () {
+          yield* lockModuleChanges(sql, store.owner);
           const clock = yield* configLock(sql, store.owner);
 
           const first = (yield* sql<HistoryRow>`SELECT * FROM config_history WHERE id=${id}::uuid
@@ -240,7 +243,7 @@ export async function manageConfigNotice(sync: ConfigSync, id: string, action: s
               AND superseded_at>now()-interval '90 days' ORDER BY superseded_at DESC,field FOR UPDATE`
               : [first];
 
-          let result: { cli: boolean; workers: string[]; environment: boolean } | undefined;
+          let result: Effect.Success<ReturnType<typeof restore>> | undefined;
 
           if (action === "restore" || first.reason === "choice") {
             const row = (yield* sql<ConfigRow>`SELECT * FROM config_items WHERE owner_user_id=${store.owner}::uuid
@@ -285,7 +288,7 @@ export async function manageConfigNotice(sync: ConfigSync, id: string, action: s
     }).pipe(queryFamily("config.sync"), queryRpc),
   );
 
-  if (outcome.kind === "settings" && outcome.cli !== undefined) await host.settingsChanged?.(outcome.cli);
+  if (outcome.settings) await host.settingsChanged?.(outcome.settings.cli, outcome.settings.moduleChanges);
 
   if (outcome.workers) await host.providersChanged?.(outcome.workers);
 

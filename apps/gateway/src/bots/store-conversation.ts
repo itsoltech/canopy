@@ -3,6 +3,7 @@ import { timestampFromDate } from "@bufbuild/protobuf/wkt";
 import { bots, connectors } from "@canopy/contracts";
 import { Effect } from "effect";
 import { SqlClient } from "effect/sql";
+import { ownerModule } from "../store/module-access.ts";
 import { Invalid } from "../store/store.ts";
 import { modelInput, storedMentions } from "./mentions.ts";
 import { nextHop } from "./policy.ts";
@@ -63,7 +64,7 @@ export function botConversation(sql: SqlClient.SqlClient, core: BotCore) {
           const approvals = yield* ownerApprovals(sql, id);
 
           const active =
-            yield* sql`SELECT id FROM bot_turns WHERE bot_id = ${id}::uuid AND handoff_configuration IS NULL AND conversation_id IS NULL AND status IN ('queued','running','waiting') AND (routine_id IS NULL OR status = 'waiting') LIMIT 1`;
+            yield* sql`SELECT id FROM bot_turns WHERE bot_id = ${id}::uuid AND handoff_configuration IS NULL AND conversation_id IS NULL AND status IN ('queued','running','waiting') AND (routine_id IS NULL OR status = 'waiting') AND ${ownerModule(sql, user, "bots")} LIMIT 1`;
 
           const streaming =
             (yield* sql<{

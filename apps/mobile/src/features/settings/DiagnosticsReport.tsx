@@ -1,3 +1,4 @@
+import { useAppearance } from "../../state/appearance";
 import { useRef, useState } from "react";
 import { Text, ScrollView } from "react-native";
 import * as Clipboard from "expo-clipboard";
@@ -20,6 +21,7 @@ export function DiagnosticsReport({
   logsJobId?: string;
 }) {
   const c = useColors();
+  const { threadsEnabled } = useAppearance();
   const { client } = useSession();
   const [ids, setIds] = useState(computers.slice(0, 16).map((computer) => computer.computerId));
   const [format, setFormat] = useState("markdown");
@@ -111,7 +113,7 @@ export function DiagnosticsReport({
             <Button title="Copy report" onPress={() => void copy()} />
             <Button title="Change selection" onPress={() => setReport(undefined)} />
           </SettingsActions>
-          <DiagnosticsInvestigation report={report} logsJobId={logsJobId} />
+          {threadsEnabled && <DiagnosticsInvestigation report={report} logsJobId={logsJobId} />}
         </>
       )}
       {error ? <Alert tone="error">{error}</Alert> : null}

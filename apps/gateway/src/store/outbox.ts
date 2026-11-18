@@ -1,11 +1,12 @@
 import { create, fromBinary, toBinary, type JsonValue, type MessageInitShape } from "@bufbuild/protobuf";
 import { CommandSchema, type Command } from "@canopy/contracts";
 import { Effect } from "effect";
-import type { SqlClient } from "effect/sql";
+import type { SqlClient, SqlError } from "effect/sql";
 import type { Fx } from "./errors.ts";
 import type { OutboxRow } from "./rows.ts";
 import { storageJson } from "./event-text.ts";
 import { queryFamily } from "../diagnostics/query-context.ts";
+import { lockModuleAdmission, ownerModule } from "./module-access.ts";
 import { retryTurnStart } from "./retry-turn-start.ts";
 
 export interface PendingCommand {
@@ -21,11 +22,13 @@ export interface OutboxStore {
     turnId?: string;
     command: MessageInitShape<typeof CommandSchema>;
     ttlSeconds: number;
-  }): Fx<Command>;
+  }): Effect.Effect<Command, SqlError.SqlError>;
   /** Ordered keyset page, at most 2048 commands / about 512 KiB. Rewind and unload intents never expire before ACK. */
-  pendingCommands(workerId: string, afterId?: string): Fx<PendingCommand[]>;
+  pendingCommands(workerId: string, afterId?: string, cleanupOnly?: boolean): Fx<PendingCommand[]>;
   commandDispatchable(commandId: string): Fx<boolean>;
-  commandDone(commandId: string, ok: boolean, result: JsonValue): Fx<void>;
+  /** Hand off to the link under a shared row lock. Wait for the ACK outside the transaction. */
+  sendPending<A>(command: Command, send: () => A): Fx<A | undefined>;
+  commandDone(commandId: string, ok: boolean, result: JsonValue, legacyThrough?: string): Fx<boolean>;
   retryTurnStart(commandId: string, result: JsonValue): Fx<Command | undefined>;
   /** Recheck lifecycle after a retry delay or reconnect, before handing a start to the worker. */
   turnStartDispatchable(commandId: string): Fx<boolean>;
@@ -38,6 +41,50 @@ export function outboxStore(sql: SqlClient.SqlClient): OutboxStore {
       WHERE id = ${commandId}::uuid AND status IN ('pending', 'delivered')
         AND (expires_at > now() OR kind IN ('rewindThread', 'unloadThread'))`.pipe(
         Effect.map((rows) => rows.length > 0),
+      ),
+    sendPending: (command, send) =>
+      Effect.andThen(
+        // Commit the attempt before a frame can leave the gateway, including across a crash at send time.
+        command.kind.case === "startTurn" || command.kind.case === "steerTurn"
+          ? sql`UPDATE worker_commands c SET status = 'delivered', delivered_epoch = w.epoch FROM worker_connections w
+              WHERE c.id = ${command.commandId}::uuid AND c.status = 'pending' AND w.worker_id = c.worker_id`.pipe(
+              Effect.asVoid,
+            )
+          : Effect.void,
+        sql.withTransaction(
+          Effect.gen(function* () {
+            const bot = command.kind.case === "runBotTurn";
+
+            const entity = bot
+              ? sql`JOIN bot_harness_turns h ON h.command_id = c.id AND h.outcome IS NULL JOIN bots entity ON entity.id = h.bot_id`
+              : sql`JOIN threads entity ON entity.id = c.thread_id`;
+
+            const ready = bot
+              ? sql``
+              : sql`AND NOT EXISTS (SELECT 1 FROM worker_commands cleanup
+            WHERE cleanup.thread_id = c.thread_id AND cleanup.kind = 'unloadThread'
+              AND cleanup.status IN ('pending','delivered'))`;
+
+            // Lock the actual entity owner even when the worker serves several owners. Read the flag afterwards
+            // so a rewind waiting behind a disable sees its commit even though its durable intent is retained.
+            yield* lockModuleAdmission(
+              sql,
+              sql`(SELECT entity.owner_user_id FROM worker_commands c ${entity}
+            WHERE c.id = ${command.commandId}::uuid)`,
+            );
+
+            const pending = yield* sql`SELECT c.id FROM worker_commands c ${entity}
+            WHERE c.id = ${command.commandId}::uuid AND c.status IN ('pending','delivered')
+              AND (c.kind NOT IN ('startTurn','steerTurn') OR c.status = 'delivered')
+              AND (c.expires_at > now() OR c.kind = 'rewindThread')
+              AND ${ownerModule(sql, sql`entity.owner_user_id`, bot ? "bots" : "threads")} ${ready}
+            FOR UPDATE OF c`;
+
+            if (!pending.length) return;
+
+            return send();
+          }),
+        ),
       ),
     retryTurnStart: (commandId, result) => retryTurnStart(sql, commandId, result),
     turnStartDispatchable: (commandId) =>
@@ -56,20 +103,21 @@ export function outboxStore(sql: SqlClient.SqlClient): OutboxStore {
         message.commandId ||= Bun.randomUUIDv7();
 
         yield* sql`
-                INSERT INTO worker_commands (id, worker_id, thread_id, turn_id, kind, payload, expires_at)
+                INSERT INTO worker_commands (id, worker_id, thread_id, turn_id, kind, payload, expires_at, delivered_epoch)
                 VALUES (${message.commandId}::uuid, ${workerId}::uuid, ${threadId ?? null}::uuid, ${turnId ?? null}::uuid,
-                        ${message.kind.case ?? "unknown"}, ${toBinary(CommandSchema, message)}, now() + make_interval(secs => ${ttlSeconds}))
+                        ${message.kind.case ?? "unknown"}, ${toBinary(CommandSchema, message)}, now() + make_interval(secs => ${ttlSeconds}), 0)
                 ON CONFLICT (id) DO NOTHING`;
 
         return message;
       }).pipe(queryFamily("commands.write")),
 
-    pendingCommands: (workerId, afterId) =>
+    pendingCommands: (workerId, afterId, cleanupOnly) =>
       sql<Pick<OutboxRow, "id" | "payload"> & { expires_at: Date; created_at: Date }>`
         WITH candidates AS MATERIALIZED (
           SELECT id, payload, created_at, expires_at FROM worker_commands
           WHERE worker_id = ${workerId}::uuid AND status IN ('pending', 'delivered')
             AND (expires_at > now() OR kind IN ('rewindThread', 'unloadThread'))
+          ${cleanupOnly ? sql`AND kind IN ('interruptTurn', 'unloadThread', 'interruptBotTurn')` : sql``}
           ${afterId ? sql`AND (created_at, id) > (SELECT created_at, id FROM worker_commands WHERE id = ${afterId}::uuid AND worker_id = ${workerId}::uuid)` : sql``}
           ORDER BY created_at, id LIMIT 2048
         ), budget AS (
@@ -90,9 +138,14 @@ export function outboxStore(sql: SqlClient.SqlClient): OutboxStore {
         ),
       ),
 
-    commandDone: (commandId, ok, result) =>
+    commandDone: (commandId, ok, result, legacyThrough) =>
       sql`
               UPDATE worker_commands SET status = ${ok ? "completed" : "failed"}, result = ${JSON.stringify(storageJson(result))}::jsonb, completed_at = now()
-               WHERE id = ${commandId}::uuid`.pipe(queryFamily("commands.write"), Effect.asVoid),
+               WHERE id = ${commandId}::uuid AND status IN ('pending','delivered')
+                ${legacyThrough === undefined ? sql`` : sql`AND EXISTS (SELECT 1 FROM threads t WHERE t.id=worker_commands.thread_id AND t.last_seq=${legacyThrough}::bigint)`}
+               RETURNING id`.pipe(
+        queryFamily("commands.write"),
+        Effect.map((rows) => rows.length > 0),
+      ),
   };
 }

@@ -1,3 +1,4 @@
+import { lockedOwnerModule, ownerModule } from "../store/module-access.ts";
 import { Effect } from "effect";
 import type { SqlClient } from "effect/sql";
 import { activeConversation } from "./conversation-access.ts";
@@ -40,6 +41,8 @@ function recoverUnconfirmed(sql: SqlClient.SqlClient, conversationId: string) {
 function dispatchConversation(sql: SqlClient.SqlClient, owner: string, id: string, now: Date) {
   return sql.withTransaction(
     Effect.gen(function* () {
+      if (!(yield* lockedOwnerModule(sql, owner, "bots"))) return undefined;
+
       // Match bot runtime writers: bot, turn, account, conversation.
       const bots = yield* sql<{ id: string }>`SELECT b.id FROM bots b JOIN bot_channel_routes r ON r.bot_id=b.id
       JOIN bot_channel_conversations c ON c.route_id=r.id JOIN messenger_accounts a ON a.id=r.account_id
@@ -156,7 +159,7 @@ export function messengerDispatch(sql: SqlClient.SqlClient) {
       Effect.gen(function* () {
         const candidates = yield* sql<{ id: string }>`SELECT c.id FROM bot_channel_conversations c
         JOIN bot_channel_routes r ON r.id=c.route_id JOIN messenger_accounts a ON a.id=r.account_id
-        WHERE r.owner_user_id=${owner}::uuid AND a.owner_user_id=r.owner_user_id
+        WHERE r.owner_user_id=${owner}::uuid AND a.owner_user_id=r.owner_user_id AND ${ownerModule(sql, owner, "bots")}
         AND r.deleted_at IS NULL AND a.enabled AND a.deleted_at IS NULL AND ${linkedMessengerActive(sql)}
         AND (c.channel_id=ANY(r.channel_ids) OR (r.direct_messages AND c.channel_id LIKE 'D%'))
         AND (c.first_received_at IS NOT NULL OR EXISTS(SELECT 1 FROM bot_channel_inputs i JOIN bot_turns t ON t.id=i.turn_id

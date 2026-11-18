@@ -1,5 +1,7 @@
 # Kopiowanie workspace'u
 
+Status: zaimplementowane (2026-11-18), w tym wstrzymanie i wznowienie kopii w tle przy zmianie dostępności modułu Threads.
+
 Settings → Projects → Workspaces → **Add workspace** udostępnia źródło
 **Copy from …** obok istniejącego katalogu i klonu. Źródłem jest workspace tego
 projektu na dostępnym workerze, także połączonego komputera. Cel to worker bez
@@ -138,6 +140,8 @@ workera i co 10 s. Trzy próby z rzędu bez postępu kończą się `failed` z
 komunikatem; staging zostaje, więc **Retry** wznawia. **Cancel copy** usuwa
 staging celu, a offline cel usuwa go sam po wygaśnięciu receiptu. Zakończone
 i anulowane zadania są usuwane po 7 dniach, lista pokazuje dzień.
+
+Wyłączenie **Threads** na komputerze prowadzącym kopię wstrzymuje przesyłanie. W bazie pozostają wybór plików i identyfikator transferu. Po ponownym włączeniu kopia wznawia się z dostępnych plików tymczasowych celu. Jeżeli jeden z połączonych komputerów ma wyłączone **Threads**, zadanie czeka na dostępność modułu.
 
 Postęp idzie `OverviewUpdate.workspace_copy_job` najwyżej cztery razy na
 sekundę, do bazy co 2 s; `workspace_copy_job_removed` po **Dismiss**. Klienci

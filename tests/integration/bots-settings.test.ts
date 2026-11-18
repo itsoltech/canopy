@@ -419,7 +419,7 @@ describe.skipIf(!dockerAvailable)("bot settings and archive through gateway", ()
         yield* sql`UPDATE bot_wakeups SET run_at = now() - interval '1 second' WHERE bot_id = ${bot.id}::uuid`;
       }),
     );
-    await core.bots.run((s) => s.deliver());
+    await core.bots.run((s) => s.deliver(gw.userId));
     expect((await read(bot.id)).messages.some((m) => m.text === "Resumed reminder")).toBe(false);
     const sender = await add("Archived sender");
     const mentionText = "@Archive settings";

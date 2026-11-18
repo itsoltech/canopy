@@ -111,6 +111,7 @@ type CommandKind = Command["kind"];
 export type CommandHandler = (
   value: NonNullable<CommandKind["value"]>,
   reply: (ok: boolean, extra?: CommandReplyExtra) => void,
+  commandId?: string,
 ) => void;
 
 /** Result fields a handler adds to its command's reply. */
@@ -426,7 +427,7 @@ export class ScriptedWorker {
       const handler = kind.case ? this.handlers.get(kind.case) : undefined;
 
       if (handler && kind.value) {
-        handler(kind.value, reply);
+        handler(kind.value, reply, commandId);
         continue;
       }
 

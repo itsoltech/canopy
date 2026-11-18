@@ -1,3 +1,4 @@
+import { lockedOwnerModule, moduleDisabledMessage } from "../store/module-access.ts";
 import { github } from "@canopy/contracts";
 import { Code, ConnectError } from "@connectrpc/connect";
 import { Effect } from "effect";
@@ -184,6 +185,8 @@ function linkPullRequest(
 
   return sql.withTransaction(
     Effect.gen(function* () {
+      if (!(yield* lockedOwnerModule(sql, owner, "threads")))
+        return yield* Effect.fail(new ConnectError(moduleDisabledMessage("threads"), Code.FailedPrecondition));
       const current = yield* thread(owner, id, true);
 
       if (BigInt(current.pull_request_revision) !== expected) return yield* Effect.fail(conflict());

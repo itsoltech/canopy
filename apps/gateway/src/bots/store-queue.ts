@@ -40,11 +40,17 @@ type EnqueueOptions = RoutineOrigin & {
 /** Queues a bot turn with its message (user, bot, routine or system input). */
 function botEnqueue(
   sql: SqlClient.SqlClient,
-  { active, changed, connections }: Pick<BotAccess, "active" | "changed" | "connections">,
+  {
+    active,
+    changed,
+    connections,
+    requireEnabled,
+  }: Pick<BotAccess, "active" | "changed" | "connections" | "requireEnabled">,
 ) {
   return (user: string, botId: string, input: string, requestId: string, options: EnqueueOptions = {}) =>
     sql.withTransaction(
       Effect.gen(function* () {
+        yield* requireEnabled(user);
         yield* active(user, botId, true);
 
         if (input.length > 100_000 || !requestId || requestId.length > 200)

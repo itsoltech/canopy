@@ -68,6 +68,49 @@ export interface CommandOutput {
   readonly agentTools?: MessageInitShape<typeof CommandResultSchema>["agentTools"];
 }
 
+export function successResult(commandId: string, output: CommandOutput): CommandResultInit {
+  return {
+    commandId,
+    ok: true,
+    ...(output.dataJson !== undefined && { dataJson: output.dataJson }),
+    ...(output.workspaceCopy && { workspaceCopy: output.workspaceCopy }),
+    ...(output.botFile && { botFile: output.botFile }),
+    ...(output.entries && { entries: output.entries }),
+    ...(output.directoryPath && { directoryPath: output.directoryPath }),
+    ...(output.models && { models: output.models }),
+    ...(output.rewind && { rewind: output.rewind }),
+    ...(output.login && { login: output.login }),
+    ...(output.providerAccounts && { providerAccounts: output.providerAccounts }),
+    ...(output.mentionCatalog && { mentionCatalog: output.mentionCatalog }),
+    ...(output.fileSearch && { fileSearch: output.fileSearch }),
+    ...(output.consumedUsages && { consumedUsages: output.consumedUsages }),
+    ...(output.generatedText !== undefined && { generatedText: output.generatedText }),
+    ...(output.gitRefs && { gitRefs: output.gitRefs }),
+    ...(output.threadGitStatus && { threadGitStatus: output.threadGitStatus }),
+    ...(output.switchedHead && { switchedHead: output.switchedHead }),
+    ...(output.branchSwitchWarning && { branchSwitchWarning: output.branchSwitchWarning }),
+    ...(output.gitPrContext && { gitPrContext: output.gitPrContext }),
+    ...(output.workspaceOrigin !== undefined && { workspaceOrigin: output.workspaceOrigin }),
+    ...(output.workspaceCloneUrl !== undefined && { workspaceCloneUrl: output.workspaceCloneUrl }),
+    ...(output.worktree && { worktree: output.worktree }),
+    ...(output.worktreeStatuses && { worktreeStatuses: output.worktreeStatuses }),
+    ...(output.worktreeBranchDeleted !== undefined && { worktreeBranchDeleted: output.worktreeBranchDeleted }),
+    ...(output.importScan && { importScan: output.importScan }),
+    ...(output.importPage && { importPage: output.importPage }),
+    ...(output.importedSessionId && { importedSessionId: output.importedSessionId }),
+    ...(output.importLibraryContent && { importLibraryContent: output.importLibraryContent }),
+    ...(output.importSecret && { importSecret: output.importSecret }),
+    ...(output.file && { file: output.file }),
+    ...(output.threadDiff && { threadDiff: output.threadDiff }),
+    ...(output.threadDiffPage && { threadDiffPage: output.threadDiffPage }),
+    ...(output.threadDirectory && { threadDirectory: output.threadDirectory }),
+    ...(output.threadFileHighlight && { threadFileHighlight: output.threadFileHighlight }),
+    ...(output.threadImageExport && { threadImageExport: output.threadImageExport }),
+    ...(output.agentTool && { agentTool: output.agentTool }),
+    ...(output.agentTools && { agentTools: output.agentTools }),
+  };
+}
+
 export interface WorkerHostOptions {
   /** Local-fixture transport for bot download security tests; absent in production. */
   readonly botDownloads?: import("../bots/download.ts").BotDownloadOptions;

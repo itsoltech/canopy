@@ -1,3 +1,4 @@
+import { ownerModule } from "./module-access.ts";
 import type { JsonValue } from "@bufbuild/protobuf";
 import { Effect } from "effect";
 import type { SqlClient, SqlError } from "effect/sql";
@@ -209,7 +210,7 @@ function branchStore(
 
         const rows = yield* sql<WorktreeRow>`
               UPDATE worktrees SET branch_attempts = branch_attempts + 1
-               WHERE id = ${id}::uuid AND NOT external AND branch_source = 'provisional' AND removed_at IS NULL AND branch_attempts < ${max}
+               WHERE id = ${id}::uuid AND ${ownerModule(sql, sql`worktrees.owner_user_id`, "threads")} AND NOT external AND branch_source = 'provisional' AND removed_at IS NULL AND branch_attempts < ${max}
               RETURNING *`;
 
         return rows[0];

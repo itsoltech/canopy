@@ -31,12 +31,12 @@
   const project = $derived(overview.projectChoice(snapshot?.projectId ?? ""));
 
   const home = $derived.by(() => {
-    if (!snapshot?.projectId) return "/";
+    if (!snapshot?.projectId) return "/threads/new";
     const placement = new URLSearchParams({ project: snapshot.projectId });
 
     if (snapshot.workspaceId) placement.set("workspace", snapshot.workspaceId);
 
-    return `/?${placement}`;
+    return `/threads/new?${placement}`;
   });
 
   const rows = ["creation:start", "creation:input"];

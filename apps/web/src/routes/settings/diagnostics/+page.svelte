@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { useSettings } from "#lib/features/settings/settings-state.svelte.ts";
   import Tracing from "#lib/features/diagnostics/Tracing.svelte";
   import { applicationName } from "#lib/application-name.ts";
   import ThreadSyncDiagnostics from "#lib/features/settings/ThreadSyncDiagnostics.svelte";
@@ -21,6 +22,7 @@
   import ReportActions from "#lib/features/diagnostics/ReportActions.svelte";
   import CollectLogs from "#lib/features/diagnostics/CollectLogs.svelte";
 
+  const settings = useSettings();
   let range = $state("15");
   let logsJobId = $state("");
   let computer = $state("");
@@ -146,6 +148,6 @@
       previous={() => (offset = Math.max(0, offset - 32))}
     />
   {/if}
-  <ThreadSyncDiagnostics />
+  {#if settings.moduleEnabled("threads")}<ThreadSyncDiagnostics />{/if}
   <Grants />
 </div>

@@ -13,6 +13,7 @@ import { AgentBusStore } from "../store/index.ts";
 import { BotStore } from "../bots/store.ts";
 
 import { fail, record, text, uuid, type Arguments, type Reference } from "./agents-context.ts";
+import { targetKind, requireAgentModules } from "./agents-module-access.ts";
 import type { LinkedAgents } from "./agents.ts";
 import { receivedAgentSender } from "./agents-senders.ts";
 import { threadNotice } from "../bots/thread-notice.ts";
@@ -32,6 +33,9 @@ export async function agentsDeliverAtHome(
   call: link.LinkedAgentCall,
   args: Arguments,
 ): Promise<JsonValue> {
+  // Lock module membership before the peer to serialize with settings changes during delivery.
+  await requireAgentModules(hostContext, call.actorKind, call.actorKind, true);
+
   const active = await hostContext.query(
     "SELECT node_id FROM computer_peers WHERE owner_user_id=$1::uuid AND node_id=$2 FOR UPDATE",
     [hostContext.owner, node],
@@ -41,7 +45,7 @@ export async function agentsDeliverAtHome(
 
   const ref = (
     await hostContext.query<Reference>(
-      "SELECT * FROM computer_agent_calls WHERE owner_user_id=$1::uuid AND peer_node_id=$2 AND call_id=$3::uuid AND direction='outgoing' AND NOT detached",
+      "SELECT * FROM computer_agent_calls WHERE owner_user_id=$1::uuid AND peer_node_id=$2 AND call_id=$3::uuid AND direction='outgoing' AND NOT detached AND report_status<>'dropped'",
       [hostContext.owner, node, call.callId],
     )
   )[0];
@@ -49,6 +53,8 @@ export async function agentsDeliverAtHome(
   if (!ref || ref.actor_id !== call.actorId || ref.actor_kind !== call.actorKind)
     return fail("Cross-computer reference is detached or missing");
 
+  if (ref.actor_kind !== (ref.operation === "spawn" ? "thread" : ref.target_kind))
+    await requireAgentModules(hostContext, ref.actor_kind, ref.operation === "spawn" ? "thread" : ref.target_kind);
   requireLinkedChainCapacity(call.hops, false);
 
   if (
@@ -176,6 +182,7 @@ export const agentsReceiveMethods: AgentsReceiveMethods = {
       return await receiveLinkedTurn(this, node, call, args);
     }
 
+    await requireAgentModules(this, call.actorKind, targetKind(call.operation, args));
     const target = text(args, "target", true);
 
     if (target && !uuid(target)) return fail("Target must belong to this computer");
@@ -319,6 +326,8 @@ async function receiveLinkedTurn(
   requireLinkedChainCapacity(call.hops, true);
 
   return hostContext.scope.transaction(async () => {
+    await requireAgentModules(hostContext, call.actorKind, targetKind(call.operation, args), true);
+
     // Peer lock serializes acceptance with unlink; idempotency covers lost responses.
     const active = await hostContext.query(
       "SELECT node_id FROM computer_peers WHERE owner_user_id=$1::uuid AND node_id=$2 FOR UPDATE",

@@ -1,3 +1,5 @@
+import { lockedOwnerModule, moduleDisabledMessage, ownerModule } from "./module-access.ts";
+import { Invalid } from "./errors.ts";
 import type { PrChecksNote } from "@canopy/domain";
 import { Context, Effect, Layer } from "effect";
 import { SqlClient, type SqlError } from "effect/sql";
@@ -72,7 +74,7 @@ export interface WatchNote {
   readonly end?: string;
 }
 
-type Fx<A> = Effect.Effect<A, SqlError.SqlError>;
+type Fx<A> = Effect.Effect<A, SqlError.SqlError | Invalid>;
 
 const SELECT = `
   SELECT w.*, p.repository_name, p.number,
@@ -87,22 +89,22 @@ export class PrCheckWatchStore extends Context.Service<
   PrCheckWatchStore,
   {
     /** Stores a watch once per call (a re-sent call gets the first one) and ends the thread's earlier watch of the PR. */
-    create(watch: NewWatch): Fx<PrCheckWatchRow>;
+    create(watch: NewWatch): Fx<PrCheckWatchRow | undefined>;
     byCall(callId: string): Fx<PrCheckWatchRow | undefined>;
     /** Active watches of the owner's threads, oldest first. */
     active(ownerUserId: string): Fx<readonly PrCheckWatchRow[]>;
     activeCount(threadId: string): Fx<number>;
     /** The thread's watches: active ones and those that ended in the last day, newest first. */
     ofThread(threadId: string, limit: number): Fx<readonly PrCheckWatchRow[]>;
-    progress(id: string, progress: WatchProgress): Fx<void>;
+    progress(owner: string, id: string, progress: WatchProgress): Fx<void>;
     /** Stores a note (and the progress that led to it); the next delivery hands it to the agent. */
-    note(id: string, progress: WatchProgress, note: WatchNote): Fx<void>;
+    note(owner: string, id: string, progress: WatchProgress, note: WatchNote): Fx<void>;
     /** Ends a watch without a note; `cancelNotes` drops what still waits for delivery. */
-    end(id: string, reason: string, cancelNotes: boolean): Fx<void>;
+    end(owner: string, id: string, reason: string, cancelNotes: boolean): Fx<void>;
     /** The agent stops a watch of its own thread; undefined when the thread has no such watch. */
     cancel(threadId: string, watchId: string): Fx<PrCheckWatchRow | undefined>;
-    deliver(threadId: string): Fx<CheckNoteDelivery>;
-    pendingThreads(): Fx<string[]>;
+    deliver(owner: string, threadId: string): Fx<CheckNoteDelivery>;
+    pendingThreads(owner: string): Fx<string[]>;
     /** A note steer that did not join its turn: its notes wait again. False when none were its. */
     release(steerId: string): Fx<boolean>;
   }
@@ -139,10 +141,19 @@ export class PrCheckWatchStore extends Context.Service<
                         WHERE watch_id = ${id}::uuid AND status = 'waiting'`;
         });
 
+      // GitHub reads can outlive a settings change. Fence only the short resulting write.
+      const whenEnabled = (owner: string, write: Fx<void>) =>
+        sql.withTransaction(
+          Effect.flatMap(lockedOwnerModule(sql, owner, "threads"), (enabled) =>
+            enabled ? write : Effect.fail(new Invalid(moduleDisabledMessage("threads"))),
+          ),
+        );
+
       const store: PrCheckWatchStore["Service"] = {
         create: (w) =>
           sql.withTransaction(
             Effect.gen(function* () {
+              if (!(yield* lockedOwnerModule(sql, w.ownerUserId, "threads"))) return;
               const existing = yield* byCall(w.callId);
 
               if (existing) return existing;
@@ -168,10 +179,8 @@ export class PrCheckWatchStore extends Context.Service<
         byCall,
 
         active: (owner) =>
-          sql.unsafe<PrCheckWatchRow>(
-            `${SELECT} WHERE w.owner_user_id = $1::uuid AND w.status = 'active' ORDER BY w.created_at, w.id`,
-            [owner],
-          ),
+          sql<PrCheckWatchRow>`${sql.literal(SELECT)} WHERE w.owner_user_id = ${owner}::uuid AND w.status = 'active'
+            AND ${ownerModule(sql, owner, "threads")} ORDER BY w.created_at, w.id`,
 
         activeCount: (threadId) =>
           sql<{ count: number }>`
@@ -186,10 +195,11 @@ export class PrCheckWatchStore extends Context.Service<
             [threadId, limit],
           ),
 
-        progress: (id, p) => progress(id, p).pipe(Effect.asVoid),
+        progress: (owner, id, p) => whenEnabled(owner, progress(id, p).pipe(Effect.asVoid)),
 
-        note: (id, p, note) =>
-          sql.withTransaction(
+        note: (owner, id, p, note) =>
+          whenEnabled(
+            owner,
             Effect.gen(function* () {
               const active = yield* sql<{ thread_id: string }>`
                 SELECT thread_id FROM pr_check_watches WHERE id = ${id}::uuid AND status = 'active' FOR UPDATE`;
@@ -205,7 +215,7 @@ export class PrCheckWatchStore extends Context.Service<
             }),
           ),
 
-        end: (id, reason, cancelNotes) => sql.withTransaction(end(id, reason, cancelNotes)),
+        end: (owner, id, reason, cancelNotes) => whenEnabled(owner, end(id, reason, cancelNotes)),
 
         cancel: (threadId, watchId) =>
           sql.withTransaction(
@@ -220,8 +230,8 @@ export class PrCheckWatchStore extends Context.Service<
             }),
           ),
 
-        deliver: (threadId) => deliverCheckNotes(sql, threadId),
-        pendingThreads: () => pendingCheckNoteThreads(sql),
+        deliver: (owner, threadId) => deliverCheckNotes(sql, owner, threadId),
+        pendingThreads: (owner) => pendingCheckNoteThreads(sql, owner),
         release: (steerId) => releaseCheckNotes(sql, steerId),
       };
 

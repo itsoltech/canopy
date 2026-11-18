@@ -272,6 +272,7 @@ export const coreSchedulesMethods: CoreSchedulesMethods = {
 
     const row = await coreBus(this, (s) =>
       s.setScheduleStatus({
+        userId: this[coreState].options.userId,
         scheduleId: request.scheduleId,
         expectedVersion: current.version,
         status,

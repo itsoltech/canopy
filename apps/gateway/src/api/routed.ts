@@ -1,3 +1,4 @@
+import { moduleStreamSignal, requireModuleWork } from "./module-work.ts";
 import { clone, create } from "@bufbuild/protobuf";
 import { timestampFromDate } from "@bufbuild/protobuf/wkt";
 import { bots, computerLink as link, ui } from "@canopy/contracts";
@@ -25,7 +26,7 @@ import { harnessOf } from "../store/instance-config.ts";
 import type { UiHandlers } from "./ui-service.ts";
 import { refuseRemoteWorktree, refuseRemoteBranchSwitch } from "../worktrees/remote.ts";
 import { validateUserSettings } from "../core/settings-validation.ts";
-import { coreCheckThreadDefaults, coreCliDefaultsChanged } from "../core/core-settings.ts";
+import { coreCheckThreadDefaults, coreCliDefaultsChanged, coreModulesChanged } from "../core/core-settings.ts";
 import { coreConfigsChanged } from "../core/core-providers.ts";
 import { coreModelCatalogs, corePublishModels } from "../core/core-models.ts";
 import { receivedWorkerSetting, receiveWorkerSetting, sendWorkerSetting, settled } from "./routed-workers.ts";
@@ -36,6 +37,7 @@ import { linkedManageUpdates } from "./routed-updates.ts";
 import { linkedWrite } from "../computers/write-diagnostics.ts";
 import { bindGitHubRequest } from "./github-client.ts";
 import { linkedThreadPanel } from "./routed-thread-panel.ts";
+import { requireLinkedModules, requiresLinkedModules } from "../computers/agents-module-access.ts";
 import { linkedArchive } from "./routed-archived.ts";
 
 export function routed(core: GatewayCore, local: UiHandlers): UiHandlers {
@@ -201,12 +203,18 @@ export function remoteServe(local: UiHandlers, core?: GatewayCore): RemoteServe 
   const own = local as Record<string, Handler>;
 
   return async function* (method, request, signal, peerNodeId) {
+    const requestSignal =
+      core && method.methodKind !== "unary" ? moduleStreamSignal(core, method.localName, signal) : signal;
+
     if (peerNodeId) refuseRemoteBranchSwitch(method, core?.computers?.hello().capabilities ?? [], request);
 
     if (peerNodeId)
       refuseRemoteWorktree(method, request, core?.computers?.hello().capabilities.includes(REMOTE_WORKTREES));
 
-    if (core) await refuseFrozen(core, method, request);
+    if (core) {
+      await requireModuleWork(core, method.localName, request);
+      await refuseFrozen(core, method, request);
+    }
 
     if (method.name === "CallAgentBus") {
       if (!core || !peerNodeId) throw new ConnectError("Linked agent bus unavailable", Code.Unimplemented);
@@ -224,6 +232,9 @@ export function remoteServe(local: UiHandlers, core?: GatewayCore): RemoteServe 
       return;
     }
 
+    const botThreadAccess = requiresLinkedModules(request);
+
+    if (botThreadAccess && core && peerNodeId) await requireLinkedModules(core.linkedAgents);
     const ids = core && peerNodeId ? await ConfigIds.for(core, peerNodeId) : undefined;
     await ids?.map(method.input, request, "toLocal", true);
 
@@ -235,7 +246,7 @@ export function remoteServe(local: UiHandlers, core?: GatewayCore): RemoteServe 
     }
 
     const context = createHandlerContext({
-      requestSignal: signal,
+      requestSignal,
       requestHeader: new Headers(peerNodeId ? { "canopy-linked-peer": peerNodeId } : {}),
       responseHeader: new Headers(),
       responseTrailer: new Headers(),
@@ -267,6 +278,9 @@ export function remoteServe(local: UiHandlers, core?: GatewayCore): RemoteServe 
           const response = clone(method.output, message);
           await ids?.map(method.output, response, "toGlobal");
           yield response;
+
+          // A bot reads one thread snapshot. Its next read must authorize again at the home.
+          if (botThreadAccess) return;
         }
     } catch (error) {
       throw toConnectError(error);
@@ -282,13 +296,15 @@ export function sharedHost(core: GatewayCore, _local: UiHandlers): SharedHost {
 
       if (request.threadDefaults) await coreCheckThreadDefaults(core, request.threadDefaults);
     },
-    settingsChanged: async (cliChanged) => {
+    settingsChanged: async (cliChanged, moduleChanges) => {
       const settings = (await core.settings()).user;
 
-      if (settings)
+      if (settings) {
         core.hub.publishOverview(
           create(ui.OverviewUpdateSchema, { change: { case: "userSettings", value: settings } }),
         );
+        await coreModulesChanged(core, settings, moduleChanges);
+      }
 
       if (cliChanged) await coreCliDefaultsChanged(core);
     },

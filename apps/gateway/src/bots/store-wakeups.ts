@@ -6,6 +6,7 @@ import { originOf } from "./routines.ts";
 import type { BotTurn, StoredCall } from "./types.ts";
 import { requiredString, type WakeupRow } from "./store-views.ts";
 import type { BotCore } from "./store-queue.ts";
+import { lockedOwnerModule } from "../store/module-access.ts";
 import { deliverThreadQuestions, deliverySources } from "./thread-questions.ts";
 import { threadNotice } from "./thread-notice.ts";
 
@@ -74,20 +75,22 @@ export function botDeliveries(sql: SqlClient.SqlClient, core: BotCore) {
   const { changed, enqueue } = core;
 
   return {
-    deliver: () =>
+    deliver: (owner: string) =>
       sql.withTransaction(
         Effect.gen(function* () {
+          if (!(yield* lockedOwnerModule(sql, owner, "bots"))) return;
+
           const steers = yield* sql<{
             call_id: string;
             target_turn_id: string;
           }>`SELECT w.call_id, CASE WHEN s.status = 'delivered' THEN s.turn_id ELSE s.queued_turn_id END AS target_turn_id
         FROM bot_thread_watches w JOIN turn_steers s ON w.target_steer_id = s.id JOIN bots b ON b.id = w.bot_id
-        WHERE NOT w.delivered AND w.target_turn_id IS NULL AND s.status IN ('delivered','queued') AND b.deleted_at IS NULL AND b.archived_at IS NULL AND b.moved_to IS NULL ORDER BY w.call_id LIMIT 32 FOR UPDATE OF b, w SKIP LOCKED`;
+        WHERE b.owner_user_id=${owner}::uuid AND NOT w.delivered AND w.target_turn_id IS NULL AND s.status IN ('delivered','queued') AND b.deleted_at IS NULL AND b.archived_at IS NULL AND b.moved_to IS NULL ORDER BY w.call_id LIMIT 32 FOR UPDATE OF b, w SKIP LOCKED`;
 
           for (const steer of steers)
             yield* sql`UPDATE bot_thread_watches SET target_turn_id = ${steer.target_turn_id}::uuid WHERE call_id = ${steer.call_id}::uuid`;
 
-          yield* deliverThreadQuestions(sql, core);
+          yield* deliverThreadQuestions(sql, core, owner);
 
           const watches = yield* sql<{
             call_id: string;
@@ -100,7 +103,7 @@ export function botDeliveries(sql: SqlClient.SqlClient, core: BotCore) {
             title: string;
           }>`SELECT w.*, b.owner_user_id, t.status, th.title FROM bot_thread_watches w
         JOIN bots b ON b.id = w.bot_id JOIN turns t ON t.id = w.target_turn_id JOIN threads th ON th.id = t.thread_id
-        WHERE NOT w.delivered AND b.deleted_at IS NULL AND b.archived_at IS NULL AND b.moved_to IS NULL AND th.owner_user_id = b.owner_user_id AND t.status IN ('completed','failed','interrupted','cancelled') ORDER BY w.call_id LIMIT 32 FOR UPDATE OF b, w SKIP LOCKED`;
+        WHERE b.owner_user_id=${owner}::uuid AND NOT w.delivered AND b.deleted_at IS NULL AND b.archived_at IS NULL AND b.moved_to IS NULL AND th.owner_user_id = b.owner_user_id AND t.status IN ('completed','failed','interrupted','cancelled') ORDER BY w.call_id LIMIT 32 FOR UPDATE OF b, w SKIP LOCKED`;
 
           const watchSources = yield* deliverySources(
             sql,
@@ -140,7 +143,7 @@ export function botDeliveries(sql: SqlClient.SqlClient, core: BotCore) {
             hops: number;
             owner_user_id: string;
           }>`SELECT w.*, b.owner_user_id FROM bot_wakeups w JOIN bots b ON b.id = w.bot_id
-        WHERE NOT w.delivered AND NOT w.cancelled AND w.run_at <= now() AND b.deleted_at IS NULL AND b.archived_at IS NULL AND b.moved_to IS NULL ORDER BY w.run_at,w.id LIMIT 32 FOR UPDATE OF b, w SKIP LOCKED`;
+        WHERE b.owner_user_id=${owner}::uuid AND NOT w.delivered AND NOT w.cancelled AND w.run_at <= now() AND b.deleted_at IS NULL AND b.archived_at IS NULL AND b.moved_to IS NULL ORDER BY w.run_at,w.id LIMIT 32 FOR UPDATE OF b, w SKIP LOCKED`;
 
           const wakeSources = yield* deliverySources(
             sql,

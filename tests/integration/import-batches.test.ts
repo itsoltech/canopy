@@ -11,7 +11,7 @@ import {
   setRunStatus,
 } from "../../apps/gateway/src/imports/store.ts";
 import { libraryItems, type NewLibraryItem } from "../../apps/gateway/src/imports/library-store.ts";
-import { startTestGateway, type TestGateway } from "./support/gateway.ts";
+import { eventually, startTestGateway, type TestGateway } from "./support/gateway.ts";
 
 describe.skipIf(!dockerAvailable)("bulk import admission durability", () => {
   let gateway: TestGateway;
@@ -64,15 +64,18 @@ describe.skipIf(!dockerAvailable)("bulk import admission durability", () => {
       }),
     );
 
+  const setThreads = async (enabled: boolean) => {
+    const { user } = await gateway.api.getSettings({});
+    await gateway.api.updateUserSettings({
+      expectedVersion: user!.version,
+      modules: { enabled: enabled ? ["threads", "bots"] : ["bots"] },
+    });
+  };
+
   test("several batches preserve order, owner, JSON and bigint byte counts across restart", async () => {
     const id = Bun.randomUUIDv7();
     await admit(id, newItems(id), library(id));
-    await gateway.runtime.runPromise(
-      Effect.gen(function* () {
-        const sql = yield* SqlClient.SqlClient;
-        yield* setRunStatus(sql, id, "paused");
-      }),
-    );
+    await setThreads(false);
 
     const storage = {
       pg: gateway.pg,
@@ -82,7 +85,18 @@ describe.skipIf(!dockerAvailable)("bulk import admission durability", () => {
     };
 
     await gateway.close(true);
+    // Preserve the on-disk state an earlier gateway could leave behind with Threads disabled.
+    await Effect.runPromise(
+      Effect.flatMap(SqlClient.SqlClient, (sql) => setRunStatus(sql, id, "running")).pipe(
+        Effect.provide(storage.pg.layer),
+      ),
+    );
     gateway = await startTestGateway({ storage });
+
+    await eventually(
+      () => gateway.api.getImportRun({ runId: id }),
+      (run) => run.status === "paused",
+    );
 
     const saved = await gateway.runtime.runPromise(
       Effect.gen(function* () {
@@ -113,7 +127,10 @@ describe.skipIf(!dockerAvailable)("bulk import admission durability", () => {
       });
     }
 
-    await gateway.core.linkedAgents.query(`UPDATE import_runs SET status='cancelled' WHERE id=$1::uuid`, [id]);
+    expect((await gateway.api.cancelImportRun({ runId: id })).status).toBe("cancelled");
+    await setThreads(true);
+    await gateway.core.imports.runner.tick();
+    expect((await gateway.api.getImportRun({ runId: id })).status).toBe("cancelled");
   }, 30_000);
 
   test("a conflict in a later batch rolls back the run, earlier batches and library rows", async () => {

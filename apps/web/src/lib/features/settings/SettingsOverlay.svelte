@@ -1,6 +1,6 @@
 <script lang="ts">
   import { untrack, type Snippet } from "svelte";
-  import { beforeNavigate, invalidate } from "$app/navigation";
+  import { beforeNavigate, goto, invalidate } from "$app/navigation";
   import { page, updated } from "$app/state";
   import { updateState } from "#lib/shared/updates.svelte.ts";
   import Alert from "#lib/shared/ui/Alert.svelte";
@@ -16,8 +16,11 @@
   } from "./settings-route.ts";
   import SettingsDialog from "./SettingsDialog.svelte";
   import { useGatewayCapabilities } from "#lib/features/desktop/gateway-capabilities.svelte.ts";
+  import { settingsSectionEnabled } from "./sections.ts";
+  import { useSettings } from "./settings-state.svelte.ts";
   import AlertCompatibility from "#lib/features/desktop/GatewayCompatibility.svelte";
 
+  const settings = useSettings();
   const capabilities = useGatewayCapabilities();
 
   /**
@@ -28,7 +31,10 @@
    */
   let { route }: { route: Snippet } = $props();
 
-  const routeMode = $derived(isSettingsRoute(page.route.id) && !page.error);
+  const routeMode = $derived(
+    isSettingsRoute(page.route.id) &&
+      (!page.error || !settingsSectionEnabled(page.url.pathname, settings.enabledModules)),
+  );
 
   const shallowKey = $derived(
     !routeMode && page.shallow?.route && isSettingsRoute(page.shallow.route.id)
@@ -58,6 +64,7 @@
 
   const shown = $derived(view ?? last);
   const open = $derived(Boolean(view));
+  const allowed = $derived(!shown || settingsSectionEnabled(shown.url.pathname, settings.enabledModules));
   const entry = $derived(shown?.key ? overlay.pages.get(shown.key) : undefined);
 
   // Settings pages set the document title (and nothing sets it back): keep the page's own while closed.
@@ -75,11 +82,19 @@
   });
 
   $effect(() => {
-    if (key && !overlay.pages.has(key)) untrack(() => void overlay.ensure(key));
+    if (allowed && key && !overlay.pages.has(key)) untrack(() => void overlay.ensure(key));
   });
 
   $effect(() => {
-    if (routeMode) untrack(() => void overlay.handOver());
+    if (!view || !settings.loaded || overlay.bridging) return;
+
+    if (!allowed) {
+      if (routeMode) void goto("/settings/general", { replace: true });
+      else untrack(() => void overlay.open("/settings/general", true));
+    } else if (routeMode) {
+      const enabled = settings.enabledModules;
+      untrack(() => void overlay.handOver(enabled));
+    }
   });
 
   // The form action result of the settings page (`page.form` is the page's, underneath, too).
@@ -132,7 +147,8 @@
 
     if (!to?.route.id || !isSettingsRoute(to.route.id)) return;
     navigation.cancel();
-    void overlay.open(to.url.href, Boolean(shallowKey));
+    const href = settingsSectionEnabled(to.url.pathname, settings.enabledModules) ? to.url.href : "/settings/general";
+    void overlay.open(href, Boolean(shallowKey));
   });
 
   $effect(() => {
@@ -155,7 +171,9 @@
 
 {#if shown}
   <SettingsDialog {open} onclose={close} onexited={() => !view && (last = undefined)}>
-    {#if capabilities && !capabilities.supports(shown.url.pathname)}
+    {#if !allowed}
+      <!-- Redirecting to General after the module was turned off. -->
+    {:else if capabilities && !capabilities.supports(shown.url.pathname)}
       <AlertCompatibility message={capabilities.unavailableMessage(shown.url.pathname)} desktopActions={false} />
     {:else if !shown.key}
       {@render route()}

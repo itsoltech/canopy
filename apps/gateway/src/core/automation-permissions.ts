@@ -1,3 +1,4 @@
+import { ownerModuleEnabled, moduleDisabledMessage } from "../store/module-access.ts";
 import { createHash } from "node:crypto";
 import { create } from "@bufbuild/protobuf";
 import { timestampDate } from "@bufbuild/protobuf/wkt";
@@ -71,6 +72,10 @@ async function active(core: GatewayCore, request: AgentToolCall, lease: Authoriz
 
 async function activeMode(core: GatewayCore, request: AgentToolCall, lease: Authorization) {
   ensureLive(core, lease);
+  const { runtime, userId } = core[coreState].options;
+
+  if (!(await runtime.runPromise(ownerModuleEnabled(userId, "threads"))))
+    throw new Error(moduleDisabledMessage("threads"));
   const thread = await coreRun(core, (store) => store.thread(request.threadId));
   const turn = await coreRun(core, (store) => store.runningTurn(request.threadId));
 

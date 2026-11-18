@@ -14,6 +14,8 @@ import {
 
 import { computersState, type ComputerChange } from "./runtime-context.ts";
 import type { LinkedComputers } from "./runtime.ts";
+import type { ModuleId } from "@canopy/domain";
+import { MIRROR_PAUSED } from "./capabilities.ts";
 import { WatchLease, watchTiming } from "./watch-liveness.ts";
 import { linkedMessage } from "./remote.ts";
 import { consumeThreadRanges } from "./range-consume.ts";
@@ -53,16 +55,24 @@ export function computersEmit(hostContext: LinkedComputers, nodeId: string, remo
   hostContext.relay.check();
 }
 
+function canMirror(host: LinkedComputers, node: string, module: ModuleId) {
+  const capability = module === "threads" ? THREAD_MIRROR : REMOTE_BOTS;
+  const peer = host.capabilities(node);
+
+  return (
+    !host[computersState].stopped &&
+    !host.mirrorModules[module].signal.aborted &&
+    !peer.includes(MIRROR_PAUSED[module]) &&
+    peer.includes(capability) &&
+    host.hello().capabilities.includes(capability) &&
+    host.reachable().includes(node)
+  );
+}
+
 export function computersSyncMirror(hostContext: LinkedComputers, nodeId: string) {
   computersSyncBotMirror(hostContext, nodeId);
 
-  const enabled =
-    !hostContext[computersState].stopped &&
-    hostContext.hello().capabilities.includes(THREAD_MIRROR) &&
-    hostContext.capabilities(nodeId).includes(THREAD_MIRROR) &&
-    hostContext.reachable().includes(nodeId);
-
-  if (!enabled) {
+  if (!canMirror(hostContext, nodeId, "threads")) {
     hostContext[computersState].mirroring.get(nodeId)?.abort();
 
     return;
@@ -195,13 +205,7 @@ export function computersSyncMirror(hostContext: LinkedComputers, nodeId: string
 }
 
 export function computersSyncBotMirror(hostContext: LinkedComputers, nodeId: string) {
-  const enabled =
-    !hostContext[computersState].stopped &&
-    hostContext.hello().capabilities.includes(REMOTE_BOTS) &&
-    hostContext.capabilities(nodeId).includes(REMOTE_BOTS) &&
-    hostContext.reachable().includes(nodeId);
-
-  if (!enabled) {
+  if (!canMirror(hostContext, nodeId, "bots")) {
     hostContext[computersState].botMirroring.get(nodeId)?.abort();
 
     return;

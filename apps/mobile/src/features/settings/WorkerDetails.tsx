@@ -1,3 +1,4 @@
+import { useAppearance } from "../../state/appearance";
 import { useState } from "react";
 import { ui } from "@canopy/contracts";
 import { openSettingsSection } from "./navigation";
@@ -28,6 +29,7 @@ export function WorkerDetails({
   onClose: () => void;
 }) {
   const resource = useSettingsResource("GetWorkerSetup", (api) => api.getWorkerSetup({}));
+  const { threadsEnabled } = useAppearance();
   const tags = record ?? environment.workers.find((w) => w.workerId === worker.id);
 
   const readOnly =
@@ -41,7 +43,7 @@ export function WorkerDetails({
   return (
     <ResourceState resource={resource} gap={0}>
       {readOnly ? <Notice>{readOnly} These are the last saved settings.</Notice> : null}
-      {own && worker.cliImport && (
+      {threadsEnabled && own && worker.cliImport && (
         <Button
           title="Import CLI threads"
           disabled={!worker.online}

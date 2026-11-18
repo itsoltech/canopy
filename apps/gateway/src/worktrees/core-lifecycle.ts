@@ -1,3 +1,4 @@
+import { ownerModuleEnabled } from "../store/module-access.ts";
 import { create } from "@bufbuild/protobuf";
 import { ui } from "@canopy/contracts";
 import { coreState, InvalidError } from "../core/core-context.ts";
@@ -64,6 +65,11 @@ export const coreWorktreeLifecycleMethods: CoreWorktreeLifecycleMethods = {
   },
 
   async cleanupWorktrees(this: GatewayCore, request) {
+    const { actions, options } = this[coreState];
+    const enabled = () => actions.run(ownerModuleEnabled(options.userId, "threads"));
+
+    if (!(await enabled())) return create(ui.ListWorktreesResponseSchema);
+
     const rows = await coreRun(this, (s) =>
       s.worktreeInventory(this[coreState].options.userId, request.projectId, request.workerId),
     );
@@ -72,6 +78,7 @@ export const coreWorktreeLifecycleMethods: CoreWorktreeLifecycleMethods = {
 
     for (const row of rows) {
       try {
+        if (!(await enabled())) return create(ui.ListWorktreesResponseSchema, { entries });
         const pending = pendingRemoval(row);
 
         if (!request.dryRun && pending && this.link.connections.get(row.worker_id)?.isOpen) {
@@ -114,7 +121,7 @@ export const coreWorktreeLifecycleMethods: CoreWorktreeLifecycleMethods = {
       }
     }
 
-    await appendDiscovered(this, entries, rows, request.projectId, request.workerId);
+    if (await enabled()) await appendDiscovered(this, entries, rows, request.projectId, request.workerId);
 
     return create(ui.ListWorktreesResponseSchema, { entries });
   },

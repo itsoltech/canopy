@@ -10,6 +10,15 @@ export function nextCronRun(cron: string, timezone: string, after: Date): Date |
   return next ? new Date(next) : undefined;
 }
 
+/** A stored expression may have been accepted by an older parser. Finish it if it no longer has a valid next run. */
+export function nextStoredCronRun(cron: string | null, timezone: string, after: Date): Date | undefined {
+  try {
+    return cron ? nextCronRun(cron, timezone, after) : undefined;
+  } catch {
+    return undefined;
+  }
+}
+
 /**
  * Why a recurring schedule is not acceptable, or undefined. Checks the real gaps between upcoming
  * runs (not just the minute field), so `0,1,2 * * * *` is refused like `* * * * *`.

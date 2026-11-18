@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { useGlobalSearchParams } from "expo-router";
+import { useGlobalSearchParams, usePathname } from "expo-router";
 import { ui } from "@canopy/contracts";
 import { expandProjectIds } from "@canopy/domain/projects";
 import { sidebarThreads } from "@canopy/domain/sidebar-threads";
@@ -14,7 +14,8 @@ export function useSidebarThreads(query: string) {
   const { sidebar, updateSidebar } = useAppearance();
   const { client } = useSession();
   const { view } = useDevicePreferences();
-  const { id } = useGlobalSearchParams<{ id?: string }>();
+  const params = useGlobalSearchParams<{ id?: string }>();
+  const id = usePathname().startsWith("/thread/") ? params.id : undefined;
   const [fetchedCurrent, setFetchedCurrent] = useState<ui.Thread>();
   const settings = { ...sidebar, projectIds: expandProjectIds(sidebar.projectIds, choices) };
   const current = threads.find((t) => t.id === id) ?? (fetchedCurrent?.id === id ? fetchedCurrent : undefined);

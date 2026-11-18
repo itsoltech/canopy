@@ -1,5 +1,7 @@
 # Generowanie tytułów wątków
 
+Status (2026-11-18) — zaimplementowane w kodzie. Dostępność w kanałach zależy od [promocji wydania](release.md).
+
 Wszystkie wywołania modeli do generowania tekstu przechodzą przez oficjalne harnessy na workerze: Claude Agent SDK, Codex app-server albo Grok CLI przez ACP. Canopy nie wysyła bezpośrednich żądań inferencji HTTP. Grok obsługuje zarówno natywny login, jak i instancję proxy; CLIProxyAPI jest wyłącznie konfiguracją procesu CLI. [Adapter Grok](grok-adapter.md).
 
 Ta sama ścieżka (`coreGenerateText`, ustawienia Text generation, harness na workerze) nazywa gałęzie nowych
@@ -46,6 +48,8 @@ Regeneracja odtwarza kontekst również ze starszych wątków: pierwszego zadani
 ## Izolacja SDK
 
 Worker ogłasza capability `generate_text`. Komenda przyjmuje prompt i konfigurację instancji, zwraca tekst. Nie tworzy platformowego wątku, tury, zadania w tle ani wpisu w dzienniku komend. Worker dopuszcza cztery generacje równocześnie, przerywa je po 30 sekundach i anuluje oraz sprząta je przy zamknięciu.
+
+Wyłączenie Threads anuluje generowanie tytułów i nazw gałęzi na workerze, który przyjął daną komendę, także gdy zastępuje worker wątku. Gateway wysyła identyfikator generacji do workerów z capability `cancel_text_generation_v1`. Worker przerywa bieżące wywołanie lub pomija jego uruchomienie, jeśli nadal czeka ono na instalację CLI. Przy utracie połączenia worker anuluje generacje, których wynik miał wysłać tym łączem. Jeżeli ustawienie zapisał inny proces gateway, proces obsługujący workera sprawdza wersję przy najbliższym heartbeat, o ile trwa generacja. Starszy worker kończy już rozpoczęte wywołanie w zwykłym limicie 30 sekund. Przed zmianą tytułu lub wysłaniem polecenia zmiany nazwy gałęzi gateway sprawdza lokalną wersję ostatniego wyłączenia Threads. Dzięki temu spóźniony wynik traci ważność także po ponownym włączeniu modułu.
 
 Claude używa Agent SDK `query`, jednej tury, pustej listy narzędzi/MCP/pluginów, wyłączonych hooków, `settingSources: []`, własnego system promptu i `persistSession: false`. Nie ładuje ustawień projektu/użytkownika ani CLAUDE.md i nie zostawia transkryptu sesji.
 

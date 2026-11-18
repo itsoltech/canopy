@@ -38,6 +38,7 @@ export class MessengerAccountSession {
   async #connectWithRetry(credentials: MessengerCredentials): Promise<void> {
     while (!this.abort.signal.aborted) {
       try {
+        if (!(await this.runtime.enabled())) return;
         await this.#connect(credentials);
 
         return;
@@ -91,7 +92,7 @@ export class MessengerAccountSession {
     const rows = await this.runtime.run((s) => s.outbound(this.runtime.owner, this.lease, this.runtime.now()));
 
     for (const message of rows) {
-      if (this.abort.signal.aborted) {
+      if (this.abort.signal.aborted || !(await this.runtime.enabled())) {
         await this.runtime.run((s) =>
           s.settleOutbound(
             this.runtime.owner,

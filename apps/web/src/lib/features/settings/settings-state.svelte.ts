@@ -1,6 +1,7 @@
 import { create, equals, type DescMessage, type MessageShape } from "@bufbuild/protobuf";
 import { getContext, setContext } from "svelte";
 import { AgentToolSessionDefaultsSchema, type AgentToolSessionDefaults, ui } from "@canopy/contracts";
+import { enabledModules, type ModuleId } from "@canopy/domain";
 import { deviceSidebarSettings, type DeviceSidebarValues } from "@canopy/domain/device-view";
 import { devicePreferences } from "./device-preferences.svelte.ts";
 import { HttpError, requestJson } from "#lib/shared/http.ts";
@@ -13,19 +14,8 @@ export interface SettingsNotice {
   readonly text: string;
 }
 
-type UserSection =
-  | "appearance"
-  | "threadDefaults"
-  | "modelFavorites"
-  | "composer"
-  | "textGeneration"
-  | "sidebar"
-  | "general"
-  | "threadRetention"
-  | "cliUpdates"
-  | "agentToolDefaults";
-
 const userSchemas = {
+  modules: ui.ModuleSettingsSchema,
   appearance: ui.AppearanceSettingsSchema,
   threadDefaults: ui.ThreadDefaultsSchema,
   modelFavorites: ui.ModelFavoritesSchema,
@@ -37,6 +27,8 @@ const userSchemas = {
   cliUpdates: ui.CliUpdateSettingsSchema,
   agentToolDefaults: AgentToolSessionDefaultsSchema,
 } as const;
+
+type UserSection = keyof typeof userSchemas;
 
 interface ServerSettings {
   user: ui.UserSettings;
@@ -87,6 +79,36 @@ export class SettingsState {
 
   get sidebar(): ui.SidebarSettings {
     return deviceSidebarSettings(this.user.sidebar, devicePreferences.view);
+  }
+
+  get enabledModules() {
+    return enabledModules(this.user.modules);
+  }
+
+  moduleEnabled(module: ModuleId): boolean {
+    return this.enabledModules.includes(module);
+  }
+
+  setFirstModule(module: ModuleId): Promise<void> {
+    return this.#writeUser("modules", (current) => {
+      const enabled = enabledModules(current);
+
+      return {
+        ...current,
+        enabled: enabled.includes(module) ? [module, ...enabled.filter((id) => id !== module)] : enabled,
+      };
+    });
+  }
+
+  setModuleEnabled(module: ModuleId, on: boolean): Promise<void> {
+    return this.#writeUser("modules", (current) => {
+      const enabled = enabledModules(current);
+      const others = enabled.filter((id) => id !== module);
+
+      if (on && !enabled.includes(module)) return { ...current, enabled: [...enabled, module] };
+
+      return { ...current, enabled: !on && others.length ? others : enabled };
+    });
   }
 
   get general(): ui.GeneralSettings {
@@ -336,7 +358,11 @@ export class SettingsState {
 
           return;
         } catch (cause) {
-          if (!(await this.#retryAfterConflict(cause, attempt, confirmed, before, schema))) return;
+          if (!(await this.#retryAfterConflict(cause, attempt, confirmed, before, schema))) {
+            this.user = { ...this.user, [section]: this.#server.user[section] };
+
+            return;
+          }
         }
       }
     });

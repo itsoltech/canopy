@@ -4,7 +4,7 @@ import { join } from "node:path";
 import { create, type MessageInitShape } from "@bufbuild/protobuf";
 import { timestampDate, timestampFromDate } from "@bufbuild/protobuf/wkt";
 import { Provider, ProviderProfileKind, ui } from "@canopy/contracts";
-import { GatewayStore } from "@canopy/gateway/store";
+import { AgentBusStore, GatewayStore } from "@canopy/gateway/store";
 import { dockerAvailable } from "@canopy/db/testing";
 import { tempDir } from "@canopy/testing";
 import { eventually, failure } from "./support/gateway.ts";
@@ -173,8 +173,8 @@ describe.skipIf(!dockerAvailable)("automation worktrees over gRPC", () => {
       })
     ).schedule!;
 
-  const fire = async (s: ui.Schedule) => {
-    await f.gw.core.scheduler.tick(timestampDate(s.nextRunAt!));
+  const fire = async (s: ui.Schedule, now = timestampDate(s.nextRunAt!)) => {
+    await f.gw.core.scheduler.tick(now);
     const current = (await f.gw.api.listSchedules({ includeFinished: true })).schedules.find((r) => r.id === s.id)!;
     expect(current.runs).toBe(1);
 
@@ -200,6 +200,117 @@ describe.skipIf(!dockerAvailable)("automation worktrees over gRPC", () => {
     const checkout = await fire(await schedule({ workspaceMode: ui.WorkspaceMode.CHECKOUT }));
     expect([checkout.cwd, checkout.worktree]).toEqual([f.repo, undefined]);
     await f.settings({ defaultMode: ui.WorkspaceMode.CHECKOUT });
+  });
+
+  test("a revoked lease leaves one reusable checkout when Threads resumes", async () => {
+    const s = await schedule({ workspaceMode: ui.WorkspaceMode.NEW_WORKTREE });
+    const now = timestampDate(s.nextRunAt!);
+    const created = Promise.withResolvers<void>();
+    const release = Promise.withResolvers<void>();
+    const handle = f.host.handleCommand.bind(f.host);
+    const requests: string[] = [];
+
+    const worker = spyOn(f.host, "handleCommand").mockImplementation(async (command) => {
+      const result = await handle(command);
+
+      if (command.kind.case === "createWorktree") {
+        requests.push(command.commandId);
+        created.resolve();
+        await release.promise;
+      }
+
+      return result;
+    });
+
+    const toggle = async (enabled: string[]) => {
+      const { user } = await f.gw.api.getSettings({});
+      await f.gw.api.updateUserSettings({ expectedVersion: user!.version, modules: { enabled } });
+    };
+
+    const before = git(f.repo, "worktree", "list", "--porcelain");
+    const stale = f.gw.core.scheduler.tick(now);
+
+    try {
+      await created.promise;
+      await toggle(["bots"]);
+      await toggle(["threads", "bots"]);
+
+      const [reclaimed] = await f.gw.runtime.runPromise(
+        AgentBusStore.use((store) => store.claimDueSchedules("replacement", now, 180, 1)),
+      );
+
+      expect(reclaimed?.id).toBe(s.id);
+
+      const firing = await f.gw.runtime.runPromise(
+        AgentBusStore.use((store) =>
+          store.fireSchedule({
+            schedule: reclaimed!,
+            run: true,
+            input: { note: "", message: s.prompt },
+            nextRunAt: undefined,
+            eligibleWorkerIds: [f.workerId],
+            now,
+            prepareWorkspace: async () => {
+              throw new Error("The original checkout is still being prepared.");
+            },
+          }),
+        ),
+      );
+
+      expect(firing.threadId).toBe("");
+      release.resolve();
+      await stale;
+      const held = (await f.gw.api.listSchedules({})).schedules.find((item) => item.id === s.id);
+      expect(held?.runs).toBe(0);
+      const thread = await fire(s, new Date(now.getTime() + 6_000));
+      expect(thread.worktree?.path).toBe(thread.cwd);
+      expect(requests).toHaveLength(1);
+      const physical = git(f.repo, "worktree", "list", "--porcelain");
+      expect(physical.split("worktree ").length - before.split("worktree ").length).toBe(1);
+    } finally {
+      release.resolve();
+      worker.mockRestore();
+      await stale;
+      await toggle(["threads", "bots"]);
+    }
+  });
+
+  test("reuses the worker's recorded checkout when its first result is lost", async () => {
+    const s = await schedule({ workspaceMode: ui.WorkspaceMode.NEW_WORKTREE });
+    const now = timestampDate(s.nextRunAt!);
+    const handle = f.host.handleCommand.bind(f.host);
+    const requests: string[] = [];
+
+    const worker = spyOn(f.host, "handleCommand").mockImplementation(async (command) => {
+      const result = await handle(command);
+
+      if (command.kind.case === "createWorktree") {
+        requests.push(command.commandId);
+
+        if (requests.length === 1) return { commandId: command.commandId, ok: false, errorCode: "ACK_LOST" };
+      }
+
+      return result;
+    });
+
+    const before = git(f.repo, "worktree", "list", "--porcelain");
+
+    try {
+      await f.gw.core.scheduler.tick(now);
+      await f.gw.core.scheduler.tick(new Date(now.getTime() + 6_000));
+      expect(requests).toHaveLength(2);
+      expect(requests[1]).toBe(requests[0]);
+
+      const current = (await f.gw.api.listSchedules({ includeFinished: true })).schedules.find(
+        (row) => row.id === s.id,
+      );
+
+      expect(current?.runs).toBe(1);
+      const physical = git(f.repo, "worktree", "list", "--porcelain");
+      expect(physical.split("worktree ").length - before.split("worktree ").length).toBe(1);
+    } finally {
+      worker.mockRestore();
+    }
   });
 
   test("a new-worktree schedule waits while offline and fires once after reconnect", async () => {

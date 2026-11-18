@@ -1,3 +1,4 @@
+import { setModules } from "./support/module-settings.ts";
 import { expect, test } from "bun:test";
 import { existsSync, mkdirSync, readFileSync, readdirSync } from "node:fs";
 import { join, resolve } from "node:path";
@@ -63,7 +64,7 @@ test.skipIf(!dockerAvailable)(
       hello: {
         workerId: added.workerId,
         homeDirectory: homedir(),
-        capabilities: ["generate_text", "worktrees"],
+        capabilities: ["generate_text", "worktrees", "cancel_text_generation_v1"],
         worktreesRoot: host.worktreesRoot,
         ...(await runtime.runPromise(journalHello())),
       },
@@ -164,6 +165,54 @@ test.skipIf(!dockerAvailable)(
       }
 
       expect(readdirSync(join(data, "text-generation"))).toEqual([]);
+
+      const latest = (await gw.api.getSettings({})).user!;
+      await gw.api.updateUserSettings({
+        expectedVersion: latest.version,
+        textGeneration: { ...latest.textGeneration!, threadTitleInstructions: "HANG until cancelled" },
+      });
+      await gw.api.regenerateTitle({ threadId: thread.id });
+      expect(
+        await eventually(
+          async () => readFileSync(traceFile, "utf8"),
+          (text) => text.includes("HANG until cancelled"),
+        ),
+      ).toContain("HANG until cancelled");
+      await setModules(gw, "bots");
+      await setModules(gw, "threads", "bots");
+      expect(
+        await eventually(
+          async () => readdirSync(join(data, "text-generation")),
+          (dirs) => dirs.length === 0,
+        ),
+      ).toEqual([]);
+      expect((await gw.api.getThread({ threadId: thread.id })).thread?.title).toBe("Grok title");
+
+      // A second cancellation may arrive while the original command still awaits CLI installation.
+      const connection = gw.core.link.connections.get(added.workerId)!;
+      const entered = Promise.withResolvers<void>();
+      const release = Promise.withResolvers<void>();
+      host.cli.settled = async () => {
+        entered.resolve();
+        await release.promise;
+      };
+
+      const commandId = Bun.randomUUIDv7();
+      const request = { provider: Provider.GROK, model: "grok-4.6", prompt: "Held in admission" };
+      const pending = connection.sendCommand({ case: "generateText", value: request }, 5000, commandId);
+
+      try {
+        await entered.promise;
+        expect((await connection.sendCommand({ case: "cancelTextGeneration", value: { commandId } })).ok).toBe(true);
+      } finally {
+        release.resolve();
+      }
+
+      expect(await pending).toMatchObject({ ok: false, errorCode: "TEXT_GENERATION_CANCELLED" });
+      expect(readFileSync(traceFile, "utf8")).not.toContain(request.prompt);
+      expect(
+        await connection.sendCommand({ case: "generateText", value: { ...request, prompt: "Fresh request" } }),
+      ).toMatchObject({ ok: true, generatedText: "Grok title" });
     } finally {
       link.close();
       await serving;

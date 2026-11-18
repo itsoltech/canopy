@@ -1,5 +1,6 @@
 import { Stack } from "expo-router";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { useAppearance } from "../../state/appearance";
 import { useSession } from "../../state/session";
 import { useColors } from "../../ui/theme";
 import { useLayout } from "../../state/layout";
@@ -92,6 +93,7 @@ function Screens() {
   const c = useColors();
   const { wide } = useLayout();
   const reduced = useReducedMotion();
+  const { threadsEnabled, botsEnabled } = useAppearance();
 
   return (
     <Stack
@@ -111,6 +113,18 @@ function Screens() {
         contentStyle: { backgroundColor: c.background },
         headerShadowVisible: false,
       }}
-    />
+    >
+      <Stack.Screen name="index" />
+      <Stack.Protected guard={threadsEnabled}>
+        <Stack.Screen name="thread/[id]" />
+        <Stack.Screen name="thread-starting/[id]" />
+        <Stack.Screen name="new-thread" />
+        <Stack.Screen name="pull-request/[id]" />
+      </Stack.Protected>
+      <Stack.Protected guard={botsEnabled}>
+        <Stack.Screen name="bot/[id]" />
+        <Stack.Screen name="bot-exchange/[id]" />
+      </Stack.Protected>
+    </Stack>
   );
 }

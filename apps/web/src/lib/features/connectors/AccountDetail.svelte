@@ -18,6 +18,8 @@
   import IconButton from "#lib/shared/ui/IconButton.svelte";
   import { expand } from "#lib/shared/ui/motion.ts";
   import type { AccessChoice } from "@canopy/domain/access-picker";
+  import { botList } from "#lib/features/bots/bot-list.svelte.ts";
+  import { useSettings } from "#lib/features/settings/settings-state.svelte.ts";
   import AccountSummary from "./AccountSummary.svelte";
   import SlackMessages from "./SlackMessages.svelte";
   import AccessPicker from "#lib/features/access/AccessPicker.svelte";
@@ -46,6 +48,7 @@
     class?: ClassValue;
   } = $props();
 
+  const settings = useSettings();
   let name = $state(untrack(() => account.name));
 
   /** The access being saved; the pickers show it until the account comes back. */
@@ -190,33 +193,37 @@
   {#if accessOpen}
     <div transition:expand={{ instantReduced: true }}>
       <div class="grid gap-3 border-t border-zinc-950/5 p-3 dark:border-white/8">
-        <p class="text-base/6 text-zinc-500 sm:text-sm/6 dark:text-zinc-400">
-          Only these workers and bots can use this account. Threads also follow their permission mode.
-        </p>
-        <AccessPicker
-          label="Workers"
-          icon="computer-desktop"
-          options={workers}
-          all={access.allWorkers}
-          ids={access.workerIds}
-          saving={savingGroup === "workers"}
-          disabled={!!busy}
-          onchange={(next) => saveAccess("workers", next)}
-        />
-        <AccessPicker
-          label="Bots"
-          icon="chat-bubble-left-right"
-          options={bots}
-          all={access.allBots}
-          ids={access.botIds}
-          saving={savingGroup === "bots"}
-          disabled={!!busy}
-          onchange={(next) => saveAccess("bots", next)}
-        />
+        {#if settings.moduleEnabled("threads")}
+          <p class="text-base/6 text-zinc-500 sm:text-sm/6 dark:text-zinc-400">
+            Threads also follow their permission mode.
+          </p>
+          <AccessPicker
+            label="Workers"
+            icon="computer-desktop"
+            options={workers}
+            all={access.allWorkers}
+            ids={access.workerIds}
+            saving={savingGroup === "workers"}
+            disabled={!!busy}
+            onchange={(next) => saveAccess("workers", next)}
+          />
+        {/if}
+        {#if settings.moduleEnabled("bots")}
+          <AccessPicker
+            label="Bots"
+            icon="chat-bubble-left-right"
+            options={bots}
+            all={access.allBots}
+            ids={access.botIds}
+            saving={savingGroup === "bots"}
+            disabled={!!busy || !botList.loaded || Boolean(botList.error)}
+            onchange={(next) => saveAccess("bots", next)}
+          />
+        {/if}
       </div>
     </div>
   {/if}
-  {#if type.id === "slack"}<SlackMessages
+  {#if type.id === "slack" && settings.moduleEnabled("bots")}<SlackMessages
       {account}
       {oauthCompletion}
       {onupdate}

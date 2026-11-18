@@ -10,6 +10,7 @@ import { usePaneInsets } from "../../ui/ScreenFrame";
 import { useMotion } from "../../ui/motion";
 import { needsYou } from "@canopy/domain/thread-activity";
 import { sidebarChildren } from "@canopy/domain/sidebar-threads";
+import { useAppearance } from "../../state/appearance";
 import { useSession } from "../../state/session";
 import { useBotAlerts, type InAppAlert } from "./useBotAlerts";
 
@@ -17,6 +18,7 @@ import { useBotAlerts, type InAppAlert } from "./useBotAlerts";
 export function InAppAlerts() {
   const { threads, loaded } = useOverview();
   const { active } = useSession();
+  const { threadsEnabled, botsEnabled } = useAppearance();
   const { values } = useDevicePreferences();
   const { id } = useGlobalSearchParams<{ id?: string }>();
   const previous = useRef<Map<string, string> | null>(null);
@@ -27,7 +29,7 @@ export function InAppAlerts() {
   const { banner } = useMotion();
 
   useEffect(() => {
-    if (!loaded || !active) {
+    if (!loaded || !active || !threadsEnabled) {
       previous.current = null;
 
       return;
@@ -69,10 +71,7 @@ export function InAppAlerts() {
         title: changed.thread.title || "Untitled thread",
         status: changed.status,
       });
-  }, [threads, loaded, id, active, values.inAppNotifications]);
-  useEffect(() => {
-    if (!active) setAlert(undefined);
-  }, [active]);
+  }, [threads, loaded, id, active, values.inAppNotifications, threadsEnabled]);
   useEffect(() => {
     if (!alert) return;
     const timer = setTimeout(() => setAlert(undefined), 6000);
@@ -80,7 +79,13 @@ export function InAppAlerts() {
     return () => clearTimeout(timer);
   }, [alert]);
 
-  if (!alert || !active || values.inAppNotifications !== "on") return null;
+  if (alert && (!active || !(alert.kind === "bot" ? botsEnabled : threadsEnabled))) {
+    setAlert(undefined);
+
+    return null;
+  }
+
+  if (!alert || values.inAppNotifications !== "on") return null;
 
   // Web: Toaster. A dark pill under the top edge: what happened and one action. It comes down and leaves the same
   // way; a newer alert replaces it (web `t-toast`, from the top edge).

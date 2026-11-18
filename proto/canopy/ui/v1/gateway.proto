@@ -1105,7 +1105,10 @@ message Interaction {
 
 // ---------- Overview ----------
 
-message GetOverviewRequest {}
+message GetOverviewRequest {
+  // Linked bot discovering thread projects and workspaces.
+  bool bot_thread_access = 1;
+}
 
 message GetOverviewResponse {
   repeated Worker workers = 1;
@@ -1343,6 +1346,8 @@ message ListThreadsRequest {
   bool include_archived = 270;
   // Indeks sidebara: aktywne i zarchiwizowane boczne pod aktywnym rodzicem. Ma pierwszeństwo nad include_archived.
   bool sidebar_only = 310;
+  // Linked agent read or action across the Bots and Threads modules.
+  bool bot_thread_access = 311;
 }
 
 // Archiwum sidebara: strony głównych wątków; boczne wracają wyłącznie w side_threads.
@@ -1363,6 +1368,8 @@ message ListArchivedThreadsResponse {
 
 message GetThreadRequest {
   string thread_id = 1;
+  // Linked agent read or action across the Bots and Threads modules.
+  bool bot_thread_access = 2;
 }
 
 message GetThreadResponse {
@@ -1494,6 +1501,8 @@ message AnswerInteractionRequest {
   string message = 4;
   string answer_json = 5;
   bool cancelled = 6;
+  // Linked agent read or action across the Bots and Threads modules.
+  bool bot_thread_access = 7;
 }
 
 message AnswerInteractionResponse {
@@ -1526,6 +1535,8 @@ message WatchThreadRequest {
   // Finite, low-priority cache warming: bounded tail or at most 256 sequence records.
   // Does not read permission-bearing controls or keep a live subscription open.
   bool background = 814;
+  // Linked agent read or action across the Bots and Threads modules.
+  bool bot_thread_access = 815;
 }
 
 message ThreadConnector {
@@ -1977,6 +1988,7 @@ message UserSettings {
   CliUpdateSettings cli_updates = 901;
   ThreadRetentionSettings thread_retention = 902;
   canopy.worker.v1.AgentToolSessionDefaults agent_tool_defaults = 903;
+  ModuleSettings modules = 904;
 }
 
 message ThreadRetentionSettings {
@@ -2064,6 +2076,7 @@ message UpdateUserSettingsRequest {
   CliUpdateSettings cli_updates = 901;
   ThreadRetentionSettings thread_retention = 902;
   canopy.worker.v1.AgentToolSessionDefaults agent_tool_defaults = 903;
+  ModuleSettings modules = 904;
 }
 
 message UpdateUserSettingsResponse {
@@ -3324,4 +3337,10 @@ message ReadThreadDiffRequest {
   string path = 3;
   uint32 offset = 4;
   uint32 limit = 5;
+}
+
+// Enabled modules for this owner, in tab order. Omitted modules suspend their work. The first opens at startup.
+message ModuleSettings {
+  // One or both of "threads" and "bots", without duplicates. Older settings default to both in that order.
+  repeated string enabled = 1;
 }

@@ -5,8 +5,9 @@ import type { JsonValue } from "@bufbuild/protobuf";
 import { Effect, Schema } from "effect";
 import type { SqlClient } from "effect/sql";
 import { InvalidError } from "../core/core-context.ts";
+import { ownerModule } from "../store/module-access.ts";
 import { appendBase } from "./append.ts";
-import { importTransaction } from "./locks.ts";
+import { admitImport, importTransaction } from "./locks.ts";
 import { insertFreshItems } from "./run-items.ts";
 import { insertLibraryItems, toUiLibrary, type LibraryRow, type NewLibraryItem } from "./library-store.ts";
 
@@ -98,7 +99,8 @@ export interface RunRow {
 /** Runner admission does not need progress aggregates for every imported item. */
 export const runnerRun = (sql: SqlClient.SqlClient, owner: string, id: string) =>
   sql<Pick<RunRow, "id" | "status" | "worker_name">>`SELECT r.id,r.status,w.name AS worker_name
-    FROM import_runs r JOIN workers w ON w.id=r.worker_id WHERE r.id=${id}::uuid AND r.owner_user_id=${owner}::uuid`;
+    FROM import_runs r JOIN workers w ON w.id=r.worker_id WHERE r.id=${id}::uuid AND r.owner_user_id=${owner}::uuid
+      AND ${ownerModule(sql, owner, "threads")}`;
 
 export interface NewItem {
   readonly agentCli: string;
@@ -174,7 +176,7 @@ export const createRun = (
                   ${base === null ? null : JSON.stringify(base)}::jsonb)`;
       }
     }),
-  );
+  ).pipe(admitImport(sql, run.ownerId));
 
 export const runs = (sql: SqlClient.SqlClient, ownerId: string, runId?: string) =>
   sql<RunRow>`WITH selected AS MATERIALIZED (

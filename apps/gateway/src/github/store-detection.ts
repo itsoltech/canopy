@@ -1,3 +1,4 @@
+import { ownerModule } from "../store/module-access.ts";
 import { fromJsonString, toJson } from "@bufbuild/protobuf";
 import { GitPrContextSchema, type GitPrContext } from "@canopy/contracts";
 import { Effect, Schema } from "effect";
@@ -40,7 +41,7 @@ export function githubDetectionStore(sql: SqlClient.SqlClient) {
       active_until=excluded.active_until,requested=github_detection_jobs.requested+1`,
     detectionClaim: (owner: string, lease: string) => sql<DetectionThread>`WITH due AS (
       SELECT j.thread_id FROM github_detection_jobs j JOIN threads t ON t.owner_user_id=j.owner_user_id AND t.id=j.thread_id
-      WHERE j.owner_user_id=${owner}::uuid AND j.next_at<=now() AND (j.lease_until IS NULL OR j.lease_until<now())
+      WHERE j.owner_user_id=${owner}::uuid AND ${ownerModule(sql, owner, "threads")} AND j.next_at<=now() AND (j.lease_until IS NULL OR j.lease_until<now())
       AND t.deleted_at IS NULL AND t.archived_at IS NULL AND t.worker_id IS NOT NULL
       ORDER BY j.next_at LIMIT 1 FOR UPDATE OF j SKIP LOCKED
     ) UPDATE github_detection_jobs j SET lease_id=${lease}::uuid,lease_until=now()+interval '2 minutes'
@@ -61,7 +62,8 @@ export function githubDetectionStore(sql: SqlClient.SqlClient) {
       next_at=CASE WHEN requested<>${requested}::bigint OR ${more} THEN now()+interval '1 second'
         WHEN active_until>now() OR EXISTS(SELECT 1 FROM turns u WHERE u.thread_id=j.thread_id AND u.status IN ('running','queued'))
         THEN now()+interval '5 minutes' * (0.8+random()*0.4) ELSE 'infinity'::timestamptz END
-      WHERE owner_user_id=${owner}::uuid AND thread_id=${id}::uuid AND lease_id=${lease}::uuid`,
+      WHERE owner_user_id=${owner}::uuid AND thread_id=${id}::uuid AND lease_id=${lease}::uuid
+        AND ${ownerModule(sql, owner, "threads")}`,
     detectionDetail: (owner: string, id: string) => sql<{ detail: string }>`SELECT detail FROM github_detection_jobs
       WHERE owner_user_id=${owner}::uuid AND thread_id=${id}::uuid`,
     detectionContext: (

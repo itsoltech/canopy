@@ -1,5 +1,6 @@
 import { create, fromJson, toJson, type DescMessage, type JsonValue } from "@bufbuild/protobuf";
 import { AgentToolSessionDefaultsSchema, ui } from "@canopy/contracts";
+import { enabledModules } from "@canopy/domain";
 import { nodeRef, splitId } from "@canopy/domain/computers";
 import { Predicate, Schema } from "effect";
 
@@ -32,6 +33,7 @@ const SECTIONS = {
   textGeneration: ui.TextGenerationSettingsSchema,
   sidebar: ui.SidebarSettingsSchema,
   cliUpdates: ui.CliUpdateSettingsSchema,
+  modules: ui.ModuleSettingsSchema,
   threadRetention: ui.ThreadRetentionSettingsSchema,
   agentToolDefaults: AgentToolSessionDefaultsSchema,
 } satisfies Record<string, DescMessage>;
@@ -72,6 +74,8 @@ export function settingsValues(stored: SettingsJson, self: string, nodes: readon
   for (const [section, schema] of Object.entries(SECTIONS)) {
     const message = fromJson(schema, stored[section] ?? {}, { ignoreUnknownFields: true });
     const json = { ...readObject(toJson(schema, message, { alwaysEmitImplicit: true })) };
+
+    if (section === "modules" && !stored[section]) json["enabled"] = enabledModules();
 
     if (section === "appearance") for (const key of LOCAL_APPEARANCE) delete json[key];
 
@@ -114,7 +118,8 @@ export function materializeSettings(stored: SettingsJson, values: SettingsJson, 
 
     const key = path.at(-1)!;
 
-    if (value === null) delete target[key];
+    if (field === "modules.enabled" && value === null) target[key] = enabledModules();
+    else if (value === null) delete target[key];
     else if (PINS.has(field))
       target[key] = strings(value).map((ref) => {
         const [id, home] = ref.split("@");
@@ -141,6 +146,7 @@ export function settingsRequest(stored: SettingsJson, version: bigint) {
     sidebar: user.sidebar,
     textGeneration: user.textGeneration,
     cliUpdates: user.cliUpdates,
+    modules: user.modules,
     threadRetention: user.threadRetention,
     agentToolDefaults: user.agentToolDefaults,
     ...(user.timezone && { timezone: user.timezone }),

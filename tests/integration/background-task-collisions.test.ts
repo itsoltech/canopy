@@ -233,10 +233,59 @@ describe.skipIf(!dockerAvailable)("background continuation collisions over gRPC"
     expect((await snapshot(threadId)).turns.find((t) => t.id === turnId)?.status).toBe("completed");
   }, 30_000);
 
+  test("stale worker tools cannot admit work during a pause or from the interrupted turn after resume", async () => {
+    const threadId = await startTasks();
+    gw.worker.holdTurns = true;
+    const turn = (await gw.api.sendMessage({ threadId, text: "Hold", clientRequestId: crypto.randomUUID() })).turn!;
+    await eventually(
+      () => snapshot(threadId),
+      (s) => s.turns.some((t) => t.id === turn.id && t.status === "running"),
+    );
+
+    const send = () =>
+      gw.worker.callTool({
+        threadId,
+        turnId: turn.id,
+        tool: "send_message",
+        args: { thread_id: threadId, prompt: "Stale call" },
+      });
+
+    const modules = async (enabled: string[]) =>
+      gw.api.updateUserSettings({
+        expectedVersion: (await gw.api.getSettings({})).user!.version,
+        modules: { enabled },
+      });
+
+    try {
+      await modules(["bots"]);
+      expect((await send()).isError).toBe(true);
+      await gw.runtime.runPromise(Ingest.use((s) => s.ingest(gw.workerId, "while-disabled", [end(threadId, "one")])));
+      await gw.core.backgroundTasks.tick();
+      expect((await snapshot(threadId)).turns).toHaveLength(2);
+    } finally {
+      gw.worker.holdTurns = false;
+      await modules(["threads", "bots"]);
+    }
+
+    expect((await send()).content).toContain("stopped when Threads was turned off");
+    await gw.core.backgroundTasks.tick();
+
+    const finished = await eventually(
+      () => snapshot(threadId),
+      (s) => s.turns.some((t) => t.trigger === "background_task" && t.status === "completed"),
+    );
+
+    expect(finished.turns.map((t) => t.trigger)).toEqual(["user", "user", "background_task"]);
+  }, 30_000);
+
   test("restart between saving a note turn and dispatching it recovers the same turn", async () => {
     const threadId = await startTasks();
     await gw.runtime.runPromise(Ingest.use((s) => s.ingest(gw.workerId, "before-dispatch", [end(threadId, "one")])));
-    const delivery = await gw.runtime.runPromise(BackgroundTaskStore.use((s) => s.deliver(threadId, { graceMs: 0 })));
+
+    const delivery = await gw.runtime.runPromise(
+      BackgroundTaskStore.use((s) => s.deliver(gw.userId, threadId, { graceMs: 0 })),
+    );
+
     expect(delivery.turn).toBeDefined();
     expect(await query("SELECT id FROM worker_commands WHERE turn_id=$1", [delivery.turn!.id])).toEqual([]);
     await restart();
@@ -266,7 +315,11 @@ describe.skipIf(!dockerAvailable)("background continuation collisions over gRPC"
     await gw.runtime.runPromise(
       Ingest.use((s) => s.ingest(gw.workerId, "before-steer-dispatch", [end(threadId, "one")])),
     );
-    const delivery = await gw.runtime.runPromise(BackgroundTaskStore.use((s) => s.deliver(threadId, { graceMs: 0 })));
+
+    const delivery = await gw.runtime.runPromise(
+      BackgroundTaskStore.use((s) => s.deliver(gw.userId, threadId, { graceMs: 0 })),
+    );
+
     expect(delivery.steerId).toBeDefined();
     expect(await query("SELECT id FROM worker_commands WHERE id=$1", [delivery.steerId!])).toEqual([]);
     await restart();
