@@ -11,7 +11,8 @@ i odmowy startu lokalnej bazy z uprawnieniami administratora, sesji dostępu do 
 podglądu bieżącej zajętości plików Canopy w Diagnostics oraz własnego HTML w rozmowie
 z odizolowanego renderera offscreen, bezpiecznego zamykania po zniszczeniu głównego okna
 oraz stałego zakresu preferencji urządzenia po restarcie lokalnego gatewaya
-i toastów w prawym dolnym rogu, które nie zawieszają przeciągania okna.
+i toastów oraz komunikatu o zakończonej aktualizacji w prawym dolnym rogu,
+które nie zawieszają przeciągania okna.
 Dostępność w nightly/beta/stable określają [zasady wydań](release.md) i GitHub Releases.
 
 Implementacja: `apps/desktop`. Cele wydania na każdym kanale: **Linux x64,
@@ -902,8 +903,9 @@ traci kliknięcia. Zasady:
 
 Nowy pasek: daj mu `data-window-drag` (zawsze) albo `data-window-titlebar` (tylko przy
 schowanym sidebarze). Nowa warstwa nad paskami poza `dialog`/`[popover]`: `data-window-no-drag`.
-Toast w dolnym rogu nie zasłania pasków, więc nie dostaje tego znacznika i nie
-wyłącza przeciągania okna ([notifications.md](notifications.md#toasty-w-aplikacji)).
+Toast i komunikat „Updated to …” w dolnym rogu nie zasłaniają pasków, więc nie
+dostają tego znacznika i nie wyłączają przeciągania okna
+([notifications.md](notifications.md#toasty-w-aplikacji)).
 
 ## Zamykanie i skrót Quit
 
