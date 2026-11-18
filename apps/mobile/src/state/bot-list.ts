@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { create } from "@bufbuild/protobuf";
 import { bots as botContract } from "@canopy/contracts";
+import type { QueryCache } from "@canopy/domain/shared-query";
 import { useOverviewEvents } from "./overview-bus";
 import { useAppearance } from "./appearance";
 import { useSession } from "./session";
@@ -13,14 +14,35 @@ export const BOT_LIST = "ListBots:archived";
 const BOT_LIST_FALLBACK_MS = 15_000;
 
 export function useBotList() {
-  const { client } = useSession();
+  const { client, queries } = useSession();
   const { botsEnabled, modulesReady } = useAppearance();
 
   return useSharedQuery(
     BOT_LIST,
-    (signal) => client!.api.listBots({ includeArchived: true }, { signal }),
+    (signal) => readBotList(client!.api, queries, signal),
     Boolean(client) && modulesReady && botsEnabled,
   );
+}
+
+/** A linked list or an overview update can still carry a read cursor from before the receipt. */
+function keepBotRead(bot: botContract.Bot, known: botContract.Bot | undefined): botContract.Bot {
+  return known && known.lastReadSeq > bot.lastReadSeq
+    ? { ...bot, lastReadSeq: known.lastReadSeq, unreadCount: known.unreadCount }
+    : bot;
+}
+
+async function readBotList(
+  api: NonNullable<ReturnType<typeof useSession>["client"]>["api"],
+  queries: QueryCache,
+  signal: AbortSignal,
+) {
+  const list = await api.listBots({ includeArchived: true }, { signal });
+
+  const known = new Map(
+    queries.snapshot<botContract.ListBotsResponse>(BOT_LIST).data?.bots.map((bot) => [bot.id, bot]),
+  );
+
+  return { ...list, bots: list.bots.map((bot) => keepBotRead(bot, known.get(bot.id))) };
 }
 
 /** The list with its bots replaced; the computers it could not reach stay as last read. */
@@ -35,9 +57,24 @@ const withBot = (list: botContract.ListBotsResponse | undefined, bot: botContrac
   withBots(
     list,
     list?.bots.some((b) => b.id === bot.id)
-      ? list.bots.map((b) => (b.id === bot.id ? bot : b))
+      ? list.bots.map((b) => (b.id === bot.id ? keepBotRead(bot, b) : b))
       : [...(list?.bots ?? []), bot],
   );
+
+/** Apply the confirmed count without replacing newer messages or unrelated sidebar state. */
+export function updateBotRead(queries: QueryCache, read: botContract.Bot) {
+  const list = queries.snapshot<botContract.ListBotsResponse>(BOT_LIST).data;
+  const known = list?.bots.find((bot) => bot.id === read.id);
+
+  if (!known || (known.lastMessage?.seq ?? 0n) > (read.lastMessage?.seq ?? 0n)) {
+    queries.invalidate(BOT_LIST);
+
+    return;
+  }
+
+  if (known.lastReadSeq >= read.lastReadSeq) return;
+  queries.set(BOT_LIST, withBot(list, { ...known, lastReadSeq: read.lastReadSeq, unreadCount: read.unreadCount }));
+}
 
 /**
  * Keeps the shared list current: one read on mount, then pushed `bot` / `botRemoved` updates. Each
@@ -67,6 +104,8 @@ export function useBotListSync() {
 
     if (change.case === "bot" && queries.snapshot(BOT_LIST).loaded)
       queries.set<botContract.ListBotsResponse>(BOT_LIST, (current) => withBot(current, change.value));
+
+    if (change.case === "linkedReadCompleted" && change.value === "ListBots") queries.invalidate(BOT_LIST);
 
     if (change.case === "botRemoved" && queries.snapshot(BOT_LIST).loaded)
       queries.set<botContract.ListBotsResponse>(BOT_LIST, (current) =>
@@ -100,6 +139,6 @@ export function useRefreshBots() {
   return async () => {
     if (!client) return;
     queries.invalidate(BOT_LIST);
-    await queries.read(BOT_LIST, (signal) => client.api.listBots({ includeArchived: true }, { signal }));
+    await queries.read(BOT_LIST, (signal) => readBotList(client.api, queries, signal));
   };
 }

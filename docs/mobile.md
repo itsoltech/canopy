@@ -1,8 +1,10 @@
 # Canopy na iOS i Android
 
 Status: opis zaimplementowanego kodu (2026-11-18); na liście Bots czas i licznik są wyrównane przy menu wiersza.
+Aktywny czat bota potwierdza odczyt najnowszych wiadomości i odświeża licznik listy Bots.
 Telefon i tablet pozwalają wybrać kolejność zakładek
-i zatrzymać pracę modułu Threads albo Bots na koncie właściciela. Kompozytor uwzględnia zapisane uprawnienia wątku Codexa. Nowy wątek od razu pokazuje prompt
+i zatrzymać pracę modułu Threads albo Bots na koncie właściciela.
+Kompozytor uwzględnia zapisane uprawnienia wątku Codexa. Nowy wątek od razu pokazuje prompt
 i checklistę rzeczywistego przygotowania przed startem agenta, we wspólnej geometrii
 nagłówka, osi czasu i kompozytora. Czat bota pozwala wysyłać kolejne wiadomości
 podczas odpowiedzi i ma osobny przycisk zatrzymania. Kompozytory i ustawienia botów
@@ -1278,6 +1280,11 @@ Brak kopii daje współdzielony `ConversationSkeleton`; nazwa i awatar pochodzą
 botów lub zapisanej projekcji. `WatchBotConversation` oraz `ReadBotExchange` wysyłają
 ostatni atomowy kursor. Wymiany odświeżają przyrost co 5 s na aktywnym ekranie;
 rozmowa używa strumienia. Kursor obejmuje również edycje i stan kart, nie tylko `seq`.
+W rozmowie widocznej na pierwszym planie aplikacja przez `MarkBotRead` potwierdza
+odczyt do najnowszej widocznej wiadomości bota z aktywnego strumienia, również
+w archiwum. Współdzielona lista Bots przyjmuje potwierdzony licznik z gatewaya
+i zachowuje go po powrocie z rozmowy. Starszy odczyt listy z połączonego komputera
+nie cofa potwierdzenia. Przy zerze licznik znika.
 Wysyłka, stop i wszystkie odpowiedzi na zgody (także „Always allow…”) czekają na live.
 Granica mutacji ponownie sprawdza, czy karta jest nadal pending w potwierdzonym stanie.
 Unpair i revocation jednocześnie zamykają oba cache przed usunięciem poświadczeń;

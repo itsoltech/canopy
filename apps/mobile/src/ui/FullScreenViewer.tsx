@@ -1,4 +1,4 @@
-import type { ReactNode } from "react";
+import { useLayoutEffect, type ReactNode } from "react";
 import { Modal, StyleSheet, Text } from "react-native";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
 import { SafeAreaProvider, SafeAreaView } from "react-native-safe-area-context";
@@ -6,6 +6,7 @@ import Animated, { useAnimatedStyle, type SharedValue } from "react-native-reani
 import { IconButton } from "./Button";
 import { CompactControls } from "./density";
 import { useMotion } from "./motion";
+import { registerFullScreenViewer } from "./overlay-stack";
 import { styles, useColors } from "./theme";
 
 /**
@@ -32,6 +33,7 @@ export function FullScreenViewer({
   const c = useColors();
   const { reveal } = useMotion();
   const opacity = useAnimatedStyle(() => ({ opacity: fade ? fade.get() : 1 }));
+  useLayoutEffect(registerFullScreenViewer, []);
 
   return (
     <Modal

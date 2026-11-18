@@ -20,6 +20,7 @@ interface Entry {
 
 let entries: readonly Entry[] = [];
 const listeners = new Set<() => void>();
+let fullScreenViewers = 0;
 
 export function subscribeOverlays(listener: () => void) {
   listeners.add(listener);
@@ -27,6 +28,25 @@ export function subscribeOverlays(listener: () => void) {
   return () => {
     listeners.delete(listener);
   };
+}
+
+function publish() {
+  for (const listener of listeners) listener();
+}
+
+/** Full-screen viewers cover the root without taking part in sheet presentation. */
+export function registerFullScreenViewer() {
+  fullScreenViewers++;
+  publish();
+
+  return () => {
+    fullScreenViewers--;
+    publish();
+  };
+}
+
+export function screenCovered() {
+  return fullScreenViewers > 0 || overlayNested(ROOT_OVERLAY);
 }
 
 export function setOverlay(id: string, entry: Omit<Entry, "id"> | undefined) {
@@ -40,7 +60,7 @@ export function setOverlay(id: string, entry: Omit<Entry, "id"> | undefined) {
   else if (previous.phase === entry.phase && previous.parent === entry.parent && previous.host === entry.host) return;
   else entries = entries.map((item) => (item.id === id ? { id, ...entry } : item));
 
-  for (const listener of listeners) listener();
+  publish();
 }
 
 /**

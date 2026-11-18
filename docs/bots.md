@@ -2,6 +2,7 @@
 
 Status (2026-11-18): wyłączenie modułu Bots zatrzymuje pracę botów właściciela,
 w tym tury na workerach, rutyny i dostarczanie przypomnień.
+Mobilna rozmowa potwierdza odczyt najnowszych wiadomości i odświeża listę botów.
 Zaimplementowano trwałe rozmowy botów przez Slack Socket Mode,
 buforowanie, załączniki wiadomości, izolację historii kanałów i zwykłe przyznane narzędzia
 w turach zewnętrznych. Konektor Slack umożliwia pobranie pliku po jego identyfikatorze.
@@ -665,7 +666,9 @@ decyduje model według instrukcji użytkownika; nie ma dodatkowych ustawień rut
 wyłącznie widoczne wiadomości bota do użytkownika powyżej tego numeru, w tym
 `message_user`; ukryta tura nie zwiększa licznika. `MarkBotRead` przyjmuje `through_seq`,
 sprawdza właściciela i monotonicznie potwierdza najwyżej istniejącą wiadomość.
-Otwarta rozmowa potwierdza odebrany snapshot tylko w widocznej karcie przeglądarki.
+W web/desktop otwarta rozmowa potwierdza odebrany snapshot w widocznej karcie.
+Na telefonie odczyt potwierdza aktywny czat przy najnowszych wiadomościach.
+Po potwierdzeniu aplikacja odświeża listę, a licznik znika przy zerze.
 Alerty systemowe web i desktop o wiadomościach, zgodach i pytaniach botów opisuje
 [notifications.md](notifications.md); push na telefon nie istnieje.
 

@@ -28,6 +28,7 @@ import { SidebarToggle } from "../navigation/SidebarToggle";
 import { FloatingComposer } from "../composer/FloatingComposer";
 import { useFloatingComposer } from "../composer/useFloatingComposer";
 import { useBotMessage } from "./useBotMessage";
+import { useBotRead } from "./useBotRead";
 import { BotComposer } from "./BotComposer";
 import { BotMentionSuggestions } from "./BotMentionSuggestions";
 import { DropZone } from "../attachments/FileIntake";
@@ -78,14 +79,16 @@ export function BotChatScreen({ id, rule = "" }: { id: string; rule?: string }) 
   return <BotConversation key={id} id={id} rule={rule} />;
 }
 
-function useBotConversation(id: string) {
+function useBotConversation(id: string, rule: string) {
   const chat = useBotChat(id);
   const { threadsEnabled } = useAppearance();
   const { conversation, known, stream, following, seen } = chat;
 
   const home = useComputerHome(conversation?.bot?.nodeId || splitId(id).node);
   const bot = conversation?.bot ?? known.find((bot) => bot.id === id);
-  const live = stream.connection === "live" && !home.away && !bot?.archived;
+  const connected = stream.connection === "live" && !home.away;
+  const live = connected && !bot?.archived;
+  const onViewableItemsChanged = useBotRead(conversation, connected && following.atBottom && !chat.details && !rule);
   const message = useBotMessage(id, live, following.resumeFollowing, bot?.configuration?.name);
 
   const approvals =
@@ -103,11 +106,13 @@ function useBotConversation(id: string) {
 
   const composer = useFloatingComposer(following, Boolean(message.draft.value.text.length || message.quotes.length));
 
-  return { chat, home, bot, live, message, approvals, waiting, latestFirst, arrival, composer };
+  return { chat, home, bot, live, message, approvals, waiting, latestFirst, arrival, composer, onViewableItemsChanged };
 }
 
 function BotConversation({ id, rule }: { id: string; rule: string }) {
-  const { chat, home, bot, live, message, approvals, waiting, latestFirst, arrival, composer } = useBotConversation(id);
+  const { chat, home, bot, live, message, approvals, waiting, latestFirst, arrival, composer, onViewableItemsChanged } =
+    useBotConversation(id, rule);
+
   const { draft, busy, error, setError } = message;
   const { conversation, following, history, setDetails } = chat;
 
@@ -127,6 +132,7 @@ function BotConversation({ id, rule }: { id: string; rule: string }) {
           <View style={styles.fill}>
             <TimelineList
               {...composer.listProps}
+              onViewableItemsChanged={onViewableItemsChanged}
               onEndReached={() => {
                 if (!following.isFollowing()) void history.load();
               }}

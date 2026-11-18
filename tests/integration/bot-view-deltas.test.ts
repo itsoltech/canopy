@@ -73,6 +73,7 @@ describe.skipIf(!dockerAvailable)("bot UI checkpoints on real gateways", () => {
   test("reopen transfers edits, failures and deletions without replaying history; control state is confirmed", async () => {
     state = await open(a);
     expect(state.messages).toHaveLength(1000);
+    expect(state.bot?.unreadCount).toBe(1000);
     const unchanged = await open(a, botId, state.cursor);
     expect(unchanged.delta).toBe(true);
     expect(unchanged.controlsUnchanged).toBe(true);
@@ -85,7 +86,16 @@ describe.skipIf(!dockerAvailable)("bot UI checkpoints on real gateways", () => {
       edited.id,
     ]);
     await query("DELETE FROM bot_messages WHERE id=$1::uuid", [removed.id]);
+
+    const listedBot = async () =>
+      (await a.api.listBots({ includeArchived: true })).bots.find((bot) => bot.id === botId);
+
+    await a.api.archiveBot({ botId });
+    await a.api.markBotRead({ botId, throughSeq: state.messages.at(-2)!.seq });
+    expect(await listedBot()).toMatchObject({ archived: true, unreadCount: 1 });
     await a.api.markBotRead({ botId, throughSeq: state.messages.at(-1)!.seq });
+    expect(await listedBot()).toMatchObject({ archived: true, unreadCount: 0 });
+    await a.api.unarchiveBot({ botId });
     const delta = await open(a, botId, state.cursor);
     expect(delta.delta).toBe(true);
     expect(delta.messages).toHaveLength(1);
