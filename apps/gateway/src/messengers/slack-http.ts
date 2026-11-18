@@ -100,6 +100,8 @@ const configurationCodes = new Set([
   "is_archived",
   "invalid_arguments",
   "invalid_arg_name",
+  "invalid_blocks",
+  "invalid_blocks_format",
   "invalid_form_data",
   "invalid_array_arg",
   "invalid_charset",
@@ -153,8 +155,8 @@ export async function readSlackBody(response: Response, maxBytes: number) {
   return Buffer.concat(chunks, bytes);
 }
 
-async function responseBody(response: Response) {
-  const bytes = await readSlackBody(response, 256 * 1024);
+async function responseBody(response: Response, maxBytes: number) {
+  const bytes = await readSlackBody(response, maxBytes);
 
   if (!bytes) throw new Error("Response limit");
 
@@ -221,7 +223,8 @@ export async function slackRequest(
       throw new SlackMessengerError(write ? "unknown_write" : "retryable", "http_error");
     }
 
-    const result = await responseBody(response);
+    // A successful post echoes the rich-text elements as well as the fallback text.
+    const result = await responseBody(response, write ? 2 * 1024 * 1024 : 256 * 1024);
 
     if (!result.ok) throw providerError(result.error ?? "", write, retryAfterMs);
 

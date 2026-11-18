@@ -92,7 +92,7 @@ describe.skipIf(!dockerAvailable)("direct Slack posts through gateway and worker
     ).toBe(false);
 
     const replyIn = (channel: string, parent: string) =>
-      f.tool(bot.id, post.name, { channel, reply_to: parent, message: "Follow-up <done>" });
+      f.tool(bot.id, post.name, { channel, reply_to: parent, message: "**Follow-up** <done>" });
 
     const pending = async () =>
       (
@@ -119,6 +119,21 @@ describe.skipIf(!dockerAvailable)("direct Slack posts through gateway and worker
       text: "Follow-up &lt;done&gt;",
       thread_ts: "1234.123456",
     });
+    expect(JSON.parse(posts[0]!.fields.get("blocks") ?? "null")).toEqual([
+      {
+        type: "rich_text",
+        elements: [
+          {
+            type: "rich_text_section",
+            elements: [
+              { type: "text", text: "Follow-up", style: { bold: true } },
+              { type: "text", text: " " },
+              { type: "text", text: "<done>" },
+            ],
+          },
+        ],
+      },
+    ]);
 
     await replyIn("C123", "1234.234567");
     const second = await f.settled(bot.id);

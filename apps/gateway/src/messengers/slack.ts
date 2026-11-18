@@ -1,6 +1,7 @@
 import { createHash } from "node:crypto";
 import { setTimeout as delay } from "node:timers/promises";
 import type { SlackEvent, SlackIdentity } from "./slack-events.ts";
+import { escapeSlackText, formatSlackMessage } from "./slack-format.ts";
 import {
   checkSlackCredentials,
   SlackMessengerError,
@@ -34,6 +35,8 @@ export interface SlackOutboundMessage {
   threadId?: string;
   text: string;
 }
+
+const maxSlackMessageLength = 40_000;
 
 async function slackIdentity(
   credentials: SlackCredentials,
@@ -166,14 +169,15 @@ export async function postSlackMessage(
     (message.threadId && !/^\d+\.\d+$/.test(message.threadId))
   )
     throw new SlackMessengerError("configuration", "invalid_message_target");
-  const text = message.text.replaceAll("&", "&amp;").replaceAll("<", "&lt;").replaceAll(">", "&gt;");
+  const literal = escapeSlackText(message.text);
 
-  if (!text.trim() || Array.from(text).length > 40_000 || Buffer.byteLength(text) > 160_000)
+  if (!literal.trim() || Array.from(literal).length > maxSlackMessageLength)
     throw new SlackMessengerError("configuration", "message_size_limit");
+  const formatted = formatSlackMessage(message.text);
 
   const fields = new URLSearchParams({
     channel: message.channelId,
-    text,
+    text: Array.from(formatted.text).length <= maxSlackMessageLength ? formatted.text : literal,
     client_msg_id: clientMessageId(message.id),
     parse: "none",
     mrkdwn: "false",
@@ -181,6 +185,8 @@ export async function postSlackMessage(
     unfurl_links: "false",
     unfurl_media: "false",
   });
+
+  if (formatted.blocks.length) fields.set("blocks", JSON.stringify(formatted.blocks));
 
   if (message.threadId) fields.set("thread_ts", message.threadId);
 

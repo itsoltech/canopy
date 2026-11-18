@@ -5,7 +5,7 @@ OAuth w gateway, dostęp wybranych workerów i botów oraz jeden kanał wykonani
 Status (2026-11-18): jedno konto Slack w Settings → Connectors współdzieli aplikację
 OAuth dla narzędzi MCP i wiadomości botów przez Socket Mode. Bot settings → Messengers
 wybiera podłączone konto i trasy; gateway odnawia rotowane tokeny użytkownika i bota.
-Po włączeniu wiadomości konto udostępnia też wysyłkę jako Canopy przez Slack Web API.
+Po włączeniu wiadomości konto udostępnia też sformatowaną wysyłkę jako Canopy przez Slack Web API.
 Bot może korzystać ze stałej zgody właściciela na wysyłkę do wybranej rozmowy Slack.
 Boty i wątki mogą pobierać udostępnione pliki Slack, a wiadomości Socket Mode mogą zawierać załączniki.
 Panel web/desktop jest odświeżany reaktywnie w pamięci BFF
@@ -266,8 +266,12 @@ udostępnia narzędzie `canopy_post_slack` botom i workerom z grantem tego konta
 Aplikacja musi mieć dostęp do rozmowy w Slacku. Używa istniejącego bot scope
 `chat:write`. Trasa nasłuchiwania nie jest potrzebna do wysyłki.
 Gateway wywołuje `chat.postMessage` jako aplikacja Canopy z użyciem tokenu bota.
-Wiadomość jest zwykłym tekstem, do 4000 znaków. Identyfikator rozmowy wskazuje
+Narzędzie przyjmuje tekst w Markdownie do 4000 znaków. Identyfikator rozmowy wskazuje
 miejsce wysyłki, a opcjonalne `reply_to` pozwala odpowiedzieć w istniejącym wątku.
+Gateway zamienia pogrubienia, kursywę, linki, listy i kod na elementy Slack rich text.
+Jawne `<@USER_ID>` w treści tworzy wzmiankę o konkretnej osobie. W kodzie, cytatach
+i etykietach linków pozostaje tekstem. Wzmianki grupowe i ogólnokanałowe pozostają
+tekstem, a automatyczne podglądy linków są wyłączone.
 Link do wysłanej wiadomości pojawia się po potwierdzeniu przez Slacka.
 Narzędzia Slack MCP do szkiców i wysyłki jako użytkownik zachowują własny proces
 przeglądu treści.
@@ -508,6 +512,7 @@ jest obowiązkowa: osoby spoza niej nie uruchamiają bota. Pasujące wiadomości
 a gotowe partie uruchamiają lub uzupełniają turę zużywającą tokeny modelu;
 instrukcje trasy nie są bezkosztowym filtrem semantycznym. Odpowiedź trafia do Slack (Reply in Slack)
 albo jako powiadomienie do właściciela w Canopy (Notify me in Canopy).
+Odpowiedzi wysyłane do Slacka mają to samo formatowanie co bezpośrednia wysyłka.
 Zewnętrzna rozmowa nie otrzymuje automatycznie prywatnej historii właściciela.
 Bot wybiera działania zgodnie z instrukcjami, korzystając ze swoich zwykłych
 przyznanych narzędzi i obowiązujących zasad zatwierdzania. Kanał nie otrzymuje

@@ -4,7 +4,7 @@ Status (2026-11-18): wyłączenie modułu Bots zatrzymuje pracę botów właści
 w tym tury na workerach, rutyny i dostarczanie przypomnień.
 Mobilna rozmowa potwierdza odczyt najnowszych wiadomości i odświeża listę botów.
 Zaimplementowano trwałe rozmowy botów przez Slack Socket Mode,
-buforowanie, załączniki wiadomości, izolację historii kanałów i zwykłe przyznane narzędzia
+buforowanie, załączniki, formatowanie odpowiedzi, izolację historii kanałów i przyznane narzędzia
 w turach zewnętrznych. Konektor Slack umożliwia pobranie pliku po jego identyfikatorze.
 Bot Codex może odczytać obraz z wiadomości lub konektora, jeśli jego model obsługuje obrazy.
 W prywatnej rozmowie z właścicielem bot może wysyłać jako Canopy na Slacku ze
@@ -145,8 +145,9 @@ bez surowej historii kanału. Odpowiedź właściciela wraca do tej tury; pytani
 karty, odpowiedzi i szczegóły grantów nie są automatycznie wysyłane do Slacka.
 O wyjaśnienia od autora wiadomości bot pyta zwykłą odpowiedzią w kanale.
 Bot publikuje odpowiedzi, aktualizacje i wyniki delegowania przez skonfigurowaną
-trasę Messages. Przy uruchomieniu wątku roboczego i przy kolejnych wiadomościach
-do niego Canopy dołącza instrukcję zwrócenia pytań i wyników do bota.
+trasę Messages. Slack dostaje sformatowany tekst z Markdowna i obsługuje jawne
+wzmianki o osobach w składni `<@USER_ID>`. Przy uruchomieniu wątku roboczego i przy
+kolejnych wiadomościach do niego Canopy dołącza instrukcję zwrócenia pytań i wyników do bota.
 Instrukcja zabrania wysyłania i szkicowania odpowiedzi do rozmowy źródłowej
 przez konektor Slack. Dotychczasowe granty konektora obowiązują nadal.
 Trasa „Notify me” prosi o zwięzłe podsumowanie dla właściciela. Jej wynik tworzy
