@@ -11,7 +11,8 @@ import { Code, ConnectError } from "@connectrpc/connect";
 // ------------------------------------------------------------------ ids
 
 export const idField = (name: string) =>
-  !["global_id", "snapshot_id"].includes(name) && (name === "id" || name.endsWith("_id") || name.endsWith("_ids"));
+  !["global_id", "snapshot_id", "preparation_request_id"].includes(name) &&
+  (name === "id" || name.endsWith("_id") || name.endsWith("_ids"));
 
 /** Installation attempts correlate reports; they never identify a routed Canopy entity. */
 const opaqueAttempt = (desc: DescMessage, message: Message, name: string) =>

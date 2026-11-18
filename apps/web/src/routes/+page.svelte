@@ -4,12 +4,13 @@
   import { page } from "$app/state";
   import { Provider, PermissionMode, ui } from "@canopy/contracts";
   import { create, toJsonString } from "@bufbuild/protobuf";
+  import { untrack } from "svelte";
   import { webDrafts } from "#lib/features/drafts/local.svelte.ts";
   import DraftPersistence from "#lib/features/drafts/DraftPersistence.svelte";
   import DraftActions from "#lib/features/drafts/DraftActions.svelte";
   import PendingDraft from "#lib/features/drafts/PendingDraft.svelte";
   import DraftMoveNotice from "#lib/features/drafts/DraftMoveNotice.svelte";
-  import { threadCreations } from "#lib/features/threads/thread-creation.svelte.ts";
+  import { startingPath, threadCreations } from "#lib/features/threads/thread-creation.svelte.ts";
   import type { ProjectChoice } from "@canopy/domain/projects";
   import { awayReason } from "#lib/features/computers/computers.ts";
   import Crumb from "#lib/features/navigation/Crumb.svelte";
@@ -135,6 +136,14 @@
       () => limitsOf(settings.attachmentLimits),
     ),
   );
+
+  const pendingRequestId = $derived(new URLSearchParams(saved.pendingForm).get("clientRequestId"));
+
+  $effect(() => {
+    const draft = saved;
+
+    if (pendingRequestId && webDrafts.ready) untrack(() => threadCreations.resume(pendingRequestId, draft));
+  });
 
   const picked = $derived(
     options.find(
@@ -311,6 +320,7 @@
           {sources}
           sending={busy}
           readonly={busy || saved.locked}
+          progressHref={saved.preparing && pendingRequestId ? startingPath(pendingRequestId) : undefined}
           canSend={!blocker && !draft.blocker && !branchBusy}
           {blockedReason}
           autofocus

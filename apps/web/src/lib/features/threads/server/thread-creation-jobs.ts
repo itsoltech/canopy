@@ -25,10 +25,12 @@ export interface ThreadCreationSnapshot {
   requestId: string;
   message: string;
   projectId: string;
+  workspaceId: string;
   steps: Step[];
   threadId: string;
   done: boolean;
   error: string;
+  preparationRejected: boolean;
 }
 
 interface Job {
@@ -92,9 +94,11 @@ function failJob(job: Job, detail: string, timedOut = false) {
     step.detail = detail;
   }
 
-  job.snapshot.error = timedOut
-    ? "Thread setup timed out. Check the worker connection, then try again."
-    : "Could not start this thread. Review the failed step, then try again.";
+  job.snapshot.error = job.snapshot.preparationRejected
+    ? "Could not prepare this thread. Review the failed step, then try again."
+    : timedOut
+      ? "Thread setup timed out. Check the worker connection."
+      : "Could not confirm the thread started.";
   finish(job);
 }
 
@@ -112,6 +116,8 @@ function applyProgress(job: Job, event: ui.CreateThreadProgress) {
   step.detail = publicDetail(event.detail);
 
   if (status === "failed") {
+    // A transport failure can occur at any step while admission continues at the gateway.
+    job.snapshot.preparationRejected = event.step !== "start_thread";
     failJob(job, step.detail || "The gateway could not finish this preparation step");
   } else if (event.step === "start_thread" && status === "completed" && event.thread?.id) {
     // Older workers and linked homes report only the operations they can observe.
@@ -165,10 +171,7 @@ async function run(job: Job, request: ui.CreateThreadRequest, api: Client<typeof
     }
 
     if (!job.snapshot.done && !job.controller.signal.aborted)
-      failJob(
-        job,
-        "The gateway stopped reporting progress before confirming the thread. Check the worker, then retry.",
-      );
+      failJob(job, "The gateway stopped reporting progress before confirming the thread.");
   } catch (cause) {
     if (job.controller.signal.aborted || job.snapshot.done) return;
     failJob(job, gatewayFailure(cause).message, cause instanceof ConnectError && cause.code === Code.DeadlineExceeded);
@@ -210,10 +213,12 @@ export function startThreadCreation(request: ui.CreateThreadRequest): string {
       requestId: request.clientRequestId,
       message: request.initialMessage,
       projectId: request.projectId,
+      workspaceId: request.workspaceId,
       steps: initialSteps(),
       threadId: "",
       done: false,
       error: "",
+      preparationRejected: false,
     },
   };
 

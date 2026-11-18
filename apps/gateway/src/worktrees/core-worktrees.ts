@@ -191,6 +191,18 @@ export interface PreparedWorkspace {
   readonly nameLater?: { worktree: WorktreeRow; location: string };
 }
 
+export async function resolveWorkspaceMode(hostContext: GatewayCore, request: ui.CreateThreadRequest) {
+  if (request.workspaceMode || request.parentThreadId) return request;
+  const { project, workspace } = await ownWorkspace(hostContext, request.workspaceId);
+
+  const mode =
+    project.kind === "scratch"
+      ? ui.WorkspaceMode.CHECKOUT
+      : (await coreWorktreeScope(hostContext, project.id, workspace.workerId)).effective.defaultMode;
+
+  return create(ui.CreateThreadRequestSchema, { ...request, workspaceMode: mode });
+}
+
 /**
  * CreateThread's workspace: create a requested worktree now; side threads inherit unless explicitly placed.
  * Resolve the directory here too so first-message file mentions use that placement.
@@ -214,16 +226,7 @@ export async function corePrepareWorkspace(
     throw new InvalidError("inherit_parent requires a parent thread");
   }
 
-  if (!request.workspaceMode) {
-    const { project, workspace } = await ownWorkspace(hostContext, request.workspaceId);
-
-    const mode =
-      project.kind === "scratch"
-        ? ui.WorkspaceMode.CHECKOUT
-        : (await coreWorktreeScope(hostContext, project.id, workspace.workerId)).effective.defaultMode;
-
-    request = create(ui.CreateThreadRequestSchema, { ...request, workspaceMode: mode });
-  }
+  request = await resolveWorkspaceMode(hostContext, request);
 
   if (request.parentThreadId && request.workspaceMode === ui.WorkspaceMode.CHECKOUT)
     request = create(ui.CreateThreadRequestSchema, { ...request, cwd: "", worktreeId: "" });

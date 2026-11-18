@@ -81,6 +81,7 @@ export function toUiThread(row: ThreadRow): ui.Thread {
     pullRequestCount: row.pull_request_count ?? 0,
     pullRequestRevision: BigInt(row.pull_request_revision ?? 0),
     id: row.id,
+    preparationRequestId: row.preparation_fingerprint ? (row.creation_request_id ?? "") : "",
     sidebarOrderKey: row.sidebar_order_key ?? "",
     lastReplyAt: row.last_reply_at ? timestampFromDate(new Date(row.last_reply_at)) : undefined,
     projectId: row.project_id,

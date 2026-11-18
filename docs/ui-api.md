@@ -88,8 +88,8 @@ kolejną turę zachowuje nadpisanie. Szczegóły trwałości i walidacji:
 
 ## Przygotowanie nowego wątku
 
-Status (2026-11-18): zaimplementowane; web/desktop automatycznie zwija kroki
-pomyślnie zakończonego przygotowania. Dostępność w kanałach: [release.md](release.md).
+Status (2026-11-18): zaimplementowane, w tym powrót z listy wątków do przygotowania
+nowego worktree i ponawianie po jednoznacznej odmowie. Dostępność w kanałach: [release.md](release.md).
 
 Kompozytor nowego wątku w web/desktop otwiera `/threads/starting/<clientRequestId>`
 od razu po wysłaniu, przed oczekiwaniem na Git. Pokazuje tę samą wiadomość użytkownika
@@ -109,7 +109,10 @@ kolumny `chat-column`, guttera paska przewijania, rezerwy na podsumowanie i stop
 `VirtualFeed` co gotowy wątek. Współdzielony separator dnia oraz rezerwa wiersza
 akcji pod promptem zachowują odstępy pierwszej wiadomości i checklisty (`mt-3`).
 Kompozytor od początku zajmuje docelowe miejsce; podczas przygotowania jest
-zablokowany i nie tworzy zastępczego rekordu wątku ani szkicu nowego wątku.
+zablokowany. Przy nowym worktree gateway zapisuje wątek po wstępnej walidacji,
+przed operacjami Git. `Thread.preparation_request_id` wiąże stały wątek ze
+sceną postępu, do której można wrócić z listy wątków. W czasie aktywnego zadania
+powrót do kompozytora daje akcję „Check progress” w miejscu wysyłania.
 Kotwica początku osi czasu utrzymuje prompt podczas dopisywania rzeczywistych
 kroków i zmiany ich opisów, również gdy lista przestaje mieścić się na ekranie.
 Ręczne przewijanie wybiera własną kotwicę czytelnika.
@@ -150,11 +153,15 @@ komunikat błędu. Obie odpowiedzi mają `no-store`. Klient odpytuje tylko trwaj
 przygotowanie, co około 400 ms; odświeżenie widoku korzysta z tego samego zadania.
 Zamknięcie strony nie przerywa operacji na workerze.
 
-Zadania są prywatnym, ograniczonym cache'em procesu BFF, nie nowym trwałym rekordem
-wątku. Zakończone wpisy wygasają po 15 minutach; restart BFF usuwa cache, a zmiana
-celu gatewaya anuluje subskrypcje i usuwa poprzednie dane. Niepewny wynik nie powoduje
+Szczegóły wykonania kroków mają prywatny, ograniczony cache procesu BFF.
+Zakończone wpisy cache'u wygasają po 15 minutach; restart BFF usuwa cache, a zmiana
+celu gatewaya anuluje subskrypcje i usuwa poprzednie dane. Trwały wątek nadal można
+otworzyć z listy. Przy połączonym komputerze odczyt rekordu w przygotowaniu
+sprawdza jego aktualny stan w domu, gdy ten jest dostępny. Niepewny wynik nie powoduje
 automatycznego ponownego wysłania promptu z nowym kluczem. Lokalny szkic pozostaje
 do potwierdzenia wyniku, a standardowe odzyskiwanie szkicu sprawdza dostarczenie.
+Gdy gateway jednoznacznie odrzuci przygotowanie, klient pozostawia treść i pliki
+w edytowalnym szkicu. Kolejne wysłanie ma nowy identyfikator.
 Jednoznaczne odrzucenie POST przed przyjęciem zadania (400/403/413/429) pozwala
 użytkownikowi ponowić wysyłkę z tym samym niezmiennym formularzem i identyfikatorem.
 Utrata odpowiedzi ani brak wpisu GET nie uprawniają do takiego ponowienia.
@@ -392,6 +399,10 @@ z ostatnim zatwierdzonym zapisem o przejętej rewizji. Późniejsze edycje zacho
 pod nowym ID wraz z plikami i cytatami; pokazuje cichą informację o przejęciu.
 Beztreściowy receipt przejęcia jest prywatny dla właściciela i źródłowego urządzenia,
 ważny 30 dni, niezależny od późniejszego zapisu lub wysłania na odbiorcy.
+
+Formularze nowego wątku i wątku bocznego przywracają LF przed walidacją
+zakresów UTF-16 wzmianek, odnośników do załączników i cytatów. Dzięki temu
+konwersja końców linii na CRLF w `multipart/form-data` nie przesuwa tych zakresów.
 
 | RPC | Kontrakt |
 | --- | --- |

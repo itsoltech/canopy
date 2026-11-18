@@ -13,7 +13,8 @@ const LIST_COLUMNS = `t.id,t.project_id,t.owner_user_id,t.kind,t.parent_thread_i
   t.schedule_run,t.interaction_route,t.agent_id,t.runtime,t.provider,t.provider_profile_id,t.worker_id,
   t.workspace_id,t.cwd,t.fork_source_thread_id,t.fork_after_turn_id,t.status,t.status_detail,t.title,
   t.title_source,t.title_revision,t.title_requested,t.last_seq,t.created_at,t.archived_at,t.archived_by,
-  t.archived_by_thread_id,t.deleted_at,t.worktree_id,NULL::text AS provider_thread_id,''::text AS title_context,
+  t.archived_by_thread_id,t.deleted_at,t.worktree_id,t.creation_request_id,t.preparation_fingerprint,
+  NULL::text AS provider_thread_id,''::text AS title_context,
   t.context_usage,t.auto_archive_on_merge,t.newest_pull_request,t.pull_request_count,t.pull_request_revision,t.sidebar_order_key,t.rewind_pending_id,t.list_settings AS settings`;
 
 export const listThreadSelect = (where: string, extraColumns = "") => threadSelect(where, extraColumns, true);

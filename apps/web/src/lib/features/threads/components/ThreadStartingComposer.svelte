@@ -12,7 +12,7 @@
   let { job }: { job: ThreadCreation } = $props();
   const overview = useOverview();
   const project = $derived(overview.projectChoice(job.snapshot?.projectId ?? ""));
-  const workspace = $derived(project?.workspaces.find((entry) => entry.id === job.workspaceId));
+  const workspace = $derived(project?.workspaces.find((entry) => entry.id === job.snapshot?.workspaceId));
   const worker = $derived(overview.worker(workspace?.workerId ?? ""));
   const sources = new MentionSources(() => undefined);
 </script>

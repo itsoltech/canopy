@@ -38,6 +38,7 @@ export async function reconcileDraftDelivery(
   const node = splitId(request.threadId || request.workspaceId).node;
   let confirmed = Boolean(receipt?.sent);
   let threadId = "";
+  let preparing: boolean | undefined;
 
   if (node) {
     const method = ui.GatewayService.method.getComposerDraftDelivery;
@@ -54,12 +55,16 @@ export async function reconcileDraftDelivery(
 
     confirmed ||= response.confirmed;
     threadId = response.threadId;
+
+    if (threadId && response.inFlight) preparing = true;
   } else if (!request.threadId) {
     const creation = await runtime.runPromise(
       Effect.gen(function* () {
         const sql = yield* SqlClient.SqlClient;
 
-        return (yield* sql<{ id: string; admitted: boolean }>`SELECT t.id,
+        return (yield* sql<{ id: string; admitted: boolean; preparing: boolean | null }>`SELECT t.id,
+          CASE WHEN t.preparation_fingerprint IS NOT NULL THEN
+            t.status='creating' AND t.archived_at IS NULL END AS preparing,
           EXISTS (SELECT 1 FROM turns r WHERE r.thread_id=t.id
             AND r.client_request_id=${request.clientRequestId}) AS admitted
           FROM threads t WHERE t.owner_user_id=${userId}::uuid AND t.deleted_at IS NULL
@@ -71,6 +76,7 @@ export async function reconcileDraftDelivery(
     // A linked caller can hold the sent receipt while this home holds a /goal
     // thread with no initial turn. Identity alone never confirms that creation.
     threadId = creation?.id ?? "";
+    preparing = creation?.preparing ?? undefined;
   } else if (uuid.test(request.threadId)) {
     confirmed = await runtime.runPromise(
       Effect.gen(function* () {
@@ -113,7 +119,7 @@ export async function reconcileDraftDelivery(
 
   return create(ui.ComposerDraftDeliverySchema, {
     confirmed,
-    inFlight: !confirmed && Boolean(receipt?.active),
+    inFlight: !confirmed && (preparing ?? Boolean(receipt?.active)),
     threadId,
   });
 }

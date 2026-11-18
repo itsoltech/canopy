@@ -7,15 +7,16 @@
   import { threadCreations, startingPath, type ThreadCreation } from "#lib/features/threads/thread-creation.svelte.ts";
   import ThreadStartingScene from "#lib/features/threads/components/ThreadStartingScene.svelte";
 
-  let job = $state<ThreadCreation>();
+  const requestId = $derived(page.params.requestId);
+  let observed = $state.raw<ThreadCreation>();
 
   $effect(() => {
     void webDrafts.generation;
-    const requestId = page.params.requestId;
 
-    if (webDrafts.ready && requestId) job = untrack(() => threadCreations.resume(requestId));
+    if (webDrafts.ready && requestId) observed = untrack(() => threadCreations.resume(requestId));
   });
 
+  const job = $derived(observed?.current && observed.requestId === requestId ? observed : undefined);
   const snapshot = $derived(job?.snapshot);
   let opening = $state("");
 
@@ -31,4 +32,4 @@
 
 <svelte:head><title>Starting thread · {applicationName}</title></svelte:head>
 
-{#if job}<ThreadStartingScene {job} />{/if}
+{#if job}{#key job}<ThreadStartingScene {job} />{/key}{/if}

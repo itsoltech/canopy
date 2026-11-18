@@ -5,7 +5,8 @@ Kopiowanie workspace'u na nowy worker tworzy samodzielny checkout także ze
 wybór obejmuje tylko ignorowane pliki lokalne bez zależności i wyniku builda. Ograniczenia Git:
 [workspace-copy.md](workspace-copy.md).
 
-Status: **etapy 1–3 zaimplementowane** (2026-11-17), w tym natychmiastowy widok przygotowania
+Status: **etapy 1–3 zaimplementowane** (2026-11-18), w tym zapis wątku przed utworzeniem worktree
+i powrót do przygotowania z listy wątków w web/desktop, natychmiastowy widok przygotowania
 nowego wątku z postępem operacji worktree w web/desktop i natywnym mobile, 24-godzinna ochrona worktree po archiwizacji
 i kontynuacja po usunięciu worktree w nowym wątku oraz sprzątanie zamkniętych worktree
 z odrzucaniem lokalnych plików, pomijanie plików ignorowanych przez Git,
@@ -469,9 +470,14 @@ fetch i checkout; starszy pokazuje zbiorczy krok tworzenia worktree. Nieudany
 opcjonalny fetch zachowuje dotychczasowy fallback do lokalnej bazy i wyjaśnia go
 przy pominiętym kroku.
 
-Worktree nadal powstaje przed rekordem wątku, więc `cwd` i `worktree_id` pozostają
-niezmienne. Po zakończeniu przygotowania klient zastępuje adres widoku adresem
-utworzonego wątku. Wcześniejsze opuszczenie strony nie przerywa przygotowania.
+Po wstępnej walidacji gateway zapisuje główny wątek użytkownika z ID żądania,
+zanim worker rozpocznie Git. Wątek trafia na listę i można wrócić do niego
+podczas przygotowania. `cwd` i `worktree_id` są nadawane raz, razem z pierwszą
+wiadomością i poleceniem startu w outboxie. Do tego momentu wątek nie przyjmuje
+kolejnych tur ani celów. Przy błędzie Git lub po restarcie gatewaya wątek pozostaje
+na liście z powodem odmowy lub przerwania. Wcześniejsze opuszczenie strony
+nie przerywa pracy. Po zakończeniu przygotowania klient zastępuje adres widoku
+adresem tego samego wątku.
 BFF przechowuje krótkotrwały postęp, aby odświeżenie widoku mogło go wznowić;
 nie jest to trwała historia operacji Git. Natywny mobile odbiera strumień bez BFF,
 a po utracie połączenia lub restarcie najpierw sprawdza dostarczenie trwałego requestu,

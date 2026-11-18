@@ -130,11 +130,10 @@ describe.skipIf(!dockerAvailable)("native thread creation over Connect and real 
     }
   }, 25_000);
 
-  test("failed worker preparation reaches the callback, rejects definitively, and creates no thread", async () => {
+  test("failed worker preparation reaches the callback and leaves a failed thread without confirming delivery", async () => {
     const transport = await proxy("forward");
     const input = create(ui.CreateThreadRequestSchema, { ...request(), baseRef: "missing-mobile-base" });
     const events: ui.CreateThreadProgress[] = [];
-    const before = await f.gw.api.listThreads({ projectId: input.projectId });
 
     try {
       const error = await streamThreadCreation(
@@ -152,8 +151,13 @@ describe.skipIf(!dockerAvailable)("native thread creation over Connect and real 
       expect(events.at(-1)).toMatchObject({ step: "check_workspace", status: "failed" });
       expect(events.at(-1)?.detail).toContain("not a branch or commit");
       expect(events.some((event) => event.thread)).toBe(false);
-      expect((await delivery(input)).confirmed).toBe(false);
-      expect((await f.gw.api.listThreads({ projectId: input.projectId })).threads).toEqual(before.threads);
+      const result = await delivery(input);
+
+      expect(result).toMatchObject({ confirmed: false, inFlight: false });
+      expect((await f.gw.api.getThread({ threadId: result.threadId })).thread).toMatchObject({
+        status: "failed",
+        preparationRequestId: input.clientRequestId,
+      });
       expect(transport.calls).toEqual({ stream: 1, unary: 0 });
     } finally {
       await transport.close();

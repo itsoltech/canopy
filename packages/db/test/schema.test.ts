@@ -4,6 +4,7 @@ import {
   completedTurn,
   failure,
   id,
+  insertSide,
   mainThread,
   query,
   runMigrations,
@@ -178,6 +179,7 @@ describe.skipIf(!dockerAvailable)("schema on PostgreSQL 17", () => {
       "164_usage_accounting",
       "165_usage_estimated_cost",
       "166_shared_slack",
+      "167_thread_worktree_preparation",
     ]);
   }, 60_000);
 
@@ -768,6 +770,54 @@ describe.skipIf(!dockerAvailable)("schema on PostgreSQL 17", () => {
         await failure(inWorktree, [id(), w.project, w.user, w.worker, w.workspace, "/data/worktrees/repo/a", first]),
       ).toContain("workspace worktree and path");
       await query(inWorktree, [id(), w.project, w.user, w.worker, w.workspace, "/data/worktrees/repo/a", live]);
+    });
+
+    test("a preparing thread admits work only after attaching an available worktree", async () => {
+      const w = await world();
+      const thread = id();
+      const worktree = id();
+      const path = "/data/worktrees/repo/prepare";
+
+      const reserve = `INSERT INTO threads (id, project_id, owner_user_id, kind, root_thread_id, runtime, provider,
+        worker_id, workspace_id, status, creation_request_id, preparation_fingerprint)
+        VALUES ($1, $2, $3, 'main', $1, 'worker', 'codex', $4, $5, $6, $7, 'fingerprint')`;
+
+      const placement = [thread, w.project, w.user, w.worker, w.workspace];
+      expect(await failure(reserve, [...placement, "failed", "request"])).toContain("threads_worktree_preparation");
+      expect(await failure(reserve, [...placement, "creating", null])).toContain("threads_worktree_preparation");
+      await query(reserve, [...placement, "creating", "request"]);
+
+      const turn = `INSERT INTO turns (id, thread_id, ordinal, trigger, author_user_id, input)
+        VALUES ($1, $2, 1, 'user', $3, '{}')`;
+
+      const goal = `INSERT INTO goals (id, thread_id, objective, status, created_by)
+        VALUES ($1, $2, 'Finish work', 'active', 'provider')`;
+
+      const side = insertSide(w, { parent: thread, root: thread, provider: "codex" });
+      expect(await failure(turn, [id(), thread, w.user])).toContain("thread_worktree_preparing");
+      expect(await failure(goal, [id(), thread])).toContain("thread_worktree_preparing");
+      expect(await failure(side.sql, side.params)).toContain("thread_worktree_preparing");
+      expect(await failure(`UPDATE threads SET preparation_fingerprint = NULL WHERE id = $1`, [thread])).toContain(
+        "immutable",
+      );
+
+      await query(
+        `INSERT INTO worktrees (id, owner_user_id, project_id, workspace_id, worker_id, repo_root, path, branch, removal_token)
+         VALUES ($1, $2, $3, $4, $5, '/repo', $6, 'canopy/prepared', $7)`,
+        [worktree, w.user, w.project, w.workspace, w.worker, path, id()],
+      );
+      const finalize = `UPDATE threads SET cwd = $2, worktree_id = $3, preparation_fingerprint = NULL WHERE id = $1`;
+      expect(await failure(finalize, [thread, path, worktree])).toContain("worktree_available");
+      await query(`UPDATE worktrees SET removal_token = NULL WHERE id = $1`, [worktree]);
+      expect(await failure(finalize, [thread, "/repo", worktree])).toContain("workspace worktree and path");
+      await query(`UPDATE threads SET deleted_at = now() WHERE id = $1`, [thread]);
+      expect(await failure(finalize, [thread, path, worktree])).toContain("immutable");
+      await query(`UPDATE threads SET deleted_at = NULL WHERE id = $1`, [thread]);
+      await query(finalize, [thread, path, worktree]);
+      await query(turn, [id(), thread, w.user]);
+      await query(goal, [id(), thread]);
+      await query(side.sql, side.params);
+      expect(await failure(`UPDATE threads SET cwd = '/repo' WHERE id = $1`, [thread])).toContain("immutable");
     });
   });
 

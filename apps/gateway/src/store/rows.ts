@@ -6,6 +6,8 @@ import type { StoredMentions } from "../core/mentions.ts";
 import type { ComposerChoiceColumns } from "./composer-choice-select.ts";
 
 export interface ThreadRow {
+  creation_request_id?: string | null;
+  preparation_fingerprint?: string | null;
   context_usage?: JsonValue | null;
   auto_archive_on_merge?: boolean | null;
   last_user_turn_choices?: ComposerChoiceColumns | null;

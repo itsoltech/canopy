@@ -68,7 +68,7 @@ export async function* draftCreationProgress(
             for await (const value of handlers.createThreadWithProgress(outgoing, operationContext)) {
               const event = create(ui.CreateThreadProgressSchema, value);
 
-              // Preparation precedes durable admission; failures during start may have committed.
+              // Preparation precedes first-message admission; failures during start may have committed.
               if (event.status === "failed") {
                 failure = event;
                 throw new ConnectError(

@@ -48,6 +48,8 @@ export async function prepareMessage(
 
   if (thread.archived_at) throw new InvalidError("the thread is archived");
 
+  if (thread.preparation_fingerprint) throw new InvalidError("This thread's worktree is not ready.");
+
   if (thread.rewind_pending_id) throw new InvalidError("This thread is rewinding. Wait for it to finish.");
 
   // Imported as history (docs/import.md): no provider session to continue in this thread.

@@ -63,7 +63,8 @@ export async function* mirrorFirst(
   if (method.name === "GetThread") {
     const thread = await computers.mirror.thread(nodeId, threadId);
 
-    if (!thread) return false;
+    // A preparation entry may already have acquired its worktree at the home.
+    if (!thread || (thread.preparationRequestId && thread.status === "creating")) return false;
     yield create(ui.GetThreadResponseSchema, { thread });
 
     return true;

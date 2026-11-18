@@ -1,27 +1,18 @@
-import { inheritThreadServiceTier } from "./thread-service-tier.ts";
+import { coreCreateThread } from "./create-thread.ts";
 import { create, type MessageInitShape } from "@bufbuild/protobuf";
 import type { CreationProgress } from "./thread-progress.ts";
-import { coreShellInput } from "./core-shell.ts";
 import { ForkSpecSchema, Provider, ui } from "@canopy/contracts";
 import { Effect } from "effect";
-import { SqlClient } from "effect/sql";
-import { harnessOf, NotFound, turnEffort, type ThreadRow } from "../store/index.ts";
-import { titleContext } from "./thread-titles.ts";
+import { NotFound, type ThreadRow } from "../store/index.ts";
 import { coreDeliver, coreDispatch } from "./core-commands.ts";
 import { coreState, InvalidError, TTL } from "./core-context.ts";
 import type { GatewayCore } from "./core.ts";
 import { coreCheckFullAccess, inheritedPermissionMode } from "./full-access.ts";
-import { coreMessageAttachments } from "./core-attachments.ts";
-import { coreComposeInput, coreMessageMentions } from "./core-mentions.ts";
-import { coreCheckModel, coreProfileModels } from "./core-models.ts";
 import { coreWorkers } from "./core-providers.ts";
-import { coreAutoTitle, coreUiThread } from "./core-titles.ts";
+import { coreUiThread } from "./core-titles.ts";
 import { coreBroadcastThread, coreRun } from "./core-broadcast.ts";
 import { coreAnnounceSchedule } from "./core-schedules.ts";
-import { corePrepareWorkspace } from "../worktrees/core-worktrees.ts";
-import { coreNameBranchLater } from "../worktrees/branch-naming.ts";
 import type { AutomatedAccess } from "../store/automated-permissions.ts";
-import { checkedQuotes, coreCheckQuoteSources } from "./quotes.ts";
 
 /**
  * The worker's last report (ConfigApplied) must offer the provider and the profile for it. A worker that
@@ -129,41 +120,11 @@ export async function coreStartThread(hostContext: GatewayCore, row: ThreadRow):
     { kind: { case: "createThread", value: { thread: spec, ...(fork && { fork }) } } },
     { threadId: row.id, ttlSeconds: TTL.createThread },
   );
+
+  if (hostContext[coreState].actions.defer(() => coreBroadcastThread(hostContext, row.id))) return;
   hostContext.hub.publishOverview(
     create(ui.OverviewUpdateSchema, { change: { case: "thread", value: coreUiThread(hostContext, row) } }),
   );
-}
-
-async function completedCreation(core: GatewayCore, input: ui.CreateThreadRequest) {
-  const previous = await coreRun(core, (s) =>
-    s.threadByCreation(core[coreState].options.userId, input.clientRequestId),
-  );
-
-  if (!previous) return;
-
-  const ready =
-    (!input.initialMessage && !input.initialAttachmentIds.length && !input.initialQuotes.length) ||
-    (await coreRun(core, (s) => s.turnByClientRequest(previous.id, input.clientRequestId)));
-
-  if (!ready) return;
-
-  if (previous.status === "creating") await coreStartThread(core, previous);
-
-  return coreUiThread(core, previous);
-}
-
-async function initialQuotes(core: GatewayCore, request: ui.CreateThreadRequest) {
-  const quotes = checkedQuotes(
-    request.initialQuotes,
-    (reason) => new InvalidError(reason),
-    request.initialMessage,
-    request.initialMentions,
-  );
-
-  for (const quote of quotes)
-    if (quote.sourceThreadId) await coreCheckQuoteSources(core, [quote], quote.sourceThreadId);
-
-  return quotes;
 }
 
 /** Automatic archival uses the same locks, cascade, cleanup and broadcasts as the user's action. */
@@ -187,45 +148,6 @@ export async function coreArchiveThread(
     ))
       coreAnnounceSchedule(hostContext, schedule);
   }
-}
-
-async function prepareCreation(
-  core: GatewayCore,
-  input: ui.CreateThreadRequest,
-  automated?: AutomatedAccess,
-  progress?: CreationProgress,
-) {
-  const source = input.forkAtTurnId && !input.parentThreadId ? await coreForkRequest(core, input) : input;
-
-  const asked = await inheritThreadServiceTier(
-    core,
-    automated ? { ...source, permissionMode: input.permissionMode } : source,
-  );
-
-  await coreCheckProvider(core, asked, automated !== undefined);
-
-  const where = {
-    workspaceId: asked.workspaceId,
-    provider: asked.provider,
-    profileId: asked.providerProfileId,
-  };
-
-  await coreCheckModel(core, where, asked.model, asked.effort, asked.serviceTier);
-  // A model without efforts keeps none as the thread's default.
-  const effort = turnEffort((await coreProfileModels(core, where)).models, asked.model, asked.effort);
-  // A new worktree is made before the thread, which then works in it (docs/worktrees.md).
-  const prepared = await corePrepareWorkspace(core, asked, progress);
-  const request = prepared.request;
-  progress?.("check_workspace", "completed");
-
-  if (request.workspaceMode !== ui.WorkspaceMode.NEW_WORKTREE) {
-    progress?.("fetch_remote", "skipped");
-    progress?.("create_worktree", "skipped");
-  }
-
-  progress?.("prepare_message", "running");
-
-  return { prepared, request, effort };
 }
 
 export interface CoreThreadsMethods {
@@ -331,150 +253,5 @@ export const coreThreadsMethods: CoreThreadsMethods = {
     return this.getThread(threadId);
   },
 
-  async createThread(
-    this: GatewayCore,
-    input: ui.CreateThreadRequest,
-    remoteParent?: {
-      ref: string;
-      kind: string;
-      instructions: string;
-      interactions: string;
-      permissionModeNote?: string;
-    },
-    ownerInput = false,
-    automated = remoteParent ? { permissionModeNote: remoteParent.permissionModeNote ?? "" } : undefined,
-    progress?: CreationProgress,
-  ): Promise<ui.Thread> {
-    progress?.("check_workspace", "running");
-    const previous = await completedCreation(this, input);
-
-    if (previous) {
-      progress?.("check_workspace", "completed");
-      progress?.("fetch_remote", "skipped", "Thread already created.");
-      progress?.("create_worktree", "skipped", "Thread already created.");
-      progress?.("prepare_message", "skipped", "Thread already created.");
-
-      return previous;
-    }
-
-    const { prepared, request, effort } = await prepareCreation(this, input, automated, progress);
-
-    const nameBranch = (row: ThreadRow) =>
-      prepared.nameLater && coreNameBranchLater(this, row, request.initialMessage, prepared.nameLater.worktree);
-
-    if (
-      request.initialAttachmentIds.length === 0 &&
-      request.initialMentions.length === 0 &&
-      request.initialQuotes.length === 0 &&
-      !(ownerInput && request.initialMessage.startsWith("!"))
-    ) {
-      progress?.("prepare_message", "completed");
-      progress?.("start_thread", "running");
-
-      const row = await coreRun(this, (s) =>
-        s.createThread(
-          this[coreState].options.userId,
-          effort === request.effort ? request : { ...request, effort },
-          undefined,
-          automated,
-        ),
-      );
-
-      if (remoteParent) {
-        await this[coreState].actions.run(
-          Effect.gen(function* () {
-            const sql = yield* SqlClient.SqlClient;
-            yield* sql`UPDATE threads SET remote_parent_ref=${remoteParent.ref},remote_parent_kind=${remoteParent.kind},interaction_route=${remoteParent.interactions},settings=settings || ${JSON.stringify({ instructions: remoteParent.instructions })}::jsonb WHERE id=${row.id}::uuid`;
-          }),
-        );
-        row.remote_parent_ref = remoteParent.ref;
-        row.remote_parent_kind = remoteParent.kind;
-        row.interaction_route = remoteParent.interactions === "human" ? "human" : "parent";
-        row.settings.instructions = remoteParent.instructions;
-      }
-
-      await coreStartThread(this, row);
-      nameBranch(row);
-
-      if (request.initialMessage.trim()) coreAutoTitle(this, row.id, titleContext({ text: request.initialMessage }));
-
-      return coreUiThread(this, row);
-    }
-
-    // With attachments or mentions: checked first (no thread for a message that cannot go), then the first message as a turn.
-    const projects = await coreRun(this, (s) => s.listProjects(this[coreState].options.userId));
-    const workspace = projects.flatMap((p) => p.workspaces).find((w) => w.id === request.workspaceId);
-
-    const files =
-      request.initialAttachmentIds.length > 0
-        ? await coreMessageAttachments(this, request.initialAttachmentIds, workspace?.workerId ?? "")
-        : undefined;
-
-    const { mentions, goal } = await coreMessageMentions(
-      this,
-      { cwd: request.cwd || workspace?.rootPath || "" },
-      request.initialMessage,
-      request.initialMentions,
-      files?.files,
-    );
-
-    const quotes = await initialQuotes(this, request);
-
-    if (goal !== undefined && files) throw new InvalidError("a /goal message cannot carry attachments");
-
-    const shell = ownerInput
-      ? coreShellInput(request.initialMessage, Boolean(files || request.initialMentions.length))
-      : undefined;
-
-    progress?.("prepare_message", "completed");
-    progress?.("start_thread", "running");
-
-    const row = await coreRun(this, (s) =>
-      s.createThread(this[coreState].options.userId, { ...request, effort, initialMessage: "" }, undefined, automated),
-    );
-
-    if (goal === undefined) {
-      const provider = harnessOf(request.provider)!;
-
-      const input =
-        shell ??
-        coreComposeInput(
-          this,
-          provider,
-          request.initialMessage,
-          mentions,
-          files?.input(row.id, request.initialMessage, mentions),
-          quotes,
-        );
-
-      await coreRun(this, (s) =>
-        s.enqueueTurn({
-          threadId: row.id,
-          text: request.initialMessage,
-          userId: this[coreState].options.userId,
-          clientRequestId: request.clientRequestId,
-          ...(input && { input }),
-        }),
-      );
-    }
-
-    await coreStartThread(this, row);
-    nameBranch(row);
-
-    // A /goal first message: the new thread's goal (Claude: its /goal turn; Codex: thread/goal/set after the thread).
-    if (goal !== undefined)
-      await this.setGoal(create(ui.SetGoalRequestSchema, { threadId: row.id, action: "set", objective: goal }));
-    else
-      coreAutoTitle(
-        this,
-        row.id,
-        titleContext({
-          text: request.initialMessage,
-          mentions,
-          attachments: files?.input(row.id, request.initialMessage).attachments,
-        }),
-      );
-
-    return coreUiThread(this, row);
-  },
+  createThread: coreCreateThread,
 };

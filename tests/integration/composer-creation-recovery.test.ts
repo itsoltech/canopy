@@ -123,7 +123,13 @@ async function canceledCreation(fixture: Awaited<ReturnType<typeof linkedProject
     controller.abort();
     await aborted.promise;
     await watching;
-    expect(await a.gw.api.getComposerDraftDelivery(lookup)).toMatchObject({ confirmed: false, inFlight: true });
+    const pending = await a.gw.api.getComposerDraftDelivery(lookup);
+
+    expect(pending).toMatchObject({ confirmed: false, inFlight: true });
+    expect((await a.gw.api.getThread({ threadId: pending.threadId })).thread).toMatchObject({
+      status: "creating",
+      preparationRequestId: input.clientRequestId,
+    });
     expect(await Promise.race([ended.promise.then(() => "ended"), Bun.sleep(100).then(() => "held")])).toBe("held");
     expect(await a.gw.api.getComposerDraftDelivery(lookup)).toMatchObject({ confirmed: false, inFlight: true });
     writeFileSync(releaseHook, "");
@@ -135,6 +141,7 @@ async function canceledCreation(fixture: Awaited<ReturnType<typeof linkedProject
 
     expect(result.confirmed).toBe(true);
     expect(result.inFlight).toBe(false);
+    expect(result.threadId).toBe(pending.threadId);
     const thread = (await a.gw.api.getThread({ threadId: result.threadId })).thread!;
     const localThreadId = thread.id.replace(/~.*$/, "");
     expect(thread.worktree).toBeDefined();

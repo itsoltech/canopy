@@ -1,10 +1,13 @@
 import { afterAll, beforeAll, describe, expect, test } from "bun:test";
-import { mkdirSync } from "node:fs";
+import { mkdirSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
+import { create } from "@bufbuild/protobuf";
 import { Provider, ui } from "@canopy/contracts";
 import { dockerAvailable } from "@canopy/db/testing";
 import { tempDir } from "@canopy/testing";
 import { nodeRef } from "@canopy/domain/computers";
+import { GatewayStore } from "@canopy/gateway/store";
+import { settleInterruptedWorktreePreparations } from "../../apps/gateway/src/core/worktree-preparation.ts";
 import { worktreeFixture, git } from "./support/worktrees.ts";
 import { eventually } from "./support/gateway.ts";
 import { linkedProjectFixture } from "./support/linked-projects.ts";
@@ -35,10 +38,56 @@ describe.skipIf(!dockerAvailable)("thread preparation progress through real work
     clientRequestId: Bun.randomUUIDv7(),
   });
 
-  test("real fetch and checkout events precede the final immutable thread; retries reuse it", async () => {
+  test("the thread is readable during checkout; concurrent requests complete the same thread", async () => {
     await f.settings({ startFromRemote: true });
-    const input = request();
-    const events = await Array.fromAsync(f.gw.api.createThreadWithProgress(input));
+    const hooks = join(dir, "checkout-hooks");
+    mkdirSync(hooks);
+    writeFileSync(
+      join(hooks, "post-checkout"),
+      '#!/bin/sh\ni=0\nwhile [ ! -f "${0%/*}/continue" ]; do i=$((i + 1)); [ "$i" -le 80 ] || exit 1; sleep 0.1; done\n',
+      { mode: 0o755 },
+    );
+    git(f.repo, "config", "core.hooksPath", hooks);
+    const input = { ...request(), initialMessage: "Check the checkout" };
+    const preparing = Promise.withResolvers<void>();
+
+    const creation = Array.fromAsync(f.gw.api.createThreadWithProgress(input), (event) => {
+      if (event.step === "create_worktree" && event.status === "running") preparing.resolve();
+
+      return event;
+    });
+
+    let pendingId = "";
+    let replay: Promise<ui.CreateThreadProgress[]> | undefined;
+
+    try {
+      await Promise.race([preparing.promise, creation]);
+
+      const pending = (await f.gw.api.listThreads({ projectId: f.project.id })).threads.find(
+        (entry) => entry.preparationRequestId === input.clientRequestId,
+      );
+
+      expect(pending).toMatchObject({ status: "creating", cwd: "" });
+      expect(pending?.worktree).toBeUndefined();
+      pendingId = pending!.id;
+      expect((await f.gw.api.getThread({ threadId: pendingId })).thread?.id).toBe(pendingId);
+
+      const delivery = await f.gw.api.getComposerDraftDelivery({
+        clientRequestId: input.clientRequestId,
+        workspaceId: input.workspaceId,
+      });
+
+      expect(delivery).toMatchObject({ confirmed: false, inFlight: true, threadId: pendingId });
+      await expect(
+        f.gw.core.sendMessage(create(ui.SendMessageRequestSchema, { threadId: pendingId, text: "Too early" })),
+      ).rejects.toThrow("worktree is not ready");
+      replay = Array.fromAsync(f.gw.api.createThreadWithProgress(input));
+    } finally {
+      writeFileSync(join(hooks, "continue"), "");
+      git(f.repo, "config", "--unset", "core.hooksPath");
+    }
+
+    const events = await creation;
     expect(events).toContainEqual(
       expect.objectContaining({ step: "fetch_remote", status: "running", label: "Fetch remote branch" }),
     );
@@ -47,29 +96,61 @@ describe.skipIf(!dockerAvailable)("thread preparation progress through real work
     const final = events.at(-1)!;
     expect(final).toMatchObject({ step: "start_thread", status: "completed" });
     const thread = final.thread!;
+    expect(thread.id).toBe(pendingId);
+    expect(thread.preparationRequestId).toBe("");
     expect(thread.worktree?.path).toBe(thread.cwd);
     expect(thread.cwd).not.toBe(f.repo);
     expect(git(f.repo, "symbolic-ref", "--short", "HEAD")).toBe("main");
     expect(events.slice(0, -1).every((event) => !event.thread)).toBe(true);
+    expect((await replay)?.at(-1)?.thread?.id).toBe(thread.id);
+
+    const delivered = await f.gw.api.getComposerDraftDelivery({
+      clientRequestId: input.clientRequestId,
+      workspaceId: input.workspaceId,
+    });
+
+    expect(delivered).toMatchObject({ confirmed: true, inFlight: false, threadId: thread.id });
     await f.settled(thread);
     const retried = await Array.fromAsync(f.gw.api.createThreadWithProgress(input));
     expect(retried.at(-1)?.thread?.id).toBe(thread.id);
     expect(retried).toContainEqual(expect.objectContaining({ step: "create_worktree", status: "skipped" }));
   }, 20_000);
 
-  test("checkout skips Git creation, invalid bases fail without creating a thread", async () => {
+  test("startup settles an unfinished reservation without confirming its draft", async () => {
+    const input = create(ui.CreateThreadRequestSchema, request());
+
+    const row = await f.gw.runtime.runPromise(
+      GatewayStore.use((s) => s.createThread(f.gw.userId, input, undefined, undefined, undefined, "stranded")),
+    );
+
+    await settleInterruptedWorktreePreparations(f.gw.core);
+    const thread = (await f.gw.api.getThread({ threadId: row.id })).thread;
+
+    const delivery = await f.gw.api.getComposerDraftDelivery({
+      clientRequestId: input.clientRequestId,
+      workspaceId: input.workspaceId,
+    });
+
+    expect(thread).toMatchObject({ status: "failed", cwd: "", preparationRequestId: input.clientRequestId });
+    expect(thread?.statusDetail).toContain("Canopy restarted");
+    expect(delivery).toMatchObject({ confirmed: false, inFlight: false, threadId: row.id });
+  });
+
+  test("checkout skips Git creation and a failed worktree stays visible", async () => {
     const checked = await Array.fromAsync(
       f.gw.api.createThreadWithProgress({ ...request(), workspaceMode: ui.WorkspaceMode.CHECKOUT }),
     );
 
     expect(checked).toContainEqual(expect.objectContaining({ step: "create_worktree", status: "skipped" }));
     await f.settled(checked.at(-1)!.thread!);
-    const before = await f.gw.api.listThreads({ projectId: f.project.id });
-    const failed = await Array.fromAsync(f.gw.api.createThreadWithProgress({ ...request(), baseRef: "missing-base" }));
+    const input = { ...request(), baseRef: "missing-base" };
+    const failed = await Array.fromAsync(f.gw.api.createThreadWithProgress(input));
     expect(failed.at(-1)).toMatchObject({ step: "check_workspace", status: "failed" });
     expect(failed.at(-1)?.detail).toContain("not a branch or commit");
     expect(failed.some((event) => event.thread)).toBe(false);
-    expect((await f.gw.api.listThreads({ projectId: f.project.id })).threads.length).toBe(before.threads.length);
+    const result = await f.gw.api.listThreads({ projectId: f.project.id });
+    const thread = result.threads.find((entry) => entry.preparationRequestId === input.clientRequestId);
+    expect(thread).toMatchObject({ status: "failed", statusDetail: failed.at(-1)?.detail, cwd: "" });
   }, 20_000);
 
   test("fetch failure reports a local fallback and older workers only report broad creation", async () => {

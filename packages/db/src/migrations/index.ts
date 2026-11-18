@@ -3,6 +3,7 @@
 import { Effect } from "effect";
 import { Migrator, SqlClient } from "effect/sql";
 import sharedSlack from "./0166_shared_slack.sql" with { type: "text" };
+import threadWorktreePreparation from "./0167_thread_worktree_preparation.sql" with { type: "text" };
 import botChannels from "./0163_bot_channels.sql" with { type: "text" };
 import init from "./0001_init.sql" with { type: "text" };
 import videoAttachments from "./0135_video_attachments.sql" with { type: "text" };
@@ -346,6 +347,7 @@ export const migrations = Migrator.fromRecord({
   "0164_usage_accounting": sqlFile(usageAccounting),
   "0165_usage_estimated_cost": sqlFile(usageEstimatedCost),
   "0166_shared_slack": sqlFile(sharedSlack),
+  "0167_thread_worktree_preparation": sqlFile(threadWorktreePreparation),
 });
 
 /** Applies pending migrations in a transaction with a lock, safe to call from a deploy step. */
