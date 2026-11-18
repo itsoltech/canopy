@@ -2,6 +2,7 @@ import type { Options } from "@anthropic-ai/claude-agent-sdk";
 import type { Env } from "../profiles.ts";
 import type { ClaudeInstanceRuntime } from "./thread-types.ts";
 import { claudeInstructionSettings, managedClaudeInstructions } from "./instructions.ts";
+import type { ClaudePermissions } from "./permissions.ts";
 import { claudeFastMode } from "./service-tier.ts";
 import { prepareClaudeUserConfiguration } from "./user-configuration.ts";
 
@@ -11,7 +12,7 @@ export async function claudeQueryConfiguration(
   cwd: string,
   scratch: boolean,
   env: Env,
-  launch: Options,
+  launch: Omit<Options, "sandbox"> & Pick<ClaudePermissions["options"], "sandbox">,
   serviceTier = "default",
 ) {
   const user = await prepareClaudeUserConfiguration(runtime, cwd);
@@ -28,16 +29,22 @@ export async function claudeQueryConfiguration(
       fastMode: claudeFastMode(serviceTier),
     };
 
-    // Hook settings must stay in a private file so they never enter SDK argv. Inline settings are safe when the
-    // inherited hook decoder did not contribute a hooks object, and preserve the legacy isolated startup path.
-    const settings = Object.hasOwn(user.settings, "hooks") ? await user.settingsFile(combined) : combined;
+    // Hook settings must stay out of argv. With a settings file the SDK requires sandbox settings in that file.
+    const { sandbox, ...launchWithoutSandbox } = launch;
+    const hasHooks = Object.hasOwn(user.settings, "hooks");
+    const settings = hasHooks ? await user.settingsFile({ ...combined, ...(sandbox && { sandbox }) }) : combined;
 
     const instructions = [user.instructions, managedClaudeInstructions(runtime.platformHome ?? runtime.home)]
       .filter(Boolean)
       .join("\n\n");
 
     return {
-      options: { ...launch, settings, plugins: [...(launch.plugins ?? []), ...user.plugins] },
+      options: {
+        ...launchWithoutSandbox,
+        ...(!hasHooks && sandbox && { sandbox }),
+        settings,
+        plugins: [...(launch.plugins ?? []), ...user.plugins],
+      },
       instructions,
       close: user.close,
     };
