@@ -12,7 +12,7 @@ import {
   type ThreadEvent,
 } from "@canopy/contracts";
 import { tempDirs } from "@canopy/testing";
-import { Effect, Layer, ManagedRuntime } from "effect";
+import { Layer, ManagedRuntime } from "effect";
 import { CodexConsumedUsage } from "./consumed-usage.ts";
 import { OpenAiPricingCatalog } from "../pricing/openai-catalog.ts";
 import { openAiPriceFixture } from "../fixtures/openai-pricing.ts";
@@ -201,6 +201,7 @@ test("thread, resumed bot and disposable generation use the injected durable cat
   const env = { PATH: process.env["PATH"], TIER_TRACE: join(root, "trace.jsonl"), TIER_BOT_COMPLETE: "1" };
   const profile = resolveProfiles([{ id: "native", kind: "native", providers: ["codex"] }])[0]!.resolved!;
   const events: ThreadEvent[] = [];
+  const finished = Promise.withResolvers<void>();
   let requests = 0;
 
   const server = Bun.serve({
@@ -221,7 +222,11 @@ test("thread, resumed bot and disposable generation use the injected durable cat
       launch: { command: [process.execPath, fixture, "--codex"], env },
       clientVersion: "test",
       profile: () => profile,
-      publish: (event) => events.push(event),
+      publish: (event) => {
+        events.push(event);
+
+        if (event.body.case === "turnFinished") finished.resolve();
+      },
       interact: async () => create(InteractionResponseSchema),
       callTool: async () => create(AgentToolResultSchema),
     }).pipe(Layer.provideMerge(Journal.layer(join(root, "journal.db")))),
@@ -240,7 +245,7 @@ test("thread, resumed bot and disposable generation use the injected durable cat
     await runtime.runPromise(threads.create(spec));
     const turn = crypto.randomUUID();
     await runtime.runPromise(threads.startTurn(spec, turn, create(UserInputSchema, { text: "Hello" })));
-    await runtime.runPromise(Effect.sleep("50 millis"));
+    await finished.promise;
 
     const threadUsage = events.flatMap((event) =>
       event.body.case === "usageUpdated" && event.body.value.usage ? [event.body.value.usage] : [],

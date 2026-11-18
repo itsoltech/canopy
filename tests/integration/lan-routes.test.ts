@@ -386,10 +386,11 @@ describe.skipIf(!dockerAvailable)("routes and local network discovery between tw
   }, 20_000);
 
   test("unlink removes every route on both computers", async () => {
+    // The previous test restarts discovery; wait for its pinned link before sending revocation.
+    await online();
     await a.api.manageComputer({ action: "unlink", nodeId: lb.hello().nodeId });
     await eventually(async () => !(await sb.peers()).length);
-    await Bun.sleep(500);
     expect(await sa.query("SELECT 1 FROM computer_routes WHERE owner_user_id=$1::uuid", [a.userId])).toHaveLength(0);
     expect(await sb.query("SELECT 1 FROM computer_routes WHERE owner_user_id=$1::uuid", [b.userId])).toHaveLength(0);
-  }, 15_000);
+  }, 30_000);
 });

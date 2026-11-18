@@ -13,6 +13,7 @@ if (process.argv.includes("--version")) {
 if (process.argv.includes("--descendant")) {
   process.on("SIGTERM", () => {});
   setInterval(() => {}, 1000);
+  console.log("ready");
   await new Promise(() => {});
 }
 
@@ -83,9 +84,13 @@ for await (const line of createInterface({ input: process.stdin })) {
       process.on("SIGTERM", () => {});
 
       const child = Bun.spawn([process.execPath, import.meta.path, "--descendant"], {
-        stdio: ["ignore", "ignore", "ignore"],
+        stdio: ["ignore", "pipe", "ignore"],
       });
 
+      const reader = child.stdout.getReader();
+
+      if ((await reader.read()).done) throw new Error("Descendant exited before installing its signal handler");
+      reader.releaseLock();
       record({ event: "child", childPid: child.pid });
       continue;
     }

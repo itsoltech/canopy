@@ -1,7 +1,7 @@
 import { expect, test } from "bun:test";
 import { create } from "@bufbuild/protobuf";
 import { join, resolve } from "node:path";
-import { existsSync, readFileSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { ManagedRuntime } from "effect";
 import { tempDirs } from "@canopy/testing";
 import {
@@ -39,6 +39,13 @@ function fixture(provider: Provider) {
   const dataDir = join(root, "data");
   const trace = join(root, "trace.jsonl");
   const runtime = ManagedRuntime.make(Journal.layer(join(root, "journal.db")));
+
+  // Steering uses a synthetic model: a durable miss keeps its usage off the public pricing endpoint.
+  mkdirSync(join(dataDir, "pricing"), { recursive: true });
+  writeFileSync(
+    join(dataDir, "pricing", "openai.json"),
+    JSON.stringify({ schema: 1, cooldown: 0, entries: [{ id: "fixture", retryAt: Date.now() + 86_400_000 }] }),
+  );
 
   const state = new HostState({
     runtime,

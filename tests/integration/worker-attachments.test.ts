@@ -33,6 +33,7 @@ const requests: { threadId: string; sha256: string }[] = [];
 const sha = (data: Uint8Array) => createHash("sha256").update(data).digest("hex");
 
 beforeAll(async () => {
+  const configured = Promise.withResolvers<void>();
   gateway = await startGateway();
   runtime = ManagedRuntime.make(Journal.layer(join(dir, "journal.db")));
   host = new WorkerHost({ runtime, dataDir: join(dir, "data"), clientVersion: "test" });
@@ -54,6 +55,12 @@ beforeAll(async () => {
   // The gateway's side of FetchBlob, in 1000-byte chunks.
   void (async () => {
     for await (const message of connection.messages) {
+      if (message.payload.case === "configApplied") {
+        if (message.payload.value.applied) configured.resolve();
+        else configured.reject(new Error("Worker configuration was not applied"));
+        continue;
+      }
+
       if (message.payload.case !== "fetchBlob") continue;
       const { requestId, sha256, threadId } = message.payload.value;
       requests.push({ threadId, sha256 });
@@ -80,7 +87,7 @@ beforeAll(async () => {
     }
   })();
 
-  await Bun.sleep(100); // config applied
+  await configured.promise;
 });
 
 afterAll(async () => {

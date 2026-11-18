@@ -109,17 +109,20 @@ describe.skipIf(!dockerAvailable)("managing the queue (gateway + scripted worker
     const { thread, runningId, queued } = await busyThread("reorder", ["A", "B", "C"]);
     const [a, b, c] = queued.map((t) => t.id) as [string, string, string];
     const live: ui.Turn[] = [];
+    const snapshot = Promise.withResolvers<void>();
 
     const watching = watchUntil(
       gw.api,
       thread.id,
       (u) => u.filter((x) => x.change.case === "turn").length >= 3,
       (u) => {
+        if (u.change.case === "snapshot") snapshot.resolve();
+
         if (u.change.case === "turn") live.push(u.change.value);
       },
     );
 
-    await Bun.sleep(100); // the snapshot first
+    await Promise.race([snapshot.promise, watching]);
     const moved = await gw.api.reorderQueuedTurns({ threadId: thread.id, turnIds: [c, a, b] });
     expect(moved.turns.map((t) => t.inputText)).toEqual(["C", "A", "B"]);
     expect(moved.turns.map((t) => t.ordinal)).toEqual(queued.map((t) => t.ordinal).sort((x, y) => x - y));

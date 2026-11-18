@@ -31,6 +31,7 @@ function fixture() {
   const dir = tempDir("canopy-grok-text-");
   const traceFile = join(dir, "trace.jsonl");
   const fake = resolve(import.meta.dir, "fixtures/text-agent.ts");
+  writeFileSync(traceFile, "");
   writeFileSync(join(dir, "auth.json"), "{}");
 
   const profile: ResolvedProfile = {
@@ -49,6 +50,7 @@ function fixture() {
       readFileSync(traceFile, "utf8")
         .trim()
         .split("\n")
+        .filter(Boolean)
         .map((line) => JSON.parse(line) as Trace),
   };
 }
@@ -218,12 +220,18 @@ test("Grok abort reaps an uncooperative CLI and its child before returning", asy
   );
 
   const ended = generation.catch(() => undefined);
-  const timer = setTimeout(() => abort.abort(), 500);
 
   try {
+    const deadline = Date.now() + 5000;
+
+    while (!f.trace().some((entry) => entry.event === "child")) {
+      if (Date.now() > deadline) throw new Error("Uncooperative descendant did not become ready");
+      await Bun.sleep(10);
+    }
+
+    abort.abort();
     await expect(generation).rejects.toThrow();
   } finally {
-    clearTimeout(timer);
     abort.abort();
     await ended;
   }

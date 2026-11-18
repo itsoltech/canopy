@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { QueryCache, QueryCacheDisposed } from "./shared-query.ts";
+import { queryCache, settle } from "./shared-query.fixture.ts";
 
 /** A fetch whose calls are counted and answered by the test. */
 function controlled<T>() {
@@ -13,11 +13,9 @@ function controlled<T>() {
   return { fetch, calls };
 }
 
-const settle = () => Bun.sleep(5);
-
 describe("shared session reads", () => {
   test("consumers of one key share one request and an empty result counts as loaded", async () => {
-    const cache = new QueryCache({ coalesceMs: 0 });
+    const { cache } = queryCache({ coalesceMs: 0 });
     const reader = controlled<string[]>();
     const changes: number[] = [];
     const stop = [1, 2, 3].map((n) => cache.watch("ListProxies", reader.fetch, () => changes.push(n)));
@@ -34,7 +32,7 @@ describe("shared session reads", () => {
   });
 
   test("a burst of invalidations reads once, and once more if it arrives during the read", async () => {
-    const cache = new QueryCache({ coalesceMs: 10 });
+    const { cache, clock } = queryCache({ coalesceMs: 10 });
     const reader = controlled<number>();
     cache.watch("ListWorkerRecords", reader.fetch, () => {});
     reader.calls[0]!.resolve(1);
@@ -42,11 +40,13 @@ describe("shared session reads", () => {
 
     for (let n = 0; n < 8; n++) cache.invalidate("ListWorkerRecords");
     expect(cache.snapshot("ListWorkerRecords").stale).toBe(true);
-    await Bun.sleep(20);
+    await clock.advance(9);
+    expect(reader.calls).toHaveLength(1);
+    await clock.advance(1);
     expect(reader.calls).toHaveLength(2);
 
     for (let n = 0; n < 8; n++) cache.invalidate("ListWorkerRecords");
-    await Bun.sleep(20);
+    await clock.advance(10);
     expect(reader.calls).toHaveLength(2);
     reader.calls[1]!.resolve(2);
     await settle();
@@ -58,13 +58,13 @@ describe("shared session reads", () => {
   });
 
   test("an unwatched key is only marked stale and reads on its next use", async () => {
-    const cache = new QueryCache({ coalesceMs: 0 });
+    const { cache, clock } = queryCache({ coalesceMs: 0 });
     const reader = controlled<number>();
     const read = cache.read("GetAgentEnvironment", reader.fetch);
     reader.calls[0]!.resolve(1);
     await read;
     cache.invalidate((key) => key.startsWith("GetAgent"));
-    await settle();
+    await clock.advance(0);
     expect(reader.calls).toHaveLength(1);
     const again = cache.read("GetAgentEnvironment", reader.fetch);
     reader.calls[1]!.resolve(2);
@@ -72,7 +72,7 @@ describe("shared session reads", () => {
   });
 
   test("a read started before a set value is older and does not overwrite it", async () => {
-    const cache = new QueryCache({ coalesceMs: 0 });
+    const { cache, clock } = queryCache({ coalesceMs: 0 });
     const reader = controlled<string>();
     cache.watch("GetSettings", reader.fetch, () => {});
     cache.set("GetSettings", "from mutation");
@@ -89,7 +89,7 @@ describe("shared session reads", () => {
     expect(reader.calls).toHaveLength(2);
 
     cache.invalidate("GetSettings");
-    await settle();
+    await clock.advance(0);
     expect(reader.calls).toHaveLength(3);
     cache.set("GetSettings", "complete server projection", true);
     reader.calls[2]!.resolve("superseded response");
@@ -100,13 +100,13 @@ describe("shared session reads", () => {
   });
 
   test("a failed read keeps the last value and reports the error", async () => {
-    const cache = new QueryCache({ coalesceMs: 0, failure: () => "Could not load proxies." });
+    const { cache, clock } = queryCache({ coalesceMs: 0, failure: () => "Could not load proxies." });
     const reader = controlled<string>();
     cache.watch("ListProxies", reader.fetch, () => {});
     reader.calls[0]!.resolve("first");
     await settle();
     cache.invalidate("ListProxies");
-    await settle();
+    await clock.advance(0);
     reader.calls[1]!.reject(new Error("unavailable"));
     await settle();
     expect(cache.snapshot("ListProxies")).toMatchObject({
@@ -117,13 +117,13 @@ describe("shared session reads", () => {
   });
 
   test("forget and dispose fence reads in flight", async () => {
-    const cache = new QueryCache({ coalesceMs: 0 });
+    const { cache, QueryCacheDisposed } = queryCache({ coalesceMs: 0 });
     const reader = controlled<string>();
     const read = cache.read("ListModels:node-b", reader.fetch);
     cache.forget((key) => key.endsWith(":node-b"));
     expect(reader.calls[0]!.signal.aborted).toBe(true);
     reader.calls[0]!.resolve("unlinked home");
-    expect(read).rejects.toBeInstanceOf(QueryCacheDisposed);
+    await expect(read).rejects.toBeInstanceOf(QueryCacheDisposed);
     expect(cache.snapshot("ListModels:node-b").loaded).toBe(false);
 
     const watched = controlled<string>();
@@ -132,12 +132,12 @@ describe("shared session reads", () => {
     watched.calls[0]!.resolve("previous owner");
     await settle();
     expect(cache.snapshot("ListBots").data).toBeUndefined();
-    expect(cache.read("ListBots", watched.fetch)).rejects.toBeInstanceOf(QueryCacheDisposed);
+    await expect(cache.read("ListBots", watched.fetch)).rejects.toBeInstanceOf(QueryCacheDisposed);
     expect(watched.calls).toHaveLength(1);
   });
 
   test("a forgotten watched key reads again for its consumers", async () => {
-    const cache = new QueryCache({ coalesceMs: 0 });
+    const { cache } = queryCache({ coalesceMs: 0 });
     const reader = controlled<string>();
     const seen: (string | undefined)[] = [];
     cache.watch("GetComputers", reader.fetch, () => seen.push(cache.snapshot<string>("GetComputers").data));
@@ -152,22 +152,23 @@ describe("shared session reads", () => {
   });
 
   test("a new watcher reads a value older than its bound again; a current one is shared", async () => {
-    const cache = new QueryCache({ coalesceMs: 0 });
+    const { cache, clock } = queryCache({ coalesceMs: 0 });
     let reads = 0;
     const fetch = async () => ++reads;
     cache.watch("GetComputers", fetch, () => {}, 50)();
     await settle();
+    await clock.advance(50);
     cache.watch("GetComputers", fetch, () => {}, 50)();
     await settle();
     expect(reads).toBe(1);
-    await Bun.sleep(60);
+    await clock.advance(1);
     cache.watch("GetComputers", fetch, () => {}, 50)();
     await settle();
     expect(reads).toBe(2);
   });
 
   test("unwatched entries stay within the LRU bound", async () => {
-    const cache = new QueryCache({ idle: 2, coalesceMs: 0 });
+    const { cache } = queryCache({ idle: 2, coalesceMs: 0 });
 
     for (const key of ["a", "b", "c", "d"]) await cache.read(key, async () => key);
     const watched = controlled<string>();
