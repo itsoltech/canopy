@@ -2,7 +2,8 @@
 
 Status (2026-11-18): runtime wątków, lokalny MCP, poziomy szybkości z katalogu konta,
 bezstratny zapis obrazów wyników trybu kodu oraz per-modelowe liczniki tokenów i kosztów USD tur
-oraz szacunki równowartości API OpenAI z trwałym cache cennika są zaimplementowane;
+oraz szacunki równowartości API OpenAI z trwałym cache cennika są zaimplementowane,
+wraz z uruchamianiem app-servera przez skrypt npm z katalogu ze spacjami na Windows;
 ograniczenia i dalsze prace opisano poniżej. Dostępność wydań według [release.md](release.md).
 
 Gotowe:
@@ -26,6 +27,10 @@ Gotowe:
 - procesy w tle: komenda unified exec, która trwa po `turn/completed`, dostaje item `background_task`; `StopTask` → `thread/backgroundTerminals/terminate` ([execution.md](execution.md#4-zadania-w-tle)).
 
 ## Runtime wątków
+
+- **Start procesu:** na Windows argumenty `-c` (m.in. wybór providera, konfiguracja proxy i selektory skilli)
+  zachowują cudzysłowy przy starcie przez `codex.cmd`, także gdy ścieżka zawiera spacje.
+  Log workera podaje etap awarii startu i kod wyjścia procesu, jeśli jest dostępny.
 
 - **Konfiguracja instancji:** jeden app-server per instancja, także bez własnych zmiennych. Każda zmiana oznacza runtime jako nieaktualny; nowa praca czeka na koniec jego tur i zadań w tle, potem jeden restart stosuje najnowszą konfigurację. Inne instancje działają dalej. Ścieżka `CODEX_HOME` nie zależy od rodzaju połączenia, a proxy jest wpisem `model_providers` przez `-c`. `thread/resume` jawnie wybiera bieżący provider (`openai` po powrocie do Device login). Równoczesne wznowienia tej samej sesji korzystają z jednego rejestru.
 

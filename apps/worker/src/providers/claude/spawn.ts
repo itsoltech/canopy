@@ -6,15 +6,16 @@ import { governNodeSpawn, killProcessTree, windowsCommand } from "@canopy/proces
 export function spawnClaude(options: SpawnOptions): SpawnedProcess {
   options.signal.throwIfAborted();
 
-  const command = windowsCommand([options.command, ...options.args], options.env);
+  const command = windowsCommand([options.command, ...options.args], options.env, process.platform, options.cwd);
 
   const child = governNodeSpawn("harness", () =>
-    spawn(command[0]!, command.slice(1), {
+    spawn(command.argv[0]!, command.argv.slice(1), {
       cwd: options.cwd,
       env: options.env,
       stdio: ["pipe", "pipe", "pipe"],
       detached: process.platform !== "win32",
       windowsHide: true,
+      windowsVerbatimArguments: command.windowsVerbatimArguments,
     }),
   );
 

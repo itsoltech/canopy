@@ -2,6 +2,7 @@ import { BackgroundTaskKind, Provider, type Item } from "@canopy/contracts";
 import { Context, Effect, Exit, Layer, Scope } from "effect";
 import { instanceShadowHome, type AppliedConfig } from "../config/remote.ts";
 import { prepareCodexHome } from "../providers/codex/home.ts";
+import { CodexAppServerStartupError } from "../providers/codex/app-server.ts";
 import { codexAppServerLaunch } from "../providers/codex/launch.ts";
 import { CodexThreads } from "../providers/codex/threads.ts";
 import { prepareImportedCodexResume } from "../import/codex-provider.ts";
@@ -190,6 +191,7 @@ export class CodexRuntimes {
     const context = await this.ctx.state.options.runtime
       .runPromise(Layer.buildWithScope(layer, scope))
       .catch(async (error) => {
+        if (error instanceof CodexAppServerStartupError) this.ctx.ops.log(error.message);
         await Effect.runPromise(Scope.close(scope, Exit.void));
         throw error;
       });

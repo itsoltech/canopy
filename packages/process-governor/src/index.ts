@@ -113,13 +113,15 @@ function capture(input: ProcessInput): Promise<ProcessResult> {
       /* Observers cannot prevent execution. */
     }
 
-    const argv = windowsCommand(input.argv, input.env ?? process.env);
+    const command = windowsCommand(input.argv, input.env, process.platform, input.cwd);
+    const argv = command.argv;
 
     const child = spawn(argv[0]!, argv.slice(1), {
       cwd: input.cwd,
       env: input.env ?? process.env,
       detached: process.platform !== "win32",
       windowsHide: true,
+      windowsVerbatimArguments: command.windowsVerbatimArguments,
       stdio: ["pipe", "pipe", "pipe"],
     });
 
