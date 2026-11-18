@@ -1,6 +1,7 @@
 # Obrazy w odpowiedziach i interaktywne visuals
 
-Status (2026-11-17): **obrazy, `render_visual` i `render_html` zaimplementowane** w web/desktop/mobile;
+Status (2026-11-18): **obrazy, `render_visual` i `render_html` zaimplementowane** w web/desktop/mobile.
+Na Windows w trybie lokalnym `show_images` obsługuje też katalog Temp profilu użytkownika.
 Claude ma 15-minutowy limit wywołania `show_images`.
 Własny HTML na desktopie ma interaktywny podgląd w rozmowie z odizolowanego procesu.
 Interaktywny podgląd lokalnej automatyzacji w wątku web/desktop również jest
@@ -164,11 +165,17 @@ globalnej deduplikacji ujawniającej istnienie pliku innego właściciela.
 
 | Granica | Reguła |
 | --- | --- |
-| Korzenie | Rzeczywisty katalog bieżącego wątku (`cwd`, także worktree/scratch, jeśli wątek tam działa) oraz jego własny katalog załączników pod `attachmentsRoot/thread_id`. Import Markdown dopuszcza tylko katalog roboczy zapisany przy wiadomości. Nie obejmuje innych checkoutów, scratch innego wątku ani całego systemowego katalogu tymczasowego. |
-| Otwieranie | Ścieżki względne od `cwd`; absolutne tylko wewnątrz tych samych korzeni. Odrzucenie traversal, NUL, dowiązań w komponentach ścieżki, plików specjalnych i junction/reparse escape na Windows. Otwarcie względem zaufanego katalogu z kontrolą uchwytu; sam `realpath` przed późniejszym `readFile` nie chroni przed wyścigiem. Brak bezpiecznego prymitywu na danej platformie = odmowa. |
+| Korzenie | Rzeczywisty katalog bieżącego wątku (`cwd`, także worktree/scratch, jeśli wątek tam działa) oraz jego własny katalog załączników pod `attachmentsRoot/thread_id`. Jawne `show_images` na wbudowanym workerze Windows w trybie lokalnym obejmuje też `%LOCALAPPDATA%\Temp`. Import Markdown dopuszcza tylko katalog roboczy zapisany przy wiadomości. |
+| Otwieranie | Ścieżki względne od `cwd`; do pliku w Temp potrzebna jest pełna ścieżka absolutna. Odrzucenie traversal, NUL, dowiązań w komponentach ścieżki, plików specjalnych i junction/reparse escape na Windows. Otwarcie względem zaufanego katalogu z kontrolą uchwytu; sam `realpath` przed późniejszym `readFile` nie chroni przed wyścigiem. Brak bezpiecznego prymitywu na danej platformie = odmowa. |
 | Rozmiary | Minimum z limitów właściciela i sufitu narzędzia: 10 obrazów, 20 MiB/pliki wejściowe i wynikowe, 50 MiB/partię, 100 Mpx/obraz. Limit dekodera i współbieżności chroni także przed bombami dekompresji. Do 100 obrazów i 200 MiB na turę; brak automatycznego obejścia kolejnym wywołaniem. |
 | Typy | Sniffing przed dekodowaniem, obrót EXIF, usunięcie EXIF/GPS/XMP i miniatura. V1 publikuje PNG/JPEG/WebP; inne obsługiwane rastry konwertuje, animacje spłaszcza do pierwszej klatki. GIF nie korzysta tu z istniejącej ścieżki zachowującej oryginał. SVG jest plikiem do pobrania, nigdy aktywnym DOM, `object` ani iframe; nie wchodzi do galerii. |
 | Uprawnienia | Dom gatewaya sprawdza ownera przy publikacji i każdym odczycie, obcy plik = `NotFound`. Odrzuca cudzy worker, turę, scratch i podrobioną referencję. Poświadczenia connectorów i kanałów zostają w gatewayu; żaden token nie trafia do modelu, HTML ani payloadu obrazu. |
+
+Worker wyznacza Temp z własnego `LOCALAPPDATA` w obrębie profilu użytkownika.
+Weryfikuje wszystkie składowe ścieżki korzenia i odrzuca przekierowanie przez
+junction lub inny punkt ponownej analizy. Zakres obejmuje standardowy katalog
+`Temp` także przy nadpisanych zmiennych `TEMP` lub `TMP`. Agent przekazuje pełną
+ścieżkę do istniejącego pliku, np. zwróconą przez zewnętrzne narzędzie do zrzutów.
 
 Download zwraca pełną rozdzielczość **oczyszczonej kopii**, nie oryginał z EXIF.
 Screenshot może zawierać sekret w samych pikselach; stripping metadanych go nie

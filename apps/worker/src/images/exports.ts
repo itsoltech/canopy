@@ -1,7 +1,7 @@
 import type { ExportThreadImage, ThreadImageExportSchema } from "@canopy/contracts";
 import type { MessageInitShape } from "@bufbuild/protobuf";
 import { IMAGE_REPLY_LIMITS } from "@canopy/domain/image-replies";
-import { imageRefusal, openImageSource, snapshotImage } from "./export-source.ts";
+import { imageRefusal, insideImageRoot, openImageSource, snapshotImage } from "./export-source.ts";
 import { pinImageRoot, rootChanged, type ImageRoot } from "./export-root.ts";
 
 interface ImageExport {
@@ -9,6 +9,7 @@ interface ImageExport {
   turnId: string;
   path: string;
   maxBytes: bigint;
+  allowLocalTemp: boolean;
   name: string;
   sizeBytes: bigint;
   source?: ReturnType<typeof openImageSource> | undefined;
@@ -23,8 +24,12 @@ export class ThreadImageExports {
   readonly #exports = new Map<string, ImageExport>();
   readonly #scopes = new Map<string, { cwd: string; attachments: string; roots: ImageRoot[] }>();
   readonly #attachmentsRoot: ImageRoot | undefined;
+  #localTemp: ImageRoot | undefined;
 
-  constructor(attachmentsRoot?: string) {
+  constructor(
+    attachmentsRoot?: string,
+    private readonly localTempRoot?: string,
+  ) {
     this.#attachmentsRoot = attachmentsRoot ? pinImageRoot(attachmentsRoot) : undefined;
   }
 
@@ -51,7 +56,8 @@ export class ThreadImageExports {
       (known.threadId !== request.threadId ||
         known.turnId !== request.turnId ||
         known.path !== request.path ||
-        known.maxBytes !== request.maxBytes)
+        known.maxBytes !== request.maxBytes ||
+        known.allowLocalTemp !== request.allowLocalTemp)
     )
       throw imageRefusal("This image transfer belongs to another request. Try again.");
 
@@ -93,6 +99,7 @@ export class ThreadImageExports {
         request.path,
         request.roots.map((path) => roots.find((root) => root.path === path)!),
         Number(request.maxBytes),
+        request.allowLocalTemp ? (path) => this.#pinLocalTemp(path) : undefined,
       );
 
       entry = {
@@ -100,6 +107,7 @@ export class ThreadImageExports {
         turnId: request.turnId,
         path: request.path,
         maxBytes: request.maxBytes,
+        allowLocalTemp: request.allowLocalTemp,
         name: source.name,
         sizeBytes: BigInt(source.stat.size),
         source,
@@ -151,6 +159,18 @@ export class ThreadImageExports {
     } catch (error) {
       if (this.#exports.get(request.exportId) === entry) this.release(request.exportId);
       throw error;
+    }
+  }
+
+  #pinLocalTemp(path: string): ImageRoot | undefined {
+    if (!this.localTempRoot || !insideImageRoot(this.localTempRoot, path)) return undefined;
+
+    try {
+      this.#localTemp ??= pinImageRoot(this.localTempRoot, { allowAlias: false });
+
+      return this.#localTemp;
+    } catch {
+      throw rootChanged();
     }
   }
 

@@ -1,6 +1,5 @@
-import type { ChildProcessWithoutNullStreams } from "node:child_process";
+import { spawnSync, type ChildProcessWithoutNullStreams } from "node:child_process";
 import type { BrowserWindow, Tray } from "electron";
-import { stopController } from "./runtime/process.ts";
 import { createShutdownWindow } from "./shutdown-window.ts";
 
 interface ShutdownOptions {
@@ -12,6 +11,13 @@ interface ShutdownOptions {
   announce: () => Promise<void>;
   finish: (target: BrowserWindow | undefined) => void;
   failed: () => void;
+}
+
+/** Windows SIGTERM kills only the guardian. Finish its owned tree before starting NSIS. */
+function stopController(child: ChildProcessWithoutNullStreams) {
+  if (process.platform === "win32" && child.pid)
+    spawnSync("taskkill.exe", ["/PID", String(child.pid), "/T", "/F"], { stdio: "ignore", windowsHide: true });
+  else child.kill("SIGTERM");
 }
 
 /** Keep status visible until the guardian exits, with the existing cleanup deadline. */

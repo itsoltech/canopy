@@ -68,10 +68,14 @@ export async function publishThreadImages(
     const prepared: PreparedAttachment[] = [];
     let chargedBytes = 0;
     const roots = [caller.cwd];
+    const windows = /^(win32|windows)$/.test(connection.hello.host?.os ?? "");
+
+    const allowLocalTemp =
+      !markdown && core.role === "desktop" && windows && connection.hello.capabilities.includes("desktop_bundled");
 
     // Only this thread's attachment directory is eligible; no other scratch or attachment roots.
     if (!markdown && connection.hello.attachmentsRoot) {
-      const separator = /^(win32|windows)$/.test(connection.hello.host?.os ?? "") ? "\\" : "/";
+      const separator = windows ? "\\" : "/";
       roots.push(`${connection.hello.attachmentsRoot}${separator}${caller.id}`);
     }
 
@@ -97,6 +101,7 @@ export async function publishThreadImages(
                 operation,
                 offset,
                 maxBytes: BigInt(Math.max(0, maxBytes)),
+                allowLocalTemp,
               },
             },
             Math.max(1, Math.min(IMAGE_REPLY_LIMITS.idleMs, remaining)),

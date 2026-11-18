@@ -6,13 +6,18 @@ import type { ImageRoot } from "./export-root.ts";
 
 export const imageRefusal = (message: string) => new CommandError("IMAGE_EXPORT_REFUSED", message, true);
 
-function inside(root: string, path: string): boolean {
+export function insideImageRoot(root: string, path: string): boolean {
   const rel = relative(root, path);
 
   return rel !== "" && rel !== ".." && !rel.startsWith(`..${sep}`) && !isAbsolute(rel);
 }
 
-export function openImageSource(path: string, roots: readonly ImageRoot[], maxBytes: number) {
+export function openImageSource(
+  path: string,
+  roots: readonly ImageRoot[],
+  maxBytes: number,
+  extraRoot?: (absolutePath: string) => ImageRoot | undefined,
+) {
   // Reject traversal before normalization, URLs, UNC/device paths and NTFS alternate streams.
   if (
     !path ||
@@ -21,19 +26,25 @@ export function openImageSource(path: string, roots: readonly ImageRoot[], maxBy
     /^([a-z]+:|[/\\]{2})/i.test(path.replace(/^[a-z]:[/\\]/i, ""))
   )
     throw imageRefusal("Use an image path inside this thread's directory.");
-  const full = isAbsolute(path) ? path : resolve(roots[0]?.path ?? "", path);
-  const root = roots.find((r) => inside(r.path, full) || inside(r.canonical, full));
+  const absolute = isAbsolute(path);
+  const full = absolute ? path : resolve(roots[0]?.path ?? "", path);
 
-  if (!root || (process.platform === "win32" && full.slice(2).includes(":")))
+  if (process.platform === "win32" && full.slice(2).includes(":"))
     throw imageRefusal("This image is outside this thread's directory. Choose a file inside it.");
-  const base = inside(root.path, full) ? root.path : root.canonical;
+
+  const root =
+    roots.find((r) => insideImageRoot(r.path, full) || insideImageRoot(r.canonical, full)) ??
+    (absolute && (process.platform !== "win32" || /^[a-z]:[/\\]/i.test(full)) ? extraRoot?.(full) : undefined);
+
+  if (!root) throw imageRefusal("This image is outside this thread's directory. Choose a file inside it.");
+  const base = insideImageRoot(root.path, full) ? root.path : root.canonical;
   const file = root.open(relative(base, full).split(sep));
 
   try {
     const stat = file.stat();
     const actual = file.path();
 
-    if (!inside(root.canonical, actual) || !stat.regular || stat.links !== 1)
+    if (!insideImageRoot(root.canonical, actual) || !stat.regular || stat.links !== 1)
       throw imageRefusal("The image path changed. Choose a regular file inside this thread's directory.");
     root.verify();
 

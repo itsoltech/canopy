@@ -1,14 +1,12 @@
 import { spawn, spawnSync, type ChildProcess } from "node:child_process";
 import type { Logs } from "./log.ts";
+import { watchWindowsExit } from "./windows-exit.ts";
+
+const RESTART_LIMIT = 8;
+const GATEWAY_STABLE_MS = 30_000;
+const PROCESS_STABLE_MS = 60_000;
 
 export const delay = (ms: number) => new Promise<void>((resolve) => setTimeout(resolve, ms));
-
-/** Windows SIGTERM kills only the guardian. Finish its owned tree before starting NSIS. */
-export function stopController(child: ChildProcess | undefined) {
-  if (process.platform === "win32" && child?.pid)
-    spawnSync("taskkill.exe", ["/PID", String(child.pid), "/T", "/F"], { stdio: "ignore", windowsHide: true });
-  else child?.kill("SIGTERM");
-}
 
 export async function until(
   check: () => Promise<boolean>,
@@ -39,7 +37,7 @@ export interface ProcessSpec {
   args: string[];
   cwd: string;
   env: NodeJS.ProcessEnv;
-  restart?: boolean;
+  restart?: boolean | "continuous";
   stopSignal?: NodeJS.Signals;
   stop?: () => Promise<void>;
 }
@@ -83,21 +81,32 @@ export class Supervisor {
     child.stdout?.on("data", this.logs.stream(spec.name));
     child.stderr?.on("data", this.logs.stream(spec.name));
     child.once("error", (error) => this.logs.write(spec.name, error.message));
-    const started = Date.now();
+    const started = performance.now();
+    const windowsExit = watchWindowsExit(child.pid);
+    let exited = started;
     child.once("spawn", () => this.changed(spec.name, true));
     child.once("exit", () => {
+      exited = performance.now();
+
       if (!this.stopping) this.signal(child, "SIGKILL");
     });
-    child.once("close", (code) => {
+    child.once("close", (code, signal) => {
       // Provider grandchildren can outlive a crashed worker; clean up its process group as well.
       this.signal(child, "SIGKILL");
+      const windowsStatus = windowsExit?.();
       this.children.delete(spec.name);
       this.changed(spec.name, false);
 
-      if (!this.stopping && spec.restart && code !== 78) {
-        const count = Date.now() - started > 60_000 ? 0 : attempts + 1;
+      if (!this.stopping && spec.restart && (windowsStatus ?? code) !== 78) {
+        const uptime = Math.round(exited - started);
+        const continuous = spec.restart === "continuous";
+        const stable = uptime >= (continuous ? GATEWAY_STABLE_MS : PROCESS_STABLE_MS);
+        const count = stable ? 0 : attempts + 1;
+        const native = windowsStatus === undefined ? "" : `, Windows status 0x${windowsStatus.toString(16)}`;
+        const status = `Process exited (${code ?? signal ?? "unknown"}, PID ${child.pid ?? "unknown"}, uptime ${uptime}ms${native})`;
 
-        if (count > 8) {
+        if (!continuous && count > RESTART_LIMIT) {
+          this.logs.write(spec.name, status);
           this.logs.write(spec.name, "Restart budget exhausted; reopen desktop settings to retry");
           this.changed(spec.name, false, true);
 
@@ -105,12 +114,12 @@ export class Supervisor {
         }
 
         const wait = Math.min(30_000, 500 * 2 ** count);
-        this.logs.write(spec.name, `Process exited (${code}); restarting in ${wait}ms`);
+        this.logs.write(spec.name, `${status}; restarting in ${wait}ms`);
 
         const timer = setTimeout(() => {
           this.timers.delete(timer);
 
-          if (!this.stopping) this.start(spec, count);
+          if (!this.stopping) this.start(spec, Math.min(count, RESTART_LIMIT));
         }, wait);
 
         this.timers.add(timer);
@@ -167,7 +176,6 @@ export class Supervisor {
       else this.signal(child, spec.stopSignal ?? "SIGTERM");
       await closed;
       clearTimeout(timeout);
-      this.signal(child, "SIGKILL");
     }
 
     this.children.clear();

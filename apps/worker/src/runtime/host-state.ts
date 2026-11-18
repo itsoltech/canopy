@@ -27,6 +27,7 @@ import { CatalogCache } from "../mentions/catalog.ts";
 import { AttachmentFiles } from "../attachments/files.ts";
 import { PreviewStore } from "../images/index.ts";
 import { ThreadImageExports } from "../images/exports.ts";
+import { windowsLocalTempRoot } from "../images/export-local-temp.ts";
 import { MarkdownImageImports } from "../images/markdown-imports.ts";
 import { WorkerImport } from "../import/service.ts";
 import { AccountStatuses } from "../providers/account-status.ts";
@@ -185,7 +186,13 @@ export class HostState {
     };
     this.worktreeRoots = options.worktreeRoots ?? resolveWorktreeRoots({ dataDir: options.dataDir, home: "" });
     this.files = new AttachmentFiles(options.dataDir);
-    this.imageExports = new ThreadImageExports(this.files.root);
+
+    const localTempRoot =
+      options.localWorker && process.platform === "win32"
+        ? windowsLocalTempRoot(process.env["LOCALAPPDATA"], homedir())
+        : undefined;
+
+    this.imageExports = new ThreadImageExports(this.files.root, localTempRoot);
     this.previews = new PreviewStore(options.dataDir);
     this.imports = new WorkerImport({
       dataDir: options.dataDir,

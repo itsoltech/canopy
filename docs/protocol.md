@@ -294,6 +294,10 @@ Obsługiwane wejście i ograniczenia backendów: [automation-tools.md](automatio
 
 ### Trwałe odpowiedzi obrazami
 
+Status (2026-11-18): publikacja i jawny eksport z Temp profilu Windows przez
+wbudowanego workera w trybie lokalnym są zaimplementowane. Dostępność kanałów
+wynika z [release.md](release.md).
+
 Addytywna capability `thread_image_replies_v1` dopuszcza nietrwałe
 `ExportThreadImage` (`Command.export_thread_image = 231`) i
 `CommandResult.thread_image_export = 231`. `WORKER_LINK_PROTOCOL` pozostaje 1;
@@ -313,6 +317,14 @@ Limit bezczynności wynosi 10 s, całości 60 s. `release` usuwa eksport.
 Gateway przekazuje tylko katalog bieżącego wątku i jego własny katalog
 załączników; worker musi niezależnie sprawdzić zakres oraz tożsamość tury.
 Bajty nie trafiają do modelu, outboxa ani journala.
+
+Addytywne pole `ExportThreadImage.allow_local_temp` (9) jest ustawiane przy
+jawnym `show_images`, jeśli gateway ma rolę `desktop`, a bieżące Hello
+workera zgłasza Windows i `desktop_bundled`. Worker wymaga własnej flagi
+trybu lokalnego oraz Windows, sam wyznacza `%LOCALAPPDATA%\Temp` w profilu użytkownika
+i bezpiecznie przypina korzeń przy pierwszym eksporcie z tego katalogu.
+Pole nie przenosi ścieżki korzenia. Import Markdown pozostawia pole wyłączone.
+Starsze workery pomijają to pole i zachowują dotychczasowy zakres.
 
 Gateway rozpoznaje typ z bajtów i używa pipeline załączników: limit 100 Mpx,
 normalizacja bez EXIF/GPS/XMP i miniatura WebP do 512 px. Publikacja utrwala
