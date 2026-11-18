@@ -76,8 +76,8 @@ function useConnectionLook(connection: Connection) {
     : looks[connection];
 }
 
-/** The gateway connection in the sidebar footer: a dot and a word. A tap shows what happened and a retry. */
-export function ConnectionStatus({ stream }: { stream: StreamState }) {
+/** The gateway connection in the sidebar footer. A tap shows what happened and a retry. */
+export function ConnectionStatus({ stream, compact }: { stream: StreamState; compact: boolean }) {
   const c = useColors();
   const type = useTypography();
   const [open, setOpen] = useState(false);
@@ -90,10 +90,14 @@ export function ConnectionStatus({ stream }: { stream: StreamState }) {
         accessibilityLabel={`${look.label}. Show connection details`}
         accessibilityLiveRegion="polite"
         onPress={() => setOpen(true)}
-        hitSlop={{ top: 12, bottom: 12 }}
+        hitSlop={compact ? 6 : { top: 12, bottom: 12 }}
         style={({ pressed }) => ({
           flexDirection: "row",
           alignItems: "center",
+          justifyContent: "center",
+          maxWidth: "100%",
+          minWidth: 28,
+          minHeight: compact ? 32 : undefined,
           gap: 8,
           paddingHorizontal: 8,
           paddingVertical: 4,
@@ -105,12 +109,13 @@ export function ConnectionStatus({ stream }: { stream: StreamState }) {
           tone={look.tone}
           active={stream.connection === "reconnecting" || stream.connection === "connecting"}
         />
-        {/* A new state swaps in beside its dot (web `swap`). */}
-        <Swap value={look.label} style={{ flexShrink: 1 }}>
-          <Text numberOfLines={1} style={[type.small, { color: c.muted }]}>
-            {look.label}
-          </Text>
-        </Swap>
+        {!compact && (
+          <Swap value={look.label} style={{ flexShrink: 1 }}>
+            <Text numberOfLines={1} style={[type.small, { color: c.muted }]}>
+              {look.label}
+            </Text>
+          </Swap>
+        )}
       </Pressable>
       <ConnectionDetails stream={stream} visible={open} onClose={() => setOpen(false)} />
     </>
