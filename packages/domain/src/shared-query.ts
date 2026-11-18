@@ -27,10 +27,9 @@ type Match = string | ((key: string) => boolean);
 
 type Entry = {
   key: string;
-  fetch: QueryFetch<unknown>;
   snapshot: QuerySnapshot<unknown>;
-  listeners: Set<Listener>;
-  inflight: { promise: Promise<unknown>; controller: AbortController } | undefined;
+  watchers: Set<{ notify: Listener; fetch: QueryFetch<unknown> }>;
+  inflight: { promise: Promise<unknown>; controller: AbortController; readers: number } | undefined;
   /** Grows with every `set`: a read started before it is older than the value. */
   written: number;
   /** When the value was last read or set (ms). */
@@ -100,15 +99,39 @@ export class QueryCache {
   /**
    * The value, read once and shared; a loaded, current entry younger than `maxAgeMs` answers without a request.
    */
-  async read<T>(key: string, fetch: QueryFetch<T>, maxAgeMs = Infinity): Promise<T> {
+  async read<T>(key: string, fetch: QueryFetch<T>, maxAgeMs = Infinity, signal?: AbortSignal): Promise<T> {
+    signal?.throwIfAborted();
+
     if (this.#disposed) throw new QueryCacheDisposed();
-    const entry = this.#entry(key, fetch);
+    const entry = this.#entry(key);
 
     if (entry.snapshot.loaded && !entry.dirty && this.#now() - entry.readAt <= maxAgeMs)
       return this.snapshot<T>(key).data!;
     this.#touch(entry);
 
-    return this.#load<T>(entry);
+    const promise = this.#load<T>(entry, fetch);
+    const flight = entry.inflight!;
+    flight.readers++;
+
+    if (!signal) return promise;
+
+    // Leaving one view releases just its read. The last reader cancels the fetch and keeps the last good snapshot.
+    return new Promise<T>((resolve, reject) => {
+      const abort = () => {
+        if (--flight.readers === 0 && !entry.watchers.size && entry.inflight === flight) {
+          entry.inflight = undefined;
+          entry.dirty = true;
+          flight.controller.abort();
+          this.#publish(entry, { loading: false, stale: true });
+        }
+
+        reject(signal.reason);
+      };
+
+      if (signal.aborted) abort();
+      else signal.addEventListener("abort", abort, { once: true });
+      void promise.then(resolve, reject).finally(() => signal.removeEventListener("abort", abort));
+    });
   }
 
   /**
@@ -119,17 +142,17 @@ export class QueryCache {
   watch<T>(key: string, fetch: QueryFetch<T>, listener: Listener, maxAgeMs = Infinity): () => void {
     if (this.#disposed) return () => {};
 
-    const entry = this.#entry(key, fetch);
-    entry.fetch = fetch;
-    entry.listeners.add(listener);
+    const entry = this.#entry(key);
+    const watcher = { notify: listener, fetch };
+    entry.watchers.add(watcher);
 
     if (!entry.snapshot.loaded || entry.dirty || this.#now() - entry.readAt > maxAgeMs)
-      void this.#load(entry).catch(() => {});
+      void this.#load(entry, fetch).catch(() => {});
 
     return () => {
-      entry.listeners.delete(listener);
+      entry.watchers.delete(watcher);
 
-      if (!entry.listeners.size) this.#touch(entry);
+      if (!entry.watchers.size) this.#touch(entry);
     };
   }
 
@@ -140,7 +163,7 @@ export class QueryCache {
    */
   set<T>(key: string, value: T | ((current: T | undefined) => T), complete = false): void {
     if (this.#disposed) return;
-    const entry = this.#entries.get(key) ?? this.#entry(key, () => Promise.reject(new Error(`No reader for ${key}`)));
+    const entry = this.#entry(key);
     // SAFETY: The updater receives this key's value as its caller typed it.
     const current = entry.snapshot.data as T | undefined;
     const data = isUpdater(value) ? value(current) : value;
@@ -165,12 +188,11 @@ export class QueryCache {
 
       if (!entry.snapshot.stale) this.#publish(entry, { stale: true });
 
-      if (!entry.listeners.size || entry.timer) continue;
+      if (!entry.watchers.size || entry.timer) continue;
       entry.timer = this.#schedule(() => {
         entry.timer = undefined;
 
-        if (this.#entries.get(entry.key) === entry && entry.dirty && !entry.inflight)
-          void this.#load(entry).catch(() => {});
+        if (this.#entries.get(entry.key) === entry && entry.dirty && !entry.inflight) this.#refreshWatched(entry);
       }, this.#coalesceMs);
     }
   }
@@ -178,7 +200,7 @@ export class QueryCache {
   /** Clears matching entries (unlink, removal); their reads in flight never land. Watched ones read again. */
   forget(match: Match): void {
     for (const entry of this.#matching(match)) {
-      if (!entry.listeners.size) {
+      if (!entry.watchers.size) {
         this.#drop(entry);
         continue;
       }
@@ -187,7 +209,7 @@ export class QueryCache {
       entry.inflight = undefined;
       entry.written++;
       this.#publish(entry, EMPTY);
-      void this.#load(entry).catch(() => {});
+      this.#refreshWatched(entry);
     }
   }
 
@@ -204,16 +226,15 @@ export class QueryCache {
     return [...this.#entries.values()].filter((entry) => matches(entry.key));
   }
 
-  #entry(key: string, fetch: QueryFetch<unknown>): Entry {
+  #entry(key: string): Entry {
     const existing = this.#entries.get(key);
 
     if (existing) return existing;
 
     const entry: Entry = {
       key,
-      fetch,
       snapshot: EMPTY,
-      listeners: new Set(),
+      watchers: new Set(),
       inflight: undefined,
       written: 0,
       readAt: 0,
@@ -226,7 +247,13 @@ export class QueryCache {
     return entry;
   }
 
-  #load<T>(entry: Entry): Promise<T> {
+  #refreshWatched(entry: Entry): void {
+    const watcher = [...entry.watchers].at(-1);
+
+    if (watcher) void this.#load(entry, watcher.fetch).catch(() => {});
+  }
+
+  #load<T>(entry: Entry, fetch: QueryFetch<unknown>): Promise<T> {
     if (entry.inflight) {
       // SAFETY: An entry only ever holds the result of its own key's fetch, typed by the caller of that key.
       return entry.inflight.promise as Promise<T>;
@@ -239,8 +266,7 @@ export class QueryCache {
     entry.timer = undefined;
     this.#publish(entry, { loading: true });
 
-    const promise = entry
-      .fetch(controller.signal)
+    const promise = fetch(controller.signal)
       .then(
         (data) => {
           if (!this.#current(entry, controller)) throw new QueryCacheDisposed();
@@ -265,11 +291,10 @@ export class QueryCache {
         entry.inflight = undefined;
 
         // Invalidated while reading: one trailing read for the consumers still watching.
-        if (entry.dirty && entry.listeners.size && this.#entries.get(entry.key) === entry)
-          void this.#load(entry).catch(() => {});
+        if (entry.dirty && this.#entries.get(entry.key) === entry) this.#refreshWatched(entry);
       });
 
-    entry.inflight = { promise, controller };
+    entry.inflight = { promise, controller, readers: 0 };
 
     return promise;
   }
@@ -291,12 +316,12 @@ export class QueryCache {
     if (this.#entries.get(entry.key) !== entry) return;
     this.#entries.delete(entry.key);
     this.#entries.set(entry.key, entry);
-    let idle = [...this.#entries.values()].filter((e) => !e.listeners.size && !e.inflight).length;
+    let idle = [...this.#entries.values()].filter((e) => !e.watchers.size && !e.inflight).length;
 
     for (const candidate of this.#entries.values()) {
       if (idle <= this.#idle) break;
 
-      if (candidate.listeners.size || candidate.inflight || candidate === entry) continue;
+      if (candidate.watchers.size || candidate.inflight || candidate === entry) continue;
       this.#drop(candidate);
       idle--;
     }
@@ -305,6 +330,6 @@ export class QueryCache {
   #publish(entry: Entry, patch: Partial<QuerySnapshot<unknown>>): void {
     entry.snapshot = { ...entry.snapshot, ...patch };
 
-    for (const listener of entry.listeners) listener();
+    for (const watcher of entry.watchers) watcher.notify();
   }
 }

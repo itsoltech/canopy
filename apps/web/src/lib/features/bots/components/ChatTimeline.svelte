@@ -191,7 +191,7 @@
   {estimate}
   {scrollMemory}
   busy={loading || history?.loadingOlder}
-  ready={!loading}
+  {loading}
   label="Conversation"
   {top}
   {placeholder}

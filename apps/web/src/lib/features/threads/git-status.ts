@@ -3,21 +3,26 @@ import { requestJson } from "#lib/shared/http.ts";
 import { queries } from "#lib/shared/queries.svelte.ts";
 import { decode } from "#lib/shared/wire.ts";
 
+export class GitStatusReadError extends Error {}
+
 /** Event-driven reads share in-flight work, without reusing a snapshot from before a completed turn. */
 export async function threadGitStatus(threadId: string, signal?: AbortSignal) {
-  const value = await queries.read(
+  return queries.read(
     `GetThreadGitStatus:${threadId}`,
-    async (sharedSignal) =>
-      decode(
+    async (sharedSignal) => {
+      const value = decode(
         ui.ThreadGitStatusResponseSchema,
-        await requestJson("GET", `/api/threads/${encodeURIComponent(threadId)}/git`, undefined, 40_000, sharedSignal),
-      ),
+        await requestJson("GET", `/api/threads/${encodeURIComponent(threadId)}/git`, undefined, 45_000, sharedSignal),
+      );
+
+      // A completed RPC may report a failed scan. Keep the previous successful counts in the cache.
+      if (value.supported && !value.status && value.detail) throw new GitStatusReadError(value.detail);
+
+      return value;
+    },
     -1,
+    signal,
   );
-
-  signal?.throwIfAborted();
-
-  return value;
 }
 
 export async function pullThreadOrigin(threadId: string) {

@@ -297,20 +297,21 @@ export class RpcCollector {
     }
   }
 
-  rollup(at: number) {
+  rollup(at: number, checkpoints: ui.DiagnosticsCheckpoint[] = []) {
     this.flushDatabase();
     const slot = this.minutes.slots.find((value) => value?.at === at);
 
-    if (!slot) return;
+    if (!slot && !checkpoints.length) return;
     const losses = this.budget.losses(at, at + 59_999);
 
     return create(ui.DiagnosticsProcessSchema, {
       processId: "gateway",
       session: this.session,
       sequence: BigInt(at),
-      coverage: mergeCoverage(slot.coverage),
-      series: [...slot.series].map(([id, value]) => value.snapshot(id)),
-      measures: [...(slot.measures ?? [])].map(([key, value]) => value.snapshot(metricOf(key), rpcOf(key))),
+      coverage: mergeCoverage(slot?.coverage ?? []),
+      checkpoints,
+      series: [...(slot?.series ?? [])].map(([id, value]) => value.snapshot(id)),
+      measures: [...(slot?.measures ?? [])].map(([key, value]) => value.snapshot(metricOf(key), rpcOf(key))),
       droppedSamples: BigInt(losses.count),
       limitReasons: losses.reasons,
     });

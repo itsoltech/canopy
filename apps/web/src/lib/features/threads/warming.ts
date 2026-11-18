@@ -1,6 +1,5 @@
 import type { ui } from "@canopy/contracts";
 import { threadCacheCurrent } from "@canopy/domain/thread-warm-set";
-import { clientMeasurements } from "#lib/features/diagnostics/client.ts";
 import { threadCache } from "./thread-cache.ts";
 
 let overviewHeads: readonly ui.ThreadSyncCursor[] = [];
@@ -15,10 +14,6 @@ export function receiveThreadHeads(heads: readonly ui.ThreadSyncCursor[]) {
 /** Background tails stay in the BFF; an already current renderer can reuse its own loaded history. */
 export function warmCacheHit(id: string, open: ui.ThreadSnapshot | undefined) {
   return threadCacheCurrent(open ?? threadCache.get(id), threadOverviewHead(id));
-}
-
-export function observeThreadCacheMemory() {
-  clientMeasurements.record(15, threadCache.usage.bytes);
 }
 
 /** The renderer performs no background history HTTP requests. */

@@ -1,8 +1,19 @@
 import { untrack } from "svelte";
 import type { ui } from "@canopy/contracts";
-import { threadGitStatus, pullThreadOrigin } from "./git-status.ts";
+import { GitStatusReadError, threadGitStatus, pullThreadOrigin } from "./git-status.ts";
 import { queries } from "#lib/shared/queries.svelte.ts";
 import { toast } from "#lib/shared/ui/toast.svelte.ts";
+
+function gitRefreshKey(thread: ui.Thread) {
+  return [
+    thread.id,
+    thread.status,
+    thread.worktree?.branch,
+    thread.worktree?.detachedCommit,
+    thread.checkoutHead?.branch,
+    thread.checkoutHead?.detachedCommit,
+  ].join("\0");
+}
 
 /** Read only while the details are visible; opening, HEAD changes and turn transitions refresh it. */
 export function useThreadGit(thread: () => ui.Thread, available: () => boolean) {
@@ -24,18 +35,7 @@ export function useThreadGit(thread: () => ui.Thread, available: () => boolean) 
       : queries.snapshot<ui.ThreadGitStatusResponse>(`GetThreadGitStatus:${thread().id}`).data,
   );
 
-  const refreshKey = $derived.by(() => {
-    const current = thread();
-
-    return [
-      current.id,
-      current.status,
-      current.worktree?.branch,
-      current.worktree?.detachedCommit,
-      current.checkoutHead?.branch,
-      current.checkoutHead?.detachedCommit,
-    ].join("\0");
-  });
+  const refreshKey = $derived(gitRefreshKey(thread()));
 
   async function reload(background = false) {
     if (!available() || pulling) return;
@@ -61,13 +61,17 @@ export function useThreadGit(thread: () => ui.Thread, available: () => boolean) 
       const value = await threadGitStatus(threadId, controller.signal);
 
       if (!controller.signal.aborted) result = { threadId, value };
-    } catch {
+    } catch (cause) {
       if (!controller.signal.aborted)
-        failure = { threadId, message: "Could not read local changes. Refresh to retry." };
+        failure = {
+          threadId,
+          message:
+            cause instanceof GitStatusReadError ? cause.message : "Could not read local changes. Refresh to retry.",
+        };
     } finally {
       if (pending === controller) reading = false;
 
-      if (queued) {
+      if (!controller.signal.aborted && queued) {
         queued = false;
 
         if (active && available() && !pulling) void reload(true);
@@ -82,6 +86,7 @@ export function useThreadGit(thread: () => ui.Thread, available: () => boolean) 
 
     return () => {
       clearTimeout(timer);
+      queued = false;
       pending?.abort();
     };
   });

@@ -23,6 +23,10 @@ export class ClientMeasurements {
     this.#ids = clientMetricIds(source);
   }
 
+  get hasMeasurements() {
+    return this.#values.size > 0;
+  }
+
   opening(now = Date.now(), random = Math.random) {
     if (!this.enabled) return false;
     const minute = Math.floor(now / 60_000);

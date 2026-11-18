@@ -1,5 +1,14 @@
 import { afterAll, beforeAll, describe, expect, test } from "bun:test";
-import { chmodSync, existsSync, mkdirSync, readFileSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
+import {
+  chmodSync,
+  existsSync,
+  mkdirSync,
+  readFileSync,
+  renameSync,
+  rmSync,
+  symlinkSync,
+  writeFileSync,
+} from "node:fs";
 import { join } from "node:path";
 import { Provider } from "@canopy/contracts";
 import { dockerAvailable } from "@canopy/db/testing";
@@ -437,6 +446,42 @@ if (args.includes("fetch") && args.some((arg) => arg.includes(":refs/canopy/pull
     expect(await status(thread.id)).toMatchObject({ files: 1, modified: 1, additions: 0, deletions: 0 });
     expect(await failure(f.gw.api.pullThreadOrigin({ threadId: thread.id }))).toContain("uncommitted changes");
   });
+
+  test("archived, missing and removed checkouts report availability, including after path reuse", async () => {
+    const thread = await f.tree();
+    const read = () => f.gw.api.getThreadGitStatus({ threadId: thread.id });
+    await f.gw.api.setThreadArchived({ threadId: thread.id, archived: true });
+    expect((await read()).detail).toContain("active thread");
+    await f.gw.api.setThreadArchived({ threadId: thread.id, archived: false });
+
+    const moved = thread.cwd + "-moved";
+    renameSync(thread.cwd, moved);
+
+    try {
+      expect((await read()).detail).toContain("could not find the working directory");
+    } finally {
+      renameSync(moved, thread.cwd);
+    }
+
+    expect((await read()).status?.isRepo).toBe(true);
+    await f.remove(thread.worktree!.id);
+    mkdirSync(thread.cwd);
+    git(thread.cwd, "init", "-q");
+    writeFileSync(join(thread.cwd, "replacement"), "other checkout");
+    const removed = await read();
+    expect(removed.status).toBeUndefined();
+    expect(removed.detail).toContain("worktree was removed");
+  });
+
+  test("a timed out Git scan reports a retryable status and releases the checkout", async () => {
+    const thread = await f.tree();
+    await withGitWrapper('if (args.includes("status")) await Bun.sleep(60_000);', async () => {
+      const response = await f.gw.api.getThreadGitStatus({ threadId: thread.id }, { timeoutMs: 35_000 });
+      expect(response.detail).toContain("timed out");
+      expect(response.status).toBeUndefined();
+    });
+    expect((await status(thread.id)).files).toBe(0);
+  }, 40_000);
 
   test("old and offline workers report an unavailable summary and never queue a pull", async () => {
     const thread = await f.tree();

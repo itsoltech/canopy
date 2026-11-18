@@ -18,7 +18,6 @@ export class FeedScrollOpening {
   positioned = $state(false);
   readonly initial: ThreadScrollPosition | undefined;
   #timer: ReturnType<typeof setTimeout> | undefined;
-  #deadline: ReturnType<typeof setTimeout> | undefined;
   #expired = false;
 
   constructor(readonly memory: FeedScrollMemory | undefined) {
@@ -64,7 +63,6 @@ export class FeedScrollOpening {
       else setTop(scroller.scrollHeight);
     } else setTop(scroller.scrollHeight);
     this.positioned = true;
-    clearTimeout(this.#deadline);
     this.memory?.restored?.(!anchor);
 
     return anchor;
@@ -87,17 +85,20 @@ export class FeedScrollOpening {
     }, 150);
   }
 
-  connect(read: () => { following: boolean; anchor: FeedAnchor | undefined }, settle: () => void) {
-    if (!this.positioned)
-      this.#deadline = setTimeout(() => {
-        if (this.positioned) return;
-        this.#expired = true;
-        this.memory?.recovered?.();
-        settle();
-        // Even an unavailable scroller must not leave its replacement hidden forever.
-        this.positioned = true;
-      }, FEED_POSITION_TIMEOUT_MS);
+  startDeadline(settle: () => void) {
+    const deadline = setTimeout(() => {
+      if (this.positioned) return;
+      this.#expired = true;
+      this.memory?.recovered?.();
+      settle();
+      // Even an unavailable scroller must not leave its replacement hidden forever.
+      this.positioned = true;
+    }, FEED_POSITION_TIMEOUT_MS);
 
+    return () => clearTimeout(deadline);
+  }
+
+  connect(read: () => { following: boolean; anchor: FeedAnchor | undefined }) {
     const flush = () => {
       const { following, anchor } = read();
       this.save(following, anchor);
@@ -111,7 +112,6 @@ export class FeedScrollOpening {
     document.addEventListener("visibilitychange", hidden);
 
     return () => {
-      clearTimeout(this.#deadline);
       clearTimeout(this.#timer);
       flush();
       window.removeEventListener("pagehide", flush);

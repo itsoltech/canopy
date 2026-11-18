@@ -71,6 +71,33 @@ describe("shared session reads", () => {
     expect(await again).toBe(2);
   });
 
+  test("a scheduled refresh follows the remaining watcher and stays idle after the last one leaves", async () => {
+    const { cache, clock } = queryCache({ coalesceMs: 10 });
+    const key = "GitHubAvatar:pr:author";
+    const reads: string[] = [];
+
+    const reader = (view: string) => async () => {
+      reads.push(view);
+
+      return view;
+    };
+
+    const stopHeader = cache.watch(key, reader("header"), () => {});
+    const stopSummary = cache.watch(key, reader("summary"), () => {});
+    await settle();
+    cache.invalidate(key);
+    stopSummary();
+    await clock.advance(10);
+    expect(reads).toEqual(["header", "header"]);
+
+    cache.invalidate(key);
+    stopHeader();
+    await clock.advance(10);
+    expect(cache.snapshot(key).stale).toBe(true);
+    expect(reads).toEqual(["header", "header"]);
+    expect(await cache.read(key, reader("next panel"))).toBe("next panel");
+  });
+
   test("a read started before a set value is older and does not overwrite it", async () => {
     const { cache, clock } = queryCache({ coalesceMs: 0 });
     const reader = controlled<string>();
@@ -178,4 +205,26 @@ describe("shared session reads", () => {
     expect(["a", "b", "c", "d"].filter((key) => cache.snapshot(key).loaded)).toEqual(["c", "d"]);
     expect(cache.snapshot("e").loaded).toBe(true);
   });
+});
+
+test("a departing reader releases only its own wait and the last cancellation preserves the snapshot", async () => {
+  const { cache } = queryCache();
+  cache.set("status", "before");
+  const reader = controlled<string>();
+  const a = new AbortController();
+  const b = new AbortController();
+  const first = cache.read("status", reader.fetch, -1, a.signal);
+  const second = cache.read("status", reader.fetch, -1, b.signal);
+  a.abort();
+  await expect(first).rejects.toThrow();
+  expect(reader.calls).toHaveLength(1);
+  expect(reader.calls[0]!.signal.aborted).toBe(false);
+  b.abort();
+  await expect(second).rejects.toThrow();
+  expect(reader.calls[0]!.signal.aborted).toBe(true);
+  expect(cache.snapshot("status")).toMatchObject({ loading: false, stale: true, data: "before" });
+  expect(await cache.read("status", async () => "fresh")).toBe("fresh");
+  reader.calls[0]!.resolve("abandoned");
+  await settle();
+  expect(cache.snapshot("status").data).toBe("fresh");
 });

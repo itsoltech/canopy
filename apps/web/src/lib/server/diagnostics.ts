@@ -18,10 +18,13 @@ export function startBffDiagnostics(api: () => Client<typeof ui.GatewayService>)
 
   const timer = setInterval(() => {
     if (pending || !cooldown.ready()) return;
+    const batch = bffMeasurements.take();
+
+    if (!batch.measures.length) return;
     pending = true;
     void Promise.resolve()
       .then(() =>
-        api().submitDiagnostics(bffMeasurements.take(), {
+        api().submitDiagnostics(batch, {
           headers: { "canopy-diagnostics-client": binding },
           timeoutMs: 5000,
         }),

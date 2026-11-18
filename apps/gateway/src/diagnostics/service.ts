@@ -117,7 +117,7 @@ export class Diagnostics {
 
             return value ? [value] : [];
           }),
-        own: (process, at) => this.clients.rollup(process, at),
+        takeCheckpoints: (at) => this.clients.takeCheckpoints(at),
       },
     );
     this.#unsubscribe = this.core.computers?.subscribe((change) => {

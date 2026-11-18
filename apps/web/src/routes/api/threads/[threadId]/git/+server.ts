@@ -4,11 +4,13 @@ import { call } from "#lib/server/gateway.ts";
 import { encode } from "#lib/shared/wire.ts";
 import type { RequestHandler } from "./$types";
 
-export const GET: RequestHandler = async ({ params }) =>
+export const GET: RequestHandler = async ({ params, request }) =>
   json(
     encode(
       ui.ThreadGitStatusResponseSchema,
-      await call((api) => api.getThreadGitStatus({ threadId: params.threadId }, { timeoutMs: 35_000 })),
+      await call((api) =>
+        api.getThreadGitStatus({ threadId: params.threadId }, { signal: request.signal, timeoutMs: 40_000 }),
+      ),
     ),
     { headers: { "cache-control": "no-store" } },
   );

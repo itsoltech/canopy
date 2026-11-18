@@ -18,7 +18,10 @@
   const home = $derived(overview.computer(thread.nodeId));
 
   const unavailable = $derived(
-    (thread.nodeId && awayReason(home)) ||
+    (thread.archivedAt || thread.deletedAt ? "Open an active thread to check local changes." : "") ||
+      (thread.worktree?.removedAt && "This worktree was removed. Continue in a new worktree.") ||
+      (!thread.cwd && "This thread has no working directory.") ||
+      (thread.nodeId && awayReason(home)) ||
       (!worker?.online && "Reconnect this computer to check local changes.") ||
       (capabilities?.methods &&
         !capabilities.methods.includes("GetThreadGitStatus") &&

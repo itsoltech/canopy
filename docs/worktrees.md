@@ -10,7 +10,7 @@ i powrót do przygotowania z listy wątków w web/desktop, natychmiastowy widok 
 nowego wątku z postępem operacji worktree w web/desktop i natywnym mobile, 24-godzinna ochrona worktree po archiwizacji
 i kontynuacja po usunięciu worktree w nowym wątku oraz sprzątanie zamkniętych worktree
 z odrzucaniem lokalnych plików, pomijanie plików ignorowanych przez Git,
-status lokalnych zmian i pull origin
+odczyt lokalnych zmian uwzględniający dostępność katalogu i pull origin
 w web/desktop, przełączanie gałęzi z kompozytora oraz przywracanie lokalnych zmian
 po potwierdzeniu stash & pop oraz osobny limit tworzenia worktree dla dużych repozytoriów.
 Tworzenie rozróżnia przekroczenie limitu czasu, rozmiaru wyjścia i błąd Git.
@@ -263,6 +263,13 @@ komputera `remote_git_status_v1`. `Worker.git_status` pozwala wyłączyć akcje
 na starszej wersji z instrukcją aktualizacji w podpowiedzi. Zmiany protokołu są
 addytywne, bez zmiany `WORKER_LINK_PROTOCOL`.
 
+Web/desktop pomija odczyt dla zarchiwizowanego wątku, usuniętego worktree
+i wątku bez katalogu. Gateway sprawdza właściciela i zapisane położenie wątku
+przed skanem. Po usunięciu worktree nie sprawdza ponownie wykorzystanej ścieżki.
+Jeśli katalog zniknął z dysku, skan osiągnął limit plików lub czasu albo trwa
+inna operacja Git, podsumowanie podaje przyczynę niedostępności w podpowiedzi.
+Przycisk Refresh ponawia odczyt, gdy katalog wciąż jest przypisany do aktywnego wątku.
+
 Odczyt obejmuje nowe (w tym untracked), zmodyfikowane, usunięte, przemianowane
 i skonfliktowane pliki, unikalną liczbę plików oraz bilans linii względem HEAD.
 Zmiany indeksu i drzewa roboczego nie są liczone dwukrotnie. Pliki ignorowane
@@ -274,6 +281,8 @@ plików, z ograniczeniem czasu i wyjścia procesów git. Symlinki nowych plików
 liczone jako ich treść, bez odczytu celu. Panel odczytuje przy otwarciu, zmianie HEAD,
 przejściu stanu tury i ręcznym Refresh; nie skanuje w tle ani cyklicznie.
 Renderer scala zdarzenia przez 150 ms i współdzieli odczyty jednego wątku.
+Po ukryciu panelu rezygnuje z oczekiwania i z kolejnego zaplanowanego odczytu.
+Ostatni odbiorca anuluje bieżące żądanie HTTP, zachowując poprzedni wynik.
 Worker współdzieli jeden pełny skan według kanonicznego checkoutu, również dla
 różnych wątków, aliasów i podkatalogów. Nie zachowuje zakończonego snapshotu;
 ponowne odświeżenie czyta bieżący stan. Maksymalnie 32 checkouty mogą mieć odczyt

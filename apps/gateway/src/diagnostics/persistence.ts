@@ -35,7 +35,7 @@ export class DiagnosticsPersistence {
       processes(at: number): ui.DiagnosticsProcess[];
       saved?(state: ui.DiagnosticsState): void;
       ready?(): void;
-      own?(process: ui.DiagnosticsProcess, at: number): ui.DiagnosticsProcess;
+      takeCheckpoints?(at: number): ui.DiagnosticsCheckpoint[];
     },
   ) {
     this.#historyAfter = collector.startedAt - 3_600_000 - 1;
@@ -134,10 +134,10 @@ export class DiagnosticsPersistence {
       at < current + Number(includeCurrent) * 60_000;
       at += 60_000
     ) {
-      const own = this.collector.rollup(at);
+      const own = this.collector.rollup(at, this.host.takeCheckpoints?.(at));
 
       if (!own) continue;
-      const processes = [this.host.own?.(own, at) ?? own, ...this.host.processes(at)];
+      const processes = [own, ...this.host.processes(at)];
 
       try {
         const payload = encodeRollup(processes);

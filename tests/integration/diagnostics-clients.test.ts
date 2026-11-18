@@ -13,6 +13,7 @@ import { dockerAvailable } from "@canopy/db/testing";
 import { Code, ConnectError } from "@connectrpc/connect";
 import { SqlClient } from "effect/sql";
 import { processGovernor } from "@canopy/process-governor";
+import { RpcCollector } from "../../apps/gateway/src/diagnostics/collector.ts";
 import { ClientDiagnostics } from "../../apps/gateway/src/diagnostics/clients.ts";
 import { DiagnosticsStore } from "../../apps/gateway/src/diagnostics/store.ts";
 import { diagnosticReport, REPORT_BYTES } from "../../apps/gateway/src/diagnostics/report.ts";
@@ -28,6 +29,55 @@ const rejectedCode = (promise: Promise<object>) =>
     () => 0,
     (error) => ConnectError.from(error).code,
   );
+
+test("RPC memory pressure preserves client admission and the minute checkpoints used for replay protection", () => {
+  const collector = new RpcCollector([]);
+  const clients = new ClientDiagnostics(collector, () => "epoch");
+  const start = Math.floor(Date.now() / 60_000) * 60_000;
+  const source = new ClientMeasurements("web", crypto.randomUUID());
+  source.clear("epoch");
+  source.record(1, 10);
+  const sample = source.take();
+  const senders = Array.from({ length: 30 }, () => crypto.randomUUID());
+
+  // The ordinary metric already has a series, but other RPCs occupy the remaining budget.
+  for (let minute = 0; minute <= 1; minute++) collector.mergeMeasures(sample.measures, start + minute * 60_000);
+  expect(collector.budget.reserve(collector.budget.limit - collector.budget.used)).toBe(true);
+
+  const submit = (sender: string, minute: number) => {
+    const at = start + minute * 60_000;
+    const time = BigInt(at);
+
+    return clients.submit(
+      {
+        ...sample,
+        sequence: BigInt(minute + 1),
+        startMs: time,
+        endMs: time,
+        measures: sample.measures.map((value) => ({ ...value, sampledAtMs: time })),
+      },
+      sender,
+      false,
+      at,
+    );
+  };
+
+  for (const minute of [0, 1]) for (const sender of senders) expect(submit(sender, minute).accepted).toBe(true);
+  expect(() => submit(senders[0]!, 2)).toThrow("Diagnostics checkpoint budget reached");
+  const frozen = collector.rollup(start, clients.takeCheckpoints(start))!;
+  expect(frozen.checkpoints).toHaveLength(30);
+  expect(frozen.checkpoints.every((checkpoint) => checkpoint.sequence === 1n)).toBe(true);
+  expect(frozen.measures[0]?.events).toBe(31n);
+
+  for (const sender of senders) expect(submit(sender, 2).accepted).toBe(true);
+  expect(submit(senders[0]!, 2).accepted).toBe(false);
+  expect(collector.budget.used).toBe(collector.budget.limit);
+  // Even when an entire minute has no metric bucket, frozen checkpoints can advance and release their slots.
+  expect(collector.rollup(start + 120_000)).toBeUndefined();
+  const dropped = collector.rollup(start + 120_000, clients.takeCheckpoints(start + 120_000))!;
+  expect(dropped.checkpoints).toHaveLength(30);
+  expect(dropped.measures).toHaveLength(0);
+});
 
 describe.skipIf(!dockerAvailable)("client diagnostics auth, redaction and explicit actions", () => {
   let gw: TestGateway;

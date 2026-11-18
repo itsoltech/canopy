@@ -133,12 +133,15 @@ export class ThreadHistory {
         return;
       }
 
-      const diverged = threadViewDiverged(overviewStatus(), this.view.running);
+      const diverged = this.view.loaded && threadViewDiverged(overviewStatus(), this.view.running);
       const repair = liveness.check(this.read()?.syncCursor, threadOverviewHead(id), Date.now(), diverged);
 
       if (!repair) return;
       timelineRecovery("stalled_watch");
-      console.warn(repair.reload ? "Thread watch reloaded" : "Thread watch resumed from applied cursor", repair);
+      console.warn(repair.reload ? "Thread watch reloaded" : "Thread watch resumed from applied cursor", {
+        reason: "stalled_watch",
+        ...repair,
+      });
 
       if (repair.reload) this.reset();
       open();
