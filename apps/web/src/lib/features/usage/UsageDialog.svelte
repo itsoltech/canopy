@@ -244,7 +244,7 @@
             {#if data.supportsActivityBreakdown && !activityKind}
               <UsageActivityBreakdown rows={data.activities} view={selectedView} />
             {/if}
-            <UsageChart days={data.days} providers={data.providers} totals={data.totals} view={selectedView} />
+            <UsageChart days={data.days} providers={data.providers} view={selectedView} />
             <UsageBreakdown {data} view={selectedView} />
           {/if}
           <UsageSources computers={data.computers} />

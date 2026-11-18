@@ -6,15 +6,10 @@ export interface UsageAmounts {
   cacheRead: bigint;
   cacheWrite: bigint;
   reasoning: bigint;
-  cost: number;
-  estimatedCost: number;
   effectiveCost: number;
-  estimatedCostReports: bigint;
-  effectiveReportedCostReports: bigint;
-  effectiveEstimatedCostReports: bigint;
+  effectiveCostReports: bigint;
   unknownEffectiveCostReports: bigint;
   reports: bigint;
-  costReports: bigint;
 }
 
 export interface UsageRow {
@@ -68,35 +63,21 @@ export const count = (value: bigint) => numbers.format(value);
 export const shortCount = (value: bigint) => compact.format(value);
 export const totalTokens = (amounts: UsageAmounts) => amounts.input + amounts.output;
 
-export const reportedCost = (amounts: UsageAmounts) =>
-  amounts.costReports > 0n || amounts.cost > 0 ? dollars.format(amounts.cost) : "Unknown";
+export const hasEffectiveCost = (amounts: UsageAmounts) => amounts.effectiveCostReports > 0n;
 
-export const estimatedCost = (amounts: UsageAmounts) =>
-  amounts.estimatedCostReports > 0n || amounts.estimatedCost > 0 ? dollars.format(amounts.estimatedCost) : "Unknown";
-
-export const effectiveCostReports = (amounts: UsageAmounts) =>
-  amounts.effectiveReportedCostReports + amounts.effectiveEstimatedCostReports;
-
-export const hasEffectiveCost = (amounts: UsageAmounts) => effectiveCostReports(amounts) > 0n;
+export const hasPartialCost = (amounts: UsageAmounts) =>
+  hasEffectiveCost(amounts) && amounts.unknownEffectiveCostReports > 0n;
 
 export const effectiveCost = (amounts: UsageAmounts) =>
   hasEffectiveCost(amounts) ? dollars.format(amounts.effectiveCost) : "Unknown";
 
-export function costSource(amounts: UsageAmounts): string {
-  if (!hasEffectiveCost(amounts)) return "Unknown cost";
+export function metricValue(amounts: UsageAmounts, view: UsageView): string {
+  if (view === "tokens") return count(totalTokens(amounts));
 
-  const source =
-    amounts.effectiveEstimatedCostReports === 0n
-      ? "Reported"
-      : amounts.effectiveReportedCostReports === 0n
-        ? "API equivalent"
-        : "Reported + API equivalent";
+  const cost = effectiveCost(amounts);
 
-  return amounts.unknownEffectiveCostReports > 0n ? `${source} · partial` : source;
+  return hasPartialCost(amounts) ? `${cost} (partial)` : cost;
 }
-
-export const metricValue = (amounts: UsageAmounts, view: UsageView) =>
-  view === "cost" ? effectiveCost(amounts) : count(totalTokens(amounts));
 
 export const metricNumber = (amounts: UsageAmounts, view: UsageView) =>
   view === "cost" ? amounts.effectiveCost : Number(totalTokens(amounts));
