@@ -37,7 +37,7 @@ import {
 
 export const unstable_settings = { anchor: "(main)" };
 
-/** Settings covers the complete workspace; its transition never resizes the thread underneath. */
+/** Settings and Usage cover the workspace without resizing the thread underneath. */
 function Navigation() {
   const c = useColors();
   const reduced = useReducedMotion();
@@ -60,6 +60,7 @@ function Navigation() {
       >
         <Stack.Protected guard={Boolean(session)}>
           <Stack.Screen name="(main)" options={{ animation: "none" }} />
+          <Stack.Screen name="usage" options={{ animation: reduced ? "none" : "default" }} />
           <Stack.Screen
             name="settings"
             options={{

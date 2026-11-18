@@ -1,6 +1,7 @@
 # Canopy na iOS i Android
 
-Status: opis zaimplementowanego kodu (2026-11-18); na liście Bots czas i licznik są wyrównane przy menu wiersza.
+Status: opis zaimplementowanego kodu (2026-11-19); natywny raport Usage pokazuje
+historię tokenów i kosztów z gatewaya. Na liście Bots czas i licznik są wyrównane przy menu wiersza.
 Aktywny czat bota potwierdza odczyt najnowszych wiadomości i odświeża licznik listy Bots.
 Telefon i tablet pozwalają wybrać kolejność zakładek
 i zatrzymać pracę modułu Threads albo Bots na koncie właściciela.
@@ -252,6 +253,22 @@ Konfiguracja natywna oraz assety wpływają na fingerprint; stare IPA/APK pozost
 starą tożsamością do instalacji nowej binarki. Publiczną konfigurację można sprawdzić
 w `apps/mobile` przez `CANOPY_CHANNEL=nightly bunx expo config --type public`.
 
+## Raport Usage
+
+Ikona tabeli obok Settings w stopce nawigacji otwiera osobny ekran **Usage**.
+Raport pokazuje koszt i liczbę tokenów dla dzisiaj lub ostatnich 7, 30 albo
+90 dni kalendarzowych UTC. Można wybrać dostawcę i przełączyć podział według
+dostawcy, modelu, dnia lub żądanej szybkości oraz według aktywności lub bota,
+jeśli gateway zwraca te podziały. Lista źródeł pokazuje stan i początek rejestrowania
+danych z komputerów. Kwoty nieznane i częściowe mają osobne oznaczenia.
+
+Telefon pobiera raport przez `GetUsageStats` po otwarciu ekranu, zmianie filtrów
+lub ręcznym odświeżeniu. Przerywa odczyt po opuszczeniu ekranu lub przejściu
+aplikacji w tło. Gdy gateway nie obsługuje metody, ekran wskazuje konieczność
+aktualizacji gatewaya i pozwala ponownie sprawdzić dostępność. Błąd połączenia
+pokazuje akcję ponowienia. Starsza wersja API statystyk pokazuje tylko kompletne
+kwoty zgłoszone przez dostawcę. Szczegóły rozliczania opisuje [usage.md](usage.md).
+
 ## Podgląd automatyzacji i limity kont
 
 `Open preview` obok Files otwiera natywny pełnoekranowy Preview. Browser, Desktop i Device
@@ -290,7 +307,9 @@ Automatyczny mini Preview pod podsumowaniem i zmiana wymiarów viewportu pozosta
 funkcjami web/desktop; mobile udostępnia ręcznie otwierany pełny ekran.
 
 Wskaźniki limitów w sidebarze mają 40 dp w stałym slocie 56 dp; nadejście odczytu
-nie przesuwa przycisków stopki. Arkusz Provider usage zachowuje pełną szerokość
+nie przesuwa przycisków stopki. W wąskiej stopce licznik workerów i tekst stanu
+połączenia są dostępne dla czytnika ekranu, a widoczne pozostają ikona i kropka.
+Osobny arkusz Provider usage zachowuje pełną szerokość
 telefonu i kartę do 420 dp na tablecie, kompaktowy tekst zgodny z preferencjami
 fontu i rozmiaru interfejsu oraz zawijanie statusów i resetu. Konta proxy pokazują
 pace i steady-use target tak jak web. Limit osiągnięty oznacza 0% pozostałego

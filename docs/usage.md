@@ -1,9 +1,10 @@
 # Statystyki zużycia tokenów i kosztów
 
-Status (2026-11-18): zaimplementowane agregaty zużycia w gatewayu, raporty
+Status (2026-11-19): zaimplementowane agregaty zużycia w gatewayu, raporty
 harnessów, niezależne szacunki ekwiwalentu API OpenAI, wybór kosztu per licznik,
 API `GetUsageStats`, synchronizacja źródeł połączonych komputerów oraz modal
 Usage z jedną kwotą kosztu i podziałem według aktywności oraz poszczególnych botów.
+Natywny ekran Usage pobiera ten sam raport z gatewaya ([mobile.md](mobile.md#raport-usage)).
 Dostępność nightly/beta/stable według [release.md](release.md).
 
 ## Co mierzymy
