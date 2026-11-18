@@ -6,11 +6,13 @@ import { GatewayStore } from "@canopy/gateway/store";
 import { toJson } from "@bufbuild/protobuf";
 import { connectors } from "@canopy/contracts";
 import { fakeConnector } from "./support/connector.ts";
+import { oauthRedirectUrl } from "../../apps/gateway/src/connectors/catalog.ts";
 import { startTestGateway, type TestGateway } from "./support/gateway.ts";
 
 describe.skipIf(!dockerAvailable)("connector test diagnostics at the gateway boundary", () => {
   let gw: TestGateway;
   let fake: ReturnType<typeof fakeConnector>;
+  let app: { clientId: string; clientSecret: string };
 
   let reply: (
     method: string,
@@ -24,6 +26,8 @@ describe.skipIf(!dockerAvailable)("connector test diagnostics at the gateway bou
     reply = () => undefined;
     fake = fakeConnector({ response: (...args) => reply(...args) });
     gw = await startTestGateway();
+    app = fake.registeredApp(oauthRedirectUrl());
+    await gw.api.saveConnectorOAuthApp({ connectorType: "slack", ...app, issuer: fake.issuer });
   }, 60_000);
 
   afterAll(async () => {
@@ -67,17 +71,19 @@ describe.skipIf(!dockerAvailable)("connector test diagnostics at the gateway bou
 
       // Set gateway-owned credentials, as a completed user OAuth exchange would.
       await gw.core.connectors.run((s) =>
-        s
-          .owned(gw.userId, account.id)
-          .pipe(
-            Effect.flatMap((row) =>
-              s.updateCredentials(
-                row,
-                { tokens: { access_token: fake.secret, token_type: "user" }, headers: { "X-Private": privateHeader } },
-                "connected",
-              ),
+        s.owned(gw.userId, account.id).pipe(
+          Effect.flatMap((row) =>
+            s.updateCredentials(
+              row,
+              {
+                client: { client_id: app.clientId },
+                tokens: { access_token: fake.secret, token_type: "user" },
+                headers: { "X-Private": privateHeader },
+              },
+              "connected",
             ),
           ),
+        ),
       );
       reply = (method) =>
         method === "initialize"
@@ -259,7 +265,11 @@ describe.skipIf(!dockerAvailable)("connector test diagnostics at the gateway bou
         .owned(gw.userId, account.id)
         .pipe(
           Effect.flatMap((row) =>
-            s.updateCredentials(row, { tokens: { access_token: fake.secret, token_type: "user" } }, "connected"),
+            s.updateCredentials(
+              row,
+              { client: { client_id: app.clientId }, tokens: { access_token: fake.secret, token_type: "user" } },
+              "connected",
+            ),
           ),
         ),
     );
