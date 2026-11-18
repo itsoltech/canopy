@@ -254,6 +254,41 @@ const shutdown = new AbortController();
 const stopping = new AbortController();
 let currentLink: GatewayLink | undefined;
 let gracefulStop: Promise<void> | undefined;
+let restartExitCode: number | undefined;
+
+function stopWorker(): Promise<void> {
+  stopping.abort();
+  desktopStatus("offline");
+
+  // Cancel an in-flight handshake immediately; an established link stays up for journal acks.
+  if (!currentLink) shutdown.abort();
+  gracefulStop = (async () => {
+    // Stop provider runtimes and journal their interrupted background tasks while the link is up.
+    let tasks = 0;
+
+    try {
+      tasks = await host.shutdown();
+    } catch (cause) {
+      console.warn(`shutdown: ${cause instanceof Error ? cause.message : String(cause)}`);
+    }
+
+    if (currentLink && !(await host.flush(SHUTDOWN_FLUSH_MS).catch(() => false)))
+      console.warn("shutdown: not every event reached the gateway; sent after the next start");
+
+    if (tasks > 0) console.info(`stopped ${tasks} background task(s) for the shutdown`);
+
+    try {
+      currentLink?.close();
+    } catch {
+      // Link already closed.
+    }
+
+    // Do not wait for a remote peer to finish the half-close.
+    shutdown.abort();
+  })();
+
+  return gracefulStop;
+}
 
 desktopDrain({
   idle: () => host.updateIdle(),
@@ -283,14 +318,10 @@ const updates = new WorkerUpdates({
     else if (!stopping.signal.aborted) currentLink?.close();
   },
   log: (message) => console.info(message),
-  restart: async (exitCode = UPDATE_RESTART_EXIT_CODE) => {
-    stopping.abort();
-    await host.shutdown();
-    await host.flush(SHUTDOWN_FLUSH_MS).catch(() => false);
-    currentLink?.close();
-    shutdown.abort();
-    await runtime.dispose();
-    process.exit(exitCode);
+  restart: (exitCode = UPDATE_RESTART_EXIT_CODE) => {
+    restartExitCode = exitCode;
+
+    return gracefulStop ?? stopWorker();
   },
 });
 
@@ -318,40 +349,13 @@ for (const signal of ["SIGINT", "SIGTERM"] as const) {
       return;
     }
 
-    stopping.abort();
-    desktopStatus("offline");
+    try {
+      currentLink?.send({ case: "heartbeat", value: { runningTurns: 0, state: WorkerState.DRAINING } });
+    } catch {
+      // Link already closed.
+    }
 
-    // Cancel an in-flight handshake immediately; an established link stays up for journal acks.
-    if (!currentLink) shutdown.abort();
-    gracefulStop = (async () => {
-      try {
-        currentLink?.send({ case: "heartbeat", value: { runningTurns: 0, state: WorkerState.DRAINING } });
-      } catch {
-        // Link already closed.
-      }
-
-      // Background tasks die with the provider runtimes: recorded as stopped by the shutdown (with their end time) and
-      // reported while the link is up, so the gateway can tell their agents (docs/execution.md, "Pobudka").
-      const tasks = await host
-        .shutdown()
-        .catch(
-          (cause: unknown) => (console.warn(`shutdown: ${cause instanceof Error ? cause.message : String(cause)}`), 0),
-        );
-
-      if (currentLink && !(await host.flush(SHUTDOWN_FLUSH_MS).catch(() => false)))
-        console.warn("shutdown: not every event reached the gateway; sent after the next start");
-
-      if (tasks > 0) console.info(`stopped ${tasks} background task(s) for the shutdown`);
-
-      try {
-        currentLink?.close();
-      } catch {
-        // Link already closed; nothing to drain.
-      }
-
-      // The bounded flush is complete. Do not wait for a remote peer to finish the half-close.
-      shutdown.abort();
-    })();
+    void stopWorker();
   });
 }
 
@@ -478,14 +482,14 @@ while (!stopping.signal.aborted) {
 // Stops provider runtimes, then closes the journal (SQLite) cleanly.
 workerDiagnostics.stop();
 
-await gracefulStop;
-
-await host.close();
+await (gracefulStop ?? host.close());
 
 shutdown.abort();
 
 await updateLoop;
 
 await runtime.dispose();
+
+if (restartExitCode !== undefined) process.exit(restartExitCode);
 
 if (process.connected) process.disconnect?.();
