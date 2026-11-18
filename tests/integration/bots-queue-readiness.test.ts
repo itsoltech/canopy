@@ -42,7 +42,7 @@ describe.skipIf(!dockerAvailable)("bot queue readiness and concurrent wakes", ()
     suite.currentWorker.holdTurns = false;
   });
 
-  test("a running watch stays idle until its target ends, then delivers exactly once", async () => {
+  test("a watched turn wakes its bot once for a question and once for completion", async () => {
     const { turn, call } = await source("Thread readiness");
     suite.currentWorker.holdTurns = true;
 
@@ -64,12 +64,50 @@ describe.skipIf(!dockerAvailable)("bot queue readiness and concurrent wakes", ()
     await suite.current.bots.run((s) => s.finish(turn, "completed", "watching"));
     expect((await poll()).ready).toBe(false);
     expect(await eventually(async () => suite.currentWorker.inputs.has(thread.id), Boolean)).toBe(true);
+    const requestId = crypto.randomUUID();
+
+    const answer = suite.currentWorker.callTool({
+      threadId: thread.id,
+      turnId: target.id,
+      callId: requestId,
+      tool: "ask_user",
+      args: {
+        wait: true,
+        questions: [{ id: "detail", header: "Detail", question: "Which branch should I use?", kind: "text" }],
+      },
+    });
+
+    expect(await eventually(async () => (await poll()).ready, Boolean)).toBe(true);
+    await suite.current.bots.run((s) => s.deliver());
+    await suite.current.bots.run((s) => s.deliver());
+
+    const notices = await query("SELECT bot_id, input FROM bot_turns WHERE client_request_id=$1", [
+      `thread-question:${call.id}:${requestId}`,
+    ]);
+
+    expect(notices).toEqual([{ bot_id: turn.bot_id, input: expect.stringContaining(requestId) }]);
+    expect(await query("SELECT delivered FROM bot_thread_watches WHERE call_id=$1::uuid", [call.id])).toEqual([
+      { delivered: false },
+    ]);
+    const notification = (await suite.current.bots.run((s) => s.claim(suite.gw.userId)))!;
+
+    expect(notification.bot_id).toBe(turn.bot_id);
+    await suite.current.bots.run((s) => s.finish(notification, "completed", "Question received"));
+    expect((await poll()).ready).toBe(false);
+    await suite.gw.api.answerInteraction({
+      requestId,
+      answerJson: JSON.stringify({ answers: [{ id: "detail", kind: "text", text: "dev" }] }),
+    });
+    expect((await answer).content).toContain("dev");
+
     suite.currentWorker.finish(thread.id, target.id, "Watched result");
     expect(await eventually(async () => (await poll()).ready, Boolean)).toBe(true);
     expect((await poll()).ready).toBe(true);
     await suite.current.bots.run((s) => s.deliver());
     await suite.current.bots.run((s) => s.deliver());
-    expect(await query("SELECT id FROM bot_turns WHERE client_request_id=$1", [`thread:${call.id}`])).toHaveLength(1);
+    expect(
+      await query("SELECT bot_id, input FROM bot_turns WHERE client_request_id=$1", [`thread:${call.id}`]),
+    ).toEqual([{ bot_id: turn.bot_id, input: expect.stringContaining("Watched result") }]);
   });
 
   test("future, cancelled and delivered wakeups stay idle; a due wakeup delivers once", async () => {

@@ -9,7 +9,8 @@ Konfiguracja bota przenosi `service_tier` do `RunBotTurn`.
 Historia w web/desktop korzysta z wirtualizacji i automatycznie dołącza
 starsze strony podczas przewijania, zachowując pozycję czytania.
 Limit automatycznej wymiany wynosi 256 kroków; walidacja budżetu przed zgodą
-i diagnostyka wyników narzędzi są zaimplementowane.
+i diagnostyka wyników narzędzi są zaimplementowane. Bot zlecający pracę lokalnej
+turze dostaje powiadomienia o oczekujących pytaniach i zakończeniu tury.
 Dostępność nightly/beta/stable według [release.md](release.md).
 
 ## Rozmowy przez komunikatory
@@ -728,6 +729,11 @@ i `BotMessage.setting_changes` mają numer **430** w swoich komunikatach.
    idempotencję komend. Archiwizacja używa istniejącego, idempotentnego cyklu życia.
    Wynik zatwierdzony w transakcji ma pierwszeństwo przed późniejszym błędem dispatchu
    lub publikacji; taki błąd nie nadpisuje sukcesu i nie zachęca modelu do powtórzenia akcji.
+   Oczekujące pytanie lub formularz obserwowanej lokalnej tury kolejkuje osobne
+   powiadomienie dla bota raz na subskrypcję i interakcję. Bot może odczytać pytanie
+   przez `read_thread` i zaproponować odpowiedź przez `answer_interaction`. Zapis
+   powiadomienia i jego deduplikacja są atomowe. Subskrypcja pozostaje aktywna do
+   zakończenia tury. Prośby o uprawnienia nadal obsługują karty zgód.
 5. Przed zdalnym MCP zapisujemy `running`. Gdy lease zostaje przejęty po awarii,
    takie wywołanie staje się `interrupted`, z opisem nieznanego wyniku. Model dostaje
    ten wynik, a nie ponowione żądanie MCP. Dokładnie jednokrotnego wykonania obcego
