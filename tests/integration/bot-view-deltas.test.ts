@@ -90,10 +90,12 @@ describe.skipIf(!dockerAvailable)("bot UI checkpoints on real gateways", () => {
     const listedBot = async () =>
       (await a.api.listBots({ includeArchived: true })).bots.find((bot) => bot.id === botId);
 
+    await a.api.archiveBot({ botId });
     await a.api.markBotRead({ botId, throughSeq: state.messages.at(-2)!.seq });
-    expect((await listedBot())?.unreadCount).toBe(1);
+    expect(await listedBot()).toMatchObject({ archived: true, unreadCount: 1 });
     await a.api.markBotRead({ botId, throughSeq: state.messages.at(-1)!.seq });
-    expect((await listedBot())?.unreadCount).toBe(0);
+    expect(await listedBot()).toMatchObject({ archived: true, unreadCount: 0 });
+    await a.api.unarchiveBot({ botId });
     const delta = await open(a, botId, state.cursor);
     expect(delta.delta).toBe(true);
     expect(delta.messages).toHaveLength(1);
