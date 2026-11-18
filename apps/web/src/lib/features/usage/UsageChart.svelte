@@ -4,6 +4,7 @@
     dayLabel,
     hasEffectiveCost,
     metricValue,
+    type UsageAmounts,
     type UsageDay,
     type UsageRow,
     type UsageView,
@@ -13,7 +14,13 @@
   import UsageProviderMark from "./UsageProviderMark.svelte";
   import { usageProviderColor } from "./providers.ts";
 
-  let { days, providers, view }: { days: UsageDay[]; providers: UsageRow[]; view: UsageView } = $props();
+  let {
+    days,
+    providers,
+    totals,
+    view,
+  }: { days: UsageDay[]; providers: UsageRow[]; totals: UsageAmounts; view: UsageView } = $props();
+
   let active = $state(-1);
   const selectedIndex = $derived(active < 0 ? days.length - 1 : Math.min(active, days.length - 1));
   const selected = $derived(days[selectedIndex]);
@@ -44,17 +51,26 @@
   }
 </script>
 
-<figure class="min-w-0 rounded-xl border border-divider p-4">
-  <figcaption class="flex flex-wrap items-start justify-between gap-x-4 gap-y-1">
+<figure class="@container min-w-0 rounded-xl border border-divider p-4">
+  <figcaption class="grid grid-cols-1 items-start gap-x-4 gap-y-1 @lg:grid-cols-2">
     <div>
       <h3 class="text-base/6 font-medium sm:text-sm/6">Daily trend</h3>
       <p class="text-sm/5 text-zinc-500 dark:text-zinc-400">Use arrow keys to explore days in UTC.</p>
     </div>
     <div class="min-h-10 text-right text-sm/5 tabular-nums">
       {#if selected}
+        {@const total = `Total ${metricValue(selected.amounts, view)}${view === "tokens" ? " tokens" : ""}`}
         <p>{dayLabel(selected.key)}</p>
-        <p class="font-medium">Total {metricValue(selected.amounts, view)}{view === "tokens" ? " tokens" : ""}</p>
-        {#if view === "cost"}<UsageCostCoverage amounts={selected.amounts} />{/if}
+        <p class="truncate font-medium" title={total}>{total}</p>
+        {#if view === "cost"}
+          <div class="grid">
+            <!-- Period counts bound the daily counts and reserve space if the coverage wraps. -->
+            <div class="invisible col-start-1 row-start-1" aria-hidden="true">
+              <UsageCostCoverage amounts={totals} />
+            </div>
+            <div class="col-start-1 row-start-1"><UsageCostCoverage amounts={selected.amounts} /></div>
+          </div>
+        {/if}
       {/if}
     </div>
   </figcaption>
@@ -87,26 +103,31 @@
   <ul class="mt-4 grid gap-x-5 gap-y-2 sm:grid-cols-2 lg:grid-cols-3" aria-label="Usage by provider on selected day">
     {#each providers as provider (provider.key)}
       {@const part = selected?.providers.find((row) => row.key === provider.key)}
-      <li class="flex min-w-0 items-center gap-2 text-sm/5">
-        <span
-          class="h-0.5 w-3 shrink-0 rounded-full"
-          style:background-color={usageProviderColor(provider.key)}
-          aria-hidden="true"
-        ></span>
-        <UsageProviderMark provider={provider.key} />
-        <span>{provider.label}</span>
-        <span class="ml-auto text-right text-zinc-500 tabular-nums dark:text-zinc-400">
-          <span class="block"
-            >{part
-              ? metricValue(part.amounts, view)
-              : selected?.providers.length || selected?.amounts.reports === 0n
-                ? "No usage"
-                : "Unknown"}</span
-          >
-          {#if part && view === "cost" && hasEffectiveCost(part.amounts)}<span class="block text-xs/5"
-              >{costSource(part.amounts)}</span
-            >{/if}
+      {@const value = part
+        ? metricValue(part.amounts, view)
+        : selected?.providers.length || selected?.amounts.reports === 0n
+          ? "No usage"
+          : "Unknown"}
+      <li class="grid min-w-0 grid-cols-[auto_minmax(0,1fr)] items-center gap-x-2 text-sm/5">
+        <span class="flex items-center gap-2">
+          <span
+            class="h-0.5 w-3 shrink-0 rounded-full"
+            style:background-color={usageProviderColor(provider.key)}
+            aria-hidden="true"
+          ></span>
+          <UsageProviderMark provider={provider.key} />
+          <span>{provider.label}</span>
         </span>
+        <span class="truncate text-right text-zinc-500 tabular-nums dark:text-zinc-400" title={value}>{value}</span>
+        {#if view === "cost"}
+          {@const source = part && hasEffectiveCost(part.amounts) ? costSource(part.amounts) : undefined}
+          <span
+            class="col-span-full min-h-5 truncate text-right text-xs/5 text-zinc-500 dark:text-zinc-400"
+            title={source}
+          >
+            {source ?? ""}
+          </span>
+        {/if}
       </li>
     {/each}
   </ul>
