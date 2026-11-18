@@ -13,50 +13,55 @@ import { startTestPostgresServer } from "../../db/src/testing-server.ts";
 const shared = tmpdir();
 const ours = (name: string) => name.startsWith("canopy-");
 const before = new Set(readdirSync(shared).filter(ours));
-const postgres = dockerAvailable ? await startTestPostgresServer() : undefined;
 const tmp = mkdtempSync(join(shared, "canopy-tmpcheck-"));
-const descriptor = join(tmp, ".canopy-test-postgres-port");
 
-// The private TMPDIR already reaches fixtures. Keep test infrastructure out of provider environments.
-if (postgres) writeFileSync(descriptor, String(postgres.port), { mode: 0o600 });
+async function runTests(): Promise<number> {
+  const postgres = dockerAvailable ? await startTestPostgresServer() : undefined;
+  const descriptor = join(tmp, ".canopy-test-postgres-port");
+
+  try {
+    // The private TMPDIR already reaches fixtures. Keep test infrastructure out of provider environments.
+    if (postgres) writeFileSync(descriptor, String(postgres.port), { mode: 0o600 });
+
+    const proc = Bun.spawn([process.execPath, "test", ...process.argv.slice(2)], {
+      env: { ...process.env, TMPDIR: tmp },
+      stdio: ["inherit", "inherit", "inherit"],
+    });
+
+    for (const signal of ["SIGINT", "SIGTERM"] as const) process.on(signal, () => proc.kill(signal));
+
+    return await proc.exited;
+  } finally {
+    await postgres?.stop();
+    rmSync(descriptor, { recursive: true, force: true });
+  }
+}
 
 let code = 1;
 
 try {
-  const proc = Bun.spawn([process.execPath, "test", ...process.argv.slice(2)], {
-    env: { ...process.env, TMPDIR: tmp },
-    stdio: ["inherit", "inherit", "inherit"],
-  });
+  code = await runTests();
 
-  for (const signal of ["SIGINT", "SIGTERM"] as const) process.on(signal, () => proc.kill(signal));
+  // Harness CLIs keep their own runtime files in TMPDIR (sockets, compile caches, sandbox mount targets): not ours.
+  const all = readdirSync(tmp);
+  const left = all.filter(ours);
+  const others = all.filter((name) => !ours(name));
+  const meanwhile = readdirSync(shared).filter((name) => ours(name) && !before.has(name) && join(shared, name) !== tmp);
 
-  code = await proc.exited;
+  if (others.length > 0)
+    console.warn(`\ncheck:tmp: left by the tools the tests ran (not checked): ${others.join(", ")}`);
+
+  if (meanwhile.length > 0)
+    console.warn(`\ncheck:tmp: new in ${shared} during the run (maybe other runs'): ${meanwhile.join(", ")}`);
+
+  if (left.length > 0) {
+    console.error(
+      `\ncheck:tmp: the tests left ${left.length} entr${left.length === 1 ? "y" : "ies"} in their temp dir: ${left.join(", ")}`,
+    );
+    code = 1;
+  } else console.log(`\ncheck:tmp: nothing left in the temp dir`);
 } finally {
-  await postgres?.stop();
-
-  if (postgres) rmSync(descriptor);
+  rmSync(tmp, { recursive: true, force: true });
 }
-
-// Harness CLIs keep their own runtime files in TMPDIR (sockets, compile caches, sandbox mount targets): not ours.
-const all = readdirSync(tmp);
-const left = all.filter(ours);
-const others = all.filter((name) => !ours(name));
-const meanwhile = readdirSync(shared).filter((name) => ours(name) && !before.has(name) && join(shared, name) !== tmp);
-
-rmSync(tmp, { recursive: true, force: true });
-
-if (others.length > 0) console.warn(`\ncheck:tmp: left by the tools the tests ran (not checked): ${others.join(", ")}`);
-
-if (meanwhile.length > 0)
-  console.warn(`\ncheck:tmp: new in ${shared} during the run (maybe other runs'): ${meanwhile.join(", ")}`);
-
-if (left.length > 0) {
-  console.error(
-    `\ncheck:tmp: the tests left ${left.length} entr${left.length === 1 ? "y" : "ies"} in their temp dir: ${left.join(", ")}`,
-  );
-  process.exit(1);
-}
-
-console.log(`\ncheck:tmp: nothing left in the temp dir`);
 
 process.exit(code);

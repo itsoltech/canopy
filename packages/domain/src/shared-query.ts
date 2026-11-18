@@ -36,7 +36,7 @@ type Entry = {
   /** When the value was last read or set (ms). */
   readAt: number;
   dirty: boolean;
-  timer: ReturnType<typeof setTimeout> | undefined;
+  timer: (() => void) | undefined;
 };
 
 /** `set` takes a value or an updater; protobuf messages and plain data are never functions. */
@@ -59,6 +59,11 @@ export type QueryCacheOptions = {
   coalesceMs?: number;
   /** User-facing text for a failed read. */
   failure?: (cause: unknown) => string;
+  /** Per-cache time source; scheduling returns a function that cancels the callback. */
+  clock?: {
+    now(): number;
+    schedule(callback: () => void, delayMs: number): () => void;
+  };
 };
 
 export class QueryCache {
@@ -66,12 +71,21 @@ export class QueryCache {
   readonly #idle: number;
   readonly #coalesceMs: number;
   readonly #failure: (cause: unknown) => string;
+  readonly #now: () => number;
+  readonly #schedule: (callback: () => void, delayMs: number) => () => void;
   #disposed = false;
 
-  constructor({ idle = 48, coalesceMs = 40, failure }: QueryCacheOptions = {}) {
+  constructor({ idle = 48, coalesceMs = 40, failure, clock }: QueryCacheOptions = {}) {
     this.#idle = idle;
     this.#coalesceMs = coalesceMs;
     this.#failure = failure ?? ((cause) => (cause instanceof Error ? cause.message : "Could not load"));
+    this.#now = () => (clock ? clock.now() : Date.now());
+    this.#schedule = (callback, delayMs) => {
+      if (clock) return clock.schedule(callback, delayMs);
+      const timer = setTimeout(callback, delayMs);
+
+      return () => clearTimeout(timer);
+    };
   }
 
   get disposed(): boolean {
@@ -90,7 +104,7 @@ export class QueryCache {
     if (this.#disposed) throw new QueryCacheDisposed();
     const entry = this.#entry(key, fetch);
 
-    if (entry.snapshot.loaded && !entry.dirty && Date.now() - entry.readAt <= maxAgeMs)
+    if (entry.snapshot.loaded && !entry.dirty && this.#now() - entry.readAt <= maxAgeMs)
       return this.snapshot<T>(key).data!;
     this.#touch(entry);
 
@@ -109,7 +123,7 @@ export class QueryCache {
     entry.fetch = fetch;
     entry.listeners.add(listener);
 
-    if (!entry.snapshot.loaded || entry.dirty || Date.now() - entry.readAt > maxAgeMs)
+    if (!entry.snapshot.loaded || entry.dirty || this.#now() - entry.readAt > maxAgeMs)
       void this.#load(entry).catch(() => {});
 
     return () => {
@@ -131,12 +145,12 @@ export class QueryCache {
     const current = entry.snapshot.data as T | undefined;
     const data = isUpdater(value) ? value(current) : value;
     entry.written++;
-    entry.readAt = Date.now();
+    entry.readAt = this.#now();
     // A read in flight is dropped as older; it may also carry other changes, so one more read follows it.
     entry.dirty = !complete && Boolean(entry.inflight);
 
     if (!entry.inflight) {
-      clearTimeout(entry.timer);
+      entry.timer?.();
       entry.timer = undefined;
     }
 
@@ -152,7 +166,7 @@ export class QueryCache {
       if (!entry.snapshot.stale) this.#publish(entry, { stale: true });
 
       if (!entry.listeners.size || entry.timer) continue;
-      entry.timer = setTimeout(() => {
+      entry.timer = this.#schedule(() => {
         entry.timer = undefined;
 
         if (this.#entries.get(entry.key) === entry && entry.dirty && !entry.inflight)
@@ -221,7 +235,7 @@ export class QueryCache {
     const controller = new AbortController();
     const written = entry.written;
     entry.dirty = false;
-    clearTimeout(entry.timer);
+    entry.timer?.();
     entry.timer = undefined;
     this.#publish(entry, { loading: true });
 
@@ -233,7 +247,7 @@ export class QueryCache {
 
           // A value set meanwhile is newer than this read.
           if (entry.written === written) {
-            entry.readAt = Date.now();
+            entry.readAt = this.#now();
             this.#publish(entry, { data, loaded: true, loading: false, error: "", stale: entry.dirty });
           } else this.#publish(entry, { loading: false });
 
@@ -267,7 +281,7 @@ export class QueryCache {
   #drop(entry: Entry): void {
     entry.inflight?.controller.abort();
     entry.inflight = undefined;
-    clearTimeout(entry.timer);
+    entry.timer?.();
     entry.timer = undefined;
     this.#entries.delete(entry.key);
   }

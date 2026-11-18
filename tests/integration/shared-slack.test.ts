@@ -235,7 +235,7 @@ describe.skipIf(!dockerAvailable)("shared Slack app and rotating bot authorizati
     await gw.core.messengers.stop();
     expect(await messenger((s) => s.credentials(gw.userId, f.linked.id, slack.transport))).toEqual(values[0]!);
     expect(slack.refreshes).toBe(refreshes + 1);
-  });
+  }, 30_000);
 
   test("API metadata saves during refresh preserve its durable single-use claim and rotated tokens", async () => {
     const f = await setup();
@@ -247,9 +247,15 @@ describe.skipIf(!dockerAvailable)("shared Slack app and rotating bot authorizati
     slack.refreshStarted = started.resolve;
     const refreshes = slack.refreshes;
     const refreshing = messenger((s) => s.credentials(gw.userId, f.linked.id, slack.transport));
-    await started.promise;
+    void refreshing.catch(started.reject);
 
     try {
+      await Promise.race([
+        started.promise,
+        refreshing.then(() => {
+          throw new Error("Refresh finished before the HTTP barrier");
+        }),
+      ]);
       const view = (await gw.api.saveMessengerAccount({ id: f.linked.id, name: "Renamed during rotation" })).account!;
       expect(view.status).toBe("connecting");
 
@@ -261,15 +267,17 @@ describe.skipIf(!dockerAvailable)("shared Slack app and rotating bot authorizati
       );
 
       expect(marker[0]?.refresh_attempt).toBeTruthy();
+      held.resolve();
+      const rotated = await refreshing;
+      expect(await messenger((s) => s.credentials(gw.userId, f.linked.id, slack.transport))).toEqual(rotated);
+      expect(slack.refreshes).toBe(refreshes + 1);
     } finally {
       held.resolve();
+      await Promise.allSettled([refreshing]);
       slack.holdRefresh = undefined;
+      slack.refreshStarted = undefined;
     }
-
-    const rotated = await refreshing;
-    expect(await messenger((s) => s.credentials(gw.userId, f.linked.id, slack.transport))).toEqual(rotated);
-    expect(slack.refreshes).toBe(refreshes + 1);
-  });
+  }, 30_000);
 
   test("metadata waiting on its connector rereads credentials after a concurrent refresh commits", async () => {
     const f = await setup();
@@ -277,34 +285,61 @@ describe.skipIf(!dockerAvailable)("shared Slack app and rotating bot authorizati
     await expire(f.linked.id);
     const httpStarted = Promise.withResolvers<void>();
     const httpRelease = Promise.withResolvers<void>();
-    const locked = Promise.withResolvers<void>();
+    const locked = Promise.withResolvers<number>();
     const unlock = Promise.withResolvers<void>();
     slack.holdRefresh = httpRelease.promise;
     slack.refreshStarted = httpStarted.resolve;
     const refreshing = messenger((s) => s.credentials(gw.userId, f.linked.id, slack.transport));
-    await httpStarted.promise;
-
-    const holding = sqlRun((sql) =>
-      sql.withTransaction(
-        Effect.gen(function* () {
-          yield* sql`SELECT id FROM connector_accounts WHERE id=${f.account.id}::uuid FOR UPDATE`;
-          locked.resolve();
-          yield* Effect.promise(() => unlock.promise);
-        }),
-      ),
-    );
-
-    await locked.promise;
-    const saving = gw.api.saveMessengerAccount({ id: f.linked.id, name: "Rename while waiting" });
+    const pending: PromiseLike<object | void>[] = [refreshing];
+    void refreshing.catch(httpStarted.reject);
 
     try {
-      const deadline = Date.now() + 2000;
+      await Promise.race([
+        httpStarted.promise,
+        refreshing.then(() => {
+          throw new Error("Refresh finished before the HTTP barrier");
+        }),
+      ]);
+
+      const holding = sqlRun((sql) =>
+        sql.withTransaction(
+          Effect.gen(function* () {
+            yield* sql`SELECT id FROM connector_accounts WHERE id=${f.account.id}::uuid FOR UPDATE`;
+            const rows = yield* sql<{ pid: number }>`SELECT pg_backend_pid() AS pid`;
+            locked.resolve(rows[0]!.pid);
+            yield* Effect.promise(() => unlock.promise);
+          }),
+        ),
+      );
+
+      pending.push(holding);
+      void holding.catch(locked.reject);
+
+      const blockingPid = await Promise.race([
+        locked.promise,
+        holding.then(() => {
+          throw new Error("Connector lock released before the barrier");
+        }),
+      ]);
+
+      const saving = gw.api.saveMessengerAccount({ id: f.linked.id, name: "Rename while waiting" });
+      pending.push(saving);
+
+      const saveFinished = saving.then(() => {
+        throw new Error("Metadata save finished before waiting on the connector lock");
+      });
+
+      pending.push(saveFinished);
+      const deadline = Date.now() + 5000;
 
       for (;;) {
-        const waiting = await sqlRun(
-          (sql) => sql`SELECT 1 FROM pg_stat_activity WHERE wait_event_type='Lock'
-          AND query LIKE '%SELECT id FROM connector_accounts WHERE id=%'`,
-        );
+        const waiting = await Promise.race([
+          sqlRun(
+            (sql) => sql`SELECT 1 FROM pg_stat_activity WHERE datname=current_database()
+            AND wait_event_type='Lock' AND ${blockingPid}=ANY(pg_blocking_pids(pid))`,
+          ),
+          saveFinished,
+        ]);
 
         if (waiting.length) break;
 
@@ -321,10 +356,11 @@ describe.skipIf(!dockerAvailable)("shared Slack app and rotating bot authorizati
     } finally {
       httpRelease.resolve();
       unlock.resolve();
-      await holding;
-      await saving;
+      await Promise.allSettled(pending);
+      slack.holdRefresh = undefined;
+      slack.refreshStarted = undefined;
     }
-  });
+  }, 30_000);
 
   test("rejected refresh and abandoned claim fail closed across gateway restart without replay", async () => {
     const f = await setup();
@@ -354,7 +390,7 @@ describe.skipIf(!dockerAvailable)("shared Slack app and rotating bot authorizati
     );
     await expect(messenger((s) => s.credentials(gw.userId, f.linked.id, slack.transport))).rejects.toThrow("reconnect");
     expect(slack.refreshes).toBe(refreshes + 1);
-  });
+  }, 30_000);
 
   for (const mismatch of ["team", "app", "socket"] as const)
     test(`rejects mismatched ${mismatch} identity without replacing MCP tokens`, async () => {

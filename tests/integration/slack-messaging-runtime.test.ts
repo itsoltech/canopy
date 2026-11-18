@@ -295,4 +295,5 @@ test.skipIf(!dockerAvailable)(
       await slack.close();
     }
   },
+  30_000,
 );

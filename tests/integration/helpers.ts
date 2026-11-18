@@ -59,8 +59,10 @@ export async function startGateway(options: { tls?: TlsMaterial; link?: Partial<
     authenticate: async (credential) => CREDENTIALS.get(credential),
     welcome: async () => ({ heartbeatIntervalSeconds: 15 }),
     onConnected: (connection) => {
-      connected.push(connection);
-      waiters.shift()?.(connection);
+      const waiting = waiters.shift();
+
+      if (waiting) waiting(connection);
+      else connected.push(connection);
     },
     ...options.link,
   });

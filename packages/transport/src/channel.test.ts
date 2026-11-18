@@ -1,24 +1,20 @@
 import { describe, expect, test } from "bun:test";
 import { AsyncChannel } from "./channel.ts";
 
-async function collect<T>(iterable: AsyncIterable<T>): Promise<T[]> {
-  const items: T[] = [];
-
-  for await (const item of iterable) items.push(item);
-
-  return items;
-}
-
 describe("AsyncChannel", () => {
   test("delivers values pushed before and after the consumer starts", async () => {
     const channel = new AsyncChannel<number>();
     channel.push(1);
-    const result = collect(channel);
+    const iterator = channel[Symbol.asyncIterator]();
+    expect(await iterator.next()).toEqual({ value: 1, done: false });
+    const second = iterator.next();
     channel.push(2);
-    await Bun.sleep(1);
+    expect(await second).toEqual({ value: 2, done: false });
+    const third = iterator.next();
     channel.push(3);
     channel.close();
-    expect(await result).toEqual([1, 2, 3]);
+    expect(await third).toEqual({ value: 3, done: false });
+    expect((await iterator.next()).done).toBe(true);
   });
 
   test("delivers buffered values before the close error", async () => {

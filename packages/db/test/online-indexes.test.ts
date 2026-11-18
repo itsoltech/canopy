@@ -99,7 +99,10 @@ describe.skipIf(!dockerAvailable)("restartable online performance indexes", () =
     );
 
     try {
-      await Bun.sleep(100);
+      await waitForSession(
+        "query LIKE 'SELECT pg_try_advisory_lock(183516401, 1)%' AND state='idle'",
+        "Migrator did not retry the held advisory lock",
+      );
       abort.abort();
       expect(await Promise.race([waiting, Bun.sleep(1000).then(() => false)])).toBe(true);
       expect(
@@ -237,16 +240,21 @@ describe.skipIf(!dockerAvailable)("restartable online performance indexes", () =
   }, 10000);
 
   async function waitForBuild() {
-    const deadline = Date.now() + 3000;
+    await waitForSession(
+      "query LIKE 'CREATE INDEX CONCURRENTLY worker_commands_redelivery_expiry %' AND state='active' AND wait_event_type='Lock'",
+      "Concurrent index build did not wait on the fixture writer",
+    );
+  }
+
+  async function waitForSession(condition: string, message: string) {
+    const deadline = performance.now() + 3000;
 
     for (;;) {
-      const active = await query(`SELECT pid FROM pg_stat_activity WHERE datname=current_database()
-        AND query LIKE 'CREATE INDEX CONCURRENTLY worker_commands_redelivery_expiry %' AND state='active'
-        AND wait_event_type='Lock'`);
+      const active = await query(`SELECT pid FROM pg_stat_activity WHERE datname=current_database() AND ${condition}`);
 
       if (active.length) return;
 
-      if (Date.now() > deadline) throw new Error("Concurrent index build did not wait on the fixture writer");
+      if (performance.now() > deadline) throw new Error(message);
       await Bun.sleep(10);
     }
   }

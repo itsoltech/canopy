@@ -264,10 +264,12 @@ describe("WorkerLink over h2c (cleartext HTTP/2)", () => {
   });
 
   test("reconnect of the same worker replaces the previous connection", async () => {
+    const acceptingFirst = gateway.nextConnection();
     const first = await connectWorker(gateway.server.url);
-    const firstConnection = await gateway.nextConnection();
+    const firstConnection = await acceptingFirst;
+    const acceptingSecond = gateway.nextConnection();
     const second = await connectWorker(gateway.server.url);
-    const secondConnection = await gateway.nextConnection();
+    const secondConnection = await acceptingSecond;
 
     await firstConnection.closed;
     expect(await first.closed).toEqual({});
