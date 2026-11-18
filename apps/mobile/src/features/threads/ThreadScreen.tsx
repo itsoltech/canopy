@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState, useSyncExternalStore } from "react";
 import { BackHandler, View } from "react-native";
 import { create } from "@bufbuild/protobuf";
 import { ConversationSkeleton, SkeletonScope } from "../../ui/Skeleton";
-import { Redirect, Stack, router, useLocalSearchParams } from "expo-router";
+import { Redirect, Stack, useLocalSearchParams } from "expo-router";
 import { useContextDraft } from "../github/useContextDraft";
 import { ScreenFrame } from "../../ui/ScreenFrame";
 import { useColors } from "../../ui/theme";
@@ -211,13 +211,7 @@ export function ThreadScreen({ id }: { id: string }) {
   const composer = useThreadComposer(state);
 
   const [sheet, setSheet] = useState<"goal" | "side" | "files" | "preview" | null>(null);
-  const params = useLocalSearchParams<{ draftSideThread?: string; preparation?: string }>();
-  useEffect(() => {
-    if (params.draftSideThread === "1") {
-      setSheet("side");
-      router.setParams({ draftSideThread: undefined });
-    }
-  }, [params.draftSideThread]);
+  const { preparation } = useLocalSearchParams<{ preparation?: string }>();
 
   const { session, ready, snapshot, following, setDetails, projects, thread, turns, blocked } = state;
 
@@ -266,7 +260,7 @@ export function ThreadScreen({ id }: { id: string }) {
           </>
         }
       >
-        {params.preparation === "1" && <Stack.Screen options={{ animation: "none" }} />}
+        {preparation === "1" && <Stack.Screen options={{ animation: "none" }} />}
         <ChatKeyboard composerHeight={composer.height}>
           <View
             style={[
