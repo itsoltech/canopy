@@ -4,6 +4,7 @@ import { Effect } from "effect";
 import { GatewayStore } from "../store/index.ts";
 import { BotStore } from "../bots/store.ts";
 import type { BotTurn, StoredCall } from "../bots/types.ts";
+import { delegationPrompt } from "../bots/external-instructions.ts";
 import { coreRedeliver } from "./core-commands.ts";
 import { coreState, InvalidError } from "./core-context.ts";
 import { corePublishSteer } from "./core-messages.ts";
@@ -50,7 +51,12 @@ export const coreBotThreadsMethods: CoreBotThreadsMethods = {
       const permissionMode = botThreadPermission(bot.configuration!, defaults.user?.threadDefaults?.permissionMode);
 
       const thread = await this.createThread(
-        create(ui.CreateThreadRequestSchema, { ...request, initialAttachmentIds, permissionMode }),
+        create(ui.CreateThreadRequestSchema, {
+          ...request,
+          initialMessage: delegationPrompt(turn, request.initialMessage),
+          initialAttachmentIds,
+          permissionMode,
+        }),
         undefined,
         false,
         {},
@@ -118,7 +124,7 @@ export const coreBotThreadsMethods: CoreBotThreadsMethods = {
       const sent = await this.sendMessage(
         create(ui.SendMessageRequestSchema, {
           threadId,
-          text,
+          text: delegationPrompt(turn, text),
           attachmentIds,
           clientRequestId: call.id,
           delivery: delivery === "steer" ? ui.MessageDelivery.STEER : ui.MessageDelivery.QUEUE,

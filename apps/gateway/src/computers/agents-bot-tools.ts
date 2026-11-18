@@ -16,6 +16,7 @@ import { requireLinkedChainCapacity } from "./agents-receive.ts";
 import { gather } from "../api/routed-overview.ts";
 import { PEER_READ_TIMEOUT_MS } from "./timing.ts";
 import { botThreadPermission } from "../bots/thread-permission.ts";
+import { delegationPrompt } from "../bots/external-instructions.ts";
 import { SettingsStore } from "../store/settings.ts";
 
 export interface AgentsBotToolsMethods {
@@ -91,7 +92,7 @@ export const agentsBotToolsMethods: AgentsBotToolsMethods = {
 
         return action(async () =>
           this.send(node, "spawn", actor, call.id, {
-            request: toJson(ui.CreateThreadRequestSchema, await botDefaultThreadRequest(this, args, call.id, ownBot)),
+            request: await botDefaultThreadRequest(this, args, call.id, ownBot, turn),
             instructions: "",
             interactions: "parent",
             notify: true,
@@ -102,7 +103,7 @@ export const agentsBotToolsMethods: AgentsBotToolsMethods = {
           this.send(node, "send", actor, call.id, {
             target: splitId(text(args, "thread_id")).id,
             target_kind: "thread",
-            prompt: text(args, "text"),
+            prompt: delegationPrompt(turn, text(args, "text")),
             delivery: args["delivery"] ?? "queue",
             notify: true,
           }),
@@ -201,13 +202,20 @@ function botThreadRequest(args: Arguments, callId: string): ui.CreateThreadReque
   });
 }
 
-async function botDefaultThreadRequest(host: LinkedAgents, args: Arguments, callId: string, bot: bots.Bot) {
+async function botDefaultThreadRequest(
+  host: LinkedAgents,
+  args: Arguments,
+  callId: string,
+  bot: bots.Bot,
+  turn: BotTurn,
+) {
   const request = botThreadRequest(args, callId);
+  request.initialMessage = delegationPrompt(turn, request.initialMessage);
 
   const defaults = await host.scope.run(SettingsStore.use((s) => s.user(host.owner)));
   request.permissionMode = botThreadPermission(bot.configuration!, defaults.threadDefaults?.permissionMode);
 
-  return request;
+  return toJson(ui.CreateThreadRequestSchema, request);
 }
 
 async function readBotThread(hostContext: LinkedAgents, args: Arguments) {
