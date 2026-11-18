@@ -185,6 +185,8 @@ describe.skipIf(!dockerAvailable)("schema on PostgreSQL 17", () => {
       "170_slack_attachments",
       "171_thread_permission_selection",
       "172_usage_activity",
+      "173_module_goal_resume",
+      "174_schedule_worktree_preparations",
     ]);
   }, 60_000);
 
@@ -512,6 +514,7 @@ describe.skipIf(!dockerAvailable)("schema on PostgreSQL 17", () => {
         "native_status",
         "error",
         "error_at",
+        "resume_after_module_enable",
       ]);
     });
 

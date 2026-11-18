@@ -148,6 +148,13 @@ export async function importFixture(
     host,
     workerId,
     connect,
+    async setThreads(enabled: boolean) {
+      const { user } = await gw.api.getSettings({});
+      await gw.api.updateUserSettings({
+        expectedVersion: user!.version,
+        modules: { enabled: enabled ? ["threads", "bots"] : ["bots"] },
+      });
+    },
     sql: <A, E>(use: (sql: SqlClient.SqlClient) => Effect.Effect<A, E>) =>
       gw.runtime.runPromise(Effect.flatMap(SqlClient.SqlClient, use)),
     disconnect: () => {

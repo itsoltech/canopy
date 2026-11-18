@@ -1,6 +1,7 @@
 # Canopy na iOS i Android
 
-Status: opis zaimplementowanego kodu (2026-11-18); kompozytor uwzględnia zapisane uprawnienia wątku Codexa. Nowy wątek od razu pokazuje prompt
+Status: opis zaimplementowanego kodu (2026-11-18); telefon i tablet pozwalają wybrać kolejność zakładek
+i zatrzymać pracę modułu Threads albo Bots na koncie właściciela. Kompozytor uwzględnia zapisane uprawnienia wątku Codexa. Nowy wątek od razu pokazuje prompt
 i checklistę rzeczywistego przygotowania przed startem agenta, we wspólnej geometrii
 nagłówka, osi czasu i kompozytora. Czat bota pozwala wysyłać kolejne wiadomości
 podczas odpowiedzi i ma osobny przycisk zatrzymania. Kompozytory i ustawienia botów
@@ -50,6 +51,16 @@ Natywna aplikacja Expo/React Native działa na iOS i Androidzie. Obsługuje wąt
 boty, pliki i załączniki, zgody oraz ustawienia. Z gatewayem paruje się przez
 Network access: klient przypina certyfikat TLS i dostaje odwoływalny token urządzenia.
 To osobny klient natywny, a nie mobilny widok web.
+
+W **Settings → General → Modules** wybór **First tab** określa kolejność zakładek
+i listę widoczną po uruchomieniu aplikacji. Włączenie drugiego modułu dodaje go
+za pierwszym. Przy jednym module aplikacja ukrywa przełącznik list i blokuje
+wyłączenie ostatniego modułu. Zmiany na innych urządzeniach docierają przez
+strumień ustawień właściciela. Telefon zachowuje ostatnią kolejność dla danego
+parowania, by użyć jej również offline. Wyłączenie modułu usuwa jego ekrany
+ze stosu nawigacji i ukrywa jego ustawienia, alerty i odnośniki w drugim module.
+Bezpośredni link do wyłączonej rozmowy otwiera dostępny moduł. Gateway wstrzymuje
+automatyzacje wyłączonego modułu również wtedy, gdy aplikacja mobilna jest zamknięta.
 
 Settings → Threads → Archived threads zawiera przełącznik automatycznego
 usuwania i dowolną liczbę dni (1–36500); domyślnie jest wyłączony. Edycja tworzy

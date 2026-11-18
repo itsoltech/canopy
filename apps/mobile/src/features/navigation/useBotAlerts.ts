@@ -2,6 +2,7 @@ import { useEffect, useEffectEvent, useRef } from "react";
 import type { bots as botContract } from "@canopy/contracts";
 import { botEvent, botSeen, displayText, type BotSeen } from "@canopy/domain/bot-chat";
 import { noticePreview } from "@canopy/domain/notice-preview";
+import { useAppearance } from "../../state/appearance";
 import { useSession } from "../../state/session";
 import { useBotList } from "../../state/bot-list";
 import { useDevicePreferences } from "../settings/device-preferences";
@@ -22,8 +23,9 @@ type Baseline = { connection: string; list: botContract.ListBotsResponse | undef
 export function useBotAlerts(currentId: string | undefined, show: (alert: InAppAlert) => void) {
   const { client, active, online, epoch } = useSession();
   const { values, loaded } = useDevicePreferences();
+  const { botsEnabled, threadsEnabled } = useAppearance();
   const list = useBotList();
-  const connection = `${Boolean(client)}:${active}:${online}:${epoch}`;
+  const connection = `${Boolean(client)}:${active}:${online}:${epoch}:${botsEnabled}`;
   const baseline = useRef<Baseline>({ connection: "", list: undefined });
 
   const deliver = useEffectEvent((alert: InAppAlert) => {
@@ -43,7 +45,7 @@ export function useBotAlerts(currentId: string | undefined, show: (alert: InAppA
       return;
     }
 
-    if (!list.data || list.data === current.list || !active || !online) return;
+    if (!list.data || list.data === current.list || !active || !online || !botsEnabled) return;
     const next = new Map<string, BotSeen>();
 
     for (const bot of list.data.bots) {
@@ -52,6 +54,8 @@ export function useBotAlerts(currentId: string | undefined, show: (alert: InAppA
       next.set(bot.id, botSeen(seen, bot));
 
       if (!event || (event.kind === "message" && !bot.unreadCount)) continue;
+
+      if (event.kind !== "message" && event.approval.threadId && !threadsEnabled) continue;
 
       const status =
         event.kind === "message"
@@ -64,5 +68,5 @@ export function useBotAlerts(currentId: string | undefined, show: (alert: InAppA
     }
 
     baseline.current = { connection, list: list.data, seen: next };
-  }, [connection, list.data, active, online]);
+  }, [connection, list.data, active, online, botsEnabled, threadsEnabled]);
 }

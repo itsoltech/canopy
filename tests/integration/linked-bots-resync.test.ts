@@ -6,6 +6,7 @@ import { remoteServe, uiHandlers } from "@canopy/gateway/api";
 import { ComputerStore } from "../../apps/gateway/src/computers/store.ts";
 import type { LinkedComputers } from "../../apps/gateway/src/computers/runtime.ts";
 import type { ModelInput } from "../../apps/gateway/src/bots/types.ts";
+import { setModules } from "./support/module-settings.ts";
 import { linkedComputers } from "./support/computers.ts";
 import { eventually, failure, startTestGateway, type TestGateway } from "./support/gateway.ts";
 
@@ -251,4 +252,49 @@ describe.skipIf(!dockerAvailable)("linked bots survive home restarts and updates
       await client.close();
     }
   }, 45_000);
+
+  test("either home can pause a history mirror and recover its cursor when the module returns", async () => {
+    const botId = ids.at(-1)!;
+
+    const preview = async () =>
+      (await la.botMirror.conversations(node)).find((entry) => entry.bot?.id === qualified(botId))?.bot?.lastMessage
+        ?.text;
+
+    let expected = await preview();
+    expect(expected).toBeTruthy();
+    const watches = () => [la.diagnosticsWatches(), lb.diagnosticsWatches()];
+
+    for (const [gateway, keep] of [
+      [a, "threads"],
+      [b, "bots"],
+    ] as const) {
+      await setModules(gateway, keep);
+
+      try {
+        expect(
+          await eventually(
+            async () => watches(),
+            (counts) => counts.every((n) => n === 1),
+          ),
+        ).toEqual([1, 1]);
+
+        if (keep === "threads") {
+          const text = "sent while the subscriber paused Bots";
+          await b.api.sendBotMessage({ botId, text, clientRequestId: crypto.randomUUID() });
+          expect(await preview()).toBe(expected);
+          expected = text;
+        }
+      } finally {
+        await setModules(gateway, "threads", "bots");
+      }
+
+      expect(
+        await eventually(
+          async () => watches(),
+          (counts) => counts.every((n) => n === 2),
+        ),
+      ).toEqual([2, 2]);
+      expect(await eventually(preview, (text) => text === expected, 10_000)).toBe(expected);
+    }
+  }, 30_000);
 });

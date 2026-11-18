@@ -2,7 +2,7 @@ import type { Effect } from "effect";
 import type { ui } from "@canopy/contracts";
 import { AgentBusStore, GatewayStore, type ScheduleRow, type TurnRow } from "../store/index.ts";
 import type { FiredSchedule } from "../store/agent-bus.ts";
-import { nextCronRun } from "./cron.ts";
+import { nextStoredCronRun } from "./cron.ts";
 
 /**
  * Platform scheduler (docs/agent-bus.md#5-harmonogram): replaces provider-native timers. Due schedules
@@ -17,6 +17,7 @@ export interface SchedulerHost {
   run<A, E>(effect: Effect.Effect<A, E, AgentBusStore | GatewayStore>): Promise<A>;
   queued(threadId: string, turn: TurnRow): Promise<void>;
   readonly owner: string;
+  readonly userId: string;
   log(message: string): void;
   /** A schedule ran (or completed, or was cancelled with its thread): announce it. */
   changed(scheduleId: string): Promise<void>;
@@ -36,15 +37,9 @@ export function scheduleTiming(
   now: Date,
 ) {
   const late = now.getTime() - new Date(schedule.next_run_at ?? now).getTime() > MISSED_AFTER_MS;
-  let nextRunAt: Date | undefined;
 
-  if (schedule.kind === "recurring" && schedule.cron) {
-    try {
-      nextRunAt = nextCronRun(schedule.cron, schedule.timezone, now);
-    } catch {
-      /* A parser change must not leave a schedule in an endless loop. */
-    }
-  }
+  const nextRunAt =
+    schedule.kind === "recurring" ? nextStoredCronRun(schedule.cron, schedule.timezone, now) : undefined;
 
   return { late, run: !(late && schedule.missed_policy === "skip"), nextRunAt };
 }
@@ -90,7 +85,7 @@ export class Scheduler {
         const current = new Date(now.getTime() + performance.now() - started);
 
         const due = await this.#host.run(
-          AgentBusStore.use((s) => s.claimDueSchedules(this.#host.owner, current, LEASE_SECONDS, 1)),
+          AgentBusStore.use((s) => s.claimDueSchedules(this.#host.owner, current, LEASE_SECONDS, 1, this.#host.userId)),
         );
 
         const schedule = due[0];

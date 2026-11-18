@@ -363,6 +363,7 @@ export class GatewayCore {
     this.bus = createCoreBus(this);
     this.backgroundTasks = new BackgroundTasks(
       {
+        owner: options.userId,
         run: (effect) => this[coreState].options.runtime.runPromise(effect),
         pump: (threadId) => this.pump(threadId),
         queued: async (threadId, turn) => {

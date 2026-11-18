@@ -2,18 +2,26 @@ import { create } from "@bufbuild/protobuf";
 import { ui, bots } from "@canopy/contracts";
 import { Invalid } from "../store/store.ts";
 import type { GatewayCore } from "./core.ts";
+import { botThreadConnectionEnabled, BOT_THREADS_DISCONNECTED } from "../store/module-access.ts";
 import { coreState } from "./core-context.ts";
 import { splitId } from "@canopy/domain/computers";
 
 export async function answerBotThreadApproval(core: GatewayCore, request: bots.AnswerBotApprovalRequest) {
   const user = core[coreState].options.userId;
 
+  if (request.botApprovalsOnly || !(await core[coreState].options.runtime.runPromise(botThreadConnectionEnabled(user))))
+    throw new Invalid(BOT_THREADS_DISCONNECTED);
+
   if (splitId(request.approvalId).node) {
     if (request.ruleOptionId || request.answer) throw new Invalid("Open the thread for other responses.");
 
     const result = await core.linkedAgents.ui(
       "AnswerInteraction",
-      create(ui.AnswerInteractionRequestSchema, { requestId: request.approvalId, allow: request.approve }),
+      create(ui.AnswerInteractionRequestSchema, {
+        requestId: request.approvalId,
+        allow: request.approve,
+        botThreadAccess: true,
+      }),
       ui.AnswerInteractionResponseSchema,
     );
 
@@ -34,7 +42,12 @@ export async function answerBotThreadApproval(core: GatewayCore, request: bots.A
     throw new Invalid("Thread tool requests accept Approve or Deny. Open the thread for other responses.");
 
   if (card.status !== "pending") return card;
-  const answer = create(ui.AnswerInteractionRequestSchema, { requestId: card.requestId, allow: request.approve });
+
+  const answer = create(ui.AnswerInteractionRequestSchema, {
+    requestId: card.requestId,
+    allow: request.approve,
+    botThreadAccess: true,
+  });
 
   await core.answerInteraction(answer);
 

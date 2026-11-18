@@ -141,6 +141,7 @@ export function createCoreScheduler(core: GatewayCore, options: GatewayCoreOptio
       await core.pump(threadId);
     },
     owner: options.instanceId,
+    userId: options.userId,
     log: (message) => coreLog(core, message),
     changed: (scheduleId) => corePublishSchedule(core, scheduleId),
     prepareWorkspace: (request, userId, sourceId) => prepareScheduledWorkspace(core, request, userId, sourceId),

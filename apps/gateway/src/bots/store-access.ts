@@ -3,6 +3,7 @@ import { bots } from "@canopy/contracts";
 import { connectorStore } from "../connectors/store.ts";
 import { Effect } from "effect";
 import { SqlClient } from "effect/sql";
+import { lockedOwnerModule, moduleDisabledMessage } from "../store/module-access.ts";
 import { decryptSecret } from "../store/secrets.ts";
 import { Invalid, NotFound } from "../store/store.ts";
 import { handoffStore } from "./handoffs.ts";
@@ -26,6 +27,11 @@ export function botAccess(sql: SqlClient.SqlClient, key: Buffer) {
 
   const changed = (id: string) =>
     sql`UPDATE bots SET revision = revision + 1, updated_at = now() WHERE id = ${id}::uuid`;
+
+  const requireEnabled = (user: string) =>
+    lockedOwnerModule(sql, user, "bots").pipe(
+      Effect.flatMap((enabled) => (enabled ? Effect.void : Effect.fail(new Invalid(moduleDisabledMessage("bots"))))),
+    );
 
   const active = (user: string, id: string, lock = false) =>
     owned(user, id, lock).pipe(
@@ -55,6 +61,13 @@ export function botAccess(sql: SqlClient.SqlClient, key: Buffer) {
 
   const fenced = (turn: BotTurn) =>
     Effect.gen(function* () {
+      const owner = (yield* sql<{
+        owner_user_id: string;
+      }>`SELECT owner_user_id FROM bots WHERE id=${turn.bot_id}::uuid`)[0];
+
+      if (!owner) return yield* Effect.fail(new Invalid("bot lease lost"));
+      yield* requireEnabled(owner.owner_user_id);
+
       // Lifecycle operations and claim() lock bot -> turn. Writers must use that order too,
       // so an archive cannot deadlock with a checkpoint, self-edit or finishing response.
       const bot =
@@ -64,7 +77,7 @@ export function botAccess(sql: SqlClient.SqlClient, key: Buffer) {
 
       const rows =
         yield* sql<BotTurn>`SELECT * FROM bot_turns WHERE id = ${turn.id}::uuid AND lease_token = ${turn.lease_token}::uuid
-      AND status = 'running' AND lease_until > now() FOR UPDATE`;
+      AND bot_id = ${turn.bot_id}::uuid AND status = 'running' AND lease_until > now() FOR UPDATE`;
 
       return rows[0] ?? (yield* Effect.fail(new Invalid("bot lease lost")));
     });
@@ -106,6 +119,7 @@ export function botAccess(sql: SqlClient.SqlClient, key: Buffer) {
     });
 
   return {
+    requireEnabled,
     handoffs,
     connections,
     owned,

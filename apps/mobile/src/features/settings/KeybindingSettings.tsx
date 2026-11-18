@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { Text, View } from "react-native";
-import { bindingCatalogue, type BindingGroup } from "@canopy/ui/keybindings";
+import { bindingEnabled, bindingCatalogue, type BindingGroup } from "@canopy/ui/keybindings";
+import { useAppearance } from "../../state/appearance";
 import { Field, Notice } from "../../ui/components";
 import { styles, useColors } from "../../ui/theme";
 import { SettingsGroup, SettingsRow } from "./SettingsGroup";
@@ -8,10 +9,13 @@ import { SettingsGroup, SettingsRow } from "./SettingsGroup";
 export function KeybindingSettings() {
   const [query, setQuery] = useState("");
   const c = useColors();
+  const { modules } = useAppearance();
   const groups: BindingGroup[] = ["Navigation", "Threads", "Composer", "Messages", "Models", "Appearance", "Settings"];
 
-  const filtered = bindingCatalogue.filter((d) =>
-    `${d.title} ${d.group} ${d.when} ${d.defaults.join(" ")}`.toLowerCase().includes(query.trim().toLowerCase()),
+  const filtered = bindingCatalogue.filter(
+    (d) =>
+      bindingEnabled(d, modules) &&
+      `${d.title} ${d.group} ${d.when} ${d.defaults.join(" ")}`.toLowerCase().includes(query.trim().toLowerCase()),
   );
 
   return (

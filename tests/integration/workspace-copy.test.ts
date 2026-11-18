@@ -1,3 +1,4 @@
+import { setModules } from "./support/module-settings.ts";
 import { afterAll, beforeAll, describe, expect, spyOn, test } from "bun:test";
 import { create, type MessageInitShape } from "@bufbuild/protobuf";
 import { GatewayStore } from "@canopy/gateway/store";
@@ -242,6 +243,30 @@ describe.skipIf(!dockerAvailable)("workspace copies over real worker and compute
         .some((w) => w.id === result.workspaceRef.split("~")[0]),
     ).toBe(true);
     await fixture.a.gw.api.removeWorkspace({ workspaceId: result.workspaceRef });
+  }, 30_000);
+
+  test("a queued copy waits for Threads on the destination home and resumes from its selection", async () => {
+    const { a, b } = fixture;
+    const input = request(await plan(), "paused-linked-copy", true);
+    await setModules(b.gw, "bots");
+
+    try {
+      const job = await a.gw.api.startWorkspaceCopy(input);
+      expect(job.status).toBe("waiting");
+      expect(existsSync(join(linked.dir, input.name))).toBe(false);
+    } finally {
+      await setModules(b.gw, "threads", "bots");
+    }
+
+    await a.gw.core.copyJobs.tick();
+
+    const job = await eventually(
+      () => a.gw.core.copyJobs.store.get(input.transferKey),
+      (row) => row?.status === "completed",
+    );
+
+    expect(readFileSync(join(linked.dir, input.name, "README.md"), "utf8")).toBe("modified tracked work");
+    await a.gw.api.removeWorkspace({ workspaceId: job!.workspace_ref });
   }, 30_000);
 
   test("refuses symlink escapes, another owner's workspace, older workers and existing targets", async () => {

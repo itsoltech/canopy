@@ -1,3 +1,4 @@
+import { moduleDisabledMessage } from "../store/module-access.ts";
 import { create, toJsonString } from "@bufbuild/protobuf";
 import { github } from "@canopy/contracts";
 import { Code, ConnectError } from "@connectrpc/connect";
@@ -177,6 +178,7 @@ export async function pollMergeArchivePullRequests(prs: GitHubPullRequests, ids:
 
     try {
       if (refresh) {
+        if (!(await prs.accounts.threadsEnabled())) return;
         const pr = await prs.accounts.run((s) => s.prOwned(prs.accounts.owner, id));
         await prs.load(pr.repository_name, pr.number, true, true);
       }
@@ -238,6 +240,14 @@ async function poll(prs: GitHubPullRequests, id: string, p: Producer) {
   const signal = controller.signal;
   p.flight = (async () => {
     signal.throwIfAborted();
+
+    if (!(await prs.accounts.threadsEnabled())) {
+      p.mergeFollowUpUntil = 0;
+      clearTimeout(p.mergeFollowUpTimer);
+      idle(prs, id, p);
+      throw new ConnectError(moduleDisabledMessage("threads"), Code.FailedPrecondition);
+    }
+
     let scope = await watchScope(prs, id);
     const now = prs.accounts.http.now();
 
@@ -380,6 +390,9 @@ export async function* watchPullRequest(
   if (!["view", "panel"].includes(request.visibility))
     throw new ConnectError("Choose a visible pull request view", Code.InvalidArgument);
   signal.throwIfAborted();
+
+  if (!(await prs.accounts.threadsEnabled()))
+    throw new ConnectError(moduleDisabledMessage("threads"), Code.FailedPrecondition);
   await watchScope(prs, request.pullRequestId);
   signal.throwIfAborted();
   const id = request.pullRequestId;

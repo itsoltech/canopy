@@ -98,7 +98,7 @@
         <p class="mt-2 text-base/6 text-pretty text-zinc-500 sm:text-sm/6 dark:text-zinc-400">
           The page you are looking for does not exist or is no longer available.
         </p>
-        <div class="mt-6 flex gap-2"><ButtonLink href="/" variant="primary">New thread</ButtonLink></div>
+        <div class="mt-6 flex gap-2"><ButtonLink href="/" variant="primary">Go home</ButtonLink></div>
       </div>
     </div>
   {/if}

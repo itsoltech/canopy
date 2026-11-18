@@ -478,6 +478,8 @@ message Command {
     SearchFiles search_files = 141;
     // Nietrwałe zapytanie: bez wątku platformy, outboxa ani journala.
     GenerateText generate_text = 200;
+    // Transient, capability cancel_text_generation_v1. Targets the original command on this worker.
+    CancelTextGeneration cancel_text_generation = 201;
     // Git worktrees (capability "worktrees", docs/worktrees.md). Nietrwałe: nigdy z outboxa.
     ListGitRefs list_git_refs = 210;
     CreateWorktree create_worktree = 211;
@@ -1028,6 +1030,10 @@ message ProviderUsageReport {
   // Opaque digest of runtime identity, including the CLI home; never a path or credential.
   string account_key = 4;
   ProviderUsageSnapshot snapshot = 5;
+}
+
+message CancelTextGeneration {
+  string command_id = 1;
 }
 
 message GenerateText {

@@ -1,3 +1,4 @@
+import { setModules } from "./support/module-settings.ts";
 import { describe, expect, test } from "bun:test";
 import { dockerAvailable } from "@canopy/db/testing";
 import { eventually, startTestGateway } from "./support/gateway.ts";
@@ -42,11 +43,20 @@ describe.skipIf(!dockerAvailable)("durable merge archival without a visible clie
           workerCredential: gw.workerCredential,
         };
 
+        await setModules(gw, "bots");
         await gw.close(true);
         gw = await startTestGateway({ github: fixture.options, storage });
         fixture.state.pr = "MERGED";
         fixture.state.updatedAt = "2026-11-10T12:02:00Z";
         fixture.advance(70_000);
+        await gw.core.github.background.tick();
+
+        const stillOpen = await gw.core.linkedAgents.query("SELECT archived_at FROM threads WHERE id=$1::uuid", [
+          thread,
+        ]);
+
+        expect(stillOpen).toEqual([{ archived_at: null }]);
+        await setModules(gw, "threads", "bots");
         await gw.core.github.background.tick();
         const archived = (await gw.api.getThread({ threadId: thread })).thread!;
         expect(archived.archivedAt).toBeDefined();

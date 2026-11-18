@@ -23,7 +23,7 @@ export const deliverySources = (sql: SqlClient.SqlClient, ids: readonly string[]
     WHERE c.id=ANY(${[...ids]}::uuid[])`.pipe(Effect.map((rows) => new Map(rows.map((row) => [row.call_id, row]))))
     : Effect.succeed(new Map<string, BotTurn & { origin_enabled: boolean }>());
 
-export const deliverThreadQuestions = (sql: SqlClient.SqlClient, core: BotCore) =>
+export const deliverThreadQuestions = (sql: SqlClient.SqlClient, core: BotCore, owner: string) =>
   Effect.gen(function* () {
     const questions = yield* sql<{
       call_id: string;
@@ -34,7 +34,7 @@ export const deliverThreadQuestions = (sql: SqlClient.SqlClient, core: BotCore) 
       title: string;
       hops: number;
     }>`SELECT w.call_id, w.bot_id, b.owner_user_id, th.id AS thread_id, q.id AS request_id, th.title, w.hops
-      ${pendingThreadQuestions(sql)}
+      ${pendingThreadQuestions(sql)} AND b.owner_user_id=${owner}::uuid
       ORDER BY q.created_at, q.id, w.call_id LIMIT 32 FOR UPDATE OF b, w SKIP LOCKED`;
 
     const sources = yield* deliverySources(

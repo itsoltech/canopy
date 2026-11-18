@@ -1,3 +1,4 @@
+import { ingestEventFence } from "./module-ingest.ts";
 import { lockUsageOwner } from "../usage/storage.ts";
 import { accountThreadUsage, eventUsage } from "../usage/accounting.ts";
 import { UsageScope, type ThreadEvent } from "@canopy/contracts";
@@ -122,10 +123,7 @@ export const ingestThread = (
         deltaRun = undefined;
       });
 
-      const superseded = new Set(
-        (yield* sql<{ id: string }>`SELECT id FROM turns
-        WHERE thread_id=${threadId}::uuid AND rewind_id IS NOT NULL`).map((row) => row.id),
-      );
+      const fenced = yield* ingestEventFence(sql, thread.owner_user_id, threadId, events);
 
       for (const incoming of events) {
         if (known.has(incoming.eventId)) continue;
@@ -142,7 +140,7 @@ export const ingestThread = (
               : fallback;
 
         const suppressed =
-          superseded.has(incoming.turnId) ||
+          fenced(incoming) ||
           Boolean(
             thread.rewind_pending_id &&
             (incoming.body.case === "turnStarted" ||

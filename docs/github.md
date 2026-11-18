@@ -1,6 +1,6 @@
 # Konto GitHub i pull requesty
 
-Status: **v1 wdrożone** (2026-11-18): konta GitHub App i jawny fallback PAT, powiązania PR,
+Status: **v1 wdrożone** (2026-11-18), z wstrzymywaniem obserwacji PR po wyłączeniu modułu Threads: konta GitHub App i jawny fallback PAT, powiązania PR,
 pełny odczyt, komentarze i review, lifecycle, metadane, automatyczna archiwizacja wątków
 po merge, sterowanie GitHub Actions oraz postęp checków i kroków workflow. Zaimplementowane jest też jawne lokalne
 linkowanie PR przez agenta (`link_pull_request`) jako fallback automatycznej detekcji.
@@ -15,6 +15,8 @@ promocji kanałów w [release.md](release.md).
 Tokeny użytkownika pozostają w domu wątku; integracja produktu nie nadaje agentom
 praw do mutacji GitHub. `link_pull_request` zmienia tylko lokalne powiązanie z wątkiem,
 a `watch_pr_checks` udostępnia wyłącznie obserwację checków (§10).
+
+Gdy właściciel wyłączy **Threads**, gateway wstrzymuje wykrywanie PR-ów w jego wątkach, odpytywanie checków i automatyczną archiwizację po merge. Oczekujące powiadomienia CI pozostają w bazie. Po ponownym włączeniu gateway sprawdza aktualny stan PR-ów i dostarcza notatki. Gdy w czasie przerwy upłynął termin obserwacji ustawiony przez agenta, raportuje jej wygaśnięcie. Odświeżanie dostępu do kont GitHub działa niezależnie.
 
 ## 1. Wynik i zakres
 

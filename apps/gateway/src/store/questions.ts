@@ -1,3 +1,4 @@
+import { lockedOwnerModule, ownerModule } from "./module-access.ts";
 import { create, toBinary, type JsonValue } from "@bufbuild/protobuf";
 import { CommandSchema, type ui } from "@canopy/contracts";
 import {
@@ -27,7 +28,7 @@ export interface QuestionDelivery {
 export interface QuestionStore {
   askUser(source: CallSource, args: AgentBusArgs["ask_user"], hops: number, abandoned?: boolean): Fx<ui.Interaction>;
   getAnswers(source: CallSource, id: string, consume: boolean): Fx<JsonValue>;
-  deliverAnswers(): Fx<QuestionDelivery[]>;
+  deliverAnswers(owner: string): Fx<QuestionDelivery[]>;
 }
 
 /** The question set of a question interaction (question_call_id set); none for other requests. */
@@ -141,19 +142,21 @@ export function questionStore(sql: SqlClient.SqlClient): QuestionStore {
         }),
       ),
 
-    deliverAnswers: () =>
+    deliverAnswers: (owner) =>
       Effect.gen(function* () {
         // No transport acknowledgement exists for a tool result. A crashed sync turn may have died
         // after DB consumption and before receiving it; redeliver on interruption/failure as well.
         const due = yield* sql<{ id: string; thread_id: string }>`
-        SELECT q.id, q.thread_id FROM interaction_requests q LEFT JOIN turns u ON u.id = q.turn_id
-        WHERE q.answer_delivery = 'pending' OR (q.answer_delivery = 'consumed' AND u.status IN ('interrupted', 'failed')) ORDER BY q.created_at`;
+        SELECT q.id, q.thread_id FROM interaction_requests q JOIN threads t ON t.id=q.thread_id LEFT JOIN turns u ON u.id = q.turn_id
+        WHERE t.owner_user_id=${owner}::uuid AND ${ownerModule(sql, owner, "threads")} AND (q.answer_delivery = 'pending' OR (q.answer_delivery = 'consumed' AND u.status IN ('interrupted', 'failed'))) ORDER BY q.created_at`;
 
         const delivered: QuestionDelivery[] = [];
 
         for (const candidate of due) {
           const delivery = yield* sql.withTransaction(
             Effect.gen(function* () {
+              if (!(yield* lockedOwnerModule(sql, owner, "threads"))) return undefined;
+
               const threads = yield* sql<{
                 archived_at: Date | null;
                 deleted_at: Date | null;
@@ -200,8 +203,8 @@ export function questionStore(sql: SqlClient.SqlClient): QuestionStore {
                   },
                 });
 
-                yield* sql`INSERT INTO worker_commands(id, worker_id, thread_id, kind, payload, expires_at)
-              VALUES (${steerId}::uuid, ${threads[0].worker_id}::uuid, ${row.thread_id}::uuid, 'steerTurn', ${toBinary(CommandSchema, command)}, now() + interval '24 hours')`;
+                yield* sql`INSERT INTO worker_commands(id, worker_id, thread_id, kind, payload, expires_at, delivered_epoch)
+              VALUES (${steerId}::uuid, ${threads[0].worker_id}::uuid, ${row.thread_id}::uuid, 'steerTurn', ${toBinary(CommandSchema, command)}, now() + interval '24 hours', 0)`;
                 yield* sql`UPDATE interaction_requests SET answer_delivery = 'delivered', answer_steer_id = ${steerId}::uuid WHERE id = ${row.id}::uuid`;
 
                 return { threadId: row.thread_id, steerId };

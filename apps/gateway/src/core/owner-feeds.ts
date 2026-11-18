@@ -2,6 +2,7 @@ import { create, equals } from "@bufbuild/protobuf";
 import { bots, ui } from "@canopy/contracts";
 import { Effect } from "effect";
 import { SqlClient } from "effect/sql";
+import { botThreadConnection } from "../store/module-access.ts";
 import { coreState } from "./core-context.ts";
 import type { GatewayCore } from "./core.ts";
 import { queryFamily, queryRpc } from "../diagnostics/query-context.ts";
@@ -26,11 +27,17 @@ const BOT_CHANGES = `SELECT DISTINCT bot_id::text AS id, '' AS revision FROM bot
   WHERE owner_user_id = $1::uuid AND revision > $2::bigint AND revision <= $3::bigint`;
 
 /** Waiting cards are outside the journal: per bot, its pending approvals and its threads' pending permissions. */
-const BOT_CARDS = `SELECT a.bot_id::text AS id, 'a' || count(*) || '/' || max(a.created_at) AS revision FROM bot_approvals a
-  JOIN bots b ON b.id = a.bot_id WHERE b.owner_user_id = $1::uuid AND a.status = 'pending' GROUP BY a.bot_id
+const botCards = (owner: string) =>
+  Effect.flatMap(
+    SqlClient.SqlClient,
+    (
+      sql,
+    ) => sql<Row>`SELECT a.bot_id::text AS id, 'a' || count(*) || '/' || max(a.created_at) AS revision FROM bot_approvals a
+  JOIN bots b ON b.id = a.bot_id WHERE b.owner_user_id = ${owner}::uuid AND a.status = 'pending' GROUP BY a.bot_id
   UNION ALL SELECT s.bot_id::text, 't' || count(*) || '/' || max(q.created_at) FROM bot_started_threads s
   JOIN interaction_requests q ON q.thread_id = s.thread_id JOIN bots b ON b.id = s.bot_id
-  WHERE b.owner_user_id = $1::uuid AND q.kind = 'permission' AND q.status = 'pending' GROUP BY s.bot_id`;
+  WHERE b.owner_user_id = ${owner}::uuid AND ${botThreadConnection(sql, owner)} AND q.kind = 'permission' AND q.status = 'pending' GROUP BY s.bot_id`,
+  ).pipe(queryFamily("overview.feeds"), queryRpc);
 
 const CONNECTOR_REVISION = `SELECT md5(coalesce((SELECT string_agg(concat_ws(':', a.id, a.revision, a.status, a.updated_at, a.error), ',' ORDER BY a.id)
   FROM connector_accounts a WHERE a.owner_user_id = $1::uuid), '') || '#' ||
@@ -168,9 +175,11 @@ export class OwnerFeeds {
     const full = this.#full;
     this.#full = false;
 
+    const { runtime, userId } = this.core[coreState].options;
+
     const [clock, cards, connectors, proxies, config] = await Promise.all([
       this.#query(BOT_CLOCK),
-      this.#query(BOT_CARDS),
+      runtime.runPromise(botCards(userId)),
       this.#query(CONNECTOR_REVISION),
       this.#query(PROXY_REVISION),
       this.#query(CONFIG_REVISION),

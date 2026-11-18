@@ -66,6 +66,7 @@ export class WorkerConnection {
   #previousTextThread = "";
   readonly #inbound = new AsyncChannel<WorkerMessage>();
   readonly #pending = new Map<string, PendingCommand>();
+  readonly #unpersisted = new Map<string, bigint>();
   readonly #configuration: WorkerConfigurationCompatibility;
   #markClosed!: () => void;
 
@@ -92,7 +93,21 @@ export class WorkerConnection {
     return !this.#outbound.closed;
   }
 
+  hasUnpersistedEvents(threadId: string): boolean {
+    return this.#unpersisted.has(threadId);
+  }
+
+  /** Unknown threads keep their journal on the worker but need no cleanup barrier on this gateway. */
+  finishedIngest(threadId: string, through: bigint): void {
+    const last = this.#unpersisted.get(threadId);
+
+    if (last !== undefined && through >= last) this.#unpersisted.delete(threadId);
+  }
+
   send(payload: GatewayPayloadInit): void {
+    if (payload.case === "eventAck" && payload.value.threadId)
+      this.finishedIngest(payload.value.threadId, BigInt(payload.value.ackSeq ?? 0));
+
     if (!this.#outbound.push(gatewayMessage(payload))) {
       throw new ConnectError(`worker ${this.workerId} is offline`, Code.Unavailable);
     }
@@ -190,6 +205,10 @@ export class WorkerConnection {
   deliver(message: WorkerMessage): void {
     if (message.payload.case === "threadEvent") {
       const event = message.payload.value;
+      // A command ACK can otherwise overtake earlier events queued for ingest.
+      const { threadId, journalSeq } = event;
+
+      if (journalSeq > (this.#unpersisted.get(threadId) ?? 0n)) this.#unpersisted.set(threadId, journalSeq);
       const text = event.body.case === "itemDelta" && event.body.value.field === ItemDeltaField.TEXT;
 
       if (text && event.threadId !== this.#previousTextThread) this.#firstText.add(event);

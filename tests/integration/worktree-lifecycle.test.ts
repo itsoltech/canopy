@@ -1,3 +1,4 @@
+import { setModules } from "./support/module-settings.ts";
 import { afterAll, beforeAll, beforeEach, describe, expect, test } from "bun:test";
 import { existsSync, mkdirSync, rmSync, symlinkSync, utimesSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
@@ -329,7 +330,12 @@ describe.skipIf(!dockerAvailable)("worktree lifecycle over gRPC", () => {
     expect((await f.cleanup(false)).entries.find((e) => e.worktree?.id === t.worktree!.id)?.removed).toBe(false);
     expect(await failure(f.remove(t.worktree!.id))).toContain("offline");
     expect(existsSync(t.cwd)).toBe(true);
+    await setModules(f.gw, "bots");
     await f.connect();
+    await f.gw.core.worktreeCleanup.tick(f.workerId);
+    expect(existsSync(t.cwd)).toBe(true);
+    await setModules(f.gw, "threads", "bots");
+    await f.gw.core.worktreeCleanup.tick(f.workerId);
     await eventually(
       () => f.gw.api.listWorktrees({}),
       (r) => !r.entries.some((e) => e.worktree?.id === t.worktree!.id),

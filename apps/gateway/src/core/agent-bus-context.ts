@@ -1,3 +1,4 @@
+import type { SqlClient } from "effect/sql";
 import { create, type JsonValue } from "@bufbuild/protobuf";
 import { AgentToolResultSchema, ui, type AgentToolCall, type AgentToolResult } from "@canopy/contracts";
 import { type AgentBusArgs, type AgentBusCall, type SpawnInstance, type SpawnTarget } from "@canopy/domain";
@@ -23,10 +24,10 @@ import {
  */
 
 export interface BusHost {
-  ownerUserId?: string;
+  ownerUserId: string;
   linked?(request: AgentToolCall, call: AgentBusCall, caller: ThreadRow): Promise<JsonValue | undefined>;
   extend?(call: AgentBusCall, caller: ThreadRow, result: JsonValue): Promise<JsonValue>;
-  run<A, E>(effect: Effect.Effect<A, E, GatewayStore | AgentBusStore>): Promise<A>;
+  run<A, E>(effect: Effect.Effect<A, E, GatewayStore | AgentBusStore | SqlClient.SqlClient>): Promise<A>;
   permissionMutation?<A>(threadId: string, perform: () => Promise<A>): Promise<A>;
   /** Sends CreateThread for a new thread (with its fork point) and announces it. */
   startThread(row: ThreadRow): Promise<void>;

@@ -1,5 +1,6 @@
 import type { connectors } from "@canopy/contracts";
 import { connectorAccessSummary, connectorStatus, formatRelative } from "@canopy/domain/format";
+import { useAppearance } from "../../state/appearance";
 import { Pressable, Text, View } from "react-native";
 import { IconButton } from "../../ui/components";
 import { Icon } from "../../ui/Icon";
@@ -20,6 +21,8 @@ export function ConnectorAccountRow({
   onActions: () => void;
 }) {
   const c = useColors();
+  const { modules } = useAppearance();
+  const access = connectorAccessSummary(account, modules);
   const type = useTypography();
   const tone = account.status === "connected" ? "emerald" : account.status === "error" ? "rose" : "amber";
 
@@ -31,7 +34,7 @@ export function ConnectorAccountRow({
     <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
       <Pressable
         accessibilityRole="button"
-        accessibilityLabel={`${account.name}. ${connectorStatus(account.status)}, ${provider}. ${lastUsed}. ${connectorAccessSummary(account)}`}
+        accessibilityLabel={`${account.name}. ${connectorStatus(account.status)}, ${provider}. ${lastUsed}. ${access}`}
         accessibilityHint="Edit access"
         onPress={onPress}
         style={({ pressed }) => [
@@ -66,7 +69,7 @@ export function ConnectorAccountRow({
               {lastUsed}
             </Text>
             <Text numberOfLines={1} style={[type.meta, { flex: 1, minWidth: 0, color: c.muted }]}>
-              {connectorAccessSummary(account)}
+              {access}
             </Text>
           </View>
         </View>

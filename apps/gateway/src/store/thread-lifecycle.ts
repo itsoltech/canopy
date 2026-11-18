@@ -1,3 +1,4 @@
+import { lockedOwnerModule } from "./module-access.ts";
 import { Effect } from "effect";
 import type { SqlClient } from "effect/sql";
 import { Invalid, NotFound } from "./store.ts";
@@ -58,7 +59,11 @@ export function threadLifecycle(sql: SqlClient.SqlClient, dispatch: Dispatch) {
     setThreadArchived: (userId: string, threadId: string, archived: boolean, reason: "user" | "merge" = "user") =>
       sql.withTransaction(
         Effect.gen(function* () {
-          if (reason === "merge") yield* configLock(sql, userId);
+          if (reason === "merge") {
+            if (!(yield* lockedOwnerModule(sql, userId, "threads"))) return { ids: [], commands: [] };
+            yield* configLock(sql, userId);
+          }
+
           const row = yield* owned(sql, userId, threadId);
 
           if (reason === "merge" && !(yield* mergeArchiveAllowed(sql, userId, threadId)).length)

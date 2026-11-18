@@ -1,4 +1,5 @@
 import { ui } from "@canopy/contracts";
+import { validModuleOrder } from "@canopy/domain";
 import { isEntityId } from "@canopy/domain/computers";
 import { isCheckInterval } from "@canopy/domain/update-checks";
 import { harnessOf } from "../store/index.ts";
@@ -8,6 +9,9 @@ import { checkWorkerGatewayUrl } from "./worker-administration.ts";
 
 /** Shared by local UI writes and config materialization before the domain store is changed. */
 export function validateUserSettings(request: ui.UpdateUserSettingsRequest) {
+  if (request.modules && !validModuleOrder(request.modules.enabled))
+    throw new InvalidError("Choose Threads, Bots, or both. Each module can appear only once.");
+
   if (request.agentToolDefaults) validateAgentToolDefaults(request.agentToolDefaults);
   const interval = request.cliUpdates?.intervalMinutes;
 

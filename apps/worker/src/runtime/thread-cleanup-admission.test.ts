@@ -4,6 +4,7 @@ import { join, resolve } from "node:path";
 import { create } from "@bufbuild/protobuf";
 import {
   AgentToolResultSchema,
+  CommandSchema,
   GoalDirective,
   InteractionResponseSchema,
   Provider,
@@ -19,6 +20,7 @@ import { Journal } from "../journal/index.ts";
 import { CodexThreads } from "../providers/codex/threads.ts";
 import { resolveProfiles } from "../providers/profiles.ts";
 import { HostContext } from "./host-context.ts";
+import { WorkerHost } from "./host.ts";
 import { HostState } from "./host-state.ts";
 
 function fixture() {
@@ -161,5 +163,52 @@ test("a goal waiting for runtime acquisition is fenced across archive and reopen
     f.state.secrets.close();
     await Effect.runPromise(Scope.close(scope, Exit.void));
     await f.runtime.dispose();
+  }
+});
+
+test("unload fences a goal that was waiting for a CLI install when it reached the worker", async () => {
+  const dir = tempDir("canopy-module-goal-admission-");
+  const runtime = ManagedRuntime.make(Journal.layer(join(dir, "journal.db")));
+  const host = new WorkerHost({ runtime, dataDir: dir, clientVersion: "test" });
+  const threadId = crypto.randomUUID();
+  const entered = Promise.withResolvers<void>();
+  const release = Promise.withResolvers<void>();
+  host.cli.settled = async () => {
+    entered.resolve();
+    await release.promise;
+  };
+
+  const command = create(CommandSchema, {
+    commandId: crypto.randomUUID(),
+    kind: {
+      case: "setGoal",
+      value: {
+        thread: { threadId, provider: Provider.CODEX },
+        directive: GoalDirective.RUN,
+        objective: "Held at CLI install",
+      },
+    },
+  });
+
+  const pending = host.handleCommand(command);
+
+  try {
+    await entered.promise;
+    expect(
+      await host.handleCommand(
+        create(CommandSchema, {
+          commandId: crypto.randomUUID(),
+          kind: { case: "unloadThread", value: { threadId } },
+        }),
+      ),
+    ).toMatchObject({ ok: true });
+    release.resolve();
+    expect(await pending).toMatchObject({ ok: false, errorCode: "THREAD_CLOSED" });
+    expect(await host.handleCommand(command)).toMatchObject({ ok: false, errorCode: "THREAD_CLOSED" });
+  } finally {
+    release.resolve();
+    await pending;
+    await host.close();
+    await runtime.dispose();
   }
 });

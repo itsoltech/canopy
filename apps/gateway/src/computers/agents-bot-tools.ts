@@ -11,6 +11,7 @@ import type { BotTurn, StoredCall } from "../bots/types.ts";
 import { BotStore } from "../bots/store.ts";
 
 import { fail, isToolArguments, record, text, type Actor, type Arguments } from "./agents-context.ts";
+import { requireLinkedModules } from "./agents-module-access.ts";
 import type { LinkedAgents } from "./agents.ts";
 import { requireLinkedChainCapacity } from "./agents-receive.ts";
 import { gather } from "../api/routed-overview.ts";
@@ -135,7 +136,7 @@ export const agentsBotToolsMethods: AgentsBotToolsMethods = {
           (
             await this.ui(
               "GetThread",
-              create(ui.GetThreadRequestSchema, { threadId: text(args, "thread_id") }),
+              create(ui.GetThreadRequestSchema, { threadId: text(args, "thread_id"), botThreadAccess: true }),
               ui.GetThreadResponseSchema,
             )
           ).thread!,
@@ -166,6 +167,7 @@ export const agentsBotToolsMethods: AgentsBotToolsMethods = {
                 "AnswerInteraction",
                 create(ui.AnswerInteractionRequestSchema, {
                   requestId: text(args, "request_id"),
+                  botThreadAccess: true,
                   allow: args["allow"] === true,
                   allowForSession: args["allow_for_session"] === true,
                   cancelled: args["cancelled"] === true,
@@ -219,7 +221,7 @@ async function botDefaultThreadRequest(
 }
 
 async function readBotThread(hostContext: LinkedAgents, args: Arguments) {
-  const snapshot = await hostContext.snapshot(text(args, "thread_id"));
+  const snapshot = await hostContext.snapshot(text(args, "thread_id"), "bot-thread");
 
   return {
     turns: snapshot.turns.map((t) => ({ id: t.id, status: t.status })),
@@ -238,10 +240,12 @@ async function readBotThread(hostContext: LinkedAgents, args: Arguments) {
 }
 
 async function listBotThreads(hostContext: LinkedAgents, args: Arguments): Promise<JsonValue> {
+  await requireLinkedModules(hostContext);
   const project = Predicate.isString(args["project_id"]) ? args["project_id"] : "";
 
   const request = create(ui.ListThreadsRequestSchema, {
     projectId: project,
+    botThreadAccess: true,
     includeArchived: args["include_archived"] === true,
   });
 
@@ -250,19 +254,15 @@ async function listBotThreads(hostContext: LinkedAgents, args: Arguments): Promi
     : await hostContext.core.listThreads(project, request.includeArchived);
 
   if (!project) {
-    const others = await gather<ui.ListThreadsResponse>(
-      hostContext.core,
-      "ListThreads",
-      request,
-      AbortSignal.timeout(PEER_READ_TIMEOUT_MS),
+    // Offline UI mirrors cannot attest the home's current module preference.
+    const computers = hostContext.core.computers;
+    const nodes = computers?.reachable().filter((node) => computers.capabilities(node).includes(AGENT_BUS)) ?? [];
+
+    const others = await Promise.allSettled(
+      nodes.map((node) => hostContext.ui("ListThreads", request, ui.ListThreadsResponseSchema, node)),
     );
 
-    for (const response of others)
-      threads.push(
-        ...response.threads.filter((thread) =>
-          hostContext.core.computers?.capabilities(thread.nodeId).includes(AGENT_BUS),
-        ),
-      );
+    for (const response of others) if (response.status === "fulfilled") threads.push(...response.value.threads);
   }
 
   const query = String(args["query"] ?? "").toLowerCase();

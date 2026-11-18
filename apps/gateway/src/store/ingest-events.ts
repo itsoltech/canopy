@@ -1,3 +1,4 @@
+import { UNCONFIRMED_MODULE_STEER } from "./module-steers.ts";
 import { clone, create, fromJson, toJson, type JsonValue } from "@bufbuild/protobuf";
 import {
   ContextUsageSchema,
@@ -305,8 +306,9 @@ export const applySteer = (sql: SqlClient.SqlClient, threadId: string, seq: bigi
       if (!steerId || !isUuid(steerId) || steerId === event.turnId) return;
       yield* sql`
         WITH s AS (
-          UPDATE turn_steers SET status = 'delivered', delivered_seq = ${seq}, updated_at = now()
-           WHERE id = ${steerId}::uuid AND thread_id = ${threadId}::uuid AND status IN ('pending', 'accepted')
+          UPDATE turn_steers SET status = 'delivered', reason = NULL, delivered_seq = ${seq}, updated_at = now()
+           WHERE id = ${steerId}::uuid AND thread_id = ${threadId}::uuid
+           AND (status IN ('pending', 'accepted') OR (status = 'failed' AND reason = ${UNCONFIRMED_MODULE_STEER}))
           RETURNING agent_call_id, turn_id)
         UPDATE agent_bus_calls c SET target_turn_id = s.turn_id FROM s WHERE c.id = s.agent_call_id AND c.target_turn_id IS NULL
       `;
@@ -330,7 +332,8 @@ export const applySteer = (sql: SqlClient.SqlClient, threadId: string, seq: bigi
       steerId = inputId;
       yield* sql`
         UPDATE turn_steers SET status = 'dropped', reason = 'the turn ended before the message could join it', updated_at = now()
-         WHERE id = ${steerId}::uuid AND thread_id = ${threadId}::uuid AND status IN ('pending', 'accepted')
+         WHERE id = ${steerId}::uuid AND thread_id = ${threadId}::uuid
+           AND (status IN ('pending', 'accepted') OR (status = 'failed' AND reason = ${UNCONFIRMED_MODULE_STEER}))
       `;
     }
   });

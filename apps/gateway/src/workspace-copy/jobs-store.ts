@@ -1,3 +1,4 @@
+import { ownerModule } from "../store/module-access.ts";
 import { create } from "@bufbuild/protobuf";
 import { ui } from "@canopy/contracts";
 import { Effect } from "effect";
@@ -103,11 +104,12 @@ export class CopyJobStore {
     return rows.map((row) => rowSchema.parse(row));
   }
 
-  async open(): Promise<JobRow[]> {
+  async open(queuedOnly = false): Promise<JobRow[]> {
     const rows = await this.run(
       (sql) => sql`
       SELECT ${sql.literal(COLUMNS)} FROM workspace_copy_jobs
        WHERE owner_user_id=${this.owner()}::uuid AND status IN ('queued','copying','finishing','waiting')
+         AND (NOT ${queuedOnly} OR status='queued')
        ORDER BY created_at`,
     );
 
@@ -128,6 +130,7 @@ export class CopyJobStore {
         workspace_ref=CASE WHEN ${details.workspaceRef ?? ""}='' THEN workspace_ref ELSE ${details.workspaceRef ?? ""} END,
         updated_at=now()
        WHERE id=${id}::uuid AND owner_user_id=${this.owner()}::uuid
+         AND (${status} <> 'copying' OR ${ownerModule(sql, this.owner(), "threads")})
          AND (${from}::text IS NULL OR status = ANY(string_to_array(${from}::text, ',')))
        RETURNING id`,
     );

@@ -4,8 +4,9 @@ import { bots } from "@canopy/contracts";
 import cronstrue from "cronstrue";
 import { Effect } from "effect";
 import type { SqlClient, SqlError } from "effect/sql";
-import { cronProblem, nextCronRun } from "../core/cron.ts";
+import { cronProblem, nextCronRun, nextStoredCronRun } from "../core/cron.ts";
 import { Invalid, NotFound } from "../store/store.ts";
+import { lockedOwnerModule, moduleDisabledMessage } from "../store/module-access.ts";
 import { nextHop } from "./policy.ts";
 import type { BotRow, BotTurn } from "./types.ts";
 
@@ -131,6 +132,8 @@ function deliverRoutines(sql: SqlClient.SqlClient, hooks: Hooks, user: string, n
     for (let i = 0; i < 100; i++) {
       const claimed = yield* sql.withTransaction(
         Effect.gen(function* () {
+          if (!(yield* lockedOwnerModule(sql, user, "bots"))) return false;
+
           const dueBots = yield* sql<{ id: string }>`SELECT b.id FROM bots b
             WHERE b.owner_user_id=${user}::uuid AND b.deleted_at IS NULL AND b.archived_at IS NULL AND b.moved_to IS NULL
             AND EXISTS(SELECT 1 FROM bot_routines r WHERE r.bot_id=b.id AND r.enabled
@@ -149,13 +152,7 @@ function deliverRoutines(sql: SqlClient.SqlClient, hooks: Hooks, user: string, n
               AND r.next_run_at<=${now} ORDER BY r.id FOR UPDATE OF r`;
 
             for (const r of due) {
-              let next: Date | undefined;
-
-              try {
-                next = nextCronRun(r.cron, r.timezone, now);
-              } catch {
-                /* Disable an expression rejected after a parser upgrade. */
-              }
+              const next = nextStoredCronRun(r.cron, r.timezone, now);
 
               const enqueue = Boolean(next) && !r.pending;
 
@@ -213,6 +210,8 @@ export function routineStore(sql: SqlClient.SqlClient, hooks: Hooks) {
   const update = (user: string, botId: string, id: string, patch: RoutinePatch, now: Date) =>
     sql.withTransaction(
       Effect.gen(function* () {
+        if (patch.enabled && !(yield* lockedOwnerModule(sql, user, "bots")))
+          return yield* Effect.fail(new Invalid(moduleDisabledMessage("bots")));
         yield* hooks.owned(user, botId, true);
         const old = yield* get(botId, id);
         const c = yield* checked({ ...old, ...patch }, now);

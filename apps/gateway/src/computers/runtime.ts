@@ -3,7 +3,7 @@ import { MirrorDiagnostics } from "../diagnostics/sync.ts";
 
 import { Code, ConnectError, type ConnectRouter } from "@connectrpc/connect";
 
-import { computerLink as link } from "@canopy/contracts";
+import { computerLink as link, type ui } from "@canopy/contracts";
 
 import { MOVE_ITEMS, RELAY } from "@canopy/domain/computers";
 
@@ -23,7 +23,12 @@ import { Routes } from "./routes.ts";
 
 import { computerGuard, computersState, LinkedComputersState, type Options } from "./runtime-context.ts";
 import { computersAccept } from "./runtime-frames.ts";
-import { computersEmit, computersMirrorsMethods, type ComputersMirrorsMethods } from "./runtime-mirrors.ts";
+import {
+  computersEmit,
+  computersMirrorsMethods,
+  computersSyncMirror,
+  type ComputersMirrorsMethods,
+} from "./runtime-mirrors.ts";
 import { computersMovable, computersPresenceMethods, type ComputersPresenceMethods } from "./runtime-presence.ts";
 import { computersRemoteMethods, type ComputersRemoteMethods } from "./runtime-remote.ts";
 import { linkHandler, remoteCertificate, type LinkIdentity } from "./transport.ts";
@@ -31,6 +36,8 @@ import { requireDesktopRole } from "../role.ts";
 import { fetchConfigBlob } from "./runtime-blobs.ts";
 import { ConfigSync } from "../config-sync/engine.ts";
 import { PeerReads } from "./reads.ts";
+import { ModuleStreams } from "../core/module-streams.ts";
+import { computersBroadcast } from "./runtime-connection.ts";
 import { wireHello } from "./hello.ts";
 import { UsageSync } from "./usage.ts";
 
@@ -57,6 +64,15 @@ export class LinkedComputers {
   declare close: ComputersRemoteMethods["close"];
 
   readonly [computersState] = new LinkedComputersState();
+
+  readonly mirrorModules = new ModuleStreams();
+
+  setMirrorModules(settings: ui.UserSettings) {
+    if (!this.mirrorModules.update(settings) || !this[computersState].ready || this[computersState].stopped) return;
+    computersBroadcast(this, { body: { case: "hello", value: wireHello(this.hello()) } });
+
+    for (const node of this.reachable()) computersSyncMirror(this, node);
+  }
 
   diagnosticsWatches() {
     return this[computersState].mirroring.size + this[computersState].botMirroring.size;

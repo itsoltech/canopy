@@ -1,3 +1,4 @@
+import { trackGeneration } from "./text-generation.ts";
 import { ThreadSecretFiles } from "./thread-secrets.ts";
 import { workerDiagnostics } from "../diagnostics/worker.ts";
 import {
@@ -20,6 +21,7 @@ import { AttachmentError } from "../attachments/files.ts";
 import { WorkerAgentEnvironment } from "../agent-environment/index.ts";
 
 import {
+  successResult,
   CommandError,
   commandProvider,
   type CommandResultInit,
@@ -35,7 +37,7 @@ import { WorkspaceCopies } from "../workspace-copy/index.ts";
 import { AgentTools, AgentToolRefused } from "../agent-tools/index.ts";
 import { WorkerStorageCleanup } from "./storage-cleanup.ts";
 import { HostPreviews } from "./host-previews.ts";
-import { NOT_REMEMBERED } from "./command-policy.ts";
+import { NOT_REMEMBERED, rememberSuccess } from "./command-policy.ts";
 
 export type { WorkerHostOptions } from "./host-types.ts";
 /**
@@ -204,6 +206,9 @@ export class WorkerHost {
   detach(link: GatewayLink): void {
     if (this.#ctx.state.link === link) {
       this.#ctx.state.link = undefined;
+
+      // These transient commands can only report to the link that requested them.
+      for (const abort of this.#ctx.state.generationRequests.values()) abort.abort();
       this.previews.detach(link);
       this.#ctx.state.imageExports.close();
       void this.#ctx.ops.closeClones();
@@ -304,16 +309,37 @@ export class WorkerHost {
 
     if (pending) return pending;
 
-    const result = this.storage
-      .use(() => this.#handleCommand(command))
-      .finally(() => this.#commands.delete(command.commandId));
+    const kind = command.kind;
+
+    if (kind.case === "cancelTextGeneration") {
+      this.#ctx.state.generationRequests.get(kind.value.commandId)?.abort();
+
+      return { commandId: command.commandId, ok: true };
+    }
+
+    const thread =
+      kind.case === "createThread" || kind.case === "setGoal" || kind.case === "startTurn"
+        ? kind.value.thread?.threadId
+        : kind.case === "steerTurn"
+          ? kind.value.threadId
+          : undefined;
+
+    const current = thread ? this.#ctx.state.turnAdmissions.current(thread) : undefined;
+
+    const execute = () => this.storage.use(() => this.#handleCommand(command, current));
+
+    const result = (
+      kind.case === "generateText"
+        ? trackGeneration(this.#ctx.state.generationRequests, command.commandId, execute)
+        : execute()
+    ).finally(() => this.#commands.delete(command.commandId));
 
     this.#commands.set(command.commandId, result);
 
     return result;
   }
 
-  async #handleCommand(command: Command): Promise<CommandResultInit | undefined> {
+  async #handleCommand(command: Command, current?: () => boolean): Promise<CommandResultInit | undefined> {
     const known = await this.#ctx.state.options.runtime.runPromise(
       Journal.use((j) => j.commandResult(command.commandId)),
     );
@@ -346,6 +372,9 @@ export class WorkerHost {
       // A CLI being installed: its new work waits for the install to end (docs/provider-cli.md).
       if (provider) await this.#ctx.state.cli.settled(provider);
 
+      if (current && !current())
+        throw new CommandError("THREAD_CLOSED", "This command was cancelled while the thread was closing.", true);
+
       if (command.kind.case === "workspaceCopy" && command.kind.value.action.case === "scan")
         this.#ctx.ops.checkCwd(command.kind.value.action.value.rootPath);
 
@@ -354,48 +383,9 @@ export class WorkerHost {
           ? { workspaceCopy: await this.#copies.execute(command.kind.value) }
           : await this.#ctx.ops.execute(command);
 
-      const result: CommandResultInit = {
-        commandId: command.commandId,
-        ok: true,
-        ...(output.dataJson !== undefined && { dataJson: output.dataJson }),
-        ...(output.workspaceCopy && { workspaceCopy: output.workspaceCopy }),
-        ...(output.botFile && { botFile: output.botFile }),
-        ...(output.entries && { entries: output.entries }),
-        ...(output.directoryPath && { directoryPath: output.directoryPath }),
-        ...(output.models && { models: output.models }),
-        ...(output.rewind && { rewind: output.rewind }),
-        ...(output.login && { login: output.login }),
-        ...(output.providerAccounts && { providerAccounts: output.providerAccounts }),
-        ...(output.mentionCatalog && { mentionCatalog: output.mentionCatalog }),
-        ...(output.fileSearch && { fileSearch: output.fileSearch }),
-        ...(output.consumedUsages && { consumedUsages: output.consumedUsages }),
-        ...(output.generatedText !== undefined && { generatedText: output.generatedText }),
-        ...(output.gitRefs && { gitRefs: output.gitRefs }),
-        ...(output.threadGitStatus && { threadGitStatus: output.threadGitStatus }),
-        ...(output.switchedHead && { switchedHead: output.switchedHead }),
-        ...(output.branchSwitchWarning && { branchSwitchWarning: output.branchSwitchWarning }),
-        ...(output.gitPrContext && { gitPrContext: output.gitPrContext }),
-        ...(output.workspaceOrigin !== undefined && { workspaceOrigin: output.workspaceOrigin }),
-        ...(output.workspaceCloneUrl !== undefined && { workspaceCloneUrl: output.workspaceCloneUrl }),
-        ...(output.worktree && { worktree: output.worktree }),
-        ...(output.worktreeStatuses && { worktreeStatuses: output.worktreeStatuses }),
-        ...(output.worktreeBranchDeleted !== undefined && { worktreeBranchDeleted: output.worktreeBranchDeleted }),
-        ...(output.importScan && { importScan: output.importScan }),
-        ...(output.importPage && { importPage: output.importPage }),
-        ...(output.importedSessionId && { importedSessionId: output.importedSessionId }),
-        ...(output.importLibraryContent && { importLibraryContent: output.importLibraryContent }),
-        ...(output.importSecret && { importSecret: output.importSecret }),
-        ...(output.file && { file: output.file }),
-        ...(output.threadDiff && { threadDiff: output.threadDiff }),
-        ...(output.threadDiffPage && { threadDiffPage: output.threadDiffPage }),
-        ...(output.threadDirectory && { threadDirectory: output.threadDirectory }),
-        ...(output.threadFileHighlight && { threadFileHighlight: output.threadFileHighlight }),
-        ...(output.threadImageExport && { threadImageExport: output.threadImageExport }),
-        ...(output.agentTool && { agentTool: output.agentTool }),
-        ...(output.agentTools && { agentTools: output.agentTools }),
-      };
+      const result = successResult(command.commandId, output);
 
-      if (!NOT_REMEMBERED.has(command.kind.case)) await this.#remember(result);
+      if (rememberSuccess(command)) await this.#remember(result);
 
       return result;
     } catch (error) {

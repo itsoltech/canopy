@@ -1,4 +1,4 @@
-import { afterAll, afterEach, beforeAll, describe, expect, test } from "bun:test";
+import { afterAll, afterEach, beforeAll, describe, expect, spyOn, test } from "bun:test";
 import { appendFileSync, readdirSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { timestampMs } from "@bufbuild/protobuf/wkt";
@@ -146,6 +146,63 @@ describe.skipIf(!dockerAvailable)("CLI import: Claude history", () => {
     f.gw.core.imports.runner.pageBytes = 4 * 1024 ** 2;
   });
 
+  test("disabling Threads fences a page already on the wire and resumes at the saved cursor", async () => {
+    await undoAll();
+
+    const handle = f.host.handleCommand.bind(f.host);
+    const reading = Promise.withResolvers<string>();
+    const release = Promise.withResolvers<void>();
+    const cursors: string[] = [];
+
+    const worker = spyOn(f.host, "handleCommand").mockImplementation(async (command) => {
+      if (command.kind.case === "readImportPage") {
+        const { cursor } = command.kind.value;
+        cursors.push(cursor);
+
+        if (cursors.length === 2) {
+          reading.resolve(cursor);
+          await release.promise;
+        }
+      }
+
+      return handle(command);
+    });
+
+    try {
+      f.gw.core.imports.runner.pageBytes = 1;
+      const { scanId } = await scan();
+      const candidates = await f.gw.api.listImportCandidates({ scanId });
+      const main = candidates.candidates.find((entry) => entry.cwd === join(f.home, "project"))!;
+      const run = await f.gw.api.startImport({ scanId, selection: { included: [main.sourceKey] }, mode: "history" });
+      const cursor = await reading.promise;
+      await f.setThreads(false);
+
+      const checkpoint = () =>
+        f.sql(
+          (sql) => sql<{ cursor: string; turns: number; bytes_done: string }>`
+        SELECT cursor, turns, bytes_done FROM import_items WHERE run_id = ${run.id}::uuid`,
+        );
+
+      const saved = await checkpoint();
+      expect(saved).toMatchObject([{ cursor, turns: 1 }]);
+      expect((await f.gw.api.getImportRun({ runId: run.id })).status).toBe("paused");
+      release.resolve();
+      await f.gw.core.imports.runner.drive(run.id);
+      await f.gw.core.imports.runner.tick(f.workerId);
+      expect(await failure(f.gw.api.resumeImportRun({ runId: run.id }))).toContain("Enable Threads");
+      expect(cursors).toEqual(["", cursor]);
+      expect(await checkpoint()).toEqual(saved);
+      await f.setThreads(true);
+      const done = await finished(run.id);
+      expect(cursors.slice(0, 3)).toEqual(["", cursor, cursor]);
+      expect(done.items[0]).toMatchObject({ turns: 5, status: "done" });
+    } finally {
+      release.resolve();
+      worker.mockRestore();
+      await f.setThreads(true);
+    }
+  }, 30_000);
+
   test("cancelling a paused run removes the thread being imported and frees its source, with no runner", async () => {
     await undoAll();
     f.gw.core.imports.runner.pageBytes = 1;
@@ -221,7 +278,7 @@ describe.skipIf(!dockerAvailable)("CLI import: Claude history", () => {
       expect((await f.sql((sql) => failItem(sql, id, "the source changed"))).failed).toBe(false);
     expect(await f.sql((sql) => runnerRunStatus(sql, run.id, "paused", "offline"))).toBe(false);
     // A resume decided on a stale read (the periodic check listed the run as paused, Resume saw it paused).
-    expect(await f.sql((sql) => resumePaused(sql, run.id))).toBe(false);
+    expect(await f.sql((sql) => resumePaused(sql, f.gw.userId, run.id))).toBe(false);
     expect(await f.sql((sql) => resumeRun(sql, f.gw.userId, run.id))).toBe(false);
     await f.gw.core.imports.runner.tick();
     const after = await f.gw.api.getImportRun({ runId: run.id, items: true });

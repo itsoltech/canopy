@@ -392,7 +392,9 @@ describe.skipIf(!dockerAvailable)("managing the queue (gateway + scripted worker
 
     const start = (turnId: string, revision: number) =>
       gw.runtime.runPromise(
-        QueueStore.use((q) => q.whileHead({ threadId: thread.id, turnId, revision }, Effect.succeed("started"))),
+        QueueStore.use((q) =>
+          q.whileHead({ ownerUserId: gw.userId, threadId: thread.id, turnId, revision }, Effect.succeed("started")),
+        ),
       );
 
     expect(await start(a, 0)).toBeUndefined(); // a provider turn may have won since nextTurn read the head

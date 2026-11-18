@@ -1,3 +1,4 @@
+import { ownerModuleEnabled, moduleDisabledMessage } from "../store/module-access.ts";
 import { create } from "@bufbuild/protobuf";
 import { ui, type AgentPreviewEvent, type AgentTool } from "@canopy/contracts";
 import { Code, ConnectError } from "@connectrpc/connect";
@@ -38,6 +39,10 @@ export class AgentPreviews {
 
   async #authorize(threadId: string, tool: AgentTool, expected?: WorkerConnection): Promise<WorkerConnection> {
     if (!AGENT_WORKER_ID.test(threadId)) throw new ConnectError("Invalid thread id", Code.InvalidArgument);
+    const { runtime, userId } = this.core[coreState].options;
+
+    if (!(await runtime.runPromise(ownerModuleEnabled(userId, "threads"))))
+      throw new ConnectError(moduleDisabledMessage("threads"), Code.FailedPrecondition);
     const thread = await coreRun(this.core, (store) => store.thread(threadId));
 
     if (thread.owner_user_id !== this.core[coreState].options.userId || thread.deleted_at)

@@ -1,8 +1,10 @@
 import { Effect } from "effect";
 import type { SqlClient } from "effect/sql";
+import { Invalid } from "../store/errors.ts";
+import { lockedOwnerModule, moduleDisabledMessage } from "../store/module-access.ts";
 
 /**
- * Row locks of the CLI import (docs/import.md, "Blokady"). Every import transaction goes through importTransaction:
+ * Row locks of the CLI import (docs/import.md, "Blokady"). An import transaction spanning multiple tables goes through importTransaction:
  * it names the rows it starts from, the helper widens that to every row the transaction may change and locks them
  * all before the body writes anything, in one order for every transaction — runs, then items, then threads, each
  * table in one statement in id order. The body changes only locked rows, rows that belong to a locked thread
@@ -99,6 +101,20 @@ const covers = (locks: Locks, scope: Scope) =>
   scope.runs.every((id) => locks.runs.has(id)) &&
   scope.items.every((id) => locks.items.has(id)) &&
   scope.threads.every((id) => locks.threads.has(id));
+
+/** Serialize admission with the owner's module transition before taking any import row locks. */
+export const withImportModule = <A, E, R>(
+  sql: SqlClient.SqlClient,
+  owner: string,
+  body: (enabled: boolean) => Effect.Effect<A, E, R>,
+) => sql.withTransaction(Effect.flatMap(lockedOwnerModule(sql, owner, "threads"), body));
+
+export const admitImport =
+  (sql: SqlClient.SqlClient, owner: string) =>
+  <A, E, R>(work: Effect.Effect<A, E, R>) =>
+    withImportModule<A, E | Invalid, R>(sql, owner, (enabled) =>
+      enabled ? work : Effect.fail(new Invalid(moduleDisabledMessage("threads"))),
+    );
 
 /**
  * `body` in one transaction, after every row the seeds reach is locked (see above). The scope is read again under

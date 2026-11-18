@@ -2,6 +2,7 @@ import { computerLink as link } from "@canopy/contracts";
 import { Code, ConnectError } from "@connectrpc/connect";
 import { Effect } from "effect";
 import { type SqlClient } from "effect/sql";
+import type { ModuleChange } from "../store/module-transitions.ts";
 import type { SharedHost } from "./host.ts";
 import { instanceReads, instanceSync } from "../store/instance-queries.ts";
 import { compareClock } from "./clock.ts";
@@ -78,6 +79,7 @@ export type ReceiveContext = {
 export type ReceiveResult = {
   last: string;
   settings: boolean;
+  moduleChanges: ModuleChange[];
   cli: boolean;
   providers: boolean;
   projects?: boolean;
@@ -123,7 +125,9 @@ export function applyRecord(ctx: ReceiveContext, row: ConfigRow, result: Receive
     if (row.unsupported) return;
 
     if (row.kind === "settings") {
-      result.cli = (yield* applySettings(ctx.sql, ctx.owner, row, ctx.self, ctx.host)) || result.cli;
+      const changes = yield* applySettings(ctx.sql, ctx.owner, row, ctx.self, ctx.host);
+      result.cli ||= changes.cli;
+      result.moduleChanges.push(...changes.moduleChanges);
       result.settings = true;
     } else if (row.kind === "proxy") {
       yield* applyProxy(ctx.sql, ctx.owner, ctx.key, row);

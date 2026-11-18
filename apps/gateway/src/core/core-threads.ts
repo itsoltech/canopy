@@ -1,3 +1,4 @@
+import { requireThreadModule } from "./thread-module-runtime.ts";
 import { coreCreateThread } from "./create-thread.ts";
 import { create, type MessageInitShape } from "@bufbuild/protobuf";
 import type { CreationProgress } from "./thread-progress.ts";
@@ -114,12 +115,15 @@ export async function coreStartThread(hostContext: GatewayCore, row: ThreadRow):
     };
   }
 
-  await coreDispatch(
-    hostContext,
-    row.worker_id ?? "",
-    { kind: { case: "createThread", value: { thread: spec, ...(fork && { fork }) } } },
-    { threadId: row.id, ttlSeconds: TTL.createThread },
-  );
+  await hostContext[coreState].actions.transaction(async () => {
+    await requireThreadModule(hostContext);
+    await coreDispatch(
+      hostContext,
+      row.worker_id ?? "",
+      { kind: { case: "createThread", value: { thread: spec, ...(fork && { fork }) } } },
+      { threadId: row.id, ttlSeconds: TTL.createThread },
+    );
+  });
 
   if (hostContext[coreState].actions.defer(() => coreBroadcastThread(hostContext, row.id))) return;
   hostContext.hub.publishOverview(

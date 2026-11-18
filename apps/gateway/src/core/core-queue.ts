@@ -1,3 +1,4 @@
+import { requireThreadModule } from "./thread-module-runtime.ts";
 import { create } from "@bufbuild/protobuf";
 import { MentionKind, ui } from "@canopy/contracts";
 import { Effect } from "effect";
@@ -140,6 +141,8 @@ export const coreQueueMethods: CoreQueueMethods = {
   /** A queued message into the running turn now; when it cannot join, its turn is back at its place (SteerStore.queue). */
   async steerQueuedTurn(this: GatewayCore, turnId: string): Promise<{ steer: ui.Steer; turn: ui.Turn }> {
     return this[coreState].actions.transaction(async () => {
+      await requireThreadModule(this);
+
       const { steer, turn } = await coreQueue(this, (q) =>
         q.steer({ turnId, ownerUserId: this[coreState].options.userId }),
       );

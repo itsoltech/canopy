@@ -1,3 +1,4 @@
+import { ownerModuleEnabled, moduleDisabledMessage } from "../store/module-access.ts";
 import { Effect } from "effect";
 import type { CoreRuntime } from "../core/core-context.ts";
 import { readTurnPermissions } from "../core/turn-permission-state.ts";
@@ -13,6 +14,8 @@ export function connectorTurn(runtime: CoreRuntime, source: ExecutionSource) {
     runtime.runPromise(
       GatewayStore.use((s) =>
         Effect.gen(function* () {
+          if (!(yield* ownerModuleEnabled(source.userId, "threads")))
+            return yield* Effect.fail(new ConnectorFailure(moduleDisabledMessage("threads")));
           const thread = yield* s.thread(threadId);
           const turn = yield* s.runningTurn(threadId);
 

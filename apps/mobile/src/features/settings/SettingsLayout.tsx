@@ -6,7 +6,14 @@ import { ScreenFrame, usePaneInsets } from "../../ui/ScreenFrame";
 import { ScreenScroll } from "../../ui/ScreenScroll";
 import { KeyboardViewport } from "../../ui/KeyboardViewport";
 import { CANOPY_VERSION } from "../../version";
-import { matchesSettingsSection, settingsGroups, settingsSections, type SettingsSection } from "@canopy/ui/settings";
+import {
+  settingsSectionEnabled,
+  matchesSettingsSection,
+  settingsGroups,
+  settingsSections,
+  type SettingsSection,
+} from "@canopy/ui/settings";
+import { useAppearance } from "../../state/appearance";
 import { useLayout } from "../../state/layout";
 import { useSession } from "../../state/session";
 import { IconButton, Notice } from "../../ui/components";
@@ -31,6 +38,7 @@ export function SettingsLayout({
   const { wide } = useLayout();
   const insets = usePaneInsets();
   const { client } = useSession();
+  const { modules } = useAppearance();
   const [linked, setLinked] = useState(false);
   const [error, setError] = useState("");
   const [query, setQuery] = useState("");
@@ -53,7 +61,10 @@ export function SettingsLayout({
   }, [client]);
 
   const sections = settingsSections.filter(
-    (s) => (linked || s.href !== "/settings/computers") && matchesSettingsSection(s, query),
+    (s) =>
+      settingsSectionEnabled(s.href, modules) &&
+      (linked || s.href !== "/settings/computers") &&
+      matchesSettingsSection(s, query),
   );
 
   return (

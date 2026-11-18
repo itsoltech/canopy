@@ -1,8 +1,9 @@
 import { create, fromBinary, toBinary } from "@bufbuild/protobuf";
 import { ui } from "@canopy/contracts";
 import { Effect } from "effect";
+import { lockedOwnerModule, moduleDisabledMessage } from "../store/module-access.ts";
 import { SqlClient } from "effect/sql";
-import { coreState } from "./core-context.ts";
+import { coreState, InvalidError } from "./core-context.ts";
 import { NotFound, SteerStore, toUiSteer, toUiTurn } from "../store/index.ts";
 import { coreRun } from "./core-broadcast.ts";
 import type { GatewayCore } from "./core.ts";
@@ -86,6 +87,9 @@ async function receipt(
       const sql = yield* SqlClient.SqlClient;
 
       if (lock) {
+        if (!(yield* lockedOwnerModule(sql, options.userId, "threads")))
+          return yield* Effect.fail(new InvalidError(moduleDisabledMessage("threads")));
+
         const owned = yield* sql`SELECT id FROM threads WHERE id=${request.threadId}::uuid
           AND owner_user_id=${options.userId}::uuid AND purged_at IS NULL FOR UPDATE`;
 

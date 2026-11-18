@@ -9,6 +9,12 @@ import { Effect, Predicate, Schema } from "effect";
 import { SqlClient } from "effect/sql";
 
 import { fail, qualifyResult, type Actor, type Arguments } from "./agents-context.ts";
+import {
+  targetKind,
+  requireAgentModules,
+  requireLinkedModules,
+  requiresLinkedModules,
+} from "./agents-module-access.ts";
 import type { LinkedAgents } from "./agents.ts";
 import { linkedMessage, methodNamed, movedItems, qualify, unqualify } from "./remote.ts";
 import { ConfigIds } from "../api/routed-config.ts";
@@ -17,10 +23,14 @@ import { PEER_MUTATION_TIMEOUT_MS } from "./timing.ts";
 import { unaryTimeout } from "../api/routed-context.ts";
 import { queryFamily, queryRpc } from "../diagnostics/query-context.ts";
 
-export async function agentsRemoteSnapshot(hostContext: LinkedAgents, id: string): Promise<ui.ThreadSnapshot> {
+export async function agentsRemoteSnapshot(
+  hostContext: LinkedAgents,
+  id: string,
+  access?: "bot-thread",
+): Promise<ui.ThreadSnapshot> {
   const update = await hostContext.ui(
     "WatchThread",
-    create(ui.WatchThreadRequestSchema, { threadId: id }),
+    create(ui.WatchThreadRequestSchema, { threadId: id, botThreadAccess: access === "bot-thread" }),
     ui.ThreadUpdateSchema,
   );
 
@@ -34,9 +44,9 @@ export interface AgentsTransportMethods {
   redirect(args: Arguments): void;
   peer(ref: string): Promise<string>;
   sameHome(node: string, args: Arguments): Promise<void>;
-  ui<D extends DescMessage>(name: string, request: Message, output: D): Promise<MessageShape<D>>;
-  snapshot(id: string): Promise<ui.ThreadSnapshot>;
-  thread(id: string): Promise<ui.Thread>;
+  ui<D extends DescMessage>(name: string, request: Message, output: D, home?: string): Promise<MessageShape<D>>;
+  snapshot(id: string, access?: "bot-thread"): Promise<ui.ThreadSnapshot>;
+  thread(id: string, access?: "bot-thread"): Promise<ui.Thread>;
   exchange(id: string): Promise<bots.BotMessage[]>;
   exchangeView(request: bots.ReadBotExchangeRequest): Promise<bots.ReadBotExchangeResponse>;
 }
@@ -69,6 +79,9 @@ export const agentsTransportMethods: AgentsTransportMethods = {
     const computers = this.core.computers;
 
     if (!computers) return fail("That computer is no longer linked");
+
+    if (operation !== "question" && operation !== "report")
+      await requireAgentModules(this, actor.kind, targetKind(operation, args));
 
     const sender =
       actor.sender ?? (["spawn", "send"].includes(operation) ? await localAgentSender(this, actor) : undefined);
@@ -158,12 +171,14 @@ export const agentsTransportMethods: AgentsTransportMethods = {
     name: string,
     request: Message,
     output: D,
+    home?: string,
   ): Promise<MessageShape<D>> {
+    if (requiresLinkedModules(request)) await requireLinkedModules(this);
     const method = methodNamed(name)!;
 
-    const node = await this.peer(
-      String(Object.values(request).find((v) => Predicate.isString(v) && splitId(v).node) ?? ""),
-    );
+    const node =
+      home ??
+      (await this.peer(String(Object.values(request).find((v) => Predicate.isString(v) && splitId(v).node) ?? "")));
 
     const outbound = clone(method.input, request);
     const ids = await ConfigIds.for(this.core, node);
@@ -185,7 +200,7 @@ export const agentsTransportMethods: AgentsTransportMethods = {
     return fail("The other computer sent no answer");
   },
 
-  async snapshot(this: LinkedAgents, id: string): Promise<ui.ThreadSnapshot> {
+  async snapshot(this: LinkedAgents, id: string, access?: "bot-thread"): Promise<ui.ThreadSnapshot> {
     if (!splitId(id).node) {
       const abort = new AbortController();
 
@@ -199,13 +214,18 @@ export const agentsTransportMethods: AgentsTransportMethods = {
       return fail("Missing thread snapshot");
     }
 
-    return agentsRemoteSnapshot(this, id);
+    return agentsRemoteSnapshot(this, id, access);
   },
 
-  async thread(this: LinkedAgents, id: string): Promise<ui.Thread> {
+  async thread(this: LinkedAgents, id: string, access?: "bot-thread"): Promise<ui.Thread> {
     return splitId(id).node
-      ? (await this.ui("GetThread", create(ui.GetThreadRequestSchema, { threadId: id }), ui.GetThreadResponseSchema))
-          .thread!
+      ? (
+          await this.ui(
+            "GetThread",
+            create(ui.GetThreadRequestSchema, { threadId: id, botThreadAccess: access === "bot-thread" }),
+            ui.GetThreadResponseSchema,
+          )
+        ).thread!
       : this.core.getThread(id);
   },
 

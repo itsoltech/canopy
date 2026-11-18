@@ -82,25 +82,27 @@
 
 <SettingsGroup title="Interface" description="This device unless marked Account">
   <InterfaceSettings />
-  <AnimatedMascotsSetting />
-  <PreferenceRow
-    title="Thread width"
-    description="Set the width of threads and their message boxes."
-    changed={chatWidth !== "comfortable"}
-    onreset={() => settings.updateAppearance({ chatWidth: chatWidthNames.comfortable })}
-  >
-    {#snippet control()}
-      <Badge>Account</Badge>
-      <Select
-        name="chatWidth"
-        aria-label="Thread width"
-        value={chatWidth}
-        onchange={(value) => settings.updateAppearance({ chatWidth: chatWidthNames[value as ChatWidthName] })}
-        class="w-40"
-        options={Object.entries(chatWidthLabels).map(([value, label]) => ({ value, label }))}
-      />
-    {/snippet}
-  </PreferenceRow>
+  {#if settings.moduleEnabled("bots")}<AnimatedMascotsSetting />{/if}
+  {#if settings.moduleEnabled("threads")}
+    <PreferenceRow
+      title="Thread width"
+      description="Set the width of threads and their message boxes."
+      changed={chatWidth !== "comfortable"}
+      onreset={() => settings.updateAppearance({ chatWidth: chatWidthNames.comfortable })}
+    >
+      {#snippet control()}
+        <Badge>Account</Badge>
+        <Select
+          name="chatWidth"
+          aria-label="Thread width"
+          value={chatWidth}
+          onchange={(value) => settings.updateAppearance({ chatWidth: chatWidthNames[value as ChatWidthName] })}
+          class="w-40"
+          options={Object.entries(chatWidthLabels).map(([value, label]) => ({ value, label }))}
+        />
+      {/snippet}
+    </PreferenceRow>
+  {/if}
 </SettingsGroup>
 
 <TypographySettings />

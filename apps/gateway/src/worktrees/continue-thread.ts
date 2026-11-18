@@ -5,6 +5,7 @@ import { SqlClient } from "effect/sql";
 import { coreRun } from "../core/core-broadcast.ts";
 import { coreState, InvalidError } from "../core/core-context.ts";
 import { coreCheckModel } from "../core/core-models.ts";
+import { requireThreadModule } from "../core/thread-module-runtime.ts";
 import { coreCheckProvider, coreStartThread } from "../core/core-threads.ts";
 import { coreUiThread } from "../core/core-titles.ts";
 import { inheritedPermissionMode } from "../core/full-access.ts";
@@ -26,6 +27,7 @@ export async function continueThreadInWorktree(
   const requestId = `worktree-continuation:${input.threadId}:${input.clientRequestId}`;
 
   return core[coreState].actions.transaction(async () => {
+    await requireThreadModule(core);
     await core[coreState].actions.run(
       Effect.gen(function* () {
         const sql = yield* SqlClient.SqlClient;

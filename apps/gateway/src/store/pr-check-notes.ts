@@ -1,3 +1,4 @@
+import { lockedOwnerModule, ownerModule } from "./module-access.ts";
 import { PrChecksNote, prChecksNoteText } from "@canopy/domain";
 import { Effect, Schema } from "effect";
 import type { SqlClient } from "effect/sql";
@@ -31,12 +32,22 @@ interface NoteRow {
 
 const decodeNote = Schema.decodeUnknownSync(PrChecksNote);
 
-export const deliverCheckNotes = (sql: SqlClient.SqlClient, threadId: string) =>
+export const deliverCheckNotes = (sql: SqlClient.SqlClient, owner: string, threadId: string) =>
   sql.withTransaction(
     Effect.gen(function* () {
+      // Most turn starts have no CI notes. Take the module and thread locks only for a pending delivery.
+      if (
+        !(yield* sql`SELECT 1 FROM pr_check_notes WHERE thread_id=${threadId}::uuid AND status='waiting' LIMIT 1`)
+          .length ||
+        !(yield* lockedOwnerModule(sql, owner, "threads"))
+      )
+        return { cancelled: 0 };
+
       // Lifecycle changes take the thread lock first, then settle their pending deliveries.
       const thread = (yield* sql<{ closed: boolean }>`
-        SELECT (archived_at IS NOT NULL OR deleted_at IS NOT NULL) AS closed FROM threads WHERE id = ${threadId}::uuid FOR UPDATE`)[0];
+        SELECT (archived_at IS NOT NULL OR deleted_at IS NOT NULL) AS closed FROM threads WHERE id = ${threadId}::uuid AND owner_user_id = ${owner}::uuid FOR UPDATE`)[0];
+
+      if (!thread) return { cancelled: 0 };
 
       const notes = yield* sql<NoteRow>`
         SELECT id, body, wake, hops FROM pr_check_notes
@@ -46,7 +57,7 @@ export const deliverCheckNotes = (sql: SqlClient.SqlClient, threadId: string) =>
 
       if (notes.length === 0) return { cancelled: 0 } satisfies CheckNoteDelivery;
 
-      if (!thread || thread.closed) {
+      if (thread.closed) {
         yield* sql`UPDATE pr_check_notes SET status = 'cancelled', reason = 'the thread is archived or deleted', updated_at = now()
                     WHERE id = ANY(${notes.map((n) => n.id)}::uuid[])`;
 
@@ -93,17 +104,17 @@ export const deliverCheckNotes = (sql: SqlClient.SqlClient, threadId: string) =>
   );
 
 /** Threads with notes deliver may move now, and note turns committed before their dispatch (a restart in between). */
-export const pendingCheckNoteThreads = (sql: SqlClient.SqlClient) =>
-  sql
-    .unsafe<{ thread_id: string }>(`
-      SELECT DISTINCT n.thread_id FROM pr_check_notes n
-       WHERE n.status = 'waiting'
+export const pendingCheckNoteThreads = (sql: SqlClient.SqlClient, owner: string) =>
+  sql<{ thread_id: string }>`
+      SELECT DISTINCT n.thread_id FROM pr_check_notes n JOIN threads t ON t.id = n.thread_id
+       WHERE t.owner_user_id = ${owner}::uuid AND ${ownerModule(sql, owner, "threads")} AND n.status = 'waiting'
          AND (n.wake OR EXISTS (SELECT 1 FROM turns r WHERE r.thread_id = n.thread_id AND r.status = 'running'))
       UNION
       SELECT u.thread_id FROM turns u JOIN threads t ON t.id = u.thread_id
-       WHERE u.trigger = 'pr_checks' AND u.status = 'queued'
-         AND t.archived_at IS NULL AND t.deleted_at IS NULL AND NOT ${DISPATCHED}`)
-    .pipe(Effect.map((rows) => rows.map((r) => r.thread_id)));
+       WHERE t.owner_user_id = ${owner}::uuid AND ${ownerModule(sql, owner, "threads")} AND u.trigger = 'pr_checks' AND u.status = 'queued'
+         AND t.archived_at IS NULL AND t.deleted_at IS NULL AND NOT ${sql.literal(DISPATCHED)}`.pipe(
+    Effect.map((rows) => rows.map((r) => r.thread_id)),
+  );
 
 /** Closed threads: their watches end and undelivered notes are dropped (with the background notes). */
 export const closeCheckWatches = (sql: SqlClient.SqlClient, threadIds: readonly string[]) =>

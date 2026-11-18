@@ -115,7 +115,7 @@ export class PrCheckWatches {
     const live: PrCheckWatchRow[] = [];
 
     for (const w of await this.run((s) => s.active(this.github.owner))) {
-      if (!w.thread_open) await this.run((s) => s.end(w.id, "thread_closed", true));
+      if (!w.thread_open) await this.run((s) => s.end(w.owner_user_id, w.id, "thread_closed", true));
       else if (!w.linked) await this.#ended(w, "unlinked");
       else if (now >= new Date(w.expires_at).getTime()) await this.#ended(w, "timeout");
       else live.push(w);
@@ -129,7 +129,7 @@ export class PrCheckWatches {
       );
 
     for (const id of this.#read.keys()) if (!live.some((w) => w.id === id)) this.#read.delete(id);
-    const threads = await this.run((s) => s.pendingThreads());
+    const threads = await this.run((s) => s.pendingThreads(this.github.owner));
 
     for (const threadId of threads) {
       await this.deliver(threadId);
@@ -178,8 +178,8 @@ export class PrCheckWatches {
 
     const checks = await readWatchedChecks(this.github.prs, w.pull_request_id, update.snapshot);
     const pending = checks.filter((c) => checkOutcome(c.state) === "pending").length;
-    this.#read.set(w.id, { revision: update.revision, at: now, total: checks.length, pending });
     await this.#settle(w, progress, checks, stale);
+    this.#read.set(w.id, { revision: update.revision, at: now, total: checks.length, pending });
   }
 
   async #settle(w: PrCheckWatchRow, progress: WatchProgress, checks: readonly WatchedCheck[], stale: boolean) {
@@ -189,7 +189,7 @@ export class PrCheckWatches {
 
     // Every check passed: told only when the agent asked for complete (or each, with the last checks).
     if (!verdict.event && end !== "no_checks") {
-      await this.run((s) => (end ? s.end(w.id, end, false) : s.progress(w.id, next)));
+      await this.run((s) => (end ? s.end(w.owner_user_id, w.id, end, false) : s.progress(w.owner_user_id, w.id, next)));
 
       if (end) await this.#host.changed(w.thread_id);
 
@@ -237,7 +237,7 @@ export class PrCheckWatches {
   async #note(w: PrCheckWatchRow, progress: WatchProgress, body: PrChecksNote, end: string | undefined) {
     const hops = w.hops + progress.headChanges;
     const wake = hops <= DEFAULT_BUS_LIMITS.maxHops;
-    await this.run((s) => s.note(w.id, progress, { body, wake, hops, ...(end && { end }) }));
+    await this.run((s) => s.note(w.owner_user_id, w.id, progress, { body, wake, hops, ...(end && { end }) }));
     await this.deliver(w.thread_id);
 
     if (end) await this.#host.changed(w.thread_id);
@@ -249,7 +249,7 @@ export class PrCheckWatches {
 
     const next = (previous ?? Promise.resolve())
       .then(async () => {
-        const delivery = await this.run((s) => s.deliver(threadId));
+        const delivery = await this.run((s) => s.deliver(this.github.owner, threadId));
 
         if (delivery.turn) await this.#host.queued(threadId, delivery.turn);
 

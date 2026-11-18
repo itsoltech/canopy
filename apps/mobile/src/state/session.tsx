@@ -117,6 +117,7 @@ function useSessionState() {
   const removal = useSessionRemoval(client, session?.deviceId, clearHistory);
 
   return {
+    rememberModules: useCallback((id: string, order: string) => persistence.rememberModules(id, order), [persistence]),
     threadCreations,
     drafts,
     session,

@@ -14,7 +14,9 @@
   import SidebarUsage from "#lib/features/providers/SidebarUsage.svelte";
   import SidebarHeader from "./SidebarHeader.svelte";
   import SectionSwitch from "./SectionSwitch.svelte";
-  import { sectionMemory, sectionOf, type Section } from "./sections.svelte.ts";
+  import type { ModuleId } from "@canopy/domain";
+  import { useSettings } from "#lib/features/settings/settings-state.svelte.ts";
+  import { sectionMemory, sectionOf } from "./sections.svelte.ts";
   import SidebarThreads from "./SidebarThreads.svelte";
   import SidebarProjectFilter from "./SidebarProjectFilter.svelte";
   import SidebarCopyJobs from "#lib/features/projects/SidebarCopyJobs.svelte";
@@ -36,11 +38,13 @@
   let { currentThreadId, onOpenUsage }: { currentThreadId?: string | undefined; onOpenUsage: () => void } = $props();
   const overview = useOverview();
 
-  const section = $derived<Section>(sectionOf(page.url.pathname) ?? sectionMemory.current);
-  const queries = $state<Record<Section, string>>({ threads: "", bots: "" });
+  const settings = useSettings();
+  const requested = $derived(sectionOf(page.url.pathname) ?? sectionMemory.current);
+  const section = $derived(requested && settings.moduleEnabled(requested) ? requested : settings.enabledModules[0]);
+  const queries = $state<Record<ModuleId, string>>({ threads: "", bots: "" });
 
   $effect(() => {
-    if (section !== "threads" || !webDrafts.ready) return;
+    if (!settings.loaded || section !== "threads" || !webDrafts.ready) return;
     void remoteDrafts.load().catch(() => {});
 
     return remoteDrafts.subscribe();
@@ -60,7 +64,7 @@
   });
 
   // Bots: unread messages as a number on the Bots segment; a card waiting for you without unread ones as a dot.
-  $effect(() => botList.use());
+  $effect(() => (settings.loaded && settings.moduleEnabled("bots") ? botList.use() : undefined));
 
   const liveBots = $derived(botList.list.filter((bot) => !bot.archived));
   const botsUnread = $derived(liveBots.reduce((sum, bot) => sum + bot.unreadCount, 0));
@@ -78,75 +82,80 @@
 <!-- Compact chrome (docs/ui-scale.md): text one step below the pages beside it. -->
 <div class="density-chrome sidebar-scale @container flex h-full flex-col">
   <SidebarHeader>
-    {#if section === "bots"}
+    {#if settings.loaded && section === "bots"}
       <a href="/bots?create=1" class={iconLink} aria-label="Create bot">
         <Icon name="pencil-square" />
       </a>
     {/if}
   </SidebarHeader>
 
-  {#if capabilities?.supports("/bots") ?? true}<SectionSwitch
-      active={section}
-      attention={{ threads: threadsAttention, bots: botsAttention }}
-      counts={{ bots: botsUnread }}
-      class="sidebar-gutter pb-2"
-    />{/if}
+  {#if settings.loaded}
+    {#if settings.enabledModules.length > 1 && (capabilities?.supports("/bots") ?? true)}<SectionSwitch
+        sections={settings.enabledModules}
+        active={section}
+        attention={{ threads: threadsAttention, bots: botsAttention }}
+        counts={{ bots: botsUnread }}
+        class="sidebar-gutter pb-2"
+      />{/if}
 
-  <div class="sidebar-inset flex items-center gap-1 pb-2">
-    <label
-      class="sidebar-row-padding flex min-w-0 flex-1 items-center gap-1.5 rounded-lg py-2 text-zinc-500 has-focus-visible:outline-2 has-focus-visible:outline-brand-500 sm:py-1.5 dark:text-zinc-400"
-    >
-      <Icon name="magnifying-glass" class="fill-zinc-400 dark:fill-zinc-500" />
-      <span class="sr-only">Search {section === "threads" ? "threads" : "bots"}</span>
-      <input
-        type="search"
-        name="q"
-        bind:value={queries[section]}
-        placeholder={section === "threads" ? "Search threads" : "Search bots"}
-        autocomplete="off"
-        class="min-w-0 flex-1 bg-transparent text-base/6 text-zinc-950 placeholder:text-zinc-500 focus:outline-none sm:text-sm/6 dark:text-white dark:placeholder:text-zinc-400 [&::-webkit-search-cancel-button]:appearance-none"
-      />
-      {#if queries[section]}
-        <span class="flex size-6 shrink-0 items-center justify-center">
-          <button
-            type="button"
-            aria-label="Clear search"
-            onclick={() => (queries[section] = "")}
-            class="-my-1 -mr-1 grid size-6 shrink-0 place-items-center rounded-md text-zinc-400 focus-ring hover:bg-zinc-950/5 hover:text-zinc-700 dark:text-zinc-500 dark:hover:bg-white/5 dark:hover:text-zinc-200"
-          >
-            <Icon name="x-mark" class="size-3.5" />
-          </button>
-        </span>
+    <div class="sidebar-inset flex items-center gap-1 pb-2">
+      <label
+        class="sidebar-row-padding flex min-w-0 flex-1 items-center gap-1.5 rounded-lg py-2 text-zinc-500 has-focus-visible:outline-2 has-focus-visible:outline-brand-500 sm:py-1.5 dark:text-zinc-400"
+      >
+        <Icon name="magnifying-glass" class="fill-zinc-400 dark:fill-zinc-500" />
+        <span class="sr-only">Search {section === "threads" ? "threads" : "bots"}</span>
+        <input
+          type="search"
+          name="q"
+          bind:value={queries[section]}
+          placeholder={section === "threads" ? "Search threads" : "Search bots"}
+          autocomplete="off"
+          class="min-w-0 flex-1 bg-transparent text-base/6 text-zinc-950 placeholder:text-zinc-500 focus:outline-none sm:text-sm/6 dark:text-white dark:placeholder:text-zinc-400 [&::-webkit-search-cancel-button]:appearance-none"
+        />
+        {#if queries[section]}
+          <span class="flex size-6 shrink-0 items-center justify-center">
+            <button
+              type="button"
+              aria-label="Clear search"
+              onclick={() => (queries[section] = "")}
+              class="-my-1 -mr-1 grid size-6 shrink-0 place-items-center rounded-md text-zinc-400 focus-ring hover:bg-zinc-950/5 hover:text-zinc-700 dark:text-zinc-500 dark:hover:bg-white/5 dark:hover:text-zinc-200"
+            >
+              <Icon name="x-mark" class="size-3.5" />
+            </button>
+          </span>
+        {/if}
+      </label>
+      {#if section === "threads"}
+        <div class="flex shrink-0 items-center gap-1">
+          <SidebarProjectFilter />
+          {#if addProject}<IconButton
+              icon="folder-plus"
+              label="Add project"
+              tooltipOptions={{ hotkey: keybindings.get("new-project")[0] }}
+              onclick={() => addProject.show()}
+            />{/if}
+          <a href="/threads/new" class={iconLink} aria-label="New thread" {@attach tooltip("New thread")}>
+            <Icon name="pencil-square" />
+          </a>
+        </div>
       {/if}
-    </label>
-    {#if section === "threads"}
-      <div class="flex shrink-0 items-center gap-1">
-        <SidebarProjectFilter />
-        {#if addProject}<IconButton
-            icon="folder-plus"
-            label="Add project"
-            tooltipOptions={{ hotkey: keybindings.get("new-project")[0] }}
-            onclick={() => addProject.show()}
-          />{/if}
-        <a href="/" class={iconLink} aria-label="New thread" {@attach tooltip("New thread")}>
-          <Icon name="pencil-square" />
-        </a>
-      </div>
-    {/if}
-  </div>
+    </div>
 
-  <nav
-    class="sidebar-inset min-h-0 flex-1 scroll-stable overflow-y-auto pb-3"
-    aria-label={section === "threads" ? "Threads" : "Bots"}
-  >
-    {#if section === "threads"}
-      <SidebarThreads {currentThreadId} query={queries.threads} />
-    {:else}
-      <LiveBotsNav query={queries.bots} />
-    {/if}
-  </nav>
+    <nav
+      class="sidebar-inset min-h-0 flex-1 scroll-stable overflow-y-auto pb-3"
+      aria-label={section === "threads" ? "Threads" : "Bots"}
+    >
+      {#if section === "threads"}
+        <SidebarThreads {currentThreadId} query={queries.threads} />
+      {:else}
+        <LiveBotsNav query={queries.bots} />
+      {/if}
+    </nav>
 
-  <SidebarCopyJobs />
+    {#if settings.moduleEnabled("threads")}<SidebarCopyJobs />{/if}
+  {:else}
+    <div class="flex-1"></div>
+  {/if}
 
   <div
     class="sidebar-inset flex shrink-0 items-center gap-1 border-t border-zinc-950/5 py-2 @max-[16rem]:gap-0 dark:border-white/5"

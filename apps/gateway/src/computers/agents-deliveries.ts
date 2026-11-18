@@ -1,6 +1,7 @@
 import { qualifyId } from "@canopy/domain/computers";
 
 import { agentsState, type Reference } from "./agents-context.ts";
+import { requireAgentModules } from "./agents-module-access.ts";
 import type { LinkedAgents } from "./agents.ts";
 import { localAgentSender } from "./agents-senders.ts";
 
@@ -20,6 +21,7 @@ export const agentsDeliveriesMethods: AgentsDeliveriesMethods = {
         `SELECT c.*,i.id AS request_id,i.request,i.tool_name,i.kind,i.created_at FROM computer_agent_calls c
         JOIN interaction_requests i ON i.thread_id=c.target_id AND i.status='pending' AND i.routed_to='parent'
         WHERE c.owner_user_id=$1::uuid AND c.direction='incoming' AND c.parent_link AND NOT c.detached
+        AND (c.actor_kind=c.target_kind OR c.report_status<>'dropped')
         AND NOT EXISTS(SELECT 1 FROM computer_agent_events e WHERE e.owner_user_id=c.owner_user_id AND e.peer_node_id=c.peer_node_id AND e.call_id=c.call_id AND e.event_id=i.id)`,
         [this.owner],
       );
@@ -41,6 +43,8 @@ export const agentsDeliveriesMethods: AgentsDeliveriesMethods = {
             Number(peer?.statusSinceMs ?? 0n) > new Date(q.created_at).getTime()
           )
             continue;
+
+          await requireAgentModules(this, q.actor_kind, q.target_kind);
           const requestId = qualifyId(q.request_id, this.core.computers.hello().nodeId);
           await this.call(
             q.peer_node_id,
@@ -83,6 +87,8 @@ export const agentsDeliveriesMethods: AgentsDeliveriesMethods = {
             Number(peer?.statusSinceMs ?? 0n) > new Date(r.completed_at).getTime()
           )
             throw new Error("Parent was unavailable when the turn ended");
+
+          await requireAgentModules(this, r.actor_kind, r.target_kind);
           await this.call(
             r.peer_node_id,
             "report",
@@ -113,7 +119,7 @@ export const agentsDeliveriesMethods: AgentsDeliveriesMethods = {
         }
 
         await this.query(
-          "UPDATE computer_agent_calls SET report_status=$4 WHERE owner_user_id=$1::uuid AND peer_node_id=$2 AND call_id=$3::uuid AND direction='incoming'",
+          "UPDATE computer_agent_calls SET report_status=$4 WHERE owner_user_id=$1::uuid AND peer_node_id=$2 AND call_id=$3::uuid AND direction='incoming' AND report_status='pending'",
           [this.owner, r.peer_node_id, r.call_id, status],
         );
       }

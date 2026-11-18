@@ -36,7 +36,7 @@ const operations: Operation[] = [
   {
     name: "notifications/due",
     run: async (r) => {
-      await r.runPromise(AgentBusStore.use((s) => s.dueNotifications()));
+      await r.runPromise(AgentBusStore.use((s) => s.dueNotifications(ids.owner)));
     },
   },
   {
@@ -60,7 +60,7 @@ if (!baseline)
       let after: string | undefined;
 
       for (;;) {
-        const page = await r.runPromise(AgentBusStore.use((s) => s.dueNotifications(undefined, after)));
+        const page = await r.runPromise(AgentBusStore.use((s) => s.dueNotifications(ids.owner, undefined, after)));
 
         if (!page.length) break;
         const next = page.at(-1)!.call.id;

@@ -15,6 +15,7 @@ import { BackgroundTaskStore, type TurnRow } from "../store/index.ts";
  */
 
 export interface BackgroundTasksHost {
+  readonly owner: string;
   run<A, E>(effect: Effect.Effect<A, E, BackgroundTaskStore>): Promise<A>;
   /** A turn was queued: announce it and start it when the thread is free. */
   queued(threadId: string, turn: TurnRow): Promise<void>;
@@ -124,7 +125,7 @@ export class BackgroundTasks {
 
   async #deliver(threadId: string): Promise<void> {
     const delivery = await this.#host.run(
-      BackgroundTaskStore.use((s) => s.deliver(threadId, { graceMs: this.#graceMs })),
+      BackgroundTaskStore.use((s) => s.deliver(this.#host.owner, threadId, { graceMs: this.#graceMs })),
     );
 
     if (delivery.turn) {
@@ -152,11 +153,11 @@ export class BackgroundTasks {
 
   /** Every thread with notes that may move now. */
   async tick(): Promise<void> {
-    const steers = await this.#host.run(BackgroundTaskStore.use((s) => s.pendingSteers()));
+    const steers = await this.#host.run(BackgroundTaskStore.use((s) => s.pendingSteers(this.#host.owner)));
 
     for (const steerId of steers) await this.#host.steered(steerId);
 
-    const threads = await this.#host.run(BackgroundTaskStore.use((s) => s.pendingThreads()));
+    const threads = await this.#host.run(BackgroundTaskStore.use((s) => s.pendingThreads(this.#host.owner)));
 
     for (const threadId of threads) {
       await this.deliver(threadId);

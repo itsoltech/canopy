@@ -1,5 +1,35 @@
 # Protokół gateway ↔ worker
 
+## Zatrzymanie modułu właściciela
+
+Status (2026-11-18): zaimplementowane w kodzie. Dostępność w kanałach zależy od [promocji wydania](release.md).
+
+Wyłączenie Threads lub Bots wygasza w tej samej transakcji polecenia rozpoczęcia
+pracy tego modułu i zapisuje polecenia zatrzymania. Przy wysyłaniu polecenia
+gateway ponownie sprawdza ustawienie właściciela oraz blokuje jego wiersz w outboxie
+do chwili przekazania ramki na łącze. Spóźnione ACK i ponowne połączenie workera
+zachowują wygaszenie również po ponownym włączeniu modułu. Gateway zapisuje
+próbę wysłania przed przekazaniem ramki. Wiadomość oczekująca bez próby wysyłki
+zachowuje turę i miejsce w kolejce. Po wznowieniu gateway wydaje jej nowe
+polecenie. Starszy wpis bez informacji o wysyłce traktuje jak próbę rozpoczęcia.
+
+Dla wątku gateway zapisuje `InterruptTurn` z identyfikatorem rozpoczętej lub
+wysłanej tury oraz `UnloadThread`. Worker zwalnia sesję, zatrzymuje zadania
+działające w tle i wstrzymuje aktywny cel Codex. Capability
+`thread_resource_cleanup_v1` potwierdza pełną obsługę tego sprzątania.
+Starszemu workerowi gateway wysyła najpierw `SetGoal(PAUSE)` dla zapisanego celu
+Codex i `StopTask` dla zgłoszonych zadań w tle. Wznowienie czeka na ich
+potwierdzenie. Usunięcie niezgłoszonych zasobów natywnych wymaga workera
+obsługującego pełne sprzątanie sesji. Dla sesji bota
+`InterruptBotTurn` anuluje konkretną turę i blokuje jej ponowny start w journalu.
+Połączenie odbiera te polecenia po zatwierdzeniu ustawienia, przy kolejnym
+heartbeat, jeśli zmianę zapisał inny gateway, albo po powrocie workera online.
+Heartbeat dostarcza też oczekującą pracę wznowioną na innej instancji. Gateway
+czeka na zakończenie sprzątania przed wysłaniem nowej pracy do tej samej sesji.
+Worker przekazuje zaległy journal przed obsługą komend po połączeniu. Gateway
+utrzymuje blokadę wątku do zapisania jego zdarzeń odebranych przed odpowiedzią
+na `UnloadThread`, również gdy natywny cel rozpoczął turę podczas utraty łącza.
+
 ## Szybkość wykonania dostawcy
 
 Status (2026-11-17): zaimplementowane w kodzie; dostępność nightly/beta/stable
@@ -419,7 +449,7 @@ z dokumentów. Trwały wynik wywołania przechowuje tekst i referencje.
 interakcji dostawcy. Worker zachowuje kopertę do potwierdzenia, także po reconnect;
 gateway zapisuje `expired` i odsyła `InteractionResponse.cancelled`.
 
-Nietrwała komenda `GenerateText` (capability `generate_text`) uruchamia izolowaną generację przez SDK instancji i zwraca `CommandResult.generated_text`, bez platformowej sesji i dziennika. Szczegóły: [thread-titles.md](thread-titles.md).
+Nietrwała komenda `GenerateText` (capability `generate_text`) uruchamia izolowaną generację przez SDK instancji i zwraca `CommandResult.generated_text`, bez platformowej sesji i dziennika. Capability `cancel_text_generation_v1` dodaje nietrwałą komendę `CancelTextGeneration` z identyfikatorem pierwotnego żądania. Wyłączenie Threads przerywa generację na połączeniu workera obsługującego żądanie. Starszy worker zachowuje 30-sekundowy limit. Szczegóły: [thread-titles.md](thread-titles.md).
 
 Nietrwałe `ReadWorkspaceOrigin` (`Command.read_workspace_origin = 216`, capability `workspace_origin`)
 odczytuje lokalne `remote.origin.url` workspace'u przez process governor (cache 30 s, limit 2 s).

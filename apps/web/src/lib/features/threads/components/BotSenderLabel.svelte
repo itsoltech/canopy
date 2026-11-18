@@ -1,4 +1,6 @@
 <script lang="ts">
+  import { untrack } from "svelte";
+  import { useSettings } from "#lib/features/settings/settings-state.svelte.ts";
   import BotAvatar from "#lib/features/bots/components/BotAvatar.svelte";
   import { botList } from "#lib/features/bots/bot-list.svelte.ts";
   import { botParticipant } from "#lib/features/bots/live.ts";
@@ -10,7 +12,11 @@
    */
   let { botId, verb = "Message from", sender }: { botId: string; verb?: string; sender?: ui.AgentSender } = $props();
 
-  $effect(() => botList.use());
+  const settings = useSettings();
+
+  $effect(() => {
+    if (settings.moduleEnabled("bots")) return untrack(() => botList.use());
+  });
 
   const bot = $derived(botList.list.find((b) => b.id === botId));
 
@@ -30,7 +36,7 @@
 </script>
 
 <span class="shrink-0 whitespace-nowrap">{verb}</span>
-{#if participant}
+{#if participant && settings.moduleEnabled("bots")}
   <a
     href="/bots/{botId}"
     title={participant.name}
@@ -40,5 +46,5 @@
     <span class="truncate">{participant.name}</span>
   </a>
 {:else}
-  <span>a bot</span>
+  <span class="truncate">{participant?.name || "a bot"}</span>
 {/if}

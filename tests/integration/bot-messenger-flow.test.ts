@@ -119,6 +119,29 @@ test.skipIf(!dockerAvailable)(
         (r) => r.accounts.some((a) => a.status === "connected"),
       );
 
+      const modules = async (enabled: string[]) =>
+        f.gw.api.updateUserSettings({
+          expectedVersion: (await f.gw.api.getSettings({})).user!.version,
+          modules: { enabled },
+        });
+
+      await modules(["threads"]);
+      expect(
+        await eventually(
+          async () => slack.connected(),
+          (count) => count === 0,
+        ),
+      ).toBe(0);
+      slack.emit("while-off", "<@UAPP> dropped", "90.1");
+      await modules(["bots", "threads"]);
+      expect(
+        await eventually(
+          async () => slack.connected(),
+          (count) => count === 1,
+        ),
+      ).toBe(1);
+      expect(await f.query("SELECT id FROM bot_channel_messages WHERE source_message_id='90.1'")).toEqual([]);
+
       slack.emit("event-1", "<@UAPP> HOLD:messenger check login", "100.1");
       slack.emit("event-2", "on production", "100.2");
       await eventually(

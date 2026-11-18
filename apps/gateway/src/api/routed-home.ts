@@ -1,3 +1,4 @@
+import { restrictLinkedApproval } from "../computers/agents-module-access.ts";
 import { creationEvent } from "../core/thread-progress.ts";
 import { clone, create, type DescMethod, type Message } from "@bufbuild/protobuf";
 import { bots, MentionKind, MentionSchema, ui, type Mention } from "@canopy/contracts";
@@ -270,6 +271,7 @@ async function* send(
   signal: AbortSignal,
 ): AsyncGenerator<Message> {
   const outbound = clone(method.input, request);
+  await restrictLinkedApproval(core.linkedAgents, outbound, nodeId);
 
   if (
     (method.name === "AckAgentPreview" ||

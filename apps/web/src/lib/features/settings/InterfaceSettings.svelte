@@ -1,8 +1,11 @@
 <script lang="ts">
+  import { useSettings } from "./settings-state.svelte.ts";
   import PreferenceRow from "./PreferenceRow.svelte";
   import DeviceChoiceRow from "./DeviceChoiceRow.svelte";
   import { devicePreferences as device } from "./device-preferences.svelte.ts";
   import Slider from "#lib/shared/ui/Slider.svelte";
+
+  const settings = useSettings();
 </script>
 
 <PreferenceRow
@@ -33,17 +36,19 @@
     { value: "bars", label: "Bars" },
   ]}
 />
-<DeviceChoiceRow
-  preference="contextDisplay"
-  title="Context display"
-  description="Show the latest reported context use in every thread's message box on this device."
-  options={[
-    { value: "off", label: "Off" },
-    { value: "circle", label: "Circle" },
-    { value: "text", label: "Text" },
-    { value: "bar", label: "Bar" },
-  ]}
-/>
+{#if settings.moduleEnabled("threads")}
+  <DeviceChoiceRow
+    preference="contextDisplay"
+    title="Context display"
+    description="Show the latest reported context use in every thread's message box on this device."
+    options={[
+      { value: "off", label: "Off" },
+      { value: "circle", label: "Circle" },
+      { value: "text", label: "Text" },
+      { value: "bar", label: "Bar" },
+    ]}
+  />
+{/if}
 <DeviceChoiceRow
   preference="renderMath"
   title="Render math"
@@ -53,12 +58,14 @@
     { value: "off", label: "Off" },
   ]}
 />
-<DeviceChoiceRow
-  preference="fileLinks"
-  title="Open files in"
-  description="Where a file path in an agent's message opens when you click it. Files on another computer open in Canopy."
-  options={[
-    { value: "canopy", label: "Canopy" },
-    { value: "app", label: "Default app" },
-  ]}
-/>
+{#if settings.moduleEnabled("threads")}
+  <DeviceChoiceRow
+    preference="fileLinks"
+    title="Open files in"
+    description="Where a file path in an agent's message opens when you click it. Files on another computer open in Canopy."
+    options={[
+      { value: "canopy", label: "Canopy" },
+      { value: "app", label: "Default app" },
+    ]}
+  />
+{/if}

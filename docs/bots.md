@@ -1,6 +1,8 @@
 # Boty
 
-Status (2026-11-18): zaimplementowano trwałe rozmowy botów przez Slack Socket Mode,
+Status (2026-11-18): wyłączenie modułu Bots zatrzymuje pracę botów właściciela,
+w tym tury na workerach, rutyny i dostarczanie przypomnień.
+Zaimplementowano trwałe rozmowy botów przez Slack Socket Mode,
 buforowanie, załączniki wiadomości, izolację historii kanałów i zwykłe przyznane narzędzia
 w turach zewnętrznych. Konektor Slack umożliwia pobranie pliku po jego identyfikatorze.
 Bot Codex może odczytać obraz z wiadomości lub konektora, jeśli jego model obsługuje obrazy.
@@ -19,6 +21,40 @@ Boty i rutyny mogą sprawdzić w opublikowanych changelogach Canopy wersję wed�
 Usage w web/desktop pokazuje łączne zużycie botów oraz tokeny i koszty poszczególnych
 botów, łącznie z turami ze Slacka i rutynami. Szczegóły: [usage.md](usage.md).
 Dostępność nightly/beta/stable według [release.md](release.md).
+
+## Wyłączenie i wznowienie modułu Bots
+
+Po wyłączeniu Bots gateway przerywa rozpoczęte tury, w tym pracę w rozmowach
+zewnętrznych, rutyny i przygotowanie handoffu. Wygasza oczekujące zgody i pytania,
+zachowuje historię prywatnej rozmowy oraz otrzymany fragment odpowiedzi. Zapisuje
+przerwanie dla workera w trwałej kolejce. Worker offline dostaje je po połączeniu.
+Spóźnione wyniki przerwanej tury nie uruchamiają dalszych działań.
+
+Wiadomości przyjęte przed wyłączeniem, których bot jeszcze nie zaczął przetwarzać,
+czekają w kolejce także po restarcie gatewaya. Po ponownym włączeniu bot przetwarza
+je w dotychczasowej kolejności. Rozpoczęte tury pozostają przerwane. Rutyny cykliczne
+wracają od najbliższego przyszłego terminu według ich strefy czasowej. Gateway pomija
+zaległe wystąpienia i pozostawia ręcznie wstrzymane rutyny w pauzie. Jednorazowe
+przypomnienie, którego termin minął w czasie wyłączenia, trafia do kolejki jeden raz,
+o ile nadal jest aktywne. Anulowane przypomnienia pozostają anulowane.
+
+## Połączenie z wątkami
+
+Bot korzysta z projektów, workspace’ów, wątków, ich ustawień, zgód i harmonogramów,
+gdy właściciel ma włączone oba moduły. Gateway filtruje katalog przekazywany do modelu
+i sprawdza aktualne ustawienia przy wywołaniu, również w rozpoczętej turze i po
+wznowieniu. Bot zachowuje własne wiadomości, rutyny, przypomnienia i przyznane konektory.
+Gdy włączony jest wyłącznie moduł Bots, `list_schedules` i `cancel_schedule` obsługują własne przypomnienia bota.
+
+Przy wyłączeniu modułu gateway wygasza oczekujące zgody na działania bota w wątkach
+i zamyka oczekujące obserwacje wyników i pytań, także między komputerami. Przy wyłączeniu samych botów
+wątki zachowują historię, kontynuują rozpoczętą pracę i obsługują własne prośby o zgodę.
+Bot traci dostęp do tych kart, a jego reguły zgód przestają automatycznie zatwierdzać
+konektory w uruchomionych przez niego wątkach. Po ponownym włączeniu obu modułów można
+ponownie delegować pracę.
+
+Na połączonych komputerach oba gatewaye sprawdzają dostęp dla wiadomości, pytań
+i raportów między botem i wątkiem. Szczegóły w [opisie szyny agentów](agent-bus.md).
 
 ## Kolejne wiadomości w prywatnym czacie
 

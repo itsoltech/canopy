@@ -2,6 +2,7 @@ import { Context, Effect, Layer } from "effect";
 import { SqlClient, type SqlError } from "effect/sql";
 import type { SteerRow } from "./steers.ts";
 import { Invalid, NotFound, type TurnRow } from "./store.ts";
+import { lockedOwnerModule } from "./module-access.ts";
 import { DISPATCHED } from "./turn-select.ts";
 import { queryFamily, queryMethods } from "../diagnostics/query-context.ts";
 
@@ -133,7 +134,7 @@ export class QueueStore extends Context.Service<
      * head with the revision the scheduler read; else nothing (undefined) and the scheduler reads the queue again.
      */
     whileHead<A, E, R>(
-      input: { threadId: string; turnId: string; revision: number },
+      input: { ownerUserId: string; threadId: string; turnId: string; revision: number },
       start: Effect.Effect<A, E, R>,
     ): Effect.Effect<A | undefined, E | SqlError.SqlError, R>;
   }
@@ -254,10 +255,15 @@ export class QueueStore extends Context.Service<
             }),
           ),
 
-        whileHead: ({ threadId, turnId, revision }, start) =>
+        whileHead: ({ ownerUserId, threadId, turnId, revision }, start) =>
           sql.withTransaction(
             Effect.gen(function* () {
-              yield* sql`SELECT id FROM threads WHERE id = ${threadId}::uuid FOR UPDATE`;
+              if (!(yield* lockedOwnerModule(sql, ownerUserId, "threads"))) return undefined;
+
+              const owned =
+                yield* sql`SELECT id FROM threads WHERE id = ${threadId}::uuid AND owner_user_id = ${ownerUserId}::uuid FOR UPDATE`;
+
+              if (!owned.length) return undefined;
 
               const head = yield* sql.unsafe<{ id: string }>(
                 `SELECT u.id FROM turns u

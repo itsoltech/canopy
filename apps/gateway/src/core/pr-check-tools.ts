@@ -1,3 +1,4 @@
+import { moduleDisabledMessage } from "../store/module-access.ts";
 import { fromJsonString, type JsonObject, type JsonValue } from "@bufbuild/protobuf";
 import { GitPrContextSchema } from "@canopy/contracts";
 import { Code } from "@connectrpc/connect";
@@ -246,6 +247,8 @@ async function watch(
       settled: verdict.settled,
     }),
   );
+
+  if (!row) throw new Refusal(moduleDisabledMessage("threads"));
 
   return {
     watch_id: row.id,

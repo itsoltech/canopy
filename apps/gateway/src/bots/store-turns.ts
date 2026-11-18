@@ -12,6 +12,8 @@ import type { BotCore } from "./store-queue.ts";
 import { botRules } from "./store-rules.ts";
 import { BOT_APPROVAL_OPTIONS } from "@canopy/domain/bot-chat";
 import { interruptBot } from "./store-interrupt.ts";
+import { lockedOwnerModule } from "../store/module-access.ts";
+import { authorizeThreadAction } from "./thread-access.ts";
 import { activeConversation } from "../messengers/conversation-access.ts";
 
 function requireWaitingHarness(sql: SqlClient.SqlClient, turnId: string) {
@@ -33,6 +35,7 @@ function requireExternalSource(sql: SqlClient.SqlClient, turn: BotTurn) {
 function startRemoteCall(sql: SqlClient.SqlClient, core: BotCore, turn: BotTurn, call: StoredCall, linked: boolean) {
   return sql.withTransaction(
     Effect.gen(function* () {
+      yield* authorizeThreadAction(sql, turn.bot_id, call);
       yield* core.fenced(turn);
       yield* requireExternalSource(sql, turn);
       yield* requireWaitingHarness(sql, turn.id);
@@ -53,6 +56,8 @@ export function botTurns(sql: SqlClient.SqlClient, core: BotCore) {
     claim: (user: string) =>
       sql.withTransaction(
         Effect.gen(function* () {
+          if (!(yield* lockedOwnerModule(sql, user, "bots"))) return undefined;
+
           // Handoff is a configuration barrier ahead of queued work, but never preempts a live lease.
           const rows = yield* sql<BotRow & { next_turn_id: string }>`SELECT b.*, t.id AS next_turn_id FROM bots b
         CROSS JOIN LATERAL (SELECT * FROM bot_turns WHERE bot_id = b.id AND status IN ('queued','running','waiting')
@@ -123,6 +128,7 @@ export function botTurns(sql: SqlClient.SqlClient, core: BotCore) {
     action: <A, E, R>(turn: BotTurn, call: StoredCall, effect: Effect.Effect<A, E, R>) =>
       sql.withTransaction(
         Effect.gen(function* () {
+          yield* authorizeThreadAction(sql, turn.bot_id, call);
           yield* fenced(turn);
 
           const saved =
@@ -159,6 +165,7 @@ export function botTurns(sql: SqlClient.SqlClient, core: BotCore) {
     retry: (user: string, id: string) =>
       sql.withTransaction(
         Effect.gen(function* () {
+          yield* core.requireEnabled(user);
           yield* active(user, id, true);
 
           const last = (yield* sql<{
@@ -199,6 +206,7 @@ export function botApprovals(sql: SqlClient.SqlClient, core: BotCore) {
     approval: (turn: BotTurn, call: StoredCall, prompt: string, question: boolean, expiresAt?: Date, phrase = "") =>
       sql.withTransaction(
         Effect.gen(function* () {
+          yield* authorizeThreadAction(sql, turn.bot_id, call);
           yield* fenced(turn);
           const previous = (yield* sql<ApprovalRow>`SELECT * FROM bot_approvals WHERE id = ${call.id}::uuid`)[0];
 
@@ -266,6 +274,8 @@ export function botApprovals(sql: SqlClient.SqlClient, core: BotCore) {
     answer: (user: string, request: bots.AnswerBotApprovalRequest) =>
       sql.withTransaction(
         Effect.gen(function* () {
+          yield* core.requireEnabled(user);
+
           const candidates =
             yield* sql<ApprovalRow>`SELECT a.* FROM bot_approvals a JOIN bots b ON b.id = a.bot_id WHERE a.id = ${request.approvalId}::uuid AND b.owner_user_id = ${user}::uuid AND b.deleted_at IS NULL`;
 

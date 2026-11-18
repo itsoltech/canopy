@@ -10,6 +10,7 @@ export class ThreadResources {
   constructor(readonly ctx: HostContext) {}
 
   async prepareThread(threadId: string): Promise<void> {
+    const current = this.ctx.state.turnAdmissions.current(threadId);
     await this.ctx.state.threadCleanup.get(threadId);
 
     if (this.ctx.state.closedThreads.has(threadId))
@@ -19,7 +20,7 @@ export class ThreadResources {
         true,
       );
 
-    if (this.ctx.state.unloadingThreads.has(threadId))
+    if (!current() || this.ctx.state.unloadingThreads.has(threadId))
       throw new CommandError(
         "THREAD_CLEANUP_PENDING",
         "This thread is still closing. Wait a moment, then try again.",
@@ -27,7 +28,7 @@ export class ThreadResources {
       );
     await this.ctx.state.agentTools.threadOpened(threadId);
 
-    if (this.ctx.state.closedThreads.has(threadId) || this.ctx.state.unloadingThreads.has(threadId))
+    if (!current() || this.ctx.state.closedThreads.has(threadId) || this.ctx.state.unloadingThreads.has(threadId))
       throw new CommandError(
         "THREAD_CLEANUP_PENDING",
         "This thread is still closing. Wait a moment, then try again.",

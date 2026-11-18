@@ -106,12 +106,13 @@ export class GitHubDetection {
     try {
       const context = await this.context(thread);
 
-      if (!context?.headOid) return;
+      if (!context?.headOid || !(await this.core.github.threadsEnabled())) return;
       const saved = await run((s) => s.detectionSaveContext(owner, thread.thread_id, context));
       const targets = await this.discovery.targets(context, thread.git_origin);
 
       if (targets) {
         for (const { mapping, row } of targets.bases) {
+          if (!(await this.core.github.threadsEnabled())) return;
           const key = `${mapping.repository_id}:${targets.head.id}:${targets.head.ref}:${context.headOid}`;
 
           const page = await this.discovery.page(
@@ -190,7 +191,8 @@ export class GitHubDetection {
   ) {
     const { run, owner, prs } = this.core.github;
 
-    if (!pull.head.repo || !/^[0-9a-f]{40,64}$/.test(pull.head.sha)) return;
+    if (!pull.head.repo || !/^[0-9a-f]{40,64}$/.test(pull.head.sha) || !(await this.core.github.threadsEnabled()))
+      return;
     const head = headTarget(context);
 
     if (!head || pull.head.repo.full_name.toLowerCase() !== head.name) return;
@@ -235,13 +237,14 @@ export class GitHubDetection {
       ),
     ].slice(0, 8);
 
-    if (!urls.length) return;
+    if (!urls.length || !(await this.core.github.threadsEnabled())) return;
     const context = fromJsonString(GitPrContextSchema, JSON.stringify(saved.context));
     const targets = await this.discovery.targets(context, thread.git_origin);
 
     if (!targets) return;
 
     for (const url of urls) {
+      if (!(await this.core.github.threadsEnabled())) return;
       let ref;
 
       try {

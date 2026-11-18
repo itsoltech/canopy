@@ -4,7 +4,7 @@ import { define, object } from "./shared.ts";
 export const attachmentTools = [
   define(
     "list_attachments",
-    "List attachment references in your current conversation. Pass ids as attachment_ids to start_thread or send_message. Never invent ids.",
+    "List attachment IDs, filenames, media types and sizes in your current conversation. Use these IDs when forwarding attachments.",
     object({}),
     "Checking files",
     async ({ core, turn }) =>

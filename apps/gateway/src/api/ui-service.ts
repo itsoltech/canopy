@@ -1,3 +1,4 @@
+import { guardModuleWork } from "./module-work.ts";
 import { usageHandlers } from "./ui-usage.ts";
 import { createThreadProgress } from "../core/thread-progress.ts";
 import { ui } from "@canopy/contracts";
@@ -39,7 +40,8 @@ export type UiHandlers = ServiceImpl<typeof ui.GatewayService>;
 
 /** GatewayService for the UI (docs/ui-api.md), with threads of linked computers routed to their home (routed.ts). */
 export function uiRoutes(core: GatewayCore): (router: ConnectRouter) => void {
-  return (router) => router.service(ui.GatewayService, withDraftDelivery(core, routed(core, uiHandlers(core))));
+  return (router) =>
+    router.service(ui.GatewayService, guardModuleWork(core, withDraftDelivery(core, routed(core, uiHandlers(core)))));
 }
 
 /** Writes that can change a bot summary, a connector or a proxy: the owner feed compares at once afterwards. */

@@ -1,4 +1,7 @@
 import { DEFAULT_BUS_LIMITS, type JsonObject, type JsonValue } from "@canopy/domain";
+import { botThreadConnectionEnabled } from "../store/module-access.ts";
+import type { BotRuntimeOptions } from "./runtime.ts";
+import { threadToolNames } from "./thread-tools.ts";
 import { Predicate } from "effect";
 import type { BotTurn, ToolSpec } from "./types.ts";
 import type { bots } from "@canopy/contracts";
@@ -35,10 +38,18 @@ const EXTERNAL_WORK_TOOLS = new Set([
   "ask_user",
 ]);
 
-export function botPlatformTools(config: bots.BotConfiguration, turn: BotTurn): ToolSpec[] {
+export async function currentBotTools(
+  options: BotRuntimeOptions,
+  config: bots.BotConfiguration,
+  turn: BotTurn,
+): Promise<ToolSpec[]> {
   if (turn.handoff_configuration) return [];
 
-  return PLATFORM_TOOLS.filter(
+  const threadConnection = await options.runtime.runPromise(botThreadConnectionEnabled(options.userId));
+
+  const catalog = threadConnection ? PLATFORM_TOOLS : BOT_ONLY_TOOLS;
+
+  const platform = catalog.filter(
     (tool) =>
       (!turn.conversation_id || EXTERNAL_WORK_TOOLS.has(tool.name)) &&
       (config.files !== false || !BOT_FILE_TOOLS.includes(tool.name)) &&
@@ -47,6 +58,8 @@ export function botPlatformTools(config: bots.BotConfiguration, turn: BotTurn): 
         ? !["create_routine", "update_routine", "delete_routine", "update_self"].includes(tool.name)
         : tool.name !== "message_user"),
   );
+
+  return [...platform, ...(await options.connectors.botTools(turn.bot_id, turn, config.files !== false))];
 }
 
 /** An allowlist of descriptors, never a model-supplied tool name, grants capability. */
@@ -325,3 +338,13 @@ export const PLATFORM_TOOLS: ToolSpec[] = [
   ),
   ...areaTools.map((t) => t.spec),
 ];
+
+// The legacy reminder descriptors describe exactly the bot-only variants of the shared schedule tools.
+const BOT_ONLY_TOOLS = PLATFORM_TOOLS.flatMap((tool) => {
+  if (threadToolNames.has(tool.name)) return [];
+
+  if (tool.name !== "list_schedules" && tool.name !== "cancel_schedule") return [tool];
+  const reminder = legacyTools.find((item) => item.name === tool.name)!;
+
+  return [{ ...tool, description: reminder.description, parameters: reminder.parameters }];
+});

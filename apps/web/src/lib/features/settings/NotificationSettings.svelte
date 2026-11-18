@@ -4,6 +4,7 @@
   import Select from "#lib/shared/ui/Select.svelte";
   import Alert from "#lib/shared/ui/Alert.svelte";
   import Button from "#lib/shared/ui/Button.svelte";
+  import { useSettings } from "./settings-state.svelte.ts";
   import PreferenceRow from "./PreferenceRow.svelte";
   import DeviceChoiceRow from "./DeviceChoiceRow.svelte";
   import { devicePreferences as device } from "./device-preferences.svelte.ts";
@@ -26,18 +27,24 @@
     { value: "sound", label: "Notifications with sound" },
   ];
 
-  const rows: readonly { key: Key; title: string; description: string }[] = [
+  const settings = useSettings();
+
+  const choices = [
     {
       key: "threadNotifications",
+      module: "threads",
       title: "Thread notifications",
       description: "Send system alerts when threads finish, fail, stop or need you.",
     },
     {
       key: "botNotifications",
+      module: "bots",
       title: "Bot notifications",
       description: "Send system alerts when bots message you or need your approval or answer.",
     },
-  ];
+  ] as const;
+
+  const rows = $derived(choices.filter((choice) => settings.moduleEnabled(choice.module)));
 
   /** The browser permission is shared: its warning and button stay under the first row that is on. */
   const permissionRow = $derived(rows.find((row) => device.values[row.key] !== "off")?.key);
@@ -134,7 +141,7 @@
   <DeviceChoiceRow
     preference="inAppNotifications"
     title="In-app notifications"
-    description="Show alerts from other threads and bot chats while Canopy has focus."
+    description="Show alerts while Canopy has focus."
     options={[
       { value: "on", label: "On" },
       { value: "off", label: "Off" },

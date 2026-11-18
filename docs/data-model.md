@@ -1,7 +1,36 @@
 # Model danych (PostgreSQL)
 
-Status (2026-11-18): zaimplementowany model, w tym migracje `0153_thread_notice_replication`, `0160_agent_hop_policy`, `0162_service_tiers`, `0164_usage_accounting`, `0165_usage_estimated_cost`, `0169_bot_chat_steer` i `0171_thread_permission_selection`;
+Status (2026-11-18): zaimplementowany model, w tym kolejność modułów i zatrzymywanie pracy właściciela po ich wyłączeniu oraz migracje `0153_thread_notice_replication`, `0160_agent_hop_policy`, `0162_service_tiers`, `0164_usage_accounting`, `0165_usage_estimated_cost`, `0169_bot_chat_steer`, `0171_thread_permission_selection`, `0172_usage_activity`, `0173_module_goal_resume` i `0174_schedule_worktree_preparations`;
 dostępność nightly/beta/stable według [release.md](release.md).
+
+W `user_settings.settings.modules.enabled` gateway zapisuje uporządkowaną listę
+modułów właściciela: jeden lub dwa różne identyfikatory spośród `threads` i `bots`.
+Pierwszy określa widok startowy. Brak sekcji w starszym JSON-ie daje kolejność
+`["threads", "bots"]` bez zapisu ani zmiany wersji. Zapis przez
+`UpdateUserSettings` zastępuje listę atomowo i wymaga aktualnego `expected_version`.
+
+Gateway sprawdza tę samą listę przy przyjmowaniu pracy i po restarcie. Transakcja
+przyjmująca zadanie najpierw bierze współdzieloną blokadę doradczą modułów danego
+właściciela, a dopiero potem odczytuje ustawienia i blokuje wiersze pracy. Lokalny zapis
+modułów oraz materializacja ustawień z połączonego komputera zajmują ją w trybie wyłącznym,
+przed blokadą zegara konfiguracji. Rzeczywiste wyłączenie zapisuje polecenia zatrzymania
+w outboksie w tej samej transakcji co preferencję. Przy ponownym włączeniu gateway wyznacza
+najbliższy przyszły termin zaległych harmonogramów cyklicznych. Jednorazowe zachowują
+pierwotny termin. Domyślna polityka `run_once` wykonuje zaległe zadanie raz, a `skip`
+pomija je po przekroczeniu tolerancji opóźnienia. Sama zmiana kolejności lub ponowny zapis tej samej listy zachowuje
+stan pracy. Lokalne pole `user_settings.settings.suspendedModule` zapisuje moduł,
+dla którego gateway wykonał zatrzymanie. Przy starcie gateway porównuje je z preferencją
+przed otwarciem połączeń. Pozwala to zatrzymać istniejącą pracę po aktualizacji
+z wersji obsługującej tylko widoczność bez powtarzania poleceń przy kolejnych restartach.
+
+Migracja `0173_module_goal_resume` dodaje do `goals` znacznik
+`resume_after_module_enable`. Gateway ustawia go dla aktywnych celów, które sam
+wstrzymał przy wyłączeniu Threads. Przywrócenie modułu wznawia te cele po posprzątaniu
+sesji workera. Cele wstrzymane przez użytkownika zachowują swój stan.
+
+Migracja `0174_schedule_worktree_preparations` zapisuje rezerwację worktree dla
+konkretnej wersji i terminu harmonogramu. Po wznowieniu worker może dokończyć
+przygotowanie tego samego katalogu, również po zmianie gatewaya obsługującego zadanie.
 
 Migracja `0171_thread_permission_selection` dodaje `threads.permission_mode_selected`.
 Pole jest początkowo fałszywe. Jawny zapis uprawnień przez `UpdateThread` ustawia je razem

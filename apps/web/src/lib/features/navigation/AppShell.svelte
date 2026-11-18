@@ -5,7 +5,7 @@
   import WorkspaceExit from "#lib/features/workspace/WorkspaceExit.svelte";
   import { ui } from "@canopy/contracts";
   import { create } from "@bufbuild/protobuf";
-  import { afterNavigate, beforeNavigate } from "$app/navigation";
+  import { beforeNavigate, goto } from "$app/navigation";
   import { page } from "$app/state";
   import { onMount, onDestroy, untrack } from "svelte";
   import { threadCache } from "#lib/features/threads/thread-cache.ts";
@@ -19,7 +19,7 @@
   import { SettingsState, provideSettings } from "#lib/features/settings/settings-state.svelte.ts";
   import { isSettingsRoute } from "#lib/features/settings/settings-route.ts";
   import SettingsOverlay from "#lib/features/settings/SettingsOverlay.svelte";
-  import { sectionMemory } from "#lib/features/navigation/sections.svelte.ts";
+  import { moduleRedirect, sectionMemory } from "#lib/features/navigation/sections.svelte.ts";
   import { provideShell } from "#lib/features/navigation/shell.ts";
   import SidebarColumn from "#lib/features/navigation/SidebarColumn.svelte";
   import { SidebarLayout } from "#lib/features/navigation/sidebar-layout.svelte.ts";
@@ -104,6 +104,17 @@
 
   provideSettings(settings);
 
+  const redirect = $derived(settings.loaded ? moduleRedirect(page.url, settings.enabledModules) : undefined);
+  const threadsEnabled = $derived(settings.loaded && settings.moduleEnabled("threads"));
+  const botsEnabled = $derived(settings.loaded && settings.moduleEnabled("bots"));
+
+  $effect(() => {
+    // A settings overlay may have just disabled its background page. Keep it open until the user leaves it.
+    const target = redirect;
+
+    if (target && !page.shallow && !capabilities.incompatible) untrack(() => void goto(target, { replace: true }));
+  });
+
   const warmIds = $derived(
     threadWarmSet(
       [...overview.threads.values()],
@@ -118,12 +129,14 @@
   );
 
   const headIds = $derived(
-    [...new Set([page.params.threadId ?? "", ...warmIds])].filter(Boolean).slice(0, 32).sort().join(","),
+    threadsEnabled
+      ? [...new Set([page.params.threadId ?? "", ...warmIds])].filter(Boolean).slice(0, 32).sort().join(",")
+      : "",
   );
 
   $effect(() => {
     const ids = headIds;
-    const active = page.params.threadId ?? "";
+    const active = threadsEnabled ? (page.params.threadId ?? "") : "";
 
     return untrack(() => overview.connect(ids, active));
   });
@@ -172,7 +185,7 @@
 
   $effect(() => applyDeviceAppearance(devicePreferences));
 
-  onMount(() => watchNotifications(overview, () => page.url.pathname));
+  onMount(() => watchNotifications(overview, settings, () => page.url.pathname));
 
   const threadActions = new ThreadActions(overview, settings, () => page.params.threadId);
 
@@ -188,7 +201,7 @@
   $effect(() => overview.subscribe((update) => models.apply(update)));
 
   // The shared bot list and update center follow pushed changes instead of polling.
-  $effect(() => botList.follow(overview));
+  $effect(() => (botsEnabled ? botList.follow(overview) : undefined));
 
   $effect(() => updateCenter.follow(overview));
 
@@ -278,13 +291,13 @@
       currentProjectId: () =>
         (page.params.threadId ? overview.threads.get(page.params.threadId)?.projectId : undefined) ??
         page.params.projectId ??
-        (page.url.pathname === "/" ? page.url.searchParams.get("project") : undefined) ??
+        (page.url.pathname === "/threads/new" ? page.url.searchParams.get("project") : undefined) ??
         undefined,
     }),
   );
 
-  afterNavigate(({ to }) => {
-    if (to) sectionMemory.visit(to.url);
+  $effect(() => {
+    if (settings.loaded && !redirect) sectionMemory.visit(page.url);
   });
 </script>
 
@@ -293,7 +306,7 @@
 </svelte:head>
 
 <svelte:window bind:innerWidth={sidebar.viewport} />
-<ThreadActionDialogs />
+{#if threadsEnabled}<ThreadActionDialogs />{/if}
 
 <!-- `data-sidebar`: whether the sidebar clears the page header from the native window controls. While the column
      eases (`data-sidebar-settling`), the header's clearance eases with it (layout.css), so the toggle never jumps.
@@ -337,7 +350,7 @@
         <GatewayCompatibility message={capabilities.unavailableMessage(page.url.pathname)} desktopActions={false} />
       {:else if overview.resyncs === 0 && overview.connection === "unavailable" && !page.error}
         <GatewayUnavailable retry={() => location.reload()} />
-      {:else if !ready && !page.error}
+      {:else if (!ready && !page.error) || redirect}
         <div class="flex h-full flex-col gap-4 p-6" role="status" aria-label="Loading application">
           <Skeleton class="h-6 w-44" />
           <div class="m-auto flex w-full max-w-(--chat-width) flex-col gap-4">
@@ -349,11 +362,12 @@
   </div>
 </div>
 {#if ready && !capabilities.incompatible}<SettingsOverlay route={children} />{/if}
-<CommandPalette registry={commands} {palette} />
-{#if ready && !capabilities.incompatible}<AddProjectDialog state={addProject} />{/if}
+{#if settings.loaded}{#key threadsEnabled}<CommandPalette registry={commands} {palette} />{/key}{/if}
+{#if ready && threadsEnabled && !capabilities.incompatible}<AddProjectDialog state={addProject} />{/if}
 <Toaster />
-<BotSettingsHost />
-{#if capabilities.linkedComputers}<BotMoveHost />{/if}
+{#if botsEnabled}<BotSettingsHost />
+  {#if capabilities.linkedComputers}<BotMoveHost />{/if}
+{/if}
 <UpdateBanner />
 <WebVersionBanner />
 <WhatsNewHost />

@@ -1,3 +1,4 @@
+import { cancelStaleGenerations } from "./generation-cancellation.ts";
 import { create } from "@bufbuild/protobuf";
 import { PermissionMode, ui } from "@canopy/contracts";
 import { Effect } from "effect";
@@ -7,6 +8,9 @@ import { coreState, InvalidError } from "./core-context.ts";
 import type { GatewayCore } from "./core.ts";
 import { coreRun } from "./core-broadcast.ts";
 import { validateUserSettings } from "./settings-validation.ts";
+import type { ModuleChange } from "../store/module-transitions.ts";
+import { botModuleChanged } from "./bot-module-runtime.ts";
+import { reconcileThreadModule } from "./thread-module-runtime.ts";
 import { coreConfigsChanged } from "./core-providers.ts";
 import { SqlClient } from "effect/sql";
 
@@ -73,6 +77,32 @@ export async function coreCliDefaultsChanged(host: GatewayCore) {
   void host.cli.checks.tick().catch(() => undefined);
 }
 
+export async function coreModulesChanged(
+  core: GatewayCore,
+  settings: ui.UserSettings,
+  changes: readonly ModuleChange[],
+) {
+  if (!changes.length) return;
+  core[coreState].moduleStreams.update(settings);
+  core.computers?.setMirrorModules(settings);
+
+  for (const { module, enabled } of changes) {
+    if (module === "threads") {
+      if (!enabled) await cancelStaleGenerations(core, core.link.connections.values());
+      // Both jobs re-read current settings; a later commit may already have superseded this notice.
+      await core.copyJobs.tick();
+
+      if (enabled) void core.worktreeCleanup.tick();
+      await reconcileThreadModule(core, enabled);
+
+      if (enabled) await core.imports.runner.tick();
+    } else {
+      core.messengers.wake();
+      await botModuleChanged(core, enabled);
+    }
+  }
+}
+
 export const coreSettingsMethods: CoreSettingsMethods = {
   // ------------------------------------------------------------------ settings (UI)
 
@@ -105,7 +135,7 @@ export const coreSettingsMethods: CoreSettingsMethods = {
 
     if (request.threadDefaults) await coreCheckThreadDefaults(this, request.threadDefaults);
 
-    const settings = await coreSettings(this, (s) =>
+    const { settings, moduleChanges } = await coreSettings(this, (s) =>
       s.updateUser({
         userId: this[coreState].options.userId,
         ...(request.attachmentLimits && { attachmentLimits: request.attachmentLimits }),
@@ -119,6 +149,7 @@ export const coreSettingsMethods: CoreSettingsMethods = {
         ...(request.composer && { composer: request.composer }),
         ...(request.general && { general: request.general }),
         ...(request.cliUpdates && { cliUpdates: request.cliUpdates }),
+        ...(request.modules && { modules: request.modules }),
         ...(request.threadRetention && { threadRetention: request.threadRetention }),
         ...(request.agentToolDefaults && { agentToolDefaults: request.agentToolDefaults }),
         ...(request.textGeneration && { textGeneration: request.textGeneration }),
@@ -136,6 +167,8 @@ export const coreSettingsMethods: CoreSettingsMethods = {
     );
 
     this.hub.publishOverview(create(ui.OverviewUpdateSchema, { change: { case: "userSettings", value: settings } }));
+
+    await coreModulesChanged(this, settings, moduleChanges);
 
     if (request.cliUpdates) await coreCliDefaultsChanged(this);
 

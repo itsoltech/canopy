@@ -4,6 +4,7 @@
  * run as a pr_checks turn; a pushed commit is followed with one more hop; the passing run of that commit ends the
  * watch. Cancelling, replacing and a merged pull request end watches.
  */
+import { setModules } from "./support/module-settings.ts";
 import { describe, expect, test } from "bun:test";
 import { create } from "@bufbuild/protobuf";
 import { timestampDate } from "@bufbuild/protobuf/wkt";
@@ -137,8 +138,15 @@ describe.skipIf(!dockerAvailable)("CI check watches (gateway + scripted worker +
 
       // The run fails: one note for the commit (complete names the failed check), as a turn of its own.
       fixture.state.running = false;
+      await setModules(gw, "bots");
       fixture.state.conclusion = "FAILURE";
       fixture.state.version++;
+      fixture.advance(70_000);
+      const requestsBefore = fixture.requests.length;
+      await gw.core.checkWatches.tick();
+      expect(fixture.requests).toHaveLength(requestsBefore);
+      expect((await turns(gw, thread)).some((t) => t.trigger === "pr_checks")).toBe(false);
+      await setModules(gw, "threads", "bots");
       await pollUntil(gw, fixture, async () => (await turns(gw, thread)).some((t) => t.trigger === "pr_checks"));
       const [failed] = await noteTurns(gw, thread, 1);
 

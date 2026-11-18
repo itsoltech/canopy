@@ -1,3 +1,4 @@
+import { ownerModule, lockedOwnerModule } from "./module-access.ts";
 import { fromJson, type JsonValue } from "@bufbuild/protobuf";
 import { timestampDate, type Timestamp } from "@bufbuild/protobuf/wkt";
 import { ItemSchema, type BackgroundTask } from "@canopy/contracts";
@@ -166,14 +167,19 @@ const ended = (sql: SqlClient.SqlClient, row: NoteRow) =>
 
 const deliver = (
   sql: SqlClient.SqlClient,
+  owner: string,
   threadId: string,
-  { graceMs, now = new Date() }: Parameters<BackgroundTaskStore["Service"]["deliver"]>[1],
+  { graceMs, now = new Date() }: Parameters<BackgroundTaskStore["Service"]["deliver"]>[2],
 ) =>
   sql.withTransaction(
     Effect.gen(function* () {
+      if (!(yield* lockedOwnerModule(sql, owner, "threads"))) return { settled: 0 };
+
       // Lifecycle changes take the thread lock first, then settle their pending deliveries.
       const thread = (yield* sql<{ closed: boolean; runtime: string }>`
-        SELECT (archived_at IS NOT NULL OR deleted_at IS NOT NULL) AS closed, runtime FROM threads WHERE id = ${threadId}::uuid FOR UPDATE`)[0];
+        SELECT (archived_at IS NOT NULL OR deleted_at IS NOT NULL) AS closed, runtime FROM threads WHERE id = ${threadId}::uuid AND owner_user_id = ${owner}::uuid FOR UPDATE`)[0];
+
+      if (!thread) return { settled: 0 };
 
       const notes = yield* sql<NoteRow>`
         SELECT n.item_id, n.wake, n.harness_wakes, n.ended_at, n.hops, i.turn_id, i.status, i.content, NULL::integer AS turn_ordinal
@@ -190,7 +196,7 @@ const deliver = (
           : sql`UPDATE background_task_notes SET status = ${status}, reason = ${reason}, updated_at = now()
                  WHERE thread_id = ${threadId}::uuid AND item_id = ANY(${itemIds}::text[])`;
 
-      if (!thread || thread.closed) {
+      if (thread.closed) {
         yield* settle(
           notes.map((n) => n.item_id),
           "cancelled",
@@ -280,10 +286,10 @@ export class BackgroundTaskStore extends Context.Service<
     /** item_id and whether it runs, by item id or the harness's task id. */
     find(threadId: string, taskId: string): Fx<{ itemId: string; running: boolean } | undefined>;
     /** Threads with notes deliver() may move now (waiting to wake, or a turn runs that they can join). */
-    pendingThreads(): Fx<string[]>;
+    pendingThreads(owner: string): Fx<string[]>;
     /** A note steer committed before dispatch or before its command result was applied. */
-    pendingSteers(): Fx<string[]>;
-    deliver(threadId: string, options: { graceMs: number; now?: Date }): Fx<Delivery>;
+    pendingSteers(owner: string): Fx<string[]>;
+    deliver(owner: string, threadId: string, options: { graceMs: number; now?: Date }): Fx<Delivery>;
     /** The agent stops a task itself (stop_background_task): its end needs no note. */
     stoppedByAgent(threadId: string, itemId: string): Fx<void>;
     /**
@@ -331,25 +337,25 @@ export class BackgroundTaskStore extends Context.Service<
             ),
           ),
 
-        pendingThreads: () =>
-          sql
-            .unsafe<{ thread_id: string }>(`
-            SELECT DISTINCT n.thread_id FROM background_task_notes n
-             WHERE n.status = 'waiting'
+        pendingThreads: (owner) =>
+          sql<{ thread_id: string }>`
+            SELECT DISTINCT n.thread_id FROM background_task_notes n JOIN threads t ON t.id=n.thread_id
+             WHERE t.owner_user_id = ${owner}::uuid AND ${ownerModule(sql, owner, "threads")} AND n.status = 'waiting'
                AND (n.wake OR EXISTS (SELECT 1 FROM turns r WHERE r.thread_id = n.thread_id AND r.status = 'running'))
             UNION
             SELECT u.thread_id FROM turns u JOIN threads t ON t.id = u.thread_id
-             WHERE u.trigger = 'background_task' AND u.status = 'queued'
-               AND t.archived_at IS NULL AND t.deleted_at IS NULL AND NOT ${DISPATCHED}`)
-            .pipe(Effect.map((rows) => rows.map((r) => r.thread_id))),
+             WHERE t.owner_user_id = ${owner}::uuid AND ${ownerModule(sql, owner, "threads")} AND u.trigger = 'background_task' AND u.status = 'queued'
+               AND t.archived_at IS NULL AND t.deleted_at IS NULL AND NOT ${sql.literal(DISPATCHED)}`.pipe(
+            Effect.map((rows) => rows.map((r) => r.thread_id)),
+          ),
 
-        pendingSteers: () =>
+        pendingSteers: (owner) =>
           sql<{ id: string }>`
           SELECT s.id FROM turn_steers s JOIN threads t ON t.id = s.thread_id
-          WHERE s.background_note AND s.status = 'pending' AND t.archived_at IS NULL AND t.deleted_at IS NULL
+          WHERE t.owner_user_id = ${owner}::uuid AND ${ownerModule(sql, owner, "threads")} AND s.background_note AND s.status = 'pending' AND t.archived_at IS NULL AND t.deleted_at IS NULL
           ORDER BY s.created_at, s.id`.pipe(Effect.map((rows) => rows.map((r) => r.id))),
 
-        deliver: (threadId, options) => deliver(sql, threadId, options),
+        deliver: (owner, threadId, options) => deliver(sql, owner, threadId, options),
 
         stoppedByAgent: (threadId, itemId) =>
           sql`

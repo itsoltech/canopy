@@ -191,6 +191,10 @@ export class CommandHandlers {
 
     if (kind.case === "unloadThread") return this.ctx.ops.unloadThread(kind);
 
+    if (kind.case === "interruptBotTurn") return this.ctx.ops.interruptBotTurn(kind.value);
+
+    if (kind.case === "interruptTurn") return this.ctx.ops.interruptTurn(kind);
+
     const config = this.ctx.state.config;
 
     if (!config) throw new CommandError("WORKER_NOT_CONFIGURED", "the worker has no configuration yet", false);
@@ -202,8 +206,6 @@ export class CommandHandlers {
         return this.ctx.ops.steerBotTurn(kind.value);
       case "botFile":
         return this.ctx.ops.botFile(kind.value);
-      case "interruptBotTurn":
-        return this.ctx.ops.interruptBotTurn(kind.value);
       case "createThread":
         return this.ctx.ops.createThread(kind);
       case "rewindThread":
@@ -217,7 +219,7 @@ export class CommandHandlers {
       case "listModels":
         return this.ctx.ops.listModelsCommand(kind);
       case "generateText":
-        return this.ctx.ops.generateText(kind, config);
+        return this.ctx.ops.generateText(kind, config, command.commandId);
       case "probeProviders":
         return this.ctx.ops.probeProviders();
       case "startLogin":
@@ -234,8 +236,6 @@ export class CommandHandlers {
         return this.ctx.ops.listMentionCatalog(kind);
       case "searchFiles":
         return this.ctx.ops.searchFiles(kind);
-      case "interruptTurn":
-        return this.ctx.ops.interruptTurn(kind);
       case "setGoal":
         return this.ctx.ops.setGoal(kind);
       case "stopTask":

@@ -96,7 +96,7 @@ export const bindingCatalogue: readonly BindingDefinition[] = [
     "Queue or steer is available in the focused composer",
     ["Mod+Enter"],
   ),
-  define("message:quote", "Quote selected text", "Messages", "selection", "A quotable selection in thread messages", [
+  define("message:quote", "Quote selected text", "Messages", "selection", "A quotable selection in messages", [
     "Alt+Q",
   ]),
   define("model:favorite", "Toggle favorite model", "Models", "models", "Model picker open with an active model", [
@@ -110,6 +110,19 @@ export const bindingCatalogue: readonly BindingDefinition[] = [
     ]),
   ),
 ];
+
+/** Hide shortcuts for views and controls that belong to Threads. */
+export function bindingEnabled(definition: BindingDefinition, modules: readonly string[]): boolean {
+  if (modules.includes("threads")) return true;
+
+  return (
+    definition.group !== "Threads" &&
+    !["workspace", "file", "thread", "composer"].includes(definition.context) &&
+    definition.id !== "new-project" &&
+    definition.id !== "chat-width" &&
+    !definition.id.startsWith("chat-width/")
+  );
+}
 
 export function contextsOverlap(a: BindingContext, b: BindingContext): boolean {
   if (a === b || a === "global" || b === "global") return true;

@@ -20,7 +20,7 @@ import {
 } from "./shared.ts";
 
 async function snapshot(c: ToolContext) {
-  return c.core.linkedAgents.snapshot(c.string("thread_id"));
+  return c.core.linkedAgents.snapshot(c.string("thread_id"), "bot-thread");
 }
 
 const threadPhrase = (verb: string) => (a: JsonObject) => `${verb} ${label(a["thread_name"], "a thread")}`;
@@ -152,7 +152,7 @@ const answerInteraction: PlatformTool = {
   ),
   async prepare(c) {
     const interaction = await pendingInteraction(c);
-    const thread = await c.core.linkedAgents.thread(c.string("thread_id"));
+    const thread = await c.core.linkedAgents.thread(c.string("thread_id"), "bot-thread");
     const questions = questionsOf(interaction);
     const head = `Needs approval · Answering in “${label(thread.title, "a thread")}”`;
 

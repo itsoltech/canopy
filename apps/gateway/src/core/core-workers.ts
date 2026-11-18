@@ -1,5 +1,9 @@
+import { cancelStaleGenerations } from "./generation-cancellation.ts";
+import { Effect } from "effect";
+import { SqlClient } from "effect/sql";
+import { lockedOwnerModule, moduleDisabledMessage } from "../store/module-access.ts";
 import { create } from "@bufbuild/protobuf";
-import { ui, type ThreadEvent } from "@canopy/contracts";
+import { ui, type InteractionRequest, type ThreadEvent } from "@canopy/contracts";
 import { type WorkerConnection } from "../worker-link/index.ts";
 import { Ingest } from "../store/index.ts";
 import { coreRedeliver } from "./core-commands.ts";
@@ -145,22 +149,9 @@ export async function coreServe(hostContext: GatewayCore, connection: WorkerConn
           break;
         }
 
-        case "interactionRequest": {
-          const request = message.payload.value;
-          const thread = await coreRun(hostContext, (s) => s.thread(request.threadId));
-
-          if (thread.worker_id !== workerId) break;
-          const interaction = await coreRun(hostContext, (s) => s.recordInteraction(request));
-          await corePublishInteraction(hostContext, interaction);
-          await allowFullAccessPermission(hostContext, interaction);
-          // Re-sent after a reconnect and already answered: answer again from the database.
-          const answered = await coreRun(hostContext, (s) => s.interactionAnswer(interaction.requestId));
-
-          if (answered) coreSendAnswer(hostContext, connection, answered.answer);
-          else await hostContext.bus.onInteraction(interaction);
+        case "interactionRequest":
+          await workerInteraction(hostContext, connection, message.payload.value);
           break;
-        }
-
         case "agentToolCall": {
           const call = message.payload.value;
           // Concurrent: wait_threads may take minutes and must not hold up the stream.
@@ -188,7 +179,9 @@ export async function coreServe(hostContext: GatewayCore, connection: WorkerConn
         }
 
         case "heartbeat":
+          await cancelStaleGenerations(hostContext, [connection]);
           await coreRun(hostContext, (s) => s.workerSeen(workerId));
+          await coreRedeliver(hostContext, workerId);
           await offerWorkerStorage(hostContext, connection);
           offerWorkerRoutes(hostContext, connection);
           break;
@@ -213,6 +206,46 @@ export async function coreServe(hostContext: GatewayCore, connection: WorkerConn
     coreLog(hostContext, `worker ${workerId} disconnected`);
     await coreBroadcastWorkers(hostContext).catch(() => {});
   }
+}
+
+async function workerInteraction(core: GatewayCore, connection: WorkerConnection, request: InteractionRequest) {
+  const thread = await coreRun(core, (s) => s.thread(request.threadId));
+
+  if (thread.worker_id !== connection.workerId) return;
+
+  const actions = core[coreState].actions;
+
+  const interaction = await actions.transaction(async () => {
+    const enabled = await actions.run(
+      Effect.flatMap(SqlClient.SqlClient, (sql) => lockedOwnerModule(sql, thread.owner_user_id, "threads")),
+    );
+
+    if (!enabled) return;
+
+    return coreRun(core, (s) => s.recordInteraction(request));
+  });
+
+  if (!interaction) {
+    coreSendAnswer(
+      core,
+      connection,
+      create(ui.AnswerInteractionRequestSchema, {
+        requestId: request.requestId,
+        cancelled: true,
+        message: moduleDisabledMessage("threads"),
+      }),
+    );
+
+    return;
+  }
+
+  await corePublishInteraction(core, interaction);
+  await allowFullAccessPermission(core, interaction);
+  // Re-sent after a reconnect and already answered: answer again from the database.
+  const answered = await coreRun(core, (s) => s.interactionAnswer(interaction.requestId));
+
+  if (answered) coreSendAnswer(core, connection, answered.answer);
+  else await core.bus.onInteraction(interaction);
 }
 
 export async function coreIngest(
@@ -262,8 +295,7 @@ async function ingestReceived(
   for (const [threadId, ackSeq] of result.acks) connection.send({ case: "eventAck", value: { threadId, ackSeq } });
   observation?.ack(result.acks, result.stored.length);
 
-  for (const unknown of result.unknownThreads)
-    coreLog(hostContext, `events for unknown thread ${unknown} kept on worker ${connection.workerId}`);
+  if (result.unknownThreads.length) releaseUnknownEvents(hostContext, connection, threads, result.unknownThreads);
 
   for (const outcome of result.outcomes) {
     coreLog(
@@ -393,6 +425,21 @@ async function ingestReceived(
   const failure = result.failedThreads[0];
 
   return failure ? (sqlErrorCode(failure.error) ?? "58000") : undefined;
+}
+
+function releaseUnknownEvents(
+  hostContext: GatewayCore,
+  connection: WorkerConnection,
+  events: ThreadEvent[],
+  ids: readonly string[],
+) {
+  const unknown = new Set(ids);
+
+  for (const event of events)
+    if (unknown.has(event.threadId)) connection.finishedIngest(event.threadId, event.journalSeq);
+
+  for (const id of unknown)
+    coreLog(hostContext, `events for unknown thread ${id} kept on worker ${connection.workerId}`);
 }
 
 async function ingestBotEvents(

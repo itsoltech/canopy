@@ -1,3 +1,4 @@
+import { ownerModuleEnabled, moduleDisabledMessage } from "../store/module-access.ts";
 import { create, fromBinary } from "@bufbuild/protobuf";
 import { currentProcessPriority } from "@canopy/process-governor";
 import { timestampFromDate } from "@bufbuild/protobuf/wkt";
@@ -49,6 +50,9 @@ export async function deliverRemoval(core: GatewayCore, row: WorktreeLifecycleRo
   if (!connection?.isOpen) throw new UnavailableError("Worker offline; cleanup will retry when it reconnects");
 
   if (command.kind.case !== "removeWorktree") throw new InvalidError("Invalid worktree removal command");
+
+  if (!(await core[coreState].actions.run(ownerModuleEnabled(owner, "threads"))))
+    throw new InvalidError(moduleDisabledMessage("threads"));
   const result = await connection.sendCommand(command.kind, 90_000, command.commandId);
 
   if (!result.ok) {

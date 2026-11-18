@@ -1,3 +1,4 @@
+import { botThreadConnection } from "../store/module-access.ts";
 import { create, fromJson, type JsonValue } from "@bufbuild/protobuf";
 import { timestampFromDate } from "@bufbuild/protobuf/wkt";
 import { bots } from "@canopy/contracts";
@@ -46,7 +47,7 @@ export function botThreadApprovals(sql: SqlClient.SqlClient) {
     JOIN interaction_requests q ON q.thread_id = t.id
     WHERE b.owner_user_id = ${user}::uuid AND t.owner_user_id = b.owner_user_id
       AND b.deleted_at IS NULL AND b.archived_at IS NULL AND b.moved_to IS NULL
-      AND q.kind = 'permission' AND (${botId} = '' OR b.id::text = ${botId})
+      AND ${botThreadConnection(sql, user)} AND q.kind = 'permission' AND (${botId} = '' OR b.id::text = ${botId})
       AND (NOT ${pending} OR q.status = 'pending') ORDER BY q.created_at, q.id`;
 
   return {
@@ -65,15 +66,12 @@ export function botThreadApprovals(sql: SqlClient.SqlClient) {
         if (ids.length > 512 || ids.some((id) => !Schema.is(Schema.String.check(Schema.isUUID()))(id)))
           return yield* Effect.fail(new Invalid("Choose up to 512 threads on one computer."));
 
-        const pending = yield* sql.unsafe<ThreadApprovalRow>(
-          `SELECT q.*, '' AS bot_id, t.title FROM interaction_requests q
+        const pending = yield* sql<ThreadApprovalRow>`SELECT q.*, '' AS bot_id, t.title FROM interaction_requests q
           JOIN threads t ON t.id = q.thread_id JOIN turns u ON u.id = q.turn_id
-          WHERE t.id = ANY($1::uuid[]) AND t.owner_user_id = $2::uuid
+          WHERE t.id = ANY(${ids}::uuid[]) AND t.owner_user_id = ${user}::uuid AND ${botThreadConnection(sql, user)}
           AND t.archived_at IS NULL AND t.deleted_at IS NULL AND t.moved_to IS NULL
           AND q.kind = 'permission' AND q.status = 'pending' AND u.status IN ('running', 'queued', 'waiting')
-          ORDER BY q.created_at, q.id`,
-          [ids, user],
-        );
+          ORDER BY q.created_at, q.id`;
 
         return pending.map(view);
       }),

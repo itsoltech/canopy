@@ -61,6 +61,7 @@ appear only as the literal name used by an external tool).
 
 | Term | Meaning | Don't write |
 |---|---|---|
+| module | Threads or Bots, which the owner can turn on or off | mode, product |
 | thread | a conversation with an agent in a project directory | chat, conversation (those are bot words), session |
 | draft | an unsent prompt, including its citations, files and explicit choices; the `Drafts` tab lists prompts from other devices for the current composer | message in progress, synced prompt |
 | suggested reply | an optional user message proposed by the agent; clicking it sends its full text | quick action, command |

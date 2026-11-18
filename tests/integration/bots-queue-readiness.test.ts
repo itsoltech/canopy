@@ -78,8 +78,8 @@ describe.skipIf(!dockerAvailable)("bot queue readiness and concurrent wakes", ()
     });
 
     expect(await eventually(async () => (await poll()).ready, Boolean)).toBe(true);
-    await suite.current.bots.run((s) => s.deliver());
-    await suite.current.bots.run((s) => s.deliver());
+    await suite.current.bots.run((s) => s.deliver(suite.gw.userId));
+    await suite.current.bots.run((s) => s.deliver(suite.gw.userId));
 
     const notices = await query("SELECT bot_id, input FROM bot_turns WHERE client_request_id=$1", [
       `thread-question:${call.id}:${requestId}`,
@@ -103,8 +103,8 @@ describe.skipIf(!dockerAvailable)("bot queue readiness and concurrent wakes", ()
     suite.currentWorker.finish(thread.id, target.id, "Watched result");
     expect(await eventually(async () => (await poll()).ready, Boolean)).toBe(true);
     expect((await poll()).ready).toBe(true);
-    await suite.current.bots.run((s) => s.deliver());
-    await suite.current.bots.run((s) => s.deliver());
+    await suite.current.bots.run((s) => s.deliver(suite.gw.userId));
+    await suite.current.bots.run((s) => s.deliver(suite.gw.userId));
     expect(
       await query("SELECT bot_id, input FROM bot_turns WHERE client_request_id=$1", [`thread:${call.id}`]),
     ).toEqual([{ bot_id: turn.bot_id, input: expect.stringContaining("Watched result") }]);
@@ -125,8 +125,8 @@ describe.skipIf(!dockerAvailable)("bot queue readiness and concurrent wakes", ()
     expect((await poll()).ready).toBe(false);
     await query("UPDATE bot_wakeups SET delivered=false WHERE id=$1::uuid", [call.id]);
     expect((await poll()).ready).toBe(true);
-    await suite.current.bots.run((s) => s.deliver());
-    await suite.current.bots.run((s) => s.deliver());
+    await suite.current.bots.run((s) => s.deliver(suite.gw.userId));
+    await suite.current.bots.run((s) => s.deliver(suite.gw.userId));
     expect(await query("SELECT id FROM bot_turns WHERE client_request_id=$1", [`wakeup:${call.id}`])).toHaveLength(1);
   });
 

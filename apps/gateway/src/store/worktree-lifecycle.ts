@@ -1,3 +1,4 @@
+import { lockedOwnerModule, moduleDisabledMessage } from "./module-access.ts";
 import { create, toBinary, type MessageInitShape } from "@bufbuild/protobuf";
 import { CommandSchema } from "@canopy/contracts";
 import { Effect } from "effect";
@@ -71,6 +72,8 @@ export function worktreeLifecycleStore(sql: SqlClient.SqlClient) {
     ) =>
       sql.withTransaction(
         Effect.gen(function* () {
+          if (!(yield* lockedOwnerModule(sql, owner, "threads")))
+            return yield* Effect.fail(new Invalid(moduleDisabledMessage("threads")));
           // Queue/lifecycle writers take thread locks first, then the availability trigger locks the worktree.
           yield* sql`SELECT id FROM threads WHERE worktree_id = ${id}::uuid ORDER BY id FOR UPDATE`;
 

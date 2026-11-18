@@ -12,11 +12,26 @@ import { prepareClaudeHome } from "../providers/claude/home.ts";
 import { CommandError, usableBy, type CommandOutput } from "./host-types.ts";
 import type { HostContext } from "./host-context.ts";
 
+/** Register before journal/storage/CLI admission. A queued request must expire with its gateway waiter too. */
+export async function trackGeneration<T>(requests: Map<string, AbortController>, id: string, run: () => Promise<T>) {
+  const abort = new AbortController();
+  requests.set(id, abort);
+  const timer = setTimeout(() => abort.abort(), 30_000);
+
+  try {
+    return await run();
+  } finally {
+    clearTimeout(timer);
+    requests.delete(id);
+  }
+}
+
 export class TextGeneration {
   constructor(readonly ctx: HostContext) {}
   async generateText(
     kind: Extract<Command["kind"], { case: "generateText" }>,
     config: AppliedConfig,
+    commandId: string,
   ): Promise<CommandOutput> {
     if (this.ctx.state.closing) throw new CommandError("SHUTTING_DOWN", "worker is shutting down", false);
 
@@ -34,10 +49,13 @@ export class TextGeneration {
 
     if (!provider || !profile || !usableBy(profile, provider) || !config[provider].enabled)
       throw new CommandError("PROVIDER_UNAVAILABLE", "text generation instance is unavailable", false);
-    const abort = new AbortController();
+    const abort = this.ctx.state.generationRequests.get(commandId);
+
+    if (!abort || abort.signal.aborted)
+      throw new CommandError("TEXT_GENERATION_CANCELLED", "generation cancelled", false);
+
     const completed = Promise.withResolvers<void>();
     this.ctx.state.generations.set(abort, completed.promise);
-    const timer = setTimeout(() => abort.abort(), 30_000);
     const consumed = new Map<string, Usage>();
 
     try {
@@ -140,7 +158,6 @@ export class TextGeneration {
         [...consumed.values()],
       );
     } finally {
-      clearTimeout(timer);
       this.ctx.state.generations.delete(abort);
       completed.resolve();
     }

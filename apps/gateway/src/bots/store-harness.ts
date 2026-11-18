@@ -12,6 +12,7 @@ import { Effect, Schema } from "effect";
 import { messengerDispatch } from "../messengers/store-dispatch.ts";
 import { classifyFailure } from "@canopy/domain";
 import type { SqlClient } from "effect/sql";
+import { ownerModule } from "../store/module-access.ts";
 import { Invalid } from "../store/store.ts";
 import type { StoredAttachment } from "../store/attachments.ts";
 import type { BotAccess } from "./store-access.ts";
@@ -163,7 +164,7 @@ export function botHarnessStore(sql: SqlClient.SqlClient, access: BotAccess) {
     harnessDispatchable: (id: string) =>
       sql`SELECT h.turn_id FROM bot_harness_turns h JOIN bot_turns t ON t.id = h.turn_id JOIN bots b ON b.id = h.bot_id
         WHERE h.command_id = ${id}::uuid AND t.status IN ('queued','running','waiting') AND h.outcome IS NULL
-        AND b.deleted_at IS NULL AND b.archived_at IS NULL AND b.moved_to IS NULL`.pipe(
+        AND b.deleted_at IS NULL AND b.archived_at IS NULL AND b.moved_to IS NULL AND ${ownerModule(sql, sql`b.owner_user_id`, "bots")}`.pipe(
         Effect.map((rows) => rows.length > 0),
       ),
     assignWorker: (user: string, botId: string, workerId: string) =>
@@ -252,7 +253,7 @@ export function botHarnessStore(sql: SqlClient.SqlClient, access: BotAccess) {
       ),
     harnessAuthorized: (user: string, workerId: string, botId: string, turnId: string) =>
       sql`SELECT h.turn_id FROM bot_harness_turns h JOIN bots b ON b.id = h.bot_id JOIN bot_turns t ON t.id = h.turn_id
-        WHERE h.turn_id = ${turnId}::uuid AND h.bot_id = ${botId}::uuid AND h.worker_id = ${workerId}::uuid AND b.owner_user_id = ${user}::uuid AND b.deleted_at IS NULL AND b.archived_at IS NULL AND b.moved_to IS NULL AND t.status = 'running' AND h.outcome IS NULL`.pipe(
+        WHERE h.turn_id = ${turnId}::uuid AND h.bot_id = ${botId}::uuid AND h.worker_id = ${workerId}::uuid AND b.owner_user_id = ${user}::uuid AND b.deleted_at IS NULL AND b.archived_at IS NULL AND b.moved_to IS NULL AND t.status = 'running' AND h.outcome IS NULL AND ${ownerModule(sql, user, "bots")}`.pipe(
         Effect.map((r) => r.length > 0),
       ),
   };

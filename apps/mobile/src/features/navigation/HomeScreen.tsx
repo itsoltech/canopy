@@ -1,3 +1,5 @@
+import { useState } from "react";
+import { CreateBot } from "../bots/CreateBot";
 import { Text, View } from "react-native";
 import { ListSkeleton } from "../../ui/Skeleton";
 import { Redirect } from "expo-router";
@@ -15,6 +17,8 @@ import { AppSidebar } from "./AppSidebar";
 export default function HomeScreen() {
   const c = useColors();
   const layout = useLayout();
+  const [creating, setCreating] = useState(false);
+  const bots = layout.selectedModule === "bots";
   const { ready, session } = useSession();
 
   if (!ready) return <ListSkeleton />;
@@ -37,11 +41,16 @@ export default function HomeScreen() {
       >
         <Icon name="chat-bubble-left-right" size={32} color={c.faint} />
         <Text style={[styles.body, { color: c.muted, textAlign: "center" }]}>
-          Choose a thread or a bot, or start a new thread.
+          {bots ? "Choose a bot to open its chat." : "Choose a thread to open it."}
         </Text>
         <View>
-          <Button variant="primary" title="New thread" onPress={() => layout.open("/new-thread")} />
+          <Button
+            variant="primary"
+            title={bots ? "Create bot" : "New thread"}
+            onPress={() => (bots ? setCreating(true) : layout.open("/new-thread"))}
+          />
         </View>
+        {bots && creating && <CreateBot onClose={() => setCreating(false)} />}
       </ScreenScroll>
     </ScreenFrame>
   );

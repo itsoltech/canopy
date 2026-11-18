@@ -2,7 +2,7 @@
 
 Grok ACP nie ma w tym adapterze mapowania natywnych goals. Gateway odrzuca operacje celów dla Groka, UI ukrywa kontrolki. Zwykłe tury, kolejka i platformowe harmonogramy pozostają dostępne. [Szczegóły](grok-adapter.md).
 
-Status: **zaimplementowane** (2026-11-17), w tym błąd celu przy odmowie
+Status: **zaimplementowane** (2026-11-18). Wyłączenie Threads wstrzymuje aktywne cele właściciela. Po włączeniu gateway wznawia je po zakończeniu sprzątania poprzedniej sesji. Cele wstrzymane ręcznie, zablokowane i zakończone zachowują swój stan. Obsługa obejmuje również błąd celu przy odmowie
 prędkości wykonania przed wysłaniem tury oraz pauza przy archiwizacji bez
 automatycznego wznowienia po przywróceniu wątku:
 

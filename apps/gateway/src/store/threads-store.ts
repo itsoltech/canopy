@@ -1,3 +1,4 @@
+import { ownerModule } from "./module-access.ts";
 import { create } from "@bufbuild/protobuf";
 import { ThreadSpecSchema, ui, type ThreadSpec } from "@canopy/contracts";
 import { SUBAGENT_REPORTING_RULES } from "@canopy/domain";
@@ -229,12 +230,14 @@ export function threadStore(sql: SqlClient.SqlClient): Omit<ThreadStore, "create
                   title_context = CASE WHEN title_context = '' THEN ${context ?? ""} ELSE title_context END,
                   title = CASE WHEN ${automatic} THEN ${provisional ?? "New thread"} ELSE title END
                 WHERE id = ${threadId}::uuid AND archived_at IS NULL
+                  AND ${ownerModule(sql, sql`threads.owner_user_id`, "threads")}
                   AND (NOT ${automatic} OR (title_source = 'provisional' AND NOT title_requested))
                 RETURNING *`.pipe(Effect.map((rows) => rows[0])),
 
     finishTitle: (threadId, revision, title) =>
       sql`UPDATE threads SET title = ${storageText(title)}, title_source = 'generated'
                  WHERE id = ${threadId}::uuid AND title_revision = ${revision} AND archived_at IS NULL
+                   AND ${ownerModule(sql, sql`threads.owner_user_id`, "threads")}
                  RETURNING id`.pipe(Effect.map((rows) => rows.length > 0)),
   };
 

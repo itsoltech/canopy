@@ -15,6 +15,8 @@ const FALLBACK_MS = 15_000;
  */
 class BotList {
   list = $state.raw<bots.Bot[]>([]);
+  unavailableComputers = $state.raw<bots.ListBotsResponse["unavailableComputers"]>([]);
+  refreshingComputers = $state.raw<bots.ListBotsResponse["refreshingComputers"]>([]);
   loaded = $state(false);
   error = $state("");
   #users = 0;
@@ -86,7 +88,7 @@ class BotList {
     const written = this.#written;
 
     try {
-      const listed = decode(bots.ListBotsResponseSchema, await requestJson("GET", "/api/bots?archived=1")).bots;
+      const response = decode(bots.ListBotsResponseSchema, await requestJson("GET", "/api/bots?archived=1"));
 
       // A bot pushed meanwhile is newer than this read: read once more instead of overwriting it.
       if (written !== this.#written) {
@@ -95,7 +97,9 @@ class BotList {
         return;
       }
 
-      this.list = listed.map((bot) =>
+      this.unavailableComputers = response.unavailableComputers;
+      this.refreshingComputers = response.refreshingComputers;
+      this.list = response.bots.map((bot) =>
         this.#saving.has(bot.id) ? (this.list.find((b) => b.id === bot.id) ?? bot) : bot,
       );
       this.error = "";

@@ -2,6 +2,7 @@ import { create, fromJson } from "@bufbuild/protobuf";
 import { bots, Provider } from "@canopy/contracts";
 import { Effect, Predicate } from "effect";
 import { SqlClient } from "effect/sql";
+import { lockModuleAdmission } from "../store/module-access.ts";
 import { Invalid } from "../store/store.ts";
 import { harnessOf, providerOf, type InstanceRow } from "../store/instance-config.ts";
 import type { BotRow, BotTurn, StoredCall } from "./types.ts";
@@ -75,6 +76,7 @@ export function botMethods(sql: SqlClient.SqlClient, core: BotCore) {
     archive: (user: string, id: string, archived: boolean) =>
       sql.withTransaction(
         Effect.gen(function* () {
+          yield* lockModuleAdmission(sql, user);
           yield* owned(user, id, true);
 
           const row =
@@ -139,6 +141,7 @@ export function botMethods(sql: SqlClient.SqlClient, core: BotCore) {
     remove: (user: string, id: string) =>
       sql.withTransaction(
         Effect.gen(function* () {
+          yield* lockModuleAdmission(sql, user);
           yield* owned(user, id, true);
           yield* sql`UPDATE bots SET deleted_at = now(), status_line = '', revision = revision + 1 WHERE id = ${id}::uuid`;
           yield* stopTurns(id);

@@ -4,7 +4,8 @@ import { SafeAreaProvider } from "react-native-safe-area-context";
 import { Platform, View } from "react-native";
 import { LayoutAnimationConfig } from "react-native-reanimated";
 import { SessionProvider, useSession } from "../state/session";
-import { AppearanceProvider } from "../state/appearance";
+import { ListSkeleton } from "../ui/Skeleton";
+import { AppearanceProvider, useAppearance } from "../state/appearance";
 import { OverviewProvider } from "../state/overview";
 import { OverviewBusProvider } from "../state/overview-bus";
 import { useBotListSync } from "../state/bot-list";
@@ -41,7 +42,10 @@ function Navigation() {
   const c = useColors();
   const reduced = useReducedMotion();
   const pathname = usePathname();
-  const { session } = useSession();
+  const { session, ready } = useSession();
+  const { modulesReady } = useAppearance();
+
+  if (!ready || (session && !modulesReady)) return <ListSkeleton />;
 
   return (
     <View style={{ flex: 1, backgroundColor: c.background }}>

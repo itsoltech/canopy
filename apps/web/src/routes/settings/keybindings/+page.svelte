@@ -1,5 +1,7 @@
 <script lang="ts">
   import { applicationName } from "#lib/application-name.ts";
+  import { bindingEnabled } from "@canopy/ui/keybindings";
+  import { useSettings } from "#lib/features/settings/settings-state.svelte.ts";
   import { useCommands } from "#lib/features/commands/registry.ts";
   import {
     bindingCatalogue,
@@ -16,6 +18,7 @@
   import ResettableControl from "#lib/shared/ui/ResettableControl.svelte";
   import Alert from "#lib/shared/ui/Alert.svelte";
 
+  const settings = useSettings();
   const registry = useCommands();
   const definitions = $derived(registry?.definitions() ?? [...bindingCatalogue]);
   let query = $state("");
@@ -24,10 +27,12 @@
   const groups: BindingGroup[] = ["Navigation", "Threads", "Composer", "Messages", "Models", "Appearance", "Settings"];
 
   const filtered = $derived(
-    definitions.filter((d) =>
-      `${d.title} ${d.group} ${d.when} ${keybindings.get(d.id, d.defaults).join(" ")}`
-        .toLowerCase()
-        .includes(query.toLowerCase().trim()),
+    definitions.filter(
+      (d) =>
+        bindingEnabled(d, settings.enabledModules) &&
+        `${d.title} ${d.group} ${d.when} ${keybindings.get(d.id, d.defaults).join(" ")}`
+          .toLowerCase()
+          .includes(query.toLowerCase().trim()),
     ),
   );
 

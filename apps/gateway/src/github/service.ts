@@ -1,3 +1,4 @@
+import { ownerModuleEnabled } from "../store/module-access.ts";
 import { create } from "@bufbuild/protobuf";
 import { github } from "@canopy/contracts";
 import { Cause, Effect, Exit, Schema } from "effect";
@@ -61,6 +62,9 @@ export class GitHubAccounts {
     this.background = new GitHubBackground(this.prs, archive);
     this.catalogue = new GitHubCatalogue(this.access, this.prs.client, () => this.prs.changed());
     this.device = new GitHubDeviceFlow(this.run, this.http, owner, (id) => this.catalogue.refresh(id));
+  }
+  threadsEnabled() {
+    return this.runtime.runPromise(ownerModuleEnabled(this.owner, "threads"));
   }
   async list() {
     await this.pat.invalidate();

@@ -1,3 +1,4 @@
+import { lockedOwnerModule } from "../store/module-access.ts";
 import { Effect } from "effect";
 import type { SqlClient } from "effect/sql";
 import { Invalid } from "../store/store.ts";
@@ -140,6 +141,8 @@ export function messengerIngest(sql: SqlClient.SqlClient, accounts: MessengerAcc
           event.text.length > 100_000
         )
           return yield* Effect.fail(new Invalid("Invalid messenger event"));
+
+        if (!(yield* lockedOwnerModule(sql, owner, "bots"))) return false;
         yield* accounts.fenced(owner, lease, now);
 
         const accepted = yield* sql`INSERT INTO messenger_events(account_id,event_id,received_at)

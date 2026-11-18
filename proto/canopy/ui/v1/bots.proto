@@ -176,7 +176,11 @@ message CreateBotRequest { BotConfiguration configuration = 1; string client_req
 message UpdateBotRequest { string bot_id = 1; BotConfiguration configuration = 2; }
 message GetBotRequest { string bot_id = 1; }
 message GetBotResponse { Bot bot = 1; }
-message ListBotsRequest { bool include_archived = 430; }
+message ListBotsRequest {
+  bool include_archived = 430;
+  // Linked thread agent discovering bots.
+  bool bot_thread_access = 431;
+}
 message ListBotsResponse {
   repeated Bot bots = 1;
   // Homes whose live list could not be read; offline mirrors may still contribute bots.
@@ -253,6 +257,8 @@ message AnswerBotApprovalRequest {
   string answer = 3;
   // One of the gateway-produced rule_options ids on this exact card.
   string rule_option_id = 1001;
+  // The calling computer allows bot decisions only. Never fall back to a thread interaction.
+  bool bot_approvals_only = 1002;
 }
 message AnswerBotApprovalResponse { BotApproval approval = 1; }
 message InterruptBotRequest { string bot_id = 1; }

@@ -1,3 +1,4 @@
+import { useAppearance } from "../../state/appearance";
 import type { ReactNode } from "react";
 import { Pressable, Text, View } from "react-native";
 import type { ui } from "@canopy/contracts";
@@ -19,6 +20,7 @@ export function BotSender({
   sender?: ui.AgentSender | undefined;
   color: string;
 }) {
+  const { botsEnabled } = useAppearance();
   const name = sender?.botId ? sender.title : "";
 
   return (
@@ -26,7 +28,8 @@ export function BotSender({
       <Text style={[styles.meta, { color }]}>{verb}</Text>
       {name ? (
         <Pressable
-          accessibilityRole="link"
+          disabled={!botsEnabled}
+          accessibilityRole={botsEnabled ? "link" : "text"}
           accessibilityLabel={name}
           onPress={() => router.push({ pathname: "/bot/[id]", params: { id: botId } })}
           hitSlop={8}

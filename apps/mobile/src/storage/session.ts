@@ -6,6 +6,7 @@ export interface DeviceSession extends MobileConnection {
   gatewayUrl: string;
   deviceId: string;
   deviceName: string;
+  moduleOrder?: string;
   token: string;
 }
 
@@ -15,6 +16,7 @@ function isDeviceSession(value: unknown): value is DeviceSession {
   return (
     !!value &&
     typeof value === "object" &&
+    (!("moduleOrder" in value) || typeof value.moduleOrder === "string") &&
     "gatewayUrl" in value &&
     typeof value.gatewayUrl === "string" &&
     "deviceId" in value &&
@@ -86,6 +88,17 @@ export class SessionPersistence {
         gatewayUrl: connection.lastAddress ?? connection.addresses[0] ?? current.gatewayUrl,
       };
 
+      await saveSession(next);
+      this.#current = next;
+    });
+  }
+
+  rememberModules(deviceId: string, moduleOrder: string) {
+    return this.#serial(async () => {
+      const current = this.#current;
+
+      if (!current || current.deviceId !== deviceId || current.moduleOrder === moduleOrder) return;
+      const next = { ...current, moduleOrder };
       await saveSession(next);
       this.#current = next;
     });

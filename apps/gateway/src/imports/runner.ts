@@ -5,6 +5,7 @@ import type { GatewayCore } from "../core/core.ts";
 import { coreLog } from "../core/core-broadcast.ts";
 import { coreState, describeError, UnavailableError } from "../core/core-context.ts";
 import { coreWorkerQuery } from "../core/core-mentions.ts";
+import { ownerModule } from "../store/module-access.ts";
 import { ensureThread, ingestPage } from "./ingest.ts";
 import { LibraryApply } from "./library-apply.ts";
 import { failLibraryItem, nextLibraryItem, type LibraryRow } from "./library-store.ts";
@@ -15,6 +16,7 @@ import {
   finishEmpty,
   finishItem,
   ImportStopped,
+  openImports,
   resumePaused,
   runnerRunStatus,
   threadToHistory,
@@ -73,17 +75,14 @@ export class ImportRunner {
 
   /** Continues runs that are running or paused on connected workers (after a restart or a reconnect). */
   async tick(workerId?: string): Promise<void> {
-    const open = await this.#sql(
-      (sql) => sql<{ id: string; worker_id: string; status: string }>`
-        SELECT id, worker_id, status FROM import_runs
-         WHERE status IN ('running', 'paused') AND (${workerId ?? null}::uuid IS NULL OR worker_id = ${workerId ?? null}::uuid)`,
-    );
+    const owner = this.#core[coreState].options.userId;
+    const open = await this.#sql((sql) => openImports(sql, owner, workerId));
 
     for (const run of open) {
       if (this.#active.has(run.id) || !this.#core.link.connections.get(run.worker_id)?.isOpen) continue;
 
       // Only from paused: a run cancelled or undone since the list was read stays so.
-      if (run.status === "paused" && !(await this.#sql((sql) => resumePaused(sql, run.id)))) continue;
+      if (run.status === "paused" && !(await this.#sql((sql) => resumePaused(sql, owner, run.id)))) continue;
       void this.drive(run.id);
     }
   }
@@ -134,7 +133,7 @@ export class ImportRunner {
       try {
         await this.#importItem(item);
       } catch (cause) {
-        // Cancelled or undone meanwhile: that path removed what the import wrote.
+        // Recheck the durable run state after a pause, cancellation or undo.
         if (cause instanceof ImportStopped) continue;
 
         if (cause instanceof UnavailableError || !this.#core.link.connections.get(item.worker_id)?.isOpen) {
@@ -164,14 +163,12 @@ export class ImportRunner {
     let cursor = item.cursor;
 
     for (;;) {
-      const status = (
-        await this.#sql(
-          (sql) => sql<{ status: string }>`SELECT status FROM import_runs WHERE id = ${item.run_id}::uuid`,
-        )
-      )[0]?.status;
+      const active = await this.#sql(
+        (sql) => sql`SELECT 1 FROM import_runs WHERE id = ${item.run_id}::uuid AND status = 'running'
+          AND ${ownerModule(sql, item.owner_user_id, "threads")}`,
+      );
 
-      // Stopped: cancelRun (one transaction) already cleaned up; the runner only stops.
-      if (status !== "running") return;
+      if (active.length === 0) return;
 
       this.beforePage(item);
 

@@ -1,3 +1,4 @@
+import { sendGeneration, withGenerationVersion } from "./generation-cancellation.ts";
 import { accountGeneration } from "../usage/generation.ts";
 import { ui } from "@canopy/contracts";
 import { toUiThread, turnEffort, type ThreadRow } from "../store/index.ts";
@@ -51,7 +52,7 @@ export function coreLaunchTitle(hostContext: GatewayCore, thread: ThreadRow): vo
 }
 
 export async function coreGenerateTitle(hostContext: GatewayCore, thread: ThreadRow): Promise<void> {
-  const text = await coreGenerateText(hostContext, thread, (settings) =>
+  const { text, version } = await coreGenerateText(hostContext, thread, (settings) =>
     titlePrompt(thread.title_context, settings?.threadTitleInstructions),
   );
 
@@ -59,7 +60,9 @@ export async function coreGenerateTitle(hostContext: GatewayCore, thread: Thread
 
   if (!title) throw new Error("text generation returned an empty title");
   // The job's end broadcasts the thread: the new title and the end of "generating" arrive together.
-  await coreRun(hostContext, (s) => s.finishTitle(thread.id, thread.title_revision, title));
+  await withGenerationVersion(hostContext, version, () =>
+    coreRun(hostContext, (s) => s.finishTitle(thread.id, thread.title_revision, title)),
+  );
 }
 
 /**
@@ -71,7 +74,8 @@ export async function coreGenerateText(
   hostContext: GatewayCore,
   thread: Pick<ThreadRow, "owner_user_id" | "provider" | "provider_profile_id" | "worker_id" | "settings">,
   prompt: (settings: ui.TextGenerationSettings | undefined) => string,
-): Promise<string> {
+): Promise<{ text: string; version: bigint }> {
+  if (thread.owner_user_id !== hostContext[coreState].options.userId) throw new InvalidError("thread not found");
   const settings = (await coreSettings(hostContext, (s) => s.user(thread.owner_user_id))).textGeneration;
   const explicit = !!settings?.model;
   const provider = explicit ? settings!.provider : providerOf(thread.provider);
@@ -94,24 +98,31 @@ export async function coreGenerateText(
     ? { model: settings!.model, effort: turnEffort(listed, settings!.model, settings!.effort) }
     : titleModel(listed, thread.settings.model ?? "");
 
-  const result = await connection.sendCommand(
-    {
-      case: "generateText",
-      value: {
-        provider,
-        profileId,
-        ...choice,
-        prompt: prompt(settings),
+  const { ack, version } = await withGenerationVersion(hostContext, undefined, (started) =>
+    sendGeneration(
+      connection,
+      {
+        case: "generateText",
+        value: {
+          provider,
+          profileId,
+          ...choice,
+          prompt: prompt(settings),
+        },
       },
-    },
-    32_000,
+      started,
+    ),
   );
+
+  const result = await ack;
+
+  if (!result) throw new UnavailableError("text generation worker unavailable");
 
   await accountGeneration(hostContext[coreState].options.runtime, thread.owner_user_id, provider, choice.model, result);
 
   if (!result.ok) throw new Error("text generation failed");
 
-  return result.generatedText;
+  return { text: result.generatedText, version };
 }
 
 export interface CoreTitlesMethods {

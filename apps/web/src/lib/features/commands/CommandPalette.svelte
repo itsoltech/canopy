@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { useSettings } from "#lib/features/settings/settings-state.svelte.ts";
   import { goto } from "$app/navigation";
   import { tick } from "svelte";
   import { provideDensity } from "#lib/shared/ui/density.ts";
@@ -55,6 +56,7 @@
 
   provideDensity("overlay");
 
+  const settings = useSettings();
   const id = $props.id();
   let dialog = $state<HTMLDialogElement>();
   let input = $state<HTMLInputElement>();
@@ -89,9 +91,11 @@
 
   const optionId = (index: number) => `${id}-option-${index}`;
 
-  const placeholder = $derived(
-    level?.command.placeholder ?? (level ? "Search…" : "Search commands, projects, and threads…"),
+  const searchLabel = $derived(
+    settings.moduleEnabled("threads") ? "Search commands, projects, and threads" : "Search commands",
   );
+
+  const placeholder = $derived(level?.command.placeholder ?? (level ? "Search…" : `${searchLabel}…`));
 
   $effect(() => {
     if (!dialog) return;
@@ -321,7 +325,7 @@
         aria-controls="{id}-list"
         aria-autocomplete="list"
         aria-activedescendant={activeIndex >= 0 ? optionId(activeIndex) : undefined}
-        aria-label={level ? `Search ${level.command.title}` : "Search commands, projects, and threads"}
+        aria-label={level ? `Search ${level.command.title}` : searchLabel}
         {placeholder}
         autocomplete="off"
         autocapitalize="off"

@@ -147,7 +147,7 @@ describe.skipIf(!dockerAvailable)("bounded history and notification reads", () =
     );
 
     const page = (after?: string) =>
-      gateway.runtime.runPromise(AgentBusStore.use((s) => s.dueNotifications(id, after)));
+      gateway.runtime.runPromise(AgentBusStore.use((s) => s.dueNotifications(gateway.userId, id, after)));
 
     const first = await page();
     expect(first).toHaveLength(50);

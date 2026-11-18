@@ -3,7 +3,7 @@ import { ReplySuggestionExpired, RequestExpired } from "../store/errors.ts";
 import { Predicate } from "effect";
 import { isErrorObject } from "../core/error-cause.ts";
 import { ConnectorFailure } from "../connectors/store.ts";
-import { InvalidError, UnavailableError } from "../core/core.ts";
+import { InvalidError, UnavailableError } from "../core/core-context.ts";
 import {
   InstanceConflict,
   Invalid,

@@ -107,21 +107,25 @@ export function AppearanceSettings() {
         <SettingsRow title="Render math" description="Show LaTeX formulas in messages and previews.">
           <Text style={[styles.chrome, { color: c.muted }]}>Unavailable on mobile · Formulas show their source.</Text>
         </SettingsRow>
-        <SettingsRow title="Animated mascots" description="Animate bot mascots in lists and chats.">
-          <Text style={[styles.chrome, { color: c.muted }]}>Unavailable on mobile · Mascots stay still.</Text>
-        </SettingsRow>
-        <SettingChoice
-          title="Thread width"
-          description="Set the width of threads and their message boxes."
-          value={settings.appearance?.chatWidth || ui.ChatWidth.COMFORTABLE}
-          options={[
-            { value: ui.ChatWidth.COMFORTABLE, label: "Comfortable" },
-            { value: ui.ChatWidth.WIDE, label: "Wide" },
-            { value: ui.ChatWidth.FULL, label: "Full width" },
-          ]}
-          disabled={settings.saving}
-          onChange={(chatWidth) => void settings.updateAppearance({ chatWidth })}
-        />
+        {settings.botsEnabled && (
+          <SettingsRow title="Animated mascots" description="Animate bot mascots in lists and chats.">
+            <Text style={[styles.chrome, { color: c.muted }]}>Unavailable on mobile · Mascots stay still.</Text>
+          </SettingsRow>
+        )}
+        {settings.threadsEnabled && (
+          <SettingChoice
+            title="Thread width"
+            description="Set the width of threads and their message boxes."
+            value={settings.appearance?.chatWidth || ui.ChatWidth.COMFORTABLE}
+            options={[
+              { value: ui.ChatWidth.COMFORTABLE, label: "Comfortable" },
+              { value: ui.ChatWidth.WIDE, label: "Wide" },
+              { value: ui.ChatWidth.FULL, label: "Full width" },
+            ]}
+            disabled={settings.saving}
+            onChange={(chatWidth) => void settings.updateAppearance({ chatWidth })}
+          />
+        )}
       </SettingsGroup>
       <TypographySettings />
     </View>

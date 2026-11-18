@@ -1,3 +1,4 @@
+import { lockedOwnerModule } from "../store/module-access.ts";
 import { Effect } from "effect";
 import type { SqlClient } from "effect/sql";
 import { privateMessengerNotice } from "./store-notify.ts";
@@ -68,6 +69,8 @@ export function messengerOutbound(sql: SqlClient.SqlClient, accounts: MessengerA
     outbound: (owner: string, lease: AccountLease, now: Date) =>
       sql.withTransaction(
         Effect.gen(function* () {
+          if (!(yield* lockedOwnerModule(sql, owner, "bots"))) return [];
+
           // Freeze the recovery set before locking bots: a newly abandoned row belongs to the next poll.
           const candidates = yield* sql<{ id: string }>`SELECT id FROM messenger_outbound
             WHERE account_id=${lease.accountId}::uuid AND status='sending'

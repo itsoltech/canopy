@@ -36,7 +36,8 @@
   {#snippet leading()}<ProjectAvatar name={project?.name ?? "?"} class="size-8 rounded-md text-xs/none" />{/snippet}
   {#snippet actions()}
     {#if project && project.workspaces.length > 0}
-      <ButtonLink href="/?project={project.id}" variant="primary" icon="pencil-square">New thread</ButtonLink>
+      <ButtonLink href="/threads/new?project={project.id}" variant="primary" icon="pencil-square">New thread</ButtonLink
+      >
     {/if}
   {/snippet}
 </SettingsHeading>

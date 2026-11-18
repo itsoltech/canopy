@@ -18,6 +18,7 @@ import {
 } from "@canopy/domain/computers";
 
 import { linkedMessage, MOVE_METHODS, UPDATE_METHODS, type RelayRoute } from "./remote.ts";
+import { moduleDisabledMessage } from "../store/module-access.ts";
 import { botFeature, fileHighlightDraft } from "./remote-policy.ts";
 
 import { RELAY_METHODS, relayCallback } from "./relay.ts";
@@ -225,6 +226,8 @@ export async function* computersServeHome(
   if (!hostContext.hello().capabilities.includes(feature) || !connection.capabilities?.has(feature))
     throw new ConnectError("Both computers need an update for this linked action", Code.Unimplemented);
 
+  signal = mirrorSignal(hostContext, method, signal);
+
   if (method.name === "AckThreadRange" || method.name === "GetThreadRange") {
     if (!hostContext.hello().capabilities.includes(THREAD_RANGES) || !connection.capabilities?.has(THREAD_RANGES))
       throw new ConnectError("Thread ranges require support on both computers", Code.Unimplemented);
@@ -298,6 +301,25 @@ export async function* computersServeHome(
         Boolean(connection.capabilities?.has(THREAD_WATCH_COALESCE)),
     );
   else yield* hostContext.options.serve(method, request, signal, nodeId);
+}
+
+function mirrorSignal(hostContext: LinkedComputers, method: DescMethod, signal: AbortSignal) {
+  const mirrorModule =
+    method.parent.typeName === link.ThreadMirrorService.typeName
+      ? "threads"
+      : method.name === "WatchBotMirror"
+        ? "bots"
+        : undefined;
+
+  if (mirrorModule) {
+    const moduleSignal = hostContext.mirrorModules[mirrorModule].signal;
+
+    if (moduleSignal.aborted) throw new ConnectError(moduleDisabledMessage(mirrorModule), Code.FailedPrecondition);
+
+    return AbortSignal.any([signal, moduleSignal]);
+  }
+
+  return signal;
 }
 
 async function readHomeDiagnostics(host: LinkedComputers, node: string, connection: Connection, request: Message) {

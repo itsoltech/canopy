@@ -2,7 +2,8 @@
   import type { ClassValue } from "svelte/elements";
   import { segmentedLabel, segmentedPill, segmentedTrack } from "#lib/shared/ui/segmented.ts";
   import StatusDot from "#lib/shared/ui/StatusDot.svelte";
-  import { sectionMemory, sections, type Section } from "./sections.svelte.ts";
+  import type { ModuleId } from "@canopy/domain";
+  import { sectionMemory, sectionLabels } from "./sections.svelte.ts";
 
   /**
    * Segmented "Threads | Bots" switch at the top of the sidebar. Each segment links to the last page
@@ -13,17 +14,19 @@
    */
   let {
     active,
+    sections,
     attention = {},
     counts = {},
     class: className,
   }: {
-    active: Section;
-    attention?: Partial<Record<Section, "needs" | "unseen" | undefined>>;
-    counts?: Partial<Record<Section, number>>;
+    active: ModuleId;
+    sections: readonly ModuleId[];
+    attention?: Partial<Record<ModuleId, "needs" | "unseen" | undefined>>;
+    counts?: Partial<Record<ModuleId, number>>;
     class?: ClassValue;
   } = $props();
 
-  const at = $derived(sections.findIndex((section) => section.id === active));
+  const at = $derived(sections.indexOf(active));
 </script>
 
 <nav aria-label="Sections" class={className}>
@@ -39,19 +42,19 @@
         aria-hidden="true"
       ></li>
     {/if}
-    {#each sections as section (section.id)}
-      {@const current = section.id === active}
-      {@const count = current ? 0 : (counts[section.id] ?? 0)}
-      {@const dot = !current && !count && attention[section.id]}
+    {#each sections as section (section)}
+      {@const current = section === active}
+      {@const count = current ? 0 : (counts[section] ?? 0)}
+      {@const dot = !current && !count && attention[section]}
       <li>
         <a
-          href={sectionMemory.href(section.id)}
+          href={sectionMemory.href(section)}
           aria-current={current ? "true" : undefined}
           data-active={current || undefined}
           class={[segmentedLabel, "sidebar-section-label"]}
         >
           <span class="relative">
-            {section.label}
+            {sectionLabels[section]}
             <span class="absolute top-0 bottom-0 left-full ml-1.5 flex items-center">
               {#if count > 0}
                 <span class="rounded-full bg-action px-1.5 text-xs/4 font-medium text-on-accent tabular-nums">

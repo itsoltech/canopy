@@ -66,6 +66,40 @@ describe.skipIf(!dockerAvailable)("settings expansion persistence, checks and ow
     }
   });
 
+  test("module order persists per owner and invalid or stale edits preserve the saved order", async () => {
+    const initial = (await gw.api.getSettings({})).user!;
+    expect(initial.modules?.enabled).toEqual(["threads", "bots"]);
+
+    let version = initial.version;
+
+    for (const enabled of [["threads"], ["bots"], ["threads", "bots"], ["bots", "threads"]]) {
+      const saved = (await gw.api.updateUserSettings({ expectedVersion: version, modules: { enabled } })).settings!;
+      expect(saved.modules?.enabled).toEqual(enabled);
+      version = saved.version;
+    }
+
+    for (const enabled of [[], ["threads", "threads"], ["bots", "bots"], ["other"], ["bots", "threads", "bots"]]) {
+      expect(await failure(gw.api.updateUserSettings({ expectedVersion: version, modules: { enabled } }))).toContain(
+        "Choose Threads, Bots, or both",
+      );
+    }
+
+    expect(
+      await failure(gw.api.updateUserSettings({ expectedVersion: initial.version, modules: { enabled: ["bots"] } })),
+    ).toContain("changed");
+
+    const restarted = new GatewayCore({ runtime: gw.runtime, userId: gw.userId, instanceId: "restart-modules" });
+
+    try {
+      const stored = (await restarted.settings()).user!;
+      expect(stored.modules?.enabled).toEqual(["bots", "threads"]);
+      expect(stored.version).toBe(version);
+      expect((await other.settings()).user?.modules?.enabled).toEqual(["threads", "bots"]);
+    } finally {
+      restarted.secrets.stop();
+    }
+  });
+
   test("general and sidebar sections survive a new core, reject stale writes, isolate owners and reset without losing pins", async () => {
     const before = (await gw.api.getSettings({})).user!;
 

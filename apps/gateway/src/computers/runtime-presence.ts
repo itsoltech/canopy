@@ -1,10 +1,17 @@
 import { create } from "@bufbuild/protobuf";
-import { AGENT_PREVIEW_CLIENT_ACK, DIAGNOSTICS_LOGS, USAGE_STATS } from "./capabilities.ts";
+import {
+  MIRROR_PAUSED,
+  BOT_THREAD_ACCESS,
+  AGENT_PREVIEW_CLIENT_ACK,
+  DIAGNOSTICS_LOGS,
+  USAGE_STATS,
+} from "./capabilities.ts";
 
 import { Code, ConnectError } from "@connectrpc/connect";
 
 import { computerLink as link, ui } from "@canopy/contracts";
 
+import { SettingsStore } from "../store/settings.ts";
 import { CANOPY_VERSION } from "@canopy/domain/release/version";
 
 import {
@@ -82,7 +89,7 @@ export interface ComputersPresenceMethods {
 
 export const computersPresenceMethods: ComputersPresenceMethods = {
   hello(this: LinkedComputers) {
-    return create(link.NodeHelloSchema, {
+    const hello = create(link.NodeHelloSchema, {
       nodeId: this[computersState].identity.node_id,
       name: this[computersState].identity.name,
       addresses: this[computersState].advertised,
@@ -136,14 +143,22 @@ export const computersPresenceMethods: ComputersPresenceMethods = {
         ...(this.options.core?.diagnostics.collector.enabled ? ["diagnostics_trace_v1"] : []),
         // Batched, resumable workspace copies (docs/workspace-copy.md); peers with the 32-entry guard never see it.
         ...(this.options.serve ? [WORKSPACE_COPY_CAPABILITY] : []),
-        ...(this.options.serve ? ["thread_creation_progress_v1"] : []),
+        ...(this.options.serve ? ["thread_creation_progress_v1", BOT_THREAD_ACCESS] : []),
         USAGE_STATS,
       ],
     });
+
+    for (const module of ["threads", "bots"] as const)
+      if (this.mirrorModules[module].signal.aborted) hello.capabilities.push(MIRROR_PAUSED[module]);
+
+    return hello;
   },
 
   async start(this: LinkedComputers) {
     this[computersState].identity = await this.store.identity();
+
+    const settings = await this.store.runtime.runPromise(SettingsStore.use((s) => s.user(this.store.owner)));
+    this.setMirrorModules(settings);
 
     for (const peer of await this.store.peers()) this[computersState].capabilities.set(peer.node_id, peer.capabilities);
     await this.config?.start();

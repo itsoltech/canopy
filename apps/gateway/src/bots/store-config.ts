@@ -3,6 +3,7 @@ import { bots, ProfileModelsSchema, Provider, type ProfileModels } from "@canopy
 import { Effect } from "effect";
 import { SqlClient, type SqlError } from "effect/sql";
 import { Invalid } from "../store/store.ts";
+import { lockedOwnerModule, moduleDisabledMessage } from "../store/module-access.ts";
 import { harnessOf, type InstanceRow } from "../store/instance-config.ts";
 import { serviceTierProblem } from "../store/models.ts";
 import { nextHop } from "./policy.ts";
@@ -149,6 +150,9 @@ export function botConfig(sql: SqlClient.SqlClient, access: BotAccess) {
   const save = (user: string, config: bots.BotConfiguration, options: { id?: string; requestId?: string }) =>
     sql.withTransaction(
       Effect.gen(function* () {
+        const enabled = yield* lockedOwnerModule(sql, user, "bots");
+
+        if (!options.id && !enabled) return yield* Effect.fail(new Invalid(moduleDisabledMessage("bots")));
         const before = options.id ? botConfiguration(yield* owned(user, options.id, true)) : undefined;
         // Serialize names per owner, including concurrent create/update/self-edit requests.
         yield* sql`SELECT pg_advisory_xact_lock(hashtextextended(${user}, 0))`;
@@ -222,7 +226,7 @@ export function botConfig(sql: SqlClient.SqlClient, access: BotAccess) {
         // A repeated create returns the original definition rather than modifying its connections.
         const active = botConfiguration(row);
 
-        if (before) yield* handoffs.enqueue(row.id, before, active);
+        if (before) yield* handoffs.enqueue(row.id, before, active, enabled);
 
         // Unrelated bot settings saves never reset grants configured on connector accounts.
         if (

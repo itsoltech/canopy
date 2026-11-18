@@ -1,4 +1,4 @@
-import { afterAll, afterEach, beforeAll, describe, expect, test } from "bun:test";
+import { afterAll, afterEach, beforeAll, describe, expect, spyOn, test } from "bun:test";
 import { appendFileSync, existsSync, readdirSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { dockerAvailable } from "@canopy/db/testing";
@@ -139,8 +139,33 @@ describe.skipIf(!dockerAvailable)("CLI import: continuing Claude threads", () =>
     // The main thread took a turn in Canopy: its copy and the CLI's file went separate ways.
     expect(listed.candidates.find((c) => c.threadId === threads.get("main"))?.status).toBe("imported");
 
-    const run = await f.gw.api.startImport({ scanId, selection: { included: [grown.sourceKey] } });
-    expect((await finished(run.id)).items[0]).toMatchObject({ status: "done", threadId: threads.get("other") });
+    // Pause after the worker copied the appended turns but before the gateway can record its receipt.
+    const handle = f.host.handleCommand.bind(f.host);
+
+    const worker = spyOn(f.host, "handleCommand").mockImplementation(async (command) => {
+      const result = await handle(command);
+
+      if (command.kind.case === "adoptImportedSession") await f.setThreads(false);
+
+      return result;
+    });
+
+    try {
+      const run = await f.gw.api.startImport({ scanId, selection: { included: [grown.sourceKey] } });
+
+      const paused = await eventually(
+        () => f.gw.api.getImportRun({ runId: run.id, items: true }),
+        (r) => r.status === "paused" && r.done === 1,
+      );
+
+      expect(paused.items[0]).toMatchObject({ status: "done", threadId: threads.get("other"), continueMode: "native" });
+      await f.setThreads(true);
+      expect((await finished(run.id)).status).toBe("completed");
+    } finally {
+      worker.mockRestore();
+      await f.setThreads(true);
+    }
+
     const { turns } = await f.snapshot(threads.get("other")!);
     expect(turns.map((t) => t.inputText)).toEqual(["Hello from FIXTURE_OTHER", "Later prompt FIXTURE_LATER"]);
     expect(await Bun.file(copyOf(sessionId)!).text()).toContain("FIXTURE_LATER");

@@ -1,3 +1,4 @@
+import { setModules } from "./support/module-settings.ts";
 import { afterAll, beforeAll, describe, expect, test } from "bun:test";
 import { Provider, type GenerateText } from "@canopy/contracts";
 import { dockerAvailable } from "@canopy/db/testing";
@@ -15,9 +16,10 @@ describe.skipIf(!dockerAvailable)("thread titles through the worker link", () =>
   let projectId = "";
   let workspaceId = "";
   const requests: GenerateText[] = [];
+  let lastCommandId = "";
   let answer: ((ok: boolean, extra?: CommandReplyExtra) => void) | undefined;
   beforeAll(async () => {
-    gw = await startTestGateway();
+    gw = await startTestGateway({ worker: { hello: { capabilities: ["cancel_text_generation_v1"] } } });
     projectId = (await gw.api.createProject({ name: "Titles" })).project!.id;
     workspaceId = (await gw.api.createWorkspace({ projectId, workerId: gw.workerId, rootPath: "/repo", label: "repo" }))
       .workspace!.id;
@@ -25,7 +27,8 @@ describe.skipIf(!dockerAvailable)("thread titles through the worker link", () =>
       () => gw.api.getOverview({}),
       (r) => r.workers.some((w) => w.id === gw.workerId && w.providerInstances.some((i) => i.available)),
     );
-    gw.worker.handlers.set("generateText", (value, reply) => {
+    gw.worker.handlers.set("generateText", (value, reply, commandId) => {
+      lastCommandId = commandId ?? "";
       requests.push(value as GenerateText);
       answer = reply;
     });
@@ -95,6 +98,87 @@ describe.skipIf(!dockerAvailable)("thread titles through the worker link", () =>
     expect([renamed.title, renamed.titleSource]).toEqual(["My title", "user"]);
     expect(requests.length).toBe(count + 1);
   });
+
+  test("late titles from legacy and fallback workers cannot rename after rapid re-enable", async () => {
+    const legacy = await gw.addWorker("Legacy");
+    const worker = await gw.connect(legacy.workerId, legacy.credential);
+    await eventually(
+      () => gw.api.getOverview({}),
+      (r) => r.workers.some((w) => w.id === legacy.workerId && w.providerInstances.some((i) => i.available)),
+    );
+
+    const workspace = (
+      await gw.api.createWorkspace({ projectId, workerId: legacy.workerId, rootPath: "/repo", label: "legacy" })
+    ).workspace!;
+
+    const thread = (
+      await gw.api.createThread({
+        projectId,
+        workspaceId: workspace.id,
+        provider: Provider.CODEX,
+        initialMessage: "Name this task",
+        title: "Original title",
+      })
+    ).thread!;
+
+    const arrived = Promise.withResolvers<(ok: boolean, extra?: CommandReplyExtra) => void>();
+    worker.handlers.set("generateText", (_value, reply) => arrived.resolve(reply));
+    await gw.api.regenerateTitle({ threadId: thread.id });
+    const answerLegacy = await arrived.promise;
+    await setModules(gw, "bots");
+    await setModules(gw, "threads", "bots");
+    expect(worker.commands.some((kind) => kind.case === "cancelTextGeneration")).toBe(false);
+    answerLegacy(true, { generatedText: "Stale legacy title" });
+
+    const kept = await eventually(
+      () => current(thread.id),
+      (t) => !t.titleGenerating,
+    );
+
+    expect(kept.title).toBe("Original title");
+
+    worker.link.close();
+    await eventually(
+      async () => gw.core.online.has(legacy.workerId),
+      (online) => !online,
+    );
+    const count = requests.length;
+    await gw.api.regenerateTitle({ threadId: thread.id });
+    await requested(count + 1);
+    const oldId = lastCommandId;
+    const oldReply = answer!;
+    await setModules(gw, "bots");
+    await setModules(gw, "threads", "bots");
+
+    const cancels = () =>
+      gw.worker.commands.flatMap((kind) => (kind.case === "cancelTextGeneration" ? [kind.value.commandId] : []));
+
+    expect(
+      await eventually(
+        async () => cancels(),
+        (ids) => ids.includes(oldId),
+      ),
+    ).toContain(oldId);
+
+    const fresh = await createThread("A separate task");
+    await requested(count + 2);
+    expect(lastCommandId).not.toBe(oldId);
+    oldReply(true, { generatedText: "Stale fallback title" });
+    answer!(true, { generatedText: "Fresh title" });
+    await eventually(
+      () => current(fresh.id),
+      (t) => t.title === "Fresh title",
+    );
+    expect(
+      (
+        await eventually(
+          () => current(thread.id),
+          (t) => !t.titleGenerating,
+        )
+      ).title,
+    ).toBe("Original title");
+    expect(cancels()).not.toContain(lastCommandId);
+  }, 30_000);
 
   test("regenerate uses the global instance/model/effort and appended instructions, failures retain the title", async () => {
     const thread = await createThread("Fix login", "Explicit");

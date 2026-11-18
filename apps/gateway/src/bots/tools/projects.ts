@@ -10,7 +10,7 @@ export const projectTools = [
     "Checking projects",
     async ({ core }) =>
       Promise.all(
-        (await core.linkedAgents.overview()).projects.map(async (p) => ({
+        (await core.linkedAgents.overview("bot-thread")).projects.map(async (p) => ({
           // Sidebar ordering metadata need not consume the bounded tool-result audit used by handoffs.
           ...jsonObject(ui.ProjectSchema, { ...p, createdAt: undefined }),
           machine: await core.linkedAgents.machine(p.nodeId),

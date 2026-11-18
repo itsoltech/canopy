@@ -12,6 +12,8 @@ export * from "./mentions/index.ts";
 
 export * from "./appearance/index.ts";
 
+export * from "./modules.ts";
+
 export * from "./quotes/index.ts";
 
 export * from "./background-tasks/index.ts";

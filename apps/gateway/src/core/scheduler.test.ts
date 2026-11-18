@@ -57,6 +57,7 @@ test("stop waits for a slow tick even when more timer intervals elapsed", async 
       return pending as Promise<A>;
     },
     owner: "test",
+    userId: "test-owner",
     log() {},
     async queued() {},
     async changed() {},

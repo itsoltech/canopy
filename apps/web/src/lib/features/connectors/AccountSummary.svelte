@@ -6,6 +6,7 @@
   import { formatEnglishDateTime, formatRelative, isoDateTime } from "#lib/shared/format.ts";
   import { tooltip } from "#lib/shared/ui/tooltip.ts";
   import StatusDot from "#lib/shared/ui/StatusDot.svelte";
+  import { useSettings } from "#lib/features/settings/settings-state.svelte.ts";
   import ConnectorIcon from "./ConnectorIcon.svelte";
 
   let {
@@ -24,6 +25,8 @@
     class?: ClassValue;
   } = $props();
 
+  const settings = useSettings();
+  const access = $derived(connectorAccessSummary(account, settings.enabledModules));
   const id = $props.id();
 </script>
 
@@ -76,8 +79,8 @@
         >
       </time>
     </p>
-    <p class="min-w-0 truncate" title={connectorAccessSummary(account)}>
-      {connectorAccessSummary(account)}
+    <p class="min-w-0 truncate" title={access}>
+      {access}
     </p>
   </div>
 </button>

@@ -4,7 +4,7 @@ import { AgentToolResultSchema, type AgentToolCall, type AgentToolResult } from 
 import { Schema } from "effect";
 import type { BotRuntimeOptions } from "./runtime.ts";
 import type { BotsRuntime } from "./runtime.ts";
-import { botPlatformTools } from "./policy.ts";
+import { currentBotTools } from "./policy.ts";
 import { runToolCall, WAITING } from "./turn-steps.ts";
 import type { BotTurn } from "./types.ts";
 import { botConfiguration } from "./store-views.ts";
@@ -86,10 +86,7 @@ export class HarnessTools {
         return reply("External conversation is unavailable", true);
       const config = botConfiguration(await this.run((s) => s.owned(this.options.userId, turn.bot_id)));
 
-      const tools = botPlatformTools(config, turn);
-
-      if (!turn.handoff_configuration)
-        tools.push(...(await this.options.connectors.botTools(turn.bot_id, turn, config.files !== false)));
+      const tools = await currentBotTools(this.options, config, turn);
 
       try {
         const args = Schema.decodeUnknownSync(Schema.JsonObject)(JSON.parse(call.argumentsJson));

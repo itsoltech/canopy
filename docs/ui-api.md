@@ -1,6 +1,7 @@
 # API dla UI i architektura frontendu
 
-Status (2026-11-18): po zamknięciu panelu PR zaplanowane odświeżenie awatarów wykonuje się
+Status (2026-11-18): właściciel ustawia kolejność zakładek i może zatrzymać pracę wybranego modułu.
+Po zamknięciu panelu PR zaplanowane odświeżenie awatarów wykonuje się
 tylko wtedy, gdy inny otwarty widok nadal ich potrzebuje. Stopka sidebara pokazuje tylko jeden z paneli Updates i Provider usage,
 ma osobne ikony Settings i Usage oraz samą kropkę statusu połączenia;
 web/desktop wysyła „Continue” jednym kliknięciem z pustego kompozytora istniejącego wątku między turami;
@@ -1432,6 +1433,22 @@ dopiero przy tworzeniu wątku. Wpisy zewnętrzne są tylko do odczytu w ustawien
 Discovery, weryfikacja wyboru i zgodność starszych workerów: [worktrees.md](worktrees.md#worktree-utworzone-poza-canopy).
 
 ## Pasek boczny i cykl życia wątku
+
+W Settings → General → Modules właściciel wybiera pierwszą zakładkę i włącza lub
+wyłącza Threads albo Bots. `UserSettings.modules.enabled` przechowuje w kolejności
+jeden lub dwa różne identyfikatory (`threads`, `bots`). Dla wcześniejszych kont
+domyślna kolejność to Threads, Bots. Wejście na `/` otwiera pierwszy moduł.
+Bezpośredni link do włączonego modułu otwiera wskazany widok, a do wyłączonego
+prowadzi do pierwszego dostępnego modułu. Po wyłączeniu modułu znikają jego
+nawigacja, polecenia i ustawienia. Gateway wstrzymuje wykonywanie zadań tego modułu.
+Ponowne włączenie przywraca dostęp do historii i wznawia obsługę aktywnych harmonogramów.
+Szczegóły rozłączenia agentów opisuje [bots.md](bots.md).
+
+Kompozytor nowego wątku ma własny adres `/threads/new`. Starsze linki
+`/?project=…` i `/?workspace=…` zachowują wybór projektu i workera.
+Przy jednym włączonym module przełącznik zakładek znika. Gdy użytkownik
+wyłączy moduł otwarty pod oknem ustawień, dialog pozostaje otwarty,
+a przekierowanie następuje przy jego zamknięciu.
 
 Przełączanie Threads ↔ Bots nie zmienia położenia treści po jej pierwszym renderze.
 Ekrany startowe i nowy wątek boczny używają `CenteredContent`: automatyczne marginesy centrują treść,

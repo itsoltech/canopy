@@ -1,3 +1,4 @@
+import { withGenerationVersion } from "../core/generation-cancellation.ts";
 import type { GatewayCore } from "../core/core.ts";
 import { coreBroadcastThread, coreLog, coreRun } from "../core/core-broadcast.ts";
 import { coreGenerateText } from "../core/core-titles.ts";
@@ -71,7 +72,7 @@ async function attempt(
   }
 
   asked.set(worktreeId, text);
-  const answer = await coreGenerateText(hostContext, thread, () => branchPrompt(text));
+  const { text: answer, version } = await coreGenerateText(hostContext, thread, () => branchPrompt(text));
 
   if (unclearBranch(answer)) {
     coreLog(hostContext, `worktree ${worktreeId}: task unclear; branch name deferred`);
@@ -87,11 +88,16 @@ async function attempt(
     return;
   }
 
-  if (name === worktree.branch) return;
-  await rename(hostContext, worktree, name, capable);
+  if (name !== worktree.branch) await rename(hostContext, worktree, name, capable, version);
 }
 
-async function rename(hostContext: GatewayCore, worktree: WorktreeRow, name: string, provisional: boolean) {
+async function rename(
+  hostContext: GatewayCore,
+  worktree: WorktreeRow,
+  name: string,
+  provisional: boolean,
+  version: bigint,
+) {
   const connection = hostContext.link.connections.get(worktree.worker_id);
 
   if (!connection?.isOpen) {
@@ -100,21 +106,27 @@ async function rename(hostContext: GatewayCore, worktree: WorktreeRow, name: str
     return;
   }
 
-  const result = await connection.sendCommand(
-    {
-      case: "renameWorktreeBranch",
-      value: {
-        path: worktree.path,
-        fromBranch: worktree.branch,
-        toBranch: name,
-        location: worktree.location,
-        provisional,
-      },
-    },
-    RENAME_TIMEOUT_MS,
-  );
+  const { ack } = await withGenerationVersion(hostContext, version, () => ({
+    ack: connection
+      .sendCommand(
+        {
+          case: "renameWorktreeBranch",
+          value: {
+            path: worktree.path,
+            fromBranch: worktree.branch,
+            toBranch: name,
+            location: worktree.location,
+            provisional,
+          },
+        },
+        RENAME_TIMEOUT_MS,
+      )
+      .catch(() => undefined),
+  }));
 
-  if (!result.ok) {
+  const result = await ack;
+
+  if (!result?.ok) {
     coreLog(hostContext, `worktree ${worktree.id}: branch rename failed; kept`);
 
     return; // git busy or offline: a later turn may try again

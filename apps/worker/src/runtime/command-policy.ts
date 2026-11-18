@@ -52,3 +52,11 @@ export const NOT_REMEMBERED: ReadonlySet<Command["kind"]["case"]> = new Set([
   "adoptImportedSession",
   "removeImportedCopy",
 ]);
+
+/** Scheduled checkout retries share one request ID, including after a lost acknowledgement. */
+export function rememberSuccess(command: Command): boolean {
+  return (
+    !NOT_REMEMBERED.has(command.kind.case) ||
+    (command.kind.case === "createWorktree" && command.commandId.startsWith("schedule-worktree/"))
+  );
+}

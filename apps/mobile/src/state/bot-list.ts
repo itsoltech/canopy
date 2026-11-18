@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { create } from "@bufbuild/protobuf";
 import { bots as botContract } from "@canopy/contracts";
 import { useOverviewEvents } from "./overview-bus";
+import { useAppearance } from "./appearance";
 import { useSession } from "./session";
 import { useSharedQuery } from "./queries";
 
@@ -13,11 +14,12 @@ const BOT_LIST_FALLBACK_MS = 15_000;
 
 export function useBotList() {
   const { client } = useSession();
+  const { botsEnabled, modulesReady } = useAppearance();
 
   return useSharedQuery(
     BOT_LIST,
     (signal) => client!.api.listBots({ includeArchived: true }, { signal }),
-    Boolean(client),
+    Boolean(client) && modulesReady && botsEnabled,
   );
 }
 
@@ -44,6 +46,7 @@ const withBot = (list: botContract.ListBotsResponse | undefined, bot: botContrac
  */
 export function useBotListSync() {
   const { client, active, online, epoch, queries, updateBots } = useSession();
+  const { botsEnabled, modulesReady } = useAppearance();
   const list = useBotList();
   const [pushed, setPushed] = useState(false);
   const started = useRef(false);
@@ -75,12 +78,10 @@ export function useBotListSync() {
   });
 
   // The stream is down while in the background or offline: nothing is pushed then.
-  useEffect(() => {
-    if (!active || !online) setPushed(false);
-  }, [active, online]);
+  if (pushed && (!active || !online)) setPushed(false);
 
   useEffect(() => {
-    if (!client || !active || !online) return;
+    if (!client || !active || !online || !modulesReady || !botsEnabled) return;
 
     if (started.current && !pushed) queries.invalidate(BOT_LIST);
     started.current = true;
@@ -89,7 +90,7 @@ export function useBotListSync() {
     const timer = setInterval(() => queries.invalidate(BOT_LIST), BOT_LIST_FALLBACK_MS);
 
     return () => clearInterval(timer);
-  }, [client, active, online, epoch, queries, pushed]);
+  }, [client, active, online, epoch, queries, pushed, modulesReady, botsEnabled]);
 }
 
 /** Reads the shared list again now, e.g. after a bot action; joins a read already running. */

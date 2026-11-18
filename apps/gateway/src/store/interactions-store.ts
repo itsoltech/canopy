@@ -6,6 +6,7 @@ import { Effect, Result } from "effect";
 import type { SqlClient } from "effect/sql";
 import { Invalid, NotFound, one, type Fx } from "./errors.ts";
 import { writeInteractionTimeline } from "./interaction-timeline.ts";
+import { BOT_THREADS_DISCONNECTED, lockedBotThreadConnection } from "./module-access.ts";
 import { storedQuestions } from "./questions.ts";
 import type { InteractionRow } from "./rows.ts";
 import { interactionKind, toInteraction } from "./ui-mappers.ts";
@@ -161,6 +162,9 @@ export function interactionStore(sql: SqlClient.SqlClient, self: () => Pick<Thre
 
             if ("userId" in by && target.owner_user_id !== by.userId)
               return yield* Effect.fail(new NotFound("interaction not found"));
+
+            if (answer.botThreadAccess && !(yield* lockedBotThreadConnection(sql, target.owner_user_id)))
+              return yield* Effect.fail(new Invalid(BOT_THREADS_DISCONNECTED));
 
             yield* sql`SELECT id FROM threads WHERE id = ${found.thread_id}::uuid FOR UPDATE`;
 

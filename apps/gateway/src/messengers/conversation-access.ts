@@ -1,3 +1,4 @@
+import { ownerModule } from "../store/module-access.ts";
 import { Effect } from "effect";
 import type { SqlClient } from "effect/sql";
 import { linkedMessengerActive } from "./linked-account.ts";
@@ -8,7 +9,7 @@ export function activeConversationSource(sql: SqlClient.SqlClient, botId: string
     JOIN bots b ON b.id=r.bot_id AND b.owner_user_id=r.owner_user_id AND b.owner_user_id=a.owner_user_id
     WHERE c.id=${conversationId}::uuid AND b.id=${botId}::uuid AND b.deleted_at IS NULL
       AND b.archived_at IS NULL AND b.moved_to IS NULL AND r.deleted_at IS NULL AND a.enabled AND a.deleted_at IS NULL
-      AND ${linkedMessengerActive(sql)}
+      AND ${linkedMessengerActive(sql)} AND ${ownerModule(sql, sql`b.owner_user_id`, "bots")}
       AND (c.channel_id=ANY(r.channel_ids) OR (r.direct_messages AND c.channel_id LIKE 'D%'))`;
 }
 

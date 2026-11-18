@@ -1,3 +1,4 @@
+import { stopLegacyThreadWork } from "./legacy-thread-cleanup.ts";
 import { coreSettings } from "./core-settings.ts";
 import { create, toJson, type MessageInitShape } from "@bufbuild/protobuf";
 import { coreNameBranchAfterTurn } from "../worktrees/branch-naming.ts";
@@ -7,6 +8,7 @@ import { CommandResultSchema, CommandSchema, type Command, type CommandResult } 
 import { AgentBusStore, GatewayStore, SteerStore } from "../store/index.ts";
 import { BotStore } from "../bots/store.ts";
 import { Cause, Effect, Exit } from "effect";
+import type { WorkerConnection } from "../worker-link/index.ts";
 import type { PendingCommand } from "../store/outbox.ts";
 import { coreState, HARNESS_ERROR_CODES, SETTLE_TURN_ENDED } from "./core-context.ts";
 import { coreEndLostTurns, coreSettle } from "./core-work-loop.ts";
@@ -17,20 +19,33 @@ import { coreSteerAnswered } from "./core-messages.ts";
 import { coreBroadcastThread, coreBroadcastTurn, coreLog, coreRun } from "./core-broadcast.ts";
 import { coreBroadcastGoal, coreGoalAnswered, coreGoals } from "./core-goals.ts";
 
-export async function coreRedeliver(hostContext: GatewayCore, workerId: string): Promise<void> {
+const MODULE_COMMANDS = new Set(["createThread", "startTurn", "steerTurn", "setGoal", "rewindThread", "runBotTurn"]);
+const replaying = new WeakSet<WorkerConnection>();
+const replayingCleanup = new WeakSet<WorkerConnection>();
+
+export async function coreRedeliver(hostContext: GatewayCore, workerId: string, cleanupOnly = false): Promise<void> {
   const connection = hostContext.link.connections.get(workerId);
-  const commands = await coreRun(hostContext, (s) => s.pendingCommands(workerId));
+
+  if (!connection?.isOpen) return;
+  // A batch of starts may be waiting for the ACKs that interrupt/unload will unblock.
+  const cleanup = cleanupOnly || replaying.has(connection);
+  const running = cleanup ? replayingCleanup : replaying;
+
+  if (running.has(connection)) return;
+  running.add(connection);
+
+  const readPage = (after?: string) => coreRun(hostContext, (s) => s.pendingCommands(workerId, after, cleanup));
 
   const observePage = (page: PendingCommand[]) => {
     hostContext.diagnostics.collector.measure(26, page.length);
     hostContext.diagnostics.collector.measure(27, page[0] ? Math.max(0, Date.now() - page[0].createdAt.getTime()) : 0);
   };
 
-  observePage(commands);
-
   // Return after dispatching the first batch so the worker event loop can start immediately.
   // A bounded SQL page amortizes reads; ACKs/disconnects free each 64-command batch.
   const drain = async (page: PendingCommand[]) => {
+    observePage(page);
+
     while (page.length && connection?.isOpen && hostContext.link.connections.get(workerId) === connection) {
       const after = page.at(-1)!.command.commandId;
 
@@ -49,12 +64,20 @@ export async function coreRedeliver(hostContext: GatewayCore, workerId: string):
       }
 
       if (!connection.isOpen || hostContext.link.connections.get(workerId) !== connection) return;
-      page = await coreRun(hostContext, (s) => s.pendingCommands(workerId, after));
+      page = await readPage(after);
       observePage(page);
     }
   };
 
-  void drain(commands).catch(() => coreLog(hostContext, `outbox redelivery of ${workerId} will retry on reconnect`));
+  try {
+    const first = await readPage();
+    void drain(first)
+      .catch(() => coreLog(hostContext, `outbox redelivery of ${workerId} will retry on heartbeat or reconnect`))
+      .finally(() => running.delete(connection));
+  } catch (error) {
+    running.delete(connection);
+    throw error;
+  }
 }
 
 // ------------------------------------------------------------------ commands
@@ -123,7 +146,9 @@ async function deliverCommand(
 ): Promise<Command | undefined> {
   const connection = hostContext.link.connections.get(workerId);
 
-  if (!connection?.isOpen || !command.kind.case) return;
+  const kind = command.kind;
+
+  if (!connection?.isOpen || !kind.case) return;
 
   if (lifecycleCommand(command) && !(await coreRun(hostContext, (s) => s.commandDispatchable(command.commandId))))
     return;
@@ -147,9 +172,14 @@ async function deliverCommand(
     return;
   }
 
+  let legacyThrough: string | false | undefined;
   let result = capabilityRefusal(connection.hello.capabilities, command);
 
   try {
+    if (kind.case === "unloadThread")
+      legacyThrough = await stopLegacyThreadWork(hostContext, connection, command.commandId);
+
+    if (legacyThrough === false) return connection.isOpen ? command : undefined;
     await prepareThreadTools(hostContext, workerId, command);
 
     const shell =
@@ -168,19 +198,31 @@ async function deliverCommand(
           "This worker cannot steer messages with files yet. The message stays queued. Update the worker to steer files.",
       });
 
-    result ??=
-      shell && !connection.hello.capabilities.includes(SHELL_INPUT_CAPABILITY)
-        ? create(CommandResultSchema, {
-            commandId: command.commandId,
-            ok: false,
-            errorCode: "SHELL_UNSUPPORTED",
-            errorMessage: "This worker cannot run composer shell commands. Update the worker, then send a new message.",
-          })
-        : await connection.sendCommand(
-            command.kind,
-            shell ? SHELL_INPUT_TIMEOUT_MS + 60_000 : (hostContext[coreState].options.commandTimeoutMs ?? 60_000),
-            command.commandId,
-          );
+    if (shell && !connection.hello.capabilities.includes(SHELL_INPUT_CAPABILITY))
+      result ??= create(CommandResultSchema, {
+        commandId: command.commandId,
+        errorCode: "SHELL_UNSUPPORTED",
+        errorMessage: "This worker cannot run composer shell commands. Update the worker, then send a new message.",
+      });
+
+    if (!result) {
+      const timeout = shell
+        ? SHELL_INPUT_TIMEOUT_MS + 60_000
+        : (hostContext[coreState].options.commandTimeoutMs ?? 60_000);
+
+      const send = () => ({ ack: connection.sendCommand(kind, timeout, command.commandId).catch(() => undefined) });
+
+      // The link queues the frame synchronously. Serialize the handoff with expiry in the disabling transaction,
+      // including pages prefetched on a different gateway; release the row before waiting for the worker.
+      const needsModule = MODULE_COMMANDS.has(kind.case);
+
+      const sent = needsModule ? await coreRun(hostContext, (s) => s.sendPending(command, send)) : send();
+
+      if (!sent) return;
+      result = await sent.ack;
+
+      if (!result) return kind.case === "unloadThread" && connection.isOpen ? command : undefined;
+    }
   } catch {
     // A slow cleanup must keep retrying while online, or a reopen would wait for a reconnect to progress.
     return command.kind.case === "unloadThread" && connection.isOpen ? command : undefined;
@@ -189,6 +231,10 @@ async function deliverCommand(
   // A lifecycle transition can supersede inputs while their worker ACK is in flight.
   if (lifecycleCommand(command) && !(await coreRun(hostContext, (s) => s.commandDispatchable(command.commandId))))
     return;
+
+  // Workers replay their journal before serving commands. Keep cleanup pending until events ahead of its ACK
+  // have also committed, including native goal turns that had no gateway turn ID when Threads was disabled.
+  if (result.ok && kind.case === "unloadThread" && connection.hasUnpersistedEvents(kind.value.threadId)) return command;
 
   // Cleanup failures are transient; the worker must not cache this result as a final ACK.
   if (!result.ok && command.kind.case === "unloadThread" && result.errorCode === "THREAD_CLEANUP_PENDING")
@@ -230,7 +276,11 @@ async function deliverCommand(
     return;
   }
 
-  await coreRun(hostContext, (s) => s.commandDone(command.commandId, result.ok, toJson(CommandResultSchema, result)));
+  const recorded = await coreRun(hostContext, (s) =>
+    s.commandDone(command.commandId, result.ok, toJson(CommandResultSchema, result), legacyThrough),
+  );
+
+  if (!recorded) return legacyThrough !== undefined && connection.isOpen ? command : undefined;
 
   if (command.kind.case === "steerTurn") {
     await coreSteerAnswered(hostContext, command.kind.value.threadId, command.kind.value.inputId, result);

@@ -1,7 +1,8 @@
 import type { connectors } from "@canopy/contracts";
+import { useAppearance } from "../../state/appearance";
 import { useOverview } from "../../state/overview";
 import { SettingsGroup } from "./SettingsGroup";
-import { ResourceState, useSettingsAction } from "./resource";
+import { ResourceState, useSettingsAction, workersFollowStream } from "./resource";
 import { useBotList } from "../../state/bot-list";
 import { SettingAccess } from "./SettingAccess";
 
@@ -13,7 +14,8 @@ export function ConnectorAccess({
   onChanged: () => void;
 }) {
   const list = useBotList();
-  const resource = useSettingsAction(list);
+  const { botsEnabled, threadsEnabled } = useAppearance();
+  const resource = useSettingsAction(botsEnabled ? list : workersFollowStream);
   const { workers } = useOverview();
 
   const change = (patch: { allWorkers?: boolean; workerIds?: string[]; allBots?: boolean; botIds?: string[] }) =>
@@ -37,23 +39,27 @@ export function ConnectorAccess({
 
   return (
     <ResourceState resource={resource}>
-      <SettingsGroup title="Access" description="Only these workers and bots can use this account.">
-        <SettingAccess
-          title="Workers"
-          options={workers.map((w) => ({ id: w.id, name: w.name, online: w.online }))}
-          all={account.allWorkers}
-          ids={account.workerIds}
-          disabled={resource.busy}
-          onChange={(next) => change({ allWorkers: next.all, workerIds: [...next.ids] })}
-        />
-        <SettingAccess
-          title="Bots"
-          options={bots}
-          all={account.allBots}
-          ids={account.botIds}
-          disabled={resource.busy}
-          onChange={(next) => change({ allBots: next.all, botIds: [...next.ids] })}
-        />
+      <SettingsGroup title="Access" description="Choose who can use this account.">
+        {threadsEnabled && (
+          <SettingAccess
+            title="Workers"
+            options={workers.map((w) => ({ id: w.id, name: w.name, online: w.online }))}
+            all={account.allWorkers}
+            ids={account.workerIds}
+            disabled={resource.busy}
+            onChange={(next) => change({ allWorkers: next.all, workerIds: [...next.ids] })}
+          />
+        )}
+        {botsEnabled && (
+          <SettingAccess
+            title="Bots"
+            options={bots}
+            all={account.allBots}
+            ids={account.botIds}
+            disabled={resource.busy}
+            onChange={(next) => change({ allBots: next.all, botIds: [...next.ids] })}
+          />
+        )}
       </SettingsGroup>
     </ResourceState>
   );

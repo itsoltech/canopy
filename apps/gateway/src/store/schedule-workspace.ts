@@ -1,6 +1,6 @@
 import { create, fromJson } from "@bufbuild/protobuf";
 import { ui } from "@canopy/contracts";
-import { selectScheduleWorkspace } from "@canopy/domain";
+import { reserveScheduleWorkspace } from "./schedule-worktree-preparation.ts";
 import { Effect } from "effect";
 import type { SqlClient } from "effect/sql";
 import type { BusScheduleStore } from "./bus-schedules.ts";
@@ -29,8 +29,14 @@ export const prepareSchedule = (sql: SqlClient.SqlClient, input: Parameters<BusS
     if (schedule.concurrency === "skip_if_running" && (yield* scheduleBusy(sql, schedule.id)).length) return;
     const spec = fromJson(ui.NewThreadScheduleSchema, schedule.new_thread);
 
-    const candidates = yield* sql<{ id: string; worker_id: string; owner_user_id: string; load: number }>`
-      SELECT pw.id, pw.worker_id, p.owner_user_id,
+    const candidates = yield* sql<{
+      id: string;
+      worker_id: string;
+      owner_user_id: string;
+      project_kind: string;
+      load: number;
+    }>`
+      SELECT pw.id, pw.worker_id, p.owner_user_id, p.kind AS project_kind,
         (SELECT count(*)::int FROM turns u JOIN threads t ON t.id=u.thread_id
          WHERE t.worker_id=pw.worker_id AND u.status IN ('queued','running')) AS load
       FROM project_workspaces pw JOIN workers w ON w.id=pw.worker_id JOIN projects p ON p.id=pw.project_id
@@ -41,10 +47,10 @@ export const prepareSchedule = (sql: SqlClient.SqlClient, input: Parameters<BusS
         AND w.archived_at IS NULL AND w.revoked_at IS NULL AND pw.worker_id=ANY(${[...eligibleWorkerIds]}::uuid[])
         AND (${spec.placement !== "specific"}::boolean OR pw.id=${spec.workspaceId || null}::uuid)`;
 
-    const placement = selectScheduleWorkspace(spec.placement, candidates, schedule.placement_cursor);
+    const reservation = yield* reserveScheduleWorkspace(sql, schedule, spec, candidates);
 
-    if (!placement) return;
-    const ownerId = candidates.find((candidate) => candidate.id === placement.id)!.owner_user_id;
+    if (!reservation) return;
+    const { placement, owner: ownerId, worktreeId, cwd } = reservation;
 
     const request = create(ui.CreateThreadRequestSchema, {
       projectId: schedule.project_id!,
@@ -56,24 +62,36 @@ export const prepareSchedule = (sql: SqlClient.SqlClient, input: Parameters<BusS
       serviceTier: spec.serviceTier,
       permissionMode: spec.permissionMode,
       title: spec.title,
-      workspaceMode: spec.workspaceMode,
+      workspaceMode: reservation.mode,
+      clientRequestId: worktreeId,
+      worktreeId: cwd ? worktreeId : "",
+      cwd,
       baseRef: spec.baseRef,
       initialMessage: schedule.prompt,
     });
 
-    const prepared = input.prepareWorkspace
-      ? yield* Effect.tryPromise({
-          try: () => input.prepareWorkspace!(request, ownerId, spec.parentThreadId),
-          catch: () => new Invalid("Could not prepare the scheduled workspace; it will retry when available"),
-        }).pipe(
-          Effect.tapError(
-            () => sql`UPDATE schedules SET lease_until=${new Date(now.getTime() + 4_000)}
-              WHERE id=${schedule.id}::uuid AND status='active' AND version=${schedule.version}
-                AND lease_owner=${schedule.lease_owner} AND lease_until=${schedule.lease_until}
-                AND next_run_at=${schedule.next_run_at}`,
-          ),
-        )
-      : request;
+    const prepared =
+      input.prepareWorkspace && !cwd
+        ? yield* Effect.tryPromise({
+            try: () => input.prepareWorkspace!(request, ownerId, spec.parentThreadId),
+            catch: () => new Invalid("Could not prepare the scheduled workspace; it will retry when available"),
+          }).pipe(
+            Effect.tapError(() =>
+              sql.withTransaction(
+                Effect.gen(function* () {
+                  yield* sql`UPDATE schedules SET lease_until=${new Date(now.getTime() + 4_000)}
+                WHERE id=${schedule.id}::uuid AND status='active' AND version=${schedule.version}
+                  AND lease_owner=${schedule.lease_owner} AND lease_until=${schedule.lease_until}
+                  AND next_run_at=${schedule.next_run_at}`;
+
+                  if (worktreeId)
+                    yield* sql`UPDATE schedule_worktree_preparations SET retry_after=now()
+                WHERE schedule_id=${schedule.id}::uuid AND worktree_id=${worktreeId}::uuid`;
+                }),
+              ),
+            ),
+          )
+        : request;
 
     return { request: prepared, ownerId, placement } satisfies PreparedSchedule;
   });
@@ -94,9 +112,15 @@ export const scheduledThread = (
   Effect.gen(function* () {
     const gateway = yield* GatewayStore;
 
-    let owner = yield* gateway.createThread(prepared.ownerId, { ...prepared.request, initialMessage: "" }, undefined, {
-      permissionModeNote: spec.permissionModeNote,
-    });
+    // The preparation key identifies the Git operation. The schedule ledger identifies this thread creation.
+    let owner = yield* gateway.createThread(
+      prepared.ownerId,
+      { ...prepared.request, clientRequestId: "", initialMessage: "" },
+      undefined,
+      {
+        permissionModeNote: spec.permissionModeNote,
+      },
+    );
 
     yield* sql`UPDATE threads SET origin='schedule', schedule_id=${schedule.id}::uuid,
       schedule_name=${schedule.name || schedule.prompt.slice(0, 60)}, schedule_run=${schedule.runs + 1},
