@@ -12,8 +12,8 @@ i odmowy startu lokalnej bazy z uprawnieniami administratora, sesji dostępu do 
 podglądu bieżącej zajętości plików Canopy w Diagnostics oraz własnego HTML w rozmowie
 z odizolowanego renderera offscreen, bezpiecznego zamykania po zniszczeniu głównego okna
 oraz stałego zakresu preferencji urządzenia po restarcie lokalnego gatewaya
-i toastów oraz komunikatu o zakończonej aktualizacji w prawym dolnym rogu,
-które nie zawieszają przeciągania okna.
+i przeciągania okna przy widocznym przycisku „Cite”, podpowiedzi,
+toaście lub komunikacie o zakończonej aktualizacji.
 Dostępność w nightly/beta/stable określają [zasady wydań](release.md) i GitHub Releases.
 
 Implementacja: `apps/desktop`. Cele wydania na każdym kanale: **Linux x64,
@@ -904,8 +904,10 @@ traci kliknięcia. Zasady:
   kontenerach: `dialog`, `[popover]` i `data-window-no-drag` (np. warstwa Quit).
   `windowModal` oznacza ostatnio otwarty modal przez `data-window-modal-top`;
   przeciągać mogą wyłącznie jego jawne paski, nigdy paski pod nim. Otwarcie popovera
-  lub warstwy `data-window-no-drag` zawiesza wszystkie paski. Klik w backdrop nie
-  łapie okna. Zamknięcie zagnieżdżonego modalu przywraca pasek poprzedniego.
+  lub warstwy `data-window-no-drag` zawiesza wszystkie paski. Popovery oznaczone
+  `data-window-keep-drag` zachowują możliwość przeciągania. Przycisk „Cite” pojawia
+  się w obszarze treści, a podpowiedzi przepuszczają zdarzenia wskaźnika.
+  Klik w backdrop nie łapie okna. Zamknięcie zagnieżdżonego modalu przywraca pasek poprzedniego.
 
 Nowy pasek: daj mu `data-window-drag` (zawsze) albo `data-window-titlebar` (tylko przy
 schowanym sidebarze). Nowa warstwa nad paskami poza `dialog`/`[popover]`: `data-window-no-drag`.

@@ -50,6 +50,7 @@ export function tooltip(
     tip.id = `tooltip-${++counter}`;
     tip.popover = "manual";
     tip.setAttribute("role", "tooltip");
+    tip.setAttribute("data-window-keep-drag", "");
     tip.className =
       "t-tt fixed inset-auto top-(--float-y) left-(--float-x) m-0 max-w-64 open:flex items-center gap-2 rounded-md border-0 bg-zinc-950 px-2 py-1 text-xs/4 wrap-anywhere text-white shadow-md pointer-events-none dark:bg-zinc-700 dark:shadow-none";
     tip.append(document.createTextNode(text));
