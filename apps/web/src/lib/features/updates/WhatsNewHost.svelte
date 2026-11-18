@@ -43,11 +43,7 @@
 </script>
 
 {#if notes.notice}
-  <aside
-    class="pointer-events-none fixed inset-x-0 bottom-4 z-40 flex justify-end px-4"
-    aria-label="App updated"
-    data-window-no-drag
-  >
+  <aside class="pointer-events-none fixed inset-x-0 bottom-4 z-40 flex justify-end px-4" aria-label="App updated">
     <div
       transition:rise
       class="pointer-events-auto flex w-full max-w-sm items-start gap-2 rounded-xl border border-divider bg-surface p-3 shadow-lg dark:shadow-none"
