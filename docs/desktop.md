@@ -1,6 +1,7 @@
 # Canopy Desktop
 
-Status: opis zaimplementowanego runtime i pakowania (2026-11-17), w tym ponawiania
+Status: opis zaimplementowanego runtime i pakowania (2026-11-18), w tym osobnego okna
+stanu zamykania i restartu do aktualizacji oraz ponawiania
 pakowania macOS i Windows w CI oraz lokalnego wskazywania
 plików z rozmowy w Finder/Explorer i pomijania cache przy ręcznym
 sprawdzaniu aktualizacji, wykrywania pojedynczego procesu przez instalator Windows
@@ -913,9 +914,22 @@ pisania w composerze lub edytorze. Skróty można zmienić w Settings → Keybin
 Natywna pozycja zamknięcia okna na Windows/Linux nie ma akceleratora, żeby nie
 przejmowała `Ctrl+W`, również po zmianie lub usunięciu skrótu karty.
 
-Po rozpoczęciu zamykania main od razu chowa wszystkie okna. Proces Electron pozostaje
-aktywny do zakończenia sprzątania kontrolera; zachowane są limity kontrolera (30 s)
-i main (35 s). Bezstanowy lokalny web w kontrolerze zamyka listener i wszystkie połączenia
+Po potwierdzeniu niezapisanych zmian main od razu chowa okna aplikacji i unieważnia sesję
+BFF. Jeśli kontroler jeszcze działa, pokazuje osobne, niewielkie okno `Closing Canopy…`
+z komunikatem o zapisie ostatniego stanu i zatrzymywaniu usług. Restart do aktualizacji
+pokazuje `Restarting Canopy…`. Okno używa bieżącej palety, respektuje ograniczenie ruchu
+i znika po zakończeniu sprzątania; zwykłe zamknięcie tego okna nie przerywa wyłączania.
+Tray pokazuje ten sam stan i jedyną akcję `Show closing status`, która przywraca okno;
+kliknięcie ikony również je przywraca. Spóźnione statusy nie odtwarzają zwykłego menu.
+Widok jest samowystarczalnym dokumentem `data:` w osobnej, nietrwałej sesji Electron,
+bez preloadu, JavaScript, sieci ani dostępu do IPC aplikacji. Nie zależy od zatrzymywanego
+BFF ani jego unieważnionego sekretu. Działa również po zniszczeniu ostatniego okna
+na Windows/Linux. Na macOS zamknięcie ostatniego okna bez Quit nadal pozostawia aplikację
+uruchomioną i nie pokazuje stanu zamykania.
+Ładowanie startowe przerwane przez Quit nie wyświetla błędu uruchomienia aplikacji.
+Proces Electron pozostaje aktywny do zakończenia sprzątania kontrolera; zachowane są
+limity kontrolera (30 s) i main (35 s).
+Bezstanowy lokalny web w kontrolerze zamyka listener i wszystkie połączenia
 od razu, równolegle z usługami: otwarte połączenia HTTP/SSE przeglądarki nie wymagają
 oczekiwania na drain adapter-node.
 Usługi zachowują kolejność worker → gateway → PostgreSQL. Postgres nadal dostaje
