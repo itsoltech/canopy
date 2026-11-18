@@ -58,7 +58,6 @@ export function Segmented<T extends string>({
       shadowOpacity: 0.05,
       shadowRadius: 1,
       shadowOffset: { width: 0, height: 1 },
-      elevation: 1,
     }),
   };
 
@@ -68,6 +67,7 @@ export function Segmented<T extends string>({
       style={[styles.row, { backgroundColor: c.recess, padding: GAP, gap: GAP, borderRadius: 8 }, style]}
     >
       {segment > 0 && (
+        // Android elevation would draw the moving pill over the tab labels.
         <Animated.View
           pointerEvents="none"
           style={[raised, { position: "absolute", top: GAP, bottom: GAP, left: GAP, width: segment }, pill]}
