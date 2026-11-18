@@ -44,7 +44,13 @@ export interface AgentsTransportMethods {
   redirect(args: Arguments): void;
   peer(ref: string): Promise<string>;
   sameHome(node: string, args: Arguments): Promise<void>;
-  ui<D extends DescMessage>(name: string, request: Message, output: D, home?: string): Promise<MessageShape<D>>;
+  ui<D extends DescMessage>(
+    name: string,
+    request: Message,
+    output: D,
+    home?: string,
+    signal?: AbortSignal,
+  ): Promise<MessageShape<D>>;
   snapshot(id: string, access?: "bot-thread"): Promise<ui.ThreadSnapshot>;
   thread(id: string, access?: "bot-thread"): Promise<ui.Thread>;
   exchange(id: string): Promise<bots.BotMessage[]>;
@@ -172,6 +178,7 @@ export const agentsTransportMethods: AgentsTransportMethods = {
     request: Message,
     output: D,
     home?: string,
+    signal?: AbortSignal,
   ): Promise<MessageShape<D>> {
     if (requiresLinkedModules(request)) await requireLinkedModules(this);
     const method = methodNamed(name)!;
@@ -189,7 +196,7 @@ export const agentsTransportMethods: AgentsTransportMethods = {
       node,
       method,
       outbound,
-      AbortSignal.timeout(unaryTimeout(method)),
+      signal ?? AbortSignal.timeout(unaryTimeout(method)),
     )) {
       qualify(output, result, node);
       await ids.map(output, result, "toLocal");

@@ -1,4 +1,5 @@
-/** Peer I/O never contributes to the latency of local aggregate reads. */
+// An agent's aggregate catalog may include live, permission-scoped results received within this budget.
+export const PEER_CATALOG_BUDGET_MS = 200;
 export const PEER_READ_TIMEOUT_MS = 10_000;
 export const PEER_UPDATE_CHECK_TIMEOUT_MS = 120_000;
 export const PEER_UPDATE_INSTALL_TIMEOUT_MS = 15 * 60_000;

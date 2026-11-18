@@ -132,7 +132,7 @@ export interface CoreGoalsMethods {
  * - Claude: `/goal …` as a queued turn of the goal. Claude has no pause: pause and clear interrupt the
  *   running turn (the evaluator keeps a goal turn going) and queue `/goal clear`; resume sets it again.
  */
-async function setThreadGoal(this: GatewayCore, request: ui.SetGoalRequest): Promise<ui.Goal> {
+async function setThreadGoal(this: GatewayCore, request: ui.SetGoalRequest): Promise<string> {
   const thread = await coreRun(this, (s) => s.thread(request.threadId));
 
   if (thread.owner_user_id !== this[coreState].options.userId) throw new InvalidError("thread not found");
@@ -195,22 +195,29 @@ async function setThreadGoal(this: GatewayCore, request: ui.SetGoalRequest): Pro
       throw new InvalidError("action is set, pause, resume or clear");
   }
 
-  const update = toUiGoal(await coreGoals(this, (store) => store.goal(goal.id)));
-  this.hub.publishThread(thread.id, create(ui.ThreadUpdateSchema, { change: { case: "goal", value: update } }));
-  await coreBroadcastThread(this, thread.id);
-
-  if (request.action === "set") coreAutoTitle(this, thread.id, titleContext({ text: request.objective }));
-
-  return update;
+  return goal.id;
 }
 
 export const coreGoalsMethods: CoreGoalsMethods = {
   async setGoal(this: GatewayCore, request: ui.SetGoalRequest) {
-    return this[coreState].actions.transaction(async () => {
-      await requireThreadModule(this);
+    const { actions } = this[coreState];
 
-      return setThreadGoal.call(this, request);
+    const goalId = await actions.transaction(async () => {
+      await requireThreadModule(this);
+      const id = await setThreadGoal.call(this, request);
+
+      // Claude goal turns are admitted after commit. Publish the resulting state even for nested bot actions.
+      actions.defer(async () => {
+        await coreBroadcastGoal(this, request.threadId);
+        await coreBroadcastThread(this, request.threadId);
+      });
+
+      if (request.action === "set") coreAutoTitle(this, request.threadId, titleContext({ text: request.objective }));
+
+      return id;
     });
+
+    return toUiGoal(await coreGoals(this, (store) => store.goal(goalId)));
   },
 
   /** Stops a running background task (StopTask to the worker; the item ends when the worker reports it). */
