@@ -12,6 +12,7 @@ import type { BotCore } from "./store-queue.ts";
 import { botRules } from "./store-rules.ts";
 import { BOT_APPROVAL_OPTIONS } from "@canopy/domain/bot-chat";
 import { interruptBot } from "./store-interrupt.ts";
+import { activeConversation } from "../messengers/conversation-access.ts";
 
 function requireWaitingHarness(sql: SqlClient.SqlClient, turnId: string) {
   return Effect.gen(function* () {
@@ -22,10 +23,18 @@ function requireWaitingHarness(sql: SqlClient.SqlClient, turnId: string) {
   });
 }
 
+function requireExternalSource(sql: SqlClient.SqlClient, turn: BotTurn) {
+  return Effect.gen(function* () {
+    if (turn.conversation_id && !(yield* activeConversation(sql, turn.bot_id, turn.conversation_id)))
+      return yield* Effect.fail(new Invalid("External conversation is unavailable"));
+  });
+}
+
 function startRemoteCall(sql: SqlClient.SqlClient, core: BotCore, turn: BotTurn, call: StoredCall, linked: boolean) {
   return sql.withTransaction(
     Effect.gen(function* () {
       yield* core.fenced(turn);
+      yield* requireExternalSource(sql, turn);
       yield* requireWaitingHarness(sql, turn.id);
 
       const started = yield* sql`UPDATE bot_tool_calls SET status = 'running', linked_remote = ${linked}
@@ -69,9 +78,15 @@ export function botTurns(sql: SqlClient.SqlClient, core: BotCore) {
         }),
       ),
     heartbeat: (turn: BotTurn) =>
-      sql`UPDATE bot_turns SET lease_until = now() + interval '30 seconds' WHERE id = ${turn.id}::uuid AND lease_token = ${turn.lease_token}::uuid AND status = 'running' AND lease_until > now() RETURNING id`.pipe(
-        Effect.map((r) => r.length > 0),
-      ),
+      Effect.gen(function* () {
+        if (turn.conversation_id && !(yield* activeConversation(sql, turn.bot_id, turn.conversation_id))) return false;
+
+        return (
+          (yield* sql`UPDATE bot_turns SET lease_until = now() + interval '30 seconds'
+          WHERE id = ${turn.id}::uuid AND lease_token = ${turn.lease_token}::uuid
+            AND status = 'running' AND lease_until > now() RETURNING id`).length > 0
+        );
+      }),
     status: (turn: BotTurn, text: string) =>
       sql.withTransaction(
         Effect.gen(function* () {
@@ -117,6 +132,7 @@ export function botTurns(sql: SqlClient.SqlClient, core: BotCore) {
           }
 
           yield* requireWaitingHarness(sql, turn.id);
+          yield* requireExternalSource(sql, turn);
 
           const result = yield* effect;
           yield* sql`UPDATE bot_tool_calls SET status = 'completed', result = ${JSON.stringify(result ?? null)}::jsonb WHERE id = ${call.id}::uuid`;

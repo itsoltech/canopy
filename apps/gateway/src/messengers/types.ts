@@ -4,6 +4,7 @@ export interface MessengerAccount {
   name: string;
   provider: "slack";
   externalId: string;
+  connectorAccountId?: string;
   enabled: boolean;
   status: string;
 }
@@ -13,10 +14,20 @@ export interface MessengerCredentials {
   botToken: string;
 }
 
+/** Gateway-only sealed bot authorization. Never returned by runtime credential acquisition. */
+export interface SlackBotAuthorization extends MessengerCredentials {
+  refreshToken?: string | undefined;
+  expiresAt?: number | undefined;
+  clientId?: string | undefined;
+  appId?: string | undefined;
+  teamId?: string | undefined;
+}
+
 export interface SaveMessengerAccount {
   /** Verified by the gateway adapter before persistence. */
   externalId: string;
   id?: string;
+  connectorAccountId?: string;
   name: string;
   enabled?: boolean;
   appToken?: string;

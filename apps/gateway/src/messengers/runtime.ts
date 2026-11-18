@@ -65,7 +65,7 @@ export class MessengerRuntime {
 
     if (now.getTime() >= this.#refreshAt) {
       this.#refreshAt = now.getTime() + 5000;
-      await this.#refresh(now);
+      await this.#refresh();
     }
 
     if (this.#stopped || !this.#configured) return;
@@ -89,15 +89,21 @@ export class MessengerRuntime {
     await this.core.bots.tick();
   }
 
-  async #refresh(now: Date): Promise<void> {
+  async #refresh(): Promise<void> {
     const accounts = await this.run((s) => s.accounts(this.owner));
-    const enabled = new Map(accounts.filter((a) => a.enabled).map((a) => [a.id, a]));
+
+    const enabled = new Map(
+      accounts
+        .filter((a) => a.enabled && !["needs_authorization", "needs_reconnect"].includes(a.status))
+        .map((a) => [a.id, a]),
+    );
+
     this.#configured = enabled.size > 0;
 
     for (const [id, session] of this.#accounts) {
       const account = enabled.get(id);
-      const credentials = account ? await this.run((s) => s.credentials(this.owner, id)) : undefined;
-      const renewed = account && (await this.run((s) => s.renewAccount(this.owner, session.lease, now)));
+      const credentials = account ? await this.#credentials(id) : undefined;
+      const renewed = account && (await this.run((s) => s.renewAccount(this.owner, session.lease, this.now())));
 
       if (!credentials || credentialKey(credentials) !== session.signature || !renewed) {
         this.#accounts.delete(id);
@@ -107,11 +113,24 @@ export class MessengerRuntime {
 
     for (const account of enabled.values()) {
       if (this.#accounts.has(account.id) || this.#stopped) continue;
-      const lease = await this.run((s) => s.claimAccount(this.owner, account.id, this.options.instanceId, now));
+      const credentials = await this.#credentials(account.id);
+
+      if (!credentials) continue;
+      const lease = await this.run((s) => s.claimAccount(this.owner, account.id, this.options.instanceId, this.now()));
 
       if (!lease) continue;
-      const credentials = await this.run((s) => s.credentials(this.owner, account.id));
       this.#accounts.set(account.id, new MessengerAccountSession(this, account, lease, credentials));
+    }
+  }
+
+  async #credentials(id: string) {
+    try {
+      return await this.run((s) => s.credentials(this.owner, id, this.options.messengerTransport));
+    } catch {
+      // One revoked or unavailable connection must not block reception for other accounts.
+      this.options.log?.("messengers: account credentials unavailable");
+
+      return undefined;
     }
   }
 

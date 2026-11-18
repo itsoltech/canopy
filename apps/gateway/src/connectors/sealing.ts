@@ -31,7 +31,23 @@ export function connectorSealing(sql: SqlClient.SqlClient, key: Buffer) {
     });
 
   const updateCredentials = (row: AccountRow, value: Credentials, status = row.status) =>
-    sql`UPDATE connector_accounts SET credentials=${seal(value)}, legacy_headers='{}', status=${status}, error=NULL, updated_at=now() WHERE id=${row.id}::uuid`;
+    Effect.gen(function* () {
+      if (row.connector_type === "slack") {
+        const previous = unseal(row);
+
+        const identityChanged =
+          !!previous.accountIdentity && !!value.accountIdentity && previous.accountIdentity !== value.accountIdentity;
+
+        yield* sql`UPDATE messenger_accounts SET status='needs_authorization',lease_token=NULL,lease_until=NULL,revision=revision+1
+        WHERE connector_account_id=${row.id}::uuid AND owner_user_id=${row.owner_user_id}::uuid
+        AND ((${value.slackTeamId ?? null}::text IS NOT NULL AND connector_team_id IS DISTINCT FROM ${value.slackTeamId ?? null})
+          OR ${identityChanged})`;
+      }
+
+      yield* sql`UPDATE connector_accounts SET credentials=${seal(value)},legacy_headers='{}',status=${status},error=NULL,
+      slack_team_id=COALESCE(${value.slackTeamId ?? null},slack_team_id),slack_refresh_attempt=NULL,slack_refresh_started_at=NULL,
+      updated_at=now() WHERE id=${row.id}::uuid`;
+    });
 
   return { opened, unseal, seal, credentials, updateCredentials };
 }

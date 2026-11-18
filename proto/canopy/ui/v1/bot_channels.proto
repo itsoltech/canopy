@@ -9,6 +9,7 @@ message MessengerAccount {
   string external_id = 4;
   bool enabled = 5;
   string status = 6;
+  string connector_account_id = 7;
 }
 message ListMessengerAccountsRequest {}
 message ListMessengerAccountsResponse {
@@ -22,6 +23,7 @@ message SaveMessengerAccountRequest {
   optional bool enabled = 3;
   optional string app_token = 4;
   optional string bot_token = 5;
+  string connector_account_id = 6;
 }
 message SaveMessengerAccountResponse { MessengerAccount account = 1; }
 message DeleteMessengerAccountRequest { string account_id = 1; }

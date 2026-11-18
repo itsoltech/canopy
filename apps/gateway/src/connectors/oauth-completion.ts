@@ -2,9 +2,11 @@ import type { connectors } from "@canopy/contracts";
 import { isOAuthState, parsePastedCode } from "@canopy/domain/oauth-return";
 import { Effect } from "effect";
 import type { ConnectorsRuntime } from "./runtime.ts";
+import { SlackMessagingSetupConflict } from "./store-slack-messaging.ts";
 import { authorizeOAuth } from "./oauth.ts";
 import { ConnectorOAuthFailure, oauthFailure } from "./oauth-error.ts";
 import { connectorTestError } from "./test-error.ts";
+import type { SlackTransport } from "../messengers/slack-http.ts";
 import { McpFailure } from "../bots/mcp-errors.ts";
 
 /** All returns share one claim/exchange path. A receipt confirms success without reusing authorization. */
@@ -12,6 +14,7 @@ export async function completeOAuth(
   runtime: Pick<ConnectorsRuntime, "run">,
   user: string,
   input: connectors.CompleteConnectorOAuthRequest,
+  transport?: SlackTransport,
 ) {
   const pasted = input.pastedCode ? parsePastedCode(input.pastedCode) : undefined;
 
@@ -30,9 +33,22 @@ export async function completeOAuth(
   const session = await runtime.run((s) => s.consumeState(user, request.state, request.browserBinding));
 
   if (session.used) {
-    const account = await runtime.run((s) => s.owned(user, session.accountId).pipe(Effect.flatMap(s.view)));
+    const connected = await runtime.run((s) =>
+      Effect.gen(function* () {
+        const row = yield* s.owned(user, session.accountId);
 
-    if (session.completed && account.status === "connected") return { account, alreadyConnected: true };
+        return {
+          account: yield* s.view(row),
+          messaging: session.value.slackMessaging ? yield* s.slackMessagingConnected(row) : false,
+        };
+      }),
+    );
+
+    if (
+      session.completed &&
+      (session.value.slackMessaging ? connected.messaging : connected.account.status === "connected")
+    )
+      return { account: connected.account, alreadyConnected: true };
     throw oauthFailure("oauth_used", "This code was already used. Start sign-in again.");
   }
 
@@ -54,21 +70,38 @@ export async function completeOAuth(
           return yield* Effect.fail(
             oauthFailure("oauth_issuer", "The sign-in provider did not match. Start sign-in again."),
           );
-        yield* Effect.tryPromise({
-          try: () => authorizeOAuth(row.url, session.value, request.state, undefined, request.code),
-          catch: (cause) => {
-            const error = connectorTestError(
-              cause instanceof McpFailure ? cause : new McpFailure("protocol", "oauth/token", 0, "invalid_response"),
-              row.connector_type,
-              session.value,
-              [request.code, request.state],
-            );
 
-            return new ConnectorOAuthFailure(error.kind, error.message, error.detail);
-          },
-        });
-        delete session.value.verifier;
-        yield* s.updateCredentials(row, session.value, "connected");
+        if (session.value.slackMessaging) {
+          yield* s
+            .completeSlackMessaging(row, session.value, request.code, transport)
+            .pipe(
+              Effect.mapError((cause) =>
+                oauthFailure(
+                  "oauth_changed",
+                  cause instanceof SlackMessagingSetupConflict
+                    ? cause.message
+                    : "Slack authorization failed. Check the workspace and shared app, then try again.",
+                ),
+              ),
+            );
+        } else {
+          yield* Effect.tryPromise({
+            try: () => authorizeOAuth(row.url, session.value, request.state, undefined, request.code),
+            catch: (cause) => {
+              const error = connectorTestError(
+                cause instanceof McpFailure ? cause : new McpFailure("protocol", "oauth/token", 0, "invalid_response"),
+                row.connector_type,
+                session.value,
+                [request.code, request.state],
+              );
+
+              return new ConnectorOAuthFailure(error.kind, error.message, error.detail);
+            },
+          });
+          delete session.value.verifier;
+          yield* s.updateCredentials(row, session.value, "connected");
+        }
+
         yield* s.completeState(user, request.state, request.browserBinding);
         yield* s.audit({ userId: user, accountId: row.id }, "oauth", "connected");
 

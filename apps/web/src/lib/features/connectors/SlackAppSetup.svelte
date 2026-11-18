@@ -26,7 +26,9 @@
   ];
 
   const existingSteps = [
-    "Turn on MCP access in the Slack app's settings or manifest.",
+    "Enable PKCE and MCP access. Add bot user, App Home, message events and Socket Mode from the manifest.",
+    "Keep token rotation enabled if already in use.",
+    "Save the manifest and reinstall the same app in your workspace.",
     "Ask the app's owner for its client ID and client secret, then paste them below.",
   ];
 
@@ -41,7 +43,7 @@
       clearTimeout(timer);
       timer = setTimeout(() => (copied = false), 1500);
     } catch {
-      toast("Copying is not allowed here", { tone: "error" });
+      toast("Could not copy the manifest. Allow clipboard access and try again.", { tone: "error" });
     }
   }
 </script>
@@ -76,6 +78,7 @@
     </p>
   {:else}
     <StepList steps={existingSteps} class="text-base/6 sm:text-sm/6" />
+    <div><Button size="sm" onclick={copyManifest}>Copy manifest</Button></div>
   {/if}
   <Disclosure summaryClass="text-base/6 sm:text-sm/6"
     >{#snippet summary()}Redirect URL for a manual setup{/snippet}

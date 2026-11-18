@@ -1,7 +1,7 @@
 import { afterAll, beforeAll, describe, expect, test } from "bun:test";
 import { randomBytes } from "node:crypto";
 import { create, toJson } from "@bufbuild/protobuf";
-import { bots, Provider } from "@canopy/contracts";
+import { bots, connectors, Provider } from "@canopy/contracts";
 import { dockerAvailable, startPostgres, type TestPostgres } from "@canopy/db/testing";
 import { Effect, Layer, ManagedRuntime } from "effect";
 import { SqlClient } from "effect/sql";
@@ -12,6 +12,8 @@ import { eventually, startTestGateway } from "./support/gateway.ts";
 import { BotStore } from "../../apps/gateway/src/bots/store.ts";
 import type { BotTurn } from "../../apps/gateway/src/bots/types.ts";
 import { MessengerStore } from "../../apps/gateway/src/messengers/store.ts";
+import { connectorStore, type ConnectorStore } from "../../apps/gateway/src/connectors/store.ts";
+import { encryptSecret } from "../../apps/gateway/src/store/secrets.ts";
 import type { AccountLease, MessengerEvent, SaveMessengerRoute } from "../../apps/gateway/src/messengers/types.ts";
 
 function services(db: TestPostgres, key: Buffer) {
@@ -32,6 +34,9 @@ describe.skipIf(!dockerAvailable)("durable bot messenger channels", () => {
 
   const botRun = <A, E>(use: (store: BotStore["Service"]) => Effect.Effect<A, E>) =>
     runtime.runPromise(BotStore.use(use));
+
+  const connectorRun = <A, E>(use: (store: ConnectorStore) => Effect.Effect<A, E>) =>
+    runtime.runPromise(Effect.flatMap(SqlClient.SqlClient, (sql) => use(connectorStore(sql, key))));
 
   const query = <A extends object>(statement: string, values: readonly (string | number)[] = []) =>
     runtime.runPromise(Effect.flatMap(SqlClient.SqlClient, (sql) => sql.unsafe<A>(statement, values)));
@@ -132,6 +137,42 @@ describe.skipIf(!dockerAvailable)("durable bot messenger channels", () => {
       ]);
 
     return { botId, account, route, lease, now, at, event, ingest, dispatch, turns };
+  };
+
+  const linkAccount = async (accountId: string) => {
+    const id = Bun.randomUUIDv7();
+    await connectorRun((s) =>
+      s.saveApp(
+        owner,
+        create(connectors.SaveConnectorOAuthAppRequestSchema, {
+          connectorType: "slack",
+          issuer: "https://slack.example.test",
+          clientId: "messenger-test-client",
+          clientSecret: "fixture-secret",
+        }),
+      ),
+    );
+    await query(
+      "INSERT INTO connector_accounts(id,owner_user_id,connector_type,name,namespace,url,transport,auth_kind,status,credentials,slack_team_id) VALUES($1::uuid,$2::uuid,'slack','Slack',$1::text,'https://slack.example.test/mcp','http','oauth','connected',decode($3,'hex'),'TMESSENGER')",
+      [
+        id,
+        owner,
+        encryptSecret(
+          key,
+          JSON.stringify({
+            client: { client_id: "messenger-test-client" },
+            slackTeamId: "TMESSENGER",
+            tokens: { access_token: "fixture", token_type: "bearer" },
+          }),
+        ).toString("hex"),
+      ],
+    );
+    await query(
+      "UPDATE messenger_accounts SET connector_account_id=$1,connector_client_id='messenger-test-client',connector_team_id='TMESSENGER' WHERE id=$2",
+      [id, accountId],
+    );
+
+    return id;
   };
 
   test("credentials are encrypted and owner scoped; leases fence stale gateways and route responders", async () => {
@@ -473,6 +514,143 @@ describe.skipIf(!dockerAvailable)("durable bot messenger channels", () => {
     await f.dispatch(4000);
     expect(await f.turns()).toHaveLength(0);
   });
+  test("linked Slack revocation fences active tools, steers, recovery, finish and stale outbound sessions", async () => {
+    for (const reason of ["disconnect", "delete", "app", "credentials", "reconnect", "authorization"]) {
+      const f = await fixture();
+      const connectorId = await linkAccount(f.account.id);
+      await f.ingest("pending-reply", "Prepare a pending reply");
+      expect(await run((s) => s.dispatch(other, f.at(3000)))).toEqual([]);
+      expect(await f.turns()).toHaveLength(0);
+      await f.dispatch(3000);
+      const previous = (await botRun((s) => s.claim(owner)))!;
+      await botRun((s) => s.finish(previous, "completed", "Pending delivery"));
+      await expect(run((s) => s.outbound(other, f.lease, f.at(4000)))).rejects.toThrow();
+      await f.ingest("running", "Continue working", 4000);
+      await f.dispatch(7000);
+      const turn = (await botRun((s) => s.claim(owner)))!;
+
+      const call = await botRun((s) =>
+        s.planCall(
+          turn,
+          Bun.randomUUIDv7(),
+          {
+            name: "source_effect",
+            description: "Exercise source admission",
+            parameters: {},
+            source: "platform",
+          },
+          {},
+        ),
+      );
+
+      await f.ingest("attempted-steer", "Do not apply this after revocation", 8000);
+      const steer = (await f.dispatch(11_000))[0]!;
+      await f.ingest("buffered", "Do not recover this after revocation", 12_000);
+      expect(await botRun((s) => s.originEnabled(turn))).toBe(true);
+
+      if (reason === "disconnect") {
+        await expect(connectorRun((s) => s.disconnect(other, connectorId))).rejects.toThrow();
+        expect(await botRun((s) => s.originEnabled(turn))).toBe(true);
+        await connectorRun((s) => s.disconnect(owner, connectorId));
+      } else if (reason === "delete") {
+        await connectorRun((s) => s.remove(owner, connectorId));
+
+        const orphan = (
+          await query<{ connector_account_id: string | null; connector_client_id: string }>(
+            "SELECT connector_account_id,connector_client_id FROM messenger_accounts WHERE id=$1",
+            [f.account.id],
+          )
+        )[0]!;
+
+        expect(orphan.connector_account_id).toBeNull();
+        expect(orphan.connector_client_id).toBe("messenger-test-client");
+      } else if (reason === "app") {
+        await connectorRun((s) =>
+          s.saveApp(
+            owner,
+            create(connectors.SaveConnectorOAuthAppRequestSchema, {
+              connectorType: "slack",
+              issuer: "https://slack.example.test",
+              clientId: "replacement-client",
+              clientSecret: "fixture-secret",
+            }),
+          ),
+        );
+      } else if (reason === "credentials") {
+        const account = await connectorRun((s) => s.owned(owner, connectorId));
+        await connectorRun((s) =>
+          s.save(
+            owner,
+            create(connectors.SaveConnectorAccountRequestSchema, {
+              id: connectorId,
+              name: "Slack",
+              expectedRevision: BigInt(account.revision),
+              replaceCredentials: true,
+            }),
+          ),
+        );
+      } else if (reason === "reconnect") {
+        await query("UPDATE connector_accounts SET status='needs_reconnect' WHERE id=$1", [connectorId]);
+      } else {
+        await query("UPDATE messenger_accounts SET status='needs_authorization' WHERE id=$1", [f.account.id]);
+      }
+
+      expect(await botRun((s) => s.originEnabled(turn))).toBe(false);
+      expect(await botRun((s) => s.heartbeat(turn))).toBe(false);
+      let executed = false;
+      await expect(
+        botRun((s) =>
+          s.action(
+            turn,
+            call,
+            Effect.sync(() => {
+              executed = true;
+
+              return {};
+            }),
+          ),
+        ),
+      ).rejects.toThrow();
+      expect(executed).toBe(false);
+      await expect(botRun((s) => s.remoteStarted(turn, call))).rejects.toThrow();
+      await run((s) => s.settleSteer(owner, steer.id, true, turn.id));
+      expect(
+        (await query<{ status: string }>("SELECT status FROM bot_channel_inputs WHERE id=$1", [steer.id]))[0]!.status,
+      ).toBe("attempted");
+      expect(await f.dispatch(15_000)).toEqual([]);
+      await botRun((s) => s.finish(turn, "completed", "Revoked source must not publish"));
+      await f.dispatch(20_000);
+      expect(await f.turns()).toHaveLength(2);
+      expect(await query("SELECT id FROM messenger_outbound WHERE turn_id=$1", [turn.id])).toHaveLength(0);
+      await expect(run((s) => s.outbound(owner, f.lease, f.at(21_000)))).rejects.toThrow();
+      await expect(f.ingest("stale-session", "Must not enter the buffer", 22_000)).rejects.toThrow();
+      expect(await run((s) => s.renewAccount(owner, f.lease, f.at(22_000)))).toBe(false);
+      expect(
+        await run((s) => s.claimAccount(owner, f.account.id, "new-session", f.at(2 * 86_400_000))),
+      ).toBeUndefined();
+    }
+  });
+
+  test("linked Slack MCP errors allow separate messaging while client mismatches block buffered dispatch", async () => {
+    const f = await fixture();
+    await linkAccount(f.account.id);
+    await query(
+      "UPDATE connector_accounts SET status='error' WHERE id=(SELECT connector_account_id FROM messenger_accounts WHERE id=$1)",
+      [f.account.id],
+    );
+    await f.ingest("mcp-error", "Messaging permission is separate from MCP");
+    await f.dispatch(3000);
+    const turn = (await botRun((s) => s.claim(owner)))!;
+    expect(await botRun((s) => s.originEnabled(turn))).toBe(true);
+    await botRun((s) => s.finish(turn, "completed", "Messaging still works"));
+    expect(await run((s) => s.outbound(owner, f.lease, f.at(4000)))).toHaveLength(1);
+    await f.ingest("client-mismatch", "Do not dispatch for another app", 5000);
+    await query("UPDATE messenger_accounts SET connector_client_id='unrelated-client' WHERE id=$1", [f.account.id]);
+    await f.dispatch(8000);
+    expect(await f.turns()).toHaveLength(1);
+    await expect(run((s) => s.outbound(owner, f.lease, f.at(9000)))).rejects.toThrow();
+  });
+
   test("delivery notices keep bot locks before account locks during subscription changes", async () => {
     for (const recovering of [false, true]) {
       const f = await fixture();

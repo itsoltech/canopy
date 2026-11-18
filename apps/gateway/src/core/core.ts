@@ -9,6 +9,7 @@ import {
   createCoreBots,
   createCoreBus,
   createCoreCheckWatches,
+  createCoreConnectors,
   createCoreScheduler,
   createCoreUpdates,
 } from "./core-composition.ts";
@@ -26,7 +27,7 @@ import { Scheduler } from "./scheduler.ts";
 import { BotsRuntime } from "../bots/runtime.ts";
 import { ThreadSecrets } from "./thread-secrets.ts";
 import { ActionContext } from "./action-context.ts";
-import { ConnectorsRuntime } from "../connectors/runtime.ts";
+import type { ConnectorsRuntime } from "../connectors/runtime.ts";
 import { MessengerRuntime } from "../messengers/runtime.ts";
 import { WorkerAdministration } from "./worker-administration.ts";
 import { MobileDevices } from "./mobile-devices.ts";
@@ -53,7 +54,6 @@ import { LinkedAgents } from "../computers/agents.ts";
 import type { GatewayRole } from "../role.ts";
 import { coreState, type GatewayCoreOptions } from "./core-context.ts";
 import { createCoreWorkerLink } from "./core-workers.ts";
-import { corePublishInteraction } from "./core-interactions.ts";
 import { coreSendSteer } from "./core-messages.ts";
 import { coreAttachmentsMethods, type CoreAttachmentsMethods } from "./core-attachments.ts";
 import { coreBotThreadsMethods, type CoreBotThreadsMethods } from "./core-bot-threads.ts";
@@ -84,7 +84,7 @@ import { coreWorkLoopMethods, type CoreWorkLoopMethods } from "./core-work-loop.
 import { coreWorktreesMethods, type CoreWorktreesMethods } from "../worktrees/core-worktrees.ts";
 import { coreWorktreeLifecycleMethods, type CoreWorktreeLifecycleMethods } from "../worktrees/core-lifecycle.ts";
 import { WorktreeCleanupSchedule } from "../worktrees/cleanup-schedule.ts";
-import { allowFullAccessPermission, updateTurnPermissions } from "./live-turn-permissions.ts";
+import { updateTurnPermissions } from "./live-turn-permissions.ts";
 
 export {
   describeError,
@@ -300,12 +300,7 @@ export class GatewayCore {
       (release) => releaseFound(this, release),
     );
     this.appControl = new LocalAppControl(options.runtime, options.userId, () => this.feeds.updatesChanged());
-    this.connectors = new ConnectorsRuntime({
-      runtime: options.runtime,
-      userId: options.userId,
-      interaction: (interaction) =>
-        corePublishInteraction(this, interaction).then(() => allowFullAccessPermission(this, interaction)),
-    });
+    this.connectors = createCoreConnectors(this, options);
     this.github = createCoreGitHub(this, options);
     this.bots = createCoreBots(this, options);
     this.link = createCoreWorkerLink(this);

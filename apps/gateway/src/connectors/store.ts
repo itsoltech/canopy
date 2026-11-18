@@ -5,6 +5,7 @@ import { connectorWrites } from "./store-writes.ts";
 import { connectorState } from "./store-state.ts";
 import type { Effect } from "effect";
 import { connectorTransaction } from "../config-sync/connector-records.ts";
+import { connectorSlackMessaging } from "./store-slack-messaging.ts";
 import { connectorApps } from "./store-apps.ts";
 import { threadConnectorGrant, threadConnectorList } from "./thread-grant.ts";
 
@@ -31,6 +32,7 @@ export function connectorStore(sql: SqlClient.SqlClient, key: Buffer) {
     threadGrant: threadConnectorGrant(sql, base, key),
     threadPanel: (user: string, worker: string, threadId: string) => threadConnectorList(sql, user, worker, threadId),
     ...connectorApps(sql, base, key),
+    ...connectorSlackMessaging(sql, base, key),
     ...connectorState(sql, base, key),
   };
 }

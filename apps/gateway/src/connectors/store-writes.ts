@@ -116,7 +116,13 @@ export function connectorWrites(sql: SqlClient.SqlClient, base: ConnectorBase, k
         VALUES (${id}::uuid,${user}::uuid,${type.id},${name},${namespace},${url},${transport},${authKind},${seal(value)},${status})
         ON CONFLICT(id) DO UPDATE SET name=EXCLUDED.name,url=EXCLUDED.url,transport=EXCLUDED.transport,auth_kind=EXCLUDED.auth_kind,
         credentials=EXCLUDED.credentials,legacy_headers='{}',status=EXCLUDED.status,error=CASE WHEN ${replacing} THEN NULL ELSE connector_accounts.error END,tools=CASE WHEN ${replacing || old?.name !== name} THEN '[]'::jsonb ELSE connector_accounts.tools END,
+        slack_refresh_attempt=CASE WHEN ${replacing} THEN NULL ELSE connector_accounts.slack_refresh_attempt END,
+        slack_refresh_started_at=CASE WHEN ${replacing} THEN NULL ELSE connector_accounts.slack_refresh_started_at END,
         revision=connector_accounts.revision+1,updated_at=now()`;
+
+          if (replacing && old)
+            yield* sql`UPDATE messenger_accounts SET status='needs_authorization',
+            lease_until=NULL,lease_token=NULL,revision=revision+1 WHERE connector_account_id=${id}::uuid AND owner_user_id=${user}::uuid`;
 
           if (replacing) yield* sql`DELETE FROM connector_oauth_states WHERE account_id=${id}::uuid`;
           const saved = yield* view(yield* owned(user, id));
