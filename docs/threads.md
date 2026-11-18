@@ -10,7 +10,8 @@ z nadpisaniami projektu i wątku (przełącznik w szczegółach także na mobile
 zamykanie zasobów przy archiwizacji,
 opcjonalna retencja archiwum, grupowanie
 pracujących drzew z nieprzeczytanymi wynikami wcześniejszych tur lub zakończonych subagentów
-oraz wyróżnienie nieotwartych wątków ze szkicem w sidebarze web/desktop.
+wyróżnienie nieotwartych wątków ze szkicem w sidebarze web/desktop oraz
+„New thread” obok pozostałych akcji listy wątków.
 Web/desktop i mobile mają zwarte karty w grupach projektów, zwijanie projektów i opcjonalne
 podgrupy worktree, z ikonami projektów i wcięciami prowadzącymi do wątków.
 Ustawienie „Group by” łączy wybór obu poziomów w jednym polu.
@@ -111,6 +112,10 @@ we wzmiankach jest pusta. Katalog komend i umiejętności pochodzi wtedy z katal
 workera; po utworzeniu wątku katalog i wyszukiwanie plików używają jego dokładnego cwd.
 
 ## Wiersz wątku
+
+W web/desktop „New thread” jest po prawej stronie wiersza „Search threads”,
+obok filtra projektów i „Add project”. Akcja otwiera formularz nowego wątku,
+a filtr projektów ogranicza widoczną listę.
 
 Domyślny wiersz w sidebarze ma trzy linie o stałej wysokości: projekt ze statusem, tytuł oraz linię meta
 (komputer, miejsce, gałąź, znaczniki i znak dostawcy). Web/desktop i mobile liczą miejsce i gałąź tą samą
