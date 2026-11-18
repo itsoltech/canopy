@@ -22,8 +22,6 @@
   import { keybindings } from "#lib/features/commands/keybindings.svelte.ts";
   import { useAddProject } from "#lib/features/projects/add/add-project.svelte.ts";
   import { useGatewayCapabilities } from "#lib/features/desktop/gateway-capabilities.svelte.ts";
-  import DropdownMenu from "#lib/shared/ui/DropdownMenu.svelte";
-  import MenuItem from "#lib/shared/ui/MenuItem.svelte";
 
   const capabilities = useGatewayCapabilities();
   const addProject = useAddProject();
@@ -75,7 +73,7 @@
 </script>
 
 <!-- Compact chrome (docs/ui-scale.md): text one step below the pages beside it. -->
-<div class="density-chrome sidebar-scale flex h-full flex-col">
+<div class="density-chrome sidebar-scale @container flex h-full flex-col">
   <SidebarHeader>
     {#if section === "threads"}
       <a href="/" class={iconLink} aria-label="New thread" title="New thread">
@@ -146,32 +144,28 @@
 
   <SidebarCopyJobs />
 
-  <div class="sidebar-inset flex shrink-0 items-center gap-1 border-t border-zinc-950/5 py-2 dark:border-white/5">
-    <DropdownMenu label="Settings and usage" placement="top-start" sheet>
-      {#snippet trigger(props)}
-        <button
-          {...props}
-          type="button"
-          class={[iconLink, settingsActive && "text-icon-emphasis"]}
-          aria-label="Settings and usage"
-          title="Settings and usage"
-        >
-          <Icon name="cog-6-tooth" />
-        </button>
-      {/snippet}
-      <MenuItem icon="cog-6-tooth" href="/settings" current={settingsActive}>Open settings</MenuItem>
-      {#if capabilities?.supports("/usage") ?? true}
-        <MenuItem icon="table-cells" onselect={onOpenUsage}>Open usage</MenuItem>
-      {/if}
-    </DropdownMenu>
+  <div
+    class="sidebar-inset flex shrink-0 items-center gap-1 border-t border-zinc-950/5 py-2 @max-[16rem]:gap-0 dark:border-white/5"
+  >
+    <a
+      href="/settings"
+      class={[iconLink, "shrink-0", settingsActive && "text-icon-emphasis"]}
+      aria-label="Open settings"
+      title="Open settings"
+    >
+      <Icon name="cog-6-tooth" />
+    </a>
+    {#if capabilities?.supports("/usage") ?? true}
+      <IconButton icon="table-cells" label="Open usage" onclick={onOpenUsage} />
+    {/if}
     <a
       href="/settings/workers"
-      class="flex items-center gap-1.5 rounded-lg px-2 py-1.5 text-sm/5 text-zinc-500 focus-ring hover:bg-zinc-950/5 hover:text-zinc-950 sm:text-xs/5 dark:text-zinc-400 dark:hover:bg-white/5 dark:hover:text-white"
+      class="flex shrink-0 items-center gap-1.5 rounded-lg px-2 py-1.5 text-sm/5 text-zinc-500 focus-ring hover:bg-zinc-950/5 hover:text-zinc-950 sm:text-xs/5 @max-[16rem]:gap-0 dark:text-zinc-400 dark:hover:bg-white/5 dark:hover:text-white"
       title="Workers online"
     >
-      <Icon name="server" class="size-3.5" />{online}/{overview.workers.length}<span class="sr-only"
-        >workers online</span
-      >
+      <Icon name="server" class="size-3.5" />
+      <span class="tabular-nums @max-[16rem]:sr-only">{online}/{overview.workers.length}</span>
+      <span class="sr-only">workers online</span>
     </a>
     <UpdatesIndicator />
     <SidebarUsage />
