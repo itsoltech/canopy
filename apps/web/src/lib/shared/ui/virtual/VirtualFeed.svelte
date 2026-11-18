@@ -1,6 +1,6 @@
 <script lang="ts" generics="T">
   import { FeedHandoff } from "./feed-handoff.ts";
-  import type { Snippet } from "svelte";
+  import type { VirtualFeedProps } from "./feed-props.ts";
   import { tick, untrack } from "svelte";
   import { on } from "svelte/events";
   import { whenIdle } from "../../idle.ts";
@@ -16,13 +16,12 @@
   import { feedRowKey, focusFeedRow, handleFeedScrollKey, navigateFeedKey } from "./feed-keys.ts";
   import { SizeIndex } from "./size-index.ts";
   import VirtualRow from "./VirtualRow.svelte";
-  import { FEED_END_THRESHOLD, followingAfterScroll, ScrollIntent, scrollOrigin, type ReaderScroll } from "./scroll.ts";
+  import { FEED_END_THRESHOLD, followingAfterScroll, ScrollIntent, scrollOrigin } from "./scroll.ts";
   import { FeedExtent } from "./feed-extent.svelte.ts";
   import { trackEmbedHover } from "./embed-hover.ts";
-  import type { FeedViewport } from "./viewport.ts";
   import { watchFooterEdge } from "./footer-edge.ts";
-  import { FooterReserve, type FooterFold } from "./footer-reserve.ts";
-  import { FeedScrollOpening, type FeedScrollMemory } from "./feed-scroll-memory.svelte.ts";
+  import { FooterReserve } from "./footer-reserve.ts";
+  import { FeedScrollOpening } from "./feed-scroll-memory.svelte.ts";
   import { answerStart, moveToAnswer } from "./answer-scroll.ts";
 
   /**
@@ -67,46 +66,10 @@
     onwindow,
     scrollMemory,
     sizes,
+    loading = false,
     ready = true,
     onready,
-  }: {
-    rows: readonly T[];
-    key: (row: T) => string;
-    /** Rows of a group have similar heights (e.g. the row's kind): unmeasured rows take the group's average. */
-    group: (row: T) => string;
-    /** Height of a group before any of its rows was measured, in px. */
-    estimate: (group: string) => number;
-    label: string;
-    busy?: boolean;
-    top?: Snippet;
-    /** In place of the rows while there are none (loading). */
-    placeholder?: Snippet;
-    row: Snippet<[T, number]>;
-    footer?: Snippet;
-    /** A status control above the footer's visible edge, beside Jump to latest when both fit. */
-    footerAccessory?: Snippet;
-    /** How the footer's height relates to its full height (only full-height changes move the end reserve),
-     * and the end space above the full footer that absorbs one more strip without moving rows, in px. */
-    footerFit?: { fold: FooterFold; margin: number };
-    /** How a row inserted between shown rows enters (none by default: e.g. older history above). */
-    inserted?: (row: T) => "unfold" | "reveal" | undefined;
-    /** Out: the reader follows the end (the latest rows are on screen). */
-    atEnd?: boolean;
-    onreaderscroll?: (scroll: ReaderScroll) => void;
-    /** A reader's scroll came to rest (after inertia). */
-    onreaderscrollend?: () => void;
-    onlatest?: () => void;
-    /** Measured visible rows (no overscan), published at most once per animation frame. */
-    onviewport?: (viewport: FeedViewport) => void;
-    /** Mounted rows including overscan, for bounded history prefetch before missing work reaches the reader. */
-    onwindow?: (viewport: FeedViewport) => void;
-    scrollMemory?: FeedScrollMemory;
-    /** Row heights owned by the caller (kept across remounts, e.g. per thread); the feed's own otherwise. */
-    sizes?: SizeIndex;
-    ready?: boolean;
-    /** The initial snapshot is measured and positioned; a retained creation view can hand off now. */
-    onready?: () => void;
-  } = $props();
+  }: VirtualFeedProps<T> = $props();
 
   const uid = $props.id();
   const id = `feed-${uid}`;
@@ -139,7 +102,11 @@
   let stuck = $state(untrack(() => scrollMemory?.initial?.mode !== "anchor"));
   const opening = new FeedScrollOpening(untrack(() => scrollMemory));
 
-  $effect(() => opening.connect(() => ({ following: stuck, anchor }), settle));
+  $effect(() => opening.connect(() => ({ following: stuck, anchor })));
+
+  $effect(() => {
+    if (!loading && !opening.positioned) return opening.startDeadline(settle);
+  });
 
   // The overscan (most of it above the end, where the reader starts) grows to its full size in idle-time
   // steps after the first rows were measured, instead of rendering in the frame that opens the thread.
@@ -270,12 +237,13 @@
     void padBottom;
     void sized;
     void footerSpace;
+    void loading;
     void ready;
     void viewport;
 
     untrack(settle);
 
-    if (ready && opening.positioned) untrack(() => onready?.());
+    if (!loading && ready && opening.positioned) untrack(() => onready?.());
   });
 
   // --- Keeping the place ----------------------------------------------------------------------------
@@ -305,6 +273,7 @@
     if (!scroller || !list) return;
 
     if (!opening.positioned) {
+      if (loading) return;
       const restored = opening.place(scroller, elements, index, positions, visible.map(key), ready, viewport, setTop);
 
       if (restored === false) return;
@@ -603,7 +572,7 @@
     {id}
     class="relative h-full scroll-pt-2 scroll-pb-(--feed-footer) scroll-stable overflow-y-auto overscroll-contain [contain:strict] [overflow-anchor:none] focus-visible:outline-none"
     style:--feed-footer="{footerHeight}px"
-    style:visibility={opening.positioned ? undefined : "hidden"}
+    style:visibility={loading || opening.positioned ? undefined : "hidden"}
     role="region"
     aria-label={label}
     tabindex="0"

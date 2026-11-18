@@ -5,10 +5,10 @@ import { queries } from "./queries.svelte.ts";
 import { decode } from "./wire.ts";
 
 /** Client route data with the BFF's status preserved for the retryable error view. */
-export async function loadJson(fetcher: typeof fetch, path: string): Promise<JsonValue> {
+export async function loadJson(fetcher: typeof fetch, path: string, timeoutMs = 5000): Promise<JsonValue> {
   const response = await fetcher(path, {
     headers: { accept: "application/json" },
-    signal: AbortSignal.timeout(5000),
+    signal: AbortSignal.timeout(timeoutMs),
   }).catch(() => error(503, "Could not reach the gateway. Check that it is running, then retry."));
 
   const body = await bodyJson(response).catch(() => null);
@@ -22,6 +22,11 @@ export async function loadJson(fetcher: typeof fetch, path: string): Promise<Jso
   }
 
   return body;
+}
+
+/** The linked GetThread deadline is 15 seconds, after desktop compatibility negotiation. */
+export function loadThreadJson(fetcher: typeof fetch, id: string) {
+  return loadJson(fetcher, `/api/threads/${encodeURIComponent(id)}`, 20_000);
 }
 
 /**

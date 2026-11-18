@@ -21,6 +21,11 @@ type Session = { sequence: bigint; last: number };
  */
 const SESSION_TTL_MS = 300_000;
 const MAX_SESSIONS = 30;
+const CHECKPOINT_BYTES = 384;
+
+// Cover all senders, sessions and checkpoints on either side of the minute flush, even under RPC load.
+const RESERVED_CHECKPOINTS = 2 * MAX_SESSIONS;
+const METADATA_BYTES = 32 * 1024 + MAX_SESSIONS * (256 + 1024) + RESERVED_CHECKPOINTS * CHECKPOINT_BYTES;
 
 /** Auth-bound senders are capped, and their numeric series use the original fixed collector budget. */
 export class ClientDiagnostics {
@@ -30,6 +35,7 @@ export class ClientDiagnostics {
   readonly #checkpoints = new Map<number, Map<string, ui.DiagnosticsCheckpoint>>();
   readonly #restored = new Map<string, bigint>();
   readonly #metadataReserved: boolean;
+  #checkpointCount = 0;
   constructor(
     readonly collector: RpcCollector,
     readonly epoch: () => string,
@@ -37,7 +43,7 @@ export class ClientDiagnostics {
     readonly enabled = true,
   ) {
     // Fixed allowance includes restored hash checkpoints and empty collector metadata.
-    this.#metadataReserved = !enabled || collector.budget.reserve(32 * 1024);
+    this.#metadataReserved = !enabled || collector.budget.reserve(METADATA_BYTES);
   }
 
   submit(request: ui.SubmitDiagnosticsRequest, sender: string, allowBff: boolean, now = Date.now()) {
@@ -64,23 +70,15 @@ export class ClientDiagnostics {
 
     if (!this.#metadataReserved) throw new ConnectError("Diagnostics metadata budget reached", Code.ResourceExhausted);
 
-    for (const [key, value] of this.sessions)
-      if (now - value.last > SESSION_TTL_MS) {
-        this.sessions.delete(key);
-        this.collector.budget.used -= 1024;
-      }
+    for (const [key, value] of this.sessions) if (now - value.last > SESSION_TTL_MS) this.sessions.delete(key);
 
-    for (const [key, value] of this.rates)
-      if (now - value.last > SESSION_TTL_MS) {
-        this.rates.delete(key);
-        this.collector.budget.used -= 256;
-      }
+    for (const [key, value] of this.rates) if (now - value.last > SESSION_TTL_MS) this.rates.delete(key);
 
     // The byte allowance is shared by everything an authenticated sender submits, whatever its source or session.
     let rate = this.rates.get(sender);
 
     if (!rate) {
-      if (this.rates.size >= 30 || !this.collector.budget.reserve(256))
+      if (this.rates.size >= MAX_SESSIONS)
         throw new ConnectError("Diagnostics sender limit reached", Code.ResourceExhausted);
       rate = { at: now, bytes: 0, last: now };
       this.rates.set(sender, rate);
@@ -105,15 +103,10 @@ export class ClientDiagnostics {
     if (request.sequence <= (known?.sequence ?? this.#restored.get(session) ?? 0n))
       return create(ui.DiagnosticsReceiptSchema, { epoch: this.epoch() });
 
-    if (!known && (this.sessions.size >= MAX_SESSIONS || !this.collector.budget.reserve(1024)))
+    if (!known && this.sessions.size >= MAX_SESSIONS)
       throw new ConnectError("Diagnostics session limit reached", Code.ResourceExhausted);
 
-    try {
-      this.#remember(session, request.sequence, now);
-    } catch (cause) {
-      if (!known) this.collector.budget.used -= 1024;
-      throw cause;
-    }
+    this.#remember(session, request.sequence, now);
 
     if (known) known.sequence = request.sequence;
     else this.sessions.set(session, { sequence: request.sequence, last: now });
@@ -130,25 +123,36 @@ export class ClientDiagnostics {
     while (this.#restored.size > 90) this.#restored.delete(this.#restored.keys().next().value!);
   }
 
-  rollup(process: ui.DiagnosticsProcess, at: number) {
-    process.checkpoints.push(...(this.#checkpoints.get(at)?.values() ?? []));
+  takeCheckpoints(at: number) {
+    const values = this.#checkpoints.get(at);
 
-    return process;
+    if (!values) return [];
+    // Persistence now owns these checkpoints together with the minute, including retries.
+    this.#release(at, values.size);
+
+    return [...values.values()];
+  }
+
+  #release(at: number, size: number) {
+    const borrowed = Math.max(0, this.#checkpointCount - RESERVED_CHECKPOINTS);
+    this.collector.budget.used -= Math.min(size, borrowed) * CHECKPOINT_BYTES;
+    this.#checkpointCount -= size;
+    this.#checkpoints.delete(at);
   }
 
   #remember(session: string, sequence: bigint, now: number) {
     const minute = Math.floor(now / 60_000) * 60_000;
 
-    for (const [at, values] of this.#checkpoints)
-      if (at < minute - 3_540_000) {
-        this.collector.budget.used -= values.size * 384;
-        this.#checkpoints.delete(at);
-      }
+    for (const [at, values] of this.#checkpoints) if (at < minute - 3_540_000) this.#release(at, values.size);
 
     const values = this.#checkpoints.get(minute) ?? new Map<string, ui.DiagnosticsCheckpoint>();
 
-    if (!values.has(session) && !this.collector.budget.reserve(384))
-      throw new ConnectError("Diagnostics checkpoint budget reached", Code.ResourceExhausted);
+    if (!values.has(session)) {
+      if (this.#checkpointCount >= RESERVED_CHECKPOINTS && !this.collector.budget.reserve(CHECKPOINT_BYTES))
+        throw new ConnectError("Diagnostics checkpoint budget reached", Code.ResourceExhausted);
+      this.#checkpointCount++;
+    }
+
     values.set(session, create(ui.DiagnosticsCheckpointSchema, { session, sequence }));
     this.#checkpoints.set(minute, values);
   }

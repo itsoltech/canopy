@@ -1,6 +1,6 @@
 # Diagnostyka wydajności
 
-Status (2026-11-17): **v1 wdrożone**: metryki RPC, procesu, DB, workerów i klientów,
+Status (2026-11-18): **v1 wdrożone**: metryki RPC, procesu, DB, workerów i klientów,
 trwałe agregaty, findings, raport, zbieranie logów i czasowy tracing.
 Limit katalogu 640 deskryptorów obejmuje także RPC statystyk użycia i postępu przygotowania wątku.
 Settings → Diagnostics jest dostępne w web/desktop/mobile i pokazuje lokalny
@@ -9,7 +9,9 @@ Telefon korzysta ze sparowanego gatewaya. Brak dostępu, starsza wersja i offlin
 są odrębnymi stanami. Budżety wydajności poniżej są celami i procedurą pomiaru,
 nie deklaracją zmierzonego narzutu obecnej wersji. Na `dev` (2026-11-15) wysyłka
 pomiarów klientów obsługuje równoległe okna i przeładowania, a web/desktop i BFF
-wstrzymują ją po limicie gatewaya. Dostępność według [wydań](release.md).
+wstrzymują ją po limicie gatewaya. Web/desktop i BFF pomijają puste partie.
+Gateway rezerwuje miejsce na metadane aktywnych klientów przed zapełnieniem budżetu przez RPC.
+Dostępność według [wydań](release.md).
 Na `dev` widok obejmuje też bieżącą zajętość plików Canopy, oddzielnie dla
 gatewaya/desktopu i workerów, z wyłączeniem plików projektów, worktree i scratch (§3.3.1).
 
@@ -527,8 +529,10 @@ Sesja+sekwencja deduplikuje partie. Raporty klientów są danymi niezaufanymi,
 oddzielonymi od zaufanych liczników serwera i nie wywołują automatycznych działań.
 Brak bufora na dysku i bezterminowego retry; utrata sieci daje luki pokrycia.
 
-**Agregaty klientów:** każdy klient/BFF ma najwyżej 12 histogramów jednej
-partii, bez identyfikatorów wątków, adresów i treści. Jedna wysyłka może być w toku;
+**Agregaty klientów:** każda partia zawiera najwyżej 24 serie, bez identyfikatorów
+wątków, adresów i treści. Web/desktop mierzy rozmiar cache wątku przy zmianie jego
+rozmiaru lub gdy zebrał inne obserwacje. Okno z niezmienionym cache i BFF bez
+nowych pomiarów pomijają wysyłkę. Jedna wysyłka może być w toku;
 błąd porzuca partię. Po `ResourceExhausted` (HTTP 429) przeglądarka/desktop i BFF
 wstrzymują wysyłkę wykładniczo: pierwsza przerwa co najmniej 60 s, potem podwajana do
 5 min; odrzucona partia nie jest kolejkowana, a pierwsza przyjęta wysyłka zeruje
@@ -554,9 +558,12 @@ Tożsamość pochodzi z tokenu urządzenia
 lub HttpOnly cookie nadanego przez BFF. Etykiety mają wyłącznie stałe numery 300–399 i 450–455.
 Numery 450–455 obejmują liczbę odzyskań osi czasu i czas żądanie starszej strony →
 gotowość renderera, osobno dla web, desktop i mobile; nie dodają etykiet z treści.
-Metadane klienta (32 KiB), resetu (8 KiB), kanałów i checkpointów są rozliczane
-w istniejącym limicie 6 MiB, nie w dodatkowym pierścieniu. Przepełnienie odrzuca
-partię; nie przechowuje błędu ani kolejki ponowień. Hash sesji i sekwencja trafiają
+Z istniejącego limitu 6 MiB gateway z góry rezerwuje 92 KiB na metadane klientów,
+w tym 30 wpisów nadawców, 30 sesji i 60 checkpointów. Dzięki temu równoległy ruch
+RPC nie odbiera klientom miejsca na przyjęcie partii podczas zmiany minuty.
+Zamrożenie minuty przenosi checkpointy do rollupu i zwalnia ich miejsca dla nowych
+partii. Przy zaległym zapisie dodatkowe checkpointy przed zamrożeniem wymagają
+wolnego miejsca we wspólnym limicie. Rezerwacja na metadane resetu wynosi 8 KiB. Hash sesji i sekwencja trafiają
 atomowo do watermarków wraz z rollupem, więc restart nie nalicza partii ponownie.
 
 Raport to jawna projekcja allowlisty: JSON/Markdown do 256 KiB, aliasy komputerów

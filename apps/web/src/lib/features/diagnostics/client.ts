@@ -4,7 +4,7 @@ import { ClientMeasurements } from "@canopy/domain/diagnostics";
 import { SubmitCooldown } from "#lib/shared/diagnostics-cooldown.ts";
 import { HttpError, requestJson } from "#lib/shared/http.ts";
 import { decode } from "#lib/shared/wire.ts";
-import { observeThreadCacheMemory } from "#lib/features/threads/warming.ts";
+import { threadCache } from "#lib/features/threads/thread-cache.ts";
 
 export let clientMeasurements = new ClientMeasurements("web", crypto.randomUUID());
 let observed = false;
@@ -16,7 +16,9 @@ export function timelineRecovery(
   count = 1,
 ) {
   clientMeasurements.record(16, count);
-  console.warn("Timeline recovery", { reason, count });
+
+  if (reason === "fold_derivation" || reason === "position_timeout")
+    console.warn("Timeline recovery", { reason, count });
 }
 
 export function navigationStarted() {
@@ -27,6 +29,7 @@ export function navigationStarted() {
 export function startClientDiagnostics() {
   if (window.canopyDesktop) clientMeasurements = new ClientMeasurements("desktop", crypto.randomUUID());
   let pending = false;
+  let lastCacheBytes = 0;
   const cooldown = new SubmitCooldown();
   let paint: PerformanceObserver | undefined;
 
@@ -38,20 +41,24 @@ export function startClientDiagnostics() {
 
   const timer = setInterval(() => {
     if (document.hidden || !navigator.onLine || pending || !cooldown.ready()) return;
+    const cacheBytes = threadCache.usage.bytes;
+
+    if (clientMeasurements.hasMeasurements || cacheBytes !== lastCacheBytes) clientMeasurements.record(15, cacheBytes);
+    const batch = clientMeasurements.take();
+
+    if (!batch.measures.length) return;
+    lastCacheBytes = cacheBytes;
     pending = true;
-    observeThreadCacheMemory();
-    void requestJson(
-      "POST",
-      "/api/diagnostics/submit",
-      toJson(ui.SubmitDiagnosticsRequestSchema, clientMeasurements.take()),
-      5000,
-    )
+    void requestJson("POST", "/api/diagnostics/submit", toJson(ui.SubmitDiagnosticsRequestSchema, batch), 5000)
       .then((value) => {
         const receipt = decode(ui.DiagnosticsReceiptSchema, value);
 
         cooldown.succeeded();
 
-        if (!receipt.accepted) clientMeasurements.clear(receipt.epoch);
+        if (!receipt.accepted) {
+          if (receipt.epoch !== clientMeasurements.epoch) lastCacheBytes = 0;
+          clientMeasurements.clear(receipt.epoch);
+        }
       })
       .catch((cause) => {
         if (cause instanceof HttpError && cause.status === 429) cooldown.limited();

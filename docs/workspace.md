@@ -14,7 +14,7 @@ i interaktywny Preview automatyzacji w panelu web/desktop oraz automatyczny mini
 pod podsumowaniem wątku, przywracanie mini Preview oraz osobnego stanu prawego panelu
 po powrocie do wątku bez animacji panelu, kompaktowe pola wymiarów Preview bez +/−
 oraz kompaktowy przełącznik automatycznej archiwizacji po merge z ikoną informacji w podsumowaniu,
-lokalne zmiany Git zapamiętywane przy zmianie wątku i odświeżane w tle
+otwieranie wątku podczas odbudowy strumienia overview, lokalne zmiany Git zapamiętywane przy zmianie wątku i odświeżane w tle
 oraz ikonowa akcja Pull obok odświeżania w nagłówku Local changes,
 wyrównany nagłówek natywnego mobile z jednolitym tłem chrome safe area,
 odstępem nad aktywną kartą i strzałką powrotu, zamykanie kart plików i modułów
@@ -22,6 +22,11 @@ bezpośrednio z mobilnej listy Switch tab oraz ręczny pełnoekranowy Preview Br
 ze stałą belką zamknięcia i możliwością ukrycia kontrolek
 (2026-11-17; stos #640–#648, potem #710, #711, #737, #740, #787 i #823).
 Opis dotyczy kodu; dostępność nightly/beta/stable określają [wydania](release.md).
+Przy otwieraniu wątku bez kopii w kliencie BFF czyta bieżący wpis z overview.
+Jeśli wpisu jeszcze nie ma lub trwa odbudowa strumienia, BFF wywołuje
+`GetThread` z uprawnieniami tego samego właściciela. Nawigacja nie czeka na
+snapshot całej listy. Zamknięcie żądania albo zmiana celu gatewaya anuluje ten odczyt.
+
 W web/desktop zakładki dzielą rząd z sygnetem projektu, a **tytuł wątku jest pierwszą,
 niezamykalną kartą** (bez osobnego tytułu i etykiety `Thread`, #787). Mobile używa tego samego
 tytułu w aktywnej karcie i przełączniku; na telefonie pokazuje aktywną kartę,

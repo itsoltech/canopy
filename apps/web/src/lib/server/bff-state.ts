@@ -19,7 +19,7 @@ export class BffSession {
   readonly #leases = new Map<symbol, { ids: readonly string[]; active: string }>();
   readonly #stop: () => void;
   readonly #streams = new Set<AsyncChannel<BffEvent>>();
-  #closed = false;
+  readonly #lifetime = new AbortController();
   #snapshotRevision: number | undefined;
 
   constructor(readonly api: Client<typeof ui.GatewayService>) {
@@ -56,7 +56,7 @@ export class BffSession {
   }
 
   #select() {
-    if (this.#closed) return;
+    if (this.#lifetime.signal.aborted) return;
     const leases = [...this.#leases.values()];
     const active = new Set(leases.flatMap((lease) => (lease.active ? [lease.active] : [])));
     const ids = [...new Set(leases.flatMap((lease) => lease.ids))].filter((id) => !active.has(id)).slice(0, 32);
@@ -64,7 +64,7 @@ export class BffSession {
   }
 
   async *subscribe(ids: readonly string[], active: string, signal: AbortSignal): AsyncGenerator<BffEvent> {
-    if (this.#closed || this.#leases.size >= 32)
+    if (this.#lifetime.signal.aborted || this.#leases.size >= 32)
       throw new ConnectError("Read model subscriptions unavailable", Code.ResourceExhausted);
 
     const channel = new AsyncChannel<BffEvent>({
@@ -118,7 +118,7 @@ export class BffSession {
       if (signal.aborted) stop();
 
       for await (const frame of channel) {
-        if (this.#closed || signal.aborted) break;
+        if (this.#lifetime.signal.aborted || signal.aborted) break;
         yield frame;
       }
     } finally {
@@ -133,8 +133,8 @@ export class BffSession {
   }
 
   close() {
-    if (this.#closed) return;
-    this.#closed = true;
+    if (this.#lifetime.signal.aborted) return;
+    this.#lifetime.abort();
 
     for (const channel of this.#streams) channel.close();
     this.#leases.clear();
@@ -144,10 +144,12 @@ export class BffSession {
     this.overview.close();
   }
 
-  async thread(id: string) {
+  async thread(id: string, signal: AbortSignal) {
     this.warming.warmer.yieldToNavigation();
-    const thread = await this.overview.thread(id);
+    const thread = this.overview.currentThread(id);
 
-    return thread ? create(ui.GetThreadResponseSchema, { thread }) : this.api.getThread({ threadId: id });
+    return thread
+      ? create(ui.GetThreadResponseSchema, { thread })
+      : this.api.getThread({ threadId: id }, { signal: AbortSignal.any([signal, this.#lifetime.signal]) });
   }
 }

@@ -1,10 +1,12 @@
 import { create } from "@bufbuild/protobuf";
+import { Code, ConnectError } from "@connectrpc/connect";
+import { threadGitPlacement } from "../store/thread-branches.ts";
 import { ui } from "@canopy/contracts";
 import { GIT_STATUS_CAPABILITY, REVEAL_PATH_CAPABILITY } from "@canopy/domain/release/protocol";
 import type { GatewayCore } from "../core/core.ts";
 import { coreRun } from "../core/core-broadcast.ts";
 import { coreState, InvalidError } from "../core/core-context.ts";
-import { coreWorkerQuery } from "../core/core-mentions.ts";
+import { coreWorkerQuery, WorkerQueryError } from "../core/core-mentions.ts";
 import { coreUiThread } from "../core/core-titles.ts";
 import {
   branchSwitchReason,
@@ -60,22 +62,56 @@ export class ThreadBranches {
   }
 
   async status(request: ui.ThreadBranchesRequest): Promise<ui.ThreadGitStatusResponse> {
-    const thread = await this.#thread(request.threadId);
+    const state = this.core[coreState];
+    const thread = await state.actions.run(threadGitPlacement(state.options.userId, request.threadId));
+
+    if (!thread) throw new ConnectError("Thread unavailable. Open an active thread.", Code.NotFound);
+
+    const unavailable = (detail: string, supported = false) =>
+      create(ui.ThreadGitStatusResponseSchema, { detail, supported });
+
+    if (thread.archived) return unavailable("Open an active thread to check local changes.");
+
+    if (thread.removed) return unavailable("This worktree was removed. Continue in a new worktree.");
+
+    if (!thread.worker_id || !thread.cwd) return unavailable("This thread has no working directory.");
     const detail = this.#gitReason(thread.worker_id);
 
-    if (detail) return create(ui.ThreadGitStatusResponseSchema, { detail });
+    if (detail) return unavailable(detail);
 
-    const result = await coreWorkerQuery(
-      this.core,
-      thread.worker_id,
-      {
-        case: "getThreadGitStatus",
-        value: { threadId: thread.id, cwd: thread.cwd, expiresAtMs: BigInt(Date.now() + 25_000) },
-      },
-      30_000,
-    );
+    try {
+      const result = await coreWorkerQuery(
+        this.core,
+        thread.worker_id,
+        {
+          case: "getThreadGitStatus",
+          value: { threadId: request.threadId, cwd: thread.cwd, expiresAtMs: BigInt(Date.now() + 25_000) },
+        },
+        30_000,
+      );
 
-    return create(ui.ThreadGitStatusResponseSchema, { supported: true, status: result.threadGitStatus });
+      return create(ui.ThreadGitStatusResponseSchema, { supported: true, status: result.threadGitStatus });
+    } catch (error) {
+      if (error instanceof WorkerQueryError) {
+        if (["CWD_NOT_FOUND", "CWD_NOT_DIRECTORY"].includes(error.code))
+          return unavailable(
+            "Canopy could not find the working directory. Check its location on the thread’s computer.",
+          );
+
+        if (["STATUS_TOO_LARGE", "GIT_OUTPUT_LIMIT"].includes(error.code))
+          return unavailable("These changes are too large to summarize. Check them in your terminal.", true);
+
+        if (["CHECKOUT_BUSY", "GIT_BUSY", "WORKTREE_BUSY"].includes(error.code))
+          return unavailable("Git is busy. Refresh in a moment.", true);
+      }
+
+      if (
+        (error instanceof WorkerQueryError && ["SWITCH_EXPIRED", "GIT_TIMEOUT"].includes(error.code)) ||
+        (error instanceof ConnectError && error.code === Code.DeadlineExceeded)
+      )
+        return unavailable("Checking local changes timed out. Refresh to try again.", true);
+      throw error;
+    }
   }
 
   async pull(request: ui.ThreadBranchesRequest): Promise<ui.ThreadGitStatusResponse> {

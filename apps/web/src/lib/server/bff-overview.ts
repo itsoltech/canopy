@@ -81,6 +81,10 @@ export class BffOverview {
     return this.#state.thread(id);
   }
 
+  currentThread(id: string): ui.Thread | undefined {
+    return this.#state.thread(id);
+  }
+
   async settings(): Promise<ui.GetSettingsResponse> {
     await this.#readyState();
 

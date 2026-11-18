@@ -1,6 +1,7 @@
 # API dla UI i architektura frontendu
 
-Status (2026-11-18): stopka sidebara pokazuje tylko jeden z paneli Updates i Provider usage,
+Status (2026-11-18): po zamknięciu panelu PR zaplanowane odświeżenie awatarów wykonuje się
+tylko wtedy, gdy inny otwarty widok nadal ich potrzebuje. Stopka sidebara pokazuje tylko jeden z paneli Updates i Provider usage,
 ma osobne ikony Settings i Usage oraz samą kropkę statusu połączenia;
 web/desktop wysyła „Continue” jednym kliknięciem z pustego kompozytora istniejącego wątku między turami;
 `InstallCli` przyjmuje opcjonalne UUID próby do korelacji raportów;
@@ -2385,6 +2386,8 @@ aktualizuje po zdarzeniu strumienia lub odpowiedzi własnej mutacji. `QueryCache
   wartość i żądanie w toku, a pusty wynik też jest wczytany;
 - zdarzenie lub mutacja unieważnia klucz albo ustawia jego wartość; obserwowany klucz czyta
   ponownie raz na serię zdarzeń (40 ms), a zdarzenie w trakcie odczytu daje jeden odczyt końcowy;
+- odświeżenie korzysta z funkcji pobierania jednego z otwartych widoków. Po zamknięciu ostatniego
+  widoku wpis czeka na kolejny odczyt, nawet gdy odświeżenie było już zaplanowane;
 - odczyt rozpoczęty przed ustawioną wartością jest starszy i zostaje odrzucony; po `forget`
   (unlink, usunięcie) i `dispose` (unpair, nowe parowanie) nic nie wraca do cache;
 - nieudany odczyt zachowuje poprzednią wartość i błąd; nieobserwowane wpisy trzyma ograniczony LRU;
@@ -3315,7 +3318,7 @@ Zapis, ponowny odczyt i usunięcie korzystają już z rozstrzygniętej ścieżki
 rozstrzyga właściciela, dom i katalog wątku. BFF udostępnia je jako GET / POST
 `/api/threads/:id/git`, bez cache odpowiedzi. Wynik `ThreadGitStatusResponse`
 łączy capability i powód niedostępności z typowanym podsumowaniem plików i linii.
-Odczyt ma deadline 35 s, pull 130 s; worker kończy operację przed deadline gatewaya.
+BFF czeka na odczyt do 40 s, a na pull do 130 s. Odczyt na połączonym komputerze ma limit 35 s.
 UI nie wysyła ścieżek ani nazw refów do tych akcji. Panel czyta przy otwarciu,
 zmianie HEAD i zmianie stanu tury oraz na ręczne odświeżenie, bez pollingu.
 Renderer scala zdarzenia przez 150 ms. Wspólny QueryCache łączy równoczesne odczyty

@@ -664,7 +664,8 @@
                   {rows}
                   {scrollMemory}
                   sizes={memory.sizes}
-                  ready={view.loaded && scrollMemory.prepared && !prefetchHistory.waiting && !preparing}
+                  loading={!view.loaded || preparing}
+                  ready={scrollMemory.prepared && !prefetchHistory.waiting}
                   key={(row: FeedRow) => row.key}
                   group={feedGroup}
                   estimate={feedEstimate}

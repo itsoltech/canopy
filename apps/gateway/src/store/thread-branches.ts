@@ -7,6 +7,24 @@ import { insertEvent } from "./ingest-events.ts";
 import { Invalid } from "./errors.ts";
 import type { ThreadRow, TurnRow } from "./rows.ts";
 
+/** The status panel needs only the authorized placement, including the recorded lifetime of its worktree. */
+export function threadGitPlacement(owner: string, threadId: string) {
+  return Effect.gen(function* () {
+    const sql = yield* SqlClient.SqlClient;
+
+    const [thread] = yield* sql<{
+      worker_id: string | null;
+      cwd: string | null;
+      archived: boolean;
+      removed: boolean;
+    }>`SELECT t.worker_id, t.cwd, t.archived_at IS NOT NULL AS archived, w.removed_at IS NOT NULL AS removed
+       FROM threads t LEFT JOIN worktrees w ON w.id = t.worktree_id
+       WHERE t.id = ${threadId}::uuid AND t.owner_user_id = ${owner}::uuid AND t.deleted_at IS NULL`;
+
+    return thread;
+  });
+}
+
 /** Resolve checkout membership on the worker without spawning git for every thread. */
 export function branchCheckoutPaths(worker: string) {
   return Effect.gen(function* () {
