@@ -30,7 +30,8 @@ describe.skipIf(!dockerAvailable)("diagnostics completeness across gateway resta
     let gateway = await startTestGateway({ diagnostics: true });
 
     try {
-      const end = Math.floor(Date.now() / 60_000) * 60_000;
+      // Keep the intended 30-second gap independent of the wall clock's minute boundary.
+      const end = Date.now();
       let now = end - 60 * 60_000;
       const collector = new RpcCollector([method], { utc: () => now, monotonic: () => now });
 
@@ -45,12 +46,15 @@ describe.skipIf(!dockerAvailable)("diagnostics completeness across gateway resta
       for (let index = 0; index < 1100; index++)
         collector.recordDatabase(databaseMetric("thread.read", "execute"), 12, false, method.id, now);
 
+      // Persist the initial loss before the rolling minute buffer can age it out.
+      await writer.flush(true);
+
       for (; now < end - 30_000; now += 5000) {
         collector.tick();
         collector.start(method.id)!.finish();
         collector.measure(2, 10, false, 0, 5000);
 
-        if (now % 60_000 === 0)
+        if (now % 60_000 < 5000)
           for (const family of DATABASE_FAMILIES.slice(0, 12))
             for (const phase of DATABASE_PHASES)
               collector.recordDatabase(databaseMetric(family.name, phase), 12, false, method.id, now);
