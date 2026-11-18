@@ -72,6 +72,7 @@ describe.skipIf(!dockerAvailable)("automation worktrees over gRPC", () => {
 
     const failures = [
       ["GIT_TIMEOUT", "Git timed out while creating the worktree."],
+      ["legacy-limit", "Git exceeded its time or output limit while creating the worktree."],
       ["GIT_OUTPUT_LIMIT", "Git exceeded its output limit while creating the worktree."],
       ["GIT_BUSY", "Git is busy on the worker. Try creating the worktree again shortly."],
       ["GIT_UNAVAILABLE", "Git could not start on the worker. Check the Git installation."],
@@ -88,19 +89,22 @@ describe.skipIf(!dockerAvailable)("automation worktrees over gRPC", () => {
 
     const worker = spyOn(f.host, "handleCommand").mockImplementation(async (command) => {
       if (command.kind.case !== "createWorktree") return handle(command);
-      const errorCode = command.kind.value.baseRef;
-      attempts.push(errorCode);
+      const fixture = command.kind.value.baseRef;
+      attempts.push(fixture);
 
       const cleanup =
-        errorCode === "WORKTREE_FAILED"
+        fixture === "WORKTREE_FAILED"
           ? " Canopy could not finish cleanup. Check the worktree and branch before retrying."
           : "";
 
       return {
         commandId: command.commandId,
         ok: false,
-        errorCode,
-        errorMessage: `fatal: cannot read /private/worker/repo during checkout${cleanup}`,
+        errorCode: fixture === "legacy-limit" ? "GIT_TIMEOUT" : fixture,
+        errorMessage:
+          fixture === "legacy-limit"
+            ? "git exceeded its time or output limit"
+            : `fatal: cannot read /private/worker/repo during checkout${cleanup}`,
       };
     });
 

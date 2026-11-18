@@ -53,6 +53,10 @@ const CLEANUP_INCOMPLETE = " Canopy could not finish cleanup. Check the worktree
 
 function spawnWorktreeRefusal(cause: unknown): string | undefined {
   if (cause instanceof WorkerQueryError) {
+    // Before workers distinguished the limits, this code covered both.
+    if (cause.code === "GIT_TIMEOUT" && cause.message === "git exceeded its time or output limit")
+      return "Git exceeded its time or output limit while creating the worktree.";
+
     const reason = WORKTREE_REFUSALS.get(cause.code) ?? "Could not create a worktree.";
 
     // Older workers can return raw Git output. Only a fixed cleanup notice may accompany the mapped reason.

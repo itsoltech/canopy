@@ -250,6 +250,7 @@ komputery wybór worktree lub dziedziczenia jest jawnie odrzucany do etapu 5; ch
 
 Przy tworzeniu worktree gateway mapuje kody błędów workera na stałe komunikaty,
 m.in. dla przekroczenia limitu czasu lub rozmiaru wyjścia Git, zajętości i niedostępności Git.
+Starszy worker może zgłosić wspólny błąd obu limitów; gateway zachowuje tę informację.
 Agent dostaje też stałą informację o niedokończonym sprzątaniu, jeśli worker to zgłosił.
 Brak potwierdzenia przed upływem limitu gatewaya lub utrata łącza skłania do
 sprawdzenia worktree i gałęzi przed ponowieniem. Nieznany kod dostaje ogólny
