@@ -3,6 +3,7 @@ import { Text, View, type StyleProp, type ViewStyle } from "react-native";
 import * as Clipboard from "expo-clipboard";
 import * as Linking from "expo-linking";
 import { timestampDate } from "@bufbuild/protobuf/wkt";
+import type { github } from "@canopy/contracts";
 import { Button, Notice } from "../../ui/components";
 import { useColors, useTypography } from "../../ui/theme";
 import { useGitHubSignIn } from "./useGitHubSignIn";
@@ -24,34 +25,8 @@ export function ConnectGitHub({
 }) {
   const c = useColors();
   const type = useTypography();
-  const clock = useClock();
   const flow = useGitHubSignIn(homeId, onconnected);
-  const [copied, setCopied] = useState(false);
-  const [error, setError] = useState("");
   const attempt = flow.attempt;
-
-  async function copy() {
-    setError("");
-
-    try {
-      await Clipboard.setStringAsync(attempt?.userCode ?? "");
-      setCopied(true);
-    } catch {
-      setError("Could not copy the code. Select it and copy it manually.");
-    }
-  }
-
-  async function open() {
-    if (attempt?.verificationUri !== "https://github.com/login/device") return;
-
-    setError("");
-
-    try {
-      await Linking.openURL(attempt.verificationUri);
-    } catch {
-      setError("Could not open GitHub. Open github.com/login/device in your browser.");
-    }
-  }
 
   const terminal =
     attempt?.state === "connected"
@@ -72,29 +47,7 @@ export function ConnectGitHub({
           can be used here when available.
         </Text>
       ) : attempt?.state === "pending" ? (
-        <View style={{ gap: 12, padding: 16, borderRadius: 8, backgroundColor: c.well }}>
-          <Text style={[type.body, { color: c.soft }]}>Enter this code on GitHub to connect your account.</Text>
-          <Text
-            selectable
-            style={{
-              fontSize: 24,
-              fontFamily: type.mono.fontFamily,
-              color: c.text,
-              letterSpacing: 2,
-            }}
-          >
-            {attempt.userCode}
-          </Text>
-          <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 8 }}>
-            <Button size="sm" title="Copy code" onPress={() => void copy()} />
-            <Button size="sm" title="Open GitHub" onPress={() => void open()} />
-            <Button size="sm" title="Cancel" disabled={flow.busy} onPress={() => void flow.cancel()} />
-          </View>
-          <Text accessibilityLiveRegion="polite" style={[type.body, { color: c.muted }]}>
-            {copied ? "Code copied. " : ""}Waiting for GitHub. Expires at{" "}
-            {attempt.expiresAt ? clock.time(timestampDate(attempt.expiresAt)) : "—"}.
-          </Text>
-        </View>
+        <GitHubDeviceCode key={attempt.id} attempt={attempt} busy={flow.busy} onCancel={() => void flow.cancel()} />
       ) : (
         <View style={{ gap: 12 }}>
           {attempt && !(hasAccounts && attempt.state === "connected") && (
@@ -106,29 +59,106 @@ export function ConnectGitHub({
             title={flow.busy ? "Connecting…" : hasAccounts ? "Connect another account" : "Connect GitHub"}
             variant={hasAccounts ? "secondary" : "primary"}
             disabled={flow.busy}
-            onPress={() => {
-              setCopied(false);
-              setError("");
-              void flow.start();
-            }}
+            onPress={() => void flow.start()}
           />
         </View>
       )}
-      {error || flow.error ? (
+      {flow.error ? (
         <View style={{ gap: 8 }}>
-          <Notice error>{error || flow.error}</Notice>
+          <Notice error>{flow.error}</Notice>
           <Button
             size="sm"
             title="Retry"
             onPress={() => {
-              setError("");
-
               if (attempt?.state === "pending") flow.retry();
               else void flow.start();
             }}
           />
         </View>
       ) : null}
+    </View>
+  );
+}
+
+function GitHubDeviceCode({
+  attempt,
+  busy,
+  onCancel,
+}: {
+  attempt: github.GitHubDeviceAuth;
+  busy: boolean;
+  onCancel: () => void;
+}) {
+  const c = useColors();
+  const type = useTypography();
+  const clock = useClock();
+  const [copyStatus, setCopyStatus] = useState<"copied" | "failed">();
+  const [openFailed, setOpenFailed] = useState(false);
+
+  const verificationUri =
+    attempt.verificationUri === "https://github.com/login/device" ? attempt.verificationUri : undefined;
+
+  async function copyAndOpen() {
+    try {
+      const copied = await Clipboard.setStringAsync(attempt.userCode);
+      setCopyStatus(copied ? "copied" : "failed");
+    } catch {
+      setCopyStatus("failed");
+    }
+
+    await openGitHub();
+  }
+
+  async function openGitHub() {
+    if (!verificationUri) return;
+
+    setOpenFailed(false);
+
+    try {
+      await Linking.openURL(verificationUri);
+    } catch {
+      setOpenFailed(true);
+    }
+  }
+
+  return (
+    <View style={{ gap: 12, padding: 16, borderRadius: 8, backgroundColor: c.well }}>
+      <Text style={[type.body, { color: c.soft }]}>Enter this code on GitHub to connect your account.</Text>
+      <Text
+        selectable
+        style={{
+          fontSize: 24,
+          fontFamily: type.mono.fontFamily,
+          color: c.text,
+          letterSpacing: 2,
+        }}
+      >
+        {attempt.userCode}
+      </Text>
+      <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 8 }}>
+        {verificationUri && (
+          <>
+            <Button
+              size="sm"
+              variant="primary"
+              title="Copy code and open GitHub"
+              multiline
+              onPress={() => void copyAndOpen()}
+            />
+            <Button size="sm" variant="ghost" title="Open GitHub" onPress={() => void openGitHub()} />
+          </>
+        )}
+        <Button size="sm" title="Cancel" disabled={busy} onPress={onCancel} />
+      </View>
+      <Text accessibilityLiveRegion="polite" style={[type.body, { color: c.muted }]}>
+        {copyStatus === "copied"
+          ? "Code copied."
+          : copyStatus === "failed"
+            ? "Could not copy the code. Select and copy it."
+            : "Waiting for GitHub."}{" "}
+        Expires at {attempt.expiresAt ? clock.time(timestampDate(attempt.expiresAt)) : "—"}.
+      </Text>
+      {openFailed && <Notice error>Could not open GitHub. Open github.com/login/device in your browser.</Notice>}
     </View>
   );
 }

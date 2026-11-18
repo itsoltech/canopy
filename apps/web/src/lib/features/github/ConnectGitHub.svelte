@@ -25,7 +25,7 @@
   let attempt = $state<github.GitHubDeviceAuth>();
   let busy = $state(false);
   let error = $state("");
-  let copied = $state(false);
+  let copyStatus = $state<"copied" | "failed">();
   const key = () => `canopy:github-sign-in:${homeId}`;
   let notified = "";
   let alive = true;
@@ -58,7 +58,7 @@
   }
 
   async function start() {
-    copied = false;
+    copyStatus = undefined;
     const requestKey = `${key()}:request`;
 
     const request =
@@ -71,11 +71,14 @@
   }
 
   async function copy() {
+    if (attempt?.state !== "pending") return;
+
+    // Start the write in the link's click gesture. Its default action opens GitHub.
     try {
-      await navigator.clipboard.writeText(attempt?.userCode ?? "");
-      copied = true;
+      await navigator.clipboard.writeText(attempt.userCode);
+      copyStatus = "copied";
     } catch {
-      error = "Could not copy the code. Select it and copy it manually.";
+      copyStatus = "failed";
     }
   }
 
@@ -116,18 +119,27 @@
         {attempt.userCode}
       </p>
       <div class="flex flex-wrap gap-2">
-        <Button onclick={copy} size="sm">Copy code</Button>
-        {#if attempt.verificationUri === "https://github.com/login/device"}<ButtonLink
+        {#if attempt.verificationUri === "https://github.com/login/device"}
+          <ButtonLink
             href={attempt.verificationUri}
+            onclick={copy}
             target="_blank"
             rel="noreferrer"
-            size="sm">Open GitHub</ButtonLink
-          >{/if}
+            variant="primary"
+            size="sm">Copy code and open GitHub</ButtonLink
+          >
+          <ButtonLink href={attempt.verificationUri} target="_blank" rel="noreferrer" variant="ghost" size="sm"
+            >Open GitHub</ButtonLink
+          >
+        {/if}
         <!-- SAFETY: this action is rendered only for the pending attempt; run invokes its callback synchronously. -->
         <Button onclick={() => run(() => api.cancel(attempt!.id))} disabled={busy} size="sm">Cancel</Button>
       </div>
       <div class="min-h-6 text-base/6 text-zinc-500 sm:text-sm/6 dark:text-zinc-400" role="status">
-        {copied ? "Code copied. " : ""}Waiting for GitHub. Expires at {formatTime(attempt.expiresAt) || "—"}.
+        {#if copyStatus === "copied"}Code copied.
+        {:else if copyStatus === "failed"}Could not copy the code. Select and copy it.
+        {:else}Waiting for GitHub.{/if}
+        Expires at <span class="whitespace-nowrap tabular-nums">{formatTime(attempt.expiresAt) || "—"}.</span>
       </div>
     </div>
   {:else}
