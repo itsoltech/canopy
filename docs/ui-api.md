@@ -1,6 +1,6 @@
 # API dla UI i architektura frontendu
 
-Status (2026-11-18): web/desktop automatycznie zwija kroki pomyślnie zakończonego przygotowania wątku;
+Status (2026-11-18): stopka sidebara ma osobne ikony Settings i Usage oraz samą kropkę statusu połączenia;
 `InstallCli` przyjmuje opcjonalne UUID próby do korelacji raportów;
 kontrakt kompozytora i wątków udostępnia szybkość wykonania `service_tier`;
 Claude zachowuje 330 s dla interakcji mimo 15-minutowego limitu MCP dla publikacji obrazów;
@@ -86,6 +86,9 @@ kolejną turę zachowuje nadpisanie. Szczegóły trwałości i walidacji:
 [protocol.md](protocol.md#szybkość-wykonania-dostawcy).
 
 ## Przygotowanie nowego wątku
+
+Status (2026-11-18): zaimplementowane; web/desktop automatycznie zwija kroki
+pomyślnie zakończonego przygotowania. Dostępność w kanałach: [release.md](release.md).
 
 Kompozytor nowego wątku w web/desktop otwiera `/threads/starting/<clientRequestId>`
 od razu po wysłaniu, przed oczekiwaniem na Git. Pokazuje tę samą wiadomość użytkownika
@@ -241,11 +244,18 @@ nie oznacza zerowego użycia. Zasady źródeł i kredytów: [provider-accounts.m
 
 ## Statystyki zużycia w web/desktop
 
-Menu Settings and usage w stopce sidebara ma akcje Open settings oraz Open usage.
-Druga otwiera osobny modal, pozostawiając bazową stronę zamontowaną.
+Status połączenia w stopce sidebara pokazuje samą kropkę, bez etykiety tekstowej.
+Pełny stan pozostaje w dostępnej nazwie przycisku i podpowiedzi, a jego zmiany
+są ogłaszane czytnikom ekranu. Kliknięcie kropki nadal otwiera szczegóły i ręczne ponowienie.
+Lokalny desktop nadal pomija kropkę przy zdrowym połączeniu z własnym gatewayem.
+W sidebarze węższym niż 16 rem stopka zmniejsza odstępy i zostawia samą ikonę
+workerów; ich licznik pozostaje w dostępnej nazwie linku.
+
+Zębatka w stopce sidebara otwiera Settings bezpośrednio.
+Osobna ikona Usage obok niej otwiera modal, pozostawiając bazową stronę zamontowaną.
 Host modalu pozostaje w AppShell niezależnie od szerokości sidebara;
 otwarcie na telefonie zamyka nawigację. Starszy gateway bez `GetUsageStats`
-nie pokazuje akcji Open usage.
+nie pokazuje ikony Usage.
 Używa wspólnego `Dialog`: natywnego ograniczenia fokusu,
 Escape, powrotu fokusu do wyzwalacza i tokenów ruchu; na telefonie zajmuje cały ekran.
 Kontrolki zachowują gęstość Settings, a pickery korzystają ze zwartej skali nakładek.

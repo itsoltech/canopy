@@ -48,25 +48,22 @@
   );
 </script>
 
-<!-- The trigger hugs its label (its hover is only as wide as the text); the sidebar pushes it to the right edge,
-     so a longer label grows leftwards into free space and never moves the other footer controls. -->
 <!-- The live region stays mounted while quiet, so a later reconnect is still announced. -->
+<span class="sr-only" role="status">{look.label}</span>
 <Popover bind:open label="Connection" placement="top-end" sheet class="w-80 max-w-[calc(100vw-1rem)]">
   {#snippet trigger(props)}
     <button
       type="button"
       {...props}
       aria-label={`${look.label}. Show connection details`}
+      title={look.label}
       class={[
-        "flex items-center rounded-lg text-sm/5 text-zinc-500 focus-ring hover:bg-zinc-950/5 hover:text-zinc-950 sm:text-xs/5 dark:text-zinc-400 dark:hover:bg-white/5 dark:hover:text-white",
+        "grid size-9 shrink-0 place-items-center rounded-lg focus-ring hover:bg-zinc-950/5 sm:size-8 dark:hover:bg-white/5",
         className,
       ]}
     >
       {#if !(quietWhenLive && connection === "live")}
-        <span class="flex min-w-0 items-center gap-2 px-2 py-1.5">
-          <StatusDot tone={look.tone} active={connection === "reconnecting"} />
-          <span class="truncate">{look.label}</span>
-        </span>
+        <StatusDot tone={look.tone} active={connection === "reconnecting"} />
       {/if}
     </button>
   {/snippet}
