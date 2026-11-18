@@ -6,6 +6,7 @@ import { originOf } from "./routines.ts";
 import type { BotTurn, StoredCall } from "./types.ts";
 import { requiredString, type WakeupRow } from "./store-views.ts";
 import type { BotCore } from "./store-queue.ts";
+import { deliverThreadQuestions, deliverySources } from "./thread-questions.ts";
 import { threadNotice } from "./thread-notice.ts";
 
 /** Watches of threads and steers, wakeups and reminders. */
@@ -86,6 +87,8 @@ export function botDeliveries(sql: SqlClient.SqlClient, core: BotCore) {
           for (const steer of steers)
             yield* sql`UPDATE bot_thread_watches SET target_turn_id = ${steer.target_turn_id}::uuid WHERE call_id = ${steer.call_id}::uuid`;
 
+          yield* deliverThreadQuestions(sql, core);
+
           const watches = yield* sql<{
             call_id: string;
             bot_id: string;
@@ -161,14 +164,6 @@ export function botDeliveries(sql: SqlClient.SqlClient, core: BotCore) {
       ),
   };
 }
-
-const deliverySources = (sql: SqlClient.SqlClient, ids: readonly string[]) =>
-  ids.length
-    ? sql<BotTurn & { call_id: string; origin_enabled: boolean }>`SELECT t.*,c.id AS call_id,
-    (t.routine_id IS NULL OR coalesce(r.enabled AND r.deleted_at IS NULL,false)) AS origin_enabled
-    FROM bot_tool_calls c JOIN bot_turns t ON t.id=c.turn_id LEFT JOIN bot_routines r ON r.id=t.routine_id
-    WHERE c.id=ANY(${[...ids]}::uuid[])`.pipe(Effect.map((rows) => new Map(rows.map((row) => [row.call_id, row]))))
-    : Effect.succeed(new Map<string, BotTurn & { origin_enabled: boolean }>());
 
 /** Fetch a text prefix, never complete tool payloads. JS slicing retains the historical UTF-16 limit. */
 export const watchTexts = (sql: SqlClient.SqlClient, requested: readonly { thread: string; turn: string }[]) =>
