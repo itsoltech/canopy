@@ -183,6 +183,7 @@ describe.skipIf(!dockerAvailable)("schema on PostgreSQL 17", () => {
       "168_bot_thread_questions",
       "169_bot_chat_steer",
       "170_slack_attachments",
+      "171_thread_permission_selection",
     ]);
   }, 60_000);
 

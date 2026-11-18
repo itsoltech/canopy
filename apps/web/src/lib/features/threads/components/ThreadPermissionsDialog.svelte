@@ -1,5 +1,5 @@
 <script lang="ts">
-  import type { ui } from "@canopy/contracts";
+  import { Provider, type ui } from "@canopy/contracts";
   import Alert from "#lib/shared/ui/Alert.svelte";
   import Button from "#lib/shared/ui/Button.svelte";
   import Dialog from "#lib/shared/ui/Dialog.svelte";
@@ -42,6 +42,12 @@
   });
 
   const mode = $derived(picked && isPermissionModeAvailable(picked, fullAuto) ? picked : current);
+
+  const changesDefault = $derived(
+    mode !== current || (thread.provider === Provider.CODEX && !thread.permissionModeSelected),
+  );
+
+  const confirmFullAccess = $derived(isFullAccess(mode) && changesDefault);
   let busy = $state(false);
   let error = $state<string>();
   const id = $props.id();
@@ -49,7 +55,7 @@
   async function save(event: SubmitEvent) {
     event.preventDefault();
 
-    if (mode === current) return void (open = false);
+    if (!changesDefault) return void (open = false);
     busy = true;
     error = undefined;
 
@@ -67,7 +73,9 @@
 <Dialog
   bind:open
   title="Permissions"
-  description="Turns use this mode unless you choose otherwise in the composer for a message. It applies from the next turn."
+  description={thread.provider === Provider.CODEX
+    ? "Choose the mode for new turns in this thread."
+    : "Turns use this mode unless you choose otherwise in the composer for a message. It applies from the next turn."}
 >
   <form class="grid gap-4" onsubmit={save}>
     {#if !isPermissionModeAvailable(current, fullAuto)}
@@ -108,7 +116,7 @@
         </label>
       {/each}
     </fieldset>
-    {#if isFullAccess(mode) && mode !== current}
+    {#if confirmFullAccess}
       <Alert tone="danger"
         >Every turn without a mode of its own edits files and runs commands without asking. No sandbox keeps it in the
         workspace.</Alert
@@ -117,7 +125,7 @@
     {#if error}<Alert tone="error">{error}</Alert>{/if}
     <DialogActions>
       <Button onclick={() => (open = false)}>Cancel</Button>
-      {#if isFullAccess(mode) && mode !== current}
+      {#if confirmFullAccess}
         <Button type="submit" variant="danger" loading={busy}>Turn on full access</Button>
       {:else}
         <Button type="submit" variant="primary" loading={busy}>Save</Button>

@@ -1,7 +1,12 @@
 # Model danych (PostgreSQL)
 
-Status (2026-11-18): zaimplementowany model, w tym migracje `0153_thread_notice_replication`, `0160_agent_hop_policy`, `0162_service_tiers`, `0164_usage_accounting`, `0165_usage_estimated_cost` i `0169_bot_chat_steer`;
+Status (2026-11-18): zaimplementowany model, w tym migracje `0153_thread_notice_replication`, `0160_agent_hop_policy`, `0162_service_tiers`, `0164_usage_accounting`, `0165_usage_estimated_cost`, `0169_bot_chat_steer` i `0171_thread_permission_selection`;
 dostępność nightly/beta/stable według [release.md](release.md).
+
+Migracja `0171_thread_permission_selection` dodaje `threads.permission_mode_selected`.
+Pole jest początkowo fałszywe. Jawny zapis uprawnień przez `UpdateThread` ustawia je razem
+z trybem wątku. Dzięki temu kompozytor Codexa może odróżnić wybór wątku od dawnych nadpisań
+pojedynczych wiadomości. Szczegóły w [ui-api.md](ui-api.md#wybory-następnej-tury).
 
 Migracja `0169_bot_chat_steer` dodaje `bot_turns.steer_target_id` dla wiadomości
 z prywatnego czatu wysyłanych do aktywnej tury bota. Potwierdzenie przenosi

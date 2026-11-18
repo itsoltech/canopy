@@ -10,6 +10,7 @@ export interface ThreadRow {
   preparation_fingerprint?: string | null;
   context_usage?: JsonValue | null;
   auto_archive_on_merge?: boolean | null;
+  permission_mode_selected: boolean;
   last_user_turn_choices?: ComposerChoiceColumns | null;
   rewind_pending_id?: string | null;
   newest_pull_request?: JsonValue | null;

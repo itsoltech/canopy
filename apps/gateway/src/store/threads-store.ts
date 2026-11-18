@@ -215,9 +215,10 @@ export function threadStore(sql: SqlClient.SqlClient): Omit<ThreadStore, "create
 
     updateThreadSettings: (threadId, settings, autoArchiveOnMerge) =>
       sql`
-              UPDATE threads SET auto_archive_on_merge = CASE WHEN ${autoArchiveOnMerge !== undefined} THEN ${autoArchiveOnMerge ?? null}::boolean ELSE auto_archive_on_merge END, settings = settings || ${JSON.stringify({ ...settings, ...(settings.permissionMode && { permissionModeNote: "" }) })}::jsonb WHERE id = ${threadId}::uuid AND archived_at IS NULL`.pipe(
-        Effect.andThen(store.thread(threadId)),
-      ),
+              UPDATE threads SET auto_archive_on_merge = CASE WHEN ${autoArchiveOnMerge !== undefined} THEN ${autoArchiveOnMerge ?? null}::boolean ELSE auto_archive_on_merge END,
+                permission_mode_selected = permission_mode_selected OR ${Boolean(settings.permissionMode)},
+                settings = settings || ${JSON.stringify({ ...settings, ...(settings.permissionMode && { permissionModeNote: "" }) })}::jsonb
+              WHERE id = ${threadId}::uuid AND archived_at IS NULL`.pipe(Effect.andThen(store.thread(threadId))),
 
     renameThread: (threadId, title) =>
       sql`UPDATE threads SET title = ${title}, title_source = 'user', title_revision = title_revision + 1

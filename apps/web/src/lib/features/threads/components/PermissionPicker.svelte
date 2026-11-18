@@ -19,7 +19,7 @@
 
   /**
    * Composer pill for a thread's permission mode (new thread and side thread: the draft's pick; thread
-   * composer: the next turn's mode, restored from the last user turn, or the running turn for Claude).
+   * composer: the next turn's mode, or the running turn for Claude with live permission updates).
    */
   let {
     value,
@@ -27,7 +27,8 @@
     fullAuto,
     fullAccess = true,
     disabled = false,
-    nextTurn = false,
+    scope,
+    confirmFullAccess = false,
     explanation,
     class: className,
   }: {
@@ -38,7 +39,8 @@
     /** false: Full access is not offered (schedules: nobody watches those runs start). */
     fullAccess?: boolean;
     disabled?: boolean;
-    nextTurn?: boolean;
+    scope?: "message" | "next" | undefined;
+    confirmFullAccess?: boolean;
     explanation?: string | undefined;
     class?: ClassValue;
   } = $props();
@@ -58,7 +60,7 @@
   function pick(mode: PermissionModeKey) {
     if (disabled) return;
 
-    if (isFullAccess(mode) && mode !== value) confirming = () => onselect(mode);
+    if (isFullAccess(mode) && (mode !== value || confirmFullAccess)) confirming = () => onselect(mode);
     else onselect(mode);
   }
 </script>
@@ -76,9 +78,11 @@
           "text-rose-700 hover:text-rose-800 aria-expanded:text-rose-800 dark:text-rose-400 dark:hover:text-rose-300 dark:aria-expanded:text-rose-300",
         className,
       ]}
-      aria-label={nextTurn
-        ? `Next turn permissions: ${permissionLabel(value)}`
-        : `Permissions: ${permissionLabel(value)}`}
+      aria-label={scope === "message"
+        ? `Permissions for this message: ${permissionLabel(value)}`
+        : scope === "next"
+          ? `Next turn permissions: ${permissionLabel(value)}`
+          : `Permissions: ${permissionLabel(value)}`}
       title={savedFullAuto
         ? savedFullAutoDescription
         : selected && tone !== "neutral"
@@ -86,7 +90,9 @@
           : `Permissions: ${permissionLabel(value)}`}
     >
       <Icon name={look.icon} class={["size-3.5", tone !== "neutral" && look.iconClass]} />
-      {#if nextTurn}
+      {#if scope === "message"}
+        <span>This message: {permissionLabel(value)}</span>
+      {:else if scope === "next"}
         <span>Next turn: {permissionLabel(value)}</span>
       {:else}
         <span class="max-sm:sr-only @max-[34rem]/context:sr-only">{permissionLabel(value)}</span>

@@ -1,11 +1,10 @@
 # Projekty, wątki i wątki boczne
 
-Status (2026-11-18): zaimplementowane, w tym ukrycie Full auto w web/desktop dla Claude
-na natywnym Windowsie, trwały wpis wątku przed przygotowaniem nowego worktree,
+Status (2026-11-18): zaimplementowane, w tym zapis uprawnień Codexa na kolejne tury z kompozytora web/desktop,
+ukrycie Full auto dla Claude na natywnym Windowsie, trwały wpis wątku przed przygotowaniem nowego worktree,
 propagacja odmowy prędkości do błędu celu,
 wybór prędkości dostawcy oraz stan tylko do odczytu po usunięciu worktree
-i kontynuacja w nowym wątku z nowym worktree oraz uprawnienia ostatniej tury użytkownika
-w karcie hover oraz automatyczna archiwizacja po merge PR-ów
+i kontynuacja w nowym wątku z nowym worktree oraz uprawnienia wątku w karcie hover oraz automatyczna archiwizacja po merge PR-ów
 z nadpisaniami projektu i wątku (przełącznik w szczegółach także na mobile),
 zamykanie zasobów przy archiwizacji,
 opcjonalna retencja archiwum, grupowanie
@@ -149,7 +148,8 @@ funkcją (`threadRowPlace`, `packages/domain/src/git-heads.ts`):
   `+X more` dla pozostałych, bez paginacji ani rozwijania. Odczyt
   montuje się dopiero po otwarciu karty i współdzieli cache z panelem szczegółów.
   Nieaktualne dane pozostają widoczne podczas odświeżania; brak odpowiedzi daje Retry.
-- Uprawnienia w karcie hover pochodzą z ostatniej własnej tury użytkownika
+- Po zapisaniu uprawnień w istniejącym wątku Codexa karta hover pokazuje tryb wątku.
+  Do tego czasu oraz u pozostałych dostawców uprawnienia pochodzą z ostatniej własnej tury użytkownika
   (`last_user_turn_choices`), z domyślnym trybem wątku jako wartością zastępczą,
   tak samo jak zapisany wybór kompozytora. Etykieta, ikona i kolor używają tego
   samego trybu. Odczyt korzysta z metadanych overview, bez pobierania historii.

@@ -814,6 +814,8 @@ message Thread {
   uint64 pull_request_revision = 1032;
   // Powód ograniczenia odziedziczonego/skonfigurowanego trybu przy utworzeniu wątku.
   string permission_mode_note = 1040;
+  // The owner explicitly set the thread permission mode with UpdateThread since this field was added.
+  bool permission_mode_selected = 1041;
   // Owner's manual sidebar arrangement. Empty on threads predating the migration.
   string sidebar_order_key = 1050;
   // Latest completed agent message; absent before the first reply.

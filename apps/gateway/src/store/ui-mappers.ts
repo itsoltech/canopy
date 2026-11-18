@@ -95,6 +95,7 @@ export function toUiThread(row: ThreadRow): ui.Thread {
     effort: row.settings.effort ?? "",
     serviceTier: row.settings.serviceTier ?? "",
     permissionMode: permissionModeOf(row.settings.permissionMode || "ASK"),
+    permissionModeSelected: row.permission_mode_selected,
     permissionModeNote: row.settings.permissionModeNote ?? "",
     workerId: row.worker_id ?? "",
     workspaceId: row.workspace_id ?? "",
