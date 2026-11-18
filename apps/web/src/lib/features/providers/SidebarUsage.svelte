@@ -77,9 +77,8 @@
                 class="text-sm/5 text-pretty text-zinc-500 sm:text-xs/5 dark:text-zinc-400"
               >
                 {note.text}
-                {#if !note.checking}<TextLink
-                    href={`/settings/proxies#proxy-${note.proxyId}`}
-                    onclick={panel.close}>Check proxy settings</TextLink
+                {#if !note.checking}<TextLink href={`/settings/proxies#proxy-${note.proxyId}`} onclick={panel.close}
+                    >Check proxy settings</TextLink
                   >{/if}
               </p>
             {/each}

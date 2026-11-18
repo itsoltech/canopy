@@ -40,7 +40,13 @@
   });
 </script>
 
-<div role="group" aria-label="Update controls" onpointerenter={panel.enter} onpointerleave={panel.leave} class={className}>
+<div
+  role="group"
+  aria-label="Update controls"
+  onpointerenter={panel.enter}
+  onpointerleave={panel.leave}
+  class={className}
+>
   <Popover
     bind:open={panel.isOpen, panel.setOpen}
     label="Updates"
@@ -70,10 +76,6 @@
           ></span>{/if}
       </div>
     {/snippet}
-    <CompactUpdates
-      updates={center}
-      app={updates}
-      onnotes={panel.close}
-    />
+    <CompactUpdates updates={center} app={updates} onnotes={panel.close} />
   </Popover>
 </div>
