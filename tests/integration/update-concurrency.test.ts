@@ -83,12 +83,17 @@ function fleet(workers = 3, shared = false) {
     if (!cli) throw new Error(`Missing fake CLI ${id}`);
     cli.version = failed ? "1.0.0" : "2.0.0";
 
-    if (failed)
+    if (failed) {
+      const installId = attempts.get(id);
+
+      if (!installId) throw new Error(`Missing installation attempt for ${id}`);
       cli.install = create(CliInstallStatusSchema, {
-        installId: attempts.get(id),
+        installId,
         state: "failed",
         error: "Fixture install failed",
       });
+    }
+
     gates.get(id)?.resolve();
   };
 

@@ -4,7 +4,16 @@ import { createClient } from "@connectrpc/connect";
 import { createHash } from "node:crypto";
 import { writeFile } from "node:fs/promises";
 import { join } from "node:path";
-import { CliInstallMethod, CliToolsReportSchema, InstallCliSchema, Provider, ui, update } from "@canopy/contracts";
+import {
+  CliInstallMethod,
+  CliInstallStatusSchema,
+  CliToolSchema,
+  CliToolsReportSchema,
+  InstallCliSchema,
+  Provider,
+  ui,
+  update,
+} from "@canopy/contracts";
 import { dockerAvailable } from "@canopy/db/testing";
 import { tempDir } from "@canopy/testing";
 import { createGrpcClientTransport } from "@canopy/transport";
@@ -143,20 +152,26 @@ async function fixture(kind: "binary" | "docker" = "binary", version = "2.0.0") 
 }
 
 function cliReport(gateway: TestGateway, version: string, state = "") {
+  const tool = create(CliToolSchema, {
+    provider: Provider.CLAUDE,
+    method: CliInstallMethod.NATIVE,
+    version,
+    installable: true,
+  });
+
+  if (state) {
+    const installId = cliAttempts.get(gateway);
+
+    if (!installId) throw new Error("CLI status reported before an installation command");
+    tool.install = create(CliInstallStatusSchema, { installId, state, targetVersion: "2.0.0" });
+  }
+
   return gateway.core.cli.report(
     gateway.workerId,
     create(CliToolsReportSchema, {
       os: "linux",
       arch: "x64",
-      tools: [
-        {
-          provider: Provider.CLAUDE,
-          method: CliInstallMethod.NATIVE,
-          version,
-          installable: true,
-          ...(state && { install: { installId: cliAttempts.get(gateway), state, targetVersion: "2.0.0" } }),
-        },
-      ],
+      tools: [tool],
     }),
   );
 }
