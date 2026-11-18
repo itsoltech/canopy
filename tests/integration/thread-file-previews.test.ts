@@ -1,5 +1,5 @@
 import { afterAll, beforeAll, describe, expect, test } from "bun:test";
-import { createHash } from "node:crypto";
+import { createHash, randomBytes } from "node:crypto";
 import {
   chmodSync,
   mkdirSync,
@@ -15,6 +15,8 @@ import sharp from "sharp";
 import { create, toJson } from "@bufbuild/protobuf";
 import { FileResolution, ItemSchema, ItemStatus, type ui } from "@canopy/contracts";
 import { qualifyId } from "@canopy/domain/computers";
+import { THREAD_FILE_DOWNLOAD_CAPABILITY } from "@canopy/domain/release/protocol";
+import { THREAD_FILE_DOWNLOAD_CHUNK_BYTES } from "@canopy/domain/thread-files";
 import { dockerAvailable } from "@canopy/db/testing";
 import { remoteServe, uiHandlers } from "@canopy/gateway/api";
 import { GatewayStore } from "@canopy/gateway/store";
@@ -103,7 +105,7 @@ describe.skipIf(!dockerAvailable)("thread file previews through a real home work
     mkdirSync(data);
     home = await worktreeFixture(data, {
       role: "desktop",
-      capabilities: ["thread_files_v1", "thread_file_preview_v1"],
+      capabilities: ["thread_files_v1", "thread_file_preview_v1", THREAD_FILE_DOWNLOAD_CAPABILITY],
     });
     thread = await home.tree();
     mkdirSync(join(thread.cwd, "public"));
@@ -161,6 +163,10 @@ describe.skipIf(!dockerAvailable)("thread file previews through a real home work
     expect(ambiguous.matches.toSorted()).toEqual(["assets/choice.txt", "public/choice.txt"]);
     expect(ambiguous.content.length).toBe(0);
     expect(ambiguous.sha256).toBe("");
+    const download = await caller.api.readThreadFile({ threadId: q(), path: "choice.txt", downloadRange: {} });
+    expect(download.resolution).toBe(FileResolution.AMBIGUOUS);
+    expect(download.downloadChunk).toBeUndefined();
+    expect(download.content).toHaveLength(0);
     expect(text(await caller.api.readThreadFile({ threadId: q(), path: "assets/choice.txt" }))).toBe("assets");
   });
 
@@ -231,6 +237,60 @@ describe.skipIf(!dockerAvailable)("thread file previews through a real home work
       expect(file.content).toEqual(new Uint8Array(bytes));
       expect(file.sha256).toHaveLength(64);
     }
+  });
+
+  test("a linked download resolves a same-turn hint and carries the exact binary beyond the preview limit", async () => {
+    const bytes = randomBytes(LIMIT + 123);
+    const path = put("assets/download.bin", bytes);
+    put("download.bin", "wrong file");
+    const itemId = await turnItems(thread.id, ["Open `download.bin`", "cat assets/download.bin"]);
+    const target = { threadId: q(), path: "download.bin", itemId: q(itemId) };
+    const preview = await caller.api.readThreadFile(target);
+    expect(preview).toMatchObject({ path, binary: true, truncated: true, size: BigInt(bytes.length) });
+
+    const first = await caller.api.readThreadFile({ ...target, downloadRange: {} });
+    expect(first).toMatchObject({ path, resolution: FileResolution.FOUND, size: BigInt(bytes.length) });
+    expect(first.downloadChunk?.revision).toHaveLength(64);
+    expect(first.downloadChunk?.offset).toBe(0n);
+    expect(first.content).toHaveLength(THREAD_FILE_DOWNLOAD_CHUNK_BYTES);
+    const revision = first.downloadChunk!.revision;
+    const parts = [first.content];
+
+    for (let offset = first.content.length; offset < bytes.length; offset += THREAD_FILE_DOWNLOAD_CHUNK_BYTES) {
+      const chunk = await caller.api.readThreadFile({
+        threadId: q(),
+        path: first.path,
+        downloadRange: { offset: BigInt(offset), expectedRevision: revision },
+      });
+
+      expect(chunk).toMatchObject({ path, size: first.size, downloadChunk: { offset: BigInt(offset), revision } });
+      parts.push(chunk.content);
+    }
+
+    expect(Buffer.concat(parts).equals(bytes)).toBe(true);
+  });
+
+  test("a download refuses a changed file of the same size and validates a zero-byte file", async () => {
+    const bytes = Buffer.alloc(THREAD_FILE_DOWNLOAD_CHUNK_BYTES + 1, 0x41);
+    const path = put("assets/changing-download.bin", bytes);
+    const target = { threadId: q(), path };
+    const first = await caller.api.readThreadFile({ ...target, downloadRange: {} });
+    expect(first.downloadChunk?.revision).toHaveLength(64);
+    writeFileSync(path, bytes.fill(0x42));
+    expect(
+      await failure(
+        caller.api.readThreadFile({
+          ...target,
+          downloadRange: { offset: BigInt(first.content.length), expectedRevision: first.downloadChunk!.revision },
+        }),
+      ),
+    ).toContain("The file changed on disk. Download it again.");
+
+    const emptyPath = put("assets/empty-download.txt", "");
+    const empty = await caller.api.readThreadFile({ threadId: q(), path: emptyPath, downloadRange: {} });
+    expect(empty).toMatchObject({ path: emptyPath, size: 0n, resolution: FileResolution.FOUND });
+    expect(empty.downloadChunk?.revision).toHaveLength(64);
+    expect(empty.content).toHaveLength(0);
   });
 
   test("image dimensions and static previews are bounded before client decoding", async () => {
@@ -305,6 +365,9 @@ describe.skipIf(!dockerAvailable)("thread file previews through a real home work
         const error = await failure(api.readThreadFile({ threadId, path }));
         expect(error).toContain("Thread unavailable");
         expect(error).not.toContain("private bytes");
+        expect(await failure(api.readThreadFile({ threadId, path, downloadRange: {} }))).toContain(
+          "Thread unavailable",
+        );
       }
     }
   });

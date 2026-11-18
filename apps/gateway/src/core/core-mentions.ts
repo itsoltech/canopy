@@ -113,8 +113,14 @@ export async function coreWorkerQuery(
   );
 
   if (!result.ok) {
-    if (result.errorCode === "FILE_CHANGED")
-      throw new ConnectError("The file changed on disk. Compare your changes before reloading.", Code.Aborted);
+    if (result.errorCode === "FILE_CHANGED") {
+      const message =
+        kind.case === "readFile" && kind.value.downloadRange
+          ? "The file changed on disk. Download it again."
+          : "The file changed on disk. Compare your changes before reloading.";
+
+      throw new ConnectError(message, Code.Aborted);
+    }
 
     if (kind.case === "cloneRepository" && result.errorCode === "CLONE_AUTH_FAILED") {
       const worker = (await coreWorkers(hostContext)).find((w) => w.id === workerId);

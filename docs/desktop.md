@@ -3,9 +3,9 @@
 Status: opis zaimplementowanego runtime i pakowania (2026-11-18), w tym ponawiania
 startu lokalnego gatewaya po serii nieoczekiwanych wyjść, osobnego okna
 stanu zamykania i restartu do aktualizacji oraz ponawiania
-pakowania macOS i Windows w CI oraz lokalnego wskazywania
-plików z rozmowy w Finder/Explorer i pomijania cache przy ręcznym
-sprawdzaniu aktualizacji, wykrywania pojedynczego procesu przez instalator Windows
+pakowania macOS i Windows w CI, menu ścieżek plików z rozmowy
+z pobieraniem z innych workerów i lokalnym wskazywaniem plików w Finder/Explorer,
+pomijania cache przy ręcznym sprawdzaniu aktualizacji, wykrywania pojedynczego procesu przez instalator Windows
 i wykluczenia własnego PID instalatora/deinstalatora z wyszukiwania i zamykania procesów,
 ręcznego odzyskiwania aktualizacji Windows
 i odmowy startu lokalnej bazy z uprawnieniami administratora, sesji dostępu do lokalnego BFF,
@@ -22,6 +22,8 @@ Produkt: **Canopy** — jedna instalacja z lokalnym wyborem kanału aktualizacji
 
 ## Decyzje
 
+Menu ścieżki w rozmowie pozwala otworzyć plik i skopiować pełną lub względną ścieżkę.
+Dla pliku z innego workera `Download file` uruchamia mechanizm zapisu Electrona.
 Ścieżki plików w rozmowie i menu `File actions` udostępniają `Reveal in Finder`
 na macOS, `Reveal in Explorer` na Windows oraz `Reveal in file manager` na Linux.
 Akcja działa wyłącznie w lokalnym trybie desktopu dla jego wbudowanego workera;

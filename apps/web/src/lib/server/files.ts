@@ -46,7 +46,7 @@ export function fileResponse(
     headers: {
       "content-type": type,
       "content-length": String(data.length),
-      "content-disposition": `${inline ? "inline" : "attachment"}; filename="${asciiName(name)}"; filename*=UTF-8''${encodeURIComponent(name)}`,
+      "content-disposition": fileDisposition(name, inline),
       "x-content-type-options": "nosniff",
       "content-security-policy": "default-src 'none'; sandbox",
       "cross-origin-resource-policy": "same-origin",
@@ -54,6 +54,15 @@ export function fileResponse(
       ...cacheHeaders,
     },
   });
+}
+
+export function fileDisposition(name: string, inline = false): string {
+  const encoded = encodeURIComponent(name.toWellFormed()).replace(
+    /['()*]/g,
+    (char) => `%${char.charCodeAt(0).toString(16).toUpperCase()}`,
+  );
+
+  return `${inline ? "inline" : "attachment"}; filename="${asciiName(name)}"; filename*=UTF-8''${encoded}`;
 }
 
 function asciiName(name: string): string {

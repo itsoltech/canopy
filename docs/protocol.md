@@ -921,8 +921,9 @@ i własnego remote. Konektor oraz poświadczenia pozostają w gatewayu. Pola są
 
 ## Folder i pliki wątku
 
-Status (2026-11-17): lokalne wskazywanie pliku w menedżerze systemowym
-oraz podgląd dostępnych plików spoza workspace tylko do odczytu są zaimplementowane;
+Status (2026-11-18): lokalne wskazywanie pliku w menedżerze systemowym,
+podgląd dostępnych plików spoza workspace tylko do odczytu i pobieranie
+pełnych plików są zaimplementowane;
 dostępność nightly/beta/stable wynika z [release.md](release.md).
 
 Capability `thread_file_reveal_v1` dodaje nietrwałe `RevealFile` (236) z `FileRequest`
@@ -1069,6 +1070,19 @@ czy usunięto. Zwykłe nierozstrzygnięcie daje `NOT_FOUND`; błąd połączenia
 `include_binary` przesyła również bajty binarne (limit 2 MiB); starszy klient nadal dostaje pustą treść
 binarną. Odczyt przez link używa istniejącego strumienia z porcjami 32 KiB, z kontrolą przepływu,
 anulowaniem i limitem ponownego złożenia wiadomości. Nie powstaje URL do systemu plików komputera domowego.
+
+Capability `thread_file_download_v1` dodaje `download_range` do `ThreadFileRequest`
+(6) i `FileRequest` (10) oraz `download_chunk` do `ThreadFile` (21) i `FileContent` (20).
+Pobieranie korzysta z istniejącej komendy `ReadFile`, trasowania do domu
+i zakresu odczytu podglądu, wraz z `item_id` przy rozstrzyganiu pierwszej ścieżki.
+Pierwsze żądanie ma offset 0 i pustą rewizję. Kolejne wskazują zwróconą
+ścieżkę, offset w bajtach i oczekiwaną rewizję. Każda odpowiedź zawiera do
+1 MiB surowych bajtów, całkowity rozmiar, offset i rewizję. Worker sprawdza
+tożsamość i metadane otwartego pliku po obu stronach odczytu oraz koniec
+pliku przy ostatniej porcji. Zmiana rewizji lub liczby bajtów przerywa
+pobieranie. Gateway nie wysyła żądania zakresu do starszego workera.
+BFF wymaga potwierdzenia obsługi zakresu od domu. Zmiana nie podnosi
+`WORKER_LINK_PROTOCOL`.
 
 ## CLI dostawców
 

@@ -6,6 +6,7 @@ import type { HostContext } from "./host-context.ts";
 import { openInDefaultApp, revealFileInFileManager } from "./reveal.ts";
 import { fileImageMetadata } from "../files/file-image.ts";
 import { checkFileRoot } from "../files/file-root.ts";
+import { readThreadFileChunk } from "../files/thread-file-download.ts";
 import { isAbsolute } from "node:path";
 import { isWithin } from "../git/worktrees.ts";
 
@@ -32,6 +33,9 @@ export async function runFileCommand(ctx: HostContext, kind: FileCommand): Promi
   if (!target) return {};
   const workspace = target.workspace || target.roots[0] || "";
   const rootIdentity = checkFileRoot(workspace, target.expectedRootIdentity);
+  const download = kind.case === "readFile" ? target.downloadRange : undefined;
+
+  if (download?.expectedRevision) return { file: await readThreadFileChunk(target.path, rootIdentity, download) };
 
   const extraRoots = [ctx.state.files.threadDir(target.threadId)];
 
@@ -57,6 +61,8 @@ export async function runFileCommand(ctx: HostContext, kind: FileCommand): Promi
 
   const path = resolution?.path || resolveThreadFile(target, extraRoots);
   checkFileRoot(workspace, rootIdentity);
+
+  if (download) return { file: await readThreadFileChunk(path, rootIdentity, download) };
 
   switch (kind.case) {
     case "readFile":

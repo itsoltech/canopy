@@ -3185,6 +3185,8 @@ message ThreadFileRequest {
   string item_id = 4;
   // Usunięcie: tożsamość korzenia z odczytu; podmiana checkoutu odrzuca mutację.
   string expected_root_identity = 5;
+  // Tylko ReadThreadFile: surowy zakres oryginalnych bajtów do pobrania.
+  canopy.worker.v1.FileDownloadRange download_range = 6;
 }
 
 message WriteThreadFileRequest {
@@ -3217,6 +3219,7 @@ message ThreadFile {
   bytes image_preview = 18;
   string root_identity = 19;
   bool read_only = 20;
+  canopy.worker.v1.FileDownloadChunk download_chunk = 21;
 }
 
 message SwitchThreadBranchRequest {

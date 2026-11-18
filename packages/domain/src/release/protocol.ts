@@ -47,6 +47,8 @@ export const THREAD_FILE_REVEAL_CAPABILITY = "thread_file_reveal_v1";
 /** Home-workspace name resolution and bounded binary bytes for file previews. */
 export const THREAD_FILE_PREVIEW_CAPABILITY = "thread_file_preview_v1";
 
+export const THREAD_FILE_DOWNLOAD_CAPABILITY = "thread_file_download_v1";
+
 /** Bounded, nonrecursive cwd/worktree enumeration; additive to WorkerLink protocol 1. */
 export const THREAD_DIFF_CAPABILITY = "thread_diff_v1";
 

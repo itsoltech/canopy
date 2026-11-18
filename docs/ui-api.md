@@ -22,7 +22,8 @@ porzucone notatki platformy nie udają oczekującego wejścia i nie blokują pó
 watch odzyskuje stan po powtarzającym się nieokreślonym błędzie gatewaya;
 usunięte worktree pokazuje wątek tylko do odczytu z kontynuacją w nowym worktree;
 API workspace udostępnia lokalne `RevealThreadFile`
-oraz stabilne, stronicowane zmiany Git wątku i podgląd dostępnych plików spoza workspace tylko do odczytu;
+oraz stabilne, stronicowane zmiany Git wątku, podgląd dostępnych plików spoza workspace
+tylko do odczytu i pobieranie pełnych plików;
 Settings → Agent tools grupuje Browser/Desktop/Device z dostępem per worker,
 zbiorczym przełącznikiem trójstanowym, automatyczną instalacją przy włączeniu
 i zapisanymi domyślnymi ustawieniami sesji narzędzi;
@@ -3237,11 +3238,14 @@ Zaznaczenie i kopiowanie zachowują widoczny tekst linków, wzmianek i chipów z
 **Cite** zachowuje także ścieżki plików. Zwykłe kliknięcie lub Enter otwiera plik;
 przeciągnięcie zaznaczenia przez link nie otwiera podglądu.
 
-Menu kontekstowe lokalnej ścieżki (`MarkdownFileLink`) udostępnia `Open file`,
-`Reveal in Finder` / `Reveal in Explorer` / `Reveal in file manager` i `Copy path`.
+Menu kontekstowe ścieżki (`MarkdownFileLink`) udostępnia `Open file`,
+`Copy full path` i `Copy relative path`. Akcja `Download file` jest dostępna
+w przeglądarce oraz dla wątków, których pliki nie znajdują się na tym komputerze.
+Lokalny desktop może dodatkowo pokazać `Reveal in Finder` / `Reveal in Explorer` /
+`Reveal in file manager`.
 Otwiera się prawym przyciskiem, `Shift+F10`, klawiszem menu lub długim
 przytrzymaniem. Ta sama akcja reveal jest w menu `File actions` karty pliku.
-Interfejs wymaga bridge desktopu, własnego gatewaya, lokalnego wątku,
+Akcja reveal wymaga bridge desktopu, własnego gatewaya, lokalnego wątku,
 flagi BFF `localDesktop` (dodatni lokalny cel; sama rola gatewaya nie wystarcza),
 połączonego workera `desktop_bundled` z `Worker.file_reveal` oraz RPC
 `RevealThreadFile` w negocjowanych metodach. Nazwa akcji pochodzi z OS workera.
@@ -3262,6 +3266,15 @@ kartę workspace'u (`features/workspace/WorkspaceFile.svelte`), **Default app**
 otwiera jawną ścieżkę od razu w domyślnej aplikacji, ale tylko gdy plik leży na tym komputerze (`onThisComputer`: własny gateway desktopu, wątek bez `nodeId`, worker `desktop_bundled`). Goła nazwa najpierw otwiera podgląd, aby umożliwić wybór przy wielu dopasowaniach. Plik innej maszyny zawsze otwiera się w przeglądarce, a przycisk **Open in default app** jest wtedy ukryty.
 
 Przeglądarka czyta plik przez `GET /api/threads/:id/files?path=&itemId=` (`ReadThreadFile`, do 2 MiB).
+Pobieranie pełnego pliku używa `GET /api/threads/:id/files/download?path=&itemId=`.
+BFF strumieniuje surowe bajty w porcjach do 1 MiB z `ReadThreadFile`, po jednej
+na żądanie odbiorcy. Każdą porcję sprawdza pod kątem rozmiaru, offsetu, ścieżki
+i rewizji. Odpowiedź ma zadeklarowany pełny rozmiar, bezpieczną nazwę w
+`Content-Disposition: attachment`, typ `application/octet-stream` i
+`Cache-Control: private, no-store`. Wariant `check=1` sprawdza pierwszą porcję
+i zwraca JSON `{}`. Niejednoznaczne lub niepełne wyszukiwanie daje 409 z prośbą
+o pełną ścieżkę. Starszy dom lub worker bez obsługi pobierania wymaga aktualizacji.
+`Copy full path` oraz `Copy relative path` używają ścieżki z odczytu podglądu.
 Pełna ścieżka lub `~/…` może wskazywać plik spoza workspace; symlinki są rozwiązywane
 na workerze. Warunkiem jest prawo odczytu konta systemowego workera. Plik zewnętrzny
 ma `read_only=true`, pusty `relative_path` i pusty `sha256`, więc pozostaje tylko do odczytu

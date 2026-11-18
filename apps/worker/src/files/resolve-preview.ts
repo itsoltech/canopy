@@ -7,7 +7,10 @@ import { CommandError } from "../runtime/host-types.ts";
 import { exactFileMatches } from "./search.ts";
 import { expandFileHome, resolveReadableFile, resolveThreadFile } from "./thread-files.ts";
 
-type Resolution = MessageInitShape<typeof FileContentSchema>;
+type Resolution = Pick<
+  MessageInitShape<typeof FileContentSchema>,
+  "path" | "relativePath" | "readOnly" | "sha256" | "resolution" | "matches" | "searchedPaths" | "searchIncomplete"
+>;
 
 type Access = "workspace" | "readable";
 
