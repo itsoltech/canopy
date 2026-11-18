@@ -1,5 +1,15 @@
 <script lang="ts">
-  import { count, reportedCost, shortCount, totalTokens, type UsageAmounts, type UsageView } from "./format.ts";
+  import {
+    count,
+    effectiveCost,
+    estimatedCost,
+    reportedCost,
+    shortCount,
+    totalTokens,
+    type UsageAmounts,
+    type UsageView,
+  } from "./format.ts";
+  import UsageCostCoverage from "./UsageCostCoverage.svelte";
 
   let { totals, view }: { totals: UsageAmounts; view: UsageView } = $props();
 
@@ -15,23 +25,45 @@
 <section aria-label="Usage totals" class="grid gap-4">
   <div class="flex flex-wrap items-end justify-between gap-3">
     <div>
-      <p class="text-sm/5 text-zinc-500 dark:text-zinc-400">{view === "cost" ? "Reported cost" : "Total tokens"}</p>
+      <p class="text-sm/5 text-zinc-500 dark:text-zinc-400">{view === "cost" ? "Cost" : "Total tokens"}</p>
       <p
         class="mt-1 text-3xl/10 font-semibold tracking-tight tabular-nums select-text"
         title={view === "tokens" ? count(totalTokens(totals)) : undefined}
       >
-        {view === "cost" ? reportedCost(totals) : shortCount(totalTokens(totals))}
+        {view === "cost" ? effectiveCost(totals) : shortCount(totalTokens(totals))}
       </p>
     </div>
-    <p class="text-sm/5 text-zinc-500 dark:text-zinc-400">
-      {view === "cost"
-        ? `Complete cost for ${count(totals.costReports)} of ${count(totals.reports)} reports`
-        : "Input + output"}
-    </p>
+    {#if view === "cost"}
+      <div class="text-right">
+        <p class="text-sm/5 text-zinc-500 dark:text-zinc-400">
+          {count(totals.reports)}
+          {totals.reports === 1n ? "report" : "reports"}
+        </p>
+        <UsageCostCoverage amounts={totals} />
+      </div>
+    {:else}
+      <p class="text-sm/5 text-zinc-500 dark:text-zinc-400">Input + output</p>
+    {/if}
   </div>
   {#if view === "cost"}
     <p class="text-sm/5 text-pretty text-zinc-500 dark:text-zinc-400">
-      Provider-reported estimates in USD. These may cover only part of your usage and differ from your invoice.
+      Each report uses complete reported cost or its estimated API cost. Estimates value consumption at OpenAI API
+      rates, separate from subscription charges.
+    </p>
+    <dl class="grid grid-cols-2 gap-3">
+      {#each [{ label: "Reported cost", value: reportedCost(totals), reports: totals.costReports }, { label: "Estimated API cost", value: estimatedCost(totals), reports: totals.estimatedCostReports }] as cost (cost.label)}
+        <div class="min-w-0 rounded-xl border border-divider p-3">
+          <dt class="text-sm/5 text-zinc-500 dark:text-zinc-400">{cost.label}</dt>
+          <dd class="mt-1 text-xl/7 font-medium wrap-anywhere tabular-nums select-text">{cost.value}</dd>
+          <dd class="mt-1 text-xs/5 text-zinc-500 tabular-nums dark:text-zinc-400">
+            Complete for {count(cost.reports)} of {count(totals.reports)}
+            {totals.reports === 1n ? "report" : "reports"}
+          </dd>
+        </div>
+      {/each}
+    </dl>
+    <p class="text-xs/5 text-zinc-500 dark:text-zinc-400">
+      The amounts above can cover the same usage. The total counts each report once.
     </p>
   {/if}
   <dl class="grid grid-cols-2 gap-3 sm:grid-cols-5">

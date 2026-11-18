@@ -65,6 +65,8 @@ export function threadEvents(ctx: CodexThreadContext) {
 
       // Enrich and journal each notification before mapping the next: a cell can emit several outputs.
       for (const next of notifications) {
+        yield* Effect.promise(() => entry.mapper.prepare(next));
+
         // Native raw items duplicate the authoritative rollout tail when raw usage metadata is enabled.
         const mapped =
           next === notification && next.method === "rawResponseItem/completed" && entry.rollout

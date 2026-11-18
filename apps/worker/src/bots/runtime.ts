@@ -241,6 +241,7 @@ export class BotTurns {
     if (steering) active.steering = steering;
 
     const context = {
+      pricing: this.ctx.state.pricing,
       ...(steering && { steering }),
       onUsage: usage?.report,
       usageSnapshot: this.ctx.state.usage.get(`${input.provider}/${profile.id}`)?.snapshot,

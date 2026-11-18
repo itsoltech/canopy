@@ -7,6 +7,12 @@ export interface UsageAmounts {
   cacheWrite: bigint;
   reasoning: bigint;
   cost: number;
+  estimatedCost: number;
+  effectiveCost: number;
+  estimatedCostReports: bigint;
+  effectiveReportedCostReports: bigint;
+  effectiveEstimatedCostReports: bigint;
+  unknownEffectiveCostReports: bigint;
   reports: bigint;
   costReports: bigint;
 }
@@ -50,11 +56,35 @@ export const totalTokens = (amounts: UsageAmounts) => amounts.input + amounts.ou
 export const reportedCost = (amounts: UsageAmounts) =>
   amounts.costReports > 0n || amounts.cost > 0 ? dollars.format(amounts.cost) : "Unknown";
 
+export const estimatedCost = (amounts: UsageAmounts) =>
+  amounts.estimatedCostReports > 0n || amounts.estimatedCost > 0 ? dollars.format(amounts.estimatedCost) : "Unknown";
+
+export const effectiveCostReports = (amounts: UsageAmounts) =>
+  amounts.effectiveReportedCostReports + amounts.effectiveEstimatedCostReports;
+
+export const hasEffectiveCost = (amounts: UsageAmounts) => effectiveCostReports(amounts) > 0n;
+
+export const effectiveCost = (amounts: UsageAmounts) =>
+  hasEffectiveCost(amounts) ? dollars.format(amounts.effectiveCost) : "Unknown";
+
+export function costSource(amounts: UsageAmounts): string {
+  if (!hasEffectiveCost(amounts)) return "Unknown cost";
+
+  const source =
+    amounts.effectiveEstimatedCostReports === 0n
+      ? "Reported"
+      : amounts.effectiveReportedCostReports === 0n
+        ? "API equivalent"
+        : "Reported + API equivalent";
+
+  return amounts.unknownEffectiveCostReports > 0n ? `${source} · partial` : source;
+}
+
 export const metricValue = (amounts: UsageAmounts, view: UsageView) =>
-  view === "cost" ? reportedCost(amounts) : count(totalTokens(amounts));
+  view === "cost" ? effectiveCost(amounts) : count(totalTokens(amounts));
 
 export const metricNumber = (amounts: UsageAmounts, view: UsageView) =>
-  view === "cost" ? amounts.cost : Number(totalTokens(amounts));
+  view === "cost" ? amounts.effectiveCost : Number(totalTokens(amounts));
 
 const providerNames = new Map([
   ["claude", "Claude"],

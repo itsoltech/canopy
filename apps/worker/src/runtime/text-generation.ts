@@ -113,6 +113,7 @@ export class TextGeneration {
             {
               dataDir: this.ctx.state.options.dataDir,
               profile,
+              pricing: this.ctx.state.pricing,
               clientVersion: this.ctx.state.options.clientVersion,
               launch: codexAppServerLaunch(
                 [profile],

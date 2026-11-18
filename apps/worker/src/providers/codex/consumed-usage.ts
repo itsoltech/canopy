@@ -1,6 +1,9 @@
 import type { ThreadEventInit } from "../../journal/index.ts";
 import type { ServerNotification, v2 } from "@canopy/codex-protocol";
 import { addUsage, emptyUsage, reportedUsd, tokenCount, tokenFields, type ConsumedUsage } from "../token-usage.ts";
+import type { OpenAiPricingCatalog } from "../pricing/openai-catalog.ts";
+import { quoteOpenAi, validOpenAiUsage } from "../pricing/openai-rates.ts";
+import { ResponseQuotes } from "../pricing/response-quotes.ts";
 
 export function codexTokens(usage: v2.TokenUsageBreakdown): ConsumedUsage {
   return {
@@ -18,6 +21,7 @@ interface ModelUsage {
   costKnown: boolean;
   raw: ConsumedUsage;
   cumulative: ConsumedUsage;
+  quotes: ResponseQuotes;
 }
 
 /** Codex reports the response cost as a decimal USD amount. Missing or malformed values stay unknown. */
@@ -36,6 +40,29 @@ export class CodexConsumedUsage {
   #previous: ConsumedUsage | undefined;
   #model = "";
   #activeTurn = "";
+  readonly #observed = new WeakMap<v2.RawResponseCompletedNotification | v2.ThreadTokenUsage, number>();
+
+  constructor(readonly pricing?: OpenAiPricingCatalog) {}
+
+  /** Called in notification order before synchronous mapping; only live owned usage needs prices. */
+  async prepare(event: ServerNotification, owned: boolean): Promise<void> {
+    if (!owned || (event.method !== "rawResponse/completed" && event.method !== "thread/tokenUsage/updated")) return;
+
+    if (event.method === "rawResponse/completed" && !event.params.usage) return;
+    this.#observedAt(event.method === "rawResponse/completed" ? event.params : event.params.tokenUsage);
+    const model = this.#models.get(event.params.turnId) ?? this.#model;
+    await this.pricing?.prepare(model);
+  }
+
+  #observedAt(usage: v2.RawResponseCompletedNotification | v2.ThreadTokenUsage): number {
+    const known = this.#observed.get(usage);
+
+    if (known !== undefined) return known;
+    const now = this.pricing?.now() ?? Date.now();
+    this.#observed.set(usage, now);
+
+    return now;
+  }
 
   setModel(model: string, turnId?: string): void {
     if (turnId) this.#models.set(turnId, model);
@@ -71,7 +98,13 @@ export class CodexConsumedUsage {
     let turn = models.get(model);
 
     if (!turn) {
-      turn = { responses: new Set(), costKnown: true, raw: { ...emptyUsage(), model }, cumulative: emptyUsage() };
+      turn = {
+        responses: new Set(),
+        costKnown: true,
+        raw: { ...emptyUsage(), model },
+        cumulative: emptyUsage(),
+        quotes: new ResponseQuotes(),
+      };
       models.set(model, turn);
     }
 
@@ -84,6 +117,9 @@ export class CodexConsumedUsage {
     const total = codexTokens(usage.total);
     const last = codexTokens(usage.last);
     const delta = emptyUsage();
+    const previous = this.#previous;
+    const monotone = previous && tokenFields.every((key) => total[key] >= previous[key]);
+    const proven = !!monotone || tokenFields.every((key) => total[key] === last[key]);
 
     for (const key of tokenFields)
       delta[key] = this.#previous && total[key] >= this.#previous[key] ? total[key] - this.#previous[key] : last[key];
@@ -92,7 +128,26 @@ export class CodexConsumedUsage {
 
     // Resume/fork can report historical turns: establish the baseline without recording consumption.
     if (!owned) return [];
-    addUsage(this.#turn(turnId).cumulative, delta);
+    const turn = this.#turn(turnId);
+
+    if (tokenFields.some((key) => delta[key] > 0n)) {
+      const single =
+        proven &&
+        validOpenAiUsage(usage.last) &&
+        validOpenAiUsage(usage.total) &&
+        tokenFields.every((key) => delta[key] === last[key]);
+
+      const rates = this.pricing?.get(turn.raw.model ?? "");
+      const tier = this.#requestedTiers.get(turnId) ?? this.#requestedServiceTier;
+      turn.quotes.add(
+        "counter",
+        delta,
+        single && rates ? quoteOpenAi(rates, usage.last, tier, this.#observedAt(usage)) : undefined,
+        single,
+      );
+    }
+
+    addUsage(turn.cumulative, delta);
 
     return this.snapshots(turnId);
   }
@@ -106,6 +161,14 @@ export class CodexConsumedUsage {
     turn.responses.add(params.responseId);
 
     if (params.usage) addUsage(turn.raw, codexTokens(params.usage));
+    const rates = this.pricing?.get(turn.raw.model ?? "");
+    const tier = this.#requestedTiers.get(params.turnId) ?? this.#requestedServiceTier;
+    turn.quotes.add(
+      "raw",
+      params.usage ? codexTokens(params.usage) : emptyUsage(),
+      rates && params.usage ? quoteOpenAi(rates, params.usage, tier, this.#observedAt(params)) : undefined,
+      !!params.usage && validOpenAiUsage(params.usage),
+    );
     const cost = responseCost(params.usageMetadata?.amount);
 
     if (cost === undefined) turn.costKnown = false;
@@ -180,13 +243,26 @@ export class CodexConsumedUsage {
   snapshots(turnId: string): ConsumedUsage[] {
     return [...(this.#turns.get(turnId)?.values() ?? [])].map((turn) => {
       const result = { ...turn.raw };
+      const uncovered = tokenFields.some((key) => turn.cumulative[key] > turn.raw[key]);
+      const counterCovers = tokenFields.every((key) => turn.cumulative[key] >= turn.raw[key]);
+
+      const quotes =
+        counterCovers && turn.quotes.rawValid && turn.quotes.counter.usd !== undefined
+          ? turn.quotes.counter
+          : !uncovered
+            ? turn.quotes.raw
+            : undefined;
+
+      result.estimatedCostUsd = quotes?.usd;
+      const version = quotes?.version;
+
+      if (version) result.pricingVersion = version;
 
       // Both notifications describe the same responses; never add the two sources together.
       for (const key of tokenFields)
         result[key] = result[key] > turn.cumulative[key] ? result[key] : turn.cumulative[key];
 
-      if (!turn.costKnown || tokenFields.some((key) => turn.cumulative[key] > turn.raw[key]))
-        delete result.reportedCostUsd;
+      if (!turn.costKnown || uncovered) delete result.reportedCostUsd;
 
       result.requestedServiceTier = this.#requestedTiers.get(turnId) ?? this.#requestedServiceTier;
 

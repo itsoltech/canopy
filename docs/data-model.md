@@ -1,6 +1,6 @@
 # Model danych (PostgreSQL)
 
-Status (2026-11-17): zaimplementowany model, w tym migracje `0153_thread_notice_replication`, `0160_agent_hop_policy`, `0162_service_tiers` i `0164_usage_accounting`;
+Status (2026-11-18): zaimplementowany model, w tym migracje `0153_thread_notice_replication`, `0160_agent_hop_policy`, `0162_service_tiers`, `0164_usage_accounting` i `0165_usage_estimated_cost`;
 dostępność nightly/beta/stable według [release.md](release.md).
 
 Migracja `0160_agent_hop_policy` rozszerza wszystkie 12 kolumn `hops` do
@@ -61,8 +61,17 @@ FK do tur i rozmów usuwa watermarki przy purge, zachowując niezależne sumy.
 Księgowanie jest atomowe z transkryptem i ACK dziennika; dotyczy również
 przerwanych/nieudanych tur i ukrytych harnessów botów. Liczy wyłącznie jawne
 `Usage.scope=TURN`, a nie `ContextUsage`, limity konta ani historyczny import.
-Koszt pochodzi tylko z opcjonalnego `reported_cost_usd`; brak ceny ma własny
-licznik pokrycia. `remote_usage_buckets` oraz `remote_usage_state` trzymają
+`reported_cost_usd` zachowuje koszt zgłoszony, a migracja
+`0165_usage_estimated_cost` dodaje niezależny `estimated_cost_usd` jako ekwiwalent
+API OpenAI. Każda wycena ma własny licznik niepełnego pokrycia. `effective_cost_usd`
+wybiera per watermark kompletny raport, inaczej kompletny szacunek, inaczej
+nieznany; liczniki źródeł wybranego kosztu razem z niewiadomymi dają `reports`.
+Zmiana źródła może zmniejszać wybrany koszt, bez cofania tokenów i bez usuwania
+niezależnych kwot. Kolumna `usage_counters.pricing_version` przechowuje zwarty
+opis zamrożonych próbek cennika workera; nie powstają rekordy SQL per odpowiedź
+ani historyczne przeliczenie według nowej ceny. Migracja zachowuje stare USD,
+odtwarza tylko dowodliwe wybrane koszty i podnosi rewizje do synchronizacji.
+`remote_usage_buckets` oraz `remote_usage_state` trzymają
 zastępowalne sumy domu partnera i kursor synchronizacji (w tym `has_more`),
 ze złożonym FK właściciel/komputer do relacji `computer_peers` i `ON DELETE CASCADE`.
 Dane offline pozostają widoczne do usunięcia relacji. Kontrakt, przypisanie tury

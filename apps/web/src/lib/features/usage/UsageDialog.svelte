@@ -109,7 +109,7 @@
             ]}
           />
         </div>
-        <div class="grid min-w-0 grid-cols-2 gap-3 sm:grid-cols-3">
+        <div class="grid min-w-0 grid-cols-1 gap-3 min-[360px]:grid-cols-2 sm:grid-cols-3">
           <Field label="Provider">
             <Select
               bind:value={provider}
@@ -126,7 +126,7 @@
             </Select>
           </Field>
           <Field label="Computer"><Select bind:value={computerId} options={computerOptions} /></Field>
-          <div class="col-span-2 sm:col-span-1">
+          <div class="min-[360px]:col-span-2 sm:col-span-1">
             <Field label="Requested speed">
               <Select bind:value={speed} options={speedOptions}>
                 {#snippet leading(option)}

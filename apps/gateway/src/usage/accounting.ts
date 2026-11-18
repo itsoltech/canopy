@@ -3,7 +3,7 @@ import { timestampDate } from "@bufbuild/protobuf/wkt";
 import { CommandSchema, Provider, ui, UsageScope, type Usage, type ThreadEvent } from "@canopy/contracts";
 import { Effect } from "effect";
 import type { SqlClient } from "effect/sql";
-import { counterDelta, usageTotals, COUNT_FIELDS } from "./totals.ts";
+import { counterDelta, usageTotals, COUNT_FIELDS, COST_FIELDS, TOKEN_FIELDS } from "./totals.ts";
 import { freezeRequestedTier, validRequestedTier } from "./speed.ts";
 import { lockUsageOwner, incrementBucket } from "./storage.ts";
 
@@ -32,22 +32,41 @@ export function recordUsage(sql: SqlClient.SqlClient, identity: UsageIdentity, u
       validRequestedTier(usage.requestedServiceTier) || validRequestedTier(identity.requestedServiceTier),
     );
 
-    const old = (yield* sql<{ totals: JsonValue; first_bucket: Date }>`SELECT totals,first_bucket FROM usage_counters
+    const old = (yield* sql<{
+      totals: JsonValue;
+      first_bucket: Date;
+      pricing_version: string;
+    }>`SELECT totals,first_bucket,pricing_version FROM usage_counters
       WHERE owner_user_id=${owner}::uuid AND subject_id=${subject} AND provider=${provider}
         AND model=${model} AND counter_id=${counter}`)[0];
 
     const previous = old ? fromJson(ui.UsageTotalsSchema, old.totals) : undefined;
-    const { next, delta } = counterDelta(previous, usageTotals(usage));
+    const incoming = usageTotals(usage);
+    const { next, delta } = counterDelta(previous, incoming);
 
-    if (!COUNT_FIELDS.some((field) => delta[field] !== 0n) && delta.reportedCostUsd === 0) return;
+    const pricingVersion =
+      next.unknownEstimatedCostReports === 0n &&
+      usage.estimatedCostUsd === next.estimatedCostUsd &&
+      TOKEN_FIELDS.every((field) => incoming[field] >= next[field]) &&
+      usage.pricingVersion.length <= 65_536 &&
+      !usage.pricingVersion.includes("\u0000")
+        ? usage.pricingVersion || old?.pricing_version || ""
+        : old?.pricing_version || "";
+
+    if (
+      !COUNT_FIELDS.some((field) => delta[field] !== 0n) &&
+      !COST_FIELDS.some((field) => delta[field] !== 0) &&
+      pricingVersion === (old?.pricing_version ?? "")
+    )
+      return;
     const hour = old?.first_bucket ?? new Date(Math.floor(observedAt.getTime() / 3_600_000) * 3_600_000);
     // A turn/model stays in its first observed hour, including delayed corrections. Subset counters
     // therefore remain subsets of the same bucket even when fields arrive at different times.
     yield* incrementBucket(sql, owner, hour, provider, model, requestedTier, delta);
-    yield* sql`INSERT INTO usage_counters(owner_user_id,subject_id,thread_id,bot_id,thread_turn_id,bot_turn_id,provider,model,requested_service_tier,counter_id,first_bucket,totals)
+    yield* sql`INSERT INTO usage_counters(owner_user_id,subject_id,thread_id,bot_id,thread_turn_id,bot_turn_id,provider,model,requested_service_tier,counter_id,first_bucket,totals,pricing_version)
       VALUES(${owner}::uuid,${subject},${identity.threadId ?? null}::uuid,${identity.botId ?? null}::uuid,
-        ${identity.threadId ? counter : null}::uuid,${identity.botId ? counter : null}::uuid,${provider},${model},${requestedTier},${counter},${hour},${JSON.stringify(toJson(ui.UsageTotalsSchema, next))}::jsonb)
-      ON CONFLICT(owner_user_id,subject_id,provider,model,counter_id) DO UPDATE SET totals=excluded.totals,requested_service_tier=excluded.requested_service_tier`;
+        ${identity.threadId ? counter : null}::uuid,${identity.botId ? counter : null}::uuid,${provider},${model},${requestedTier},${counter},${hour},${JSON.stringify(toJson(ui.UsageTotalsSchema, next))}::jsonb,${pricingVersion})
+      ON CONFLICT(owner_user_id,subject_id,provider,model,counter_id) DO UPDATE SET totals=excluded.totals,requested_service_tier=excluded.requested_service_tier,pricing_version=excluded.pricing_version`;
   });
 }
 

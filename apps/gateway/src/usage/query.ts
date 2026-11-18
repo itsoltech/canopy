@@ -158,7 +158,7 @@ function summarizeUsage(
   }
 
   const partial =
-    totals.unknownCostReports > 0n ||
+    totals.unknownEffectiveCostReports > 0n ||
     selected.some(
       (source) =>
         source.status !== "ready" ||

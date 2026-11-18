@@ -9,7 +9,8 @@ subskrypcję przy odświeżaniu metadanych celu oraz naprawie kursora historii;
 Bot settings → Messengers udostępnia lokalne konta Slack
 i trasy wiadomości przez sześć owner-scoped RPC i BFF; instrukcje tras określają
 trwałe zachowanie dla źródła, a rozmowy korzystają z narzędzi przyznanych botowi;
-web/desktop ma osobny modal Usage z kosztami raportowanymi przez providerów,
+web/desktop ma osobny modal Usage z kosztami raportowanymi przez providerów
+i estymowaną równowartością API według cen OpenAI,
 tokenami, filtrami czasu, providera, komputera i żądanej szybkości oraz zakresem rejestrowania;
 nowy wątek web/desktop i natywnego mobile od razu pokazuje prompt i rzeczywisty postęp przygotowania worktree;
 web/desktop zachowuje geometrię osi czasu i kotwicę wiadomości przy przejściu z przygotowania do wątku;
@@ -293,14 +294,28 @@ brak parametru oznacza wszystkie, pusty parametr Unknown, `default` Standard.
 Fast, Ultrafast i natywne identyfikatory (np. `priority`) pozostają osobne.
 Zestawienie Speed oraz filtr opisują wybór utrwalony dla wykonania, nie
 potwierdzony tryb naliczania opłaty; modal jawnie wyjaśnia tę różnicę.
-Kwoty nie są mnożone według prędkości. Późniejsza zmiana ustawień wątku
-nie zmienia klasyfikacji wcześniejszego zużycia.
+UI nie stosuje własnych mnożników prędkości; kwoty wyprowadza gateway z zapisanych
+pomiarów. Późniejsza zmiana ustawień wątku nie zmienia klasyfikacji wcześniejszego zużycia.
 
-Reported cost to wyłącznie szacunkowe kwoty USD zgłoszone przez providera,
-nie faktura ani przeliczenie cennika. Brak raportu kosztu pokazuje Unknown;
-znana część dodatniej kwoty pozostaje widoczna także przy niepełnej wycenie.
-Liczba kompletnie wycenionych raportów ujawnia pokrycie. Liczniki Input, Output,
-Cache read, Cache write i Reasoning nie są sumowane podwójnie: cache jest
+Widok Cost, wykres i pierwsza kolumna kwot w tabeli używają `effectiveCostUsd`.
+Gateway dla każdego raportu wybiera kompletny Reported cost (również znane zero),
+następnie kompletny Estimated API cost, a przy braku obu pozostawia koszt nieznany.
+UI nie dodaje kwot raportowanych do estymowanych. Liczniki
+`effectiveReportedCostReports`, `effectiveEstimatedCostReports` i
+`unknownEffectiveCostReports` pokazują pochodzenie i pokrycie w podsumowaniu,
+przy wskazanym dniu wykresu i w każdym wierszu tabeli. Legenda providera rozróżnia
+Reported, API equivalent oraz mieszane źródło, z oznaczeniem częściowego pokrycia.
+Brak znanej kwoty pozostaje Unknown i przerwą w serii; znane zero to kwota zerowa.
+
+Reported cost to niezależna suma kwot USD zgłoszonych przez providera.
+Estimated API cost to niezależna suma wycen według oficjalnych stawek OpenAI API.
+Obie kwoty pojawiają się w osobnych kartach i kolumnach zestawienia; mogą dotyczyć
+tego samego zużycia i zawierać historyczną część bez pełnego pokrycia raportu.
+Karty pokazują liczbę kompletnie wycenionych raportów, a brak wyceny pozostaje
+Unknown. Estymata jest równowartością zużycia API, oddzielną od opłat abonamentowych,
+nie fakturą. Odpowiedź BFF przenosi wszystkie pola bez przeliczania ani pobierania
+cennika przez przeglądarkę. Zmiana Cost / Tokens nadal używa jednej odpowiedzi.
+Liczniki Input, Output, Cache read, Cache write i Reasoning nie są sumowane podwójnie: cache jest
 częścią input, reasoning częścią output, a Total tokens to input + output.
 Szczegóły tokenów zależą od danych providera.
 

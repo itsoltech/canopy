@@ -4,7 +4,7 @@ import { Effect } from "effect";
 import type { SqlClient } from "effect/sql";
 import type { UsageIdentity } from "./accounting.ts";
 import { incrementBucket } from "./storage.ts";
-import { COUNT_FIELDS } from "./totals.ts";
+import { COUNT_FIELDS, COST_FIELDS, normalizeUsageTotals } from "./totals.ts";
 
 export function validRequestedTier(value: string | undefined): string {
   return value && value.length <= 128 && !value.includes("\u0000") ? value : "";
@@ -25,11 +25,12 @@ export function freezeRequestedTier(sql: SqlClient.SqlClient, identity: UsageIde
 
     for (const row of rows) {
       if (row.requested_service_tier) continue;
-      const totals = fromJson(ui.UsageTotalsSchema, row.totals);
+      const totals = normalizeUsageTotals(fromJson(ui.UsageTotalsSchema, row.totals));
       const reverse = clone(ui.UsageTotalsSchema, totals);
 
       for (const field of COUNT_FIELDS) reverse[field] = -reverse[field];
-      reverse.reportedCostUsd = -reverse.reportedCostUsd;
+
+      for (const field of COST_FIELDS) reverse[field] = -reverse[field];
       // Zero-value old buckets remain revisioned replacement snapshots so remote caches clear them.
       yield* incrementBucket(sql, owner, row.first_bucket, provider, row.model, "", reverse);
       yield* incrementBucket(sql, owner, row.first_bucket, provider, row.model, tier, totals);

@@ -7,6 +7,7 @@ import { SqlClient } from "effect/sql";
 import type { ComputerStore } from "./store.ts";
 import { validateUsagePage } from "./usage-validation.ts";
 import { queryFamily, queryRpc } from "../diagnostics/query-context.ts";
+import { normalizeUsageTotals } from "../usage/totals.ts";
 
 export async function usageCursor(store: ComputerStore, node: string, signal?: AbortSignal) {
   const { owner } = store;
@@ -42,7 +43,11 @@ export async function saveUsagePage(
     model: bucket.model,
     requested_service_tier: bucket.requestedServiceTier,
     revision: String(bucket.revision),
-    payload: toJson(ui.UsageBucketSchema, { ...bucket, computerId: node }),
+    payload: toJson(ui.UsageBucketSchema, {
+      ...bucket,
+      computerId: node,
+      totals: normalizeUsageTotals(bucket.totals!),
+    }),
   }));
 
   await store.runtime.runPromise(

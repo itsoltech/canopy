@@ -1,5 +1,14 @@
 <script lang="ts">
-  import { dayLabel, metricValue, type UsageDay, type UsageRow, type UsageView } from "./format.ts";
+  import {
+    costSource,
+    dayLabel,
+    hasEffectiveCost,
+    metricValue,
+    type UsageDay,
+    type UsageRow,
+    type UsageView,
+  } from "./format.ts";
+  import UsageCostCoverage from "./UsageCostCoverage.svelte";
   import UsagePlot from "./UsagePlot.svelte";
   import UsageProviderMark from "./UsageProviderMark.svelte";
   import { usageProviderColor } from "./providers.ts";
@@ -24,8 +33,12 @@
   }
 
   function describe(day: UsageDay, full = false) {
-    const total = `${dayLabel(day.key, full)}: ${metricValue(day.amounts, view)}${view === "tokens" ? " tokens" : " reported cost"}`;
-    const parts = day.providers.map((provider) => `${provider.label}: ${metricValue(provider.amounts, view)}`);
+    const total = `${dayLabel(day.key, full)}: ${metricValue(day.amounts, view)}${view === "tokens" ? " tokens" : ` cost (${costSource(day.amounts)})`}`;
+
+    const parts = day.providers.map(
+      (provider) =>
+        `${provider.label}: ${metricValue(provider.amounts, view)}${view === "cost" ? ` (${costSource(provider.amounts)})` : ""}`,
+    );
 
     return [total, ...parts].join(" · ");
   }
@@ -41,6 +54,7 @@
       {#if selected}
         <p>{dayLabel(selected.key)}</p>
         <p class="font-medium">Total {metricValue(selected.amounts, view)}{view === "tokens" ? " tokens" : ""}</p>
+        {#if view === "cost"}<UsageCostCoverage amounts={selected.amounts} />{/if}
       {/if}
     </div>
   </figcaption>
@@ -49,7 +63,7 @@
     <div
       class="absolute inset-y-0 right-0 left-13 flex"
       role="group"
-      aria-label={view === "cost" ? "Daily reported cost" : "Daily tokens"}
+      aria-label={view === "cost" ? "Daily cost" : "Daily tokens"}
     >
       {#each days as day, index (day.key)}
         <button
@@ -70,7 +84,7 @@
     <span>{days[0] ? dayLabel(days[0].key) : ""}</span>
     <span>{days.at(-1) ? dayLabel(days.at(-1)!.key) : ""}</span>
   </div>
-  <ul class="mt-4 grid gap-x-5 gap-y-2 sm:grid-cols-3" aria-label="Usage by provider on selected day">
+  <ul class="mt-4 grid gap-x-5 gap-y-2 sm:grid-cols-2 lg:grid-cols-3" aria-label="Usage by provider on selected day">
     {#each providers as provider (provider.key)}
       {@const part = selected?.providers.find((row) => row.key === provider.key)}
       <li class="flex min-w-0 items-center gap-2 text-sm/5">
@@ -82,11 +96,16 @@
         <UsageProviderMark provider={provider.key} />
         <span>{provider.label}</span>
         <span class="ml-auto text-right text-zinc-500 tabular-nums dark:text-zinc-400">
-          {part
-            ? metricValue(part.amounts, view)
-            : selected?.providers.length || selected?.amounts.reports === 0n
-              ? "No usage"
-              : "Unknown"}
+          <span class="block"
+            >{part
+              ? metricValue(part.amounts, view)
+              : selected?.providers.length || selected?.amounts.reports === 0n
+                ? "No usage"
+                : "Unknown"}</span
+          >
+          {#if part && view === "cost" && hasEffectiveCost(part.amounts)}<span class="block text-xs/5"
+              >{costSource(part.amounts)}</span
+            >{/if}
         </span>
       </li>
     {/each}

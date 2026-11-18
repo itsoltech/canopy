@@ -22,6 +22,12 @@ export interface BucketRow {
   cache_write_input_tokens: bigint;
   reasoning_output_tokens: bigint;
   reported_cost_usd: number;
+  estimated_cost_usd: number;
+  effective_cost_usd: number;
+  unknown_estimated_cost_reports: bigint;
+  unknown_effective_cost_reports: bigint;
+  effective_reported_cost_reports: bigint;
+  effective_estimated_cost_reports: bigint;
   reports: bigint;
   unknown_cost_reports: bigint;
   revision: bigint;
@@ -53,6 +59,12 @@ export function bucketMessage(row: BucketRow, computerId: string): ui.UsageBucke
       cacheWriteInputTokens: BigInt(row.cache_write_input_tokens),
       reasoningOutputTokens: BigInt(row.reasoning_output_tokens),
       reportedCostUsd: row.reported_cost_usd,
+      estimatedCostUsd: row.estimated_cost_usd,
+      effectiveCostUsd: row.effective_cost_usd,
+      unknownEstimatedCostReports: BigInt(row.unknown_estimated_cost_reports),
+      unknownEffectiveCostReports: BigInt(row.unknown_effective_cost_reports),
+      effectiveReportedCostReports: BigInt(row.effective_reported_cost_reports),
+      effectiveEstimatedCostReports: BigInt(row.effective_estimated_cost_reports),
       reports: BigInt(row.reports),
       unknownCostReports: BigInt(row.unknown_cost_reports),
     },
@@ -75,10 +87,14 @@ export function incrementBucket(
 
     // SAFETY: the caller holds the existing owner state row lock until this transaction commits.
     yield* sql`INSERT INTO usage_buckets(owner_user_id,bucket_start,provider,model,requested_service_tier,input_tokens,output_tokens,
-      cached_input_tokens,cache_write_input_tokens,reasoning_output_tokens,reported_cost_usd,reports,unknown_cost_reports,revision)
+      cached_input_tokens,cache_write_input_tokens,reasoning_output_tokens,reported_cost_usd,reports,unknown_cost_reports,
+      estimated_cost_usd,unknown_estimated_cost_reports,effective_cost_usd,unknown_effective_cost_reports,
+      effective_reported_cost_reports,effective_estimated_cost_reports,revision)
       VALUES(${owner}::uuid,${hour},${provider},${model},${requestedServiceTier},${delta.inputTokens},${delta.outputTokens},
         ${delta.cachedInputTokens},${delta.cacheWriteInputTokens},${delta.reasoningOutputTokens},${delta.reportedCostUsd},
-        ${delta.reports},${delta.unknownCostReports},${state[0]!.revision})
+        ${delta.reports},${delta.unknownCostReports},${delta.estimatedCostUsd},${delta.unknownEstimatedCostReports},
+        ${delta.effectiveCostUsd},${delta.unknownEffectiveCostReports},${delta.effectiveReportedCostReports},
+        ${delta.effectiveEstimatedCostReports},${state[0]!.revision})
       ON CONFLICT(owner_user_id,bucket_start,provider,model,requested_service_tier) DO UPDATE SET
         input_tokens=usage_buckets.input_tokens+excluded.input_tokens,
         output_tokens=usage_buckets.output_tokens+excluded.output_tokens,
@@ -87,6 +103,14 @@ export function incrementBucket(
         reasoning_output_tokens=usage_buckets.reasoning_output_tokens+excluded.reasoning_output_tokens,
         reported_cost_usd=CASE WHEN usage_buckets.reports+excluded.reports=0 THEN 0
           ELSE greatest(0,usage_buckets.reported_cost_usd+excluded.reported_cost_usd) END,
+        estimated_cost_usd=CASE WHEN usage_buckets.reports+excluded.reports=0 THEN 0
+          ELSE greatest(0,usage_buckets.estimated_cost_usd+excluded.estimated_cost_usd) END,
+        effective_cost_usd=CASE WHEN usage_buckets.reports+excluded.reports=0 THEN 0
+          ELSE greatest(0,usage_buckets.effective_cost_usd+excluded.effective_cost_usd) END,
+        unknown_estimated_cost_reports=usage_buckets.unknown_estimated_cost_reports+excluded.unknown_estimated_cost_reports,
+        unknown_effective_cost_reports=usage_buckets.unknown_effective_cost_reports+excluded.unknown_effective_cost_reports,
+        effective_reported_cost_reports=usage_buckets.effective_reported_cost_reports+excluded.effective_reported_cost_reports,
+        effective_estimated_cost_reports=usage_buckets.effective_estimated_cost_reports+excluded.effective_estimated_cost_reports,
         reports=usage_buckets.reports+excluded.reports,
         unknown_cost_reports=usage_buckets.unknown_cost_reports+excluded.unknown_cost_reports,
         revision=excluded.revision`;

@@ -406,11 +406,15 @@ describe.skipIf(!dockerAvailable)("Update all across linked computers with fake 
     await clis(a, ["1.0.0", "2.0.0"]);
     const waiting = Promise.withResolvers<void>();
     const received = Promise.withResolvers<void>();
-    a.worker.handlers.set("installCli", async (_value, reply) => {
+    const acknowledged = Promise.withResolvers<void>();
+    a.worker.handlers.set("installCli", (_value, reply) => {
       received.resolve();
-      await waiting.promise;
-      await clis(a, ["2.0.0", "2.0.0"], "succeeded");
-      reply(true);
+      void waiting.promise
+        .then(async () => {
+          await clis(a, ["2.0.0", "2.0.0"], "succeeded");
+          reply(true);
+        })
+        .then(acknowledged.resolve, acknowledged.reject);
     });
     const started = await a.api.manageUpdates({ action: "update_all" }, { timeoutMs: 3000 });
     await received.promise;
@@ -423,6 +427,9 @@ describe.skipIf(!dockerAvailable)("Update all across linked computers with fake 
       expect(a.worker.commands.filter((command) => command.case === "installCli")).toHaveLength(1);
     } finally {
       waiting.resolve();
+      // Reported success can reach the update run before the handler sends its ACK.
+      // Drain the handler before teardown closes its worker link, also on assertion failure.
+      await acknowledged.promise;
     }
 
     await tickUntil(a, (run) => run?.state === "succeeded");

@@ -1,4 +1,4 @@
-import { metricNumber, type UsageDay, type UsageRow, type UsageView } from "./format.ts";
+import { hasEffectiveCost, metricNumber, type UsageDay, type UsageRow, type UsageView } from "./format.ts";
 
 export interface UsagePoint {
   x: number;
@@ -10,7 +10,7 @@ function value(day: UsageDay, provider: string, view: UsageView): number | null 
 
   if (!part) return day.providers.length || day.amounts.reports === 0n ? 0 : null;
 
-  if (view === "cost" && part.amounts.costReports === 0n && part.amounts.cost === 0) return null;
+  if (view === "cost" && !hasEffectiveCost(part.amounts)) return null;
 
   return metricNumber(part.amounts, view);
 }

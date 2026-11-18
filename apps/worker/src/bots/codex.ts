@@ -96,7 +96,7 @@ function codexBotProgram(ctx: BotHarnessContext, launch: CodexAppServerLaunch) {
       server.exited.pipe(Effect.flatMap(() => Deferred.fail(done, new BotHarnessFailure("process_exit")))),
     );
     const native = { id: "", turn: "", completed: false };
-    const consumed = new CodexConsumedUsage();
+    const consumed = new CodexConsumedUsage(ctx.pricing);
     consumed.setModel(input.model);
     consumed.setRequestedServiceTier(input.serviceTier || "default");
     yield* Effect.forkScoped(codexBotEvents(ctx, server, done, native, consumed));

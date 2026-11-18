@@ -25,6 +25,7 @@ export function registerThread(
   };
 
   const mapper = new CodexEventMapper({
+    pricing: ctx.options.pricing,
     turnId: (codexTurn) => codexToPlatform.get(codexTurn),
     startTurn: (codexTurn) => {
       const known = codexToPlatform.get(codexTurn);
