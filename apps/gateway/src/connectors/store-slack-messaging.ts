@@ -11,6 +11,11 @@ import { validateSlackAccount, type SlackTransport } from "../messengers/slack.t
 export class SlackMessagingSetupConflict extends Error {}
 
 export function connectorSlackMessaging(sql: SqlClient.SqlClient, base: ConnectorBase, key: Buffer) {
+  const slackMessagingSender = (row: AccountRow) =>
+    sql<{ id: string; revision: bigint | string }>`SELECT a.id,a.revision FROM messenger_accounts a
+      WHERE a.connector_account_id=${row.id}::uuid AND a.owner_user_id=${row.owner_user_id}::uuid
+        AND a.enabled AND a.deleted_at IS NULL AND ${linkedMessengerActive(sql)}`.pipe(Effect.map((rows) => rows[0]));
+
   const setup = (row: AccountRow) =>
     Effect.gen(function* () {
       if (row.connector_type !== "slack" || row.auth_kind !== "oauth") return yield* fail("Choose a Slack connection");
@@ -26,12 +31,8 @@ export function connectorSlackMessaging(sql: SqlClient.SqlClient, base: Connecto
 
   return {
     slackMessagingSetup: setup,
-    slackMessagingConnected: (row: AccountRow) =>
-      sql`SELECT a.id FROM messenger_accounts a
-      WHERE a.connector_account_id=${row.id}::uuid AND a.owner_user_id=${row.owner_user_id}::uuid
-        AND a.enabled AND a.deleted_at IS NULL AND ${linkedMessengerActive(sql)}`.pipe(
-        Effect.map((rows) => rows.length > 0),
-      ),
+    slackMessagingSender,
+    slackMessagingConnected: (row: AccountRow) => slackMessagingSender(row).pipe(Effect.map(Boolean)),
     completeSlackMessaging: (row: AccountRow, value: Credentials, code: string, transport?: SlackTransport) =>
       Effect.gen(function* () {
         const pending = value.slackMessaging;

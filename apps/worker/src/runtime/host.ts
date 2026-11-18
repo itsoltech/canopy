@@ -253,19 +253,26 @@ export class WorkerHost {
   }
 
   async #applyConfig(message: WorkerConfig): Promise<ConfigAppliedInit> {
-    const probe = this.#ctx.state.options.probe ?? (await prepareSystemProbe(message));
+    const state = this.#ctx.state;
+    const stopped = { version: message.version, applied: false };
+
+    if (state.shuttingDown || state.closing) return stopped;
+    const probe = state.options.probe ?? (await prepareSystemProbe(message));
+
+    // A provider probe can finish after close() has stopped the CLI check timer.
+    if (state.shuttingDown || state.closing) return stopped;
     const result = applyWorkerConfig(message, probe, this.#ctx.ops.homes());
 
     if (result.applied) {
-      this.#ctx.state.received = message;
+      state.received = message;
       this.#cliChecks.start(message.cliUpdateCheckMinutes ?? 360, this.#cliChecks.clock.now(), async () => {
         await this.cli.report().catch(() => undefined);
       });
-      this.#ctx.state.config = result.config;
+      state.config = result.config;
       this.environment.refresh();
       await this.#ctx.ops.reconcileRuntimes();
 
-      for (const refresh of this.#ctx.state.usageRefreshers.values()) refresh();
+      for (const refresh of state.usageRefreshers.values()) refresh();
       void this.#ctx.ops.publishCatalog(message.version);
     }
 
