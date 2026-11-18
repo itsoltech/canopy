@@ -1,6 +1,6 @@
 # Konto GitHub i pull requesty
 
-Status: **v1 wdrożone** (2026-11-16): konta GitHub App i jawny fallback PAT, powiązania PR,
+Status: **v1 wdrożone** (2026-11-18): konta GitHub App i jawny fallback PAT, powiązania PR,
 pełny odczyt, komentarze i review, lifecycle, metadane, automatyczna archiwizacja wątków
 po merge, sterowanie GitHub Actions oraz postęp checków i kroków workflow. Zaimplementowane jest też jawne lokalne
 linkowanie PR przez agenta (`link_pull_request`) jako fallback automatycznej detekcji.
@@ -10,7 +10,7 @@ Na web/desktop/mobile **Copy code and open GitHub** łączy skopiowanie kodu z o
 Web/desktop renderuje bezpieczny HTML w Markdown (2026-11-15); na `dev` obsługiwany jest
 też parametr wersji `u` w adresach awatarów GitHub oraz reaktywny cache list PR
 w pamięci BFF. Timeline web/desktop/mobile łączy review z komentarzami inline po identyfikatorach GitHub
-i pomija puste karty podsumowań; web/desktop pokazuje fragment kodu przy komentarzu. Dostępność według
+i pomija puste karty podsumowań; web/desktop pokazuje fragment kodu przy komentarzu. Gateway współbieżnie odczytuje listę plików i stan Viewed (§6). Dostępność według
 promocji kanałów w [release.md](release.md).
 Tokeny użytkownika pozostają w domu wątku; integracja produktu nie nadaje agentom
 praw do mutacji GitHub. `link_pull_request` zmienia tylko lokalne powiązanie z wątkiem,
@@ -892,8 +892,12 @@ Maksimum patcha: 256 KiB lub 4000 wierszy; odpowiedź strony 2 MiB.
 Brak patcha nie oznacza pustej zmiany: binary, zbyt duży plik, rename, usunięcie i ograniczenie
 GitHub mają osobny stan z **Open on GitHub**. Nie pobieramy binariów, LFS ani obrazów automatycznie.
 REST ogranicza listę do 3000 plików; większy PR pokazuje granicę i link do źródła.
-Cache plików wiążemy z parą base/head SHA oraz filtrem commitu. Kontrola SHA przed i po pobraniu
-odrzuca wynik po równoległym push; klient dostaje **Changes updated. Refresh the files.**
+Cache plików wiążemy z parą base/head SHA oraz filtrem commitu. Gateway rozpoczyna odczyt strony
+plików i stanu Viewed współbieżnie; żądania HTTP nadal dzielą jeden slot na tożsamość GitHub.
+REST nie zwraca SHA przy liście plików PR ani przy liście jego commitów, więc przed zapisem nowej
+odpowiedzi do cache sprawdzamy rewizję PR. Po połączeniu wyników gateway ponownie weryfikuje
+oba SHA oraz powiązanie repozytorium z kontem, również przy trafieniu w cache.
+Zmiana SHA powoduje odpowiedź **Changes updated. Refresh the files.**
 [Pliki PR i ograniczenie API](https://docs.github.com/en/rest/pulls/pulls#list-pull-requests-files).
 
 Stan Viewed doczytujemy przez GraphQL `files { nodes { path viewerViewedState } }`, łącząc

@@ -29,7 +29,7 @@ export class RpcCollector {
   readonly historyMinutes: Buckets;
   readonly measureBudget: BucketBudget;
   readonly databaseBudget: BucketBudget;
-  readonly windowBudget = new BucketBudget(512 * 1024);
+  readonly windowBudget = new BucketBudget(512 * 1024, undefined, 64 * 1024);
   readonly #rings: readonly Buckets[];
   readonly active = new Map<number, Map<number, number>>();
   historyRevision = 0;
@@ -47,15 +47,15 @@ export class RpcCollector {
   constructor(
     methods: readonly RegisteredMethod[],
     readonly clock = SYSTEM_CLOCK,
-    readonly budget = new BucketBudget(),
+    readonly budget = new BucketBudget(6 * 1024 * 1024, undefined, 1024 * 1024),
   ) {
     budget.clock = clock.utc;
     // Keep the original 6 MiB ceiling while allowing ordinary SQL family/RPC cardinality.
     this.measureBudget = new BucketBudget(4 * 1024 * 1024, budget);
     // SQL cardinality must not consume the space needed by process/queue/governor series.
     this.databaseBudget = new BucketBudget(3 * 1024 * 1024, this.measureBudget);
-    this.short = new Buckets(5_000, 12, budget, this.measureBudget, this.databaseBudget);
-    this.minutes = new Buckets(60_000, 61, budget, this.measureBudget, this.databaseBudget);
+    this.short = new Buckets(5_000, 12, budget, this.measureBudget, this.databaseBudget, budget.headroom > 0);
+    this.minutes = new Buckets(60_000, 61, budget, this.measureBudget, this.databaseBudget, budget.headroom > 0);
     this.historyMinutes = new Buckets(60_000, 61, budget, this.measureBudget, this.databaseBudget);
     this.#rings = [this.short, this.minutes];
 
@@ -89,12 +89,13 @@ export class RpcCollector {
     // A per-method sequence distinguishes calls that share the same clock value.
     const token = Number(++this.#sequence);
 
-    if (this.#activeCount >= 4096 || !this.budget.reserve(256)) {
+    if (this.#activeCount >= 4096) {
       this.budget.drop("collection");
 
       return;
     }
 
+    if (!this.budget.reserve(256)) return;
     calls.set(token, started);
     this.#activeCount++;
     this.active.set(id, calls);

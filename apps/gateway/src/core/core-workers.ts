@@ -115,7 +115,7 @@ export async function coreServe(hostContext: GatewayCore, connection: WorkerConn
           await hostContext.secrets.receipt(workerId, message.payload.value);
           break;
         case "threadEvent":
-          await ingest.enqueue(message.payload.value);
+          await ingest.enqueue(connection.eventBatch(message.payload.value));
           break;
         case "configApplied": {
           const report = message.payload.value;

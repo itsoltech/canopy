@@ -1,7 +1,7 @@
 import { afterAll, beforeAll, describe, expect, test } from "bun:test";
 import { join } from "node:path";
 import { create, fromBinary, type JsonValue, type MessageInitShape } from "@bufbuild/protobuf";
-import { ItemStatus, Provider, ThreadEventSchema, TurnOutcome } from "@canopy/contracts";
+import { ItemDeltaField, ItemStatus, Provider, ThreadEventSchema, TurnOutcome } from "@canopy/contracts";
 import { dockerAvailable } from "@canopy/db/testing";
 import { GatewayStore, Ingest } from "@canopy/gateway/store";
 import { tempDir } from "@canopy/testing";
@@ -34,7 +34,7 @@ const output = (text: string): MessageInitShape<typeof ThreadEventSchema> => ({
 
 async function replay(events: ThreadEventInit[], subject = threadId) {
   const path = join(dir, `${Bun.randomUUIDv7()}.db`);
-  let runtime = ManagedRuntime.make(Journal.layer(path));
+  const runtime = ManagedRuntime.make(Journal.layer(path));
 
   const originals = await runtime.runPromise(
     Journal.use((journal) => Effect.all(events.map((e) => journal.append(subject, e)))),
@@ -42,7 +42,12 @@ async function replay(events: ThreadEventInit[], subject = threadId) {
 
   // A journal created by an old worker is replayed after restart, without rewriting its contents.
   await runtime.dispose();
-  runtime = ManagedRuntime.make(Journal.layer(path));
+
+  return { originals, path, ...(await connectJournal(path)) };
+}
+
+async function connectJournal(path: string) {
+  const runtime = ManagedRuntime.make(Journal.layer(path));
   const hello = await runtime.runPromise(journalHello());
 
   const link = await openGatewayLink({
@@ -51,12 +56,16 @@ async function replay(events: ThreadEventInit[], subject = threadId) {
     hello: { workerId: gw.workerId, ...hello },
   });
 
+  const acks: bigint[] = [];
   let drains = 0;
   let closed = false;
 
   const reading = (async () => {
     for await (const message of link.messages) {
-      if (message.payload.case === "eventAck") await runtime.runPromise(applyAck(message.payload.value));
+      if (message.payload.case === "eventAck") {
+        acks.push(message.payload.value.ackSeq);
+        await runtime.runPromise(applyAck(message.payload.value));
+      }
 
       if (message.payload.case === "drain") drains++;
     }
@@ -67,16 +76,17 @@ async function replay(events: ThreadEventInit[], subject = threadId) {
   await runtime.runPromise(resendPending(link));
 
   return {
-    originals,
+    acks,
     runtime,
     link,
     drains: () => drains,
     closed: () => closed,
-    empty: async () =>
+    empty: async (timeoutMs?: number) =>
       expect(
         await eventually(
           () => runtime.runPromise(journalHello()),
           (h) => h.threads.length === 0,
+          timeoutMs,
         ),
       ).toMatchObject({ threads: [] }),
     close: async () => {
@@ -119,6 +129,47 @@ describe.skipIf(!dockerAvailable)("worker event storage on PostgreSQL and gRPC",
   afterAll(async () => {
     await gw?.close();
   });
+
+  test("a burst of text deltas commits bounded prefixes and keeps lifecycle events in order", async () => {
+    const session = await replay([]);
+    const itemId = Bun.randomUUIDv7();
+
+    const delta: ThreadEventInit = {
+      body: { case: "itemDelta", value: { field: ItemDeltaField.TEXT, itemId, chunk: "a" } },
+    };
+
+    const burst = Array.from({ length: 160 }, (_, index): ThreadEventInit =>
+      index === 80 ? { body: { case: "activity", value: {} } } : delta,
+    );
+
+    const published: string[] = [];
+
+    const stop = gw.core.hub.observeThread(threadId, ({ change }) => {
+      if (change.case === "event" && change.value.event) published.push(change.value.event.eventId);
+    });
+
+    try {
+      const events = await session.runtime.runPromise(
+        Journal.use((journal) => Effect.all(burst.map((event) => journal.append(threadId, event)))),
+      );
+
+      for (const event of events) session.link.send({ case: "threadEvent", value: event });
+      await session.empty();
+      expect(published).toEqual(events.map((e) => e.eventId));
+      expect(session.acks[0]).toBe(1n);
+      expect(session.acks).toContain(80n);
+      expect(session.acks).toContain(81n);
+      expect(session.acks).toContain(82n);
+      expect(session.acks.at(-1)).toBe(160n);
+      expect(session.acks.length).toBeLessThan(events.length);
+
+      for (const [index, ack] of session.acks.entries())
+        expect(ack - (session.acks[index - 1] ?? 0n)).toBeLessThanOrEqual(32n);
+    } finally {
+      stop();
+      await session.close();
+    }
+  }, 20_000);
 
   test("a restarted journal with NUL in raw JSON, item ids, tool I/O and text drains and accepts later output", async () => {
     const raw = { "key\0": ["value\0", "\ud800", "\udc00", "😀", "literal \\u0000"] };
@@ -465,4 +516,64 @@ describe.skipIf(!dockerAvailable)("worker event storage on PostgreSQL and gRPC",
     expect(recovered.acks.get(threadId)).toBe(3n);
     expect(recovered.stored).toHaveLength(3);
   });
+
+  test("a reconnect replays a failed text batch and quarantines only the failing delta", async () => {
+    await query(`CREATE FUNCTION reject_text_delta() RETURNS trigger LANGUAGE plpgsql AS $$ BEGIN
+      IF NEW.payload->'itemDelta'->>'chunk' = 'reject-test' THEN
+        RAISE EXCEPTION 'serialization failure' USING ERRCODE = '40001';
+      END IF;
+      RETURN NEW;
+    END $$`);
+    await query(
+      "CREATE TRIGGER reject_text_delta BEFORE INSERT ON thread_events FOR EACH ROW EXECUTE FUNCTION reject_text_delta()",
+    );
+
+    const itemId = Bun.randomUUIDv7();
+
+    const session = await replay(
+      Array.from({ length: 12 }, (_, i) => ({
+        body: {
+          case: "itemDelta",
+          value: { itemId, field: ItemDeltaField.TEXT, chunk: i === 6 ? "reject-test" : "ok" },
+        },
+      })),
+    );
+
+    try {
+      expect(
+        await eventually(
+          async () => session.acks.at(-1),
+          (ack) => ack === 6n,
+        ),
+      ).toBe(6n);
+    } finally {
+      await session.close();
+    }
+
+    const resumed = await connectJournal(session.path);
+
+    try {
+      await resumed.empty(12_000);
+      expect(resumed.acks.at(-1)).toBe(12n);
+      const ids = `{${session.originals.map((event) => event.eventId).join(",")}}`;
+
+      const quarantine = await query<{ event_id: string; sqlstate: string }>(
+        "SELECT event_id,sqlstate FROM worker_event_quarantine WHERE event_id=ANY($1::uuid[])",
+        [ids],
+      );
+
+      expect(quarantine).toEqual([{ event_id: session.originals[6]!.eventId, sqlstate: "40001" }]);
+
+      const stored = await query<{ event_id: string }>(
+        "SELECT event_id FROM thread_events WHERE event_id=ANY($1::uuid[]) ORDER BY seq",
+        [ids],
+      );
+
+      expect(stored.map((row) => row.event_id)).toEqual(session.originals.map((event) => event.eventId));
+    } finally {
+      await resumed.close();
+      await query("DROP TRIGGER reject_text_delta ON thread_events");
+      await query("DROP FUNCTION reject_text_delta()");
+    }
+  }, 20_000);
 });

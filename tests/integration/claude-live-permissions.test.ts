@@ -176,9 +176,14 @@ describe.skipIf(!dockerAvailable)("Claude live permissions through the real SDK"
       expect(replies.every((r) => r.pid === before[0]!.pid)).toBe(true);
       expect(processOf(thread.providerThreadId)).toEqual(before);
       await watch.until((s) => s.turns.some((t) => t.id === turn.id && t.status === "completed"));
-      expect(
-        watch.state!.interactions.filter((i) => i.turnId === turn.id && i.kind === InteractionKind.PERMISSION),
-      ).toHaveLength(1);
+
+      // A refreshed watch snapshot contains pending interactions only. Check the durable request history.
+      const permissions = await f.query<{ id: string; status: string }>(
+        "SELECT id, status FROM interaction_requests WHERE turn_id = $1 AND kind = 'permission'",
+        [turn.id],
+      );
+
+      expect(permissions).toEqual([{ id: permission.requestId, status: "allowed" }]);
     } finally {
       await watch.close();
     }

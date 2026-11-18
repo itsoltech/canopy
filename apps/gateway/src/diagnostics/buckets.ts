@@ -6,6 +6,7 @@ import {
   Measure,
   measureKey,
   metricOf,
+  rpcOf,
   METRIC_DEFINITIONS,
   mergeCoverage,
 } from "@canopy/domain/diagnostics";
@@ -23,12 +24,14 @@ export type Slot = {
 /** Allocations, including conservative object/Map overhead, share one process budget. */
 export class BucketBudget {
   used = 0;
+  protectedUsed = 0;
   dropped = 0;
   clock = Date.now;
   #losses: DiagnosticsLosses | undefined;
   constructor(
     readonly limit = 6 * 1024 * 1024,
     readonly parent?: BucketBudget,
+    readonly headroom = 0,
   ) {
     this.clock = parent?.clock ?? Date.now;
   }
@@ -43,18 +46,27 @@ export class BucketBudget {
     }
   }
 
+  releaseProtected(bytes: number) {
+    this.used -= bytes;
+    this.protectedUsed -= bytes;
+  }
+
   losses(start: number, end: number) {
     return this.#losses?.between(start, end) ?? { count: 0, reasons: [] };
   }
 
-  reserve(bytes: number) {
-    if (this.used + bytes > this.limit) {
+  reserve(bytes: number, priority = false) {
+    const remaining = priority ? 0 : Math.max(0, this.headroom - this.protectedUsed);
+
+    if (this.used + bytes > this.limit - remaining) {
       this.drop();
 
       return false;
     }
 
     if (this.parent && !this.parent.reserve(bytes)) return false;
+
+    if (priority) this.protectedUsed += bytes;
     this.used += bytes;
 
     return true;
@@ -74,8 +86,15 @@ function slotBytes(slot: Slot) {
   return bytes;
 }
 
+export function coreMeasure(id: number, rpc: number) {
+  const group = METRIC_DEFINITIONS.get(id)?.group;
+
+  return !rpc && (group === "process" || group === "queues");
+}
+
 export class Buckets {
   readonly slots: (Slot | undefined)[];
+  readonly #reserveCore = (bytes: number) => this.budget.reserve(bytes, true);
   readonly #reserveMeasure = (bytes: number) => this.measureBudget.reserve(bytes);
   readonly #reserveDatabase = (bytes: number) => this.databaseBudget.reserve(bytes);
   constructor(
@@ -84,6 +103,7 @@ export class Buckets {
     readonly budget: BucketBudget,
     readonly measureBudget = budget,
     readonly databaseBudget = measureBudget,
+    readonly protectCore = false,
   ) {
     this.slots = Array.from<Slot | undefined>({ length: count });
   }
@@ -99,7 +119,7 @@ export class Buckets {
         this.slots[index] = undefined;
       }
 
-      if (!this.budget.reserve(SLOT_BYTES)) return;
+      if (!this.budget.reserve(SLOT_BYTES, this.protectCore)) return;
       slot = { at, series: new Map(), coverage: [] };
       this.slots[index] = slot;
     }
@@ -138,7 +158,13 @@ export class Buckets {
       }
 
       const database = id >= 1000 && id < 2000;
-      const reserve = database ? this.#reserveDatabase : this.#reserveMeasure;
+
+      const reserve =
+        this.protectCore && coreMeasure(id, rpc)
+          ? this.#reserveCore
+          : database
+            ? this.#reserveDatabase
+            : this.#reserveMeasure;
 
       if (!reserve(256)) return;
       value = new Measure(reserve);
@@ -234,7 +260,14 @@ export class Buckets {
   #release(slot: Slot) {
     this.budget.used -= slotBytes(slot);
 
+    if (this.protectCore) this.budget.protectedUsed -= SLOT_BYTES;
+
     for (const [key, measure] of slot.measures ?? []) {
+      if (this.protectCore && coreMeasure(metricOf(key), rpcOf(key))) {
+        this.budget.protectedUsed -= measure.bytes;
+        continue;
+      }
+
       if (this.measureBudget !== this.budget) this.measureBudget.used -= measure.bytes;
 
       if (this.databaseBudget !== this.measureBudget && metricOf(key) >= 1000 && metricOf(key) < 2000)

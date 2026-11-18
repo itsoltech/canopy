@@ -63,6 +63,8 @@ test.skipIf(!dockerAvailable)(
       const calls = fixture.calls;
 
       for (const use of [
+        () => foreign.listPullRequestFiles({ pullRequestId: pr }),
+        () => foreign.getPullRequestDiff({ pullRequestId: pr, path: "src/safe.ts", resourceId: "1" }),
         () => foreign.getPullRequest({ pullRequestId: pr }),
         () => foreign.refreshPullRequest({ pullRequestId: pr }),
         () => foreign.listThreadPullRequests({ threadId: thread }),

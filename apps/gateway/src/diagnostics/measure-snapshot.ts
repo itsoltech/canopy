@@ -10,7 +10,7 @@ import {
   percentiles,
 } from "@canopy/domain/diagnostics";
 import type { RpcCollector } from "./collector.ts";
-import type { Slot } from "./buckets.ts";
+import { coreMeasure, type Slot } from "./buckets.ts";
 
 function databaseFamilies(values: Map<number, Measure>, rpc: number) {
   return DATABASE_FAMILIES.flatMap((family) => {
@@ -60,17 +60,22 @@ export function measureSnapshot(collector: RpcCollector, minutes: number, hourly
   const values = new Map<number, Measure>();
   let reserved = 0;
 
-  const reserve = (bytes: number) => {
-    if (!collector.windowBudget.reserve(bytes)) {
+  let protectedBytes = 0;
+
+  const reserve = (bytes: number, priority = false) => {
+    if (!collector.windowBudget.reserve(bytes, priority)) {
       collector.budget.drop("memory");
 
       return false;
     }
 
-    reserved += bytes;
+    if (priority) protectedBytes += bytes;
+    else reserved += bytes;
 
     return true;
   };
+
+  const reserveCore = (bytes: number) => reserve(bytes, true);
 
   try {
     for (const slot of slots)
@@ -80,8 +85,10 @@ export function measureSnapshot(collector: RpcCollector, minutes: number, hourly
         let measure = values.get(key);
 
         if (!measure) {
-          if (!reserve(256)) continue;
-          measure = new Measure(reserve);
+          const allocate = coreMeasure(metricOf(key), rpcOf(key)) ? reserveCore : reserve;
+
+          if (!allocate(256)) continue;
+          measure = new Measure(allocate);
           values.set(key, measure);
         }
 
@@ -118,6 +125,7 @@ export function measureSnapshot(collector: RpcCollector, minutes: number, hourly
 
     return { gatewayMeasures, database: overviewOnly ? [] : databaseFamilies(values, 0), associated };
   } finally {
+    collector.windowBudget.releaseProtected(protectedBytes);
     collector.windowBudget.used -= reserved;
   }
 }

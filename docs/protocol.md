@@ -589,6 +589,8 @@ Kreator, CLI, konfiguracja adresu gRPC (również Tailscale) i usługi systemd/l
 
 ## Dostarczanie transkryptu (at-least-once + idempotencja)
 
+Status (2026-11-18): gateway grupuje oczekujące delty tekstu przy zapisie. Dostępność według [promocji wydań](release.md).
+
 ```mermaid
 sequenceDiagram
     participant SDK
@@ -614,7 +616,8 @@ Zasady:
 
 - `journal_seq` nadaje worker (kolejność w jego dzienniku, do potwierdzeń). `seq` na osi czasu wątku nadaje gateway przy zapisie, wspólny dla zdarzeń workera i platformy (każdy wątek numeruje od 1, także fork).
 - Kursory `journal_seq` są ważne tylko w obrębie `Hello.journal_id`. Nowy dziennik (np. reinstalacja workera) oznacza dosłanie wszystkiego; duplikaty odrzuca `event_id`.
-- Gateway potwierdza zbiorczo (np. co 100 ms lub co N zdarzeń), nie każde zdarzenie osobno.
+- Gateway zapisuje w jednej transakcji do 32 kolejnych, już odebranych delt `item_delta` pola `TEXT` tego samego wątku i tury (do 256 KiB łącznie dla tekstu i surowego JSON). Pierwszą deltę przekazuje do zapisu bez czekania na następną. Inna wiadomość lub przerwa w numeracji kończy partię. Po zatwierdzeniu transakcji gateway wysyła jeden ACK z najwyższym kursorem i publikuje każde zdarzenie osobno. Boty zachowują potwierdzenia poszczególnych zdarzeń.
+- Po nieudanym zapisie partii gateway ponawia zapis poszczególnych zdarzeń w kolejności, aby wyczerpanie prób jednego zdarzenia nie przeniosło sąsiednich delt do kwarantanny.
 - Duplikaty po wznowieniu ignoruje klucz `(thread_id, event_id)`.
 - Granica zapisu gatewaya zamienia U+0000 oraz niesparowane surogaty UTF-16 na
   U+FFFD (`�`), także w kluczach i wartościach oryginalnego JSON. Prawidłowe pary

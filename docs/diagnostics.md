@@ -2,6 +2,7 @@
 
 Status (2026-11-18): **v1 wdrożone**: metryki RPC, procesu, DB, workerów i klientów,
 trwałe agregaty, findings, raport, zbieranie logów i czasowy tracing.
+Kolektor chroni pomiary procesu, kolejek i czasu do ACK pod obciążeniem. Raport podaje przyczyny strat w wybranym oknie i pomija statystyki bez pomiaru.
 Limit katalogu 640 deskryptorów obejmuje także RPC statystyk użycia i postępu przygotowania wątku.
 Settings → Diagnostics jest dostępne w web/desktop/mobile i pokazuje lokalny
 komputer oraz znane połączone komputery, ich gatewaye, workery i łącza.
@@ -259,12 +260,15 @@ rodzin SQL ani korelacji RPC. Każde okno zachowuje jeden cache: wejście
 w szczegóły zastępuje uboższy widok pełnym, bez drugiej kopii. Rewizja
 odróżnia oba zakresy, aby overview nie potwierdziło niepobranego drill-downu.
 
-Wewnętrzne serie (proces, kolejki, governor, rodziny SQL i ich powiązania z RPC),
-łącznie z odtworzoną historią, mają wspólny podlimit 4 MiB wewnątrz istniejących
-6 MiB kolektora. Podlimit obejmuje obiekty i sparse kubełki, oddaje rezerwacje
-po wygaśnięciu slotu i zwiększa jawne dropy po wyczerpaniu. Rodziny SQL i korelacje
-mają dodatkowy podlimit 3 MiB w tych 4 MiB, aby nie wypierać serii procesu,
-kolejek i governora. Przy presji pamięci szczegóły są niepełne, nie rozszerzają limitu.
+Z budżetu 6 MiB kolektora gatewaya 1 MiB jest zarezerwowany na sloty bieżących
+pierścieni, znaczniki odbioru zdarzeń i globalne serie procesu oraz kolejek.
+Brak znacznika odbioru wyklucza zdarzenie z pomiaru czasu do ACK, ale nie z licznika
+zatwierdzonych zdarzeń. W budżecie scalania okna (512 KiB) 64 KiB jest dostępne
+wyłącznie dla globalnych serii procesu i kolejek.
+Pozostałe wewnętrzne serie, w tym odtworzona historia pomiarów, mają wspólny
+podlimit 4 MiB. Rodziny SQL i ich korelacje z RPC mają dodatkowy podlimit 3 MiB.
+Podlimity obejmują obiekty i rzadkie kubełki histogramów. Wygaśnięcie slotu
+zwalnia rezerwacje, a wyczerpanie budżetu zwiększa licznik strat.
 Odtwarzanie historii może wykorzystać najwyżej połowę każdego podlimitu,
 aby zostawić miejsce na bieżące próbki po restarcie.
 Limit korelacji obejmuje wyłącznie korelacje, bez globalnych serii. Metryka

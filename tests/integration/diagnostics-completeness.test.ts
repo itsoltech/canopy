@@ -1,6 +1,9 @@
 import { describe, expect, test } from "bun:test";
 import { create } from "@bufbuild/protobuf";
-import { ui } from "@canopy/contracts";
+import { ThreadEventSchema, HelloSchema, ui } from "@canopy/contracts";
+import { AsyncChannel } from "@canopy/transport";
+import { WorkerConnection } from "../../apps/gateway/src/worker-link/connection.ts";
+import { IngestDiagnostics } from "../../apps/gateway/src/diagnostics/ingest.ts";
 import { dockerAvailable } from "@canopy/db/testing";
 import {
   DATABASE_FAMILIES,
@@ -15,6 +18,7 @@ import { DiagnosticsPersistence } from "../../apps/gateway/src/diagnostics/persi
 import { DiagnosticsStore } from "../../apps/gateway/src/diagnostics/store.ts";
 import { registered } from "../../apps/gateway/src/diagnostics/registry.ts";
 import { rpcSnapshot } from "../../apps/gateway/src/diagnostics/snapshot.ts";
+import { diagnosticReport } from "../../apps/gateway/src/diagnostics/report.ts";
 
 const method = registered(ui.GatewayService.method.getClientCapabilities);
 
@@ -145,4 +149,50 @@ test("steady collection expires old loss flags without resetting lifetime counte
   snapshot.observedSeconds = 14 * 60;
   snapshot.droppedSamples = 1n;
   expect(health(snapshot)).toBe("Partial data");
+});
+
+test("global ACK, queue and process measurements survive RPC pressure in the collector and export", async () => {
+  let now = 60_000;
+  const collector = new RpcCollector([method], { utc: () => now, monotonic: () => now });
+
+  // Fill the ordinary allocation pool with the same aggregates as the RPC interceptor.
+  for (let id = 1; collector.short.series(now, id); id++) {}
+
+  const budget = collector.budget;
+  const remainder = budget.limit - budget.headroom + budget.protectedUsed - budget.used;
+  expect(budget.reserve(remainder)).toBe(true);
+  expect(budget.reserve(64)).toBe(false);
+  now += 5000;
+  const connection = new WorkerConnection("worker", create(HelloSchema), new AsyncChannel());
+  const ingest = new IngestDiagnostics(collector);
+  const event = create(ThreadEventSchema, { threadId: "thread", journalSeq: 1n });
+  const unobserved = create(ThreadEventSchema, { threadId: "thread", journalSeq: 2n });
+  ingest.receive(connection, event);
+  now += 10;
+  const observation = ingest.start(connection, [event, unobserved])!;
+  now += 2;
+  observation.ack(new Map([["thread", 2n]]), 2);
+  observation.finish();
+  ingest.sample(5000);
+  connection.close();
+  await connection.closed;
+  collector.measure(2, 8);
+  const windowBudget = collector.windowBudget;
+  expect(windowBudget.reserve(windowBudget.limit - windowBudget.headroom)).toBe(true);
+  const snapshot = create(ui.ComputerDiagnosticsSchema, { ...rpcSnapshot(collector, 15), status: "online" });
+  expect(windowBudget.protectedUsed).toBe(0);
+  snapshot.limitReasons.push("private label");
+  const report = JSON.parse(diagnosticReport([snapshot], "json").text).computers[0];
+  expect(report.limitReasons).toEqual(["memory"]);
+  const metrics = new Map<string, object>(report.metrics.map((row: { metric: string }) => [row.metric, row]));
+  expect(metrics.get("Event receive to ACK")).toMatchObject({ samples: "1", max: 12, p95: 12 });
+  expect(metrics.get("Event receive to ACK")).not.toHaveProperty("last");
+  expect(metrics.get("Ingest waiting")).toMatchObject({ samples: "2", last: 0, mean: 0, max: 1 });
+  expect(metrics.get("CPU")).toMatchObject({ samples: "1", last: 8, max: 8 });
+  expect(metrics.get("CPU")).not.toHaveProperty("mean");
+  expect(metrics.get("Events received")).not.toHaveProperty("max");
+  expect(collector.budget.used).toBeLessThanOrEqual(collector.budget.limit);
+  collector.reset();
+  expect(collector.budget.used).toBe(remainder);
+  expect(collector.budget.protectedUsed).toBe(0);
 });

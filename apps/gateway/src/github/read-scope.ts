@@ -55,21 +55,7 @@ export async function readScope(
     );
 
   const binding = bind(kind);
-  const sign = (value: string) => createHmac("sha256", access.token).update(value).digest();
-
-  const { position, snapshot: generation } = request.cursor
-    ? parseCursor(request.cursor, binding, sign)
-    : { position: "", snapshot: Bun.randomUUIDv7() };
-
-  const cursor = (next: string, cursorBinding = binding) => {
-    if (!next) return "";
-
-    const text = Buffer.from(JSON.stringify({ binding: cursorBinding, position: next, snapshot: generation })).toString(
-      "base64url",
-    );
-
-    return `${text}.${sign(text).toString("base64url")}`;
-  };
+  const { cursor, position, generation } = pageCursor(request.cursor, binding, access.token);
 
   const page = (next = "", partial = false, detail = "") =>
     create(github.PullRequestPageInfoSchema, {
@@ -82,6 +68,17 @@ export async function readScope(
       verifiedAt: timestampFromDate(new Date(accounts.http.now())),
       snapshot: generation,
     });
+
+  async function validateAccess() {
+    const current = await repositories.selected(pr.repository_name);
+
+    if (
+      current.row.id !== row.id ||
+      current.row.revision !== row.revision ||
+      current.mapping.revision !== mapping.revision
+    )
+      throw invalidCursor();
+  }
 
   async function read<D extends DescMessage>(schema: D, options: Omit<GitHubRead, "key">): Promise<MessageShape<D>> {
     const key = `${kind}:${pr.repository_id}:${pr.number}:${binding}:${digest(position)}`;
@@ -104,14 +101,7 @@ export async function readScope(
 
     try {
       const value = await client.read(row.id, { ...options, key }, request.refresh);
-      const current = await repositories.selected(pr.repository_name);
-
-      if (
-        current.row.id !== row.id ||
-        current.row.revision !== row.revision ||
-        current.mapping.revision !== mapping.revision
-      )
-        throw invalidCursor();
+      await validateAccess();
 
       return fromJsonString(schema, JSON.stringify(value.payload));
     } catch (cause) {
@@ -151,7 +141,10 @@ export async function readScope(
     cursor,
     page,
     read,
-    fresh: () => freshPage(prs, pr.repository_name, pr.number, head, snapshot.baseSha),
+    fresh: async () => {
+      await freshPage(prs, pr.repository_name, pr.number, head, snapshot.baseSha);
+      await validateAccess();
+    },
     replyCursor: (id: string, next: string) => cursor(next, bind("reviews", id)),
     root: `/repos/${pr.repository_name}`,
     variables: { owner: pr.repository_name.split("/")[0]!, name: pr.repository_name.split("/")[1]!, number: pr.number },
@@ -166,6 +159,26 @@ async function freshPage(prs: GitHubPullRequests, repository: string, number: nu
   if (current.summary?.headSha !== head || current.baseSha !== base) throw changesUpdated();
 
   if (current.stale) throw new ConnectError("Connect to load this page. Retry when connected.", Code.Unavailable);
+}
+
+function pageCursor(value: string, binding: string, token: string) {
+  const sign = (text: string) => createHmac("sha256", token).update(text).digest();
+
+  const { position, snapshot: generation } = value
+    ? parseCursor(value, binding, sign)
+    : { position: "", snapshot: Bun.randomUUIDv7() };
+
+  const cursor = (next: string, cursorBinding = binding) => {
+    if (!next) return "";
+
+    const text = Buffer.from(JSON.stringify({ binding: cursorBinding, position: next, snapshot: generation })).toString(
+      "base64url",
+    );
+
+    return `${text}.${sign(text).toString("base64url")}`;
+  };
+
+  return { cursor, position, generation };
 }
 
 function parseCursor(value: string, binding: string, sign: (text: string) => Uint8Array) {

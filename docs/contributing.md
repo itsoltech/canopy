@@ -1,7 +1,7 @@
 # Współpraca przy Canopy
 
 Status (2026-11-18): obowiązujący proces pracy i weryfikacji, w tym izolacja zasobów
-testowych oraz deterministyczna synchronizacja testów asynchronicznych.
+testowych, sprzątanie kontenerów PostgreSQL po przerwaniu testów oraz deterministyczna synchronizacja testów asynchronicznych.
 
 ## Gałęzie i scalanie
 
@@ -154,7 +154,12 @@ obejmuje jej setup i oczekiwania na zdarzenia.
 
 `check:tmp` tworzy prywatny katalog przed uruchomieniem PostgreSQL i usuwa własny
 kontener oraz katalog także przy błędzie zapisu deskryptora lub startu testów.
-Nie usuwa zasobów innych przebiegów.
+Zarówno przy wspólnym serwerze, jak i przy samodzielnym uruchomieniu fixture
+kontener tworzy osobny proces. Zamknięcie prywatnego kanału IPC po zakończeniu
+lub zabiciu procesu testowego powoduje usunięcie kontenera i jego wolumenu
+według pełnego ID. Wiek i nazwa kontenera nie służą do ustalania własności.
+Awaria hosta, demona Docker lub samego procesu sprzątającego może wymagać
+ręcznego sprzątania.
 
 Przy diagnozie konkretnego flaky można powtórzyć tylko dotknięte pliki, np.:
 

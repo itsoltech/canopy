@@ -2,6 +2,8 @@ import { create, type MessageInitShape } from "@bufbuild/protobuf";
 import { Code, ConnectError } from "@connectrpc/connect";
 import {
   CommandSchema,
+  ItemDeltaField,
+  type ThreadEvent,
   WorkerConfigSchema,
   type CommandResult,
   type CloneProgress,
@@ -19,6 +21,9 @@ import type { RpcObservation } from "../diagnostics/collector.ts";
 import { LogPullClient } from "../diagnostics/log-pull.ts";
 import { TraceWorkerClient } from "../diagnostics/trace-worker.ts";
 import { WorkerConfigurationCompatibility } from "./configuration-compatibility.ts";
+
+const MAX_BATCH_EVENTS = 32;
+const MAX_BATCH_TEXT_BYTES = 256 * 1024;
 
 type KindInit = NonNullable<MessageInitShape<typeof CommandSchema>["kind"]>;
 
@@ -56,6 +61,9 @@ export class WorkerConnection {
   readonly tracing: TraceWorkerClient;
 
   readonly #outbound: AsyncChannel<GatewayMessage>;
+  // Some control frames are handled inside deliver() and never reach the core's inbox.
+  readonly #firstText = new WeakSet<ThreadEvent>();
+  #previousTextThread = "";
   readonly #inbound = new AsyncChannel<WorkerMessage>();
   readonly #pending = new Map<string, PendingCommand>();
   readonly #configuration: WorkerConfigurationCompatibility;
@@ -142,8 +150,52 @@ export class WorkerConnection {
     this.#finish(undefined);
   }
 
+  /** Drain only adjacent text deltas already waiting behind this event. */
+  eventBatch(first: ThreadEvent): [ThreadEvent, ...ThreadEvent[]] {
+    const events: [ThreadEvent, ...ThreadEvent[]] = [first];
+
+    if (first.body.case !== "itemDelta" || first.body.value.field !== ItemDeltaField.TEXT || this.#firstText.has(first))
+      return events;
+    let textBytes = Buffer.byteLength(first.body.value.chunk) + Buffer.byteLength(first.rawJson);
+    let nextSeq = first.journalSeq + 1n;
+
+    while (events.length < MAX_BATCH_EVENTS && textBytes < MAX_BATCH_TEXT_BYTES) {
+      const next = this.#inbound.takeIf(({ payload }) => {
+        if (payload.case !== "threadEvent") return false;
+        const event = payload.value;
+
+        if (
+          event.threadId !== first.threadId ||
+          event.turnId !== first.turnId ||
+          event.journalSeq !== nextSeq ||
+          event.body.case !== "itemDelta" ||
+          event.body.value.field !== ItemDeltaField.TEXT ||
+          this.#firstText.has(event)
+        )
+          return false;
+        textBytes += Buffer.byteLength(event.body.value.chunk) + Buffer.byteLength(event.rawJson);
+
+        return textBytes <= MAX_BATCH_TEXT_BYTES;
+      });
+
+      if (next?.payload.case !== "threadEvent") break;
+      events.push(next.payload.value);
+      nextSeq++;
+    }
+
+    return events;
+  }
+
   /** @internal Called by the service for every inbound message. */
   deliver(message: WorkerMessage): void {
+    if (message.payload.case === "threadEvent") {
+      const event = message.payload.value;
+      const text = event.body.case === "itemDelta" && event.body.value.field === ItemDeltaField.TEXT;
+
+      if (text && event.threadId !== this.#previousTextThread) this.#firstText.add(event);
+      this.#previousTextThread = text ? event.threadId : "";
+    } else this.#previousTextThread = "";
+
     if (message.payload.case === "configApplied") {
       this.#inbound.push({
         ...message,
