@@ -19,7 +19,8 @@ import { join } from "node:path";
 
 export const CLAUDE_USER_PLUGIN_NAME = "canopy-user";
 
-const MAX_ENTRIES = 2048;
+// This budget covers the entire personal library, including all supporting assets.
+const MAX_ENTRIES = 100_000;
 const MAX_DEPTH = 32;
 
 class SkillSnapshotError extends Error {}
@@ -117,7 +118,8 @@ function copyDirectory(
   for (const name of readdirSync(canonical)) {
     budget.entries += 1;
 
-    if (budget.entries > MAX_ENTRIES) throw new SkillSnapshotError("The source exceeds 2048 files and directories.");
+    if (budget.entries > MAX_ENTRIES)
+      throw new SkillSnapshotError(`The source exceeds ${MAX_ENTRIES} files and directories.`);
     const path = realpathSync(join(canonical, name));
     const target = join(destination, name);
     const stat = lstatSync(path);

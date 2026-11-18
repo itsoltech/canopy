@@ -1,6 +1,6 @@
 # Adapter Claude (Agent SDK)
 
-Status: **działa** (2026-11-17), w tym odkrywanie i wybór fast per model/konto, 15-minutowy limit `show_images`, osobiste hooki `PreToolUse` i `PermissionRequest`, import dokumentów pomocniczych i pustych opcjonalnych metadanych osobistych skilli oraz zmiana uprawnień i sandboxa podczas bieżącej tury:
+Status: **działa** (2026-11-18), w tym odkrywanie i wybór fast per model/konto, 15-minutowy limit `show_images`, osobiste hooki `PreToolUse` i `PermissionRequest`, import osobistej biblioteki skilli i komend do 100 000 plików i katalogów, dokumentów pomocniczych i pustych opcjonalnych metadanych oraz zmiana uprawnień i sandboxa podczas bieżącej tury:
 - runtime wątków: `ClaudeThreads` w `apps/worker/src/providers/claude/threads.ts`,
 - mapowanie wiadomości SDK na zdarzenia transkryptu: `ClaudeEventMapper` w `mapping.ts`, z testami na nagranych strumieniach (`fixtures/*.jsonl`),
 - tryby uprawnień: `permissions.ts`,
@@ -130,6 +130,15 @@ Pełne wiadomości nigdy nie giną: bez mapowania trafiają do dziennika jako `r
 - Frontmatter jest oczyszczany tylko w definicjach `SKILL.md` i plikach Markdown katalogu `commands`, także w podkatalogach. Pomocnicze dokumenty skilli są kopiowane bajt w bajt: ich własne metadane, kodowanie albo początkowy separator Markdown `---` nie blokują importu. Opisowe pola definicji zachowują tekst, liczby, wartości logiczne i `null`, a flagi wywołania — wartości logiczne i `null`, zgodnie z interpretacją CLI. Inne metadane nadal są usuwane. Błąd importu podaje kategorię problemu (np. rozmiar pliku, cykl dowiązań lub niepoprawny frontmatter), bez ścieżek, nazw ani treści źródłowych; wskazuje sprawdzenie źródła lub wyłączenie `Personal skills` w `Settings → Providers`. Testy przygotowania konfiguracji odtwarzają odkrywanie skilli przez prawdziwy CLI bez inferencji. Dostępność poprawki w nightly/beta/stable wynika z wydań ([release.md](release.md)).
 - `claudeMdExcludes` w ustawieniach wywołania odcina instrukcje globalne oraz przodków powyżej repozytorium/worktree, a w scratch powyżej cwd. Samo `settingSources` nie blokuje pamięci użytkownika: CLI 2.1.308 nadal czyta `<HOME>/.claude/CLAUDE.md` oraz nadrzędne `CLAUDE.md`. Zarządzany blok jest jawnie dopisywany do system promptu; pozostała treść izolowanego `CLAUDE.md` nie trafia przez automatyczny odczyt. `HOME` pozostaje bez zmian, więc poprawka nie zmienia odkrywania macOS Keychain. Testy przechwytują żądania prawdziwego CLI w tymczasowym HOME, bez logowania i bez inferencji; nie zastępują sprawdzenia loginu na Macu.
 - Wyłączone narzędzia natywne: subagenci (`Agent`, `Task`, `Workflow`, `ListAgents`, `SendMessage`, `SubagentHandback`) i harmonogramy (`ScheduleWakeup`, `CronCreate`, `CronDelete`, `CronList`, `RemoteTrigger`); zastępuje je szyna ([agent-bus.md](agent-bus.md)). Sprawdzone na żywo: lista narzędzi z `system/init` nie ma `Agent` ani `Task` (`worker-claude.live.test.ts`), a prośba o subagenta kończy się `mcp__canopy__spawn_thread` (`platform-subagents.live.test.ts`).
+
+Łączny limit kopii osobistych `skills` i `commands` wynosi 100 000 plików
+i katalogów, zamiast wcześniejszych 2048. Obejmuje definicje i wszystkie zasoby
+pomocnicze całej biblioteki. Nadal obowiązują limity 1 MiB na plik, 25 MiB łącznie
+i 32 poziomów zagnieżdżenia oraz odrzucanie cykli dowiązań i plików specjalnych.
+Test przygotowania konfiguracji importuje bibliotekę przekraczającą dawny próg,
+sprawdza oczyszczanie definicji, kompletność zasobów i usunięcie prywatnej kopii.
+To opis implementacji; dostępność nightly/beta/stable wynika z wydań
+([release.md](release.md)).
 
 ## Otwarte
 
