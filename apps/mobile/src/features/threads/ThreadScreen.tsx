@@ -47,6 +47,7 @@ import { WorkspaceModule } from "../workspace/WorkspaceModule";
 import { useThreadRewind } from "./useThreadRewind";
 import { RewindSheet } from "./RewindSheet";
 import { Button } from "../../ui/Button";
+import { ArchivedThreadState } from "./ArchivedThreadState";
 import { RemovedWorktree } from "./RemovedWorktree";
 import { activeReplySource } from "./reply-suggestions";
 
@@ -88,6 +89,7 @@ function useThreadState(id: string) {
   useContextDraft(id, message, setError);
 
   const thread = snapshot?.thread ?? threads.find((t) => t.id === id);
+  const archived = Boolean(thread?.archivedAt) || thread?.status === "archived";
   const home = useComputerHome(thread?.nodeId || splitId(id).node);
   const worker = workers.find((w) => w.id === thread?.workerId);
   const tray = useThreadTray({ id, snapshot, setSnapshot, thread, threads });
@@ -105,8 +107,8 @@ function useThreadState(id: string) {
     home.away ||
     !client ||
     !thread ||
-    Boolean(thread.archivedAt || thread.deletedAt || thread.worktree?.removedAt || thread.preparationRequestId) ||
-    thread.status === "archived" ||
+    archived ||
+    Boolean(thread.deletedAt || thread.worktree?.removedAt || thread.preparationRequestId) ||
     stream.connection === "error";
 
   const blocked =
@@ -137,6 +139,7 @@ function useThreadState(id: string) {
     history,
     syncStatus,
     thread,
+    archived,
     worktreeRemoved: Boolean(thread?.worktree?.removedAt),
     worker,
     ...tray,
@@ -288,7 +291,7 @@ export function ThreadScreen({ id }: { id: string }) {
                   onLatest={following.atBottom ? undefined : composer.showLatest}
                   overlay={<ThreadSuggestions state={state} />}
                   accessory={<ThreadStatus state={state} />}
-                  tray={<ThreadTray state={state} onGoal={() => setSheet("goal")} />}
+                  tray={state.archived ? undefined : <ThreadTray state={state} onGoal={() => setSheet("goal")} />}
                 >
                   <ThreadComposer state={state} composer={composer} />
                 </FloatingComposer>
@@ -317,7 +320,7 @@ function ThreadStatus({ state }: { state: ThreadState }) {
 
   return (
     <>
-      <ThreadRequests state={state} />
+      {!state.archived && <ThreadRequests state={state} />}
       {state.busy ? (
         <Notice>{state.waiting ? `Still waiting for ${home.name || "this computer"}…` : "Sending…"}</Notice>
       ) : null}
@@ -356,6 +359,8 @@ function ThreadStatus({ state }: { state: ThreadState }) {
 function ThreadComposer({ state, composer }: { state: ThreadState; composer: ReturnType<typeof useThreadComposer> }) {
   if (state.worktreeRemoved && state.thread) return <RemovedWorktree key={state.thread.id} thread={state.thread} />;
 
+  if (state.archived && state.thread) return <ArchivedThreadState key={state.thread.id} thread={state.thread} />;
+
   return (
     <ImportedThreadComposer thread={state.thread} disabled={state.blocked}>
       <SkeletonScope loading={!state.thread}>
@@ -381,7 +386,7 @@ function ThreadComposer({ state, composer }: { state: ThreadState; composer: Ret
 function ThreadSuggestions({ state }: { state: ThreadState }) {
   const { thread, message } = state;
 
-  if (!message.trigger || state.worktreeRemoved) return null;
+  if (!message.trigger || state.archived || state.worktreeRemoved) return null;
 
   return (
     <MentionSuggestions

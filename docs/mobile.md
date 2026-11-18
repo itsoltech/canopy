@@ -17,6 +17,7 @@ Safe area nad wątkiem ma tło chrome nagłówka, karta ma górny odstęp,
 a powrót do listy używa strzałki.
 Switch tab pozwala zamykać karty plików i podglądów bezpośrednio z listy.
 Wątek z usuniętym worktree pozostaje tylko do odczytu i pozwala kontynuować w nowym worktree.
+Zarchiwizowany wątek pokazuje informację o archiwizacji i akcję odarchiwizowania zamiast kompozytora.
 Worktrees opisuje odrzucanie lokalnych plików przez reguły Archived/Deleted threads.
 „What's new” sortuje notatki
 metodami dostępnymi w Hermesie bez `Array.prototype.toSorted`.
@@ -1814,6 +1815,10 @@ zadaniami (status, „Show full output”, „Stop task”), która zamyka się 
 domyślny workspace, agenta i uprawnienia.
 Są tworzenie wątku, rename/archive/unread, wyszukiwanie treści, zwinięta praca/narzędzia,
 subagents i panel worker/cwd/model/status/schedules/lineage/connectors.
+
+Zarchiwizowany wątek pokazuje „This thread is archived” zamiast kompozytora.
+„Unarchive” przywraca kompozytor w otwartym wątku. Dla wątku zarchiwizowanego
+wraz z rodzicem przycisk „Unarchive with parent” przywraca oba wątki.
 
 Wątek z `worktree.removedAt` pokazuje „This thread is read-only” zamiast kompozytora,
 także gdy jest zarchiwizowany lub zaimportowany jako historia. Historia pozostaje czytelna;

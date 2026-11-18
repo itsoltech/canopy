@@ -233,7 +233,9 @@ export function ThreadTimeline({
                       history={state.history}
                     />
                     {!snapshot && <ConversationSkeleton />}
-                    {snapshot?.thread && !turns.length && <Notice>This thread is ready for your first message.</Notice>}
+                    {snapshot?.thread && !turns.length && !state.archived && (
+                      <Notice>This thread is ready for your first message.</Notice>
+                    )}
                   </View>
                 }
                 // A turn that arrives (a sent or queued message) fades in; one that only scrolls into view does not, and
