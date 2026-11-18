@@ -63,7 +63,6 @@ export const cliManagedExternally = (item: ui.WorkerCliTool): boolean =>
     !!item.managedBy ||
     [
       CliInstallMethod.HOMEBREW,
-      CliInstallMethod.MISE,
       CliInstallMethod.ASDF,
       CliInstallMethod.YARN,
       CliInstallMethod.DOCKER,

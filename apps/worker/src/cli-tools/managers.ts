@@ -50,10 +50,15 @@ export function readHead(path: string): string | undefined {
   }
 }
 
-function versionManager(both: readonly string[]): CliClassification | undefined {
-  const mise = both.map((x) => x.match(/\/mise\/installs\/([^/]+)\//)?.[1]).find(Boolean);
+function versionManager(both: readonly string[], ctx: ClassifyContext): CliClassification | undefined {
+  const data = trim(ctx.env?.["MISE_DATA_DIR"]);
+  const custom = data && both.find((x) => x.startsWith(`${data}/installs/`));
 
-  if (mise || both.some((x) => x.includes("/mise/shims/")))
+  const mise =
+    (custom && custom.slice(`${data}/installs/`.length).split("/")[0]) ||
+    both.map((x) => x.match(/\/mise\/installs\/([^/]+)\//)?.[1]).find(Boolean);
+
+  if (mise || both.some((x) => x.includes("/mise/shims/") || (data && x.startsWith(`${data}/shims/`))))
     return { method: CliInstallMethod.MISE, ...(mise && { owner: mise }) };
   const asdf = both.map((x) => x.match(/\/\.asdf\/installs\/([^/]+)\//)?.[1]).find(Boolean);
 
@@ -118,7 +123,7 @@ export function classify(spec: ManagedSpec, path: string, resolvedPath: string, 
   const p = slashes(path);
   const r = slashes(resolvedPath);
   const h = trim(ctx.home) ?? "";
-  const managed = versionManager([p, r]);
+  const managed = versionManager([p, r], ctx);
 
   if (managed) return managed;
   const cask = r.match(/\/Caskroom\/([^/]+)\//)?.[1];

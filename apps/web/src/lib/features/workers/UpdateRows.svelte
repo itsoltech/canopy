@@ -24,7 +24,6 @@
   }: { updates: UpdatesState; app: DesktopUpdatesState; allowForce?: boolean; gateway?: Snippet } = $props();
 
   const snapshot = $derived(updates.snapshot);
-  const busy = $derived(snapshot?.run?.state === "running" || !!updates.pending);
 
   // The bundled gateway and worker ship with this app: "This Canopy app" stands for them; their CLIs stay.
   const bundled = $derived(!!snapshot?.gatewayBundled);
@@ -70,5 +69,5 @@
       <CompactWorkerUpdate {worker} {updates} home={group.home} nodeId={group.nodeId} {allowForce} />
     {/each}
   {/each}
-  <CompactCliSection {groups} {updates} disabled={busy} class="border-t" />
+  <CompactCliSection {groups} {updates} class="border-t" />
 {/if}

@@ -1,5 +1,9 @@
 # CLI dostawców: wykrywanie, instalacja i aktualizacja
 
+Status: opis zaimplementowanego kodu (2026-11-18), w tym aktualizacji globalnych instalacji mise
+i powiązania wyników Update all z konkretną próbą instalacji.
+Dostępność w nightly, beta i stable wynika z promocji opisanych w [release.md](release.md).
+
 Odczyt statusu konta przez oficjalne CLI, jego ograniczenia oraz zasady
 prywatności opisuje [provider-accounts.md](provider-accounts.md).
 
@@ -11,7 +15,7 @@ właściciela (jeden worker albo „Update all” dla dostawcy). Nic nie instalu
 
 Centrum aktualizacji w stopce sidebara obejmuje te same akcje i logi instalatora.
 Jego „Update all” aktualizuje zainstalowane CLI lokalne i połączonych komputerów po gatewayu i binarnych workerach.
-Obejmuje natywne instalacje oraz obsługiwane przepisy npm, Bun, Volta i pnpm,
+Obejmuje natywne instalacje oraz obsługiwane przepisy npm, Bun, Volta, pnpm i mise,
 tak jak pojedyncze przyciski. Pomija wyłącznie instalacje bez obsługi w Canopy;
 popover i panel pokazują każdą pominiętą pozycję oraz powód.
 Przepisy menedżerów opisane poniżej pozostają dostępne także w szczegółach workera;
@@ -23,7 +27,8 @@ Claude Code i Codexa pochodzi z publicznych GitHub Releases; Grok nie ma znanego
 
 Kod: `apps/worker/src/cli-tools/*` (wykrywanie, przepisy, instalator), `apps/gateway/src/core/cli-tools.ts`
 (najnowsze wersje, decyzje, RPC), UI w `apps/web/src/lib/features/workers/*Cli*`. Testy:
-`tests/integration/provider-cli.test.ts` (prawdziwy proces workera, fałszywe CLI, npm, instalator i rejestr) oraz
+`tests/integration/provider-cli.test.ts` (prawdziwy proces workera, fałszywe CLI, npm, instalator i rejestr),
+`tests/integration/mise-cli.test.ts` (izolowane instalacje mise, aktywacja, rollback i wspólny zasób) oraz
 opcjonalny `provider-cli.live.test.ts` (`CANOPY_LIVE=1`, tylko odczyt najnowszych wersji).
 
 ## Kontrakt
@@ -47,6 +52,13 @@ Raport gateway trzyma w istniejącym JSONB `workers.capabilities.cliTools` (bez 
 workerów pozostają widoczne. Linie postępu są tylko w pamięci gatewaya (ostatnie 200 na workera i dostawcę).
 Jeżeli instalacja kończy się podczas wykrywania CLI, worker odrzuca wynik rozpoczęty przed jej końcem
 i ponownie odczytuje wersje. Status zakończonej instalacji nie może trafić do raportu ze starą wersją.
+
+`InstallCliRequest.install_id` jest opcjonalnym UUID próby; pusty oznacza wygenerowanie go w gatewayu.
+Gateway przekazuje go workerowi bez zmian. W Update all id jest zapisane przed wysłaniem,
+więc późny raport i powrót po rozłączeniu dotyczą właściwej próby. Id pozostaje niekwalifikowane
+przez routing połączonych komputerów, a id workera nadal wskazuje jego dom.
+Potwierdzenie startu nie jest wynikiem instalacji; brak potwierdzenia nie dowodzi niepowodzenia.
+Szczegóły limitów i uzgadniania wyniku: [updates.md](updates.md).
 
 ## Wykrywanie na workerze
 
@@ -125,7 +137,7 @@ kolejności. Sam prefiks nie decyduje: `npm i -g` z node z Homebrew instaluje do
 | Metoda | Rozpoznanie | Aktualizacja |
 |---|---|---|
 | `DOCKER` | worker w kontenerze (`CANOPY_INSTALL_KIND=docker`, `/.dockerenv`, `/run/.containerenv`) | obraz |
-| `MISE` / `ASDF` | `…/mise/installs/<narzędzie>/…`, `…/mise/shims/…` (narzędzie z `mise which`), `~/.asdf/installs|shims` | `mise upgrade …` / `asdf install …` |
+| `MISE` / `ASDF` | `…/mise/installs/<narzędzie>/…`, `…/mise/shims/…`, także `$MISE_DATA_DIR` (narzędzie z `mise which`), `~/.asdf/installs|shims` | przepis mise poniżej / ręcznie `asdf install …` |
 | `HOMEBREW` | `…/Cellar/<formuła>/…`, `…/Caskroom/<cask>/…` | `brew upgrade [--cask] <nazwa>` |
 | `NATIVE` | Claude: `~/.local/share/claude/versions/…`; Grok: `~/.grok/bin|downloads/…` | własny updater / skrypt |
 | `VOLTA` | link do `volta-shim`, `…/.volta/tools/image/…`, `$VOLTA_HOME/tools/image/…` | `volta install <pakiet>@<w>` |
@@ -182,17 +194,37 @@ tablica argv albo oficjalny skrypt instalatora pobrany z jego stałego adresu HT
 | `YARN` | brak przycisku: „Managed by Yarn” + `yarn global add <pakiet>@<w>` | | |
 | `NOT_INSTALLED` | `https://claude.ai/install.sh [wersja]` (POSIX, do `~/.local`) | `npm install --global --prefix ~/.local @openai/codex@<w>`, bez npm: `bun add -g` | `https://x.ai/cli/install.sh [wersja]` (POSIX, do `~/.grok/bin`) |
 | `HOMEBREW` | brak przycisku: „Managed by Homebrew — update it there” + `brew upgrade --cask claude-code` / `brew upgrade <formuła>` | | |
-| `MISE` / `ASDF` | brak przycisku: `mise upgrade <narzędzie>` / `asdf install <plugin> latest` | | |
+| `MISE` | `<mise> use --global --yes --pin <narzędzie>@<w>` (`claude`, także `claude-code`) | jw., `codex` | jw., `grok` |
+| `ASDF` | brak przycisku: `asdf install <plugin> latest` | | |
 | `DOCKER` | brak przycisku: „Managed by the image” | | |
 | `OTHER` | brak przycisku: „Installed outside a known installer … Update it the way you installed it.” | | |
 
 Windows: Claude bez instalacji pokazuje polecenie PowerShell (`irm https://claude.ai/install.ps1 | iex`); skrypty
 bash nie działają. Przepisy macOS i Windows nie były sprawdzone na prawdziwych maszynach.
 
+Mise obsługuje także backend npm każdego dostawcy (`npm:@anthropic-ai/claude-code`, `npm:@openai/codex`,
+`npm:@xai-official/grok`). Worker odtwarza te identyfikatory ze stałej mapy pakietów,
+nie aktualizuje Node, pod którym ktoś wykonał `npm install -g`. Sondy CLI i `mise which`
+działają z katalogu domowego workera, tak jak instalator. `mise ls --json --global <narzędzie>` musi
+potwierdzić jedną zainstalowaną globalną wersję, zgodną z wybranym CLI. Wynik `--current` musi
+wskazywać tę samą wersję i źródłowy plik konfiguracji; nadpisanie projektu lub środowiska blokuje przepis.
+Wybrana ścieżka musi być shimem; bezpośrednia ścieżka przez `installs/` (także `latest`),
+konfiguracja tylko projektu, wiele globalnych wersji, nieznane narzędzie lub brak mise zachowują
+polecenie ręczne. Starszy worker bez przepisu również zachowuje polecenie ręczne.
+Symlink mise `latest` wskazuje najwyższą zainstalowaną wersję, także po ponownej aktywacji starszej,
+więc nie pozwala niezawodnie cofnąć aktualizacji.
+
+`mise use` instaluje i aktywuje wersję w konfiguracji globalnej, również gdy poprzednia była przypięta.
+Dokładny cel używa `--pin`; cel `latest` pomija tę flagę i respektuje ustawienie pinów mise.
+Poprzednie wersje pozostają zainstalowane. Po nieudanej weryfikacji worker ponownie aktywuje
+poprzednią wersję tym samym przepisem; przywrócony wpis jest dokładnym pinem, także gdy wcześniej był `latest`.
+Konfiguracja projektu nie jest przepisywana. Wszystkie aktualizacje mise na workerze współdzielą
+zasób `mise:config`, obejmujący aktywację, weryfikację i ewentualny rollback.
+
 ## Zasady bezpieczeństwa
 
 - **Egzekwuje gateway**, nie UI: tylko właściciel workera (`workers.owner_user_id`; cudzy i współdzielony worker =
-  `NotFound`), worker online z `cli_install`, metoda z przepisem (Homebrew, mise, asdf, Yarn, Docker i `OTHER` są
+  `NotFound`), worker online z `cli_install`, metoda z przepisem (Homebrew, asdf, Yarn, Docker i `OTHER` są
   odrzucane niezależnie od tego, co zgłosił worker), brak trwających tur dostawcy, jedna instalacja tego
   samego narzędzia naraz. Różne CLI mogą działać równolegle; worker szereguje tylko wspólny zasób
   przepisu (`CliTool.install_resource`), obejmując też rollback. Pary i limity opisuje
@@ -205,7 +237,7 @@ bash nie działają. Przepisy macOS i Windows nie były sprawdzone na prawdziwyc
   zmianie wersji restartuje się, gdy nie ma trwających tur.
 - **Brak połowicznej instalacji w użyciu.** Po przepisie nowy plik musi odpowiedzieć na `--version` (z żądaną
   wersją, jeśli była dokładna). Inaczej worker przywraca poprzednią: symlink natywnego launchera (atomowy
-  `rename`), a dla npm/Bun/Volta/pnpm ponowna instalacja poprzedniej wersji tym samym przepisem. Błąd brzmi np. „the installer
+  `rename`), a dla npm/Bun/Volta/pnpm/mise ponowna instalacja lub aktywacja poprzedniej wersji tym samym przepisem. Błąd brzmi np. „the installer
   exited with code 1; 0.160.0 is still in use”. Limit 10 minut (SIGTERM, po 5 s SIGKILL).
 - **Sekrety.** Instalator działa bez zmiennych `CANOPY_*` i o nazwach jak token/secret/password/api key/auth;
   linie wyjścia są redagowane (ANSI, dane w URL, `Bearer`, `sk-…`, `ghp_…`, `token=…`, wartości usuniętych

@@ -610,7 +610,7 @@ message UpdateStep {
   string started_at = 8;
   string from_version = 9;
   string node_id = 10; // computer: the linked computer
-  string request_id = 11; // computer: the app update request on that computer
+  string request_id = 11; // app update request or opaque CLI install attempt id
   string finished_at = 12; // when the step succeeded, failed or was blocked
 }
 message RenameWorkerRequest { string worker_id = 1; string name = 2; }
@@ -2706,6 +2706,9 @@ message InstallCliRequest {
   // X.Y.Z[-pre] albo "latest"; pusty = najnowsza znana (albo "latest").
   string version = 3;
   bool all_workers = 4;
+  // Opaque UUID for correlating this attempt with worker reports; empty lets the gateway generate one.
+  // Does not make an installation durable or replay it after reconnecting.
+  string install_id = 5;
 }
 
 message InstallCliResponse {
