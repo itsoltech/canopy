@@ -6,6 +6,7 @@ po merge, sterowanie GitHub Actions oraz postęp checków i kroków workflow. Za
 linkowanie PR przez agenta (`link_pull_request`) jako fallback automatycznej detekcji.
 Podstawowy zakres jest dostępny w web/desktop/mobile. Dodatkowe oznaczenia checków
 w kartach PR i sidebarze oraz podgląd PR w hover card opisane w §7 dotyczą interfejsu web.
+Na web/desktop/mobile **Copy code and open GitHub** łączy skopiowanie kodu z otwarciem GitHuba.
 Web/desktop renderuje bezpieczny HTML w Markdown (2026-11-15); na `dev` obsługiwany jest
 też parametr wersji `u` w adresach awatarów GitHub oraz reaktywny cache list PR
 w pamięci BFF. Timeline web/desktop/mobile łączy review z komentarzami inline po identyfikatorach GitHub
@@ -148,9 +149,12 @@ bez próby innym kontem ani ponowienia zapisu.
 
 1. **Settings → GitHub account → Connect account** wybiera komputer przechowujący konto.
    Gateway rozpoczyna `POST https://github.com/login/device/code` z publicznym client ID.
-2. UI pokazuje kod użytkownika, termin ważności, **Copy code**, **Open GitHub** i **Cancel**.
-   Otwiera wyłącznie zweryfikowany adres GitHub. `device_code` pozostaje zaszyfrowany w gatewayu;
-   UI dostaje osobny identyfikator próby, `user_code`, URL i stan.
+2. UI pokazuje kod użytkownika, termin ważności i **Cancel**. **Copy code and open GitHub**
+   kopiuje kod do schowka i otwiera zweryfikowany adres GitHuba. Użytkownik wkleja kod
+   i zatwierdza autoryzację na GitHubie. Kod można zaznaczyć i skopiować ręcznie, także po
+   odmowie dostępu do schowka. **Open GitHub** otwiera stronę bez zapisu do schowka.
+   `device_code` pozostaje zaszyfrowany w gatewayu; UI dostaje osobny identyfikator próby,
+   `user_code`, URL i stan.
 3. Gateway odpytuje `POST https://github.com/login/oauth/access_token`, respektując zwrócone
    `interval`, `authorization_pending` i `slow_down` (zwiększenie odstępu o 5 s).
    Odmowa, expiry i anulowanie kończą próbę; reconnect klienta nie uruchamia nowej wymiany.
