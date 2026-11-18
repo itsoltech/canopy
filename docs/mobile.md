@@ -1,6 +1,7 @@
 # Canopy na iOS i Android
 
-Status: opis zaimplementowanego kodu (2026-11-18); telefon i tablet pozwalają wybrać kolejność zakładek
+Status: opis zaimplementowanego kodu (2026-11-18); na liście Bots czas i licznik są wyrównane przy menu wiersza.
+Telefon i tablet pozwalają wybrać kolejność zakładek
 i zatrzymać pracę modułu Threads albo Bots na koncie właściciela. Kompozytor uwzględnia zapisane uprawnienia wątku Codexa. Nowy wątek od razu pokazuje prompt
 i checklistę rzeczywistego przygotowania przed startem agenta, we wspólnej geometrii
 nagłówka, osi czasu i kompozytora. Czat bota pozwala wysyłać kolejne wiadomości
@@ -61,6 +62,11 @@ parowania, by użyć jej również offline. Wyłączenie modułu usuwa jego ekra
 ze stosu nawigacji i ukrywa jego ustawienia, alerty i odnośniki w drugim module.
 Bezpośredni link do wyłączonej rozmowy otwiera dostępny moduł. Gateway wstrzymuje
 automatyzacje wyłączonego modułu również wtedy, gdy aplikacja mobilna jest zamknięta.
+
+Na liście **Bots** nazwa i podgląd wiadomości mają wspólną lewą krawędź i mieszczą się
+po jednej linii. Czas i widoczny licznik są wyrównane do prawej krawędzi treści,
+przed przyciskiem menu. Gdy licznik znika, podgląd odzyskuje jego miejsce,
+a awatar, czas i menu zachowują położenie.
 
 Settings → Threads → Archived threads zawiera przełącznik automatycznego
 usuwania i dowolną liczbę dni (1–36500); domyślnie jest wyłączony. Edycja tworzy
