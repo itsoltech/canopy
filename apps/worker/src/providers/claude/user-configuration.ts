@@ -77,7 +77,7 @@ export async function prepareClaudeUserConfiguration(
 
     if (hooks) settings.hooks = hooks;
     const instructions = policy.instructions ? selectedInstructions(source) : "";
-    const plugins = policy.skills ? claudeUserSkillSnapshots(source, privateDirectory) : [];
+    const plugins = policy.skills ? await claudeUserSkillSnapshots(source, privateDirectory) : [];
 
     return { ...configuration, settings, plugins, instructions };
   } catch (error) {

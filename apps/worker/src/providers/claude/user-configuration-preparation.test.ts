@@ -2,10 +2,10 @@ import { expect, test } from "bun:test";
 import { query, type SDKUserMessage, type Settings } from "@anthropic-ai/claude-agent-sdk";
 import { ProviderConfigurationMode } from "@canopy/contracts";
 import { environmentBlock } from "@canopy/domain/agent-environment";
-import { SKILL_FILE_BYTES, SKILL_TOTAL_BYTES } from "@canopy/domain/skill-artifact";
 import { tempDirs } from "@canopy/testing";
 import { AsyncChannel } from "@canopy/transport";
 import {
+  appendFileSync,
   existsSync,
   lstatSync,
   mkdirSync,
@@ -14,6 +14,7 @@ import {
   rmSync,
   statSync,
   symlinkSync,
+  truncateSync,
   writeFileSync,
 } from "node:fs";
 import { dirname, join } from "node:path";
@@ -26,6 +27,7 @@ import { prepareClaudeUserConfiguration, type ClaudeUserConfiguration } from "./
 
 const temp = tempDirs();
 const executable = Bun.which("claude");
+const MIB = 1024 * 1024;
 
 function fixture() {
   const root = temp("canopy-claude-user-preparation-");
@@ -539,6 +541,55 @@ test("personal skill libraries can exceed 2048 entries across skills, assets and
   expect(existsSync(plugin)).toBe(false);
 });
 
+test("Claude's root skill trash does not count toward the snapshot budget", async () => {
+  const paths = fixture();
+  const skills = join(paths.source, "skills");
+  const trash = join(skills, ".trash", "archived");
+  const active = join(skills, "active");
+  const reference = join(".trash", "reference.txt");
+
+  mkdirSync(trash, { recursive: true });
+  mkdirSync(join(active, ".trash"), { recursive: true });
+  writeFileSync(join(active, "SKILL.md"), "Active skill.\n");
+  writeFileSync(join(active, reference), "Active skill reference.\n");
+
+  for (let index = 0; index < 5; index++) {
+    const archived = join(trash, `asset-${index}.bin`);
+
+    writeFileSync(archived, "");
+    truncateSync(archived, 64 * MIB);
+  }
+
+  const prepared = await prepare(paths);
+  const snapshot = join(prepared.plugins[0]!.path, "skills");
+
+  try {
+    expect(existsSync(join(snapshot, ".trash"))).toBe(false);
+    expect(readFileSync(join(snapshot, "active", "SKILL.md"), "utf8")).toBe("Active skill.\n");
+    expect(readFileSync(join(snapshot, "active", reference), "utf8")).toBe("Active skill reference.\n");
+    expect(statSync(join(trash, "asset-0.bin")).size).toBe(64 * MIB);
+  } finally {
+    await prepared.close();
+  }
+});
+
+test("a skill defined directly in the root .trash directory can still be imported", async () => {
+  const paths = fixture();
+  const skill = join(paths.source, "skills", ".trash");
+
+  mkdirSync(skill, { recursive: true });
+  writeFileSync(join(skill, "SKILL.md"), "Explicit skill.\n");
+  const prepared = await prepare(paths);
+
+  try {
+    expect(readFileSync(join(prepared.plugins[0]!.path, "skills", ".trash", "SKILL.md"), "utf8")).toBe(
+      "Explicit skill.\n",
+    );
+  } finally {
+    await prepared.close();
+  }
+});
+
 test("skill snapshots accept empty optional metadata and scalar descriptions without runtime overrides", async () => {
   const paths = fixture();
   const skill = join(paths.source, "skills", "scalar-check");
@@ -699,33 +750,88 @@ test.skipIf(process.platform === "win32")(
   },
 );
 
-test("skill snapshots reject oversized individual files and combined trees", async () => {
+test("skill snapshots accept large PDF and CSV resources across skills and commands", async () => {
   const paths = fixture();
-  const skills = join(paths.source, "skills");
+  const skill = join(paths.source, "skills", "examples");
   const commands = join(paths.source, "commands");
-  const oversized = join(skills, "asset.bin");
+  const guide = join(skill, "guide.pdf");
 
-  mkdirSync(skills);
+  mkdirSync(skill, { recursive: true });
   mkdirSync(commands);
-  writeFileSync(oversized, Buffer.alloc(SKILL_FILE_BYTES + 1));
-  await expect(prepare(paths)).rejects.toThrow("at most 1 MiB per file");
-  const asset = Buffer.alloc(SKILL_FILE_BYTES);
-
-  writeFileSync(oversized, asset);
-  writeFileSync(join(commands, "second.bin"), asset);
+  writeFileSync(join(skill, "SKILL.md"), "Read guide.pdf.\n");
+  writeFileSync(guide, "%PDF-1.7\n");
+  truncateSync(guide, 64 * MIB - 6);
+  appendFileSync(guide, "%%EOF\n");
+  writeFileSync(join(commands, "examples.csv"), "label,value\n");
+  truncateSync(join(commands, "examples.csv"), 2 * MIB);
+  writeFileSync(join(skill, "empty.txt"), "");
   const accepted = await prepare(paths);
 
   try {
-    expect(readFileSync(join(accepted.plugins[0]!.path, "commands", "second.bin"))).toEqual(asset);
+    const plugin = accepted.plugins[0]!.path;
+    const pdf = Bun.file(join(plugin, "skills", "examples", "guide.pdf"));
+    const csv = Bun.file(join(plugin, "commands", "examples.csv"));
+
+    expect(pdf.size).toBe(64 * MIB);
+    expect(await pdf.slice(0, 9).text()).toBe("%PDF-1.7\n");
+    expect(await pdf.slice(-6).text()).toBe("%%EOF\n");
+    expect(csv.size).toBe(2 * MIB);
+    expect(await csv.slice(0, 12).text()).toBe("label,value\n");
+    expect(readFileSync(join(plugin, "skills", "examples", "empty.txt"), "utf8")).toBe("");
   } finally {
     await accepted.close();
   }
 
-  for (let index = 1; index < SKILL_TOTAL_BYTES / SKILL_FILE_BYTES; index++)
-    writeFileSync(join(commands, `extra-${index}.bin`), asset);
+  truncateSync(guide, 64 * MIB + 1);
+  await expect(prepare(paths)).rejects.toThrow("64 MiB per supporting file");
+});
 
-  await expect(prepare(paths)).rejects.toThrow("25 MiB in total");
-  expect(statSync(oversized).size).toBe(SKILL_FILE_BYTES);
+test.each(["skills/example/SKILL.md", "commands/nested/example.md"])(
+  "skill snapshots enforce the 10 MiB definition limit for %s",
+  async (file) => {
+    const paths = fixture();
+    const target = join(paths.source, file);
+    const header = "---\ndescription: Large definition\nallowed-tools: Bash(*)\n---\n";
+
+    mkdirSync(dirname(target), { recursive: true });
+    writeFileSync(target, header + "x".repeat(10 * MIB - header.length));
+    const prepared = await prepare(paths);
+
+    try {
+      const snapshot = Bun.file(join(prepared.plugins[0]!.path, file));
+      const prefix = await snapshot.slice(0, header.length).text();
+
+      expect(snapshot.size).toBeGreaterThan(9 * MIB);
+      expect(prefix).toContain("description: Large definition");
+      expect(prefix).not.toContain("allowed-tools");
+    } finally {
+      await prepared.close();
+    }
+
+    truncateSync(target, 10 * MIB + 1);
+    await expect(prepare(paths)).rejects.toThrow("10 MiB per skill or command definition");
+  },
+);
+
+test("skill snapshots enforce one combined budget for skills and commands", async () => {
+  const paths = fixture();
+  const skills = join(paths.source, "skills");
+  const commands = join(paths.source, "commands");
+
+  mkdirSync(skills);
+  mkdirSync(commands);
+
+  for (const directory of [skills, commands]) {
+    for (const name of ["first.bin", "second.bin"]) {
+      const asset = join(directory, name);
+
+      writeFileSync(asset, "");
+      truncateSync(asset, 64 * MIB);
+    }
+  }
+
+  writeFileSync(join(commands, "extra.csv"), "x");
+  await expect(prepare(paths)).rejects.toThrow("256 MiB in total");
 });
 
 test.skipIf(process.platform === "win32" || !Bun.which("mkfifo"))(
