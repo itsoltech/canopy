@@ -1,8 +1,9 @@
+import { View } from "react-native";
 import { ComposerBox } from "../threads/ComposerBox";
 import type { useBotMessage } from "./useBotMessage";
 import { AttachButton, AttachmentChips } from "../attachments/Attachments";
 import { PasteTarget } from "../attachments/FileIntake";
-import { Button, Notice } from "../../ui/components";
+import { Button, IconButton, Notice } from "../../ui/components";
 
 export function BotComposer({
   name,
@@ -41,15 +42,26 @@ export function BotComposer({
           badges={draft.badges}
           files={quotes.length + draft.files.files.length}
           attachment={<AttachButton draft={draft.files} disabled={disabled || busy || !message.loaded} />}
+          beforeSend={
+            running ? (
+              <IconButton
+                icon="stop"
+                label="Stop reply"
+                size="sm"
+                disabled={disabled}
+                busy={stopping}
+                onPress={onStop}
+              />
+            ) : (
+              <View style={{ width: 32 }} />
+            )
+          }
           canSend={!draft.files.blocker && message.loaded}
           shellCommands={false}
           label="Message to your bot"
           onSend={() => void message.send()}
-          running={running}
-          stopWhileRunning
-          onStop={onStop}
-          disabled={disabled || (!running && !message.loaded)}
-          busy={busy || stopping}
+          disabled={disabled || !message.loaded}
+          busy={busy}
         />
       </PasteTarget>
     </>

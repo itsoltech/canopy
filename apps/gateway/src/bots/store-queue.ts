@@ -12,12 +12,15 @@ import { Invalid } from "../store/store.ts";
 import { botQuotes } from "./quotes.ts";
 import { nextHop } from "./policy.ts";
 import { originOf, routineStore, type RoutineOrigin } from "./routines.ts";
-import type { BotRow, BotTurn } from "./types.ts";
+import type { BotRow, BotSteerDelivery, BotTurn } from "./types.ts";
 import { botConfiguration, uuid } from "./store-views.ts";
 import type { BotAccess } from "./store-access.ts";
 import type { botConfig } from "./store-config.ts";
+import { chatSteerTarget } from "./store-chat-steer.ts";
 
 type BotTurnKey = Pick<BotTurn, "id">;
+
+type SubmittedInput = BotTurnKey & { steer?: BotSteerDelivery };
 
 type EnqueueOptions = RoutineOrigin & {
   hops?: number;
@@ -31,6 +34,7 @@ type EnqueueOptions = RoutineOrigin & {
   attachmentIds?: readonly string[];
   attachmentLimits?: AttachmentLimits | undefined;
   draftRevision?: bigint | undefined;
+  steer?: boolean;
 };
 
 /** Queues a bot turn with its message (user, bot, routine or system input). */
@@ -48,9 +52,9 @@ function botEnqueue(
 
         // A retry returns the original turn even if a mentioned bot was deleted since acceptance.
         const previous =
-          (yield* sql<BotTurnKey>`SELECT id FROM bot_turns WHERE bot_id = ${botId}::uuid AND client_request_id = ${requestId}`)[0];
+          (yield* sql<SubmittedInput>`SELECT id FROM bot_turns WHERE bot_id = ${botId}::uuid AND client_request_id = ${requestId}`)[0];
 
-        if (previous) return previous.id;
+        if (previous) return previous;
 
         if (options.conversationId && !(yield* activeConversation(sql, botId, options.conversationId)))
           return yield* Effect.fail(new Invalid("Messenger subscription is no longer active"));
@@ -127,6 +131,11 @@ function botEnqueue(
 
         const turnId = uuid();
 
+        const target =
+          options.steer && !checked.length && !quotes.length && !images.length
+            ? yield* chatSteerTarget(sql, botId)
+            : undefined;
+
         const routine = options.routineId
           ? (yield* sql<{
               instructions: string;
@@ -140,16 +149,15 @@ function botEnqueue(
           : input;
 
         const inserted =
-          yield* sql<BotTurnKey>`INSERT INTO bot_turns(id, bot_id, client_request_id, input, hops, reply_to_bot_id, exchange_id, routine_id, routine_title, conversation_id)
-      VALUES (${turnId}::uuid, ${botId}::uuid, ${requestId}, ${storedInput}, ${options.hops ?? 0}, ${options.replyTo ?? null}::uuid, ${options.exchangeId ?? null}::uuid, ${options.routineId ?? null}::uuid, ${options.routineTitle ?? ""}, ${options.conversationId ?? null}::uuid)
+          yield* sql`INSERT INTO bot_turns(id, bot_id, client_request_id, input, hops, reply_to_bot_id, exchange_id, routine_id, routine_title, conversation_id, steer_target_id)
+      VALUES (${turnId}::uuid, ${botId}::uuid, ${requestId}, ${storedInput}, ${options.hops ?? 0}, ${options.replyTo ?? null}::uuid, ${options.exchangeId ?? null}::uuid, ${options.routineId ?? null}::uuid, ${options.routineTitle ?? ""}, ${options.conversationId ?? null}::uuid, ${target?.turnId ?? null}::uuid)
       ON CONFLICT(bot_id, client_request_id) DO NOTHING RETURNING id`;
 
-        const turn =
-          inserted[0] ??
-          (yield* sql<BotTurnKey>`SELECT id FROM bot_turns WHERE bot_id = ${botId}::uuid AND client_request_id = ${requestId}`)[0]!;
+        if (!inserted.length)
+          return (yield* sql<SubmittedInput>`SELECT id FROM bot_turns WHERE bot_id = ${botId}::uuid AND client_request_id = ${requestId}`)[0]!;
 
         for (const image of images)
-          yield* sql`UPDATE attachments SET bot_id=${botId}::uuid, bot_turn_id=${turn.id}::uuid
+          yield* sql`UPDATE attachments SET bot_id=${botId}::uuid, bot_turn_id=${turnId}::uuid
             WHERE id=${image.id}::uuid AND thread_id IS NULL AND bot_id IS NULL`;
 
         if (options.draftRevision !== undefined)
@@ -158,11 +166,11 @@ function botEnqueue(
 
         if (!options.routineId)
           yield* sql`INSERT INTO bot_messages(id, bot_id, turn_id, message_key, sender_id, recipient_id, kind, text, exchange_id, mentions, quotes, attachments)
-      VALUES (${uuid()}::uuid, ${botId}::uuid, ${turn.id}::uuid, 'input', ${options.sender ?? "user"}, ${botId}, ${options.event ? "event" : "message"}, ${options.displayText ?? input}, ${options.exchangeId ?? null}::uuid, ${JSON.stringify(checked.map((m) => toJson(MentionSchema, m)))}::jsonb, ${JSON.stringify(quotes)}::jsonb, ${JSON.stringify(images.map(storedBotImage))}::jsonb)
+      VALUES (${uuid()}::uuid, ${botId}::uuid, ${turnId}::uuid, 'input', ${options.sender ?? "user"}, ${botId}, ${options.event ? "event" : "message"}, ${options.displayText ?? input}, ${options.exchangeId ?? null}::uuid, ${JSON.stringify(checked.map((m) => toJson(MentionSchema, m)))}::jsonb, ${JSON.stringify(quotes)}::jsonb, ${JSON.stringify(images.map(storedBotImage))}::jsonb)
       ON CONFLICT(turn_id, message_key) DO NOTHING`;
         yield* changed(botId);
 
-        return turn.id;
+        return { id: turnId, ...(target && { steer: { ...target, botId, inputId: turnId, text: input } }) };
       }),
     );
 }
@@ -170,7 +178,10 @@ function botEnqueue(
 /** The turn queue: enqueue, finish (with replies to other bots) and routines. */
 export function botQueue(sql: SqlClient.SqlClient, access: BotAccess) {
   const { changed, fenced, owned } = access;
-  const enqueue = botEnqueue(sql, access);
+  const submitInput = botEnqueue(sql, access);
+
+  const enqueue = (...args: Parameters<typeof submitInput>) =>
+    submitInput(...args).pipe(Effect.map((input) => input.id));
 
   const finish = (turn: BotTurn, status: string, text: string, errorCode = "", errorSource = "") =>
     sql.withTransaction(
@@ -238,7 +249,7 @@ export function botQueue(sql: SqlClient.SqlClient, access: BotAccess) {
       );
     });
 
-  return { enqueue, finish, routines, originEnabled };
+  return { enqueue, submitInput, finish, routines, originEnabled };
 }
 
 export type BotCore = BotAccess & ReturnType<typeof botConfig> & ReturnType<typeof botQueue>;

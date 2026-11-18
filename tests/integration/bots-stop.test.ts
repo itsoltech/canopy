@@ -150,7 +150,12 @@ describe("stop a bot reply through the worker harness", () => {
     const bot = await add(Provider.CODEX);
     await send(bot.id, "STOP_REPLY HOLD:owner-stop");
     await started(bot.id);
-    await send(bot.id, "Already queued");
+    await f.gw.api.sendBotMessage({
+      botId: bot.id,
+      text: "Already queued",
+      clientRequestId: crypto.randomUUID(),
+      quotes: [{ text: "Earlier request", sourceKind: "agent_message" }],
+    });
 
     const foreign = new GatewayCore({
       runtime: f.gw.runtime,

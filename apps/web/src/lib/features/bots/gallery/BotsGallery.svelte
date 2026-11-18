@@ -115,6 +115,7 @@
   const answered = groupEntries.find((e) => e.kind === "question")!;
   let galleryAnswer = $state<string>();
   let composerValue = $state("");
+  let composerRunning = $state(true);
 </script>
 
 <svelte:head><title>Bots gallery · {applicationName}</title></svelte:head>
@@ -276,14 +277,22 @@
 
       <GallerySection
         title="Composer and read-only bar"
-        description="Attachments and voice are not built yet, so “+” and the mic explain that. Typing turns the mic into send."
+        description="Send another message while a reply is in progress."
       >
         <div class="grid max-w-xl gap-4">
           <BotComposer
             botId="gallery"
             quoteKey="bot:gallery"
             bind:value={composerValue}
-            onsend={(text) => (log = `Sent “${text}”.`)}
+            running={composerRunning}
+            onstop={() => {
+              composerRunning = false;
+              log = "Stopped the reply.";
+            }}
+            onsend={(text) => {
+              composerRunning = true;
+              log = `Sent “${text}”.`;
+            }}
           />
           <BotComposer
             botId="gallery"

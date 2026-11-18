@@ -325,6 +325,8 @@ for await (const line of createInterface({ input: process.stdin })) {
     );
     const text = params.input.map((part: { text?: string }) => part.text ?? "").join("\n");
     send({ id, result: { turnId: params.expectedTurnId } });
+
+    if (text === "FIXTURE_UNCONFIRMED_BOT_STEER") continue;
     notify("item/completed", {
       threadId: params.threadId,
       turnId: params.expectedTurnId,

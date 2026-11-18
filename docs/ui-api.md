@@ -17,6 +17,8 @@ tokenami, filtrami czasu, providera, komputera i żądanej szybkości oraz zakre
 nowy wątek web/desktop i natywnego mobile od razu pokazuje prompt i rzeczywisty postęp przygotowania worktree;
 web/desktop zachowuje geometrię osi czasu i kotwicę wiadomości przy przejściu z przygotowania do wątku;
 czat bota używa `VirtualFeed` i dołącza starsze strony przy przewijaniu, a Home/End przesuwają okno bez animacji;
+kompozytor czatu bota w web/desktop pozwala wysłać wiadomość w trakcie odpowiedzi
+i udostępnia obok osobny przycisk zatrzymania;
 propozycje odpowiedzi pomijają zużyte i wysterowane wpisy kolejki;
 porzucone notatki platformy nie udają oczekującego wejścia i nie blokują późniejszych propozycji;
 watch odzyskuje stan po powtarzającym się nieokreślonym błędzie gatewaya;
@@ -1852,6 +1854,13 @@ jedno RPC na wątek oraz najwyższy oczekujący numer, z limitem 256 aktywnych w
 Niepowodzenie markera nie trafia do UI ani do logu błędów operacji użytkownika.
 
 ### Szkice i załączniki botów
+
+W czacie bota web/desktop można wysłać kolejną wiadomość w trakcie odpowiedzi
+przyciskiem „Send” albo klawiszem Enter na klawiaturze fizycznej. Obie akcje
+korzystają z `POST /api/bots/:id/messages` (`SendBotMessage`). Gateway
+decyduje, czy dołączyć wiadomość jako wskazówkę do trwającej tury.
+Podczas odpowiedzi osobny przycisk „Stop reply” zajmuje zarezerwowane miejsce
+obok „Send”, dzięki czemu pole edycji i przycisk wysyłania zachowują pozycję.
 
 `GetBotDraft({bot_id})` zwraca `BotComposerDraft`: tekst, wzmianki, cytaty, metadane
 załączników, rewizję i klucz idempotencji wysyłki. `SaveBotDraft({bot_id, draft,

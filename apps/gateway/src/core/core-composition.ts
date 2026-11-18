@@ -26,6 +26,7 @@ import { corePublishSchedule } from "./core-schedules.ts";
 import type { GatewayCore } from "./core.ts";
 import { nameAutomationBranch, prepareScheduledWorkspace, prepareSpawnWorkspace } from "../worktrees/automation.ts";
 import { runBotHarness } from "./bot-harness.ts";
+import { deliverBotSteer } from "./bot-steer.ts";
 import { publishThreadVisual } from "./visual-publication.ts";
 import { answerBotThreadApproval } from "./bot-thread-approval.ts";
 import { linkedBotThreadApprovals } from "../computers/bot-thread-approvals.ts";
@@ -52,6 +53,7 @@ export function createCoreBots(core: GatewayCore, options: GatewayCoreOptions): 
     connectors: core.connectors,
     harness: (input) => runBotHarness(core, input),
     deliverInterrupt: (workerId) => coreRedeliver(core, workerId),
+    deliverSteer: (input) => deliverBotSteer(core, input),
     ...(options.botClock && { now: options.botClock }),
     ...(options.botModel && { model: options.botModel }),
     ...(options.log && { log: options.log }),
