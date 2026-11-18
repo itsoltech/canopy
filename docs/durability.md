@@ -22,7 +22,7 @@ z wynikiem jego narzędzia i deduplikowane po wywołaniu. Wynik zleconej pracy
 dziedziczy UUID rozmowy źródłowej; usunięcie subskrypcji blokuje późniejsze
 doręczenie zamiast przenosić je do prywatnego czatu.
 
-Status: **w części zaimplementowany** (2026-11-17), w tym trwałe agregaty tokenów i kosztów, trwały odbiór kanałów Slack, potwierdzenia aktualizacji botów oraz trwałe przypisanie domu sesji Claude i ochrona jego historii podczas purge; pozostałe plany oznaczono w sekcjach. Wymaganie: zatrzymanie lub aktualizacja dowolnego procesu nie gubi stanu i nie kończy się błędem widocznym dla użytkownika. Wyjątkiem jest tura agenta przerwana twardym zabiciem procesu (patrz [macierz awarii](#9-macierz-awarii)).
+Status: **w części zaimplementowany** (2026-11-18), w tym trwałe agregaty tokenów i kosztów, trwały odbiór kanałów Slack, potwierdzenia aktualizacji botów, trwałe przypisanie domu sesji Claude i ochrona jego historii podczas purge oraz zatrzymanie workera bez ponownego uruchamiania cyklicznych sprawdzeń CLI; pozostałe plany oznaczono w sekcjach. Wymaganie: zatrzymanie lub aktualizacja dowolnego procesu nie gubi stanu i nie kończy się błędem widocznym dla użytkownika. Wyjątkiem jest tura agenta przerwana twardym zabiciem procesu (patrz [macierz awarii](#9-macierz-awarii)).
 
 Powiązane: [architecture.md](architecture.md), [protocol.md](protocol.md), [data-model.md](data-model.md).
 
@@ -189,6 +189,8 @@ sequenceDiagram
 - `drain_timeout` jest konfigurowalny. Aktualizacja workera domyślnie czeka na brak aktywnych tur („update when idle”) z maksymalnym terminem.
 - Jeśli gateway jest niedostępny w trakcie drain, zdarzenia zostają w dzienniku i zostaną dosłane po starcie. Drain się nie blokuje.
 - **Zaimplementowane dziś** (bez czekania na tury): `DRAINING`, oznaczenie dziennika `beginShutdown`, następnie zatrzymanie runtime'ów dostawców przy działającym łączu (`WorkerHost.shutdown`). Od oznaczenia dziennika każdy końcowy raport zadania w tle (także wysłany przez harness w trakcie zamykania) jest normalizowany **przed zapisem** do `interrupted`, `worker_shutdown` z czasem końca. Raporty nie mogą wygrać z późniejszym przeglądem otwartych zadań i nadać notatce ogólnego powodu `stopped`. Zdarzenia są wysyłane i potwierdzane (`flush`, do 3 s), dopiero potem łącze się zamyka. Komendy, które przyjdą w tym czasie, zostają bez odpowiedzi (gateway trzyma je w outboxie dla następnego procesu, np. turę notatki o zatrzymanych zadaniach; [execution.md](execution.md#pobudka-agent-dowiaduje-się-o-każdym-końcu-zadania)).
+
+- Po rozpoczęciu zamykania worker nie stosuje nowej konfiguracji, także gdy wykrywanie CLI zaczęło się wcześniej. Spóźniony wynik nie uruchamia ponownie cyklicznych sprawdzeń CLI. Po ponownym połączeniu konfigurację stosuje nowy proces.
 
 ### 3.4 Start po awarii
 

@@ -1,6 +1,7 @@
 # Projekty, wątki i wątki boczne
 
-Status (2026-11-18): zaimplementowane, w tym trwały wpis wątku przed przygotowaniem nowego worktree,
+Status (2026-11-18): zaimplementowane, w tym ukrycie Full auto w web/desktop dla Claude
+na natywnym Windowsie, trwały wpis wątku przed przygotowaniem nowego worktree,
 propagacja odmowy prędkości do błędu celu,
 wybór prędkości dostawcy oraz stan tylko do odczytu po usunięciu worktree
 i kontynuacja w nowym wątku z nowym worktree oraz uprawnienia ostatniej tury użytkownika
@@ -48,8 +49,15 @@ wracają do wątku głównego. Escape w otwartym pickerze najpierw zamyka picker
 Szkic bierze tryb uprawnień wątku głównego, z wyjątkiem Full access: wtedy zaczyna od Full auto.
 
 **Tryby uprawnień** (`PermissionPicker`, „Permissions…”, domyślne wątków): Ask first, Accept edits,
-Read only, Full auto (bez pytań, w sandboxie workspace'u) i Full access (bez pytań i bez sandboxa,
-[protocol.md](protocol.md#modele-effort-i-steer)). Full access ma kolor rose i ikonę `shield-off`
+Read only, Full auto i Full access (bez pytań i bez sandboxa,
+[protocol.md](protocol.md#modele-effort-i-steer)). Full auto automatycznie zatwierdza komendy
+w sandboxie workspace'u. Gdy celem jest Claude na natywnym Windowsie, kompozytory,
+dialog uprawnień i edytor harmonogramu web/desktop nie oferują Full auto.
+Nowy wątek, wątek boczny i ustawienia harmonogramu dla tego celu używają Ask first,
+jeśli wybór lub domyślna wartość wskazuje Full auto. Istniejący wątek z zapisanym Full auto
+nadal pokazuje swój tryb i informuje, że polecenia powłoki wymagają zgody.
+Przy nieustalonym celu opis Full auto informuje o ograniczeniu na Windows.
+Full access ma kolor rose i ikonę `shield-off`
 (pigułka kompozytora, panel, hover card, `PermissionModeTitle` z odznaką „No sandbox”). Każdy wybór
 Full access w pickerze i w domyślnych wątków potwierdza dialog „Turn on full access?”
 (`FullAccessConfirm`); w „Permissions…” potwierdzeniem jest przycisk „Turn on full access” zamiast

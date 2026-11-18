@@ -87,7 +87,7 @@ export class HarnessTools {
 
       const tools = botPlatformTools(config, turn);
 
-      if (!turn.handoff_configuration) tools.push(...(await this.options.connectors.botTools(turn.bot_id)));
+      if (!turn.handoff_configuration) tools.push(...(await this.options.connectors.botTools(turn.bot_id, turn)));
 
       try {
         const args = Schema.decodeUnknownSync(Schema.JsonObject)(JSON.parse(call.argumentsJson));

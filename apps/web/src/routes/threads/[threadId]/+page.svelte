@@ -957,7 +957,7 @@
 
 {#if thread && tree}
   <ThreadModelDialog bind:open={modelOpen} {thread} {worker} />
-  <ThreadPermissionsDialog bind:open={permissionsOpen} {thread} />
+  <ThreadPermissionsDialog bind:open={permissionsOpen} {thread} {worker} />
   <GoalDialog
     bind:open={goalDialog}
     threadId={thread.id}

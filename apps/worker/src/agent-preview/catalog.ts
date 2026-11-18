@@ -32,7 +32,8 @@ const windows = z
       app_name: label,
       is_focused: z.boolean().default(false),
       accessible: z.boolean().default(true),
-      bounds: bounds.nullable().optional(),
+      // Some windows report zero-sized bounds. Capture can still use the window ID.
+      bounds: bounds.nullish().catch(null),
     }),
   )
   .max(2048);

@@ -2,6 +2,8 @@
 
 Status (2026-11-18): zaimplementowano trwałe rozmowy botów przez Slack Socket Mode,
 buforowanie, izolację historii kanałów i zwykłe przyznane narzędzia w turach zewnętrznych.
+W prywatnej rozmowie z właścicielem bot może wysyłać jako Canopy na Slacku ze
+stałą zgodą dla konkretnego konta i rozmowy Slack.
 Konfiguracja bota przenosi `service_tier` do `RunBotTurn`.
 Historia w web/desktop korzysta z wirtualizacji i automatycznie dołącza
 starsze strony podczas przewijania, zachowując pozycję czytania.
@@ -802,6 +804,8 @@ bota przez jego domowy gateway z połączonego komputera.
 
 Zakresy: `start_thread` dla konkretnego projektu albo wszystkich projektów;
 `connector` dla konkretnego konta, wszystkich narzędzi albo jednej nazwy narzędzia;
+`slack_post` dla wysyłki jako Canopy do konkretnej rozmowy na danym koncie Slack
+([connectors.md](connectors.md#bezpośrednia-wysyłka-w-slacku)), także w Full auto;
 `send_bot_message` dla konkretnego bota. Pozostałe zakresy to pojedyncze rodzaje akcji:
 `create_project`, `rename_project`, `send_message`,
 `rename_thread`, `interrupt_thread`, `set_goal`, `regenerate_title`, `create_schedule`,

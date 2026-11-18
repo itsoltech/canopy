@@ -6,6 +6,7 @@ import { BOT_FILE_TOOLS } from "./tools/workspace.ts";
 import { areaTool, areaTools } from "./tools/index.ts";
 import { alwaysAsk } from "./approval-rules.ts";
 import { Invalid } from "../store/errors.ts";
+import { SLACK_POST_ACTION } from "../connectors/slack-post-tool.ts";
 
 // External messages can request work with existing grants, never administer the owner's account.
 // New platform tools stay private until their external provenance and result routing are reviewed.
@@ -52,6 +53,9 @@ export function needsApproval(tool: ToolSpec, policy: string, args: JsonObject =
   if (tool.source === "platform" && tool.name === "ask_user") return true;
 
   if (alwaysAsk(tool, args)) return true;
+
+  // Direct Slack delivery requires a decision for this destination, even in full auto.
+  if (tool.source === "mcp" && tool.remoteName === SLACK_POST_ACTION) return true;
 
   // Protected actions above still require the owner in full auto.
   if (policy === "full_auto") return false;
@@ -123,7 +127,9 @@ export function approvalPrompt(tool: ToolSpec, args: JsonObject, phrase: string)
 
   return [
     `Needs approval · ${phrase}`,
-    ...(tool.source === "mcp" ? [`Action: ${heading(tool.remoteName ?? "connected service action")}`] : []),
+    ...(tool.source === "mcp" && tool.remoteName !== SLACK_POST_ACTION
+      ? [`Action: ${heading(tool.remoteName ?? "connected service action")}`]
+      : []),
     ...details,
   ]
     .join("\n")
@@ -138,6 +144,8 @@ export function statusPhrase(tool: ToolSpec, args: JsonObject = {}): string {
     Predicate.isString(value) ? value.replace(/[\r\n\x00-\x1f]/g, " ").slice(0, 80) : fallback;
 
   if (tool.source === "mcp") {
+    if (tool.remoteName === SLACK_POST_ACTION) return `Posting as Canopy · ${label(tool.serverName, "Slack")}`;
+
     const verb = /search|find|query/i.test(tool.remoteName ?? "")
       ? "Searching"
       : /list|get|read|fetch|check/i.test(tool.remoteName ?? "")

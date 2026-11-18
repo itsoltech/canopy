@@ -2,7 +2,7 @@
   import type { ThreadCreation } from "../thread-creation.svelte.ts";
   import { useOverview } from "#lib/features/overview/overview-state.svelte.ts";
   import { MentionSources } from "#lib/features/mentions/sources.svelte.ts";
-  import { permissionKey } from "../labels.ts";
+  import { fullAutoAvailable, permissionKey } from "../labels.ts";
   import ComposerBox from "./ComposerBox.svelte";
   import ComposerContextRow from "./ComposerContextRow.svelte";
   import PermissionPicker from "./PermissionPicker.svelte";
@@ -37,6 +37,7 @@
             {#snippet permissionControl()}<PermissionPicker
                 disabled
                 value={permissionKey(job.content?.permissionMode ?? 0)}
+                fullAuto={fullAutoAvailable(job.content?.provider, worker?.os)}
                 onselect={() => {}}
               />{/snippet}
           </ComposerContextRow>

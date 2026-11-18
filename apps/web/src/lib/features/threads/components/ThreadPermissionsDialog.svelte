@@ -7,11 +7,14 @@
   import Radio from "#lib/shared/ui/Radio.svelte";
   import { updateThread } from "../api.ts";
   import {
+    fullAutoAvailable,
     isFullAccess,
-    isFullAuto,
+    isPermissionModeAvailable,
+    permissionDescription,
     permissionKey,
     permissionLook,
     permissionModes,
+    savedFullAutoDescription,
     type PermissionModeKey,
   } from "../labels.ts";
   import PermissionModeTitle from "./PermissionModeTitle.svelte";
@@ -21,9 +24,15 @@
    * mode of its own. Takes effect from the next turn; approvals a running turn waits for are unchanged.
    * The new default arrives through the thread's stream. Picking Full access turns Save into its confirmation.
    */
-  let { open = $bindable(false), thread }: { open?: boolean; thread: ui.Thread } = $props();
+  let {
+    open = $bindable(false),
+    thread,
+    worker,
+  }: { open?: boolean; thread: ui.Thread; worker: ui.Worker | undefined } = $props();
 
   const current = $derived(permissionKey(thread.permissionMode));
+  const fullAuto = $derived(fullAutoAvailable(thread.provider, worker?.os));
+  const modes = $derived(permissionModes.filter((option) => isPermissionModeAvailable(option.value, fullAuto)));
 
   // Edits start from the thread's default each time the dialog opens.
   let picked = $state<PermissionModeKey>();
@@ -32,7 +41,7 @@
     if (open) picked = undefined;
   });
 
-  const mode = $derived(picked ?? current);
+  const mode = $derived(picked && isPermissionModeAvailable(picked, fullAuto) ? picked : current);
   let busy = $state(false);
   let error = $state<string>();
   const id = $props.id();
@@ -61,8 +70,11 @@
   description="Turns use this mode unless you choose otherwise in the composer for a message. It applies from the next turn."
 >
   <form class="grid gap-4" onsubmit={save}>
+    {#if !isPermissionModeAvailable(current, fullAuto)}
+      <p class="text-base/6 text-muted sm:text-sm/5">{savedFullAutoDescription}</p>
+    {/if}
     <fieldset class="grid gap-1" aria-label="Permission mode">
-      {#each permissionModes as option (option.value)}
+      {#each modes as option (option.value)}
         {@const tone = permissionLook(option.value).tone}
         <label
           class={[
@@ -85,20 +97,18 @@
           <span class="grid min-w-0 gap-0.5 text-base/6 sm:text-sm/6">
             <PermissionModeTitle
               mode={option.value}
+              {fullAuto}
               note={option.value === current ? "Current" : undefined}
               class="font-medium text-zinc-950 dark:text-white"
             />
-            <span id="{id}-{option.value}" class="text-zinc-500 dark:text-zinc-400">{option.description}</span>
+            <span id="{id}-{option.value}" class="text-zinc-500 dark:text-zinc-400"
+              >{permissionDescription(option, fullAuto)}</span
+            >
           </span>
         </label>
       {/each}
     </fieldset>
-    {#if isFullAuto(mode) && mode !== current}
-      <Alert tone="warning"
-        >Every turn without a mode of its own will edit files and run commands without asking. It stays sandboxed to the
-        workspace.</Alert
-      >
-    {:else if isFullAccess(mode) && mode !== current}
+    {#if isFullAccess(mode) && mode !== current}
       <Alert tone="danger"
         >Every turn without a mode of its own edits files and runs commands without asking. No sandbox keeps it in the
         workspace.</Alert

@@ -3,10 +3,10 @@
 Status: opis zaimplementowanego kodu (2026-11-18), w tym równoległej aktualizacji
 zdalnych desktopów i workerów binarnych, ponawiania raportu o błędzie workera,
 niezależnych akcji CLI i korelacji prób w Update all,
-aktualizacji CLI przez mise, pomijania cache metadanych
-przy ręcznym sprawdzaniu aktualizacji, wykrywania pojedynczego procesu przez
-instalator Windows, retencji dyskowego mirrora workerów gatewaya i automatycznego
-pobierania OTA przez działającą aplikację mobilną.
+aktualizacji CLI przez mise, restartu workera mimo błędu sprzątania urządzeń,
+pomijania cache metadanych przy ręcznym sprawdzaniu aktualizacji, wykrywania
+pojedynczego procesu przez instalator Windows, retencji dyskowego mirrora workerów
+gatewaya i automatycznego pobierania OTA przez działającą aplikację mobilną.
 Dostępność zmian w nightly, beta i stable wynika z promocji
 opisanych w [release.md](release.md), a konkretne wersje podają GitHub Releases.
 
@@ -879,6 +879,13 @@ Zwykłe zakończenie nie wywołuje restartu supervisora; politykę awarii ustala
 menedżer usług. Drukowane unit/plist mają `Restart=always` / `KeepAlive=true`.
 Gateway `service` drukuje unit z `EnvironmentFile=%h/.config/canopy/gateway.env`;
 przygotuj ten prywatny plik samodzielnie z istniejącą konfiguracją gatewaya.
+
+Jeśli sprzątanie urządzeń workera się nie powiedzie, worker zapisuje ostrzeżenie,
+próbuje dosłać dziennik i przekazuje sterowanie supervisorowi. Dotyczy to również
+przekazania nadzoru po potwierdzeniu nowej wersji. Trwałe rezerwacje czekają na
+ponowienie sprzątania po starcie. Wynik aktualizacji zależy od potwierdzenia
+startu docelowej binarki przez WorkerLink. Zasady własności opisuje sekcja
+[Rezerwacje urządzeń i emulatory](automation-tools.md#rezerwacje-urządzeń-i-emulatory).
 
 Nowy gateway potwierdza start po uruchomieniu DB, listenerów i aktualizatora,
 a binarka z wbudowanym web także po odpowiedzi web (w tym samym procesie, przez jego listener)

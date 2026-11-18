@@ -1,7 +1,8 @@
 import { expect, test } from "bun:test";
 import { existsSync, mkdirSync, readFileSync, readdirSync, statSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
-import { AgentTool } from "@canopy/contracts";
+import { create } from "@bufbuild/protobuf";
+import { AgentPreviewInputSchema, AgentTool } from "@canopy/contracts";
 import { executable } from "../agent-tools/fixtures.test-support.ts";
 import { toolEnvironment } from "../agent-tools/paths.ts";
 import { eventually, previewFixture } from "./fixtures.test-support.ts";
@@ -78,6 +79,44 @@ test("screenshot adapter captures with unavailable temp storage and only removes
 
   expect(existsSync(dirname(f.capturePath()))).toBe(false);
   expect(readFileSync(join(sibling, "frame.png"), "utf8")).toBe("another session");
+});
+
+test("zero-sized Desktop window bounds preserve frames and prevent pointer input without valid geometry", async () => {
+  const f = await captureFixture();
+
+  const editor = {
+    id: "editor",
+    title: "Document",
+    app_name: "Editor",
+    is_focused: true,
+    bounds: { x: 40, y: 50, width: 800, height: 400 },
+  };
+
+  const zeroBounds = { x: 0, y: 0, width: 0, height: 0 };
+  const helper = { ...editor, id: "helper", title: "Helper", is_focused: false, bounds: zeroBounds };
+  f.update({ windows: [editor, helper] });
+
+  try {
+    await f.backend.start();
+    await eventually(() => f.updates.some((update) => update.state === "frame"));
+    expect(f.updates.find((update) => update.state === "frame")).toMatchObject({
+      targetId: "editor",
+      viewportWidth: 800,
+      viewportHeight: 400,
+    });
+
+    f.update({ windows: [{ ...editor, bounds: zeroBounds }, helper] });
+    const down = create(AgentPreviewInputSchema, { kind: "pointer-down", x: 0.5, y: 0.5 });
+    const up = create(AgentPreviewInputSchema, { kind: "pointer-up", x: 0.5, y: 0.5 });
+    await expect(f.backend.input([down, up], "owner")).rejects.toThrow("no global coordinates");
+    expect(f.calls().some((call) => call.command === "mouse-click")).toBe(false);
+
+    await eventually(() => f.updates.some((update) => update.state === "frame" && update.viewportWidth === 1200));
+    expect(f.updates.some((update) => update.state === "error")).toBe(false);
+  } finally {
+    f.abort.abort();
+    await f.backend.close();
+  }
 });
 
 test.each(["command", "image"])("screenshot adapter removes a partial capture after %s failure", async (failure) => {
