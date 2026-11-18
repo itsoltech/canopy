@@ -22,7 +22,9 @@
   import { keybindings } from "#lib/features/commands/keybindings.svelte.ts";
   import { useAddProject } from "#lib/features/projects/add/add-project.svelte.ts";
   import { useGatewayCapabilities } from "#lib/features/desktop/gateway-capabilities.svelte.ts";
+  import { footerPopovers } from "./footer-popovers.svelte.ts";
 
+  const footer = footerPopovers();
   const capabilities = useGatewayCapabilities();
   const addProject = useAddProject();
 
@@ -167,8 +169,8 @@
       <span class="tabular-nums @max-[16rem]:sr-only">{online}/{overview.workers.length}</span>
       <span class="sr-only">workers online</span>
     </a>
-    <UpdatesIndicator />
-    <SidebarUsage />
+    <UpdatesIndicator panel={footer.updates} />
+    <SidebarUsage panel={footer.providerUsage} />
     <ConnectionStatus
       recovery={overview.recovery}
       connection={overview.connection}

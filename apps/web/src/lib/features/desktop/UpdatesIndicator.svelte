@@ -9,13 +9,11 @@
   import { updateIndicator } from "#lib/features/workers/update-indicator.ts";
   import CompactUpdates from "#lib/features/workers/CompactUpdates.svelte";
   import { updatesHeadline } from "#lib/features/workers/updates-headline.ts";
+  import type { FooterPopover } from "#lib/features/navigation/footer-popovers.svelte.ts";
 
-  let { class: className }: { class?: ClassValue } = $props();
+  let { panel, class: className }: { panel: FooterPopover; class?: ClassValue } = $props();
   const updates = new DesktopUpdatesState();
   const center = updateCenter;
-  let open = $state(false);
-  let pinned = $state(false);
-  let closeTimer: ReturnType<typeof setTimeout> | undefined;
   const status = $derived(updates.status);
 
   const summary = $derived(
@@ -38,37 +36,25 @@
     return () => {
       off?.();
       stop();
-      clearTimeout(closeTimer);
     };
   });
-
-  function hover(event: PointerEvent) {
-    clearTimeout(closeTimer);
-
-    if (event.pointerType === "mouse" && window.matchMedia("(min-width: 40rem)").matches) open = true;
-  }
-
-  // Touch fires pointerleave right after the tap, before its click: only a mouse leaving closes the hover popover.
-  function leave(event: PointerEvent) {
-    if (event.pointerType === "mouse" && !pinned)
-      closeTimer = setTimeout(() => {
-        open = false;
-      }, 250);
-  }
 </script>
 
-<div role="group" aria-label="Update controls" onpointerenter={hover} onpointerleave={leave} class={className}>
+<div
+  role="group"
+  aria-label="Update controls"
+  onpointerenter={panel.enter}
+  onpointerleave={panel.leave}
+  class={className}
+>
   <Popover
-    bind:open
+    bind:open={panel.isOpen, panel.setOpen}
     label="Updates"
     placement="top-start"
     sheet
-    focusOnOpen={pinned}
+    focusOnOpen={panel.pinned}
     maxHeight="min(70dvh,32rem)"
-    class="w-[min(22rem,calc(100vw-1rem))]"
-    onclose={() => {
-      pinned = false;
-    }}
+    class={["w-[min(22rem,calc(100vw-1rem))]", panel.superseded && "sidebar-footer-popover-superseded"]}
   >
     {#snippet trigger(props)}
       <div class="relative">
@@ -78,10 +64,7 @@
           icon={failed ? "exclamation-circle" : "arrow-down-tray"}
           {label}
           aria-busy={busy || undefined}
-          onclick={() => {
-            open = !pinned;
-            pinned = open;
-          }}
+          onclick={panel.press}
           iconClass={[failed && "text-rose-600 dark:text-rose-400"]}
         />
         {#if busy && phase !== "checking"}<div class="pointer-events-none absolute inset-0 grid place-items-center">
@@ -93,13 +76,6 @@
           ></span>{/if}
       </div>
     {/snippet}
-    <CompactUpdates
-      updates={center}
-      app={updates}
-      onnotes={() => {
-        open = false;
-        pinned = false;
-      }}
-    />
+    <CompactUpdates updates={center} app={updates} onnotes={panel.close} />
   </Popover>
 </div>
