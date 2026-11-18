@@ -13,8 +13,13 @@ export function updateDependencies(step: ui.UpdateStep, steps: ui.UpdateStep[]):
       // Restart the coordinator after independent work. Its own workers must wait for the new gateway.
       return item.kind !== "app" && !(item.nodeId === "" && ["worker", "cli", "desktop"].includes(item.kind));
 
-    if (["desktop", "computer"].includes(step.kind))
-      return ["worker", "cli"].includes(item.kind) && item.nodeId === step.nodeId;
+    if (step.kind === "computer") return ["worker", "cli"].includes(item.kind) && item.nodeId === step.nodeId;
+
+    if (step.kind === "desktop")
+      return (
+        item.nodeId === step.nodeId &&
+        (item.kind === "gateway" || (item.kind === "cli" && item.workerId === step.workerId))
+      );
 
     return (
       item.nodeId === step.nodeId &&

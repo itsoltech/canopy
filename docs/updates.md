@@ -1,6 +1,7 @@
 # Aktualizacje Canopy
 
-Status: opis zaimplementowanego kodu (2026-11-18), w tym ponawiania raportu o błędzie workera,
+Status: opis zaimplementowanego kodu (2026-11-18), w tym równoległej aktualizacji
+zdalnych desktopów i workerów binarnych, ponawiania raportu o błędzie workera,
 niezależnych akcji CLI i korelacji prób w Update all,
 aktualizacji CLI przez mise, pomijania cache metadanych
 przy ręcznym sprawdzaniu aktualizacji, wykrywania pojedynczego procesu przez
@@ -314,9 +315,12 @@ stary worker ma jedną blokadę również dla natywnych instalatorów. Nowe rapo
 oznaczają niezależne narzędzie jako `tool:<nazwa>`. Protokół WorkerLink nie zmienia numeru;
 pole jest addytywne, a zamrożony UpdateService pozostaje bez zmian.
 
-Workery czekają na aktualizację swojego gatewaya, a CLI na aktualizację swojego
-workera i zgodny protokół. Aplikacje komputerów czekają na zakończenie workerów
-i CLI w swoim domu; niezależne aplikacje mogą restartować się jednocześnie.
+Workery binarne czekają na aktualizację swojego gatewaya, a CLI na aktualizację
+swojego workera i zgodny protokół. Sparowane zdalne desktopy również czekają na
+zakończenie aktualizacji gatewaya i powrót swojego kanału sterowania, do 35 minut.
+Czekają na CLI własnego workera i mogą aktualizować się równolegle z pozostałymi
+workerami oraz ich CLI. Aplikacje połączonych komputerów czekają na zakończenie
+workerów i CLI w swoim domu; niezależne aplikacje mogą restartować się jednocześnie.
 Własna aplikacja zawsze jest ostatnia. Samodzielny gateway restartuje się po
 niezależnych zdalnych pozycjach, **przed zależnymi lokalnymi workerami i CLI**:
 ich docelowa wersja musi odpowiadać już działającemu gatewayowi. Po restarcie
@@ -597,7 +601,7 @@ zamknięciem), więc UI pokazuje „Restarting”, a nie błąd; po powrocie sna
 
 **Update all.** Plan dodaje krok `computer` dla każdego połączonego, bezpośredniego partnera
 z capability, który jest online, ma aktywny kanał aplikacji i nowszą dostępną wersję. Te kroki
-idą po wszystkich workerach, CLI i sparowanych zdalnych aplikacjach, po jednym.
+mogą działać równolegle, po zakończeniu workerów i CLI danego partnera.
 Własna aplikacja A restartuje się dopiero po tych krokach, więc łącze A
 przetrwa restart B i A widzi powrót B. Krok zapisuje id żądania u B; kończy się, gdy B wróci
 na łącze z wersją co najmniej planowaną albo zgłosi `succeeded` dla tego id. Offline lub

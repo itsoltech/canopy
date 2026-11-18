@@ -318,7 +318,7 @@ describe.skipIf(!dockerAvailable)("ordered update all through authenticated gate
     expect(f.gateway.worker.commands.some((c) => c.case === "installCli")).toBe(false);
   });
 
-  test("remote apps run after binary workers and CLIs, and an app without a newer version is omitted", async () => {
+  test("a remote app runs alongside an unrelated binary worker and CLI, and a current app is omitted", async () => {
     const f = await fixture();
     const store = new UpdateRunStore(f.gateway.runtime, f.gateway.userId);
     const remoteId = crypto.randomUUID();
@@ -367,6 +367,8 @@ describe.skipIf(!dockerAvailable)("ordered update all through authenticated gate
     await center.begin();
     expect((await center.status())?.steps.map((s) => s.kind)).toEqual(["worker", "cli", "desktop"]);
     const command = await workerCommand(f, center);
+    expect(desktops).toEqual([remoteId]);
+    expect((await center.status())?.steps.map((s) => s.state)).toEqual(["running", "queued", "running"]);
     await f.client.report(
       { workerId: f.gateway.workerId, commandId: command.id, state: "succeeded", version: "2.0.0" },
       { headers: f.headers },
@@ -374,7 +376,7 @@ describe.skipIf(!dockerAvailable)("ordered update all through authenticated gate
     await f.client.check({ ...f.hello, version: "2.0.0" }, { headers: f.headers });
     await center.tick();
     await center.tick();
-    expect(desktops).toEqual([]);
+    expect((await center.status())?.steps.map((s) => s.state)).toEqual(["succeeded", "running", "running"]);
     await cliReport(f.gateway, "2.0.0", "succeeded");
     await center.tick();
     await center.tick();
