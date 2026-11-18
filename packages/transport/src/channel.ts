@@ -100,6 +100,18 @@ export class AsyncChannel<T> implements AsyncIterable<T> {
     return this.#iterator;
   }
 
+  /** Let the single consumer take an already buffered matching head without waiting for another write. */
+  takeIf(matches: (value: T) => boolean): T | undefined {
+    const head = this.#buffer[0];
+
+    if (!head || !matches(head.value)) return;
+    this.#buffer.shift();
+    this.#bytes -= head.bytes;
+    this.#resumeWriters();
+
+    return head.value;
+  }
+
   async *#drain(): AsyncGenerator<T, void, undefined> {
     try {
       for (;;) {

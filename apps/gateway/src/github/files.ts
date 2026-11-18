@@ -28,7 +28,7 @@ const pageNumber = (value: string) => {
   return n;
 };
 
-export function fileInfo(f: typeof file.Type, page: number) {
+function patchState(f: typeof file.Type) {
   const patch = f.patch;
   const lines = patch?.split("\n") ?? [];
 
@@ -39,6 +39,18 @@ export function fileInfo(f: typeof file.Type, page: number) {
       lines.filter((line) => line.startsWith("+")).length < f.additions ||
       lines.filter((line) => line.startsWith("-")).length < f.deletions);
 
+  return oversized
+    ? "truncated"
+    : patch
+      ? "available"
+      : f.status === "renamed" && !f.additions && !f.deletions
+        ? "rename"
+        : !f.additions && !f.deletions
+          ? "binary"
+          : "unavailable";
+}
+
+function fileInfo(f: typeof file.Type & { patch_state: string }, page: number) {
   return create(github.PullRequestFileSchema, {
     path: f.filename,
     previousPath: f.previous_filename ?? "",
@@ -47,15 +59,7 @@ export function fileInfo(f: typeof file.Type, page: number) {
     deletions: f.deletions,
     url: f.blob_url,
     sourcePage: page,
-    patchState: oversized
-      ? "truncated"
-      : patch
-        ? "available"
-        : f.status === "renamed" && !f.additions && !f.deletions
-          ? "rename"
-          : !f.additions && !f.deletions
-            ? "binary"
-            : "unavailable",
+    patchState: f.patch_state,
   });
 }
 
@@ -69,9 +73,14 @@ async function commitAllowed(scope: ReadScope) {
   // Membership is checked through the PR's own commit connection, never through an arbitrary ref.
   for (let page = 1; page <= 100; page++) {
     const result = await scope.prs.client.read(scope.row.id, {
-      key: `commitsraw:${scope.pr.id}:${scope.head}:${page}`,
+      key: `commitsraw:${scope.pr.id}:${scope.snapshot.baseSha}:${scope.head}:${page}`,
       path: `${scope.root}/pulls/${scope.pr.number}/commits?per_page=30&page=${page}`,
       ttl: 86_400_000,
+      project: async (value) => {
+        await scope.fresh();
+
+        return value;
+      },
     });
 
     const list = Schema.decodeUnknownSync(Schema.Struct({ items: Schema.Array(commit) }))(result.payload).items;
@@ -85,8 +94,6 @@ async function commitAllowed(scope: ReadScope) {
 }
 
 async function rawFiles(scope: ReadScope, page: number) {
-  await scope.fresh();
-  await commitAllowed(scope);
   const sha = scope.request.commitSha;
 
   const result = await scope.prs.client.read(
@@ -102,20 +109,21 @@ async function rawFiles(scope: ReadScope, page: number) {
           ? Schema.decodeUnknownSync(Schema.Struct({ files: Schema.Array(file) }))(value).files
           : Schema.decodeUnknownSync(Schema.Struct({ items: Schema.Array(file) }))(value).items;
 
+        // The REST response carries no PR revision. Verify before publishing it under the SHA cache key.
+        if (!sha) await scope.fresh();
+
         return Schema.decodeUnknownSync(Schema.JsonObject)({
-          items: list.map((f) => ({
-            ...f,
-            patch: fileInfo(f, page).patchState === "available" ? (f.patch ?? "") : "",
-            patch_state: fileInfo(f, page).patchState,
-          })),
+          items: list.map((f) => {
+            const state = patchState(f);
+
+            return { ...f, patch: state === "available" ? (f.patch ?? "") : "", patch_state: state };
+          }),
           more: (headers.get("link") ?? "").includes('rel="next"'),
         });
       },
     },
     scope.request.refresh,
   );
-
-  await scope.fresh();
 
   return Schema.decodeUnknownSync(
     Schema.Struct({
@@ -127,24 +135,20 @@ async function rawFiles(scope: ReadScope, page: number) {
 
 export async function files(scope: ReadScope) {
   const page = pageNumber(scope.position);
-  const raw = await rawFiles(scope, page);
-  const limited = page === 100 && raw.more;
+  await commitAllowed(scope);
 
-  const viewed = await viewedFiles(
-    scope.prs,
-    scope.row,
-    scope.pr,
-    scope.head,
-    scope.snapshot.baseSha,
-    scope.request.refresh,
-  );
+  const [raw, viewed] = await Promise.all([
+    rawFiles(scope, page),
+    viewedFiles(scope.prs, scope.row, scope.pr, scope.head, scope.snapshot.baseSha, scope.request.refresh),
+  ]);
+
+  const limited = page === 100 && raw.more;
 
   await scope.fresh();
 
   return create(github.PullRequestFilesPageSchema, {
     files: raw.items.map((f) => ({
       ...fileInfo(f, page),
-      patchState: f.patch_state,
       viewerViewedState: viewed.states.get(f.filename) ?? "",
     })),
     viewedCount: viewed.count,
@@ -160,13 +164,15 @@ export async function files(scope: ReadScope) {
 
 export async function diff(scope: ReadScope) {
   const page = pageNumber(scope.request.resourceId);
+  await commitAllowed(scope);
   const raw = await rawFiles(scope, page);
+  await scope.fresh();
   const found = raw.items.find((f) => f.filename === scope.request.path);
 
   if (!found) throw new ConnectError("File not found in this pull request", Code.NotFound);
 
   return create(github.PullRequestDiffSchema, {
-    file: { ...fileInfo(found, page), patchState: found.patch_state },
+    file: fileInfo(found, page),
     patch: found.patch ?? "",
     page: scope.page(
       "",

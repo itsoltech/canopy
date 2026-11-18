@@ -1,4 +1,4 @@
-import { afterAll, beforeAll, describe, expect, test } from "bun:test";
+import { afterAll, beforeAll, describe, expect, spyOn, test } from "bun:test";
 import { dockerAvailable } from "@canopy/db/testing";
 import { Code, ConnectError } from "@connectrpc/connect";
 import { GitHubAccounts } from "../../apps/gateway/src/github/service.ts";
@@ -150,6 +150,84 @@ describe.skipIf(!dockerAvailable)("paginated GitHub read RPCs", () => {
     fixture.status(200);
   });
 
+  test("overlaps a cold file page with Viewed and only verifies the summary on a warm read", async () => {
+    const rest = "/repos/itsoltech/canopy/pulls/42/files";
+    const requests = () => [rest, "CanopyViewed", "CanopyPullRequest"].map((k) => fixture.counts.get(k) ?? 0);
+    await gw.api.refreshPullRequest({ pullRequestId: pr });
+    const before = requests();
+    const filesStarted = Promise.withResolvers<void>();
+    const viewedStarted = Promise.withResolvers<void>();
+    const client = gw.core.github.prs.client;
+    const cached = client.cached.bind(client);
+
+    // Rendezvous before the shared per-identity HTTP budget serializes actual network requests.
+    const paired = spyOn(client, "cached").mockImplementation(async (row, key) => {
+      if (key.startsWith("patches:")) {
+        filesStarted.resolve();
+        await viewedStarted.promise;
+      }
+
+      if (key.startsWith("viewed:")) {
+        viewedStarted.resolve();
+        await filesStarted.promise;
+      }
+
+      return cached(row, key);
+    });
+
+    try {
+      const cold = await gw.api.listPullRequestFiles({ pullRequestId: pr });
+      const after = requests();
+      expect(after.map((v, i) => v - before[i]!)).toEqual([1, 3, 2]);
+      const warm = await gw.api.listPullRequestFiles({ pullRequestId: pr });
+      expect(warm.files).toEqual(cold.files);
+      expect(requests().map((v, i) => v - after[i]!)).toEqual([0, 0, 1]);
+      fixture.base("d".repeat(40));
+      const rebased = await gw.api.listPullRequestFiles({ pullRequestId: pr, baseSha: readBase }).catch((e) => e);
+      expect(ConnectError.from(rebased).code).toBe(Code.FailedPrecondition);
+    } finally {
+      filesStarted.resolve();
+      viewedStarted.resolve();
+      paired.mockRestore();
+      fixture.base(readBase);
+      await gw.api.refreshPullRequest({ pullRequestId: pr });
+    }
+  });
+
+  test("rejects a file page when its repository account mapping changes under identical SHAs", async () => {
+    const repositoryName = "itsoltech/canopy";
+    const mapping = await gw.api.getGitHubRepositoryAccount({ repositoryName });
+    const release = Promise.withResolvers<void>();
+    const filesStarted = Promise.withResolvers<void>();
+    const client = gw.core.github.prs.client;
+    const cached = client.cached.bind(client);
+
+    const delayed = spyOn(client, "cached").mockImplementation(async (row, key) => {
+      if (key.startsWith("patches:")) {
+        filesStarted.resolve();
+        await release.promise;
+      }
+
+      return cached(row, key);
+    });
+
+    const result = gw.api.listPullRequestFiles({ pullRequestId: pr, refresh: true }).catch((e) => e);
+
+    try {
+      await filesStarted.promise;
+      await gw.api.setGitHubRepositoryAccount({
+        repositoryName,
+        accountId: mapping.accountId,
+        expectedRevision: mapping.revision,
+      });
+      release.resolve();
+      expect(ConnectError.from(await result).code).toBe(Code.FailedPrecondition);
+    } finally {
+      release.resolve();
+      delayed.mockRestore();
+    }
+  });
+
   test("paginates 300 files without sending patches; rejects stale SHAs, binary and huge patches", async () => {
     const list = await gw.api.listPullRequestFiles({ pullRequestId: pr });
     expect(list.files).toHaveLength(30);
@@ -180,6 +258,22 @@ describe.skipIf(!dockerAvailable)("paginated GitHub read RPCs", () => {
     expect(total).toBe(300);
     const commit = await gw.api.listPullRequestFiles({ pullRequestId: pr, commitSha: readHead });
     expect(commit.files[0]!.path).toBe("src/safe.ts");
+    const commitsPath = "/repos/itsoltech/canopy/pulls/42/commits";
+    const before = fixture.counts.get(commitsPath) ?? 0;
+    const foreign = "f".repeat(40);
+    fixture.base("d".repeat(40));
+
+    try {
+      await gw.api.refreshPullRequest({ pullRequestId: pr });
+      const denied = await gw.api.listPullRequestFiles({ pullRequestId: pr, commitSha: foreign }).catch((e) => e);
+      expect(ConnectError.from(denied).code).toBe(Code.NotFound);
+      expect((fixture.counts.get(commitsPath) ?? 0) - before).toBe(1);
+      expect(fixture.counts.has(`/repos/itsoltech/canopy/commits/${foreign}`)).toBe(false);
+    } finally {
+      fixture.base(readBase);
+      await gw.api.refreshPullRequest({ pullRequestId: pr });
+    }
+
     fixture.race();
 
     const raced = await gw.api

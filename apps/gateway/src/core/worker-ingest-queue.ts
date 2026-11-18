@@ -18,13 +18,14 @@ export class WorkerIngestQueue {
     void connection.closed.then(() => this.#stop.abort());
   }
 
-  enqueue(event: ThreadEvent) {
-    const previous = this.#pending.get(event.threadId);
+  enqueue(events: [ThreadEvent, ...ThreadEvent[]]) {
+    const { threadId } = events[0];
+    const previous = this.#pending.get(threadId);
     const firstFailure = Promise.withResolvers<void>();
-    const next = (previous ?? Promise.resolve()).then(() => this.#store(event, firstFailure.resolve));
-    this.#pending.set(event.threadId, next);
+    const next = (previous ?? Promise.resolve()).then(() => this.#storeBatch(events, firstFailure.resolve));
+    this.#pending.set(threadId, next);
     void next.finally(() => {
-      if (this.#pending.get(event.threadId) === next) this.#pending.delete(event.threadId);
+      if (this.#pending.get(threadId) === next) this.#pending.delete(threadId);
     });
 
     // Preserve stream ordering for successful writes (e.g. turn_started before a tool call).
@@ -35,6 +36,20 @@ export class WorkerIngestQueue {
   async finished() {
     this.#stop.abort();
     await Promise.all(this.#pending.values());
+  }
+
+  async #storeBatch(events: ThreadEvent[], firstFailure: () => void) {
+    if (events.length > 1 && !this.#stop.signal.aborted) {
+      try {
+        if (!(await this.persist(events))) return;
+      } catch {
+        // Isolate the failed write before any event can exhaust retries and enter quarantine.
+      }
+
+      firstFailure();
+    }
+
+    for (const event of events) await this.#store(event, firstFailure);
   }
 
   async #store(event: ThreadEvent, firstFailure: () => void) {

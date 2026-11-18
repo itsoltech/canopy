@@ -42,7 +42,8 @@ test("RPC memory pressure preserves client admission and the minute checkpoints 
 
   // The ordinary metric already has a series, but other RPCs occupy the remaining budget.
   for (let minute = 0; minute <= 1; minute++) collector.mergeMeasures(sample.measures, start + minute * 60_000);
-  expect(collector.budget.reserve(collector.budget.limit - collector.budget.used)).toBe(true);
+  const ordinaryLimit = collector.budget.limit - collector.budget.headroom + collector.budget.protectedUsed;
+  expect(collector.budget.reserve(ordinaryLimit - collector.budget.used)).toBe(true);
 
   const submit = (sender: string, minute: number) => {
     const at = start + minute * 60_000;
@@ -71,9 +72,10 @@ test("RPC memory pressure preserves client admission and the minute checkpoints 
 
   for (const sender of senders) expect(submit(sender, 2).accepted).toBe(true);
   expect(submit(senders[0]!, 2).accepted).toBe(false);
-  expect(collector.budget.used).toBe(collector.budget.limit);
-  // Even when an entire minute has no metric bucket, frozen checkpoints can advance and release their slots.
-  expect(collector.rollup(start + 120_000)).toBeUndefined();
+  expect(collector.budget.used - collector.budget.protectedUsed).toBe(
+    collector.budget.limit - collector.budget.headroom,
+  );
+  // The minute slot survives, while ordinary series yield to checkpoint metadata.
   const dropped = collector.rollup(start + 120_000, clients.takeCheckpoints(start + 120_000))!;
   expect(dropped.checkpoints).toHaveLength(30);
   expect(dropped.measures).toHaveLength(0);

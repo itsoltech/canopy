@@ -1,6 +1,6 @@
 import { expect, test } from "bun:test";
 import { create } from "@bufbuild/protobuf";
-import { HelloSchema, WorkerMessageSchema, type GatewayMessage } from "@canopy/contracts";
+import { HelloSchema, ItemDeltaField, WorkerMessageSchema, type GatewayMessage } from "@canopy/contracts";
 import { AsyncChannel } from "@canopy/transport";
 import { WorkerConnection } from "./connection.ts";
 
@@ -67,5 +67,54 @@ test("query progress reaches only the pending query on its authenticated worker 
   } finally {
     first.close();
     other.close();
+  }
+});
+
+test("text batches respect inline control frames, raw payload size and journal gaps", async () => {
+  const connection = new WorkerConnection("worker", create(HelloSchema), new AsyncChannel<GatewayMessage>());
+
+  const send = (seq: bigint, bytes = 0) =>
+    connection.deliver(
+      create(WorkerMessageSchema, {
+        payload: {
+          case: "threadEvent",
+          value: {
+            threadId: "thread",
+            journalSeq: seq,
+            rawJson: "x".repeat(bytes),
+            body: {
+              case: "itemDelta",
+              value: { field: ItemDeltaField.TEXT, chunk: "a" },
+            },
+          },
+        },
+      }),
+    );
+
+  const next = async () => {
+    const { value } = await connection.messages[Symbol.asyncIterator]().next();
+
+    if (value?.payload.case !== "threadEvent") throw new Error("expected text delta");
+
+    return connection.eventBatch(value.payload.value).map((event) => event.journalSeq);
+  };
+
+  try {
+    send(1n);
+    expect(await next()).toEqual([1n]);
+    send(2n);
+    send(3n);
+    connection.deliver(create(WorkerMessageSchema, { payload: { case: "queryProgress", value: {} } }));
+    send(4n);
+    send(5n, 150 * 1024);
+    send(6n, 150 * 1024);
+    send(8n);
+    expect(await next()).toEqual([2n, 3n]);
+    expect(await next()).toEqual([4n]);
+    expect(await next()).toEqual([5n]);
+    expect(await next()).toEqual([6n]);
+    expect(await next()).toEqual([8n]);
+  } finally {
+    connection.close();
   }
 });

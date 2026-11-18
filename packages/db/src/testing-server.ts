@@ -1,3 +1,5 @@
+import { fork } from "node:child_process";
+import { fileURLToPath } from "node:url";
 import { PgClient, PgPool } from "@effect/sql-pg";
 import { Layer, ManagedRuntime, Redacted } from "effect";
 import { SQL } from "bun";
@@ -32,43 +34,34 @@ export const testAdmin = (port: number) =>
 
 /** Owned by check:tmp, shared by its test process. Each fixture still gets a separate database. */
 export async function startTestPostgresServer() {
-  const name = `canopy-test-${Bun.randomUUIDv7().slice(-12)}`;
+  const owner = fork(fileURLToPath(new URL("./testing-container.ts", import.meta.url)), {
+    execArgv: [],
+    detached: true,
+    stdio: ["ignore", "ignore", "inherit", "ipc"],
+  });
 
-  const run = Bun.spawnSync([
-    "docker",
-    "run",
-    "-d",
-    "--rm",
-    "--name",
-    name,
-    "--label",
-    `canopy-test.created=${Date.now()}`,
-    "-e",
-    "POSTGRES_PASSWORD=test",
-    "-e",
-    "POSTGRES_INITDB_ARGS=--no-sync",
-    "-p",
-    "127.0.0.1::5432",
-    "postgres:17",
-    "-c",
-    "fsync=off",
-    "-c",
-    "synchronous_commit=off",
-    "-c",
-    "full_page_writes=off",
-  ]);
+  const exited = new Promise<number | null>((resolve, reject) => {
+    owner.once("exit", resolve);
+    owner.once("error", reject);
+  });
 
-  if (run.exitCode !== 0) throw new Error(`docker run failed: ${run.stderr.toString()}`);
-
-  // Await removal: no detached docker children delay temp-directory cleanup in the test process.
   const stop = async () => {
-    const child = Bun.spawn(["docker", "rm", "-f", "-v", name], { stdout: "ignore", stderr: "ignore" });
+    owner.ref();
 
-    if ((await child.exited) !== 0) throw new Error(`Could not remove test container ${name}`);
+    if (owner.connected) owner.disconnect();
+
+    if ((await exited) !== 0) throw new Error("Test PostgreSQL container cleanup failed");
   };
 
   try {
-    const port = Number(Bun.spawnSync(["docker", "port", name, "5432/tcp"]).stdout.toString().trim().split(":").at(-1));
+    const port = await Promise.race([
+      new Promise<number>((resolve) => owner.once("message", resolve)),
+      exited.then(() => {
+        throw new Error("Test PostgreSQL container failed to start");
+      }),
+    ]);
+
+    owner.unref();
     const admin = testAdmin(port);
 
     try {

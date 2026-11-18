@@ -64,6 +64,7 @@ export function readFixture(
 ) {
   const fixture = githubPrFixture();
   let head = readHead;
+  let base = readBase;
   let status = 200;
   let partial = false;
   let race = false;
@@ -221,7 +222,7 @@ export function readFixture(
 
         if (status !== 200)
           return Response.json({}, { status, headers: status === 429 ? { "retry-after": "60" } : {} });
-        const pr = { ...githubPrData(v.number ?? 42), headRefOid: head, changedFiles: 300 };
+        const pr = { ...githubPrData(v.number ?? 42), headRefOid: head, baseRefOid: base, changedFiles: 300 };
         let value: Schema.JsonObject;
 
         if (kind === "CanopyTimeline")
@@ -273,7 +274,7 @@ export function readFixture(
               pullRequest: {
                 id: pr.id,
                 headRefOid: head,
-                baseRefOid: readBase,
+                baseRefOid: base,
                 files: connection(
                   Array.from({ length: 300 }, (_, i) => ({
                     path: fixtureFilePath(i),
@@ -393,6 +394,9 @@ export function readFixture(
       avatarStatus = status;
     },
     counts,
+    base: (value: string) => {
+      base = value;
+    },
     head: (value: string) => {
       head = value;
     },
