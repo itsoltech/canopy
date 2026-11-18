@@ -94,12 +94,10 @@ function SessionUI() {
       <AppearanceProvider key={session?.deviceId ?? "unpaired"}>
         <OverviewProvider>
           <UpdatesProvider key={session?.deviceId ?? "unpaired"}>
-            <PhoneUpdatesProvider>
-              <LayoutProvider>
-                <BotListSync />
-                <Navigation />
-              </LayoutProvider>
-            </PhoneUpdatesProvider>
+            <LayoutProvider>
+              <BotListSync />
+              <Navigation />
+            </LayoutProvider>
           </UpdatesProvider>
         </OverviewProvider>
       </AppearanceProvider>
@@ -127,7 +125,9 @@ export default function Layout() {
             <SessionProvider>
               <DevicePreferencesProvider>
                 <WhatsNewProvider>
-                  <SessionUI />
+                  <PhoneUpdatesProvider>
+                    <SessionUI />
+                  </PhoneUpdatesProvider>
                 </WhatsNewProvider>
               </DevicePreferencesProvider>
             </SessionProvider>

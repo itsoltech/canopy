@@ -1,18 +1,27 @@
-import { createContext, useContext, useRef, useState, type ReactNode } from "react";
+import { createContext, useContext, useEffect, useEffectEvent, useRef, useState, type ReactNode } from "react";
+import { AppState } from "react-native";
 import * as Updates from "expo-updates";
+import { whileForeground } from "../../state/foreground-work";
 import { hasUnsentWork } from "./unsent-work";
+
+const CHECK_INTERVAL_MS = 15 * 60_000;
 
 function usePhoneUpdateState() {
   const status = Updates.useUpdates();
   const running = useRef(false);
   const [pending, setPending] = useState<"check" | "fetch" | "apply">();
+  const [lastAttempt, setLastAttempt] = useState(0);
   const [error, setError] = useState("");
   const [deferred, setDeferred] = useState(false);
   const [notice, setNotice] = useState("");
 
-  async function run(action: "check" | "fetch" | "apply") {
-    if (!Updates.isEnabled || running.current || status.isChecking || status.isDownloading || status.isRestarting)
-      return;
+  const nativeBusy =
+    status.isChecking || status.isDownloading || status.isRestarting || status.isStartupProcedureRunning;
+
+  const busy = Boolean(pending || nativeBusy);
+
+  async function run(action: "check" | "fetch" | "apply", automatic = false) {
+    if (!Updates.isEnabled || running.current || nativeBusy) return;
 
     if (action === "apply" && !status.isUpdatePending) return;
     setError("");
@@ -29,8 +38,14 @@ function usePhoneUpdateState() {
     setNotice("");
 
     try {
-      if (action === "check") await Updates.checkForUpdateAsync();
-      else if (action === "fetch") await Updates.fetchUpdateAsync();
+      if (action === "check") {
+        const result = await Updates.checkForUpdateAsync();
+
+        if (automatic && (result.isAvailable || result.isRollBackToEmbedded)) {
+          setPending("fetch");
+          await Updates.fetchUpdateAsync();
+        }
+      } else if (action === "fetch") await Updates.fetchUpdateAsync();
       else await Updates.reloadAsync();
     } catch {
       setError(
@@ -39,14 +54,28 @@ function usePhoneUpdateState() {
           : "Could not update this phone. Check your connection and retry.",
       );
     } finally {
+      if (action !== "apply") setLastAttempt(Date.now());
       running.current = false;
       setPending(undefined);
     }
   }
 
-  const busy = Boolean(
-    pending || status.isChecking || status.isDownloading || status.isRestarting || status.isStartupProcedureRunning,
-  );
+  const checkWhenActive = useEffectEvent(() => {
+    if (AppState.currentState === "active" && !status.isUpdatePending) void run("check", true);
+  });
+
+  const lastActivity = Math.max(lastAttempt, status.lastCheckForUpdateTimeSinceRestart?.getTime() ?? 0);
+
+  useEffect(() => {
+    if (!Updates.isEnabled || __DEV__ || busy || status.isUpdatePending) return;
+
+    return whileForeground(AppState, () => {
+      const delay = Math.max(0, Math.min(CHECK_INTERVAL_MS, lastActivity + CHECK_INTERVAL_MS - Date.now()));
+      const timer = setTimeout(checkWhenActive, delay);
+
+      return () => clearTimeout(timer);
+    });
+  }, [busy, status.isUpdatePending, lastActivity]);
 
   return {
     status,

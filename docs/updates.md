@@ -5,7 +5,8 @@ zdalnych desktopów i workerów binarnych, ponawiania raportu o błędzie worker
 niezależnych akcji CLI i korelacji prób w Update all,
 aktualizacji CLI przez mise, restartu workera mimo błędu sprzątania urządzeń,
 pomijania cache metadanych przy ręcznym sprawdzaniu aktualizacji, wykrywania
-pojedynczego procesu przez instalator Windows i retencji dyskowego mirrora workerów gatewaya.
+pojedynczego procesu przez instalator Windows, retencji dyskowego mirrora workerów
+gatewaya i automatycznego pobierania OTA przez działającą aplikację mobilną.
 Dostępność zmian w nightly, beta i stable wynika z promocji
 opisanych w [release.md](release.md), a konkretne wersje podają GitHub Releases.
 
@@ -542,6 +543,9 @@ trafiają tą samą drogą do ich domów, z dotychczasowym sprawdzeniem właści
 Każdy wiersz Canopy pokazuje „Checked {time}”; brak czasu ze starszej aplikacji
 oznacza „Check time unavailable”. Czas odświeżenia gatewaya nie zastępuje czasu aplikacji.
 Telefon pokazuje czas sprawdzenia OTA od ostatniego uruchomienia aplikacji.
+Podczas używania aplikacji i po powrocie do niej telefon sprawdza OTA co 15 minut,
+pobiera zgodną aktualizację i ładuje ją przy następnym zimnym starcie
+([mobile.md](mobile.md#wydania-mobilne-testflight-i-ota)).
 
 Dotyczy wyłącznie aplikacji desktopowych w trybie lokalnym połączonych jako
 [połączone komputery](linked-computers.md). Gatewaye serwerowe (Docker, binarka)
