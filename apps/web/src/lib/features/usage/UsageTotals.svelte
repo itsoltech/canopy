@@ -2,14 +2,12 @@
   import {
     count,
     effectiveCost,
-    estimatedCost,
-    reportedCost,
+    hasPartialCost,
     shortCount,
     totalTokens,
     type UsageAmounts,
     type UsageView,
   } from "./format.ts";
-  import UsageCostCoverage from "./UsageCostCoverage.svelte";
 
   let { totals, view }: { totals: UsageAmounts; view: UsageView } = $props();
 
@@ -34,37 +32,18 @@
       </p>
     </div>
     {#if view === "cost"}
-      <div class="text-right">
-        <p class="text-sm/5 text-zinc-500 dark:text-zinc-400">
-          {count(totals.reports)}
-          {totals.reports === 1n ? "report" : "reports"}
+      {#if hasPartialCost(totals)}
+        <p class="text-sm/5 text-zinc-500 tabular-nums dark:text-zinc-400">
+          {count(totals.unknownEffectiveCostReports)}
+          {totals.unknownEffectiveCostReports === 1n ? "report" : "reports"} without cost data
         </p>
-        <UsageCostCoverage amounts={totals} />
-      </div>
+      {/if}
     {:else}
       <p class="text-sm/5 text-zinc-500 dark:text-zinc-400">Input + output</p>
     {/if}
   </div>
   {#if view === "cost"}
-    <p class="text-sm/5 text-pretty text-zinc-500 dark:text-zinc-400">
-      Each report uses complete reported cost or its estimated API cost. Estimates value consumption at OpenAI API
-      rates, separate from subscription charges.
-    </p>
-    <dl class="grid grid-cols-2 gap-3">
-      {#each [{ label: "Reported cost", value: reportedCost(totals), reports: totals.costReports }, { label: "Estimated API cost", value: estimatedCost(totals), reports: totals.estimatedCostReports }] as cost (cost.label)}
-        <div class="min-w-0 rounded-xl border border-divider p-3">
-          <dt class="text-sm/5 text-zinc-500 dark:text-zinc-400">{cost.label}</dt>
-          <dd class="mt-1 text-xl/7 font-medium wrap-anywhere tabular-nums select-text">{cost.value}</dd>
-          <dd class="mt-1 text-xs/5 text-zinc-500 tabular-nums dark:text-zinc-400">
-            Complete for {count(cost.reports)} of {count(totals.reports)}
-            {totals.reports === 1n ? "report" : "reports"}
-          </dd>
-        </div>
-      {/each}
-    </dl>
-    <p class="text-xs/5 text-zinc-500 dark:text-zinc-400">
-      The amounts above can cover the same usage. The total counts each report once.
-    </p>
+    <p class="text-sm/5 text-pretty text-zinc-500 dark:text-zinc-400">Usage costs may differ from your bill.</p>
   {/if}
   <dl class="grid grid-cols-2 gap-3 sm:grid-cols-5">
     {#each counters as counter (counter.label)}

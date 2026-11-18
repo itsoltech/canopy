@@ -1,14 +1,7 @@
 <script lang="ts">
   import type { ClassValue } from "svelte/elements";
   import TruncatedText from "#lib/shared/ui/TruncatedText.svelte";
-  import {
-    costSource,
-    hasEffectiveCost,
-    metricValue,
-    usageActivities,
-    type UsageRow,
-    type UsageView,
-  } from "./format.ts";
+  import { metricValue, usageActivities, type UsageRow, type UsageView } from "./format.ts";
 
   let { rows, view, class: className }: { rows: UsageRow[]; view: UsageView; class?: ClassValue } = $props();
 
@@ -36,9 +29,6 @@
         <dd class="text-base/6 font-medium wrap-anywhere tabular-nums select-text">
           {amounts ? metricValue(amounts, view) : "None recorded"}
         </dd>
-        {#if view === "cost" && amounts && hasEffectiveCost(amounts)}
-          <dd class="text-xs/5 text-zinc-500 dark:text-zinc-400">{costSource(amounts)}</dd>
-        {/if}
       </div>
     {/each}
   </dl>

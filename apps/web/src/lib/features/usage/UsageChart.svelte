@@ -1,25 +1,10 @@
 <script lang="ts">
-  import {
-    costSource,
-    dayLabel,
-    hasEffectiveCost,
-    metricValue,
-    type UsageAmounts,
-    type UsageDay,
-    type UsageRow,
-    type UsageView,
-  } from "./format.ts";
-  import UsageCostCoverage from "./UsageCostCoverage.svelte";
+  import { dayLabel, metricValue, type UsageDay, type UsageRow, type UsageView } from "./format.ts";
   import UsagePlot from "./UsagePlot.svelte";
   import UsageProviderMark from "./UsageProviderMark.svelte";
   import { usageProviderColor } from "./providers.ts";
 
-  let {
-    days,
-    providers,
-    totals,
-    view,
-  }: { days: UsageDay[]; providers: UsageRow[]; totals: UsageAmounts; view: UsageView } = $props();
+  let { days, providers, view }: { days: UsageDay[]; providers: UsageRow[]; view: UsageView } = $props();
 
   let active = $state(-1);
   const selectedIndex = $derived(active < 0 ? days.length - 1 : Math.min(active, days.length - 1));
@@ -40,12 +25,8 @@
   }
 
   function describe(day: UsageDay, full = false) {
-    const total = `${dayLabel(day.key, full)}: ${metricValue(day.amounts, view)}${view === "tokens" ? " tokens" : ` cost (${costSource(day.amounts)})`}`;
-
-    const parts = day.providers.map(
-      (provider) =>
-        `${provider.label}: ${metricValue(provider.amounts, view)}${view === "cost" ? ` (${costSource(provider.amounts)})` : ""}`,
-    );
+    const total = `${dayLabel(day.key, full)}: ${metricValue(day.amounts, view)}${view === "tokens" ? " tokens" : ""}`;
+    const parts = day.providers.map((provider) => `${provider.label}: ${metricValue(provider.amounts, view)}`);
 
     return [total, ...parts].join(" · ");
   }
@@ -62,15 +43,6 @@
         {@const total = `Total ${metricValue(selected.amounts, view)}${view === "tokens" ? " tokens" : ""}`}
         <p>{dayLabel(selected.key)}</p>
         <p class="truncate font-medium" title={total}>{total}</p>
-        {#if view === "cost"}
-          <div class="grid">
-            <!-- Period counts bound the daily counts and reserve space if the coverage wraps. -->
-            <div class="invisible col-start-1 row-start-1" aria-hidden="true">
-              <UsageCostCoverage amounts={totals} />
-            </div>
-            <div class="col-start-1 row-start-1"><UsageCostCoverage amounts={selected.amounts} /></div>
-          </div>
-        {/if}
       {/if}
     </div>
   </figcaption>
@@ -119,15 +91,6 @@
           <span>{provider.label}</span>
         </span>
         <span class="truncate text-right text-zinc-500 tabular-nums dark:text-zinc-400" title={value}>{value}</span>
-        {#if view === "cost"}
-          {@const source = part && hasEffectiveCost(part.amounts) ? costSource(part.amounts) : undefined}
-          <span
-            class="col-span-full min-h-5 truncate text-right text-xs/5 text-zinc-500 dark:text-zinc-400"
-            title={source}
-          >
-            {source ?? ""}
-          </span>
-        {/if}
       </li>
     {/each}
   </ul>
