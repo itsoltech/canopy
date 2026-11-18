@@ -188,6 +188,8 @@ try {
   process.exit(78);
 }
 
+const localWorker = Bun.env["CANOPY_LOCAL_WORKER"] === "1";
+
 const host = new WorkerHost({
   runtime,
   dataDir,
@@ -195,6 +197,7 @@ const host = new WorkerHost({
   worktreeRoots,
   log: (m) => console.info(m),
   fullAccess: local.full_access !== false,
+  localWorker,
 });
 
 if (workerMetricsEnabled)
@@ -295,7 +298,7 @@ const networkRoute = new WorkerNetworkRoute({
   local,
   configPath,
   signal: stopping.signal,
-  localWorker: Bun.env["CANOPY_LOCAL_WORKER"] === "1",
+  localWorker,
   changed: (endpoint) => updates.setEndpoint(endpointOptions(endpoint)),
 });
 
@@ -375,7 +378,7 @@ while (!stopping.signal.aborted) {
         host: { hostname: hostname(), os: process.platform, arch: process.arch, workerVersion: WORKER_VERSION },
         state: host.updateDraining ? WorkerState.DRAINING : WorkerState.ACTIVE,
         capabilities: workerCapabilities({
-          localWorker: Bun.env["CANOPY_LOCAL_WORKER"] === "1",
+          localWorker,
           fullAccess: local.full_access !== false,
         }),
         worktreesRoot: host.worktreesRoot,

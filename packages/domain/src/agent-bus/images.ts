@@ -38,7 +38,9 @@ export const IMAGE_TOOLS = {
     description:
       "Show images to the user in this thread as durable attachments. Use view_image to inspect images yourself; " +
       "use show_images when asked to show screenshots or how changes look. Choose representative images, not every screenshot. " +
-      "Paths must be regular files inside this thread's workspace, worktree or scratch; no traversal, symlinks or remote URLs. " +
+      "Use regular files in this thread's workspace, worktree, scratch or attachments. " +
+      "With the bundled Windows worker in Canopy Desktop local mode, you can also pass an absolute path under %LOCALAPPDATA%\\Temp. " +
+      "Traversal, symlinks and remote URLs are rejected. " +
       "Send 1–10 images, up to 20 MiB each and 50 MiB total (lower owner limits apply), with descriptive alt text. " +
       "For comparisons, give two images the same pair and sides before/after. Returns delivered only after copies are saved. " +
       "Never claim images were shown if this tool fails.",

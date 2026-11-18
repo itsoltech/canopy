@@ -869,8 +869,8 @@ message CommandResult {
 
 message ProbeAgentTools {}
 
-// A single immutable export, scoped to the source turn. Roots come from the gateway,
-// and the worker independently verifies its current thread directory and turn.
+// A single immutable export, scoped to the source turn. The worker independently
+// verifies the requested thread roots and the active turn.
 message ExportThreadImage {
   string thread_id = 1;
   string turn_id = 2;
@@ -881,6 +881,8 @@ message ExportThreadImage {
   string operation = 6;
   uint64 offset = 7;
   uint64 max_bytes = 8;
+  // Desktop show_images only. The local Windows worker selects its own per-user Temp root.
+  bool allow_local_temp = 9;
 }
 
 message ThreadImageExport {

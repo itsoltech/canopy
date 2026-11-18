@@ -104,6 +104,8 @@ export interface WorkerHostOptions {
   readonly log?: (message: string) => void;
   /** Full access turns (no sandbox, no prompts) are allowed unless the device turned them off (worker.json). */
   readonly fullAccess?: boolean;
+  /** The bundled worker started by Canopy Desktop in local mode. */
+  readonly localWorker?: boolean;
 }
 
 export interface ProviderRuntimeHandle<S> {

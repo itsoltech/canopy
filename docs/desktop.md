@@ -1,6 +1,7 @@
 # Canopy Desktop
 
-Status: opis zaimplementowanego runtime i pakowania (2026-11-18), w tym osobnego okna
+Status: opis zaimplementowanego runtime i pakowania (2026-11-18), w tym ponawiania
+startu lokalnego gatewaya po serii nieoczekiwanych wyjść, osobnego okna
 stanu zamykania i restartu do aktualizacji oraz ponawiania
 pakowania macOS i Windows w CI oraz lokalnego wskazywania
 plików z rozmowy w Finder/Explorer i pomijania cache przy ręcznym
@@ -402,8 +403,13 @@ nadzorca kończy wyłącznie własną grupę procesu. Gdy gateway nie odpowiada 
 obsługuje sygnału, zapowiedź jest niemożliwa i partner widzi nieoczekiwaną utratę.
 Worker raportuje stan plikiem, ale utrata połączenia z gatewayem ani nieświeży status
 nie powodują jego zabicia; własny reconnect przywraca łącze. PostgreSQL również nie
-jest restartowany na podstawie operacji aplikacyjnych. Restart po wyjściu procesu ma
-backoff 1–30 sekund i budżet 8 prób; kod 78 workera nie jest ponawiany.
+jest restartowany na podstawie operacji aplikacyjnych. Po wyjściu procesu nadzorca
+loguje kod lub sygnał, PID i czas działania, na Windows także pełny kod procesu
+uzyskany z systemu. Lokalny gateway ponawia start z
+opóźnieniem 0,5–30 sekund aż do zamknięcia aplikacji lub zmiany konfiguracji.
+Po co najmniej 30 sekundach działania gatewaya następna próba wraca do 0,5 sekundy.
+Początkowa konfiguracja nadal ma osobne limity gotowości. Pozostałe procesy
+mają budżet 8 prób z opóźnieniem 0,5–30 sekund; kod 78 workera nie jest ponawiany.
 
 Opóźnione zdarzenie statusu lub IPC podczas zamykania może trafić na okno, którego `WebContents`
 został już zniszczony. Dostarczanie do okien sprawdza oba poziomy życia i ignoruje wyłącznie

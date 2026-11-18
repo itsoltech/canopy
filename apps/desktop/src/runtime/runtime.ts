@@ -252,7 +252,7 @@ export class DesktopRuntime {
         port: gatewayPort,
         webOrigin: this.setupOrigin,
       }),
-      restart: true,
+      restart: "continuous",
     });
     const client = this.client(gatewayUrl);
     const probe = gatewayLiveness(gatewayUrl);

@@ -42,14 +42,18 @@ export function pathIdentity(path: string): string {
 }
 
 /** Assignment is the only time an alias may resolve to a trusted directory. Never rebase the scope on export. */
-export function pinImageRoot(assigned: string): ImageRoot {
+export function pinImageRoot(assigned: string, { allowAlias = true } = {}): ImageRoot {
   if (!isAbsolute(assigned)) throw rootChanged();
   const alias = resolve(assigned);
+  const nativeRoot = process.platform === "win32" ? windowsImageRoot : unixImageRoot;
+
+  // The native walk rejects redirects in every component of the original Temp path.
+  if (!allowAlias) return nativeRoot(alias);
   let path = parse(alias).root;
   const aliases = [path, ...pathParts(alias).map((part) => (path = join(path, part)))];
   const identities = aliases.map(pathIdentity);
   const canonical = realpathSync(alias);
-  const native = process.platform === "win32" ? windowsImageRoot(canonical) : unixImageRoot(canonical);
+  const native = nativeRoot(canonical);
 
   const verify = () => {
     try {
