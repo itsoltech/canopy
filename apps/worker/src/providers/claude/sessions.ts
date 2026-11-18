@@ -57,7 +57,7 @@ export function claudeSessions(
       spec.cwd,
       spec.scratch,
       options.baseEnv,
-      queryRuntime(profile, runtime),
+      { ...queryRuntime(profile, runtime), ...permissions.options },
       serviceTier,
     );
 
@@ -87,7 +87,6 @@ export function claudeSessions(
       ...(resume ? { resume: sessionId } : { sessionId }),
       includePartialMessages: true,
       enableFileCheckpointing: true,
-      ...permissions.options,
       canUseTool: canUseTool(spec, turnId, () => session?.autoAllow ?? "none"),
       // dontAsk denies whatever is not pre-approved. Gateway enforces connector grants and permission modes.
       allowedTools: mcp.allowedTools,

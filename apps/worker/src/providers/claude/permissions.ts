@@ -1,4 +1,4 @@
-import type { Options } from "@anthropic-ai/claude-agent-sdk";
+import type { Options, Settings } from "@anthropic-ai/claude-agent-sdk";
 import { PermissionMode } from "@canopy/contracts";
 
 /**
@@ -22,7 +22,12 @@ import { PermissionMode } from "@canopy/contracts";
  * turn it on.
  */
 export interface ClaudePermissions {
-  readonly options: Pick<Options, "permissionMode" | "sandbox">;
+  readonly options: Pick<Options, "permissionMode"> & {
+    sandbox?: Pick<
+      NonNullable<Settings["sandbox"]>,
+      "enabled" | "failIfUnavailable" | "autoAllowBashIfSandboxed" | "allowUnsandboxedCommands"
+    >;
+  };
   readonly autoAllow: AutoAllow;
 }
 
