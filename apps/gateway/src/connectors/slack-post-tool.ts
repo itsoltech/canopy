@@ -39,13 +39,18 @@ export function slackPostTool(row: ToolAccount) {
     connectorType: "slack",
     name: slackPostName(row),
     remoteName: SLACK_POST_ACTION,
-    description: `Slack · ${row.name}: Post a message immediately as the Canopy Slack app. Use when the owner authorized sending to this destination, including standing instructions for follow-ups. Canopy checks approval. Use a Slack conversation ID the app can post to. When replying in a Slack thread, set reply_to to its parent message timestamp. Send plain text. Report success only when the tool returns a message link.`,
+    description: `Slack · ${row.name}: Post a message immediately as the Canopy Slack app. Use when the owner authorized sending to this destination, including standing instructions for follow-ups. Canopy checks approval. Use a Slack conversation ID the app can post to. When replying in a Slack thread, set reply_to to its parent message timestamp. Report success only when the tool returns a message link.`,
     inputSchemaJson: JSON.stringify({
       type: "object",
       properties: {
         channel: { type: "string", pattern: channelPattern.source, description: "Slack conversation ID" },
         reply_to: { type: "string", pattern: timestampPattern.source, description: "Parent message timestamp" },
-        message: { type: "string", maxLength, description: "Plain text to post" },
+        message: {
+          type: "string",
+          maxLength,
+          description:
+            "Message in Markdown. To deliberately mention a person, use <@USER_ID> with their Slack user ID.",
+        },
       },
       required: ["channel", "message"],
       additionalProperties: false,

@@ -403,7 +403,7 @@ describe("Slack messenger provider transport", () => {
     expect(f.acknowledgments).toEqual([]);
   });
 
-  test("outbound uses stable client_msg_id, literal text, correct reply target, and no unfurls", async () => {
+  test("outbound formats Markdown and individual mentions with the same reply target and no unfurls", async () => {
     const f = fixture();
 
     const adapter = new SlackMessenger({
@@ -418,7 +418,9 @@ describe("Slack messenger provider transport", () => {
       id: "892c2766-7c2f-4913-a5b7-168df26d7661",
       channelId: "C1",
       threadId: "1.000001",
-      text: "<@U1> <!channel> & https://example.com",
+      text:
+        "<@U1> **Bots** & [PR #996](https://example.com/pull/996)\n\n" +
+        "1. Open https://example.com/check\n2. Keep `<@U2>` and <!channel> literal",
     };
 
     expect(await adapter.send(message)).toEqual({ messageId: "10.000001", channelId: "C1" });
@@ -426,7 +428,48 @@ describe("Slack messenger provider transport", () => {
     const first = f.requests[0]?.fields;
     expect(first?.get("client_msg_id")).toBe(message.id);
     expect(first?.get("client_msg_id")).toBe(f.requests[1]?.fields.get("client_msg_id"));
-    expect(first?.get("text")).toBe("&lt;@U1&gt; &lt;!channel&gt; &amp; https://example.com");
+    expect(first?.get("text")).toBe(
+      "@U1 Bots &amp; PR #996\n1. Open https://example.com/check\n2. Keep &lt;@U2&gt; and &lt;!channel&gt; literal",
+    );
+    expect(JSON.parse(first?.get("blocks") ?? "null")).toEqual([
+      {
+        type: "rich_text",
+        elements: [
+          {
+            type: "rich_text_section",
+            elements: [
+              { type: "user", user_id: "U1" },
+              { type: "text", text: " " },
+              { type: "text", text: "Bots", style: { bold: true } },
+              { type: "text", text: " & " },
+              { type: "link", url: "https://example.com/pull/996", text: "PR #996" },
+            ],
+          },
+          {
+            type: "rich_text_list",
+            style: "ordered",
+            indent: 0,
+            elements: [
+              {
+                type: "rich_text_section",
+                elements: [
+                  { type: "text", text: "Open " },
+                  { type: "link", url: "https://example.com/check", text: "https://example.com/check" },
+                ],
+              },
+              {
+                type: "rich_text_section",
+                elements: [
+                  { type: "text", text: "Keep " },
+                  { type: "text", text: "<@U2>", style: { code: true } },
+                  { type: "text", text: " and <!channel> literal" },
+                ],
+              },
+            ],
+          },
+        ],
+      },
+    ]);
     expect(first?.get("thread_ts")).toBe("1.000001");
     expect(first?.get("parse")).toBe("none");
 
@@ -436,6 +479,38 @@ describe("Slack messenger provider transport", () => {
       code: "message_size_limit",
     });
     expect(f.requests).toHaveLength(2);
+  });
+
+  test("accepts the receipt when Slack echoes a long formatted message", async () => {
+    const f = fixture();
+
+    const adapter = new SlackMessenger({
+      accountId: "account-1",
+      credentials,
+      botUserId: "UBOT",
+      transport: f.transport,
+      onEvent: async () => {},
+    });
+
+    f.reply = () => {
+      const fields = f.requests.at(-1)?.fields;
+      const blocks = fields?.get("blocks") ?? "";
+      expect(Buffer.byteLength(blocks)).toBeGreaterThan(256 * 1024);
+
+      return Response.json({
+        ok: true,
+        ts: "10.000001",
+        channel: "C1",
+        message: { text: fields?.get("text"), blocks: JSON.parse(blocks) },
+      });
+    };
+
+    const text = "\\*".repeat(12_000);
+    expect(await adapter.send({ id: "long-markdown", channelId: "C1", text })).toEqual({
+      messageId: "10.000001",
+      channelId: "C1",
+    });
+    expect(f.requests).toHaveLength(1);
   });
 
   test("rate limits expose Retry-After and uncertain writes are never retried or logged verbatim", async () => {
