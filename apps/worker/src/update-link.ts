@@ -42,6 +42,8 @@ export class WorkerUpdates {
   readonly #kind: InstallKind;
   #active: string | undefined;
   #handled = new Set<string>();
+  // An interrupted update can finish after Watch has already reconnected.
+  #failedReport: { command: update.UpdateCommand; reason: string } | undefined;
   constructor(readonly options: WorkerUpdatesOptions) {
     this.#version = options.version ?? CANOPY_VERSION;
     this.#kind = options.kind ?? installKind();
@@ -78,7 +80,7 @@ export class WorkerUpdates {
 
       try {
         // Report persisted success/rollback before Watch can redeliver or auto-enqueue another command.
-        await this.#reportResult();
+        await this.#reportResults();
 
         for await (const event of this.#client.watch(
           {
@@ -93,6 +95,7 @@ export class WorkerUpdates {
           { headers: this.#headers, signal: AbortSignal.any([this.options.signal, route.signal]) },
         )) {
           backoffMs = 1_000;
+          await this.#reportResults();
 
           if (event.gateway?.compatibility === "update_required")
             this.options.log?.(`update channel: ${event.gateway.reason}`);
@@ -101,7 +104,6 @@ export class WorkerUpdates {
             void this.apply(event.command).catch((cause: unknown) =>
               this.options.log?.(`update failed: ${cause instanceof Error ? cause.message : "unknown error"}`),
             );
-          await this.#reportResult();
         }
       } catch (error) {
         if (!this.options.signal.aborted)
@@ -138,7 +140,13 @@ export class WorkerUpdates {
       { headers: this.#headers, signal: this.options.signal, timeoutMs: 10_000 },
     );
   }
-  async #reportResult(): Promise<void> {
+  async #reportResults(): Promise<void> {
+    if (this.#failedReport) {
+      const { command, reason } = this.#failedReport;
+      await this.#report(command, "failed", reason);
+      this.#failedReport = undefined;
+    }
+
     if (this.#kind !== "binary") return;
     const record = await readUpdateRecord(this.options.binaryPath);
 
@@ -248,7 +256,10 @@ export class WorkerUpdates {
         },
       });
     } catch (error) {
-      await this.#report(command, "failed", error instanceof Error ? error.message : "Update failed").catch(() => {});
+      const reason = error instanceof Error ? error.message : "Update failed";
+      await this.#report(command, "failed", reason).catch(() => {
+        this.#failedReport = { command, reason };
+      });
       throw error;
     } finally {
       this.#active = undefined;
