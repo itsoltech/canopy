@@ -1,6 +1,7 @@
 # API dla UI i architektura frontendu
 
 Status (2026-11-18): stopka sidebara ma osobne ikony Settings i Usage oraz samą kropkę statusu połączenia;
+web/desktop wysyła „Continue” jednym kliknięciem z pustego kompozytora istniejącego wątku między turami;
 `InstallCli` przyjmuje opcjonalne UUID próby do korelacji raportów;
 kontrakt kompozytora i wątków udostępnia szybkość wykonania `service_tier`;
 Claude zachowuje 330 s dla interakcji mimo 15-minutowego limitu MCP dla publikacji obrazów;
@@ -1694,6 +1695,14 @@ Restart workera i błędy komend (pola od 70):
 - `Turn.error_source` (72): przy `failed` skąd błąd — `platform` (nasza strona) albo `harness` (Codex/Claude zgłosił błąd); treść w `error`, krótki kod w `Turn.error_code` (74), np. `http_connection_failed:401`, `process_exit`,
 - `Turn.interrupt_source` (73): przy `interrupted` kto przerwał — `user` albo `system` (np. `worker restarted mid-turn`). Stopka tury w UI pokazuje „Harness error: …” / „Platform error: …”, „by you”, „by the system: …” i dla przerwania przez system akcję „Continue” (wiadomość wznawiająca sesję). Stany i macierz: [durability.md](durability.md#47-stany-tury-i-wątku). Wątek po każdym końcu tury jest `idle`; `failed` tylko dla wątku, który nie powstał,
 - `Goal.error`, `Goal.error_at`: ostatnia komenda celu nie powiodła się na workerze; status wraca wtedy do ostatniego stanu harnessu ([goals.md](goals.md#3-statusy)). `goalPending` w UI nie pokazuje wtedy „Starting… / Pausing…”, a `GoalBar` pokazuje błąd.
+
+### Kontynuowanie wątku z kompozytora
+
+W istniejącym wątku web/desktop, między turami, pusty kompozytor bez załączników
+i cytatów pokazuje przycisk „Continue”. Aktywacja przycisku wysyła wiadomość
+o treści `Continue` zwykłą ścieżką wysyłania, z wybranymi ustawieniami tury.
+Skrót wysyłania w pustym edytorze pozostaje nieaktywny. W trakcie tury pusty
+kompozytor pokazuje „Stop”.
 
 ### Komendy powłoki w kompozytorze
 

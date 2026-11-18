@@ -46,8 +46,8 @@
   /**
    * Message box of a thread. Each send carries an idempotency key, so a retried send never runs
    * twice. While a turn runs, a typed message is steered into it (Enter) or queued for the next turn
-   * (Mod+Enter or the send button's menu), and the empty box offers Stop. `onsent` gets the result (the
-   * queued turn or the steer) so the page shows it before the stream does.
+   * (Mod+Enter or the send button's menu), and the empty box offers Stop. Between turns it offers
+   * Continue. `onsent` gets the queued turn or the steer so the page shows it before the stream does.
    * Pills: the model and reasoning effort for the next messages (same provider and profile as the
    * thread), restored from the last user turn and sent with each message as an override for its turn.
    * Under the box: where the thread runs (hover for the worker) and its permission control.
@@ -229,15 +229,16 @@
     void send(running ? primary : "queue");
   }
 
-  async function send(delivery: Delivery) {
+  async function send(delivery: Delivery, continuation = false) {
     const composer = saved;
     const files = composer.files;
     const trimmed = trimValue({ text: saved.text, mentions: saved.mentions, quotes });
-    const message = saved.text.trimStart().startsWith("!") ? saved.text.trimEnd() : trimmed.text;
+    const text = saved.text.trimStart().startsWith("!") ? saved.text.trimEnd() : trimmed.text;
+    const hasContent = Boolean(text || draft.attached.length || quotes.length);
     const sentMentions = trimmed.mentions;
 
     if (
-      (!message && draft.attached.length === 0 && quotes.length === 0) ||
+      (continuation ? running || hasContent : !hasContent) ||
       sending ||
       directory.replySuggestions?.sending ||
       composer.preparing ||
@@ -274,7 +275,7 @@
         const published = await composer.publishForSend();
         request = create(ui.SendMessageRequestSchema, {
           threadId,
-          text: message,
+          text: continuation ? "Continue" : text,
           clientRequestId: composer.requestId,
           ...sentOverride,
           permissionMode: PermissionMode[sentOverride.permissionMode],
@@ -413,6 +414,7 @@
     {sending}
     {stopping}
     onstop={running ? interrupt : undefined}
+    oncontinue={() => void send("queue", true)}
     onqueue={running ? () => void send("queue") : undefined}
     {primary}
     onalternate={running ? () => void send("steer") : undefined}

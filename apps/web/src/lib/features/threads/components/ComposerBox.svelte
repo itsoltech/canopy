@@ -25,6 +25,7 @@
   import MentionEditor from "#lib/features/mentions/MentionEditor.svelte";
   import type { MentionSources } from "#lib/features/mentions/sources.svelte.ts";
   import { mentionsToWire } from "#lib/features/mentions/wire.ts";
+  import ComposerTextButton from "./ComposerTextButton.svelte";
   import SteerSendButton from "./SteerSendButton.svelte";
   import ComposerFold from "./ComposerFold.svelte";
   import type { ComposerActivity } from "./composer-compaction.ts";
@@ -50,13 +51,13 @@
 
   /**
    * Message box: a growing text field and a bottom row with `controls` (pills) and a round
-   * send button. While `onstop` is set and the box is empty, the round button stops the turn instead.
+   * send button. An empty box offers Stop with `onstop` or Continue with `oncontinue`.
    * Enter submits the surrounding form, Shift+Enter adds a line. `meta` renders under the box.
    * With `onqueue` (a turn runs) a typed message has two ways: submitting steers it into the running
    * turn (Enter, the "Steer" button), `onqueue` keeps it for the next turn (Mod+Enter, the button's menu).
    * With `primary = "queue"` (queueing on) the two swap: Enter queues, Mod+Enter (`onalternate`) steers.
    * `canSend = false` keeps the box editable but holds the message (say why next to it); `disabled` locks both.
-   * The send slot eases to the width of what it holds (send, stop, steer), so the pills glide aside.
+   * The send slot eases to the width of what it holds, so the pills glide aside.
    * Attachments (`draft`): files dropped on the box or pasted into it (screenshots, copied images, files copied in a
    * file manager), pasted anywhere in the window or dropped on it (`FileIntake`) or picked from the "+" menu become badges in the text at the caret (docs/ui-api.md, "Załączniki w tekście"); each badge
    * shows its upload, a tap previews it (an image in the Lightbox, a file's card), and a file goes with its badge.
@@ -84,6 +85,7 @@
     stopping = false,
     autofocus = false,
     onstop,
+    oncontinue,
     onqueue,
     primary = "steer",
     onalternate,
@@ -123,6 +125,7 @@
     stopping?: boolean;
     autofocus?: boolean;
     onstop?: (() => void) | undefined;
+    oncontinue?: (() => void) | undefined;
     onqueue?: (() => void) | undefined;
     /** What Enter does while a turn runs (submitting the form); Mod+Enter does the other (`onqueue` / `onalternate`). */
     primary?: "steer" | "queue";
@@ -176,17 +179,15 @@
       : undefined,
   );
 
-  const sendBlocker = $derived(
+  const deliveryBlocker = $derived(
     blockedReason ??
       shellBlocker ??
       draft?.blocker ??
-      (disabled
-        ? "Messaging is unavailable for this thread."
-        : !canSend
-          ? "Sending is unavailable."
-          : !hasContent
-            ? "Write a message or add an attachment to send."
-            : undefined),
+      (disabled ? "Messaging is unavailable for this thread." : !canSend ? "Sending is unavailable." : undefined),
+  );
+
+  const sendBlocker = $derived(
+    deliveryBlocker ?? (hasContent ? undefined : "Write a message or add an attachment to send."),
   );
 
   /** Files become badges at the caret (`point`: where they were dropped). */
@@ -501,6 +502,16 @@
             <Icon name="arrow-path" tone="inherit" />
             <TouchTarget />
           </a>
+        {:else if oncontinue && !hasContent && !shellMode}
+          <DisabledControlHint reason={deliveryBlocker}>
+            <ComposerTextButton
+              label="Continue"
+              icon="arrow-up"
+              {sending}
+              disabled={Boolean(deliveryBlocker)}
+              onclick={oncontinue}
+            />
+          </DisabledControlHint>
         {:else}
           <DisabledControlHint reason={sendBlocker}>
             <button

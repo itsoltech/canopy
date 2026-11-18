@@ -3,10 +3,10 @@
   import DropdownMenu from "#lib/shared/ui/DropdownMenu.svelte";
   import Icon from "#lib/shared/ui/Icon.svelte";
   import MenuItem from "#lib/shared/ui/MenuItem.svelte";
-  import Spinner from "#lib/shared/ui/Spinner.svelte";
   import { tooltip } from "#lib/shared/ui/tooltip.ts";
   import TouchTarget from "#lib/shared/ui/TouchTarget.svelte";
   import { keybindings } from "#lib/features/commands/keybindings.svelte.ts";
+  import ComposerTextButton from "./ComposerTextButton.svelte";
 
   /**
    * Send button of the composer while a turn runs (Codex app style): the main part submits the form, which
@@ -32,34 +32,25 @@
   const steerFirst = $derived(primary === "steer");
   const primaryShortcut = $derived(keybindings.get("composer:send")[0]);
   const alternateShortcut = $derived(keybindings.get("composer:alternate")[0]);
-
-  const half =
-    "relative flex h-9 items-center focus-ring not-disabled:hover:bg-action-hover disabled:opacity-60 sm:h-8";
 </script>
 
 <div class={["flex shrink-0 items-center rounded-full bg-action text-on-accent", className]}>
-  <button
-    type="submit"
-    class={[half, "gap-1.5 rounded-l-full pr-2.5 pl-3 text-sm/5 font-medium sm:text-[0.8125rem]/5"]}
-    aria-label={steerFirst ? "Steer into the running turn" : "Queue for the next turn"}
-    {@attach tooltip(steerFirst ? "Send now, into the turn the agent is working on" : "Wait and run as the next turn", {
-      hotkey: primaryShortcut,
-    })}
-    disabled={disabled || sending}
-  >
-    {#if sending}<Spinner class="size-3.5" />{:else}<Icon
-        name={steerFirst ? "arrow-up" : "queue-list"}
-        tone="inherit"
-      />{/if}
-    <span class="@max-[24rem]/composer:hidden">{steerFirst ? "Steer" : "Queue"}</span>
-    <TouchTarget />
-  </button>
+  <ComposerTextButton
+    split
+    {sending}
+    {disabled}
+    icon={steerFirst ? "arrow-up" : "queue-list"}
+    label={steerFirst ? "Steer" : "Queue"}
+    ariaLabel={steerFirst ? "Steer into the running turn" : "Queue for the next turn"}
+    hint={steerFirst ? "Send now, into the turn the agent is working on" : "Wait and run as the next turn"}
+    hotkey={primaryShortcut}
+  />
   <span class="h-4 w-px bg-white/30" aria-hidden="true"></span>
   <DropdownMenu label="How to send" placement="top-end" class="w-72">
     {#snippet trigger(props)}
       <button
         type="button"
-        class={[half, "rounded-r-full pr-2.5 pl-1.5 aria-expanded:bg-action-hover"]}
+        class="relative flex h-9 items-center rounded-r-full pr-2.5 pl-1.5 focus-ring not-disabled:hover:bg-action-hover disabled:opacity-60 aria-expanded:bg-action-hover sm:h-8"
         aria-label="More ways to send"
         disabled={disabled || sending}
         {...props}
