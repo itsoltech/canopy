@@ -109,18 +109,37 @@ const systemSubtypes = new Set([
   "group_unarchive",
 ]);
 
-export function slackEvent(
-  envelope: typeof SlackEnvelope.Type,
-  accountId: string,
-  identity: SlackIdentity,
-): SlackEvent | null {
+export function slackEventLogFields(envelope: typeof SlackEnvelope.Type): string {
+  const event = envelope.payload?.event;
+  const eventId = envelope.payload?.event_id ?? "";
+  const channel = event?.channel ?? "";
+  const message = event?.subtype === "message_changed" ? event.message : event;
+  const ts = event?.subtype === "message_deleted" ? (event.deleted_ts ?? event.previous_message?.ts) : message?.ts;
+  const thread = (event?.subtype === "message_deleted" ? event.previous_message?.thread_ts : message?.thread_ts) ?? "";
+  const timestamp = /^\d{1,20}\.\d{1,12}$/;
+
+  // Callback fields are outside our trust boundary. Only emit bounded identifiers and fixed labels.
+  const type = event?.type === "message" || event?.type === "app_mention" ? event.type : "other";
+
+  return [
+    `event_type=${type}`,
+    /^Ev[A-Z0-9]{1,40}$/.test(eventId) ? `event_id=${eventId}` : "",
+    /^[CGD][A-Z0-9]{1,79}$/.test(channel) ? `channel=${channel}` : "",
+    ts && timestamp.test(ts) ? `message_ts=${ts}` : "",
+    timestamp.test(thread) ? `thread_ts=${thread}` : "",
+  ]
+    .filter(Boolean)
+    .join(" ");
+}
+
+export function slackEvent(envelope: typeof SlackEnvelope.Type, accountId: string, identity: SlackIdentity) {
   const payload = envelope.payload;
   const event = payload?.event;
 
   if (envelope.type !== "events_api" || payload?.type !== "event_callback" || !payload.event_id || !event?.channel)
-    return null;
+    return { ignored: "invalid_event_callback" } as const;
 
-  if (event.type !== "message" && event.type !== "app_mention") return null;
+  if (event.type !== "message" && event.type !== "app_mention") return { ignored: "unsupported_event_type" } as const;
 
   const kind = Match.value(event.subtype).pipe(
     Match.when("message_changed", () => "edit" as const),
@@ -134,7 +153,7 @@ export function slackEvent(
     Match.orElse(() => event),
   );
 
-  if (!message && kind !== "delete") return null;
+  if (!message && kind !== "delete") return { ignored: "missing_message" } as const;
   const authorId = message?.user ?? event.user ?? "";
 
   if (
@@ -144,13 +163,15 @@ export function slackEvent(
     message?.app_id ||
     message?.bot_profile ||
     authorId === identity.botUserId ||
-    message?.subtype === "bot_message" ||
-    systemSubtypes.has(event.subtype ?? "")
+    message?.subtype === "bot_message"
   )
-    return null;
+    return { ignored: "app_or_bot_message" } as const;
+
+  if (systemSubtypes.has(event.subtype ?? "")) return { ignored: "system_message" } as const;
+
   const messageId = kind === "delete" ? (event.deleted_ts ?? message?.ts) : message?.ts;
 
-  if (!messageId || !/^\d+\.\d+$/.test(messageId)) return null;
+  if (!messageId || !/^\d+\.\d+$/.test(messageId)) return { ignored: "invalid_message_ts" } as const;
   const text = message?.text ?? "";
   const fileIds = kind === "delete" ? [] : messageFileIds(message?.files);
 
@@ -167,5 +188,5 @@ export function slackEvent(
     mention: event.type === "app_mention" || text.includes(`<@${identity.botUserId}>`),
     direct: event.channel.startsWith("D") || event.channel_type === "im",
     kind,
-  };
+  } satisfies SlackEvent;
 }

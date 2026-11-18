@@ -11,6 +11,7 @@ import {
   type SlackTransport,
 } from "./slack-http.ts";
 import { slackSocket } from "./slack-socket.ts";
+import type { MessengerIngestOutcome } from "./types.ts";
 
 export { SlackMessengerError } from "./slack-http.ts";
 
@@ -24,8 +25,9 @@ export interface SlackMessengerOptions {
   accountId: string;
   credentials: SlackCredentials;
   botUserId: string;
-  onEvent: (event: SlackEvent) => Promise<void>;
+  onEvent: (event: SlackEvent) => Promise<readonly MessengerIngestOutcome[] | void>;
   onStatus?: (status: "connecting" | "connected" | "retrying") => Promise<void>;
+  log?: (message: string) => void;
   transport?: SlackTransport;
 }
 

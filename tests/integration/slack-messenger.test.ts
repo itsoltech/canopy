@@ -25,6 +25,7 @@ async function until(predicate: () => boolean) {
 function fixture() {
   const sockets = new Set<ServerWebSocket<{ id: number }>>();
   const acknowledgments: string[] = [];
+  const logs: string[] = [];
   const requests: { method: string; fields: URLSearchParams; authorization: string | null }[] = [];
   const controller = new AbortController();
   let connectionCount = 0;
@@ -95,6 +96,7 @@ function fixture() {
     controller,
     sockets,
     acknowledgments,
+    logs,
     requests,
     get connectionCount() {
       return connectionCount;
@@ -118,6 +120,7 @@ function fixture() {
         botUserId: "UBOT",
         onEvent,
         transport,
+        log: (message) => logs.push(message),
         ...(onStatus && { onStatus }),
       });
 
@@ -259,10 +262,15 @@ describe("Slack messenger provider transport", () => {
       if (++attempts === 1) throw new Error("fixture durable commit failure");
     });
     await until(() => f.sockets.size > 0);
-    f.send(envelope("E1"));
+    f.send(envelope("EvFAILED"));
     await until(() => f.connectionCount >= 2 && f.sockets.size > 0);
     expect(f.acknowledgments).toEqual([]);
-    f.send(envelope("E1"));
+    expect(f.logs).toContain(
+      "stage=ingest outcome=failed event_type=message event_id=EvFAILED channel=C1 message_ts=1.000001",
+    );
+    expect(f.logs).toContain("connection=disconnected reason=socket_ingest_failed");
+    expect(f.logs.join("\n")).not.toContain("fixture durable commit failure");
+    f.send(envelope("EvFAILED"));
     await until(() => f.acknowledgments.length === 1);
     expect(f.requests.filter((request) => request.method === "apps.connections.open")).toHaveLength(2);
   });
@@ -275,6 +283,7 @@ describe("Slack messenger provider transport", () => {
     });
     await until(() => f.sockets.size > 0);
     f.send(envelope("self", { user: "UBOT" }));
+    f.send(envelope("EvIGNORED", { user: "UBOT", channel: "xoxb-fixture-log-test", thread_ts: "arbitrary text" }));
     f.send(envelope("bot", { user: "UOTHERBOT", bot_id: "BOTHER" }));
     f.send(
       envelope("file", {
@@ -304,8 +313,13 @@ describe("Slack messenger provider transport", () => {
     );
     f.send(envelope("direct", { channel: "D1", text: "hello", thread_ts: "0.000001" }));
     f.send(envelope("im", { channel_type: "im", text: "hello" }));
-    await until(() => f.acknowledgments.length === 8);
+    await until(() => f.acknowledgments.length === 9);
     expect(events.map((event) => event.id)).toEqual(["file", "broadcast", "edit", "delete", "direct", "im"]);
+    expect(f.logs).toContain(
+      "stage=ignored reason=app_or_bot_message event_type=message event_id=EvIGNORED message_ts=1.000001",
+    );
+    expect(f.logs.join("\n")).not.toContain("xoxb-fixture-log-test");
+    expect(f.logs.join("\n")).not.toContain("arbitrary text");
     expect(events.find((event) => event.id === "file")).toMatchObject({
       text: "user fragment",
       fileIds: ["FREPORT"],

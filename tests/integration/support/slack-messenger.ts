@@ -3,7 +3,7 @@ import { Schema } from "effect";
 import type { SlackTransport } from "../../../apps/gateway/src/messengers/slack.ts";
 
 /** Local Slack HTTP + Socket Mode boundary; no external network or model calls. */
-export function slackMessengerFixture() {
+export function slackMessengerFixture(channelType: "channel" | "group" = "channel") {
   const sockets = new Set<ServerWebSocket>();
   const acknowledged = new Set<string>();
   const sent: URLSearchParams[] = [];
@@ -81,8 +81,9 @@ export function slackMessengerFixture() {
       id: string,
       text: string,
       timestamp: string,
-      threadId = "100.1",
+      threadId: string | null = "100.1",
       files?: readonly { id: string; url_private?: string }[],
+      eventType: "message" | "app_mention" = "message",
     ) => {
       const message = JSON.stringify({
         type: "events_api",
@@ -93,13 +94,13 @@ export function slackMessengerFixture() {
           team_id: "TWORK",
           api_app_id: "AAPP",
           event: {
-            type: "message",
+            type: eventType,
             channel: "CGENERAL",
             user: "UOWNER",
             text,
             ts: timestamp,
-            thread_ts: threadId,
-            channel_type: "channel",
+            thread_ts: threadId ?? undefined,
+            channel_type: channelType,
             files,
           },
         },

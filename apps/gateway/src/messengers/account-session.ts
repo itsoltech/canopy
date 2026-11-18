@@ -63,14 +63,15 @@ export class MessengerAccountSession {
 
     if (identity.externalId !== this.account.externalId) throw new Error("Messenger identity changed");
     this.abort.signal.throwIfAborted();
+    const { log } = this.runtime.options;
+
     this.#adapter = new SlackMessenger({
       accountId: this.account.id,
       credentials,
       botUserId: identity.botUserId,
       ...(this.runtime.options.messengerTransport && { transport: this.runtime.options.messengerTransport }),
-      onEvent: async (event) => {
-        await this.runtime.run((s) => s.ingest(this.runtime.owner, event, this.lease, this.runtime.now()));
-      },
+      ...(log && { log: (message: string) => log(`messengers: slack account_id=${this.account.id} ${message}`) }),
+      onEvent: (event) => this.runtime.run((s) => s.ingest(this.runtime.owner, event, this.lease, this.runtime.now())),
       onStatus: (status) => this.status(status),
     });
     await this.#adapter.run(this.abort.signal);

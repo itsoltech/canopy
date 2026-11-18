@@ -71,6 +71,17 @@ export interface MessengerEvent {
   kind?: "message" | "edit" | "delete";
 }
 
+export type RouteIngestOutcome =
+  | "buffered"
+  | "duplicate_message"
+  | "message_updated"
+  | "message_deleted"
+  | "original_message_ignored"
+  | "original_message_missing"
+  | "route_not_triggered";
+
+export type MessengerIngestOutcome = RouteIngestOutcome | "bots_disabled" | "duplicate_event" | "no_matching_route";
+
 export interface SteerInput {
   id: string;
   botId: string;
