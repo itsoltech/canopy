@@ -8,6 +8,7 @@ zgodnie z katalogiem modeli danego konta. iOS utrzymuje najnowsze wiadomości
 nad kompozytorem po nadejściu kolejnych tur, a „Show latest” ma okrągły stan naciśnięcia.
 Korekta przewijania chroni przed rekurencyjnym `scrollTo` podczas zmian insetów klawiatury na iOS.
 Wydania beta pomijają buildy iOS i wysyłkę do TestFlight, zachowując zgodne OTA.
+Telefon automatycznie sprawdza i pobiera zgodne OTA podczas używania aplikacji.
 Propozycje odpowiedzi pomijają wpisy kolejki zużyte przez odczyt agenta lub steer;
 starsze, porzucone notatki platformy nie blokują późniejszych propozycji ([ui-api.md](ui-api.md#proponowane-odpowiedzi)).
 Pole nie powiększa się od kolejnych cykli fokusu i chowania klawiatury.
@@ -875,6 +876,11 @@ nie jest instalacją przypisaną do kanału wydania.
 `updates.checkAutomatically: ON_LOAD` sprawdza aktualizacje na zimnym starcie.
 `fallbackToCacheTimeout: 0` uruchamia od razu ostatni lokalny bundle (także offline);
 pobieranie trwa w tle, a pobrany bundle działa od następnego zimnego startu.
+Po zakończeniu procedury Expo telefon sprawdza OTA także podczas używania aplikacji
+oraz po powrocie do niej, gdy od ostatniego sprawdzenia lub pobrania minęło 15 minut.
+Po błędzie obowiązuje ta sama przerwa. Aplikacja pobiera wykryte zgodne OTA oraz obsługuje
+dyrektywę powrotu do wbudowanego bundle'a. Pobrany pakiet czeka na następny zimny start.
+Sprawdzanie działa także bez parowania. Nowe próby są wstrzymane w tle i po pobraniu aktualizacji.
 Settings → General → About oraz centrum aktualizacji współdzielą stan telefonu:
 sprawdzenie (`checkForUpdateAsync`), pobranie (`fetchUpdateAsync`) i jawne zastosowanie
 (`reloadAsync`). „Apply next launch” odkłada restart; aplikacja nigdy nie restartuje się
