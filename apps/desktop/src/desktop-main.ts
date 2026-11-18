@@ -3,7 +3,6 @@ import type { IpcMainEvent, IpcMainInvokeEvent } from "electron";
 import { monitorPower } from "./power-events.ts";
 import { registerWorkspaceClose, requestWorkspaceQuit } from "./workspace-close.ts";
 import { spawn, type ChildProcessWithoutNullStreams } from "node:child_process";
-import { stopController } from "./runtime/process.ts";
 import { join, resolve } from "node:path";
 import type { QuitGuardState, QuitShortcut } from "@canopy/ui/desktop";
 import { initialStatus, serviceEnvironment, type ConfigurationInput } from "./runtime/config.ts";
@@ -37,7 +36,10 @@ import { desktopHistory, registerHistoryIpc } from "./history-ipc.ts";
 import { registerFontsIpc } from "./fonts-ipc.ts";
 import { startupFailure } from "./startup-error.ts";
 import { sendWindowMessage, sendWindowsMessage, windowContents } from "./window-message.ts";
-import { registerSecondInstance, relaunchAfterQuit } from "./relaunch.ts";
+import { relaunchAfterQuit } from "./relaunch.ts";
+import { registerDesktopLifecycle } from "./desktop-lifecycle.ts";
+import { showShutdownWindow } from "./shutdown-window.ts";
+import { shutdownDesktop } from "./shutdown.ts";
 
 const identity = desktopIdentity();
 
@@ -66,6 +68,7 @@ if (!ownsInstance) app.quit();
 
 let window: BrowserWindow | undefined;
 let settingsWindow: BrowserWindow | undefined;
+let shutdownWindow: BrowserWindow | undefined;
 let tray: Tray | undefined;
 let controller: ChildProcessWithoutNullStreams | undefined;
 let controllerExited = false;
@@ -96,6 +99,7 @@ const iconPath = app.isPackaged
   : resolve(app.getAppPath(), `build/${identity.channel}/icon.png`);
 
 const logs = new Logs(join(app.getPath("userData"), "logs"));
+const startupFailed = startupFailure(logs, () => quitting);
 const history = desktopHistory();
 const quitSettings = new QuitSettings(app.getPath("userData"));
 const quitLog = (decision: string) => logs.write("desktop", `quit-guard ${decision}`);
@@ -127,13 +131,16 @@ function rpc(action: string, args: ControllerArguments = {}) {
 }
 
 const isTrusted = (event: IpcMainInvokeEvent | IpcMainEvent, setupOnly = false) =>
-  !controllerExited && isTrustedDesktopEvent(event, [window, settingsWindow], setupOrigin, status.webUrl, setupOnly);
+  !quitting &&
+  !controllerExited &&
+  isTrustedDesktopEvent(event, [window, settingsWindow], setupOrigin, status.webUrl, setupOnly);
 
 function authorize(event: IpcMainInvokeEvent | IpcMainEvent, setupOnly = false) {
   if (!isTrusted(event, setupOnly)) throw new Error("Untrusted desktop request");
 }
 
 function broadcast() {
+  if (quitting) return;
   remoteUpdate?.changed();
 
   if (remoteUpdate && !remoteUpdate.active) void remoteUpdate.publish().catch(() => {});
@@ -156,7 +163,9 @@ function broadcast() {
 }
 
 function showMain() {
-  if (!setupOrigin || quitting) return;
+  if (quitting) return showShutdownWindow(shutdownWindow);
+
+  if (!setupOrigin) return;
 
   if (!window || window.isDestroyed()) {
     window = createWindow(true);
@@ -211,10 +220,15 @@ async function openApplication() {
   try {
     await policy.prepare(status.webUrl);
 
+    if (quitting) return;
+
     if (!window || window.isDestroyed()) window = createWindow(true);
     await window.loadURL(status.webUrl);
+
+    if (quitting) return;
     settingsWindow?.close();
   } catch {
+    if (quitting) return;
     startupError = "Gateway unavailable. Check your connection and the Canopy web address, then try again.";
     status = { ...status, phase: "error", error: startupError };
     logs.write("desktop", "Web application unavailable; showing startup recovery");
@@ -254,24 +268,7 @@ function enrollment(link: string) {
   });
 }
 
-registerSecondInstance(
-  identity.scheme,
-  () => quitting,
-  (link) => (link ? enrollment(link) : showMain()),
-);
-
-app.on("open-url", (event, url) => {
-  event.preventDefault();
-  enrollment(url);
-});
-
-app.on("window-all-closed", () => process.platform !== "darwin" && app.quit());
-
-app.on("activate", showMain);
-
-process.on("SIGTERM", () => app.quit());
-
-process.on("SIGINT", () => app.quit());
+registerDesktopLifecycle(identity.scheme, () => quitting, showMain, enrollment);
 
 app.on("before-quit", (event) => {
   if (stopped) return;
@@ -289,40 +286,30 @@ app.on("before-quit", (event) => {
   updates.stop();
   remoteUpdate?.stop();
 
-  const finish = () => {
-    stopped = true;
+  shutdownWindow = shutdownDesktop({
+    controller,
+    controllerExited,
+    installingUpdate,
+    iconPath,
+    tray,
+    announce: async () => {
+      await rpc("presence", {
+        state: installingUpdate ? "updating" : "shutting_down",
+        targetVersion: installingUpdate ? updates.status().updateVersion : undefined,
+      });
+    },
+    finish: (target) => {
+      stopped = true;
+      target?.destroy();
 
-    if (installingUpdate) updates.install();
-    else {
-      relaunchAfterQuit();
-      app.quit();
-    }
-  };
-
-  // EOF makes the guardian stop owned process groups even if Electron subsequently crashes.
-  void rpc("presence", {
-    state: installingUpdate ? "updating" : "shutting_down",
-    targetVersion: installingUpdate ? updates.status().updateVersion : undefined,
-  })
-    .catch(() => {})
-    .finally(() => controller?.stdin.end());
-
-  const timeout = setTimeout(() => stopController(controller), 35_000);
-
-  if (
-    !controller ||
-    controllerExited ||
-    !controller.pid ||
-    controller.exitCode !== null ||
-    controller.signalCode !== null
-  ) {
-    clearTimeout(timeout);
-    finish();
-  } else
-    controller.once("exit", () => {
-      clearTimeout(timeout);
-      finish();
-    });
+      if (installingUpdate) updates.install();
+      else {
+        relaunchAfterQuit();
+        app.quit();
+      }
+    },
+    failed: () => logs.write("desktop", "Could not load the closing status window"),
+  });
 });
 
 function startController() {
@@ -448,8 +435,12 @@ async function start() {
     await rpc("presence", { state });
   });
   const initialized = await initializeController(app.getPath("userData"), startController, webSession.token, rpc, logs);
+
+  if (quitting) return;
   remoteUpdate = remoteAppUpdate(updates, rpc);
   await remoteUpdate.publish();
+
+  if (quitting) return;
 
   setupOrigin = initialized.origin;
   status = initialized.status;
@@ -458,6 +449,8 @@ async function start() {
   webSession.attach(window.webContents.session, () => [windowContents(window), windowContents(settingsWindow)]);
   await policy.prepare(`${setupOrigin}/desktop`);
 
+  if (quitting) return;
+
   policy.attach(window.webContents.session, () => [setupOrigin, status.webUrl]);
   tray = new Tray(nativeImage.createFromPath(iconPath).resize({ width: 20, height: 20 }));
   tray.on("click", showMain);
@@ -465,6 +458,8 @@ async function start() {
   void updates.start();
   broadcast();
   await window.loadURL(`${setupOrigin}/desktop`);
+
+  if (quitting) return;
   // The local startup screen stays visible while restoring services or downloading PostgreSQL.
   busy = true;
 
@@ -472,10 +467,14 @@ async function start() {
     // Vault failures leave startup/settings available; configure can retry after keychain unlock.
     const client = await savedRemoteClient(app.getPath("userData")).catch(() => undefined);
 
+    if (quitting) return;
+
     if (client) logs.protect(client.token);
 
     if (client) remoteUpdate.selectDevice(client.deviceId);
     await remoteUpdate.publish();
+
+    if (quitting) return;
     await rpc("restore", { remoteClient: client });
 
     if (status.phase === "running") await openApplication();
@@ -491,4 +490,4 @@ async function start() {
   }
 }
 
-if (ownsInstance) void app.whenReady().then(start).catch(startupFailure(logs));
+if (ownsInstance) void app.whenReady().then(start).catch(startupFailed);
