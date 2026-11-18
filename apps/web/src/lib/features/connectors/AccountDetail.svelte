@@ -19,6 +19,7 @@
   import { expand } from "#lib/shared/ui/motion.ts";
   import type { AccessChoice } from "@canopy/domain/access-picker";
   import AccountSummary from "./AccountSummary.svelte";
+  import SlackMessages from "./SlackMessages.svelte";
   import AccessPicker from "#lib/features/access/AccessPicker.svelte";
   import type { AccessOption } from "#lib/features/access/access-options.ts";
   import ToolCatalog from "./ToolCatalog.svelte";
@@ -215,6 +216,12 @@
       </div>
     </div>
   {/if}
+  {#if type.id === "slack"}<SlackMessages
+      {account}
+      {oauthCompletion}
+      {onupdate}
+      onreconnect={() => (reconnecting = true)}
+    />{/if}
   {#if tools && account.status === "connected"}
     {@const verified = tools}
     <Disclosure class="px-3 pb-3 text-base/5 sm:text-sm/5" summaryClass="py-1">
@@ -256,7 +263,9 @@
 <Dialog
   bind:open={disconnecting}
   title="Disconnect {account.name}?"
-  description="Computers sharing configuration lose access to this account. You can reconnect it later."
+  description={type.id === "slack"
+    ? "Computers sharing configuration lose tool access. Message reception pauses and routes stay saved. Reconnect and authorize messages to resume."
+    : "Computers sharing configuration lose access to this account. You can reconnect it later."}
   dismissible={!busy}
 >
   <DialogActions
@@ -269,7 +278,9 @@
 <Dialog
   bind:open={deleting}
   title="Delete {type.name} · {account.name}?"
-  description="This removes the account from computers sharing configuration. Workers and bots lose access. A linked computer can restore it for 90 days."
+  description={type.id === "slack"
+    ? "This removes the account from computers sharing configuration. Workers and bots lose tool access. Message reception stops and route history stays saved. A linked computer can restore the account for 90 days."
+    : "This removes the account from computers sharing configuration. Workers and bots lose access. A linked computer can restore it for 90 days."}
   dismissible={!busy}
 >
   <DialogActions

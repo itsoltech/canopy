@@ -28,14 +28,14 @@ export function messengerRoutes(sql: SqlClient.SqlClient, accounts: MessengerAcc
     saveRoute: (owner: string, input: SaveMessengerRoute) =>
       sql.withTransaction(
         Effect.gen(function* () {
+          // Match dispatch, finish and delivery: bot before account, including FK checks on a new route.
+          const bot = yield* sql`SELECT id FROM bots WHERE id=${input.botId}::uuid AND owner_user_id=${owner}::uuid
+        AND deleted_at IS NULL AND archived_at IS NULL AND moved_to IS NULL FOR NO KEY UPDATE`;
+
+          if (!bot.length) return yield* Effect.fail(new NotFound("Bot not found"));
           // Account lock serializes responder overlap checks; bots never carry account credentials.
           yield* accounts.owned(owner, input.accountId);
           yield* sql`SELECT id FROM messenger_accounts WHERE id=${input.accountId}::uuid FOR UPDATE`;
-
-          const bot = yield* sql`SELECT id FROM bots WHERE id=${input.botId}::uuid AND owner_user_id=${owner}::uuid
-        AND deleted_at IS NULL AND archived_at IS NULL AND moved_to IS NULL`;
-
-          if (!bot.length) return yield* Effect.fail(new NotFound("Bot not found"));
 
           if (input.id) {
             const existing = yield* sql`SELECT id FROM bot_channel_routes WHERE id=${input.id}::uuid

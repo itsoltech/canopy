@@ -1,5 +1,5 @@
 import { auth, type OAuthClientProvider } from "@modelcontextprotocol/sdk/client/auth.js";
-import { Predicate, Schema } from "effect";
+import { Option, Predicate, Schema } from "effect";
 import type { Credentials } from "./store.ts";
 import { oauthFetch } from "./catalog.ts";
 import { digest } from "./records.ts";
@@ -104,6 +104,11 @@ export async function authorizeOAuth(
             const accountOwner = Schema.is(Schema.Struct({ user: Schema.Struct({ id: Schema.String }) }));
 
             if (accountOwner(owner)) ids.push(["owner", owner.user.id]);
+
+            if (Predicate.isString(metadata["team_id"])) value.slackTeamId = metadata["team_id"];
+            const slackTeam = Schema.decodeUnknownOption(Schema.Struct({ id: Schema.String }))(metadata["team"]);
+
+            if (Option.isSome(slackTeam)) value.slackTeamId = slackTeam.value.id;
 
             if (ids.length) value.accountIdentity = digest(JSON.stringify(ids));
           }

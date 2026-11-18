@@ -2,8 +2,9 @@
 
 Projekt i wdrożenie: 2026-11-02. Zakres: konta zdalnych serwerów MCP,
 OAuth w gateway, dostęp wybranych workerów i botów oraz jeden kanał wykonania.
-Status (2026-11-17): ustawienia bota udostępniają osobną sekcję Messengers
-dla kont Slack Socket Mode i tras wiadomości; konto MCP Slack pozostaje niezależne.
+Status (2026-11-18): jedno konto Slack w Settings → Connectors współdzieli aplikację
+OAuth dla narzędzi MCP i wiadomości botów przez Socket Mode. Bot settings → Messengers
+wybiera podłączone konto i trasy; gateway odnawia rotowane tokeny użytkownika i bota.
 Panel web/desktop jest odświeżany reaktywnie w pamięci BFF
 i dostarczany przez SSE; autoryzacja uwzględnia zmiany uprawnień bieżącej tury Claude.
 Panel natywnego mobile rozróżnia dostęp workera i katalog bieżącej tury:
@@ -298,24 +299,29 @@ Usługa bez DCR (`oauth_app_required`: GitHub, Slack) pokazuje formularz aplikac
 ze stałym redirect URL (`redirect_url`), dopóki aplikacja nie zostanie zapisana; w innych
 typach scopes i zarejestrowana aplikacja oraz własne nagłówki są opcjami Advanced.
 
-**Aplikacja Slack jednym kliknięciem.** Slack nie ma DCR, więc każdy workspace potrzebuje
-własnej aplikacji. Gateway buduje jej manifest (`apps/gateway/src/connectors/slack-app.ts`,
-pola `app_manifest` i `app_create_url`): nazwa „Canopy”, opis, kolor z palety, stały
-redirect URL, user scopes narzędzi Slack MCP i `settings.is_mcp_enabled: true`, bez socket mode, org deploy, token rotation
-i publicznej dystrybucji. Manifest nie zawiera sekretów. „Create the Slack app” otwiera
+**Jedna aplikacja Slack dla Canopy.** Slack nie ma DCR, więc właściciel zapisuje
+client ID i secret swojej aplikacji w Settings → Connectors. Gateway buduje wspólny
+manifest (`apps/gateway/src/connectors/slack-app.ts`, pola `app_manifest`
+i `app_create_url`): nazwa „Canopy”, stały redirect URL, user scopes narzędzi MCP,
+bot scopes wiadomości, bot user, App Home, subskrypcje zdarzeń,
+`settings.is_mcp_enabled: true`, `settings.socket_mode_enabled: true`, PKCE S256
+i rotacja tokenów. Manifest nie zawiera sekretów. „Create the Slack app” otwiera
 `https://api.slack.com/apps?new_app=1&manifest_json=…` z wypełnionym manifestem;
-użytkownik wybiera workspace, klika Create i Install to Workspace, a z Basic Information
-kopiuje client ID i secret. „Copy manifest” to wariant ręczny. Slack pozwala używać MCP
-tylko aplikacjom wewnętrznym (albo z Marketplace) — aplikacja niepubliczna (unlisted) jest
-blokowana, więc instaluje się ją wyłącznie we własnym workspace. Token rotation jest
-wyłączone, bo Slack nie pozwala go potem wyłączyć, a tokeny bez rotacji nie wygasają.
-„Use an existing Slack app” służy współpracownikom z tego samego workspace: wklejają
-client ID i secret od właściciela aplikacji, bez dopisywania redirectów. W istniejącej
-aplikacji trzeba włączyć dostęp MCP w ustawieniach Slack albo ustawić
-`settings.is_mcp_enabled: true` w jej manifeście. Pole scopes jest
-wstępnie wypełnione tymi samymi scopes (`default_scope`). Redirect URL jest widoczny tylko
-jako szczegół dla ręcznej konfiguracji.
-Wskazówki są wyłącznie tekstem: nie zawierają poświadczeń i niczego nie weryfikują.
+„Copy manifest” daje wariant ręczny. Aplikacja pozostaje wewnętrzna, bez publicznej
+dystrybucji: Slack MCP odrzuca aplikacje unlisted, a Marketplace jest alternatywą
+dla instalacji we własnym workspace.
+
+Dotychczasową aplikację można zachować. Do jej manifestu należy dodać bot user,
+App Home, bot scopes i zdarzenia ze wspólnego manifestu, włączyć Socket Mode oraz
+`oauth_config.pkce_enabled`, zachowując user scopes, redirect URL i dostęp MCP.
+Następnie trzeba ponownie zainstalować aplikację. Włączonej rotacji tokenów Slack
+nie pozwala wyłączyć; Canopy obsługuje ją także dla tokenu bota. „Use an existing
+Slack app” korzysta z tego samego client ID i secret, bez tworzenia drugiej aplikacji.
+
+Narzędzia MCP i wiadomości wymagają osobnych zgód OAuth, ale używają jednej
+zarejestrowanej aplikacji i jednego konta w Canopy. MCP korzysta z user OAuth;
+sekcja wiadomości tego samego konta pobiera bot token przez standardowy OAuth
+Slack. Konfigurację odbioru opisuje [sekcja komunikatora](#slack-jako-komunikator-bota).
 
 ### Slack: wymagania i diagnoza
 
@@ -327,7 +333,8 @@ wynegocjowany `MCP-Protocol-Version` w żądaniach po initialize.
 z identyfikatorem i scopes. To token użytkownika (`xoxp-…`), nie token bota.
 SDK przechowuje go w zaszyfrowanych poświadczeniach; nie interpretuje `user` jako
 schematu nagłówka. Zwykłe `oauth.v2.access` może zwracać token użytkownika w
-`authed_user.access_token`, ale jest innym endpointem i nie obsługuje naszego flow.
+`authed_user.access_token`, ale jest innym endpointem: Canopy używa go dla zgody na wiadomości bota,
+nie dla autoryzacji MCP.
 
 Dokumentacja manifestu Slack (sprawdzona 2026-11-05,
 [Settings](https://docs.slack.dev/reference/app-manifest/#settings)) opisuje
@@ -408,20 +415,37 @@ narzędzie w rzeczywistym modelu Codexa.
 
 ## Slack jako komunikator bota
 
-Bot settings → Messengers zarządza kontami Slack i trasami tego bota na jego
-lokalnym gatewayu. Konto jest współdzielone między botami właściciela;
-wyłączenie wstrzymuje wszystkie jego trasy, a odłączenie usuwa je. Sekcja ma
-osobne przyciski Save account i Save route: zapis nie czeka na Save changes bota.
-Dla bota z połączonego komputera UI kieruje do zarządzania na jego komputerze;
-poświadczenia i administracja nie są przekazywane do innego domu.
+Settings → Connectors zarządza wspólnym kontem Slack oraz jego sekcją wiadomości.
+Właściciel zapisuje app-level token `xapp-…` z `connections:write`, a następnie
+udziela zgody na wiadomości w Slack przez OAuth tej samej aplikacji, której używa
+MCP. Bot token i refresh token wracają bezpośrednio do gatewaya; nie trzeba
+kopiować tokenu bota. Oba flow zachowują stały callback, stan jednorazowy,
+powiązanie z właścicielem i przeglądarką oraz PKCE S256. Zgoda na wiadomości
+nie nadpisuje tokenów MCP.
 
-To osobna aplikacja zdarzeniowa Slack, niezależna od konektora MCP opisanego
-wyżej. Create Slack app używa manifestu z `settings.socket_mode_enabled`,
-subskrypcjami wiadomości bota i bot scopes; Copy manifest daje ręczny wariant.
-Należy zainstalować aplikację w workspace, wygenerować app-level token `xapp-…`
-z `connections:write`, skopiować bot token `xoxb-…` z OAuth & Permissions
-i zaprosić aplikację do wybranych kanałów. Po zmianie scopes lub manifestu
-trzeba ją ponownie zainstalować. Nie wymaga publicznego webhooka ani OAuth MCP.
+Aplikację należy zaprosić do wybranych kanałów; po zmianie scopes lub manifestu
+trzeba ją ponownie zainstalować. Odbiór używa wychodzącego Socket Mode, bez
+publicznego webhooka. Jedno konto obsługuje wiele botów. Bot settings → Messengers
+wybiera konto i zapisuje trasy niezależnie od Save changes bota; nie zakłada
+kolejnej aplikacji Slack. Dla bota z połączonego komputera UI kieruje do zarządzania
+na jego komputerze; poświadczenia nie przechodzą do innego domu.
+
+Gateway sprawdza token aplikacji, bot token oraz tożsamość aplikacji i workspace
+przed uruchomieniem odbioru. Odnawia wygasający token bota z wyprzedzeniem;
+przed wysłaniem refresh zapisuje trwały znacznik próby. Nieznany wynik po awarii
+wymaga ponownej autoryzacji zamiast ponowienia zużytego refresh tokenu.
+Odnawianie tokenu użytkownika MCP również zapisuje trwałą próbę przed siecią;
+nieznanego wyniku nie ponawia po restarcie. Zmiana workspace w zgodzie MCP, także
+przez synchronizację z innym komputerem, wymaga ponownej zgody na wiadomości.
+Tokeny i client secret są szyfrowane, nie trafiają do modeli ani workerów;
+odczyty UI zawierają tylko publiczne metadane. Starsze konta z ręcznym bot tokenem
+pozostają obsługiwane; powiązanie tej samej instalacji zachowuje konto i jego trasy.
+
+Wyłączenie lub odłączenie konta w Connectors oraz zmiana client ID aplikacji
+odcinają odbiór, nowe działania tur zewnętrznych i wysyłkę. Ponowna autoryzacja
+przywraca dostęp dopiero po sprawdzeniu tożsamości; usunięcie konta wiadomości
+usuwa jego trasy. Trwała kontrola źródła działa także przed pobraniem outboxa,
+nie tylko przy zamykaniu połączenia Socket Mode.
 
 Wyszukiwanie kanałów przez bota korzysta z `conversations.list` i wymaga bot scopes
 `channels:read` oraz `groups:read` zawartych w manifeście. Starszą instalację należy
@@ -435,16 +459,11 @@ przez właściciela. Wynik katalogu pomija e-maile i pozostałe pola profilu;
 niejednoznaczne dopasowanie wymaga wyjaśnienia z właścicielem, bez rozszerzania
 listy dozwolonych autorów na wszystkich członków kanału.
 
-Gateway przed zapisem sprawdza oba tokeny i ich tożsamość przez adapter Slack;
-nie przyjmuje identyfikatora workspace od klienta. Zachowuje niepodane tokeny
-przy edycji. Tokeny są zaszyfrowane w gatewayu, pola są typu password, odczyty
-zwracają tylko publiczne metadane. Po zapisaniu nie można odzyskać tokenów z UI.
-
 Trasa wybiera konto, dozwolone identyfikatory użytkowników i kanałów, wiadomości
 prywatne, wzmianki oraz opcjonalne monitorowanie kanałów. Lista użytkowników
-jest obowiązkowa: osoby spoza niej nie uruchamiają bota. Monitorowanie każdej
-pasującej wiadomości uruchamia turę i zużywa tokeny modelu; instrukcje trasy nie
-są bezkosztowym filtrem semantycznym. Odpowiedź trafia do Slack (Reply in Slack)
+jest obowiązkowa: osoby spoza niej nie uruchamiają bota. Pasujące wiadomości są grupowane bez inferencji,
+a gotowe partie uruchamiają lub uzupełniają turę zużywającą tokeny modelu;
+instrukcje trasy nie są bezkosztowym filtrem semantycznym. Odpowiedź trafia do Slack (Reply in Slack)
 albo jako powiadomienie do właściciela w Canopy (Notify me in Canopy).
 Zewnętrzna rozmowa nie otrzymuje automatycznie prywatnej historii właściciela.
 Bot wybiera działania zgodnie z instrukcjami, korzystając ze swoich zwykłych

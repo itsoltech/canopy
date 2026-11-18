@@ -63,9 +63,9 @@ export function applyConnector(sql: SqlClient.SqlClient, owner: string, key: Buf
       ).pipe(Effect.catch(() => Effect.succeed(undefined)));
 
       if (!app?.client_id || v["type"] !== row.local_id) return void (row.unsupported = NOT_SUPPORTED);
-      yield* sql`INSERT INTO connector_oauth_apps(owner_user_id,connector_type,credentials)
-        VALUES(${owner}::uuid,${row.local_id},${secret.ciphertext}) ON CONFLICT(owner_user_id,connector_type)
-        DO UPDATE SET credentials=EXCLUDED.credentials,updated_at=now()`;
+      yield* sql`INSERT INTO connector_oauth_apps(owner_user_id,connector_type,credentials,client_id)
+        VALUES(${owner}::uuid,${row.local_id},${secret.ciphertext},${app.client_id}) ON CONFLICT(owner_user_id,connector_type)
+        DO UPDATE SET credentials=EXCLUDED.credentials,client_id=EXCLUDED.client_id,updated_at=now()`;
 
       return;
     }
@@ -127,14 +127,30 @@ export function applyConnector(sql: SqlClient.SqlClient, owner: string, key: Buf
           : "disconnected";
 
     yield* sql`INSERT INTO connector_accounts(id,owner_user_id,connector_type,name,namespace,url,transport,auth_kind,
-      credentials,status,all_workers,all_bots,tools)
+      credentials,status,all_workers,all_bots,tools,slack_team_id)
       VALUES(${row.local_id}::uuid,${owner}::uuid,${columns.type},${columns.name},${namespace},${columns.url},${columns.transport},
-      ${columns.authKind},${secret?.ciphertext ?? null},${status},${columns.allWorkers},${columns.allBots},${JSON.stringify(tools)}::jsonb)
+      ${columns.authKind},${secret?.ciphertext ?? null},${status},${columns.allWorkers},${columns.allBots},${JSON.stringify(tools)}::jsonb,${value?.slackTeamId ?? current?.slack_team_id ?? null})
       ON CONFLICT(id) DO UPDATE SET connector_type=EXCLUDED.connector_type,name=EXCLUDED.name,url=EXCLUDED.url,
       transport=EXCLUDED.transport,auth_kind=EXCLUDED.auth_kind,credentials=EXCLUDED.credentials,legacy_headers='{}',
       status=EXCLUDED.status,error=CASE WHEN ${changed} THEN NULL ELSE connector_accounts.error END,
       all_workers=EXCLUDED.all_workers,all_bots=EXCLUDED.all_bots,tools=EXCLUDED.tools,
+      slack_team_id=EXCLUDED.slack_team_id,
+      slack_refresh_attempt=CASE WHEN ${changed} THEN NULL ELSE connector_accounts.slack_refresh_attempt END,
+      slack_refresh_started_at=CASE WHEN ${changed} THEN NULL ELSE connector_accounts.slack_refresh_started_at END,
       revision=connector_accounts.revision+1,updated_at=now() WHERE connector_accounts.owner_user_id=${owner}::uuid`;
+
+    if (changed && columns.type === "slack") {
+      const identityChanged =
+        !!old?.accountIdentity && !!value?.accountIdentity && old.accountIdentity !== value.accountIdentity;
+
+      const unknownIdentity =
+        !value?.slackTeamId && (!value?.accountIdentity || value.accountIdentity !== old?.accountIdentity);
+
+      yield* sql`UPDATE messenger_accounts SET status='needs_authorization',lease_token=NULL,lease_until=NULL,revision=revision+1
+        WHERE connector_account_id=${row.local_id}::uuid AND owner_user_id=${owner}::uuid
+          AND ((${value?.slackTeamId ?? null}::text IS NOT NULL AND connector_team_id IS DISTINCT FROM ${value?.slackTeamId ?? null})
+            OR ${identityChanged || unknownIdentity || columns.authKind !== "oauth" || !value?.tokens})`;
+    }
 
     if (changed)
       yield* sql`DELETE FROM connector_oauth_states WHERE account_id=${row.local_id}::uuid AND owner_user_id=${owner}::uuid`;

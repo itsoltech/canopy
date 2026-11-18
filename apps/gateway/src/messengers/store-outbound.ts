@@ -1,6 +1,7 @@
 import { Effect } from "effect";
 import type { SqlClient } from "effect/sql";
 import { privateMessengerNotice } from "./store-notify.ts";
+import { activeConversation } from "./conversation-access.ts";
 import type { BotTurn } from "../bots/types.ts";
 import type { MessengerAccounts } from "./store-accounts.ts";
 import type { AccountLease, ConversationContext, OutboundMessage, OutboundResult } from "./types.ts";
@@ -22,12 +23,10 @@ export function finishChannelTurn(sql: SqlClient.SqlClient, turn: BotTurn, statu
 
     if (!context || status !== "completed" || !text.trim()) return;
 
-    const allowed = yield* sql`SELECT r.id FROM bot_channel_routes r JOIN messenger_accounts a ON a.id=r.account_id
-      JOIN bot_channel_conversations c ON c.route_id=r.id WHERE c.id=${turn.conversation_id}::uuid
-      AND r.deleted_at IS NULL AND a.enabled AND a.deleted_at IS NULL
-      AND (c.channel_id=ANY(r.channel_ids) OR (r.direct_messages AND c.channel_id LIKE 'D%'))`;
+    // finish already holds bot -> turn; account comes next, matching revocation and delivery writers.
+    yield* sql`SELECT a.id FROM messenger_accounts a WHERE a.id=${context.accountId}::uuid FOR UPDATE`;
 
-    if (!allowed.length) return;
+    if (!(yield* activeConversation(sql, turn.bot_id, context.conversationId))) return;
 
     if (context.delivery === "reply")
       yield* sql`INSERT INTO messenger_outbound(id,account_id,conversation_id,turn_id,channel_id,thread_id,text)
@@ -96,6 +95,7 @@ export function messengerOutbound(sql: SqlClient.SqlClient, accounts: MessengerA
         WHERE o.id IN (SELECT x.id FROM messenger_outbound x JOIN bot_channel_conversations c ON c.id=x.conversation_id
           JOIN bot_channel_routes r ON r.id=c.route_id JOIN bots b ON b.id=r.bot_id
           WHERE x.account_id=${lease.accountId}::uuid AND x.status='pending' AND x.available_at<=${now}
+          AND r.account_id=x.account_id AND r.owner_user_id=${owner}::uuid AND b.owner_user_id=${owner}::uuid
           AND r.deleted_at IS NULL AND b.deleted_at IS NULL AND b.archived_at IS NULL AND b.moved_to IS NULL
           AND (c.channel_id=ANY(r.channel_ids) OR (r.direct_messages AND c.channel_id LIKE 'D%'))
           ORDER BY x.available_at,x.id FOR UPDATE OF x SKIP LOCKED LIMIT 10)

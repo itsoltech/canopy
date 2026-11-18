@@ -45,7 +45,9 @@ export function saveOnEnter(event: KeyboardEvent, save: () => Promise<void>): vo
   void save();
 }
 
-export function messengerStatus(account: ui.MessengerAccount): string {
+export function messengerStatus(account?: ui.MessengerAccount): string {
+  if (!account) return "Account unavailable";
+
   if (!account.enabled) return "Paused";
 
   switch (account.status) {
@@ -55,8 +57,10 @@ export function messengerStatus(account: ui.MessengerAccount): string {
       return "Connecting…";
     case "retrying":
       return "Reconnecting…";
+    case "needs_authorization":
+      return "Authorization needed";
     case "needs_reconnect":
-      return "Edit tokens to reconnect";
+      return "Reconnect needed";
     case "error":
       return "Connection error";
     case "disconnected":

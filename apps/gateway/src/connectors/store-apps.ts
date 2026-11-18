@@ -43,9 +43,23 @@ export function connectorApps(sql: SqlClient.SqlClient, base: ConnectorBase, key
             ...(fixed && { redirect_uri: oauthRedirectUrl() }),
           };
 
-          yield* sql`INSERT INTO connector_oauth_apps(owner_user_id,connector_type,credentials)
-          VALUES (${user}::uuid,${request.connectorType},${encryptSecret(key, JSON.stringify(client))})
-          ON CONFLICT(owner_user_id,connector_type) DO UPDATE SET credentials=EXCLUDED.credentials,updated_at=now()`;
+          if (request.connectorType === "slack") {
+            const old = (yield* sql<{
+              credentials: Uint8Array;
+              client_id: string | null;
+            }>`SELECT credentials,client_id FROM connector_oauth_apps
+              WHERE owner_user_id=${user}::uuid AND connector_type='slack' FOR UPDATE`)[0];
+
+            const previous = old ? base.opened<RegisteredApp>(old.credentials) : undefined;
+
+            if (previous && !old?.client_id)
+              yield* sql`UPDATE connector_oauth_apps SET client_id=${previous.client_id}
+                WHERE owner_user_id=${user}::uuid AND connector_type='slack'`;
+          }
+
+          yield* sql`INSERT INTO connector_oauth_apps(owner_user_id,connector_type,credentials,client_id)
+          VALUES (${user}::uuid,${request.connectorType},${encryptSecret(key, JSON.stringify(client))},${client.client_id})
+          ON CONFLICT(owner_user_id,connector_type) DO UPDATE SET credentials=EXCLUDED.credentials,client_id=EXCLUDED.client_id,updated_at=now()`;
         }),
       ),
   };

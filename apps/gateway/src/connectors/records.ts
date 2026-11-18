@@ -10,6 +10,8 @@ export class ConnectorFailure extends Error {}
 export type RegisteredApp = OAuthClientInformationMixed & { issuer?: string; redirect_uri?: string };
 
 export interface Credentials {
+  slackTeamId?: string;
+  slackMessaging?: { accountId: string; revision: string; clientId: string };
   headers?: Record<string, string>;
   tokens?: OAuthTokens;
   client?: OAuthClientInformationMixed;
@@ -40,6 +42,9 @@ export interface AccountRow {
   revision: bigint | string;
   tools: JsonValue[];
   last_used_at: Date | null;
+  slack_team_id?: string | null;
+  slack_refresh_attempt?: string | null;
+  slack_refresh_started_at?: Date | null;
 }
 
 export interface ExecutionSource {

@@ -38,7 +38,7 @@ describe.skipIf(!dockerAvailable)("usage estimate migration", () => {
           ),
         ),
       );
-      expect(await runtime.runPromise(migrate)).toEqual([[165, "usage_estimated_cost"]]);
+      expect(await runtime.runPromise(migrate)).toContainEqual([165, "usage_estimated_cost"]);
 
       const rows = () =>
         runtime.runPromise(

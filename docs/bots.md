@@ -1,6 +1,6 @@
 # Boty
 
-Status (2026-11-17): zaimplementowano trwałe rozmowy botów przez Slack Socket Mode,
+Status (2026-11-18): zaimplementowano trwałe rozmowy botów przez Slack Socket Mode,
 buforowanie, izolację historii kanałów i zwykłe przyznane narzędzia w turach zewnętrznych.
 Konfiguracja bota przenosi `service_tier` do `RunBotTurn`.
 Limit automatycznej wymiany wynosi 256 kroków; walidacja budżetu przed zgodą
@@ -9,12 +9,16 @@ Dostępność nightly/beta/stable według [release.md](release.md).
 
 ## Rozmowy przez komunikatory
 
-Gateway przechowuje osobne konta aplikacji Slack Socket Mode: jedna instalacja
-aplikacji w workspace może mieć wiele tras do botów. Token aplikacji i token bota
-są szyfrowane kluczem gatewaya; listy, protobuf, worker i model nie otrzymują tokenów.
-Konta Slack MCP pozostają niezależne. Walidacja obu tokenów i ich przynależności do
-aplikacji odbywa się przed zapisem przez API. Konsument konta utrzymuje odnawiany
+Konto Slack w Settings → Connectors współdzieli jedną aplikację OAuth dla MCP
+oraz wiadomości przez Socket Mode. Jedna instalacja w workspace ma wiele tras
+do botów. Dodatkowa zgoda OAuth pobiera token bota bez zmiany tokenu MCP;
+gateway odnawia rotowane tokeny. App-level token, bot token i refresh token są
+szyfrowane; listy, protobuf, worker i model ich nie otrzymują. Gateway weryfikuje
+zgodność aplikacji i workspace przed odbiorem. Konsument konta utrzymuje odnawiany
 lease w PostgreSQL; nowy token lease odcina poprzedni proces także po restarcie.
+Wyłączenie lub usunięcie powiązanego connectora albo zmiana client ID blokują
+źródło także dla aktywnej tury i outboxa. Szczegóły konfiguracji i odnawiania:
+[connectors.md](connectors.md#slack-jako-komunikator-bota).
 
 Właściciel wybiera dla każdej pary bot–konto listę kanałów, obowiązkową listę
 użytkowników, wiadomości prywatne, wzmianki i obserwowanie oraz sposób dostarczenia
@@ -95,7 +99,8 @@ atrapy nie dowodzą poprawności uprawnień konkretnej instalacji Slack.
 
 ### Konfiguracja nasłuchiwania przez prywatną rozmowę
 
-Właściciel najpierw łączy aplikację Slack w Bot settings → Messengers. Instalacja
+Właściciel najpierw włącza wiadomości konta Slack w Settings → Connectors.
+Bot settings → Messengers wybiera to konto i konfiguruje trasy. Instalacja
 wymaga `channels:read` i `groups:read` do wyszukiwania kanałów; po dodaniu tych
 scopes należy ponownie zainstalować aplikację i zaprosić ją do kanałów. Tokenów
 nie przekazuje się botowi. Bot odczytuje publiczne metadane kont przez

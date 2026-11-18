@@ -30,7 +30,9 @@ export function connectorState(sql: SqlClient.SqlClient, base: ConnectorBase, ke
         Effect.gen(function* () {
           const row = yield* owned(user, id, true);
           const value = yield* credentials(row);
-          yield* sql`UPDATE connector_accounts SET status='disconnected',error=NULL,credentials=NULL,legacy_headers='{}',tools='[]',revision=revision+1,updated_at=now() WHERE id=${row.id}::uuid`;
+          yield* sql`UPDATE connector_accounts SET status='disconnected',error=NULL,credentials=NULL,slack_refresh_attempt=NULL,slack_refresh_started_at=NULL,legacy_headers='{}',tools='[]',revision=revision+1,updated_at=now() WHERE id=${row.id}::uuid`;
+          yield* sql`UPDATE messenger_accounts SET status='disconnected',lease_until=NULL,lease_token=NULL,revision=revision+1
+            WHERE connector_account_id=${row.id}::uuid AND owner_user_id=${user}::uuid`;
           yield* sql`DELETE FROM connector_oauth_states WHERE account_id=${row.id}::uuid`;
 
           // Legacy encrypted headers have been copied by reference. Remove only this account's owned secret rows.

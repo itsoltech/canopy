@@ -14,7 +14,7 @@ import { GatewayStore } from "../store/store.ts";
 import type { CoreRuntime } from "../core/core.ts";
 import { mcpCall, mcpTools } from "../bots/mcp.ts";
 import type { McpConnection, ToolSpec } from "../bots/types.ts";
-import { connectorCatalog, connectorType, connectorUrl } from "./catalog.ts";
+import { connectorCatalog, connectorType } from "./catalog.ts";
 import { completeOAuth } from "./oauth-completion.ts";
 import {
   ConnectorFailure,
@@ -25,7 +25,9 @@ import {
   type ExecutionSource,
 } from "./store.ts";
 import { authorizeOAuth, redactConnector, revokeOAuth } from "./oauth.ts";
-import { beginOAuth } from "./sign-in.ts";
+import { beginConnectorOAuth } from "./oauth-begin.ts";
+import { slackUserCredentials } from "./slack-user-refresh.ts";
+import type { SlackTransport } from "../messengers/slack-http.ts";
 import { connectorPermission, failed, handleConnectorCall } from "./calls.ts";
 import { worktreeMerged } from "./merged-pr.ts";
 import { connectorTestError, ConnectorTestFailure } from "./test-error.ts";
@@ -42,6 +44,7 @@ export class ConnectorsRuntime {
     private readonly options: {
       runtime: CoreRuntime;
       userId: string;
+      messengerTransport?: SlackTransport;
       interaction(interaction: ui.Interaction): Promise<void>;
     },
   ) {}
@@ -95,41 +98,11 @@ export class ConnectorsRuntime {
   saveApp(request: connectors.SaveConnectorOAuthAppRequest) {
     return this.run((s) => s.saveApp(this.options.userId, request));
   }
-  async begin(request: connectors.BeginConnectorOAuthRequest) {
-    if (!/^[\w-]{32,128}$/.test(request.browserBinding) || request.scope.length > 4000)
-      throw new ConnectorFailure("Invalid OAuth session");
-    const redirect = connectorUrl(request.redirectUri);
-
-    if (new URL(redirect).pathname !== "/api/connectors/oauth/callback")
-      throw new ConnectorFailure("Invalid OAuth callback");
-    const row = await this.run((s) => s.owned(this.options.userId, request.accountId));
-
-    if (row.auth_kind !== "oauth") throw new ConnectorFailure("This account uses token authentication");
-    const app = await this.run((s) => s.app(this.options.userId, row.connector_type));
-    const previous = await this.run((s) => s.credentials(row));
-
-    try {
-      const {
-        authorizationUrl: url,
-        value,
-        state,
-      } = await beginOAuth(row.url, redirect, request.desktop, previous, app, request.scope || undefined);
-
-      if (!url || !value.verifier) throw new Error("Authorization redirect missing");
-      const authorization = new URL(url);
-      connectorUrl(`${authorization.origin}${authorization.pathname}`);
-
-      // SDK discovery must advertise S256; never accept a downgraded PKCE flow.
-      if (authorization.searchParams.get("code_challenge_method") !== "S256") throw new Error("PKCE required");
-      await this.run((s) => s.saveState(this.options.userId, row, state, request.browserBinding, value));
-
-      return create(connectors.BeginConnectorOAuthResponseSchema, { authorizationUrl: url });
-    } catch {
-      throw new ConnectorFailure("Could not start OAuth. Check the server metadata and registered OAuth app.");
-    }
+  begin(request: connectors.BeginConnectorOAuthRequest) {
+    return beginConnectorOAuth(this, this.options.userId, request, this.options.messengerTransport);
   }
   async complete(input: connectors.CompleteConnectorOAuthRequest) {
-    return completeOAuth(this, this.options.userId, input);
+    return completeOAuth(this, this.options.userId, input, this.options.messengerTransport);
   }
   /** Lock covers rotated refresh tokens across processes; no vendor request starts with stale credentials. */
   async #connection(
@@ -137,64 +110,75 @@ export class ConnectorsRuntime {
     id: string,
     testing = false,
   ): Promise<{ row: AccountRow; value: Credentials; server: McpConnection }> {
-    const result = await this.run((s) =>
-      s.transaction(
-        Effect.gen(function* () {
-          const row = yield* s.owned(user, id, true);
+    const account = await this.run((s) => s.owned(user, id));
 
-          if (row.status !== "connected" && !(testing && row.status === "error"))
-            return yield* Effect.fail(new ConnectorFailure("Connector needs reconnect or is disconnected"));
-          const value = yield* s.credentials(row);
+    const result =
+      account.connector_type === "slack" && account.auth_kind === "oauth"
+        ? await slackUserCredentials(this.options.runtime, user, id, testing)
+        : await this.run((s) =>
+            s.transaction(
+              Effect.gen(function* () {
+                const row = yield* s.owned(user, id, true);
 
-          if (
-            row.auth_kind === "oauth" &&
-            (!value.tokens || (value.expiresAt !== undefined && value.expiresAt <= Date.now() + 30_000))
-          ) {
-            const refreshed = yield* Effect.tryPromise({
-              try: async () => {
-                if (!value.tokens?.refresh_token) return false;
-                const redirect = await authorizeOAuth(row.url, value, "", undefined);
+                // Authentication may change after the initial read; Slack refresh must always commit its claim first.
+                if (row.connector_type === "slack" && row.auth_kind === "oauth")
+                  return yield* Effect.fail(new ConnectorFailure("Connector changed; try again"));
 
-                return !redirect && !!value.tokens;
-              },
-              catch: () => new ConnectorFailure("Connector needs reconnect"),
-            }).pipe(Effect.catch(() => Effect.succeed(false)));
+                if (row.status !== "connected" && !(testing && row.status === "error"))
+                  return yield* Effect.fail(new ConnectorFailure("Connector needs reconnect or is disconnected"));
+                const value = yield* s.credentials(row);
 
-            if (!refreshed) {
-              yield* s.status(row, "needs_reconnect");
+                if (
+                  row.auth_kind === "oauth" &&
+                  (!value.tokens || (value.expiresAt !== undefined && value.expiresAt <= Date.now() + 30_000))
+                ) {
+                  const refreshed = yield* Effect.tryPromise({
+                    try: async () => {
+                      if (!value.tokens?.refresh_token) return false;
+                      const redirect = await authorizeOAuth(row.url, value, "", undefined);
 
-              return undefined;
-            }
+                      return !redirect && !!value.tokens;
+                    },
+                    catch: () => new ConnectorFailure("Connector needs reconnect"),
+                  }).pipe(Effect.catch(() => Effect.succeed(false)));
 
-            yield* s.updateCredentials(row, value);
-          }
+                  if (!refreshed) {
+                    yield* s.status(row, "needs_reconnect");
 
-          const headers = {
-            ...value.headers,
-            ...(value.tokens && { Authorization: `Bearer ${value.tokens.access_token}` }),
-          };
+                    return undefined;
+                  }
 
-          return {
-            row,
-            value,
-            server: {
-              id: row.id,
-              name: `${connectorType(row.connector_type)?.name ?? row.connector_type} · ${row.name}`,
-              url: row.url,
-              transport: row.transport,
-              enabled: true,
-              headers,
-              namespace: row.namespace,
-            },
-          };
-        }),
-      ),
-    );
+                  yield* s.updateCredentials(row, value);
+                }
+
+                return { row, value };
+              }),
+            ),
+          );
 
     if (!result) throw new ConnectorFailure("Connector needs reconnect");
+    const { row, value } = result;
 
-    return result;
+    const headers = {
+      ...value.headers,
+      ...(value.tokens && { Authorization: `Bearer ${value.tokens.access_token}` }),
+    };
+
+    return {
+      row,
+      value,
+      server: {
+        id: row.id,
+        name: `${connectorType(row.connector_type)?.name ?? row.connector_type} · ${row.name}`,
+        url: row.url,
+        transport: row.transport,
+        enabled: true,
+        headers,
+        namespace: row.namespace,
+      },
+    };
   }
+
   async test(
     id: string,
     user = this.options.userId,

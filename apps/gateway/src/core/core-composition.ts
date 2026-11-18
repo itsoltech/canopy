@@ -1,3 +1,5 @@
+import { ConnectorsRuntime } from "../connectors/runtime.ts";
+import { allowFullAccessPermission } from "./live-turn-permissions.ts";
 import { create, fromJson } from "@bufbuild/protobuf";
 import { ui } from "@canopy/contracts";
 import { toUiSteer, toUiTurn } from "../store/index.ts";
@@ -31,6 +33,16 @@ import { publishThreadImages } from "./image-publication.ts";
 import { importImageReply } from "./image-markdown.ts";
 import { releaseFound } from "../updates/found.ts";
 import { withTurnPermissionMutation } from "./turn-permission-state.ts";
+
+export function createCoreConnectors(core: GatewayCore, options: GatewayCoreOptions): ConnectorsRuntime {
+  return new ConnectorsRuntime({
+    runtime: options.runtime,
+    userId: options.userId,
+    ...(options.messengerTransport && { messengerTransport: options.messengerTransport }),
+    interaction: (interaction) =>
+      corePublishInteraction(core, interaction).then(() => allowFullAccessPermission(core, interaction)),
+  });
+}
 
 export function createCoreBots(core: GatewayCore, options: GatewayCoreOptions): BotsRuntime {
   return new BotsRuntime({

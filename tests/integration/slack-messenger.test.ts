@@ -183,12 +183,26 @@ afterEach(async () => {
 });
 
 describe("Slack messenger provider transport", () => {
+  test("accepts a rotated bot token without confusing it with a user token", async () => {
+    const f = fixture();
+    const botToken = "xoxe.xoxb-fixture";
+    expect(await validateSlackAccount({ ...credentials, botToken }, undefined, f.transport)).toMatchObject({
+      externalId: "T1:B1",
+      appId: "A1",
+    });
+    expect(f.requests[0]?.authorization).toBe(`Bearer ${botToken}`);
+    await expect(
+      validateSlackAccount({ ...credentials, botToken: "xoxe.xoxp-fixture" }, undefined, f.transport),
+    ).rejects.toMatchObject({ kind: "configuration", code: "invalid_token_type" });
+  });
+
   test("verifies bot/workspace identity and the actual Socket Mode app pairing", async () => {
     const f = fixture();
     expect(await validateSlackAccount(credentials, undefined, f.transport)).toEqual({
       externalId: "T1:B1",
       botUserId: "UBOT",
       teamId: "T1",
+      appId: "A1",
     });
     expect(f.requests.map((request) => request.method)).toEqual(["auth.test", "bots.info", "apps.connections.open"]);
     expect(f.requests[0]?.authorization).toBe("Bearer xoxb-fixture");
@@ -515,7 +529,7 @@ describe("Slack messenger provider transport", () => {
     expect(unsafe.connectionCount).toBe(0);
   });
 
-  test("event app manifest configures Socket Mode and message subscriptions separately from MCP", () => {
+  test("one Slack app manifest configures MCP, Socket Mode and token rotation", () => {
     const manifest = JSON.parse(slackMessengerAppManifest());
     expect(manifest.settings.socket_mode_enabled).toBe(true);
     expect(manifest.settings.event_subscriptions.bot_events).toEqual([
@@ -527,7 +541,10 @@ describe("Slack messenger provider transport", () => {
     ]);
     expect(manifest.oauth_config.scopes.bot).toContain("users:read");
     expect(manifest.oauth_config.scopes.bot).toContain("chat:write");
-    expect(manifest.settings.is_mcp_enabled).toBeUndefined();
-    expect(manifest.oauth_config.scopes.user).toBeUndefined();
+    expect(manifest.settings.is_mcp_enabled).toBe(true);
+    expect(manifest.settings.token_rotation_enabled).toBe(true);
+    expect(manifest.oauth_config.pkce_enabled).toBe(true);
+    expect(manifest.oauth_config.scopes.user).toContain("search:read.public");
+    expect(manifest.oauth_config.redirect_urls).toHaveLength(1);
   });
 });

@@ -1,7 +1,7 @@
 /**
  * The Slack app a workspace creates for Canopy: Slack has no dynamic client registration. Every installation
  * uses the same fixed redirect URL, so the manifest is the same and colleagues can share one app.
- * Checked against Slack's documentation, 2026-11-05:
+ * Checked against Slack's documentation, 2026-11-18:
  * https://docs.slack.dev/ai/slack-mcp-server/ (user scopes per MCP tool; only internal or Marketplace apps
  * may use MCP), https://docs.slack.dev/reference/app-manifest and
  * https://docs.slack.dev/app-manifests/configuring-apps-with-app-manifests/ (prefilled creation link).
@@ -39,10 +39,19 @@ export const SLACK_USER_SCOPES = [
   "lists:write",
 ] as const;
 
-/**
- * Manifest for "create app from manifest", with no secrets. No public distribution: Slack blocks MCP for
- * unlisted apps. Token rotation stays off: Slack cannot turn it off again, and plain tokens do not expire.
- */
+export const SLACK_BOT_SCOPES = [
+  "app_mentions:read",
+  "chat:write",
+  "channels:history",
+  "channels:read",
+  "groups:history",
+  "groups:read",
+  "im:history",
+  "mpim:history",
+  "users:read",
+] as const;
+
+/** One app supplies MCP user authorization and the bot authorization used for Socket Mode. */
 export function slackAppManifest(redirectUrl: string) {
   const manifest = {
     display_information: {
@@ -51,12 +60,24 @@ export function slackAppManifest(redirectUrl: string) {
       // Emerald 700 from the Canopy palette (packages/ui/src/palette.json, the Grove accent).
       background_color: "#007a55",
     },
-    oauth_config: { redirect_urls: [redirectUrl], scopes: { user: [...SLACK_USER_SCOPES] } },
+    features: {
+      bot_user: { display_name: "Canopy", always_online: false },
+      app_home: { home_tab_enabled: false, messages_tab_enabled: true, messages_tab_read_only_enabled: false },
+    },
+    oauth_config: {
+      redirect_urls: [redirectUrl],
+      scopes: { user: [...SLACK_USER_SCOPES], bot: [...SLACK_BOT_SCOPES] },
+      pkce_enabled: true,
+    },
     settings: {
       is_mcp_enabled: true,
       org_deploy_enabled: false,
-      socket_mode_enabled: false,
-      token_rotation_enabled: false,
+      socket_mode_enabled: true,
+      token_rotation_enabled: true,
+      app_level_token_rotation_enabled: false,
+      event_subscriptions: {
+        bot_events: ["app_mention", "message.im", "message.mpim", "message.channels", "message.groups"],
+      },
     },
   };
 

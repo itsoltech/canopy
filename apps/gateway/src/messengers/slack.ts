@@ -85,7 +85,12 @@ export async function validateSlackAccount(
   });
   probeSignal.throwIfAborted();
 
-  return { externalId: identity.externalId, botUserId: identity.botUserId, teamId: identity.teamId };
+  return {
+    externalId: identity.externalId,
+    botUserId: identity.botUserId,
+    teamId: identity.teamId,
+    appId: identity.appId,
+  };
 }
 
 function clientMessageId(id: string) {

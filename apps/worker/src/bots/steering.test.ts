@@ -211,6 +211,14 @@ for (const provider of [Provider.CLAUDE, Provider.CODEX]) {
         async () => f.records(),
         (records) => records.length > 0,
       );
+
+      if (provider === Provider.CODEX) {
+        // Observe the usage before crashing the process; trace writes precede notification delivery.
+        await eventually(f.events, (events) =>
+          events.some((event) => event.body.case === "usageUpdated" && Boolean(event.body.value.usage?.scope)),
+        );
+      }
+
       await f.steer("CRASH", inputId);
       const events = await eventually(f.events, (records) => records.some((e) => e.body.case === "turnFinished"));
       expect(hasNotice(events, "bot_steer_dropped", inputId)).toBe(true);

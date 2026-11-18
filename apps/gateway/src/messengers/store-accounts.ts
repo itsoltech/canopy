@@ -1,131 +1,89 @@
-import { Effect, Schema } from "effect";
+import { Effect } from "effect";
 import type { SqlClient } from "effect/sql";
-import { decryptSecret, encryptSecret } from "../store/secrets.ts";
+import { encryptSecret } from "../store/secrets.ts";
 import { Invalid, NotFound } from "../store/store.ts";
-import type { AccountLease, MessengerAccount, MessengerCredentials, SaveMessengerAccount } from "./types.ts";
-
-interface AccountRow {
-  id: string;
-  owner_user_id: string;
-  name: string;
-  provider: "slack";
-  external_id: string;
-  enabled: boolean;
-  status: string;
-  credentials: Uint8Array;
-}
-
-const decodeCredentials = Schema.decodeUnknownSync(Schema.Struct({ appToken: Schema.String, botToken: Schema.String }));
-
-const accountView = (row: AccountRow): MessengerAccount => ({
-  id: row.id,
-  ownerUserId: row.owner_user_id,
-  name: row.name,
-  provider: row.provider,
-  externalId: row.external_id,
-  enabled: row.enabled,
-  status: row.status,
-});
+import type { AccountLease } from "./types.ts";
+import { accountView, openMessengerCredentials, type AccountRow } from "./account-records.ts";
+import { saveMessengerAccount } from "./account-save.ts";
+import { messengerCredentials } from "./account-credentials.ts";
+import { linkedMessengerActive } from "./linked-account.ts";
 
 export function messengerAccounts(sql: SqlClient.SqlClient, key: Buffer) {
   const owned = (owner: string, id: string) =>
     sql<AccountRow>`SELECT * FROM messenger_accounts
-    WHERE id=${id}::uuid AND owner_user_id=${owner}::uuid AND deleted_at IS NULL`.pipe(
+      WHERE id=${id}::uuid AND owner_user_id=${owner}::uuid AND deleted_at IS NULL`.pipe(
       Effect.flatMap((rows) =>
         rows[0] ? Effect.succeed(rows[0]) : Effect.fail(new NotFound("Messenger account not found")),
       ),
     );
 
-  const open = (row: AccountRow): MessengerCredentials =>
-    decodeCredentials(JSON.parse(decryptSecret(key, row.credentials)));
+  const active = (owner: string, id: string) =>
+    sql`SELECT a.id FROM messenger_accounts a
+    WHERE a.id=${id}::uuid AND a.owner_user_id=${owner}::uuid AND a.enabled AND a.deleted_at IS NULL
+    AND ${linkedMessengerActive(sql)}`.pipe(Effect.map((rows) => rows.length > 0));
 
   const fenced = (owner: string, lease: AccountLease, now: Date) =>
-    sql`SELECT id FROM messenger_accounts
-    WHERE id=${lease.accountId}::uuid AND owner_user_id=${owner}::uuid AND lease_token=${lease.token}::uuid
-      AND lease_holder=${lease.holder} AND lease_until>${now} AND enabled AND deleted_at IS NULL FOR UPDATE`.pipe(
-      Effect.flatMap((rows) => (rows.length ? Effect.void : Effect.fail(new Invalid("Messenger lease lost")))),
-    );
+    Effect.gen(function* () {
+      const rows = yield* sql`SELECT id FROM messenger_accounts
+      WHERE id=${lease.accountId}::uuid AND owner_user_id=${owner}::uuid AND lease_token=${lease.token}::uuid
+      AND lease_holder=${lease.holder} AND lease_until>${now} AND enabled AND deleted_at IS NULL FOR UPDATE`;
+
+      if (!rows.length || !(yield* active(owner, lease.accountId)))
+        return yield* Effect.fail(new Invalid("Messenger lease lost"));
+    });
 
   return {
     owned,
     fenced,
+    active,
     accounts: (owner: string) =>
-      sql<AccountRow>`SELECT id,owner_user_id,name,provider,external_id,enabled,status
-      FROM messenger_accounts WHERE owner_user_id=${owner}::uuid AND deleted_at IS NULL ORDER BY name,id`.pipe(
+      sql<AccountRow>`SELECT * FROM messenger_accounts
+      WHERE owner_user_id=${owner}::uuid AND deleted_at IS NULL ORDER BY name,id`.pipe(
         Effect.map((rows) => rows.map(accountView)),
       ),
-    credentials: (owner: string, id: string) => owned(owner, id).pipe(Effect.map(open)),
-    saveAccount: (owner: string, input: SaveMessengerAccount) =>
-      sql.withTransaction(
-        Effect.gen(function* () {
-          if (
-            !input.name.trim() ||
-            input.name.length > 120 ||
-            !input.externalId.trim() ||
-            input.externalId.length > 200
-          )
-            return yield* Effect.fail(new Invalid("A name and verified workspace are required"));
-          // Serialize workspace uniqueness and token rotation across all gateway instances.
-          yield* sql`SELECT id FROM users WHERE id=${owner}::uuid FOR UPDATE`;
-          const prior = input.id ? yield* owned(owner, input.id) : undefined;
-
-          if (prior && prior.external_id !== input.externalId)
-            return yield* Effect.fail(new Invalid("Reconnect using the same Slack workspace"));
-          const previous = prior ? open(prior) : undefined;
-
-          const credentials = {
-            appToken: input.appToken || previous?.appToken || "",
-            botToken: input.botToken || previous?.botToken || "",
-          };
-
-          if (
-            !credentials.appToken.startsWith("xapp-") ||
-            !credentials.botToken.startsWith("xoxb-") ||
-            credentials.appToken.length > 4096 ||
-            credentials.botToken.length > 4096
-          )
-            return yield* Effect.fail(new Invalid("Slack app and bot tokens are required"));
-
-          const duplicate = yield* sql`SELECT id FROM messenger_accounts WHERE owner_user_id=${owner}::uuid
-        AND external_id=${input.externalId} AND deleted_at IS NULL AND id<>${prior?.id ?? Bun.randomUUIDv7()}::uuid`;
-
-          if (duplicate.length) return yield* Effect.fail(new Invalid("This Slack workspace is already connected"));
-          const id = prior?.id ?? Bun.randomUUIDv7();
-          const rotated = !!input.appToken || !!input.botToken;
-          const sealed = encryptSecret(key, JSON.stringify(credentials));
-          yield* sql`INSERT INTO messenger_accounts(id,owner_user_id,name,external_id,credentials,enabled)
-        VALUES(${id}::uuid,${owner}::uuid,${input.name.trim()},${input.externalId},${sealed},${input.enabled ?? prior?.enabled ?? true})
-        ON CONFLICT(id) DO UPDATE SET name=excluded.name,credentials=excluded.credentials,enabled=excluded.enabled,
-          status=CASE WHEN ${rotated} THEN 'connecting' ELSE messenger_accounts.status END,
-          lease_until=CASE WHEN ${rotated || input.enabled === false} THEN NULL ELSE messenger_accounts.lease_until END,
-          lease_token=CASE WHEN ${rotated || input.enabled === false} THEN NULL ELSE messenger_accounts.lease_token END`;
-
-          return accountView(yield* owned(owner, id));
-        }),
-      ),
+    credentials: messengerCredentials(sql, key),
+    savedCredentials: (owner: string, id: string) =>
+      owned(owner, id).pipe(Effect.map((row) => openMessengerCredentials(key, row))),
+    saveAccount: saveMessengerAccount(sql, key, owned),
     deleteAccount: (owner: string, id: string) =>
       sql.withTransaction(
         Effect.gen(function* () {
           yield* owned(owner, id);
           yield* sql`UPDATE messenger_accounts SET enabled=false,deleted_at=now(),credentials=${encryptSecret(key, "{}")},
-        lease_until=NULL,lease_token=NULL WHERE id=${id}::uuid AND owner_user_id=${owner}::uuid`;
+        lease_until=NULL,lease_token=NULL,revision=revision+1 WHERE id=${id}::uuid AND owner_user_id=${owner}::uuid`;
           yield* sql`UPDATE bot_channel_routes SET deleted_at=now() WHERE account_id=${id}::uuid`;
         }),
       ),
-    claimAccount: (owner: string, id: string, holder: string, now: Date) => {
-      const token = Bun.randomUUIDv7();
+    claimAccount: (owner: string, id: string, holder: string, now: Date) =>
+      sql.withTransaction(
+        Effect.gen(function* () {
+          yield* sql`SELECT id FROM messenger_accounts WHERE id=${id}::uuid AND owner_user_id=${owner}::uuid FOR UPDATE`;
 
-      return sql`UPDATE messenger_accounts SET status='connecting',lease_holder=${holder},lease_token=${token}::uuid,
+          if (!(yield* active(owner, id))) return undefined;
+          const token = Bun.randomUUIDv7();
+
+          const rows =
+            yield* sql`UPDATE messenger_accounts SET status='connecting',lease_holder=${holder},lease_token=${token}::uuid,
         lease_until=${new Date(now.getTime() + 30_000)} WHERE id=${id}::uuid AND owner_user_id=${owner}::uuid
-        AND enabled AND deleted_at IS NULL AND (lease_until IS NULL OR lease_until<=${now}) RETURNING id`.pipe(
-        Effect.map((rows): AccountLease | undefined => (rows.length ? { accountId: id, holder, token } : undefined)),
-      );
-    },
+        AND enabled AND deleted_at IS NULL AND (lease_until IS NULL OR lease_until<=${now}) RETURNING id`;
+
+          return rows.length ? { accountId: id, holder, token } : undefined;
+        }),
+      ),
     renewAccount: (owner: string, lease: AccountLease, now: Date) =>
-      sql`UPDATE messenger_accounts
-      SET lease_until=${new Date(now.getTime() + 30_000)} WHERE id=${lease.accountId}::uuid AND owner_user_id=${owner}::uuid
-      AND lease_token=${lease.token}::uuid AND lease_holder=${lease.holder} AND lease_until>${now}
-      AND enabled AND deleted_at IS NULL RETURNING id`.pipe(Effect.map((rows) => rows.length > 0)),
+      sql.withTransaction(
+        Effect.gen(function* () {
+          yield* sql`SELECT id FROM messenger_accounts WHERE id=${lease.accountId}::uuid AND owner_user_id=${owner}::uuid FOR UPDATE`;
+
+          if (!(yield* active(owner, lease.accountId))) return false;
+
+          const rows = yield* sql`UPDATE messenger_accounts SET lease_until=${new Date(now.getTime() + 30_000)}
+        WHERE id=${lease.accountId}::uuid AND owner_user_id=${owner}::uuid AND lease_token=${lease.token}::uuid
+        AND lease_holder=${lease.holder} AND lease_until>${now} AND enabled AND deleted_at IS NULL RETURNING id`;
+
+          return rows.length > 0;
+        }),
+      ),
     releaseAccount: (
       owner: string,
       lease: AccountLease,
@@ -134,7 +92,7 @@ export function messengerAccounts(sql: SqlClient.SqlClient, key: Buffer) {
     setAccountStatus: (owner: string, lease: AccountLease, status: string) =>
       sql`UPDATE messenger_accounts SET status=${status}
       WHERE id=${lease.accountId}::uuid AND owner_user_id=${owner}::uuid AND lease_token=${lease.token}::uuid
-        AND lease_until>now() AND enabled AND deleted_at IS NULL`.pipe(Effect.asVoid),
+      AND lease_until>now() AND enabled AND deleted_at IS NULL`.pipe(Effect.asVoid),
   };
 }
 

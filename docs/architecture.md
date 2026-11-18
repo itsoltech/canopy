@@ -288,8 +288,11 @@ Boty mają własne tabele (`bots`, `bot_turns`, `bot_messages`, `bot_harness_*` 
 a nie projekt ani wątek; ich rozmowa nie trafia do `thread_events`. Szczegóły:
 [bots.md](bots.md), [bots-harness.md](bots-harness.md).
 
-Kanały komunikatorów są odrębne od narzędzi connectorów MCP. Gateway odbiera
-zdarzenia Slack przez wychodzące połączenie Socket Mode, zapisuje je przed ACK
+Slack korzysta z jednej aplikacji i konta w Connectors dla MCP i komunikatora.
+Osobne zgody OAuth dają token użytkownika do MCP i odnawiany token bota
+do wiadomości; subskrypcja kanału pozostaje niezależna od grantów narzędzi.
+Wyłączenie powiązanego konta odcina także działania tur zewnętrznych i outbox.
+Gateway odbiera zdarzenia Slack przez wychodzące połączenie Socket Mode, zapisuje je przed ACK
 i grupuje wiadomości bez inferencji. Właściciel przypisuje konto do bota,
 wybiera kanały i nadawców oraz odpowiedź na Slacku albo powiadomienie w Canopy.
 Może też zlecić botowi konfigurację w prywatnej rozmowie: bot rozpoznaje kanały

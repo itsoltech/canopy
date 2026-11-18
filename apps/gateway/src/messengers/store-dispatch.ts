@@ -1,5 +1,7 @@
 import { Effect } from "effect";
 import type { SqlClient } from "effect/sql";
+import { activeConversation } from "./conversation-access.ts";
+import { linkedMessengerActive } from "./linked-account.ts";
 import type { ConversationRow, RouteRow, SteerInput } from "./types.ts";
 
 interface BufferedMessage {
@@ -37,11 +39,14 @@ function recoverUnconfirmed(sql: SqlClient.SqlClient, conversationId: string) {
 function dispatchConversation(sql: SqlClient.SqlClient, owner: string, id: string, now: Date) {
   return sql.withTransaction(
     Effect.gen(function* () {
-      // Match all bot runtime writers' lock order: bot, turn, conversation.
+      // Match bot runtime writers: bot, turn, account, conversation.
       const bots = yield* sql<{ id: string }>`SELECT b.id FROM bots b JOIN bot_channel_routes r ON r.bot_id=b.id
       JOIN bot_channel_conversations c ON c.route_id=r.id JOIN messenger_accounts a ON a.id=r.account_id
-      WHERE c.id=${id}::uuid AND b.owner_user_id=${owner}::uuid AND b.deleted_at IS NULL AND b.archived_at IS NULL
+      WHERE c.id=${id}::uuid AND b.owner_user_id=${owner}::uuid
+      AND r.owner_user_id=b.owner_user_id AND a.owner_user_id=b.owner_user_id
+      AND b.deleted_at IS NULL AND b.archived_at IS NULL
       AND b.moved_to IS NULL AND r.deleted_at IS NULL AND a.enabled AND a.deleted_at IS NULL
+      AND ${linkedMessengerActive(sql)}
       AND (c.channel_id=ANY(r.channel_ids) OR (r.direct_messages AND c.channel_id LIKE 'D%')) FOR UPDATE OF b SKIP LOCKED`;
 
       if (!bots[0]) return undefined;
@@ -54,6 +59,12 @@ function dispatchConversation(sql: SqlClient.SqlClient, owner: string, id: strin
       }>`SELECT id,status,conversation_id
       FROM bot_turns WHERE bot_id=${botId}::uuid AND status IN ('queued','running','waiting')
       ORDER BY created_at,id LIMIT 1 FOR UPDATE`)[0];
+
+      // Revocation updates this row. Recheck in a fresh statement after obtaining the lock.
+      yield* sql`SELECT a.id FROM messenger_accounts a JOIN bot_channel_routes r ON r.account_id=a.id
+        JOIN bot_channel_conversations c ON c.route_id=r.id WHERE c.id=${id}::uuid FOR UPDATE OF a`;
+
+      if (!(yield* activeConversation(sql, botId, id))) return undefined;
 
       const conversation = (yield* sql<
         ConversationRow & RouteRow
@@ -141,7 +152,8 @@ export function messengerDispatch(sql: SqlClient.SqlClient) {
       Effect.gen(function* () {
         const candidates = yield* sql<{ id: string }>`SELECT c.id FROM bot_channel_conversations c
         JOIN bot_channel_routes r ON r.id=c.route_id JOIN messenger_accounts a ON a.id=r.account_id
-        WHERE r.owner_user_id=${owner}::uuid AND r.deleted_at IS NULL AND a.enabled AND a.deleted_at IS NULL
+        WHERE r.owner_user_id=${owner}::uuid AND a.owner_user_id=r.owner_user_id
+        AND r.deleted_at IS NULL AND a.enabled AND a.deleted_at IS NULL AND ${linkedMessengerActive(sql)}
         AND (c.channel_id=ANY(r.channel_ids) OR (r.direct_messages AND c.channel_id LIKE 'D%'))
         AND (c.first_received_at IS NOT NULL OR EXISTS(SELECT 1 FROM bot_channel_inputs i JOIN bot_turns t ON t.id=i.turn_id
           WHERE i.conversation_id=c.id AND i.status='attempted' AND t.status NOT IN ('queued','running','waiting')))
@@ -162,7 +174,14 @@ export function messengerDispatch(sql: SqlClient.SqlClient) {
         Effect.gen(function* () {
           const rows = yield* sql<{ turn_id: string; bot_id: string; text: string }>`UPDATE bot_channel_inputs i
         SET status=${applied ? "applied" : "dropped"} FROM bot_turns t JOIN bots b ON b.id=t.bot_id
-        WHERE i.id=${inputId}::uuid AND i.turn_id=t.id AND b.owner_user_id=${owner}::uuid AND i.status='attempted' AND (${expectedTurnId ?? null}::uuid IS NULL OR i.turn_id=${expectedTurnId ?? null}::uuid)
+        JOIN bot_channel_conversations c ON c.id=t.conversation_id
+        JOIN bot_channel_routes r ON r.id=c.route_id JOIN messenger_accounts a ON a.id=r.account_id
+        WHERE i.conversation_id=c.id AND r.bot_id=b.id AND r.owner_user_id=b.owner_user_id
+        AND a.owner_user_id=b.owner_user_id AND (NOT ${applied} OR (b.deleted_at IS NULL AND b.archived_at IS NULL
+          AND b.moved_to IS NULL AND r.deleted_at IS NULL AND a.enabled AND a.deleted_at IS NULL
+          AND ${linkedMessengerActive(sql)}
+          AND (c.channel_id=ANY(r.channel_ids) OR (r.direct_messages AND c.channel_id LIKE 'D%'))))
+        AND i.id=${inputId}::uuid AND i.turn_id=t.id AND b.owner_user_id=${owner}::uuid AND i.status='attempted' AND (${expectedTurnId ?? null}::uuid IS NULL OR i.turn_id=${expectedTurnId ?? null}::uuid)
         RETURNING i.turn_id,t.bot_id,i.text`;
 
           const row = rows[0];

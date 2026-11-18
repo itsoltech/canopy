@@ -37,25 +37,36 @@ export function botChannelHandlers(
     saveMessengerAccount: (r, context) =>
       messengerGuard(async () => {
         const previous = r.id
-          ? await state.options.runtime.runPromise(MessengerStore.use((s) => s.credentials(owner, r.id)))
+          ? await state.options.runtime.runPromise(MessengerStore.use((s) => s.savedCredentials(owner, r.id)))
           : undefined;
+
+        const metadata = r.id
+          ? (await state.options.runtime.runPromise(MessengerStore.use((s) => s.accounts(owner)))).find(
+              (a) => a.id === r.id,
+            )
+          : undefined;
+
+        const connectorAccountId = r.connectorAccountId || metadata?.connectorAccountId;
 
         const credentials = {
           appToken: r.appToken ?? previous?.appToken ?? "",
           botToken: r.botToken ?? previous?.botToken ?? "",
         };
 
-        const identity = await validateSlackAccount(credentials, context.signal, state.options.messengerTransport);
+        const identity = connectorAccountId
+          ? { externalId: "" }
+          : await validateSlackAccount(credentials, context.signal, state.options.messengerTransport);
 
         const account = await state.options.runtime.runPromise(
           MessengerStore.use((s) =>
             s.saveAccount(owner, {
               ...(r.id && { id: r.id }),
               name: r.name,
+              ...(connectorAccountId && { connectorAccountId }),
               externalId: identity.externalId,
               ...(r.enabled !== undefined && { enabled: r.enabled }),
-              appToken: credentials.appToken,
-              botToken: credentials.botToken,
+              ...(r.appToken !== undefined && { appToken: r.appToken }),
+              ...(r.botToken !== undefined && { botToken: r.botToken }),
             }),
           ),
         );

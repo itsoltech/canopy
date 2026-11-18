@@ -92,7 +92,7 @@ message TestConnectorResponse { repeated canopy.worker.v1.ConnectorTool tools = 
 message SaveConnectorOAuthAppRequest { string connector_type = 1; string client_id = 2; string client_secret = 3; string issuer = 4; }
 message SaveConnectorOAuthAppResponse {}
 // desktop: powrót przez stronę przekierowania otwiera canopy://oauth/callback zamiast callbacku instalacji.
-message BeginConnectorOAuthRequest { string account_id = 1; string redirect_uri = 2; string browser_binding = 3; string scope = 4; bool desktop = 5; }
+message BeginConnectorOAuthRequest { string account_id = 1; string redirect_uri = 2; string browser_binding = 3; string scope = 4; bool desktop = 5; bool slack_messaging = 6; }
 message BeginConnectorOAuthResponse { string authorization_url = 1; }
 // pasted_code: kod skopiowany ze strony przekierowania (state i code w jednym ciągu); zastępuje state/code.
 message CompleteConnectorOAuthRequest { string state = 1; string code = 2; string browser_binding = 3; string error = 4; string issuer = 5; string pasted_code = 6; }

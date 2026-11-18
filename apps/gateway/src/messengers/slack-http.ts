@@ -140,7 +140,7 @@ async function responseBody(response: Response) {
 }
 
 export function checkSlackCredentials(credentials: SlackCredentials) {
-  if (!/^xapp-[^\s]+$/.test(credentials.appToken) || !/^xoxb-[^\s]+$/.test(credentials.botToken))
+  if (!/^xapp-[^\s]+$/.test(credentials.appToken) || !/^(?:xoxb-|xoxe\.xoxb-)[^\s]+$/.test(credentials.botToken))
     throw new SlackMessengerError("configuration", "invalid_token_type");
 }
 
