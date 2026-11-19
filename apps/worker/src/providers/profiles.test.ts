@@ -127,19 +127,15 @@ describe("codexAppServerLaunch", () => {
   test("cliproxyapi adds a model provider; the key goes through env, not argv", () => {
     const profiles = resolved([PROXY, { ...PROXY, id: "claude-only", providers: ["claude"] }]);
     const launch = codexAppServerLaunch(profiles, ENV);
-    expect(launch.command.slice(14)).toEqual([
-      "-c",
+    expect(launch.command.filter((arg) => arg.startsWith("model_providers."))).toEqual([
       'model_providers.canopy_cliproxy.name="CLIProxyAPI (cliproxy)"',
-      "-c",
       'model_providers.canopy_cliproxy.base_url="http://127.0.0.1:8317/v1"',
-      "-c",
       'model_providers.canopy_cliproxy.wire_api="responses"',
-      "-c",
       'model_providers.canopy_cliproxy.env_key="CANOPY_CLIPROXY_API_KEY"',
-      "-c",
       "model_providers.canopy_cliproxy.requires_openai_auth=false",
-      "-c",
       "model_providers.canopy_cliproxy.supports_websockets=false",
+      "model_providers.canopy_cliproxy.stream_max_retries=9",
+      "model_providers.canopy_cliproxy.request_max_retries=0",
     ]);
     expect(launch.env["CANOPY_CLIPROXY_API_KEY"]).toBe("sk-proxy");
     expect(launch.command.join(" ")).not.toContain("sk-proxy");
@@ -149,6 +145,17 @@ describe("codexAppServerLaunch", () => {
     const [native, proxy] = resolved([{ ...PROXY, id: "my-proxy" }]);
     expect(codexThreadProvider(native!)).toEqual({ modelProvider: "openai" });
     expect(codexThreadProvider(proxy!)).toEqual({ modelProvider: "canopy_my_proxy" });
+  });
+
+  test("a WebSocket proxy shares the ten attempts between WebSocket and HTTP fallback", () => {
+    const [, proxy] = resolved([
+      { ...PROXY, codex: { wireApi: "responses", supportsWebsockets: true, extraHeaders: {} } },
+    ]);
+
+    const { command } = codexAppServerLaunch([proxy!], ENV);
+    expect(command).toContain("features.unbounded_connection_retries=false");
+    expect(command).toContain("model_providers.canopy_cliproxy.stream_max_retries=4");
+    expect(command).toContain("model_providers.canopy_cliproxy.request_max_retries=0");
   });
 
   const codexBin = Bun.which("codex");

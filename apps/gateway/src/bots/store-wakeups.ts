@@ -8,6 +8,7 @@ import { requiredString, type WakeupRow } from "./store-views.ts";
 import type { BotCore } from "./store-queue.ts";
 import { lockedOwnerModule } from "../store/module-access.ts";
 import { deliverThreadQuestions, deliverySources } from "./thread-questions.ts";
+import { turnReport } from "../store/turn-report.ts";
 import { botThreadNoticeTitle, threadNotice } from "./thread-notice.ts";
 
 /** Watches of threads and steers, wakeups and reminders. */
@@ -100,8 +101,9 @@ export function botDeliveries(sql: SqlClient.SqlClient, core: BotCore) {
             hops: number;
             owner_user_id: string;
             status: string;
+            error: string | null;
             title: string;
-          }>`SELECT w.*, b.owner_user_id, t.status, th.title FROM bot_thread_watches w
+          }>`SELECT w.*, b.owner_user_id, t.status, t.error, th.title FROM bot_thread_watches w
         JOIN bots b ON b.id = w.bot_id JOIN turns t ON t.id = w.target_turn_id JOIN threads th ON th.id = t.thread_id
         WHERE b.owner_user_id=${owner}::uuid AND NOT w.delivered AND b.deleted_at IS NULL AND b.archived_at IS NULL AND b.moved_to IS NULL AND th.owner_user_id = b.owner_user_id AND t.status IN ('completed','failed','interrupted','cancelled') ORDER BY w.call_id LIMIT 32 FOR UPDATE OF b, w SKIP LOCKED`;
 
@@ -117,6 +119,7 @@ export function botDeliveries(sql: SqlClient.SqlClient, core: BotCore) {
 
           for (const watch of watches) {
             const text = results.get(watch.target_turn_id) ?? "";
+            const { message, failure } = turnReport(watch.status, watch.error, text, 80_000);
             const source = watchSources.get(watch.call_id);
             const title = botThreadNoticeTitle(watch.title);
 
@@ -124,13 +127,13 @@ export function botDeliveries(sql: SqlClient.SqlClient, core: BotCore) {
               yield* enqueue(
                 watch.owner_user_id,
                 watch.bot_id,
-                `Thread ${title} (${watch.target_thread_id}) ended: ${watch.status}.\n${text}`,
+                `Thread ${title} (${watch.target_thread_id}) ended: ${watch.status}.\n${message}`,
                 `thread:${watch.call_id}`,
                 {
                   hops: watch.hops,
                   sender: watch.target_thread_id,
                   event: true,
-                  displayText: threadNotice(title, watch.status),
+                  displayText: threadNotice(title, watch.status, "", failure),
                   ...originOf(source),
                 },
               );

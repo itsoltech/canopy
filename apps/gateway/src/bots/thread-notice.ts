@@ -6,14 +6,14 @@ export function botThreadNoticeTitle(title: string): string {
 }
 
 /** Short event text, separate from the model's completion report and its transcript. */
-export function threadNotice(title: string, status: string, computer = ""): string {
+export function threadNotice(title: string, status: string, computer = "", failure = ""): string {
   const subject = `“${title || "Thread"}”${computer ? ` on ${computer}` : ""}`;
 
   switch (status) {
     case "completed":
       return `${subject} finished`;
     case "failed":
-      return `${subject} failed`;
+      return failure ? `${failure} (${subject})` : `${subject} failed`;
     case "interrupted":
       return `${subject} was interrupted`;
     case "cancelled":

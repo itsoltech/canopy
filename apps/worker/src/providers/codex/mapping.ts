@@ -308,18 +308,21 @@ export class CodexEventMapper {
 
       case "error": {
         const { error, willRetry, turnId } = notification.params;
+        const info = error.codexErrorInfo;
+        const code = isString(info) ? info : (Object.keys(info ?? {})[0] ?? "error");
+        const id = turnId || this.#latestTurn;
+
+        // A reconnect stays in the running turn. Keep the wire event for diagnostics.
+        if (willRetry && (code === "responseStreamDisconnected" || code === "responseStreamConnectionFailed"))
+          return [event(id, undefined)];
 
         // Even willRetry=false is a diagnostic, not a turn end. Only turn/completed carries the outcome.
         return [
-          event(turnId || this.#latestTurn, {
+          event(id, {
             case: "notice",
             value: {
               level: willRetry ? NoticeLevel.WARNING : NoticeLevel.ERROR,
-              code: error.codexErrorInfo
-                ? isString(error.codexErrorInfo)
-                  ? error.codexErrorInfo
-                  : (Object.keys(error.codexErrorInfo)[0] ?? "error")
-                : "error",
+              code,
               message: error.message,
               ...(error.additionalDetails && {
                 dataJson: JSON.stringify({ additionalDetails: error.additionalDetails }),

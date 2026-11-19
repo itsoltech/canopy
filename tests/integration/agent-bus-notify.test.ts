@@ -6,6 +6,7 @@ import {
   ItemStatus,
   Provider,
   ThreadEventSchema,
+  TurnOutcome,
   type AgentToolResult,
   type ui,
 } from "@canopy/contracts";
@@ -16,6 +17,7 @@ import { startGrpcServer } from "@canopy/transport";
 import { openGatewayLink } from "@canopy/worker/gateway-link";
 import { Effect } from "effect";
 import { SqlClient } from "effect/sql";
+import { failAfterCommentary } from "./support/agent-report.ts";
 import { eventually, ScriptedWorker, startTestGateway, watchUntil, type TestGateway } from "./support/gateway.ts";
 
 const json = (result: AgentToolResult) => {
@@ -173,6 +175,63 @@ describe.skipIf(!dockerAvailable)("agent bus report delivery", () => {
     } finally {
       gw.worker.handlers.delete("steerTurn");
     }
+  });
+
+  test("a failure without an answer reports its bounded, redacted provider reason", async () => {
+    const pair = await start();
+
+    const reason = JSON.stringify({
+      type: "error",
+      status: 503,
+      error: { message: `Stream disconnected at https://test.invalid/v1 token=sample-value. ${"x".repeat(1500)}` },
+    });
+
+    gw.worker.emit(pair.childId, pair.childTurn, {
+      case: "turnFinished",
+      value: { outcome: TurnOutcome.FAILED, reason },
+    });
+
+    const [steer] = await eventually(
+      () => steers(pair.callId),
+      (rows) => rows[0]?.status === "delivered",
+    );
+
+    const report = gw.worker.steered.get(steer!.id)!;
+    expect(report).toContain("Turn failed: Provider error 503: Stream disconnected at [endpoint] token=[redacted]");
+    expect(report).toEndWith("…");
+    expect(report.length).toBeLessThan(1200);
+    expect(report).not.toMatch(/sample-value|test\.invalid|Its last message|no message/);
+    await finishParent(pair);
+  });
+
+  test("an explicit progress message cannot suppress a later failure with the same commentary", async () => {
+    const pair = await start();
+    const text = "Read the first file";
+    const sent = Bun.randomUUIDv7();
+
+    json(
+      await gw.worker.callTool({
+        callId: sent,
+        threadId: pair.childId,
+        turnId: pair.childTurn,
+        tool: "send_message",
+        args: { thread_id: pair.parentId, prompt: text, notify: false },
+      }),
+    );
+    await eventually(
+      () => query("SELECT id FROM turn_steers WHERE agent_call_id=$1::uuid AND status='delivered'", sent),
+      (rows) => rows.length > 0,
+    );
+
+    failAfterCommentary(gw.worker, pair.childId, pair.childTurn, "Stream disconnected\nbefore completion", text);
+    await eventually(
+      () => steers(pair.callId),
+      (rows) => rows[0]?.status === "delivered",
+    );
+    const view = await snapshot(pair.parentId);
+    expect(view.steers.map((s) => s.text)).toContain("Turn failed: Stream disconnected before completion\n\n" + text);
+    expect(view.steers.map((s) => s.text)).toContain(text);
+    await finishParent(pair);
   });
 
   test("a report in a long conversation joins the running turn with its sender and full hop count", async () => {

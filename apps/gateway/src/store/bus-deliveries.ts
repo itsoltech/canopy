@@ -38,6 +38,7 @@ export interface BusDeliveryStore {
     owner: string,
     callId: string,
     input: TurnInput,
+    turnStatus: string,
   ): Fx<{ turn?: TurnRow; steerId?: string } | undefined>;
   /**
    * A side thread with interaction_route = parent asks: queue a turn in the parent (trigger = interaction)
@@ -51,7 +52,13 @@ export interface BusDeliveryStore {
   }): Fx<ForwardedInteraction | undefined>;
 }
 
-const deliverNotification = (sql: SqlClient.SqlClient, owner: string, callId: string, input: TurnInput) =>
+const deliverNotification = (
+  sql: SqlClient.SqlClient,
+  owner: string,
+  callId: string,
+  input: TurnInput,
+  turnStatus: string,
+) =>
   sql.withTransaction(
     Effect.gen(function* () {
       if (!(yield* lockedOwnerModule(sql, owner, "threads"))) return undefined;
@@ -103,7 +110,10 @@ const deliverNotification = (sql: SqlClient.SqlClient, owner: string, callId: st
           caller.id,
           call.target_thread_id!,
           call.target_turn_id!,
-          yield* lastMessage(sql, call.target_thread_id!, call.target_turn_id!),
+          // A partial answer alone does not acknowledge the failure that followed it.
+          turnStatus === "failed"
+            ? input.message
+            : yield* lastMessage(sql, call.target_thread_id!, call.target_turn_id!),
         )
       ) {
         yield* sql`UPDATE agent_bus_calls SET notify_status = 'superseded' WHERE id = ${callId}::uuid`;
@@ -196,12 +206,13 @@ export function busDeliveryStore(sql: SqlClient.SqlClient): BusDeliveryStore {
         target_title: string;
         target_kind: ThreadRow["kind"];
         turn_status: string;
+        turn_error: string | null;
         last_message: string;
         last_message_length: number;
       }>`
               WITH due AS MATERIALIZED (
               SELECT c.id,c.source_thread_id,c.target_turn_id,c.created_at,
-                t.id AS target_id,t.title AS target_title,t.kind AS target_kind,u.status AS turn_status
+                t.id AS target_id,t.title AS target_title,t.kind AS target_kind,u.status AS turn_status,u.error AS turn_error
               FROM agent_bus_calls c JOIN turns u ON u.id = c.target_turn_id JOIN threads t ON t.id=c.target_thread_id
                WHERE (${turnId ?? null}::uuid IS NULL OR c.target_turn_id = ${turnId ?? null}::uuid) AND c.notify_status = 'pending'
                  AND t.owner_user_id = ${owner}::uuid AND ${ownerModule(sql, owner, "threads")} AND t.deleted_at IS NULL
@@ -211,11 +222,12 @@ export function busDeliveryStore(sql: SqlClient.SqlClient): BusDeliveryStore {
               ), answers AS MATERIALIZED (
                 SELECT d.target_turn_id,coalesce(left(a.text,20001),'') AS last_message,
                   coalesce(length(a.text)+regexp_count(a.text,U&'[\\+010000-\\+10FFFF]'),0) AS last_message_length
-                FROM (SELECT DISTINCT target_id,target_turn_id FROM due) d
+                FROM (SELECT DISTINCT target_id,target_turn_id,turn_status FROM due) d
                 LEFT JOIN LATERAL (SELECT i.content->'agentMessage'->>'text' AS text FROM thread_items i
                   WHERE i.thread_id=d.target_id AND i.turn_id=d.target_turn_id AND i.type='agent_message'
+                    AND (d.turn_status <> 'failed' OR i.content->'agentMessage'->>'text' ~ '[^[:space:]]')
                   ORDER BY i.first_seq DESC LIMIT 1) a ON true
-              ) SELECT d.id,d.source_thread_id,d.target_id,d.target_title,d.target_kind,d.turn_status,
+              ) SELECT d.id,d.source_thread_id,d.target_id,d.target_title,d.target_kind,d.turn_status,d.turn_error,
                 a.last_message,a.last_message_length FROM due d JOIN answers a USING(target_turn_id)
               ORDER BY d.created_at,d.id`.pipe(
         Effect.map((rows) =>
@@ -223,6 +235,7 @@ export function busDeliveryStore(sql: SqlClient.SqlClient): BusDeliveryStore {
             call: { id: row.id, source_thread_id: row.source_thread_id },
             target: { id: row.target_id, title: row.target_title, kind: row.target_kind },
             turnStatus: row.turn_status,
+            turnError: row.turn_error,
             lastMessage: row.last_message,
             lastMessageLength: row.last_message_length,
           })),
@@ -239,7 +252,8 @@ export function busDeliveryStore(sql: SqlClient.SqlClient): BusDeliveryStore {
                   OR w.status = 'failed' OR (w.status IN ('pending', 'delivered') AND w.expires_at <= now()))
            ORDER BY s.id LIMIT 64`.pipe(Effect.map((rows) => rows.map((r) => r.id))),
 
-    deliverNotification: (owner, callId, input) => deliverNotification(sql, owner, callId, input),
+    deliverNotification: (owner, callId, input, turnStatus) =>
+      deliverNotification(sql, owner, callId, input, turnStatus),
 
     forwardInteraction: ({ owner, requestId, input, maxHops }) =>
       sql.withTransaction(

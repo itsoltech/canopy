@@ -1,5 +1,6 @@
 import { qualifyId } from "@canopy/domain/computers";
 
+import { turnReport } from "../store/turn-report.ts";
 import { agentsState, type Reference } from "./agents-context.ts";
 import { requireAgentModules } from "./agents-module-access.ts";
 import type { LinkedAgents } from "./agents.ts";
@@ -62,10 +63,13 @@ export const agentsDeliveriesMethods: AgentsDeliveriesMethods = {
         }
       }
 
-      const due = await this.query<Reference & { status: string; text: string; title: string; completed_at: Date }>(
-        `SELECT c.*,coalesce(t.status,b.status) AS status,coalesce(t.completed_at,b.finished_at) AS completed_at,
+      const due = await this.query<
+        Reference & { status: string; text: string | null; error: string | null; title: string; completed_at: Date }
+      >(
+        `SELECT c.*,coalesce(t.status,b.status) AS status,t.error,coalesce(t.completed_at,b.finished_at) AS completed_at,
         CASE WHEN c.target_kind='bot' THEN (SELECT m.text FROM bot_messages m WHERE m.turn_id=c.target_turn_id AND message_key='answer' LIMIT 1)
-        ELSE (SELECT i.content->'agentMessage'->>'text' FROM thread_items i WHERE i.turn_id=c.target_turn_id AND i.type='agent_message' ORDER BY i.last_seq DESC LIMIT 1) END AS text
+        ELSE (SELECT i.content->'agentMessage'->>'text' FROM thread_items i WHERE i.turn_id=c.target_turn_id AND i.type='agent_message'
+          AND (t.status <> 'failed' OR i.content->'agentMessage'->>'text' ~ '[^[:space:]]') ORDER BY i.last_seq DESC LIMIT 1) END AS text
         , coalesce(th.title, bot.configuration->>'name', '') AS title
         FROM computer_agent_calls c LEFT JOIN turns t ON c.target_kind='thread' AND t.id=c.target_turn_id
         LEFT JOIN threads th ON th.id=c.target_id AND th.owner_user_id=c.owner_user_id
@@ -89,6 +93,16 @@ export const agentsDeliveriesMethods: AgentsDeliveriesMethods = {
             throw new Error("Parent was unavailable when the turn ended");
 
           await requireAgentModules(this, r.actor_kind, r.target_kind);
+          // A failed bot stores its diagnostic in the answer event. Thread failures live on the turn.
+          const botFailure = r.target_kind === "bot" && r.status === "failed";
+
+          const { message, failure } = turnReport(
+            r.status,
+            botFailure ? r.text : r.error,
+            botFailure ? null : r.text,
+            20_000,
+          );
+
           await this.call(
             r.peer_node_id,
             "report",
@@ -106,11 +120,12 @@ export const agentsDeliveriesMethods: AgentsDeliveriesMethods = {
             },
             r.call_id,
             {
-              text: `[canopy] ${r.target_kind} ${qualifyId(r.target_id, this.core.computers.hello().nodeId)} on ${this.core.computers.hello().name} ended: ${r.status}.\n${(r.text || "(no message)").slice(0, 20000)}`,
+              text: `[canopy] ${r.target_kind} ${qualifyId(r.target_id, this.core.computers.hello().nodeId)} on ${this.core.computers.hello().name} ended: ${r.status}.\n${message}`,
               event: r.target_turn_id,
               title: r.title,
               status: r.status,
-              message: (r.text || "(no message)").slice(0, 20000),
+              message,
+              ...(failure && { failure }),
             },
           );
           status = "delivered";

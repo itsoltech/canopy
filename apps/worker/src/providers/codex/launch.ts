@@ -45,13 +45,17 @@ export function codexAppServerLaunch(
   // admitting turns: selecting a provider only on thread/start or thread/resume is not enough.
   const [instance, ...others] = profiles.filter((profile) => profile.providers.includes("codex"));
 
-  if (instance && others.length === 0)
+  if (instance && others.length === 0) {
     command.push("-c", `model_provider=${tomlValue(codexThreadProvider(instance).modelProvider)}`);
+
+    if (instance.kind === "cliproxyapi") command.push("-c", "features.unbounded_connection_retries=false");
+  }
 
   for (const profile of profiles) {
     if (profile.kind !== "cliproxyapi" || !profile.providers.includes("codex")) continue;
     const provider = codexModelProviderId(profile);
     const keyEnv = `${provider.toUpperCase()}_API_KEY`;
+    const websockets = profile.codex?.supportsWebsockets ?? false;
 
     const settings = {
       name: `CLIProxyAPI (${profile.id})`,
@@ -61,8 +65,12 @@ export function codexAppServerLaunch(
       env_key: keyEnv,
       requires_openai_auth: false,
       // HTTP/SSE avoids proxy control-frame races; WebSockets require an explicit capability choice.
-      supports_websockets: profile.codex?.supportsWebsockets ?? false,
-    } satisfies Record<string, string | boolean>;
+      supports_websockets: websockets,
+      // Codex retries the sampling step inside the current turn. A WebSocket → HTTP fallback
+      // starts a fresh counter, so budget five attempts per transport or ten for HTTP alone.
+      stream_max_retries: websockets ? 4 : 9,
+      request_max_retries: 0,
+    } satisfies Record<string, string | boolean | number>;
 
     for (const [key, value] of Object.entries(settings)) {
       command.push("-c", `model_providers.${provider}.${key}=${tomlValue(value)}`);
@@ -93,6 +101,6 @@ function withTrailingSlash(url: URL): URL {
 }
 
 /** TOML literal for `-c key=value`. JSON string escapes are valid TOML basic strings. */
-function tomlValue(value: string | boolean): string {
+function tomlValue(value: string | boolean | number): string {
   return JSON.stringify(value);
 }

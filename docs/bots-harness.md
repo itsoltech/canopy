@@ -7,7 +7,8 @@ Odbiór wiadomości Slack obsługuje pliki, a konektor Slack przekazuje je
 do harnessu przez wynik narzędzia. Katalog bota Codex zachowuje obsługę obrazów
 dla modeli, które ją deklarują. Pobieranie publicznych plików wysyła stały
 `User-Agent: Canopy-Bot`. Prywatne rozmowy i rutyny z Web access mogą czytać
-changelogi Canopy według PR-a.
+changelogi Canopy według PR-a. Bot Codex po zerwaniu strumienia przez proxy
+ponawia krok w tej samej turze z wynikami wykonanych narzędzi. [Limity prób i backoff](proxies.md#ponawianie-kroku-codexa)
 Dostępność nightly/beta/stable wynika z promocji wydań ([release.md](release.md)).
 
 Status prędkości (2026-11-17): zaimplementowana w kodzie; dostępność
