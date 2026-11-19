@@ -112,7 +112,7 @@ function correctHeader(
   const delta = next - geometry.scrollY.get();
 
   if (Math.abs(delta) < 0.5) return true;
-  geometry.scrollY.set(next);
+  // Native layout can clamp a request while newly expanded rows mount. Only onScroll knows the applied offset.
   geometry.corrections.set(geometry.corrections.get() + 1);
   geometry.scrollToOffset(next);
 
