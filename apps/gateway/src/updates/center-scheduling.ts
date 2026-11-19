@@ -3,6 +3,11 @@ import type { ui } from "@canopy/contracts";
 export const UPDATE_CONCURRENCY = 4;
 export const pendingUpdate = (step: ui.UpdateStep): boolean => ["queued", "running"].includes(step.state);
 
+export function succeedUpdate(step: ui.UpdateStep) {
+  step.state = "succeeded";
+  step.finishedAt = new Date().toISOString();
+}
+
 export function updateDependencies(step: ui.UpdateStep, steps: ui.UpdateStep[]): ui.UpdateStep[] {
   return steps.filter((item) => {
     if (item === step || item.state === "skipped" || item.kind === "cli") return false;

@@ -3,17 +3,17 @@ import { timestampFromDate } from "@bufbuild/protobuf/wkt";
 import {
   CliInstallMethod,
   CliToolsReportSchema,
-  Provider,
   ui,
   type CliInstallProgress,
   type CliTool,
   type CliToolsReport,
 } from "@canopy/contracts";
 import { compareVersions } from "@canopy/updater";
+import { CLI_INSTALL_UPGRADE_ONLY_CAPABILITY } from "@canopy/domain/release/protocol";
 import { Code, ConnectError } from "@connectrpc/connect";
 import { Effect } from "effect";
 import { SqlClient } from "effect/sql";
-import type { WorkerLink } from "../worker-link/index.ts";
+import type { WorkerConnection, WorkerLink } from "../worker-link/index.ts";
 import { queryFamily, queryRpc } from "../diagnostics/query-context.ts";
 import {
   CLI_CACHE_MS,
@@ -51,6 +51,13 @@ export const MANAGED: Partial<Record<CliInstallMethod, string>> = {
 const managedBy = (tool: CliTool): string =>
   tool.method === CliInstallMethod.MISE && tool.installable ? "" : (MANAGED[tool.method] ?? "");
 
+/** A cached running report may include a launcher that was still being verified. */
+function cachedCli(tool: CliTool): CliTool {
+  const { install, ...cached } = tool;
+
+  return install?.state === "running" ? { ...cached, version: install.previousVersion } : tool;
+}
+
 export interface CliToolsOptions {
   readonly runtime: CoreRuntime;
   readonly userId: string;
@@ -72,8 +79,9 @@ export class CliTools {
   readonly checks: CliUpdateChecks;
   readonly latest: CliLatestSource;
   readonly #options: CliToolsOptions;
-  /** Redacted progress lines per worker and provider since this gateway started. */
-  readonly #logs = new Map<string, string[]>();
+  readonly #liveReports = new WeakMap<WorkerConnection, CliToolsReport>();
+  /** Redacted progress for the latest attempt per worker and provider. */
+  readonly #logs = new Map<string, { installId: string; lines: string[] }>();
   #timer: ReturnType<typeof setInterval> | undefined;
 
   constructor(options: CliToolsOptions) {
@@ -105,14 +113,21 @@ export class CliTools {
   }
 
   /** A worker's report (CliToolsReport) replaces the previous one. */
-  async report(workerId: string, report: CliToolsReport): Promise<void> {
+  async report(connection: WorkerConnection, report: CliToolsReport): Promise<void> {
+    const { workerId, registrationEpoch } = connection;
+
+    if (!connection.isOpen || registrationEpoch === undefined) return;
     const json = JSON.stringify(toJson(CliToolsReportSchema, report));
     await this.#run(
       Effect.gen(function* () {
         const sql = yield* SqlClient.SqlClient;
-        yield* sql`UPDATE workers SET capabilities = capabilities || jsonb_build_object('cliTools', ${json}::jsonb) WHERE id = ${workerId}::uuid`;
+        yield* sql`UPDATE workers SET capabilities = capabilities || jsonb_build_object('cliTools', ${json}::jsonb)
+          WHERE id = ${workerId}::uuid AND EXISTS (
+            SELECT 1 FROM worker_connections WHERE worker_id = ${workerId}::uuid AND epoch = ${registrationEpoch}::bigint
+          )`;
       }),
     );
+    this.#liveReports.set(connection, report);
 
     // A registry may take 15 seconds to time out. The same link carries turns, approvals and command replies.
     void this.checks
@@ -122,10 +137,12 @@ export class CliTools {
     await this.#options.changed();
   }
 
-  progress(workerId: string, progress: CliInstallProgress): Promise<void> {
-    const key = `${workerId}/${progress.provider}`;
-    const lines = [...(this.#logs.get(key) ?? []), ...progress.lines].slice(-LOG_LINES);
-    this.#logs.set(key, lines);
+  async progress(connection: WorkerConnection, progress: CliInstallProgress): Promise<void> {
+    if (!connection.isOpen) return;
+    const key = `${connection.workerId}/${progress.provider}`;
+    const previous = this.#logs.get(key);
+    const lines = [...(previous?.installId === progress.installId ? previous.lines : []), ...progress.lines];
+    this.#logs.set(key, { installId: progress.installId, lines: lines.slice(-LOG_LINES) });
 
     return this.#options.changed();
   }
@@ -175,11 +192,15 @@ export class CliTools {
     for (const worker of workers) {
       const row = rows.get(worker.id);
 
-      if (!row?.report) continue;
-      worker.arch = row.report.arch;
+      if (!row) continue;
       const connection = this.#options.link.connections.get(worker.id);
       const capable = Boolean(connection?.isOpen && connection.hello.capabilities.includes("cli_install"));
-      worker.cliTools = row.report.tools.map((tool) => this.#view(worker, row, tool, capable));
+      const live = connection?.isOpen ? this.#liveReports.get(connection) : undefined;
+      const report = live ?? row.report;
+
+      if (!report) continue;
+      worker.arch = report.arch;
+      worker.cliTools = report.tools.map((tool) => this.#view(worker, row, live ? tool : cachedCli(tool), capable));
     }
   }
 
@@ -205,6 +226,7 @@ export class CliTools {
             : "";
 
     const installing = tool.install?.state === "running";
+    const log = this.#logs.get(`${worker.id}/${tool.provider}`);
 
     const blocked = !action
       ? ""
@@ -235,7 +257,7 @@ export class CliTools {
       blockedReason: blocked,
       managedBy: managedBy(tool),
       runningTurns: running,
-      log: this.#logs.get(`${worker.id}/${tool.provider}`) ?? [],
+      log: log && log.installId === tool.install?.installId ? log.lines : [],
     });
   }
 
@@ -259,9 +281,9 @@ export class CliTools {
 
     if (!request.allWorkers) {
       if (!request.workerId) throw new ConnectError("choose a worker", Code.InvalidArgument);
-      await this.#installOn(request.workerId, request.provider, version, false, request.installId);
+      const started = await this.#installOn(request.workerId, version, request);
 
-      return create(ui.InstallCliResponseSchema, { started: [request.workerId] });
+      return create(ui.InstallCliResponseSchema, { started: started ? [request.workerId] : [] });
     }
 
     const userId = this.#options.userId;
@@ -294,14 +316,13 @@ export class CliTools {
         continue;
 
       try {
-        await this.#installOn(
+        const dispatched = await this.#installOn(
           row.id,
-          request.provider,
           version === "latest" ? this.checks.get(row.id, request.provider)?.version || "latest" : version,
-          true,
-          request.installId,
+          request,
         );
-        started.push(row.id);
+
+        if (dispatched) started.push(row.id);
       } catch (error) {
         skipped.push(`${row.name}: ${error instanceof Error ? error.message.replace(/^\[\w+\] /, "") : String(error)}`);
       }
@@ -310,13 +331,8 @@ export class CliTools {
     return create(ui.InstallCliResponseSchema, { started, skipped });
   }
 
-  async #installOn(
-    workerId: string,
-    provider: Provider,
-    version: string,
-    bulk: boolean,
-    attemptId = "",
-  ): Promise<void> {
+  async #installOn(workerId: string, version: string, request: ui.InstallCliRequest): Promise<boolean> {
+    const { provider, upgradeOnly, allWorkers: bulk, installId: attemptId } = request;
     const label = LABELS[keyOf(provider)!];
     const row = (await this.#rows([workerId])).get(workerId);
 
@@ -328,6 +344,9 @@ export class CliTools {
 
     if (!connection.hello.capabilities.includes("cli_install"))
       throw new ConnectError("this worker cannot install CLIs; update it first", Code.FailedPrecondition);
+
+    if (upgradeOnly && !connection.hello.capabilities.includes(CLI_INSTALL_UPGRADE_ONLY_CAPABILITY))
+      throw new ConnectError("Update this worker, then retry Update all.", Code.FailedPrecondition);
     const tool = row.report?.tools.find((t) => t.provider === provider);
 
     if (!tool)
@@ -346,8 +365,6 @@ export class CliTools {
       );
     }
 
-    if (tool.install?.state === "running")
-      throw new ConnectError(`${label} is already being installed`, Code.FailedPrecondition);
     const running = row.running.get(keyOf(provider)!) ?? 0;
 
     if (running > 0)
@@ -356,30 +373,39 @@ export class CliTools {
         Code.FailedPrecondition,
       );
     const installId = attemptId || Bun.randomUUIDv7();
-    this.#logs.delete(`${workerId}/${provider}`);
 
     const result = await connection.sendCommand(
-      { case: "installCli", value: { provider, version, installId } },
+      { case: "installCli", value: { provider, version, installId, upgradeOnly } },
       60_000,
     );
 
-    if (!result.ok)
+    if (!result.ok) {
+      if (upgradeOnly && result.errorCode === "CLI_ALREADY_CURRENT") return false;
+
+      // An untracked click can use the status of the existing attempt. Update all tracks its own ID and must
+      // reconcile an explicit refusal with the next snapshot.
+      if (result.errorCode === "CLI_INSTALL_SAME_TARGET_RUNNING" && !attemptId) return false;
+
       throw new ConnectError(
         result.errorMessage || result.errorCode || "the install did not start",
-        result.errorCode === "INVALID_VERSION" ? Code.InvalidArgument : Code.FailedPrecondition,
+        installRefusalCode(result.errorCode),
       );
+    }
+
     const userId = this.#options.userId;
     await this.#run(
       Effect.gen(function* () {
         const sql = yield* SqlClient.SqlClient;
         yield* sql`INSERT INTO audit_log (id, actor_user_id, action, target_type, target_id, details)
         VALUES (${Bun.randomUUIDv7()}::uuid, ${userId}::uuid, 'worker.cli.install', 'worker', ${workerId}::uuid,
-                ${JSON.stringify({ provider: keyOf(provider), version, from: tool.version, method: CliInstallMethod[tool.method]?.toLowerCase(), bulk })}::jsonb)`;
+                ${JSON.stringify({ installId, provider: keyOf(provider), version, from: tool.version, method: CliInstallMethod[tool.method]?.toLowerCase(), bulk })}::jsonb)`;
       }),
     );
     this.#options.log(
       `worker ${workerId}: installing ${keyOf(provider)} ${version} (was ${tool.version || "not installed"})`,
     );
+
+    return true;
   }
 
   /** "Check for updates": latest versions now, and the owner's online workers look at their CLIs again. */
@@ -427,4 +453,12 @@ export class CliTools {
       skipped,
     });
   }
+}
+
+function installRefusalCode(code: string): Code {
+  if (code === "INVALID_VERSION") return Code.InvalidArgument;
+
+  if (code === "CLI_INSTALL_RUNNING" || code === "CLI_INSTALL_SAME_TARGET_RUNNING") return Code.Aborted;
+
+  return Code.FailedPrecondition;
 }

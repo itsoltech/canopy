@@ -10,11 +10,12 @@ import {
   CONFIG_SYNC,
   NODE_REF_LENGTH,
   RELAY,
+  REMOTE_CLI_UPGRADE_ONLY,
   REMOTE_THREADS,
   THREAD_MIRROR,
 } from "@canopy/domain/computers";
 
-import { botFeature } from "./remote-policy.ts";
+import { botFeature, linkedMessage } from "./remote-policy.ts";
 
 import { RELAY_METHODS, relayCallback } from "./relay.ts";
 import { fileHighlightDraft } from "./remote-policy.ts";
@@ -203,10 +204,12 @@ export const computersRemoteMethods: ComputersRemoteMethods = {
     signal: AbortSignal,
   ): AsyncGenerator<Message> {
     if (this.reads.blocked(nodeId)) throw await this.unavailable(nodeId);
+    const guardedCli = method.name === "InstallCli" && linkedMessage(ui.InstallCliRequestSchema, request).upgradeOnly;
     const indirect = this.relay.entries.get(nodeId);
 
     if (indirect) {
       if (
+        guardedCli ||
         fileHighlightDraft(method, request) ||
         !RELAY_METHODS.has(method.name) ||
         (indirect.relay_role === "origin" && !relayCallback(method, request))
@@ -239,7 +242,12 @@ export const computersRemoteMethods: ComputersRemoteMethods = {
       return;
     }
 
-    const remote = computersChannel(this, nodeId, method.name === "GetUsageBuckets" ? USAGE_STATS : REMOTE_THREADS);
+    const remote = guardedCli
+      ? computersChannel(this, nodeId, REMOTE_CLI_UPGRADE_ONLY)
+      : computersChannel(this, nodeId, method.name === "GetUsageBuckets" ? USAGE_STATS : REMOTE_THREADS);
+
+    if (!remote && guardedCli && computersChannel(this, nodeId))
+      throw new ConnectError("Update Canopy on this computer, then retry Update all.", Code.FailedPrecondition);
 
     if (!remote) throw await this.unavailable(nodeId);
 

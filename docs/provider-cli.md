@@ -5,6 +5,9 @@ na dostępnych komputerach, aktualizacji globalnych instalacji mise
 i powiązania wyników Update all z konkretną próbą instalacji oraz uruchamiania skryptów CLI
 z katalogów ze spacjami na Windows oraz aktualizacji natywnych instalacji Claude Code
 i Codex Standalone na Windows z zachowaniem systemowej zmiennej `OS` w Canopy Desktop.
+Stan trwającej instalacji pochodzi z bieżącego łącza workera, a powtórzenie akcji
+dla tej samej wersji korzysta z wyniku aktywnej próby. Worker ponownie sprawdza
+wersję przed instalacją z Update all.
 Dostępność w nightly, beta i stable wynika z promocji opisanych w [release.md](release.md).
 
 Odczyt statusu konta przez oficjalne CLI, jego ograniczenia oraz zasady
@@ -53,7 +56,10 @@ UI (`ui/v1`): `Worker.cli_tools` (`WorkerCliTool`: raport + `latest`, `update_av
 `install`/`update`/pusty, `blocked_reason`, `managed_by`, `running_turns`, `log`), `Worker.arch`, RPC
 `InstallCli` (`worker_id` albo `all_workers`) i `CheckCliUpdates`. BFF: `POST /api/workers/cli/install|check`.
 Raport gateway trzyma w istniejącym JSONB `workers.capabilities.cliTools` (bez migracji), więc wersje offline
-workerów pozostają widoczne. Linie postępu są tylko w pamięci gatewaya (ostatnie 200 na workera i dostawcę).
+workerów pozostają widoczne. Stan `running` obowiązuje dopiero po raporcie na bieżącym łączu;
+zapisany raport trwającej instalacji pokazuje do tego czasu poprzednią wersję.
+Linie postępu są tylko w pamięci gatewaya (ostatnie 200 dla próby workera i dostawcy)
+i pojawiają się przy wyniku lub stanie o tym samym `install_id`.
 Jeżeli instalacja kończy się podczas wykrywania CLI, worker odrzuca wynik rozpoczęty przed jej końcem
 i ponownie odczytuje wersje. Status zakończonej instalacji nie może trafić do raportu ze starą wersją.
 
@@ -62,6 +68,11 @@ Gateway przekazuje go workerowi bez zmian. W Update all id jest zapisane przed w
 więc późny raport i powrót po rozłączeniu dotyczą właściwej próby. Id pozostaje niekwalifikowane
 przez routing połączonych komputerów, a id workera nadal wskazuje jego dom.
 Potwierdzenie startu nie jest wynikiem instalacji; brak potwierdzenia nie dowodzi niepowodzenia.
+`InstallCliRequest.upgrade_only` jest przekazywane do workera z capability `cli_install_upgrade_only`.
+Worker odczytuje bieżącą wersję przed uruchomieniem instalatora. Jeżeli osiągnęła cel,
+odświeża raport i zwraca `CLI_ALREADY_CURRENT`, a gateway potwierdza żądanie bez nowej próby.
+Jeżeli nie może odczytać wersji, odmawia startu. Starszy worker wymaga aktualizacji dla
+trybu `upgrade_only`; indywidualne polecenia obsługuje dalej.
 Szczegóły limitów i uzgadniania wyniku: [updates.md](updates.md).
 
 ## Wykrywanie na workerze
@@ -239,7 +250,10 @@ zasób `mise:config`, obejmujący aktywację, weryfikację i ewentualny rollback
   samego narzędzia naraz. Różne CLI mogą działać równolegle; worker szereguje tylko wspólny zasób
   przepisu (`CliTool.install_resource`), obejmując też rollback. Pary i limity opisuje
   [centrum aktualizacji](updates.md).
-  Każde uruchomienie trafia do `audit_log` (`worker.cli.install`: dostawca, wersja, poprzednia, metoda).
+  O trwającej instalacji decyduje worker. Powtórne kliknięcie dla tej samej wersji śledzi wynik
+  potwierdzonej aktywnej próby. Worker sygnalizuje ten przypadek kodem `CLI_INSTALL_SAME_TARGET_RUNNING`,
+  a przy innym celu odmawia startu (`CLI_INSTALL_RUNNING`).
+  Każde uruchomienie trafia do `audit_log` (`worker.cli.install`: id próby, dostawca, wersja, poprzednia, metoda).
 - **Trwające tury: odmowa.** Gateway (tury `running` w bazie) i worker (własne tury i tury właśnie przyjmowane)
   odrzucają instalację z komunikatem „… has N running turns on this worker; try again when they finish”; UI
   pokazuje „Waiting for N running turns to finish” i wyłącza przycisk. Nic nie czeka w tle za kliknięciem.

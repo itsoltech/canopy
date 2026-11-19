@@ -4,7 +4,8 @@ Status: opis zaimplementowanego kodu (2026-11-19), w tym aktualizacji Canopy prz
 i pomijania komputerów offline w Update all, wspólnego otwierania paneli
 Updates i Provider usage w stopce oraz równoległej aktualizacji
 zdalnych desktopów i workerów binarnych, ponawiania raportu o błędzie workera,
-niezależnych akcji CLI i korelacji prób w Update all,
+niezależnych akcji CLI, uzgadniania prób po odmowie zajętego instalatora i sprawdzania
+wersji na workerze przed instalacją z Update all,
 aktualizacji CLI przez mise, restartu workera mimo błędu sprzątania urządzeń,
 pomijania cache metadanych przy ręcznym sprawdzaniu aktualizacji, wykrywania
 pojedynczego procesu przez instalator Windows, retencji dyskowego mirrora workerów
@@ -369,15 +370,21 @@ oczekiwania na potwierdzenie wyniku wynosi 35 minut.
 Id próby CLI jest zapisane w kroku przed wysłaniem i przekazane jako `InstallCliRequest.install_id`;
 raport błędu dotyczy kroku tylko przy zgodnym id. Poprzedni błąd nie kończy nowej instalacji.
 Brak lub utrata potwierdzenia startu pozostawia czas na raport dostępnego workera do limitu kroku,
-także po restarcie gatewaya; nie odtwarzamy komendy instalacji. Jawna odmowa nadal kończy krok.
+także po restarcie gatewaya. Jawna odmowa zajętego instalatora przywraca krok do kolejki z zachowaniem
+limitu oczekiwania. Po rozpoczęciu instalacji osobny limit na wynik wynosi 35 minut.
+Następny odczyt pozwala powiązać krok z aktywną próbą albo wysłać nową komendę,
+jeśli poprzednia otrzymała odmowę i docelowej wersji nadal brakuje. Inne jawne odmowy kończą krok.
 Trwająca ręczna instalacja tej samej wersji jest śledzona bez drugiego polecenia;
 instalacja innej wersji musi się najpierw zakończyć. Raport z wersją docelową lub nowszą
 potwierdza sukces również po błędzie potwierdzenia i usuwa nieaktualny błąd zatrzymanego przebiegu.
-Trwająca próba o zgodnym id nadal czeka na zakończenie walidacji i ewentualnego rollbacku,
-nawet jeśli sonda widzi już docelowy plik.
+Każda trwająca instalacja danego CLI może wycofać wersję odczytaną podczas walidacji,
+więc krok czeka na zakończenie instalacji, nawet jeśli sonda widzi już docelowy plik.
 Starszy gateway ignorujący id nadal potwierdza sukces wersją; niepowiązany błąd instalacji
 nie kończy kroku przed jego limitem.
-Kolejka nie przyznaje force ani downgrade. Obejmuje tylko gateway binarny,
+Kolejka nie przyznaje force ani downgrade. Przed instalacją worker z `cli_install_upgrade_only`
+sprawdza bieżącą wersję i pomija wykonywanie instalatora, gdy wersja osiągnęła już cel.
+Zdalny gateway musi obsłużyć tę kontrolę na bieżącym łączu (`remote_cli_upgrade_only`).
+Kolejka obejmuje tylko gateway binarny,
 workery binarne, zainstalowane CLI obsługiwane przez indywidualne `InstallCli`
 (natywne oraz npm, Bun, Volta, pnpm i globalne instalacje mise z przepisem) i obsługiwane aplikacje Canopy.
 Gateway Docker/source, zewnętrzne workery oraz CLI bez przepisu instalatora

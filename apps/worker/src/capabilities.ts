@@ -3,6 +3,7 @@ import {
   SERVICE_TIERS_CAPABILITY,
   CLAUDE_LIVE_PERMISSIONS_CAPABILITY,
   CLAUDE_USER_CONFIGURATION_CAPABILITY,
+  CLI_INSTALL_UPGRADE_ONLY_CAPABILITY,
   STEER_ATTACHMENTS_CAPABILITY,
   THREAD_VISUALS_CAPABILITY,
   THREAD_HTML_CAPABILITY,
@@ -55,6 +56,7 @@ export function workerCapabilities(options: { localWorker: boolean; fullAccess: 
     "bot_files_v1",
     "thread_secrets",
     "cli_install",
+    CLI_INSTALL_UPGRADE_ONLY_CAPABILITY,
     // agent_tools_v1: owner-scoped Canopy control of the three local automation binaries.
     "agent_tools_v1",
     // agent_preview_v1: ephemeral, acknowledged preview frames and direct human input.

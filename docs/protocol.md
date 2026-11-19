@@ -1149,7 +1149,10 @@ BFF wymaga potwierdzenia obsługi zakresu od domu. Zmiana nie podnosi
 
 ## CLI dostawców
 
+Status (2026-11-19): zaimplementowane raportowanie i instalacja CLI, w tym kontrola wersji na workerze przy Update all.
+
 Capability `cli_install`: worker wysyła `CliToolsReport` (ścieżka, wersja, sposób instalacji każdego CLI) po połączeniu, po `ProbeProviders`, po instalacji i co 6 h; nietrwała komenda `InstallCli` (nigdy z outboxa) uruchamia stały przepis, postęp idzie w `CliInstallProgress`, wynik w następnym raporcie. Bez zmiany `WORKER_LINK_PROTOCOL`. Szczegóły i zasady: [provider-cli.md](provider-cli.md).
+Capability `cli_install_upgrade_only` potwierdza obsługę `InstallCli.upgrade_only`: worker sprawdza wersję tuż przed instalacją i zwraca `CLI_ALREADY_CURRENT`, gdy wersja docelowa lub nowsza jest już zainstalowana.
 
 ## Środowisko agentów
 

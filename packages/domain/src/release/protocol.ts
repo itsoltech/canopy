@@ -13,6 +13,9 @@ export const CLAUDE_USER_CONFIGURATION_CAPABILITY = "claude_user_configuration_v
 /** Harness commands honor execution speed, including an explicit reset to Standard. */
 export const SERVICE_TIERS_CAPABILITY = "service_tiers_v1";
 
+/** Recheck the installed CLI before a queued update and skip equal or newer versions. */
+export const CLI_INSTALL_UPGRADE_ONLY_CAPABILITY = "cli_install_upgrade_only";
+
 /** Protocol 0 (before negotiation) is deliberately incompatible. Recovery uses UpdateService. */
 export const MIN_WORKER_LINK_PROTOCOL = 1;
 

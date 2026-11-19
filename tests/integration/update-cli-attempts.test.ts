@@ -3,9 +3,14 @@ import { clone, create } from "@bufbuild/protobuf";
 import { Code, ConnectError } from "@connectrpc/connect";
 import { CliInstallMethod, CliInstallStatusSchema, Provider, ui } from "@canopy/contracts";
 import { UpdateCenter } from "../../apps/gateway/src/updates/center.ts";
+import { eventually } from "./support/gateway.ts";
 
 /** ACKs return immediately; only a later report changes the installed version or install status. */
-function fleet(workers = 1, providers = [Provider.CLAUDE], lostAck = false) {
+function fleet(
+  workers = 1,
+  providers = [Provider.CLAUDE],
+  launchError?: (count: number) => ConnectError | Promise<ConnectError> | undefined,
+) {
   const snapshot = create(ui.UpdatesSnapshotSchema, {
     gatewayVersion: "2.0.0",
     workers: Array.from({ length: workers }, (_, index) => ({
@@ -55,7 +60,9 @@ function fleet(workers = 1, providers = [Provider.CLAUDE], lostAck = false) {
         reservations.push(clone(ui.UpdateStepSchema, step));
         commands.push(clone(ui.InstallCliRequestSchema, request));
 
-        if (lostAck) throw new ConnectError("Connection lost after sending install", Code.Unavailable);
+        const error = await launchError?.(commands.length);
+
+        if (error) throw error;
 
         return create(ui.InstallCliResponseSchema);
       },
@@ -128,6 +135,7 @@ describe("durable CLI attempts with immediate command acknowledgement and delaye
     await f.tick();
     expect(f.commands).toHaveLength(1);
     const command = f.commands[0]!;
+    expect(command.upgradeOnly).toBe(true);
     expect(command.installId).toMatch(/^[\da-f]{8}-[\da-f]{4}-4[\da-f]{3}-[89ab][\da-f]{3}-[\da-f]{12}$/i);
     expect(f.reservations[0]?.requestId).toBe(command.installId);
     expect(f.reservations[0]?.state).toBe("running");
@@ -204,7 +212,12 @@ describe("durable CLI attempts with immediate command acknowledgement and delaye
   });
 
   test("a lost transport ACK waits for matching running and successful reports", async () => {
-    const f = fleet(1, [Provider.CLAUDE], true);
+    const f = fleet(
+      1,
+      [Provider.CLAUDE],
+      () => new ConnectError("Connection lost after sending install", Code.Unavailable),
+    );
+
     await f.center.begin();
     await f.tick();
     expect(f.run()?.state).toBe("running");
@@ -217,6 +230,58 @@ describe("durable CLI attempts with immediate command acknowledgement and delaye
     await f.tick();
     expect(f.run()?.state).toBe("succeeded");
     expect(f.commands).toHaveLength(1);
+  });
+
+  test("a same-target install that started after planning is followed by its actual attempt ID", async () => {
+    const refusal = Promise.withResolvers<ConnectError>();
+    const f = fleet(1, [Provider.CLAUDE], () => refusal.promise);
+    await f.center.begin();
+    const declined = f.commands[0]!;
+    const active = clone(ui.InstallCliRequestSchema, declined);
+    active.installId = crypto.randomUUID();
+
+    try {
+      f.report(active, "running", "2.0.0");
+      await f.tick();
+      expect(f.run()?.steps[0]).toMatchObject({ state: "running", requestId: declined.installId });
+    } finally {
+      refusal.resolve(new ConnectError("CLI installation in progress", Code.Aborted));
+    }
+
+    const state = await eventually(
+      async () => {
+        await f.center.tick();
+
+        return f.run()?.steps[0]?.state;
+      },
+      (state) => state === "queued",
+    );
+
+    expect(state).toBe("queued");
+    await f.tick(f.recreate());
+    expect(f.run()?.steps[0]).toMatchObject({ state: "running", requestId: active.installId });
+    f.report(active, "succeeded", "2.0.0");
+    await f.tick();
+    expect(f.run()?.steps[0]).toMatchObject({ state: "succeeded", reason: "", requestId: active.installId });
+    expect(f.commands).toHaveLength(1);
+  });
+
+  test("a worker that stays busy after a snapshot with no install reaches the existing wait limit", async () => {
+    const f = fleet(1, [Provider.CLAUDE], () => new ConnectError("CLI installation in progress", Code.Aborted));
+    await f.center.begin();
+    await f.center.tick();
+    expect(f.run()?.steps[0]?.state).toBe("queued");
+    f.age(34);
+    const waitingSince = f.run()!.steps[0]!.startedAt;
+    const resumed = f.recreate();
+    await resumed.tick();
+    await resumed.tick();
+    expect(f.commands).toHaveLength(2);
+    expect(f.run()?.steps[0]).toMatchObject({ state: "queued", startedAt: waitingSince });
+    f.age(36);
+    await f.tick(f.recreate());
+    expect(f.run()?.steps[0]).toMatchObject({ state: "failed", reason: expect.stringContaining("Timed out waiting") });
+    expect(f.commands).toHaveLength(2);
   });
 
   test("recreation preserves the attempt identity and never replays an accepted installation", async () => {
@@ -276,12 +341,15 @@ describe("durable CLI attempts with immediate command acknowledgement and delaye
     expect(f.commands).toHaveLength(0);
     expect(f.run()?.state).toBe("running");
     expect(f.run()?.steps[0]?.requestId).not.toBe(manualId);
+    f.age(34);
+    const waitingSince = f.run()!.steps[0]!.startedAt;
     f.tool().version = "1.5.0";
     f.tool().install!.state = "succeeded";
     await f.tick();
     expect(f.run()?.state).toBe("running");
     expect(f.commands).toHaveLength(1);
     expect(f.commands[0]?.version).toBe("2.0.0");
+    expect(Date.parse(f.run()!.steps[0]!.startedAt)).toBeGreaterThan(Date.parse(waitingSince));
     f.report(f.commands[0]!, "succeeded", "2.0.0");
     await f.tick();
     expect(f.run()?.state).toBe("succeeded");
@@ -333,21 +401,19 @@ describe("durable CLI attempts with immediate command acknowledgement and delaye
     });
   }
 
-  test("current target truth wins over running or failed status from another attempt", async () => {
-    for (const state of ["running", "failed"]) {
-      const f = fleet();
-      await f.center.begin();
-      await f.tick();
-      f.tool().version = "2.0.0";
-      f.tool().install = create(CliInstallStatusSchema, {
-        installId: crypto.randomUUID(),
-        targetVersion: "1.5.0",
-        state,
-        error: "Stale installer error",
-      });
-      await f.tick();
-      expect(f.run()?.state).toBe("succeeded");
-    }
+  test("current target truth wins over failed status from another attempt", async () => {
+    const f = fleet();
+    await f.center.begin();
+    await f.tick();
+    f.tool().version = "2.0.0";
+    f.tool().install = create(CliInstallStatusSchema, {
+      installId: crypto.randomUUID(),
+      targetVersion: "1.5.0",
+      state: "failed",
+      error: "Stale installer error",
+    });
+    await f.tick();
+    expect(f.run()?.state).toBe("succeeded");
   });
 
   test("ACKs release no slots: different workers overlap until delayed reports complete their attempts", async () => {

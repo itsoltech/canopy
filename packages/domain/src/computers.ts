@@ -54,6 +54,9 @@ export const MOVE_ITEMS = "move_items";
 
 /** Remote app updates: a directly linked computer's Canopy app updates on request (docs/updates.md). */
 export const REMOTE_APP_UPDATE = "remote_app_update";
+
+/** The receiving gateway preserves the CLI's no-downgrade request. */
+export const REMOTE_CLI_UPGRADE_ONLY = "remote_cli_upgrade_only";
 export const NODE_REF_LENGTH = 16;
 
 const UUID = "[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}";

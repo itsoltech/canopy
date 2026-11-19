@@ -33,6 +33,7 @@ import {
   LAN_ROUTES,
   MOVE_ITEMS,
   REMOTE_APP_UPDATE,
+  REMOTE_CLI_UPGRADE_ONLY,
   RELAY,
   REMOTE_BOTS,
   REMOTE_BOT_COMPOSER,
@@ -143,7 +144,7 @@ export const computersPresenceMethods: ComputersPresenceMethods = {
         ...(this.options.core?.diagnostics.collector.enabled ? ["diagnostics_trace_v1"] : []),
         // Batched, resumable workspace copies (docs/workspace-copy.md); peers with the 32-entry guard never see it.
         ...(this.options.serve ? [WORKSPACE_COPY_CAPABILITY] : []),
-        ...(this.options.serve ? ["thread_creation_progress_v1", BOT_THREAD_ACCESS] : []),
+        ...(this.options.serve ? ["thread_creation_progress_v1", BOT_THREAD_ACCESS, REMOTE_CLI_UPGRADE_ONLY] : []),
         USAGE_STATS,
       ],
     });

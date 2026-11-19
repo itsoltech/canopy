@@ -355,12 +355,12 @@ for arg in "$@"; do if [ "$previous" = --prefix ]; then prefix="$arg"; fi; previ
       log: () => {},
     });
 
-    const start = (provider: Provider) =>
+    const start = (provider: Provider, version = "2.0.0") =>
       tools.start(
         create(InstallCliSchema, {
           installId: crypto.randomUUID(),
           provider,
-          version: "2.0.0",
+          version,
         }),
       );
 
@@ -369,7 +369,8 @@ for arg in "$@"; do if [ "$previous" = --prefix ]; then prefix="$arg"; fi; previ
 
     try {
       await second;
-      await expect(start(Provider.CLAUDE)).rejects.toMatchObject({ code: "CLI_INSTALL_RUNNING" });
+      await expect(start(Provider.CLAUDE)).rejects.toMatchObject({ code: "CLI_INSTALL_SAME_TARGET_RUNNING" });
+      await expect(start(Provider.CLAUDE, "3.0.0")).rejects.toMatchObject({ code: "CLI_INSTALL_RUNNING" });
       expect(await eventually(async () => existsSync(join(home, "claude-started")), Boolean)).toBe(true);
 
       if (!shared) expect(await eventually(async () => existsSync(join(home, "codex-started")), Boolean)).toBe(true);

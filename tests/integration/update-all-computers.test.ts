@@ -3,7 +3,14 @@ import { create, toJsonString } from "@bufbuild/protobuf";
 import { createClient } from "@connectrpc/connect";
 import { CliInstallMethod, CliToolsReportSchema, Provider, ui, update } from "@canopy/contracts";
 import { dockerAvailable } from "@canopy/db/testing";
-import { REMOTE_APP_UPDATE, REMOTE_THREADS, CONFIG_SYNC, qualifyId } from "@canopy/domain/computers";
+import {
+  REMOTE_APP_UPDATE,
+  REMOTE_CLI_UPGRADE_ONLY,
+  REMOTE_THREADS,
+  CONFIG_SYNC,
+  qualifyId,
+} from "@canopy/domain/computers";
+import { CLI_INSTALL_UPGRADE_ONLY_CAPABILITY } from "@canopy/domain/release/protocol";
 import { createGrpcClientTransport } from "@canopy/transport";
 import { remoteServe, sharedHost, uiHandlers } from "@canopy/gateway/api";
 import { LocalDesktopControl } from "../../apps/desktop/src/local-control.ts";
@@ -29,7 +36,7 @@ async function gateway(storage?: NonNullable<Parameters<typeof startTestGateway>
   const gateway = await startTestGateway({
     ...(storage && { storage }),
     role: "desktop",
-    worker: { hello: { capabilities: ["cli_install", "desktop_bundled"] } },
+    worker: { hello: { capabilities: ["cli_install", CLI_INSTALL_UPGRADE_ONLY_CAPABILITY, "desktop_bundled"] } },
     updates: { kind: "desktop", version: "2.0.0", source: { fetch: async () => Response.json([]) } },
     cliLatest: {
       sources: { claude: `${registry.url}`, codex: `${registry.url}`, grok: `${registry.url}` },
@@ -65,7 +72,7 @@ async function gateway(storage?: NonNullable<Parameters<typeof startTestGateway>
   return gateway;
 }
 
-async function linkGateways(a: TestGateway, b: TestGateway, name = "Linked computer") {
+async function linkGateways(a: TestGateway, b: TestGateway, name = "Linked computer", peerSupportsGuard = true) {
   for (const gateway of [a, b]) {
     if (gateway.core.computers) continue;
 
@@ -77,7 +84,14 @@ async function linkGateways(a: TestGateway, b: TestGateway, name = "Linked compu
       shared: sharedHost(gateway.core, uiHandlers(gateway.core)),
       serve: remoteServe(uiHandlers(gateway.core), gateway.core),
       updates: (nodeId, method, request) => serveComputerUpdates(gateway.core, nodeId, method, request),
-      capabilities: ["presence", "unlink", REMOTE_THREADS, REMOTE_APP_UPDATE, CONFIG_SYNC],
+      capabilities: [
+        "presence",
+        "unlink",
+        REMOTE_THREADS,
+        REMOTE_APP_UPDATE,
+        CONFIG_SYNC,
+        ...(gateway === a || peerSupportsGuard ? [REMOTE_CLI_UPGRADE_ONLY] : []),
+      ],
     });
 
     gateway.core.computers = computers;
@@ -166,7 +180,7 @@ async function fakeApp(
 
 async function clis(gateway: TestGateway, versions: [string, string], state = "", fail = false) {
   await gateway.core.cli.report(
-    gateway.workerId,
+    gateway.core.link.connections.get(gateway.workerId)!,
     create(CliToolsReportSchema, {
       os: "linux",
       arch: "x64",
@@ -210,6 +224,21 @@ async function tickUntil(gateway: TestGateway, predicate: (run: ui.UpdateRun | u
 }
 
 describe.skipIf(!dockerAvailable)("Update all across linked computers with fake updaters", () => {
+  test("guarded CLI installs cannot reach an older linked gateway", async () => {
+    const a = await gateway();
+    const b = await gateway();
+    await clis(b, ["1.0.0", "2.0.0"]);
+    const nodeId = await linkGateways(a, b, "Older computer", false);
+    const request = { workerId: qualifyId(b.workerId, nodeId), provider: Provider.CLAUDE, version: "2.0.0" };
+    expect(await failure(a.api.installCli({ ...request, upgradeOnly: true }))).toContain(
+      "Update Canopy on this computer",
+    );
+    expect(b.worker.commands.filter((command) => command.case === "installCli")).toHaveLength(0);
+
+    expect((await a.api.installCli(request)).started).toEqual([b.workerId]);
+    expect(b.worker.commands.filter((command) => command.case === "installCli")).toHaveLength(1);
+  });
+
   test("the authenticated linked CLI route preserves a supplied UUID in commands and reports", async () => {
     const a = await gateway();
     const b = await gateway();
@@ -236,10 +265,17 @@ describe.skipIf(!dockerAvailable)("Update all across linked computers with fake 
       reply(true);
     });
 
-    const response = await a.api.installCli({ workerId, provider: Provider.CLAUDE, version: "2.0.0", installId });
+    const response = await a.api.installCli({
+      workerId,
+      provider: Provider.CLAUDE,
+      version: "2.0.0",
+      installId,
+      upgradeOnly: true,
+    });
+
     expect(response.started).toEqual([b.workerId]);
     expect(b.worker.commands.filter((command) => command.case === "installCli")).toMatchObject([
-      { case: "installCli", value: { provider: Provider.CLAUDE, version: "2.0.0", installId } },
+      { case: "installCli", value: { provider: Provider.CLAUDE, version: "2.0.0", installId, upgradeOnly: true } },
     ]);
 
     const report = async () => {

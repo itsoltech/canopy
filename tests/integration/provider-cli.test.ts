@@ -10,7 +10,9 @@
 import { afterAll, beforeAll, describe, expect, test } from "bun:test";
 import { chmodSync, mkdirSync, readFileSync, symlinkSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
-import { CliInstallMethod, PermissionMode, Provider, type ui } from "@canopy/contracts";
+import { create } from "@bufbuild/protobuf";
+import { Code } from "@connectrpc/connect";
+import { CliInstallMethod, PermissionMode, Provider, ui } from "@canopy/contracts";
 import { dockerAvailable } from "@canopy/db/testing";
 import { tempDir } from "@canopy/testing";
 import { GatewayStore } from "@canopy/gateway/store";
@@ -36,6 +38,9 @@ if [ "$1" = "install" ]; then
   T="$2"; D="$HOME/.local/share/claude/versions"
   echo "Installing Claude Code native build $T..."
   echo "debug token=supersecret-value key=[$FAKE_API_KEY]"
+  if [ "$T" = "1.1.0" ]; then
+    while [ ! -f "$HOME/release-claude-install" ]; do sleep 0.05; done
+  fi
   if [ "$T" = "6.6.6" ]; then printf '#!/bin/sh\\nexit 1\\n' > "$D/$T"; else sed "s/^V=\\".*\\"/V=\\"$T\\"/" "$0" > "$D/$T"; fi
   chmod +x "$D/$T"; ln -sfn "$D/$T" "$HOME/.local/bin/claude"
   echo "Claude Code successfully installed!"; exit 0
@@ -259,15 +264,42 @@ describe.skipIf(!dockerAvailable)("provider CLIs (gateway + real worker + fake C
     await gw.api.checkCliUpdates({});
   });
 
-  test("native Claude updates with `claude install`; output is redacted and secrets never reach the installer", async () => {
-    const started = await gw.api.installCli({ workerId: realId, provider: Provider.CLAUDE });
+  test("duplicate Claude updates follow the active install and keep its redacted log and result", async () => {
+    const request = { workerId: realId, provider: Provider.CLAUDE };
+    const installId = crypto.randomUUID();
+    const started = await gw.api.installCli({ ...request, installId }, { timeoutMs: 4_000 });
     expect(started.started).toEqual([realId]);
-    const worker = await eventually(() => workerOf(realId), settled(Provider.CLAUDE), 30_000);
+    let worker;
+
+    try {
+      const active = await eventually(
+        () => workerOf(realId),
+        (w) => {
+          const cli = tool(w, Provider.CLAUDE);
+
+          return cli?.tool?.install?.installId === installId && cli.log.some((line) => line.includes("token=***"));
+        },
+        4_000,
+      );
+
+      expect(tool(active, Provider.CLAUDE)?.log.join("\n")).toContain("token=***");
+      expect((await gw.api.installCli(request, { timeoutMs: 4_000 })).started).toEqual([]);
+      await expect(
+        gw.core.installCli(create(ui.InstallCliRequestSchema, { ...request, version: "1.2.0" })),
+      ).rejects.toMatchObject({ code: Code.Aborted });
+      const during = tool(await workerOf(realId), Provider.CLAUDE);
+      expect(during?.tool?.install).toMatchObject({ installId, state: "running" });
+      expect(during?.log.join("\n")).toContain("token=***");
+    } finally {
+      writeFileSync(join(home, "release-claude-install"), "");
+      worker = await eventually(() => workerOf(realId), settled(Provider.CLAUDE), 30_000);
+    }
+
     const claude = tool(worker, Provider.CLAUDE)!;
     expect(claude.tool).toMatchObject({
       version: "1.1.0",
       method: CliInstallMethod.NATIVE,
-      install: { state: "succeeded", targetVersion: "1.1.0", previousVersion: "1.0.0" },
+      install: { installId, state: "succeeded", targetVersion: "1.1.0", previousVersion: "1.0.0" },
     });
     expect(claude.updateAvailable).toBe(false);
     expect(claude.action).toBe("");
@@ -277,7 +309,14 @@ describe.skipIf(!dockerAvailable)("provider CLIs (gateway + real worker + fake C
     expect(log).not.toContain("supersecret");
     expect(log).not.toContain(LEAK);
     expect(log).toContain("key=[]");
-  });
+
+    const staleTarget = await gw.api.installCli({ ...request, version: "1.0.0", upgradeOnly: true });
+    expect(staleTarget.started).toEqual([]);
+    expect(tool(await workerOf(realId), Provider.CLAUDE)?.tool).toMatchObject({
+      version: "1.1.0",
+      install: { installId, state: "succeeded" },
+    });
+  }, 50_000);
 
   test('Codex as an npm global package: "Update all" runs npm with the same prefix; workers without an update are left out', async () => {
     const started = await gw.api.installCli({ provider: Provider.CODEX, allWorkers: true });
@@ -554,5 +593,61 @@ describe.skipIf(!dockerAvailable)("provider CLIs (gateway + real worker + fake C
     expect(audit.length).toBe(7);
     expect(audit.map((a) => a.target_id)).not.toContain(theirs.workerId);
     expect(readFileSync(join(home, ".local/bin/claude"), "utf8")).toContain('V="1.1.0"');
+  });
+
+  test("the last connection's unfinished Claude install cannot block a restarted worker", async () => {
+    const { workerId, credential } = await gw.addWorker("restarting Claude worker");
+    const options = { hello: { capabilities: ["cli_install"] } };
+    const before = await gw.connect(workerId, credential, undefined, options);
+    before.link.send({
+      case: "cliTools",
+      value: {
+        tools: [
+          {
+            provider: Provider.CLAUDE,
+            method: CliInstallMethod.NATIVE,
+            installable: true,
+            version: "1.1.0",
+            install: {
+              installId: crypto.randomUUID(),
+              state: "running",
+              previousVersion: "1.0.0",
+              targetVersion: "1.1.0",
+            },
+          },
+        ],
+      },
+    });
+    await eventually(
+      () => workerOf(workerId),
+      (w) => tool(w, Provider.CLAUDE)?.tool?.install?.state === "running",
+    );
+    before.link.close();
+    await eventually(
+      () => workerOf(workerId),
+      (w) => w?.online === false,
+    );
+
+    const restarted = await gw.connect(workerId, credential, undefined, options);
+
+    const worker = await eventually(
+      () => workerOf(workerId),
+      (w) => w?.online === true,
+    );
+
+    const cli = tool(worker, Provider.CLAUDE)?.tool;
+    expect(cli?.version).toBe("1.0.0");
+    expect(cli?.install).toBeUndefined();
+
+    const installId = crypto.randomUUID();
+    const request = { workerId, provider: Provider.CLAUDE, version: "1.1.0", installId };
+    await expect(
+      gw.core.installCli(create(ui.InstallCliRequestSchema, { ...request, upgradeOnly: true })),
+    ).rejects.toMatchObject({ code: Code.FailedPrecondition });
+    expect(restarted.commands.filter((command) => command.case === "installCli")).toHaveLength(0);
+    expect((await gw.api.installCli(request)).started).toEqual([workerId]);
+    expect(restarted.commands.filter((command) => command.case === "installCli")).toMatchObject([
+      { value: { provider: Provider.CLAUDE, version: "1.1.0", installId } },
+    ]);
   });
 });

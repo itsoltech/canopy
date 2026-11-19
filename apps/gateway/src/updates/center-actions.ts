@@ -43,18 +43,18 @@ export async function installRunCli(core: GatewayCore, request: ui.InstallCliReq
   if (!core.computers || !(await core.computers.store.peer(nodeId)))
     throw new ConnectError("That computer is no longer linked", Code.NotFound);
 
-  const response = linkedMessage(
-    ui.InstallCliResponseSchema,
-    await sendWorkerSetting(
-      core,
-      methodNamed("InstallCli")!,
-      create(ui.InstallCliRequestSchema, request),
-      nodeRef(nodeId),
-      AbortSignal.timeout(PEER_UPDATE_INSTALL_TIMEOUT_MS),
-    ),
-  );
-
-  refreshComputerUpdates(core, nodeId);
-
-  return response;
+  try {
+    return linkedMessage(
+      ui.InstallCliResponseSchema,
+      await sendWorkerSetting(
+        core,
+        methodNamed("InstallCli")!,
+        create(ui.InstallCliRequestSchema, request),
+        nodeRef(nodeId),
+        AbortSignal.timeout(PEER_UPDATE_INSTALL_TIMEOUT_MS),
+      ),
+    );
+  } finally {
+    refreshComputerUpdates(core, nodeId);
+  }
 }
