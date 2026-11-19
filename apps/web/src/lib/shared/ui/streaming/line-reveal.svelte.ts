@@ -10,7 +10,7 @@ export class LineReveal {
   readonly #source: () => string;
   readonly #streaming: () => boolean;
 
-  readonly text: string = $derived(streamingText(this.#source(), this.#streaming()));
+  readonly text: string = $derived.by(() => streamingText(this.#source(), this.#streaming()));
 
   constructor(source: () => string, streaming: () => boolean) {
     this.#source = source;
