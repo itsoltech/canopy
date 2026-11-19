@@ -1,6 +1,6 @@
 # Canopy Desktop
 
-Status: opis zaimplementowanego runtime i pakowania (2026-11-19), w tym selektywnego CI dla powłoki Electron, ponawiania
+Status: opis zaimplementowanego runtime i pakowania (2026-11-19), w tym ręcznego kopiowania pełnego zaproszenia do parowania przy odmowie dostępu do schowka oraz selektywnego CI dla powłoki Electron, ponawiania
 startu lokalnego gatewaya po serii nieoczekiwanych wyjść, poprawki kodowania
 obrazów w gatewayu na Windows, osobnego okna stanu zamykania i restartu do aktualizacji oraz ponawiania
 pakowania macOS i Windows w CI, menu ścieżek plików z rozmowy

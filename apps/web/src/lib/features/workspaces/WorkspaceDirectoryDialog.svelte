@@ -35,7 +35,7 @@
   title={workspace ? `Move ${projectName} on ${worker.name}` : `Add ${projectName} to ${worker.name}`}
   description={workspace
     ? `Threads already there keep their directory (${workspace.rootPath}). New threads start in the one you choose.`
-    : `Choose the project's directory on ${worker.name}. New threads on this worker start there.`}
+    : `New threads on ${worker.name} start in the directory you choose.`}
 >
   <ActionForm
     action={workspace ? "?/updateWorkspace" : "?/createWorkspace"}

@@ -25,8 +25,7 @@
       class="relative flex min-h-(--settings-target) items-center gap-2 rounded-lg px-2 whitespace-nowrap text-zinc-950 focus-ring hover:bg-zinc-950/5 aria-expanded:bg-zinc-950/5 dark:text-white dark:hover:bg-white/5 dark:aria-expanded:bg-white/8"
       {...props}
     >
-      <Icon name={current?.icon ?? "cog-6-tooth"} class="fill-current" />{current?.label ??
-        "Settings"}{#if waiting}<StatusDot tone="amber" />{/if}<Icon
+      {current?.label ?? "Settings"}{#if waiting}<StatusDot tone="amber" />{/if}<Icon
         name="chevron-up-down"
         class="fill-zinc-500 dark:fill-zinc-400"
       />
@@ -40,7 +39,6 @@
         {#each items as section (section.href)}
           <MenuItem
             href={section.href}
-            icon={section.icon}
             current={sections.isActive(section.href)}
             description={sections.hinted(section.href) ? "Updates available" : undefined}>{section.label}</MenuItem
           >

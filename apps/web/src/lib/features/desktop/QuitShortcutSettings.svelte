@@ -19,7 +19,7 @@
       label: "Hold",
       description: "Hold for 1 second, or press twice if key repeat is unavailable.",
     },
-    { value: "immediately", label: "Quit immediately", description: "Quit on the first press." },
+    { value: "immediately", label: "Quit immediately" },
   ] as const satisfies readonly SelectOption[];
 
   function receive(value: QuitShortcut) {
@@ -68,7 +68,7 @@
   <SettingsGroup title="Desktop app" description="This device">
     <PreferenceRow
       title="Quit shortcut"
-      description="Set how the keyboard shortcut closes Canopy."
+      description=""
       changed={choice !== "press-twice"}
       onreset={() => change("press-twice")}
     >

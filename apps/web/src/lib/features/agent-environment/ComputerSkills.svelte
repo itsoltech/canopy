@@ -45,7 +45,7 @@
     {@const skill = environment.snapshot.skills.find((s) => s.id === file.skillId)}
     <div class="grid min-w-0 gap-3 border-t border-zinc-950/10 pt-4 dark:border-white/10">
       <div class="flex flex-wrap items-center gap-2 text-base sm:text-sm">
-        <p class="min-w-0 flex-1 font-medium break-words">
+        <p class="min-w-0 flex-1 font-medium wrap-anywhere">
           {skill?.name ?? "Removed skill"} · {file.harness} · v{file.version.toString()}
         </p>
         <Badge

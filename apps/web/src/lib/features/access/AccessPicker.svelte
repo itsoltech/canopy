@@ -85,7 +85,7 @@
             class="w-full"
           />
         {/snippet}
-        <AccessList bind:choice={draft} {options} {noun} {icon} {allowAll} />
+        <AccessList bind:choice={draft} {options} {noun} {allowAll} />
       </Popover>
       <span id="{id}-value" class="sr-only">{summary}</span>
     </div>

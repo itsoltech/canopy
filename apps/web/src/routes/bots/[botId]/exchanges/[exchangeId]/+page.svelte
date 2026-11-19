@@ -74,7 +74,6 @@
     syncing={history.syncing}
     me={{ id: "me", kind: "user", name: "You" }}
     {directory}
-    subtitle="Bot conversation"
     onsend={() => {}}
     onclose={close}
     class="h-full"

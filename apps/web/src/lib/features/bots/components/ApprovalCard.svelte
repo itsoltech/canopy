@@ -176,12 +176,8 @@
             loading={answering === "discard"}
             onclick={() => onanswer({ approve: false })}>Discard</Button
           >
-          {#if !approval.threadId}<Button
-              size="sm"
-              icon="pencil-square"
-              disabled={!open}
-              loading={answering === "edit"}
-              onclick={edit}>Edit</Button
+          {#if !approval.threadId}<Button size="sm" disabled={!open} loading={answering === "edit"} onclick={edit}
+              >Edit</Button
             >{/if}
           {#if approval.ruleOptions?.length}
             <DropdownMenu label="Always allow an action">

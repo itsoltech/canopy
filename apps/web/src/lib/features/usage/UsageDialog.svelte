@@ -219,7 +219,7 @@
           </p>
         {:else if failed}
           <Alert tone="error" title="Could not load usage">
-            Check your connection, then try again.
+            Check your connection.
             {#snippet actions()}<Button size="sm" onclick={() => revision++}>Try again</Button>{/snippet}
           </Alert>
         {:else if data}

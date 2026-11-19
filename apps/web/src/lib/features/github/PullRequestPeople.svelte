@@ -67,7 +67,6 @@
           compact
         />
         <p class="min-w-0 flex-1 truncate" title={login}>{login}</p>
-        <span {@attach tooltip("Assigned")}><Icon name="user" label="Assigned" /></span>
       </div>{/each}
   </section>
 </div>

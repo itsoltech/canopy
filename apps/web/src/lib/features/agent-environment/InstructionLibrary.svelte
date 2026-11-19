@@ -34,10 +34,7 @@
           document.harness === "claude" ? "CLAUDE.md" : "AGENTS.md",
           `v${document.revision}`,
           `${document.fragments.length} ${document.fragments.length === 1 ? "fragment" : "fragments"}`,
-          "Library",
-        ]
-          .filter(Boolean)
-          .join(" · ")}
+        ].join(" · ")}
         disabled={state.busy}
         onedit={() => state.edit(document)}
         onremove={() => void state.remove(document)}
@@ -62,11 +59,10 @@
       </LibraryRow>
     {:else}
       <div class="grid gap-3 rounded-xl bg-zinc-950/3 p-5 dark:bg-white/4">
-        <h3 class="font-medium text-balance">Make every agent feel at home</h3>
+        <h3 class="font-medium text-balance">No instruction documents yet</h3>
         <p class="text-base text-pretty text-muted sm:text-sm">
-          Add a document and assign it to see what agents receive.
+          Assign a document to a computer to preview its instructions.
         </p>
-        <div><Button onclick={() => state.edit()}>Add your first document</Button></div>
       </div>
     {/each}
   </div>

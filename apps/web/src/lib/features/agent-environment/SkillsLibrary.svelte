@@ -92,7 +92,8 @@
   <Dialog bind:open={removing} title="Remove skills from library?" dismissible={!deleting}>
     <div class="grid gap-4">
       <p class="text-base text-pretty sm:text-sm">
-        Remove {chosen.length} skills from your shared library? This also removes their installations from assigned computers.
+        This removes {chosen.length}
+        {chosen.length === 1 ? "skill" : "skills"} from your shared library and from assigned computers.
       </p>
       {#if !deleting && removalRevision !== environment.snapshot.revision}<p class="text-base text-muted sm:text-sm">
           The library changed. Cancel and review your selection before removing skills.
@@ -129,9 +130,7 @@
           ]}
         /></Field
       >
-      <p class="text-base text-muted sm:text-sm">
-        Review the files, choose tags or computers, then confirm. Canopy reads pasted commands without running them.
-      </p>{/snippet}
+      <p class="text-base text-muted sm:text-sm">Canopy reads pasted commands without running them.</p>{/snippet}
   </EnvironmentSheet>
   <SkillEditor
     bind:skill={controller.draft}
@@ -213,11 +212,10 @@
       </LibraryRow>
     {:else}
       <div class="grid gap-2 rounded-xl bg-zinc-950/3 p-5 dark:bg-white/4">
-        <h3 class="text-base font-medium text-balance">Give your agents a new skill</h3>
+        <h3 class="text-base font-medium text-balance">No skills yet</h3>
         <p class="text-base text-pretty text-zinc-500 sm:text-sm dark:text-zinc-400">
-          Upload a skill folder or ZIP file and choose its computers. Canopy keeps every copy in sync.
+          Add skills from a Git repository, a skill folder or a ZIP file.
         </p>
-        <div><Button onclick={() => (choose = true)}>Add your first skill</Button></div>
       </div>
     {/each}
   </div>

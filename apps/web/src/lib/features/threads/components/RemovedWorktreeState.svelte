@@ -2,7 +2,6 @@
   import type { ui } from "@canopy/contracts";
   import type { ClassValue } from "svelte/elements";
   import Button from "#lib/shared/ui/Button.svelte";
-  import Icon from "#lib/shared/ui/Icon.svelte";
   import { useGatewayCapabilities } from "#lib/features/desktop/gateway-capabilities.svelte.ts";
   import ContinueWorktreeDialog from "#lib/features/worktrees/ContinueWorktreeDialog.svelte";
 
@@ -39,14 +38,11 @@
     className,
   ]}
 >
-  <div class="flex items-start gap-3">
-    <Icon name="lock-closed" class="h-6 shrink-0 text-zinc-400 dark:text-zinc-500" />
-    <div class="min-w-0 flex-1">
-      <h2 class="font-medium text-balance text-zinc-800 dark:text-zinc-200">This thread is read-only</h2>
-      <p class="pt-1 text-base/6 text-pretty text-zinc-500 sm:text-sm/6 dark:text-zinc-400">
-        Its worktree was removed. Continue in a new worktree with an excerpt of its history.
-      </p>
-    </div>
+  <div class="min-w-0">
+    <h2 class="font-medium text-balance text-zinc-800 dark:text-zinc-200">This thread is read-only</h2>
+    <p class="pt-1 text-base/6 text-pretty text-zinc-500 sm:text-sm/6 dark:text-zinc-400">
+      Its worktree was removed. Continue in a new worktree with an excerpt of its history.
+    </p>
   </div>
   <div class="flex min-w-0 flex-wrap items-center gap-3">
     <Button size="sm" variant="primary" icon="git-fork" disabled={Boolean(reason)} onclick={() => (open = true)}>

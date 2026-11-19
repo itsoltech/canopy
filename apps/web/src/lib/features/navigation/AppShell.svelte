@@ -151,6 +151,14 @@
 
   let ready = $state(false);
 
+  const showGatewayUnavailable = $derived(
+    overview.connection === "unavailable" &&
+      overview.resyncs === 0 &&
+      !page.error &&
+      !capabilities.incompatible &&
+      capabilities.supports(page.url.pathname),
+  );
+
   onMount(() => devicePreferences.connect());
 
   $effect(() => {
@@ -335,10 +343,11 @@
       <!-- Keep banners, loading and error content below a static native title strip. -->
       <div class="hidden h-12 shrink-0 desktop:block" data-window-drag></div>
     {/if}
-    {#if overview.connection === "unavailable"}
+    {#if overview.connection === "unavailable" && !showGatewayUnavailable}
       <div class="absolute inset-x-0 top-12 z-10 bg-surface">
         <Alert tone="warning" banner
-          >The gateway is not responding. Showing the last known state; retrying automatically.</Alert
+          >The gateway is not responding. {overview.resyncs > 0 ? "Showing the last known state. " : ""}Retrying
+          automatically.</Alert
         >
       </div>
     {/if}
@@ -348,7 +357,7 @@
         <GatewayCompatibility message={capabilities.message} />
       {:else if !capabilities.supports(page.url.pathname)}
         <GatewayCompatibility message={capabilities.unavailableMessage(page.url.pathname)} desktopActions={false} />
-      {:else if overview.resyncs === 0 && overview.connection === "unavailable" && !page.error}
+      {:else if showGatewayUnavailable}
         <GatewayUnavailable retry={() => location.reload()} />
       {:else if (!ready && !page.error) || redirect}
         <div class="flex h-full flex-col gap-4 p-6" role="status" aria-label="Loading application">

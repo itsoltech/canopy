@@ -70,5 +70,5 @@
     {workers}
     description="Exclusions always win, including for specific computers."
   />
-  <AssignmentSummary {selector} {workers} {disabled} {parentSelector} />
+  <AssignmentSummary class="wrap-anywhere" {selector} {workers} {disabled} {parentSelector} />
 </div>

@@ -63,14 +63,10 @@
     <MenuItem
       icon="arrow-turn-down-right"
       shortcut={steerFirst ? primaryShortcut : alternateShortcut}
-      description="Joins the turn the agent is working on now."
       onselect={onsteer}>Steer into this turn</MenuItem
     >
-    <MenuItem
-      icon="queue-list"
-      shortcut={steerFirst ? alternateShortcut : primaryShortcut}
-      description="Waits and runs as the next turn."
-      onselect={onqueue}>Queue for the next turn</MenuItem
+    <MenuItem icon="queue-list" shortcut={steerFirst ? alternateShortcut : primaryShortcut} onselect={onqueue}
+      >Queue for the next turn</MenuItem
     >
   </DropdownMenu>
 </div>

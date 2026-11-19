@@ -173,7 +173,7 @@
             >
               <Icon name="folder" class="fill-zinc-400 dark:fill-zinc-500" />
               <span class="min-w-0 flex-1 truncate">{entry.name}</span>
-              {#if entry.isGitRepo}<Badge>git</Badge>{/if}
+              {#if entry.isGitRepo}<Badge>Git</Badge>{/if}
             </button>
           </li>
         {:else}

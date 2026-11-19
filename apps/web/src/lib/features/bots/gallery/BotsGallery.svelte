@@ -190,7 +190,7 @@
             </div>
           </div>
           <div class="grid w-72 gap-2">
-            <p class="text-sm/6 font-medium text-zinc-500 dark:text-zinc-400">Production today (no bots yet)</p>
+            <p class="text-sm/6 font-medium text-zinc-500 dark:text-zinc-400">Empty sidebar</p>
             <div class="rounded-xl bg-zinc-50 p-2 ring-1 ring-zinc-950/5 dark:bg-zinc-950 dark:ring-white/10">
               <BotsSectionEmpty />
             </div>
@@ -314,7 +314,7 @@
             onsend={() => {}}
             onattach={() => (log = "Attach.")}
           />
-          <WatchBar bots={chats.watch.conversation.bots} onclose={() => (log = "Close chat.")} />
+          <WatchBar onclose={() => (log = "Close chat.")} />
         </div>
       </GallerySection>
 

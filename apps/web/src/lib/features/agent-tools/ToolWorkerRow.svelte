@@ -94,15 +94,12 @@
         >{update ? "Update tool" : failed ? "Retry install" : info?.installed ? "Repair tool" : "Install tool"}</Button
       >
     {/if}
-    {#if running}<span>Preparing the tool…</span>{/if}
   </div>
   {#if entry.readOnly}<p class="text-sm/5 text-zinc-500 dark:text-zinc-400">{entry.readOnly}</p>
   {:else if !entry.worker.online}<p class="text-sm/5 text-zinc-500 dark:text-zinc-400">
       Connect this worker to enable access or install tools.
     </p>
-  {:else if failed}<p class="text-sm/5 text-rose-700 dark:text-rose-400">
-      Installation failed. Check the install log, then retry.
-    </p>
+  {:else if failed}<p class="text-sm/5 text-rose-700 dark:text-rose-400">Check the install log, then retry.</p>
   {:else if item?.blockedReason}<p class="text-sm/5 text-zinc-500 dark:text-zinc-400">{item.blockedReason}</p>
   {:else if info && !info.ready && info.installed && !running}<p
       class="text-sm/5 text-pretty break-words text-zinc-500 dark:text-zinc-400"

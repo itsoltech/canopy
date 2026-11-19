@@ -48,7 +48,6 @@
 <SettingsGroup title="Colors" description="Account">
   <PreferenceRow
     title="Color scheme"
-    description="Follow the system or use a fixed light or dark palette."
     changed={scheme !== "system"}
     onreset={() => settings.updateAppearance({ colorScheme: schemeNames.system })}
   >

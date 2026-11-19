@@ -56,10 +56,7 @@
     <ProjectWorkers {project} error={route.form?.action === "workspace" ? route.form.error : undefined} />
   </SettingsGroup>
 
-  <SettingsGroup
-    title="Thread defaults"
-    description="Starting values of new threads in this project, over your own defaults from Settings → Threads."
-  >
+  <SettingsGroup title="Thread defaults" description="These override your defaults from Settings → Threads.">
     <ThreadDefaultsFields
       value={settings.projectDefaults(project.id)}
       workspaces={[{ project, workspaces: project.workspaces }]}

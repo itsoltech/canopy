@@ -59,13 +59,12 @@
   {:else}
     <SettingsCard class="p-5">
       <p class="font-medium text-zinc-950 dark:text-white">No workers yet</p>
-      <p class="mt-1 text-sm/5 text-zinc-500 dark:text-zinc-400">Add a worker to use agent tools on your computer.</p>
       <div class="mt-3"><ButtonLink href="/settings/workers" size="sm">Add worker</ButtonLink></div>
     </SettingsCard>
   {/if}
   <ToolActionNote {actions} actionKey="refresh" />
   {#if records.error}<Alert tone="error"
-      >Could not load workers of linked computers. Retry to load them.{#snippet actions()}<Button
+      >Could not load workers from linked computers.{#snippet actions()}<Button
           size="sm"
           onclick={() => void records.reload()}>Retry</Button
         >{/snippet}</Alert

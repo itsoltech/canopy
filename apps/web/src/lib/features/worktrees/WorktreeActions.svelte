@@ -28,11 +28,9 @@
       ? ""
       : offline
         ? "Worker offline. Reconnect it to manage this worktree."
-        : unavailable
-          ? entry.detail
-          : entry.busy
-            ? "A thread is still using this worktree."
-            : "",
+        : entry.busy && !unavailable
+          ? "A thread is still using this worktree."
+          : "",
   );
 
   async function remove() {
@@ -68,7 +66,6 @@
 
 <div class={["grid gap-2", className]}>
   <div class="flex flex-wrap items-center gap-2">
-    <span class="text-base text-zinc-500 sm:text-sm dark:text-zinc-400">Open in…</span>
     <CopyButton text={entry.worktree?.path ?? ""} label="Copy worktree path" />
     {#if !entry.worktree?.external}
       <Button size="sm" variant="ghost" disabled={unavailable || working} onclick={reveal}>Reveal on computer</Button>

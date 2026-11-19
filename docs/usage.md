@@ -5,6 +5,7 @@ harnessów, niezależne szacunki ekwiwalentu API OpenAI, wybór kosztu per liczn
 API `GetUsageStats`, synchronizacja źródeł połączonych komputerów oraz modal
 Usage z jedną kwotą kosztu i podziałem według aktywności oraz poszczególnych botów.
 Web, desktop i [aplikacja mobilna](mobile.md#raport-usage) pokazują w raporcie Usage skrócone liczby tokenów i dzienny wykres według dostawcy.
+W web/desktop data wybrana na wykresie ma oznaczenie UTC. Dla jednego dnia oś nie powtarza daty na obu końcach. Przy nawigacji klawiaturą po kilku dniach pojawia się wskazówka o strzałkach.
 Dostępność nightly/beta/stable według [release.md](release.md).
 
 ## Co mierzymy

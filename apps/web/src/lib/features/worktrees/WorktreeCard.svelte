@@ -29,7 +29,7 @@
   <code class="font-mono text-base break-all text-zinc-500 sm:text-sm dark:text-zinc-400">{entry.worktree?.path}</code>
   {#if status && !status.detail}
     <p class="text-base text-zinc-600 sm:text-sm dark:text-zinc-300">
-      {status.dirtyFiles} changed {status.dirtyFiles === 1 ? "file" : "files"} · ↑{status.ahead} ahead · ↓{status.behind}
+      {status.dirtyFiles} changed {status.dirtyFiles === 1 ? "file" : "files"} · {status.ahead} ahead · {status.behind}
       behind{status.unpushed ? " · Unpushed commits" : ""}{status.merged ? " · Merged" : ""}
     </p>
   {/if}

@@ -158,7 +158,9 @@
       disabled={busy || uncertain}
     />{/if}
   {#if closed || snapshot.stale || !online}<p role="status" class="text-sm text-zinc-500">
-      {closed ? "This pull request is closed." : "Connect and refresh before submitting. Your draft stays here."}
+      {#if closed}This pull request is closed.{:else}{online
+          ? "Refresh before submitting."
+          : "Connect and refresh before submitting."} Your draft stays here.{/if}
     </p>{/if}
   {#if error || receipt?.detail || (uncertain && !busy)}<p
       role="alert"

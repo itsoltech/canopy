@@ -65,6 +65,7 @@
 
   const done = $derived(job?.status === "completed");
   const ended = $derived(Boolean(error) || cancelled || job?.status === "failed");
+  const endDetail = $derived(error || job?.error || (cancelled ? "Canopy removes partial files automatically." : ""));
   const percent = $derived(progress?.totalBytes ? Number((progress.bytes * 100n) / progress.totalBytes) : 0);
 
   const actionLabel = $derived(
@@ -82,17 +83,15 @@
   );
 
   const actionDisabledReason = $derived(
-    done || ended || running
+    done || ended || running || loading
       ? undefined
-      : loading
-        ? "Reading the file list…"
-        : confirming && !confirmed
-          ? "Confirm the files above to continue."
-          : disabledReason || undefined,
+      : confirming && !confirmed
+        ? "Confirm the files above to continue."
+        : disabledReason || undefined,
   );
 
   function submit() {
-    if (busy || actionDisabledReason) return;
+    if (loading || busy || actionDisabledReason) return;
 
     if (done || running) onclose();
     else if (ended) void load();
@@ -225,7 +224,7 @@
           : cancelled
             ? "Copy cancelled"
             : confirming
-              ? "Copy files that may contain secrets?"
+              ? "Copy files with possible secrets?"
               : "Choose files to copy"}
   </h2>
 </StepHeader>
@@ -234,9 +233,7 @@
     <p class="truncate text-sm text-zinc-500 sm:text-xs dark:text-zinc-400" title="{parent}/{name}">
       To {worker.name} · {name}
     </p>
-    {#if loading}
-      <p role="status">Reading the file list…</p>
-    {:else if done}
+    {#if done}
       <p role="status">
         Copied {copyFileCount(progress?.files ?? 0)} ({copySize(progress?.bytes ?? 0n)}). Skipped {copyFileCount(
           skipped,
@@ -251,7 +248,7 @@
             ? job.error
             : job?.status === "queued"
               ? "Starts when another copy ends."
-              : "Copying files… It continues in the background if you close this dialog."}
+              : "The copy continues if you close this dialog."}
       </p>
       <div
         role="progressbar"
@@ -271,15 +268,18 @@
         {progress?.currentFile || "Preparing the destination…"}
       </p>
     {:else if ended}
-      <p role={cancelled ? "status" : "alert"} class={cancelled ? "" : "text-rose-700 select-text dark:text-rose-400"}>
-        {error || job?.error || "Copy cancelled. Partial files are removed automatically."}
-      </p>
+      {#if endDetail}<p
+          role={cancelled ? "status" : "alert"}
+          class={cancelled ? "" : "text-rose-700 select-text dark:text-rose-400"}
+        >
+          {endDetail}
+        </p>{/if}
     {:else if confirming}
       <p>These files may contain passwords, tokens or private keys. Copy them only to a computer you trust.</p>
       <ul role="list" class="max-h-52 scroll-stable overflow-auto rounded-lg bg-zinc-950/3 p-3 dark:bg-white/5">
         {#each secrets as entry (entry.path)}<li class="font-mono break-all select-text">{entry.path}</li>{/each}
       </ul>
-    {:else if manifest}
+    {:else if manifest && !loading}
       <WorkspaceCopyFiles
         {manifest}
         {selected}
@@ -298,7 +298,7 @@
   class="sticky bottom-0 z-10 flex shrink-0 flex-col gap-3 border-t border-zinc-950/10 bg-white p-4 text-base/6 sm:text-sm/5 dark:border-white/10 dark:bg-zinc-900"
 >
   {#if loading}
-    <Button variant="primary" loading class="w-full">Reading file list…</Button>
+    <p role="status">Reading the file list…</p>
   {:else if done}
     <Button variant="primary" class="w-full" onclick={onclose}>Done</Button>
   {:else if busy}
@@ -311,6 +311,7 @@
   {:else if manifest}
     {#if confirming}
       <Checkbox
+        class="wrap-anywhere"
         name="confirm-copy-secrets"
         label="I want to copy these files to {worker.name}"
         bind:checked={confirmed}

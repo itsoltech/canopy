@@ -26,7 +26,7 @@
 <Alert tone={loaded ? "warning" : "error"} {title} class={className}>
   <div class="grid min-w-0 gap-2">
     <p class={longError ? "line-clamp-3" : undefined}>{error}</p>
-    {#if loaded}<p>Showing the last known state. It may have changed.</p>{/if}
+    {#if loaded}<p>Showing the last known state.</p>{/if}
     <div>
       <Button size="sm" disabled={loading} {loading} onclick={onretry}>{loading ? "Retrying…" : "Retry"}</Button>
     </div>

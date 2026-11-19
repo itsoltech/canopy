@@ -59,7 +59,6 @@
           required
           maxlength={4096}
           oninput={() => (controller.preview = undefined)}
-          placeholder="/plugin marketplace add owner/repo"
         />
       </Field>
       <SourceCredentialPicker
@@ -72,7 +71,8 @@
       {@const market = controller.preview.marketplace}
       <div class="grid min-w-0 gap-3 rounded-lg bg-zinc-950/3 p-4 dark:bg-white/4">
         <h3 class="text-base font-medium text-balance wrap-anywhere">
-          {market.name} · {market.plugins.length} plugins
+          {market.name} · {market.plugins.length}
+          {market.plugins.length === 1 ? "plugin" : "plugins"}
         </h3>
         <p class="font-mono text-base wrap-anywhere sm:text-sm">
           {market.source?.url}<br />Commit {market.source?.commit}

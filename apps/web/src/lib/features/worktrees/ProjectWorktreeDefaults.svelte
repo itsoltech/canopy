@@ -47,7 +47,7 @@
       name="projectDefaultMode"
       field="defaultMode"
       title="Default workspace"
-      description="What the new-thread composer starts with. You can still pick another one per thread."
+      description="You can choose a different workspace for each thread."
       options={modes}
       value={effective.defaultMode}
       inherited={inherited.defaultMode}

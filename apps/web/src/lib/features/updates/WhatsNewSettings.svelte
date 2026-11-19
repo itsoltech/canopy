@@ -11,9 +11,7 @@
 <SettingsGroup title="What's new" class={className}>
   <SettingsRow
     title={`Canopy ${notes.current}`}
-    description={notes.previous
-      ? `Updated from ${notes.previous}.`
-      : "Read changes in this version and recent releases."}
+    description={notes.previous ? `Updated from ${notes.previous}.` : undefined}
   >
     {#snippet control()}<Button size="sm" onclick={() => notes.show()}>See what's new</Button>{/snippet}
   </SettingsRow>

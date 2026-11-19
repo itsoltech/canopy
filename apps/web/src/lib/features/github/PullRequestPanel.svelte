@@ -5,6 +5,7 @@
   import type { ClassValue } from "svelte/elements";
   import { SharedRead, queries } from "#lib/shared/queries.svelte.ts";
   import { HttpError } from "#lib/shared/http.ts";
+  import { readStatus } from "./presentation.ts";
   import { formatDateTime } from "#lib/shared/format.ts";
   import Alert from "#lib/shared/ui/Alert.svelte";
   import Button from "#lib/shared/ui/Button.svelte";
@@ -159,6 +160,7 @@
   );
 
   const data = $derived(denied ? undefined : read.data);
+  const detail = $derived(readStatus(data));
 
   $effect(() => {
     const active = tab;
@@ -185,18 +187,25 @@
     if (busy) return;
     busy = true;
     error = "";
+    const requestId = id;
 
     try {
-      read.set(await api.pullRequest(id, true));
-      invalidations.publish(id);
+      const value = await api.pullRequest(requestId, true);
+
+      if (requestId !== id) return;
+      read.set(value);
       denied = false;
       accessError = "";
     } catch (cause) {
+      if (requestId !== id) return;
+
       if (cause instanceof HttpError && cause.status === 403) accessError = cause.message;
 
       if (cause instanceof HttpError && [403, 404, 409, 412].includes(cause.status)) denied = true;
       error = "Could not load this summary. Check account access and the connection, then retry.";
     } finally {
+      // Mounted sections have separate reads. Retry those even if the summary request failed temporarily.
+      if (requestId === id && !denied) invalidations.publish(requestId);
       busy = false;
     }
   }
@@ -247,20 +256,18 @@
     class={["min-w-0", tab === "summary" ? "p-4" : "px-4 pb-4"]}
   >
     {#if error || read.snapshot.error}<Alert class="mb-4"
-        >{accessError || error || "Connect to load this page. Check account access, then retry."}<Button
-          size="sm"
-          variant="ghost"
-          onclick={refresh}>Retry</Button
-        ></Alert
+        >{accessError || error || "Connect to load this page. Check account access, then retry."}
+        {#if !detail}<Button size="sm" variant="ghost" disabled={busy} onclick={refresh}>Retry pull request</Button
+          >{/if}</Alert
       >{/if}
     {#if accessError}<RepositoryAccessActions
         homeId={splitId(id).node ? `${GITHUB_HOME}~${splitId(id).node}` : ""}
         onconnected={() => void refresh()}
       />{/if}
-    {#if data?.detail}<p role="status" class="mb-4 text-sm/5 text-zinc-500 sm:text-xs/5 dark:text-zinc-400">
-        {data.detail}
-        {data.stale ? `Last verified ${formatDateTime(data.summary?.verifiedAt)}.` : ""}
-        <Button size="sm" variant="ghost" disabled={busy} onclick={refresh}>Retry</Button>
+    {#if detail}<p role="status" class="mb-4 text-sm/5 text-zinc-500 sm:text-xs/5 dark:text-zinc-400">
+        {detail}
+        {data?.stale && data.summary?.verifiedAt ? `As of ${formatDateTime(data.summary.verifiedAt)}.` : ""}
+        <Button size="sm" variant="ghost" disabled={busy} onclick={refresh}>Retry pull request</Button>
       </p>{/if}
     {#if data}
       {#key `${data.accountId}:${data.accessRevision}:${id}`}

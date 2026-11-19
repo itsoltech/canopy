@@ -182,7 +182,8 @@
           aria-atomic="true"
           aria-label={pageState.totalCount === undefined
             ? "Loading archived count"
-            : `${pageState.totalCount} archived threads`}>{pageState.totalCount ?? "–"}</span
+            : `${pageState.totalCount} archived ${pageState.totalCount === 1 ? "thread" : "threads"}`}
+          >{pageState.totalCount ?? "–"}</span
         >
         <Icon
           name="chevron-right"

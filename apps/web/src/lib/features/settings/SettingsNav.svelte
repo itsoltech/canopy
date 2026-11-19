@@ -1,6 +1,5 @@
 <script lang="ts">
   import { CANOPY_VERSION } from "@canopy/domain/release/version";
-  import Icon from "#lib/shared/ui/Icon.svelte";
   import SearchField from "#lib/shared/ui/SearchField.svelte";
   import StatusDot from "#lib/shared/ui/StatusDot.svelte";
   import { matchesSettingsSection, settingsGroups } from "./sections.ts";
@@ -31,10 +30,7 @@
                 href={section.href}
                 class={itemClass}
                 aria-current={sections.isActive(section.href) ? "page" : undefined}
-                ><Icon
-                  name={section.icon}
-                  class="fill-current"
-                />{section.label}{#if sections.hinted(section.href)}<StatusDot tone="amber" class="ml-auto" /><span
+                >{section.label}{#if sections.hinted(section.href)}<StatusDot tone="amber" class="ml-auto" /><span
                     class="sr-only">(updates available)</span
                   >{/if}</a
               >
@@ -44,6 +40,8 @@
       </div>
     {/if}
   {/each}
-  {#if visible.length === 0}<p class="px-2.5 text-sm/6 text-zinc-500">No setting matches “{query}”.</p>{/if}
+  {#if visible.length === 0}<p class="min-w-0 px-2.5 text-sm/6 wrap-anywhere text-zinc-500">
+      No setting matches “{query}”.
+    </p>{/if}
   <p class="px-2.5 text-xs/6 text-zinc-500 tabular-nums">Canopy {CANOPY_VERSION}</p>
 </nav>

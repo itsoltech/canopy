@@ -30,7 +30,7 @@
   <details class="rounded-xl border border-divider text-sm/5">
     <summary class="cursor-pointer rounded-xl px-4 py-3 font-medium focus-ring">Recording coverage</summary>
     <div class="grid gap-3 border-t border-divider p-4">
-      <p class="text-zinc-500 dark:text-zinc-400">Only recorded usage appears here. Earlier activity may be missing.</p>
+      <p class="text-zinc-500 dark:text-zinc-400">Earlier activity may be missing.</p>
       <ul class="grid gap-3">
         {#each computers as computer (computer.id)}
           <li class="min-w-0">

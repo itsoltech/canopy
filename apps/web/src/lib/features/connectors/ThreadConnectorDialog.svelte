@@ -46,7 +46,10 @@
     {#each panel.data?.connectors.filter((account) => account.revision > 0n) ?? [] as account (account.accountId)}
       <div class="flex min-w-0 items-center justify-between gap-3">
         <div class="min-w-0">
-          <p class="truncate text-base/6 text-zinc-800 sm:text-sm/6 dark:text-zinc-200" title={account.accountLabel}>
+          <p
+            class="text-base/6 wrap-anywhere text-zinc-800 sm:text-sm/6 dark:text-zinc-200"
+            title={account.accountLabel}
+          >
             {account.connectorName} · {account.accountLabel}
           </p>
           <p class="text-sm/5 text-zinc-500 dark:text-zinc-400">{accountStatus(account.status)}</p>

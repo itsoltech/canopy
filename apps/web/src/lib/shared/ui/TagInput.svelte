@@ -66,7 +66,7 @@
       selectedKeys={value}
       {name}
       {label}
-      placeholder="Find or create a tag…"
+      placeholder="Find or create a tag"
       onselect={(item) => add(item.tag)}
       onkeydown={(event) => {
         if (event.key === "Backspace" && !query && value.length) value = value.slice(0, -1);
@@ -77,15 +77,17 @@
         <div class="flex min-w-0 items-center justify-between gap-3 text-base sm:text-sm">
           <span class="truncate">{item.create ? `Create “${item.tag}”` : item.tag}</span>
           {#if state.selected}<Icon name="check" />{/if}
-          <span class="shrink-0 text-zinc-500 tabular-nums dark:text-zinc-400"
-            >{item.count} {item.count === 1 ? "computer" : "computers"}</span
-          >
+          {#if !item.create}
+            <span class="shrink-0 text-zinc-500 tabular-nums dark:text-zinc-400"
+              >{item.count} {item.count === 1 ? "computer" : "computers"}</span
+            >
+          {/if}
         </div>
       {/snippet}
       {#snippet empty()}
         {query
-          ? "No matching tags. New tags use lowercase letters, digits, dots, hyphens and underscores."
-          : "Type to create your first tag."}
+          ? "Start with a letter or digit. Use up to 64 lowercase letters, digits, dots, hyphens or underscores."
+          : "No tags yet"}
       {/snippet}
     </Combobox>
   </Field>

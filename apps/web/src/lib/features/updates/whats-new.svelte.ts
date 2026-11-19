@@ -83,8 +83,7 @@ export class WhatsNewState {
 
       if (generation === this.#generation) this.index = index;
     } catch {
-      if (generation === this.#generation)
-        this.error = "Could not load release notes. Retry or view releases on GitHub.";
+      if (generation === this.#generation) this.error = "Could not load release notes.";
     } finally {
       if (generation === this.#generation) this.pending = false;
     }

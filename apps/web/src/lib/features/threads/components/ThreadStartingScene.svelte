@@ -152,9 +152,7 @@
                   class="mt-3 grid justify-items-start gap-2 text-sm/5 text-zinc-600 sm:text-xs/5 dark:text-zinc-400"
                 >
                   <p role="status">
-                    {snapshot?.error && job.hasDraft
-                      ? "Your draft is saved. Return to it to continue."
-                      : snapshot?.error || job.notice}
+                    {snapshot?.error && job.hasDraft ? "Your draft is saved." : snapshot?.error || job.notice}
                   </p>
                   {#if snapshot?.error}<Disclosure
                       >{#snippet summary()}Show details{/snippet}

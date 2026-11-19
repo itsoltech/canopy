@@ -38,7 +38,7 @@
 </script>
 
 <div class={["grid gap-3", className]}>
-  <Field label="Proxy" {error} description="Choose a saved connection supported by this harness.">
+  <Field label="Proxy" {error} description="Only compatible proxies appear here.">
     <Select
       name="proxy"
       bind:value
@@ -53,7 +53,7 @@
     </p>
   {/if}
   {#if !loading && !options.length}<p class="text-base/6 text-zinc-500 sm:text-sm/6 dark:text-zinc-400">
-      No compatible proxies yet. Add one to continue.
+      No compatible proxies yet.
     </p>{/if}
   {#if failure}<Alert tone="error">{failure}<Button size="sm" onclick={reload}>Try again</Button></Alert>{/if}
   <div><Button size="sm" onclick={() => (adding = true)}>Add proxy</Button></div>

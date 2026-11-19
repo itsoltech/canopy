@@ -1,7 +1,6 @@
 <script lang="ts">
   import type { ui } from "@canopy/contracts";
   import type { ClassValue } from "svelte/elements";
-  import Icon from "#lib/shared/ui/Icon.svelte";
   import IconButton from "#lib/shared/ui/IconButton.svelte";
   import Popover from "#lib/shared/ui/Popover.svelte";
   import { awayStatus } from "./computers.ts";
@@ -21,7 +20,6 @@
     className,
   ]}
 >
-  <Icon name="link" size="xs" class="shrink-0 fill-zinc-400 dark:fill-zinc-500" />
   <p role="status" aria-atomic="true" class="flex min-w-0 flex-1 flex-wrap items-baseline gap-x-1">
     <span class="flex max-w-full min-w-0 flex-wrap items-baseline gap-x-1">
       <span class="truncate" title={computerName(computer)}>{computerName(computer)}</span>

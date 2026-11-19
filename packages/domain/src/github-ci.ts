@@ -36,7 +36,7 @@ export const ciEffect = (action: CiAction) =>
 export function ciReason(snapshot: github.PullRequestSnapshot, runId: string, state: string, action: CiAction) {
   if (!runId) return "This check uses an external CI provider. Open it on the provider to manage it.";
 
-  if (snapshot.stale) return "Connect and refresh before changing CI.";
+  if (snapshot.stale) return "Refresh before changing CI.";
 
   if (snapshot.ciBlockingReason) return snapshot.ciBlockingReason;
   const active = ["queued", "in_progress", "pending", "waiting", "requested"].includes(state);

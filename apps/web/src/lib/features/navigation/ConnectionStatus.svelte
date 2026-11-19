@@ -14,11 +14,13 @@
    */
   let {
     connection,
+    hasSnapshot,
     quietWhenLive = false,
     recovery,
     class: className,
   }: {
     connection: OverviewConnection;
+    hasSnapshot: boolean;
     quietWhenLive?: boolean;
     recovery?: RecoverySnapshot;
     class?: ClassValue;
@@ -75,7 +77,9 @@
     <p class="h-12 text-muted sm:h-10">
       {connection === "live"
         ? "Live updates are on."
-        : "Canopy shows the last known state and reconnects automatically."}
+        : hasSnapshot
+          ? "Showing the last known state."
+          : "Waiting for the first update."}
     </p>
     <div class="flex h-5 items-center gap-2 text-muted">
       <span class="size-4"

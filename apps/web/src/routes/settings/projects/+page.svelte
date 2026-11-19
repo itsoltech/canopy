@@ -40,9 +40,9 @@
 
 <svelte:head><title>Projects · Settings · {applicationName}</title></svelte:head>
 
-<SettingsGroup title="Projects" description="Choose a project to manage its workspaces and threads.">
+<SettingsGroup title="Projects">
   {#snippet actions()}
-    <Button variant="primary" icon="plus" onclick={() => addProject?.show({ openProject: true })}>Add project</Button>
+    <Button variant="primary" onclick={() => addProject?.show({ openProject: true })}>Add project</Button>
   {/snippet}
   {#each projects as project (project.id)}
     {@const id = localId(project)}

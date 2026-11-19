@@ -150,10 +150,12 @@
       {/if}
       <div class="grid gap-3">
         <img src="/icon-192.png" alt="" width="48" height="48" class="size-12 shrink-0" />
-        <h1 class="text-3xl font-semibold tracking-tight text-balance">Your agents, on your terms</h1>
-        <p class="text-base/7 text-pretty text-zinc-500 dark:text-zinc-400">
-          Choose where Canopy runs. You can change this later in Settings.
-        </p>
+        <h1 class="text-3xl font-semibold tracking-tight text-balance">
+          {settings ? "Choose where Canopy runs" : "Your agents, on your terms"}
+        </h1>
+        {#if !settings}<p class="text-base/7 text-pretty text-zinc-500 dark:text-zinc-400">
+            Choose where Canopy runs. You can change this later in Settings.
+          </p>{/if}
       </div>
       {#if !available}
         <Alert title="Open Canopy Desktop">This screen is available in the Canopy desktop app.</Alert>
@@ -163,7 +165,6 @@
             <ModeChoice
               title="Run Canopy on this computer"
               description="The gateway and a worker run here. Your data stays on this computer."
-              icon="server"
               selected={mode === "local"}
               onclick={() => (mode = "local")}
               disabled={working}
@@ -171,7 +172,6 @@
             <ModeChoice
               title="Connect to a Canopy gateway"
               description="Use a gateway on another computer. This computer joins it as a worker."
-              icon="link"
               selected={mode === "remote"}
               onclick={() => (mode = "remote")}
               disabled={working}

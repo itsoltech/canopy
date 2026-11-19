@@ -62,7 +62,6 @@
         {/snippet}
         {#snippet option(ref, state)}
           <PickerRow title={ref.name} selected={state.selected} class="min-w-0 font-mono">
-            {#snippet leading()}<Icon name="git-fork" />{/snippet}
             {#snippet trailing()}
               <div class="flex flex-wrap gap-1 py-px pl-px">
                 {#each marks(ref) as mark (mark)}<Badge
@@ -74,7 +73,7 @@
             {/snippet}
           </PickerRow>
         {/snippet}
-        {#snippet empty(query)}No refs match “{query}”.{/snippet}
+        {#snippet empty(query)}{query ? `No refs match “${query}”.` : "No refs available."}{/snippet}
       </SearchPicker>
     {:else if branch}
       <div

@@ -24,7 +24,7 @@
   {#if away}
     <FileChip
       {name}
-      detail="Available when {computerName(computer)} is connected."
+      detail="Available when {computer ? computerName(computer) : 'the other computer'} is connected."
       class="max-w-80 rounded-xl p-3 ring-1 ring-zinc-950/10 dark:ring-white/10"
     />
   {:else}

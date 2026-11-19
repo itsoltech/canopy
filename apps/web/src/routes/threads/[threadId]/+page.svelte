@@ -623,7 +623,7 @@
             id={fileTab ? undefined : "workspace-content"}
             role="tabpanel"
             aria-label="Thread"
-            class="absolute inset-0 min-h-0 md:pl-9 md:[--chat-area-start:--spacing(9)]"
+            class="absolute inset-0 grid min-h-0 grid-rows-[auto_minmax(0,1fr)] md:pl-9 md:[--chat-area-start:--spacing(9)]"
             class:invisible={Boolean(fileTab)}
             inert={Boolean(fileTab)}
             bind:this={feedRegion}
@@ -638,13 +638,16 @@
               class="pointer-events-none invisible absolute inset-x-0 md:left-9"
               {@attach summary.measure}
             ></span>
-            {#if thread}<ThreadSummary
-                {thread}
-                {tree}
-                floating={summary.floating}
-                docked={summary.docked}
-                preview={miniEligible && !previewOpen ? miniPreview : undefined}>{@render threadPanel()}</ThreadSummary
-              >{/if}
+            <div class="grid min-w-0 justify-items-end">
+              {#if thread}<ThreadSummary
+                  {thread}
+                  {tree}
+                  floating={summary.floating}
+                  docked={summary.docked}
+                  preview={miniEligible && !previewOpen ? miniPreview : undefined}
+                  >{@render threadPanel()}</ThreadSummary
+                >{/if}
+            </div>
             {#key threadId}
               {#if turnsOnRail.length >= 3}
                 <div class="absolute inset-y-6 left-1 z-20 w-8 max-md:hidden">
@@ -705,13 +708,12 @@
                     {/if}
                     {#if view.loaded && rows.length === 0}
                       <EmptyState
-                        icon={thread?.status === "creating" ? "arrow-path" : "sparkles"}
                         title={thread?.status === "creating" ? "Starting the thread" : "No messages yet"}
                         description={thread?.status === "creating"
                           ? `Setting up the agent on ${worker?.name ?? "the worker"}.`
                           : closed
                             ? "This thread closed before anyone said a word."
-                            : "Send a message below to start."}
+                            : ""}
                         class="mt-8"
                       />
                     {/if}

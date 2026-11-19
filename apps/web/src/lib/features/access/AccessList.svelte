@@ -7,13 +7,11 @@
     type AccessChoice,
   } from "@canopy/domain/access-picker";
   import ChoiceControl from "#lib/shared/ui/ChoiceControl.svelte";
-  import Icon from "#lib/shared/ui/Icon.svelte";
   import SearchField from "#lib/shared/ui/SearchField.svelte";
   import StatusDot from "#lib/shared/ui/StatusDot.svelte";
   import Switch from "#lib/shared/ui/Switch.svelte";
   import Button from "#lib/shared/ui/Button.svelte";
   import TruncatedText from "#lib/shared/ui/TruncatedText.svelte";
-  import type { IconName } from "#lib/shared/ui/icons.ts";
   import { listboxHeadingClasses } from "#lib/shared/ui/listbox.ts";
   import type { AccessOption } from "./access-options.ts";
 
@@ -25,14 +23,12 @@
     choice = $bindable(),
     options,
     noun,
-    icon,
     allowAll = true,
   }: {
     choice: AccessChoice;
     options: readonly AccessOption[];
     /** Plural, lower case ("workers"). */
     noun: string;
-    icon: IconName;
     allowAll?: boolean;
   } = $props();
 
@@ -103,7 +99,6 @@
             () => allOn || choice.ids.includes(option.id), (on) => (choice = accessToggled(choice, option.id, on))
           }
         />
-        <Icon name={icon} class="shrink-0 fill-zinc-400 dark:fill-zinc-500" />
         <TruncatedText text={option.name} class="flex-1 text-zinc-950 dark:text-white" />
         {#if option.readOnly}<TruncatedText
             text="Read-only"

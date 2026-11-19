@@ -3,7 +3,6 @@
   import type { ClassValue } from "svelte/elements";
   import Button from "#lib/shared/ui/Button.svelte";
   import Dialog from "#lib/shared/ui/Dialog.svelte";
-  import Icon from "#lib/shared/ui/Icon.svelte";
   import ReviewForm from "./ReviewForm.svelte";
   import type { ReviewDraft } from "./review-draft.svelte.ts";
   import Skeleton from "#lib/shared/ui/Skeleton.svelte";
@@ -28,7 +27,6 @@
   ]}
 >
   <div role="status" class="flex min-w-0 items-center gap-2">
-    <Icon name="chat-bubble-left" />
     {#if !draft.pages.length && !draft.error}<Skeleton class="h-5 w-32" />{:else}<span
         >{draft.error
           ? "Could not load review."

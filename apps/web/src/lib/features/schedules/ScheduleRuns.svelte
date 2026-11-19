@@ -4,7 +4,6 @@
   import { scheduleRunLabel } from "@canopy/domain/schedule-display";
   import { useOverview } from "#lib/features/overview/overview-state.svelte.ts";
   import { dayKey, formatDay, formatTime, formatDateTime } from "#lib/shared/format.ts";
-  import Icon from "#lib/shared/ui/Icon.svelte";
 
   let {
     runs,
@@ -24,28 +23,18 @@
         <p class="px-2 py-1 font-medium">{formatDay(run.scheduledFor)}</p>
       {/if}
       {#snippet content()}
-        <span
-          class="flex h-lh items-center"
-          title={scheduleRunLabel(run.outcome)}
-          aria-label={scheduleRunLabel(run.outcome)}
-        >
-          <Icon
-            name={run.outcome === "started" ? "play" : "exclamation-circle"}
-            class={["size-3.5 shrink-0", run.outcome !== "started" && "text-amber-600 dark:text-amber-400"]}
-          />
-        </span>
-        <div class="flex min-w-0 flex-1 flex-wrap items-baseline gap-x-1">
-          <span class="min-w-0">{run.number ? `Run ${run.number}` : scheduleRunLabel(run.outcome)}</span>
-          <span class="shrink-0">· {formatTime(run.scheduledFor)}</span>
+        <div class="flex min-w-0 flex-1 flex-wrap items-baseline gap-x-2">
+          <span class="shrink-0">{formatTime(run.scheduledFor)}</span>
+          <span class={run.outcome !== "started" ? "text-amber-600 dark:text-amber-400" : undefined}
+            >{scheduleRunLabel(run.outcome)}</span
+          >
+          {#if run.number}<span>Run {run.number}</span>{/if}
           {#if run.workerId}<span class="max-w-36 truncate"
-              >· {overview.worker(run.workerId)?.name ?? "Computer unavailable"}</span
+              >{overview.worker(run.workerId)?.name ?? "Computer unavailable"}</span
             >{/if}
           {#if run.threadId && run.threadId !== threadId}<span
               class="min-w-0 basis-full truncate @xl:flex-1 @xl:basis-auto"
-              >· {overview.threads.get(run.threadId)?.title ?? "Open thread"}</span
-            >{/if}
-          {#if run.number && run.outcome !== "started"}<span class="min-w-0 truncate"
-              >· {scheduleRunLabel(run.outcome)}</span
+              >{overview.threads.get(run.threadId)?.title ?? "Open thread"}</span
             >{/if}
         </div>
       {/snippet}

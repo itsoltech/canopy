@@ -26,7 +26,7 @@
   {#each overrides as override, i (override.workerId)}
     <div class="grid gap-3 border-t border-zinc-950/10 pt-4 dark:border-white/10">
       <div class="flex items-center justify-between gap-3">
-        <h4 class="text-base font-medium text-balance sm:text-sm">
+        <h4 class="min-w-0 text-base font-medium text-balance wrap-anywhere sm:text-sm">
           {workers.find((w) => w.workerId === override.workerId)?.name ?? "Computer"}
         </h4>
         <Button

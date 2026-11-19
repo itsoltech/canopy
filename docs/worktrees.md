@@ -5,7 +5,7 @@ Kopiowanie workspace'u na nowy worker tworzy samodzielny checkout także ze
 wybór obejmuje tylko ignorowane pliki lokalne bez zależności i wyniku builda. Ograniczenia Git:
 [workspace-copy.md](workspace-copy.md).
 
-Status: **etapy 1–3 zaimplementowane** (2026-11-18), w tym ponowne wykorzystanie checkoutu terminu harmonogramu po wznowieniu Threads, wstrzymanie sprzątania worktree przy wyłączonym module Threads, zapis wątku przed utworzeniem worktree
+Status: **etapy 1–3 zaimplementowane** (2026-11-19), w tym ponowne wykorzystanie checkoutu terminu harmonogramu po wznowieniu Threads, wstrzymanie sprzątania worktree przy wyłączonym module Threads, zapis wątku przed utworzeniem worktree
 i powrót do przygotowania z listy wątków w web/desktop, natychmiastowy widok przygotowania
 nowego wątku z postępem operacji worktree w web/desktop i natywnym mobile, 24-godzinna ochrona worktree po archiwizacji
 i kontynuacja po usunięciu worktree w nowym wątku oraz sprzątanie zamkniętych worktree
@@ -470,8 +470,8 @@ Nagłówek: „Applying settings for **[All projects | projekt]** across **[All 
 - **Branches:** Branch naming (Semantic prefix / Prefix / Thread title), Branch prefix.
 - **New threads:** Default workspace (Current checkout / New worktree).
 - **Cleanup:** powyższe polityki i ochrona zmian lokalnych.
-- **Worktrees:** lista bieżących worktree w wybranym zakresie, status, „Open in…” (Copy path / Reveal
-  on computer), Remove, Refresh, „Preview cleanup” i „Run cleanup”. Preview pokazuje
+- **Worktrees:** lista bieżących worktree w wybranym zakresie, status, akcje Copy path i Reveal
+  on computer, Remove, Refresh, „Preview cleanup” i „Run cleanup”. Preview pokazuje
   „Will remove N worktrees” oraz przyczynę pozostawienia pozostałych.
 
 Każde pole pokazuje wartość efektywną; nadpisane w bieżącym zakresie ma „Reset” (wraca do wartości

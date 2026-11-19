@@ -4,4 +4,6 @@
   let { data }: PageProps = $props();
 </script>
 
-<data.Gallery />
+<div class="h-full overflow-y-auto">
+  <data.Gallery />
+</div>

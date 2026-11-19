@@ -151,10 +151,7 @@
         </SettingsSection>
       {/if}
 
-      <SettingsSection
-        title="Runtime on {worker.name}"
-        description="Empty fields follow the definition (shown greyed out)."
-      >
+      <SettingsSection title="Runtime on {worker.name}" description="Empty fields use the instance settings.">
         <RuntimeFields
           harness={instance.harness}
           bind:binaryPath={text.binaryPath}

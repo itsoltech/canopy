@@ -164,7 +164,7 @@
           </div>
           <div
             class="w-16 shrink-0 text-right text-sm text-zinc-500 tabular-nums sm:text-xs dark:text-zinc-400"
-            title="{node.files} files"
+            title="{node.files.toLocaleString()} {node.files === 1 ? 'file' : 'files'}"
           >
             {copySize(node.bytes)}
           </div>

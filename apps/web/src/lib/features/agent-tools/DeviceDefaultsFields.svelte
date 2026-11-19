@@ -21,7 +21,7 @@
       ]}
     />
   </Field>
-  <Field label="Device wait (seconds)" description="How long to wait for a device to become available.">
+  <Field label="Device wait (seconds)" description="Enter 1 to 240 seconds.">
     <Input
       type="number"
       steppers={false}

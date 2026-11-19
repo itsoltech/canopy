@@ -31,7 +31,7 @@
 >
   <div class="grid gap-4">
     <p class="text-base/6 text-zinc-600 sm:text-sm/6 dark:text-zinc-400">
-      Remove “{ordering.unpin?.thread.title}” from Pinned? The thread stays in the inbox.
+      “{ordering.unpin?.thread.title}” stays in the inbox.
     </p>
     <div class="flex justify-end gap-2">
       <Button data-autofocus onclick={() => (ordering.unpin = undefined)}>Cancel</Button>

@@ -79,7 +79,7 @@
   <div class="min-w-0">
     <h1 class="text-base/7 font-semibold text-zinc-950 dark:text-white">Workers</h1>
     <p class="text-base/6 text-pretty text-zinc-500 sm:text-sm/6 dark:text-zinc-400">
-      Your machines, connected to Canopy. <span class="tabular-nums">{online} of {total}</span> connected.
+      <span class="tabular-nums">{online} of {total}</span> connected.
     </p>
   </div>
   <div class="shrink-0">

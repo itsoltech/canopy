@@ -159,7 +159,7 @@
       void connect();
     }}
   >
-    <Field label="Account name" description="A name you recognize, such as personal or work."
+    <Field label="Account name"
       ><Input bind:value={name} required maxlength={80} disabled={busy} placeholder="work" /></Field
     >
     {#if methods.length > 1}<AuthMethodPicker {methods} bind:value={authKind} disabled={busy} />{/if}

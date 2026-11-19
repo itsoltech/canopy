@@ -17,6 +17,7 @@
     option = $bindable<ModelOption | undefined>(undefined),
     effort = $bindable<string | undefined>(undefined),
     serviceTier = $bindable<string | undefined>(undefined),
+    showHeading = true,
     disabled = false,
     onchange,
     class: className,
@@ -26,6 +27,7 @@
     option?: ModelOption | undefined;
     effort?: string | undefined;
     serviceTier?: string | undefined;
+    showHeading?: boolean;
     disabled?: boolean;
     onchange?: () => void;
     class?: ClassValue;
@@ -40,6 +42,7 @@
       .map((i) => ({ value: i.id, label: i.name, provider: i.provider })),
   );
 
+  const hasModels = $derived(instances.some((i) => i.models.length > 0));
   const instance = $derived(instances.find((i) => i.id === instanceId));
 
   // Availability can change while the dialog is open. Keep the selection inside the supplied catalog.
@@ -74,12 +77,11 @@
 </script>
 
 <div class={["grid min-w-0 gap-3", className]}>
-  <h3 class="text-base font-medium sm:text-sm">Model</h3>
-  {#if !instances.some((i) => i.models.length > 0)}
-    <Alert title="Set up a model first">
-      Your bot needs a provider instance with a model.
-      <a href="/settings/providers" class="rounded-md underline focus-ring">Set up a provider in Settings → Providers</a
-      >. Your draft stays here while you configure it.
+  {#if showHeading}<h3 class="text-base font-medium sm:text-sm">Model</h3>{/if}
+  {#if !hasModels}
+    <Alert title="No models available">
+      <a href="/settings/providers" class="rounded-md underline focus-ring">Configure a model in Settings → Providers</a
+      >.
     </Alert>
   {/if}
   {#if choices.length > 0}
@@ -155,7 +157,7 @@
           {/if}
         </div>
       </div>
-    {:else}
+    {:else if hasModels}
       <p class="text-base/6 text-zinc-500 sm:text-sm/6 dark:text-zinc-400" role="status">
         No models are available for this instance.
         <a href="/settings/providers" class="rounded-md underline focus-ring"

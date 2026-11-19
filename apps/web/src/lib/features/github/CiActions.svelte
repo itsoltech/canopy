@@ -107,9 +107,7 @@
       }
     }
     title={f.receipt ? "CI request" : `${ciLabel(f.action)}?`}
-    description={f.receipt
-      ? "GitHub updates the checks as jobs are queued, running and completed."
-      : ciEffect(f.action)}
+    description={f.receipt ? undefined : ciEffect(f.action)}
     dismissible={!f.busy}
   >
     <div class="grid min-w-0 gap-2 text-sm/5">

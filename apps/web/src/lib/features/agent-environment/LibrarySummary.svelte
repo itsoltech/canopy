@@ -15,7 +15,7 @@
   class={["grid min-w-0 gap-3 rounded-xl bg-zinc-950/3 p-4 dark:bg-white/4", className]}
 >
   <p class="text-base text-pretty sm:text-sm">
-    Your library is shared with your linked computers. Items are installed only on the computers you assign them to.
+    Your linked computers share this library. Assign items to computers or tags to install them.
   </p>
   <div role="status" class="grid gap-1 text-base tabular-nums sm:text-sm">
     <p>{summary.skills}</p>

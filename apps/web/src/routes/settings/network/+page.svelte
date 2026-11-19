@@ -112,7 +112,7 @@
         description={status.state === "on"
           ? "Connect this computer to a network, or add a hostname."
           : network.error
-            ? "These are the last known settings. Retry above to check the current state."
+            ? undefined
             : status.state === "off"
               ? "Turn on network access to see this computer's addresses."
               : "Resolve the network access error above to make this computer reachable."}
@@ -158,12 +158,7 @@
   </SettingsGroup>
 {:else}
   <SettingsGroup title="Reachable at">
-    <SettingsRow
-      title={network.error ? "Addresses unavailable" : "Loading addresses…"}
-      description={network.error
-        ? "Retry the network access request above to check this computer's addresses."
-        : undefined}
-    />
+    <SettingsRow title={network.error ? "Addresses unavailable" : "Loading addresses…"} />
   </SettingsGroup>
 {/if}
 <HostnameDialog

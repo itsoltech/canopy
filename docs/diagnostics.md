@@ -1,6 +1,6 @@
 # Diagnostyka wydajności
 
-Status (2026-11-18): **v1 wdrożone**: metryki RPC, procesu, DB, workerów i klientów,
+Status (2026-11-19): **v1 wdrożone**: metryki RPC, procesu, DB, workerów i klientów,
 trwałe agregaty, findings, raport, zbieranie logów i czasowy tracing.
 Kolektor chroni pomiary procesu, kolejek i czasu do ACK pod obciążeniem. Raport podaje przyczyny strat w wybranym oknie i pomija statystyki bez pomiaru.
 Limit katalogu 640 deskryptorów obejmuje także RPC statystyk użycia i postępu przygotowania wątku.
@@ -644,6 +644,8 @@ agenta, a `0131_diagnostics_logs` granty logów i zakres uprawnienia.
 Panel Thread sync z #543 pozostaje w tym samym widoku Diagnostics na web i mobile:
 jego owner-scoped, trwały postęp jest źródłem seq/head oraz błędów synchronizacji,
 bez drugiej tabeli ani duplikowania tych rekordów w kolektorze metryk procesu.
+W web/desktop wiersz wstrzymanego wątku podaje „Sync paused”, opis rozpoznanej przyczyny
+i liczbę pozostałych rekordów. Nieznany kod przyczyny pozostawia sam status i licznik.
 
 **Persystencja:** każdy proces zbiera metryki w pamięci;
 tylko domowy gateway zapisuje je do PostgreSQL. Dotyczy to także agregatów workerów

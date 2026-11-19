@@ -171,7 +171,7 @@
   }
 </script>
 
-<div class={className}>
+<div class={["min-w-0", className]}>
   <input type="hidden" {name} {form} {disabled} value={value == null ? "" : String(value)} />
   {#if required}
     <input

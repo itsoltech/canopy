@@ -8,6 +8,7 @@
   import CodeToolbar from "./CodeToolbar.svelte";
   import CodeFile from "./CodeFile.svelte";
   import { PullRequestPages } from "./pages.svelte.ts";
+  import { isLinkedOffline } from "./presentation.ts";
   import PageControls from "./PageControls.svelte";
   import * as api from "./api.ts";
   import { invalidations } from "./invalidations.ts";
@@ -156,7 +157,12 @@
       void target.read();
     });
 
-    const all = invalidations.subscribe(id, () => void target.invalidate(true));
+    const all = invalidations.subscribe(id, () => {
+      void target.invalidate(true);
+
+      if (selected && isLinkedOffline(patch?.page)) void open(selected, true);
+    });
+
     const resource = invalidations.subscribe(`${id}:files`, () => void target.invalidate(true, false));
 
     return () => {
@@ -286,6 +292,8 @@
   </ul>
   <PageControls
     page={pages.current?.page}
+    retryLabel="Retry files"
+    offlineShown={isLinkedOffline(snapshot)}
     busy={pages.busy}
     error={pages.error}
     previous={pages.index ? () => pages.index-- : undefined}

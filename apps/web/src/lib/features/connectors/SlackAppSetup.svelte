@@ -56,7 +56,7 @@
       { value: "create", label: "Create the Slack app" },
       { value: "existing", label: "Use an existing Slack app" },
     ]}
-    class="w-full [&>button]:flex-1"
+    class="w-full [&>button]:min-w-0 [&>button]:flex-1 [&>button]:text-balance [&>button]:whitespace-normal"
   />
   {#if path === "create"}
     <StepList {steps} class="text-base/6 sm:text-sm/6" />

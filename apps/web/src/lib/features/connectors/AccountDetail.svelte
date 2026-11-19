@@ -231,10 +231,14 @@
     />{/if}
   {#if tools && account.status === "connected"}
     {@const verified = tools}
-    <Disclosure class="px-3 pb-3 text-base/5 sm:text-sm/5" summaryClass="py-1">
-      {#snippet summary()}Connection verified · {verified.length} {verified.length === 1 ? "tool" : "tools"}{/snippet}
-      <ToolCatalog tools={verified} />
-    </Disclosure>
+    {#if verified.length}
+      <Disclosure class="px-3 pb-3 text-base/5 sm:text-sm/5" summaryClass="py-1">
+        {#snippet summary()}Connection verified · {verified.length} {verified.length === 1 ? "tool" : "tools"}{/snippet}
+        <ToolCatalog tools={verified} />
+      </Disclosure>
+    {:else}
+      <p role="status" class="px-3 pb-3 text-base/5 sm:text-sm/5">Connection verified. No tools available.</p>
+    {/if}
   {/if}
   {#if account.status === "error" && account.error}<ConnectionError error={account.error} class="mx-3 mb-3" />{/if}
   {#if error && !renaming}<Alert tone="error" class="mx-3 mb-3">{error}</Alert>{/if}

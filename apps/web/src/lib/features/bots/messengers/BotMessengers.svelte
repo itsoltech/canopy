@@ -84,10 +84,7 @@
 </script>
 
 <div class="grid min-w-0 gap-4 text-base/6 sm:text-sm/6">
-  <p class="text-zinc-500 dark:text-zinc-400">
-    Choose who can message this bot and where it responds. You can also manage message routes in your private
-    conversation.
-  </p>
+  <p class="text-zinc-500 dark:text-zinc-400">You can manage routes in your private conversation with this bot.</p>
   {#if loading}<p role="status" class="text-zinc-500 dark:text-zinc-400">Loading messengers…</p>{/if}
   {#if error}
     <Alert tone="error">{error}</Alert>
@@ -98,24 +95,20 @@
       <a href="/settings/connectors" class="font-medium underline underline-offset-4">Manage Slack accounts</a>
       <Button size="sm" disabled={busy || !!editRoute} onclick={reload}>Refresh status</Button>
     </div>
-    <p class="text-sm text-zinc-500 dark:text-zinc-400">
-      Manage account connections in Settings → Connectors. Message routes below apply to this bot.
-    </p>
     <div class="grid min-w-0 gap-3">
       <h4 class="font-medium">Message routes</h4>
       {#each routes as route (route.id)}
+        {@const account = catalog.accounts.find((item) => item.id === route.accountId)}
         <div class="grid min-w-0 gap-2 rounded-lg bg-zinc-950/3 p-3 dark:bg-white/5">
-          <p
-            class="truncate font-medium"
-            title={catalog.accounts.find((account) => account.id === route.accountId)?.name}
-          >
-            {catalog.accounts.find((account) => account.id === route.accountId)?.name ?? "Slack account"}
+          <p class="truncate font-medium" title={account?.name}>
+            {account?.name ?? "Slack account"}
           </p>
           <p class="text-sm text-zinc-500 dark:text-zinc-400">
-            {messengerStatus(catalog.accounts.find((account) => account.id === route.accountId))} · {route.delivery ===
-            "reply"
-              ? "Reply in Slack"
-              : "Notify in Canopy"} · {route.observe ? "Channel monitoring on" : "Channel monitoring off"}
+            {route.delivery === "reply" ? "Reply in Slack" : "Notify in Canopy"}
+            {#if route.observe}
+              · Channel monitoring on{/if}
+            {#if !account?.enabled || account.status !== "connected"}
+              · {messengerStatus(account)}{/if}
           </p>
           <p class="text-sm break-words text-zinc-500 select-text dark:text-zinc-400">
             Allowed users: {route.userIds.join(", ")}
@@ -142,9 +135,7 @@
             oncancel={() => (editRoute = undefined)}
           />{/key}
       {:else if availableAccounts.length}
-        {#if !routes.length}<p class="text-zinc-500 dark:text-zinc-400">
-            No message routes yet. Choose who can message this bot and where it responds.
-          </p>{/if}
+        {#if !routes.length}<p class="text-zinc-500 dark:text-zinc-400">No message routes yet.</p>{/if}
         <div>
           <Button
             onclick={() => {
@@ -161,7 +152,7 @@
     </div>
     {#if remove}
       <div class="grid gap-3 rounded-lg border border-red-500/30 p-3" role="alert">
-        <p>Remove this route? The bot stops receiving messages through it. Add a route to receive them again.</p>
+        <p>Remove this route? The bot stops receiving messages through it.</p>
         <div class="flex flex-wrap justify-end gap-2">
           <Button disabled={busy} onclick={() => (remove = undefined)}>Cancel</Button>
           <Button variant="danger" loading={busy} onclick={disconnect}>Remove route</Button>

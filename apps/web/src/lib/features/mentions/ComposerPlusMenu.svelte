@@ -28,15 +28,14 @@
 
   let input = $state<HTMLInputElement>();
 
-  const entries: { char: TriggerChar; label: string; description: string; kind: MentionKind }[] = [
-    { char: "/", label: "Command", description: "Run a command of the agent", kind: MentionKind.COMMAND },
+  const entries: { char: TriggerChar; label: string; description?: string; kind: MentionKind }[] = [
+    { char: "/", label: "Command", kind: MentionKind.COMMAND },
     {
       char: "$",
       label: "Skill or plugin",
-      description: "Point the agent to a skill or a plugin",
       kind: MentionKind.SKILL,
     },
-    { char: "@", label: "File", description: "A file or folder of the thread's workspace", kind: MentionKind.FILE },
+    { char: "@", label: "File", description: "A file or directory in this thread’s workspace", kind: MentionKind.FILE },
     { char: "#", label: "Thread", description: "Another thread the agent can read", kind: MentionKind.THREAD },
   ];
 
@@ -46,7 +45,7 @@
 <DropdownMenu label="Add to the message" placement="top-start">
   {#snippet trigger(props)}<IconButton
       icon="plus"
-      label="Add files, commands, skills, a goal…"
+      label="Add to the message"
       size="sm"
       {disabled}
       {...props}
@@ -67,7 +66,7 @@
   {/each}
   {#if ongoal}
     {#if onfiles || offered.length > 0}<MenuSeparator />{/if}
-    <MenuItem icon="flag" description="The agent keeps working until it is met" onselect={ongoal}>Set a goal</MenuItem>
+    <MenuItem icon="flag" description="The agent can keep working across turns" onselect={ongoal}>Set a goal</MenuItem>
   {/if}
 </DropdownMenu>
 {#if onfiles}

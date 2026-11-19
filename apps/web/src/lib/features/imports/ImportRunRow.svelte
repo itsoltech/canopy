@@ -42,16 +42,7 @@
     <ProgressBar value={percent} label="Import progress" />
   {/if}
   <p class="text-sm text-zinc-500 sm:text-xs dark:text-zinc-400">
-    {[
-      formatRelative(run.createdAt),
-      `${run.done + settingsDone} imported`,
-      actions.failed > 0 && `${actions.failed} failed`,
-      run.cancelled > 0 && `${run.cancelled} cancelled`,
-      run.alreadyImported > 0 && `${run.alreadyImported} imported before`,
-      run.bytesTotal > 0n && `${size(run.bytesDone)} of ${size(run.bytesTotal)}`,
-    ]
-      .filter(Boolean)
-      .join(" · ")}
+    {actions.failed ? counted(actions.failed, "failed item") : `${run.done + settingsDone} imported`}
   </p>
   {#if run.status === "running" && run.current}
     <p class="text-sm text-zinc-600 sm:text-xs dark:text-zinc-300"><TruncatedText text={`Now: ${run.current}`} /></p>
@@ -74,6 +65,13 @@
     </Button>
   </div>
   {#if open}
+    <div class="flex flex-wrap gap-x-3 text-sm text-zinc-500 sm:text-xs dark:text-zinc-400">
+      <span>Created {formatRelative(run.createdAt)}</span>
+      {#if actions.failed}<span>{run.done + settingsDone} imported</span>{/if}
+      {#if run.cancelled}<span>{run.cancelled} cancelled</span>{/if}
+      {#if run.alreadyImported}<span>{run.alreadyImported} imported before</span>{/if}
+      {#if run.bytesTotal > 0n}<span>{size(run.bytesDone)} of {size(run.bytesTotal)}</span>{/if}
+    </div>
     <ul
       role="list"
       class="divide-y divide-zinc-950/5 rounded-lg ring-1 ring-zinc-950/5 dark:divide-white/5 dark:ring-white/5"

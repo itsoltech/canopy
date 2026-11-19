@@ -82,13 +82,14 @@ export function computePosition(
     // Keep zero-safe-area placement identical, including anchors scrolled beyond the viewport.
     if (safeTop > 0) y = Math.max(top, y);
     x = aligned(align, anchor.left, anchor.right - size.width, anchor.left + (anchor.width - size.width) / 2);
-    x = clamp(x, padding, viewport.width - size.width - padding);
   } else {
     x = side === "right" ? anchor.right + offset : anchor.left - offset - size.width;
     y = aligned(align, anchor.top, anchor.bottom - size.height, anchor.top + (anchor.height - size.height) / 2);
     y = clamp(y, top, viewport.height - size.height - padding);
   }
 
+  // A full-width menu row can leave too little room on either side for its submenu.
+  x = clamp(x, padding, viewport.width - size.width - padding);
   const availableHeight = vertical ? Math.max(room[side], 0) : viewport.height - top - padding;
 
   return { x: Math.round(x), y: Math.round(y), side, availableHeight: Math.floor(availableHeight) };

@@ -43,13 +43,13 @@
   {#if delivery === "queue"}
     <MenuItem
       icon="arrow-turn-down-right"
-      description="Enter steers into the running turn; Mod+Enter queues."
+      description="Send messages into the running turn by default."
       onselect={() => ondelivery("steer")}>Turn off queueing</MenuItem
     >
   {:else}
     <MenuItem
       icon="queue-list"
-      description="Enter queues for the next turn; Mod+Enter steers."
+      description="Save new messages for the next turn by default."
       onselect={() => ondelivery("queue")}>Turn on queueing</MenuItem
     >
   {/if}

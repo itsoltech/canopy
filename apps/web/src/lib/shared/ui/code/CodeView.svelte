@@ -84,7 +84,7 @@
       expanded={all}
       onclick={() => (all = !all)}
       note={all ? `${lines.length} lines` : `First ${max} of ${lines.length} lines`}
-      >{all ? "Show less" : `Show all ${lines.length} lines`}</MoreButton
+      >{all ? "Show less" : "Show all lines"}</MoreButton
     >
   {/if}
 </div>

@@ -16,6 +16,7 @@
   import Alert from "#lib/shared/ui/Alert.svelte";
   import Button from "#lib/shared/ui/Button.svelte";
   import InsetList from "#lib/shared/ui/InsetList.svelte";
+  import { formatLocalDateTime } from "#lib/shared/format.ts";
   import { toast } from "#lib/shared/ui/toast.svelte.ts";
   import { decode } from "#lib/shared/wire.ts";
   import type { PageProps } from "./$types";
@@ -143,7 +144,11 @@
 <SettingsHeading title="Providers">
   {#snippet actions()}
     <span class="text-sm/5 text-zinc-500 max-sm:hidden dark:text-zinc-400" role="status">
-      {providers.refreshing ? "Checking…" : providers.checkedAt ? "Checked just now" : ""}
+      {providers.refreshing
+        ? "Checking…"
+        : providers.checkedAt
+          ? `Checked ${formatLocalDateTime(providers.checkedAt)}`
+          : ""}
     </span>
     <Button icon="arrow-path" loading={providers.refreshing} onclick={refresh}>Refresh</Button>
     <Button

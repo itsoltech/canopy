@@ -3,7 +3,6 @@
   import type { ClassValue } from "svelte/elements";
   import type { EnvironmentState } from "#lib/features/agent-environment/environment-state.svelte.ts";
   import Disclosure from "#lib/shared/ui/Disclosure.svelte";
-  import Icon from "#lib/shared/ui/Icon.svelte";
   import SettingsCard from "#lib/shared/ui/SettingsCard.svelte";
   import WorkerActions from "./WorkerActions.svelte";
   import WorkerDetails from "./WorkerDetails.svelte";
@@ -41,19 +40,17 @@
 <SettingsCard class={["relative", className]}>
   <Disclosure align="center" summaryClass="min-h-18 p-4 pr-14 sm:px-5 sm:pr-16">
     {#snippet summary()}
-      <div class={["flex items-center gap-3", away && "opacity-60"]} bind:clientHeight={summaryHeight}>
-        <div class="grid size-10 shrink-0 place-items-center rounded-xl bg-zinc-950/5 text-zinc-500 dark:bg-white/5">
-          <Icon name="computer-desktop" />
+      <!-- Badges wrap under the name on narrow screens instead of squeezing it. -->
+      <div
+        class={["flex min-w-0 flex-1 flex-wrap items-center gap-x-3 gap-y-1.5", away && "opacity-60"]}
+        bind:clientHeight={summaryHeight}
+      >
+        <div class="min-w-0 flex-[1_1_14rem] text-base/6 sm:text-sm/6">
+          <p class="truncate font-medium text-zinc-950 dark:text-white" title={worker.name}>{worker.name}</p>
+          <p class="text-pretty break-words text-zinc-500 dark:text-zinc-400">{workerMeta(worker)}</p>
+          {#if route}<p class="text-pretty break-words text-zinc-500 dark:text-zinc-400">{route}</p>{/if}
         </div>
-        <!-- Badges wrap under the name on narrow screens instead of squeezing it. -->
-        <div class="flex min-w-0 flex-1 flex-wrap items-center gap-x-3 gap-y-1.5">
-          <div class="min-w-0 flex-[1_1_14rem] text-base/6 sm:text-sm/6">
-            <p class="truncate font-medium text-zinc-950 dark:text-white" title={worker.name}>{worker.name}</p>
-            <p class="text-pretty break-words text-zinc-500 dark:text-zinc-400">{workerMeta(worker)}</p>
-            {#if route}<p class="text-pretty break-words text-zinc-500 dark:text-zinc-400">{route}</p>{/if}
-          </div>
-          <WorkerStatusBadges {worker} {linked} />
-        </div>
+        <WorkerStatusBadges {worker} {linked} />
       </div>
     {/snippet}
     <WorkerDetails {worker} {environment} {linked} {onchanged} class="border-t border-zinc-950/5 dark:border-white/8" />

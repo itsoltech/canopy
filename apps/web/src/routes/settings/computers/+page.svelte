@@ -190,7 +190,7 @@
   <div class="min-w-0 flex-1">
     <h1 class="text-base font-semibold text-balance text-zinc-950 dark:text-white">Linked computers</h1>
     <p class="text-base/6 text-pretty text-zinc-500 sm:text-sm/6 dark:text-zinc-400">
-      Connect your own computers. Each keeps its own gateway and data.
+      Each computer keeps its own gateway and data.
     </p>
   </div>
   <Button
@@ -278,11 +278,7 @@
         : request.error
           ? "Linked computers unavailable"
           : "Loading linked computers…"}
-      description={loaded
-        ? "Generate a code here, or enter a code from your other computer."
-        : request.error
-          ? "Retry the linked computers request above."
-          : undefined}
+      description={loaded ? "Generate a code here, or enter a code from your other computer." : undefined}
     />{/each}
 </SettingsGroup>
 {#if setup.configNotices.length}<SettingsGroup title="Changed on two computers">
@@ -352,15 +348,7 @@
         <Field label="Computer address"
           ><Input bind:value={address} placeholder="https://computer:port" required autocomplete="off" /></Field
         >
-        <Field label="Pairing code"
-          ><Input
-            bind:value={code}
-            placeholder="Paste the complete code"
-            required
-            autocomplete="off"
-            spellcheck={false}
-          /></Field
-        >
+        <Field label="Pairing code"><Input bind:value={code} required autocomplete="off" spellcheck={false} /></Field>
         <p class="text-base/6 text-pretty text-zinc-500 sm:text-sm/6 dark:text-zinc-400">
           The code verifies the other computer’s certificate before pairing. After linking, you can compare both
           fingerprints in Settings.
@@ -402,12 +390,11 @@
 </Dialog>
 <Dialog
   bind:open={removeOpen}
-  title="Unlink computer"
+  title={remove ? `Unlink “${remove.displayName || remove.name}”?` : "Unlink computer?"}
   description="This removes mutual access and the pinned certificate. An offline computer learns about unlinking when it reconnects."
 >
   <div class="grid gap-4">
     {#if error}<Alert tone="error">{error}</Alert>{/if}
-    <p class="text-base/6 sm:text-sm/6">Unlink {remove?.displayName || remove?.name}?</p>
     <Button
       variant="primary"
       disabled={busy}

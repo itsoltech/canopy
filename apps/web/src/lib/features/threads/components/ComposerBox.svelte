@@ -164,6 +164,8 @@
   // The empty composer lists what each trigger character does.
   const hint = $derived(shell && sources ? TRIGGER_HINT : undefined);
 
+  const primaryShortcut = $derived(keybindings.get("composer:send")[0]);
+  const alternateShortcut = $derived(keybindings.get("composer:alternate")[0]);
   const id = $props.id();
   const hasFiles = $derived((draft?.attached.length ?? 0) > 0);
   const pending = $derived(composerPending(0, draft?.attached.length ?? 0, mentions));
@@ -436,15 +438,14 @@
       <div
         class="flex min-h-13 flex-wrap items-center gap-2 p-2.5 pr-[calc(var(--composer-send-width)+--spacing(5))] pl-3 @max-[24rem]/composer:gap-1"
       >
-        {#if steerMode}
+        {#if steerMode && (primaryShortcut || alternateShortcut)}
           <p
             class="flex shrink-0 items-center gap-1.5 text-xs/5 text-zinc-500 max-sm:hidden @max-[40rem]/composer:hidden dark:text-zinc-400 pointer-coarse:hidden"
             aria-hidden="true"
             in:rise
           >
-            <Kbd hotkey="Enter" />{primary}<Kbd hotkey="Mod+Enter" class="ml-1" />{primary === "queue"
-              ? "steer"
-              : "queue"}
+            {#if primaryShortcut}<Kbd hotkey={primaryShortcut} />{primary}{/if}
+            {#if alternateShortcut}<Kbd hotkey={alternateShortcut} />{primary === "queue" ? "steer" : "queue"}{/if}
           </p>
         {/if}
         {#if onfiles || sources || ongoal}

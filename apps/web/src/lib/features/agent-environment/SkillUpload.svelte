@@ -3,7 +3,6 @@
   import { SkillFileSchema, type SkillFile } from "@canopy/contracts";
   import type { ClassValue } from "svelte/elements";
   import Button from "#lib/shared/ui/Button.svelte";
-  import Input from "#lib/shared/ui/Input.svelte";
   import Alert from "#lib/shared/ui/Alert.svelte";
 
   let {
@@ -27,6 +26,7 @@
 
     if (!files.length) return;
     error = "";
+    summary = "";
     reading = true;
     onready(false);
     onupload([], new Uint8Array());
@@ -55,10 +55,11 @@
         onupload(uploaded, new Uint8Array());
       }
 
-      summary = `${zip ? files[0]!.name : `${files.length} files`} · ${(size / 1024).toFixed(1)} KiB ready to upload`;
+      const selection = zip ? files[0]!.name : `${files.length} ${files.length === 1 ? "file" : "files"}`;
+      summary = `${selection} · ${(size / 1024).toFixed(1)} KiB ready to upload`;
       onready(true);
     } catch (cause) {
-      error = cause instanceof Error ? cause.message : "Couldn't read this skill.";
+      error = cause instanceof Error ? cause.message : "Could not read this skill. Choose the folder or ZIP again.";
     } finally {
       reading = false;
       input.value = "";
@@ -75,26 +76,22 @@
     <Button disabled={reading} onclick={() => folder?.click()}>Choose folder</Button>
     <Button disabled={reading} onclick={() => archive?.click()}>Choose ZIP</Button>
   </div>
-  <Input
+  <input
+    bind:this={folder}
     type="file"
     class="sr-only"
     aria-label="Skill folder"
     multiple
     webkitdirectory
     onchange={(event) => read(event.currentTarget, false)}
-    {@attach (node: HTMLInputElement) => {
-      folder = node;
-    }}
   />
-  <Input
+  <input
+    bind:this={archive}
     type="file"
     class="sr-only"
     aria-label="Skill ZIP"
     accept=".zip,application/zip"
     onchange={(event) => read(event.currentTarget, true)}
-    {@attach (node: HTMLInputElement) => {
-      archive = node;
-    }}
   />
   {#if summary}<p class="text-base tabular-nums sm:text-sm" role="status">{summary}</p>{/if}
   {#if error}<Alert tone="error">{error}</Alert>{/if}

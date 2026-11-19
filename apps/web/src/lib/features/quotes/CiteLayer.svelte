@@ -38,6 +38,7 @@
   let quote = $state.raw<SelectedQuote>();
   let button = $state<HTMLButtonElement>();
   let touch = $state(false);
+  let menuOpen = $state(false);
 
   // The selection as it was when it settled, used to position the Cite button.
   let range: Range | undefined;
@@ -194,9 +195,9 @@
   }
 </script>
 
-<SelectionMenu {root} shortcut={CITE_HOTKEY} oncite={insert} {select} />
+<SelectionMenu bind:open={menuOpen} {root} shortcut={CITE_HOTKEY} oncite={insert} {select} />
 
-{#if quote}
+{#if quote && !menuOpen}
   <CiteButton
     bind:element={button}
     {@attach place}

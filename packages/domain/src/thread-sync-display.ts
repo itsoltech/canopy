@@ -20,14 +20,16 @@ export function threadSyncVisible(status: Pick<ui.ThreadSyncStatus, "caughtUp" |
 
 /** Tooltip and accessibility label: the failure reason when paused, otherwise the progress. */
 export function threadSyncLabel(status: Pick<ui.ThreadSyncStatus, "caughtUp" | "remaining" | "reason">) {
-  return status.reason ? `Sync paused: ${threadSyncFailure(status.reason)}` : threadSyncProgress(status);
+  const detail = status.reason && threadSyncFailure(status.reason, "");
+
+  return detail ? `Sync paused: ${detail}` : threadSyncProgress(status);
 }
 
 export function threadSyncCount(remaining: bigint) {
   return remaining >= 999_500_000_000_000n ? ">999T" : formatCount(remaining);
 }
 
-export function threadSyncFailure(reason: string) {
+export function threadSyncFailure(reason: string, fallback = "Sync paused") {
   switch (reason) {
     case "decode_error":
       return "Unreadable update";
@@ -48,7 +50,7 @@ export function threadSyncFailure(reason: string) {
     case "stream_unavailable":
       return "Live updates unavailable";
     default:
-      return "Sync paused";
+      return fallback;
   }
 }
 

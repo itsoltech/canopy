@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { plural } from "@canopy/domain/humanize";
   import { untrack } from "svelte";
   import { create } from "@bufbuild/protobuf";
   import { github } from "@canopy/contracts";
@@ -12,6 +13,7 @@
   } from "@canopy/domain/github-pr";
   import Button from "#lib/shared/ui/Button.svelte";
   import { PullRequestPages } from "./pages.svelte.ts";
+  import { readStatus, isLinkedOffline } from "./presentation.ts";
   import PageStatus from "./PageStatus.svelte";
   import PullRequestCheckRow from "./PullRequestCheckRow.svelte";
   import * as api from "./api.ts";
@@ -159,10 +161,10 @@
     <h3 class="min-w-0 font-medium">
       {summary}
       {#if checkProgress}<span class="font-mono text-zinc-500">
-          · {checkProgress.done}/{checkProgress.total} checks · {checkPercent}%</span
+          · {checkProgress.done}/{plural(checkProgress.total, "check")} · {checkPercent}%</span
         >{/if}
       {#if stepProgress}<span class="font-mono text-zinc-500">
-          · {stepProgress.done}/{stepProgress.total} steps · {stepPercent}%</span
+          · {stepProgress.done}/{plural(stepProgress.total, "step")} · {stepPercent}%</span
         >{/if}
     </h3>
     <p class="shrink-0 font-mono text-zinc-500" title={snapshot.summary?.headSha}>
@@ -184,10 +186,11 @@
       size="sm"
       disabled={pages.busy}
       onclick={more}
-      >{visible < checks.length ? `Show ${checks.length - visible} more checks` : "Show more checks"}</Button
+      >{visible < checks.length ? `Show ${plural(checks.length - visible, "more check")}` : "Show more checks"}</Button
     >{/if}
   <PageStatus
-    page={pages.current?.page}
+    detail={readStatus(pages.current?.page, isLinkedOffline(snapshot))}
+    retryLabel="Retry checks"
     busy={pages.busy}
     error={pages.error}
     retry={() => void pages.read(false, true)}

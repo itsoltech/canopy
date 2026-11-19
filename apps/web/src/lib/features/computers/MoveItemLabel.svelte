@@ -20,7 +20,9 @@
   >
   <div class="min-w-0 flex-1">
     <p class="truncate text-base/6 font-medium text-zinc-950 sm:text-sm/6 dark:text-white">
-      {title || (kind === "bot" ? "Bot" : "Thread")}
+      {#if title}<span class="sr-only">{kind === "bot" ? "Bot" : "Thread"}: </span>{title}{:else}{kind === "bot"
+          ? "Bot"
+          : "Thread"}{/if}
     </p>
     {#if detail}<p class="truncate text-base/6 text-zinc-500 sm:text-sm/6 dark:text-zinc-400">{detail}</p>{/if}
   </div>

@@ -35,9 +35,7 @@
   import { availablePermissionMode, fullAutoAvailable, permissionKey } from "#lib/features/threads/labels.ts";
   import Alert from "#lib/shared/ui/Alert.svelte";
   import ButtonLink from "#lib/shared/ui/ButtonLink.svelte";
-  import EmptyState from "#lib/shared/ui/EmptyState.svelte";
   import CenteredContent from "#lib/shared/ui/CenteredContent.svelte";
-  import Icon from "#lib/shared/ui/Icon.svelte";
   import ProjectMark from "#lib/shared/ui/ProjectMark.svelte";
   import HintIcon from "#lib/shared/ui/HintIcon.svelte";
   import RefPicker from "#lib/features/worktrees/RefPicker.svelte";
@@ -269,20 +267,17 @@
   <CenteredContent bottomClass="composer-bottom" class="max-w-(--chat-width)">
     <div class="mb-8 text-center">
       <h1 class="text-3xl font-medium tracking-tight text-balance text-zinc-950 dark:text-white">
-        What should we work on?
+        {project ? "What should we work on?" : "Create a project first"}
       </h1>
     </div>
 
     {#if !project}
-      <EmptyState
-        icon="folder-open"
-        title="Create a project first"
-        description="A thread runs in a project's directory on one of your workers. Create a project in Settings and add it to a worker."
-      >
-        {#snippet action()}<ButtonLink href="/settings/projects" variant="primary" icon="cog-6-tooth"
-            >Open project settings</ButtonLink
-          >{/snippet}
-      </EmptyState>
+      <div class="grid justify-items-center gap-4 text-center">
+        <p class="text-base/6 text-zinc-500 sm:text-sm/6 dark:text-zinc-400">
+          Add a project directory on a worker to start a thread.
+        </p>
+        <ButtonLink href="/settings/projects" variant="primary">Open project settings</ButtonLink>
+      </div>
     {:else}
       <form
         method="POST"

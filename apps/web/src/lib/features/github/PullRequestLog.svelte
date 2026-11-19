@@ -52,6 +52,7 @@
   </CitationRegion>
   <PageControls
     page={pages.current?.page}
+    retryLabel="Retry log"
     busy={pages.busy}
     error={pages.error}
     previous={pages.index ? () => pages.index-- : undefined}

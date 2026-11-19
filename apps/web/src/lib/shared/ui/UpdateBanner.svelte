@@ -31,7 +31,7 @@
     <div
       class="flex items-center gap-3 rounded-xl bg-white px-4 py-2 text-sm/6 text-zinc-950 shadow-lg ring-1 ring-zinc-950/10 dark:bg-zinc-900 dark:text-white dark:ring-white/10"
     >
-      <span>A new version is available —</span>
+      <span>A new version is available</span>
       <Button size="sm" onclick={() => location.reload()}>Reload</Button>
     </div>
   </div>

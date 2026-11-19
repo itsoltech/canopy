@@ -43,7 +43,7 @@
   </p>
 {/each}
 <div class="px-3 py-2">
-  <Button size="sm" icon="plus" onclick={() => add?.show({ project })}>Add workspace</Button>
+  <Button size="sm" onclick={() => add?.show({ project })}>Add workspace</Button>
 </div>
 
 {#key editing}

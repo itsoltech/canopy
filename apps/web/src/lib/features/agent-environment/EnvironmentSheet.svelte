@@ -101,8 +101,8 @@
       <div class="flex items-start justify-between gap-3">
         <div class="grid min-w-0 gap-1">
           <h2 class="text-lg font-semibold text-balance wrap-anywhere">{title}</h2>
-          <p class="text-base text-muted tabular-nums sm:text-sm" aria-live="polite">
-            Step {step + 1} of {steps.length} · {steps[step]}
+          <p class={steps.length === 1 ? "sr-only" : "text-base text-muted tabular-nums sm:text-sm"} aria-live="polite">
+            Step {step + 1} of {steps.length}<span class="sr-only"> · {steps[step]}</span>
           </p>
         </div>
         <IconButton icon="x-mark" label="Close editor" disabled={busy} onclick={() => (open = false)} />
@@ -113,7 +113,7 @@
             aria-current={index === step ? "step" : undefined}
             class={index === step ? "font-medium text-ink" : "text-muted"}
           >
-            {index + 1}. {label}
+            {steps.length > 1 ? `${index + 1}. ` : ""}{label}
           </li>
         {/each}
       </ol>

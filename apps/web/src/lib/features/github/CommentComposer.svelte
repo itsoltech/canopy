@@ -110,7 +110,7 @@
     </p>
   {:else if receipt?.state === "succeeded"}<p role="status" class="text-sm text-zinc-500">Comment saved</p>{/if}
   {#if !online || snapshot.stale}<p role="status" class="text-sm text-zinc-500">
-      Connect and refresh before sending. Your draft stays here.
+      {online ? "Refresh before sending." : "Connect and refresh before sending."} Your draft stays here.
     </p>{/if}
   <div class="flex flex-wrap justify-end gap-2">
     {#if uncertain}<Button

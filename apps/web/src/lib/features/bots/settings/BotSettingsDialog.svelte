@@ -167,9 +167,9 @@
     <div class="flex items-start justify-between gap-4 px-5 pt-6 pb-5 sm:px-6">
       <div class="grid min-w-0 gap-1">
         <h2 class="text-xl font-semibold text-balance">Bot settings</h2>
-        <p class="text-base/6 text-zinc-500 sm:text-sm/6 dark:text-zinc-400">
-          {bot.createdByBotName ? `Created by ${bot.createdByBotName}` : "A familiar face, your way."}
-        </p>
+        {#if bot.createdByBotName}<p class="text-base/6 text-zinc-500 sm:text-sm/6 dark:text-zinc-400">
+            Created by {bot.createdByBotName}
+          </p>{/if}
       </div>
       <IconButton icon="x-mark" label="Close settings" size="sm" disabled={busy} onclick={() => (open = false)} />
     </div>
@@ -185,10 +185,7 @@
             disabled={busy}
           /></SettingsSection
         >
-        <SettingsSection
-          title="Instructions"
-          description="Give your bot a role, context, or preferences to remember. Changes apply from its next turn."
-        >
+        <SettingsSection title="Instructions" description="Changes apply from the bot’s next turn.">
           <Field label="Standing instructions" optional
             ><Textarea
               bind:value={instructions}
@@ -199,8 +196,9 @@
             /></Field
           >
         </SettingsSection>
-        <SettingsSection title="Model" description="Choose a provider instance and model available on your worker.">
+        <SettingsSection title="Model">
           <ProviderModelFields
+            showHeading={false}
             instances={workerInstances}
             bind:instanceId
             bind:option

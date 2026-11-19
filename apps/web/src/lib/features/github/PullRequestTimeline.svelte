@@ -12,6 +12,7 @@
   import GitHubAvatar from "./GitHubAvatar.svelte";
   import ReviewThread from "./ReviewThread.svelte";
   import TimelineEvent from "./TimelineEvent.svelte";
+  import { readStatus, isLinkedOffline } from "./presentation.ts";
   import PageStatus from "./PageStatus.svelte";
   import { PullRequestPages } from "./pages.svelte.ts";
   import * as api from "./api.ts";
@@ -54,6 +55,18 @@
       `reviews:${cacheScope}`,
     ),
   );
+
+  const panelOffline = $derived(isLinkedOffline(snapshot));
+
+  const retryBoth = $derived(
+    !panelOffline && includeThreads && isLinkedOffline(pages.current?.page) && isLinkedOffline(reviews.current?.page),
+  );
+
+  function retryActivity() {
+    void pages.invalidate(true);
+
+    if (retryBoth) void reviews.invalidate(true);
+  }
 
   const rows = $derived(
     pullRequestActivity(
@@ -154,13 +167,15 @@
       onclick={more}>Show more activity</Button
     >{/if}
   <PageStatus
-    page={pages.current?.page}
-    busy={pages.busy}
+    detail={readStatus(pages.current?.page, panelOffline)}
+    busy={pages.busy || (retryBoth && reviews.busy)}
+    retryLabel={retryBoth ? "Retry activity and reviews" : "Retry activity"}
     error={pages.error}
-    retry={() => void pages.read(false, true)}
+    retry={retryActivity}
   />
   {#if includeThreads}<PageStatus
-      page={reviews.current?.page}
+      detail={readStatus(reviews.current?.page, panelOffline || retryBoth)}
+      retryLabel="Retry review threads"
       busy={reviews.busy}
       error={reviews.error}
       retry={() => void reviews.read(false, true)}

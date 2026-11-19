@@ -77,10 +77,7 @@
   <Field label="Slack account"
     ><Select class="min-w-0" bind:value={accountId} {options} disabled={busy || !!route} /></Field
   >
-  <Field
-    label="Allowed user IDs"
-    description="Separate IDs with commas to allow only these Slack users to trigger the bot."
-  >
+  <Field label="Allowed user IDs" description="Only these Slack users can trigger the bot. Separate IDs with commas.">
     <Input
       onkeydown={(event) => saveOnEnter(event, save)}
       bind:value={users}
@@ -127,11 +124,7 @@
       ]}
     />
   </Field>
-  <Field
-    label="Route instructions"
-    optional
-    description="Describe how this bot should handle messages from these channels and people."
-  >
+  <Field label="Route instructions" optional>
     <Textarea
       bind:value={instructions}
       rows={3}

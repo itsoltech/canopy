@@ -43,8 +43,7 @@
       >{worker.compositionError} The last synced files have been preserved.</Alert
     >
   {:else if !worker.supported}<Alert tone="warning">Update this worker to sync its agent environment.</Alert>
-  {:else if !worker.online}<Alert>Offline. This computer will receive the latest instructions when it reconnects.</Alert
-    >
+  {:else if !worker.online}<Alert>This computer receives the latest instructions when it reconnects.</Alert>
   {:else if pending}<Alert>Waiting for this computer to report the saved instructions.</Alert>
   {:else if kept}<Alert
       >Local instructions are kept on this computer. Compare versions below to return to the library.</Alert

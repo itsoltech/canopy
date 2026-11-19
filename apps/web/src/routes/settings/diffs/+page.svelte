@@ -19,7 +19,6 @@
     <DeviceChoiceRow
       preference="diffLayout"
       title="Diff layout"
-      description="Show original and updated lines stacked or side by side."
       options={[
         { value: "stacked", label: "Stacked" },
         { value: "split", label: "Side by side" },
@@ -37,7 +36,6 @@
     <DeviceChoiceRow
       preference="diffFileState"
       title="Default file state"
-      description="Set whether file changes start expanded or collapsed."
       options={[
         { value: "expanded", label: "Expanded" },
         { value: "collapsed", label: "Collapsed" },

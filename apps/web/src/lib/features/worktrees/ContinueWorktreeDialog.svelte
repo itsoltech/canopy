@@ -135,13 +135,7 @@
       </Alert>{/if}
     <DialogActions>
       <Button disabled={starting} onclick={() => (open = false)}>Cancel</Button>
-      <Button
-        variant="primary"
-        icon="git-fork"
-        loading={starting}
-        disabled={loading || disabled || !refs || !baseRef}
-        onclick={start}
-      >
+      <Button variant="primary" loading={starting} disabled={loading || disabled || !refs || !baseRef} onclick={start}>
         {request ? "Retry continuation" : "Create worktree"}
       </Button>
     </DialogActions>

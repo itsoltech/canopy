@@ -104,14 +104,7 @@
   }
 </script>
 
-<Dialog
-  bind:open
-  title="Add worker"
-  description="Connect another machine to your Canopy."
-  size="lg"
-  dismissible={!busy}
-  class={className}
->
+<Dialog bind:open title="Add worker" size="lg" dismissible={!busy} class={className}>
   <div class="grid min-w-0 gap-5">
     {#if step === 1}<NetworkAccessSummary
         {network}
@@ -149,7 +142,7 @@
               void generate();
             }}
           >
-            <Field label="Machine name" description="A name you will recognize, like MacBook or Home server."
+            <Field label="Machine name"
               ><Input
                 name="worker-name"
                 bind:value={name}

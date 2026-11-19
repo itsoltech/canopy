@@ -30,7 +30,7 @@
       {#if notes.recent}
         {#if !notes.index.releases.some((release) => release.version === notes.current) && notes.releases.length}
           <p class="text-base/6 text-pretty text-muted sm:text-sm/6" role="status">
-            Notes for this version are not available yet. Retry or view releases on GitHub.
+            Notes for this version are not available yet.
           </p>
           <div><Button size="sm" onclick={() => notes.load()}>Retry</Button></div>
         {/if}
@@ -42,14 +42,12 @@
               >{/snippet}
             <WhatsNewEntries entries={uniqueEntries([release])} class="pt-3 pb-2" />
           </Disclosure>
-        {:else}<p class="text-base/6 text-pretty text-muted sm:text-sm/6">
-            Release notes are not available yet. Retry or view releases on GitHub.
-          </p>
+        {:else}<p class="text-base/6 text-pretty text-muted sm:text-sm/6">Release notes are not available yet.</p>
           <div><Button size="sm" onclick={() => notes.load()}>Retry</Button></div>
         {/each}
       {:else if notes.range}
         {#if notes.range.incomplete}<p class="text-base/6 text-pretty text-muted sm:text-sm/6" role="status">
-            Some release notes are not available yet. Retry or view releases on GitHub.
+            Some release notes are not available yet.
           </p>
           <div><Button size="sm" onclick={() => notes.load()}>Retry</Button></div>{/if}
         <WhatsNewEntries entries={notes.range.entries} />

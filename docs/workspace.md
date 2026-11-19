@@ -1,6 +1,6 @@
 # Zakładki wątku i panel Files/Diff/Preview
 
-Status (2026-11-18): **zaimplementowane; układ v3**, menu ścieżek w rozmowie
+Status (2026-11-19): **zaimplementowane; układ v3**, menu ścieżek w rozmowie
 z kopiowaniem pełnej i względnej ścieżki, pobieraniem oraz lokalnym
 `Reveal in Finder/Explorer`, podgląd dostępnych plików spoza workspace tylko do odczytu,
 panel Diff z wirtualizowanym przeglądem zmian Git i zwiększonymi limitami odczytu
@@ -357,6 +357,8 @@ Funkcja dotyczy web/desktop; natywny mobile zachowuje dotychczasowe moduły.
 Dostępność nightly/beta/stable wynika z [promocji wydań](release.md).
 
 ### Podsumowanie wątku
+
+Na web/desktop zwinięty przycisk szczegółów i mini Preview mają zarezerwowane miejsce nad przewijaną osią. Pierwszy widoczny wiersz wiadomości pozostaje czytelny. Otwarty popover może chwilowo przykryć rozmowę.
 
 Kolumna rozmowy (`chat-column`) jest wyśrodkowana na **środku okna**, z własną
 maksymalną szerokością; wiadomości i composer zawsze mają tę samą szerokość
