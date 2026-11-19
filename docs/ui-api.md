@@ -2521,7 +2521,8 @@ nagłówki sekcji 14 px i stron 18 px. Odstęp sekcji wynosi 20/24 px (desktop/t
 pionowy padding wiersza 8/10 px, kontrolki i cele kliknięcia co najmniej 32/44 px.
 Pola tekstowe na telefonie zachowują 16 px, aby nie uruchamiać automatycznego zoomu.
 Treść ma maksymalnie 1024 px, nawigacja 216 px. Na szerokich ekranach boczne menu
-pokazuje etykiety sekcji z dekoracyjnymi ikonami. Na wąskich ekranach sekcje wybiera
+pokazuje etykiety sekcji z ikonami, które pomagają wzrokowo odnaleźć sekcję na liście.
+Czytnik ekranu odczytuje nazwę linku z etykiety. Na wąskich ekranach sekcje wybiera
 się z menu w nagłówku. `SettingsRow` układa tytuł i opis po
 lewej, kontrolkę po prawej; na telefonie przechodzi na jedną kolumnę. `Field layout="row"`
 zachowuje powiązania etykiety, opisu i błędu z kontrolką; w `settings-form` przechodzi

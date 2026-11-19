@@ -1,0 +1,13 @@
+{
+  "version": 2,
+  "skills": {
+    "unslop-ui-upstream": {
+      "source": "felipebasurto/unslop-ui",
+      "commit": "cd891160453f26aaacc569bad96a8d10d595076d",
+      "sourceType": "github",
+      "skillPath": "skills/unslop-ui/SKILL.md",
+      "computedHash": "743b253be11d944ec2281dc6b2a1f60e4d23a69cfac183d8ea156db6c8e301ba",
+      "skillName": "unslop-ui"
+    }
+  }
+}

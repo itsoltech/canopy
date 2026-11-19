@@ -50,9 +50,9 @@ moments, we allow ourselves a warm, human sentence (§6). Inspiration: ASD-STE10
     character) only for an ongoing action (`Starting Canopy…`). Use typographic quotes
     `“…”` around names the user chose. Settings paths look like
     `Settings → Network access`.
-12. **Never say the same thing twice.** If the title says "Up to date", the description
-    doesn't start with "Everything is up to date". A badge and a sentence with the same
-    word: remove one.
+12. **Give each explanation once.** When a heading says “Up to date”, omit a sentence
+    that repeats that status. A second cue can serve a different task. A progress bar
+    shows movement, and a count tells the reader how many items remain.
 
 ## 3. Glossary
 
@@ -221,7 +221,7 @@ for you.`). Don't promise things another text contradicts a moment later.
   exceptions.
 - **In details (`Show details`):** codes, sources, raw messages, log paths.
 - **In the docs:** everything else.
-- A fact appears on screen once.
+- Give each detail a purpose at the point where it appears (§2, rule 12).
 - **Skip minor external gaps silently.** Optional data from tools we don't control (no
   release notes for Grok, no icon, no model description): just don't show it. No
   "No release notes available".
@@ -297,7 +297,8 @@ review is needed.
 4. Every error: what happened, then what to do; details behind `Show details`; no jargon
    on the surface.
 5. Empty states: a title, at most 2 sentences, at most one action.
-6. No fact repeated (title, description, badge, tooltip).
+6. Remove repeated wording that serves the same purpose. Preserve cues for navigation,
+   accessibility and exact values. See the [Canopy UI review rules](ui-review.md).
 7. Minor external gaps skipped; serious dependencies named with an action.
 8. Sentences with "soul" marked, justified, in allowed places, at most one per screen.
 9. Checked with short, typical and long names, at desktop and phone width.
