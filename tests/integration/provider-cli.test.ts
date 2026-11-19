@@ -309,6 +309,13 @@ describe.skipIf(!dockerAvailable)("provider CLIs (gateway + real worker + fake C
     expect(log).not.toContain("supersecret");
     expect(log).not.toContain(LEAK);
     expect(log).toContain("key=[]");
+
+    const staleTarget = await gw.api.installCli({ ...request, version: "1.0.0", upgradeOnly: true });
+    expect(staleTarget.started).toEqual([]);
+    expect(tool(await workerOf(realId), Provider.CLAUDE)?.tool).toMatchObject({
+      version: "1.1.0",
+      install: { installId, state: "succeeded" },
+    });
   }, 50_000);
 
   test('Codex as an npm global package: "Update all" runs npm with the same prefix; workers without an update are left out', async () => {
@@ -634,6 +641,10 @@ describe.skipIf(!dockerAvailable)("provider CLIs (gateway + real worker + fake C
 
     const installId = crypto.randomUUID();
     const request = { workerId, provider: Provider.CLAUDE, version: "1.1.0", installId };
+    await expect(
+      gw.core.installCli(create(ui.InstallCliRequestSchema, { ...request, upgradeOnly: true })),
+    ).rejects.toMatchObject({ code: Code.FailedPrecondition });
+    expect(restarted.commands.filter((command) => command.case === "installCli")).toHaveLength(0);
     expect((await gw.api.installCli(request)).started).toEqual([workerId]);
     expect(restarted.commands.filter((command) => command.case === "installCli")).toMatchObject([
       { value: { provider: Provider.CLAUDE, version: "1.1.0", installId } },

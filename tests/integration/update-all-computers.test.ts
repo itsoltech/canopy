@@ -4,6 +4,7 @@ import { createClient } from "@connectrpc/connect";
 import { CliInstallMethod, CliToolsReportSchema, Provider, ui, update } from "@canopy/contracts";
 import { dockerAvailable } from "@canopy/db/testing";
 import { REMOTE_APP_UPDATE, REMOTE_THREADS, CONFIG_SYNC, qualifyId } from "@canopy/domain/computers";
+import { CLI_INSTALL_UPGRADE_ONLY_CAPABILITY } from "@canopy/domain/release/protocol";
 import { createGrpcClientTransport } from "@canopy/transport";
 import { remoteServe, sharedHost, uiHandlers } from "@canopy/gateway/api";
 import { LocalDesktopControl } from "../../apps/desktop/src/local-control.ts";
@@ -29,7 +30,7 @@ async function gateway(storage?: NonNullable<Parameters<typeof startTestGateway>
   const gateway = await startTestGateway({
     ...(storage && { storage }),
     role: "desktop",
-    worker: { hello: { capabilities: ["cli_install", "desktop_bundled"] } },
+    worker: { hello: { capabilities: ["cli_install", CLI_INSTALL_UPGRADE_ONLY_CAPABILITY, "desktop_bundled"] } },
     updates: { kind: "desktop", version: "2.0.0", source: { fetch: async () => Response.json([]) } },
     cliLatest: {
       sources: { claude: `${registry.url}`, codex: `${registry.url}`, grok: `${registry.url}` },
@@ -236,10 +237,17 @@ describe.skipIf(!dockerAvailable)("Update all across linked computers with fake 
       reply(true);
     });
 
-    const response = await a.api.installCli({ workerId, provider: Provider.CLAUDE, version: "2.0.0", installId });
+    const response = await a.api.installCli({
+      workerId,
+      provider: Provider.CLAUDE,
+      version: "2.0.0",
+      installId,
+      upgradeOnly: true,
+    });
+
     expect(response.started).toEqual([b.workerId]);
     expect(b.worker.commands.filter((command) => command.case === "installCli")).toMatchObject([
-      { case: "installCli", value: { provider: Provider.CLAUDE, version: "2.0.0", installId } },
+      { case: "installCli", value: { provider: Provider.CLAUDE, version: "2.0.0", installId, upgradeOnly: true } },
     ]);
 
     const report = async () => {

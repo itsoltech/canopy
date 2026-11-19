@@ -15,6 +15,7 @@ import {
   update,
 } from "@canopy/contracts";
 import { dockerAvailable } from "@canopy/db/testing";
+import { CLI_INSTALL_UPGRADE_ONLY_CAPABILITY } from "@canopy/domain/release/protocol";
 import { tempDir } from "@canopy/testing";
 import { createGrpcClientTransport } from "@canopy/transport";
 import { GatewayStore } from "@canopy/gateway/store";
@@ -115,7 +116,7 @@ async function fixture(kind: "binary" | "docker" = "binary", version = "2.0.0") 
       sources: { claude: `${registry.url}`, codex: `${registry.url}`, grok: `${registry.url}` },
       allowHttpForTests: true,
     },
-    worker: { hello: { capabilities: ["cli_install"] } },
+    worker: { hello: { capabilities: ["cli_install", CLI_INSTALL_UPGRADE_ONLY_CAPABILITY] } },
   });
 
   cleanups.push(async () => {

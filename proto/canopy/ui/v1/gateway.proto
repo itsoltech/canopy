@@ -2726,6 +2726,8 @@ message InstallCliRequest {
   // Opaque UUID for correlating this attempt with worker reports; empty lets the gateway generate one.
   // Does not make an installation durable or replay it after reconnecting.
   string install_id = 5;
+  // Update all checks the installed version on the worker before applying this exact target.
+  bool upgrade_only = 6;
 }
 
 message InstallCliResponse {

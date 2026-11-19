@@ -2023,12 +2023,15 @@ message CliToolsReport {
 
 // Instalacja albo aktualizacja jednego CLI (capability "cli_install"). CommandResult.ok = przyjęta i rozpoczęta;
 // postęp: CliInstallProgress, wynik: CliToolsReport z CliTool.install. Odmowa (błąd w CommandResult): np.
-// CLI_TURNS_RUNNING, CLI_MANAGED_EXTERNALLY, CLI_INSTALL_RUNNING, INVALID_VERSION.
+// CLI_TURNS_RUNNING, CLI_MANAGED_EXTERNALLY, CLI_INSTALL_RUNNING, CLI_INSTALL_SAME_TARGET_RUNNING, INVALID_VERSION.
+// CLI_ALREADY_CURRENT = worker zweryfikował wersję docelową lub nowszą przy upgrade_only.
 message InstallCli {
   Provider provider = 1;
   // X.Y.Z[-pre] albo "latest". Nic innego: worker nie wykonuje dowolnych poleceń.
   string version = 2;
   string install_id = 3;
+  // Przy cli_install_upgrade_only: jeśli bieżąca wersja osiągnęła już dokładny cel, nie uruchamiaj instalatora.
+  bool upgrade_only = 4;
 }
 
 // Zredagowane linie wyjścia trwającej instalacji (porcjami).

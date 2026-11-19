@@ -135,6 +135,7 @@ describe("durable CLI attempts with immediate command acknowledgement and delaye
     await f.tick();
     expect(f.commands).toHaveLength(1);
     const command = f.commands[0]!;
+    expect(command.upgradeOnly).toBe(true);
     expect(command.installId).toMatch(/^[\da-f]{8}-[\da-f]{4}-4[\da-f]{3}-[89ab][\da-f]{3}-[\da-f]{12}$/i);
     expect(f.reservations[0]?.requestId).toBe(command.installId);
     expect(f.reservations[0]?.state).toBe("running");
@@ -270,10 +271,17 @@ describe("durable CLI attempts with immediate command acknowledgement and delaye
     await f.center.begin();
     await f.center.tick();
     expect(f.run()?.steps[0]?.state).toBe("queued");
+    f.age(34);
+    const waitingSince = f.run()!.steps[0]!.startedAt;
+    const resumed = f.recreate();
+    await resumed.tick();
+    await resumed.tick();
+    expect(f.commands).toHaveLength(2);
+    expect(f.run()?.steps[0]).toMatchObject({ state: "queued", startedAt: waitingSince });
     f.age(36);
     await f.tick(f.recreate());
     expect(f.run()?.steps[0]).toMatchObject({ state: "failed", reason: expect.stringContaining("Timed out waiting") });
-    expect(f.commands).toHaveLength(1);
+    expect(f.commands).toHaveLength(2);
   });
 
   test("recreation preserves the attempt identity and never replays an accepted installation", async () => {
@@ -333,12 +341,15 @@ describe("durable CLI attempts with immediate command acknowledgement and delaye
     expect(f.commands).toHaveLength(0);
     expect(f.run()?.state).toBe("running");
     expect(f.run()?.steps[0]?.requestId).not.toBe(manualId);
+    f.age(34);
+    const waitingSince = f.run()!.steps[0]!.startedAt;
     f.tool().version = "1.5.0";
     f.tool().install!.state = "succeeded";
     await f.tick();
     expect(f.run()?.state).toBe("running");
     expect(f.commands).toHaveLength(1);
     expect(f.commands[0]?.version).toBe("2.0.0");
+    expect(Date.parse(f.run()!.steps[0]!.startedAt)).toBeGreaterThan(Date.parse(waitingSince));
     f.report(f.commands[0]!, "succeeded", "2.0.0");
     await f.tick();
     expect(f.run()?.state).toBe("succeeded");

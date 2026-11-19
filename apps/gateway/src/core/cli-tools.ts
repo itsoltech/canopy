@@ -3,13 +3,13 @@ import { timestampFromDate } from "@bufbuild/protobuf/wkt";
 import {
   CliInstallMethod,
   CliToolsReportSchema,
-  Provider,
   ui,
   type CliInstallProgress,
   type CliTool,
   type CliToolsReport,
 } from "@canopy/contracts";
 import { compareVersions } from "@canopy/updater";
+import { CLI_INSTALL_UPGRADE_ONLY_CAPABILITY } from "@canopy/domain/release/protocol";
 import { Code, ConnectError } from "@connectrpc/connect";
 import { Effect } from "effect";
 import { SqlClient } from "effect/sql";
@@ -281,7 +281,7 @@ export class CliTools {
 
     if (!request.allWorkers) {
       if (!request.workerId) throw new ConnectError("choose a worker", Code.InvalidArgument);
-      const started = await this.#installOn(request.workerId, request.provider, version, false, request.installId);
+      const started = await this.#installOn(request.workerId, version, request);
 
       return create(ui.InstallCliResponseSchema, { started: started ? [request.workerId] : [] });
     }
@@ -318,10 +318,8 @@ export class CliTools {
       try {
         const dispatched = await this.#installOn(
           row.id,
-          request.provider,
           version === "latest" ? this.checks.get(row.id, request.provider)?.version || "latest" : version,
-          true,
-          request.installId,
+          request,
         );
 
         if (dispatched) started.push(row.id);
@@ -333,13 +331,8 @@ export class CliTools {
     return create(ui.InstallCliResponseSchema, { started, skipped });
   }
 
-  async #installOn(
-    workerId: string,
-    provider: Provider,
-    version: string,
-    bulk: boolean,
-    attemptId = "",
-  ): Promise<boolean> {
+  async #installOn(workerId: string, version: string, request: ui.InstallCliRequest): Promise<boolean> {
+    const { provider, upgradeOnly, allWorkers: bulk, installId: attemptId } = request;
     const label = LABELS[keyOf(provider)!];
     const row = (await this.#rows([workerId])).get(workerId);
 
@@ -351,6 +344,9 @@ export class CliTools {
 
     if (!connection.hello.capabilities.includes("cli_install"))
       throw new ConnectError("this worker cannot install CLIs; update it first", Code.FailedPrecondition);
+
+    if (upgradeOnly && !connection.hello.capabilities.includes(CLI_INSTALL_UPGRADE_ONLY_CAPABILITY))
+      throw new ConnectError("Update this worker, then retry Update all.", Code.FailedPrecondition);
     const tool = row.report?.tools.find((t) => t.provider === provider);
 
     if (!tool)
@@ -379,11 +375,13 @@ export class CliTools {
     const installId = attemptId || Bun.randomUUIDv7();
 
     const result = await connection.sendCommand(
-      { case: "installCli", value: { provider, version, installId } },
+      { case: "installCli", value: { provider, version, installId, upgradeOnly } },
       60_000,
     );
 
     if (!result.ok) {
+      if (upgradeOnly && result.errorCode === "CLI_ALREADY_CURRENT") return false;
+
       // An untracked click can use the status of the existing attempt. Update all tracks its own ID and must
       // reconcile an explicit refusal with the next snapshot.
       if (result.errorCode === "CLI_INSTALL_SAME_TARGET_RUNNING" && !attemptId) return false;

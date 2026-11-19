@@ -8,13 +8,14 @@ import {
   dependencyFailureReason,
   pendingUpdate,
   retryUpdateSteps,
+  succeedUpdate,
   UPDATE_CONCURRENCY,
   updateDependencies,
   updatesConflict,
 } from "./center-scheduling.ts";
 import { UpdateReconnects } from "./center-offline.ts";
 import { computerUpdated } from "./computer-completion.ts";
-import { cliStepComplete, requeueBusyCli, stepCli, uncertainCliLaunch, waitForCli } from "./center-cli.ts";
+import { cliStepComplete, requeueBusyCli, runningCliAttempt, uncertainCliLaunch, waitForCli } from "./center-cli.ts";
 
 const UPDATE_TIMEOUT_MS = 35 * 60_000;
 
@@ -32,6 +33,7 @@ export interface UpdateCenterOptions {
 
 interface UpdateLaunch {
   step: ui.UpdateStep;
+  waitingSince: string;
   settled: boolean;
   error?: Error;
 }
@@ -114,9 +116,9 @@ export class UpdateCenter {
         try {
           if (settled) step.requestId = launch.step.requestId;
 
-          if (settled && requeueBusyCli(step, launch.error)) contended.add(step);
+          if (settled && requeueBusyCli(step, launch.error, launch.waitingSince)) contended.add(step);
           else if ((!launch || settled || step.kind === "cli") && (await this.complete(step, snapshot)))
-            this.succeed(step);
+            succeedUpdate(step);
           else if (this.reconnects.deferOrSkip(step, key, run, snapshot)) continue;
           else if (settled && launch.error && !uncertainCliLaunch(step, launch.error)) throw launch.error;
 
@@ -167,21 +169,21 @@ export class UpdateCenter {
 
         try {
           if (waitForCli(step, snapshot, UPDATE_TIMEOUT_MS)) continue;
-          const install = step.kind === "cli" ? stepCli(step, snapshot)?.install : undefined;
-          const following = install?.state === "running" && install.targetVersion === step.version;
-
+          const following = runningCliAttempt(step, snapshot);
+          const waitingSince = step.startedAt;
           step.state = "running";
-          step.startedAt ||= new Date().toISOString();
+          step.startedAt = new Date().toISOString();
 
-          if (step.kind === "cli") step.requestId = following ? install.installId : crypto.randomUUID();
+          if (step.kind === "cli") step.requestId = following || crypto.randomUUID();
 
           // Persist every reservation before sending; restart never replays an uncertain install.
           await this.options.write(run);
 
-          if (await this.complete(step, snapshot, true)) this.succeed(step);
+          if (await this.complete(step, snapshot, true)) succeedUpdate(step);
           else if (!following) {
             const launch: UpdateLaunch = {
               step: clone(ui.UpdateStepSchema, step),
+              waitingSince,
               settled: false,
             };
 
@@ -235,11 +237,6 @@ export class UpdateCenter {
     return slots.size;
   }
 
-  private succeed(step: ui.UpdateStep) {
-    step.state = "succeeded";
-    step.finishedAt = new Date().toISOString();
-  }
-
   private fail(step: ui.UpdateStep, cause: unknown) {
     step.state = cause instanceof ConnectError && cause.code === Code.FailedPrecondition ? "blocked" : "failed";
     step.finishedAt = new Date().toISOString();
@@ -288,6 +285,7 @@ export class UpdateCenter {
           provider: step.provider,
           version: step.version,
           installId: step.requestId,
+          upgradeOnly: true,
         }),
         step.nodeId,
       );
@@ -391,7 +389,7 @@ export class UpdateCenter {
           continue;
 
         if (dismissed) step.state = "dismissed";
-        else this.succeed(step);
+        else succeedUpdate(step);
         step.reason = "";
         resolved = true;
       }

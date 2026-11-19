@@ -9,6 +9,8 @@ import {
   type CliToolsReportSchema,
   type InstallCli,
 } from "@canopy/contracts";
+import { reachedUpdateVersion } from "@canopy/domain/release/remote-update-state";
+import { processGovernor } from "@canopy/process-governor";
 import { CLIS, cliOf, discoverCli, type CliName, type CliProbe, type DiscoveredCli } from "./discovery.ts";
 import { runInstall } from "./installer.ts";
 import { shellEnvReady } from "./shell-env.ts";
@@ -65,7 +67,7 @@ export class CliTools {
   readonly #options: CliToolsOptions;
   readonly #status = new Map<Provider, StatusInit>();
   readonly #installing = new Map<Provider, { resource: string; done: Promise<void> }>();
-  readonly #starting = new Map<Provider, { version: string; done: Promise<void> }>();
+  readonly #starting = new Map<Provider, { version: string; upgradeOnly: boolean; done: Promise<void> }>();
   #last: ReportInit | undefined;
   #discovering: Promise<ReportInit> | undefined;
   #installRevision = 0;
@@ -169,7 +171,7 @@ export class CliTools {
     const { provider, version } = command;
     const starting = this.#starting.get(provider);
 
-    if (starting?.version === version) {
+    if (starting?.version === version && starting.upgradeOnly === command.upgradeOnly) {
       // The first request can still fail admission. Only a reserved install can satisfy a duplicate click.
       await starting.done;
       throw installRunning(true);
@@ -178,7 +180,7 @@ export class CliTools {
     if (starting || this.#installing.has(provider))
       throw installRunning(!starting && this.#status.get(provider)?.targetVersion === version);
     const done = this.#start(command);
-    this.#starting.set(provider, { version, done });
+    this.#starting.set(provider, { version, upgradeOnly: command.upgradeOnly, done });
 
     try {
       await done;
@@ -197,6 +199,9 @@ export class CliTools {
     if (!validTarget(command.version))
       throw new CliRefused("INVALID_VERSION", `"${command.version}" is not a version (X.Y.Z or latest)`);
 
+    if (command.upgradeOnly && command.version === "latest")
+      throw new CliRefused("INVALID_VERSION", "A queued CLI update requires an exact version");
+
     const busy = this.#options.busy(command.provider);
 
     if (busy > 0)
@@ -204,7 +209,21 @@ export class CliTools {
         "CLI_TURNS_RUNNING",
         `${spec.label} has ${busy} running turn${busy === 1 ? "" : "s"} on this worker; try again when ${busy === 1 ? "it finishes" : "they finish"}`,
       );
+
+    if (command.upgradeOnly) processGovernor.invalidate();
     const before = await this.#discover(spec);
+
+    if (command.upgradeOnly && !before.version)
+      throw new CliRefused(
+        "CLI_VERSION_UNKNOWN",
+        `Couldn't check the installed version of ${spec.label}. Check for updates, then retry.`,
+      );
+
+    if (command.upgradeOnly && reachedUpdateVersion(before.version, command.version)) {
+      void this.report().catch(() => undefined);
+      throw new CliRefused("CLI_ALREADY_CURRENT", `${spec.label} is already up to date`);
+    }
+
     const plan = planRecipe(before, command.version, this.#tools());
 
     if (!plan.recipe) {

@@ -2,12 +2,19 @@ import { Code, ConnectError } from "@connectrpc/connect";
 import type { ui } from "@canopy/contracts";
 import { reachedUpdateVersion } from "@canopy/domain/release/remote-update-state";
 
-export function stepCli(step: ui.UpdateStep, snapshot: ui.UpdatesSnapshot) {
+function stepCli(step: ui.UpdateStep, snapshot: ui.UpdatesSnapshot) {
   const home = step.nodeId ? snapshot.computers.find((item) => item.nodeId === step.nodeId)?.updates : snapshot;
 
   return home?.cliWorkers
     .find((worker) => worker.id === step.workerId)
     ?.cliTools.find((item) => item.tool?.provider === step.provider)?.tool;
+}
+
+export function runningCliAttempt(step: ui.UpdateStep, snapshot: ui.UpdatesSnapshot): string {
+  if (step.kind !== "cli") return "";
+  const install = stepCli(step, snapshot)?.install;
+
+  return install?.state === "running" && install.targetVersion === step.version ? install.installId : "";
 }
 
 /** The installed version is authoritative even when an earlier acknowledgement or attempt failed. */
@@ -32,10 +39,11 @@ export function cliStepComplete(step: ui.UpdateStep, snapshot: ui.UpdatesSnapsho
 }
 
 /** The worker explicitly refused this command. A fresh snapshot can follow the other attempt or launch this step. */
-export function requeueBusyCli(step: ui.UpdateStep, error: Error | undefined): boolean {
+export function requeueBusyCli(step: ui.UpdateStep, error: Error | undefined, waitingSince: string): boolean {
   if (step.kind !== "cli" || !(error instanceof ConnectError) || error.code !== Code.Aborted) return false;
 
   step.state = "queued";
+  step.startedAt = waitingSince || step.startedAt;
   step.requestId = "";
 
   return true;

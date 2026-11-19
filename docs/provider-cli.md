@@ -5,8 +5,9 @@ na dostępnych komputerach, aktualizacji globalnych instalacji mise
 i powiązania wyników Update all z konkretną próbą instalacji oraz uruchamiania skryptów CLI
 z katalogów ze spacjami na Windows oraz aktualizacji natywnych instalacji Claude Code
 i Codex Standalone na Windows z zachowaniem systemowej zmiennej `OS` w Canopy Desktop.
-Stan trwającej instalacji pochodzi z bieżącego łącza
-workera, a powtórzenie akcji dla tej samej wersji korzysta z wyniku aktywnej próby.
+Stan trwającej instalacji pochodzi z bieżącego łącza workera, a powtórzenie akcji
+dla tej samej wersji korzysta z wyniku aktywnej próby. Worker ponownie sprawdza
+wersję przed instalacją z Update all.
 Dostępność w nightly, beta i stable wynika z promocji opisanych w [release.md](release.md).
 
 Odczyt statusu konta przez oficjalne CLI, jego ograniczenia oraz zasady
@@ -67,6 +68,11 @@ Gateway przekazuje go workerowi bez zmian. W Update all id jest zapisane przed w
 więc późny raport i powrót po rozłączeniu dotyczą właściwej próby. Id pozostaje niekwalifikowane
 przez routing połączonych komputerów, a id workera nadal wskazuje jego dom.
 Potwierdzenie startu nie jest wynikiem instalacji; brak potwierdzenia nie dowodzi niepowodzenia.
+`InstallCliRequest.upgrade_only` jest przekazywane do workera z capability `cli_install_upgrade_only`.
+Worker odczytuje bieżącą wersję przed uruchomieniem instalatora. Jeżeli osiągnęła cel,
+odświeża raport i zwraca `CLI_ALREADY_CURRENT`, a gateway potwierdza żądanie bez nowej próby.
+Jeżeli nie może odczytać wersji, odmawia startu. Starszy worker wymaga aktualizacji dla
+trybu `upgrade_only`; indywidualne polecenia obsługuje dalej.
 Szczegóły limitów i uzgadniania wyniku: [updates.md](updates.md).
 
 ## Wykrywanie na workerze
