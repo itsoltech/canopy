@@ -109,15 +109,16 @@ export class UpdateCenter {
         if (step.state !== "running") continue;
         const key = `${run.id}/${index}`;
         const launch = this.launching.get(key);
+        const settled = launch?.settled;
 
         try {
-          if (launch?.settled) step.requestId = launch.step.requestId;
+          if (settled) step.requestId = launch.step.requestId;
 
-          if (launch?.settled && requeueBusyCli(step, launch.error)) contended.add(step);
-          else if ((!launch || launch.settled || step.kind === "cli") && (await this.complete(step, snapshot)))
+          if (settled && requeueBusyCli(step, launch.error)) contended.add(step);
+          else if ((!launch || settled || step.kind === "cli") && (await this.complete(step, snapshot)))
             this.succeed(step);
           else if (this.reconnects.deferOrSkip(step, key, run, snapshot)) continue;
-          else if (launch?.settled && launch.error && !uncertainCliLaunch(step, launch.error)) throw launch.error;
+          else if (settled && launch.error && !uncertainCliLaunch(step, launch.error)) throw launch.error;
 
           if (step.state === "running" && Date.now() - Date.parse(step.startedAt) > UPDATE_TIMEOUT_MS)
             throw new Error("Timed out waiting for completion. Retry Update all after checking this item.");
@@ -125,7 +126,7 @@ export class UpdateCenter {
           this.fail(step, cause);
         }
 
-        if (launch?.settled) this.launching.delete(key);
+        if (settled) this.launching.delete(key);
       }
 
       this.releaseOfflineLaunches(run, snapshot);

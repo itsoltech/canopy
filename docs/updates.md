@@ -375,8 +375,8 @@ jeśli poprzednia otrzymała odmowę i docelowej wersji nadal brakuje. Inne jawn
 Trwająca ręczna instalacja tej samej wersji jest śledzona bez drugiego polecenia;
 instalacja innej wersji musi się najpierw zakończyć. Raport z wersją docelową lub nowszą
 potwierdza sukces również po błędzie potwierdzenia i usuwa nieaktualny błąd zatrzymanego przebiegu.
-Trwająca próba o zgodnym id nadal czeka na zakończenie walidacji i ewentualnego rollbacku,
-nawet jeśli sonda widzi już docelowy plik.
+Każda trwająca instalacja danego CLI może wycofać wersję odczytaną podczas walidacji,
+więc krok czeka na zakończenie instalacji, nawet jeśli sonda widzi już docelowy plik.
 Starszy gateway ignorujący id nadal potwierdza sukces wersją; niepowiązany błąd instalacji
 nie kończy kroku przed jego limitem.
 Kolejka nie przyznaje force ani downgrade. Obejmuje tylko gateway binarny,

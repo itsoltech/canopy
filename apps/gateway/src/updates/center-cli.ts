@@ -14,8 +14,8 @@ export function stepCli(step: ui.UpdateStep, snapshot: ui.UpdatesSnapshot) {
 function cliStepCurrent(step: ui.UpdateStep, snapshot: ui.UpdatesSnapshot): boolean {
   const tool = stepCli(step, snapshot);
 
-  // A matching installer may still roll back a version observed during validation.
-  if (tool?.install?.state === "running" && tool.install.installId === step.requestId) return false;
+  // Any installer for this CLI may still roll back a version observed during validation.
+  if (tool?.install?.state === "running") return false;
   const version = tool?.version;
 
   return !!version && reachedUpdateVersion(version, step.version);
@@ -49,8 +49,7 @@ export function waitForCli(step: ui.UpdateStep, snapshot: ui.UpdatesSnapshot, ti
 
   const install = stepCli(step, snapshot)?.install;
 
-  if (install?.state !== "running" || install.targetVersion === step.version || cliStepCurrent(step, snapshot))
-    return false;
+  if (install?.state !== "running" || install.targetVersion === step.version) return false;
   step.startedAt ||= new Date().toISOString();
 
   return true;
