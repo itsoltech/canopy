@@ -38,8 +38,9 @@ export class GitError extends Error {
   constructor(
     readonly code: string,
     message: string,
+    options?: ErrorOptions,
   ) {
-    super(message);
+    super(message, options);
   }
 }
 
@@ -74,7 +75,7 @@ export async function git(
   cwd: string,
   args: readonly string[],
   timeoutMs = GIT_TIMEOUT_MS,
-  input?: { text?: string; env?: Record<string, string> },
+  input?: { text?: string; env?: Record<string, string>; maxBytes?: number },
 ): Promise<GitResult> {
   const signal = deadline.getStore();
 
@@ -104,6 +105,7 @@ export async function git(
     cwd,
     env: { ...process.env, ...GIT_ENV, ...input?.env },
     timeoutMs,
+    ...(input?.maxBytes !== undefined && { maxBytes: input.maxBytes }),
     ...(signal && { signal }),
     ...(input?.text !== undefined && { input: input.text }),
   };
@@ -139,15 +141,18 @@ export async function git(
 
     return { ok: result.code === 0, stdout: result.stdout, stderr: result.stderr };
   } catch (error) {
-    if (signal?.aborted) throw new GitError("SWITCH_EXPIRED", "The Git operation expired. Try again.");
+    if (signal?.aborted)
+      throw new GitError("SWITCH_EXPIRED", "The Git operation expired. Try again.", { cause: error });
 
     if (error instanceof ProcessBusyError) throw new GitError("GIT_BUSY", error.message);
 
     if (error instanceof ProcessTimeoutError) {
-      if (error.reason === "output") throw new GitError("GIT_OUTPUT_LIMIT", "Git produced too much output.");
+      if (error.reason === "output")
+        throw new GitError("GIT_OUTPUT_LIMIT", "Git produced too much output.", { cause: error });
 
-      if (error.reason === "timeout") throw new GitError("GIT_TIMEOUT", "Git exceeded its time limit.");
-      throw new GitError("GIT_CANCELLED", "Git was cancelled.");
+      if (error.reason === "timeout")
+        throw new GitError("GIT_TIMEOUT", "Git exceeded its time limit.", { cause: error });
+      throw new GitError("GIT_CANCELLED", "Git was cancelled.", { cause: error });
     }
 
     throw new GitError("GIT_UNAVAILABLE", "Git could not start on the worker. Check the Git installation.");
