@@ -2,6 +2,7 @@ import { useState } from "react";
 import { Pressable, Text, View } from "react-native";
 import Animated from "react-native-reanimated";
 import type { Reasoning } from "@canopy/contracts";
+import { streamingText } from "@canopy/ui/streaming";
 import { LiveText } from "../../../ui/LiveText";
 import { useAnchoredToggle } from "../../../ui/feed-anchor";
 import { Markdown } from "../../../ui/markdown";
@@ -20,8 +21,11 @@ export function ReasoningView({ reasoning, streaming }: { reasoning: Reasoning; 
   const [open, setOpen] = useState(false);
   const { header, toggle } = useAnchoredToggle();
 
+  const summary = streamingText(reasoning.summary, streaming);
+  const body = streamingText(reasoning.text, streaming);
+
   const preview =
-    (reasoning.summary || reasoning.text)
+    (reasoning.summary ? summary : body)
       .trim()
       .split("\n")[0]
       ?.replace(/^[#*_\s]+|[*_]+$/g, "") ?? "";
@@ -66,10 +70,8 @@ export function ReasoningView({ reasoning, streaming }: { reasoning: Reasoning; 
       </Pressable>
       {open && (
         <View style={[activityHeader.body, { gap: 12 }]}>
-          {reasoning.summary.trim() ? <Markdown text={reasoning.summary} color={c.muted} /> : null}
-          {reasoning.text.trim() && reasoning.text !== reasoning.summary ? (
-            <Markdown text={reasoning.text} color={c.faint} />
-          ) : null}
+          {summary.trim() ? <Markdown text={summary} color={c.muted} /> : null}
+          {body.trim() && reasoning.text !== reasoning.summary ? <Markdown text={body} color={c.faint} /> : null}
           <QuoteAction
             text={[reasoning.summary, reasoning.text !== reasoning.summary ? reasoning.text : ""]
               .filter(Boolean)

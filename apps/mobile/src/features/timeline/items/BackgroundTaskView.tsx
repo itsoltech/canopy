@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { Text, View } from "react-native";
 import { BackgroundTaskKind, ItemStatus, type BackgroundTask } from "@canopy/contracts";
+import { streamingText } from "@canopy/ui/streaming";
 import { backgroundStopLabel } from "@canopy/domain/background-tasks";
 import { humanizeEnum } from "@canopy/domain/humanize";
 import { Badge } from "../../../ui/Badge";
@@ -97,7 +98,7 @@ export function BackgroundTaskView({
         <Text style={[styles.workMeta, { color: c.soft }]}>{task.progress.summary}</Text>
       ) : null}
       <OutputBlock
-        output={task.output}
+        output={streamingText(task.output, running)}
         blob={task.outputBlob}
         label={`Output of ${name}`}
         tail={12}

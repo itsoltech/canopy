@@ -7,6 +7,7 @@ import { styles, useColors, useTypography } from "../../ui/theme";
 import { CopyAction } from "./copy-action";
 import { QuoteAction } from "../quotes/QuoteAction";
 import { DiffContent } from "../../ui/DiffContent";
+import { streamingText } from "@canopy/ui/streaming";
 import { QUOTE_LIMITS } from "@canopy/domain";
 import { Markdown } from "../../ui/markdown/Markdown";
 import { Segmented } from "../../ui/Segmented";
@@ -48,6 +49,22 @@ function TextChunk({ text, diff }: { text: string; diff: boolean }) {
   );
 }
 
+interface TextViewerProps {
+  text?: string;
+  blob?: BlobRef | undefined;
+  threadId: string;
+  label: string;
+  diff?: boolean;
+  onClose: () => void;
+  extraActions?: ReactNode;
+  attachment?: boolean;
+  markdown?: boolean;
+  notice?: string;
+  toolbar?: ReactNode;
+  embedded?: boolean;
+  streaming?: boolean;
+}
+
 export function TextViewer({
   text = "",
   blob,
@@ -61,27 +78,16 @@ export function TextViewer({
   notice,
   toolbar,
   embedded = false,
-}: {
-  text?: string;
-  blob?: BlobRef | undefined;
-  threadId: string;
-  label: string;
-  diff?: boolean;
-  onClose: () => void;
-  extraActions?: ReactNode;
-  attachment?: boolean;
-  markdown?: boolean;
-  notice?: string;
-  toolbar?: ReactNode;
-  embedded?: boolean;
-}) {
+  streaming = false,
+}: TextViewerProps) {
   const c = useColors();
   const { loaded, error, tooLarge, retry } = useTextContent(text, blob, threadId);
   const preferences = useDevicePreferences();
   const [wrap, setWrap] = useState(true);
   const rendered = markdown && preferences.values.attachmentMarkdown === "rendered";
 
-  const chunks = useMemo(() => chunksOf(loaded ?? ""), [loaded]);
+  const visible = streamingText(loaded ?? "", streaming && !blob);
+  const chunks = useMemo(() => chunksOf(visible), [visible]);
 
   return (
     <TextViewerFrame

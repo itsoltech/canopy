@@ -1,5 +1,6 @@
 import { Text } from "react-native";
 import { ItemStatus, type CommandExecution } from "@canopy/contracts";
+import { streamingText } from "@canopy/ui/streaming";
 import { formatDuration } from "@canopy/domain/format";
 import { Badge } from "../../../ui/Badge";
 import { useColors, useTypography } from "../../../ui/theme";
@@ -8,7 +9,15 @@ import { ItemFrame } from "../ItemFrame";
 import { Aside, RowTitle } from "./parts";
 
 /** Shell command: command line, exit code, duration; the output opens under it (web: CommandView). */
-export function CommandView({ command, status }: { command: CommandExecution; status: ItemStatus }) {
+export function CommandView({
+  command,
+  status,
+  streaming,
+}: {
+  command: CommandExecution;
+  status: ItemStatus;
+  streaming: boolean;
+}) {
   const c = useColors();
   const type = useTypography();
   const first = command.command.split("\n")[0] ?? "";
@@ -35,7 +44,7 @@ export function CommandView({ command, status }: { command: CommandExecution; st
         </Text>
       ) : null}
       <OutputBlock
-        output={command.output}
+        output={streamingText(command.output, streaming)}
         blob={command.outputBlob}
         label={`Output of ${first}`}
         empty={status === ItemStatus.IN_PROGRESS ? "Waiting for output…" : "No output."}

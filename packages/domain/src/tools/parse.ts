@@ -7,11 +7,12 @@
 import { isJsonArray, isJsonObject, isNumber, isString, objectsOf, parseJson, str, type JsonValue } from "../json.ts";
 
 /** Claude adds reminders for the model to some results and wraps errors in a tag; neither is for people. */
-export function stripReminders(text: string): string {
-  return text
+export function stripReminders(text: string, { keepLineEndings = false } = {}): string {
+  const clean = text
     .replace(/\n*<system-reminder>[\s\S]*?<\/system-reminder>\n*/g, "\n")
-    .replace(/<\/?tool_use_error>/g, "")
-    .replace(/\n+$/, "");
+    .replace(/<\/?tool_use_error>/g, "");
+
+  return keepLineEndings ? clean : clean.replace(/\n+$/, "");
 }
 
 export interface NumberedText {

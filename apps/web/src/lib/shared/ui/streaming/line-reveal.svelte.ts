@@ -1,4 +1,4 @@
-import { lineCut } from "./line-buffer.ts";
+import { streamingText } from "@canopy/ui/streaming";
 
 /**
  * The shown part of a streaming text (agent message, reasoning, command output): it advances a line at
@@ -10,11 +10,7 @@ export class LineReveal {
   readonly #source: () => string;
   readonly #streaming: () => boolean;
 
-  readonly text: string = $derived.by(() => {
-    const source = this.#source();
-
-    return this.#streaming() ? source.slice(0, lineCut(source)) : source;
-  });
+  readonly text: string = $derived.by(() => streamingText(this.#source(), this.#streaming()));
 
   constructor(source: () => string, streaming: () => boolean) {
     this.#source = source;
