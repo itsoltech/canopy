@@ -19,6 +19,7 @@ Kolejne wiadomości tekstowe w prywatnym czacie mogą dołączyć do trwającej 
 Limit automatycznej wymiany wynosi 256 kroków; walidacja budżetu przed zgodą
 i diagnostyka wyników narzędzi są zaimplementowane. Bot zlecający pracę lokalnej
 turze dostaje powiadomienia o oczekujących pytaniach i zakończeniu tury.
+Długie tytuły są skracane w tych powiadomieniach, aby zmieściły się w limicie wejścia bota.
 `download_file` wysyła identyfikator klienta `Canopy-Bot` w nagłówku `User-Agent`.
 Boty i rutyny mogą sprawdzić w opublikowanych changelogach Canopy wersję według numeru PR-a.
 Usage w web/desktop pokazuje łączne zużycie botów oraz tokeny i koszty poszczególnych
@@ -831,7 +832,9 @@ i `BotMessage.setting_changes` mają numer **430** w swoich komunikatach.
    powiadomienie dla bota raz na subskrypcję i interakcję. Bot może odczytać pytanie
    przez `read_thread` i zaproponować odpowiedź przez `answer_interaction`. Zapis
    powiadomienia i jego deduplikacja są atomowe. Subskrypcja pozostaje aktywna do
-   zakończenia tury. Prośby o uprawnienia nadal obsługują karty zgód.
+   zakończenia tury. W lokalnych powiadomieniach tytuł zajmuje do 200 jednostek
+   UTF-16, a treść raportu końcowego do 80 000. Pełny tytuł i wynik pozostają
+   zapisane w wątku. Prośby o uprawnienia nadal obsługują karty zgód.
 5. Przed zdalnym MCP zapisujemy `running`. Gdy lease zostaje przejęty po awarii,
    takie wywołanie staje się `interrupted`, z opisem nieznanego wyniku. Model dostaje
    ten wynik, a nie ponowione żądanie MCP. Dokładnie jednokrotnego wykonania obcego

@@ -1,3 +1,10 @@
+/** Bound the title in local watch input and its visible notice, including titles from older threads. */
+export function botThreadNoticeTitle(title: string): string {
+  const limit = 200;
+
+  return title.length <= limit ? title : `${title.slice(0, limit - 1).replace(/\p{Surrogate}$/u, "")}…`;
+}
+
 /** Short event text, separate from the model's completion report and its transcript. */
 export function threadNotice(title: string, status: string, computer = ""): string {
   const subject = `“${title || "Thread"}”${computer ? ` on ${computer}` : ""}`;

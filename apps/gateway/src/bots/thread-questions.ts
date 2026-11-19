@@ -3,6 +3,7 @@ import type { SqlClient } from "effect/sql";
 import type { BotTurn } from "./types.ts";
 import type { BotCore } from "./store-queue.ts";
 import { originOf } from "./routines.ts";
+import { botThreadNoticeTitle } from "./thread-notice.ts";
 
 export const pendingThreadQuestions = (sql: SqlClient.SqlClient) => sql`
   FROM bot_thread_watches w
@@ -49,16 +50,18 @@ export const deliverThreadQuestions = (sql: SqlClient.SqlClient, core: BotCore, 
         VALUES (${q.call_id}::uuid, ${q.request_id}::uuid) ON CONFLICT DO NOTHING RETURNING request_id`;
 
       if (!receipt.length || !(source?.origin_enabled ?? true) || !(yield* core.originEnabled(source))) continue;
+      const title = botThreadNoticeTitle(q.title);
+
       yield* core.enqueue(
         q.owner_user_id,
         q.bot_id,
-        `Thread "${q.title}" (thread_id: ${q.thread_id}) is waiting for input (request_id: ${q.request_id}).\nUse read_thread to see the request. The user can answer it in Canopy or approve your answer_interaction call.`,
+        `Thread "${title}" (thread_id: ${q.thread_id}) is waiting for input (request_id: ${q.request_id}).\nUse read_thread to see the request. The user can answer it in Canopy or approve your answer_interaction call.`,
         `thread-question:${q.call_id}:${q.request_id}`,
         {
           hops: q.hops,
           sender: q.thread_id,
           event: true,
-          displayText: `“${q.title}” needs input`,
+          displayText: `“${title}” needs input`,
           ...originOf(source),
         },
       );
