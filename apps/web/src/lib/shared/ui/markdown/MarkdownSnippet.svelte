@@ -1,6 +1,6 @@
 <script lang="ts">
   import MarkdownInline from "./MarkdownInline.svelte";
-  import { snippetTokens } from "./tokens.ts";
+  import { snippetTokens } from "@canopy/domain/markdown";
 
   /**
    * A message's markdown as one line of inline formatting (bold, italics, code, link text) for previews; the
