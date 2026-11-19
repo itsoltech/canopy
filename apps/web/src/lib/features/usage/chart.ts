@@ -1,4 +1,4 @@
-import { hasEffectiveCost, metricNumber, type UsageDay, type UsageRow, type UsageView } from "./format.ts";
+import { hasEffectiveCost, metricNumber, shortCount, type UsageDay, type UsageRow, type UsageView } from "./format.ts";
 
 // Two intervals on the cost axis need at least one cent each for distinct labels.
 const minimumCostRange = 0.02;
@@ -125,9 +125,6 @@ export function plotUsage(days: UsageDay[], providers: UsageRow[], view: UsageVi
 export function axisLabel(value: number, view: UsageView): string {
   if (view === "cost") return costAxis.format(value);
 
-  return new Intl.NumberFormat(undefined, {
-    notation: value > 0 && value < 0.001 ? "scientific" : "compact",
-    maximumSignificantDigits: 2,
-    minimumFractionDigits: 0,
-  }).format(value);
+  // The middle tick can fall between two tokens on small ranges.
+  return Number.isInteger(value) ? shortCount(BigInt(value)) : String(value);
 }

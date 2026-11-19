@@ -59,7 +59,6 @@ export const usageActivities = [
 ];
 
 const numbers = new Intl.NumberFormat(undefined);
-const compact = new Intl.NumberFormat(undefined, { notation: "compact", maximumFractionDigits: 1 });
 const dollars = new Intl.NumberFormat(undefined, { style: "currency", currency: "USD" });
 
 const supportsBigInt = (() => {
@@ -71,7 +70,6 @@ const supportsBigInt = (() => {
   }
 })();
 
-const supportsCompact = compact.resolvedOptions().notation === "compact";
 const maxSafeCount = BigInt(Number.MAX_SAFE_INTEGER);
 
 export function count(value: bigint): string {
@@ -85,17 +83,15 @@ const compactUnits = [
   { size: 1_000_000_000_000n, suffix: "T" },
   { size: 1_000_000_000n, suffix: "B" },
   { size: 1_000_000n, suffix: "M" },
-  { size: 1_000n, suffix: "K" },
+  { size: 1_000n, suffix: "k" },
 ];
 
 export function shortCount(value: bigint): string {
-  if (supportsBigInt && supportsCompact) return compact.format(value);
-
   const magnitude = value < 0n ? -value : value;
   const index = compactUnits.findIndex(({ size }) => magnitude >= size);
   const unit = compactUnits[index];
 
-  if (!unit) return count(value);
+  if (!unit) return value.toString();
   const sign = value < 0n ? "-" : "";
   const tenths = (magnitude * 10n + unit.size / 2n) / unit.size;
   const next = compactUnits[index - 1];
@@ -117,7 +113,7 @@ export const effectiveCost = (amounts: UsageAmounts) =>
   hasEffectiveCost(amounts) ? dollars.format(amounts.effectiveCost) : "Unknown";
 
 export function metricValue(amounts: UsageAmounts, view: UsageView): string {
-  if (view === "tokens") return count(totalTokens(amounts));
+  if (view === "tokens") return shortCount(totalTokens(amounts));
 
   const cost = effectiveCost(amounts);
 

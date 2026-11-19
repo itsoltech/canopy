@@ -49,8 +49,8 @@
     {#each counters as counter (counter.label)}
       <div class="min-w-0 rounded-xl border border-divider p-3">
         <dt class="text-sm/5 text-zinc-500 dark:text-zinc-400">{counter.label}</dt>
-        <dd class="mt-1 text-base/6 font-medium wrap-anywhere tabular-nums select-text">
-          {count(counter.value)}
+        <dd class="mt-1 text-base/6 font-medium wrap-anywhere tabular-nums select-text" title={count(counter.value)}>
+          {shortCount(counter.value)}
         </dd>
       </div>
     {/each}
