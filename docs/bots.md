@@ -7,6 +7,7 @@ Usunięcie kończy pracę i odłącza źródła bota w tej samej transakcji co s
 Prywatny czat pokazuje odbiór wiadomości ze Slacka, przebieg rutyn i bieżącą czynność bota.
 W web/desktop kolejne zdarzenia w historii można rozwijać i zwijać.
 Panel Bots w web/desktop oznacza pracujące boty na przypiętych kafelkach i zwykłych wierszach.
+Aktualizacja rozmowy zachowuje w panelu stan pracy i oczekującej zgody z podsumowania bota.
 Mobilna rozmowa potwierdza odczyt najnowszych wiadomości i odświeża listę botów.
 Wysyłana wiadomość ma przygaszony dymek, który zachowuje wysokość po potwierdzeniu.
 Zaimplementowano trwałe rozmowy botów przez Slack Socket Mode,
@@ -1377,6 +1378,9 @@ przenoszą `Bot.executing`, stan potwierdzonej pracy bota, niezależny od `BotCo
 sterującego przyciskiem Stop w czacie. Kolejka i oczekiwanie na odpowiedź, zgodę lub
 workera wygaszają plakietkę do wznowienia pracy. Po utracie połączenia panel czeka
 na aktualny stan. Przy ograniczonym ruchu etykieta jest statyczna.
+Pełna lista i aktualizacja overview mogą ustawić lub usunąć oczekującą zgodę i stan
+wykonania. Odpowiedź rozmowy, potwierdzenie odczytu i zapis konfiguracji aktualizują
+odpowiednie pola, zachowując te dwa wskaźniki.
 
 Instancje gatewaya ze wspólnym PostgreSQL odczytują potwierdzenie startu z dziennika
 workera i stan jego łącza. Po ponownym połączeniu czekają na zapis brakujących zdarzeń.

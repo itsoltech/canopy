@@ -10,7 +10,7 @@ export async function archiveBot(bot: bots.Bot, archived = true): Promise<void> 
     await requestJson(archived ? "POST" : "DELETE", `/api/bots/${bot.id}/archive`, {}),
   );
 
-  if (response.bot) botList.upsert(response.bot);
+  if (response.bot) botList.upsert(response.bot, "archive");
   window.dispatchEvent(new Event("bots-changed"));
 
   if (archived)

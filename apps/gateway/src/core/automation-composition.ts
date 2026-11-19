@@ -8,5 +8,5 @@ export const createCoreAgentTools = (core: GatewayCore, options: GatewayCoreOpti
     runtime: options.runtime,
     userId: options.userId,
     link: core.link,
-    changed: () => coreBroadcastWorkers(core),
+    changed: (workerId) => coreBroadcastWorkers(core, "status", workerId),
   });

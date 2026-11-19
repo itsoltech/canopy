@@ -253,15 +253,20 @@ export class OwnerFeeds {
     const listed = new Set(list.map((bot) => bot.id));
 
     for (const bot of list) {
+      if (!reset && !full && !changed.has(bot.id)) continue;
       const before = this.#views.get(bot.id);
-      this.#views.set(bot.id, bot);
 
-      if (changed.has(bot.id) || reset || (full && before && !equals(bots.BotSchema, before, bot)))
-        this.#publish({ case: "bot", value: bot });
+      // Conversation and tool writes advance the journal even when the ListBots summary stays the same.
+      // Older web clients also apply conversation replies to their list. Those replies omit pendingApproval.
+      const restoreCard = changed.has(bot.id) && !!bot.pendingApproval;
+
+      if (!reset && !restoreCard && before && equals(bots.BotSchema, before, bot)) continue;
+      this.#views.set(bot.id, bot);
+      this.#publish({ case: "bot", value: bot });
     }
 
-    for (const id of [...changed, ...this.#views.keys()])
-      if (!listed.has(id) && (changed.has(id) || this.#views.has(id))) {
+    for (const id of new Set([...changed, ...this.#views.keys()]))
+      if (!listed.has(id)) {
         this.#views.delete(id);
         this.#publish({ case: "botRemoved", value: id });
       }

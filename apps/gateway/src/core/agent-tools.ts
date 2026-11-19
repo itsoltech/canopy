@@ -39,7 +39,7 @@ export interface AgentToolsOptions {
   readonly runtime: CoreRuntime;
   readonly userId: string;
   readonly link: WorkerLink;
-  readonly changed: () => Promise<void>;
+  readonly changed: (workerId: string) => Promise<void>;
 }
 
 export class AgentTools {
@@ -94,7 +94,7 @@ export class AgentTools {
       }),
     );
 
-    if (rows.length) await this.#options.changed();
+    if (rows.length) await this.#options.changed(id);
   }
 
   async progress(id: string, progress: AgentToolProgress): Promise<void> {
@@ -106,7 +106,7 @@ export class AgentTools {
     const key = `${id}/${progress.tool}`;
     const lines = progress.lines.slice(-AGENT_TOOL_LOG_LINES).map((line) => line.slice(0, 1024));
     this.#logs.set(key, [...(this.#logs.get(key) ?? []), ...lines].slice(-AGENT_TOOL_LOG_LINES));
-    await this.#options.changed();
+    await this.#options.changed(id);
   }
 
   async #rows(ids?: readonly string[]): Promise<Map<string, AgentToolRow>> {
@@ -269,7 +269,7 @@ export class AgentTools {
     );
 
     if (!rows.length) throw new ConnectError("worker not found", Code.NotFound);
-    await this.#options.changed();
+    await this.#options.changed(id);
   }
 
   async #prepare(row: AgentToolRow, tool: AgentTool): Promise<void> {

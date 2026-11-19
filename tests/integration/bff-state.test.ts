@@ -7,8 +7,22 @@ import { Provider, ui } from "@canopy/contracts";
 import { dockerAvailable } from "@canopy/db/testing";
 import { onBffTargetChange, setBffTarget } from "@canopy/domain/bff-target";
 import { QueryCacheDisposed } from "@canopy/domain/shared-query";
-import { BffSession } from "../../apps/web/src/lib/server/bff-state.ts";
-import { startTestGateway } from "./support/gateway.ts";
+import { BffSession, type BffEvent } from "../../apps/web/src/lib/server/bff-state.ts";
+import { eventually, startTestGateway } from "./support/gateway.ts";
+
+async function selectedHeads(stream: AsyncGenerator<BffEvent>, ids: readonly string[]) {
+  for (;;) {
+    const next = await stream.next();
+
+    if (next.done) throw new Error("BFF subscription ended before the selected thread heads arrived");
+    const event = next.value;
+
+    if (event.kind !== "overview" || event.update.change.case !== "threadHeads") continue;
+    const heads = event.update.change.value.heads;
+
+    if (heads.length === ids.length && ids.every((id) => heads.some((head) => head.threadId === id))) return heads;
+  }
+}
 
 test("thread navigation uses GetThread during overview recovery and the shared snapshot once ready", async () => {
   const snapshot = Promise.withResolvers<void>();
@@ -54,6 +68,81 @@ test("thread navigation uses GetThread during overview recovery and the shared s
     await server.close();
   }
 });
+
+test.skipIf(!dockerAvailable)(
+  "replacing a renderer lease replays cursors and warms the previous thread on the same overview stream",
+  async () => {
+    const gateway = await startTestGateway();
+    const requests: string[][] = [];
+
+    const session = new BffSession({
+      ...gateway.api,
+      watchOverview(request, options) {
+        requests.push([...(request.threadHeadIds ?? [])]);
+
+        return gateway.api.watchOverview(request, options);
+      },
+    });
+
+    let abort = new AbortController();
+    let stream: AsyncGenerator<BffEvent> | undefined;
+    const deadline = AbortSignal.timeout(15_000);
+
+    const navigate = async (ids: readonly string[], active: string) => {
+      abort.abort();
+      await stream?.return(undefined);
+      abort = new AbortController();
+      await session.overview.overview();
+      stream = session.subscribe(ids, active, AbortSignal.any([abort.signal, deadline]));
+
+      return selectedHeads(stream, ids);
+    };
+
+    try {
+      const projectId = (await gateway.api.createProject({ name: "Renderer navigation" })).project!.id;
+
+      const workspaceId = (
+        await gateway.api.createWorkspace({ projectId, workerId: gateway.workerId, rootPath: "/repo/navigation" })
+      ).workspace!.id;
+
+      const thread = { projectId, workspaceId, provider: Provider.CODEX };
+      const first = (await gateway.api.createThread({ ...thread, title: "First" })).thread!.id;
+      const second = (await gateway.api.createThread({ ...thread, title: "Second" })).thread!.id;
+      const ids = [first, second];
+      const initial = await navigate(ids, first);
+      const settled = requests.length;
+      expect(session.warming.warmer.head(first)).toBeUndefined();
+      expect(session.warming.warmer.head(second)).toEqual(initial.find((head) => head.threadId === second));
+      expect(session.warming.seed(first)).toBeUndefined();
+
+      const replay = await navigate(ids, second);
+      const cursor = replay.find((head) => head.threadId === first)!;
+      expect(cursor.appliedSeq).toBeGreaterThanOrEqual(initial.find((head) => head.threadId === first)!.appliedSeq);
+      expect(session.warming.warmer.head(first)).toEqual(cursor);
+      expect(session.warming.warmer.head(second)).toBeUndefined();
+
+      // Wait for the previously active thread's background read to reach the shared cache.
+      const warmed = await eventually(
+        async () => session.warming.cache.peek(first)?.syncCursor,
+        (value) => !!value && value.appliedSeq >= cursor.appliedSeq,
+      );
+
+      expect(warmed?.threadId).toBe(first);
+      expect(warmed?.appliedSeq ?? -1n).toBeGreaterThanOrEqual(cursor.appliedSeq);
+      expect(requests.slice(settled)).toEqual([]);
+
+      await navigate([second], second);
+      expect(requests.slice(settled)).toEqual([[second]]);
+      expect(session.overview.revision).toBe(0);
+    } finally {
+      abort.abort();
+      await stream?.return(undefined);
+      session.close();
+      await gateway.close();
+    }
+  },
+  30_000,
+);
 
 test.skipIf(!dockerAvailable)(
   "target replacement closes shared streams and fences a real private read",

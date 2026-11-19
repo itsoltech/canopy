@@ -83,6 +83,8 @@ function openBotWatch(id: string) {
           next = applyBotConversation(snapshot, update);
 
           if (!update.delta) historyVersion++;
+
+          if (update.bot) botList.upsert(update.bot, "conversation");
         } catch {
           resetCheckpoint();
 
@@ -90,8 +92,6 @@ function openBotWatch(id: string) {
         }
 
         remember(next);
-
-        if (next.bot) botList.upsert(next.bot);
         live = true;
       },
     });

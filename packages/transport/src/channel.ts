@@ -11,6 +11,7 @@ export class AsyncChannel<T> implements AsyncIterable<T> {
   #closed = false;
   #error: unknown;
   #bytes = 0;
+  #fixedPrefix = 0;
   readonly #writers = new Set<() => void>();
   constructor(
     readonly limits?: {
@@ -18,6 +19,8 @@ export class AsyncChannel<T> implements AsyncIterable<T> {
       maxBytes?: number;
       reservedItems?: number;
       sizeOf?: (value: T) => number;
+      /** At capacity, return discardable indices and the count of input entries sealed against future pushes. */
+      compact?: (pending: readonly T[]) => { removed: ReadonlySet<number>; fixedPrefix: number };
       overflow: () => Error;
     },
   ) {}
@@ -33,7 +36,7 @@ export class AsyncChannel<T> implements AsyncIterable<T> {
     return this.#bytes;
   }
 
-  /** Returns false when the channel is already closed and the value was dropped. */
+  /** Returns false on overflow or if the channel is already closed. */
   push(value: T, size?: number): boolean {
     if (this.#closed) return false;
     const bytes = size ?? this.limits?.sizeOf?.(value) ?? 1;
@@ -42,18 +45,46 @@ export class AsyncChannel<T> implements AsyncIterable<T> {
       this.limits &&
       (this.#buffer.length >= this.limits.maxItems || this.#bytes + bytes > (this.limits.maxBytes ?? Infinity))
     ) {
-      this.#buffer.length = 0;
-      this.#bytes = 0;
-      this.close(this.limits.overflow());
+      if (!this.#compact(value, bytes)) {
+        this.#buffer.length = 0;
+        this.#bytes = 0;
+        this.close(this.limits.overflow());
 
-      return false;
+        return false;
+      }
+    } else {
+      this.#buffer.push({ value, bytes });
+      this.#bytes += bytes;
     }
 
-    this.#buffer.push({ value, bytes });
-    this.#bytes += bytes;
     this.#notify();
 
     return true;
+  }
+
+  #compact(value: T, bytes: number): boolean {
+    if (!this.limits?.compact || bytes > (this.limits.maxBytes ?? Infinity)) return false;
+    const suffix = this.#buffer.slice(this.#fixedPrefix);
+    suffix.push({ value, bytes });
+    const { removed, fixedPrefix } = this.limits.compact(suffix.map((entry) => entry.value));
+
+    if (!removed.size) return false;
+    this.#bytes += bytes;
+    let kept = this.#fixedPrefix;
+
+    for (const [index, entry] of suffix.entries()) {
+      if (removed.has(index)) this.#bytes -= entry.bytes;
+      else {
+        this.#buffer[kept++] = entry;
+
+        if (index < fixedPrefix) this.#fixedPrefix++;
+      }
+    }
+
+    this.#buffer.length = kept;
+    this.#resumeWriters();
+
+    return kept <= this.limits.maxItems && this.#bytes <= (this.limits.maxBytes ?? Infinity);
   }
 
   /** Lossless producers wait for capacity. Reserved slots remain available to synchronous control frames. */
@@ -105,21 +136,25 @@ export class AsyncChannel<T> implements AsyncIterable<T> {
     const head = this.#buffer[0];
 
     if (!head || !matches(head.value)) return;
-    this.#buffer.shift();
-    this.#bytes -= head.bytes;
+
+    return this.#shift();
+  }
+
+  #shift(): T {
+    const entry = this.#buffer.shift()!;
+    this.#bytes -= entry.bytes;
+
+    if (this.#fixedPrefix) this.#fixedPrefix--;
     this.#resumeWriters();
 
-    return head.value;
+    return entry.value;
   }
 
   async *#drain(): AsyncGenerator<T, void, undefined> {
     try {
       for (;;) {
         if (this.#buffer.length > 0) {
-          const entry = this.#buffer.shift()!;
-          this.#bytes -= entry.bytes;
-          this.#resumeWriters();
-          yield entry.value;
+          yield this.#shift();
         } else if (this.#closed) {
           if (this.#error !== undefined) throw this.#error;
 

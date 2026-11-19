@@ -11,6 +11,18 @@ import { uuid } from "./records.ts";
 import { refreshLinked, refreshReason, rememberSummary } from "./last-known.ts";
 import { refreshLinkedBatch } from "./linked-batch.ts";
 
+type PrefetchedSummary = { accountId: string; revision: bigint; payload: Schema.JsonObject };
+
+const viewerPermission = Schema.decodeUnknownSync(
+  Schema.Struct({
+    data: Schema.NullOr(
+      Schema.Struct({
+        repository: Schema.NullOr(Schema.Struct({ viewerPermission: Schema.optional(Schema.NullOr(Schema.String)) })),
+      }),
+    ),
+  }),
+);
+
 /** Local links are durable; private summaries remain bound to the selected account/access revision. */
 export class GitHubPullRequests {
   readonly client;
@@ -33,6 +45,23 @@ export class GitHubPullRequests {
 
     for (const id of ids) await run((s) => s.prProject(owner, id));
     await this.publish(ids);
+  }
+  async pullRequestChanged(pr: string) {
+    const { run, owner } = this.accounts;
+    const links = await run((s) => s.prLinkedThreads(owner, pr));
+    const ids: string[] = [];
+
+    try {
+      for (const { id } of links) {
+        const updated = await run((s) => s.prProject(owner, id, pr));
+
+        if (updated.length) ids.push(id);
+      }
+    } finally {
+      if (ids.length) await this.publish(ids);
+    }
+
+    return ids;
   }
   async list(threadId: string, pageSize = 20, offset = 0) {
     if (!uuid(threadId)) throw new ConnectError("Thread not found", Code.NotFound);
@@ -132,11 +161,11 @@ export class GitHubPullRequests {
 
     return this.list(request.threadId);
   }
-  async get(id: string, force = false) {
+  async get(id: string, force = false, background = false) {
     if (!uuid(id)) throw new ConnectError("Pull request not found", Code.NotFound);
     const pr = await this.accounts.run((s) => s.prOwned(this.accounts.owner, id));
-    const snapshot = await this.load(pr.repository_name, pr.number, force);
-    await this.changed(pr.repository_id);
+    const snapshot = await this.#read("get", pr.repository_name, pr.number, force, background);
+    await this.pullRequestChanged(pr.id);
 
     return snapshot;
   }
@@ -153,7 +182,18 @@ export class GitHubPullRequests {
     force = false,
     background = false,
     wait = false,
-    prefetched?: { accountId: string; revision: bigint; payload: Schema.JsonObject },
+    prefetched?: PrefetchedSummary,
+  ): Promise<github.PullRequestSnapshot> {
+    return this.#read("load", name, number, force, background, wait, prefetched);
+  }
+  async #read(
+    source: "get" | "load",
+    name: string,
+    number: number,
+    force = false,
+    background = false,
+    wait = false,
+    prefetched?: PrefetchedSummary,
   ): Promise<github.PullRequestSnapshot> {
     const { run, owner } = this.accounts;
 
@@ -200,17 +240,7 @@ export class GitHubPullRequests {
           snapshot.viewerLogin = row.login;
           snapshot.accessRevision = BigInt(row.revision);
 
-          const permission = Schema.decodeUnknownSync(
-            Schema.Struct({
-              data: Schema.NullOr(
-                Schema.Struct({
-                  repository: Schema.NullOr(
-                    Schema.Struct({ viewerPermission: Schema.optional(Schema.NullOr(Schema.String)) }),
-                  ),
-                }),
-              ),
-            }),
-          )(value).data?.repository?.viewerPermission;
+          const permission = viewerPermission(value).data?.repository?.viewerPermission;
 
           const installations =
             row.auth_kind === "device"
@@ -243,7 +273,9 @@ export class GitHubPullRequests {
         if (Number(new Date(cached.expires_at)) <= this.accounts.http.now()) {
           snapshot.stale = true;
           void readSummary()
-            .then(() => this.changed(mapping.repository_id))
+            .then(async (fresh) => {
+              if (source === "get" && fresh.summary?.ref?.id) await this.pullRequestChanged(fresh.summary.ref.id);
+            })
             .catch(() => {});
         }
 

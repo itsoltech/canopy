@@ -61,6 +61,9 @@ export class BffSession {
     const active = new Set(leases.flatMap((lease) => (lease.active ? [lease.active] : [])));
     const ids = [...new Set(leases.flatMap((lease) => lease.ids))].filter((id) => !active.has(id)).slice(0, 32);
     this.warming.select(ids);
+    const heads = this.overview.currentHeads();
+
+    if (heads) this.warming.warmer.heads(heads.heads);
   }
 
   async *subscribe(ids: readonly string[], active: string, signal: AbortSignal): AsyncGenerator<BffEvent> {

@@ -22,7 +22,7 @@ class BotList {
   loaded = $state(false);
   error = $state("");
   #users = 0;
-  #saving = new Set<string>();
+  #saving = new Map<string, bots.BotConfiguration>();
   #stop: (() => void) | undefined;
   #refreshing = false;
   #again = false;
@@ -79,7 +79,7 @@ class BotList {
       if (change.case === "bot") {
         const bot = change.value;
         this.#setExecuting(bot.id, bot.executing === true);
-        this.upsert(bot);
+        this.upsert(bot, "summary");
       }
 
       if (change.case === "botRemoved") {
@@ -117,9 +117,7 @@ class BotList {
 
       this.unavailableComputers = response.unavailableComputers;
       this.refreshingComputers = response.refreshingComputers;
-      this.list = response.bots.map((bot) =>
-        this.#saving.has(bot.id) ? (this.list.find((b) => b.id === bot.id) ?? bot) : bot,
-      );
+      this.list = response.bots.map((bot) => this.#keepEdit(bot));
       this.error = "";
       this.#executing = new Set(response.bots.filter((bot) => bot.executing).map((bot) => bot.id));
       this.#executionResync = executionResync;
@@ -137,13 +135,24 @@ class BotList {
     }
   }
 
-  upsert(bot: bots.Bot): void {
+  #keepEdit(bot: bots.Bot): bots.Bot {
+    const configuration = this.#saving.get(bot.id);
+
+    return configuration ? { ...bot, configuration } : bot;
+  }
+
+  upsert(bot: bots.Bot, from: "summary" | "conversation" | "archive"): void {
     this.#written++;
 
-    if (this.#saving.has(bot.id)) return;
-    this.list = this.list.some((b) => b.id === bot.id)
-      ? this.list.map((b) => (b.id === bot.id ? bot : b))
-      : [...this.list, bot];
+    const previous = this.list.find((b) => b.id === bot.id);
+    let next = bot;
+
+    if (previous && from === "conversation")
+      next = { ...bot, pendingApproval: previous.pendingApproval, executing: previous.executing };
+
+    if (previous && from === "archive") next = { ...previous, archived: bot.archived, updatedAt: bot.updatedAt };
+    next = this.#keepEdit(next);
+    this.list = previous ? this.list.map((b) => (b.id === bot.id ? next : b)) : [...this.list, next];
   }
 
   #setExecuting(botId: string, executing: boolean): void {
@@ -165,12 +174,27 @@ class BotList {
       ),
     );
 
-    if (response.bot) this.upsert(response.bot);
+    const read = response.bot;
+
+    if (!read) return;
+    const previous = this.list.find((b) => b.id === botId);
+
+    if (!previous || (previous.lastMessage?.seq ?? 0n) > (read.lastMessage?.seq ?? 0n)) {
+      await this.refresh();
+
+      return;
+    }
+
+    if (previous.lastReadSeq >= read.lastReadSeq) return;
+    this.#written++;
+    this.list = this.list.map((b) =>
+      b.id === botId ? { ...b, lastReadSeq: read.lastReadSeq, unreadCount: read.unreadCount } : b,
+    );
   }
 
   async save(bot: bots.Bot, configuration: bots.BotConfiguration): Promise<void> {
     if (this.#saving.has(bot.id)) throw new Error("This bot is already being saved. Try again after it finishes.");
-    this.#saving.add(bot.id);
+    this.#saving.set(bot.id, configuration);
     this.list = this.list.map((b) => (b.id === bot.id ? create(bots.BotSchema, { ...b, configuration }) : b));
 
     try {
@@ -183,12 +207,16 @@ class BotList {
         ),
       );
 
-      if (response.bot)
+      const saved = response.bot;
+
+      if (saved) {
+        this.#written++;
         this.list = this.list.map((b) =>
-          b.id === bot.id ? create(bots.BotSchema, { ...response.bot!, lastMessage: b.lastMessage }) : b,
+          b.id === bot.id ? { ...b, configuration: saved.configuration, updatedAt: saved.updatedAt } : b,
         );
+      }
     } catch (cause) {
-      this.list = this.list.map((b) => (b.id === bot.id ? bot : b));
+      this.list = this.list.map((b) => (b.id === bot.id ? { ...b, configuration: bot.configuration } : b));
       throw cause;
     } finally {
       this.#saving.delete(bot.id);

@@ -1,4 +1,4 @@
-import { afterAll, beforeAll, describe, expect, test } from "bun:test";
+import { afterAll, beforeAll, describe, expect, spyOn, test } from "bun:test";
 import { inspect } from "node:util";
 import { dockerAvailable } from "@canopy/db/testing";
 import { Code, ConnectError } from "@connectrpc/connect";
@@ -7,7 +7,7 @@ import { SqlClient } from "effect/sql";
 import { GitHubAccounts } from "../../apps/gateway/src/github/service.ts";
 import { GatewayStore } from "@canopy/gateway/store";
 import { connectGitHub, githubPrFixture, githubThread } from "./support/github-pr.ts";
-import { failure, startTestGateway, type TestGateway } from "./support/gateway.ts";
+import { eventually, failure, startTestGateway, type TestGateway } from "./support/gateway.ts";
 
 describe.skipIf(!dockerAvailable)("manual GitHub PRs over gRPC and controlled HTTP", () => {
   let gw: TestGateway;
@@ -64,6 +64,157 @@ describe.skipIf(!dockerAvailable)("manual GitHub PRs over gRPC and controlled HT
     for (const secret of fixture.secrets) expect(output).not.toContain(secret);
   });
 
+  test("a PR refresh updates its linked threads and a current cached read leaves their live streams quiet", async () => {
+    const first = await githubThread(gw);
+    const second = await githubThread(gw);
+    const unrelated = await githubThread(gw);
+
+    const attach = (threadId: string, number: number) =>
+      gw.api.linkThreadPullRequest({ threadId, url: `https://github.com/itsoltech/canopy/pull/${number}` });
+
+    await attach(first, 47);
+    const shared = await attach(second, 47);
+    await attach(unrelated, 48);
+    const id = shared.links[0]!.summary!.ref!.id;
+    const published: string[] = [];
+
+    const reader = new GitHubAccounts(gw.runtime, gw.userId, fixture.options, (ids) => {
+      published.push(...ids);
+
+      return Promise.resolve();
+    });
+
+    try {
+      fixture.echoText(" · updated");
+      await reader.prs.get(id, true);
+      expect(published.toSorted()).toEqual([first, second].toSorted());
+
+      for (const threadId of [first, second]) {
+        const value = await gw.api.getThread({ threadId });
+        expect(value.thread?.newestPullRequest?.title).toContain(" · updated");
+      }
+
+      published.length = 0;
+      expect((await reader.prs.get(id)).summary?.title).toContain(" · updated");
+      expect(published).toEqual([]);
+
+      // A second gateway can populate the shared cache before this gateway projects the thread.
+      const beforeLoad = (await reader.prs.list(first)).revision;
+      fixture.echoText(" · changed elsewhere");
+      await reader.prs.load("itsoltech/canopy", 47, true);
+      expect((await reader.prs.list(first)).revision).toBe(beforeLoad);
+      expect(published).toEqual([]);
+      await reader.prs.get(id);
+      expect(published.toSorted()).toEqual([first, second].toSorted());
+      expect((await gw.api.getThread({ threadId: first })).thread?.newestPullRequest?.title).toContain(
+        " · changed elsewhere",
+      );
+
+      const links = await reader.prs.list(second);
+      await gw.api.linkThreadPullRequest({
+        threadId: second,
+        url: "https://github.com/itsoltech/canopy/pull/49",
+        expectedRevision: links.revision,
+      });
+      const revision = (await reader.prs.list(second)).revision;
+      published.length = 0;
+      fixture.echoText(" · older PR");
+      await reader.prs.get(id, true);
+      expect(published.toSorted()).toEqual([first, second].toSorted());
+      expect((await gw.api.getThread({ threadId: second })).thread?.newestPullRequest?.ref?.number).toBe(49);
+      expect((await reader.prs.list(second)).revision).toBe(revision + 1n);
+      expect(
+        (await reader.prs.list(second)).links.find((entry) => entry.summary?.ref?.id === id)?.summary?.title,
+      ).toContain(" · older PR");
+      fixture.advance(1000);
+      await reader.prs.get(id, true);
+      expect((await reader.prs.list(second)).revision).toBe(revision + 1n);
+    } finally {
+      fixture.echoText("");
+      await reader.stop();
+    }
+  });
+
+  test.each(["complete", "partial"])(
+    "concurrent readers publish one revision for a %s edit to an older PR",
+    async (kind) => {
+      const threadId = await githubThread(gw);
+      const name = "itsoltech/canopy";
+      const number = kind === "complete" ? 51 : 53;
+      const first = await gw.api.linkThreadPullRequest({ threadId, url: `https://github.com/${name}/pull/${number}` });
+      const id = first.links[0]!.summary!.ref!.id;
+
+      const linked = await gw.api.linkThreadPullRequest({
+        threadId,
+        url: `https://github.com/${name}/pull/${number + 1}`,
+        expectedRevision: first.revision,
+      });
+
+      const published: string[] = [];
+
+      const peers = Array.from(
+        { length: 2 },
+        () =>
+          new GitHubAccounts(gw.runtime, gw.userId, fixture.options, async (ids) => {
+            published.push(...ids);
+          }),
+      );
+
+      const release = Promise.withResolvers<void>();
+      const before = fixture.calls;
+      fixture.echoText(" · single edit");
+      fixture.partial(kind === "partial");
+      fixture.gate(release.promise);
+      // The plain loader owns the first fill. Each reader has sampled the previous cached summary when it calls read().
+      const loader = gw.core.github.prs.load(name, number, true);
+      const pending = [loader];
+      const started = peers.map((peer) => spyOn(peer.prs.client, "read"));
+
+      try {
+        expect(
+          await eventually(
+            async () => fixture.calls,
+            (count) => count > before,
+          ),
+        ).toBeGreaterThan(before);
+
+        for (const peer of peers) {
+          pending.push(peer.prs.get(id, true), peer.prs.get(id, true));
+        }
+
+        const reading = Promise.all(pending);
+
+        // A rejected request must surface even if it failed before reading the shared cache.
+        const overlapped = await Promise.race([
+          eventually(async () => started.every((spy) => spy.mock.calls.length >= 2), Boolean),
+          reading.then(() => false),
+        ]);
+
+        expect(overlapped).toBe(true);
+        release.resolve();
+        await reading;
+        expect((await loader).completeness).toBe(kind);
+        const current = await peers[0]!.prs.list(threadId);
+        expect(current.revision).toBe(linked.revision + 1n);
+        expect(current.links.find((link) => link.summary?.ref?.id === id)?.summary?.title).toContain("single edit");
+        expect((await gw.api.getThread({ threadId })).thread!.newestPullRequest?.ref?.number).toBe(number + 1);
+        expect(published).toEqual([threadId]);
+        await peers[1]!.prs.get(id);
+        expect(published).toEqual([threadId]);
+      } finally {
+        release.resolve();
+        await Promise.allSettled(pending);
+
+        for (const spy of started) spy.mockRestore();
+        fixture.gate(Promise.resolve());
+        fixture.partial(false);
+        fixture.echoText("");
+        await Promise.all(peers.map((peer) => peer.stop()));
+      }
+    },
+    20_000,
+  );
+
   test("unlink survives restart and fences an in-flight manual link and later automatic evidence", async () => {
     const current = await list();
     let release = () => {};
@@ -83,7 +234,6 @@ describe.skipIf(!dockerAvailable)("manual GitHub PRs over gRPC and controlled HT
       .catch(ConnectError.from);
 
     // The HTTP request must have left before unlink commits.
-    const { eventually } = await import("./support/gateway.ts");
     const before = fixture.calls;
     await eventually(
       async () => fixture.calls,

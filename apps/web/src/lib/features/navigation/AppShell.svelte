@@ -128,15 +128,15 @@
     ),
   );
 
+  const activeId = $derived(threadsEnabled ? (page.params.threadId ?? "") : "");
+
   const headIds = $derived(
-    threadsEnabled
-      ? [...new Set([page.params.threadId ?? "", ...warmIds])].filter(Boolean).slice(0, 32).sort().join(",")
-      : "",
+    threadsEnabled ? [...new Set([activeId, ...warmIds])].filter(Boolean).slice(0, 32).sort().join(",") : "",
   );
 
   $effect(() => {
     const ids = headIds;
-    const active = threadsEnabled ? (page.params.threadId ?? "") : "";
+    const active = activeId;
 
     return untrack(() => overview.connect(ids, active));
   });
