@@ -1,6 +1,7 @@
 # CLI dostawców: wykrywanie, instalacja i aktualizacja
 
-Status: opis zaimplementowanego kodu (2026-11-18), w tym aktualizacji globalnych instalacji mise
+Status: opis zaimplementowanego kodu (2026-11-19), w tym etapu CLI po aktualizacjach Canopy
+na dostępnych komputerach, aktualizacji globalnych instalacji mise
 i powiązania wyników Update all z konkretną próbą instalacji oraz uruchamiania skryptów CLI
 z katalogów ze spacjami na Windows.
 Dostępność w nightly, beta i stable wynika z promocji opisanych w [release.md](release.md).
@@ -15,14 +16,15 @@ wersję, sposób instalacji i dostępną aktualizację, a instalacja albo aktual
 właściciela (jeden worker albo „Update all” dla dostawcy). Nic nie instaluje się samo.
 
 Centrum aktualizacji w stopce sidebara obejmuje te same akcje i logi instalatora.
-Jego „Update all” aktualizuje zainstalowane CLI lokalne i połączonych komputerów po gatewayu i binarnych workerach.
+Jego „Update all” aktualizuje zainstalowane CLI lokalne i połączonych komputerów po zakończeniu aktualizacji
+Canopy na dostępnych komputerach, w tym gatewaya, workerów i aplikacji desktopowych.
 Obejmuje natywne instalacje oraz obsługiwane przepisy npm, Bun, Volta, pnpm i mise,
-tak jak pojedyncze przyciski. Pomija wyłącznie instalacje bez obsługi w Canopy;
+tak jak pojedyncze przyciski. Pomija niedostępne komputery oraz instalacje bez obsługi w Canopy;
 popover i panel pokazują każdą pominiętą pozycję oraz powód.
 Przepisy menedżerów opisane poniżej pozostają dostępne także w szczegółach workera;
 brakujące CLI mają osobne „Install”. Każdy krok ponownie sprawdza właściciela,
 zgodność workera i blokady instalatora. Błąd CLI pozwala kontynuować inne pozycje;
-błąd workera blokuje tylko jego CLI. Wyniki mają ponowienie pojedynczego kroku. Historia
+błąd w poprzedzającym etapie aktualizacji Canopy blokuje uruchomienie CLI. Wyniki mają ponowienie pojedynczego kroku. Historia
 Claude Code i Codexa pochodzi z publicznych GitHub Releases; Grok nie ma znanego
 źródła tych notatek, więc centrum pokazuje tę informację i wynik instalatora.
 

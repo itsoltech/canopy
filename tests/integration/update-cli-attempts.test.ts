@@ -18,6 +18,7 @@ function fleet(workers = 1, providers = [Provider.CLAUDE], lostAck = false) {
     })),
     cliWorkers: Array.from({ length: workers }, (_, index) => ({
       id: `worker-${index}`,
+      online: true,
       name: `Worker ${index}`,
       cliTools: providers.map((provider) => ({
         tool: {

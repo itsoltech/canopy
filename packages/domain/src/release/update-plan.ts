@@ -2,6 +2,7 @@ import { create, type MessageInitShape } from "@bufbuild/protobuf";
 import { Provider, ui } from "@canopy/contracts";
 import { cliUpdateActionable } from "./update-actions.ts";
 import { newerAppVersion } from "./remote-update-state.ts";
+import { knownUpdateOffline } from "./update-offline.ts";
 
 /** A downloaded package stays actionable when a feed check omits availableVersion. */
 export function appUpdateTarget(app: ui.DesktopUpdateState | undefined): string {
@@ -28,19 +29,22 @@ export function appUpdateAvailable(app: ui.DesktopUpdateState | undefined): bool
   return !!app && (!!appUpdateTarget(app) || app.ready || app.updaterPhase === "downloaded");
 }
 
-function desktopUpdateBlocked(app: ui.DesktopUpdateState | undefined): string {
-  return (
-    app?.disabledReason ||
-    (!app?.connected ? "Desktop app is offline. Open Canopy on that computer and reconnect." : "")
-  );
+function plannedStep(item: MessageInitShape<typeof ui.UpdateStepSchema>, snapshot: ui.UpdatesSnapshot): ui.UpdateStep {
+  const step = create(ui.UpdateStepSchema, { state: "queued", ...item });
+  const offline = step.state === "queued" && knownUpdateOffline(step, snapshot);
+
+  if (offline) {
+    step.state = "skipped";
+    step.reason = offline;
+  }
+
+  return step;
 }
 
 /** Shared eligibility for every Update all control and the owner gateway's durable plan. */
 export function bulkUpdateSteps(snapshot: ui.UpdatesSnapshot): ui.UpdateStep[] {
   const steps: ui.UpdateStep[] = [];
-
-  const add = (step: MessageInitShape<typeof ui.UpdateStepSchema>) =>
-    steps.push(create(ui.UpdateStepSchema, { state: "queued", ...step }));
+  const add = (item: MessageInitShape<typeof ui.UpdateStepSchema>) => steps.push(plannedStep(item, snapshot));
 
   const homes = [
     { home: snapshot, nodeId: "", name: "" },
@@ -84,39 +88,6 @@ export function bulkUpdateSteps(snapshot: ui.UpdatesSnapshot): ui.UpdateStep[] {
     }
   }
 
-  for (const { home, nodeId, name } of homes) {
-    for (const worker of home.cliWorkers) {
-      if (!home.workers.some((item) => item.workerId === worker.id)) continue;
-
-      for (const cli of worker.cliTools) {
-        if (!cli.tool || !cli.updateAvailable || cli.blockedReason.includes("owner")) continue;
-
-        const provider =
-          cli.tool.provider === Provider.CLAUDE
-            ? "Claude Code"
-            : cli.tool.provider === Provider.CODEX
-              ? "Codex"
-              : "Grok";
-
-        add({
-          kind: "cli",
-          workerId: worker.id,
-          nodeId,
-          provider: cli.tool.provider,
-          label: `${name ? `${name} · ` : ""}${worker.name} · ${provider}`,
-          version: cli.latest?.version || "",
-          fromVersion: cli.tool.version,
-          ...(!cliUpdateActionable(cli) && {
-            state: "skipped",
-            reason: cli.managedBy
-              ? `Update this agent CLI with ${cli.managedBy}.`
-              : cli.tool.detail || "Update this agent CLI with its installer.",
-          }),
-        });
-      }
-    }
-  }
-
   for (const worker of snapshot.workers) {
     if (worker.bundled || worker.installKind !== "desktop" || !appUpdateAvailable(worker.desktop)) continue;
     add({
@@ -125,7 +96,7 @@ export function bulkUpdateSteps(snapshot: ui.UpdatesSnapshot): ui.UpdateStep[] {
       label: `${worker.name} · Canopy app`,
       version: appUpdateTarget(worker.desktop),
       fromVersion: worker.desktop?.version || "",
-      ...(desktopUpdateBlocked(worker.desktop) && { state: "skipped", reason: desktopUpdateBlocked(worker.desktop) }),
+      ...(worker.desktop?.disabledReason && { state: "skipped", reason: worker.desktop.disabledReason }),
     });
   }
 
@@ -158,6 +129,39 @@ export function bulkUpdateSteps(snapshot: ui.UpdatesSnapshot): ui.UpdateStep[] {
         reason: snapshot.app?.disabledReason || "Update this computer from its own window.",
       }),
     });
+
+  for (const { home, nodeId, name } of homes) {
+    for (const worker of home.cliWorkers) {
+      if (!home.workers.some((item) => item.workerId === worker.id)) continue;
+
+      for (const cli of worker.cliTools) {
+        if (!cli.tool || !cli.updateAvailable || cli.blockedReason.includes("owner")) continue;
+
+        const provider =
+          cli.tool.provider === Provider.CLAUDE
+            ? "Claude Code"
+            : cli.tool.provider === Provider.CODEX
+              ? "Codex"
+              : "Grok";
+
+        add({
+          kind: "cli",
+          workerId: worker.id,
+          nodeId,
+          provider: cli.tool.provider,
+          label: `${name ? `${name} · ` : ""}${worker.name} · ${provider}`,
+          version: cli.latest?.version || "",
+          fromVersion: cli.tool.version,
+          ...(!cliUpdateActionable(cli) && {
+            state: "skipped",
+            reason: cli.managedBy
+              ? `Update this agent CLI with ${cli.managedBy}.`
+              : cli.tool.detail || "Update this agent CLI with its installer.",
+          }),
+        });
+      }
+    }
+  }
 
   return steps.filter(
     (step, index) =>
