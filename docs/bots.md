@@ -3,6 +3,7 @@
 Status (2026-11-19): wyłączenie modułu Bots zatrzymuje pracę botów właściciela,
 w tym tury na workerach, rutyny i dostarczanie przypomnień.
 Prywatny czat pokazuje odbiór wiadomości ze Slacka, przebieg rutyn i bieżącą czynność bota.
+Panel Bots w web/desktop oznacza pracujące boty na przypiętych kafelkach i zwykłych wierszach.
 Mobilna rozmowa potwierdza odczyt najnowszych wiadomości i odświeża listę botów.
 Wysyłana wiadomość ma przygaszony dymek, który zachowuje wysokość po potwierdzeniu.
 Zaimplementowano trwałe rozmowy botów przez Slack Socket Mode,
@@ -1334,6 +1335,20 @@ dostępnego dla czytnika ekranu. Nagłówek rozmowy również nie powtarza pigu�
 tytuł zachowuje dostępny opis „Read-only. {reason}” przy niedostępności domu.
 Nazwa komputera zostaje w szczegółach, ustawieniach i przy przenoszeniu bota,
 gdzie wskazuje miejsce wykonywania akcji.
+
+Kafelek przypiętego bota i wiersz na liście pokazują przy awatarze plakietkę „Working”,
+także podczas wykonania rutyny lub tury ze Slacka. `ListBots` i `OverviewUpdate.bot`
+przenoszą `Bot.executing`, stan potwierdzonej pracy bota, niezależny od `BotConversation.working`
+sterującego przyciskiem Stop w czacie. Kolejka i oczekiwanie na odpowiedź, zgodę lub
+workera wygaszają plakietkę do wznowienia pracy. Po utracie połączenia panel czeka
+na aktualny stan. Przy ograniczonym ruchu etykieta jest statyczna.
+
+Instancje gatewaya ze wspólnym PostgreSQL odczytują potwierdzenie startu z dziennika
+workera i stan jego łącza. Po ponownym połączeniu czekają na zapis brakujących zdarzeń.
+Łącze otwarte przed aktualizacją potwierdza obecność przy następnym połączeniu.
+Po awarii bez zamknięcia łącza potwierdzenie obecności wygasa najpóźniej 45 s od
+ostatniego sygnału workera, a wcześniej, jeśli wygaśnie lease tury. Lista pomija
+zapamiętany stan pracy botów z niedostępnego domu lub domu w trakcie odświeżania.
 
 - **Dymki** (`ChatBubble`, `MessageRow`): Twoje wiadomości w ciemnym neutralnym kolorze
   (zinc‑900; w trybie ciemnym jasne zinc‑100), bota na miękkiej szarości (zinc‑100 / zinc‑800).

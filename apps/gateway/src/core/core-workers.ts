@@ -57,9 +57,7 @@ export function createCoreWorkerLink(core: GatewayCore) {
 async function workerConnected(hostContext: GatewayCore, connection: WorkerConnection) {
   const { workerId } = connection;
   hostContext.accounts.connected(connection);
-  await coreRun(hostContext, (s) =>
-    s.workerConnected(workerId, hostContext[coreState].options.instanceId, connection.hello),
-  );
+  hostContext.feeds.nudge();
   coreLog(hostContext, `worker ${workerId} connected`);
   // Re-read after registration to close the Welcome/config handshake's lifecycle race.
   await syncWorkerThreadLifecycle(hostContext, connection);
@@ -97,9 +95,16 @@ async function workerConnected(hostContext: GatewayCore, connection: WorkerConne
 export async function coreServe(hostContext: GatewayCore, connection: WorkerConnection): Promise<void> {
   const { workerId } = connection;
   const ingest = ingestQueue(hostContext, connection);
-  await workerConnected(hostContext, connection);
+
+  const epoch = await coreRun(hostContext, (s) =>
+    s.workerConnected(workerId, hostContext[coreState].options.instanceId, connection.hello),
+  );
+
+  connection.registrationEpoch = epoch;
 
   try {
+    await workerConnected(hostContext, connection);
+
     for await (const message of connection.messages) {
       switch (message.payload.case) {
         case "providerUsage":
@@ -180,7 +185,7 @@ export async function coreServe(hostContext: GatewayCore, connection: WorkerConn
 
         case "heartbeat":
           await cancelStaleGenerations(hostContext, [connection]);
-          await coreRun(hostContext, (s) => s.workerSeen(workerId));
+          await coreRun(hostContext, (s) => s.workerSeen(workerId, epoch));
           await coreRedeliver(hostContext, workerId);
           await offerWorkerStorage(hostContext, connection);
           offerWorkerRoutes(hostContext, connection);
@@ -202,7 +207,9 @@ export async function coreServe(hostContext: GatewayCore, connection: WorkerConn
   } catch (error) {
     coreLog(hostContext, `worker ${workerId} stream failed: ${describeError(error)}`);
   } finally {
+    await coreRun(hostContext, (s) => s.workerDisconnected(workerId, epoch)).catch(() => {});
     await ingest.finished();
+    hostContext.feeds.nudge();
     coreLog(hostContext, `worker ${workerId} disconnected`);
     await coreBroadcastWorkers(hostContext).catch(() => {});
   }
@@ -457,6 +464,8 @@ async function ingestBotEvents(
     if (!handled) threads.push(event);
     else {
       connection.send({ case: "eventAck", value: { threadId: event.threadId, ackSeq: event.journalSeq } });
+
+      if (event.body.case === "turnStarted" || event.body.case === "turnFinished") host.feeds.nudge();
       // BotStore's boolean includes replayed events; only regular ingest exposes newly stored counts.
       observation?.ack(new Map([[event.threadId, event.journalSeq]]), 0);
     }

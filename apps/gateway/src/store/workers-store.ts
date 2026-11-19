@@ -21,8 +21,9 @@ export interface WorkerStore {
   // workers
   authenticateWorker(credential: string): Fx<string | undefined>;
   addWorker(input: { name: string; ownerUserId: string }): Fx<{ workerId: string; credential: string }>;
-  workerConnected(workerId: string, instanceId: string, hello: Hello): Fx<void>;
-  workerSeen(workerId: string): Fx<void>;
+  workerConnected(workerId: string, instanceId: string, hello: Hello): Fx<bigint>;
+  workerSeen(workerId: string, epoch: bigint): Fx<void>;
+  workerDisconnected(workerId: string, epoch: bigint): Fx<void>;
   journalCursors(workerId: string, journalId: string): Fx<{ threadId: string; lastSeq: bigint }[]>;
   closedWorkerThreads(workerId: string): Fx<string[]>;
   listWorkers(online: ReadonlySet<string>, ownerUserId?: string): Fx<ui.Worker[]>;
@@ -96,6 +97,27 @@ function listedWorker(r: WorkerListRow, online: ReadonlySet<string>) {
     configIssues: report?.issues ?? [],
     ...(r.last_seen_at && { lastSeenAt: timestampFromDate(new Date(r.last_seen_at)) }),
   });
+}
+
+// A WorkerLink heartbeat is sent every 15 seconds.
+const BOT_LINK_PRESENCE = "45 seconds";
+
+function registerConnection(sql: SqlClient.SqlClient, workerId: string, instanceId: string, hello: Hello) {
+  const journal = hello.capabilities.includes("bot_harness_v1") ? hello.journalId || null : null;
+
+  const pending = journal
+    ? Object.fromEntries(hello.threads.map(({ threadId, lastSeq }) => [threadId, lastSeq.toString()]))
+    : {};
+
+  return sql<{ epoch: bigint }>`
+    INSERT INTO worker_connections(worker_id,instance_id,epoch,bot_journal_id,bot_journal_pending,bot_presence_until)
+    VALUES (${workerId}::uuid,${instanceId},1,${journal},${JSON.stringify(pending)}::jsonb,
+      CASE WHEN ${!!journal} THEN now() + ${BOT_LINK_PRESENCE}::interval END)
+    ON CONFLICT (worker_id) DO UPDATE SET instance_id=excluded.instance_id, epoch=worker_connections.epoch+1,
+      connected_at=now(), bot_journal_id=excluded.bot_journal_id, bot_journal_pending=excluded.bot_journal_pending,
+      bot_presence_until=excluded.bot_presence_until RETURNING epoch`.pipe(
+    Effect.map((rows) => BigInt(rows[0]!.epoch)),
+  );
 }
 
 export function workerStore(sql: SqlClient.SqlClient): WorkerStore {
@@ -173,13 +195,21 @@ export function workerStore(sql: SqlClient.SqlClient): WorkerStore {
               AND capabilities->'update'->>'targetVersion' = ${hello.host?.workerVersion ?? ""}`;
         }
 
-        yield* sql`
-                INSERT INTO worker_connections (worker_id, instance_id, epoch) VALUES (${workerId}::uuid, ${instanceId}, 1)
-                ON CONFLICT (worker_id) DO UPDATE SET instance_id = EXCLUDED.instance_id, epoch = worker_connections.epoch + 1, connected_at = now()`;
+        return yield* registerConnection(sql, workerId, instanceId, hello);
       }),
 
-    workerSeen: (workerId) =>
-      sql`UPDATE workers SET last_seen_at = now() WHERE id = ${workerId}::uuid`.pipe(Effect.asVoid),
+    workerSeen: (workerId, epoch) =>
+      sql`WITH seen AS (UPDATE workers SET last_seen_at=now() WHERE id=${workerId}::uuid RETURNING id)
+        UPDATE worker_connections SET bot_presence_until=now() + ${BOT_LINK_PRESENCE}::interval
+        WHERE worker_id IN (SELECT id FROM seen) AND epoch=${epoch}::bigint AND bot_presence_until IS NOT NULL`.pipe(
+        Effect.asVoid,
+      ),
+
+    workerDisconnected: (workerId, epoch) =>
+      sql`UPDATE worker_connections SET bot_presence_until=NULL, bot_journal_pending='{}'::jsonb
+        WHERE worker_id=${workerId}::uuid AND epoch=${epoch}::bigint AND bot_presence_until IS NOT NULL`.pipe(
+        Effect.asVoid,
+      ),
 
     journalCursors: (workerId, journalId) =>
       sql<{ thread_id: string; acked_seq: bigint }>`

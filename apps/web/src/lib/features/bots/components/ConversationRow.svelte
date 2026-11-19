@@ -12,6 +12,7 @@
   import { useBotHome } from "../home.svelte.ts";
   import MarkdownSnippet from "#lib/shared/ui/markdown/MarkdownSnippet.svelte";
   import ActionItems from "./ActionItems.svelte";
+  import BotWorkingBadge from "./BotWorkingBadge.svelte";
   import SidebarQuickArchive from "#lib/features/navigation/SidebarQuickArchive.svelte";
   import { focusAfterArchive } from "#lib/features/navigation/sidebar-focus.ts";
 
@@ -41,6 +42,9 @@
   let rowBox: HTMLElement | undefined = $state();
   const title = $derived(conversationTitle(conversation));
   const home = useBotHome(() => conversation.nodeId);
+  const workingId = $props.id();
+  const showWorking = $derived(conversation.kind === "direct" && !conversation.archived && !home.reason);
+  const working = $derived(showWorking && conversation.executing === true);
   const items = $derived(conversationMenu(conversation, home.reason ? {} : handlers));
 
   async function archive(event: MouseEvent) {
@@ -83,12 +87,20 @@
   ]}
   {@attach contextMenu(() => (menuOpen = items.length > 0))}
 >
-  <div class="sidebar-row-avatar shrink-0">{@render avatar()}</div>
+  <div class="sidebar-row-avatar relative shrink-0">
+    {@render avatar()}
+    {#if showWorking}
+      <div class="pointer-events-none absolute -bottom-1 left-1/2 flex -translate-x-1/2">
+        <BotWorkingBadge id={workingId} name={title} active={working} class="flex" />
+      </div>
+    {/if}
+  </div>
   <div class="grid min-w-0 flex-1 grid-cols-1 gap-0.5">
     <p class="flex items-baseline gap-2">
       <a
         {href}
         aria-current={current ? "page" : undefined}
+        aria-describedby={working ? workingId : undefined}
         class="min-w-0 flex-1 truncate text-base/5.5 font-medium text-zinc-900 after:absolute after:inset-0 after:rounded-xl focus:outline-none sm:text-sm/5 dark:text-zinc-100"
       >
         {title}

@@ -13,6 +13,7 @@ type Entry = {
   value?: Uint8Array;
   next: number;
   failed: boolean;
+  refreshAfterConnect?: boolean;
   generation: number;
   method: DescMethod;
   load: (signal: AbortSignal) => Promise<Message>;
@@ -71,6 +72,8 @@ export class PeerReads {
       if (entry.node === node) {
         entry.generation++;
         entry.failed = false;
+        // A previously cached bot can finish while its home is away.
+        entry.refreshAfterConnect = entry.method.name === "ListBots" && !!entry.value;
         entry.next = 0;
       }
   }
@@ -99,9 +102,8 @@ export class PeerReads {
 
     if (!entry?.value) return entry?.failed ? "stale" : "loading";
 
-    // A normal background refresh still serves the last successful snapshot. Only a failed
-    // refresh makes it stale; otherwise every poll briefly adds and removes a waiting message.
-    return entry.failed ? "stale" : "fresh";
+    // A normal background refresh still serves the last successful snapshot.
+    return entry.failed || entry.refreshAfterConnect ? "stale" : "fresh";
   }
 
   /** Retain a completed explicit read for offline viewing, without scheduling periodic reads. */
@@ -209,11 +211,12 @@ export class PeerReads {
         }
 
         const total = this.bytes - (entry.value?.byteLength ?? 0) + value.byteLength;
-        changed = entry.failed || !entry.value || !sameBytes(entry.value, value);
+        changed = entry.failed || !!entry.refreshAfterConnect || !entry.value || !sameBytes(entry.value, value);
 
         if (total <= MAX_BYTES) {
           this.bytes = total;
           entry.value = value;
+          entry.refreshAfterConnect = false;
         }
 
         entry.failed = false;

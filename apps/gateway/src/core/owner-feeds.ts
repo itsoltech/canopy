@@ -6,6 +6,7 @@ import { botThreadConnection } from "../store/module-access.ts";
 import { coreState } from "./core-context.ts";
 import type { GatewayCore } from "./core.ts";
 import { queryFamily, queryRpc } from "../diagnostics/query-context.ts";
+import { executingBotIds, listBotSummaries } from "./bot-execution.ts";
 
 /** Domains an overview stream of this gateway pushes completely (`OverviewUpdate.feeds`). */
 export const OWNER_FEEDS = ["bots", "connectors", "proxies", "updates"] as const;
@@ -78,6 +79,7 @@ export class OwnerFeeds {
   #full = false;
   #clock: { epoch: string; revision: string } | undefined;
   #cards = new Map<string, string>();
+  #executing: ReadonlySet<string> = new Set();
   #views = new Map<string, bots.Bot>();
   #connectors: string | undefined;
   #proxies: string | undefined;
@@ -107,6 +109,7 @@ export class OwnerFeeds {
       // A later subscriber starts from a fresh baseline: nothing missed meanwhile is replayed.
       this.#clock = undefined;
       this.#cards.clear();
+      this.#executing = new Set();
       this.#views.clear();
       this.#connectors = undefined;
       this.#proxies = undefined;
@@ -177,9 +180,10 @@ export class OwnerFeeds {
 
     const { runtime, userId } = this.core[coreState].options;
 
-    const [clock, cards, connectors, proxies, config] = await Promise.all([
+    const [clock, cards, executing, connectors, proxies, config] = await Promise.all([
       this.#query(BOT_CLOCK),
       runtime.runPromise(botCards(userId)),
+      executingBotIds(this.core),
       this.#query(CONNECTOR_REVISION),
       this.#query(PROXY_REVISION),
       this.#query(CONFIG_REVISION),
@@ -188,6 +192,7 @@ export class OwnerFeeds {
     await this.#compareBots(
       { epoch: clock[0]?.id ?? "", revision: clock[0]?.revision ?? "0" },
       new Map(cards.map((row) => [row.id ?? "", row.revision])),
+      executing,
       full,
     );
     const connector = connectors[0]?.revision ?? "";
@@ -206,8 +211,12 @@ export class OwnerFeeds {
     this.#config = configuration;
   }
 
-  /** Bots named by the journal since the last check, or whose waiting cards changed. */
-  async #changed(clock: { epoch: string; revision: string }, cards: Map<string, string>): Promise<Set<string>> {
+  /** Bots named by the journal, or whose waiting cards or live execution changed. */
+  async #changed(
+    clock: { epoch: string; revision: string },
+    cards: Map<string, string>,
+    executing: ReadonlySet<string>,
+  ): Promise<Set<string>> {
     const previous = this.#clock!;
     const ids = new Set<string>();
 
@@ -217,29 +226,30 @@ export class OwnerFeeds {
     for (const id of new Set([...cards.keys(), ...this.#cards.keys()]))
       if (cards.get(id) !== this.#cards.get(id)) ids.add(id);
 
+    for (const id of new Set([...executing, ...this.#executing]))
+      if (executing.has(id) !== this.#executing.has(id)) ids.add(id);
+
     return ids;
   }
 
-  async #compareBots(clock: { epoch: string; revision: string }, cards: Map<string, string>, full: boolean) {
-    const previous = this.#clock;
+  async #compareBots(
+    clock: { epoch: string; revision: string },
+    cards: Map<string, string>,
+    executing: ReadonlySet<string>,
+    full: boolean,
+  ) {
+    // Start the feed with authoritative summaries, including a false value if a client read just before a finish.
+    const reset = clock.epoch !== this.#clock?.epoch;
+    const changed = reset ? new Set<string>() : await this.#changed(clock, cards, executing);
 
-    // The first check is the baseline: clients read their own list when they start.
-    if (!previous) {
-      this.#clock = clock;
-      this.#cards = cards;
-
-      return;
-    }
-
-    // A new epoch (journal reset) names no bots: send all of them. A full check sends those that differ.
-    const reset = clock.epoch !== previous.epoch;
-    const all = full || reset;
-    const changed = reset ? new Set<string>() : await this.#changed(clock, cards);
+    if (reset || full || changed.size) await this.#publishBots(reset, full, changed, executing);
     this.#clock = clock;
     this.#cards = cards;
+    this.#executing = executing;
+  }
 
-    if (!all && !changed.size) return;
-    const list = await this.core.bots.list(true);
+  async #publishBots(reset: boolean, full: boolean, changed: Set<string>, executing: ReadonlySet<string>) {
+    const list = await listBotSummaries(this.core, true, executing);
     const listed = new Set(list.map((bot) => bot.id));
 
     for (const bot of list) {

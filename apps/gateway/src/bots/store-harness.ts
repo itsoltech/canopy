@@ -96,6 +96,13 @@ function updateItems(row: HarnessTurnRow, event: ThreadEvent): void {
     row.items[body.value.itemId] = (row.items[body.value.itemId] ?? "") + body.value.chunk;
 }
 
+function restoreHarnessStart(sql: SqlClient.SqlClient, worker: string, journal: string, event: ThreadEvent) {
+  return sql`UPDATE bot_harness_turns SET started_journal_id=${journal}
+    WHERE turn_id=${event.turnId}::uuid AND started_journal_id IS NULL AND EXISTS (
+      SELECT 1 FROM bot_harness_events WHERE event_id=${event.eventId}::uuid AND turn_id=${event.turnId}::uuid
+        AND worker_id=${worker}::uuid AND journal_id=${journal} AND journal_seq=${event.journalSeq})`;
+}
+
 /** Bot events use the worker journal, with independent storage and owner/worker checks. */
 function persistHarnessCommand(
   sql: SqlClient.SqlClient,
@@ -232,9 +239,15 @@ export function botHarnessStore(sql: SqlClient.SqlClient, access: BotAccess) {
             const saved =
               yield* sql`INSERT INTO bot_harness_events(event_id, turn_id, worker_id, journal_id, journal_seq, payload) VALUES (${event.eventId}::uuid, ${row.turn_id}::uuid, ${workerId}::uuid, ${journalId}, ${event.journalSeq}, ${toBinary(ThreadEventSchema, event)}) ON CONFLICT DO NOTHING RETURNING event_id`;
 
-            if (!saved.length) return true;
-
             const body = event.body;
+
+            if (!saved.length) {
+              // A prior gateway may have committed the start without projecting it before an upgrade.
+              if (body.case === "turnStarted" && journalId) yield* restoreHarnessStart(sql, workerId, journalId, event);
+
+              return true;
+            }
+
             yield* settleSteerNotice(sql, event, turn?.conversation_id ? bot?.owner_user_id : undefined);
 
             updateItems(row, event);
@@ -244,7 +257,11 @@ export function botHarnessStore(sql: SqlClient.SqlClient, access: BotAccess) {
             if (end)
               yield* sql`UPDATE bot_approvals SET status = 'expired', answered_at = now()
               WHERE turn_id = ${row.turn_id}::uuid AND status = 'pending'`;
-            yield* sql`UPDATE bot_harness_turns SET items = ${JSON.stringify(row.items)}::jsonb, text = ${text}, outcome = ${end?.outcome ?? row.outcome}, finished_at=CASE WHEN ${!!end} THEN now() ELSE finished_at END, source = ${end?.source ?? row.source}, reason = ${end?.reason ?? row.reason}, error_code = ${end?.errorCode ?? row.error_code}, error_class = ${end?.errorClass ?? row.error_class} WHERE turn_id = ${row.turn_id}::uuid`;
+            yield* sql`UPDATE bot_harness_turns SET items = ${JSON.stringify(row.items)}::jsonb, text = ${text},
+              started_journal_id = coalesce(${body.case === "turnStarted" ? journalId || null : null}, started_journal_id),
+              outcome = ${end?.outcome ?? row.outcome}, finished_at=CASE WHEN ${!!end} THEN now() ELSE finished_at END,
+              source = ${end?.source ?? row.source}, reason = ${end?.reason ?? row.reason}, error_code = ${end?.errorCode ?? row.error_code},
+              error_class = ${end?.errorClass ?? row.error_class} WHERE turn_id = ${row.turn_id}::uuid`;
             yield* access.changed(row.bot_id);
 
             return true;

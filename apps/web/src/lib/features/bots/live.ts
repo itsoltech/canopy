@@ -14,7 +14,7 @@ import {
 
 export { approvalView, botEntries, botParticipant, displayText, exchangeEntries };
 
-export function botConversation(bot: bots.Bot, pinnedIds: readonly string[] = []): ConversationView {
+export function botConversation(bot: bots.Bot, pinnedIds: readonly string[] = [], executing = false): ConversationView {
   const last = bot.lastMessage;
 
   return {
@@ -23,6 +23,7 @@ export function botConversation(bot: bots.Bot, pinnedIds: readonly string[] = []
     kind: "direct",
     bots: [botParticipant(bot)],
     unread: bot.unreadCount,
+    executing,
     archived: bot.archived,
     pinned: !bot.archived && pinnedIds.includes(bot.id),
     pinOrder: pinnedIds.indexOf(bot.id),

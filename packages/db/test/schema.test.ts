@@ -187,6 +187,7 @@ describe.skipIf(!dockerAvailable)("schema on PostgreSQL 17", () => {
       "172_usage_activity",
       "173_module_goal_resume",
       "174_schedule_worktree_preparations",
+      "175_bot_execution_start",
     ]);
   }, 60_000);
 

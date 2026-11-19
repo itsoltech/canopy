@@ -47,6 +47,7 @@ export class WorkerConnection {
   readonly threadLifecycle = new Map<string, boolean>();
   readonly fileWatches = new Map<string, (update?: ThreadFilesUpdate) => void>();
   readonly previewWatches = new Map<string, (event?: AgentPreviewEvent) => void>();
+  registrationEpoch: bigint | undefined;
   threadLifecycleRevision = 0;
   readonly storageCleaned = new Set<string>();
   /** Scopes the worker deferred (unresolved config/import root); excluded for one offer round to avoid LIMIT starvation. */
