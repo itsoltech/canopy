@@ -1,7 +1,8 @@
 # Współpraca przy Canopy
 
-Status (2026-11-18): obowiązujący proces pracy i weryfikacji, w tym izolacja zasobów
-testowych, sprzątanie kontenerów PostgreSQL po przerwaniu testów oraz deterministyczna synchronizacja testów asynchronicznych.
+Status (2026-11-19): obowiązujący proces pracy i weryfikacji, w tym izolacja zasobów
+testowych, sprzątanie kontenerów PostgreSQL po przerwaniu testów, zasady pisania i przeglądu
+testów asynchronicznych oraz diagnoza niestabilnych testów z historii prób CI.
 
 ## Gałęzie i scalanie
 
@@ -140,6 +141,22 @@ terminu zgłasza brakujący warunek. Testy cache z granicą wieku danych i scala
 zdarzeń używają osobnego, sterowanego zegara dla każdej instancji; nie zmieniają
 globalnego czasu ani timerów innych testów.
 
+Przy pisaniu lub przeglądzie testu ustal, po jakim zdarzeniu asercja musi już być
+prawdziwa, nawet jeśli CI opóźni następny krok. Przykłady z testów integracyjnych:
+
+- Przy dostarczaniu komendy co najmniej raz rejestruj jej ID od początku połączenia.
+  Po zapisaniu ACK sprawdź, że wszystkie dostarczenia wskazują tę samą komendę
+  i że operacja wywołała oczekiwany skutek tylko raz.
+- W teście wycofania transakcji odczytaj poprzednią wartość kursora w transakcji,
+  której błąd wymuszasz. Między wcześniejszym odczytem a tą transakcją odbiorca może
+  poprawnie zatwierdzić inną partię. Usuń wymuszony błąd także po nieudanej asercji.
+- Symulując zastój klienta SSE, zatrzymaj odbiór po stronie klienta. Po zatrzymaniu
+  wysyłki na serwerze do klienta wciąż mogą dotrzeć ramki z bufora.
+- Gdy proces potomny dopisuje zdarzenia do pliku JSONL, parsuj tylko rekordy
+  zakończone znakiem nowej linii. Ostatni rekord może być jeszcze w trakcie zapisu.
+- Po zamknięciu połączenia poczekaj, aż pętla odbioru i uruchomione przez nią
+  operacje zakończą pracę, zanim zwolnisz używany przez nie dziennik lub bazę.
+
 Zwykłe testy harnessów korzystają z lokalnych fixture, także dla cennika modeli.
 Nie zależą od publicznych endpointów. Test przerywający proces najpierw czeka na
 potwierdzenie, że testowany proces i jego potomkowie osiągnęli właściwy stan.
@@ -160,6 +177,21 @@ lub zabiciu procesu testowego powoduje usunięcie kontenera i jego wolumenu
 według pełnego ID. Wiek i nazwa kontenera nie służą do ustalania własności.
 Awaria hosta, demona Docker lub samego procesu sprzątającego może wymagać
 ręcznego sprzątania.
+
+Przegląd awarii CI na PR-ach obejmuje także zielone przebiegi po ponowieniu.
+Ostatnie nieudane lub ponawiane przebiegi można znaleźć poleceniem:
+
+```sh
+gh run list --workflow ci.yml --event pull_request --limit 100 \
+  --json databaseId,attempt,conclusion,headBranch \
+  --jq '.[] | select(.conclusion == "failure" or .attempt > 1)'
+```
+
+Log konkretnej próby pokazuje `gh run view RUN_ID --attempt NUMER --log-failed`.
+Przy liczeniu awarii uwzględnij pierwszy błąd w pliku, także wyjątek między testami.
+Bun powtarza nazwy nieudanych testów w podsumowaniu. Ponowienie na tym samym SHA
+pozwala sprawdzić, czy objaw ustąpił bez zmiany kodu. Przed poprawką porównaj
+miejsce błędu z aktualnym `dev`.
 
 Przy diagnozie konkretnego flaky można powtórzyć tylko dotknięte pliki, np.:
 

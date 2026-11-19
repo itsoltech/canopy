@@ -340,22 +340,30 @@ describe.skipIf(!dockerAvailable)("worker outbox across a module transition on a
     expect(await status(freshTurn)).toEqual([{ status: "queued" }]);
     expect(await status(legacyTurn)).toEqual([{ status: "interrupted" }]);
     await enable("threads", "bots");
-    const resumed = await home.connect(device.workerId, device.credential);
-    await eventually(
-      async () => resumed.commands,
-      (commands) => commands.some((c) => c.case === "startTurn" && c.value.turnId === freshTurn),
-    );
-    expect(resumed.commands.filter((c) => c.case === "startTurn" && c.value.turnId === freshTurn)).toHaveLength(1);
-    expect(resumed.commands.some((c) => c.case === "startTurn" && c.value.turnId === legacyTurn)).toBe(false);
+    const received = new Set<string>();
 
-    const commands = await home.core.linkedAgents.query<{ id: string; status: string }>(
-      "SELECT id,status FROM worker_commands WHERE turn_id=$1 AND kind='startTurn' ORDER BY created_at,id",
-      [freshTurn],
+    const resumed = await home.connect(device.workerId, device.credential, undefined, {
+      onCommand: ({ commandId, kind }) => {
+        if (kind.case === "startTurn" && kind.value.turnId === freshTurn) received.add(commandId);
+      },
+    });
+
+    const commands = await eventually(
+      () =>
+        home.core.linkedAgents.query<{ id: string; status: string }>(
+          "SELECT id,status FROM worker_commands WHERE turn_id=$1 AND kind='startTurn'",
+          [freshTurn],
+        ),
+      (rows) => rows.some((row) => row.status === "completed"),
     );
 
     expect(commands).toHaveLength(2);
-    expect(commands[0]).toEqual({ id: original[0]!.id, status: "expired" });
-    expect(commands[1]!.id).not.toBe(original[0]!.id);
+    expect(commands).toContainEqual({ id: original[0]!.id, status: "expired" });
+    const replacement = commands.find((row) => row.id !== original[0]!.id);
+    expect(replacement?.status).toBe("completed");
+    // The outbox can resend the replacement until its ACK commits.
+    expect(received).toEqual(new Set([replacement!.id]));
+    expect(resumed.commands.some((c) => c.case === "startTurn" && c.value.turnId === legacyTurn)).toBe(false);
   }, 20000);
 
   test("a lost start ACK stays fenced through rapid re-enable, worker heartbeat and reconnect", async () => {

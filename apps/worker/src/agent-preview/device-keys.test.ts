@@ -1,5 +1,5 @@
 import { expect, test } from "bun:test";
-import { existsSync, readFileSync, writeFileSync } from "node:fs";
+import { readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { create } from "@bufbuild/protobuf";
 import { AgentPreviewInputSchema, AgentTool, RunAgentToolSchema } from "@canopy/contracts";
@@ -37,6 +37,7 @@ function fixture() {
   const log = join(root, "calls.jsonl");
   const state = join(root, "state.json");
   const controller = new AbortController();
+  writeFileSync(log, "");
   writeFileSync(state, "{}");
 
   const script = (source: string) => `
@@ -91,12 +92,10 @@ process.exit(state.keyExit ?? 0);
     controller,
     state: (value: NativeState) => writeFileSync(state, JSON.stringify(value)),
     calls: (): NativeCall[] =>
-      existsSync(log)
-        ? readFileSync(log, "utf8")
-            .trim()
-            .split("\n")
-            .map((line) => JSON.parse(line))
-        : [],
+      readFileSync(log, "utf8")
+        .split("\n")
+        .slice(0, -1) // The subprocess commits a call with its terminating newline.
+        .map((line) => JSON.parse(line)),
   };
 }
 
@@ -243,10 +242,15 @@ test("closing a preview prevents queued device keys and kills only its active na
   const active = fixture();
   active.state({ block: "key" });
   const running = deviceKey(active.runtime, input("Backspace"));
-  await until(() => active.calls().length === 2);
+
+  try {
+    await Promise.race([until(() => active.calls().length === 2), running]);
+  } finally {
+    active.controller.abort();
+    await expect(running).rejects.toMatchObject({ reason: "aborted" });
+  }
+
   const pid = active.calls().at(-1)!.pid;
-  active.controller.abort();
-  await expect(running).rejects.toThrow();
   await until(() => processGovernor.snapshot().byKind["utility"] === 0);
   expect(() => process.kill(pid, 0)).toThrow();
   expect(active.calls()).toHaveLength(2);

@@ -36,18 +36,15 @@ export function webThreadClient(api: {
 
       return sseResponse(
         request,
-        async function* (signal) {
-          for await (const update of api.watchThread(
+        (signal) =>
+          api.watchThread(
             create(ui.WatchThreadRequestSchema, {
               threadId: id,
               sequence: true,
               ...(parsed && { syncCursor: { threadId: id, epoch: parsed[1]!, appliedSeq: BigInt(parsed[2]!) } }),
             }),
             { signal },
-          )) {
-            if (!stalled) yield update;
-          }
-        },
+          ),
         (update) => toJson(ui.ThreadUpdateSchema, update),
       );
     },
@@ -110,6 +107,8 @@ export function webThreadClient(api: {
           },
           onerror: (failure) => recovery.failed(failure).action !== "stop",
           onmessage: (data) => {
+            // A silent connection also withholds messages already buffered by SSE.
+            if (stalled) return;
             const update = fromJson(ui.ThreadUpdateSchema, JSON.parse(data));
             snapshot = applyThreadUpdate(snapshot, update);
             received++;
