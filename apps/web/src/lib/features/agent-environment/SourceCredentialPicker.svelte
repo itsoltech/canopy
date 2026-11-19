@@ -2,6 +2,7 @@
   import { onMount } from "svelte";
   import type { ClassValue } from "svelte/elements";
   import { connectors } from "@canopy/contracts";
+  import { eligibleSourceAccounts, type SourceKind } from "@canopy/domain/source-access";
   import { requestJson } from "#lib/shared/http.ts";
   import { decode } from "#lib/shared/wire.ts";
   import Field from "#lib/shared/ui/Field.svelte";
@@ -9,43 +10,61 @@
   import Alert from "#lib/shared/ui/Alert.svelte";
 
   let {
-    value = $bindable(""),
+    command,
+    kind,
+    account = $bindable(),
     disabled = false,
     onchange,
     class: className,
-  }: { value?: string; disabled?: boolean; onchange: () => void; class?: ClassValue } = $props();
+  }: {
+    command: string;
+    kind: SourceKind;
+    account?: connectors.ConnectorAccount | undefined;
+    disabled?: boolean;
+    onchange: () => void;
+    class?: ClassValue;
+  } = $props();
 
-  let accounts = $state<connectors.ConnectorAccount[]>([]);
+  let accounts = $state.raw<connectors.ConnectorAccount[]>();
   let error = $state("");
+  const eligible = $derived(eligibleSourceAccounts(command, kind, accounts ?? (account ? [account] : [])));
+
+  $effect(() => {
+    if (account && !eligible.some((item) => item.id === account?.id)) {
+      account = undefined;
+      onchange();
+    }
+  });
 
   onMount(() => {
     void requestJson("GET", "/api/connectors")
       .then((data) => {
-        accounts = decode(connectors.ListConnectorsResponseSchema, data).accounts.filter(
-          (a) => a.status === "connected",
-        );
+        accounts = decode(connectors.ListConnectorsResponseSchema, data).accounts;
       })
       .catch(() => {
+        accounts = [];
         error = "Couldn't load connector accounts. Open Settings → Connectors to check access.";
       });
   });
 </script>
 
-<div class={["grid min-w-0 gap-2", className]}>
-  <Field
-    label="Source access"
-    description="For private repositories, choose a GitHub account or a connected account for the same host. Credentials stay in the gateway. Manage accounts in Settings → Connectors."
-  >
+{#if eligible.length}
+  <Field label="Source access" description="Choose an account for a private repository." class={className}>
     <Select
+      class="min-w-0"
       name="skill-source-account"
-      bind:value
+      value={account?.id ?? ""}
       {disabled}
       options={[
         { value: "", label: "Public repository · no credentials" },
-        ...accounts.map((a) => ({ value: a.id, label: `${a.name} · ${new URL(a.url).hostname}` })),
+        ...eligible.map((a) => ({ value: a.id, label: `${a.name} · ${new URL(a.url).host}` })),
       ]}
-      {onchange}
+      onchange={(id) => {
+        account = eligible.find((item) => item.id === id);
+        onchange();
+      }}
     />
   </Field>
-  {#if error}<Alert tone="warning">{error}</Alert>{/if}
-</div>
+{:else if error}
+  <Alert tone="warning" class={className}>{error}</Alert>
+{/if}

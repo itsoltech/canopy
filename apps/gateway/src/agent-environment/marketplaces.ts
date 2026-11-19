@@ -6,7 +6,8 @@ import { SqlClient } from "effect/sql";
 import type { AgentEnvironment } from "./service.ts";
 import { audit } from "./database.ts";
 import { marketplaces, saveMarketplace, plugins } from "./plugin-database.ts";
-import { discoverMarketplace, marketplaceReference } from "./marketplace-discovery.ts";
+import { discoverMarketplace } from "./marketplace-discovery.ts";
+import { marketplaceReference } from "./source-command.ts";
 import { uuid } from "./composition.ts";
 
 export class EnvironmentMarketplaces {

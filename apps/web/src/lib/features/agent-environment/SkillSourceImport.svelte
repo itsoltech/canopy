@@ -1,5 +1,6 @@
 <script lang="ts">
   import { untrack } from "svelte";
+  import type { connectors } from "@canopy/contracts";
   import type { ClassValue } from "svelte/elements";
   import Input from "#lib/shared/ui/Input.svelte";
   import Field from "#lib/shared/ui/Field.svelte";
@@ -21,7 +22,7 @@
 
   const source = new SourceState(untrack(() => environment));
   let command = $state("");
-  let accountId = $state("");
+  let account = $state.raw<connectors.ConnectorAccount>();
   let step = $state(0);
 
   $effect(() => {
@@ -30,7 +31,7 @@
       source.preview = undefined;
       source.error = "";
       command = "";
-      accountId = "";
+      account = undefined;
     }
   });
 </script>
@@ -48,7 +49,7 @@
   class={className}
   onnext={async (current) => {
     if (current === 0) {
-      await source.resolve(command, accountId);
+      await source.resolve(command, account?.id ?? "");
       return Boolean(source.preview);
     }
     return Boolean(source.paths.length);
@@ -75,7 +76,9 @@
         />
       </Field>
       <SourceCredentialPicker
-        bind:value={accountId}
+        kind="skill"
+        {command}
+        bind:account
         disabled={source.busy || environment.busy}
         onchange={() => (source.preview = undefined)}
       />

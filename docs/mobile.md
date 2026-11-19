@@ -56,6 +56,7 @@ subtelnych separatorów i akcji przy nagłówkach sekcji. Pokazują stan connect
 w bieżącej turze oraz mały przełącznik Auto-archive after merge z opisem pod ikoną informacji.
 Settings → Projects pokazuje zwartą listę projektów i osobne szczegóły; dodawanie
 prowadzi przez workera, źródło i katalog z wirtualizowaną listą oraz stałą stopką.
+W bibliotece skilli i marketplace’ów wybór konta zależy od adresu źródła.
 Dostępność w wydaniach zależy od kanału.
 
 Natywna aplikacja Expo/React Native działa na iOS i Androidzie. Obsługuje wątki,
@@ -1114,6 +1115,11 @@ nowy identyfikator. Gateway sprawdza dom, placement i dostępność ponownie prz
 Ustawienia providera oferują **Move to a proxy** dla połączenia zapisanego
 w zmiennych środowiska. Telefon przekazuje nazwę i rewizję; zapisany sekret
 przenosi wyłącznie gateway.
+
+Przy dodawaniu źródła skilla lub marketplace’u aplikacja pokazuje wybór konta tylko wtedy,
+gdy dla wpisanego repozytorium jest dostępne pasujące połączenie. Użytkownik może też wybrać
+dostęp publiczny. Zmiana źródła lub konta wymaga podglądu zgodnego z bieżącym wyborem.
+Przy sprawdzaniu zapisanego źródła gateway korzysta z przypisanego mu konta.
 
 Przegląd środowiska pokazuje podsumowanie zmian, skrypty/pliki wykonywalne,
 usunięte pliki oraz obie wersje treści. Przy wybraniu wersji skilla telefon

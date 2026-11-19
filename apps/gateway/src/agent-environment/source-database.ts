@@ -1,4 +1,5 @@
 import { create, fromJson, toJson, type JsonValue } from "@bufbuild/protobuf";
+import { matchesSourceOrigin } from "@canopy/domain/source-access";
 import { ui } from "@canopy/contracts";
 import { Code, ConnectError } from "@connectrpc/connect";
 import { Effect } from "effect";
@@ -42,12 +43,10 @@ export class SourceDatabase {
             const account = yield* store.connectors.owned(owner, source.credentialAccountId);
             const sourceOrigin = new URL(source.url).origin;
 
-            const githubAccount =
-              account.connector_type === "github" &&
-              account.url === "https://api.githubcopilot.com/mcp/" &&
-              sourceOrigin === "https://github.com";
-
-            if (account.status !== "connected" || (!githubAccount && new URL(account.url).origin !== sourceOrigin))
+            if (
+              account.status !== "connected" ||
+              !matchesSourceOrigin(sourceOrigin, account.connector_type, account.url)
+            )
               return yield* Effect.fail(new Error("Source connector access denied."));
             const value = yield* store.connectors.credentials(account);
 
