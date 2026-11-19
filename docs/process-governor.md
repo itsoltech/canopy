@@ -1,7 +1,8 @@
 # Ograniczanie procesów
 
-Status (2026-11-18): runner rozróżnia upływ czasu, przekroczenie limitu wyjścia i
-anulowanie. Dostępność w wydaniach wynika z promocji ([release.md](release.md)).
+Status (2026-11-19): runner rozróżnia upływ czasu, przekroczenie limitu wyjścia i
+anulowanie oraz przekazuje wynik próby zatrzymania drzewa procesów.
+Dostępność w wydaniach wynika z promocji ([release.md](release.md)).
 
 ## Audyt procesów
 
@@ -53,6 +54,7 @@ linię na 30 s, tylko liczniki, bez komend, ścieżek, env i outputu.
 Krótkie komendy mają deadline i limit 8 MiB capture (sondy wersji 64 KiB).
 Runner zachowuje pierwszą przyczynę przerwania i czeka na zamknięcie procesu
 oraz zakończenie próby zatrzymania drzewa przed zwróceniem błędu limitu.
+Sprzątanie po przerwanym tworzeniu worktree wymaga potwierdzenia tej próby.
 POSIX: osobna grupa procesu i SIGKILL całej grupy. Windows: `taskkill.exe /T /F`
 wyłącznie na PID własnego child; to awaryjny wyjątek od kolejki, żeby saturacja
 nie uniemożliwiała sprzątania. Źródła git zachowują własny limit capture i dysku.

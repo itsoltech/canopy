@@ -7,12 +7,14 @@ import {
   realpathSync,
   rmSync,
   symlinkSync,
+  unlinkSync,
   writeFileSync,
 } from "node:fs";
 import { join } from "node:path";
 import { tempDirs } from "@canopy/testing";
 import { addWorktree, WORKTREE_CLEANUP_WARNING } from "../../apps/worker/src/git/add-worktree.ts";
 import { freshGit } from "../../apps/worker/src/git/git.ts";
+import { reserveCheckout, rollbackWorktree } from "../../apps/worker/src/git/worktree-rollback.ts";
 
 function git(cwd: string, ...args: string[]): string {
   const result = Bun.spawnSync(["git", "-c", "user.name=T", "-c", "user.email=t@x", ...args], { cwd });
@@ -82,34 +84,59 @@ function withIncompleteCheckout() {
   return f;
 }
 
-async function interruptCheckout(f: ReturnType<typeof fixture>, whileRunning: () => void, warning = false) {
-  git(f.repo, "config", "filter.fixture.smudge", "sh ../smudge");
-  git(f.repo, "config", "filter.fixture.required", "true");
+test.skipIf(process.platform === "win32")(
+  "a killed checkout process rolls back without an index or .git",
+  async () => {
+    const f = withIncompleteCheckout();
+    git(f.repo, "config", "filter.fixture.smudge", "sh ../smudge");
+    git(f.repo, "config", "filter.fixture.required", "true");
 
-  const message = "Git exceeded its time limit." + (warning ? " " + WORKTREE_CLEANUP_WARNING : "");
+    const result = f.create(3500).then(
+      () => undefined,
+      (error: Error) => error,
+    );
 
-  const result = f.create(3500).then(
-    () => undefined,
-    (error: Error) => error,
-  );
+    try {
+      const incomplete = join(f.dir, "incomplete");
+      const limit = performance.now() + 3000;
 
-  try {
-    const incomplete = join(f.dir, "incomplete");
-    const limit = performance.now() + 3000;
+      while (!existsSync(incomplete) && performance.now() < limit) await Bun.sleep(15);
+      expect(existsSync(incomplete)).toBe(true);
+      expect(existsSync(join(f.tree.path, ".git"))).toBe(false);
+      expect(lstatSync(join(f.admin, "index.lock")).size).toBe(0);
+      expect(existsSync(join(f.admin, "index"))).toBe(false);
+      expect(f.worktrees()).toContain("locked Canopy worktree creation ");
+    } finally {
+      expect(await result).toMatchObject({
+        code: "GIT_TIMEOUT",
+        cause: { treeTerminated: true },
+        message: "Git exceeded its time limit.",
+      });
+    }
 
-    while (!existsSync(incomplete) && performance.now() < limit) await Bun.sleep(15);
-    expect(existsSync(incomplete)).toBe(true);
-    expect(existsSync(join(f.tree.path, ".git"))).toBe(false);
-    expect(lstatSync(join(f.admin, "index.lock")).size).toBe(0);
-    expect(existsSync(join(f.admin, "index"))).toBe(false);
-    expect(f.worktrees()).toContain("locked Canopy worktree creation ");
-    whileRunning();
-  } finally {
-    expect(await result).toMatchObject({ code: "GIT_TIMEOUT", cause: { treeTerminated: true }, message });
-  }
+    expect(existsSync(f.tree.path)).toBe(false);
+    expect(existsSync(f.admin)).toBe(false);
+    expect(f.branches()).toBe("refs/heads/main");
+  },
+  22_000,
+);
+
+async function stageInterruptedCheckout(f: ReturnType<typeof fixture>) {
+  const marker = `Canopy worktree creation ${crypto.randomUUID()}`;
+  const reservation = await reserveCheckout(f.repo, f.tree.path);
+  git(f.repo, "update-ref", "--create-reflog", "-m", marker, `refs/heads/${f.tree.branch}`, f.tree.commit, "");
+  git(f.repo, "worktree", "add", "--no-checkout", "--lock", "--reason", marker, f.tree.path, f.tree.branch);
+  // Native Git provides the linked worktree metadata. Model the files left once checkout has stopped.
+  mkdirSync(join(f.tree.path, "a"));
+  writeFileSync(join(f.tree.path, "a", "tracked.txt"), "first\r\nsecond\r\n");
+  unlinkSync(join(f.tree.path, ".git"));
+  writeFileSync(join(f.admin, "index.lock"), "");
+  expect(existsSync(join(f.admin, "index"))).toBe(false);
+
+  return () => rollbackWorktree(f.repo, f.tree, marker, reservation, true);
 }
 
-test("timeout removes the incomplete checkout, its registration and branch while retaining other worktrees", async () => {
+test("rollback removes the incomplete checkout, its registration and branch while retaining other worktrees", async () => {
   const f = withIncompleteCheckout();
   const other = join(f.dir, "other");
   const stale = join(f.dir, "stale");
@@ -117,42 +144,34 @@ test("timeout removes the incomplete checkout, its registration and branch while
   git(f.repo, "worktree", "add", "-b", "stale", stale);
   rmSync(stale, { recursive: true });
   writeFileSync(join(other, "keep.txt"), "user data");
-  // Only the checkout under test should stall.
   const before = f.worktrees();
   const branches = f.branches();
+  const rollback = await stageInterruptedCheckout(f);
 
-  await interruptCheckout(f, () => {
-    expect(readFileSync(join(f.tree.path, "a", "tracked.txt"), "utf8")).toBe("first\r\nsecond\r\n");
-  });
+  expect(await rollback()).toBe(true);
   expect(existsSync(f.tree.path)).toBe(false);
   expect(existsSync(f.admin)).toBe(false);
   expect(f.worktrees()).toBe(before);
   expect(f.branches()).toBe(branches);
   expect(readFileSync(join(other, "keep.txt"), "utf8")).toBe("user data");
-  git(f.repo, "config", "--unset", "filter.fixture.smudge");
-  git(f.repo, "config", "--unset", "filter.fixture.required");
   await f.create();
   expect(git(f.tree.path, "symbolic-ref", "--short", "HEAD")).toBe(f.tree.branch);
-}, 22_000);
+}, 15_000);
 
 test.each(["edited tracked file", "untracked file", "directory link"] as const)(
-  "timeout preserves an incomplete checkout with %s",
+  "rollback preserves an incomplete checkout with %s",
   async (change) => {
     const f = withIncompleteCheckout();
     const outside = join(f.dir, "outside");
     mkdirSync(outside);
     writeFileSync(join(outside, "keep.txt"), "outside");
     const backup = join(f.tree.path, change === "edited tracked file" ? "a/tracked.txt" : "local");
+    const rollback = await stageInterruptedCheckout(f);
 
-    await interruptCheckout(
-      f,
-      () => {
-        if (change === "directory link")
-          symlinkSync(outside, backup, process.platform === "win32" ? "junction" : "dir");
-        else writeFileSync(backup, "user data");
-      },
-      true,
-    );
+    if (change === "directory link") symlinkSync(outside, backup, process.platform === "win32" ? "junction" : "dir");
+    else writeFileSync(backup, "user data");
+
+    expect(await rollback()).toBe(false);
     expect(existsSync(f.admin)).toBe(true);
     expect(git(f.repo, "rev-parse", `refs/heads/${f.tree.branch}`)).toBe(f.tree.commit);
     expect(readFileSync(join(outside, "keep.txt"), "utf8")).toBe("outside");
@@ -160,8 +179,20 @@ test.each(["edited tracked file", "untracked file", "directory link"] as const)(
     if (change === "directory link") expect(lstatSync(backup).isSymbolicLink()).toBe(true);
     else expect(readFileSync(backup, "utf8")).toBe("user data");
   },
-  22_000,
+  15_000,
 );
+
+test("rollback preserves an incomplete checkout whose index lock contains data", async () => {
+  const f = withIncompleteCheckout();
+  const rollback = await stageInterruptedCheckout(f);
+  const lock = join(f.admin, "index.lock");
+  writeFileSync(lock, "index data");
+
+  expect(await rollback()).toBe(false);
+  expect(existsSync(f.tree.path)).toBe(true);
+  expect(readFileSync(lock, "utf8")).toBe("index data");
+  expect(git(f.repo, "rev-parse", `refs/heads/${f.tree.branch}`)).toBe(f.tree.commit);
+}, 15_000);
 
 test.skipIf(process.platform === "win32")(
   "a timeout during a checkout filter rolls back an initializing worktree",
