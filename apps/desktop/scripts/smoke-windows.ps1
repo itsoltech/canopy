@@ -81,7 +81,7 @@ try {
     if ($actual -ne $env:CANOPY_VERSION) { throw "$app version mismatch: $actual (expected $env:CANOPY_VERSION)" }
     Write-Output "Installed $app sidecar: $actual"
   }
-  Invoke-SmokeProcess $bun 'test ./apps/desktop/test/process-recovery.test.ts ./apps/worker/src/images/export-local-temp.test.ts' 60000
+  Invoke-SmokeProcess $bun 'test ./apps/desktop/test/process-recovery.test.ts ./apps/gateway/src/attachments/encoded-output-windows.test.ts ./apps/worker/src/images/export-local-temp.test.ts' 60000
 } catch {
   $failure = $_
 } finally {
