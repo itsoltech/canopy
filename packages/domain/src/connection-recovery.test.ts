@@ -41,6 +41,19 @@ describe("connection recovery hysteresis", () => {
     expect(recovery.begin(20_000).status).toBe("unavailable");
   });
 
+  test("partial replay clears the outage deadline and preserves backoff until stable live", () => {
+    const recovery = new ConnectionRecovery(10_000);
+    recovery.begin(0);
+    expect(recovery.failed(1, 1).retryAt).toBe(1001);
+    recovery.begin(1001);
+    recovery.receiving();
+    expect(recovery.unavailableAt).toBeUndefined();
+    expect(recovery.failed(30_000, 1).retryAt).toBe(32_000);
+    recovery.begin(32_000);
+    recovery.succeeded(33_000);
+    expect(recovery.failed(44_000, 1).retryAt).toBe(45_000);
+  });
+
   test("each successful outage recovery starts a fresh deadline, even for very short connections", () => {
     const recovery = new ConnectionRecovery();
     recovery.begin(0);

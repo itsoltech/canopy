@@ -4,6 +4,7 @@ Status: opis zaimplementowanego kodu (2026-11-19). Wysyłanie wiadomości i star
 zachowują położenie rozmowy. Natywny raport Usage pokazuje
 historię kosztów i skrócone liczby tokenów z gatewaya oraz dzienny wykres według dostawcy.
 Wątki pokazują strumieniowany tekst linia po linii, tak jak web i desktop.
+Pobieranie historii wątku ma osobny stan synchronizacji.
 Na liście Bots jednoliniowy podgląd ostatniej wiadomości zachowuje formatowanie Markdown,
 a czas i licznik są wyrównane przy menu wiersza.
 Aktywny czat bota potwierdza odczyt najnowszych wiadomości i odświeża licznik listy Bots.
@@ -605,6 +606,12 @@ Stan dostępności jest niezależny od aktywności próby (`retrying`, `retryAt`
 tras nie cofają tej decyzji. `offline` i `paused` są nakładkami prezentacji: brak sieci lub
 tło wstrzymują subskrypcje bez usuwania zapamiętanego `unavailable`. Nieodwracalne błędy
 uprawnień lub brakującego wątku kończą subskrypcję stanem `error`; odwołanie tokenu usuwa sesję.
+Na telefonie pierwsze otwarcie watcha wątku czeka na historię w stanie `connecting`. W tym czasie
+obowiązuje natywny timeout odpowiedzi. Pierwsza ramka kontrolna i niepełne partie
+potwierdzają połączenie i utrzymują `syncing` bez licznika niedostępności. Dopiero
+gotowy snapshot lub ostatnia partia przywraca `live` i odblokowuje kompozytor.
+Błąd lub przedwczesny koniec watcha uruchamia obsługę awarii. Pasek boczny osobno
+śledzi dostępność przez `WatchOverview`.
 Zaplanowane restarty nadal korzystają z osobnego komunikatu i próby co 2,5 s w ograniczonym oknie.
 
 Backoff: 1 / 2 / 4 / 8 / 16 / 30 s z jitterem 80–100%, nigdy ponad 30 s. Czas oczekiwania

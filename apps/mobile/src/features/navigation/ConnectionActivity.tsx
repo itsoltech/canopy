@@ -21,7 +21,7 @@ export function ConnectionSpinner({ active }: { active: boolean }) {
 export function ConnectionActivity({ stream, visible }: { stream: StreamState; visible: boolean }) {
   const c = useColors();
   const type = useTypography();
-  const down = !["live", "paused", "offline", "error"].includes(stream.connection);
+  const down = ["reconnecting", "unavailable"].includes(stream.connection);
   const now = useLiveTime(visible && down && !!stream.retryAt);
 
   const seconds = Math.max(0, Math.ceil(((stream.retryAt ?? now) - now) / 1000));

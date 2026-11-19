@@ -29,11 +29,10 @@ export interface StreamState {
   readonly retryAt?: number | undefined;
 }
 
-/** Web: ConnectionStatus. Starting, syncing and dropped streams all read as reconnecting. */
 const looks: Record<Connection, { tone: Tone; label: string; description: string }> = {
   live: { tone: "emerald", label: "Connected", description: "Live updates are on." },
-  connecting: { tone: "amber", label: "Reconnecting…", description: "Canopy is connecting to the gateway." },
-  syncing: { tone: "amber", label: "Reconnecting…", description: "Canopy is catching up on changes." },
+  connecting: { tone: "amber", label: "Connecting…", description: "Canopy is connecting to the gateway." },
+  syncing: { tone: "amber", label: "Syncing…", description: "Canopy is catching up on changes." },
   reconnecting: {
     tone: "amber",
     label: "Reconnecting…",

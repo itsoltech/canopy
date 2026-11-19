@@ -7,24 +7,44 @@ export async function runStream<T>(options: {
   started: () => void;
   recovery: ConnectionRecovery;
   start: (signal: AbortSignal) => AsyncIterable<T>;
-  receive: (value: T) => void;
+  thread?: boolean;
+  receive: (value: T) => void | boolean | null;
   failed: (error: ConnectError) => boolean;
   retryAt: () => number;
   planned: () => boolean;
-  publish: () => void;
+  publish: (phase?: "connecting" | "syncing") => void;
 }) {
   const { signal, recovery, publish } = options;
 
   while (!signal.aborted) {
-    recovery.begin();
-    publish();
+    // A fresh thread subscription may be building its first history window. The native
+    // response timeout or a watch error starts recovery if the request actually fails.
+    if (options.thread && recovery.unavailableAt === undefined) publish("connecting");
+    else {
+      const opening = recovery.snapshot.status === "reconnecting" && recovery.unavailableAt === undefined;
+      recovery.begin();
+      publish(opening ? "connecting" : undefined);
+    }
+
+    let received = false;
     const started = Date.now();
     options.started();
 
     try {
       for await (const value of options.start(signal)) {
         if (signal.aborted) return;
-        options.receive(value);
+        const ready = options.receive(value);
+
+        if (ready === null && (received || !options.thread)) continue;
+        received = true;
+
+        if (ready === false || ready === null) {
+          recovery.receiving();
+          publish("syncing");
+        } else {
+          recovery.succeeded();
+          publish();
+        }
       }
 
       if (!signal.aborted)
