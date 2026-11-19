@@ -70,6 +70,7 @@
   const botsUnread = $derived(liveBots.reduce((sum, bot) => sum + bot.unreadCount, 0));
   const botsAttention = $derived(liveBots.some((bot) => bot.pendingApproval) ? "needs" : undefined);
 
+  const workerCount = $derived(overview.workers.length);
   const online = $derived(overview.workers.filter((w) => w.online).length);
 
   // Settings as a page (loaded on its own) or over the current one.
@@ -171,15 +172,17 @@
     {#if capabilities?.supports("/usage") ?? true}
       <IconButton icon="table-cells" label="Open usage" onclick={onOpenUsage} />
     {/if}
-    <a
-      href="/settings/workers"
-      class="flex shrink-0 items-center gap-1.5 rounded-lg px-2 py-1.5 text-sm/5 text-zinc-500 focus-ring hover:bg-zinc-950/5 hover:text-zinc-950 sm:text-xs/5 @max-[16rem]:gap-0 dark:text-zinc-400 dark:hover:bg-white/5 dark:hover:text-white"
-      title="Workers online"
-    >
-      <Icon name="server" class="size-3.5" />
-      <span class="tabular-nums @max-[16rem]:sr-only">{online}/{overview.workers.length}</span>
-      <span class="sr-only">workers online</span>
-    </a>
+    {#if overview.resyncs > 0 && workerCount !== 1}
+      <a
+        href="/settings/workers"
+        class="flex shrink-0 items-center gap-1.5 rounded-lg px-2 py-1.5 text-sm/5 text-zinc-500 focus-ring hover:bg-zinc-950/5 hover:text-zinc-950 sm:text-xs/5 @max-[16rem]:gap-0 dark:text-zinc-400 dark:hover:bg-white/5 dark:hover:text-white"
+        title="Workers online"
+      >
+        <Icon name="server" class="size-3.5" />
+        <span class="tabular-nums @max-[16rem]:sr-only">{online}/{workerCount}</span>
+        <span class="sr-only">workers online</span>
+      </a>
+    {/if}
     <UpdatesIndicator panel={footer.updates} />
     <SidebarUsage panel={footer.providerUsage} />
     <ConnectionStatus

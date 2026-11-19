@@ -1,6 +1,7 @@
 # API dla UI i architektura frontendu
 
-Status (2026-11-19): w web/desktop przejście z Threads do Bots pomija animację
+Status (2026-11-19): stopka sidebara w web/desktop pomija skrót do Workers przy jednym workerze.
+W web/desktop przejście z Threads do Bots pomija animację
 zamykania panelu subagentów, a powrót do Threads wymaga mniej przeliczeń układu.
 Na `dev` tło hover pierwszego nagłówka paneli kompozytora
 web/desktop mieści się w zaokrąglonym obrysie stosu.
@@ -286,8 +287,11 @@ Status połączenia w stopce sidebara pokazuje samą kropkę, bez etykiety tekst
 Pełny stan pozostaje w dostępnej nazwie przycisku i podpowiedzi, a jego zmiany
 są ogłaszane czytnikom ekranu. Kliknięcie kropki nadal otwiera szczegóły i ręczne ponowienie.
 Lokalny desktop nadal pomija kropkę przy zdrowym połączeniu z własnym gatewayem.
+Skrót do Workers pojawia się po wczytaniu pierwszego snapshotu dla zera lub wielu
+workerów. Przy dokładnie jednym workerze skrót jest ukryty niezależnie od jego stanu.
+Sekcja Workers jest dostępna z nawigacji Settings.
 W sidebarze węższym niż 16 rem stopka zmniejsza odstępy i zostawia samą ikonę
-workerów; ich licznik pozostaje w dostępnej nazwie linku.
+workerów, gdy skrót jest widoczny. Licznik pozostaje w dostępnej nazwie linku.
 
 Zębatka w stopce sidebara otwiera Settings bezpośrednio.
 Osobna ikona Usage obok niej otwiera modal, pozostawiając bazową stronę zamontowaną.

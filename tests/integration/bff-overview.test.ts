@@ -102,6 +102,67 @@ test("failed initial streams preserve waiting readers and old snapshots load set
   }
 });
 
+test("worker presence and config issues preserve membership in the live BFF overview", async () => {
+  const first = create(ui.WorkerSchema, { id: "first", online: true });
+  const second = create(ui.WorkerSchema, { id: "second", online: false });
+  const updates = new AsyncChannel<ui.OverviewUpdate>();
+
+  const server = await startGrpcServer({
+    routes: (router) =>
+      router.service(ui.GatewayService, {
+        async *watchOverview(_request, context) {
+          const close = () => updates.close();
+          context.signal.addEventListener("abort", close, { once: true });
+
+          try {
+            yield create(ui.OverviewUpdateSchema, {
+              change: { case: "mobileSnapshot", value: { overview: { workers: [first] }, settings: {} } },
+            });
+            yield* updates;
+          } finally {
+            context.signal.removeEventListener("abort", close);
+          }
+        },
+      }),
+  });
+
+  const bff = new BffOverview(createClient(ui.GatewayService, createGrpcTransport({ baseUrl: server.url })));
+  const abort = new AbortController();
+  const subscription = bff.subscribe([], abort.signal)[Symbol.asyncIterator]();
+
+  async function publish(change: ui.OverviewUpdate["change"]) {
+    updates.push(create(ui.OverviewUpdateSchema, { change }));
+    expect((await subscription.next()).value?.change.case).toBe(change.case);
+
+    return (await bff.overview()).workers;
+  }
+
+  try {
+    expect((await subscription.next()).value?.change.case).toBe("mobileSnapshot");
+    expect((await bff.overview()).workers).toEqual([first]);
+
+    const offline = { ...first, online: false };
+    expect(await publish({ case: "worker", value: offline })).toEqual([offline]);
+
+    const issue = create(ui.WorkerSchema, {
+      id: first.id,
+      online: true,
+      configIssues: [{ path: "profiles", message: "Invalid configuration", fatal: true }],
+    });
+
+    expect(await publish({ case: "worker", value: issue })).toEqual([issue]);
+    expect(await publish({ case: "worker", value: second })).toEqual([issue, second]);
+    expect(await publish({ case: "workerRemoved", value: second.id })).toEqual([issue]);
+    expect(await publish({ case: "workerRemoved", value: first.id })).toEqual([]);
+  } finally {
+    abort.abort();
+    updates.close();
+    await subscription.return?.();
+    bff.close();
+    await server.close();
+  }
+});
+
 test.skipIf(!dockerAvailable)("shares one overview stream and serves materialized reads", async () => {
   gateway = await startTestGateway();
   let watchCalls = 0;
