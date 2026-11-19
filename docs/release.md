@@ -1,8 +1,8 @@
 # Wydania: wersje, CI, artefakty
 
-Status: opis zaimplementowanego workflow (2026-11-17), z ponawianiem pakowania macOS
-i Windows po błędzie; beta nie buduje ani nie wysyła iOS
-do TestFlight, zachowując zgodne OTA. CI ma osiem shardów i wagi
+Status: opis zaimplementowanego workflow (2026-11-19). CI dla PR-ów dobiera testy mobile, interfejsu web i powłoki Electron według zmian.
+Release ponawia pakowanie macOS i Windows po błędzie. Beta publikuje zgodne OTA
+i pomija build oraz wysyłkę iOS do TestFlight. Pełne CI ma osiem shardów i wagi
 odświeżone z pełnych raportów CI. Pomiary poniżej opisują przebieg sprzed zmiany shardów;
 wpływ na czas CI wymaga pomiaru kolejnych przebiegów.
 
@@ -224,16 +224,35 @@ Publiczny release od początku zawiera komplet assetów i feedów wszystkich wym
 
 ## Workflowy GitHub Actions
 
-`.github/workflows/ci.yml` (pull requesty; wywoływany też przez Release) uruchamia równolegle:
+`.github/workflows/ci.yml` (pull requesty; wywoływany też przez Release) w pełnym przebiegu uruchamia równolegle:
 
 - `static`: `gen:check`, `typecheck`, lint, format i kontrolę podziału plików testowych;
 - osiem jobów `tests`: każdy uruchamia własne `check:tmp`, JUnit i pomiar czasu plików;
 - `builds`: build web i binaria linux-x64 z kontrolą `--version`.
 
 Końcowy job **Typecheck, tests, builds** wymaga powodzenia wszystkich wybranych części.
-Pobiera też raporty shardów i sprawdza, czy każdy plik testowy wystąpił dokładnie raz.
+W pełnym przebiegu pobiera też raporty shardów i sprawdza, czy każdy plik testowy wystąpił dokładnie raz.
 PR zmieniający wyłącznie Markdown lub obrazy dokumentacji w `docs/` (PNG/JPEG/WebP/GIF/SVG)
 pomija testy i buildy; statyczne checki nadal działają.
+
+Dla zmian w poniższych obszarach CI uruchamia `static` i jeden job `Affected client checks`.
+Zakresy można łączyć w jednym PR i dołączać do nich dokumentację.
+
+| Zmienione pliki | Sprawdzenia klienta |
+| --- | --- |
+| Komponenty Svelte i CSS w `apps/web/src/` oraz TypeScript w `apps/web/src/lib/shared/ui/` | Build interfejsu wspólnego dla przeglądarki i Electronu. |
+| TypeScript powłoki w `apps/desktop/src/`, testy `apps/desktop/test/*.test.ts` i `tests/integration/desktop-*.test.ts` | Build powłoki Electron. Zmiana `desktop-main.ts` uruchamia też test tożsamości kanału, który czyta ten plik z dysku. |
+| `apps/mobile/`, testy integracyjne `mobile-*.test.ts` i `*-mobile.test.ts`, skrypty wersjonowania i publikacji mobile oraz ich testy i fixture EAS | Zestaw mobilny i test tożsamości kanału sprawdzający m.in. konfigurację Expo. |
+
+W każdym z tych zakresów `bun test --changed` przez `check:tmp` dobiera testy po
+importach ze wszystkich workspace’ów względem bazy PR-a. Jawnie uruchomione testy
+są wyłączone z tego przebiegu. Dla zmian źródeł TS/Svelte CI dołącza testy, które
+czytają pliki aplikacji z dysku i sprawdzają reguły dostępu do modeli oraz do sekretów BFF.
+Przykładowo zmiana koloru w `shared/ui/button.ts` uruchamia build web. CI pomija wtedy
+osiem shardów platformy, kompilację gatewaya i workera oraz natywne smoke.
+Kontroler desktopu, katalogi `runtime/` i `sidecars/`, pakowanie, kod natywny, wspólne
+pakiety, kontrakty, lockfile oraz usunięcia i przeniesienia kodu wybierają pełne CI.
+Kontroler uruchamia osobne procesy i ładuje gotowy BFF. Te zależności wykraczają poza graf importów.
 
 `.github/workflows/pages.yml` (push do `dev` zmieniający `site/`, `scripts/build-site.ts` albo
 `packages/domain/src/oauth-return.ts`; ręczny dispatch) buduje `site/` skryptem
@@ -241,7 +260,8 @@ pomija testy i buildy; statyczne checki nadal działają.
 przekierowania OAuth trafia pod `https://itsoltech.github.io/canopy/oauth/callback`
 ([konektory](connectors.md#stały-redirect-zarejestrowanych-aplikacji)).
 Zmiany `.github/**` zawsze wymagają całości, również przy rozszerzeniu `.md`.
-Porównanie obejmuje oba końce rename; błąd odczytu zmian nie daje zielonego wyniku.
+Zakres PR-a liczymy od wspólnego przodka z gałęzią bazową. Porównanie obejmuje oba końce rename.
+Błąd odczytu zmian blokuje PR.
 Release z zaplanowanym nightly oraz przebiegi `main`/`next`/tagowe uruchamiają cały zestaw.
 Nightly bez wydania pomija CI. Testy live są opt-in (`CANOPY_LIVE`, prywatne klucze)
 i nie mają sekretów w CI. Nowy push do PR anuluje cały stary CI, łącznie z shardami;
@@ -265,7 +285,7 @@ przed PR; lokalną weryfikację dobieramy według [AGENTS.md](../AGENTS.md#testi
 `test-profile-<numer>` (7 dni). Do odświeżenia wag scal mapy `files` ze wszystkich raportów;
 nie używaj raportu jednego sharda jako całej mapy.
 
-Podział na osiem shardów obowiązuje zarówno PR-y, jak i Release. Każdy plik nadal
+Podział na osiem shardów obowiązuje w pełnym CI PR-ów i w Release. Każdy plik nadal
 wykonuje się dokładnie raz; nie filtrujemy testów według zmienionych pakietów.
 Podwojenie liczby runnerów skraca najdłuższy job testowy, ale zwiększa łączny koszt
 checkoutów, instalacji i uruchomienia baz; rzeczywisty czas zależy też od kolejki runnerów.
