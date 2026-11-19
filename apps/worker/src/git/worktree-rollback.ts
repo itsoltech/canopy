@@ -45,7 +45,7 @@ export async function registeredWorktrees(repo: string): Promise<string[][]> {
     .map((entry) => entry.split("\0"));
 }
 
-/** Git can print a Windows path through an alternate spelling of its parent, such as an 8.3 name. */
+/** Git expands Windows 8.3 aliases. The filesystem can return either spelling for the same directory. */
 function sameGitPath(path: string, expected: string): boolean {
   if (!isAbsolute(path)) return false;
 
@@ -53,11 +53,11 @@ function sameGitPath(path: string, expected: string): boolean {
 
   if (process.platform !== "win32" || !samePath(basename(path), basename(expected))) return false;
 
-  try {
-    return samePath(join(realpathSync(dirname(path)), basename(path)), expected);
-  } catch {
-    return false;
-  }
+  const parent = physicalDirectory(dirname(expected));
+  const listedParent = statPath(dirname(path));
+
+  // Compare the parent so this still works when the final component is a missing .git file.
+  return Boolean(parent && parent.ino !== 0n && listedParent?.isDirectory() && sameEntry(parent, listedParent));
 }
 
 export const atPath = (entries: string[][], path: string): string[][] =>

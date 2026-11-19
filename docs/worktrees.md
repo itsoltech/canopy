@@ -62,7 +62,8 @@ Worker zakłada gałąź tylko, gdy nazwa jest wolna, oznacza ją w reflogu i re
 nowy katalog przed uruchomieniem Git. `git worktree add` rejestruje checkout z blokadą
 oznaczoną identyfikatorem tej samej próby. Po udanym checkoutcie worker zdejmuje blokadę.
 Po błędzie worker sprawdza tożsamość katalogu, rejestrację, oznaczenia i zawartość
-checkoutu względem commita bazowego. Jeśli zakończenie drzewa procesów zostało
+checkoutu względem commita bazowego. Na Windows weryfikuje też, czy krótka nazwa 8.3
+i ścieżka podana przez Git odnoszą się do tego samego katalogu. Jeśli zakończenie drzewa procesów zostało
 potwierdzone, przerwany checkout może zostać usunięty także bez pliku `.git` i indeksu,
 z pustym `index.lock`. Weryfikacja zawartości obsługuje standardową konwersję CRLF
 dla małych plików i nie uruchamia filtrów repozytorium.
