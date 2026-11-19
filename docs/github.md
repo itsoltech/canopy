@@ -730,7 +730,7 @@ i enable auto-merge pokazują przyjęcie zlecenia, a ich wynik odświeża zwykł
 
 ### Automatyczna archiwizacja po merge
 
-Status (2026-11-16): zaimplementowana w gatewayu; dostępność w wydaniach wynika
+Status (2026-11-19): gateway uzgadnia stan scalenia także po odświeżeniu w tle; dostępność w wydaniach wynika
 z promocji nightly/beta/stable ([release.md](release.md)). Polityka
 `ThreadDefaults.auto_archive_on_merge` użytkownika jest domyślnie wyłączona.
 Opcjonalna wartość projektu nadpisuje ustawienie użytkownika, a opcjonalne
@@ -748,7 +748,10 @@ Co najmniej jeden aktywny link musi istnieć i **wszystkie** aktywne linki musz�
 mieć potwierdzone `merged`. Unlink usuwa PR z warunku. Dowodem jest ostatni
 kompletny, udany odczyt przypisany do nadal wybranego i połączonego konta;
 merge jest nieodwracalny, więc wygaśnięcie cache lub rotacja tokenu nie unieważnia
-tego dowodu. Dla kont GitHub App repozytorium musi nadal należeć do aktualnego
+tego dowodu. Odświeżenie przeterminowanego podsumowania w tle zapisuje wynik przed
+powiadomieniem klientów. Jeśli cache wskazuje scalenie, a w trwałym podsumowaniu
+brakuje potwierdzenia, sweep ponawia pełny odczyt PR przez aktualne konto.
+Dla kont GitHub App repozytorium musi nadal należeć do aktualnego
 katalogu niezawieszonej instalacji; jawny PAT zachowuje własną ścieżkę dostępu.
 Brak podsumowania, inne konto, odłączenie, odebranie repozytorium, zawieszenie
 instalacji albo zapisany błąd odczytu blokują archiwizację. Dane i decyzje zawsze

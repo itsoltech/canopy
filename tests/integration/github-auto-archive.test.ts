@@ -6,7 +6,7 @@ import { GatewayCore } from "@canopy/gateway/core";
 import { GatewayStore } from "@canopy/gateway/store";
 import { Effect } from "effect";
 import { SqlClient } from "effect/sql";
-import { connectGitHub, githubPrFixture, githubThread } from "./support/github-pr.ts";
+import { connectGitHub, githubPrData, githubPrFixture, githubThread } from "./support/github-pr.ts";
 import { eventually, failure, startTestGateway, type TestGateway } from "./support/gateway.ts";
 
 describe.skipIf(!dockerAvailable)("automatic archival after every linked PR merges", () => {
@@ -88,6 +88,38 @@ describe.skipIf(!dockerAvailable)("automatic archival after every linked PR merg
         thread.id,
       ]),
     ).toHaveLength(1);
+  });
+
+  test("an expired summary refreshed in the background records the merge before cache eviction", async () => {
+    await globalPolicy(true);
+    const thread = await linked(42);
+    fixture.pullRequest((number) => githubPrData(number, "MERGED"));
+    fixture.advance(65_000);
+    const stale = await gw.core.github.prs.load("itsoltech/canopy", 42);
+    expect(stale.summary?.state).toBe("open");
+    expect(stale.stale).toBe(true);
+    await waitFor(async () =>
+      (await gw.core.github.run((s) => s.mergeArchiveThreads(gw.userId))).some((t) => t.id === thread.id),
+    );
+    await sql("DELETE FROM github_pr_cache WHERE owner_user_id=$1::uuid", [gw.userId]);
+    await sweep();
+    expect(await archived(thread.id)).toBe(true);
+  });
+
+  test("the sweep rechecks a cached merge when the last complete summary still says open", async () => {
+    await globalPolicy(true);
+    const thread = await linked(43);
+    await sql(
+      `UPDATE github_pull_requests SET summary=jsonb_set(summary,'{state}','"open"')
+       WHERE owner_user_id=$1::uuid AND number=43`,
+      [gw.userId],
+    );
+    fixture.partial(true);
+    await sweep();
+    expect(await archived(thread.id)).toBe(false);
+    fixture.partial(false);
+    await sweep();
+    expect(await archived(thread.id)).toBe(true);
   });
 
   test("project and thread explicit false win; resetting either restores dynamic inheritance", async () => {
