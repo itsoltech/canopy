@@ -118,6 +118,7 @@ export type CommandHandler = (
 export type CommandReplyExtra = Omit<MessageInitShape<typeof CommandResultSchema>, "$typeName" | "commandId" | "ok">;
 
 export interface ScriptedWorkerOptions {
+  readonly onCommand?: (command: Command) => void;
   readonly tracing?: WorkerTracing;
   readonly logs?: LogPullSource;
   readonly secretsDataDir?: string;
@@ -424,6 +425,7 @@ export class ScriptedWorker {
         this.link.send({ case: "commandResult", value: { commandId, ok, ...extra } });
 
       this.commands.push(kind);
+      this.options.onCommand?.(payload.value);
       const handler = kind.case ? this.handlers.get(kind.case) : undefined;
 
       if (handler && kind.value) {

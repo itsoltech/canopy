@@ -63,20 +63,18 @@ describe.skipIf(!dockerAvailable)("configuration replay and version skew over li
   });
 
   test("a failed batch commits neither settings nor cursor; a gateway restart replays it once", async () => {
-    const before = (await b.settings()).timezone;
+    await a.update({ timezone: "Europe/Paris" });
+    await wait(async () => (await b.settings()).timezone === "Europe/Paris");
 
-    const cursor = (
-      await b.store.query<{ cursor: string }>(
-        "SELECT cursor FROM config_peer_cursors WHERE owner_user_id=$1::uuid AND node_id=$2",
-        [b.gateway.userId, a.node],
-      )
-    )[0]!.cursor;
+    const cursor = async () =>
+      (
+        await b.store.query<{ cursor: string }>(
+          "SELECT cursor FROM config_peer_cursors WHERE owner_user_id=$1::uuid AND node_id=$2",
+          [b.gateway.userId, a.node],
+        )
+      )[0]!.cursor;
 
-    await b.store.query(`CREATE FUNCTION config_test_fault() RETURNS trigger LANGUAGE plpgsql AS $$
-      BEGIN IF NEW.kind='future_kind' THEN RAISE EXCEPTION 'interrupted batch'; END IF; RETURN NEW; END $$`);
-    await b.store.query(
-      "CREATE TRIGGER config_test_fault BEFORE INSERT OR UPDATE ON config_items FOR EACH ROW EXECUTE FUNCTION config_test_fault()",
-    );
+    const [epoch] = (await cursor()).split(":");
     const settings = (await record(a, "settings"))!;
     const hlc = nextClock(settings.fields["timezone"]!.hlc, a.node);
     settings.fields["timezone"] = { value: "Europe/Zurich", hlc, prev: settings.fields["timezone"]!.hlc };
@@ -84,30 +82,65 @@ describe.skipIf(!dockerAvailable)("configuration replay and version skew over li
     future.identity = "future-identity";
     future.fields["futureChoice"] = { value: { list: ["kept"] }, hlc, prev: "", edited: true, seen: [] };
     future.schema_version = 2;
-    await publish(a, [settings, future]);
-    // The trigger has actually interrupted receipt, rather than an idle connection hiding a partial write.
-    await wait(
-      async () => (await b.links.snapshot()).peers.find((p) => p.nodeId === a.node)?.configSyncStatus === "syncing",
+    // Sequence writes survive rollback. Capture the cursor displaced by this exact batch,
+    // after both records and the new cursor have been written in the receiving transaction.
+    await b.store.query("CREATE SEQUENCE config_test_previous_revision MINVALUE 0");
+    await b.store.query(`CREATE FUNCTION config_test_fault() RETURNS trigger LANGUAGE plpgsql AS $$
+      BEGIN
+        IF EXISTS (SELECT FROM config_items WHERE owner_user_id=NEW.owner_user_id
+          AND kind='future_kind' AND global_id='future-record') THEN
+          PERFORM setval('config_test_previous_revision', split_part(OLD.cursor, ':', 2)::bigint);
+          RAISE EXCEPTION 'interrupted batch';
+        END IF;
+        RETURN NEW;
+      END $$`);
+    await b.store.query(
+      "CREATE TRIGGER config_test_fault AFTER UPDATE ON config_peer_cursors FOR EACH ROW EXECUTE FUNCTION config_test_fault()",
     );
-    expect((await b.settings()).timezone).toBe(before);
-    await b.restart();
-    expect((await b.settings()).timezone).toBe(before);
-    expect(
-      (
-        await b.store.query<{ cursor: string }>(
-          "SELECT cursor FROM config_peer_cursors WHERE owner_user_id=$1::uuid AND node_id=$2",
-          [b.gateway.userId, a.node],
-        )
-      )[0]!.cursor,
-    ).toBe(cursor);
-    await b.store.query("DROP TRIGGER config_test_fault ON config_items");
-    await b.store.query("DROP FUNCTION config_test_fault()");
+
+    let batchRevision: bigint;
+
+    try {
+      await publish(a, [settings, future]);
+      batchRevision = BigInt((await record(a, future.kind, future.global_id))!.revision);
+
+      const previousRevision = await eventually(
+        async () =>
+          (
+            await b.store.query<{ revision: string }>(
+              "SELECT last_value::text AS revision FROM config_test_previous_revision WHERE is_called",
+            )
+          )[0]?.revision,
+        Boolean,
+        20_000,
+      );
+
+      expect(previousRevision).toBeDefined();
+
+      const expectRollback = async () => {
+        expect((await b.settings()).timezone).toBe("Europe/Paris");
+        expect(await record(b, future.kind, future.global_id)).toBeUndefined();
+        expect(await cursor()).toBe(`${epoch}:${previousRevision}`);
+      };
+
+      await expectRollback();
+      await b.restart();
+      await expectRollback();
+    } finally {
+      await b.store.query("DROP TRIGGER config_test_fault ON config_peer_cursors");
+      await b.store.query("DROP FUNCTION config_test_fault()");
+      await b.store.query("DROP SEQUENCE config_test_previous_revision");
+    }
+
     await wait(async () => (await c.settings()).timezone === "Europe/Zurich");
     await wait(async () => !!(await record(c, "future_kind", "future-record")));
     expect((await record(c, "future_kind", "future-record"))?.fields).toEqual(future.fields);
     expect((await record(c, "future_kind", "future-record"))?.identity).toBe("future-identity");
     expect((await record(c, "future_kind", "future-record"))?.unsupported).toBe("Not supported on this computer");
     expect(await b.store.query("SELECT * FROM config_items WHERE kind='future_kind'")).toHaveLength(1);
+    const [replayEpoch, replayRevision] = (await cursor()).split(":");
+    expect(replayEpoch).toBe(epoch);
+    expect(BigInt(replayRevision!)).toBeGreaterThanOrEqual(batchRevision);
   }, 40_000);
 
   test("future fields and unsupported values survive receipt, local writes and re-publication", async () => {
@@ -147,7 +180,8 @@ describe.skipIf(!dockerAvailable)("configuration replay and version skew over li
   }, 30_000);
 
   test("a shared default timezone clears an older local choice and survives restart", async () => {
-    expect((await c.settings()).timezone).toBe("Europe/Zurich");
+    await a.update({ timezone: "Europe/London" });
+    await wait(async () => (await c.settings()).timezone === "Europe/London");
     const row = (await record(a, "settings"))!;
     const previous = row.fields["timezone"]!;
     row.fields["timezone"] = { value: "", hlc: nextClock(previous.hlc, a.node), prev: previous.hlc };

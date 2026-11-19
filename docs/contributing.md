@@ -1,7 +1,8 @@
 # Współpraca przy Canopy
 
-Status (2026-11-18): obowiązujący proces pracy i weryfikacji, w tym izolacja zasobów
-testowych, sprzątanie kontenerów PostgreSQL po przerwaniu testów oraz deterministyczna synchronizacja testów asynchronicznych.
+Status (2026-11-19): obowiązujący proces pracy i weryfikacji, w tym izolacja zasobów
+testowych, sprzątanie kontenerów PostgreSQL po przerwaniu testów, synchronizacja testów
+asynchronicznych i diagnoza niestabilnych testów z historii prób CI.
 
 ## Gałęzie i scalanie
 
@@ -160,6 +161,21 @@ lub zabiciu procesu testowego powoduje usunięcie kontenera i jego wolumenu
 według pełnego ID. Wiek i nazwa kontenera nie służą do ustalania własności.
 Awaria hosta, demona Docker lub samego procesu sprzątającego może wymagać
 ręcznego sprzątania.
+
+Przegląd awarii CI na PR-ach obejmuje także zielone przebiegi po ponowieniu.
+Ostatnie nieudane lub ponawiane przebiegi można znaleźć poleceniem:
+
+```sh
+gh run list --workflow ci.yml --event pull_request --limit 100 \
+  --json databaseId,attempt,conclusion,headBranch \
+  --jq '.[] | select(.conclusion == "failure" or .attempt > 1)'
+```
+
+Log konkretnej próby pokazuje `gh run view RUN_ID --attempt NUMER --log-failed`.
+Przy liczeniu awarii uwzględnij pierwszy błąd w pliku, także wyjątek między testami.
+Bun powtarza nazwy nieudanych testów w podsumowaniu. Ponowienie na tym samym SHA
+pozwala sprawdzić, czy objaw ustąpił bez zmiany kodu. Przed poprawką porównaj
+miejsce błędu z aktualnym `dev`.
 
 Przy diagnozie konkretnego flaky można powtórzyć tylko dotknięte pliki, np.:
 

@@ -103,11 +103,16 @@ export async function importFixture(
   });
 
   let link: GatewayLink | undefined;
-  let closed = false;
+  let serving: ReturnType<typeof serveLink> | undefined;
+
+  const disconnect = () => {
+    link?.close();
+    link = undefined;
+  };
 
   const connect = async () => {
-    if (link && !closed) return;
-    closed = false;
+    if (link) return;
+    await serving;
     link = await openGatewayLink({
       baseUrl: gw.grpcUrl,
       credential: worker.credential,
@@ -120,7 +125,7 @@ export async function importFixture(
         ...(await runtime.runPromise(journalHello())),
       },
     });
-    void serveLink(link, host, runtime);
+    serving = serveLink(link, host, runtime);
     await eventually(
       () => gw.api.getOverview({}),
       (o) => o.workers.some((w) => w.id === workerId && w.online && w.appliedVersion > 0n),
@@ -157,10 +162,7 @@ export async function importFixture(
     },
     sql: <A, E>(use: (sql: SqlClient.SqlClient) => Effect.Effect<A, E>) =>
       gw.runtime.runPromise(Effect.flatMap(SqlClient.SqlClient, use)),
-    disconnect: () => {
-      closed = true;
-      link?.close();
-    },
+    disconnect,
     /**
      * After each test (afterEach): the worker is online again and pages have their usual size, whatever the test did
      * or where it failed, so no test starts with another one's state.
@@ -170,10 +172,7 @@ export async function importFixture(
       let pages = 0;
 
       gw.core.imports.runner.beforePage = () => {
-        if (++pages === page) {
-          closed = true;
-          link?.close();
-        }
+        if (++pages === page) disconnect();
       };
     },
     async restore() {
@@ -183,11 +182,17 @@ export async function importFixture(
       await connect();
     },
     async close() {
-      link?.close();
-      await host.close();
-      await runtime.dispose();
+      disconnect();
 
-      if (!options.gateway) await gw.close();
+      try {
+        // Half-closing the request still leaves queued gateway commands for serveLink to hand to the host.
+        await serving;
+      } finally {
+        await host.close();
+        await runtime.dispose();
+
+        if (!options.gateway) await gw.close();
+      }
     },
   };
 }
