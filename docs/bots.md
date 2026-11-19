@@ -3,6 +3,7 @@
 Status (2026-11-19): wyłączenie modułu Bots zatrzymuje pracę botów właściciela,
 w tym tury na workerach, rutyny i dostarczanie przypomnień.
 Prywatny czat pokazuje odbiór wiadomości ze Slacka, przebieg rutyn i bieżącą czynność bota.
+W web/desktop kolejne zdarzenia w historii można rozwijać i zwijać.
 Panel Bots w web/desktop oznacza pracujące boty na przypiętych kafelkach i zwykłych wierszach.
 Mobilna rozmowa potwierdza odczyt najnowszych wiadomości i odświeża listę botów.
 Wysyłana wiadomość ma przygaszony dymek, który zachowuje wysokość po potwierdzeniu.
@@ -1383,6 +1384,11 @@ zapamiętany stan pracy botów z niedostępnego domu lub domu w trakcie odświe�
   zachowuje bloki starszych klientów bez zakresów nad treścią.
 - **Separatory czasu** tylko na początku, po zmianie dnia i po godzinie ciszy
   („Today 11:46 AM”).
+- **Zdarzenia w web/desktop**: co najmniej dwa kolejne wpisy, w tym odbiór i wysyłka
+  wiadomości na Slacku, przebieg rutyn i akcje zatwierdzone przez stałą regułę,
+  są domyślnie zwinięte pod **Show N events**. Po rozwinięciu szczegóły i linki
+  są dostępne w kolejności chronologicznej. Pojedynczy wpis widać od razu.
+  Wiadomość, pytanie, zwykła karta zgody, błąd i separator kończą grupę.
 - **Status na żywo** (`BotStatusRow`): pod ostatnią wiadomością awatar bota i linia z efektem
   shimmer („Typing…”, „Searching Notion”); zmiana frazy to text swap. Gdy czeka na Ciebie,
   linia jest spokojna. Nagłówek pokazuje tylko awatar, nazwę i model. Żywe maskotki dostają

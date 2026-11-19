@@ -1,5 +1,8 @@
 <script lang="ts">
   import { untrack, type Snippet } from "svelte";
+  import { SvelteSet } from "svelte/reactivity";
+  import FeedFold from "#lib/shared/ui/FeedFold.svelte";
+  import { ChatEventGroups, type EventGroup } from "../event-groups.ts";
   import VirtualFeed from "#lib/shared/ui/virtual/VirtualFeed.svelte";
   import type { FeedViewport } from "#lib/shared/ui/virtual/viewport.ts";
   import type { FeedScrollMemory } from "#lib/shared/ui/virtual/feed-scroll-memory.svelte.ts";
@@ -97,18 +100,35 @@
 
   const bots = $derived([...participants.values()].filter((p) => p.kind === "bot"));
 
-  type TimelineRow = ChatRow | { id: "status"; kind: "status"; status: BotStatusView };
+  type TimelineRow = ChatRow | EventGroup | { id: "status"; kind: "status"; status: BotStatusView };
+
+  const eventGroups = new ChatEventGroups();
+  const openGroups = new SvelteSet<string>();
+
+  const grouped = $derived(
+    eventGroups.layout(
+      layoutChat({
+        entries,
+        participants,
+        me: me.id,
+        kind: conversation.kind,
+        firstUnreadId,
+      }),
+    ),
+  );
 
   const rows = $derived.by((): TimelineRow[] => {
     if (loading) return [];
 
-    const list: TimelineRow[] = layoutChat({
-      entries,
-      participants,
-      me: me.id,
-      kind: conversation.kind,
-      firstUnreadId,
-    });
+    const list: TimelineRow[] = [];
+
+    for (const row of grouped) {
+      list.push(row);
+
+      if (row.kind === "event-group" && openGroups.has(row.id)) {
+        for (const event of row.events) list.push(event);
+      }
+    }
 
     if (status) list.push({ id: "status", kind: "status", status });
 
@@ -133,11 +153,21 @@
   let historyViewport = $state.raw<{ start: number; before: bigint }>();
   const firstMessageId = $derived(history?.snapshot?.messages[0]?.id);
 
+  function toggleEvents(id: string) {
+    feed?.keep(id);
+
+    if (openGroups.has(id)) openGroups.delete(id);
+    else openGroups.add(id);
+  }
+
   const historyRow = $derived(
     Math.max(
       0,
       rows.findIndex(
-        (row) => row.id === firstMessageId || (firstMessageId && row.id === `exchanges:${firstMessageId}`),
+        (row) =>
+          row.id === firstMessageId ||
+          row.id === `exchanges:${firstMessageId}` ||
+          (row.kind === "event-group" && row.events.some((event) => event.id === firstMessageId)),
       ),
     ),
   );
@@ -206,6 +236,12 @@
       <div class={["pb-2", index > 0 && "pt-6"]}><ChatDateLine at={row.at} /></div>
     {:else if row.kind === "unread"}
       <div class="pt-4 pb-1"><UnreadDivider /></div>
+    {:else if row.kind === "event-group"}
+      <FeedFold open={openGroups.has(row.id)} ontoggle={() => toggleEvents(row.id)} class="py-1">
+        <span class="font-medium tabular-nums"
+          >{openGroups.has(row.id) ? "Hide" : "Show"} {row.events.length.toLocaleString("en")} events</span
+        >
+      </FeedFold>
     {:else if row.kind === "event"}
       <div class="py-2"><ChatEventLine event={row.event} /></div>
     {:else if row.kind === "exchanges"}
