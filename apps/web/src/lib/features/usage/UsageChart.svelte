@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { providerDayValue } from "@canopy/domain/usage-chart";
   import { dayLabel, metricValue, type UsageDay, type UsageRow, type UsageView } from "./format.ts";
   import UsagePlot from "./UsagePlot.svelte";
   import UsageProviderMark from "./UsageProviderMark.svelte";
@@ -74,12 +75,7 @@
   </div>
   <ul class="mt-4 grid gap-x-5 gap-y-2 sm:grid-cols-2 lg:grid-cols-3" aria-label="Usage by provider on selected day">
     {#each providers as provider (provider.key)}
-      {@const part = selected?.providers.find((row) => row.key === provider.key)}
-      {@const value = part
-        ? metricValue(part.amounts, view)
-        : selected?.providers.length || selected?.amounts.reports === 0n
-          ? "No usage"
-          : "Unknown"}
+      {@const value = selected ? providerDayValue(selected, provider.key, view) : "Unknown"}
       <li class="grid min-w-0 grid-cols-[auto_minmax(0,1fr)] items-center gap-x-2 text-sm/5">
         <span class="flex items-center gap-2">
           <span

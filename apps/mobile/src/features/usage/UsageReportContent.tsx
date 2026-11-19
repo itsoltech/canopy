@@ -10,6 +10,7 @@ import {
 import { Alert, EmptyState, Notice } from "../../ui/components";
 import { font, styles, useColors, useTypography } from "../../ui/theme";
 import { UsageBreakdown, type UsageGroup } from "./UsageBreakdown";
+import { UsageChart } from "./UsageChart";
 import { UsageSources } from "./UsageSources";
 
 export function UsageReportContent({
@@ -35,6 +36,7 @@ export function UsageReportContent({
       ) : (
         <>
           <UsageTotals totals={data.totals} view={view} />
+          <UsageChart days={data.days} providers={data.providers} view={view} />
           <UsageBreakdown data={data} view={view} selected={group} onChange={onGroupChange} />
         </>
       )}
