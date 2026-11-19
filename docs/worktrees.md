@@ -5,7 +5,9 @@ Kopiowanie workspace'u na nowy worker tworzy samodzielny checkout także ze
 wybór obejmuje tylko ignorowane pliki lokalne bez zależności i wyniku builda. Ograniczenia Git:
 [workspace-copy.md](workspace-copy.md).
 
-Status: **etapy 1–3 zaimplementowane** (2026-11-19), w tym ponowne wykorzystanie checkoutu terminu harmonogramu po wznowieniu Threads, wstrzymanie sprzątania worktree przy wyłączonym module Threads, zapis wątku przed utworzeniem worktree
+Status: **etapy 1–3 zaimplementowane** (2026-11-19), w tym sprzątanie lokalnych gałęzi po merge
+i archiwizacji, ponowne wykorzystanie checkoutu terminu harmonogramu po wznowieniu Threads,
+wstrzymanie sprzątania worktree przy wyłączonym module Threads, zapis wątku przed utworzeniem worktree
 i powrót do przygotowania z listy wątków w web/desktop, natychmiastowy widok przygotowania
 nowego wątku z postępem operacji worktree w web/desktop i natywnym mobile, 24-godzinna ochrona worktree po archiwizacji
 i kontynuacja po usunięciu worktree w nowym wątku oraz sprzątanie zamkniętych worktree
@@ -154,7 +156,7 @@ Pola Cleanup korzystają z tych samych zakresów, dziedziczenia i wersji:
 | `cleanup_settled` | `false` | Wszystkie nieusunięte wątki zarchiwizowane od co najmniej 24 godzin (nazwa pola historyczna; zakończona tura nie wystarcza). Włączenie zezwala odrzucić lokalne pliki i usunąć checkout także przy niewypchniętych commitach; lokalna gałąź pozostaje. |
 | `cleanup_unchanged` | `false` | HEAD równy commitowi utworzenia i brak zmian plików. |
 | `keep_local_changes` | `true` | Dla pozostałych reguł zmiany lokalne wymagają ręcznego potwierdzenia; pole zmienia etykietę, a jego kontrolka pozostaje „Soon”. Reguły zamkniętych wątków mają własną zgodę na odrzucenie plików. |
-| `delete_local_branch` | `false` | Po usunięciu checkoutu spróbuj usunąć tylko bezpieczną gałąź. |
+| `delete_local_branch` | `false` | Po usunięciu worktree sprzątaj scalone gałęzie zarchiwizowanych wątków. |
 
 ### Rekord worktree
 
@@ -626,7 +628,7 @@ pokazuje pełną ścieżkę i osobny picker gałęzi opisany wyżej; „Manage w
   tylko PR z `merged = true`, tym samym repo, gałęzią i dokładnym HEAD. Worker dostaje wyłącznie
   owner/repo i potwierdzony SHA, ponownie sprawdza je przed usunięciem; żadnych poświadczeń.
   Błąd konektora zostawia niezależny wynik gita; błąd fetch blokuje usunięcie. Commity potwierdzone
-  jako scalone nie są traktowane jako niewypchnięta praca. `branch -d` nadal może zachować gałąź po squashu.
+  jako scalone nie są traktowane jako niewypchnięta praca.
 - Raport **dry-run** w Settings → Worktrees → Cleanup: lista „would remove / kept because …” przed
   włączeniem reguł i przycisk „Run cleanup now”.
 - Gateway rezerwuje rekord w transakcji z blokadami wątków i worktree, a triggery blokują wyścig
@@ -638,9 +640,20 @@ pokazuje pełną ścieżkę i osobny picker gałęzi opisany wyżej; „Manage w
   Worker niezależnie sprawdza własny journal i blokuje nowe starty pod usuwaną
   ścieżką. Główny checkout, ścieżka poza pierwotnym korzeniem, dowiązanie poza korzeń, inna gałąź,
   brak rejestracji git albo zablokowane worktree są odrzucane.
-- Historia zostaje zawsze. Opcjonalne usunięcie gałęzi wymaga czystego drzewa, braku niewypchniętych
-  commitów i merged/unchanged; dodatkowo git `branch -d` sprawdza bezpieczeństwo. Błąd usunięcia
-  gałęzi zachowuje ją i nie unieważnia usunięcia checkoutu.
+- **Delete safe local branches** jest domyślnie wyłączone. Po włączeniu worker może usunąć lokalną gałąź
+  po usunięciu czystego worktree Canopy. Wszystkie jego nieusunięte wątki muszą być zarchiwizowane.
+  Gateway sprawdza też, czy inny otwarty wątek używa gałęzi, również jako bazy własnego worktree.
+  Różne katalogi projektu na jednym workerze mogą współdzielić referencje Git. Dlatego taka sama nazwa
+  bazy otwartego wątku chroni gałąź również przy różnych ścieżkach repozytorium.
+  Worker sprawdza dokładny commit, dowód scalenia i rejestrację gałęzi w innych checkoutach Git.
+  Przy squashu dowodem może być zgodność wszystkich ścieżek zmienionych przez gałąź ze stanem w bazie
+  albo scalony PR dla dokładnego SHA. Worker chroni gałęzie rozwojowe
+  (m.in. `main`, `master`, `dev`, `develop`, `next`), bazę worktree i domyślną gałąź repozytorium.
+  Gałąź na serwerze pozostaje dostępna.
+- Gdy merge lub archiwizacja nastąpi po usunięciu worktree, kolejny przebieg sprzątania wraca do zapisanej
+  nazwy i SHA. Dotyczy to czystych worktree usuniętych przy włączonej opcji przez workera obsługującego
+  tę funkcję. Starsze usunięcia i gałęzie bez takiego zapisu pozostają poza zakresem. Wyłączenie opcji
+  wstrzymuje kolejne próby. Historia wątku pozostaje dostępna.
 - Offline: kandydaci czekają do połączenia workera. Rozpoczęte usunięcie zachowuje ten sam identyfikator
   komendy w bazie i wraca po reconnect/restarcie. `removed_at` i audit `worktree.removed` zapisują się
   atomowo i tylko raz. Jawny błąd workera zwalnia rezerwację; timeout/rozłączenie zostawia ją do ponowienia.

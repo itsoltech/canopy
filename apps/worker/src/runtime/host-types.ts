@@ -44,6 +44,8 @@ export interface CommandOutput {
   readonly providerAccounts?: MessageInitShape<typeof CommandResultSchema>["providerAccounts"];
   worktreeStatuses?: MessageInitShape<typeof CommandResultSchema>["worktreeStatuses"];
   worktreeBranchDeleted?: boolean;
+  worktreeBranchCleanupCandidate?: boolean;
+  worktreeBranchCleanupFinished?: boolean;
   readonly directoryPath?: string;
   readonly generatedText?: string;
   readonly consumedUsages?: MessageInitShape<typeof CommandResultSchema>["consumedUsages"];
@@ -94,6 +96,8 @@ export function successResult(commandId: string, output: CommandOutput): Command
     ...(output.workspaceCloneUrl !== undefined && { workspaceCloneUrl: output.workspaceCloneUrl }),
     ...(output.worktree && { worktree: output.worktree }),
     ...(output.worktreeStatuses && { worktreeStatuses: output.worktreeStatuses }),
+    ...(output.worktreeBranchCleanupCandidate && { worktreeBranchCleanupCandidate: true }),
+    ...(output.worktreeBranchCleanupFinished && { worktreeBranchCleanupFinished: true }),
     ...(output.worktreeBranchDeleted !== undefined && { worktreeBranchDeleted: output.worktreeBranchDeleted }),
     ...(output.importScan && { importScan: output.importScan }),
     ...(output.importPage && { importPage: output.importPage }),

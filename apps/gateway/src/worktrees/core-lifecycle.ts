@@ -6,6 +6,7 @@ import { coreRun } from "../core/core-broadcast.ts";
 import type { GatewayCore } from "../core/core.ts";
 import { deliverRemoval, pendingRemoval, removeEntry, scanEntry, worktreeTarget } from "./lifecycle.ts";
 import { coreWorkerQuery } from "../core/core-mentions.ts";
+import { cleanupRemovedBranches } from "./removed-branch-cleanup.ts";
 import { appendDiscovered } from "./discovery.ts";
 import { toUiWorktree } from "./core-worktrees.ts";
 
@@ -73,6 +74,8 @@ export const coreWorktreeLifecycleMethods: CoreWorktreeLifecycleMethods = {
     const rows = await coreRun(this, (s) =>
       s.worktreeInventory(this[coreState].options.userId, request.projectId, request.workerId),
     );
+
+    if (!request.dryRun) await cleanupRemovedBranches(this, request.projectId, request.workerId);
 
     const entries = [];
 

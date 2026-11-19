@@ -14,7 +14,7 @@ describe.skipIf(!dockerAvailable)("closed-thread worktree cleanup over gRPC", ()
   const dir = tempDir("canopy-worktree-closed-");
   let f: Awaited<ReturnType<typeof worktreeFixture>>;
   beforeAll(async () => {
-    f = await worktreeFixture(dir);
+    f = await worktreeFixture(dir, { capabilities: ["archived_branch_cleanup"] });
     commit(f.repo, ".gitignore", ".cache/\n");
     git(f.repo, "push", "-q", "origin", "main");
   }, 60_000);
@@ -45,7 +45,7 @@ describe.skipIf(!dockerAvailable)("closed-thread worktree cleanup over gRPC", ()
     f.settings({ cleanupSettled: closed === "archived", cleanupDeletedThreads: closed === "deleted" });
 
   test.each(["unchanged", "merged", "archived", "deleted", "inactive", "manual"])(
-    "ignored files do not require confirmation or prevent %s removal and branch deletion",
+    "ignored files allow %s removal and only archived threads release the merged branch",
     async (rule) => {
       const t = await f.tree();
       mkdirSync(join(t.cwd, ".cache"));
@@ -85,9 +85,9 @@ describe.skipIf(!dockerAvailable)("closed-thread worktree cleanup over gRPC", ()
           ? await f.remove(t.worktree!.id)
           : (await f.cleanup(false)).entries.find((e) => e.worktree?.id === t.worktree!.id);
 
-      expect(removed).toMatchObject({ removed: true, branchDeleted: true });
+      expect(removed).toMatchObject({ removed: true, branchDeleted: rule === "archived" });
       expect(existsSync(t.cwd)).toBe(false);
-      expect(git(f.repo, "branch", "--list", t.worktree!.branch)).toBe("");
+      expect(Boolean(git(f.repo, "branch", "--list", t.worktree!.branch))).toBe(rule !== "archived");
     },
   );
 

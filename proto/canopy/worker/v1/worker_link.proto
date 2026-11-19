@@ -524,6 +524,8 @@ message Command {
     ReadThreadDiff read_thread_diff = 235;
     // Transient, thread_file_reveal_v1; select an authorized file in the native file manager.
     FileRequest reveal_file = 236;
+    // Ponowienie sprzątania dokładnej lokalnej gałęzi po usunięciu worktree.
+    CleanupRemovedBranch cleanup_removed_branch = 237;
     // CLI dostawców (sekcja na końcu pliku). Nietrwała: nigdy z outboxa.
     InstallCli install_cli = 800;
     // Local automation tools. These commands are transient and never enter the outbox.
@@ -837,6 +839,8 @@ message CommandResult {
   WorktreeInfo worktree = 211;
   repeated WorktreeStatus worktree_statuses = 213;
   bool worktree_branch_deleted = 214;
+  bool worktree_branch_cleanup_candidate = 238;
+  bool worktree_branch_cleanup_finished = 239;
   // Normalized identity only; never the raw remote URL or its credentials.
   string workspace_origin = 216;
   // Credential-free clone URL; only requested by GetWorkspaceCloneSource, never persisted.
@@ -2270,11 +2274,24 @@ message RemoveWorktree {
   WorktreeTarget target = 1;
   // Wyłącznie ręczne żądanie użytkownika po ostrzeżeniu o utracie zmian.
   bool confirm_local_changes = 2;
+  // Historyczne pole. Nowy gateway i worker używają delete_archived_branch.
   bool delete_branch = 3;
   bool require_merged = 4;
   bool require_unchanged = 5;
   // Potwierdzenie dotyczy dokładnie tego stanu; zmiana HEAD wymaga nowego podglądu.
   string expected_head_commit = 6;
+  // Gateway potwierdził archiwizację oraz brak innych wątków używających gałęzi.
+  bool delete_archived_branch = 7;
+  // Pozwala zachować lokalny dowód czystego usunięcia na wypadek późniejszej archiwizacji lub merge.
+  bool track_branch_for_cleanup = 8;
+}
+
+message CleanupRemovedBranch {
+  string removal_command_id = 1;
+  WorktreeTarget target = 2;
+  string expected_head_commit = 3;
+  // Tylko odczytaj wynik zapamiętanej próby po utracie ACK.
+  bool reconcile_only = 4;
 }
 
 message WorktreeInfo {

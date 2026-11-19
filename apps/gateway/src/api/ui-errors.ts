@@ -86,6 +86,12 @@ export function toConnectError(cause: unknown): ConnectError {
   if (constraint === "worktree_available")
     return new ConnectError("worktree removed or cleanup in progress", Code.FailedPrecondition);
 
+  if (constraint === "worktree_branch_available")
+    return new ConnectError(
+      "Worktree cleanup is in progress. Wait for it to finish, then retry.",
+      Code.FailedPrecondition,
+    );
+
   if (constraint === "thread_worktree_preparing")
     return new ConnectError("This thread's worktree is not ready.", Code.FailedPrecondition);
 

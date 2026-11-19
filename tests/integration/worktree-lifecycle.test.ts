@@ -224,7 +224,7 @@ describe.skipIf(!dockerAvailable)("worktree lifecycle over gRPC", () => {
     expect(git(f.repo, "rev-parse", t.worktree!.branch)).toBe(head);
   });
 
-  test("merged policy fetches, verifies ancestry, and deletes only a safe branch when enabled", async () => {
+  test("merged policy fetches and verifies ancestry but keeps the branch of an open thread", async () => {
     const t = await f.tree();
     commit(t.cwd, "merged.txt");
     git(t.cwd, "push", "-qu", "origin", t.worktree!.branch);
@@ -233,8 +233,38 @@ describe.skipIf(!dockerAvailable)("worktree lifecycle over gRPC", () => {
     git(f.repo, "merge", "-q", "--no-ff", "-m", "merge", t.worktree!.branch);
     git(f.repo, "push", "-q", "origin", "main");
     const removed = (await f.cleanup(false)).entries.find((e) => e.worktree?.id === t.worktree!.id);
-    expect(removed).toMatchObject({ removed: true, branchDeleted: true });
-    expect(git(f.repo, "branch", "--list", t.worktree!.branch)).toBe("");
+    expect(removed).toMatchObject({ removed: true, branchDeleted: false });
+    expect(git(f.repo, "branch", "--list", t.worktree!.branch)).toContain(t.worktree!.branch);
+  });
+
+  test("cleanup keeps a merged archived branch on a worker without archived branch cleanup", async () => {
+    const t = await f.tree();
+    await f.settings({ cleanupSettled: true, deleteLocalBranch: true });
+    await f.gw.api.setThreadArchived({ threadId: t.id, archived: true });
+    await f.sql((sql) => sql`UPDATE threads SET archived_at=now()-interval '25 hours' WHERE id=${t.id}::uuid`);
+    const handle = f.host.handleCommand.bind(f.host);
+    let checked = false;
+    f.host.handleCommand = async (command) => {
+      if (command.kind.case === "removeWorktree" && command.kind.value.target?.id === t.worktree!.id) {
+        expect(command.kind.value).toMatchObject({
+          deleteBranch: false,
+          deleteArchivedBranch: false,
+          trackBranchForCleanup: false,
+        });
+        checked = true;
+      }
+
+      return handle(command);
+    };
+
+    try {
+      const removed = (await f.cleanup(false)).entries.find((e) => e.worktree?.id === t.worktree!.id);
+      expect(removed).toMatchObject({ removed: true, branchDeleted: false });
+      expect(checked).toBe(true);
+      expect(git(f.repo, "branch", "--list", t.worktree!.branch)).toContain(t.worktree!.branch);
+    } finally {
+      f.host.handleCommand = handle;
+    }
   });
 
   test("inactive policy considers thread activity and local activity, then removes old trees", async () => {

@@ -75,6 +75,7 @@ export type HostOperations = HostHooks &
     | "renameWorktreeBranch"
     | "scanWorktrees"
     | "removeWorktree"
+    | "cleanupRemovedBranch"
     | "revealWorktree"
   > &
   Pick<CommandHandlers, "execute" | "closeDirectories" | "closeThreadResources">;
@@ -176,6 +177,7 @@ export class HostContext {
       createWorktree: gitCommands.createWorktree.bind(gitCommands),
       renameWorktreeBranch: gitCommands.renameWorktreeBranch.bind(gitCommands),
       scanWorktrees: gitCommands.scanWorktrees.bind(gitCommands),
+      cleanupRemovedBranch: gitCommands.cleanupRemovedBranch.bind(gitCommands),
       removeWorktree: gitCommands.removeWorktree.bind(gitCommands),
       revealWorktree: gitCommands.revealWorktree.bind(gitCommands),
     };

@@ -2,11 +2,10 @@ import { WorktreeStatusSchema, type Command } from "@canopy/contracts";
 import { create } from "@bufbuild/protobuf";
 import { Journal } from "../journal/index.ts";
 import { checkedWorktree, scanWorktree } from "../git/worktree-status.ts";
-import { removeWorktree } from "../git/remove-worktree.ts";
+import { cleanupRemovedBranch, recoverRemoval, removeWorktree } from "../git/remove-worktree.ts";
 import { existsSync, realpathSync } from "node:fs";
 import { join } from "node:path";
 import { isWithin } from "../git/worktrees.ts";
-import { recoverRemoval } from "../git/remove-worktree.ts";
 import { freshGit, gitOk, GitError } from "../git/git.ts";
 import { withProcessPriority } from "@canopy/process-governor";
 import { listGitRefs, repoRoot } from "../git/refs.ts";
@@ -166,6 +165,14 @@ export class GitCommands {
     return { worktreeStatuses: statuses };
   }
 
+  /** Branch cleanup is authorized on the current link while the gateway waits for this attempt. */
+  private branchCleanupActive() {
+    const link = this.ctx.state.link;
+    const deadline = performance.now() + 85_000;
+
+    return () => Boolean(link && this.ctx.state.link === link && performance.now() < deadline);
+  }
+
   async removeWorktree(
     kind: Extract<Command["kind"], { case: "removeWorktree" }>,
     commandId: string,
@@ -174,7 +181,10 @@ export class GitCommands {
       if (!/^[0-9a-f-]{36}$/i.test(commandId)) throw new GitError("INVALID_COMMAND", "invalid removal command id");
       const receipt = join(this.ctx.state.options.dataDir, "worktree-removals", commandId);
 
-      if (await recoverRemoval(receipt, kind.value)) return { worktreeBranchDeleted: false };
+      const active = this.branchCleanupActive();
+      const recovered = await recoverRemoval(receipt, kind.value);
+
+      if (recovered) return recovered;
       const path = realpathSync(kind.value.target?.path ?? "");
 
       if (this.ctx.state.switchingPaths.has(path))
@@ -207,14 +217,32 @@ export class GitCommands {
 
         await idle();
 
-        return {
-          worktreeBranchDeleted: await freshGit(() => removeWorktree(this.managedRoots, kind.value, idle, receipt)),
-        };
+        return await freshGit(() => removeWorktree(this.managedRoots, kind.value, idle, receipt, active));
       } finally {
         this.ctx.state.worktreeDiscovery.clear();
         this.ctx.state.removingPaths.delete(path);
       }
     });
+  }
+
+  async cleanupRemovedBranch(kind: Extract<Command["kind"], { case: "cleanupRemovedBranch" }>): Promise<CommandOutput> {
+    if (kind.value.reconcileOnly) return {};
+    const { target, removalCommandId, expectedHeadCommit } = kind.value;
+
+    if (!target || !/^[0-9a-f-]{36}$/i.test(removalCommandId))
+      throw new CommandError("INVALID_COMMAND", "invalid branch cleanup target", true);
+    this.ctx.ops.checkCwd(target.repoRoot);
+    const receipt = join(this.ctx.state.options.dataDir, "worktree-removals", removalCommandId);
+
+    const active = this.branchCleanupActive();
+
+    const result = await gitStep(() =>
+      freshGit(() => cleanupRemovedBranch(receipt, target, expectedHeadCommit, active)),
+    );
+
+    if (result === "deleted") this.ctx.state.worktreeDiscovery.clear();
+
+    return { worktreeBranchDeleted: result === "deleted", worktreeBranchCleanupFinished: result !== "retry" };
   }
 
   async revealWorktree(kind: Extract<Command["kind"], { case: "revealWorktree" }>): Promise<CommandOutput> {

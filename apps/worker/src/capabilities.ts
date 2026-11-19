@@ -70,6 +70,7 @@ export function workerCapabilities(options: { localWorker: boolean; fullAccess: 
     "workspace_origin",
     "workspace_clone_source",
     "worktree_lifecycle",
+    "archived_branch_cleanup",
     "git_worktree_discovery",
     // git_heads: the live branch of thread checkouts (GitHeads).
     "git_heads",

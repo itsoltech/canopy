@@ -48,6 +48,31 @@ describe.skipIf(!dockerAvailable)("schema on PostgreSQL 17: threads, turns and t
       );
     });
 
+    test("a deferred deletion fences a restored thread that uses the branch as its worktree base", async () => {
+      const w = await world();
+      const candidate = id();
+      const stacked = id();
+      const thread = id();
+      await query(
+        `INSERT INTO worktrees (id, owner_user_id, project_id, workspace_id, worker_id, repo_root, path, branch,
+            base_ref, removed_at, branch_cleanup_source, removal_token) VALUES
+          ($1, $3, $4, $5, $6, '/repo', '/trees/base', 'canopy/base', 'main', now(), 'removal'::bytea, $7),
+          ($2, $3, $4, $5, $6, '/linked-checkout', '/trees/stack', 'canopy/stack', 'refs/heads/canopy/base', NULL, NULL, NULL)`,
+        [candidate, stacked, w.user, w.project, w.workspace, w.worker, id()],
+      );
+      await query(
+        `INSERT INTO threads (id, project_id, owner_user_id, kind, root_thread_id, runtime, provider, worker_id,
+            workspace_id, cwd, status, worktree_id, archived_at, archived_by)
+          VALUES ($1,$2,$3,'main',$1,'worker','codex',$4,$5,'/trees/stack','archived',$6,now(),'user')`,
+        [thread, w.project, w.user, w.worker, w.workspace, stacked],
+      );
+      const reopen = `UPDATE threads SET status='idle', archived_at=NULL, archived_by=NULL WHERE id=$1`;
+      expect(await failure(reopen, [thread])).toContain("worktree_branch_available");
+      await mainThread(w);
+      await query(`UPDATE worktrees SET removal_token=NULL WHERE id=$1`, [candidate]);
+      await query(reopen, [thread]);
+    });
+
     test("the workspace must belong to the thread's project and worker", async () => {
       const w = await world();
       const other = await world();
