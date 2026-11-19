@@ -70,6 +70,20 @@
     if (!selection || selection.isCollapsed || selection.rangeCount !== 1) return;
     const range = selection.getRangeAt(0);
 
+    // The workspace's Select All selects the reader element and covers its mounted rows.
+    if (
+      root &&
+      range.startContainer === root &&
+      range.endContainer === root &&
+      range.startOffset === 0 &&
+      range.endOffset === root.childNodes.length
+    ) {
+      const start = rows[0];
+      const end = rows.at(-1);
+
+      return start && end ? text.slice(start.from, end.to) : undefined;
+    }
+
     const offset = (node: Node, at: number) => {
       const element = node instanceof Element ? node : node.parentElement;
       const content = element?.closest<HTMLElement>("[data-source-from]");
@@ -86,6 +100,16 @@
     const end = offset(range.endContainer, range.endOffset);
 
     return start !== undefined && end !== undefined ? text.slice(start, end) : undefined;
+  }
+
+  function copySelection(event: ClipboardEvent) {
+    if (event.defaultPrevented || !event.clipboardData) return;
+    const selected = selectedText();
+
+    if (selected === undefined) return;
+    // Native copy follows the virtual row layout and can drop blank lines or add breaks to split lines.
+    event.clipboardData.setData("text/plain", selected);
+    event.preventDefault();
   }
 
   const first = $derived(Math.max(0, Math.floor(top / rowHeight) - 8));
@@ -233,8 +257,9 @@
   aria-label={path}
   data-select-content
   tabindex="0"
-  class="h-full min-h-0 overflow-auto overscroll-contain font-mono text-[length:var(--canopy-mono-size)] leading-[1.6] focus-ring focus-visible:-outline-offset-2"
+  class="h-full min-h-0 overflow-auto overscroll-contain font-mono text-[length:var(--canopy-mono-size)] leading-[1.6] focus-ring select-text focus-visible:-outline-offset-2"
   style:color="var(--code-fg)"
+  oncopy={copySelection}
   onscroll={() => {
     if (!root) return;
     top = root.scrollTop * ratio;

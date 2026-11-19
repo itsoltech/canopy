@@ -2,7 +2,8 @@
 
 Status (2026-11-19): **zaimplementowane; układ v3**, menu ścieżek w rozmowie
 z kopiowaniem pełnej i względnej ścieżki, pobieraniem oraz lokalnym
-`Reveal in Finder/Explorer`, podgląd dostępnych plików spoza workspace tylko do odczytu,
+`Reveal in Finder/Explorer`, zaznaczanie i kopiowanie tekstu w podglądzie źródła
+tylko do odczytu w web/desktop, podgląd dostępnych plików spoza workspace tylko do odczytu,
 panel Diff z wirtualizowanym przeglądem zmian Git i zwiększonymi limitami odczytu
 i lokalnym szkicem review wysyłanym agentowi jako jedna wiadomość oraz wcześniejszym
 pobieraniem treści diffu poza ekranem, karta Preview w web/desktop
@@ -195,6 +196,20 @@ jedno menu `⋯`: `Keep tab` (dla podglądu), `Reload`, `Go to line`, `Copy path
 `Move right`, `Close tab`, `Close other tabs`, `Close saved tabs`) i na końcu,
 po separatorze, `Delete file`. Pasek nie powtarza nazwy pliku w osobnym miejscu
 i nie ma dwóch identycznych przycisków kopiowania.
+
+W podglądzie `Source` tylko do odczytu można zaznaczyć tekst i skopiować go
+skrótem `Ctrl+C` (`⌘C` na macOS) lub akcją `Copy text` w menu kontekstowym
+zaznaczenia. Schowek zachowuje oryginalny podział na linie, także gdy przeglądarka
+wyświetla bardzo długą linię w kilku wierszach. Polecenie `Copy text` na pasku
+kopiuje cały wczytany tekst pliku.
+
+Ręczny test regresji w web/desktop: otwórz wielowierszowy plik tekstowy tylko do
+odczytu i zaznacz fragment obejmujący pustą linię między dwiema liniami tekstu.
+Wklej wynik po użyciu skrótu, a następnie po użyciu menu kontekstowego zaznaczenia.
+W obu próbach oczekuj tego samego fragmentu z pustą linią i bez numerów linii.
+Zaznacz także dwa sąsiednie wiersze jednej długiej linii i sprawdź wynik bez
+dodatkowego znaku nowej linii. Użyj `Copy text` z paska pliku i sprawdź, czy
+wkleja się cały wczytany tekst.
 
 Pasek ma te same 40 px dla każdego typu pliku. Ścieżka trzyma lewą krawędź, kontrolki
 zachowują kolejność od prawej (`Source`/`Rendered` tylko dla Markdown, od razu po nazwie,
