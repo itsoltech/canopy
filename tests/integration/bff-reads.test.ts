@@ -3,6 +3,7 @@ import { create } from "@bufbuild/protobuf";
 import { bots, github, Provider, ProviderProfileKind, ui } from "@canopy/contracts";
 import { dockerAvailable } from "@canopy/db/testing";
 import { BffReads, type BffReadProjection } from "../../apps/web/src/lib/server/bff-reads.ts";
+import { BffOverviewState } from "../../apps/web/src/lib/server/bff-overview-state.ts";
 import { eventually, startTestGateway, type TestGateway } from "./support/gateway.ts";
 
 describe.skipIf(!dockerAvailable)("BFF shared reads", () => {
@@ -66,18 +67,20 @@ describe.skipIf(!dockerAvailable)("BFF shared reads", () => {
     }
   }, 20_000);
 
-  test("a real bot mutation revalidates the visible list and broadcasts its new projection", async () => {
+  test("bot mutations revalidate the visible list and deleting a bot updates the shared settings projection", async () => {
     const reads = new BffReads();
+    const overview = new BffOverviewState();
     const controller = new AbortController();
 
     const stream = gateway.api
-      .watchOverview({ includeSnapshot: true }, { signal: controller.signal })
+      .watchOverview({ includeSnapshot: true }, { signal: controller.signal, timeoutMs: 25_000 })
       [Symbol.asyncIterator]();
 
     const first = (await stream.next()).value;
 
     if (!first) throw new Error("The gateway did not send an overview snapshot");
     reads.apply(first);
+    overview.apply(first);
     const frames: BffReadsFrame[] = [];
     const stop = reads.listen((frame) => frames.push(frame));
 
@@ -113,7 +116,30 @@ describe.skipIf(!dockerAvailable)("BFF shared reads", () => {
         async () => frames.find((frame) => "value" in frame && frame.key === "ListBots"),
         (frame) => Boolean(frame && "value" in frame && JSON.stringify(frame.value).includes(bot.id)),
       );
+
+      const { user } = await gateway.api.getSettings({});
+
+      const { settings } = await gateway.api.updateUserSettings({
+        expectedVersion: user!.version,
+        sidebar: { pinnedBotIds: [bot.id] },
+      });
+
+      async function observeSettings(version: bigint) {
+        for (;;) {
+          const update = (await stream.next()).value;
+
+          if (!update) throw new Error("The overview stream ended before the settings update");
+          overview.apply(update);
+
+          const latest = overview.settings().user;
+
+          if (latest && latest.version >= version) return latest;
+        }
+      }
+
+      expect((await observeSettings(settings!.version)).sidebar?.pinnedBotIds).toEqual([bot.id]);
       await gateway.api.deleteBot({ botId: bot.id });
+      expect((await observeSettings(settings!.version + 1n)).sidebar?.pinnedBotIds).toEqual([]);
     } finally {
       stop();
       controller.abort();

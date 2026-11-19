@@ -1,5 +1,5 @@
 import { moduleStreamSignal, requireModuleWork } from "./module-work.ts";
-import { clone, create } from "@bufbuild/protobuf";
+import { clone, create, isMessage } from "@bufbuild/protobuf";
 import { timestampFromDate } from "@bufbuild/protobuf/wkt";
 import { bots, computerLink as link, ui } from "@canopy/contracts";
 import { nodeRef, splitId, REMOTE_WORKTREES } from "@canopy/domain/computers";
@@ -26,7 +26,12 @@ import { harnessOf } from "../store/instance-config.ts";
 import type { UiHandlers } from "./ui-service.ts";
 import { refuseRemoteWorktree, refuseRemoteBranchSwitch } from "../worktrees/remote.ts";
 import { validateUserSettings } from "../core/settings-validation.ts";
-import { coreCheckThreadDefaults, coreCliDefaultsChanged, coreModulesChanged } from "../core/core-settings.ts";
+import {
+  coreCheckThreadDefaults,
+  coreCliDefaultsChanged,
+  coreModulesChanged,
+  coreUnpinRemoteBot,
+} from "../core/core-settings.ts";
 import { coreConfigsChanged } from "../core/core-providers.ts";
 import { coreModelCatalogs, corePublishModels } from "../core/core-models.ts";
 import { receivedWorkerSetting, receiveWorkerSetting, sendWorkerSetting, settled } from "./routed-workers.ts";
@@ -105,6 +110,9 @@ export function routed(core: GatewayCore, local: UiHandlers): UiHandlers {
             );
 
             await auditHomeAction(core, "sent", method, response, home);
+
+            if (method.name === "DeleteBot" && isMessage(input, bots.DeleteBotRequestSchema))
+              await coreUnpinRemoteBot(core, input.botId);
 
             return response;
           }

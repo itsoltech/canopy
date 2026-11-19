@@ -182,6 +182,14 @@ export function messengerDispatch(sql: SqlClient.SqlClient) {
     settleSteer: (owner: string, inputId: string, applied: boolean, expectedTurnId?: string) =>
       sql.withTransaction(
         Effect.gen(function* () {
+          // A journal acknowledgement already holds this lock. A transient rejection must take it
+          // before touching the input and buffer, so it cannot race conversation retirement.
+          const bot = yield* sql`SELECT b.id FROM bot_channel_inputs i JOIN bot_turns t ON t.id=i.turn_id
+            JOIN bots b ON b.id=t.bot_id WHERE i.id=${inputId}::uuid AND b.owner_user_id=${owner}::uuid
+            AND b.deleted_at IS NULL FOR UPDATE OF b`;
+
+          if (!bot.length) return;
+
           const rows = yield* sql<{ turn_id: string; bot_id: string; text: string }>`UPDATE bot_channel_inputs i
         SET status=${applied ? "applied" : "dropped"} FROM bot_turns t JOIN bots b ON b.id=t.bot_id
         JOIN bot_channel_conversations c ON c.id=t.conversation_id

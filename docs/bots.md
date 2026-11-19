@@ -2,6 +2,8 @@
 
 Status (2026-11-19): wyłączenie modułu Bots zatrzymuje pracę botów właściciela,
 w tym tury na workerach, rutyny i dostarczanie przypomnień.
+W web/desktop akcja Delete bot jest dostępna także dla aktywnych botów.
+Usunięcie kończy pracę i odłącza źródła bota w tej samej transakcji co soft delete.
 Prywatny czat pokazuje odbiór wiadomości ze Slacka, przebieg rutyn i bieżącą czynność bota.
 W web/desktop kolejne zdarzenia w historii można rozwijać i zwijać.
 Panel Bots w web/desktop oznacza pracujące boty na przypiętych kafelkach i zwykłych wierszach.
@@ -1269,13 +1271,28 @@ Metody są częścią uwierzytelnionego `GatewayService` (ten sam interceptor us
 `GET/POST /api/bot-mcp-servers` udostępnia rejestr i zapis, a
 `POST /api/bot-mcp-servers/{id}/test` sprawdza połączenie i zwraca narzędzia.
 
-Archiwizacja w jednej transakcji usuwa przypięcie (zwiększa wersję ustawień), przerywa
-wszystkie aktywne/kolejkowane tury, odrzuca oczekujące zgody i oznacza powiadomienia wątków
-jako dostarczone, żeby je porzucić. Model/MCP jest anulowany w lokalnym gateway; inna instancja
-obserwuje unieważnienie lease. Zapisy runtime blokują bota przed turą, zgodnie z cyklem życia.
+Archiwizacja i usunięcie w jednej transakcji usuwają przypięcie (zwiększają wersję ustawień),
+przerywają aktywne i zakolejkowane tury, zamykają oczekujące zgody i porzucają powiadomienia
+z wątków. Po zatwierdzeniu gateway publikuje wersję ustawień dla otwartych widoków.
+Zmiana przypięcia podlega synchronizacji połączonych komputerów.
+Gateway wygasza oczekujące komendy uruchomienia i zapisuje przerwania do outboxa
+workera. Worker otrzymuje przerwanie także po ponownym połączeniu. Lokalny gateway anuluje
+model i MCP, a inna instancja obserwuje unieważnienie lease. Zapisy runtime blokują bota przed
+turą. Zaległy journal może rozliczyć zużycie i przesunąć kursor przerwanej tury.
 Pobudki pozostają w bazie i nie są dostarczane w archiwum; przywrócenie wznawia także zaległe.
 `send_bot_message` i odpowiedzi do archiwalnego bota nie uruchamiają go, a `list_bots` go pomija.
-Usunięcie dodatkowo anuluje pobudki i ukrywa bota oraz jego rozmowę we wszystkich odczytach.
+
+Właściciel może usunąć aktywnego albo archiwalnego bota przez ten sam `DeleteBot`. Usunięcie
+anuluje niedostarczone pobudki, kończy harmonogram rutyn z zachowaniem ich audytu, odłącza
+powiązania z połączonymi komputerami i usuwa przypisania connectorów tego bota. Zamyka jego trasy
+Slacka i odrzuca oczekujące wejścia i odpowiedzi. Jeśli gateway przejął już odpowiedź do wysłania,
+zapisuje wynik jako niepewny i nie ponawia wysyłki. Efekty zewnętrzne rozpoczęte przed usunięciem
+mogą dobiec końca. Trasy pozostałych botów, współdzielone konta, wątki i harmonogramy użytkownika
+działają dalej. Podczas przenoszenia bota usunięcie jest niedostępne.
+
+Soft delete ukrywa bota i jego rozmowę w odczytach. Rekordy historii, audyt i pliki podlegają
+dotychczasowym zasadom retencji. Pamięć robocza rozmowy na workerze pozostaje objęta retencją
+bezczynnych workspace'ów.
 
 Pola kontraktu dodane po fazie 1 (bez migracji, wyliczane przy odczycie):
 `BotMessage.failed` (pole 10) — tura zakończona błędem; `text` zawiera wtedy szczegół
@@ -1341,6 +1358,10 @@ Sama utrata łącza lub wiek prośby nie wygaszają zgody.
 Kod: `apps/web/src/lib/features/bots`, trasy `routes/bots/[botId]` i
 `routes/bots/[botId]/exchanges/[exchangeId]`. Rozmowa wygląda jak komunikator, bez narzędzi,
 JSON i składanych logów pracy.
+
+Menu wiersza i przypiętego kafelka, menu rozmowy oraz ustawienia bota mają akcję
+**Delete bot** obok **Archive bot** lub **Unarchive bot**. Wspólne potwierdzenie opisuje
+zniknięcie bota i rozmowy oraz zatrzymanie pracy, rutyn i przypomnień.
 
 Wiersze botów w sidebarze web/desktop nie pokazują pigułki komputera. Lokalne i zdalne
 boty mają tę samą wysokość 52 px; slot nieprzeczytanych wiadomości i położenie czasu są stałe.

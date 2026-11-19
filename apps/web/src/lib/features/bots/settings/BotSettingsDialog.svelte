@@ -246,15 +246,12 @@
             <p class="text-zinc-500 dark:text-zinc-400">Manage messenger accounts and routes on {home.name}.</p>
           {:else}<BotMessengers botId={bot.id} />{/if}
         </SettingsSection>
-        <SettingsSection
-          title="Danger zone"
-          description="Archive to keep the conversation and settings. Delete removes this bot and its conversation from Canopy."
-        >
+        <SettingsSection title="Danger zone" description="Archiving keeps the conversation and settings.">
           <div class="flex flex-wrap gap-2">
             <Button disabled={busy || Boolean(home.reason)} onclick={archive}
               >{bot.archived ? "Unarchive bot" : "Archive bot"}</Button
             >
-            <Button variant="danger" disabled={busy || Boolean(home.reason)} onclick={ondelete}>Delete bot…</Button>
+            <Button variant="danger" disabled={busy || Boolean(home.reason)} onclick={ondelete}>Delete bot</Button>
           </div>
         </SettingsSection>
       {/key}

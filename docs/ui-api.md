@@ -4,6 +4,7 @@ Status (2026-11-19): w web/desktop przejście z Threads do Bots pomija animację
 zamykania panelu subagentów, a powrót do Threads wymaga mniej przeliczeń układu.
 Na `dev` tło hover pierwszego nagłówka paneli kompozytora
 web/desktop mieści się w zaokrąglonym obrysie stosu.
+Akcja Delete bot w web/desktop działa także dla aktywnego bota.
 Wyszukiwarka ustawień podświetla dopasowania w otwartej sekcji z pominięciem treści dialogów.
 Boczne menu ustawień web/desktop znów pokazuje ikony obok etykiet sekcji.
 W web/desktop odmowa dostępu do schowka w trakcie parowania udostępnia w dialogu pełne zaproszenie desktopowe albo kod telefonu. Pole znika po zamknięciu dialogu, użyciu zaproszenia lub utracie jego ważności.
@@ -1389,6 +1390,11 @@ i przyrostowe aktualizacje historii jako zdarzenia nadawcy `activity`.
 
 `Bot.unread_count` (561) i `last_read_seq` (562) obejmują widoczne wiadomości bota
 do użytkownika, w tym jawne `message_user`; ukryte wykonania nie zwiększają licznika.
+
+`DeleteBot` / `DELETE /api/bots/:botId` przyjmuje aktywnego lub archiwalnego bota.
+Żądanie trafia do jego domowego gatewaya i korzysta z tej samej kontroli właściciela.
+Szczegóły zatrzymania pracy i retencji opisuje [cykl życia botów](bots.md#6-api).
+
 `MarkBotRead` / `POST /api/bots/:botId/read` potwierdza `through_seq` monotonicznie,
 z kontrolą właściciela i ograniczeniem do istniejących wiadomości. UI potwierdza
 snapshot tylko w widocznej karcie. Odpowiedź zachowuje podgląd ostatniej wiadomości.

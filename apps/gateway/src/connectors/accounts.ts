@@ -49,8 +49,9 @@ export function connectorAccounts(sql: SqlClient.SqlClient, sealing: ReturnType<
       const workers = yield* sql<{ account_id: string; id: string }>`SELECT account_id,worker_id AS id
       FROM connector_worker_grants WHERE account_id=ANY(${ids}::uuid[]) ORDER BY account_id,worker_id`;
 
-      const bots = yield* sql<{ account_id: string; id: string }>`SELECT account_id,bot_id AS id
-      FROM connector_bot_grants WHERE account_id=ANY(${ids}::uuid[]) ORDER BY account_id,bot_id`;
+      const bots = yield* sql<{ account_id: string; id: string }>`SELECT g.account_id,g.bot_id AS id
+      FROM connector_bot_grants g JOIN bots b ON b.id=g.bot_id
+      WHERE g.account_id=ANY(${ids}::uuid[]) AND b.deleted_at IS NULL ORDER BY g.account_id,g.bot_id`;
 
       const group = (grants: readonly { account_id: string; id: string }[]) => {
         const result = new Map<string, string[]>();

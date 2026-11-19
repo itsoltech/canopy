@@ -249,6 +249,17 @@ export const agentsBusToolsMethods: AgentsBusToolsMethods = {
     await this.scope.transaction(async () => {
       await requireAgentModules(this, actor.kind, targetKind(operation, args), true);
 
+      if (
+        actor.kind === "bot" &&
+        !(
+          await this.query("SELECT id FROM bots WHERE id=$1::uuid AND owner_user_id=$2::uuid AND deleted_at IS NULL", [
+            actor.id,
+            this.owner,
+          ])
+        ).length
+      )
+        return fail("Bot not found");
+
       const active = await this.query(
         "SELECT node_id FROM computer_peers WHERE owner_user_id=$1::uuid AND node_id=$2 FOR UPDATE",
         [this.owner, node],

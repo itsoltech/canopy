@@ -1,6 +1,8 @@
-import { ownerModuleEnabled } from "../store/module-access.ts";
+import { lockModuleAdmission } from "../store/module-access.ts";
 import { coreState } from "./core-context.ts";
-import { Schema } from "effect";
+import { Effect, Schema } from "effect";
+import { SqlClient } from "effect/sql";
+import { BotStore } from "../bots/store.ts";
 import type { BotSteerDelivery } from "../bots/types.ts";
 import type { GatewayCore } from "./core.ts";
 
@@ -12,11 +14,34 @@ const steerResult = Schema.decodeUnknownSync(
 export async function deliverBotSteer(core: GatewayCore, { workerId, ...input }: BotSteerDelivery): Promise<boolean> {
   const { runtime, userId } = core[coreState].options;
 
-  if (!(await runtime.runPromise(ownerModuleEnabled(userId, "bots")))) return false;
-  const connection = core.link.connections.get(workerId);
+  const delivery = await runtime.runPromise(
+    Effect.gen(function* () {
+      const sql = yield* SqlClient.SqlClient;
 
-  if (!connection?.isOpen || !connection.hello.capabilities.includes("bot_steer_v1")) return false;
-  const result = await connection.sendCommand({ case: "steerBotTurn", value: input }, 10_000, input.inputId);
+      return yield* sql.withTransaction(
+        Effect.gen(function* () {
+          yield* lockModuleAdmission(sql, userId);
+
+          if (!(yield* BotStore.use((s) => s.harnessAuthorized(userId, workerId, input.botId, input.turnId))))
+            return undefined;
+
+          const connection = core.link.connections.get(workerId);
+
+          if (!connection?.isOpen || !connection.hello.capabilities.includes("bot_steer_v1")) return undefined;
+          // Hand off before deletion can commit. The ACK can arrive after the transaction ends.
+          const pending = connection.sendCommand({ case: "steerBotTurn", value: input }, 10_000, input.inputId);
+
+          void pending.catch(() => {});
+
+          return { pending };
+        }),
+      );
+    }),
+  );
+
+  if (!delivery) return false;
+
+  const result = await delivery.pending;
 
   return result.ok && (!result.dataJson || steerResult(JSON.parse(result.dataJson)).status !== "unsupported");
 }

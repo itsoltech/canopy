@@ -1,11 +1,33 @@
 import { createHash } from "node:crypto";
 import { setTimeout as delay } from "node:timers/promises";
 import { SlackMessenger, SlackMessengerError, validateSlackAccount } from "./slack.ts";
-import type { AccountLease, MessengerAccount, MessengerCredentials } from "./types.ts";
+import type { AccountLease, MessengerAccount, MessengerCredentials, OutboundMessage, OutboundResult } from "./types.ts";
 import type { MessengerRuntime } from "./runtime.ts";
 
 export const credentialKey = (credentials: MessengerCredentials) =>
   createHash("sha256").update(JSON.stringify(credentials)).digest("hex");
+
+async function sendReply(
+  adapter: SlackMessenger,
+  message: OutboundMessage,
+  signal: AbortSignal,
+): Promise<OutboundResult> {
+  try {
+    await adapter.send(message, signal);
+
+    return { sent: true };
+  } catch (error) {
+    const retryable = error instanceof SlackMessengerError && error.kind === "retryable";
+    const refused = error instanceof SlackMessengerError && error.kind === "configuration";
+
+    return {
+      sent: false,
+      uncertain: !retryable && !refused,
+      refused,
+      ...(retryable && { retryAfterMs: error.retryAfterMs ?? 5000 }),
+    };
+  }
+}
 
 /** One leased incoming connection and its serial outgoing queue. */
 export class MessengerAccountSession {
@@ -93,45 +115,18 @@ export class MessengerAccountSession {
     const rows = await this.runtime.run((s) => s.outbound(this.runtime.owner, this.lease, this.runtime.now()));
 
     for (const message of rows) {
-      if (this.abort.signal.aborted || !(await this.runtime.enabled())) {
-        await this.runtime.run((s) =>
-          s.settleOutbound(
-            this.runtime.owner,
-            this.lease,
-            message.id,
-            { sent: false, retryAfterMs: 1000 },
-            this.runtime.now(),
-          ),
-        );
-        continue;
-      }
+      const delivery = this.abort.signal.aborted
+        ? undefined
+        : await this.runtime.run((s) =>
+            s.sendClaimed(this.runtime.owner, this.lease, message.id, this.runtime.now(), () =>
+              sendReply(adapter, message, this.abort.signal),
+            ),
+          );
 
-      try {
-        await adapter.send(message, this.abort.signal);
-        await this.runtime.run((s) =>
-          s.settleOutbound(this.runtime.owner, this.lease, message.id, { sent: true }, this.runtime.now()),
-        );
-      } catch (error) {
-        const retryable = error instanceof SlackMessengerError && error.kind === "retryable";
-        const refused = error instanceof SlackMessengerError && error.kind === "configuration";
-        await this.runtime.run((s) =>
-          s.settleOutbound(
-            this.runtime.owner,
-            this.lease,
-            message.id,
-            {
-              sent: false,
-              uncertain: !retryable && !refused,
-              refused,
-              ...(retryable && { retryAfterMs: error.retryAfterMs ?? 5000 }),
-            },
-            this.runtime.now(),
-          ),
-        );
-
-        // A refused message can be specific to its size or channel. Connection/authentication
-        // failures are handled by the receiving lifecycle, without disabling other routes here.
-      }
+      const result = delivery ? await delivery.completion : { sent: false, retryAfterMs: 1000 };
+      await this.runtime.run((s) =>
+        s.settleOutbound(this.runtime.owner, this.lease, message.id, result, this.runtime.now()),
+      );
     }
   }
 

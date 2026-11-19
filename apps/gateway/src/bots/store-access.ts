@@ -1,9 +1,10 @@
 import { create } from "@bufbuild/protobuf";
-import { bots } from "@canopy/contracts";
+import { bots, TurnEndSource, TurnOutcome } from "@canopy/contracts";
 import { connectorStore } from "../connectors/store.ts";
 import { Effect } from "effect";
 import { SqlClient } from "effect/sql";
 import { lockedOwnerModule, moduleDisabledMessage } from "../store/module-access.ts";
+import { fenceBotWorkerCommands } from "../store/module-worker-commands.ts";
 import { decryptSecret } from "../store/secrets.ts";
 import { Invalid, NotFound } from "../store/store.ts";
 import { stoppedRoutineActivity } from "./routine-activity.ts";
@@ -46,15 +47,12 @@ export function botAccess(sql: SqlClient.SqlClient, key: Buffer) {
       ),
     );
 
-  const unpin = (
-    user: string,
-    id: string,
-  ) => sql`UPDATE user_settings SET settings = jsonb_set(settings, '{sidebar,pinnedBotIds}',
-    coalesce((SELECT jsonb_agg(v) FROM jsonb_array_elements_text(settings #> '{sidebar,pinnedBotIds}') v WHERE v <> ${id}), '[]'::jsonb)),
-    version = version + 1, updated_at = now() WHERE user_id = ${user}::uuid AND settings #> '{sidebar,pinnedBotIds}' ? ${id}`;
-
-  const stopTurns = (id: string) =>
+  const stopTurns = (user: string, id: string, reason: string) =>
     Effect.gen(function* () {
+      const workers = yield* fenceBotWorkerCommands(sql, user, id);
+      yield* sql`UPDATE bot_harness_turns SET outcome = ${TurnOutcome.INTERRUPTED}, source = ${TurnEndSource.SYSTEM},
+        reason = ${reason}, finished_at = now() WHERE bot_id = ${id}::uuid AND outcome IS NULL`;
+
       const stopped = yield* sql<{
         id: string;
       }>`UPDATE bot_turns SET status = 'interrupted', finished_at = now(), lease_token = NULL, lease_until = NULL WHERE bot_id = ${id}::uuid AND status IN ('queued','running','waiting') RETURNING id`;
@@ -65,6 +63,11 @@ export function botAccess(sql: SqlClient.SqlClient, key: Buffer) {
       );
       yield* sql`UPDATE bot_approvals SET status = 'expired', answered_at = now() WHERE bot_id = ${id}::uuid AND status = 'pending'`;
       yield* sql`UPDATE bot_thread_watches SET delivered = true WHERE bot_id = ${id}::uuid AND NOT delivered`;
+      yield* sql`UPDATE bot_tool_calls SET status = 'interrupted', result = jsonb_build_object('error',
+        CASE WHEN status = 'running' THEN 'Interrupted during execution. The outcome is unknown. Ask before retrying.' ELSE ${reason}::text END)
+        WHERE turn_id = ANY(${stopped.map((turn) => turn.id)}::uuid[]) AND status IN ('pending','running')`;
+
+      return workers;
     });
 
   const fenced = (turn: BotTurn) =>
@@ -133,7 +136,6 @@ export function botAccess(sql: SqlClient.SqlClient, key: Buffer) {
     owned,
     changed,
     active,
-    unpin,
     stopTurns,
     fenced,
     secret,

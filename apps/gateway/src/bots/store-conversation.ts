@@ -4,6 +4,7 @@ import { bots, connectors } from "@canopy/contracts";
 import { Effect } from "effect";
 import { SqlClient } from "effect/sql";
 import { conversationActivity } from "./conversation-activity.ts";
+import { lockModuleAdmission } from "../store/module-access.ts";
 import { Invalid } from "../store/store.ts";
 import { modelInput, storedMentions } from "./mentions.ts";
 import { nextHop } from "./policy.ts";
@@ -235,6 +236,7 @@ export function botMcp(sql: SqlClient.SqlClient, core: BotCore) {
     deleteServer: (user: string, id: string) =>
       sql.withTransaction(
         Effect.gen(function* () {
+          yield* lockModuleAdmission(sql, user);
           yield* server(user, id);
           yield* connections.disconnect(user, id);
           yield* sql`DELETE FROM connector_bot_grants WHERE account_id=${id}::uuid`;

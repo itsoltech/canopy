@@ -40,8 +40,6 @@ function headerProblem(headers: Readonly<Record<string, string>>): string {
 export function connectorWrites(sql: SqlClient.SqlClient, base: ConnectorBase, key: Buffer) {
   const { owned, seal, credentials, view, audit } = base;
 
-  const checkWorkers = (user: string, ids: readonly string[]) => activeWorkers(sql, user, ids);
-
   return {
     /** `receipt` runs last in the same transaction with the saved account (imports, docs/import.md "Blokady"). */
     save: (
@@ -145,7 +143,7 @@ export function connectorWrites(sql: SqlClient.SqlClient, base: ConnectorBase, k
           if (request.workerIds.length > 256 || request.botIds.length > 256)
             return yield* fail("Too many connector grants");
 
-          yield* checkWorkers(user, request.workerIds);
+          yield* activeWorkers(sql, user, request.workerIds);
 
           for (const id of new Set(request.botIds))
             if (
@@ -167,6 +165,7 @@ export function connectorWrites(sql: SqlClient.SqlClient, base: ConnectorBase, k
 
           return yield* view(yield* owned(user, row.id));
         }),
+        user,
       ),
     /** A linked computer's edit: only this computer's workers' grants; account and bot access stay as they are. */
     workerAccess: (user: string, accountId: string, workerIds: readonly string[]) =>
@@ -177,7 +176,7 @@ export function connectorWrites(sql: SqlClient.SqlClient, base: ConnectorBase, k
           const row = yield* owned(user, accountId, true);
 
           if (workerIds.length > 256) return yield* fail("Too many connector grants");
-          yield* checkWorkers(user, workerIds);
+          yield* activeWorkers(sql, user, workerIds);
           yield* sql`DELETE FROM connector_worker_grants WHERE account_id=${row.id}::uuid`;
 
           for (const id of new Set(workerIds))

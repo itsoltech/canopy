@@ -2,7 +2,9 @@ import { create, fromJson } from "@bufbuild/protobuf";
 import { bots, Provider } from "@canopy/contracts";
 import { Effect, Predicate } from "effect";
 import { SqlClient } from "effect/sql";
-import { lockModuleAdmission } from "../store/module-access.ts";
+import { lockModuleAdmission, lockModuleChanges } from "../store/module-access.ts";
+import { configLock } from "../config-sync/persistence.ts";
+import { unpinBot } from "../store/settings.ts";
 import { Invalid } from "../store/store.ts";
 import { harnessOf, providerOf, type InstanceRow } from "../store/instance-config.ts";
 import type { BotRow, BotTurn, StoredCall } from "./types.ts";
@@ -18,10 +20,11 @@ import {
 } from "./store-views.ts";
 import type { BotCore } from "./store-queue.ts";
 import { botThreadApprovals } from "./thread-approvals.ts";
+import { retireBotResources } from "./retire-resources.ts";
 
 /** Bots: handoffs, models, lifecycle and creation by another bot. */
 export function botMethods(sql: SqlClient.SqlClient, core: BotCore) {
-  const { owned, active, unpin, stopTurns, fenced, catalogs, save, creationHop } = core;
+  const { owned, active, stopTurns, fenced, catalogs, save, creationHop } = core;
 
   return {
     finishHandoff: (turn: BotTurn, model: string, note: string, reason = "") =>
@@ -77,17 +80,17 @@ export function botMethods(sql: SqlClient.SqlClient, core: BotCore) {
       sql.withTransaction(
         Effect.gen(function* () {
           yield* lockModuleAdmission(sql, user);
+
+          if (archived) yield* configLock(sql, user);
           yield* owned(user, id, true);
 
           const row =
             (yield* sql<BotRow>`UPDATE bots SET archived_at = ${archived ? new Date() : null}, status_line = '', revision = revision + 1, updated_at = now() WHERE id = ${id}::uuid RETURNING *`)[0]!;
 
-          if (archived) {
-            yield* stopTurns(id);
-            yield* unpin(user, id);
-          }
+          const workers = archived ? yield* stopTurns(user, id, "Bot archived") : [];
+          const settings = archived ? yield* unpinBot(sql, user, id) : undefined;
 
-          return botView(row);
+          return { bot: botView(row), workers, settings };
         }),
       ),
     createFromBot: (user: string, turn: BotTurn, call: StoredCall) =>
@@ -141,12 +144,20 @@ export function botMethods(sql: SqlClient.SqlClient, core: BotCore) {
     remove: (user: string, id: string) =>
       sql.withTransaction(
         Effect.gen(function* () {
-          yield* lockModuleAdmission(sql, user);
-          yield* owned(user, id, true);
-          yield* sql`UPDATE bots SET deleted_at = now(), status_line = '', revision = revision + 1 WHERE id = ${id}::uuid`;
-          yield* stopTurns(id);
-          yield* unpin(user, id);
-          yield* sql`UPDATE bot_wakeups SET cancelled = true WHERE bot_id = ${id}::uuid`;
+          // Slack ingest locks the account before its conversations and never locks the bot.
+          // Serialize admission before acquiring the rows needed to retire those conversations.
+          yield* lockModuleChanges(sql, user);
+          yield* configLock(sql, user);
+          const bot = yield* owned(user, id, true);
+
+          if (bot.moved_to) return yield* Effect.fail(new Invalid("this bot is moving to another computer"));
+          yield* sql`UPDATE bots SET deleted_at = now(), status_line = '', revision = revision + 1,
+            updated_at = now() WHERE id = ${id}::uuid`;
+          const workers = yield* stopTurns(user, id, "Bot deleted");
+          const settings = yield* unpinBot(sql, user, id);
+          yield* retireBotResources(sql, user, id);
+
+          return { workers, settings };
         }),
       ),
   };

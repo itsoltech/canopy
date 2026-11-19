@@ -50,8 +50,8 @@ export function conversationMenu(
       onselect: () => void onArchive(conversation),
     });
 
-  if (onDelete && conversation.archived)
-    items.push({ label: "Delete bot…", icon: "trash", onselect: () => onDelete(conversation) });
+  if (onDelete && conversation.kind === "direct")
+    items.push({ label: "Delete bot", icon: "trash", onselect: () => onDelete(conversation) });
 
   return items;
 }

@@ -122,6 +122,27 @@ const toProject = (projectId: string, row: Row | undefined) =>
     ...(row && { updatedAt: timestampFromDate(new Date(row.updated_at)) }),
   });
 
+/** The caller holds the config clock before acquiring lifecycle or settings rows. */
+export function unpinBot(sql: SqlClient.SqlClient, owner: string, botId: string) {
+  return Effect.gen(function* () {
+    const [before] = yield* sql<Row>`SELECT settings, version, updated_at FROM user_settings
+      WHERE user_id = ${owner}::uuid AND settings #> '{sidebar,pinnedBotIds}' ? ${botId} FOR UPDATE`;
+
+    if (!before) return undefined;
+
+    const [after] = yield* sql<Row>`UPDATE user_settings SET settings = jsonb_set(settings, '{sidebar,pinnedBotIds}',
+      coalesce((SELECT jsonb_agg(pin.value ORDER BY pin.position)
+        FROM jsonb_array_elements_text(settings #> '{sidebar,pinnedBotIds}') WITH ORDINALITY AS pin(value, position)
+        WHERE pin.value <> ${botId}), '[]'::jsonb)),
+      version = version + 1, updated_at = now() WHERE user_id = ${owner}::uuid
+      RETURNING settings, version, updated_at`;
+
+    yield* configSettingsChanged(sql, owner, { ...before.settings }, { ...after!.settings });
+
+    return toUser(after);
+  });
+}
+
 /** Writes `next` if the stored version is still `expected` (0 = nothing stored yet). */
 const write = <R extends Row>(input: {
   current: R | undefined;
