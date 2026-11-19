@@ -1,5 +1,4 @@
 import { dlopen, ptr } from "bun:ffi";
-import { readFileSync, statSync } from "node:fs";
 import type { Sharp } from "sharp";
 import type { AttachmentRejected } from "./rejected.ts";
 
@@ -7,6 +6,8 @@ const native = () =>
   dlopen("kernel32.dll", {
     CreateFileW: { args: ["ptr", "u32", "u32", "ptr", "u32", "u32", "u64"], returns: "u64" },
     LockFileEx: { args: ["u64", "u32", "u32", "u32", "u32", "ptr"], returns: "i32" },
+    GetFileSizeEx: { args: ["u64", "ptr"], returns: "i32" },
+    ReadFile: { args: ["u64", "ptr", "u32", "ptr", "ptr"], returns: "i32" },
     CloseHandle: { args: ["u64"], returns: "i32" },
   });
 
@@ -40,9 +41,20 @@ export async function windowsEncodedOutput(
         throw rejected();
       });
 
-    if (statSync(path).size > maxBytes) throw rejected();
+    const size = Buffer.alloc(8);
 
-    return { data: readFileSync(path), info };
+    if (!symbols.GetFileSizeEx(handle, ptr(size))) throw rejected();
+    const length = Number(size.readBigUInt64LE());
+
+    if (!length || length > maxBytes) throw rejected();
+    const data = Buffer.alloc(length);
+    const count = Buffer.alloc(4);
+
+    // Reading by path can request a larger range than the file and collide with the lock past its end.
+    if (!symbols.ReadFile(handle, ptr(data), length, ptr(count), null) || count.readUInt32LE() !== length)
+      throw rejected();
+
+    return { data, info };
   } finally {
     symbols.CloseHandle(handle); // Releases the lock as well, including on encoder failure.
   }

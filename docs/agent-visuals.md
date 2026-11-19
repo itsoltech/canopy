@@ -162,8 +162,9 @@ powtórzeniu tego samego ID zwraca tę samą galerię. Brak jednego pliku odrzuc
 całą partię z indeksem błędu; nie ma cichej częściowej publikacji.
 
 Na Windows gateway tworzy plik wyjściowy kodera przez `CreateFileW` i blokuje
-zapis od granicy limitu przez `LockFileEx` na tym samym uchwycie. Przekazanie
-deskryptora Bun do osobnej biblioteki C mogło zakończyć cały proces gatewaya.
+zapis od granicy limitu przez `LockFileEx`. Po kodowaniu sprawdza rozmiar
+i odczytuje dokładnie tyle bajtów przez ten sam uchwyt. Przekazanie deskryptora
+Bun do osobnej biblioteki C mogło zakończyć cały proces gatewaya.
 Test Windows uruchamia rzeczywisty koder i sprawdza odczyt poprawnego obrazu
 oraz odrzucenie wyniku przekraczającego limit bajtów.
 
