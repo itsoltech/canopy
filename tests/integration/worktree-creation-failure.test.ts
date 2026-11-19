@@ -148,7 +148,7 @@ test("rollback removes the incomplete checkout, its registration and branch whil
   const branches = f.branches();
   const rollback = await stageInterruptedCheckout(f);
 
-  expect(await rollback()).toBe(true);
+  expect(await rollback()).toBe("removed");
   expect(existsSync(f.tree.path)).toBe(false);
   expect(existsSync(f.admin)).toBe(false);
   expect(f.worktrees()).toBe(before);
@@ -171,7 +171,7 @@ test.each(["edited tracked file", "untracked file", "directory link"] as const)(
     if (change === "directory link") symlinkSync(outside, backup, process.platform === "win32" ? "junction" : "dir");
     else writeFileSync(backup, "user data");
 
-    expect(await rollback()).toBe(false);
+    expect(await rollback()).toBe("checkout changed");
     expect(existsSync(f.admin)).toBe(true);
     expect(git(f.repo, "rev-parse", `refs/heads/${f.tree.branch}`)).toBe(f.tree.commit);
     expect(readFileSync(join(outside, "keep.txt"), "utf8")).toBe("outside");
@@ -188,7 +188,7 @@ test("rollback preserves an incomplete checkout whose index lock contains data",
   const lock = join(f.admin, "index.lock");
   writeFileSync(lock, "index data");
 
-  expect(await rollback()).toBe(false);
+  expect(await rollback()).toBe("index changed");
   expect(existsSync(f.tree.path)).toBe(true);
   expect(readFileSync(lock, "utf8")).toBe("index data");
   expect(git(f.repo, "rev-parse", `refs/heads/${f.tree.branch}`)).toBe(f.tree.commit);

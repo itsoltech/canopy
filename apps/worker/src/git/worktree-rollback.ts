@@ -23,6 +23,15 @@ interface Reservation {
   readonly metadata: string;
 }
 
+type RollbackResult =
+  | "removed"
+  | "registration changed"
+  | "metadata changed"
+  | "index changed"
+  | "checkout changed"
+  | "branch changed"
+  | "resources remain";
+
 export async function registeredWorktrees(repo: string): Promise<string[][]> {
   const list = await git(repo, ["worktree", "list", "--porcelain", "-z"]);
 
@@ -173,15 +182,16 @@ async function discardCheckout(
   marker: string,
   reservation: Reservation,
   interrupted: boolean,
-): Promise<boolean> {
+): Promise<RollbackResult> {
   const { metadata } = reservation;
   const admin = physicalDirectory(metadata);
   const target = physicalDirectory(tree.path);
   const expires = performance.now() + GIT_TIMEOUT_MS;
 
   // A missing directory may have been moved away with its .git backlink intact.
-  if (!target || !sameEntry(reservation.checkout, target) || !admin || !ownsMetadata(tree, metadata, marker))
-    return false;
+  if (!target || !sameEntry(reservation.checkout, target)) return "checkout changed";
+
+  if (!admin || !ownsMetadata(tree, metadata, marker)) return "registration changed";
 
   const adminPlan = await inspectDirectory(
     metadata,
@@ -190,7 +200,9 @@ async function discardCheckout(
     expires,
   );
 
-  if (!adminPlan || !(await checkIndex(tree, metadata, interrupted))) return false;
+  if (!adminPlan) return "metadata changed";
+
+  if (!(await checkIndex(tree, metadata, interrupted))) return "index changed";
   const tracked = await trackedFiles(repo, tree.commit);
   const link = join(tree.path, ".git");
 
@@ -207,15 +219,15 @@ async function discardCheckout(
     expires,
   );
 
-  if (
-    !plan ||
-    !(await stillOwned(repo, tree, marker)) ||
-    !ownsMetadata(tree, metadata, marker) ||
-    !directoryStillMatches(metadata, adminPlan)
-  )
-    return false;
+  if (!plan) return "checkout changed";
 
-  return removeInspectedDirectory(tree.path, plan) && removeInspectedDirectory(metadata, adminPlan);
+  if (!(await stillOwned(repo, tree, marker)) || !ownsMetadata(tree, metadata, marker)) return "registration changed";
+
+  if (!directoryStillMatches(metadata, adminPlan)) return "metadata changed";
+
+  return removeInspectedDirectory(tree.path, plan) && removeInspectedDirectory(metadata, adminPlan)
+    ? "removed"
+    : "resources remain";
 }
 
 async function ownsBranch(repo: string, ref: string, marker: string): Promise<boolean> {
@@ -246,20 +258,18 @@ export const rollbackWorktree = (
   marker: string,
   reservation: Reservation | undefined,
   interrupted: boolean,
-): Promise<boolean> =>
+): Promise<RollbackResult> =>
   freshGit(async () => {
     const ref = `refs/heads/${tree.branch}`;
     const entries = await registeredWorktrees(repo);
 
     if (atPath(entries, tree.path).length) {
-      if (
-        !reservation ||
-        !(await stillOwned(repo, tree, marker)) ||
-        !(await discardCheckout(repo, tree, marker, reservation, interrupted))
-      )
-        return false;
+      if (!reservation || !(await stillOwned(repo, tree, marker))) return "registration changed";
+      const discarded = await discardCheckout(repo, tree, marker, reservation, interrupted);
+
+      if (discarded !== "removed") return discarded;
     } else {
-      if (reservation && statPath(reservation.metadata)) return false;
+      if (reservation && statPath(reservation.metadata)) return "registration changed";
       const target = physicalDirectory(tree.path);
 
       if (target && reservation && sameEntry(reservation.checkout, target)) {
@@ -271,14 +281,14 @@ export const rollbackWorktree = (
     const current = await git(repo, ["show-ref", "--verify", "--quiet", ref]);
     const remains = Boolean(statPath(tree.path));
 
-    if (!current.ok) return current.stderr === "" && !remains;
+    if (!current.ok) return current.stderr === "" && !remains ? "removed" : "resources remain";
 
     if (
       !(await ownsBranch(repo, ref, marker)) ||
       (await registeredWorktrees(repo)).some((record) => record.includes(`branch ${ref}`))
     )
-      return false;
+      return "branch changed";
     const deleted = await git(repo, ["update-ref", "--no-deref", "-d", ref, tree.commit]);
 
-    return deleted.ok && !remains;
+    return deleted.ok && !remains ? "removed" : "resources remain";
   });

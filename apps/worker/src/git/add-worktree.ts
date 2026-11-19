@@ -72,7 +72,8 @@ export async function addWorktree(repo: string, tree: NewWorktree, timeoutMs = W
 
     const cleaned =
       (!interrupted || interrupted.treeTerminated) &&
-      (await rollbackWorktree(repo, tree, marker, reservation, Boolean(interrupted)).catch(() => false));
+      (await rollbackWorktree(repo, tree, marker, reservation, Boolean(interrupted)).catch(() => undefined)) ===
+        "removed";
 
     if (cleaned) throw error;
 
