@@ -57,8 +57,8 @@ Jeżeli `fix`, `perf` lub revert naprawia zachowanie wprowadzone przez zmianę j
 wcześniej, dodaj w body PR lub commita osobną linię ze wskazaniem **oryginalnego PR** albo SHA
 squash commita. Zachowaj ją w body końcowego squasha.
 
-Automatyczna promocja wstrzymuje wskazaną zmianę **i wszystko, co weszło po niej**, aż poprawka
-odstoi 24 h. Dlatego:
+Automatyczna promocja wstrzymuje wskazaną zmianę **i wszystko, co weszło po niej**, do czasu, gdy poprawka
+przejdzie okres obserwacji danego kanału albo upłynie limit blokady opisany w [zasadach promocji](release.md). Dlatego:
 
 - wskazuj tylko PR, który wprowadził naprawiany błąd, a nie PR, który jedynie dotykał tego
   samego kodu albo daje kontekst;

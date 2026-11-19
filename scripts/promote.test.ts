@@ -7,11 +7,12 @@ import { join } from "node:path";
 import { isJsonObject, type JsonValue } from "@canopy/domain";
 import { burnInDays, promotionSummary, runPromotion, type PromotionOptions } from "./promote.ts";
 import { loadPromotion, type PromotionAdapters } from "./promotion-data.ts";
-import { DAY } from "./promotion-policy.ts";
+import { finishPromotion, preparePromotion } from "./promotion-journal.ts";
+import { DAY, HOLD_CAP_DAYS } from "./promotion-policy.ts";
 
 const dirs: string[] = [];
 const now = Date.parse("2026-11-10T12:00:00Z");
-const options: PromotionOptions = { dryRun: false, paused: false, override: false, burnIn: 3 };
+const options: PromotionOptions = { dryRun: false, paused: false, override: false, burnIn: 1 };
 
 afterEach(() => {
   for (const dir of dirs.splice(0)) rmSync(dir, { recursive: true, force: true });
@@ -136,7 +137,7 @@ function fixture() {
 test("promotes a soaked ancestor, relies on the push for Release, and leaves newer dev commits behind", async () => {
   const f = fixture();
   f.commit("feat: original", 50);
-  const fix = f.commit("fix: correction", 49);
+  const fix = f.commit("fix: correction", 6);
   f.release(fix, "v0.2.0-nightly.2");
   const head = f.commit("feat: newer unrelated", 1, "other.ts");
   const result = await runPromotion("fixture/canopy", "dev-next", options, f.adapters, now);
@@ -216,8 +217,8 @@ test("stable promotes an older published beta and measures burn-in from the mani
   const f = fixture();
   const old = f.commit("feat: original", 200, "a.ts");
   const young = f.commit("feat: later beta", 150, "b.ts");
-  f.release(old, "v0.2.0-beta.1", 100, 73);
-  f.release(young, "v0.2.0-beta.2", 90, 24);
+  f.release(old, "v0.2.0-beta.1", 100, 24);
+  f.release(young, "v0.2.0-beta.2", 90, 23);
   f.git("push", "origin", `${young}:refs/heads/next`);
 
   for (const sha of [old, young])
@@ -415,6 +416,22 @@ test("a failed history update is repaired without dispatching or pushing again a
   expect(status).not.toContain("canopy-promotion-pending");
 });
 
+test("a large promotion backlog fits the GitHub issue before and after the push", () => {
+  const f = fixture();
+  const summary = `Candidate: ${f.baseline}\n${"- Included commit with a long subject\n".repeat(2_000)}`;
+  const pending = preparePromotion("fixture/canopy", "next-main", f.baseline, summary, f.adapters);
+  expect(pending.body.length).toBeLessThanOrEqual(65_536);
+  expect(pending.body).toContain(`<!-- canopy-promotion-pending: ${f.baseline} -->`);
+  finishPromotion("fixture/canopy", "main", f.baseline, pending, f.adapters);
+  const update = f.writes.at(-1)?.body;
+  const receipt = isJsonObject(update) ? update["body"] : undefined;
+  expect(receipt).toBeString();
+  expect(String(receipt).length).toBeLessThanOrEqual(65_536);
+  expect(receipt).toContain(`Candidate: ${f.baseline}`);
+  expect(receipt).toContain(`Pushed ${f.baseline} to main`);
+  expect(receipt).not.toContain("canopy-promotion-pending");
+});
+
 test("untagged fallback requires all four successful smoke jobs; skipped smoke cannot promote", async () => {
   const f = fixture();
   const sha = f.commit("feat: no tag", 50);
@@ -501,10 +518,10 @@ test("stable is held by a known dev fix that has not been published as beta", as
 
 test("automatic beta expires a linked hold, reports it in the plan and journal, and leaves the fix for later", async () => {
   const f = fixture();
-  const feature = f.commit("feat: original", 72);
+  const feature = f.commit("feat: original", 30);
   f.release(feature, "v0.2.0-nightly.1");
   const fix = f.commit(`fix: pending repair\n\nRefs: ${feature}`, 1, "other.ts");
-  const automatic = { ...options, holdCapDays: 2 };
+  const automatic = { ...options, holdCapDays: HOLD_CAP_DAYS };
   const held = await runPromotion("fixture/canopy", "dev-next", automatic, f.adapters, now);
   expect(held.plan.sha).toBe(f.baseline);
   expect(held.plan.expiredHolds).toEqual([]);
@@ -512,29 +529,29 @@ test("automatic beta expires a linked hold, reports it in the plan and journal, 
   const expired = await runPromotion("fixture/canopy", "dev-next", automatic, f.adapters, now + 1);
   expect(expired.plan.sha).toBe(feature);
   expect(expired.plan.holds).toEqual([]);
-  expect(promotionSummary(expired.input, expired.plan)).toContain(`hold expired after 2 d: ${fix}: explicit SHA`);
-  expect(JSON.stringify(f.writes)).toContain("hold expired after 2 d:");
+  expect(promotionSummary(expired.input, expired.plan)).toContain(`hold expired after 1 d: ${fix}: explicit SHA`);
+  expect(JSON.stringify(f.writes)).toContain("hold expired after 1 d:");
   expect(JSON.stringify(f.writes)).not.toContain("Promotion stalled:");
   expect(f.git("ls-remote", "origin", "refs/heads/next")).toStartWith(feature);
   expect(f.git("ls-remote", "origin", "refs/heads/dev")).toStartWith(fix);
 });
 
-test("automatic stable expires a known dev fix only after three days since beta eligibility", async () => {
+test("automatic stable expires a known dev fix only after one day of beta eligibility", async () => {
   const f = fixture();
   const beta = f.commit("feat: beta feature", 240);
-  f.release(beta, "v0.2.0-beta.1", 144);
+  f.release(beta, "v0.2.0-beta.1", 48);
   f.git("push", "origin", `${beta}:refs/heads/next`);
   f.runs.set(beta, [
     { head_sha: beta, head_branch: "next", status: "completed", conclusion: "success", run_number: 1, run_attempt: 1 },
   ]);
   const fix = f.commit(`fix: pending repair\n\nRefs: ${beta}`, 1, "other.ts");
-  const automatic = { ...options, holdCapDays: 3 };
+  const automatic = { ...options, holdCapDays: HOLD_CAP_DAYS };
   const held = await runPromotion("fixture/canopy", "next-main", automatic, f.adapters, now);
   expect(held.plan.sha).toBe(f.baseline);
-  expect(held.plan.holds[0]?.since).toBe(now - 3 * DAY);
+  expect(held.plan.holds[0]?.since).toBe(now - DAY);
   const expired = await runPromotion("fixture/canopy", "next-main", automatic, f.adapters, now + 1);
   expect(expired.plan.sha).toBe(beta);
-  expect(promotionSummary(expired.input, expired.plan)).toContain(`hold expired after 3 d: ${fix}: explicit SHA`);
+  expect(promotionSummary(expired.input, expired.plan)).toContain(`hold expired after 1 d: ${fix}: explicit SHA`);
   expect(f.git("ls-remote", "origin", "refs/heads/main")).toStartWith(beta);
 });
 
@@ -556,7 +573,7 @@ test("automatic labels and release-blockers never expire and still create or upd
           labels: [{ name: "promotion-hold" }],
         },
       ]);
-    const automatic = { ...options, holdCapDays: 2 };
+    const automatic = { ...options, holdCapDays: HOLD_CAP_DAYS };
     const result = await runPromotion("fixture/canopy", "dev-next", automatic, f.adapters, now);
     expect(result.plan.sha).toBe(f.baseline);
     expect(result.plan.starved).toBe(true);
@@ -613,8 +630,8 @@ test("a stable hotfix reached through a second-parent backmerge is retained duri
 
 test("dry-run forecasts the next soaked prefix using current CI and hold evidence only", async () => {
   const f = fixture();
-  f.commit("feat: original", 24.5);
-  const fix = f.commit("fix: feature repair", 23.5);
+  f.commit("feat: original", 6.5);
+  const fix = f.commit("fix: feature repair", 5.5);
   f.release(fix, "v0.2.0-nightly.2");
   const result = await runPromotion("fixture/canopy", "dev-next", { ...options, dryRun: true }, f.adapters, now);
   expect(result.plan.sha).toBe(f.baseline);
@@ -634,14 +651,14 @@ test("dry-run forecasts the next soaked prefix using current CI and hold evidenc
 
 test("dry-run forecasts strict hold expiry before the pending fix soaks", async () => {
   const f = fixture();
-  const feature = f.commit("feat: original", 72);
+  const feature = f.commit("feat: original", 30);
   f.release(feature, "v0.2.0-nightly.1");
   f.commit(`fix: pending repair\n\nRefs: ${feature}`, 1, "other.ts");
 
   const result = await runPromotion(
     "fixture/canopy",
     "dev-next",
-    { ...options, dryRun: true, holdCapDays: 2 },
+    { ...options, dryRun: true, holdCapDays: HOLD_CAP_DAYS },
     f.adapters,
     now,
   );

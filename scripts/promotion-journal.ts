@@ -6,6 +6,22 @@ interface JournalEntry {
   body: string;
 }
 
+/** Leave room within GitHub's 65,536-character limit for the pending marker and the push receipt. */
+export function promotionIssueSummary(repo: string, summary: string): string {
+  const limit = 64_000;
+
+  if (summary.length <= limit) return summary;
+  const run = process.env["GITHUB_RUN_ID"];
+
+  const note = run
+    ? `\n\nFull promotion plan: https://github.com/${repo}/actions/runs/${run}\n`
+    : "\n\nSee the promotion log for the full plan.\n";
+
+  const end = summary.lastIndexOf("\n", limit - note.length);
+
+  return summary.slice(0, Math.max(0, end)) + note;
+}
+
 export function preparePromotion(
   repo: string,
   path: string,
@@ -15,7 +31,7 @@ export function preparePromotion(
 ) {
   const title = `Promotion history: ${path}`;
   const existing = promotionIssues(repo, adapters).find((issue) => issue.title === title);
-  const body = `${summary}\n<!-- canopy-promotion-pending: ${sha} -->\n`;
+  const body = `${promotionIssueSummary(repo, summary)}\n<!-- canopy-promotion-pending: ${sha} -->\n`;
 
   if (!existing)
     return { number: createdIssueNumber(adapters.api(`repos/${repo}/issues`, "POST", { title, body })), body };
@@ -34,8 +50,9 @@ export function finishPromotion(
   adapters: PromotionAdapters,
 ): void {
   const status = `Pushed ${sha} to ${target}; Release is triggered by the push, with expected_sha=${sha}.\nPublication result: https://github.com/${repo}/actions/workflows/release.yml`;
+  const summary = issue.body.replace(/<!-- canopy-promotion-pending: [a-f0-9]{40} -->/, "").trimEnd();
   adapters.api(`repos/${repo}/issues/${issue.number}`, "PATCH", {
-    body: issue.body.replace(/<!-- canopy-promotion-pending: [a-f0-9]{40} -->/, status),
+    body: `${promotionIssueSummary(repo, summary)}\n\n${status}\n`,
   });
 }
 
