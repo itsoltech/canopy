@@ -25,7 +25,9 @@ interface Reservation {
 
 type RollbackResult =
   | "removed"
+  | "registration missing"
   | "registration changed"
+  | "metadata ownership changed"
   | "metadata changed"
   | "index changed"
   | "checkout changed"
@@ -191,7 +193,7 @@ async function discardCheckout(
   // A missing directory may have been moved away with its .git backlink intact.
   if (!target || !sameEntry(reservation.checkout, target)) return "checkout changed";
 
-  if (!admin || !ownsMetadata(tree, metadata, marker)) return "registration changed";
+  if (!admin || !ownsMetadata(tree, metadata, marker)) return "metadata ownership changed";
 
   const adminPlan = await inspectDirectory(
     metadata,
@@ -221,7 +223,11 @@ async function discardCheckout(
 
   if (!plan) return "checkout changed";
 
-  if (!(await stillOwned(repo, tree, marker)) || !ownsMetadata(tree, metadata, marker)) return "registration changed";
+  if (!onlyOwnedRegistration(await registeredWorktrees(repo), tree, marker)) return "registration changed";
+
+  if (!ownsMetadata(tree, metadata, marker)) return "metadata ownership changed";
+
+  if (!(await ownsBranch(repo, `refs/heads/${tree.branch}`, marker))) return "branch changed";
 
   if (!directoryStillMatches(metadata, adminPlan)) return "metadata changed";
 
@@ -236,9 +242,8 @@ async function ownsBranch(repo: string, ref: string, marker: string): Promise<bo
   return reflog.ok && stripEol(reflog.stdout) === marker;
 }
 
-async function stillOwned(repo: string, tree: NewWorktree, marker: string): Promise<boolean> {
+function onlyOwnedRegistration(entries: string[][], tree: NewWorktree, marker: string): boolean {
   const ref = `refs/heads/${tree.branch}`;
-  const entries = await registeredWorktrees(repo);
   const records = atPath(entries, tree.path);
   const [record] = records;
 
@@ -246,8 +251,7 @@ async function stillOwned(repo: string, tree: NewWorktree, marker: string): Prom
     records.length === 1 &&
     record !== undefined &&
     ownsCheckout(record, tree, marker) &&
-    entries.filter((entry) => entry.includes(`branch ${ref}`)).length === 1 &&
-    (await ownsBranch(repo, ref, marker))
+    entries.filter((entry) => entry.includes(`branch ${ref}`)).length === 1
   );
 }
 
@@ -264,12 +268,14 @@ export const rollbackWorktree = (
     const entries = await registeredWorktrees(repo);
 
     if (atPath(entries, tree.path).length) {
-      if (!reservation || !(await stillOwned(repo, tree, marker))) return "registration changed";
+      if (!reservation || !onlyOwnedRegistration(entries, tree, marker)) return "registration changed";
+
+      if (!(await ownsBranch(repo, ref, marker))) return "branch changed";
       const discarded = await discardCheckout(repo, tree, marker, reservation, interrupted);
 
       if (discarded !== "removed") return discarded;
     } else {
-      if (reservation && statPath(reservation.metadata)) return "registration changed";
+      if (reservation && statPath(reservation.metadata)) return "registration missing";
       const target = physicalDirectory(tree.path);
 
       if (target && reservation && sameEntry(reservation.checkout, target)) {

@@ -207,6 +207,9 @@ jobs:
         with:
           ref: ${{ inputs.revision || github.sha }}
       - uses: ./.github/actions/setup-bun
+        with:
+          install: "false"
+      - run: bun install --frozen-lockfile --ignore-scripts --filter "@canopy/worker" --filter "@canopy/testing"
       - run: |
           git --version
           bun test ./tests/integration/worktree-creation-failure.test.ts
