@@ -1,4 +1,5 @@
 <script lang="ts">
+  import type { connectors } from "@canopy/contracts";
   import type { ClassValue } from "svelte/elements";
   import type { PluginState } from "./plugin-state.svelte.ts";
   import Field from "#lib/shared/ui/Field.svelte";
@@ -14,7 +15,7 @@
   }: { state: PluginState; open?: boolean; step?: number; class?: ClassValue } = $props();
 
   let command = $state("");
-  let credential = $state("");
+  let account = $state.raw<connectors.ConnectorAccount>();
 </script>
 
 <EnvironmentSheet
@@ -37,7 +38,7 @@
       if (controller.draft) open = false;
       return false;
     }
-    await controller.resolve(command, credential);
+    await controller.resolve(command, account?.id ?? "");
     return Boolean(controller.preview);
   }}
   onsave={async () => {
@@ -61,7 +62,12 @@
           placeholder="/plugin marketplace add owner/repo"
         />
       </Field>
-      <SourceCredentialPicker bind:value={credential} onchange={() => (controller.preview = undefined)} />
+      <SourceCredentialPicker
+        kind="marketplace"
+        {command}
+        bind:account
+        onchange={() => (controller.preview = undefined)}
+      />
     {:else if controller.preview?.marketplace}
       {@const market = controller.preview.marketplace}
       <div class="grid min-w-0 gap-3 rounded-lg bg-zinc-950/3 p-4 dark:bg-white/4">

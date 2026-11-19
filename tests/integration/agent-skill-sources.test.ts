@@ -5,6 +5,7 @@ import { clone, create, toJson } from "@bufbuild/protobuf";
 import { connectors, ui } from "@canopy/contracts";
 import { tempDir } from "@canopy/testing";
 import { GatewayStore } from "@canopy/gateway/store";
+import { eligibleSourceAccounts } from "@canopy/domain/source-access";
 import { skillChanges } from "@canopy/domain/skill-source";
 import { Effect } from "effect";
 import { SqlClient } from "effect/sql";
@@ -228,7 +229,14 @@ describe("gateway skill source resolution and maintenance", () => {
       ),
     );
 
-    const resolved = await preview("fixture/collection/skills/review", account.id);
+    const { accounts } = await gateway.api.listConnectors({});
+    const command = "npx skills add fixture/collection/skills/review";
+    expect(eligibleSourceAccounts(command, "skill", accounts).map((a) => a.id)).toEqual([account.id]);
+    expect(
+      eligibleSourceAccounts("/plugin marketplace add https://example.invalid/repo.git", "marketplace", accounts),
+    ).toHaveLength(0);
+
+    const resolved = await preview(command, account.id);
     expect(gitHttp.authenticated()).toBe(true);
 
     const user = await gateway.runtime.runPromise(

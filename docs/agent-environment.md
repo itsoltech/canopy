@@ -1,6 +1,7 @@
 # Środowisko agentów
 
-Status: zaimplementowane (2026-11-17), w tym odczyt dużych artefaktów i raportów
+Status: zaimplementowane (2026-11-19), w tym dobór kont do źródła przy imporcie skilli i marketplace,
+odczyt dużych artefaktów i raportów
 z PostgreSQL, obsługa znaczników aktywnych sesji Claude i porównywanie konfiguracji
 pluginów niezależnie od kolejności kluczy JSON, porównywanie instalacji Windows
 bez bitów wykonywalności POSIX oraz natywne wersjonowanie cache pluginów Codexa.
@@ -428,7 +429,10 @@ połączenia curl; adresy prywatne/link-local/metadata są odrzucane, proxy oraz
 redirecty wyłączone. Git URL musi używać HTTPS. Fixture transport i registry
 endpoint są wyłącznie opcjami startowymi testu, bez pól w RPC.
 
-**Source access** wybiera istniejące połączone konto właściciela. Własny konektor
+Przy imporcie skilli i marketplace pole **Source access** pojawia się, gdy do
+repozytorium z podanego adresu lub polecenia pasuje połączone konto właściciela
+z OAuth lub nagłówkiem Authorization. Publiczne repozytorium można wczytać bez
+konta. Zmiana źródła usuwa wybór konta, które już do niego nie pasuje. Własny konektor
 musi mieć ten sam origin co repo; oficjalny konektor GitHub z dokładnym endpointem
 `https://api.githubcopilot.com/mcp/` może autoryzować wyłącznie `https://github.com`.
 Gateway odszyfrowuje tylko Authorization/access token; Bearer GitHub zamienia na

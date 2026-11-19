@@ -3,6 +3,9 @@ import { isUtf8 } from "node:buffer";
 import { create } from "@bufbuild/protobuf";
 import { SkillArtifactSchema, SkillFileSchema, type SkillFile } from "@canopy/contracts";
 import { Schema } from "effect";
+import { checkSkillPath } from "./skill-path.ts";
+
+export { checkSkillPath } from "./skill-path.ts";
 
 export const SKILL_ARCHIVE_BYTES = 10 * 1024 * 1024;
 export const SKILL_TOTAL_BYTES = 25 * 1024 * 1024;
@@ -10,25 +13,6 @@ export const SKILL_FILE_BYTES = 1024 * 1024;
 export const SKILL_FILE_COUNT = 1000;
 export const skillDigest = (bytes: Uint8Array): string => createHash("sha256").update(bytes).digest("hex");
 export const skillName = (name: string): boolean => /^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(name) && name.length <= 64;
-
-export function checkSkillPath(path: string): void {
-  if (
-    !path ||
-    path.length > 240 ||
-    path.includes("\\") ||
-    path
-      .split("/")
-      .some(
-        (part) =>
-          !/^[a-zA-Z0-9_. -]+$/.test(part) ||
-          part === "." ||
-          part === ".." ||
-          /[. ]$/.test(part) ||
-          /^(con|prn|aux|nul|com[0-9]|lpt[0-9])(?:\.|$)/i.test(part),
-      )
-  )
-    throw new Error("Skill paths must be relative, portable paths without traversal or reserved names.");
-}
 
 /** Canonical manifest includes content digests and executable bits, independent of archive ordering. */
 export function skillManifestDigest(files: readonly Pick<SkillFile, "path" | "checksum" | "executable">[]): string {

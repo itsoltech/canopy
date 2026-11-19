@@ -116,6 +116,8 @@
     "./skill-artifact": "./src/skill-artifact.ts",
     "./plugin-artifact": "./src/plugin-artifact.ts",
     "./plugin-components": "./src/plugin-components.ts",
+    "./source-access": "./src/source-access.ts",
+    "./source-command": "./src/source-command.ts",
     "./skill-source": "./src/skill-source.ts",
     "./environment-review": "./src/environment-review.ts",
     "./environment-selectors": "./src/environment-selectors.ts",

@@ -4,7 +4,7 @@ import { checkSkillPath, SKILL_TOTAL_BYTES, skillName } from "@canopy/domain/ski
 import { validatePluginFiles } from "@canopy/domain/plugin-artifact";
 import { pluginHarnesses } from "@canopy/domain/plugin-components";
 import { Option, Schema } from "effect";
-import { sourceInvalid, sourceReference } from "./source-command.ts";
+import { sourceInvalid } from "./source-command.ts";
 import { gitFile, readGitSource, type SourceTransport } from "./source-git.ts";
 
 const Catalog = Schema.Struct({
@@ -13,19 +13,6 @@ const Catalog = Schema.Struct({
 });
 
 const LocalSource = Schema.Struct({ source: Schema.Literal("local"), path: Schema.String });
-
-export function marketplaceReference(command: string) {
-  const input = command.trim().replace(/^(?:\/plugin|claude plugin|codex plugin) marketplace add\s+/, "");
-
-  if (/[\s`$;&|<>\\]/.test(input) || input.length > 4096)
-    sourceInvalid("Paste one marketplace repository or marketplace add command.");
-  const parsed = sourceReference(input);
-
-  if (parsed.filter || parsed.source.path)
-    sourceInvalid("Use the marketplace repository root, optionally pinned with #ref.");
-
-  return parsed.source;
-}
 
 export function installReference(command: string) {
   const input = command.trim().replace(/^(?:\/plugin install|claude plugin install|codex plugin add)\s+/, "");

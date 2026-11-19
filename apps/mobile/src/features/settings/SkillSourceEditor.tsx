@@ -2,8 +2,9 @@ import { Fragment, useState } from "react";
 import { create } from "@bufbuild/protobuf";
 import { ui } from "@canopy/contracts";
 import { Button, Field, Notice } from "../../ui/components";
-import { SettingChoice, SettingToggle } from "./SettingsGroup";
-import { ResourceState, useSettingsResource } from "./resource";
+import { SettingToggle } from "./SettingsGroup";
+import { useSourcePreview } from "./source-preview";
+import { ResourceState } from "./resource";
 import { EnvironmentDestinations } from "./EnvironmentAssignment";
 import { EnvironmentFiles } from "./EnvironmentFiles";
 
@@ -16,10 +17,7 @@ export function SkillSourceEditor({
   skill?: ui.LibrarySkill;
   onSaved: () => void;
 }) {
-  const resource = useSettingsResource("ListConnectors", (api) => api.listConnectors({}));
-  const [command, setCommand] = useState(skill?.source?.url ?? "");
-  const [account, setAccount] = useState(skill?.source?.credentialAccountId ?? "");
-  const [preview, setPreview] = useState<ui.SkillSourcePreview>();
+  const { resource, request, fields, preview, setPreview } = useSourcePreview<ui.SkillSourcePreview>("skill", skill);
   const [revision, setRevision] = useState(snapshot.revision);
   const [paths, setPaths] = useState<string[]>([]);
 
@@ -32,23 +30,7 @@ export function SkillSourceEditor({
 
   return (
     <ResourceState resource={resource}>
-      <Field
-        label="Git reference or install command"
-        value={command}
-        onChangeText={setCommand}
-        autoCapitalize="none"
-        autoCorrect={false}
-        editable={!skill}
-      />
-      <SettingChoice
-        title="Source account"
-        value={account}
-        onChange={setAccount}
-        options={[
-          { value: "", label: "Public repository" },
-          ...(resource.data?.accounts.map((a) => ({ value: a.id, label: a.name })) ?? []),
-        ]}
-      />
+      {fields}
       <Button
         title={skill ? "Check upstream" : "Preview source"}
         busy={resource.busy}
@@ -57,7 +39,7 @@ export function SkillSourceEditor({
             .run(async (api) => {
               const result = skill
                 ? await api.checkSkillSource({ id: skill.id })
-                : await api.previewSkillSource({ command, credentialAccountId: account });
+                : await api.previewSkillSource(request);
 
               const current = await api.getAgentEnvironment({});
 

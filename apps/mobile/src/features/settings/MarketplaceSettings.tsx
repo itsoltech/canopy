@@ -3,8 +3,9 @@ import { create } from "@bufbuild/protobuf";
 import { ui } from "@canopy/contracts";
 import { pluginComponents } from "@canopy/domain/plugin-components";
 import { Button, EmptyState, Field, Notice, Sheet } from "../../ui/components";
-import { SettingChoice, SettingToggle, SettingsGroup, SettingsRow } from "./SettingsGroup";
+import { SettingToggle, SettingsGroup, SettingsRow } from "./SettingsGroup";
 import { SettingsValue } from "./SettingsValue";
+import { useSourcePreview } from "./source-preview";
 import { ResourceState, confirmAction, useSettingsResource } from "./resource";
 import { EnvironmentFiles } from "./EnvironmentFiles";
 import { EnvironmentDestinations } from "./EnvironmentAssignment";
@@ -137,30 +138,14 @@ function MarketplaceImport({
   revision: bigint;
   onSaved: () => void;
 }) {
-  const resource = useSettingsResource("ListConnectors", (api) => api.listConnectors({}));
-  const [command, setCommand] = useState(market?.source?.url ?? "");
-  const [account, setAccount] = useState(market?.source?.credentialAccountId ?? "");
-  const [preview, setPreview] = useState<ui.MarketplacePreview>();
+  const { resource, request, fields, preview, setPreview } = useSourcePreview<ui.MarketplacePreview>(
+    "marketplace",
+    market,
+  );
 
   return (
     <ResourceState resource={resource}>
-      <Field
-        label="Repository or marketplace command"
-        value={command}
-        onChangeText={setCommand}
-        autoCapitalize="none"
-        autoCorrect={false}
-        editable={!market}
-      />
-      <SettingChoice
-        title="Source access"
-        value={account}
-        onChange={setAccount}
-        options={[
-          { value: "", label: "Public repository" },
-          ...(resource.data?.accounts.map((a) => ({ value: a.id, label: a.name })) ?? []),
-        ]}
-      />
+      {fields}
       <Button
         variant={preview ? "secondary" : "primary"}
         title="Preview marketplace"
@@ -168,7 +153,7 @@ function MarketplaceImport({
         onPress={() => {
           setPreview(undefined);
           void resource
-            .run((api) => api.previewMarketplace({ command, credentialAccountId: account, id: market?.id ?? "" }))
+            .run((api) => api.previewMarketplace(market ? { id: market.id } : request))
             .then((r) => {
               if (r) setPreview(r);
             });
