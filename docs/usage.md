@@ -4,7 +4,7 @@ Status (2026-11-19): zaimplementowane agregaty zużycia w gatewayu, raporty
 harnessów, niezależne szacunki ekwiwalentu API OpenAI, wybór kosztu per licznik,
 API `GetUsageStats`, synchronizacja źródeł połączonych komputerów oraz modal
 Usage z jedną kwotą kosztu i podziałem według aktywności oraz poszczególnych botów.
-Natywny ekran Usage pobiera ten sam raport z gatewaya ([mobile.md](mobile.md#raport-usage)).
+Web, desktop i [aplikacja mobilna](mobile.md#raport-usage) pokazują w raporcie Usage skrócone liczby tokenów.
 Dostępność nightly/beta/stable według [release.md](release.md).
 
 ## Co mierzymy
@@ -174,6 +174,10 @@ Modal Usage pokazuje wyłącznie wybrany koszt w podsumowaniu, na wykresie i w
 podziałach. Przy częściowej kwocie podsumowanie podaje liczbę raportów bez ceny,
 a wykres i podziały oznaczają kwotę jako częściową. Brak znanej kwoty pozostaje
 widoczny jako `Unknown`. API nadal zwraca też obie niezależne wyceny.
+
+Raport Usage wyświetla liczby tokenów poniżej tysiąca w całości. Większe liczby
+zaokrągla do jednego miejsca po przecinku i stosuje skróty `k`, `M`, `B` i `T`
+(np. `100k`, `1.2M`, `1.7B`). Sumy i podziały wynikają z dokładnych liczników.
 
 Początek pokrycia jest czasem uruchomienia nowego księgowania dla właściciela,
 nie datą najstarszej rozmowy. **Nie odtwarzamy zużycia z dawnych transkryptów**:

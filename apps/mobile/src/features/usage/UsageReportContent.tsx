@@ -1,5 +1,12 @@
 import { Text, View } from "react-native";
-import { count, metricValue, type UsageAmounts, type UsageData, type UsageView } from "@canopy/domain/usage-report";
+import {
+  count,
+  metricValue,
+  shortCount,
+  type UsageAmounts,
+  type UsageData,
+  type UsageView,
+} from "@canopy/domain/usage-report";
 import { Alert, EmptyState, Notice } from "../../ui/components";
 import { font, styles, useColors, useTypography } from "../../ui/theme";
 import { UsageBreakdown, type UsageGroup } from "./UsageBreakdown";
@@ -73,7 +80,7 @@ function UsageTotals({ totals, view }: { totals: UsageAmounts; view: UsageView }
           >
             <Text style={[type.small, { color: c.muted }]}>{label}</Text>
             <Text selectable style={[type.body, { color: c.text, fontVariant: ["tabular-nums"] }]}>
-              {count(value)}
+              {shortCount(value)}
             </Text>
           </View>
         ))}

@@ -1,7 +1,7 @@
 # Canopy na iOS i Android
 
 Status: opis zaimplementowanego kodu (2026-11-19); natywny raport Usage pokazuje
-historię tokenów i kosztów z gatewaya. Na liście Bots czas i licznik są wyrównane przy menu wiersza.
+historię kosztów i skrócone liczby tokenów z gatewaya. Na liście Bots czas i licznik są wyrównane przy menu wiersza.
 Aktywny czat bota potwierdza odczyt najnowszych wiadomości i odświeża licznik listy Bots.
 Telefon i tablet pozwalają wybrać kolejność zakładek
 i zatrzymać pracę modułu Threads albo Bots na koncie właściciela.
