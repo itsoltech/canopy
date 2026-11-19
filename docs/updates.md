@@ -383,6 +383,7 @@ Starszy gateway ignorujący id nadal potwierdza sukces wersją; niepowiązany b�
 nie kończy kroku przed jego limitem.
 Kolejka nie przyznaje force ani downgrade. Przed instalacją worker z `cli_install_upgrade_only`
 sprawdza bieżącą wersję i pomija wykonywanie instalatora, gdy wersja osiągnęła już cel.
+Zdalny gateway musi obsłużyć tę kontrolę na bieżącym łączu (`remote_cli_upgrade_only`).
 Kolejka obejmuje tylko gateway binarny,
 workery binarne, zainstalowane CLI obsługiwane przez indywidualne `InstallCli`
 (natywne oraz npm, Bun, Volta, pnpm i globalne instalacje mise z przepisem) i obsługiwane aplikacje Canopy.

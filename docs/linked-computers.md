@@ -1,6 +1,6 @@
 # Połączone komputery
 
-Status: opis zaimplementowanej synchronizacji (2026-11-19), w tym kolejności aktualizacji aplikacji i CLI partnerów, wstrzymywania luster wyłączonego modułu, kolejności zakładek konta, kontroli dostępu między botami i wątkami przez łącze, ograniczenia czasu oczekiwania na listę botów w `list_agents` oraz przyrostowej
+Status: opis zaimplementowanej synchronizacji (2026-11-19), w tym weryfikacji obsługi ochrony wersji CLI przez partnera w Update all, kolejności aktualizacji aplikacji i CLI partnerów, wstrzymywania luster wyłączonego modułu, kolejności zakładek konta, kontroli dostępu między botami i wątkami przez łącze, ograniczenia czasu oczekiwania na listę botów w `list_agents` oraz przyrostowej
 synchronizacji agregatów użycia z żądaną szybkością wykonania i podziałem
 według aktywności i botów przez bezpośrednie
 łącza, odwołania zaufania w trakcie handshake, zachowania lokalnych kanałów Slack botów i nadawców historycznych
@@ -878,6 +878,9 @@ sprawdzające właściciela trasy co pojedyncze przyciski. CLI nadal wymaga obus
 Share configuration. Niezależni partnerzy mogą restartować się równolegle. Po nich
 restartuje się własna aplikacja. Gateway wznawia zapisany przebieg po restarcie i uruchamia
 etap CLI po potwierdzeniu aktualizacji Canopy na dostępnych komputerach.
+Zabezpieczone żądanie CLI z `upgrade_only` wymaga `remote_cli_upgrade_only` na używanym
+łączu. Bez tej capability gateway prosi o aktualizację Canopy na komputerze partnera.
+Pojedyncze żądania bez tego pola nadal działają na starszych połączeniach.
 
 Metody spoza listy z kwalifikowanym id najwyższego poziomu (np. `ListSchedules` dla wątku B) dają
 „This isn't available for threads on another computer yet”. Sekrety wątków nie przechodzą przez łącze.

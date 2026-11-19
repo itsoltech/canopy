@@ -3,7 +3,13 @@ import { create, toJsonString } from "@bufbuild/protobuf";
 import { createClient } from "@connectrpc/connect";
 import { CliInstallMethod, CliToolsReportSchema, Provider, ui, update } from "@canopy/contracts";
 import { dockerAvailable } from "@canopy/db/testing";
-import { REMOTE_APP_UPDATE, REMOTE_THREADS, CONFIG_SYNC, qualifyId } from "@canopy/domain/computers";
+import {
+  REMOTE_APP_UPDATE,
+  REMOTE_CLI_UPGRADE_ONLY,
+  REMOTE_THREADS,
+  CONFIG_SYNC,
+  qualifyId,
+} from "@canopy/domain/computers";
 import { CLI_INSTALL_UPGRADE_ONLY_CAPABILITY } from "@canopy/domain/release/protocol";
 import { createGrpcClientTransport } from "@canopy/transport";
 import { remoteServe, sharedHost, uiHandlers } from "@canopy/gateway/api";
@@ -66,7 +72,7 @@ async function gateway(storage?: NonNullable<Parameters<typeof startTestGateway>
   return gateway;
 }
 
-async function linkGateways(a: TestGateway, b: TestGateway, name = "Linked computer") {
+async function linkGateways(a: TestGateway, b: TestGateway, name = "Linked computer", peerSupportsGuard = true) {
   for (const gateway of [a, b]) {
     if (gateway.core.computers) continue;
 
@@ -78,7 +84,14 @@ async function linkGateways(a: TestGateway, b: TestGateway, name = "Linked compu
       shared: sharedHost(gateway.core, uiHandlers(gateway.core)),
       serve: remoteServe(uiHandlers(gateway.core), gateway.core),
       updates: (nodeId, method, request) => serveComputerUpdates(gateway.core, nodeId, method, request),
-      capabilities: ["presence", "unlink", REMOTE_THREADS, REMOTE_APP_UPDATE, CONFIG_SYNC],
+      capabilities: [
+        "presence",
+        "unlink",
+        REMOTE_THREADS,
+        REMOTE_APP_UPDATE,
+        CONFIG_SYNC,
+        ...(gateway === a || peerSupportsGuard ? [REMOTE_CLI_UPGRADE_ONLY] : []),
+      ],
     });
 
     gateway.core.computers = computers;
@@ -211,6 +224,21 @@ async function tickUntil(gateway: TestGateway, predicate: (run: ui.UpdateRun | u
 }
 
 describe.skipIf(!dockerAvailable)("Update all across linked computers with fake updaters", () => {
+  test("guarded CLI installs cannot reach an older linked gateway", async () => {
+    const a = await gateway();
+    const b = await gateway();
+    await clis(b, ["1.0.0", "2.0.0"]);
+    const nodeId = await linkGateways(a, b, "Older computer", false);
+    const request = { workerId: qualifyId(b.workerId, nodeId), provider: Provider.CLAUDE, version: "2.0.0" };
+    expect(await failure(a.api.installCli({ ...request, upgradeOnly: true }))).toContain(
+      "Update Canopy on this computer",
+    );
+    expect(b.worker.commands.filter((command) => command.case === "installCli")).toHaveLength(0);
+
+    expect((await a.api.installCli(request)).started).toEqual([b.workerId]);
+    expect(b.worker.commands.filter((command) => command.case === "installCli")).toHaveLength(1);
+  });
+
   test("the authenticated linked CLI route preserves a supplied UUID in commands and reports", async () => {
     const a = await gateway();
     const b = await gateway();
