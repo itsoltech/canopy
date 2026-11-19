@@ -72,7 +72,9 @@ function withIncompleteCheckout() {
       'test ! -e "$admin/index"',
       "rm .git",
       "touch ../incomplete",
-      "exec sleep 30",
+      // Keep the MSYS shell alive as the sleeper's parent so taskkill can traverse the native process tree.
+      "sleep 15",
+      "cat",
       "",
     ].join("\n"),
   );
@@ -103,7 +105,7 @@ async function interruptCheckout(f: ReturnType<typeof fixture>, whileRunning: ()
     expect(f.worktrees()).toContain("locked Canopy worktree creation ");
     whileRunning();
   } finally {
-    expect(await result).toMatchObject({ code: "GIT_TIMEOUT", message });
+    expect(await result).toMatchObject({ code: "GIT_TIMEOUT", cause: { treeTerminated: true }, message });
   }
 }
 
@@ -131,7 +133,7 @@ test("timeout removes the incomplete checkout, its registration and branch while
   git(f.repo, "config", "--unset", "filter.fixture.required");
   await f.create();
   expect(git(f.tree.path, "symbolic-ref", "--short", "HEAD")).toBe(f.tree.branch);
-}, 12_000);
+}, 22_000);
 
 test.each(["edited tracked file", "untracked file", "directory link"] as const)(
   "timeout preserves an incomplete checkout with %s",
@@ -158,7 +160,7 @@ test.each(["edited tracked file", "untracked file", "directory link"] as const)(
     if (change === "directory link") expect(lstatSync(backup).isSymbolicLink()).toBe(true);
     else expect(readFileSync(backup, "utf8")).toBe("user data");
   },
-  12_000,
+  22_000,
 );
 
 test.skipIf(process.platform === "win32")(

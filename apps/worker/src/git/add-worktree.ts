@@ -79,6 +79,6 @@ export async function addWorktree(repo: string, tree: NewWorktree, timeoutMs = W
     const cause =
       error instanceof GitError ? error : new GitError("WORKTREE_FAILED", "Git could not create the worktree.");
 
-    throw new GitError(cause.code, `${cause.message} ${WORKTREE_CLEANUP_WARNING}`);
+    throw new GitError(cause.code, `${cause.message} ${WORKTREE_CLEANUP_WARNING}`, { cause: cause.cause });
   }
 }
