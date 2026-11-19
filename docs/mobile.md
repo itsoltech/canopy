@@ -19,6 +19,7 @@ Telefon automatycznie sprawdza i pobiera zgodne OTA podczas używania aplikacji.
 Propozycje odpowiedzi pomijają wpisy kolejki zużyte przez odczyt agenta lub steer;
 starsze, porzucone notatki platformy nie blokują późniejszych propozycji ([ui-api.md](ui-api.md#proponowane-odpowiedzi)).
 Pole nie powiększa się od kolejnych cykli fokusu i chowania klawiatury.
+Na iOS pierwsze tapnięcie przycisku po wpisaniu tekstu uruchamia jego akcję także przy otwartej klawiaturze.
 Subagenci i kolejka otwierają wspólne arkusze z przewijaną listą zamiast małych popoverów;
 akcja „Steer” ma widoczną etykietę obok ikony.
 Safe area nad wątkiem ma tło chrome nagłówka, karta ma górny odstęp,
@@ -1478,6 +1479,12 @@ fokus liczy wysokość spoczynkową z treści, bez zapisywania pośredniego rozm
 animacji. `keyboardDidHide` kończy pisanie także po pominiętym zdarzeniu strumienia
 klatek klawiatury. Androidowe pole tekstowe nie przyjmuje animowanych rozmiarów, więc
 animuje się ramka wokół niego.
+
+Na iOS pole tekstowe przejmuje obsługę dotyku przy zmianie zaznaczenia tylko wtedy,
+gdy palec dotyka ekranu. Dzięki temu po wpisaniu znaku pierwsze tapnięcie dociera do
+wybranego przycisku, a przeciąganie uchwytów zaznaczenia nadal należy do pola.
+Poprawka dla React Native 0.88.1 dotyczy wszystkich pól tekstowych
+([zgłoszenie w React Native](https://github.com/react/react-native/issues/58445)).
 
 Podczas pisania (fokus pola) dolny pasek pozostaje widoczny: przycisk załączników, model,
 effort oraz wysyłanie/stop. Chowa się tylko dodatkowy wiersz z workerem, celem i trybem
