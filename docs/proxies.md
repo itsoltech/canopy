@@ -1,6 +1,7 @@
 # Współdzielone połączenia proxy
 
-Status: opis działającego kodu na `dev` (2026-11-17), w tym aktywny odczyt limitów
+Status: opis zaimplementowanego zachowania (2026-11-19), w tym wznowienie tury
+Claude po niedostępnym katalogu modeli proxy podczas startu, aktywny odczyt limitów
 Claude, wybór odczytów kont i modeli CLIProxyAPI, wyrównanie tożsamości kont
 oraz odświeżanie powiązań proxy po zmianie lub usunięciu instancji w web/desktop.
 Dostępność nightly/beta/stable wynika
@@ -92,6 +93,12 @@ Przekierowania są odrzucane, aby klucz nie trafił do innego hosta. Rozpoznanie
 CLIProxyAPI wymaga dodatniego markera nagłówka lub publicznego root JSON
 `message = "CLI Proxy API Server"`; dodatkowe zapytanie root nie wysyła sekretu.
 Brak markera nie oznacza braku kompatybilności. Surowe body błędu nigdy nie wraca do UI.
+
+Gdy worker Claude nie odczyta `GET /v1/models` z proxy, raportuje modele znane
+z harnessu jako listę niepełną. Po powrocie sieci **Retry** może wznowić turę
+z zapisanym modelem na skonfigurowanym proxy, nawet jeśli modelu zabrakło w tym
+raporcie. Odświeżenie listy modeli ponawia jej odczyt. **Refresh** w sekcji
+**Accounts** aktualizuje osobny stan kont z Management API.
 
 ## Dane, migracja i bezpieczeństwo
 

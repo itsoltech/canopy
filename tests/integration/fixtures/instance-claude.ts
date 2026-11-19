@@ -11,6 +11,7 @@ import { archivedBackground } from "./instance-background.ts";
 import { sdkInventory } from "./instance-mcp.ts";
 import { claudeLimits } from "./provider-usage.ts";
 import { sdkPermissions } from "./instance-permissions.ts";
+import { claudeProxyFixture } from "./claude-proxy.ts";
 
 if (process.argv.includes("--version")) {
   console.log("Claude Code 2.1.316");
@@ -32,6 +33,7 @@ const transcript = join(folder, `${session}.jsonl`);
 const send = (message: JsonObject) => process.stdout.write(JSON.stringify(message) + "\n");
 const inventory = sdkInventory(send);
 const permissions = sdkPermissions(session, send);
+const proxy = claudeProxyFixture();
 let configured = Promise.resolve();
 
 recordProbe("claude", resume ? "resume" : "spawn", session);
@@ -41,6 +43,19 @@ let instructions = "";
 
 async function turn(text: string): Promise<void> {
   recordProbe("claude", "turn", session, "", inventory.tools);
+
+  if (proxy && !(await proxy.infer())) {
+    send({
+      type: "result",
+      subtype: "error_during_execution",
+      is_error: true,
+      errors: ["Connection to the configured proxy failed"],
+      usage: {},
+      session_id: session,
+    });
+
+    return;
+  }
 
   if (await claudeLimits(text, session, send)) return;
   send({
@@ -260,7 +275,7 @@ for await (const line of createInterface({ input: process.stdin })) {
           response: Match.value(message.request.subtype).pipe(
             Match.when("mcp_status", () => ({ mcpServers: inventory.status() })),
             Match.when("mcp_set_servers", () => ({ added: [], removed: [], errors: {} })),
-            Match.orElse(() => ({ commands: [], models: [], agents: [] })),
+            Match.orElse(() => ({ commands: [], models: proxy?.models ?? [], agents: [] })),
           ),
         },
       });

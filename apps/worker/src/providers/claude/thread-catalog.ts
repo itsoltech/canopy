@@ -1,7 +1,7 @@
 import { query, type SDKUserMessage } from "@anthropic-ai/claude-agent-sdk";
 import { AsyncChannel } from "@canopy/transport";
 import { Effect } from "effect";
-import { claudeAgentModels, claudeModel, proxyModels, type ProxyModel } from "../models.ts";
+import { claudeAgentModels, claudeModel, proxyModels } from "../models.ts";
 import { CLAUDE_CATALOG_NOTES, claudeCatalogEntries, claudeSkillsOnDisk } from "./catalog.ts";
 import { withDeadline } from "../deadline.ts";
 
@@ -113,10 +113,10 @@ export function threadCatalog(ctx: ClaudeThreadContext, runtime: ReturnType<type
         catch: fail("", "models"),
       });
 
-      // Through a proxy: its capabilities say which listed models cannot run an agent turn (optional).
+      // A failed proxy listing can leave only SDK fallback models.
       const capabilities =
         profile.kind === "cliproxyapi"
-          ? yield* Effect.tryPromise(() => proxyModels(profile)).pipe(Effect.orElseSucceed((): ProxyModel[] => []))
+          ? yield* Effect.tryPromise(() => proxyModels(profile)).pipe(Effect.orElseSucceed(() => undefined))
           : [];
 
       const agentModels = claudeAgentModels(initialized.models, capabilities);
@@ -132,6 +132,7 @@ export function threadCatalog(ctx: ClaudeThreadContext, runtime: ReturnType<type
       }
 
       return {
+        ...(capabilities === undefined && { detail: "Could not list models from the configured proxy." }),
         models: agentModels.map((m) =>
           claudeModel(m, options.configuredEffort?.([m.value, m.resolvedModel ?? ""]), fastAvailable),
         ),
