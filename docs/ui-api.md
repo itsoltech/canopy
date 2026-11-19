@@ -3,6 +3,7 @@
 Status (2026-11-19): na `dev` tło hover pierwszego nagłówka paneli kompozytora
 web/desktop mieści się w zaokrąglonym obrysie stosu.
 Wyszukiwarka ustawień podświetla dopasowania w otwartej sekcji z pominięciem treści dialogów.
+Boczne menu ustawień web/desktop znów pokazuje ikony obok etykiet sekcji.
 W web/desktop odmowa dostępu do schowka w trakcie parowania udostępnia w dialogu pełne zaproszenie desktopowe albo kod telefonu. Pole znika po zamknięciu dialogu, użyciu zaproszenia lub utracie jego ważności.
 Historia importu pokazuje wynik i rozwijane szczegóły, a harmonogram podaje wynik wykonania przed metadanymi.
 Formularz MCP w wątku zachowuje typ wartości liczbowych i logicznych przy wysyłaniu odpowiedzi.
@@ -2519,7 +2520,9 @@ przewijania bez pionowego paddingu między wyszukiwaniem a nagłówkiem.
 nagłówki sekcji 14 px i stron 18 px. Odstęp sekcji wynosi 20/24 px (desktop/telefon),
 pionowy padding wiersza 8/10 px, kontrolki i cele kliknięcia co najmniej 32/44 px.
 Pola tekstowe na telefonie zachowują 16 px, aby nie uruchamiać automatycznego zoomu.
-Treść ma maksymalnie 1024 px, nawigacja 216 px. `SettingsRow` układa tytuł i opis po
+Treść ma maksymalnie 1024 px, nawigacja 216 px. Na szerokich ekranach boczne menu
+pokazuje etykiety sekcji z dekoracyjnymi ikonami. Na wąskich ekranach sekcje wybiera
+się z menu w nagłówku. `SettingsRow` układa tytuł i opis po
 lewej, kontrolkę po prawej; na telefonie przechodzi na jedną kolumnę. `Field layout="row"`
 zachowuje powiązania etykiety, opisu i błędu z kontrolką; w `settings-form` przechodzi
 na dwie kolumny od szerokości 448 px. Wspólne `Fieldset`, `ChoiceCard` i kontrolki
