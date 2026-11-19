@@ -63,8 +63,8 @@ export const PR_CHECK_TOOLS = {
       "instead of polling or sleeping. A pull request you open with gh pr create is linked automatically; if that " +
       "does not happen, link it with link_pull_request first. Uses the " +
       "user's GitHub account in Canopy. Follows new commits pushed to the pull request; ends when every check passes, " +
-      "the pull request is merged or closed, or after timeout_minutes. Messages name the failed checks with their " +
-      "run ids (read a log with gh run view <run_id> --log-failed). Returns at once with watch_id and the current state.",
+      "GitHub reports merge conflicts, the pull request is merged or closed, or after timeout_minutes. Messages name the failed checks with their " +
+      "run ids (read a log with gh run view <run_id> --log-failed). Returns the current state and a watch_id when watching.",
     args: WatchPrChecks,
     mutates: true,
   },

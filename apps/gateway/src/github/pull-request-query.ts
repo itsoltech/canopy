@@ -43,6 +43,8 @@ const PullRequest = Schema.Struct({
   headRefName: Schema.String,
   baseRefOid: Schema.String,
   headRefOid: Schema.String,
+  mergeable: Schema.optional(Schema.NullOr(Schema.String)),
+  mergeStateStatus: Schema.optional(Schema.NullOr(Schema.String)),
   headRepository: Schema.optional(
     Schema.NullOr(Schema.Struct({ databaseId: Schema.Number, nameWithOwner: Schema.String })),
   ),
@@ -215,6 +217,7 @@ export function summarySnapshot(
       ) ?? []),
     ]),
     lifecycle: snapshotLifecycle(value),
+    mergeability: pr.mergeStateStatus === "DIRTY" ? "conflicting" : (pr.mergeable?.toLowerCase() ?? ""),
     body: pr.body ?? previous?.body ?? "",
     baseRef: pr.baseRefName,
     headRef: pr.headRefName,

@@ -19,11 +19,16 @@ export function pollingFixture(paginatedChecks = false) {
     conclusion: "SUCCESS",
     legacyRunning: false,
     head: readHead,
+    base: readBase,
+    mergeable: "MERGEABLE",
+    mergeStateStatus: "CLEAN",
     updatedAt: "2026-11-10T12:00:00Z",
     version: 1,
     pollInterval: 0,
     checkPages: 1,
   };
+
+  const previousHeads = new Map<string, typeof state>();
 
   const envelope = (pullRequest: Schema.JsonObject) =>
     Response.json({
@@ -44,48 +49,53 @@ export function pollingFixture(paginatedChecks = false) {
       if (kind === "CanopyChecks" && paginatedChecks) return;
       fixture.counts.set(kind, (fixture.counts.get(kind) ?? 0) + 1);
 
+      const check = {
+        __typename: "CheckRun",
+        id: `CHECK_${state.head.slice(0, 4)}`,
+        name: "Build",
+        status: state.running ? "IN_PROGRESS" : "COMPLETED",
+        conclusion: state.running ? null : state.conclusion,
+        checkSuite: { app: { name: "Actions" }, workflowRun: { databaseId: 123 } },
+      };
+
+      const statusCheckRollup =
+        state.checkPages === 0
+          ? null
+          : {
+              state: state.running || state.legacyRunning ? "PENDING" : state.conclusion,
+              contexts: { totalCount: 1, nodes: [check], pageInfo: { hasNextPage: false, endCursor: null } },
+            };
+
+      const commits = { nodes: [{ commit: { oid: state.head, statusCheckRollup } }] };
+
       if (kind === "CanopyPullRequest") {
         const pr = githubPrData(42, state.pr);
-        pr.updatedAt = state.updatedAt;
-        pr.headRefOid = state.head;
 
-        return envelope(Schema.decodeUnknownSync(Schema.JsonObject)(pr));
+        return envelope(
+          Schema.decodeUnknownSync(Schema.JsonObject)({
+            ...pr,
+            updatedAt: state.updatedAt,
+            headRefOid: state.head,
+            baseRefOid: state.base,
+            mergeable: state.mergeable,
+            mergeStateStatus: state.mergeStateStatus,
+            commits: paginatedChecks ? pr.commits : commits,
+          }),
+        );
       }
 
-      return envelope({
-        id: "PR_fixture_42",
-        headRefOid: state.head,
-        commits: {
-          nodes: [
-            {
-              commit: {
-                oid: state.head,
-                statusCheckRollup: {
-                  state: state.running || state.legacyRunning ? "PENDING" : "SUCCESS",
-                  contexts: {
-                    totalCount: 1,
-                    nodes: [
-                      {
-                        __typename: "CheckRun",
-                        id: `CHECK_${state.head.slice(0, 4)}`,
-                        name: "Build",
-                        status: state.running ? "IN_PROGRESS" : "COMPLETED",
-                        conclusion: state.running ? null : state.conclusion,
-                        checkSuite: { app: { name: "Actions" }, workflowRun: { databaseId: 123 } },
-                      },
-                    ],
-                    pageInfo: { hasNextPage: false, endCursor: null },
-                  },
-                },
-              },
-            },
-          ],
-        },
-      });
+      return envelope({ id: "PR_fixture_42", headRefOid: state.head, commits });
     },
     (request) => {
       const url = new URL(request.url);
       const root = "/repos/itsoltech/canopy";
+
+      if (!url.pathname.startsWith(`${root}/`)) return;
+
+      const [, sha, resource] =
+        /^commits\/([a-f0-9]{40})\/(check-runs|status)$/.exec(url.pathname.slice(root.length + 1)) ?? [];
+
+      const commit = sha === state.head ? state : previousHeads.get(sha ?? "");
       let body: Schema.JsonObject;
       let etag: string;
 
@@ -97,18 +107,27 @@ export function pollingFixture(paginatedChecks = false) {
           merged: state.pr === "MERGED",
           draft: false,
           head: { sha: state.head },
-          base: { sha: readBase },
+          base: { sha: state.base },
+          mergeable: state.mergeable === "UNKNOWN" ? null : state.mergeable === "MERGEABLE",
+          mergeable_state: state.mergeStateStatus.toLowerCase(),
         };
-        etag = JSON.stringify(`metadata-${state.updatedAt}-${state.head}-${state.pr}`);
-      } else if (url.pathname.endsWith("/check-runs")) {
+        etag = JSON.stringify(
+          `metadata-${state.updatedAt}-${state.head}-${state.base}-${state.pr}-${state.mergeable}-${state.mergeStateStatus}`,
+        );
+      } else if (commit && resource === "check-runs") {
         body = {
-          total_count: state.checkPages * 100 - 99,
-          check_runs: [{ status: state.running ? "in_progress" : "completed" }],
+          total_count: Math.max(0, commit.checkPages * 100 - 99),
+          check_runs: commit.checkPages === 0 ? [] : [{ status: commit.running ? "in_progress" : "completed" }],
         };
-        etag = JSON.stringify(`checks-${state.version}-${state.running}-${url.searchParams.get("page")}`);
-      } else if (url.pathname === `${root}/commits/${state.head}/status`) {
-        body = { total_count: 1, statuses: [{ state: state.legacyRunning ? "pending" : "success" }] };
-        etag = JSON.stringify(`statuses-${state.version}-${state.legacyRunning}`);
+        etag = JSON.stringify(
+          `checks-${commit.version}-${commit.running}-${commit.checkPages}-${url.searchParams.get("page")}`,
+        );
+      } else if (commit && resource === "status") {
+        body =
+          commit.checkPages === 0
+            ? { total_count: 0, statuses: [] }
+            : { total_count: 1, statuses: [{ state: commit.legacyRunning ? "pending" : "success" }] };
+        etag = JSON.stringify(`statuses-${commit.version}-${commit.legacyRunning}-${commit.checkPages}`);
       } else return;
       const headers = { etag, ...(state.pollInterval && { "x-poll-interval": String(state.pollInterval) }) };
 
@@ -150,6 +169,10 @@ export function pollingFixture(paginatedChecks = false) {
     options: { ...fixture.options, fetch: transport },
     state,
     requests,
+    pushHead: (sha: string) => {
+      previousHeads.set(state.head, { ...state });
+      state.head = sha;
+    },
     timelineVersion: (value: string) => {
       fixture.timelineVersion(value);
       state.updatedAt = "2026-11-10T12:01:00Z";

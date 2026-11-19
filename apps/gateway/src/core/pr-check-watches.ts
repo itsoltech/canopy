@@ -2,7 +2,6 @@ import type { JsonValue } from "@bufbuild/protobuf";
 import type { github } from "@canopy/contracts";
 import { Code } from "@connectrpc/connect";
 import {
-  checkOutcome,
   DEFAULT_BUS_LIMITS,
   judgeChecks,
   NO_CHECKS_MS,
@@ -12,7 +11,7 @@ import {
   type NoteReason,
   type PrCheckEvent,
   type PrChecksNote,
-  type WatchedCheck,
+  type CheckVerdict,
 } from "@canopy/domain";
 import type { Effect } from "effect";
 import { readWatchedChecks } from "../github/check-watch-read.ts";
@@ -79,7 +78,7 @@ export class PrCheckWatches {
   #timer: ReturnType<typeof setInterval> | undefined;
   #flight: Promise<void> | undefined;
   /** Per watch: the producer revision its checks were last read at, when, and how many there were (pending). */
-  readonly #read = new Map<string, { revision: string; at: number; total: number; pending: number }>();
+  readonly #read = new Map<string, { revision: string; at: number; total: number; needsReread: boolean }>();
   /** Threads being delivered: a second call waits for the first one, then runs again. */
   readonly #delivering = new Map<string, Promise<void>>();
 
@@ -166,26 +165,50 @@ export class PrCheckWatches {
       this.#read.delete(w.id);
     }
 
+    if (!update.snapshot.stale && update.snapshot.mergeability === "conflicting")
+      return this.#ended(w, "conflict", progress);
+
     const previous = this.#read.get(w.id);
     const stale = now - progress.headSeenAt.getTime() >= NO_CHECKS_MS;
 
     const quiet =
       previous?.revision === update.revision &&
       (previous.total > 0 || !stale) &&
-      (previous.pending === 0 || now - previous.at < PENDING_REREAD_MS);
+      (!previous.needsReread || now - previous.at < PENDING_REREAD_MS);
 
     if (quiet) return;
 
     const checks = await readWatchedChecks(this.github.prs, w.pull_request_id, update.snapshot);
-    const pending = checks.filter((c) => checkOutcome(c.state) === "pending").length;
-    await this.#settle(w, progress, checks, stale);
-    this.#read.set(w.id, { revision: update.revision, at: now, total: checks.length, pending });
+    const verdict = judgeChecks(w.notify_on.filter(isEvent), checks, progress);
+    let waiting = verdict.outcome === "passed" && update.snapshot.mergeability === "unknown";
+
+    if (verdict.outcome === "passed" && !waiting) {
+      // CI can finish on the fast tick before the next metadata probe notices that the base moved.
+      const current = await this.github.prs.load(w.repository_name, w.number, true, true);
+
+      if (current.summary?.headSha !== progress.headSha) return;
+      const state = current.summary?.state;
+
+      if (!current.stale && (state === "closed" || state === "merged")) return this.#ended(w, state, progress);
+
+      if (!current.stale && current.mergeability === "conflicting") return this.#ended(w, "conflict", progress);
+      waiting = current.stale || current.mergeability === "unknown";
+    }
+
+    if (waiting) await this.run((s) => s.progress(w.owner_user_id, w.id, { ...progress, settled: false }));
+    else await this.#settle(w, progress, verdict, stale);
+
+    this.#read.set(w.id, {
+      revision: update.revision,
+      at: now,
+      total: checks.length,
+      needsReread: waiting || verdict.counts.pending > 0,
+    });
   }
 
-  async #settle(w: PrCheckWatchRow, progress: WatchProgress, checks: readonly WatchedCheck[], stale: boolean) {
-    const verdict = judgeChecks(w.notify_on.filter(isEvent), checks, progress);
+  async #settle(w: PrCheckWatchRow, progress: WatchProgress, verdict: CheckVerdict, stale: boolean) {
     const next = { ...progress, seen: verdict.seen, settled: verdict.settled };
-    const end = verdict.outcome === "passed" ? "passed" : checks.length === 0 && stale ? "no_checks" : undefined;
+    const end = verdict.outcome === "passed" ? "passed" : verdict.counts.total === 0 && stale ? "no_checks" : undefined;
 
     // Every check passed: told only when the agent asked for complete (or each, with the last checks).
     if (!verdict.event && end !== "no_checks") {
@@ -209,8 +232,7 @@ export class PrCheckWatches {
   }
 
   /** The watch ends for a reason the agent hears about (with the last known progress). */
-  async #ended(w: PrCheckWatchRow, reason: Exclude<NoteReason, "">): Promise<void> {
-    const progress = progressOf(w);
+  async #ended(w: PrCheckWatchRow, reason: Exclude<NoteReason, "">, progress = progressOf(w)): Promise<void> {
     const body = this.#body(w, progress, { event: "ended", checks: [], omitted: 0, counts: NO_COUNTS, reason });
     await this.#note(w, progress, body, reason);
   }

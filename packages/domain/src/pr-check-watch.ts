@@ -47,7 +47,17 @@ export const CheckCounts = Schema.Struct({
 export type CheckCounts = typeof CheckCounts.Type;
 
 /** Why a watch ended with a note ("" while it goes on). Cancelled, replaced and closed-thread watches end silently. */
-export const NOTE_REASONS = ["", "passed", "merged", "closed", "timeout", "no_checks", "access", "unlinked"] as const;
+export const NOTE_REASONS = [
+  "",
+  "passed",
+  "conflict",
+  "merged",
+  "closed",
+  "timeout",
+  "no_checks",
+  "access",
+  "unlinked",
+] as const;
 
 export type NoteReason = (typeof NOTE_REASONS)[number];
 
@@ -160,8 +170,13 @@ export function noteChecks(checks: readonly WatchedCheck[]): Pick<PrChecksNote, 
   };
 }
 
+export const PR_MERGE_CONFLICT_NOTE =
+  "Merge conflicts with the base branch block this pull request. Pull request workflows may wait for the conflicts to be resolved. " +
+  "Resolve the conflicts, push the updated branch, then call watch_pr_checks again.";
+
 const ENDED: Record<Exclude<NoteReason, "">, string> = {
   passed: "Every check passed, so the watch ended.",
+  conflict: PR_MERGE_CONFLICT_NOTE,
   merged: "The pull request was merged, so the watch ended.",
   closed: "The pull request was closed, so the watch ended.",
   timeout: "The watch reached its time limit and ended.",
@@ -198,9 +213,8 @@ function heading(note: PrChecksNote): string {
 function block(note: PrChecksNote): string {
   const head = note.head_sha.slice(0, 7);
 
-  const lines = [
-    `[canopy] CI checks of pull request ${note.repository}#${note.number} (${note.head_changed ? "new commit" : "head"} ${head}): ${countsText(note.counts)}.`,
-  ];
+  const intro = `[canopy] CI checks of pull request ${note.repository}#${note.number} (${note.head_changed ? "new commit" : "head"} ${head})`;
+  const lines = [note.reason === "conflict" ? `${intro}.` : `${intro}: ${countsText(note.counts)}.`];
 
   if (note.event === "complete" && note.counts.failed === 0) lines.push("Every check passed.");
   const title = heading(note);

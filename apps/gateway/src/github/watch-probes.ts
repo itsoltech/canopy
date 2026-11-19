@@ -18,10 +18,20 @@ const metadata = Schema.Struct({
   updated_at: Schema.String,
   state: Schema.String,
   merged: Schema.Boolean,
+  mergeable: Schema.optional(Schema.NullOr(Schema.Boolean)),
+  mergeable_state: Schema.optional(Schema.String),
   draft: Schema.Boolean,
   head: Schema.Struct({ sha: Schema.String }),
   base: Schema.Struct({ sha: Schema.String }),
 });
+
+function restMergeability(data: typeof metadata.Type) {
+  if (data.mergeable === false || data.mergeable_state === "dirty") return "conflicting";
+
+  if (data.mergeable === true) return "mergeable";
+
+  return data.mergeable === null ? "unknown" : "";
+}
 
 const checkRuns = Schema.Struct({
   total_count: Schema.Number,
@@ -58,6 +68,7 @@ export function metadataRevision(snapshot: github.PullRequestSnapshot) {
       snapshot.summary?.headSha,
       snapshot.baseSha,
       snapshot.summary?.state,
+      snapshot.mergeability,
     ]),
   );
 }
@@ -95,6 +106,7 @@ export async function readProbe(scope: ReadScope, target: ProbeTarget, abort: Ab
                 data.head.sha,
                 data.base.sha,
                 data.merged ? "merged" : data.state === "closed" ? "closed" : data.draft ? "draft" : "open",
+                restMergeability(data),
               ]),
             ),
             running: false,

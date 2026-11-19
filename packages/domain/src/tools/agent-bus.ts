@@ -147,7 +147,7 @@ export function busLook(
 
   if (refused) return { title: `Tried to ${look.tried}`, icon: look.icon };
 
-  // Every check had already passed: no watch started.
+  // The call returned a terminal result.
   if (tool === "watch_pr_checks" && !running && result["watching"] === false)
     return { title: "Checked CI checks", icon: look.icon };
 

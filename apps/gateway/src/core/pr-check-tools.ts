@@ -7,6 +7,7 @@ import {
   DEFAULT_PR_CHECK_EVENTS,
   judgeChecks,
   noteChecks,
+  PR_MERGE_CONFLICT_NOTE,
   type AgentBusCall,
   type PrCheckEvent,
 } from "@canopy/domain";
@@ -192,38 +193,41 @@ async function watch(
   const prs = watches.github.prs;
   const notifyOn = [...new Set(call.args.notify_on ?? DEFAULT_PR_CHECK_EVENTS)];
 
-  const read = async () => {
-    // Fresh: right after a push the cached head may still be the previous commit.
-    const snapshot = await prs.load(pr.repository, pr.number, true);
-
-    return { snapshot, checks: await readWatchedChecks(prs, pr.id, snapshot) };
-  };
-
-  const { snapshot, checks } = await read().catch((cause: unknown) => {
+  function readFailed(cause: unknown): never {
     throw new Refusal(
       `Canopy cannot read ${pr.repository}#${pr.number} on GitHub (${githubFailure(cause).rawMessage}). ` +
         "The user can connect a GitHub account with access to this repository in Settings → GitHub account.",
     );
-  });
+  }
 
+  const snapshot = await prs.load(pr.repository, pr.number, true).catch(readFailed);
   const state = snapshot.summary?.state ?? "";
 
   if (state === "merged" || state === "closed")
     throw new Refusal(`${pr.repository}#${pr.number} is already ${state}; there is nothing to watch`);
 
-  const verdict = judgeChecks(notifyOn, checks, { seen: {}, settled: false });
-  const failed = checks.filter((c) => checkOutcome(c.state) === "failed");
   const head = snapshot.summary?.headSha ?? "";
 
-  const base = {
+  const reference = {
     pull_request: `${pr.repository}#${pr.number}`,
     url: pullRequestUrl(pr.repository, pr.number),
     head_sha: head,
+  };
+
+  if (!snapshot.stale && snapshot.mergeability === "conflicting")
+    return { ...reference, watching: false, end_reason: "conflict", note: PR_MERGE_CONFLICT_NOTE };
+
+  const checks = await readWatchedChecks(prs, pr.id, snapshot).catch(readFailed);
+  const verdict = judgeChecks(notifyOn, checks, { seen: {}, settled: false });
+  const failed = checks.filter((c) => checkOutcome(c.state) === "failed");
+
+  const base = {
+    ...reference,
     checks: { ...verdict.counts },
     failed: noteChecks(failed).checks.map((check) => ({ ...check })),
   };
 
-  if (verdict.outcome === "passed")
+  if (verdict.outcome === "passed" && !snapshot.stale && snapshot.mergeability !== "unknown")
     return {
       ...base,
       watching: false,
@@ -243,8 +247,8 @@ async function watch(
       hops,
       expiresAt,
       headSha: head,
-      seen: verdict.seen,
-      settled: verdict.settled,
+      seen: verdict.outcome === "passed" ? {} : verdict.seen,
+      settled: verdict.settled && verdict.outcome !== "passed",
     }),
   );
 
@@ -259,6 +263,7 @@ async function watch(
     note:
       `You will get a message in this thread when ${notifyOn.map((e) => EVENT_WORDS[e]).join(", or when ")}` +
       `${failed.length ? " (the checks that already failed are listed here, not sent again)" : ""}. ` +
+      "Merge conflicts also end the watch with a message. " +
       "New commits pushed to the pull request are followed. Do not poll or sleep for it.",
   };
 }

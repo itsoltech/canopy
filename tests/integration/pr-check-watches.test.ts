@@ -160,7 +160,7 @@ describe.skipIf(!dockerAvailable)("CI check watches (gateway + scripted worker +
       expect(failed?.text).toContain(`Still watching new commits (watch_id ${watchId}`);
 
       // The agent pushes a fix: the watch follows the new commit and tells nothing while it runs...
-      fixture.state.head = "c".repeat(40);
+      fixture.pushHead("c".repeat(40));
       fixture.state.updatedAt = "2026-11-10T12:05:00Z";
       fixture.state.running = true;
       fixture.state.version++;
@@ -202,6 +202,173 @@ describe.skipIf(!dockerAvailable)("CI check watches (gateway + scripted worker +
       expect(notes.map((n) => [n?.event, n?.failed, n?.passed, n?.watching, n?.reason])).toEqual([
         ["complete", 1, 0, true, ""],
         ["complete", 0, 1, false, "passed"],
+      ]);
+    } finally {
+      await gw.close();
+      fixture.close();
+    }
+  }, 90_000);
+
+  test("a conflict already confirmed at watch start takes precedence over passing checks", async () => {
+    const fixture = pollingFixture();
+    fixture.state.running = false;
+    fixture.state.mergeable = "CONFLICTING";
+    fixture.state.mergeStateStatus = "DIRTY";
+    const gw = await startTestGateway({ github: fixture.options });
+
+    try {
+      const { thread } = await linkedRead(gw, fixture);
+      await eventually(
+        () => gw.api.getThread({ threadId: thread }),
+        (r) => r.thread?.status === "idle",
+      );
+
+      const result = await gw.worker.callTool({
+        threadId: thread,
+        tool: "watch_pr_checks",
+        args: { pull_request: "#42" },
+      });
+
+      expect(result.isError, result.content).toBe(false);
+      const reply = json(result);
+      expect(reply).toMatchObject({ watching: false, end_reason: "conflict", head_sha: fixture.state.head });
+      expect(reply["note"]).toMatch(/conflict/i);
+      expect(reply["note"]).toMatch(/resolve/i);
+      expect((await gw.api.listThreadPullRequests({ threadId: thread })).links[0]?.watchedUntil).toBeUndefined();
+    } finally {
+      await gw.close();
+      fixture.close();
+    }
+  }, 90_000);
+
+  for (const scenario of [
+    { name: "the same head with no checks", moveHead: false, checkPages: 0, notify: "complete", mergeable: "UNKNOWN" },
+    {
+      name: "a new head with passing checks",
+      moveHead: true,
+      checkPages: 1,
+      notify: "failure",
+      mergeable: "CONFLICTING",
+    },
+  ]) {
+    test(`a confirmed conflict on ${scenario.name} ends an active watch with one note`, async () => {
+      const fixture = pollingFixture();
+      fixture.state.running = false;
+      fixture.state.checkPages = scenario.checkPages;
+      fixture.state.mergeable = "UNKNOWN";
+      fixture.state.mergeStateStatus = "UNKNOWN";
+      const gw = await startTestGateway({ github: fixture.options });
+
+      try {
+        const { thread } = await linkedRead(gw, fixture);
+        await eventually(
+          () => gw.api.getThread({ threadId: thread }),
+          (r) => r.thread?.status === "idle",
+        );
+
+        const result = await gw.worker.callTool({
+          threadId: thread,
+          tool: "watch_pr_checks",
+          args: { pull_request: "#42", notify_on: [scenario.notify] },
+        });
+
+        expect(result.isError, result.content).toBe(false);
+        const start = json(result);
+        expect(start).toMatchObject({
+          watching: true,
+          checks: { total: scenario.checkPages, passed: scenario.checkPages },
+        });
+        await gw.core.checkWatches.tick();
+
+        // The base moves. GitHub still reports null while computing mergeability for this pair of commits.
+        fixture.state.base = "d".repeat(40);
+        await pollUntil(
+          gw,
+          fixture,
+          async () => (await gw.core.github.prs.cached("itsoltech/canopy", 42))?.baseSha === fixture.state.base,
+        );
+
+        const list = async () =>
+          json(await gw.worker.callTool({ threadId: thread, tool: "list_pr_watches", args: {} }));
+
+        expect((await list())["watches"]).toMatchObject([{ status: "active", watch_id: start["watch_id"] }]);
+        expect((await turns(gw, thread)).filter((t) => t.trigger === "pr_checks")).toHaveLength(0);
+
+        // A computed result can change without a new updated_at, a check-run event or a push.
+        if (scenario.moveHead) fixture.pushHead("c".repeat(40));
+        fixture.state.mergeable = scenario.mergeable;
+        fixture.state.mergeStateStatus = "DIRTY";
+        await pollUntil(gw, fixture, async () => (await turns(gw, thread)).some((t) => t.trigger === "pr_checks"));
+        const [note] = await noteTurns(gw, thread, 1);
+        expect(note?.text).toMatch(/conflict/i);
+        expect(note?.text).toMatch(/resolve/i);
+        expect((await list())["watches"]).toMatchObject([
+          { watch_id: start["watch_id"], status: "ended", end_reason: "conflict", head_sha: fixture.state.head },
+        ]);
+
+        fixture.advance(70_000);
+        await gw.core.checkWatches.tick();
+        const updates = await watchUntil(gw.api, thread, (u) => u.some((x) => x.change.case === "snapshot"));
+
+        const notes = updates.flatMap(({ change }) =>
+          change.case === "snapshot" ? change.value.turns.flatMap((turn) => turn.prChecks) : [],
+        );
+
+        expect(notes).toHaveLength(1);
+        expect(notes[0]).toMatchObject({
+          watchId: start["watch_id"],
+          headSha: fixture.state.head,
+          headChanged: scenario.moveHead,
+          watching: false,
+          event: "ended",
+          reason: "conflict",
+        });
+      } finally {
+        await gw.close();
+        fixture.close();
+      }
+    }, 90_000);
+  }
+
+  test("fast CI polling sees a same-head conflict when the last running check passes", async () => {
+    const fixture = pollingFixture();
+    const gw = await startTestGateway({ github: fixture.options });
+
+    try {
+      const { thread } = await linkedRead(gw, fixture);
+      await eventually(
+        () => gw.api.getThread({ threadId: thread }),
+        (r) => r.thread?.status === "idle",
+      );
+
+      const result = await gw.worker.callTool({
+        threadId: thread,
+        tool: "watch_pr_checks",
+        args: { pull_request: "#42", notify_on: ["complete"] },
+      });
+
+      expect(result.isError, result.content).toBe(false);
+      expect(json(result)).toMatchObject({ watching: true, checks: { pending: 1 } });
+      await gw.core.checkWatches.tick();
+
+      // CI goes green before the next slow metadata probe. Meanwhile the base advanced into a conflict.
+      fixture.state.running = false;
+      fixture.state.base = "d".repeat(40);
+      fixture.state.mergeable = "CONFLICTING";
+      fixture.state.mergeStateStatus = "DIRTY";
+      const before = fixture.requests.length;
+      fixture.advance(20_000);
+      await gw.core.checkWatches.tick();
+      expect(fixture.requests.slice(before).some((r) => r.resource.endsWith("/check-runs") && r.status === 200)).toBe(
+        true,
+      );
+      await pollUntil(gw, fixture, async () => (await turns(gw, thread)).some((t) => t.trigger === "pr_checks"));
+
+      const [note] = await noteTurns(gw, thread, 1);
+      expect(note?.text).toMatch(/conflict/i);
+      const listed = json(await gw.worker.callTool({ threadId: thread, tool: "list_pr_watches", args: {} }));
+      expect(listed["watches"]).toMatchObject([
+        { watch_id: json(result)["watch_id"], status: "ended", end_reason: "conflict", head_sha: fixture.state.head },
       ]);
     } finally {
       await gw.close();

@@ -243,7 +243,11 @@
       </p>
     {/if}
   {:else if tool === "watch_pr_checks"}
-    {#if !call.isError && !running}{@render facts(watchCallFacts(args, result))}{/if}
+    {#if !call.isError && !running}
+      <div class="min-w-0 wrap-anywhere">
+        {@render facts(watchCallFacts(args, result))}
+      </div>
+    {/if}
   {:else if tool === "link_pull_request"}
     {#if !call.isError && !running}
       <div class="min-w-0 wrap-anywhere">
