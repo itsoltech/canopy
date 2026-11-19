@@ -8,7 +8,7 @@ import { requiredString, type WakeupRow } from "./store-views.ts";
 import type { BotCore } from "./store-queue.ts";
 import { lockedOwnerModule } from "../store/module-access.ts";
 import { deliverThreadQuestions, deliverySources } from "./thread-questions.ts";
-import { threadNotice } from "./thread-notice.ts";
+import { botThreadNoticeTitle, threadNotice } from "./thread-notice.ts";
 
 /** Watches of threads and steers, wakeups and reminders. */
 export function botWakeups(sql: SqlClient.SqlClient, core: BotCore) {
@@ -118,18 +118,19 @@ export function botDeliveries(sql: SqlClient.SqlClient, core: BotCore) {
           for (const watch of watches) {
             const text = results.get(watch.target_turn_id) ?? "";
             const source = watchSources.get(watch.call_id);
+            const title = botThreadNoticeTitle(watch.title);
 
             if ((source?.origin_enabled ?? true) && (yield* core.originEnabled(source)))
               yield* enqueue(
                 watch.owner_user_id,
                 watch.bot_id,
-                `Thread ${watch.title} (${watch.target_thread_id}) ended: ${watch.status}.\n${text}`,
+                `Thread ${title} (${watch.target_thread_id}) ended: ${watch.status}.\n${text}`,
                 `thread:${watch.call_id}`,
                 {
                   hops: watch.hops,
                   sender: watch.target_thread_id,
                   event: true,
-                  displayText: threadNotice(watch.title, watch.status),
+                  displayText: threadNotice(title, watch.status),
                   ...originOf(source),
                 },
               );
