@@ -1,8 +1,8 @@
 # Współpraca przy Canopy
 
 Status (2026-11-19): obowiązujący proces pracy i weryfikacji, w tym izolacja zasobów
-testowych, sprzątanie kontenerów PostgreSQL po przerwaniu testów, synchronizacja testów
-asynchronicznych i diagnoza niestabilnych testów z historii prób CI.
+testowych, sprzątanie kontenerów PostgreSQL po przerwaniu testów, zasady pisania i przeglądu
+testów asynchronicznych oraz diagnoza niestabilnych testów z historii prób CI.
 
 ## Gałęzie i scalanie
 
@@ -140,6 +140,22 @@ asercją nie potwierdza, że praca się zakończyła. Polling ma termin, a przek
 terminu zgłasza brakujący warunek. Testy cache z granicą wieku danych i scalaniem
 zdarzeń używają osobnego, sterowanego zegara dla każdej instancji; nie zmieniają
 globalnego czasu ani timerów innych testów.
+
+Przy pisaniu lub przeglądzie testu ustal, po jakim zdarzeniu asercja musi już być
+prawdziwa, nawet jeśli CI opóźni następny krok. Przykłady z testów integracyjnych:
+
+- Przy dostarczaniu komendy co najmniej raz rejestruj jej ID od początku połączenia.
+  Po zapisaniu ACK sprawdź, że wszystkie dostarczenia wskazują tę samą komendę
+  i że operacja wywołała oczekiwany skutek tylko raz.
+- W teście wycofania transakcji odczytaj poprzednią wartość kursora w transakcji,
+  której błąd wymuszasz. Między wcześniejszym odczytem a tą transakcją odbiorca może
+  poprawnie zatwierdzić inną partię. Usuń wymuszony błąd także po nieudanej asercji.
+- Symulując zastój klienta SSE, zatrzymaj odbiór po stronie klienta. Po zatrzymaniu
+  wysyłki na serwerze do klienta wciąż mogą dotrzeć ramki z bufora.
+- Gdy proces potomny dopisuje zdarzenia do pliku JSONL, parsuj tylko rekordy
+  zakończone znakiem nowej linii. Ostatni rekord może być jeszcze w trakcie zapisu.
+- Po zamknięciu połączenia poczekaj, aż pętla odbioru i uruchomione przez nią
+  operacje zakończą pracę, zanim zwolnisz używany przez nie dziennik lub bazę.
 
 Zwykłe testy harnessów korzystają z lokalnych fixture, także dla cennika modeli.
 Nie zależą od publicznych endpointów. Test przerywający proces najpierw czeka na
