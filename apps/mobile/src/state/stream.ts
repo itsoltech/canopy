@@ -52,14 +52,16 @@ export function useStream<T>(
     let timer: ReturnType<typeof setTimeout> | undefined;
     recovery.resetBackoff();
 
-    const publish = () => {
+    const publish = (phase?: "connecting" | "syncing") => {
       clearTimeout(timer);
       const { status, ...activity } = recovery.snapshot;
+      const connection = phase ?? status;
+      const recovered = connection === "syncing" || connection === "live";
       setState((current) => ({
-        detail: current.key === subscriptionKey ? current.detail : undefined,
-        issue: current.key === subscriptionKey ? current.issue : undefined,
+        detail: current.key === subscriptionKey && !recovered ? current.detail : undefined,
+        issue: current.key === subscriptionKey && !recovered ? current.issue : undefined,
         key: subscriptionKey,
-        connection: status,
+        connection,
         ...activity,
         retryAt:
           activity.retryAt === undefined
@@ -71,35 +73,19 @@ export function useStream<T>(
         timer = setTimeout(
           () => {
             recovery.check();
-            publish();
+            publish(recovery.snapshot.status === "unavailable" ? undefined : phase);
           },
           Math.max(0, recovery.unavailableAt - Date.now()),
         );
     };
 
-    recovery.begin();
-    publish();
     void runStream({
       signal: controller.signal,
       started: () => diagnosticStart(),
       recovery,
       start,
-      receive: (value) => {
-        const readiness = onReceive(value);
-
-        if (readiness === null) return;
-        const live = readiness !== false;
-
-        if (live) {
-          recovery.succeeded();
-          setState((current) => ({ ...current, issue: undefined }));
-        }
-
-        publish();
-
-        if (!live && recovery.snapshot.status !== "unavailable")
-          setState((current) => ({ ...current, connection: "syncing" }));
-      },
+      thread: scoped,
+      receive: onReceive,
       failed: (error) =>
         streamFailure(error, {
           expired: () => onExpired(client),

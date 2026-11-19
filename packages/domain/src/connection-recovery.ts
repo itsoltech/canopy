@@ -67,6 +67,15 @@ export class ConnectionRecovery {
     return this.check(now);
   }
 
+  /** The transport is delivering frames, but a partial replay cannot reset stable-live backoff. */
+  receiving() {
+    this.#liveSince = undefined;
+    this.#downSince = undefined;
+    this.#status = "live";
+    this.#retryAt = undefined;
+    this.#retrying = false;
+  }
+
   succeeded(now = Date.now()) {
     this.#liveSince ??= now;
     this.#status = "live";
