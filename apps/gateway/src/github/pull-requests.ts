@@ -227,14 +227,22 @@ export class GitHubPullRequests {
         },
       };
 
+      const readSummary = async () => {
+        const result = await this.client.read(row.id, read, force);
+        await this.validate(name, row.id, BigInt(row.revision), BigInt(mapping.revision));
+        const snapshot = fromJsonString(github.PullRequestSnapshotSchema, JSON.stringify(result.payload));
+        await rememberSummary(this.accounts, row.id, snapshot);
+
+        return snapshot;
+      };
+
       if (!force && cached?.payload && (!wait || Number(new Date(cached.expires_at)) > this.accounts.http.now())) {
         await this.validate(name, row.id, BigInt(row.revision), BigInt(mapping.revision));
         const snapshot = fromJsonString(github.PullRequestSnapshotSchema, JSON.stringify(cached.payload));
 
         if (Number(new Date(cached.expires_at)) <= this.accounts.http.now()) {
           snapshot.stale = true;
-          void this.client
-            .read(row.id, read)
+          void readSummary()
             .then(() => this.changed(mapping.repository_id))
             .catch(() => {});
         }
@@ -243,12 +251,7 @@ export class GitHubPullRequests {
       }
 
       try {
-        const result = await this.client.read(row.id, read, force);
-        await this.validate(name, row.id, BigInt(row.revision), BigInt(mapping.revision));
-        const snapshot = fromJsonString(github.PullRequestSnapshotSchema, JSON.stringify(result.payload));
-        await rememberSummary(this.accounts, row.id, snapshot);
-
-        return snapshot;
+        return await readSummary();
       } catch (cause) {
         const error = githubFailure(cause);
 
