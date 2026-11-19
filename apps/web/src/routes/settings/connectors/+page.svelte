@@ -173,7 +173,7 @@
     <Alert>{computer.unavailableReason}</Alert>
   {/each}
   {#if notice === "already-connected"}<Alert>Already connected.</Alert>{:else if notice === "connected"}<Alert
-      >Account connected. Choose who can use it below.</Alert
+      >Account connected. Manage access from the account menu.</Alert
     >{:else if notice === "error" && oauthError}<ConnectionError
       error={oauthError}
     />{:else if notice === "error"}<Alert tone="error"
@@ -213,7 +213,7 @@
             </li>{/if}
         {/each}
       </InsetList>{:else}<p class="py-4 text-base/6 text-zinc-500 sm:text-sm/6 dark:text-zinc-400">
-        No accounts connected yet. Pick an app above to connect one.
+        No accounts connected yet.
       </p>{/if}
   </section>
 </div>

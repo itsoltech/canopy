@@ -183,6 +183,7 @@
     <UpdatesIndicator panel={footer.updates} />
     <SidebarUsage panel={footer.providerUsage} />
     <ConnectionStatus
+      hasSnapshot={overview.resyncs > 0}
       recovery={overview.recovery}
       connection={overview.connection}
       quietWhenLive={capabilities?.ownGateway ?? false}

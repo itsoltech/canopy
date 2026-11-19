@@ -240,11 +240,7 @@
       if (flow.openProject && local) await goto(`/settings/projects/${encodeURIComponent(local)}`);
     } catch (cause) {
       busy = false;
-      error = clone.cancelled
-        ? "Cloning cancelled. Retry when ready."
-        : cause instanceof Error
-          ? cause.message
-          : String(cause);
+      error = clone.cancelled ? "Cloning cancelled." : cause instanceof Error ? cause.message : String(cause);
     }
   }
 </script>
@@ -269,6 +265,7 @@
         {#if step.kind === "worker"}
           <ChoiceStep
             label="Workers"
+            empty="Add a worker in Settings → Workers."
             placeholder="Search workers…"
             {choices}
             onchoose={(worker) => push({ kind: "source", worker })}
@@ -278,6 +275,7 @@
           {@const worker = step.worker}
           <ChoiceStep
             label="Sources on {worker.name}"
+            heading={worker.name}
             placeholder="Search sources…"
             choices={sourceChoices(worker)}
             onchoose={(source) => chooseSource(worker, source)}

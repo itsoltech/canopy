@@ -113,7 +113,7 @@
             />{/if}
         {:else}
           {#if kind === "reviewers"}<p class="text-sm text-zinc-500 dark:text-zinc-400">
-              Checked reviewers receive a request. Uncheck to remove a request. Apply notifies new reviewers.
+              Applying changes notifies new reviewers and removes requests for reviewers you uncheck.
             </p>{/if}
           <MetadataChoices
             {kind}

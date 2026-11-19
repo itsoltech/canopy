@@ -13,12 +13,17 @@
   <ul role="list" class="grid gap-2">
     {#each tools as tool (tool.name)}
       <li class="min-w-0">
-        <Disclosure summaryClass="py-1"
-          >{#snippet summary()}<p class="wrap-anywhere">
-              {tool.remoteName}{tool.readOnly ? " · Read only" : " · Requires approval"}
-            </p>{/snippet}
-          <p class="pl-6 wrap-anywhere text-zinc-500 dark:text-zinc-400">{tool.description}</p></Disclosure
-        >
+        {#snippet toolName()}
+          {tool.remoteName}{tool.readOnly ? " · Read only" : " · Requires approval"}
+        {/snippet}
+        {#if tool.description}
+          <Disclosure summaryClass="py-1">
+            {#snippet summary()}<p class="wrap-anywhere">{@render toolName()}</p>{/snippet}
+            <p class="pl-6 wrap-anywhere text-zinc-500 dark:text-zinc-400">{tool.description}</p>
+          </Disclosure>
+        {:else}
+          <p class="py-1 wrap-anywhere">{@render toolName()}</p>
+        {/if}
       </li>
     {/each}
   </ul>

@@ -7,7 +7,8 @@ import { ui as contracts } from "@canopy/contracts";
 /** Kinds that become library skills (a skill name is one skill). */
 const SKILLS: ReadonlySet<string> = new Set(["skill", "command"]);
 
-const errorText = (cause: unknown) => (cause instanceof Error ? cause.message : "Something went wrong. Try again.");
+const errorText = (cause: unknown) =>
+  cause instanceof Error ? cause.message : "Could not load settings from this scan. Scan again.";
 
 /**
  * Settings and library of a scan (docs/import.md, "Ustawienia i biblioteka"): what each item would change, and the

@@ -16,7 +16,7 @@ export function periodOf(value: string): Period {
 
 const PAGE = 200;
 
-const errorText = (cause: unknown) => (cause instanceof Error ? cause.message : "Something went wrong. Try again.");
+const errorText = (cause: unknown, fallback: string) => (cause instanceof Error ? cause.message : fallback);
 
 /**
  * Settings → Import (docs/import.md): the scan of one worker, the filters and the selection. The selection is
@@ -77,7 +77,7 @@ export class ImportState {
       this.resetSelection();
       await Promise.all([this.load(), this.library.load(this.scan.scanId)]);
     } catch (error) {
-      this.error = errorText(error);
+      this.error = errorText(error, "Could not scan this worker. Scan again.");
     } finally {
       this.scanning = false;
     }
@@ -99,7 +99,8 @@ export class ImportState {
 
       if (request === this.#request) this.result = result;
     } catch (error) {
-      if (request === this.#request) this.error = errorText(error);
+      if (request === this.#request)
+        this.error = errorText(error, "Could not load threads from this scan. Scan again.");
     } finally {
       if (request === this.#request) this.loading = false;
     }
@@ -184,7 +185,7 @@ export class ImportState {
 
       return run;
     } catch (error) {
-      this.error = errorText(error);
+      this.error = errorText(error, "Could not start the import. Try again.");
 
       return undefined;
     } finally {

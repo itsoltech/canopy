@@ -9,6 +9,7 @@
   import PaletteFooter from "#lib/features/commands/PaletteFooter.svelte";
   import PaletteOption from "#lib/features/commands/PaletteOption.svelte";
   import ConnectorIcon from "#lib/features/connectors/ConnectorIcon.svelte";
+  import TruncatedText from "#lib/shared/ui/TruncatedText.svelte";
   import StatusDot from "#lib/shared/ui/StatusDot.svelte";
   import type { Choice } from "./add-project-flow.ts";
   import StepHeader from "./StepHeader.svelte";
@@ -19,6 +20,8 @@
    */
   let {
     label,
+    heading,
+    empty = "No sources available.",
     placeholder,
     choices,
     onchoose,
@@ -26,6 +29,8 @@
     onclose,
   }: {
     label: string;
+    heading?: string;
+    empty?: string;
     placeholder: string;
     choices: readonly Choice<T>[];
     onchoose: (value: T) => void;
@@ -112,7 +117,7 @@
 </StepHeader>
 
 <div id="{id}-list" role="listbox" aria-label={label} class={paletteListClass}>
-  <div role="presentation" class={paletteGroupLabelClass}>{label}</div>
+  {#if heading}<div role="presentation" class={paletteGroupLabelClass}><TruncatedText text={heading} /></div>{/if}
   {#each shown as choice, index (choice.key)}
     {#snippet lead()}
       {#if choice.mark}<ConnectorIcon type={choice.mark} class="text-zinc-500 dark:text-zinc-400" />
@@ -132,7 +137,9 @@
       leading={choice.mark || choice.online !== undefined ? lead : undefined}
     />
   {/each}
-  {#if shown.length === 0}<p class={paletteEmptyClass}>No results for “{query.trim()}”</p>{/if}
+  {#if shown.length === 0}<p class={paletteEmptyClass}>
+      {query.trim() ? `No results for “${query.trim()}”` : empty}
+    </p>{/if}
 </div>
 
 <PaletteFooter

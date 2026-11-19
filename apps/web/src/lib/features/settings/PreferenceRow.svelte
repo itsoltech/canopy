@@ -17,7 +17,7 @@
     class: className,
   }: {
     title: string;
-    description: string;
+    description?: string | undefined;
     children?: Snippet;
     changed: boolean;
     onreset: () => void;

@@ -6,7 +6,6 @@
   import Button from "#lib/shared/ui/Button.svelte";
   import ButtonLink from "#lib/shared/ui/ButtonLink.svelte";
   import { continueImportedThread } from "#lib/features/imports/api.ts";
-  import Icon from "#lib/shared/ui/Icon.svelte";
   import { agentCliName } from "#lib/features/imports/labels.ts";
 
   /** Where the composer was: a thread imported from an agent CLI as history (docs/import.md) takes no turns. */
@@ -41,14 +40,11 @@
     className,
   ]}
 >
-  <div class="flex items-start gap-3">
-    <Icon name="arrow-down-tray" class="h-6 text-zinc-400 dark:text-zinc-500" />
-    <div class="min-w-0 flex-1">
-      <h2 class="font-medium text-balance text-zinc-800 dark:text-zinc-200">Imported from {cli} as history</h2>
-      <p class="pt-1 text-base/6 text-pretty text-zinc-500 sm:text-sm/6 dark:text-zinc-400">
-        This thread shows the earlier work. A new thread continues it with a summary of this history.
-      </p>
-    </div>
+  <div class="min-w-0">
+    <h2 class="font-medium text-balance text-zinc-800 dark:text-zinc-200">Imported from {cli} as history</h2>
+    <p class="pt-1 text-base/6 text-pretty text-zinc-500 sm:text-sm/6 dark:text-zinc-400">
+      The new thread starts with a summary of this history.
+    </p>
   </div>
   <div class="flex flex-wrap gap-2">
     <Button size="sm" variant="primary" icon="arrow-turn-down-right" loading={starting} onclick={continueHere}>

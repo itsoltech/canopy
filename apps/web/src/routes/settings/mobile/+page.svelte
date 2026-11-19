@@ -37,7 +37,7 @@
   let qr = $state("");
   let busy = $state(false);
   let error = $state("");
-  let copied = $state(false);
+  let copyState = $state<"idle" | "copied" | "manual">("idle");
   let now = $state(Date.now());
   const activePairing = $derived(setup.pairings.find((p) => p.id === invitation?.pairing?.id) ?? invitation?.pairing);
 
@@ -49,6 +49,14 @@
   );
 
   const usable = $derived(seconds > 0 && !activePairing?.usedAt && !activePairing?.revokedAt);
+
+  const pairingText = $derived(
+    open && usable && invitation
+      ? invitation.pairing?.clientKind === "desktop"
+        ? toJsonString(ui.CreateMobilePairingResponseSchema, invitation)
+        : invitation.code
+      : "",
+  );
 
   const pending = $derived(
     setup.pairings.filter(
@@ -87,7 +95,7 @@
         void requestJson("DELETE", `/api/mobile-devices/${invitation.pairing.id}?kind=pairing`, {}).catch(() => {});
       invitation = undefined;
       qr = "";
-      copied = false;
+      copyState = "idle";
     }
   });
 
@@ -143,16 +151,20 @@
   }
 
   async function copy() {
+    const pairing = invitation;
+
+    if (!pairing || !pairingText) return;
+
+    let result: "copied" | "manual";
+
     try {
-      await navigator.clipboard.writeText(
-        invitation?.pairing?.clientKind === "desktop"
-          ? toJsonString(ui.CreateMobilePairingResponseSchema, invitation)
-          : (invitation?.code ?? ""),
-      );
-      copied = true;
+      await navigator.clipboard.writeText(pairingText);
+      result = "copied";
     } catch {
-      error = "Select and copy the code manually.";
+      result = "manual";
     }
+
+    if (open && usable && invitation === pairing) copyState = result;
   }
 </script>
 
@@ -161,7 +173,7 @@
   <div class="min-w-0">
     <h1 class="text-base/7 font-semibold text-zinc-950 dark:text-white">Devices</h1>
     <p class="text-base/6 text-pretty text-zinc-500 sm:text-sm/6 dark:text-zinc-400">
-      Your Canopy, with you. Pair once and connect on any Wi-Fi or VPN you share with this computer.
+      Pair once and connect on any Wi-Fi or VPN you share with this computer.
     </p>
   </div>
   <div class="flex flex-wrap gap-3">
@@ -231,9 +243,7 @@
         ? "Pair a phone or desktop app to connect it to Canopy."
         : request.loaded
           ? "Pair a phone or desktop app. Revoke its access here at any time."
-          : request.error
-            ? "Retry the paired devices request above."
-            : undefined}
+          : undefined}
     />{/each}
   {#if revokedDevices.length}
     <Disclosure summaryClass="px-4 py-3.5 text-base/6 sm:text-sm/6">
@@ -247,7 +257,7 @@
         {#each revokedDevices as device (device.id)}
           <SettingsRow
             title={device.name}
-            description={`${device.clientKind === "desktop" ? "Desktop app · " : ""}${device.platform} · Revoked`}
+            description={`${device.clientKind === "desktop" ? "Desktop app · " : ""}${device.platform}`}
           />
         {/each}
       </div>
@@ -277,7 +287,8 @@
   {qr}
   {usable}
   {seconds}
-  {copied}
+  copied={copyState === "copied"}
+  manualCopyText={copyState === "manual" ? pairingText : ""}
   paired={!!activePairing?.usedAt}
   oncopy={() => void copy()}
 />

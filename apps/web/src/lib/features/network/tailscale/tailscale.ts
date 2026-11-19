@@ -8,7 +8,7 @@ const STATES = new Map<string, { title: string; tone: Tone; description: string 
     {
       title: "Not found",
       tone: "neutral",
-      description: "Canopy can't find Tailscale on this computer. Install it to reach this computer by name.",
+      description: "Install Tailscale to reach this computer by name.",
     },
   ],
   [

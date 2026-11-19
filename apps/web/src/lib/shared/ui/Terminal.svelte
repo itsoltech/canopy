@@ -1,7 +1,6 @@
 <script lang="ts">
   import type { Snippet } from "svelte";
   import type { ClassValue } from "svelte/elements";
-  import Icon from "./Icon.svelte";
   import CopyButton from "./CopyButton.svelte";
   import TerminalPrompt from "./TerminalPrompt.svelte";
   import TerminalOutput from "./TerminalOutput.svelte";
@@ -49,10 +48,7 @@
 >
   <header class="flex min-w-0 shrink-0 flex-col gap-2 border-b border-white/10 bg-zinc-900 px-4 py-3">
     <div class="flex min-w-0 items-center justify-between gap-3">
-      <div class="flex min-w-0 items-center gap-2">
-        <Icon name="command-line" class="shrink-0 fill-zinc-400" />
-        <h3 class="truncate font-mono text-sm font-medium" {title}>{title}</h3>
-      </div>
+      <h3 class="truncate font-mono text-sm font-medium" {title}>{title}</h3>
       <div class="flex shrink-0 items-center gap-2">
         <CopyButton text={command} label="Copy command" />
         <CopyButton text={terminalPlainText(output)} label="Copy output" />

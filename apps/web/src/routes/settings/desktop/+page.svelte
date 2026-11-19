@@ -27,7 +27,7 @@
     <WorkerStatus {status} />
     <div class="flex flex-wrap items-center gap-2">
       <p class="text-base/6 text-pretty text-zinc-500 sm:text-sm/6 dark:text-zinc-400">
-        Manage this computer’s worker and choose where Canopy runs. Desktop settings are never shared.
+        Desktop settings apply only to this computer.
       </p>
     </div>
     <div><Button onclick={() => window.canopyDesktop?.openSettings()}>Change desktop mode…</Button></div>

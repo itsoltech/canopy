@@ -1,9 +1,11 @@
 # Narzędzia automatyzacji agentów
 
-Status (2026-11-18): **narzędzia, interaktywny Preview z podglądem zmiany viewportu,
+Status (2026-11-19): **narzędzia, interaktywny Preview z podglądem zmiany viewportu,
 automatyczny mini Preview wątku, pełna karta Preview w web/desktop, ikony obu stanów skali
 oraz rezerwacje urządzeń z oczekiwaniem, uruchamianiem skonfigurowanych emulatorów
 i sprzątaniem sesji przy archiwizacji zaimplementowane**.
+Przed włączeniem narzędzia z Preview web/desktop pokazuje zakres zgody: narzędzie staje się dostępne agentom na wybranym workerze.
+Gdy komputer jest niedostępny, Preview pokazuje przyczynę z jego statusu, również podczas aktualizacji.
 Zaległe sprzątanie rezerwacji nie blokuje restartu ani raportu aktualizacji workera.
 Katalog Device Preview jest ograniczony do urządzenia sesji lub wolnych,
 uruchomionych celów przed rezerwacją; przejściowe pliki klatek używają prywatnego

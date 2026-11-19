@@ -24,7 +24,7 @@
   class={className}
   label={project ? `Workspace for ${project}` : "Workspace"}
   description={options.length
-    ? `Its threads continue in this folder on ${target}.`
+    ? `Its threads continue in this workspace on ${target}.`
     : `Add a workspace on ${target} first (Settings → Projects on ${target}).`}
 >
   <Select

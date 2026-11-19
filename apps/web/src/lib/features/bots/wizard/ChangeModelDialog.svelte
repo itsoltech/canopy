@@ -66,7 +66,7 @@
       await onsave({ providerInstanceId: instanceId, model: option.model, effort, serviceTier });
       open = false;
     } catch (cause) {
-      error = (cause instanceof Error && cause.message) || "Could not change the model. Please try again.";
+      error = (cause instanceof Error && cause.message) || "Could not change the model. Try again.";
     } finally {
       busy = false;
     }
@@ -76,7 +76,7 @@
 <Dialog
   bind:open
   title="Change model"
-  description="{botName} keeps its conversation; new replies use this model."
+  description="{botName} keeps its conversation. New replies use this model."
   dismissible={!busy}
 >
   <form class="grid gap-5" onsubmit={submit} aria-busy={busy || undefined}>

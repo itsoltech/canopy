@@ -1,6 +1,5 @@
 <script lang="ts">
   import type { AgentTool } from "@canopy/contracts";
-  import type { IconName } from "@canopy/ui/icons";
   import Icon from "#lib/shared/ui/Icon.svelte";
   import Switch from "#lib/shared/ui/Switch.svelte";
   import SettingsCard from "#lib/shared/ui/SettingsCard.svelte";
@@ -13,14 +12,12 @@
     tool,
     name,
     description,
-    icon,
     workers,
     actions,
   }: {
     tool: AgentTool;
     name: string;
     description: string;
-    icon: IconName;
     workers: ToolWorker[];
     actions: AgentToolActions;
   } = $props();
@@ -92,10 +89,6 @@
       aria-controls={id}
       onclick={() => (open = !open)}
     >
-      <span
-        class="flex size-10 shrink-0 items-center justify-center rounded-xl bg-zinc-950/4 text-zinc-600 dark:bg-white/5 dark:text-zinc-300"
-        ><Icon name={icon} class="size-5 fill-current" /></span
-      >
       <span class="min-w-0 flex-1">
         <span class="block font-semibold text-zinc-950 dark:text-white">{name}</span>
         <span class="mt-0.5 hidden text-sm/5 text-zinc-500 sm:block dark:text-zinc-400">{description}</span>

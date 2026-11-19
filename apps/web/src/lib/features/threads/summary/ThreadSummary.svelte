@@ -123,25 +123,27 @@
   });
 </script>
 
+<!-- The collapsed pill and its mini preview reserve space above the scrolling timeline. -->
+<div
+  class={["t-summary-pill z-30 mt-3 mr-4 flex max-w-[calc(100%-2rem)] justify-end", pinned && "absolute top-0 right-0"]}
+  style:margin-bottom={!pinned && preview ? `calc(${previewHeight}px + .75rem)` : undefined}
+  data-hidden={pinned || undefined}
+  inert={pinned}
+  bind:clientHeight={pillHeight}
+>
+  <ThreadSummaryPill
+    {thread}
+    {subagents}
+    expanded={open || sheet}
+    controls={floating ? id : undefined}
+    onopen={() => (popover ? void hide(false) : void show())}
+    bind:pill
+  />
+</div>
 <div
   class="pointer-events-none absolute inset-y-3 right-4 z-30 w-80 max-w-[calc(100%-2rem)] [--summary-card-top:--spacing(10)] sm:[--summary-card-top:--spacing(9)]"
   style:--summary-card-top={pinned ? "0px" : undefined}
 >
-  <div
-    class="t-summary-pill pointer-events-auto absolute top-0 right-0 flex max-w-full justify-end"
-    data-hidden={pinned || undefined}
-    inert={pinned}
-    bind:clientHeight={pillHeight}
-  >
-    <ThreadSummaryPill
-      {thread}
-      {subagents}
-      expanded={open || sheet}
-      controls={floating ? id : undefined}
-      onopen={() => (popover ? void hide(false) : void show())}
-      bind:pill
-    />
-  </div>
   {#if floating}
     <section
       bind:this={card}

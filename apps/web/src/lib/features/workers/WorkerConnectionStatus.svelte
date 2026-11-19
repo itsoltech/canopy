@@ -24,9 +24,7 @@
   <div class="min-w-0 text-base/6 sm:text-sm/6">
     <p class="font-semibold">{worker?.online ? "Connected" : "Waiting for the worker to connect…"}</p>
     <p class="text-zinc-500 dark:text-zinc-400">
-      {worker
-        ? `${worker.hostname} · ${osLabel(worker.os)}`
-        : `Start the command on ${name}. This updates automatically.`}
+      {worker ? `${worker.hostname} · ${osLabel(worker.os)}` : `Start the command on ${name}.`}
     </p>
     {#if worker?.online}<div class="mt-3 grid gap-1">
         {#each worker.providers as provider (provider.provider)}<p>{providerSummary(provider)}</p>{:else}<p>

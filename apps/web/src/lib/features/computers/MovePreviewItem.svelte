@@ -25,6 +25,6 @@
     </p>
   {:else if detailed}
     <MoveNotes title="Moves along" items={item.moves} />
-    <MoveNotes title={`To do again on ${target}`} icon="arrow-path" items={item.redo} />
+    <MoveNotes title={`To do again on ${target}`} items={item.redo} />
   {/if}
 </div>

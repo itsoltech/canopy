@@ -65,7 +65,7 @@
   {:else if diffBlob && shown}
     <FileAvailability entityId={directory.currentId} name="Diff ({formatBytes(diffBlob.sizeBytes)})">
       <p class="text-sm/5 text-zinc-500 sm:text-xs/5 dark:text-zinc-400">
-        Diff ({formatBytes(diffBlob.sizeBytes)}) is stored on the gateway; viewing it here is not supported yet.
+        The gateway has the diff ({formatBytes(diffBlob.sizeBytes)}). Canopy cannot display it here.
       </p>
     </FileAvailability>
   {/if}

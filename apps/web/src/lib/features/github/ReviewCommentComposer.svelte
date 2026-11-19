@@ -126,7 +126,8 @@
       {receipt.action === "add_review_comment" ? "Comment saved" : "Review saved"}
     </p>{/if}
   {#if stale || !online}<p role="status">
-      Connect and open the current changes before sending. Your draft stays here.
+      {online ? "Open the current changes before sending." : "Connect and open the current changes before sending."} Your
+      draft stays here.
     </p>{/if}
   {#if draft.error}<p role="alert">{draft.error}</p>
     <Button size="sm" variant="ghost" onclick={() => void draft.read()}>Refresh review</Button>{/if}

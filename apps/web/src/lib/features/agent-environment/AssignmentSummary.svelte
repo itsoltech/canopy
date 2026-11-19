@@ -29,6 +29,10 @@
   class={["text-base text-pretty text-zinc-500 tabular-nums sm:text-sm dark:text-zinc-400", className]}
   aria-live="polite"
 >
-  Applies to {matching.length}
-  {matching.length === 1 ? "computer" : "computers"}: {matching.map((w) => w.name).join(", ") || "none yet"}
+  {#if matching.length}
+    Applies to {matching.length}
+    {matching.length === 1 ? "computer" : "computers"}: {matching.map((w) => w.name).join(", ")}
+  {:else}
+    No matching computers yet
+  {/if}
 </p>

@@ -15,9 +15,14 @@
 </script>
 
 <p class="text-base text-zinc-500 sm:text-sm dark:text-zinc-400">
-  {changes.removed.length || changes.added.length
-    ? `${changes.removed.length} lines replaced by ${changes.added.length} lines from line ${changes.line}.`
-    : "No text changes."}
+  {#if changes.removed.length || changes.added.length}
+    The block starting at line {changes.line} changes from {changes.removed.length}
+    {changes.removed.length === 1 ? "line" : "lines"} to
+    {changes.added.length}
+    {changes.added.length === 1 ? "line" : "lines"}.
+  {:else}
+    No text changes.
+  {/if}
 </p>
 <div class={["grid min-w-0 gap-3 @xl:grid-cols-2", className]}>
   {#each [{ label: localLabel, content: local }, { label: expectedLabel, content: expected }] as version (version.label)}

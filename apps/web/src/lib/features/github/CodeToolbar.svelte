@@ -67,8 +67,8 @@
   </DropdownMenu>
   <p
     class="flex min-w-0 flex-1 items-center text-xs whitespace-nowrap text-zinc-500 tabular-nums dark:text-zinc-400"
-    aria-label={`${viewed} files viewed`}
-    title={`${count} files · Viewed applies to the whole pull request`}
+    aria-label={`Files viewed: ${viewed}`}
+    title={`Files: ${count}. Viewed applies to the whole pull request.`}
   >
     <span class="shrink-0">{viewed}</span><span class="hidden @min-[400px]/code:inline">{" viewed"}</span>
   </p>

@@ -1,6 +1,7 @@
 import { create, fromJsonString, toJsonString, type DescMethod, type Message } from "@bufbuild/protobuf";
 import { github } from "@canopy/contracts";
 import { splitId } from "@canopy/domain/computers";
+import { offlinePullRequestDetail } from "@canopy/domain/github-pr";
 import { linkedMessage } from "../computers/remote.ts";
 import { Code, ConnectError } from "@connectrpc/connect";
 import { Schema } from "effect";
@@ -60,7 +61,7 @@ export async function offlineGitHub(computers: LinkedComputers, node: string, me
 
   if (!cached) throw new ConnectError("Connect to load this page", Code.Unavailable);
   const data = Schema.decodeUnknownSync(Schema.JsonObject)(JSON.parse(toJsonString(method.output, cached)));
-  const detail = "This computer is offline. The last verified page is shown.";
+  const detail = offlinePullRequestDetail;
 
   const stale =
     method.name === "GetPullRequest"

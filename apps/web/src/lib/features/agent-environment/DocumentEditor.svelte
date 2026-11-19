@@ -166,8 +166,9 @@
       {:else}
         <p class="font-medium wrap-anywhere">{document.name}</p>
         {#if worker}
-          <Field label="Preview computer"
+          <Field label="Preview computer" class="min-w-0"
             ><Select
+              class="min-w-0"
               name="draft-preview-computer"
               bind:value={() => worker?.workerId ?? "", (value) => (workerId = value)}
               options={workers.map((w) => ({ value: w.workerId, label: w.name }))}

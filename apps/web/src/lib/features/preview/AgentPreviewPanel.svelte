@@ -169,11 +169,10 @@
         onchange={chooseTool}
       />
     </div>
-    <div class="flex shrink-0 items-center gap-1.5 text-xs text-muted" role="status">
-      <StatusDot tone={live && session.frame ? "emerald" : failed ? "rose" : "neutral"} />
-      {unavailable
-        ? "Offline"
-        : live && !session.frame
+    {#if !unavailable}
+      <div class="flex shrink-0 items-center gap-1.5 text-xs text-muted" role="status">
+        <StatusDot tone={live && session.frame ? "emerald" : failed ? "rose" : "neutral"} />
+        {live && !session.frame
           ? "Waiting"
           : live
             ? session.mode === "screenshots"
@@ -184,7 +183,8 @@
               : allowed
                 ? "Connecting…"
                 : "Not ready"}
-    </div>
+      </div>
+    {/if}
     <IconButton
       size="sm"
       icon={fit === "fit" ? "arrows-pointing-out" : "arrows-pointing-in"}

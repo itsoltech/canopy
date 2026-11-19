@@ -54,7 +54,6 @@
       From routine “{question.routineTitle}”
     </p>{/if}
   <div class="flex items-start gap-2 px-3 pt-2.5 pb-2 text-base/6 sm:text-sm/6">
-    <Icon name="question-mark-circle" class="h-lh shrink-0 text-sky-500 dark:text-sky-400" />
     <RequestHeader expiresAt={question.expiresAt} pending={!answered}>
       <h3
         id="{id}-prompt"
@@ -163,7 +162,7 @@
       {:else if answering}
         Sending your answer…
       {:else if onanswer}
-        {question.options.length > 0 ? "Choose an option or press its letter." : "The bot is waiting for your answer."}
+        {question.options.length > 0 ? "Press a letter to select its option." : "The bot is waiting for your answer."}
       {:else}
         Waiting for an answer.
       {/if}

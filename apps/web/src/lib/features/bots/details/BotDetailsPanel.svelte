@@ -103,20 +103,13 @@
       </p>
     </div>
     <BotHome nodeId={bot.nodeId} banner class="justify-center" />
-    <Button
-      size="sm"
-      variant="secondary"
-      icon="cog-6-tooth"
-      disabled={Boolean(home.reason)}
-      onclick={() => openBotSettings(bot.id)}>Bot settings</Button
+    <Button size="sm" variant="secondary" disabled={Boolean(home.reason)} onclick={() => openBotSettings(bot.id)}
+      >Bot settings</Button
     >
   </div>
 
   {#if error}<Alert tone="error">{error}</Alert>{/if}
-  <DetailsSection
-    title="Routines"
-    description={routines.length ? "Quietly in the background. Your bot decides when to reach out." : undefined}
-  >
+  <DetailsSection title="Routines" description={routines.length ? "Your bot decides when to message you." : undefined}>
     {#if routines.length}
       <ul role="list" class="divide-y divide-zinc-950/6 dark:divide-white/8">
         {#each routines as routine (routine.id)}

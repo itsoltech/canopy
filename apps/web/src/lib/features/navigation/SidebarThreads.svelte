@@ -165,7 +165,7 @@
     <div class="sidebar-row-padding grid justify-items-start gap-2 py-2">
       <p class="text-sm/6 text-pretty text-zinc-500 dark:text-zinc-400">
         {#if settings.sidebar.projectIds.length}No threads in the selected projects.{:else if query}No thread matches “{query}”.{:else if overview.connection === "unavailable"}Threads
-          appear when the gateway connects.{:else}No threads yet. Select New thread above to start one.{/if}
+          appear when the gateway connects.{:else}No threads yet.{/if}
       </p>
       {#if settings.sidebar.projectIds.length}<Button
           size="sm"

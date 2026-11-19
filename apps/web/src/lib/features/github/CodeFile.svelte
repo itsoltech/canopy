@@ -10,7 +10,7 @@
   import Button from "#lib/shared/ui/Button.svelte";
   import MiddleTruncatedText from "#lib/shared/ui/MiddleTruncatedText.svelte";
   import { tooltip } from "#lib/shared/ui/tooltip.ts";
-  import { toneClasses } from "./presentation.ts";
+  import { isLinkedOffline, readStatus, toneClasses } from "./presentation.ts";
   import ViewedCheckbox from "./ViewedCheckbox.svelte";
   import ReadSkeleton from "./ReadSkeleton.svelte";
 
@@ -53,6 +53,7 @@
   const look = $derived(fileLook(file));
   const path = $derived(file.previousPath ? `${file.previousPath} → ${file.path}` : file.path);
   const href = $derived(safeHref(file.url));
+  const patchStatus = $derived(readStatus(patch?.page, isLinkedOffline(snapshot)));
 </script>
 
 <li class={["min-w-0", className]}>
@@ -97,16 +98,17 @@
       {#if !busy && !error && !patch?.patch}<div
           class="flex min-w-0 items-center justify-between gap-2 rounded-md bg-zinc-500/5 px-3 py-2 text-sm text-zinc-500 sm:text-xs dark:text-zinc-400"
         >
-          <p>{patch?.page?.detail || (file.patchState === "binary" ? "Binary file" : "Patch loads on demand")}</p>
-          {#if file.patchState === "binary" || patch}<Button
+          {#if file.patchState === "binary" || patch}
+            <p>{patchStatus || (file.patchState === "binary" ? "Binary file" : "No diff available")}</p>
+            <Button
               variant="ghost"
               size="sm"
               disabled={!href}
               onclick={() => href && window.open(href, "_blank", "noopener,noreferrer")}>Open on GitHub</Button
             >{:else}<Button variant="ghost" size="sm" onclick={onopen}>Load diff</Button>{/if}
         </div>{/if}
-      {#if patch?.patch && patch.page?.detail}<p role="status" class="px-2 text-sm text-zinc-500 sm:text-xs">
-          {patch.page.detail}
+      {#if patch?.patch && patchStatus}<p role="status" class="px-2 text-sm text-zinc-500 sm:text-xs">
+          {patchStatus}
         </p>{/if}
     </div>{/if}
 </li>

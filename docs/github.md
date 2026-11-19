@@ -4,6 +4,7 @@ Status: **v1 wdrożone** (2026-11-19), z powiadamianiem agenta o konfliktach obs
 pełny odczyt, komentarze i review, lifecycle, metadane, automatyczna archiwizacja wątków
 po merge, sterowanie GitHub Actions oraz postęp checków i kroków workflow. Zaimplementowane jest też jawne lokalne
 linkowanie PR przez agenta (`link_pull_request`) jako fallback automatycznej detekcji.
+W panelu PR web/desktop przyczyna błędu dostawcy pozostaje widoczna obok informacji o ostatnich dostępnych danych. Gdy podsumowanie i sekcje PR wskazują ten sam rozłączony komputer, wspólny przycisk ponawia ich odczyt. Niezależny błąd sekcji ma własną akcję.
 Podstawowy zakres jest dostępny w web/desktop/mobile. Dodatkowe oznaczenia checków
 w kartach PR i sidebarze oraz podgląd PR w hover card opisane w §7 dotyczą interfejsu web.
 Na web/desktop/mobile **Copy code and open GitHub** łączy skopiowanie kodu z otwarciem GitHuba.

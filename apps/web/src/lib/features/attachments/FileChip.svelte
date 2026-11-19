@@ -42,7 +42,8 @@
     <p class="truncate text-sm/5 font-medium text-zinc-950 sm:text-xs/5 dark:text-white">{name}</p>
     <p
       class={[
-        "truncate text-sm/5 tabular-nums sm:text-xs/5",
+        "text-sm/5 tabular-nums sm:text-xs/5",
+        href || file ? "truncate" : "wrap-anywhere",
         failed ? "text-rose-700 dark:text-rose-400" : "text-zinc-500 dark:text-zinc-400",
       ]}
     >

@@ -1,5 +1,6 @@
 <script lang="ts">
   import { untrack } from "svelte";
+  import { plural } from "@canopy/domain/humanize";
   import type { ThreadState } from "../thread-state.svelte.ts";
   import Dialog from "#lib/shared/ui/Dialog.svelte";
   import SearchField from "#lib/shared/ui/SearchField.svelte";
@@ -48,8 +49,13 @@
     <SearchField label="Search messages" bind:value={query} data-autofocus />
     {#if needle}
       <p class="text-sm text-zinc-500 dark:text-zinc-400" aria-live="polite">
-        {#if view.history.loading}Searching earlier messages…{:else if view.hasMore}Search includes loaded messages.{:else}{matches.length}
-          results{/if}
+        {#if view.history.loading}
+          Searching earlier messages…
+        {:else if view.hasMore}
+          Search includes loaded messages.
+        {:else}
+          {plural(matches.length, "result")}
+        {/if}
       </p>
       {#if view.hasMore && !view.history.loading}
         <Button size="sm" onclick={() => void view.history.load()}>Search earlier messages</Button>

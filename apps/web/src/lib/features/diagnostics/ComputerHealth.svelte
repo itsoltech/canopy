@@ -38,7 +38,7 @@
     </div>
     <p class="text-sm text-muted">{freshness(computer)}</p>
     {#each diagnosticsLimits(computer) as message (message)}
-      <p class="text-sm text-muted">{message} Other measurements remain available.</p>
+      <p class="text-sm text-muted">{message}</p>
     {/each}
     <dl class="grid grid-cols-2 gap-3 text-sm tabular-nums">
       <div>

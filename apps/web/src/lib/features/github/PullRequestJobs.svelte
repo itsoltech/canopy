@@ -7,6 +7,7 @@
   import CheckStateIcon from "./CheckStateIcon.svelte";
   import Button from "#lib/shared/ui/Button.svelte";
   import { PullRequestPages } from "./pages.svelte.ts";
+  import { isLinkedOffline } from "./presentation.ts";
   import PageControls from "./PageControls.svelte";
   import PullRequestLog from "./PullRequestLog.svelte";
   import * as api from "./api.ts";
@@ -61,7 +62,7 @@
   let region = $state<HTMLDivElement>();
 </script>
 
-{#if !pages.current || pages.current.run || pages.current.jobs.length || pages.current.page?.detail || pages.current.page?.nextCursor || pages.index || pages.error}
+{#if !pages.current || pages.current.run || pages.current.jobs.length || pages.current.page?.detail || pages.current.page?.stale || pages.current.page?.nextCursor || pages.index || pages.error}
   <div bind:this={region} class={["grid min-w-0 gap-2 p-3", className]}>
     {#if !pages.current && !pages.error}<ReadSkeleton rows={2} />{/if}
     {#if pages.current?.run}<div class="flex min-w-0 items-center gap-2">
@@ -102,6 +103,8 @@
     {/each}
     <PageControls
       page={pages.current?.page}
+      retryLabel="Retry jobs"
+      offlineShown={isLinkedOffline(snapshot)}
       busy={pages.busy}
       error={pages.error}
       previous={pages.index ? () => pages.index-- : undefined}

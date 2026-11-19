@@ -3,6 +3,7 @@
   import { usagePace, usageReset, usageWindowName } from "@canopy/domain/provider-usage";
   import { usageTone } from "@canopy/domain/sidebar-usage";
   import type { ClassValue } from "svelte/elements";
+  import { tooltip } from "#lib/shared/ui/tooltip.ts";
 
   let {
     window,
@@ -16,6 +17,8 @@
   const name = $derived(usageWindowName(window.key, window.windowMinutes));
   const left = $derived(window.reached ? 0 : window.usedPercent !== undefined ? 100 - window.usedPercent : undefined);
   const pace = $derived(showPace ? usagePace(window, now) : undefined);
+
+  const targetLabel = $derived(pace ? `Steady-use target: ${number.format(pace.expectedLeft)}% left` : undefined);
 
   const tone = $derived(
     window.reached || left === 0
@@ -36,7 +39,7 @@
   );
 </script>
 
-<div class={["@container grid min-w-0 gap-1", className]}>
+<div class={["grid min-w-0 gap-1", className]}>
   <div class="flex flex-wrap justify-between gap-x-3 gap-y-0.5 tabular-nums">
     <span class="text-zinc-700 dark:text-zinc-300"
       >{name}{left !== undefined ? ` · ${number.format(left)}% left` : ""}</span
@@ -74,11 +77,14 @@
     </div>
   {/if}
   {#if pace}
-    <div id={descriptionId} class="grid min-h-5 gap-x-3 tabular-nums @md:grid-cols-[1fr_auto]">
-      <p class="text-zinc-500 dark:text-zinc-400">Steady-use target: {number.format(pace.expectedLeft)}% left</p>
+    <div id={descriptionId} class="min-h-5 tabular-nums">
+      <p class="sr-only">{targetLabel}</p>
+      <!-- svelte-ignore a11y_no_noninteractive_tabindex -- Keyboard focus reveals the exact target on the meter. -->
       <p
+        tabindex="0"
+        {@attach tooltip(targetLabel)}
         class={[
-          "whitespace-nowrap",
+          "w-fit rounded-sm whitespace-nowrap focus-ring",
           pace.difference < 0 ? "text-amber-700 dark:text-amber-400" : "text-zinc-500 dark:text-zinc-400",
         ]}
       >

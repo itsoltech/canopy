@@ -1,5 +1,4 @@
 <script lang="ts">
-  import ProgressBar from "#lib/shared/ui/ProgressBar.svelte";
   import { onMount } from "svelte";
   import type { SelectOption } from "#lib/shared/ui/listbox.ts";
   import type { ClassValue } from "svelte/elements";
@@ -127,14 +126,11 @@
             />
           </div>{/snippet}
         <p class="mt-1 text-sm/5 text-zinc-500 tabular-nums dark:text-zinc-400" role="status">
-          Last checked {checkedTime(current.lastCheckedAt)} · Next check {current.checkIntervalMinutes === 0
-            ? "manual only"
-            : current.nextCheckAt
-              ? checkedTime(current.nextCheckAt)
-              : "unavailable in this installation"}
+          Last checked {checkedTime(current.lastCheckedAt)}{#if current.checkIntervalMinutes !== 0}{" · Next check "}
+            {current.nextCheckAt ? checkedTime(current.nextCheckAt) : "unavailable in this installation"}{/if}
         </p>
         {#if current.checkIntervalMinutes === 0}<p class="mt-1 text-sm/5 text-zinc-500 dark:text-zinc-400">
-            Automatic downloads are off. Use Check for updates to check manually.
+            Automatic downloads are off.
           </p>{/if}
       </PreferenceRow>
     {/if}
@@ -149,20 +145,31 @@
         </div>{/snippet}
     </PreferenceRow>
     <div class="grid gap-4 px-4 py-4">
-      <div class="grid gap-2" role="status" aria-live="polite">
-        <p class="text-base/6 text-pretty text-zinc-500 sm:text-sm/6 dark:text-zinc-400">
+      {#if status.message !== status.error}
+        <p class="text-base/6 text-pretty text-zinc-500 sm:text-sm/6 dark:text-zinc-400" role="status">
           {status.message}{status.updateVersion ? ` · ${status.updateVersion}` : ""}
         </p>
-        {#if status.phase === "downloading"}
-          <div class="flex items-center gap-3">
-            <ProgressBar class="min-w-0 flex-1" label="Update download" value={status.progress ?? 0} />
-            <span class="text-base/6 text-zinc-500 tabular-nums sm:text-sm/6 dark:text-zinc-400"
-              >{Math.round(status.progress ?? 0)}%</span
-            >
-          </div>
-        {/if}
-      </div>
-      {#if status.error}<Alert tone="error">{status.error}</Alert>{/if}
+      {/if}
+      {#if status.phase === "downloading"}
+        <p
+          class="text-base/6 text-zinc-500 tabular-nums sm:text-sm/6 dark:text-zinc-400"
+          role="progressbar"
+          aria-label="Update download"
+          aria-valuemin={0}
+          aria-valuemax={100}
+          aria-valuenow={Math.round(status.progress ?? 0)}
+        >
+          {Math.round(status.progress ?? 0)}%
+        </p>
+      {/if}
+      {#if status.error}
+        <Alert
+          tone="error"
+          title={status.updateVersion && status.message === status.error ? `Update ${status.updateVersion}` : ""}
+        >
+          {status.error}
+        </Alert>
+      {/if}
       {#if status.stagedVersion || status.phase === "downloaded"}
         <p class="text-base/6 text-pretty text-zinc-500 sm:text-sm/6 dark:text-zinc-400">
           {status.phase === "checking" || status.phase === "downloading"

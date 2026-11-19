@@ -1,6 +1,8 @@
 import type { github } from "@canopy/contracts";
 import type { IconName } from "@canopy/ui/icons";
 
+export const offlinePullRequestDetail = "This computer is offline. The last verified page is shown.";
+
 export type PullRequestTone = "success" | "danger" | "warning" | "merged" | "muted";
 
 export interface PullRequestLook {

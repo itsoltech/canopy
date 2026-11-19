@@ -1,7 +1,7 @@
 <script lang="ts">
   import type { ui } from "@canopy/contracts";
   import type { ClassValue } from "svelte/elements";
-  import { threadSyncFailure, threadSyncRecords } from "@canopy/domain/thread-sync-display";
+  import { threadSyncLabel, threadSyncRecords } from "@canopy/domain/thread-sync-display";
 
   let { entry, class: className }: { entry: ui.ThreadSyncDiagnostic; class?: ClassValue } = $props();
 </script>
@@ -12,7 +12,7 @@
     href="/threads/{entry.threadId}">{entry.threadTitle || "Untitled thread"}</a
   >
   <p class="text-sm text-zinc-500 tabular-nums dark:text-zinc-400">
-    {#if entry.reason}Sync paused · {threadSyncFailure(entry.reason)}{:else}Catching up{/if}
+    {#if entry.reason}{threadSyncLabel(entry)}{:else}Catching up{/if}
     {#if entry.remaining}
       · {threadSyncRecords(entry.remaining)}{/if}
   </p>

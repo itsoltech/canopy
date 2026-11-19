@@ -185,7 +185,9 @@
         {life.updateBlockingReason}
       </p>{/if}
     {#if !online || snapshot.stale}<p role="status" class="text-sm/5 text-zinc-500">
-        Connect and refresh before changing this pull request.
+        {online
+          ? "Refresh before changing this pull request."
+          : "Connect and refresh before changing this pull request."}
       </p>{/if}
     {#if receipt?.detail}<p role="status" class="text-sm/5 text-amber-700 dark:text-amber-400">{receipt.detail}</p>{/if}
     {#if receipt && (mutationUnconfirmed(receipt) || receipt.state === "accepted")}<Button

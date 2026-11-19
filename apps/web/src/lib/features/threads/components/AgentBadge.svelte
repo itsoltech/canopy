@@ -11,5 +11,5 @@
     >agent</span
   >
 {:else}
-  <Badge tone="violet" icon="sparkles">Started by agent</Badge>
+  <Badge tone="violet">Started by agent</Badge>
 {/if}

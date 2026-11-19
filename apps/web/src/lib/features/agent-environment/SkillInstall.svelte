@@ -78,9 +78,7 @@
   }
 >
   {#snippet children()}
-    <p class="text-base text-muted sm:text-sm">
-      Assign these skills to all computers, specific computers or tags. Existing computer overrides stay in place.
-    </p>
+    <p class="text-base text-muted sm:text-sm">Existing computer overrides stay in place.</p>
     <AssignmentEditor bind:selector workers={environment.snapshot.workers} />
     {#if completed}<p role="status" class="text-base sm:text-sm">
         {completed} of {ids.length} saved. Retry to install the remaining skills.

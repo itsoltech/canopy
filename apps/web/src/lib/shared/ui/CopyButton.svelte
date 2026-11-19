@@ -13,7 +13,7 @@
     try {
       await navigator.clipboard.writeText(text);
     } catch {
-      toast("Copying is not allowed here", { tone: "error" });
+      toast("Could not copy. Check clipboard access, then try again.", { tone: "error" });
 
       return;
     }

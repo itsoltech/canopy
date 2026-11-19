@@ -133,7 +133,12 @@
                 <p class="truncate text-base/6 text-zinc-950 sm:text-sm/6 dark:text-white" title={row.name}>
                   {row.name}
                 </p>
-                <p class="truncate text-sm/5 text-zinc-500 sm:text-xs/5 dark:text-zinc-400" title={row.id}>{row.id}</p>
+                {#if row.name !== row.id}<p
+                    class="truncate text-sm/5 text-zinc-500 sm:text-xs/5 dark:text-zinc-400"
+                    title={row.id}
+                  >
+                    {row.id}
+                  </p>{/if}
               </div>
               {#if row.favorite && !row.hidden}
                 <IconButton

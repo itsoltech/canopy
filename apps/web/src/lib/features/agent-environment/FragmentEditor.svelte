@@ -72,14 +72,7 @@
       placeholder="For example, Windows tooling"
     /></Field
   >
-  <Field label="Instructions"
-    ><Textarea
-      name="fragment-content"
-      bind:value={fragment.content}
-      rows={6}
-      placeholder="Write the instructions the agent should follow…"
-    /></Field
-  >
+  <Field label="Instructions"><Textarea name="fragment-content" bind:value={fragment.content} rows={6} /></Field>
   <Disclosure>
     {#snippet summary()}<div class="text-base sm:text-sm">
         {fragment.selector ? "Restricted to selected computers" : "Uses the document's assignment"}

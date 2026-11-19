@@ -10,12 +10,7 @@
   }: { open?: boolean; proxy?: ui.Proxy | undefined; onsaved: (proxy: ui.Proxy) => void } = $props();
 </script>
 
-<Dialog
-  bind:open
-  title={proxy ? "Edit proxy" : "Add proxy"}
-  description="One encrypted connection, reusable across provider instances."
-  size="lg"
->
+<Dialog bind:open title={proxy ? "Edit proxy" : "Add proxy"} size="lg">
   {#if open}<ProxyForm
       {proxy}
       oncancel={() => (open = false)}

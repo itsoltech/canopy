@@ -88,7 +88,9 @@
       <Icon name="lock-closed" class="fill-zinc-500 dark:fill-zinc-400" />
     </div>
     <div class="grid min-w-0 flex-1 gap-1">
-      <h2 class="font-medium text-balance wrap-anywhere text-zinc-950 dark:text-white">{secret.label}</h2>
+      <h2 class="font-medium text-balance wrap-anywhere text-zinc-950 dark:text-white">
+        {#if status === "pending"}<label for={id}>{secret.label}</label>{:else}{secret.label}{/if}
+      </h2>
       {#if status === "pending"}<p class="text-pretty wrap-anywhere text-zinc-600 dark:text-zinc-400">
           {secret.description}
         </p>{/if}
@@ -111,10 +113,9 @@
             type="text"
             bind:value
             class={!revealed ? "[-webkit-text-security:disc]" : undefined}
-            aria-label={secret.label}
             aria-describedby="{id}-privacy"
             aria-invalid={!!failure || undefined}
-            placeholder={secret.placeholder || "Paste the secret"}
+            placeholder={secret.placeholder}
             autocomplete="off"
             autocorrect="off"
             autocapitalize="off"

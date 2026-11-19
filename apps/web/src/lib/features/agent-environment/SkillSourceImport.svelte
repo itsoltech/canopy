@@ -126,8 +126,9 @@
           {/each}
         </div>
       {:else}
-        <p class="text-base text-muted sm:text-sm">
-          {source.paths.length} reviewed skills will be added at commit {source.preview.source?.commit}.
+        <p class="text-base wrap-anywhere text-muted sm:text-sm">
+          You selected {source.paths.length}
+          {source.paths.length === 1 ? "skill" : "skills"} from commit {source.preview.source?.commit}.
         </p>
         <SkillDestinations bind:skill={source.assignment} workers={environment.snapshot.workers} />
         <Alert

@@ -27,7 +27,6 @@
     </div>
     {#if status.phase === "downloading"}
       <ProgressBar label="App update download" value={status.progress ?? 0} />
-      <p class="text-base/6 tabular-nums sm:text-sm/6">{Math.round(status.progress ?? 0)}% downloaded</p>
     {/if}
     {#if status.publishing && status.message !== status.publishing}<p
         class="text-base/6 text-pretty text-zinc-500 sm:text-sm/6 dark:text-zinc-400"

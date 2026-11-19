@@ -91,7 +91,7 @@
           : replacing.objective}”</Alert
       >
     {/if}
-    <Field label="Goal" description="What has to be true when the agent is done. Be specific about how to check it.">
+    <Field label="Goal" description="Describe how the agent can check that the work is done.">
       <Textarea
         name="objective"
         rows={4}

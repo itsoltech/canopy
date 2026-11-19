@@ -65,7 +65,7 @@ export class DesktopUpdates {
           (
             await dialog.showMessageBox({
               type: "warning",
-              title: "Switch to a more stable channel?",
+              title: "Update channel",
               message: `Switch to ${channel === "stable" ? "Stable" : "Beta"}?`,
               detail:
                 "This switch allows installing an older version. Data written by newer versions may not be readable, and Canopy may stop working. Back up your data before continuing. Downgrades are allowed only for this switch’s update attempt.",

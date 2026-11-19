@@ -66,12 +66,7 @@
   <NotificationSettings />
   {#if settings.moduleEnabled("threads")}
     <SettingsGroup title="Sidebar" description="This device">
-      <PreferenceRow
-        title="Group by"
-        description="Choose how threads are grouped in the sidebar."
-        changed={groupBy !== "none"}
-        onreset={() => setGrouping("none")}
-      >
+      <PreferenceRow title="Group by" changed={groupBy !== "none"} onreset={() => setGrouping("none")}>
         {#snippet control()}<div class="w-48">
             <Select
               aria-label="Group by"
@@ -143,7 +138,6 @@
     <DeviceChoiceRow
       preference="timeFormat"
       title="Time format"
-      description="Set how timestamps show hours."
       options={[
         { value: "system", label: "System" },
         { value: "12h", label: "12-hour" },

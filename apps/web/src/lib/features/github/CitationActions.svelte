@@ -28,13 +28,13 @@
     <DropdownMenu {label} placement="bottom-end" sheet>
       {#snippet trigger(props)}<IconButton {...props} icon="ellipsis-horizontal" {label} size="sm" />{/snippet}
       {#if canSend}
-        <MenuGroup label="Canopy">
+        <MenuGroup label={children || href ? "Canopy" : undefined}>
           <MenuItem icon="paper-airplane" onselect={() => quote && target?.target(quote)}>Send to agent</MenuItem>
         </MenuGroup>
       {/if}
       {#if children || href}
         {#if canSend}<MenuSeparator />{/if}
-        <MenuGroup label="GitHub">
+        <MenuGroup label={canSend ? "GitHub" : undefined}>
           {@render children?.()}
           {#if href}<MenuItem icon="arrow-top-right-on-square" {href}>Open on GitHub</MenuItem>{/if}
         </MenuGroup>

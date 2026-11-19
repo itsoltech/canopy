@@ -70,7 +70,7 @@
 
     if (!connected) return { title: "You’re offline", detail: "Reconnect to resume this preview." };
 
-    if (installing) return { title: "Installing tool…", detail: "Preview starts when installation finishes." };
+    if (installing) return { title: "Installing tool…", detail: "" };
 
     if (!ready) return { title: "Tool not ready", detail: "Open Preview to check this tool." };
 

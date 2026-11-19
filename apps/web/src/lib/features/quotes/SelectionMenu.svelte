@@ -8,19 +8,20 @@
 
   let {
     root,
+    open = $bindable(false),
     shortcut,
     oncite,
     select = selectedQuote,
     class: className,
   }: {
     root: HTMLElement | undefined;
+    open?: boolean;
     shortcut: string;
     oncite: (quote: SelectedQuote) => void;
     select?: (selection: Selection | null) => SelectedQuote | undefined;
     class?: ClassValue;
   } = $props();
 
-  let open = $state(false);
   let selected = $state.raw<SelectedQuote>();
   let point = $state({ x: 0, y: 0 });
 

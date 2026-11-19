@@ -24,7 +24,7 @@
     id?: string;
     name: string;
     meta: string;
-    status: Snippet;
+    status?: Snippet;
     targets?: Snippet;
     actions?: Snippet;
     selection?: Snippet;
@@ -52,7 +52,7 @@
       onclick={onedit}
       {@attach tooltip(name)}>{name}</button
     >
-    <div class="min-w-0 shrink-0">{@render status()}</div>
+    {#if status}<div class="min-w-0 shrink-0">{@render status()}</div>{/if}
     <div class="flex shrink-0 items-center justify-end gap-0.5 max-sm:basis-full pointer-coarse:gap-3">
       {#if actions}{@render actions()}{/if}
       <IconButton icon="pencil-square" label={editLabel} size="sm" {disabled} onclick={onedit} />

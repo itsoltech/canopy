@@ -25,6 +25,7 @@
     class?: string;
   } = $props();
 
+  const attachments = $derived(row.content?.attachments.length ?? 0);
   const preview = $derived(row.content?.text.trim() || (row.content?.quotes.length ? "Quoted text" : "Attachments"));
 </script>
 
@@ -39,9 +40,11 @@
       class="flex min-h-9 min-w-0 flex-1 items-center gap-2 rounded-lg px-2 text-left focus-ring disabled:opacity-50"
     >
       <span class="min-w-0 flex-1 truncate" title={preview}>{preview}</span>
-      {#if row.content?.attachments.length}
-        <span class="flex shrink-0 items-center gap-0.5" aria-label={`${row.content.attachments.length} attachments`}
-          ><Icon name="paper-clip" size="sm" />{row.content.attachments.length}</span
+      {#if attachments}
+        <span
+          class="flex shrink-0 items-center gap-0.5"
+          aria-label={`${attachments} ${attachments === 1 ? "attachment" : "attachments"}`}
+          ><Icon name="paper-clip" size="sm" />{attachments}</span
         >
       {/if}
       <span class="max-w-24 shrink truncate text-zinc-500 dark:text-zinc-400" title={row.deviceName}

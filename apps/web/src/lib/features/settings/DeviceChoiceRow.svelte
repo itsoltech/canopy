@@ -14,7 +14,7 @@
   }: {
     preference: DeviceKey;
     title: string;
-    description: string;
+    description?: string | undefined;
     options: readonly SelectOption[];
   } = $props();
 </script>

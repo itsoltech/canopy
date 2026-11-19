@@ -42,12 +42,7 @@
       label="Gateway address for workers"
       description="Leave empty to use Network access automatically. For a different hostname or forwarded port, add it in Network access and enter its HTTPS origin here."
     >
-      <Input
-        name="public-gateway-address"
-        type="url"
-        bind:value={address}
-        placeholder="Automatic from Network access"
-      />
+      <Input name="public-gateway-address" type="url" bind:value={address} />
     </Field>
     {#if error}<Alert tone="error">{error}</Alert>{/if}
     <div class="flex justify-end">

@@ -146,7 +146,7 @@
           : plain && !highlight
             ? {
                 text: "Plain text",
-                detail: "Large files are shown as plain text to keep them responsive.",
+                detail: "Syntax highlighting is off by default for large files.",
                 action: { label: "Enable highlighting", short: "Highlight", run: () => (highlight = true) },
               }
             : undefined,

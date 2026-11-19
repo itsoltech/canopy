@@ -274,7 +274,7 @@
             {#if archived && conversation.archived}
               {@render archived()}
             {:else if conversation.kind === "watch"}
-              <WatchBar bots={conversation.bots} {onclose} />
+              <WatchBar {onclose} />
             {:else}
               <BotComposer
                 bind:this={composer}

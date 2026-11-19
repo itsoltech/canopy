@@ -7,9 +7,12 @@
 
   let { days, providers, view }: { days: UsageDay[]; providers: UsageRow[]; view: UsageView } = $props();
 
+  const hintId = $props.id();
   let active = $state(-1);
   const selectedIndex = $derived(active < 0 ? days.length - 1 : Math.min(active, days.length - 1));
   const selected = $derived(days[selectedIndex]);
+  const firstDay = $derived(days[0]);
+  const lastDay = $derived(days.at(-1));
 
   function navigate(event: KeyboardEvent & { currentTarget: HTMLButtonElement }, index: number) {
     if (!["ArrowLeft", "ArrowRight", "Home", "End"].includes(event.key)) return;
@@ -26,23 +29,30 @@
   }
 
   function describe(day: UsageDay, full = false) {
-    const total = `${dayLabel(day.key, full)}: ${metricValue(day.amounts, view)}${view === "tokens" ? " tokens" : ""}`;
+    const total = `${dayLabel(day.key, full)} UTC: ${metricValue(day.amounts, view)}${view === "tokens" ? " tokens" : ""}`;
     const parts = day.providers.map((provider) => `${provider.label}: ${metricValue(provider.amounts, view)}`);
 
     return [total, ...parts].join(" · ");
   }
 </script>
 
-<figure class="@container min-w-0 rounded-xl border border-divider p-4">
+<figure class="group/chart @container min-w-0 rounded-xl border border-divider p-4">
   <figcaption class="grid grid-cols-1 items-start gap-x-4 gap-y-1 @lg:grid-cols-2">
     <div>
       <h3 class="text-base/6 font-medium sm:text-sm/6">Daily trend</h3>
-      <p class="text-sm/5 text-zinc-500 dark:text-zinc-400">Use arrow keys to explore days in UTC.</p>
+      {#if days.length > 1}
+        <p
+          id={hintId}
+          class="invisible text-sm/5 text-zinc-500 group-has-[:focus-visible]/chart:visible dark:text-zinc-400"
+        >
+          Use arrow keys to change the day.
+        </p>
+      {/if}
     </div>
     <div class="min-h-10 text-right text-sm/5 tabular-nums">
       {#if selected}
         {@const total = `Total ${metricValue(selected.amounts, view)}${view === "tokens" ? " tokens" : ""}`}
-        <p>{dayLabel(selected.key)}</p>
+        <p>{dayLabel(selected.key)} UTC</p>
         <p class="truncate font-medium" title={total}>{total}</p>
       {/if}
     </div>
@@ -53,6 +63,7 @@
       class="absolute inset-y-0 right-0 left-13 flex"
       role="group"
       aria-label={view === "cost" ? "Daily cost" : "Daily tokens"}
+      aria-describedby={days.length > 1 ? hintId : undefined}
     >
       {#each days as day, index (day.key)}
         <button
@@ -69,10 +80,12 @@
       {/each}
     </div>
   </div>
-  <div class="mt-2 ml-13 flex justify-between text-xs/5 text-zinc-500 dark:text-zinc-400" aria-hidden="true">
-    <span>{days[0] ? dayLabel(days[0].key) : ""}</span>
-    <span>{days.at(-1) ? dayLabel(days.at(-1)!.key) : ""}</span>
-  </div>
+  {#if firstDay && lastDay && firstDay.key !== lastDay.key}
+    <div class="mt-2 ml-13 flex justify-between text-xs/5 text-zinc-500 dark:text-zinc-400" aria-hidden="true">
+      <span>{dayLabel(firstDay.key)}</span>
+      <span>{dayLabel(lastDay.key)}</span>
+    </div>
+  {/if}
   <ul class="mt-4 grid gap-x-5 gap-y-2 sm:grid-cols-2 lg:grid-cols-3" aria-label="Usage by provider on selected day">
     {#each providers as provider (provider.key)}
       {@const value = selected ? providerDayValue(selected, provider.key, view) : "Unknown"}

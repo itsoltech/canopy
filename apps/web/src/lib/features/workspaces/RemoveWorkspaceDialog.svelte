@@ -25,7 +25,7 @@
 <Dialog
   bind:open
   title="Remove {projectName} from {workerName}?"
-  description="New threads can no longer run in {workspace.rootPath}. Threads already there keep working, and you can add the project to this worker again later."
+  description="Existing threads keep working in {workspace.rootPath}. To start new threads there, add the workspace again."
 >
   <ActionForm action="?/removeWorkspace" onsuccess={() => (open = false)} class="grid gap-4">
     {#snippet children({ busy, submitted })}
@@ -33,7 +33,7 @@
       {#if submitted && error}<Alert tone="error">{error}</Alert>{/if}
       <DialogActions>
         <Button onclick={() => (open = false)}>Cancel</Button>
-        <Button type="submit" variant="danger" icon="trash" loading={busy}>Remove from {workerName}</Button>
+        <Button type="submit" variant="danger" loading={busy}>Remove from {workerName}</Button>
       </DialogActions>
     {/snippet}
   </ActionForm>

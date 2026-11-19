@@ -26,7 +26,7 @@
   <LocalOverridesNote />
   {#each workers as worker (worker.workerId)}
     {@const override = skill.overrides.find((o) => o.workerId === worker.workerId)}
-    <div class="grid min-w-0 gap-3 sm:grid-cols-2">
+    <div class="grid min-w-0 gap-3 wrap-anywhere sm:grid-cols-2">
       <Checkbox
         name="disable-skill-{worker.workerId}"
         label="Disable on {worker.name}"

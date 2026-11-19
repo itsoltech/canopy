@@ -48,9 +48,9 @@
   <button
     type="button"
     class="flex min-h-9 w-full min-w-0 items-center gap-2 rounded-lg px-2 py-1 text-left text-base/5 text-zinc-700 focus-ring sm:min-h-8 sm:text-sm/5 dark:text-zinc-300"
-    aria-label="{backgroundName(task)} — {status}. Show full output"
+    aria-label="{backgroundName(task)}. {status}. Show full output"
     {onclick}
-    {@attach tooltip(`${backgroundName(task)} — ${status}`)}
+    {@attach tooltip(`${backgroundName(task)} (${status})`)}
   >
     <span class="flex size-4 shrink-0 items-center justify-center" aria-hidden="true">
       {#if running}<StatusDot tone="sky" pulse />

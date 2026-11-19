@@ -112,7 +112,7 @@
       <div class="flex min-w-0 items-center gap-2">
         <span class="min-w-0 truncate font-medium text-zinc-950 dark:text-white">{question.header || "Question"}</span>
         {#if question.options.length}<span class="shrink-0 text-zinc-500 dark:text-zinc-400"
-            >{question.options.length} options</span
+            >{question.options.length} {question.options.length === 1 ? "option" : "options"}</span
           >{/if}
         {#if session.questions.length > 1}<span
             class="shrink-0 text-zinc-500 tabular-nums dark:text-zinc-400"
@@ -144,7 +144,7 @@
             </p>{/if}
           <p class="text-[0.8125rem]/5 text-zinc-500 sm:text-xs/5 dark:text-zinc-400" role="status">
             {session.interaction.asynchronous
-              ? "The agent keeps working. Answer any time."
+              ? "The agent keeps working while you answer."
               : "The agent is waiting for your answers."}
           </p>
           <fieldset disabled={disabled || session.busy} class="min-w-0">
@@ -155,7 +155,7 @@
             >
             {#if question.options.length}
               <p class="pt-1 text-sm/5 text-zinc-500 dark:text-zinc-400">
-                {question.options.length} options · {question.kind === "multiple_choice" ? "Choose any" : "Choose one"}
+                {question.kind === "multiple_choice" ? "Choose any" : "Choose one"}
               </p>
               <ol role="list" class="grid gap-0.5 pt-1">
                 {#each question.options as option, index (index)}
@@ -195,7 +195,6 @@
               onkeydown={answerKey}
               bind:value={() => session.text, (value) => (session.text = value)}
               disabled={disabled || session.busy}
-              placeholder="Type your answer…"
             />
           {/if}
           {#if session.error}<Alert tone="error">{session.error}</Alert>{/if}

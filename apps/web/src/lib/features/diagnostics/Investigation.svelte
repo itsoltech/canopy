@@ -61,7 +61,7 @@
 
       await goto(`/threads/${value.threadId}`);
     } catch {
-      error = "Could not create the investigation. Check the placement and retry.";
+      error = "Could not create the investigation. Check the selected workspace and agent.";
     } finally {
       busy = false;
     }

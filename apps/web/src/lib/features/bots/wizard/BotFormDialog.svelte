@@ -64,18 +64,6 @@
   let session = $state(0);
   let wasOpen = false;
 
-  const status = $derived.by(() => {
-    if (busy) return editing ? "Saving appearance…" : "Creating your bot…";
-
-    if (editing) return "";
-
-    if (loading) return "Loading models before you can create a bot.";
-
-    if (loadError) return "Reload models to continue.";
-
-    return option ? "" : "Choose an available model to create your bot.";
-  });
-
   $effect(() => {
     if (open && !wasOpen)
       untrack(() => {
@@ -136,7 +124,7 @@
     } catch (cause) {
       error =
         (cause instanceof Error ? cause.message : isString(cause) ? cause : "") ||
-        "Could not save your bot. Please try again.";
+        "Could not save your bot. Try again.";
     } finally {
       busy = false;
     }
@@ -180,14 +168,9 @@
 >
   <form bind:this={form} novalidate onsubmit={submit} aria-busy={busy || undefined}>
     <div class="flex items-start justify-between gap-4 px-5 pt-6 pb-4 sm:px-6">
-      <div class="grid gap-1">
-        <p aria-hidden="true" class="text-xl font-semibold text-balance">
-          {editing ? "Edit bot appearance" : "Create bot"}
-        </p>
-        <p class="text-base/6 text-pretty text-zinc-500 sm:text-sm/6 dark:text-zinc-400">
-          {editing ? "A fresh look for a familiar face." : "Choose a model, then give your bot a name."}
-        </p>
-      </div>
+      <p aria-hidden="true" class="text-xl font-semibold text-balance">
+        {editing ? "Edit bot appearance" : "Create bot"}
+      </p>
       <IconButton icon="x-mark" label="Close" size="sm" disabled={busy} onclick={() => (open = false)} />
     </div>
     <div class="grid gap-5 px-5 pb-5 sm:px-6">
@@ -226,11 +209,11 @@
     <div
       class="sticky bottom-0 flex flex-wrap items-center justify-end gap-2 border-t border-zinc-950/10 bg-white px-5 pt-3 pb-[max(--spacing(4),env(safe-area-inset-bottom))] sm:px-6 dark:border-white/10 dark:bg-zinc-950"
     >
-      {#if status}<p
+      {#if busy}<p
           class="mr-auto min-w-0 basis-full text-base/6 text-zinc-500 sm:text-sm/5 dark:text-zinc-400"
           role="status"
         >
-          {status}
+          {editing ? "Saving appearance…" : "Creating your bot…"}
         </p>{/if}
       <Button disabled={busy} onclick={() => (open = false)}>Cancel</Button>
       <Button type="submit" variant="primary" loading={busy} disabled={!editing && (loading || !!loadError || !option)}

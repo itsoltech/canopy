@@ -4,6 +4,7 @@
   import Checkbox from "#lib/shared/ui/Checkbox.svelte";
   import Field from "#lib/shared/ui/Field.svelte";
   import Input from "#lib/shared/ui/Input.svelte";
+  import { parseNumber } from "#lib/shared/ui/number.ts";
 
   /** MCP elicitation: a message and a flat JSON-schema form (strings, numbers, booleans). */
   let {
@@ -30,17 +31,19 @@
     }),
   );
 
-  let values = $state<Record<string, string>>({});
-  let flags = $state<Record<string, boolean>>({});
-
-  function content(): string {
+  function content(form: HTMLFormElement): string {
+    const data = new FormData(form);
     const out: Record<string, JsonValue> = {};
 
     for (const field of fields) {
-      if (field.type === "boolean") out[field.name] = flags[field.name] ?? false;
-      else if (values[field.name]?.trim())
-        out[field.name] =
-          field.type === "number" || field.type === "integer" ? Number(values[field.name]) : values[field.name];
+      const value = data.get(field.name);
+
+      if (field.type === "boolean") out[field.name] = data.has(field.name);
+      else if (isString(value) && value.trim()) {
+        const answer = field.type === "number" || field.type === "integer" ? parseNumber(value) : value;
+
+        if (answer !== undefined) out[field.name] = answer;
+      }
     }
 
     return JSON.stringify(out);
@@ -51,7 +54,7 @@
   class="grid gap-4"
   onsubmit={(event) => {
     event.preventDefault();
-    submit({ answerJson: content() });
+    submit({ answerJson: content(event.currentTarget) });
   }}
 >
   {#if str(request["message"])}<p class="text-base/6 text-zinc-800 sm:text-sm/6 dark:text-zinc-200">
@@ -59,19 +62,13 @@
     </p>{/if}
   {#each fields as field (field.name)}
     {#if field.type === "boolean"}
-      <Checkbox
-        name={field.name}
-        label={field.title}
-        description={field.description}
-        bind:checked={flags[field.name]}
-      />
+      <Checkbox name={field.name} label={field.title} description={field.description} />
     {:else}
       <Field label={field.title} description={field.description} optional={!required.has(field.name)}>
         <Input
           name={field.name}
           type={field.type === "number" || field.type === "integer" ? "number" : "text"}
           required={required.has(field.name)}
-          bind:value={values[field.name]}
         />
       </Field>
     {/if}

@@ -108,10 +108,19 @@ export function dateTimeError(
 ): string | undefined {
   const valid = parseValue(value, kind, timeZone);
 
-  if (!valid)
-    return kind === "time"
-      ? "Enter a time as HH:MM (00:00–23:59)."
-      : "Choose a valid date and time. This time may not exist because the clocks change.";
+  if (!valid) {
+    if (kind === "date") return "Choose a valid date.";
+
+    if (kind === "time") return "Enter a time from 00:00 to 23:59.";
+
+    const [day, time, extra] = value.split("T");
+
+    if (!day || !parseDay(day)) return "Choose a valid date.";
+
+    if (extra !== undefined || !time || !validTime(time)) return "Enter a time from 00:00 to 23:59.";
+
+    return "This local time does not exist. Choose another time.";
+  }
 
   if (min && value < min) return `Choose ${formatDateTime(min, kind, undefined, timeZone)} or later.`;
 

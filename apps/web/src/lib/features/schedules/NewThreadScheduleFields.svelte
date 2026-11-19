@@ -234,6 +234,6 @@
     </p>
   </fieldset>
   <Field label="Thread title (optional)" description="Leave blank to generate a title from the first message.">
-    <Input name="threadTitle" bind:value={title} maxlength={200} placeholder="Generate automatically" />
+    <Input name="threadTitle" bind:value={title} maxlength={200} />
   </Field>
 </div>

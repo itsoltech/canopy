@@ -2,12 +2,7 @@
   import type { ui } from "@canopy/contracts";
   import { untrack } from "svelte";
   import { moveActive, movementOf } from "#lib/features/commands/palette.ts";
-  import {
-    paletteEmptyClass,
-    paletteGroupLabelClass,
-    paletteInputClass,
-    paletteListClass,
-  } from "#lib/features/commands/palette-style.ts";
+  import { paletteEmptyClass, paletteInputClass, paletteListClass } from "#lib/features/commands/palette-style.ts";
   import PaletteFooter from "#lib/features/commands/PaletteFooter.svelte";
   import PaletteOption from "#lib/features/commands/PaletteOption.svelte";
   import { pathSeparator } from "#lib/features/overview/workers.ts";
@@ -217,7 +212,6 @@
 {/if}
 
 <div id="{id}-list" role="listbox" aria-label="Directories" class={paletteListClass}>
-  <div role="presentation" class={paletteGroupLabelClass}>Directories</div>
   {#if listingError && !loaded}
     <p class={[paletteEmptyClass, "wrap-anywhere"]}>{listingError}</p>
   {:else if typed.dir && listing.loading}

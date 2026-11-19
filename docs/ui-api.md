@@ -3,6 +3,9 @@
 Status (2026-11-19): na `dev` tło hover pierwszego nagłówka paneli kompozytora
 web/desktop mieści się w zaokrąglonym obrysie stosu.
 Wyszukiwarka ustawień podświetla dopasowania w otwartej sekcji.
+W web/desktop odmowa dostępu do schowka w trakcie parowania udostępnia w dialogu pełne zaproszenie desktopowe albo kod telefonu. Pole znika po zamknięciu dialogu, użyciu zaproszenia lub utracie jego ważności.
+Historia importu pokazuje wynik i rozwijane szczegóły, a harmonogram podaje wynik wykonania przed metadanymi.
+Formularz MCP w wątku zachowuje typ wartości liczbowych i logicznych przy wysyłaniu odpowiedzi.
 Web/desktop sygnalizuje wysyłanie w wątku na przycisku wysyłki,
 a w czacie bota przez przygaszenie dymka. Potwierdzenie dostarczenia zachowuje wysokość wiadomości.
 Jawnie zapisany tryb uprawnień wątku ma pierwszeństwo przed historią tur w web/desktop i mobile.
@@ -2619,6 +2622,7 @@ Trasy:
   Informacja pod ścieżkami wyjaśnia, że istniejące wątki mogą zachować wcześniejszy
   katalog historii przypięty na workerze.
 - `/settings/proxies`: połączenia owner-scoped, szyfrowany sekret (Set / Replace), mapowania harnessów i Test connection. Instancje wybierają `proxy_id`; Move to a proxy przenosi zapisane zmienne bez ujawniania sekretu. RPC i endpointy BFF: [proxies.md](proxies.md#api-i-weryfikacja).
+- Galerie deweloperskie `/dev/tool-calls` i `/dev/updates` mają własny obszar przewijania wewnątrz powłoki.
 - `/bots` pokazuje zapowiedź bez sztucznych danych; `/bots/[id]` daje 404. `/dev/bots` to galeria komponentów, a `/dev/long-thread` to syntetyczna długa historia; obie trasy działają wyłącznie w development, chronione `import.meta.env.DEV`.
 
 `ModelPicker` pokazuje konkretną nazwę modelu bez opisu i etykiety połączenia; instancję nazywa tylko tam, gdzie dostawca ma ich kilka (`ModelOption.sharedProvider`). Pole `legacy` katalogu przenosi starsze modele do zwijanej grupy „Legacy models” z licznikiem per instancja; wyszukiwanie i ulubione pokazują je bez zwijania. `Combobox` obsługuje takie grupy przez `groupExpanded` (brak wartości = zwykły nagłówek) i `ontogglegroup`; zwinięte opcje nie uczestniczą w nawigacji strzałkami. `ComboboxGroup` używa wspólnego `expand` i respektuje ograniczenie ruchu. Lista modeli w Settings → Providers pokazuje nazwę i id.
@@ -2649,8 +2653,8 @@ Podświetlanie składni (`lib/shared/ui/code`): Shiki (gramatyki TextMate) na si
 „Cite” przy końcu zaznaczenia: po puszczeniu myszy, ustaleniu zaznaczenia klawiaturą
 lub pod uchwytami zaznaczenia na ekranie dotykowym. Przycisk żyje w top layer
 (`features/quotes/CiteLayer.svelte`), więc nie przesuwa transkryptu. `Alt+Q` cytuje
-bieżące zaznaczenie. Menu kontekstowe zaznaczenia na desktopie udostępnia „Cite” i „Copy text”;
-na dotyku pozostaje systemowe menu zaznaczenia. Cite i akcja cytowania wiadomości wstawiają token w ostatnim
+bieżące zaznaczenie. Na desktopie otwarcie menu zaznaczenia ukrywa pływający przycisk. Menu udostępnia „Cite” i „Copy text”.
+Na dotyku pozostaje systemowe menu zaznaczenia. Cite i akcja cytowania wiadomości wstawiają token w ostatnim
 miejscu kursora w kompozytorze, a bez zapamiętanego kursora — na końcu. Fokus wraca
 za token. Nie ma zasobnika cytatów nad polem.
 

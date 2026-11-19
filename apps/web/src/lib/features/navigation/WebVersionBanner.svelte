@@ -25,7 +25,7 @@
     >
       <span class="min-w-0 flex-1">
         {#if lag === "older"}
-          This web app is older than the gateway. Remove the separate web service; the gateway serves the web now.
+          This web app is older than the gateway. The gateway now serves the web app. Remove the separate web service.
         {:else}
           This web app is newer than the gateway. Update the gateway to the same version.
         {/if}

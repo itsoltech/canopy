@@ -92,10 +92,7 @@
     {#if !effective || !inherited}
       <Skeleton class="h-64 w-full" />
     {:else}
-      <SettingsGroup
-        title="Creation"
-        description="Where new worktrees go and what they start from. Existing worktrees stay where they are."
-      >
+      <SettingsGroup title="Creation" description="Existing worktrees stay in their current directories.">
         <WorktreeTextSetting
           name="worktreeLocation"
           field="location"
@@ -145,12 +142,12 @@
         </div>
       </SettingsGroup>
 
-      <SettingsGroup title="Branches" description="How the branch of a new worktree is named.">
+      <SettingsGroup title="Branches">
         <WorktreeChoiceSetting
           name="branchNaming"
           field="branchNaming"
           title="Branch naming"
-          description="Semantic prefix asks the text-generation model for a type from the first message."
+          description="The model suggests a prefix based on the thread’s first message."
           options={naming}
           value={effective.branchNaming}
           inherited={inherited.branchNaming}
@@ -162,7 +159,7 @@
           name="branchPrefix"
           field="branchPrefix"
           title="Branch prefix"
-          description="For prefix names, and the first name before a semantic one arrives."
+          description="Also used until the model suggests a semantic prefix."
           value={effective.branchPrefix ?? ""}
           overridden={is("branchPrefix")}
           inherited={inherited.branchPrefix || "canopy"}
@@ -176,7 +173,7 @@
           name="defaultMode"
           field="defaultMode"
           title="Default workspace"
-          description="What the new-thread composer starts with on this scope."
+          description="You can choose a different workspace for each thread."
           options={modes}
           value={effective.defaultMode}
           inherited={inherited.defaultMode}

@@ -11,7 +11,6 @@
   import { librarySource } from "./library-meta.ts";
   import Button from "#lib/shared/ui/Button.svelte";
   import IconButton from "#lib/shared/ui/IconButton.svelte";
-  import Badge from "#lib/shared/ui/Badge.svelte";
 
   let { environment, class: className }: { environment: EnvironmentState; class?: ClassValue } = $props();
   const controller = new PluginState(untrack(() => environment));
@@ -67,7 +66,6 @@
           onedit={() => review(market)}
           onremove={() => void controller.removeMarketplace(market.id)}
         >
-          {#snippet status()}<Badge compact>Pinned catalog</Badge>{/snippet}
           {#snippet actions()}<IconButton
               icon="arrow-path"
               label="Check upstream"
@@ -78,11 +76,8 @@
         </LibraryRow>
         <MarketplacePlugins {controller} {market} class="ml-3 border-l border-divider pl-3" />
       </div>
-    {:else}<div class="grid gap-3 rounded-xl bg-zinc-950/3 p-5 dark:bg-white/4">
-        <p class="text-base text-pretty text-muted sm:text-sm">
-          Add a marketplace to browse its plugins. Nothing runs during preview.
-        </p>
-        <div><Button onclick={add}>Add your first marketplace</Button></div>
-      </div>{/each}
+    {:else}<p class="rounded-xl bg-zinc-950/3 p-5 text-base text-pretty text-muted sm:text-sm dark:bg-white/4">
+        No marketplaces yet. You can preview a catalog without running its plugins.
+      </p>{/each}
   </div>
 </section>

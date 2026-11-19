@@ -4,7 +4,6 @@
   import { accountStatus } from "./api.ts";
   import ThreadConnectorDialog from "./ThreadConnectorDialog.svelte";
   import type { useThreadPanel } from "#lib/features/threads/thread-panel.svelte.ts";
-  import Icon from "#lib/shared/ui/Icon.svelte";
   import Badge from "#lib/shared/ui/Badge.svelte";
   import { tooltip } from "#lib/shared/ui/tooltip.ts";
   import type { Tone } from "#lib/shared/ui/tone.ts";
@@ -79,14 +78,13 @@
         {@const state = sessionLook(account)}
         <li class="grid min-w-0">
           <div class="flex min-h-7 min-w-0 items-center gap-2">
-            <Icon name="link" /><span class="min-w-0 flex-1 truncate"
-              >{account.connectorName} · {account.accountLabel}</span
+            <span class="min-w-0 flex-1 truncate">{account.connectorName} · {account.accountLabel}</span
             >{#if state}<span role="status" class="contents" {@attach tooltip(state.hint)}
                 ><Badge compact tone={state.tone}>{state.label}</Badge></span
               >{/if}
           </div>
           {#if account.status === "connected" && account.sessionState === "failed" && account.sessionDetail}<p
-              class="pb-1 pl-6 text-pretty text-zinc-500 dark:text-zinc-400"
+              class="pb-1 text-pretty text-zinc-500 dark:text-zinc-400"
             >
               {account.sessionDetail}
             </p>{/if}

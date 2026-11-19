@@ -48,7 +48,6 @@
       {#snippet children()}
         {#if controller.preview && controller.preview.source?.commit !== skill.source?.commit}
           <div class="grid min-w-0 gap-4 rounded-xl p-4 ring-1 ring-zinc-950/10 dark:ring-white/10">
-            <h4 class="text-base font-medium text-balance">Review upstream update</h4>
             <p class="font-mono text-base wrap-anywhere sm:text-sm">
               {skill.source?.commit.slice(0, 12)} → {controller.preview.source?.commit.slice(0, 12)}
             </p>

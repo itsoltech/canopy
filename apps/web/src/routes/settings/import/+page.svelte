@@ -124,7 +124,7 @@
       <ImportLibrary library={imports.library} />
     </SettingsGroup>
 
-    <SettingsGroup title="Threads" description="Choose the threads to import. Each directory maps to a project.">
+    <SettingsGroup title="Threads" description="Each directory maps to a project.">
       <ImportFilters {imports} />
       <ImportSelectionBar {imports} onstart={() => void runs.load()} />
       {#if imports.result}

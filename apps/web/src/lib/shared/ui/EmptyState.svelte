@@ -21,7 +21,7 @@
   ]}
 >
   {#if icon}<Icon name={icon} class="fill-zinc-400 dark:fill-zinc-500" />{/if}
-  <p class="mt-3 text-base/6 font-medium text-zinc-950 sm:text-sm/6 dark:text-white">{title}</p>
+  <p class={["text-base/6 font-medium text-zinc-950 sm:text-sm/6 dark:text-white", icon && "mt-3"]}>{title}</p>
   {#if description}<p class="mt-1 max-w-[50ch] text-base/6 text-pretty text-zinc-500 sm:text-sm/6 dark:text-zinc-400">
       {description}
     </p>{/if}

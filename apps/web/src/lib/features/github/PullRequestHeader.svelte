@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { plural } from "@canopy/domain/humanize";
   import type { github } from "@canopy/contracts";
   import type { ClassValue } from "svelte/elements";
   import { formatAge, formatDateTime } from "#lib/shared/format.ts";
@@ -114,7 +115,8 @@
     </p>
     <div class="flex flex-wrap items-center justify-between gap-2 text-sm/5 sm:text-xs/5">
       <p class="text-zinc-500 tabular-nums dark:text-zinc-400">
-        {snapshot.files} files <span class="ml-1 text-emerald-700 dark:text-emerald-400">+{snapshot.additions}</span>
+        {plural(snapshot.files, "file")}
+        <span class="ml-1 text-emerald-700 dark:text-emerald-400">+{snapshot.additions}</span>
         <span class="text-rose-700 dark:text-rose-400">−{snapshot.deletions}</span>
       </p>
       <button

@@ -37,7 +37,7 @@
 </script>
 
 <div class="settings-stack">
-  <SettingsHeading title="Agent environment" description="Assign library items to computers or tags to install them." />
+  <SettingsHeading title="Agent environment" />
   <LibrarySummary environment={state} />
   <EnvironmentNotices onchange={() => void state.refresh()} />
   {#if state.error}<Alert tone="error">{state.error}</Alert>{/if}

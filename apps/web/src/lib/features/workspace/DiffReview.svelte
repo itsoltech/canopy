@@ -24,7 +24,7 @@
   size="lg"
   fullscreen
   class={className}
-  description="Comments are sent together as one message in this thread."
+  description="Send all comments as one message in this thread."
 >
   <div class="space-y-4">
     {#if stale}

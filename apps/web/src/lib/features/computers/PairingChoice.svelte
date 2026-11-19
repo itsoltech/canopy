@@ -40,7 +40,7 @@
 </SettingsRow>
 {#if choosing}
   <p class="text-base/6 text-pretty text-zinc-500 sm:text-sm/6 dark:text-zinc-400">
-    Open Linked computers on your other computer, then choose how to pair.
+    On your other computer, open Settings → Linked computers.
   </p>
   {#if network.error || !network.loaded}
     <NetworkAccessSummary {network} busy={busy || network.busy} {onenable} />

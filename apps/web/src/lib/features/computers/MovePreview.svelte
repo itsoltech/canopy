@@ -46,11 +46,7 @@
     {#each preview.items as item (item.id)}<MovePreviewItem {item} target={targetName} detailed={!everything} />{/each}
   </div>
   {#if everything}
-    <MoveNotes title={`Stays shared with ${targetName}`} icon="link" items={preview.shared} />
-    <MoveNotes
-      title={`Stays on this computer, set it up again on ${targetName}`}
-      icon="computer-desktop"
-      items={preview.localOnly}
-    />
+    <MoveNotes title={`Stays shared with ${targetName}`} items={preview.shared} />
+    <MoveNotes title={`Stays on this computer, set it up again on ${targetName}`} items={preview.localOnly} />
   {/if}
 </div>

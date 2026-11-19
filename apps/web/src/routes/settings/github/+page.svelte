@@ -108,9 +108,9 @@
         }}
       />{/key}
     {#if data.patCandidates.length}<section class="flex flex-col gap-3">
-        <h2 class="text-base font-semibold">Use an existing personal access token</h2>
+        <h2 class="text-base font-semibold">Existing personal access tokens</h2>
         <p class="text-base/6 text-zinc-500 sm:text-sm/6 dark:text-zinc-400">
-          Choose a GitHub account from Connectors explicitly. Canopy checks its GitHub identity before using it.
+          Canopy verifies the GitHub account for each token you use from Connectors.
         </p>
         <div class="flex flex-wrap gap-2">
           {#each data.patCandidates as pat (pat.connectorAccountId)}<Button

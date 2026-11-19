@@ -62,7 +62,7 @@
       </div>{/snippet}
     {#if overview.snapshot.error || (selected && detail.snapshot.error)}
       <Alert tone="error"
-        >Could not refresh diagnostics. Retry to get the latest data.
+        >Could not refresh diagnostics.
         {#snippet actions()}<Button
             onclick={() => {
               void overview.reload();

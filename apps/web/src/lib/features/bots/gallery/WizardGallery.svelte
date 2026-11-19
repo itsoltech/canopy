@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { plural } from "@canopy/domain/humanize";
   import type { ClassValue } from "svelte/elements";
   import Button from "#lib/shared/ui/Button.svelte";
   import { modelOption } from "#lib/features/models/catalog.ts";
@@ -59,14 +60,14 @@
   async function create(draft: CreateBotDraft) {
     await new Promise((resolve) => setTimeout(resolve, 900));
 
-    if (scenario === "error") throw new Error("The provider is unavailable. Your choices are kept — try again.");
+    if (scenario === "error") throw new Error("The provider is unavailable. Try again with the same choices.");
     created = [...created, draft];
     saved = JSON.stringify(draft, null, 2);
   }
 </script>
 
 <GallerySection
-  title="Create & edit a Bot"
+  title="Create and edit bots"
   description="Live appearance, custom colour and the existing model/effort pickers. Canopy Bot, Sync Bot and Orbit are already taken. Mock saves take 900 ms; nothing is sent to a gateway."
   class={className}
 >
@@ -99,7 +100,7 @@
   </div>
   <div class="grid gap-2">
     <p class="text-base/6 text-zinc-500 sm:text-sm/6 dark:text-zinc-400" role="status">
-      {created.length} bots created in this gallery session.
+      {plural(created.length, "bot")} created in this gallery session.
     </p>
     <pre
       class="overflow-x-auto rounded-lg bg-zinc-950/3 p-3 text-sm/6 dark:bg-white/5"

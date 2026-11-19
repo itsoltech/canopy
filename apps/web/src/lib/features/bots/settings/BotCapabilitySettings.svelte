@@ -35,6 +35,6 @@
     </label>
   {/each}
   <p class="text-base/6 text-pretty text-zinc-500 sm:text-sm/6 dark:text-zinc-400">
-    Files stay separate from your projects. Downloads require Files. Connections keep their own permissions.
+    Files stay separate from your projects. Connections keep their own permissions.
   </p>
 </div>

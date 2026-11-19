@@ -3,7 +3,6 @@
   import type { ClassValue } from "svelte/elements";
   import Button from "#lib/shared/ui/Button.svelte";
   import ButtonLink from "#lib/shared/ui/ButtonLink.svelte";
-  import Icon from "#lib/shared/ui/Icon.svelte";
   import { formatDateTime, formatRelative, isoDateTime } from "#lib/shared/format.ts";
   import { clock } from "#lib/shared/clock.svelte.ts";
   import { useThreadActions } from "../thread-actions.svelte.ts";
@@ -35,22 +34,19 @@
     className,
   ]}
 >
-  <div class="flex items-start gap-3">
-    <Icon name="archive-box" class="h-6 fill-zinc-400 dark:fill-zinc-500" />
-    <div class="min-w-0 flex-1">
-      <h2 class="font-medium text-balance text-zinc-800 dark:text-zinc-200">This thread is archived</h2>
-      <p class="pt-1 text-base/6 text-pretty text-zinc-500 sm:text-sm/6 dark:text-zinc-400">
-        {#if thread.archivedBy === "merge"}Auto-archived after pull requests merged{:else if thread.archivedBy === "user"}Archived
-          by you{:else if thread.archivedBy === "agent"}Archived by the agent in “{thread.archivedByThreadTitle ||
-            parent?.title ||
-            "the parent thread"}”{:else if thread.archivedBy === "cascade"}Archived with “{thread.archivedByThreadTitle ||
-            parent?.title ||
-            "the parent thread"}”{:else}Archived{/if}{#if thread.archivedAt}{" "}<time
-            datetime={isoDateTime(thread.archivedAt)}
-            title={formatDateTime(thread.archivedAt)}>{formatRelative(thread.archivedAt, clock.now)}</time
-          >{/if}. The conversation is here whenever you need it.
-      </p>
-    </div>
+  <div class="min-w-0">
+    <h2 class="font-medium text-balance text-zinc-800 dark:text-zinc-200">This thread is archived</h2>
+    <p class="pt-1 text-base/6 text-pretty text-zinc-500 sm:text-sm/6 dark:text-zinc-400">
+      {#if thread.archivedBy === "merge"}Auto-archived after pull requests merged{:else if thread.archivedBy === "user"}Archived
+        by you{:else if thread.archivedBy === "agent"}Archived by the agent in “{thread.archivedByThreadTitle ||
+          parent?.title ||
+          "the parent thread"}”{:else if thread.archivedBy === "cascade"}Archived with “{thread.archivedByThreadTitle ||
+          parent?.title ||
+          "the parent thread"}”{:else}Archived{/if}{#if thread.archivedAt}{" "}<time
+          datetime={isoDateTime(thread.archivedAt)}
+          title={formatDateTime(thread.archivedAt)}>{formatRelative(thread.archivedAt, clock.now)}</time
+        >{/if}.
+    </p>
   </div>
   <div class="flex flex-wrap gap-2">
     {#if thread.archivedBy === "cascade"}

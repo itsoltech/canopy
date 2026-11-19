@@ -43,10 +43,8 @@ export function remoteAppUpdate(
     notify: (requestedBy) => {
       if (Notification.isSupported())
         new Notification({
-          title: "Canopy app update requested",
-          body: requestedBy
-            ? `${requestedBy} requested an app update. Canopy restarts after the current turns end.`
-            : "Your gateway owner requested an app update. Canopy will restart after the current turns finish.",
+          title: `${requestedBy || "Your gateway owner"} requested an app update`,
+          body: "Canopy restarts after the current turns end.",
         }).show();
     },
     prepareRestart: () => updates.prepareRestart(),

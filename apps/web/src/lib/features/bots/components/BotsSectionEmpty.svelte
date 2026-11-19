@@ -13,11 +13,10 @@
   </p>
 {:else}
   <EmptyState
-    icon="chat-bubble-left-right"
     title="No bots yet"
     description="A bot is a chat partner that remembers the conversation. It can use your connected accounts and agents."
     class={className}
   >
-    {#snippet action()}<ButtonLink href="/bots?create=1" icon="plus" variant="primary">Create bot</ButtonLink>{/snippet}
+    {#snippet action()}<ButtonLink href="/bots?create=1" variant="primary">Create bot</ButtonLink>{/snippet}
   </EmptyState>
 {/if}

@@ -85,10 +85,10 @@
   </div>
   <p class="flex min-w-0 items-center gap-1 pl-6 text-sm/5 text-zinc-500 sm:text-xs/5 dark:text-zinc-400">
     <span class="sr-only">Subagent runs on: </span>
-    {#if provider}<ProviderModel {provider} {model} class="shrink-0" />{:else}<span class="shrink-0"
+    {#if provider}<ProviderModel {provider} {model} />{:else}<span class="truncate" title={model}
         >{model || "Default model"}</span
       >{/if}
-    {#if settings.length > 0}<span class="truncate">· {settings.join(" · ")}</span>{/if}
+    {#if settings.length > 0}<span class="max-w-1/2 shrink-0 truncate">· {settings.join(" · ")}</span>{/if}
   </p>
   <p class="line-clamp-3 pl-6 text-base/6 text-pretty text-zinc-700 sm:text-sm/6 dark:text-zinc-300">
     {#if result}

@@ -231,7 +231,7 @@
           type="button"
           class="font-medium text-sky-700 hover:underline disabled:opacity-60 disabled:hover:no-underline dark:text-sky-400"
           disabled={continuing === "sending" || continuing === "sent"}
-          title="Send a message that resumes the harness session with full context"
+          title="Send a message to resume this thread"
           onclick={continueTurn}
         >
           {continuing === "sent"

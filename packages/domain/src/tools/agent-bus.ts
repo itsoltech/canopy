@@ -149,7 +149,7 @@ export function busLook(
 
   // The call returned a terminal result.
   if (tool === "watch_pr_checks" && !running && result["watching"] === false)
-    return { title: "Checked CI checks", icon: look.icon };
+    return { title: "Checked CI status", icon: look.icon };
 
   if (tool === "link_pull_request" && !running && result["already_linked"] === true)
     return { title: "Pull request already linked", icon: look.icon };
