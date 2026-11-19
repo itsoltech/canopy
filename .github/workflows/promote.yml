@@ -10,7 +10,7 @@ on:
       burn_in_days:
         description: Minimum beta age in days
         type: number
-        default: 3
+        default: 1
       live_smoke:
         description: Legacy confirmation (automated Release smoke now gates promotion)
         type: boolean

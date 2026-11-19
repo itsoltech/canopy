@@ -1,6 +1,7 @@
 # Wydania: wersje, CI, artefakty
 
-Status: opis zaimplementowanego workflow (2026-11-19). CI dla PR-ów dobiera testy mobile, interfejsu web i powłoki Electron według zmian.
+Status: opis zaimplementowanego workflow (2026-11-19). Automat sprawdza promocje co godzinę. Domyślne okresy obserwacji to 6 h na dev i 24 h od gotowości bety.
+CI dla PR-ów dobiera testy mobile, interfejsu web i powłoki Electron według zmian.
 Release ponawia pakowanie macOS i Windows po błędzie. Beta publikuje zgodne OTA
 i pomija build oraz wysyłkę iOS do TestFlight. Pełne CI ma osiem shardów i wagi
 odświeżone z pełnych raportów CI. Pomiary poniżej opisują przebieg sprzed zmiany shardów;
@@ -806,13 +807,13 @@ Po zmianie układu runtime i pobieraniu PostgreSQL sprawdź dodatkowo:
 Nightly zbiera niewydane zmiany `feat`/`fix`/`perf` na `dev` w cyklu godzinowym lub po dispatchu
 (zmiany bez wpływu na wersję nie publikują buildu). Beta to wybrany nightly; stable to beta po okresie obserwacji.
 Promocja przebudowuje ten sam commit z nowym numerem wersji, nie kopiuje binariów między kanałami.
-Soak `dev → next` nadal wynosi **24 h od daty commitera każdego commita**, nie od publikacji nightly.
-Podstawą tego czasu pozostaje `landedAt` (`git show --format=%ct`).
+Okres obserwacji `dev → next` wynosi **6 h od daty commitera każdego commita**
+(`landedAt` z `git show --format=%ct`).
 Godzinowe grupowanie oznacza mniej commitów z własnym zielonym Release; promocja może wybrać
 starszy ukończony nightly lub poczekać, aż cały nowszy prefiks dojrzeje i przejdzie Release.
 Pominięty plan bez CI/smoke sam nie potwierdza gotowości nieotagowanego commita.
 
-**Automatic promotion** (`promotion-review.yml`) działa co **3 h**, o `0 */3 * * *` UTC.
+**Automatic promotion** (`promotion-review.yml`) działa **co godzinę**, o :17 UTC (`17 * * * *`).
 Najpierw wykonuje **next → main**, potem **dev → next**, w jednej grupie
 `release-branch-mutations`, wspólnej z ręcznym Promote i Back-merge. Nie wymaga decyzji
 maintainera w zwykłym cyklu. Opóźnienia harmonogramu GitHub mogą wydłużyć oczekiwanie.
@@ -820,9 +821,9 @@ Oba workflowy instalują zamrożone zależności, aby prognoza używała tego sa
 Angular co Release; nie uruchamiają `semantic-release --dry-run`, który sprawdzałby prawo pushu.
 
 1. **Cutoff C0.** Dla dev wybieramy najnowszy ciągły prefiks historii first-parent, którego
-   każdy commit ma datę commitera squasha starszą o co najmniej **24 h**. Dla next kandydatami
+   każdy commit ma datę commitera squasha starszą o co najmniej **6 h**. Dla next kandydatami
    są wyłącznie commity z opublikowanym tagiem beta; wybieramy najnowszy z gotowym manifestem
-   od co najmniej **72 h** (`BETA_BURN_IN_DAYS`, domyślnie 3). Początek obserwacji to późniejszy
+   od co najmniej **24 h** (zmienna repozytorium `BETA_BURN_IN_DAYS`, domyślnie 1 doba). Początek obserwacji to późniejszy
    z `release.published_at` i `manifest.json.updated_at`. Dopisanie desktopu do manifestu
    zaczyna obserwację tej bety ponownie. Nowsza beta nie zeruje obserwacji starszej.
 2. **Poprawki i hold.** Każdy `fix`/`perf`/revert po cutoffie może zatrzymać powiązaną zmianę
@@ -834,10 +835,10 @@ Angular co Release; nie uruchamiają `semantic-release --dry-run`, który sprawd
    bety zatrzymuje stable, dopóki nie wejdzie do bety i nie przejdzie jej burn-in, z limitem opisanym poniżej.
    Rozbieżność next/dev zatrzymuje tę ścieżkę do Back-merge; commity dev są tu tylko sygnałami, nigdy kandydatami stable.
    Jeżeli funkcja i poprawka są już po soak i obie mieszczą się w cutoffie, idą razem.
-   Automatyczny hold z powiązania (jawny link, revert lub blame) wygasa po **więcej niż 2 dniach
-   dla dev → next** albo **3 dniach dla next → main**, liczonych od istniejącego `since`:
-   kwalifikacji czasowej wstrzymanej zmiany na danej ścieżce (dev: data commitera + 24 h;
-   stable: najwcześniejsza gotowa beta zawierająca zmianę + burn-in). Kolejne poprawki i ich
+   Automatyczny hold z powiązania (jawny link, revert lub blame) wygasa, gdy od kwalifikacji czasowej
+   wstrzymanej zmiany (`since`) minęło **więcej niż 24 h**. Dla bety kwalifikacja następuje
+   6 h od daty commitera, a dla stable po okresie obserwacji najwcześniejszej gotowej bety
+   zawierającej zmianę. Kolejne poprawki i ich
    łańcuchy nie przesuwają tego początku. Po wygaśnięciu zmiana może wejść bez oczekującej
    naprawy; naprawa wejdzie w późniejszej promocji. Limity skryptu można nadpisać przez env
    `DEV_NEXT_HOLD_CAP_DAYS` i `NEXT_MAIN_HOLD_CAP_DAYS` (całkowite 0–365 dni).
@@ -861,10 +862,12 @@ Angular co Release; nie uruchamiają `semantic-release --dry-run`, który sprawd
    skrypt nie wykonuje dispatchu. Hotfix PR scalony do `next`/`main` uruchamia tę samą ścieżkę.
    `C == target`, brak bootstrapu stable lub zakres bez zmiany wersji oznacza no-op; docs-only
    nie tworzy bety. Każdy przebieg zapisuje C0, C, wersję oczekiwaną, listę włączoną i wykluczoną
-   oraz przyczyny hold w job summary, w tym pominięte blokady jako `hold expired after 3 d: <reason>`
-   (dla bety: `2 d`). Wersja jest prognozą z tego samego analyzera Angular;
+   oraz przyczyny hold w job summary, w tym pominięte blokady jako `hold expired after 1 d: <reason>`
+   przy domyślnym limicie. Wersja jest prognozą z tego samego analyzera Angular;
    Release wyznacza ją ponownie. Issue `Promotion history: <path>` przechowuje historię planów
    przed pushem (nie stanowi dowodu udanej publikacji; dowodem jest przebieg Release).
+   Jeśli plan przekracza 64 000 znaków, zgłoszenie zawiera początek planu i odsyłacz do
+   pełnego raportu w przebiegu promocji. Pozostałe miejsce mieści potwierdzenie pushu.
 5. **Brak postępu.** Jeśli nadal aktywny hold lub `release-blocker` zatrzymuje zmianę przez co najmniej
    **7 dni od jej kwalifikacji czasowej**, tworzymy/aktualizujemy `Promotion stalled: <path>`
    z SHA i powodem (konkretna poprawka oraz PR/SHA/pliki albo etykieta/bloker). Wygasłe holdy
@@ -940,7 +943,7 @@ nowego testu E2E aktualizacji; zachowujemy istniejące testy updatera i smoke Re
 **Ręczny Promote.** Nadal wybiera `dev-next`/`next-main` tym samym algorytmem.
 `dry_run` (domyślnie true) wypisuje plan bez pushu, dispatchu i zapisu issue. Opcjonalne
 przewidywanie następnego terminu w dry-runie zmienia wyłącznie czas na tym samym snapshotcie
-historii/CI/etykiet: podaje próg soak, najbliższy cykl 3 h i SHA. Nie zakłada przyszłego
+historii/CI/etykiet: podaje próg soak, najbliższy cykl o :17 UTC i SHA. Nie zakłada przyszłego
 powodzenia CI ani nie gwarantuje publikacji, jeśli stan repozytorium się zmieni. Parametr
 `override=true` pozwala maintainerowi pominąć soak, pauzę i `promotion-hold`; nie pomija
 powiązanych wykluczonych poprawek, zielonego CI, ukończonej bety dla stable, blockerów ani FF.
@@ -1124,7 +1127,7 @@ fingerprintu i nowe binarki weryfikujące podpisy. Szczegóły kanałów, ponowi
    wpływających na wersję. Nie twórz tagów beta/nightly ręcznie.
 4. Ustaw domyślną gałąź `dev`, ustawienia opisane wyżej i ewentualne zmienne promocji.
 5. Przykładowy dalszy cykl: `feat` do dev → **0.2.0-nightly.1**; Promote dev-next →
-   **0.2.0-beta.1**; po 3 dniach i smoke Promote next-main → **0.2.0**. Hotfix `fix` do main
+   **0.2.0-beta.1**; po dobie obserwacji bety i smoke Promote next-main → **0.2.0**. Hotfix `fix` do main
    po 0.1.0 → **0.1.1** i back-merge; sam `docs` bez breaking → **no release**.
 
 ## Weryfikacja kanałów

@@ -1,7 +1,7 @@
 name: Automatic promotion
 on:
   schedule:
-    - cron: "0 */3 * * *"
+    - cron: "17 * * * *"
   workflow_dispatch:
     inputs:
       dry_run:
@@ -43,7 +43,7 @@ jobs:
       - name: Promote stable, then beta
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          BURN_IN_DAYS: ${{ vars.BETA_BURN_IN_DAYS || '3' }}
+          BURN_IN_DAYS: ${{ vars.BETA_BURN_IN_DAYS }}
           AUTO_PROMOTION: ${{ vars.AUTO_PROMOTION }}
           DRY_RUN: ${{ github.event_name == 'workflow_dispatch' && inputs.dry_run }}
         run: bun scripts/promote.ts --automatic

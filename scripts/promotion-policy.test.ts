@@ -1,6 +1,8 @@
 import { expect, test } from "bun:test";
 import {
   DAY,
+  DEV_NEXT_SOAK_MS,
+  HOUR,
   selectPromotion,
   sharedPromotionFile,
   type PromotionCommit,
@@ -36,12 +38,12 @@ function commit(
 }
 
 function input(commits: PromotionCommit[]): PromotionInput {
-  return { path: "dev-next", target, commits, now, soakMs: DAY, paused: false, blockers: [] };
+  return { path: "dev-next", target, commits, now, soakMs: DEV_NEXT_SOAK_MS, paused: false, blockers: [] };
 }
 
 test("soak picks an ancestor; feature and its one-hour-later fix wait until both have soaked", () => {
-  const feature = commit(68, 24.5);
-  const fix = commit(69, 23.5, "fix: repair feature");
+  const feature = commit(68, 6.5);
+  const fix = commit(69, 5.5, "fix: repair feature");
   const data = input([feature, fix]);
   const held = selectPromotion(data);
   expect(held.initial).toBe(feature.sha);
@@ -111,7 +113,7 @@ test("documented links and GitHub closing keywords parse; incidental mentions an
 
 test("an explicit original takes precedence over incidental line attribution to another change", () => {
   const unrelated = commit(1, 50);
-  const original = commit(2, 40);
+  const original = commit(2, 28);
   const fix = commit(3, 1, "fix: repair\n\nRefs: #2");
   fix.attributions = [{ sha: unrelated.sha, file: "apps/worker/src/run.ts", lines: [1], kind: "changed" }];
   expect(selectPromotion(input([unrelated, original, fix])).sha).toBe(unrelated.sha);
@@ -119,9 +121,9 @@ test("an explicit original takes precedence over incidental line attribution to 
 
 test("stable also waits for known dev fixes that have not reached beta yet", () => {
   const beta = commit(1, 200);
-  beta.release = { tag: "v0.2.0-beta.1", readyAt: now - 100 * 3_600_000 };
+  beta.release = { tag: "v0.2.0-beta.1", readyAt: now - 25 * HOUR };
   const fix = commit(2, 1, "fix: beta defect\n\nFixes: #1");
-  const data: PromotionInput = { ...input([beta]), path: "next-main", soakMs: 3 * DAY, pendingFixes: [fix] };
+  const data: PromotionInput = { ...input([beta]), path: "next-main", soakMs: DAY, pendingFixes: [fix] };
   expect(selectPromotion(data).sha).toBe(target);
 });
 
@@ -196,8 +198,8 @@ test("a revert holds its original SHA even without overlapping files", () => {
 });
 
 test("fixpoint handles chains, readiness fallback, and promotion-hold without splitting old fixes", () => {
-  const feature = commit(1, 60, "feat: original", ["a.ts"]);
-  const fix1 = commit(2, 50, "fix: follow-up\n\nRefs: #1", ["b.ts"]);
+  const feature = commit(1, 28, "feat: original", ["a.ts"]);
+  const fix1 = commit(2, 26, "fix: follow-up\n\nRefs: #1", ["b.ts"]);
   const fix2 = commit(3, 1, "fix: follow-up\n\nFixes: #2", ["c.ts"]);
   expect(selectPromotion(input([feature, fix1, fix2])).sha).toBe(target);
   const heldFix = { ...fix1, prs: [{ number: 2, body: "", hold: true }] };
@@ -222,9 +224,9 @@ test("pause, labels and release-blockers never expire; only active holds raise s
   expect(selectPromotion(input([commit(1, 30), fix])).starved).toBe(false);
 });
 
-test("automatic links, blame and reverts hold through the cap and expire strictly after eligibility plus two days", () => {
+test("automatic links, blame and reverts hold through the cap and expire strictly after eligibility plus one day", () => {
   for (const message of ["fix: repair", "perf: repair\n\nFixes: #1", "revert: feature"]) {
-    const feature = commit(1, 72);
+    const feature = commit(1, 30);
 
     const fix = commit(
       2,
@@ -236,7 +238,7 @@ test("automatic links, blame and reverts hold through the cap and expire strictl
     const held = selectPromotion(data);
 
     expect(held.sha).toBe(target);
-    expect(held.holds[0]?.since).toBe(feature.landedAt + DAY);
+    expect(held.holds[0]?.since).toBe(feature.landedAt + DEV_NEXT_SOAK_MS);
     expect(held.expiredHolds).toEqual([]);
     const expired = selectPromotion({ ...data, now: now + 1 });
 
@@ -246,16 +248,16 @@ test("automatic links, blame and reverts hold through the cap and expire strictl
   }
 });
 
-test("stable pending dev fixes expire strictly after three days of beta eligibility, including untagged ancestors", () => {
+test("stable pending dev fixes expire strictly after one day of beta eligibility, including untagged ancestors", () => {
   const feature = commit(1, 500);
   delete feature.release;
   const beta = commit(2, 200, "feat: beta", ["beta.ts"]);
-  beta.release = { tag: "v0.2.0-beta.1", readyAt: now - 6 * DAY };
+  beta.release = { tag: "v0.2.0-beta.1", readyAt: now - 2 * DAY };
   const fix = commit(3, 1, "fix: pending repair\n\nRefs: #1");
-  const data: PromotionInput = { ...input([feature, beta]), path: "next-main", soakMs: 3 * DAY, pendingFixes: [fix] };
+  const data: PromotionInput = { ...input([feature, beta]), path: "next-main", soakMs: DAY, pendingFixes: [fix] };
   const held = selectPromotion(data);
   expect(held.sha).toBe(target);
-  expect(held.holds[0]?.since).toBe(now - 3 * DAY);
+  expect(held.holds[0]?.since).toBe(now - DAY);
   const expired = selectPromotion({ ...data, now: now + 1 });
   expect(expired.sha).toBe(beta.sha);
   expect(expired.expiredHolds).toEqual(held.holds);
@@ -263,7 +265,7 @@ test("stable pending dev fixes expire strictly after three days of beta eligibil
 
 test("chains cannot restart the cap of the held change, and expired evidence is not duplicated", () => {
   const feature = commit(1, 100);
-  const fix1 = commit(2, 70, "fix: first repair\n\nRefs: #1");
+  const fix1 = commit(2, 28, "fix: first repair\n\nRefs: #1");
   const fix2 = commit(3, 1, "fix: second repair\n\nRefs: #2");
   const plan = selectPromotion(input([feature, fix1, fix2]));
   expect(plan.sha).toBe(feature.sha);
@@ -285,20 +287,20 @@ test("expiry cannot bypass exact-commit Release success or the beta burn-in", ()
   const feature = commit(1, 500);
   const fix = commit(2, 1, "fix: pending repair\n\nRefs: #1");
   expect(selectPromotion(input([{ ...feature, green: false }, fix])).sha).toBe(target);
-  feature.release = { tag: "v0.2.0-beta.1", readyAt: now - DAY };
+  feature.release = { tag: "v0.2.0-beta.1", readyAt: now - 23 * HOUR };
   expect(
-    selectPromotion({ ...input([feature]), path: "next-main", soakMs: 3 * DAY, pendingFixes: [fix], holdCapMs: 0 }).sha,
+    selectPromotion({ ...input([feature]), path: "next-main", soakMs: DAY, pendingFixes: [fix], holdCapMs: 0 }).sha,
   ).toBe(target);
 });
 
-test("stable only picks beta-tagged commits with manifests aged 72 hours; a newer beta does not reset an older one", () => {
+test("stable only picks beta-tagged commits with manifests aged 24 hours; a newer beta does not reset an older one", () => {
   const old = commit(1, 200);
-  old.release = { tag: "v0.2.0-beta.1", readyAt: now - 73 * 3_600_000 };
+  old.release = { tag: "v0.2.0-beta.1", readyAt: now - DAY };
   const young = commit(2, 190, "feat: newer", ["other.ts"]);
-  young.release = { tag: "v0.2.0-beta.2", readyAt: now - DAY };
-  const data = { ...input([old, young]), path: "next-main" as const, soakMs: 3 * DAY };
+  young.release = { tag: "v0.2.0-beta.2", readyAt: now - 23 * HOUR };
+  const data = { ...input([old, young]), path: "next-main" as const, soakMs: DAY };
   expect(selectPromotion(data).sha).toBe(old.sha);
-  expect(selectPromotion({ ...data, now: now + 2 * DAY }).sha).toBe(young.sha);
+  expect(selectPromotion({ ...data, now: now + HOUR }).sha).toBe(young.sha);
   expect(selectPromotion({ ...data, commits: [young] }).sha).toBe(target);
 });
 

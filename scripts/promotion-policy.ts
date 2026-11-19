@@ -52,12 +52,13 @@ export interface PromotionPlan {
   starved: boolean;
 }
 
-export const DAY = 86_400_000;
-export const DEV_NEXT_HOLD_CAP_DAYS = 2;
-export const NEXT_MAIN_HOLD_CAP_DAYS = 3;
+export const HOUR = 3_600_000;
+export const DAY = 24 * HOUR;
+export const DEV_NEXT_SOAK_MS = 6 * HOUR;
+export const HOLD_CAP_DAYS = 1;
 
 export function promotionHoldCap(input: PromotionInput): number {
-  return input.holdCapMs ?? (input.path === "dev-next" ? DEV_NEXT_HOLD_CAP_DAYS : NEXT_MAIN_HOLD_CAP_DAYS) * DAY;
+  return input.holdCapMs ?? HOLD_CAP_DAYS * DAY;
 }
 
 function isRevert(commit: PromotionCommit): boolean {

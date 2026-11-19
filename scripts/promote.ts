@@ -3,15 +3,16 @@ import { api, git, pages, releaseRevision, repository } from "./release-github.t
 import { loadPromotion, promotionBranches, promotionIssues, type PromotionAdapters } from "./promotion-data.ts";
 import {
   DAY,
-  DEV_NEXT_HOLD_CAP_DAYS,
-  NEXT_MAIN_HOLD_CAP_DAYS,
+  DEV_NEXT_SOAK_MS,
+  HOLD_CAP_DAYS,
+  HOUR,
   promotionHoldCap,
   selectPromotion,
   type PromotionInput,
   type PromotionPlan,
 } from "./promotion-policy.ts";
 import { forecastPromotion, forecastPromotionWindow } from "./promotion-version.mjs";
-import { finishPromotion, preparePromotion, resumePromotion } from "./promotion-journal.ts";
+import { finishPromotion, preparePromotion, promotionIssueSummary, resumePromotion } from "./promotion-journal.ts";
 
 export function burnInDays(value: string, policy = "Burn-in"): number {
   if (!/^\d+$/.test(value) || Number(value) > 365)
@@ -26,7 +27,7 @@ export function promotionSummary(input: PromotionInput, plan: PromotionPlan, ver
 
   const lines = [
     `### Promotion ${source} → ${target}`,
-    `- Soak: ${input.soakMs / 3_600_000} h; evaluated at ${new Date(input.now).toISOString()}`,
+    `- Soak: ${input.soakMs / HOUR} h; evaluated at ${new Date(input.now).toISOString()}`,
     `- Target: ${input.target}`,
     `- Candidate C0: ${plan.initial}`,
     `- Final C: ${plan.sha}`,
@@ -72,9 +73,10 @@ function attributionSummary(input: PromotionInput): string {
   return `\nLine attribution (fallback only; owners outside the candidate range cannot hold it):\n${rows.join("\n")}\n`;
 }
 
-function updateStarvationIssue(repo: string, path: string, body: string, adapters: PromotionAdapters): void {
+function updateStarvationIssue(repo: string, path: string, summary: string, adapters: PromotionAdapters): void {
   const title = `Promotion stalled: ${path}`;
   const existing = promotionIssues(repo, adapters).find((issue) => issue.title === title);
+  const body = promotionIssueSummary(repo, summary);
 
   if (!existing) adapters.api(`repos/${repo}/issues`, "POST", { title, body });
   else adapters.api(`repos/${repo}/issues/${existing.number}`, "PATCH", { body });
@@ -97,7 +99,7 @@ export async function runPromotion(
   now = Date.now(),
 ) {
   const [source, target] = promotionBranches(path);
-  const input = loadPromotion(repo, path, path === "dev-next" ? DAY : options.burnIn * DAY, adapters, now);
+  const input = loadPromotion(repo, path, path === "dev-next" ? DEV_NEXT_SOAK_MS : options.burnIn * DAY, adapters, now);
   input.paused = options.paused && !options.override;
   input.holdCapMs = (options.holdCapDays ?? Infinity) * DAY;
 
@@ -120,7 +122,7 @@ export async function runPromotion(
   const next = options.dryRun ? await forecastPromotionWindow(input, plan, adapters.git) : undefined;
 
   const schedule = next
-    ? `\nTime-only forecast (same CI/labels/history snapshot): eligible ${new Date(next.at).toISOString()}; next scheduled cycle ${new Date(Math.ceil(next.at / 10_800_000) * 10_800_000).toISOString()}; ${next.sha}; ${next.version}.\n`
+    ? `\nTime-only forecast (same CI/labels/history snapshot): eligible ${new Date(next.at).toISOString()}; next scheduled cycle ${nextPromotionCycle(next.at).toISOString()}; ${next.sha}; ${next.version}.\n`
     : "";
 
   const summary = promotionSummary(input, plan, version) + schedule;
@@ -176,6 +178,13 @@ export async function runPromotion(
   return { input, plan, version };
 }
 
+/** Hourly at :17 UTC in promotion-review.yml. */
+function nextPromotionCycle(eligibleAt: number): Date {
+  const offset = 17 * 60_000;
+
+  return new Date(Math.ceil((eligibleAt - offset) / HOUR) * HOUR + offset);
+}
+
 if (import.meta.main) {
   const repo = repository();
   const automatic = process.argv.includes("--automatic");
@@ -191,14 +200,13 @@ if (import.meta.main) {
     dryRun: process.argv.includes("--dry-run") || process.env["DRY_RUN"] === "true",
     paused: process.env["AUTO_PROMOTION"] === "off",
     override: !automatic && process.env["PROMOTION_OVERRIDE"] === "true",
-    burnIn: burnInDays(process.env["BURN_IN_DAYS"] || "3"),
+    burnIn: burnInDays(process.env["BURN_IN_DAYS"] || "1"),
   };
 
   let failed = false;
 
   for (const path of paths) {
     try {
-      const cap = path === "dev-next" ? DEV_NEXT_HOLD_CAP_DAYS : NEXT_MAIN_HOLD_CAP_DAYS;
       const variable = path === "dev-next" ? "DEV_NEXT_HOLD_CAP_DAYS" : "NEXT_MAIN_HOLD_CAP_DAYS";
 
       await runPromotion(
@@ -206,7 +214,7 @@ if (import.meta.main) {
         path,
         {
           ...options,
-          holdCapDays: automatic ? burnInDays(process.env[variable] || String(cap), "Hold cap") : Infinity,
+          holdCapDays: automatic ? burnInDays(process.env[variable] || String(HOLD_CAP_DAYS), "Hold cap") : Infinity,
         },
         { git, api, pages, releaseRevision },
       );
