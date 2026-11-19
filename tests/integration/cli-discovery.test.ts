@@ -53,6 +53,63 @@ const recipeOf = (found: Awaited<ReturnType<typeof discoverCli>>, probe: CliProb
 
 beforeEach(() => processGovernor.invalidate());
 
+describe("native Windows CLI updates", () => {
+  const home = "C:/Users/Example User";
+  const local = `${home}/AppData/Local`;
+  const launcher = `${local}/Programs/OpenAI/Codex/bin/codex.exe`;
+  const release = `${home}/.codex/packages/standalone/releases/0.169.0-x86_64-pc-windows-msvc/bin/codex.exe`;
+  const claudePath = `${home}/.local/bin/claude.exe`;
+
+  const probeFor = (path: string, resolvedPath: string, line: string): CliProbe => ({
+    platform: "win32",
+    home,
+    docker: false,
+    env: { LOCALAPPDATA: local },
+    locate: () => [{ path, broken: false }],
+    which: () => null,
+    realpath: () => resolvedPath,
+    version: async () => ({ line }),
+  });
+
+  test("offers the native Claude updater for the Windows user install", async () => {
+    const claude = CLIS.find((spec) => spec.name === "claude")!;
+    const probe = probeFor(claudePath, claudePath.toUpperCase().replaceAll("/", "\\"), "2.1.326 (Claude Code)");
+    const found = await discoverCli(claude, undefined, probe);
+
+    expect(found).toMatchObject({ method: CliInstallMethod.NATIVE, version: "2.1.326" });
+    expect(planRecipe(found, "2.1.327", probe).recipe).toEqual({
+      kind: "run",
+      argv: [claudePath, "install", "2.1.327"],
+    });
+  });
+
+  test("updates the Codex standalone launcher to the requested release", async () => {
+    const probe = probeFor(launcher, release, "codex-cli 0.169.0");
+    const found = await discoverCli(codex, undefined, probe);
+
+    expect(found).toMatchObject({ method: CliInstallMethod.NATIVE, version: "0.169.0" });
+    expect(planRecipe(found, "0.170.0", probe).recipe).toEqual({
+      kind: "script",
+      shell: "powershell",
+      url: "https://chatgpt.com/codex/install.ps1",
+      args: ["-Release", "0.170.0"],
+    });
+  });
+
+  test("leaves a copied Codex binary and a directly selected release unmanaged", async () => {
+    for (const [path, resolved] of [
+      [launcher, launcher],
+      [release, release],
+    ] as const) {
+      const probe = probeFor(path, resolved, "codex-cli 0.169.0");
+      const found = await discoverCli(codex, undefined, probe);
+
+      expect(found.method).toBe(CliInstallMethod.OTHER);
+      expect(planRecipe(found, "0.170.0", probe).recipe).toBeUndefined();
+    }
+  });
+});
+
 describe("agent CLIs from any package manager", () => {
   test("bun: found in ~/.bun/bin when PATH lacks it, updated with bun add -g", async () => {
     const { home, probe } = device();

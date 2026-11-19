@@ -79,6 +79,7 @@ export function knownDirectories(ctx: LocationContext, command: string): string[
       ...opt(env(ctx, "BUN_INSTALL"), "bin"),
       join(home, ".bun", "bin"),
       ...opt(env(ctx, "PNPM_HOME")),
+      ...(command === "codex" ? opt(env(ctx, "LOCALAPPDATA"), "Programs", "OpenAI", "Codex", "bin") : []),
       join(home, ".local", "bin"),
     ];
   }

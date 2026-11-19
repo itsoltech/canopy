@@ -125,6 +125,7 @@ export function findCli(
 const MISSING = "points to a missing file";
 
 const classifyContext = (probe: CliProbe): ClassifyContext => ({
+  platform: probe.platform,
   home: probe.home,
   ...(probe.env && { env: probe.env }),
   ...(probe.head && { head: (path: string) => probe.head?.(path) }),

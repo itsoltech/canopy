@@ -17,6 +17,7 @@ export interface ManagedSpec {
 
 export interface ClassifyContext {
   readonly home: string;
+  readonly platform?: NodeJS.Platform;
   readonly env?: Env;
   /** The first bytes of a file (script shims); undefined when unreadable. */
   readonly head?: (path: string) => string | undefined;
@@ -114,6 +115,26 @@ function shim(spec: ManagedSpec, path: string, r: string, ctx: ClassifyContext):
   return undefined;
 }
 
+function windowsNative(spec: ManagedSpec, path: string, resolved: string, ctx: ClassifyContext): boolean {
+  if (ctx.platform !== "win32") return false;
+  const p = path.toLowerCase();
+  const r = resolved.toLowerCase();
+
+  if (spec.name === "claude") return r === `${trim(ctx.home)?.toLowerCase()}/.local/bin/claude.exe`;
+
+  const local = trim(ctx.env?.["LOCALAPPDATA"])?.toLowerCase();
+  const codexHome = trim(ctx.env?.["CODEX_HOME"] ?? `${ctx.home}/.codex`)?.toLowerCase();
+  const releases = `${codexHome}/packages/standalone/releases/`;
+
+  return (
+    spec.name === "codex" &&
+    Boolean(local) &&
+    p === `${local}/programs/openai/codex/bin/codex.exe` &&
+    r.startsWith(releases) &&
+    /^[^/]+\/bin\/codex\.exe$/.test(r.slice(releases.length))
+  );
+}
+
 /**
  * The install method of an executable from its path and real path. Version managers and Homebrew's own installs
  * win over npm (mise's npm backend and Homebrew formulae keep node_modules too); a package under Homebrew's prefix
@@ -141,6 +162,8 @@ export function classify(spec: ManagedSpec, path: string, resolvedPath: string, 
   const node = nodePackageManager(spec, r, ctx) ?? shim(spec, p, r, ctx);
 
   if (node) return node;
+
+  if (windowsNative(spec, p, r, ctx)) return { method: CliInstallMethod.NATIVE };
 
   if (/^(\/opt\/homebrew|\/home\/linuxbrew\/\.linuxbrew|\/usr\/local\/Homebrew)\//.test(r))
     return { method: CliInstallMethod.HOMEBREW };
