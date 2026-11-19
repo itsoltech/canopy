@@ -7,6 +7,27 @@ import { Supervisor } from "../src/runtime/process.ts";
 
 const directory = tempDir("canopy-desktop-process-recovery-");
 
+test("the Codex Windows installer receives the OS inherited by Desktop", () => {
+  const script = `
+    import { serviceEnvironment } from ${JSON.stringify(import.meta.resolve("../src/runtime/config.ts"))};
+    import { installEnv } from ${JSON.stringify(import.meta.resolve("../../worker/src/cli-tools/installer.ts"))};
+
+    const { env } = installEnv(serviceEnvironment());
+    const command = process.platform === "win32"
+      ? ["powershell.exe", "-NoProfile", "-NonInteractive", "-Command", "if ($env:OS -ne 'Windows_NT') { exit 1 }"]
+      : [process.execPath, "-e", "if (process.env.OS !== 'Windows_NT') process.exit(1)"];
+    process.exit(Bun.spawnSync(command, { env, timeout: 5000 }).exitCode ?? 1);
+  `;
+
+  const result = Bun.spawnSync([process.execPath, "-e", script], {
+    env: { ...process.env, ...(process.platform !== "win32" && { OS: "Windows_NT" }) },
+    stderr: "inherit",
+    timeout: 7000,
+  });
+
+  expect(result.exitCode).toBe(0);
+}, 10_000);
+
 test("a local gateway restarts past the crash budget and recovers quickly after a longer run", async () => {
   jest.useFakeTimers();
   const logs = new Logs(directory);

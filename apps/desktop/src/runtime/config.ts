@@ -170,6 +170,7 @@ export function serviceEnvironment(): NodeJS.ProcessEnv {
     "LANG",
     "LC_ALL",
     "LC_CTYPE",
+    "OS",
     "SYSTEMROOT",
     "WINDIR",
     "COMSPEC",
