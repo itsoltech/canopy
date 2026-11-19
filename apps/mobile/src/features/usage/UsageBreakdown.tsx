@@ -1,13 +1,6 @@
 import { useMemo, useState } from "react";
 import { StyleSheet, Text, View } from "react-native";
-import {
-  hasEffectiveCost,
-  metricValue,
-  totalTokens,
-  type UsageData,
-  type UsageRow,
-  type UsageView,
-} from "@canopy/domain/usage-report";
+import { compareUsage, metricValue, type UsageData, type UsageRow, type UsageView } from "@canopy/domain/usage-report";
 import { Button, Notice } from "../../ui/components";
 import { font, useColors, useTypography } from "../../ui/theme";
 import { UsageChoice } from "./UsageChoice";
@@ -24,7 +17,9 @@ const activityGroups = [
   { value: "bots", label: "Bot" },
 ] as const;
 
-export type UsageGroup = (typeof baseGroups | typeof activityGroups)[number]["value"];
+const workerGroup = { value: "workers", label: "Worker" } as const;
+
+export type UsageGroup = (typeof baseGroups | typeof activityGroups)[number]["value"] | typeof workerGroup.value;
 
 const PAGE_SIZE = 12;
 
@@ -39,7 +34,12 @@ export function UsageBreakdown({
   selected: UsageGroup;
   onChange: (group: UsageGroup) => void;
 }) {
-  const options = data.supportsActivityBreakdown ? [...baseGroups, ...activityGroups] : [...baseGroups];
+  const options = [
+    ...(data.supportsWorkerBreakdown && data.workers.length ? [workerGroup] : []),
+    ...baseGroups,
+    ...(data.supportsActivityBreakdown ? activityGroups : []),
+  ];
+
   const group = options.some((option) => option.value === selected) ? selected : "providers";
   const rows = data[group];
 
@@ -57,18 +57,6 @@ export function UsageBreakdown({
       <UsageRows key={group} rows={sorted} view={view} />
     </View>
   );
-}
-
-function compareUsage(a: UsageRow, b: UsageRow, view: UsageView) {
-  if (view === "cost") {
-    const known = Number(hasEffectiveCost(b.amounts)) - Number(hasEffectiveCost(a.amounts));
-
-    return known || b.amounts.effectiveCost - a.amounts.effectiveCost || a.label.localeCompare(b.label);
-  }
-
-  const difference = totalTokens(b.amounts) - totalTokens(a.amounts);
-
-  return difference === 0n ? a.label.localeCompare(b.label) : difference > 0n ? 1 : -1;
 }
 
 function UsageRows({ rows, view }: { rows: UsageRow[]; view: UsageView }) {

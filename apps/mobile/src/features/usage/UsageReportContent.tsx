@@ -28,7 +28,7 @@ export function UsageReportContent({
     <>
       {data.partial && (
         <Alert tone="warning" title="Partial coverage">
-          Some usage or costs may be missing. Check the recording sources below.
+          Some usage or costs may be missing. Check Recording gateways for details.
         </Alert>
       )}
       {data.totals.reports === 0n ? (

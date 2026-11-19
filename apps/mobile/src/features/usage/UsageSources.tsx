@@ -19,9 +19,9 @@ export function UsageSources({ computers }: { computers: UsageData["computers"] 
   return (
     <View style={{ gap: 8 }}>
       <Text accessibilityRole="header" style={[type.body, { fontFamily: font.semibold, color: c.text }]}>
-        Recording sources
+        Recording gateways
       </Text>
-      {computers.length === 0 && <Notice>No recording sources available.</Notice>}
+      {computers.length === 0 && <Notice>No recording gateways available.</Notice>}
       {computers.map(({ id, name, status, trackingSince }) => (
         <View key={id} style={{ gap: 2 }}>
           <Text selectable style={[type.small, { color: c.text }]}>

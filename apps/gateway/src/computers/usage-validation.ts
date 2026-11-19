@@ -1,6 +1,7 @@
 import { create } from "@bufbuild/protobuf";
 import { timestampDate } from "@bufbuild/protobuf/wkt";
 import { type computerLink as link, ui } from "@canopy/contracts";
+import { isUuid } from "@canopy/domain/humanize";
 import { Code, ConnectError } from "@connectrpc/connect";
 import { readActivityKey } from "../usage/activity.ts";
 import { addTotals, COST_FIELDS, COUNT_FIELDS, normalizeUsageTotals } from "../usage/totals.ts";
@@ -56,6 +57,7 @@ export function validateUsagePage(node: string, after: bigint, response: link.Us
 
 function validatedTotals(input: ui.UsageTotals) {
   if (
+    COUNT_FIELDS.some((field) => input[field] < 0n) ||
     !Number.isFinite(input.reportedCostUsd) ||
     input.reportedCostUsd < 0 ||
     input.unknownCostReports > input.reports ||
@@ -101,9 +103,38 @@ function validateActivities(parts: ui.UsageActivityBucket[], totals: ui.UsageTot
     )
       throw invalid();
     keys.add(key);
-    addTotals(sum, validatedTotals(part.totals));
+    const amounts = validatedTotals(part.totals);
+    validateWorkers(part.workers, amounts);
+    addTotals(sum, amounts);
   }
 
+  validateSum(sum, totals);
+}
+
+function validateWorkers(workers: ui.UsageWorkerBreakdown[], totals: ui.UsageTotals) {
+  if (!workers.length) return;
+  const sum = create(ui.UsageTotalsSchema);
+  const ids = new Set<string>();
+
+  for (const worker of workers) {
+    const id = worker.workerId.toLowerCase();
+
+    if (
+      (id ? id.length !== 36 || !isUuid(id) : Boolean(worker.name)) ||
+      ids.has(id) ||
+      [...worker.name].length > 200 ||
+      worker.name.includes("\u0000") ||
+      !worker.totals?.reports
+    )
+      throw invalid();
+    ids.add(id);
+    addTotals(sum, validatedTotals(worker.totals));
+  }
+
+  validateSum(sum, totals);
+}
+
+function validateSum(sum: ui.UsageTotals, totals: ui.UsageTotals) {
   if (COUNT_FIELDS.some((field) => sum[field] !== totals[field])) throw invalid();
 
   if (

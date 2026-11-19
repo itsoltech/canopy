@@ -19,6 +19,8 @@ export interface BucketRow {
   requested_service_tier: string;
   activity_key: string;
   activity_bot_name: string;
+  worker_key: string;
+  usage_worker_name: string;
   input_tokens: bigint;
   output_tokens: bigint;
   cached_input_tokens: bigint;
@@ -34,6 +36,13 @@ export interface BucketRow {
   reports: bigint;
   unknown_cost_reports: bigint;
   revision: bigint;
+}
+
+export type UsageWorker = Pick<ui.Worker, "id" | "name">;
+
+/** Keep a counter in its original partition, including the historical unknown partition. */
+export function counterWorker(observed: UsageWorker, original?: UsageWorker): UsageWorker {
+  return original && (original.id !== observed.id || !observed.name) ? original : observed;
 }
 
 export function ensureUsageState(sql: SqlClient.SqlClient, owner: string) {
@@ -73,36 +82,44 @@ export function bucketMessage(row: BucketRow, computerId: string): ui.UsageBucke
     computerId,
     requestedServiceTier: row.requested_service_tier,
     totals,
-    activities: [{ key: row.activity_key, botName: row.activity_bot_name, totals }],
+    activities: [
+      {
+        key: row.activity_key,
+        botName: row.activity_bot_name,
+        totals,
+        workers: [{ workerId: row.worker_key, name: row.usage_worker_name, totals }],
+      },
+    ],
   });
 }
 
 /** Caller holds usage_state's owner lock; revision order therefore follows commit order. */
 export function incrementBucket(
   sql: SqlClient.SqlClient,
-  owner: string,
-  hour: Date,
-  provider: string,
-  model: string,
+  bucket: { owner: string; hour: Date; provider: string; model: string; activity: UsageActivity; worker: UsageWorker },
   requestedServiceTier: string,
-  activity: UsageActivity,
   delta: ui.UsageTotals,
 ) {
+  const { owner, hour, provider, model, activity, worker } = bucket;
+
   return Effect.gen(function* () {
     const state = yield* sql<{ revision: bigint }>`UPDATE usage_state SET revision=revision+1,updated_at=now()
       WHERE owner_user_id=${owner}::uuid RETURNING revision`;
 
     // SAFETY: the caller holds the existing owner state row lock until this transaction commits.
-    yield* sql`INSERT INTO usage_buckets(owner_user_id,bucket_start,provider,model,requested_service_tier,activity_key,bot_name,input_tokens,output_tokens,
+    yield* sql`INSERT INTO usage_buckets(owner_user_id,bucket_start,provider,model,requested_service_tier,
+      activity_key,bot_name,worker_key,worker_name,input_tokens,output_tokens,
       cached_input_tokens,cache_write_input_tokens,reasoning_output_tokens,reported_cost_usd,reports,unknown_cost_reports,
       estimated_cost_usd,unknown_estimated_cost_reports,effective_cost_usd,unknown_effective_cost_reports,
       effective_reported_cost_reports,effective_estimated_cost_reports,revision)
-      VALUES(${owner}::uuid,${hour},${provider},${model},${requestedServiceTier},${activity.key},${activity.botName ?? ""},${delta.inputTokens},${delta.outputTokens},
+      VALUES(${owner}::uuid,${hour},${provider},${model},${requestedServiceTier},${activity.key},${activity.botName ?? ""},
+        ${worker.id},left(${worker.name},200),${delta.inputTokens},${delta.outputTokens},
         ${delta.cachedInputTokens},${delta.cacheWriteInputTokens},${delta.reasoningOutputTokens},${delta.reportedCostUsd},
         ${delta.reports},${delta.unknownCostReports},${delta.estimatedCostUsd},${delta.unknownEstimatedCostReports},
         ${delta.effectiveCostUsd},${delta.unknownEffectiveCostReports},${delta.effectiveReportedCostReports},
         ${delta.effectiveEstimatedCostReports},${state[0]!.revision})
-      ON CONFLICT(owner_user_id,bucket_start,provider,model,requested_service_tier,activity_key) DO UPDATE SET
+      ON CONFLICT(owner_user_id,bucket_start,provider,model,requested_service_tier,activity_key,worker_key) DO UPDATE SET
+        worker_name=coalesce(nullif(excluded.worker_name,''),usage_buckets.worker_name),
         bot_name=coalesce(nullif(excluded.bot_name,''),usage_buckets.bot_name),
         input_tokens=usage_buckets.input_tokens+excluded.input_tokens,
         output_tokens=usage_buckets.output_tokens+excluded.output_tokens,

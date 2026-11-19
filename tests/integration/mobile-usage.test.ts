@@ -204,6 +204,7 @@ test.skipIf(!dockerAvailable)(
       });
 
       const { api } = routedMobileClient({ connection, token: paired.deviceToken, transport });
+      const worker = { id: Bun.randomUUIDv7(), name: "Studio" };
 
       for (const [provider, requestedServiceTier, inputTokens] of [
         [Provider.CODEX, "", 17n],
@@ -220,6 +221,7 @@ test.skipIf(!dockerAvailable)(
             ok: true,
             consumedUsage: { scope: UsageScope.TURN, requestedServiceTier, inputTokens, estimatedCostUsd: 0.25 },
           }),
+          worker,
         );
       }
 
@@ -235,6 +237,9 @@ test.skipIf(!dockerAvailable)(
       expect(report.data.providers).toMatchObject([{ key: "codex", totals: { inputTokens: 17n } }]);
       expect(report.data.speeds).toMatchObject([{ key: "", totals: { inputTokens: 17n } }]);
       expect(report.data.activities).toMatchObject([{ key: "generation", totals: { inputTokens: 17n } }]);
+      expect(usageReport(report.data).workers).toMatchObject([
+        { key: worker.id, label: "Studio", amounts: { input: 17n, effectiveCost: 0.25 } },
+      ]);
 
       await core.mobile.revoke(paired.device!.id, "device");
       await expect(requestUsageReport(api, request, signal)).rejects.toMatchObject({ code: Code.Unauthenticated });

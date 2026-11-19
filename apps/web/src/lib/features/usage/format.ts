@@ -1,4 +1,5 @@
 export {
+  compareUsage,
   count,
   dayLabel,
   effectiveCost,

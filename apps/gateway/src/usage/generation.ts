@@ -3,6 +3,7 @@ import { Effect } from "effect";
 import { SqlClient } from "effect/sql";
 import type { CoreRuntime } from "../core/core.ts";
 import { recordUsage } from "./accounting.ts";
+import type { UsageWorker } from "./storage.ts";
 
 /** Command IDs deduplicate known GenerateText results; a lost ephemeral result cannot be recovered. */
 export function accountGeneration(
@@ -11,6 +12,7 @@ export function accountGeneration(
   provider: Provider,
   model: string,
   result: CommandResult,
+  worker: UsageWorker,
 ) {
   const usages = result.consumedUsages.length
     ? result.consumedUsages
@@ -35,6 +37,7 @@ export function accountGeneration(
                 provider: provider === Provider.CLAUDE ? "claude" : provider === Provider.CODEX ? "codex" : "grok",
                 model,
                 activity: { key: "generation" },
+                worker,
               },
               usage,
               new Date(),

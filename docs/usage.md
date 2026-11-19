@@ -3,7 +3,7 @@
 Status (2026-11-19): zaimplementowane agregaty zużycia w gatewayu, raporty
 harnessów, niezależne szacunki ekwiwalentu API OpenAI, wybór kosztu per licznik,
 API `GetUsageStats`, synchronizacja źródeł połączonych komputerów oraz modal
-Usage z jedną kwotą kosztu i podziałem według aktywności oraz poszczególnych botów.
+Usage z jedną kwotą kosztu i podziałem według workera, aktywności oraz poszczególnych botów.
 Web, desktop i [aplikacja mobilna](mobile.md#raport-usage) pokazują w raporcie Usage skrócone liczby tokenów i dzienny wykres według dostawcy.
 W web/desktop data wybrana na wykresie ma oznaczenie UTC. Dla jednego dnia oś nie powtarza daty na obu końcach. Przy nawigacji klawiaturą po kilku dniach pojawia się wskazówka o strzałkach.
 Dostępność nightly/beta/stable według [release.md](release.md).
@@ -120,6 +120,17 @@ zapisanej nazwy po usunięciu rekordu. Zmiana nazwy ani usunięcie bota nie zmie
 identyfikatora lub sum. Przy przeniesieniu bota pomiędzy komputerami wcześniejsze
 agregaty nadal pochodzą z domu rozliczenia, a widok łączy je według identyfikatora bota.
 
+Podział **Worker** pokazuje, gdzie wykonano pracę. Obejmuje workery samodzielne
+i workery desktopów korzystających ze zdalnego gatewaya. Kilka workerów może
+raportować do jednego gatewaya. O przypisaniu decyduje worker wątku, worker
+wykonujący daną turę bota lub adresat komendy generowania. Otwarcie tego samego
+wątku na innym urządzeniu zachowuje przypisanie.
+
+Gateway przechowuje identyfikator workera w agregacie godzinowym. Migracja
+przypisuje wcześniejsze pomiary na podstawie zachowanych liczników i powiązań
+z wykonawcą. Pozostała część trafia do wiersza **Unknown worker** i nadal
+wchodzi do sum tokenów i kosztów.
+
 Cała tura/model należy do godziny **pierwszej zaobserwowanej próbki**, również
 po spóźnionej korekcie cache, tokenów albo kosztu. Długa tura przekraczająca północ
 nie jest arbitralnie dzielona na dni. Dzięki temu cache i reasoning pozostają
@@ -201,6 +212,12 @@ a jawne `""` wybiera wyłącznie nieznany tryb. `speeds` zwraca ten sam zestaw
 sum pogrupowany według żądanej szybkości. Filtr działa przed sumowaniem:
 obejmuje sumy, dni i ich providerów, modele oraz źródła lokalne i zdalne.
 Dom serwerowy działa bez usług łączenia komputerów.
+
+Pole `workers` zwraca podział po tych samych filtrach, również dla samodzielnego
+gatewaya. `sources` opisuje pokrycie rejestracji na gatewayach.
+Połączone gatewaye przekazują podział na workery wewnątrz aktywności koszyka.
+Jeśli starszy partner przesłał tylko sumę aktywności, jej kwota i tokeny
+wchodzą do wiersza **Unknown worker**.
 
 `activity_kind` wybiera `thread`, `bot`, `generation` lub `unattributed`;
 pusta wartość wybiera wszystkie. `bot_id` zawęża całą odpowiedź do jednego bota.

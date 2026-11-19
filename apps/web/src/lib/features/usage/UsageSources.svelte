@@ -28,7 +28,7 @@
 
 {#if computers.length}
   <details class="rounded-xl border border-divider text-sm/5">
-    <summary class="cursor-pointer rounded-xl px-4 py-3 font-medium focus-ring">Recording coverage</summary>
+    <summary class="cursor-pointer rounded-xl px-4 py-3 font-medium focus-ring">Recording gateways</summary>
     <div class="grid gap-3 border-t border-divider p-4">
       <p class="text-zinc-500 dark:text-zinc-400">Earlier activity may be missing.</p>
       <ul class="grid gap-3">

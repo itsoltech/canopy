@@ -39,6 +39,14 @@ message UsageActivityBucket {
   string key = 1;
   string bot_name = 2;
   UsageTotals totals = 3;
+  // Same activity split by executing worker. Older gateways omit this field.
+  repeated UsageWorkerBreakdown workers = 4;
+}
+message UsageWorkerBreakdown {
+  // Empty when the recording gateway has no evidence of the executing worker.
+  string worker_id = 1;
+  string name = 2;
+  UsageTotals totals = 3;
 }
 message UsageSource {
   string computer_id = 1;
@@ -92,4 +100,6 @@ message GetUsageStatsResponse {
   bool supports_activity_breakdown = 12;
   // Within the other filters, even if activity_kind or bot_id excludes it.
   bool has_unattributed_usage = 13;
+  repeated UsageWorkerBreakdown workers = 14;
+  bool supports_worker_breakdown = 15;
 }

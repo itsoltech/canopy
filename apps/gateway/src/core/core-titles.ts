@@ -118,7 +118,14 @@ export async function coreGenerateText(
 
   if (!result) throw new UnavailableError("text generation worker unavailable");
 
-  await accountGeneration(hostContext[coreState].options.runtime, thread.owner_user_id, provider, choice.model, result);
+  await accountGeneration(
+    hostContext[coreState].options.runtime,
+    thread.owner_user_id,
+    provider,
+    choice.model,
+    result,
+    worker,
+  );
 
   if (!result.ok) throw new Error("text generation failed");
 
