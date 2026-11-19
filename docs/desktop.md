@@ -1,6 +1,8 @@
 # Canopy Desktop
 
-Status: opis zaimplementowanego runtime i pakowania (2026-11-19), w tym ręcznego kopiowania pełnego zaproszenia do parowania przy odmowie dostępu do schowka oraz selektywnego CI dla powłoki Electron, ponawiania
+Status: opis zaimplementowanego runtime i pakowania (2026-11-19), w tym przekazywania
+systemowej zmiennej `OS` do instalatora Codex Standalone na Windows,
+ręcznego kopiowania pełnego zaproszenia do parowania przy odmowie dostępu do schowka oraz selektywnego CI dla powłoki Electron, ponawiania
 startu lokalnego gatewaya po serii nieoczekiwanych wyjść, poprawki kodowania
 obrazów w gatewayu na Windows, osobnego okna stanu zamykania i restartu do aktualizacji oraz ponawiania
 pakowania macOS i Windows w CI, menu ścieżek plików z rozmowy
@@ -34,7 +36,9 @@ menu. Szczegóły kontraktu i kontroli dostępu: [ui-api.md](ui-api.md#pliki-wą
 1. **Runtime:** Electron main (Node) uruchamia kontroler Bun przez prywatne stdin/stdout
    z typowanymi komunikatami JSON. Kontroler nadzoruje PostgreSQL → gateway → enrollment
    → worker jako procesy potomne, z osobnymi grupami procesów i ograniczonym restartem
-   z backoff. Web (adapter-node SvelteKit, UI i BFF) działa **w procesie kontrolera**
+   z backoff. Na Windows kontroler i worker dziedziczą systemową zmienną `OS`,
+   z której korzysta [instalator Codex Standalone](provider-cli.md#przepisy).
+   Web (adapter-node SvelteKit, UI i BFF) działa **w procesie kontrolera**
    (`runtime/web.ts`), nie jako osobny proces i nigdy z gatewaya: kontroler istnieje
    w obu trybach i żyje dłużej niż gateway, więc UI z dołączonego buildu działa offline,
    w trybie remote i podczas restartu lub aktualizacji lokalnego gatewaya. Przy zamykaniu
