@@ -7,6 +7,8 @@ import { afterAll, beforeAll, describe, expect, test } from "bun:test";
 import { create } from "@bufbuild/protobuf";
 import { PermissionMode, Provider, ui } from "@canopy/contracts";
 import { dockerAvailable } from "@canopy/db/testing";
+import { composerChoices, composerMessagePermission } from "@canopy/domain/composer-choices";
+import { CLAUDE_LIVE_PERMISSIONS_CAPABILITY } from "@canopy/domain/release/protocol";
 import { GatewayCore } from "@canopy/gateway/core";
 import { GatewayStore } from "@canopy/gateway/store";
 import { Effect } from "effect";
@@ -29,7 +31,9 @@ const modes = (threadId: string) =>
 
 describe.skipIf(!dockerAvailable)("thread permission mode (gateway + scripted worker)", () => {
   beforeAll(async () => {
-    gw = await startTestGateway();
+    gw = await startTestGateway({
+      worker: { claude: true, hello: { capabilities: ["full_access", CLAUDE_LIVE_PERMISSIONS_CAPABILITY] } },
+    });
     projectId = (await gw.api.createProject({ name: "Modes" })).project!.id;
     workspaceId = (await gw.api.createWorkspace({ projectId, workerId: gw.workerId, rootPath: "/repo/app", label: "" }))
       .workspace!.id;
@@ -97,5 +101,128 @@ describe.skipIf(!dockerAvailable)("thread permission mode (gateway + scripted wo
       turn: PermissionMode.FULL_AUTO,
       thread: PermissionMode.FULL_AUTO,
     });
+  });
+
+  test("a saved Claude mode takes precedence over an old turn while explicit message choices still apply", async () => {
+    const thread = (
+      await gw.api.createThread({
+        projectId,
+        workspaceId,
+        provider: Provider.CLAUDE,
+        permissionMode: PermissionMode.ASK,
+        initialMessage: "First turn",
+        clientRequestId: crypto.randomUUID(),
+      })
+    ).thread!;
+
+    await eventually(
+      () => modes(thread.id),
+      (rows) => rows[0]?.status === "completed",
+    );
+
+    await gw.api.updateThread({ threadId: thread.id, permissionMode: PermissionMode.FULL_ACCESS });
+    const saved = (await gw.api.getThread({ threadId: thread.id })).thread!;
+
+    expect(saved.permissionModeSelected).toBe(true);
+    expect(saved.lastUserTurnChoices?.permissionMode).toBe(PermissionMode.ASK);
+
+    async function send(permissionMode: PermissionMode) {
+      const { turn } = await gw.api.sendMessage({
+        threadId: thread.id,
+        text: "Check which permissions the turn uses",
+        permissionMode,
+        clientRequestId: crypto.randomUUID(),
+      });
+
+      await eventually(
+        () => modes(thread.id),
+        (rows) => rows.some((row) => row.id === turn?.id && row.status === "completed"),
+      );
+
+      return gw.worker.turnModes.get(turn!.id);
+    }
+
+    const choices = composerChoices(saved, []);
+    expect(choices.permissionMode).toBe(PermissionMode.FULL_ACCESS);
+    expect(choices.permissionOverride).toBe(PermissionMode.UNSPECIFIED);
+    expect(await send(choices.permissionOverride)).toEqual({
+      turn: PermissionMode.FULL_ACCESS,
+      thread: PermissionMode.FULL_ACCESS,
+    });
+
+    const draft = composerChoices(saved, [], { permissionMode: PermissionMode.READ_ONLY });
+    expect(draft.permissionMode).toBe(PermissionMode.READ_ONLY);
+    expect(await send(draft.permissionOverride)).toEqual({
+      turn: PermissionMode.READ_ONLY,
+      thread: PermissionMode.FULL_ACCESS,
+    });
+
+    const persisted = (await gw.api.getThread({ threadId: thread.id })).thread!;
+    expect(persisted.lastUserTurnChoices?.permissionMode).toBe(PermissionMode.READ_ONLY);
+    expect(await send(composerChoices(persisted, []).permissionOverride)).toEqual({
+      turn: PermissionMode.FULL_ACCESS,
+      thread: PermissionMode.FULL_ACCESS,
+    });
+
+    await gw.api.updateThread({ threadId: thread.id, permissionMode: PermissionMode.ASK });
+    const changed = (await gw.api.getThread({ threadId: thread.id })).thread!;
+    expect(changed.lastUserTurnChoices?.permissionMode).toBe(PermissionMode.FULL_ACCESS);
+    expect(await send(composerChoices(changed, []).permissionOverride)).toEqual({
+      turn: PermissionMode.ASK,
+      thread: PermissionMode.ASK,
+    });
+  });
+
+  test("a queued Claude message without its own choice inherits a later saved restriction", async () => {
+    gw.worker.holdTurns = true;
+
+    const thread = (
+      await gw.api.createThread({
+        projectId,
+        workspaceId,
+        provider: Provider.CLAUDE,
+        permissionMode: PermissionMode.ASK,
+        initialMessage: "Still working in Ask first",
+        clientRequestId: crypto.randomUUID(),
+      })
+    ).thread!;
+
+    try {
+      const [active] = await eventually(
+        () => modes(thread.id),
+        (rows) => rows[0]?.status === "running",
+      );
+
+      const { thread: saved } = await gw.api.updateThread({
+        threadId: thread.id,
+        permissionMode: PermissionMode.FULL_ACCESS,
+      });
+
+      const displayed = gw.worker.turnModes.get(active!.id)!.turn;
+      expect(displayed).toBe(PermissionMode.ASK);
+
+      const { turn: queued } = await gw.api.sendMessage({
+        threadId: thread.id,
+        text: "Inherit the thread's permissions when this starts",
+        delivery: ui.MessageDelivery.QUEUE,
+        permissionMode: composerMessagePermission(saved),
+        clientRequestId: crypto.randomUUID(),
+      });
+
+      await gw.api.updateThread({ threadId: thread.id, permissionMode: PermissionMode.READ_ONLY });
+      expect(gw.worker.turnModes.get(active!.id)?.turn).toBe(PermissionMode.ASK);
+      gw.worker.holdTurns = false;
+      gw.worker.finish(thread.id, active!.id);
+      await eventually(
+        () => modes(thread.id),
+        (rows) => rows.some((row) => row.id === queued?.id && row.status === "completed"),
+      );
+      expect(gw.worker.turnModes.get(queued!.id)).toEqual({
+        turn: PermissionMode.READ_ONLY,
+        thread: PermissionMode.READ_ONLY,
+      });
+    } finally {
+      gw.worker.holdTurns = false;
+    }
   });
 });

@@ -190,7 +190,7 @@
       runningTurnId={runningTurn?.id}
       permissions={permissionControl}
       permissionMode={permissions.messageMode}
-      savingPermissions={Boolean(permissions.threadDefault) && permissions.busy}
+      savingPermissions={permissions.busy}
       {connection}
       {disabled}
       {note}

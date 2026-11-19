@@ -1,6 +1,7 @@
 # Projekty, wątki i wątki boczne
 
-Status (2026-11-18): zaimplementowane, w tym zapis uprawnień Codexa na kolejne tury z kompozytora web/desktop,
+Status (2026-11-19): zaimplementowane, w tym pierwszeństwo jawnie zapisanych uprawnień wątku przed historią tur
+oraz zapis uprawnień Codexa na kolejne tury z kompozytora web/desktop,
 ukrycie Full auto dla Claude na natywnym Windowsie, trwały wpis wątku przed przygotowaniem nowego worktree,
 propagacja odmowy prędkości do błędu celu,
 wybór prędkości dostawcy oraz stan tylko do odczytu po usunięciu worktree
@@ -62,6 +63,11 @@ Full access ma kolor rose i ikonę `shield-off`
 Full access w pickerze i w domyślnych wątków potwierdza dialog „Turn on full access?”
 (`FullAccessConfirm`); w „Permissions…” potwierdzeniem jest przycisk „Turn on full access” zamiast
 „Save”. Fork użytkownika, szkic wątku bocznego i harmonogram dostają co najwyżej Full auto.
+Po jawnym zapisie domyślnego trybu wątku nowa wiadomość bez wyboru w szkicu dziedziczy
+zapisany tryb. Tryb widoczny w historii pozostaje trybem tamtej tury. Kompozytor może
+wybrać inny tryb pojedynczej wiadomości, a steer korzysta z uprawnień działającej tury.
+Picker Claude podczas zmiany uprawnień na żywo pokazuje osobno tryb działającej tury
+i oczekiwany tryb kolejnej wiadomości, gdy te tryby się różnią po jawnym zapisie ustawienia wątku.
 Subagent uruchamiany narzędziem dziedziczy tryb właściciela, także Full access.
 Settings → Threads → Subagents wybiera **Same as parent** (domyślnie) lub stały tryb,
 który nie przekroczy uprawnień rodzica. Gateway zapisuje rozstrzygnięty tryb na dziecku;

@@ -51,7 +51,7 @@ export function useComposerSettings(
       model: selected.option?.model,
       effort: selected.effort,
       serviceTier: selected.serviceTier,
-      permissionMode: selected.permissionMode,
+      permissionMode: selected.permissionOverride,
     },
     update,
   };

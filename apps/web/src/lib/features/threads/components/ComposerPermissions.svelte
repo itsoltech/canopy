@@ -18,6 +18,7 @@
     }}
     disabled={disabled || state.locked}
     scope={state.scope}
+    nextTurnMode={state.nextTurnMode}
     confirmFullAccess={state.confirmFullAccess}
     {onconfirmfullaccess}
     explanation={state.explanation}
