@@ -59,7 +59,9 @@ export class ClaudeContextUsage {
       } else return [];
     } else return [];
 
-    return [this.#event(message, turnId)];
+    // A fresh process learns the model's limit from its result. Until then, a
+    // partial report would replace the last complete measurement in the gateway.
+    return this.#limits.has(this.#model) ? [this.#event(message, turnId)] : [];
   }
 
   #read(usage: {

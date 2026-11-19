@@ -1,8 +1,9 @@
 # Transkrypt: zapis wszystkiego, co dzieje się w wątku
 
-Status (2026-11-18): log zdarzeń, projekcja itemów i bloby obrazów są zaimplementowane,
+Status (2026-11-19): log zdarzeń, projekcja itemów i bloby obrazów są zaimplementowane,
 w tym bezstratne wyniesienie obrazów wyników trybu kodu Codexa z `raw_json`
 oraz trwały, oddzielny od rozliczeń pomiar bieżącego kontekstu głównej sesji.
+Po wznowieniu procesu Claude zachowuje ostatni pełny pomiar do następnego raportu z limitem.
 Jawne raporty zużycia jednej tury zasilają też niezależne od retencji agregaty
 tokenów i zgłoszonych kosztów ([usage.md](usage.md)).
 Wznowienie zakresu zachowuje wiele rewizji tego samego dużego itemu, a wskaźnik
@@ -110,7 +111,9 @@ ani katalogu modeli.
   także gdy blok `assistant` przyszedł wcześniej. Nie dodajemy kolejnych bloków
   tej samej wiadomości. Limit pochodzi z `result.modelUsage[model].contextWindow`
   dla dokładnego modelu ostatniej głównej odpowiedzi; inny model/subagent nie
-  dostarcza zastępczego limitu. Przed pierwszym takim raportem limit jest nieznany.
+  dostarcza zastępczego limitu. Gdy proces nie zna jeszcze limitu bieżącego modelu,
+  adapter wstrzymuje częściowe pomiary. Wznowienie procesu pozostawia ostatni
+  kompletny pomiar wątku do kolejnego raportu lub jawnego unieważnienia.
   `result.usage` sumuje wywołania głównej pętli w turze, a tokeny w `modelUsage`
   obejmują wiele wywołań i subagentów; żaden z tych agregatów nie mierzy kontekstu.
   Źródła: [typy i komentarze przypiętego SDK](https://unpkg.com/@anthropic-ai/claude-agent-sdk@0.3.316/sdk.d.ts)
