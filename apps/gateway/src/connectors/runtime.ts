@@ -265,15 +265,10 @@ export class ConnectorsRuntime {
     return tools.slice(0, 256);
   }
   async botTools(botId: string, turn?: BotTurn, filesEnabled = true): Promise<ToolSpec[]> {
-    const privateConversation =
-      !!turn &&
-      !turn.conversation_id &&
-      !turn.exchange_id &&
-      !turn.routine_id &&
-      !turn.reply_to_bot_id &&
-      !turn.remote_recipient_ref;
+    const allowSlackPost =
+      !!turn && !turn.conversation_id && !turn.exchange_id && !turn.reply_to_bot_id && !turn.remote_recipient_ref;
 
-    const tools = await this.tools(this.options.userId, { botId }, privateConversation, filesEnabled);
+    const tools = await this.tools(this.options.userId, { botId }, allowSlackPost, filesEnabled);
 
     return tools.map((t) => ({
       name: t.name,
