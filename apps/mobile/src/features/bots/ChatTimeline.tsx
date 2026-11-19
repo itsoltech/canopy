@@ -1,7 +1,9 @@
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 import { View } from "react-native";
 import type { bots } from "@canopy/contracts";
 import {
+  ChatEventGroups,
+  visibleChatRows,
   botEntries,
   botParticipant,
   layoutChat,
@@ -25,7 +27,10 @@ export function useChatRows(
   approvals: readonly bots.BotApproval[],
   known: readonly bots.Bot[],
 ) {
-  return useMemo(() => {
+  const [groups] = useState(() => new ChatEventGroups());
+  const [open, setOpen] = useState<ReadonlySet<string>>(() => new Set());
+
+  const grouped = useMemo(() => {
     if (!conversation?.bot) return [];
 
     const participants = new Map<string, ParticipantView>([
@@ -34,13 +39,29 @@ export function useChatRows(
       [conversation.bot.id, botParticipant(conversation.bot)],
     ]);
 
-    return layoutChat({
-      entries: botEntries({ ...conversation, approvals: [...approvals] }),
-      participants,
-      me: ME.id,
-      kind: "direct",
+    return groups.layout(
+      layoutChat({
+        entries: botEntries({ ...conversation, approvals: [...approvals] }),
+        participants,
+        me: ME.id,
+        kind: "direct",
+      }),
+    );
+  }, [conversation, approvals, known, groups]);
+
+  const latestFirst = useMemo(() => visibleChatRows(grouped, open).reverse(), [grouped, open]);
+
+  function toggle(id: string) {
+    setOpen((previous) => {
+      const next = new Set(previous);
+
+      if (!next.delete(id)) next.add(id);
+
+      return next;
     });
-  }, [conversation, approvals, known]);
+  }
+
+  return { latestFirst, open, toggle };
 }
 
 /** One laid-out row; spacing follows the web's (`pt-3` before a run or card, `pt-0.5` inside a run, dates `pt-6`). */

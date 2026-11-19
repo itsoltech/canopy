@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { View } from "react-native";
 import { ArrivingCell, useArrivals } from "../../ui/MotionViews";
 import { Skeleton } from "../../ui/Skeleton";
@@ -8,7 +8,7 @@ import { TimelineList } from "../composer/TimelineList";
 import type { bots } from "@canopy/contracts";
 import { splitId } from "@canopy/domain/computers";
 import { useComputerHome } from "../computers/presence";
-import { botParticipant, type ChatRow } from "@canopy/domain/bot-chat";
+import { botParticipant, type BotTimelineRow } from "@canopy/domain/bot-chat";
 import { useAppearance } from "../../state/appearance";
 import { useSession } from "../../state/session";
 import { useBotList } from "../../state/bot-list";
@@ -19,6 +19,8 @@ import { IconButton, Notice, ScreenHeader } from "../../ui/components";
 import { styles } from "../../ui/theme";
 import { ChatKeyboard } from "../composer/ChatKeyboard";
 import { ChatRowView, useChatRows } from "./ChatTimeline";
+import { ChatEventGroupHeader } from "./ChatEventGroupHeader";
+import { FeedAnchorCell, FeedAnchorProvider, useFeedAnchor } from "../../ui/feed-anchor";
 import { BotStatusRow } from "./ChatRows";
 import { BotDetailsPanel } from "./BotDetailsPanel";
 import { BotAvatar } from "./BotAvatar";
@@ -33,7 +35,7 @@ import { BotComposer } from "./BotComposer";
 import { BotMentionSuggestions } from "./BotMentionSuggestions";
 import { DropZone } from "../attachments/FileIntake";
 
-const chatRowId = (row: ChatRow) => row.id;
+const chatRowId = (row: BotTimelineRow) => row.id;
 
 function useBotChat(id: string) {
   const { session, client, online, bots: known } = useSession();
@@ -41,7 +43,7 @@ function useBotChat(id: string) {
   const { snapshot: conversation, stream } = history;
   const [details, setDetails] = useState(false);
   const [stopping, setStopping] = useState(false);
-  const following = useFollowingList<ChatRow>(true);
+  const following = useFollowingList<BotTimelineRow>(true);
 
   const stop = async () => {
     if (stopping || !client) return;
@@ -91,30 +93,31 @@ function useBotConversation(id: string, rule: string) {
   const onViewableItemsChanged = useBotRead(conversation, connected && following.atBottom && !chat.details && !rule);
   const message = useBotMessage(id, live, following.resumeFollowing, bot?.configuration?.name);
 
-  const approvals =
-    conversation?.approvals.filter(
-      (a) =>
-        (threadsEnabled || !a.threadId) &&
-        (a.allowedByRule || a.status === "pending" || (a.status === "expired" && seen.has(a.id))),
-    ) ?? [];
+  const approvals = useMemo(
+    () =>
+      conversation?.approvals.filter(
+        (a) =>
+          (threadsEnabled || !a.threadId) &&
+          (a.allowedByRule || a.status === "pending" || (a.status === "expired" && seen.has(a.id))),
+      ) ?? [],
+    [conversation?.approvals, threadsEnabled, seen],
+  );
 
   const rows = useChatRows(conversation, approvals, known);
   const waiting = approvals.some((a) => a.status === "pending");
 
-  const latestFirst = [...rows].reverse();
-  const arrival = useArrivals(latestFirst.map(chatRowId), Boolean(conversation), { newestFirst: true });
+  const arrival = useArrivals(rows.latestFirst.map(chatRowId), Boolean(conversation), { newestFirst: true });
 
   const composer = useFloatingComposer(following, Boolean(message.draft.value.text.length || message.quotes.length));
 
-  return { chat, home, bot, live, message, approvals, waiting, latestFirst, arrival, composer, onViewableItemsChanged };
+  return { chat, home, bot, live, message, approvals, waiting, rows, arrival, composer, onViewableItemsChanged };
 }
 
 function BotConversation({ id, rule }: { id: string; rule: string }) {
-  const { chat, home, bot, live, message, approvals, waiting, latestFirst, arrival, composer, onViewableItemsChanged } =
-    useBotConversation(id, rule);
-
+  const state = useBotConversation(id, rule);
+  const { chat, home, bot, live, message, composer } = state;
   const { draft, busy, error, setError } = message;
-  const { conversation, following, history, setDetails } = chat;
+  const { conversation, following, setDetails } = chat;
 
   if (!chat.session) return <Redirect href="/pair" />;
 
@@ -130,52 +133,7 @@ function BotConversation({ id, rule }: { id: string; rule: string }) {
       <ChatKeyboard composerHeight={composer.height}>
         <DropZone draft={draft.files} disabled={!live || busy || !message.loaded}>
           <View style={styles.fill}>
-            <TimelineList
-              {...composer.listProps}
-              onViewableItemsChanged={onViewableItemsChanged}
-              onEndReached={() => {
-                if (!following.isFollowing()) void history.load();
-              }}
-              onEndReachedThreshold={0.3}
-              style={styles.fill}
-              data={latestFirst}
-              keyExtractor={chatRowId}
-              contentContainerStyle={[styles.page, { gap: 0, flexGrow: 1 }]}
-              keyboardShouldPersistTaps="handled"
-              renderItem={({ item }) => (
-                <ArrivingCell entering={arrival(item.id)}>
-                  <ChatRowView
-                    row={item}
-                    approvals={approvals}
-                    readOnly={!live}
-                    onAnswer={chat.answer}
-                    onReply={
-                      busy
-                        ? undefined
-                        : (value) => {
-                            composer.expand();
-                            message.reply(value);
-                          }
-                    }
-                  />
-                </ArrivingCell>
-              )}
-              // Inverted: the footer is the top of the chat, the header sits under the latest message.
-              ListFooterComponent={
-                <HistoryFooter
-                  hasMore={conversation?.historyHasMore}
-                  history={history}
-                  skeleton={!conversation}
-                  empty={!!conversation && !conversation.messages.length}
-                />
-              }
-              ListHeaderComponent={
-                <>
-                  <BotActivity conversation={conversation} waiting={waiting} />
-                  <View style={{ height: composer.height }} />
-                </>
-              }
-            />
+            <BotChatFeed state={state} />
             <FloatingComposer
               overlay={
                 <BotMentionSuggestions
@@ -225,6 +183,73 @@ function BotConversation({ id, rule }: { id: string; rule: string }) {
         }}
       />
     </ScreenFrame>
+  );
+}
+
+function BotChatFeed({ state }: { state: ReturnType<typeof useBotConversation> }) {
+  const { chat, live, message, approvals, waiting, rows, arrival, composer, onViewableItemsChanged } = state;
+  const { following, history, conversation } = chat;
+  const anchor = useFeedAnchor(following);
+
+  return (
+    <FeedAnchorProvider value={anchor}>
+      <TimelineList
+        disclosureAddsRows
+        CellRendererComponent={FeedAnchorCell}
+        {...composer.listProps}
+        onViewableItemsChanged={onViewableItemsChanged}
+        onEndReached={() => {
+          if (!following.anchoring.get() && !following.isFollowing()) void history.load();
+        }}
+        onEndReachedThreshold={0.3}
+        style={styles.fill}
+        data={rows.latestFirst}
+        keyExtractor={chatRowId}
+        contentContainerStyle={[styles.page, { gap: 0, flexGrow: 1 }]}
+        keyboardShouldPersistTaps="handled"
+        renderItem={({ item }) => (
+          <ArrivingCell entering={arrival(item.id)}>
+            {item.kind === "event-group" ? (
+              <ChatEventGroupHeader
+                count={item.events.length}
+                open={rows.open.has(item.id)}
+                onToggle={() => rows.toggle(item.id)}
+              />
+            ) : (
+              <ChatRowView
+                row={item}
+                approvals={approvals}
+                readOnly={!live}
+                onAnswer={chat.answer}
+                onReply={
+                  message.busy
+                    ? undefined
+                    : (value) => {
+                        composer.expand();
+                        message.reply(value);
+                      }
+                }
+              />
+            )}
+          </ArrivingCell>
+        )}
+        // Inverted: the footer is the top of the chat, the header sits under the latest message.
+        ListFooterComponent={
+          <HistoryFooter
+            hasMore={conversation?.historyHasMore}
+            history={history}
+            skeleton={!conversation}
+            empty={!!conversation && !conversation.messages.length}
+          />
+        }
+        ListHeaderComponent={
+          <>
+            <BotActivity conversation={conversation} waiting={waiting} />
+            <View style={{ height: composer.height }} />
+          </>
+        }
+      />
+    </FeedAnchorProvider>
   );
 }
 

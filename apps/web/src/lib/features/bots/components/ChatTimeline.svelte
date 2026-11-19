@@ -2,12 +2,12 @@
   import { untrack, type Snippet } from "svelte";
   import { SvelteSet } from "svelte/reactivity";
   import FeedFold from "#lib/shared/ui/FeedFold.svelte";
-  import { ChatEventGroups, type EventGroup } from "../event-groups.ts";
+  import { ChatEventGroups, visibleChatRows, type BotTimelineRow } from "@canopy/domain/bot-chat";
   import VirtualFeed from "#lib/shared/ui/virtual/VirtualFeed.svelte";
   import type { FeedViewport } from "#lib/shared/ui/virtual/viewport.ts";
   import type { FeedScrollMemory } from "#lib/shared/ui/virtual/feed-scroll-memory.svelte.ts";
   import Spinner from "#lib/shared/ui/Spinner.svelte";
-  import { layoutChat, type ChatRow, type ExchangeSegment } from "../chat-timeline.ts";
+  import { layoutChat, type ExchangeSegment } from "../chat-timeline.ts";
   import type { ChatHistory } from "../chat-history.ts";
   import type {
     BotStatusView,
@@ -100,7 +100,7 @@
 
   const bots = $derived([...participants.values()].filter((p) => p.kind === "bot"));
 
-  type TimelineRow = ChatRow | EventGroup | { id: "status"; kind: "status"; status: BotStatusView };
+  type TimelineRow = BotTimelineRow | { id: "status"; kind: "status"; status: BotStatusView };
 
   const eventGroups = new ChatEventGroups();
   const openGroups = new SvelteSet<string>();
@@ -120,15 +120,7 @@
   const rows = $derived.by((): TimelineRow[] => {
     if (loading) return [];
 
-    const list: TimelineRow[] = [];
-
-    for (const row of grouped) {
-      list.push(row);
-
-      if (row.kind === "event-group" && openGroups.has(row.id)) {
-        for (const event of row.events) list.push(event);
-      }
-    }
+    const list: TimelineRow[] = visibleChatRows(grouped, openGroups);
 
     if (status) list.push({ id: "status", kind: "status", status });
 

@@ -5,7 +5,7 @@ w tym tury na workerach, rutyny i dostarczanie przypomnień.
 W web/desktop akcja Delete bot jest dostępna także dla aktywnych botów.
 Usunięcie kończy pracę i odłącza źródła bota w tej samej transakcji co soft delete.
 Prywatny czat pokazuje odbiór wiadomości ze Slacka, przebieg rutyn i bieżącą czynność bota.
-W web/desktop kolejne zdarzenia w historii można rozwijać i zwijać.
+Na webie, desktopie i telefonie kolejne zdarzenia w historii można rozwijać i zwijać.
 Panel Bots w web/desktop oznacza pracujące boty na przypiętych kafelkach i zwykłych wierszach.
 Aktualizacja rozmowy zachowuje w panelu stan pracy i oczekującej zgody z podsumowania bota.
 Mobilna rozmowa potwierdza odczyt najnowszych wiadomości i odświeża listę botów.
@@ -1409,7 +1409,7 @@ zapamiętany stan pracy botów z niedostępnego domu lub domu w trakcie odświe�
   zachowuje bloki starszych klientów bez zakresów nad treścią.
 - **Separatory czasu** tylko na początku, po zmianie dnia i po godzinie ciszy
   („Today 11:46 AM”).
-- **Zdarzenia w web/desktop**: co najmniej dwa kolejne wpisy, w tym odbiór i wysyłka
+- **Zdarzenia w czacie**: co najmniej dwa kolejne wpisy, w tym odbiór i wysyłka
   wiadomości na Slacku, przebieg rutyn i akcje zatwierdzone przez stałą regułę,
   są domyślnie zwinięte pod **Show N events**. Po rozwinięciu szczegóły i linki
   są dostępne w kolejności chronologicznej. Pojedynczy wpis widać od razu.
