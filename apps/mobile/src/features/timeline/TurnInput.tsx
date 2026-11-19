@@ -42,14 +42,7 @@ function UserTurnInput({ turn }: { turn: ui.Turn }) {
         attachments={turn.attachments}
         quotes={turn.quotes}
         mentions={turn.messageText ? turn.mentions : []}
-        note={
-          turn.status === "queued"
-            ? {
-                text: fallback?.reason ? `Queued instead: ${fallback.reason}` : turn.dispatched ? "Starting" : "Queued",
-                ...(fallback && { tone: "amber" }),
-              }
-            : undefined
-        }
+        note={fallback?.reason ? { text: `Queued instead: ${fallback.reason}`, tone: "amber" } : undefined}
       />
       {!turn.inherited && !turn.rewindId && turn.ordinal === 1 && <InitialPreparation threadId={directory.currentId} />}
     </View>

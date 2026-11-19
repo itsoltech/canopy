@@ -1,6 +1,6 @@
 # Połączone komputery
 
-Status: opis zaimplementowanej synchronizacji (2026-11-18), w tym wstrzymywania luster wyłączonego modułu, kolejności zakładek konta, kontroli dostępu między botami i wątkami przez łącze, ograniczenia czasu oczekiwania na listę botów w `list_agents` oraz przyrostowej
+Status: opis zaimplementowanej synchronizacji (2026-11-19), w tym wstrzymywania luster wyłączonego modułu, kolejności zakładek konta, kontroli dostępu między botami i wątkami przez łącze, ograniczenia czasu oczekiwania na listę botów w `list_agents` oraz przyrostowej
 synchronizacji agregatów użycia z żądaną szybkością wykonania i podziałem
 według aktywności i botów przez bezpośrednie
 łącza, odwołania zaufania w trakcie handshake, zachowania lokalnych kanałów Slack botów i nadawców historycznych
@@ -915,10 +915,12 @@ automatycznego powtarzania zapisów jest potwierdzanie `SendMessage` z tym samym
 
 Timeout nie dowodzi odmowy: dom mógł już przyjąć wiadomość. BFF daje `SendMessage`
 10 s (zwykłe RPC mają 3 s), łącze mutacji 30 s, a mobile 20 s na próbę.
-BFF zwraca HTTP 202 przy nieznanym wyniku. Web/desktop i mobile co 2 s ponawiają
-identyczne żądanie z tym samym `client_request_id`, aż otrzymają wynik albo jawną
-odmowę. Kompozytor zachowuje zablokowany szkic i pokazuje „Sending…” lub
-„Still waiting for ‹computer›…”, bez czerwonego błędu transportowego.
+BFF zwraca HTTP 202 przy nieznanym wyniku. Po niepotwierdzonej próbie kompozytor
+zachowuje żądanie szkicu i sprawdza wynik przez `GetComposerDraftDelivery`.
+Ponowienie tego żądania używa tego samego `client_request_id`.
+Podczas wysyłki kompozytor blokuje szkic, a przycisk wysyłki pokazuje postęp.
+Przy oczekiwaniu na komputer pojawia się „Still waiting for ‹computer›…” w stałym polu
+web/desktop lub w nakładce na telefonie.
 
 Dom blokuje wiersz wątku właściciela i atomowo zapisuje efekt oraz potwierdzenie
 w `thread_message_receipts` (0099). Współbieżne próby nie mogą zmienić steera w nową

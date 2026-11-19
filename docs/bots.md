@@ -3,6 +3,7 @@
 Status (2026-11-19): wyłączenie modułu Bots zatrzymuje pracę botów właściciela,
 w tym tury na workerach, rutyny i dostarczanie przypomnień.
 Mobilna rozmowa potwierdza odczyt najnowszych wiadomości i odświeża listę botów.
+Wysyłana wiadomość ma przygaszony dymek, który zachowuje wysokość po potwierdzeniu.
 Zaimplementowano trwałe rozmowy botów przez Slack Socket Mode,
 buforowanie, załączniki, formatowanie odpowiedzi, izolację historii kanałów i przyznane narzędzia
 w turach zewnętrznych. Konektor Slack umożliwia pobranie pliku po jego identyfikatorze.
@@ -1385,7 +1386,7 @@ gdzie wskazuje miejsce wykonywania akcji.
   z przejściem promienia na tokenach ruchu i obsługą reduced motion. Przycisk wysyłki
   pojawia się z tekstem lub cytatem (icon swap). Enter wysyła, Shift+Enter nowa linia; na klawiaturze
   dotykowej Enter to nowa linia. Mikrofon pominięto (nic nie robi). Twoja wiadomość jest
-  widoczna od razu („Sending…”), błąd wysyłki daje „Send again” z tym samym `client_request_id`.
+  widoczna od razu i przygaszona do potwierdzenia. Błąd wysyłki daje „Send again” z tym samym `client_request_id`.
 - **Autouzupełnianie**: tylko `@`, pozostałe boty użytkownika bez bieżącego: awatar,
   kolor, nazwa, model jako opis, filtr fuzzy. ↑↓ i Enter/Tab wybierają, Esc zamyka;
   dotknięcie wybiera bez utraty fokusu. Desktop ma popover, telefon/wskaźnik coarse panel

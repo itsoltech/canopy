@@ -220,7 +220,7 @@
 
   /** What happened to the last message when it did not go the way it was sent (a steer that became a turn). */
   let outcome = $state<string | undefined>(undefined);
-  const deliveryStatus = $derived(sending ? (waiting ? `Still waiting for ${homeName}…` : "Sending…") : outcome);
+  const deliveryStatus = $derived(sending && waiting ? `Still waiting for ${homeName}…` : outcome);
 
   // One key per message: a retry after a network error reuses it, a new message gets a new one.
 
@@ -488,7 +488,7 @@
     {/snippet}
   </ComposerBox>
   <!-- Keep announcements mounted even when the metadata folds in the compact composer. -->
-  <p class="sr-only" role="status" aria-atomic="true">{deliveryStatus ?? ""}</p>
+  <p class="sr-only" role="status" aria-atomic="true">{deliveryStatus ?? (sending ? "Sending…" : "")}</p>
 </form>
 <PendingDraft draft={saved} />
 <AccountConfigNotices section="composer" />

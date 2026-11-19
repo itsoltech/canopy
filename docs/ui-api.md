@@ -1,6 +1,8 @@
 # API dla UI i architektura frontendu
 
-Status (2026-11-18): właściciel ustawia kolejność zakładek i może zatrzymać pracę wybranego modułu.
+Status (2026-11-19): web/desktop sygnalizuje wysyłanie w wątku na przycisku wysyłki,
+a w czacie bota przez przygaszenie dymka. Potwierdzenie dostarczenia zachowuje wysokość wiadomości.
+Właściciel ustawia kolejność zakładek i może zatrzymać pracę wybranego modułu.
 Po zamknięciu panelu PR zaplanowane odświeżenie awatarów wykonuje się
 tylko wtedy, gdy inny otwarty widok nadal ich potrzebuje. Stopka sidebara pokazuje tylko jeden z paneli Updates i Provider usage,
 ma osobne ikony Settings i Usage oraz samą kropkę statusu połączenia;
@@ -1859,9 +1861,12 @@ Odpowiedź nadal idzie przez `AnswerInteraction` / `POST api/interactions/[id]`.
 ### Potwierdzenie wiadomości
 
 `SendMessage` z nieznanym wynikiem transportowym pozostaje oczekujący. BFF zwraca
-HTTP 202 `{pending: true}`; web/desktop i mobile ponawiają niezmienione żądanie z
-tym samym `client_request_id` co 2 s. Kompozytor blokuje szkic i pokazuje „Sending…”
-lub „Still waiting for ‹computer›…”. Potwierdzenie domu obejmuje także `/goal`;
+HTTP 202 `{pending: true}`. Kompozytor zachowuje żądanie i jego `client_request_id`
+w szkicu do sprawdzenia wyniku. Podczas wysyłania blokuje edycję i pokazuje wskaźnik
+w przycisku wysyłki. W web/desktop czytnik ekranu otrzymuje komunikat „Sending…”.
+Szczegóły dostarczenia, np. powód przekierowania wiadomości do kolejki, zajmują
+miejsce nazwy komputera w wierszu pod edytorem. Po przyjęciu tury nagłówek pracy
+przechodzi z „Starting” do „Working” w tym samym miejscu. Potwierdzenie domu obejmuje także `/goal`;
 odczyt wyniku nie tworzy drugiej wiadomości po końcu tury. Szczegóły limitów,
 trwałych potwierdzeń i lokalnego revision probe: [linked-computers.md](linked-computers.md).
 

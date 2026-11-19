@@ -42,6 +42,7 @@ export function SendButtons({
     <Pressable
       accessibilityRole="button"
       accessibilityLabel={stop ? "Stop the turn" : "Send message"}
+      accessibilityState={{ busy: busy && !stop, disabled: unavailable }}
       disabled={unavailable}
       onPress={onSend}
       style={({ pressed }) => ({
@@ -53,8 +54,8 @@ export function SendButtons({
         backgroundColor: disabled || unavailable ? c.line : stop ? c.text : pressed ? c.actionPressed : c.action,
       })}
     >
-      {busy ? (
-        <ActivityIndicator size="small" color={c.onAccent} />
+      {busy && !stop ? (
+        <ActivityIndicator size="small" color={c.muted} />
       ) : (
         <Icon
           name={stop ? "stop" : "arrow-up"}
@@ -96,6 +97,7 @@ function SplitSend({
       <Pressable
         accessibilityRole="button"
         accessibilityLabel={steerFirst ? "Steer into the running turn" : "Queue for the next turn"}
+        accessibilityState={{ busy, disabled: unavailable }}
         accessibilityHint={`Hold to ${steerFirst ? "queue it for the next turn" : "steer it into the running turn"}.`}
         disabled={unavailable}
         onPress={onSend}
