@@ -33,6 +33,7 @@ export interface UsageData {
   speeds: UsageRow[];
   activities: UsageRow[];
   bots: UsageRow[];
+  workers: UsageRow[];
   days: UsageDay[];
   computers: {
     id: string;
@@ -44,6 +45,7 @@ export interface UsageData {
   }[];
   partial: boolean;
   supportsActivityBreakdown: boolean;
+  supportsWorkerBreakdown: boolean;
   hasUnattributedUsage: boolean;
 }
 
@@ -188,21 +190,24 @@ function usageAmounts(totals: ui.UsageTotals | undefined, legacyReportedCost: bo
 
 const iso = (timestamp: Timestamp | undefined) => (timestamp ? timestampDate(timestamp).toISOString() : "");
 
-function botRows(bots: ui.UsageBotBreakdown[], legacyReportedCost: boolean): UsageRow[] {
-  const unnamed = "Unnamed bot";
+function namedRows(rows: UsageRow[]): UsageRow[] {
   const names = new Map<string, number>();
 
-  for (const bot of bots) {
-    const label = bot.name || unnamed;
-    names.set(label, (names.get(label) ?? 0) + 1);
+  for (const { label } of rows) names.set(label, (names.get(label) ?? 0) + 1);
+
+  return rows.map((row) => (row.key && (names.get(row.label) ?? 0) > 1 ? { ...row, detail: row.key } : row));
+}
+
+export function compareUsage(a: UsageRow, b: UsageRow, view: UsageView) {
+  if (view === "cost") {
+    const known = Number(hasEffectiveCost(b.amounts)) - Number(hasEffectiveCost(a.amounts));
+
+    return known || b.amounts.effectiveCost - a.amounts.effectiveCost || a.label.localeCompare(b.label);
   }
 
-  return bots.map(({ botId, name, totals }) => ({
-    key: botId,
-    label: name || unnamed,
-    ...((!name || (names.get(name) ?? 0) > 1) && { detail: botId }),
-    amounts: usageAmounts(totals, legacyReportedCost),
-  }));
+  const difference = totalTokens(b.amounts) - totalTokens(a.amounts);
+
+  return difference === 0n ? a.label.localeCompare(b.label) : difference > 0n ? 1 : -1;
 }
 
 export function usageReport(
@@ -233,7 +238,22 @@ export function usageReport(
       label: usageActivities.find((activity) => activity.value === row.key)?.label ?? row.key,
       amounts: amounts(row.totals),
     })),
-    bots: botRows(response.bots, legacyReportedCost),
+    bots: namedRows(
+      response.bots.map(({ botId, name, totals }) => ({
+        key: botId,
+        label: name || "Unnamed bot",
+        ...(!name && { detail: botId }),
+        amounts: amounts(totals),
+      })),
+    ),
+    workers: namedRows(
+      response.workers.map(({ workerId, name, totals }) => ({
+        key: workerId,
+        label: workerId ? name || "Unnamed worker" : "Unknown worker",
+        ...(workerId && !name && { detail: workerId }),
+        amounts: amounts(totals),
+      })),
+    ),
     days: response.days
       .flatMap((row) => {
         if (!row.day) return [];
@@ -263,6 +283,7 @@ export function usageReport(
     })),
     partial: response.partial,
     supportsActivityBreakdown: response.supportsActivityBreakdown,
+    supportsWorkerBreakdown: response.supportsWorkerBreakdown,
     hasUnattributedUsage: response.hasUnattributedUsage,
   };
 }

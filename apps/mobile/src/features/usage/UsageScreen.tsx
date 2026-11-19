@@ -31,7 +31,7 @@ export function UsageScreen() {
   const [days, setDays] = useState(30);
   const [provider, setProvider] = useState("");
   const [view, setView] = useState<UsageView>("cost");
-  const [group, setGroup] = useState<UsageGroup>("providers");
+  const [group, setGroup] = useState<UsageGroup>("workers");
   const request = useMemo(() => ({ days, provider }), [days, provider]);
   const report = useUsageReport(request);
   const response = report.status === "ready" ? report.data : undefined;

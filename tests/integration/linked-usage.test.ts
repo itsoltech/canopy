@@ -38,7 +38,7 @@ describe.skipIf(!dockerAvailable)("durable accounting between authenticated comp
     await store.query(
       `INSERT INTO usage_buckets(owner_user_id,bucket_start,provider,model,input_tokens,output_tokens,reports,unknown_cost_reports,revision)
        VALUES($1::uuid,$2,'codex','test-model',$3,4,1,1,$4)
-       ON CONFLICT(owner_user_id,bucket_start,provider,model,requested_service_tier,activity_key)
+       ON CONFLICT(owner_user_id,bucket_start,provider,model,requested_service_tier,activity_key,worker_key)
        DO UPDATE SET input_tokens=excluded.input_tokens,revision=excluded.revision`,
       [store.owner, hour, input, revision],
     );

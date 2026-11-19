@@ -1,6 +1,7 @@
 # API dla UI i architektura frontendu
 
 Status (2026-11-19): stopka sidebara w web/desktop pomija skrót do Workers przy jednym workerze.
+Raport Usage pokazuje koszt i tokeny według workera wykonującego pracę.
 W web/desktop przejście z Threads do Bots pomija animację
 zamykania panelu subagentów, a powrót do Threads wymaga mniej przeliczeń układu.
 Na `dev` tło hover pierwszego nagłówka paneli kompozytora
@@ -305,8 +306,10 @@ Escape, powrotu fokusu do wyzwalacza i tokenów ruchu; na telefonie zajmuje cał
 Kontrolki zachowują gęstość Settings, a pickery korzystają ze zwartej skali nakładek.
 
 `features/usage` udostępnia widoki Cost i Tokens, okres Today / 7 / 30 / 90 days,
-filtry providera, komputera, Requested speed i Activity, wykres dzienny oraz
-zestawienie według providera, modelu, żądanej prędkości, dnia albo bota.
+filtry providera, gatewaya, Requested speed i Activity, wykres dzienny oraz
+zestawienie według workera, providera, modelu, żądanej prędkości, dnia albo bota.
+Domyślny podział **Worker** wyświetla się, gdy gateway zwróci dane dla tego
+zestawienia. Przy starszej wersji gatewaya pierwszym podziałem jest **Provider**.
 **Usage by activity** pokazuje zużycie wątków, botów, generowania pomocniczego
 i nieprzypisanych raportów. **Breakdown → Bot** sortuje boty według wybranej
 miary. Lista **Activity** zawęża sumy, wykres dzienny i tabelę do wybranego
@@ -375,7 +378,7 @@ Liczniki Input, Output, Cache read, Cache write i Reasoning nie są sumowane pod
 częścią input, reasoning częścią output, a Total tokens to input + output.
 Szczegóły tokenów zależą od danych providera.
 
-Recording coverage pokazuje dla każdego źródła początek rejestrowania,
+**Recording gateways** pokazuje dla każdego gatewaya początek rejestrowania,
 ostatni raport i stan: aktualne dane, synchronizacja, wymagane uaktualnienie,
 wymagane bezpośrednie połączenie, ostatnie zapisane dane albo offline.
 Niepełna partia synchronizacji pozostaje oznaczona do jej zakończenia.

@@ -22,6 +22,7 @@
 
   let { open = $bindable(false) }: { open?: boolean } = $props();
   let view = $state("cost");
+  let group = $state("workers");
   let days = $state("30");
   let provider = $state("");
   let computerId = $state("");
@@ -42,7 +43,7 @@
   const botScope = $derived(JSON.stringify([days, provider, computerId, speed]));
 
   const computerOptions = $derived([
-    { value: "", label: "All computers" },
+    { value: "", label: "All gateways" },
     ...computers.map((computer) => ({ value: computer.id, label: computer.name })),
   ]);
 
@@ -179,7 +180,7 @@
               {/snippet}
             </Select>
           </Field>
-          <Field label="Computer" class="min-w-0">
+          <Field label="Recording gateway" class="min-w-0">
             <Select bind:value={computerId} options={computerOptions} class="min-w-0" />
           </Field>
           <div class={["min-w-0", !supportsActivityBreakdown && "min-[360px]:col-span-2 sm:col-span-1"]}>
@@ -224,7 +225,7 @@
           </Alert>
         {:else if data}
           {#if data.computers.some((computer) => computer.status !== "ready" && (!computerId || computer.id === computerId))}
-            <Alert tone="info">Some computers have incomplete usage. Open Recording coverage for details.</Alert>
+            <Alert tone="info">Some gateways have incomplete usage. Open Recording gateways for details.</Alert>
           {/if}
           {#if data.supportsActivityBreakdown && data.hasUnattributedUsage}
             <Alert tone="info">
@@ -245,7 +246,7 @@
               <UsageActivityBreakdown rows={data.activities} view={selectedView} />
             {/if}
             <UsageChart days={data.days} providers={data.providers} view={selectedView} />
-            <UsageBreakdown {data} view={selectedView} />
+            <UsageBreakdown {data} view={selectedView} bind:group />
           {/if}
           <UsageSources computers={data.computers} />
         {/if}

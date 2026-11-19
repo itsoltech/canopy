@@ -7,6 +7,7 @@ import botThreadQuestions from "./0168_bot_thread_questions.sql" with { type: "t
 import threadWorktreePreparation from "./0167_thread_worktree_preparation.sql" with { type: "text" };
 import botChatSteer from "./0169_bot_chat_steer.sql" with { type: "text" };
 import scheduleWorktreePreparations from "./0174_schedule_worktree_preparations.sql" with { type: "text" };
+import usageWorkers from "./0178_usage_workers.sql" with { type: "text" };
 import githubPrProjection from "./0177_github_pr_projection.sql" with { type: "text" };
 import messageDelegatingBot from "./0176_message_delegating_bot.sql" with { type: "text" };
 import botExecutionStart from "./0175_bot_execution_start.sql" with { type: "text" };
@@ -368,6 +369,7 @@ export const migrations = Migrator.fromRecord({
   "0175_bot_execution_start": sqlFile(botExecutionStart),
   "0176_message_delegating_bot": sqlFile(messageDelegatingBot),
   "0177_github_pr_projection": sqlFile(githubPrProjection),
+  "0178_usage_workers": sqlFile(usageWorkers),
 });
 
 /** Applies pending migrations in a transaction with a lock, safe to call from a deploy step. */

@@ -2,7 +2,7 @@ import { afterAll, beforeAll, describe, expect, test } from "bun:test";
 import { randomBytes } from "node:crypto";
 import { create } from "@bufbuild/protobuf";
 import { timestampFromDate } from "@bufbuild/protobuf/wkt";
-import { computerLink as link } from "@canopy/contracts";
+import { computerLink as link, ui } from "@canopy/contracts";
 import { dockerAvailable } from "@canopy/db/testing";
 import { ComputerStore } from "../../apps/gateway/src/computers/store.ts";
 import { saveUsagePage, usageCursor } from "../../apps/gateway/src/computers/usage-store.ts";
@@ -12,6 +12,7 @@ import { eventually, startTestGateway, type TestGateway } from "./support/gatewa
 
 const hour = new Date(new Date().toISOString().slice(0, 13) + ":00:00.000Z");
 const botId = Bun.randomUUIDv7();
+const workerId = Bun.randomUUIDv7();
 
 describe.skipIf(!dockerAvailable)("estimated API costs across pinned computer links", () => {
   let a: TestGateway;
@@ -52,11 +53,12 @@ describe.skipIf(!dockerAvailable)("estimated API costs across pinned computer li
     await lb.start();
     node = lb.hello().nodeId;
     await sb.query(
-      `INSERT INTO usage_buckets(owner_user_id,bucket_start,provider,model,requested_service_tier,activity_key,bot_name,input_tokens,
+      `INSERT INTO usage_buckets(owner_user_id,bucket_start,provider,model,requested_service_tier,activity_key,bot_name,worker_key,worker_name,input_tokens,
        reports,unknown_cost_reports,estimated_cost_usd,effective_cost_usd,effective_estimated_cost_reports,revision)
-       VALUES($1::uuid,$2,'codex','gpt-6.1-sol','fast',$3,'Build bot',100,1,1,1.5,1.5,1,1),
-         ($1::uuid,$2,'codex','gpt-6.1-sol','fast','thread','',200,1,0,0,0,0,1)`,
-      [sb.owner, hour, `bot:${botId}`],
+       VALUES($1::uuid,$2,'codex','gpt-6.1-sol','fast',$3,'Build bot',$4,'Mac Studio',100,1,1,1.5,1.5,1,1),
+         ($1::uuid,$2,'codex','gpt-6.1-sol','fast','thread','',$4,'Mac Studio',140,1,0,0,0,0,1),
+         ($1::uuid,$2,'codex','gpt-6.1-sol','fast','thread','','','',60,1,0,0,0,0,1)`,
+      [sb.owner, hour, `bot:${botId}`, workerId],
     );
     await sb.query(
       `INSERT INTO usage_state(owner_user_id,computer_id,revision)
@@ -145,6 +147,44 @@ describe.skipIf(!dockerAvailable)("estimated API costs across pinned computer li
     expect(after).toMatchObject({ hasUnattributedUsage: false, bots: [{ botId, name: "Build bot" }] });
   });
 
+  test("a cached activity-only page gains worker shares when the same revision is replayed", async () => {
+    const page = await exportUsageBuckets(sb, create(link.UsageBucketsRequestSchema, { limit: 256 }));
+    expect(page.buckets).toHaveLength(1);
+    expect(page.buckets[0]?.activities).toMatchObject([
+      { key: `bot:${botId}`, workers: [{ workerId, name: "Mac Studio", totals: { inputTokens: 100n } }] },
+      {
+        key: "thread",
+        totals: { inputTokens: 200n, reports: 2n, effectiveReportedCostReports: 2n },
+        workers: [
+          { workerId: "", name: "", totals: { inputTokens: 60n, effectiveReportedCostReports: 1n } },
+          { workerId, name: "Mac Studio", totals: { inputTokens: 140n, effectiveReportedCostReports: 1n } },
+        ],
+      },
+    ]);
+    await sa.query(
+      `UPDATE remote_usage_buckets SET payload=payload #- '{activities,0,workers}' #- '{activities,1,workers}'
+       WHERE owner_user_id=$1 AND node_id=$2`,
+      [sa.owner, node],
+    );
+    await sa.query("UPDATE remote_usage_state SET cursor=0,has_more=true WHERE owner_user_id=$1 AND node_id=$2", [
+      sa.owner,
+      node,
+    ]);
+    const request = { days: 1, computerId: node };
+    const before = await a.api.getUsageStats(request);
+    expect(before.workers).toMatchObject([{ workerId: "", totals: { inputTokens: 300n } }]);
+    await saveUsagePage(sa, node, 0n, page, 256);
+    await saveUsagePage(sa, node, 0n, page, 256);
+    const after = await a.api.getUsageStats(request);
+    expect(after.totals).toEqual(before.totals);
+    expect(after.workers).toHaveLength(2);
+    expect(after.workers.find((w) => w.name === "Mac Studio")?.totals).toMatchObject({
+      inputTokens: 240n,
+      reports: 2n,
+    });
+    expect(after.workers.find((w) => !w.workerId)?.totals).toMatchObject({ inputTokens: 60n, reports: 1n });
+  });
+
   test("invalid monetary or source coverage totals cannot advance the checkpoint", async () => {
     const page = create(link.UsageBucketsResponseSchema, {
       trackingSince: timestampFromDate(hour),
@@ -179,6 +219,45 @@ describe.skipIf(!dockerAvailable)("estimated API costs across pinned computer li
     totals.effectiveReportedCostReports = 0n;
     totals.unknownEstimatedCostReports = 1n;
     await expect(saveUsagePage(sa, node, 2n, page, 256)).rejects.toThrow("Invalid linked usage page");
+    expect(await usageCursor(sa, node)).toBe(2n);
+  });
+
+  test("worker shares require valid distinct IDs and names and must sum to their activity", async () => {
+    const totals = create(ui.UsageTotalsSchema, { inputTokens: 20n, reports: 2n, reportedCostUsd: 1 });
+    const worker = create(ui.UsageWorkerBreakdownSchema, { workerId, name: "Mac Studio", totals });
+    const half = create(ui.UsageTotalsSchema, { inputTokens: 10n, reports: 1n, reportedCostUsd: 0.5 });
+
+    const page = create(link.UsageBucketsResponseSchema, {
+      trackingSince: timestampFromDate(hour),
+      nextRevision: 3n,
+      buckets: [
+        {
+          bucketStart: timestampFromDate(hour),
+          provider: "codex",
+          revision: 3n,
+          totals,
+          activities: [{ key: "thread", totals }],
+        },
+      ],
+    });
+
+    for (const workers of [
+      [{ ...worker, workerId: node }],
+      [{ ...worker, workerId: "" }],
+      [{ ...worker, name: "a".repeat(201) }],
+      [{ ...worker, name: "a\u0000b" }],
+      [
+        { ...worker, totals: half },
+        { ...worker, workerId: workerId.toUpperCase(), totals: half },
+      ],
+      [{ ...worker, totals: { ...totals, inputTokens: 19n } }],
+      [{ ...worker, totals: { ...totals, reportedCostUsd: 0.9 } }],
+      [{ ...worker, totals: { ...totals, cachedInputTokens: 21n } }],
+    ]) {
+      page.buckets[0]!.activities[0]!.workers = workers;
+      await expect(saveUsagePage(sa, node, 2n, page, 256)).rejects.toThrow("Invalid linked usage page");
+    }
+
     expect(await usageCursor(sa, node)).toBe(2n);
   });
 
@@ -220,7 +299,7 @@ describe.skipIf(!dockerAvailable)("estimated API costs across pinned computer li
       unknownEstimatedCostReports: 2n,
       unknownEffectiveCostReports: 2n,
     });
-    expect(stats.totals?.reports).toBe(5n);
+    expect(stats.totals?.reports).toBe(6n);
     expect(stats.totals?.effectiveCostUsd).toBe(1.7);
     expect(stats.hasUnattributedUsage).toBe(true);
     const filtered = await a.api.getUsageStats({ days: 1, computerId: node, botId });

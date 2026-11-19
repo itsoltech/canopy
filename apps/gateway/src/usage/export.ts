@@ -5,31 +5,39 @@ import { Effect } from "effect";
 import { SqlClient } from "effect/sql";
 import type { ComputerStore } from "../computers/store.ts";
 import { bucketMessage, ensureUsageState, type BucketRow } from "./storage.ts";
-import { addTotals } from "./totals.ts";
+import { addTotals, normalizeUsageTotals } from "./totals.ts";
 
 function groupUsageBuckets(rows: readonly (BucketRow & { group_revision: bigint })[], computerId: string) {
-  const groups = new Map<bigint, { bucket: ui.UsageBucket; totals: ui.UsageTotals }>();
+  const groups = Map.groupBy(rows, (row) => BigInt(row.group_revision));
 
-  for (const row of rows) {
-    const revision = BigInt(row.group_revision);
-    const part = bucketMessage(row, computerId);
-    let group = groups.get(revision);
+  return Array.from(groups, ([revision, group]) => {
+    const buckets = group.map((row) => bucketMessage(row, computerId));
+    const parts = buckets.flatMap((bucket) => bucket.activities);
+    const activities: ui.UsageActivityBucket[] = [];
+    const totals = create(ui.UsageTotalsSchema);
 
-    if (!group) {
-      const totals = create(ui.UsageTotalsSchema);
-      group = { bucket: { ...part, revision, totals, activities: [] }, totals };
-      groups.set(revision, group);
+    for (const [key, entries] of Map.groupBy(parts, (part) => part.key)) {
+      const amounts = create(ui.UsageTotalsSchema);
+      const workers: ui.UsageWorkerBreakdown[] = [];
+      let botName = "";
+
+      for (const entry of entries) {
+        const worker = entry.workers[0];
+
+        if (!worker?.totals?.reports) continue;
+        worker.totals = normalizeUsageTotals(worker.totals);
+        addTotals(amounts, worker.totals);
+        workers.push(worker);
+        botName ||= entry.botName;
+      }
+
+      if (!workers.length) continue;
+      addTotals(totals, amounts);
+      activities.push(create(ui.UsageActivityBucketSchema, { key, botName, workers, totals: amounts }));
     }
 
-    if (!part.totals?.reports) continue;
-    addTotals(group.totals, part.totals);
-    group.bucket.activities.push(...part.activities);
-  }
-
-  return [...groups.values()].map(({ bucket }) => {
-    if (bucket.activities.length === 1 && bucket.activities[0]?.key === "unattributed") bucket.activities = [];
-
-    return bucket;
+    // SAFETY: Map.groupBy creates a group only after receiving its first row.
+    return { ...buckets[0]!, revision, totals, activities };
   });
 }
 
@@ -53,7 +61,7 @@ export async function exportUsageBuckets(store: ComputerStore, request: link.Usa
         )
         SELECT b.*,c.group_revision FROM changed c JOIN usage_activity_buckets b
         USING(owner_user_id,bucket_start,provider,model,requested_service_tier)
-        ORDER BY c.group_revision,b.activity_key`;
+        ORDER BY c.group_revision,b.activity_key,b.revision DESC,b.worker_key`;
 
       const buckets = groupUsageBuckets(rows, identity.node_id);
       const page = buckets.slice(0, limit);

@@ -66,8 +66,9 @@ describe.skipIf(!dockerAvailable)("estimated API-equivalent accounting", () => {
         ],
       });
 
-      await accountGeneration(gw.runtime, gw.userId, Provider.CODEX, "", result);
-      await accountGeneration(gw.runtime, gw.userId, Provider.CODEX, "", result);
+      const worker = { id: gw.workerId, name: "laptop" };
+      await accountGeneration(gw.runtime, gw.userId, Provider.CODEX, "", result, worker);
+      await accountGeneration(gw.runtime, gw.userId, Provider.CODEX, "", result, worker);
       expect((await gw.api.getUsageStats({ days: 1 })).totals).toMatchObject({
         inputTokens: 300n,
         reports: 3n,
@@ -83,7 +84,7 @@ describe.skipIf(!dockerAvailable)("estimated API-equivalent accounting", () => {
       // A late known zero for the estimated-only counter reduces effective total, never either independent sum.
       const estimated = result.consumedUsages.find((u) => u.model === "estimate")!;
       estimated.reportedCostUsd = 0;
-      await accountGeneration(gw.runtime, gw.userId, Provider.CODEX, "", result);
+      await accountGeneration(gw.runtime, gw.userId, Provider.CODEX, "", result, worker);
       expect((await gw.api.getUsageStats({ days: 1 })).totals).toMatchObject({
         reports: 3n,
         reportedCostUsd: 3,

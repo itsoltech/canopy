@@ -84,7 +84,9 @@ export async function saveUsagePage(
               DO UPDATE SET payload=excluded.payload,revision=excluded.revision
               WHERE remote_usage_buckets.revision < excluded.revision
                  OR (remote_usage_buckets.revision = excluded.revision
-                     AND NOT remote_usage_buckets.payload ? 'activities' AND excluded.payload ? 'activities')`;
+                     AND ((NOT remote_usage_buckets.payload ? 'activities' AND excluded.payload ? 'activities')
+                       OR (NOT (remote_usage_buckets.payload @? '$.activities[*].workers[*]')
+                           AND excluded.payload @? '$.activities[*].workers[*]')))`;
           yield* sql`UPDATE remote_usage_state SET cursor=${String(response.nextRevision)}::bigint,
             tracking_since=${since.toISOString()}::timestamptz,updated_at=now(),has_more=${response.hasMore}
             WHERE owner_user_id=${owner}::uuid AND node_id=${node}`;

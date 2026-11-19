@@ -57,6 +57,37 @@ function accumulate(values: Map<string, ui.UsageTotals>, key: string, added: ui.
   values.set(key, totals);
 }
 
+interface NamedUsage {
+  name: string;
+  time: number;
+  local: boolean;
+  totals: ui.UsageTotals;
+}
+
+function accumulateNamed(
+  values: Map<string, NamedUsage>,
+  id: string,
+  name: string,
+  amounts: ui.UsageTotals,
+  time: number,
+  local: boolean,
+) {
+  let row = values.get(id);
+
+  if (!row) {
+    row = { name, time, local, totals: create(ui.UsageTotalsSchema) };
+    values.set(id, row);
+  }
+
+  if (name && (!row.name || time > row.time || (time === row.time && local && !row.local))) {
+    row.name = name;
+    row.time = time;
+    row.local = local;
+  }
+
+  addTotals(row.totals, amounts);
+}
+
 /** Local database only: peer snapshots are refreshed independently by linked-computer sync. */
 export function getUsageStats(sql: SqlClient.SqlClient, owner: string, request: ui.GetUsageStatsRequest) {
   return Effect.gen(function* () {
@@ -148,8 +179,8 @@ function summarizeUsage(
   const models = new Map<string, ui.UsageTotals>();
   const speeds = new Map<string, ui.UsageTotals>();
   const activities = new Map<string, ui.UsageTotals>();
-  const bots = new Map<string, ui.UsageTotals>();
-  const botNames = new Map<string, { name: string; time: number; local: boolean }>();
+  const bots = new Map<string, NamedUsage>();
+  const workers = new Map<string, NamedUsage>();
   const localId = sources.find((source) => source.local)?.computerId;
   const selectedBot = request.botId.toLowerCase();
   let hasUnattributedUsage = false;
@@ -163,10 +194,11 @@ function summarizeUsage(
     const time = day.getTime();
     day.setUTCHours(0, 0, 0, 0);
     const date = day.toISOString();
+    const local = bucket.computerId === localId;
 
     const parts = bucket.activities.length
       ? bucket.activities
-      : [{ key: "unattributed", totals: bucket.totals, botName: "" }];
+      : [{ key: "unattributed", totals: bucket.totals, botName: "", workers: [] }];
 
     for (const part of parts) {
       const activity = readActivityKey(part.key);
@@ -186,13 +218,14 @@ function summarizeUsage(
       accumulate(speeds, bucket.requestedServiceTier, part.totals);
       accumulate(activities, kind, part.totals);
 
-      if (!botId) continue;
-      accumulate(bots, botId, part.totals);
-      const previous = botNames.get(botId);
-      const local = bucket.computerId === localId;
+      if (botId) accumulateNamed(bots, botId, part.botName, part.totals, time, local);
 
-      if (part.botName && (!previous || time > previous.time || (time === previous.time && local && !previous.local)))
-        botNames.set(botId, { name: part.botName, time, local });
+      if (!part.workers.length) accumulateNamed(workers, "", "", part.totals, time, local);
+
+      for (const worker of part.workers) {
+        if (worker.totals)
+          accumulateNamed(workers, worker.workerId.toLowerCase(), worker.name, worker.totals, time, local);
+      }
     }
   }
 
@@ -220,8 +253,10 @@ function summarizeUsage(
     models: breakdown(models),
     speeds: breakdown(speeds),
     activities: breakdown(activities),
-    bots: [...bots].map(([botId, amounts]) => ({ botId, name: botNames.get(botId)?.name ?? "", totals: amounts })),
+    bots: [...bots].map(([botId, { name, totals }]) => ({ botId, name, totals })),
+    workers: [...workers].map(([workerId, { name, totals }]) => ({ workerId, name, totals })),
     supportsActivityBreakdown: true,
+    supportsWorkerBreakdown: true,
     hasUnattributedUsage,
     sources,
     startsAt: timestampFromDate(start),

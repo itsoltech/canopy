@@ -122,6 +122,7 @@ describe.skipIf(!dockerAvailable)("usage estimate migration", () => {
 
       const botIdentity = {
         owner,
+        worker: { id: "", name: "" },
         subject: `bot:${botId}`,
         provider: "codex",
         model: "mixed",

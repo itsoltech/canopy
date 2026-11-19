@@ -190,6 +190,7 @@ describe.skipIf(!dockerAvailable)("schema on PostgreSQL 17", () => {
       "175_bot_execution_start",
       "176_message_delegating_bot",
       "177_github_pr_projection",
+      "178_usage_workers",
     ]);
   }, 60_000);
 

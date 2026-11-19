@@ -3,7 +3,7 @@
 Status: opis zaimplementowanego kodu (2026-11-19). Listy wątków i botów uwzględniają
 wysokość banera aktualizacji i stanu połączenia. Wysyłanie wiadomości i start tury
 zachowują położenie rozmowy. Natywny raport Usage pokazuje
-historię kosztów i skrócone liczby tokenów z gatewaya oraz dzienny wykres według dostawcy.
+historię kosztów i skrócone liczby tokenów z gatewaya, podział według workera oraz dzienny wykres według dostawcy.
 Wątki pokazują strumieniowany tekst linia po linii, tak jak web i desktop.
 Pobieranie historii wątku ma osobny stan synchronizacji.
 Na liście Bots jednoliniowy podgląd ostatniej wiadomości zachowuje formatowanie Markdown,
@@ -274,8 +274,12 @@ Ikona tabeli obok Settings w stopce nawigacji otwiera osobny ekran **Usage**.
 Raport pokazuje koszt i liczbę tokenów dla dzisiaj lub ostatnich 7, 30 albo
 90 dni kalendarzowych UTC. Można wybrać dostawcę i przełączyć podział według
 dostawcy, modelu, dnia lub żądanej szybkości oraz według aktywności lub bota,
-jeśli gateway zwraca te podziały. Lista źródeł pokazuje stan i początek rejestrowania
-danych z komputerów. Kwoty nieznane i częściowe mają osobne oznaczenia.
+jeśli gateway zwraca te podziały. Gdy raport zawiera podział według workera,
+**Breakdown** domyślnie pokazuje **Worker**. Każdy wiersz podaje koszt lub liczbę
+tokenów workera, który wykonał pracę. **Unknown worker** obejmuje zużycie bez
+zachowanego przypisania. Przy starszym gatewayu domyślną opcją pozostaje **Provider**.
+**Recording gateways** pokazuje stan i początek rejestrowania danych przez każdy
+gateway. Kwoty nieznane i częściowe mają osobne oznaczenia.
 
 Między podsumowaniem a podziałem raportu wykres **Daily trend** pokazuje
 osobną linię dla każdego dostawcy. Początkowo zaznaczony jest ostatni dzień.

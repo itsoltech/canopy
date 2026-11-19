@@ -5,7 +5,7 @@ import { Effect } from "effect";
 import type { SqlClient } from "effect/sql";
 import { counterDelta, usageTotals, COUNT_FIELDS, COST_FIELDS, TOKEN_FIELDS } from "./totals.ts";
 import { freezeRequestedTier, validRequestedTier } from "./speed.ts";
-import { lockUsageOwner, incrementBucket } from "./storage.ts";
+import { counterWorker, lockUsageOwner, incrementBucket, type UsageWorker } from "./storage.ts";
 import type { UsageActivity } from "./activity.ts";
 
 export interface UsageIdentity {
@@ -16,6 +16,7 @@ export interface UsageIdentity {
   model: string;
   requestedServiceTier?: string;
   activity: UsageActivity;
+  worker: UsageWorker;
   threadId?: string;
   botId?: string;
 }
@@ -34,11 +35,13 @@ export function recordUsage(sql: SqlClient.SqlClient, identity: UsageIdentity, u
       validRequestedTier(usage.requestedServiceTier) || validRequestedTier(identity.requestedServiceTier),
     );
 
-    const old = (yield* sql<{
-      totals: JsonValue;
-      first_bucket: Date;
-      pricing_version: string;
-    }>`SELECT totals,first_bucket,pricing_version FROM usage_counters
+    const old = (yield* sql<
+      UsageWorker & {
+        totals: JsonValue;
+        first_bucket: Date;
+        pricing_version: string;
+      }
+    >`SELECT totals,first_bucket,pricing_version,worker_key AS id,worker_name AS name FROM usage_counters
       WHERE owner_user_id=${owner}::uuid AND subject_id=${subject} AND provider=${provider}
         AND model=${model} AND counter_id=${counter}`)[0];
 
@@ -64,11 +67,20 @@ export function recordUsage(sql: SqlClient.SqlClient, identity: UsageIdentity, u
     const hour = old?.first_bucket ?? new Date(Math.floor(observedAt.getTime() / 3_600_000) * 3_600_000);
     // A turn/model stays in its first observed hour, including delayed corrections. Subset counters
     // therefore remain subsets of the same bucket even when fields arrive at different times.
-    yield* incrementBucket(sql, owner, hour, provider, model, requestedTier, identity.activity, delta);
-    yield* sql`INSERT INTO usage_counters(owner_user_id,subject_id,thread_id,bot_id,thread_turn_id,bot_turn_id,provider,model,requested_service_tier,counter_id,first_bucket,totals,pricing_version)
+    const worker = counterWorker(identity.worker, old);
+    yield* incrementBucket(
+      sql,
+      { owner, hour, provider, model, activity: identity.activity, worker },
+      requestedTier,
+      delta,
+    );
+    yield* sql`INSERT INTO usage_counters(owner_user_id,subject_id,thread_id,bot_id,thread_turn_id,bot_turn_id,provider,model,
+      requested_service_tier,counter_id,first_bucket,totals,pricing_version,worker_key,worker_name)
       VALUES(${owner}::uuid,${subject},${identity.threadId ?? null}::uuid,${identity.botId ?? null}::uuid,
-        ${identity.threadId ? counter : null}::uuid,${identity.botId ? counter : null}::uuid,${provider},${model},${requestedTier},${counter},${hour},${JSON.stringify(toJson(ui.UsageTotalsSchema, next))}::jsonb,${pricingVersion})
-      ON CONFLICT(owner_user_id,subject_id,provider,model,counter_id) DO UPDATE SET totals=excluded.totals,requested_service_tier=excluded.requested_service_tier,pricing_version=excluded.pricing_version`;
+        ${identity.threadId ? counter : null}::uuid,${identity.botId ? counter : null}::uuid,${provider},${model},${requestedTier},
+        ${counter},${hour},${JSON.stringify(toJson(ui.UsageTotalsSchema, next))}::jsonb,${pricingVersion},${worker.id},left(${worker.name},200))
+      ON CONFLICT(owner_user_id,subject_id,provider,model,counter_id) DO UPDATE SET totals=excluded.totals,
+        requested_service_tier=excluded.requested_service_tier,pricing_version=excluded.pricing_version,worker_name=excluded.worker_name`;
   });
 }
 
@@ -85,8 +97,12 @@ export function accountThreadUsage(sql: SqlClient.SqlClient, threadId: string, e
 
     if (!usage || usage.scope !== UsageScope.TURN || !event.turnId) return;
 
-    const row = (yield* sql<{ owner_user_id: string; provider: string; model: string; service_tier: string }>`
-      SELECT t.owner_user_id,t.provider,u.model,u.service_tier FROM threads t JOIN turns u ON u.thread_id=t.id
+    const row = (yield* sql<
+      UsageWorker & { owner_user_id: string; provider: string; model: string; service_tier: string }
+    >`
+      SELECT t.owner_user_id,t.provider,u.model,u.service_tier,coalesce(w.id::text,'') AS id,coalesce(w.name,'') AS name
+      FROM threads t JOIN turns u ON u.thread_id=t.id
+      LEFT JOIN workers w ON w.id=t.worker_id AND (w.owner_user_id=t.owner_user_id OR w.owner_user_id IS NULL)
       WHERE t.id=${threadId}::uuid AND u.id=${event.turnId}::uuid`)[0];
 
     if (!row) return;
@@ -100,6 +116,7 @@ export function accountThreadUsage(sql: SqlClient.SqlClient, threadId: string, e
         model: row.model,
         requestedServiceTier: row.service_tier,
         activity: { key: "thread" },
+        worker: row,
         threadId,
       },
       usage,
@@ -114,9 +131,11 @@ export function accountBotUsage(sql: SqlClient.SqlClient, botId: string, event: 
 
     if (!usage || usage.scope !== UsageScope.TURN || !event.turnId) return;
 
-    const row = (yield* sql<{ owner_user_id: string; payload: Uint8Array; name: string }>`
-      SELECT b.owner_user_id,c.payload,left(coalesce(b.configuration->>'name',''),80) AS name
-      FROM bots b JOIN bot_harness_turns h ON h.bot_id=b.id JOIN worker_commands c ON c.id=h.command_id
+    const row = (yield* sql<UsageWorker & { owner_user_id: string; payload: Uint8Array; bot_name: string }>`
+      SELECT b.owner_user_id,c.payload,left(coalesce(b.configuration->>'name',''),80) AS bot_name,
+        coalesce(w.id::text,'') AS id,coalesce(w.name,'') AS name
+      FROM bots b JOIN bot_harness_turns h ON h.bot_id=b.id JOIN worker_commands c ON c.id=h.command_id AND c.worker_id=h.worker_id
+      LEFT JOIN workers w ON w.id=c.worker_id AND (w.owner_user_id=b.owner_user_id OR w.owner_user_id IS NULL)
       WHERE b.id=${botId}::uuid AND h.turn_id=${event.turnId}::uuid`)[0];
 
     if (!row) return;
@@ -137,7 +156,8 @@ export function accountBotUsage(sql: SqlClient.SqlClient, botId: string, event: 
         provider,
         model: input.model,
         requestedServiceTier: input.serviceTier,
-        activity: { key: `bot:${botId.toLowerCase()}`, botName: row.name },
+        activity: { key: `bot:${botId.toLowerCase()}`, botName: row.bot_name },
+        worker: row,
         botId,
       },
       usage,

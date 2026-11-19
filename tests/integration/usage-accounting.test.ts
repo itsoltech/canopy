@@ -24,12 +24,11 @@ import { eventually, startTestGateway, type TestGateway } from "./support/gatewa
 const query = <A extends object>(gw: TestGateway, text: string, params: string[] = []) =>
   gw.runtime.runPromise(SqlClient.SqlClient.use((sql) => sql.unsafe<A>(text, params)));
 
-async function running(gw: TestGateway) {
-  gw.worker.holdTurns = true;
-  const project = (await gw.api.createProject({ name: "Usage" })).project!;
+async function running(gw: TestGateway, { worker, workerId }: Pick<TestGateway, "worker" | "workerId"> = gw) {
+  worker.holdTurns = true;
+  const project = (await gw.api.createProject({ name: `Usage ${workerId}` })).project!;
 
-  const workspace = (await gw.api.createWorkspace({ projectId: project.id, workerId: gw.workerId, rootPath: "/repo" }))
-    .workspace!;
+  const workspace = (await gw.api.createWorkspace({ projectId: project.id, workerId, rootPath: "/repo" })).workspace!;
 
   const thread = (
     await gw.api.createThread({
@@ -109,6 +108,39 @@ async function speedFixture(gw: TestGateway) {
 }
 
 describe.skipIf(!dockerAvailable)("durable usage accounting", () => {
+  test("one gateway reports threads on two workers separately for the same model and activity", async () => {
+    const gw = await startTestGateway();
+
+    try {
+      const { workerId, credential } = await gw.addWorker("Studio");
+      const studio = await gw.connect(workerId, credential, "darwin");
+      await eventually(
+        () => gw.api.listModels({}),
+        (catalog) => catalog.workers.some((row) => row.workerId === workerId && row.configVersion > 0n),
+      );
+      const first = await running(gw);
+      const second = await running(gw, { workerId, worker: studio });
+      gw.worker.emit(first.threadId, first.turnId, { case: "usageUpdated", value: { usage: usage(100n, 1) } });
+      studio.emit(second.threadId, second.turnId, { case: "usageUpdated", value: { usage: usage(300n, 3) } });
+
+      const report = await eventually(
+        () => gw.api.getUsageStats({ days: 7, provider: "codex", activityKind: "thread" }),
+        (stats) => stats.totals?.reports === 2n,
+      );
+
+      expect(report.sources).toHaveLength(1);
+      expect(report.supportsWorkerBreakdown).toBe(true);
+      expect(report.totals).toMatchObject({ inputTokens: 400n, effectiveCostUsd: 4 });
+      expect(report.workers.toSorted((a, b) => a.name.localeCompare(b.name))).toMatchObject([
+        { workerId: gw.workerId, name: "laptop", totals: { inputTokens: 100n, effectiveCostUsd: 1 } },
+        { workerId, name: "Studio", totals: { inputTokens: 300n, effectiveCostUsd: 3 } },
+      ]);
+      expect((await gw.api.getUsageStats({ days: 7, activityKind: "bot" })).workers).toEqual([]);
+    } finally {
+      await gw.close();
+    }
+  }, 60_000);
+
   test("gRPC observations survive restart, replay, late turns, deletion and owner isolation", async () => {
     let gw = await startTestGateway();
 
@@ -233,6 +265,7 @@ describe.skipIf(!dockerAvailable)("durable usage accounting", () => {
       );
 
       expect(scoped.totals?.inputTokens).toBe(0n);
+      expect(scoped.workers).toEqual([]);
 
       // A process restart restores the same independent aggregates and counter watermarks.
       const storage = {
@@ -285,8 +318,9 @@ describe.skipIf(!dockerAvailable)("durable usage accounting", () => {
         ],
       });
 
-      await accountGeneration(gw.runtime, gw.userId, Provider.CLAUDE, "fallback", result);
-      await accountGeneration(gw.runtime, gw.userId, Provider.CLAUDE, "fallback", result);
+      const worker = { id: gw.workerId, name: "laptop" };
+      await accountGeneration(gw.runtime, gw.userId, Provider.CLAUDE, "fallback", result, worker);
+      await accountGeneration(gw.runtime, gw.userId, Provider.CLAUDE, "fallback", result, worker);
       await accountGeneration(
         gw.runtime,
         gw.userId,
@@ -297,6 +331,7 @@ describe.skipIf(!dockerAvailable)("durable usage accounting", () => {
           ok: true,
           consumedUsages: [{ scope: UsageScope.TURN, model: "small", inputTokens: 5n, reportedCostUsd: 0.2 }],
         }),
+        worker,
       );
       const stats = await gw.api.getUsageStats({ days: 1 });
       expect(stats.totals).toMatchObject({
@@ -315,6 +350,7 @@ describe.skipIf(!dockerAvailable)("durable usage accounting", () => {
       });
       expect(stats.models.map((m) => m.key)).toEqual(["large", "small"]);
       expect(stats.activities).toMatchObject([{ key: "generation", totals: { inputTokens: 25n } }]);
+      expect(stats.workers).toMatchObject([{ workerId: gw.workerId, totals: { reports: 3n, inputTokens: 25n } }]);
       expect((await gw.api.getUsageStats({ days: 1, activityKind: "thread" })).totals?.reports).toBe(0n);
       expect(stats.speeds.map((speed) => [speed.key, speed.totals?.inputTokens])).toEqual([
         ["", 5n],
@@ -393,6 +429,7 @@ describe.skipIf(!dockerAvailable)("durable usage accounting", () => {
       expect(stats.speeds.map((speed) => speed.key)).toEqual(["fast"]);
       expect(stats.activities).toMatchObject([{ key: "bot", totals: { inputTokens: 150n, reportedCostUsd: 3 } }]);
       expect(stats.bots).toMatchObject([{ botId: bot, name: "Release bot", totals: { inputTokens: 150n } }]);
+      expect(stats.workers).toMatchObject([{ workerId: gw.workerId, totals: { inputTokens: 150n } }]);
 
       const filtered = await gw.api.getUsageStats({
         days: 7,
@@ -402,6 +439,7 @@ describe.skipIf(!dockerAvailable)("durable usage accounting", () => {
       });
 
       expect(filtered.totals).toEqual(stats.totals);
+      expect(filtered.workers).toEqual(stats.workers);
       expect(filtered.days.flatMap((day) => day.providers)).toMatchObject([
         { key: "claude", totals: { inputTokens: 150n, effectiveCostUsd: 3 } },
       ]);

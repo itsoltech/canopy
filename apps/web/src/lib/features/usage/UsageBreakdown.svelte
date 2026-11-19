@@ -3,42 +3,29 @@
   import TruncatedText from "#lib/shared/ui/TruncatedText.svelte";
   import UsageProviderMark from "./UsageProviderMark.svelte";
   import SpeedIcon from "#lib/features/models/SpeedIcon.svelte";
-  import {
-    hasEffectiveCost,
-    metricValue,
-    totalTokens,
-    type UsageData,
-    type UsageRow,
-    type UsageView,
-  } from "./format.ts";
+  import { compareUsage, metricValue, type UsageData, type UsageView } from "./format.ts";
 
-  let { data, view }: { data: UsageData; view: UsageView } = $props();
-  let group = $state("providers");
-
-  function compareBots(a: UsageRow, b: UsageRow) {
-    if (view === "cost") {
-      const coverage = Number(hasEffectiveCost(b.amounts)) - Number(hasEffectiveCost(a.amounts));
-
-      return coverage || b.amounts.effectiveCost - a.amounts.effectiveCost || a.label.localeCompare(b.label);
-    }
-
-    const aTokens = totalTokens(a.amounts);
-    const bTokens = totalTokens(b.amounts);
-
-    if (aTokens === bTokens) return a.label.localeCompare(b.label);
-
-    return aTokens > bTokens ? -1 : 1;
-  }
+  let { data, view, group = $bindable() }: { data: UsageData; view: UsageView; group: string } = $props();
 
   const providerGroup = $derived({ value: "providers", label: "Provider", heading: "Provider", rows: data.providers });
 
   const groups = $derived([
+    ...(data.supportsWorkerBreakdown && data.workers.length
+      ? [
+          {
+            value: "workers",
+            label: "Worker",
+            heading: "Worker",
+            rows: data.workers.toSorted((a, b) => compareUsage(a, b, view)),
+          },
+        ]
+      : []),
     providerGroup,
     { value: "models", label: "Model", heading: "Model", rows: data.models },
     { value: "speeds", label: "Speed", heading: "Requested speed", rows: data.speeds },
     { value: "days", label: "Day", heading: "Day (UTC)", rows: data.days.toReversed() },
     ...(data.supportsActivityBreakdown && data.bots.length
-      ? [{ value: "bots", label: "Bot", heading: "Bot", rows: data.bots.toSorted(compareBots) }]
+      ? [{ value: "bots", label: "Bot", heading: "Bot", rows: data.bots.toSorted((a, b) => compareUsage(a, b, view)) }]
       : []),
   ]);
 
@@ -48,7 +35,12 @@
 <section class="min-w-0">
   <div class="mb-3 flex flex-wrap items-center justify-between gap-3">
     <h3 class="text-base/6 font-medium sm:text-sm/6">Breakdown</h3>
-    <SegmentedChoice label="Group usage by" bind:value={group} options={groups} class="flex-wrap" />
+    <SegmentedChoice
+      label="Group usage by"
+      bind:value={() => selection.value, (value) => (group = value)}
+      options={groups}
+      class="flex-wrap"
+    />
   </div>
   <div class="overflow-x-auto rounded-xl border border-divider">
     <table class="w-full text-left text-sm/5">
@@ -66,8 +58,8 @@
           <tr>
             <th scope="row" class="w-full max-w-0 min-w-28 px-4 py-3 font-normal sm:min-w-36">
               <div class="flex min-w-0 items-center gap-2">
-                {#if group === "providers"}<UsageProviderMark provider={row.key} />{/if}
-                {#if group === "speeds"}
+                {#if selection.value === "providers"}<UsageProviderMark provider={row.key} />{/if}
+                {#if selection.value === "speeds"}
                   {#if row.key}<SpeedIcon tier={row.key} />{:else}<span class="h-3.5 w-6 shrink-0" aria-hidden="true"
                     ></span>{/if}
                 {/if}
