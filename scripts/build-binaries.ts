@@ -271,7 +271,11 @@ export async function compile(
   const native = sharpLoader(await sharpFiles(target));
 
   const build = await Bun.build({
-    entrypoints: [entry, join(root, "apps/worker/src/files/highlight-executor.ts")],
+    entrypoints: [
+      entry,
+      join(root, "apps/worker/src/files/highlight-executor.ts"),
+      ...(resolve(entry) === join(root, APPS.worker) ? [join(root, "apps/worker/src/images/heic-executor.ts")] : []),
+    ],
     target: "bun",
     minify: { syntax: true, whitespace: true },
     sourcemap: "none",

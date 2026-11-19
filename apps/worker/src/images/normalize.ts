@@ -1,8 +1,9 @@
-import sharp, { type Metadata } from "sharp";
+import sharp, { type Metadata, type Sharp } from "sharp";
+import { heicImage } from "./heic.ts";
 
 /**
  * Images for models and for the transcript (docs/agent-bus.md, "view_image"): decoded from whatever the device has
- * (PNG, JPEG, GIF, WebP, AVIF, TIFF, HEIC where this build decodes it), turned upright, scaled to at most
+ * (PNG, JPEG, GIF, WebP, AVIF, TIFF, HEIC), turned upright, scaled to at most
  * MAX_EDGE on the long edge, re-encoded without metadata (EXIF, GPS) and kept under a byte cap every provider takes
  * (Claude: 5 MB base64). PNG for images with transparency, JPEG for the rest; WebP previews for the transcript.
  */
@@ -31,13 +32,14 @@ export class ImageError extends Error {
 
 /** An image a model can take: at most MAX_EDGE px, under MAX_MODEL_BYTES (smaller sizes until it fits). */
 export async function forModel(source: Uint8Array): Promise<NormalizedImage> {
-  const meta = await metadata(source);
+  return withDecodedImage(source, modelImage);
+}
+
+async function modelImage(input: Sharp, meta: Metadata): Promise<NormalizedImage> {
   const alpha = meta.hasAlpha === true;
 
   for (const edge of [MAX_EDGE, 1600, 1200, 800]) {
-    const image = sharp(source, { limitInputPixels: MAX_PIXELS, animated: false })
-      .rotate()
-      .resize({ width: edge, height: edge, fit: "inside", withoutEnlargement: true });
+    const image = input.clone().resize({ width: edge, height: edge, fit: "inside", withoutEnlargement: true });
 
     const encoded = alpha
       ? image.png({ compressionLevel: 9, palette: edge < MAX_EDGE })
@@ -61,10 +63,11 @@ export async function forModel(source: Uint8Array): Promise<NormalizedImage> {
 
 /** A transcript preview (WebP, at most MAX_EDGE px) of an image the agent looked at. */
 export async function forTranscript(source: Uint8Array): Promise<NormalizedImage> {
-  const meta = await metadata(source);
+  return withDecodedImage(source, transcriptImage);
+}
 
-  const { data, info } = await sharp(source, { limitInputPixels: MAX_PIXELS, animated: false })
-    .rotate()
+async function transcriptImage(input: Sharp, meta: Metadata): Promise<NormalizedImage> {
+  const { data, info } = await input
     .resize({ width: MAX_EDGE, height: MAX_EDGE, fit: "inside", withoutEnlargement: true })
     .webp({ quality: 82 })
     .toBuffer({ resolveWithObject: true });
@@ -76,6 +79,23 @@ export async function forTranscript(source: Uint8Array): Promise<NormalizedImage
     height: info.height,
     ...original(meta),
   };
+}
+
+async function withDecodedImage(
+  source: Uint8Array,
+  encode: (image: Sharp, meta: Metadata) => Promise<NormalizedImage>,
+): Promise<NormalizedImage> {
+  const meta = await metadata(source);
+  const image = sharp(source, { limitInputPixels: MAX_PIXELS, animated: false }).rotate();
+
+  try {
+    return await encode(image, meta);
+  } catch (error) {
+    // libheif reports error 11.6003 when the HEVC decoder plugin is unavailable.
+    if (meta.compression !== "hevc" || !(error instanceof Error) || !error.message.includes("11.6003")) throw error;
+
+    return encode(await heicImage(source, meta, MAX_PIXELS), meta);
+  }
 }
 
 async function metadata(source: Uint8Array) {
