@@ -1,7 +1,8 @@
 # API dla UI i architektura frontendu
 
-Status (2026-11-19): w web/desktop panel aktywnych subagentów nie opóźnia już
-przełączenia z Threads do Bots. Na `dev` tło hover pierwszego nagłówka paneli kompozytora
+Status (2026-11-19): w web/desktop przejście z Threads do Bots pomija animację
+zamykania panelu subagentów, a powrót do Threads wymaga mniej przeliczeń układu.
+Na `dev` tło hover pierwszego nagłówka paneli kompozytora
 web/desktop mieści się w zaokrąglonym obrysie stosu.
 Wyszukiwarka ustawień podświetla dopasowania w otwartej sekcji z pominięciem treści dialogów.
 Boczne menu ustawień web/desktop znów pokazuje ikony obok etykiet sekcji.
@@ -1474,7 +1475,9 @@ a przekierowanie następuje przy jego zamknięciu.
 
 Przy przejściu z wątku do Bots pasek boczny i główny widok zmieniają się razem,
 również gdy w wątku pracują subagenty. Gdy ostatni subagent kończy pracę w otwartym
-wątku, jego panel nad kompozytorem zwija się przed usunięciem.
+wątku, jego panel nad kompozytorem zwija się przed usunięciem. Przy powrocie do Threads
+miejsce na szczegóły wątku jest ustalone przed pierwszą klatką. Wysokości elementów
+podsumowania i szerokości kart workspace’u pochodzą z powiadomień `ResizeObserver`.
 Przełączanie Threads ↔ Bots nie zmienia położenia treści po jej pierwszym renderze.
 Ekrany startowe i nowy wątek boczny używają `CenteredContent`: automatyczne marginesy centrują treść,
 a w krótkim oknie nadmiar rośnie w dół i przewija się bez obcinania nagłówka.

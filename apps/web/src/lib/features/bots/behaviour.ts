@@ -359,7 +359,8 @@ export function mascotBehaviour(node: SVGSVGElement, options: MascotBehaviour) {
     visible: false,
     active: false,
     hovered: false,
-    rect: node.getBoundingClientRect(),
+    // The intersection observer supplies the first rect when the character becomes visible.
+    rect: new DOMRectReadOnly(),
     gaze: { x: 0, y: 0 },
     glance: { x: 0, y: 0 },
     glanceUntil: 0,

@@ -82,14 +82,17 @@
     focused = active.id;
   });
 
-  let rem = $state(16);
+  const rem = $derived(workspace?.rem ?? 16);
 
   // Reserve the measured title and overflow chip before adding files at their maximum width (12 rem).
   // The active file stays visible even in a narrower slot, where its name truncates.
   const room = $derived(Math.max(0, Math.floor(((width - threadWidth) / rem - 3.75) / 12.125)));
 
   function measureThread(node: HTMLElement) {
-    const observer = new ResizeObserver(() => (threadWidth = node.clientWidth));
+    const observer = new ResizeObserver(([entry]) => {
+      if (entry) threadWidth = Math.round(entry.contentRect.width);
+    });
+
     observer.observe(node);
 
     return () => observer.disconnect();
@@ -164,13 +167,12 @@
 <!-- svelte-ignore a11y_no_static_element_interactions -->
 <div
   bind:this={root}
-  bind:clientWidth={width}
+  bind:contentRect={null, (rect: DOMRectReadOnly) => (width = Math.round(rect.width))}
   class={["density-chrome relative flex h-full min-w-0 items-center gap-1", className]}
   onkeydown={keydown}
   onmousedown={middleClick}
   onauxclick={middleClick}
 >
-  <span class="pointer-events-none invisible absolute w-[1rem]" bind:clientWidth={rem}></span>
   <div role="tablist" aria-label="Workspace tabs" class="flex h-full min-w-0 flex-1">
     {#each visible as tab (tab.id)}
       <div
