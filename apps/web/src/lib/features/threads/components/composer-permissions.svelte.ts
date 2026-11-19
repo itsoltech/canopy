@@ -1,5 +1,9 @@
 import { PermissionMode, Provider, type ui } from "@canopy/contracts";
-import { codexMessagePermission, composerMessagePermission } from "@canopy/domain/composer-choices";
+import {
+  claudeLiveMessagePermission,
+  codexMessagePermission,
+  composerMessagePermission,
+} from "@canopy/domain/composer-choices";
 import type { WebComposerDraft } from "#lib/features/drafts/state.svelte.ts";
 import { HttpError } from "#lib/shared/http.ts";
 import { updateThread, updateTurnPermissions } from "../api.ts";
@@ -58,11 +62,14 @@ export class ComposerPermissionsState {
     return this.busy || Boolean(this.threadDefault && this.context().saved.locked);
   }
   get messageMode() {
-    const { saved } = this.context();
+    const { runningTurn, saved } = this.context();
     const thread = this.#thread;
 
     if (thread.provider === Provider.CODEX)
       return saved.pendingSend?.permissionMode ?? codexMessagePermission(thread, saved.choices.permissionMode);
+
+    if (this.#live && runningTurn)
+      return claudeLiveMessagePermission(thread, runningTurn.permissionMode, saved.choices.permissionMode);
 
     return composerMessagePermission(thread, saved.choices.permissionMode);
   }
@@ -102,10 +109,14 @@ export class ComposerPermissionsState {
         : description;
     }
 
-    if (this.#live)
-      return this.#thread.permissionModeSelected
-        ? "Applies to this turn and your next message. Full access also allows pending permissions. Other modes keep pending shell approvals."
-        : "Applies to this turn and future messages. Full access also allows pending permissions. Other modes keep pending shell approvals.";
+    if (this.#live) {
+      const approvals = "Full access also allows pending permissions. Other modes keep pending shell approvals.";
+
+      if (!this.#thread.permissionModeSelected) return `Applies to this turn and future messages. ${approvals}`;
+      const next = permissionKey(this.messageMode || this.#thread.permissionMode);
+
+      return `Applies to this turn. Your next queued message uses ${permissionLabel(next)}. ${approvals}`;
+    }
 
     if (this.scope === "message")
       return this.context().running

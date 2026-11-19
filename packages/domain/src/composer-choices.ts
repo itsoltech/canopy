@@ -1,11 +1,29 @@
 import { PermissionMode, type ui } from "@canopy/contracts";
 import { SPAWN_PERMISSION_MODES } from "./permission-modes.ts";
 
+const permissionRank = (mode: PermissionMode) =>
+  SPAWN_PERMISSION_MODES.findIndex((key) => key.toUpperCase() === PermissionMode[mode]);
+
 /** A draft can override one message. Older threads still remember the last user turn's mode. */
 export function composerMessagePermission(thread: ui.Thread | undefined, draftMode?: PermissionMode): PermissionMode {
   const previous = thread?.permissionModeSelected ? undefined : thread?.lastUserTurnChoices?.permissionMode;
 
   return draftMode || previous || PermissionMode.UNSPECIFIED;
+}
+
+/** A message queued from Claude's live picker cannot get more access than the picker shows. */
+export function claudeLiveMessagePermission(
+  thread: ui.Thread,
+  activeMode: PermissionMode,
+  draftMode?: PermissionMode,
+): PermissionMode {
+  const override = composerMessagePermission(thread, draftMode);
+
+  if (!thread.permissionModeSelected) return override;
+  const displayed = activeMode || PermissionMode.ASK;
+  const next = override || thread.permissionMode || PermissionMode.ASK;
+
+  return permissionRank(displayed) < permissionRank(next) ? displayed : override;
 }
 
 /** Explicit override for a web Codex message. An unset override inherits the owner’s thread mode at dispatch. */
@@ -15,12 +33,9 @@ export function codexMessagePermission(thread: ui.Thread, draftMode?: Permission
   // An older or transferred draft may still restrict its own message. It cannot broaden the new thread setting.
   if (!draftMode) return PermissionMode.UNSPECIFIED;
 
-  const rank = (mode: PermissionMode) =>
-    SPAWN_PERMISSION_MODES.findIndex((key) => key.toUpperCase() === PermissionMode[mode]);
-
   const threadMode = thread.permissionMode || PermissionMode.ASK;
 
-  return rank(draftMode) <= rank(threadMode) ? draftMode : PermissionMode.UNSPECIFIED;
+  return permissionRank(draftMode) <= permissionRank(threadMode) ? draftMode : PermissionMode.UNSPECIFIED;
 }
 
 interface ComposerModel {

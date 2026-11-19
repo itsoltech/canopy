@@ -3107,8 +3107,10 @@ z capability `claude_live_permissions_v1` (`Worker.claude_live_permissions`)
 pokazuje rzeczywisty `Turn.permission_mode`, zachowuje poprzedni wybór do
 potwierdzenia zmiany i zapisuje nowy wybór szkicu dopiero po sukcesie. Kontrolka
 pozostaje dostępna także przy oczekującej zgodzie. Pytania do użytkownika nie
-są automatycznie rozstrzygane. Po jawnym zapisie trybu wątku taki wybór w szkicu
-to wyjątek dla kolejnej wiadomości. Gdy picker pokazuje wyjątek zamiast uprawnień
+są automatycznie rozstrzygane. Gdy picker pokazuje uprawnienia tury Claude w toku,
+kolejkowana z niego wiadomość po jawnym zapisie trybu wątku używa co najwyżej
+pokazanego trybu. Menu podaje uprawnienia takiej wiadomości, a po zakończeniu tury
+wiadomość bez wyboru w szkicu znów dziedziczy tryb wątku. Gdy picker pokazuje wyjątek zamiast uprawnień
 działającej tury, web/desktop oznacza go „This message”. Dla Groka i workerów
 Claude bez tej capability wybór kompozytora obowiązuje od następnej tury.
 Szczegóły: [protocol.md](protocol.md#modele-effort-i-steer).

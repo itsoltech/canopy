@@ -7,7 +7,8 @@ import { afterAll, beforeAll, describe, expect, test } from "bun:test";
 import { create } from "@bufbuild/protobuf";
 import { PermissionMode, Provider, ui } from "@canopy/contracts";
 import { dockerAvailable } from "@canopy/db/testing";
-import { composerChoices } from "@canopy/domain/composer-choices";
+import { claudeLiveMessagePermission, composerChoices } from "@canopy/domain/composer-choices";
+import { CLAUDE_LIVE_PERMISSIONS_CAPABILITY } from "@canopy/domain/release/protocol";
 import { GatewayCore } from "@canopy/gateway/core";
 import { GatewayStore } from "@canopy/gateway/store";
 import { Effect } from "effect";
@@ -30,7 +31,9 @@ const modes = (threadId: string) =>
 
 describe.skipIf(!dockerAvailable)("thread permission mode (gateway + scripted worker)", () => {
   beforeAll(async () => {
-    gw = await startTestGateway({ worker: { claude: true, hello: { capabilities: ["full_access"] } } });
+    gw = await startTestGateway({
+      worker: { claude: true, hello: { capabilities: ["full_access", CLAUDE_LIVE_PERMISSIONS_CAPABILITY] } },
+    });
     projectId = (await gw.api.createProject({ name: "Modes" })).project!.id;
     workspaceId = (await gw.api.createWorkspace({ projectId, workerId: gw.workerId, rootPath: "/repo/app", label: "" }))
       .workspace!.id;
@@ -168,5 +171,57 @@ describe.skipIf(!dockerAvailable)("thread permission mode (gateway + scripted wo
       turn: PermissionMode.ASK,
       thread: PermissionMode.ASK,
     });
+  });
+
+  test("Claude's live permission picker does not queue a broader mode than the running turn shows", async () => {
+    gw.worker.holdTurns = true;
+
+    const thread = (
+      await gw.api.createThread({
+        projectId,
+        workspaceId,
+        provider: Provider.CLAUDE,
+        permissionMode: PermissionMode.ASK,
+        initialMessage: "Still working in Ask first",
+        clientRequestId: crypto.randomUUID(),
+      })
+    ).thread!;
+
+    try {
+      const [active] = await eventually(
+        () => modes(thread.id),
+        (rows) => rows[0]?.status === "running",
+      );
+
+      const { thread: saved } = await gw.api.updateThread({
+        threadId: thread.id,
+        permissionMode: PermissionMode.FULL_ACCESS,
+      });
+
+      const displayed = gw.worker.turnModes.get(active!.id)!.turn;
+      expect(displayed).toBe(PermissionMode.ASK);
+
+      const { turn: queued } = await gw.api.sendMessage({
+        threadId: thread.id,
+        text: "Queue from the live permission picker",
+        delivery: ui.MessageDelivery.QUEUE,
+        permissionMode: claudeLiveMessagePermission(saved!, displayed),
+        clientRequestId: crypto.randomUUID(),
+      });
+
+      gw.worker.holdTurns = false;
+      gw.worker.finish(thread.id, active!.id);
+      await eventually(
+        () => modes(thread.id),
+        (rows) => rows.some((row) => row.id === queued?.id && row.status === "completed"),
+      );
+      expect(gw.worker.turnModes.get(queued!.id)).toEqual({
+        turn: PermissionMode.ASK,
+        thread: PermissionMode.FULL_ACCESS,
+      });
+      expect(claudeLiveMessagePermission(saved!, displayed, PermissionMode.READ_ONLY)).toBe(PermissionMode.READ_ONLY);
+    } finally {
+      gw.worker.holdTurns = false;
+    }
   });
 });
