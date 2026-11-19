@@ -5,6 +5,7 @@ OAuth w gateway, dostęp wybranych workerów i botów oraz jeden kanał wykonani
 Status (2026-11-19): jedno konto Slack w Settings → Connectors współdzieli aplikację
 OAuth dla narzędzi MCP i wiadomości botów przez Socket Mode. Bot settings → Messengers
 wybiera podłączone konto i trasy; gateway odnawia rotowane tokeny użytkownika i bota.
+Usunięcie bota odłącza jego przypisania i trasy od współdzielonych kont.
 Po włączeniu wiadomości konto udostępnia też sformatowaną wysyłkę jako Canopy przez Slack Web API.
 Bot i jego rutyny mogą korzystać ze stałej zgody właściciela na wysyłkę do wybranej rozmowy Slack.
 Boty i wątki mogą pobierać udostępnione pliki Slack, a wiadomości Socket Mode mogą zawierać załączniki.
@@ -224,6 +225,7 @@ pozostałe wywołania mają kartę zgody. `always` pyta także o odczyty,
 `full_auto` przepuszcza narzędzia bez kart; pytania do użytkownika pozostają.
 Zmiana adnotacji zdalnego narzędzia na zapis nadal wymaga zgody w `safe`,
 natomiast jawne `full_auto` pozwala na zapis. Żaden tryb nie zastępuje grantu.
+Usunięcie bota usuwa jego indywidualne granty. Konto i pozostałe granty nadal działają.
 Stała reguła bota może pozwalać na konkretne konto albo pojedyncze narzędzie tego konta.
 Gateway zapisuje ją wyłącznie po wyborze „Always allow…” przez właściciela, sprawdza
 przy każdym kolejnym żądaniu i zachowuje kopię w historii zgód. Cofnięcie działa od

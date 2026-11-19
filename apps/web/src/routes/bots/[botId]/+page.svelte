@@ -28,7 +28,7 @@
   import DropdownMenu from "#lib/shared/ui/DropdownMenu.svelte";
   import IconButton from "#lib/shared/ui/IconButton.svelte";
   import MenuItem from "#lib/shared/ui/MenuItem.svelte";
-  import { openBotSettings } from "#lib/features/bots/settings/open.ts";
+  import { openBotDeletion, openBotSettings } from "#lib/features/bots/settings/open.ts";
   import { archiveBot, reportLifecycleError } from "#lib/features/bots/settings/lifecycle.ts";
   import { decode, encode } from "#lib/shared/wire.ts";
   import type { PageProps } from "./$types";
@@ -195,7 +195,7 @@
     const id = data.bot.id;
 
     if (botList.list.some((b) => b.id === id)) observedBotId = id;
-    else if (observedBotId === id && botList.loaded && !botList.error) void goto("/bots");
+    else if (observedBotId === id && botList.loaded && !botList.error) void goto("/bots", { replace: true });
   });
 
   $effect(() => {
@@ -496,16 +496,13 @@
                   .catch(reportLifecycleError);
               }}>{bot.archived ? "Unarchive bot" : "Archive bot"}</MenuItem
             >
+            <MenuItem icon="trash" disabled={Boolean(home.reason)} onselect={() => openBotDeletion(bot)}
+              >Delete bot</MenuItem
+            >
             {#if capabilities?.linkedComputers && !bot.nodeId}<MenuItem
                 icon="arrows-right-left"
                 onselect={() => window.dispatchEvent(new CustomEvent("move-bot", { detail: bot.id }))}
                 >Move to…</MenuItem
-              >{/if}
-            {#if bot.archived}<MenuItem
-                icon="trash"
-                disabled={Boolean(home.reason)}
-                onselect={() => window.dispatchEvent(new CustomEvent("delete-bot", { detail: bot.id }))}
-                >Delete bot…</MenuItem
               >{/if}
           </DropdownMenu>
         {/snippet}

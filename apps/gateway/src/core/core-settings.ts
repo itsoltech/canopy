@@ -6,7 +6,9 @@ import { storedSidebarWidth } from "@canopy/domain";
 import { SettingsStore } from "../store/index.ts";
 import { coreState, InvalidError } from "./core-context.ts";
 import type { GatewayCore } from "./core.ts";
-import { coreRun } from "./core-broadcast.ts";
+import { coreLog, coreRun } from "./core-broadcast.ts";
+import { configLock } from "../config-sync/persistence.ts";
+import { unpinBot } from "../store/settings.ts";
 import { validateUserSettings } from "./settings-validation.ts";
 import type { ModuleChange } from "../store/module-transitions.ts";
 import { botModuleChanged } from "./bot-module-runtime.ts";
@@ -44,6 +46,24 @@ export function coreSettings<A, E>(
   use: (store: SettingsStore["Service"]) => Effect.Effect<A, E>,
 ): Promise<A> {
   return hostContext[coreState].actions.run(SettingsStore.use(use));
+}
+
+/** The viewing gateway may have a pin that has not reached the bot's home yet. */
+export async function coreUnpinRemoteBot(core: GatewayCore, botId: string) {
+  const { runtime, userId } = core[coreState].options;
+
+  const settings = await runtime
+    .runPromise(
+      Effect.flatMap(SqlClient.SqlClient, (sql) =>
+        sql.withTransaction(Effect.andThen(configLock(sql, userId), unpinBot(sql, userId, botId))),
+      ),
+    )
+    .catch(() => {
+      coreLog(core, "bots: could not remove a local pin after remote deletion");
+    });
+
+  if (settings)
+    core.hub.publishOverview(create(ui.OverviewUpdateSchema, { change: { case: "userSettings", value: settings } }));
 }
 
 export interface CoreSettingsMethods {

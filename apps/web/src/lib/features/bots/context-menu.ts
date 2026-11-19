@@ -42,6 +42,11 @@ export function contextMenu(open: () => void): Attachment<HTMLElement> {
       if (start && Math.hypot(event.clientX - start.x, event.clientY - start.y) > MOVE_TOLERANCE_PX) cancel();
     };
 
+    // Releasing a touch can send a mouse down that refocuses the row and dismisses its menu.
+    const onmousedown = (event: MouseEvent) => {
+      if (fired) event.preventDefault();
+    };
+
     const onclick = (event: MouseEvent) => {
       if (!fired) return;
       fired = false;
@@ -54,6 +59,7 @@ export function contextMenu(open: () => void): Attachment<HTMLElement> {
     node.addEventListener("pointermove", onpointermove);
     node.addEventListener("pointerup", cancel);
     node.addEventListener("pointercancel", cancel);
+    node.addEventListener("mousedown", onmousedown, true);
     node.addEventListener("click", onclick, true);
 
     return () => {
@@ -63,6 +69,7 @@ export function contextMenu(open: () => void): Attachment<HTMLElement> {
       node.removeEventListener("pointermove", onpointermove);
       node.removeEventListener("pointerup", cancel);
       node.removeEventListener("pointercancel", cancel);
+      node.removeEventListener("mousedown", onmousedown, true);
       node.removeEventListener("click", onclick, true);
     };
   };

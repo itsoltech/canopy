@@ -6,7 +6,7 @@
   import { botConversation } from "../live.ts";
   import BotsNav from "./BotsNav.svelte";
   import BotsSectionEmpty from "./BotsSectionEmpty.svelte";
-  import { openBotSettings } from "../settings/open.ts";
+  import { openBotDeletion, openBotSettings } from "../settings/open.ts";
   import { archiveBot, reportLifecycleError } from "../settings/lifecycle.ts";
   import Icon from "#lib/shared/ui/Icon.svelte";
   import type { ConversationView } from "@canopy/domain/bot-chat";
@@ -41,6 +41,12 @@
 
   const move = (c: ConversationView) => window.dispatchEvent(new CustomEvent("move-bot", { detail: c.id }));
 
+  function remove(c: ConversationView) {
+    const bot = botList.list.find((b) => b.id === c.id);
+
+    if (bot) openBotDeletion(bot);
+  }
+
   $effect(() => botList.use());
 </script>
 
@@ -55,6 +61,7 @@
     hrefOf={(c) => `/bots/${c.id}`}
     onEdit={(c) => openBotSettings(c.id)}
     onArchive={archive}
+    onDelete={remove}
     onMove={capabilities?.linkedComputers ? move : undefined}
     onTogglePin={(c) => {
       void settings.pinBot(c.id, !c.pinned);
@@ -82,7 +89,7 @@
       onEdit={(c) => openBotSettings(c.id)}
       onArchive={archive}
       onMove={capabilities?.linkedComputers ? move : undefined}
-      onDelete={(c) => window.dispatchEvent(new CustomEvent("delete-bot", { detail: c.id }))}
+      onDelete={remove}
     />
   </details>
 {/if}

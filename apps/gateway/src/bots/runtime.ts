@@ -1,5 +1,5 @@
 import { create } from "@bufbuild/protobuf";
-import { bots, Provider } from "@canopy/contracts";
+import { bots, Provider, type ui } from "@canopy/contracts";
 import { classifyFailure, ProviderFailure, safeFailureDetail, type JsonObject } from "@canopy/domain";
 import { botApprovalContext } from "./approval-context.ts";
 import { Effect, Schema } from "effect";
@@ -27,6 +27,7 @@ export interface BotRuntimeOptions {
   harness?: BotModel;
   deliverInterrupt?: (workerId: string) => Promise<void>;
   deliverSteer?: (input: BotSteerDelivery) => Promise<boolean>;
+  settingsChanged?: (settings: ui.UserSettings) => void;
   now?: () => Date;
   platform: (turn: BotTurn, call: StoredCall) => Promise<ToolResult>;
   describeTool?: (tool: ToolSpec, args: JsonObject) => Promise<string>;
@@ -320,18 +321,26 @@ export class BotsRuntime {
   async get(id: string) {
     return botView(await this.run((s) => s.owned(this.#options.userId, id)));
   }
-  #abortBot(id: string) {
+  #stopBot(id: string, workers: string[]) {
     for (const task of this.#active.values()) if (task.turn.bot_id === id) task.abort.abort();
+
+    // The worker stops are already durable. A delivery failure is retried by the worker link.
+    for (const workerId of workers)
+      void this.#options.deliverInterrupt?.(workerId).catch(() => this.#options.log?.("bots: stop delivery deferred"));
   }
   async remove(id: string) {
-    await this.run((s) => s.remove(this.#options.userId, id));
-    this.#abortBot(id);
+    const { workers, settings } = await this.run((s) => s.remove(this.#options.userId, id));
+    this.#stopBot(id, workers);
+
+    if (settings) this.#options.settingsChanged?.(settings);
   }
   async archive(id: string, archived: boolean) {
-    const bot = await this.run((s) => s.archive(this.#options.userId, id, archived));
+    const { bot, workers, settings } = await this.run((s) => s.archive(this.#options.userId, id, archived));
 
-    if (archived) this.#abortBot(id);
+    if (archived) this.#stopBot(id, workers);
     else if (this.#timer) void this.tick().catch(() => undefined);
+
+    if (settings) this.#options.settingsChanged?.(settings);
 
     return bot;
   }

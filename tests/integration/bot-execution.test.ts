@@ -19,9 +19,10 @@ import { createClient } from "@connectrpc/connect";
 import { createGrpcTransport } from "@connectrpc/connect-node";
 import { Effect } from "effect";
 import { SqlClient } from "effect/sql";
+import { deliverBotSteer } from "../../apps/gateway/src/core/bot-steer.ts";
 import { eventually, startTestGateway, type ScriptedWorker, type TestGateway } from "./support/gateway.ts";
 
-const capabilities = ["bot_harness_v1", "bot_web_v1", "bot_workspace_v1"];
+const capabilities = ["bot_harness_v1", "bot_web_v1", "bot_workspace_v1", "bot_steer_v1"];
 
 describe.skipIf(!dockerAvailable)("bot execution summaries over gRPC", () => {
   let gw: TestGateway;
@@ -313,6 +314,56 @@ describe.skipIf(!dockerAvailable)("bot execution summaries over gRPC", () => {
       await server.close();
     }
   }, 25_000);
+
+  test("deleting a bot expires an unacknowledged start and delivers the stop after reconnect", async () => {
+    const { id } = await add("Delete offline work");
+    await disconnect();
+    const { turnId } = await gw.api.sendBotMessage({ botId: id, text: "Wait", clientRequestId: crypto.randomUUID() });
+    await eventually(
+      () => query<{ status: string }>("SELECT status FROM worker_commands WHERE id=$1::uuid", [turnId]),
+      ([command]) => command?.status === "pending",
+    );
+
+    await gw.api.deleteBot({ botId: id });
+
+    const [stop] = await query<{ id: string; status: string }>(
+      "SELECT id,status FROM worker_commands WHERE worker_id=$1::uuid AND kind='interruptBotTurn' AND status='pending'",
+      [gw.workerId],
+    );
+
+    expect(stop).toBeDefined();
+    expect(await query("SELECT status FROM worker_commands WHERE id=$1::uuid", [turnId])).toEqual([
+      { status: "expired" },
+    ]);
+    expect(await query("SELECT status FROM bot_turns WHERE id=$1::uuid", [turnId])).toEqual([
+      { status: "interrupted" },
+    ]);
+    await connect();
+    await expectCommandAcknowledged(stop!.id);
+    expect(worker.commands).toContainEqual({ case: "interruptBotTurn", value: expect.objectContaining({ turnId }) });
+    expect(worker.commands.some((kind) => kind.case === "runBotTurn" && kind.value.turnId === turnId)).toBe(false);
+    expect(
+      await deliverBotSteer(gw.core, {
+        botId: id,
+        turnId,
+        workerId: gw.workerId,
+        inputId: crypto.randomUUID(),
+        text: "Late steer",
+      }),
+    ).toBe(false);
+    expect(worker.commands.some((kind) => kind.case === "steerBotTurn")).toBe(false);
+
+    worker.emit(id, turnId, { case: "turnStarted", value: {} });
+    worker.emit(id, turnId, { case: "turnFinished", value: { outcome: TurnOutcome.COMPLETED } });
+    await eventually(
+      () => query<{ seq: number }>("SELECT last_seq::int AS seq FROM bot_harness_cursors WHERE bot_id=$1::uuid", [id]),
+      ([cursor]) => cursor?.seq === 2,
+    );
+    expect(await query("SELECT outcome FROM bot_harness_turns WHERE turn_id=$1::uuid", [turnId])).toEqual([
+      { outcome: TurnOutcome.INTERRUPTED },
+    ]);
+    expect(await listed(id)).toBeUndefined();
+  }, 15_000);
 
   test("a running routine appears in summaries even though private chat is idle, then clears on archive", async () => {
     const { id } = await add("Scheduled work");

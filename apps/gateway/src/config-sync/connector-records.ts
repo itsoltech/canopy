@@ -14,11 +14,18 @@ import { saveRecords } from "./record-batches.ts";
 import { alive } from "./provider-records.ts";
 import type { Values } from "./provider-values.ts";
 import { cipherOf, currentSecret, pruneSecrets, recordCiphers, storeSecret } from "./secrets.ts";
+import { lockModuleAdmission } from "../store/module-access.ts";
 
 /** Every local shared write locks the clock before accounts, including OAuth refresh transactions. */
-export function connectorTransaction<A, E, R>(sql: SqlClient.SqlClient, key: Buffer, effect: Effect.Effect<A, E, R>) {
+export function connectorTransaction<A, E, R>(
+  sql: SqlClient.SqlClient,
+  key: Buffer,
+  effect: Effect.Effect<A, E, R>,
+  botGrantOwner?: string,
+) {
   return sql.withTransaction(
     Effect.gen(function* () {
+      if (botGrantOwner) yield* lockModuleAdmission(sql, botGrantOwner);
       yield* sql`SELECT 1 FROM config_clock ORDER BY owner_user_id FOR UPDATE`;
       const result = yield* effect;
       yield* recordConnectors(sql, key);

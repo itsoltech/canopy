@@ -1,6 +1,7 @@
 import { json } from "@sveltejs/kit";
 import { bots } from "@canopy/contracts";
 import { readMessage } from "#lib/server/body.ts";
+import { bffSession } from "#lib/server/bff-session.ts";
 import { call } from "#lib/server/gateway.ts";
 import { encode } from "#lib/shared/wire.ts";
 import type { RequestHandler } from "./$types";
@@ -9,7 +10,12 @@ export const GET: RequestHandler = async ({ params }) =>
   json(encode(bots.GetBotResponseSchema, await call((api) => api.getBot({ botId: params.botId }))));
 
 export const DELETE: RequestHandler = async ({ params }) => {
-  await call((api) => api.deleteBot({ botId: params.botId }));
+  await call(async (api) => {
+    const session = bffSession();
+    await api.deleteBot({ botId: params.botId });
+    session.reads.invalidate("ListBots");
+    session.reads.invalidate("ListBots:archived");
+  });
 
   return json({});
 };

@@ -87,6 +87,25 @@ describe.skipIf(!dockerAvailable)("bots, schedules and worker settings at their 
     expect(await failure(f.b.api.getBot({ botId: splitId(disposable.id).id }))).toMatch(/not found/i);
   }, 45_000);
 
+  test("deleting directly from a bot's home propagates its unpin to the computer that pinned it", async () => {
+    const { api } = f.a.gateway;
+    const disposable = (await api.createBot(request("Pinned for deletion"))).bot!;
+    const id = splitId(disposable.id).id;
+    const { user } = await api.getSettings({});
+    const sidebar = create(ui.SidebarSettingsSchema, user!.sidebar);
+
+    sidebar.pinnedBotIds = [disposable.id];
+    await api.updateUserSettings({
+      expectedVersion: user!.version,
+      sidebar,
+    });
+    await wait(async () => (await f.b.api.getSettings({})).user?.sidebar?.pinnedBotIds.includes(id) === true);
+
+    await f.b.api.deleteBot({ botId: id });
+    await wait(async () => (await api.getSettings({})).user?.sidebar?.pinnedBotIds.length === 0);
+    expect(await failure(api.getBot({ botId: disposable.id }))).toMatch(/not found/i);
+  }, 45_000);
+
   test("thread and specific-worker schedules live at B and can be edited and paused from A", async () => {
     scheduled = (
       await f.a.gateway.api.createSchedule({

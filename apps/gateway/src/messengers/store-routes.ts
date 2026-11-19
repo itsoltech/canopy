@@ -17,11 +17,30 @@ export const routeView = (row: RouteRow): MessengerRoute => ({
   instructions: row.instructions,
 });
 
+/** Called under the exclusive owner admission lock, which also fences Slack ingest and dispatch. */
+export function retireBotRoutes(sql: SqlClient.SqlClient, owner: string, botId: string) {
+  return sql`WITH retired_routes AS (
+    UPDATE bot_channel_routes SET deleted_at = coalesce(deleted_at, now())
+      WHERE owner_user_id = ${owner}::uuid AND bot_id = ${botId}::uuid RETURNING id
+  ), closed_conversations AS (
+    UPDATE bot_channel_conversations SET open_until = least(open_until, now()),
+      first_received_at = NULL, last_received_at = NULL
+      WHERE route_id IN (SELECT id FROM retired_routes) RETURNING id
+  ), discarded_messages AS (
+    UPDATE bot_channel_messages SET deleted = true WHERE conversation_id IN (SELECT id FROM closed_conversations)
+      AND state IN ('buffered', 'attempted') AND NOT deleted
+  ), dropped_inputs AS (
+    UPDATE bot_channel_inputs SET status = 'dropped' WHERE conversation_id IN (SELECT id FROM closed_conversations)
+      AND status = 'attempted'
+  ) UPDATE messenger_outbound SET status = CASE WHEN status = 'pending' THEN 'failed' ELSE 'uncertain' END,
+    lease_token = NULL WHERE conversation_id IN (SELECT id FROM closed_conversations) AND status IN ('pending', 'sending')`;
+}
+
 export function messengerRoutes(sql: SqlClient.SqlClient, accounts: MessengerAccounts) {
   return {
     routes: (owner: string, botId?: string) =>
       sql<RouteRow>`SELECT r.* FROM bot_channel_routes r JOIN bots b ON b.id=r.bot_id
-      WHERE r.owner_user_id=${owner}::uuid AND b.owner_user_id=${owner}::uuid AND r.deleted_at IS NULL
+      WHERE r.owner_user_id=${owner}::uuid AND b.owner_user_id=${owner}::uuid AND r.deleted_at IS NULL AND b.deleted_at IS NULL
         AND (${botId ?? null}::uuid IS NULL OR r.bot_id=${botId ?? null}::uuid) ORDER BY r.id`.pipe(
         Effect.map((rows) => rows.map(routeView)),
       ),
@@ -65,9 +84,10 @@ export function messengerRoutes(sql: SqlClient.SqlClient, accounts: MessengerAcc
             return yield* Effect.fail(new Invalid("This bot already has a route for this workspace"));
 
           if (input.delivery === "reply") {
-            const overlap = yield* sql`SELECT id FROM bot_channel_routes WHERE account_id=${input.accountId}::uuid
-          AND deleted_at IS NULL AND delivery='reply' AND id<>${id}::uuid
-          AND (channel_ids && ${input.channelIds}::text[] OR (direct_messages AND ${input.directMessages}))`;
+            const overlap = yield* sql`SELECT r.id FROM bot_channel_routes r JOIN bots b ON b.id=r.bot_id
+          WHERE r.account_id=${input.accountId}::uuid AND r.deleted_at IS NULL AND (b.deleted_at IS NULL OR b.moved_to IS NOT NULL)
+          AND r.delivery='reply' AND r.id<>${id}::uuid
+          AND (r.channel_ids && ${input.channelIds}::text[] OR (r.direct_messages AND ${input.directMessages}))`;
 
             if (overlap.length)
               return yield* Effect.fail(

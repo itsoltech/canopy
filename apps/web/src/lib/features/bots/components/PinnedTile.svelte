@@ -39,7 +39,10 @@
   const workingId = $props.id();
   const direct = $derived(conversation.kind === "direct" && Boolean(conversation.bots[0]));
   const working = $derived(direct && !home.reason && conversation.executing === true);
-  const items = $derived(conversationMenu(conversation, handlers));
+
+  const items = $derived(
+    conversationMenu(conversation, home.reason ? { onTogglePin: handlers.onTogglePin } : handlers),
+  );
 </script>
 
 <DropdownMenu label="Actions for {title}" bind:open={menuOpen}>

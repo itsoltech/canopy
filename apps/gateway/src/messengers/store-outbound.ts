@@ -71,6 +71,19 @@ function lockDeliveryBots(sql: SqlClient.SqlClient, owner: string, accountId: st
 
 export function messengerOutbound(sql: SqlClient.SqlClient, accounts: MessengerAccounts) {
   return {
+    sendClaimed: (owner: string, lease: AccountLease, id: string, now: Date, send: () => Promise<OutboundResult>) =>
+      sql.withTransaction(
+        Effect.gen(function* () {
+          if (!(yield* lockedOwnerModule(sql, owner, "bots"))) return undefined;
+          yield* accounts.fenced(owner, lease, now);
+
+          const rows = yield* sql`SELECT id FROM messenger_outbound WHERE id = ${id}::uuid
+            AND account_id = ${lease.accountId}::uuid AND lease_token = ${lease.token}::uuid AND status = 'sending'`;
+
+          // Start the request under admission, then release the locks before awaiting Slack.
+          return rows.length ? { completion: send() } : undefined;
+        }),
+      ),
     outbound: (owner: string, lease: AccountLease, now: Date) =>
       sql.withTransaction(
         Effect.gen(function* () {

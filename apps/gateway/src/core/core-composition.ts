@@ -55,6 +55,8 @@ export function createCoreBots(core: GatewayCore, options: GatewayCoreOptions): 
     harness: (input) => runBotHarness(core, input),
     deliverInterrupt: (workerId) => coreRedeliver(core, workerId),
     deliverSteer: (input) => deliverBotSteer(core, input),
+    settingsChanged: (settings) =>
+      core.hub.publishOverview(create(ui.OverviewUpdateSchema, { change: { case: "userSettings", value: settings } })),
     ...(options.botClock && { now: options.botClock }),
     ...(options.botModel && { model: options.botModel }),
     ...(options.log && { log: options.log }),
