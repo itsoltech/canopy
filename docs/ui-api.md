@@ -4,6 +4,7 @@ Status (2026-11-19): na `dev` tło hover pierwszego nagłówka paneli kompozytor
 web/desktop mieści się w zaokrąglonym obrysie stosu.
 Web/desktop sygnalizuje wysyłanie w wątku na przycisku wysyłki,
 a w czacie bota przez przygaszenie dymka. Potwierdzenie dostarczenia zachowuje wysokość wiadomości.
+Kompozytor web/desktop utrzymuje dostępne potwierdzenie Full access podczas nadejścia lub zniknięcia prośby o zgodę.
 Prywatny czat bota pokazuje aktywność tur ze Slacka i rutyn.
 Właściciel ustawia kolejność zakładek i może zatrzymać pracę wybranego modułu.
 Po zamknięciu panelu PR zaplanowane odświeżenie awatarów wykonuje się
@@ -1655,6 +1656,12 @@ wobec procesu tego samego użytkownika: [desktop.md](desktop.md#granice-i-zgodno
 | `GetSettings`, `UpdateUserSettings`, `UpdateProjectSettings` | ustawienia użytkownika (schemat kolorów, osobne palety Light / Dark, szerokość czatu, przypięcia, domyślne nowych wątków i modele) i projektu (domyślne wątków, nadpisują użytkownika). Gateway przechowuje je w `user_settings` / `project_settings`. Filtr sidebara i geometria paneli należą do klienta. Zapis zastępuje podane sekcje z kontrolą wersji; konflikt z innym urządzeniem = `FailedPrecondition` (BFF: 409), klient pobiera ustawienia od nowa. Zmiany na żywo w `OverviewUpdate.user_settings` / `project_settings` |
 
 UI składa itemy na żywo tym samym reducerem co gateway (`reduceItem` z `@canopy/domain`).
+
+W web/desktop edytor wiadomości i panel oczekującej zgody korzystają z jednego dialogu
+potwierdzającego Full access, osadzonego w kompozytorze poza oboma widokami. Nadejście
+lub wycofanie prośby o zgodę pozostawia dialog widocznym. Anulowanie zamyka dialog i
+przywraca dostęp do bieżącego widoku. Jeśli zmieni się wątek lub tura, której dotyczy
+zmiana uprawnień na żywo, dialog zamyka się bez zastosowania wyboru.
 
 ### Harmonogramy tworzące nowe wątki
 

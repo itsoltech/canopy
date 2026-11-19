@@ -2,7 +2,11 @@
   import type { ComposerPermissionsState } from "./composer-permissions.svelte.ts";
   import PermissionPicker from "./PermissionPicker.svelte";
 
-  let { state, disabled = false }: { state: ComposerPermissionsState; disabled?: boolean } = $props();
+  let {
+    state,
+    disabled = false,
+    onconfirmfullaccess,
+  }: { state: ComposerPermissionsState; disabled?: boolean; onconfirmfullaccess: () => void } = $props();
 </script>
 
 <div class="grid min-w-0 justify-items-end gap-1">
@@ -15,6 +19,7 @@
     disabled={disabled || state.locked}
     scope={state.scope}
     confirmFullAccess={state.confirmFullAccess}
+    {onconfirmfullaccess}
     explanation={state.explanation}
   />
   {#if state.busy}<p class="sr-only" role="status">Changing permissions…</p>{/if}

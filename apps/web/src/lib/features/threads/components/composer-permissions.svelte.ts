@@ -34,10 +34,11 @@ export class ComposerPermissionsState {
 
     return thread === confirmed.source ? confirmed.updated : thread;
   }
-  get #live() {
+  get liveTurnId() {
     const { thread, worker, running, runningTurn } = this.context();
 
-    return Boolean(running && runningTurn?.id && thread.provider === Provider.CLAUDE && worker?.claudeLivePermissions);
+    if (running && thread.provider === Provider.CLAUDE && worker?.claudeLivePermissions)
+      return runningTurn?.id || undefined;
   }
   get threadDefault() {
     const thread = this.#thread;
@@ -71,7 +72,7 @@ export class ComposerPermissionsState {
 
     if (this.#previous) return this.#previous;
 
-    if (this.#live && runningTurn) return permissionKey(runningTurn.permissionMode);
+    if (this.liveTurnId && runningTurn) return permissionKey(runningTurn.permissionMode);
 
     return permissionKey(this.messageMode || this.#thread.permissionMode);
   }
@@ -80,7 +81,11 @@ export class ComposerPermissionsState {
 
     if (this.threadDefault && this.value !== this.threadDefault) return "message";
 
-    if (running && !this.#live && (!this.threadDefault || runningTurn?.permissionMode !== PermissionMode[this.value]))
+    if (
+      running &&
+      !this.liveTurnId &&
+      (!this.threadDefault || runningTurn?.permissionMode !== PermissionMode[this.value])
+    )
       return "next";
 
     return undefined;
@@ -97,7 +102,7 @@ export class ComposerPermissionsState {
         : description;
     }
 
-    if (this.#live)
+    if (this.liveTurnId)
       return "Applies to this turn and future messages. Full access also allows pending permissions. Other modes keep pending shell approvals.";
 
     return this.scope === "next"
@@ -133,7 +138,7 @@ export class ComposerPermissionsState {
   }
   async select(next: PermissionModeKey) {
     if (this.locked) return;
-    const { runningTurn, thread, saved, onturn } = this.context();
+    const { thread, saved, onturn } = this.context();
     this.error = "";
 
     if (this.threadDefault) {
@@ -142,7 +147,9 @@ export class ComposerPermissionsState {
       return;
     }
 
-    if (!this.#live || !runningTurn) {
+    const turnId = this.liveTurnId;
+
+    if (!turnId) {
       saved.choices = { ...saved.choices, permissionMode: PermissionMode[next] };
 
       return;
@@ -153,7 +160,7 @@ export class ComposerPermissionsState {
     this.busy = true;
 
     try {
-      const turn = await updateTurnPermissions(thread.id, runningTurn.id, next);
+      const turn = await updateTurnPermissions(thread.id, turnId, next);
       saved.choices = { ...saved.choices, permissionMode: turn.permissionMode };
       onturn?.(turn);
     } catch (cause) {

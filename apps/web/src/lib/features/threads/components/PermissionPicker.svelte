@@ -29,6 +29,7 @@
     disabled = false,
     scope,
     confirmFullAccess = false,
+    onconfirmfullaccess,
     explanation,
     class: className,
   }: {
@@ -41,6 +42,8 @@
     disabled?: boolean;
     scope?: "message" | "next" | undefined;
     confirmFullAccess?: boolean;
+    /** Let a shared composer own the confirmation across picker instances. */
+    onconfirmfullaccess?: () => void;
     explanation?: string | undefined;
     class?: ClassValue;
   } = $props();
@@ -60,8 +63,14 @@
   function pick(mode: PermissionModeKey) {
     if (disabled) return;
 
-    if (isFullAccess(mode) && (mode !== value || confirmFullAccess)) confirming = () => onselect(mode);
-    else onselect(mode);
+    if (isFullAccess(mode) && (mode !== value || confirmFullAccess)) {
+      if (onconfirmfullaccess) onconfirmfullaccess();
+      else confirming = () => onselect(mode);
+
+      return;
+    }
+
+    onselect(mode);
   }
 </script>
 
@@ -112,4 +121,4 @@
     </MenuCheckItem>
   {/each}
 </DropdownMenu>
-<FullAccessConfirm bind:pending={confirming} />
+{#if !onconfirmfullaccess}<FullAccessConfirm bind:pending={confirming} />{/if}
