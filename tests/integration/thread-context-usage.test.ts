@@ -1,8 +1,10 @@
 import { afterAll, beforeAll, describe, expect, test } from "bun:test";
+import { readFileSync } from "node:fs";
 import { Provider, ui } from "@canopy/contracts";
 import { dockerAvailable } from "@canopy/db/testing";
 import { GatewayCore } from "@canopy/gateway/core";
 import { applyThreadUpdate } from "@canopy/domain/thread-snapshot";
+import { ClaudeEventMapper } from "../../apps/worker/src/providers/claude/mapping.ts";
 import { eventually, startTestGateway, type TestGateway } from "./support/gateway.ts";
 
 describe.skipIf(!dockerAvailable)("main-session context observations through WorkerLink", () => {
@@ -11,7 +13,7 @@ describe.skipIf(!dockerAvailable)("main-session context observations through Wor
   let projectId: string;
 
   beforeAll(async () => {
-    gateway = await startTestGateway({ watchProbeMs: 100 });
+    gateway = await startTestGateway({ watchProbeMs: 100, worker: { claude: true } });
     projectId = (await gateway.api.createProject({ name: "Context observations" })).project!.id;
 
     const workspaceId = (
@@ -107,4 +109,96 @@ describe.skipIf(!dockerAvailable)("main-session context observations through Wor
       await watching;
     }
   });
+
+  test("a resumed Claude turn keeps both context counts available for the Text indicator", async () => {
+    const original = (await gateway.api.getThread({ threadId })).thread!;
+
+    const id = (
+      await gateway.api.createThread({ projectId, workspaceId: original.workspaceId, provider: Provider.CLAUDE })
+    ).thread!.id;
+
+    const { api, worker } = gateway;
+    await eventually(
+      () => api.getThread({ threadId: id }),
+      (reply) => reply.thread?.status === "idle",
+    );
+
+    const replay = (fixture: string) =>
+      readFileSync(new URL(`../../apps/worker/src/providers/claude/fixtures/${fixture}.jsonl`, import.meta.url), "utf8")
+        .trim()
+        .split("\n")
+        .map((line) => JSON.parse(line) as Parameters<ClaudeEventMapper["map"]>[0]);
+
+    let state: ui.ThreadSnapshot | undefined;
+    const abort = new AbortController();
+
+    const watching = (async () => {
+      try {
+        for await (const update of api.watchThread({ threadId: id, sequence: true }, { signal: abort.signal }))
+          state = applyThreadUpdate(state, update);
+      } catch (error) {
+        if (!abort.signal.aborted) throw error;
+      }
+    })();
+
+    worker.holdTurns = true;
+
+    try {
+      const start = async () => {
+        const turn = (await api.sendMessage({ threadId: id, text: "Continue" })).turn!;
+        await eventually(
+          async () => state,
+          (snapshot) => snapshot?.thread?.status === "running",
+        );
+
+        return turn.id;
+      };
+
+      const apply = (mapper: ClaudeEventMapper, messages: ReturnType<typeof replay>) => {
+        for (const message of messages)
+          for (const event of mapper.map(message)) worker.emit(id, event.turnId ?? "", event.body, event.rawJson);
+      };
+
+      const idle = () =>
+        eventually(
+          async () => state,
+          (snapshot) => snapshot?.thread?.status === "idle",
+        );
+
+      await idle();
+      const first = await start();
+      apply(new ClaudeEventMapper(first), replay("text-turn"));
+      const previous = (await idle())?.thread?.contextUsage;
+      expect(previous).toMatchObject({ usedTokens: 16011n, limitTokens: 1000000n });
+
+      const resumed = await start();
+      const mapper = new ClaudeEventMapper(resumed, true);
+      const next = replay("tools-turn");
+      const result = next.findIndex((message) => message.type === "result");
+      expect(result).toBeGreaterThan(0);
+      apply(mapper, next.slice(0, result));
+
+      // The final streamed answer is projected before result, so all earlier usage has arrived.
+      const active = await eventually(
+        async () => state,
+        (snapshot) =>
+          snapshot?.thread?.status === "running" &&
+          snapshot.items.some(
+            (entry) =>
+              entry.turnId === resumed &&
+              entry.item?.content.case === "agentMessage" &&
+              entry.item.content.value.phase === "final_answer",
+          ),
+      );
+
+      expect(active?.thread?.contextUsage).toEqual(previous);
+
+      apply(mapper, next.slice(result));
+      expect((await idle())?.thread?.contextUsage).toMatchObject({ usedTokens: 16891n, limitTokens: 1000000n });
+    } finally {
+      worker.holdTurns = false;
+      abort.abort();
+      await watching;
+    }
+  }, 30_000);
 });

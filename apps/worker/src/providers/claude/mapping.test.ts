@@ -143,23 +143,32 @@ describe("Claude event mapping on recorded turns", () => {
 
   test("main context follows the last response, including caches and final streamed output", () => {
     const messages = fixture("tools-turn");
-    const { events } = replay(messages);
+    const { events, mapper } = replay(messages);
 
     const observations = events.flatMap((event) =>
       event.body.case === "usageUpdated" && event.body.value.contextUsage ? [event.body.value.contextUsage] : [],
     );
 
-    expect(observations.at(-1)).toMatchObject({ usedTokens: 16891n, limitTokens: 1000000n });
-    expect(observations[0]?.limitTokens).toBeUndefined();
-    // The first response's final output count (310) arrives after its assistant blocks.
-    expect(observations.some((usage) => usage?.usedTokens === 16400n)).toBe(true);
+    expect(observations).toHaveLength(1);
+    expect(observations[0]).toMatchObject({ usedTokens: 16891n, limitTokens: 1000000n });
+    mapper.beginTurn("same-session");
 
-    const mapper = new ClaudeEventMapper("next");
+    const streamed = messages
+      .filter((message) => message.type !== "result")
+      .flatMap((message) => mapper.map(message))
+      .flatMap((event) =>
+        event.body?.case === "usageUpdated" && event.body.value?.contextUsage ? [event.body.value.contextUsage] : [],
+      );
+
+    // The first response's final output count (310) arrives after its assistant blocks.
+    expect(streamed).toContainEqual({ usedTokens: 16400n, limitTokens: 1000000n });
+
+    const resumed = new ClaudeEventMapper("next", true);
     const assistant = messages.find((message) => message.type === "assistant")!;
-    const child = mapper.map({ ...assistant, parent_tool_use_id: "child" });
+    const child = resumed.map({ ...assistant, parent_tool_use_id: "child" });
     expect(child.some((event) => event.body?.case === "usageUpdated" && event.body.value.contextUsage)).toBe(false);
     const result = messages.find((message) => message.type === "result")!;
-    const unmapped = mapper.map({ ...result, modelUsage: {} });
+    const unmapped = resumed.map({ ...result, modelUsage: {} });
     expect(unmapped.some((event) => event.body?.case === "usageUpdated" && event.body.value.contextUsage)).toBe(false);
   });
 

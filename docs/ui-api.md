@@ -43,7 +43,8 @@ Web/desktop zapisuje wybór uprawnień Codexa w ustawieniach wątku również po
 Zmiana uprawnień bieżącej tury Claude działa bez restartu,
 a picker i dialog uprawnień ukrywają Full auto dla Claude na workerze Windows;
 opcjonalny wskaźnik kontekstu composera ma tryby Off / Circle / Text / Bar w Appearance,
-a pickery modelu i wysiłku dopasowują się do dostępnej szerokości;
+zachowuje ostatni pełny pomiar podczas wznowionej tury Claude, a pickery modelu i wysiłku
+dopasowują się do dostępnej szerokości;
 lokalne preferencje sidebara zachowują zakres po restarcie gatewaya desktopu na innym porcie;
 przełączanie wątków zachowuje status połączenia,
 a zapowiedziana aktualizacja gatewaya pokazuje w wątku spokojny komunikat bez akcji odzyskiwania,
@@ -242,6 +243,8 @@ i ma reset pola oraz strony Appearance. Wyszukiwarka ustawień znajduje ją prze
 przekazany przez harness, z aktualizacją przez `UsageUpdated.context_usage`.
 Nie jest nim suma tokenów wątku ani tury. Brak użycia lub dodatniego limitu ukrywa
 wskaźnik, zachowując stały slot, aby nadejście danych nie przesuwało kontrolek.
+Po wznowieniu procesu Claude wskaźnik pokazuje ostatni pełny raport także podczas
+tury, dopóki dostawca nie zgłosi kolejnego pomiaru z limitem lub go nie unieważni.
 Hover, fokus klawiatury i dotknięcie otwierają szczegóły z dokładnymi liczbami
 oraz informacją, że jest to ostatni raport providera bez bieżącego szkicu.
 Warianty wizualne mają pełną etykietę dostępną dla czytników ekranu.
