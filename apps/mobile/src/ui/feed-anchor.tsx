@@ -9,7 +9,6 @@ import Animated, {
   type SharedValue,
 } from "react-native-reanimated";
 import { scheduleOnRN, scheduleOnUI } from "react-native-worklets";
-import type { ui } from "@canopy/contracts";
 import type { useFollowingList } from "./useFollowingList";
 import { motion, useReducedMotion } from "./motion";
 import { disclosureOffset, disclosurePosition } from "./disclosure-anchor";
@@ -49,19 +48,30 @@ class AnchorSession {
   }
 }
 
-export function useFeedAnchor({
+export function useFeedAnchor<Item>({
   list,
   scrollY,
   minimum,
   corrections,
   anchoring,
   track,
-}: ReturnType<typeof useFollowingList<ui.Turn>>) {
+}: ReturnType<typeof useFollowingList<Item>>) {
   const generation = useSharedValue(0);
   const [session] = useState(() => new AnchorSession());
 
   const geometry = useMemo(
-    () => ({ list, scrollY, minimum, corrections, anchoring, generation, track }),
+    () => ({
+      scrollY,
+      minimum,
+      corrections,
+      anchoring,
+      generation,
+      track,
+      scrollToOffset: (offset: number) => {
+        "worklet";
+        scrollTo(list, 0, offset, false);
+      },
+    }),
     [list, scrollY, minimum, corrections, anchoring, generation, track],
   );
 
@@ -73,12 +83,12 @@ const idle = new AnchorSession();
 const Cell = createContext<ReturnType<typeof useAnimatedRef<View>> | null>(null);
 
 /** Preserve FlatList's inversion style and layout notifications; expose its actual cell geometry. */
-export function FeedAnchorCell({
+export function FeedAnchorCell<Item>({
   children,
   style,
   onLayout,
   onFocusCapture,
-}: React.ComponentProps<NonNullable<FlatListProps<ui.Turn>["CellRendererComponent"]>>) {
+}: React.ComponentProps<NonNullable<FlatListProps<Item>["CellRendererComponent"]>>) {
   const cell = useAnimatedRef<View>();
 
   return (
@@ -104,7 +114,7 @@ function correctHeader(
   if (Math.abs(delta) < 0.5) return true;
   geometry.scrollY.set(next);
   geometry.corrections.set(geometry.corrections.get() + 1);
-  scrollTo(geometry.list, 0, next, false);
+  geometry.scrollToOffset(next);
 
   return false;
 }

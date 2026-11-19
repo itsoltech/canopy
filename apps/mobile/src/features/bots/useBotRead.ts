@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useState, useSyncExternalStore } from "react";
 import type { FlatListProps } from "react-native";
 import type { bots } from "@canopy/contracts";
-import type { ChatRow } from "@canopy/domain/bot-chat";
+import type { BotTimelineRow } from "@canopy/domain/bot-chat";
 import { updateBotRead } from "../../state/bot-list";
 import { useSession } from "../../state/session";
 import { useAppActive } from "../../ui/active";
@@ -14,7 +14,7 @@ export function useBotRead(conversation: bots.BotConversation | undefined, readi
   const covered = useSyncExternalStore(subscribeOverlays, screenCovered);
   const [visible, setVisible] = useState<ReadonlySet<string>>(() => new Set());
 
-  const onViewableItemsChanged = useCallback<NonNullable<FlatListProps<ChatRow>["onViewableItemsChanged"]>>(
+  const onViewableItemsChanged = useCallback<NonNullable<FlatListProps<BotTimelineRow>["onViewableItemsChanged"]>>(
     ({ viewableItems }) => setVisible(new Set(viewableItems.map((row) => row.key))),
     [],
   );

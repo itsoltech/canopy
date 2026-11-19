@@ -1,4 +1,4 @@
-import type { ChatRow } from "@canopy/domain/bot-chat";
+import type { ChatRow } from "./layout.ts";
 
 type EventRow = Extract<ChatRow, { kind: "event" | "approval" }>;
 
@@ -6,6 +6,23 @@ export interface EventGroup {
   kind: "event-group";
   id: string;
   events: EventRow[];
+}
+
+export type BotTimelineRow = ChatRow | EventGroup;
+
+/** Keep expanded entries as individual virtualized rows, in chronological order after their header. */
+export function visibleChatRows(groups: readonly BotTimelineRow[], open: ReadonlySet<string>): BotTimelineRow[] {
+  const rows: BotTimelineRow[] = [];
+
+  for (const row of groups) {
+    rows.push(row);
+
+    if (row.kind === "event-group" && open.has(row.id)) {
+      for (const event of row.events) rows.push(event);
+    }
+  }
+
+  return rows;
 }
 
 const isEvent = (row: ChatRow): row is EventRow =>
@@ -16,8 +33,8 @@ const isEvent = (row: ChatRow): row is EventRow =>
 export class ChatEventGroups {
   private anchors = new Set<string>();
 
-  layout(rows: readonly ChatRow[]): (ChatRow | EventGroup)[] {
-    const grouped: (ChatRow | EventGroup)[] = [];
+  layout(rows: readonly ChatRow[]): BotTimelineRow[] {
+    const grouped: BotTimelineRow[] = [];
     const anchors = new Set<string>();
     let events: EventRow[] = [];
 
