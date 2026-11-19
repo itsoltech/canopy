@@ -73,6 +73,7 @@ Short rules for agents working in this repository. Details live in `docs/` (most
 - Documentation-only changes need a diff and content/link review; do not install dependencies or run code checks, tests, or builds for them. Follow the CI workflow's existing selection of checks.
 - Reuse successful local checks while their inputs remain unchanged. In the handoff/PR, state what ran locally and what is left to CI; do not claim pending CI passed. Domain docs listing the full gate describe CI requirements, not additional local checklists.
 - Look at UI changes yourself in a real browser: light + dark, desktop + phone width.
+- Before opening a PR that adds or changes web or desktop UI behavior, verify the same interaction in the native mobile app (`apps/mobile`). If the interaction applies there and is missing, implement it before opening the PR. In the PR description, record the mobile interaction you checked and its result, or explain why it does not apply on mobile.
 
 ## Code quality
 
