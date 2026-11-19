@@ -4,7 +4,7 @@ Status: opis zaimplementowanego kodu (2026-11-19), w tym aktualizacji Canopy prz
 i pomijania komputerów offline w Update all, wspólnego otwierania paneli
 Updates i Provider usage w stopce oraz równoległej aktualizacji
 zdalnych desktopów i workerów binarnych, ponawiania raportu o błędzie workera,
-niezależnych akcji CLI i korelacji prób w Update all,
+niezależnych akcji CLI i uzgadniania prób w Update all po odmowie zajętego instalatora,
 aktualizacji CLI przez mise, restartu workera mimo błędu sprzątania urządzeń,
 pomijania cache metadanych przy ręcznym sprawdzaniu aktualizacji, wykrywania
 pojedynczego procesu przez instalator Windows, retencji dyskowego mirrora workerów
@@ -369,7 +369,9 @@ oczekiwania na potwierdzenie wyniku wynosi 35 minut.
 Id próby CLI jest zapisane w kroku przed wysłaniem i przekazane jako `InstallCliRequest.install_id`;
 raport błędu dotyczy kroku tylko przy zgodnym id. Poprzedni błąd nie kończy nowej instalacji.
 Brak lub utrata potwierdzenia startu pozostawia czas na raport dostępnego workera do limitu kroku,
-także po restarcie gatewaya; nie odtwarzamy komendy instalacji. Jawna odmowa nadal kończy krok.
+także po restarcie gatewaya. Jawna odmowa zajętego instalatora przywraca krok do kolejki w ramach
+tego samego limitu. Następny odczyt pozwala powiązać krok z aktywną próbą albo wysłać nową komendę,
+jeśli poprzednia otrzymała odmowę i docelowej wersji nadal brakuje. Inne jawne odmowy kończą krok.
 Trwająca ręczna instalacja tej samej wersji jest śledzona bez drugiego polecenia;
 instalacja innej wersji musi się najpierw zakończyć. Raport z wersją docelową lub nowszą
 potwierdza sukces również po błędzie potwierdzenia i usuwa nieaktualny błąd zatrzymanego przebiegu.

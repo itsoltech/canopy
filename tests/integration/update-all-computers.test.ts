@@ -166,7 +166,7 @@ async function fakeApp(
 
 async function clis(gateway: TestGateway, versions: [string, string], state = "", fail = false) {
   await gateway.core.cli.report(
-    gateway.workerId,
+    gateway.core.link.connections.get(gateway.workerId)!,
     create(CliToolsReportSchema, {
       os: "linux",
       arch: "x64",

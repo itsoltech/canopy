@@ -14,7 +14,7 @@ import {
 } from "./center-scheduling.ts";
 import { UpdateReconnects } from "./center-offline.ts";
 import { computerUpdated } from "./computer-completion.ts";
-import { cliStepComplete, cliStepCurrent, stepCli, uncertainCliLaunch } from "./center-cli.ts";
+import { cliStepComplete, requeueBusyCli, stepCli, uncertainCliLaunch, waitForCli } from "./center-cli.ts";
 
 const UPDATE_TIMEOUT_MS = 35 * 60_000;
 
@@ -103,6 +103,7 @@ export class UpdateCenter {
 
       if (run?.state !== "running") return;
       const snapshot = planned ?? (await this.options.snapshot());
+      const contended = new Set<ui.UpdateStep>();
 
       for (const [index, step] of run.steps.entries()) {
         if (step.state !== "running") continue;
@@ -112,7 +113,8 @@ export class UpdateCenter {
         try {
           if (launch?.settled) step.requestId = launch.step.requestId;
 
-          if ((!launch || launch.settled || step.kind === "cli") && (await this.complete(step, snapshot)))
+          if (launch?.settled && requeueBusyCli(step, launch.error)) contended.add(step);
+          else if ((!launch || launch.settled || step.kind === "cli") && (await this.complete(step, snapshot)))
             this.succeed(step);
           else if (this.reconnects.deferOrSkip(step, key, run, snapshot)) continue;
           else if (launch?.settled && launch.error && !uncertainCliLaunch(step, launch.error)) throw launch.error;
@@ -129,7 +131,9 @@ export class UpdateCenter {
       this.releaseOfflineLaunches(run, snapshot);
 
       for (const [index, step] of run.steps.entries()) {
-        if (step.state !== "queued" || this.reconnects.deferOrSkip(step, `${run.id}/${index}`, run, snapshot)) continue;
+        if (step.state !== "queued" || contended.has(step)) continue;
+
+        if (this.reconnects.deferOrSkip(step, `${run.id}/${index}`, run, snapshot)) continue;
         const dependencies = updateDependencies(step, run.steps);
 
         if (dependencies.some(pendingUpdate)) continue;
@@ -161,21 +165,12 @@ export class UpdateCenter {
           continue;
 
         try {
+          if (waitForCli(step, snapshot, UPDATE_TIMEOUT_MS)) continue;
           const install = step.kind === "cli" ? stepCli(step, snapshot)?.install : undefined;
           const following = install?.state === "running" && install.targetVersion === step.version;
 
-          // A manual installation of another version must finish before this target can start.
-          if (install?.state === "running" && !following && !cliStepCurrent(step, snapshot)) {
-            step.startedAt ||= new Date().toISOString();
-
-            if (Date.now() - Date.parse(step.startedAt) > UPDATE_TIMEOUT_MS)
-              throw new Error("Timed out waiting for another CLI installation. Check the worker and retry.");
-
-            continue;
-          }
-
           step.state = "running";
-          step.startedAt = new Date().toISOString();
+          step.startedAt ||= new Date().toISOString();
 
           if (step.kind === "cli") step.requestId = following ? install.installId : crypto.randomUUID();
 
@@ -387,7 +382,11 @@ export class UpdateCenter {
       for (const step of failed) {
         const dismissed = remoteStepDismissed(step, current);
 
-        if (!dismissed && !remoteStepCurrent(step, current) && !(step.kind === "cli" && cliStepCurrent(step, current)))
+        if (
+          !dismissed &&
+          !remoteStepCurrent(step, current) &&
+          !(step.kind === "cli" && cliStepComplete(step, current, true))
+        )
           continue;
 
         if (dismissed) step.state = "dismissed";

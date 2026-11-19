@@ -33,6 +33,13 @@ export class CliRefused extends Error {
   }
 }
 
+function installRunning(sameTarget: boolean): CliRefused {
+  return new CliRefused(
+    sameTarget ? "CLI_INSTALL_SAME_TARGET_RUNNING" : "CLI_INSTALL_RUNNING",
+    "This agent CLI is already being installed. Wait for it to finish.",
+  );
+}
+
 export interface CliToolsOptions {
   readonly dataDir: string;
   readonly probe: CliProbe;
@@ -58,7 +65,7 @@ export class CliTools {
   readonly #options: CliToolsOptions;
   readonly #status = new Map<Provider, StatusInit>();
   readonly #installing = new Map<Provider, { resource: string; done: Promise<void> }>();
-  readonly #starting = new Set<Provider>();
+  readonly #starting = new Map<Provider, { version: string; done: Promise<void> }>();
   #last: ReportInit | undefined;
   #discovering: Promise<ReportInit> | undefined;
   #installRevision = 0;
@@ -159,14 +166,24 @@ export class CliTools {
    * progress and the result (a new report with CliTool.install).
    */
   async start(command: InstallCli): Promise<void> {
-    if (this.#starting.has(command.provider) || this.#installing.has(command.provider))
-      throw new CliRefused("CLI_INSTALL_RUNNING", "This agent CLI is already being installed. Wait for it to finish.");
-    this.#starting.add(command.provider);
+    const { provider, version } = command;
+    const starting = this.#starting.get(provider);
+
+    if (starting?.version === version) {
+      // The first request can still fail admission. Only a reserved install can satisfy a duplicate click.
+      await starting.done;
+      throw installRunning(true);
+    }
+
+    if (starting || this.#installing.has(provider))
+      throw installRunning(!starting && this.#status.get(provider)?.targetVersion === version);
+    const done = this.#start(command);
+    this.#starting.set(provider, { version, done });
 
     try {
-      await this.#start(command);
+      await done;
     } finally {
-      this.#starting.delete(command.provider);
+      this.#starting.delete(provider);
     }
   }
 

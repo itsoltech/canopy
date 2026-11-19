@@ -11,7 +11,7 @@ export function stepCli(step: ui.UpdateStep, snapshot: ui.UpdatesSnapshot) {
 }
 
 /** The installed version is authoritative even when an earlier acknowledgement or attempt failed. */
-export function cliStepCurrent(step: ui.UpdateStep, snapshot: ui.UpdatesSnapshot): boolean {
+function cliStepCurrent(step: ui.UpdateStep, snapshot: ui.UpdatesSnapshot): boolean {
   const tool = stepCli(step, snapshot);
 
   // A matching installer may still roll back a version observed during validation.
@@ -29,6 +29,31 @@ export function cliStepComplete(step: ui.UpdateStep, snapshot: ui.UpdatesSnapsho
     throw new Error(install.error || "CLI install failed");
 
   return false;
+}
+
+/** The worker explicitly refused this command. A fresh snapshot can follow the other attempt or launch this step. */
+export function requeueBusyCli(step: ui.UpdateStep, error: Error | undefined): boolean {
+  if (step.kind !== "cli" || !(error instanceof ConnectError) || error.code !== Code.Aborted) return false;
+
+  step.state = "queued";
+  step.requestId = "";
+
+  return true;
+}
+
+export function waitForCli(step: ui.UpdateStep, snapshot: ui.UpdatesSnapshot, timeoutMs: number): boolean {
+  if (step.kind !== "cli") return false;
+
+  if (step.startedAt && Date.now() - Date.parse(step.startedAt) > timeoutMs)
+    throw new Error("Timed out waiting for another CLI installation. Check the worker and retry.");
+
+  const install = stepCli(step, snapshot)?.install;
+
+  if (install?.state !== "running" || install.targetVersion === step.version || cliStepCurrent(step, snapshot))
+    return false;
+  step.startedAt ||= new Date().toISOString();
+
+  return true;
 }
 
 /** An uncertain reply must leave time for worker reports; installations are never replayed automatically. */

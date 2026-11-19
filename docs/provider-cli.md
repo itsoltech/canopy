@@ -4,7 +4,8 @@ Status: opis zaimplementowanego kodu (2026-11-19), w tym etapu CLI po aktualizac
 na dostępnych komputerach, aktualizacji globalnych instalacji mise
 i powiązania wyników Update all z konkretną próbą instalacji oraz uruchamiania skryptów CLI
 z katalogów ze spacjami na Windows oraz aktualizacji natywnych instalacji Claude Code
-i Codex Standalone na Windows.
+i Codex Standalone na Windows. Stan trwającej instalacji pochodzi z bieżącego łącza
+workera, a powtórzenie akcji dla tej samej wersji korzysta z wyniku aktywnej próby.
 Dostępność w nightly, beta i stable wynika z promocji opisanych w [release.md](release.md).
 
 Odczyt statusu konta przez oficjalne CLI, jego ograniczenia oraz zasady
@@ -53,7 +54,10 @@ UI (`ui/v1`): `Worker.cli_tools` (`WorkerCliTool`: raport + `latest`, `update_av
 `install`/`update`/pusty, `blocked_reason`, `managed_by`, `running_turns`, `log`), `Worker.arch`, RPC
 `InstallCli` (`worker_id` albo `all_workers`) i `CheckCliUpdates`. BFF: `POST /api/workers/cli/install|check`.
 Raport gateway trzyma w istniejącym JSONB `workers.capabilities.cliTools` (bez migracji), więc wersje offline
-workerów pozostają widoczne. Linie postępu są tylko w pamięci gatewaya (ostatnie 200 na workera i dostawcę).
+workerów pozostają widoczne. Stan `running` obowiązuje dopiero po raporcie na bieżącym łączu;
+zapisany raport trwającej instalacji pokazuje do tego czasu poprzednią wersję.
+Linie postępu są tylko w pamięci gatewaya (ostatnie 200 dla próby workera i dostawcy)
+i pojawiają się przy wyniku lub stanie o tym samym `install_id`.
 Jeżeli instalacja kończy się podczas wykrywania CLI, worker odrzuca wynik rozpoczęty przed jej końcem
 i ponownie odczytuje wersje. Status zakończonej instalacji nie może trafić do raportu ze starą wersją.
 
@@ -237,7 +241,10 @@ zasób `mise:config`, obejmujący aktywację, weryfikację i ewentualny rollback
   samego narzędzia naraz. Różne CLI mogą działać równolegle; worker szereguje tylko wspólny zasób
   przepisu (`CliTool.install_resource`), obejmując też rollback. Pary i limity opisuje
   [centrum aktualizacji](updates.md).
-  Każde uruchomienie trafia do `audit_log` (`worker.cli.install`: dostawca, wersja, poprzednia, metoda).
+  O trwającej instalacji decyduje worker. Powtórne kliknięcie dla tej samej wersji śledzi wynik
+  potwierdzonej aktywnej próby. Worker sygnalizuje ten przypadek kodem `CLI_INSTALL_SAME_TARGET_RUNNING`,
+  a przy innym celu odmawia startu (`CLI_INSTALL_RUNNING`).
+  Każde uruchomienie trafia do `audit_log` (`worker.cli.install`: id próby, dostawca, wersja, poprzednia, metoda).
 - **Trwające tury: odmowa.** Gateway (tury `running` w bazie) i worker (własne tury i tury właśnie przyjmowane)
   odrzucają instalację z komunikatem „… has N running turns on this worker; try again when they finish”; UI
   pokazuje „Waiting for N running turns to finish” i wyłącza przycisk. Nic nie czeka w tle za kliknięciem.

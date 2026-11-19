@@ -136,7 +136,7 @@ export async function coreServe(hostContext: GatewayCore, connection: WorkerConn
         }
 
         case "cliTools":
-          await hostContext.cli.report(workerId, message.payload.value);
+          await hostContext.cli.report(connection, message.payload.value);
           await hostContext.environment.connected(workerId, connection.hello, message.payload.value);
           break;
         case "agentToolsReport":
@@ -146,7 +146,7 @@ export async function coreServe(hostContext: GatewayCore, connection: WorkerConn
           await hostContext.agentTools.progress(workerId, message.payload.value);
           break;
         case "cliInstallProgress":
-          await hostContext.cli.progress(workerId, message.payload.value);
+          await hostContext.cli.progress(connection, message.payload.value);
           break;
         case "modelCatalog": {
           const catalog = message.payload.value;

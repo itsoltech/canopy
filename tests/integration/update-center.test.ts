@@ -171,7 +171,7 @@ function cliReport(gateway: TestGateway, version: string, state = "") {
   }
 
   return gateway.core.cli.report(
-    gateway.workerId,
+    gateway.core.link.connections.get(gateway.workerId)!,
     create(CliToolsReportSchema, {
       os: "linux",
       arch: "x64",
@@ -198,7 +198,7 @@ async function workerCommand(f: Awaited<ReturnType<typeof fixture>>, center = f.
 
 function externalCliReport(gateway: TestGateway) {
   return gateway.core.cli.report(
-    gateway.workerId,
+    gateway.core.link.connections.get(gateway.workerId)!,
     create(CliToolsReportSchema, {
       os: "linux",
       arch: "x64",
