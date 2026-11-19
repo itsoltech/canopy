@@ -2,6 +2,7 @@ import { Pressable, Text, View } from "react-native";
 import { useGlobalSearchParams, usePathname } from "expo-router";
 import { useLayout } from "../../state/layout";
 import type { bots } from "@canopy/contracts";
+import { MarkdownSnippet } from "../../ui/markdown/MarkdownSnippet";
 import { BotAvatar } from "./BotAvatar";
 import { formatAge } from "@canopy/domain/format";
 import { font, styles, useColors } from "../../ui/theme";
@@ -60,7 +61,7 @@ export function BotListItem({ bot }: { bot: bots.Bot }) {
           </View>
           <View style={styles.row}>
             <Text numberOfLines={1} style={[type.meta, { flex: 1, minWidth: 0, color: c.muted }]}>
-              {bot.lastMessage?.text || "Start a conversation"}
+              {bot.lastMessage?.text ? <MarkdownSnippet text={bot.lastMessage.text} /> : "Start a conversation"}
             </Text>
             {bot.unreadCount > 0 && (
               <Animated.View entering={pop.entering} exiting={pop.exiting} style={{ maxWidth: "60%" }}>

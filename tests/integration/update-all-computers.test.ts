@@ -261,7 +261,7 @@ describe.skipIf(!dockerAvailable)("Update all across linked computers with fake 
     expect(a.worker.commands.filter((command) => command.case === "installCli")).toHaveLength(0);
   }, 60_000);
 
-  test("linked apps overlap after their CLIs; duplicate clicks and a restart retain the same run", async () => {
+  test("linked apps overlap, then the local app updates before any CLI; a restart retains the same run", async () => {
     const a = await gateway();
     const b = await gateway();
     const c = await gateway();
@@ -274,11 +274,15 @@ describe.skipIf(!dockerAvailable)("Update all across linked computers with fake 
     const nodeId = await linkGateways(a, b);
     const secondNode = await linkGateways(a, c, "Second computer");
     expect(
-      await eventually(
-        async () =>
-          (await a.api.getUpdates({})).computers[0]?.updates?.cliWorkers.some((worker) => worker.cliTools.length === 2),
-        Boolean,
-      ),
+      await eventually(async () => {
+        const { computers } = await a.api.getUpdates({});
+        const first = computers.find((computer) => computer.nodeId === nodeId)?.updates;
+        const second = computers.find((computer) => computer.nodeId === secondNode)?.updates;
+
+        return (
+          first?.app?.ready && second?.app?.ready && first.cliWorkers.some((worker) => worker.cliTools.length === 2)
+        );
+      }, Boolean),
     ).toBe(true);
 
     const attempts: { installId: string; persistedId: string | undefined }[] = [];
@@ -305,19 +309,44 @@ describe.skipIf(!dockerAvailable)("Update all across linked computers with fake 
 
     expect(await failure(a.api.manageUpdates({ action: "update_all" }))).toContain("Confirm the computer restart");
     const started = await a.api.manageUpdates({ action: "update_all", confirmRestart: true });
-    expect(started.run?.steps.map((step) => step.kind)).toEqual(["cli", "cli", "cli", "computer", "computer", "app"]);
+    expect(started.run?.steps.map((step) => step.kind)).toEqual(["computer", "computer", "app", "cli", "cli", "cli"]);
     const duplicate = await a.api.manageUpdates({ action: "update_all" });
     expect(duplicate.run?.id).toBe(started.run?.id);
-    await tickUntil(a, () => linked.requests.length === 1);
+    await tickUntil(a, () => linked.requests.length === 1 && second.requests.length === 1);
+    expect(own.requests).toEqual([]);
+    expect(attempts).toHaveLength(0);
+    await linked.finish();
+    refreshComputerUpdates(a.core, nodeId);
+    await tickUntil(
+      a,
+      (run) => run?.steps.find((step) => step.nodeId === nodeId && step.kind === "computer")?.state === "succeeded",
+    );
+    expect(own.requests).toEqual([]);
+    expect(attempts).toHaveLength(0);
+    await second.finish();
+    refreshComputerUpdates(a.core, secondNode);
+    await tickUntil(a, () => own.requests.length === 1);
+    expect(attempts).toHaveLength(0);
+    a.core.updateCenter.stop();
+    const resumed = createUpdateCenter(a.core);
+    expect((await resumed.status())?.id).toBe(started.run?.id);
+    await resumed.tick();
+    expect(own.requests).toHaveLength(1);
+    expect(attempts).toHaveLength(0);
+    await own.finish();
     expect(
-      (await a.api.getUpdates({})).run?.steps
-        .filter((step) => step.kind === "cli")
-        .map((step) => [step.state, step.reason]),
-    ).toEqual([
-      ["succeeded", ""],
-      ["succeeded", ""],
-      ["succeeded", ""],
-    ]);
+      await eventually(
+        async () => {
+          await resumed.tick();
+
+          return (await resumed.status())?.state;
+        },
+        (state) => state === "succeeded",
+        15_000,
+      ),
+    ).toBe("succeeded");
+    expect(events.slice(0, 2).sort()).toEqual(["linked app", "second linked app"]);
+    expect(events[2]).toBe("own app");
     expect(events.filter((event) => event.includes(" CLI ")).sort()).toEqual(
       [`local CLI ${Provider.CLAUDE}`, `linked CLI ${Provider.CLAUDE}`, `linked CLI ${Provider.CODEX}`].sort(),
     );
@@ -336,32 +365,12 @@ describe.skipIf(!dockerAvailable)("Update all across linked computers with fake 
       [nodeId, qualifyId(b.workerId, nodeId), Provider.CODEX],
     ]);
     expect(cliSteps?.map((step) => step.requestId).sort()).toEqual(attempts.map((attempt) => attempt.installId).sort());
-    expect(own.requests).toEqual([]);
-    await tickUntil(a, () => second.requests.length === 1);
-    expect(second.requests).toHaveLength(1);
-    await linked.finish();
-    refreshComputerUpdates(a.core, nodeId);
-    await tickUntil(a, () => second.requests.length === 1);
-    expect(own.requests).toEqual([]);
-    await second.finish();
-    refreshComputerUpdates(a.core, secondNode);
-    await tickUntil(a, () => own.requests.length === 1);
-    expect(events.at(-1)).toBe("own app");
-    a.core.updateCenter.stop();
-    const resumed = createUpdateCenter(a.core);
-    expect((await resumed.status())?.id).toBe(started.run?.id);
-    await resumed.tick();
-    expect(own.requests).toHaveLength(1);
-    await own.finish();
-    await resumed.tick();
-    await resumed.tick();
-    expect((await resumed.status())?.state).toBe("succeeded");
     expect(
       (await new UpdateRunStore(a.runtime, a.userId).read())?.steps.every((step) => step.state === "succeeded"),
     ).toBe(true);
   }, 90_000);
 
-  test("one CLI fails without aborting other CLIs or the linked app; retry preserves successful history", async () => {
+  test("a CLI failure preserves the completed linked app and other CLI on retry", async () => {
     const a = await gateway();
     const b = await gateway();
     const events: string[] = [];
@@ -384,18 +393,22 @@ describe.skipIf(!dockerAvailable)("Update all across linked computers with fake 
     refreshComputerUpdates(a.core, nodeId);
     await tickUntil(a, (run) => run?.state === "failed");
     const stopped = (await a.api.getUpdates({})).run!;
-    expect(stopped.steps.map((step) => step.state)).toEqual(["failed", "succeeded", "succeeded"]);
-    expect(stopped.steps[0]?.reason).toContain("Download failed");
+    expect(stopped.steps).toMatchObject([
+      { kind: "computer", state: "succeeded", reason: "" },
+      { kind: "cli", state: "failed" },
+      { kind: "cli", state: "succeeded" },
+    ]);
+    expect(stopped.steps[1]?.reason).toContain("Download failed");
     expect(
       await failure(
-        a.api.manageUpdates({ action: "retry_step", desktopRequestId: crypto.randomUUID(), updateStepIndex: 0 }),
+        a.api.manageUpdates({ action: "retry_step", desktopRequestId: crypto.randomUUID(), updateStepIndex: 1 }),
       ),
     ).toContain("current results");
     a.worker.handlers.set("installCli", async (_value, reply) => {
       await clis(a, ["2.0.0", "2.0.0"], "succeeded");
       reply(true);
     });
-    await a.api.manageUpdates({ action: "retry_step", desktopRequestId: started.run?.id || "", updateStepIndex: 0 });
+    await a.api.manageUpdates({ action: "retry_step", desktopRequestId: started.run?.id || "", updateStepIndex: 1 });
     await tickUntil(a, (run) => run?.state === "succeeded");
     expect(linked.requests).toHaveLength(1);
     expect((await a.api.getUpdates({})).run?.id).toBe(started.run?.id);
@@ -435,7 +448,7 @@ describe.skipIf(!dockerAvailable)("Update all across linked computers with fake 
     await tickUntil(a, (run) => run?.state === "succeeded");
   }, 30_000);
 
-  test("the own-app final step survives a full gateway restart and the app's persisted outcome", async () => {
+  test("the own-app step survives a full gateway restart and the app's persisted outcome", async () => {
     const a = await gateway();
     const app = await fakeApp(a, "own app", []);
     const started = await a.api.manageUpdates({ action: "update_all", confirmRestart: true });

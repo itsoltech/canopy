@@ -1,9 +1,12 @@
 # Canopy na iOS i Android
 
-Status: opis zaimplementowanego kodu (2026-11-19); natywny raport Usage pokazuje
-historię kosztów i skrócone liczby tokenów z gatewaya. Wątki pokazują strumieniowany tekst
-linia po linii, tak jak web i desktop. Pobieranie historii wątku ma osobny stan synchronizacji.
-Na liście Bots czas i licznik są wyrównane przy menu wiersza.
+Status: opis zaimplementowanego kodu (2026-11-19). Wysyłanie wiadomości i start tury
+zachowują położenie rozmowy. Natywny raport Usage pokazuje
+historię kosztów i skrócone liczby tokenów z gatewaya oraz dzienny wykres według dostawcy.
+Wątki pokazują strumieniowany tekst linia po linii, tak jak web i desktop.
+Pobieranie historii wątku ma osobny stan synchronizacji.
+Na liście Bots jednoliniowy podgląd ostatniej wiadomości zachowuje formatowanie Markdown,
+a czas i licznik są wyrównane przy menu wiersza.
 Aktywny czat bota potwierdza odczyt najnowszych wiadomości i odświeża licznik listy Bots.
 Telefon i tablet pozwalają wybrać kolejność zakładek
 i zatrzymać pracę modułu Threads albo Bots na koncie właściciela.
@@ -20,6 +23,7 @@ Telefon automatycznie sprawdza i pobiera zgodne OTA podczas używania aplikacji.
 Propozycje odpowiedzi pomijają wpisy kolejki zużyte przez odczyt agenta lub steer;
 starsze, porzucone notatki platformy nie blokują późniejszych propozycji ([ui-api.md](ui-api.md#proponowane-odpowiedzi)).
 Pole nie powiększa się od kolejnych cykli fokusu i chowania klawiatury.
+Na iOS pierwsze tapnięcie przycisku po wpisaniu tekstu uruchamia jego akcję także przy otwartej klawiaturze.
 Subagenci i kolejka otwierają wspólne arkusze z przewijaną listą zamiast małych popoverów;
 akcja „Steer” ma widoczną etykietę obok ikony.
 Safe area nad wątkiem ma tło chrome nagłówka, karta ma górny odstęp,
@@ -69,8 +73,10 @@ Bezpośredni link do wyłączonej rozmowy otwiera dostępny moduł. Gateway wstr
 automatyzacje wyłączonego modułu również wtedy, gdy aplikacja mobilna jest zamknięta.
 
 Na liście **Bots** nazwa i podgląd wiadomości mają wspólną lewą krawędź i mieszczą się
-po jednej linii. Czas i widoczny licznik są wyrównane do prawej krawędzi treści,
-przed przyciskiem menu. Gdy licznik znika, podgląd odzyskuje jego miejsce,
+po jednej linii. Podgląd zachowuje pogrubienie, kursywę, przekreślenie i krój pisma dla kodu.
+Linki pokazują etykiety, obrazy tekst alternatywny, a komórki tabel i elementy list
+są rozdzielone spacjami. Dotknięcie podglądu otwiera rozmowę. Czas i widoczny licznik
+są wyrównane do prawej krawędzi treści, przed przyciskiem menu. Gdy licznik znika, podgląd odzyskuje jego miejsce,
 a awatar, czas i menu zachowują położenie.
 
 Settings → Threads → Archived threads zawiera przełącznik automatycznego
@@ -263,6 +269,11 @@ Raport pokazuje koszt i liczbę tokenów dla dzisiaj lub ostatnich 7, 30 albo
 dostawcy, modelu, dnia lub żądanej szybkości oraz według aktywności lub bota,
 jeśli gateway zwraca te podziały. Lista źródeł pokazuje stan i początek rejestrowania
 danych z komputerów. Kwoty nieznane i częściowe mają osobne oznaczenia.
+
+Między podsumowaniem a podziałem raportu wykres **Daily trend** pokazuje
+osobną linię dla każdego dostawcy. Początkowo zaznaczony jest ostatni dzień.
+Dotknięcie wykresu lub użycie strzałek wybiera dzień i pokazuje jego sumę oraz
+wartości poszczególnych dostawców. Brak znanego kosztu powoduje przerwę w linii.
 
 Telefon pobiera raport przez `GetUsageStats` po otwarciu ekranu, zmianie filtrów
 lub ręcznym odświeżeniu. Przerywa odczyt po opuszczeniu ekranu lub przejściu
@@ -1486,6 +1497,12 @@ animacji. `keyboardDidHide` kończy pisanie także po pominiętym zdarzeniu stru
 klatek klawiatury. Androidowe pole tekstowe nie przyjmuje animowanych rozmiarów, więc
 animuje się ramka wokół niego.
 
+Na iOS pole tekstowe przejmuje obsługę dotyku przy zmianie zaznaczenia tylko wtedy,
+gdy palec dotyka ekranu. Dzięki temu po wpisaniu znaku pierwsze tapnięcie dociera do
+wybranego przycisku, a przeciąganie uchwytów zaznaczenia nadal należy do pola.
+Poprawka dla React Native 0.88.1 dotyczy wszystkich pól tekstowych
+([zgłoszenie w React Native](https://github.com/react/react-native/issues/58445)).
+
 Podczas pisania (fokus pola) dolny pasek pozostaje widoczny: przycisk załączników, model,
 effort oraz wysyłanie/stop. Chowa się tylko dodatkowy wiersz z workerem, celem i trybem
 uprawnień (`motion.fast`, przy ograniczeniu ruchu od razu). Pole przejmuje wyłącznie jego
@@ -1697,8 +1714,11 @@ Klawiatura zamyka się przed jego pokazaniem, a gest zamknięcia, safe area i og
 pochodzą ze wspólnego kitu. Otwarcie nie zmienia wysokości zasobnika ani rezerwy feedu;
 zwykłe korekty po schowaniu klawiatury pozostają aktywne.
 Nagłówki działają także przy zwiniętym kompozytorze.
-Nad zasobnikiem są wiersze statusu
-(„Syncing…”, sekrety, „Sending…”, błąd wysyłki, komputer offline) i chip zadań w tle.
+Wysyłanie sygnalizuje wskaźnik w przycisku wysyłki. Przy oczekiwaniu na komputer
+komunikat pojawia się w nakładce poza pomiarem kompozytora. „Starting” korzysta
+z nagłówka pracy tury, który po starcie pokazuje czas pracy agenta.
+Nad zasobnikiem są wiersze statusu („Syncing…”, sekrety, błąd wysyłki, komputer offline)
+i chip zadań w tle.
 Wiersze statusu i zasobnik leżą na tle kompozytora z własnym wygaszeniem 16–32 dp, poza pomiarem
 pola dla gestów klawiatury. Pomiar całego stosu obejmuje je w każdym stanie: ostatnią
 wiadomość można przewinąć ponad nakładkę. Przy końcu przesuwa się razem z nimi,

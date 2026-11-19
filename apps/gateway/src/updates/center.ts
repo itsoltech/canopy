@@ -2,8 +2,17 @@ import { create, clone } from "@bufbuild/protobuf";
 import { Code, ConnectError } from "@connectrpc/connect";
 import { ui } from "@canopy/contracts";
 import { plannedUpdateRun } from "@canopy/domain/release/update-plan";
+import { knownUpdateOffline } from "@canopy/domain/release/update-offline";
 import { remoteStepCurrent, remoteStepDismissed } from "./remote-outcome.ts";
-import { pendingUpdate, UPDATE_CONCURRENCY, updateDependencies, updatesConflict } from "./center-scheduling.ts";
+import {
+  dependencyFailureReason,
+  pendingUpdate,
+  retryUpdateSteps,
+  UPDATE_CONCURRENCY,
+  updateDependencies,
+  updatesConflict,
+} from "./center-scheduling.ts";
+import { UpdateReconnects } from "./center-offline.ts";
 import { computerUpdated } from "./computer-completion.ts";
 import { cliStepComplete, cliStepCurrent, stepCli, uncertainCliLaunch } from "./center-cli.ts";
 
@@ -32,6 +41,7 @@ export class UpdateCenter {
   private operation: Promise<void> = Promise.resolve();
   private timer: ReturnType<typeof setInterval> | undefined;
   private ticking: Promise<void> | undefined;
+  private readonly reconnects = new UpdateReconnects();
   private readonly launching = new Map<string, UpdateLaunch>();
   constructor(readonly options: UpdateCenterOptions) {}
 
@@ -69,7 +79,9 @@ export class UpdateCenter {
 
       if (!run.steps.some((step) => step.state === "queued"))
         throw new ConnectError(
-          "No updates Canopy can install. Update externally managed items with their installer.",
+          run.steps.some((step) => knownUpdateOffline(step, snapshot))
+            ? "No updates Canopy can install on the online computers. Reconnect an offline computer and try again."
+            : "No updates Canopy can install. Update externally managed items with their installer.",
           Code.FailedPrecondition,
         );
 
@@ -98,13 +110,11 @@ export class UpdateCenter {
         const launch = this.launching.get(key);
 
         try {
-          if (launch?.settled) {
-            this.launching.delete(key);
-            step.requestId = launch.step.requestId;
-          }
+          if (launch?.settled) step.requestId = launch.step.requestId;
 
           if ((!launch || launch.settled || step.kind === "cli") && (await this.complete(step, snapshot)))
             this.succeed(step);
+          else if (this.reconnects.deferOrSkip(step, key, run, snapshot)) continue;
           else if (launch?.settled && launch.error && !uncertainCliLaunch(step, launch.error)) throw launch.error;
 
           if (step.state === "running" && Date.now() - Date.parse(step.startedAt) > UPDATE_TIMEOUT_MS)
@@ -112,23 +122,27 @@ export class UpdateCenter {
         } catch (cause) {
           this.fail(step, cause);
         }
+
+        if (launch?.settled) this.launching.delete(key);
       }
 
+      this.releaseOfflineLaunches(run, snapshot);
+
       for (const [index, step] of run.steps.entries()) {
-        if (step.state !== "queued") continue;
+        if (step.state !== "queued" || this.reconnects.deferOrSkip(step, `${run.id}/${index}`, run, snapshot)) continue;
         const dependencies = updateDependencies(step, run.steps);
 
         if (dependencies.some(pendingUpdate)) continue;
-        const dependency = dependencies.find((item) => ["failed", "blocked"].includes(item.state));
+
+        const dependency = dependencies.find(
+          (item) =>
+            (["failed", "blocked"].includes(item.state) ||
+              (item.state === "dismissed" && !remoteStepCurrent(item, snapshot))) &&
+            !knownUpdateOffline(item, snapshot),
+        );
 
         if (dependency && ["worker", "cli"].includes(step.kind)) {
-          this.fail(
-            step,
-            new ConnectError(
-              `Update ${dependency.label} successfully before retrying this item.`,
-              Code.FailedPrecondition,
-            ),
-          );
+          this.fail(step, new ConnectError(dependencyFailureReason(dependency), Code.FailedPrecondition));
           continue;
         }
 
@@ -147,26 +161,6 @@ export class UpdateCenter {
           continue;
 
         try {
-          if (
-            step.kind === "desktop" &&
-            dependencies.some((item) => item.kind === "gateway" && item.state === "succeeded") &&
-            snapshot.workers.some(
-              (worker) => worker.workerId === step.workerId && worker.desktop?.connected === false,
-            ) &&
-            !remoteStepCurrent(step, snapshot)
-          ) {
-            // The gateway is ready before every desktop control stream has reconnected.
-            step.startedAt ||= new Date().toISOString();
-
-            if (Date.now() - Date.parse(step.startedAt) > UPDATE_TIMEOUT_MS)
-              throw new ConnectError(
-                "Desktop app is offline. Open Canopy on that computer and reconnect.",
-                Code.FailedPrecondition,
-              );
-
-            continue;
-          }
-
           const install = step.kind === "cli" ? stepCli(step, snapshot)?.install : undefined;
           const following = install?.state === "running" && install.targetVersion === step.version;
 
@@ -210,6 +204,7 @@ export class UpdateCenter {
       }
 
       if (!run.steps.some(pendingUpdate)) {
+        this.reconnects.clear();
         const failed = run.steps.find((item) => ["failed", "blocked"].includes(item.state));
         run.state = failed?.state || "succeeded";
         run.reason = failed ? "Some updates failed. Retry the failed items." : "";
@@ -221,6 +216,16 @@ export class UpdateCenter {
     }).finally(() => {
       this.ticking = undefined;
     }));
+  }
+
+  private releaseOfflineLaunches(run: ui.UpdateRun, snapshot: ui.UpdatesSnapshot) {
+    const active = new Set(
+      run.steps.flatMap((step, index) => (step.state === "running" ? [`${run.id}/${index}`] : [])),
+    );
+
+    // Keep tracking an expected restart: its acknowledgement may still carry the request id.
+    for (const [key, launch] of this.launching)
+      if (!active.has(key) && knownUpdateOffline(launch.step, snapshot)) this.launching.delete(key);
   }
 
   private activeSlots(run: ui.UpdateRun): number {
@@ -435,12 +440,19 @@ export class UpdateCenter {
       if (!run || !steps.length || steps.some((step) => !["failed", "blocked"].includes(step.state)))
         throw new ConnectError("Choose a failed update from the current results.", Code.FailedPrecondition);
 
-      if (steps.some((step) => step.kind === "app") && !confirmRestart)
-        throw new ConnectError("Confirm the computer restart before retrying its app.", Code.FailedPrecondition);
+      const snapshot = await this.options.snapshot();
+      const plan = plannedUpdateRun(snapshot, "").steps;
+      const skipped = new Map<ui.UpdateStep, string>();
+      const retry = retryUpdateSteps(run.steps, steps);
 
-      const plan = plannedUpdateRun(await this.options.snapshot(), "").steps;
+      for (const step of retry) {
+        const offline = knownUpdateOffline(step, snapshot);
 
-      for (const step of steps) {
+        if (offline) {
+          skipped.set(step, offline);
+          continue;
+        }
+
         const current = plan.find(
           (item) =>
             item.kind === step.kind &&
@@ -449,29 +461,22 @@ export class UpdateCenter {
             item.provider === step.provider,
         );
 
-        if (current?.state === "skipped") throw new ConnectError(current.reason, Code.FailedPrecondition);
+        if (current?.state === "skipped") {
+          if (steps.includes(step)) throw new ConnectError(current.reason, Code.FailedPrecondition);
+          skipped.set(step, current.reason);
+        }
       }
 
+      if (!confirmRestart && retry.some((step) => step.kind === "app" && !skipped.has(step)))
+        throw new ConnectError("Confirm the computer restart before retrying its app.", Code.FailedPrecondition);
+
       // Keep the selected versions and successful history. Every launch checks the current owner and target again.
-      for (const step of steps) {
-        step.state = "queued";
-        step.reason = "";
+      for (const step of retry) {
+        step.state = skipped.has(step) ? "skipped" : "queued";
+        step.reason = skipped.get(step) ?? "";
         step.startedAt = "";
-        step.finishedAt = "";
+        step.finishedAt = skipped.has(step) ? new Date().toISOString() : "";
         step.requestId = "";
-
-        for (const item of run.steps) {
-          if (item.state !== "blocked" || item.nodeId !== step.nodeId) continue;
-
-          if (
-            (step.kind === "worker" && item.kind === "cli" && item.workerId === step.workerId) ||
-            step.kind === "gateway"
-          ) {
-            item.state = "queued";
-            item.reason = "";
-            item.finishedAt = "";
-          }
-        }
       }
 
       run.state = "running";

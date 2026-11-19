@@ -1,5 +1,7 @@
 export { isToken, lexMarkdown } from "./lex.ts";
 
+export { snippetTokens } from "./snippet.ts";
+
 export { markdownText } from "./plain.ts";
 
 export { isMathToken, mathExtensions, type MathToken } from "./math.ts";

@@ -1,4 +1,12 @@
-import { hasEffectiveCost, metricNumber, shortCount, type UsageDay, type UsageRow, type UsageView } from "./format.ts";
+import {
+  hasEffectiveCost,
+  metricNumber,
+  metricValue,
+  shortCount,
+  type UsageDay,
+  type UsageRow,
+  type UsageView,
+} from "./usage-report.ts";
 
 // Two intervals on the cost axis need at least one cent each for distinct labels.
 const minimumCostRange = 0.02;
@@ -17,14 +25,25 @@ export interface UsagePoint {
   y: number;
 }
 
+// Older reports can contain a nonzero daily total without a provider breakdown.
+const hasProviderBreakdown = (day: UsageDay) => day.providers.length > 0 || day.amounts.reports === 0n;
+
 function value(day: UsageDay, provider: string, view: UsageView): number | null {
   const part = day.providers.find((row) => row.key === provider);
 
-  if (!part) return day.providers.length || day.amounts.reports === 0n ? 0 : null;
+  if (!part) return hasProviderBreakdown(day) ? 0 : null;
 
   if (view === "cost" && !hasEffectiveCost(part.amounts)) return null;
 
   return metricNumber(part.amounts, view);
+}
+
+export function providerDayValue(day: UsageDay, provider: string, view: UsageView): string {
+  const part = day.providers.find((row) => row.key === provider);
+
+  if (part) return metricValue(part.amounts, view);
+
+  return hasProviderBreakdown(day) ? "No usage" : "Unknown";
 }
 
 function ceiling(peak: number): number {
@@ -34,8 +53,8 @@ function ceiling(peak: number): number {
   return Math.ceil(peak / unit) * unit;
 }
 
-export function pointX(index: number, length: number): number {
-  return length > 0 ? ((index + 0.5) / length) * 1000 : 500;
+export function pointX(index: number, length: number, width = 1000): number {
+  return length > 0 ? ((index + 0.5) / length) * width : width / 2;
 }
 
 /** Monotone cubic interpolation rounds evenly spaced daily points without overshooting their values. */
@@ -46,8 +65,13 @@ function smoothLine(points: UsagePoint[]): string {
 
   if (points.length === 1) return `M${first.x},${first.y} L${first.x},${first.y}`;
 
-  // SAFETY: slicing from index 1 leaves one preceding point for every secant.
-  const slopes = points.slice(1).map((point, index) => (point.y - points[index]!.y) / (point.x - points[index]!.x));
+  const slopes = points.slice(1).map((point, index) => {
+    // SAFETY: slicing from index 1 leaves one preceding point for every secant.
+    const previous = points[index]!;
+    const width = point.x - previous.x;
+
+    return width === 0 ? 0 : (point.y - previous.y) / width;
+  });
 
   const tangents = points.map((_, index) => {
     const before = slopes[index - 1];
@@ -101,7 +125,7 @@ function paths(points: (UsagePoint | null)[]) {
   });
 }
 
-export function plotUsage(days: UsageDay[], providers: UsageRow[], view: UsageView) {
+export function plotUsage(days: UsageDay[], providers: UsageRow[], view: UsageView, width = 1000) {
   const values = providers.map((provider) => ({
     key: provider.key,
     values: days.map((day) => value(day, provider.key, view)),
@@ -114,7 +138,7 @@ export function plotUsage(days: UsageDay[], providers: UsageRow[], view: UsageVi
     maximum,
     series: values.map((series) => {
       const points = series.values.map((value, index) =>
-        value === null ? null : { x: pointX(index, days.length), y: 196 - (value / maximum) * 192 },
+        value === null ? null : { x: pointX(index, days.length, width), y: 196 - (value / maximum) * 192 },
       );
 
       return { key: series.key, points, paths: paths(points) };

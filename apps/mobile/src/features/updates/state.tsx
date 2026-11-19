@@ -40,7 +40,7 @@ function useRunRows(snapshot: ui.UpdatesSnapshot | undefined, optimistic: Optimi
 
   return {
     run,
-    /** An action is pending or Update all runs: row actions wait (this computer restarts last). */
+    /** An action is pending or Update all is running. */
     active: !!pending || run?.state === "running",
     /** A row's badge: the further of its own state, its run step and what the user just started. */
     rowStatus: (key: string, own: UpdateStatus | string) =>

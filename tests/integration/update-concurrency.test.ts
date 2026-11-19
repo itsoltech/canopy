@@ -1,4 +1,4 @@
-import { describe, expect, test } from "bun:test";
+import { describe, expect, setSystemTime, test } from "bun:test";
 import { clone, create } from "@bufbuild/protobuf";
 import { CliInstallMethod, CliInstallStatusSchema, Provider, ui } from "@canopy/contracts";
 import { UpdateCenter } from "../../apps/gateway/src/updates/center.ts";
@@ -17,6 +17,7 @@ function fleet(workers = 3, shared = false) {
     })),
     cliWorkers: Array.from({ length: workers }, (_, index) => ({
       id: `worker-${index}`,
+      online: true,
       name: `Worker ${index}`,
       cliTools: [Provider.CLAUDE, Provider.CODEX].map((provider) => ({
         tool: {
@@ -110,6 +111,21 @@ function fleet(workers = 3, shared = false) {
   };
 }
 
+function linkedApp(snapshot: ui.UpdatesSnapshot) {
+  const peer = create(ui.ComputerUpdateSchema, {
+    nodeId: "peer",
+    name: "Studio",
+    presence: "connected",
+    readState: "fresh",
+    remoteUpdate: true,
+    updates: { gatewayVersion: "2.0.0", app: { connected: true, version: "1.0.0", availableVersion: "2.0.0" } },
+  });
+
+  snapshot.computers.push(peer);
+
+  return peer;
+}
+
 describe("durable update scheduler with gated fake workers", () => {
   test("desktop workers launch alongside binary workers after the gateway restarts", async () => {
     const f = fleet(1);
@@ -166,7 +182,7 @@ describe("durable update scheduler with gated fake workers", () => {
     expect(f.run()?.state).toBe("succeeded");
   });
 
-  test("a desktop waits for its own CLI updates while other workers still install theirs", async () => {
+  test("a desktop restart gates every CLI, including those on a different worker", async () => {
     const f = fleet(2);
     const worker = f.snapshot.workers[1]!;
     worker.installKind = "desktop";
@@ -176,21 +192,24 @@ describe("durable update scheduler with gated fake workers", () => {
       availableVersion: "2.0.0",
     });
     await f.center.begin();
-    f.finish(`worker-1/${Provider.CLAUDE}`);
+    expect(f.run()?.steps[0]).toMatchObject({ kind: "desktop", state: "running" });
+    // The new app version reopens its control stream. The last delivered report may still say waiting_idle.
+    worker.desktop.phase = "waiting_idle";
+    worker.desktop.requestId = "desktop-request";
+    worker.desktop.connected = false;
+    f.snapshot.cliWorkers[1]!.online = false;
     await f.tick();
-    expect(f.run()?.steps.at(-1)?.state).toBe("queued");
-    f.finish(`worker-1/${Provider.CODEX}`);
-    await f.tick();
-    expect(f.run()?.steps.map((step) => step.state)).toEqual([
-      "running",
-      "running",
-      "succeeded",
-      "succeeded",
-      "running",
-    ]);
+    expect(f.started).toEqual([]);
+    expect(f.run()?.steps.filter((step) => step.state === "queued")).toHaveLength(4);
     worker.desktop.version = "2.0.0";
-    f.finish(`worker-0/${Provider.CLAUDE}`);
-    f.finish(`worker-0/${Provider.CODEX}`);
+    worker.desktop.connected = true;
+    await f.tick();
+    expect(f.started).toEqual([`worker-0/${Provider.CLAUDE}`, `worker-0/${Provider.CODEX}`]);
+    f.snapshot.cliWorkers[1]!.online = true;
+    await f.tick();
+    expect(f.started).toHaveLength(4);
+
+    for (const id of f.started) f.finish(id);
     await f.tick();
     expect(f.run()?.state).toBe("succeeded");
   });
@@ -220,19 +239,11 @@ describe("durable update scheduler with gated fake workers", () => {
     f.snapshot.gatewayVersion = "1.0.0";
     f.snapshot.availableVersion = "2.0.0";
     f.snapshot.workers[0]!.version = "1.0.0";
-    f.snapshot.computers.push(
-      create(ui.ComputerUpdateSchema, {
-        nodeId: "peer",
-        name: "Peer",
-        presence: "connected",
-        remoteUpdate: true,
-        updates: { gatewayVersion: "2.0.0", app: { connected: true, version: "1.0.0", availableVersion: "2.0.0" } },
-      }),
-    );
+    const peer = linkedApp(f.snapshot);
     await f.center.begin();
     await f.tick();
     expect(f.started).toEqual(["peer"]);
-    f.snapshot.computers[0]!.updates!.app!.version = "2.0.0";
+    peer.updates!.app!.version = "2.0.0";
     await f.tick();
     expect(f.started).toEqual(["peer", "gateway"]);
     f.snapshot.gatewayVersion = "2.0.0";
@@ -333,7 +344,7 @@ describe("durable update scheduler with gated fake workers", () => {
     expect(f.run()?.steps.filter((step) => step.state === "succeeded")).toHaveLength(5);
   });
 
-  test("independent prefixes overlap and this app starts only after every in-flight update finishes", async () => {
+  test("independent CLI prefixes overlap only after this app finishes", async () => {
     const f = fleet(1, true);
     f.snapshot.cliWorkers[0]!.cliTools[1]!.tool!.installResource = "prefix:/fixture/other";
     f.snapshot.gatewayBundled = true;
@@ -345,15 +356,209 @@ describe("durable update scheduler with gated fake workers", () => {
     });
     await f.center.begin(true);
     await f.tick();
-    expect(f.started).toHaveLength(2);
-    expect(f.started).not.toContain("self");
-    f.finish(f.started[0]!);
+    expect(f.started).toEqual(["self"]);
+    f.snapshot.app.version = "2.0.0";
     await f.tick();
-    expect(f.started).not.toContain("self");
+    expect(f.started).toEqual(["self", `worker-0/${Provider.CLAUDE}`, `worker-0/${Provider.CODEX}`]);
+
+    for (const id of f.started.slice(1)) f.finish(id);
+    await f.tick();
+    expect(f.run()?.state).toBe("succeeded");
+  });
+
+  test("resuming an older CLI-first run finishes its active install before the app and holds the queued CLI", async () => {
+    const f = fleet(1);
+    f.snapshot.app = create(ui.DesktopUpdateStateSchema, {
+      connected: true,
+      version: "1.0.0",
+      availableVersion: "2.0.0",
+    });
+    await f.center.options.write(
+      create(ui.UpdateRunSchema, {
+        id: "previous-run",
+        state: "running",
+        steps: [
+          {
+            kind: "cli",
+            workerId: "worker-0",
+            provider: Provider.CLAUDE,
+            version: "2.0.0",
+            state: "running",
+            startedAt: new Date().toISOString(),
+            requestId: crypto.randomUUID(),
+          },
+          { kind: "cli", workerId: "worker-0", provider: Provider.CODEX, version: "2.0.0", state: "queued" },
+          { kind: "app", version: "2.0.0", state: "queued" },
+        ],
+      }),
+    );
+    await f.tick();
+    expect(f.started).toEqual([]);
+    f.finish(`worker-0/${Provider.CLAUDE}`);
+    await f.tick();
+    expect(f.started).toEqual(["self"]);
+    f.snapshot.app.version = "2.0.0";
+    await f.tick();
+    expect(f.started).toEqual(["self", `worker-0/${Provider.CODEX}`]);
     f.finish(f.started[1]!);
     await f.tick();
-    expect(f.started.at(-1)).toBe("self");
-    expect(f.run()?.steps.at(-1)?.state).toBe("running");
+    expect(f.run()?.state).toBe("succeeded");
+  });
+
+  test("a failed online linked app blocks local CLIs until retrying the app succeeds", async () => {
+    const f = fleet(1);
+    const peer = linkedApp(f.snapshot);
+    const ack = Promise.withResolvers<string>();
+    f.center.options.computer = (nodeId) => {
+      f.started.push(nodeId);
+
+      return ack.promise;
+    };
+
+    await f.center.begin();
+    peer.presence = "restarting";
+    await f.tick();
+    expect(f.run()?.steps[0]?.state).toBe("running");
+    ack.resolve("peer");
+    peer.presence = "connected";
+    const app = peer.updates!.app!;
+    app.requestId = "peer";
+    app.phase = "failed";
+    app.reason = "Download failed";
+    await f.tick();
+    const failed = f.run()!;
+    expect(failed.steps.map((step) => step.state)).toEqual(["failed", "blocked", "blocked"]);
+    expect(f.started).toEqual(["peer"]);
+    app.phase = "checking";
+    await f.center.retry(failed.id, 0);
+    await f.tick();
+    expect(f.started).toEqual(["peer", "peer"]);
+    app.version = "2.0.0";
+    app.phase = "succeeded";
+    await f.tick();
+    expect(f.started.slice(2)).toEqual([`worker-0/${Provider.CLAUDE}`, `worker-0/${Provider.CODEX}`]);
+
+    for (const id of f.started.slice(2)) f.finish(id);
+    await f.tick();
+    expect(f.run()?.state).toBe("succeeded");
+  });
+
+  test("a failed app that goes offline during another app update lets the online CLIs proceed", async () => {
+    const f = fleet(1);
+    const peer = linkedApp(f.snapshot);
+    f.snapshot.gatewayBundled = true;
+    f.snapshot.appUpdateSupported = true;
+    f.snapshot.app = create(ui.DesktopUpdateStateSchema, {
+      connected: true,
+      version: "1.0.0",
+      availableVersion: "2.0.0",
+    });
+    await f.center.begin(true);
+    const app = peer.updates!.app!;
+    app.requestId = "peer";
+    app.phase = "failed";
+    app.reason = "Download failed";
+    await f.tick();
+    expect(f.started).toEqual(["peer", "self"]);
+    expect(f.run()?.steps[0]?.state).toBe("failed");
+    peer.presence = "sleeping";
+    peer.readState = "unavailable";
+    f.snapshot.app.version = "2.0.0";
+    await f.tick();
+    expect(f.started.slice(2)).toEqual([`worker-0/${Provider.CLAUDE}`, `worker-0/${Provider.CODEX}`]);
+
+    for (const id of f.started.slice(2)) f.finish(id);
+    await f.tick();
+    expect(
+      f
+        .run()
+        ?.steps.filter((step) => step.kind === "cli")
+        .map((step) => step.state),
+    ).toEqual(["succeeded", "succeeded"]);
+  });
+
+  test("a linked app that stays disconnected past the restart window releases online CLIs", async () => {
+    const f = fleet(1);
+    const peer = linkedApp(f.snapshot);
+    await f.center.begin();
+    const app = peer.updates!.app!;
+    app.requestId = "peer";
+    app.phase = "waiting_idle";
+    app.connected = false;
+    await f.tick();
+    expect(f.started).toEqual(["peer"]);
+
+    try {
+      setSystemTime(new Date(Date.now() + 6 * 60_000));
+      await f.tick();
+      expect(f.run()?.steps[0]).toMatchObject({ kind: "computer", state: "skipped" });
+      expect(f.started.slice(1)).toEqual([`worker-0/${Provider.CLAUDE}`, `worker-0/${Provider.CODEX}`]);
+
+      for (const id of f.started.slice(1)) f.finish(id);
+      await f.tick();
+      expect(f.run()?.state).toBe("succeeded");
+    } finally {
+      setSystemTime();
+    }
+  });
+
+  test("going offline skips running and queued CLIs and frees the slot before the install ACK", async () => {
+    const f = fleet(5, true);
+    await f.center.begin();
+    expect(f.started).toEqual([0, 1, 2, 3].map((i) => `worker-${i}/${Provider.CLAUDE}`));
+    f.snapshot.cliWorkers[0]!.online = false;
+    await f.tick();
+    const skipped = f.run()!.steps.filter((step) => step.workerId === "worker-0");
+    expect(skipped.map((step) => step.state)).toEqual(["skipped", "skipped"]);
+    expect(skipped.every((step) => step.reason.toLowerCase().includes("offline") && !!step.finishedAt)).toBe(true);
+    expect(f.started.at(-1)).toBe(`worker-4/${Provider.CLAUDE}`);
+
+    for (const id of f.started.slice(1)) f.finish(id);
+    await f.tick();
+
+    for (const id of f.started.slice(5)) f.finish(id);
+    await f.tick();
+    expect(f.started).not.toContain(`worker-0/${Provider.CODEX}`);
+    expect(f.run()?.state).toBe("succeeded");
+    f.finish(f.started[0]!);
+    await f.tick();
+    expect(f.run()!.steps.filter((step) => step.state === "skipped")).toHaveLength(2);
+  });
+
+  test("a sleeping linked computer releases its CLI attempts, while a stale worker report alone does not", async () => {
+    const f = fleet(1, true);
+
+    const peer = create(ui.ComputerUpdateSchema, {
+      nodeId: "peer",
+      name: "Studio",
+      presence: "connected",
+      readState: "fresh",
+      remoteUpdate: true,
+      updates: {
+        gatewayVersion: "2.0.0",
+        workers: f.snapshot.workers.splice(0),
+        cliWorkers: f.snapshot.cliWorkers.splice(0),
+      },
+    });
+
+    f.snapshot.computers.push(peer);
+    await f.center.begin();
+    expect(f.started).toEqual([`worker-0/${Provider.CLAUDE}`]);
+    peer.readState = "stale";
+    peer.updates!.cliWorkers[0]!.online = false;
+    await f.tick();
+    expect(f.run()?.steps.map((step) => step.state)).toEqual(["running", "queued"]);
+    peer.presence = "sleeping";
+    peer.readState = "unavailable";
+    peer.reason = "Studio is asleep.";
+    await f.tick();
+    expect(f.run()?.steps.map((step) => [step.state, step.reason])).toEqual([
+      ["skipped", peer.reason],
+      ["skipped", peer.reason],
+    ]);
+    expect(f.run()?.state).toBe("succeeded");
+    expect(f.started).toEqual([`worker-0/${Provider.CLAUDE}`]);
+    f.gates.get(f.started[0]!)!.resolve();
   });
 
   test("Update all answers with its first steps already running, from the snapshot it planned with", async () => {
