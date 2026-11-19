@@ -16,6 +16,10 @@ import type { HostContext } from "./host-context.ts";
 import { workerDiagnostics } from "../diagnostics/worker.ts";
 import { gatewayToolRefusal } from "./tool-gates.ts";
 
+function isImagePublication(call: AgentToolCall): boolean {
+  return call.toolName === "show_images" && !call.connectorAccountId && !call.botId;
+}
+
 export class HostEvents {
   constructor(readonly ctx: HostContext) {}
   publish(event: ThreadEvent): void {
@@ -132,7 +136,18 @@ export class HostEvents {
       return Promise.resolve(
         create(AgentToolResultSchema, { callId: call.callId, isError: true, content: "Thread closed" }),
       );
-    const refusal = gatewayToolRefusal(call, this.ctx.state.link?.welcome);
+    const { link, toolCalls } = this.ctx.state;
+    const imagePublication = isImagePublication(call);
+
+    if (imagePublication && !link)
+      return Promise.resolve(
+        create(AgentToolResultSchema, {
+          callId: call.callId,
+          isError: true,
+          content: "The gateway is offline. Try again when the connection returns.",
+        }),
+      );
+    const refusal = gatewayToolRefusal(call, link?.welcome);
 
     if (refusal) return Promise.resolve(refusal);
 
@@ -159,7 +174,7 @@ export class HostEvents {
       };
 
       // The same call asked twice (provider retry) shares one gateway round trip.
-      const pending = this.ctx.state.toolCalls.get(call.callId);
+      const pending = toolCalls.get(call.callId);
 
       if (pending) {
         const first = pending.resolve;
@@ -168,9 +183,35 @@ export class HostEvents {
         return;
       }
 
-      this.ctx.state.toolCalls.set(call.callId, { call, resolve: finish });
-      this.ctx.ops.send({ case: "agentToolCall", value: call });
+      toolCalls.set(call.callId, { call, resolve: finish });
+
+      if (imagePublication && link) {
+        // Unlike replayable waits, image transfer is bound to the gateway connection that started it.
+        try {
+          link.send({ case: "agentToolCall", value: call });
+        } catch {
+          this.toolResult(disconnectedImageResult(call.callId));
+        }
+      } else this.ctx.ops.send({ case: "agentToolCall", value: call });
     });
+  }
+
+  detachGateway(link: GatewayLink): boolean {
+    if (this.ctx.state.link !== link) return false;
+    this.ctx.state.link = undefined;
+
+    for (const { call } of this.ctx.state.toolCalls.values())
+      if (isImagePublication(call)) this.toolResult(disconnectedImageResult(call.callId));
+
+    return true;
+  }
+
+  toolResult(result: AgentToolResult): void {
+    const pending = this.ctx.state.toolCalls.get(result.callId);
+
+    if (!pending) return;
+    this.ctx.state.toolCalls.delete(result.callId);
+    pending.resolve(result);
   }
 
   send(payload: Parameters<GatewayLink["send"]>[0]): void {
@@ -184,4 +225,13 @@ export class HostEvents {
   log(message: string): void {
     this.ctx.state.options.log?.(message);
   }
+}
+
+function disconnectedImageResult(callId: string): AgentToolResult {
+  return create(AgentToolResultSchema, {
+    callId,
+    isError: true,
+    content:
+      "Lost the connection to the gateway. Canopy could not confirm that the images were published. Check the thread before trying again.",
+  });
 }

@@ -331,9 +331,10 @@ Obsługiwane wejście i ograniczenia backendów: [automation-tools.md](automatio
 
 ### Trwałe odpowiedzi obrazami
 
-Status (2026-11-18): publikacja i jawny eksport z Temp profilu Windows przez
-wbudowanego workera w trybie lokalnym są zaimplementowane. Dostępność kanałów
-wynika z [release.md](release.md).
+Status (2026-11-19): publikacja, jawny eksport z Temp profilu Windows przez
+wbudowanego workera w trybie lokalnym i szybki błąd po utracie połączenia
+podczas `show_images` są zaimplementowane. Dostępność kanałów wynika
+z [release.md](release.md).
 
 Addytywna capability `thread_image_replies_v1` dopuszcza nietrwałe
 `ExportThreadImage` (`Command.export_thread_image = 231`) i
@@ -380,6 +381,10 @@ w jednej transakcji. Call ID daje ten sam wynik także po restarcie i usunięciu
 źródła. Manifest nie zawiera bajtów ani ścieżek workera; przyrostowy sync
 korzysta z istniejącej osi czasu. Worker nie może tworzyć ani nadpisywać
 gatewayowych itemów galerii przez własne zdarzenia.
+
+Po zamknięciu WorkerLink worker kończy oczekujące jawne `show_images` lokalnym
+błędem i usuwa je z kolejki ponowień. Błąd oznacza brak potwierdzenia, ponieważ
+gateway mógł zapisać galerię przed utratą odpowiedzi.
 
 Zakończona wiadomość agenta może zawierać lokalne obrazy Markdown. Worker
 wysyła wewnętrzne `import_image_reply({item_id})` po zdarzeniu zakończenia

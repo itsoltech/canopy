@@ -27,8 +27,9 @@ samego modelu i instancji. Inny model dziedziczy przyspieszony tryb tylko wtedy,
 gdy jego katalog go obsługuje; zmiana instancji przywraca jej domyślną prędkość.
 Brak katalogu nie uprawnia do wyboru niepotwierdzonego trybu przyspieszonego.
 
-Status (2026-11-17): Claude daje `show_images` 15 min, zachowując 330 s dla pozostałych wywołań do gatewaya;
-na `dev` wspólny limit automatycznego łańcucha wynosi 256
+Status (2026-11-19): Claude daje `show_images` 15 min, zachowując 330 s dla pozostałych wywołań do gatewaya.
+Po utracie połączenia worker od razu kończy oczekujące `show_images` błędem.
+Na `dev` wspólny limit automatycznego łańcucha wynosi 256
 kroków, z jawnym komunikatem o możliwości kontynuacji po wiadomości użytkownika;
 `close_thread` korzysta ze wspólnego sprzątania zasobów
 archiwizowanego wątku; doprecyzowania między rodzicem i pracującym subagentem domyślnie
@@ -53,7 +54,7 @@ i etykiety. Poświadczenia dostawcy nigdy nie trafiają do workera.
 - wyłączanie natywnych narzędzi dostawców: `apps/worker/src/providers/native-tools.ts`, z testem na prawdziwym Codexie,
 - definicje narzędzi, zestawy per poziom i reguły dostępu: `packages/domain/src/agent-bus`,
 - schemat: `agent_bus_calls`, `schedules`, `threads.spawned_by_call_id`, `threads.interaction_route`, `interaction_requests.routed_to`, `turns.hops` i wyzwalacze tur (migracja `0004` dopuszcza odrzucone `spawn_thread`/`send_message` bez `hops`),
-- worker: narzędzia jako `dynamicTools` Codexa przy `thread/start` (`codexAgentBusTools`), wywołania jako `AgentToolCall` z deterministycznym `call_id` (`toolCallId`), ponawiane po ponownym połączeniu,
+- worker: narzędzia jako `dynamicTools` Codexa przy `thread/start` (`codexAgentBusTools`), wywołania jako `AgentToolCall` z deterministycznym `call_id` (`toolCallId`), ponawiane po ponownym połączeniu z wyjątkiem [`show_images`](agent-visuals.md#import-przechowywanie-i-awarie),
 - gateway: `AgentBus` (`apps/gateway/src/core/agent-bus.ts`) i `AgentBusStore` (`apps/gateway/src/store/agent-bus.ts`): dekodowanie, fakty z bazy, `authorizeBusCall`, wykonanie, powiadomienia, pytania do rodzica,
 - testy: `tests/integration/agent-bus.test.ts` (gateway + skryptowany worker), `codex dynamic tools (live)` w `app-server.live.test.ts`.
 

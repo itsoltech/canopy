@@ -49,8 +49,8 @@ export type { WorkerHostOptions } from "./host-types.ts";
  *   including instances without environment variables. Unchanged instances keep running.
  * - Commands: answered once; final results are remembered in the journal for redelivery.
  * - Events: journal first (inside the runtimes), then sent when the link is up.
- * - Interactions and agent bus tool calls: forwarded to the gateway, re-sent after reconnect until
- *   answered (the gateway answers a re-sent call from its stored result).
+ * - Interactions and replayable agent bus tool calls are re-sent after reconnect until answered.
+ *   Pending show_images calls return a local error when the link drops.
  * - Model catalog: listed after every applied config (no model turn), sent as ModelCatalog and
  *   re-sent after a reconnect; ListModels lists again on request.
  * - Background tasks die with their provider process: after a crash (recover: worker_lost) or a runtime restart
@@ -204,9 +204,7 @@ export class WorkerHost {
   }
 
   detach(link: GatewayLink): void {
-    if (this.#ctx.state.link === link) {
-      this.#ctx.state.link = undefined;
-
+    if (this.#ctx.ops.detachGateway(link)) {
       // These transient commands can only report to the link that requested them.
       for (const abort of this.#ctx.state.generationRequests.values()) abort.abort();
       this.previews.detach(link);
@@ -293,11 +291,7 @@ export class WorkerHost {
   }
 
   handleAgentToolResult(result: AgentToolResult): void {
-    const pending = this.#ctx.state.toolCalls.get(result.callId);
-
-    if (!pending) return;
-    this.#ctx.state.toolCalls.delete(result.callId);
-    pending.resolve(result);
+    this.#ctx.ops.toolResult(result);
   }
 
   /**

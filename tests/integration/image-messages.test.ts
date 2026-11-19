@@ -2,7 +2,7 @@ import { afterAll, beforeAll, describe, expect, test } from "bun:test";
 import { mkdirSync, unlinkSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { create } from "@bufbuild/protobuf";
-import { ItemSchema, Provider, type Item } from "@canopy/contracts";
+import { ItemSchema, Provider, type AgentToolResult, type Item } from "@canopy/contracts";
 import { dockerAvailable } from "@canopy/db/testing";
 import { GatewayStore } from "@canopy/gateway/store";
 import { tempDirs } from "@canopy/testing";
@@ -327,6 +327,41 @@ describe.skipIf(!dockerAvailable)("image replies through the real WorkerHost and
     expect(galleries[0]?.content.case === "imageGallery" && galleries[0].content.value.images[0]?.alt).toBe(
       "Published by the worker",
     );
+  }, 30_000);
+
+  test("show_images unblocks the provider before reconnect when a committed result is lost", async () => {
+    const handle = host.handleAgentToolResult.bind(host);
+    let dropped: AgentToolResult | undefined;
+    let disconnected = false;
+    host.handleAgentToolResult = (result) => {
+      dropped = result;
+    };
+
+    const pending = reply("Continued after the image tool returned.", true);
+
+    try {
+      const receipt = await eventually(async () => dropped, Boolean);
+      expect(receipt).toMatchObject({ isError: false, content: expect.stringContaining('"delivered":true') });
+      link.close();
+      disconnected = true;
+      await serving;
+
+      const running = await eventually(
+        async () => host.runningTurns(),
+        (turns) => turns.length === 0,
+        2_000,
+      );
+
+      expect(running).toEqual([]);
+    } finally {
+      host.handleAgentToolResult = handle;
+
+      if (disconnected) await connect();
+      await pending;
+    }
+
+    const result = await pending;
+    expect(result.items.filter((item) => item.content.case === "imageGallery")).toHaveLength(1);
   }, 30_000);
 
   test("worker-authored manifests are quarantined and changed source text loses its saved-image binding", async () => {

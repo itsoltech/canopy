@@ -142,8 +142,8 @@ export async function serveLink(
     }
   } finally {
     workerTracing.close();
-    await logs?.close();
     host.detach(link);
+    await logs?.close();
   }
 
   return drainDelayMs === undefined ? {} : { drainDelayMs };

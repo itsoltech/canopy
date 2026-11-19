@@ -1,8 +1,9 @@
 # Obrazy w odpowiedziach i interaktywne visuals
 
-Status (2026-11-18): **obrazy, `render_visual` i `render_html` zaimplementowane** w web/desktop/mobile.
+Status (2026-11-19): **obrazy, `render_visual` i `render_html` zaimplementowane** w web/desktop/mobile.
 Na Windows w trybie lokalnym `show_images` obsługuje też katalog Temp profilu użytkownika.
-Claude ma 15-minutowy limit wywołania `show_images`.
+Claude ma 15-minutowy limit wywołania `show_images`. Worker zwraca błąd od razu
+po wykryciu utraty połączenia podczas oczekiwania na wynik.
 Własny HTML na desktopie ma interaktywny podgląd w rozmowie z odizolowanego procesu.
 Interaktywny podgląd lokalnej automatyzacji w wątku web/desktop również jest
 zaimplementowany. Galerie `show_images` pojawiają się po zakończeniu ich tury.
@@ -152,9 +153,12 @@ obrazów jako JSON/base64 w `AgentToolCall` lub `WatchThread`. Porcje eksportu
 mają najwyżej 256 KiB, najwyżej dwa importy na worker i jeden na wątek;
 timeout operacji 60 s, bezczynności 10 s. Rezerwacja obejmuje dane wejściowe
 i wynik po przetworzeniu. Limity obowiązują przed alokacją i podczas strumienia.
-Snapshot eksportu przeżywa reconnect do końca operacji; receipt przeżywa restart
-gatewaya. Replay zwraca te same ID, bez drugiej galerii. Brak jednego pliku
-odrzuca całą partię z indeksem błędu; nie ma cichej częściowej publikacji.
+Rozłączenie zamyka snapshot eksportu. Oczekujące `show_images` kończy się
+lokalnym błędem z informacją, że publikacja mogła już zostać zapisana.
+Agent powinien sprawdzić wątek przed ponowieniem. Worker nie odsyła tego
+wywołania po reconnect. Zapisany receipt przeżywa restart gatewaya i przy
+powtórzeniu tego samego ID zwraca tę samą galerię. Brak jednego pliku odrzuca
+całą partię z indeksem błędu; nie ma cichej częściowej publikacji.
 
 Galeria i kopie żyją zgodnie z retencją wątku, niezależnie od usunięcia źródła
 lub worktree. Usunięcie wątku odbiera dostęp od razu; blob GC zachowuje pliki
