@@ -1,5 +1,8 @@
 # Szyna agentów: delegowanie, interakcje, harmonogram
 
+Status odczytu HEIC (2026-11-19): zaimplementowany na workerze dla `view_image`
+i podglądów transkryptu. Dostępność w kanałach według [release.md](release.md).
+
 Status połączenia z botami (2026-11-18): zaimplementowane w kodzie. Wyłączenie
 Threads albo Bots przez właściciela blokuje komunikację wątek ↔ bot, także przez
 łącze komputerów. Przy włączonym Threads i wyłączonym Bots szyna nadal
@@ -631,7 +634,7 @@ Narzędzie platformy, które worker wykonuje sam (nie jest wywołaniem szyny, ni
 - **Claude:** `mcp__canopy__view_image` w tym samym serwerze MCP co szyna, w `allowedTools` (każdy tryb uprawnień).
 - **Codex:** narzędzie dynamiczne w przestrzeni nazw `canopy` (`view_image`), bo Codex ma wbudowane narzędzie o tej nazwie. Jak szyna: tylko w `thread/start`, więc wątki utworzone przed tą zmianą go nie mają (mają natywne `view_image` Codexa). Na żywo model wywołał je przez tryb kodu (`tools.view_image(...)`).
 - Argument `path`: ścieżka absolutna albo względna do `cwd` wątku. Ścieżka jest rozwiązywana (`realpath`, także dowiązania) i musi leżeć w `cwd` wątku albo w jego katalogu załączników; plik najwyżej 50 MB.
-- Wynik: obraz (Claude: treść MCP `image`; Codex: `inputImage` z adresem `data:`) i linijka z wymiarami. Obraz jest obrócony według EXIF, bez metadanych, zmniejszony do 2000 px dłuższego boku i do ~3,75 MB (PNG dla przezroczystości, inaczej JPEG; mniejsze rozmiary, aż się zmieści), więc działa dla każdego modelu niezależnie od jego limitów. Czyta PNG, JPEG, GIF (pierwsza klatka), WebP, AVIF, TIFF; HEIC tylko tam, gdzie libvips go dekoduje.
+- Wynik: obraz (Claude: treść MCP `image`; Codex: `inputImage` z adresem `data:`) i linijka z wymiarami. Obraz jest obrócony według EXIF, bez metadanych, zmniejszony do 2000 px dłuższego boku i do ~3,75 MB (PNG dla przezroczystości, inaczej JPEG; mniejsze rozmiary, aż się zmieści), więc działa dla każdego modelu niezależnie od jego limitów. Czyta PNG, JPEG, GIF (pierwsza klatka), WebP, AVIF, TIFF i HEIC. Gdy libvips odczyta nagłówek HEIC, ale brakuje mu dekodera HEVC, worker dekoduje zdjęcie do pikseli dołączonym modułem WebAssembly. Działa to także dla starszych załączników zapisanych jako plik.
 - Błąd (poza katalogami, brak pliku, nie obraz) wraca do modelu jako błąd narzędzia z powodem.
 - Na osi czasu: item `image` (`source = view_image`, `path`, `width`/`height` tego, co zobaczył model, `original_width`/`original_height`, przy błędzie `detail`) z podglądem (`Image.blob`) — dokładnie bajty, które dostał model.
 
