@@ -29,35 +29,22 @@ jobs:
     runs-on: ubuntu-24.04
     timeout-minutes: 5
     outputs:
-      full: ${{ steps.changes.outputs.full }}
+      scope: ${{ github.event_name != 'pull_request' && 'full' || steps.changes.outputs.scope }}
+      web: ${{ steps.changes.outputs.web }}
+      desktop: ${{ steps.changes.outputs.desktop }}
+      extra_tests: ${{ steps.changes.outputs.extra_tests }}
     steps:
       - uses: actions/checkout@v5
+        if: github.event_name == 'pull_request'
         with:
-          ref: ${{ inputs.revision || github.sha }}
           fetch-depth: 0
       - id: changes
+        if: github.event_name == 'pull_request'
         env:
-          IS_PR: ${{ github.event_name == 'pull_request' }}
           BASE: ${{ github.event.pull_request.base.sha }}
           HEAD: ${{ github.event.pull_request.head.sha }}
         shell: bash
-        run: |
-          full=true
-          if [ "$IS_PR" = true ]; then
-            # Include both sides of renames: moving code to a .md path must still run everything.
-            git diff --no-renames --name-only -z "$BASE" "$HEAD" > "$RUNNER_TEMP/changed-files"
-            if [ -s "$RUNNER_TEMP/changed-files" ]; then
-              full=false
-              while IFS= read -r -d '' file; do
-                case "$file" in
-                  .github/*) full=true ;;
-                  *.md|docs/*.png|docs/*.jpg|docs/*.jpeg|docs/*.webp|docs/*.gif|docs/*.svg) ;;
-                  *) full=true ;;
-                esac
-              done < "$RUNNER_TEMP/changed-files"
-            fi
-          fi
-          echo "full=$full" >> "$GITHUB_OUTPUT"
+        run: bash .github/scripts/select-checks.sh
 
   static:
     name: Static checks
@@ -79,10 +66,37 @@ jobs:
       - name: Formatting
         run: bun run format:check
 
+  clients:
+    name: Affected client checks
+    needs: changes
+    if: needs.changes.outputs.scope == 'clients'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 24
+      - uses: ./.github/actions/setup-bun
+      - run: docker pull --quiet postgres:17
+      - name: Tests affected by the PR
+        env:
+          BASE: ${{ github.event.pull_request.base.sha }}
+          EXTRA_TESTS: ${{ needs.changes.outputs.extra_tests }}
+        run: bun scripts/test-affected.ts "$BASE"
+      - name: Build the web UI used by browsers and desktop
+        if: needs.changes.outputs.web == 'true'
+        run: bun scripts/build-web.ts
+      - name: Build the Electron shell
+        if: needs.changes.outputs.desktop == 'true'
+        run: bun run --filter @canopy/desktop build:shell
+
   tests:
     name: Tests (${{ matrix.shard }}/8)
     needs: changes
-    if: needs.changes.outputs.full == 'true'
+    if: needs.changes.outputs.scope == 'full'
     runs-on: ubuntu-24.04
     timeout-minutes: 20
     strategy:
@@ -121,7 +135,7 @@ jobs:
   builds:
     name: Web and Linux binaries
     needs: changes
-    if: needs.changes.outputs.full == 'true'
+    if: needs.changes.outputs.scope == 'full'
     runs-on: ubuntu-24.04
     timeout-minutes: 15
     steps:
@@ -242,7 +256,7 @@ jobs:
 
   check:
     name: Typecheck, tests, builds
-    needs: [changes, static, tests, builds, native]
+    needs: [changes, static, clients, tests, builds, native]
     if: always()
     runs-on: ubuntu-24.04
     timeout-minutes: 5
@@ -254,34 +268,35 @@ jobs:
           TESTS: ${{ needs.tests.result }}
           BUILDS: ${{ needs.builds.result }}
           NATIVE: ${{ needs.native.result }}
-          FULL: ${{ needs.changes.outputs.full }}
+          CLIENTS: ${{ needs.clients.result }}
+          SCOPE: ${{ needs.changes.outputs.scope }}
         run: |
           test "$CHANGES" = success
           test "$STATIC" = success
-          if [ "$FULL" = true ]; then
-            test "$TESTS" = success
-            test "$BUILDS" = success
-            test "$NATIVE" = success
-          else
-            test "$FULL" = false
-            test "$TESTS" = skipped
-            test "$BUILDS" = skipped
-            test "$NATIVE" = skipped
-          fi
+          case "$SCOPE" in
+            full) expected_full=success; expected_clients=skipped ;;
+            clients) expected_full=skipped; expected_clients=success ;;
+            docs) expected_full=skipped; expected_clients=skipped ;;
+            *) exit 1 ;;
+          esac
+          test "$CLIENTS" = "$expected_clients"
+          test "$TESTS" = "$expected_full"
+          test "$BUILDS" = "$expected_full"
+          test "$NATIVE" = "$expected_full"
       - uses: actions/checkout@v5
-        if: needs.changes.outputs.full == 'true'
+        if: needs.changes.outputs.scope == 'full'
         with:
           ref: ${{ inputs.revision || github.sha }}
       - uses: ./.github/actions/setup-bun
-        if: needs.changes.outputs.full == 'true'
+        if: needs.changes.outputs.scope == 'full'
         with:
           install: "false"
       - uses: actions/download-artifact@v5
-        if: needs.changes.outputs.full == 'true'
+        if: needs.changes.outputs.scope == 'full'
         with:
           pattern: test-profile-*
           merge-multiple: true
           path: ${{ runner.temp }}/test-profiles
       - name: Every test file actually ran exactly once
-        if: needs.changes.outputs.full == 'true'
+        if: needs.changes.outputs.scope == 'full'
         run: bun scripts/test-shards.ts --verify-reports "${{ runner.temp }}/test-profiles"

@@ -1,6 +1,6 @@
 # Canopy Desktop
 
-Status: opis zaimplementowanego runtime i pakowania (2026-11-18), w tym ponawiania
+Status: opis zaimplementowanego runtime i pakowania (2026-11-19), w tym selektywnego CI dla powłoki Electron, ponawiania
 startu lokalnego gatewaya po serii nieoczekiwanych wyjść, osobnego okna
 stanu zamykania i restartu do aktualizacji oraz ponawiania
 pakowania macOS i Windows w CI, menu ścieżek plików z rozmowy
@@ -578,12 +578,14 @@ Skrypt pakowania w razie zmiany kanału odświeża shell i ikonę, zachowując z
 | Linux x64 | `ubuntu-24.04` | `linux-x64` | AppImage, deb | build + run AppImage |
 | Linux arm64 | `ubuntu-24.04-arm` lub natywny self-hosted ARM64 | `linux-arm64` | AppImage, deb | niewykonana |
 | macOS arm64 | `macos-15` lub self-hosted Apple Silicon | `darwin-arm64` | dmg, zip | niewykonana |
-| Windows x64 | `windows-2025` | `windows-x64` | NSIS `.exe` + `.blockmap`, feed kanału; Azure Trusted Signing | build, instalacja i smoke sidecarów w PR CI |
+| Windows x64 | `windows-2025` | `windows-x64` | NSIS `.exe` + `.blockmap`, feed kanału; Azure Trusted Signing | build, instalacja i smoke sidecarów w workflow wydania |
 
 Linux x64, macOS arm64 i Windows x64 są pełnymi celami każdego kanału: nightly,
 beta i stable. Linux arm64 pozostaje eksperymentalny (`continue-on-error`): beta
 i stable budują go zawsze, nightly tylko z `desktop_all_targets: true`.
-Windows buduje się, podpisuje i weryfikuje tylko w wydaniu (`release.yml`); PR-y go nie budują.
+PR-y ze zmianami powłoki Electron lub wspólnego interfejsu web uruchamiają
+[sprawdzenia dotkniętych klientów](release.md#workflowy-github-actions). Podpisany instalator
+Windows buduje i weryfikuje workflow wydania (`release.yml`).
 Workflow `desktop-windows.yml` uruchamiany ręcznie (`workflow_dispatch`) buduje
 Windows na `windows-2025`, wymaga sekretów Azure i kontroli podpisów.
 Instaluje NSIS i uruchamia zainstalowane
