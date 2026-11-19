@@ -122,8 +122,7 @@ const make = (options: CodexThreadsOptions, setRoute: (handler: ServerRequestHan
       journal,
       byPlatform: new Map(),
       byCodex: new Map(),
-      connectorCatalog: new Map(),
-      automationCatalog: new Map(),
+      mcpSpecs: new Map(),
       failure: undefined,
     };
 

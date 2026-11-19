@@ -65,7 +65,7 @@ export function isViewImageCall(call: { namespace?: string | null; tool: string 
 }
 
 export function serverRequestHandler(ctx: CodexThreadContext): ServerRequestHandler {
-  const { options, byCodex, connectorCatalog } = ctx;
+  const { options, byCodex, mcpSpecs } = ctx;
 
   return async (request) => {
     const params = Schema.decodeUnknownSync(
@@ -163,7 +163,7 @@ export function serverRequestHandler(ctx: CodexThreadContext): ServerRequestHand
             itemId: call.callId,
             toolName: call.tool,
             connectorAccountId:
-              connectorCatalog.get(entry.platformId)?.find((t) => t.name === call.tool)?.accountId ?? "",
+              mcpSpecs.get(entry.platformId)?.connectorTools.find((t) => t.name === call.tool)?.accountId ?? "",
             argumentsJson: JSON.stringify(call.arguments ?? {}),
           }),
         );

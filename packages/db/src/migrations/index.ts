@@ -7,6 +7,7 @@ import botThreadQuestions from "./0168_bot_thread_questions.sql" with { type: "t
 import threadWorktreePreparation from "./0167_thread_worktree_preparation.sql" with { type: "text" };
 import botChatSteer from "./0169_bot_chat_steer.sql" with { type: "text" };
 import scheduleWorktreePreparations from "./0174_schedule_worktree_preparations.sql" with { type: "text" };
+import messageDelegatingBot from "./0176_message_delegating_bot.sql" with { type: "text" };
 import botExecutionStart from "./0175_bot_execution_start.sql" with { type: "text" };
 import moduleGoalResume from "./0173_module_goal_resume.sql" with { type: "text" };
 import slackAttachments from "./0170_slack_attachments.sql" with { type: "text" };
@@ -364,6 +365,7 @@ export const migrations = Migrator.fromRecord({
   "0173_module_goal_resume": sqlFile(moduleGoalResume),
   "0174_schedule_worktree_preparations": sqlFile(scheduleWorktreePreparations),
   "0175_bot_execution_start": sqlFile(botExecutionStart),
+  "0176_message_delegating_bot": sqlFile(messageDelegatingBot),
 });
 
 /** Applies pending migrations in a transaction with a lock, safe to call from a deploy step. */

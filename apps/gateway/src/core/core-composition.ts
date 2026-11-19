@@ -84,6 +84,12 @@ export function createCoreBus(core: GatewayCore): AgentBus {
     },
     steered: (steerId) => coreSendSteer(core, steerId),
     interaction: (interaction) => corePublishInteraction(core, interaction),
+    messageDelegatingBot: async (source, text) => {
+      const result = await core.bots.run((s) => s.messageDelegatingBot(core[coreState].options.userId, source, text));
+      void core.bots.tick().catch(() => coreLog(core, "bots: queue wake failed"));
+
+      return result;
+    },
     requestSecret: (source, args) => core.secrets.request(source, args),
     showImages: (source, caller, args) => publishThreadImages(core, source, caller, args),
     importImageReply: (source, caller, itemId) => importImageReply(core, source, caller, itemId),

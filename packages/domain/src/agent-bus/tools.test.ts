@@ -55,7 +55,9 @@ describe("agent bus tool specs", () => {
 
 describe("tool sets per level", () => {
   test("main thread gets everything; side threads cannot spawn, control or answer for others", () => {
-    expect([...agentBusToolsFor(0)].sort() as string[]).toEqual(Object.keys(AGENT_BUS_TOOLS).sort());
+    expect(agentBusToolsFor(0)).not.toContain("message_delegating_bot");
+    expect(agentBusToolsFor(1, true)).toContain("message_delegating_bot");
+    expect([...agentBusToolsFor(0, true)].sort() as string[]).toEqual(Object.keys(AGENT_BUS_TOOLS).sort());
     expect(agentBusToolsFor(1).sort()).toEqual([
       "ask_user",
       "cancel_pr_watch",
@@ -103,6 +105,8 @@ describe("decodeAgentBusCall", () => {
   });
 
   test("rejects unknown tools, invalid JSON, unknown properties and out-of-range values", () => {
+    expect(failure("message_delegating_bot", { text: "  " })).toContain("text");
+    expect(failure("message_delegating_bot", { text: "Update", bot_id: THREAD })).toContain("excess property");
     expect(failure("spawn_agent", {})).toContain("unknown agent bus tool");
     expect(failureOf("get_thread", "{oops")).toContain("not valid JSON");
     expect(failure("get_thread", { thread_id: THREAD, extra: 1 })).toContain("excess property");

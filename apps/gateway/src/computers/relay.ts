@@ -76,12 +76,14 @@ type Grant = { recipient_node_id: string; home_node_id: string };
 const key = (recipient: string, home: string) => `${recipient}:${home}`;
 const revoked = () => new ConnectError("Share onward access was revoked", Code.PermissionDenied);
 
-/** Reverse access exists only for already-authorized agent questions/reports.
+/** Reverse access exists only for already-authorized agent callbacks.
  * LinkedAgents.receive checks the original call, actor and target at its home. */
 export function relayCallback(method: DescMethod, request: Message): boolean {
   return (
     method.name === "CallAgentBus" &&
-    ["question", "report"].includes(linkedMessage(link.LinkedAgentCallSchema, request).operation)
+    ["question", "report", "message_delegating_bot"].includes(
+      linkedMessage(link.LinkedAgentCallSchema, request).operation,
+    )
   );
 }
 

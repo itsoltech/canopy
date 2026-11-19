@@ -1,3 +1,5 @@
+import type { Query } from "@anthropic-ai/claude-agent-sdk";
+import { claudeConnectorRefresh } from "./connector-mcp.ts";
 import type { ConnectorTool, ThreadSpec } from "@canopy/contracts";
 import { automationMcp, automationMcpKey } from "../local-automation.ts";
 import { CLAUDE_VIEW_IMAGE_TOOL, claudeBusServer, claudeBusToolNames } from "./bus.ts";
@@ -12,44 +14,53 @@ export function claudeSessionMcp(
   turnId: () => string,
   calls: Map<string, string[]>,
 ) {
-  let key = automationMcpKey(spec);
+  let automationKey = automationMcpKey(spec);
+  let hasDelegatingBot = spec.enableAgentBus && spec.hasDelegatingBot;
   let automation = automationMcp(options, spec, turnId);
 
+  const servers = (tools: readonly ConnectorTool[]) => ({
+    [BUS_SERVER]: claudeBusServer({
+      threadId: spec.threadId,
+      depth: spec.depth,
+      hasDelegatingBot,
+      agentBus: spec.enableAgentBus,
+      connectorTools: tools,
+      turnId,
+      toolUseId: (tool, args) => calls.get(callKey(tool, args))?.shift(),
+      callTool: options.callTool,
+      ...(options.viewImage && { viewImage: (path: string) => options.viewImage!(spec.threadId, spec.cwd, path) }),
+    }),
+    ...Object.fromEntries(
+      (automation?.servers ?? []).map((server) => [
+        server.name,
+        { type: "http" as const, url: server.url, headers: server.headers, alwaysLoad: true },
+      ]),
+    ),
+  });
+
   return {
-    get key() {
-      return key;
-    },
+    servers,
     allowedTools: [
-      ...(spec.enableAgentBus ? claudeBusToolNames(spec.depth) : []),
+      ...(spec.enableAgentBus ? claudeBusToolNames(spec.depth, hasDelegatingBot) : []),
       ...(options.viewImage ? [CLAUDE_VIEW_IMAGE_TOOL] : []),
       `mcp__${BUS_SERVER}__*`,
       ...["agent_browser", "agent_desktop", "agent_device"].map((name) => `mcp__${name}__*`),
     ],
-    servers: (tools: readonly ConnectorTool[]) => ({
-      [BUS_SERVER]: claudeBusServer({
-        threadId: spec.threadId,
-        depth: spec.depth,
-        agentBus: spec.enableAgentBus,
-        connectorTools: tools,
-        turnId,
-        toolUseId: (tool, args) => calls.get(callKey(tool, args))?.shift(),
-        callTool: options.callTool,
-        ...(options.viewImage && { viewImage: (path: string) => options.viewImage!(spec.threadId, spec.cwd, path) }),
-      }),
-      ...Object.fromEntries(
-        (automation?.servers ?? []).map((server) => [
-          server.name,
-          { type: "http" as const, url: server.url, headers: server.headers, alwaysLoad: true },
-        ]),
-      ),
-    }),
-    async refresh(current: ThreadSpec) {
-      const next = automationMcpKey(current);
+    refreshFor(query: Query) {
+      const refresh = claudeConnectorRefresh(query, spec.connectorTools, servers, automationKey, hasDelegatingBot);
 
-      if (key === next) return;
-      await automation?.close();
-      automation = automationMcp(options, current, turnId);
-      key = next;
+      return async (current: ThreadSpec) => {
+        const next = automationMcpKey(current);
+        hasDelegatingBot = current.enableAgentBus && current.hasDelegatingBot;
+
+        if (automationKey !== next) {
+          await automation?.close();
+          automation = automationMcp(options, current, turnId);
+          automationKey = next;
+        }
+
+        await refresh(current.connectorTools, automationKey, hasDelegatingBot);
+      };
     },
     close: async () => {
       await automation?.close();

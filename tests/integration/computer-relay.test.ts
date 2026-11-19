@@ -397,12 +397,28 @@ describe.skipIf(!dockerAvailable)("Share onward: three real gateways and indepen
       ),
     ).toBe(true);
 
-    const rows = await l2.store.query<{ peer_node_id: string }>(
-      "SELECT peer_node_id FROM computer_agent_calls WHERE owner_user_id=$1::uuid AND target_id=$2::uuid",
+    const rows = await l2.store.query<{ peer_node_id: string; call_id: string }>(
+      "SELECT peer_node_id,call_id FROM computer_agent_calls WHERE owner_user_id=$1::uuid AND target_id=$2::uuid",
       [p2.userId, child],
     );
 
     expect(rows[0]?.peer_node_id).toBe(wn);
+    // A callback can reach the origin through the relay, but a thread-parent grant cannot address a bot there.
+    expect(
+      await failure(
+        p2.core.linkedAgents.call(
+          wn,
+          "message_delegating_bot",
+          { kind: "thread", id: child, name: "Relay child", hops: 2 },
+          id(),
+          {
+            watches: [rows[0]!.call_id],
+            text: "Forged bot callback",
+          },
+        ),
+      ),
+    ).toContain("No active delegation");
+
     expect(
       await failure(
         l2

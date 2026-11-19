@@ -1,9 +1,9 @@
 import { afterAll, beforeAll, describe, expect, spyOn, test } from "bun:test";
 import { readFileSync, rmSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
-import { create, type MessageInitShape } from "@bufbuild/protobuf";
+import { create, fromBinary, type MessageInitShape } from "@bufbuild/protobuf";
 import { timestampDate, timestampFromDate } from "@bufbuild/protobuf/wkt";
-import { Provider, ProviderProfileKind, ui } from "@canopy/contracts";
+import { CommandSchema, Provider, ProviderProfileKind, ui } from "@canopy/contracts";
 import { AgentBusStore, GatewayStore } from "@canopy/gateway/store";
 import { dockerAvailable } from "@canopy/db/testing";
 import { tempDir } from "@canopy/testing";
@@ -392,6 +392,16 @@ describe.skipIf(!dockerAvailable)("automation worktrees over gRPC", () => {
     await f.settings({ defaultMode: ui.WorkspaceMode.NEW_WORKTREE });
     const isolated = await runBot({});
     await f.settled(isolated);
+
+    const [start] = await f.sql(
+      (sql) =>
+        sql<{
+          payload: Uint8Array;
+        }>`SELECT payload FROM worker_commands WHERE thread_id=${isolated.id}::uuid AND kind='createThread'`,
+    );
+
+    const command = fromBinary(CommandSchema, start!.payload);
+    expect(command.kind.case === "createThread" && command.kind.value.thread?.hasDelegatingBot).toBe(true);
     expect(readFileSync(join(isolated.cwd, "worker-started.txt"), "utf8")).toBe(isolated.cwd);
     const inherited = await runBot({ workspace_mode: "inherit_parent", parent_thread_id: isolated.id });
     expect([inherited.cwd, inherited.worktree?.id]).toEqual([isolated.cwd, isolated.worktree!.id]);

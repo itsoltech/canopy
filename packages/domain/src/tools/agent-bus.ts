@@ -42,6 +42,12 @@ const LOOKS = new Map<string, Look>(
       tried: "start a subagent",
       icon: "sparkles",
     },
+    message_delegating_bot: {
+      doing: "Messaging the delegating bot",
+      done: "Messaged the delegating bot",
+      tried: "message the delegating bot",
+      icon: "paper-airplane",
+    },
     send_message: {
       doing: "Sending a message to",
       done: "Sent a message to",

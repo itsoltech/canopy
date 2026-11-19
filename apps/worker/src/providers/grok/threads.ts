@@ -2,7 +2,7 @@ import { workerDiagnostics } from "../../diagnostics/worker.ts";
 import { Effect, Schema } from "effect";
 import { threadLifecycle } from "../thread-lifecycle.ts";
 import { TurnAdmissionCancelled } from "../turn-input.ts";
-import { classifyFailure, safeFailureDetail, type JsonValue } from "@canopy/domain";
+import { agentBusToolsFor, classifyFailure, safeFailureDetail, type JsonValue } from "@canopy/domain";
 import { GrokClient, type SessionResult } from "@canopy/grok-acp";
 import {
   ItemStatus,
@@ -119,7 +119,7 @@ export class GrokThreads {
       permissionMode: settings?.permissionMode || spec.permissionMode,
     };
 
-    const key = JSON.stringify([chosen, spec.connectorTools, automationMcpKey(spec)]);
+    const key = JSON.stringify([chosen, spec.connectorTools, spec.hasDelegatingBot, automationMcpKey(spec)]);
     const previous = this.#entries.get(spec.threadId);
 
     if (previous?.turnId) throw new Error("Grok turn already running");
@@ -172,7 +172,7 @@ export class GrokThreads {
       bus = grokBus({
         threadId: spec.threadId,
         depth: spec.depth,
-        agentBus: spec.enableAgentBus,
+        agentBus: spec.enableAgentBus ? agentBusToolsFor(spec.depth, spec.hasDelegatingBot) : false,
         turnId: () => entry?.turnId ?? "",
         callTool: this.options.callTool,
         connectorTools: spec.connectorTools,

@@ -239,6 +239,9 @@ export class Redirects {
     if (method.name === "CallAgentBus") {
       const call = linkedMessage(link.LinkedAgentCallSchema, request);
 
+      // This callback is scoped to a delegation stored here. Its text cannot select a moved item.
+      if (call.operation === "message_delegating_bot") return;
+
       try {
         for (const value of Object.values(
           Schema.decodeUnknownSync(Schema.JsonObject)(JSON.parse(call.argumentsJson || "{}")),

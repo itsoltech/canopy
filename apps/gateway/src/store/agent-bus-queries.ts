@@ -1,3 +1,5 @@
+import { hasDelegatingBot } from "./rows.ts";
+import { STARTED_BY_BOT } from "./thread-select.ts";
 import { type JsonValue } from "@bufbuild/protobuf";
 import { agentKey, SPAWN_PERMISSION_MODES, type ThreadNode } from "@canopy/domain";
 import { Effect, Match } from "effect";
@@ -15,7 +17,7 @@ import {
 } from "./agent-bus-types.ts";
 
 export const thread = (sql: SqlClient.SqlClient, id: string) =>
-  sql<ThreadRow>`SELECT t.*, (SELECT p.kind FROM projects p WHERE p.id = t.project_id) AS project_kind
+  sql<ThreadRow>`SELECT t.*, ${sql.literal(STARTED_BY_BOT)} AS started_by_bot, (SELECT p.kind FROM projects p WHERE p.id = t.project_id) AS project_kind
     FROM threads t WHERE t.id = ${id}::uuid AND t.deleted_at IS NULL`.pipe(
     Effect.flatMap((rows) => (rows[0] ? Effect.succeed(rows[0]) : Effect.fail(new NotFound("thread not found")))),
   );
@@ -26,6 +28,9 @@ export type ThreadNodeRow = Pick<
   | "root_thread_id"
   | "depth"
   | "remote_parent_ref"
+  | "remote_parent_kind"
+  | "remote_parent_detached"
+  | "started_by_bot"
   | "parent_thread_id"
   | "owner_user_id"
   | "provider"
@@ -38,6 +43,7 @@ export const nodeColumns =
 
 export const node = (row: ThreadNodeRow): ThreadNode => ({
   id: row.id,
+  hasDelegatingBot: hasDelegatingBot(row),
   rootId: row.root_thread_id,
   depth: row.remote_parent_ref ? 1 : row.depth,
   ancestorIds: row.parent_thread_id

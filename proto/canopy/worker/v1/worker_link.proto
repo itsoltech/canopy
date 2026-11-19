@@ -600,6 +600,8 @@ message ThreadSpec {
   bool native_scheduling = 12;
   // Poziom wątku: 0 = główny (orkiestrator), 1 = boczny. Wyznacza zestaw narzędzi szyny (agentBusToolsFor).
   uint32 depth = 13;
+  // Wątek utworzył bot lokalny albo nadal połączony bot na innym komputerze.
+  bool has_delegating_bot = 14;
   // Puste = domyślne profilu; default = jawne standardowe wykonanie.
   string service_tier = 43;
 }

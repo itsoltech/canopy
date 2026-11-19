@@ -24,7 +24,7 @@ This delivery policy takes precedence over subscription instructions. Do not use
 export function delegationPrompt(turn: Pick<BotTurn, "conversation_id">, task: string): string {
   if (!turn.conversation_id || !task.trim()) return task;
 
-  return `This task comes from a Slack conversation managed by Canopy Messages. Return progress, questions and results to the delegating bot in your normal thread response. The bot handles delivery. Do not post or draft replies to the originating conversation through Slack tools, even if the task below asks you to do so.
+  return `This task comes from a Slack conversation managed by Canopy Messages. The delegating bot receives your answer automatically when this turn ends and handles delivery to Slack. If the bot needs a question or update while you continue working, use message_delegating_bot when available. Ordinary thread commentary does not reach the bot during the turn. If you are ready to finish or waiting on an answer with no work left, put the message in your final answer only. After a mid-turn message, report only what is new. Do not post or draft replies to the originating conversation through Slack tools, even if the task below asks you to do so.
 
 ${task}`;
 }

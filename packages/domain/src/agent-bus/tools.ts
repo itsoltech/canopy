@@ -6,7 +6,7 @@ import { PR_CHECK_TOOLS } from "./pr-checks.ts";
 import { isEntityId } from "../computers.ts";
 import { IMAGE_TOOLS } from "./images.ts";
 import { RequestSecret } from "./secrets.ts";
-import { SUBAGENT_REPORTING_RULES } from "./communication.ts";
+import { DELEGATING_BOT_MESSAGE_GUIDANCE, SUBAGENT_REPORTING_RULES } from "./communication.ts";
 import { RENDER_VISUAL_MAX_ARGUMENTS, renderVisualProblem, renderHtmlProblem, VISUAL_TOOLS } from "./visuals.ts";
 import { HTML_DOCUMENT_BYTES, htmlBytes } from "../visuals/html-source.ts";
 
@@ -286,6 +286,12 @@ export const AGENT_BUS_TOOLS = {
     args: SpawnThread,
     mutates: true,
   }),
+  message_delegating_bot: define({
+    name: "message_delegating_bot",
+    description: DELEGATING_BOT_MESSAGE_GUIDANCE,
+    args: Schema.Struct({ text: Schema.String.check(Schema.isPattern(/\S/), Schema.isMaxLength(80_000)) }),
+    mutates: true,
+  }),
   send_message: define({
     name: "send_message",
     description:
@@ -394,8 +400,10 @@ const ORCHESTRATOR_ONLY: ReadonlySet<AgentBusToolName> = new Set([
 ]);
 
 /** Tool names offered to a thread at the given depth (0 = main thread, 1 = side thread). */
-export function agentBusToolsFor(depth: number): AgentBusToolName[] {
-  return AGENT_BUS_TOOL_NAMES.filter((name) => depth === 0 || !ORCHESTRATOR_ONLY.has(name));
+export function agentBusToolsFor(depth: number, hasDelegatingBot = false): AgentBusToolName[] {
+  return AGENT_BUS_TOOL_NAMES.filter(
+    (name) => (name !== "message_delegating_bot" || hasDelegatingBot) && (depth === 0 || !ORCHESTRATOR_ONLY.has(name)),
+  );
 }
 
 export type AgentBusToolName = keyof typeof AGENT_BUS_TOOLS;

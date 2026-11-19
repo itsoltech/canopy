@@ -17,12 +17,14 @@ const LIST_COLUMNS = `t.id,t.project_id,t.owner_user_id,t.kind,t.parent_thread_i
   NULL::text AS provider_thread_id,''::text AS title_context,
   t.context_usage,t.auto_archive_on_merge,t.newest_pull_request,t.pull_request_count,t.pull_request_revision,t.sidebar_order_key,t.rewind_pending_id,t.list_settings AS settings`;
 
+export const STARTED_BY_BOT = "EXISTS (SELECT 1 FROM bot_started_threads s WHERE s.thread_id = t.id)";
+
 export const listThreadSelect = (where: string, extraColumns = "") => threadSelect(where, extraColumns, true);
 
 /** The thread columns (ThreadRow) with the joined ones, for `FROM threads t` and the given clauses. */
 export const threadSelect = (where: string, extraColumns = "", metadata = false) => `
           -- An asynchronous question (wait=false) needs the user only once the agent has stopped working.
-          SELECT ${metadata ? LIST_COLUMNS : "t.*"}, to_char(t.archived_at AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.US"Z"') AS archived_at_key,
+          SELECT ${metadata ? LIST_COLUMNS : `t.*, ${STARTED_BY_BOT} AS started_by_bot`}, to_char(t.archived_at AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.US"Z"') AS archived_at_key,
                  (SELECT row_to_json(c) FROM (${COMPOSER_CHOICE_SELECT}) c) AS last_user_turn_choices,
                  (SELECT p.kind FROM projects p WHERE p.id = t.project_id) AS project_kind, ${extraColumns} (SELECT count(*) FROM interaction_requests i WHERE i.thread_id = t.id AND i.status = 'pending' AND (i.question_wait IS DISTINCT FROM false OR t.status NOT IN ('running', 'creating'))) AS pending_interactions,
                  EXISTS (SELECT 1 FROM turns u WHERE u.thread_id = t.id AND u.status = 'queued' AND ${DISPATCHED}) AS turn_starting,

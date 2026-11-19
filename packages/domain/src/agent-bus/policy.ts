@@ -31,6 +31,7 @@ export interface ThreadNode {
   /** Provider instance (threads.provider_profile_id, "native" for the device login). */
   readonly instance?: string;
   readonly archived: boolean;
+  readonly hasDelegatingBot?: boolean;
 }
 
 export interface InteractionFacts {
@@ -103,7 +104,10 @@ export function authorizeBusCall(
 ): BusDecision {
   const { caller } = facts;
 
-  if (!agentBusToolsFor(caller.depth).includes(call.tool)) {
+  if (call.tool === "message_delegating_bot" && !caller.hasDelegatingBot)
+    return deny("This thread has no delegating bot.");
+
+  if (!agentBusToolsFor(caller.depth, caller.hasDelegatingBot).includes(call.tool)) {
     return deny(`${call.tool} is not available in side threads; ask your parent thread with send_message`);
   }
 
@@ -114,6 +118,7 @@ export function authorizeBusCall(
     case "render_html":
     case "request_secret":
       return caller.archived ? deny("this thread is archived") : allow;
+    case "message_delegating_bot":
     case "ask_user":
       if (caller.archived) return deny("this thread is archived");
 
