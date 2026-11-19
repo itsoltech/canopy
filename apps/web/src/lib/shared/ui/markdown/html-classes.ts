@@ -29,7 +29,7 @@ const classes: Partial<Record<HtmlTag, string>> = {
   li: "pl-1",
   dt: emphasis,
   dd: "pl-3 text-zinc-600 dark:text-zinc-400",
-  table: "w-full text-left text-base/7 sm:text-sm/6",
+  table: "w-full text-left text-base/7 wrap-normal sm:text-sm/6",
   tr: "border-b border-zinc-950/10 last:border-0 dark:border-white/10",
   th: `${emphasis} px-2 py-1.5 align-top whitespace-nowrap`,
   td: "px-2 py-1.5 align-top",
