@@ -2,6 +2,7 @@
 
 Status (2026-11-19): **obrazy, `render_visual` i `render_html` zaimplementowane** w web/desktop/mobile.
 Na Windows w trybie lokalnym `show_images` obsługuje też katalog Temp profilu użytkownika.
+Gateway na Windows otwiera plik wyjściowy kodera bezpośrednio przez Win32.
 Claude ma 15-minutowy limit wywołania `show_images`. Worker zwraca błąd od razu
 po wykryciu utraty połączenia podczas oczekiwania na wynik.
 Własny HTML na desktopie ma interaktywny podgląd w rozmowie z odizolowanego procesu.
@@ -159,6 +160,12 @@ Agent powinien sprawdzić wątek przed ponowieniem. Worker nie odsyła tego
 wywołania po reconnect. Zapisany receipt przeżywa restart gatewaya i przy
 powtórzeniu tego samego ID zwraca tę samą galerię. Brak jednego pliku odrzuca
 całą partię z indeksem błędu; nie ma cichej częściowej publikacji.
+
+Na Windows gateway tworzy plik wyjściowy kodera przez `CreateFileW` i blokuje
+zapis od granicy limitu przez `LockFileEx` na tym samym uchwycie. Przekazanie
+deskryptora Bun do osobnej biblioteki C mogło zakończyć cały proces gatewaya.
+Test Windows uruchamia rzeczywisty koder i sprawdza odczyt poprawnego obrazu
+oraz odrzucenie wyniku przekraczającego limit bajtów.
 
 Galeria i kopie żyją zgodnie z retencją wątku, niezależnie od usunięcia źródła
 lub worktree. Usunięcie wątku odbiera dostęp od razu; blob GC zachowuje pliki

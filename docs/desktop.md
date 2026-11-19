@@ -1,8 +1,8 @@
 # Canopy Desktop
 
 Status: opis zaimplementowanego runtime i pakowania (2026-11-19), w tym selektywnego CI dla powłoki Electron, ponawiania
-startu lokalnego gatewaya po serii nieoczekiwanych wyjść, osobnego okna
-stanu zamykania i restartu do aktualizacji oraz ponawiania
+startu lokalnego gatewaya po serii nieoczekiwanych wyjść, poprawki kodowania
+obrazów w gatewayu na Windows, osobnego okna stanu zamykania i restartu do aktualizacji oraz ponawiania
 pakowania macOS i Windows w CI, menu ścieżek plików z rozmowy
 z pobieraniem z innych workerów i lokalnym wskazywaniem plików w Finder/Explorer,
 pomijania cache przy ręcznym sprawdzaniu aktualizacji, wykrywania pojedynczego procesu przez instalator Windows
@@ -1345,6 +1345,8 @@ i blokadę zmiany major. Tryb remote nie pobiera PostgreSQL.
 zamykania. Fizyczny gest Hold ⌘Q, Keychain, Gatekeeper i instalacja aktualizacji
 wymagają natywnego macOS. Test paczki uruchamiaj z aktywnym sandboxem i magazynem
 kluczy OS. Wykrycie CLI i worker online nie potwierdzają loginu providera.
+Windows smoke uruchamia test kodowania obrazów Bunem z zainstalowanej paczki.
+Sprawdza poprawny obraz oraz systemowy limit zapisu pliku wyjściowego kodera.
 
 Jedna tożsamość aplikacji i cache aktualizatora obowiązuje wszystkie kanały;
 feed oraz manifest muszą zachowywać oba ZIP-y macOS i ich SHA-512. Zmiana kanału
