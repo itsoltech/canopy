@@ -135,9 +135,27 @@ describe.skipIf(!dockerAvailable)("direct Slack posts through gateway and worker
       },
     ]);
 
-    await replyIn("C123", "1234.234567");
-    const second = await f.settled(bot.id);
-    expect(second.approvals.at(-1)?.allowedByRule?.id).toBe(rule.id);
+    await f.tool(bot.id, "create_routine", {
+      title: "Post a release update",
+      instructions: `TOOL:${post.name}\nARGS:{"channel":"C123","reply_to":"1234.234567","message":"Release update"}`,
+      cron: "0 0 * * *",
+      timezone: "UTC",
+    });
+    const routine = (await f.settled(bot.id)).routines[0]!;
+
+    const runRoutine = async () => {
+      await f.query("UPDATE bot_routines SET next_run_at=now() WHERE id=$1", [routine.id]);
+      await core.bots.tick();
+    };
+
+    await runRoutine();
+
+    const second = await eventually(
+      () => f.read(bot.id),
+      (view) => view.routines[0]?.lastOutcome === "Completed background actions",
+    );
+
+    expect(second.approvals.at(-1)).toMatchObject({ routineTitle: routine.title, allowedByRule: { id: rule.id } });
     expect(posts).toHaveLength(2);
     expect(posts[1]?.fields.get("thread_ts")).toBe("1234.234567");
     expect(mcp.calls).toEqual([]);
@@ -148,8 +166,9 @@ describe.skipIf(!dockerAvailable)("direct Slack posts through gateway and worker
     await api.answerBotApproval({ approvalId: other.id, approve: false });
     await f.settled(bot.id);
     await api.deleteBotApprovalRule({ botId: bot.id, ruleId: rule.id });
-    await replyIn("C123", "1234.456789");
+    await runRoutine();
     const revoked = await pending();
+    expect(revoked.routineTitle).toBe(routine.title);
     expect(revoked.allowedByRule).toBeUndefined();
     expect(posts).toHaveLength(2);
     await api.answerBotApproval({ approvalId: revoked.id, approve: false });

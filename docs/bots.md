@@ -1,13 +1,13 @@
 # Boty
 
-Status (2026-11-18): wyłączenie modułu Bots zatrzymuje pracę botów właściciela,
+Status (2026-11-19): wyłączenie modułu Bots zatrzymuje pracę botów właściciela,
 w tym tury na workerach, rutyny i dostarczanie przypomnień.
 Mobilna rozmowa potwierdza odczyt najnowszych wiadomości i odświeża listę botów.
 Zaimplementowano trwałe rozmowy botów przez Slack Socket Mode,
 buforowanie, załączniki, formatowanie odpowiedzi, izolację historii kanałów i przyznane narzędzia
 w turach zewnętrznych. Konektor Slack umożliwia pobranie pliku po jego identyfikatorze.
 Bot Codex może odczytać obraz z wiadomości lub konektora, jeśli jego model obsługuje obrazy.
-W prywatnej rozmowie z właścicielem bot może wysyłać jako Canopy na Slacku ze
+W prywatnej rozmowie z właścicielem i w swoich rutynach bot może wysyłać jako Canopy na Slacku ze
 stałą zgodą dla konkretnego konta i rozmowy Slack.
 Instrukcje odpowiedzi kierują wyniki pracy delegowanej przez Messages.
 Konfiguracja bota przenosi `service_tier` do `RunBotTurn`.
