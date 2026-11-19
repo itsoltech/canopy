@@ -448,6 +448,9 @@
   // The sticky part at the feed's bottom (waiting cards, goal, composer): the Cite button keeps clear of it.
   let feedFooter = $state<HTMLElement>();
 
+  // Keep the tray mounted through the panel's local outro when the last subagent finishes.
+  let subagentsPanel = $state<HTMLDivElement>();
+
   const revealQuote = createQuoteReveal(
     () => threadId,
     () => ({ view, folds, rewind, rows, feed, region: feedRegion, openHistory: () => (historyOpen = true) }),
@@ -785,7 +788,7 @@
                           </div>
                         {/if}
                         {#if subagents.length > 0}
-                          <div class="t-rise" out:subagentPresence|global>
+                          <div class="t-rise" bind:this={subagentsPanel} out:subagentPresence>
                             <SubagentsPanel {subagents} compact={composer.compact} embedded />
                           </div>
                         {/if}
@@ -815,7 +818,7 @@
                             onexpand={(activity) => composer.expand(activity)}
                             onfocuschange={(focused) => composer.focus(focused)}
                             class="relative"
-                            top={queue.rows.length > 0 || subagents.length > 0 || shownGoal
+                            top={queue.rows.length > 0 || subagents.length > 0 || subagentsPanel || shownGoal
                               ? composerPanels
                               : undefined}
                             questions={view.pending}

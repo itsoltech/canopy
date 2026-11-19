@@ -59,12 +59,15 @@ export function clipped(onchange: (fit: TextFit) => void): Attachment<HTMLElemen
     const edited = new MutationObserver(measure);
     resized.observe(node);
     edited.observe(node, { characterData: true, childList: true, subtree: true });
-    void document.fonts.ready.then(() => node.isConnected && measure());
+    // Measure with the other labels before paint. A font swap can change the fit within the same box.
+    document.fonts.addEventListener("loadingdone", measure);
+    measure();
 
     return () => {
       mounted = false;
       resized.disconnect();
       edited.disconnect();
+      document.fonts.removeEventListener("loadingdone", measure);
       pending.delete(node);
 
       if (pending.size) return;

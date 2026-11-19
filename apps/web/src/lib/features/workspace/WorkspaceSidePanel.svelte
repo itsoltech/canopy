@@ -29,7 +29,10 @@
   const open = $derived(workspace.filesOpen);
 
   const sheet = $derived(
-    !workspace.wide && workspace.panelOpen && !(workspace.panelMode === "preview" && workspace.previewTabActive),
+    workspace.width > 0 &&
+      !workspace.wide &&
+      workspace.panelOpen &&
+      !(workspace.panelMode === "preview" && workspace.previewTabActive),
   );
 
   let used = $state(false);

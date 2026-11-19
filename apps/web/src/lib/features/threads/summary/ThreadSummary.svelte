@@ -129,7 +129,7 @@
   style:margin-bottom={!pinned && preview ? `calc(${previewHeight}px + .75rem)` : undefined}
   data-hidden={pinned || undefined}
   inert={pinned}
-  bind:clientHeight={pillHeight}
+  bind:contentRect={null, (rect: DOMRectReadOnly) => (pillHeight = Math.round(rect.height))}
 >
   <ThreadSummaryPill
     {thread}
@@ -147,7 +147,7 @@
   {#if floating}
     <section
       bind:this={card}
-      bind:clientHeight={cardHeight}
+      bind:contentRect={null, (rect: DOMRectReadOnly) => (cardHeight = Math.round(rect.height))}
       {id}
       aria-label="Thread details"
       class={[
@@ -174,7 +174,7 @@
       class:hidden={sheet}
       inert={sheet}
       style:top={`calc(${open && floating ? "var(--summary-card-top)" : "0px"} + ${open && floating ? cardHeight : pillHeight}px + .75rem)`}
-      bind:clientHeight={previewHeight}
+      bind:contentRect={null, (rect: DOMRectReadOnly) => (previewHeight = Math.round(rect.height))}
     >
       {@render preview()}
     </div>
