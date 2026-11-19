@@ -12,18 +12,20 @@ export function WorkspaceTask({ state, id }: { state: ThreadState; id: string })
   if (item?.content.case !== "backgroundTask")
     return <Notice>This task is outside the loaded history. Open Tasks to choose another task.</Notice>;
   const task = item.content.value;
+  const running = item.status === ItemStatus.IN_PROGRESS;
 
   return (
     <QuoteItem.Provider value={item.itemId}>
       <TextViewer
         embedded
         text={task.output}
+        streaming={running}
         blob={task.outputBlob}
         threadId={state.thread?.id ?? ""}
         label={backgroundTitle(task, "Task output")}
         onClose={() => undefined}
         extraActions={
-          item.status === ItemStatus.IN_PROGRESS && (
+          running && (
             <BackgroundTaskStop
               threadId={state.thread?.id ?? ""}
               itemId={item.itemId}

@@ -1,7 +1,8 @@
 # Canopy na iOS i Android
 
 Status: opis zaimplementowanego kodu (2026-11-19); natywny raport Usage pokazuje
-historię kosztów i skrócone liczby tokenów z gatewaya. Na liście Bots czas i licznik są wyrównane przy menu wiersza.
+historię kosztów i skrócone liczby tokenów z gatewaya. Wątki pokazują strumieniowany tekst
+linia po linii, tak jak web i desktop. Na liście Bots czas i licznik są wyrównane przy menu wiersza.
 Aktywny czat bota potwierdza odczyt najnowszych wiadomości i odświeża licznik listy Bots.
 Telefon i tablet pozwalają wybrać kolejność zakładek
 i zatrzymać pracę modułu Threads albo Bots na koncie właściciela.
@@ -1725,6 +1726,12 @@ Odrzucona przez gateway wiadomość pokazuje jego powód zamiast ogólnej noty o
 Zdarzenia `turnStarted` / `turnFinished` od dostawcy lub wznowienia odtwarzają w reduktorze
 mobile turę z czasem początku i końca, zanim nadejdzie jej projekcja. „Working for …” zachowuje
 dzięki temu czas także dla tur rozpoczętych przez dostawcę; zapis cache zachowuje te czasy.
+W wątku odpowiedź agenta, rozumowanie (także zwinięty podgląd) oraz wyniki poleceń i narzędzi
+pojawiają się po zakończeniu każdej linii. Widok korzysta z tej samej reguły co web i desktop
+(`@canopy/ui/streaming`): nagłówek tabeli czeka na kolejny pełny wiersz, a koniec elementu
+lub tury odsłania również ostatnią linię bez znaku nowej linii. Wyjście zadania w tle
+podlega tej regule do zakończenia samego zadania, również gdy przeżyje ono turę.
+
 Wiersze osi czasu wyglądają jak w web (`src/features/timeline`): każdy rodzaj itemu ma widok jak `components/items` w web (komendy z kodem wyjścia, narzędzia z tytułem z rejestru, zmiany plików z diffem, rozumowanie, wyszukiwanie, plan/to do, obraz, kompakcja, zdarzenie dostawcy, zapis zgody lub pytania, subagent z zagnieżdżoną pracą, zadanie w tle ze Stop i ogonem wyjścia, wywołania magistrali agentów na fioletowo z kartą subagenta i dostarczenia). Wejście tury pokazuje jego pochodzenie (zadanie, wiadomość, raport od agenta z nadawcą i modelem, pytanie wątku bocznego, harmonogram, bot, notatka o zakończonych zadaniach w tle), steery mają notę, komunikaty dostawcy są wierszami, a nieudana tura pokazuje wyjaśnienie błędu ze szczegółami. Fold „Working for …” / „Worked for …” ma czas, liczniki albo bieżącą czynność, „N still running” i grupy narzędzi („Read 1 file and ran 5 commands”). Etykiety, liczniki i opisy narzędzi pochodzą ze wspólnych modułów `@canopy/domain` (`tools`, `work-summary`, `turn-origin`, `status-look`, `humanize`, `format`, `questions`, `failure-presentation`, `first-line`), tak jak w web. Czat bota używa tego samego układu co web (`@canopy/domain/bot-chat`: `botEntries`, `layoutChat`): linie dat, serie dymków z ciaśniejszymi rogami, linie wymian bot ⇄ bot, zdarzenia, błędy odpowiedzi i karty w kolejności czasu oraz wiersz statusu bota. Ręczne przełączanie foldu trzyma nagłówek w miejscu (timeline-folding.md, „Pozycja przy ręcznym przełączaniu”).
 Pytania Claude `AskUserQuestion`, Codex `request_user_input` i platformy `ask_user`
 obsługuje wiersz „Answer questions” / „Review request” w zasobniku, najbliżej pola, z liczbą

@@ -1,6 +1,7 @@
 import { useContext, useEffect, useMemo, useState } from "react";
 import { Animated, Pressable, Text } from "react-native";
 import type { AgentMessage } from "@canopy/contracts";
+import { streamingText } from "@canopy/ui/streaming";
 import { Markdown } from "../../ui/markdown";
 import { useReducedMotion } from "../../ui/motion";
 import { useColors, useTypography } from "../../ui/theme";
@@ -40,7 +41,7 @@ export function AgentMessageView({
     <ThreadFileLinks itemId={itemId}>
       <Pressable {...actions.trigger} accessibilityState={{ busy: streaming }}>
         <Markdown
-          text={text}
+          text={streamingText(text, streaming)}
           selectable={!actions.available}
           image={(value) => (
             <MessageImage
@@ -74,8 +75,8 @@ function Caret() {
   const c = useColors();
   const reduced = useReducedMotion();
   const [opacity] = useState(() => new Animated.Value(1));
-  const viewport = useViewportVisibility();
-  const active = useAppActive() && viewport.visible;
+  const { ref, visible, onLayout } = useViewportVisibility();
+  const active = useAppActive() && visible;
 
   useEffect(() => {
     if (reduced || !active) {
@@ -98,8 +99,8 @@ function Caret() {
 
   return (
     <Animated.View
-      ref={viewport.ref}
-      onLayout={viewport.onLayout}
+      ref={ref}
+      onLayout={onLayout}
       collapsable={false}
       accessible={false}
       style={{ marginTop: 4, width: 6, height: 16, borderRadius: 2, backgroundColor: c.faint, opacity }}

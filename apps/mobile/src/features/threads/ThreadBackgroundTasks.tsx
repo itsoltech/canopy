@@ -105,6 +105,7 @@ export function TaskRow({
         <QuoteItem.Provider value={item.itemId}>
           <TextViewer
             text={task.output}
+            streaming={running}
             blob={task.outputBlob}
             threadId={threadId}
             label={`Output of ${name}`}

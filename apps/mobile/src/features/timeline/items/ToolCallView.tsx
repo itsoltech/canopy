@@ -1,4 +1,5 @@
 import { ItemStatus, type ToolCall } from "@canopy/contracts";
+import { streamingText } from "@canopy/ui/streaming";
 import { parseObject } from "@canopy/domain/json";
 import {
   describeTool,
@@ -22,7 +23,7 @@ import { TextViewerButton } from "../../viewers/TextViewerButton";
  * subject; inside, an edit's diff, a shell call's command or the result, and the raw input and result behind
  * "Show raw".
  */
-export function ToolCallView({ call, status }: { call: ToolCall; status: ItemStatus }) {
+export function ToolCallView({ call, status, streaming }: { call: ToolCall; status: ItemStatus; streaming: boolean }) {
   const roomy = useRoomyRows();
   const directory = useTimelineDirectory();
   const look = describeTool({ ...call, running: status === ItemStatus.IN_PROGRESS });
@@ -31,7 +32,7 @@ export function ToolCallView({ call, status }: { call: ToolCall; status: ItemSta
   const edit = look.body === "edit" || look.body === "patch";
   const changes = edit ? toolChanges(call.name, input) : [];
   const counts = edit ? diffCounts(changes) : undefined;
-  const result = stripReminders(unwrapContent(call.output));
+  const result = streamingText(stripReminders(unwrapContent(call.output), { keepLineEndings: streaming }), streaming);
 
   const title = call.connectorAccountId
     ? `${call.server} · ${call.connectorAccountName} · ${call.name.split("__").at(-1)?.replaceAll("_", " ") ?? ""}`

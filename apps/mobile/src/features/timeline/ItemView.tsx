@@ -67,13 +67,13 @@ export function ItemView({ node, turnEnded = false }: { node: ItemNode; turnEnde
       view = <ReasoningView reasoning={content.value} streaming={streaming} />;
       break;
     case "commandExecution":
-      view = <CommandView command={content.value} status={item.status} />;
+      view = <CommandView command={content.value} status={item.status} streaming={streaming} />;
       break;
     case "fileChange":
       view = <FileChangeView change={content.value} status={item.status} />;
       break;
     case "toolCall":
-      view = <ToolCallView call={content.value} status={item.status} />;
+      view = <ToolCallView call={content.value} status={item.status} streaming={streaming} />;
       break;
     case "webSearch":
       view = <WebSearchView search={content.value} status={item.status} />;
