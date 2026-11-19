@@ -134,7 +134,7 @@
   {:else if token.type === "table"}
     {@const table = token as Tokens.Table}
     <div class="overflow-x-auto">
-      <table class="w-full text-left text-sm/6">
+      <table class="w-full text-left text-sm/6 wrap-normal">
         <thead>
           <tr class="border-b border-zinc-950/10 dark:border-white/10">
             {#each table.header as cell, cellIndex (cellIndex)}

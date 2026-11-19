@@ -56,6 +56,7 @@ od agentów razem z itemami, które je pokazują.
 Formularze instancji Claude rozdzielają źródło logowania, prywatny stan i konfigurację użytkownika.
 Zakres workera pokazuje też efektywne katalogi z jego ostatniego raportu.
 Tekst jest streamowany wyłącznie pełnymi liniami, z kursorem inline.
+W web/desktop kolumny tabel Markdown zachowują miejsce na całe słowa.
 Bezpieczny HTML we wspólnym rendererze Markdown,
 lokalne obrazy w podglądzie plików, interaktywny Preview wątku i automatyczny mini
 Preview pod podsumowaniem, opcjonalna retencja archiwum oraz poprawione narożniki,
@@ -2070,6 +2071,9 @@ Markdown korzysta z tego samego `Markdown` co oś czasu; wybór „Rendered” /
 zapisuje się w preferencjach urządzenia. W web/desktop dozwolony HTML wewnątrz Markdown
 renderuje się jako bezpieczne drzewo elementów Svelte (nagłówki, formatowanie, listy,
 tabele, `details`/`summary` i `align`), bez skryptów, stylów i handlerów zdarzeń.
+W tabelach Markdown i osadzonych tabelach HTML przeglądarka dobiera szerokości kolumn
+według naturalnych miejsc podziału tekstu. Gdy kolumny nie mieszczą się w wiadomości,
+poziomo przewija się samą tabelę.
 Samodzielne pliki HTML nadal pokazują źródło. SVG wyświetla
 się wyłącznie w `<img>`; BFF udostępnia jego typ przez `?image`, nadal z CSP sandbox
 i `nosniff`. Pozostałe pliki zachowują pobieranie lub kartę composera.
