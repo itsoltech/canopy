@@ -16,7 +16,8 @@ po potwierdzeniu stash & pop oraz osobny limit tworzenia worktree dla dużych re
 Tworzenie rozróżnia przekroczenie limitu czasu, rozmiaru wyjścia i błąd Git.
 Przy wyłączonym **Threads** gateway wstrzymuje okresowe sprzątanie worktree właściciela i nadawanie nazw gałęzi na podstawie rozmowy. Po włączeniu ponownie ocenia polityki sprzątania i podejmuje zarezerwowane operacje usunięcia.
 
-Worker sprząta po nieudanej próbie na podstawie oznaczeń tej próby.
+Worker sprząta po nieudanej próbie na podstawie oznaczeń tej próby,
+również gdy przerwany checkout nie zapisał indeksu ani pliku `.git`.
 Opis dotyczy kodu; dostępność nightly/beta/stable wynika z promocji wydań ([release.md](release.md)).
 Etap 1: ustawienia (Creation, Branches,
 domyślny tryb), operacje git na workerze (refy, tworzenie worktree z bazy, start z remote, nazwy gałęzi
@@ -57,14 +58,21 @@ worktree do 90 s. Limit dotyczy także filtrów i hooków uruchomionych przez ch
 Jeśli checkout osiągnie limit 8 MiB przechwyconego wyjścia, worker zgłasza inny
 błąd niż po upływie 60 s. Kod wyjścia Git różny od zera to osobna kategoria.
 
-Worker zakłada gałąź tylko, gdy nazwa jest wolna, i oznacza ją w reflogu.
-`git worktree add` rejestruje checkout z blokadą oznaczoną identyfikatorem tej samej
-próby. Po udanym checkoutcie worker zdejmuje blokadę. Po błędzie, gdy procesy
-checkoutu się zakończą, worker usuwa tylko pasującą rejestrację i niezmienioną,
-nigdzie nieużywaną gałąź tej próby. Usunięcie gałęzi porównuje jej bieżący commit
-z oczekiwanym. Jeśli własności albo stanu nie da się potwierdzić, zostawia
-pozostałości i zgłasza niedokończone sprzątanie. Pozostałości prób z wcześniejszych
-wersji pozostają do ręcznej obsługi. `spawn_thread` zwraca stałe, zredagowane komunikaty
+Worker zakłada gałąź tylko, gdy nazwa jest wolna, oznacza ją w reflogu i rezerwuje
+nowy katalog przed uruchomieniem Git. `git worktree add` rejestruje checkout z blokadą
+oznaczoną identyfikatorem tej samej próby. Po udanym checkoutcie worker zdejmuje blokadę.
+Po błędzie worker sprawdza tożsamość katalogu, rejestrację, oznaczenia i zawartość
+checkoutu względem commita bazowego. Na Windows weryfikuje też, czy krótka nazwa 8.3
+i ścieżka podana przez Git odnoszą się do tego samego katalogu. Jeśli zakończenie drzewa procesów zostało
+potwierdzone, przerwany checkout może zostać usunięty także bez pliku `.git` i indeksu,
+z pustym `index.lock`. Weryfikacja zawartości obsługuje standardową konwersję CRLF
+dla małych plików i nie uruchamia filtrów repozytorium.
+
+Worker usuwa tylko zweryfikowane pliki i rejestrację tej próby, bez `git worktree prune`.
+Usunięcie nieużywanej gałęzi porównuje jej bieżący commit z oczekiwanym. Jeśli worker
+nie potrafi potwierdzić stanu, wykryje dowiązanie, dodatkowe pliki lub lokalne zmiany,
+pozostawia niezweryfikowane zasoby i zgłasza niedokończone sprzątanie. Pozostałości prób
+z wcześniejszych wersji pozostają do ręcznej obsługi. `spawn_thread` zwraca stałe, zredagowane komunikaty
 ([agent-bus.md](agent-bus.md)).
 
 ## Model danych
@@ -722,6 +730,11 @@ Kontrolki opcji automatyzacji w UI mogą zostać dodane osobno; edytor harmonogr
   zarejestrowanego worktree bez folderu i nazwy rekordu git oraz błąd `PATH_EXISTS`, gdy wszystko zajęte.
 - `tests/integration/worktrees.test.ts`: nowe worktree pod korzeniem i skonfigurowanym `location` mają losowe,
   różne foldery przy tej samej gałęzi.
+- `tests/integration/worktree-creation-failure.test.ts`: timeout z częściowym checkoutem na Linuksie.
+  Na Linuksie i Windows testy odtwarzają stan po zatrzymaniu Git
+  na jego rzeczywistej rejestracji (bez indeksu i pliku `.git`, z pustym `index.lock`).
+  Sprawdzają też ochronę obcych rejestracji i gałęzi, lokalnych plików, dowiązań
+  i niepustego `index.lock`.
 
 ## Weryfikacja (nazwy gałęzi)
 

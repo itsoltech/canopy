@@ -58,7 +58,10 @@ export interface ProcessResult {
 }
 
 export class ProcessTimeoutError extends Error {
-  constructor(readonly reason: "timeout" | "output" | "aborted") {
+  constructor(
+    readonly reason: "timeout" | "output" | "aborted",
+    readonly treeTerminated: boolean,
+  ) {
     // Existing callers display this message. Use reason when the caller can report each limit separately.
     super("The process exceeded its time or output limit.");
   }
@@ -82,20 +85,24 @@ export function processKey(input: ProcessInput): string {
 
 /** Kill only the owned process group. Windows taskkill /T is needed because kill(pid) is not recursive. */
 export async function killProcessTree(pid: number): Promise<void> {
-  if (process.platform === "win32") {
-    await new Promise<void>((resolve) => {
-      const killer = spawn("taskkill.exe", ["/PID", String(pid), "/T", "/F"], { stdio: "ignore", windowsHide: true });
-      killer.once("error", () => resolve());
-      killer.once("close", () => resolve());
-    });
+  await terminateProcessTree(pid);
+}
 
-    return;
+async function terminateProcessTree(pid: number): Promise<boolean> {
+  if (process.platform === "win32") {
+    return new Promise<boolean>((resolve) => {
+      const killer = spawn("taskkill.exe", ["/PID", String(pid), "/T", "/F"], { stdio: "ignore", windowsHide: true });
+      killer.once("error", () => resolve(false));
+      killer.once("close", (code) => resolve(code === 0));
+    });
   }
 
   try {
     process.kill(-pid, "SIGKILL");
-  } catch {
-    /* Owned group already exited. */
+
+    return true;
+  } catch (cause) {
+    return cause instanceof Error && "code" in cause && cause.code === "ESRCH";
   }
 }
 
@@ -127,16 +134,16 @@ function capture(input: ProcessInput): Promise<ProcessResult> {
     });
 
     let bytes = 0;
-    let stopped: ProcessTimeoutError | undefined;
-    let termination: Promise<void> | undefined;
+    let stopped: ProcessTimeoutError["reason"] | undefined;
+    let termination: Promise<boolean> | undefined;
     const stdout: Buffer[] = [];
     const stderr: Buffer[] = [];
 
     const stop = (reason: ProcessTimeoutError["reason"]) => {
       if (stopped) return;
-      stopped = new ProcessTimeoutError(reason);
+      stopped = reason;
 
-      if (child.pid) termination = killProcessTree(child.pid);
+      if (child.pid) termination = terminateProcessTree(child.pid);
     };
 
     const append = (chunks: Buffer[], chunk: Buffer) => {
@@ -170,7 +177,13 @@ function capture(input: ProcessInput): Promise<ProcessResult> {
     child.once("close", (code) => {
       cleanup();
 
-      if (stopped) void Promise.resolve(termination).then(() => reject(stopped), reject);
+      const reason = stopped;
+
+      if (reason)
+        void Promise.resolve(termination).then(
+          (done) => reject(new ProcessTimeoutError(reason, done === true)),
+          reject,
+        );
       else resolve({ code, stdout: Buffer.concat(stdout).toString(), stderr: Buffer.concat(stderr).toString() });
     });
   });
