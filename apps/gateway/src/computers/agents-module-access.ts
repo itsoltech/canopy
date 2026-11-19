@@ -40,7 +40,9 @@ export async function requireAgentModules(host: LinkedAgents, actor: string, tar
 
 export function targetKind(operation: string, args: Arguments) {
   // Spawn, thread reads, controls and answers always address a thread.
-  return operation === "send" && args["target_kind"] === "bot" ? "bot" : "thread";
+  return operation === "message_delegating_bot" || (operation === "send" && args["target_kind"] === "bot")
+    ? "bot"
+    : "thread";
 }
 
 /** Ordinary UI calls carry no module dependency. The sender sets this on behalf of an agent. */

@@ -1,6 +1,6 @@
 # Model danych (PostgreSQL)
 
-Status (2026-11-18): zaimplementowany model, w tym kolejność modułów i zatrzymywanie pracy właściciela po ich wyłączeniu oraz migracje `0153_thread_notice_replication`, `0160_agent_hop_policy`, `0162_service_tiers`, `0164_usage_accounting`, `0165_usage_estimated_cost`, `0169_bot_chat_steer`, `0171_thread_permission_selection`, `0172_usage_activity`, `0173_module_goal_resume` i `0174_schedule_worktree_preparations`;
+Status (2026-11-19): zaimplementowany model, w tym kolejność modułów i zatrzymywanie pracy właściciela po ich wyłączeniu oraz migracje `0153_thread_notice_replication`, `0160_agent_hop_policy`, `0162_service_tiers`, `0164_usage_accounting`, `0165_usage_estimated_cost`, `0169_bot_chat_steer`, `0171_thread_permission_selection`, `0172_usage_activity`, `0173_module_goal_resume`, `0174_schedule_worktree_preparations` i `0176_message_delegating_bot` (rejestracja wywołań narzędzia w `agent_bus_calls`);
 dostępność nightly/beta/stable według [release.md](release.md).
 
 W `user_settings.settings.modules.enabled` gateway zapisuje uporządkowaną listę

@@ -3,7 +3,7 @@ import type { ui } from "@canopy/contracts";
 
 import { Code, ConnectError } from "@connectrpc/connect";
 
-import { type JsonValue as ArgumentValue } from "@canopy/domain";
+import { DEFAULT_BUS_LIMITS, type JsonValue as ArgumentValue } from "@canopy/domain";
 
 import { qualifyId } from "@canopy/domain/computers";
 
@@ -46,6 +46,14 @@ export const fail = (message: string): never => {
   throw new ConnectError(message, Code.FailedPrecondition);
 };
 
+/** Linked work reserves one step for its reply; deliveries may use the final step. */
+export function requireLinkedChainCapacity(hops: number, reserveReply: boolean) {
+  if (hops > DEFAULT_BUS_LIMITS.maxHops - (reserveReply ? 1 : 0))
+    fail(
+      `This automated conversation reached its limit (${DEFAULT_BUS_LIMITS.maxHops} steps). Send a new message to continue.`,
+    );
+}
+
 export const uuid = (value: string) => /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(value);
 
 export type Arguments = { [key: string]: ArgumentValue };
@@ -80,5 +88,6 @@ export function qualifyResult(value: JsonValue, node: string, key = ""): JsonVal
 export const agentsState: unique symbol = Symbol("LinkedAgents state");
 
 export class LinkedAgentsState {
+  readonly pendingBotSpawns = new Map<string, Promise<JsonValue>>();
   ticking = false;
 }

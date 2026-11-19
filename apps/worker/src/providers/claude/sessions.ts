@@ -12,7 +12,6 @@ import type { claudeRuntime } from "./session-runtime.ts";
 import { sessionPermissions } from "./session-permissions.ts";
 import { fileSize } from "./session-io.ts";
 import { claudeQueryConfiguration } from "./query-configuration.ts";
-import { claudeConnectorRefresh } from "./connector-mcp.ts";
 import { TurnAdmissionCancelled } from "../turn-input.ts";
 import { threadInstructions } from "../thread-instructions.ts";
 import { claudeSessionMcp } from "./session-mcp.ts";
@@ -112,13 +111,9 @@ export function claudeSessions(
     }
 
     const q = await openQuery(input, queryOptions, close);
-    const refreshConnectors = claudeConnectorRefresh(q, spec.connectorTools, mcp.servers, mcp.key);
     const transcript = transcriptPath(runtime.home, sessionId);
     session = {
-      refreshConnectors: async (current) => {
-        await mcp.refresh(current);
-        await refreshConnectors(current.connectorTools, mcp.key);
-      },
+      refreshConnectors: mcp.refreshFor(q),
       threadId: spec.threadId,
       sessionId,
       cwd: spec.cwd,

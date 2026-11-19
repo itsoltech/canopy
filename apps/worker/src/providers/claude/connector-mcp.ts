@@ -9,13 +9,24 @@ export function claudeConnectorRefresh(
   initial: readonly ConnectorTool[],
   servers: (tools: readonly ConnectorTool[]) => Record<string, McpServerConfig>,
   initialRevision = "",
+  initialDelegatingBot = false,
 ) {
-  let catalog: string | undefined = JSON.stringify([connectorSessionCatalog(initial), initialRevision]);
-  let previous = initial.map((t) => t.name);
+  let catalog: string | undefined = JSON.stringify([
+    connectorSessionCatalog(initial),
+    initialRevision,
+    initialDelegatingBot,
+  ]);
 
-  return async (tools: readonly ConnectorTool[], revision = initialRevision) => {
-    const next = JSON.stringify([connectorSessionCatalog(tools), revision]);
-    const names = tools.map((t) => t.name);
+  const toolNames = (tools: readonly ConnectorTool[], delegatingBot: boolean) => [
+    ...tools.map((t) => t.name),
+    ...(delegatingBot ? ["message_delegating_bot"] : []),
+  ];
+
+  let previous = toolNames(initial, initialDelegatingBot);
+
+  return async (tools: readonly ConnectorTool[], revision = initialRevision, delegatingBot = initialDelegatingBot) => {
+    const next = JSON.stringify([connectorSessionCatalog(tools), revision, delegatingBot]);
+    const names = toolNames(tools, delegatingBot);
 
     try {
       if (catalog !== next) {

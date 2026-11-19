@@ -1,6 +1,6 @@
 # Adapter Codex (app-server)
 
-Status (2026-11-18): runtime wątków, lokalny MCP, poziomy szybkości z katalogu konta,
+Status (2026-11-19): runtime wątków, lokalny MCP z narzędziem wiadomości do delegującego bota, poziomy szybkości z katalogu konta,
 bezstratny zapis obrazów wyników trybu kodu oraz per-modelowe liczniki tokenów i kosztów USD tur
 oraz szacunki równowartości API OpenAI z trwałym cache cennika są zaimplementowane,
 wraz z uruchamianiem app-servera przez skrypt npm z katalogu ze spacjami na Windows;
@@ -18,6 +18,7 @@ Gotowe:
 - podpięcie do workera: `WorkerHost` i `serveLink` (`apps/worker/src/runtime`): komendy z gateway (`CreateThread`, `StartTurn`, `InterruptTurn`, `ListDirectory`), kontrola `cwd` względem dozwolonych katalogów, interakcje przez link (ponawiane po ponownym połączeniu), przebudowa runtime'u Codexa przy zmianie konfiguracji, ale nigdy pod turą w toku.
 
 - szyna agentów: narzędzia jako `dynamicTools` przy `thread/start`, wywołania `item/tool/call` przekazywane do gateway (`AgentToolCall`) i odpowiadane wynikiem ([agent-bus.md](agent-bus.md)).
+- `message_delegating_bot` korzysta z katalogu MCP `canopy_connectors` przypisanego do konkretnego wątku. Dzięki temu dostaje je również wznowiony wątek założony przez bota, a fork właściciela ma własny katalog.
 - konektory: prywatny lokalny MCP `canopy_connectors`; aktualizacja na granicy tur przez unsubscribe/resume tej samej sesji z historią i sprawdzenie jej natywnego katalogu. Sam reload MCP nie odświeża niezmienionego połączenia w 0.164.0 ([connectors.md](connectors.md#ograniczenia-sesji-harnessów)).
 - lokalna automatyzacja: ten sam workerowy bridge wystawia gotowe `agent-browser`, `agent-desktop` i `agent-device` jako prywatne MCP HTTP per `threadId`; gateway autoryzuje każdy call ([automation-tools.md](automation-tools.md)).
 

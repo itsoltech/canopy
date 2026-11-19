@@ -10,7 +10,6 @@ import { coreState, InvalidError } from "./core-context.ts";
 import { corePublishSteer } from "./core-messages.ts";
 import type { GatewayCore } from "./core.ts";
 import { coreBroadcastThread } from "./core-broadcast.ts";
-import { SqlClient } from "effect/sql";
 import { copyConversationFiles, forwardedNotice } from "./bot-files.ts";
 import { botThreadPermission } from "../bots/thread-permission.ts";
 
@@ -59,15 +58,9 @@ export const coreBotThreadsMethods: CoreBotThreadsMethods = {
         }),
         undefined,
         false,
-        {},
+        { startedByBot: turn.bot_id },
       );
 
-      await this[coreState].actions.run(
-        Effect.gen(function* () {
-          const sql = yield* SqlClient.SqlClient;
-          yield* sql`INSERT INTO bot_started_threads(thread_id, bot_id) VALUES (${thread.id}::uuid, ${turn.bot_id}::uuid) ON CONFLICT DO NOTHING`;
-        }),
-      );
       const turnId = await this.watchBotThread(turn, call, thread.id);
       await forwardedNotice(this, turn, call, thread.title);
 

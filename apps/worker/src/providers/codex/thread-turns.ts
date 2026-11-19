@@ -17,7 +17,7 @@ export function threadTurns(
   turnSettings: ReturnType<typeof threadTurnSettings>,
   reconfigure: ReturnType<typeof threadSessions>["reconfigure"],
 ) {
-  const { codex, connectorCatalog, byPlatform } = ctx;
+  const { codex, mcpSpecs, byPlatform } = ctx;
   const { record } = threadEvents(ctx);
 
   return {
@@ -29,14 +29,13 @@ export function threadTurns(
     ) {
       if (settings?.canSubmit?.() === false) return "";
       const enteredAt = workerDiagnostics.enabled ? workerDiagnostics.monotonic() : 0;
-      const previous = connectorCatalog.get(spec.threadId);
-      const previousAutomation = ctx.automationCatalog.get(spec.threadId);
+      const previous = mcpSpecs.get(spec.threadId);
       let entry = yield* ensureLoaded(spec, settings?.recoveryContext);
       const known = entry.platformToCodex.get(turnId);
 
       if (known) return known; // redelivered StartTurn: the turn already exists
 
-      entry = yield* refreshCodexConnectors(ctx, reconfigure, spec, entry, previous, previousAutomation);
+      entry = yield* refreshCodexConnectors(ctx, reconfigure, spec, entry, previous);
       yield* Effect.tryPromise({
         try: () => settings?.connectorsReady?.() ?? Promise.resolve(),
         catch: () =>

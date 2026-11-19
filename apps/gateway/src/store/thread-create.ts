@@ -213,6 +213,9 @@ export function threadCreation(
                           ${forkSource}::uuid, ${forkAfterTurn}::uuid, ${settings}::jsonb, 'creating', ${request.title.trim() || request.initialMessage.trim().split("\n")[0]?.slice(0, 60) || "New thread"}, ${request.title.trim() ? "user" : "provisional"},
                           ${worktree?.id ?? inherited?.worktree_id ?? null}::uuid, ${request.clientRequestId || null}, ${preparationFingerprint ?? null})`;
 
+          if (automated?.startedByBot)
+            yield* sql`INSERT INTO bot_started_threads(thread_id, bot_id) VALUES (${id}::uuid, ${automated.startedByBot}::uuid)`;
+
           if (request.initialMessage.trim() && !preparationFingerprint) {
             yield* sql`
                     INSERT INTO turns (id, thread_id, ordinal, trigger, author_user_id, client_request_id, input)

@@ -70,8 +70,7 @@ export function unloadCodexThread(ctx: CodexThreadContext, threadId: string) {
       try: () => ctx.connectorMcp?.unload(threadId) ?? Promise.resolve(),
       catch: (cause) => fail(threadId, "unload MCP")({ message: String(cause) }),
     }).pipe(attempt);
-    ctx.connectorCatalog.delete(threadId);
-    ctx.automationCatalog.delete(threadId);
+    ctx.mcpSpecs.delete(threadId);
 
     if (failures[0]) return yield* failures[0];
   });

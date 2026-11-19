@@ -10,6 +10,7 @@ import { linkedComputers } from "./support/computers.ts";
 import { ComputerStore } from "../../apps/gateway/src/computers/store.ts";
 import type { BotModel, ModelInput } from "../../apps/gateway/src/bots/types.ts";
 import { eventually, failure, startTestGateway, type TestGateway } from "./support/gateway.ts";
+import { checkLinkedDelegatingBot } from "./support/delegating-bot-linked.ts";
 import { answerWithoutWaitingForPeer, checkLinkedBotApproval } from "./support/bot-approval-linked.ts";
 
 const id = () => crypto.randomUUID();
@@ -413,6 +414,29 @@ describe.skipIf(!dockerAvailable)("linked bots and agent bus: two independent ho
     await a.api.updateBot({ botId: botA, configuration: original });
     modelA = async (i) => reply(`A: ${input(i)}`);
   }, 20000);
+
+  test("a bot-started thread messages its linked routine mid-turn and reports completion separately", async () => {
+    const bot = (
+      await a.api.createBot({
+        clientRequestId: id(),
+        configuration: {
+          ...(await a.api.getBot({ botId: botA })).bot!.configuration!,
+          name: "Linked routine",
+          approvalPolicy: "full_auto",
+        },
+      })
+    ).bot!.id;
+
+    const original = modelA;
+
+    try {
+      await checkLinkedDelegatingBot(a, b, bot, workspace, project, (model) => {
+        modelA = model;
+      });
+    } finally {
+      modelA = original;
+    }
+  }, 30000);
 
   test("approving B's policy card from A resumes the tool exclusively at B's home", async () => {
     const createdA = a.worker.created.length;

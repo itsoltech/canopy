@@ -16,6 +16,8 @@ import { queryMethods } from "../diagnostics/query-context.ts";
 import { conversationContext } from "../messengers/store-outbound.ts";
 import { botPoll } from "./poll.ts";
 import { settleChatSteer } from "./store-chat-steer.ts";
+import { messageDelegatingBot } from "./thread-messages.ts";
+import type { CallSource } from "../store/agent-bus-types.ts";
 import { botExecutions } from "./bot-execution.ts";
 
 export {
@@ -37,6 +39,8 @@ function makeStore(sql: SqlClient.SqlClient, key: Buffer) {
   return {
     conversationContext: (turn: import("./types.ts").BotTurn) => conversationContext(sql, turn),
     originEnabled: core.originEnabled,
+    messageDelegatingBot: (owner: string, source: CallSource, text: string) =>
+      messageDelegatingBot(sql, core, owner, source, text),
     interruptedTurns: (owner: string, ids: string[]) =>
       sql<{ id: string }>`SELECT t.id FROM bot_turns t JOIN bots b ON b.id=t.bot_id
       WHERE b.owner_user_id=${owner}::uuid AND t.id=ANY(${ids}::uuid[]) AND t.status='interrupted'`.pipe(

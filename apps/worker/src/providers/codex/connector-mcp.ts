@@ -7,6 +7,13 @@ import { connectorSessionCatalog } from "@canopy/domain/connector-session";
 import type { threadSessions } from "./thread-sessions.ts";
 import { automationMcp, automationMcpKey } from "../local-automation.ts";
 
+// Codex inherits dynamic tools in forks. This tool follows the current platform thread on start, fork and resume.
+const botTools = (spec?: ThreadSpec) =>
+  spec?.enableAgentBus && spec.hasDelegatingBot ? (["message_delegating_bot"] as const) : [];
+
+const catalogKey = (spec: ThreadSpec) =>
+  JSON.stringify([connectorSessionCatalog(spec.connectorTools), botTools(spec), automationMcpKey(spec)]);
+
 /** A private transport per thread; external credentials and authorization remain in the gateway. */
 export function codexConnectorMcp(ctx: CodexThreadContext) {
   const bridges = new Map<string, PlatformMcp>();
@@ -29,16 +36,18 @@ export function codexConnectorMcp(ctx: CodexThreadContext) {
   };
 
   const config = (spec: ThreadSpec) => {
-    ctx.connectorCatalog.set(spec.threadId, spec.connectorTools);
+    ctx.mcpSpecs.set(spec.threadId, spec);
     let bridge = bridges.get(spec.threadId);
 
     if (!bridge) {
       bridge = platformMcp({
         threadId: spec.threadId,
         depth: spec.depth,
-        agentBus: false,
+        get agentBus() {
+          return botTools(ctx.mcpSpecs.get(spec.threadId));
+        },
         get connectorTools() {
-          return ctx.connectorCatalog.get(spec.threadId) ?? [];
+          return ctx.mcpSpecs.get(spec.threadId)?.connectorTools ?? [];
         },
         turnId: () => {
           const entry = ctx.byPlatform.get(spec.threadId);
@@ -74,14 +83,12 @@ export function codexConnectorMcp(ctx: CodexThreadContext) {
       automation.set(spec.threadId, local);
     }
 
-    ctx.automationCatalog.set(spec.threadId, key);
-
     return {
       mcp_servers: {
         canopy_connectors: {
           url: server.url,
           http_headers: Object.fromEntries(server.headers.map((h) => [h.name, h.value])),
-          // Only gateway-verified connector calls use this server. Gateway enforces grants and approvals.
+          // The gateway authorizes connector and delegation calls.
           default_tools_approval_mode: "approve",
           required: true,
         },
@@ -124,17 +131,10 @@ export const refreshCodexConnectors = (
   reconfigure: ReturnType<typeof threadSessions>["reconfigure"],
   spec: ThreadSpec,
   entry: Entry,
-  previous: ThreadSpec["connectorTools"] | undefined,
-  previousAutomation?: string,
+  previous: ThreadSpec | undefined,
 ) =>
   Effect.gen(function* () {
-    if (
-      (previous !== undefined &&
-        JSON.stringify(connectorSessionCatalog(previous ?? [])) !==
-          JSON.stringify(connectorSessionCatalog(spec.connectorTools))) ||
-      (previousAutomation !== undefined && previousAutomation !== automationMcpKey(spec))
-    )
-      entry = yield* reconfigure(spec, entry);
+    if (previous && catalogKey(previous) !== catalogKey(spec)) entry = yield* reconfigure(spec, entry);
 
     const inventory = yield* ctx.codex
       .request("mcpServerStatus/list", { threadId: entry.codexId, serverName: "canopy_connectors" })
@@ -142,10 +142,12 @@ export const refreshCodexConnectors = (
 
     const server = inventory.data.find((s) => s.name === "canopy_connectors");
 
+    const expected = [...spec.connectorTools.map((t) => t.name), ...botTools(spec)].sort();
+
     if (
       server?.runtimeStatus !== "connected" ||
       server.toolsError ||
-      JSON.stringify(Object.keys(server.tools).sort()) !== JSON.stringify(spec.connectorTools.map((t) => t.name).sort())
+      JSON.stringify(Object.keys(server.tools).sort()) !== JSON.stringify(expected)
     )
       return yield* new CodexThreadError({
         threadId: spec.threadId,
@@ -154,4 +156,10 @@ export const refreshCodexConnectors = (
       });
 
     return entry;
-  }).pipe(Effect.tapError(() => Effect.sync(() => ctx.connectorCatalog.set(spec.threadId, previous ?? []))));
+  }).pipe(
+    Effect.tapError(() =>
+      Effect.sync(() => {
+        if (previous) ctx.mcpSpecs.set(spec.threadId, previous);
+      }),
+    ),
+  );

@@ -1,14 +1,14 @@
 import { ownerModule } from "./module-access.ts";
 import { create } from "@bufbuild/protobuf";
 import { ThreadSpecSchema, ui, type ThreadSpec } from "@canopy/contracts";
-import { SUBAGENT_REPORTING_RULES } from "@canopy/domain";
+import { DELEGATING_BOT_MESSAGE_GUIDANCE, SUBAGENT_REPORTING_RULES } from "@canopy/domain";
 import { Effect } from "effect";
 import type { SqlClient } from "effect/sql";
 import { Invalid, NotFound, one, type Fx } from "./errors.ts";
 import { searchThreads } from "./thread-search.ts";
 import { archivedPage } from "./archived-pagination.ts";
 import { providerOf } from "./instance-config.ts";
-import type { ThreadRow } from "./rows.ts";
+import { hasDelegatingBot, type ThreadRow } from "./rows.ts";
 import { listThreadSelect, threadSelect } from "./thread-select.ts";
 import { permissionModeOf } from "./ui-mappers.ts";
 import { storageText } from "./event-text.ts";
@@ -195,6 +195,7 @@ export function threadStore(sql: SqlClient.SqlClient): Omit<ThreadStore, "create
             : undefined,
           row.settings.instructions,
           row.settings.handoff,
+          hasDelegatingBot(row) ? DELEGATING_BOT_MESSAGE_GUIDANCE : undefined,
           (row.origin === "agent" && row.depth > 0) ||
           (row.remote_parent_ref && row.remote_parent_kind === "thread" && !row.remote_parent_detached)
             ? SUBAGENT_REPORTING_RULES
@@ -205,6 +206,7 @@ export function threadStore(sql: SqlClient.SqlClient): Omit<ThreadStore, "create
         permissionMode: permissionModeOf(row.settings.permissionMode || "ASK"),
         // Agent bus tools for every worker thread: Codex dynamicTools, Claude MCP (docs/agent-bus.md).
         enableAgentBus: row.runtime === "worker",
+        hasDelegatingBot: hasDelegatingBot(row),
         providerThreadId: row.provider_thread_id ?? "",
         depth: row.remote_parent_ref ? 1 : row.depth,
       }),

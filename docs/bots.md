@@ -12,7 +12,8 @@ w turach zewnętrznych. Konektor Slack umożliwia pobranie pliku po jego identyf
 Bot Codex może odczytać obraz z wiadomości lub konektora, jeśli jego model obsługuje obrazy.
 W prywatnej rozmowie z właścicielem i w swoich rutynach bot może wysyłać jako Canopy na Slacku ze
 stałą zgodą dla konkretnego konta i rozmowy Slack.
-Instrukcje odpowiedzi kierują wyniki pracy delegowanej przez Messages.
+Wątek uruchomiony przez bota może przekazać mu pytanie w trakcie pracy przez
+`message_delegating_bot`. Po zakończeniu obserwowanej tury bot automatycznie dostaje jej wynik.
 Konfiguracja bota przenosi `service_tier` do `RunBotTurn`.
 Historia w web/desktop korzysta z wirtualizacji i automatycznie dołącza
 starsze strony podczas przewijania, zachowując pozycję czytania.
@@ -50,6 +51,18 @@ gdy właściciel ma włączone oba moduły. Gateway filtruje katalog przekazywan
 i sprawdza aktualne ustawienia przy wywołaniu, również w rozpoczętej turze i po
 wznowieniu. Bot zachowuje własne wiadomości, rutyny, przypomnienia i przyznane konektory.
 Gdy włączony jest wyłącznie moduł Bots, `list_schedules` i `cancel_schedule` obsługują własne przypomnienia bota.
+
+W wątku uruchomionym przez bota agent może wywołać `message_delegating_bot({text})`,
+gdy potrzebuje przekazać pytanie lub ustalenie przed końcem pracy. Przykładowo może
+poprosić o wersję systemu zgłaszającego i w tym czasie dalej analizować kod.
+Gateway ustala odbiorcę na podstawie delegowania w bieżącej turze. Wiadomość trafia
+do źródłowej rozmowy lub rutyny bota. Przy zgłoszeniu ze Slacka odpowiedź do
+uczestników przekazuje bot zgodnie z ustawieniami Messages.
+
+Zwykły wpis agenta w trakcie pracy nie budzi bota. Gdy agent kończy pracę lub
+potrzebuje odpowiedzi, żeby wykonać kolejny krok, wystarczy odpowiedź końcowa.
+Jeśli agent wysłał już pytanie narzędziem, w odpowiedzi końcowej podaje tylko nowe
+ustalenia. Każde jawne wywołanie pozostawia obserwację końca tury aktywną.
 
 Przy wyłączeniu modułu gateway wygasza oczekujące zgody na działania bota w wątkach
 i zamyka oczekujące obserwacje wyników i pytań, także między komputerami. Przy wyłączeniu samych botów

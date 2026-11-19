@@ -12,10 +12,19 @@ import { Match, Predicate, Schema } from "effect";
 
 import { AgentBusStore, type ThreadRow } from "../store/index.ts";
 
-import { fail, record, text, type Actor, type Arguments, type Reference } from "./agents-context.ts";
+import {
+  agentsState,
+  requireLinkedChainCapacity,
+  fail,
+  record,
+  text,
+  type Actor,
+  type Arguments,
+  type Reference,
+} from "./agents-context.ts";
 import { targetKind, requireAgentModules, requireLinkedModules } from "./agents-module-access.ts";
 import type { LinkedAgents } from "./agents.ts";
-import { requireLinkedChainCapacity } from "./agents-receive.ts";
+import { messageLinkedDelegatingBot } from "./delegating-bot.ts";
 import { gather } from "../api/routed-overview.ts";
 import { PEER_READ_TIMEOUT_MS } from "./timing.ts";
 import { refuseRemoteAutomation } from "../worktrees/remote.ts";
@@ -79,6 +88,8 @@ export const agentsBusToolsMethods: AgentsBusToolsMethods = {
     call: AgentBusCall,
     caller: ThreadRow,
   ): Promise<JsonValue | undefined> {
+    if (call.tool === "message_delegating_bot" && caller.remote_parent_kind === "bot")
+      return messageLinkedDelegatingBot(this, request, caller, call.args.text);
     this.redirect(call.args);
 
     if (call.tool === "wait_threads" && call.args.thread_ids.some((id) => splitId(id).node)) {
@@ -263,23 +274,40 @@ export const agentsBusToolsMethods: AgentsBusToolsMethods = {
         ],
       );
     });
-    const result = await this.call(node, operation, actor, callId, args);
-    const r = record(result);
-    await this.query(
-      "UPDATE computer_agent_calls SET target_id=$4::uuid,target_kind=$5,result=$6::jsonb WHERE owner_user_id=$1::uuid AND peer_node_id=$2 AND call_id=$3::uuid AND direction='outgoing'",
-      [
-        this.owner,
-        node,
-        callId,
-        splitId(text(r, "thread_id")).id,
-        r["target_kind"] ?? "thread",
-        JSON.stringify(result),
-      ],
-    );
+    const acceptance = acceptLinkedCall(this, node, operation, actor, callId, args);
 
-    return result;
+    if (operation !== "spawn" || actor.kind !== "bot") return acceptance;
+
+    // A fast child may call back before its parent has persisted the authenticated spawn result.
+    const key = `${node}:${callId}`;
+    const pending = this[agentsState].pendingBotSpawns;
+    pending.set(key, acceptance);
+
+    try {
+      return await acceptance;
+    } finally {
+      if (pending.get(key) === acceptance) pending.delete(key);
+    }
   },
 };
+
+async function acceptLinkedCall(
+  host: LinkedAgents,
+  node: string,
+  operation: string,
+  actor: Actor,
+  callId: string,
+  args: Arguments,
+) {
+  const result = await host.call(node, operation, actor, callId, args);
+  const r = record(result);
+  await host.query(
+    "UPDATE computer_agent_calls SET target_id=$4::uuid,target_kind=$5,result=$6::jsonb WHERE owner_user_id=$1::uuid AND peer_node_id=$2 AND call_id=$3::uuid AND direction='outgoing'",
+    [host.owner, node, callId, splitId(text(r, "thread_id")).id, r["target_kind"] ?? "thread", JSON.stringify(result)],
+  );
+
+  return result;
+}
 
 async function linkedThreadDelivery(
   host: LinkedAgents,

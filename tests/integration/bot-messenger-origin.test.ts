@@ -1,5 +1,6 @@
 import { afterEach, beforeEach, describe, expect, test } from "bun:test";
-import { Provider } from "@canopy/contracts";
+import { create } from "@bufbuild/protobuf";
+import { Provider, ui } from "@canopy/contracts";
 import { dockerAvailable } from "@canopy/db/testing";
 import { Effect } from "effect";
 import { SqlClient } from "effect/sql";
@@ -86,24 +87,6 @@ describe.skipIf(!dockerAvailable)("messenger work callback origin", () => {
   }
 
   async function delegated(turn: BotTurn) {
-    const thread = (
-      await suite.gw.api.createThread({
-        projectId: suite.projectId,
-        workspaceId: suite.workspaceId,
-        provider: Provider.CODEX,
-        title: "Login fix",
-        clientRequestId: crypto.randomUUID(),
-      })
-    ).thread!;
-
-    const target = (
-      await suite.gw.api.sendMessage({
-        threadId: thread.id,
-        text: "Investigate login",
-        clientRequestId: crypto.randomUUID(),
-      })
-    ).turn!;
-
     const call = await suite.current.bots.run((s) =>
       s.planCall(
         turn,
@@ -124,11 +107,23 @@ describe.skipIf(!dockerAvailable)("messenger work callback origin", () => {
     expect(active.statusLine).not.toContain("PRIVATE_EXTERNAL_ARGUMENT");
     expect(active.working).toBe(false);
 
-    await suite.current.bots.run((s) => s.watchThread(turn, call, thread.id, target.id));
-    await suite.current.bots.run((s) => s.finish(turn, "completed", "Investigating"));
-    expect(await eventually(async () => suite.currentWorker.inputs.has(thread.id), Boolean)).toBe(true);
+    const started = await suite.current.startBotThread(
+      turn,
+      call,
+      create(ui.CreateThreadRequestSchema, {
+        projectId: suite.projectId,
+        workspaceId: suite.workspaceId,
+        provider: Provider.CODEX,
+        title: "Login fix",
+        initialMessage: "Investigate login",
+        clientRequestId: call.id,
+      }),
+    );
 
-    return { thread, target, call };
+    await suite.current.bots.run((s) => s.finish(turn, "completed", "Investigating"));
+    expect(await eventually(async () => suite.currentWorker.inputs.has(started.thread_id), Boolean)).toBe(true);
+
+    return { threadId: started.thread_id, turnId: started.turn_id!, call };
   }
 
   async function finishTarget(threadId: string, turnId: string) {
@@ -144,7 +139,7 @@ describe.skipIf(!dockerAvailable)("messenger work callback origin", () => {
   test("a delegated thread reports once into the originating external conversation", async () => {
     const f = await external();
     const work = await delegated(f.turn);
-    await finishTarget(work.thread.id, work.target.id);
+    await finishTarget(work.threadId, work.turnId);
     await suite.current.bots.run((s) => s.deliver(suite.gw.userId));
     await suite.current.bots.run((s) => s.deliver(suite.gw.userId));
 
@@ -182,6 +177,135 @@ describe.skipIf(!dockerAvailable)("messenger work callback origin", () => {
     expect(final.bot?.unreadCount).toBe(1); // Only the uncertain delivery notice needs attention.
   });
 
+  test("an explicit question reaches the same Slack conversation once while the thread keeps working", async () => {
+    const f = await external();
+    const work = await delegated(f.turn);
+    const worker = suite.currentWorker;
+
+    for (const kind of ["createThread", "startTurn"])
+      expect(worker.commands).toContainEqual(
+        expect.objectContaining({
+          case: kind,
+          value: expect.objectContaining({
+            thread: expect.objectContaining({ threadId: work.threadId, hasDelegatingBot: true }),
+          }),
+        }),
+      );
+    const text = "Which system and proxy version should I test?";
+
+    const call = {
+      threadId: work.threadId,
+      turnId: work.turnId,
+      tool: "message_delegating_bot",
+      args: { text },
+      callId: crypto.randomUUID(),
+    };
+
+    const sent = await worker.callTool(call);
+    expect(sent.isError).toBe(false);
+    expect((await worker.callTool(call)).content).toBe(sent.content);
+    const question = (await suite.current.bots.run((s) => s.claim(suite.gw.userId)))!;
+    expect(question.bot_id).toBe(f.botId);
+    expect(question.conversation_id).toBe(f.turn.conversation_id);
+    expect(question.input).toContain(text);
+    await suite.current.bots.run((s) => s.finish(question, "completed", text));
+    expect(await suite.current.bots.run((s) => s.claim(suite.gw.userId))).toBeUndefined();
+
+    await finishTarget(work.threadId, work.turnId);
+    await suite.current.bots.run((s) => s.deliver(suite.gw.userId));
+    const final = (await suite.current.bots.run((s) => s.claim(suite.gw.userId)))!;
+    expect(final.conversation_id).toBe(question.conversation_id);
+    expect(final.input).toContain("Login repair is ready");
+    expect(final.input).not.toContain(text);
+    await suite.current.bots.run((s) => s.finish(final, "completed", "The repair is ready for review"));
+    expect((await read(f.botId)).messages.filter((m) => m.senderId !== "activity")).toEqual([]);
+  });
+
+  test("a private steer entering a Slack task cannot redirect a mid-turn question", async () => {
+    const f = await external();
+    const work = await delegated(f.turn);
+    const { bots } = suite.current;
+    const { userId } = suite.gw;
+    await bots.run((s) => s.enqueue(userId, f.botId, "Review privately", crypto.randomUUID()));
+    const privateTurn = (await bots.run((s) => s.claim(userId)))!;
+    const args = { thread_id: work.threadId, text: "Also check the private report", delivery: "steer" };
+
+    const call = await bots.run((s) =>
+      s.planCall(
+        privateTurn,
+        "steer",
+        { name: "send_message", source: "platform", parameters: {}, description: "" },
+        args,
+      ),
+    );
+
+    const steer = await suite.current.sendBotThreadMessage(privateTurn, call, work.threadId, args.text, args.delivery);
+    expect(steer.delivery).toBe("steer");
+    await bots.run((s) => s.finish(privateTurn, "completed", ""));
+
+    const rows = await eventually(
+      () => query<{ status: string }>("SELECT status FROM turn_steers WHERE id=$1", [steer.steer_id]),
+      (rows) => rows[0]?.status === "delivered",
+    );
+
+    expect(rows[0]?.status).toBe("delivered");
+
+    const result = await suite.currentWorker.callTool({
+      threadId: work.threadId,
+      turnId: work.turnId,
+      tool: "message_delegating_bot",
+      args: { text: "Which report should I use?" },
+    });
+
+    expect(result.isError).toBe(true);
+    expect(await bots.run((s) => s.claim(userId))).toBeUndefined();
+    await finishTarget(work.threadId, work.turnId);
+  });
+
+  test("a bot sending a task to an owner-created thread does not grant the delegation tool", async () => {
+    const f = await external();
+
+    const thread = (
+      await suite.gw.api.createThread({
+        projectId: suite.projectId,
+        workspaceId: suite.workspaceId,
+        provider: Provider.CODEX,
+        title: "Owner's investigation",
+      })
+    ).thread!;
+
+    const args = { thread_id: thread.id, text: "Check the login logs", delivery: "queue" };
+
+    const call = await suite.current.bots.run((s) =>
+      s.planCall(f.turn, "send", { name: "send_message", source: "platform", parameters: {}, description: "" }, args),
+    );
+
+    const work = await suite.current.sendBotThreadMessage(f.turn, call, thread.id, args.text, args.delivery);
+    await suite.current.bots.run((s) => s.finish(f.turn, "completed", ""));
+    const worker = suite.currentWorker;
+    expect(await eventually(async () => worker.started.has(work.turn_id), Boolean)).toBe(true);
+    expect(worker.commands).toContainEqual(
+      expect.objectContaining({
+        case: "startTurn",
+        value: expect.objectContaining({
+          turnId: work.turn_id,
+          thread: expect.objectContaining({ hasDelegatingBot: false }),
+        }),
+      }),
+    );
+
+    const result = await worker.callTool({
+      threadId: thread.id,
+      turnId: work.turn_id,
+      tool: "message_delegating_bot",
+      args: { text: "Send a private note" },
+    });
+
+    expect(result.isError).toBe(true);
+    expect(await suite.current.bots.run((s) => s.claim(suite.gw.userId))).toBeUndefined();
+    await finishTarget(thread.id, work.turn_id);
+  });
+
   test("a failed Slack turn reports its source to the owner without publishing the external error", async () => {
     const f = await external();
     await suite.current.bots.run((s) => s.finish(f.turn, "failed", "PRIVATE_PROVIDER_ERROR"));
@@ -200,7 +324,17 @@ describe.skipIf(!dockerAvailable)("messenger work callback origin", () => {
     const f = await external();
     const work = await delegated(f.turn);
     await messenger((s) => s.deleteRoute(suite.gw.userId, f.route.id));
-    await finishTarget(work.thread.id, work.target.id);
+
+    const denied = await suite.currentWorker.callTool({
+      threadId: work.threadId,
+      turnId: work.turnId,
+      tool: "message_delegating_bot",
+      args: { text: "Question after revocation" },
+    });
+
+    expect(denied.isError).toBe(true);
+    expect(await suite.current.bots.run((s) => s.claim(suite.gw.userId))).toBeUndefined();
+    await finishTarget(work.threadId, work.turnId);
     await suite.current.bots.run((s) => s.deliver(suite.gw.userId));
 
     expect(await query("SELECT id FROM bot_turns WHERE client_request_id=$1", [`thread:${work.call.id}`])).toEqual([]);

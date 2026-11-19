@@ -35,7 +35,7 @@ export {
 
 export { agentBusToolSpecs, type ToolJsonSpec } from "./tool-specs.ts";
 
-export { SUBAGENT_REPORTING_RULES } from "./communication.ts";
+export { DELEGATING_BOT_MESSAGE_GUIDANCE, SUBAGENT_REPORTING_RULES } from "./communication.ts";
 
 export {
   decodeUserAnswers,

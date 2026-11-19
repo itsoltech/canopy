@@ -2,8 +2,6 @@ import { create, fromJsonString, toJson, type JsonValue } from "@bufbuild/protob
 
 import { computerLink as link, ui } from "@canopy/contracts";
 
-import { DEFAULT_BUS_LIMITS } from "@canopy/domain";
-
 import { nodeRef, qualifyId } from "@canopy/domain/computers";
 
 import { Schema } from "effect";
@@ -12,20 +10,21 @@ import { AgentBusStore } from "../store/index.ts";
 
 import { BotStore } from "../bots/store.ts";
 
-import { fail, record, text, uuid, type Arguments, type Reference } from "./agents-context.ts";
+import {
+  requireLinkedChainCapacity,
+  fail,
+  record,
+  text,
+  uuid,
+  type Arguments,
+  type Reference,
+} from "./agents-context.ts";
 import { targetKind, requireAgentModules } from "./agents-module-access.ts";
 import type { LinkedAgents } from "./agents.ts";
 import { receivedAgentSender } from "./agents-senders.ts";
 import { threadNotice } from "../bots/thread-notice.ts";
+import { receiveDelegatingBotMessage } from "./delegating-bot.ts";
 import { botDeliveryOrigin } from "./bot-delivery-origin.ts";
-
-/** Linked work reserves one step for its reply; deliveries may use the final step. */
-export function requireLinkedChainCapacity(hops: number, reserveReply: boolean) {
-  if (hops > DEFAULT_BUS_LIMITS.maxHops - (reserveReply ? 1 : 0))
-    fail(
-      `This automated conversation reached its limit (${DEFAULT_BUS_LIMITS.maxHops} steps). Send a new message to continue.`,
-    );
-}
 
 export async function agentsDeliverAtHome(
   hostContext: LinkedAgents,
@@ -175,6 +174,8 @@ export const agentsReceiveMethods: AgentsReceiveMethods = {
     } catch {
       return fail("Invalid linked agent arguments");
     }
+
+    if (call.operation === "message_delegating_bot") return receiveDelegatingBotMessage(this, node, call, args);
 
     if (["report", "question"].includes(call.operation)) return this.deliver(node, call, args);
 

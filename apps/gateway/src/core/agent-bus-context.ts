@@ -47,6 +47,7 @@ export interface BusHost {
   inputsChanged(threadId: string): Promise<void>;
   /** An agent created or cancelled a schedule: announce it. */
   scheduleChanged(scheduleId: string): Promise<void>;
+  messageDelegatingBot(source: CallSource, text: string): Promise<JsonValue>;
   requestSecret(source: CallSource, args: AgentBusArgs["request_secret"]): Promise<JsonValue>;
   showImages(source: CallSource, caller: ThreadRow, args: AgentBusArgs["show_images"]): Promise<JsonValue>;
   importImageReply(source: CallSource, caller: ThreadRow, itemId: string): Promise<JsonValue>;
@@ -86,6 +87,7 @@ export const STORES_ITS_CALL = new Set([
   "render_html",
   "spawn_thread",
   "send_message",
+  "message_delegating_bot",
   "schedule_wakeup",
   "schedule_recurring",
   "ask_user",

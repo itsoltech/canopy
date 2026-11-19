@@ -5,6 +5,14 @@ import type { StoredQuote } from "./quotes.ts";
 import type { StoredMentions } from "../core/mentions.ts";
 import type { ComposerChoiceColumns } from "./composer-choice-select.ts";
 
+export function hasDelegatingBot(
+  row: Pick<ThreadRow, "started_by_bot" | "remote_parent_ref" | "remote_parent_kind" | "remote_parent_detached">,
+): boolean {
+  return Boolean(
+    row.started_by_bot || (row.remote_parent_ref && row.remote_parent_kind === "bot" && !row.remote_parent_detached),
+  );
+}
+
 export interface ThreadRow {
   creation_request_id?: string | null;
   preparation_fingerprint?: string | null;
@@ -22,6 +30,7 @@ export interface ThreadRow {
   owner_user_id: string;
   kind: "main" | "side";
   parent_thread_id: string | null;
+  started_by_bot?: boolean;
   remote_parent_ref?: string | null;
   remote_parent_kind?: string | null;
   remote_parent_detached?: boolean;

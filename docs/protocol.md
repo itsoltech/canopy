@@ -1,5 +1,13 @@
 # Protokół gateway ↔ worker
 
+## Wątki delegowane przez boty
+
+Status (2026-11-19): gateway ustawia `ThreadSpec.has_delegating_bot` przy tworzeniu
+i wznawianiu wątku, którego założycielem jest bot. Worker na tej podstawie udostępnia
+`message_delegating_bot`. Każdą wiadomość autoryzuje gateway na podstawie bieżącej
+tury i zapisanej relacji z botem. Starsze workery pomijają dodatkowe pole i nadal
+obsługują automatyczny wynik zakończenia tury. Dostępność według [promocji wydania](release.md).
+
 ## Zatrzymanie modułu właściciela
 
 Status (2026-11-18): zaimplementowane w kodzie. Dostępność w kanałach zależy od [promocji wydania](release.md).

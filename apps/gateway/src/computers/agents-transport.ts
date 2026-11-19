@@ -119,6 +119,7 @@ export const agentsTransportMethods: AgentsTransportMethods = {
       const home = moved?.[0]?.homeNodeId;
 
       if (
+        operation === "message_delegating_bot" ||
         !moved ||
         !home ||
         home === node ||

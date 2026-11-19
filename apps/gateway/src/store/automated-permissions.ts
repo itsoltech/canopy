@@ -9,6 +9,7 @@ import { Invalid } from "./errors.ts";
 import type { ThreadRow } from "./rows.ts";
 
 export interface AutomatedAccess {
+  startedByBot?: string;
   permissionModeNote?: string;
 }
 

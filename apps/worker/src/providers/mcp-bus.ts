@@ -10,6 +10,7 @@ import {
 } from "@canopy/contracts";
 import type { ThreadEventInit } from "../journal/index.ts";
 import {
+  type AgentBusToolName,
   agentBusToolSpecs,
   agentBusToolsFor,
   isPlatformServer,
@@ -52,7 +53,7 @@ export interface McpAttachmentResult {
 export interface PlatformMcpOptions {
   threadId: string;
   depth: number;
-  agentBus?: boolean;
+  agentBus?: false | readonly AgentBusToolName[];
   connectorTools?: readonly ConnectorTool[];
   record?(event: ThreadEventInit): Promise<ThreadEvent | void>;
   viewImage?(path: string): Promise<ViewImageResult>;
@@ -67,7 +68,7 @@ export function platformMcp(options: PlatformMcpOptions): PlatformMcp {
   const pending = new Map<string | number, AbortController>();
 
   const tools = () => [
-    ...(options.agentBus === false ? [] : agentBusToolSpecs(agentBusToolsFor(options.depth))),
+    ...(options.agentBus === false ? [] : agentBusToolSpecs(options.agentBus ?? agentBusToolsFor(options.depth))),
     ...(options.connectorTools ?? []).map((t) => ({
       name: t.name,
       description: t.description,

@@ -75,6 +75,9 @@ export async function busExecute(
       return result;
     }
 
+    case "message_delegating_bot":
+      return hostContext[busState].host.messageDelegatingBot(source, call.args.text);
+
     case "send_message": {
       const sent = await store((s) => s.send({ source, caller, args: call.args, hops }));
 

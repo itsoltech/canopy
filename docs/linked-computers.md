@@ -6,7 +6,7 @@ według aktywności i botów przez bezpośrednie
 łącza, odwołania zaufania w trakcie handshake, zachowania lokalnych kanałów Slack botów i nadawców historycznych
 steerów przy stronicowaniu lokalnym i offline oraz wspólnego
 limitu 256 kroków automatycznej rozmowy i domyślnego
-steera między rodzicem a dzieckiem oraz deduplikacji raportów jednej tury,
+steera między rodzicem a dzieckiem, wiadomości do delegującego bota w trakcie pracy oraz deduplikacji raportów jednej tury,
 retencji dziennika źródłowego i dzierżaw treści (migracja 0154) oraz postępu
 przygotowania wątku negocjowanego poza historyczną listą capabilities. Dostępność w kanałach
 nightly, beta i stable wynika z [wydań](release.md), nie z daty tego opisu.
@@ -20,6 +20,13 @@ zewnętrznych rozmów. Ta historia pozostaje w źródłowym gatewayu; bot przeni
 nie odbiera tam nowych zdarzeń. Na nowym domu właściciel osobno konfiguruje
 Messengers i przypisuje kanały. Mirror prywatnego czatu nie zawiera treści
 zewnętrznych rozmów poza świadomie wysłanym powiadomieniem.
+
+Gdy bot uruchomił wątek na połączonym komputerze, `message_delegating_bot`
+przesyła wiadomość zwrotną przez łącze do domu bota. Dom wątku sprawdza,
+które wiadomości bota weszły do bieżącej tury. Dom bota odczytuje z pierwotnego
+wywołania identyfikator rozmowy lub rutyny. Niejednoznaczne źródło, odłączony
+rodzic lub niedostępne łącze powodują odmowę. Przy trasie przez pośrednika
+również on musi obsługiwać tę operację.
 
 Wyłączenie Bots w domu konta zamyka nasłuch Slack. Bramka odrzuca nowe zdarzenia
 także ze starego gniazda i wstrzymuje wysyłanie odpowiedzi. Wiadomości odebrane

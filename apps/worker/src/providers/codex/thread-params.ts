@@ -10,7 +10,6 @@ export function threadParams(ctx: CodexThreadContext, spec: ThreadSpec) {
   const home = ctx.options.launch.env["CODEX_HOME"];
 
   if (home) managedPlugins(home, "codex");
-  ctx.connectorCatalog.set(spec.threadId, spec.connectorTools);
   const profile = ctx.options.profile(spec.providerProfileId);
 
   if (!profile) throw new Error(`provider profile "${spec.providerProfileId || "native"}" is not available`);

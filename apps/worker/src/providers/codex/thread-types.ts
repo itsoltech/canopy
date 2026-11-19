@@ -103,8 +103,7 @@ export interface CodexThreadContext {
   journal: Journal["Service"];
   byPlatform: Map<string, Entry>;
   byCodex: Map<string, Entry>;
-  connectorCatalog: Map<string, ThreadSpec["connectorTools"]>;
-  automationCatalog: Map<string, string>;
+  mcpSpecs: Map<string, ThreadSpec>;
   connectorMcp?: ReturnType<typeof codexConnectorMcp>;
   failure: string | undefined;
 }

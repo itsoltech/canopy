@@ -164,7 +164,7 @@ async function startPreparedThread(
           s.createThread(userId, message ? { ...request, initialMessage: "" } : request, undefined, options.automated),
         );
 
-    if (!message && options.remoteParent) await annotateRemoteParent(core, row, options.remoteParent);
+    if (options.remoteParent) await annotateRemoteParent(core, row, options.remoteParent);
 
     if (message?.goal === undefined && (message || (pending && request.initialMessage.trim()))) {
       const input =

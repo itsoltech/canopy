@@ -10,10 +10,17 @@ import type { BotTurn, StoredCall } from "../bots/types.ts";
 
 import { BotStore } from "../bots/store.ts";
 
-import { fail, isToolArguments, record, text, type Actor, type Arguments } from "./agents-context.ts";
+import {
+  requireLinkedChainCapacity,
+  fail,
+  isToolArguments,
+  record,
+  text,
+  type Actor,
+  type Arguments,
+} from "./agents-context.ts";
 import { requireLinkedModules } from "./agents-module-access.ts";
 import type { LinkedAgents } from "./agents.ts";
-import { requireLinkedChainCapacity } from "./agents-receive.ts";
 import { gather } from "../api/routed-overview.ts";
 import { PEER_READ_TIMEOUT_MS } from "./timing.ts";
 import { botThreadPermission } from "../bots/thread-permission.ts";
