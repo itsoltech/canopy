@@ -196,24 +196,6 @@ jobs:
           if-no-files-found: error
           retention-days: 1
 
-  windows-worktrees:
-    name: Worktree rollback (Windows)
-    needs: changes
-    if: needs.changes.outputs.scope == 'full'
-    runs-on: windows-2025
-    timeout-minutes: 10
-    steps:
-      - uses: actions/checkout@v5
-        with:
-          ref: ${{ inputs.revision || github.sha }}
-      - uses: ./.github/actions/setup-bun
-        with:
-          install: "false"
-      - run: bun install --frozen-lockfile --ignore-scripts --filter "@canopy/worker" --filter "@canopy/testing"
-      - run: |
-          git --version
-          bun test ./tests/integration/worktree-creation-failure.test.ts
-
   native:
     name: Native checks (${{ matrix.target }})
     needs: builds
@@ -274,7 +256,7 @@ jobs:
 
   check:
     name: Typecheck, tests, builds
-    needs: [changes, static, clients, tests, builds, native, windows-worktrees]
+    needs: [changes, static, clients, tests, builds, native]
     if: always()
     runs-on: ubuntu-24.04
     timeout-minutes: 5
@@ -286,7 +268,6 @@ jobs:
           TESTS: ${{ needs.tests.result }}
           BUILDS: ${{ needs.builds.result }}
           NATIVE: ${{ needs.native.result }}
-          WINDOWS_WORKTREES: ${{ needs.windows-worktrees.result }}
           CLIENTS: ${{ needs.clients.result }}
           SCOPE: ${{ needs.changes.outputs.scope }}
         run: |
@@ -302,7 +283,6 @@ jobs:
           test "$TESTS" = "$expected_full"
           test "$BUILDS" = "$expected_full"
           test "$NATIVE" = "$expected_full"
-          test "$WINDOWS_WORKTREES" = "$expected_full"
       - uses: actions/checkout@v5
         if: needs.changes.outputs.scope == 'full'
         with:

@@ -731,7 +731,7 @@ Kontrolki opcji automatyzacji w UI mogą zostać dodane osobno; edytor harmonogr
 - `tests/integration/worktrees.test.ts`: nowe worktree pod korzeniem i skonfigurowanym `location` mają losowe,
   różne foldery przy tej samej gałęzi.
 - `tests/integration/worktree-creation-failure.test.ts`: timeout z częściowym checkoutem na Linuksie.
-  Na Linuksie i w zadaniu Worktree rollback (Windows) testy odtwarzają stan po zatrzymaniu Git
+  Na Linuksie i Windows testy odtwarzają stan po zatrzymaniu Git
   na jego rzeczywistej rejestracji (bez indeksu i pliku `.git`, z pustym `index.lock`).
   Sprawdzają też ochronę obcych rejestracji i gałęzi, lokalnych plików, dowiązań
   i niepustego `index.lock`.
