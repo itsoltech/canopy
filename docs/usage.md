@@ -4,7 +4,7 @@ Status (2026-11-19): zaimplementowane agregaty zużycia w gatewayu, raporty
 harnessów, niezależne szacunki ekwiwalentu API OpenAI, wybór kosztu per licznik,
 API `GetUsageStats`, synchronizacja źródeł połączonych komputerów oraz modal
 Usage z jedną kwotą kosztu i podziałem według aktywności oraz poszczególnych botów.
-Web, desktop i [aplikacja mobilna](mobile.md#raport-usage) pokazują w raporcie Usage skrócone liczby tokenów.
+Web, desktop i [aplikacja mobilna](mobile.md#raport-usage) pokazują w raporcie Usage skrócone liczby tokenów i dzienny wykres według dostawcy.
 Dostępność nightly/beta/stable według [release.md](release.md).
 
 ## Co mierzymy
@@ -194,7 +194,7 @@ kalendarzowych UTC, łącznie z dzisiejszym; zero wybiera 30. Zwraca sumę, dni
 pokrycie. Każdy dzień zawiera również `providers`: sumy tego samego zestawu
 koszyków osobno dla providera, do wykresu ze stałymi kolorami źródeł inferencji.
 W modalu Usage zmiana dnia kursorem lub klawiaturą zachowuje pozycję wykresu
-i przewinięcie modalu.
+i przewinięcie modalu. Na telefonie dzień można wybrać dotykiem lub strzałkami pod wykresem.
 Opcjonalny filtr `requested_service_tier` bez pola wybiera wszystkie tryby,
 a jawne `""` wybiera wyłącznie nieznany tryb. `speeds` zwraca ten sam zestaw
 sum pogrupowany według żądanej szybkości. Filtr działa przed sumowaniem:

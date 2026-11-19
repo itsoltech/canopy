@@ -1,0 +1,24 @@
+diff --git a/Libraries/Components/TextInput/TextInput.js b/Libraries/Components/TextInput/TextInput.js
+--- a/Libraries/Components/TextInput/TextInput.js
++++ b/Libraries/Components/TextInput/TextInput.js
+@@ -161,7 +161,10 @@ type LastNativeSelection = {
+   mostRecentEventCount: number,
+ };
+ 
+-const emptyFunctionThatReturnsTrue = () => true;
++// A keystroke can move the caret with no touch to release the responder.
++// Only claim it for touch selection (react/react-native#58445).
++const hasActiveTouch = (event: GestureResponderEvent) =>
++  event.touchHistory.numberActiveTouches > 0;
+ 
+ /**
+  * This hook handles the synchronization between the state of the text input
+@@ -604,7 +607,7 @@ function InternalTextInput(props: TextInputProps): React.Node {
+         onFocus={_onFocus}
+         onScroll={_onScroll}
+         onSelectionChange={_onSelectionChange}
+-        onSelectionChangeShouldSetResponder={emptyFunctionThatReturnsTrue}
++        onSelectionChangeShouldSetResponder={hasActiveTouch}
+         selection={selection}
+         selectionColor={selectionColor}
+         style={StyleSheet.compose(

@@ -50,7 +50,7 @@ export class UpdatesState {
   rowStatus(key: string, own: UpdateStatus | string): UpdateStatus | string {
     return furthestStatus(furthestStatus(own, this.#statuses.get(key)), this.optimistic?.rows.get(key));
   }
-  /** An action is pending or Update all runs: row actions wait (this computer restarts last). */
+  /** An action is pending or Update all is running. */
   get active(): boolean {
     return !!this.pending || this.run?.state === "running";
   }

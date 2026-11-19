@@ -5,28 +5,36 @@ export const pendingUpdate = (step: ui.UpdateStep): boolean => ["queued", "runni
 
 export function updateDependencies(step: ui.UpdateStep, steps: ui.UpdateStep[]): ui.UpdateStep[] {
   return steps.filter((item) => {
-    if (item === step || item.state === "skipped") return false;
+    if (item === step || item.state === "skipped" || item.kind === "cli") return false;
 
-    if (step.kind === "app") return true;
+    // Keep the coordinating app alive until the other Canopy updates have finished.
+    // The CLI phase can then resume from the durable run after its restart.
+    if (step.kind === "app" || step.kind === "cli") return true;
 
-    if (step.kind === "gateway")
-      // Restart the coordinator after independent work. Its own workers must wait for the new gateway.
-      return item.kind !== "app" && !(item.nodeId === "" && ["worker", "cli", "desktop"].includes(item.kind));
+    if (step.kind === "gateway") return !!item.nodeId;
 
-    if (step.kind === "computer") return ["worker", "cli"].includes(item.kind) && item.nodeId === step.nodeId;
+    if (step.kind === "computer") return item.kind === "worker" && item.nodeId === step.nodeId;
 
-    if (step.kind === "desktop")
-      return (
-        item.nodeId === step.nodeId &&
-        (item.kind === "gateway" || (item.kind === "cli" && item.workerId === step.workerId))
-      );
+    return item.kind === "gateway" && item.nodeId === step.nodeId;
+  });
+}
+
+export const dependencyFailureReason = (dependency: ui.UpdateStep): string =>
+  `Update ${dependency.label} successfully before retrying this item.`;
+
+/** Only retry a dependent automatically if the scheduler blocked it on a prerequisite. */
+export function retryUpdateSteps(steps: ui.UpdateStep[], selected: ui.UpdateStep[]): ui.UpdateStep[] {
+  const dependents = steps.filter((step) => {
+    if (step.state !== "blocked" || !["worker", "cli"].includes(step.kind) || selected.includes(step)) return false;
+    const prerequisites = updateDependencies(step, steps);
 
     return (
-      item.nodeId === step.nodeId &&
-      ((item.kind === "gateway" && ["worker", "cli"].includes(step.kind)) ||
-        (item.kind === "worker" && step.kind === "cli" && item.workerId === step.workerId))
+      prerequisites.some((item) => selected.includes(item)) &&
+      prerequisites.some((item) => step.reason === dependencyFailureReason(item))
     );
   });
+
+  return [...selected, ...dependents];
 }
 
 function resource(step: ui.UpdateStep, snapshot: ui.UpdatesSnapshot): string {
@@ -44,8 +52,24 @@ function resource(step: ui.UpdateStep, snapshot: ui.UpdatesSnapshot): string {
   return "legacy:worker";
 }
 
+/** Updates that can take down the command transport of another step. */
+export function restartsUpdateTarget(update: ui.UpdateStep, step: ui.UpdateStep): boolean {
+  if (["gateway", "app"].includes(update.kind)) return true;
+
+  if (update.nodeId !== step.nodeId) return false;
+
+  return (
+    update.kind === "computer" || (["worker", "desktop"].includes(update.kind) && update.workerId === step.workerId)
+  );
+}
+
 export function updatesConflict(a: ui.UpdateStep, b: ui.UpdateStep, snapshot: ui.UpdatesSnapshot): boolean {
-  if (a.nodeId !== b.nodeId || a.workerId !== b.workerId || a.kind !== "cli" || b.kind !== "cli") return false;
+  // Older persisted runs may already be installing a CLI when its host is due to restart.
+  if (a.kind !== "cli") return b.kind === "cli" && restartsUpdateTarget(a, b);
+
+  if (b.kind !== "cli") return restartsUpdateTarget(b, a);
+
+  if (a.nodeId !== b.nodeId || a.workerId !== b.workerId) return false;
 
   return a.provider === b.provider || (!!resource(a, snapshot) && resource(a, snapshot) === resource(b, snapshot));
 }

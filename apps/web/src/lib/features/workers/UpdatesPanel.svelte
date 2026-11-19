@@ -110,9 +110,10 @@
     <Disclosure class="px-3 py-2 text-sm/5 text-muted">
       {#snippet summary()}Update order{/snippet}
       <p class="pt-2 text-pretty">
-        Canopy updates the gateway, binary workers, agent CLIs, then Canopy apps. Linked computers restart one at a
-        time. This computer restarts last. Externally managed items show their installer in the results. Other updates
-        continue after a failure. Workers wait for their gateway; agent CLIs wait for their worker.
+        Canopy updates gateways, workers, and apps on all online computers, including this one. Workers wait for their
+        gateway. Once the Canopy updates succeed, agent CLI updates start. Canopy skips offline computers and workers.
+        Independent updates continue after a failure. The results list the installer for items that need a manual
+        update.
       </p>
     </Disclosure>
     {#if snapshot.gatewayBundled}<p class="px-3 py-2 text-sm/5 text-pretty text-muted">

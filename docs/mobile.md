@@ -1,9 +1,10 @@
 # Canopy na iOS i Android
 
 Status: opis zaimplementowanego kodu (2026-11-19). Wysyłanie wiadomości i start tury
-zachowują położenie rozmowy. Natywny raport Usage pokazuje historię kosztów i skrócone
-liczby tokenów z gatewaya. Wątki pokazują strumieniowany tekst linia po linii,
-tak jak web i desktop. Na liście Bots czas i licznik są wyrównane przy menu wiersza.
+zachowują położenie rozmowy. Natywny raport Usage pokazuje
+historię kosztów i skrócone liczby tokenów z gatewaya oraz dzienny wykres według dostawcy.
+Wątki pokazują strumieniowany tekst linia po linii, tak jak web i desktop.
+Na liście Bots czas i licznik są wyrównane przy menu wiersza.
 Aktywny czat bota potwierdza odczyt najnowszych wiadomości i odświeża licznik listy Bots.
 Telefon i tablet pozwalają wybrać kolejność zakładek
 i zatrzymać pracę modułu Threads albo Bots na koncie właściciela.
@@ -20,6 +21,7 @@ Telefon automatycznie sprawdza i pobiera zgodne OTA podczas używania aplikacji.
 Propozycje odpowiedzi pomijają wpisy kolejki zużyte przez odczyt agenta lub steer;
 starsze, porzucone notatki platformy nie blokują późniejszych propozycji ([ui-api.md](ui-api.md#proponowane-odpowiedzi)).
 Pole nie powiększa się od kolejnych cykli fokusu i chowania klawiatury.
+Na iOS pierwsze tapnięcie przycisku po wpisaniu tekstu uruchamia jego akcję także przy otwartej klawiaturze.
 Subagenci i kolejka otwierają wspólne arkusze z przewijaną listą zamiast małych popoverów;
 akcja „Steer” ma widoczną etykietę obok ikony.
 Safe area nad wątkiem ma tło chrome nagłówka, karta ma górny odstęp,
@@ -263,6 +265,11 @@ Raport pokazuje koszt i liczbę tokenów dla dzisiaj lub ostatnich 7, 30 albo
 dostawcy, modelu, dnia lub żądanej szybkości oraz według aktywności lub bota,
 jeśli gateway zwraca te podziały. Lista źródeł pokazuje stan i początek rejestrowania
 danych z komputerów. Kwoty nieznane i częściowe mają osobne oznaczenia.
+
+Między podsumowaniem a podziałem raportu wykres **Daily trend** pokazuje
+osobną linię dla każdego dostawcy. Początkowo zaznaczony jest ostatni dzień.
+Dotknięcie wykresu lub użycie strzałek wybiera dzień i pokazuje jego sumę oraz
+wartości poszczególnych dostawców. Brak znanego kosztu powoduje przerwę w linii.
 
 Telefon pobiera raport przez `GetUsageStats` po otwarciu ekranu, zmianie filtrów
 lub ręcznym odświeżeniu. Przerywa odczyt po opuszczeniu ekranu lub przejściu
@@ -1479,6 +1486,12 @@ fokus liczy wysokość spoczynkową z treści, bez zapisywania pośredniego rozm
 animacji. `keyboardDidHide` kończy pisanie także po pominiętym zdarzeniu strumienia
 klatek klawiatury. Androidowe pole tekstowe nie przyjmuje animowanych rozmiarów, więc
 animuje się ramka wokół niego.
+
+Na iOS pole tekstowe przejmuje obsługę dotyku przy zmianie zaznaczenia tylko wtedy,
+gdy palec dotyka ekranu. Dzięki temu po wpisaniu znaku pierwsze tapnięcie dociera do
+wybranego przycisku, a przeciąganie uchwytów zaznaczenia nadal należy do pola.
+Poprawka dla React Native 0.88.1 dotyczy wszystkich pól tekstowych
+([zgłoszenie w React Native](https://github.com/react/react-native/issues/58445)).
 
 Podczas pisania (fokus pola) dolny pasek pozostaje widoczny: przycisk załączników, model,
 effort oraz wysyłanie/stop. Chowa się tylko dodatkowy wiersz z workerem, celem i trybem

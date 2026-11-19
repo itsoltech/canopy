@@ -41,8 +41,8 @@
     >
   </div>
   <p class="text-base/6 text-pretty text-zinc-500 sm:text-sm/6 dark:text-zinc-400">
-    Gateway first, then binary workers, agent CLIs, and Canopy apps. Linked computers restart one at a time; this
-    computer restarts last. Independent updates continue after a failure.
+    Canopy updates gateways, workers, and apps on all online computers, including this one. Once those updates succeed,
+    agent CLI updates start. Canopy skips offline computers and workers. Independent updates continue after a failure.
   </p>
   {#if updates.error}<Alert tone="error">{updates.error}</Alert>{/if}
   {#if snapshot?.checkError}<Alert tone="error">{snapshot.checkError}</Alert>{/if}
