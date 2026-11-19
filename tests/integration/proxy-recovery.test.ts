@@ -7,6 +7,7 @@ import { startInstanceFixture } from "./support/instance-fixture.ts";
 
 function proxyFixture() {
   const requests: string[] = [];
+  let failDiscovery = false;
 
   const bind = (port: number) =>
     Bun.serve({
@@ -17,8 +18,16 @@ function proxyFixture() {
           return new Response(null, { status: 401 });
 
         switch (new URL(request.url).pathname) {
-          case "/route/v1/models":
+          case "/route/v1/models": {
+            if (failDiscovery && request.headers.has("x-fixture-discovery")) {
+              failDiscovery = false;
+
+              return new Response(null, { status: 503 });
+            }
+
             return Response.json({ data: [{ id: CLAUDE_PROXY_MODEL, supported_endpoint_types: ["messages"] }] });
+          }
+
           case "/route/v1/messages":
             requests.push(await request.text());
 
@@ -36,26 +45,32 @@ function proxyFixture() {
     requests,
     baseUrl: `${server.url.origin}/route`,
     stop: () => server.stop(true),
-    restore: () => {
+    restore: (failFirstDiscovery = false) => {
+      failDiscovery = failFirstDiscovery;
       server = bind(port);
     },
   };
 }
 
-test.skipIf(!dockerAvailable)(
-  "Retry runs exactly once through the saved Claude proxy after an offline worker start",
-  async () => {
+test.skipIf(!dockerAvailable).each([
+  { recovery: "after startup discovery", duringDiscovery: false },
+  { recovery: "between Claude and worker discovery", duringDiscovery: true },
+])(
+  "Retry runs once through the saved proxy when it recovers $recovery",
+  async ({ duringDiscovery }) => {
     const f = await startInstanceFixture();
-    const proxy = proxyFixture();
+    let proxy: ReturnType<typeof proxyFixture> | undefined;
 
     const catalog = async (refresh = false) =>
       (await f.gw.api.listModels({ workerId: f.workerId, unfiltered: true, refresh })).workers[0]?.profiles.find(
         (p) => p.provider === Provider.CLAUDE && p.profileId === "native",
       );
 
-    const offersModel = (p: Awaited<ReturnType<typeof catalog>>) => p?.models.some((m) => m.id === CLAUDE_PROXY_MODEL);
+    const offersModel = (p: Awaited<ReturnType<typeof catalog>>) =>
+      p?.models.some((m) => m.id === CLAUDE_PROXY_MODEL) ?? false;
 
     try {
+      proxy = proxyFixture();
       await f.gw.api.saveProxy({
         id: f.proxy.id,
         name: f.proxy.name,
@@ -75,11 +90,12 @@ test.skipIf(!dockerAvailable)(
       const original = await f.send(thread.id, "Keep working");
       expect(await f.finished(thread.id, original.id)).toMatchObject({ status: "failed", errorClass: "network" });
 
+      if (duringDiscovery) proxy.restore(true);
       await f.restartWorker();
       const offline = await eventually(catalog, (p) => !!p?.models.length && !offersModel(p));
       expect(offline?.models.map((m) => m.id)).toEqual(["default"]);
 
-      proxy.restore();
+      if (!duringDiscovery) proxy.restore();
       const request = { threadId: thread.id, text: "Continue", clientRequestId: "retry" };
       const pending = [f.gw.api.sendMessage(request), f.gw.api.sendMessage(request)] as const;
       const [first, duplicate] = await Promise.all(pending).finally(() => Promise.allSettled(pending));
@@ -99,7 +115,7 @@ test.skipIf(!dockerAvailable)(
       try {
         await f.close();
       } finally {
-        await proxy.stop();
+        await proxy?.stop();
       }
     }
   },

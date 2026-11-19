@@ -94,11 +94,13 @@ CLIProxyAPI wymaga dodatniego markera nagłówka lub publicznego root JSON
 `message = "CLI Proxy API Server"`; dodatkowe zapytanie root nie wysyła sekretu.
 Brak markera nie oznacza braku kompatybilności. Surowe body błędu nigdy nie wraca do UI.
 
-Gdy worker Claude nie odczyta `GET /v1/models` z proxy, raportuje modele znane
-z harnessu jako listę niepełną. Po powrocie sieci **Retry** może wznowić turę
-z zapisanym modelem na skonfigurowanym proxy, nawet jeśli modelu zabrakło w tym
-raporcie. Odświeżenie listy modeli ponawia jej odczyt. **Refresh** w sekcji
-**Accounts** aktualizuje osobny stan kont z Management API.
+Worker Claude oznacza listę modeli jako niepełną, gdy odczyt `GET /v1/models`
+się nie uda albo katalog Claude nie zawiera wszystkich zgodnych modeli z proxy.
+Druga sytuacja może wystąpić, gdy sieć wróci między odczytem Claude a odczytem
+workera. Po powrocie sieci **Retry** może wznowić turę z zapisanym modelem na
+skonfigurowanym proxy, nawet jeśli modelu zabrakło w tym raporcie. Odświeżenie
+listy modeli ponawia jej odczyt. **Refresh** w sekcji **Accounts** aktualizuje
+osobny stan kont z Management API.
 
 ## Dane, migracja i bezpieczeństwo
 

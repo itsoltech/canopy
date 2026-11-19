@@ -272,10 +272,11 @@ for await (const line of createInterface({ input: process.stdin })) {
         response: {
           subtype: "success",
           request_id: message.request_id,
-          response: Match.value(message.request.subtype).pipe(
+          response: await Match.value(message.request.subtype).pipe(
+            Match.when("initialize", async () => ({ commands: [], models: (await proxy?.models()) ?? [], agents: [] })),
             Match.when("mcp_status", () => ({ mcpServers: inventory.status() })),
             Match.when("mcp_set_servers", () => ({ added: [], removed: [], errors: {} })),
-            Match.orElse(() => ({ commands: [], models: proxy?.models ?? [], agents: [] })),
+            Match.orElse(() => ({ commands: [], models: [], agents: [] })),
           ),
         },
       });
