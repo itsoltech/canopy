@@ -1,5 +1,6 @@
 <script lang="ts">
   import { CANOPY_VERSION } from "@canopy/domain/release/version";
+  import Icon from "#lib/shared/ui/Icon.svelte";
   import SearchField from "#lib/shared/ui/SearchField.svelte";
   import StatusDot from "#lib/shared/ui/StatusDot.svelte";
   import { matchesSettingsSection, settingsGroups } from "./sections.ts";
@@ -30,10 +31,14 @@
                 href={section.href}
                 class={itemClass}
                 aria-current={sections.isActive(section.href) ? "page" : undefined}
-                >{section.label}{#if sections.hinted(section.href)}<StatusDot tone="amber" class="ml-auto" /><span
-                    class="sr-only">(updates available)</span
-                  >{/if}</a
               >
+                <Icon name={section.icon} tone="inherit" />
+                {section.label}
+                {#if sections.hinted(section.href)}
+                  <StatusDot tone="amber" class="ml-auto" />
+                  <span class="sr-only">(updates available)</span>
+                {/if}
+              </a>
             </li>
           {/each}
         </ul>
