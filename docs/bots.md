@@ -2,6 +2,7 @@
 
 Status (2026-11-19): wyłączenie modułu Bots zatrzymuje pracę botów właściciela,
 w tym tury na workerach, rutyny i dostarczanie przypomnień.
+Prywatny czat pokazuje odbiór wiadomości ze Slacka, przebieg rutyn i bieżącą czynność bota.
 Mobilna rozmowa potwierdza odczyt najnowszych wiadomości i odświeża listę botów.
 Wysyłana wiadomość ma przygaszony dymek, który zachowuje wysokość po potwierdzeniu.
 Zaimplementowano trwałe rozmowy botów przez Slack Socket Mode,
@@ -125,6 +126,13 @@ zużycie wejścia; odrzucone wejście czeka na kolejną turę. Nieznany wynik po
 nie powoduje ponowienia komendy steer. Po zakończeniu tury niepotwierdzone teksty
 wracają jako kolejna partia z informacją o niepewnym dostarczeniu i zakazem
 powtarzania już ukończonych działań.
+
+Po przekazaniu partii do kolejki bota lub potwierdzonym dołączeniu do działającej
+tury prywatny czat pokazuje wpis o odbiorze. Podaje liczbę wiadomości, konto Slack
+i dostępne identyfikatory kanału lub DM i wątku. Potwierdzenie wysyłki przez Slack
+zapisuje w czacie informację o odpowiedzi. Jeśli sama tura zakończy się błędem,
+wpis wskazuje rozmowę, której dotyczył. W czasie pracy wiersz pod rozmową pokazuje
+pisanie, używanie narzędzia lub oczekiwanie na decyzję.
 
 Historia modelu zewnętrznego obejmuje tylko dany UUID rozmowy. Prywatna rozmowa,
 handoff, lista botów, licznik nieprzeczytanych i podgląd generowania nie ujawniają
@@ -646,9 +654,12 @@ z oznaczeniem **From routine ‹title›**. Inne polityki akcji platformy i MCP 
 ### Ukryty transkrypt i celowe efekty
 
 `routine_id` i kopia tytułu na turze rozróżniają wykonanie w tle od rozmowy.
-Wejście rutyny i tekst asystenta **nie trafiają do `bot_messages`**. Nie ma wskaźnika
-pisania ani nowej ostatniej wiadomości/unread. Pełne wejście, checkpoint i wywołania
-narzędzi pozostają w bazie do audytu. Zwykłe tury zachowują widoczną odpowiedź końcową.
+W prywatnym czacie wpisy z tytułem rutyny oznaczają rozpoczęcie, zakończenie, błąd
+lub przerwanie wykonania. Podczas pracy widać także bieżącą czynność. Surowe wejście,
+tekst asystenta i wyniki narzędzi pozostają w historii wykonania. Wpisy aktywności
+ze Slacka i rutyn mają nadawcę `activity` i rodzaj `event`. Są widoczne na osi czasu
+po ponownym otwarciu rozmowy. Podgląd ostatniej wiadomości, licznik nieprzeczytanych,
+powiadomienia i historia dla modelu pomijają te wpisy.
 
 Model dostaje aktualne stałe instrukcje bota (jego obecną formę pamięci), ostatnie
 **60 widocznych wiadomości** sprzed tej tury, kopię instrukcji rutyny, planowany/aktualny

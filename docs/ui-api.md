@@ -2,6 +2,7 @@
 
 Status (2026-11-19): web/desktop sygnalizuje wysyłanie w wątku na przycisku wysyłki,
 a w czacie bota przez przygaszenie dymka. Potwierdzenie dostarczenia zachowuje wysokość wiadomości.
+Prywatny czat bota pokazuje aktywność tur ze Slacka i rutyn.
 Właściciel ustawia kolejność zakładek i może zatrzymać pracę wybranego modułu.
 Po zamknięciu panelu PR zaplanowane odświeżenie awatarów wykonuje się
 tylko wtedy, gdy inny otwarty widok nadal ich potrzebuje. Stopka sidebara pokazuje tylko jeden z paneli Updates i Provider usage,
@@ -1365,6 +1366,11 @@ właściciela i bota. BFF: `PUT|DELETE /api/bots/:botId/routines/:routineId` ora
 odbywa się wyłącznie przez narzędzia bota. `Bot.owner_user_id` (560) pozwala zapisać
 lokalną preferencję panelu osobno dla właściciela. `BotApproval.routine_title` (560)
 opisuje pochodzenie widocznej karty. Szczegóły ukrytych tur: [bots.md](bots.md).
+
+`BotConversation.status_line` opisuje także pracę w tle. Klient wyświetla go pod
+osią czasu, a dostępność przycisku Stop ustala osobno na podstawie `working`.
+Wpisy o odbiorze ze Slacka i przebiegu rutyny przechodzą przez zwykłą paginację
+i przyrostowe aktualizacje historii jako zdarzenia nadawcy `activity`.
 
 `Bot.unread_count` (561) i `last_read_seq` (562) obejmują widoczne wiadomości bota
 do użytkownika, w tym jawne `message_user`; ukryte wykonania nie zwiększają licznika.

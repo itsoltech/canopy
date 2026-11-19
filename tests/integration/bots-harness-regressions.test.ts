@@ -42,7 +42,11 @@ describe.skipIf(!dockerAvailable)("bot capabilities on the harness runtime", () 
         (r) => r.routines[0]?.runCount === 1 && r.routines[0]?.lastOutcome === "Nothing to report",
       );
 
-      expect(hidden.messages).toEqual(baseline.messages);
+      expect(hidden.messages.filter((m) => m.senderId !== "activity")).toEqual(baseline.messages);
+      expect(hidden.messages.filter((m) => m.senderId === "activity").map((m) => m.text)).toEqual([
+        `Routine “${routine.title}” started`,
+        `Routine “${routine.title}” completed`,
+      ]);
       expect(hidden.routines[0]?.lastOutcome).toBe("Nothing to report");
       expect(timestampDate(hidden.routines[0]!.nextRunAt!).toISOString()).toBe("2030-01-07T08:30:00.000Z");
       await f.tool(bot.id, "schedule_wakeup", {

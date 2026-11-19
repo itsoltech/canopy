@@ -1,9 +1,13 @@
 import { ownerModule } from "../store/module-access.ts";
 import { Effect } from "effect";
-import type { SqlClient } from "effect/sql";
+import type { SqlClient, Statement } from "effect/sql";
 import { linkedMessengerActive } from "./linked-account.ts";
 
-export function activeConversationSource(sql: SqlClient.SqlClient, botId: string, conversationId: string) {
+export function activeConversationSource(
+  sql: SqlClient.SqlClient,
+  botId: string,
+  conversationId: string | Statement.Fragment,
+) {
   return sql`FROM bot_channel_conversations c
     JOIN bot_channel_routes r ON r.id=c.route_id JOIN messenger_accounts a ON a.id=r.account_id
     JOIN bots b ON b.id=r.bot_id AND b.owner_user_id=r.owner_user_id AND b.owner_user_id=a.owner_user_id

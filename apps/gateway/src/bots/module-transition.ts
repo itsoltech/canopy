@@ -2,6 +2,7 @@ import { TurnOutcome } from "@canopy/contracts";
 import { Effect } from "effect";
 import type { SqlClient } from "effect/sql";
 import { fenceBotWorkerCommands } from "../store/module-worker-commands.ts";
+import { stoppedRoutineActivity } from "./routine-activity.ts";
 import { nextStoredCronRun } from "../core/cron.ts";
 
 const reason = "Stopped because Bots was turned off";
@@ -46,6 +47,7 @@ export function botModuleTransition(sql: SqlClient.SqlClient, owner: string, ena
       FROM bots b WHERE h.bot_id=b.id AND b.owner_user_id=${owner}::uuid AND h.outcome IS NULL`;
 
     if (!turns.length) return;
+    yield* stoppedRoutineActivity(sql, turns);
     yield* sql`INSERT INTO bot_messages(id,bot_id,turn_id,message_key,sender_id,recipient_id,kind,text)
       SELECT gen_random_uuid(),t.bot_id,t.id,'answer',t.bot_id::text,'user','message',h.text
       FROM bot_turns t JOIN bot_harness_turns h ON h.turn_id=t.id WHERE t.id=ANY(${turns}::uuid[])

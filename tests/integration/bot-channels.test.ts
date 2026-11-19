@@ -138,7 +138,14 @@ describe.skipIf(!dockerAvailable)("durable bot messenger channels", () => {
         botId,
       ]);
 
-    return { botId, account, route, lease, now, at, event, ingest, dispatch, turns };
+    const messages = async () => (await botRun((s) => s.conversation(owner, botId))).messages;
+
+    const receipts = async () =>
+      (await messages()).filter((m) => m.senderId === "activity" && m.text.startsWith("Received "));
+
+    const chatMessages = async () => (await messages()).filter((m) => m.senderId !== "activity");
+
+    return { botId, account, route, lease, now, at, event, ingest, dispatch, turns, receipts, chatMessages };
   };
 
   const linkAccount = async (accountId: string) => {
@@ -271,14 +278,16 @@ describe.skipIf(!dockerAvailable)("durable bot messenger channels", () => {
     expect(JSON.stringify(history)).toContain("Reply inside canonical thread");
     expect(JSON.stringify(history)).not.toContain("PRIVATE");
     expect(JSON.stringify(history)).not.toContain("Other author unrelated root");
-    expect((await botRun((s) => s.conversation(owner, f.botId))).messages.map((m) => m.text)).toEqual([
-      "PRIVATE OWNER SECRET",
-      "PRIVATE ANSWER",
-    ]);
+    expect((await f.chatMessages()).map((m) => m.text)).toEqual(["PRIVATE OWNER SECRET", "PRIVATE ANSWER"]);
+    const [receipt] = await f.receipts();
+    expect(receipt).toMatchObject({
+      kind: "event",
+      text: "Received 3 Slack messages · Workspace · channel C123 · thread 1700.000001",
+    });
+    expect(JSON.stringify(history)).not.toContain(receipt!.text);
     await botRun((s) => s.finish(external, "completed", "EXTERNAL ANSWER"));
-    expect((await botRun((s) => s.list(owner))).map((bot) => bot.lastMessage?.text).join("\n")).not.toContain(
-      "EXTERNAL ANSWER",
-    );
+    const listed = (await botRun((s) => s.list(owner))).find((bot) => bot.id === f.botId);
+    expect(listed?.lastMessage?.text).toBe("PRIVATE ANSWER");
     const outgoing = await run((s) => s.outbound(owner, f.lease, f.at(6000)));
     expect(outgoing).toHaveLength(1);
     expect(outgoing[0]!.threadId).toBe("1700.000001");
@@ -297,6 +306,7 @@ describe.skipIf(!dockerAvailable)("durable bot messenger channels", () => {
     const laterPrivate = (await botRun((s) => s.claim(owner)))!;
     const privateHistory = JSON.stringify(await botRun((s) => s.history(laterPrivate)));
     expect(privateHistory).toContain("PRIVATE OWNER SECRET");
+    expect(privateHistory).not.toContain(receipt!.text);
     expect(privateHistory).not.toContain("SECOND CONVERSATION");
     expect(privateHistory).not.toContain("EXTERNAL ANSWER");
     expect(await botRun((s) => s.handoffContext(laterPrivate))).not.toContain("SECOND CONVERSATION");
@@ -375,6 +385,9 @@ describe.skipIf(!dockerAvailable)("durable bot messenger channels", () => {
     expect(await f.turns()).toHaveLength(0);
     await f.dispatch(10_000);
     const turn = (await botRun((s) => s.claim(owner)))!;
+    expect((await f.receipts()).map((m) => m.text)).toEqual([
+      "Received 5 Slack messages · Workspace · channel C123 · thread 1700.000001",
+    ]);
     expect(turn.input).toContain("edited body");
     expect(turn.input).not.toContain("body-2");
     expect(turn.input.match(/body-0/g)).toHaveLength(1);
@@ -408,6 +421,7 @@ describe.skipIf(!dockerAvailable)("durable bot messenger channels", () => {
     await botRun((s) => s.finish(fallback, "completed", "second answer"));
     await f.dispatch(20_000);
     const next = (await botRun((s) => s.claim(owner)))!;
+    expect(await f.receipts()).toHaveLength(3);
     expect(next.input).toContain("unsupported steering text");
     expect(next.input).not.toContain("unconfirmed");
     await botRun((s) => s.finish(next, "completed", "done"));
@@ -423,11 +437,14 @@ describe.skipIf(!dockerAvailable)("durable bot messenger channels", () => {
     await f.ingest("live-observed", "live observer update", 11_000, { mention: false, threadId: "" });
     const steer = (await f.dispatch(21_000))[0]!;
     expect(steer.turnId).toBe(first.id);
+    expect(await f.receipts()).toHaveLength(1);
     await run((s) => s.settleSteer(owner, steer.id, true));
+    await run((s) => s.settleSteer(owner, steer.id, true));
+    expect(await f.receipts()).toHaveLength(2);
+    expect((await botRun((s) => s.conversation(owner, f.botId))).bot?.unreadCount).toBe(0);
     expect(JSON.stringify(await botRun((s) => s.history(first)))).toContain("live observer update");
     await botRun((s) => s.finish(first, "completed", "Owner summary"));
-    const visible = await botRun((s) => s.conversation(owner, f.botId));
-    expect(visible.messages.map((m) => m.text)).toEqual(["Owner summary"]);
+    expect((await f.chatMessages()).map((m) => m.text)).toEqual(["Owner summary"]);
 
     const notification = (
       await query<BotTurn>(
@@ -479,11 +496,12 @@ describe.skipIf(!dockerAvailable)("durable bot messenger channels", () => {
     ]);
 
     expect(statuses.every((row) => row.status === "uncertain")).toBe(true);
-    const notes = (await botRun((s) => s.conversation(owner, f.botId))).messages;
+    expect(await f.receipts()).toHaveLength(1);
+    const notes = await f.chatMessages();
     expect(notes).toHaveLength(pending.length);
     expect(notes.every((message) => message.text.includes("Check Slack before resending"))).toBe(true);
     await run((s) => s.outbound(owner, nextLease, f.at(51_000)));
-    expect((await botRun((s) => s.conversation(owner, f.botId))).messages).toHaveLength(notes.length);
+    expect(await f.chatMessages()).toHaveLength(notes.length);
   });
   test("explicit send refusal creates one owner notice and retains the complete response audit", async () => {
     const f = await fixture();
@@ -495,13 +513,12 @@ describe.skipIf(!dockerAvailable)("durable bot messenger channels", () => {
     const outgoing = (await run((s) => s.outbound(owner, f.lease, f.at(4000))))[0]!;
     await run((s) => s.settleOutbound(owner, f.lease, outgoing.id, { sent: false, refused: true }, f.at(5000)));
     await run((s) => s.settleOutbound(owner, f.lease, outgoing.id, { sent: false, refused: true }, f.at(5000)));
-    const visible = await botRun((s) => s.conversation(owner, f.botId));
-    expect(visible.messages).toHaveLength(1);
-    expect(visible.messages[0]!.text).toContain("The reply was not sent");
-    expect(visible.messages[0]!.text).not.toContain("could not be confirmed");
-    expect(
-      (await query<{ text: string }>("SELECT text FROM messenger_outbound WHERE id=$1", [outgoing.id]))[0]!.text,
-    ).toBe(response);
+    const notes = await f.chatMessages();
+    expect(notes).toHaveLength(1);
+    expect(notes[0]!.text).toContain("The reply was not sent");
+    expect(notes[0]!.text).not.toContain("could not be confirmed");
+    const audit = await query("SELECT text FROM messenger_outbound WHERE id=$1", [outgoing.id]);
+    expect(audit).toEqual([{ text: response }]);
   });
   test("moving a bot exports private turns and intentional notices without raw channel data", async () => {
     const gw = await startTestGateway();

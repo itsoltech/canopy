@@ -9,6 +9,7 @@ import { botImages, storedBotImage } from "./attachments.ts";
 import { Effect } from "effect";
 import { SqlClient } from "effect/sql";
 import { Invalid } from "../store/store.ts";
+import { routineActivity } from "./routine-activity.ts";
 import { botQuotes } from "./quotes.ts";
 import { nextHop } from "./policy.ts";
 import { originOf, routineStore, type RoutineOrigin } from "./routines.ts";
@@ -189,7 +190,13 @@ export function botQueue(sql: SqlClient.SqlClient, access: BotAccess) {
   const enqueue = (...args: Parameters<typeof submitInput>) =>
     submitInput(...args).pipe(Effect.map((input) => input.id));
 
-  const finish = (turn: BotTurn, status: string, text: string, errorCode = "", errorSource = "") =>
+  const finish = (
+    turn: BotTurn,
+    status: "completed" | "failed" | "interrupted",
+    text: string,
+    errorCode = "",
+    errorSource = "",
+  ) =>
     sql.withTransaction(
       Effect.gen(function* () {
         yield* fenced(turn);
@@ -206,6 +213,8 @@ export function botQueue(sql: SqlClient.SqlClient, access: BotAccess) {
         yield* sql`UPDATE bots SET status_line = '', revision = revision + 1, updated_at = now() WHERE id = ${turn.bot_id}::uuid`;
 
         if (turn.routine_id) {
+          yield* routineActivity(sql, turn, status);
+
           const sent =
             yield* sql`SELECT id FROM bot_messages WHERE turn_id = ${turn.id}::uuid AND message_key LIKE 'user:%' LIMIT 1`;
 

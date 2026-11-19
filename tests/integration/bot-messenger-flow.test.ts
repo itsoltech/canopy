@@ -23,6 +23,9 @@ async function refusedMessage(
   );
 
   expect(notices.messages.some((m) => m.text.includes("The reply was not sent"))).toBe(true);
+  expect(notices.messages.some((m) => m.text.startsWith("Replied on Slack") && m.text.endsWith("thread 300.1"))).toBe(
+    false,
+  );
   slack.emit("event-after-refused", "<@UAPP> another question", "400.1", "400.1");
   expect(await eventually(async () => slack.acknowledged.has("event-after-refused"), Boolean)).toBe(true);
   advance();
@@ -40,6 +43,13 @@ async function refusedMessage(
       (r) => r[0]?.status === "sent",
     ),
   ).toEqual([{ status: "sent" }]);
+  const chat = await f.read(botId);
+  expect(chat.messages).toContainEqual(
+    expect.objectContaining({
+      senderId: "activity",
+      text: "Replied on Slack · Fixture Slack · channel CGENERAL · thread 400.1",
+    }),
+  );
 }
 
 async function changedInstructions(
@@ -167,6 +177,12 @@ test.skipIf(!dockerAvailable)(
       expect(initial).toContain("HOLD:messenger");
       expect(initial).toContain("on production");
       expect(initial).not.toContain("PRIVATE_OWNER_CONTEXT");
+
+      const active = await f.read(bot.id);
+      expect(active.working).toBe(false);
+      expect(active.statusLine).toContain("Slack");
+      expect(active.streamingText).toBe("");
+      expect(active.messages.some((m) => m.senderId === "activity" && m.text.includes("2 Slack messages"))).toBe(true);
 
       slack.emit("event-3", "Only Safari is affected", "100.3");
       await eventually(async () => slack.acknowledged.has("event-3"), Boolean);

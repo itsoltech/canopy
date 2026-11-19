@@ -3,6 +3,7 @@ import { Effect } from "effect";
 import type { SqlClient } from "effect/sql";
 import { activeConversation } from "./conversation-access.ts";
 import { linkedMessengerActive } from "./linked-account.ts";
+import { inboundActivity } from "./store-activity.ts";
 import type { ConversationRow, RouteRow, SteerInput } from "./types.ts";
 
 interface BufferedMessage {
@@ -145,6 +146,8 @@ function dispatchConversation(sql: SqlClient.SqlClient, owner: string, id: strin
       VALUES(${inputId}::uuid,${id}::uuid,${turnId}::uuid,${text},${active ? "attempted" : "applied"})`;
       yield* sql`UPDATE bot_channel_messages SET state=${active ? "attempted" : "consumed"},input_id=${inputId}::uuid
       WHERE id=ANY(${selected.map((m) => m.id)}::bigint[])`;
+
+      if (!active) yield* inboundActivity(sql, turnId, inputId);
       yield* resetBufferClock(sql, id, now, !active);
       yield* sql`UPDATE bots SET revision=revision+1 WHERE id=${botId}::uuid`;
 
@@ -196,11 +199,12 @@ export function messengerDispatch(sql: SqlClient.SqlClient) {
           if (!row) return;
           yield* sql`UPDATE bot_channel_messages SET state=${applied ? "consumed" : "buffered"} WHERE input_id=${inputId}::uuid`;
 
-          if (applied)
+          if (applied) {
             yield* sql`INSERT INTO bot_messages(id,bot_id,turn_id,message_key,sender_id,recipient_id,kind,text)
           VALUES(${Bun.randomUUIDv7()}::uuid,${row.bot_id}::uuid,${row.turn_id}::uuid,${`steer:${inputId}`},'channel',${row.bot_id},'message',${row.text})
           ON CONFLICT DO NOTHING`;
-          else
+            yield* inboundActivity(sql, row.turn_id, inputId);
+          } else
             yield* sql`UPDATE bot_channel_conversations SET first_received_at=coalesce(first_received_at,now()),
           last_received_at=coalesce(last_received_at,now()) WHERE id=(SELECT conversation_id FROM bot_channel_inputs WHERE id=${inputId}::uuid)`;
         }),

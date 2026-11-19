@@ -7,6 +7,7 @@ import type { SqlClient, SqlError } from "effect/sql";
 import { cronProblem, nextCronRun, nextStoredCronRun } from "../core/cron.ts";
 import { Invalid, NotFound } from "../store/store.ts";
 import { lockedOwnerModule, moduleDisabledMessage } from "../store/module-access.ts";
+import { stoppedRoutineActivity } from "./routine-activity.ts";
 import { nextHop } from "./policy.ts";
 import type { BotRow, BotTurn } from "./types.ts";
 
@@ -198,9 +199,15 @@ export function routineStore(sql: SqlClient.SqlClient, hooks: Hooks) {
 
   const stop = (id: string) =>
     Effect.gen(function* () {
-      const stopped =
-        yield* sql`UPDATE bot_turns SET status = 'interrupted', lease_token = NULL, lease_until = NULL, finished_at = now()
+      const stopped = yield* sql<{
+        id: string;
+      }>`UPDATE bot_turns SET status = 'interrupted', lease_token = NULL, lease_until = NULL, finished_at = now()
       WHERE routine_id = ${id}::uuid AND status IN ('queued','running','waiting') RETURNING id`;
+
+      yield* stoppedRoutineActivity(
+        sql,
+        stopped.map((turn) => turn.id),
+      );
 
       if (stopped.length) yield* sql`UPDATE bot_routines SET last_outcome = 'Stopped' WHERE id = ${id}::uuid`;
       yield* sql`UPDATE bot_approvals SET status = 'discarded', answered_at = now() WHERE status = 'pending'

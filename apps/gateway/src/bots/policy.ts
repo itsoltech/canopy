@@ -150,7 +150,10 @@ export function approvalPrompt(tool: ToolSpec, args: JsonObject, phrase: string)
     .slice(0, 100_000);
 }
 
-export function statusPhrase(tool: ToolSpec, args: JsonObject = {}): string {
+export function statusPhrase<T extends Pick<ToolSpec, "name" | "source" | "serverName" | "remoteName">>(
+  tool: T,
+  args: JsonObject = {},
+): string {
   if (tool.source === "platform" && areaTool.has(tool.name)) return areaTool.get(tool.name)!.phrase(args);
 
   const label = (value: JsonValue | undefined, fallback: string) =>

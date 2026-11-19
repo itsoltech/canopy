@@ -1,6 +1,7 @@
 import { lockedOwnerModule } from "../store/module-access.ts";
 import { Effect } from "effect";
 import type { SqlClient } from "effect/sql";
+import { channelActivity } from "./store-activity.ts";
 import { privateMessengerNotice } from "./store-notify.ts";
 import { activeConversation } from "./conversation-access.ts";
 import type { BotTurn } from "../bots/types.ts";
@@ -20,9 +21,13 @@ export function conversationContext(sql: SqlClient.SqlClient, turn: BotTurn) {
 /** Called inside finish's fenced transaction: the network write happens only after commit. */
 export function finishChannelTurn(sql: SqlClient.SqlClient, turn: BotTurn, status: string, text: string) {
   return Effect.gen(function* () {
+    if (status === "failed")
+      return yield* channelActivity(sql, turn.id, "failed", "Could not finish the Slack request");
+
+    if (status !== "completed" || !text.trim()) return;
     const context = yield* conversationContext(sql, turn);
 
-    if (!context || status !== "completed" || !text.trim()) return;
+    if (!context) return;
 
     // finish already holds bot -> turn; account comes next, matching revocation and delivery writers.
     yield* sql`SELECT a.id FROM messenger_accounts a WHERE a.id=${context.accountId}::uuid FOR UPDATE`;
@@ -119,13 +124,15 @@ export function messengerOutbound(sql: SqlClient.SqlClient, accounts: MessengerA
                 ? "uncertain"
                 : "pending";
 
-          const settled = yield* sql<{
-            id: string;
+          const [settled] = yield* sql<{
+            turn_id: string;
           }>`UPDATE messenger_outbound SET status=${status},available_at=${new Date(now.getTime() + Math.max(1000, result.retryAfterMs ?? 1000))}
-        WHERE id=${id}::uuid AND account_id=${lease.accountId}::uuid AND lease_token=${lease.token}::uuid AND status='sending' RETURNING id`;
+        WHERE id=${id}::uuid AND account_id=${lease.accountId}::uuid AND lease_token=${lease.token}::uuid AND status='sending' RETURNING turn_id`;
 
-          if (settled.length && (status === "uncertain" || status === "failed"))
-            yield* deliveryNotice(sql, id, status === "failed");
+          if (!settled) return;
+
+          if (status === "sent") yield* channelActivity(sql, settled.turn_id, "sent", "Replied on Slack");
+          else if (status === "uncertain" || status === "failed") yield* deliveryNotice(sql, id, status === "failed");
         }),
       ),
   };

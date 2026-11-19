@@ -77,7 +77,11 @@ describe.skipIf(process.env["CANOPY_LIVE"] !== "1" || !url || !key || !dockerAva
       expect(turns).toHaveLength(1);
       expect(turns[0]?.status).toBe("completed");
       const after = await read();
-      expect(after.messages).toEqual(ready.messages);
+      expect(after.messages.filter((m) => m.senderId !== "activity")).toEqual(ready.messages);
+      expect(after.messages.filter((m) => m.senderId === "activity").map((m) => m.text)).toEqual([
+        `Routine “${routine.title}” started`,
+        `Routine “${routine.title}” completed`,
+      ]);
       expect(after.approvals).toHaveLength(0);
       expect(after.routines[0]?.lastOutcome).toBe("Nothing to report");
       expect(after.bot?.lastMessage?.id).toBe(ready.bot?.lastMessage?.id);

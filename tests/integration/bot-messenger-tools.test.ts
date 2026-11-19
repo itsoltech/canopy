@@ -124,6 +124,8 @@ describe.skipIf(!dockerAvailable)("external bot tools use ordinary owner grants"
     expect(card.prompt).toContain("External task · Slack account External work");
     expect(chat.messages).not.toContainEqual(expect.objectContaining({ text: expect.stringContaining("TOOL:") }));
     expect(chat.streamingText).toBe("");
+    expect(chat.statusLine).toContain("Waiting for you");
+    expect(chat.working).toBe(false);
 
     return card;
   }
@@ -180,7 +182,10 @@ describe.skipIf(!dockerAvailable)("external bot tools use ordinary owner grants"
       expect(outbound).not.toContain("ruleOptions");
       expect(outbound).not.toContain("Needs approval");
       expect(outbound).not.toContain(connector.secret);
-      expect((await f.read(bot.id)).messages.map((m) => m.text)).toEqual(["PRIVATE_HISTORY_MARKER", "FIXTURE_OK"]);
+      expect((await f.read(bot.id)).messages.filter((m) => m.senderId !== "activity").map((m) => m.text)).toEqual([
+        "PRIVATE_HISTORY_MARKER",
+        "FIXTURE_OK",
+      ]);
     }, 20_000);
   }
 
@@ -267,7 +272,7 @@ describe.skipIf(!dockerAvailable)("external bot tools use ordinary owner grants"
 
     expect(followups).toHaveLength(1);
     expect(followups[0]?.conversation_id).toBeTruthy();
-    expect((await f.read(bot.id)).messages).toEqual([]);
+    expect((await f.read(bot.id)).messages.filter((m) => m.senderId !== "activity")).toEqual([]);
   }, 25_000);
 
   test("external source instructions cannot administer owner configuration even with full auto", async () => {

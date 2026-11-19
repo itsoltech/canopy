@@ -7,6 +7,7 @@ Wątki pokazują strumieniowany tekst linia po linii, tak jak web i desktop.
 Pobieranie historii wątku ma osobny stan synchronizacji.
 Na liście Bots jednoliniowy podgląd ostatniej wiadomości zachowuje formatowanie Markdown,
 a czas i licznik są wyrównane przy menu wiersza.
+W czacie bota widać odbiór wiadomości ze Slacka, przebieg rutyn i bieżącą czynność bota.
 Aktywny czat bota potwierdza odczyt najnowszych wiadomości i odświeża licznik listy Bots.
 Telefon i tablet pozwalają wybrać kolejność zakładek
 i zatrzymać pracę modułu Threads albo Bots na koncie właściciela.

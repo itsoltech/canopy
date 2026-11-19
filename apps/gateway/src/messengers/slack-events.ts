@@ -2,6 +2,8 @@ import { Match, Option, Schema } from "effect";
 import { slackFileId } from "./slack-files.ts";
 
 export const MAX_SLACK_MESSAGE_FILES = 100;
+export const slackChannelId = /^[CGD][A-Z0-9]{1,79}$/;
+export const slackTimestamp = /^\d{1,20}\.\d{1,12}$/;
 
 const SlackFiles = Schema.Array(Schema.Json);
 const SlackFileRef = Schema.Struct({ id: Schema.String });
@@ -116,7 +118,6 @@ export function slackEventLogFields(envelope: typeof SlackEnvelope.Type): string
   const message = event?.subtype === "message_changed" ? event.message : event;
   const ts = event?.subtype === "message_deleted" ? (event.deleted_ts ?? event.previous_message?.ts) : message?.ts;
   const thread = (event?.subtype === "message_deleted" ? event.previous_message?.thread_ts : message?.thread_ts) ?? "";
-  const timestamp = /^\d{1,20}\.\d{1,12}$/;
 
   // Callback fields are outside our trust boundary. Only emit bounded identifiers and fixed labels.
   const type = event?.type === "message" || event?.type === "app_mention" ? event.type : "other";
@@ -124,9 +125,9 @@ export function slackEventLogFields(envelope: typeof SlackEnvelope.Type): string
   return [
     `event_type=${type}`,
     /^Ev[A-Z0-9]{1,40}$/.test(eventId) ? `event_id=${eventId}` : "",
-    /^[CGD][A-Z0-9]{1,79}$/.test(channel) ? `channel=${channel}` : "",
-    ts && timestamp.test(ts) ? `message_ts=${ts}` : "",
-    timestamp.test(thread) ? `thread_ts=${thread}` : "",
+    slackChannelId.test(channel) ? `channel=${channel}` : "",
+    ts && slackTimestamp.test(ts) ? `message_ts=${ts}` : "",
+    slackTimestamp.test(thread) ? `thread_ts=${thread}` : "",
   ]
     .filter(Boolean)
     .join(" ");

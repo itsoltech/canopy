@@ -146,7 +146,7 @@
   const waiting = $derived(snapshot.approvals.some((a) => a.status === "pending"));
 
   const status = $derived(
-    snapshot.working
+    snapshot.working || snapshot.statusLine
       ? { bot: botParticipant(bot), text: snapshot.statusLine || (waiting ? "Waiting for you" : "Typing…"), waiting }
       : undefined,
   );

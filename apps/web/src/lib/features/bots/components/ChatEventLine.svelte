@@ -28,8 +28,8 @@
   ]}
   title={fullDateLabel(event.at)}
 >
-  <Icon name={icons[event.kind]} class="h-lh fill-zinc-400 dark:fill-zinc-500" />
-  <span class="min-w-0 text-pretty">
+  <span class="min-w-0 text-pretty wrap-anywhere">
+    <Icon name={icons[event.kind]} class="inline-block fill-zinc-400 align-text-bottom dark:fill-zinc-500" />
     {event.text}{#if event.detail}<span class="text-zinc-400 dark:text-zinc-600">{" · "}</span><span
         class="text-zinc-700 dark:text-zinc-300">{event.detail}</span
       >{/if}

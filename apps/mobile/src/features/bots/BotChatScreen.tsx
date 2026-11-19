@@ -171,7 +171,7 @@ function BotConversation({ id, rule }: { id: string; rule: string }) {
               }
               ListHeaderComponent={
                 <>
-                  <BotTyping conversation={conversation} waiting={waiting} />
+                  <BotActivity conversation={conversation} waiting={waiting} />
                   <View style={{ height: composer.height }} />
                 </>
               }
@@ -228,8 +228,8 @@ function BotConversation({ id, rule }: { id: string; rule: string }) {
   );
 }
 
-function BotTyping({ conversation, waiting }: { conversation?: bots.BotConversation; waiting: boolean }) {
-  return conversation?.working && conversation.bot ? (
+function BotActivity({ conversation, waiting }: { conversation?: bots.BotConversation; waiting: boolean }) {
+  return conversation?.bot && (conversation.working || conversation.statusLine) ? (
     <View style={{ paddingTop: 12 }}>
       <BotStatusRow
         bot={botParticipant(conversation.bot)}

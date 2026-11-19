@@ -53,6 +53,8 @@ export async function workerJournalWelcome(core: GatewayCore, workerId: string, 
 }
 
 async function botWorker(core: GatewayCore, input: ModelInput, turn: BotTurn, workerId: string): Promise<string> {
+  let waited = false;
+
   while (!workerId) {
     input.signal.throwIfAborted();
     const workers = await coreWorkers(core);
@@ -84,10 +86,17 @@ async function botWorker(core: GatewayCore, input: ModelInput, turn: BotTurn, wo
 
     if (!workerId) {
       core.bots.waiting(turn.id, true);
-      await core.bots.run((s) => s.status(turn, "Waiting for a worker"));
+
+      if (!waited) {
+        await core.bots.run((s) => s.status(turn, "Waiting for a worker", "Waiting for a worker"));
+        waited = true;
+      }
+
       await Bun.sleep(500);
     }
   }
+
+  if (waited) await core.bots.run((s) => s.status(turn, "Typing…", "Typing…"));
 
   return workerId;
 }
@@ -286,7 +295,7 @@ export async function runBotHarness(core: GatewayCore, input: ModelInput): Promi
 
       if (status !== lastStatus) {
         core.bots.waiting(turn.id, Boolean(status));
-        await run((s) => s.status(turn, status || "Typing…"));
+        await run((s) => s.status(turn, status || "Typing…", status ? "Waiting for a worker" : "Typing…"));
         lastStatus = status;
       }
 
