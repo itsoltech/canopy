@@ -55,7 +55,10 @@ export type HostOperations = HostHooks &
     | "stopReason"
     | "closeOrphans"
   > &
-  Pick<HostEvents, "publish" | "sendEvent" | "interact" | "callTool" | "send" | "log"> &
+  Pick<
+    HostEvents,
+    "publish" | "sendEvent" | "interact" | "callTool" | "toolResult" | "detachGateway" | "send" | "log"
+  > &
   Pick<ThreadCommands, "createThread" | "startTurn" | "steerTurn" | "interruptTurn"> &
   Pick<QueryCommands, "listModelsCommand" | "probeProviders" | "listMentionCatalog" | "searchFiles"> &
   Pick<TaskCommands, "setGoal" | "stopTask" | "unloadThread"> &
@@ -139,6 +142,8 @@ export class HostContext {
       sendEvent: events.sendEvent.bind(events),
       interact: events.interact.bind(events),
       callTool: events.callTool.bind(events),
+      toolResult: events.toolResult.bind(events),
+      detachGateway: events.detachGateway.bind(events),
       send: events.send.bind(events),
       log: events.log.bind(events),
       createThread: threads.createThread.bind(threads),
