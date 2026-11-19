@@ -1,6 +1,7 @@
 # Aktualizacje Canopy
 
-Status: opis zaimplementowanego kodu (2026-11-18), w tym wspólnego otwierania paneli
+Status: opis zaimplementowanego kodu (2026-11-19), w tym aktualizacji Canopy przed CLI
+i pomijania komputerów offline w Update all, wspólnego otwierania paneli
 Updates i Provider usage w stopce oraz równoległej aktualizacji
 zdalnych desktopów i workerów binarnych, ponawiania raportu o błędzie workera,
 niezależnych akcji CLI i korelacji prób w Update all,
@@ -62,10 +63,9 @@ Aplikacja iOS/Android ma ten sam punkt wejścia: trzecią ikonę stopki paska bo
 Kropka oznacza dostępne aktualizacje lub trwającą operację. Dolny panel pokazuje
 gateway albo aplikację komputera, połączone komputery, workery z podziałem na dom,
 zwinięte Agent CLIs oraz stan OTA telefonu. Ustawienia używają tych samych wierszy
-i warunków dostępności akcji. `Update all` obejmuje workery i CLI lokalne oraz
-połączonych komputerów, następnie ich aplikacje i własną aplikację na końcu;
-indywidualne akcje korzystają z istniejących,
-sprawdzających właściciela API. Gateway ogłasza zmiany centrum przez
+i warunków dostępności akcji. `Update all` najpierw aktualizuje Canopy na dostępnych komputerach,
+a następnie zainstalowane CLI na ich workerach. Indywidualne akcje korzystają
+z istniejących API sprawdzających właściciela. Gateway ogłasza zmiany centrum przez
 `OverviewUpdate.updates_changed` (829): stan i sprawdzenia aktualizatora oraz raporty aktualizacji
 workerów, zebrane w paczki po 250 ms; zmiana połączonego komputera odświeża od razu jego
 snapshot tutaj, a zakończony odczyt (`linked_read_completed` GetComputerUpdates) informuje klientów.
@@ -130,8 +130,9 @@ blokują żądanie; sprawdzenie powtarza się bezpośrednio przed wysłaniem.
 Raporty, otwarcie i zamknięcie kanału aplikacji ogłaszają `updates_changed`.
 `Update all` obejmuje własną aplikację, jeśli ma aktualizację. Przed zapisaniem
 przebiegu wymaga `confirm_restart=true` i tego samego potwierdzenia oraz ochrony
-szkiców co pojedyncza akcja. Restart domu jest ostatnim krokiem. Dołączony gateway
-i worker aktualizują się razem z aplikacją; serwerowy gateway zachowuje własny updater.
+szkiców co pojedyncza akcja. Po restarcie domu gateway wznawia zapisany przebieg
+i obsługuje etap CLI. Dołączony gateway i worker aktualizują się razem z aplikacją.
+Serwerowy gateway zachowuje własny updater.
 Na telefonie potwierdzenie otwiera się nad arkuszem Updates, który zostaje otwarty;
 do odpowiedzi gatewaya arkusz pokazuje „Starting update…”, a potem postęp, wynik albo błąd.
 
@@ -181,8 +182,7 @@ to Install, `information-circle` pokazuje szczegóły. Każda ma podpowiedź i
 „Retry”). Wiersz ma najwyżej jedną akcję; bez akcji kolumna zostaje pusta. W trakcie
 Update all blokuje akcje CLI tylko dla danego celu w kolejce lub w trakcie instalacji,
 aktualizacji jego workera albo restartu jego komputera. Pozostałe CLI można aktualizować
-niezależnie. Akcje aktualizacji aplikacji i workerów zachowują blokadę przebiegu;
-ten komputer restartuje się ostatni, w ramach przebiegu.
+niezależnie. Akcje aktualizacji aplikacji i workerów zachowują blokadę przebiegu.
 
 **Stopka.** Odnośnik Settings, „What's new” tylko przy nieobejrzanych notatkach
 i po prawej jedna nazwana akcja główna: Update all, Restart to update (sama pobrana
@@ -200,8 +200,7 @@ odrzucany jest tylko odczyt rozpoczęty przed odpowiedzią.
 **Zapowiedziany restart.** Komputer, który ogłosił restart dla własnej aktualizacji,
 ma odznakę Restarting i linię „Restarting to update…”. Gateway nie dodaje wtedy
 „…is unavailable. Trying again automatically.”. Dopiero po 3 minutach linia zmienia
-się na „Still restarting after N min. Check that computer.”; limit kroku 35 minut
-nadal kończy się Failed z Retry.
+się na „Still restarting after N min. Check that computer.”.
 
 Kolejność: najpierw komputery („This computer”, w trybie serwerowym gateway, potem
 każdy połączony komputer), potem workery pogrupowane według komputera, na końcu
@@ -303,7 +302,8 @@ Orchestrator gatewaya utrzymuje maksymalnie **4 aktywne pozycje**, łącznie dla
 lokalnych i połączonych komputerów. Różne workery oraz różne CLI tego samego
 workera działają równolegle. Każdy krok jest zapisany przed wysłaniem komendy;
 wolne potwierdzenie nie zatrzymuje planowania ani odczytu postępu. Slot pozostaje
-zajęty do potwierdzonego wyniku, a błędy i limity czasu dotyczą pojedynczej pozycji.
+zajęty podczas oczekiwania na wynik dostępnego celu. Pominięcie celu offline zwalnia
+slot dla kolejnych aktualizacji.
 
 Worker ogłasza `CliTool.install_resource`, wyliczone z rzeczywistego przepisu:
 instalacje npm ze **wspólnym `--prefix`** są szeregowane (także rollback), różne
@@ -321,41 +321,42 @@ stary worker ma jedną blokadę również dla natywnych instalatorów. Nowe rapo
 oznaczają niezależne narzędzie jako `tool:<nazwa>`. Protokół WorkerLink nie zmienia numeru;
 pole jest addytywne, a zamrożony UpdateService pozostaje bez zmian.
 
-Workery binarne czekają na aktualizację swojego gatewaya, a CLI na aktualizację
-swojego workera i zgodny protokół. Sparowane zdalne desktopy również czekają na
-zakończenie aktualizacji gatewaya i powrót swojego kanału sterowania, do 35 minut.
-Czekają na CLI własnego workera i mogą aktualizować się równolegle z pozostałymi
-workerami oraz ich CLI. Aplikacje połączonych komputerów czekają na zakończenie
-workerów i CLI w swoim domu; niezależne aplikacje mogą restartować się jednocześnie.
-Własna aplikacja zawsze jest ostatnia. Samodzielny gateway restartuje się po
-niezależnych zdalnych pozycjach, **przed zależnymi lokalnymi workerami i CLI**:
-ich docelowa wersja musi odpowiadać już działającemu gatewayowi. Po restarcie
-zapisany przebieg kontynuuje te zależności; nie wysyła ich do starego gatewaya.
+1. Gateway aktualizuje Canopy na dostępnych komputerach objętych planem. Workery
+   binarne i sparowane desktopy czekają na aktualizację swojego serwerowego gatewaya.
+   Niezależne workery i zdalne aplikacje mogą aktualizować się równolegle.
+   Aplikacja na komputerze koordynującym restartuje się po pozostałych aktualizacjach Canopy.
+2. Po potwierdzeniu aktualizacji Canopy gateway uruchamia instalatory CLI. Warunek
+   dotyczy całego przebiegu, również CLI na innym workerze lub połączonym komputerze.
+
+Gateway sprawdza kanał sterowania aplikacją dla desktopu, kanał aktualizacji
+dla binarki workera i WorkerLink dla CLI.
+Gdy cel jest offline, gateway pomija krok i zapisuje powód, także po rozpoczęciu instalacji CLI.
+Kolejny Update all po powrocie komputera uwzględnia nadal dostępne aktualizacje.
+Jeśli kanał rozłączył się podczas aktualizacji Canopy, gateway daje mu minutę na powrót,
+a przy zapowiedzianym restarcie do pięciu minut. Po potwierdzeniu wersji pozostałe
+kanały mają do minuty na powrót. Zgłoszone uśpienie lub wyłączenie komputera pomija
+jego kroki od razu.
+
 Popover i arkusz mobilny pokazują jeden wspólny licznik „Updating · N of M done”
 (`updateRunSummary`); postęp obejmuje sukcesy oraz zakończone błędy/blokady, pomija
 kroki `skipped`. `begin()` planuje, zapisuje i uruchamia pierwsze kroki przed odpowiedzią,
 więc pierwsza odpowiedź na Update all ma już kroki `running`; odpowiedź wykorzystuje
 snapshot, z którego powstał plan, zamiast czytać wszystkie komputery drugi raz.
 **Retry failed** (`retry_failed` z id bieżącego przebiegu) ponawia jednym trwałym zapisem
-wszystkie kroki `failed` i `blocked`, zachowuje sukcesy i ich wersje oraz wymaga
-`confirm_restart`, jeśli wśród nich jest ta aplikacja.
+dostępne kroki `failed` i `blocked`, pomija cele offline i zachowuje dotychczasowe
+sukcesy. Ponowienie aktualizacji własnej aplikacji wymaga `confirm_restart`.
 Zmiana mobilna pozostaje w JS/TS i korzysta z istniejącej ścieżki OTA.
 
-Nie wymaga migracji. Zależności lokalne zachowują kolejność gateway → workery
-binarne na wersję uruchomionego gatewaya → zainstalowane CLI; zdalne aplikacje
-i aplikacje połączonych komputerów mogą działać niezależnie od innych domów
-(tryb lokalny, [niżej](#połączone-komputery)). Brakujące CLI instaluje się osobnym
-przyciskiem Install. Własna aplikacja desktopowa restartuje się na samym końcu,
-po powrocie partnerów. Jej dołączony gateway aktualizuje bundle, nie samodzielna
-wymiana binarki. Workery i CLI partnerów należą do odpowiednich etapów przed
-restartami aplikacji. Gotowa paczka jest uwzględniana także bez `available_version`:
+Dołączony gateway i worker aktualizują się razem z aplikacją desktopową.
+Brakujące CLI instaluje się osobnym przyciskiem Install. Gotowa paczka aplikacji
+jest uwzględniana także bez `available_version`:
 celem jest nowsze `updater_version`, a `ready` pozwala zlecić instalację aplikacji.
 
 Gateway odpytywany co 2 sekundy wznawia zapisany przebieg po restarcie. Potwierdzenie
 przyjęcia komendy nie kończy kroku: wymagany jest raport wyniku, nowa wersja i
 zgodny protokół workera. Każda akcja ponownie sprawdza dotychczasowe uprawnienia.
-Błąd nie zatrzymuje niezależnych pozycji. Nieudany gateway blokuje jego workery i CLI;
-nieudany worker blokuje CLI tego workera. Partnerzy i pozostałe aplikacje kontynuują.
+Błąd aktualizacji Canopy na dostępnym komputerze pozwala dokończyć inne aktualizacje Canopy,
+ale blokuje etap CLI. Błąd pojedynczego instalatora CLI pozwala kontynuować pozostałe CLI.
 Każdy błąd i blokada mają powód oraz `Retry update`; `retry_step` wymaga id bieżącego
 przebiegu i indeksu kroku, zachowuje sukcesy i ponawia także zablokowane zależności.
 `Update all` po zakończeniu tworzy aktualny plan; podczas pracy zwraca istniejący
@@ -363,10 +364,11 @@ przebieg bez drugiej kolejki. Odczyt postępu nie czeka na odpowiedź instalator
 Automatyczna aktualizacja po Hello workera i równoległe Update all współdzielą
 jedno trwałe polecenie; jego wynik nie ginie przez zastąpienie identyfikatora.
 Zmiany przebiegu ogłaszają `updates_changed`; panel i popover współdzielą wyniki,
-bieżącą pozycję, postęp, pominięcia i zakończenie. Timeout kroku to 35 minut.
+bieżącą pozycję, postęp, pominięcia i zakończenie. Dla dostępnego celu limit
+oczekiwania na potwierdzenie wyniku wynosi 35 minut.
 Id próby CLI jest zapisane w kroku przed wysłaniem i przekazane jako `InstallCliRequest.install_id`;
 raport błędu dotyczy kroku tylko przy zgodnym id. Poprzedni błąd nie kończy nowej instalacji.
-Brak lub utrata potwierdzenia startu pozostawia czas na raport workera do limitu kroku,
+Brak lub utrata potwierdzenia startu pozostawia czas na raport dostępnego workera do limitu kroku,
 także po restarcie gatewaya; nie odtwarzamy komendy instalacji. Jawna odmowa nadal kończy krok.
 Trwająca ręczna instalacja tej samej wersji jest śledzona bez drugiego polecenia;
 instalacja innej wersji musi się najpierw zakończyć. Raport z wersją docelową lub nowszą
@@ -380,8 +382,8 @@ workery binarne, zainstalowane CLI obsługiwane przez indywidualne `InstallCli`
 (natywne oraz npm, Bun, Volta, pnpm i globalne instalacje mise z przepisem) i obsługiwane aplikacje Canopy.
 Gateway Docker/source, zewnętrzne workery oraz CLI bez przepisu instalatora
 (Homebrew, asdf, Yarn, Docker, mise bez obsługiwanego globalnego wpisu i inne nierozpoznane instalacje) mają krok
-`skipped` z powodem i wskazaniem instalatora. Offline, zajętość i odmowa uprawnień
-pozostają błędami lub blokadami z ponowieniem, nie pominięciami.
+`skipped` z powodem i wskazaniem instalatora. Znany stan offline również pozwala pominąć cel. Zajętość i odmowa uprawnień
+pozostają błędami lub blokadami z ponowieniem.
 Worker przechodzi na wersję działającego gatewaya,
 nawet gdy dla zewnętrznego gatewaya istnieje nowsze wydanie.
 Pusty plan jest odrzucany bez zapisu przebiegu. UI ukrywa wtedy Update all;
@@ -610,17 +612,17 @@ zamknięciem), więc UI pokazuje „Restarting”, a nie błąd; po powrocie sna
 
 **Update all.** Plan dodaje krok `computer` dla każdego połączonego, bezpośredniego partnera
 z capability, który jest online, ma aktywny kanał aplikacji i nowszą dostępną wersję. Te kroki
-mogą działać równolegle, po zakończeniu workerów i CLI danego partnera.
+mogą działać równolegle, po zakończeniu aktualizacji workerów danego partnera.
 Własna aplikacja A restartuje się dopiero po tych krokach, więc łącze A
 przetrwa restart B i A widzi powrót B. Krok zapisuje id żądania u B; kończy się, gdy B wróci
-na łącze z wersją co najmniej planowaną albo zgłosi `succeeded` dla tego id. Offline lub
-`updating` B to oczekiwanie, nie błąd; `failed` B zapisuje powód i pozwala kontynuować innym komputerom. Limit kroku
-to jak dla innych 35 minut, więc długie czekanie na koniec tur u B może skończyć się Retry.
+na łącze z wersją co najmniej planowaną albo zgłosi `succeeded` dla tego id.
+Przy błędzie B gateway zapisuje powód i kontynuuje niezależne aktualizacje Canopy.
+Jeśli B pozostaje online i czeka na zakończenie tur przez 35 minut, krok kończy się błędem
+z możliwością ponowienia.
 Workery i CLI partnera wchodzą do Update all A z kwalifikowanymi id domu.
 Worker używa `RequestComputerUpdate.worker`; CLI tego samego trasowanego `InstallCli`
 co pojedynczy przycisk, z obustronnym Share configuration i audytem obu domów.
-Po restarcie A zapisany ostatni krok aplikacji czeka na raport wersji; nie wysyła
-ponownie instalacji ani restartu. Nie zmieniamy zamrożonego UpdateService.
+Po restarcie A wznawia zapisany krok aplikacji, sprawdza wersję i kontynuuje etap CLI.
 
 **Jednorazowo.** Oba komputery muszą mieć wersję z tą funkcją, zanim zdalna aktualizacja zadziała;
 starszy partner jest pokazywany z wersją i „Update on that computer”, bez akcji.

@@ -20,7 +20,7 @@
     class: className,
   }: {
     updates: DesktopUpdatesState;
-    /** The update center: while Update all runs, this computer restarts last, by the run, never from its row. */
+    /** Update all handles this computer's restart before starting agent CLI updates. */
     center: UpdatesState;
     /** The gateway reports itself as this app's bundled one (local mode): the app includes it and its worker. */
     bundled?: boolean;
@@ -122,7 +122,7 @@
     line={row === "waiting"
       ? "Restarts after its current turns end."
       : row === "queued" && ready && !worker
-        ? "Restarts last, after the others."
+        ? "Restarts before agent CLI updates."
         : ""}
     error={row === "failed" ? error : ""}
     busy={updateInProgress(row)}
