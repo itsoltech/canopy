@@ -174,8 +174,7 @@ export function ConnectionDetails({
  * unresponsive gateway or a phone without network wins over a screen's own reconnect; a dropped screen stream shows
  * only when the gateway itself still answers. `Details` opens the status sheet with the native code.
  */
-export function ConnectionBanner({ stream, overlay = false }: { stream?: StreamState; overlay?: boolean }) {
-  const c = useColors();
+export function ConnectionBanner({ stream }: { stream?: StreamState }) {
   const overview = useOverview().stream;
   const tailscale = hasTailscaleFailure(useRouteStatus());
   const departure = useGatewayDeparture();
@@ -183,35 +182,31 @@ export function ConnectionBanner({ stream, overlay = false }: { stream?: StreamS
   const shown = banner(overview, stream, tailscale);
 
   return (
-    <View style={overlay ? { height: 0, zIndex: 1 } : undefined}>
-      <View
-        style={overlay ? { position: "absolute", top: 0, left: 0, right: 0, backgroundColor: c.sidebar } : undefined}
-      >
-        <GatewayUpdateNotice />
-        {shown && (!departure.visible || overview.connection === "offline") && (
-          <Alert
-            banner
-            tone={shown.tone}
-            actions={
-              <>
-                <Button
-                  title={shown.action === "retry" ? "Retry" : "Details"}
-                  size="sm"
-                  variant="ghost"
-                  onPress={() => (shown.action === "retry" ? shown.stream.retry() : setOpen(true))}
-                />
-                {shown.action === "retry" && shown.stream.loadFromScratch && (
-                  <Button title="Load from scratch" size="sm" variant="ghost" onPress={shown.stream.loadFromScratch} />
-                )}
-              </>
-            }
-          >
-            {shown.text}
-          </Alert>
-        )}
-      </View>
+    <>
+      <GatewayUpdateNotice />
+      {shown && (!departure.visible || overview.connection === "offline") && (
+        <Alert
+          banner
+          tone={shown.tone}
+          actions={
+            <>
+              <Button
+                title={shown.action === "retry" ? "Retry" : "Details"}
+                size="sm"
+                variant="ghost"
+                onPress={() => (shown.action === "retry" ? shown.stream.retry() : setOpen(true))}
+              />
+              {shown.action === "retry" && shown.stream.loadFromScratch && (
+                <Button title="Load from scratch" size="sm" variant="ghost" onPress={shown.stream.loadFromScratch} />
+              )}
+            </>
+          }
+        >
+          {shown.text}
+        </Alert>
+      )}
       <ConnectionDetails stream={shown?.stream ?? stream ?? overview} visible={open} onClose={() => setOpen(false)} />
-    </View>
+    </>
   );
 }
 

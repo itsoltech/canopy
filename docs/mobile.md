@@ -1,6 +1,7 @@
 # Canopy na iOS i Android
 
-Status: opis zaimplementowanego kodu (2026-11-19). Wysyłanie wiadomości i start tury
+Status: opis zaimplementowanego kodu (2026-11-19). Listy wątków i botów uwzględniają
+wysokość banera aktualizacji i stanu połączenia. Wysyłanie wiadomości i start tury
 zachowują położenie rozmowy. Natywny raport Usage pokazuje
 historię kosztów i skrócone liczby tokenów z gatewaya oraz dzienny wykres według dostawcy.
 Wątki pokazują strumieniowany tekst linia po linii, tak jak web i desktop.
@@ -641,8 +642,9 @@ Każda trasa zachowuje ostatni wynik i czas sprawdzenia podczas kolejnego probe,
 wskaźnik obok oznacza sprawdzanie. Nagłówek „Routes” pozostaje stały. Ruch wskaźników
 respektuje ograniczenie animacji. Retry nie zamyka arkusza ani go nie montuje ponownie,
 również gdy otwarto go z banera i połączenie właśnie wróciło.
-Baner pojawia się przy tej samej decyzji `unavailable` i znika po sukcesie; w sidebarze
-jest nakładką pod nagłówkiem, więc nie przesuwa listy ani jej scrolla. Scrim arkusza
+Baner pojawia się przy tej samej decyzji `unavailable` i znika po sukcesie.
+Na listach Threads i Bots baner połączenia lub aktualizacji wchodzi w mierzoną wysokość
+nagłówka. Pierwszy wiersz listy mieści się pod całym komunikatem, także wielowierszowym. Scrim arkusza
 pozostaje niezależny od kolejnych prób. Web/desktop używa tego samego backoffu i histerezy,
 popovera statusu z ręcznym retry oraz banera nad treścią bez zmiany jej geometrii.
 

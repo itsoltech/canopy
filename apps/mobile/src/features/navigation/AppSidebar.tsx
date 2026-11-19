@@ -306,7 +306,7 @@ export function AppSidebar() {
       header={
         <>
           <SidebarHeader state={state} />
-          <ConnectionBanner overlay />
+          <ConnectionBanner />
         </>
       }
       footer={
