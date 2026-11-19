@@ -1,5 +1,5 @@
 import { PermissionMode, Provider, type ui } from "@canopy/contracts";
-import { codexMessagePermission, composerChoices } from "@canopy/domain/composer-choices";
+import { codexMessagePermission, composerMessagePermission } from "@canopy/domain/composer-choices";
 import type { WebComposerDraft } from "#lib/features/drafts/state.svelte.ts";
 import { HttpError } from "#lib/shared/http.ts";
 import { updateThread, updateTurnPermissions } from "../api.ts";
@@ -64,7 +64,7 @@ export class ComposerPermissionsState {
     if (thread.provider === Provider.CODEX)
       return saved.pendingSend?.permissionMode ?? codexMessagePermission(thread, saved.choices.permissionMode);
 
-    return PermissionMode[permissionKey(composerChoices(thread, [], saved.choices).permissionMode)];
+    return composerMessagePermission(thread, saved.choices.permissionMode);
   }
   get value(): PermissionModeKey {
     const { runningTurn } = this.context();
@@ -78,10 +78,15 @@ export class ComposerPermissionsState {
   get scope(): "message" | "next" | undefined {
     const { running, runningTurn } = this.context();
 
-    if (this.threadDefault && this.value !== this.threadDefault) return "message";
+    if (this.#live) return undefined;
 
-    if (running && !this.#live && (!this.threadDefault || runningTurn?.permissionMode !== PermissionMode[this.value]))
-      return "next";
+    if (
+      (this.threadDefault || this.#thread.permissionModeSelected) &&
+      this.value !== permissionKey(this.#thread.permissionMode)
+    )
+      return "message";
+
+    if (running && (!this.threadDefault || runningTurn?.permissionMode !== PermissionMode[this.value])) return "next";
 
     return undefined;
   }
@@ -98,7 +103,14 @@ export class ComposerPermissionsState {
     }
 
     if (this.#live)
-      return "Applies to this turn and future messages. Full access also allows pending permissions. Other modes keep pending shell approvals.";
+      return this.#thread.permissionModeSelected
+        ? "Applies to this turn and your next message. Full access also allows pending permissions. Other modes keep pending shell approvals."
+        : "Applies to this turn and future messages. Full access also allows pending permissions. Other modes keep pending shell approvals.";
+
+    if (this.scope === "message")
+      return this.context().running
+        ? "Applies to your next queued turn. Steered messages use the running turn’s permissions."
+        : "Future messages without a draft choice use the thread’s permissions.";
 
     return this.scope === "next"
       ? "Applies to the next turn. This turn and its pending approvals stay unchanged."

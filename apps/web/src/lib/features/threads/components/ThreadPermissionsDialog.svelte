@@ -43,9 +43,7 @@
 
   const mode = $derived(picked && isPermissionModeAvailable(picked, fullAuto) ? picked : current);
 
-  const changesDefault = $derived(
-    mode !== current || (thread.provider === Provider.CODEX && !thread.permissionModeSelected),
-  );
+  const changesDefault = $derived(mode !== current || !thread.permissionModeSelected);
 
   const confirmFullAccess = $derived(isFullAccess(mode) && changesDefault);
   let busy = $state(false);

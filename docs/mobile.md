@@ -11,7 +11,7 @@ W czacie bota widać odbiór wiadomości ze Slacka, przebieg rutyn i bieżącą 
 Aktywny czat bota potwierdza odczyt najnowszych wiadomości i odświeża licznik listy Bots.
 Telefon i tablet pozwalają wybrać kolejność zakładek
 i zatrzymać pracę modułu Threads albo Bots na koncie właściciela.
-Kompozytor uwzględnia zapisane uprawnienia wątku Codexa. Nowy wątek od razu pokazuje prompt
+Kompozytor uwzględnia jawnie zapisane uprawnienia wątku u wszystkich dostawców. Nowy wątek od razu pokazuje prompt
 i checklistę rzeczywistego przygotowania przed startem agenta, we wspólnej geometrii
 nagłówka, osi czasu i kompozytora. Czat bota pozwala wysyłać kolejne wiadomości
 podczas odpowiedzi i ma osobny przycisk zatrzymania. Kompozytory i ustawienia botów
@@ -158,8 +158,9 @@ potwierdzi start bez identyfikatora, klient udostępnia `Open threads`.
 
 ## Szkice i kompozytor
 
-Po jawnym zapisaniu domyślnego trybu uprawnień w istniejącym wątku Codexa
-mobile używa go przy kolejnej wiadomości bez własnego wyboru w szkicu.
+Po jawnym zapisaniu domyślnego trybu uprawnień w istniejącym wątku kolejna wiadomość
+bez własnego wyboru w szkicu dziedziczy tryb w chwili startu tury. Historia wcześniejszych
+tur zachowuje ich uprawnienia.
 
 Kompozytory wątku, nowego wątku i wątku bocznego pokazują zwarty wybór `Speed`
 obok modelu i wysiłku tylko wtedy, gdy katalog bieżącego modelu i instancji

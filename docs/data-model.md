@@ -34,7 +34,7 @@ przygotowanie tego samego katalogu, również po zmianie gatewaya obsługująceg
 
 Migracja `0171_thread_permission_selection` dodaje `threads.permission_mode_selected`.
 Pole jest początkowo fałszywe. Jawny zapis uprawnień przez `UpdateThread` ustawia je razem
-z trybem wątku. Dzięki temu kompozytor Codexa może odróżnić wybór wątku od dawnych nadpisań
+z trybem wątku. Dzięki temu kompozytory mogą odróżnić wybór wątku od dawnych nadpisań
 pojedynczych wiadomości. Szczegóły w [ui-api.md](ui-api.md#wybory-następnej-tury).
 
 Migracja `0169_bot_chat_steer` dodaje `bot_turns.steer_target_id` dla wiadomości
