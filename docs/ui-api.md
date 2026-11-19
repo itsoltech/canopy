@@ -1,6 +1,8 @@
 # API dla UI i architektura frontendu
 
-Status (2026-11-19): wyszukiwarka ustawień podświetla dopasowania w otwartej sekcji.
+Status (2026-11-19): na `dev` tło hover pierwszego nagłówka paneli kompozytora
+web/desktop mieści się w zaokrąglonym obrysie stosu.
+Wyszukiwarka ustawień podświetla dopasowania w otwartej sekcji.
 Web/desktop sygnalizuje wysyłanie w wątku na przycisku wysyłki,
 a w czacie bota przez przygaszenie dymka. Potwierdzenie dostarczenia zachowuje wysokość wiadomości.
 Prywatny czat bota pokazuje aktywność tur ze Slacka i rutyn.
@@ -1839,8 +1841,10 @@ Pytania asynchroniczne zachowują możliwość odpowiedzi w kolejnej turze.
 
 `ComposerTop` to wspólna powierzchnia/slot nad polem wiadomości: panel subagentów, kolejka i pytania tworzą jeden stos z jednym nachodzeniem na composer. Warianty `embedded` paneli nie dodają własnych obwódek ani przesunięć. `Composer` wybiera najstarszy zestaw blokujący przed async, przechowuje szkice per id zestawu i używa osobnego `MessageComposer` do zwykłych wiadomości.
 
-Tylko pierwszy panel stosu ma zaokrąglone górne rogi; trigger dziedziczy je z panelu,
-więc nagłówki między sekcjami mają proste narożniki również przy hover i fokusie.
+Górne narożniki przycisku pierwszego nagłówka odpowiadają obrysowi stosu także przy
+dodatkowym opakowaniu panelu. Tło hover i obrys fokusu podążają za tym zaokrągleniem.
+Nagłówki między sekcjami mają proste narożniki, a obszar aktywacji przycisku
+i przycinanie rozwijanej listy są niezależne od zaokrąglenia nagłówka.
 Podgląd tekstu promptu w kolejce używa stopnia 13 / 12 px (telefon / desktop),
 o jeden stopień mniejszego od nagłówka; wysokość wiersza i kontrolki pozostają bez zmian.
 Ikona kolejki i zastępujący ją uchwyt mają 14 px, tak jak ikona w nagłówku;
