@@ -14,6 +14,7 @@
   import { useSettings } from "#lib/features/settings/settings-state.svelte.ts";
   import { ComposerPermissionsState } from "./composer-permissions.svelte.ts";
   import ComposerPermissions from "./ComposerPermissions.svelte";
+  import FullAccessConfirm from "./FullAccessConfirm.svelte";
   import type { ComposerConnection } from "@canopy/domain/composer-connection";
 
   let {
@@ -75,6 +76,18 @@
 
   const permissions = new ComposerPermissionsState(() => ({ thread, worker, running, runningTurn, saved, onturn }));
 
+  let fullAccessTarget = $state<{ threadId: string; turnId: string | undefined }>();
+
+  const pendingFullAccess = $derived(
+    !disabled && fullAccessTarget?.threadId === thread.id && fullAccessTarget.turnId === permissions.liveTurnId
+      ? () => void permissions.select("FULL_ACCESS")
+      : undefined,
+  );
+
+  $effect(() => {
+    if (!pendingFullAccess) fullAccessTarget = undefined;
+  });
+
   const pending = $derived(questions.filter((q) => q.kind === InteractionKind.QUESTION && q.status === "pending"));
   const active = $derived(pending.find((q) => !q.asynchronous) ?? pending[0]);
 
@@ -109,7 +122,13 @@
   let root = $state<HTMLDivElement>();
 </script>
 
-{#snippet permissionControl()}<ComposerPermissions state={permissions} {disabled} />{/snippet}
+{#snippet permissionControl()}
+  <ComposerPermissions
+    state={permissions}
+    {disabled}
+    onconfirmfullaccess={() => (fullAccessTarget = { threadId: thread.id, turnId: permissions.liveTurnId })}
+  />
+{/snippet}
 
 <div
   bind:this={root}
@@ -149,7 +168,7 @@
       class="relative flex flex-wrap items-center justify-between gap-2 rounded-2xl bg-surface p-2 text-sm/5 text-zinc-500 dark:text-zinc-400"
     >
       <p class="mr-auto">Approval needed</p>
-      <ComposerPermissions state={permissions} {disabled} />
+      {@render permissionControl()}
       <Button
         size="sm"
         variant="ghost"
@@ -171,7 +190,7 @@
       runningTurnId={runningTurn?.id}
       permissions={permissionControl}
       permissionMode={permissions.messageMode}
-      savingPermissions={Boolean(permissions.threadDefault) && permissions.busy}
+      savingPermissions={permissions.busy}
       {connection}
       {disabled}
       {note}
@@ -182,6 +201,8 @@
       {onexpand}
     />
   </div>
+  <!-- The editor is hidden and the tray can unmount while this dialog is open. -->
+  <FullAccessConfirm bind:pending={() => pendingFullAccess, () => (fullAccessTarget = undefined)} />
 </div>
 
 <style>

@@ -28,7 +28,9 @@
     fullAccess = true,
     disabled = false,
     scope,
+    nextTurnMode,
     confirmFullAccess = false,
+    onconfirmfullaccess,
     explanation,
     class: className,
   }: {
@@ -40,7 +42,10 @@
     fullAccess?: boolean;
     disabled?: boolean;
     scope?: "message" | "next" | undefined;
+    nextTurnMode?: PermissionModeKey | undefined;
     confirmFullAccess?: boolean;
+    /** Let a shared composer own the confirmation across picker instances. */
+    onconfirmfullaccess?: () => void;
     explanation?: string | undefined;
     class?: ClassValue;
   } = $props();
@@ -55,13 +60,30 @@
   const tone = $derived(look.tone);
   const selected = $derived(permissionModes.find((mode) => mode.value === value));
   const savedFullAuto = $derived(!isPermissionModeAvailable(value, fullAuto));
+
+  const label = $derived(
+    nextTurnMode
+      ? `Current turn: ${permissionLabel(value)}. Next turn: ${permissionLabel(nextTurnMode)}`
+      : scope === "message"
+        ? `Permissions for this message: ${permissionLabel(value)}`
+        : scope === "next"
+          ? `Next turn permissions: ${permissionLabel(value)}`
+          : `Permissions: ${permissionLabel(value)}`,
+  );
+
   let confirming = $state<() => void>();
 
   function pick(mode: PermissionModeKey) {
     if (disabled) return;
 
-    if (isFullAccess(mode) && (mode !== value || confirmFullAccess)) confirming = () => onselect(mode);
-    else onselect(mode);
+    if (isFullAccess(mode) && (mode !== value || confirmFullAccess)) {
+      if (onconfirmfullaccess) onconfirmfullaccess();
+      else confirming = () => onselect(mode);
+
+      return;
+    }
+
+    onselect(mode);
   }
 </script>
 
@@ -78,19 +100,19 @@
           "text-rose-700 hover:text-rose-800 aria-expanded:text-rose-800 dark:text-rose-400 dark:hover:text-rose-300 dark:aria-expanded:text-rose-300",
         className,
       ]}
-      aria-label={scope === "message"
-        ? `Permissions for this message: ${permissionLabel(value)}`
-        : scope === "next"
-          ? `Next turn permissions: ${permissionLabel(value)}`
-          : `Permissions: ${permissionLabel(value)}`}
-      title={savedFullAuto
-        ? savedFullAutoDescription
-        : selected && tone !== "neutral"
-          ? permissionDescription(selected, fullAuto)
-          : `Permissions: ${permissionLabel(value)}`}
+      aria-label={label}
+      title={nextTurnMode
+        ? label
+        : savedFullAuto
+          ? savedFullAutoDescription
+          : selected && tone !== "neutral"
+            ? permissionDescription(selected, fullAuto)
+            : `Permissions: ${permissionLabel(value)}`}
     >
       <Icon name={look.icon} class={["size-3.5", tone !== "neutral" && look.iconClass]} />
-      {#if scope === "message"}
+      {#if nextTurnMode}
+        <span>Now: {permissionLabel(value)} · Next: {permissionLabel(nextTurnMode)}</span>
+      {:else if scope === "message"}
         <span>This message: {permissionLabel(value)}</span>
       {:else if scope === "next"}
         <span>Next turn: {permissionLabel(value)}</span>
@@ -112,4 +134,4 @@
     </MenuCheckItem>
   {/each}
 </DropdownMenu>
-<FullAccessConfirm bind:pending={confirming} />
+{#if !onconfirmfullaccess}<FullAccessConfirm bind:pending={confirming} />{/if}

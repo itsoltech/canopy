@@ -423,7 +423,7 @@
     {primary}
     onalternate={running ? () => void send("steer") : undefined}
     {draft}
-    blockedReason={disabled ? note : savingPermissions ? "Saving thread permissions…" : undefined}
+    blockedReason={disabled ? note : savingPermissions ? "Changing permissions…" : undefined}
     deliveryNotice={outcome}
     elementCount={quotes.length}
     quoteKey={thread.id}

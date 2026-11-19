@@ -7,7 +7,7 @@ import { afterAll, beforeAll, describe, expect, test } from "bun:test";
 import { create } from "@bufbuild/protobuf";
 import { PermissionMode, Provider, ui } from "@canopy/contracts";
 import { dockerAvailable } from "@canopy/db/testing";
-import { claudeLiveMessagePermission, composerChoices } from "@canopy/domain/composer-choices";
+import { composerChoices, composerMessagePermission } from "@canopy/domain/composer-choices";
 import { CLAUDE_LIVE_PERMISSIONS_CAPABILITY } from "@canopy/domain/release/protocol";
 import { GatewayCore } from "@canopy/gateway/core";
 import { GatewayStore } from "@canopy/gateway/store";
@@ -173,7 +173,7 @@ describe.skipIf(!dockerAvailable)("thread permission mode (gateway + scripted wo
     });
   });
 
-  test("Claude's live permission picker does not queue a broader mode than the running turn shows", async () => {
+  test("a queued Claude message without its own choice inherits a later saved restriction", async () => {
     gw.worker.holdTurns = true;
 
     const thread = (
@@ -203,12 +203,14 @@ describe.skipIf(!dockerAvailable)("thread permission mode (gateway + scripted wo
 
       const { turn: queued } = await gw.api.sendMessage({
         threadId: thread.id,
-        text: "Queue from the live permission picker",
+        text: "Inherit the thread's permissions when this starts",
         delivery: ui.MessageDelivery.QUEUE,
-        permissionMode: claudeLiveMessagePermission(saved!, displayed),
+        permissionMode: composerMessagePermission(saved),
         clientRequestId: crypto.randomUUID(),
       });
 
+      await gw.api.updateThread({ threadId: thread.id, permissionMode: PermissionMode.READ_ONLY });
+      expect(gw.worker.turnModes.get(active!.id)?.turn).toBe(PermissionMode.ASK);
       gw.worker.holdTurns = false;
       gw.worker.finish(thread.id, active!.id);
       await eventually(
@@ -216,10 +218,9 @@ describe.skipIf(!dockerAvailable)("thread permission mode (gateway + scripted wo
         (rows) => rows.some((row) => row.id === queued?.id && row.status === "completed"),
       );
       expect(gw.worker.turnModes.get(queued!.id)).toEqual({
-        turn: PermissionMode.ASK,
-        thread: PermissionMode.FULL_ACCESS,
+        turn: PermissionMode.READ_ONLY,
+        thread: PermissionMode.READ_ONLY,
       });
-      expect(claudeLiveMessagePermission(saved!, displayed, PermissionMode.READ_ONLY)).toBe(PermissionMode.READ_ONLY);
     } finally {
       gw.worker.holdTurns = false;
     }

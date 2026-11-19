@@ -1,8 +1,11 @@
 # API dla UI i architektura frontendu
 
-Status (2026-11-19): web/desktop sygnalizuje wysyłanie w wątku na przycisku wysyłki,
+Status (2026-11-19): na `dev` tło hover pierwszego nagłówka paneli kompozytora
+web/desktop mieści się w zaokrąglonym obrysie stosu.
+Web/desktop sygnalizuje wysyłanie w wątku na przycisku wysyłki,
 a w czacie bota przez przygaszenie dymka. Potwierdzenie dostarczenia zachowuje wysokość wiadomości.
 Jawnie zapisany tryb uprawnień wątku ma pierwszeństwo przed historią tur w web/desktop i mobile.
+Kompozytor web/desktop utrzymuje dostępne potwierdzenie Full access podczas nadejścia lub zniknięcia prośby o zgodę.
 Prywatny czat bota pokazuje aktywność tur ze Slacka i rutyn.
 Właściciel ustawia kolejność zakładek i może zatrzymać pracę wybranego modułu.
 Po zamknięciu panelu PR zaplanowane odświeżenie awatarów wykonuje się
@@ -1655,6 +1658,12 @@ wobec procesu tego samego użytkownika: [desktop.md](desktop.md#granice-i-zgodno
 
 UI składa itemy na żywo tym samym reducerem co gateway (`reduceItem` z `@canopy/domain`).
 
+W web/desktop edytor wiadomości i panel oczekującej zgody korzystają z jednego dialogu
+potwierdzającego Full access, osadzonego w kompozytorze poza oboma widokami. Nadejście
+lub wycofanie prośby o zgodę pozostawia dialog widocznym. Anulowanie zamyka dialog i
+przywraca dostęp do bieżącego widoku. Jeśli zmieni się wątek lub tura, której dotyczy
+zmiana uprawnień na żywo, dialog zamyka się bez zastosowania wyboru.
+
 ### Harmonogramy tworzące nowe wątki
 
 `CreateScheduleRequest.target` to `thread` (także pusty, zgodność wsteczna) albo `new_thread`.
@@ -1839,8 +1848,10 @@ Pytania asynchroniczne zachowują możliwość odpowiedzi w kolejnej turze.
 
 `ComposerTop` to wspólna powierzchnia/slot nad polem wiadomości: panel subagentów, kolejka i pytania tworzą jeden stos z jednym nachodzeniem na composer. Warianty `embedded` paneli nie dodają własnych obwódek ani przesunięć. `Composer` wybiera najstarszy zestaw blokujący przed async, przechowuje szkice per id zestawu i używa osobnego `MessageComposer` do zwykłych wiadomości.
 
-Tylko pierwszy panel stosu ma zaokrąglone górne rogi; trigger dziedziczy je z panelu,
-więc nagłówki między sekcjami mają proste narożniki również przy hover i fokusie.
+Górne narożniki przycisku pierwszego nagłówka odpowiadają obrysowi stosu także przy
+dodatkowym opakowaniu panelu. Tło hover i obrys fokusu podążają za tym zaokrągleniem.
+Nagłówki między sekcjami mają proste narożniki, a obszar aktywacji przycisku
+i przycinanie rozwijanej listy są niezależne od zaokrąglenia nagłówka.
 Podgląd tekstu promptu w kolejce używa stopnia 13 / 12 px (telefon / desktop),
 o jeden stopień mniejszego od nagłówka; wysokość wiersza i kontrolki pozostają bez zmian.
 Ikona kolejki i zastępujący ją uchwyt mają 14 px, tak jak ikona w nagłówku;
@@ -3107,10 +3118,10 @@ z capability `claude_live_permissions_v1` (`Worker.claude_live_permissions`)
 pokazuje rzeczywisty `Turn.permission_mode`, zachowuje poprzedni wybór do
 potwierdzenia zmiany i zapisuje nowy wybór szkicu dopiero po sukcesie. Kontrolka
 pozostaje dostępna także przy oczekującej zgodzie. Pytania do użytkownika nie
-są automatycznie rozstrzygane. Gdy picker pokazuje uprawnienia tury Claude w toku,
-kolejkowana z niego wiadomość po jawnym zapisie trybu wątku używa co najwyżej
-pokazanego trybu. Menu podaje uprawnienia takiej wiadomości, a po zakończeniu tury
-wiadomość bez wyboru w szkicu znów dziedziczy tryb wątku. Gdy picker pokazuje wyjątek zamiast uprawnień
+są automatycznie rozstrzygane. Po jawnym zapisie trybu wątku picker Claude pokazuje
+osobno uprawnienia kolejnej tury, jeśli różnią się od uprawnień tury w toku.
+Ponowny wybór trybu bieżącej tury zapisuje wyjątek dla następnej wiadomości.
+Gdy picker pokazuje wyjątek zamiast uprawnień
 działającej tury, web/desktop oznacza go „This message”. Dla Groka i workerów
 Claude bez tej capability wybór kompozytora obowiązuje od następnej tury.
 Szczegóły: [protocol.md](protocol.md#modele-effort-i-steer).

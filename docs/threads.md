@@ -66,8 +66,8 @@ Full access w pickerze i w domyślnych wątków potwierdza dialog „Turn on ful
 Po jawnym zapisie domyślnego trybu wątku nowa wiadomość bez wyboru w szkicu dziedziczy
 zapisany tryb. Tryb widoczny w historii pozostaje trybem tamtej tury. Kompozytor może
 wybrać inny tryb pojedynczej wiadomości, a steer korzysta z uprawnień działającej tury.
-Wiadomość dodawana z kompozytora do kolejki podczas tury Claude z obsługą zmiany na żywo
-może mieć najwyżej uprawnienia pokazane w pickerze tej tury.
+Picker Claude podczas zmiany uprawnień na żywo pokazuje osobno tryb działającej tury
+i oczekiwany tryb kolejnej wiadomości, gdy te tryby się różnią po jawnym zapisie ustawienia wątku.
 Subagent uruchamiany narzędziem dziedziczy tryb właściciela, także Full access.
 Settings → Threads → Subagents wybiera **Same as parent** (domyślnie) lub stały tryb,
 który nie przekroczy uprawnień rodzica. Gateway zapisuje rozstrzygnięty tryb na dziecku;

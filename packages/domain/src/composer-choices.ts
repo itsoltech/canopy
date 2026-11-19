@@ -11,21 +11,6 @@ export function composerMessagePermission(thread: ui.Thread | undefined, draftMo
   return draftMode || previous || PermissionMode.UNSPECIFIED;
 }
 
-/** A message queued from Claude's live picker cannot get more access than the picker shows. */
-export function claudeLiveMessagePermission(
-  thread: ui.Thread,
-  activeMode: PermissionMode,
-  draftMode?: PermissionMode,
-): PermissionMode {
-  const override = composerMessagePermission(thread, draftMode);
-
-  if (!thread.permissionModeSelected) return override;
-  const displayed = activeMode || PermissionMode.ASK;
-  const next = override || thread.permissionMode || PermissionMode.ASK;
-
-  return permissionRank(displayed) < permissionRank(next) ? displayed : override;
-}
-
 /** Explicit override for a web Codex message. An unset override inherits the owner’s thread mode at dispatch. */
 export function codexMessagePermission(thread: ui.Thread, draftMode?: PermissionMode): PermissionMode {
   if (!thread.permissionModeSelected) return composerMessagePermission(thread, draftMode);

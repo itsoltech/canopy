@@ -1,9 +1,5 @@
 import { PermissionMode, Provider, type ui } from "@canopy/contracts";
-import {
-  claudeLiveMessagePermission,
-  codexMessagePermission,
-  composerMessagePermission,
-} from "@canopy/domain/composer-choices";
+import { codexMessagePermission, composerMessagePermission } from "@canopy/domain/composer-choices";
 import type { WebComposerDraft } from "#lib/features/drafts/state.svelte.ts";
 import { HttpError } from "#lib/shared/http.ts";
 import { updateThread, updateTurnPermissions } from "../api.ts";
@@ -38,10 +34,11 @@ export class ComposerPermissionsState {
 
     return thread === confirmed.source ? confirmed.updated : thread;
   }
-  get #live() {
+  get liveTurnId() {
     const { thread, worker, running, runningTurn } = this.context();
 
-    return Boolean(running && runningTurn?.id && thread.provider === Provider.CLAUDE && worker?.claudeLivePermissions);
+    if (running && thread.provider === Provider.CLAUDE && worker?.claudeLivePermissions)
+      return runningTurn?.id || undefined;
   }
   get threadDefault() {
     const thread = this.#thread;
@@ -56,20 +53,20 @@ export class ComposerPermissionsState {
     );
   }
   get confirmFullAccess() {
-    return Boolean(this.threadDefault && this.#changesDefault("FULL_ACCESS"));
+    return Boolean(
+      (this.threadDefault && this.#changesDefault("FULL_ACCESS")) ||
+      (this.nextTurnMode && this.value === "FULL_ACCESS"),
+    );
   }
   get locked() {
     return this.busy || Boolean(this.threadDefault && this.context().saved.locked);
   }
   get messageMode() {
-    const { runningTurn, saved } = this.context();
+    const { saved } = this.context();
     const thread = this.#thread;
 
     if (thread.provider === Provider.CODEX)
       return saved.pendingSend?.permissionMode ?? codexMessagePermission(thread, saved.choices.permissionMode);
-
-    if (this.#live && runningTurn)
-      return claudeLiveMessagePermission(thread, runningTurn.permissionMode, saved.choices.permissionMode);
 
     return composerMessagePermission(thread, saved.choices.permissionMode);
   }
@@ -78,14 +75,20 @@ export class ComposerPermissionsState {
 
     if (this.#previous) return this.#previous;
 
-    if (this.#live && runningTurn) return permissionKey(runningTurn.permissionMode);
+    if (this.liveTurnId && runningTurn) return permissionKey(runningTurn.permissionMode);
 
     return permissionKey(this.messageMode || this.#thread.permissionMode);
+  }
+  get nextTurnMode(): PermissionModeKey | undefined {
+    if (!this.liveTurnId || !this.#thread.permissionModeSelected) return undefined;
+    const next = permissionKey(this.messageMode || this.#thread.permissionMode);
+
+    return next === this.value ? undefined : next;
   }
   get scope(): "message" | "next" | undefined {
     const { running, runningTurn } = this.context();
 
-    if (this.#live) return undefined;
+    if (this.liveTurnId) return undefined;
 
     if (
       (this.threadDefault || this.#thread.permissionModeSelected) &&
@@ -109,13 +112,14 @@ export class ComposerPermissionsState {
         : description;
     }
 
-    if (this.#live) {
+    if (this.liveTurnId) {
       const approvals = "Full access also allows pending permissions. Other modes keep pending shell approvals.";
 
       if (!this.#thread.permissionModeSelected) return `Applies to this turn and future messages. ${approvals}`;
-      const next = permissionKey(this.messageMode || this.#thread.permissionMode);
 
-      return `Applies to this turn. Your next queued message uses ${permissionLabel(next)}. ${approvals}`;
+      if (this.nextTurnMode) return `Pick the current mode again to use it for your next queued message. ${approvals}`;
+
+      return `Changes apply to this turn and your next queued message. ${approvals}`;
     }
 
     if (this.scope === "message")
@@ -156,7 +160,7 @@ export class ComposerPermissionsState {
   }
   async select(next: PermissionModeKey) {
     if (this.locked) return;
-    const { runningTurn, thread, saved, onturn } = this.context();
+    const { thread, saved, onturn } = this.context();
     this.error = "";
 
     if (this.threadDefault) {
@@ -165,7 +169,9 @@ export class ComposerPermissionsState {
       return;
     }
 
-    if (!this.#live || !runningTurn) {
+    const turnId = this.liveTurnId;
+
+    if (!turnId || (next === this.value && this.nextTurnMode)) {
       saved.choices = { ...saved.choices, permissionMode: PermissionMode[next] };
 
       return;
@@ -176,7 +182,7 @@ export class ComposerPermissionsState {
     this.busy = true;
 
     try {
-      const turn = await updateTurnPermissions(thread.id, runningTurn.id, next);
+      const turn = await updateTurnPermissions(thread.id, turnId, next);
       saved.choices = { ...saved.choices, permissionMode: turn.permissionMode };
       onturn?.(turn);
     } catch (cause) {
