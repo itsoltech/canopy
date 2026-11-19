@@ -4,7 +4,8 @@ Status: opis zaimplementowanego kodu (2026-11-19), w tym etapu CLI po aktualizac
 na dostępnych komputerach, aktualizacji globalnych instalacji mise
 i powiązania wyników Update all z konkretną próbą instalacji oraz uruchamiania skryptów CLI
 z katalogów ze spacjami na Windows oraz aktualizacji natywnych instalacji Claude Code
-i Codex Standalone na Windows. Stan trwającej instalacji pochodzi z bieżącego łącza
+i Codex Standalone na Windows z zachowaniem systemowej zmiennej `OS` w Canopy Desktop.
+Stan trwającej instalacji pochodzi z bieżącego łącza
 workera, a powtórzenie akcji dla tej samej wersji korzysta z wyniku aktywnej próby.
 Dostępność w nightly, beta i stable wynika z promocji opisanych w [release.md](release.md).
 
@@ -211,7 +212,9 @@ tablica argv albo oficjalny skrypt instalatora pobrany z jego stałego adresu HT
 | `DOCKER` | brak przycisku: „Managed by the image” | | |
 | `OTHER` | brak przycisku: „Installed outside a known installer … Update it the way you installed it.” | | |
 
-Windows: Claude bez instalacji pokazuje polecenie PowerShell (`irm https://claude.ai/install.ps1 | iex`); skrypty
+Windows: Canopy Desktop przekazuje systemową zmienną `OS` do workera, a worker do `powershell.exe`.
+Oficjalny instalator Codex Standalone sam sprawdza, czy zmienna ma wartość `Windows_NT`.
+Claude bez instalacji pokazuje polecenie PowerShell (`irm https://claude.ai/install.ps1 | iex`); skrypty
 bash nie działają. Przepisy macOS i Windows nie były sprawdzone na prawdziwych maszynach.
 
 Mise obsługuje także backend npm każdego dostawcy (`npm:@anthropic-ai/claude-code`, `npm:@openai/codex`,
