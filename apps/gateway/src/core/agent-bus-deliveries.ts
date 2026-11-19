@@ -2,6 +2,7 @@ import { ui } from "@canopy/contracts";
 import { DEFAULT_BUS_LIMITS } from "@canopy/domain";
 import { Match } from "effect";
 import { AgentBusStore, truncate } from "../store/index.ts";
+import { turnReport } from "../store/turn-report.ts";
 import { busState } from "./agent-bus-context.ts";
 import type { AgentBus } from "./agent-bus.ts";
 
@@ -41,16 +42,18 @@ export const busDeliveriesMethods: BusDeliveriesMethods = {
     if (!turnId && !due.length && state.notificationCursor)
       due = await state.host.run(AgentBusStore.use((s) => s.dueNotifications(state.host.ownerUserId)));
 
-    for (const { call, target, turnStatus, lastMessage, lastMessageLength } of due) {
+    for (const { call, target, turnStatus, turnError, lastMessage, lastMessageLength } of due) {
       const label = target.kind === "side" ? "side thread" : "thread";
 
+      const { message, failure } = turnReport(turnStatus, turnError, lastMessage, 20_000, lastMessageLength);
+
       const input = {
-        note: `[canopy] The ${label} "${target.title}" (thread_id: ${target.id}) finished a turn: ${turnStatus}. Its last message:`,
-        message: truncate(lastMessage, 20_000, lastMessageLength) || "(no message)",
+        note: `[canopy] The ${label} "${target.title}" (thread_id: ${target.id}) finished a turn: ${turnStatus}.${!failure && lastMessage.trim() ? " Its last message:" : ""}`,
+        message,
       };
 
       const delivery = await this[busState].host.run(
-        AgentBusStore.use((s) => s.deliverNotification(state.host.ownerUserId, call.id, input)),
+        AgentBusStore.use((s) => s.deliverNotification(state.host.ownerUserId, call.id, input, turnStatus)),
       );
 
       await this[busState].host.inputsChanged(call.source_thread_id);

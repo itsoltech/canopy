@@ -11,11 +11,16 @@ import { codexToolModel } from "./fixtures/codex-model.ts";
 const temp = tempDirs();
 
 test.skipIf(!Bun.which("codex"))(
-  "official Codex calls Canopy MCP without native approval and returns the gateway result",
+  "a Codex bot retries a dropped response after its MCP call with the same input and tool result",
   async () => {
     const dir = temp("canopy-codex-tools-");
     const abort = new AbortController();
-    const model = codexToolModel(["fixture_write"], "mcp__canopy");
+
+    const dropped = new Response('data: {"type":"response.created","response":{"id":"cut"}}\n\n', {
+      headers: { "content-type": "text/event-stream" },
+    });
+
+    const model = codexToolModel(["fixture_write", dropped], "mcp__canopy");
     const { requests } = model;
     let calls = 0;
     const usage: bigint[] = [];
@@ -78,9 +83,11 @@ test.skipIf(!Bun.which("codex"))(
         noteHarness: async () => {},
         content: async () => ({ text: input.input, images: [], documents: [] }),
       });
-      expect(requests.at(-1)).toContain("GATEWAY_APPROVAL_RESULT");
+      expect(requests).toHaveLength(3);
+      expect(requests[1]).toContain("GATEWAY_APPROVAL_RESULT");
+      expect(requests[2]).toBe(requests[1]);
       expect(calls).toBe(1);
-      expect(usage.at(-1)).toBe(BigInt(requests.length));
+      expect(usage.at(-1)).toBe(2n);
       expect(requests.join("\n")).not.toContain("approval policy is never");
     } finally {
       clearTimeout(timer);

@@ -2,6 +2,7 @@ import { describe, expect, test } from "bun:test";
 import { Provider } from "@canopy/contracts";
 import { dockerAvailable } from "@canopy/db/testing";
 import { SqlClient } from "effect/sql";
+import { failAfterCommentary } from "./support/agent-report.ts";
 import { botsSuite } from "./support/bots.ts";
 import { eventually } from "./support/gateway.ts";
 
@@ -35,7 +36,7 @@ describe.skipIf(!dockerAvailable)("local bot thread notices", () => {
     return thread!;
   }
 
-  for (const kind of ["completion", "question"] as const) {
+  for (const kind of ["completion", "question", "failure"] as const) {
     test(`a long title in a ${kind} notice leaves other completion notices deliverable`, async () => {
       const bot = await add(`Watch ${kind}`);
       const { bots } = suite.current;
@@ -45,7 +46,7 @@ describe.skipIf(!dockerAvailable)("local bot thread notices", () => {
 
       // The cutoff falls between the emoji's UTF-16 surrogates.
       const prefix = "x".repeat(198);
-      const title = prefix + "😀" + "x".repeat(kind === "completion" ? 21_000 : 99_700);
+      const title = prefix + "😀" + "x".repeat(kind === "question" ? 99_700 : 21_000);
       const long = await createThread(title);
       const normal = await createThread("Normal thread");
       expect(long.title).toBe(title);
@@ -94,6 +95,15 @@ describe.skipIf(!dockerAvailable)("local bot thread notices", () => {
           });
 
           expect(result.isError).toBe(false);
+        } else if (kind === "failure") {
+          failAfterCommentary(
+            worker,
+            long.id,
+            first.turnId,
+            "Stream disconnected",
+            "Partial result " + "y".repeat(85_000),
+          );
+          await expectStatus(first.turnId, "failed");
         } else {
           worker.finish(long.id, first.turnId, "Long result " + "y".repeat(85_000));
           await expectStatus(first.turnId, "completed");
@@ -105,7 +115,7 @@ describe.skipIf(!dockerAvailable)("local bot thread notices", () => {
         await bots.run((s) => s.deliver(userId));
 
         const firstRequest =
-          kind === "completion" ? `thread:${first.callId}` : `thread-question:${first.callId}:${requestId}`;
+          kind === "question" ? `thread-question:${first.callId}:${requestId}` : `thread:${first.callId}`;
 
         const firstResult = await query<{ input: string }>("SELECT input FROM bot_turns WHERE client_request_id=$1", [
           firstRequest,
@@ -122,12 +132,20 @@ describe.skipIf(!dockerAvailable)("local bot thread notices", () => {
 
           expect(report?.startsWith("Long result ")).toBe(true);
           expect(report?.length).toBe(80_000);
+        } else if (kind === "failure") {
+          const report = firstResult[0]!.input.split("\n").slice(1).join("\n");
+          expect(report).toStartWith("Turn failed: Stream disconnected\n\nPartial result ");
+          expect(report).toHaveLength(80_000);
         } else expect(firstResult[0]?.input).toContain(requestId);
         expect(secondResult).toEqual([{ input: expect.stringContaining("Normal result") }]);
         const events = (await read(bot.id)).messages.filter((m) => m.kind === "event").map((m) => m.text);
-        expect(events.toSorted()).toEqual(
-          [`“${prefix}…” ${kind === "completion" ? "finished" : "needs input"}`, "“Normal thread” finished"].toSorted(),
-        );
+
+        const notice =
+          kind === "failure"
+            ? `Turn failed: Stream disconnected (“${prefix}…”)`
+            : `“${prefix}…” ${kind === "completion" ? "finished" : "needs input"}`;
+
+        expect(events.toSorted()).toEqual([notice, "“Normal thread” finished"].toSorted());
 
         if (kind === "question") {
           worker.finish(long.id, first.turnId, "Result after asking");

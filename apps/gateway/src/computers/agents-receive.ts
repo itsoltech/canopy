@@ -76,10 +76,13 @@ export async function agentsDeliverAtHome(
     ? `report:${nodeRef(node)}:thread:${event}`
     : `${call.operation}:${nodeRef(node)}:${call.callId}:${event}`;
 
+  const status = text(args, "status", true);
+  const failure = call.operation === "report" && status === "failed" ? text(args, "failure", true) : "";
+
   const displayText =
     call.operation === "report" && ref.target_kind === "thread"
-      ? threadNotice(text(args, "title", true), text(args, "status", true), await hostContext.machine(node))
-      : undefined;
+      ? threadNotice(text(args, "title", true), status, await hostContext.machine(node), failure)
+      : failure || undefined;
 
   // The owner answers the original permission request from the bot's chat.
   if (ref.actor_kind === "bot" && call.operation === "question" && args["kind"] === "permission")
@@ -132,7 +135,7 @@ export async function agentsDeliverAtHome(
             note,
             sender: toJson(ui.AgentSenderSchema, sender),
             sourceKind: call.operation,
-            sourceStatus: text(args, "status", true),
+            sourceStatus: status,
           },
         },
       );

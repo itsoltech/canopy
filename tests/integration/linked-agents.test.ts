@@ -10,6 +10,7 @@ import { linkedComputers } from "./support/computers.ts";
 import { ComputerStore } from "../../apps/gateway/src/computers/store.ts";
 import type { BotModel, ModelInput } from "../../apps/gateway/src/bots/types.ts";
 import { eventually, failure, startTestGateway, type TestGateway } from "./support/gateway.ts";
+import { expectLinkedBotFailure, disconnectedBotModel } from "./support/agent-report.ts";
 import { checkLinkedDelegatingBot } from "./support/delegating-bot-linked.ts";
 import { answerWithoutWaitingForPeer, checkLinkedBotApproval } from "./support/bot-approval-linked.ts";
 
@@ -176,6 +177,17 @@ describe.skipIf(!dockerAvailable)("linked bots and agent bus: two independent ho
     expect((await b.api.getBot({ botId: botB })).bot?.configuration?.name).toBe("Bot B edited");
     expect(await failure(a.core.bots.get(botB))).toBeTruthy();
   }, 20000);
+
+  test("a linked bot failure reaches the calling thread with the diagnosis from its answer event", async () => {
+    const previous = modelB;
+    modelB = disconnectedBotModel;
+
+    try {
+      await expectLinkedBotFailure(a, parent, q(botB));
+    } finally {
+      modelB = previous;
+    }
+  });
 
   test("Stop from A interrupts the bot at its home B and fences a late model reply", async () => {
     let running: ModelInput | undefined;

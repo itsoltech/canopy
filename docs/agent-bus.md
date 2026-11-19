@@ -1,5 +1,10 @@
 # Szyna agentów: delegowanie, interakcje, harmonogram
 
+Status raportów subagentów (2026-11-19): przy błędzie pierwsza linia raportu podaje stan
+i zapisany powód. Poniżej znajduje się dostępny tekst tury, także częściowa odpowiedź.
+Dotyczy to raportów do wątków i botów, także na połączonych komputerach.
+Dostępność w kanałach według [release.md](release.md).
+
 Status powiadomień PR (2026-11-19): agent dostaje informację o konflikcie z gałęzią bazową przy uruchomieniu obserwacji CI lub w trakcie jej trwania. Dostępność według [promocji wydań](release.md).
 
 Status odczytu HEIC (2026-11-19): zaimplementowany na workerze dla `view_image`
@@ -376,7 +381,7 @@ Migracja `0095_bus_message_consumption` dodaje niezależne `agent_bus_calls.mess
 
 Snapshot odczytu, anulowanie nierozpoczętej tury lub steera i zapis wyniku narzędzia są jedną transakcją pod blokadą wiersza odbiorcy. Dostarczenie, tworzenie outboxa steera i fallback używają tej samej blokady. Tura z `StartTurn` już w outboxie oraz steer z potwierdzonym itemem `user_message` pozostają w historii. Spóźnione potwierdzenie lub odmowa wycofanego steera nie odtwarza kolejki. Zapisany wynik narzędzia przeżywa restart i jest zwracany przy ponowieniu `call_id`.
 
-**Deduplikacja z raportem:** dokładnie ten sam tekst jawnej wiadomości do rodzica i końcowej wiadomości tej samej tury dziecka jest dostarczany raz. Gdy jawna wiadomość została już odebrana lub weszła do tury, raport jest `superseded`. Jeśli nadal czeka, jest wycofywana jako `deduplicated`, a odbiorca dostaje raport zakończenia. Inny tekst albo inna tura pozostają osobnymi informacjami.
+**Deduplikacja z raportem:** dokładnie ten sam tekst jawnej wiadomości do rodzica i końcowej wiadomości tej samej tury dziecka jest dostarczany raz. Gdy jawna wiadomość została już odebrana lub weszła do tury, raport jest `superseded`. Jeśli nadal czeka, jest wycofywana jako `deduplicated`, a odbiorca dostaje raport zakończenia. Przy niepowodzeniu gateway porównuje jawną wiadomość z pełną treścią raportu błędu. Wcześniejsza wiadomość powtarzająca wyłącznie częściową odpowiedź nie wygasza raportu o błędzie. Inny tekst albo inna tura pozostają osobnymi informacjami.
 
 ### Pytania platformy: ask_user i get_answers
 
@@ -586,6 +591,15 @@ sequenceDiagram
   Blokada odbiorcy serializuje wybór raportu z odczytami i fallbackiem;
   pozostałe wywołania dostają `superseded`. Różne tury lub odbiorcy zachowują
   niezależne raporty. Tekst wiadomości nie jest kluczem deduplikacji.
+- Jeżeli tura zakończyła się bez wiadomości, treść raportu opisuje ukończenie,
+  przerwanie, anulowanie albo błąd. Przy błędzie gateway pobiera powód z tej
+  tury (dla zdalnego bota ze zdarzenia odpowiedzi), usuwa dane uwierzytelniające
+  i adresy URL oraz skraca opis do 1000 znaków. Obsługuje także błędy dostawcy
+  zapisane w kopercie JSON. Pierwsza linia raportu podaje błąd również wtedy,
+  gdy przed awarią agent wysłał komentarz lub część odpowiedzi. Tekst tury trafia
+  poniżej w granicach budżetu raportu (20 000 znaków dla wątku lub przez łącze,
+  80 000 dla bota obserwującego lokalny wątek). Krótkie zdarzenie w rozmowie
+  bota także pokazuje przyczynę. Przy braku szczegółów raport mówi o tym wprost.
 - Odczyt zużywający niewysłane wejście oznacza jego turę jako
   `cancelled`, `withdrawn = consumed`. Web i mobile chowają ją tak jak inne
   wycofane wejścia; zwykłe anulowanie pozostaje widoczne. Po zatwierdzeniu

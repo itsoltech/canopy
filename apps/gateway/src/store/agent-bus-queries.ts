@@ -1,3 +1,4 @@
+import { reportFailureReason } from "./turn-report.ts";
 import { hasDelegatingBot } from "./rows.ts";
 import { STARTED_BY_BOT } from "./thread-select.ts";
 import { type JsonValue } from "@bufbuild/protobuf";
@@ -60,10 +61,11 @@ export const isUuid = (id: string) => /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9
 export const turnRef = (sql: SqlClient.SqlClient, source: CallSource) =>
   sql`(SELECT id FROM turns WHERE id = ${isUuid(source.turnId) ? source.turnId : null}::uuid AND thread_id = ${source.threadId}::uuid)`;
 
-export const lastMessage = (sql: SqlClient.SqlClient, threadId: string, turnId?: string) =>
+export const lastMessage = (sql: SqlClient.SqlClient, threadId: string, turnId?: string, skipEmpty = false) =>
   sql<{ text: string | null }>`
     SELECT content->'agentMessage'->>'text' AS text FROM thread_items
      WHERE thread_id = ${threadId}::uuid AND type = 'agent_message'
+       ${skipEmpty ? sql`AND content->'agentMessage'->>'text' ~ '[^[:space:]]'` : sql``}
        AND NOT EXISTS (SELECT 1 FROM turns u WHERE u.id=thread_items.turn_id AND u.rewind_id IS NOT NULL)
        AND (${turnId ?? null}::uuid IS NULL OR turn_id = ${turnId ?? null}::uuid) ORDER BY first_seq DESC LIMIT 1`.pipe(
     Effect.map((rows) => rows[0]?.text ?? ""),
@@ -114,7 +116,9 @@ export const summary = (sql: SqlClient.SqlClient, threadId: string): Fx<ThreadSu
        WHERE thread_id = ${row.id}::uuid AND rewind_id IS NULL AND status IN ('completed', 'interrupted', 'failed', 'cancelled') ORDER BY ordinal DESC LIMIT 1`)[0];
 
     const reason = Match.value(ended?.status).pipe(
-      Match.when("failed", () => [ended?.error_source, ended?.error].filter(Boolean).join(": ")),
+      Match.when("failed", () =>
+        [ended?.error_source, reportFailureReason(ended?.error ?? null)].filter(Boolean).join(": "),
+      ),
       Match.when("interrupted", () => [ended?.interrupt_source, ended?.interrupt_reason].filter(Boolean).join(": ")),
       Match.orElse(() => ""),
     );
@@ -148,10 +152,10 @@ export const summary = (sql: SqlClient.SqlClient, threadId: string): Fx<ThreadSu
         last_turn: {
           turn_id: ended.id,
           status: ended.status,
-          ...(reason && { reason: truncate(reason, 1_000) }),
+          ...(reason && { reason: truncate(reason, 1_000).toWellFormed() }),
         },
       }),
-      last_message: ended ? truncate(yield* lastMessage(sql, row.id, ended.id), 4_000) : "",
+      last_message: ended ? truncate(yield* lastMessage(sql, row.id, ended.id, ended.status === "failed"), 4_000) : "",
     };
   });
 

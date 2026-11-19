@@ -4,6 +4,7 @@ Status: opis zaimplementowanego zachowania (2026-11-19), w tym wznowienie tury
 Claude po niedostępnym katalogu modeli proxy podczas startu, aktywny odczyt limitów
 Claude, wybór odczytów kont i modeli CLIProxyAPI, wyrównanie tożsamości kont
 oraz odświeżanie powiązań proxy po zmianie lub usunięciu instancji w web/desktop.
+Codex ponawia krok przerwany przez zerwanie strumienia proxy w bieżącej turze.
 Dostępność nightly/beta/stable wynika
 z promocji wydań ([release.md](release.md)).
 
@@ -46,6 +47,27 @@ prefiks ścieżki reverse proxy. URL nie może zawierać loginu, hasła, query a
 
 Źródła: [adapter Groka](grok-adapter.md), [oficjalne ACP/headless](https://docs.x.ai/build/cli/headless-scripting),
 [routing CLIProxyAPI](https://github.com/router-for-me/CLIProxyAPI/blob/main/internal/api/server_routes.go).
+
+### Ponawianie kroku Codexa
+
+Po zamknięciu strumienia przed `response.completed` Codex wysyła kolejne żądanie
+Responses z historią bieżącej tury, w tym z wynikami wykonanych narzędzi.
+Obejmuje to wątki, subagentów i boty. Ponowienie zachowuje turę i jej wejście.
+
+- Przy domyślnym HTTP/SSE krok ma **10 prób łącznie**. Pierwsza przerwa trwa
+  około 200 ms, kolejne są dwukrotnie dłuższe. Codex dodaje losowe odchylenie
+  i uwzględnia podany przez serwer termin ponowienia.
+- Przy włączonym **Supports WebSockets** Codex ma do pięciu prób przez WebSocket.
+  Po wyczerpaniu tego limitu przechodzi na HTTP z budżetem pięciu prób. Jeżeli
+  połączenie już korzysta z transportu zapasowego, obowiązuje limit pięciu prób HTTP.
+- Worker ustawia dla proxy `stream_max_retries` na 9 (HTTP) lub 4 (WebSocket),
+  `request_max_retries=0` i `features.unbounded_connection_retries=false`.
+  Jedna pętla w CLI rozlicza ponowienia kroku. Stop przerywa także oczekiwanie.
+  Device login korzysta z domyślnych ustawień wbudowanego providera `openai`.
+
+Zdarzenia ponawianego połączenia zostają w surowym transkrypcie. Ostateczny błąd
+trafia do wyniku tury. Mechanizm CLI opisują [obsługa strumienia](https://github.com/openai/codex/blob/rust-v0.164.0/codex-rs/core/src/responses_retry.rs)
+i [obliczanie czasu oczekiwania](https://github.com/openai/codex/blob/rust-v0.164.0/codex-rs/async-utils/src/backoff.rs).
 
 ### Codex: przerwanie odpowiedzi przez proxy
 

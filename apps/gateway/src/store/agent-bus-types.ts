@@ -74,6 +74,7 @@ export interface Notification {
   readonly call: Pick<BusCallRow, "id" | "source_thread_id">;
   readonly target: Pick<ThreadRow, "id" | "title" | "kind">;
   readonly turnStatus: string;
+  readonly turnError: string | null;
   readonly lastMessage: string;
   readonly lastMessageLength: number;
 }

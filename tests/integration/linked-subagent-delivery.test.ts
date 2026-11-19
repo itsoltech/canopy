@@ -4,6 +4,7 @@ import { dockerAvailable } from "@canopy/db/testing";
 import type { JsonValue } from "@canopy/domain";
 import { qualifyId, splitId } from "@canopy/domain/computers";
 import { Schema } from "effect";
+import { failAfterCommentary } from "./support/agent-report.ts";
 import { configComputer, pairConfig, type ConfigComputer } from "./support/config-sync.ts";
 import { eventually, failure } from "./support/gateway.ts";
 
@@ -175,6 +176,35 @@ describe.skipIf(!dockerAvailable)("linked parent-child messages", () => {
 
     expect(splitId(reply.turn_id).id).not.toBe(pair.parentTurn);
     expect(await turns(a, pair.parent)).toHaveLength(2);
+  });
+
+  test.each([
+    ["", "", "Turn failed. No error details were recorded."],
+    [
+      "stream disconnected before completion",
+      "Reading configuration",
+      "Turn failed: stream disconnected before completion\n\nReading configuration",
+    ],
+  ])("a linked report explains a failure with stored reason '%s'", async (reason, partial, expected) => {
+    const pair = await start(true);
+    failAfterCommentary(b.gateway.worker, pair.child, pair.childTurn, reason, partial, "");
+
+    await eventually(
+      () => turns(b, pair.child),
+      (rows) => rows[0]?.status === "failed",
+    );
+    await b.gateway.core.linkedAgents.tick();
+
+    const reports = await eventually(
+      () =>
+        a.store.query<{ message: string }>(
+          "SELECT input->>'message' AS message FROM turns WHERE thread_id=$1::uuid AND input->>'sourceKind'='report'",
+          [pair.parent],
+        ),
+      (rows) => rows.length > 0,
+    );
+
+    expect(reports).toEqual([{ message: expected }]);
   });
 
   test("unrelated and detached thread relationships keep the queue default", async () => {

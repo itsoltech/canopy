@@ -2,9 +2,9 @@
 
 Status (2026-11-19): runtime wątków, lokalny MCP z narzędziem wiadomości do delegującego bota, poziomy szybkości z katalogu konta,
 bezstratny zapis obrazów wyników trybu kodu oraz per-modelowe liczniki tokenów i kosztów USD tur
-oraz szacunki równowartości API OpenAI z trwałym cache cennika są zaimplementowane,
-wraz z uruchamianiem app-servera przez skrypt npm z katalogu ze spacjami na Windows;
-ograniczenia i dalsze prace opisano poniżej. Dostępność wydań według [release.md](release.md).
+oraz szacunki równowartości API OpenAI z trwałym cache cennika są zaimplementowane.
+Codex ponawia przerwane żądania proxy w bieżącej turze. Na Windows worker uruchamia
+app-server także przez skrypt npm z katalogu ze spacjami. Dostępność wydań według [release.md](release.md).
 
 Gotowe:
 - typy protokołu z przypiętej wersji: `packages/codex-protocol` (Codex 0.164.0),
@@ -42,6 +42,7 @@ Gotowe:
 
 - **Tury platformy:** `turn/start` dostaje `clientUserMessageId = turn_id`. Wyłącznie odpowiedź tego RPC wiąże ID tury Codexa z turą platformy. Powiadomienia wątku przychodzące przed odpowiedzią czekają w buforze tego wątku (inne wątki działają dalej), a potem trafiają do dziennika w pierwotnej kolejności. Samoczynne `turn/started` (np. kontynuacja celu) dostaje własne ID i `origin = PROVIDER`, nawet gdy wyprzedzi odpowiedź na start użytkownika. Odmowa RPC również zwalnia bufor; pobudka nie przejmuje wtedy odrzuconego wejścia. Ponowny koniec lub późny output modelu zachowuje stare ID tury i daje najwyżej jeden log `codex_late_turn_event` na turę; zwykły output procesów w tle nie ostrzega.
 - **Ponownie dostarczony `StartTurn`** z tym samym `turn_id` nie startuje drugiej tury.
+- **Zerwany strumień Responses:** wspólna konfiguracja app-servera dla wątków i botów ogranicza liczbę prób jednego kroku przez proxy. Ponowienia odbywają się wewnątrz CLI z wynikami narzędzi w historii. Testy `stream-retries.test.ts` i `bots/codex-tools.test.ts` sprawdzają wyczerpanie limitu oraz wznowienie po wywołaniu narzędzia przy użyciu rzeczywistego CLI i lokalnego serwera Responses. [Limity prób i backoff](proxies.md#ponawianie-kroku-codexa)
 - **Regresje granic tur:** `turn-boundaries.test.ts` używa skryptowanego app-servera: pobudka przed odpowiedzią RPC, odmowa startu, późne wiadomości i koniec poprzedniej tury oraz nowe wejście przy zajętych slotach harnessów governor’a. To wymuszone sekwencje protokołu, bez płatnej inferencji; nie są nagraniem incydentu z urządzenia.
 - **Model i wysiłek:** `turn/start` zawsze dostaje `model` i `effort`: wartości ze `StartTurn`, a bez nich domyślny model katalogu (`model/list`, `isDefault`) i jego domyślny wysiłek: `model_reasoning_effort` z `config.toml` urządzenia (z profilu wybranego przez `profile`, potem główny), jeśli model go oferuje, inaczej `defaultReasoningEffort`. Izolowany `CODEX_HOME` nie ma tych ustawień, więc czyta je worker (tylko odczyt, [protocol.md](protocol.md#modele-effort-i-steer)). Nadpisanie w Codexie obowiązuje „tę i kolejne tury”, więc bez jawnych wartości tura po nadpisaniu zostałaby na poprzednim modelu.
 - **Katalog:** `model/list` zwraca katalog procesu instancji. Metadane poziomów szybkości zależą od jego konta; nie przenosimy uprawnień między instancjami. Dla profilu CLIProxyAPI worker pyta pośrednika (`GET /v1/models`, a o modalności `GET /v1beta/models`): modele katalogu, których pośrednik nie obsługuje, odpadają; jego pozostałe modele agenta dochodzą bez danych o wysiłku, a modele obrazów, wideo, mowy, embeddingów itd. są pomijane (`isAgentModel`). `default_effort` każdego modelu to skonfigurowany domyślny wysiłek, jeśli model go oferuje, inaczej `defaultReasoningEffort`.
@@ -82,7 +83,7 @@ Gotowe:
 | `turn/plan/updated` | item `plan:<turn>` z krokami (każda aktualizacja zastępuje stan) |
 | `thread/tokenUsage/updated` | `usage_updated`: przyrost zużycia sesji przypisany do bieżącej tury; kontekst osobno z `last` |
 | `rawResponse/completed` | per-response tokeny scalane bez podwójnego naliczania; `usageMetadata.amount` jest kosztem odpowiedzi w USD, z rozróżnieniem zera i braku kwoty |
-| `error` | `notice` (`warning`, gdy Codex ponowi; inaczej `error`) |
+| `error` | Ponawiane połączenie strumienia (`willRetry` i kod `responseStreamDisconnected` lub `responseStreamConnectionFailed`) trafia tylko do `raw_json`. Pozostałe zdarzenia tworzą `notice` z poziomem `warning` przy ponowieniu lub `error`. |
 | `thread/goal/updated` / `cleared` | `goal_state` (status, `objective`, `tokensUsed`, `timeUsedSeconds`, `tokenBudget`; `cleared`) |
 | `commandExecution` z `processId` w toku przy `turn/completed` | item `background_task` `bg:<id>` (`kind = PROCESS`, `task_id = processId`) tuż przed `turn_finished`; dalsze `outputDelta` i `item/completed` (kod wyjścia, zatrzymanie) trafiają do niego, bez `turn_id` |
 | rollout: `custom_tool_call` `exec` + `custom_tool_call_output`, `function_call` `wait` | item `tool_call` (komórka trybu kodu: skrypt i pełny wynik), patrz [Tryb kodu](#tryb-kodu-code-mode) |
