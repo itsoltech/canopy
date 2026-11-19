@@ -5,6 +5,7 @@ import type { SqlClient } from "effect/sql";
 import { outboxStore } from "../store/outbox.ts";
 import type { BotCore } from "./store-queue.ts";
 import type { BotTurn } from "./types.ts";
+import { routineActivity } from "./routine-activity.ts";
 import { uuid } from "./store-views.ts";
 
 /** Fence output, retain the visible partial reply and persist cancellation before acknowledging Stop. */
@@ -35,7 +36,8 @@ export function interruptBot(sql: SqlClient.SqlClient, core: BotCore, user: stri
           finished_at = now(), reason = 'Stopped by you' WHERE turn_id = ${turn.id}::uuid`;
       }
 
-      if (!turn.routine_id) {
+      if (turn.routine_id) yield* routineActivity(sql, turn, "interrupted");
+      else {
         if (harness?.text)
           yield* sql`INSERT INTO bot_messages(id, bot_id, turn_id, message_key, sender_id, recipient_id, kind, text)
             VALUES (${uuid()}::uuid, ${botId}::uuid, ${turn.id}::uuid, 'answer', ${botId}, 'user', 'message', ${harness.text})

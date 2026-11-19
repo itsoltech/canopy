@@ -5,6 +5,7 @@ import { Effect } from "effect";
 import { SqlClient } from "effect/sql";
 import { Invalid } from "../store/store.ts";
 import { RequestExpired } from "../store/errors.ts";
+import { routineActivity } from "./routine-activity.ts";
 import { proposedBot } from "./creation.ts";
 import type { BotRow, BotTurn, ModelMessage, StoredCall, ToolResult, ToolSpec } from "./types.ts";
 import { approvalView, botConfiguration, uuid, type ApprovalRow } from "./store-views.ts";
@@ -48,6 +49,34 @@ function startRemoteCall(sql: SqlClient.SqlClient, core: BotCore, turn: BotTurn,
   );
 }
 
+type WorkerStatus = "Waiting for a worker" | "Typing…";
+
+function turnStatus(sql: SqlClient.SqlClient, core: BotCore, turn: BotTurn, text: string, background?: WorkerStatus) {
+  return sql.withTransaction(
+    Effect.gen(function* () {
+      yield* core.fenced(turn);
+
+      // Background tool and approval activity is projected from the current call, without its arguments.
+      const line = turn.routine_id || turn.conversation_id ? background : text;
+
+      if (!turn.handoff_configuration && line !== undefined)
+        yield* sql`UPDATE bots SET status_line = ${line}, revision = revision + 1 WHERE id = ${turn.bot_id}::uuid AND status_line <> ${line}`;
+    }),
+  );
+}
+
+function renewBotLease(sql: SqlClient.SqlClient, turn: BotTurn) {
+  return Effect.gen(function* () {
+    if (turn.conversation_id && !(yield* activeConversation(sql, turn.bot_id, turn.conversation_id))) return false;
+
+    return (
+      (yield* sql`UPDATE bot_turns SET lease_until = now() + interval '30 seconds'
+          WHERE id = ${turn.id}::uuid AND lease_token = ${turn.lease_token}::uuid
+            AND status = 'running' AND lease_until > now() RETURNING id`).length > 0
+    );
+  });
+}
+
 /** Running turns: leases, checkpoints and tool calls. */
 export function botTurns(sql: SqlClient.SqlClient, core: BotCore) {
   const { changed, active, fenced } = core;
@@ -78,6 +107,7 @@ export function botTurns(sql: SqlClient.SqlClient, core: BotCore) {
         WHERE id = ${rows[0].next_turn_id}::uuid RETURNING *`;
 
           const turn = turns[0]!;
+          yield* routineActivity(sql, turn, "started");
           // A remote side effect may already have happened. Never repeat it after a crash.
           yield* sql`UPDATE bot_tool_calls SET status = 'interrupted', result = '{"error":"interrupted: gateway restarted during remote call; outcome unknown; do not retry without user confirmation"}'::jsonb WHERE turn_id = ${turn.id}::uuid AND status = 'running' AND (tool ->> 'source' = 'mcp' OR linked_remote)`;
           yield* sql`UPDATE bots SET status_line = ${turn.routine_id || turn.handoff_configuration || turn.conversation_id ? "" : "Typing…"}, revision = revision + 1 WHERE id = ${id}::uuid`;
@@ -85,25 +115,8 @@ export function botTurns(sql: SqlClient.SqlClient, core: BotCore) {
           return turn;
         }),
       ),
-    heartbeat: (turn: BotTurn) =>
-      Effect.gen(function* () {
-        if (turn.conversation_id && !(yield* activeConversation(sql, turn.bot_id, turn.conversation_id))) return false;
-
-        return (
-          (yield* sql`UPDATE bot_turns SET lease_until = now() + interval '30 seconds'
-          WHERE id = ${turn.id}::uuid AND lease_token = ${turn.lease_token}::uuid
-            AND status = 'running' AND lease_until > now() RETURNING id`).length > 0
-        );
-      }),
-    status: (turn: BotTurn, text: string) =>
-      sql.withTransaction(
-        Effect.gen(function* () {
-          yield* fenced(turn);
-
-          if (!turn.routine_id && !turn.handoff_configuration && !turn.conversation_id)
-            yield* sql`UPDATE bots SET status_line = ${text}, revision = revision + 1 WHERE id = ${turn.bot_id}::uuid`;
-        }),
-      ),
+    heartbeat: (turn: BotTurn) => renewBotLease(sql, turn),
+    status: (turn: BotTurn, text: string, background?: WorkerStatus) => turnStatus(sql, core, turn, text, background),
     checkpoint: (turn: BotTurn, messages: ModelMessage[]) =>
       sql.withTransaction(
         Effect.gen(function* () {
@@ -172,7 +185,7 @@ export function botTurns(sql: SqlClient.SqlClient, core: BotCore) {
             id: string;
             status: string;
           }>`SELECT id, status FROM bot_turns WHERE bot_id = ${id}::uuid AND handoff_configuration IS NULL AND conversation_id IS NULL
-            AND NOT (status = 'completed' AND steer_target_id IS NOT NULL) ORDER BY created_at DESC, id DESC LIMIT 1`)[0];
+            AND routine_id IS NULL AND NOT (status = 'completed' AND steer_target_id IS NOT NULL) ORDER BY created_at DESC, id DESC LIMIT 1`)[0];
 
           if (last?.status !== "failed")
             return yield* Effect.fail(new Invalid("only a failed last reply can be retried"));

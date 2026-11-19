@@ -1,7 +1,8 @@
 # Boty przez oficjalne harnessy
 
-Status (2026-11-18): zaimplementowane w kodzie, także zwykłe przyznane narzędzia, izolacja rozmów zewnętrznych
+Status (2026-11-19): zaimplementowane w kodzie, także zwykłe przyznane narzędzia, izolacja rozmów zewnętrznych
 i nietrwałe wejścia do aktywnej tury rozmowy zewnętrznej lub prywatnego czatu.
+Czat właściciela pokazuje bieżącą czynność bota także podczas tur ze Slacka i rutyn.
 Odbiór wiadomości Slack obsługuje pliki, a konektor Slack przekazuje je
 do harnessu przez wynik narzędzia. Katalog bota Codex zachowuje obsługę obrazów
 dla modeli, które ją deklarują. Pobieranie publicznych plików wysyła stały
@@ -422,8 +423,9 @@ po reconnect, a nowy gateway odczytuje zachowaną zgodę. Dotyczy to także wywo
 które czekało na przejęcie lease albo kończyło odczyt podczas shutdownu.
 
 Istniejący snapshot rozmowy dostaje tekst bieżącej odpowiedzi i status, bez
-technicznych itemów narzędzi. Rutyny i handoffy zachowują niewidoczność. Końcowa
-odpowiedź ma jeden wpis czatu. Błąd używa `TurnOutcome`, `TurnEndSource` i
+technicznych itemów narzędzi. Dla tur ze Slacka i rutyn pokazuje status pracy,
+a tekst generacji pozostaje w zakresie danej tury. Przekazanie kontekstu przy zmianie modelu
+odbywa się w tle. Końcowa odpowiedź w prywatnej rozmowie ma jeden wpis czatu. Błąd używa `TurnOutcome`, `TurnEndSource` i
 `error_code`, tak jak wątki. Boty korzystają z `classifyFailure` i wspólnego
 wiersza błędu wątków. `TurnFinished.error_class` zachowuje klasę przed usunięciem
 prozy providera. Kody końca Claude i `codexErrorCode` pozostają w journalu

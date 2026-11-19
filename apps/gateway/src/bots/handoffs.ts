@@ -106,7 +106,7 @@ export function handoffStore(sql: SqlClient.SqlClient) {
         const messages = yield* sql<{
           sender_id: string;
           text: string;
-        }>`SELECT sender_id, text FROM (SELECT m.seq, m.sender_id, m.text FROM bot_messages m JOIN bot_turns t ON t.id=m.turn_id WHERE m.bot_id = ${turn.bot_id}::uuid AND t.conversation_id IS NULL AND m.sender_id <> 'self' ORDER BY seq DESC LIMIT 60) recent ORDER BY seq`;
+        }>`SELECT sender_id, text FROM (SELECT m.seq, m.sender_id, m.text FROM bot_messages m JOIN bot_turns t ON t.id=m.turn_id WHERE m.bot_id = ${turn.bot_id}::uuid AND t.conversation_id IS NULL AND m.sender_id NOT IN ('self','activity') ORDER BY seq DESC LIMIT 60) recent ORDER BY seq`;
 
         const previous = yield* latest(turn.bot_id);
         const pending = yield* state(turn.bot_id, true);

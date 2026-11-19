@@ -35,6 +35,7 @@ const isExchange = (m: bots.BotMessage) =>
 export function botEntries(snapshot: bots.BotConversation): ChatEntry[] {
   const botId = snapshot.bot?.id ?? "";
   const last = snapshot.messages.at(-1);
+  const lastReply = snapshot.messages.findLast((message) => message.senderId !== "activity");
 
   const entries: ChatEntry[] = snapshot.messages.map((m): ChatEntry => {
     const at = dateOf(m.createdAt);
@@ -49,7 +50,7 @@ export function botEntries(snapshot: bots.BotConversation): ChatEntry[] {
           detail: m.text,
           code: m.errorCode,
           source: m.errorSource,
-          retryable: m === last && !snapshot.working && !snapshot.approvals.some((a) => a.status === "pending"),
+          retryable: m === lastReply && !snapshot.working && !snapshot.approvals.some((a) => a.status === "pending"),
         },
       };
 

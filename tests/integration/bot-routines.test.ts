@@ -12,6 +12,11 @@ import { PLATFORM_TOOLS } from "../../apps/gateway/src/bots/policy.ts";
 import type { BotModel, ModelInput, ModelReply } from "../../apps/gateway/src/bots/types.ts";
 import { eventually, failure, startTestGateway, type TestGateway } from "./support/gateway.ts";
 
+const activity = (conversation: bots.BotConversation) =>
+  conversation.messages.filter((m) => m.senderId === "activity").map((m) => m.text);
+
+const messages = (conversation: bots.BotConversation) => conversation.messages.filter((m) => m.senderId !== "activity");
+
 const reply = (text = "Internal: nothing important") => ({ text, calls: [] });
 
 const tool = (name: string, args: JsonObject): ModelReply => ({
@@ -161,7 +166,8 @@ describe.skipIf(!dockerAvailable)("bot routines: durable scheduling and hidden t
 
     await due(r);
     const final = await idle(id);
-    expect(final.messages).toEqual(baseline.messages);
+    expect(messages(final)).toEqual(baseline.messages);
+    expect(activity(final)).toEqual([`Routine “${r.title}” started`, `Routine “${r.title}” completed`]);
     expect(final.bot?.lastMessage?.id).toBe(baseline.bot?.lastMessage?.id);
     expect(final.statusLine).toBe("");
     expect(final.working).toBe(false);
@@ -171,6 +177,7 @@ describe.skipIf(!dockerAvailable)("bot routines: durable scheduling and hidden t
     expect(seen[0]?.instructions).toContain("HIDDEN BACKGROUND RUN");
     expect(seen[0]?.messages.some((m) => m.text.includes("Every 15 min"))).toBe(true);
     expect(inputOf(seen[0]!)).toContain(definition.instructions);
+    expect(seen[0]?.messages.map((m) => m.text)).not.toContain(`Routine “${r.title}” started`);
 
     const audit = await query<{ checkpoint: unknown }>(
       "SELECT checkpoint FROM bot_turns WHERE bot_id = $1 AND routine_id = $2",
@@ -242,6 +249,10 @@ describe.skipIf(!dockerAvailable)("bot routines: durable scheduling and hidden t
     const spec = PLATFORM_TOOLS.find((t) => t.name === "message_user")!;
     const key = "persisted-message";
     const call = await core.bots.run((s) => s.planCall(turn, key, spec, { text: "Important Y happened" }));
+    const acting = await read(id);
+    expect(acting.statusLine).toContain("Sending you a message");
+    expect(acting.statusLine).toContain(r.title);
+    expect(acting.statusLine).not.toContain("Important Y happened");
     const history = await core.bots.run((s) => s.history(turn));
     await core.bots.run((s) =>
       s.checkpoint(turn, [
@@ -260,9 +271,10 @@ describe.skipIf(!dockerAvailable)("bot routines: durable scheduling and hidden t
     model = async () => reply("Invisible completed");
     await core.bots.tick();
     const final = await idle(id);
-    expect(final.messages).toHaveLength(baseline + 1);
-    expect(final.messages.at(-1)?.text).toBe("Important Y happened");
-    expect(final.messages.at(-1)?.recipientId).toBe("user");
+    expect(activity(final)).toEqual([`Routine “${r.title}” started`, `Routine “${r.title}” completed`]);
+    expect(messages(final)).toHaveLength(baseline + 1);
+    expect(messages(final).at(-1)?.text).toBe("Important Y happened");
+    expect(messages(final).at(-1)?.recipientId).toBe("user");
     expect(final.approvals).toHaveLength(0);
     expect(final.routines[0]?.lastOutcome).toBe("Sent you a message");
     expect(final.bot?.unreadCount).toBe(1);
@@ -273,10 +285,35 @@ describe.skipIf(!dockerAvailable)("bot routines: durable scheduling and hidden t
       i.messages.at(-1)?.role === "tool" ? reply() : tool("message_user", { text: "Another important update" });
     await due(final.routines[0]!);
     const next = await idle(id);
-    expect(next.messages).toHaveLength(baseline + 2);
-    expect(next.messages.at(-1)?.text).toBe("Another important update");
+    expect(messages(next)).toHaveLength(baseline + 2);
+    expect(messages(next).at(-1)?.text).toBe("Another important update");
     expect(next.approvals).toHaveLength(0);
     expect(next.bot?.unreadCount).toBe(1);
+  });
+
+  test("a failed routine records its outcome without leaking the error or notifying the owner", async () => {
+    const id = await add();
+    const r = await make(id);
+    model = async () => {
+      throw new Error("Private failure details");
+    };
+
+    const before = await send(id, "A separate private request");
+
+    await due(r);
+    const failed = await idle(id);
+    expect(activity(failed)).toEqual([`Routine “${r.title}” started`, `Routine “${r.title}” failed`]);
+    expect(messages(failed)).toEqual(before.messages);
+    expect(failed.bot?.unreadCount).toBe(before.bot?.unreadCount);
+    expect(failed.bot?.lastMessage).toEqual(before.bot?.lastMessage);
+    expect(failed.routines[0]?.lastOutcome).toBe("Run failed");
+
+    model = async () => reply("Recovered private reply");
+    await core.bots.retry(id);
+    const recovered = await idle(id);
+    expect(recovered.bot?.lastMessage?.text).toBe("Recovered private reply");
+    expect(activity(recovered)).toEqual(activity(failed));
+    expect(recovered.routines[0]?.lastOutcome).toBe("Run failed");
   });
 
   test("disabled/deleted routines cannot run, including an occurrence already queued", async () => {
@@ -298,7 +335,9 @@ describe.skipIf(!dockerAvailable)("bot routines: durable scheduling and hidden t
     await core.bots.run((s) => s.deliverRoutines(gw.userId, clock));
     await gw.api.deleteBotRoutine({ botId: id, routineId: r.id });
     await core.bots.tick();
-    expect((await idle(id)).routines).toHaveLength(0);
+    const deleted = await idle(id);
+    expect(deleted.routines).toHaveLength(0);
+    expect(activity(deleted)).toEqual([]);
     expect(await query("SELECT id FROM bot_turns WHERE routine_id = $1 AND status = 'completed'", [r.id])).toHaveLength(
       0,
     );
@@ -366,10 +405,11 @@ describe.skipIf(!dockerAvailable)("bot routines: durable scheduling and hidden t
     expect(overlapped).toBe(false);
     const pending = await query("SELECT id FROM bot_turns WHERE routine_id = $1 AND status = 'queued'", [r.id]);
     expect(pending).toHaveLength(1);
+    expect(activity(await read(id))).toEqual([]);
     held.resolve();
     await eventually(
       () => read(id),
-      (s) => s.messages.at(-1)?.text === "Visible answer",
+      (s) => messages(s).at(-1)?.text === "Visible answer",
     );
     await core.bots.tick();
 
@@ -379,10 +419,13 @@ describe.skipIf(!dockerAvailable)("bot routines: durable scheduling and hidden t
     );
 
     expect(waiting.approvals[0]?.routineTitle).toBe(r.title);
-    expect(waiting.messages.at(-1)?.text).toBe("Visible answer");
+    expect(waiting.statusLine).toContain("Waiting for you");
+    expect(waiting.statusLine).toContain(r.title);
+    expect(messages(waiting).at(-1)?.text).toBe("Visible answer");
+    expect(activity(waiting)).toEqual([`Routine “${r.title}” started`]);
     await gw.api.answerBotApproval({ approvalId: waiting.approvals[0]!.id, approve: true, answer: "Proceed" });
     await core.bots.tick();
-    await idle(id);
+    expect(activity(await idle(id))).toEqual([`Routine “${r.title}” started`, `Routine “${r.title}” completed`]);
   });
 
   test("owner and bot scoping applies to UI toggles/deletion and routine tools", async () => {
@@ -434,11 +477,23 @@ describe.skipIf(!dockerAvailable)("bot routines: durable scheduling and hidden t
     clock = new Date(clock.getTime() + 24 * 60 * 60_000);
     await core.bots.tick();
     expect(await query("SELECT id FROM bot_turns WHERE routine_id = $1", [r.id])).toHaveLength(1);
-    expect((await read(id)).working).toBe(false);
-    await gw.api.setBotRoutineEnabled({ botId: id, routineId: r.id, enabled: false });
-    release.resolve();
+    const active = await read(id);
+
+    try {
+      expect(active.working).toBe(false);
+      expect(active.streamingText).toBe("");
+      expect(active.statusLine).toContain("Typing…");
+      expect(active.statusLine).toContain(r.title);
+      await gw.api.setBotRoutineEnabled({ botId: id, routineId: r.id, enabled: false });
+    } finally {
+      release.resolve();
+    }
+
     await idle(id);
-    expect((await read(id)).routines[0]?.lastOutcome).toBe("Stopped");
+    const stopped = await read(id);
+    expect(stopped.routines[0]?.lastOutcome).toBe("Stopped");
+    expect(stopped.statusLine).toBe("");
+    expect(activity(stopped)).toEqual([`Routine “${r.title}” started`, `Routine “${r.title}” stopped`]);
     expect(
       await query("SELECT id FROM bot_messages WHERE text LIKE '%Must stay invisible%' AND bot_id = $1", [id]),
     ).toHaveLength(0);
@@ -475,8 +530,14 @@ describe.skipIf(!dockerAvailable)("bot routines: durable scheduling and hidden t
     const final = await idle(id);
     expect(followup?.instructions).toContain("HIDDEN BACKGROUND RUN");
     expect(inputOf(followup!)).toContain(definition.instructions);
-    expect(final.messages).toHaveLength(baseline + 1); // Only the deliberate “Messaged …” effect.
-    expect(final.messages.at(-1)?.text).toStartWith("Messaged ");
+    expect(messages(final)).toHaveLength(baseline + 1);
+    expect(messages(final).at(-1)?.text).toStartWith("Messaged ");
+    expect(activity(final)).toEqual([
+      `Routine “${r.title}” started`,
+      `Routine “${r.title}” completed`,
+      `Follow-up for routine “${r.title}” started`,
+      `Follow-up for routine “${r.title}” completed`,
+    ]);
     expect(
       final.messages.some((m) => m.text.includes("Silent follow-up") || m.text.includes("No important changes")),
     ).toBe(false);

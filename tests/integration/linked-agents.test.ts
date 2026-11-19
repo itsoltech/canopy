@@ -576,10 +576,21 @@ describe.skipIf(!dockerAvailable)("linked bots and agent bus: two independent ho
       routine.id,
     ]);
     expect(await eventually(async () => Boolean(followup), Boolean)).toBe(true);
-    await settle(a, routineBot);
+
+    const after = await eventually(
+      () => read(a, routineBot),
+      (snapshot) => snapshot.messages.at(-1)?.text === `Follow-up for routine “${routine.title}” completed`,
+    );
+
     expect(followup?.instructions).toContain("HIDDEN BACKGROUND RUN");
     expect(input(followup!)).toContain(instruction);
-    expect((await read(a, routineBot)).messages).toEqual(before);
+    expect(after.messages.filter((m) => m.senderId !== "activity")).toEqual(before);
+    expect(after.messages.filter((m) => m.senderId === "activity").map((m) => m.text)).toEqual([
+      `Routine “${routine.title}” started`,
+      `Routine “${routine.title}” completed`,
+      `Follow-up for routine “${routine.title}” started`,
+      `Follow-up for routine “${routine.title}” completed`,
+    ]);
     expect((await read(b, botB)).routines).toEqual([]);
     await a.api.deleteBotRoutine({ botId: routineBot, routineId: routine.id });
     modelA = async (i) => reply(`A: ${input(i)}`);

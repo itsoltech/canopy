@@ -6,6 +6,7 @@ import { SqlClient } from "effect/sql";
 import { lockedOwnerModule, moduleDisabledMessage } from "../store/module-access.ts";
 import { decryptSecret } from "../store/secrets.ts";
 import { Invalid, NotFound } from "../store/store.ts";
+import { stoppedRoutineActivity } from "./routine-activity.ts";
 import { handoffStore } from "./handoffs.ts";
 import type { BotRow, BotTurn, McpConnection } from "./types.ts";
 import { MOVE_RECONNECT } from "./store-views.ts";
@@ -54,7 +55,14 @@ export function botAccess(sql: SqlClient.SqlClient, key: Buffer) {
 
   const stopTurns = (id: string) =>
     Effect.gen(function* () {
-      yield* sql`UPDATE bot_turns SET status = 'interrupted', finished_at = now(), lease_token = NULL, lease_until = NULL WHERE bot_id = ${id}::uuid AND status IN ('queued','running','waiting')`;
+      const stopped = yield* sql<{
+        id: string;
+      }>`UPDATE bot_turns SET status = 'interrupted', finished_at = now(), lease_token = NULL, lease_until = NULL WHERE bot_id = ${id}::uuid AND status IN ('queued','running','waiting') RETURNING id`;
+
+      yield* stoppedRoutineActivity(
+        sql,
+        stopped.map((turn) => turn.id),
+      );
       yield* sql`UPDATE bot_approvals SET status = 'expired', answered_at = now() WHERE bot_id = ${id}::uuid AND status = 'pending'`;
       yield* sql`UPDATE bot_thread_watches SET delivered = true WHERE bot_id = ${id}::uuid AND NOT delivered`;
     });

@@ -113,7 +113,7 @@ export function ChatEventLine({ event }: { event: ChatEventView }) {
   const c = useColors();
 
   return (
-    <View style={[styles.row, { justifyContent: "center", flexWrap: "wrap", gap: 6, paddingHorizontal: 12 }]}>
+    <View style={[styles.row, { justifyContent: "center", gap: 6, paddingHorizontal: 12 }]}>
       <Icon name={EVENT_ICONS[event.kind]} size={14} color={c.faint} />
       <Text style={[styles.meta, { flexShrink: 1, color: c.muted, textAlign: "center" }]}>
         {event.text}
@@ -169,7 +169,12 @@ export function BotStatusRow({ bot, text, waiting }: { bot: ParticipantView; tex
   const c = useColors();
 
   return (
-    <View accessibilityRole="text" accessibilityLabel={`${bot.name}: ${text}`} style={styles.row}>
+    <View
+      accessibilityRole="text"
+      accessibilityLabel={`${bot.name}: ${text}`}
+      accessibilityLiveRegion="polite"
+      style={styles.row}
+    >
       <MascotAvatar id={bot.id} name={bot.name} shape={bot.shape} color={bot.color} size={28} />
       {waiting ? (
         <Text numberOfLines={1} style={[styles.body, { flex: 1, color: c.muted }]}>

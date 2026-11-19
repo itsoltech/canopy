@@ -3,7 +3,7 @@ import { Provider } from "@canopy/contracts";
 import { dockerAvailable } from "@canopy/db/testing";
 import { Effect } from "effect";
 import { SqlClient } from "effect/sql";
-import { MessengerStore } from "../../apps/gateway/src/messengers/store.ts";
+import { MessengerStore, type OutboundResult } from "../../apps/gateway/src/messengers/store.ts";
 import { conversationFiles } from "../../apps/gateway/src/core/bot-files.ts";
 import type { BotTurn } from "../../apps/gateway/src/bots/types.ts";
 import { botsSuite } from "./support/bots.ts";
@@ -114,9 +114,15 @@ describe.skipIf(!dockerAvailable)("messenger work callback origin", () => {
           source: "platform",
           parameters: {},
         },
-        {},
+        { project_name: "PRIVATE_EXTERNAL_ARGUMENT" },
       ),
     );
+
+    const active = await read(turn.bot_id);
+    expect(active.statusLine).toContain("Starting a thread");
+    expect(active.statusLine).toContain("Slack");
+    expect(active.statusLine).not.toContain("PRIVATE_EXTERNAL_ARGUMENT");
+    expect(active.working).toBe(false);
 
     await suite.current.bots.run((s) => s.watchThread(turn, call, thread.id, target.id));
     await suite.current.bots.run((s) => s.finish(turn, "completed", "Investigating"));
@@ -154,7 +160,40 @@ describe.skipIf(!dockerAvailable)("messenger work callback origin", () => {
     const outbound = await messenger((s) => s.outbound(suite.gw.userId, f.lease, new Date()));
 
     expect(outbound.map((o) => o.threadId)).toEqual(["100.1", "100.1"]);
-    expect((await read(f.botId)).messages).toHaveLength(0);
+    const pending = await read(f.botId);
+    expect(pending.messages.filter((m) => m.senderId !== "activity")).toHaveLength(0);
+    expect(pending.messages.some((m) => m.text.startsWith("Replied on Slack"))).toBe(false);
+
+    const [sent, unknown] = outbound;
+
+    const settle = (id: string, result: OutboundResult) =>
+      messenger((s) => s.settleOutbound(suite.gw.userId, f.lease, id, result, new Date()));
+
+    await settle(sent!.id, { sent: true });
+    await settle(sent!.id, { sent: true });
+    await settle(unknown!.id, { sent: false, uncertain: true });
+    await settle(unknown!.id, { sent: true });
+
+    const final = await read(f.botId);
+    const replies = final.messages.filter((m) => m.senderId === "activity" && m.text.startsWith("Replied on Slack"));
+    expect(replies.map((m) => m.text)).toEqual([
+      "Replied on Slack · Origin workspace · channel CPRODUCT · thread 100.1",
+    ]);
+    expect(final.bot?.unreadCount).toBe(1); // Only the uncertain delivery notice needs attention.
+  });
+
+  test("a failed Slack turn reports its source to the owner without publishing the external error", async () => {
+    const f = await external();
+    await suite.current.bots.run((s) => s.finish(f.turn, "failed", "PRIVATE_PROVIDER_ERROR"));
+    expect(await messenger((s) => s.outbound(suite.gw.userId, f.lease, new Date()))).toEqual([]);
+
+    const chat = await read(f.botId);
+    expect(chat.bot?.unreadCount).toBe(0);
+    expect(chat.messages.map((m) => m.text)).toEqual([
+      "Received a Slack message · Origin workspace · channel CPRODUCT · thread 100.1",
+      "Could not finish the Slack request · Origin workspace · channel CPRODUCT · thread 100.1",
+    ]);
+    expect(chat.messages.every((m) => m.senderId === "activity" && m.kind === "event")).toBe(true);
   });
 
   test("revoking a subscription suppresses later thread reports without falling into private chat", async () => {
@@ -165,7 +204,7 @@ describe.skipIf(!dockerAvailable)("messenger work callback origin", () => {
     await suite.current.bots.run((s) => s.deliver(suite.gw.userId));
 
     expect(await query("SELECT id FROM bot_turns WHERE client_request_id=$1", [`thread:${work.call.id}`])).toEqual([]);
-    expect((await read(f.botId)).messages).toHaveLength(0);
+    expect((await read(f.botId)).messages.filter((m) => m.senderId !== "activity")).toHaveLength(0);
     expect(await suite.current.bots.run((s) => s.originEnabled(f.turn))).toBe(false);
   });
 

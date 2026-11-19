@@ -3,7 +3,7 @@ import { timestampFromDate } from "@bufbuild/protobuf/wkt";
 import { bots, connectors } from "@canopy/contracts";
 import { Effect } from "effect";
 import { SqlClient } from "effect/sql";
-import { ownerModule } from "../store/module-access.ts";
+import { conversationActivity } from "./conversation-activity.ts";
 import { Invalid } from "../store/store.ts";
 import { modelInput, storedMentions } from "./mentions.ts";
 import { nextHop } from "./policy.ts";
@@ -47,30 +47,21 @@ export function botConversation(sql: SqlClient.SqlClient, core: BotCore) {
           const rows =
             yield* sql<MessageRow>`SELECT * FROM (SELECT m.*, t.status AS turn_status, c.result -> 'changes' AS setting_changes
         FROM bot_messages m JOIN bot_turns t ON t.id = m.turn_id LEFT JOIN bot_tool_calls c ON m.message_key = 'self:' || c.id::text
-        WHERE m.bot_id = ${id}::uuid AND t.conversation_id IS NULL AND (${!selection} OR m.id=ANY(${selection?.ids ?? []}::uuid[])
+        WHERE m.bot_id = ${id}::uuid AND (t.conversation_id IS NULL OR m.sender_id = 'activity') AND (${!selection} OR m.id=ANY(${selection?.ids ?? []}::uuid[])
           OR m.turn_id=ANY(${selection?.turns ?? []}::uuid[]))
           AND (${before === 0n} OR m.seq<${before}) ORDER BY m.seq DESC LIMIT ${limit ? limit + 1 : null}) recent ORDER BY seq`;
 
           const hasMore = !!limit && rows.length > limit;
           const messages = hasMore ? rows.slice(1) : rows;
 
+          const tail = messages.at(-1);
+
           const latest =
-            selection || before > 0n
-              ? (yield* sql<MessageRow>`SELECT m.*,t.status AS turn_status,c.result -> 'changes' AS setting_changes
-                FROM bot_messages m JOIN bot_turns t ON t.id=m.turn_id LEFT JOIN bot_tool_calls c ON m.message_key='self:' || c.id::text
-                WHERE m.bot_id=${id}::uuid AND t.conversation_id IS NULL ORDER BY m.seq DESC LIMIT 1`)[0]
-              : messages.at(-1);
+            selection || before > 0n || tail?.sender_id === "activity" ? yield* lastChatMessage(sql, id) : tail;
 
           const approvals = yield* ownerApprovals(sql, id);
 
-          const active =
-            yield* sql`SELECT id FROM bot_turns WHERE bot_id = ${id}::uuid AND handoff_configuration IS NULL AND conversation_id IS NULL AND status IN ('queued','running','waiting') AND (routine_id IS NULL OR status = 'waiting') AND ${ownerModule(sql, user, "bots")} LIMIT 1`;
-
-          const streaming =
-            (yield* sql<{
-              text: string;
-            }>`SELECT h.text FROM bot_harness_turns h JOIN bot_turns t ON t.id = h.turn_id WHERE h.bot_id = ${id}::uuid AND t.status = 'running' AND t.routine_id IS NULL AND t.handoff_configuration IS NULL AND t.conversation_id IS NULL ORDER BY t.created_at LIMIT 1`)[0]
-              ?.text ?? "";
+          const activity = yield* conversationActivity(sql, bot);
 
           const reminders = yield* sql<{
             id: string;
@@ -88,9 +79,7 @@ export function botConversation(sql: SqlClient.SqlClient, core: BotCore) {
               ...approvals.map(ownerApprovalView),
               ...(yield* botThreadApprovals(sql).threadApprovals(user, id)),
             ],
-            statusLine: active.length ? bot.status_line : "",
-            working: active.length > 0,
-            streamingText: streaming,
+            ...activity,
             revision: BigInt(bot.revision),
             cursor: checkpoint?.cursor ?? "",
             historyBeforeSeq: messages[0]?.seq ?? 0n,
@@ -119,7 +108,7 @@ export function botConversation(sql: SqlClient.SqlClient, core: BotCore) {
       sql<
         MessageRow & { model_text: string }
       >`SELECT * FROM (SELECT m.*, CASE WHEN m.message_key='input' THEN t.input ELSE m.text END AS model_text, t.created_at AS turn_created, t.id AS turn_order FROM bot_messages m JOIN bot_turns t ON t.id = m.turn_id
-      WHERE m.bot_id = ${turn.bot_id}::uuid AND t.conversation_id IS NOT DISTINCT FROM ${turn.conversation_id ?? null}::uuid AND m.sender_id <> 'self' AND (${Boolean(turn.handoff_configuration)} OR (t.created_at, t.id) <= (SELECT created_at, id FROM bot_turns WHERE id = ${turn.id}::uuid))
+      WHERE m.bot_id = ${turn.bot_id}::uuid AND t.conversation_id IS NOT DISTINCT FROM ${turn.conversation_id ?? null}::uuid AND m.sender_id NOT IN ('self','activity') AND (${Boolean(turn.handoff_configuration)} OR (t.created_at, t.id) <= (SELECT created_at, id FROM bot_turns WHERE id = ${turn.id}::uuid))
       ORDER BY t.created_at DESC, t.id DESC, m.seq DESC LIMIT ${turn.routine_id ? 60 : 2147483647}) recent ORDER BY turn_created, turn_order, seq`.pipe(
         Effect.map((rows): ModelMessage[] => [
           ...rows.map((r): ModelMessage => ({
@@ -172,6 +161,15 @@ function messageUser(sql: SqlClient.SqlClient, core: BotCore, turn: BotTurn, cal
   });
 }
 
+/** Timeline activity must not displace a private reply in previews or suppress its notification. */
+function lastChatMessage(sql: SqlClient.SqlClient, id: string) {
+  return sql<MessageRow>`SELECT m.*, t.status AS turn_status, c.result -> 'changes' AS setting_changes
+    FROM bot_messages m JOIN bot_turns t ON t.id = m.turn_id
+    LEFT JOIN bot_tool_calls c ON m.message_key = 'self:' || c.id::text
+    WHERE m.bot_id = ${id}::uuid AND t.conversation_id IS NULL AND m.sender_id <> 'activity'
+    ORDER BY m.seq DESC LIMIT 1`.pipe(Effect.map((rows) => rows[0]));
+}
+
 function markBotRead(sql: SqlClient.SqlClient, core: BotCore, user: string, id: string, throughSeq: bigint) {
   return sql.withTransaction(
     Effect.gen(function* () {
@@ -182,8 +180,7 @@ function markBotRead(sql: SqlClient.SqlClient, core: BotCore, user: string, id: 
       // A stale tab can only acknowledge messages it observed, never future messages.
       yield* sql`UPDATE bots SET last_read_seq = greatest(last_read_seq, least(${throughSeq}, coalesce((SELECT max(seq) FROM bot_messages WHERE bot_id = ${id}::uuid), 0))), revision = revision + 1 WHERE id = ${id}::uuid`;
 
-      const latest =
-        (yield* sql<MessageRow>`SELECT m.*, t.status AS turn_status FROM bot_messages m JOIN bot_turns t ON t.id = m.turn_id WHERE m.bot_id = ${id}::uuid AND t.conversation_id IS NULL ORDER BY m.seq DESC LIMIT 1`)[0];
+      const latest = yield* lastChatMessage(sql, id);
 
       return create(bots.BotSchema, {
         ...botView(yield* core.owned(user, id)),
