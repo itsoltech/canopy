@@ -10,7 +10,7 @@ import {
   unlinkSync,
   writeFileSync,
 } from "node:fs";
-import { join, relative, resolve } from "node:path";
+import { dirname, join, relative, resolve } from "node:path";
 import { tempDirs } from "@canopy/testing";
 import { addWorktree, WORKTREE_CLEANUP_WARNING } from "../../apps/worker/src/git/add-worktree.ts";
 import { freshGit } from "../../apps/worker/src/git/git.ts";
@@ -141,7 +141,13 @@ async function stageInterruptedCheckout(f: ReturnType<typeof fixture>) {
   expect(registered).toContainEqual(
     expect.arrayContaining([`HEAD ${f.tree.commit}`, `branch refs/heads/${f.tree.branch}`, `locked ${marker}`]),
   );
-  expect(atPath(registered, f.tree.path)).toHaveLength(1);
+  const listedPath = registered.find((entry) => entry.includes(`locked ${marker}`))?.[0];
+
+  expect({ matches: atPath(registered, f.tree.path).length, requested: f.tree.path, listedPath }).toEqual({
+    matches: 1,
+    requested: f.tree.path,
+    listedPath,
+  });
   expect(git(f.repo, "reflog", "show", "-1", "--format=%gs", `refs/heads/${f.tree.branch}`, "--")).toBe(marker);
   expect(readFileSync(join(f.admin, "locked"), "utf8").trimEnd()).toBe(marker);
   const gitdir = readFileSync(join(f.admin, "gitdir"), "utf8").trimEnd();
@@ -150,8 +156,8 @@ async function stageInterruptedCheckout(f: ReturnType<typeof fixture>) {
   for (const name of ["locked", "gitdir", "commondir"])
     expect(lstatSync(join(f.admin, name), { bigint: true }).nlink).toBe(1n);
 
-  expect(relative(resolve(f.admin, gitdir), join(f.tree.path, ".git"))).toBe("");
-  expect(relative(resolve(f.admin, common), join(f.repo, ".git"))).toBe("");
+  expect(relative(realpathSync(resolve(f.admin, dirname(gitdir))), f.tree.path)).toBe("");
+  expect(relative(realpathSync(resolve(f.admin, common)), join(f.repo, ".git"))).toBe("");
 
   return () => rollbackWorktree(f.repo, f.tree, marker, reservation, true);
 }

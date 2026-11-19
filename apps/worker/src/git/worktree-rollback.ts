@@ -1,5 +1,5 @@
 import { mkdirSync, readFileSync, realpathSync, rmdirSync, type BigIntStats } from "node:fs";
-import { basename, dirname, join, relative, resolve, sep } from "node:path";
+import { basename, dirname, isAbsolute, join, relative, resolve, sep } from "node:path";
 import { freshGit, git, GitError, GIT_TIMEOUT_MS, gitOk } from "./git.ts";
 import {
   checkoutBlobMatches,
@@ -45,8 +45,23 @@ export async function registeredWorktrees(repo: string): Promise<string[][]> {
     .map((entry) => entry.split("\0"));
 }
 
+/** Git can print a Windows path through an alternate spelling of its parent, such as an 8.3 name. */
+function sameGitPath(path: string, expected: string): boolean {
+  if (!isAbsolute(path)) return false;
+
+  if (samePath(path, expected)) return true;
+
+  if (process.platform !== "win32" || !samePath(basename(path), basename(expected))) return false;
+
+  try {
+    return samePath(join(realpathSync(dirname(path)), basename(path)), expected);
+  } catch {
+    return false;
+  }
+}
+
 export const atPath = (entries: string[][], path: string): string[][] =>
-  entries.filter(([entry]) => entry?.startsWith("worktree ") && samePath(path, entry.slice(9)));
+  entries.filter(([entry]) => entry?.startsWith("worktree ") && sameGitPath(entry.slice(9), path));
 
 export function ownsCheckout(entry: string[], tree: NewWorktree, marker: string): boolean {
   return (
@@ -92,7 +107,7 @@ function smallFile(path: string): string | undefined {
 }
 
 function pointsTo(from: string, value: string | undefined, to: string): boolean {
-  return Boolean(value && samePath(resolve(dirname(from), value), to));
+  return Boolean(value && sameGitPath(resolve(dirname(from), value), to));
 }
 
 async function checkIndex(tree: NewWorktree, metadata: string, interrupted: boolean): Promise<boolean> {
