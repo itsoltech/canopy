@@ -1,11 +1,11 @@
 import { useEffect, useMemo, useState, useSyncExternalStore } from "react";
-import { BackHandler, View } from "react-native";
+import { BackHandler, Text, View } from "react-native";
 import { create } from "@bufbuild/protobuf";
 import { ConversationSkeleton, SkeletonScope } from "../../ui/Skeleton";
 import { Redirect, Stack, useLocalSearchParams } from "expo-router";
 import { useContextDraft } from "../github/useContextDraft";
 import { ScreenFrame } from "../../ui/ScreenFrame";
-import { useColors } from "../../ui/theme";
+import { styles, useColors } from "../../ui/theme";
 import { InteractionKind, ui } from "@canopy/contracts";
 import { useSession } from "../../state/session";
 import { useThreadSnapshot } from "../../state/thread";
@@ -283,7 +283,7 @@ export function ThreadScreen({ id }: { id: string }) {
                   onLayout={composer.measure}
                   onExpand={composer.expand}
                   onLatest={following.atBottom ? undefined : composer.showLatest}
-                  overlay={<ThreadSuggestions state={state} />}
+                  overlay={<ThreadComposerOverlay state={state} />}
                   accessory={<ThreadStatus state={state} />}
                   tray={state.archived ? undefined : <ThreadTray state={state} onGoal={() => setSheet("goal")} />}
                 >
@@ -306,7 +306,7 @@ export function ThreadScreen({ id }: { id: string }) {
   );
 }
 
-/** What floats above the tray: secrets, sending and delivery notes, and running background tasks. */
+/** What floats above the tray: secrets, delivery issues and running background tasks. */
 function ThreadStatus({ state }: { state: ThreadState }) {
   const { home, error } = state;
 
@@ -315,9 +315,6 @@ function ThreadStatus({ state }: { state: ThreadState }) {
   return (
     <>
       {!state.archived && <ThreadRequests state={state} />}
-      {state.busy ? (
-        <Notice>{state.waiting ? `Still waiting for ${home.name || "this computer"}…` : "Sending…"}</Notice>
-      ) : null}
       {error ? <Notice error>{error}</Notice> : null}
       {state.thread?.preparationRequestId &&
         (state.thread.status === "creating" ? (
@@ -377,10 +374,36 @@ function ThreadComposer({ state, composer }: { state: ThreadState; composer: Ret
   );
 }
 
-function ThreadSuggestions({ state }: { state: ThreadState }) {
+function ThreadComposerOverlay({ state }: { state: ThreadState }) {
   const { thread, message } = state;
+  const c = useColors();
 
-  if (!message.trigger || state.archived || state.worktreeRemoved) return null;
+  if (state.archived || state.worktreeRemoved) return null;
+
+  if (state.busy && state.waiting)
+    return (
+      <View
+        pointerEvents="none"
+        style={{
+          position: "absolute",
+          bottom: 4,
+          right: 0,
+          maxWidth: "100%",
+          borderRadius: 8,
+          backgroundColor: c.surface,
+        }}
+      >
+        <Text
+          accessibilityLiveRegion="polite"
+          numberOfLines={2}
+          style={[styles.meta, { color: c.muted, paddingHorizontal: 8, paddingVertical: 4 }]}
+        >
+          Still waiting for {state.home.name || "this computer"}…
+        </Text>
+      </View>
+    );
+
+  if (!message.trigger) return null;
 
   return (
     <MentionSuggestions

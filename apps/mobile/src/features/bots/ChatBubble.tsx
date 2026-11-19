@@ -87,6 +87,7 @@ export function ChatBubble({
         )}
         <Pressable
           accessibilityLabel={`${mine ? "You" : (sender?.name ?? "Unknown")}: ${accessibleText}`}
+          accessibilityState={{ busy: message.delivery === "sending" }}
           accessibilityHint="Long press for message actions"
           onLongPress={() => setActions(true)}
           accessibilityActions={[{ name: "activate", label: "Message actions" }]}
@@ -113,12 +114,10 @@ export function ChatBubble({
           onClose={() => setActions(false)}
           onReply={onReply ? () => onReply(message) : undefined}
         />
-        {message.delivery && (
+        {message.delivery === "failed" && (
           <View style={[styles.row, { gap: 4, paddingHorizontal: 12 }]}>
-            {message.delivery === "failed" && <Icon name="exclamation-circle" size={14} color={rose} />}
-            <Text style={[styles.meta, { color: message.delivery === "failed" ? rose : c.muted }]}>
-              {message.delivery === "failed" ? "Not sent" : "Sending…"}
-            </Text>
+            <Icon name="exclamation-circle" size={14} color={rose} />
+            <Text style={[styles.meta, { color: rose }]}>Not sent</Text>
           </View>
         )}
       </View>

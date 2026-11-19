@@ -207,10 +207,10 @@
     />{/if}
   {#if message.delivery}
     <p
-      class={[
-        "flex items-center gap-1 px-3 text-sm/5 sm:text-xs/5",
-        message.delivery === "failed" ? "text-rose-600 dark:text-rose-400" : "text-zinc-500 dark:text-zinc-400",
-      ]}
+      role="status"
+      class={message.delivery === "failed"
+        ? "flex items-center gap-1 px-3 text-sm/5 text-rose-600 sm:text-xs/5 dark:text-rose-400"
+        : "sr-only"}
     >
       {#if message.delivery === "failed"}<Icon name="exclamation-circle" tone="inherit" class="size-3.5" />Not sent{:else}Sending…{/if}
     </p>

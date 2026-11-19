@@ -43,7 +43,7 @@
   disabled={disabled || sending}
   {onclick}
 >
-  {#if sending}<Spinner class="size-3.5" />{:else}<Icon name={icon} tone="inherit" />{/if}
+  {#if sending}<Spinner />{:else}<Icon name={icon} tone="inherit" />{/if}
   <span class={split ? "@max-[24rem]/composer:hidden" : undefined}>{label}</span>
   <TouchTarget />
 </button>

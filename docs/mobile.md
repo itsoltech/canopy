@@ -1,6 +1,7 @@
 # Canopy na iOS i Android
 
-Status: opis zaimplementowanego kodu (2026-11-19); natywny raport Usage pokazuje
+Status: opis zaimplementowanego kodu (2026-11-19). Wysyłanie wiadomości i start tury
+zachowują położenie rozmowy. Natywny raport Usage pokazuje
 historię kosztów i skrócone liczby tokenów z gatewaya oraz dzienny wykres według dostawcy.
 Wątki pokazują strumieniowany tekst linia po linii, tak jak web i desktop.
 Na liście Bots jednoliniowy podgląd ostatniej wiadomości zachowuje formatowanie Markdown,
@@ -1706,8 +1707,11 @@ Klawiatura zamyka się przed jego pokazaniem, a gest zamknięcia, safe area i og
 pochodzą ze wspólnego kitu. Otwarcie nie zmienia wysokości zasobnika ani rezerwy feedu;
 zwykłe korekty po schowaniu klawiatury pozostają aktywne.
 Nagłówki działają także przy zwiniętym kompozytorze.
-Nad zasobnikiem są wiersze statusu
-(„Syncing…”, sekrety, „Sending…”, błąd wysyłki, komputer offline) i chip zadań w tle.
+Wysyłanie sygnalizuje wskaźnik w przycisku wysyłki. Przy oczekiwaniu na komputer
+komunikat pojawia się w nakładce poza pomiarem kompozytora. „Starting” korzysta
+z nagłówka pracy tury, który po starcie pokazuje czas pracy agenta.
+Nad zasobnikiem są wiersze statusu („Syncing…”, sekrety, błąd wysyłki, komputer offline)
+i chip zadań w tle.
 Wiersze statusu i zasobnik leżą na tle kompozytora z własnym wygaszeniem 16–32 dp, poza pomiarem
 pola dla gestów klawiatury. Pomiar całego stosu obejmuje je w każdym stanie: ostatnią
 wiadomość można przewinąć ponad nakładkę. Przy końcu przesuwa się razem z nimi,
