@@ -191,6 +191,7 @@ describe.skipIf(!dockerAvailable)("schema on PostgreSQL 17", () => {
       "176_message_delegating_bot",
       "177_github_pr_projection",
       "178_usage_workers",
+      "179_removed_branch_cleanup",
     ]);
   }, 60_000);
 
@@ -764,7 +765,10 @@ describe.skipIf(!dockerAvailable)("schema on PostgreSQL 17", () => {
       const first = id();
       await query(insert, [first, w.user, w.project, w.workspace, w.worker]);
       expect(await failure(insert, [id(), w.user, w.project, w.workspace, w.worker])).toContain("worktrees_live_path");
+      const recordCleanup = `UPDATE worktrees SET branch_cleanup_source = 'removal'::bytea WHERE id = $1`;
+      expect(await failure(recordCleanup, [first])).toContain("worktrees_branch_cleanup_source");
       await query(`UPDATE worktrees SET removed_at = now() WHERE id = $1`, [first]);
+      await query(recordCleanup, [first]);
       const live = id();
       await query(insert, [live, w.user, w.project, w.workspace, w.worker]);
       const thread = await mainThread(w);

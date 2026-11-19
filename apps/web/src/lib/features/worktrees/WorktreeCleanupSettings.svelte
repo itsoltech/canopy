@@ -46,7 +46,8 @@
     {
       field: "deleteLocalBranch",
       title: "Delete safe local branches",
-      description: "Applies to merged or unchanged branches with no unpushed commits.",
+      description:
+        "After worktree removal, clean up unused, merged feature branches once all their threads are archived.",
     },
   ] as const;
 </script>

@@ -967,6 +967,9 @@ Wyszukiwanie plików jest własne workera (nie Codexowe `fuzzyFileSearch`), bo m
 
 ## Git worktrees
 
+Status (2026-11-19): zaimplementowano sprzątanie scalonych lokalnych gałęzi po archiwizacji.
+Dostępność w kanałach zależy od [promocji wydania](release.md).
+
 Capability `worktrees` i `Hello.worktrees_root` (`~/canopy/worktrees`, `CANOPY_WORKTREES_ROOT` albo `<data_dir>/worktrees`, zob. [worktrees.md](worktrees.md#położenie)): nietrwałe komendy `ListGitRefs` (210), `CreateWorktree` (211) i `RenameWorktreeBranch` (212), wyniki w `CommandResult.git_refs` / `worktree`. Worker sam liczy ścieżkę worktree pod korzeniem i uruchamia gita bez powłoki. Starszy worker bez capability nie dostaje tych komend. Bez zmiany `WORKER_LINK_PROTOCOL`. Szczegóły: [worktrees.md](worktrees.md).
 
 Capability `worktree_lifecycle`: nietrwałe `ScanWorktrees` (213), `RevealWorktree` (215) i trwałe
@@ -975,6 +978,12 @@ merged/unchanged i aktywność. Usunięcie weryfikuje pierwotny korzeń, rejestr
 i brak aktywnej pracy. Zmiany lokalne wymagają jawnego potwierdzenia ręcznej akcji. Gateway zachowuje
 komendę do wyniku, worker zapisuje zamiar przed usunięciem i wynik w journalu; retry używa tego samego
 command id. Opcjonalny wynik `worktree_branch_deleted` opisuje bezpieczne usunięcie gałęzi.
+
+Capability `archived_branch_cleanup` pozwala użyć `RemoveWorktree.delete_archived_branch` po sprawdzeniu
+wątków w gatewayu. Pole `track_branch_for_cleanup` pozwala zachować dowód usunięcia czystego checkoutu.
+Przy późniejszym `CleanupRemovedBranch` (237) worker porównuje żądanie z lokalnym zapisem pierwotnego
+usunięcia, sprawdza repozytorium, gałąź i commit. Wynik odróżnia usunięcie, trwałe pominięcie i ponowienie.
+Nowy gateway pomija historyczne pole `delete_branch`, a nowy worker ignoruje je w komendach starszego gatewaya.
 
 Skan worktree wykrywa również squash/rebase merge po fetch przez patch-equivalence albo zawarcie
 pełnego diffu gałęzi w bazie. `WorktreeStatus.github_repository` zawiera tylko owner/repo z remote.

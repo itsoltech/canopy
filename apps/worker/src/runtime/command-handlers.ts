@@ -152,6 +152,8 @@ export class CommandHandlers {
 
     if (kind.case === "scanWorktrees") return this.ctx.ops.scanWorktrees(kind);
 
+    if (kind.case === "cleanupRemovedBranch") return this.ctx.ops.cleanupRemovedBranch(kind);
+
     if (kind.case === "removeWorktree") return this.ctx.ops.removeWorktree(kind, command.commandId);
 
     if (kind.case === "revealWorktree") return this.ctx.ops.revealWorktree(kind);

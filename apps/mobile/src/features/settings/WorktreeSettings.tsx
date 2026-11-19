@@ -247,7 +247,8 @@ const cleanupFields = [
   {
     field: "deleteLocalBranch",
     title: "Delete safe local branches",
-    description: "Also delete branches when their commits are preserved elsewhere.",
+    description:
+      "After worktree removal, clean up unused, merged feature branches once all their threads are archived.",
   },
 ] satisfies { field: keyof ui.WorktreeSettings; title: string; description: string }[];
 

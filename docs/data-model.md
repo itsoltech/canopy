@@ -1,7 +1,7 @@
 # Model danych (PostgreSQL)
 
-Status (2026-11-19): zaimplementowany model, w tym kolejność modułów i zatrzymywanie pracy właściciela po ich wyłączeniu oraz migracje `0153_thread_notice_replication`, `0160_agent_hop_policy`, `0162_service_tiers`, `0164_usage_accounting`, `0165_usage_estimated_cost`, `0169_bot_chat_steer`, `0171_thread_permission_selection`, `0172_usage_activity`, `0173_module_goal_resume`, `0174_schedule_worktree_preparations` i `0176_message_delegating_bot` (rejestracja wywołań narzędzia w `agent_bus_calls`);
-dostępność nightly/beta/stable według [release.md](release.md).
+Status (2026-11-19): zaimplementowany model, w tym kolejność modułów i zatrzymywanie pracy właściciela po ich wyłączeniu oraz migracje `0153_thread_notice_replication`, `0160_agent_hop_policy`, `0162_service_tiers`, `0164_usage_accounting`, `0165_usage_estimated_cost`, `0169_bot_chat_steer`, `0171_thread_permission_selection`, `0172_usage_activity`, `0173_module_goal_resume`, `0174_schedule_worktree_preparations`, `0176_message_delegating_bot` (rejestracja wywołań narzędzia w `agent_bus_calls`) i `0179_removed_branch_cleanup`.
+Dostępność nightly/beta/stable według [release.md](release.md).
 
 Migracja `0177_github_pr_projection` dodaje opcjonalny `projected_summary_hash`
 do `thread_pull_requests` i inicjalizuje go dla istniejących aktywnych powiązań.
@@ -33,6 +33,19 @@ Migracja `0173_module_goal_resume` dodaje do `goals` znacznik
 `resume_after_module_enable`. Gateway ustawia go dla aktywnych celów, które sam
 wstrzymał przy wyłączeniu Threads. Przywrócenie modułu wznawia te cele po posprzątaniu
 sesji workera. Cele wstrzymane przez użytkownika zachowują swój stan.
+
+Migracja `0179_removed_branch_cleanup` dodaje `worktrees.branch_cleanup_source`.
+Gateway zapisuje tu pierwotną komendę usunięcia, gdy worker potwierdził usunięcie
+czystego, zarządzanego worktree i pozostawił gałąź do późniejszego sprawdzenia.
+Komenda przechowuje nazwę gałęzi, oczekiwany HEAD i bazę. Indeks częściowy obejmuje
+tylko wiersze z takim potwierdzeniem. Podczas próby usunięcia gałęzi
+`removal_token` przechowuje identyfikator komendy workera. Po utracie odpowiedzi
+gateway używa tego identyfikatora do uzgodnienia wyniku. Flaga
+`branch_cleanup_authorized` zapisuje zgodę na usunięcie gałęzi wraz z worktree.
+Indeks częściowy po `worker_id` pozwala triggerowi `require_available_thread_branch`
+sprawdzić trwające rezerwacje przy tworzeniu i przywracaniu wątku oraz przypisywaniu
+mu przygotowanego worktree. Ochrona obowiązuje również podczas rozłączenia workera. Potwierdzone usunięcie
+gałęzi usuwa wpis z indeksu i zapisuje audyt w jednej transakcji.
 
 Migracja `0174_schedule_worktree_preparations` zapisuje rezerwację worktree dla
 konkretnej wersji i terminu harmonogramu. Po wznowieniu worker może dokończyć

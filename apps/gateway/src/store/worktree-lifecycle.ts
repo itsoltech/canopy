@@ -4,6 +4,7 @@ import { CommandSchema } from "@canopy/contracts";
 import { Effect } from "effect";
 import type { SqlClient } from "effect/sql";
 import { Invalid, NotFound, one } from "./errors.ts";
+import { lockArchivedBranchUsers, lockBranchAdmission } from "./archived-branch.ts";
 import type { WorktreeRow } from "./worktrees.ts";
 
 export interface WorktreeLifecycleRow extends WorktreeRow {
@@ -65,15 +66,20 @@ export function worktreeLifecycleStore(sql: SqlClient.SqlClient) {
 
     reserveWorktreeRemoval: (
       owner: string,
-      id: string,
+      row: WorktreeLifecycleRow,
       command: MessageInitShape<typeof CommandSchema>,
-      closedThreads?: { archived: boolean; deleted: boolean },
-      policy = false,
+      policyMatches?: (state: WorktreeLifecycleRow) => boolean,
     ) =>
       sql.withTransaction(
         Effect.gen(function* () {
           if (!(yield* lockedOwnerModule(sql, owner, "threads")))
             return yield* Effect.fail(new Invalid(moduleDisabledMessage("threads")));
+          const id = row.id;
+          const message = create(CommandSchema, command);
+
+          if (message.kind.case !== "removeWorktree") return yield* Effect.fail(new Invalid("Invalid removal command"));
+          const removal = message.kind.value;
+
           // Queue/lifecycle writers take thread locks first, then the availability trigger locks the worktree.
           yield* sql`SELECT id FROM threads WHERE worktree_id = ${id}::uuid ORDER BY id FOR UPDATE`;
 
@@ -94,27 +100,53 @@ export function worktreeLifecycleStore(sql: SqlClient.SqlClient) {
 
           if (state.busy) return yield* Effect.fail(new Invalid("a thread is still using this worktree"));
 
-          if (policy && state.archive_grace_period)
+          if (policyMatches && !policyMatches(state))
             return yield* Effect.fail(new Invalid("The cleanup policy no longer matches"));
 
-          if (
-            closedThreads &&
-            !((closedThreads.archived && state.all_archived) || (closedThreads.deleted && state.all_deleted))
-          )
-            return yield* Effect.fail(new Invalid("The cleanup policy no longer matches"));
+          if (tree.detached_commit || tree.branch !== removal.target?.branch) {
+            removal.deleteArchivedBranch = false;
+            removal.trackBranchForCleanup = false;
+          }
 
-          const message = create(CommandSchema, command);
+          if (removal.deleteArchivedBranch) {
+            removal.deleteArchivedBranch =
+              (yield* lockBranchAdmission(sql, tree.worker_id)) && (yield* lockArchivedBranchUsers(sql, tree));
+          }
+
+          const bytes = toBinary(CommandSchema, message);
           yield* sql`UPDATE worktrees SET removal_token = ${message.commandId}::uuid,
-          removal_started_at = now(), removal_command = ${toBinary(CommandSchema, message)} WHERE id = ${id}::uuid`;
+          branch_cleanup_authorized = ${removal.deleteArchivedBranch}, removal_started_at = now(), removal_command = ${bytes} WHERE id = ${id}::uuid`;
 
-          return state;
+          return { ...state, removal_command: bytes, removal_token: message.commandId };
         }),
       ),
 
-    finishWorktreeRemoval: (owner: string, id: string, token: string, branchDeleted: boolean) =>
+    lockRemovalBranch: (row: WorktreeLifecycleRow, token: string) =>
+      Effect.gen(function* () {
+        if (!(yield* lockedOwnerModule(sql, row.owner_user_id, "threads")))
+          return yield* Effect.fail(new Invalid(moduleDisabledMessage("threads")));
+
+        if (!(yield* lockArchivedBranchUsers(sql, row))) return false;
+
+        const trees =
+          yield* sql`SELECT id FROM worktrees WHERE id=${row.id}::uuid AND owner_user_id=${row.owner_user_id}::uuid
+          AND removed_at IS NULL AND removal_token=${token}::uuid
+          AND branch_cleanup_authorized AND NOT external AND branch=${row.branch} AND detached_commit=''`;
+
+        return trees.length !== 0;
+      }),
+
+    finishWorktreeRemoval: (
+      owner: string,
+      id: string,
+      token: string,
+      branchDeleted: boolean,
+      cleanupCandidate = false,
+    ) =>
       sql.withTransaction(
         Effect.gen(function* () {
-          const rows = yield* sql`UPDATE worktrees SET removed_at = now(), removal_token = NULL, removal_command = NULL,
+          const rows = yield* sql`UPDATE worktrees SET removed_at = now(), removal_token = NULL,
+          branch_cleanup_authorized = false, branch_cleanup_source = CASE WHEN ${cleanupCandidate} THEN removal_command END, removal_command = NULL,
           removal_started_at = NULL WHERE id = ${id}::uuid AND owner_user_id = ${owner}::uuid
           AND removal_token = ${token}::uuid AND removed_at IS NULL RETURNING id`;
 
@@ -129,7 +161,7 @@ export function worktreeLifecycleStore(sql: SqlClient.SqlClient) {
       ),
 
     cancelWorktreeRemoval: (owner: string, id: string, token: string) =>
-      sql`UPDATE worktrees SET removal_token = NULL, removal_command = NULL, removal_started_at = NULL
+      sql`UPDATE worktrees SET removal_token = NULL, removal_command = NULL, removal_started_at = NULL, branch_cleanup_authorized = false
         WHERE id = ${id}::uuid AND owner_user_id = ${owner}::uuid AND removal_token = ${token}::uuid`.pipe(
         Effect.asVoid,
       ),

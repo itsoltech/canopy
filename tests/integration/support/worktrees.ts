@@ -211,14 +211,14 @@ export async function worktreeFixture(
     if (!worktree.external) expect(scanned.status).toBeDefined();
   };
 
-  const tree = async () => {
+  const tree = async (baseRef = "main") => {
     const thread = (
       await gw.api.createThread({
         projectId: project.id,
         workspaceId: workspace.id,
         provider: Provider.CODEX,
         workspaceMode: ui.WorkspaceMode.NEW_WORKTREE,
-        baseRef: "main",
+        baseRef,
       })
     ).thread!;
 

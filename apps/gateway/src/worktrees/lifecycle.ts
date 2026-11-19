@@ -14,7 +14,7 @@ import { discoverWorkspace, mergeWorktrees } from "./discovery.ts";
 import { ownWorkspace } from "./core-worktrees.ts";
 import { githubCleanupProof } from "../github/cleanup-proof.ts";
 
-const mergedProof = async (
+export const mergedProof = async (
   core: GatewayCore,
   owner: string,
   worker: string,
@@ -25,7 +25,12 @@ const mergedProof = async (
   (await githubCleanupProof(core.github, owner, worker, repository, branch, head)) ||
   core.connectors.worktreeMerged(owner, worker, repository, branch, head);
 
-export function worktreeTarget(row: WorktreeLifecycleRow, settings: ui.WorktreeSettings, status?: WorktreeStatus) {
+export function worktreeTarget(
+  row: WorktreeLifecycleRow,
+  settings: ui.WorktreeSettings,
+  status?: WorktreeStatus,
+  confirmedPr = false,
+) {
   return create(WorktreeTargetSchema, {
     id: row.id,
     path: row.path,
@@ -36,8 +41,8 @@ export function worktreeTarget(row: WorktreeLifecycleRow, settings: ui.WorktreeS
     baseCommit: row.base_commit,
     location: row.location,
     remote: settings.remote ?? "origin",
-    mergedPrHead: status?.merged ? status.headCommit : "",
-    mergedPrRepository: status?.merged ? status.githubRepository : "",
+    mergedPrHead: confirmedPr && status ? status.headCommit : "",
+    mergedPrRepository: status?.githubRepository ?? "",
   });
 }
 
@@ -53,7 +58,48 @@ export async function deliverRemoval(core: GatewayCore, row: WorktreeLifecycleRo
 
   if (!(await core[coreState].actions.run(ownerModuleEnabled(owner, "threads"))))
     throw new InvalidError(moduleDisabledMessage("threads"));
-  const result = await connection.sendCommand(command.kind, 90_000, command.commandId);
+  const kind = command.kind;
+  const removal = kind.value;
+  const supportsCleanup = connection.hello.capabilities.includes("archived_branch_cleanup");
+
+  if (removal.deleteBranch && !supportsCleanup && removal.target) {
+    // Legacy recovery compares every receipt byte. If the checkout is gone, only an upgraded worker can
+    // reconcile the original receipt with a narrowed permission without risking another branch deletion.
+    const scanned = await coreWorkerQuery(
+      core,
+      row.worker_id,
+      {
+        case: "scanWorktrees",
+        value: { targets: [removal.target] },
+      },
+      60_000,
+    );
+
+    if (scanned.worktreeStatuses.find((status) => status.id === row.id)?.missing)
+      throw new InvalidError("Update this worker to finish the interrupted worktree cleanup.");
+  }
+
+  // An older durable command can reconnect to an older worker. Never forward its legacy deletion bit.
+  removal.deleteBranch = false;
+  removal.trackBranchForCleanup &&= supportsCleanup;
+  removal.deleteArchivedBranch &&= removal.trackBranchForCleanup && row.branch === removal.target?.branch;
+
+  const send = async () => {
+    if (removal.deleteArchivedBranch)
+      removal.deleteArchivedBranch = await coreRun(core, (s) => s.lockRemovalBranch(row, command.commandId));
+
+    if (
+      removal.trackBranchForCleanup &&
+      !(await coreWorktreeScope(core, row.project_id, row.worker_id)).effective.deleteLocalBranch
+    ) {
+      removal.deleteArchivedBranch = false;
+      removal.trackBranchForCleanup = false;
+    }
+
+    return connection.sendCommand(kind, 90_000, command.commandId);
+  };
+
+  const result = removal.deleteArchivedBranch ? await core[coreState].actions.transaction(send) : await send();
 
   if (!result.ok) {
     await coreRun(core, (s) => s.cancelWorktreeRemoval(owner, row.id, command.commandId));
@@ -61,7 +107,13 @@ export async function deliverRemoval(core: GatewayCore, row: WorktreeLifecycleRo
   }
 
   const threads = await coreRun(core, (s) =>
-    s.finishWorktreeRemoval(owner, row.id, command.commandId, result.worktreeBranchDeleted),
+    s.finishWorktreeRemoval(
+      owner,
+      row.id,
+      command.commandId,
+      result.worktreeBranchDeleted,
+      result.worktreeBranchCleanupCandidate && removal.trackBranchForCleanup && !result.worktreeBranchDeleted,
+    ),
   );
 
   for (const threadId of threads) await coreBroadcastThread(core, threadId);
@@ -192,15 +244,29 @@ export async function removeEntry(
       status.headCommit,
     ));
 
+  const trackBranch = Boolean(
+    settings.deleteLocalBranch &&
+    !row.detached_commit &&
+    row.branch &&
+    core.link.connections.get(row.worker_id)?.hello.capabilities.includes("archived_branch_cleanup"),
+  );
+
   const command = create(CommandSchema, {
     commandId: Bun.randomUUIDv7(),
     kind: {
       case: "removeWorktree",
       value: {
-        target: worktreeTarget(row, settings, confirmedPr ? status : undefined),
+        target: worktreeTarget(row, settings, status, Boolean(confirmedPr)),
         confirmLocalChanges: confirmation,
         expectedHeadCommit: expectedHead,
-        deleteBranch: settings.deleteLocalBranch ?? false,
+        deleteArchivedBranch:
+          trackBranch &&
+          row.all_archived &&
+          status.merged &&
+          !status.dirtyFiles &&
+          !status.unpushed &&
+          status.branch === row.branch,
+        trackBranchForCleanup: trackBranch,
         requireMerged: policy && reason === "Branch merged into the default or base branch",
         requireUnchanged: policy && reason === "Unchanged since creation",
       },
@@ -210,24 +276,15 @@ export async function removeEntry(
   const current = await coreRun(core, (s) =>
     s.reserveWorktreeRemoval(
       core[coreState].options.userId,
-      row.id,
+      row,
       command,
-      closedCleanup
-        ? { archived: Boolean(settings.cleanupSettled), deleted: Boolean(settings.cleanupDeletedThreads) }
+      policy
+        ? (state) => matchesCleanup(state, status, settings) && (!closedCleanup || closedThreadCleanup(state, settings))
         : undefined,
-      policy,
     ),
   );
 
-  if (
-    policy &&
-    (!matchesCleanup(current, status, settings) || (closedCleanup && !closedThreadCleanup(current, settings)))
-  ) {
-    await coreRun(core, (s) => s.cancelWorktreeRemoval(core[coreState].options.userId, row.id, command.commandId));
-    throw new InvalidError("The cleanup policy no longer matches");
-  }
-
-  return deliverRemoval(core, row, command);
+  return deliverRemoval(core, current, fromBinary(CommandSchema, current.removal_command));
 }
 
 export function pendingRemoval(row: WorktreeLifecycleRow): Command | undefined {
