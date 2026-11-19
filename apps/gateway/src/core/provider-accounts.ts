@@ -100,12 +100,12 @@ export class ProviderAccounts {
 
     if (!account || !["signed_in", "stored"].includes(account.state) || !signInMethods.has(account.authMethod)) return;
     this.#rejected.set(`${workerId}/${provider}/${id}`, account.loginRevision);
-    await this.#changed();
+    await this.#changed(workerId);
   }
 
   /** A turn on the instance succeeded: its login works. */
   async succeeded(workerId: string, provider: Provider, id: string): Promise<void> {
-    if (this.#rejected.delete(`${workerId}/${provider}/${id}`)) await this.#changed();
+    if (this.#rejected.delete(`${workerId}/${provider}/${id}`)) await this.#changed(workerId);
   }
 
   /** Runs after every earlier turn update of this worker; resolves when this one is done. */
@@ -137,9 +137,9 @@ export class ProviderAccounts {
     return false;
   }
 
-  async #changed(): Promise<void> {
+  async #changed(workerId: string): Promise<void> {
     coreProvidersChanged(this.core);
-    await coreBroadcastWorkers(this.core);
+    await coreBroadcastWorkers(this.core, "status", workerId);
   }
 
   decorate(instances: ui.ProviderInstance[]): ui.ProviderInstance[] {
@@ -199,7 +199,7 @@ export class ProviderAccounts {
 
         if (prior && prior.version > version) return false;
         this.#save(connection, result.providerAccounts, provider, id, refresh);
-        await this.#changed();
+        await this.#changed(connection.workerId);
 
         return true;
       })

@@ -13,6 +13,7 @@ const MAX_BUFFER_BYTES = 1024 * 1024;
 const MAX_UPDATE_BYTES = 1024 * 1024;
 const RETRY_MIN_MS = 100;
 const RETRY_MAX_MS = 10_000;
+const HEAD_RELEASE_GRACE_MS = 500;
 
 type Gateway = Client<typeof ui.GatewayService>;
 
@@ -49,6 +50,7 @@ export class BffOverview {
   #epoch = 0;
   #headRotation = 0;
   #requestedHeads = "";
+  #headRelease: ReturnType<typeof setTimeout> | undefined;
   #restartRequested = false;
   #pending: { update: ui.OverviewUpdate; bytes: number }[] = [];
   #pendingBytes = 0;
@@ -85,6 +87,10 @@ export class BffOverview {
     return this.#state.thread(id);
   }
 
+  currentHeads(): ui.ThreadHeads | undefined {
+    return this.#state.heads();
+  }
+
   async settings(): Promise<ui.GetSettingsResponse> {
     await this.#readyState();
 
@@ -114,7 +120,7 @@ export class BffOverview {
       signal.removeEventListener("abort", release);
       queue.close();
       this.#subscribers.delete(subscriber);
-      this.#headsChanged();
+      this.#headsChanged(true);
     };
 
     const subscriber: Subscriber = { heads, queue, close: release };
@@ -168,6 +174,7 @@ export class BffOverview {
     if (this.#closed) return;
     this.#closed = true;
     this.#epoch++;
+    clearTimeout(this.#headRelease);
     this.#upstream?.abort();
     this.#retryWake?.abort();
     this.#upstream = undefined;
@@ -220,12 +227,15 @@ export class BffOverview {
       this.#beginEpoch();
 
       try {
+        const heads = this.#allHeads();
+        this.#requestedHeads = heads.join(",");
+
         const request = create(ui.WatchOverviewRequestSchema, {
           includeSnapshot: true,
-          threadHeadIds: this.#selectedHeads(),
+          threadHeadIds: this.#selectedHeads(heads),
         });
 
-        this.#headRotation += this.#allHeads().length > MAX_HEADS ? MAX_HEADS : 0;
+        this.#headRotation += heads.length > MAX_HEADS ? MAX_HEADS : 0;
 
         for await (const update of this.#api.watchOverview(request, { signal: upstream.signal, timeoutMs: 0 })) {
           if (this.#closed || upstream.signal.aborted || epoch !== this.#epoch || this.#upstream !== upstream) break;
@@ -264,6 +274,8 @@ export class BffOverview {
 
   #beginEpoch(): void {
     const hadSnapshot = this.#state.hasSnapshot;
+    clearTimeout(this.#headRelease);
+    this.#headRelease = undefined;
     this.#state.reset();
     this.#pending = [];
     this.#pendingBytes = 0;
@@ -368,21 +380,40 @@ export class BffOverview {
           change: { case: "feeds", value: this.#state.feeds },
         }),
       });
+    const heads = this.currentHeads();
+
+    if (heads)
+      queue.push({
+        epoch: this.#epoch,
+        update: create(ui.OverviewUpdateSchema, { change: { case: "threadHeads", value: heads } }),
+      });
   }
 
-  #headsChanged(): void {
-    const key = this.#allHeads().join(",");
+  #headsChanged(released = false): void {
+    if (this.#closed || this.#headRelease || this.#allHeads().join(",") === this.#requestedHeads) return;
 
-    if (key === this.#requestedHeads) return;
-    this.#requestedHeads = key;
+    if (!this.#upstream) {
+      if (!released) this.#retryWake?.abort();
+
+      return;
+    }
+
+    // Navigation releases the old SSE lease before its replacement reaches the BFF.
+    // Keep delivering updates until the new window selection is known.
+    if (released) {
+      this.#headRelease = setTimeout(() => {
+        this.#headRelease = undefined;
+        this.#headsChanged();
+      }, HEAD_RELEASE_GRACE_MS);
+
+      return;
+    }
+
     this.#restartRequested = true;
-    this.#upstream?.abort();
-    this.#retryWake?.abort();
+    this.#upstream.abort();
   }
 
-  #selectedHeads(): string[] {
-    const ids = this.#allHeads();
-
+  #selectedHeads(ids: string[]): string[] {
     if (ids.length <= MAX_HEADS) return ids;
     const start = this.#headRotation % ids.length;
 

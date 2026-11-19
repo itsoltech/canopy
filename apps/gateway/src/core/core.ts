@@ -328,7 +328,7 @@ export class GatewayCore {
       userId: options.userId,
       link: this.link,
       ...(options.cliLatest && { latest: options.cliLatest }),
-      changed: () => coreBroadcastWorkers(this),
+      changed: (workerId) => coreBroadcastWorkers(this, "status", workerId),
       log: (message) => coreLog(this, message),
     });
     this.agentTools = createCoreAgentTools(this, options);

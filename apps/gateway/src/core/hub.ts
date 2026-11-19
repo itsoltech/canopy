@@ -3,6 +3,7 @@ import { toBinary } from "@bufbuild/protobuf";
 import { AsyncChannel } from "@canopy/transport";
 import { Code, ConnectError } from "@connectrpc/connect";
 import { threadUpdateBytes } from "./thread-update-bytes.ts";
+import { compactOverview } from "./overview-queue.ts";
 
 const limits = {
   maxItems: 256,
@@ -130,7 +131,7 @@ export class Hub {
   }
 
   subscribeOverview() {
-    const channel = new AsyncChannel<ui.OverviewUpdate>(limits);
+    const channel = new AsyncChannel<ui.OverviewUpdate>({ ...limits, compact: compactOverview });
     this.#overview.add(channel);
 
     return {

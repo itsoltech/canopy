@@ -2,7 +2,7 @@ import { lockedOwnerModule, moduleDisabledMessage } from "../store/module-access
 import { github } from "@canopy/contracts";
 import { Code, ConnectError } from "@connectrpc/connect";
 import { Effect } from "effect";
-import type { SqlClient } from "effect/sql";
+import type { SqlClient, Statement } from "effect/sql";
 import type { AccountRow } from "./records.ts";
 import { githubPrList } from "./store-pr-list.ts";
 import { githubPrSummaries } from "./store-pr-summary.ts";
@@ -55,28 +55,51 @@ function projectionStore(sql: SqlClient.SqlClient) {
       return rows[0];
     });
 
-  const project = (owner: string, id: string) => sql`WITH projection AS (
+  const projection = (owner: string, id: string | Statement.Fragment) => sql`
     SELECT (SELECT count(*) FROM thread_pull_requests l WHERE l.owner_user_id=${owner}::uuid AND l.thread_id=${id}::uuid AND l.unlinked_at IS NULL) AS count,
-    (SELECT coalesce(c.payload->'summary',CASE WHEN p.summary_account_id=a.id THEN p.summary END) FROM thread_pull_requests l
-      JOIN github_pull_requests p ON p.owner_user_id=l.owner_user_id AND p.id=l.pull_request_id
-      LEFT JOIN github_repository_accounts r ON r.owner_user_id=p.owner_user_id AND r.repository_id=p.repository_id
-      LEFT JOIN github_accounts a ON a.owner_user_id=r.owner_user_id AND a.id=r.account_id AND a.status='connected'
-      LEFT JOIN github_pr_cache c ON c.owner_user_id=a.owner_user_id AND c.account_id=a.id AND c.access_revision=a.revision
-        AND c.cache_key='summary:'||p.repository_id||':'||p.number
-      WHERE l.owner_user_id=${owner}::uuid AND l.thread_id=${id}::uuid AND l.unlinked_at IS NULL ORDER BY p.created_at DESC,p.id LIMIT 1) AS summary
-    ) UPDATE threads t SET pull_request_count=p.count,newest_pull_request=p.summary,pull_request_revision=pull_request_revision+1
-      FROM projection p WHERE t.owner_user_id=${owner}::uuid AND t.id=${id}::uuid
-      AND (t.pull_request_count,t.newest_pull_request) IS DISTINCT FROM (p.count,p.summary)`;
+    (SELECT s.summary FROM thread_pull_requests l JOIN github_pr_projection_summaries s ON s.owner_user_id=l.owner_user_id AND s.id=l.pull_request_id
+      WHERE l.owner_user_id=${owner}::uuid AND l.thread_id=${id}::uuid AND l.unlinked_at IS NULL
+      ORDER BY s.created_at DESC,s.id LIMIT 1) AS summary`;
 
-  return { thread, project };
+  const differs = sql`(t.pull_request_count,t.newest_pull_request) IS DISTINCT FROM (p.count,p.summary)`;
+
+  const project = (owner: string, id: string, pr?: string) => {
+    // A link's fingerprint and the thread revision commit together under the thread row lock.
+    const filter = pr ? sql`AND l.pull_request_id=${pr}::uuid` : sql``;
+
+    return sql<{ id: string }>`WITH projection AS (${projection(owner, id)}), marked AS (
+      UPDATE thread_pull_requests l SET projected_summary_hash=s.summary_hash FROM github_pr_projection_summaries s
+      WHERE l.owner_user_id=${owner}::uuid AND l.thread_id=${id}::uuid ${filter}
+        AND l.unlinked_at IS NULL AND s.owner_user_id=l.owner_user_id AND s.id=l.pull_request_id
+        AND l.projected_summary_hash IS DISTINCT FROM s.summary_hash RETURNING l.pull_request_id
+    ) UPDATE threads t SET pull_request_count=p.count,newest_pull_request=p.summary,pull_request_revision=pull_request_revision+1
+      FROM projection p WHERE t.owner_user_id=${owner}::uuid AND t.id=${id}::uuid AND (${differs}
+        OR EXISTS (SELECT 1 FROM marked WHERE p.summary->'ref'->>'id' IS DISTINCT FROM pull_request_id::text)) RETURNING t.id`;
+  };
+
+  const linked = (owner: string, pr: string) => sql<{ id: string }>`
+    SELECT t.id FROM thread_pull_requests l JOIN threads t ON t.owner_user_id=l.owner_user_id AND t.id=l.thread_id
+      JOIN github_pr_projection_summaries s ON s.owner_user_id=l.owner_user_id AND s.id=l.pull_request_id
+    WHERE l.owner_user_id=${owner}::uuid AND l.pull_request_id=${pr}::uuid AND l.unlinked_at IS NULL
+      AND (l.projected_summary_hash IS DISTINCT FROM s.summary_hash OR EXISTS (SELECT 1 FROM (${projection(owner, sql`t.id`)}) p WHERE ${differs}))`;
+
+  return { thread, project, linked };
 }
 
 export function githubPullRequests(sql: SqlClient.SqlClient) {
-  const { thread, project } = projectionStore(sql);
+  const { thread, project, linked } = projectionStore(sql);
 
   return {
     prThread: thread,
-    prProject: project,
+    prLinkedThreads: linked,
+    prProject: (owner: string, id: string, pr?: string) =>
+      sql.withTransaction(
+        Effect.gen(function* () {
+          yield* sql`SELECT id FROM threads WHERE owner_user_id=${owner}::uuid AND id=${id}::uuid FOR NO KEY UPDATE`;
+
+          return yield* project(owner, id, pr);
+        }),
+      ),
     repositoryAccount: (
       owner: string,
       name: string,
@@ -216,7 +239,7 @@ function linkPullRequest(
         source=CASE WHEN thread_pull_requests.source='manual' THEN 'manual' ELSE excluded.source END
       WHERE ${source === "manual" && evidence?.kind !== "agent_tool"} OR thread_pull_requests.unlinked_at IS NULL RETURNING pull_request_id`;
 
-      if (linked.length) yield* project(owner, id);
+      if (linked.length) yield* project(owner, id, pr);
 
       return linked.length > 0;
     }),

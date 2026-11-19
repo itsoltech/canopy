@@ -112,7 +112,7 @@ export async function coreServe(hostContext: GatewayCore, connection: WorkerConn
           break;
         case "networkRouteStatus":
           connection.networkRouteStatus = message.payload.value;
-          await coreBroadcastWorkers(hostContext);
+          await coreBroadcastWorkers(hostContext, "status", workerId);
           break;
         case "agentEnvironment":
           await hostContext.environment.report(workerId, message.payload.value);

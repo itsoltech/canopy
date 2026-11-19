@@ -1,6 +1,6 @@
 # Konto GitHub i pull requesty
 
-Status: **v1 wdrożone** (2026-11-19), z powiadamianiem agenta o konfliktach obserwowanego PR i wstrzymywaniem obserwacji po wyłączeniu modułu Threads: konta GitHub App i jawny fallback PAT, powiązania PR,
+Status (2026-11-19): odświeżenie jednego PR aktualizuje projekcje wątków z aktywnym powiązaniem do tego PR (§3). **v1 wdrożone**, z powiadamianiem agenta o konfliktach obserwowanego PR i wstrzymywaniem obserwacji po wyłączeniu modułu Threads: konta GitHub App i jawny fallback PAT, powiązania PR,
 pełny odczyt, komentarze i review, lifecycle, metadane, automatyczna archiwizacja wątków
 po merge, sterowanie GitHub Actions oraz postęp checków i kroków workflow. Zaimplementowane jest też jawne lokalne
 linkowanie PR przez agenta (`link_pull_request`) jako fallback automatycznej detekcji.
@@ -496,6 +496,18 @@ nie udaje żądania warunkowego: pełne podsumowanie pobieramy dopiero po zmiani
 `updated_at`, head/base SHA lub stanu, a stronę checków po zmianie sygnału checków.
 Timeline i reviews unieważniamy po zmianie metadata, pliki/commity dopiero po zmianie SHA
 lub ręcznym odświeżeniu. Bez zmiany nie pobieramy tych stron w tle.
+
+Przy odczycie podsumowania jednego PR gateway wybiera wątki po właścicielu i aktywnych
+powiązaniach z tym PR. Uzgadnia ich liczniki i najnowsze podsumowania z bazą. Przy
+trafieniu w cache zgodne powiązania nie wymagają blokady wątku ani publikacji.
+Odczyt panelu naprawia także rozbieżność pozostawioną przez odświeżenie cache w tle.
+Samo pobranie danych przez `load` lub `refreshLinked` zachowuje rewizję powiązań.
+Gdy zmieni się podsumowanie starszego
+PR, rewizja listy rośnie również we wątku, którego pasek boczny pokazuje nowszy PR.
+Sama zmiana czasu weryfikacji starszego PR nie zwiększa tej rewizji. Gateway ponownie
+odczytuje powiązania po uzyskaniu blokady każdego zmienianego wątku, dzięki czemu
+równoczesne odpięcie PR pozostaje widoczne po odświeżeniu.
+Zmiana dostępu do repozytorium lub konta nadal obejmuje cały odpowiedni zakres wątków.
 Metadata nie bierze udziału w rotacji stron CI: każda wolna iteracja pyta o `updated_at`,
 które GitHub zmienia także po edycji komentarza. Bez zmian dodatkowy probe kończy się
 304 i nie zużywa podstawowego limitu REST; nadal obowiązują budżety, backoff,
@@ -601,7 +613,12 @@ Unpair czyści cache klienta i partnera. Disconnect/revoke czyści sekrety i dan
 usunięcie konta nie kasuje tożsamości powiązań ani ich tombstone'ów.
 Schemat kont i PR wprowadzają migracje `0113–0119`; indeks dostępu repozytoriów
 uzupełnia `0127_github_repository_access`, a ostatnie podsumowania
-`0146_github_pr_last_known`. Kolejne zmiany wymagają nowej migracji według
+`0146_github_pr_last_known`. Migracja `0177_github_pr_projection` dodaje do powiązania
+skrót SHA-256 widocznego podsumowania, identyfikatora konta i rewizji dostępu.
+Obliczenie pomija czas weryfikacji. Migracja inicjalizuje aktywne powiązania bez
+zmiany ich rewizji. Równoczesne odczyty tego samego wyniku w kilku gatewayach
+przesuwają rewizję listy raz, także przy częściowej odpowiedzi GitHuba.
+Kolejne zmiany wymagają nowej migracji według
 [AGENTS.md](../AGENTS.md#contracts-and-database), bez edycji zastosowanych plików.
 
 ## 5. Wykrywanie i reguły powiązań

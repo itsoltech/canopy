@@ -261,6 +261,9 @@ export class GatewayCoreState {
   /** Mention catalogs by worker + provider + profile + folder (the composer asks on every popup). */
   readonly catalogs = new Map<string, { at: number; catalog: MentionCatalog }>();
   readonly workspaceOrigins = new Map<string, { at: number; origin: Promise<string | undefined> }>();
+  nextStatusOriginCheck = 0;
+  /** Origins discovered by unary reads. An unknown set requires a full project replay. */
+  pendingOriginProjects: Set<string> | undefined = new Set();
 
   /** Previews a worker is uploading (BlobChunk), by sha256, until their last chunk. */
   readonly uploads = new WeakMap<

@@ -4,7 +4,7 @@ import { create, type MessageInitShape } from "@bufbuild/protobuf";
 import { GatewayStore } from "@canopy/gateway/store";
 import { WorkspaceCopyOperationSchema, ui } from "@canopy/contracts";
 import { dockerAvailable } from "@canopy/db/testing";
-import { nodeRef } from "@canopy/domain/computers";
+import { nodeRef, qualifyId } from "@canopy/domain/computers";
 import { COPY_FRAME_BYTES, copyTotals } from "@canopy/domain/workspace-copy";
 import { tempDir } from "@canopy/testing";
 import {
@@ -246,27 +246,50 @@ describe.skipIf(!dockerAvailable)("workspace copies over real worker and compute
   }, 30_000);
 
   test("a queued copy waits for Threads on the destination home and resumes from its selection", async () => {
-    const { a, b } = fixture;
+    const { a, b, la, lb } = fixture;
     const input = request(await plan(), "paused-linked-copy", true);
-    await setModules(b.gw, "bots");
+    input.projectRef = qualifyId(b.project.id, lb.hello().nodeId);
+    input.ignoredSelection!.paths.push("ignored.txt");
 
-    try {
-      const job = await a.gw.api.startWorkspaceCopy(input);
-      expect(job.status).toBe("waiting");
-      expect(existsSync(join(linked.dir, input.name))).toBe(false);
-    } finally {
-      await setModules(b.gw, "threads", "bots");
+    // The destination can disable Threads independently only when the link does not share account settings.
+    async function shareConfig(enabled: boolean) {
+      await b.gw.api.manageComputer({ action: "share_config", nodeId: la.hello().nodeId, enabled });
+
+      const peer = await eventually(
+        () => la.store.peer(lb.hello().nodeId),
+        (row) => row?.peer_share_config === enabled,
+      );
+
+      expect(peer?.peer_share_config).toBe(enabled);
     }
 
-    await a.gw.core.copyJobs.tick();
+    try {
+      await shareConfig(false);
+      await setModules(b.gw, "bots");
 
-    const job = await eventually(
-      () => a.gw.core.copyJobs.store.get(input.transferKey),
-      (row) => row?.status === "completed",
-    );
+      try {
+        const job = await a.gw.api.startWorkspaceCopy(input);
+        expect(job.status).toBe("waiting");
+        expect(job.error).toContain("Turn on Threads");
+        expect(existsSync(join(linked.dir, input.name))).toBe(false);
+      } finally {
+        await setModules(b.gw, "threads", "bots");
+      }
 
-    expect(readFileSync(join(linked.dir, input.name, "README.md"), "utf8")).toBe("modified tracked work");
-    await a.gw.api.removeWorkspace({ workspaceId: job!.workspace_ref });
+      await a.gw.core.copyJobs.tick();
+
+      const job = await eventually(
+        () => a.gw.core.copyJobs.store.get(input.transferKey),
+        (row) => row?.status === "completed",
+      );
+
+      expect(job?.status).toBe("completed");
+      expect(readFileSync(join(linked.dir, input.name, "README.md"), "utf8")).toBe("modified tracked work");
+      expect(readFileSync(join(linked.dir, input.name, "ignored.txt"), "utf8")).toBe("opt in");
+      await a.gw.api.removeWorkspace({ workspaceId: job!.workspace_ref });
+    } finally {
+      await shareConfig(true);
+    }
   }, 30_000);
 
   test("refuses symlink escapes, another owner's workspace, older workers and existing targets", async () => {

@@ -8,7 +8,7 @@ import type { GatewayCore } from "./core.ts";
 import { corePublishDeliveries } from "./core-messages.ts";
 import { coreWorkers } from "./core-providers.ts";
 import { coreUiThread } from "./core-titles.ts";
-import { decorateOrigins } from "./workspace-origins.ts";
+import { decorateOrigins, ORIGIN_CACHE_MS, workspaceOriginsDue } from "./workspace-origins.ts";
 import { threadDiagnostic } from "./thread-diagnostics.ts";
 import { coreBroadcastGoal } from "./core-goals.ts";
 import { publishWorkerThreadLifecycle } from "./worker-thread-lifecycle.ts";
@@ -50,17 +50,46 @@ export async function coreBroadcastTurn(
   if (turn.agent_call_id) await corePublishDeliveries(hostContext, { turnId });
 }
 
-export async function coreBroadcastWorkers(hostContext: GatewayCore): Promise<void> {
+/** Registration and configuration reconcile placements. Status reports can be local or fleet-wide. */
+export async function coreBroadcastWorkers(
+  hostContext: GatewayCore,
+  scope: "placements" | "status" = "placements",
+  workerId?: string,
+): Promise<void> {
   for (const worker of await coreWorkers(hostContext)) {
+    if (workerId && worker.id !== workerId) continue;
     hostContext.hub.publishOverview(create(ui.OverviewUpdateSchema, { change: { case: "worker", value: worker } }));
   }
 
-  // A newly configured worker becomes a scratch placement without a page reload.
-  const projects = await coreRun(hostContext, (s) => s.listProjects(hostContext[coreState].options.userId));
-  await decorateOrigins(hostContext, projects);
+  const state = hostContext[coreState];
+  const placements = scope === "placements";
 
-  for (const project of projects)
-    hostContext.hub.publishOverview(create(ui.OverviewUpdateSchema, { change: { case: "project", value: project } }));
+  if (!placements) {
+    if (Date.now() < state.nextStatusOriginCheck || (workerId && !workspaceOriginsDue(hostContext))) return;
+    state.nextStatusOriginCheck = Infinity;
+  }
+
+  const changed = state.pendingOriginProjects;
+  state.pendingOriginProjects = new Set();
+
+  try {
+    const projects = await coreRun(hostContext, (s) => s.listProjects(state.options.userId));
+    await decorateOrigins(hostContext, projects, (id) => changed?.add(id));
+
+    for (const project of projects)
+      if (placements || !changed || changed.has(project.id))
+        hostContext.hub.publishOverview(
+          create(ui.OverviewUpdateSchema, { change: { case: "project", value: project } }),
+        );
+
+    if (!placements) state.nextStatusOriginCheck = Date.now() + ORIGIN_CACHE_MS;
+  } catch (cause) {
+    // A partial refresh may already have persisted an origin. Replay on the next successful pass.
+    state.pendingOriginProjects = undefined;
+
+    if (!placements) state.nextStatusOriginCheck = Date.now() + 1000;
+    throw cause;
+  }
 }
 
 export function coreRun<A, E>(

@@ -47,8 +47,10 @@ export async function reconcileCreate(core: GatewayCore, row: MutationRow) {
   const saved = await core.github.run((s) => s.mutationLinkCreated(row, snapshot));
 
   if (saved) {
-    await core.github.prs.changed(ref.repositoryId);
-    await core.github.prs.publish([row.thread_id]);
+    const published = await core.github.prs.pullRequestChanged(snapshot.summary.ref.id);
+
+    // A tombstoned link still receives its new receipt revision.
+    if (!published.includes(row.thread_id)) await core.github.prs.publish([row.thread_id]);
   }
 
   return saved ?? row;

@@ -63,8 +63,8 @@ export interface CliToolsOptions {
   readonly userId: string;
   readonly link: WorkerLink;
   readonly latest?: CliLatestOptions;
-  /** Broadcasts the owner's workers (OverviewUpdate.worker). */
-  readonly changed: () => Promise<void>;
+  /** Reports one worker's CLI status or a completed fleet-wide check. */
+  readonly changed: (workerId?: string) => Promise<void>;
   readonly log: (message: string) => void;
 }
 
@@ -91,16 +91,18 @@ export class CliTools {
   }
 
   /** Polls each worker's durable schedule; registry requests never hold up the worker link. */
-  start(): void {
+  start(): Promise<void> {
     const run = () =>
-      void this.checks
+      this.checks
         .tick()
         .then(() => this.#options.changed())
         .catch(() => undefined);
 
-    run();
+    const first = run();
     this.#timer ??= setInterval(run, Math.min(this.#options.latest?.cacheMs ?? CLI_CACHE_MS, 60_000));
     this.#timer.unref?.();
+
+    return first;
   }
 
   stop(): void {
@@ -132,9 +134,9 @@ export class CliTools {
     // A registry may take 15 seconds to time out. The same link carries turns, approvals and command replies.
     void this.checks
       .tick(workerId)
-      .then(() => this.#options.changed())
+      .then(() => this.#options.changed(workerId))
       .catch(() => undefined);
-    await this.#options.changed();
+    await this.#options.changed(workerId);
   }
 
   async progress(connection: WorkerConnection, progress: CliInstallProgress): Promise<void> {
@@ -144,7 +146,7 @@ export class CliTools {
     const lines = [...(previous?.installId === progress.installId ? previous.lines : []), ...progress.lines];
     this.#logs.set(key, { installId: progress.installId, lines: lines.slice(-LOG_LINES) });
 
-    return this.#options.changed();
+    return this.#options.changed(connection.workerId);
   }
 
   async #rows(ids: readonly string[]): Promise<Map<string, WorkerRow & { running: Map<string, number> }>> {
@@ -437,7 +439,7 @@ export class CliTools {
         if (!result.ok) skipped.push(`${worker.name}: ${result.errorMessage || result.errorCode}`);
       }),
     ]);
-    await this.#options.changed();
+    await this.#options.changed(request.workerId);
 
     return create(ui.CheckCliUpdatesResponseSchema, {
       latest: KEYS.map(([key, provider]) => {

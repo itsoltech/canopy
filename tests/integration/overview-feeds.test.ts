@@ -93,15 +93,33 @@ describe.skipIf(!dockerAvailable)("pushed bot, connector and proxy changes", () 
     const archived = await watcher.next("bot", (u) => u.change.case === "bot" && u.change.value.id === bot.id, 2000);
     expect(archived.change.case === "bot" && archived.change.value.archived).toBe(true);
 
-    // A write by the scheduler or another gateway instance reaches the stream through the bot journal.
+    const other = (
+      await gw.api.createBot({
+        clientRequestId: crypto.randomUUID(),
+        configuration: { ...bot.configuration!, name: "Other bot" },
+      })
+    ).bot!;
+
+    const otherSummary = (u: ui.OverviewUpdate) => u.change.case === "bot" && u.change.value.id === other.id;
+    await watcher.next("bot", otherSummary);
+
+    // The same committed journal batch names two bots, but only one public summary changes.
     await gw.runtime.runPromise(
-      Effect.flatMap(SqlClient.SqlClient, (sql) => sql`UPDATE bots SET archived_at = NULL WHERE id = ${bot.id}::uuid`),
+      Effect.flatMap(
+        SqlClient.SqlClient,
+        (sql) => sql`UPDATE bots SET archived_at = NULL WHERE id IN (${bot.id}::uuid, ${other.id}::uuid)`,
+      ),
     );
     const restored = await watcher.next("bot", (u) => u.change.case === "bot" && u.change.value.id === bot.id, 5000);
     expect(restored.change.case === "bot" && restored.change.value.archived).toBe(false);
 
     await gw.api.deleteBot({ botId: bot.id });
     await watcher.next("botRemoved", (u) => u.change.case === "botRemoved" && u.change.value === bot.id, 2000);
+    // Removal was requested after the restore arrived, so every frame of the earlier batch has arrived.
+    expect(watcher.updates.some(otherSummary)).toBe(false);
+    await gw.api.deleteBot({ botId: other.id });
+    await watcher.next("botRemoved", (u) => u.change.case === "botRemoved" && u.change.value === other.id);
+    expect(watcher.updates.some((u) => u.change.case === "botRemoved" && u.change.value === bot.id)).toBe(false);
     watcher.close();
   }, 20_000);
 

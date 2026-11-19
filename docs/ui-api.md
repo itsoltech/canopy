@@ -5,6 +5,8 @@ zamykania panelu subagentów, a powrót do Threads wymaga mniej przeliczeń ukł
 Na `dev` tło hover pierwszego nagłówka paneli kompozytora
 web/desktop mieści się w zaokrąglonym obrysie stosu.
 Akcja Delete bot w web/desktop działa także dla aktywnego bota.
+Gateway ogranicza powtórki w strumieniu overview, a BFF współdzieli subskrypcję
+przy przełączaniu aktywnego wątku (§ „Współdzielone odczyty”).
 Wyszukiwarka ustawień podświetla dopasowania w otwartej sekcji z pominięciem treści dialogów.
 Boczne menu ustawień web/desktop znów pokazuje ikony obok etykiet sekcji.
 W web/desktop odmowa dostępu do schowka w trakcie parowania udostępnia w dialogu pełne zaproszenie desktopowe albo kod telefonu. Pole znika po zamknięciu dialogu, użyciu zaproszenia lub utracie jego ważności.
@@ -2429,6 +2431,14 @@ wątku po id i wpisu cache to O(1); listowanie, klonowanie i kodowanie odpowiedz
 kosztuje O(rozmiar odpowiedzi). Zimny odczyt czeka na dane. Archiwum, starsza historia,
 pliki i bloby pozostają stronicowane lub pobierane na żądanie.
 
+Gdy następna ramka przekroczyłaby limit kolejki odbiorcy overview (256 ramek lub 8 MiB), gateway próbuje
+zwolnić miejsce wśród oczekujących podsumowań lokalnych wątków. Może pominąć
+identyczne powtórzenie albo zachować nowszy `lastSeq` pracującego wątku, gdy pozostałe
+pola są identyczne. Zachowuje kolejność zmian stanu, oczekujących interakcji,
+powiadomień i usunięć. Gdy po usunięciu powtórek kolejka nadal przekracza limit,
+strumień zwraca `DataLoss`, a klient wznawia go ze snapshotem. Historia wątku
+ma osobny strumień z odtwarzaniem według pozycji w trwałym dzienniku.
+
 Wczytane panele, listy PR, proxy, katalogi modeli, boty i aktualizacje dzielą cache
 BFF i odczyt w toku. Zdarzenia unieważniają odpowiedni model, a BFF odświeża go
 raz na serię zmian. Snapshot po zmianie headów zachowuje wczytane projekcje i
@@ -2445,6 +2455,10 @@ są odczytywane na żądanie; ograniczony rejestr invalidacji i reset całego pr
 po jego przepełnieniu zapobiega zachowaniu starej prywatnej projekcji w rendererze.
 SSE `overview-snapshot` zawiera snapshot i rewizję przerw upstream. Zmiana zestawu
 headów nie zwiększa tej rewizji, więc nie unieważnia wszystkich pozostałych odczytów.
+Po zwolnieniu subskrypcji SSE BFF przez 500 ms nadal odbiera dotychczasowy zestaw
+headów. Przełączenie aktywnego wątku w tym czasie przy tym samym zestawie zachowuje
+strumień gRPC. Przy zmianie zestawu BFF pobiera snapshot dla aktualnego wyboru.
+Otwierający się SSE otrzymuje ostatnie kursory wątków nadal obecnych w indeksie właściciela.
 Planowana zmiana headów lub aktywnego wątku zastępuje SSE bez pokazywania
 `Reconnecting…`: ostatni status dostępności obowiązuje do snapshotu albo rzeczywistego
 błędu. Zachowuje również `Gateway unavailable` podczas awarii; samo otwarcie nowego
@@ -2469,6 +2483,11 @@ aktualizuje po zdarzeniu strumienia lub odpowiedzi własnej mutacji. `QueryCache
 - nieudany odczyt zachowuje poprzednią wartość i błąd; nieobserwowane wpisy trzyma ograniczony LRU;
 - snapshot po ponownej subskrypcji (przerwa w strumieniu) unieważnia wszystkie wpisy raz.
 
+Raport stanu trasy, konta lub narzędzia pojedynczego workera aktualizuje jego wiersz.
+Gateway okresowo sprawdza przy tym adresy Git origin workspace’ów i rozsyła wykryte
+zmiany projektów. Podłączenie workera i zmiany jego konfiguracji nadal rozsyłają
+pełny zestaw projektów, łącznie z dostępnymi katalogami scratch.
+
 `OverviewInvalidation` (`@canopy/domain/shared-query-events`) mapuje zdarzenia na klucze:
 `workerRecordsChanged`, `computer` i `computer_removed` → `ListWorkerRecords`;
 `agentEnvironmentChanged` → `GetAgentEnvironment`; `models` → `ListModels`; nazwany
@@ -2490,6 +2509,10 @@ i `proxies_changed` (827). Po każdym otwarciu strumienia przychodzi `feeds` (82
 wypychanych w całości; `bots` jest na niej tylko, gdy każdy osiągalny połączony komputer też je wypycha
 (jego zmiany botów przychodzą z kwalifikowanymi id). Klient bez danej domeny w `feeds` (starszy gateway,
 przerwany strumień) zachowuje zapasowe odpytywanie: lista botów co 15 s, Connectors co 30 s.
+Wpis w dzienniku rozmowy powoduje porównanie podsumowania z poprzednio wysłanym.
+Gateway pomija identyczne podsumowanie. Dla starszych klientów ponawia kartę oczekującej zgody,
+gdy zapis rozmowy mógł ją zasłonić. Web/desktop zachowuje stan zgody i wykonania z pełnej listy
+lub overview podczas stosowania częściowych odpowiedzi rozmowy i mutacji.
 `proxy_accounts` (831) niesie konta upstream jednego proxy CLIProxyAPI po odczycie Management API
 ([proxies.md](proxies.md#konta-upstream-management-api-cliproxyapi)); klient podmienia je w
 `ListProxies` bez ponownego odczytu listy.

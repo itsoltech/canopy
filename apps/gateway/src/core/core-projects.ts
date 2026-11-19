@@ -9,7 +9,7 @@ import { coreWorkerQuery } from "./core-mentions.ts";
 import { coreWorkers } from "./core-providers.ts";
 import { coreRun } from "./core-broadcast.ts";
 import { coreUiThread } from "./core-titles.ts";
-import { decorateOrigins } from "./workspace-origins.ts";
+import { decorateOrigins, rememberUnpublishedOrigin } from "./workspace-origins.ts";
 import { Effect } from "effect";
 import { SqlClient } from "effect/sql";
 import { configLock } from "../config-sync/persistence.ts";
@@ -61,7 +61,7 @@ export const coreProjectsMethods: CoreProjectsMethods = {
       coreRun(this, (s) => s.lastUsedAgent(this[coreState].options.userId)),
     ]);
 
-    await decorateOrigins(this, projects);
+    await decorateOrigins(this, projects, (id) => rememberUnpublishedOrigin(this, id));
 
     return create(ui.GetOverviewResponseSchema, {
       workers,

@@ -335,7 +335,7 @@ async function poll(prs: GitHubPullRequests, id: string, p: Producer) {
 
     if (metadataChanged) {
       signal.throwIfAborted();
-      const snapshot = await prs.load(scope.pr.repository_name, scope.pr.number, true, true);
+      const snapshot = await prs.get(scope.pr.id, true, true);
       scope = await readScope(prs, scope.request, "watch", true, snapshot);
       invalidated.push("timeline", "reviews");
 
@@ -344,8 +344,6 @@ async function poll(prs: GitHubPullRequests, id: string, p: Producer) {
         p.signals.clear();
         checksChanged = true;
       }
-
-      await prs.changed(scope.pr.repository_id);
     }
 
     if (checksChanged) {

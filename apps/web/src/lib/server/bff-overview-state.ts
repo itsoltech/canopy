@@ -26,6 +26,7 @@ export class BffOverviewState {
   #overview: ui.GetOverviewResponse | undefined;
   #settings: ui.GetSettingsResponse | undefined;
   #feeds: ui.OverviewFeeds | undefined;
+  #heads: ui.ThreadHeads | undefined;
   #hasSnapshot = false;
 
   get hasSnapshot(): boolean {
@@ -36,10 +37,20 @@ export class BffOverviewState {
     return this.#feeds && clone(ui.OverviewFeedsSchema, this.#feeds);
   }
 
+  /** Only replay checkpoints for threads still present in the owner's index. */
+  heads(): ui.ThreadHeads | undefined {
+    if (!this.#heads) return undefined;
+    const heads = clone(ui.ThreadHeadsSchema, this.#heads);
+    heads.heads = heads.heads.filter((head) => this.#threads.has(head.threadId));
+
+    return heads;
+  }
+
   reset(): void {
     this.#overview = undefined;
     this.#settings = undefined;
     this.#feeds = undefined;
+    this.#heads = undefined;
     this.#computers.clear();
     this.#threads.clear();
     this.#workers = [];
@@ -99,6 +110,9 @@ export class BffOverviewState {
     switch (change.case) {
       case "feeds":
         this.#feeds = clone(ui.OverviewFeedsSchema, change.value);
+        break;
+      case "threadHeads":
+        this.#heads = clone(ui.ThreadHeadsSchema, change.value);
         break;
       case "worker":
         this.#workers = upsert(this.#workers, clone(ui.WorkerSchema, change.value), (worker) => worker.id);

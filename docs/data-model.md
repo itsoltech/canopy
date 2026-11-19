@@ -3,6 +3,12 @@
 Status (2026-11-19): zaimplementowany model, w tym kolejność modułów i zatrzymywanie pracy właściciela po ich wyłączeniu oraz migracje `0153_thread_notice_replication`, `0160_agent_hop_policy`, `0162_service_tiers`, `0164_usage_accounting`, `0165_usage_estimated_cost`, `0169_bot_chat_steer`, `0171_thread_permission_selection`, `0172_usage_activity`, `0173_module_goal_resume`, `0174_schedule_worktree_preparations` i `0176_message_delegating_bot` (rejestracja wywołań narzędzia w `agent_bus_calls`);
 dostępność nightly/beta/stable według [release.md](release.md).
 
+Migracja `0177_github_pr_projection` dodaje opcjonalny `projected_summary_hash`
+do `thread_pull_requests` i inicjalizuje go dla istniejących aktywnych powiązań.
+Gateway uzgadnia podsumowanie osobno dla każdego powiązania, z uwzględnieniem
+wybranego konta GitHub i jego rewizji dostępu.
+Szczegóły odświeżania list PR opisuje [github.md](github.md#3-klient-gatewaya-cache-i-koszt).
+
 W `user_settings.settings.modules.enabled` gateway zapisuje uporządkowaną listę
 modułów właściciela: jeden lub dwa różne identyfikatory spośród `threads` i `bots`.
 Pierwszy określa widok startowy. Brak sekcji w starszym JSON-ie daje kolejność
