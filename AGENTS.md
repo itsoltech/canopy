@@ -84,6 +84,7 @@ Short rules for agents working in this repository. Details live in `docs/` (most
 
 ## UI rules
 
+- For UI audits and cleanup, including `$unslop-ui`, apply the [Canopy UI review rules](docs/ui-review.md). Keep cues that help people find a destination, distinguish states or choose an action. The Settings sidebar pairs section icons with text so people can scan it. A repeated cue or a counter hit alone does not justify removing it.
 - Use the type and density scale in `docs/ui-scale.md`; overlays (popovers, menus, pickers) are compact.
 - Controls that appear on state changes (reset buttons, inline actions, badges) must not move existing elements: place them on the side away from the alignment edge or reserve their space.
 - Custom form controls only: no native `select`, radio, range or color inputs. Use the kit in `apps/web/src/lib/shared/ui`.
