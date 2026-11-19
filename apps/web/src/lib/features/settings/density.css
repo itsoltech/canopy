@@ -50,6 +50,19 @@
   gap: var(--settings-section-gap);
 }
 
+/* The search field lives in the desktop sidebar. */
+@media (width >= 64rem) {
+  .settings-content ::highlight(settings-search) {
+    background-color: var(--theme-amber-200);
+    color: var(--theme-amber-950);
+  }
+
+  .dark .settings-content ::highlight(settings-search) {
+    background-color: var(--theme-amber-800);
+    color: var(--theme-amber-50);
+  }
+}
+
 .settings-stack {
   display: grid;
   /* An auto track grows to a long nowrap title; rows truncate inside the pane instead. */

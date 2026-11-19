@@ -23,19 +23,15 @@ export function settingsSectionEnabled(path: string, modules: readonly string[])
   return modules.includes("threads") || !threadSections.has(path.split("/")[2] ?? "");
 }
 
+export function settingsSearchWords(query: string): string[] {
+  return query.toLowerCase().match(/[\p{L}\p{N}]+/gu) ?? [];
+}
+
 /** Match every query word in any order, ignoring case, punctuation and extra spaces. */
 export function matchesSettingsSection(section: SettingsSection, query: string): boolean {
-  const normalize = (value: string) =>
-    value
-      .toLowerCase()
-      .replace(/[^\p{L}\p{N}]+/gu, " ")
-      .trim();
+  const text = `${section.label} ${section.keywords}`.toLowerCase();
 
-  const text = normalize(`${section.label} ${section.keywords}`);
-
-  return normalize(query)
-    .split(/\s+/)
-    .every((word) => text.includes(word));
+  return settingsSearchWords(query).every((word) => text.includes(word));
 }
 
 export const settingsSections: readonly SettingsSection[] = [

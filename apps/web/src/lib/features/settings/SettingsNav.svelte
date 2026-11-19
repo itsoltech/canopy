@@ -8,7 +8,7 @@
 
   /** Settings sections by group with a search filter; narrow screens use `SettingsSectionMenu`. */
   const sections = useSettingsSections();
-  let query = $state("");
+  let { query = $bindable() }: { query: string } = $props();
 
   const visible = $derived(sections.all.filter((section) => matchesSettingsSection(section, query)));
 

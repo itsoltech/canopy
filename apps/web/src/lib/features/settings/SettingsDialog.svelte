@@ -6,6 +6,7 @@
   import { backdropDismiss } from "#lib/shared/ui/backdrop.ts";
   import SettingsBreadcrumb from "./SettingsBreadcrumb.svelte";
   import { useSettings } from "./settings-state.svelte.ts";
+  import { highlightSettingsMatches } from "./settings-search.ts";
   import SettingsNav from "./SettingsNav.svelte";
   import { windowModal } from "#lib/shared/ui/window-modal.ts";
   import "./density.css";
@@ -26,6 +27,7 @@
 
   const settings = useSettings();
 
+  let query = $state("");
   let dialog = $state<HTMLDialogElement>();
   let exited: ReturnType<typeof setTimeout> | undefined;
 
@@ -72,7 +74,7 @@
     <div
       class="w-(--settings-nav-width) shrink-0 scroll-stable overflow-y-auto border-r border-zinc-950/5 bg-zinc-50 p-3 max-lg:hidden dark:border-white/8 dark:bg-white/2"
     >
-      <SettingsNav />
+      <SettingsNav bind:query />
     </div>
     <div class="flex min-h-0 min-w-0 flex-1 flex-col">
       <div
@@ -83,7 +85,10 @@
         <IconButton icon="x-mark" label="Close settings" onclick={onclose} />
       </div>
       <div class="min-h-0 flex-1 scroll-stable overflow-y-auto">
-        <div class="settings-content mx-auto grid grid-cols-1 px-4 py-4 sm:px-6 lg:py-5">
+        <div
+          {@attach highlightSettingsMatches(query)}
+          class="settings-content mx-auto grid grid-cols-1 px-4 py-4 sm:px-6 lg:py-5"
+        >
           {#if settings.notice}
             <Alert tone={settings.notice.tone}>
               {settings.notice.text}
