@@ -176,6 +176,8 @@ message PullRequestSnapshot {
   string ci_blocking_reason = 24;
   // Original GitHub payload URLs, keyed by the actor's login.
   map<string, string> actor_avatars = 25;
+  // GitHub mergeability: conflicting, mergeable, unknown while calculating, or empty when unavailable.
+  string mergeability = 26;
 }
 message PullRequestAvatarRequest {
   string pull_request_id = 1;

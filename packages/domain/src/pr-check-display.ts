@@ -23,6 +23,8 @@ function ended(reason: string): Pick<ChecksNoteLine, "text" | "icon"> {
   switch (reason) {
     case "passed":
       return { text: "All checks passed", icon: "check-circle" };
+    case "conflict":
+      return { text: "Merge conflicts block this pull request", icon: "git-pull-request" };
     case "merged":
       return { text: "Pull request merged", icon: "git-merge" };
     case "closed":
@@ -92,7 +94,9 @@ export function watchCallFacts(args: JsonObject, result: JsonObject): string[] {
   return [
     str(result["pull_request"]) || str(args["pull_request"]),
     result["watching"] === false
-      ? "All checks already passed"
+      ? result["end_reason"]
+        ? ended(str(result["end_reason"])).text
+        : "All checks already passed"
       : events.length > 0
         ? `Tells this agent when ${events.join(" or ")}`
         : "",

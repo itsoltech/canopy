@@ -1,6 +1,6 @@
 # Konto GitHub i pull requesty
 
-Status: **v1 wdrożone** (2026-11-18), z wstrzymywaniem obserwacji PR po wyłączeniu modułu Threads: konta GitHub App i jawny fallback PAT, powiązania PR,
+Status: **v1 wdrożone** (2026-11-19), z powiadamianiem agenta o konfliktach obserwowanego PR i wstrzymywaniem obserwacji po wyłączeniu modułu Threads: konta GitHub App i jawny fallback PAT, powiązania PR,
 pełny odczyt, komentarze i review, lifecycle, metadane, automatyczna archiwizacja wątków
 po merge, sterowanie GitHub Actions oraz postęp checków i kroków workflow. Zaimplementowane jest też jawne lokalne
 linkowanie PR przez agenta (`link_pull_request`) jako fallback automatycznej detekcji.
@@ -14,7 +14,7 @@ i pomija puste karty podsumowań; web/desktop pokazuje fragment kodu przy koment
 promocji kanałów w [release.md](release.md).
 Tokeny użytkownika pozostają w domu wątku; integracja produktu nie nadaje agentom
 praw do mutacji GitHub. `link_pull_request` zmienia tylko lokalne powiązanie z wątkiem,
-a `watch_pr_checks` udostępnia wyłącznie obserwację checków (§10).
+a `watch_pr_checks` obejmuje obserwację checków i konfliktów z gałęzią bazową (§10).
 
 Gdy właściciel wyłączy **Threads**, gateway wstrzymuje wykrywanie PR-ów w jego wątkach, odpytywanie checków i automatyczną archiwizację po merge. Oczekujące powiadomienia CI pozostają w bazie. Po ponownym włączeniu gateway sprawdza aktualny stan PR-ów i dostarcza notatki. Gdy w czasie przerwy upłynął termin obserwacji ustawiony przez agenta, raportuje jej wygaśnięcie. Odświeżanie dostępu do kont GitHub działa niezależnie.
 
@@ -466,6 +466,9 @@ kotwicy, werdyktu oraz rewizji review; nie zapisuje treści komentarza w audycie
 Obserwator UI oznacza widoczny ekran, nie samo otwarte połączenie. Web używa widoczności strony,
 mobile AppState i fokusu ekranu; krótka odnawiana dzierżawa widoku wygasa po 90 s.
 Aktywny `watch_pr_checks` podtrzymuje tego samego producenta bez widocznego ekranu.
+Warunkowy odczyt metadanych wykrywa również zmianę stanu scalenia przy tym samym SHA.
+Gdy GitHub potwierdzi konflikt z gałęzią bazową, gateway powiadamia agenta i kończy obserwację
+niezależnie od liczby checków i filtra powiadomień.
 Wiele kart/urządzeń i watchy agenta współdzieli najszybszy potrzebny harmonogram.
 
 | Widoczność | Harmonogram startowy | Zakres |
@@ -473,7 +476,7 @@ Wiele kart/urządzeń i watchy agenta współdzieli najszybszy potrzebny harmono
 | Otwarty PR, zakończone checki | Metadata PR na każdym ticku co 60 s oraz jedna rotacyjna strona check-runs/legacy statuses | Edycje komentarzy wykrywane po około 60–66 s; najwyżej 10 warunkowych żądań w 5 min po inicjalizacji |
 | Otwarty PR, trwające checki | Zasoby checków z pending/in progress co 15 s; metadata i jedna pozostała strona CI co 60 s | Bez okresowego GraphQL, timeline ani diffów |
 | Widoczny panel wątku | Ten sam współdzielony harmonogram warunkowy | Bez osobnego pollera nagłówków |
-| Aktywny `watch_pr_checks` | Ten sam współdzielony harmonogram warunkowy | Działa także bez panelu; kończy się po zamknięciu/merge PR, upływie terminu lub anulowaniu |
+| Aktywny `watch_pr_checks` | Ten sam współdzielony harmonogram warunkowy | Działa także bez panelu; kończy się m.in. po wykryciu konfliktu, zamknięciu/merge PR, upływie terminu lub anulowaniu |
 | Zakończenie CI z aktywnym auto-merge | Natychmiastowy probe metadanych, potem co około 10 s przez najwyżej 2 min | Tylko warunkowe REST metadata; pełne podsumowanie i publikacja do overview po wykryciu zmiany |
 | Closed/merged, także widoczny | Brak okresowego pollingu | Zmiany po ręcznym Refresh lub własnej mutacji |
 | Aktywny wątek w tle, bez watcha CI | Bez okresowego odświeżania danych PR | Rozpoznanie po zmianie checkoutu/pushu pozostaje osobnym zdarzeniem |
