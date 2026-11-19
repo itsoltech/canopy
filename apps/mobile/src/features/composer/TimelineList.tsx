@@ -38,6 +38,7 @@ export function TimelineList<Item>({
   onLayout,
   onContentSizeChange,
   composerInset,
+  disclosureAddsRows = false,
   ListHeaderComponent,
   ...props
 }: Omit<AnimatedProps<FlatListProps<Item>>, "onScroll" | "onLayout" | "onContentSizeChange" | "ListHeaderComponent"> & {
@@ -46,6 +47,8 @@ export function TimelineList<Item>({
   onLayout?: FlatListProps<Item>["onLayout"];
   onContentSizeChange?: FlatListProps<Item>["onContentSizeChange"];
   composerInset?: SharedValue<number>;
+  /** A bot disclosure inserts list rows; a thread disclosure resizes its existing cell. */
+  disclosureAddsRows?: boolean;
   /** Under the latest row (inverted). */
   ListHeaderComponent?: ReactElement;
 }) {
@@ -54,6 +57,9 @@ export function TimelineList<Item>({
   // thread can measure actual cells, while keeping the component identity stable for this list's lifetime.
   const [AnimatedTimelineList] = useState(() => Animated.createAnimatedComponent(FlatList<Item>));
   const manualAnchor = useManualFeedAnchor();
+  // Android also shifts its first visible row when an inverted list prepends entries. Let the tapped
+  // header own that scroll until expansion settles; ordinary arrivals still use native anchoring.
+  const manualPosition = android && disclosureAddsRows ? undefined : { minIndexForVisible: 0 };
   const keyboard = useKeyboardFrame();
   const nativeKeyboard = useKeyboardContext().reanimated;
 
@@ -134,7 +140,7 @@ export function TimelineList<Item>({
         // Android clipping detaches native WebViews inside inverted cells, even while React retains the row.
         // FlatList still virtualizes/unmounts distant turns; this only disables native view detachment.
         removeClippedSubviews={false}
-        maintainVisibleContentPosition={manualAnchor ? { minIndexForVisible: 0 } : props.maintainVisibleContentPosition}
+        maintainVisibleContentPosition={manualAnchor ? manualPosition : props.maintainVisibleContentPosition}
         onScroll={composedScroll}
         onLayout={(event) => {
           onLayout?.(event);

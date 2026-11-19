@@ -194,6 +194,7 @@ function BotChatFeed({ state }: { state: ReturnType<typeof useBotConversation> }
   return (
     <FeedAnchorProvider value={anchor}>
       <TimelineList
+        disclosureAddsRows
         CellRendererComponent={FeedAnchorCell}
         {...composer.listProps}
         onViewableItemsChanged={onViewableItemsChanged}
