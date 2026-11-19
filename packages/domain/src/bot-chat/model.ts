@@ -47,6 +47,7 @@ export interface ConversationView {
   bots: BotView[];
   lastMessage?: ConversationPreview | undefined;
   unread: number;
+  executing?: boolean | undefined;
   /** Pinned conversations sit at the top of the Bots section as large avatars. */
   pinned: boolean;
   archived?: boolean | undefined;

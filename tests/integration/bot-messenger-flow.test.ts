@@ -123,11 +123,13 @@ test.skipIf(!dockerAvailable)(
         })
       ).route!;
 
+      const accountConnected = async () =>
+        (await f.gw.api.listMessengerAccounts({})).accounts.some(
+          (a) => a.id === account.id && a.status === "connected",
+        );
+
       f.gw.core.messengers.start();
-      await eventually(
-        () => f.gw.api.listMessengerAccounts({}),
-        (r) => r.accounts.some((a) => a.status === "connected"),
-      );
+      expect(await eventually(accountConnected, Boolean)).toBe(true);
 
       const modules = async (enabled: string[]) =>
         f.gw.api.updateUserSettings({
@@ -150,6 +152,8 @@ test.skipIf(!dockerAvailable)(
           (count) => count === 1,
         ),
       ).toBe(1);
+      // The server's open callback runs before the gateway commits its Socket Mode Hello.
+      expect(await eventually(accountConnected, Boolean)).toBe(true);
       expect(await f.query("SELECT id FROM bot_channel_messages WHERE source_message_id='90.1'")).toEqual([]);
 
       slack.emit("event-1", "<@UAPP> HOLD:messenger check login", "100.1");
@@ -179,7 +183,10 @@ test.skipIf(!dockerAvailable)(
       expect(initial).not.toContain("PRIVATE_OWNER_CONTEXT");
 
       const active = await f.read(bot.id);
+      const listed = async () => (await f.gw.api.listBots({})).bots.find((row) => row.id === bot.id);
+
       expect(active.working).toBe(false);
+      expect(await eventually(listed, (row) => row?.executing === true)).toMatchObject({ executing: true });
       expect(active.statusLine).toContain("Slack");
       expect(active.streamingText).toBe("");
       expect(active.messages.some((m) => m.senderId === "activity" && m.text.includes("2 Slack messages"))).toBe(true);
@@ -225,6 +232,7 @@ test.skipIf(!dockerAvailable)(
       expect(slack.sent[0]!.get("text")).toContain("FIXTURE_OK");
       const privateChat = await f.settled(bot.id);
 
+      expect(await listed()).toMatchObject({ executing: false });
       expect(privateChat.messages.some((m) => m.text === "PRIVATE_FOLLOWUP_WHILE_SLACK_IS_RUNNING")).toBe(true);
       expect(
         privateChat.messages.some((m) => m.text.includes("HOLD:messenger") || m.text.includes("Only Safari")),
@@ -255,6 +263,29 @@ test.skipIf(!dockerAvailable)(
       await refusedMessage(f, slack, bot.id, () => {
         clockOffset += 4000;
       });
+
+      slack.emit("event-revoked", "<@UAPP> HOLD:revoked another active request", "500.1", "500.1");
+      expect(await eventually(async () => slack.acknowledged.has("event-revoked"), Boolean)).toBe(true);
+      clockOffset += 4000;
+      await f.gw.core.messengers.tick();
+      expect(await eventually(listed, (row) => row?.executing === true)).toMatchObject({ executing: true });
+
+      const held = (
+        await f.query<{ id: string }>("SELECT id FROM bot_turns WHERE bot_id=$1 AND status='running'", [bot.id])
+      )[0]!;
+
+      await f.gw.api.saveBotMessengerRoute({ route: { ...route, channelIds: ["COTHER"] } });
+      expect(await listed()).toMatchObject({ executing: false });
+      expect(await f.query("SELECT status FROM bot_turns WHERE id=$1", [held.id])).toEqual([{ status: "running" }]);
+      await f.release("revoked");
+      const settled = (status: string) => ["failed", "interrupted"].includes(status);
+
+      const [stopped] = await eventually(
+        () => f.query<{ status: string }>("SELECT status FROM bot_turns WHERE id=$1", [held.id]),
+        ([turn]) => !!turn && settled(turn.status),
+      );
+
+      expect(stopped && settled(stopped.status)).toBe(true);
     } finally {
       await f.close();
       await slack.close();

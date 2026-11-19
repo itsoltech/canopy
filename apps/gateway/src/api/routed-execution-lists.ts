@@ -44,8 +44,14 @@ export function executionLists(
         ),
       ]);
 
+      const unconfirmed = new Set([...unavailableComputers, ...refreshingComputers].map((computer) => computer.nodeId));
+
+      const remote = others.flatMap((response) =>
+        response.bots.map((bot) => (unconfirmed.has(bot.nodeId) ? { ...bot, executing: false } : bot)),
+      );
+
       return create(bots.ListBotsResponseSchema, {
-        bots: [...(result.bots ?? []), ...others.flatMap((r) => r.bots)],
+        bots: [...(result.bots ?? []), ...remote],
         unavailableComputers,
         refreshingComputers,
       });

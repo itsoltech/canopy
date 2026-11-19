@@ -1,5 +1,6 @@
 import { afterAll, beforeAll, describe, expect, test } from "bun:test";
-import { bots, Provider, type ui } from "@canopy/contracts";
+import { create } from "@bufbuild/protobuf";
+import { bots, Provider, ui } from "@canopy/contracts";
 import { dockerAvailable } from "@canopy/db/testing";
 import { qualifyId } from "@canopy/domain/computers";
 import { remoteServe, uiHandlers } from "@canopy/gateway/api";
@@ -26,13 +27,26 @@ describe.skipIf(!dockerAvailable)("linked bots survive home restarts and updates
 
   const qualified = (id: string) => qualifyId(id, node);
   let version = "0.2.0-nightly.119";
+  let holdBotList: Promise<void> | undefined;
 
   function links(gateway: TestGateway) {
+    const handlers = uiHandlers(gateway.core);
+
     const computers = linkedComputers({
       store: new ComputerStore(gateway.runtime, gateway.userId, gateway.secretsKey),
       host: "127.0.0.1",
       heartbeatMs: 100,
-      serve: remoteServe(uiHandlers(gateway.core), gateway.core),
+      serve: remoteServe(
+        {
+          ...handlers,
+          listBots: async (request, context) => {
+            if (gateway === b) await holdBotList;
+
+            return handlers.listBots(request, context);
+          },
+        },
+        gateway.core,
+      ),
     });
 
     if (gateway === b) {
@@ -149,6 +163,41 @@ describe.skipIf(!dockerAvailable)("linked bots survive home restarts and updates
     la.reads.forget(node);
     expect(complete(await list())).toBe(true);
     expect((await a.api.listBots({})).bots.map((bot) => bot.id)).toEqual(ids.slice(0, 2).map(qualified));
+  });
+
+  test("a cached Working badge is cleared during loss and until the reachable home refreshes", async () => {
+    const method = ui.GatewayService.method.listBots;
+    const request = create(bots.ListBotsRequestSchema, { includeArchived: true });
+    const id = qualified(ids[0]!);
+    const snapshot = await list();
+    const cached = snapshot.bots.find((bot) => bot.id === id)!;
+    cached.executing = true;
+    la.reads.remember(node, method, request, snapshot);
+    expect((await list()).bots.find((bot) => bot.id === id)?.executing).toBe(true);
+
+    const gate = Promise.withResolvers<void>();
+    holdBotList = gate.promise;
+
+    try {
+      la.reads.disconnected(node);
+      const away = await list();
+      expect(away.unavailableComputers.map((peer) => peer.nodeId)).toContain(node);
+      expect(away.bots.find((bot) => bot.id === id)?.executing).toBe(false);
+
+      la.reads.connected(node);
+      const refreshing = await list();
+      expect(refreshing.refreshingComputers.map((peer) => peer.nodeId)).toContain(node);
+      expect(refreshing.bots.find((bot) => bot.id === id)?.executing).toBe(false);
+    } finally {
+      holdBotList = undefined;
+      gate.resolve();
+      expect(
+        await eventually(
+          async () => la.reads.state(node, method, request),
+          (state) => state === "fresh",
+        ),
+      ).toBe("fresh");
+    }
   });
 
   for (const nextVersion of ["0.2.0-nightly.119", "0.2.0-nightly.121"]) {

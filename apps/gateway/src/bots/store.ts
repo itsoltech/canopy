@@ -16,6 +16,7 @@ import { queryMethods } from "../diagnostics/query-context.ts";
 import { conversationContext } from "../messengers/store-outbound.ts";
 import { botPoll } from "./poll.ts";
 import { settleChatSteer } from "./store-chat-steer.ts";
+import { botExecutions } from "./bot-execution.ts";
 
 export {
   botConfiguration,
@@ -42,6 +43,7 @@ function makeStore(sql: SqlClient.SqlClient, key: Buffer) {
         Effect.map((rows) => new Set(rows.map((t) => t.id))),
       ),
     poll: (owner: string, now: Date) => botPoll(sql, owner, now),
+    executions: (owner: string) => botExecutions(sql, owner),
     handoffContext: access.handoffs.context,
     handoffFallback: access.handoffs.fallback,
     latestHandoff: access.handoffs.latest,

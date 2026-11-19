@@ -1,4 +1,5 @@
 import { create } from "@bufbuild/protobuf";
+import { untrack } from "svelte";
 import { bots } from "@canopy/contracts";
 import { requestJson } from "#lib/shared/http.ts";
 import { decode, encode } from "#lib/shared/wire.ts";
@@ -17,6 +18,7 @@ class BotList {
   list = $state.raw<bots.Bot[]>([]);
   unavailableComputers = $state.raw<bots.ListBotsResponse["unavailableComputers"]>([]);
   refreshingComputers = $state.raw<bots.ListBotsResponse["refreshingComputers"]>([]);
+  #executing = $state.raw<ReadonlySet<string>>(new Set());
   loaded = $state(false);
   error = $state("");
   #users = 0;
@@ -26,7 +28,17 @@ class BotList {
   #again = false;
   /** Grows with every pushed or saved bot: a list read started before it is older. */
   #written = 0;
-  #pushed = () => false;
+  #overview = $state.raw<OverviewState>();
+  #executionResync = $state(-1);
+
+  // Conversation and mutation responses also update bot metadata. Execution comes only from list summaries.
+  executing(botId: string): boolean {
+    return (
+      this.#overview?.connection === "live" &&
+      this.#executionResync === this.#overview.resyncs &&
+      this.#executing.has(botId)
+    );
+  }
 
   /** Keeps the list fresh until the returned function is called (use it from an `$effect`). */
   use(): () => void {
@@ -36,7 +48,7 @@ class BotList {
       };
 
       const timer = setInterval(() => {
-        if (!this.#pushed()) refresh();
+        if (!this.#overview?.pushed.has("bots")) refresh();
       }, FALLBACK_MS);
 
       window.addEventListener("bots-changed", refresh);
@@ -55,25 +67,30 @@ class BotList {
 
   /** Follows the overview stream: pushed summaries, removals and gaps. Returns the unsubscribe. */
   follow(overview: OverviewState): () => void {
-    this.#pushed = () => overview.pushed.has("bots");
-    let resyncs = overview.resyncs;
+    this.#overview = overview;
+    const resync = overview.resyncs;
+
+    // The first list read can start before the overview subscription, and a gap may have missed a finish.
+    if (this.#users && untrack(() => this.#executionResync !== resync)) void this.refresh();
 
     return overview.subscribe((update) => {
       const change = update.change;
 
-      if (change.case === "bot") this.upsert(change.value);
+      if (change.case === "bot") {
+        const bot = change.value;
+        this.#setExecuting(bot.id, bot.executing === true);
+        this.upsert(bot);
+      }
 
       if (change.case === "botRemoved") {
         this.#written++;
+        this.#setExecuting(change.value, false);
         this.list = this.list.filter((b) => b.id !== change.value);
       }
 
-      // Every (re)subscription of a pushing gateway announces its feeds: read once, so nothing missed before
-      // it stays stale. An older gateway's gap is a resync.
+      // Feed announcements also arrive when a linked computer changes what it pushes.
       if (this.#users && change.case === "feeds") void this.refresh();
       else if (this.#users && change.case === "linkedReadCompleted" && change.value === "ListBots") void this.refresh();
-      else if (this.#users && overview.resyncs !== resyncs && !overview.pushed.has("bots")) void this.refresh();
-      resyncs = overview.resyncs;
     });
   }
 
@@ -86,6 +103,7 @@ class BotList {
 
     this.#refreshing = true;
     const written = this.#written;
+    const executionResync = untrack(() => this.#overview?.resyncs ?? -1);
 
     try {
       const response = decode(bots.ListBotsResponseSchema, await requestJson("GET", "/api/bots?archived=1"));
@@ -103,6 +121,8 @@ class BotList {
         this.#saving.has(bot.id) ? (this.list.find((b) => b.id === bot.id) ?? bot) : bot,
       );
       this.error = "";
+      this.#executing = new Set(response.bots.filter((bot) => bot.executing).map((bot) => bot.id));
+      this.#executionResync = executionResync;
       botCache.reconcile(this.list);
     } catch {
       this.error = "Could not load bots";
@@ -118,11 +138,21 @@ class BotList {
   }
 
   upsert(bot: bots.Bot): void {
-    if (this.#saving.has(bot.id)) return;
     this.#written++;
+
+    if (this.#saving.has(bot.id)) return;
     this.list = this.list.some((b) => b.id === bot.id)
       ? this.list.map((b) => (b.id === bot.id ? bot : b))
       : [...this.list, bot];
+  }
+
+  #setExecuting(botId: string, executing: boolean): void {
+    if (this.#executing.has(botId) === executing) return;
+    const updated = new Set(this.#executing);
+
+    if (executing) updated.add(botId);
+    else updated.delete(botId);
+    this.#executing = updated;
   }
 
   async markRead(botId: string, throughSeq: bigint): Promise<void> {

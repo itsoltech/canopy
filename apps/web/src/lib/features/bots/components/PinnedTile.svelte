@@ -9,7 +9,9 @@
   import AvatarBadge from "./AvatarBadge.svelte";
   import AvatarStack from "./AvatarStack.svelte";
   import BotAvatar from "./BotAvatar.svelte";
+  import BotWorkingBadge from "./BotWorkingBadge.svelte";
   import ActionItems from "./ActionItems.svelte";
+  import { useBotHome } from "../home.svelte.ts";
 
   /**
    * A pinned conversation at the top of the Bots section: a large avatar with the star badge and the
@@ -33,6 +35,10 @@
 
   let menuOpen = $state(false);
   const title = $derived(conversationTitle(conversation));
+  const home = useBotHome(() => conversation.nodeId);
+  const workingId = $props.id();
+  const direct = $derived(conversation.kind === "direct" && Boolean(conversation.bots[0]));
+  const working = $derived(direct && !home.reason && conversation.executing === true);
   const items = $derived(conversationMenu(conversation, handlers));
 </script>
 
@@ -42,10 +48,11 @@
       {...anchorOnly(props)}
       {href}
       aria-current={current ? "page" : undefined}
-      aria-describedby={hint}
+      aria-labelledby={`${workingId}-name`}
+      aria-describedby={working ? `${hint ?? ""} ${workingId}`.trim() : hint}
       {title}
       class={[
-        "group flex w-full min-w-0 flex-col items-center gap-1.5 rounded-xl px-0.5 pt-2 pb-1.5 focus-ring select-none [-webkit-touch-callout:none] hover:bg-zinc-950/4 aria-[current=page]:bg-zinc-950/6 dark:hover:bg-white/4 dark:aria-[current=page]:bg-white/8",
+        "group flex w-full min-w-0 flex-col items-center gap-1 rounded-xl px-0.5 pt-2 pb-1.5 focus-ring select-none [-webkit-touch-callout:none] hover:bg-zinc-950/4 aria-[current=page]:bg-zinc-950/6 dark:hover:bg-white/4 dark:aria-[current=page]:bg-white/8",
         className,
       ]}
       {@attach contextMenu(() => (menuOpen = items.length > 0))}
@@ -61,7 +68,9 @@
           <span class={["absolute top-0 right-0 size-3 rounded-full bg-brand-500", avatarRing]}></span>
         {/if}
       </span>
+      <BotWorkingBadge id={workingId} name={title} active={working} class="flex h-4 items-center" />
       <span
+        id={`${workingId}-name`}
         class="w-full truncate text-center text-sm/5 text-zinc-700 group-aria-[current=page]:text-zinc-950 sm:text-xs/5 dark:text-zinc-300 dark:group-aria-[current=page]:text-white"
       >
         {title}{#if conversation.unread > 0}<span class="sr-only">, {conversation.unread} unread</span>{/if}

@@ -51,6 +51,8 @@ message Bot {
   repeated string reconnect = 802;
   // Powiadomienia (docs/notifications.md): najnowsza oczekująca zgoda lub pytanie (bez pól i propozycji); brak = nic nie czeka.
   BotApproval pending_approval = 1000;
+  // Present in list and overview summaries. The worker has started a turn and it can still execute.
+  optional bool executing = 1001;
 }
 message BotMessage {
   string id = 1;

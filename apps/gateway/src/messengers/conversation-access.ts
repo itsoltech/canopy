@@ -5,7 +5,7 @@ import { linkedMessengerActive } from "./linked-account.ts";
 
 export function activeConversationSource(
   sql: SqlClient.SqlClient,
-  botId: string,
+  botId: string | Statement.Fragment,
   conversationId: string | Statement.Fragment,
 ) {
   return sql`FROM bot_channel_conversations c

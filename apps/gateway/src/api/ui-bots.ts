@@ -4,6 +4,7 @@ import { type GatewayCore } from "../core/core.ts";
 import { connectorGuard, guard } from "./ui-errors.ts";
 import type { UiHandlers } from "./ui-service.ts";
 import { coreState } from "../core/core-context.ts";
+import { listBotSummaries } from "../core/bot-execution.ts";
 
 export function botsHandlers(
   core: GatewayCore,
@@ -50,7 +51,7 @@ export function botsHandlers(
       }),
 
     listBots: (r) =>
-      guard(async () => create(bots.ListBotsResponseSchema, { bots: await core.bots.list(r.includeArchived) })),
+      guard(async () => create(bots.ListBotsResponseSchema, { bots: await listBotSummaries(core, r.includeArchived) })),
 
     archiveBot: (r) =>
       guard(async () => create(bots.GetBotResponseSchema, { bot: await core.bots.archive(r.botId, true) })),

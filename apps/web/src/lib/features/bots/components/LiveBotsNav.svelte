@@ -18,7 +18,9 @@
   const capabilities = useGatewayCapabilities();
 
   const conversations = $derived(
-    botList.list.filter((b) => !b.archived).map((b) => botConversation(b, settings.sidebar.pinnedBotIds)),
+    botList.list
+      .filter((b) => !b.archived)
+      .map((b) => botConversation(b, settings.sidebar.pinnedBotIds, botList.executing(b.id))),
   );
 
   const archived = $derived(botList.list.filter((b) => b.archived).map((b) => botConversation(b)));
