@@ -83,7 +83,7 @@
 </script>
 
 {#if approval.allowedByRule}
-  <p class={["px-4 py-2 text-sm text-zinc-500 sm:text-xs dark:text-zinc-400", className]}>
+  <p class={["px-4 py-2 text-sm wrap-anywhere text-zinc-500 sm:text-xs dark:text-zinc-400", className]}>
     {approval.action} ·
     <a
       class="underline underline-offset-2 focus-ring"
