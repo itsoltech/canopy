@@ -4,7 +4,6 @@ export {
   effectiveCost,
   hasEffectiveCost,
   hasPartialCost,
-  metricNumber,
   metricValue,
   providerName,
   shortCount,

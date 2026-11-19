@@ -1,6 +1,6 @@
 <script lang="ts">
   import { usageProviderColor } from "./providers.ts";
-  import { axisLabel, plotUsage, pointX } from "./chart.ts";
+  import { axisLabel, plotUsage, pointX } from "@canopy/domain/usage-chart";
   import type { UsageDay, UsageRow, UsageView } from "./format.ts";
 
   let { days, providers, view, active }: { days: UsageDay[]; providers: UsageRow[]; view: UsageView; active: number } =

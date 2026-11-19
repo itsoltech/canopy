@@ -1,8 +1,9 @@
 # Canopy na iOS i Android
 
 Status: opis zaimplementowanego kodu (2026-11-19); natywny raport Usage pokazuje
-historię kosztów i skrócone liczby tokenów z gatewaya. Wątki pokazują strumieniowany tekst
-linia po linii, tak jak web i desktop. Na liście Bots czas i licznik są wyrównane przy menu wiersza.
+historię kosztów i skrócone liczby tokenów z gatewaya oraz dzienny wykres według dostawcy.
+Wątki pokazują strumieniowany tekst linia po linii, tak jak web i desktop.
+Na liście Bots czas i licznik są wyrównane przy menu wiersza.
 Aktywny czat bota potwierdza odczyt najnowszych wiadomości i odświeża licznik listy Bots.
 Telefon i tablet pozwalają wybrać kolejność zakładek
 i zatrzymać pracę modułu Threads albo Bots na koncie właściciela.
@@ -262,6 +263,11 @@ Raport pokazuje koszt i liczbę tokenów dla dzisiaj lub ostatnich 7, 30 albo
 dostawcy, modelu, dnia lub żądanej szybkości oraz według aktywności lub bota,
 jeśli gateway zwraca te podziały. Lista źródeł pokazuje stan i początek rejestrowania
 danych z komputerów. Kwoty nieznane i częściowe mają osobne oznaczenia.
+
+Między podsumowaniem a podziałem raportu wykres **Daily trend** pokazuje
+osobną linię dla każdego dostawcy. Początkowo zaznaczony jest ostatni dzień.
+Dotknięcie wykresu lub użycie strzałek wybiera dzień i pokazuje jego sumę oraz
+wartości poszczególnych dostawców. Brak znanego kosztu powoduje przerwę w linii.
 
 Telefon pobiera raport przez `GetUsageStats` po otwarciu ekranu, zmianie filtrów
 lub ręcznym odświeżeniu. Przerywa odczyt po opuszczeniu ekranu lub przejściu
