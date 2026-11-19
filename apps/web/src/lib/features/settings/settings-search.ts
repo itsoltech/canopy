@@ -13,7 +13,14 @@ export function highlightSettingsMatches(query: string): Attachment<HTMLElement>
 
     const update = () => {
       const highlight = new Highlight();
-      const walker = document.createTreeWalker(content, NodeFilter.SHOW_TEXT);
+
+      const walker = document.createTreeWalker(content, NodeFilter.SHOW_ELEMENT | NodeFilter.SHOW_TEXT, {
+        acceptNode(node) {
+          if (node instanceof HTMLDialogElement) return NodeFilter.FILTER_REJECT;
+
+          return node instanceof Text ? NodeFilter.FILTER_ACCEPT : NodeFilter.FILTER_SKIP;
+        },
+      });
 
       for (let node = walker.nextNode(); node; node = walker.nextNode()) {
         for (const match of (node.textContent ?? "").matchAll(pattern)) {
