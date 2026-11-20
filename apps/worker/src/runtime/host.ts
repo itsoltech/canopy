@@ -37,6 +37,7 @@ import { WorkspaceCopies } from "../workspace-copy/index.ts";
 import { AgentTools, AgentToolRefused } from "../agent-tools/index.ts";
 import { WorkerStorageCleanup } from "./storage-cleanup.ts";
 import { HostPreviews } from "./host-previews.ts";
+import { WorkerPreviewCleanup } from "./preview-cleanup.ts";
 import { NOT_REMEMBERED, rememberSuccess } from "./command-policy.ts";
 
 export type { WorkerHostOptions } from "./host-types.ts";
@@ -68,6 +69,7 @@ export type { WorkerHostOptions } from "./host-types.ts";
 export class WorkerHost {
   readonly previews: HostPreviews;
   readonly storage: WorkerStorageCleanup;
+  readonly #previewCleanup: WorkerPreviewCleanup;
   readonly #copies: WorkspaceCopies;
   readonly #cliChecks: UpdateCheckTimer;
   readonly #commands = new Map<string, Promise<CommandResultInit | undefined>>();
@@ -92,6 +94,7 @@ export class WorkerHost {
     this.#copies = new WorkspaceCopies(options.dataDir);
     this.#cliChecks = new UpdateCheckTimer(options.cliCheckClock);
     const state = new HostState(options);
+    this.#previewCleanup = new WorkerPreviewCleanup(state);
     this.#ctx = new HostContext(state, {
       applyConfig: (message) => this.applyConfig(message),
       sendPreviews: (link, event) => this.sendPreviews(link, event),
@@ -415,6 +418,7 @@ export class WorkerHost {
   }
 
   async close(): Promise<void> {
+    await this.#previewCleanup.stop();
     await this.storage.stop();
     await Promise.allSettled(this.#ctx.state.threadCleanup.values());
     await this.previews.close();
@@ -494,7 +498,10 @@ export class WorkerHost {
    * Their ends go through the journal like any event.
    */
   async recover(): Promise<{ turns: number; tasks: number; fromTranscript: number }> {
-    return recoverWorker(this.#ctx);
+    const recovered = await recoverWorker(this.#ctx);
+    await this.#previewCleanup.start();
+
+    return recovered;
   }
 
   /** Turns this process runs now (Hello.running_turns). */

@@ -3,7 +3,8 @@
 Status (2026-11-20): zaimplementowane sprzątanie techniczne i opcjonalne trwałe
 usuwanie historii zarchiwizowanych wątków i 31-dniowe okno odtworzenia ręcznie
 usuniętych wątków, bezstratna kompakcja transkryptu, ograniczanie dziennika
-replikacji i GC nieużywanych uploadów; replikacja notice obejmuje wyłącznie
+replikacji także dla starszych nieopublikowanych wpisów i GC nieużywanych uploadów.
+Replikacja notice obejmuje wyłącznie
 zdarzenia tego rodzaju. Purge czeka na potwierdzenie zamknięcia zasobów workera,
 również gdy termin polecenia sprzątania już minął. Migracja `0180` dodaje czasowy bufor podglądów, retencję kwarantanny i ochronę bajtów wcześniejszej historii. Migracja `0184` zachowuje uprawnienia do obrazów dostępnych w tej historii.
 Dostępność nightly/beta/stable według
@@ -202,7 +203,12 @@ Migracja `0154_thread_replication_retention` dodaje `replay_floor_seq` i dzierż
 publikowanych zakresów oraz referencji do treści. Dziennik zachowuje sufiks
 10 000 rekordów i co najmniej godzinny okres ochronny; aktywny, niezakończony
 odczyt może czasowo zachować więcej. Sprzątanie usuwa ciągły prefiks i przesuwa
-floor w tej samej transakcji. Nigdy nie przesuwa kursora odbiorcy przez dziurę.
+floor w tej samej transakcji, maksymalnie o 256 rekordów. Do prefiksu kwalifikują
+się także niezapieczętowane wpisy starsze niż godzina. Dziennik przechowuje dla
+nich klucze zmienionych encji, których projekcja następuje przy publikacji.
+Dzierżawa zakresu ogranicza floor do swojego `applied_seq`. Świeży wpis,
+zapieczętowany wpis przed indeksacją referencji lub brak kolejnego numeru
+zatrzymuje sprzątanie prefiksu.
 
 Spóźniony połączony komputer odbudowuje pełne lustro przez zmianę epoki i seed
 identyfikatorów z zachowanej historii, bez tworzenia monolitycznego snapshotu.

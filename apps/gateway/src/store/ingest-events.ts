@@ -369,11 +369,13 @@ export const insertEvent = (
 
   return sql`
     INSERT INTO thread_events (thread_id, seq, event_id, origin, turn_id, kind, item_id, payload, raw, raw_payload_refs, occurred_at)
-    VALUES (${threadId}::uuid, ${seq}, ${event.eventId}::uuid, ${origin}, ${event.turnId || null}::uuid, ${eventKind(event)},
-            ${eventItemId(event.body) ?? null}, ${JSON.stringify(payload)}::jsonb,
-            thread_event_compact_raw(${event.rawJson ? event.rawJson : null}::jsonb,${compact?.refs ?? null}::jsonb),
-            ${compact?.refs ?? null}::jsonb,
-            ${event.occurredAt ? new Date(Number(event.occurredAt.seconds) * 1000 + event.occurredAt.nanos / 1e6) : new Date()})
+    SELECT ${threadId}::uuid, ${seq}, ${event.eventId}::uuid, ${origin}, ${event.turnId || null}::uuid, ${eventKind(event)},
+            ${eventItemId(event.body) ?? null}, input.payload,
+            compact.raw, compact.refs,
+            ${event.occurredAt ? new Date(Number(event.occurredAt.seconds) * 1000 + event.occurredAt.nanos / 1e6) : new Date()}
+    FROM (VALUES (${JSON.stringify(payload)}::jsonb)) input(payload)
+    CROSS JOIN LATERAL thread_event_apply_raw_refs(${event.rawJson || null}::jsonb,input.payload,
+      ${compact?.refs ?? null}::jsonb) compact
   `;
 };
 

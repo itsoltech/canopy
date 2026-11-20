@@ -38,10 +38,8 @@ export class ProviderRuntimes {
         idleUnloadMs: config.limits.idleUnloadSeconds * 1000,
         profile: (id) => matchingProfile(profile, id),
         record: async (threadId, init) => {
-          const enriched = await this.ctx.state.previews.enrich(init);
-
           const event = await this.ctx.state.options.runtime.runPromise(
-            Journal.use((j) => j.append(threadId, enriched)),
+            Journal.use((journal) => this.ctx.state.previews.record(init, (event) => journal.append(threadId, event))),
           );
 
           this.ctx.ops.publish(event);

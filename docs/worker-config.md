@@ -1,5 +1,8 @@
 # Konfiguracja workerów
 
+Aktualizacja (2026-11-20): odczyt natywnie skompresowanych rolloutów Codexa
+w rekoncyliacji jest zaimplementowany. Włączenie kompresji przez Canopy pozostaje odłożone.
+
 Aktualizacja (2026-11-19): skrypt, Docker i instalacja ręczna czytają jednorazowy
 token enrollmentu z ukrytego promptu terminala lub stdin. Kreatory web i mobilny
 pokazują token obok polecenia. Instalacja SSH przekazuje go przez prywatne stdin.
@@ -551,7 +554,7 @@ Pickery (nowy wątek i wątek) pokazują dla wybranego workera tylko instancje `
 
 - Profile są identyfikowane parą (dostawca, id): duplikat tej pary jest błędem krytycznym; `native` worker dodaje sam tylko dla dostawców, których konfiguracja nie wymienia. Wyłączona zaślepka nie jest dalej walidowana. Profil dla obu dostawców (konfiguracja lokalna albo starsza; także `native` dodany przez workera) jest rozbijany na instancję per dostawca i tak sprawdzany i raportowany: wyłączony Claude nie wyłącza strony Codexa.
 - **Środowisko uruchomienia instancji** (`hasOwnRuntime`): własny plik wykonywalny, `home_path` (katalog CLI właściciela urządzenia, z którego dowiązywane jest logowanie), `shadow_home_path` (izolowany katalog harnessu; dotąd zawsze `<data_dir>/codex-home` / `claude-home`), argumenty uruchomienia, `own_login`. Instancja z `home_path` albo `own_login` bez `shadow_home_path` dostaje własny katalog `<data_dir>/homes/<harness>-<id>` (dwa logowania nie dzielą katalogu).
-  - Codex: każda instancja ma własny `codex app-server`: `<binary> app-server … <launch_args>`, `CODEX_HOME` = jej katalog. Wątki instancji z własnym katalogiem żyją w nim (jawna zmiana katalogu instancji z wątkami = ich sesje zostają w starym).
+  - Codex: każda instancja ma własny `codex app-server`: `<binary> app-server … <launch_args>`, `CODEX_HOME` = jej katalog. Wątki instancji z własnym katalogiem żyją w nim (jawna zmiana katalogu instancji z wątkami = ich sesje zostają w starym). Odczyt podczas rekoncyliacji i ograniczenia kompresji opisuje [adapter Codexa](codex-adapter.md#kompresja-historii-na-dysku).
   - Claude: per zapytanie `pathToClaudeCodeExecutable`, `CLAUDE_CONFIG_DIR` w `env` i `extraArgs` (z `--flag wartość`); pomocnicze funkcje SDK (`forkSession`, `getSessionMessages`) czytają katalog z procesu, więc wywołania idą po kolei z ustawionym `CLAUDE_CONFIG_DIR` katalogu instancji.
 - **Ochrona loginu Claude/Codex:** prywatny shadow home nie może wskazywać katalogu źródła logowania ani rzeczywistego domu CLI urządzenia, także przez dowiązania, przy własnym źródle loginu, wyłączonym logowaniu urządzenia lub własnym loginie. Błąd systemu plików wyłącza tylko daną instancję. Przygotowanie runtime'u sprawdza ścieżki ponownie; istniejący własny plik loginu nie jest usuwany ani zastępowany. Tryb współdzielonych sesji Claude wybiera osobny katalog sesji i nigdy nie przekazuje go do przygotowania prywatnego home.
   Niestandardowe źródło logowania nie wyłącza ochrony rzeczywistego domu CLI urządzenia.

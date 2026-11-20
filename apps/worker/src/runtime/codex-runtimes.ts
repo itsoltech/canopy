@@ -183,14 +183,15 @@ export class CodexRuntimes {
       viewImage: (threadId, path) => this.ctx.ops.viewImage(threadId, this.ctx.state.cwds.get(threadId) ?? "", path),
       localMcpServers: (tools, threadId, defaults) =>
         this.ctx.state.agentTools.localMcpServers(tools, threadId, defaults),
-      enrich: (init, threadId) => {
+      recordEvent: (journal, threadId, init) => {
         const cwd = this.ctx.state.cwds.get(threadId);
         const result = usage.failure(init);
+        const append = (event: typeof init) => journal.append(threadId, event);
 
-        if (!cwd) return this.ctx.state.previews.enrich(result);
+        if (!cwd) return this.ctx.state.previews.record(result, append);
         const generated = join(home.path, "generated_images");
 
-        return this.ctx.state.previews.enrich(result, {
+        return this.ctx.state.previews.record(result, append, {
           native: { cwd, roots: [cwd, this.ctx.state.files.threadDir(threadId)] },
           generated: { cwd, roots: [cwd, generated] },
         });

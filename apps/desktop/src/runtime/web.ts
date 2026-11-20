@@ -9,10 +9,11 @@ import { webRequestListener, type WebHandler } from "../../../gateway/src/web/re
 import type { Logs } from "./log.ts";
 import { desktopWebListener } from "./web-auth.ts";
 
-/** canopy-web.js (scripts/build.ts): adapter-node's handler and the setter of the desktop's fixed origin. */
+const DESKTOP_PROTOCOL_HEADER = "x-forwarded-proto";
+
+/** canopy-web.js (scripts/build.ts): adapter-node's handler with desktop asset paths. */
 interface WebModule {
   handler?: WebHandler;
-  setOrigin?: (origin: string) => void;
 }
 
 /**
@@ -33,9 +34,8 @@ export class DesktopWeb {
   /** Serves the UI at `origin` (the window's stable loopback origin) against `target`; the first call loads it. */
   async start(origin: string, target: BffTarget): Promise<void> {
     setBffTarget(target);
-    const web = await this.#load(origin);
-    web.setOrigin?.(origin);
     process.env["CANOPY_WEB_ORIGIN"] = origin;
+    const web = await this.#load();
 
     if (this.#server) {
       this.#server.closeAllConnections();
@@ -48,7 +48,15 @@ export class DesktopWeb {
     if (!handler) throw new Error("The desktop web build has no request handler");
     const log = (line: string) => this.logs.write("web", line);
     const listener = webRequestListener(handler, { assets: new Map(), protocolHeader: "", log });
-    const server = createServer(desktopWebListener(origin, this.token, listener));
+
+    const server = createServer(
+      desktopWebListener(origin, this.token, (request, response) => {
+        // The listener verified the exact Host. Supply the scheme of this HTTP connection server-side.
+        request.headers[DESKTOP_PROTOCOL_HEADER] = "http";
+        listener(request, response);
+      }),
+    );
+
     await listen(server, "127.0.0.1", Number(new URL(origin).port));
     this.#server = server;
   }
@@ -69,12 +77,15 @@ export class DesktopWeb {
     for (const level of ["log", "info", "debug", "warn", "error", "trace"] as const) console[level] = write;
     containWebFaults(this.entry, (line) => this.logs.write("web", line));
   }
-  #load(origin: string): Promise<WebModule> {
+  #load(): Promise<WebModule> {
     this.#loading ??= (async () => {
-      // Read once when SvelteKit and adapter-node load; the target and origin are set per start.
+      // Adapter-node captures ORIGIN at import. Let it resolve each origin from the verified request.
+      delete process.env["ORIGIN"];
       Object.assign(process.env, {
         CANOPY_WEB_ASSETS_DIR: join(dirname(this.entry), "web"),
-        CANOPY_WEB_ORIGIN: origin,
+        PROTOCOL_HEADER: DESKTOP_PROTOCOL_HEADER,
+        HOST_HEADER: "",
+        PORT_HEADER: "",
         BODY_SIZE_LIMIT: "50M",
         // The BFF's log lines reach the `web` log through this process's console, not a writer of its own.
         CANOPY_LOG_SUPERVISED: "1",

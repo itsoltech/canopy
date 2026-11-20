@@ -3,12 +3,13 @@ import type { ConsumedUsage } from "../token-usage.ts";
 import type { v2 } from "@canopy/codex-protocol";
 import { ItemStatus, TurnEndSource, TurnOutcome } from "@canopy/contracts";
 import type { ThreadEventInit } from "../../journal/index.ts";
-import { readJsonl, type HarnessRecord, type TurnEnd } from "../harness-record.ts";
+import type { HarnessRecord, TurnEnd } from "../harness-record.ts";
 import { CodexEventMapper, codexErrorCode } from "./mapping.ts";
 import { Schema } from "effect";
 import { isPlatformServer, type JsonObject, type JsonValue } from "@canopy/domain";
 import { isBoolean, isNumber, isString, jsonObject, jsonString } from "../json.ts";
 import { decodeResponseItem } from "./rollout.ts";
+import { readCodexRollout } from "./recovery-rollout.ts";
 
 const TokenUsage = Schema.Struct({
   input_tokens: Schema.optionalKey(Schema.Number),
@@ -36,8 +37,9 @@ export async function readCodexTurn(
   offset: number,
   codexTurnId: string,
   platformTurnId: string,
+  sessionId = "",
 ): Promise<HarnessRecord | undefined> {
-  const records = await readJsonl(path, offset);
+  const records = await readCodexRollout(path, offset, sessionId);
   let target = codexTurnId || undefined;
   let current: string | undefined;
 

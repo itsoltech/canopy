@@ -1,15 +1,16 @@
 import { afterAll, beforeAll, describe, expect, test } from "bun:test";
-import { create, toBinary } from "@bufbuild/protobuf";
+import { create, toBinary, type MessageInitShape } from "@bufbuild/protobuf";
 import { Provider, ui } from "@canopy/contracts";
 import { dockerAvailable } from "@canopy/db/testing";
 import { validateThreadBatch } from "@canopy/domain/thread-sync";
-import { Code, ConnectError } from "@connectrpc/connect";
+import { Code } from "@connectrpc/connect";
 import { Effect } from "effect";
 import { SqlClient } from "effect/sql";
 import { ComputerStore } from "../../apps/gateway/src/computers/store.ts";
 import { readThreadRange } from "../../apps/gateway/src/computers/range-source.ts";
 import { readClientWindow } from "../../apps/gateway/src/core/client-window.ts";
 import { SequenceWindow } from "../../apps/gateway/src/core/sequence-window.ts";
+import { pruneDatabase } from "../../apps/gateway/src/maintenance/prune.ts";
 import { pruneThreadReplication } from "../../apps/gateway/src/maintenance/thread-replication.ts";
 import { eventually, startTestGateway, type TestGateway } from "./support/gateway.ts";
 
@@ -25,7 +26,7 @@ describe.skipIf(!dockerAvailable)("bounded source thread replication", () => {
   });
   afterAll(async () => gateway?.close());
 
-  async function thread() {
+  async function thread({ checkpoint = true } = {}) {
     const project = (await gateway.api.createProject({ name: "Replication retention" })).project!.id;
 
     const workspace = (
@@ -49,9 +50,27 @@ describe.skipIf(!dockerAvailable)("bounded source thread replication", () => {
       () => gateway.api.getThread({ threadId: id }),
       (value) => value.thread?.status === "idle",
     );
-    await readClientWindow(store, create(ui.WatchThreadRequestSchema, { threadId: id, sequence: true }));
+
+    if (checkpoint)
+      await readClientWindow(store, create(ui.WatchThreadRequestSchema, { threadId: id, sequence: true }));
 
     return id;
+  }
+
+  async function watchSnapshot(input: MessageInitShape<typeof ui.WatchThreadRequestSchema>) {
+    for await (const update of gateway.api.watchThread({ ...input, sequence: true }, { timeoutMs: 5000 })) {
+      if (update.change.case === "snapshot") return update.change.value;
+    }
+
+    throw new Error("Sequence watch ended before sending a snapshot");
+  }
+
+  async function runMaintenance() {
+    await store.query("UPDATE database_maintenance SET next_run_at=now() WHERE owner_user_id=$1::uuid", [
+      gateway.userId,
+    ]);
+
+    return gateway.runtime.runPromise(pruneDatabase(gateway.userId));
   }
 
   async function prune(id: string, owner = gateway.userId) {
@@ -110,7 +129,85 @@ describe.skipIf(!dockerAvailable)("bounded source thread replication", () => {
     ]);
   }
 
-  test("10k suffix converges in bounded batches, keeps grace and pending rows, and isolates owners", async () => {
+  test("an old unpublished bootstrap prefix expires while snapshot references and reconnects still work", async () => {
+    const id = await thread({ checkpoint: false });
+    const output = "leased bootstrap output ".repeat(1500);
+    // Build the source history before its first sequence watch. Bootstrap must
+    // allocate the journal itself, leaving the header and item rows unsealed.
+    await store.query(
+      `INSERT INTO thread_items(thread_id,item_id,type,status,content,first_seq,last_seq)
+      SELECT $1::uuid,items.id,'command_execution','completed',jsonb_build_object('itemId',items.id,
+        'status','COMPLETED','commandExecution',jsonb_build_object('command','test','output',items.output)),items.n,items.n
+      FROM (SELECT 'item-'||n AS id,'inline' AS output,n FROM generate_series(1,10000) n
+        UNION ALL SELECT 'a-output',$2,10001) items`,
+      [id, output],
+    );
+    const initial = await watchSnapshot({ threadId: id, targetItemId: "a-output", pageSize: 1 });
+    const cursor = initial.syncCursor!;
+    const hash = initial.items.find((item) => item.item?.itemId === "a-output")!.contentRef!.sha256;
+    expect(cursor.appliedSeq).toBe(10_002n);
+    expect(
+      await store.query(
+        `SELECT kind,payload IS NULL AS pending FROM thread_replication_journal
+        WHERE thread_id=$1 AND epoch=$2 AND seq<=2 ORDER BY seq`,
+        [id, cursor.epoch],
+      ),
+    ).toEqual([
+      { kind: "thread", pending: true },
+      { kind: "item", pending: true },
+    ]);
+
+    await gateway.api.updateThread({ threadId: id, title: "Current source" });
+    await store.query(
+      `UPDATE thread_items SET content=jsonb_set(content,'{commandExecution,output}','"Current output"')
+      WHERE thread_id=$1 AND item_id='a-output'`,
+      [id],
+    );
+    await store.query("UPDATE thread_replication_journal SET created_at=$2 WHERE thread_id=$1", [id, before]);
+    await store.query("UPDATE thread_replication_content SET last_referenced_at=$2 WHERE thread_id=$1", [id, before]);
+    expect(await store.query("SELECT 1 FROM thread_replication_entity_content WHERE thread_id=$1", [id])).toHaveLength(
+      0,
+    );
+    await runMaintenance();
+    expect(
+      await store.query(
+        `SELECT c.replay_floor_seq::int AS floor,min(j.seq)::int AS first,count(*)::int AS total
+        FROM thread_replication_clock c JOIN thread_replication_journal j USING(thread_id,epoch)
+        WHERE c.thread_id=$1 AND c.epoch=$2 GROUP BY c.replay_floor_seq`,
+        [id, cursor.epoch],
+      ),
+    ).toEqual([{ floor: 4, first: 5, total: 10_000 }]);
+    const content = await gateway.api.getThreadSyncContent({ threadId: id, sha256: hash });
+    expect(Buffer.from(content.data).toString()).toContain("leased bootstrap output");
+
+    const floor = create(ui.ThreadSyncCursorSchema, { ...cursor, appliedSeq: 4n });
+    const replay = await readThreadRange(store, floor);
+    expect(replay.epoch).toBe(cursor.epoch);
+    validateThreadBatch(replay, floor.appliedSeq);
+    expect(replay.records[0]?.seq).toBe(5n);
+
+    const expired = create(ui.ThreadSyncCursorSchema, { ...cursor, appliedSeq: 0n });
+    const window = await watchSnapshot({ threadId: id, syncCursor: expired, pageSize: 1 });
+    expect(window.thread?.title).toBe("Current source");
+    expect(window.syncCursor?.epoch).toBe(cursor.epoch);
+    expect(window.syncCursor?.appliedSeq).toBe(10_004n);
+
+    const reseed = await readThreadRange(store, expired);
+    expect(reseed.epoch).not.toBe(cursor.epoch);
+    validateThreadBatch(reseed, 0n);
+    const [header, item] = reseed.records;
+    expect(header?.value.case === "thread" && header.value.value.title).toBe("Current source");
+    const command = item?.value.case === "item" && item.value.value.item?.content;
+    expect(command && command.case === "commandExecution" && command.value.output).toBe("Current output");
+
+    await age(id);
+    await runMaintenance();
+    await expect(gateway.api.getThreadSyncContent({ threadId: id, sha256: hash })).rejects.toMatchObject({
+      code: Code.NotFound,
+    });
+  }, 30_000);
+
+  test("10k suffix converges in bounded batches after grace and isolates owners", async () => {
     const id = await thread();
     await history(id, 12_512);
     await store.query(
@@ -120,13 +217,21 @@ describe.skipIf(!dockerAvailable)("bounded source thread replication", () => {
       [id],
     );
     expect(await prune(id)).toBe(0);
-    expect(await prune(id, crypto.randomUUID())).toBe(0);
     await age(id);
     await store.query(
-      `UPDATE thread_replication_journal SET payload=NULL,content_indexed=false
+      `UPDATE thread_replication_journal SET payload=NULL,content_indexed=false,created_at=now()
       WHERE thread_id=$1 AND seq=200`,
       [id],
     );
+    expect(await prune(id, crypto.randomUUID())).toBe(0);
+    await prune(id);
+    expect(
+      await store.query("SELECT replay_floor_seq::int AS floor FROM thread_replication_clock WHERE thread_id=$1", [id]),
+    ).toEqual([{ floor: 199 }]);
+    await store.query("UPDATE thread_replication_journal SET created_at=$2 WHERE thread_id=$1 AND seq=200", [
+      id,
+      before,
+    ]);
     const maximum: number[] = [];
 
     for (let index = 0; index < 12; index++) {
@@ -157,7 +262,7 @@ describe.skipIf(!dockerAvailable)("bounded source thread replication", () => {
       )
     )[0]!;
 
-    expect(clock.floor).toBe("199");
+    expect(clock.floor).toBe("2512");
     expect(await store.query("SELECT 1 FROM thread_replication_content WHERE thread_id=$1", [id])).toHaveLength(0);
     expect(Math.max(...maximum)).toBeLessThanOrEqual(256);
     const cursor = create(ui.ThreadSyncCursorSchema, { threadId: id, epoch: clock.epoch, appliedSeq: 2512n });
@@ -225,6 +330,11 @@ describe.skipIf(!dockerAvailable)("bounded source thread replication", () => {
     const generation = crypto.randomUUID();
     const first = await readThreadRange(store, cursor, 0n, generation);
     validateThreadBatch(first, 10n);
+    const pending = first.appliedSeq + 1n;
+    await store.query(
+      `UPDATE thread_replication_journal SET payload=NULL,content_indexed=false WHERE thread_id=$1 AND seq=$2`,
+      [id, pending.toString()],
+    );
     await store.query("UPDATE thread_replication_journal SET created_at=$2 WHERE thread_id=$1", [id, before]);
     await prune(id);
     expect(
@@ -245,21 +355,10 @@ describe.skipIf(!dockerAvailable)("bounded source thread replication", () => {
       )
     )[0]!.floor;
 
-    expect(BigInt(suffix)).toBeGreaterThan(10n);
-    let snapshot: ui.ThreadSnapshot | undefined;
-
-    for await (const update of gateway.api.watchThread(
-      { threadId: id, sequence: true, syncCursor: cursor },
-      { timeoutMs: 5000 },
-    )) {
-      if (update.change.case === "snapshot") {
-        snapshot = update.change.value;
-        break;
-      }
-    }
-
-    expect(snapshot?.thread?.title).toBe("Retained source");
-    expect(snapshot?.syncCursor?.epoch).toBe(old);
+    expect(BigInt(suffix)).toBeGreaterThanOrEqual(pending);
+    const snapshot = await watchSnapshot({ threadId: id, syncCursor: cursor });
+    expect(snapshot.thread?.title).toBe("Retained source");
+    expect(snapshot.syncCursor?.epoch).toBe(old);
     const reset = await readThreadRange(store, cursor);
     expect(reset.epoch).not.toBe(old);
     validateThreadBatch(reset, 0n);
@@ -272,17 +371,16 @@ describe.skipIf(!dockerAvailable)("bounded source thread replication", () => {
         )
       )[0]!.floor,
     ).toBe("0");
-    await history(id, 32);
+    await history(id, 10_004);
     await store.query("DELETE FROM thread_replication_journal WHERE thread_id=$1 AND seq=2", [id]);
+    await age(id);
+    await prune(id);
+    expect(
+      await store.query("SELECT replay_floor_seq::int AS floor FROM thread_replication_clock WHERE thread_id=$1", [id]),
+    ).toEqual([{ floor: 1 }]);
     await expect(
-      readThreadRange(store, create(ui.ThreadSyncCursorSchema, { threadId: id, epoch: reset.epoch })),
-    ).rejects.toBeInstanceOf(ConnectError);
-
-    try {
-      await readThreadRange(store, create(ui.ThreadSyncCursorSchema, { threadId: id, epoch: reset.epoch }));
-    } catch (error) {
-      expect(ConnectError.from(error).code).toBe(Code.DataLoss);
-    }
+      readThreadRange(store, create(ui.ThreadSyncCursorSchema, { threadId: id, epoch: reset.epoch, appliedSeq: 1n })),
+    ).rejects.toMatchObject({ code: Code.DataLoss });
   });
 
   test("content leases and replay floor survive a gateway restart", async () => {

@@ -99,21 +99,22 @@ test("code-mode rollout images persist before raw compaction, retain all outputs
     publish: (event) => published.push(event),
     interact: async () => create(InteractionResponseSchema, { allow: false }),
     callTool: async () => create(AgentToolResultSchema, { isError: true }),
-    enrich: async (init) => {
+    recordEvent: (journal, id, init) => {
       rawBefore.push(init.rawJson ?? "");
-      const enriched = await previews.enrich(init);
 
-      const body = enriched.body;
+      return previews.record(init, (enriched) => {
+        const body = enriched.body;
 
-      if (
-        enriched.rawJson !== init.rawJson &&
-        body?.case === "itemCompleted" &&
-        body.value.item?.content?.case === "toolCall"
-      )
-        for (const ref of body.value.item.content.value.images ?? [])
-          expect(readFileSync(join(root, "previews", ref.sha256!))).toEqual(expectedBytes.get(ref.sha256!)!);
+        if (
+          enriched.rawJson !== init.rawJson &&
+          body?.case === "itemCompleted" &&
+          body.value.item?.content?.case === "toolCall"
+        )
+          for (const ref of body.value.item.content.value.images ?? [])
+            expect(readFileSync(join(root, "previews", ref.sha256!))).toEqual(expectedBytes.get(ref.sha256!)!);
 
-      return enriched;
+        return journal.append(id, enriched);
+      });
     },
   }).pipe(Layer.provideMerge(Journal.layer(journalPath)));
 

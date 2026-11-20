@@ -267,4 +267,96 @@ describe.skipIf(!dockerAvailable)("transcript storage on PostgreSQL", () => {
       await fresh.dispose();
     }
   });
+
+  test("tool arguments and results use verified JSON references, including during historical compaction", async () => {
+    const ids = await seed();
+
+    const input = JSON.stringify({
+      paths: Array.from({ length: 40 }, (_, i) => `apps/gateway/src/feature-${i}/index.ts`),
+    });
+
+    const makeResult = (scale: string) =>
+      `[{"text":${JSON.stringify(input.repeat(2))}, "scale":${scale}, "number":12345678901234567890}]`;
+
+    const result = makeResult("1.10");
+
+    const file = {
+      path: "apps/gateway/src/handler.ts",
+      kind: "update",
+      diff: Array.from({ length: 60 }, (_, i) => `+export const handler${i} = () => readHistory(${i});`).join("\n"),
+    };
+
+    const tool = (seq: number, rawResult: string, output = result): ThreadEvent => ({
+      ...event(ids.thread, seq, ids.turn, {
+        case: "itemCompleted",
+        value: {
+          item: {
+            itemId: `tool-${seq}`,
+            status: ItemStatus.COMPLETED,
+            content: { case: "toolCall", value: { inputJson: input, output } },
+          },
+        },
+      }),
+      rawJson: `{"method":"item/completed","params":{"item":{"arguments":${input},"result":{"content":${rawResult}}}}}`,
+    });
+
+    const exact = tool(2, result);
+    const differentScale = tool(3, makeResult("1.1"));
+    const imageContent = JSON.stringify([{ type: "image", mimeType: "image/png", data: "A".repeat(3200) }]);
+    const image = tool(5, imageContent, imageContent);
+
+    const patch = {
+      ...event(ids.thread, 4, ids.turn, {
+        case: "itemCompleted",
+        value: {
+          item: {
+            itemId: "patch",
+            status: ItemStatus.COMPLETED,
+            content: { case: "fileChange", value: { changes: [file] } },
+          },
+        },
+      }),
+      rawJson: JSON.stringify({ method: "item/completed", params: { item: { changes: [file] } } }),
+    };
+
+    await runtime.runPromise(
+      Ingest.use((i) =>
+        i.ingest(ids.worker, "structured-raw", [
+          event(ids.thread, 1, ids.turn, {
+            case: "turnStarted",
+            value: { providerTurnRef: "t", origin: TurnOrigin.COMMAND },
+          }),
+          exact,
+          differentScale,
+          patch,
+          image,
+          event(ids.thread, 6, ids.turn, {
+            case: "turnFinished",
+            value: { outcome: TurnOutcome.COMPLETED, providerTurnRef: "t" },
+          }),
+        ]),
+      ),
+    );
+
+    const stored = (seq: number, raw: string) =>
+      query<{ exact: boolean; refs: number | null }>(
+        `SELECT thread_event_raw(raw,payload,raw_payload_refs)::text=($3::jsonb)::text AS exact,
+              jsonb_array_length(raw_payload_refs) AS refs FROM thread_events WHERE thread_id=$1 AND seq=$2`,
+        [ids.thread, seq, raw],
+      );
+
+    expect(await stored(2, exact.rawJson)).toEqual([{ exact: true, refs: 2 }]);
+    expect(await stored(3, differentScale.rawJson)).toEqual([{ exact: true, refs: 1 }]);
+    expect(await stored(4, patch.rawJson)).toEqual([{ exact: true, refs: 1 }]);
+    expect(await stored(5, image.rawJson)).toEqual([{ exact: true, refs: null }]);
+
+    await query(`UPDATE thread_events SET raw=$2::jsonb,raw_payload_refs=NULL WHERE thread_id=$1 AND seq=2`, [
+      ids.thread,
+      exact.rawJson,
+    ]);
+    await query(`UPDATE thread_events SET recorded_at=now()-interval '2 hours' WHERE thread_id=$1`, [ids.thread]);
+    await runtime.runPromise(SqlClient.SqlClient.use((sql) => compactTranscript(sql, ids.user)));
+
+    expect(await stored(2, exact.rawJson)).toEqual([{ exact: true, refs: 2 }]);
+  });
 });

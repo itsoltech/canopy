@@ -1,6 +1,6 @@
 # Połączone komputery
 
-Status: opis zaimplementowanej synchronizacji (2026-11-19), w tym weryfikacji obsługi ochrony wersji CLI przez partnera w Update all, kolejności aktualizacji aplikacji i CLI partnerów, wstrzymywania luster wyłączonego modułu, kolejności zakładek konta, kontroli dostępu między botami i wątkami przez łącze, ograniczenia czasu oczekiwania na listę botów w `list_agents` oraz przyrostowej
+Status: opis zaimplementowanej synchronizacji (2026-11-20), w tym retencji nieopublikowanych wpisów dziennika, weryfikacji obsługi ochrony wersji CLI przez partnera w Update all, kolejności aktualizacji aplikacji i CLI partnerów, wstrzymywania luster wyłączonego modułu, kolejności zakładek konta, kontroli dostępu między botami i wątkami przez łącze, ograniczenia czasu oczekiwania na listę botów w `list_agents` oraz przyrostowej
 synchronizacji agregatów użycia z żądaną szybkością wykonania i podziałem
 według aktywności i botów przez bezpośrednie
 łącza, odwołania zaufania w trakcie handshake, zachowania lokalnych kanałów Slack botów i nadawców historycznych
@@ -1310,9 +1310,10 @@ turę, item, notice, interakcję, cel, steer i dostarczenie szyny. Nie kopiuje t
 wykonawczych, lease'ów, sekretów ani poświadczeń. Początkowy stan istniejących
 wątków jest zamieniany na ponumerowane rekordy pojedynczych encji podczas migracji;
 nie powstaje zbiorczy snapshot. Nowe mutacje i rekordy dziennika są atomowe.
-Niezapieczętowane wpisy zatrzymują granicę; dziennik zakresów domu zachowuje ostatnie 10 000 rekordów bieżącej epoki oraz
-godzinny okres ochronny dla świeżych wpisów. Pruning usuwa wyłącznie ciągły,
-stary prefiks, po najwyżej 256 wierszy. Źródłowe encje pozostają w bazie, a
+Dziennik zakresów domu zachowuje ostatnie 10 000 rekordów bieżącej epoki oraz
+godzinny okres ochronny dla świeżych wpisów. Sprzątanie usuwa ciągły, stary
+prefiks po najwyżej 256 wierszy, z uwzględnieniem nieopublikowanych wpisów
+i ochrony obowiązujących dzierżaw. Źródłowe encje pozostają w bazie, a
 odbudowa odczytuje ich aktualną projekcję. Aktywna subskrypcja ma dzierżawę od swojego seq, więc wolny klient nie
 traci następnego rekordu. Po wygaśnięciu starego kursora dom zaczyna nową epokę
 i uruchamia istniejący bootstrap samych identyfikatorów encji, zamiast zwracać `DataLoss`

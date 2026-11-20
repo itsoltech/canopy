@@ -22,6 +22,7 @@ import {
 } from "node:fs";
 import { join } from "node:path";
 import { createHash } from "node:crypto";
+import { PEER_HEARTBEAT_MS } from "../../apps/gateway/src/computers/timing.ts";
 import { coreWorkerQuery } from "../../apps/gateway/src/core/core-mentions.ts";
 import { linkedProjectFixture } from "./support/linked-projects.ts";
 import { workspaceWorker } from "./support/workspace-worker.ts";
@@ -38,7 +39,8 @@ describe.skipIf(!dockerAvailable)("workspace copies over real worker and compute
   const secret = "fixture-local-secret-contents";
 
   beforeAll(async () => {
-    fixture = await linkedProjectFixture(dir, { shared: true });
+    // Keep the production link deadline while both gateways and their workers share a test process.
+    fixture = await linkedProjectFixture(dir, { shared: true, heartbeatMs: PEER_HEARTBEAT_MS });
     target = await workspaceWorker(fixture.a.gw, join(dir, "target"));
     linked = await workspaceWorker(fixture.b.gw, join(dir, "linked"));
     old = await workspaceWorker(fixture.a.gw, join(dir, "old"), "Older worker", false);
@@ -66,10 +68,21 @@ describe.skipIf(!dockerAvailable)("workspace copies over real worker and compute
     }
 
     symlinkSync("untracked.txt", join(repo, "local-link"));
-    await eventually(
-      () => fixture.a.gw.api.getOverview({}),
-      (o) => o.workers.some((w) => w.id === remoteId && w.workspaceCopy),
+
+    const ready = await eventually(
+      async () => {
+        const { a, la, lb } = fixture;
+
+        if (!la.canCall(lb.hello().nodeId) || !lb.canCall(la.hello().nodeId)) return false;
+        const overview = await a.gw.api.getOverview({});
+
+        return overview.workers.some((w) => w.id === remoteId && w.online && w.workspaceCopy);
+      },
+      Boolean,
+      15_000,
     );
+
+    if (!ready) throw new Error("The computer link or destination copy worker did not become ready");
   }, 90_000);
   afterAll(async () => {
     await old?.close();

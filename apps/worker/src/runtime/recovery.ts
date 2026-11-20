@@ -3,10 +3,8 @@ import { reconcileTurn, WORKER_RESTARTED } from "../providers/reconcile.ts";
 import type { HostContext } from "./host-context.ts";
 import { recoverShellInputs } from "./shell-input.ts";
 
-/** Prune only acknowledged image files, then settle the previous process's turns and tasks. */
+/** Settle the previous process's turns and tasks. */
 export async function recoverWorker(ctx: HostContext) {
-  const pending = await ctx.state.options.runtime.runPromise(Journal.use((j) => j.pending(new Map())));
-  ctx.state.previews.prune(pending);
   await recoverShellInputs(ctx);
   const open = await ctx.state.options.runtime.runPromise(Journal.use((j) => j.openTurns()));
   let fromTranscript = 0;

@@ -61,8 +61,12 @@ export interface CodexThreadsOptions {
     threadId: string,
     defaults?: ThreadSpec["agentToolDefaults"],
   ): readonly LocalAgentToolMcpServer[];
-  /** Adds what the transcript shows of an event (image previews) before it is journaled. */
-  enrich?(init: ThreadEventInit, threadId: string): Promise<ThreadEventInit>;
+  /** Prepares image previews and writes the event to the journal. */
+  recordEvent?(
+    journal: Journal["Service"],
+    threadId: string,
+    init: ThreadEventInit,
+  ): ReturnType<Journal["Service"]["append"]>;
   /** Account connectors (Codex apps) are on for this worker (NativeToolsConfig.connectors): list them for mentions. */
   readonly connectors?: boolean;
 }
