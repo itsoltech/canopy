@@ -1,6 +1,7 @@
 import { ensureScratchDirectory } from "./scratch.ts";
 import { join } from "node:path";
 import { PermissionMode, Provider, type Command } from "@canopy/contracts";
+import { isContinuationInput } from "@canopy/domain";
 import { Context, Effect } from "effect";
 import { Journal } from "../journal/index.ts";
 import { ClaudeThreads } from "../providers/claude/threads.ts";
@@ -150,7 +151,7 @@ export class ThreadCommands {
     const recoveryContext = await this.ctx.state.options.runtime.runPromise(
       Journal.use((journal) =>
         Effect.gen(function* () {
-          if (input.text === "Continue") return yield* journal.recoveryInstructions(spec.threadId);
+          if (isContinuationInput(input.text)) return yield* journal.recoveryInstructions(spec.threadId);
           yield* journal.rememberRequest(spec.threadId, input.text);
 
           return "";

@@ -121,9 +121,6 @@ export const TTL = {
   stopTask: 300,
 } as const;
 
-/** Why the gateway ended a turn its worker no longer runs (turns.interrupt_reason). */
-export const WORKER_RESTARTED = "worker restarted";
-
 /** Audit reasons of items the gateway closes (thread_events.raw of its item_completed). */
 export const SETTLE_TURN_ENDED = "the turn ended while the item was still open";
 

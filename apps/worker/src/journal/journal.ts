@@ -78,6 +78,7 @@ export interface TurnHarness {
 }
 
 export interface OpenTurn {
+  readonly serviceInvocation?: string;
   readonly threadId: string;
   readonly turnId: string;
   /** Absent when the turn was started by a process that did not record it. */
@@ -160,13 +161,13 @@ export class Journal extends Context.Service<
   }
 >()("canopy/worker/Journal") {
   /** Journal backed by a SQLite file (created if missing). Closed when the scope ends. */
-  static readonly layer = (path: string, diagnostics = false) =>
+  static readonly layer = (path: string, diagnostics = false, serviceInvocation = "") =>
     Layer.effect(
       Journal,
       Effect.acquireRelease(
         Effect.try({ try: () => open(path), catch: (cause) => new JournalError({ operation: "open", cause }) }),
         (db) => Effect.sync(() => db.close()),
-      ).pipe(Effect.map((db) => makeJournal(db, diagnostics))),
+      ).pipe(Effect.map((db) => makeJournal(db, diagnostics, serviceInvocation))),
     );
 }
 
@@ -196,6 +197,7 @@ const SCHEMA = `
   CREATE TABLE IF NOT EXISTS open_turns (
     thread_id TEXT NOT NULL,
     turn_id   TEXT NOT NULL,
+    service_invocation TEXT NOT NULL DEFAULT '',
     PRIMARY KEY (thread_id, turn_id)
   );
   CREATE TABLE IF NOT EXISTS started_turns (
@@ -263,7 +265,7 @@ function botAdmission(db: Database, append: (botId: string, event: ThreadEventIn
   });
 }
 
-function makeJournal(db: Database, diagnostics: boolean): Journal["Service"] {
+function makeJournal(db: Database, diagnostics: boolean, serviceInvocation: string): Journal["Service"] {
   const redact = secretEventRedactor();
   let shuttingDown = false;
 
@@ -284,7 +286,7 @@ function makeJournal(db: Database, diagnostics: boolean): Journal["Service"] {
 
   const { trackBackground, selectBackground } = backgroundTracking(db);
 
-  const turns = turnTracking(db, attempt);
+  const turns = turnTracking(db, attempt, serviceInvocation);
   const homes = claudeSessionTracking(db, attempt);
 
   const appendTx = db.transaction((threadId: string, event: ThreadEventInit) => {

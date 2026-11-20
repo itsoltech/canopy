@@ -2,7 +2,8 @@ import { create } from "@bufbuild/protobuf";
 import { ui, type CommandResult } from "@canopy/contracts";
 import { Effect, Match } from "effect";
 import { mentionsFromJson } from "./mentions.ts";
-import { NotFound, SteerStore, toUiDelivery, toUiSteer, turnEffort } from "../store/index.ts";
+import { interruptTarget } from "../store/interrupt-target.ts";
+import { SteerStore, toUiDelivery, toUiSteer, turnEffort } from "../store/index.ts";
 import { coreDispatch } from "./core-commands.ts";
 import { checkedPermissionMode, coreState, InvalidError, TTL } from "./core-context.ts";
 import type { GatewayCore } from "./core.ts";
@@ -269,18 +270,23 @@ const messageActions: Omit<CoreMessagesMethods, "sendMessage"> = {
   },
 
   async interrupt(this: GatewayCore, threadId: string): Promise<void> {
-    const thread = await coreRun(this, (s) => s.thread(threadId));
+    const { actions, options } = this[coreState];
+    await actions.transaction(async () => {
+      const target = await actions.run(interruptTarget(options.userId, threadId));
 
-    if (thread.owner_user_id !== this[coreState].options.userId) throw new NotFound("thread not found");
-    const turn = await coreRun(this, (s) => s.runningTurn(threadId));
+      if (!target) return;
+      const { workerId, turnId } = target;
 
-    if (!turn || !thread.worker_id) return;
-    await coreDispatch(
-      this,
-      thread.worker_id,
-      { kind: { case: "interruptTurn", value: { threadId, turnId: turn.id } } },
-      { threadId, turnId: turn.id, ttlSeconds: TTL.interruptTurn },
-    );
+      if (target.dispatch)
+        await coreDispatch(
+          this,
+          workerId,
+          { kind: { case: "interruptTurn", value: { threadId, turnId } } },
+          { threadId, turnId, ttlSeconds: TTL.interruptTurn },
+        );
+
+      if (target.cancelled) actions.defer(() => coreBroadcastTurn(this, threadId, turnId, "finished"));
+    });
   },
 };
 

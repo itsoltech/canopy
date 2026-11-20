@@ -1,8 +1,45 @@
 # Ograniczanie procesów
 
-Status (2026-11-19): runner rozróżnia upływ czasu, przekroczenie limitu wyjścia i
-anulowanie oraz przekazuje wynik próby zatrzymania drzewa procesów.
+Status (2026-11-20): usługa workera na Linuksie może izolować pamięć procesów
+dostawców i poleceń `!` w delegowanych grupach cgroup v2.
 Dostępność w wydaniach wynika z promocji ([release.md](release.md)).
+
+## Pamięć procesów workera na Linuksie
+
+Wygenerowana jednostka systemd umieszcza proces sterujący i jego supervisor
+w podgrupie `canopy-control`. Każdy uruchamiany harness i każde polecenie
+`!` dostają osobną podgrupę w `canopy-workloads`. Proces dołącza do
+niej przed wykonaniem polecenia, a jego potomkowie dziedziczą grupę. Po
+wyjściu procesu worker kończy pozostałych potomków i sprząta podgrupę.
+Codex współdzieli app-server między wątkami tej samej instancji dostawcy.
+W jego grupie worker ustawia `memory.oom.group=0`. Jądro może zakończyć
+pojedynczy proces kompilacji i pozostawić app-server oraz inne tury przy życiu.
+Jeśli wybierze sam app-server albo systemd-oomd zakończy całą podgrupę,
+kilka tur tej instancji może się przerwać.
+
+Worker bierze mniejszą z dwóch wartości: fizyczną pamięć hosta i najniższy
+limit `memory.max` w hierarchii usługi. Każde drzewo procesów dostaje do 50%
+tej pamięci, wszystkie drzewa łącznie do 80%. Tam, gdzie dostępne jest rozliczanie
+swapu, jego limit w każdej grupie wynosi 25% jej limitu pamięci.
+Poza app-serverem Codexa po przekroczeniu twardego limitu jądro może zakończyć
+całe wybrane drzewo (`memory.oom.group=1`). Worker i pozostałe grupy mogą kontynuować pracę.
+Worker nie ustawia `memory.high`: długie hamowanie alokacji zwiększa presję
+pamięci mierzoną przez systemd-oomd również na poziomie nadrzędnej grupy aplikacji.
+
+Potrzebne są systemd ≥254, delegowany kontroler `memory` w cgroup v2 oraz
+`cgroup.kill` (Linux ≥5.14). Pozostałe sposoby uruchomienia zachowują zwykłe
+limity systemowe. Przy aktualizacji już zainstalowanego workera administrator
+może zachować zmiany lokalne jednostki i dodać poniższe ustawienia przez
+`systemctl --user edit canopy-worker.service`. Po zakończeniu aktywnych tur
+należy przeładować konfigurację i zrestartować usługę. Log nowego procesu
+podaje stan izolacji i limit pojedynczej grupy.
+
+```ini
+[Service]
+Delegate=memory
+DelegateSubgroup=canopy-control
+OOMPolicy=continue
+```
 
 ## Audyt procesów
 

@@ -1,6 +1,6 @@
 import { Option, Schema } from "effect";
 import type { JsonObject } from "@canopy/domain";
-import { governBunSpawn, windowsCommand } from "@canopy/process-governor";
+import { governBunSpawn, windowsCommand, startWorkload } from "@canopy/process-governor";
 import { codexTextCatalog } from "../providers/generate-text.ts";
 import type { CodexAppServerLaunch } from "../providers/codex/launch.ts";
 
@@ -38,13 +38,15 @@ export async function codexModelEntry(
     const command = windowsCommand([executable, "debug", "models"], launch.env);
 
     const child = governBunSpawn("harness", () =>
-      Bun.spawn([...command.argv], {
-        env: launch.env,
-        windowsVerbatimArguments: command.windowsVerbatimArguments,
-        stdin: "ignore",
-        stdout: "pipe",
-        stderr: "ignore",
-      }),
+      startWorkload(command.argv, (argv) =>
+        Bun.spawn([...argv], {
+          env: launch.env,
+          windowsVerbatimArguments: command.windowsVerbatimArguments,
+          stdin: "ignore",
+          stdout: "pipe",
+          stderr: "ignore",
+        }),
+      ),
     );
 
     const timer = setTimeout(() => child.kill(), timeoutMs);

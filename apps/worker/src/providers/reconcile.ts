@@ -24,7 +24,7 @@ import type { HarnessRecord, TurnEnd } from "./harness-record.ts";
  */
 
 /** Why the turn ended when its harness did not record an end. */
-export type EndCause = Omit<TurnEnd, "providerTurnRef" | "usage">;
+export type EndCause = Omit<TurnEnd, "providerTurnRef" | "usage"> & { readonly workerOomRecovery?: boolean };
 
 /** The worker process that ran the turn is gone (this one started after it). */
 export const WORKER_RESTARTED: EndCause = {
@@ -94,16 +94,18 @@ export function reconcileEvents(open: OpenTurn, record: HarnessRecord | undefine
 
   const recorded = record?.end;
 
-  const end: TurnEnd =
+  const interruptedWithWorker =
     recorded?.outcome === TurnOutcome.INTERRUPTED &&
     recorded.source !== TurnEndSource.SYSTEM &&
-    !open.interruptRequested
-      ? {
-          ...recorded,
-          source: TurnEndSource.SYSTEM,
-          reason: `${cause.reason} (the harness stopped the turn: ${recorded.reason || "interrupted"})`,
-        }
-      : (recorded ?? cause);
+    !open.interruptRequested;
+
+  const end: TurnEnd = interruptedWithWorker
+    ? {
+        ...recorded,
+        source: TurnEndSource.SYSTEM,
+        reason: `${cause.reason} (the harness stopped the turn: ${recorded.reason || "interrupted"})`,
+      }
+    : (recorded ?? cause);
 
   events.push({
     turnId,
@@ -114,6 +116,9 @@ export function reconcileEvents(open: OpenTurn, record: HarnessRecord | undefine
         outcome: end.outcome,
         source: end.source,
         reason: end.reason,
+        ...(cause.workerOomRecovery &&
+          !open.interruptRequested &&
+          (!recorded || interruptedWithWorker) && { workerOomRecovery: true }),
         ...(end.errorCode && { errorCode: end.errorCode }),
         ...(end.providerTurnRef && { providerTurnRef: end.providerTurnRef }),
         ...(end.usage && { usage: end.usage }),

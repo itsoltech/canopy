@@ -4,17 +4,35 @@ import { ItemSchema, ItemStatus, type ThreadEvent } from "@canopy/contracts";
 import { Effect } from "effect";
 import type { JournalError, OpenTurn, TurnHarness } from "./journal.ts";
 
+function prepareServiceInvocation(db: Database, serviceInvocation: string) {
+  const columns = db.query<{ name: string }, []>("PRAGMA table_info(open_turns)").all();
+
+  if (!columns.some((column) => column.name === "service_invocation"))
+    db.exec("ALTER TABLE open_turns ADD COLUMN service_invocation TEXT NOT NULL DEFAULT ''");
+
+  // A supervisor update can replace the worker without ending the service. Even if this recovery itself
+  // crashes, a later service failure must never be attributed to that earlier process's turns.
+  if (serviceInvocation)
+    db.query("UPDATE open_turns SET service_invocation = '' WHERE service_invocation = ?").run(serviceInvocation);
+}
+
 export function turnTracking(
   db: Database,
   attempt: <A>(operation: string, run: () => A) => Effect.Effect<A, JournalError>,
+  serviceInvocation: string,
 ) {
-  const insertTurn = db.query("INSERT OR IGNORE INTO open_turns (thread_id, turn_id) VALUES ($thread, $turn)");
+  prepareServiceInvocation(db, serviceInvocation);
+
+  const insertTurn = db.query(
+    "INSERT OR IGNORE INTO open_turns (thread_id, turn_id, service_invocation) VALUES ($thread, $turn, $invocation)",
+  );
+
   const insertStarted = db.query("INSERT OR IGNORE INTO started_turns (thread_id, turn_id) VALUES ($thread, $turn)");
   const selectStarted = db.query("SELECT 1 FROM started_turns WHERE thread_id = $thread AND turn_id = $turn");
   const deleteTurn = db.query("DELETE FROM open_turns WHERE thread_id = $thread AND turn_id = $turn");
 
-  const selectTurns = db.query<{ thread_id: string; turn_id: string }, []>(
-    "SELECT thread_id, turn_id FROM open_turns ORDER BY rowid",
+  const selectTurns = db.query<{ thread_id: string; turn_id: string; service_invocation: string }, []>(
+    "SELECT thread_id, turn_id, service_invocation FROM open_turns ORDER BY rowid",
   );
 
   const upsertItem = db.query(
@@ -40,7 +58,7 @@ export function turnTracking(
     if (!turnId) return;
 
     if (body.case === "turnStarted") {
-      insertTurn.run({ thread: threadId, turn: turnId });
+      insertTurn.run({ thread: threadId, turn: turnId, invocation: serviceInvocation });
       insertStarted.run({ thread: threadId, turn: turnId });
     }
 
@@ -101,6 +119,7 @@ export function turnTracking(
           return {
             threadId: r.thread_id,
             turnId: r.turn_id,
+            ...(r.service_invocation && { serviceInvocation: r.service_invocation }),
             ...(h && {
               harness: {
                 harness: h.harness,

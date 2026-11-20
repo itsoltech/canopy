@@ -44,7 +44,7 @@ Restart=always
 RestartPreventExitStatus=78
 RestartSec=5
 KillMode=control-group
-
+${app === "worker" ? "Delegate=memory\nDelegateSubgroup=canopy-control\nOOMPolicy=continue\n" : ""}
 [Install]
 WantedBy=default.target`;
 }

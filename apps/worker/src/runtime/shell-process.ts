@@ -3,7 +3,7 @@ import { userInfo } from "node:os";
 import { create } from "@bufbuild/protobuf";
 import { ShellResultSchema, type ShellResult } from "@canopy/contracts";
 import { SHELL_INPUT_OUTPUT_BYTES, SHELL_INPUT_TIMEOUT_MS } from "@canopy/domain";
-import { killProcessTree, processGovernor } from "@canopy/process-governor";
+import { killProcessTree, processGovernor, startWorkload } from "@canopy/process-governor";
 
 export const SHELL_STOPPED_REASON = "Command stopped. Send a new message to run it again.";
 const shutdownReason = "Command interrupted by a worker shutdown. Send a new message to run it again.";
@@ -77,13 +77,15 @@ function captureShell(
 
     const args = process.platform === "win32" ? ["/d", "/s", "/c", command] : ["-l", "-c", command];
 
-    const child = spawn(shell, args, {
-      cwd,
-      env: shellEnvironment(),
-      detached: process.platform !== "win32",
-      windowsHide: true,
-      stdio: ["ignore", "pipe", "pipe"],
-    });
+    const child = startWorkload([shell, ...args], (argv) =>
+      spawn(argv[0]!, argv.slice(1), {
+        cwd,
+        env: shellEnvironment(),
+        detached: process.platform !== "win32",
+        windowsHide: true,
+        stdio: ["ignore", "pipe", "pipe"],
+      }),
+    );
 
     const output = new ShellOutput();
     let killing: Promise<void> | undefined;

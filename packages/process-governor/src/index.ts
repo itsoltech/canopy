@@ -6,6 +6,8 @@ import { windowsCommand } from "./windows-command.ts";
 
 export * from "./governor.ts";
 
+export { configureWorkloadMemory, startWorkload } from "./workload-memory.ts";
+
 export { windowsCommand } from "./windows-command.ts";
 
 export function governBunSpawn<T extends { exited: Promise<number> }>(kind: ProcessKind, start: () => T): T {

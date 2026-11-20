@@ -517,6 +517,25 @@ describe("reconcileEvents", () => {
     });
   });
 
+  test("service OOM recovery respects a recorded completion and a requested interruption", async () => {
+    const cause = { ...WORKER_RESTARTED, workerOomRecovery: true };
+    const rollout = fixture("codex-rollout.jsonl");
+    const stopped = await readCodexTurn(rollout, 0, "turn-stop", "turn");
+    const completed = await readCodexTurn(rollout, 0, "turn-done", "turn");
+
+    const eligible = (turn: OpenTurn, record: typeof completed) => {
+      const finish = reconcileEvents(turn, record, cause).at(-1)?.body;
+      expect(finish?.case).toBe("turnFinished");
+
+      return finish?.case === "turnFinished" && finish.value.workerOomRecovery === true;
+    };
+
+    expect(eligible(open([]), stopped)).toBe(true);
+    expect(eligible(open([]), completed)).toBe(false);
+    expect(eligible(open([], true), stopped)).toBe(false);
+    expect(eligible(open([], true), undefined)).toBe(false);
+  });
+
   test("no transcript at all: everything open ends, the turn ends with the cause", () => {
     const events = reconcileEvents(
       open([

@@ -16,6 +16,8 @@ export function fenceThreadWorkerCommands(sql: SqlClient.SqlClient, owner: strin
     yield* sql`UPDATE turns SET status = 'interrupted', interrupt_source = 'system',
       interrupt_reason = ${THREADS_DISABLED_REASON}, completed_at = now()
       WHERE id = ANY(${turns.map((turn) => turn.id)}::uuid[]) AND status IN ('queued','running')`;
+    yield* sql`UPDATE turns SET status = 'cancelled', completed_at = now() WHERE thread_id = ANY(${ids}::uuid[])
+      AND status = 'queued' AND trigger = 'recovery' AND resume_reason = 'worker_oom'`;
     yield* sql`UPDATE threads SET status = 'idle' WHERE id = ANY(${ids}::uuid[]) AND status IN ('running','waiting_input')`;
   });
 }
