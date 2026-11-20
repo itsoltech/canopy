@@ -1,7 +1,8 @@
 # Canopy na iOS i Android
 
-Status: opis zaimplementowanego kodu (2026-11-20). Gest przewijania wątku doczytuje
-najwyżej jedną stronę historii. Przy zgodnych checkpointach połączenie live pozostaje otwarte.
+Status: opis zaimplementowanego kodu (2026-11-20). Aplikacja używa Expo SDK 58.0.26.
+Gest przewijania wątku doczytuje najwyżej jedną stronę historii. Przy zgodnych
+checkpointach połączenie live pozostaje otwarte.
 Przy otwarciu wątku telefon pobiera pytania i zgody tylko od subagentów z oczekującym żądaniem.
 Przy wklejaniu i upuszczaniu
 Android sprawdza dostawcę i grant odczytu URI. Katalog szkiców kompozytora na iOS
@@ -512,8 +513,8 @@ nie kopiuje tokenu, pinu ani danych żądań. Wyniki pozostają tylko w pamięci
 
 ## Wersje i Bun workspace
 
-Zależności aplikacji: Expo **58.0.23**, React Native **0.88.1**,
-React **19.3.0**, Expo Router **58.0.30**. Wersje przypina `apps/mobile/package.json`.
+Zależności aplikacji: Expo **58.0.26**, React Native **0.88.1**,
+React **19.3.0**, Expo Router **58.0.32**. Wersje przypina `apps/mobile/package.json`.
 Zachowane są `src/app`, Router, Hermes, domyślna New Architecture i CNG.
 Bez `react-native-web`, Expo web, NativeWind i dodatkowego systemu komponentów.
 
@@ -717,7 +718,7 @@ czeka na tę samą decyzję o niedostępności. **Copy details** nadal kopiuje w
 Na Androidzie **Open Tailscale** otwiera aplikację przez jej URL nawigacji; jeśli system
 nie obsłuży linku, Canopy prosi o ręczne otwarcie. Na iOS otwórz Tailscale ręcznie.
 
-`expo-network` 58.0.4 na Androidzie sprawdza transport Wi-Fi i komórkowy przed VPN, więc
+`expo-network` 58.0.5 na Androidzie sprawdza transport Wi-Fi i komórkowy przed VPN, więc
 brak typu `VPN` nie potwierdza wyłączonego tunelu. iOS nie udostępnia osobnego stanu VPN.
 Dlatego komunikat mówi o możliwym wyłączeniu lub zawieszeniu Tailscale. Klucz zmiany sieci
 obejmuje typ, łączność i `isInternetReachable`; na iOS ostatnie pole powtarza łączność.

@@ -6,8 +6,9 @@ uruchamiają osobną usługę web. Ten dokument opisuje kod na `dev`; poniższe 
 pobierania domyślnie wybierają stable. Wersje i kanały: [release.md](release.md). Wszystko pochodzi z
 `ghcr.io/itsoltech/canopy-*` albo z GitHub Releases `itsoltech/canopy`.
 
-Status (2026-11-20): Compose izoluje sieć workera od panelu właściciela, a samodzielny
-web domyślnie słucha na loopbacku i sprawdza nagłówek Host. Kod zawiera operacyjne CLI `storage inspect` i jawny
+Status (2026-11-20): gateway i worker są budowane na Bun 1.4.5. Compose izoluje
+sieć workera od panelu właściciela, a samodzielny web domyślnie słucha na loopbacku
+i sprawdza nagłówek Host. Kod zawiera operacyjne CLI `storage inspect` i jawny
 reclaim offline przez `VACUUM FULL`. Dostępność w nightly/beta/stable wynika
 z wersji binarki. Polecenia `storage` działają poza migracją i usługami aplikacji.
 Compose i Desktop Local wykonują `canopy-gateway migrate` przed uruchomieniem gatewaya na oddzielnym koncie SQL.
@@ -32,7 +33,10 @@ W kontenerze CLI musi być dostępne wewnątrz kontenera, nie tylko na hoście.
 
 Desktop w trybie lokalnym pobiera PostgreSQL o wersji i SHA-512 przypiętych podczas
 budowania; po instalacji działa z cache offline. Tryb remote nic nie pobiera.
-Nie dotyczy to wdrożenia serwerowego: Compose nadal uruchamia osobny PostgreSQL.
+Compose uruchamia osobny PostgreSQL. Tag `postgres:17` obejmuje poprawki z 17.12
+i kolejne wydania w linii 17. W istniejącym wdrożeniu `docker compose pull postgres`
+pobiera aktualny obraz, a `docker compose up -d --no-deps postgres` odtwarza
+kontener z zachowaniem wolumenu danych.
 Szczegóły cache i blokady zmiany major: [desktop.md](desktop.md#postgresql-pobierany-dla-trybu-lokalnego).
 
 ## Wybór kanału

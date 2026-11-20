@@ -10,9 +10,9 @@ bez powtarzania pełnej bramki CI.
 
 | Narzędzie | Pin | Rola |
 | --- | --- | --- |
-| `oxlint` / `@oxlint/plugins` | 1.91.0 / 1.91.0 | linter i API pluginów JS |
+| `oxlint` / `@oxlint/plugins` | 1.94.0 / 1.94.0 | linter i API pluginów JS |
 | [anti-slop](https://github.com/dmmulroy/anti-slop) | `13909c9e07590f5a85d93c62712259fe14a883f7` (v0.1.2) | vendorowane reguły w `tools/oxlint/anti-slop/` |
-| `oxfmt` | 0.76.0 | formatter TS, TSX, Svelte, JSON, CSS, YAML |
+| `oxfmt` | 0.79.0 | formatter TS, TSX, Svelte, JSON, CSS, YAML |
 
 Pochodzenie, licencje MIT i odstępstwa opisują `tools/oxlint/anti-slop/UPSTREAM.md`
 oraz `vendor/eslint-stylistic/{LICENSE,UPSTREAM.md}` wewnątrz pluginu.

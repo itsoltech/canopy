@@ -1,6 +1,7 @@
 import { PgClient, PgPool } from "@effect/sql-pg";
 import { POSTGRES_MAX_MESSAGE_BYTES } from "@canopy/db";
 import { Effect, Layer, ManagedRuntime, Redacted } from "effect";
+import type { SqlClient, SqlError } from "effect/sql";
 import { DatabaseMonitor, bindDatabaseMonitor, observedSql } from "./diagnostics/database.ts";
 import { databaseUrl } from "./database-credentials.ts";
 import { selectedMigration } from "./migrate-cli.ts";
@@ -38,7 +39,7 @@ export function gatewayRuntime(
   const secretsKey = loadSecretsKey(env);
   const monitor = new DatabaseMonitor();
 
-  const measured =
+  const measured: Layer.Layer<SqlClient.SqlClient, SqlError.SqlError> =
     options.databaseDiagnostics === false
       ? PgClient.layer(databaseConfig)
       : observedSql(monitor).pipe(Layer.provideMerge(Layer.effect(PgPool.PgPool, PgPool.make(databaseConfig))));

@@ -4,7 +4,7 @@
 # Builds run on the build platform and cross-compile for TARGETARCH (bun build --compile), so arm64 needs no
 # emulation except for the worker's package install.
 
-ARG BUN_VERSION=1.4.4
+ARG BUN_VERSION=1.4.5
 
 FROM --platform=$BUILDPLATFORM oven/bun:${BUN_VERSION} AS build
 WORKDIR /src

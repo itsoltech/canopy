@@ -209,6 +209,6 @@ lub lockfile. Instaluje też `commit-msg` przez simple-git-hooks. Hook akceptuje
 tytuł po jego edycji i każdym pushu do PR skierowanego do dev/next/main. Commity merge bota
 mają typ `chore(release)`; nie dopisujemy commitów z numerem wersji.
 Narzędzia commitlint/semantic-release uruchamiają się na Node; używaj **Node 24.10+**
-obok Bun 1.4.4 (CI instaluje Node 24 jawnie).
+obok Bun 1.4.5 (CI instaluje Node 24 jawnie).
 
 Publikację, okres stabilizacji beta i bootstrap **0.1.0** opisuje [release.md](release.md).

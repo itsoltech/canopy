@@ -11,11 +11,11 @@ relocatable database distribution and its bundled libraries.
 
 | Component | Version | License / source |
 | --- | --- | --- |
-| Electron / Chromium / Node | 45.2.1 | MIT and bundled Chromium/Node notices; https://github.com/electron/electron |
+| Electron / Chromium / Node | 45.4.1 | MIT and bundled Chromium/Node notices; https://github.com/electron/electron |
 | electron-updater | 6.8.3 | MIT; https://github.com/electron-userland/electron-builder |
-| Bun | 1.4.4 | MIT; WebKit/JavaScriptCore LGPL-2.1 and additional notices; https://github.com/oven-sh/bun/blob/main/LICENSE.md |
-| PostgreSQL | 18.6 | PostgreSQL License; https://www.postgresql.org/about/licence/ |
-| embedded-postgres relocatable binary distribution | 18.6.0-beta.19 | MIT packaging; Apache-2.0 Zonky distribution; https://github.com/leinelissen/embedded-postgres and https://github.com/zonkyio/embedded-postgres-binaries |
+| Bun | 1.4.5 | MIT; WebKit/JavaScriptCore LGPL-2.1 and additional notices; https://github.com/oven-sh/bun/blob/main/LICENSE.md |
+| PostgreSQL | 18.7 | PostgreSQL License; https://www.postgresql.org/about/licence/ |
+| embedded-postgres relocatable binary distribution | 18.7.0-beta.19 | MIT packaging; Apache-2.0 Zonky distribution; https://github.com/leinelissen/embedded-postgres and https://github.com/zonkyio/embedded-postgres-binaries |
 | PostgreSQL bundled libraries | per target binary distribution | OpenSSL, ICU, zlib, libxml2, libxslt, liblzma, ossp-uuid; sources and build recipes: https://github.com/zonkyio/embedded-postgres-binaries |
 | sharp / libvips | 0.35.5 | Apache-2.0 / LGPL-2.1-or-later and included library notices |
 | Tabler outline icons | @iconify-json/tabler 1.2.43 | MIT; https://github.com/tabler/tabler-icons; full notice in `licenses/Tabler-LICENSE.md` |
@@ -27,7 +27,7 @@ darwin-arm64 and windows-x64. No Intel macOS or Windows arm64 app is built.
 For redistribution, retain all upstream license files. macOS and Windows installers
 must be signed under the distributor's own identity. No credentials are bundled.
 
-`Bun-LICENSE.md` is taken from `oven-sh/bun`, tag `bun-v1.4.4`, `LICENSE.md`;
+`Bun-LICENSE.md` is taken from `oven-sh/bun`, tag `bun-v1.4.5`, `LICENSE.md`;
 `PostgreSQL-COPYRIGHT` from `postgres/postgres`, tag `REL_18_6`, `COPYRIGHT`;
 `Zonky-LICENSE` from `zonkyio/embedded-postgres-binaries`, `master`, `LICENSE`.
 Bun's license file links its static dependencies, WebKit source and relinking

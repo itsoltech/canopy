@@ -45,7 +45,7 @@ concurrency:
 
 env:
   # Keep in sync with mise.toml.
-  BUN_VERSION: 1.4.4
+  BUN_VERSION: 1.4.5
   IMAGE_NAMESPACE: ghcr.io/itsoltech
   EXPECTED_SHA: ${{ inputs.expected_sha || github.sha }}
   RELEASE_BRANCH: ${{ github.ref_type == 'tag' && 'main' || inputs.release_branch && inputs.release_branch != 'current' && inputs.release_branch || github.ref_name }}

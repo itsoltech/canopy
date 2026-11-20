@@ -21,7 +21,7 @@ concurrency:
 
 env:
   # Keep in sync with mise.toml.
-  BUN_VERSION: 1.4.4
+  BUN_VERSION: 1.4.5
 
 jobs:
   changes:

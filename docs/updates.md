@@ -930,8 +930,8 @@ a nowy supervisor uruchamia właściwy proces usługi. Zdrowe dziecko uruchamia 
 zatem drugi raz; żadne aktywne zadanie nie jest z tego powodu przerywane.
 Kod 76 jest obsługiwany wewnętrznie, nie wymaga restartu przez menedżera usług.
 
-Obsługa `process.execve` jest zweryfikowana na przypiętym Bun **1.4.4** przez testy
-skompilowanych binariów. Mechanizm działa również na pierwszym planie bez
+Obsługę `process.execve` obejmują testy skompilowanych binariów uruchamiane
+z Bun przypiętym w `mise.toml`. Mechanizm działa również na pierwszym planie bez
 systemd/launchd. Brak API lub błąd `execve` pozostawia dotychczasowy supervisor
 aktywny (po błędzie uruchamia on ponownie potwierdzone dziecko), wyłącza dalsze
 próby przekazania w tym procesie i zapisuje komunikat o potrzebie restartu usługi.
