@@ -137,6 +137,7 @@ export interface ThreadWorktreeColumns {
 }
 
 export interface TurnRow {
+  resumes_turn_id?: string | null;
   rewind_id?: string | null;
   provider_session_id?: string | null;
   id: string;

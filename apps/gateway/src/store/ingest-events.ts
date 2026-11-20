@@ -1,3 +1,4 @@
+import { queueOomRecovery, WORKER_RESTARTED } from "./worker-oom-recovery.ts";
 import { UNCONFIRMED_MODULE_STEER } from "./module-steers.ts";
 import { clone, create, fromJson, toJson, type JsonValue } from "@bufbuild/protobuf";
 import {
@@ -242,7 +243,21 @@ export const applySideEffects = (
 
       case "turnFinished": {
         const end = turnEnd(body.value.outcome, body.value.source);
-        yield* sql`
+
+        const oom =
+          source &&
+          body.value.workerOomRecovery &&
+          body.value.outcome === TurnOutcome.INTERRUPTED &&
+          body.value.source === TurnEndSource.SYSTEM;
+
+        // Hello can close the source before its journal arrives. Every other terminal outcome is final
+        // for this recovery, including a differently identified replay of the same OOM end.
+        const eligibleEnd = oom
+          ? sql`AND (status = 'running' OR
+          (status = 'interrupted' AND interrupt_source = 'system' AND interrupt_reason = ${WORKER_RESTARTED} AND last_seq IS NULL))`
+          : sql``;
+
+        const changed = yield* sql`
           UPDATE turns SET status = ${end.status}, last_seq = ${seq}, completed_at = now(),
                            provider_turn_ref = coalesce(${body.value.providerTurnRef || null}, provider_turn_ref),
                            usage = ${body.value.usage ? JSON.stringify(toJson(UsageSchema, body.value.usage)) : null}::jsonb,
@@ -251,8 +266,11 @@ export const applySideEffects = (
                            error_code = ${end.status === "failed" ? body.value.errorCode || null : null},
                            interrupt_reason = ${end.status === "interrupted" ? body.value.reason || null : null},
                            interrupt_source = ${end.interruptSource}
-           WHERE id = ${event.turnId}::uuid AND thread_id = ${threadId}::uuid
+           WHERE id = ${event.turnId}::uuid AND thread_id = ${threadId}::uuid ${eligibleEnd}
+           RETURNING id
         `;
+
+        if (oom && changed.length) yield* queueOomRecovery(sql, threadId, event.turnId);
         // Any end leaves the thread usable (idle); the turn keeps the outcome. A late end of a turn the gateway
         // already closed (e.g. worker restart) must not idle a newer running turn.
         yield* sql`

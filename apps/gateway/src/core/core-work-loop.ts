@@ -34,6 +34,7 @@ import { corePublishSteer, coreQueueSteer, coreSteers } from "./core-messages.ts
 import { coreProfileModels } from "./core-models.ts";
 import { queueAdmissionState, resumeModuleGoal, pumpResumedThreads } from "./thread-module-runtime.ts";
 import { recoverThreadCreation } from "./thread-creation-recovery.ts";
+import { cancelStaleOomRecovery } from "../store/worker-oom-recovery.ts";
 import { storedShellResult } from "../store/shell-input.ts";
 import { takeBranchNote } from "../store/thread-branches.ts";
 import { coreBroadcastThread, coreBroadcastTurn, coreLog, coreRun } from "./core-broadcast.ts";
@@ -152,6 +153,26 @@ export async function corePumpQueued(hostContext: GatewayCore, threadId: string)
   coreLog(hostContext, `thread ${threadId}: the queue kept changing, its head was not started`);
 }
 
+function queuedTurnInput(turn: TurnRow, userId: string) {
+  return {
+    text: turn.input.text ?? "",
+    shellCommand: turn.input.shellCommand,
+    shellInputId: turn.input.shellInputId ?? "",
+    shellResult: storedShellResult(turn.input.shellResult),
+    authorUserId: turn.trigger === "recovery" ? "" : userId,
+    mentions: mentionsFromJson(turn.input.delivered),
+    attachments: (turn.input.attachments ?? []).map((a) => ({
+      attachmentId: a.id,
+      sha256: a.sha256,
+      sizeBytes: BigInt(a.sizeBytes),
+      mimeType: a.mimeType,
+      name: a.name,
+      path: a.path,
+      kind: a.kind,
+    })),
+  };
+}
+
 /** StartTurn for the queue's head, only while it still is the head as read (QueueStore.whileHead). */
 export async function coreStartTurn(hostContext: GatewayCore, thread: ThreadRow, turn: TurnRow): Promise<boolean> {
   const threadId = thread.id;
@@ -172,13 +193,32 @@ export async function coreStartTurn(hostContext: GatewayCore, thread: ThreadRow,
               // Read context under the admission lock: a branch switch may have completed while this turn queued.
               const current = yield* s.thread(threadId);
               const spec = s.threadSpec(current);
-              const model = turn.model || current.settings.model || "";
-              const effort = turnEffort(models, model, turn.effort || current.settings.effort || "");
+              const recovery = turn.trigger === "recovery";
 
-              const serviceTier = turn.thread_permission_mode
-                ? (turn.service_tier ?? "")
-                : turn.service_tier ||
-                  inheritedServiceTier(models, model, current.settings.model ?? "", current.settings.serviceTier ?? "");
+              if (recovery && turn.resumes_turn_id) {
+                rejected = yield* cancelStaleOomRecovery(threadId, turn.resumes_turn_id, turn.id);
+
+                if (rejected) return;
+                spec.model = turn.model ?? "";
+                spec.serviceTier = turn.service_tier ?? "";
+              }
+
+              const model = turn.model || spec.model;
+
+              const effort = recovery
+                ? (turn.effort ?? "")
+                : turnEffort(models, model, turn.effort || current.settings.effort || "");
+
+              const serviceTier =
+                recovery || turn.thread_permission_mode
+                  ? (turn.service_tier ?? "")
+                  : turn.service_tier ||
+                    inheritedServiceTier(
+                      models,
+                      model,
+                      current.settings.model ?? "",
+                      current.settings.serviceTier ?? "",
+                    );
 
               const problem = serviceTierProblem(models, model, serviceTier);
 
@@ -201,23 +241,7 @@ export async function coreStartTurn(hostContext: GatewayCore, thread: ThreadRow,
                   value: {
                     thread: spec,
                     turnId: turn.id,
-                    input: {
-                      text: turn.input.text ?? "",
-                      shellCommand: turn.input.shellCommand,
-                      shellInputId: turn.input.shellInputId ?? "",
-                      shellResult: storedShellResult(turn.input.shellResult),
-                      authorUserId: hostContext[coreState].options.userId,
-                      mentions: mentionsFromJson(turn.input.delivered),
-                      attachments: (turn.input.attachments ?? []).map((a) => ({
-                        attachmentId: a.id,
-                        sha256: a.sha256,
-                        sizeBytes: BigInt(a.sizeBytes),
-                        mimeType: a.mimeType,
-                        name: a.name,
-                        path: a.path,
-                        kind: a.kind,
-                      })),
-                    },
+                    input: queuedTurnInput(turn, hostContext[coreState].options.userId),
                     model,
                     effort,
                     serviceTier,

@@ -28,6 +28,8 @@ export * from "./notice-preview.ts";
 
 export * from "./shell-input.ts";
 
+export * from "./turn-recovery.ts";
+
 export { isJsonArray, isJsonObject, type JsonObject, type JsonValue } from "./json.ts";
 
 export { PLACEMENTS, scheduleWorkerEligible, selectScheduleWorkspace, type Placement } from "./schedules.ts";

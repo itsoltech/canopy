@@ -7,7 +7,8 @@ import { ui, type InteractionRequest, type ThreadEvent } from "@canopy/contracts
 import { type WorkerConnection } from "../worker-link/index.ts";
 import { Ingest } from "../store/index.ts";
 import { coreRedeliver } from "./core-commands.ts";
-import { coreState, describeError, SETTLE_TURN_ENDED, steerOf, WORKER_RESTARTED } from "./core-context.ts";
+import { coreState, describeError, SETTLE_TURN_ENDED, steerOf } from "./core-context.ts";
+import { WORKER_RESTARTED } from "../store/worker-oom-recovery.ts";
 import { coreEndLostTurns, coreSettle } from "./core-work-loop.ts";
 import type { GatewayCore } from "./core.ts";
 import { coreReceiveBlob, coreSendBlob } from "./core-attachments.ts";

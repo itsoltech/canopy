@@ -1,6 +1,6 @@
 # Wykonanie wątku: tury, praca w tle, subagenci, interakcje
 
-Status: **częściowo zaimplementowane** (2026-11-18). W bieżącej zmianie wyłączenie modułu Threads zatrzymuje wykonanie wątków właściciela. Na `dev` notatki zadań w tle
+Status: **częściowo zaimplementowane** (2026-11-20). Gateway może raz wznowić rozmowę po potwierdzonym OOM usługi workera. Wyłączenie modułu Threads zatrzymuje wykonanie wątków właściciela. Na `dev` notatki zadań w tle
 pokazują status i jednoliniową, ucinaną nazwę otwierającą pełny output. Automatyczne
 łańcuchy mają wspólny limit 256 kroków; notatki zadań w tle zachowują pełny
 licznik przy kontynuacji. Dostępność kanałów według [release.md](release.md). Tury, interakcje, steer, widoczna granica `context_compaction` i **praca w tle** (sekcja 4: procesy Codexa, background Bash Claude, zatrzymanie z UI, notatki dla agenta o każdym końcu zadania, narzędzia agenta) działają. Archiwizacja zamyka zasoby wątku, a przywrócenie nie wznawia zatrzymanej pracy. Subagenci pierwszoplanowi, `BackgroundItem` (Ctrl+B) i limity zasobów (sekcja 7) jeszcze nie.
@@ -68,9 +68,9 @@ Jeden status nie wystarczy, bo wątek może nie mieć tury, a mieć zadania w tl
 | `provider` | worker | dostawca sam zaczyna turę: Claude po `task_notification` zadania w tle, Codex przy aktywnym celu; nigdy nie jest `queued` |
 | `background_task` | gateway | notatka platformy o zakończonych zadaniach w tle wątku (sekcja 4, „Pobudka”); `hops` tury startowej zadania + 1 |
 | `pr_checks` | gateway | notatka platformy o checkach CI podlinkowanego PR (`watch_pr_checks`) — [agent-bus.md](agent-bus.md#checki-ci); `hops` watcha + liczba śledzonych commitów |
-| `recovery` | worker | automatyczne wznowienie przerwanej tury (`resumes_turn_id`, `resume_reason`) |
+| `recovery` | worker lub gateway | natywne wznowienie przez harness albo jedna kontynuacja rozmowy z kolejki po OOM usługi workera (`resumes_turn_id`, `resume_reason`) |
 
-Worker zna tylko pochodzenie tury (`TurnStarted.origin`: `COMMAND`, `PROVIDER`, `RECOVERY`). Wyzwalacz platformy zapisuje gateway. Dla `provider` / `recovery` gateway tworzy wiersz `turns` przy `turn_started` od workera.
+Worker zna tylko pochodzenie tury (`TurnStarted.origin`: `COMMAND`, `PROVIDER`, `RECOVERY`). Wyzwalacz platformy zapisuje gateway. Dla tur spontanicznych dostawcy gateway tworzy wiersz `turns` przy `turn_started` od workera. Kontynuacja z powodem `worker_oom` przechodzi przez zwykłe `StartTurn`, a gateway zapisuje jej związek z przerwaną turą przed wysłaniem komendy.
 
 ### Serializacja
 

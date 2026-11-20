@@ -198,6 +198,7 @@ describe.skipIf(!dockerAvailable)("schema on PostgreSQL 17", () => {
       "183_legacy_inline_previews",
       "184_legacy_preview_grants",
       "185_transcript_structured_raw_refs",
+      "186_worker_oom_recovery",
     ]);
   }, 60_000);
 

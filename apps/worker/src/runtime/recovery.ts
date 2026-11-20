@@ -17,7 +17,11 @@ export async function recoverWorker(ctx: HostContext) {
   for (const turn of open) {
     const cause =
       oom && turn.serviceInvocation === previous
-        ? { ...WORKER_RESTARTED, reason: "the worker service stopped because of memory pressure" }
+        ? {
+            ...WORKER_RESTARTED,
+            reason: "the worker service stopped because of memory pressure",
+            workerOomRecovery: true,
+          }
         : WORKER_RESTARTED;
 
     const { events, record } = await ctx.state.options.runtime.runPromise(reconcileTurn(turn, cause));

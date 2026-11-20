@@ -1,5 +1,6 @@
 import { expect, test } from "bun:test";
 import { join } from "node:path";
+import { WORKER_OOM_CONTINUATION } from "@canopy/domain";
 import { tempDirs } from "@canopy/testing";
 import { Effect } from "effect";
 import { Journal } from "./index.ts";
@@ -27,7 +28,7 @@ test("retry context survives ACKs, a worker restart and repeated retries without
     Journal.use((journal) =>
       Effect.gen(function* () {
         yield* journal.rememberRequest("thread-a", "Continue");
-        yield* journal.rememberRequest("thread-a", "Continue");
+        yield* journal.rememberRequest("thread-a", WORKER_OOM_CONTINUATION);
         expect(yield* journal.recoveryInstructions("thread-a")).toContain(JSON.stringify(request));
         expect(yield* journal.recoveryInstructions("thread-a")).not.toContain("Another request");
         expect(yield* journal.recoveryInstructions("unknown-thread")).toBe("");

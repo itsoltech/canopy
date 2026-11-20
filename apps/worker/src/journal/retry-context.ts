@@ -1,5 +1,6 @@
 import type { Database } from "bun:sqlite";
 import type { Effect } from "effect";
+import { isContinuationInput } from "@canopy/domain";
 import type { JournalError } from "./journal.ts";
 
 /** Keep the request across ACKs and worker crashes, even if the provider never saved its first turn. */
@@ -23,7 +24,7 @@ export function retryContext(
     rememberRequest: (threadId: string, text: string) =>
       attempt("rememberRequest", () => {
         // Repeated retries must retain the request that describes the work.
-        if (text.trim() && text !== "Continue") remember.run(threadId, text);
+        if (text.trim() && !isContinuationInput(text)) remember.run(threadId, text);
       }),
     recoveryInstructions: (threadId: string) =>
       attempt("recoveryInstructions", () => {

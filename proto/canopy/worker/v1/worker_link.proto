@@ -1223,6 +1223,9 @@ message TurnFinished {
   string error_code = 6;
   // Wspólna klasa błędu UI; error_code zachowuje natywny kod harnessu.
   string error_class = 7;
+  // Rekoncyliacja potwierdziła OOM usługi workera i przerwanie tury bez żądania Stop.
+  // Gateway może zakolejkować jedną kontynuację sesji. Starsze workery pomijają flagę.
+  bool worker_oom_recovery = 8;
 }
 
 enum ThreadStatus {

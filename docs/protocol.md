@@ -1,5 +1,12 @@
 # Protokół gateway ↔ worker
 
+## Kontynuacja po OOM workera
+
+Status (2026-11-20): worker i gateway obsługują opcjonalną kontynuację rozmowy po potwierdzonym OOM usługi.
+Dostępność w kanałach określa [promocja wydania](release.md).
+
+Worker ustawia `TurnFinished.worker_oom_recovery` przy rekoncyliacji tury, którą przerwała utrata usługi z potwierdzonym wynikiem `oom-kill`. Zapisany wynik harnessu i żądanie Stop mają pierwszeństwo. Gateway sprawdza stan wątku i może zakolejkować jedną kontynuację tej sesji. Brak flagi oznacza dotychczasową obsługę przerwania. Starszy gateway może pominąć nowe pole. [Reguły kolejki i rekoncyliacji](durability.md#34-start-po-awarii).
+
 ## Wątki delegowane przez boty
 
 Status (2026-11-19): gateway ustawia `ThreadSpec.has_delegating_bot` przy tworzeniu

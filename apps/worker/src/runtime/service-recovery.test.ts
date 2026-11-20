@@ -42,6 +42,7 @@ async function restart(dir: string, serviceInvocation: string) {
               source: event.body.value.source,
               outcome: event.body.value.outcome,
               reason: event.body.value.reason,
+              ...(event.body.value.workerOomRecovery && { workerOomRecovery: true }),
             },
           ]
         : [],
@@ -73,7 +74,12 @@ test.skipIf(process.platform !== "linux")(
       const interrupted = { outcome: TurnOutcome.INTERRUPTED, source: TurnEndSource.SYSTEM };
       expect(await restart(dir, replacement)).toEqual([
         { turnId: "legacy", ...interrupted, reason: "worker restarted mid-turn" },
-        { turnId: "active", ...interrupted, reason: "the worker service stopped because of memory pressure" },
+        {
+          turnId: "active",
+          ...interrupted,
+          reason: "the worker service stopped because of memory pressure",
+          workerOomRecovery: true,
+        },
       ]);
       const args = readFileSync(`${command}.args`, "utf8").trim().split("\n");
       const groups = [args.slice(args.indexOf("_PID=1"), args.indexOf("+")), args.slice(args.indexOf("+") + 1)];
