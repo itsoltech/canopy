@@ -51,6 +51,8 @@ Wyszukiwanie ustawień współdzieli z web/desktop dopasowanie słów niezależn
 kolejności i interpunkcji oraz słowa kluczowe sprzątania w Threads i Worktrees.
 Domyślne wybory nowego wątku
 i filtr ulubionych modeli oraz opcjonalna retencja archiwum są zgodne z web.
+Kompozytor nowego wątku zachowuje położenie przy doczytywaniu worktree i gałęzi.
+Zarządzanie projektami jest dostępne w Settings → Projects.
 Przesuwanie obrazów wyklucza podwójne stuknięcie do powiększania.
 Galerie agenta czekają na koniec swojej tury,
 a kompaktowanie kontekstu rozdziela sekcje pracy.
@@ -167,6 +169,10 @@ wyniku, bez automatycznego ponawiania tworzenia worktree. Błędy odczytu mają 
 potwierdzi start bez identyfikatora, klient udostępnia `Open threads`.
 
 ## Szkice i kompozytor
+
+Ekran nowego wątku od otwarcia rezerwuje pod kompozytorem jeden wiersz na worktree
+i gałąź. Kompozytor zachowuje położenie podczas odczytu Git i po nim, także gdy
+opcje są niedostępne. Długie nazwy skracają się w obrębie wiersza.
 
 Po jawnym zapisaniu domyślnego trybu uprawnień w istniejącym wątku kolejna wiadomość
 bez własnego wyboru w szkicu dziedziczy tryb w chwili startu tury. Historia wcześniejszych
@@ -2181,8 +2187,7 @@ kolor #RGB do #RRGGBB; gateway pozostaje źródłem walidacji. Nowy bot rozpoczy
 od wyboru modelu. Nieudana odpowiedź ma Retry dla ostatniego
 błędu oraz Change model or worker, otwierające ustawienia. Akcje wymagają live
 i dostępnego domu bota; gateway ponownie sprawdza możliwość ponowienia.
-New thread ma skrót Manage projects do istniejącego tworzenia projektów i workspace'ów,
-a Thread details → Manage connector access otwiera mobilne Settings → Connectors.
+Thread details → Manage connector access otwiera mobilne Settings → Connectors.
 Tak jak w web, konta są przyznawane workerowi, a nie pojedynczemu wątkowi.
 Parowanie i revocation wskazują Settings → Devices na dowolnym już sparowanym urządzeniu.
 lista „Allowed actions” pokazuje czas i źródło reguły oraz „Remove rule”. „Always allow…”
