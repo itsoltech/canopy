@@ -34,7 +34,6 @@ export function enrollmentCommand(input: {
   origin: string;
   gatewayUrl: string;
   fingerprint?: string;
-  token: string;
   name: string;
   releaseUrl?: string;
 }) {
@@ -44,5 +43,5 @@ export function enrollmentCommand(input: {
 
   const pin = input.fingerprint ? ` --fingerprint ${shellQuote(input.fingerprint)}` : "";
 
-  return `curl -fsSL ${shellQuote(`${input.origin}/install/worker.sh`)} | sh -s -- --gateway ${shellQuote(input.gatewayUrl)}${pin} --token ${shellQuote(input.token)} --name ${shellQuote(input.name)}${fallback}`;
+  return `curl -fsSL ${shellQuote(`${input.origin}/install/worker.sh`)} | sh -s -- --gateway ${shellQuote(input.gatewayUrl)}${pin} --name ${shellQuote(input.name)}${fallback}`;
 }

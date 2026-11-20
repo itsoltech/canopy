@@ -35,6 +35,7 @@ import { permissionsChanged } from "./turn-permission-state.ts";
 export function createCoreWorkerLink(core: GatewayCore) {
   return createWorkerLink({
     onMessage: (connection, message) => core.diagnostics.workerMessage(connection, message),
+    onBlobChunk: (connection, chunk) => coreReceiveBlob(core, connection, chunk),
     observeCommand: (kind) => core.diagnostics.command(kind),
     diagnosticsEnabled: () => core.diagnostics.collector.enabled,
     workerDiagnosticsEnabled: () => core.diagnostics.options.workerDiagnosticsEnabled ?? true,
@@ -190,10 +191,6 @@ export async function coreServe(hostContext: GatewayCore, connection: WorkerConn
           await offerWorkerStorage(hostContext, connection);
           offerWorkerRoutes(hostContext, connection);
           break;
-        case "blobChunk":
-          // Before the event that points to it (same stream, handled in order).
-          await coreReceiveBlob(hostContext, connection, message.payload.value);
-          break;
         case "threadStorageCleanup":
           completeWorkerStorage(connection, message.payload.value);
           break;
@@ -248,8 +245,11 @@ async function workerInteraction(core: GatewayCore, connection: WorkerConnection
 
   await corePublishInteraction(core, interaction);
   await allowFullAccessPermission(core, interaction);
+
   // Re-sent after a reconnect and already answered: answer again from the database.
-  const answered = await coreRun(core, (s) => s.interactionAnswer(interaction.requestId));
+  const answered = await coreRun(core, (s) =>
+    s.interactionAnswer(interaction.requestId, { threadId: request.threadId, workerId: connection.workerId }),
+  );
 
   if (answered) coreSendAnswer(core, connection, answered.answer);
   else await core.bus.onInteraction(interaction);

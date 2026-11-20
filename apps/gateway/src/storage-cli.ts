@@ -3,6 +3,7 @@ import { PgClient } from "@effect/sql-pg";
 import { Effect, Redacted } from "effect";
 import { Reactivity } from "effect/reactivity";
 import { inspectStorage } from "./maintenance/storage-inspection.ts";
+import { databaseUrl } from "./database-credentials.ts";
 import { reclaimSelectionError, reclaimStorage, RECLAIM_TABLES, StorageReclaimRefused } from "./maintenance/reclaim.ts";
 
 const USAGE = `Usage:
@@ -64,15 +65,15 @@ export async function storageCli(
     return 64;
   }
 
-  const url = env["CANOPY_DATABASE_URL"];
-
-  if (!url) {
+  if (!env["CANOPY_DATABASE_URL"]) {
     output.error("CANOPY_DATABASE_URL is required; load it from the operator environment.");
 
     return 78;
   }
 
   try {
+    const url = databaseUrl(env);
+
     return await Effect.runPromise(
       Effect.scoped(
         Effect.gen(function* () {

@@ -7,17 +7,24 @@ const BATCH = 64;
 /** Called under the purged thread's lifecycle lock, inside the maintenance transaction. */
 export const pruneThreadBlobs = (sql: SqlClient.SqlClient, threadId: string) =>
   Effect.gen(function* () {
+    const staged = yield* sql`DELETE FROM worker_preview_uploads WHERE ctid IN (
+      SELECT ctid FROM worker_preview_uploads WHERE thread_scope=${threadId}
+      ORDER BY sha256 LIMIT ${BATCH} FOR UPDATE SKIP LOCKED) RETURNING 1`;
+
     const attachments = yield* sql<{ id: string; sha256: string; thumb_sha256: string | null }>`
       SELECT id,sha256,thumb_sha256 FROM attachments WHERE thread_id=${threadId}::uuid
       ORDER BY id LIMIT ${BATCH} FOR UPDATE SKIP LOCKED`;
 
-    const previews = yield* sql<{ sha256: string }>`SELECT sha256 FROM thread_blobs
+    const previews = yield* sql<{
+      sha256: string;
+      retained: boolean;
+    }>`SELECT sha256,verified OR retained_history AS retained FROM thread_blobs
       WHERE thread_id=${threadId}::uuid ORDER BY sha256 LIMIT ${BATCH} FOR UPDATE SKIP LOCKED`;
 
     const hashes = [
       ...new Set([
         ...attachments.flatMap((row) => (row.thumb_sha256 ? [row.sha256, row.thumb_sha256] : [row.sha256])),
-        ...previews.map((row) => row.sha256),
+        ...previews.filter((row) => row.retained).map((row) => row.sha256),
       ]),
     ].sort();
 
@@ -42,9 +49,9 @@ export const pruneThreadBlobs = (sql: SqlClient.SqlClient, threadId: string) =>
       yield* sql`DELETE FROM thread_blobs WHERE thread_id=${threadId}::uuid AND sha256=ANY(${previews.map((row) => row.sha256)}::text[])`;
 
     if (hashes.length)
-      yield* sql`DELETE FROM blobs b WHERE sha256=ANY(${hashes}::text[]) AND NOT retention_exempt
+      yield* sql`DELETE FROM blobs b WHERE sha256=ANY(${hashes}::text[])
         AND NOT EXISTS(SELECT 1 FROM attachments a WHERE a.sha256=b.sha256 OR a.thumb_sha256=b.sha256)
-        AND NOT EXISTS(SELECT 1 FROM thread_blobs t WHERE t.sha256=b.sha256)`;
+        AND NOT EXISTS(SELECT 1 FROM thread_blobs t WHERE t.sha256=b.sha256 AND (t.verified OR t.retained_history))`;
 
-    return attachments.length + previews.length;
+    return staged.length + attachments.length + previews.length;
   });

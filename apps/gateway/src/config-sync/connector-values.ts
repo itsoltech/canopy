@@ -24,6 +24,8 @@ export const CONNECTOR_FIELDS = new Set([
 
 /** Provider-supplied account metadata, never the client id, access token or refresh token. */
 export function accountIdentity(value: Credentials) {
+  if (value.oauthSubject) return value.oauthSubject;
+
   if (value.accountIdentity) return value.accountIdentity;
   const tokens = value.tokens && Schema.decodeUnknownSync(Schema.JsonObject)(value.tokens);
 
@@ -38,7 +40,7 @@ export function accountIdentity(value: Credentials) {
   return ids.length ? digest(JSON.stringify(ids)) : "";
 }
 
-/** Metadata wins over a name. Names are an exact, case-sensitive fallback, only when unambiguous. */
+/** Only a versioned issuer/subject identifies independently authorized OAuth accounts. */
 export function connectorIdentity(kind: string, values: Values) {
   const type = values["type"];
 
@@ -51,14 +53,14 @@ export function connectorIdentity(kind: string, values: Values) {
 
   if (!Predicate.isString(url)) return "";
 
-  const identity =
-    Predicate.isString(account) && account
-      ? `account:${account}`
-      : Predicate.isString(name) && name.trim()
-        ? `name:${name.trim().normalize("NFC")}`
-        : "";
+  if (values["authKind"] === "oauth")
+    return Predicate.isString(account) && /^oauth2:[a-f0-9]{64}(:[a-f0-9]{64})?$/.test(account)
+      ? digest(JSON.stringify([type, url, account]))
+      : "";
 
-  return identity ? digest(JSON.stringify([type, url, identity])) : "";
+  return values["authKind"] === "headers" && Predicate.isString(name) && name.trim()
+    ? digest(JSON.stringify([type, url, `name:${name.trim().normalize("NFC")}`]))
+    : "";
 }
 
 /** Remote definitions pass the same boundary checks as a local save; tools carry no foreign namespace. */

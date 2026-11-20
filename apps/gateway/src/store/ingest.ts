@@ -9,9 +9,16 @@ import { settleThread, stuckThread } from "./ingest-settle.ts";
 import { applyShellInput } from "./shell-input.ts";
 import { storageEvent } from "./event-text.ts";
 import { dataErrorCode, quarantineEvent } from "./event-quarantine.ts";
+import { recoverPreviews } from "./preview-uploads.ts";
 import { gatewayOwnedItem } from "./visuals.ts";
 import { queryFamily, queryMethods } from "../diagnostics/query-context.ts";
-import { acknowledgeEvents, archivedEventAllowed, type IngestFallback, type IngestOutcome } from "./ingest-outcomes.ts";
+import {
+  acknowledgeDeleted,
+  acknowledgeEvents,
+  archivedEventAllowed,
+  type IngestFallback,
+  type IngestOutcome,
+} from "./ingest-outcomes.ts";
 
 /**
  * Writes worker events into the thread timeline (docs/transcript.md, "Zapis po stronie gateway").
@@ -82,24 +89,9 @@ export const ingestThread = (
 
       if (origin === "worker" && events.some((event) => eventUsage(event)?.scope === UsageScope.TURN))
         yield* lockUsageOwner(sql, thread.owner_user_id);
+
+      if (thread.deleted_at) return yield* acknowledgeDeleted(sql, workerId, journalId, threadId, events, origin);
       const outcomes: IngestOutcome[] = [];
-
-      if (thread.deleted_at) {
-        if (origin === "worker") {
-          for (const event of events) yield* accountThreadUsage(sql, threadId, storageEvent(event));
-        }
-
-        const previous = yield* sql<{ acked_seq: string }>`SELECT acked_seq FROM worker_journal_cursors
-          WHERE worker_id=${workerId}::uuid AND journal_id=${journalId} AND thread_id=${threadId}::uuid`;
-
-        const count = events.filter((e) => e.journalSeq > BigInt(previous[0]?.acked_seq ?? 0)).length;
-        const ack = yield* acknowledgeEvents(sql, workerId, journalId, threadId, events);
-
-        if (count) outcomes.push({ threadId, kind: "dropped", reason: "deleted_thread", count });
-
-        return { ack, stored: [], outcomes };
-      }
-
       let last = BigInt(thread.last_seq);
       const ids = events.map((e) => e.eventId);
 
@@ -126,7 +118,13 @@ export const ingestThread = (
       const fenced = yield* ingestEventFence(sql, thread.owner_user_id, threadId, events);
 
       for (const incoming of events) {
-        if (known.has(incoming.eventId)) continue;
+        if (known.has(incoming.eventId)) {
+          if (origin === "worker" && (incoming.body.case === "itemStarted" || incoming.body.case === "itemCompleted"))
+            yield* recoverPreviews(sql, { workerId, journalId }, threadId, incoming.eventId);
+
+          continue;
+        }
+
         known.add(incoming.eventId);
         const seq = ++last;
 
@@ -179,7 +177,15 @@ export const ingestThread = (
         } else {
           yield* flushDeltaRun;
 
-          if (!suppressed) yield* applySideEffects(sql, threadId, seq, event);
+          if (!suppressed) {
+            yield* applySideEffects(
+              sql,
+              threadId,
+              seq,
+              event,
+              origin === "worker" ? { workerId, journalId } : undefined,
+            );
+          }
         }
 
         if (!suppressed) yield* applySteer(sql, threadId, seq, event);

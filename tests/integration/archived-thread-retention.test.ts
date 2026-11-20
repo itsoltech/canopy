@@ -157,7 +157,7 @@ describe.skipIf(!dockerAvailable)("archived thread retention", () => {
        VALUES($1,3,'text/plain','old') ON CONFLICT DO NOTHING`,
       [sha256],
     );
-    await query("INSERT INTO thread_blobs(thread_id,sha256) VALUES($1::uuid,$2) ON CONFLICT DO NOTHING", [
+    await query("INSERT INTO thread_blobs(thread_id,sha256,verified) VALUES($1::uuid,$2,true) ON CONFLICT DO NOTHING", [
       threadId,
       sha256,
     ]);
@@ -168,14 +168,14 @@ describe.skipIf(!dockerAvailable)("archived thread retention", () => {
          VALUES($1,6,'text/plain','shared') ON CONFLICT DO NOTHING`,
         [sharedSha256],
       );
-      await query("INSERT INTO thread_blobs(thread_id,sha256) VALUES($1::uuid,$2) ON CONFLICT DO NOTHING", [
-        threadId,
-        sharedSha256,
-      ]);
-      await query("INSERT INTO thread_blobs(thread_id,sha256) VALUES($1::uuid,$2) ON CONFLICT DO NOTHING", [
-        sharedWith,
-        sharedSha256,
-      ]);
+      await query(
+        "INSERT INTO thread_blobs(thread_id,sha256,verified) VALUES($1::uuid,$2,true) ON CONFLICT DO NOTHING",
+        [threadId, sharedSha256],
+      );
+      await query(
+        "INSERT INTO thread_blobs(thread_id,sha256,verified) VALUES($1::uuid,$2,true) ON CONFLICT DO NOTHING",
+        [sharedWith, sharedSha256],
+      );
     }
 
     if (turnId) {
@@ -349,10 +349,10 @@ describe.skipIf(!dockerAvailable)("archived thread retention", () => {
     await query("UPDATE thread_items SET status='completed' WHERE thread_id=$1::uuid", [thread.id]);
     await seedPayload(thread.id, undefined, shared.id);
     const legacySha256 = "d".repeat(64);
-    await gateway.runtime.runPromise(
-      AttachmentStore.use((store) =>
-        store.putUnscopedBlob(legacySha256, new TextEncoder().encode("legacy"), "text/plain"),
-      ),
+    await query(
+      `INSERT INTO blobs(sha256,size_bytes,mime_type,data,retention_exempt,legacy_retention_until)
+      VALUES($1,6,'text/plain','legacy',true,now()+interval '30 days')`,
+      [legacySha256],
     );
     await query("INSERT INTO thread_blobs(thread_id,sha256) VALUES($1::uuid,$2)", [thread.id, legacySha256]);
     await prune();
@@ -389,13 +389,14 @@ describe.skipIf(!dockerAvailable)("archived thread retention", () => {
     );
     await gateway.runtime.runPromise(
       AttachmentStore.use((store) =>
-        store.putThreadBlob(
-          gateway.workerId,
-          thread.id,
-          "e".repeat(64),
-          new TextEncoder().encode("late"),
-          "text/plain",
-        ),
+        store.stagePreview({
+          workerId: gateway.workerId,
+          journalId: "late-preview",
+          threadId: thread.id,
+          sha256: "089001a35679a33ef3db0ca350db9b9a2f0136e0e327577b04b3b98127470961",
+          data: new TextEncoder().encode("late"),
+          mimeType: "text/plain",
+        }),
       ),
     );
     expect(
@@ -403,7 +404,11 @@ describe.skipIf(!dockerAvailable)("archived thread retention", () => {
         ?.n,
     ).toBe(0);
     expect(
-      (await query<CountRow>("SELECT count(*)::int AS n FROM blobs WHERE sha256=$1", ["e".repeat(64)]))[0]?.n,
+      (
+        await query<CountRow>("SELECT count(*)::int AS n FROM blobs WHERE sha256=$1", [
+          "089001a35679a33ef3db0ca350db9b9a2f0136e0e327577b04b3b98127470961",
+        ])
+      )[0]?.n,
     ).toBe(0);
   });
 

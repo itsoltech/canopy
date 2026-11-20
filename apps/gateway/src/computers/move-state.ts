@@ -1,9 +1,16 @@
-import { create, toBinary, type JsonValue } from "@bufbuild/protobuf";
-import { computerLink as link, ui } from "@canopy/contracts";
+import { create, isMessage, toBinary, type JsonValue } from "@bufbuild/protobuf";
+import { computerLink as link, MentionKind, MentionSchema, ui } from "@canopy/contracts";
 import { nodeRef, splitId } from "@canopy/domain/computers";
-import { Effect, Schema } from "effect";
+import { Effect } from "effect";
 import { SqlClient } from "effect/sql";
-import { insertRows, JsonRow, MoveRefused, threadRowJson, type MoveRow, type Sql } from "./move-payload.ts";
+import { insertRows, MoveRefused, threadRowJson, type MoveRow, type Sql } from "./move-payload.ts";
+import {
+  insertMovedBlob,
+  insertMovedFileBytes,
+  movedAttachment,
+  movedSchedule,
+  movedVisual,
+} from "./move-validation.ts";
 import { mapIds, qualify } from "./remote.ts";
 import type { ComputerStore } from "./store.ts";
 
@@ -13,7 +20,6 @@ export {
   MoveRefused,
   payloadOf,
   qualifiedNew,
-  redirectItem,
   threadRowJson,
   type BotRows,
   type Frozen,
@@ -50,18 +56,60 @@ export function transaction<A, E>(store: ComputerStore, body: (sql: Sql) => Effe
  * The history of a moved thread as this computer shows it. Ids of the old home's other things carry its
  * suffix (they stay there, or follow a redirect); the moved threads, their turns and files are plain here.
  */
-export function localHistory(history: ui.ThreadSnapshot, from: string, moved: ReadonlySet<string>) {
+export function localHistory(
+  history: ui.ThreadSnapshot,
+  from: string,
+  contents: {
+    threads: ReadonlySet<string>;
+    files: ReadonlySet<string>;
+    visuals: ReadonlySet<string>;
+  },
+) {
   const snapshot = create(ui.ThreadSnapshotSchema, history);
-  const own = new Set(moved);
-
-  for (const turn of snapshot.turns) own.add(turn.id);
-
-  for (const steer of snapshot.steers) own.add(steer.id);
+  const turns = new Set(snapshot.turns.map((t) => t.id));
+  const steers = new Set(snapshot.steers.map((s) => s.id));
+  const items = new Set(snapshot.items.map((i) => i.item?.itemId));
   qualify(ui.ThreadSnapshotSchema, snapshot, from);
-  mapIds(ui.ThreadSnapshotSchema, snapshot, (value) => {
+  mapIds(ui.ThreadSnapshotSchema, snapshot, (value, field, desc, message) => {
     const { id, node } = splitId(value);
 
-    return node === nodeRef(from) && own.has(id) ? id : value;
+    if (node !== nodeRef(from)) return value;
+
+    if (
+      contents.threads.has(id) &&
+      (field === "thread_id" ||
+        field.endsWith("_thread_id") ||
+        (field === "id" && desc === ui.ThreadSchema) ||
+        (field === "mention_id" && isMessage(message, MentionSchema) && message.kind === MentionKind.THREAD))
+    )
+      return id;
+
+    if (
+      turns.has(id) &&
+      (field === "turn_id" ||
+        field.endsWith("_turn_id") ||
+        field === "input_id" ||
+        (field === "id" && desc === ui.TurnSchema))
+    )
+      return id;
+
+    if (steers.has(id) && (field === "steer_id" || field === "input_id" || (field === "id" && desc === ui.SteerSchema)))
+      return id;
+
+    if (items.has(id) && (field === "item_id" || field.endsWith("_item_id"))) return id;
+
+    if (contents.visuals.has(id) && field === "visual_id") return id;
+
+    if (
+      contents.files.has(id) &&
+      (field === "attachment_id" ||
+        field === "attachment_ids" ||
+        (field === "id" && desc === ui.AttachmentSchema) ||
+        (field === "mention_id" && isMessage(message, MentionSchema) && message.kind === MentionKind.ATTACHMENT))
+    )
+      return id;
+
+    return value;
   });
 
   return snapshot;
@@ -75,16 +123,74 @@ function insertMovedVisuals(
   owner: string,
   turnId: string,
 ) {
-  return Effect.forEach(rows, (json) =>
-    sql.unsafe(
-      `INSERT INTO thread_visuals (visual_id, version, thread_id, owner_user_id, turn_id, call_id, item_id, title, description,
+  return Effect.gen(function* () {
+    if (!rows.length) return;
+    const versions = rows.map(movedVisual);
+    const ids = [...new Set(versions.map((v) => v.visual_id))].sort();
+    // A visual ID names the whole version history, even when two concurrent moves carry different versions.
+    yield* sql.unsafe(
+      "SELECT pg_advisory_xact_lock(hashtextextended(id, 0)) FROM unnest($1::text[]) v(id) ORDER BY id",
+      [ids],
+    );
+
+    if ((yield* sql.unsafe("SELECT 1 FROM thread_visuals WHERE visual_id=ANY($1::uuid[]) LIMIT 1", [ids])).length)
+      return yield* Effect.fail(new MoveRefused("A visual in the move already exists on this computer."));
+
+    for (const visual of versions)
+      yield* sql.unsafe(
+        `INSERT INTO thread_visuals (visual_id, version, thread_id, owner_user_id, turn_id, call_id, item_id, title, description,
         height, schema_version, kit_version, spec, sha256, created_at, html_document)
       SELECT visual_id, version, $2::uuid, $3::uuid, $4::uuid, call_id, item_id, title, description, height, schema_version,
         kit_version, spec, sha256, created_at, coalesce(html_document, false)
-      FROM json_populate_record(NULL::thread_visuals, $1::json) ON CONFLICT DO NOTHING`,
-      [JSON.stringify(Schema.decodeUnknownSync(JsonRow)(JSON.parse(json))), threadId, owner, turnId],
-    ),
-  );
+      FROM json_populate_record(NULL::thread_visuals, $1::json)`,
+        [JSON.stringify(visual), threadId, owner, turnId],
+      );
+  });
+}
+
+function importThreadFiles(
+  sql: Sql,
+  owner: string,
+  thread: string,
+  files: readonly link.MovedFile[],
+  turn: string | null,
+  replay: boolean,
+) {
+  return Effect.gen(function* () {
+    for (const file of files) {
+      const row = movedAttachment(file);
+
+      if (row["thread_id"] !== thread) continue;
+      yield* insertMovedFileBytes(sql, file, row);
+      const thumbnail = file.thumbnail.length ? (row.thumb_sha256 ?? null) : null;
+
+      if (replay) {
+        yield* sql`UPDATE attachments SET thumb_sha256=${thumbnail} WHERE id=${row.id}::uuid
+          AND owner_user_id=${owner}::uuid AND thread_id=${thread}::uuid AND sha256=${row.sha256}
+          AND thumb_sha256 IS DISTINCT FROM ${thumbnail}`;
+        continue;
+      }
+
+      const bound = row["turn_id"] ? turn : null;
+      yield* insertRows(
+        sql,
+        "attachments",
+        [
+          {
+            ...row,
+            owner_user_id: owner,
+            bot_id: null,
+            bot_turn_id: null,
+            slack_file_id: null,
+            turn_id: bound,
+            thread_id: bound ? thread : null,
+            thumb_sha256: thumbnail,
+          },
+        ],
+        { strict: true },
+      );
+    }
+  });
 }
 
 /** Everything of a staged thread except the thread rows (created through the core). One transaction, idempotent. */
@@ -110,16 +216,28 @@ export function applyThreadRows(
       const owner = store.owner;
 
       // Admit before any blob lock: replay cannot allocate bytes after retention fenced this thread.
-      const admitted = yield* sql`SELECT id FROM threads WHERE id=${input.threadId}::uuid
-        AND owner_user_id=${owner}::uuid AND purged_at IS NULL FOR UPDATE`;
+      const admitted = yield* sql`SELECT t.id FROM threads t WHERE t.id=${input.threadId}::uuid
+        AND t.owner_user_id=${owner}::uuid AND t.purged_at IS NULL AND (
+          t.creation_request_id=${`move:${move.id}:${input.threadId}`} OR
+          (t.creation_request_id IS NULL AND EXISTS (SELECT 1 FROM computer_moved_threads h
+            WHERE h.thread_id=t.id AND h.from_node_id=${move.peer_node_id}))) FOR UPDATE`;
 
       if (!admitted.length) return yield* Effect.fail(new MoveRefused("The thread has been permanently deleted."));
 
-      const known = yield* sql.unsafe(`SELECT 1 FROM computer_moved_threads WHERE thread_id = $1::uuid`, [
-        input.threadId,
-      ]);
+      const known = (yield* sql<{
+        from_node_id: string;
+      }>`SELECT from_node_id FROM computer_moved_threads WHERE thread_id=${input.threadId}::uuid`)[0];
 
-      if (known.length) return;
+      if (known && known.from_node_id !== move.peer_node_id)
+        return yield* Effect.fail(new MoveRefused("The thread belongs to a different move."));
+
+      for (const blob of input.blobs) {
+        yield* insertMovedBlob(sql, blob.sha256, blob.data, blob.mimeType);
+        yield* sql`INSERT INTO thread_blobs(thread_id,sha256,verified) VALUES(${input.threadId}::uuid,${blob.sha256},true)
+          ON CONFLICT (thread_id,sha256) DO UPDATE SET verified=true WHERE NOT thread_blobs.verified`;
+      }
+
+      if (known) return yield* importThreadFiles(sql, owner, input.threadId, input.files, null, true);
       const history = input.history;
       const ordinal = history.turns.reduce((n, t) => Math.max(n, t.ordinal), 0);
 
@@ -161,64 +279,34 @@ export function applyThreadRows(
       );
 
       for (const json of thread.schedulesJson) {
-        const s = Schema.decodeUnknownSync(JsonRow)(JSON.parse(json));
-        yield* insertRows(sql, "schedules", [
-          {
-            ...s,
-            thread_id: input.threadId,
-            project_id: input.projectId,
-            created_by_user_id: owner,
-            created_by_call_id: null,
-            hops: 0,
-            last_turn_id: null,
-            lease_owner: null,
-            lease_until: null,
-            placement_cursor: null,
-            last_edited_by_user_id: owner,
-            last_edited_at: new Date().toISOString(),
-          },
-        ]);
+        const s = movedSchedule(json);
+        yield* insertRows(
+          sql,
+          "schedules",
+          [
+            {
+              ...s,
+              thread_id: input.threadId,
+              project_id: input.projectId,
+              created_by_user_id: owner,
+              created_by_call_id: null,
+              hops: 0,
+              last_turn_id: null,
+              lease_owner: null,
+              lease_until: null,
+              placement_cursor: null,
+              last_edited_by_user_id: owner,
+              last_edited_at: new Date().toISOString(),
+            },
+          ],
+          { strict: true },
+        );
       }
 
       // Visual versions belong to the moved history's placeholder turn, like its files.
       if (ordinal > 0) yield* insertMovedVisuals(sql, thread.visualsJson, input.threadId, owner, input.ordinalTurn);
 
-      for (const file of input.files) {
-        const a = Schema.decodeUnknownSync(JsonRow)(JSON.parse(file.attachmentJson));
-
-        if (a["thread_id"] !== input.threadId) continue;
-        yield* sql.unsafe(
-          `INSERT INTO blobs (sha256, size_bytes, mime_type, data) VALUES ($1, $2, $3, $4) ON CONFLICT (sha256) DO NOTHING`,
-          [a["sha256"], file.data.length, file.mimeType, file.data],
-        );
-
-        if (a["thumb_sha256"] && file.thumbnail.length)
-          yield* sql.unsafe(
-            `INSERT INTO blobs (sha256, size_bytes, mime_type, data) VALUES ($1, $2, $3, $4) ON CONFLICT (sha256) DO NOTHING`,
-            [a["thumb_sha256"], file.thumbnail.length, file.thumbnailMimeType, file.thumbnail],
-          );
-        // A file belongs to a turn of its thread: here, the placeholder of the moved history.
-        yield* insertRows(sql, "attachments", [
-          {
-            ...a,
-            owner_user_id: owner,
-            turn_id: a["turn_id"] && ordinal > 0 ? input.ordinalTurn : null,
-            thread_id: a["turn_id"] && ordinal > 0 ? input.threadId : null,
-            thumb_sha256: file.thumbnail.length ? a["thumb_sha256"] : null,
-          },
-        ]);
-      }
-
-      for (const blob of input.blobs) {
-        yield* sql.unsafe(
-          `INSERT INTO blobs (sha256, size_bytes, mime_type, data) VALUES ($1, $2, $3, $4) ON CONFLICT (sha256) DO NOTHING`,
-          [blob.sha256, blob.data.length, blob.mimeType, blob.data],
-        );
-        yield* sql.unsafe(`INSERT INTO thread_blobs (thread_id, sha256) VALUES ($1::uuid, $2) ON CONFLICT DO NOTHING`, [
-          input.threadId,
-          blob.sha256,
-        ]);
-      }
+      yield* importThreadFiles(sql, owner, input.threadId, input.files, ordinal > 0 ? input.ordinalTurn : null, false);
     }),
   );
 }
@@ -262,9 +350,10 @@ export function redirect(
   item: { itemId: string; kind: string; homeNodeId: string; homeName: string; fromNodeId: string },
 ) {
   return sql.unsafe(
-    `INSERT INTO computer_redirects (owner_user_id, item_id, kind, home_node_id, home_name, from_node_id, moved_at) VALUES ($1::uuid, $2::uuid, $3, $4, $5, $6, now())
-    ON CONFLICT (owner_user_id, item_id) DO UPDATE SET kind = EXCLUDED.kind, home_node_id = EXCLUDED.home_node_id, home_name = EXCLUDED.home_name,
-    from_node_id = EXCLUDED.from_node_id, moved_at = EXCLUDED.moved_at`,
+    `INSERT INTO computer_redirects (owner_user_id, item_id, kind, home_node_id, home_name, from_node_id, moved_at,basis)
+    VALUES ($1::uuid,$2::uuid,$3,$4,$5,$6,now(),'local_move')
+    ON CONFLICT (owner_user_id,kind,item_id,from_node_id) DO UPDATE SET home_node_id=EXCLUDED.home_node_id,
+    home_name=EXCLUDED.home_name,moved_at=EXCLUDED.moved_at,basis='local_move'`,
     [owner, item.itemId, item.kind, item.homeNodeId, item.homeName, item.fromNodeId],
   );
 }

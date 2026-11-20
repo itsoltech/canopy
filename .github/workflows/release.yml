@@ -3,7 +3,7 @@
 # tagged, pushed to GHCR or uploaded before `checks` pass. Server artifacts are staged on a draft;
 # publication waits for desktop builds, feeds and verification. All dev events share one active run and only the newest pending run;
 # each branch has its own queue. GITHUB_TOKEN tags do not trigger another workflow.
-# Every checkout/build uses EXPECTED_SHA; later branch commits belong to the next run.
+# Builds use the validated source SHA. Planning, tagging and publishing use the workflow revision.
 name: Release
 
 on:
@@ -48,9 +48,56 @@ env:
   BUN_VERSION: 1.4.4
   IMAGE_NAMESPACE: ghcr.io/itsoltech
   EXPECTED_SHA: ${{ inputs.expected_sha || github.sha }}
-  RELEASE_BRANCH: ${{ inputs.release_branch && inputs.release_branch != 'current' && inputs.release_branch || github.ref_name }}
+  RELEASE_BRANCH: ${{ github.ref_type == 'tag' && 'main' || inputs.release_branch && inputs.release_branch != 'current' && inputs.release_branch || github.ref_name }}
 
 jobs:
+  verify:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      # Inspect Git objects only. Never check out or execute the requested revision here.
+      - name: Validate release revision against the protected branch
+        shell: bash
+        env:
+          REF_PROTECTED: ${{ github.ref_protected }}
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          if [ "$REF_PROTECTED" != true ]; then
+            echo "::error::Release requires a protected workflow ref."
+            exit 1
+          fi
+          case "$GITHUB_EVENT_NAME:$GITHUB_REF" in
+            workflow_dispatch:refs/heads/dev|workflow_dispatch:refs/heads/next|workflow_dispatch:refs/heads/main) ;;
+            schedule:refs/heads/dev|push:refs/heads/next|push:refs/heads/main) ;;
+            push:refs/tags/v*)
+              if [[ ! "$GITHUB_REF_NAME" =~ ^v(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)$ ]]; then
+                echo "::error::Manual tags must be stable vX.Y.Z."
+                exit 1
+              fi ;;
+            *) echo "::error::Release requires an approved event on a protected ref."; exit 1 ;;
+          esac
+          case "$RELEASE_BRANCH" in
+            dev|next|main) ;;
+            *) echo "::error::Invalid release branch."; exit 1 ;;
+          esac
+          if [ "$(gh api "repos/$GITHUB_REPOSITORY/branches/$RELEASE_BRANCH" --jq .protected)" != true ]; then
+            echo "::error::The selected release branch must be protected."
+            exit 1
+          fi
+          if [[ ! "$EXPECTED_SHA" =~ ^[0-9a-f]{40}$ ]]; then
+            echo "::error::Release requires a full commit SHA."
+            exit 1
+          fi
+
+          history="$RUNNER_TEMP/canopy-release-history.git"
+          git init --bare "$history"
+          git -C "$history" fetch --no-tags "https://github.com/$GITHUB_REPOSITORY.git" "refs/heads/$RELEASE_BRANCH"
+          if [[ "$(git -C "$history" cat-file -t "$EXPECTED_SHA")" != commit ]] ||
+             ! git -C "$history" merge-base --is-ancestor "$EXPECTED_SHA" FETCH_HEAD; then
+            echo "::error::The requested commit is outside the selected release branch history."
+            exit 1
+          fi
+
   checks:
     needs: plan
     # Keep main/next/tag checks even for no-release runs; dev pays for CI only for a planned nightly.
@@ -62,9 +109,7 @@ jobs:
   # Dry run: the version this run will release. Shares the per-branch group with `release`, so it never plans
   # while another run of the branch is tagging.
   plan:
-    if: >-
-      (github.event_name != 'schedule' || github.ref == 'refs/heads/dev') &&
-      (github.event_name != 'workflow_dispatch' || contains(fromJSON('["main", "next", "dev"]'), github.ref_name))
+    needs: verify
     runs-on: ubuntu-24.04
     timeout-minutes: 10
     concurrency:
@@ -82,32 +127,15 @@ jobs:
     steps:
       - uses: actions/checkout@v5
         with:
-          ref: ${{ env.EXPECTED_SHA }}
-          fetch-depth: 0
-      - name: Release tooling from the workflow revision
-        uses: actions/checkout@v5
-        with:
           ref: ${{ github.workflow_sha }}
-          path: .release-tooling
-          sparse-checkout: |
-            scripts
-            release.config.mjs
-            patches/semantic-release@25.0.9.patch
-          sparse-checkout-cone-mode: false
-      - name: Use current release tooling with the pinned source
-        run: |
-          cp .release-tooling/scripts/{semantic-release,release-analyzer,release-expected-version,release-body,release-draft,release-recovery,generate-release-notes}.mjs scripts/
-          cp .release-tooling/release.config.mjs .
+          fetch-depth: 0
+          persist-credentials: false
       - uses: ./.github/actions/setup-bun
-      - name: Apply release dependency patch from the workflow revision
-        run: |
-          patch=.release-tooling/patches/semantic-release@25.0.9.patch
-          if ! git apply --directory=node_modules/semantic-release --reverse --check "$patch" 2>/dev/null; then
-            git apply --directory=node_modules/semantic-release "$patch"
-          fi
       - uses: actions/setup-node@v5
         with:
           node-version: 24
+      # Move the detached HEAD for semantic-release's history queries without replacing any tooling files.
+      - run: git reset --soft "$EXPECTED_SHA"
       - id: plan
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -131,6 +159,7 @@ jobs:
     needs: [plan, checks]
     if: needs.plan.outputs.published == 'true'
     runs-on: ubuntu-24.04
+    environment: release-publication
     timeout-minutes: 10
     concurrency:
       group: release-version-${{ inputs.release_branch && inputs.release_branch != 'current' && format('refs/heads/{0}', inputs.release_branch) || github.ref }}
@@ -145,32 +174,14 @@ jobs:
     steps:
       - uses: actions/checkout@v5
         with:
-          ref: ${{ env.EXPECTED_SHA }}
-          fetch-depth: 0
-      - name: Release tooling from the workflow revision
-        uses: actions/checkout@v5
-        with:
           ref: ${{ github.workflow_sha }}
-          path: .release-tooling
-          sparse-checkout: |
-            scripts
-            release.config.mjs
-            patches/semantic-release@25.0.9.patch
-          sparse-checkout-cone-mode: false
-      - name: Use current release tooling with the pinned source
-        run: |
-          cp .release-tooling/scripts/{semantic-release,release-analyzer,release-expected-version,release-body,release-draft,release-recovery,generate-release-notes}.mjs scripts/
-          cp .release-tooling/release.config.mjs .
+          fetch-depth: 0
       - uses: ./.github/actions/setup-bun
-      - name: Apply release dependency patch from the workflow revision
-        run: |
-          patch=.release-tooling/patches/semantic-release@25.0.9.patch
-          if ! git apply --directory=node_modules/semantic-release --reverse --check "$patch" 2>/dev/null; then
-            git apply --directory=node_modules/semantic-release "$patch"
-          fi
       - uses: actions/setup-node@v5
         with:
           node-version: 24
+      # Move the detached HEAD for semantic-release's history queries without replacing any tooling files.
+      - run: git reset --soft "$EXPECTED_SHA"
       - id: release
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -234,6 +245,7 @@ jobs:
       - uses: actions/checkout@v5
         with:
           ref: ${{ env.EXPECTED_SHA }}
+          persist-credentials: false
       - uses: ./.github/actions/setup-bun
       # The web is target-independent JavaScript: built once, embedded into every gateway binary (docs/deploy.md).
       - name: Web build
@@ -351,7 +363,7 @@ jobs:
           docker rm -f canopy-smoke-pg >/dev/null
           "$ok"
 
-  # Builds every image layer into the GHA cache next to the checks; nothing is pushed here.
+  # Builds an OCI archive beside the checks with no registry write access.
   images-build:
     needs: plan
     if: needs.plan.outputs.published == 'true'
@@ -365,8 +377,23 @@ jobs:
       - uses: actions/checkout@v5
         with:
           ref: ${{ env.EXPECTED_SHA }}
+          persist-credentials: false
       - uses: docker/setup-qemu-action@v3
       - uses: docker/setup-buildx-action@v3
+      - id: meta
+        uses: docker/metadata-action@v5
+        env:
+          DOCKER_METADATA_ANNOTATIONS_LEVELS: manifest,index
+        with:
+          images: ${{ env.IMAGE_NAMESPACE }}/canopy-${{ matrix.app }}
+          flavor: latest=false
+          tags: type=raw,value=${{ needs.plan.outputs.tag }}
+          labels: |
+            org.opencontainers.image.title=canopy-${{ matrix.app }}
+            org.opencontainers.image.version=${{ needs.plan.outputs.version }}
+            org.opencontainers.image.revision=${{ env.EXPECTED_SHA }}
+          annotations: |
+            org.opencontainers.image.version=${{ needs.plan.outputs.version }}
       - uses: docker/build-push-action@v6
         env:
           DOCKER_BUILD_RECORD_UPLOAD: false
@@ -375,9 +402,12 @@ jobs:
           context: .
           target: ${{ matrix.app }}
           platforms: linux/amd64,linux/arm64
-          push: false
-          provenance: false
-          sbom: false
+          outputs: type=oci,dest=${{ runner.temp }}/image.oci.tar
+          tags: ${{ env.IMAGE_NAMESPACE }}/canopy-${{ matrix.app }}:${{ needs.plan.outputs.tag }}
+          annotations: ${{ steps.meta.outputs.annotations }}
+          labels: ${{ steps.meta.outputs.labels }}
+          provenance: mode=min
+          sbom: true
           build-args: |
             CANOPY_VERSION=${{ needs.plan.outputs.version }}
             CANOPY_REVISION=${{ env.EXPECTED_SHA }}
@@ -432,8 +462,15 @@ jobs:
           docker rm -f canopy-smoke-gateway canopy-smoke-pg >/dev/null
           "$ok"
 
-  # After the release tag exists: the same build from the cache, pushed only as the immutable vX.Y.Z.
-  # Channel aliases move after publish-desktop, forward only.
+      - uses: actions/upload-artifact@v4
+        with:
+          name: image-${{ matrix.app }}
+          path: ${{ runner.temp }}/image.oci.tar
+          if-no-files-found: error
+          retention-days: 7
+          overwrite: true
+
+  # Publication copies the already-built OCI image, including its index and attestations.
   images:
     needs: [release, images-build]
     if: needs.release.outputs.published == 'true'
@@ -442,53 +479,30 @@ jobs:
       matrix:
         app: [gateway, worker]
     runs-on: ubuntu-24.04
-    timeout-minutes: 60
+    environment: release-publication
+    timeout-minutes: 20
     permissions:
-      contents: read
       packages: write
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/download-artifact@v5
         with:
-          ref: ${{ env.EXPECTED_SHA }}
-      - uses: docker/setup-qemu-action@v3
-      - uses: docker/setup-buildx-action@v3
+          name: image-${{ matrix.app }}
+          path: ${{ runner.temp }}
+      - run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends skopeo
       - uses: docker/login-action@v3
         with:
           registry: ghcr.io
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
-      - id: meta
-        uses: docker/metadata-action@v5
+      - name: Push the immutable image tag
         env:
-          DOCKER_METADATA_ANNOTATIONS_LEVELS: manifest,index
-        with:
-          images: ${{ env.IMAGE_NAMESPACE }}/canopy-${{ matrix.app }}
-          flavor: latest=false
-          tags: type=raw,value=${{ needs.release.outputs.tag }}
-          labels: |
-            org.opencontainers.image.title=canopy-${{ matrix.app }}
-            org.opencontainers.image.version=${{ needs.release.outputs.version }}
-            org.opencontainers.image.revision=${{ env.EXPECTED_SHA }}
-          annotations: |
-            org.opencontainers.image.version=${{ needs.release.outputs.version }}
-      - uses: docker/build-push-action@v6
-        env:
-          DOCKER_BUILD_RECORD_UPLOAD: false
-        with:
-          context: .
-          target: ${{ matrix.app }}
-          platforms: linux/amd64,linux/arm64
-          push: true
-          tags: ${{ env.IMAGE_NAMESPACE }}/canopy-${{ matrix.app }}:${{ needs.release.outputs.tag }}
-          labels: ${{ steps.meta.outputs.labels }}
-          annotations: ${{ steps.meta.outputs.annotations }}
-          build-args: |
-            CANOPY_VERSION=${{ needs.release.outputs.version }}
-            CANOPY_REVISION=${{ env.EXPECTED_SHA }}
-          sbom: true
-          cache-from: type=gha,scope=${{ matrix.app }}
-
-  desktop:
+          IMAGE: ${{ env.IMAGE_NAMESPACE }}/canopy-${{ matrix.app }}:${{ needs.release.outputs.tag }}
+        run: |
+          skopeo copy --all --preserve-digests --dest-authfile "$HOME/.docker/config.json" \
+            "oci-archive:$RUNNER_TEMP/image.oci.tar" "docker://$IMAGE"
+  desktop-build:
     needs: plan
     if: needs.plan.outputs.published == 'true'
     strategy:
@@ -496,11 +510,48 @@ jobs:
       matrix: ${{ fromJSON(needs.plan.outputs.desktop_matrix) }}
     runs-on: ${{ matrix.runner }}
     continue-on-error: ${{ matrix.experimental }}
-    timeout-minutes: 60
+    timeout-minutes: 45
     steps:
       - uses: actions/checkout@v5
         with:
           ref: ${{ env.EXPECTED_SHA }}
+          persist-credentials: false
+      - uses: ./.github/actions/setup-bun
+      - name: Build the desktop runtime
+        env:
+          CANOPY_VERSION: ${{ needs.plan.outputs.version }}
+          CANOPY_CHANNEL: ${{ needs.plan.outputs.channel }}
+        run: bun run --cwd apps/desktop build
+      - name: Archive the build output with file modes
+        shell: bash
+        working-directory: apps/desktop
+        run: |
+          entries=(dist build/runtime)
+          if [ "$RUNNER_OS" = macOS ]; then entries+=(build/native); fi
+          tar -czf desktop-runtime.tar.gz "${entries[@]}"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: runtime-${{ matrix.target }}
+          path: apps/desktop/desktop-runtime.tar.gz
+          if-no-files-found: error
+          retention-days: 7
+          overwrite: true
+
+  desktop:
+    needs: [plan, checks, desktop-build]
+    if: needs.plan.outputs.published == 'true'
+    strategy:
+      fail-fast: false
+      matrix: ${{ fromJSON(needs.plan.outputs.desktop_matrix) }}
+    runs-on: ${{ matrix.runner }}
+    environment: release-signing
+    continue-on-error: ${{ matrix.experimental }}
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          ref: ${{ github.workflow_sha }}
+          persist-credentials: false
       # Restore downloads before dependency installation, so Electron install hooks can reuse them too.
       - uses: actions/cache@v4
         with:
@@ -518,6 +569,22 @@ jobs:
       - uses: actions/setup-node@v5
         with:
           node-version: 24
+      - uses: actions/download-artifact@v5
+        with:
+          name: runtime-${{ matrix.target }}
+          path: apps/desktop/.release-artifact
+      - name: Restore the runtime into its packaging directories
+        shell: bash
+        working-directory: apps/desktop
+        run: |
+          staging="$(mktemp -d)"
+          tar -xf .release-artifact/desktop-runtime.tar.gz -C "$staging"
+          test -d "$staging/dist" && test ! -L "$staging/dist"
+          test -d "$staging/build/runtime" && test ! -L "$staging/build/runtime"
+          mkdir -p build
+          mv "$staging/dist" ./dist
+          mv "$staging/build/runtime" ./build/runtime
+          if [ "$RUNNER_OS" = macOS ]; then mv "$staging/build/native" ./build/native; fi
       # electron-builder's bundled fpm (deb) is x86-64 only.
       - name: fpm for arm64 deb
         if: matrix.target == 'linux-arm64'
@@ -528,6 +595,7 @@ jobs:
           echo "USE_SYSTEM_FPM=true" >> "$GITHUB_ENV"
       # No Apple secrets: explicit ad-hoc identity. Never silently skip configured signing.
       - name: Signing
+        if: startsWith(matrix.target, 'darwin-')
         shell: bash
         env:
           MAC_CSC_LINK: ${{ secrets.MAC_CSC_LINK }}
@@ -581,51 +649,57 @@ jobs:
             'CANOPY_WINDOWS_SIGNED=true' >> $env:GITHUB_ENV
             Write-Output 'Windows: Azure Trusted Signing required; signature verification will gate upload.'
           } elseif ($env:CANOPY_CHANNEL -ne 'nightly') {
-            throw "Windows $env:CANOPY_CHANNEL requires Azure Trusted Signing. Missing repository secrets: $($missing -join ', ')"
+            throw "Windows $env:CANOPY_CHANNEL requires Azure Trusted Signing. Missing release-signing secrets: $($missing -join ', ')"
           } else {
             'CANOPY_WINDOWS_SIGNED=false' >> $env:GITHUB_ENV
-            Write-Output "::notice::Windows nightly will be unsigned. Missing repository secrets: $($missing -join ', ')"
+            Write-Output "::notice::Windows nightly will be unsigned. Missing release-signing secrets: $($missing -join ', ')"
           }
       - name: Package
         uses: ./.github/actions/package-desktop
+        with:
+          build-runtime: "false"
         env:
           CANOPY_VERSION: ${{ needs.plan.outputs.version }}
           CANOPY_CHANNEL: ${{ needs.plan.outputs.channel }}
           AZURE_TENANT_ID: ${{ matrix.target == 'windows-x64' && secrets.AZURE_TENANT_ID || '' }}
           AZURE_CLIENT_ID: ${{ matrix.target == 'windows-x64' && secrets.AZURE_CLIENT_ID || '' }}
           AZURE_CLIENT_SECRET: ${{ matrix.target == 'windows-x64' && secrets.AZURE_CLIENT_SECRET || '' }}
+      - name: Clear signing credentials before package checks
+        if: always() && startsWith(matrix.target, 'darwin-')
+        shell: bash
+        run: |
+          rm -f -- "$RUNNER_TEMP/canopy-notarization-key.p8"
+          printf '%s\n' CSC_LINK= CSC_KEY_PASSWORD= APPLE_API_KEY= APPLE_API_KEY_ID= APPLE_API_ISSUER= \
+            APPLE_ID= APPLE_APP_SPECIFIC_PASSWORD= APPLE_TEAM_ID= >> "$GITHUB_ENV"
       - name: Verify Windows signatures
         if: matrix.target == 'windows-x64' && env.CANOPY_WINDOWS_SIGNED == 'true'
         shell: pwsh
         run: ./apps/desktop/scripts/verify-windows.ps1 -ReleaseDirectory apps/desktop/release/${{ needs.plan.outputs.channel }}
-      - name: Install Windows package and smoke sidecars
-        if: matrix.target == 'windows-x64'
-        shell: pwsh
-        env:
-          CANOPY_VERSION: ${{ needs.plan.outputs.version }}
-        run: ./apps/desktop/scripts/smoke-windows.ps1 -ReleaseDirectory apps/desktop/release/${{ needs.plan.outputs.channel }}
       - name: Verify macOS signatures and notarization
         if: startsWith(matrix.target, 'darwin-')
         env:
           CANOPY_CHANNEL: ${{ needs.plan.outputs.channel }}
         run: node apps/desktop/scripts/verify-macos.cjs "apps/desktop/release/$CANOPY_CHANNEL"
-      - name: Verify packaged runtime and downloaded PostgreSQL
+      - name: Archive packaged runtime for the isolated smoke
         if: ${{ !startsWith(matrix.target, 'windows-') }}
         shell: bash
         env:
           CANOPY_CHANNEL: ${{ needs.plan.outputs.channel }}
         run: |
           if [ "$RUNNER_OS" = "macOS" ]; then
-            export CANOPY_DESKTOP_RUNTIME="$PWD/apps/desktop/release/$CANOPY_CHANNEL/mac-arm64/Canopy.app/Contents/Resources/runtime"
+            resources="apps/desktop/release/$CANOPY_CHANNEL/mac-arm64/Canopy.app/Contents/Resources"
           else
-            export CANOPY_DESKTOP_RUNTIME="$PWD/apps/desktop/release/$CANOPY_CHANNEL/linux-unpacked/resources/runtime"
+            resources="apps/desktop/release/$CANOPY_CHANNEL/linux-unpacked/resources"
           fi
-          bun test apps/desktop/test/*.integration.test.ts
-      - name: Remove notarization API key
-        if: always() && startsWith(matrix.target, 'darwin-')
-        shell: bash
-        run: |
-          rm -f -- "$RUNNER_TEMP/canopy-notarization-key.p8"
+          tar -czf "$RUNNER_TEMP/smoke-runtime.tar.gz" -C "$resources" runtime
+      - uses: actions/upload-artifact@v4
+        if: ${{ !startsWith(matrix.target, 'windows-') }}
+        with:
+          name: smoke-runtime-${{ matrix.target }}
+          path: ${{ runner.temp }}/smoke-runtime.tar.gz
+          if-no-files-found: error
+          retention-days: 7
+          overwrite: true
       - uses: actions/upload-artifact@v4
         with:
           name: desktop-${{ matrix.target }}
@@ -644,11 +718,51 @@ jobs:
           retention-days: 7
           overwrite: true
 
+  desktop-smoke:
+    needs: [plan, desktop]
+    strategy:
+      fail-fast: false
+      matrix: ${{ fromJSON(needs.plan.outputs.desktop_matrix) }}
+    runs-on: ${{ matrix.runner }}
+    continue-on-error: ${{ matrix.experimental }}
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          ref: ${{ github.workflow_sha }}
+          persist-credentials: false
+      - uses: ./.github/actions/setup-bun
+      - uses: actions/download-artifact@v5
+        if: matrix.target == 'windows-x64'
+        with:
+          name: desktop-${{ matrix.target }}
+          path: apps/desktop/release/${{ needs.plan.outputs.channel }}
+      - name: Install Windows package and smoke sidecars
+        if: matrix.target == 'windows-x64'
+        shell: pwsh
+        env:
+          CANOPY_VERSION: ${{ needs.plan.outputs.version }}
+        run: ./apps/desktop/scripts/smoke-windows.ps1 -ReleaseDirectory apps/desktop/release/${{ needs.plan.outputs.channel }}
+      - uses: actions/download-artifact@v5
+        if: ${{ !startsWith(matrix.target, 'windows-') }}
+        with:
+          name: smoke-runtime-${{ matrix.target }}
+          path: ${{ runner.temp }}
+      - name: Verify packaged runtime and downloaded PostgreSQL
+        if: ${{ !startsWith(matrix.target, 'windows-') }}
+        shell: bash
+        env:
+          CANOPY_DESKTOP_RUNTIME: ${{ runner.temp }}/runtime
+        run: |
+          tar -xf "$RUNNER_TEMP/smoke-runtime.tar.gz" -C "$RUNNER_TEMP"
+          bun test apps/desktop/test/*.integration.test.ts
+
   # Stage 1: stage binaries and server metadata on the hidden draft. No updater sees this stage.
   publish-server:
     needs: [checks, release, binaries, smoke, images]
     if: ${{ !cancelled() && needs.release.outputs.published == 'true' && needs.checks.result == 'success' && needs.binaries.result == 'success' && needs.smoke.result == 'success' && needs.images.result == 'success' }}
     runs-on: ubuntu-24.04
+    environment: release-publication
     timeout-minutes: 30
     concurrency:
       group: release-publish-${{ inputs.release_branch && inputs.release_branch != 'current' && format('refs/heads/{0}', inputs.release_branch) || github.ref }}
@@ -663,18 +777,9 @@ jobs:
     steps:
       - uses: actions/checkout@v5
         with:
-          ref: ${{ env.EXPECTED_SHA }}
-      - name: Release tooling from the workflow revision
-        uses: actions/checkout@v5
-        with:
           ref: ${{ github.workflow_sha }}
-          path: .release-tooling
-          sparse-checkout: scripts
-      - name: Use current publication tooling with the pinned source
-        run: |
-          cp .release-tooling/scripts/{release-body,release-draft}.mjs scripts/
-          cp .release-tooling/scripts/release-upload.ts scripts/
-      # The staging scripts have no runtime package dependencies.
+          fetch-depth: 0
+          persist-credentials: false
       - uses: ./.github/actions/setup-bun
         with:
           install: "false"
@@ -684,7 +789,7 @@ jobs:
           path: release-assets
       - name: checksums.txt and manifest.json
         run: |
-          GITHUB_SHA="$EXPECTED_SHA" bun scripts/release-manifest.ts release-assets
+          GITHUB_SHA="$EXPECTED_SHA" CANOPY_PROTOCOL_REVISION="$EXPECTED_SHA" bun scripts/release-manifest.ts release-assets
           ls -l release-assets
           echo "### Canopy $CANOPY_VERSION ($CANOPY_RELEASE_TAG): server" >> "$GITHUB_STEP_SUMMARY"
           sed 's/^/    /' release-assets/checksums.txt >> "$GITHUB_STEP_SUMMARY"
@@ -694,9 +799,10 @@ jobs:
   # Stage 2: required desktop targets must succeed. Upload and verify the complete set before publishing
   # the draft or moving image aliases. Failed jobs can resume the same draft without exposing partial feeds.
   publish-desktop:
-    needs: [release, publish-server, desktop]
-    if: ${{ !cancelled() && needs.publish-server.result == 'success' && needs.desktop.result == 'success' }}
+    needs: [release, publish-server, desktop, desktop-smoke]
+    if: ${{ !cancelled() && needs.publish-server.result == 'success' && needs.desktop.result == 'success' && needs.desktop-smoke.result == 'success' }}
     runs-on: ubuntu-24.04
+    environment: release-publication
     timeout-minutes: 30
     concurrency:
       group: release-publish-${{ inputs.release_branch && inputs.release_branch != 'current' && format('refs/heads/{0}', inputs.release_branch) || github.ref }}
@@ -712,17 +818,9 @@ jobs:
     steps:
       - uses: actions/checkout@v5
         with:
-          ref: ${{ env.EXPECTED_SHA }}
-      - name: Release tooling from the workflow revision
-        uses: actions/checkout@v5
-        with:
           ref: ${{ github.workflow_sha }}
-          path: .release-tooling
-          sparse-checkout: scripts
-      - name: Use current publication tooling with the pinned source
-        run: |
-          cp .release-tooling/scripts/{release-body,release-draft}.mjs scripts/
-          cp .release-tooling/scripts/release-upload.ts scripts/
+          fetch-depth: 0
+          persist-credentials: false
       - uses: ./.github/actions/setup-bun
       - uses: actions/download-artifact@v5
         with:
@@ -739,7 +837,7 @@ jobs:
       # Keep binaries locally for complete verification; matching draft assets are not uploaded again.
       - name: checksums.txt and manifest.json
         run: |
-          GITHUB_SHA="$EXPECTED_SHA" bun scripts/release-manifest.ts release-assets
+          GITHUB_SHA="$EXPECTED_SHA" CANOPY_PROTOCOL_REVISION="$EXPECTED_SHA" bun scripts/release-manifest.ts release-assets
           ls -l release-assets
           echo "### Canopy $CANOPY_VERSION ($CANOPY_RELEASE_TAG): server and desktop" >> "$GITHUB_STEP_SUMMARY"
           sed 's/^/    /' release-assets/checksums.txt >> "$GITHUB_STEP_SUMMARY"
@@ -770,8 +868,6 @@ jobs:
     uses: ./.github/workflows/backmerge.yml
     with:
       stable_sha: ${{ inputs.expected_sha || github.sha }}
-    secrets:
-      RELEASE_DEPLOY_KEY: ${{ secrets.RELEASE_DEPLOY_KEY }}
     permissions:
       contents: write
       pull-requests: write

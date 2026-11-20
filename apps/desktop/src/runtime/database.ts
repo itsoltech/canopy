@@ -1,5 +1,5 @@
 import { existsSync, mkdirSync, readFileSync, unlinkSync, writeFileSync } from "node:fs";
-import { join } from "node:path";
+import { dirname, join } from "node:path";
 import { SQL } from "bun";
 import { spawn, spawnSync } from "node:child_process";
 import { freePort } from "./config.ts";
@@ -11,6 +11,9 @@ export async function startDatabase(options: {
   directory: string;
   binaries: string;
   password: string;
+  runtimePassword: string;
+  gateway: string;
+  bun: string;
   supervisor: Supervisor;
   env: NodeJS.ProcessEnv;
 }) {
@@ -104,7 +107,17 @@ export async function startDatabase(options: {
     await sql.close();
   }
 
-  return `${base}/canopy`;
+  const bootstrapUrl = `${base}/canopy`;
+  const runtimeUrl = `postgres://canopy_runtime:${encodeURIComponent(options.runtimePassword)}@127.0.0.1:${port}/canopy`;
+  await supervisor.run({
+    name: "migrate",
+    command: options.bun,
+    args: [options.gateway, "migrate"],
+    cwd: dirname(options.gateway),
+    env: { ...env, CANOPY_DATABASE_URL: bootstrapUrl, CANOPY_DATABASE_RUNTIME_URL: runtimeUrl },
+  });
+
+  return runtimeUrl;
 }
 
 /**

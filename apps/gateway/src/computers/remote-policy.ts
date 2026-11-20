@@ -348,6 +348,8 @@ export const movedItems = (cause: unknown): link.MovedItem[] | undefined =>
     ? cause.items
     : undefined;
 
+export const THREAD_SECRET_METHODS = new Set(["AnswerThreadSecret", "RevokeThreadSecret"]);
+
 export const BOT_METHODS = new Set([
   "ListBots",
   "GetBot",

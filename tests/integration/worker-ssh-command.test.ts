@@ -34,7 +34,7 @@ describe("SSH installer command and shell adapter", () => {
       const directory = mkdtempSync(join(tmpdir(), "canopy-ssh-shell-"));
 
       const fixture =
-        '#!/bin/sh\nprintf "%s\\n" "$@" > "$HOME/enroll-args"\nmkdir -p "$HOME/.config/canopy"\nprintf "fixture" > "$HOME/.config/canopy/worker.json"\n';
+        '#!/bin/sh\nprintf "%s\\n" "$@" > "$HOME/enroll-args"\nIFS= read -r invitation || exit 1\nprintf "%s" "$invitation" > "$HOME/enroll-stdin"\nmkdir -p "$HOME/.config/canopy"\nprintf "fixture" > "$HOME/.config/canopy/worker.json"\n';
 
       const sha256 = createHash("sha256").update(fixture).digest("hex");
 
@@ -106,6 +106,9 @@ describe("SSH installer command and shell adapter", () => {
         } else {
           expect(code).toBe(0);
           const args = readFileSync(join(directory, "enroll-args"), "utf8").split("\n");
+          expect(args).not.toContain("fixture-enrollment");
+          expect(args).not.toContain("--token");
+          expect(readFileSync(join(directory, "enroll-stdin"), "utf8")).toBe("fixture-enrollment");
           expect(args).toContain(setup.gatewayUrl);
           expect(args).toContain(setup.gatewayFingerprint);
           expect(output).toContain("Worker's computer");

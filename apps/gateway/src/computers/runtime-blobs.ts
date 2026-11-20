@@ -16,6 +16,7 @@ export async function* serveConfigBlob(
   node: string,
   connection: Connection,
   request: link.ConfigBlobRequest,
+  signal: AbortSignal,
 ) {
   const peer = await host.store.peer(node);
 
@@ -30,11 +31,16 @@ export async function* serveConfigBlob(
 
   if (!content) throw new ConnectError("Content not found", Code.NotFound);
 
-  for (let offset = 0; offset < content.length || offset === 0; offset += BLOB_CHUNK)
+  for (let offset = 0; offset < content.length || offset === 0; offset += BLOB_CHUNK) {
+    signal.throwIfAborted();
+
+    if (!configAllowed(host, node, connection))
+      throw new ConnectError("Configuration sharing is off", Code.FailedPrecondition);
     yield create(link.ConfigBlobChunkSchema, {
       data: content.subarray(offset, offset + BLOB_CHUNK),
       ...(offset === 0 && { size: BigInt(content.length) }),
     });
+  }
 }
 
 /** Content by hash from a computer in the configuration group; the caller checks the hash. */

@@ -24,8 +24,12 @@ import type { HeartbeatEcho } from "@canopy/domain/diagnostics";
 export type Connection = {
   echo?: HeartbeatEcho;
   echoReportedAt?: number;
-  send: (frame: MessageInitShape<typeof link.LinkFrameSchema>) => void;
-  write: (frame: MessageInitShape<typeof link.LinkFrameSchema>, signal: AbortSignal) => Promise<void>;
+  send: (frame: MessageInitShape<typeof link.LinkFrameSchema>, grant?: AbortSignal) => void;
+  write: (
+    frame: MessageInitShape<typeof link.LinkFrameSchema>,
+    signal: AbortSignal,
+    grant?: AbortSignal,
+  ) => Promise<void>;
   close: (reason?: ConnectError) => void;
   seen: number;
   /** When this link last wrote the peer's last_seen. */
@@ -42,6 +46,7 @@ export type Connection = {
   remote?: RemoteCalls;
   relayReady?: boolean;
   configReady?: boolean;
+  configAccess?: AbortController;
   configReceived?: boolean;
 };
 
@@ -187,6 +192,7 @@ export class LinkedComputersState {
 
   botMirroring = new Map<string, AbortController>();
 
+  configChanges = new Map<string, Promise<void>>();
   configWatching = new Map<string, AbortController>();
   configServing = new Map<string, Set<AbortController>>();
 

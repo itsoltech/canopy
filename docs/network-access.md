@@ -1,5 +1,9 @@
 # Dostęp sieciowy (Network access)
 
+Status (2026-11-19): tokeny urządzeń obowiązują na listenerze TLS. Odwołanie urządzenia odcina
+przygotowane aktualizacje. Worker sprawdza transport przy rejestracji, restarcie i wyborze trasy
+zapasowej. Dostępność według [zasad wydań](release.md).
+
 Jeden przełącznik na komputer: **Settings → Network access → „Let phones and other computers connect”**.
 Włączony otwiera jeden listener TLS na wszystkich interfejsach; z niego korzystają połączone komputery
 i telefony. Nie ma wyboru interfejsu, nie ma zmiennych środowiskowych do ustawienia
@@ -66,9 +70,17 @@ i zaszyfrowanego klucza z `computer_identity`.
 Listener nie wystawia BFF ani bazy. Sparowane desktopowe BFF korzystają z UI gRPC
 na tym samym listenerze, z osobnym odwoływalnym tokenem i przypiętym certyfikatem
 ([desktop-remote-frontend.md](desktop-remote-frontend.md)); telefony mają ten sam
-zakres UI właściciela. DesktopMigrationService emituje poświadczenie wyłącznie tutaj,
-po uwierzytelnieniu własnego workera desktopowego; stary endpoint udostępnia jedynie
-uwierzytelnione trasy migracji. Workery bez certyfikatu klienta korzystają z WorkerLink,
+zakres UI właściciela. Tylko ten listener przyjmuje tokeny urządzeń. Główny port
+gRPC wymaga tokena usługi BFF dla operacji UI i pozwala BFF zmienić ustawienie
+także przy wyłączonym Network access. Odwołanie urządzenia anuluje jego strumienie.
+Gateway opróżnia kolejkę anulowanej subskrypcji overview i sprawdza odwołanie
+przed wysłaniem odpowiedzi. `UnpairMobileDevice` po skutecznym odwołaniu własnego
+tokena zwraca puste potwierdzenie. Pakiety wcześniej przekazane transportowi
+pozostają w transporcie.
+
+Emisja nowego tokena dla desktopu wymaga zaproszenia z Settings → Devices.
+DesktopMigrationService zachowuje odczyt tras dla starszych klientów i kieruje
+próbę migracji do parowania. Workery bez certyfikatu klienta korzystają z WorkerLink,
 enrollmentu i niezależnego UpdateService (etap 3), które same weryfikują tokeny i właściciela.
 `DesktopControlService` i `DesktopWorkerService` są dostępne wyłącznie tutaj:
 poświadczenie desktopu otwiera sterowanie aktualizacją aplikacji, a osobny credential
@@ -167,8 +179,11 @@ Pole `note` pojawia się tylko, gdy coś wymaga działania:
 Workery: kreator wybiera adres Network access, a wszystkie polecenia instalacyjne zawierają pełny pin.
 Enrollment sprawdza certyfikat przed wysłaniem tokenu i zapisuje go do `worker.json`; WorkerLink
 i UpdateService zachowują walidację CA i porównują pełny SHA-256 zamiast nazwy hosta.
-Zmiana adresu w Settings → Workers dotyczy nowych instalacji. Istniejące workery pozostają na
-dotychczasowym porcie procesu (`CANOPY_PORT`) i nie wymagają zmiany adresu ani ponownego enrollmentu.
+Zmiana adresu w Settings → Workers dotyczy nowych instalacji. Istniejące workery mogą pozostać na
+dotychczasowym porcie procesu (`CANOPY_PORT`). Dla zdalnego HTTP operator musi wskazać dokładny
+origin chronionego tunelu lub izolowanej sieci w `CANOPY_WORKER_TRUSTED_HTTP_ORIGIN` na workerze
+albo w polu `trusted_http_origin` jego prywatnego pliku konfiguracyjnego. Enrollment zapisuje do
+tego pola origin jawnie wskazany w środowisku. HTTPS i lokalny loopback działają bez tego ustawienia.
 Po włączeniu Network access nowy worker ogłasza capability `network_route_migration`, a gateway
 przesyła adresy i pełny SHA-256 przez już uwierzytelniony WorkerLink. Worker sprawdza certyfikat
 przed wysłaniem credentiala, następnie wykonuje uwierzytelniony `ProbeNetworkRoute` bez zastępowania
@@ -179,9 +194,11 @@ UpdateService przechodzą na zweryfikowany adres z pinem. Restart używa zapisan
 Nieosiągalne adresy, błędny pin lub błąd zapisu pozostawiają działające połączenie i plik bez zmian;
 Settings → Workers pokazuje „Connected over the server port · secure route unavailable: …”.
 Ponowienie następuje po zmianie tras lub po 60 s. Po utracie wcześniej zapisanej trasy worker
-wraca do pierwotnego endpointu także po restarcie; nie usuwa utrwalonego pinu.
-Wyłączony dostęp (domyślnie na desktopie) lub nieopublikowany port w Dockerze nie blokuje pracy
-ani aktualizacji. Starsze binarki nie dostają nowych ramek i dalej używają swojego adresu.
+może wrócić do pierwotnego endpointu, jeśli jest to HTTPS, loopback lub jawnie zaufany origin.
+Ta reguła obejmuje zarówno WorkerLink, jak i UpdateService, także dla konfiguracji zapisanych przed
+aktualizacją. Gdy trasa zapasowa nie spełnia reguły, worker ponawia połączenie z przypiętym
+gatewayem. Przy dostępnej zaufanej trasie wyłączenie Network access zachowuje pracę i aktualizacje.
+Starsze binarki nie dostają nowych ramek i dalej używają swojego adresu.
 Rozszerzenie jest addytywne: `WORKER_LINK_PROTOCOL` bez zmiany, `canopy.update.v1` bez zmian.
 
 Tryb lokalny desktopu utrzymuje BFF i lokalny worker na loopback i pomija migrację;

@@ -13,7 +13,8 @@ import { resolveWorktreeRoots, type WorktreeRoots } from "./git/worktree-roots.t
 import { journalHello, openGatewayLink, resendPending, type GatewayLink } from "./gateway-link/index.ts";
 import { Journal } from "./journal/index.ts";
 import { serveLink, WorkerHost } from "./runtime/index.ts";
-import { enrollWorker, workerCommand, workerServiceSnippet } from "./enroll.ts";
+import { workerCommand, workerServiceSnippet } from "./enroll.ts";
+import { enrollFromCli } from "./enrollment-cli.ts";
 import { desktopDrain, desktopStatus, workerOnline } from "./desktop-status.ts";
 import {
   confirmStartup,
@@ -25,6 +26,7 @@ import {
 import { WorkerUpdates } from "./update-link.ts";
 import { applyShellEnv } from "./cli-tools/shell-env.ts";
 import { endpointOptions, WorkerNetworkRoute } from "./network-route.ts";
+import { GATEWAY_TRANSPORT_MESSAGE, trustedGatewayOrigin } from "./config/gateway-origin.ts";
 import { workerDiagnostics } from "./diagnostics/worker.ts";
 import { imageExportSelfCheck } from "./images/self-check.ts";
 import { LogExporter, LogPullSource, installLogWriter, registeredLogs, cleanLogSpool } from "@canopy/logs";
@@ -53,8 +55,7 @@ if (cliArgs[0] === "run") cliArgs.shift();
 const command = cliArgs[0] === "enroll" || cliArgs[0] === "service" ? cliArgs.shift() : "start";
 let cli;
 
-// Bind each option to its value: an enrollment token may start with "-", which parseArgs would read as a flag.
-const valueOptions = new Set(["--gateway", "--token", "--config", "--data-dir", "--fingerprint"]);
+const valueOptions = new Set(["--gateway", "--config", "--data-dir", "--fingerprint"]);
 const boundArgs: string[] = [];
 
 for (let index = 0; index < cliArgs.length; index++) {
@@ -74,7 +75,6 @@ try {
     options: {
       gateway: { type: "string" },
       fingerprint: { type: "string" },
-      token: { type: "string" },
       config: { type: "string" },
       "data-dir": { type: "string" },
       force: { type: "boolean" },
@@ -83,7 +83,7 @@ try {
   }).values;
 } catch {
   console.error(
-    "Usage: canopy-worker enroll --gateway URL --token TOKEN [--config PATH] [--data-dir DIR] [--force]\n       canopy-worker [--config PATH]\n       canopy-worker service [--config PATH]",
+    "Usage: canopy-worker enroll --gateway URL [--fingerprint SHA256] [--config PATH] [--data-dir DIR] [--force]\n       canopy-worker [--config PATH]\n       canopy-worker service [--config PATH]",
   );
   process.exit(64);
 }
@@ -95,35 +95,29 @@ const self = workerCommand().length === 1 ? process.execPath : "bun apps/worker/
 
 if (cli.help) {
   console.info(
-    `Canopy worker ${CANOPY_VERSION}\nEnroll: ${self} enroll --gateway URL --token TOKEN [--config PATH] [--data-dir DIR] [--force]\nStart: ${self} [--config PATH]\nService: ${self} service [--config PATH]\nVersion: ${self} --version`,
+    `Canopy worker ${CANOPY_VERSION}\nEnroll: ${self} enroll --gateway URL [--fingerprint SHA256] [--config PATH] [--data-dir DIR] [--force]\nEnter the enrollment token at the prompt or supply it on stdin.\nStart: ${self} [--config PATH]\nService: ${self} service [--config PATH]\nVersion: ${self} --version`,
   );
   process.exit(0);
 }
 
 if (command === "enroll") {
-  if (!cli.gateway || !cli.token) {
-    console.error("--gateway and --token are required");
+  if (!cli.gateway) {
+    console.error("--gateway is required");
     process.exit(64);
   }
 
-  try {
-    await enrollWorker({
-      gateway: cli.gateway,
-      ...(cli.fingerprint && { fingerprint: cli.fingerprint }),
-      token: cli.token,
-      configPath,
-      ...(cli["data-dir"] && { dataDir: cli["data-dir"] }),
-      ...(cli.force && { force: true }),
-    });
-    const pathArg = `'${resolve(configPath).replaceAll("'", `'"'"'`)}'`;
-    console.info(
-      `Enrolled. Config saved with mode 0600: ${resolve(configPath)}\nStart: ${self} --config ${pathArg}\nFor a user service: ${self} service --config ${pathArg}`,
-    );
-    process.exit(0);
-  } catch (error) {
-    console.error(error instanceof Error ? error.message : "Enrollment failed");
-    process.exit(78);
-  }
+  process.exit(
+    await enrollFromCli(
+      {
+        gateway: cli.gateway,
+        configPath,
+        ...(cli.fingerprint && { fingerprint: cli.fingerprint }),
+        ...(cli["data-dir"] && { dataDir: cli["data-dir"] }),
+        ...(cli.force && { force: true }),
+      },
+      self,
+    ),
+  );
 }
 
 if (command === "service") {
@@ -151,6 +145,13 @@ if (Result.isFailure(loaded)) {
 }
 
 const local = loaded.success;
+
+if (
+  !trustedGatewayOrigin(local.gateway_url, Bun.env["CANOPY_WORKER_TRUSTED_HTTP_ORIGIN"] ?? local.trusted_http_origin)
+) {
+  console.error(GATEWAY_TRANSPORT_MESSAGE);
+  process.exit(78);
+}
 
 // The user's login-shell PATH (bun, Volta, nvm, …) for CLI discovery and harnesses; discovery waits for it.
 if (installKind() !== "docker") void applyShellEnv();

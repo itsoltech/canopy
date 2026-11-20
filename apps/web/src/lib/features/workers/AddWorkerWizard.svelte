@@ -216,7 +216,7 @@
               >The live connection is recovering. Worker status will update when Canopy reconnects.</Alert
             >{/if}
           {#if expired}<Alert tone="warning"
-              >This token expired or was revoked. Generate a new token and use the updated command.</Alert
+              >This token expired or was revoked. Generate a new token before trying again.</Alert
             >{/if}
           <p class="text-base/6 text-zinc-500 sm:text-sm/6 dark:text-zinc-400">
             The install script starts your user service automatically. For Docker, keep the container running. Manual

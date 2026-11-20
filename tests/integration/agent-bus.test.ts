@@ -409,7 +409,8 @@ describe.skipIf(!dockerAvailable)("agent bus (gateway + scripted worker)", () =>
 
     // Nothing is due now; in 11 minutes the wake-up is, and the recurring schedule too (every 30 min).
     expect(await gw.core.scheduler.tick(new Date())).toBe(0);
-    const mainBefore = (await turns(mainId)).length;
+    const before = await turns(mainId);
+    const mainBefore = before.length;
     expect(await gw.core.scheduler.tick(new Date(Date.now() + 31 * 60_000))).toBe(2);
 
     const mainTurns = await eventually(
@@ -417,7 +418,7 @@ describe.skipIf(!dockerAvailable)("agent bus (gateway + scripted worker)", () =>
       (t) => t.length === mainBefore + 1 && t[mainBefore]?.status === "completed",
     );
 
-    expect(mainTurns[mainBefore]).toMatchObject({ trigger: "schedule", hops: 1 });
+    expect(mainTurns[mainBefore]).toMatchObject({ trigger: "schedule", hops: before.at(-1)!.hops + 1 });
     expect(mainTurns[mainBefore]?.text).toContain("Scheduled wake-up");
     expect(mainTurns[mainBefore]?.text).toContain("Check CI");
 
@@ -746,11 +747,10 @@ describe.skipIf(!dockerAvailable)("agent bus (gateway + scripted worker)", () =>
       "permission_mode ask is broader than yours (read_only); a subagent cannot get more permissions than you",
     ]);
 
-    // Asking for none: the calling turn's mode, not the thread's FULL_AUTO.
+    // Legacy calls without a turn ID still inherit the live turn's narrower mode.
     const child = json(
       await gw.worker.callTool({
         threadId: thread.id,
-        turnId,
         tool: "spawn_thread",
         args: { title: "Child", prompt: "y", notify: false },
       }),

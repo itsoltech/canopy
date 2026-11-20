@@ -1,5 +1,6 @@
 import { AsyncLocalStorage } from "node:async_hooks";
 import { workerDiagnostics } from "../diagnostics/worker.ts";
+import { gitReadArgv, gitReadEnv, gitReadFilters, withoutGitHooks } from "./read-policy.ts";
 import type { GitFamily } from "@canopy/domain/diagnostics";
 import {
   processGovernor,
@@ -99,14 +100,26 @@ export async function git(
       (args[0] === "remote" && args.length === 1) ||
       (args[0] === "config" && args[1] === "--get"));
 
+  const scan = args[0] === "status" || args[0] === "diff";
+
+  const scanArgs =
+    args[0] === "status"
+      ? ["status", "--ignore-submodules=dirty", ...args.slice(1)]
+      : ["diff", "--no-ext-diff", "--no-textconv", "--ignore-submodules=dirty", ...args.slice(1)];
+
+  const scanSignal = scan ? (signal ?? AbortSignal.timeout(timeoutMs)) : signal;
+
   const command = {
     // git diff can refresh worktree index stat entries even with GIT_OPTIONAL_LOCKS=0.
-    argv: ["git", "-c", "diff.autoRefreshIndex=false", ...args],
+    argv:
+      scanSignal && scan
+        ? gitReadArgv(scanArgs, await gitReadFilters(cwd, scanSignal))
+        : ["git", ...(read ? withoutGitHooks : []), "-c", "diff.autoRefreshIndex=false", ...args],
     cwd,
-    env: { ...process.env, ...GIT_ENV, ...input?.env },
+    env: { ...(scan ? gitReadEnv() : process.env), ...GIT_ENV, ...input?.env },
     timeoutMs,
     ...(input?.maxBytes !== undefined && { maxBytes: input.maxBytes }),
-    ...(signal && { signal }),
+    ...(scanSignal && { signal: scanSignal }),
     ...(input?.text !== undefined && { input: input.text }),
   };
 

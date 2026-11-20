@@ -22,7 +22,7 @@ describe.skipIf(!dockerAvailable)("durable Slack MCP user refresh", () => {
   let slack: ReturnType<typeof slackOAuthFixture>;
   let hold: Promise<void> | undefined;
   let started: (() => void) | undefined;
-  let proxy: ReturnType<typeof Bun.serve>;
+  let slackUser = "U12345";
 
   const connector = <A, E>(use: (store: GatewayStore["Service"]["connectors"]) => Effect.Effect<A, E>) =>
     gw.runtime.runPromise(GatewayStore.use((s) => use(s.connectors)));
@@ -34,21 +34,15 @@ describe.skipIf(!dockerAvailable)("durable Slack MCP user refresh", () => {
     gw.runtime.runPromise(Effect.flatMap(SqlClient.SqlClient, use));
 
   beforeAll(async () => {
-    mcp = fakeConnector({ userToken: true });
-    slack = slackOAuthFixture();
-    // Hold AFTER the real OAuth fixture consumes the refresh token, to exercise unknown outcomes.
-    proxy = Bun.serve({
-      hostname: "127.0.0.1",
-      port: 0,
-      async fetch(request) {
-        const response = await fetch(`${mcp.issuer}/token`, { method: "POST", body: await request.text() });
-        const body = await response.text();
+    mcp = fakeConnector({
+      userToken: true,
+      tokenMetadata: () => ({ authed_user: { id: slackUser, scope: "tools" } }),
+      refreshIssued: async () => {
         started?.();
         await hold;
-
-        return new Response(body, { status: response.status, headers: response.headers });
       },
     });
+    slack = slackOAuthFixture();
     gw = await startTestGateway({ messengerTransport: slack.transport });
     await gw.core.messengers.stop();
     await gw.api.saveConnectorOAuthApp({
@@ -60,14 +54,14 @@ describe.skipIf(!dockerAvailable)("durable Slack MCP user refresh", () => {
 
   afterAll(async () => {
     await gw?.close();
-    proxy?.stop(true);
-    mcp?.close();
-    slack?.close();
+    await mcp?.close();
+    await slack?.close();
   });
 
   beforeEach(async () => {
     hold = undefined;
     started = undefined;
+    slackUser = "U12345";
 
     for (const account of await messenger((s) => s.accounts(gw.userId)))
       await messenger((s) => s.deleteAccount(gw.userId, account.id));
@@ -102,15 +96,18 @@ describe.skipIf(!dockerAvailable)("durable Slack MCP user refresh", () => {
 
   const credentials = (id: string) => connector((s) => s.owned(gw.userId, id).pipe(Effect.flatMap(s.credentials)));
 
-  async function expire(id: string) {
+  async function expire(id: string, legacy = false) {
     await connector((s) =>
       s.transaction(
         Effect.gen(function* () {
           const row = yield* s.owned(gw.userId, id, true);
           const value = yield* s.credentials(row);
 
-          if (!value.discovery?.authorizationServerMetadata) throw new Error("Fixture OAuth discovery missing");
-          value.discovery.authorizationServerMetadata.token_endpoint = `${proxy.url.origin}/token`;
+          if (legacy) {
+            delete value.oauthSubject;
+            delete value.oauthPublicOrigins;
+          }
+
           value.expiresAt = Date.now() - 1000;
           yield* s.updateCredentials(row, value);
         }),
@@ -178,7 +175,15 @@ describe.skipIf(!dockerAvailable)("durable Slack MCP user refresh", () => {
       (sql) => sql`INSERT INTO config_aliases(owner_user_id,kind,alias_id,global_id)
       VALUES(${gw.userId}::uuid,'connector',${alias},${id})`,
     );
-    await expire(id);
+    const account = await connector((s) => s.owned(gw.userId, id));
+    await gw.api.setConnectorAccess({
+      accountId: id,
+      expectedRevision: BigInt(account.revision),
+      workerIds: [gw.workerId],
+      botIds: [f.route.botId],
+    });
+    await expire(id, true);
+    expect((await credentials(alias)).oauthSubject).toBeUndefined();
     const consumed = Promise.withResolvers<void>();
     const release = Promise.withResolvers<void>();
     started = consumed.resolve;
@@ -216,6 +221,10 @@ describe.skipIf(!dockerAvailable)("durable Slack MCP user refresh", () => {
       expect((await probing).account?.status).toBe("connected");
       expect(mcp.refreshes).toBe(before + 1);
       expect(new Set(values.map((result) => digest(result.value.tokens?.refresh_token ?? ""))).size).toBe(1);
+      expect(values.every((result) => result.row.id === id && !!result.value.oauthSubject)).toBe(true);
+      const savedAccount = (await gw.api.listConnectors({})).accounts.find((a) => a.id === id);
+      expect(savedAccount?.workerIds).toContain(gw.workerId);
+      expect(savedAccount?.botIds).toContain(f.route.botId);
       expect((await connector((s) => s.owned(gw.userId, id))).slack_refresh_attempt).toBeNull();
       expect((await connector((s) => s.owned(gw.userId, id))).name).toBe("Renamed while refreshing");
       expect(await messenger((s) => s.routes(gw.userId, f.route.botId))).toEqual([f.route]);
@@ -228,6 +237,18 @@ describe.skipIf(!dockerAvailable)("durable Slack MCP user refresh", () => {
       started = undefined;
     }
   }, 30_000);
+
+  test("a refresh issued for another Slack user cannot replace the authorized credentials", async () => {
+    const id = await setup();
+    const original = await credentials(id);
+    await expire(id);
+    slackUser = "UOTHER";
+    await expect(slackUserCredentials(gw.runtime, gw.userId, id, false)).rejects.toThrow("Connector needs reconnect");
+    expect((await connector((s) => s.owned(gw.userId, id))).status).toBe("needs_reconnect");
+    const saved = await credentials(id);
+    expect(saved.oauthSubject).toBe(original.oauthSubject);
+    expect(saved.tokens?.refresh_token === original.tokens?.refresh_token).toBe(true);
+  });
 
   test("a consumed refresh with a lost response survives gateway restart without replay", async () => {
     const id = await setup();

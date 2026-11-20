@@ -7,13 +7,13 @@ import { workerInstall } from "../updates/install.ts";
 import { updatesSnapshot } from "../updates/center-composition.ts";
 import { guard } from "./ui-errors.ts";
 import { checkLinkedUpdates, requestComputerUpdate } from "../updates/linked.ts";
-import { mobileIdentity } from "../core/mobile-devices.ts";
+import { serviceIdentity } from "./auth.ts";
 import { dismissUpdateFailure, requestOwnAppUpdate } from "../updates/app.ts";
 import { manageUpdateRun } from "../updates/center-actions.ts";
 
 /** The app control channel belongs to the desktop app's own bundled gateway and its service token, never a device. */
 function localAppOnly(core: GatewayCore, context: HandlerContext) {
-  if (core.role !== "desktop" || context.values.get(mobileIdentity))
+  if (core.role !== "desktop" || !context.values.get(serviceIdentity))
     throw new ConnectError("Only the Canopy app on this computer can open its control channel", Code.PermissionDenied);
 }
 

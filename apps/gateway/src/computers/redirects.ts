@@ -1,24 +1,26 @@
 import { create, type DescMessage, type DescMethod, type Message } from "@bufbuild/protobuf";
 import { computerLink as link } from "@canopy/contracts";
 import { nodeRef, qualifyId, splitId } from "@canopy/domain/computers";
-import { linkedMessage, mapIds, MovedError } from "./remote.ts";
-import { Predicate, Schema } from "effect";
-import type { ComputerStore } from "./store.ts";
+import { Schema } from "effect";
+import { uuid } from "./agents-context.ts";
+import { linkedMessage, MovedError } from "./remote.ts";
+import { mapMoveIds, movedAgentTarget, rewriteThreadRead, type MoveKind } from "./redirect-ids.ts";
 import { followRedirects, recordRedirects, type RedirectRow as Row } from "./redirect-records.ts";
+import type { ComputerStore } from "./store.ts";
 
-/**
- * Stage 8 of docs/linked-computers.md: where moved threads and bots live now. A moved thing keeps
- * its uuid, so an old id (`<uuid>` on its former home, `<uuid>~<old home>` elsewhere) resolves by
- * swapping the home. The table is filled by the two sides of a move, by `moved` frames from direct
- * partners and by "moved" answers of a former home (which also cross a relay).
- */
-const PLAIN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-
-/** Redirects sent to a partner after each handshake: the most recent ones. */
 const SYNC_LIMIT = 2000;
+const NODE = /^[0-9a-f]{64}$/;
+const key = (kind: string, id: string, from: string) => `${kind}:${id.toLowerCase()}:${nodeRef(from)}`;
 
-const valid = (item: link.MovedItem) =>
-  PLAIN.test(item.itemId) && ["thread", "bot"].includes(item.kind) && /^[a-f0-9]{64}$/.test(item.homeNodeId);
+const toItem = (row: Row) =>
+  create(link.MovedItemSchema, {
+    itemId: row.item_id,
+    kind: row.kind,
+    homeNodeId: row.home_node_id,
+    homeName: row.home_name,
+    fromNodeId: row.from_node_id,
+    movedAtMs: BigInt(new Date(row.moved_at).getTime()),
+  });
 
 export { MovedError };
 
@@ -34,234 +36,162 @@ export class Redirects {
       this.store.owner,
     ]);
 
-    this.#rows = new Map(rows.map((r) => [r.item_id, r]));
+    this.#rows = new Map(rows.map((r) => [key(r.kind, r.item_id, r.from_node_id), r]));
   }
-  /** The computer a thread or bot moved to, if it did. */
-  home(itemId: string): Row | undefined {
-    return this.#rows.get(itemId.toLowerCase());
-  }
+
   get size() {
     return this.#rows.size;
   }
 
-  /** Records where a thing lives now; an older notice never replaces a newer one. Returns whether it changed. */
-  async record(item: link.MovedItem): Promise<boolean> {
-    if (!this.#accepts(item)) return false;
-    const at = new Date(Number(item.movedAtMs) || Date.now());
+  home(kind: MoveKind, itemId: string, from: string) {
+    return this.#rows.get(key(kind, itemId, from));
+  }
 
+  destination(kind: MoveKind, value: string) {
+    const { id, node } = splitId(value);
+
+    return [...this.#rows.values()].find(
+      (row) => row.kind === kind && row.item_id === id.toLowerCase() && nodeRef(row.home_node_id) === node,
+    );
+  }
+
+  /** Both sides write the decision inside their move transaction. Publish those persisted rows. */
+  async committed(kind: MoveKind, ids: string[], from: string) {
     const rows = await this.store.query<Row>(
-      `INSERT INTO computer_redirects(owner_user_id,item_id,kind,home_node_id,home_name,from_node_id,moved_at)
-      VALUES ($1::uuid,$2::uuid,$3,$4,$5,$6,$7) ON CONFLICT (owner_user_id,item_id) DO UPDATE SET kind=EXCLUDED.kind,home_node_id=EXCLUDED.home_node_id,
-      home_name=EXCLUDED.home_name,from_node_id=EXCLUDED.from_node_id,moved_at=EXCLUDED.moved_at WHERE computer_redirects.moved_at<=EXCLUDED.moved_at RETURNING *`,
-      [this.store.owner, item.itemId, item.kind, item.homeNodeId, item.homeName.slice(0, 120), item.fromNodeId, at],
+      `SELECT * FROM computer_redirects WHERE owner_user_id=$1::uuid AND kind=$2 AND item_id=ANY($3::uuid[])
+       AND from_node_id=$4 AND basis='local_move'`,
+      [this.store.owner, kind, ids, from],
     );
 
-    if (rows[0]) this.#rows.set(rows[0].item_id, rows[0]);
+    for (const r of rows) this.#rows.set(key(r.kind, r.item_id, r.from_node_id), r);
 
-    return Boolean(rows[0]);
+    return rows.map(toItem);
   }
 
-  #accepts(item: link.MovedItem) {
-    if (!valid(item)) return false;
-    const known = this.#rows.get(item.itemId.toLowerCase());
-    const at = Number(item.movedAtMs) || Date.now();
-
-    return (
-      !known ||
-      (new Date(known.moved_at).getTime() <= at &&
-        (new Date(known.moved_at).getTime() < at || known.home_node_id !== item.homeNodeId))
-    );
-  }
-
-  /** What a partner said moved. Only the former or the new home may say so, and nothing that lives here is moved by a notice. */
+  /** A notice vouches for IDs at its authenticated sender only. Local arrivals require a committed move. */
   async learn(sender: string, items: readonly link.MovedItem[]): Promise<link.MovedItem[]> {
-    const trusted = items
-      .slice(0, SYNC_LIMIT)
-      .filter((item) => (sender === item.fromNodeId || sender === item.homeNodeId) && valid(item));
+    if (sender === this.self() || !NODE.test(sender)) return [];
+    const candidates = new Map<string, link.MovedItem>();
 
-    const counts = new Map<string, number>();
+    for (const item of items.slice(0, SYNC_LIMIT)) {
+      if (
+        item.fromNodeId !== sender ||
+        item.homeNodeId === sender ||
+        item.homeNodeId === this.self() ||
+        !uuid(item.itemId) ||
+        !["thread", "bot"].includes(item.kind) ||
+        !NODE.test(item.homeNodeId) ||
+        item.movedAtMs <= 0n ||
+        item.movedAtMs > BigInt(Date.now() + 60_000)
+      )
+        continue;
+      const id = key(item.kind, item.itemId, sender);
+      const known = this.#rows.get(id);
 
-    for (const item of trusted) {
-      const id = item.itemId.toLowerCase();
-      counts.set(id, (counts.get(id) ?? 0) + 1);
-    }
-
-    const candidates = trusted.filter((item) => counts.get(item.itemId.toLowerCase())! > 1 || this.#accepts(item));
-    const living = await this.#lives(candidates.filter((item) => item.homeNodeId !== this.self()));
-    const learned: link.MovedItem[] = [];
-    let pending = new Map<string, link.MovedItem>();
-
-    const flush = async () => {
-      if (!pending.size) return;
-      const rows = await recordRedirects(this.store, [...pending.values()]);
-
-      for (const row of rows) {
-        this.#rows.set(row.item_id, row);
-        learned.push(pending.get(row.item_id)!);
-      }
-
-      pending = new Map();
-    };
-
-    for (const item of candidates) {
-      if (living.has(`${item.kind}:${item.itemId.toLowerCase()}`)) continue;
-
-      // Duplicate IDs must observe the earlier commit before applying timestamp/home checks.
-      if (pending.has(item.itemId.toLowerCase())) await flush();
-
-      if (item.homeNodeId === this.self() && this.#rows.get(item.itemId.toLowerCase())?.home_node_id !== this.self())
+      if (known && (known.basis === "local_move" || BigInt(new Date(known.moved_at).getTime()) >= item.movedAtMs))
         continue;
 
-      if (!this.#accepts(item)) continue;
-      pending.set(item.itemId.toLowerCase(), item);
-
-      if (pending.size >= 128) await flush();
+      if ((candidates.get(id)?.movedAtMs ?? 0n) < item.movedAtMs) candidates.set(id, item);
     }
 
-    await flush();
+    const learned: link.MovedItem[] = [];
+    const values = [...candidates.values()];
 
-    if (learned.length) await this.#follow(learned);
+    for (let i = 0; i < values.length; i += 128) {
+      const rows = await recordRedirects(this.store, values.slice(i, i + 128));
+
+      for (const row of rows) {
+        this.#rows.set(key(row.kind, row.item_id, row.from_node_id), row);
+        learned.push(toItem(row));
+      }
+    }
+
+    if (learned.length) {
+      try {
+        await followRedirects(this.store, learned);
+      } catch {
+        // A colliding call receipt stays with the original peer.
+        for (const item of learned) await followRedirects(this.store, [item]).catch(() => {});
+      }
+    }
 
     return learned;
   }
 
-  /** A thread or bot of this computer that has not moved away. */
-  async #lives(items: readonly link.MovedItem[]) {
-    const living = new Set<string>();
-
-    for (const kind of ["thread", "bot"]) {
-      const ids = [...new Set(items.flatMap((item) => (item.kind === kind ? [item.itemId] : [])))];
-
-      if (!ids.length) continue;
-      const table = kind === "bot" ? "bots" : "threads";
-
-      const rows = await this.store.query<{ id: string }>(
-        `SELECT id FROM ${table} WHERE id=ANY($1::uuid[]) AND owner_user_id=$2::uuid AND moved_to IS NULL AND deleted_at IS NULL`,
-        [ids, this.store.owner],
-      );
-
-      for (const row of rows) living.add(`${kind}:${row.id}`);
-    }
-
-    return living;
-  }
-
-  /** Agent bus references to a moved thing route to its new home (docs/linked-computers.md, stage 8). */
-  async #follow(items: link.MovedItem[]) {
-    if (items.length > 1 && new Set(items.map((item) => item.itemId.toLowerCase())).size === items.length) {
-      try {
-        await followRedirects(this.store, items);
-
-        return;
-      } catch {
-        // Preserve best-effort per-item recovery when a single reference prevents the bulk update.
-      }
-    }
-
-    for (const item of items) {
-      await this.store
-        .query(
-          `UPDATE computer_agent_calls SET peer_node_id=$3 WHERE owner_user_id=$1::uuid AND target_id=$2::uuid AND direction='outgoing' AND peer_node_id=$4`,
-          [this.store.owner, item.itemId, item.homeNodeId, item.fromNodeId],
-        )
-        .catch(() => {});
-    }
-  }
-
-  /** Redirects for a partner's handshake, newest first. */
   list(): link.MovedItem[] {
     return [...this.#rows.values()]
+      .filter((row) => row.from_node_id === this.self() && row.basis === "local_move")
       .sort((a, b) => new Date(b.moved_at).getTime() - new Date(a.moved_at).getTime())
       .slice(0, SYNC_LIMIT)
       .map(toItem);
   }
-  item(itemId: string) {
-    const row = this.#rows.get(itemId.toLowerCase());
 
-    return row && toItem(row);
+  /** Follow successive, independently authenticated departures, starting at the referenced home. */
+  resolve(kind: MoveKind, value: string): Row | undefined {
+    const { id, node } = splitId(value);
+
+    if (!uuid(id)) return undefined;
+    let origin = node ?? nodeRef(this.self());
+    const seen = new Set<string>();
+    let last: Row | undefined;
+
+    for (;;) {
+      if (seen.has(origin)) return undefined;
+      seen.add(origin);
+      const row = this.home(kind, id, origin);
+
+      if (!row) return last;
+      last = row;
+      origin = nodeRef(row.home_node_id);
+    }
   }
 
-  /**
-   * Old ids of moved things in a request become their new home's: a plain id that moved away gets the new
-   * home's suffix, a qualified id of the former home gets the new one, and one that moved here becomes plain.
-   * Returns the redirects that applied.
-   */
-  rewrite(desc: DescMessage, message: Message): link.MovedItem[] {
-    if (!this.#rows.size) return [];
-    const self = nodeRef(this.self());
-    const applied = new Map<string, link.MovedItem>();
-    mapIds(desc, message, (value) => {
-      const { id, node } = splitId(value);
+  map(kind: MoveKind, value: string) {
+    const row = this.resolve(kind, value);
 
-      if (!PLAIN.test(id)) return value;
-      const row = this.#rows.get(id.toLowerCase());
+    if (!row) return value;
 
-      if (!row) return value;
-      const home = nodeRef(row.home_node_id);
+    return row.home_node_id === this.self() ? row.item_id : qualifyId(row.item_id, row.home_node_id);
+  }
 
-      if (home === (node ?? self)) return value;
-      applied.set(id, toItem(row));
+  rewrite(desc: DescMessage, message: Message) {
+    let changed = rewriteThreadRead(message, (id) => this.map("thread", id));
+    mapMoveIds(desc, message, (value, kind) => {
+      const next = this.map(kind, value);
+      changed ||= value !== next;
 
-      return home === self ? id : qualifyId(id, row.home_node_id);
+      return next;
     });
 
-    return [...applied.values()];
+    return changed;
   }
 
-  /** One id, rewritten like `rewrite` does (agent bus arguments). */
-  map(value: string): string {
-    const { id, node } = splitId(value);
-    const row = PLAIN.test(id) ? this.#rows.get(id) : undefined;
-
-    if (!row || nodeRef(row.home_node_id) === (node ?? nodeRef(this.self()))) return value;
-
-    return row.home_node_id === this.self() ? id : qualifyId(id, row.home_node_id);
-  }
-
-  /** A partner's call on things that moved away from this computer: answered with where they are now. */
+  /** Answer with our own departure, never with an edge attested by someone else. */
   refuse(method: DescMethod, request: Message) {
     if (!this.#rows.size) return;
-    const self = this.self();
     const moved = new Map<string, link.MovedItem>();
 
-    const check = (value: string) => {
-      const row = PLAIN.test(value) ? this.#rows.get(value) : undefined;
+    const check = (value: string, kind: MoveKind) => {
+      const row = uuid(value) && this.home(kind, value, this.self());
 
-      if (row && row.home_node_id !== self) moved.set(value, toItem(row));
-    };
-
-    mapIds(method.input, request, (value) => {
-      check(value);
+      if (row && row.basis === "local_move") moved.set(key(kind, value, this.self()), toItem(row));
 
       return value;
-    });
+    };
 
     if (method.name === "CallAgentBus") {
       const call = linkedMessage(link.LinkedAgentCallSchema, request);
 
-      // This callback is scoped to a delegation stored here. Its text cannot select a moved item.
-      if (call.operation === "message_delegating_bot") return;
-
       try {
-        for (const value of Object.values(
-          Schema.decodeUnknownSync(Schema.JsonObject)(JSON.parse(call.argumentsJson || "{}")),
-        ))
-          if (Predicate.isString(value)) check(value);
+        const args = Schema.decodeUnknownSync(Schema.JsonObject)(JSON.parse(call.argumentsJson));
+        const target = movedAgentTarget(call.operation, args);
+
+        if (target) check(target.id, target.kind);
       } catch {
-        /* the home validates arguments */
+        /* the home validates the request */
       }
-    }
+    } else mapMoveIds(method.input, request, check);
 
     if (moved.size) throw new MovedError([...moved.values()]);
   }
 }
-
-const toItem = (row: Row) =>
-  create(link.MovedItemSchema, {
-    itemId: row.item_id,
-    kind: row.kind,
-    homeNodeId: row.home_node_id,
-    homeName: row.home_name,
-    fromNodeId: row.from_node_id,
-    movedAtMs: BigInt(new Date(row.moved_at).getTime()),
-  });

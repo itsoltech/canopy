@@ -97,7 +97,9 @@ describe.skipIf(!dockerAvailable)("owner-scoped SSH enrollment trust boundary", 
             }
 
             void (async () => {
-              const token = installerInput.match(/--token '([^']+)'/)?.[1];
+              const token = installerInput.match(
+                /^canopy_ssh_enrollment_token\(\) \{ printf '%s\\n' '([^']+)'; \}$/m,
+              )?.[1];
 
               if (!token) throw new Error("Fixed installer did not receive an enrollment token");
               const client = createClient(WorkerEnrollmentService, createGrpcTransport({ baseUrl: gw.grpcUrl }));

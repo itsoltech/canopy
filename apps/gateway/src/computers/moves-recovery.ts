@@ -67,7 +67,7 @@ export interface MovesRecoveryMethods {
   close(): Promise<PromiseSettledResult<unknown>[]>;
   tick(): Promise<void>;
   unlinked(nodeId: string): Promise<void>;
-  frozen(ids: readonly string[]): Promise<string | undefined>;
+  frozen(ids: { thread: string[]; bot: string[] }): Promise<string | undefined>;
 }
 
 export const movesRecoveryMethods: MovesRecoveryMethods = {
@@ -153,13 +153,13 @@ export const movesRecoveryMethods: MovesRecoveryMethods = {
   },
 
   /** Why a write on this computer's thread or bot must wait: it is frozen for a move. */
-  async frozen(this: ComputerMoves, ids: readonly string[]): Promise<string | undefined> {
-    if (!ids.length) return undefined;
+  async frozen(this: ComputerMoves, ids: { thread: string[]; bot: string[] }): Promise<string | undefined> {
+    if (!ids.thread.length && !ids.bot.length) return undefined;
 
     const rows = await this[movesState].store.query<{ moved_to: string }>(
-      `SELECT moved_to FROM threads WHERE id = ANY($1::uuid[]) AND moved_to IS NOT NULL AND deleted_at IS NULL
-      UNION ALL SELECT moved_to FROM bots WHERE id = ANY($1::uuid[]) AND moved_to IS NOT NULL AND deleted_at IS NULL LIMIT 1`,
-      [ids],
+      `SELECT moved_to FROM threads WHERE id = ANY($1::uuid[]) AND owner_user_id=$3::uuid AND moved_to IS NOT NULL AND deleted_at IS NULL
+      UNION ALL SELECT moved_to FROM bots WHERE id = ANY($2::uuid[]) AND owner_user_id=$3::uuid AND moved_to IS NOT NULL AND deleted_at IS NULL LIMIT 1`,
+      [ids.thread, ids.bot, this[movesState].store.owner],
     );
 
     return rows[0]

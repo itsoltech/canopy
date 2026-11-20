@@ -1,9 +1,14 @@
 name: Package desktop
 description: Build once and retry macOS and Windows packaging after signing service failures.
+inputs:
+  build-runtime:
+    description: Build the runtime before packaging when no prepared runtime was supplied.
+    default: "true"
 runs:
   using: composite
   steps:
     - name: Build desktop runtime
+      if: inputs.build-runtime == 'true'
       shell: bash
       run: bun run --cwd apps/desktop build
     - name: Package desktop

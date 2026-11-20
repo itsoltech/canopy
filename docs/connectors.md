@@ -5,6 +5,8 @@ OAuth w gateway, dostęp wybranych workerów i botów oraz jeden kanał wykonani
 Status (2026-11-19): jedno konto Slack w Settings → Connectors współdzieli aplikację
 OAuth dla narzędzi MCP i wiadomości botów przez Socket Mode. Bot settings → Messengers
 wybiera podłączone konto i trasy; gateway odnawia rotowane tokeny użytkownika i bota.
+Zgoda na zapis MCP obejmuje konkretną operację. Synchronizacja rozpoznaje podmiot OAuth,
+a połączenia z adresami podanymi przez discovery przechodzą kontrolę DNS.
 Usunięcie bota odłącza jego przypisania i trasy od współdzielonych kont.
 Po włączeniu wiadomości konto udostępnia też sformatowaną wysyłkę jako Canopy przez Slack Web API.
 Bot i jego rutyny mogą korzystać ze stałej zgody właściciela na wysyłkę do wybranej rozmowy Slack.
@@ -78,10 +80,13 @@ i narzędzia; poświadczenia wraz z nagłówkami są jednym sekretnym polem `cre
 Klient OAuth (także client ID i zapamiętany redirect) jest osobnym zaszyfrowanym rekordem per typ.
 `GetConfigBlob` nadal obsługuje wyłącznie treść biblioteki, nigdy sekrety connectorów.
 
-Przy scalaniu liczą się typ, URL i tożsamość konta z metadanych odpowiedzi tokenowej (np. workspace
-i użytkownik). Gateway zachowuje tylko hash tych identyfikatorów; klient OAuth nie jest tożsamością konta.
-Bez metadanych używa dokładnej nazwy po NFC i przycięciu spacji, tylko przy jednym kandydacie.
-Konta nagłówkowe wymagają też tych samych nagłówków; różne klucze pozostają osobnymi kontami.
+Przy pierwszym scalaniu dwóch niezależnych kont OAuth gateway porównuje typ, URL i skrót
+wystawcy oraz podmiotu z odpowiedzi endpointu tokenowego. W Slacku podmiot obejmuje
+`team.id` i `authed_user.id`. Taki sam workspace, nazwa konta, klient OAuth lub starszy
+skrót bez potwierdzonego podmiotu nie wystarczają do scalenia. W takim przypadku każde
+konto zachowuje własne poświadczenia i granty. Istniejące powiązania po globalnym ID
+lub zapisanym aliasie nadal obsługują aktualizacje i odnowienia. W kontach nagłówkowych
+gateway porównuje dokładną nazwę po NFC i przycięciu spacji oraz nagłówki, przy jednym kandydacie.
 Mniejsze id zostaje kanoniczne, alias prowadzi do lokalnego wiersza bez przepisywania grantów.
 Odwołania kont w źródłach skilli/marketplace'ów są globalne w rekordzie i lokalne po materializacji.
 Gdy konto jeszcze nie dotarło, sprawdzenie źródła prosi o odczekanie i ponowienie.
@@ -92,6 +97,12 @@ BFF rozpoczyna autoryzację i przekazuje callback do gateway przez uwierzytelnio
 gRPC. Publiczny callback to `/api/connectors/oauth/callback` na origin Canopy.
 Gateway używa MCP SDK **1.32.2**: protected resource metadata (RFC 9728),
 metadata authorization servera (RFC 8414), DCR i Authorization Code + PKCE S256.
+Gateway rozwiązuje nazwy docelowe przed połączeniem i łączy się z wybranym adresem IP,
+zachowując nazwę hosta dla TLS. Dla celu wskazanego w metadanych wszystkie odpowiedzi DNS
+muszą być publiczne. Prywatny adres jest dopuszczony dla dokładnego origin wpisanego przez
+właściciela serwera MCP lub zarejestrowanego wystawcy. Inny port jest osobnym origin.
+Discovery i rejestracja współdzielą wybór adresu. Origin rozpoznany jako publiczny pozostaje
+publiczny przy wymianie kodu, odświeżaniu i odwołaniu tokenu. Gateway odrzuca przekierowania.
 Losowy, jednorazowy state ma TTL 10 minut, wiąże konto i właściciela oraz osobny
 sekret sesji przeglądarki w cookie HttpOnly/SameSite=Lax. Desktop otwiera
 autoryzację w przeglądarce systemowej, oddzielnej od sesji Electrona; zamiast
@@ -240,6 +251,12 @@ nie nadaje dodatkowych uprawnień do kont.
 Wątki: `READ_ONLY` odmawia zapisów, `ASK` i `ACCEPT_EDITS` wymagają istniejącej
 interakcji permission dla narzędzi innych niż tylko odczyt, `FULL_AUTO` i `FULL_ACCESS` przepuszczają.
 Zgoda nie zastępuje grantu; grant jest ponownie sprawdzany tuż przed wykonaniem.
+Przed pokazaniem karty gateway wiąże jej identyfikator z właścicielem, wątkiem, turą,
+kontem, nazwą narzędzia MCP i pełnymi argumentami. Rezerwacja pierwszego wykonania
+w bazie wymaga pasującej, zaakceptowanej karty. Po restarcie klient może wznowić
+to samo wywołanie. Migracja `0181_connector_approval_binding` zachowuje decyzje
+i oczekujące karty, gdy zapisane dane pozwalają potwierdzić całą operację.
+Jeśli starsza karta zawiera wyłącznie zredagowaną treść, potrzebne jest nowe wywołanie ze zgodą.
 Zmiana uprawnień bieżącej tury Claude wstrzymuje autoryzację do utrwalenia
 zastosowanego trybu. Oczekująca zgoda nie omija późniejszego `READ_ONLY` ani końca
 tury; gateway ponownie sprawdza bieżącą turę i tryb przed wykonaniem.
@@ -495,8 +512,10 @@ pozostają obsługiwane; powiązanie tej samej instalacji zachowuje konto i jego
 Wyłączenie lub odłączenie konta w Connectors oraz zmiana client ID aplikacji
 odcinają odbiór, nowe działania tur zewnętrznych i wysyłkę. Ponowna autoryzacja
 przywraca dostęp dopiero po sprawdzeniu tożsamości; usunięcie konta wiadomości
-usuwa jego trasy. Trwała kontrola źródła działa także przed pobraniem outboxa,
-nie tylko przy zamykaniu połączenia Socket Mode.
+usuwa jego trasy. Przy pobieraniu z kolejki i osobno przed rozpoczęciem każdego
+żądania do Slacka gateway sprawdza dzierżawę konta, aktywność bota i trasy, kanał,
+wątek rozmowy oraz tryb `reply`. Usunięcie trasy, odebranie kanału lub przełączenie
+na `notify` powstrzymuje także kolejną wysyłkę z już pobranej partii.
 
 Wyszukiwanie kanałów przez bota korzysta z `conversations.list` i wymaga bot scopes
 `channels:read` oraz `groups:read` zawartych w manifeście. Starszą instalację należy

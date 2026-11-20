@@ -1,4 +1,5 @@
 import { processKey, runProcess, withProcessPriority } from "@canopy/process-governor";
+import { gitReadArgv, gitReadEnv, gitReadFilters } from "../git/read-policy.ts";
 
 export interface DirectoryGit {
   statuses: Map<string, string>;
@@ -23,8 +24,9 @@ export async function directoryGit(root: string): Promise<DirectoryGit> {
     const signal = AbortSignal.timeout(2000);
 
     const prefixCommand = {
-      argv: ["git", "rev-parse", "--show-prefix"],
+      argv: gitReadArgv(["rev-parse", "--show-prefix"]),
       cwd: root,
+      env: gitReadEnv(),
       timeoutMs: 2000,
       maxBytes: 4096,
       signal,
@@ -36,22 +38,24 @@ export async function directoryGit(root: string): Promise<DirectoryGit> {
 
     if (prefixResult.code !== 0) return { statuses: new Map(), complete: false, reason: "Status unavailable" };
     const prefix = prefixResult.stdout.trimEnd();
+    const filters = await gitReadFilters(root, signal);
 
     const command = {
-      argv: [
-        "git",
-        "-c",
-        "core.quotepath=false",
-        "status",
-        "--porcelain=v1",
-        "-z",
-        "--ignored=matching",
-        "--untracked-files=normal",
-        "--",
-        ".",
-      ],
+      argv: gitReadArgv(
+        [
+          "status",
+          "--ignore-submodules=dirty",
+          "--porcelain=v1",
+          "-z",
+          "--ignored=matching",
+          "--untracked-files=normal",
+          "--",
+          ".",
+        ],
+        ["-c", "core.quotepath=false", ...filters],
+      ),
       cwd: root,
-      env: { ...process.env, GIT_TERMINAL_PROMPT: "0", GIT_OPTIONAL_LOCKS: "0" },
+      env: gitReadEnv(),
       timeoutMs: 2000,
       maxBytes: 1024 * 1024,
       signal,

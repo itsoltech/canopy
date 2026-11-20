@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { View } from "react-native";
 import { ui } from "@canopy/contracts";
-import { Button, Field, Notice, Sheet } from "../../ui/components";
+import { Button, Field, Sheet } from "../../ui/components";
 import { SettingChoice } from "./SettingsGroup";
 import { SettingsValue } from "./SettingsValue";
 import { ResourceState, useSettingsResource } from "./resource";
@@ -81,11 +81,14 @@ export function WorkerEnrollment({ setup, onClose }: { setup: ui.GetWorkerSetupR
             />
             {invitation && (
               <View style={{ gap: 16 }}>
-                <Notice>
-                  Keep enrollment commands private. The token works once. Install and sign in to your agent CLIs on this
-                  machine.
-                </Notice>
-                <WorkerInstallCommands method={method} setup={setup} gateway={gateway} token={invitation.token} />
+                <WorkerInstallCommands method={method} setup={setup} gateway={gateway} />
+                {!active?.usedAt && !active?.revokedAt && (
+                  <SettingsValue
+                    title="Enrollment token"
+                    description="Paste the token when the terminal prompts you. The token works once."
+                    value={invitation.token}
+                  />
+                )}
                 <Button title="Check connection" busy={resource.loading} onPress={() => void resource.reload()} />
                 <SettingsValue
                   title="Connection"

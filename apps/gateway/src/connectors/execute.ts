@@ -45,6 +45,7 @@ export async function executeConnector(
   toolName: string,
   args: JsonObject,
   fingerprint: string,
+  legacyFingerprint: string,
   signal: AbortSignal,
 ): Promise<JsonValue> {
   const { runtime, run } = context;
@@ -58,7 +59,8 @@ export async function executeConnector(
   const old = await run((s) => s.execution(callId));
 
   if (old) {
-    if (old.fingerprint !== fingerprint) throw new ConnectorFailure("Connector call identity mismatch");
+    if (old.fingerprint !== fingerprint && old.fingerprint !== legacyFingerprint)
+      throw new ConnectorFailure("Connector call identity mismatch");
 
     if (fileId) {
       if (source.threadId) await checkConnectorTurn(runtime, source, true);
@@ -88,19 +90,19 @@ export async function executeConnector(
   if (source.botId && source.readOnlyOnly && !tool.readOnly)
     throw new ConnectorFailure("The connector tool now requires approval. Ask the user before retrying.");
 
-  if (source.threadId) await connectorPermission(context, source, callId, tool, args, signal);
+  const binding = source.threadId ? await connectorPermission(context, source, callId, tool, args, signal) : undefined;
 
   const dispatch = async () => {
-    if (source.threadId) await checkConnectorTurn(runtime, source, tool.readOnly);
+    if (source.threadId) await checkConnectorTurn(runtime, source, tool.readOnly, !!binding);
     const current = await run((s) => s.authorize(source));
     const prepared = await prepareCall(context, source, current, tool, args, callId, signal, fileId);
-    const claimed = await run((s) => s.claimExecution(callId, source, tool.remoteName, fingerprint));
+    const claimed = await run((s) => s.claimExecution(callId, source, tool.remoteName, fingerprint, binding));
 
     if (!claimed) throw new ConnectorFailure("Connector call already started; outcome unknown. Do not repeat writes.");
 
     if (prepared.checkAccess) await prepared.checkAccess();
 
-    if (source.threadId) await checkConnectorTurn(runtime, source, tool.readOnly);
+    if (source.threadId) await checkConnectorTurn(runtime, source, tool.readOnly, !!binding);
     signal.throwIfAborted();
 
     return { completion: prepared.send() };

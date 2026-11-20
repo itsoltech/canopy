@@ -3,6 +3,41 @@
 Status (2026-11-19): zaimplementowany model, w tym kolejność modułów i zatrzymywanie pracy właściciela po ich wyłączeniu oraz migracje `0153_thread_notice_replication`, `0160_agent_hop_policy`, `0162_service_tiers`, `0164_usage_accounting`, `0165_usage_estimated_cost`, `0169_bot_chat_steer`, `0171_thread_permission_selection`, `0172_usage_activity`, `0173_module_goal_resume`, `0174_schedule_worktree_preparations`, `0176_message_delegating_bot` (rejestracja wywołań narzędzia w `agent_bus_calls`) i `0179_removed_branch_cleanup`.
 Dostępność nightly/beta/stable według [release.md](release.md).
 
+Status (2026-11-20): migracja `0180_thread_blob_provenance` rozdziela dostęp do podglądów
+od ochrony bajtów starszej historii. Migracja `0184_legacy_preview_grants` zachowuje
+każdemu właścicielowi dostęp do obrazów dostępnych w jego historii przed tą zmianą.
+Compose i Desktop Local używają osobnego logowania SQL
+dla działającego gatewaya po jednorazowej migracji. Dostępność zależy od [wydania](release.md).
+
+`thread_blobs.verified` uprawnia do odczytu w obrębie żywego drzewa i właściciela.
+Gateway weryfikuje SHA-256 bajtów workera, wiąże je z jego dziennikiem, a dla nowych
+workerów także z wątkiem. Zapis itemu potwierdza referencję pod blokadą przypisanego
+wątku. Kolejność uploadu i zdarzenia dla workera podającego wątek może być dowolna.
+Powtórzone zdarzenie korzysta z utrwalonej projekcji. Zweryfikowany import może zapisać
+uprawnienie bezpośrednio. Taką samą kontrolę wykonuje odczyt końcówki wyjścia zadania w tle.
+
+Migracja zachowuje dostęp do historycznej referencji, gdy lokalny załącznik lub miniatura
+tego samego właściciela i wątku potwierdza hash rzeczywistych bajtów. Pomija pliki
+z tury zastępczej dawnego importu. Migracja `0183` dodatkowo porównuje pełny obraz
+z wyniku narzędzia w historii wątku z bajtami w magazynie i sprawdza ich SHA-256.
+Obejmuje starsze formaty Codexa, Claude’a i Groka oraz wyniki MCP zapisane w itemie.
+Migracja `0184` uznaje także wcześniejsze przypisanie obrazu do wątku, gdy wynik
+narzędzia zawiera tylko ścieżkę lub skrót. Wykorzystuje dwa oznaczenia nadane przez
+`0180`: `thread_blobs.retained_history` dla odwołania w zachowanej historii
+oraz `blobs.legacy_retention_until` dla istniejącego wówczas pliku. Liczy się
+obecność tego drugiego oznaczenia także po upływie jego daty. Migracja sprawdza
+rozmiar, sygnaturę formatu PNG/JPEG/GIF/WebP i SHA-256 zawartości. Potwierdza
+wyłącznie istniejącą parę wątek–obraz. Działa także po odtworzeniu kopii bazy
+oraz przy wyłączonym workerze. Nowe powiązania podlegają weryfikacji uploadu.
+
+Znaczniki `retained_history` chronią bajty utrwalonych
+itemów i wersji historycznych do normalnego usunięcia ostatniej referencji, również gdy
+worker pozostaje offline ponad 30 dni. Dotyczy to także hashy obecnych w migawkach
+przeniesionych wątków. Późniejszy prawidłowy upload przywraca dostęp do wcześniej
+niepotwierdzonej referencji zdarzenia. Osobno wygasają uploady oczekujące na zdarzenie
+i kwarantanna. [Retencja bazy](database-retention.md)
+
+
 Migracja `0177_github_pr_projection` dodaje opcjonalny `projected_summary_hash`
 do `thread_pull_requests` i inicjalizuje go dla istniejących aktywnych powiązań.
 Gateway uzgadnia podsumowanie osobno dla każdego powiązania, z uwzględnieniem
@@ -605,7 +640,7 @@ Pozostałe tabele:
 | `attachments` | pliki użytkownika do wiadomości: właściciel, blob (sha256) i miniatura WebP obrazu, nazwa (bez katalogów i znaków sterujących), typ rozpoznany z treści, `kind` (`image` / `file`), rozmiar, wymiary; po wysłaniu wątek i tura albo bot i tura bota (raz, razem, wyłącznie jedna rozmowa) |
 | `thread_image_publications` | rezerwacja budżetu `show_images` przed alokacją: call ID, wątek/tura/worker, hash argumentów, token i termin lease, liczba oraz bajty; zatwierdzony wpis zachowuje budżet tury po restarcie, atomowo z załącznikami, manifestem galerii, audytem i wynikiem wywołania |
 | `bot_composer_drafts` | prywatny, trwały szkic bota: tekst, strukturalne wzmianki, cytaty i wgrane obrazy w protobuf, rewizja CAS i klucz idempotencji wiadomości |
-| `thread_blobs` | bloby, które pokazuje transkrypt wątku (podglądy obrazów od workera): przez nie UI czyta blob (właściciel, drzewo wątku) |
+| `thread_blobs`, `worker_preview_uploads` | uprawnienia do bajtów transkryptu w drzewie właściciela, referencje historyczne i ograniczony bufor zweryfikowanych uploadów workera oczekujących na zdarzenie |
 | `worker_journal_cursors` | potwierdzone `journal_seq` per worker, dziennik i wątek (kursory `Welcome`) |
 | `worker_configs`, `worker_config_history`, `secrets`, `worker_config_secrets` | zdalna konfiguracja workerów (migracja `0002`) — [worker-config.md](worker-config.md#7-schemat-0002_worker_config) |
 | `provider_instances` | instancje dostawców (harness + id): połączenie, sekrety jako odwołania, środowisko uruchomienia, kolor, modele w pickerach (ulubione, ukryte, pokazane, własne), `all_workers` (migracja `0018`). Migracja `0065` zachowuje wymagane id `native` dla instancji wbudowanej, pozwalając zmieniać jej rodzaj połączenia — [worker-config.md](worker-config.md#9-globalne-instancje-dostawców) |
@@ -717,6 +752,11 @@ w `composer_drafts`; obejmuje to `/goal` bez tury ani steera i nie ponawia komen
 | Wątki utworzone przez szynę agentów | właściciel projektu | tylko gateway (szyna) |
 
 - Użycie agenta globalnego nie udostępnia wątku innym użytkownikom.
+- Jawny podgląd lub pobranie pliku w UI korzysta z dostępu właściciela do wątku
+  i uprawnień systemowych przypisanego workera. Dotyczy również odczytu porcjami.
+  Sparowanie urządzenia klienta daje dostęp do UI właściciela, a połączony komputer
+  może czytać przez udostępnioną trasę do domu wątku. Zakres ścieżek plików
+  opisuje [workspace.md](workspace.md).
 - Szyna agentów działa w imieniu właściciela projektu wątku źródłowego. Agent może wywołać tylko agentów, do których ten użytkownik ma dostęp.
 - Dostęp admina do prywatnych zasobów innych użytkowników: **decyzja otwarta** ([architecture.md](architecture.md#11-decyzje-do-podjęcia)).
 

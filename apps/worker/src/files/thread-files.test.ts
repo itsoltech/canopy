@@ -1,10 +1,22 @@
 import { afterEach, describe, expect, test } from "bun:test";
 import { create } from "@bufbuild/protobuf";
 import { FileRequestSchema } from "@canopy/contracts";
-import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
+import {
+  existsSync,
+  linkSync,
+  mkdirSync,
+  mkdtempSync,
+  readFileSync,
+  realpathSync,
+  renameSync,
+  rmSync,
+  symlinkSync,
+  writeFileSync,
+} from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { CommandError } from "../runtime/host-types.ts";
+import { openFileMutation } from "./file-mutation-open.ts";
 import { deleteThreadFile, readThreadFile, resolveThreadFile, writeThreadFile } from "./thread-files.ts";
 
 const dirs: string[] = [];
@@ -14,7 +26,7 @@ afterEach(() => {
 });
 
 function fixture() {
-  const base = mkdtempSync(join(tmpdir(), "canopy-thread-files-"));
+  const base = realpathSync.native(mkdtempSync(join(tmpdir(), "canopy-thread-files-")));
   dirs.push(base);
   const root = join(base, "thread");
   const outside = join(base, "outside");
@@ -71,15 +83,105 @@ describe("thread files", () => {
     const read = readThreadFile(path, 0);
 
     expect(new TextDecoder().decode(read.content)).toBe("# Report\n");
-    expect(code(() => writeThreadFile(path, new TextEncoder().encode("x"), "stale"))).toBe("FILE_CHANGED");
-    expect(code(() => writeThreadFile(path, new TextEncoder().encode("x"), ""))).toBe("FILE_HASH_REQUIRED");
+    expect(code(() => writeThreadFile(path, new TextEncoder().encode("x"), "stale", [root]))).toBe("FILE_CHANGED");
+    expect(code(() => writeThreadFile(path, new TextEncoder().encode("x"), "", [root]))).toBe("FILE_HASH_REQUIRED");
 
-    const saved = writeThreadFile(path, new TextEncoder().encode("# Edited\n"), read.sha256 ?? "");
+    const saved = writeThreadFile(path, new TextEncoder().encode("# Edited\n"), read.sha256 ?? "", [root]);
 
     expect(readFileSync(path, "utf8")).toBe("# Edited\n");
-    expect(code(() => deleteThreadFile(path, read.sha256 ?? ""))).toBe("FILE_CHANGED");
-    deleteThreadFile(path, saved.sha256 ?? "");
+    expect(code(() => deleteThreadFile(path, read.sha256 ?? "", [root]))).toBe("FILE_CHANGED");
+    deleteThreadFile(path, saved.sha256 ?? "", [root]);
     expect(existsSync(path)).toBe(false);
+  });
+
+  test("normal edits keep working in nested folders and for several files at once", () => {
+    const { root } = fixture();
+    mkdirSync(join(root, "src", "deep"), { recursive: true });
+    const names = ["a.ts", "b.ts", "c.ts"].map((name) => join(root, "src", "deep", name));
+
+    for (const name of names) writeFileSync(name, "one\n");
+
+    const results = names.map((name) => {
+      const read = readThreadFile(name, 0);
+
+      return writeThreadFile(name, new TextEncoder().encode("two\n"), read.sha256 ?? "", [root]);
+    });
+
+    for (const [index, name] of names.entries()) {
+      expect(readFileSync(name, "utf8")).toBe("two\n");
+      expect(results[index]?.size).toBe(4n);
+    }
+
+    // A shorter edit truncates; a longer one extends.
+    const first = names[0]!;
+    writeThreadFile(first, new TextEncoder().encode("2\n"), results[0]?.sha256 ?? "", [root]);
+    expect(readFileSync(first, "utf8")).toBe("2\n");
+  });
+
+  test("a file with other hard links is refused instead of changing the other name", () => {
+    const { root, outside } = fixture();
+    const linked = join(root, "linked.md");
+
+    try {
+      linkSync(join(outside, "secret.txt"), linked);
+    } catch {
+      return; // Some volumes do not support hard links.
+    }
+
+    const read = readThreadFile(linked, 0);
+
+    expect(code(() => writeThreadFile(linked, new TextEncoder().encode("x"), read.sha256 ?? "", [root]))).toBe(
+      "FILE_CHANGED",
+    );
+    expect(code(() => deleteThreadFile(linked, read.sha256 ?? "", [root]))).toBe("FILE_CHANGED");
+    expect(readFileSync(join(outside, "secret.txt"), "utf8")).toBe("secret");
+  });
+
+  test("a pinned file notices it was moved or replaced before the change", () => {
+    const { root } = fixture();
+    const path = join(root, "report.md");
+    const file = openFileMutation(path, true, [root]);
+
+    try {
+      file.verify();
+      renameSync(path, join(root, "moved.md"));
+    } catch {
+      file.close();
+
+      return; // Windows refuses to move an open file; either outcome keeps the change on the checked file.
+    }
+
+    try {
+      expect(() => file.verify()).toThrow();
+      expect(() => file.write(new TextEncoder().encode("x"))).toThrow();
+      expect(readFileSync(join(root, "moved.md"), "utf8")).toBe("# Report\n");
+    } finally {
+      file.close();
+    }
+  });
+
+  test("an authorised path is never re-resolved through a link or accepted outside the roots", () => {
+    const { root, outside } = fixture();
+    const secret = join(outside, "secret.txt");
+    const hash = readThreadFile(secret, 0).sha256 ?? "";
+    const content = new TextEncoder().encode("x");
+
+    expect(code(() => writeThreadFile(secret, content, hash, [root]))).toBe("FILE_CHANGED");
+    expect(code(() => deleteThreadFile(secret, hash, [root]))).toBe("FILE_CHANGED");
+
+    try {
+      symlinkSync(outside, join(root, "dir-link"), "dir");
+      symlinkSync(secret, join(root, "file-link.txt"));
+    } catch {
+      return; // Creating symlinks needs a privilege on Windows.
+    }
+
+    expect(code(() => writeThreadFile(join(root, "dir-link", "secret.txt"), content, hash, [root]))).toBe(
+      "FILE_CHANGED",
+    );
+    expect(code(() => writeThreadFile(join(root, "file-link.txt"), content, hash, [root]))).toBe("FILE_CHANGED");
+    expect(code(() => deleteThreadFile(join(root, "file-link.txt"), hash, [root]))).toBe("FILE_CHANGED");
+    expect(readFileSync(secret, "utf8")).toBe("secret");
   });
 
   test("binary files send no content and long files come back truncated", () => {

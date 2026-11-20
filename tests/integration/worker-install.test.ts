@@ -112,12 +112,12 @@ describe.skipIf(!dockerAvailable)("worker installer and BFF mirror boundary", ()
           server.url.origin,
           "--gateway",
           gw.grpcUrl,
-          "--token",
-          invitation.token,
+          "--token-stdin",
           "--no-service",
         ],
         {
           env: { ...process.env, HOME: home },
+          stdin: new Blob([invitation.token, "\n"]),
           stdout: "pipe",
           stderr: "pipe",
         },
@@ -157,12 +157,12 @@ describe.skipIf(!dockerAvailable)("worker installer and BFF mirror boundary", ()
           server.url.origin,
           "--gateway",
           gw.grpcUrl,
-          "--token",
-          invitation.token,
+          "--token-stdin",
           "--no-service",
         ],
         {
           env: { ...process.env, HOME: home },
+          stdin: new Blob([invitation.token, "\n"]),
           stdout: "pipe",
           stderr: "pipe",
         },
@@ -205,18 +205,8 @@ describe.skipIf(!dockerAvailable)("worker installer and BFF mirror boundary", ()
       }
 
       const rerun = Bun.spawn(
-        [
-          "sh",
-          "scripts/install-worker.sh",
-          "--origin",
-          server.url.origin,
-          "--gateway",
-          gw.grpcUrl,
-          "--token",
-          invitation.token,
-          "--no-service",
-        ],
-        { env: { ...process.env, HOME: home }, stdout: "pipe", stderr: "pipe" },
+        ["sh", "scripts/install-worker.sh", "--origin", server.url.origin, "--gateway", gw.grpcUrl, "--no-service"],
+        { env: { ...process.env, HOME: home }, stdin: "ignore", stdout: "pipe", stderr: "pipe" },
       );
 
       const [rerunOutput, , rerunCode] = await Promise.all([
@@ -250,6 +240,10 @@ describe.skipIf(!dockerAvailable)("worker installer and BFF mirror boundary", ()
         name,
         "--network",
         "host",
+        "-v",
+        `${resolve("tests/integration/fixtures/worker-install-sshd/curl")}:/usr/bin/curl:ro`,
+        "-v",
+        `${binary}:/opt/canopy-test/canopy-worker-linux-x64:ro`,
         "canopy-worker-install-sshd:test",
         "sh",
         "-c",
@@ -317,6 +311,17 @@ describe.skipIf(!dockerAvailable)("worker installer and BFF mirror boundary", ()
         const output = events.map((e) => e.output).join("");
         expect(output).toContain("Worker enrolled");
         expect(output).not.toContain("credential");
+
+        const installed = Bun.spawnSync([
+          "docker",
+          "exec",
+          name,
+          "sha256sum",
+          "/home/canopy/.local/share/canopy/bin/canopy-worker",
+        ]);
+
+        expect(installed.exitCode).toBe(0);
+        expect(installed.stdout.toString()).toStartWith(`${sha} `);
 
         const unit = Bun.spawnSync([
           "docker",

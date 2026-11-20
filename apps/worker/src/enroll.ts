@@ -16,6 +16,7 @@ import { WorkerEnrollmentService } from "@canopy/contracts";
 import { CANOPY_VERSION } from "@canopy/domain/release/version";
 import { createGrpcClientTransport, pinnedCertificate } from "@canopy/transport";
 import type { LocalConfig } from "./config/local.ts";
+import { GATEWAY_TRANSPORT_MESSAGE, trustedGatewayOrigin } from "./config/gateway-origin.ts";
 import { isStandalone, serviceSnippet } from "@canopy/updater";
 
 export interface EnrollmentOptions {
@@ -40,6 +41,9 @@ export async function enrollWorker(options: EnrollmentOptions): Promise<LocalCon
     url.pathname !== "/"
   )
     throw new Error("Use the gateway origin with its gRPC port");
+  const trustedHttpOrigin = process.env["CANOPY_WORKER_TRUSTED_HTTP_ORIGIN"];
+
+  if (!trustedGatewayOrigin(url.origin, trustedHttpOrigin)) throw new Error(GATEWAY_TRANSPORT_MESSAGE);
   const path = resolve(options.configPath);
   mkdirSync(dirname(path), { recursive: true, mode: 0o700 });
 
@@ -81,6 +85,7 @@ export async function enrollWorker(options: EnrollmentOptions): Promise<LocalCon
       gateway_url: url.origin,
       worker_id: result.workerId,
       credential: result.workerCredential,
+      ...(url.protocol === "http:" && url.origin === trustedHttpOrigin && { trusted_http_origin: url.origin }),
       ...(certificate && fingerprint && { gateway_certificate: certificate, gateway_fingerprint: fingerprint }),
       ...(options.dataDir && { data_dir: resolve(options.dataDir) }),
     };

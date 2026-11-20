@@ -168,7 +168,8 @@ export const pruneThreadContent = (sql: SqlClient.SqlClient, threadId: string) =
     // A reference locked by another writer is skipped by blob cleanup, rather than completed.
     if (
       (yield* sql`SELECT 1 FROM attachments WHERE thread_id=${threadId}::uuid
-      UNION ALL SELECT 1 FROM thread_blobs WHERE thread_id=${threadId}::uuid LIMIT 1`).length
+      UNION ALL SELECT 1 FROM thread_blobs WHERE thread_id=${threadId}::uuid
+      UNION ALL SELECT 1 FROM worker_preview_uploads WHERE thread_scope=${threadId} LIMIT 1`).length
     )
       return 0;
 

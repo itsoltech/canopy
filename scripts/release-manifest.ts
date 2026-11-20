@@ -72,12 +72,36 @@ export function classify(name: string): Pick<ManifestAsset, "app" | "os" | "arch
     : undefined;
 }
 
-/**
- * Protocol versions from packages/domain/src/release/protocol.ts (the self-update work adds it); 1 until it exists.
- * Imported by path so this script does not depend on the file being there.
- */
-async function protocolVersions(): Promise<ReleaseManifest["protocol"]> {
-  const path = join(root, "packages/domain/src/release/protocol.ts");
+// Read the versioned constants as data: a publisher can build an older revision with current tooling.
+async function protocolVersions(revision?: string): Promise<ReleaseManifest["protocol"]> {
+  const file = "packages/domain/src/release/protocol.ts";
+  const path = join(root, file);
+
+  if (revision) {
+    if (!/^[0-9a-f]{40}$/.test(revision)) throw new Error("Protocol source needs a full commit SHA");
+    const git = (...args: string[]) => Bun.spawnSync(["git", "-C", root, ...args]);
+    const ref = `${revision}:${file}`;
+
+    if (git("cat-file", "-e", `${revision}^{commit}`).exitCode !== 0)
+      throw new Error("Protocol source revision is missing");
+
+    if (git("cat-file", "-e", ref).exitCode !== 0) return { worker_link: 1, update: 1 };
+    const source = git("show", ref);
+
+    if (source.exitCode !== 0) throw new Error("Could not read release protocol versions");
+    const { stdout } = source;
+
+    const version = (name: string) => {
+      const match = new RegExp(`^export const ${name} = ([1-9]\\d*);$`, "m").exec(stdout.toString());
+      const value = Number(match?.[1]);
+
+      if (!Number.isSafeInteger(value)) throw new Error(`Invalid release protocol constant ${name}`);
+
+      return value;
+    };
+
+    return { worker_link: version("WORKER_LINK_PROTOCOL"), update: version("UPDATE_PROTOCOL") };
+  }
 
   if (!existsSync(path)) return { worker_link: 1, update: 1 };
   // SAFETY: The existing path is our repository-owned protocol module with these numeric constant exports.
@@ -140,7 +164,7 @@ export async function releaseManifest(
     channel,
     commit: info.commit,
     published_at: new Date().toISOString(),
-    protocol: await protocolVersions(),
+    protocol: await protocolVersions(env["CANOPY_PROTOCOL_REVISION"]),
     assets,
   };
 }

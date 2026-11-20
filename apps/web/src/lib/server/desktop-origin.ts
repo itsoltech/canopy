@@ -13,7 +13,7 @@ export function desktopWebOrigin(): string | undefined {
 export function isLocalDesktop(): boolean {
   const target = bffTarget()?.target;
 
-  return Boolean(desktopWebOrigin() && target && !target.desktopClient);
+  return Boolean(desktopWebOrigin() && target?.mode === "local");
 }
 
 /** The OAuth return is the only external navigation allowed into the desktop BFF. */

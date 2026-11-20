@@ -1,4 +1,4 @@
-import { afterAll, beforeAll, describe, expect, test } from "bun:test";
+import { afterAll, beforeAll, describe, expect, spyOn, test } from "bun:test";
 import { createHash } from "node:crypto";
 import { connect, createServer, type AddressInfo, type Socket } from "node:net";
 import { create, toJsonString } from "@bufbuild/protobuf";
@@ -43,12 +43,16 @@ describe.skipIf(!dockerAvailable)("desktop client: owner-scoped pairing and pinn
       platform: "linux",
     });
 
-  beforeAll(async () => {
-    gw = await startTestGateway();
+  async function openNetwork() {
     network = new NetworkAccess({ store: new ComputerStore(gw.runtime, gw.userId, gw.secretsKey), host: "127.0.0.1" });
     gw.core.network = network;
     unmount = mountMobileNetwork(gw.core, network, SERVICE_TOKEN);
     await network.start();
+  }
+
+  beforeAll(async () => {
+    gw = await startTestGateway();
+    await openNetwork();
     await network.update(create(ui.UpdateNetworkAccessRequestSchema, { action: "set_enabled", enabled: true }));
   }, 60_000);
   afterAll(async () => {
@@ -155,18 +159,81 @@ describe.skipIf(!dockerAvailable)("desktop client: owner-scoped pairing and pinn
 
     expect((await watch.next()).done).toBe(false);
 
-    const ended = (async () => {
-      while (!(await watch.next()).done) {
-        /* drain */
-      }
-    })();
+    const ended = failure(
+      (async () => {
+        while (!(await watch.next()).done) {
+          /* drain */
+        }
+      })(),
+    );
 
     await gw.api.revokeMobileDevice({ id: client.deviceId });
-    await ended;
+    expect(await ended).toContain("Device revoked");
     expect(await failure(desktop.getSettings({}))).toContain("revoked");
     expect(
       (await query("SELECT action FROM audit_log WHERE target_id = $1", [client.deviceId])).map((r) => r["action"]),
     ).toContain("desktop.device.revoke");
+  });
+
+  test("revocation suppresses a snapshot already being prepared", async () => {
+    const client = await pair();
+    const preparing = Promise.withResolvers<void>();
+    const ready = Promise.withResolvers<void>();
+    const overview = gw.core.overview.bind(gw.core);
+
+    const snapshot = spyOn(gw.core, "overview").mockImplementation(async () => {
+      const value = await overview();
+      preparing.resolve();
+      await ready.promise;
+
+      return value;
+    });
+
+    const watch = api(client.token).watchOverview({ includeSnapshot: true }, { signal: AbortSignal.timeout(5000) });
+
+    const received = failure(
+      (async () => {
+        for await (const update of watch) expect(update.change.case).not.toBe("mobileSnapshot");
+      })(),
+    );
+
+    try {
+      await Promise.race([
+        preparing.promise,
+        received.then((reason) => {
+          throw new Error(reason);
+        }),
+      ]);
+      await gw.api.revokeMobileDevice({ id: client.deviceId });
+      ready.resolve();
+      expect(await received).toContain("Device revoked");
+    } finally {
+      ready.resolve();
+      await received;
+      snapshot.mockRestore();
+    }
+  });
+
+  test("only the Network access listener accepts an authorized device token", async () => {
+    const client = await pair();
+    const desktop = api(client.token);
+    const processPort = createClient(ui.GatewayService, createGrpcTransport({ baseUrl: gw.grpcUrl }));
+    const bearer = { headers: { authorization: `Bearer ${client.token}` } };
+    const access = (enabled: boolean) => gw.api.updateNetworkAccess({ action: "set_enabled", enabled });
+
+    expect((await desktop.getSettings({})).user).toBeDefined();
+    expect(await failure(processPort.getSettings({}, bearer))).toContain("token");
+    await access(false);
+
+    try {
+      expect(await failure(desktop.getSettings({}, { timeoutMs: 2000 }))).not.toBe("");
+      expect(await failure(processPort.getSettings({}, bearer))).toContain("token");
+      expect((await gw.api.getNetworkAccess({})).enabled).toBe(false);
+    } finally {
+      await access(true);
+    }
+
+    expect((await api(client.token).getSettings({})).user).toBeDefined();
   });
 
   test("wrong pins never send a pairing code or bearer; false routes fall back before HTTP", async () => {
@@ -252,7 +319,7 @@ describe.skipIf(!dockerAvailable)("desktop client: owner-scoped pairing and pinn
     }
   });
 
-  test("automatic migration requires an owned desktop worker, mints only over Network access, and cannot bypass revoke", async () => {
+  test("legacy desktop workers can discover routes, while only owner pairing issues a device token", async () => {
     expect(await failure(migrate(gw.workerCredential))).toContain("migration unavailable");
     await query(
       'UPDATE workers SET capabilities = capabilities || \'{"update":{"installKind":"desktop"}}\'::jsonb WHERE id = $1',
@@ -269,12 +336,46 @@ describe.skipIf(!dockerAvailable)("desktop client: owner-scoped pairing and pinn
     expect(await failure(migrate("not-a-worker-credential"))).toContain("migration unavailable");
     const other = await gw.addWorker("Other worker");
     expect(await failure(migrate(gw.workerCredential, other.workerId))).toContain("migration unavailable");
-    const paired = await migrate(gw.workerCredential);
-    expect((await api(paired.deviceToken).getSettings({})).user).toBeDefined();
-    await gw.api.revokeMobileDevice({ id: paired.device!.id });
     expect(await failure(migrate(gw.workerCredential))).toContain("migration unavailable");
+    expect(await query("SELECT device_id FROM desktop_worker_migrations WHERE worker_id = $1", [gw.workerId])).toEqual(
+      [],
+    );
+    const paired = await pair();
+    expect((await api(paired.token).getSettings({})).user).toBeDefined();
     expect(
-      (await query("SELECT action FROM audit_log WHERE target_id = $1", [paired.device!.id])).map((r) => r["action"]),
-    ).toContain("desktop.migrate");
+      (await query("SELECT action FROM audit_log WHERE target_id = $1", [paired.deviceId])).map((r) => r["action"]),
+    ).toContain("desktop.pair");
   });
+
+  test("restart reuses stored owner, worker, desktop and phone authorization and preserves revocation", async () => {
+    const desktop = await pair();
+    const revoked = await pair();
+    const phoneInvite = await gw.api.createMobilePairing({});
+
+    const phone = await createClient(
+      ui.MobilePairingService,
+      routedPinnedTransport(routes()).transport,
+    ).exchangeMobilePairing({ code: phoneInvite.code, name: "Fixture phone", platform: "ios" });
+
+    // A device with the legacy migration provenance is still an ordinary device for authentication.
+    await query("INSERT INTO desktop_worker_migrations(worker_id, device_id) VALUES ($1, $2)", [
+      gw.workerId,
+      desktop.deviceId,
+    ]);
+    await gw.api.revokeMobileDevice({ id: revoked.deviceId });
+    const fingerprint = routes().fingerprint;
+    const original = gw;
+    unmount();
+    await network.close();
+    await original.close(true);
+    gw = await startTestGateway({ storage: original });
+    await openNetwork();
+
+    const overview = await gw.api.getOverview({});
+    expect(routes().fingerprint).toBe(fingerprint);
+    expect(overview.workers.some((worker) => worker.id === original.workerId && worker.online)).toBe(true);
+    expect((await api(desktop.token).getSettings({})).user).toBeDefined();
+    expect((await api(phone.deviceToken).getSettings({})).user).toBeDefined();
+    expect(await failure(api(revoked.token).getSettings({}))).toContain("revoked");
+  }, 60_000);
 });

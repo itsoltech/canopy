@@ -10,6 +10,32 @@ import type { claudeRuntime } from "./session-runtime.ts";
 import { claudeQueryConfiguration } from "./query-configuration.ts";
 import { ProviderConfigurationMode } from "@canopy/contracts";
 
+/** Started like a turn's process, but passive: no prompt is sent and no project hook runs. */
+async function listCommands(
+  instance: Parameters<typeof claudeQueryConfiguration>[0],
+  cwd: string,
+  baseEnv: Parameters<typeof claudeQueryConfiguration>[3],
+  launch: Parameters<typeof claudeQueryConfiguration>[4],
+  prompt: AsyncChannel<SDKUserMessage>,
+  abort: AbortController,
+) {
+  const configuration = await claudeQueryConfiguration(instance, cwd, false, baseEnv, launch, undefined, {
+    passive: true,
+  });
+
+  try {
+    const q = query({ prompt, options: configuration.options });
+
+    return await withDeadline(q.supportedCommands(), 30_000, () => {
+      throw new Error("Claude Code did not list its commands within 30 s");
+    });
+  } finally {
+    prompt.close();
+    abort.abort();
+    await configuration.close();
+  }
+}
+
 export function threadCatalog(ctx: ClaudeThreadContext, runtime: ReturnType<typeof claudeRuntime>) {
   const { options, resolvedModels, modelEfforts } = ctx;
   const { runtimeOf, queryRuntime } = runtime;
@@ -37,28 +63,22 @@ export function threadCatalog(ctx: ClaudeThreadContext, runtime: ReturnType<type
           : undefined;
 
       const commands = yield* Effect.tryPromise({
-        try: async () => {
-          const configuration = await claudeQueryConfiguration(instance, cwd, false, options.baseEnv, {
+        try: () =>
+          listCommands(
+            instance,
             cwd,
-            ...queryRuntime(profile, instance),
-            persistSession: false,
-            strictMcpConfig: true,
-            mcpServers: {},
-            abortController: abort,
-          });
-
-          try {
-            const q = query({ prompt, options: configuration.options });
-
-            return await withDeadline(q.supportedCommands(), 30_000, () => {
-              throw new Error("Claude Code did not list its commands within 30 s");
-            });
-          } finally {
-            prompt.close();
-            abort.abort();
-            await configuration.close();
-          }
-        },
+            options.baseEnv,
+            {
+              cwd,
+              ...queryRuntime(profile, instance),
+              persistSession: false,
+              strictMcpConfig: true,
+              mcpServers: {},
+              abortController: abort,
+            },
+            prompt,
+            abort,
+          ),
         catch: fail("", "commands"),
       });
 

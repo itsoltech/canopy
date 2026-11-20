@@ -3,9 +3,8 @@ import { isErrorObject } from "./error-cause.ts";
 import { PermissionMode, Provider, ui, type MentionCatalog, type ThreadEvent } from "@canopy/contracts";
 import { Predicate, Schema, type ManagedRuntime } from "effect";
 import { SqlClient } from "effect/sql";
-import { type WorkerConnection } from "../worker-link/index.ts";
 import { type AttachmentLimits } from "@canopy/domain";
-import { AttachmentStore, THREAD_BLOB_BYTES } from "../store/attachments.ts";
+import { AttachmentStore } from "../store/attachments.ts";
 import {
   AgentBusStore,
   BackgroundTaskStore,
@@ -103,19 +102,6 @@ export interface GatewayCoreOptions {
 
 /** Bytes per BlobChunk on the worker link (attachments down, previews up). */
 export const BLOB_CHUNK_BYTES = 256 * 1024;
-
-/** Largest transcript blob a worker may upload and a client may read. */
-export const MAX_PREVIEW_BYTES = THREAD_BLOB_BYTES;
-
-export const PREVIEW_TYPES: ReadonlySet<string> = new Set([
-  "image/png",
-  "image/jpeg",
-  "image/webp",
-  "image/gif",
-  "text/plain",
-  "text/x-diff",
-  "application/json",
-]);
 
 export type TurnInputJson = TurnRow["input"];
 
@@ -264,12 +250,6 @@ export class GatewayCoreState {
   nextStatusOriginCheck = 0;
   /** Origins discovered by unary reads. An unknown set requires a full project replay. */
   pendingOriginProjects: Set<string> | undefined = new Set();
-
-  /** Previews a worker is uploading (BlobChunk), by sha256, until their last chunk. */
-  readonly uploads = new WeakMap<
-    WorkerConnection,
-    Map<string, { chunks: Uint8Array[]; size: number; mimeType: string }>
-  >();
 
   sweepTimer!: ReturnType<typeof setInterval> | undefined;
 

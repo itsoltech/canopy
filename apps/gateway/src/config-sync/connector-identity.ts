@@ -10,11 +10,14 @@ import { valuesOf } from "./provider-values.ts";
 import { currentSecret } from "./secrets.ts";
 import { sharedCredentials } from "../connectors/credential-values.ts";
 
-function headerIdentity(plain: string | undefined) {
+function credentialIdentity(plain: string | undefined, oauth: boolean) {
   if (!plain) return undefined;
 
   try {
-    const headers = sharedCredentials(plain).headers ?? {};
+    const credentials = sharedCredentials(plain);
+
+    if (oauth) return credentials.tokens ? credentials.oauthSubject : undefined;
+    const headers = credentials.headers ?? {};
 
     return JSON.stringify(
       Object.entries(headers)
@@ -52,15 +55,12 @@ export function placeConnector(
     if (candidates.length !== 1) return { item, current, moved: false };
     const candidate = candidates[0]!;
 
-    // A name cannot identify two different header-auth accounts at the same endpoint.
-    if (
-      item.kind === "connector" &&
-      (item.fields["authKind"]?.value === "headers" || candidate.fields["authKind"]?.value === "headers")
-    ) {
-      const theirs = headerIdentity(plain.get("credentials"));
-      const ours = headerIdentity((yield* currentSecret(sql, owner, key, candidate, "credentials"))?.plain);
+    if (item.kind === "connector") {
+      const oauth = item.fields["authKind"]?.value === "oauth";
+      const theirs = credentialIdentity(plain.get("credentials"), oauth);
+      const ours = credentialIdentity((yield* currentSecret(sql, owner, key, candidate, "credentials"))?.plain, oauth);
 
-      if (item.fields["authKind"]?.value !== candidate.fields["authKind"]?.value || !theirs || ours !== theirs)
+      if (!theirs || ours !== theirs || (oauth && theirs !== item.fields["accountIdentity"]?.value))
         return { item, current, moved: false };
     }
 

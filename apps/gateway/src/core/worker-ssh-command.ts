@@ -72,7 +72,8 @@ export function workerSshCommand(
   return `set +x
 set -eu
 umask 077
-set -- --gateway ${quote(setup.gatewayUrl)}${setup.gatewayFingerprint ? ` --fingerprint ${quote(setup.gatewayFingerprint)}` : ""} --token ${quote(token)} --name ${quote(name)}
+canopy_ssh_enrollment_token() { printf '%s\\n' ${quote(token)}; }
+set -- --gateway ${quote(setup.gatewayUrl)}${setup.gatewayFingerprint ? ` --fingerprint ${quote(setup.gatewayFingerprint)}` : ""} --name ${quote(name)}
 printf '%s\\n' ${quote(message)}
 case "$(uname -s)/$(uname -m)" in
 ${cases.join("\n")}

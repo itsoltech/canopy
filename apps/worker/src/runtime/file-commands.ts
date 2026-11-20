@@ -1,5 +1,11 @@
 import { FileResolution, type Command, type FileRequest } from "@canopy/contracts";
-import { deleteThreadFile, readThreadFile, resolveThreadFile, writeThreadFile } from "../files/thread-files.ts";
+import {
+  deleteThreadFile,
+  readThreadFile,
+  resolveThreadFile,
+  threadFileRoots,
+  writeThreadFile,
+} from "../files/thread-files.ts";
 import { resolvePreview } from "../files/resolve-preview.ts";
 import { CommandError, type CommandOutput } from "./host-types.ts";
 import type { HostContext } from "./host-context.ts";
@@ -82,9 +88,14 @@ export async function runFileCommand(ctx: HostContext, kind: FileCommand): Promi
 
       return {};
     case "writeFile":
-      return { file: { ...writeThreadFile(path, kind.value.content, target.expectedSha256), rootIdentity } };
+      return {
+        file: {
+          ...writeThreadFile(path, kind.value.content, target.expectedSha256, threadFileRoots(target, extraRoots)),
+          rootIdentity,
+        },
+      };
     case "deleteFile":
-      deleteThreadFile(path, target.expectedSha256);
+      deleteThreadFile(path, target.expectedSha256, threadFileRoots(target, extraRoots));
 
       return {};
   }

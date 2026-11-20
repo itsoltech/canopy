@@ -206,14 +206,8 @@ describe.skipIf(!dockerAvailable)("account configuration across three independen
     await a.sharing(b.node, false);
     await wait(() => !configAllowed(b.links, a.node));
 
-    // Drain frames queued before the consent change; the stream must then finish.
-    const closed = await eventually(
-      async () => stream.next().catch(() => ({ done: true })),
-      (r) => !!r.done,
-      5000,
-    );
-
-    expect(closed.done).toBe(true);
+    // Even a pull on this already-open iterator observes the revoked grant.
+    expect(await failure(stream.next())).toContain("Configuration sharing is off");
     abort.abort();
     expect((await a.settings()).timezone).toBe(beforeA);
     expect((await b.settings()).timezone).toBe(beforeB);

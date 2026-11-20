@@ -3,21 +3,14 @@ import { MentionKind, ui, type BlobChunk, type FetchBlob, type Mention } from "@
 import { Effect } from "effect";
 import { type WorkerConnection } from "../worker-link/index.ts";
 import { attachmentPath, attachmentsNote, formatSize, orderAttachments, withAttachmentsNote } from "@canopy/domain";
-import { AttachmentRejected, prepareAttachment, sha256Hex } from "../attachments/prepare.ts";
+import { AttachmentRejected, prepareAttachment } from "../attachments/prepare.ts";
 import { AttachmentStore, toUiAttachment, type StoredAttachment } from "../store/attachments.ts";
 import { NotFound } from "../store/index.ts";
-import {
-  BLOB_CHUNK_BYTES,
-  coreState,
-  describeError,
-  InvalidError,
-  MAX_PREVIEW_BYTES,
-  PREVIEW_TYPES,
-  type TurnInputJson,
-} from "./core-context.ts";
+import { BLOB_CHUNK_BYTES, coreState, describeError, InvalidError, type TurnInputJson } from "./core-context.ts";
 import type { GatewayCore } from "./core.ts";
 import { ATTACHMENT_PREVIEW_BYTES } from "@canopy/domain/attachment-preview";
-import { coreLog } from "./core-broadcast.ts";
+import { previewBuffers } from "./preview-buffers.ts";
+import { acceptsPreview } from "../attachments/preview-policy.ts";
 
 /** What a badge of a placed file shows: the stored name and kind (image | file). */
 export interface PlacedFile {
@@ -107,52 +100,27 @@ export async function coreReceiveBlob(
   connection: WorkerConnection,
   chunk: BlobChunk,
 ): Promise<void> {
-  const uploads = hostContext[coreState].uploads.get(connection) ?? new Map();
-  hostContext[coreState].uploads.set(connection, uploads);
-  const key = `${chunk.threadId}:${chunk.sha256}`;
-  const upload = uploads.get(key) ?? { chunks: [], size: 0, mimeType: chunk.mimeType };
+  const journalId = connection.hello.journalId;
 
-  if (BigInt(upload.size) !== chunk.offset) {
-    // A gap (a lost or repeated chunk): start over from this one only if it is the first.
-    uploads.delete(key);
-
-    if (chunk.offset !== 0n) return;
-    upload.chunks = [];
-    upload.size = 0;
-  }
-
-  upload.chunks.push(chunk.data);
-  upload.size += chunk.data.length;
-  uploads.set(key, upload);
-
-  if (upload.size > MAX_PREVIEW_BYTES) {
-    uploads.delete(key);
-    coreLog(
-      hostContext,
-      `preview ${chunk.sha256.slice(0, 12)} from worker ${connection.workerId} is over ${formatSize(MAX_PREVIEW_BYTES)}; dropped`,
-    );
-
+  if (
+    !acceptsPreview(chunk.threadId, chunk.sha256, chunk.mimeType) ||
+    (!chunk.last && !chunk.data.length) ||
+    chunk.data.length > BLOB_CHUNK_BYTES
+  )
     return;
-  }
 
-  if (!chunk.last) return;
-  uploads.delete(key);
-  const data = Buffer.concat(upload.chunks);
-
-  if (sha256Hex(data) !== chunk.sha256 || !PREVIEW_TYPES.has(upload.mimeType)) {
-    coreLog(
-      hostContext,
-      `preview ${chunk.sha256.slice(0, 12)} from worker ${connection.workerId} does not match its hash or type; dropped`,
+  await previewBuffers.receive(connection, chunk, async (data) => {
+    await coreAttachments(hostContext, (s) =>
+      s.stagePreview({
+        workerId: connection.workerId,
+        journalId,
+        threadId: chunk.threadId,
+        sha256: chunk.sha256,
+        data,
+        mimeType: chunk.mimeType,
+      }),
     );
-
-    return;
-  }
-
-  await coreAttachments(hostContext, (s) =>
-    chunk.threadId
-      ? s.putThreadBlob(connection.workerId, chunk.threadId, chunk.sha256, new Uint8Array(data), upload.mimeType)
-      : s.putUnscopedBlob(chunk.sha256, new Uint8Array(data), upload.mimeType),
-  );
+  });
 }
 
 /** An attachment's bytes to the worker that runs its thread, in chunks (FetchBlob). */

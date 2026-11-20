@@ -17,7 +17,7 @@ Bot Codex może odczytać obraz z wiadomości lub konektora, jeśli jego model o
 W prywatnej rozmowie z właścicielem i w swoich rutynach bot może wysyłać jako Canopy na Slacku ze
 stałą zgodą dla konkretnego konta i rozmowy Slack.
 Wątek uruchomiony przez bota może przekazać mu pytanie w trakcie pracy przez
-`message_delegating_bot`. Po zakończeniu obserwowanej tury bot automatycznie dostaje jej wynik.
+`message_delegating_bot`. Automatyczny zwrot wyniku sprawdza pochodzenie wejść obserwowanej tury.
 Konfiguracja bota przenosi `service_tier` do `RunBotTurn`.
 Historia w web/desktop korzysta z wirtualizacji i automatycznie dołącza
 starsze strony podczas przewijania, zachowując pozycję czytania.
@@ -67,6 +67,14 @@ Zwykły wpis agenta w trakcie pracy nie budzi bota. Gdy agent kończy pracę lub
 potrzebuje odpowiedzi, żeby wykonać kolejny krok, wystarczy odpowiedź końcowa.
 Jeśli agent wysłał już pytanie narzędziem, w odpowiedzi końcowej podaje tylko nowe
 ustalenia. Każde jawne wywołanie pozostawia obserwację końca tury aktywną.
+
+Przy automatycznych powiadomieniach o pytaniu i wyniku gateway sprawdza początkowe
+wejście, wiadomości dołączane do tury oraz wszystkich obserwatorów, również z poprzedniej
+partii dostarczeń. Jeżeli prywatny czat, rutyna albo inna rozmowa współdzieli turę
+z rozmową Slack, żaden z jej obserwatorów nie otrzymuje automatycznego raportu ani
+powiadomienia o pytaniu. Pochodzenie z połączonego komputera również stanowi osobne źródło.
+Wynik pozostaje w historii wątku. Gdy wszystkie wejścia pochodzą z jednej rozmowy Slack,
+jej bot dostaje raport zgodnie z aktualną trasą.
 
 Przy wyłączeniu modułu gateway wygasza oczekujące zgody na działania bota w wątkach
 i zamyka oczekujące obserwacje wyników i pytań, także między komputerami. Przy wyłączeniu samych botów

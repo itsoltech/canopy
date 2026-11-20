@@ -310,11 +310,23 @@ async function acceptLinkedCall(
   callId: string,
   args: Arguments,
 ) {
-  const result = await host.call(node, operation, actor, callId, args);
+  let recipient = node;
+
+  const result = await host.call(node, operation, actor, callId, args, false, (home) => {
+    recipient = home;
+  });
+
   const r = record(result);
   await host.query(
     "UPDATE computer_agent_calls SET target_id=$4::uuid,target_kind=$5,result=$6::jsonb WHERE owner_user_id=$1::uuid AND peer_node_id=$2 AND call_id=$3::uuid AND direction='outgoing'",
-    [host.owner, node, callId, splitId(text(r, "thread_id")).id, r["target_kind"] ?? "thread", JSON.stringify(result)],
+    [
+      host.owner,
+      recipient,
+      callId,
+      splitId(text(r, "thread_id")).id,
+      r["target_kind"] ?? "thread",
+      JSON.stringify(result),
+    ],
   );
 
   return result;

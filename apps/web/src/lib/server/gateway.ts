@@ -1,5 +1,5 @@
-import { createClient, type Client } from "@connectrpc/connect";
-import { createGrpcTransport } from "@connectrpc/connect-node";
+import { Code, ConnectError, createClient, type Client, type Transport } from "@connectrpc/connect";
+import { createGrpcClientTransport } from "@canopy/transport";
 import { error, fail, isActionFailure, isHttpError, type ActionFailure } from "@sveltejs/kit";
 import { ui } from "@canopy/contracts";
 import { GATEWAY_SERVICE_TOKEN, GATEWAY_URL } from "$app/env/private";
@@ -14,11 +14,12 @@ import { startBffLogs } from "./log-source.ts";
 import { CANOPY_VERSION } from "@canopy/domain/release/version";
 import { WEB_VERSION_HEADER } from "@canopy/domain/release/web-version";
 import { compareVersions } from "@canopy/updater/release";
-import { bffTarget, onBffTargetChange } from "@canopy/domain/bff-target";
+import { bffTarget, onBffTargetChange, type BffTarget } from "@canopy/domain/bff-target";
 import { gatewayPreferencesScope } from "./client-preferences.ts";
 
 interface Connection {
   generation: number;
+  target: BffTarget | undefined;
   url: string;
   token: string;
   desktop: ReturnType<typeof desktopGateway> | undefined;
@@ -51,16 +52,15 @@ function current(): Connection {
 
   for (const listener of targetListeners) listener();
   const target = hosted?.target;
-  const desktopToken = target ? target.desktopClient?.token : process.env["CANOPY_DESKTOP_CLIENT_TOKEN"];
-
-  const desktopRoutes = target
-    ? (target.desktopClient?.routes ?? "")
-    : (process.env["CANOPY_DESKTOP_GATEWAY_ROUTES"] ?? "");
+  const remote = target?.mode === "remote" ? target.desktopClient : undefined;
+  const desktopToken = target ? remote?.token : process.env["CANOPY_DESKTOP_CLIENT_TOKEN"];
+  const desktopRoutes = target ? (remote?.routes ?? "") : (process.env["CANOPY_DESKTOP_GATEWAY_ROUTES"] ?? "");
 
   connection = {
     generation,
-    url: target?.gatewayUrl ?? GATEWAY_URL,
-    token: target?.serviceToken ?? GATEWAY_SERVICE_TOKEN ?? "",
+    target,
+    url: target?.mode === "offline" ? "" : (target?.gatewayUrl ?? GATEWAY_URL),
+    token: target ? (target.mode === "local" ? target.serviceToken : "") : (GATEWAY_SERVICE_TOKEN ?? ""),
     desktop: desktopToken ? desktopGateway(desktopRoutes, desktopToken) : undefined,
   };
 
@@ -69,7 +69,9 @@ function current(): Connection {
 
 /** A non-secret namespace; backend addresses stay inside the BFF. */
 export function clientPreferencesScope(): string {
-  const { desktop, url } = current();
+  const { desktop, url, target } = current();
+
+  if (target?.mode === "offline") return "";
 
   return gatewayPreferencesScope(
     url,
@@ -127,13 +129,43 @@ function webLag(gatewayVersion: string): "older" | "newer" | "" {
  * gateway address or the service token (docs/ui-api.md).
  */
 export function requireServiceToken(): string {
-  const { desktop, token } = current();
+  const { desktop, target, token } = current();
 
-  if (desktop) return "";
+  if (desktop || target?.mode === "offline") return "";
 
   if (!token) throw new Error("GATEWAY_SERVICE_TOKEN is not set (the gateway's CANOPY_UI_SERVICE_TOKEN)");
 
   return token;
+}
+
+function offline(): Promise<never> {
+  return Promise.reject(new ConnectError("The desktop gateway is offline", Code.Unavailable));
+}
+
+function gatewayTransport(connection: Connection, token: string): Transport {
+  if (connection.target?.mode === "offline") return { unary: offline, stream: offline };
+
+  if (connection.desktop) return connection.desktop.transport;
+  const local = connection.target?.mode === "local" ? connection.target : undefined;
+
+  return isolatedGatewayTransport(() =>
+    createGrpcClientTransport({
+      baseUrl: connection.url,
+      ...(local && { ca: local.certificate, fingerprint: local.fingerprint }),
+      defaultTimeoutMs: 3000,
+      connectTimeoutMs: 3000,
+      pingIntervalMs: 10_000,
+      pingTimeoutMs: 3000,
+      interceptors: [
+        (next) => (request) => {
+          request.header.set("authorization", `Bearer ${token}`);
+          request.header.set(WEB_VERSION_HEADER, CANOPY_VERSION);
+
+          return next(request);
+        },
+      ],
+    }),
+  );
 }
 
 export function gateway(): Client<typeof ui.GatewayService> {
@@ -141,33 +173,7 @@ export function gateway(): Client<typeof ui.GatewayService> {
   const target = current();
 
   if (target.client) return target.client;
-  const { desktop } = target;
-
-  const client = createClient(
-    ui.GatewayService,
-    gatewayDeadlines(
-      logGatewayFailures(
-        desktop?.transport ??
-          isolatedGatewayTransport(() =>
-            createGrpcTransport({
-              baseUrl: target.url,
-              defaultTimeoutMs: 3000,
-              connectTimeoutMs: 3000,
-              pingIntervalMs: 10_000,
-              pingTimeoutMs: 3000,
-              interceptors: [
-                (next) => (request) => {
-                  request.header.set("authorization", `Bearer ${token}`);
-                  request.header.set(WEB_VERSION_HEADER, CANOPY_VERSION);
-
-                  return next(request);
-                },
-              ],
-            }),
-          ),
-      ),
-    ),
-  );
+  const client = createClient(ui.GatewayService, gatewayDeadlines(logGatewayFailures(gatewayTransport(target, token))));
 
   target.client = client;
   startBffDiagnostics(gateway);

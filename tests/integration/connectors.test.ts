@@ -8,6 +8,7 @@ import { Effect } from "effect";
 import { SqlClient } from "effect/sql";
 import { pastedCode, returnState, returnTarget } from "@canopy/domain/oauth-return";
 import { DEFAULT_OAUTH_REDIRECT_URL } from "../../apps/gateway/src/connectors/catalog.ts";
+import { ConnectorsRuntime } from "../../apps/gateway/src/connectors/runtime.ts";
 import { SLACK_USER_SCOPES } from "../../apps/gateway/src/connectors/slack-app.ts";
 import { fakeConnector } from "./support/connector.ts";
 import { eventually, startTestGateway, type TestGateway, type ScriptedWorker } from "./support/gateway.ts";
@@ -231,6 +232,116 @@ describe.skipIf(!dockerAvailable)("connectors: OAuth, gateway grants and worker 
     expect(await query("SELECT 1 FROM connector_worker_grants WHERE account_id=$1::uuid", account.id)).toHaveLength(0);
     expect(await query("SELECT 1 FROM connector_audit WHERE thread_id=$1::uuid", t.id)).not.toHaveLength(0);
     expect((await call(t, account.id, read.name)).isError).toBe(true);
+  }, 30_000);
+
+  test("only the approved connector call can start after a restart, including pre-upgrade cards", async () => {
+    const account = await grant(await save("Bound approval"));
+    const other = await grant(await save("Other approval account"));
+    const tools = (await gw.api.testConnector({ accountId: account.id })).tools;
+    const write = tools.find((tool) => tool.remoteName === "write_marker")!;
+    const read = tools.find((tool) => tool.readOnly)!;
+    const otherWrite = (await gw.api.testConnector({ accountId: other.id })).tools.find((tool) => !tool.readOnly)!;
+    const t = await thread(PermissionMode.ASK);
+    const next = await thread(PermissionMode.ASK);
+
+    const previous = new ConnectorsRuntime({
+      userId: gw.userId,
+      runtime: gw.runtime,
+      interaction: async () => {
+        throw new Error("Shutdown after card");
+      },
+    });
+
+    const initial = fake.calls.length;
+
+    for (const [i, version] of ["bound", "legacy", "legacy-pending", "unbound"].entries()) {
+      const id = crypto.randomUUID();
+      const marker = `approved-${i}`;
+
+      const source = {
+        userId: gw.userId,
+        accountId: account.id,
+        threadId: t.id,
+        workerId: gw.workerId,
+        turnId: t.turnId,
+      };
+
+      await expect(previous.call(source, id, write.name, { marker }, AbortSignal.timeout(5000))).rejects.toThrow(
+        "Shutdown after card",
+      );
+
+      if (version.startsWith("legacy"))
+        await query("UPDATE interaction_requests SET connector_fingerprint='legacy' WHERE id=$1", id);
+
+      if (version === "unbound")
+        await query("UPDATE interaction_requests SET connector_fingerprint=NULL WHERE id=$1", id);
+
+      if (version !== "legacy-pending") await gw.api.answerInteraction({ requestId: id, allow: true });
+
+      expect((await call(t, account.id, write.name, id, "changed")).isError).toBe(true);
+      expect((await call(t, other.id, otherWrite.name, id, marker)).isError).toBe(true);
+      expect((await call(t, account.id, read.name, id, marker)).isError).toBe(true);
+      expect((await call(next, account.id, write.name, id, marker)).isError).toBe(true);
+      expect(await query("SELECT id FROM connector_executions WHERE id=$1", id)).toEqual([]);
+      const resumed = call(t, account.id, write.name, id, marker);
+
+      if (version === "legacy-pending") {
+        const bound = await eventually(
+          () =>
+            query<{ status: string }>(
+              "SELECT status FROM interaction_requests WHERE id=$1 AND connector_fingerprint <> 'legacy'",
+              id,
+            ),
+          (rows) => !!rows.length,
+        );
+
+        expect(bound[0]?.status).toBe("pending");
+        await gw.api.answerInteraction({ requestId: id, allow: true });
+      }
+
+      const replay = await resumed;
+
+      if (version === "unbound") {
+        expect(replay.isError).toBe(true);
+      } else {
+        expect(replay.isError).toBe(false);
+        expect(JSON.parse((await call(t, account.id, write.name, id, marker)).content)).toEqual(
+          JSON.parse(replay.content),
+        );
+      }
+    }
+
+    expect(fake.calls.slice(initial).map((c) => c.args)).toEqual([
+      { marker: "approved-0" },
+      { marker: "approved-1" },
+      { marker: "approved-2" },
+    ]);
+    const stale = crypto.randomUUID();
+    await expect(
+      previous.call(
+        { userId: gw.userId, accountId: account.id, threadId: t.id, workerId: gw.workerId, turnId: t.turnId },
+        stale,
+        write.name,
+        { marker: "old turn" },
+        AbortSignal.timeout(5000),
+      ),
+    ).rejects.toThrow("Shutdown after card");
+    await gw.api.answerInteraction({ requestId: stale, allow: true });
+    gw.worker.finish(t.id, t.turnId);
+    await eventually(
+      () => gw.api.getThread({ threadId: t.id }),
+      (r) => r.thread?.status === "idle",
+    );
+
+    const following = (
+      await gw.api.sendMessage({ threadId: t.id, text: "Next turn", clientRequestId: crypto.randomUUID() })
+    ).turn!;
+
+    expect(await eventually(async () => gw.worker.turnModes.has(following.id), Boolean)).toBe(true);
+    expect((await call({ id: t.id, turnId: following.id }, account.id, write.name, stale, "old turn")).isError).toBe(
+      true,
+    );
+    expect(await query("SELECT id FROM connector_executions WHERE id=$1", stale)).toEqual([]);
   }, 30_000);
 
   test("bot grants, model tools and canonical @ account mention", async () => {

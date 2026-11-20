@@ -16,7 +16,7 @@ export function mountMobileNetwork(core: GatewayCore, network: NetworkAccess, se
       core.desktopControl.routes(router);
       uiRoutes(core)(router);
     },
-    interceptors: [core.diagnostics.interceptor, serviceTokenAuth(serviceToken, core.mobile)],
+    interceptors: [core.diagnostics.interceptor, serviceTokenAuth(serviceToken, core.mobile, undefined, "network")],
     readMaxBytes: 32 * 1024 * 1024,
   });
 

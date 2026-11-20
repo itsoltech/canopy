@@ -5,7 +5,7 @@ import { Code, ConnectError } from "@connectrpc/connect";
 import { Match } from "effect";
 import { setImmediate as nextTurn } from "node:timers/promises";
 import { nodesOf } from "./remote-ids.ts";
-import { methodNamed, SERVED } from "./remote-policy.ts";
+import { methodNamed, SERVED, THREAD_SECRET_METHODS } from "./remote-policy.ts";
 import { remoteResponseError, remoteWireError } from "./remote-error.ts";
 import { syncDecode, syncEncode } from "./sync-codec.ts";
 import { linkFailure } from "./link-session.ts";
@@ -81,6 +81,7 @@ function join(parts: Uint8Array[]): Uint8Array {
 }
 
 type Outgoing = {
+  direct: boolean;
   channel: AsyncChannel<Uint8Array>;
   parts: Uint8Array[];
   size: number;
@@ -99,11 +100,12 @@ export class RemoteCalls {
   #departure: string | undefined;
   constructor(
     private readonly options: {
-      send: (frame: Frame) => void;
-      write: (frame: Frame, signal: AbortSignal) => Promise<void>;
+      send: (frame: Frame, grant?: AbortSignal) => void;
+      write: (frame: Frame, signal: AbortSignal, grant?: AbortSignal) => Promise<void>;
       serve?: RemoteServe | undefined;
       name: () => string;
       allowed: () => Promise<boolean>;
+      responseSignal?: (method: DescMethod) => AbortSignal | undefined;
       observe?: (method: DescMethod) => RpcObservation | undefined;
     },
   ) {}
@@ -146,6 +148,14 @@ export class RemoteCalls {
     signal: AbortSignal,
     route: RelayRoute = DIRECT_ROUTE,
   ): AsyncGenerator<Message> {
+    if (route.targetNodeId || route.originNodeId || route.relayHops) {
+      if (THREAD_SECRET_METHODS.has(method.name))
+        throw new ConnectError("Thread secrets require a direct connection to their computer", Code.PermissionDenied);
+
+      if (method.parent.typeName === link.ConfigSyncService.typeName)
+        throw new ConnectError("Configuration sharing requires a direct connection", Code.PermissionDenied);
+    }
+
     if (this.#departure) throw this.#away();
 
     if (this.#closed) throw this.#disconnected();
@@ -168,7 +178,14 @@ export class RemoteCalls {
         ),
     });
 
-    this.#outgoing.set(id, { channel, parts: [], size: 0, streaming: method.methodKind !== "unary", limit });
+    this.#outgoing.set(id, {
+      channel,
+      parts: [],
+      size: 0,
+      streaming: method.methodKind !== "unary",
+      limit,
+      direct: !route.targetNodeId,
+    });
 
     const stop = () =>
       channel.close(
@@ -219,7 +236,7 @@ export class RemoteCalls {
 
     if (r.end) {
       this.#outgoing.delete(r.callId);
-      call.channel.close(remoteResponseError(r));
+      call.channel.close(remoteResponseError(r, call.direct));
 
       return;
     }
@@ -305,6 +322,7 @@ export class RemoteCalls {
     let sent = 0;
     let sentBytes = 0;
     let observation: RpcObservation | undefined;
+    let grant: AbortSignal | undefined;
     const abort = () => observation?.finish(Code.Canceled);
 
     try {
@@ -326,17 +344,24 @@ export class RemoteCalls {
 
       if (nodesOf(method.input, request).size)
         throw new ConnectError("Calls through another computer are not supported", Code.InvalidArgument);
+      const responseSignal = this.options.responseSignal?.(method);
+      grant = responseSignal ? AbortSignal.any([signal, responseSignal]) : undefined;
+      const servingSignal = grant ?? signal;
+      servingSignal.throwIfAborted();
 
-      for await (const message of this.options.serve(method, request, signal, undefined, route)) {
+      for await (const message of this.options.serve(method, request, servingSignal, undefined, route)) {
         if (signal.aborted || this.#closed) return;
+        servingSignal.throwIfAborted();
         const encoded = syncEncode(method.output, message, `link.${method.name}`);
         observation?.message("response", encoded.length, messageKind(message));
 
         for (const { data, more } of chunks(encoded)) {
           if (signal.aborted || this.#closed) return;
+          servingSignal.throwIfAborted();
           await this.options.write(
             { body: { case: "remoteResponse", value: { callId: id, payload: data, more } } },
-            signal,
+            servingSignal,
+            grant,
           );
           sentBytes += data.byteLength;
 
@@ -344,11 +369,14 @@ export class RemoteCalls {
             console.debug("Computer link bulk transfer", { method: name, bytes: sentBytes, frames: sent + 1 });
 
           // A ready snapshot generator must let HTTP/2 drain before filling the bounded link queue.
-          if (++sent % 16 === 0) await nextTurn(undefined, { signal });
+          if (++sent % 16 === 0) await nextTurn(undefined, { signal: servingSignal });
         }
       }
 
-      if (!signal.aborted) this.#end(id);
+      if (!signal.aborted) {
+        servingSignal.throwIfAborted();
+        this.#end(id, undefined, grant);
+      }
     } catch (error) {
       observation?.finish(ConnectError.from(error).code);
 
@@ -359,7 +387,7 @@ export class RemoteCalls {
           frames: sent,
           ...linkFailure(error),
         });
-        this.#end(id, remoteWireError(error));
+        this.#end(id, remoteWireError(error), grant);
       }
     } finally {
       signal.removeEventListener("abort", abort);
@@ -367,9 +395,9 @@ export class RemoteCalls {
     }
   }
 
-  #end(id: bigint, error?: ReturnType<typeof remoteWireError>) {
+  #end(id: bigint, error?: ReturnType<typeof remoteWireError>, grant?: AbortSignal) {
     if (!this.#closed)
-      this.options.send({ body: { case: "remoteResponse", value: { callId: id, end: true, ...error } } });
+      this.options.send({ body: { case: "remoteResponse", value: { callId: id, end: true, ...error } } }, grant);
   }
 
   close() {

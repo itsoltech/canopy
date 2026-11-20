@@ -1,11 +1,19 @@
 import { create } from "@bufbuild/protobuf";
 import type { CanUseTool } from "@anthropic-ai/claude-agent-sdk";
 import { InteractionKind, InteractionRequestSchema, type ThreadSpec } from "@canopy/contracts";
-import { decodeJson } from "../json.ts";
+import { decodeJson, isString } from "../json.ts";
+import { workspaceEdit } from "../edit-scope.ts";
 import { BUS_SERVER } from "./mapping.ts";
 import { autoAllows, type AutoAllow } from "./permissions.ts";
 
 import type { ClaudeThreadsOptions } from "./thread-types.ts";
+
+const editorPath = new Map([
+  ["Write", "file_path"],
+  ["Edit", "file_path"],
+  ["MultiEdit", "file_path"],
+  ["NotebookEdit", "notebook_path"],
+]);
 
 export function sessionPermissions(options: ClaudeThreadsOptions) {
   const canUseTool =
@@ -15,7 +23,21 @@ export function sessionPermissions(options: ClaudeThreadsOptions) {
         return { behavior: "allow", updatedInput: input };
       const question = toolName === "AskUserQuestion";
 
-      if (!question && autoAllows(autoAllow(), toolName)) return { behavior: "allow", updatedInput: input };
+      const policy = autoAllow();
+      const field = editorPath.get(toolName);
+      const path = field ? input[field] : undefined;
+
+      if (
+        policy !== "all" &&
+        autoAllows(policy, toolName) &&
+        field &&
+        (!isString(path) ||
+          !workspaceEdit(spec.cwd, path) ||
+          (context.blockedPath && !workspaceEdit(spec.cwd, context.blockedPath)))
+      )
+        return { behavior: "deny", message: "This edit is outside the thread's workspace." };
+
+      if (!question && autoAllows(policy, toolName)) return { behavior: "allow", updatedInput: input };
 
       const answer = await options.interact(
         create(InteractionRequestSchema, {

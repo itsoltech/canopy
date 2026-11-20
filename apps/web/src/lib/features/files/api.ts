@@ -7,6 +7,10 @@ const filesPath = (threadId: string) => `/api/threads/${encodeURIComponent(threa
 /** Calls wait on the worker (30 s in the gateway). */
 const TIMEOUT_MS = 40_000;
 
+export function workspaceImageUrl(threadId: string, path: string, itemId: string): string {
+  return `${filesPath(threadId)}?${new URLSearchParams({ path, itemId, image: "1" })}`;
+}
+
 export async function readFile(
   threadId: string,
   path: string,

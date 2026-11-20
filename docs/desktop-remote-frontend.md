@@ -4,7 +4,8 @@ Status: etapy 1–2 zaimplementowane; etap 3 opisuje pierwotny plan odczytu offl
 którego aktualne zachowanie dokumentuje [desktop.md](desktop.md#prywatna-kopia-historii).
 Zabezpieczenie lokalnego BFF sesją uruchomienia i współdzielony model odczytu
 w pamięci BFF są zaimplementowane (2026-11-15).
-Opis implementacji nie określa dostępności w nightly/beta/stable; tę podają
+Parowanie z zaproszenia jest wymagane dla starej instalacji remote bez zapisanego
+poświadczenia UI (2026-11-19). Opis implementacji nie określa dostępności w nightly/beta/stable; tę podają
 [zasady wydań](release.md) i GitHub Releases.
 
 ## Decyzja
@@ -43,8 +44,7 @@ infrastrukturę urządzeń, ale nie rozszerza uprawnień telefonów.
 Desktop otrzymuje pełny zakres UI tego samego właściciela, włącznie z administracją
 urządzeń, workerów i Network access. To świadomy odpowiednik zalogowanego web UI,
 a nie uprawnienie między właścicielami. Telefony zachowują ograniczony zakres UI;
-dodatkowo nie mogą tworzyć enrollmentu ani rotować poświadczeń workera. Te dwie
-operacje pozwoliłyby pośrednio uzyskać pełny zakres przez migrację workera.
+dodatkowo nie mogą tworzyć enrollmentu ani rotować poświadczeń workera.
 Nie ma parametru pozwalającego klientowi wybrać właściciela. Zapytania core/store
 pozostają ograniczone do właściciela gatewaya. Nie zmieniamy sekretów dostawców
 ani ich granic przechowywania.
@@ -91,24 +91,18 @@ odświeżają listę, zachowując adres bootstrap jako fallback i niezmienny pin
 
 Stary `desktop.json` (`gatewayUrl`, `webUrl`) jest czytelny. Startup zachowuje
 stary katalog i `worker.json`; worker nadal łączy się niezależnie, również podczas
-parowania UI. Migracja jest automatyczna: main uwierzytelnia się zapisanym
-poświadczeniem workera na jego dotychczasowym endpointcie, pobiera trasy i pin,
-a po sprawdzeniu przypiętego TLS odbiera poświadczenie desktopu. Gateway wymaga
-nieodwołanego workera dokładnie tego właściciela z `installKind=desktop`.
-To jawnie zatwierdzone rozszerzenie zaufania dla migracji istniejących instalacji.
-Nie odczytujemy tokenu usługi ze zdalnego webu.
+parowania UI. Przy braku zapisanego poświadczenia klient przechodzi do parowania
+przez zaproszenie z Settings → Devices na docelowym gatewayu. Wcześniej sparowane
+klienty zachowują odwoływalny token zapisany w systemowym magazynie kluczy.
+Starsze klienty mogą pobrać trasy przez DesktopMigrationService, a próba odebrania
+tokena tym RPC kieruje do zwykłego parowania. Baza zachowuje wcześniejsze
+powiązania w `desktop_worker_migrations` i wpisy audytu `desktop.migrate`.
+Administrator może przejrzeć historyczne urządzenia i odwołać pojedyncze tokeny
+w Settings → Devices.
 
-Transakcja zapisuje unikalne powiązanie workera i urządzenia w
-`desktop_worker_migrations` i audyt `desktop.migrate`. Jedna emisja na workera
-zapobiega odzyskaniu dostępu po odwołaniu przez ponowienie migracji. Utrata
-odpowiedzi po emisji albo lokalnego ciphertext wymaga nowego parowania.
-Ręczne zaproszenie jest fallbackiem tylko, gdy automatyczna ścieżka jest
-niemożliwa: starszy gateway, wyłączony/nieosiągalny Network access, brak własnego
-desktopowego workera lub jego odwołanie, wykorzystana migracja albo brak
-zaufanego transportu starego endpointu (HTTP poza loopback). Startup pozwala
-ponowić po naprawie lub wkleić zaproszenie z Settings → Devices.
-Stary adres webu nie jest już ładowany. Nowy adres Network access i pin dotyczą
-BFF; adres i tożsamość już istniejącego workera zostają zachowane.
+Nowy adres Network access i pin z zaproszenia dotyczą BFF. Startup zachowuje
+adres, tożsamość i dane już istniejącego workera oraz pomija zapisany adres
+starego zdalnego webu.
 
 Nowa konfiguracja może dodatkowo przyjąć dotychczasowy token enrollmentu
 workera; jego link, journal, status i aktualizacje pozostają osobnym mechanizmem.
@@ -215,8 +209,8 @@ uprawnień Local Network, podpisanej paczki, tytułu okna, zoomu i quit-guard.
 ## Wynik etapu 1
 
 Migracja `0062_desktop_clients` rozróżnia zaproszenia i urządzenia mobile/desktop
-oraz zapisuje jednokrotną migrację workera. `client-vault.ts` jest granicą Electron
-main ↔ OS keychain; `client-migration.ts` wykorzystuje dotychczasowe zaufanie workera.
+i zachowuje dawne powiązania migracji w osobnej tabeli. `client-vault.ts` obsługuje
+magazyn kluczy systemu w procesie Electron main.
 `routed-pinned.ts` wybiera trasę przez równoległe próby TLS, zanim wyśle RPC.
 `desktop-gateway.ts` w lokalnym BFF sprawdza protokół i dostępne metody.
 Enrollment workera może się nie udać bez blokowania sparowanego UI; ponowienie
@@ -224,9 +218,9 @@ jest dostępne w lokalnych ustawieniach desktopu.
 
 | Weryfikacja | Pokrycie |
 |---|---|
-| `tests/integration/desktop-clients.test.ts` | Jednokrotne parowanie, hash/audyt, rodzaj zaproszenia, zakres właściciela, ograniczenia telefonu, revoke streamu, zły pin, fallback, migracja bez obejścia revoke |
+| `tests/integration/desktop-clients.test.ts` | Jednokrotne parowanie, hash/audyt, rodzaj zaproszenia, zakres właściciela, ograniczenia telefonu, revoke streamu, zły pin, fallback, odmowa emisji poświadczenia workera, izolacja listenerów i cofnięcie dostępu przed publikacją snapshotu |
 | `tests/integration/desktop-version-skew.test.ts` | Różne buildy przy zgodnym protokole, oba kierunki niezgodności, brak handshake/RPC, rdzeń działający bez funkcji opcjonalnej, brak replay mutacji |
-| `apps/desktop/test/runtime.integration.test.ts` | Prawdziwy dołączony BFF/runtime, automatyczna migracja starej konfiguracji, zachowanie `worker.json`, origin/Host, offline, brak bazy w remote, UI bez enrollmentu workera |
+| `apps/desktop/test/runtime.integration.test.ts` | Prawdziwy dołączony BFF/runtime, parowanie ze starej konfiguracji, zachowanie `worker.json`, origin/Host, offline, brak bazy w remote, UI bez enrollmentu workera |
 | `tests/integration/network-workers.test.ts` | Istniejące enrollment, WorkerLink i UpdateService na tym samym listenerze; credential workera nadal nie autoryzuje UI |
 
 Natywne `safeStorage`, uprawnienia Local Network, podpisana paczka i zachowanie

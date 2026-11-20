@@ -61,7 +61,7 @@ export async function beginConnectorOAuth(
         : (() => {
             throw new Error("Save the shared Slack app first");
           })()
-      : await beginOAuth(row.url, redirect, request.desktop, previous, app, request.scope || undefined);
+      : await beginOAuth(row, redirect, request.desktop, previous, app, request.scope || undefined);
 
     if (!url || !value.verifier) throw new Error("Authorization redirect missing");
     const authorization = new URL(url);

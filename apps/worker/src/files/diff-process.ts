@@ -1,6 +1,7 @@
 import { spawn } from "node:child_process";
 import { governNodeSpawn, killProcessTree, runProcess } from "@canopy/process-governor";
 import { DIFF_BYTES, DIFF_METADATA_BYTES } from "@canopy/domain/thread-diff-limits";
+import { gitReadArgv, gitReadEnv, gitReadFilters } from "../git/read-policy.ts";
 
 export const DIFF_TTL = 5 * 60_000;
 
@@ -19,58 +20,10 @@ export function diffBytes(budget: DiffBudget, length: number) {
   if (budget.bytes > DIFF_BYTES) throw new DiffLimit();
 }
 
-const env = () => ({
-  ...process.env,
-  GIT_TERMINAL_PROMPT: "0",
-  GIT_OPTIONAL_LOCKS: "0",
-  GIT_NO_REPLACE_OBJECTS: "1",
-  GIT_NO_LAZY_FETCH: "1",
-});
+const argv = (args: string[], config: readonly string[]) =>
+  gitReadArgv(args, ["-c", "diff.suppressBlankEmpty=false", ...config]);
 
-const argv = (args: string[], config: readonly string[] = []) => [
-  "git",
-  "-c",
-  "core.fsmonitor=false",
-  "-c",
-  "diff.external=",
-  "-c",
-  "diff.suppressBlankEmpty=false",
-  ...config,
-  ...args,
-];
-
-/** Enumerating configuration does not inspect files or invoke clean/process filters. */
-export async function diffGitConfig(root: string, signal: AbortSignal): Promise<string[]> {
-  const result = await runProcess(
-    {
-      argv: argv(["config", "--null", "--name-only", "--get-regexp", "^filter\\..*\\.(clean|process|required)$"]),
-      cwd: root,
-      env: env(),
-      signal,
-      timeoutMs: 30_000,
-      maxBytes: 1024 * 1024,
-    },
-    { kind: "git" },
-  );
-
-  if (result.code !== 0 && result.code !== 1) throw new Error("Could not read Git settings.");
-
-  const drivers = new Set(
-    result.stdout
-      .split("\0")
-      .filter(Boolean)
-      .map((name) => name.slice(0, name.lastIndexOf("."))),
-  );
-
-  return [...drivers].flatMap((driver) => [
-    "-c",
-    `${driver}.clean=`,
-    "-c",
-    `${driver}.process=`,
-    "-c",
-    `${driver}.required=false`,
-  ]);
-}
+export const diffGitConfig = gitReadFilters;
 
 export async function diffGit(root: string, args: string[], budget: DiffBudget) {
   if (!budget.gitConfig) throw new Error("Git settings unavailable.");
@@ -79,7 +32,7 @@ export async function diffGit(root: string, args: string[], budget: DiffBudget) 
     {
       argv: argv(args, budget.gitConfig),
       cwd: root,
-      env: env(),
+      env: gitReadEnv(),
       signal: budget.signal,
       timeoutMs: 30_000,
       maxBytes: 4 * DIFF_METADATA_BYTES,
@@ -103,7 +56,7 @@ export async function streamDiffGit(
   const child = governNodeSpawn("git", () =>
     spawn(command[0]!, command.slice(1), {
       cwd: root,
-      env: env(),
+      env: gitReadEnv(),
       detached: process.platform !== "win32",
       windowsHide: true,
       stdio: ["ignore", "pipe", "ignore"],

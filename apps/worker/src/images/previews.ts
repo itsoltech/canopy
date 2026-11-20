@@ -14,14 +14,14 @@ import {
 } from "node:fs";
 import { join } from "node:path";
 import { create, type MessageInitShape } from "@bufbuild/protobuf";
-import { BlobRefSchema, ItemSchema, type ThreadEvent } from "@canopy/contracts";
+import { BlobRefSchema, ItemSchema, ItemStatus, type ThreadEvent } from "@canopy/contracts";
 import { INLINE_IMAGE_TYPES, previewRefs, type JsonValue, type JsonObject } from "@canopy/domain";
 import { decodeJsonObject, isString, jsonObject } from "../providers/json.ts";
 import type { GatewayLink } from "../gateway-link/index.ts";
 import sharp from "sharp";
 import type { ThreadEventInit } from "../journal/index.ts";
-import { forTranscript, MAX_SOURCE_BYTES } from "./normalize.ts";
-import { readLimited } from "./view-image.ts";
+import { forTranscript } from "./normalize.ts";
+import { readScopedImage, type ViewImageScope } from "./view-image.ts";
 import { codexOutputImages } from "./codex-output.ts";
 
 /**
@@ -33,7 +33,7 @@ import { codexOutputImages } from "./codex-output.ts";
  *   a reconnect or restart still has them. They are sent (BlobChunk) right before the first event that points to
  *   them on each link; the gateway stores each content once.
  * - An image the model got inline (base64 in the tool result) is shown as it is when it is small enough; an image
- *   known only by its path is read (at most 50 MB) and scaled to a WebP preview.
+ *   emitted as a successful native Codex image can use a worker-verified path.
  * - Nothing here fails an event: without a preview the item is journaled as it came.
  */
 
@@ -43,6 +43,20 @@ const CHUNK_BYTES = 256 * 1024;
 
 /** An inline image larger than this is re-encoded for the transcript. */
 const MAX_INLINE_PREVIEW = 4 * 1024 ** 2;
+
+type CodexPreviewScope = { native: ViewImageScope; generated: ViewImageScope };
+
+/** A native or generated image may be read only inside the scope of its own kind. */
+function previewScope(source: string, scope: CodexPreviewScope | undefined): ViewImageScope | undefined {
+  switch (source) {
+    case "native":
+      return scope?.native;
+    case "generated":
+      return scope?.generated;
+    default:
+      return undefined;
+  }
+}
 
 /** Previews older than this are removed at start (the gateway has them once their events are acked). */
 const KEEP_MS = 7 * 24 * 3600_000;
@@ -162,10 +176,9 @@ export class PreviewStore {
   }
 
   /**
-   * Adds previews to a completed image or tool item: the images in its raw provider event (inline), else the file
-   * at the image's path. Returns the event unchanged when there is nothing to show.
+   * Platform tools provide their own authorized image bytes. Only native Codex image events can use a scoped path.
    */
-  async enrich(init: ThreadEventInit): Promise<ThreadEventInit> {
+  async enrich(init: ThreadEventInit, codexScope?: CodexPreviewScope): Promise<ThreadEventInit> {
     const body = init.body;
 
     if (body?.case !== "itemCompleted" || !body.value.item) return init;
@@ -180,9 +193,16 @@ export class PreviewStore {
 
     try {
       if (item.content.case === "image" && !item.content.value.blob) {
+        if (item.status !== ItemStatus.COMPLETED) return init;
         const image = item.content.value;
         const inline = inlineImages(init.rawJson ?? "", item.itemId)[0];
-        const preview = inline ? await this.#inline(inline) : image.path ? await this.#file(image.path) : undefined;
+        const scope = previewScope(image.source, codexScope);
+
+        const preview = inline
+          ? await this.#inline(inline)
+          : scope && image.path
+            ? await this.#file(image.path, scope)
+            : undefined;
 
         if (!preview) return init;
         image.blob = create(BlobRefSchema, preview.ref);
@@ -234,8 +254,8 @@ export class PreviewStore {
     return { ref: this.put(preview.data, preview.mimeType), width: preview.width, height: preview.height };
   }
 
-  async #file(path: string) {
-    const preview = await forTranscript(readLimited(path, MAX_SOURCE_BYTES));
+  async #file(path: string, scope: ViewImageScope) {
+    const preview = await forTranscript(readScopedImage(path, scope).data);
 
     return {
       ref: this.put(preview.data, preview.mimeType),

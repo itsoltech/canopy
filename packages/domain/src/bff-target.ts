@@ -4,12 +4,18 @@
  * another computer; a server BFF has no target and reads GATEWAY_URL / GATEWAY_SERVICE_TOKEN from its environment.
  * Process-wide: one BFF per process.
  */
-export interface BffTarget {
+export interface LocalBffTarget {
+  mode: "local";
   gatewayUrl: string;
+  certificate: string;
+  fingerprint: string;
   serviceToken: string;
-  /** Remote mode: this desktop's client credential and the paired gateway's routes (ui.MobileRoutes JSON). */
-  desktopClient?: { token: string; routes: string };
 }
+
+export type BffTarget =
+  | { mode: "offline" }
+  | LocalBffTarget
+  | { mode: "remote"; gatewayUrl: string; desktopClient: { token: string; routes: string } };
 
 export interface BffTargetState {
   target: BffTarget;

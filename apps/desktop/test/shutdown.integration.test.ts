@@ -13,7 +13,12 @@ test.skipIf(!existsSync(web))(
     const runtime = new DesktopRuntime(
       directory,
       { bun: process.execPath, web, worker: "unused", gateway: "unused", postgres: "unused" },
-      { databasePassword: "shutdown-test", serviceToken: "s".repeat(48), secretsKey: "shutdown-test" },
+      {
+        databasePassword: "shutdown-test",
+        runtimeDatabasePassword: "runtime-test",
+        serviceToken: "s".repeat(48),
+        secretsKey: "shutdown-test",
+      },
     );
 
     try {

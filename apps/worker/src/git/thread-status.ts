@@ -7,7 +7,7 @@ import { repoRoot } from "./refs.ts";
 import { statusTarget } from "./status-target.ts";
 import { diffLines, diffNames, newFileLines, STATUS_FILE_LIMIT } from "./status-counts.ts";
 
-const DIFF_ARGS = ["--no-ext-diff", "--no-textconv", "--find-renames", "--ignore-submodules=none"];
+const DIFF_ARGS = ["--no-ext-diff", "--no-textconv", "--find-renames", "--ignore-submodules=dirty"];
 
 /** On-demand only. Process time/output and untracked content reads have independent bounds. */
 export async function threadGitStatus(cwd: string) {

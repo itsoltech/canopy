@@ -2,7 +2,7 @@ import { createReadStream, existsSync, readdirSync, statSync } from "node:fs";
 import type { IncomingMessage, ServerResponse } from "node:http";
 import { join, sep } from "node:path";
 import { pipeline } from "node:stream";
-import type { HostAllowlist } from "./hosts.ts";
+import type { WebIngress } from "@canopy/transport/web-ingress";
 
 const IMMUTABLE = "_app/immutable";
 
@@ -63,7 +63,7 @@ export interface RequestGuards {
   /** adapter-node's PROTOCOL_HEADER, lower case; "" when unset. */
   protocolHeader: string;
   /** Absent for the desktop, whose BFF accepts only its own origin's Host (trustedDesktopRequest). */
-  hosts?: HostAllowlist;
+  hosts?: WebIngress;
   log: (message: string) => void;
 }
 
@@ -81,7 +81,7 @@ function failed(request: IncomingMessage, response: ServerResponse, cause: unkno
 }
 
 /**
- * The web's request listener around adapter-node's handler. First the raw Host (DNS rebinding, hosts.ts), then
+ * The web's request listener around adapter-node's handler. First the raw Host (DNS rebinding), then
  * previous releases' assets; a request without the configured protocol header is plain HTTP (this server has no
  * TLS). Tailscale Serve and reverse proxies send `X-Forwarded-Proto: https`; a browser cannot add it to a
  * cross-site form post. The handler runs inside an error boundary: it shares the gateway's process.
@@ -94,12 +94,7 @@ export function webRequestListener(handler: WebHandler, guards: RequestGuards) {
 
   return (request: IncomingMessage, response: ServerResponse): void => {
     try {
-      if (guards.hosts && !guards.hosts.allows(request.headers.host)) {
-        response.writeHead(421, { "content-type": "text/plain; charset=utf-8", "cache-control": "no-store" });
-        response.end("This host name isn't allowed. Add it to CANOPY_WEB_ALLOWED_HOSTS on the Canopy gateway.\n");
-
-        return;
-      }
+      if (guards.hosts && !guards.hosts.admit(request, response)) return;
 
       if (guards.protocolHeader && request.headers[guards.protocolHeader] === undefined)
         request.headers[guards.protocolHeader] = "http";

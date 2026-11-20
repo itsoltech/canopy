@@ -1,7 +1,9 @@
 import { create } from "@bufbuild/protobuf";
 import { timestampDate } from "@bufbuild/protobuf/wkt";
 import { AgentToolResultSchema, type AgentToolCall, type AgentToolResult } from "@canopy/contracts";
-import { Schema } from "effect";
+import { Option, Schema } from "effect";
+import type { JsonObject } from "@canopy/domain";
+import { canonicalJson } from "../store/instance-config.ts";
 import type { BotRuntimeOptions } from "./runtime.ts";
 import type { BotsRuntime } from "./runtime.ts";
 import { currentBotTools } from "./policy.ts";
@@ -10,9 +12,11 @@ import type { BotTurn } from "./types.ts";
 import { botConfiguration } from "./store-views.ts";
 import { slackDownloadAttachments } from "../connectors/slack-download-tool.ts";
 
+const decodeArgs = Schema.decodeUnknownOption(Schema.fromJsonString(Schema.JsonObject));
+
 /** Uses the existing bot executors; MCP never bypasses approvals or the turn lease. */
 export class HarnessTools {
-  readonly #pending = new Map<string, Promise<AgentToolResult>>();
+  readonly #pending = new Map<string, { name: string; args: string; task: Promise<AgentToolResult> }>();
   constructor(
     readonly options: BotRuntimeOptions,
     readonly run: BotsRuntime["run"],
@@ -27,10 +31,31 @@ export class HarnessTools {
       );
     const key = `${workerId}/${call.botId}/${call.turnId}/${call.callId}`;
     const pending = this.#pending.get(key);
+    const args = decodeArgs(call.argumentsJson);
 
-    if (pending) return pending;
+    if (!call.botId || call.threadId !== call.botId || Option.isNone(args))
+      return Promise.resolve(
+        create(AgentToolResultSchema, {
+          callId: call.callId,
+          isError: true,
+          content: "Invalid bot tool request",
+        }),
+      );
+    const normalized = canonicalJson(args.value);
 
-    const task = this.#handle(call, workerId)
+    if (pending) {
+      if (pending.name === call.toolName && pending.args === normalized) return pending.task;
+
+      return Promise.resolve(
+        create(AgentToolResultSchema, {
+          callId: call.callId,
+          isError: true,
+          content: "The tool request changed while resuming",
+        }),
+      );
+    }
+
+    const task = this.#handle(call, workerId, args.value)
       .then((result) => {
         this.#checkRunning();
 
@@ -38,7 +63,7 @@ export class HarnessTools {
       })
       .finally(() => this.#pending.delete(key));
 
-    this.#pending.set(key, task);
+    this.#pending.set(key, { name: call.toolName, args: normalized, task });
 
     return task;
   }
@@ -47,7 +72,7 @@ export class HarnessTools {
     // so it resends the same id to the next gateway instead of recording an interruption.
     if (this.stopping()) throw new Error("Gateway stopping; resend the bot tool call after reconnect");
   }
-  async #handle(call: AgentToolCall, workerId: string): Promise<AgentToolResult> {
+  async #handle(call: AgentToolCall, workerId: string, args: JsonObject): Promise<AgentToolResult> {
     const expiresAt = call.expiresAt ? timestampDate(call.expiresAt) : undefined;
 
     const reply = (content: string, isError = false) =>
@@ -57,8 +82,6 @@ export class HarnessTools {
         resultJson: content,
         isError,
       });
-
-    if (!call.botId || call.threadId !== call.botId) return reply("Bot turn unavailable", true);
 
     for (;;) {
       this.#checkRunning();
@@ -89,8 +112,6 @@ export class HarnessTools {
       const tools = await currentBotTools(this.options, config, turn);
 
       try {
-        const args = Schema.decodeUnknownSync(Schema.JsonObject)(JSON.parse(call.argumentsJson));
-
         const result = await runToolCall(
           { options: this.options, run: this.run, keepLease: true, ...(expiresAt && { expiresAt }) },
           turn,

@@ -15,7 +15,6 @@ import {
   MOVE_COLUMNS,
   MoveRefused,
   moveRow,
-  redirectItem,
   unfreezeSource,
   type MoveRow,
 } from "./move-state.ts";
@@ -23,6 +22,7 @@ import { DECIDE_TIMEOUT_MS, MoveCrash, movesState, ms, PREPARE_TIMEOUT_MS } from
 import { movesEverything } from "./moves-preview.ts";
 import { movesCore, movesHook, movesRows, movesRun, movesUnary } from "./moves-recovery.ts";
 import type { ComputerMoves } from "./moves.ts";
+import { validateMoveContent } from "./move-validation.ts";
 
 export async function movesRefused(
   hostContext: ComputerMoves,
@@ -86,7 +86,7 @@ export async function movesDrive(hostContext: ComputerMoves, moveId: string) {
         workspaceId: move.placement.workspaceId ?? "",
       });
 
-      const name = hostContext[movesState].host.self().name;
+      const self = hostContext[movesState].host.self();
 
       if (move.kind === "thread")
         prepare.thread = await exportThread(
@@ -94,9 +94,10 @@ export async function movesDrive(hostContext: ComputerMoves, moveId: string) {
           (id) => movesHistory(hostContext, id),
           move.frozen.family ?? [move.item_id],
           move.frozen,
-          name,
+          self.name,
         );
-      else prepare.bot = await exportBot(hostContext[movesState].store, move.item_id, name);
+      else prepare.bot = await exportBot(hostContext[movesState].store, move.item_id, self.name, self.nodeId);
+      validateMoveContent(prepare);
 
       if (
         (prepare.bot?.draft || prepare.bot?.files.length) &&
@@ -145,14 +146,8 @@ export async function movesDrive(hostContext: ComputerMoves, moveId: string) {
     )
       return;
     const family = move.kind === "thread" ? (move.frozen.family ?? [move.item_id]) : [move.item_id];
-    hostContext[movesState].host.broadcast(
-      family.map((id) => redirectItem(id, move.kind, home, hostContext[movesState].host.self().nodeId)),
-    );
-
-    for (const id of family)
-      await hostContext[movesState].host.redirects.record(
-        redirectItem(id, move.kind, home, hostContext[movesState].host.self().nodeId),
-      );
+    const host = hostContext[movesState].host;
+    host.broadcast(await host.redirects.committed(move.kind, family, host.self().nodeId));
     await movesChanged(hostContext, move.kind, move.item_id, family);
 
     try {

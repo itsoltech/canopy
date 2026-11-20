@@ -1,11 +1,11 @@
 # Retencja danych bazy
 
-Status (2026-11-16): zaimplementowane sprzątanie techniczne i opcjonalne trwałe
+Status (2026-11-20): zaimplementowane sprzątanie techniczne i opcjonalne trwałe
 usuwanie historii zarchiwizowanych wątków i 31-dniowe okno odtworzenia ręcznie
 usuniętych wątków, bezstratna kompakcja transkryptu, ograniczanie dziennika
 replikacji i GC nieużywanych uploadów; replikacja notice obejmuje wyłącznie
 zdarzenia tego rodzaju. Purge czeka na potwierdzenie zamknięcia zasobów workera,
-również gdy termin polecenia sprzątania już minął.
+również gdy termin polecenia sprzątania już minął. Migracja `0180` dodaje czasowy bufor podglądów, retencję kwarantanny i ochronę bajtów wcześniejszej historii. Migracja `0184` zachowuje uprawnienia do obrazów dostępnych w tej historii.
 Dostępność nightly/beta/stable według
 [release.md](release.md).
 
@@ -120,10 +120,10 @@ rekordów ze środka dziennika: retencja przycina wyłącznie ciągły prefiks.
 Załączniki i `thread_blobs` są odpinane partiami, a ich bajty usuwane tylko bez
 referencji z innych załączników lub wątków. Załącznik używany przez inny szkic
 zachowuje bajty i staje się niezależny od usuniętej tury. Wstawienie bloba lub
-referencji i GC serializują się po hashach przez blokadę transakcyjną. Nowy worker
-podaje `BlobChunk.thread_id`; gateway zapisuje referencję razem z bajtami pod
-blokadą wątku, jeszcze przed zdarzeniem. Starsze uploady bez właściciela są
-oznaczane `retention_exempt`, aby GC nie usunęło podglądu oczekującego na event.
+referencji i GC serializują się po hashach przez blokadę transakcyjną. Po miękkim usunięciu
+wątku odczyt podglądu i bezpośredni odczyt załącznika po ID (także metadanych
+i zakresów bajtów) stają się niedostępne. Przywrócenie wątku odtwarza dostęp.
+Purge usuwa też uploady oczekujące na zdarzenie przypisane do tego wątku.
 Pliki projektu, worktree i scratch nie są usuwane przez retencję historii.
 Cache paczek aktualizacji ma osobną politykę opisaną w [updates.md](updates.md).
 
@@ -151,11 +151,29 @@ wątku, szkicu bota i szkicu przywracanego przez rewind. Opaque payloady starych
 szkiców botów są indeksowane partiami; nieodczytany szkic konserwatywnie blokuje
 GC uploadów właściciela. Migracja `0156_storage_cleanup` dodaje ten indeks referencji.
 
-Bloby bez żadnej referencji można usuwać po 7 dniach. Hash jest wspólny dla
-właścicieli, dlatego sprawdzane są wszystkie załączniki, miniatury i `thread_blobs`,
-również innych kont. Po uzyskaniu blokady hasha job ponownie sprawdza referencje.
-Historyczne `retention_exempt` pozostają chronione: bez informacji o źródle
-nie można wykluczyć oczekującego replayu starszego workera.
+Niezreferowane bloby są usuwane po 7 dniach od utworzenia. Migracja `0180` daje
+wcześniejszym bajtom 30 dni okresu ochronnego od aktualizacji. Historyczne bloby
+wskazane przez zachowany item, wcześniejszą wersję itemu albo migawkę przeniesionego
+wątku pozostają chronione również po tym terminie. Migracja `0184` zachowuje dostęp
+do podglądu, jeśli w chwili przejścia do `0180` istniały zarówno obraz w magazynie,
+jak i odwołanie do niego w zachowanej historii wątku. Obejmuje również wątki
+zarchiwizowane. Przy ręcznie usuniętym wątku dostęp wraca po jego przywróceniu.
+Jeżeli obrazu brakowało w magazynie, przypisany worker może później przesłać bajty
+zwykłą drogą. Szczegóły w [modelu danych](data-model.md).
+GC pod blokadą SHA ponownie sprawdza załączniki, miniatury
+i chronione referencje wszystkich właścicieli.
+
+Nowe bajty workera trafiają do `worker_preview_uploads` na 24 godziny. Kwoty wynoszą
+64 pliki i 64 MiB na workera oraz 1024 pliki i 512 MiB w bazie. Duplikat zajmuje
+jedno miejsce i zachowuje pierwotny termin. Dla dawnego workera bez `thread_id`
+dowód posiadania bajtów pochodzi z jego uwierzytelnionego dziennika. Po terminie
+gateway wymaga ponownego przesłania bajtów. Nowe niepotwierdzone odwołania do
+skrótów wygasają po 30 dniach.
+
+Kwarantanna zdarzeń workera i harnessów botów przechowuje oryginalny protobuf
+do 256 KiB przez 7 dni. Dla większego zdarzenia zapisuje metadane i
+`payload_discarded=true`. Ostrzeżenie w historii i potwierdzony kursor dziennika
+pozostają dostępne po usunięciu wiersza kwarantanny.
 
 ## Pliki workera po purge
 

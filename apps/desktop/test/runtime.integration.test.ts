@@ -1,4 +1,6 @@
 import { afterAll, expect, test } from "bun:test";
+import { SQL } from "bun";
+import { bffTarget } from "@canopy/domain/bff-target";
 import { DESKTOP_SESSION_HEADER } from "../src/web-session.ts";
 import { cpSync, copyFileSync, readFileSync, existsSync, readdirSync, statSync, writeFileSync } from "node:fs";
 import { resolve, join } from "node:path";
@@ -7,7 +9,7 @@ import { spawn } from "node:child_process";
 import { createInterface } from "node:readline";
 import { once } from "node:events";
 import { Result } from "effect";
-import { create } from "@bufbuild/protobuf";
+import { create, toJsonString } from "@bufbuild/protobuf";
 import { ui } from "@canopy/contracts";
 import { AsyncChannel, startGrpcServer } from "@canopy/transport";
 import { generateIdentity } from "../../gateway/src/computers/identity.ts";
@@ -16,8 +18,7 @@ import { DesktopRuntime, type RuntimePaths, type Secrets } from "../src/runtime/
 import { controllerEntry, runtimePaths } from "../src/runtime/launch.ts";
 import { until } from "../src/runtime/process.ts";
 import { postgresArchive, postgresRegistry } from "./postgres-fixture.ts";
-import { migrateDesktopClient } from "../src/client-migration.ts";
-import { remoteWorkerDirectory, type DesktopClientCredential } from "../src/remote-client.ts";
+import { pairDesktop, remoteWorkerDirectory, type DesktopClientCredential } from "../src/remote-client.ts";
 import { parseLocalConfig } from "../../worker/src/config/local.ts";
 
 const webToken = randomBytes(32).toString("hex");
@@ -49,6 +50,7 @@ const paths: RuntimePaths = runtimePaths(runtime);
 
 const secrets = (): Secrets => ({
   databasePassword: randomBytes(32).toString("hex"),
+  runtimeDatabasePassword: randomBytes(32).toString("hex"),
   secretsKey: randomBytes(32).toString("base64"),
   serviceToken: randomBytes(32).toString("hex"),
 });
@@ -79,6 +81,7 @@ test.skipIf(!existsSync(paths.web))(
   async () => {
     const directory = noWorkerData;
     const identity = await generateIdentity();
+    const streamClosed = Promise.withResolvers<void>();
 
     const server = await startGrpcServer({
       tls: { cert: identity.certificate, key: identity.privateKey },
@@ -99,6 +102,7 @@ test.skipIf(!existsSync(paths.web))(
               yield* updates;
             } finally {
               context.signal.removeEventListener("abort", close);
+              streamClosed.resolve();
             }
           },
           getClientCapabilities: () => ({
@@ -111,7 +115,27 @@ test.skipIf(!existsSync(paths.web))(
         }),
     });
 
-    const desktop = new DesktopRuntime(directory, paths, secrets(), undefined, undefined, webToken);
+    const enteringLocal = Promise.withResolvers<{
+      gatewayUrl: string | undefined;
+      bffMode: string | undefined;
+      sleep: Promise<void>;
+    }>();
+
+    const desktop: DesktopRuntime = new DesktopRuntime(
+      directory,
+      { ...paths, postgres: join(directory, "missing-manifest") },
+      secrets(),
+      (status) => {
+        if (status.mode === "local" && status.phase === "starting")
+          enteringLocal.resolve({
+            gatewayUrl: status.gatewayUrl,
+            bffMode: bffTarget()?.target.mode,
+            sleep: desktop.presence("sleeping"),
+          });
+      },
+      undefined,
+      webToken,
+    );
 
     const client: DesktopClientCredential = {
       token: "test-desktop-client",
@@ -136,8 +160,27 @@ test.skipIf(!existsSync(paths.web))(
       expect(desktop.pids).toEqual(pids);
       expect(statSync(join(directory, "desktop.json")).mtimeMs).toBe(saved);
       expect((await fetch(`${desktop.origin}/api/overview`)).status).toBe(403);
-      expect((await webFetch(`${desktop.origin}/api/overview`)).ok).toBe(true);
+      const overview = await webFetch(`${desktop.origin}/api/overview`);
+      expect(overview.ok).toBe(true);
+      await overview.arrayBuffer();
       expect(existsSync(join(directory, "postgres"))).toBe(false);
+
+      // The setup shell and power events outlive reconfiguration. No local client exists during or after this failure.
+      const configured = desktop.configure({ mode: "local", allowNetwork: false, bindHost: "127.0.0.1" }).then(
+        () => undefined,
+        (cause: unknown) => cause,
+      );
+
+      const starting = await enteringLocal.promise;
+      expect(starting.gatewayUrl).toBeUndefined();
+      expect(starting.bffMode).toBe("offline");
+      await starting.sleep;
+      expect(await configured).toBeInstanceOf(Error);
+      await streamClosed.promise;
+      expect(desktop.status.phase).toBe("error");
+      expect(() => desktop.client()).toThrow("local gateway is offline");
+      await desktop.presence("shutting_down");
+      expect(bffTarget()?.target.mode).toBe("offline");
     } finally {
       await desktop.stop();
       await server.close(0);
@@ -182,6 +225,41 @@ test.skipIf(!existsSync(paths.gateway))(
       expect(online.filter((worker) => worker.online)).toHaveLength(1);
       const workerId = online[0]!.id;
       expect(local.status.workerId).toBe(workerId);
+      const localConfig = join(data, "local-worker", "worker.json");
+      const readLocal = () => Result.getOrThrow(parseLocalConfig(readFileSync(localConfig, "utf8")));
+      const bundled = readLocal();
+      expect(bundled.gateway_url).toMatch(/^https:\/\/127\.0\.0\.1:/);
+      expect(bundled.gateway_fingerprint).toMatch(/^[a-f0-9]{64}$/);
+      const port = readFileSync(join(data, "postgres/data/postmaster.pid"), "utf8").split("\n")[3]!.trim();
+
+      const sql = new SQL(
+        `postgres://canopy_runtime:${encodeURIComponent(keys.runtimeDatabasePassword)}@127.0.0.1:${port}/canopy`,
+      );
+
+      try {
+        const flags = await sql`
+          SELECT rolsuper, rolcreatedb, rolcreaterole, rolreplication, rolbypassrls
+          FROM pg_roles WHERE rolname = current_user
+        `;
+
+        expect(flags[0]).toMatchObject({
+          rolsuper: false,
+          rolcreatedb: false,
+          rolcreaterole: false,
+          rolreplication: false,
+          rolbypassrls: false,
+        });
+
+        const peers = await sql`
+          SELECT 1 FROM pg_stat_activity
+          WHERE datname = current_database() AND usename = current_user AND pid <> pg_backend_pid()
+        `;
+
+        expect(peers.length).toBeGreaterThan(0);
+      } finally {
+        await sql.close();
+      }
+
       const project = (await api.createProject({ name: "Desktop persistence" })).project!;
       expect((await webFetch(local.status.webUrl!)).ok).toBe(true);
       expect((await formAction(local.status.webUrl!)).body).toContain("Choose a project");
@@ -195,16 +273,13 @@ test.skipIf(!existsSync(paths.gateway))(
       writeFileSync(join(remoteData, "desktop.json"), JSON.stringify(oldConfig));
       await remote.configure({
         ...oldConfig,
+        gatewayFingerprint: bundled.gateway_fingerprint!,
         enrollmentToken: token,
       });
       expect(remote.status.needsPairing).toBe(true);
       await until(async () => (await api.getOverview({})).workers.filter((worker) => worker.online).length === 2);
-      let client: DesktopClientCredential | undefined;
-      await until(async () => {
-        client = await migrateDesktopClient(remoteWorkerDirectory(remoteData, oldConfig));
-
-        return Boolean(client);
-      });
+      const invitation = await api.createDesktopPairing({});
+      const client = await pairDesktop(toJsonString(ui.CreateMobilePairingResponseSchema, invitation));
       const workerPath = join(remoteWorkerDirectory(remoteData, oldConfig), "worker.json");
       const readWorker = () => Result.getOrThrow(parseLocalConfig(readFileSync(workerPath, "utf8")));
       const workerBefore = readWorker();
@@ -264,6 +339,17 @@ test.skipIf(!existsSync(paths.gateway))(
       await local.stop();
 
       for (const pid of owned) expect(gone(pid)).toBe(true);
+      // Previous desktop releases saved a cleartext loopback endpoint without TLS material in the same enrollment.
+      writeFileSync(
+        localConfig,
+        JSON.stringify({
+          ...bundled,
+          gateway_url: "http://127.0.0.1:1",
+          gateway_certificate: undefined,
+          gateway_fingerprint: undefined,
+        }),
+        { mode: 0o600 },
+      );
       local = new DesktopRuntime(data, paths, keys, () => {}, registry, webToken);
       registry.offline(true);
       await local.initialize(false);
@@ -275,6 +361,12 @@ test.skipIf(!existsSync(paths.gateway))(
       const restarted = await local.client().getOverview({});
       expect(local.status.workerId).toBe(workerId);
       expect(restarted.workers.find((worker) => worker.id === workerId)?.online).toBe(true);
+      const upgraded = readLocal();
+      expect(upgraded.credential === bundled.credential && upgraded.data_dir === bundled.data_dir).toBe(true);
+      expect(upgraded.gateway_url).toBe(local.status.gatewayUrl!);
+      expect(upgraded.gateway_fingerprint).toMatch(/^[a-f0-9]{64}$/);
+      expect(upgraded.gateway_fingerprint !== bundled.gateway_fingerprint).toBe(true);
+      expect(upgraded.gateway_fallback).toBeUndefined();
       expect(restarted.projects.some((candidate) => candidate.id === project.id)).toBe(true);
       // Crash the tracked PostgreSQL parent: native stale PID validation and WAL recovery keep data.
       const postgresPid = Number(readFileSync(join(data, "postgres/data/postmaster.pid"), "utf8").split("\n")[0]);

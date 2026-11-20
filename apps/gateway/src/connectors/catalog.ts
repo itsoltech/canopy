@@ -113,7 +113,7 @@ export function connectorType(id: string) {
   return CONNECTOR_TYPES.find((t) => t.id === id);
 }
 
-/** User-entered remote endpoints, also applied to every OAuth discovery request. */
+/** User-entered remote endpoints and callback URLs. */
 export function connectorUrl(raw: string): string {
   const url = new URL(raw);
 
@@ -132,18 +132,3 @@ export function connectorUrl(raw: string): string {
 
   return url.toString();
 }
-
-export const oauthFetch = (input: string | URL | Request, init?: RequestInit): Promise<Response> => {
-  const url = input instanceof Request ? input.url : String(input);
-  // OAuth requests legitimately have query strings; credentials in URLs are never allowed.
-  const parsed = new URL(url);
-  connectorUrl(`${parsed.origin}${parsed.pathname}`);
-
-  if (parsed.username || parsed.password) throw new Error("Invalid OAuth endpoint");
-
-  return fetch(input, {
-    ...init,
-    redirect: "error",
-    signal: init?.signal ? AbortSignal.any([init.signal, AbortSignal.timeout(20_000)]) : AbortSignal.timeout(20_000),
-  });
-};

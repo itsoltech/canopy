@@ -132,15 +132,6 @@ export function routedPinnedTransport(initial: PinnedRoutes, token?: string) {
       current = undefined;
   };
 
-  async function* watched<T>(transport: Transport, messages: AsyncIterable<T>, signal: AbortSignal | undefined) {
-    try {
-      yield* messages;
-    } catch (cause) {
-      failed(transport, cause, signal);
-      throw cause;
-    }
-  }
-
   const authorize = (init: ConstructorParameters<typeof Headers>[0]) => {
     const header = new Headers(init);
 
@@ -173,7 +164,7 @@ export function routedPinnedTransport(initial: PinnedRoutes, token?: string) {
       throw cause;
     });
 
-    return { ...response, message: watched(transport, response.message, args[1]) };
+    return { ...response, message: observeReads(response.message, (cause) => failed(transport, cause, args[1])) };
   };
 
   return {
@@ -186,5 +177,27 @@ export function routedPinnedTransport(initial: PinnedRoutes, token?: string) {
       if (current && !addresses.includes(current.address)) current = undefined;
     },
     connection: () => ({ fingerprint, addresses: [...addresses], lastAddress: last }),
+  };
+}
+
+/** Observe the pending Connect read directly. Preserve return/throw so cancellation can drain the same iterator. */
+function observeReads<T>(messages: AsyncIterable<T>, failed: (cause: unknown) => void): AsyncIterable<T> {
+  return {
+    [Symbol.asyncIterator]() {
+      const iterator = messages[Symbol.asyncIterator]();
+
+      return {
+        async next() {
+          try {
+            return await iterator.next();
+          } catch (cause) {
+            failed(cause);
+            throw cause;
+          }
+        },
+        ...(iterator.return && { return: iterator.return.bind(iterator) }),
+        ...(iterator.throw && { throw: iterator.throw.bind(iterator) }),
+      };
+    },
   };
 }

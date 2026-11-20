@@ -19,6 +19,7 @@ import { copyError } from "./safety.ts";
 import { scanWorkspace, type CopyScan } from "./scan.ts";
 import { hashFile, readRange, readSymlink } from "./source-read.ts";
 import { mapLimit } from "./limit.ts";
+import { COPY_GIT_CONFIG } from "./git-metadata.ts";
 
 interface SourceSession {
   scan: CopyScan;
@@ -124,17 +125,21 @@ export class CopySources {
       throw copyError("This file was not selected for copying.");
 
     if (entry.size > COPY_MAX_FILE_BYTES) throw copyError("A selected file exceeds the 8 GB per-file limit.");
+    const config = entry.path === COPY_GIT_CONFIG ? session.scan.config : undefined;
     const file = session.scan.files.get(entry.path);
     const offset = Number(request.offset);
 
-    if (!file) throw copyError("The file list changed. Refresh it.");
+    if (!file && !config) throw copyError("The file list changed. Refresh it.");
 
     if (request.knownSha256 && offset === 0) {
-      const sha256 = entry.symlink
-        ? createHash("sha256")
-            .update(await readSymlink(file, entry.symlink))
-            .digest("hex")
-        : await hashFile(file);
+      // SAFETY: a regular transfer entry has a scanned file unless it is the generated config above.
+      const sha256 = config
+        ? createHash("sha256").update(config).digest("hex")
+        : entry.symlink
+          ? createHash("sha256")
+              .update(await readSymlink(file!, entry.symlink))
+              .digest("hex")
+          : await hashFile(file!);
 
       if (sha256 === request.knownSha256)
         return create(WorkspaceCopyChunkSchema, { ...base(request), last: true, sha256, unchanged: true });
@@ -145,7 +150,14 @@ export class CopySources {
     if (!reading || reading.offset !== offset) throw copyError("The transfer lost its place. Retry the copy.");
 
     if (entry.symlink && offset !== 0) throw copyError("Invalid symlink offset.");
-    const data = entry.symlink ? await readSymlink(file, entry.symlink) : await readRange(file, offset, limit);
+
+    // SAFETY: the same lookup validated above covers both regular files and symlinks.
+    const data = config
+      ? config.subarray(offset, offset + limit)
+      : entry.symlink
+        ? await readSymlink(file!, entry.symlink)
+        : await readRange(file!, offset, limit);
+
     reading.hash.update(data);
     reading.offset += data.byteLength;
     const last = reading.offset === Number(entry.size);

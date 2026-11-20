@@ -1,23 +1,20 @@
 import { existsSync, mkdirSync, readFileSync } from "node:fs";
 import { delimiter, dirname, join } from "node:path";
-import { hostname } from "node:os";
 import { randomBytes } from "node:crypto";
-import { createClient } from "@connectrpc/connect";
-import { createGrpcTransport } from "@connectrpc/connect-node";
-import { ui } from "@canopy/contracts";
+import type { LocalBffTarget } from "@canopy/domain/bff-target";
 import { sameDesktopConfiguration, type DesktopConfiguration, type DesktopStatus } from "@canopy/ui/desktop";
-import { remoteWorkerDirectory, type DesktopClientCredential } from "../remote-client.ts";
+import { remoteWorkerDirectory, type DesktopClientCredential, type RemoteConfiguration } from "../remote-client.ts";
 import { desktopWorkerIdle, remoteEnrollment, startDesktopWorker } from "./worker-runtime.ts";
-import { configuration, freePort, initialStatus, serviceEnvironment, isWorkerStatus } from "./config.ts";
-import { localGatewayEnvironment } from "./gateway-env.ts";
-import { startDatabase } from "./database.ts";
-import { PostgresInstaller, postgresTestOptions, type PostgresTestOptions } from "./postgres-install.ts";
+import { configuration, initialStatus, serviceEnvironment, isWorkerStatus } from "./config.ts";
+import { localGatewayClient } from "./gateway-env.ts";
+import { startLocalServices } from "./local-services.ts";
+import type { PostgresTestOptions } from "./postgres-install.ts";
 import { Logs } from "./log.ts";
 import { Supervisor, until } from "./process.ts";
 import { savedStatus, writeConfiguration } from "./saved-status.ts";
 import { stableWebPort } from "./web-port.ts";
 import { HealthChecks } from "./health.ts";
-import { gatewayLiveness, livenessProbes, type LivenessProbe } from "./liveness.ts";
+import { livenessProbes, type LivenessProbe } from "./liveness.ts";
 import { DesktopWeb } from "./web.ts";
 import type { Secrets, RuntimePaths } from "./config.ts";
 import { desktopStorage } from "./storage.ts";
@@ -31,6 +28,7 @@ export class DesktopRuntime {
   private env = serviceEnvironment();
   private webPort = 0;
   private workerStatusFile = "";
+  private localGateway: LocalBffTarget | undefined;
   private remoteConnection: { client: DesktopClientCredential; directory: string } | undefined;
   remoteControl() {
     return this.remoteConnection;
@@ -50,9 +48,6 @@ export class DesktopRuntime {
   private setupOrigin = "";
   private readonly storage: ReturnType<typeof desktopStorage>;
   private installing: AbortController | undefined;
-  private command(entry: string) {
-    return { command: this.paths.bun, args: [entry] };
-  }
   constructor(
     readonly directory: string,
     readonly paths: RuntimePaths,
@@ -109,32 +104,27 @@ export class DesktopRuntime {
       if (!running && this.state.phase === "running" && ["gateway", "postgres"].includes(name))
         this.publish({ phase: "starting" });
 
-      if (failed)
+      if (failed) {
+        if (name === "gateway") this.disconnect();
         this.publish({
           phase: "error",
           error: `${name} stopped and cannot restart automatically. Open desktop settings to retry.`,
         });
+      }
     });
   }
-  /** The bundled UI in this process; a later call only points its BFF at another gateway (web.ts). */
-  private async startWeb(gatewayUrl: string, client?: DesktopClientCredential) {
-    await this.#web().start(this.setupOrigin, {
-      gatewayUrl,
-      // A local random token satisfies BFF env validation; remote RPCs use only client.token.
-      serviceToken: this.secrets.serviceToken,
-      ...(client && {
-        desktopClient: {
-          token: client.token,
-          routes: JSON.stringify({ fingerprint: client.fingerprint, addresses: client.addresses }),
-        },
-      }),
-    });
+  private disconnect() {
+    this.localGateway = undefined;
+    this.remoteConnection = undefined;
+    this.activeClient = undefined;
+    this.workerStatusFile = "";
+    this.web?.disconnect();
   }
   async initialize(restore = true) {
     this.publish(savedStatus(this.directory));
     this.webPort = await stableWebPort(this.directory);
     this.setupOrigin = `http://127.0.0.1:${this.webPort}`;
-    await this.startWeb("http://127.0.0.1:1");
+    await this.#web().start(this.setupOrigin, { mode: "offline" });
     this.statusTimer = setInterval(() => this.readWorkerStatus(), 1000);
     this.healthTimer = setInterval(() => void this.checkHealth(), 5000);
 
@@ -217,58 +207,19 @@ export class DesktopRuntime {
       this.checkingHealth = false;
     }
   }
-  private async startLocal(signal: AbortSignal) {
-    const installer = new PostgresInstaller(
-      this.paths.postgres,
-      join(this.directory, "postgres"),
-      (database) => this.publish({ database }),
-      this.testing ?? postgresTestOptions(),
-      (line) => this.logs.write("desktop", line),
-    );
-
-    const binaries = await installer.ensure(signal);
-    this.publish({ database: { phase: "ready", message: "Starting the local database…" } });
-
-    const databaseUrl = await startDatabase({
-      directory: join(this.directory, "postgres"),
-      binaries,
-      password: this.secrets.databasePassword,
+  private startLocal(signal: AbortSignal) {
+    return startLocalServices({
+      directory: this.directory,
+      paths: this.paths,
+      secrets: this.secrets,
       supervisor: this.services,
       env: this.env,
+      webOrigin: this.setupOrigin,
+      signal,
+      progress: (database) => this.publish({ database }),
+      log: (line) => this.logs.write("desktop", line),
+      testing: this.testing,
     });
-
-    this.publish({ database: undefined });
-
-    installer.cleanup();
-    const gatewayPort = await freePort();
-    const gatewayUrl = `http://127.0.0.1:${gatewayPort}`;
-    const workerDirectory = join(this.directory, "local-worker");
-    this.services.start({
-      name: "gateway",
-      ...this.command(this.paths.gateway),
-      cwd: dirname(this.paths.gateway),
-      env: localGatewayEnvironment(this.env, this.secrets, {
-        databaseUrl,
-        port: gatewayPort,
-        webOrigin: this.setupOrigin,
-      }),
-      restart: "continuous",
-    });
-    const client = this.client(gatewayUrl);
-    const probe = gatewayLiveness(gatewayUrl);
-    await until(async () => {
-      await probe();
-
-      return true;
-    });
-
-    let token: string | undefined;
-
-    if (!existsSync(join(workerDirectory, "worker.json")))
-      token = (await client.createWorkerEnrollment({ name: `Canopy · ${hostname()}` })).token;
-    await this.startWeb(gatewayUrl);
-
-    return { gatewayUrl, webUrl: this.setupOrigin, workerDirectory, token };
   }
   configurationUnchanged(config: DesktopConfiguration, client?: DesktopClientCredential) {
     if (!this.configured || this.state.phase === "error" || (client && client.token !== this.activeClient?.token))
@@ -276,13 +227,38 @@ export class DesktopRuntime {
 
     return sameDesktopConfiguration(config, this.state.configuration);
   }
+  private async startRemote(config: RemoteConfiguration, client?: DesktopClientCredential) {
+    const workerDirectory = remoteWorkerDirectory(this.directory, config);
+    let gatewayUrl = client?.addresses[0] ?? config.gatewayUrl;
+    let token = config.enrollmentToken;
+
+    if (client) {
+      this.logs.protect(client.token);
+      await this.#web().start(this.setupOrigin, {
+        mode: "remote",
+        gatewayUrl,
+        desktopClient: {
+          token: client.token,
+          routes: JSON.stringify({ fingerprint: client.fingerprint, addresses: client.addresses }),
+        },
+      });
+
+      if (!token) {
+        const enrollment = await remoteEnrollment(client, workerDirectory, this.logs);
+        token = enrollment?.token;
+        gatewayUrl = enrollment?.gatewayUrl || gatewayUrl;
+      }
+    }
+
+    return { gatewayUrl, workerDirectory, token };
+  }
   async configure(raw: DesktopConfiguration, client?: DesktopClientCredential) {
     const config = configuration(raw);
 
     if (this.configurationUnchanged(config, client)) return;
     this.generation++;
     this.configured = false;
-    this.remoteConnection = undefined;
+    this.disconnect();
     this.health.reset();
     this.cancelStartup();
     const installing = new AbortController();
@@ -295,48 +271,35 @@ export class DesktopRuntime {
       error: undefined,
       database: undefined,
       needsPairing: false,
-      ...(config.mode === "remote" && {
-        gatewayUrl: config.gatewayUrl,
-        webUrl: this.setupOrigin,
-        workerGatewayUrl: config.workerGatewayUrl ?? config.gatewayUrl,
-      }),
+      gatewayUrl: config.mode === "remote" ? config.gatewayUrl : undefined,
+      webUrl: this.setupOrigin,
+      workerGatewayUrl: config.mode === "remote" ? (config.workerGatewayUrl ?? config.gatewayUrl) : undefined,
     });
     await this.services.stop();
+    installing.signal.throwIfAborted();
     this.services = this.makeSupervisor();
 
     try {
       let gatewayUrl: string;
-      let webUrl: string;
+      let local: LocalBffTarget | undefined;
       let workerDirectory: string;
       let token: string | undefined;
 
       if (config.mode === "local") {
-        ({ gatewayUrl, webUrl, workerDirectory, token } = await this.startLocal(installing.signal));
+        ({ target: local, workerDirectory, token } = await this.startLocal(installing.signal));
+        gatewayUrl = local.gatewayUrl;
       } else {
-        gatewayUrl = client?.addresses[0] ?? config.gatewayUrl;
-        webUrl = this.setupOrigin;
-        workerDirectory = remoteWorkerDirectory(this.directory, config);
-        token = config.enrollmentToken;
-
-        if (client) {
-          this.logs.protect(client.token);
-
-          if (!token) {
-            const enrollment = await remoteEnrollment(client, workerDirectory, this.logs);
-            token = enrollment?.token;
-            gatewayUrl = enrollment?.gatewayUrl || gatewayUrl;
-          }
-        }
-
-        await this.startWeb(client ? gatewayUrl : "http://127.0.0.1:1", client);
+        ({ gatewayUrl, workerDirectory, token } = await this.startRemote(config, client));
       }
+
+      installing.signal.throwIfAborted();
 
       const worker = await startDesktopWorker({
         directory: workerDirectory,
         gatewayUrl: config.mode === "remote" && config.enrollmentToken ? config.gatewayUrl : gatewayUrl,
         token,
         fingerprint: config.mode === "remote" ? config.gatewayFingerprint || client?.fingerprint : undefined,
-        local: config.mode === "local",
+        local,
         logs: this.logs,
         services: this.services,
         bun: this.paths.bun,
@@ -349,7 +312,7 @@ export class DesktopRuntime {
         workerId: worker?.workerId,
         mode: config.mode,
         gatewayUrl,
-        webUrl,
+        webUrl: this.setupOrigin,
         allowNetwork: config.mode === "local" && config.allowNetwork,
         bindHost: config.mode === "local" ? config.bindHost : "127.0.0.1",
         clis: {
@@ -362,11 +325,15 @@ export class DesktopRuntime {
 
       // The bundled frontend starts without waiting for a remote gateway or worker.
       if (config.mode === "local")
-        await until(async () => {
-          this.readWorkerStatus();
+        await until(
+          async () => {
+            this.readWorkerStatus();
 
-          return this.state.worker === "online";
-        }, 30_000);
+            return this.state.worker === "online";
+          },
+          30_000,
+          () => !installing.signal.aborted,
+        );
 
       // Never persist the one-time token. A failed attempt leaves the last working selection intact.
       if (config.mode === "remote" && !client) {
@@ -385,15 +352,21 @@ export class DesktopRuntime {
           ? { mode: config.mode, gatewayUrl, workerGatewayUrl: config.workerGatewayUrl ?? config.gatewayUrl }
           : config;
 
+      installing.signal.throwIfAborted();
+
+      if (local) await this.#web().start(this.setupOrigin, local);
+      installing.signal.throwIfAborted();
       writeConfiguration(this.directory, saved);
+      this.localGateway = local;
       this.configured = true;
-      this.probes = config.mode === "local" ? livenessProbes(gatewayUrl) : [];
+      this.probes = local ? livenessProbes(local) : [];
       this.activeClient = client;
 
       if (config.mode === "remote" && client && this.workerStatusFile)
         this.remoteConnection = { client, directory: workerDirectory };
       this.publish({ phase: "running", configuration: saved });
     } catch (error) {
+      this.disconnect();
       await this.services.stop();
       const message = this.logs.redact(error instanceof Error ? error.message : "Desktop configuration failed");
       this.logs.write("desktop", message);
@@ -403,22 +376,10 @@ export class DesktopRuntime {
       if (this.installing === installing) this.installing = undefined;
     }
   }
-  client(gatewayUrl = this.state.gatewayUrl!) {
-    return createClient(
-      ui.GatewayService,
-      createGrpcTransport({
-        baseUrl: gatewayUrl,
-        connectTimeoutMs: 1000,
-        defaultTimeoutMs: 3000,
-        interceptors: [
-          (next) => (request) => {
-            request.header.set("authorization", `Bearer ${this.secrets.serviceToken}`);
+  client() {
+    if (!this.localGateway) throw new Error("The local gateway is offline");
 
-            return next(request);
-          },
-        ],
-      }),
-    );
+    return localGatewayClient(this.localGateway);
   }
   killOwned() {
     this.services.killOwned();
@@ -433,13 +394,14 @@ export class DesktopRuntime {
 
     if (state === "waking") return;
 
-    if (this.state.mode === "local" && this.state.gatewayUrl)
+    if (this.localGateway)
       await this.client().manageComputer(
         { action: "presence", name: state, targetVersion },
         { timeoutMs: state === "sleeping" ? 500 : 2000 },
       );
   }
   async stop() {
+    this.disconnect();
     this.cancelStartup();
     this.generation++;
     this.health.reset();

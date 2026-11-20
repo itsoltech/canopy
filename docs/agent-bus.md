@@ -1,8 +1,10 @@
 # Szyna agentów: delegowanie, interakcje, harmonogram
 
-Status raportów subagentów (2026-11-19): przy błędzie pierwsza linia raportu podaje stan
-i zapisany powód. Poniżej znajduje się dostępny tekst tury, także częściowa odpowiedź.
-Dotyczy to raportów do wątków i botów, także na połączonych komputerach.
+Status (2026-11-19): gateway wiąże nowe wywołania z zapisanym kontekstem tury,
+a odtwarzanie decyzji dostawcy z parą wątek–worker. Raport z błędnej tury zawiera
+stan, zapisany powód i dostępną częściową odpowiedź, gdy odbiorca ma dostęp do całej
+tury. Przy mieszanych źródłach obowiązują ograniczenia opisane w
+[bots.md](bots.md) i [linked-computers.md](linked-computers.md).
 Dostępność w kanałach według [release.md](release.md).
 
 Status powiadomień PR (2026-11-19): agent dostaje informację o konflikcie z gałęzią bazową przy uruchomieniu obserwacji CI lub w trakcie jej trwania. Dostępność według [promocji wydań](release.md).
@@ -438,6 +440,8 @@ Gdy dostawca w wątku bocznym prosi o zgodę albo zadaje pytanie ([execution.md]
 | `human` | wątków tworzonych przez użytkownika | użytkownik w UI |
 
 - Przy `parent` gateway powiadamia rodzica: kończy jego `wait_threads` albo zaczyna w nim turę `trigger = interaction` (z `hops` tury, która zapytała, + 1).
+- Odtworzenie odpowiedzi dostawcy wymaga zgodnego identyfikatora wątku i przypisania
+  uwierzytelnionego workera, także po kolizji przy równoległym zapisie.
 - Kto faktycznie odpowiedział, jest zapisane: `answered_by` (użytkownik) albo `answered_by_thread_id` (agent). Dokładnie jedno z nich (`interaction_requests_answered_by`).
 - Zgoda bez odpowiedzi w terminie wygasa jako odmowa. Pytanie czeka.
 - Automatyczna zgoda na konkretne narzędzia to nadal `permission_mode` agenta. Routing dotyczy tylko tego, co dostawca i tak zgłasza.
@@ -546,7 +550,16 @@ Czysta funkcja `authorizeBusCall` (`packages/domain`), wywoływana przez gateway
 - **Pisać i czytać** (`send_message`, `get_thread`, `read_thread`) można do każdego wątku tego samego właściciela, także spoza drzewa ([Wiadomości między dowolnymi wątkami](#wiadomości-między-dowolnymi-wątkami)). Wątki innych właścicieli są nieodróżnialne od nieistniejących.
 - **Sterowanie** (przerwanie, zamknięcie, odpowiadanie na interakcje, harmonogramy innych) tylko nad potomkami.
 - **Limity** (domyślne, konfigurowalne): 8 wątków bocznych na wątek główny, 16 aktywnych wątków w drzewie, 10 harmonogramów na wątek, 256 przeskoków.
-- **Licznik przeskoków (`hops`):** tura z wejścia człowieka albo pobudki dostawcy ma 0. Tura uruchomiona przez szynę, powiadomienie, pytanie do rodzica albo harmonogram agenta ma `hops` przyczyny + 1. Limit 256 kroków zatrzymuje długie pętle agentów bez udziału człowieka;
+- **Kontekst wywołania.** Gateway korzysta z ostatniej rozpoczętej, widocznej tury
+  własnego wątku workera. Starsze wywołanie z bieżącego kontekstu może pominąć ID.
+  Podany identyfikator z innej tury jest odrzucany przy nowym wywołaniu. Odnowienie
+  zapisanego pytania lub sekretu zachowuje kontekst pierwotnego żądania. Po
+  zakończeniu tury jej tryb może już tylko zawężać domyślny tryb rodzica.
+- **Licznik przeskoków (`hops`):** tura z wejścia człowieka ma 0.
+  Natywna kontynuacja dziedziczy kontekst ostatniej tury uruchomionej przez platformę
+  oraz oczekujących lub obsłużonych pobudek zadań w tle od tej tury. Tura
+  uruchomiona przez szynę, powiadomienie, pytanie do rodzica albo harmonogram
+  agenta ma `hops` przyczyny + 1. Limit 256 kroków zatrzymuje długie pętle agentów bez udziału człowieka;
   nie ogranicza liczby wiadomości użytkownika. Wiadomość z powiadomieniem
   rezerwuje krok na odpowiedź, więc pełna wymiana zwykle zużywa dwa kroki.
   Metadane zachowują pełny licznik bez dawnego przycinania do 16;
@@ -658,7 +671,7 @@ Narzędzie platformy, które worker wykonuje sam (nie jest wywołaniem szyny, ni
 - Błąd (poza katalogami, brak pliku, nie obraz) wraca do modelu jako błąd narzędzia z powodem.
 - Na osi czasu: item `image` (`source = view_image`, `path`, `width`/`height` tego, co zobaczył model, `original_width`/`original_height`, przy błędzie `detail`) z podglądem (`Image.blob`) — dokładnie bajty, które dostał model.
 
-Natywne odczyty obrazów też mają podgląd: Codex `imageView` (`source = native`; worker czyta plik i robi podgląd WebP), wygenerowane obrazy (`source = generated`), obrazy w wynikach narzędzi (Claude `Read` na pliku obrazu, obrazy z MCP) jako `ToolCall.images`.
+Natywne odczyty obrazów też mają podgląd: Codex `imageView` (`source = native`) i wygenerowane obrazy (`source = generated`) — worker czyta plik i robi podgląd WebP tylko dla ukończonego elementu i tylko w zakresie wątku (`cwd` i załączniki wątku albo katalog `generated_images` konta Codex), przez sprawdzony uchwyt jak `view_image`. Odmowa, błąd lub plik spoza zakresu nie powodują odczytu: element zostaje bez podglądu. Obrazy w wynikach narzędzi (Claude `Read` na pliku obrazu, obrazy z MCP, `view_image`) są pokazywane z bajtów zwróconych przez narzędzie jako `ToolCall.images`, nigdy przez ponowne czytanie ścieżki z dysku.
 
 ## 10. Ustalenia i otwarte punkty
 

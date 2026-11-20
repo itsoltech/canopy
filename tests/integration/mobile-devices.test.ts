@@ -1,6 +1,6 @@
 import { afterAll, beforeAll, describe, expect, test } from "bun:test";
 import { createHash } from "node:crypto";
-import { createClient } from "@connectrpc/connect";
+import { Code, ConnectError, createClient } from "@connectrpc/connect";
 import { createConnectTransport, createGrpcTransport } from "@connectrpc/connect-node";
 import { Provider, ui } from "@canopy/contracts";
 import { dockerAvailable } from "@canopy/db/testing";
@@ -210,15 +210,34 @@ describe.skipIf(!dockerAvailable)("mobile pairing + pinned native app Connect cl
     const watch = phone.watchOverview({ includeSnapshot: true }, { signal })[Symbol.asyncIterator]();
     expect((await watch.next()).value?.change.case).toBe("mobileSnapshot");
 
-    // Drain any initial worker updates until the revoked stream completes.
+    // Frames already handed to the transport may still arrive during revocation.
+    const received: ui.OverviewUpdate[] = [];
+
     const ended = (async () => {
-      while (!(await watch.next()).done) {
-        /* no further access once canceled */
+      try {
+        for (let next = await watch.next(); !next.done; next = await watch.next()) received.push(next.value);
+
+        return undefined;
+      } catch (cause) {
+        return ConnectError.from(cause);
       }
     })();
 
     await gw.api.revokeMobileDevice({ id: paired.device!.id });
-    await ended;
+    const closed = await ended;
+
+    if (closed) {
+      expect(closed.code).toBe(Code.Unauthenticated);
+      expect(closed.message).toContain("Device revoked");
+    }
+
+    expect(received.some((update) => update.change.case === "mobileSnapshot")).toBe(false);
+    expect(
+      received.some(
+        ({ change }) =>
+          change.case === "mobileDevice" && change.value.id === paired.device!.id && !!change.value.revokedAt,
+      ),
+    ).toBe(false);
     expect(await failure(phone.getOverview({}))).toContain("revoked");
     expect(
       (await gw.api.getMobileDevices({})).devices.find((d) => d.id === paired.device!.id)?.revokedAt,
@@ -226,7 +245,9 @@ describe.skipIf(!dockerAvailable)("mobile pairing + pinned native app Connect cl
     // Independent devices retain access.
     const other = await exchange((await invite()).code, "Android");
     expect((await client(other.deviceToken).api.getOverview({})).workers.length).toBeGreaterThan(0);
-    await client(other.deviceToken).api.unpairMobileDevice({});
+    expect(await client(other.deviceToken).api.unpairMobileDevice({})).toEqual(
+      create(ui.MobileOperationResponseSchema),
+    );
     expect(await failure(client(other.deviceToken).api.getOverview({}))).toContain("revoked");
   });
 

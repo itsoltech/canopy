@@ -21,64 +21,67 @@
     onopen?: (() => void) | undefined;
   } = $props();
 
-  let url = $state("");
-  let failure = $state("");
   let retry = $state(0);
   const connection = attachmentConnection(() => entityId);
-  const availability = $derived(connection());
+  const preview = $derived({ src, availability: connection(), retry, controller: new AbortController() });
+  let failure = $state.raw<{ attempt: typeof preview; message: string }>();
+  let loaded = $state.raw<typeof preview>();
 
   $effect(() => {
-    void retry;
-    void availability;
-    const controller = new AbortController();
-    let objectUrl = "";
-    url = "";
-    failure = "";
+    const { controller } = preview;
 
-    void previewResponse(src, controller.signal)
-      .then((response) => response.blob())
-      .then((blob) => {
-        if (controller.signal.aborted) return;
-        objectUrl = URL.createObjectURL(blob);
-        url = objectUrl;
-      })
-      .catch((cause: unknown) => {
-        if (!controller.signal.aborted) failure = cause instanceof Error ? cause.message : "Could not load the image.";
-      });
-
-    return () => {
-      controller.abort();
-
-      if (objectUrl) URL.revokeObjectURL(objectUrl);
-    };
+    return () => controller.abort();
   });
+
+  async function imageError(attempt: typeof preview) {
+    const { signal } = attempt.controller;
+    let message = "Could not show the image. Download it to open it.";
+
+    try {
+      // Only a failed image needs a second request for the gateway's explanation.
+      const response = await previewResponse(attempt.src, signal);
+      await response.body?.cancel();
+    } catch (cause) {
+      if (cause instanceof Error) message = cause.message;
+    }
+
+    if (!signal.aborted && attempt === preview) failure = { attempt, message };
+  }
 </script>
 
 <span class={["grid min-w-0 items-center gap-2", className]}>
-  {#if failure}
+  {#if failure?.attempt === preview}
     <span class="grid min-w-0 justify-items-start gap-1 p-3">
-      <span role="alert" class="max-w-prose break-words">{failure}</span>
+      <span role="alert" class="max-w-prose break-words">{failure.message}</span>
       <Button variant="ghost" size="sm" onclick={() => retry++}>Retry</Button>
     </span>
-  {:else if url}
-    {#snippet loadedImage()}<img
-        src={url}
-        {alt}
-        {onload}
-        onerror={() => (failure = "Could not show the image. Download it to open it.")}
-        class={imageClass}
-      />{/snippet}
-    {#if onopen}
-      <button
-        type="button"
-        onclick={onopen}
-        aria-label="Open image: {alt}"
-        class="group h-full w-full min-w-0 overflow-hidden rounded-lg focus-ring">{@render loadedImage()}</button
-      >
-    {:else}
-      {@render loadedImage()}
-    {/if}
   {:else}
-    <span role="status" class="p-3">Loading image…</span>
+    {#key preview}
+      {@const attempt = preview}
+      {#if loaded !== attempt}<span role="status" class="p-3">Loading image…</span>{/if}
+      {#snippet loadedImage()}<img
+          src={attempt.src}
+          {alt}
+          onload={(event) => {
+            if (attempt !== preview) return;
+            loaded = attempt;
+            onload?.(event);
+          }}
+          onerror={() => void imageError(attempt)}
+          class={imageClass}
+        />{/snippet}
+      <span hidden={loaded !== attempt} class:contents={loaded === attempt}>
+        {#if onopen}
+          <button
+            type="button"
+            onclick={onopen}
+            aria-label="Open image: {alt}"
+            class="group h-full w-full min-w-0 overflow-hidden rounded-lg focus-ring">{@render loadedImage()}</button
+          >
+        {:else}
+          {@render loadedImage()}
+        {/if}
+      </span>
+    {/key}
   {/if}
 </span>

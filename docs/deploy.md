@@ -6,9 +6,13 @@ uruchamiają osobną usługę web. Ten dokument opisuje kod na `dev`; poniższe 
 pobierania domyślnie wybierają stable. Wersje i kanały: [release.md](release.md). Wszystko pochodzi z
 `ghcr.io/itsoltech/canopy-*` albo z GitHub Releases `itsoltech/canopy`.
 
-Status (2026-11-16): kod na `dev` zawiera operacyjne CLI `storage inspect` i jawny
+Status (2026-11-20): Compose izoluje sieć workera od panelu właściciela, a samodzielny
+web domyślnie słucha na loopbacku i sprawdza nagłówek Host. Kod zawiera operacyjne CLI `storage inspect` i jawny
 reclaim offline przez `VACUUM FULL`. Dostępność w nightly/beta/stable wynika
-z wersji binarki; CLI nie uruchamia migracji ani usług aplikacji.
+z wersji binarki. Polecenia `storage` działają poza migracją i usługami aplikacji.
+Compose i Desktop Local wykonują `canopy-gateway migrate` przed uruchomieniem gatewaya na oddzielnym koncie SQL.
+Migracja `0184` automatycznie zachowuje podglądy obrazów w historii każdego użytkownika, również przy odłączonych workerach.
+Od 2026-11-19 w kodzie jednorazowy token enrollmentu jest podawany przez stdin.
 
 Gateway uruchomiony jako serwer (Docker lub samodzielna binarka) ma rolę `server`.
 **Linked computers jest dostępne wyłącznie między aplikacjami Canopy Desktop w trybie
@@ -86,7 +90,9 @@ zalogowana sesja GUI macOS muszą istnieć przed automatycznym startem usługi.
 Cel SSH pobiera worker z GitHub Releases przez HTTPS; gateway dostarcza SHA-256 przez
 szyfrowane stdin. Nie trzeba wystawiać web BFF desktopu. Włącz Network access albo ustaw
 osiągalny „Gateway address for workers” przed instalacją; enrollment zachowuje pin TLS.
-Przy HTTP używaj wyłącznie zaufanej szyfrowanej sieci (np. Tailscale); w publicznej sieci TLS.
+Worker akceptuje zdalny HTTP tylko wtedy, gdy operator zabezpieczył trasę i wskazał jej dokładny origin
+w `CANOPY_WORKER_TRUSTED_HTTP_ORIGIN` przy rejestracji albo w `trusted_http_origin` istniejącego workera.
+Przy instalacji przez SSH najprościej użyć przypiętego adresu HTTPS z Network access.
 
 Weryfikacja instalatora na Linux x64 (izolowany PostgreSQL i sshd, wolne porty;
 komendy z głównego katalogu repozytorium):
@@ -102,7 +108,9 @@ TMPDIR="$PWD/.tmp/worker-install-tests" CANOPY_INSTALL_BINARY_TEST=1 CANOPY_SSH_
 
 Test używa prawdziwej binarki, gRPC i OpenSSH; sprawdza hash, prywatny config,
 ponowną instalację, błąd autoryzacji, potwierdzenie i mismatch klucza hosta oraz
-połączenie workera. W kontenerze nie działa systemd użytkownika: jawny shim
+połączenie workera. W kontenerze fixture `curl` dostarcza lokalną binarkę dla
+jednego testowego URL-a wydania i sprawdza flagi HTTPS. Instalator nadal liczy
+SHA-256 pobranych bajtów przed uruchomieniem. Zamiast systemd użytkownika
 `fixtures/worker-install-sshd/systemctl` zapisuje wywołania i startuje prawdziwy worker,
 a test sprawdza unit (`Restart=always`, PATH) i aktywację. To dry-run menedżera usługi,
 nie test prawdziwego systemd/launchd; te wymagają sesji właściwego systemu.
@@ -135,7 +143,10 @@ dopiero przejścia na wydanie z wbudowanym web. W istniejącym `docker-compose.y
    (domyślne w gatewayu), oraz `ORIGIN`. `GATEWAY_URL` i `GATEWAY_SERVICE_TOKEN` nie są potrzebne.
 4. Dodaj `CANOPY_WEB_ALLOWED_HOSTS` z publiczną nazwą reverse proxy (adresy IP i `localhost` działają bez tego).
 5. Opcjonalnie wolumen `gateway-cache:/home/canopy/.cache/canopy` (stare chunki dla otwartych kart).
-6. `docker compose pull && docker compose up -d --remove-orphans`.
+6. Przenieś z pliku wydania definicje sieci, przypisania usług i przekaźnik `worker-link` z profilu workera.
+   Zachowaj dotychczasowe nazwy i zawartość wolumenów. Samo pobranie nowego obrazu nie zmienia sieci.
+7. `docker compose pull && docker compose up -d --remove-orphans`. Przy włączonym profilu workera
+   wykonaj te polecenia z `docker compose --profile worker`, aby odtworzyć również jego podłączenie do sieci.
 
 Najprościej pobrać Compose i `.env.example` z gałęzi lub tagu wybranego wydania
 z wbudowanym web (tabela powyżej), zachować własne sekrety i dopisać w `.env`
@@ -151,7 +162,7 @@ ze źródeł (`0.0.0-dev`) go nie pokazują.
 
 Wszystkie zmienne opisuje [`deploy/.env.example`](../deploy/.env.example). `CANOPY_SECRETS_KEY`
 szyfruje klucze providerów i tokeny konektorów w bazie — zachowaj kopię; jego utrata oznacza
-ponowne wpisanie sekretów. Gateway przy starcie wykonuje migracje (`CANOPY_MIGRATE=0` wyłącza).
+ponowne wpisanie sekretów.
 
 Logowanie kont GitHub w Settings → GitHub domyślnie używa oficjalnej aplikacji
 **Canopy by IT SOL**. Opcjonalne, publiczne `CANOPY_GITHUB_APP_CLIENT_ID`
@@ -160,6 +171,29 @@ Compose przekazuje je z `.env`; jawnie puste wartości wyłączają device flow 
 stan braku konfiguracji. Nie istnieje client secret ani private key. Tokeny użytkowników i próby device flow
 są szyfrowane tym samym `CANOPY_SECRETS_KEY`, wyłącznie w gatewayu konta.
 Rejestrację aplikacji i zakres device flow opisuje [github.md](github.md#2-github-app-i-konta).
+
+### PostgreSQL i role gatewaya
+
+Na dedykowanej bazie Canopy jednorazowa usługa `migrate` w sieci `control`
+używa konta bootstrapu z dotychczasowym `POSTGRES_PASSWORD`. Stosuje oczekujące
+migracje również do istniejącego wolumenu PostgreSQL 17. Następnie przygotowuje
+konto `canopy_runtime` z dostępem do danych aplikacji, sekwencji i funkcji schematu
+`public`. Tabela `schema_migrations` pozostaje w gestii migratora. Rola runtime
+nie jest właścicielem bazy ani tabel i nie ma praw administracyjnych PostgreSQL.
+Gateway uruchamia się po udanej migracji, z `CANOPY_MIGRATE=0`. Hasło runtime jest
+losowe i trwałe w prywatnym wolumenie `database-runtime`, montowanym w gatewayu
+tylko do odczytu. Aktualizacja zachowuje dotychczasową bazę, klucz szyfrowania,
+tożsamości i sparowania. Przerwany krok można ponowić przez `docker compose up -d`.
+
+Przy własnym PostgreSQL polecenie `canopy-gateway migrate` używa samego
+`CANOPY_DATABASE_URL` z prawami do migracji. Opcjonalny `CANOPY_DATABASE_RUNTIME_URL`
+w tym procesie pozwala przygotować oddzielne konto `canopy_runtime` w tej samej
+dedykowanej bazie. Desktop Local przekazuje trwałe hasło runtime ze swojego
+magazynu. Alternatywnie administrator sam przyznaje prawa działającej usłudze.
+Przy zastosowaniu dwóch kont uruchamiaj migrator z nowej wersji przed każdym
+startem zaktualizowanej binarki, a gateway z DSN runtime i `CANOPY_MIGRATE=0`.
+Dotychczasowe wdrożenia z samym `CANOPY_DATABASE_URL` domyślnie nadal wykonują
+migracje przy starcie. Operator zachowuje osobny dostęp do operacji offline.
 
 `CANOPY_DATABASE_INDEX_MODE=concurrent` włącza budowanie zarejestrowanych indeksów
 wydajnościowych po migracji schematu przez `CREATE INDEX CONCURRENTLY`. Domyślne
@@ -184,8 +218,8 @@ W stable/beta port web publikuje osobna usługa `web`, która dostaje `GATEWAY_U
 
 - **web** (`WEB_PORT`, 3000, w kontenerze gatewaya): obraz `canopy-gateway` uruchamia wbudowany web
   tak jak binarka ([niżej](#gateway-z-wbudowanym-web-jedna-binarka)); `CANOPY_WEB=off` daje gateway
-  bez web. W kontenerze web słucha na `0.0.0.0:3000` (`CANOPY_WEB_HOST` w obrazie): granicą jest
-  publikacja portu, więc compose publikuje `127.0.0.1:3000:3000` (`WEB_BIND`). Postaw przed nim
+  bez web. W kontenerze web słucha na `0.0.0.0:3000` w zaufanej sieci `control`.
+  Compose publikuje panel na `127.0.0.1:3000:3000` (`WEB_BIND`). Postaw przed nim
   reverse proxy z TLS albo Tailscale Serve na hoście. BFF sprawdza origin formularzy na podstawie
   `X-Forwarded-Proto`/`X-Forwarded-Host` (domyślne `PROTOCOL_HEADER`/`HOST_HEADER`); żądanie bez
   nich to zwykłe HTTP. Web sprawdza też surowy `Host`: adresy IP i `localhost` przechodzą zawsze,
@@ -227,11 +261,12 @@ a następnie `~/.cache/canopy/releases`. Gdy wybrany katalog nie jest zapisywaln
 używa prywatnego katalogu w systemowym katalogu tymczasowym i zapisuje jedno ostrzeżenie.
 Ten awaryjny cache nie jest trwały; zachowanie cache między restartami wymaga wolumenu.
 
-Worker w kontenerze (opcjonalnie, profil `worker`) — token z Settings → Workers → Add worker:
+Worker w kontenerze (opcjonalnie, profil `worker`). Wklej token z Settings → Workers →
+Add worker w ukrytym prompcie.
 
 ```sh
-docker compose --profile worker run --rm worker enroll --gateway http://gateway:7443 --token <TOKEN>
-docker compose --profile worker up -d
+docker compose --profile worker run --rm worker enroll --gateway http://gateway:7443 && \
+  docker compose --profile worker up -d
 ```
 
 Obraz workera **nie zawiera CLI agentów** (`claude`, `codex`, `grok`): ich instalacja, wersje
@@ -252,6 +287,15 @@ Projekty, na których pracują agenci, montuj jako dodatkowe wolumeny. Obraz ust
 danych, jak dotąd. Inny trwały folder ustaw w `services.worker.environment`. Worker binarny na serwerze bez
 tej zmiennej tworzy worktree w `~/canopy/worktrees` użytkownika usługi ([worktrees.md](worktrees.md#położenie)).
 
+Worker i inne zwykłe usługi Compose korzystają z sieci `default`. Nazwa `gateway:7443` w tej sieci
+prowadzi do przekaźnika TCP. Przekaźnik łączy się wyłącznie z portem 7443 gatewaya w sieci `control`.
+Dotychczasowy adres w `worker.json` działa również po odtworzeniu kontenerów. Worker otrzymuje
+`CANOPY_WORKER_TRUSTED_HTTP_ORIGIN=http://gateway:7443` dla bootstrapu w tej sieci.
+Network access z przypiętym TLS pozostaje dostępny pod ogłoszonym adresem hosta i opublikowanym portem.
+Do sieci `control` podłączaj tylko zaufane usługi administracyjne. Własny proxy na innym hoście
+wymaga prywatnego `WEB_BIND` oraz reguły zapory dopuszczającej do tego portu wyłącznie proxy,
+również dla ruchu z sieci kontenerów.
+
 ### Sieć kontenera gatewaya
 
 Boty działają w gatewayu, więc **kontener gatewaya musi sam dosięgnąć endpointów modeli** instancji
@@ -268,9 +312,10 @@ services:
       - "127.0.0.1:7432:5432"
   gateway:
     network_mode: host
+    networks: !reset []
     ports: !reset []
     environment:
-      CANOPY_DATABASE_URL: postgres://canopy:${POSTGRES_PASSWORD}@127.0.0.1:7432/canopy
+      CANOPY_DATABASE_URL: postgres://canopy_runtime@127.0.0.1:7432/canopy
       CANOPY_HOST: 127.0.0.1
       CANOPY_PORT: "7443"
       # Bez publikacji portów to adres nasłuchu jest granicą: web tylko na loopbacku hosta.
@@ -278,7 +323,9 @@ services:
       CANOPY_WEB_PORT: "3000"
 ```
 
-Sprawdzenie z sieci Dockera: `docker run --rm --network canopy_default curlimages/curl -sS -o /dev/null -w '%{http_code}\n' <endpoint>/v1/models`.
+Po przeniesieniu gatewaya do sieci hosta lokalny przekaźnik z profilu workera traci adres
+`gateway-upstream`. Worker w kontenerze może wtedy korzystać z osiągalnego adresu Network access
+z przypiętym TLS. Wbudowany web w tym wariancie pozostaje na loopbacku hosta.
 
 ### Dostęp sieciowy: telefony, klienty desktopowe i workery
 
@@ -333,8 +380,9 @@ canopy.example.com {
 Caddy ustawia `X-Forwarded-Proto` i `X-Forwarded-Host`. nginx wymaga
 `proxy_set_header X-Forwarded-Proto $scheme`, `proxy_set_header X-Forwarded-Host $host`,
 `client_max_body_size 50m` i `proxy_buffering off` dla SSE oraz własnej konfiguracji
-uwierzytelniania. Przy wbudowanym web (obecnie nightly) dopisz publiczny host
-do `CANOPY_WEB_ALLOWED_HOSTS`; to ochrona nazwy hosta, nie logowanie.
+uwierzytelniania. Przy wbudowanym i samodzielnym web dopisz publiczną nazwę
+do `CANOPY_WEB_ALLOWED_HOSTS`. Web sprawdza surowy `Host` przed odczytem nagłówków proxy.
+Dokumenty panelu wysyłają CSP `frame-ancestors 'none'`; zachowaj ten nagłówek na proxy.
 
 Uwierzytelnianie proxy obejmuje też `/install/*`. Instalator workera musi mieć
 dostęp do tych tras: pobierz go z uwierzytelnieniem albo wybierz instalację ręczną/SSH.
@@ -546,7 +594,10 @@ CANOPY_WEB=off
 ```
 
 Gateway działa wtedy jak wcześniej, a osobny web dostaje `GATEWAY_URL`, `GATEWAY_SERVICE_TOKEN`
-(= `CANOPY_UI_SERVICE_TOKEN`), `PORT`, `PROTOCOL_HEADER` i `BODY_SIZE_LIMIT`. To samo `CANOPY_WEB=off`
+(= `CANOPY_UI_SERVICE_TOKEN`), `PORT` i `BODY_SIZE_LIMIT`. Domyślny adres samodzielnego
+nasłuchu to `127.0.0.1`. Ustaw `HOST` na prywatny adres tylko wtedy, gdy dostęp do portu
+jest ograniczony do uprawnionego proxy lub przez ACL. Zasady `CANOPY_WEB_ALLOWED_HOSTS`,
+`ORIGIN`, `PROTOCOL_HEADER` i `HOST_HEADER` są wspólne z webem wbudowanym. To samo `CANOPY_WEB=off`
 działa w obrazie `canopy-gateway`. Desktop ma własny web i nie używa wbudowanego.
 
 Network access, HTTPS over Tailscale i Git działają tak samo jak w Dockerze. HTTPS over Tailscale
@@ -555,10 +606,11 @@ na loopbacku, np. `http://127.0.0.1:3000`) oraz web z `PROTOCOL_HEADER=x-forward
 
 ### Worker
 
-Worker działa jako zwykły użytkownik (jego CLI i loginy są w jego katalogu domowym):
+Worker działa jako zwykły użytkownik (jego CLI i loginy są w jego katalogu domowym).
+Wklej token rejestracji, kiedy pojawi się ukryty prompt.
 
 ```sh
-canopy-worker enroll --gateway https://gateway.example.com:7443 --token <TOKEN>
+canopy-worker enroll --gateway https://gateway.example.com:7443
 canopy-worker service     # drukuje unit systemd --user (macOS: plist launchd) z tą binarką
 ```
 
@@ -635,7 +687,7 @@ Fizyczny reclaim wykonuj dopiero po zakończeniu logicznego sprzątania:
 2. Zatrzymaj wszystkie gatewaye używające tej bazy, automatyczne restarty,
    migratory i inne klienty. Zablokuj nowe połączenia aplikacji na czas całej
    operacji, pozostawiając dostęp operatorowi. Nie zatrzymuj PostgreSQL.
-3. W osobnym procesie gatewaya, z tym samym środowiskiem DB, wskaż wyłącznie
+3. W osobnym procesie gatewaya, z DSN operatora mającego prawo `MAINTAIN`, wskaż wyłącznie
    relacje wymagające przepisania:
 
    ```sh
@@ -644,7 +696,8 @@ Fizyczny reclaim wykonuj dopiero po zakończeniu logicznego sprzątania:
    ```
 
 4. Po kontroli wyniku przywróć dostęp i uruchom gateway. W Compose zatrzymaj
-   usługę gateway i użyj jednorazowego kontenera tej samej wersji i środowiska;
+   usługę gateway i uruchom polecenie z poświadczeniem operatora, np. przez
+   `docker compose run --rm --no-deps migrate storage reclaim --offline --table thread_events`;
    `docker compose exec gateway` nie zadziała po zatrzymaniu tej usługi.
 
 CLI wymaga PostgreSQL 17, jawnego `--offline` i co najmniej jednego `--table`;

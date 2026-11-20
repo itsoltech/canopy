@@ -1,10 +1,10 @@
-import { create, type MessageInitShape } from "@bufbuild/protobuf";
+import type { MessageInitShape } from "@bufbuild/protobuf";
 
 import { Code, ConnectError } from "@connectrpc/connect";
 
 import { computerLink as link } from "@canopy/contracts";
 
-import { AsyncChannel } from "@canopy/transport";
+import { LinkOutput } from "./link-output.ts";
 import { DEPARTURE_WINDOW_MS, RESTART_PRESENCE } from "@canopy/domain/computer-presence";
 
 import { type PeerRow } from "./store.ts";
@@ -59,6 +59,7 @@ export function computersTrack(hostContext: LinkedComputers, nodeId: string, con
   hostContext[computersState].active.set(nodeId, set);
 
   return async () => {
+    connection.configAccess?.abort();
     connection.remote?.close();
     set.delete(connection);
 
@@ -210,7 +211,7 @@ export async function computersDial(hostContext: LinkedComputers, peer: PeerRow,
     )
       return;
 
-    const output = new AsyncChannel<link.LinkFrame>({
+    const output = new LinkOutput({
       maxItems: 256,
       reservedItems: 240,
       overflow: () => {
@@ -224,16 +225,14 @@ export async function computersDial(hostContext: LinkedComputers, peer: PeerRow,
     const client = linkClient(address, peer.certificate, hostContext[computersState].identity);
 
     const connection: Connection = {
-      write: async (f, signal) => {
-        if (!(await output.write(create(link.LinkFrameSchema, f), signal)))
-          throw new ConnectError("Computer link closed while sending", Code.Unavailable);
-      },
-      send: (f) => {
-        if (!output.closed && !output.push(create(link.LinkFrameSchema, f)))
+      write: (frame, signal, grant) => output.writeFrame(frame, signal, grant),
+      send: (f, grant) => {
+        if (!output.closed && !output.pushFrame(f, grant))
           connection.close(new ConnectError("Computer link fell behind", Code.ResourceExhausted));
       },
       close: (reason) => {
         if (reason) console.warn("Computer link closing", { side: "dialer", ...linkFailure(reason) });
+        connection.configAccess?.abort();
         output.close(reason);
         routeController.abort(reason);
         connection.remote?.close();
@@ -263,7 +262,7 @@ export async function computersDial(hostContext: LinkedComputers, peer: PeerRow,
       }, PEER_HANDSHAKE_TIMEOUT_MS);
 
       try {
-        for await (const frame of client.connect(output, {
+        for await (const frame of client.connect(output.frames(), {
           signal: AbortSignal.any([controller.signal, routeController.signal]),
         })) {
           if (!greeted && !["welcome", "unlinked"].includes(frame.body.case ?? ""))

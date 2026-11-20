@@ -37,13 +37,23 @@ async function rememberPanel(computers: LinkedComputers, node: string, thread: s
 
 /** Only verified home responses are cached. Unlink removes them by FK; denied reads revoke them. */
 export function linkedThreadPanel(core: GatewayCore, routed: Record<string, Handler>): Partial<UiHandlers> {
+  const threadHome = (threadId: string) => core.computers?.redirects.map("thread", threadId) ?? threadId;
+
   return {
     getThreadPanel: async (request, context) => {
-      const ref = splitId(request.threadId);
+      const home = threadHome(request.threadId);
+      const ref = splitId(home);
 
       if (!ref.node)
         return linkedMessage(ui.ThreadPanelSchema, await unary(routed["getThreadPanel"]!, request, context));
-      const node = await peerOf(core, ref.node);
+
+      const node = await peerOf(
+        core,
+        ref.node,
+        ui.GatewayService.method.getThreadPanel,
+        create(ui.GetThreadRequestSchema, { threadId: home }),
+      );
+
       const computers = core.computers!;
       const store = computers.store;
       const params = [store.owner, node, ref.id];
@@ -56,11 +66,13 @@ export function linkedThreadPanel(core: GatewayCore, routed: Record<string, Hand
 
       try {
         const panel = linkedMessage(ui.ThreadPanelSchema, await unary(routed["getThreadPanel"]!, request, context));
-        await rememberPanel(computers, node, ref.id, panel);
+
+        if (threadHome(request.threadId) === home) await rememberPanel(computers, node, ref.id, panel);
 
         return panel;
       } catch (error) {
         if (
+          threadHome(request.threadId) === home &&
           error instanceof ConnectError &&
           ([Code.Unavailable, Code.DeadlineExceeded, Code.Unimplemented].includes(error.code) ||
             (error.code === Code.FailedPrecondition && !computers.canCall(node)))
@@ -74,14 +86,17 @@ export function linkedThreadPanel(core: GatewayCore, routed: Record<string, Hand
       }
     },
     setThreadConnectorGrant: async (request, context) => {
+      const home = threadHome(request.threadId);
+
       const panel = linkedMessage(
         ui.ThreadPanelSchema,
         await unary(routed["setThreadConnectorGrant"]!, request, context),
       );
 
-      const ref = splitId(request.threadId);
+      const ref = splitId(home);
 
-      if (ref.node) await rememberPanel(core.computers!, await peerOf(core, ref.node), ref.id, panel);
+      if (ref.node && threadHome(request.threadId) === home)
+        await rememberPanel(core.computers!, await peerOf(core, ref.node), ref.id, panel);
 
       return panel;
     },

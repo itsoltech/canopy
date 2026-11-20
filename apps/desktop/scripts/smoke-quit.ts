@@ -19,6 +19,7 @@ const runtime = new DesktopRuntime(
   },
   {
     databasePassword: "quit-smoke-fixture",
+    runtimeDatabasePassword: "runtime-quit-smoke-fixture",
     secretsKey: "quit-smoke-fixture",
     serviceToken: "quit-smoke-fixture".repeat(3),
   },

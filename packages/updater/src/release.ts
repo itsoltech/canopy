@@ -1,5 +1,11 @@
 import { isJsonArray, isJsonObject, type JsonObject, type JsonValue } from "@canopy/domain/json";
-import { ReleaseCatalog, releaseCatalog, type CatalogRelease } from "@canopy/domain/release/catalog";
+import {
+  canonicalReleaseManifestUrl,
+  RELEASE_API_URL,
+  ReleaseCatalog,
+  releaseCatalog,
+  type CatalogRelease,
+} from "@canopy/domain/release/catalog";
 import { ReleaseHttp, ReleaseHttpError, secureReleaseUrl } from "@canopy/domain/release/http";
 
 export type InstallKind = "binary" | "docker" | "source" | "desktop";
@@ -199,10 +205,7 @@ export class ReleaseSource {
   private readonly manifests = new Map<string, Promise<ReleaseManifest>>();
   constructor(options: ReleaseSourceOptions = {}) {
     this.options = options;
-    this.baseUrl = secureUrl(
-      options.baseUrl ?? "https://api.github.com/repos/itsoltech/canopy",
-      options.allowHttpForTests,
-    ).href.replace(/\/$/, "");
+    this.baseUrl = secureUrl(options.baseUrl ?? RELEASE_API_URL, options.allowHttpForTests).href.replace(/\/$/, "");
     this.catalog = Object.keys(options).length
       ? new ReleaseCatalog({
           baseUrl: options.baseUrl ? this.baseUrl : undefined,
@@ -288,7 +291,12 @@ export class ReleaseSource {
     const asset = release.assets?.find((a) => a.name === "manifest.json");
 
     if (!asset) throw new Error("Release has no manifest.json");
-    const response = await releaseFetch(asset.browser_download_url, this.options);
+
+    const url =
+      this.baseUrl === RELEASE_API_URL ? canonicalReleaseManifestUrl(release.tag_name) : asset.browser_download_url;
+
+    if (url !== asset.browser_download_url) throw new Error("Release manifest must belong to its GitHub release");
+    const response = await releaseFetch(url, this.options);
     const json = await response.text();
 
     if (json.length > 2 * 1024 * 1024) throw new Error("Release manifest is too large");

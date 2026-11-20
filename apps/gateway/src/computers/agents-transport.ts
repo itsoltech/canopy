@@ -22,6 +22,7 @@ import { localAgentSender } from "./agents-senders.ts";
 import { PEER_MUTATION_TIMEOUT_MS } from "./timing.ts";
 import { unaryTimeout } from "../api/routed-context.ts";
 import { queryFamily, queryRpc } from "../diagnostics/query-context.ts";
+import { movedAgentTarget } from "./redirect-ids.ts";
 
 export async function agentsRemoteSnapshot(
   hostContext: LinkedAgents,
@@ -40,7 +41,15 @@ export async function agentsRemoteSnapshot(
 export interface AgentsTransportMethods {
   query<A extends object>(statement: string, parameters?: unknown[]): Promise<readonly A[]>;
   machine(node: string): Promise<string>;
-  call(node: string, operation: string, actor: Actor, callId: string, args: Arguments): Promise<JsonValue>;
+  call(
+    node: string,
+    operation: string,
+    actor: Actor,
+    callId: string,
+    args: Arguments,
+    followed?: boolean,
+    onRedirect?: (home: string) => void,
+  ): Promise<JsonValue>;
   redirect(args: Arguments): void;
   peer(ref: string): Promise<string>;
   sameHome(node: string, args: Arguments): Promise<void>;
@@ -81,6 +90,8 @@ export const agentsTransportMethods: AgentsTransportMethods = {
     actor: Actor,
     callId: string,
     args: Arguments,
+    followed = false,
+    onRedirect?: (home: string) => void,
   ): Promise<JsonValue> {
     const computers = this.core.computers;
 
@@ -116,24 +127,33 @@ export const agentsTransportMethods: AgentsTransportMethods = {
     } catch (error) {
       // The target moved (stage 8): learn its new home and deliver there once, when it is a partner of this computer.
       const moved = movedItems(error);
-      const home = moved?.[0]?.homeNodeId;
+      const target = movedAgentTarget(operation, args);
 
-      if (
-        operation === "message_delegating_bot" ||
-        !moved ||
-        !home ||
-        home === node ||
-        !(await computers.redirects.learn(node, moved), await computers.store.peer(home))
-      )
-        throw error;
+      if (followed || !moved || !target) throw error;
 
-      if (operation === "send")
-        await this.query(
-          "UPDATE computer_agent_calls SET peer_node_id=$3 WHERE owner_user_id=$1::uuid AND peer_node_id=$2 AND call_id=$4::uuid AND direction='outgoing'",
-          [this.owner, node, home, callId],
+      const applicable = moved.filter(
+        (i) => i.fromNodeId === node && i.kind === target.kind && i.itemId.toLowerCase() === target.id.toLowerCase(),
+      );
+
+      if (!applicable.length) throw error;
+      await computers.redirects.learn(node, applicable);
+      const home = computers.redirects.resolve(target.kind, qualifyId(target.id, node))?.home_node_id;
+
+      if (!home || home === node || !(await computers.store.peer(home))) throw error;
+
+      if (operation === "send") {
+        const pending = await this.query(
+          `UPDATE computer_agent_calls SET peer_node_id=$3 WHERE owner_user_id=$1::uuid AND peer_node_id=$2
+          AND call_id=$4::uuid AND direction='outgoing' AND operation='send' AND result IS NULL AND NOT detached
+          AND actor_id=$5::uuid AND actor_kind=$6 AND target_id=$7::uuid AND target_kind=$8 RETURNING call_id`,
+          [this.owner, node, home, callId, actor.id, actor.kind, target.id, target.kind],
         );
 
-      return this.call(home, operation, actor, callId, args);
+        if (!pending.length) throw error;
+        onRedirect?.(home);
+      }
+
+      return this.call(home, operation, actor, callId, args, true);
     }
 
     return fail("The other computer sent no answer");
@@ -145,10 +165,14 @@ export const agentsTransportMethods: AgentsTransportMethods = {
 
     if (!redirects?.size) return;
 
-    for (const key of ["thread_id", "bot_id"]) if (Predicate.isString(args[key])) args[key] = redirects.map(args[key]);
+    const threadKind = args["target_kind"] === "bot" ? "bot" : "thread";
+
+    if (Predicate.isString(args["thread_id"])) args["thread_id"] = redirects.map(threadKind, args["thread_id"]);
+
+    if (Predicate.isString(args["bot_id"])) args["bot_id"] = redirects.map("bot", args["bot_id"]);
 
     if (Array.isArray(args["thread_ids"]))
-      args["thread_ids"] = args["thread_ids"].map((v) => (Predicate.isString(v) ? redirects.map(v) : v));
+      args["thread_ids"] = args["thread_ids"].map((v) => (Predicate.isString(v) ? redirects.map("thread", v) : v));
   },
 
   async peer(this: LinkedAgents, ref: string): Promise<string> {

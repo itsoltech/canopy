@@ -1,4 +1,4 @@
-import { create, fromBinary, type JsonValue } from "@bufbuild/protobuf";
+import { fromBinary, type JsonValue } from "@bufbuild/protobuf";
 
 import { Effect, Schema } from "effect";
 
@@ -125,7 +125,7 @@ export function insertRows(
   sql: Sql,
   table: string,
   rows: readonly { [column: string]: JsonValue | undefined }[],
-  options: { omit?: string[]; order?: string } = {},
+  options: { omit?: string[]; order?: string; strict?: boolean } = {},
 ) {
   return Effect.gen(function* () {
     if (!rows.length) return;
@@ -140,20 +140,10 @@ export function insertRows(
     const list = columns.map((c) => `"${c}"`).join(", ");
     yield* sql.unsafe(
       `INSERT INTO ${table} (${list}) SELECT ${list} FROM json_populate_recordset(null::${table}, $1::json) AS r${options.order ? ` ORDER BY r."${options.order}"` : ""}
-      ON CONFLICT DO NOTHING`,
+      ${options.strict ? "" : "ON CONFLICT DO NOTHING"}`,
       [JSON.stringify(rows)],
     );
   });
 }
-
-export const redirectItem = (itemId: string, kind: string, home: { nodeId: string; name: string }, from: string) =>
-  create(link.MovedItemSchema, {
-    itemId,
-    kind,
-    homeNodeId: home.nodeId,
-    homeName: home.name,
-    fromNodeId: from,
-    movedAtMs: BigInt(Date.now()),
-  });
 
 export const qualifiedNew = (id: string, home: string, self: string) => (home === self ? id : qualifyId(id, home));

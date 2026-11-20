@@ -28,13 +28,18 @@ export function finishChannelTurn(sql: SqlClient.SqlClient, turn: BotTurn, statu
     const context = yield* conversationContext(sql, turn);
 
     if (!context) return;
-
     // finish already holds bot -> turn; account comes next, matching revocation and delivery writers.
     yield* sql`SELECT a.id FROM messenger_accounts a WHERE a.id=${context.accountId}::uuid FOR UPDATE`;
 
     if (!(yield* activeConversation(sql, turn.bot_id, context.conversationId))) return;
 
-    if (context.delivery === "reply")
+    const route = (yield* sql<{ delivery: string }>`SELECT r.delivery FROM bot_channel_conversations c
+      JOIN bot_channel_routes r ON r.id=c.route_id WHERE c.id=${context.conversationId}::uuid
+      AND r.deleted_at IS NULL FOR SHARE OF r`)[0];
+
+    if (!route) return;
+
+    if (route.delivery === "reply")
       yield* sql`INSERT INTO messenger_outbound(id,account_id,conversation_id,turn_id,channel_id,thread_id,text)
         VALUES(${Bun.randomUUIDv7()}::uuid,${context.accountId}::uuid,${context.conversationId}::uuid,${turn.id}::uuid,
           ${context.channelId},${context.threadId},${text}) ON CONFLICT(turn_id) DO NOTHING`;
@@ -69,19 +74,41 @@ function lockDeliveryBots(sql: SqlClient.SqlClient, owner: string, accountId: st
     ORDER BY b.id FOR NO KEY UPDATE OF b`;
 }
 
+/** The outbox's saved destination must still belong to this turn's active reply route. */
+function replyRoute(sql: SqlClient.SqlClient, owner: string) {
+  return sql`SELECT r.id FROM bot_channel_conversations c JOIN bot_channel_routes r ON r.id=c.route_id
+    JOIN bot_turns t ON t.id=x.turn_id AND t.conversation_id=c.id AND t.bot_id=r.bot_id
+    JOIN bots b ON b.id=r.bot_id
+    WHERE c.id=x.conversation_id AND c.channel_id=x.channel_id AND c.thread_id=x.thread_id
+      AND r.account_id=x.account_id AND r.owner_user_id=${owner}::uuid AND b.owner_user_id=${owner}::uuid
+      AND r.delivery='reply' AND r.deleted_at IS NULL AND b.deleted_at IS NULL
+      AND b.archived_at IS NULL AND b.moved_to IS NULL
+      AND (c.channel_id=ANY(r.channel_ids) OR (r.direct_messages AND c.channel_id LIKE 'D%'))`;
+}
+
 export function messengerOutbound(sql: SqlClient.SqlClient, accounts: MessengerAccounts) {
   return {
     sendClaimed: (owner: string, lease: AccountLease, id: string, now: Date, send: () => Promise<OutboundResult>) =>
       sql.withTransaction(
         Effect.gen(function* () {
           if (!(yield* lockedOwnerModule(sql, owner, "bots"))) return undefined;
+          yield* lockDeliveryBots(sql, owner, lease.accountId, [id]);
           yield* accounts.fenced(owner, lease, now);
 
-          const rows = yield* sql`SELECT id FROM messenger_outbound WHERE id = ${id}::uuid
-            AND account_id = ${lease.accountId}::uuid AND lease_token = ${lease.token}::uuid AND status = 'sending'`;
+          const claimed = sql`x.id=${id}::uuid AND x.account_id=${lease.accountId}::uuid
+            AND x.lease_token=${lease.token}::uuid AND x.status='sending'`;
+
+          const rows = yield* sql`SELECT x.id FROM messenger_outbound x WHERE ${claimed}
+            AND EXISTS (${replyRoute(sql, owner)} FOR SHARE OF r) FOR UPDATE OF x`;
+
+          if (!rows.length) {
+            yield* sql`UPDATE messenger_outbound x SET status='failed' WHERE ${claimed}`;
+
+            return undefined;
+          }
 
           // Start the request under admission, then release the locks before awaiting Slack.
-          return rows.length ? { completion: send() } : undefined;
+          return { completion: send() };
         }),
       ),
     outbound: (owner: string, lease: AccountLease, now: Date) =>
@@ -113,12 +140,9 @@ export function messengerOutbound(sql: SqlClient.SqlClient, accounts: MessengerA
           for (const row of abandoned) yield* deliveryNotice(sql, row.id, false);
 
           return yield* sql<OutboundMessage>`UPDATE messenger_outbound o SET status='sending',lease_token=${lease.token}::uuid
-        WHERE o.id IN (SELECT x.id FROM messenger_outbound x JOIN bot_channel_conversations c ON c.id=x.conversation_id
-          JOIN bot_channel_routes r ON r.id=c.route_id JOIN bots b ON b.id=r.bot_id
+        WHERE o.id IN (SELECT x.id FROM messenger_outbound x
           WHERE x.account_id=${lease.accountId}::uuid AND x.status='pending' AND x.available_at<=${now}
-          AND r.account_id=x.account_id AND r.owner_user_id=${owner}::uuid AND b.owner_user_id=${owner}::uuid
-          AND r.deleted_at IS NULL AND b.deleted_at IS NULL AND b.archived_at IS NULL AND b.moved_to IS NULL
-          AND (c.channel_id=ANY(r.channel_ids) OR (r.direct_messages AND c.channel_id LIKE 'D%'))
+          AND EXISTS (${replyRoute(sql, owner)})
           ORDER BY x.available_at,x.id FOR UPDATE OF x SKIP LOCKED LIMIT 10)
         RETURNING o.id,o.account_id AS "accountId",o.channel_id AS "channelId",o.thread_id AS "threadId",o.text`;
         }),

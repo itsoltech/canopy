@@ -3,8 +3,9 @@ import { SqlClient } from "effect/sql";
 import { setTimeout as delay } from "node:timers/promises";
 import type { CoreRuntime } from "../core/core.ts";
 import { GatewayStore } from "../store/store.ts";
+import { oauthEgress } from "./oauth-egress.ts";
 import { authorizeOAuth } from "./oauth.ts";
-import { ConnectorFailure, type AccountRow, type Credentials } from "./records.ts";
+import { ConnectorFailure, oauthIdentityChanged, type AccountRow, type Credentials } from "./records.ts";
 import type { ConnectorStore } from "./store.ts";
 
 const failure = () => new ConnectorFailure("Connector needs reconnect");
@@ -82,7 +83,8 @@ async function refreshCredentials(runtime: CoreRuntime, owner: string, id: strin
             value,
             attempt,
             id: row.id,
-            url: row.url,
+            row,
+            issuer: app.issuer,
             refreshToken: value.tokens.refresh_token,
           };
         }),
@@ -99,7 +101,9 @@ async function refreshCredentials(runtime: CoreRuntime, owner: string, id: strin
     }
 
     // No database transaction is open during HTTP. A crash leaves the committed claim unresolved.
-    const refreshed = await authorizeOAuth(claim.url, claim.value, "")
+    const egress = oauthEgress(claim.row.url, claim.issuer, { publicOrigins: claim.value.oauthPublicOrigins });
+
+    const refreshed = await authorizeOAuth(claim.row, egress, claim.value, "")
       .then((redirect) => !redirect && !!claim.value.tokens?.refresh_token)
       .catch(() => false);
 
@@ -137,8 +141,5 @@ async function refreshCredentials(runtime: CoreRuntime, owner: string, id: strin
 }
 
 function sameIdentity(previous: Credentials, next: Credentials) {
-  return (
-    (!previous.slackTeamId || previous.slackTeamId === next.slackTeamId) &&
-    (!previous.accountIdentity || previous.accountIdentity === next.accountIdentity)
-  );
+  return (!previous.slackTeamId || previous.slackTeamId === next.slackTeamId) && !oauthIdentityChanged(previous, next);
 }

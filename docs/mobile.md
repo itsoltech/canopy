@@ -3,7 +3,9 @@
 Status: opis zaimplementowanego kodu (2026-11-20). Gest przewijania wątku doczytuje
 najwyżej jedną stronę historii. Przy zgodnych checkpointach połączenie live pozostaje otwarte.
 Przy otwarciu wątku telefon pobiera pytania i zgody tylko od subagentów z oczekującym żądaniem.
-Listy wątków i botów uwzględniają
+Przy wklejaniu i upuszczaniu
+Android sprawdza dostawcę i grant odczytu URI. Katalog szkiców kompozytora na iOS
+ma ustawione wykluczenie z kopii zapasowej. Listy wątków i botów uwzględniają
 wysokość banera aktualizacji i stanu połączenia. Wysyłanie wiadomości i start tury
 zachowują położenie rozmowy. Natywny raport Usage pokazuje
 historię kosztów i skrócone liczby tokenów z gatewaya, podział według workera oraz dzienny wykres według dostawcy.
@@ -193,6 +195,15 @@ załączników/cytatów. Documents zawiera atomowy plik protobuf JSON dla bież�
 parowania. Przed usunięciem parowania kończymy zapis i zamykamy magazyn, aby późny
 callback nie odtworzył danych poprzedniego właściciela. Limity: 100 szkiców, 4 MiB,
 30 dni; niedokończony upload wymaga ponownego dodania pliku.
+
+Na iOS aplikacja ustawia `isExcludedFromBackup` na katalogu
+`Documents/composer-drafts-v1` przed użyciem magazynu, również gdy katalog pochodzi
+z wcześniejszej wersji. Ustawienie dotyczy przyszłych kopii. Na Androidzie
+`Paths.document` leży w domenie `file`. Domyślny plugin `expo-secure-store` w SDK 58
+generuje reguły dopuszczające wyłącznie domenę `sharedpref` z wykluczeniem
+`SecureStore`. Dotyczy to reguł starszego Android Auto Backup oraz obu sekcji
+`cloud-backup` i `device-transfer` dla Androida 12+. Lokalna trwałość i synchronizacja
+szkiców z wybranym gatewayem mają dotychczasową ścieżkę.
 
 Zakładka `Drafts` z licznikiem na górnej krawędzi kompozytora rozwija zwarty,
 niemodalny panel szkiców innych urządzeń dla bieżącego celu. Bez szkiców nie ma
@@ -2251,6 +2262,11 @@ Aplikacja nigdy nie czyta schowka bez akcji użytkownika.
   je do `cacheDir/canopy-intake`, a tekst wkleja się jak dotąd. Uprawnieniem klawiatury do URI
   zarządza system. Moduł utrzymuje silną referencję do odebranej zawartości do końca asynchronicznego
   kopiowania, aby system nie zwolnił dostępu do URI przed odczytem.
+  Przed odczytem MIME, metadanych i treści moduł dopuszcza wyłącznie URI `content`
+  z jawnym grantem odczytu. Sprawdza wszystkie nazwy dostawców pakietów działających
+  pod UID Canopy, w tym aliasy i nazwy poprzedzone identyfikatorem profilu Androida.
+  Referencje do tych dostawców oraz URI `file` są pomijane. Pliki innych aplikacji
+  przekazane z grantem mogą pochodzić także z nieeksportowanego `FileProvider`.
 - **iOS:** `RCTUITextView`/`RCTUITextField` wklejają tylko tekst, więc moduł podmienia
   `canPerformAction:withSender:` i `paste:` na ich klasach. Zmiana działa tylko dla pól
   zarejestrowanych przez `CanopyPasteView`. Gdy schowek ma pliki lub obrazy (sprawdzane po typach,

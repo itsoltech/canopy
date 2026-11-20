@@ -47,11 +47,10 @@ export async function runToolCall(
 
     if (call.status === "completed" || call.status === "interrupted") result = call.result;
     else {
-      const phrase =
-        (await ctx.options.describeTool?.(tool, requested.arguments)) ?? statusPhrase(tool, requested.arguments);
+      const phrase = (await ctx.options.describeTool?.(tool, call.arguments)) ?? statusPhrase(tool, call.arguments);
 
       const policyTool =
-        tool.name === "update_settings" && requested.arguments["thread_defaults"] !== undefined
+        tool.name === "update_settings" && call.arguments["thread_defaults"] !== undefined
           ? { ...tool, dangerous: true }
           : tool;
 
@@ -61,12 +60,15 @@ export async function runToolCall(
         result = platformError(cause);
       });
 
-      if (result === undefined && needsApproval(policyTool, currentConfig.approvalPolicy, requested.arguments)) {
+      if (
+        result === undefined &&
+        (call.has_approval || needsApproval(policyTool, currentConfig.approvalPolicy, call.arguments))
+      ) {
         const question = tool.name === "ask_user";
 
         const prompt = question
-          ? requiredString(requested.arguments, "question", 32_000)
-          : (prepared?.prompt ?? approvalPrompt(tool, requested.arguments, phrase));
+          ? requiredString(call.arguments, "question", 32_000)
+          : (prepared?.prompt ?? approvalPrompt(tool, call.arguments, phrase));
 
         const approval = await ctx
           .run((s) => s.approval(turn, call, prompt, question, ctx.expiresAt, phrase))
@@ -109,13 +111,13 @@ export async function runToolCall(
               {
                 userId: ctx.options.userId,
                 botId: turn.bot_id,
-                accountId: tool.serverId!,
+                accountId: call.tool.serverId!,
                 ...(tool.remoteName === SLACK_DOWNLOAD_ACTION && { turnId: turn.id, botLease: turn.lease_token }),
                 readOnlyOnly: tool.readOnly === true && !["always", "full_auto"].includes(currentConfig.approvalPolicy),
               },
               call.id,
-              tool.name,
-              requested.arguments,
+              call.tool.name,
+              call.arguments,
               abort.signal,
             );
           } catch {

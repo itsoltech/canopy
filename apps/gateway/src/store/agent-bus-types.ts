@@ -15,6 +15,7 @@ export type Fx<A> = Effect.Effect<A, SqlError.SqlError | NotFound | Invalid | Sc
 export interface BusCallRow {
   id: string;
   source_thread_id: string;
+  source_turn_id: string | null;
   tool: string;
   status: "requested" | "completed" | "failed";
   result: JsonValue | null;

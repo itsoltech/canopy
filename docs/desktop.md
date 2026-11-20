@@ -17,6 +17,8 @@ z odizolowanego renderera offscreen, bezpiecznego zamykania po zniszczeniu głó
 oraz stałego zakresu preferencji urządzenia po restarcie lokalnego gatewaya
 i przeciągania okna przy widocznym przycisku „Cite”, podpowiedzi,
 toaście lub komunikacie o zakończonej aktualizacji.
+Tryb Local przypina certyfikat własnego gatewaya, używa osobnej roli PostgreSQL
+i sprawdza pochodzenie żądania otwarcia pliku w aplikacji systemowej.
 Dostępność w nightly/beta/stable określają [zasady wydań](release.md) i GitHub Releases.
 
 Implementacja: `apps/desktop`. Cele wydania na każdym kanale: **Linux x64,
@@ -31,8 +33,11 @@ Dla pliku z innego workera `Download file` uruchamia mechanizm zapisu Electrona.
 na macOS, `Reveal in Explorer` na Windows oraz `Reveal in file manager` na Linux.
 Akcja działa wyłącznie w lokalnym trybie desktopu dla jego wbudowanego workera;
 nie otwiera okna na komputerze zdalnego workera, sparowanego desktopu ani linked computer.
-Lokalność egzekwuje także gateway przy `RevealThreadFile`, niezależnie od widoczności
-menu. Szczegóły kontraktu i kontroli dostępu: [ui-api.md](ui-api.md#pliki-wątku).
+Gateway wymaga prywatnej tożsamości lokalnego BFF przy `RevealThreadFile` i
+`OpenThreadFile`. Przy otwieraniu w aplikacji systemowej porównuje też workera
+wątku z ID enrollmentu zgłoszonym przez kontroler desktopu na aktywnym kanale
+`WatchAppControl`. Do czasu połączenia kontrolera akcja jest niedostępna.
+Szczegóły kontraktu i kontroli dostępu opisuje [ui-api.md](ui-api.md#pliki-wątku).
 
 1. **Runtime:** Electron main (Node) uruchamia kontroler Bun przez prywatne stdin/stdout
    z typowanymi komunikatami JSON. Kontroler nadzoruje PostgreSQL → gateway → enrollment
@@ -104,7 +109,10 @@ menu. Szczegóły kontraktu i kontroli dostępu: [ui-api.md](ui-api.md#pliki-wą
    oznaczenie beta; sam serwer PostgreSQL to wydanie 18.6. Zmiana głównej wersji wymaga
    osobnej procedury eksportu/upgrade, nie automatycznego usuwania katalogu.
 3. **Dane i sekrety:** wszystko pod `app.getPath('userData')`. Klucz szyfrowania gatewaya,
-   token usługi BFF → gateway i hasło bazy powstają raz. Sekret sesji Electron → BFF
+   token usługi BFF → gateway oraz osobne hasła administratora bazy i roli aplikacji
+   powstają raz. Przy pierwszym starcie po aktualizacji aplikacja dopisuje do
+   zaszyfrowanego pliku hasło roli aplikacji, zachowując wcześniejsze poświadczenia.
+   Sekret sesji Electron → BFF
    powstaje przy każdym uruchomieniu i pozostaje wyłącznie w pamięci main/kontrolera.
    Plik 0600 zawiera wyłącznie ciphertext
    asynchronicznego `safeStorage` (Keychain na macOS, DPAPI na Windows,
@@ -164,6 +172,21 @@ To ochrona przed nieuprawnionymi żądaniami HTTP, nie izolacja od procesu tego 
 użytkownika zdolnego odczytać pamięć aplikacji lub podłączyć debugger. Samo gniazdo
 Unix nie usuwa tego ograniczenia. Runtime używa tego samego mechanizmu loopback
 z sekretem na Linuxie, macOS i Windows.
+
+**Połączenie z lokalnym gatewayem.** Kontroler przygotowuje samopodpisany certyfikat
+dla bieżącego uruchomienia trybu Local. Prywatny katalog `local-gateway-tls` pod
+`userData` zawiera certyfikat i klucz potrzebne do restartu procesu. Kontroler, BFF,
+sonda gotowości i lokalny worker sprawdzają przypięty certyfikat przy połączeniu
+TLS z portem gRPC. Przy następnym uruchomieniu trybu Local kontroler odnawia
+certyfikat i atomowo zapisuje nowy adres, certyfikat i pin w dotychczasowym
+`local-worker/worker.json`, zachowując ID, poświadczenie i katalog danych workera.
+Certyfikat Network access i parowania urządzeń mają własny cykl życia.
+
+Na początku zmiany trybu kontroler synchronicznie odłącza klienta presence i BFF.
+BFF anuluje strumień `WatchOverview` poprzedniej sesji i odrzuca jej dalsze aktualizacje.
+Podczas konfiguracji i po nieudanym uruchomieniu powłoka może obsłużyć ekran
+ustawień bez dostępu do poprzedniego gatewaya. Zdarzenia zasilania korzystają
+wyłącznie z prywatnego celu utworzonego dla działającej konfiguracji Local.
 
 Visuals (docs/agent-visuals.md) są iframe `srcdoc` w rendererze, nie `<webview>`.
 Dokument `srcdoc` dziedziczy CSP okna, więc `DocumentPolicy` dopuszcza dokładnie
@@ -354,6 +377,14 @@ i hasło nie są odnawiane przy kolejnym starcie. PostgreSQL działa jako proces
 pierwszoplanowy na losowym porcie `127.0.0.1`, bez unix socketów, z limitem
 40 połączeń (pula gatewaya oraz zapas dla inicjalizacji i kontroli zdrowia).
 Dotyczy to również Windows; nie używamy named pipes ani poleceń powłoki do ścieżek.
+
+Przed uruchomieniem gatewaya kontroler wykonuje `canopy-gateway migrate` na tej
+samej bazie, także po aktualizacji starego klastra. Jednorazowy proces otrzymuje
+poświadczenia administratora `canopy` i osobnego loginu `canopy_runtime`. Po jego
+pomyślnym zakończeniu uruchamia się gateway z `CANOPY_MIGRATE=0` i połączeniem
+roli `canopy_runtime`. Automatyczny restart procesu używa tej samej roli. Przy
+błędzie migracji kontroler zatrzymuje start, a następna próba używa tej samej
+bazy i tego samego zaszyfrowanego magazynu haseł.
 
 Postgres sam sprawdza `postmaster.pid` po awarii i odtwarza WAL. Aplikacja nigdy
 nie kasuje pliku PID w ciemno; konflikt z żywym serwerem kończy się błędem.

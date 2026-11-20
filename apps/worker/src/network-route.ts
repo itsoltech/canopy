@@ -6,6 +6,7 @@ import { createGrpcClientTransport, pinnedCertificate } from "@canopy/transport"
 import type { GatewayLink } from "./gateway-link/index.ts";
 import type { GatewayEndpoint, LocalConfig } from "./config/local.ts";
 import { saveMigratedConfig } from "./config/migration.ts";
+import { trustedGatewayOrigin } from "./config/gateway-origin.ts";
 
 export function endpointOptions(endpoint: GatewayEndpoint) {
   const ca = endpoint.gateway_certificate ?? (endpoint.ca_file ? readFileSync(endpoint.ca_file) : undefined);
@@ -50,11 +51,23 @@ export class WorkerNetworkRoute {
     });
   }
 
-  /** Prefer the persisted secure route on restart; retain the server route when that route later disappears. */
+  /** A persisted fallback must still meet the worker operator's transport policy at the time of the switch. */
   failed() {
     const fallback = this.#local.gateway_fallback;
 
     if (!fallback || this.#endpoint === fallback) return false;
+
+    if (
+      !trustedGatewayOrigin(
+        fallback.gateway_url,
+        process.env["CANOPY_WORKER_TRUSTED_HTTP_ORIGIN"] ?? this.#local.trusted_http_origin,
+      )
+    ) {
+      this.#detail = "saved server route requires HTTPS or a locally trusted HTTP origin";
+
+      return false;
+    }
+
     this.#endpoint = fallback;
     this.#detail = "saved secure route could not connect; using the server port";
     this.#retryAt = Date.now() + 60_000;

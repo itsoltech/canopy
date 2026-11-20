@@ -10,10 +10,57 @@ import { PreviewStore, inlineImages } from "./index.ts";
 import { GrokEventMapper } from "../providers/grok/mapping.ts";
 import { Journal } from "../journal/index.ts";
 import { WorkerHost } from "../runtime/host.ts";
+import { writeFileSync } from "node:fs";
 
 const temporary = tempDirs();
 const png = "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=";
 const image = { type: "image", data: png, mimeType: "image/png" };
+
+test("platform image previews only use completed tool output bytes, across all adapters", async () => {
+  const data = temporary("canopy-scoped-image-preview-");
+  const previews = new PreviewStore(data);
+  const path = join(data, "existing.png");
+  writeFileSync(path, Buffer.from(png, "base64"));
+
+  const outputs = [
+    { result: { content: [image] } },
+    { type: "user", message: { content: [{ type: "tool_result", tool_use_id: "image", content: [image] }] } },
+    {
+      params: {
+        item: { id: "image", contentItems: [{ type: "inputImage", imageUrl: `data:image/png;base64,${png}` }] },
+      },
+    },
+  ];
+
+  for (const output of outputs) {
+    const event = {
+      body: {
+        case: "itemCompleted",
+        value: { item: { itemId: "image", content: { case: "image", value: { path, source: "view_image" } } } },
+      },
+    } as const;
+
+    const item = event.body.value.item;
+
+    const denied = {
+      ...event,
+      body: { ...event.body, value: { item: { ...item, status: ItemStatus.FAILED } } },
+    };
+
+    const complete = {
+      ...event,
+      body: { ...event.body, value: { item: { ...item, status: ItemStatus.COMPLETED } } },
+    };
+
+    expect(await previews.enrich(denied)).toEqual(denied);
+    expect(await previews.enrich(complete)).toEqual(complete);
+    const success = await previews.enrich({ ...complete, rawJson: JSON.stringify(output) });
+
+    expect(success.body).toMatchObject({
+      value: { item: { content: { value: { blob: { mimeType: "image/png" } } } } },
+    });
+  }
+});
 
 test("Grok ACP image previews survive completion patches, deduplicate MCP output and persist across store restart", async () => {
   const data = temporary("canopy-grok-image-patches-");

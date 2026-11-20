@@ -1,6 +1,7 @@
 import { afterAll, afterEach, beforeAll, describe, expect, test } from "bun:test";
 import type { JsonValue } from "@canopy/domain";
 import { create, type Message } from "@bufbuild/protobuf";
+import { Code } from "@connectrpc/connect";
 import {
   computerLink as link,
   InteractionKind,
@@ -430,9 +431,14 @@ describe.skipIf(!dockerAvailable)("Share onward: three real gateways and indepen
 
   test("no secret/configuration relay, forged origin, loops or second relay hop", async () => {
     const empty = create(link.ConfigCursorSchema);
-    expect(await failure(raw({ targetNodeId: n2, originNodeId: "", relayHops: 0 }, "WatchConfig", empty))).toContain(
-      "cannot be relayed",
+    await expect(raw({ targetNodeId: n2, originNodeId: "", relayHops: 0 }, "WatchConfig", empty)).rejects.toMatchObject(
+      {
+        code: Code.PermissionDenied,
+      },
     );
+    await expect(w.api.revokeThreadSecret({ requestId: q(id()) })).rejects.toMatchObject({
+      code: Code.PermissionDenied,
+    });
 
     for (const route of [
       { targetNodeId: n2, originNodeId: wn, relayHops: 1 },

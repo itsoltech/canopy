@@ -342,7 +342,8 @@ sequenceDiagram
     UI->>GW: CreateWorkerEnrollment(name, tags)
     GW->>DB: insert worker_enrollments (SHA-256, tagi, TTL 30 min)
     GW-->>UI: jednorazowy token
-    U->>W: bun apps/worker/src/main.ts enroll --gateway URL --token T
+    U->>W: canopy-worker enroll --gateway URL
+    U->>W: jednorazowy token przez stdin
     W->>GW: WorkerEnrollmentService.Enroll(token, hostname, os, arch)
     GW->>DB: transakcja: worker (owner = U), tagi, config, instancje, zużycie tokenu
     GW-->>W: worker_id + poświadczenie workera

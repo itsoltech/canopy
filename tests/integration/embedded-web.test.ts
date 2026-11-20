@@ -289,6 +289,9 @@ describe.skipIf(process.platform === "win32")("binary gateway with embedded web"
     ];
 
     for (const host of allowed) expect([host, await statusFor(f.port, host)]).toEqual([host, 200]);
+    const served = await fetch(`${f.url}/api/health`);
+    expect(served.headers.get("content-security-policy")).toContain("frame-ancestors 'none'");
+    expect(served.headers.get("x-frame-options")).toBe("DENY");
 
     for (const host of ["evil.example", "corp.example", "canopy.example.com.evil.example", "a b"])
       expect([host, await statusFor(f.port, host)]).toEqual([host, 421]);

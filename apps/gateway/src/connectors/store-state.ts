@@ -83,11 +83,16 @@ export function connectorState(sql: SqlClient.SqlClient, base: ConnectorBase, ke
         status: string;
         result: JsonValue | null;
       }>`SELECT fingerprint,status,result FROM connector_executions WHERE id=${id}::uuid`.pipe(Effect.map((r) => r[0])),
-    claimExecution: (id: string, source: ExecutionSource, tool: string, fingerprint: string) =>
+    hasApproval: (id: string) =>
+      sql`SELECT id FROM interaction_requests WHERE id=${id}::uuid`.pipe(Effect.map((rows) => rows.length > 0)),
+    claimExecution: (id: string, source: ExecutionSource, tool: string, fingerprint: string, binding?: string) =>
       sql`INSERT INTO connector_executions(id,account_id,owner_user_id,thread_id,bot_id,tool,fingerprint,status)
-      VALUES (${id}::uuid,${source.accountId}::uuid,${source.userId}::uuid,${source.threadId ?? null}::uuid,${source.botId ?? null}::uuid,${tool},${fingerprint},'running') ON CONFLICT(id) DO NOTHING RETURNING id`.pipe(
-        Effect.map((r) => r.length > 0),
-      ),
+      SELECT ${id}::uuid,${source.accountId}::uuid,${source.userId}::uuid,${source.threadId ?? null}::uuid,${source.botId ?? null}::uuid,${tool},${fingerprint},'running'
+      WHERE (${binding ?? null}::text IS NULL AND NOT EXISTS (SELECT 1 FROM interaction_requests WHERE id=${id}::uuid))
+        OR EXISTS (SELECT 1 FROM interaction_requests
+        WHERE id=${id}::uuid AND thread_id=${source.threadId ?? null}::uuid AND turn_id=${source.turnId ?? null}::uuid
+        AND kind='permission' AND status='allowed' AND connector_fingerprint=${binding ?? null})
+      ON CONFLICT(id) DO NOTHING RETURNING id`.pipe(Effect.map((r) => r.length > 0)),
     finishExecution: (id: string, source: ExecutionSource, tool: string, result: JsonValue, isError: boolean) =>
       sql.withTransaction(
         Effect.gen(function* () {

@@ -11,6 +11,7 @@ import { ComputerStore } from "../../apps/gateway/src/computers/store.ts";
 import type { BotModel, ModelInput } from "../../apps/gateway/src/bots/types.ts";
 import { eventually, failure, startTestGateway, type TestGateway } from "./support/gateway.ts";
 import { expectLinkedBotFailure, disconnectedBotModel } from "./support/agent-report.ts";
+import { checkLinkedChildQuestion } from "./support/linked-child-question.ts";
 import { checkLinkedDelegatingBot } from "./support/delegating-bot-linked.ts";
 import { answerWithoutWaitingForPeer, checkLinkedBotApproval } from "./support/bot-approval-linked.ts";
 
@@ -323,48 +324,7 @@ describe.skipIf(!dockerAvailable)("linked bots and agent bus: two independent ho
   }, 15000);
 
   test("ask_user answers return across the link with qualified question ids", async () => {
-    const asked = await b.worker.callTool({
-      threadId: child,
-      turnId: childTurn,
-      tool: "ask_user",
-      args: {
-        wait: false,
-        questions: [
-          {
-            id: "choice",
-            header: "Choice",
-            question: "Which option?",
-            kind: "single_choice",
-            options: [{ label: "One" }, { label: "Two" }],
-          },
-        ],
-      },
-    });
-
-    expect(asked.isError).toBe(false);
-    const request = JSON.parse(asked.resultJson).question_set_id;
-    expect(
-      await eventually(async () => (a.worker.inputs.get(parent) ?? []).some((m) => m.includes(q(request))), Boolean),
-    ).toBe(true);
-
-    const answered = await tool("answer_interaction", {
-      request_id: q(request),
-      response: "answer",
-      answer_json: JSON.stringify({ answers: [{ id: "choice", kind: "choice", labels: ["Two"] }] }),
-    });
-
-    expect(answered.isError).toBe(false);
-
-    const answers = await b.worker.callTool({
-      threadId: child,
-      turnId: childTurn,
-      tool: "get_answers",
-      args: { question_set_id: request },
-    });
-
-    expect(answers.resultJson).toContain("Two");
-    const summary = await tool("get_thread", { thread_id: q(child) });
-    expect(summary.resultJson).toContain(q(child));
+    await checkLinkedChildQuestion(a, parent, b, child, bNode);
   }, 15000);
 
   test("a bot's cross-computer spawn waits for its home policy approval and reports there", async () => {
@@ -427,28 +387,37 @@ describe.skipIf(!dockerAvailable)("linked bots and agent bus: two independent ho
     modelA = async (i) => reply(`A: ${input(i)}`);
   }, 20000);
 
-  test("a bot-started thread messages its linked routine mid-turn and reports completion separately", async () => {
-    const bot = (
-      await a.api.createBot({
-        clientRequestId: id(),
-        configuration: {
-          ...(await a.api.getBot({ botId: botA })).bot!.configuration!,
-          name: "Linked routine",
-          approvalPolicy: "full_auto",
-        },
-      })
-    ).bot!.id;
+  test.each([
+    ["routine", "completed"],
+    ["routine", "failed"],
+    ["routine and private steer", "completed"],
+    ["routine and private steer", "failed"],
+  ] as const)(
+    "a bot-started thread messages its linked routine mid-turn and reports completion separately (%s, %s)",
+    async (source, status) => {
+      const bot = (
+        await a.api.createBot({
+          clientRequestId: id(),
+          configuration: {
+            ...(await a.api.getBot({ botId: botA })).bot!.configuration!,
+            name: `Linked ${source} ${status}`,
+            approvalPolicy: "full_auto",
+          },
+        })
+      ).bot!.id;
 
-    const original = modelA;
+      const original = modelA;
 
-    try {
-      await checkLinkedDelegatingBot(a, b, bot, workspace, project, (model) => {
-        modelA = model;
-      });
-    } finally {
-      modelA = original;
-    }
-  }, 30000);
+      try {
+        await checkLinkedDelegatingBot(a, b, bot, workspace, project, source, status, (model) => {
+          modelA = model;
+        });
+      } finally {
+        modelA = original;
+      }
+    },
+    30_000,
+  );
 
   test("approving B's policy card from A resumes the tool exclusively at B's home", async () => {
     const createdA = a.worker.created.length;

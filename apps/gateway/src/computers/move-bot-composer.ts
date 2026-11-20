@@ -1,8 +1,9 @@
 import { create, fromBinary, toBinary } from "@bufbuild/protobuf";
 import { bots, type computerLink as link } from "@canopy/contracts";
-import { Effect, Schema } from "effect";
+import { Effect } from "effect";
 import { MOVED_FILE_COLUMNS, movedFilesSize, readMovedFile, type MovedFileRow } from "./move-files.ts";
-import { insertRows, JsonRow, MAX_FILES, MoveRefused, type Sql } from "./move-payload.ts";
+import { insertRows, MAX_FILES, MoveRefused, type Sql } from "./move-payload.ts";
+import { insertMovedFileBytes, movedAttachment } from "./move-validation.ts";
 import type { ComputerStore } from "./store.ts";
 
 /** Includes unsent images referenced by the durable draft, as well as conversation images. */
@@ -25,7 +26,9 @@ export async function exportBotComposer(store: ComputerStore, botId: string) {
   const files = await store.query<MovedFileRow>(
     `SELECT ${MOVED_FILE_COLUMNS}
       FROM attachments a JOIN blobs b ON b.sha256=a.sha256 LEFT JOIN blobs t ON t.sha256=a.thumb_sha256
-      WHERE a.owner_user_id=$2::uuid AND (a.bot_id=$1::uuid OR a.id=ANY($3::uuid[])) AND b.data IS NOT NULL`,
+      WHERE a.owner_user_id=$2::uuid AND b.data IS NOT NULL AND (
+        (a.bot_id=$1::uuid AND EXISTS(SELECT 1 FROM bot_turns u WHERE u.id=a.bot_turn_id AND u.bot_id=a.bot_id AND u.conversation_id IS NULL))
+        OR (a.bot_id IS NULL AND a.thread_id IS NULL AND a.id=ANY($3::uuid[])))`,
     [botId, store.owner, draft?.attachments.map((a) => a.id) ?? []],
   );
 
@@ -41,20 +44,24 @@ export async function exportBotComposer(store: ComputerStore, botId: string) {
 export function importBotComposer(sql: Sql, owner: string, botId: string, moved: link.BotMove) {
   return Effect.gen(function* () {
     for (const file of moved.files) {
-      const row = Schema.decodeUnknownSync(JsonRow)(JSON.parse(file.attachmentJson));
-
-      if (row["bot_id"] !== null && row["bot_id"] !== botId) throw new Error("Invalid bot image move");
-      yield* sql.unsafe(
-        `INSERT INTO blobs(sha256,size_bytes,mime_type,data) VALUES ($1,$2,$3,$4) ON CONFLICT DO NOTHING`,
-        [row["sha256"], file.data.length, file.mimeType, file.data],
+      const row = movedAttachment(file);
+      yield* insertMovedFileBytes(sql, file, row);
+      yield* insertRows(
+        sql,
+        "attachments",
+        [
+          {
+            ...row,
+            owner_user_id: owner,
+            bot_id: row["bot_id"] ? botId : null,
+            thread_id: null,
+            turn_id: null,
+            slack_file_id: null,
+            thumb_sha256: file.thumbnail.length ? row.thumb_sha256 : null,
+          },
+        ],
+        { strict: true },
       );
-
-      if (row["thumb_sha256"] && file.thumbnail.length)
-        yield* sql.unsafe(
-          `INSERT INTO blobs(sha256,size_bytes,mime_type,data) VALUES ($1,$2,$3,$4) ON CONFLICT DO NOTHING`,
-          [row["thumb_sha256"], file.thumbnail.length, file.thumbnailMimeType, file.thumbnail],
-        );
-      yield* insertRows(sql, "attachments", [{ ...row, owner_user_id: owner }]);
     }
 
     if (moved.draft) {

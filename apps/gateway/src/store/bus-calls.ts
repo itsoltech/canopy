@@ -8,12 +8,14 @@ import {
 } from "@canopy/domain";
 import { Effect } from "effect";
 import type { SqlClient, SqlError } from "effect/sql";
-import { type ThreadRow } from "./store.ts";
+import { type ThreadRow, type TurnRow } from "./store.ts";
 import type { AgentBusArgs } from "@canopy/domain";
 import { recordBusCall } from "./bus-call-record.ts";
 
 import { type BusCallRow, type CallSource, type Fx } from "./agent-bus-types.ts";
 import {
+  busContextTurn,
+  busHops,
   callerMode,
   consumeNotifications,
   isUuid,
@@ -29,6 +31,7 @@ export interface BusCallStore {
   observe<A, E, R>(recipient: string, read: Effect.Effect<A, E, R>): Effect.Effect<A, E | SqlError.SqlError, R>;
   beginWait(source: CallSource, args: AgentBusArgs["wait_threads"]): Fx<Date>;
   storedCall(callId: string): Fx<BusCallRow | undefined>;
+  contextTurn(threadId: string): Fx<TurnRow | undefined>;
   /** Loads the caller, the addressed threads and the counts `authorizeBusCall` needs. */
   facts(input: {
     source: CallSource;
@@ -83,11 +86,12 @@ export function busCallStore(sql: SqlClient.SqlClient): BusCallStore {
       isUuid(callId)
         ? sql<BusCallRow>`SELECT * FROM agent_bus_calls WHERE id = ${callId}::uuid`.pipe(Effect.map((rows) => rows[0]))
         : Effect.succeed(undefined),
+    contextTurn: (threadId) => busContextTurn(sql, threadId),
 
     facts: ({ source, targetIds, spawnTarget, interactionId, scheduleId, scheduleThreadId }) =>
       Effect.gen(function* () {
         const caller = yield* thread(sql, source.threadId);
-        const hopsRows = yield* sql<{ hops: number }>`SELECT hops FROM turns WHERE id = ${turnRef(sql, source)}`;
+        const callerHops = yield* busHops(sql, source);
         const targets = new Map<string, ThreadNode>();
 
         const ids = [...new Set(targetIds)].filter(isUuid);
@@ -170,7 +174,7 @@ export function busCallStore(sql: SqlClient.SqlClient): BusCallStore {
 
         const facts: BusFacts = {
           caller: node(caller),
-          callerHops: hopsRows[0]?.hops ?? 0,
+          callerHops,
           targets,
           callerChildren: counts[0]?.children ?? 0,
           activeInTree: counts[0]?.active ?? 0,

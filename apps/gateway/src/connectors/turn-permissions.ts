@@ -41,9 +41,13 @@ export async function checkConnectorTurn(
   runtime: CoreRuntime,
   source: ExecutionSource,
   readOnly: boolean,
+  approved = false,
 ): Promise<void> {
   const current = await connectorTurn(runtime, source);
 
   if (!readOnly && current.mode === "READ_ONLY")
     throw new ConnectorFailure("Read-only threads cannot call connector tools that may write");
+
+  if (!readOnly && !approved && current.mode !== "FULL_ACCESS" && current.mode !== "FULL_AUTO")
+    throw new ConnectorFailure("The current permission mode requires approval");
 }

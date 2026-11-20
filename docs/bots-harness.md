@@ -2,6 +2,7 @@
 
 Status (2026-11-19): zaimplementowane w kodzie, także zwykłe przyznane narzędzia, izolacja rozmów zewnętrznych
 i nietrwałe wejścia do aktywnej tury rozmowy zewnętrznej lub prywatnego czatu.
+Wznowienie wywołania narzędzia po restarcie sprawdza jego utrwaloną treść i zakres zgody.
 Czat właściciela pokazuje bieżącą czynność bota także podczas tur ze Slacka i rutyn.
 Odbiór wiadomości Slack obsługuje pliki, a konektor Slack przekazuje je
 do harnessu przez wynik narzędzia. Katalog bota Codex zachowuje obsługę obrazów
@@ -422,6 +423,10 @@ Zatrzymywanie gatewaya nie odsyła błędu przerwania do oczekującego narzędzi
 Obsługa wywołania kończy się bez odpowiedzi na łączu; worker ponawia ten sam identyfikator
 po reconnect, a nowy gateway odczytuje zachowaną zgodę. Dotyczy to także wywołania,
 które czekało na przejęcie lease albo kończyło odczyt podczas shutdownu.
+Gateway porównuje nazwę i źródło narzędzia, konto, zdalną nazwę MCP i argumenty
+z zapisanym wywołaniem danej tury. Ponowienie ze zmienioną treścią zostaje odrzucone.
+Przy zgodności narzędzie otrzymuje argumenty zapisane przy pierwszym żądaniu.
+Istniejąca karta zachowuje ważność również po zmianie polityki bota.
 
 Istniejący snapshot rozmowy dostaje tekst bieżącej odpowiedzi i status, bez
 technicznych itemów narzędzi. Dla tur ze Slacka i rutyn pokazuje status pracy,

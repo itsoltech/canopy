@@ -4,6 +4,7 @@ import { Effect, Option, Schema } from "effect";
 import type { SqlClient, SqlError } from "effect/sql";
 
 const decodeCode = Schema.decodeUnknownOption(Schema.Struct({ code: Schema.String }));
+const MAX_QUARANTINE_BYTES = 256 * 1024;
 
 export function sqlErrorCode(error: SqlError.SqlError): string | undefined {
   const decoded = decodeCode(error.reason.cause);
@@ -18,7 +19,7 @@ export function dataErrorCode(error: SqlError.SqlError): string | undefined {
   return code?.startsWith("22") || code?.startsWith("23") ? code : undefined;
 }
 
-/** Original protobuf bytes never pass through text/jsonb. The caller commits this with marker + cursor. */
+/** The caller commits the bounded evidence with the marker and journal cursor. */
 export const quarantineEvent = (
   sql: SqlClient.SqlClient,
   workerId: string,
@@ -28,8 +29,11 @@ export const quarantineEvent = (
   reason = "data_error",
 ) =>
   Effect.gen(function* () {
-    yield* sql`INSERT INTO worker_event_quarantine(worker_id,journal_id,thread_id,event_id,journal_seq,sqlstate,payload,reason)
-      VALUES(${workerId}::uuid,${journalId},${event.threadId}::uuid,${event.eventId}::uuid,${event.journalSeq},${code},${toBinary(ThreadEventSchema, event)},${reason})
+    const bytes = toBinary(ThreadEventSchema, event);
+    const discarded = bytes.length > MAX_QUARANTINE_BYTES;
+    yield* sql`INSERT INTO worker_event_quarantine(worker_id,journal_id,thread_id,event_id,journal_seq,sqlstate,payload,reason,payload_discarded)
+      VALUES(${workerId}::uuid,${journalId},${event.threadId}::uuid,${event.eventId}::uuid,${event.journalSeq},${code},
+        ${discarded ? new Uint8Array() : bytes},${reason},${discarded})
       ON CONFLICT (event_id) DO NOTHING`;
 
     return create(ThreadEventSchema, {

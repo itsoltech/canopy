@@ -9,6 +9,11 @@ import botChatSteer from "./0169_bot_chat_steer.sql" with { type: "text" };
 import removedBranchCleanup from "./0179_removed_branch_cleanup.sql" with { type: "text" };
 import scheduleWorktreePreparations from "./0174_schedule_worktree_preparations.sql" with { type: "text" };
 import usageWorkers from "./0178_usage_workers.sql" with { type: "text" };
+import threadBlobProvenance from "./0180_thread_blob_provenance.sql" with { type: "text" };
+import connectorApprovalBinding from "./0181_connector_approval_binding.sql" with { type: "text" };
+import verifiedComputerRedirects from "./0182_verified_computer_redirects.sql" with { type: "text" };
+import legacyInlinePreviews from "./0183_legacy_inline_previews.sql" with { type: "text" };
+import legacyPreviewGrants from "./0184_legacy_preview_grants.sql" with { type: "text" };
 import githubPrProjection from "./0177_github_pr_projection.sql" with { type: "text" };
 import messageDelegatingBot from "./0176_message_delegating_bot.sql" with { type: "text" };
 import botExecutionStart from "./0175_bot_execution_start.sql" with { type: "text" };
@@ -372,6 +377,11 @@ export const migrations = Migrator.fromRecord({
   "0177_github_pr_projection": sqlFile(githubPrProjection),
   "0178_usage_workers": sqlFile(usageWorkers),
   "0179_removed_branch_cleanup": sqlFile(removedBranchCleanup),
+  "0180_thread_blob_provenance": sqlFile(threadBlobProvenance),
+  "0181_connector_approval_binding": sqlFile(connectorApprovalBinding),
+  "0182_verified_computer_redirects": sqlFile(verifiedComputerRedirects),
+  "0183_legacy_inline_previews": sqlFile(legacyInlinePreviews),
+  "0184_legacy_preview_grants": sqlFile(legacyPreviewGrants),
 });
 
 /** Applies pending migrations in a transaction with a lock, safe to call from a deploy step. */

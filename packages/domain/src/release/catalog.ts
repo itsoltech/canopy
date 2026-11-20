@@ -28,18 +28,26 @@ const Index = Schema.Struct({ schema: Schema.Literal(1), releases: Schema.Array(
 
 export type CatalogRelease = Omit<Schema.Schema.Type<typeof IndexRelease>, "draft"> & { readonly draft: boolean };
 
-export function parseReleaseIndex(text: string): readonly CatalogRelease[] {
+export function canonicalReleaseManifestUrl(tag: string): string {
+  if (!/^[0-9A-Za-z][0-9A-Za-z.+-]*$/.test(tag)) throw new Error("Invalid release tag");
+
+  return `https://github.com/itsoltech/canopy/releases/download/${encodeURIComponent(tag)}/manifest.json`;
+}
+
+export function parseReleaseIndex(text: string, customSource = false): readonly CatalogRelease[] {
   const index = Schema.decodeUnknownSync(Index)(JSON.parse(text));
   const tags = new Set<string>();
 
   for (const release of index.releases) {
-    if (
-      !Number.isFinite(Date.parse(release.published_at)) ||
-      tags.has(release.tag_name) ||
-      !release.assets.some((asset) => asset.name === "manifest.json")
-    )
+    if (!Number.isFinite(Date.parse(release.published_at)) || tags.has(release.tag_name))
       throw new Error("Invalid release index");
     tags.add(release.tag_name);
+    const manifests = release.assets.filter((asset) => asset.name === "manifest.json");
+
+    if (manifests.length !== 1) throw new Error("Invalid release index manifest");
+
+    if (!customSource && manifests[0]?.browser_download_url !== canonicalReleaseManifestUrl(release.tag_name))
+      throw new Error("Release index manifest must belong to its GitHub release");
 
     for (const asset of release.assets) secureReleaseUrl(asset.browser_download_url);
   }
@@ -82,7 +90,11 @@ export class ReleaseCatalog {
     if (!this.indexUrl || (!refresh && (this.options.now ?? Date.now)() < this.unavailableUntil)) return undefined;
 
     try {
-      const releases = parseReleaseIndex(await this.http.text(this.indexUrl, refresh));
+      const releases = parseReleaseIndex(
+        await this.http.text(this.indexUrl, refresh),
+        this.baseUrl !== RELEASE_API_URL,
+      );
+
       this.unavailableUntil = 0;
 
       return releases;

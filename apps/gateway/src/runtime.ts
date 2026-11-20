@@ -1,7 +1,9 @@
 import { PgClient, PgPool } from "@effect/sql-pg";
-import { migrate, migrateOnline, POSTGRES_MAX_MESSAGE_BYTES } from "@canopy/db";
+import { POSTGRES_MAX_MESSAGE_BYTES } from "@canopy/db";
 import { Effect, Layer, ManagedRuntime, Redacted } from "effect";
 import { DatabaseMonitor, bindDatabaseMonitor, observedSql } from "./diagnostics/database.ts";
+import { databaseUrl } from "./database-credentials.ts";
+import { selectedMigration } from "./migrate-cli.ts";
 import { BotStore } from "./bots/store.ts";
 import { MessengerStore } from "./messengers/store.ts";
 import {
@@ -25,9 +27,7 @@ export function gatewayRuntime(
   env: Readonly<Record<string, string | undefined>>,
   options: { databaseDiagnostics?: boolean } = {},
 ) {
-  const url = env["CANOPY_DATABASE_URL"];
-
-  if (!url) throw new Error("CANOPY_DATABASE_URL is not set, e.g. postgres://canopy:...@127.0.0.1:5432/canopy");
+  const url = databaseUrl(env);
 
   const databaseConfig = {
     url: Redacted.make(url),
@@ -76,11 +76,7 @@ export async function migrateDatabase(
   runtime: GatewayRuntime,
   env: Readonly<Record<string, string | undefined>> = {},
 ): Promise<string[]> {
-  const mode = env["CANOPY_DATABASE_INDEX_MODE"] ?? "blocking";
-
-  if (mode !== "blocking" && mode !== "concurrent")
-    throw new Error("CANOPY_DATABASE_INDEX_MODE must be blocking or concurrent");
-  const applied = await runtime.runPromise(mode === "concurrent" ? migrateOnline : migrate);
+  const applied = await runtime.runPromise(selectedMigration(env));
 
   return applied.map(([id, name]) => `${id}_${name}`);
 }

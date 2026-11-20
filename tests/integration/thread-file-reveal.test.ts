@@ -61,7 +61,7 @@ describe.skipIf(!dockerAvailable)("local desktop file reveal authorization over 
     thread = await makeThread(home);
     authenticated = await startGrpcServer({
       routes: uiRoutes(home.core),
-      interceptors: [serviceTokenAuth(SERVICE_TOKEN, home.core.mobile)],
+      interceptors: [serviceTokenAuth(SERVICE_TOKEN, home.core.mobile, undefined, "network")],
     });
 
     const computers = (gw: TestGateway) =>
@@ -116,8 +116,47 @@ describe.skipIf(!dockerAvailable)("local desktop file reveal authorization over 
     expect(durable).toHaveLength(0);
   });
 
+  test("default-app opening requires the worker enrollment identified by the local controller", async () => {
+    const opens = () => home.worker.commands.filter((command) => command.case === "openFile");
+    const before = opens().length;
+    await expect(home.api.openThreadFile(request())).rejects.toMatchObject({ code: Code.PermissionDenied });
+
+    for (const workerId of [Bun.randomUUIDv7(), home.workerId]) {
+      const abort = new AbortController();
+
+      // Hold the controller hello at the gateway itself. The RPC under test uses the live service listener.
+      const control = home.core.appControl.watch(
+        create(ui.DesktopHelloSchema, { workerId, version: "1.0.0", channel: "nightly" }),
+        abort.signal,
+      );
+
+      try {
+        expect((await control.next()).value?.confirmed).toBe(true);
+
+        if (workerId === home.workerId) {
+          await expect(client(SERVICE_TOKEN).openThreadFile(request(), { timeoutMs: 1500 })).rejects.toMatchObject({
+            code: Code.PermissionDenied,
+          });
+          await home.api.openThreadFile(request(), { timeoutMs: 1500 });
+        } else
+          await expect(home.api.openThreadFile(request(), { timeoutMs: 1500 })).rejects.toMatchObject({
+            code: Code.PermissionDenied,
+          });
+      } finally {
+        abort.abort();
+        await control.return(undefined);
+      }
+    }
+
+    expect(opens()).toHaveLength(before + 1);
+    expect(opens().at(-1)?.value).toMatchObject({ threadId: thread.id, roots: ["/repo"] });
+  });
+
   test("paired phones and remote desktops cannot forge the local BFF identity", async () => {
     const before = sent().length;
+    await expect(client(SERVICE_TOKEN).revealThreadFile(request())).rejects.toMatchObject({
+      code: Code.PermissionDenied,
+    });
 
     for (const kind of ["mobile", "desktop"]) {
       const token = `canopy_${kind === "mobile" ? "device" : "desktop"}_${"A".repeat(43)}`;
@@ -132,6 +171,7 @@ describe.skipIf(!dockerAvailable)("local desktop file reveal authorization over 
         ),
       );
       await expect(client(token).revealThreadFile(request())).rejects.toMatchObject({ code: Code.PermissionDenied });
+      await expect(client(token).openThreadFile(request())).rejects.toMatchObject({ code: Code.PermissionDenied });
     }
 
     await expect(client("invalid").revealThreadFile(request())).rejects.toMatchObject({ code: Code.Unauthenticated });
@@ -170,10 +210,16 @@ describe.skipIf(!dockerAvailable)("local desktop file reveal authorization over 
       }),
     ).rejects.toBeInstanceOf(ConnectError);
 
-    const direct = async () => {
+    await expect(
+      caller.api.openThreadFile({ ...request(), threadId: qualifyId(thread.id, b.hello().nodeId) }),
+    ).rejects.toBeInstanceOf(ConnectError);
+
+    const direct = async (
+      method: typeof ui.GatewayService.method.revealThreadFile | typeof ui.GatewayService.method.openThreadFile,
+    ) => {
       for await (const _ of a.remote(
         b.hello().nodeId,
-        ui.GatewayService.method.revealThreadFile,
+        method,
         create(ui.ThreadFileRequestSchema, request()),
         AbortSignal.timeout(5_000),
       )) {
@@ -181,7 +227,8 @@ describe.skipIf(!dockerAvailable)("local desktop file reveal authorization over 
       }
     };
 
-    await expect(direct()).rejects.toMatchObject({ code: Code.Unimplemented });
+    await expect(direct(ui.GatewayService.method.revealThreadFile)).rejects.toMatchObject({ code: Code.Unimplemented });
+    await expect(direct(ui.GatewayService.method.openThreadFile)).rejects.toMatchObject({ code: Code.Unimplemented });
     expect(sent()).toHaveLength(before);
   });
 
@@ -244,18 +291,14 @@ describe.skipIf(!dockerAvailable)("local desktop file reveal authorization over 
     try {
       const target = await makeThread(server);
       const external = createClient(ui.GatewayService, createGrpcTransport({ baseUrl: server.grpcUrl }));
-      await expect(
-        external.revealThreadFile(
-          { threadId: target.id, path: "report.txt" },
-          {
-            headers: { authorization: `Bearer ${SERVICE_TOKEN}` },
-            signal: AbortSignal.timeout(3_000),
-          },
-        ),
-      ).rejects.toMatchObject({
+      const file = { threadId: target.id, path: "report.txt" };
+      const caller = { headers: { authorization: `Bearer ${SERVICE_TOKEN}` }, timeoutMs: 3_000 };
+      await expect(external.revealThreadFile(file, caller)).rejects.toMatchObject({
         code: Code.PermissionDenied,
       });
       expect(server.worker.commands.some((command) => command.case === "revealFile")).toBe(false);
+      await expect(external.openThreadFile(file, caller)).rejects.toMatchObject({ code: Code.PermissionDenied });
+      expect(server.worker.commands.some((command) => command.case === "openFile")).toBe(false);
     } finally {
       await server.close();
     }

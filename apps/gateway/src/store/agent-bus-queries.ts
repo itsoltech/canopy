@@ -58,8 +58,32 @@ export const node = (row: ThreadNodeRow): ThreadNode => ({
 
 export const isUuid = (id: string) => /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id);
 
-export const turnRef = (sql: SqlClient.SqlClient, source: CallSource) =>
+export const turnRef = (sql: SqlClient.SqlClient, source: Pick<CallSource, "threadId" | "turnId">) =>
   sql`(SELECT id FROM turns WHERE id = ${isUuid(source.turnId) ? source.turnId : null}::uuid AND thread_id = ${source.threadId}::uuid)`;
+
+/** Queued inputs are not authority until they start. Legacy and deferred calls use the last durable context. */
+export const busContextTurn = (sql: SqlClient.SqlClient, threadId: string) =>
+  sql<TurnRow>`
+    SELECT * FROM turns WHERE thread_id = ${threadId}::uuid AND started_at IS NOT NULL
+      AND rewind_id IS NULL AND trigger <> 'import'
+    ORDER BY ordinal DESC LIMIT 1`.pipe(Effect.map((rows) => rows[0]));
+
+/** Native continuations do not reset authorization to the provider's required stored hops=0. */
+export const busHops = (sql: SqlClient.SqlClient, source: Pick<CallSource, "threadId" | "turnId">) =>
+  sql<{ hops: number }>`
+    SELECT CASE WHEN u.trigger IN ('provider', 'recovery') THEN greatest(u.hops, anchor.hops,
+      (SELECT max(n.hops) FROM background_task_notes n
+       WHERE n.thread_id = u.thread_id AND n.harness_wakes AND n.status <> 'cancelled'
+         AND n.ended_at >= coalesce(anchor.started_at, '-infinity'::timestamptz)))
+      ELSE u.hops END AS hops
+      FROM turns u
+      LEFT JOIN LATERAL (
+        SELECT p.hops, p.started_at FROM turns p
+         WHERE p.thread_id = u.thread_id AND p.ordinal < u.ordinal AND p.started_at IS NOT NULL
+           AND p.trigger NOT IN ('provider', 'recovery', 'import') AND p.rewind_id IS NULL
+         ORDER BY p.ordinal DESC LIMIT 1
+      ) anchor ON true
+     WHERE u.id = ${turnRef(sql, source)}`.pipe(Effect.map((rows) => rows[0]?.hops ?? 0));
 
 export const lastMessage = (sql: SqlClient.SqlClient, threadId: string, turnId?: string, skipEmpty = false) =>
   sql<{ text: string | null }>`
@@ -245,21 +269,27 @@ export const scheduleSelect = `
     LEFT JOIN agent_bus_calls c ON c.id = s.created_by_call_id`;
 
 /**
- * The caller's effective permission mode: the mode its calling turn runs with (a message may override the
- * thread's default for one turn), else its running turn's, else the thread's default. A default changed
- * since dispatch caps new children; an unchanged default must not undo the owner's per-turn override.
+ * A running turn may override the thread's default. Once it ends, its mode only caps the default.
+ * A default changed since dispatch also caps a running turn.
  */
 export const callerMode = (sql: SqlClient.SqlClient, source: CallSource, caller: ThreadRow) =>
-  sql<{ permission_mode: string; thread_permission_mode: string }>`
-    SELECT permission_mode, thread_permission_mode FROM turns
-     WHERE permission_mode <> '' AND (id = ${turnRef(sql, source)} OR (thread_id = ${caller.id}::uuid AND status = 'running'))
-     ORDER BY (id = ${turnRef(sql, source)}) DESC NULLS LAST LIMIT 1`.pipe(
+  sql<{ permission_mode: string; thread_permission_mode: string; status: string }>`
+    SELECT coalesce(nullif(u.permission_mode, ''), previous.permission_mode) AS permission_mode,
+           u.thread_permission_mode, u.status
+      FROM turns u
+      LEFT JOIN LATERAL (
+        SELECT permission_mode FROM turns p
+         WHERE u.trigger IN ('provider', 'recovery') AND p.thread_id = u.thread_id AND p.ordinal < u.ordinal
+           AND p.started_at IS NOT NULL AND p.trigger NOT IN ('provider', 'recovery', 'import') AND p.rewind_id IS NULL
+         ORDER BY p.ordinal DESC LIMIT 1
+      ) previous ON true
+     WHERE u.id = ${turnRef(sql, source)}`.pipe(
     Effect.map((rows) => {
       const current = busPermissionMode(caller.settings.permissionMode);
       const turn = busPermissionMode(rows[0]?.permission_mode || caller.settings.permissionMode);
       const snapshot = rows[0]?.thread_permission_mode;
 
-      if (snapshot && busPermissionMode(snapshot) === current) return turn;
+      if (rows[0]?.status === "running" && snapshot && busPermissionMode(snapshot) === current) return turn;
 
       return SPAWN_PERMISSION_MODES.indexOf(current) < SPAWN_PERMISSION_MODES.indexOf(turn) ? current : turn;
     }),

@@ -4,6 +4,7 @@ import { AgentToolCallSchema, InteractionKind, InteractionRequestSchema, type Th
 import { agentBusToolSpecs, agentBusToolsFor, isPlatformServer, PLATFORM_SERVER, viewImageSpec } from "@canopy/domain";
 import { Schema } from "effect";
 import { decodeJson, jsonObject, jsonString } from "../json.ts";
+import type { JsonObject } from "@canopy/domain";
 import { toolCallId } from "../tool-call-id.ts";
 import type { ServerRequestHandler } from "./app-server.ts";
 import { RpcError } from "./rpc.ts";
@@ -64,6 +65,39 @@ export function isViewImageCall(call: { namespace?: string | null; tool: string 
   return call.tool === CODEX_VIEW_IMAGE_TOOL && isPlatformServer(call.namespace);
 }
 
+const optionalText = Schema.optionalKey(Schema.NullOr(Schema.String));
+const optionalObject = Schema.optionalKey(Schema.NullOr(Schema.JsonObject));
+
+const ApprovalDetails = Schema.Struct({
+  command: optionalText,
+  cwd: optionalText,
+  reason: optionalText,
+  kind: optionalText,
+  environmentId: optionalText,
+  grantRoot: optionalText,
+  networkApprovalContext: optionalObject,
+  additionalPermissions: optionalObject,
+});
+
+const decodeApproval = Schema.decodeUnknownSync(ApprovalDetails);
+
+/** Both clients show the reason even when the timeline already supplies a command or diff. */
+function approvalDetails(detail: typeof ApprovalDetails.Type): JsonObject {
+  const reason = [
+    detail.reason,
+    detail.kind && detail.kind !== "command" && `Action: ${detail.kind}`,
+    detail.cwd && `Working directory: ${detail.cwd}`,
+    detail.environmentId && `Environment: ${detail.environmentId}`,
+    detail.grantRoot && `Write access for this session: ${detail.grantRoot}`,
+    detail.networkApprovalContext && `Network access: ${JSON.stringify(detail.networkApprovalContext)}`,
+    detail.additionalPermissions && `Additional permissions: ${JSON.stringify(detail.additionalPermissions)}`,
+  ]
+    .filter(Boolean)
+    .join("\n");
+
+  return { ...(detail.command && { command: detail.command }), ...(reason && { reason }) };
+}
+
 export function serverRequestHandler(ctx: CodexThreadContext): ServerRequestHandler {
   const { options, byCodex, mcpSpecs } = ctx;
 
@@ -78,7 +112,7 @@ export function serverRequestHandler(ctx: CodexThreadContext): ServerRequestHand
 
     const entry = params.threadId ? byCodex.get(params.threadId) : undefined;
 
-    const interact = (kind: InteractionKind, toolName: string) => {
+    const interact = (kind: InteractionKind, toolName: string, details: JsonObject = {}) => {
       if (!entry) throw new RpcError(request.method, -32602, "unknown thread");
 
       return options.interact(
@@ -89,7 +123,7 @@ export function serverRequestHandler(ctx: CodexThreadContext): ServerRequestHand
           itemId: params.itemId ?? "",
           kind,
           toolName,
-          requestJson: JSON.stringify(params),
+          requestJson: JSON.stringify({ ...params, ...details }),
         }),
       );
     };
@@ -97,9 +131,12 @@ export function serverRequestHandler(ctx: CodexThreadContext): ServerRequestHand
     switch (request.method) {
       case "item/commandExecution/requestApproval":
       case "item/fileChange/requestApproval": {
+        const details = approvalDetails(decodeApproval(request.params));
+
         const answer = await interact(
           InteractionKind.PERMISSION,
           request.method.includes("command") ? "shell" : "apply_patch",
+          details,
         );
 
         return {
@@ -114,10 +151,14 @@ export function serverRequestHandler(ctx: CodexThreadContext): ServerRequestHand
       }
 
       case "item/permissions/requestApproval": {
-        const answer = await interact(InteractionKind.PERMISSION, "permissions");
-        const requested = request.params.permissions;
+        const details = approvalDetails(decodeApproval(request.params));
+        const permissions = Schema.decodeUnknownSync(Schema.JsonObject)(request.params.permissions);
+        const answer = await interact(InteractionKind.PERMISSION, "permissions", { ...details, permissions });
 
-        return { permissions: answer.allow ? requested : {}, scope: answer.allowForSession ? "session" : "turn" };
+        return {
+          permissions: answer.allow && !answer.cancelled ? permissions : {},
+          scope: answer.allow && !answer.cancelled && answer.allowForSession ? "session" : "turn",
+        };
       }
 
       case "item/tool/requestUserInput": {

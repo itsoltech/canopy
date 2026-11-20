@@ -1,16 +1,18 @@
-import { existsSync, mkdirSync, readFileSync, writeFileSync, renameSync } from "node:fs";
+import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { hostname } from "node:os";
 import { createClient } from "@connectrpc/connect";
 import { ui } from "@canopy/contracts";
 import { routedPinnedTransport } from "@canopy/transport";
 import type { JsonValue } from "@canopy/domain";
+import type { LocalBffTarget } from "@canopy/domain/bff-target";
 import type { DesktopClientCredential } from "../remote-client.ts";
 import { enrollWorker } from "../../../worker/src/enroll.ts";
 import { isString, isWorkerConfiguration } from "./config.ts";
 import type { Logs } from "./log.ts";
 import type { Supervisor } from "./process.ts";
 import { Schema } from "effect";
+import { writePrivateFile } from "./private-file.ts";
 
 export function desktopWorkerIdle(services: Supervisor, statusFile: string, draining: boolean) {
   const pid = services.send("worker", draining ? "canopy:drain" : "canopy:resume");
@@ -46,14 +48,16 @@ export async function startDesktopWorker(options: {
   gatewayUrl: string;
   token?: string | undefined;
   fingerprint?: string | undefined;
-  local: boolean;
+  local: LocalBffTarget | undefined;
   logs: Logs;
   services: Supervisor;
   bun: string;
   entry: string;
   env: NodeJS.ProcessEnv;
 }) {
-  const { directory, gatewayUrl, local, logs } = options;
+  const { directory, local, logs } = options;
+  const gatewayUrl = local?.gatewayUrl ?? options.gatewayUrl;
+  const fingerprint = local?.fingerprint ?? options.fingerprint;
   mkdirSync(directory, { recursive: true, mode: 0o700 });
   const configPath = join(directory, "worker.json");
 
@@ -65,7 +69,7 @@ export async function startDesktopWorker(options: {
     try {
       enrolled = await enrollWorker({
         gateway: gatewayUrl,
-        ...(options.fingerprint && { fingerprint: options.fingerprint }),
+        ...(fingerprint && { fingerprint }),
         token: options.token,
         configPath,
         dataDir: join(directory, "data"),
@@ -89,8 +93,18 @@ export async function startDesktopWorker(options: {
   const identity = Schema.decodeUnknownSync(Schema.Struct({ worker_id: Schema.String.check(Schema.isUUID()) }))(worker);
 
   if (local) {
-    writeFileSync(`${configPath}.new`, JSON.stringify({ ...worker, gateway_url: gatewayUrl }), { mode: 0o600 });
-    renameSync(`${configPath}.new`, configPath);
+    // Upgrade existing enrollments before the worker starts. It must never retry an old, unpinned fallback.
+    const next = {
+      ...worker,
+      gateway_url: local.gatewayUrl,
+      gateway_fingerprint: local.fingerprint,
+      gateway_certificate: local.certificate,
+      gateway_fallback: undefined,
+      ca_file: undefined,
+      trusted_http_origin: undefined,
+    };
+
+    writePrivateFile(configPath, JSON.stringify(next));
   }
 
   const status = join(directory, "status.json");

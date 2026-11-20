@@ -43,6 +43,58 @@ test("the versioned index rejects drafts, missing manifests, duplicate tags, uns
   expect(() => parseReleaseIndex(JSON.stringify({ schema: 2, releases: [release] }))).toThrow();
 });
 
+test("manifest discovery falls back to GitHub if Pages names a different repository or release", async () => {
+  const canonical = release.assets[0]!.browser_download_url;
+
+  for (const url of [
+    "https://example.invalid/v1.2.3/manifest.json",
+    canonical.replace("/itsoltech/canopy/", "/example/other/"),
+    canonical.replace("/v1.2.3/", "/v1.2.4/"),
+    `${canonical}?alternate=1`,
+  ]) {
+    const advertised = { ...release, assets: [{ name: "manifest.json", browser_download_url: url }] };
+    const suspect = JSON.stringify({ schema: 1, releases: [advertised] });
+    const requests: string[] = [];
+
+    const source = new ReleaseSource({
+      fetch: async (input) => {
+        const target = String(input);
+        requests.push(target);
+
+        if (target === RELEASE_INDEX_URL) return new Response(suspect);
+
+        if (target === canonical) return Response.json(manifest);
+
+        return Response.json([release]);
+      },
+    });
+
+    await expect(source.resolve("stable")).resolves.toEqual(manifest);
+    expect(requests).toEqual([RELEASE_INDEX_URL, `${RELEASE_API_URL}/releases?per_page=100&page=1`, canonical]);
+  }
+});
+
+test("an explicit mirror can still serve an index and manifests with its own URL layout", async () => {
+  const baseUrl = "https://mirror.example.invalid";
+  const indexUrl = `${baseUrl}/index.json`;
+  const download = `${baseUrl}/manifest/1.2.3`;
+  const mirrored = { ...release, assets: [{ name: "manifest.json", browser_download_url: download }] };
+  const urls: string[] = [];
+
+  const source = new ReleaseSource({
+    baseUrl,
+    indexUrl,
+    fetch: async (input) => {
+      urls.push(String(input));
+
+      return Response.json(String(input) === indexUrl ? { schema: 1, releases: [mirrored] } : manifest);
+    },
+  });
+
+  await expect(source.resolve("stable")).resolves.toEqual(manifest);
+  expect(urls).toEqual([indexUrl, download]);
+});
+
 test("channel and exact resolutions use the index, dedupe immutable manifests, and still reject a mismatched manifest", async () => {
   const urls: string[] = [];
 

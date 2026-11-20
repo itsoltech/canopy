@@ -16,7 +16,7 @@ export interface InteractionStore {
   expireInteraction(requestId: string, threadId: string): Fx<ui.Interaction | undefined>;
   /** Pending interactions of the thread's finished turns expire (nothing can answer them any more). */
   expireEndedInteractions(threadId: string): Fx<ui.Interaction[]>;
-  recordInteraction(request: InteractionRequest): Fx<ui.Interaction>;
+  recordInteraction(request: InteractionRequest, connectorFingerprint?: string): Fx<ui.Interaction>;
   /** Answered by the user, or by the parent thread's agent (answer_interaction on the agent bus). */
   answerInteraction(
     requestId: string,
@@ -24,13 +24,27 @@ export interface InteractionStore {
     answer: ui.AnswerInteractionRequest,
   ): Fx<ui.Interaction>;
   pendingInteractions(threadId: string, ids?: string[]): Fx<ui.Interaction[]>;
-  interactionAnswer(requestId: string): Fx<{ threadId: string; answer: ui.AnswerInteractionRequest } | undefined>;
+  interactionAnswer(
+    requestId: string,
+    scope?: { threadId: string; workerId: string },
+  ): Fx<{ threadId: string; answer: ui.AnswerInteractionRequest } | undefined>;
   interactionEvent(requestId: string): Fx<{ seq: bigint; event: ThreadEvent } | undefined>;
 }
 
 /** Reconnects replay the stored decision, including an expiry acknowledgement. */
-function interactionAnswer(sql: SqlClient.SqlClient, requestId: string) {
-  return sql<InteractionRow>`SELECT * FROM interaction_requests WHERE id = ${requestId}::uuid AND status <> 'pending'`.pipe(
+function interactionAnswer(
+  sql: SqlClient.SqlClient,
+  requestId: string,
+  scope?: { threadId: string; workerId: string },
+) {
+  return sql<InteractionRow>`SELECT q.* FROM interaction_requests q WHERE q.id = ${requestId}::uuid AND q.status <> 'pending'
+    ${
+      scope
+        ? sql`AND q.thread_id = ${scope.threadId}::uuid AND EXISTS (
+      SELECT 1 FROM threads t WHERE t.id = q.thread_id AND t.worker_id = ${scope.workerId}::uuid
+    )`
+        : sql``
+    }`.pipe(
     Effect.map((rows) => {
       const row = rows[0];
 
@@ -93,61 +107,87 @@ function interactionExpiry(
   };
 }
 
+function recordInteraction(
+  sql: SqlClient.SqlClient,
+  self: () => Pick<ThreadStore, "thread">,
+  request: InteractionRequest,
+  connectorFingerprint?: string,
+) {
+  return sql.withTransaction(
+    Effect.gen(function* () {
+      const thread = yield* self().thread(request.threadId);
+      yield* sql`SELECT id FROM threads WHERE id = ${request.threadId}::uuid FOR UPDATE`;
+
+      const [known] = yield* sql<
+        InteractionRow & { connector_fingerprint: string | null }
+      >`SELECT * FROM interaction_requests WHERE id = ${request.requestId}::uuid`;
+
+      if (known) {
+        if (known.thread_id !== request.threadId)
+          return yield* Effect.fail(new Invalid("interaction belongs to another thread"));
+
+        if (
+          known.connector_fingerprint === "legacy" &&
+          connectorFingerprint &&
+          !request.requestJson.includes("[REDACTED]")
+        ) {
+          // 0181 marks only complete pre-upgrade cards. jsonb equality tolerates object key ordering.
+          const bound = yield* sql`UPDATE interaction_requests SET connector_fingerprint=${connectorFingerprint}
+            WHERE id=${request.requestId}::uuid AND connector_fingerprint='legacy'
+            AND thread_id=${request.threadId}::uuid AND turn_id=${request.turnId}::uuid AND item_id=${request.itemId}
+            AND kind='permission' AND tool_name=${request.toolName} AND request=${request.requestJson}::jsonb RETURNING id`;
+
+          if (!bound.length) return yield* Effect.fail(new Invalid("Connector approval does not match this action"));
+        } else if (known.connector_fingerprint !== (connectorFingerprint ?? null))
+          return yield* Effect.fail(new Invalid("Connector approval does not match this action"));
+
+        if (request.cancelled && known.status === "pending") {
+          const expired = yield* sql<InteractionRow>`UPDATE interaction_requests
+            SET status = 'expired', answered_at = now() WHERE id = ${request.requestId}::uuid RETURNING *`;
+
+          yield* writeInteractionTimeline(sql, expired[0]!);
+
+          return toInteraction(expired[0]!);
+        }
+
+        return toInteraction(known);
+      }
+
+      const rows = yield* sql<InteractionRow>`
+            INSERT INTO interaction_requests (id, thread_id, turn_id, item_id, kind, tool_name, request, routed_to, expires_at, connector_fingerprint)
+            VALUES (${request.requestId}::uuid, ${request.threadId}::uuid,
+                    (SELECT id FROM turns WHERE id = ${request.turnId || null}::uuid AND thread_id = ${request.threadId}::uuid),
+                    ${request.itemId || null}, ${interactionKind(request.kind)}, ${request.toolName}, ${request.requestJson || "{}"}::jsonb,
+                    ${thread.interaction_route}, ${request.expiresAt ? timestampDate(request.expiresAt) : null}, ${connectorFingerprint ?? null})
+            ON CONFLICT (id) DO UPDATE SET request = interaction_requests.request
+            WHERE interaction_requests.thread_id = EXCLUDED.thread_id
+              AND interaction_requests.connector_fingerprint IS NOT DISTINCT FROM EXCLUDED.connector_fingerprint
+            RETURNING *`;
+
+      const row = yield* one(rows, "interaction");
+
+      const ended = yield* sql`SELECT id FROM turns WHERE id = ${row.turn_id}::uuid
+        AND status IN ('completed', 'interrupted', 'failed', 'cancelled')`;
+
+      const rewinding =
+        yield* sql`SELECT id FROM threads WHERE id=${row.thread_id}::uuid AND rewind_pending_id IS NOT NULL`;
+
+      if (request.cancelled || ended.length || rewinding.length) {
+        yield* sql`UPDATE interaction_requests SET status = 'expired', answered_at = now() WHERE id = ${row.id}::uuid`;
+        row.status = "expired";
+      }
+
+      yield* writeInteractionTimeline(sql, row);
+
+      return toInteraction(row);
+    }),
+  );
+}
+
 export function interactionStore(sql: SqlClient.SqlClient, self: () => Pick<ThreadStore, "thread">): InteractionStore {
   return {
     ...interactionExpiry(sql),
-    recordInteraction: (request) =>
-      sql.withTransaction(
-        Effect.gen(function* () {
-          const thread = yield* self().thread(request.threadId);
-          yield* sql`SELECT id FROM threads WHERE id = ${request.threadId}::uuid FOR UPDATE`;
-
-          const known =
-            yield* sql<InteractionRow>`SELECT * FROM interaction_requests WHERE id = ${request.requestId}::uuid`;
-
-          if (known[0]) {
-            if (known[0].thread_id !== request.threadId)
-              return yield* Effect.fail(new Invalid("interaction belongs to another thread"));
-
-            if (request.cancelled && known[0].status === "pending") {
-              const expired = yield* sql<InteractionRow>`UPDATE interaction_requests
-                SET status = 'expired', answered_at = now() WHERE id = ${request.requestId}::uuid RETURNING *`;
-
-              yield* writeInteractionTimeline(sql, expired[0]!);
-
-              return toInteraction(expired[0]!);
-            }
-
-            return toInteraction(known[0]);
-          }
-
-          const rows = yield* sql<InteractionRow>`
-                INSERT INTO interaction_requests (id, thread_id, turn_id, item_id, kind, tool_name, request, routed_to, expires_at)
-                VALUES (${request.requestId}::uuid, ${request.threadId}::uuid,
-                        (SELECT id FROM turns WHERE id = ${request.turnId || null}::uuid AND thread_id = ${request.threadId}::uuid),
-                        ${request.itemId || null}, ${interactionKind(request.kind)}, ${request.toolName}, ${request.requestJson || "{}"}::jsonb,
-                        ${thread.interaction_route}, ${request.expiresAt ? timestampDate(request.expiresAt) : null})
-                ON CONFLICT (id) DO UPDATE SET request = interaction_requests.request
-                RETURNING *`;
-
-          const row = yield* one(rows, "interaction");
-
-          const ended = yield* sql`SELECT id FROM turns WHERE id = ${row.turn_id}::uuid
-            AND status IN ('completed', 'interrupted', 'failed', 'cancelled')`;
-
-          const rewinding =
-            yield* sql`SELECT id FROM threads WHERE id=${row.thread_id}::uuid AND rewind_pending_id IS NOT NULL`;
-
-          if (request.cancelled || ended.length || rewinding.length) {
-            yield* sql`UPDATE interaction_requests SET status = 'expired', answered_at = now() WHERE id = ${row.id}::uuid`;
-            row.status = "expired";
-          }
-
-          yield* writeInteractionTimeline(sql, row);
-
-          return toInteraction(row);
-        }),
-      ),
+    recordInteraction: (request, fingerprint) => recordInteraction(sql, self, request, fingerprint),
 
     answerInteraction: (requestId, by, answer) =>
       sql
@@ -247,6 +287,6 @@ export function interactionStore(sql: SqlClient.SqlClient, self: () => Pick<Thre
         Effect.map((rows) => rows.map(toInteraction)),
       ),
 
-    interactionAnswer: (requestId) => interactionAnswer(sql, requestId),
+    interactionAnswer: (requestId, scope) => interactionAnswer(sql, requestId, scope),
   };
 }

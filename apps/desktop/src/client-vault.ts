@@ -4,7 +4,6 @@ import { join } from "node:path";
 import { toJsonString } from "@bufbuild/protobuf";
 import { ui } from "@canopy/contracts";
 import { configuration } from "./runtime/config.ts";
-import { migrateDesktopClient } from "./client-migration.ts";
 import {
   credentialMessage,
   pairDesktop,
@@ -30,14 +29,11 @@ export async function remoteClient(
   const folder = remoteWorkerDirectory(directory, config);
   const file = join(folder, "desktop-client.enc");
 
-  if (config.pairingInvitation?.trim() || !existsSync(file)) {
+  const invitation = config.pairingInvitation?.trim();
+
+  if (invitation) {
     await keychain();
-
-    const client = config.pairingInvitation?.trim()
-      ? await pairDesktop(config.pairingInvitation)
-      : await migrateDesktopClient(folder);
-
-    if (!client) return undefined;
+    const client = await pairDesktop(invitation);
 
     const sealed = await safeStorage.encryptStringAsync(
       toJsonString(ui.ExchangeMobilePairingResponseSchema, credentialMessage(client)),
@@ -50,6 +46,7 @@ export async function remoteClient(
     return client;
   }
 
+  if (!existsSync(file)) return undefined;
   await keychain();
   const decrypted = await safeStorage.decryptStringAsync(readFileSync(file));
   const client = readDesktopCredential(decrypted.result);

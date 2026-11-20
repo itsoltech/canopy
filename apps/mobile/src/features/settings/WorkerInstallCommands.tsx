@@ -12,12 +12,10 @@ export function WorkerInstallCommands({
   method,
   setup,
   gateway,
-  token,
 }: {
   method: string;
   setup: ui.GetWorkerSetupResponse;
   gateway: string;
-  token: string;
 }) {
   const [platform, setPlatform] = useState("linux/x64");
 
@@ -35,13 +33,13 @@ export function WorkerInstallCommands({
     (resource.initialLoading ? create(ui.WorkerInstallChunkSchema, { version: setup.gatewayVersion }) : undefined);
 
   const asset = `canopy-worker-${platform.replace("/", "-")}`;
-  const enroll = `enroll --gateway ${quote(gateway)}${setup.gatewayFingerprint ? ` --fingerprint ${quote(setup.gatewayFingerprint)}` : ""} --token ${quote(token)}`;
+  const enroll = `enroll --gateway ${quote(gateway)}${setup.gatewayFingerprint ? ` --fingerprint ${quote(setup.gatewayFingerprint)}` : ""}`;
   const tag = metadata?.version || setup.gatewayVersion;
   const image = `ghcr.io/itsoltech/canopy-worker:${/^\d/.test(tag) ? `v${tag}` : setup.channel}`;
-  const docker = `docker volume create canopy-worker\ndocker run --rm -v canopy-worker:/home/canopy ${image} ${enroll}\ndocker run -d --name canopy-worker --restart unless-stopped -v canopy-worker:/home/canopy ${image}`;
+  const docker = `docker volume create canopy-worker &&\ndocker run --rm -it -v canopy-worker:/home/canopy ${image} ${enroll} &&\ndocker run -d --name canopy-worker --restart unless-stopped -v canopy-worker:/home/canopy ${image}`;
 
   const manual = metadata
-    ? `set -eu\numask 077\nmkdir -p "$HOME/.local/share/canopy/bin"\ncd "$(mktemp -d)"\ncurl -fL ${quote(metadata.downloadUrl)} -o ${quote(asset)}\nprintf '%s  %s\\n' ${quote(metadata.sha256)} ${quote(asset)} | ${platform.startsWith("darwin") ? "shasum -a 256" : "sha256sum"} -c -\ninstall -m 0755 ${quote(asset)} "$HOME/.local/share/canopy/bin/canopy-worker"\n"$HOME/.local/share/canopy/bin/canopy-worker" ${enroll} --config "$HOME/.config/canopy/worker.json"\n"$HOME/.local/share/canopy/bin/canopy-worker" service --config "$HOME/.config/canopy/worker.json"`
+    ? `(\nset -eu\numask 077\nmkdir -p "$HOME/.local/share/canopy/bin"\ncd "$(mktemp -d)"\ncurl -fL ${quote(metadata.downloadUrl)} -o ${quote(asset)}\nprintf '%s  %s\\n' ${quote(metadata.sha256)} ${quote(asset)} | ${platform.startsWith("darwin") ? "shasum -a 256" : "sha256sum"} -c -\ninstall -m 0755 ${quote(asset)} "$HOME/.local/share/canopy/bin/canopy-worker"\n"$HOME/.local/share/canopy/bin/canopy-worker" ${enroll} --config "$HOME/.config/canopy/worker.json"\n"$HOME/.local/share/canopy/bin/canopy-worker" service --config "$HOME/.config/canopy/worker.json"\n)`
     : "";
 
   return (

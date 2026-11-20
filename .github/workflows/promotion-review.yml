@@ -19,6 +19,9 @@ env:
   BUN_VERSION: 1.4.4
 jobs:
   review:
+    if: >-
+      github.ref_protected && github.ref == 'refs/heads/dev'
+    environment: release-automation
     runs-on: ubuntu-24.04
     timeout-minutes: 10
     steps:
@@ -33,6 +36,7 @@ jobs:
           fi
       - uses: actions/checkout@v5
         with:
+          ref: ${{ github.workflow_sha }}
           fetch-depth: 0
           ssh-key: ${{ (github.event_name != 'workflow_dispatch' || !inputs.dry_run) && secrets.RELEASE_DEPLOY_KEY || '' }}
           persist-credentials: true

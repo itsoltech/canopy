@@ -93,8 +93,8 @@ export interface DesktopStatus {
     | { phase: "downloading" | "verifying" | "installing" | "ready"; message: string; progress?: number }
     | undefined;
   webUrl?: string;
-  gatewayUrl?: string;
-  workerGatewayUrl?: string;
+  gatewayUrl?: string | undefined;
+  workerGatewayUrl?: string | undefined;
   allowNetwork: boolean;
   bindHost: string;
 }

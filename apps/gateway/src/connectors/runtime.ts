@@ -11,6 +11,7 @@ import { DEFAULT_ATTACHMENT_LIMITS, type AttachmentLimits, type JsonObject } fro
 import { Effect, Schema } from "effect";
 import { SqlClient } from "effect/sql";
 import { GatewayStore } from "../store/store.ts";
+import { canonicalJson } from "../store/instance-config.ts";
 import type { CoreRuntime } from "../core/core.ts";
 import { mcpTools } from "../bots/mcp.ts";
 import type { BotTurn, McpConnection, ToolSpec } from "../bots/types.ts";
@@ -24,6 +25,7 @@ import {
   type Credentials,
   type ExecutionSource,
 } from "./store.ts";
+import { oauthEgress } from "./oauth-egress.ts";
 import { authorizeOAuth, redactConnector, revokeOAuth } from "./oauth.ts";
 import { beginConnectorOAuth } from "./oauth-begin.ts";
 import { slackUserCredentials } from "./slack-user-refresh.ts";
@@ -135,10 +137,13 @@ export class ConnectorsRuntime {
                   row.auth_kind === "oauth" &&
                   (!value.tokens || (value.expiresAt !== undefined && value.expiresAt <= Date.now() + 30_000))
                 ) {
+                  const app = yield* s.app(user, row.connector_type);
+
                   const refreshed = yield* Effect.tryPromise({
                     try: async () => {
                       if (!value.tokens?.refresh_token) return false;
-                      const redirect = await authorizeOAuth(row.url, value, "", undefined);
+                      const egress = oauthEgress(row.url, app?.issuer, { publicOrigins: value.oauthPublicOrigins });
+                      const redirect = await authorizeOAuth(row, egress, value, "");
 
                       return !redirect && !!value.tokens;
                     },
@@ -314,8 +319,14 @@ export class ConnectorsRuntime {
     }
   }
   async disconnect(id: string) {
-    const { value, account } = await this.run((s) => s.disconnect(this.options.userId, id));
-    const revoked = await revokeOAuth(value);
+    const { value, account, row } = await this.run((s) => s.disconnect(this.options.userId, id));
+    const app = await this.run((s) => s.app(this.options.userId, row.connector_type));
+
+    const revoked = await revokeOAuth(
+      value,
+      oauthEgress(row.url, app?.issuer, { publicOrigins: value.oauthPublicOrigins }),
+    );
+
     await this.run((s) =>
       s.audit({ userId: this.options.userId, accountId: id }, "revoke", revoked ? "revoked" : "local_only"),
     );
@@ -343,7 +354,8 @@ export class ConnectorsRuntime {
     // Authorization precedes even replay lookup, so a revoked account cannot disclose old results.
     const account = await this.run((s) => s.authorize(source));
     const { botLease: _botLease, ...identity } = source;
-    const fingerprint = digest(JSON.stringify([identity, toolName, args]));
+    const legacyFingerprint = digest(JSON.stringify([identity, toolName, args]));
+    const fingerprint = digest(canonicalJson([identity, toolName, args]));
     const active = this.#active.get(callId);
 
     if (active) {
@@ -369,6 +381,7 @@ export class ConnectorsRuntime {
       toolName,
       args,
       fingerprint,
+      legacyFingerprint,
       signal,
     );
 

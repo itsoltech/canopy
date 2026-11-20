@@ -4,6 +4,7 @@ import {
   WelcomeSchema,
   WorkerConfigSchema,
   WorkerLinkService,
+  type BlobChunk,
   type GatewayMessage,
   type Hello,
   type WorkerMessage,
@@ -30,6 +31,8 @@ export interface WorkerLinkOptions {
   onConnected?(connection: WorkerConnection): void | Promise<void>;
   /** Authenticated ephemeral diagnostics; runs before the application's database-backed message pump. */
   onMessage?(connection: WorkerConnection, message: WorkerMessage): boolean;
+  /** Applies backpressure before preview bytes can accumulate in the application inbox. */
+  onBlobChunk?(connection: WorkerConnection, chunk: BlobChunk): Promise<void>;
   observeCommand?(kind: string): RpcObservation | undefined;
   diagnosticsEnabled?: () => boolean;
   workerDiagnosticsEnabled?: () => boolean;
@@ -119,6 +122,8 @@ export function createWorkerLink(options: WorkerLinkOptions): WorkerLink {
     void (async () => {
       try {
         for (let next = await inbound.next(); !next.done; next = await inbound.next()) {
+          if (!connection.isOpen) break;
+
           if (
             next.value.payload.case === "heartbeat" &&
             next.value.payload.value.echoSequence &&
@@ -131,6 +136,12 @@ export function createWorkerLink(options: WorkerLinkOptions): WorkerLink {
             });
 
           if (options.onMessage?.(connection, next.value)) continue;
+
+          if (next.value.payload.case === "blobChunk" && options.onBlobChunk) {
+            await options.onBlobChunk(connection, next.value.payload.value);
+            continue;
+          }
+
           connection.deliver(next.value);
         }
 

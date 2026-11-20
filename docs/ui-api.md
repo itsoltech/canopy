@@ -3,6 +3,9 @@
 Status (2026-11-20): web, desktop i mobile utrzymują strumień wątku przy dołączaniu
 starszej strony z aktualnego checkpointu sekwencyjnego. Gateway obsługuje osobną
 subskrypcję oczekujących żądań subagenta.
+Kreatory web i mobilny pokazują token workera oddzielnie od polecenia.
+Serwerowe wejścia BFF sprawdzają Host i blokują osadzanie panelu w ramce. Tryb deweloperski
+wymaga zgodnego originu przeglądarki. Podglądy SVG zachowują sandbox odpowiedzi HTTP.
 Stopka sidebara w web/desktop pomija skrót do Workers przy jednym workerze.
 Raport Usage pokazuje koszt i tokeny według workera wykonującego pracę.
 W web/desktop przejście z Threads do Bots pomija animację
@@ -686,7 +689,7 @@ Dekoracyjne potwierdzenia nie używają krzywych z przeregulowaniem.
 ## Canopy mobile
 
 `GetThreadBlob` odczytuje obrazy, wyniki komend/narzędzi/zadań i diffy wskazane przez
-itemy drzewa wątku. Rejestr `thread_blobs` powstaje przy ingestii, a odczyt filtruje po
+itemy drzewa wątku. Referencja w `thread_blobs` wymaga zweryfikowanego uploadu lub importu. Odczyt filtruje po
 właścicielu i aktywnym wątku. Limit wynosi 8 MiB i jest sprawdzany przed pobraniem
 bajtów z bazy. Zdalny identyfikator kieruje odczyt do domu połączonego komputera.
 Worker może przesyłać oprócz obrazów `text/plain`, `text/x-diff` i `application/json`;
@@ -1239,6 +1242,8 @@ rozwiązuje metadane platformy dla kreatora. POST `/api/workers/ssh` przekazuje 
 Origin web ustala BFF z własnego requestu. Klucz prywatny i świeży token enrollment
 SSH nigdy nie trafiają do strumienia przeglądarki; stream zawiera klucz publiczny,
 fingerprint, zredagowany output i metadane enrollment. Anulowanie requestu zamyka SSH.
+W kreatorach web i mobilnym zwykła instalacja pokazuje token oddzielnie od polecenia.
+Terminal workera przyjmuje go przez ukryty prompt lub stdin.
 
 `GetWorkerSetup` zwraca publiczny `gateway_url` (`UserSettings.worker_gateway_url`,
 pole **700**, domyślnie pierwszy adres Network access), pełny `gateway_fingerprint` oraz metadane ostatnich
@@ -2125,9 +2130,11 @@ tabele, `details`/`summary` i `align`), bez skryptów, stylów i handlerów zdar
 W tabelach Markdown i osadzonych tabelach HTML przeglądarka dobiera szerokości kolumn
 według naturalnych miejsc podziału tekstu. Gdy kolumny nie mieszczą się w wiadomości,
 poziomo przewija się samą tabelę.
-Samodzielne pliki HTML nadal pokazują źródło. SVG wyświetla
-się wyłącznie w `<img>`; BFF udostępnia jego typ przez `?image`, nadal z CSP sandbox
-i `nosniff`. Pozostałe pliki zachowują pobieranie lub kartę composera.
+Samodzielne pliki HTML pokazują źródło. Podgląd załącznika i obrazu osadzonego w Markdown
+workspace'u wskazuje bezpośrednio odpowiedź HTTP. Przy otwarciu SVG w osobnej karcie nadal
+obowiązują CSP `sandbox` i `nosniff`. Wariant `?image` odczytu pliku workspace'u sprawdza
+typ, kompletność, rozmiar oraz wymiary rastra i ma `Cache-Control: private, no-store`.
+Pobieranie załącznika udostępnia oryginalne bajty.
 
 Mysz i fokus klawiatury pokazują kompaktowy `Popover` po 300 ms intencji. Panel
 pozostaje otwarty po przejściu wskaźnika do niego; blur i Escape zamykają go.
@@ -2869,12 +2876,17 @@ CANOPY_UI_SERVICE_TOKEN=... bun tests/integration/smoke/bff-client.ts "Reply OK"
 # frontend
 cd apps/web
 GATEWAY_SERVICE_TOKEN=$CANOPY_UI_SERVICE_TOKEN bun run dev                     # http://localhost:5173
-bun run build && GATEWAY_SERVICE_TOKEN=... PORT=3000 node build/index.js    # produkcyjnie
+bun run build && GATEWAY_SERVICE_TOKEN=... HOST=127.0.0.1 PORT=3000 node build/index.js
 ```
 
 Załączniki idą przez BFF: `adapter-node` ma domyślnie `BODY_SIZE_LIMIT=512K`, więc w produkcji ustawiamy `BODY_SIZE_LIMIT=50M`, również dla folderu skilla 25 MiB kodowanego base64. Desktop i Docker mają już ten limit; reverse proxy musi go dopuścić.
 
-`adapter-node` przyjmuje `https`, jeśli nie zna protokołu. Za reverse proxy ustawić `PROTOCOL_HEADER=x-forwarded-proto` (i `HOST_HEADER`, jeśli proxy zmienia host). Inaczej kontrola `Origin` odrzuci formularze. Build nie potrzebuje sekretów.
+Zarówno wbudowany, jak i samodzielny web przyjmują zwykłe HTTP na loopbacku. Za proxy
+odczytują `X-Forwarded-Proto` i `X-Forwarded-Host` po sprawdzeniu surowego `Host`.
+Administrator może ustawić nazwy nagłówków albo stały publiczny `ORIGIN`. Dostęp spoza
+loopbacku i uwierzytelnianie proxy opisuje [wdrożenie](deploy.md#dostęp-do-web-reverse-proxy-i-tailscale).
+Vite wyłącza CORS. Deweloperski BFF sprawdza origin żądań przeglądarki, w tym formularzy,
+z zachowaniem portu. HMR i API działają w tym samym originie co karta Canopy.
 
 ### Wydania web bez przebudowy działającego katalogu
 

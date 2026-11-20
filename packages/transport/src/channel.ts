@@ -127,6 +127,14 @@ export class AsyncChannel<T> implements AsyncIterable<T> {
     this.#resumeWriters();
   }
 
+  /** End a cancelled stream without delivering any queued values. */
+  discard(): void {
+    this.#buffer.length = 0;
+    this.#bytes = 0;
+    this.#fixedPrefix = 0;
+    this.close();
+  }
+
   [Symbol.asyncIterator](): AsyncGenerator<T, void, undefined> {
     return this.#iterator;
   }

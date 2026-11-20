@@ -4,6 +4,7 @@ import type { BotTurn } from "./types.ts";
 import type { BotCore } from "./store-queue.ts";
 import { originOf } from "./routines.ts";
 import { botThreadNoticeTitle } from "./thread-notice.ts";
+import { canReportBotTurn } from "./report-origin.ts";
 
 export const pendingThreadQuestions = (sql: SqlClient.SqlClient) => sql`
   FROM bot_thread_watches w
@@ -12,6 +13,7 @@ export const pendingThreadQuestions = (sql: SqlClient.SqlClient) => sql`
   JOIN interaction_requests q ON q.thread_id = th.id AND q.turn_id = w.target_turn_id
   WHERE NOT w.delivered AND b.deleted_at IS NULL AND b.archived_at IS NULL AND b.moved_to IS NULL
     AND q.status = 'pending' AND q.kind IN ('question', 'elicitation')
+    AND ${canReportBotTurn(sql, sql`w.target_thread_id`, sql`w.target_turn_id`)}
     AND NOT EXISTS (
       SELECT 1 FROM bot_thread_question_deliveries d WHERE d.call_id = w.call_id AND d.request_id = q.id
     )`;

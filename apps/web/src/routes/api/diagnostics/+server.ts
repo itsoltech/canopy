@@ -33,7 +33,8 @@ export const GET: RequestHandler = async ({ url }) => {
 
   const snapshot = await call((api) => api.getDiagnostics({ windowMinutes })).catch((cause) => {
     // The controller can measure its own files while the paired gateway is unavailable.
-    if (!bffTarget()?.target.desktopClient || !bffStorage() || !isHttpError(cause) || cause.status < 500) throw cause;
+    if (bffTarget()?.target.mode !== "remote" || !bffStorage() || !isHttpError(cause) || cause.status < 500)
+      throw cause;
 
     return create(ui.DiagnosticsSnapshotSchema);
   });
@@ -56,7 +57,7 @@ export const GET: RequestHandler = async ({ url }) => {
     );
 
   // Only this desktop can inspect its local files. A local gateway already reports the same app.
-  snapshot.desktopStorage = bffTarget()?.target.desktopClient && !reported ? bffStorage() : undefined;
+  snapshot.desktopStorage = bffTarget()?.target.mode === "remote" && !reported ? bffStorage() : undefined;
 
   return json(encode(ui.DiagnosticsSnapshotSchema, snapshot), {
     headers,

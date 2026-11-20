@@ -1,3 +1,5 @@
+import { create } from "@bufbuild/protobuf";
+import { ui } from "@canopy/contracts";
 import { qualifyId } from "@canopy/domain/computers";
 
 import { turnReport } from "../store/turn-report.ts";
@@ -5,6 +7,45 @@ import { agentsState, type Reference } from "./agents-context.ts";
 import { requireAgentModules } from "./agents-module-access.ts";
 import type { LinkedAgents } from "./agents.ts";
 import { localAgentSender } from "./agents-senders.ts";
+
+/** A thread ID identifies its conversation. A remote bot can send calls from several channels,
+ * so only its original call can receive details. */
+const sameConversation = `(
+  b.id IS NOT NULL AND b.conversation_id IS NULL AND b.exchange_id=c.call_id
+    AND b.remote_recipient_ref=c.actor_id::text||'~'||left(c.peer_node_id,16)
+    AND b.client_request_id='linked:'||left(c.peer_node_id,16)||':'||c.call_id::text
+    AND NOT EXISTS(SELECT 1 FROM bot_turns s WHERE s.steer_target_id=b.id)
+    AND NOT EXISTS(SELECT 1 FROM bot_channel_inputs i WHERE i.turn_id=b.id AND i.status<>'dropped')
+) OR (
+  t.id IS NOT NULL AND t.linked_call_id IS NOT NULL AND NOT EXISTS (
+    SELECT 1 FROM (
+      SELECT t.linked_call_id AS source
+      UNION ALL SELECT s.linked_call_id FROM turn_steers s WHERE s.thread_id=t.thread_id AND s.turn_id=t.id
+        AND s.status IN ('pending','accepted','delivered')
+      UNION ALL SELECT NULL::uuid FROM bot_thread_watches w WHERE w.target_thread_id=t.thread_id AND w.target_turn_id=t.id
+    ) input LEFT JOIN computer_agent_calls origin ON origin.owner_user_id=c.owner_user_id
+      AND origin.direction='incoming' AND origin.target_kind='thread' AND origin.target_id=t.thread_id
+      AND origin.target_turn_id=t.id AND origin.call_id=input.source
+    WHERE origin.call_id IS NULL OR origin.detached OR origin.peer_node_id<>c.peer_node_id
+      OR origin.actor_id<>c.actor_id OR origin.actor_kind<>c.actor_kind
+      OR (c.actor_kind='bot' AND origin.call_id<>c.call_id)
+  )
+)`;
+
+type PendingReport = Reference & {
+  status: string;
+  completed_at: Date;
+  details: { title: string; error: string | null; text: string | null } | null;
+};
+
+function reportMessage({ status, details, target_kind }: PendingReport): ReturnType<typeof turnReport> {
+  if (!details) return { message: "The turn ended." };
+
+  // A failed bot stores its diagnostic in the answer event. Thread failures live on the turn.
+  if (target_kind === "bot" && status === "failed") return turnReport(status, details.text, null, 20_000);
+
+  return turnReport(status, details.error, details.text, 20_000);
+}
 
 export interface AgentsDeliveriesMethods {
   tick(): Promise<void>;
@@ -21,7 +62,7 @@ export const agentsDeliveriesMethods: AgentsDeliveriesMethods = {
       >(
         `SELECT c.*,i.id AS request_id,i.request,i.tool_name,i.kind,i.created_at FROM computer_agent_calls c
         JOIN interaction_requests i ON i.thread_id=c.target_id AND i.status='pending' AND i.routed_to='parent'
-        WHERE c.owner_user_id=$1::uuid AND c.direction='incoming' AND c.parent_link AND NOT c.detached
+        WHERE c.owner_user_id=$1::uuid AND c.direction='incoming' AND c.target_kind='thread' AND c.parent_link AND NOT c.detached
         AND (c.actor_kind=c.target_kind OR c.report_status<>'dropped')
         AND NOT EXISTS(SELECT 1 FROM computer_agent_events e WHERE e.owner_user_id=c.owner_user_id AND e.peer_node_id=c.peer_node_id AND e.call_id=c.call_id AND e.event_id=i.id)`,
         [this.owner],
@@ -63,18 +104,24 @@ export const agentsDeliveriesMethods: AgentsDeliveriesMethods = {
         }
       }
 
-      const due = await this.query<
-        Reference & { status: string; text: string | null; error: string | null; title: string; completed_at: Date }
-      >(
-        `SELECT c.*,coalesce(t.status,b.status) AS status,t.error,coalesce(t.completed_at,b.finished_at) AS completed_at,
-        CASE WHEN c.target_kind='bot' THEN (SELECT m.text FROM bot_messages m WHERE m.turn_id=c.target_turn_id AND message_key='answer' LIMIT 1)
-        ELSE (SELECT i.content->'agentMessage'->>'text' FROM thread_items i WHERE i.turn_id=c.target_turn_id AND i.type='agent_message'
-          AND (t.status <> 'failed' OR i.content->'agentMessage'->>'text' ~ '[^[:space:]]') ORDER BY i.last_seq DESC LIMIT 1) END AS text
-        , coalesce(th.title, bot.configuration->>'name', '') AS title
-        FROM computer_agent_calls c LEFT JOIN turns t ON c.target_kind='thread' AND t.id=c.target_turn_id
-        LEFT JOIN threads th ON th.id=c.target_id AND th.owner_user_id=c.owner_user_id
-        LEFT JOIN bots bot ON bot.id=c.target_id AND bot.owner_user_id=c.owner_user_id
-        LEFT JOIN bot_turns b ON c.target_kind='bot' AND b.id=c.target_turn_id
+      const due = await this.query<PendingReport>(
+        `SELECT c.*,coalesce(t.status,b.status) AS status,coalesce(t.completed_at,b.finished_at) AS completed_at,
+        CASE WHEN ${sameConversation} THEN jsonb_build_object(
+          'title',coalesce(th.title,bot.configuration->>'name',''), 'error',t.error,
+          'text',CASE WHEN b.id IS NOT NULL THEN
+            (SELECT m.text FROM bot_messages m WHERE m.bot_id=b.bot_id AND m.turn_id=b.id AND m.message_key='answer')
+          ELSE
+            (SELECT i.content->'agentMessage'->>'text' FROM thread_items i
+             WHERE i.thread_id=t.thread_id AND i.turn_id=t.id AND i.type='agent_message'
+             AND (t.status<>'failed' OR i.content->'agentMessage'->>'text' ~ '[^[:space:]]')
+             ORDER BY i.last_seq DESC LIMIT 1)
+          END
+        ) END AS details
+        FROM computer_agent_calls c
+        LEFT JOIN threads th ON c.target_kind='thread' AND th.id=c.target_id AND th.owner_user_id=c.owner_user_id
+        LEFT JOIN turns t ON t.thread_id=th.id AND t.id=c.target_turn_id
+        LEFT JOIN bots bot ON c.target_kind='bot' AND bot.id=c.target_id AND bot.owner_user_id=c.owner_user_id
+        LEFT JOIN bot_turns b ON b.bot_id=bot.id AND b.id=c.target_turn_id
         WHERE c.owner_user_id=$1::uuid AND c.direction='incoming' AND NOT c.detached AND c.notify AND c.report_status='pending'
         AND coalesce(t.status,b.status) IN ('completed','failed','interrupted','cancelled')`,
         [this.owner],
@@ -93,16 +140,7 @@ export const agentsDeliveriesMethods: AgentsDeliveriesMethods = {
             throw new Error("Parent was unavailable when the turn ended");
 
           await requireAgentModules(this, r.actor_kind, r.target_kind);
-          // A failed bot stores its diagnostic in the answer event. Thread failures live on the turn.
-          const botFailure = r.target_kind === "bot" && r.status === "failed";
-
-          const { message, failure } = turnReport(
-            r.status,
-            botFailure ? r.text : r.error,
-            botFailure ? null : r.text,
-            20_000,
-          );
-
+          const { message, failure } = reportMessage(r);
           await this.call(
             r.peer_node_id,
             "report",
@@ -111,18 +149,20 @@ export const agentsDeliveriesMethods: AgentsDeliveriesMethods = {
               kind: r.actor_kind,
               hops: r.hops + 1,
               name: "",
-              sender: await localAgentSender(this, {
-                id: r.target_id,
-                kind: r.target_kind,
-                hops: r.hops,
-                name: r.title,
-              }),
+              sender: r.details
+                ? await localAgentSender(this, {
+                    id: r.target_id,
+                    kind: r.target_kind,
+                    hops: r.hops,
+                    name: r.details.title,
+                  })
+                : create(ui.AgentSenderSchema),
             },
             r.call_id,
             {
               text: `[canopy] ${r.target_kind} ${qualifyId(r.target_id, this.core.computers.hello().nodeId)} on ${this.core.computers.hello().name} ended: ${r.status}.\n${message}`,
               event: r.target_turn_id,
-              title: r.title,
+              title: r.details?.title ?? "",
               status: r.status,
               message,
               ...(failure && { failure }),

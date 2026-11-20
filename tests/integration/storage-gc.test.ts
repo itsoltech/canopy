@@ -2,6 +2,7 @@ import { afterAll, beforeAll, describe, expect, test } from "bun:test";
 import { create, toBinary } from "@bufbuild/protobuf";
 import { bots } from "@canopy/contracts";
 import { dockerAvailable } from "@canopy/db/testing";
+import { AttachmentStore } from "@canopy/gateway/store";
 import { createHash } from "node:crypto";
 import { Effect } from "effect";
 import { SqlClient } from "effect/sql";
@@ -94,6 +95,44 @@ describe.skipIf(!dockerAvailable)("storage garbage collection on PostgreSQL", ()
   }, 60_000);
   afterAll(async () => gateway?.close());
 
+  test("legacy uploads share a worker quota across journals and expired bytes free capacity", async () => {
+    const stage = (id: number, journalId: string) => {
+      const data = Buffer.from(String(id));
+      const sha256 = createHash("sha256").update(data).digest("hex");
+
+      return gateway.runtime.runPromise(
+        AttachmentStore.use((s) =>
+          s.stagePreview({
+            workerId: gateway.workerId,
+            journalId,
+            threadId: "",
+            sha256,
+            data,
+            mimeType: "text/plain",
+          }),
+        ),
+      );
+    };
+
+    const staged = () =>
+      query<{ n: number }>("SELECT count(*)::int AS n FROM worker_preview_uploads WHERE worker_id=$1::uuid", [
+        gateway.workerId,
+      ]);
+
+    for (let i = 0; i < 64; i++) await stage(i, "original");
+    await stage(0, "original");
+    await stage(64, "reconnected");
+    expect((await staged())[0]?.n).toBe(64);
+    expect(await query("SELECT 1 FROM worker_preview_uploads WHERE journal_id='reconnected'")).toHaveLength(0);
+    await query("UPDATE worker_preview_uploads SET expires_at=now()-interval '1 second' WHERE worker_id=$1::uuid", [
+      gateway.workerId,
+    ]);
+    await collect();
+    expect((await staged())[0]?.n).toBe(0);
+    await stage(64, "reconnected");
+    expect((await staged())[0]?.n).toBe(1);
+  });
+
   test("expires abandoned uploads but preserves shared bytes, thumbnails, recent and foreign uploads", async () => {
     const shared = await blob();
     const thumb = await blob();
@@ -106,6 +145,9 @@ describe.skipIf(!dockerAvailable)("storage garbage collection on PostgreSQL", ()
     const orphan = await blob();
     const freshOrphan = await blob(6);
     const legacy = await blob(90, true);
+    const expiredLegacy = await blob(90, true);
+    await query("UPDATE blobs SET legacy_retention_until=now()+interval '1 day' WHERE sha256=$1", [legacy]);
+    await query("UPDATE blobs SET legacy_retention_until=now()-interval '1 day' WHERE sha256=$1", [expiredLegacy]);
     await collect();
     expect(await exists("attachments", own)).toBe(false);
     expect(await exists("attachments", abandoned)).toBe(false);
@@ -113,6 +155,8 @@ describe.skipIf(!dockerAvailable)("storage garbage collection on PostgreSQL", ()
     expect(await exists("blobs", orphan)).toBe(false);
 
     for (const id of [foreign, recent]) expect(await exists("attachments", id)).toBe(true);
+
+    expect(await exists("blobs", expiredLegacy)).toBe(false);
 
     for (const hash of [shared, thumb, recentHash, freshOrphan, legacy]) expect(await exists("blobs", hash)).toBe(true);
   });

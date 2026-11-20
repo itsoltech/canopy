@@ -34,6 +34,8 @@ export const LocalConfig = Schema.Struct({
   gateway_fingerprint: Schema.optionalKey(Schema.String.check(Schema.isPattern(/^[a-f0-9]{64}$/))),
   /** Original authenticated server endpoint, retained across migration and restarts. */
   gateway_fallback: Schema.optionalKey(GatewayEndpoint),
+  /** Exact HTTP origin whose transport the worker operator secures, e.g. with a private tunnel. */
+  trusted_http_origin: Schema.optionalKey(Schema.String),
   /** Journal, blobs in flight, logs. Defaults to a per-OS data directory. */
   data_dir: Schema.optionalKey(Schema.String.check(Schema.isMinLength(1))),
   /** HTTP/2 PING interval; keeps NAT mappings alive and detects dead links. */

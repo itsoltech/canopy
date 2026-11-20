@@ -37,10 +37,11 @@ export const STAMPED = new Set([
 export function mapIds(
   desc: DescMessage,
   message: Message,
-  map: (id: string, field: string) => string,
+  mapField: (id: string, field: string, desc: DescMessage, message: Message) => string,
   visit?: (desc: DescMessage, message: Message) => void,
 ): void {
   const record = reflect(desc, message);
+  const map = (id: string, field: string) => mapField(id, field, desc, message);
   visit?.(desc, message);
 
   // Preview and OS target identifiers are opaque live-session selectors, never Canopy entities.
@@ -118,12 +119,13 @@ export function mapIds(
         values.set(index, map(value as string, field.name));
       }
     } else if (field.fieldKind === "list" && field.listKind === "message") {
-      for (const item of record.get(field)) if (isReflectMessage(item)) mapIds(field.message, item.message, map, visit);
+      for (const item of record.get(field))
+        if (isReflectMessage(item)) mapIds(field.message, item.message, mapField, visit);
     } else if (field.fieldKind === "message" && record.isSet(field))
-      mapIds(field.message, record.get(field).message, map, visit);
+      mapIds(field.message, record.get(field).message, mapField, visit);
     else if (field.fieldKind === "map" && field.mapKind === "message")
       for (const item of record.get(field).values())
-        if (isReflectMessage(item)) mapIds(field.message, item.message, map, visit);
+        if (isReflectMessage(item)) mapIds(field.message, item.message, mapField, visit);
   }
 }
 
