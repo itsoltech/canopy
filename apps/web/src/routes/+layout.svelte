@@ -14,6 +14,7 @@
 
   let { children }: LayoutProps = $props();
   let lastSettings = "/settings";
+  const previewWindow = $derived(page.route.id === "/threads/[threadId]/preview");
 
   /** Windows and Linux: the window has no native buttons, the app draws them. */
   let windowControl = $state<(control: DesktopWindowControl) => Promise<void>>();
@@ -79,7 +80,7 @@
   });
 </script>
 
-{#if page.url.pathname === "/desktop"}
+{#if page.url.pathname === "/desktop" || previewWindow}
   {@render children()}
 {:else}
   <AppShell>{@render children()}</AppShell>

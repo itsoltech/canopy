@@ -3,7 +3,7 @@ import type { IpcMainEvent, IpcMainInvokeEvent } from "electron";
 import { monitorPower } from "./power-events.ts";
 import { registerWorkspaceClose, requestWorkspaceQuit } from "./workspace-close.ts";
 import { spawn, type ChildProcessWithoutNullStreams } from "node:child_process";
-import { join, resolve } from "node:path";
+import { join } from "node:path";
 import type { QuitGuardState, QuitShortcut } from "@canopy/ui/desktop";
 import { initialStatus, serviceEnvironment, type ConfigurationInput } from "./runtime/config.ts";
 import { desktopLink } from "./desktop-link.ts";
@@ -37,9 +37,10 @@ import { registerFontsIpc } from "./fonts-ipc.ts";
 import { startupFailure } from "./startup-error.ts";
 import { sendWindowMessage, sendWindowsMessage, windowContents } from "./window-message.ts";
 import { relaunchAfterQuit } from "./relaunch.ts";
-import { registerDesktopLifecycle } from "./desktop-lifecycle.ts";
+import { configureDesktopApplication, desktopResourcePaths, registerDesktopLifecycle } from "./desktop-lifecycle.ts";
 import { showShutdownWindow } from "./shutdown-window.ts";
 import { shutdownDesktop } from "./shutdown.ts";
+import { PreviewWindows } from "./preview-windows.ts";
 
 const identity = desktopIdentity();
 
@@ -48,26 +49,7 @@ app.setName(identity.productName);
 
 app.setPath("userData", desktopUserData(app.getPath("appData")));
 
-app.setAboutPanelOptions({ applicationName: identity.displayName });
-
-if (process.platform === "win32") app.setAppUserModelId(identity.appId);
-
-// Chromium does not recognize every Linux desktop (e.g. Hyprland). Select a real
-// keychain backend explicitly instead of silently falling back to basic_text.
-if (process.platform === "linux" && !app.commandLine.hasSwitch("password-store"))
-  app.commandLine.appendSwitch(
-    "password-store",
-    /kde/i.test(process.env["XDG_CURRENT_DESKTOP"] ?? "") ? "kwallet6" : "gnome-libsecret",
-  );
-
-if (process.env["CANOPY_USER_DATA"]) app.setPath("userData", resolve(process.env["CANOPY_USER_DATA"]));
-
-// Bound Chromium's disposable HTTP cache separately from desktop history and updates.
-app.commandLine.appendSwitch("disk-cache-size", String(64 * 1024 * 1024));
-
-const ownsInstance = app.requestSingleInstanceLock();
-
-if (!ownsInstance) app.quit();
+const ownsInstance = configureDesktopApplication(identity);
 
 let window: BrowserWindow | undefined;
 let settingsWindow: BrowserWindow | undefined;
@@ -95,11 +77,7 @@ let connection: ControllerConnection | undefined;
 let pendingLink: string | undefined;
 const enrollmentReady = new Set<number>();
 
-const resources = app.isPackaged ? process.resourcesPath : join(app.getAppPath(), "build");
-
-const iconPath = app.isPackaged
-  ? join(resources, "icon.png")
-  : resolve(app.getAppPath(), `build/${identity.channel}/icon.png`);
+const { iconPath, runtime } = desktopResourcePaths(identity.channel);
 
 const logs = new Logs(join(app.getPath("userData"), "logs"));
 const startupFailed = startupFailure(logs, () => quitting);
@@ -126,6 +104,8 @@ const quitGuard = new QuitGuard(
 const webSession = new DesktopWebSession(() => setupOrigin);
 const policy = new DocumentPolicy(webSession);
 const appRoutes = new AppRoutes();
+const previews = new PreviewWindows(iconPath, quitGuard, () => openRoute("/settings/agent-tools"));
+const appContents = () => [windowContents(window), windowContents(settingsWindow), ...previews.contents()];
 
 function rpc(action: string, args: ControllerArguments = {}) {
   return connection
@@ -232,6 +212,7 @@ async function openApplication() {
     settingsWindow?.close();
   } catch {
     if (quitting) return;
+    previews.closeAll();
     startupError = "Gateway unavailable. Check your connection and the Canopy web address, then try again.";
     status = { ...status, phase: "error", error: startupError };
     logs.write("desktop", "Web application unavailable; showing startup recovery");
@@ -281,7 +262,8 @@ app.on("before-quit", (event) => {
 
   if (requestWorkspaceQuit()) return;
   quitting = true;
-  webSession.revoke([windowContents(window), windowContents(settingsWindow)]);
+  webSession.revoke(appContents());
+  previews.closeAll();
   stopPower();
   quitGuard.cancel();
 
@@ -316,7 +298,6 @@ app.on("before-quit", (event) => {
 });
 
 function startController() {
-  const runtime = join(resources, "runtime");
   const paths = runtimePaths(runtime);
   controller = spawn(paths.bun, [controllerEntry(runtime)], {
     stdio: "pipe",
@@ -329,12 +310,14 @@ function startController() {
     logs,
     (next) => {
       if (next.needsPairing && !status.needsPairing) void history.clear();
+      previews.statusChanged(status, next);
       status = startupError ? { ...next, phase: "error", error: startupError } : next;
       broadcast();
     },
     () => {
       controllerExited = true;
-      webSession.revoke([windowContents(window), windowContents(settingsWindow)]);
+      webSession.revoke(appContents());
+      previews.closeAll();
 
       if (!quitting) {
         status = { ...status, phase: "error", worker: "offline", error: "Desktop services stopped. Restart Canopy." };
@@ -348,6 +331,11 @@ function startController() {
 }
 
 function registerIpc() {
+  previews.register(
+    authorize,
+    () => windowContents(window),
+    () => status,
+  );
   registerHtmlViewer(authorize);
   registerFontsIpc(authorize, () => status.webUrl);
   registerHistoryIpc(history, authorize, () => status.phase === "running" && !status.needsPairing);
@@ -414,6 +402,7 @@ function registerIpc() {
         logs,
         closeSettings: () => closeModeChooser(settingsWindow, window),
         apply: async (config, client) => {
+          previews.closeAll();
           await history.clear();
           startupError = "";
           await rpc("configure", { configuration: config, remoteClient: client });
@@ -449,7 +438,7 @@ async function start() {
   status = initialized.status;
   registerIpc();
   window = createWindow(true);
-  webSession.attach(window.webContents.session, () => [windowContents(window), windowContents(settingsWindow)]);
+  webSession.attach(window.webContents.session, appContents);
   await policy.prepare(`${setupOrigin}/desktop`);
 
   if (quitting) return;

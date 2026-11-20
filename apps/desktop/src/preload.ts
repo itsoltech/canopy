@@ -26,6 +26,7 @@ function subscribe<T>(channel: string, listener: (data: T) => void) {
 }
 
 const bridge: DesktopBridge = {
+  openPreviewWindow: (path) => ipcRenderer.invoke("canopy:open-preview-window", path),
   openAgentHtml: (specJson, title) => ipcRenderer.invoke("canopy:agent-html-open", specJson, title),
   startAgentHtml: (input) => ipcRenderer.invoke("canopy:agent-html-start", input),
   commandAgentHtml: (id, command) => ipcRenderer.invoke("canopy:agent-html-command", id, command),

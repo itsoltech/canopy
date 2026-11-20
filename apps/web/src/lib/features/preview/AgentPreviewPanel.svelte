@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { browser } from "$app/env";
   import { onMount, tick, untrack } from "svelte";
   import { create } from "@bufbuild/protobuf";
   import { AgentPreviewInputSchema, AgentTool, type AgentPreviewTarget, type ui } from "@canopy/contracts";
@@ -10,6 +11,7 @@
   import { PreviewSession } from "./preview-session.svelte.ts";
   import { previewScope, previewScopeKey } from "./preview-client.ts";
   import { isPreviewReady } from "./preview-readiness.ts";
+  import { openPreviewWindow, previewWindowPath } from "./preview-window.ts";
   import AgentPreviewCanvas from "./AgentPreviewCanvas.svelte";
   import PreviewToolbar from "./PreviewToolbar.svelte";
   import PreviewUnavailable from "./PreviewUnavailable.svelte";
@@ -37,7 +39,7 @@
     target?: AgentPreviewTarget;
     offline?: string;
     fit?: "fit" | "actual";
-    location?: "sidebar" | "tab";
+    location?: "sidebar" | "tab" | "window";
     onmove?: (target?: AgentPreviewTarget) => void;
   } = $props();
 
@@ -48,6 +50,9 @@
   let root = $state<HTMLDivElement>();
   let retry = $state(0);
   let expanded = $state(false);
+  const canOpenWindow = browser && (!window.canopyDesktop || Boolean(window.canopyDesktop.openPreviewWindow));
+  let openingWindow = $state(false);
+  let windowError = $state("");
   let focusAddress = $state<(() => void) | undefined>();
   let focusedSelection: PreviewSelection | undefined;
   const item = $derived(worker?.agentTools.find((entry) => entry.tool?.tool === tool));
@@ -133,6 +138,22 @@
     onmove?.(selected);
   }
 
+  async function openWindow(): Promise<void> {
+    if (openingWindow) return;
+    openingWindow = true;
+    windowError = "";
+    const selected = session.targets.find((entry) => entry.id === session.targetId) ?? target;
+
+    try {
+      if (!(await openPreviewWindow(previewWindowPath(threadId, worker?.id ?? "", tool, fit, selected))))
+        windowError = "The browser blocked the preview window. Allow pop-ups for Canopy and try again.";
+    } catch {
+      windowError = "Could not open the preview window. Try again.";
+    } finally {
+      openingWindow = false;
+    }
+  }
+
   async function fullscreen(): Promise<void> {
     if (!root) return;
 
@@ -188,7 +209,7 @@
     <IconButton
       size="sm"
       icon={fit === "fit" ? "arrows-pointing-out" : "arrows-pointing-in"}
-      label={fit === "fit" ? "Show actual size" : "Fit to panel"}
+      label={fit === "fit" ? "Show actual size" : location === "window" ? "Fit to window" : "Fit to panel"}
       disabled={!live}
       onclick={() => (fit = fit === "fit" ? "actual" : "fit")}
     />
@@ -200,6 +221,15 @@
         onclick={() => void move().catch(() => {})}
       />
     {/if}
+    {#if onmove && canOpenWindow}
+      <IconButton
+        size="sm"
+        icon="window"
+        label="Open in new window"
+        disabled={openingWindow}
+        onclick={() => void openWindow()}
+      />
+    {/if}
     <IconButton
       size="sm"
       icon={expanded ? "arrows-pointing-in" : "arrow-top-right-on-square"}
@@ -207,6 +237,9 @@
       onclick={() => void fullscreen().catch(() => {})}
     />
   </div>
+  {#if windowError}
+    <p class="border-b border-divider px-3 py-2 text-xs text-rose-700 dark:text-rose-400" role="alert">{windowError}</p>
+  {/if}
   {#if allowed}
     <PreviewToolbar
       {tool}
@@ -248,7 +281,7 @@
       </div>
     {/if}
   {:else}
-    <PreviewUnavailable {worker} {tool} {item} offline={unavailable} />
+    <PreviewUnavailable {worker} {tool} {item} offline={unavailable} standalone={location === "window"} />
   {/if}
   <div
     class="flex h-8 shrink-0 items-center gap-2 border-t border-divider px-3 text-xs text-muted"
