@@ -1,6 +1,6 @@
 import type { InitializeParams, ServerNotification, ServerRequest, v2 } from "@canopy/codex-protocol";
 import { Context, Effect, Layer, Option, Predicate, PubSub, Schema, Stream } from "effect";
-import { governBunSpawn, windowsCommand } from "@canopy/process-governor";
+import { governBunSpawn, windowsCommand, startWorkload } from "@canopy/process-governor";
 import type { JsonValue } from "@canopy/domain";
 import { decodeJson } from "../json.ts";
 import type { CodexAppServerLaunch } from "./launch.ts";
@@ -102,13 +102,20 @@ export class CodexAppServer extends Context.Service<
               const command = windowsCommand(options.launch.command, options.launch.env);
 
               return governBunSpawn("harness", () =>
-                Bun.spawn([...command.argv], {
-                  env: options.launch.env,
-                  windowsVerbatimArguments: command.windowsVerbatimArguments,
-                  stdin: "pipe",
-                  stdout: "pipe",
-                  stderr: "pipe",
-                }),
+                startWorkload(
+                  command.argv,
+                  (argv) =>
+                    Bun.spawn([...argv], {
+                      env: options.launch.env,
+                      windowsVerbatimArguments: command.windowsVerbatimArguments,
+                      stdin: "pipe",
+                      stdout: "pipe",
+                      stderr: "pipe",
+                    }),
+                  // The app-server can serve several turns. Let the kernel select an individual
+                  // victim inside this budget so an overgrown build can die on its own.
+                  "process",
+                ),
               );
             },
             catch: () => new CodexAppServerStartupError({ message: "Could not spawn the Codex app-server." }),

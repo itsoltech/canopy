@@ -5,6 +5,7 @@ import { parseArgs } from "node:util";
 import { setTimeout as sleep } from "node:timers/promises";
 import { Effect, ManagedRuntime, Result } from "effect";
 import { Code, ConnectError } from "@connectrpc/connect";
+import { configureWorkloadMemory } from "@canopy/process-governor";
 import { WorkerState } from "@canopy/contracts";
 import { CANOPY_VERSION } from "@canopy/domain/release/version";
 import { workerCapabilities } from "./capabilities.ts";
@@ -163,6 +164,8 @@ mkdirSync(dataDir, { recursive: true, mode: 0o700 });
 const logDirectory = Bun.env["CANOPY_LOG_DIR"] || join(dataDir, "logs");
 
 installLogWriter("worker", logDirectory, [local.credential]);
+
+configureWorkloadMemory((message) => console.info(message));
 
 await cleanLogSpool(dataDir);
 
