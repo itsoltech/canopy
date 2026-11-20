@@ -109,7 +109,7 @@ const description =
 
 export const scheduleTools = [
   define("create_schedule", description, object(fields, ["prompt"]), "Creating a schedule", (c) =>
-    c.action(async () => json(ui.ScheduleSchema, await c.core.createSchedule(await configuration(c)))),
+    c.action(async () => json(ui.ScheduleSchema, await c.core.createSchedule(await configuration(c), "bot"))),
   ),
   define(
     "list_schedules",
@@ -158,6 +158,7 @@ export const scheduleTools = [
               expectedVersion: c.integer("expected_version") ?? 0,
               configuration: await configuration(c),
             }),
+            "bot",
           ),
         ),
       ),

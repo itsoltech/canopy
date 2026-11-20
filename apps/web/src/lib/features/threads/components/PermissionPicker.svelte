@@ -25,7 +25,7 @@
     value,
     onselect,
     fullAuto,
-    fullAccess = true,
+    fullAccessDescription,
     disabled = false,
     scope,
     nextTurnMode,
@@ -38,8 +38,7 @@
     onselect: (mode: PermissionModeKey) => void;
     /** false hides Full auto for a selected worker without a sandbox. */
     fullAuto?: boolean | undefined;
-    /** false: Full access is not offered (schedules: nobody watches those runs start). */
-    fullAccess?: boolean;
+    fullAccessDescription?: string | undefined;
     disabled?: boolean;
     scope?: "message" | "next" | undefined;
     nextTurnMode?: PermissionModeKey | undefined;
@@ -50,11 +49,7 @@
     class?: ClassValue;
   } = $props();
 
-  const modes = $derived(
-    permissionModes.filter(
-      (m) => isPermissionModeAvailable(m.value, fullAuto) && (fullAccess || !isFullAccess(m.value)),
-    ),
-  );
+  const modes = $derived(permissionModes.filter((m) => isPermissionModeAvailable(m.value, fullAuto)));
 
   const look = $derived(permissionLook(value));
   const tone = $derived(look.tone);
@@ -134,4 +129,4 @@
     </MenuCheckItem>
   {/each}
 </DropdownMenu>
-{#if !onconfirmfullaccess}<FullAccessConfirm bind:pending={confirming} />{/if}
+{#if !onconfirmfullaccess}<FullAccessConfirm bind:pending={confirming} description={fullAccessDescription} />{/if}

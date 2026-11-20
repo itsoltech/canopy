@@ -8,7 +8,10 @@
    * pick waiting for it; confirming runs it, Cancel or Escape drops it. The Permissions dialog asks with its own
    * Save button instead.
    */
-  let { pending = $bindable() }: { pending?: (() => void) | undefined } = $props();
+  let {
+    pending = $bindable(),
+    description = "The agent edits files and runs commands without asking. No sandbox keeps it in the workspace. It can change any file this computer’s worker can reach and use the network.",
+  }: { pending?: (() => void) | undefined; description?: string | undefined } = $props();
 
   function confirm() {
     const run = pending;
@@ -20,8 +23,7 @@
 <Dialog bind:open={() => pending !== undefined, (open) => !open && (pending = undefined)} title="Turn on full access?">
   <div class="grid gap-4">
     <p class="text-base/6 text-pretty text-zinc-600 sm:text-sm/6 dark:text-zinc-400">
-      The agent edits files and runs commands without asking. No sandbox keeps it in the workspace. It can change any
-      file this computer’s worker can reach and use the network.
+      {description}
     </p>
     <DialogActions>
       <Button data-autofocus onclick={() => (pending = undefined)}>Cancel</Button>

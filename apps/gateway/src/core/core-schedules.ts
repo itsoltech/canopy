@@ -15,9 +15,12 @@ import { coreRun } from "./core-broadcast.ts";
 import { splitId } from "@canopy/domain/computers";
 import { refuseRemoteAutomation } from "../worktrees/remote.ts";
 
-export async function coreScheduleConfiguration(
+type ScheduleAuthor = "owner" | "bot";
+
+async function coreScheduleConfiguration(
   hostContext: GatewayCore,
   request: ui.CreateScheduleRequest,
+  author: ScheduleAuthor,
 ): Promise<NewSchedule> {
   const target = request.target || "thread";
 
@@ -111,19 +114,16 @@ export async function coreScheduleConfiguration(
         spec.effort,
         spec.serviceTier,
       );
+    const limited = author === "bot" && spec.permissionMode === PermissionMode.FULL_ACCESS;
+
     newThread = create(ui.NewThreadScheduleSchema, {
       ...spec,
       placement,
       title: spec.title.trim(),
-      // Unattended schedules retain their existing sandbox ceiling.
-      permissionMode:
-        spec.permissionMode === PermissionMode.FULL_ACCESS
-          ? PermissionMode.FULL_AUTO
-          : spec.permissionMode || PermissionMode.ASK,
-      permissionModeNote:
-        spec.permissionMode === PermissionMode.FULL_ACCESS
-          ? "Scheduled threads limit Full access to Full auto. Keep this mode or choose one that asks."
-          : "",
+      permissionMode: limited ? PermissionMode.FULL_AUTO : spec.permissionMode || PermissionMode.ASK,
+      permissionModeNote: limited
+        ? "Bot schedules use Full auto in place of Full access. Edit this schedule to choose another mode."
+        : "",
     });
   }
 
@@ -158,8 +158,8 @@ export function coreBus<A, E>(
 
 export interface CoreSchedulesMethods {
   listSchedules(request: ui.ListSchedulesRequest): Promise<ui.Schedule[]>;
-  createSchedule(request: ui.CreateScheduleRequest): Promise<ui.Schedule>;
-  updateSchedule(request: ui.UpdateScheduleRequest): Promise<ui.Schedule>;
+  createSchedule(request: ui.CreateScheduleRequest, author?: ScheduleAuthor): Promise<ui.Schedule>;
+  updateSchedule(request: ui.UpdateScheduleRequest, author?: ScheduleAuthor): Promise<ui.Schedule>;
   previewSchedule(request: ui.PreviewScheduleRequest): ui.PreviewScheduleResponse;
   setScheduleStatus(request: ui.SetScheduleStatusRequest): Promise<ui.Schedule>;
 }
@@ -181,8 +181,8 @@ export const coreSchedulesMethods: CoreSchedulesMethods = {
   },
 
   /** A user's schedule: like an agent's, but it may be open-ended and starts no agent chain (hops 0). */
-  async createSchedule(this: GatewayCore, request: ui.CreateScheduleRequest): Promise<ui.Schedule> {
-    const configuration = await coreScheduleConfiguration(this, request);
+  async createSchedule(this: GatewayCore, request: ui.CreateScheduleRequest, author = "owner"): Promise<ui.Schedule> {
+    const configuration = await coreScheduleConfiguration(this, request, author);
 
     const row = await coreBus(this, (s) =>
       s.createUserSchedule({ userId: this[coreState].options.userId, schedule: configuration }),
@@ -194,11 +194,11 @@ export const coreSchedulesMethods: CoreSchedulesMethods = {
     return schedule;
   },
 
-  async updateSchedule(this: GatewayCore, request: ui.UpdateScheduleRequest): Promise<ui.Schedule> {
+  async updateSchedule(this: GatewayCore, request: ui.UpdateScheduleRequest, author = "owner"): Promise<ui.Schedule> {
     if (!request.configuration) throw new InvalidError("configuration is required");
 
     if (!request.expectedVersion) throw new InvalidError("expected_version is required");
-    const configuration = await coreScheduleConfiguration(this, request.configuration);
+    const configuration = await coreScheduleConfiguration(this, request.configuration, author);
     const previous = await coreBus(this, (s) => s.schedule(request.scheduleId));
 
     const row = await coreBus(this, (s) =>

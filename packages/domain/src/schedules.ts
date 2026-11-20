@@ -1,4 +1,4 @@
-import type { ui } from "@canopy/contracts";
+import { PermissionMode, type ui } from "@canopy/contracts";
 
 export const PLACEMENTS = ["specific", "any", "least_busy", "round_robin"] as const;
 
@@ -12,6 +12,7 @@ export function scheduleWorkerEligible(worker: ui.Worker, spec: ui.NewThreadSche
 
   return (
     (!requireOnline || worker.online) &&
+    (spec.permissionMode !== PermissionMode.FULL_ACCESS || worker.fullAccess) &&
     !!instance?.enabled &&
     instance.available &&
     worker.providers.some((p) => p.provider === spec.provider && p.available)

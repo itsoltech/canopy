@@ -3,6 +3,8 @@
 Status (2026-11-20): web, desktop i mobile utrzymują strumień wątku przy dołączaniu
 starszej strony z aktualnego checkpointu sekwencyjnego. Gateway obsługuje osobną
 subskrypcję oczekujących żądań subagenta.
+Edytor harmonogramu pozwala potwierdzić Full access dla nowych wątków. Pole
+`Worker.full_access` odzwierciedla ostatni uwierzytelniony raport workera.
 Kreatory web i mobilny pokazują token workera oddzielnie od polecenia.
 Serwerowe wejścia BFF sprawdzają Host i blokują osadzanie panelu w ramce. Tryb deweloperski
 wymaga zgodnego originu przeglądarki. Podglądy SVG zachowują sandbox odpowiedzi HTTP.

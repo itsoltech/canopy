@@ -128,7 +128,7 @@ export const fireSchedule = (sql: SqlClient.SqlClient, args: Parameters<BusSched
         }
 
         const placement =
-          spec && run && prepared && (yield* placementAvailable(sql, schedule, prepared)).length
+          spec && run && prepared && (yield* placementAvailable(sql, schedule, prepared, spec.permissionMode)).length
             ? prepared.placement
             : undefined;
 

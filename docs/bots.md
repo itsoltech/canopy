@@ -981,8 +981,9 @@ a nie z argumentów modelu. Dla bezpośrednich startów wybór jest ponownie roz
 w transakcji tworzenia. Harmonogram zapisuje wybór przy utworzeniu lub aktualizacji.
 Na połączonym komputerze gateway źródłowy wybiera tryb właściciela, a docelowy stosuje
 ograniczenie swojego workera. Worker bez capability `full_access` ogranicza Full access
-do Full auto. Harmonogramy nowych wątków zawsze zachowują sandbox: Full access jest
-ograniczany do Full auto. Powód trafia do szczegółów wątku w web i mobile.
+do Full auto. Harmonogramy tworzone i aktualizowane narzędziami bota ograniczają Full access
+do Full auto. Powód trafia do szczegółów wątku w web i mobile. Właściciel może
+potwierdzić Full access w edytorze harmonogramu ([agent-bus.md](agent-bus.md#nowy-wątek-przy-każdym-uruchomieniu)).
 
 Migracja ustawienia dziedziczenia zamienia brak wyboru i dawne `same_bot` na `user_default`.
 Zachowuje jawne ustawienia, w tym Ask first zapisane wcześniej przez migrację **0090**.

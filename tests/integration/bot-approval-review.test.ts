@@ -114,23 +114,31 @@ describe.skipIf(!dockerAvailable)("approval review regressions through the gatew
       expect(thread.permissionMode).toBe(expected);
     }
 
-    const bot = await add("Schedule cap", { approvalPolicy: "full_auto", threadPermission: "read_only" });
-    request("create_schedule", {
-      prompt: "Check",
-      target: "new_thread",
-      run_at: new Date(Date.now() + 3600_000).toISOString(),
-      new_thread: {
-        project_id: suite.projectId,
-        workspace_id: suite.workspaceId,
-        placement: "specific",
-        provider: "codex",
-        provider_instance: "native",
-      },
-    });
-    await send(bot.id, "Schedule");
-    await settled(bot.id);
-    const schedule = (await suite.gw.api.listSchedules({})).schedules.find((s) => s.prompt === "Check")!;
-    expect(schedule.newThread?.permissionMode).toBe(PermissionMode.READ_ONLY);
+    for (const [ownerMode, expected] of [
+      ["read_only", PermissionMode.READ_ONLY],
+      ["full_access", PermissionMode.FULL_AUTO],
+    ] as const) {
+      const prompt = `Check with ${ownerMode}`;
+      const bot = await add(`Schedule with ${ownerMode}`, { approvalPolicy: "full_auto", threadPermission: ownerMode });
+      request("create_schedule", {
+        prompt,
+        target: "new_thread",
+        run_at: new Date(Date.now() + 3600_000).toISOString(),
+        new_thread: {
+          project_id: suite.projectId,
+          workspace_id: suite.workspaceId,
+          placement: "specific",
+          provider: "codex",
+          provider_instance: "native",
+        },
+      });
+      await send(bot.id, "Schedule");
+      await settled(bot.id);
+      const schedule = (await suite.gw.api.listSchedules({})).schedules.find((s) => s.prompt === prompt)!;
+      expect(schedule.newThread?.permissionMode).toBe(expected);
+
+      if (ownerMode === "full_access") expect(schedule.newThread?.permissionModeNote).toContain("Bot schedules");
+    }
   }, 20_000);
 
   test("model-supplied thread and schedule modes are rejected before creating anything", async () => {

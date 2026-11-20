@@ -1,6 +1,7 @@
 <script lang="ts">
   import { Provider, PermissionMode, ui } from "@canopy/contracts";
   import { scheduleWorkerEligible } from "@canopy/domain";
+  import { scheduledFullAccessDescription, scheduledFullAccessUnavailable } from "@canopy/domain/schedule-display";
   import { create } from "@bufbuild/protobuf";
   import { untrack } from "svelte";
   import type { ClassValue } from "svelte/elements";
@@ -13,7 +14,6 @@
   import {
     availablePermissionMode,
     fullAutoAvailable,
-    inheritedMode,
     permissionKey,
     type PermissionModeKey,
   } from "#lib/features/threads/labels.ts";
@@ -75,7 +75,7 @@
   let effort = $state<string | undefined>(initial?.effort || undefined);
   let serviceTier = $state<string | undefined>(initial?.serviceTier || undefined);
 
-  let permission = $state<PermissionModeKey>(initial ? inheritedMode(permissionKey(initial.permissionMode)) : "ASK");
+  let permission = $state<PermissionModeKey>(initial ? permissionKey(initial.permissionMode) : "ASK");
 
   let title = $state(initial?.title ?? "");
   const project = $derived(overview.projectChoice(projectId));
@@ -220,7 +220,7 @@
       <PermissionPicker
         value={effectivePermission}
         {fullAuto}
-        fullAccess={false}
+        fullAccessDescription={scheduledFullAccessDescription}
         onselect={(next) => (permission = next)}
       />
     </div>
@@ -229,6 +229,8 @@
       </p>{/if}
     <p aria-live="polite" class="text-base/6 text-pretty text-zinc-500 sm:text-sm/5 dark:text-zinc-400">
       {#if eligible.length}Eligible now: {eligible.map((w) => w.name).join(", ")}.
+      {:else if effectivePermission === "FULL_ACCESS" && workers.length && !workers.some((w) => w.fullAccess)}
+        {scheduledFullAccessUnavailable}
       {:else if placement === "specific"}No eligible worker online. The thread will wait for this worker.
       {:else}No eligible workers online. The task waits for availability, then follows your missed-run choice.{/if}
     </p>

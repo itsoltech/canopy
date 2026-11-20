@@ -50,6 +50,7 @@ interface WorkerListRow {
     workspaceBranchSwitch?: boolean;
     desktopBundled?: boolean;
     fileReveal?: boolean;
+    fullAccess?: boolean;
     claudeLivePermissions?: boolean;
   };
   last_seen_at: Date | null;
@@ -91,6 +92,7 @@ function listedWorker(r: WorkerListRow, online: ReadonlySet<string>) {
     workspaceBranchSwitch: r.capabilities?.workspaceBranchSwitch === true,
     desktopBundled: r.capabilities?.desktopBundled === true,
     fileReveal: r.capabilities?.fileReveal === true,
+    fullAccess: r.capabilities?.fullAccess === true,
     claudeLivePermissions: r.capabilities?.claudeLivePermissions === true,
     configVersion: r.config_version ? BigInt(r.config_version) : 0n,
     appliedVersion: r.applied_version ? BigInt(r.applied_version) : 0n,
@@ -234,6 +236,7 @@ export function workerStore(sql: SqlClient.SqlClient): WorkerStore {
                          'branchStash',w.capabilities->'branchStash','workspaceBranchSwitch',w.capabilities->'workspaceBranchSwitch',
                          'desktopBundled',w.capabilities->'desktopBundled',
                          'fileReveal',w.capabilities->'fileReveal',
+                         'fullAccess',w.capabilities->'fullAccess',
                          'claudeLivePermissions',w.capabilities->'claudeLivePermissions') AS capabilities, w.last_seen_at, w.revoked_at,
                        coalesce(c.profile_names,'{}'::jsonb) AS profile_names,
                        c.version AS config_version, c.applied_version, c.apply_report

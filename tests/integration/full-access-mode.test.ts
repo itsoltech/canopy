@@ -5,7 +5,7 @@
  */
 import { afterAll, beforeAll, describe, expect, test } from "bun:test";
 import { create } from "@bufbuild/protobuf";
-import { timestampFromDate } from "@bufbuild/protobuf/wkt";
+import { timestampDate, timestampFromDate } from "@bufbuild/protobuf/wkt";
 import { PermissionMode, Provider, ui, type AgentToolResult } from "@canopy/contracts";
 import { dockerAvailable } from "@canopy/db/testing";
 import { GatewayCore } from "@canopy/gateway/core";
@@ -93,7 +93,7 @@ describe.skipIf(!dockerAvailable)("full access mode (gateway + scripted workers)
     });
     await eventually(
       () => gw.api.getOverview({}),
-      (o) => o.workers.some((w) => w.id === added.workerId && w.appliedVersion > 0n),
+      (o) => o.workers.some((w) => w.id === added.workerId && w.providerInstances.some((i) => i.available)),
     );
     projectId = (await gw.api.createProject({ name: "Full access" })).project!.id;
     oldWorkspace = (
@@ -377,25 +377,51 @@ describe.skipIf(!dockerAvailable)("full access mode (gateway + scripted workers)
     }
   });
 
-  test("scheduled threads retain the sandbox ceiling with a recorded explanation", async () => {
-    const schedule = (
-      await gw.api.createSchedule({
-        target: "new_thread",
-        prompt: "Clean up",
-        name: "Nightly",
-        when: { case: "runAt", value: timestampFromDate(new Date(Date.now() + 60_000)) },
-        newThread: {
-          projectId,
-          placement: "specific",
-          workspaceId,
-          provider: Provider.CODEX,
-          permissionMode: PermissionMode.FULL_ACCESS,
-          title: "Scheduled",
+  test("owner schedules keep Full access and only start on a worker that supports it", async () => {
+    const configuration = create(ui.CreateScheduleRequestSchema, {
+      target: "new_thread",
+      prompt: "Check the workspace",
+      when: { case: "runAt", value: timestampFromDate(new Date(Date.now() + 60_000)) },
+      newThread: {
+        projectId,
+        placement: "specific",
+        workspaceId: oldWorkspace,
+        provider: Provider.CODEX,
+        permissionMode: PermissionMode.FULL_ACCESS,
+        title: "Scheduled",
+      },
+    });
+
+    const schedule = (await gw.api.createSchedule(configuration)).schedule!;
+
+    const saved = async () =>
+      (await gw.api.listSchedules({ includeFinished: true })).schedules.find((s) => s.id === schedule.id)!;
+
+    expect(schedule.newThread?.permissionMode).toBe(PermissionMode.FULL_ACCESS);
+    const due = timestampDate(schedule.nextRunAt!);
+    await gw.core.scheduler.tick(due);
+    expect(await saved()).toMatchObject({ status: "active", runs: 0, recentRuns: [] });
+
+    const edited = (
+      await gw.api.updateSchedule({
+        scheduleId: schedule.id,
+        expectedVersion: schedule.version,
+        configuration: {
+          ...configuration,
+          newThread: { ...configuration.newThread!, placement: "any", workspaceId: "" },
         },
       })
     ).schedule!;
 
-    expect(schedule.newThread?.permissionMode).toBe(PermissionMode.FULL_AUTO);
-    expect(schedule.newThread?.permissionModeNote).toContain("Scheduled threads limit Full access");
+    expect(edited.newThread?.permissionMode).toBe(PermissionMode.FULL_ACCESS);
+    await gw.core.scheduler.tick(timestampDate(edited.nextRunAt!));
+    const run = (await saved()).recentRuns[0]!;
+    expect(run).toMatchObject({ outcome: "started", workspaceId });
+    const [first] = await settled(run.threadId, 1);
+    expect(first).toMatchObject({ status: "completed", permission_mode: "FULL_ACCESS" });
+    expect(modern.turnModes.get(first!.id)).toEqual({
+      turn: PermissionMode.FULL_ACCESS,
+      thread: PermissionMode.FULL_ACCESS,
+    });
   });
 });
