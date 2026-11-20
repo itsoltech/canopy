@@ -157,6 +157,8 @@ export function sameDesktopConfiguration(
 }
 
 export interface DesktopBridge {
+  /** Opens only the calling thread's automation preview on the current BFF. */
+  openPreviewWindow?(path: string): Promise<void>;
   /** Opens untrusted HTML in a separate, network-denied session. Never runs in the app renderer. */
   openAgentHtml?(specJson: string, title: string): Promise<void>;
   /** Inline pixels from the same isolated browser process; replaces any separate viewer. */

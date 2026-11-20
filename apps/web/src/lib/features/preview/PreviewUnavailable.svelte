@@ -12,7 +12,14 @@
     tool,
     item,
     offline = "",
-  }: { worker?: ui.Worker; tool: AgentTool; item?: ui.WorkerAgentTool; offline?: string } = $props();
+    standalone = false,
+  }: {
+    worker?: ui.Worker;
+    tool: AgentTool;
+    item?: ui.WorkerAgentTool;
+    offline?: string;
+    standalone?: boolean;
+  } = $props();
 
   let busy = $state(false);
   let error = $state("");
@@ -86,7 +93,9 @@
   {/if}
   {#if worker && !offline && (item?.blockedReason || (item?.tool && !ready && !item.action))}<ButtonLink
       size="sm"
-      href="/settings/agent-tools">Open tool settings</ButtonLink
+      href="/settings/agent-tools"
+      target={standalone ? "_blank" : undefined}
+      rel={standalone ? "noopener" : undefined}>Open tool settings</ButtonLink
     >{/if}
   {#if error}<p class="max-w-72 text-sm/5 text-rose-700 dark:text-rose-400" role="alert">{error}</p>{/if}
 </div>

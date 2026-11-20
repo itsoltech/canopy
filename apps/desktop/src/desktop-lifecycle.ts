@@ -1,5 +1,40 @@
 import { app } from "electron";
+import { join, resolve } from "node:path";
+import type { DesktopChannel, desktopIdentity } from "./identity.ts";
 import { registerSecondInstance } from "./relaunch.ts";
+
+/** Configure the shell before taking the instance lock, which depends on userData. */
+export function configureDesktopApplication(identity: ReturnType<typeof desktopIdentity>) {
+  const userData = process.env["CANOPY_USER_DATA"];
+
+  if (userData) app.setPath("userData", resolve(userData));
+  app.setAboutPanelOptions({ applicationName: identity.displayName });
+
+  if (process.platform === "win32") app.setAppUserModelId(identity.appId);
+
+  // Chromium does not recognize every Linux desktop (e.g. Hyprland). Select a real
+  // keychain backend explicitly instead of silently falling back to basic_text.
+  if (process.platform === "linux" && !app.commandLine.hasSwitch("password-store"))
+    app.commandLine.appendSwitch(
+      "password-store",
+      /kde/i.test(process.env["XDG_CURRENT_DESKTOP"] ?? "") ? "kwallet6" : "gnome-libsecret",
+    );
+
+  // Bound Chromium's disposable HTTP cache separately from desktop history and updates.
+  app.commandLine.appendSwitch("disk-cache-size", String(64 * 1024 * 1024));
+  const ownsInstance = app.requestSingleInstanceLock();
+
+  if (!ownsInstance) app.quit();
+
+  return ownsInstance;
+}
+
+export function desktopResourcePaths(channel: DesktopChannel) {
+  const resources = app.isPackaged ? process.resourcesPath : join(app.getAppPath(), "build");
+  const iconPath = app.isPackaged ? join(resources, "icon.png") : join(resources, channel, "icon.png");
+
+  return { runtime: join(resources, "runtime"), iconPath };
+}
 
 /** Closing the last window quits on Windows/Linux; macOS keeps services running until Quit. */
 export function registerDesktopLifecycle(

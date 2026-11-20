@@ -7,7 +7,7 @@ z kopiowaniem pełnej i względnej ścieżki, pobieraniem oraz lokalnym
 tylko do odczytu w web/desktop, podgląd dostępnych plików spoza workspace tylko do odczytu,
 panel Diff z wirtualizowanym przeglądem zmian Git i zwiększonymi limitami odczytu
 i lokalnym szkicem review wysyłanym agentowi jako jedna wiadomość oraz wcześniejszym
-pobieraniem treści diffu poza ekranem, karta Preview w web/desktop
+pobieraniem treści diffu poza ekranem, karta i osobne okno Preview w web/desktop
 i różne ikony skali 1:1 oraz dopasowania, kompaktowa typografia zakładek,
 zamykanie kart web/desktop środkowym przyciskiem myszy, diagramy Mermaid w trybie
 `Rendered`, bezpieczny HTML i lokalne obrazy w Markdown w web/desktop,
@@ -320,7 +320,7 @@ Te gesty dotyczą web/desktop, bez rozszerzenia natywnego klienta mobile.
 Lewy sidebar nadal służy projektom, wątkom i botom. Zakładki w nagłówku wybierają
 **główną treść**. Podsumowanie wątku jest **osobnym elementem obszaru wątku**, nie
 częścią prawego panelu. Prawy panel przełącza **Files**, **Diff** i **Preview**;
-Preview można przenieść do pełnej karty głównego obszaru w web/desktop.
+Preview można przenieść do pełnej karty głównego obszaru lub otworzyć w osobnym oknie w web/desktop.
 
 | Treść | Miejsce |
 | --- | --- |
@@ -332,7 +332,7 @@ Preview można przenieść do pełnej karty głównego obszaru w web/desktop.
 | Sekrety, fork, lineage, subagenci, `New side thread` | Podsumowanie |
 | Drzewo katalogu | Panel `Files`; wybrany plik otwiera osobną zakładkę |
 | Zmiany Git i review dla agenta | Panel `Diff`; wybór pliku otwiera wspólną kartę wszystkich diffów i przewija do pliku |
-| Przeglądarka, okno desktopowe lub urządzenie workera | `Preview` w prawym panelu lub pełnej karcie web/desktop; bezpośrednie sterowanie w sesji wątku |
+| Przeglądarka, okno desktopowe lub urządzenie workera | `Preview` w prawym panelu, pełnej karcie lub osobnym oknie web/desktop; bezpośrednie sterowanie w sesji wątku |
 | Cel, kolejka, prośby o zgodę i sekret | Obecny zasobnik rozmowy |
 
 Moduły `Pull requests`, `Tasks` i `Connectors` w panelu zostały usunięte: ich
@@ -501,6 +501,12 @@ ani sesji automatyzacji. Karta korzysta ze zwykłego zamykania, przełącznika i
 workspace’u. Jej obecność i wybór są lokalnymi metadanymi urządzenia; cel oraz skala
 pozostają tylko w pamięci. Ponowne wybranie karty ukrywa boczny Preview, a Files
 może działać obok niej. Natywny mobile ma ręczny pełnoekranowy Preview.
+`Open in new window` z panelu lub karty otwiera samodzielny Preview na drugi monitor,
+pozostawiając źródłowy widok i aktywną kartę bez zmian. Okno pozostaje przy wątku,
+z którego zostało otwarte, także po przełączeniu rozmowy w głównym oknie.
+Przejmuje początkowy wybór narzędzia, celu i skali, a potem prowadzi własny podgląd
+tej samej sesji. Zamknięcie okna kończy jego transmisję. Na desktopie ponowne
+otwarcie istniejącego okna wątku przenosi do niego fokus.
 Browser pokazuje karty sesji wątku i pozwala przełączyć aktywną kartę; zachowuje ustawiony przez agenta viewport
 przy zmianie szerokości panelu i udostępnia pasek z polami szerokości oraz wysokości
 oraz uchwyty krawędzi do jawnej zmiany viewportu.

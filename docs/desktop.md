@@ -13,6 +13,7 @@ pomijania cache przy ręcznym sprawdzaniu aktualizacji, wykrywania pojedynczego 
 i wykluczenia własnego PID instalatora/deinstalatora z wyszukiwania i zamykania procesów,
 ręcznego odzyskiwania aktualizacji Windows
 i odmowy startu lokalnej bazy z uprawnieniami administratora, sesji dostępu do lokalnego BFF,
+samodzielnego okna Preview automatyzacji,
 podglądu bieżącej zajętości plików Canopy w Diagnostics oraz własnego HTML w rozmowie
 z odizolowanego renderera offscreen, bezpiecznego zamykania po zniszczeniu głównego okna
 oraz stałego zakresu preferencji urządzenia po restarcie lokalnego gatewaya
@@ -149,10 +150,17 @@ Szczegóły kontraktu i kontroli dostępu opisuje [ui-api.md](ui-api.md#pliki-w�
 
 ## Granice i zgodność
 
+**Osobne okno Preview.** Główne okno może otworzyć samodzielny Preview bieżącego
+wątku w trybie lokalnym i zdalnym. Electron dopuszcza wyłącznie trasę Preview
+tego wątku na aktualnym originie BFF. Natywne okno można przenieść na drugi
+monitor. Ma własny renderer w sandboxie i nie dostaje mostka preload. Nadal
+korzysta z bieżącego BFF i autoryzacji sesji wątku. Zmiana trybu lub celu
+gatewaya, utrata parowania oraz zatrzymanie usług zamykają okna Preview.
+
 **Sesja lokalnego BFF.** Electron main generuje losowy 256-bitowy sekret na każde
 uruchomienie i przekazuje go kontrolerowi prywatnym stdin. `web-session.ts` dodaje
 `X-Canopy-Desktop-Session` wyłącznie do żądań na dokładny origin BFF, z głównego
-okna lub okna ustawień i ich głównej ramki. Hook obejmuje wszystkie typy zasobów;
+okna, okna ustawień lub zatwierdzonego okna Preview i ich głównych ramek. Hook obejmuje wszystkie typy zasobów;
 żądania niezaufanych ramek do BFF są blokowane. Nagłówek jest usuwany przed
 wysłaniem do innych celów, także przy przekierowaniach.
 Przy rozpoczynaniu zamykania aplikacji main unieważnia sesję przed zatrzymaniem

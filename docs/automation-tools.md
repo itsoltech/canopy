@@ -1,7 +1,7 @@
 # Narzędzia automatyzacji agentów
 
 Status (2026-11-19): **narzędzia, interaktywny Preview z podglądem zmiany viewportu,
-automatyczny mini Preview wątku, pełna karta Preview w web/desktop, ikony obu stanów skali
+automatyczny mini Preview wątku, pełna karta i osobne okno Preview w web/desktop, ikony obu stanów skali
 oraz rezerwacje urządzeń z oczekiwaniem, uruchamianiem skonfigurowanych emulatorów
 i sprzątaniem sesji przy archiwizacji zaimplementowane**.
 Przed włączeniem narzędzia z Preview web/desktop pokazuje zakres zgody: narzędzie staje się dostępne agentom na wybranym workerze.
@@ -373,7 +373,10 @@ tekst obsługuje IME i wklejanie, a Escape zwalnia sterowanie i przenosi fokus
 na obraz. Zmiana rozmiaru, dopasowanie i pełny ekran nie tworzą kolejnej sesji;
 na wąskim ekranie panel otwiera arkusz na cały ekran. `Open in tab` przenosi Preview
 do głównego obszaru wątku, a `Open in sidebar` przywraca panel. Oba widoki dzielą
-narzędzie, cel i tryb skali; tylko widoczny widok utrzymuje transmisję.
+narzędzie, cel i tryb skali. `Open in new window` otwiera samodzielny podgląd
+tego samego wątku z bieżącymi ustawieniami podglądu. Desktop otwiera natywne
+okno, a web prosi przeglądarkę o okno popup. Widoczne podglądy korzystają
+z tego samego BFF oraz z dotychczasowych reguł dostępu i limitów strumieni.
 Zakładka podglądu pliku nadal działa niezależnie
 ([workspace.md](workspace.md#panel-filespreview)).
 
