@@ -1,6 +1,6 @@
 import { AsyncLocalStorage } from "node:async_hooks";
 import { workerDiagnostics } from "../diagnostics/worker.ts";
-import { gitReadArgv, gitReadEnv, gitReadFilters, withoutGitHooks } from "./read-policy.ts";
+import { gitReadEnv, runGitScan, withoutGitHooks } from "./read-policy.ts";
 import type { GitFamily } from "@canopy/domain/diagnostics";
 import {
   processGovernor,
@@ -111,10 +111,9 @@ export async function git(
 
   const command = {
     // git diff can refresh worktree index stat entries even with GIT_OPTIONAL_LOCKS=0.
-    argv:
-      scanSignal && scan
-        ? gitReadArgv(scanArgs, await gitReadFilters(cwd, scanSignal))
-        : ["git", ...(read ? withoutGitHooks : []), "-c", "diff.autoRefreshIndex=false", ...args],
+    argv: scan
+      ? ["git", ...scanArgs]
+      : ["git", ...(read ? withoutGitHooks : []), "-c", "diff.autoRefreshIndex=false", ...args],
     cwd,
     env: { ...(scan ? gitReadEnv() : process.env), ...GIT_ENV, ...input?.env },
     timeoutMs,
@@ -142,7 +141,9 @@ export async function git(
   let failed = true;
 
   try {
-    const result = await runProcess(
+    const run = scan ? runGitScan : runProcess;
+
+    const result = await run(
       { ...command, ...(timing && { onStart: timing.start }) },
       {
         kind: "git",

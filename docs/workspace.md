@@ -1,6 +1,6 @@
 # Zakładki wątku i panel Files/Diff/Preview
 
-Status (2026-11-19): **zaimplementowane; układ v3**; zapis i usunięcie pliku oraz odczyty Git paneli są związane z
+Status (2026-11-20): **zaimplementowane; układ v3**; zapis i usunięcie pliku oraz odczyty Git paneli są związane z
 sprawdzonymi uchwytami i bezpieczną polityką Git (szczegóły niżej), menu ścieżek w rozmowie
 z kopiowaniem pełnej i względnej ścieżki, pobieraniem oraz lokalnym
 `Reveal in Finder/Explorer`, zaznaczanie i kopiowanie tekstu w podglądzie źródła
@@ -735,6 +735,9 @@ nie działa `core.fsmonitor`, zewnętrzny diff, textconv ani filtry `clean`/`smu
 z konfiguracji (są nadpisywane przed odczytem plików roboczych), status nie wchodzi do
 brudnych submodułów (`--ignore-submodules=dirty`), a podmieniane obiekty i leniwy fetch są
 wyłączone. Historia, zwykłe zmiany, rename i linked worktrees są widoczne jak dotąd.
+Równoczesne żądania tego samego statusu współdzielą cały odczyt. Przy nowym skanie worker
+w jednym slocie Git kolejno odczytuje aktualną konfigurację filtrów i uruchamia status.
+Trafienie w cache gotowego wyniku obsługiwane jest bez uruchamiania procesu.
 Świadome polecenia użytkownika i agenta (commit z hookami, checkout z filtrami) nadal
 używają konfiguracji projektu: ograniczenie dotyczy wyłącznie samodzielnych odczytów
 przy otwarciu panelu.

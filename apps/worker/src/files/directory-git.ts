@@ -1,5 +1,5 @@
 import { processKey, runProcess, withProcessPriority } from "@canopy/process-governor";
-import { gitReadArgv, gitReadEnv, gitReadFilters } from "../git/read-policy.ts";
+import { gitReadArgv, gitReadEnv, runGitScan } from "../git/read-policy.ts";
 
 export interface DirectoryGit {
   statuses: Map<string, string>;
@@ -38,22 +38,21 @@ export async function directoryGit(root: string): Promise<DirectoryGit> {
 
     if (prefixResult.code !== 0) return { statuses: new Map(), complete: false, reason: "Status unavailable" };
     const prefix = prefixResult.stdout.trimEnd();
-    const filters = await gitReadFilters(root, signal);
 
     const command = {
-      argv: gitReadArgv(
-        [
-          "status",
-          "--ignore-submodules=dirty",
-          "--porcelain=v1",
-          "-z",
-          "--ignored=matching",
-          "--untracked-files=normal",
-          "--",
-          ".",
-        ],
-        ["-c", "core.quotepath=false", ...filters],
-      ),
+      argv: [
+        "git",
+        "-c",
+        "core.quotepath=false",
+        "status",
+        "--ignore-submodules=dirty",
+        "--porcelain=v1",
+        "-z",
+        "--ignored=matching",
+        "--untracked-files=normal",
+        "--",
+        ".",
+      ],
       cwd: root,
       env: gitReadEnv(),
       timeoutMs: 2000,
@@ -62,7 +61,7 @@ export async function directoryGit(root: string): Promise<DirectoryGit> {
     };
 
     const result = await withProcessPriority("user", () =>
-      runProcess(command, { kind: "git", key: `${processKey(command)}:${revision}`, ttlMs: 2000 }),
+      runGitScan(command, { kind: "git", key: `${processKey(command)}:${revision}`, ttlMs: 2000 }),
     );
 
     if (result.code !== 0) return { statuses: new Map(), complete: false, reason: "Status unavailable" };

@@ -3,7 +3,7 @@ import { execFileSync } from "node:child_process";
 import { existsSync, mkdirSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { tempDirs } from "@canopy/testing";
-import { git } from "./git.ts";
+import { freshGit, git } from "./git.ts";
 
 const temporary = tempDirs();
 const run = (cwd: string, args: string[]) => execFileSync("git", args, { cwd, stdio: "pipe" }).toString();
@@ -37,4 +37,11 @@ test("status and diff report normal changes without running repository hooks or 
   expect(diff.stdout).toContain("a.txt");
   expect(history.stdout).toContain("first");
   expect(existsSync(marker)).toBe(false);
+
+  // A fresh scan must discover even a required driver configured after the previous status.
+  run(dir, ["config", "filter.updated.required", "true"]);
+  writeFileSync(join(dir, ".gitattributes"), "*.txt filter=updated\n");
+  const refreshed = await freshGit(() => git(dir, ["status", "--porcelain=v1"]));
+  expect(refreshed.ok).toBe(true);
+  expect(refreshed.stdout).toContain("a.txt");
 });
