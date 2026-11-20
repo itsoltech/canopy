@@ -54,8 +54,8 @@ async function* superviseThread(
   input: ui.WatchThreadRequest,
   signal: AbortSignal,
 ): AsyncGenerator<ui.ThreadUpdate> {
-  if (input.sequence) {
-    yield* sequenceThread(computers, node, input, signal);
+  if (input.sequence || input.requestsOnly) {
+    yield* forwardThreadUpdates(computers, node, input, signal);
 
     return;
   }
@@ -191,7 +191,7 @@ async function* superviseThread(
   }
 }
 
-async function* sequenceThread(
+async function* forwardThreadUpdates(
   computers: LinkedComputers,
   node: string,
   input: ui.WatchThreadRequest,

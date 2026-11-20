@@ -71,6 +71,30 @@ test.skipIf(!dockerAvailable)(
           10000,
         ),
       ).toBe(2);
+      const requestId = crypto.randomUUID();
+      await source.query(
+        `INSERT INTO interaction_requests(id,thread_id,kind,request,routed_to)
+         VALUES($1::uuid,$2::uuid,'question','{}','human')`,
+        [requestId, thread],
+      );
+
+      const questions = new AbortController();
+
+      const watch = a.api
+        .watchThread({ threadId: id, requestsOnly: true, pageSize: 1 }, { signal: questions.signal, timeoutMs: 5000 })
+        [Symbol.asyncIterator]();
+
+      try {
+        const first = (await watch.next()).value;
+        expect(first?.change).toMatchObject({
+          case: "snapshot",
+          value: { interactions: [{ threadId: id, requestId: qualifyId(requestId, node) }], items: [], turns: [] },
+        });
+      } finally {
+        questions.abort();
+        await watch.return?.();
+      }
+
       let cached: ui.ThreadSnapshot | undefined;
 
       for await (const update of a.api.watchThread(

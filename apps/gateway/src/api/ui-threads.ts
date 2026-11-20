@@ -8,6 +8,7 @@ import { watchLocalThread } from "../core/local-thread-watch.ts";
 import { coreState } from "../core/core-context.ts";
 import { readRangeContent } from "../computers/range-content-read.ts";
 import { watchSequenceThread } from "../core/sequence-thread-watch.ts";
+import { watchThreadRequests } from "../core/thread-request-watch.ts";
 import { rewindHandlers } from "./ui-rewinds.ts";
 
 export function threadsHandlers(
@@ -89,18 +90,21 @@ export function threadsHandlers(
         create(ui.ThreadSecretResponseSchema, { secret: await core.secrets.revoke(request.requestId) }),
       ),
 
-    watchThread: (request, context) =>
-      request.sequence
-        ? watchSequenceThread(core, request, context.signal)
-        : context.protocolName !== "canopy.link"
-          ? watchLocalThread(core, request, context.signal)
-          : core.watchThread(
-              request.threadId,
-              context.signal,
-              request.incremental ? request.cursor || request.mirrorCursor : request.mirrorCursor,
-              request.incremental,
-              request,
-            ),
+    watchThread: (request, context) => {
+      if (request.requestsOnly) return watchThreadRequests(core, request.threadId, context.signal);
+
+      if (request.sequence) return watchSequenceThread(core, request, context.signal);
+
+      return context.protocolName !== "canopy.link"
+        ? watchLocalThread(core, request, context.signal)
+        : core.watchThread(
+            request.threadId,
+            context.signal,
+            request.incremental ? request.cursor || request.mirrorCursor : request.mirrorCursor,
+            request.incremental,
+            request,
+          );
+    },
 
     getThreadSyncContent: (request) =>
       guard(() => readRangeContent(core[coreState].options.runtime, core[coreState].options.userId, request)),

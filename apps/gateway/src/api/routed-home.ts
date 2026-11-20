@@ -144,6 +144,13 @@ export async function* home(
     return;
   }
 
+  // Pending decisions belong to the home. A transcript mirror can only seed a history watch.
+  if (method.name === "WatchThread" && linkedMessage(ui.WatchThreadRequestSchema, request).requestsOnly) {
+    yield* send(core, computers, nodeId, method, request, signal);
+
+    return;
+  }
+
   if (yield* warmMirrorFirst(computers, nodeId, method, request, signal)) return;
 
   if (

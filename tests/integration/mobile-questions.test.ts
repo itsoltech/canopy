@@ -7,6 +7,10 @@ import { parseObject, str } from "@canopy/domain/json";
 import { answerText } from "@canopy/domain/questions";
 import { SqlClient } from "effect/sql";
 import { answerQuestions, mobileQuestions } from "../../apps/mobile/src/api/questions.ts";
+import {
+  childRequestUpdates,
+  hasChildRequests,
+} from "../../apps/mobile/src/features/threads/questions/child-requests.ts";
 import { routedMobileClient } from "../../apps/mobile/src/api/routes.ts";
 import { ComputerStore } from "../../apps/gateway/src/computers/store.ts";
 import { NetworkAccess } from "../../apps/gateway/src/network/network.ts";
@@ -410,15 +414,43 @@ describe.skipIf(!dockerAvailable)("mobile answers over paired Network access", (
     );
     const interaction = await ask("ask_user", source);
     expect(interaction.routedTo).toBe("human");
-    expect(
-      (await client().listThreads({ sidebarOnly: true })).threads.find((t) => t.id === source.threadId),
-    ).toMatchObject({ parentThreadId: parent.threadId, title: "Route reviewer" });
-    await answerQuestions(
-      client(),
-      interaction,
-      mobileQuestions(interaction).map((q) => ({ id: q.id, kind: "skipped" })),
+
+    const children = async () =>
+      (await client().listThreads({ sidebarOnly: true })).threads.filter(
+        (thread) => thread.parentThreadId === parent.threadId && hasChildRequests(thread),
+      );
+
+    expect(await children()).toMatchObject([
+      {
+        id: source.threadId,
+        title: "Route reviewer",
+        pendingInteractions: 0,
+      },
+    ]);
+    const abort = new AbortController();
+
+    const watch = childRequestUpdates(
+      client().watchThread(
+        { threadId: source.threadId, requestsOnly: true, pageSize: 1 },
+        { signal: abort.signal, timeoutMs: 5000 },
+      ),
     );
+
+    try {
+      expect((await watch.next()).value).toMatchObject({ requests: [{ requestId: interaction.requestId }], items: [] });
+      await answerQuestions(
+        client(),
+        interaction,
+        mobileQuestions(interaction).map((q) => ({ id: q.id, kind: "skipped" })),
+      );
+      expect(await watch.next()).toMatchObject({ done: false, value: undefined });
+    } finally {
+      abort.abort();
+      await watch.return();
+    }
+
     await answered(interaction, ["Skipped", "Skipped", "Skipped", "Skipped"]);
+    expect(await children()).toHaveLength(0);
     gw.worker.finish(source.threadId, source.turnId);
     gw.worker.finish(parent.threadId, parent.turnId);
   }, 20_000);

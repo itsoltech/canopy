@@ -83,6 +83,7 @@ export interface ThreadRow {
   deleted_at?: Date | null;
   marked_unread?: boolean;
   pending_interactions?: bigint | number;
+  has_pending_requests?: boolean;
   /** Joined from the outbox: a queued turn has been dispatched. */
   turn_starting?: boolean;
   last_activity_at?: Date | null;
