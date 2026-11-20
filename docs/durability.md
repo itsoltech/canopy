@@ -22,7 +22,7 @@ z wynikiem jego narzędzia i deduplikowane po wywołaniu. Wynik zleconej pracy
 dziedziczy UUID rozmowy źródłowej; usunięcie subskrypcji blokuje późniejsze
 doręczenie zamiast przenosić je do prywatnego czatu.
 
-Status: **w części zaimplementowany** (2026-11-18), w tym trwałe agregaty tokenów i kosztów, trwały odbiór kanałów Slack, potwierdzenia aktualizacji botów, trwałe przypisanie domu sesji Claude i ochrona jego historii podczas purge oraz zatrzymanie workera bez ponownego uruchamiania cyklicznych sprawdzeń CLI; pozostałe plany oznaczono w sekcjach. Wymaganie: zatrzymanie lub aktualizacja dowolnego procesu nie gubi stanu i nie kończy się błędem widocznym dla użytkownika. Wyjątkiem jest tura agenta przerwana twardym zabiciem procesu (patrz [macierz awarii](#9-macierz-awarii)).
+Status: **w części zaimplementowany** (2026-11-20), w tym raportowanie presji pamięci potwierdzonej przez systemd po restarcie workera, trwałe agregaty tokenów i kosztów, trwały odbiór kanałów Slack, potwierdzenia aktualizacji botów, trwałe przypisanie domu sesji Claude i ochrona jego historii podczas purge oraz zatrzymanie workera bez ponownego uruchamiania cyklicznych sprawdzeń CLI; pozostałe plany oznaczono w sekcjach. Wymaganie: zatrzymanie lub aktualizacja dowolnego procesu nie gubi stanu i nie kończy się błędem widocznym dla użytkownika. Wyjątkiem jest tura agenta przerwana twardym zabiciem procesu (patrz [macierz awarii](#9-macierz-awarii)).
 
 Powiązane: [architecture.md](architecture.md), [protocol.md](protocol.md), [data-model.md](data-model.md).
 
@@ -195,6 +195,8 @@ sequenceDiagram
 ### 3.4 Start po awarii
 
 1. Otwarcie dziennika. Tury w toku są rozliczane z transkryptu harnessu ([3.5](#35-rekoncyliacja-z-transkryptu-harnessu)): kończą się tak, jak zapisał je harness, a bez zapisanego końca jako `interrupted` przez system (`worker restarted mid-turn`). **Zaimplementowane:** dziennik śledzi otwarte tury w tej samej transakcji co ich zdarzenia (tabela `open_turns`, jak `background_tasks`), a `WorkerHost.recover` rozlicza je przy starcie, zanim worker się połączy.
+   Na Linuksie przy starcie tury worker zapisuje w tej samej transakcji identyfikator uruchomienia usługi systemd (`INVOCATION_ID`). Podczas rekoncyliacji jeden odczyt `journalctl` sprawdza końcowy wynik menedżera dla dokładnie tego uruchomienia `canopy-worker.service` (usługa użytkownika lub systemowa). Wynik `oom-kill`, także po interwencji systemd-oomd, daje powód `the worker service stopped because of memory pressure`. Dotyczy całej usługi. Nie wskazuje, który proces zużył pamięć. Worker czyta tylko pole wyniku, z limitem 1,5 s i 1 KiB. Nie potrzebuje dostępu do logów jądra ani usługi oomd.
+   Przy samym sygnale zakończenia (np. przy `OOMPolicy=continue`), braku dostępu do wpisu, starszym dzienniku SQLite, innej platformie lub wymianie procesu w ramach tego samego uruchomienia usługi tura zachowuje ogólny powód. Zakończenie zapisane przez harness ma nadal pierwszeństwo zgodnie z regułami w §3.5.
 2. Prośby o zgodę i wywołania szyny przypięte do zabitych procesów dostają `expired`. **Zaimplementowane w gateway** dla zgód tur, które gateway kończy (punkt 5).
 3. Połączenie, `Hello` z kursorami wątków i turami, które proces prowadzi (`running_turns`, capability `running_turns`), dosłanie dziennika.
 4. Przerwane tury są wznawiane według polityki (decyzja 1 w sekcji 11). Na razie nie są: kończą się `interrupted`, a wątek przechodzi do następnej tury z kolejki.
@@ -211,6 +213,7 @@ sequenceDiagram
 
 | Tabela | Treść |
 |---|---|
+| `open_turns` | identyfikatory wątku i tury oraz uruchomienia usługi systemd, jeśli jest dostępny |
 | `turn_harness` | harness, ścieżka transkryptu (Codex: plik rolloutu z `Thread.path`; Claude: katalog konfiguracji `CLAUDE_CONFIG_DIR`), id wątku Codexa albo sesji Claude, offset w pliku na starcie tury, id tury Codexa |
 | `turn_items` | ostatni stan każdego itemu tury (bez zadań w tle) i czy się skończył |
 | `turn_interrupts` | platforma poprosiła o przerwanie (`InterruptTurn`) |
@@ -411,7 +414,8 @@ Worker podaje źródło w `TurnFinished.source` i `error_code`; starszy worker b
 | harness zapisał błąd (`task_complete.error`, `isApiErrorMessage`) | dowolna | `failed` / `harness`, komunikat i kod harnessu |
 | harness zapisał przerwanie, platforma o nie prosiła | dowolna | `interrupted` / `user` |
 | harness zapisał przerwanie, nikt o nie nie prosił | worker zginął | `interrupted` / `system`, `worker restarted mid-turn (the harness stopped the turn: …)` |
-| brak końca | worker zginął (restart, kill, zanik zasilania) | `interrupted` / `system`, `worker restarted mid-turn` |
+| brak końca | systemd zgłosił `oom-kill` dla uruchomienia, które prowadziło turę | `interrupted` / `system`, `the worker service stopped because of memory pressure` |
+| brak końca | worker zginął bez potwierdzonej przyczyny (restart, kill, zanik zasilania) | `interrupted` / `system`, `worker restarted mid-turn` |
 | brak końca | proces harnessu zakończył się sam, worker żyje | `failed` / `harness`, `harness process exited …`, `process_exit` |
 | brak transkryptu | jak wyżej | jak wyżej; otwarte itemy `interrupted` |
 | — | błąd po naszej stronie (komenda nie wykonana, wątek nie powstał) | `failed` / `platform` |

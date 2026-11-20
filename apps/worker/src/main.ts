@@ -13,6 +13,7 @@ import { defaultConfigPath, defaultDataDir, loadLocalConfig } from "./config/loc
 import { resolveWorktreeRoots, type WorktreeRoots } from "./git/worktree-roots.ts";
 import { journalHello, openGatewayLink, resendPending, type GatewayLink } from "./gateway-link/index.ts";
 import { Journal } from "./journal/index.ts";
+import { workerServiceInvocation } from "./runtime/service-invocation.ts";
 import { serveLink, WorkerHost } from "./runtime/index.ts";
 import { workerCommand, workerServiceSnippet } from "./enroll.ts";
 import { enrollFromCli } from "./enrollment-cli.ts";
@@ -176,7 +177,10 @@ const logSource = new LogPullSource(
 
 // Durable outbox: every thread event goes through the journal before it is sent (docs/durability.md, 3.1).
 const workerMetricsEnabled = process.env["CANOPY_BENCH_WORKER_DIAGNOSTICS"] !== "0";
-const runtime = ManagedRuntime.make(Journal.layer(join(dataDir, "journal.db"), workerMetricsEnabled));
+
+const runtime = ManagedRuntime.make(
+  Journal.layer(join(dataDir, "journal.db"), workerMetricsEnabled, workerServiceInvocation()),
+);
 
 const { journalId } = await runtime.runPromise(journalHello());
 let worktreeRoots: WorktreeRoots;
