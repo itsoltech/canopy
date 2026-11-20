@@ -1,7 +1,7 @@
 import { readFileSync } from "node:fs";
 import { CANOPY_VERSION } from "@canopy/domain/release/version";
 import { startGrpcServer } from "@canopy/transport";
-import { serviceTokenAuth, uiRoutes } from "./api/index.ts";
+import { gatewayProcessApi } from "./api/process-routes.ts";
 import { GatewayCore } from "./core/core.ts";
 import { settleInterruptedWorktreePreparations } from "./core/worktree-preparation.ts";
 import { initializeModuleExecution } from "./store/module-transitions.ts";
@@ -26,9 +26,9 @@ import type { TailscaleSnapshot } from "./network/tailscale/status.ts";
 import { NetworkAccess } from "./network/network.ts";
 import { mountMobileNetwork } from "./network/devices.ts";
 import { loadSecretsKey } from "./store/secrets.ts";
-import { workerRoutes } from "./worker-link/routes.ts";
 import { gatewayRole } from "./role.ts";
 import { DatabaseMaintenance } from "./maintenance/job.ts";
+import { databaseUrl } from "./database-credentials.ts";
 import { installLogWriter, runtimeLogDirectory, registeredLogs } from "@canopy/logs";
 import { dirname } from "node:path";
 import { EMBEDDED_WEB } from "./web/embedded.ts";
@@ -83,11 +83,7 @@ const webClients = new WebClientVersions(CANOPY_VERSION, embeddedWeb !== undefin
 const runtime = gatewayRuntime(env);
 const logDirectory = runtimeLogDirectory("gateway", env);
 
-installLogWriter("gateway", logDirectory, [
-  serviceToken,
-  env["CANOPY_DATABASE_URL"] ?? "",
-  env["CANOPY_SECRETS_KEY"] ?? "",
-]);
+installLogWriter("gateway", logDirectory, [serviceToken, databaseUrl(env), env["CANOPY_SECRETS_KEY"] ?? ""]);
 
 if ((env["CANOPY_MIGRATE"] ?? "1") === "1") {
   const applied = await migrateDatabase(runtime, env);
@@ -194,16 +190,11 @@ await core.syncProviderInstances();
 
 const certFile = env["CANOPY_TLS_CERT"];
 const keyFile = env["CANOPY_TLS_KEY"];
+const processApi = gatewayProcessApi(core, serviceToken, (version) => webClients.seen(version));
 
 const server = await startGrpcServer({
-  routes: (router) => {
-    workerRoutes(core, router);
-    uiRoutes(core)(router);
-  },
-  interceptors: [
-    core.diagnostics.interceptor,
-    serviceTokenAuth(serviceToken, core.mobile, (version) => webClients.seen(version)),
-  ],
+  routes: processApi.routes,
+  interceptors: [core.diagnostics.interceptor, processApi.auth],
   host: env["CANOPY_HOST"] ?? "0.0.0.0",
   port: Number(env["CANOPY_PORT"] ?? 7443),
   health: () => ({ healthy: core.updates.service.verdict().healthy, version: CANOPY_VERSION }),

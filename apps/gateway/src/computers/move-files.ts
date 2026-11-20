@@ -82,7 +82,7 @@ export async function readMovedFile(store: ComputerStore, file: MovedFileRow): P
       : new Uint8Array();
 
   return create(link.MovedFileSchema, {
-    attachmentJson: JSON.stringify(file.row),
+    attachmentJson: JSON.stringify({ ...file.row, thumb_sha256: thumbnail.length ? file.thumb_sha256 : null }),
     data: await readStoredBlob(store, file.sha256, Number(file.size)),
     mimeType: file.mime_type,
     thumbnail,

@@ -8,6 +8,8 @@ import {
   type InteractionResponse,
   type ThreadSpec,
 } from "@canopy/contracts";
+import { workspaceEdit } from "../edit-scope.ts";
+import { decodeJson, isString, jsonObject } from "../json.ts";
 
 export type GrokCleanup = (() => void | Promise<void>) | undefined;
 
@@ -59,12 +61,19 @@ export async function grokPermission(
 
   if (entry.mode === PermissionMode.FULL_AUTO || entry.mode === PermissionMode.FULL_ACCESS) return selected(true);
 
-  if (
-    entry.mode === PermissionMode.ACCEPT_EDITS &&
-    (request.toolCall.kind === "edit" ||
-      /^(write_file|edit_file|apply_patch|str_replace_editor)$/.test(request.toolCall.title ?? ""))
-  )
-    return selected(true);
+  if (entry.mode === PermissionMode.ACCEPT_EDITS) {
+    const name = request.toolCall.title ?? "";
+    const args = jsonObject(decodeJson(request.toolCall.rawInput ?? null));
+    const targets = [args?.["path"], args?.["file_path"], args?.["filePath"]].filter(isString);
+
+    if (
+      /^(write_file|edit_file|str_replace_editor)$/.test(name) &&
+      targets.length > 0 &&
+      targets.every((path) => workspaceEdit(spec.cwd, path))
+    )
+      return selected(true);
+  }
+
   const approval = JSON.stringify([request.toolCall.title, request.toolCall.rawInput]);
 
   if (entry.approvals.has(approval)) return selected(true);

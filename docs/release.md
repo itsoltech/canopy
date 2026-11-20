@@ -5,7 +5,10 @@ CI dla PR-ów dobiera testy mobile, interfejsu web i powłoki Electron według z
 Release ponawia pakowanie macOS i Windows po błędzie. Beta publikuje zgodne OTA
 i pomija build oraz wysyłkę iOS do TestFlight. Pełne CI ma osiem shardów i wagi
 odświeżone z pełnych raportów CI. Pomiary poniżej opisują przebieg sprzed zmiany shardów;
-wpływ na czas CI wymaga pomiaru kolejnych przebiegów.
+wpływ na czas CI wymaga pomiaru kolejnych przebiegów. Kod sprawdza rewizję
+Release przed checkoutem źródeł, a podpisywanie i publikacja działają na artefaktach
+w środowiskach chronionych. Smoke uruchamia spakowane pliki w osobnym jobie bez
+sekretów podpisu. Konfigurację środowisk utrzymuje maintainer.
 
 Jedna wersja dla wszystkich aplikacji (gateway, worker, web, desktop, mobile). Wersję wyznacza
 semantic-release z commitów Angular po squash merge. Wdrożenie: [deploy.md](deploy.md).
@@ -319,18 +322,21 @@ bez osobnego przybliżania reguł commitów lub porównywania wyłącznie plikó
 | dispatch na `dev` | wydanie od razu, przez tę samą bramkę; wymagany `expected_sha` z historii gałęzi |
 | push na `next` lub `main` | beta / stable dla SHA zdarzenia push, także po promocji i hotfix PR |
 | dispatch na `next` lub `main` | ręczne wydanie z wymaganym `expected_sha` z historii gałęzi |
-| push stabilnego tagu `vX.Y.Z` | ręczne stable z historii `main`, z CI i publikacją jak wcześniej |
+| push chronionego tagu `vX.Y.Z` | ręczne stable z historii `main`, z obowiązkowym CI |
 
 Nie dodajemy CI po każdym pushu do `dev`: duplikowałoby pełne shardy CI z PR i późniejszego
 wydania. Oznacza to brak natychmiastowego sygnału o błędzie wynikającym z połączenia zmian;
 pełne CI uruchomi się przed publikacją releasowalnego nightly. Sam PR nadal wymaga CI.
 Push przez deploy key uruchamia Release, dlatego Promote i Back-merge do `next` nie wykonują
 dodatkowego dispatchu. Back-merge do `dev` nadal dispatchuje Release z `expected_sha` commita merge.
-Wszystkie checkouty, wywołane CI, buildy, metadane obrazów, manifesty i back-merge używają
-`EXPECTED_SHA` z wejścia dispatchu albo `github.sha`. `plan` i `release` sprawdzają zgodność
-checkoutu oraz `git merge-base --is-ancestor <sha> origin/<branch>` po świeżym fetchu.
-Nowe commity na gałęzi nie przerywają wydania: trafiają do następnego przebiegu. Usunięcie
-przypiętego SHA z historii (force push) zatrzymuje przebieg, także tuż przed pushem tagu.
+Job `verify` dopuszcza wyłącznie chronione refy i sprawdza pełne `EXPECTED_SHA`
+z dispatchu albo `github.sha` względem historii wybranej chronionej gałęzi
+(w przypadku tagu: `main`). Pobiera tylko historię do osobnego bare repozytorium
+z prawem odczytu. Dopiero po sprawdzeniu CI i buildy pobierają zatwierdzone źródła.
+Plan, tagowanie, pakowanie desktopu i publikacja wykonują narzędzia z rewizji
+workflow. Manifest czyta wersje protokołów z zatwierdzonego SHA jako dane.
+`release` ponawia sprawdzenie historii tuż przed pushem tagu. Nowe commity na
+gałęzi trafiają do następnego przebiegu.
 
 `scripts/semantic-release.mjs` przygotowuje prywatne bare lustro z gałęziami, wszystkimi tagami
 i notes. Wyłącznie ref wydawanej gałęzi w lustrze wskazuje `EXPECTED_SHA`. semantic-release
@@ -435,8 +441,10 @@ Godzina nie jest gwarancją czasu dostępności aktualizacji. Pilne wydanie uruc
 przez dispatch na `dev` z aktualnym SHA (również czeka na aktywny nightly).
 Desktop przywraca cache Electron/electron-builder przed instalacją zależności;
 cache pakietów Bun pozostaje rozdzielony według OS, architektury i lockfile.
-Wspólna akcja `.github/actions/package-desktop` buduje runtime raz, a pakowanie
-macOS i Windows ponawia maksymalnie dwa razy po przerwach 30 i 60 sekund.
+`desktop-build` buduje runtime raz bez sekretów podpisu. Wspólna akcja
+`.github/actions/package-desktop` pakuje przygotowaną aplikację w osobnym jobie
+po zielonym CI, a macOS i Windows ponawia maksymalnie dwa razy po przerwach
+30 i 60 sekund.
 Obejmuje to podpisywanie, notaryzację i tworzenie instalatorów. Ponawianie reaguje
 na niezerowy kod wyjścia pakowania, bez dopasowywania komunikatów usług Apple/Azure;
 błąd kompilacji kończy job od razu. Przed ponowną próbą usuwa cały katalog
@@ -447,25 +455,26 @@ Ta sama akcja działa w ręcznym `desktop-windows.yml`; lokalne polecenia `packa
 zachowują pojedynczą próbę.
 
 ```text
-plan ─┬─ checks ────────────────────────────────────┐
-      ├─ binaries ── smoke ─────────────────────────┤
-      ├─ images-build ─────────────┐                 │
-      ├─ desktop (macierz) ────────┼─────────────────┼──────────────┐
-      └─ release (po checks) ──────┴─ images ─ publish-server ─ publish-desktop
-                └─ stop-builds (checki czerwone / błąd wydania)          ├─ nightly-hygiene / backmerge
+verify → plan ─┬─ checks ────────────→ release ──┐
+               ├─ binaries → smoke ─────────────┼─→ publish-server ─→ publish-desktop
+               ├─ images-build → images ────────┘                       ↑
+               └─ desktop-build → desktop (po checks) → desktop-smoke ┘
 ```
 
 | Job | Co robi | Kiedy startuje | Publikuje |
 | --- | --- | --- | --- |
 | `checks` | `ci.yml` | po `plan`; na `dev` tylko gdy `published=true` | — |
-| `plan` | semantic-release **`--dry-run`** na przypiętym lustrze: `version`, `tag`, `channel`, macierz desktop | od razu; grupa `release-version-<ref>` | nic (próba pushu tylko do lustra) |
+| `verify` | Chroniony ref, pełne SHA, przynależność do historii gałęzi wydania | od razu | — |
+| `plan` | semantic-release **`--dry-run`** na przypiętym lustrze: `version`, `tag`, `channel`, macierz desktop | po `verify`; grupa `release-version-<ref>` | nic (próba pushu tylko do lustra) |
 | `binaries`, `smoke` | web raz, potem cross-compile wszystkich celów z web w gatewayu; `--version` każdej binarki i `/api/health` z `canopy-gateway web` na jej OS/arch; na linux-x64 pełny gateway (supervisor, PostgreSQL) z web na porcie 3000 | po `plan`, równolegle z checkami | — (artefakt Actions) |
-| `images-build` | buildx `gateway` i `worker`, amd64+arm64 do cache GHA (`mode=max`), bez pushu i atestacji; obraz gateway amd64 z cache startuje obok PostgreSQL, smoke sprawdza `/api/health` web na porcie 3000, `healthcheck` i `CANOPY_INSTALL_KIND=docker` | po `plan` | — |
-| `desktop` | Linux, macOS (Apple Silicon), Windows; podpisy i notaryzacja | po `plan` | — (artefakt Actions) |
+| `images-build` | buildx `gateway` i `worker`, amd64+arm64 jako archiwa OCI z SBOM i proweniencją; obraz gateway amd64 z cache przechodzi smoke obok PostgreSQL | po `plan` | — (artefakty Actions) |
+| `desktop-build` | Kompilacja aplikacji i runtime na docelowej platformie | po `plan` | — (artefakty Actions) |
+| `desktop` | Pakowanie, podpisy i notaryzacja z przygotowanego runtime | po `desktop-build` i zielonych `checks` | — (artefakty Actions) |
+| `desktop-smoke` | Uruchomienie spakowanego runtime i instalacja Windows na odrębnym runnerze | po `desktop` | — |
 | `release` | semantic-release na lustrze, atomowy push tagu/notes i draft przez API GitHuba | po **zielonych `checks`**; grupa `release-version-<ref>` | tag + ukryty draft |
-| `images` | ten sam build z cache, push wyłącznie niezmiennego `vX.Y.Z` (SBOM) | po `release` i `images-build` | obraz `vX.Y.Z` |
+| `images` | kopiuje gotowe archiwa OCI do GHCR pod niezmiennym tagiem wydania | po `release` i `images-build` | obraz `vX.Y.Z` |
 | `publish-server` | binaria, `checksums.txt`, `manifest.json` na drafcie | po `checks`, `release`, `binaries`, `smoke`, `images`; grupa `release-publish-<ref>` | nic publicznego |
-| `publish-desktop` | instalatory, blockmapy, scalone feedy, nowe `checksums.txt`/`manifest.json`; weryfikacja, publikacja, aliasy obrazów | po `publish-server` i sukcesie wymaganych celów desktop; ta sama grupa publikacji | kompletny release |
+| `publish-desktop` | instalatory, blockmapy, scalone feedy, nowe `checksums.txt`/`manifest.json`; weryfikacja, publikacja, aliasy obrazów | po `publish-server` i sukcesie pakowania oraz smoke wymaganych celów desktop; ta sama grupa publikacji | kompletny release |
 | `release-index` | współdzielony workflow Pages: aktualna strona i indeks wszystkich publicznych wydań | po sukcesie `publish-desktop` | atomowy snapshot CDN |
 | `stop-builds` | `gh run cancel` własnego przebiegu | checki czerwone albo `release` bez wydania/anulowany | — |
 | `nightly-hygiene`, `backmerge` | jak wcześniej | po `publish-desktop`; brak wydania pomija oba | — |
@@ -632,7 +641,7 @@ całego aktywnego nightly. Ręczny dispatch omija oczekiwanie na cron, ale nie b
 - **Notaryzacja macOS zawiodła** (timeout Apple, odrzucenie, wygasła umowa/klucz): release pozostaje
   draftem, wszystkie updatery i aliasy obrazów zostają na poprzedniej wersji.
   Sprawdź log `desktop (darwin-arm64)` (status zgłoszenia `notarytool`,
-  ważność sekretów i umów Apple), napraw przyczynę i użyj **Re-run failed jobs** — przebuduje macOS
+  ważność sekretów i umów Apple), napraw przyczynę i użyj **Re-run failed jobs** — ponowi pakowanie macOS z zachowanego runtime
   i powtórzy `publish-desktop`, który dopisze assety mac, przeliczy feedy, sumy i manifest,
   zweryfikuje cały zestaw i opublikuje draft.
   Ponowienie działa także po tym, jak nowszy przebieg wydał już kolejny nightly.
@@ -642,7 +651,7 @@ całego aktywnego nightly. Ręczny dispatch omija oczekiwanie na cron, ale nie b
 
 GitHub Actions nie da się uruchomić lokalnie. Na pierwszych przebiegach `dev` sprawdź:
 `plan` (dry run z `contents: read`) podaje wersję i nie tworzy tagu; `release` rezerwuje tę samą wersję;
-`images` korzysta z cache `images-build` (krótki build); `imagetools inspect` czyta adnotację wersji
+`images` kopiuje wieloarchitekturowe archiwa OCI z `images-build`; `imagetools inspect` czyta adnotację wersji
 aliasu (log `stays at`/`→`), a `imagetools create` zachowuje obie platformy i SBOM; `release-upload.ts`
 podmienia `manifest.json`/`checksums.txt` przez `.next` (brak pozostałych plików `.next`);
 `publish-desktop` widzi artefakty z poprzedniej próby po **Re-run failed jobs**; `stop-builds`
@@ -678,7 +687,7 @@ Bez notaryzacji odmowa `spctl` jest oczekiwana i raportowana; sam podpis musi by
 ### Sekrety podpisywania desktop
 
 Sekrety dodaje maintainer do GitHub → Settings → Secrets and variables → Actions
-(repository secrets). Nic nie trafia do kodu, gatewaya, workera ani renderera.
+(środowisko `release-signing`). Klucze pozostają w jobie podpisywania.
 Do pobierania publicznych aktualizacji aplikacja nie potrzebuje tokena GitHub.
 
 Centrum aktualizacji pobiera również publiczne notatki GitHub Releases, z krótkim
@@ -719,23 +728,23 @@ Dokładna lista sekretów (wartości wprowadzaj przez bezpieczny prompt `gh`, ni
 
 ```sh
 # Obowiązkowe dla Developer ID; gh odczyta base64 z bezpiecznie przechowanego pliku.
-gh secret set MAC_CSC_LINK < /secure/DeveloperID.p12.base64
-gh secret set MAC_CSC_KEY_PASSWORD
+gh secret set --env release-signing MAC_CSC_LINK < /secure/DeveloperID.p12.base64
+gh secret set --env release-signing MAC_CSC_KEY_PASSWORD
 
 # Preferowany komplet notaryzacji — trzy sekrety.
-gh secret set APPLE_API_KEY < /secure/AuthKey.p8.base64
-gh secret set APPLE_API_KEY_ID
-gh secret set APPLE_API_ISSUER
+gh secret set --env release-signing APPLE_API_KEY < /secure/AuthKey.p8.base64
+gh secret set --env release-signing APPLE_API_KEY_ID
+gh secret set --env release-signing APPLE_API_ISSUER
 
 # Alternatywny komplet notaryzacji — zamiast powyższego.
-gh secret set APPLE_ID
-gh secret set APPLE_APP_SPECIFIC_PASSWORD
-gh secret set APPLE_TEAM_ID
+gh secret set --env release-signing APPLE_ID
+gh secret set --env release-signing APPLE_APP_SPECIFIC_PASSWORD
+gh secret set --env release-signing APPLE_TEAM_ID
 
 # Windows Azure Trusted Signing: obowiązkowe dla beta/stable, opcjonalne dla nightly.
-gh secret set AZURE_TENANT_ID
-gh secret set AZURE_CLIENT_ID
-gh secret set AZURE_CLIENT_SECRET
+gh secret set --env release-signing AZURE_TENANT_ID
+gh secret set --env release-signing AZURE_CLIENT_ID
+gh secret set --env release-signing AZURE_CLIENT_SECRET
 ```
 
 `AuthKey.p8.base64` przygotuj tak samo jak `.p12`, z pliku `.p8`. Do pełnej dystrybucji
@@ -940,7 +949,7 @@ Nie jest to ludzkie potwierdzenie live smoke dostawców ani pełny scenariusz se
 w realnej instalacji. Te ręczne potwierdzenia przestają być warunkiem promocji. Nie dodajemy
 nowego testu E2E aktualizacji; zachowujemy istniejące testy updatera i smoke Release.
 
-**Ręczny Promote.** Nadal wybiera `dev-next`/`next-main` tym samym algorytmem.
+**Ręczny Promote.** Uruchom dispatch na chronionym `dev`. Nadal wybiera `dev-next`/`next-main` tym samym algorytmem.
 `dry_run` (domyślnie true) wypisuje plan bez pushu, dispatchu i zapisu issue. Opcjonalne
 przewidywanie następnego terminu w dry-runie zmienia wyłącznie czas na tym samym snapshotcie
 historii/CI/etykiet: podaje próg soak, najbliższy cykl o :17 UTC i SHA. Nie zakłada przyszłego
@@ -1056,11 +1065,21 @@ nie tworzy wydania — musi wejść w promowany prefiks z kolejną zmianą wpły
 
 GitHub nie przyjmuje GitHub Actions (`GITHUB_TOKEN`) jako aktora bypass rulesetu. Zapis gałęzi
 wykonują przez SSH joby `promote`, `review` i `backmerge` z write deploy key
-**Release automation (promote, back-merge)**. Prywatna część klucza jest sekretem Actions
-**`RELEASE_DEPLOY_KEY`**; nigdy nie trafia do logów ani repozytorium. Checkout utrzymuje
-poświadczenia SSH do końca joba i usuwa je w kroku post-cleanup. Brak sekretu zatrzymuje job
-z jawnym komunikatem błędu. Dry run Promote/Automatic promotion nie pobiera klucza i działa
-bez niego. Wywołanie Back-merge z Release przekazuje tylko ten sekret jawnie.
+**Release automation (promote, back-merge)**. Zapisz prywatny klucz jako
+`RELEASE_DEPLOY_KEY` w środowisku `release-automation`. Checkout z chronionej
+rewizji workflow utrzymuje poświadczenie SSH do końca joba. Brak klucza zatrzymuje
+mutację z komunikatem. Dry run Promote/Automatic promotion działa bez klucza.
+
+Przed użyciem skonfiguruj w GitHub środowiska `release-automation`,
+`release-signing` i `release-publication` z polityką wdrożeń ograniczoną do
+`dev`, `next`, `main` oraz chronionych tagów stabilnych. Osobny ruleset tagów
+stabilnych powinien ograniczać tworzenie do maintainerów i blokować zmianę oraz
+usunięcie tagu. Ograniczenia refów są potrzebne także dla historycznych rewizji
+workflow. Do `release-signing` przenieś poświadczenia Apple i Azure używane przez
+desktop. Po wdrożeniu workflow na wszystkich obsługiwanych refach usuń kopie
+sekretów z poziomu repozytorium i organizacji. `release-publication` używa
+wbudowanego tokenu joba. Rewizję historyczną weryfikuje aktualny workflow, a
+pakowanie wymaga zgodności jej artefaktów z bieżącym formatem runtime desktopu.
 
 `GITHUB_TOKEN` nadal obsługuje API (issue, PR, dispatch `dev`). Pozostałe joby Release używają
 go do tagów, notes i GitHub Releases; konfiguracja semantic-release nie zawiera pluginu git

@@ -95,7 +95,10 @@ export function threadEvents(ctx: CodexThreadContext) {
 
         batches.push(
           yield* Effect.forEach(inits, (init) =>
-            (options.enrich ? Effect.promise(() => options.enrich!(init)) : Effect.succeed(init)).pipe(
+            (options.enrich
+              ? Effect.promise(() => options.enrich!(init, entry.platformId))
+              : Effect.succeed(init)
+            ).pipe(
               Effect.flatMap((enriched) => journal.append(entry.platformId, enriched)),
               Effect.tap((event) =>
                 Effect.sync(() => {

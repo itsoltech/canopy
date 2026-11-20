@@ -3,7 +3,7 @@ import { PermissionMode, ui } from "@canopy/contracts";
 import { SPAWN_PERMISSION_MODES, type SpawnPermissionMode } from "@canopy/domain";
 import { Effect } from "effect";
 import type { SqlClient } from "effect/sql";
-import { callerMode, thread } from "./agent-bus-queries.ts";
+import { busContextTurn, callerMode, thread } from "./agent-bus-queries.ts";
 import type { CallSource } from "./agent-bus-types.ts";
 import { Invalid } from "./errors.ts";
 import type { ThreadRow } from "./rows.ts";
@@ -52,7 +52,13 @@ export const subagentPermission = (
     yield* sql`SELECT id FROM threads WHERE id = ${source.threadId}::uuid FOR UPDATE`;
     const parent = yield* thread(sql, source.threadId);
 
-    if (parent.owner_user_id !== caller.owner_user_id || parent.id !== caller.id || parent.archived_at)
+    if (
+      parent.owner_user_id !== caller.owner_user_id ||
+      parent.id !== caller.id ||
+      parent.worker_id !== caller.worker_id ||
+      parent.archived_at ||
+      parent.rewind_pending_id
+    )
       return yield* Effect.fail(new Invalid("Parent thread not found."));
 
     const settings = (yield* sql<{ defaults: JsonValue | null }>`SELECT settings->'threadDefaults' AS defaults
@@ -62,9 +68,17 @@ export const subagentPermission = (
       ? fromJson(ui.ThreadDefaultsSchema, settings, { ignoreUnknownFields: true }).subagentPermissionMode
       : PermissionMode.UNSPECIFIED;
 
-    const current = yield* callerMode(sql, source, parent);
-    const configured = SPAWN_PERMISSION_MODES.find((mode) => mode.toUpperCase() === PermissionMode[fixed]) ?? current;
+    const latest = yield* busContextTurn(sql, parent.id);
     const rank = (mode: SpawnPermissionMode) => SPAWN_PERMISSION_MODES.indexOf(mode);
+    let current = yield* callerMode(sql, source, parent);
+
+    if (latest && latest.id !== source.turnId) {
+      const fresh = yield* callerMode(sql, { ...source, turnId: latest.id }, parent);
+
+      if (rank(fresh) < rank(current)) current = fresh;
+    }
+
+    const configured = SPAWN_PERMISSION_MODES.find((mode) => mode.toUpperCase() === PermissionMode[fixed]) ?? current;
     const capped = rank(configured) > rank(current);
     let selected = capped ? current : configured;
 

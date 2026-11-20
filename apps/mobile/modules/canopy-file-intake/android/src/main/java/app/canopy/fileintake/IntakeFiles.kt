@@ -1,8 +1,10 @@
 package app.canopy.fileintake
 
-import android.content.ContentResolver
 import android.content.Context
+import android.content.Intent
+import android.content.pm.PackageManager
 import android.net.Uri
+import android.os.Process
 import android.provider.OpenableColumns
 import android.webkit.MimeTypeMap
 import java.io.File
@@ -20,6 +22,14 @@ internal fun intakeEntry(name: String, size: Long, mimeType: String?, file: File
  */
 internal class IntakeFiles(private val context: Context) {
   private val dir get() = File(context.cacheDir, "canopy-intake")
+  private val localAuthorities by lazy {
+    val manager = context.packageManager
+    val packages = manager.getPackagesForUid(Process.myUid()).orEmpty().toSet() + context.packageName
+    packages.flatMap { name ->
+      manager.getPackageInfo(name, PackageManager.GET_PROVIDERS).providers.orEmpty()
+        .flatMap { it.authority.orEmpty().split(';') }
+    }.toSet()
+  }
 
   fun clear() {
     dir.deleteRecursively()
@@ -34,26 +44,33 @@ internal class IntakeFiles(private val context: Context) {
     }
   }
 
-  private fun copy(uri: Uri, maxBytes: Long): Map<String, Any?> {
+  private fun canRead(uri: Uri): Boolean =
+    grantedExternalContent(uri.scheme, uri.authority, localAuthorities) {
+      context.checkUriPermission(uri, Process.myPid(), Process.myUid(), Intent.FLAG_GRANT_READ_URI_PERMISSION) ==
+        PackageManager.PERMISSION_GRANTED
+    }
+
+  private fun copy(uri: Uri, maxBytes: Long): Map<String, Any?>? {
+    if (!canRead(uri)) return null
+
     val resolver = context.contentResolver
     val mimeType = resolver.getType(uri)
     var name: String? = null
     var size = -1L
 
-    if (uri.scheme == ContentResolver.SCHEME_CONTENT) {
-      resolver.query(uri, arrayOf(OpenableColumns.DISPLAY_NAME, OpenableColumns.SIZE), null, null, null)?.use {
-        if (it.moveToFirst()) {
-          name = it.getString(0)
-          if (!it.isNull(1)) size = it.getLong(1)
-        }
+    resolver.query(uri, arrayOf(OpenableColumns.DISPLAY_NAME, OpenableColumns.SIZE), null, null, null)?.use {
+      if (it.moveToFirst()) {
+        name = it.getString(0)
+        if (!it.isNull(1)) size = it.getLong(1)
       }
     }
     val fileName = safeName(name ?: uri.lastPathSegment, mimeType)
 
     if (size > maxBytes) return intakeEntry(fileName, size, mimeType, null)
+    if (!canRead(uri)) return null
+    val input = resolver.openInputStream(uri) ?: return null
     val target = File(File(dir, UUID.randomUUID().toString()).apply { mkdirs() }, fileName)
     var copied = 0L
-    val input = resolver.openInputStream(uri) ?: throw IllegalStateException("unreadable")
 
     input.use { source ->
       target.outputStream().use { sink ->

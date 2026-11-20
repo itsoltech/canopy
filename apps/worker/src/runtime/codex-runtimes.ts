@@ -8,6 +8,7 @@ import { CodexThreads } from "../providers/codex/threads.ts";
 import { prepareImportedCodexResume } from "../import/codex-provider.ts";
 import { readCodexConfiguredEffort } from "../providers/default-effort.ts";
 import { type ProfileRuntimeConfig, type ResolvedProfile } from "../providers/profiles.ts";
+import { join } from "node:path";
 
 import { CommandError, kindOf, taskOf, usableBy, codexProfileGroup, type CodexGroup } from "./host-types.ts";
 import type { HostContext } from "./host-context.ts";
@@ -182,7 +183,18 @@ export class CodexRuntimes {
       viewImage: (threadId, path) => this.ctx.ops.viewImage(threadId, this.ctx.state.cwds.get(threadId) ?? "", path),
       localMcpServers: (tools, threadId, defaults) =>
         this.ctx.state.agentTools.localMcpServers(tools, threadId, defaults),
-      enrich: (init) => this.ctx.state.previews.enrich(usage.failure(init)),
+      enrich: (init, threadId) => {
+        const cwd = this.ctx.state.cwds.get(threadId);
+        const result = usage.failure(init);
+
+        if (!cwd) return this.ctx.state.previews.enrich(result);
+        const generated = join(home.path, "generated_images");
+
+        return this.ctx.state.previews.enrich(result, {
+          native: { cwd, roots: [cwd, this.ctx.state.files.threadDir(threadId)] },
+          generated: { cwd, roots: [cwd, generated] },
+        });
+      },
       connectors: config.nativeTools.nativeConnectors === true,
     });
 

@@ -1,0 +1,14 @@
+#!/bin/sh
+# Serve only the synthetic release used by the real SSH integration test.
+set -eu
+asset='canopy-worker-linux-x64'
+url="https://github.com/itsoltech/canopy/releases/download/v0.0.0/$asset"
+
+if [ "$#" -ne 12 ] || [ "$1" != -fsSL ] || [ "$2" != --proto ] || [ "$3" != '=https' ] ||
+   [ "$4" != --proto-redir ] || [ "$5" != '=https' ] || [ "$6" != --connect-timeout ] ||
+   [ "$8" != --max-time ] || [ "${10}" != "$url" ] || [ "${11}" != -o ]; then
+  printf '%s\n' 'Unexpected release request in the worker SSH fixture' >&2
+  exit 1
+fi
+
+cp "/opt/canopy-test/$asset" "${12}"

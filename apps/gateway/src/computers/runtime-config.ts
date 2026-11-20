@@ -35,6 +35,16 @@ export function stopConfig(host: LinkedComputers, node: string) {
   for (const controller of host[computersState].configServing.get(node) ?? []) controller.abort();
 }
 
+function setConfigReady(connection: Connection, ready: boolean) {
+  connection.configReady = ready;
+
+  if (ready) connection.configAccess ??= new AbortController();
+  else {
+    connection.configAccess?.abort(new ConnectError("Configuration sharing is off", Code.FailedPrecondition));
+    delete connection.configAccess;
+  }
+}
+
 export async function exchangeConfigSharing(host: LinkedComputers, node: string, connection: Connection) {
   if (
     !host.config ||
@@ -54,6 +64,22 @@ export async function exchangeConfigSharing(host: LinkedComputers, node: string,
     });
 }
 
+async function changeConfigAccess(host: LinkedComputers, node: string, change: () => Promise<void>) {
+  const changes = host[computersState].configChanges;
+  const next = (changes.get(node) ?? Promise.resolve()).then(change);
+  const settled = next.catch(() => {});
+  changes.set(node, settled);
+
+  try {
+    await next;
+  } finally {
+    if (changes.get(node) === settled) changes.delete(node);
+  }
+
+  await refreshConfigGroup(host);
+  syncConfig(host, node);
+}
+
 export async function receiveConfigSharing(
   host: LinkedComputers,
   node: string,
@@ -67,48 +93,47 @@ export async function receiveConfigSharing(
     !host.hello().capabilities.includes(CONFIG_SYNC)
   )
     throw new ConnectError("Configuration sharing needs an update on both computers", Code.FailedPrecondition);
-  await host.store.query(
-    `UPDATE computer_peers SET peer_share_config=$3,peer_share_config_revision=$4::bigint
-    WHERE owner_user_id=$1::uuid AND node_id=$2 AND peer_share_config_revision<=$4::bigint`,
-    [host.store.owner, node, sharing.enabled, sharing.revision.toString()],
-  );
-  const peer = await host.store.peer(node);
-  connection.configReceived = true;
+  await changeConfigAccess(host, node, async () => {
+    await host.store.query(
+      `UPDATE computer_peers SET peer_share_config=$3,peer_share_config_revision=$4::bigint
+      WHERE owner_user_id=$1::uuid AND node_id=$2 AND peer_share_config_revision<=$4::bigint`,
+      [host.store.owner, node, sharing.enabled, sharing.revision.toString()],
+    );
+    const peer = await host.store.peer(node);
+    connection.configReceived = true;
 
-  for (const c of host[computersState].active.get(node) ?? []) {
-    if (c === connection || !peer?.share_config || !peer.peer_share_config)
-      c.configReady = !!peer?.share_config && peer.peer_share_config;
-  }
+    for (const c of host[computersState].active.get(node) ?? []) {
+      if (c === connection || !peer?.share_config || !peer.peer_share_config)
+        setConfigReady(c, !!peer?.share_config && peer.peer_share_config);
+    }
 
-  if (!configAllowed(host, node)) stopConfig(host, node);
-  await refreshConfigGroup(host);
-  syncConfig(host, node);
+    if (!configAllowed(host, node)) stopConfig(host, node);
+  });
 }
 
 export async function setConfigSharing(host: LinkedComputers, node: string, enabled: boolean) {
-  const peer = await host.store.peer(node);
+  await changeConfigAccess(host, node, async () => {
+    const peer = await host.store.peer(node);
 
-  if (!peer) throw new ConnectError("Computer not found", Code.NotFound);
+    if (!peer) throw new ConnectError("Computer not found", Code.NotFound);
 
-  // Only this side's choice changes. The partner's refusal can never be overridden here.
-  await host.store.query(
-    `UPDATE computer_peers SET share_config=$3,share_config_revision=share_config_revision+1
-    WHERE owner_user_id=$1::uuid AND node_id=$2`,
-    [host.store.owner, node, enabled],
-  );
+    // Only this side's choice changes. The partner's refusal can never be overridden here.
+    await host.store.query(
+      `UPDATE computer_peers SET share_config=$3,share_config_revision=share_config_revision+1
+      WHERE owner_user_id=$1::uuid AND node_id=$2`,
+      [host.store.owner, node, enabled],
+    );
 
-  for (const connection of host[computersState].active.get(node) ?? []) {
-    connection.configReady = false;
-    await exchangeConfigSharing(host, node, connection);
-  }
+    const connections = [...(host[computersState].active.get(node) ?? [])];
 
-  stopConfig(host, node);
+    for (const connection of connections) setConfigReady(connection, false);
+    stopConfig(host, node);
 
-  // A fresh reciprocal exchange is required after changing the local choice.
-  for (const connection of host[computersState].active.get(node) ?? [])
-    if (enabled && peer.peer_share_config && connection.configReceived) connection.configReady = true;
-  await refreshConfigGroup(host);
-  syncConfig(host, node);
+    for (const connection of connections) await exchangeConfigSharing(host, node, connection);
+
+    for (const connection of host[computersState].active.get(node) ?? [])
+      if (enabled && peer.peer_share_config && connection.configReceived) setConfigReady(connection, true);
+  });
 }
 
 export async function refreshConfigGroup(host: LinkedComputers) {

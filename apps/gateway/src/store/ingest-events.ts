@@ -28,6 +28,7 @@ import { Effect, Option, Schema } from "effect";
 import { SqlClient } from "effect/sql";
 import { applyGoalState } from "./goals.ts";
 import { compactEventRaw } from "./transcript-raw.ts";
+import { claimPreviews, type PreviewSource } from "./preview-uploads.ts";
 
 /** A worker's steer_dropped notice names the dropped steer as input_id. */
 const decodeSteerDropped = Schema.decodeUnknownOption(Schema.Struct({ input_id: Schema.optional(Schema.String) }));
@@ -93,7 +94,13 @@ export const resolveTurn = (sql: SqlClient.SqlClient, threadId: string, event: T
     return exists.length > 0 ? event : create(ThreadEventSchema, { ...event, turnId: "" });
   });
 
-export const applyItem = (sql: SqlClient.SqlClient, threadId: string, seq: bigint, event: ThreadEvent) =>
+export const applyItem = (
+  sql: SqlClient.SqlClient,
+  threadId: string,
+  seq: bigint,
+  event: ThreadEvent,
+  source?: PreviewSource,
+) =>
   Effect.gen(function* () {
     const itemId = eventItemId(event.body);
 
@@ -136,10 +143,9 @@ export const applyItem = (sql: SqlClient.SqlClient, threadId: string, seq: bigin
       yield* noteBackgroundEnd(sql, threadId, itemId, next);
     }
 
-    // Previews the item shows (the worker sent them before the event): readable through this thread.
-    for (const { sha256 } of previewRefs(next)) {
-      yield* sql`INSERT INTO thread_blobs (thread_id, sha256) VALUES (${threadId}::uuid, ${sha256}) ON CONFLICT DO NOTHING`;
-    }
+    // A claim records which item is awaiting a preview. Only staged bytes
+    // from the authenticated sender can turn it into permission to read.
+    if (source) yield* claimPreviews(sql, source, threadId, previewRefs(next));
   });
 
 /** Adjacent deltas share one item, field and turn; reduction is the same ordered append. */
@@ -191,7 +197,13 @@ export const noteBackgroundEnd = (sql: SqlClient.SqlClient, threadId: string, it
       ON CONFLICT (thread_id, item_id) DO NOTHING`;
   });
 
-export const applySideEffects = (sql: SqlClient.SqlClient, threadId: string, seq: bigint, event: ThreadEvent) =>
+export const applySideEffects = (
+  sql: SqlClient.SqlClient,
+  threadId: string,
+  seq: bigint,
+  event: ThreadEvent,
+  source?: PreviewSource,
+) =>
   Effect.gen(function* () {
     const body = event.body;
 
@@ -212,7 +224,11 @@ export const applySideEffects = (sql: SqlClient.SqlClient, threadId: string, seq
             WHERE id = ${threadId}::uuid`;
 
         return;
-      case "turnStarted":
+      case "turnStarted": {
+        const active = yield* sql`SELECT id FROM turns WHERE id = ${event.turnId}::uuid
+          AND thread_id = ${threadId}::uuid AND status IN ('queued', 'running') AND rewind_id IS NULL`;
+
+        if (!active.length) return;
         yield* supersede(sql, threadId, event.turnId);
         yield* sql`
           UPDATE turns SET status = 'running', started_at = coalesce(started_at, now()),
@@ -222,6 +238,8 @@ export const applySideEffects = (sql: SqlClient.SqlClient, threadId: string, seq
         yield* sql`UPDATE threads SET status = 'running' WHERE id = ${threadId}::uuid AND status <> 'archived'`;
 
         return;
+      }
+
       case "turnFinished": {
         const end = turnEnd(body.value.outcome, body.value.source);
         yield* sql`
@@ -287,7 +305,7 @@ export const applySideEffects = (sql: SqlClient.SqlClient, threadId: string, seq
 
         return;
       default:
-        yield* applyItem(sql, threadId, seq, event);
+        yield* applyItem(sql, threadId, seq, event, source);
     }
   });
 

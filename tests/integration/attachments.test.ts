@@ -425,13 +425,15 @@ describe.skipIf(!dockerAvailable)("attachments", () => {
       const digest = sha(preview);
       worker.uploadPreview(digest, preview, "image/webp", 1000, thread.id);
 
-      // Ownership commits with the bytes, before the timeline event can reference them.
-      const uploaded = await eventually(
-        () => api.getThreadBlob({ threadId: thread.id, sha256: digest }).catch(() => undefined),
-        (blob) => blob !== undefined,
+      await eventually(
+        () =>
+          gw.core.linkedAgents.query("SELECT 1 FROM worker_preview_uploads WHERE thread_scope=$1 AND sha256=$2", [
+            thread.id,
+            digest,
+          ]),
+        (rows) => rows.length === 1,
       );
-
-      expect(uploaded && sha(uploaded.data)).toBe(digest);
+      expect(await failure(api.getThreadBlob({ threadId: thread.id, sha256: digest }))).toContain("not found");
       const turnId = (await api.sendMessage({ threadId: thread.id, text: "look", clientRequestId: "pv-1" })).turn!.id;
       worker.emit(thread.id, turnId, {
         case: "itemCompleted",
@@ -484,8 +486,34 @@ describe.skipIf(!dockerAvailable)("attachments", () => {
           },
         },
       });
-      await Bun.sleep(200);
+      await eventually(
+        () =>
+          gw.core.linkedAgents.query("SELECT 1 FROM thread_items WHERE thread_id=$1::uuid AND item_id='img-2'", [
+            thread.id,
+          ]),
+        (rows) => rows.length === 1,
+      );
       expect(await failure(api.getThreadBlob({ threadId: thread.id, sha256: forged }))).toContain("not found");
+    });
+
+    test("soft delete hides bound attachment ranges and restoration makes the same id readable", async () => {
+      const thread = await newThread("Restorable file");
+      const data = text("restorable attachment");
+      const { attachment } = await api.uploadAttachment({ name: "restorable.txt", data });
+      const attachmentId = attachment!.id;
+      await api.sendMessage({
+        threadId: thread.id,
+        text: "read",
+        clientRequestId: "restorable",
+        attachmentIds: [attachmentId],
+      });
+      expect((await api.getAttachment({ attachmentId })).data).toEqual(data);
+      await api.setThreadArchived({ threadId: thread.id, archived: true });
+      await api.deleteThread({ threadId: thread.id });
+      expect(await failure(api.getAttachment({ attachmentId, offset: 1n, limit: 4 }))).toContain("not found");
+      expect(await failure(api.getAttachment({ attachmentId, metadataOnly: true }))).toContain("not found");
+      await api.restoreThread({ threadId: thread.id });
+      expect((await api.getAttachment({ attachmentId })).data).toEqual(data);
     });
   });
   describe('placed in the text (docs/ui-api.md, "Załączniki w tekście")', () => {

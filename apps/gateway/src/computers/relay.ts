@@ -19,8 +19,8 @@ import {
 import { Effect } from "effect";
 import { SqlClient } from "effect/sql";
 import { ComputerStore, type PeerRow } from "./store.ts";
-import { linkedMessage, SERVED, UPDATE_METHODS, WORKER_SETTINGS } from "./remote.ts";
-import { GITHUB_METHODS } from "./remote-policy.ts";
+import { linkedMessage, MOVE_METHODS, SERVED, UPDATE_METHODS, WORKER_SETTINGS } from "./remote.ts";
+import { GITHUB_METHODS, THREAD_SECRET_METHODS } from "./remote-policy.ts";
 import { BOT_THREAD_ACCESS, AGENT_PREVIEW_CLIENT_ACK } from "./capabilities.ts";
 
 // Configuration (which can contain credentials) is deliberately absent, even when
@@ -52,6 +52,8 @@ export const RELAY_METHODS = new Set(
     (name) =>
       name !== "WatchConfig" &&
       name !== "GetConfigBlob" &&
+      !THREAD_SECRET_METHODS.has(name) &&
+      !MOVE_METHODS.has(name) &&
       !WORKER_SETTINGS.has(name) &&
       !UPDATE_METHODS.has(name) &&
       !GITHUB_METHODS.has(name),

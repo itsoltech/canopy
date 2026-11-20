@@ -188,7 +188,7 @@ test.skipIf(!dockerAvailable)(
       );
 
       await started.promise;
-      setBffTarget({ gatewayUrl: "http://replacement.invalid", serviceToken: "test-service-token" });
+      setBffTarget({ mode: "offline" });
       expect(await outcome).toBeInstanceOf(QueryCacheDisposed);
       release.resolve();
       expect((await stream.next()).done).toBe(true);

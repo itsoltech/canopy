@@ -1,6 +1,6 @@
 # Kopiowanie workspace'u
 
-Status: zaimplementowane (2026-11-18), w tym wstrzymanie i wznowienie kopii w tle przy zmianie dostępności modułu Threads.
+Status: zaimplementowane (2026-11-19), w tym wstrzymanie i wznowienie kopii w tle przy zmianie dostępności modułu Threads.
 
 Settings → Projects → Workspaces → **Add workspace** udostępnia źródło
 **Copy from …** obok istniejącego katalogu i klonu. Źródłem jest workspace tego
@@ -47,9 +47,15 @@ każdego wybranego sekretu, właściciela workspace'u i przynależność do mani
 
 ## Checkout i ścieżki
 
-Kopiujemy komplet `.git`: zachowuje lokalne commity, indeks, gałąź i remotes,
-bez wymagania dostępu do remote z celu. Klon z remote nie zachowałby indeksu
-i nieopublikowanych commitów. `.git/config` wymaga potwierdzenia sekretów.
+Kopiujemy stan checkoutu, historię i magazyn obiektów z `.git`: lokalne commity, indeks,
+gałąź, refs, reflogi, `info/exclude` i remotes, bez wymagania dostępu do remote z celu.
+Klon z remote nie zachowałby indeksu i nieopublikowanych commitów. Hooki, `config.worktree`,
+filtry, aliasy, helpery poświadczeń, `include` i inne polityki lokalne **nie** są kopiowane:
+worker źródła buduje przenośny `.git/config` (format repozytorium, `core.autocrlf`/`core.eol`,
+adresy i refspeci remotes oraz powiązania gałęzi), a cel odbudowuje go jeszcze raz
+przed publikacją, więc starsze źródło nie przemyci własnej konfiguracji. Adresy z
+hasłem lub nazwą użytkownika w URL są pomijane. Wygenerowany config trafia do wyboru
+jako wpis `.git/config` i nadal wymaga potwierdzenia sekretów.
 Worker źródła odrzuca niepełne repozytorium i nie udostępnia żadnych porcji przed
 autoryzacją całej selekcji. Linked worktree jest spłaszczany
 do samodzielnego checkoutu: wspólne obiekty/refy plus jego własny HEAD i indeks.

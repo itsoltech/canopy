@@ -43,7 +43,7 @@ describe.skipIf(!dockerAvailable)("worker enrollment and credential lifecycle ov
     if (dir) rmSync(dir, { recursive: true, force: true });
   });
 
-  test("CLI spends a token once, writes a private config, connects; rotation and revoke invalidate the live link", async () => {
+  test("CLI reads invitation from stdin, spends it once, writes a private config, connects; rotation and revoke invalidate the live link", async () => {
     const invitation = await gw.api.createWorkerEnrollment({ name: "Second machine" });
     const configPath = join(dir, "second", "worker.json");
     const dataDir = join(dir, "data");
@@ -55,14 +55,12 @@ describe.skipIf(!dockerAvailable)("worker enrollment and credential lifecycle ov
         "enroll",
         "--gateway",
         gw.grpcUrl,
-        "--token",
-        invitation.token,
         "--config",
         configPath,
         "--data-dir",
         dataDir,
       ],
-      { stdout: "pipe", stderr: "pipe" },
+      { stdin: new Blob([invitation.token, "\n"]), stdout: "pipe", stderr: "pipe" },
     );
 
     const [stdout, stderr, code] = await Promise.all([
@@ -132,17 +130,15 @@ describe.skipIf(!dockerAvailable)("worker enrollment and credential lifecycle ov
         "enroll",
         "--gateway",
         gw.grpcUrl,
-        "--token",
-        unused.token,
         "--config",
         configPath,
       ],
-      { stdout: "pipe", stderr: "pipe" },
+      { stdin: new Blob([unused.token, "\n"]), stdout: "pipe", stderr: "pipe" },
     );
 
     expect(await duplicate.exited).toBe(78);
 
-    // Every enrollment token is prefixed, and a value that starts with "-" is still read as the option's value.
+    // A line that starts with a dash is read as input and rejected by the gateway.
     expect(unused.token).toStartWith("canopy_enroll_");
 
     const dashValue = Bun.spawn(
@@ -152,12 +148,10 @@ describe.skipIf(!dockerAvailable)("worker enrollment and credential lifecycle ov
         "enroll",
         "--gateway",
         gw.grpcUrl,
-        "--token",
-        "-not-a-real-token",
         "--config",
         join(dir, "dash-value.json"),
       ],
-      { stdout: "pipe", stderr: "pipe" },
+      { stdin: new Blob(["-not-a-real-token", "\n"]), stdout: "pipe", stderr: "pipe" },
     );
 
     expect(await dashValue.exited).toBe(78);
@@ -173,13 +167,11 @@ describe.skipIf(!dockerAvailable)("worker enrollment and credential lifecycle ov
         "enroll",
         "--gateway",
         gw.grpcUrl,
-        "--token",
-        unused.token,
         "--config",
         configPath,
         "--force",
       ],
-      { stdout: "pipe", stderr: "pipe" },
+      { stdin: new Blob([unused.token, "\n"]), stdout: "pipe", stderr: "pipe" },
     );
 
     expect(await forced.exited).toBe(0);

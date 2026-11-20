@@ -42,6 +42,10 @@ export class LocalAppControl {
   get supportsUpdates() {
     return this.remoteUpdate;
   }
+  /** The controller reads its worker id from its local enrollment before opening this service-token channel. */
+  ownsWorker(workerId: string): boolean {
+    return this.session?.hello.workerId === workerId && !this.session.channel.closed;
+  }
 
   private serialize<A>(run: () => Promise<A>): Promise<A> {
     const result = this.queue.then(run);

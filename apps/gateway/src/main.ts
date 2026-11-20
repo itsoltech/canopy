@@ -8,7 +8,11 @@ const oneShot = command === "healthcheck" || command === "service" || Bun.argv.i
 
 // Neither `canopy-gateway web` (the web alone, src/web/serve.ts) nor the supervisor of a standalone binary loads the
 // gateway: the supervisor stays a small watchdog process next to the one process that runs gateway and web.
-if (command === "storage") {
+if (command === "migrate") {
+  const { migrateCli } = await import("./migrate-cli.ts");
+
+  process.exit(await migrateCli(Bun.argv.slice(3), Bun.env));
+} else if (command === "storage") {
   const { storageCli } = await import("./storage-cli.ts");
 
   process.exit(await storageCli(Bun.argv.slice(3), Bun.env));

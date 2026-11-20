@@ -2,11 +2,11 @@ import { createServer, type Server } from "node:http";
 import { join } from "node:path";
 import { pathToFileURL } from "node:url";
 import { CANOPY_VERSION } from "@canopy/domain/release/version";
-import { embeddedWebOrigin, isLoopback, webDirectory, webListen, webSettings } from "./config.ts";
+import { embeddedWebOrigin, webDirectory, webListen, webSettings } from "./config.ts";
 import type { EmbeddedWebArchive } from "./embedded.ts";
 import { installKind } from "@canopy/updater";
 import { containWebFaults } from "./faults.ts";
-import { HostAllowlist } from "./hosts.ts";
+import { isLoopback, WebIngress } from "@canopy/transport/web-ingress";
 import { healthAnswer, listen } from "./probe.ts";
 import { prepareWebRelease, TOUCH_MS, touchWebRelease } from "./release.ts";
 import { previousAssets, webRequestListener, type WebHandler } from "./requests.ts";
@@ -51,7 +51,7 @@ async function webHandler(directory: string): Promise<WebHandler> {
 export class EmbeddedWebServer {
   #server: Server | undefined;
   #handler: Promise<{ handler: WebHandler; assets: Map<string, string> }> | undefined;
-  #hosts: HostAllowlist;
+  #hosts: WebIngress;
   #stopping = false;
   #failures = 0;
   #retry: ReturnType<typeof setTimeout> | undefined;
@@ -64,7 +64,7 @@ export class EmbeddedWebServer {
   constructor(readonly options: EmbeddedWebOptions) {
     this.#listen = webListen(options.env);
     this.url = embeddedWebOrigin(options.env);
-    this.#hosts = new HostAllowlist(options.env);
+    this.#hosts = new WebIngress(options.env);
   }
   get state(): EmbeddedWebState {
     return this.#state;
@@ -147,7 +147,7 @@ export class EmbeddedWebServer {
     this.#failures = 0;
     this.#set("running");
 
-    // In a container the published port is the boundary (`127.0.0.1:3000:3000` in Compose), not the bind address.
+    // Compose isolates this listener on its control network and publishes it on host loopback.
     if (!isLoopback(this.#listen.host) && installKind() !== "docker")
       console.warn(
         `web: listening on ${this.#listen.host}:${this.#listen.port}, reachable from other computers. Put a TLS reverse proxy or Tailscale Serve in front of it.`,

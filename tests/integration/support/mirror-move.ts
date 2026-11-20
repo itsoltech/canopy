@@ -1,3 +1,4 @@
+import { createHash } from "node:crypto";
 import { create } from "@bufbuild/protobuf";
 import { computerLink as link, ui } from "@canopy/contracts";
 import type { LinkedComputers } from "../../../apps/gateway/src/computers/runtime.ts";
@@ -42,14 +43,15 @@ export async function publishedVisual(
   threadId: string,
 ): Promise<string> {
   const visualId = crypto.randomUUID();
+  const spec = JSON.stringify({ schema_version: 1, root: { type: "divider" } });
 
   await query(
     `INSERT INTO thread_visuals(visual_id,version,thread_id,owner_user_id,turn_id,call_id,item_id,title,description,height,
       schema_version,kit_version,spec,sha256)
     SELECT $1::uuid,1,t.id,t.owner_user_id,u.id,$3::uuid,'visual-'||$1,'Moved visual','Shows the move.',360,1,1,
-      '{"schema_version":1,"root":{"type":"divider"}}','x' FROM threads t JOIN turns u ON u.thread_id=t.id
+      $4,$5 FROM threads t JOIN turns u ON u.thread_id=t.id
     WHERE t.id=$2::uuid ORDER BY u.ordinal LIMIT 1`,
-    [visualId, threadId, crypto.randomUUID()],
+    [visualId, threadId, crypto.randomUUID(), spec, createHash("sha256").update(spec).digest("hex")],
   );
 
   return visualId;

@@ -17,6 +17,7 @@ import {
 } from "@canopy/domain/workspace-copy";
 import { freshGit, git } from "../git/git.ts";
 import { copyError, within, checkedParent } from "./safety.ts";
+import { COPY_GIT_CONFIG, copyGitConfig, copyGitMetadata } from "./git-metadata.ts";
 
 export interface ScannedFile {
   root: string;
@@ -30,6 +31,7 @@ export interface ScannedFile {
 export interface CopyScan {
   manifest: WorkspaceCopyManifest;
   files: Map<string, ScannedFile>;
+  config: Buffer;
 }
 
 /** Preview metadata only; ignored dependencies are pruned before walking their contents. */
@@ -86,17 +88,32 @@ export async function scanWorkspace(path: string): Promise<CopyScan> {
 
   await walk(context, root, "", "", false);
   await walk(context, commonRoot, "", ".git", true, gitRoot !== commonRoot);
+  const config = await copyGitConfig(join(commonRoot, "config"), root);
+  context.manifestBytes += Buffer.byteLength(COPY_GIT_CONFIG) + 160;
+
+  if (entries.length + skippedDirectories.length >= COPY_MAX_ENTRIES || context.manifestBytes > COPY_MANIFEST_BYTES)
+    throw copyError("The file list is too large. Reduce the repository before copying.");
+  entries.push(
+    create(WorkspaceCopyEntrySchema, {
+      path: COPY_GIT_CONFIG,
+      size: BigInt(config.length),
+      mode: 0o600,
+      metadata: true,
+      included: true,
+    }),
+  );
 
   if (gitRoot !== commonRoot) {
     for (const name of [
       "HEAD",
       "index",
-      "config.worktree",
       "ORIG_HEAD",
       "MERGE_HEAD",
       "MERGE_MSG",
       "CHERRY_PICK_HEAD",
-      ...(await readdir(gitRoot)).filter((name) => name.startsWith("sharedindex.")),
+      "REVERT_HEAD",
+      "AUTO_MERGE",
+      ...(await readdir(gitRoot)).filter((name) => name.startsWith("sharedindex.") && copyGitMetadata(`.git/${name}`)),
     ]) {
       if (!(await lstat(join(gitRoot, name)).catch(() => undefined))) continue;
       const index = entries.findIndex((e) => e.path === `.git/${name}`);
@@ -133,6 +150,7 @@ export async function scanWorkspace(path: string): Promise<CopyScan> {
       changedFiles,
     }),
     files,
+    config,
   };
 }
 
@@ -158,24 +176,40 @@ async function walk(
   const names = await readdir(join(root, path));
 
   for (const name of names.sort()) {
-    if (
-      (!metadata && !path && name === ".git") ||
-      (metadata && !path && ["worktrees", "commondir", "gitdir"].includes(name))
-    )
-      continue;
+    if (!metadata && !path && name.toLowerCase() === ".git") continue;
 
     if (
       metadata &&
       linked &&
       !path &&
-      ["HEAD", "index", "config.worktree", "ORIG_HEAD", "MERGE_HEAD", "MERGE_MSG", "CHERRY_PICK_HEAD"].includes(name)
+      [
+        "HEAD",
+        "index",
+        "ORIG_HEAD",
+        "MERGE_HEAD",
+        "MERGE_MSG",
+        "CHERRY_PICK_HEAD",
+        "REVERT_HEAD",
+        "AUTO_MERGE",
+      ].includes(name)
     )
       continue;
     const local = path ? `${path}/${name}` : name;
 
-    if (!metadata && path && name === ".git")
+    if (!metadata && path && name.toLowerCase() === ".git")
       throw copyError("Repositories with nested Git checkouts must be cloned instead of copied.");
     const display = prefix ? `${prefix}/${local}` : local;
+
+    if (metadata) {
+      if (
+        /^\.git\/(?:rebase-apply|rebase-merge|sequencer|objects\/info\/(?:http-)?alternates)$/.test(display) ||
+        (display.endsWith(".lock") && !display.startsWith(".git/hooks/"))
+      )
+        throw copyError("Finish the Git operation or clone this repository before copying.");
+
+      if (display === COPY_GIT_CONFIG || !copyGitMetadata(display)) continue;
+    }
+
     const entry = await add(ctx, root, local, display, metadata);
 
     if (entry?.directory && !entry.blocked) await walk(ctx, root, local, prefix, metadata, linked);
@@ -235,10 +269,6 @@ async function add(ctx: ScanContext, root: string, path: string, display: string
     blocked = "Symlink points outside the repository";
 
   if (!info.isDirectory() && !info.isFile() && !info.isSymbolicLink()) blocked = "Unsupported file type";
-
-  if (display === ".git/objects/info/alternates") blocked = "Repository uses external Git objects";
-
-  if (display.endsWith(".lock") && metadata) blocked = "Git operation in progress";
 
   const entry = create(WorkspaceCopyEntrySchema, {
     path: display,

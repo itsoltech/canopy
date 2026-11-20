@@ -5,26 +5,27 @@ umask 077
 set +x
 
 fail() { printf '%s\n' "Canopy: $*" >&2; exit 1; }
-gateway='' token='' name='' release_url='' checksum_url='' fingerprint='' release_sha256=''
+gateway='' name='' release_url='' checksum_url='' fingerprint='' release_sha256=''
 origin='CANOPY_INSTALL_ORIGIN_DEFAULT'
-service=yes force=no channel_fallback=no
+service=yes force=no channel_fallback=no token_stdin=no
 while [ "$#" -gt 0 ]; do
   case "$1" in
-    --gateway|--token|--name|--origin|--release-url|--checksum-url|--fingerprint|--release-sha256)
+    --gateway|--name|--origin|--release-url|--checksum-url|--fingerprint|--release-sha256)
       [ "$#" -ge 2 ] && [ -n "$2" ] || fail "Missing option value"
       case "$1" in
-        --gateway) gateway=$2 ;; --token) token=$2 ;; --name) name=$2 ;;
+        --gateway) gateway=$2 ;; --name) name=$2 ;;
         --fingerprint) fingerprint=$2 ;;
         --release-sha256) release_sha256=$2 ;;
         --origin) origin=$2 ;; --release-url) release_url=$2 ;; --checksum-url) checksum_url=$2 ;;
       esac
       shift 2 ;;
     --no-service) service=no; shift ;; --force) force=yes; shift ;;
+    --token-stdin) token_stdin=yes; shift ;;
     --channel-fallback) channel_fallback=yes; shift ;;
-    *) fail "Usage: --gateway URL --token TOKEN [--name NAME] [--no-service] [--force]" ;;
+    *) fail "Usage: --gateway URL [--name NAME] [--no-service] [--force] [--token-stdin]" ;;
   esac
 done
-[ -n "$gateway" ] && [ -n "$token" ] || fail "--gateway and --token are required"
+[ -n "$gateway" ] || fail "--gateway is required"
 if [ -z "$release_url" ]; then
   case "$origin" in http://*|https://*) ;; *) fail "Download this script from your Canopy web origin or supply --origin URL" ;; esac
 fi
@@ -92,14 +93,20 @@ install -m 0755 "$tmp/worker" "$next"
 mv -f "$next" "$binary"
 next=''
 if [ "$reuse" = no ]; then
-  set -- enroll --gateway "$gateway" --token "$token" --config "$config"
+  set -- enroll --gateway "$gateway" --config "$config"
   [ -z "$fingerprint" ] || set -- "$@" --fingerprint "$fingerprint"
   [ "$force" != yes ] || set -- "$@" --force
   # Name is attached to the invitation by the gateway, never passed as executable syntax.
-  "$binary" "$@" >"$tmp/enroll" 2>&1 || fail "Enrollment failed. Check the gateway address and generate a fresh token"
+  if command -v canopy_ssh_enrollment_token >/dev/null 2>&1; then
+    canopy_ssh_enrollment_token | "$binary" "$@" >"$tmp/enroll" 2>&1
+  elif [ "$token_stdin" = yes ]; then
+    "$binary" "$@" >"$tmp/enroll"
+  else
+    "$binary" "$@" </dev/tty >"$tmp/enroll"
+  fi || fail "Enrollment failed. Check the gateway address and generate a fresh token. Without a terminal, save the installer and use --token-stdin."
   printf '%s\n' "Worker enrolled${name:+: $name}."
 fi
-token=; set --
+set --
 chmod 600 "$config"
 # Preserve caller PATH and include common user-managed CLI locations in the service.
 PATH="$bin_dir:$HOME/.local/bin:$HOME/.local/share/mise/shims:$HOME/.local/share/mise/installs/node/current/bin:$HOME/.npm-global/bin:$HOME/.npm/bin:$HOME/.bun/bin:$HOME/.volta/bin:/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:${PATH:-}"

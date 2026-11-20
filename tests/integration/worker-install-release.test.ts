@@ -72,6 +72,7 @@ describe("worker install release adapter with offline GitHub fixtures", () => {
             report: async () => {},
           },
           source: {
+            baseUrl: "https://fixture.example",
             fetch: async (input) => {
               const url = new URL(String(input));
 

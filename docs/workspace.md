@@ -1,6 +1,7 @@
 # Zakładki wątku i panel Files/Diff/Preview
 
-Status (2026-11-19): **zaimplementowane; układ v3**, menu ścieżek w rozmowie
+Status (2026-11-20): **zaimplementowane; układ v3**; zapis i usunięcie pliku oraz odczyty Git paneli są związane z
+sprawdzonymi uchwytami i bezpieczną polityką Git (szczegóły niżej), menu ścieżek w rozmowie
 z kopiowaniem pełnej i względnej ścieżki, pobieraniem oraz lokalnym
 `Reveal in Finder/Explorer`, zaznaczanie i kopiowanie tekstu w podglądzie źródła
 tylko do odczytu w web/desktop, podgląd dostępnych plików spoza workspace tylko do odczytu,
@@ -77,7 +78,21 @@ i otwiera lokalną aplikację przez `OpenThreadFile`. Podświetlanie składni i 
 ładowany edytor już istnieją. Odczyt ma limit 2 MiB, a UI pozwala edytować do 400 KiB.
 Gateway dopuszcza większy zapis, ale webowy limit body 512 KiB wymaga sprawdzania
 również rozmiaru **zakodowanego JSON**, nie tylko bajtów tekstu. Zapis i usunięcie
-używają SHA-256 odczytu. Rozstrzyganie gołych nazw, obrazy, wybór niejednoznacznej
+używają SHA-256 odczytu i działają na jednym otwartym, sprawdzonym pliku, nie na
+ponownie rozwiązywanej ścieżce (Linux i macOS: `openat` z `O_NOFOLLOW` od `/`;
+Windows: uchwyty `CreateFileW` bez udostępniania usuwania i zmiany nazwy przez
+wszystkie katalogi nadrzędne). Przed zapisem worker porównuje hash, tożsamość i wersję
+pliku oraz jego miejsce wg systemu operacyjnego. Kotwicą jest kanoniczna ścieżka z pierwszego sprawdzenia
+(`realpath` systemu, z dokładnymi nazwami), której worker nie rozwiązuje drugi raz: ta sama
+lista korzeni autoryzuje ścieżkę i ogranicza otwarcie, żadna składowa nie może być
+dowiązaniem, a nazwa zgłoszona przez system dla otwartego obiektu musi być identyczna
+z kotwicą (bez zmiany wielkości liter, więc woluminy rozróżniające wielkość liter nie są mylone
+z rodzeństwem; normalizowana jest tylko litera dysku Windows). Usunięcie przenosi wpis do tymczasowego
+katalogu obok, kasuje tylko sprawdzony inode i przy rozbieżności przywraca nazwę bez
+nadpisywania. Plik z dodatkowymi twardymi dowiązaniami, dowiązanie symboliczne,
+katalog i plik specjalny są odrzucane z `FILE_CHANGED`. Zwykła edycja, zapis kilku
+plików naraz i skracanie lub wydłużanie treści działają bez zmian; zmiana miejsca pliku
+w trakcie zapisu kończy się odświeżeniem, nie zapisem gdzie indziej. Rozstrzyganie gołych nazw, obrazy, wybór niejednoznacznej
 ścieżki i routing do domu wątku są już wspólne z mobile.
 
 `ThreadPanel` łączy położenie, connectory, PR, zadania w tle, harmonogramy, metadane
@@ -713,6 +728,19 @@ a usunięty plik jest wirtualnym, nieotwieralnym wpisem statusu do najbliższej
 rewalidacji. Status katalogu jest agregatem z ograniczonego zapytania Git;
 brak pełnych danych to `Status unavailable`, nie „clean”. Nie wykonujemy
 `git status` osobno dla każdego pliku. Bez repo drzewo nadal działa.
+
+Odczyty Git dla statusu, diffu i listowania (`git status`, `git diff`, `rev-parse`) nie
+uruchamiają kodu z konfiguracji repozytorium: hooki są wyłączone (`core.hooksPath`),
+nie działa `core.fsmonitor`, zewnętrzny diff, textconv ani filtry `clean`/`smudge`/`process`
+z konfiguracji (są nadpisywane przed odczytem plików roboczych), status nie wchodzi do
+brudnych submodułów (`--ignore-submodules=dirty`), a podmieniane obiekty i leniwy fetch są
+wyłączone. Historia, zwykłe zmiany, rename i linked worktrees są widoczne jak dotąd.
+Równoczesne żądania tego samego statusu współdzielą cały odczyt. Przy nowym skanie worker
+w jednym slocie Git kolejno odczytuje aktualną konfigurację filtrów i uruchamia status.
+Trafienie w cache gotowego wyniku obsługiwane jest bez uruchamiania procesu.
+Świadome polecenia użytkownika i agenta (commit z hookami, checkout z filtrami) nadal
+używają konfiguracji projektu: ograniczenie dotyczy wyłącznie samodzielnych odczytów
+przy otwarciu panelu.
 
 ### Odczyt, edycja i koszty podświetlania
 

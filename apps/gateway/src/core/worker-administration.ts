@@ -15,7 +15,6 @@ import { enrollTags } from "../agent-environment/enrollment.ts";
 const digest = (value: string) => createHash("sha256").update(value).digest("hex");
 const secret = () => randomBytes(32).toString("base64url");
 
-// Pasted into `canopy-worker enroll --token …`: a base64url value may start with "-", which CLI parsers read as a flag.
 const enrollmentSecret = () => `canopy_enroll_${secret()}`;
 const uuid = (id: string) => /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id);
 

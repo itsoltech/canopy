@@ -192,6 +192,11 @@ describe.skipIf(!dockerAvailable)("schema on PostgreSQL 17", () => {
       "177_github_pr_projection",
       "178_usage_workers",
       "179_removed_branch_cleanup",
+      "180_thread_blob_provenance",
+      "181_connector_approval_binding",
+      "182_verified_computer_redirects",
+      "183_legacy_inline_previews",
+      "184_legacy_preview_grants",
     ]);
   }, 60_000);
 

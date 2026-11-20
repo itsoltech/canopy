@@ -555,7 +555,10 @@ describe.skipIf(!dockerAvailable)("agent bus across providers and trees (gateway
     });
 
     const source = (await settled(a.id)).at(-1)!;
-    await query("UPDATE turns SET hops = 255 WHERE id = $1::uuid", source.id);
+    await query(
+      "UPDATE turns SET hops = 255, trigger = 'background_task', agent_call_id = NULL WHERE id = $1::uuid",
+      source.id,
+    );
 
     const reserved = await studio.callTool({
       threadId: a.id,
@@ -593,6 +596,23 @@ describe.skipIf(!dockerAvailable)("agent bus across providers and trees (gateway
     });
 
     expect([stopped.isError, stopped.content]).toEqual([true, reserved.content]);
+
+    const withoutTurn = await studio.callTool({
+      threadId: b.id,
+      tool: "send_message",
+      args: { thread_id: a.id, prompt: "follow-up without a turn ID", notify: false },
+    });
+
+    expect([withoutTurn.isError, withoutTurn.content]).toEqual([true, reserved.content]);
+
+    const delayed = await studio.callTool({
+      threadId: b.id,
+      turnId: chain[0]!.id,
+      tool: "send_message",
+      args: { thread_id: a.id, prompt: "delayed follow-up from a previous turn", notify: false },
+    });
+
+    expect([delayed.isError, delayed.content]).toEqual([true, "This tool call is outside the current turn context."]);
 
     const human = (await gw.api.sendMessage({ threadId: b.id, text: "continue", clientRequestId: "loop-resume" }))
       .turn!;

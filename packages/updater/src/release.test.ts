@@ -115,10 +115,15 @@ describe("release channels against GitHub fixtures", () => {
       indexUrl: false,
       fetch: async (input) =>
         Response.json(
-          String(input).includes("/releases/")
+          String(input).includes("/releases/tags/")
             ? {
                 tag_name: "1.2.3",
-                assets: [{ name: "manifest.json", browser_download_url: "https://example.com/manifest" }],
+                assets: [
+                  {
+                    name: "manifest.json",
+                    browser_download_url: "https://github.com/itsoltech/canopy/releases/download/1.2.3/manifest.json",
+                  },
+                ],
               }
             : {
                 schema: 1,

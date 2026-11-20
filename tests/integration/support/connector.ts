@@ -1,17 +1,20 @@
 import { createHash } from "node:crypto";
-import type { JsonValue } from "@canopy/domain";
+import type { JsonObject, JsonValue } from "@canopy/domain";
 
 /** Real HTTP MCP + OAuth fixture: token validation, one-use codes, S256 and rotating refresh tokens. */
 export function fakeConnector(
   options: {
     call?: (name: string, args: JsonValue) => JsonValue;
     accountId?: string;
+    tokenMetadata?: () => JsonObject;
     response?: (
       method: string,
       id: number | undefined,
       request: Request,
     ) => Response | undefined | Promise<Response | undefined>;
     userToken?: boolean;
+    /** Runs after consuming the old refresh token and issuing its replacement, before sending the response. */
+    refreshIssued?: () => Promise<void>;
     exchangeResponse?: (request: Pick<Request, "text">) => Response | undefined | Promise<Response | undefined>;
   } = {},
 ) {
@@ -123,14 +126,19 @@ export function fakeConnector(
         access.add(token);
         refresh.add(renewal);
 
-        return Response.json({
+        const response = Response.json({
           access_token: token,
           refresh_token: renewal,
           token_type: options.userToken ? "user" : "Bearer",
           expires_in: duration,
           ...(accountId && { workspace_id: accountId }),
           ...(options.userToken && { ok: true, authed_user: { id: "U12345", scope: "tools" }, team: { id: "T12345" } }),
+          ...options.tokenMetadata?.(),
         });
+
+        if (p.get("grant_type") === "refresh_token") await options.refreshIssued?.();
+
+        return response;
       }
 
       if (path === "/revoke") {

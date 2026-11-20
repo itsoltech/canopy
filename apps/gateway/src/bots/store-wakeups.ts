@@ -9,6 +9,7 @@ import type { BotCore } from "./store-queue.ts";
 import { lockedOwnerModule } from "../store/module-access.ts";
 import { deliverThreadQuestions, deliverySources } from "./thread-questions.ts";
 import { turnReport } from "../store/turn-report.ts";
+import { canReportBotTurn } from "./report-origin.ts";
 import { botThreadNoticeTitle, threadNotice } from "./thread-notice.ts";
 
 /** Watches of threads and steers, wakeups and reminders. */
@@ -118,12 +119,13 @@ export function botDeliveries(sql: SqlClient.SqlClient, core: BotCore) {
           );
 
           for (const watch of watches) {
-            const text = results.get(watch.target_turn_id) ?? "";
-            const { message, failure } = turnReport(watch.status, watch.error, text, 80_000);
+            const text = results.get(watch.target_turn_id);
             const source = watchSources.get(watch.call_id);
-            const title = botThreadNoticeTitle(watch.title);
 
-            if ((source?.origin_enabled ?? true) && (yield* core.originEnabled(source)))
+            if (text !== undefined && (source?.origin_enabled ?? true) && (yield* core.originEnabled(source))) {
+              const title = botThreadNoticeTitle(watch.title);
+              const { message, failure } = turnReport(watch.status, watch.error, text, 80_000);
+
               yield* enqueue(
                 watch.owner_user_id,
                 watch.bot_id,
@@ -137,6 +139,8 @@ export function botDeliveries(sql: SqlClient.SqlClient, core: BotCore) {
                   ...originOf(source),
                 },
               );
+            }
+
             yield* sql`UPDATE bot_thread_watches SET delivered = true WHERE call_id = ${watch.call_id}::uuid`;
           }
 
@@ -184,6 +188,7 @@ export const watchTexts = (sql: SqlClient.SqlClient, requested: readonly { threa
       AND coalesce(content->'agentMessage'->>'text','')<>''
   ), budget AS (
     SELECT first_seq,text,coalesce(sum(length(text)+1) OVER(ORDER BY first_seq ROWS BETWEEN UNBOUNDED PRECEDING AND 1 PRECEDING),0) AS preceding FROM texts
-  ) SELECT left(coalesce(string_agg(text,E'\n' ORDER BY first_seq) FILTER(WHERE preceding<=80000),''),80000) AS text FROM budget) result`.pipe(
+  ) SELECT left(coalesce(string_agg(text,E'\n' ORDER BY first_seq) FILTER(WHERE preceding<=80000),''),80000) AS text FROM budget) result
+  WHERE ${canReportBotTurn(sql, sql`r.thread`, sql`r.turn`)}`.pipe(
     Effect.map((rows) => new Map(rows.map((row) => [row.turn, row.text.slice(0, 80000)]))),
   );

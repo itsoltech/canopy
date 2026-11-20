@@ -16,6 +16,7 @@ import { interruptBot } from "./store-interrupt.ts";
 import { lockedOwnerModule } from "../store/module-access.ts";
 import { authorizeThreadAction } from "./thread-access.ts";
 import { activeConversation } from "../messengers/conversation-access.ts";
+import { canonicalJson } from "../store/instance-config.ts";
 
 function requireWaitingHarness(sql: SqlClient.SqlClient, turnId: string) {
   return Effect.gen(function* () {
@@ -130,7 +131,21 @@ export function botTurns(sql: SqlClient.SqlClient, core: BotCore) {
           yield* fenced(turn);
           yield* sql`INSERT INTO bot_tool_calls(id, turn_id, call_key, tool, arguments) VALUES (${uuid()}::uuid, ${turn.id}::uuid, ${callKey}, ${JSON.stringify(tool)}::jsonb, ${JSON.stringify(args)}::jsonb) ON CONFLICT(turn_id, call_key) DO NOTHING`;
 
-          return (yield* sql<StoredCall>`SELECT * FROM bot_tool_calls WHERE turn_id = ${turn.id}::uuid AND call_key = ${callKey}`)[0]!;
+          const [saved] = yield* sql<StoredCall & { has_approval: boolean }>`SELECT c.*,
+            EXISTS (SELECT 1 FROM bot_approvals a WHERE a.id=c.id) AS has_approval
+            FROM bot_tool_calls c WHERE c.turn_id=${turn.id}::uuid AND c.call_key=${callKey}`;
+
+          if (
+            !saved ||
+            saved.tool.source !== tool.source ||
+            saved.tool.name !== tool.name ||
+            saved.tool.serverId !== tool.serverId ||
+            saved.tool.remoteName !== tool.remoteName ||
+            canonicalJson(saved.arguments) !== canonicalJson(args)
+          )
+            return yield* Effect.fail(new Invalid("The tool request changed while resuming"));
+
+          return saved;
         }),
       ),
     call: (turn: BotTurn, id: string) =>

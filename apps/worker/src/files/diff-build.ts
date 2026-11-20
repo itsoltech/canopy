@@ -62,6 +62,7 @@ async function changesAt(root: string, head: string, budget: DiffBudget): Promis
         "--no-abbrev",
         "--no-ext-diff",
         "--no-textconv",
+        "--ignore-submodules=dirty",
         "-M",
         "-l1000",
         head,

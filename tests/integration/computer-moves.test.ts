@@ -1,6 +1,6 @@
 import { afterAll, beforeAll, describe, expect, test } from "bun:test";
 import { create } from "@bufbuild/protobuf";
-import { bots, computerLink as link, PermissionMode, Provider, ProviderProfileKind, ui } from "@canopy/contracts";
+import { bots, computerLink as link, Provider, ProviderProfileKind, ui } from "@canopy/contracts";
 import { qualifyId } from "@canopy/domain/computers";
 import { dockerAvailable } from "@canopy/db/testing";
 import { remoteServe, uiHandlers } from "@canopy/gateway/api";
@@ -12,6 +12,7 @@ import { MoveCrash, type MoveHost } from "../../apps/gateway/src/computers/moves
 import type { BotModel, ModelInput } from "../../apps/gateway/src/bots/types.ts";
 import { eventually, failure, startTestGateway, type TestGateway } from "./support/gateway.ts";
 import { mirrorCheckpoint, publishedVisual, removedFromOldHome } from "./support/mirror-move.ts";
+import { idle, snapshot, thread, verifyMovedPreviews } from "./support/thread-move.ts";
 
 const id = () => crypto.randomUUID();
 const input = (i: ModelInput) => i.messages.findLast((m) => m.role === "user")?.text ?? "";
@@ -89,59 +90,6 @@ describe.skipIf(!dockerAvailable)("moving things between linked computers", () =
 
   const sql = <A extends object>(gw: TestGateway, text: string, params: unknown[] = []) =>
     gw.core.computers!.store.query<A>(text, params);
-
-  async function thread(gw: TestGateway, project: string, workspace: string, title: string, message: string) {
-    const created = (
-      await gw.api.createThread({
-        projectId: project,
-        workspaceId: workspace,
-        title,
-        provider: Provider.CODEX,
-        permissionMode: PermissionMode.ASK,
-        initialMessage: message,
-        clientRequestId: id(),
-      })
-    ).thread!.id;
-
-    await idle(gw, created);
-
-    return created;
-  }
-
-  /** Every turn of the thread ended. */
-  const idle = (gw: TestGateway, threadId: string) =>
-    eventually(
-      async () =>
-        (
-          await sql<{ n: number }>(
-            gw,
-            `SELECT count(*)::int AS n FROM turns WHERE thread_id=$1::uuid AND status IN ('queued','running')`,
-            [threadId],
-          )
-        )[0]!.n +
-        (
-          await sql<{ n: number }>(
-            gw,
-            `SELECT count(*)::int AS n FROM threads WHERE id=$1::uuid AND status IN ('creating','running')`,
-            [threadId],
-          )
-        )[0]!.n,
-      (n) => n === 0,
-      10000,
-    );
-
-  async function snapshot(gw: TestGateway, threadId: string) {
-    const abort = new AbortController();
-
-    try {
-      for await (const u of gw.api.watchThread({ threadId }, { signal: abort.signal }))
-        if (u.change.case === "snapshot") return u.change.value;
-    } finally {
-      abort.abort();
-    }
-
-    throw new Error("no snapshot");
-  }
 
   const move = (
     items: { kind: string; id: string }[],
@@ -336,6 +284,14 @@ describe.skipIf(!dockerAvailable)("moving things between linked computers", () =
     expect((await c.api.getAttachment({ attachmentId: upload.attachment!.id })).data).toEqual(data);
     expect((await c.api.listSchedules({ threadId: t })).schedules.map((s) => s.id)).toContain(schedule.id);
     expect((await c.api.getVisual({ threadId: t, visualId })).visual?.title).toBe("Moved visual");
+
+    if (run === 1) {
+      expect((await a.api.getVisual({ threadId: t, visualId })).visual?.title).toBe("Moved visual");
+      expect(
+        (await b.api.getVisual({ threadId: qualifyId(t, aNode), visualId: qualifyId(visualId, aNode) })).visual?.title,
+      ).toBe("Moved visual");
+    }
+
     expect(
       (await sql<{ status: string }>(a, "SELECT status FROM schedules WHERE id=$1::uuid", [schedule.id]))[0]?.status,
     ).toBe("cancelled");
@@ -381,7 +337,7 @@ describe.skipIf(!dockerAvailable)("moving things between linked computers", () =
     ).toEqual([qualifyId(t, cNode)]);
     expect(
       await eventually(
-        async () => lb.redirects.home(t)?.home_node_id,
+        async () => lb.redirects.home("thread", t, aNode)?.home_node_id,
         (h) => h === cNode,
       ),
     ).toBe(cNode);
@@ -426,7 +382,7 @@ describe.skipIf(!dockerAvailable)("moving things between linked computers", () =
         (x) => x.some((m) => m.includes("agent hello")),
       ),
     ).toBeTruthy();
-    expect(lb.redirects.home(t)?.home_node_id).toBe(cNode);
+    expect(lb.redirects.home("thread", t, aNode)?.home_node_id).toBe(cNode);
   }
 
   test.each(Array.from({ length: 20 }, (_, index) => index + 1))(
@@ -434,6 +390,11 @@ describe.skipIf(!dockerAvailable)("moving things between linked computers", () =
     moveThreadWithHistory,
     60000,
   );
+
+  test("a moved thread brings its verified previews, including a valid repair of legacy stored bytes", async () => {
+    const t = await thread(a, aProject, aWorkspace, "Move previews", "Hello");
+    await verifyMovedPreviews(a, c, t, async () => (await move([{ kind: "thread", id: t }])).moves[0]!.id);
+  }, 30_000);
 
   test("a bot moves with its conversation, routines and reminders: nothing fires twice or is lost; accounts are flagged", async () => {
     const bot = (
@@ -445,7 +406,8 @@ describe.skipIf(!dockerAvailable)("moving things between linked computers", () =
           provider: Provider.CODEX,
           providerInstance: "bot-fixture",
           model: "gpt-6.1-sol",
-          approvalPolicy: "safe",
+          approvalPolicy: "full_auto",
+          threadPermission: "full_access",
         }),
         clientRequestId: id(),
       })
@@ -517,6 +479,11 @@ describe.skipIf(!dockerAvailable)("moving things between linked computers", () =
         10000,
       ),
     ).toBe(true);
+    expect((await c.api.getBot({ botId: bot })).bot?.configuration).toMatchObject({
+      approvalPolicy: "safe",
+      threadPermission: "user_default",
+      mcpServerIds: [],
+    });
     await a.core.bots.tick();
     await Bun.sleep(300);
     expect(

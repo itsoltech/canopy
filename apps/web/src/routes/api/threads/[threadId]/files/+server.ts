@@ -5,6 +5,7 @@ import { ui } from "@canopy/contracts";
 import { readBody } from "#lib/server/body.ts";
 import { call, gateway, failWith } from "#lib/server/gateway.ts";
 import { encode } from "#lib/shared/wire.ts";
+import { workspaceImageResponse } from "#lib/server/workspace-image.ts";
 import type { RequestHandler } from "./$types";
 
 /** A thread's file (docs/protocol.md, "Folder i pliki wątku"): the gateway checks the owner, the worker the roots. */
@@ -30,17 +31,14 @@ export const GET: RequestHandler = async ({ params, url, request }) => {
   if (!path || path.length > 4096 || itemId.length > 1024 || expectedSha256.length > 64)
     error(400, "Invalid file path");
 
-  return json(
-    encode(
-      ui.ThreadFileSchema,
-      await call((api) =>
-        api.readThreadFile(
-          { threadId: params.threadId, path, itemId, expectedSha256 },
-          { signal: request.signal, timeoutMs: TIMEOUT_MS },
-        ),
-      ),
+  const file = await call((api) =>
+    api.readThreadFile(
+      { threadId: params.threadId, path, itemId, expectedSha256 },
+      { signal: request.signal, timeoutMs: TIMEOUT_MS },
     ),
   );
+
+  return url.searchParams.has("image") ? workspaceImageResponse(file) : json(encode(ui.ThreadFileSchema, file));
 };
 
 const Write = Schema.Struct({

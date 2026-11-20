@@ -101,8 +101,10 @@ export function worktreesHandlers(
 
         return {};
       }),
-    openThreadFile: (request) =>
+    openThreadFile: (request, context) =>
       guard(async () => {
+        if (core.role !== "desktop" || !context.values.get(serviceIdentity))
+          throw new ConnectError("Open files from the Canopy app on this computer.", Code.PermissionDenied);
         await files.open(request);
 
         return {};

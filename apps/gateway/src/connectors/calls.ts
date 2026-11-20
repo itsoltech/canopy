@@ -19,6 +19,8 @@ import { allowThreadConnector } from "../bots/thread-connector-rules.ts";
 import { checkConnectorTurn, connectorTurn } from "./turn-permissions.ts";
 import { SLACK_POST_ACTION } from "./slack-post-tool.ts";
 import { slackDownloadAttachments } from "./slack-download-tool.ts";
+import { digest } from "./records.ts";
+import { canonicalJson } from "../store/instance-config.ts";
 
 /** MCP tool results report failure in-band. */
 export const failed = (result: JsonValue) => isJsonObject(result) && Boolean(result["isError"]);
@@ -41,19 +43,36 @@ export async function connectorPermission(
   tool: ConnectorTool,
   args: JsonObject,
   signal: AbortSignal,
-): Promise<void> {
+): Promise<string | undefined> {
   const facts = await connectorTurn(context.runtime, source);
 
-  if (tool.readOnly) return;
-
-  if (facts.mode === "READ_ONLY")
+  if (!tool.readOnly && facts.mode === "READ_ONLY")
     throw new ConnectorFailure("Read-only threads cannot call connector tools that may write");
 
-  if (facts.mode === "FULL_AUTO" || facts.mode === "FULL_ACCESS") return;
+  if (
+    (tool.readOnly || facts.mode === "FULL_AUTO" || facts.mode === "FULL_ACCESS") &&
+    !(await context.run((s) => s.hasApproval(callId)))
+  )
+    return;
 
   const credentials = await context.run((s) =>
     s.owned(source.userId, source.accountId).pipe(Effect.flatMap(s.credentials)),
   );
+
+  const binding = digest(
+    canonicalJson([source.userId, source.threadId!, facts.turnId, tool.accountId, tool.name, tool.remoteName, args]),
+  );
+
+  const post = tool.remoteName === SLACK_POST_ACTION;
+
+  const request = JSON.stringify({
+    tool_name: `${connectorType(tool.connectorType)?.name} · ${tool.accountName} · ${post ? "Post as Canopy" : tool.remoteName}`,
+    description: post ? "Post this message in Slack?" : "Allow this connector action?",
+    connector_account_id: tool.accountId,
+    input: args,
+  });
+
+  const requestJson = redactConnector(request, credentials);
 
   let interaction = await context.runtime.runPromise(
     GatewayStore.use((s) =>
@@ -65,17 +84,9 @@ export async function connectorPermission(
           itemId: callId,
           kind: InteractionKind.PERMISSION,
           toolName: tool.name,
-          requestJson: redactConnector(
-            JSON.stringify({
-              tool_name: `${connectorType(tool.connectorType)?.name} · ${tool.accountName} · ${tool.remoteName === SLACK_POST_ACTION ? "Post as Canopy" : tool.remoteName}`,
-              description:
-                tool.remoteName === SLACK_POST_ACTION ? "Post this message in Slack?" : "Allow this connector action?",
-              connector_account_id: tool.accountId,
-              input: args,
-            }),
-            credentials,
-          ),
+          requestJson,
         }),
+        binding,
       ),
     ),
   );
@@ -93,9 +104,9 @@ export async function connectorPermission(
     if (answer) {
       if (!answer.answer.allow || answer.answer.cancelled)
         throw new ConnectorFailure("The user declined this connector action. Do not retry it.");
-      await checkConnectorTurn(context.runtime, source, tool.readOnly);
+      await checkConnectorTurn(context.runtime, source, tool.readOnly, true);
 
-      return;
+      return binding;
     }
 
     const running = await context.runtime.runPromise(GatewayStore.use((s) => s.runningTurn(source.threadId!)));

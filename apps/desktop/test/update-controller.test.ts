@@ -143,7 +143,7 @@ test("manual and remote checks discover newly published desktop builds before th
                     "nightly-linux-arm64.yml",
                   ].map((name) => ({
                     name,
-                    browser_download_url: `https://example.com/${publishedVersion}/${name}`,
+                    browser_download_url: `https://github.com/itsoltech/canopy/releases/download/v${publishedVersion}/${name}`,
                   })),
                 },
               ]

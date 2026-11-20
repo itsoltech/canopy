@@ -1,7 +1,8 @@
 import { clone, type DescMessage, type DescMethod, type Message, type MessageInitShape } from "@bufbuild/protobuf";
 import { Code, ConnectError, type HandlerContext } from "@connectrpc/connect";
 import type { GatewayCore } from "../core/core.ts";
-import { mapIds, nodesOf } from "../computers/remote.ts";
+import { mapMoveIds } from "../computers/redirect-ids.ts";
+import { nodesOf } from "../computers/remote.ts";
 import { refuseRemoteWorktree } from "../worktrees/remote.ts";
 import { PEER_READ_TIMEOUT_MS, PEER_MUTATION_TIMEOUT_MS, PEER_LONG_CALL_TIMEOUTS } from "../computers/timing.ts";
 
@@ -94,9 +95,9 @@ export async function refuseFrozen(core: GatewayCore, method: DescMethod, reques
   const moves = core.computers?.moves;
 
   if (!moves || READS.has(method.name)) return;
-  const ids: string[] = [];
-  mapIds(method.input, request, (id) => {
-    if (PLAIN.test(id)) ids.push(id);
+  const ids = { thread: new Array<string>(), bot: new Array<string>() };
+  mapMoveIds(method.input, request, (id, kind) => {
+    if (PLAIN.test(id)) ids[kind].push(id);
 
     return id;
   });
@@ -112,7 +113,7 @@ export function redirected(core: GatewayCore, method: DescMethod, request: Messa
   if (!redirects?.size) return request;
   const next = clone(method.input, request);
 
-  return redirects.rewrite(method.input, next).length ? next : request;
+  return redirects.rewrite(method.input, next) ? next : request;
 }
 
 export type Handler = {

@@ -1,8 +1,8 @@
-import { afterAll, beforeAll, describe, expect, test } from "bun:test";
-import { Provider, type AgentToolResult } from "@canopy/contracts";
+import { afterAll, beforeAll, describe, expect, spyOn, test } from "bun:test";
+import { Provider, ui, type AgentToolResult } from "@canopy/contracts";
 import { dockerAvailable } from "@canopy/db/testing";
 import type { JsonValue } from "@canopy/domain";
-import { qualifyId, splitId } from "@canopy/domain/computers";
+import { nodeRef, qualifyId, splitId } from "@canopy/domain/computers";
 import { Schema } from "effect";
 import { failAfterCommentary } from "./support/agent-report.ts";
 import { configComputer, pairConfig, type ConfigComputer } from "./support/config-sync.ts";
@@ -31,6 +31,25 @@ describe.skipIf(!dockerAvailable)("linked parent-child messages", () => {
       "SELECT id,status FROM turns WHERE thread_id=$1::uuid ORDER BY ordinal",
       [thread],
     );
+
+  const receivedReport = async (parent: string, childTurn: string) => {
+    const params = [parent, `report:${nodeRef(b.node)}:thread:${childTurn}`];
+    await eventually(
+      () =>
+        a.store.query(
+          "SELECT 1 FROM thread_message_receipts WHERE thread_id=$1::uuid AND client_request_id=$2",
+          params,
+        ),
+      (rows) => rows.length === 1,
+    );
+
+    return a.store.query(
+      `SELECT input->>'message' AS message,input->>'sourceStatus' AS status,input->>'sourceKind' AS kind
+       FROM (SELECT input FROM turns WHERE thread_id=$1::uuid AND client_request_id=$2
+             UNION ALL SELECT input FROM turn_steers WHERE thread_id=$1::uuid AND client_request_id=$2) delivery`,
+      params,
+    );
+  };
 
   const tool = (home: ConfigComputer, thread: string, turn: string, args: JsonValue, callId = crypto.randomUUID()) =>
     home.gateway.worker.callTool({ threadId: thread, turnId: turn, tool: "send_message", args, callId });
@@ -195,16 +214,9 @@ describe.skipIf(!dockerAvailable)("linked parent-child messages", () => {
     );
     await b.gateway.core.linkedAgents.tick();
 
-    const reports = await eventually(
-      () =>
-        a.store.query<{ message: string }>(
-          "SELECT input->>'message' AS message FROM turns WHERE thread_id=$1::uuid AND input->>'sourceKind'='report'",
-          [pair.parent],
-        ),
-      (rows) => rows.length > 0,
-    );
-
-    expect(reports).toEqual([{ message: expected }]);
+    expect(await receivedReport(pair.parent, pair.childTurn)).toEqual([
+      { message: expected, status: "failed", kind: "report" },
+    ]);
   });
 
   test("unrelated and detached thread relationships keep the queue default", async () => {
@@ -280,13 +292,12 @@ describe.skipIf(!dockerAvailable)("linked parent-child messages", () => {
     ).toHaveLength(3);
 
     const reports = () =>
-      a.store.query<{ id: string; hops: number }>(
-        "SELECT id,hops FROM turns WHERE thread_id=$1::uuid AND input->>'sourceKind'='report'",
+      a.store.query<{ hops: number; message: string }>(
+        "SELECT hops,input->>'message' AS message FROM turns WHERE thread_id=$1::uuid AND input->>'sourceKind'='report'",
         [pair.parent],
       );
 
-    expect(await reports()).toHaveLength(1);
-    expect((await reports())[0]?.hops).toBe(102);
+    expect(await reports()).toEqual([{ hops: 102, message: "one linked result" }]);
     await a.restart();
     await ready();
     await Promise.all(
@@ -314,6 +325,68 @@ describe.skipIf(!dockerAvailable)("linked parent-child messages", () => {
       ),
     ).toHaveLength(1);
   }, 45000);
+
+  test.each(["completed", "failed"] as const)(
+    "a turn with a local user steer sends only its %s status to the remote observer",
+    async (status) => {
+      const pair = await start(true);
+
+      const accepted = await b.gateway.api.sendMessage({
+        threadId: pair.child,
+        text: "Local follow-up",
+        delivery: ui.MessageDelivery.STEER,
+        clientRequestId: crypto.randomUUID(),
+      });
+
+      await eventually(
+        () => b.store.query("SELECT 1 FROM turn_steers WHERE id=$1::uuid AND status='delivered'", [accepted.steer!.id]),
+        (rows) => rows.length === 1,
+      );
+      const deliveries = spyOn(a.gateway.core.linkedAgents, "deliver");
+
+      try {
+        if (status === "failed")
+          failAfterCommentary(
+            b.gateway.worker,
+            pair.child,
+            pair.childTurn,
+            "Local terminal detail",
+            "Local partial text",
+            "",
+          );
+        else b.gateway.worker.finish(pair.child, pair.childTurn, "Combined answer");
+
+        await eventually(
+          () => turns(b, pair.child),
+          (rows) => rows[0]?.status === status,
+        );
+        await b.gateway.core.linkedAgents.tick();
+        expect(await receivedReport(pair.parent, pair.childTurn)).toEqual([
+          { message: "The turn ended.", status, kind: "report" },
+        ]);
+
+        const frames = deliveries.mock.calls.filter(
+          ([peer, call]) => peer === b.node && call.operation === "report" && call.callId === pair.spawnId,
+        );
+
+        expect(frames.length).toBeGreaterThan(0);
+        const source = qualifyId(pair.child, b.node);
+
+        for (const [, call, args] of frames) {
+          expect(args).toMatchObject({
+            title: "",
+            message: "The turn ended.",
+            text: `[canopy] thread ${source} on ${b.links.hello().name} ended: ${status}.\nThe turn ended.`,
+          });
+          expect(args).not.toHaveProperty("failure");
+          expect(call.sender?.title ?? "").toBe("");
+        }
+      } finally {
+        deliveries.mockRestore();
+      }
+    },
+    30_000,
+  );
 
   test("the 256-step guard reserves the final linked reply and rejects further automated work", async () => {
     const pair = await start();

@@ -240,7 +240,7 @@ describe.skipIf(!dockerAvailable)("subagent permission inheritance (gateway + sc
     expect(legacyChild.spec.permissionMode).toBe(PermissionMode.ASK);
   });
 
-  test("idle and unknown calling turns fall back to the thread default, with narrower overrides", async () => {
+  test("an idle call can inherit or narrow the thread default and rejects an unknown turn ID", async () => {
     worker.holdTurns = true;
 
     const parent = (
@@ -262,13 +262,17 @@ describe.skipIf(!dockerAvailable)("subagent permission inheritance (gateway + sc
     expect(idle.child.permission_mode).toBe("full_auto");
     expect(idle.apiMode).toBe(PermissionMode.FULL_AUTO);
 
-    const missingTurnId = Bun.randomUUIDv7();
+    const missing = await worker.callTool({
+      threadId: parent.id,
+      turnId: Bun.randomUUIDv7(),
+      tool: "spawn_thread",
+      args: { title: "missing turn child", prompt: "inspect", notify: false },
+    });
 
-    const missing = await spawn(parent.id, missingTurnId, "missing turn child");
-    expect(missing.child.permission_mode).toBe("full_auto");
-    expect(missing.apiMode).toBe(PermissionMode.FULL_AUTO);
+    expect(missing.isError).toBe(true);
+    expect(missing.content).toBe("This tool call is outside the current turn context.");
 
-    const narrowed = await spawn(parent.id, missingTurnId, "idle read only", "read_only");
+    const narrowed = await spawn(parent.id, undefined, "idle read only", "read_only");
     expect(narrowed.child.permission_mode).toBe("read_only");
     expect(narrowed.apiMode).toBe(PermissionMode.READ_ONLY);
   });

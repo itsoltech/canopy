@@ -33,7 +33,7 @@ export class DesktopWeb {
   /** Serves the UI at `origin` (the window's stable loopback origin) against `target`; the first call loads it. */
   async start(origin: string, target: BffTarget): Promise<void> {
     setBffTarget(target);
-    const web = await this.#load(origin, target);
+    const web = await this.#load(origin);
     web.setOrigin?.(origin);
     process.env["CANOPY_WEB_ORIGIN"] = origin;
 
@@ -52,6 +52,10 @@ export class DesktopWeb {
     await listen(server, "127.0.0.1", Number(new URL(origin).port));
     this.#server = server;
   }
+  disconnect(): void {
+    setBffTarget({ mode: "offline" });
+    this.#server?.closeAllConnections();
+  }
   /**
    * The controller process hosts only this web: its console goes to the `web` log (stdout is Electron's private
    * protocol pipe), and an unhandled rejection or exception from the web's own module is logged instead of
@@ -65,14 +69,12 @@ export class DesktopWeb {
     for (const level of ["log", "info", "debug", "warn", "error", "trace"] as const) console[level] = write;
     containWebFaults(this.entry, (line) => this.logs.write("web", line));
   }
-  #load(origin: string, target: BffTarget): Promise<WebModule> {
+  #load(origin: string): Promise<WebModule> {
     this.#loading ??= (async () => {
       // Read once when SvelteKit and adapter-node load; the target and origin are set per start.
       Object.assign(process.env, {
         CANOPY_WEB_ASSETS_DIR: join(dirname(this.entry), "web"),
         CANOPY_WEB_ORIGIN: origin,
-        GATEWAY_URL: target.gatewayUrl,
-        GATEWAY_SERVICE_TOKEN: target.serviceToken,
         BODY_SIZE_LIMIT: "50M",
         // The BFF's log lines reach the `web` log through this process's console, not a writer of its own.
         CANOPY_LOG_SUPERVISED: "1",

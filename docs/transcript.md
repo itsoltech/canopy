@@ -1,7 +1,8 @@
 # Transkrypt: zapis wszystkiego, co dzieje się w wątku
 
-Status (2026-11-19): log zdarzeń, projekcja itemów i bloby obrazów są zaimplementowane,
-w tym bezstratne wyniesienie obrazów wyników trybu kodu Codexa z `raw_json`
+Status (2026-11-20): log zdarzeń, projekcja itemów i bloby obrazów są zaimplementowane,
+w tym zachowanie dostępu do starszych podglądów wszystkich użytkowników podczas aktualizacji,
+bezstratne wyniesienie obrazów wyników trybu kodu Codexa z `raw_json`
 oraz trwały, oddzielny od rozliczeń pomiar bieżącego kontekstu głównej sesji.
 Po wznowieniu procesu Claude zachowuje ostatni pełny pomiar do następnego raportu z limitem.
 Jawne raporty zużycia jednej tury zasilają też niezależne od retencji agregaty
@@ -15,7 +16,7 @@ Wymaganie: frontend pokazuje **wszystko**: wiadomości, rozumowanie, każde narz
 
 ## 1. Zasady
 
-1. **Trwałe przyjęcie przed ACK.** Zdarzenia dostawcy trafiają do `thread_events`, także bez mapowania. `raw` zachowuje JSON po zastąpieniu NUL i niesparowanych surogatów znakiem U+FFFD; dokładne bajty obrazów wyników trybu kodu Codexa mogą zostać zastąpione referencją do blobu dopiero po ich zapisaniu i wzbogaceniu itemu (poniżej). Inny błąd danych SQLSTATE `22xxx` zapisuje oryginalny protobuf w `worker_event_quarantine` oraz ostrzeżenie w historii, atomowo z kursorem journalu; odrzucone zdarzenie nie wykonuje projekcji. [Reguły trwałości](durability.md#31-dziennik-lokalny).
+1. **Trwałe przyjęcie przed ACK.** Zdarzenia dostawcy trafiają do `thread_events`, także bez mapowania. `raw` zachowuje JSON po zastąpieniu NUL i niesparowanych surogatów znakiem U+FFFD; dokładne bajty obrazów wyników trybu kodu Codexa mogą zostać zastąpione referencją do blobu dopiero po ich zapisaniu i wzbogaceniu itemu (poniżej). Inny błąd danych SQLSTATE `22xxx` zapisuje na 7 dni oryginalny protobuf do 256 KiB (powyżej limitu metadane) w `worker_event_quarantine` oraz ostrzeżenie w historii, atomowo z kursorem journalu; odrzucone zdarzenie nie wykonuje projekcji. [Reguły trwałości](durability.md#31-dziennik-lokalny).
 2. **Treść dostawcy nie jest przycinana.** Treść większa niż limit wiadomości trafia do `blobs` (adresowane sha256) i jest wskazywana przez `BlobRef`. Wyjątek dla jawnych komend powłoki właściciela: worker przechwytuje ograniczony początek i koniec outputu, z oznaczeniem pominiętego środka (poniżej).
 3. **Jedna oś czasu na wątek.** `seq` nadaje gateway przy zapisie. Zdarzenia workera i platformy (wejście użytkownika, decyzje o zgodach, szyna agentów, komunikaty) mają jedną, wspólną kolejność.
 4. **Zdarzenia poza turą są pełnoprawne.** `turn_id` jest pusty, gdy zdarzenie nie należy do tury.
@@ -159,7 +160,7 @@ Snapshot widzi tylko stan przed albo po transakcji, więc reconnect i restart mo
 odtworzyć każdy delta z `payload`; `first_seq` pozostaje sekwencją pierwszego zapisu
 itemu, a `last_seq` ostatnią deltą, która faktycznie zmieniła projekcję.
 
-Bloby: worker wysyła `BlobChunk` przed zdarzeniem, które je wskazuje. Gateway sprawdza sha256 i zapisuje blob przed przyjęciem zdarzenia. Zdarzenie wskazujące brakujący blob jest odrzucane i zostaje w dzienniku workera do ponowienia.
+Worker wysyła `BlobChunk` przed zdarzeniem odwołującym się do podglądu. Gateway sprawdza SHA-256 bajtów i przechowuje je tymczasowo w zakresie workera i dziennika. Zapis referencji itemu łączy ją z prawidłowym uploadem. Zdarzenie może otrzymać ACK także bez podglądu. Brakujący podgląd jest niedostępny do czasu potwierdzenia bajtów.
 
 ### Obrazy
 
@@ -178,6 +179,13 @@ dziesiętnym stringiem jak w JSON `BlobRef`. Prefiks URI i bajty blobu pozwalaj�
 odtworzyć pierwotne URI base64. Typ bloku, jego pozycja, `detail`, identyfikatory,
 metadane dostawcy i wszystkie pozostałe pola pozostają w JSON. Treść tekstowa,
 audio, szyfrowane i nierozpoznane bloki nie są usuwane ani skracane.
+
+Jeśli starszy worker zapisał znacznik `canopyBlob` w wyniku i pełny obraz w osobnym
+zdarzeniu Codexa, migracja `0183` odnajduje oba zapisy w tym samym wątku.
+Sprawdza identyfikatory sesji, tury i wywołania narzędzia oraz zgodność treści obrazu
+z magazynem. Migracja `0184` zachowuje również wcześniej dostępne podglądy,
+które worker przesłał osobno, a w historii zostawił tylko ścieżkę lub skrót.
+Użytkownik widzi je w dotychczasowych wątkach od razu po aktualizacji.
 
 Transformacja wymaga zgodności hasha, rozmiaru i typu z referencją itemu; nie
 powiększa `raw_json`. Niepoprawne, niekanoniczne base64, zewnętrzne URL-e,

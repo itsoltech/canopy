@@ -34,7 +34,7 @@ if (!values.name) {
 
 const runtime = gatewayRuntime(Bun.env);
 
-await migrateDatabase(runtime, Bun.env);
+if ((Bun.env["CANOPY_MIGRATE"] ?? "1") === "1") await migrateDatabase(runtime, Bun.env);
 
 const userId = await ensureDevUser(runtime, process.env["CANOPY_DEV_USER_EMAIL"] ?? "dev@localhost");
 

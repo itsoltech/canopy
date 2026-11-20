@@ -10,7 +10,7 @@ import { createHash } from "node:crypto";
 export function fileResponse(
   data: Uint8Array,
   mimeType: string,
-  options: { name?: string; download?: boolean; image?: boolean; ifNoneMatch?: string | null } = {},
+  options: { name?: string; download?: boolean; image?: boolean; mutable?: boolean; ifNoneMatch?: string | null } = {},
 ): Response {
   const inline =
     (INLINE_IMAGE_TYPES.has(mimeType) ||
@@ -28,16 +28,16 @@ export function fileResponse(
         : mimeType;
 
   const name = options.name ?? "attachment";
-  // Hash the actual representation: thumbnails and bounded previews have their own bytes and URL keys.
-  const etag = `"${createHash("sha256").update(data).digest("hex")}"`;
+  // Hash only immutable representations. A mutable workspace path is always read again.
+  const etag = options.mutable ? undefined : `"${createHash("sha256").update(data).digest("hex")}"`;
 
   const cacheHeaders = {
-    "cache-control": "private, max-age=31536000, immutable",
-    etag,
+    "cache-control": options.mutable ? "private, no-store" : "private, max-age=31536000, immutable",
     vary: "Cookie, Authorization",
+    ...(etag && { etag }),
   };
 
-  if (options.ifNoneMatch?.split(",").some((value) => [etag, "*"].includes(value.trim().replace(/^W\//, ""))))
+  if (etag && options.ifNoneMatch?.split(",").some((value) => [etag, "*"].includes(value.trim().replace(/^W\//, ""))))
     return new Response(null, { status: 304, headers: cacheHeaders });
 
   // SAFETY: the bytes come from a decoded gRPC message, whose byte fields are views of ordinary ArrayBuffers
@@ -50,7 +50,6 @@ export function fileResponse(
       "x-content-type-options": "nosniff",
       "content-security-policy": "default-src 'none'; sandbox",
       "cross-origin-resource-policy": "same-origin",
-      // Content never changes under an id or hash; only this user's browser keeps it.
       ...cacheHeaders,
     },
   });

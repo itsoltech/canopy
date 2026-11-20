@@ -1,4 +1,4 @@
-import type { Transport } from "@connectrpc/connect";
+import type { Interceptor, Transport } from "@connectrpc/connect";
 import { createGrpcTransport } from "@connectrpc/connect-node";
 import { certificatePin } from "./pinned.ts";
 
@@ -10,7 +10,10 @@ export interface GrpcClientOptions {
   readonly fingerprint?: string;
   /** HTTP/2 PING interval. Detects dead connections behind NAT; 0 disables. */
   readonly pingIntervalMs?: number;
+  readonly pingTimeoutMs?: number;
   readonly connectTimeoutMs?: number;
+  readonly defaultTimeoutMs?: number;
+  readonly interceptors?: Interceptor[];
 }
 
 /** gRPC over HTTP/2 client transport (h2c for http://, TLS for https://). */
@@ -21,20 +24,20 @@ export function createGrpcClientTransport(options: GrpcClientOptions): Transport
   )
     throw new Error("Pinned gRPC requires HTTPS, a certificate and the full fingerprint");
 
+  const { ca, fingerprint, ...transport } = options;
+
   return createGrpcTransport({
-    baseUrl: options.baseUrl,
-    ...(options.ca !== undefined && {
+    ...transport,
+    ...(ca !== undefined && {
       nodeOptions: {
-        ca: options.ca,
-        ...(options.fingerprint && {
+        ca,
+        ...(fingerprint && {
           checkServerIdentity: (_host: string, cert: import("node:tls").PeerCertificate) =>
-            certificatePin(cert.raw) === options.fingerprint!.toLowerCase()
+            certificatePin(cert.raw) === fingerprint.toLowerCase()
               ? undefined
               : new Error("Gateway certificate changed; enroll again"),
         }),
       },
     }),
-    ...(options.pingIntervalMs && { pingIntervalMs: options.pingIntervalMs }),
-    ...(options.connectTimeoutMs !== undefined && { connectTimeoutMs: options.connectTimeoutMs }),
   });
 }

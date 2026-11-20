@@ -179,14 +179,8 @@ export async function* computersServeHome(
     return;
   }
 
-  if (method.name === "GetConfigBlob") {
-    yield* serveConfigBlob(hostContext, nodeId, connection, linkedMessage(link.ConfigBlobRequestSchema, request));
-
-    return;
-  }
-
-  if (method.name === "WatchConfig") {
-    yield* serveConfig(hostContext, nodeId, connection, linkedMessage(link.ConfigCursorSchema, request), signal);
+  if (method.parent.typeName === link.ConfigSyncService.typeName) {
+    yield* serveConfiguration(hostContext, nodeId, connection, method, request, signal);
 
     return;
   }
@@ -301,6 +295,22 @@ export async function* computersServeHome(
         Boolean(connection.capabilities?.has(THREAD_WATCH_COALESCE)),
     );
   else yield* hostContext.options.serve(method, request, signal, nodeId);
+}
+
+function serveConfiguration(
+  host: LinkedComputers,
+  peer: string,
+  connection: Connection,
+  method: DescMethod,
+  request: Message,
+  signal: AbortSignal,
+) {
+  if (method.name === "WatchConfig")
+    return serveConfig(host, peer, connection, linkedMessage(link.ConfigCursorSchema, request), signal);
+
+  if (method.name === "GetConfigBlob")
+    return serveConfigBlob(host, peer, connection, linkedMessage(link.ConfigBlobRequestSchema, request), signal);
+  throw new ConnectError("Unknown configuration operation", Code.Unimplemented);
 }
 
 function mirrorSignal(hostContext: LinkedComputers, method: DescMethod, signal: AbortSignal) {

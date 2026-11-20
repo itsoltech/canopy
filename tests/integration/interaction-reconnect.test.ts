@@ -296,6 +296,13 @@ describe.skipIf(!dockerAvailable)("native interactions across worker reconnects 
       expect(dropped).toBe(1);
       expect(responses).not.toHaveBeenCalled();
       expect(host.runningTurns()).toContainEqual({ threadId, turnId: interaction.turnId });
+
+      const replay = (scope: { threadId: string; workerId: string }) =>
+        gw.runtime.runPromise(GatewayStore.use((s) => s.interactionAnswer(interaction.requestId, scope)));
+
+      expect(await replay({ threadId, workerId: gw.workerId })).toBeUndefined();
+      expect(await replay({ threadId: Bun.randomUUIDv7(), workerId: edge.workerId })).toBeUndefined();
+      expect(await replay({ threadId, workerId: edge.workerId })).toMatchObject({ answer: { allow: true } });
       sending.mockRestore();
       await connect();
       await continued(interaction);

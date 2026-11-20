@@ -10,6 +10,7 @@ services:
   postgres:
     image: postgres:17
     restart: unless-stopped
+    networks: [control]
     environment:
       POSTGRES_USER: canopy
       POSTGRES_DB: canopy
@@ -22,14 +23,36 @@ services:
       timeout: 5s
       retries: 12
 
-  gateway:
+  migrate:
     image: ghcr.io/itsoltech/canopy-gateway:${CANOPY_TAG:-latest}
-    restart: unless-stopped
+    command: ["migrate"]
+    restart: "no"
+    networks: [control]
+    healthcheck:
+      disable: true
     depends_on:
       postgres:
         condition: service_healthy
     environment:
       CANOPY_DATABASE_URL: postgres://canopy:${POSTGRES_PASSWORD}@postgres:5432/canopy
+      CANOPY_DATABASE_RUNTIME_PASSWORD_FILE: /home/canopy/.local/share/canopy/database/runtime-password
+      CANOPY_DATABASE_INDEX_MODE: ${CANOPY_DATABASE_INDEX_MODE:-blocking}
+    volumes:
+      - database-runtime:/home/canopy/.local/share/canopy/database
+
+  gateway:
+    image: ghcr.io/itsoltech/canopy-gateway:${CANOPY_TAG:-latest}
+    restart: unless-stopped
+    networks:
+      control:
+        aliases: [gateway-upstream]
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+    environment:
+      CANOPY_DATABASE_URL: postgres://canopy_runtime@postgres:5432/canopy
+      CANOPY_DATABASE_PASSWORD_FILE: /home/canopy/.local/share/canopy/database/runtime-password
+      CANOPY_MIGRATE: "0"
       CANOPY_UI_SERVICE_TOKEN: ${CANOPY_UI_SERVICE_TOKEN:?set CANOPY_UI_SERVICE_TOKEN in .env}
       CANOPY_SECRETS_KEY: ${CANOPY_SECRETS_KEY:?set CANOPY_SECRETS_KEY in .env}
       CANOPY_DEV_USER_EMAIL: ${CANOPY_DEV_USER_EMAIL:-dev@localhost}
@@ -42,10 +65,12 @@ services:
       CANOPY_WEB: ${CANOPY_WEB:-on}
       # Host names the web answers besides IP addresses and localhost (DNS rebinding): your proxy's public name.
       CANOPY_WEB_ALLOWED_HOSTS: ${CANOPY_WEB_ALLOWED_HOSTS:-}
+      ORIGIN: ${ORIGIN:-}
       BODY_SIZE_LIMIT: ${BODY_SIZE_LIMIT:-50M}
     volumes:
       # Previous web releases (assets of tabs still open after an update) and the update cache.
       - gateway-cache:/home/canopy/.cache/canopy
+      - database-runtime:/home/canopy/.local/share/canopy/database:ro
     ports:
       # The web app: keep 127.0.0.1 behind a reverse proxy or Tailscale Serve on this host.
       - "${WEB_BIND:-127.0.0.1}:${WEB_PORT:-3000}:3000"
@@ -54,19 +79,48 @@ services:
       # Optional pinned route: enable Network access in Settings and add the host's reachable address.
       - "${NETWORK_BIND:-0.0.0.0}:${CANOPY_NETWORK_PORT:-24443}:${CANOPY_NETWORK_PORT:-24443}"
 
-  # Optional: `docker compose --profile worker run --rm worker enroll --gateway http://gateway:7443 --token TOKEN`,
-  # then `docker compose --profile worker up -d`. The image has no agent CLIs (docs/deploy.md).
+  # Only this fixed TCP destination crosses from the workers to the control network. The relay receives no
+  # gateway credentials. Each new connection resolves the current gateway after a container replacement.
+  worker-link:
+    image: ghcr.io/itsoltech/canopy-gateway:${CANOPY_TAG:-latest}
+    profiles: [worker]
+    restart: unless-stopped
+    entrypoint: ["/usr/bin/socat"]
+    command: ["TCP4-LISTEN:7443,reuseaddr,fork", "TCP4:gateway-upstream:7443"]
+    environment:
+      CANOPY_WEB: "off"
+    networks:
+      default:
+        aliases: [gateway]
+      control: {}
+    sysctls:
+      net.ipv4.ip_forward: "0"
+    cap_drop: [ALL]
+    depends_on:
+      gateway:
+        condition: service_healthy
+
+  # Optional: `docker compose --profile worker run --rm worker enroll --gateway http://gateway:7443`.
+  # Enter the token at the prompt, then run `docker compose --profile worker up -d`. See docs/deploy.md.
   worker:
     image: ghcr.io/itsoltech/canopy-worker:${CANOPY_TAG:-latest}
     profiles: [worker]
     restart: unless-stopped
+    networks: [default]
+    environment:
+      CANOPY_WORKER_TRUSTED_HTTP_ORIGIN: http://gateway:7443
     depends_on:
-      gateway:
+      worker-link:
         condition: service_healthy
     volumes:
       - worker-home:/home/canopy
 
+networks:
+  default: {}
+  control: {}
+
 volumes:
   postgres:
+  database-runtime:
   gateway-cache:
   worker-home:

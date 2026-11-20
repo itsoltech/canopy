@@ -290,7 +290,7 @@ export class MobileDevices {
     return () => {
       set.delete(controller);
 
-      if (!set.size) this.#streams.delete(id);
+      if (!set.size && this.#streams.get(id) === set) this.#streams.delete(id);
     };
   }
 

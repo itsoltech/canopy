@@ -2,7 +2,7 @@ import { type DescMethod, type Message } from "@bufbuild/protobuf";
 
 import { Code, ConnectError } from "@connectrpc/connect";
 
-import { ui } from "@canopy/contracts";
+import { computerLink as link, ui } from "@canopy/contracts";
 import { pairingRequiredReason } from "@canopy/domain/computer-presence";
 
 import {
@@ -238,6 +238,25 @@ export const computersRemoteMethods: ComputersRemoteMethods = {
         signal,
         (s) => remote.call(method, request, s, { targetNodeId: nodeId, originNodeId: "", relayHops: 0 }),
       );
+
+      return;
+    }
+
+    if (method.parent.typeName === link.ConfigSyncService.typeName) {
+      const connections = this[computersState].active.get(nodeId);
+      const connection = [...(connections ?? [])].find((c) => configAllowed(this, nodeId, c));
+      const grant = connection?.configAccess?.signal;
+
+      if (!connection?.remote || !grant)
+        throw new ConnectError("Configuration sharing is off", Code.FailedPrecondition);
+      const admitted = AbortSignal.any([signal, grant]);
+
+      for await (const response of connection.remote.call(method, request, admitted)) {
+        admitted.throwIfAborted();
+        yield response;
+      }
+
+      admitted.throwIfAborted();
 
       return;
     }

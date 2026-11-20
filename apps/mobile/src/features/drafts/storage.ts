@@ -1,7 +1,8 @@
 import { Directory, File, Paths } from "expo-file-system";
+import { requireNativeModule } from "expo";
+import { Platform } from "react-native";
 import * as Crypto from "expo-crypto";
-import { ComposerLocalStore } from "@canopy/domain/composer-drafts";
-import { composerTargetKey } from "@canopy/domain/composer-drafts";
+import { ComposerLocalStore, composerTargetKey } from "@canopy/domain/composer-drafts";
 import { fromJsonString } from "@bufbuild/protobuf";
 import { ui } from "@canopy/contracts";
 import type { DeviceSession } from "../../storage/session";
@@ -9,7 +10,13 @@ import { MobileDrafts } from "./store";
 
 /** Documents survive cache eviction. Pairing ID and certificate isolate gateways and owners. */
 export async function prepareMobileDrafts(session: DeviceSession | null) {
-  const directory = new Directory(Paths.document, "composer-drafts-v1");
+  const directory =
+    Platform.OS === "ios"
+      ? new Directory(
+          requireNativeModule<{ prepareDraftDirectory(): string }>("CanopyFileIntake").prepareDraftDirectory(),
+        )
+      : new Directory(Paths.document, "composer-drafts-v1");
+
   directory.create({ idempotent: true, intermediates: true });
   const scope = session ? `${session.deviceId}-${session.fingerprint}` : "";
 

@@ -111,6 +111,19 @@ export function runProcess(input: ProcessInput, policy: ProcessPolicy): Promise<
   return processGovernor.run(policy, () => capture(input));
 }
 
+/** Share one admission and result for two sequential processes. The key identifies the whole operation. */
+export function runPreparedProcess(
+  setup: ProcessInput,
+  command: (result: ProcessResult) => ProcessInput,
+  policy: ProcessPolicy,
+): Promise<ProcessResult> {
+  return processGovernor.run(policy, async () => {
+    const result = await capture(setup);
+
+    return capture(command(result));
+  });
+}
+
 function capture(input: ProcessInput): Promise<ProcessResult> {
   return new Promise((resolve, reject) => {
     input.signal?.throwIfAborted();

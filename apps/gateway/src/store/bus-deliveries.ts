@@ -14,7 +14,7 @@ import {
   type Notification,
   type TurnInput,
 } from "./agent-bus-types.ts";
-import { lastMessage, queueTurn, thread } from "./agent-bus-queries.ts";
+import { busContextTurn, busHops, lastMessage, queueTurn, thread } from "./agent-bus-queries.ts";
 import { deduplicateMessageReport, waitingForMessage } from "./bus-messages.ts";
 
 export interface BusDeliveryStore {
@@ -278,7 +278,9 @@ export function busDeliveryStore(sql: SqlClient.SqlClient): BusDeliveryStore {
           const asking = yield* thread(sql, row.thread_id);
 
           if (!asking.parent_thread_id) return undefined;
-          const hops = (row.hops ?? 0) + 1;
+          const latest = yield* busContextTurn(sql, row.thread_id);
+          const contextHops = latest ? yield* busHops(sql, { threadId: row.thread_id, turnId: latest.id }) : 0;
+          const hops = Math.max(row.hops ?? 0, contextHops) + 1;
 
           if (hops > maxHops) return undefined; // The user can still answer in the UI.
 

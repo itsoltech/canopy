@@ -11,6 +11,7 @@ import type {
 import { COPY_FRAME_BYTES, COPY_FRAME_FILES, COPY_IDLE_MS } from "@canopy/domain/workspace-copy";
 import { newDirectory } from "../git/project-sources.ts";
 import { freshGit, git } from "../git/git.ts";
+import { rebuildCopyGitMetadata } from "./git-metadata.ts";
 import { copyError, checkedPath, sameIdentity } from "./safety.ts";
 import { CopyReceipts, type CopyReceipt } from "./receipts.ts";
 import { mapLimit } from "./limit.ts";
@@ -260,6 +261,7 @@ export class CopyTargets {
 
   async #publish(session: TargetSession, receipt: CopyReceipt, digest: string) {
     await syncFiles(receipt.stage, session.entries.values());
+    await rebuildCopyGitMetadata(receipt.stage, [...session.entries.keys()]);
     const valid = await freshGit(() => git(receipt.stage, ["fsck", "--connectivity-only", "--no-reflogs"]));
 
     if (!valid.ok) throw copyError("The copied Git metadata is incomplete. Refresh the file list and retry.");
@@ -267,7 +269,7 @@ export class CopyTargets {
     for (const entry of [...session.entries.values()]
       .filter((e) => e.directory)
       .sort((a, b) => b.path.length - a.path.length))
-      await chmod(checkedPath(receipt.stage, entry.path), entry.mode & 0o777);
+      if (!entry.path.startsWith(".git/")) await chmod(checkedPath(receipt.stage, entry.path), entry.mode & 0o777);
 
     if (
       (await realpath(receipt.parent)) !== receipt.parent ||

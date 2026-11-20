@@ -33,11 +33,13 @@ RUN bun scripts/build-binaries.ts --app worker --target "linux-$(echo "$TARGETAR
 # Gateway: gRPC (HTTP/2) for workers and the BFF on 7443, the web app (BFF and SPA) on 3000; CANOPY_WEB=off for
 # headless. Needs PostgreSQL (CANOPY_DATABASE_URL). Updates by a new image tag, never in place.
 FROM debian:bookworm-slim AS gateway-base
-RUN apt-get update && apt-get install -y --no-install-recommends git ca-certificates libstdc++6 \
+RUN apt-get update && apt-get install -y --no-install-recommends git ca-certificates libstdc++6 socat \
  && rm -rf /var/lib/apt/lists/* \
  && groupadd --gid 65532 canopy \
  && useradd --create-home --uid 65532 --gid 65532 --shell /usr/sbin/nologin canopy \
- && install -d -o 65532 -g 65532 /home/canopy/.cache /home/canopy/.cache/canopy
+ && install -d -o 65532 -g 65532 /home/canopy/.cache /home/canopy/.cache/canopy \
+      /home/canopy/.local /home/canopy/.local/share /home/canopy/.local/share/canopy \
+ && install -d -m 0700 -o 65532 -g 65532 /home/canopy/.local/share/canopy/database
 
 FROM gateway-base AS gateway
 ARG CANOPY_VERSION=0.0.0-dev
@@ -49,7 +51,7 @@ LABEL org.opencontainers.image.title="canopy-gateway" \
       org.opencontainers.image.revision="${CANOPY_REVISION}"
 COPY --from=gateway-build /out/canopy-gateway /usr/local/bin/canopy-gateway
 # sharp's native library is extracted on first start; /tmp is writable for the nonroot user. The web listens on every
-# container interface: the published port is the boundary. ~/.cache/canopy (web releases, update cache) can be a volume.
+# container interface on the private control network. Compose relays only WorkerLink into the worker network.
 ENV HOME=/home/canopy CANOPY_VERSION=${CANOPY_VERSION} CANOPY_INSTALL_KIND=docker CANOPY_NATIVE_DIR=/tmp/canopy-native \
     CANOPY_HOST=0.0.0.0 CANOPY_PORT=7443 CANOPY_WEB_HOST=0.0.0.0 CANOPY_WEB_PORT=3000
 USER 65532:65532

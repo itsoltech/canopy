@@ -9,6 +9,7 @@ import { startGrpcServer } from "@canopy/transport";
 import { startInstanceFixture, type InstanceFixture } from "./support/instance-fixture.ts";
 import { eventually, failure } from "./support/gateway.ts";
 import { Code } from "@connectrpc/connect";
+import { fakeConnector } from "./support/connector.ts";
 
 describe("bots through official worker harnesses", () => {
   let f: InstanceFixture;
@@ -304,62 +305,116 @@ describe("bots through official worker harnesses", () => {
     );
   }, 15_000);
 
-  test("gateway restart preserves a pending approval and never reruns inference", async () => {
-    const bot = await add(Provider.GROK, "always");
-    const handle = f.gw.core.bots.harnessTools.handle.bind(f.gw.core.bots.harnessTools);
-    let toolOutcome: Promise<string> | undefined;
+  for (const kind of ["platform", "connector"] as const)
+    test(`gateway restart preserves the pending ${kind} approval and executes its original call`, async () => {
+      const remote = kind === "connector" ? fakeConnector() : undefined;
 
-    const capture = spyOn(f.gw.core.bots.harnessTools, "handle").mockImplementation((call, workerId) => {
-      const task = handle(call, workerId);
-      toolOutcome = failure(task);
+      try {
+        const bot = await add(Provider.GROK, "always");
+        let prompt = "TOOL:create_project";
 
-      return task;
-    });
+        if (remote) {
+          const account = (
+            await f.gw.api.saveConnectorAccount({
+              connectorType: "custom",
+              name: "Resumed notes",
+              url: remote.url,
+              token: remote.secret,
+            })
+          ).account!;
 
-    let pending: Awaited<ReturnType<typeof read>>;
+          await f.gw.api.setConnectorAccess({
+            accountId: account.id,
+            expectedRevision: account.revision,
+            botIds: [bot.id],
+          });
+          const { tools } = await f.gw.api.testConnector({ accountId: account.id });
+          prompt = `TOOL:${tools.find((tool) => tool.remoteName === "write_marker")!.name} ARGS:{"marker":"approved"}`;
+        }
 
-    try {
-      await send(bot.id, "TOOL:create_project");
-      pending = await eventually(
-        () => read(bot.id),
-        (r) => r.approvals.some((a) => a.status === "pending"),
-      );
-    } finally {
-      capture.mockRestore();
-    }
+        const handle = f.gw.core.bots.harnessTools.handle.bind(f.gw.core.bots.harnessTools);
+        let toolOutcome: Promise<string> | undefined;
 
-    expect(pending.approvals).toHaveLength(1);
-    await f.gw.core.bots.stop();
-    expect(await toolOutcome).toContain("Gateway stopping");
-    expect((await read(bot.id)).approvals[0]?.status).toBe("pending");
-    await f.disconnect();
-    const restarted = new GatewayCore({ runtime: f.gw.runtime, userId: f.gw.userId, instanceId: crypto.randomUUID() });
-    const grpc = await startGrpcServer({ routes: (router) => restarted.link.routes(router) });
+        const capture = spyOn(f.gw.core.bots.harnessTools, "handle").mockImplementation((call, workerId) => {
+          const task = handle(call, workerId);
+          toolOutcome = failure(task);
 
-    try {
-      closeReconnect = await f.reconnect(grpc.url);
-      restarted.bots.start();
-      await restarted.bots.answer(
-        create(bots.AnswerBotApprovalRequestSchema, { approvalId: pending.approvals[0]!.id, approve: true }),
-      );
+          return task;
+        });
 
-      const result = await eventually(
-        () => restarted.bots.run((s) => s.conversation(f.gw.userId, bot.id)),
-        (r) => !r.working,
-        10_000,
-      );
+        let pending: Awaited<ReturnType<typeof read>>;
 
-      expect(result.messages.at(-1)?.text).toContain("Harness project");
-      expect(f.records().filter((r) => r.event === "turn" && r.home.includes(`/bots/${bot.id}/`))).toHaveLength(1);
-    } finally {
-      await restarted.bots.stop();
-      await closeReconnect();
-      await restarted.link.shutdown();
-      await grpc.close();
-      closeReconnect = await f.reconnect();
-      f.gw.core.bots.start();
-    }
-  }, 15_000);
+        try {
+          await send(bot.id, prompt);
+          pending = await eventually(
+            () => read(bot.id),
+            (r) => r.approvals.some((a) => a.status === "pending"),
+          );
+        } finally {
+          capture.mockRestore();
+        }
+
+        expect(pending.approvals).toHaveLength(1);
+        await f.gw.core.bots.stop();
+        expect(await toolOutcome).toContain("Gateway stopping");
+        expect((await read(bot.id)).approvals[0]?.status).toBe("pending");
+        await f.disconnect();
+
+        const restarted = new GatewayCore({
+          runtime: f.gw.runtime,
+          userId: f.gw.userId,
+          instanceId: crypto.randomUUID(),
+        });
+
+        const grpc = await startGrpcServer({ routes: (router) => restarted.link.routes(router) });
+
+        const resume = restarted.bots.harnessTools.handle.bind(restarted.bots.harnessTools);
+        const refused: boolean[] = [];
+
+        const replay = spyOn(restarted.bots.harnessTools, "handle").mockImplementation(async (call, workerId) => {
+          if (remote && !call.cancelled) {
+            const mismatch = create(AgentToolCallSchema, { ...call, argumentsJson: '{"marker":"changed"}' });
+            refused.push((await resume(mismatch, workerId)).isError);
+          }
+
+          return resume(call, workerId);
+        });
+
+        try {
+          closeReconnect = await f.reconnect(grpc.url);
+          restarted.bots.start();
+          await restarted.bots.answer(
+            create(bots.AnswerBotApprovalRequestSchema, { approvalId: pending.approvals[0]!.id, approve: true }),
+          );
+
+          const result = await eventually(
+            () => restarted.bots.run((s) => s.conversation(f.gw.userId, bot.id)),
+            (r) => !r.working,
+            10_000,
+          );
+
+          expect(result.messages.at(-1)?.text).toContain(remote ? "approved" : "Harness project");
+
+          if (remote) {
+            expect(refused.length).toBeGreaterThan(0);
+            expect(refused.every(Boolean)).toBe(true);
+            expect(remote.calls).toEqual([{ name: "write_marker", args: { marker: "approved" } }]);
+          }
+
+          expect(f.records().filter((r) => r.event === "turn" && r.home.includes(`/bots/${bot.id}/`))).toHaveLength(1);
+        } finally {
+          replay.mockRestore();
+          await restarted.bots.stop();
+          await closeReconnect();
+          await restarted.link.shutdown();
+          await grpc.close();
+          closeReconnect = await f.reconnect();
+          f.gw.core.bots.start();
+        }
+      } finally {
+        await remote?.close();
+      }
+    }, 20_000);
 
   test("harness crash recovers the completed transcript without duplicate text", async () => {
     const bot = await add(Provider.CLAUDE);

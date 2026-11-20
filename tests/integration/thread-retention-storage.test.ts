@@ -2,7 +2,6 @@ import { afterAll, beforeAll, describe, expect, test } from "bun:test";
 import { createHash } from "node:crypto";
 import { ItemStatus, Provider } from "@canopy/contracts";
 import { dockerAvailable } from "@canopy/db/testing";
-import { AttachmentStore } from "@canopy/gateway/store";
 import { pruneDatabase } from "../../apps/gateway/src/maintenance/prune.ts";
 import { eventually, startTestGateway, type TestGateway } from "./support/gateway.ts";
 
@@ -76,10 +75,26 @@ describe.skipIf(!dockerAvailable)("archived storage lifecycle", () => {
     const data = new TextEncoder().encode("shared attachment bytes");
     const sha256 = createHash("sha256").update(data).digest("hex");
 
-    for (const id of [thread, shared])
-      await gateway.runtime.runPromise(
-        AttachmentStore.use((store) => store.putThreadBlob(gateway.workerId, id, sha256, data, "text/plain")),
+    for (const id of [thread, shared]) {
+      gateway.worker.uploadPreview(sha256, data, "text/plain", 64 * 1024, id);
+      gateway.worker.emit(id, "", {
+        case: "itemCompleted",
+        value: {
+          item: {
+            itemId: "retained",
+            status: ItemStatus.COMPLETED,
+            content: {
+              case: "commandExecution",
+              value: { outputBlob: { sha256, mimeType: "text/plain" } },
+            },
+          },
+        },
+      });
+      await eventually(
+        () => gateway.api.getThreadBlob({ threadId: id, sha256 }).catch(() => undefined),
+        (response) => response !== undefined,
       );
+    }
 
     gateway.worker.holdTurns = true;
 

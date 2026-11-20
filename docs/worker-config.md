@@ -1,5 +1,9 @@
 # Konfiguracja workerów
 
+Aktualizacja (2026-11-19): skrypt, Docker i instalacja ręczna czytają jednorazowy
+token enrollmentu z ukrytego promptu terminala lub stdin. Kreatory web i mobilny
+pokazują token obok polecenia. Instalacja SSH przekazuje go przez prywatne stdin.
+
 Aktualizacja (2026-11-17): zarządzanie narzędziami automatyzacji jest w osobnej
 zakładce Settings → Agent tools, z grantami per worker, zbiorczym stanem mieszanym
 i automatycznym startem potrzebnej instalacji przy włączaniu dostępu.
@@ -144,8 +148,13 @@ Desktop remote nie nadpisuje zmigrowanego adresu podczas startu; lokalny worker 
 
 ```sh
 curl -fsSL https://canopy.example.com/install/worker.sh | sh -s -- \
-  --gateway https://gateway.example.com:7443 --token TOKEN --name 'Home server'
+  --gateway https://gateway.example.com:7443 --name 'Home server'
 ```
+
+Wklej token z kreatora, kiedy zweryfikowana binarka wyświetli ukryty prompt.
+Automatyzacja zapisuje skrypt jako plik i uruchamia go z `--token-stdin`,
+przekazując jedną linię tokenu na stdin z menedżera sekretów lub chronionego pliku.
+Opcja wymaga oddzielnego wejścia dla tokenu i pliku skryptu.
 
 Pierwszy adres jest originem **web BFF**, drugi originem **gRPC workera**. Skrypt
 wykrywa platformę i pobiera `/install/worker/<os>/<arch>` oraz `?sha256=1` z web BFF.
@@ -173,7 +182,7 @@ działał po wylogowaniu. macOS wymaga aktywnej sesji GUI użytkownika dla Launc
 
 Zakładka **Docker** podaje `docker run` i Compose z obrazem
 `ghcr.io/itsoltech/canopy-worker:v<VERSION>` (lub kanałem dla buildu bez wersji wydania).
-Enrollment wykonuje się raz z wolumenem `/home/canopy`; ten sam wolumen przechowuje
+Enrollment wykonuje się raz z wolumenem `/home/canopy` i terminalem (`docker run -it`); ten sam wolumen przechowuje
 config, dziennik i loginy. Obraz bazowy nie zawiera CLI agentów — rozszerz go i zaloguj
 dostawców w kontenerze. Na zwykłej maszynie Settings → Workers instaluje i aktualizuje CLI na kliknięcie
 ([provider-cli.md](provider-cli.md)); w kontenerze tylko je pokazuje. **Manual** pobiera binarkę i `checksums.txt` z tego samego
@@ -209,6 +218,7 @@ SSH rozwiązuje wydanie po stronie gatewaya: preferuje jego dokładną wersję, 
 Jeśli jej nie opublikowano, wybiera najnowsze zgodne wydanie kanału (WorkerLink i UpdateService)
 i wypisuje wersję zastępczą. Cel pobiera binarkę bezpośrednio z GitHub przez HTTPS;
 SHA-256 z manifestu dostaje przez uwierzytelnione stdin SSH i sprawdza przed wykonaniem.
+Tym samym kanałem otrzymuje token, który skrypt przekazuje binarce przez potok.
 Nie korzysta z originu web desktopu (`127.0.0.1`), dostępnego tylko na komputerze aplikacji.
 Adres enrollmentu pochodzi z Network access lub „Gateway address for workers”; pin TLS jest zachowany.
 Brak adresu lub loopback dla innego komputera blokuje skrypt z komunikatem:
@@ -225,12 +235,12 @@ nieaktualny pin z `worker_ssh_hosts` dla właściwego właściciela.
 ### CLI i usługa użytkownika (źródła / development)
 
 ```bash
-# Z katalogu repozytorium; TOKEN pochodzi z kreatora, nie zapisuj go w logach.
-bun apps/worker/src/main.ts enroll --gateway http://canopy-gateway:7443 --token TOKEN
+# Z katalogu repozytorium; wklej token z kreatora po wyświetleniu promptu.
+bun apps/worker/src/main.ts enroll --gateway http://canopy-gateway:7443
 bun apps/worker/src/main.ts
 
 # Własne lokalizacje (np. drugi worker na tym samym komputerze):
-bun apps/worker/src/main.ts enroll --gateway http://canopy-gateway:7443 --token TOKEN \
+bun apps/worker/src/main.ts enroll --gateway http://canopy-gateway:7443 \
   --config /absolute/path/worker.json --data-dir /absolute/path/worker-data
 bun apps/worker/src/main.ts --config /absolute/path/worker.json
 
@@ -246,8 +256,11 @@ plik z `0600` **przed** wymianą tokenu. Istniejący plik jest odrzucany bez wyd
 Nie wypisuje credentialu. Utrata odpowiedzi albo awaria po zużyciu tokenu wymaga nowego
 enrollment (lub rotacji credentialu istniejącego workera); token nie odtwarza sekretu.
 Przerwanie procesu podczas enrollment może zostawić pusty zarezerwowany plik; po sprawdzeniu
-jego zawartości usuń go albo użyj `--force`. Kopiowana komenda zawiera token, więc do użycia
-traktuj ją jak hasło (również w historii shella i schowku).
+jego zawartości usuń go albo użyj `--force`. Token skopiuj oddzielnie i wklej w ukrytym
+prompcie lub dostarcz przez stdin. Nowe polecenia świeżej rejestracji wymagają
+binarki lub obrazu z obsługą stdin. Jeśli fallback kanału wskazuje wcześniejszą
+wersję, wybierz zgodne wydanie z obsługą tego wejścia i użyj instalacji ręcznej.
+Reinstalacja zachowująca config i protokół połączenia działają z wcześniejszymi wydaniami.
 
 Komenda `service` tylko drukuje treść i komendy aktywacji — niczego nie instaluje.
 Binarka standalone uruchamia się także przez `canopy-worker run --config …`;
@@ -304,6 +317,7 @@ Wypisuje **sekretny** `worker.json`; przekieruj go do pliku z umask 077, nie do 
 |---|---|
 | `gateway_url`, `worker_id`, `credential` | dostawcy i ich ustawienia |
 | `ca_file` (prywatny certyfikat gateway) | dostawcy: włączony, ścieżka CLI, wymagana wersja |
+| `trusted_http_origin` (dokładny adres HTTP chroniony przez operatora, np. tunelem) | |
 | `data_dir` (dziennik, bloby w drodze, scratch) | profile dostawców (wbudowany `native` i własne) z kluczami i zmiennymi środowiskowymi |
 | `ping_interval_seconds` (utrzymanie mapowania NAT) | natywne narzędzia (subagenci, harmonogram) |
 | | limity (tury, zadania w tle, drain, zwalnianie) |

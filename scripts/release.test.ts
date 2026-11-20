@@ -262,6 +262,42 @@ test("manifest preserves the exact version/channel and rejects contradictory rel
   await expect(releaseManifest(directory, { ...env, CANOPY_CHANNEL: "stable" })).rejects.toThrow("must match");
 });
 
+test("publication reads the protocol constants from the release SHA instead of its tooling checkout", () => {
+  const { cwd, git } = fixture();
+  const directory = join(cwd, "assets");
+  const protocolPath = join(cwd, "packages/domain/src/release");
+  const protocolFile = join(protocolPath, "protocol.ts");
+  mkdirSync(directory);
+  mkdirSync(protocolPath, { recursive: true });
+
+  for (const name of ["release-manifest.ts", "version.ts"])
+    copyFileSync(join(root, "scripts", name), join(cwd, "scripts", name));
+  writeFileSync(protocolFile, "export const WORKER_LINK_PROTOCOL = 4;\nexport const UPDATE_PROTOCOL = 1;\n");
+  git("add", ".");
+  git("commit", "-m", "chore: fixture for released protocol");
+  const sha = git("rev-parse", "HEAD");
+  writeFileSync(protocolFile, "export const WORKER_LINK_PROTOCOL = 5;\nexport const UPDATE_PROTOCOL = 1;\n");
+
+  const child = Bun.spawnSync([process.execPath, "scripts/release-manifest.ts", directory], {
+    cwd,
+    env: {
+      ...Bun.env,
+      GITHUB_SHA: sha,
+      GITHUB_REF_TYPE: "branch",
+      CANOPY_VERSION: "0.2.0",
+      CANOPY_RELEASE_TAG: "v0.2.0",
+      CANOPY_CHANNEL: "stable",
+      CANOPY_PROTOCOL_REVISION: sha,
+    },
+  });
+
+  expect(child.exitCode).toBe(0);
+  expect(JSON.parse(readFileSync(join(directory, "manifest.json"), "utf8")).protocol).toEqual({
+    worker_link: 4,
+    update: 1,
+  });
+});
+
 test.each([
   { channel: "stable", version: "0.2.0", feeds: ["latest", "beta", "nightly"] },
   { channel: "beta", version: "0.2.0-beta.1", feeds: ["beta", "nightly"] },

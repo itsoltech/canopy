@@ -205,13 +205,20 @@ export const coreWatchMethods: CoreWatchMethods = {
     );
 
     const detach = this.feeds.attach();
-    const close = () => subscription.close();
+
+    const close = () => {
+      subscription.updates.discard();
+      subscription.close();
+    };
+
     signal.addEventListener("abort", close, { once: true });
 
     if (signal.aborted) close();
 
     try {
       const departure = await this.departures.snapshot();
+
+      if (signal.aborted) return;
 
       if (departure) yield create(ui.OverviewUpdateSchema, { change: { case: "gatewayDeparture", value: departure } });
 
@@ -222,14 +229,22 @@ export const coreWatchMethods: CoreWatchMethods = {
           this.settings(),
         ]);
 
+        if (signal.aborted) return;
         yield create(ui.OverviewUpdateSchema, {
           change: { case: "mobileSnapshot", value: { overview, threads, settings } },
         });
+
+        if (signal.aborted) return;
         yield create(ui.OverviewUpdateSchema, { change: { case: "mobileRoutes", value: this.mobile.networkRoutes() } });
       }
 
+      if (signal.aborted) return;
       yield create(ui.OverviewUpdateSchema, { change: { case: "feeds", value: { pushed: [...OWNER_FEEDS] } } });
-      yield* subscription.updates;
+
+      for await (const update of subscription.updates) {
+        if (signal.aborted) return;
+        yield update;
+      }
     } finally {
       stopHeads();
       signal.removeEventListener("abort", close);

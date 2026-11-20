@@ -110,16 +110,12 @@ describe.skipIf(!dockerAvailable)("thread range controls after a move", () => {
       // These are the source-side effects of move cutover. No target execution
       // is needed to verify that an old journal's controls never redirect.
       await source.query("UPDATE threads SET deleted_at=now(),moved_to=$2 WHERE id=$1::uuid", [thread, "c".repeat(64)]);
-      await home.redirects.record(
-        create(link.MovedItemSchema, {
-          itemId: thread,
-          kind: "thread",
-          fromNodeId: node,
-          homeNodeId: "c".repeat(64),
-          homeName: "New home",
-          movedAtMs: BigInt(Date.now()),
-        }),
+      await source.query(
+        `INSERT INTO computer_redirects(owner_user_id,item_id,kind,from_node_id,home_node_id,home_name,moved_at,basis)
+         VALUES($1::uuid,$2::uuid,'thread',$3,$4,'New home',now(),'local_move')`,
+        [source.owner, thread, node, "c".repeat(64)],
       );
+      await home.redirects.committed("thread", [thread], node);
     } finally {
       release.resolve();
     }

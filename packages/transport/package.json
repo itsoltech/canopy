@@ -4,7 +4,8 @@
   "private": true,
   "type": "module",
   "exports": {
-    ".": "./src/index.ts"
+    ".": "./src/index.ts",
+    "./web-ingress": "./src/web-ingress.ts"
   },
   "scripts": {
     "typecheck": "tsc -p tsconfig.json"

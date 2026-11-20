@@ -1,5 +1,7 @@
 # Adapter Grok
 
+Aktualizacja (2026-11-19): `accept_edits` zatwierdza automatycznie tylko edycje ze ścieżkami w `cwd` wątku (tabela trybów niżej).
+
 Status (2026-11-17): runtime ACP, lokalny MCP automatyzacji i rozliczenia tokenów
 z metadanych zakończonego promptu są zaimplementowane; zweryfikowano brak niezależnych
 poziomów szybkości w obsługiwanym kontrakcie CLI/ACP;
@@ -150,7 +152,7 @@ odrębne. Nie stosujemy cennika ani estymacji kosztu na podstawie tokenów.
 | --- | --- |
 | ask | ACP permission → istniejące karty UI Allow/Deny |
 | read_only | sandbox `read-only`, jawne deny dla edycji i shella oraz odmowa callbacków; odczyty plików pozostają dostępne |
-| accept_edits | automatyczna zgoda dla edit/znanych nazw edytorów, pozostałe zgody przez UI |
+| accept_edits | automatyczna zgoda dla `write_file`/`edit_file`/`str_replace_editor`, gdy każda ścieżka z argumentów leży w `cwd` wątku (po rozwiązaniu dowiązań, także dla nowych plików); `apply_patch`, brak ścieżki lub ścieżka poza `cwd` oraz pozostałe zgody idą przez UI |
 | full_auto | sandbox `workspace`, automatyczny wybór `allow_once`; reguły deny i wymagania CLI nadal obowiązują |
 | full_access | sandbox `off` (`GROK_SANDBOX=off`, jawnie, CLI 1.0.70: profil bez ograniczeń plików i sieci), automatyczny wybór `allow_once`; reguły deny i wymagania CLI (`requirements.toml` urządzenia) nadal obowiązują |
 

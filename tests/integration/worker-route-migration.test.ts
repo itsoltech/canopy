@@ -270,6 +270,18 @@ describe.skipIf(!dockerAvailable)("worker server-port compatibility and secure r
     }
   }, 20_000);
 
+  test("enrollment preserves the invitation when the HTTP origin is outside local trust", async () => {
+    const configPath = join(directory, "transport-policy.json");
+    const invitation = await gw.api.createWorkerEnrollment({ name: "transport-policy" });
+
+    await expect(
+      enrollWorker({ gateway: "http://remote.invalid", token: invitation.token, configPath }),
+    ).rejects.toThrow("Use HTTPS");
+    expect(existsSync(configPath)).toBe(false);
+    const local = await enrollWorker({ gateway: gw.grpcUrl, token: invitation.token, configPath });
+    expect(local.worker_id).toBeTruthy();
+  });
+
   test("a changed config preserves the old link and local desktop workers ignore route offers", async () => {
     await enabled(true);
     const { local, configPath } = await enrolled("config-conflict");
@@ -345,6 +357,28 @@ describe.skipIf(!dockerAvailable)("worker server-port compatibility and secure r
       expect(restarted.endpoint.gateway_fingerprint).toBe(network.fingerprint);
       expect(restarted.failed()).toBe(true);
       expect(restarted.endpoint.gateway_url).toBe(gw.grpcUrl);
+
+      const privateOrigin = "http://protected-worker-network.invalid:7443";
+
+      for (const trustedOrigin of [undefined, privateOrigin + "0", privateOrigin]) {
+        const changes: string[] = [];
+
+        const restored = new WorkerNetworkRoute({
+          local: {
+            ...loaded.success,
+            gateway_fallback: { gateway_url: privateOrigin },
+            ...(trustedOrigin && { trusted_http_origin: trustedOrigin }),
+          },
+          configPath,
+          signal: new AbortController().signal,
+          changed: (endpoint) => changes.push(endpoint.gateway_url),
+        });
+
+        const allowed = trustedOrigin === privateOrigin;
+        expect(restored.failed()).toBe(allowed);
+        expect(restored.endpoint.gateway_url).toBe(allowed ? privateOrigin : loaded.success.gateway_url);
+        expect(changes).toEqual(allowed ? [privateOrigin] : []);
+      }
     } finally {
       link.close();
       await link.closed;

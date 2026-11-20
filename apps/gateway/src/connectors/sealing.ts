@@ -1,7 +1,7 @@
 import { Effect } from "effect";
 import type { SqlClient } from "effect/sql";
 import { decryptSecret, encryptSecret } from "../store/secrets.ts";
-import { fail, type AccountRow, type Credentials } from "./records.ts";
+import { fail, oauthIdentityChanged, type AccountRow, type Credentials } from "./records.ts";
 
 /** Sealed credentials: only this store encrypts and decrypts them. */
 export function connectorSealing(sql: SqlClient.SqlClient, key: Buffer) {
@@ -35,8 +35,7 @@ export function connectorSealing(sql: SqlClient.SqlClient, key: Buffer) {
       if (row.connector_type === "slack") {
         const previous = unseal(row);
 
-        const identityChanged =
-          !!previous.accountIdentity && !!value.accountIdentity && previous.accountIdentity !== value.accountIdentity;
+        const identityChanged = oauthIdentityChanged(previous, value);
 
         yield* sql`UPDATE messenger_accounts SET status='needs_authorization',lease_token=NULL,lease_until=NULL,revision=revision+1
         WHERE connector_account_id=${row.id}::uuid AND owner_user_id=${row.owner_user_id}::uuid

@@ -23,6 +23,8 @@ const decode = Schema.decodeUnknownSync(
     redirectUri: Schema.optional(Schema.String),
     expiresAt: Schema.optional(Schema.Number),
     accountIdentity: Schema.optional(Schema.String),
+    oauthSubject: Schema.optional(Schema.String),
+    oauthPublicOrigins: Schema.optional(Schema.Array(Schema.String)),
     slackTeamId: Schema.optional(Schema.String),
   }),
 );
@@ -40,6 +42,8 @@ export function sharedCredentials(plain: string): Credentials {
     ...(value.expiresAt !== undefined && { expiresAt: value.expiresAt }),
     ...(value.slackTeamId && { slackTeamId: value.slackTeamId }),
     ...(value.accountIdentity && { accountIdentity: value.accountIdentity }),
+    ...(value.oauthSubject && { oauthSubject: value.oauthSubject }),
+    ...(value.oauthPublicOrigins && { oauthPublicOrigins: [...value.oauthPublicOrigins] }),
     ...(value.tokens && { tokens: OAuthTokensSchema.parse(value.tokens) }),
     ...(value.client && { client: OAuthClientInformationSchema.parse(value.client) }),
     ...(value.discovery && {

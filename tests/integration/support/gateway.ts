@@ -32,9 +32,8 @@ import {
 } from "@canopy/contracts";
 import { migrate } from "@canopy/db";
 import { startPostgres, type TestPostgres } from "@canopy/db/testing";
-import { serviceTokenAuth, uiRoutes } from "@canopy/gateway/api";
 import { GatewayCore, type GatewayCoreOptions } from "@canopy/gateway/core";
-import { workerRoutes } from "../../../apps/gateway/src/worker-link/routes.ts";
+import { gatewayProcessApi } from "../../../apps/gateway/src/api/process-routes.ts";
 import {
   AgentBusStore,
   AttachmentStore,
@@ -698,12 +697,11 @@ export async function startTestGateway(
       options.log ?? ((m) => (process.env["CANOPY_TEST_LOG"] === "1" || m.startsWith("agent bus")) && console.error(m)),
   });
 
+  const processApi = gatewayProcessApi(core, SERVICE_TOKEN);
+
   const grpc = await startGrpcServer({
-    routes: (router) => {
-      workerRoutes(core, router);
-      uiRoutes(core)(router);
-    },
-    interceptors: [...(options.diagnostics ? [core.diagnostics.interceptor] : []), serviceTokenAuth(SERVICE_TOKEN)],
+    routes: processApi.routes,
+    interceptors: [...(options.diagnostics ? [core.diagnostics.interceptor] : []), processApi.auth],
   });
 
   const api = createClient(

@@ -35,13 +35,15 @@ export interface ClaudePermissions {
  * What canUseTool allows without asking; questions to the user always go to the platform.
  * `unconfined-shell-asks`: every tool but the shell, which runs unconfined (FULL_AUTO on Windows).
  */
-export type AutoAllow = "none" | "unconfined-shell-asks" | "all";
+export type AutoAllow = "none" | "unconfined-shell-asks" | "sandboxed" | "all";
 
 /** Claude Code's shell tools; a sandbox confines them where Claude Code has one. */
 const SHELL_TOOLS: ReadonlySet<string> = new Set(["Bash", "PowerShell"]);
 
 export const autoAllows = (autoAllow: AutoAllow, toolName: string): boolean =>
-  autoAllow === "all" || (autoAllow === "unconfined-shell-asks" && !SHELL_TOOLS.has(toolName));
+  autoAllow === "all" ||
+  autoAllow === "sandboxed" ||
+  (autoAllow === "unconfined-shell-asks" && !SHELL_TOOLS.has(toolName));
 
 export function claudePermissions(
   mode: PermissionMode,
@@ -66,7 +68,7 @@ export function claudePermissions(
             allowUnsandboxedCommands: false,
           },
         },
-        autoAllow: noSandbox ? "unconfined-shell-asks" : "all",
+        autoAllow: noSandbox ? "unconfined-shell-asks" : "sandboxed",
       };
     case PermissionMode.FULL_ACCESS:
       return { options: { permissionMode: "acceptEdits", sandbox: { enabled: false } }, autoAllow: "all" };

@@ -1,5 +1,7 @@
 # Adapter Codex (app-server)
 
+Aktualizacja (2026-11-19): karty zgód pokazują faktyczną treść żądania (sekcja „Treść zgód”), a podglądy obrazów natywnych i wygenerowanych dotyczą tylko ukończonych elementów w zakresie wątku.
+
 Status (2026-11-19): runtime wątków, lokalny MCP z narzędziem wiadomości do delegującego bota, poziomy szybkości z katalogu konta,
 bezstratny zapis obrazów wyników trybu kodu oraz per-modelowe liczniki tokenów i kosztów USD tur
 oraz szacunki równowartości API OpenAI z trwałym cache cennika są zaimplementowane.
@@ -65,6 +67,7 @@ Gotowe:
 
   Ta sama tabela idzie w każdym `turn/start` jako `approvalPolicy` + `sandboxPolicy` (tryb tury ze `StartTurn.permission_mode`), bo Codex trzyma nadpisanie dla kolejnych tur ([protocol.md](protocol.md#modele-effort-i-steer)).
 
+- **Treść zgód:** karta zgody pokazuje faktyczną treść żądania Codexa w istniejącym kontrakcie `requestJson` (`command`, `reason`, `permissions`). Worker składa `reason` z powodu, rodzaju akcji, katalogu roboczego, środowiska, katalogu z dodatkowym zapisem, kontekstu sieci i dodatkowych uprawnień, więc użytkownik widzi je także, gdy oś czasu ma już komendę lub diff. Zgoda na `item/permissions/requestApproval` przyznaje dokładnie żądane uprawnienia; anulowanie lub odmowa daje pusty zestaw, a zakres sesji tylko po jawnej zgodzie.
 - **Żądania serwera:** zgody na komendy i zmiany plików, uprawnienia, pytania i elicitation idą do brokera interakcji, a `item/tool/call` (narzędzia szyny) do gateway. Inne żądania kończą się błędem JSON-RPC.
 
 **Fork od tury** ([threads.md](threads.md#fork-od-tury-fork-from-here)): `thread/fork { threadId: źródło, lastTurnId: provider_turn_ref tury }` (codex-cli 0.164, schemat v2 `ThreadForkParams.lastTurnId`: tury po niej są pominięte; nie z tury w toku, a tury nieudane i przerwane są dozwolone). `thread/rollback` nie jest potrzebny. Bez `after_provider_turn_ref` przy podanej turze worker odmawia (`FORK_POINT_UNKNOWN`) zamiast forkować całą historię. Na żywo: `fork-from-turn.live.test.ts` (trzy tury, fork od drugiej pamięta drugą jako ostatnią).

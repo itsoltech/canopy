@@ -19,6 +19,7 @@ import { MOVED_FILE_COLUMNS, movedFilesSize, readMovedFile, readStoredBlob, type
 import { audit, redirect, transaction } from "./move-state.ts";
 import type { ComputerStore } from "./store.ts";
 import { exportBotComposer } from "./move-bot-composer.ts";
+import { movedBotRecords } from "./move-validation.ts";
 
 // ------------------------------------------------------------------ what blocks a move
 
@@ -251,7 +252,7 @@ export async function exportThread(
 
   const blobs = await store.query<{ sha256: string; mime_type: string; size: number | string }>(
     `SELECT DISTINCT b.sha256, b.mime_type, octet_length(b.data) AS size FROM thread_blobs tb
-    JOIN blobs b ON b.sha256 = tb.sha256 WHERE tb.thread_id = ANY($1::uuid[]) AND b.data IS NOT NULL`,
+    JOIN blobs b ON b.sha256 = tb.sha256 WHERE tb.thread_id = ANY($1::uuid[]) AND tb.verified AND b.data IS NOT NULL`,
     [family],
   );
 
@@ -274,7 +275,7 @@ export async function exportThread(
 }
 
 /** The rows of a frozen bot. Connector grants and MCP servers stay here; their names tell the user what to connect again. */
-export async function exportBot(store: ComputerStore, botId: string, sourceName: string) {
+export async function exportBot(store: ComputerStore, botId: string, sourceName: string, sourceNode = "") {
   const rows = (
     await store.query<{ rows: BotRows }>(
       `SELECT json_build_object(
@@ -282,10 +283,10 @@ export async function exportBot(store: ComputerStore, botId: string, sourceName:
       'turns', coalesce((SELECT json_agg(t ORDER BY t.created_at, t.id) FROM bot_turns t WHERE t.bot_id = $1::uuid AND t.conversation_id IS NULL), '[]'),
       'messages', coalesce((SELECT json_agg(m ORDER BY m.seq) FROM bot_messages m JOIN bot_turns t ON t.id=m.turn_id WHERE m.bot_id = $1::uuid AND t.conversation_id IS NULL), '[]'),
       'tool_calls', coalesce((SELECT json_agg(c) FROM bot_tool_calls c JOIN bot_turns t ON t.id = c.turn_id WHERE t.bot_id = $1::uuid AND t.conversation_id IS NULL), '[]'),
-      'approvals', coalesce((SELECT json_agg(a) FROM bot_approvals a WHERE a.bot_id = $1::uuid), '[]'),
-      'handoff_notes', coalesce((SELECT json_agg(n) FROM bot_handoff_notes n WHERE n.bot_id = $1::uuid), '[]'),
+      'approvals', coalesce((SELECT json_agg(a) FROM bot_approvals a JOIN bot_turns t ON t.id=a.turn_id WHERE a.bot_id=$1::uuid AND t.bot_id=a.bot_id AND t.conversation_id IS NULL), '[]'),
+      'handoff_notes', coalesce((SELECT json_agg(n) FROM bot_handoff_notes n JOIN bot_turns t ON t.id=n.turn_id WHERE n.bot_id=$1::uuid AND t.bot_id=n.bot_id AND t.conversation_id IS NULL), '[]'),
       'routines', coalesce((SELECT json_agg(r) FROM bot_routines r WHERE r.bot_id = $1::uuid), '[]'),
-      'wakeups', coalesce((SELECT json_agg(w) FROM bot_wakeups w WHERE w.bot_id = $1::uuid), '[]'),
+      'wakeups', coalesce((SELECT json_agg(w) FROM bot_wakeups w JOIN bot_tool_calls c ON c.id=w.id JOIN bot_turns t ON t.id=c.turn_id WHERE w.bot_id=$1::uuid AND t.bot_id=w.bot_id AND t.conversation_id IS NULL), '[]'),
       'grants', coalesce((SELECT json_agg(json_build_object('connector_type', a.connector_type, 'name', a.name)) FROM connector_accounts a
         WHERE a.owner_user_id = $2::uuid AND (a.all_bots OR EXISTS (SELECT 1 FROM connector_bot_grants g WHERE g.account_id = a.id AND g.bot_id = $1::uuid))), '[]'),
       'mcp', coalesce((SELECT json_agg(json_build_object('name', s.name)) FROM bot_mcp_connections c JOIN bot_mcp_servers s ON s.id = c.server_id WHERE c.bot_id = $1::uuid), '[]')
@@ -296,11 +297,14 @@ export async function exportBot(store: ComputerStore, botId: string, sourceName:
 
   if (!rows?.bot) throw new Error("bot disappeared during its move");
 
-  return create(link.BotMoveSchema, {
-    rowsJson: JSON.stringify(rows),
+  const moved = create(link.BotMoveSchema, {
     sourceName,
     ...(await exportBotComposer(store, botId)),
   });
+
+  moved.rowsJson = JSON.stringify(movedBotRecords(moved, rows, sourceNode));
+
+  return moved;
 }
 
 /** The cut-over on the source: its copy becomes a redirect to the target, in one transaction with the decision. */
@@ -339,8 +343,10 @@ export function commitSource(
         );
       // Cross-computer agent relations end with the move, as with an unlink; messages follow the redirect.
       yield* sql.unsafe(
-        `UPDATE computer_agent_calls SET detached = true WHERE owner_user_id = $1::uuid AND (actor_id = ANY($2::uuid[]) OR target_id = ANY($2::uuid[]))`,
-        [owner, ids],
+        `UPDATE computer_agent_calls SET detached = true WHERE owner_user_id = $1::uuid AND
+         ((direction='outgoing' AND actor_kind=$3 AND actor_id=ANY($2::uuid[]))
+         OR (direction='incoming' AND target_kind=$3 AND target_id=ANY($2::uuid[])))`,
+        [owner, ids, move.kind],
       );
 
       for (const id of ids)
@@ -426,10 +432,12 @@ export function restoreSource(store: ComputerStore, move: MoveRow) {
           );
       } else
         yield* sql.unsafe(`UPDATE bots SET moved_to = NULL, deleted_at = NULL WHERE id = $1::uuid`, [move.item_id]);
-      yield* sql.unsafe(`DELETE FROM computer_redirects WHERE owner_user_id = $1::uuid AND item_id = ANY($2::uuid[])`, [
-        owner,
-        ids,
-      ]);
+      yield* sql.unsafe(
+        `DELETE FROM computer_redirects r USING computer_identity i WHERE r.owner_user_id=$1::uuid
+        AND i.owner_user_id=r.owner_user_id AND r.from_node_id=i.node_id AND r.kind=$3
+        AND r.item_id=ANY($2::uuid[]) AND r.home_node_id=$4 AND r.basis='local_move'`,
+        [owner, ids, move.kind, move.peer_node_id],
+      );
       yield* sql.unsafe(
         `UPDATE computer_moves SET state = 'aborted', error = 'The other computer was unlinked before it confirmed the move.', updated_at = now()
       WHERE owner_user_id = $1::uuid AND id = $2::uuid`,

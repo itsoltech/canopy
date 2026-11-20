@@ -4,7 +4,7 @@ import { Code, ConnectError, type HandlerContext } from "@connectrpc/connect";
 
 import { computerLink as link, ui } from "@canopy/contracts";
 
-import { AsyncChannel } from "@canopy/transport";
+import { LinkOutput } from "./link-output.ts";
 
 import { LAN_ROUTES, MOVE_ITEMS, RELAY } from "@canopy/domain/computers";
 
@@ -194,7 +194,7 @@ export async function* computersAccept(
   // The desktop clears this pause only after its wake grace (or an explicit unlock).
   if (hostContext[computersState].paused) return;
 
-  const output = new AsyncChannel<link.LinkFrame>({
+  const output = new LinkOutput({
     maxItems: 256,
     reservedItems: 240,
     overflow: () => {
@@ -205,16 +205,14 @@ export async function* computersAccept(
   });
 
   const connection: Connection = {
-    write: async (f, signal) => {
-      if (!(await output.write(create(link.LinkFrameSchema, f), signal)))
-        throw new ConnectError("Computer link closed while sending", Code.Unavailable);
-    },
-    send: (f) => {
-      if (!output.closed && !output.push(create(link.LinkFrameSchema, f)))
+    write: (frame, signal, grant) => output.writeFrame(frame, signal, grant),
+    send: (f, grant) => {
+      if (!output.closed && !output.pushFrame(f, grant))
         connection.close(new ConnectError("Computer link fell behind", Code.ResourceExhausted));
     },
     close: (reason) => {
       if (reason) console.warn("Computer link closing", { side: "listener", ...linkFailure(reason) });
+      connection.configAccess?.abort();
       output.close(reason);
       connection.remote?.close();
     },
@@ -252,7 +250,7 @@ export async function* computersAccept(
   void reader.finally(() => hostContext[computersState].tasks.delete(reader));
 
   try {
-    yield* output;
+    yield* output.frames();
   } finally {
     output.close();
     context.signal.removeEventListener("abort", abort);
@@ -306,8 +304,8 @@ async function receiveHandshake(
 
   if (protocol && !connection.remote)
     connection.remote = new RemoteCalls({
-      send: (f) => connection.send(f),
-      write: (f, signal) => connection.write(f, signal),
+      send: (f, grant) => connection.send(f, grant),
+      write: (f, signal, grant) => connection.write(f, signal, grant),
       serve: (method, request, signal, _, route) =>
         rpcMessages(
           computersServeRemote(hostContext, nodeId, connection, method, request, signal, route),
@@ -315,6 +313,11 @@ async function receiveHandshake(
         ),
       name: () => hostContext[computersState].names.get(nodeId) ?? "The other computer",
       allowed: async () => Boolean(await hostContext.store.peer(nodeId)),
+      responseSignal: (method) =>
+        method.parent.typeName === link.ConfigSyncService.typeName
+          ? (connection.configAccess?.signal ??
+            AbortSignal.abort(new ConnectError("Configuration sharing is off", Code.FailedPrecondition)))
+          : undefined,
       observe: (method) => hostContext.options.core?.diagnostics.collector.start(registered(method, "home").id),
     });
 

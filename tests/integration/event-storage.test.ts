@@ -10,6 +10,7 @@ import { Journal, type ThreadEventInit } from "@canopy/worker/journal";
 import { Effect, ManagedRuntime } from "effect";
 import { SqlClient } from "effect/sql";
 import { eventually, startTestGateway, type TestGateway } from "./support/gateway.ts";
+import { pruneStorage } from "../../apps/gateway/src/maintenance/storage.ts";
 
 let gw: TestGateway;
 let threadId = "";
@@ -298,6 +299,40 @@ describe.skipIf(!dockerAvailable)("worker event storage on PostgreSQL and gRPC",
         1,
       );
       expect(session.drains()).toBe(0);
+    } finally {
+      await session.close();
+    }
+  }, 20_000);
+
+  test("oversized quarantine keeps the marker and ACK after the evidence expires", async () => {
+    const session = await replay([{ ...output("x".repeat(270 * 1024)), rawJson: "{" }]);
+
+    try {
+      await session.empty();
+      const event = session.originals[0]!;
+      expect(
+        await query(
+          "SELECT octet_length(payload) AS size,payload_discarded FROM worker_event_quarantine WHERE event_id=$1::uuid",
+          [event.eventId],
+        ),
+      ).toEqual([{ size: 0, payload_discarded: true }]);
+      await query("UPDATE worker_event_quarantine SET created_at=now()-interval '8 days' WHERE event_id=$1::uuid", [
+        event.eventId,
+      ]);
+      await gw.runtime.runPromise(SqlClient.SqlClient.use((sql) => sql.withTransaction(pruneStorage(sql, gw.userId))));
+
+      const duplicate = await gw.runtime.runPromise(
+        Ingest.use((s) => s.ingest(gw.workerId, "quarantine-replay", [event])),
+      );
+
+      expect(duplicate.acks.get(threadId)).toBe(event.journalSeq);
+      expect(duplicate.stored).toEqual([]);
+      expect(
+        await query("SELECT 1 FROM worker_event_quarantine WHERE event_id=$1::uuid", [event.eventId]),
+      ).toHaveLength(0);
+      expect(
+        await query("SELECT 1 FROM thread_events WHERE event_id=$1::uuid AND kind='notice'", [event.eventId]),
+      ).toHaveLength(1);
     } finally {
       await session.close();
     }

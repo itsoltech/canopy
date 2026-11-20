@@ -9,7 +9,9 @@ limitu 256 kroków automatycznej rozmowy i domyślnego
 steera między rodzicem a dzieckiem, wiadomości do delegującego bota w trakcie pracy oraz deduplikacji raportów jednej tury,
 retencji dziennika źródłowego i dzierżaw treści (migracja 0154) oraz postępu
 przygotowania wątku negocjowanego poza historyczną listą capabilities.
-Odczyt samych pytań i zgód subagenta trafia bezpośrednio do jego domu. Dostępność w kanałach
+Odczyt samych pytań i zgód subagenta trafia bezpośrednio do jego domu. Gateway sprawdza pochodzenie
+przekierowań i raportów, spójność przenoszonych danych oraz zgodę na wysyłkę konfiguracji w trakcie
+transmisji. Migracja 0182 odtwarza przekierowania z lokalnych decyzji o przeniesieniu. Dostępność w kanałach
 nightly, beta i stable wynika z [wydań](release.md), nie z daty tego opisu.
 
 ## Kanały komunikatorów botów
@@ -819,8 +821,8 @@ liczbowy kod/rozmiar; dowolne metadane błędu i lokalna proweniencja zerwanego
 Dom obsługuje tylko listę dozwolonych metod wątków (`SERVED`): overview, lista i odczyt wątków,
 `WatchThread`, tworzenie wątku, wiadomości (kolejka i steer), przerwanie, odpowiedzi na zgody i pytania,
 zarządzanie kolejką, ustawienia wątku, tytuł, cel, zadania w tle, przeczytanie/archiwizacja/usuwanie,
-modele, katalogi workera, dodawanie projektu (`AddProject`), wzmianki plików, załączniki i bloby osi czasu. Inne metody (ustawienia,
-instancje dostawców, sekrety wątków, connectory, boty, harmonogramy, workery, aktualizacje, komputery,
+modele, katalogi workera, dodawanie projektu (`AddProject`), wzmianki plików, załączniki i bloby osi czasu. Inne metody tego etapu (ustawienia,
+instancje dostawców, connectory, boty, harmonogramy, workery, aktualizacje, komputery,
 telefony) zwracają `UNIMPLEMENTED`. Żądanie partnera wykonuje się lokalnymi handlerami, jako właściciel
 tego gatewaya, bez dalszego trasowania i bez agregacji (brak przechodniości, etap 7). Żądanie
 zawierające id innego komputera jest odrzucane. Błędy przechodzą wyłącznie jako kod i komunikat
@@ -884,7 +886,8 @@ Zabezpieczone żądanie CLI z `upgrade_only` wymaga `remote_cli_upgrade_only` na
 Pojedyncze żądania bez tego pola nadal działają na starszych połączeniach.
 
 Metody spoza listy z kwalifikowanym id najwyższego poziomu (np. `ListSchedules` dla wątku B) dają
-„This isn't available for threads on another computer yet”. Sekrety wątków nie przechodzą przez łącze.
+„This isn't available for threads on another computer yet”. Prośbę o sekret można obsłużyć na domu wątku
+lub przez bezpośrednie, przypięte łącze z tym domem.
 Przypięcia i filtr projektów sidebara mogą zawierać id kwalifikowane (walidacja `isEntityId`).
 
 Komendy `!…` właściciela korzystają z tych samych tras `CreateThread`, `SendMessage`,
@@ -1879,6 +1882,11 @@ z nazwą maszyny, kwalifikowanym `thread_id` i `request_id`. Odpowiedź jest wal
 przez dom dziecka. Wątki mogą sterować tylko własnymi zdalnymi dziećmi; odpowiedź narzędzia bota
 zachowuje wymaganie jego lokalnej zgody. Człowiek może zawsze odpowiedzieć w UI domu.
 
+Odpowiedź na prośbę wątku o sekret oraz jego odwołanie (`AnswerThreadSecret`,
+`RevokeThreadSecret`) wymagają bezpośredniego, przypiętego łącza z domem prośby.
+Gateway nadawcy sprawdza trasę przed zakodowaniem żądania i zapisaniem pierwszej ramki.
+Przy połączeniu przez pośrednika właściciel może wykonać tę operację na domu wątku.
+
 Zakończenie wskazanej tury wysyła raport do źródła; bot↔bot ma też `exchange_id` i czytelny podgląd
 wymiany. Każdy przeskok zwiększa `hops`; operacja rezerwuje miejsce na raport w limicie 256.
 Raport wątek → wątek używa w domu odbiorcy trwałego potwierdzenia wiadomości
@@ -1888,7 +1896,11 @@ samej tury mogą mieć osobne raporty transportowe, ale tworzą jedno wejście
 z wynikiem dla tego odbiorcy. Zapis potwierdzenia i wejścia jest transakcyjny;
 ponowienie i restart domu odbiorcy nie odtwarzają wyniku. Inna tura lub inny
 wątek odbiorcy zachowuje osobny raport. Raporty botów pozostają per wywołanie.
-Raport niesie też tytuł i status wątku. Rozmowa bota zapisuje krótki event
+Dom sprawdza właściciela, odbiorcę i turę oczekującego wywołania. Wysyła tytuł i treść
+wyniku, gdy wejścia tury należą do tej samej rozmowy. Dla zdalnego wątku sprawdza komputer
+i wątek nadawcy. Dla bota sprawdza powiązanie wywołania lub wymiany z jego rozmową.
+Jeśli do tury wszedł też steer z innego źródła albo brakuje dowodu pochodzenia, odbiorca dostaje
+status i komunikat „The turn ended.”. Rozmowa bota zapisuje krótki event
 `“‹title›” on ‹computer› finished`, tak jak lokalne powiadomienie o zakończeniu,
 bez id ani koperty platformy. `bot_turns.input` zachowuje pełny raport i wynik dla
 bieżącej inferencji oraz odbudowy historii harnessu.
@@ -2236,7 +2248,7 @@ potwierdzi `DecideMove(abort)`; restart źródła w `preparing` zawsze cofa. Po 
 do przodu: źródło ponawia `DecideMove(commit)` co heartbeat i po każdym handshake, aż cel potwierdzi.
 Cel z rekordem `prepared` pyta źródło (`MoveOutcome`) — `commit`, `abort` albo `preparing` (czekaj);
 nieznany ruch oznacza `abort`. Cel z rekordem `committed` (np. po restarcie w trakcie stosowania)
-stosuje go ponownie; każdy krok jest idempotentny (wątek o tym id już istnieje → tylko brakujące kroki).
+wznawia stosowanie tej samej paczki. Istniejący wątek musi pochodzić z tego przeniesienia.
 Dlatego nigdy nie ma dwóch domów: przed decyzją cel nic nie pokazuje ani nie wykonuje, po decyzji
 źródło jest przekierowaniem. Między decyzją a zastosowaniem dom jest przesądzony (cel), a cel kończy
 zastosowanie przy pierwszej okazji.
@@ -2264,8 +2276,12 @@ oba komputery mają kopię — po Unlink nic już ich nie łączy.
   i wyciąg z ostatnich 30 wiadomości (oznaczony jako niepełny, do 16 000 znaków). Notatka jest
   deterministyczna (bez wywołania modelu), jak fallback handoffu botów. Model, którego nie ma na celu,
   zastępuje domyślny model instancji.
-- **Bot:** wiersze bota, tur, wiadomości (z nowymi numerami `seq` w tej samej kolejności i przesuniętym
-  znacznikiem przeczytania), wywołań narzędzi, kart, notatek handoff, rutyn i przypomnień.
+- **Bot:** prywatna rozmowa z zakończonymi turami, wiadomościami (z nowymi numerami `seq` i odpowiednim
+  znacznikiem przeczytania), wywołaniami narzędzi, rozstrzygniętymi kartami, notatkami przekazania,
+  rutynami i przypomnieniami. Cel sprawdza powiązania tych rekordów oraz plików i szkicu z przenoszonym
+  botem. Rozmowy komunikatorów zostają u źródła. Cel wybiera własnego workera i uprawnienia dla nowych
+  działań bota. Zachowuje wymóg każdorazowej zgody oraz tryby `read_only` i `ask` dla tworzonych
+  wątków. Pozostałe ustawienia uprawnień dostają lokalne wartości `safe` i `user_default`.
 - **Nie przechodzi (lista „To do again” w podglądzie):** konta connectorów i serwery MCP (są per komputer;
   bot na celu pokazuje „Moved from Laptop A — connect these again: …”, dopóki ich nie podłączysz),
   sekrety wątku (wpisuje się je ponownie, gdy agent poprosi), otwarty cel (`/goal` ustawia się ponownie),
@@ -2273,6 +2289,15 @@ oba komputery mają kopię — po Unlink nic już ich nie łączy.
 - **Sekrety:** ruch nie przenosi żadnej wartości sekretu. Klucze instancji dostawców przechodzą tylko
   przez wspólną konfigurację etapu 4 (ponownie szyfrowane kluczem odbiorcy). Instancja dostawcy
   wymagana przez wątek lub bota musi istnieć na celu („Share its provider instance … first”).
+
+Przed przyjęciem paczki i przy wznawianiu zapisanej migracji cel oblicza SHA-256 treści plików,
+miniatur, blobów i zapisanych specyfikacji wizualizacji. Porównuje także długość pliku z jego metadanymi.
+Deduplikacja w globalnej tabeli blobów następuje po sprawdzeniu bajtów. Zweryfikowany zapis może
+naprawić stare błędne dane pod tym samym kluczem. Eksport blobów wątku wymaga potwierdzonego
+powiązania `thread_blobs.verified`, a import tworzy lub potwierdza takie powiązanie na celu.
+Jeżeli stary dom zachował tylko metadane miniatury, plik przechodzi bez miniatury. Tekst rozmowy
+i szkicu bota pozostaje dostępny także po wygaśnięciu pliku na źródle. Odnośniki do załączników
+na nowym domu powstają dla plików potwierdzonych w paczce.
 
 ### Harmonogramy i rutyny przy przełączeniu
 
@@ -2285,26 +2310,35 @@ u siebie (polityka zaległych uruchomień jak zwykle); cofnięcie przywraca pier
 
 ### Przekierowania
 
-`computer_redirects(owner, item_id, kind, home_node_id, home_name, from_node_id, moved_at)` mówi, gdzie
-rzecz jest teraz (także „tutaj” po stronie celu). Wypełniają ją obie strony ruchu, ramka `moved` (po
-decyzji i zastosowaniu do wszystkich bezpośrednich partnerów z `move_items`, a po każdym handshake
-najnowsze 2000 wpisów) oraz leniwe odpowiedzi: dom, który rzecz oddał, odpowiada na wywołanie partnera
-błędem z `RemoteResponse.moved`, który przechodzi także przez pośrednika etapu 7. Odbiorca przyjmuje
-wpis tylko od starego albo nowego domu i nigdy nie „przenosi” rzeczy, która żyje u niego.
+`computer_redirects` przechowuje przejście z poprzedniego do nowego domu dla właściciela,
+rodzaju (`thread` albo `bot`) i id rzeczy. Pole `basis` wskazuje źródło wiedzy.
+`local_move` wynika z własnej decyzji źródła lub zastosowania ruchu na celu. `former_home`
+oznacza potwierdzenie od uwierzytelnionego, bezpośredniego partnera dotyczące rzeczy, którą oddał.
+Dawny dom ogłasza własne przeniesienia po decyzji i przy kolejnym handshake (do 2000 wpisów).
+Odpowiedź `RemoteResponse.moved` na zwykłe wywołanie może również potwierdzić przejście dla
+dokładnie wskazanego rodzaju, id i poprzedniego domu. Przy ruchu przez pośrednika użytkownik
+dostaje informację o przeniesieniu. Zapis przekierowania wymaga potwierdzenia dawnego domu.
 
-- **UI i telefon:** `routed.ts` przepisuje stare id w żądaniu przed trasowaniem; odpowiedź „moved”
-  zapisuje redirect i ponawia raz u nowego domu. Wątek otwarty starym linkiem przełącza się na nowe id
+Migracja 0182 odtwarza wpisy po obu stronach z lokalnego dziennika decyzji oraz przynależności
+wątków pobocznych do rodziny. Pozostali partnerzy uzyskują potwierdzenie z dawnego domu przy
+połączeniu albo przy otwarciu rzeczy przez stare id. Dotychczasowe parowania, poświadczenia
+partnerów i przyznane uprawnienia działają po aktualizacji.
+
+- **UI i telefon:** gateway rozpoznaje pola żądania wskazujące wątek lub bota. Id żądania
+  sekretu, konta, pracownika i subskrypcji zachowują własny zakres. Po potwierdzeniu „moved”
+  gateway ponawia wywołanie raz u nowego domu. Wątek otwarty starym linkiem przełącza się na nowe id
   z komunikatem „Moved to Laptop C”. Dom niepołączony z tym komputerem: „Moved to Laptop C, which isn't
-  linked to this computer”.
+  linked to this computer”. Otwieranie wizualizacji i stronicowanie historii przez stary odnośnik
+  korzystają z tego samego potwierdzenia dla wątku. Nowy dom nadaje własny kursor synchronizacji.
 - **Lustra:** dawny dom publikuje tombstone (wątek usunięty), nowy dom — wątek z pełną historią, więc
   trzeci komputer pokazuje go raz, z nowym właścicielem. `WatchThreadMirror` z dawnym checkpointem
   i `AckThreadRange` należą do subskrypcji dawnego domu i nie podlegają przekierowaniu pojedynczego
   wątku. Dzięki temu wznowienie dostaje tombstone, a ACK partii wysłanej przed przeniesieniem kończy
   się w tej samej subskrypcji; nadal sprawdza partnera, id subskrypcji i dokładny kursor.
-- **Szyna agentów:** argumenty `thread_id`/`bot_id`/`thread_ids` narzędzi wątków i botów są przepisywane;
-  wywołanie, na które dawny dom odpowie „moved”, jest ponawiane u nowego domu, a odwołania
-  `computer_agent_calls` dostają nowego partnera. Kontrola rodzic–dziecko między komputerami kończy się
-  przy przeniesieniu (jak przy Unlink); wiadomości i odczyty działają dalej.
+- **Szyna agentów:** wysyłka do wskazanego wątku lub bota oraz odczyt przeniesionego wątku mogą
+  podążyć za potwierdzonym przekierowaniem. Wpisy zakończonych wywołań służą nawigacji. Nowy dom
+  dostaje uprawnienia do raportu z nowej wysyłki skierowanej do niego. Kontrola rodzic–dziecko
+  między komputerami kończy się przy przeniesieniu.
 
 ### Bezpieczeństwo, audyt, UI
 
@@ -2338,6 +2372,12 @@ zamrożeniu, restart źródła po przygotowaniu, restart celu w trakcie przygoto
 idempotentne powtórzenia `PrepareMove`/`DecideMove`; odmowę cudzej rzeczy, nieznanego komputera
 i rzeczy innego komputera; „Move everything” z listą elementów lokalnych. `schema.test.ts` obejmuje 0054
 (triggery, jeden aktywny ruch, reguły ról).
+
+`packages/db/test/computer-redirects-upgrade.test.ts` sprawdza odtworzenie przeniesień źródła
+i celu z zachowaniem parowania. `apps/gateway/test/move-content.test.ts` obejmuje pliki,
+prywatny graf bota i odczyt paczek starszej wersji. `apps/gateway/test/computer-link-grants.test.ts`
+sprawdza wysyłkę do bezpośredniego domu prośby o sekret i odwołanie zgody przy pobieraniu
+zakolejkowanych fragmentów konfiguracji.
 
 Odroczone: przenoszenie przez pośrednika, przeniesienie z powrotem na komputer ze starą kopią,
 przenoszenie samych sekretów wątku, wątki bez workera, przeniesienie zainicjowane z UI innego
@@ -2521,6 +2561,9 @@ Wartość jest w `computer_peers.share_config` (lokalny wybór) i `computer_peer
 po zmianie. Do czasu tej wymiany żadna strona nie otwiera `WatchConfig`.
 Ramka zawiera też rosnącą rewizję lokalnego wyboru, zachowywaną w bazie. Odbiorca odrzuca starszą
 rewizję, aby opóźniona ramka z równoległego połączenia nie przywróciła wyłączonej zgody.
+Wyłączenie przez dowolną stronę przerywa bieżące strumienie rekordów i pobieranie blobów
+konfiguracji dla tego partnera. Gateway sprawdza zgodę po odczycie danych oraz przed wydaniem
+kolejnego fragmentu z kolejki transportu. Ponowne włączenie udostępniania otwiera nowy strumień.
 
 **Grupa konfiguracji** to spójna składowa grafu łącz z włączonym udostępnianiem. Każdy komputer należy
 do dokładnie jednej grupy, a w grupie jest jedna wersja konfiguracji. Gateway publikuje rekordy

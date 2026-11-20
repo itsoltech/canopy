@@ -28,6 +28,7 @@ import { boundRoutedThread } from "./routed-thread-batch.ts";
 import { remoteAttachment } from "./routed-attachments.ts";
 import { forgetGitHub, offlineGitHub, rememberGitHub } from "./routed-github-cache.ts";
 import { AGENT_PREVIEW_CLIENT_ACK } from "../computers/capabilities.ts";
+import { mapMoveIds } from "../computers/redirect-ids.ts";
 
 export async function peerOf(core: GatewayCore, ref: string, method?: DescMethod, request?: Message) {
   if (!core.computers) throw new ConnectError("That computer is no longer linked", Code.NotFound);
@@ -39,9 +40,8 @@ export async function peerOf(core: GatewayCore, ref: string, method?: DescMethod
     let moved: string | undefined;
 
     if (method && request)
-      mapIds(method.input, request, (value) => {
-        const { id, node } = splitId(value);
-        const row = node === ref ? core.computers?.redirects.home(id) : undefined;
+      mapMoveIds(method.input, request, (value, kind) => {
+        const row = splitId(value).node === ref ? core.computers?.redirects.destination(kind, value) : undefined;
         moved ??= row && (row.home_name || "another computer");
 
         return value;
@@ -109,12 +109,33 @@ export async function* forward(
     const moved = movedItems(error);
 
     if (!moved || followed || !core.computers) throw error;
-    await core.computers.redirects.learn(nodeId, moved);
+    const requested = new Set<string>();
+    mapMoveIds(method.input, request, (value, kind) => {
+      const { id, node } = splitId(value);
+
+      if (node === nodeRef(nodeId)) requested.add(`${kind}:${id.toLowerCase()}`);
+
+      return value;
+    });
+
+    const applicable = moved.filter(
+      (i) => i.fromNodeId === nodeId && requested.has(`${i.kind}:${i.itemId.toLowerCase()}`),
+    );
+
+    if (!applicable.length) throw error;
+    await core.computers.redirects.learn(nodeId, applicable);
     const next = redirected(core, method, request);
     const node = next !== request ? target(method, next) : undefined;
 
-    // Moved here (it came back) or nowhere this computer knows: the caller sees where it went.
-    if (!node) throw error;
+    if (next === request) throw error;
+
+    if (!node) {
+      if (!core.computers.options.serve) throw error;
+      yield* core.computers.options.serve(method, next, signal);
+
+      return;
+    }
+
     yield* forward(core, await peerOf(core, node, method, next), method, next, signal, true, live);
   }
 }

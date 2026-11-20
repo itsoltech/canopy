@@ -12,6 +12,8 @@ import { outgoingSecrets } from "./secrets.ts";
 import type { ClockRow, ConfigRow } from "./persistence.ts";
 
 export async function* watchConfig(sync: ConfigSync, cursor: string, signal: AbortSignal, allowed: () => boolean) {
+  signal.throwIfAborted();
+
   if (!allowed()) throw new ConnectError("Configuration sharing is off", Code.FailedPrecondition);
   yield create(link.ConfigUpdateSchema, { hello: { schemas: { ...SCHEMAS } } });
   let checkpoint = cursor;
@@ -53,6 +55,9 @@ export async function* watchConfig(sync: ConfigSync, cursor: string, signal: Abo
         ),
       );
 
+      signal.throwIfAborted();
+
+      if (!allowed()) throw new ConnectError("Configuration sharing is off", Code.FailedPrecondition);
       yield create(link.ConfigUpdateSchema, {
         items: rows.map((row) => wireItem(row, secrets)),
         checkpoint: next,

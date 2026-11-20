@@ -4,19 +4,54 @@ import { computerLink as link } from "@canopy/contracts";
 
 import { Effect } from "effect";
 
-import {
-  botRowsJson,
-  insertRows,
-  MOVE_COLUMNS,
-  payloadOf,
-  threadRowJson,
-  type MoveRow,
-  type Sql,
-} from "./move-payload.ts";
+import { botRowsJson, insertRows, MOVE_COLUMNS, threadRowJson, type MoveRow, type Sql } from "./move-payload.ts";
 
 import { audit, redirect, transaction } from "./move-state.ts";
 import type { ComputerStore } from "./store.ts";
+import { movedAttachment, movedBotRecords, movedSchedule, movedVisual } from "./move-validation.ts";
 import { importBotComposer } from "./move-bot-composer.ts";
+
+/** A collision is a preparation refusal, before the source makes its irreversible decision. */
+function conflicts(sql: Sql, prepare: link.MovePrepare) {
+  return Effect.gen(function* () {
+    const keys: [string, string, string[]][] = [];
+
+    if (prepare.thread) {
+      const parts = prepare.thread.threads;
+      const visuals = parts.flatMap((part) => part.visualsJson.map(movedVisual));
+      keys.push(["thread_visuals", "visual_id", visuals.map((v) => v.visual_id)]);
+      keys.push(["thread_visuals", "call_id", visuals.map((v) => v.call_id)]);
+      keys.push(["schedules", "id", parts.flatMap((part) => part.schedulesJson.map((json) => movedSchedule(json).id))]);
+    }
+
+    if (prepare.bot) {
+      const rows = botRowsJson(prepare.bot.rowsJson);
+
+      for (const [table, records] of [
+        ["bot_routines", rows.routines],
+        ["bot_turns", rows.turns],
+        ["bot_messages", rows.messages],
+        ["bot_tool_calls", rows.tool_calls],
+        ["bot_approvals", rows.approvals],
+        ["bot_wakeups", rows.wakeups],
+      ] as const)
+        keys.push([table, "id", records.map((row) => String(row["id"]))]);
+    }
+
+    const files = prepare.thread?.files ?? prepare.bot?.files ?? [];
+    keys.push(["attachments", "id", files.map((f) => movedAttachment(f).id)]);
+
+    for (const [table, column, ids] of keys) {
+      if (
+        ids.length &&
+        (yield* sql.unsafe(`SELECT 1 FROM ${table} WHERE ${column}=ANY($1::uuid[]) LIMIT 1`, [ids])).length
+      )
+        return true;
+    }
+
+    return false;
+  });
+}
 
 /** Stages a move on the target. A repeated prepare of the same move is answered from its record. */
 export function stage(
@@ -29,13 +64,24 @@ export function stage(
   return transaction(store, (sql) =>
     Effect.gen(function* () {
       const owner = store.owner;
+      yield* sql`SELECT pg_advisory_xact_lock(hashtextextended(${`move:${owner}:${prepare.moveId}`},0))`;
 
       const known = (yield* sql.unsafe<MoveRow>(
         `SELECT ${MOVE_COLUMNS} FROM computer_moves WHERE owner_user_id = $1::uuid AND id = $2::uuid`,
         [owner, prepare.moveId],
       ))[0];
 
-      if (known) return known.peer_node_id === peer && known.role === "target" ? known.state : "conflict";
+      if (known) {
+        if (
+          known.peer_node_id !== peer ||
+          known.role !== "target" ||
+          known.kind !== prepare.kind ||
+          known.item_id !== prepare.itemId
+        )
+          return "conflict";
+
+        return known.state === "aborted" ? "refused" : "prepared";
+      }
 
       const ids =
         prepare.kind === "thread"
@@ -45,6 +91,8 @@ export function stage(
       const table = prepare.kind === "bot" ? "bots" : "threads";
 
       if ((yield* sql.unsafe(`SELECT 1 FROM ${table} WHERE id = ANY($1::uuid[])`, [ids])).length) return "exists";
+
+      if (yield* conflicts(sql, prepare)) return "conflict";
       yield* sql.unsafe(
         `INSERT INTO computer_moves(owner_user_id,id,role,peer_node_id,kind,item_id,batch_id,title,state,placement,payload,redo)
       VALUES ($1::uuid,$2::uuid,'target',$3,$4,$5::uuid,$6::uuid,$7,'prepared',$8::jsonb,$9,$10::jsonb)`,
@@ -120,9 +168,13 @@ export const discardTarget = (store: ComputerStore, move: MoveRow) =>
   transaction(store, (sql) => discard(sql, store.owner, move));
 
 /** Applies a staged bot in one transaction: it becomes this computer's, with its conversation, routines and reminders. */
-export async function applyBot(store: ComputerStore, move: MoveRow, self: { nodeId: string; name: string }) {
-  const prepare = await payloadOf(store, move);
-  const rows = botRowsJson(prepare.bot!.rowsJson);
+export async function applyBot(
+  store: ComputerStore,
+  move: MoveRow,
+  self: { nodeId: string; name: string },
+  bot: link.BotMove,
+) {
+  const rows = movedBotRecords(bot, botRowsJson(bot.rowsJson), move.peer_node_id);
 
   return transaction(store, (sql) =>
     Effect.gen(function* () {
@@ -135,66 +187,51 @@ export async function applyBot(store: ComputerStore, move: MoveRow, self: { node
 
       if (locked?.state !== "committed") return;
 
-      const local = (table: string, id: JsonValue | undefined) =>
-        id
-          ? sql
-              .unsafe(`SELECT 1 FROM ${table} WHERE id = $1::uuid AND owner_user_id = $2::uuid`, [id, owner])
-              .pipe(Effect.map((r) => r.length > 0))
-          : Effect.succeed(false);
-
-      const creator = (yield* local("bots", rows.bot["created_by_bot_id"])) ? rows.bot["created_by_bot_id"] : null;
-
       const reconnect = [
         ...rows.grants.map((g) => `${g.name} (${g.connector_type})`),
         ...rows.mcp.map((m) => `MCP server ${m.name}`),
       ];
 
-      yield* insertRows(sql, "bots", [
-        {
-          ...rows.bot,
-          owner_user_id: owner,
-          moved_to: null,
-          deleted_at: null,
-          created_by_bot_id: creator,
-          move_notes: {
-            from_node_id: move.peer_node_id,
-            from_name: prepare.bot!.sourceName,
-            reconnect,
-            moved_at: new Date().toISOString(),
-          },
-        },
-      ]);
-      yield* insertRows(sql, "bot_routines", rows.routines);
-
-      const bots = new Set(
-        (yield* sql.unsafe<{ id: string }>(`SELECT id FROM bots WHERE owner_user_id = $1::uuid`, [owner])).map(
-          (b) => b.id,
-        ),
-      );
-
       yield* insertRows(
         sql,
-        "bot_turns",
-        rows.turns.map((t) => ({
-          ...t,
-          lease_token: null,
-          lease_until: null,
-          reply_to_bot_id: bots.has(String(t["reply_to_bot_id"])) ? t["reply_to_bot_id"] : null,
-        })),
+        "bots",
+        [
+          {
+            ...rows.bot,
+            client_request_id: `move:${move.id}`,
+            owner_user_id: owner,
+            moved_to: null,
+            deleted_at: null,
+            move_notes: {
+              from_node_id: move.peer_node_id,
+              from_name: bot.sourceName,
+              reconnect,
+              moved_at: new Date().toISOString(),
+            },
+          },
+        ],
+        { strict: true },
       );
+
+      const ownRows = (records: readonly Record<string, JsonValue>[]) =>
+        records.map((record) => ({ ...record, bot_id: move.item_id }));
+
+      yield* insertRows(sql, "bot_routines", ownRows(rows.routines), { strict: true });
+
+      yield* insertRows(sql, "bot_turns", ownRows(rows.turns), { strict: true });
       // New sequence numbers here, in the same order; the read marker follows its message.
-      yield* importBotComposer(sql, owner, move.item_id, prepare.bot!);
-      yield* insertRows(sql, "bot_messages", rows.messages, { omit: ["seq"], order: "seq" });
+      yield* importBotComposer(sql, owner, move.item_id, bot);
+      yield* insertRows(sql, "bot_messages", rows.messages, { omit: ["seq"], order: "seq", strict: true });
       const lastRead = Number(rows.bot.last_read_seq);
       const read = rows.messages.filter((m) => Number(m.seq) <= lastRead).map((m) => m.id);
       yield* sql.unsafe(
-        `UPDATE bots SET last_read_seq = coalesce((SELECT max(seq) FROM bot_messages WHERE id = ANY($2::uuid[])), 0) WHERE id = $1::uuid`,
+        `UPDATE bots SET last_read_seq = coalesce((SELECT max(seq) FROM bot_messages WHERE bot_id=$1::uuid AND id = ANY($2::uuid[])), 0) WHERE id = $1::uuid`,
         [move.item_id, read],
       );
-      yield* insertRows(sql, "bot_tool_calls", rows.tool_calls);
-      yield* insertRows(sql, "bot_approvals", rows.approvals);
-      yield* insertRows(sql, "bot_handoff_notes", rows.handoff_notes);
-      yield* insertRows(sql, "bot_wakeups", rows.wakeups);
+      yield* insertRows(sql, "bot_tool_calls", rows.tool_calls, { strict: true });
+      yield* insertRows(sql, "bot_approvals", ownRows(rows.approvals), { strict: true });
+      yield* insertRows(sql, "bot_handoff_notes", ownRows(rows.handoff_notes), { strict: true });
+      yield* insertRows(sql, "bot_wakeups", ownRows(rows.wakeups), { strict: true });
       yield* redirect(sql, owner, {
         itemId: move.item_id,
         kind: "bot",

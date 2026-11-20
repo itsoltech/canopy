@@ -22,10 +22,10 @@ export function remoteWireError(cause: unknown): WireError {
   return { code: Code.Internal, message: "internal error" };
 }
 
-export function remoteResponseError(response: link.RemoteResponse) {
+export function remoteResponseError(response: link.RemoteResponse, direct: boolean) {
   if (!response.code) return undefined;
 
-  if (response.moved.length) return new MovedError(response.moved, response.message);
+  if (direct && response.moved.length) return new MovedError(response.moved, response.message);
   const error = new ConnectError(response.message, response.code in Code ? response.code : Code.Internal);
 
   if (response.threadFailure) {

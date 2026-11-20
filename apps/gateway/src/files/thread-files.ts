@@ -165,6 +165,9 @@ export class ThreadFiles {
 
   async open(request: ui.ThreadFileRequest): Promise<void> {
     const target = await this.#target(request.threadId, request.path);
+
+    if (!target.desktopBundled || !this.core.appControl.ownsWorker(target.workerId))
+      throw new ConnectError("Open files on this computer only.", Code.PermissionDenied);
     await this.#query(target.workerId, { case: "openFile", value: target.request });
   }
 

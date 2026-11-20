@@ -91,3 +91,68 @@ for (const platform of ["win32", "linux"] as const) {
     }
   }
 }
+
+for (const importHooks of [false, true]) {
+  for (const passive of [false, true]) {
+    test(`catalog listing silences hooks only when passive: imported hooks=${importHooks}, passive=${passive}`, async () => {
+      const home = temp("canopy-claude-passive-");
+      const source = temp("canopy-claude-passive-source-");
+      writeFileSync(join(source, "settings.json"), JSON.stringify({ hooks }));
+
+      const config = await claudeQueryConfiguration(
+        {
+          home,
+          sourceHome: source,
+          userConfiguration: {
+            mode: ProviderConfigurationMode.LOCAL,
+            sourcePath: "",
+            hooks: importHooks,
+            skills: false,
+            instructions: false,
+          },
+        },
+        home,
+        false,
+        {},
+        claudePermissions(PermissionMode.ASK, "linux").options,
+        undefined,
+        { passive },
+      );
+
+      let args: readonly string[] = [];
+      const stop = new Error("Synthetic spawn boundary");
+
+      try {
+        await expect(
+          (async () => {
+            const q = query({
+              prompt: "",
+              options: {
+                ...config.options,
+                spawnClaudeCodeProcess: (spawn) => {
+                  args = spawn.args;
+                  throw stop;
+                },
+              },
+            });
+
+            try {
+              await q.supportedCommands();
+            } finally {
+              q.close();
+            }
+          })(),
+        ).rejects.toThrow(stop.message);
+        expect(args).toContain("--settings");
+        const argument = args[args.indexOf("--settings") + 1] ?? "";
+        const settings = decodeJsonObject(JSON.parse(importHooks ? readFileSync(argument, "utf8") : argument));
+
+        // Only the flag settings are inspected: the process is never started, so no hook can run.
+        expect(settings["disableAllHooks"]).toBe(passive ? true : undefined);
+        expect(settings["hooks"]).toEqual(importHooks ? hooks : undefined);
+      } finally {
+        await config.close();
+      }
+    });
+  }
+}

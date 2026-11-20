@@ -1,5 +1,6 @@
 import { createClient } from "@connectrpc/connect";
-import { createGrpcTransport } from "@connectrpc/connect-node";
+import { createGrpcClientTransport } from "@canopy/transport";
+import type { LocalBffTarget } from "@canopy/domain/bff-target";
 import { update } from "@canopy/contracts";
 
 export interface LivenessProbe {
@@ -7,9 +8,17 @@ export interface LivenessProbe {
   probe: () => Promise<void>;
 }
 
-export function gatewayLiveness(url: string) {
+export function gatewayLiveness(target: LocalBffTarget) {
   // No authorization: authenticated Check also looks up the worker in the database.
-  const client = createClient(update.UpdateService, createGrpcTransport({ baseUrl: url, connectTimeoutMs: 5000 }));
+  const client = createClient(
+    update.UpdateService,
+    createGrpcClientTransport({
+      baseUrl: target.gatewayUrl,
+      ca: target.certificate,
+      fingerprint: target.fingerprint,
+      connectTimeoutMs: 5000,
+    }),
+  );
 
   return async () => {
     const response = await client.check({}, { timeoutMs: 5000 });
@@ -19,6 +28,6 @@ export function gatewayLiveness(url: string) {
 }
 
 /** The local gateway; the web runs in the controller itself (web.ts), so it has no separate liveness. */
-export function livenessProbes(gateway: string): LivenessProbe[] {
+export function livenessProbes(gateway: LocalBffTarget): LivenessProbe[] {
   return [{ name: "gateway", probe: gatewayLiveness(gateway) }];
 }

@@ -1,11 +1,11 @@
 import { afterAll, beforeAll, describe, expect, test } from "bun:test";
 import { createHash } from "node:crypto";
 import { create } from "@bufbuild/protobuf";
-import { ItemSchema, ItemStatus, Provider, type Item } from "@canopy/contracts";
+import { ItemSchema, ItemStatus, Provider, ThreadEventSchema, type Item } from "@canopy/contracts";
 import { qualifyId } from "@canopy/domain/computers";
 import { dockerAvailable } from "@canopy/db/testing";
 import { remoteServe, uiHandlers } from "@canopy/gateway/api";
-import { AttachmentStore } from "@canopy/gateway/store";
+import { AttachmentStore, BackgroundTaskStore, Ingest } from "@canopy/gateway/store";
 import { ComputerStore } from "../../apps/gateway/src/computers/store.ts";
 import type { LinkedComputers } from "../../apps/gateway/src/computers/runtime.ts";
 import { linkedComputers } from "./support/computers.ts";
@@ -71,9 +71,9 @@ describe.skipIf(!dockerAvailable)("thread content blobs through their home", () 
     await home?.close();
   });
 
-  async function publish(id: string, content: Item["content"], data: Uint8Array, mimeType: string) {
+  async function publish(id: string, content: Item["content"], data: Uint8Array, mimeType: string, scope = "") {
     const sha256 = digest(data);
-    home.worker.uploadPreview(sha256, data, mimeType);
+    home.worker.uploadPreview(sha256, data, mimeType, 64 * 1024, scope);
     home.worker.emit(threadId, turnId, {
       case: "itemCompleted",
       value: { item: create(ItemSchema, { itemId: id, status: ItemStatus.COMPLETED, content }) },
@@ -114,13 +114,90 @@ describe.skipIf(!dockerAvailable)("thread content blobs through their home", () 
     }
   });
 
+  test("background output and preview replay require bytes from the matching worker journal", async () => {
+    const data = encode("background output from this worker");
+    const sha256 = digest(data);
+    const other = encode("a different attachment");
+    const otherDigest = digest(other);
+    await home.api.uploadAttachment({ name: "output.txt", data });
+    await home.api.uploadAttachment({ name: "other.txt", data: other });
+    const journalId = `${crypto.randomUUID()}-${"r".repeat(128)}`;
+    const itemId = "journal-output";
+
+    const event = (digest: string, eventId: string) =>
+      create(ThreadEventSchema, {
+        threadId,
+        turnId,
+        eventId,
+        journalSeq: 1n,
+        body: {
+          case: "itemStarted",
+          value: {
+            item: {
+              itemId,
+              status: ItemStatus.IN_PROGRESS,
+              content: {
+                case: "backgroundTask",
+                value: {
+                  taskId: itemId,
+                  outputBlob: { sha256: digest, mimeType: "text/plain" },
+                },
+              },
+            },
+          },
+        },
+      });
+
+    const original = event(sha256, Bun.randomUUIDv7());
+
+    const ingest = (frame: typeof original) =>
+      home.runtime.runPromise(Ingest.use((s) => s.ingest(home.workerId, journalId, [frame])));
+
+    const stage = (journal: string) =>
+      home.runtime.runPromise(
+        AttachmentStore.use((s) =>
+          s.stagePreview({
+            workerId: home.workerId,
+            journalId: journal,
+            threadId: "",
+            sha256,
+            data,
+            mimeType: "text/plain",
+          }),
+        ),
+      );
+
+    const output = () => home.runtime.runPromise(BackgroundTaskStore.use((s) => s.get(threadId, itemId, 10)));
+
+    await stage(crypto.randomUUID());
+    await ingest(original);
+    expect((await output())?.output).toBe("");
+    expect(await failure(home.api.getThreadBlob({ threadId, sha256 }))).toContain("not found");
+
+    await stage(journalId);
+    // The duplicate identifies the committed event; its replacement payload cannot change the projection.
+    await ingest(event(otherDigest, original.eventId));
+    await ingest(original);
+    expect((await output())?.output).toBe("background output from this worker");
+    expect((await home.api.getThreadBlob({ threadId, sha256 })).data).toEqual(data);
+    expect(await failure(home.api.getThreadBlob({ threadId, sha256: otherDigest }))).toContain("not found");
+  });
+
   test("unreferenced blobs stay private and oversized content is rejected before its bytes are returned", async () => {
     const data = encode("private content");
     const sha256 = digest(data);
     await home.runtime.runPromise(AttachmentStore.use((store) => store.putBlob(sha256, data, "text/plain")));
     expect(await failure(home.api.getThreadBlob({ threadId, sha256 }))).toContain("not found");
     const store = homeLink.store;
-    await store.query("INSERT INTO thread_blobs(thread_id,sha256) VALUES($1::uuid,$2)", [threadId, sha256]);
+
+    const { content } = create(ItemSchema, {
+      content: {
+        case: "commandExecution",
+        value: { outputBlob: { sha256, sizeBytes: BigInt(data.length), mimeType: "text/plain" } },
+      },
+    });
+
+    await publish("size-limit", content, data, "text/plain", threadId);
     await store.query("UPDATE blobs SET size_bytes=$1 WHERE sha256=$2", [8 * 1024 ** 2 + 1, sha256]);
     expect(await failure(home.api.getThreadBlob({ threadId, sha256 }))).toContain("viewing limit");
     const foreign = crypto.randomUUID();

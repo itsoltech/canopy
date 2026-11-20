@@ -176,6 +176,13 @@ export function validateEntries(entries: readonly WorkspaceCopyEntry[], bytes: b
 
   for (const e of entries) {
     checkedPath("/", e.path);
+    const parts = e.path.split("/");
+
+    if (
+      parts.some((part, i) => part.toLowerCase() === ".git" && (i !== 0 || part !== ".git")) ||
+      (parts[0] === ".git" && (e.symlink || (parts.length === 1 && !e.directory)))
+    )
+      throw copyError("Git metadata must be regular files and directories.");
 
     if (e.ignored && copyGenerated(e.directory || e.symlink ? e.path : dirname(e.path)))
       throw copyError("Dependencies and build output cannot be copied.");
@@ -205,6 +212,9 @@ export function validateEntries(entries: readonly WorkspaceCopyEntry[], bytes: b
       if (links.has(parts.slice(0, i).join("/"))) throw copyError("A selected file is inside a symlink.");
   }
 
-  if (!entries.some((e) => e.path === ".git/HEAD") || !entries.some((e) => e.path === ".git/config"))
+  if (
+    !entries.some((e) => e.path === ".git/HEAD" && !e.directory) ||
+    !entries.some((e) => e.path === ".git/config" && !e.directory)
+  )
     throw copyError("Include the Git metadata to create a usable checkout.");
 }

@@ -9,7 +9,8 @@ wersji na workerze przed instalacją z Update all,
 aktualizacji CLI przez mise, restartu workera mimo błędu sprzątania urządzeń,
 pomijania cache metadanych przy ręcznym sprawdzaniu aktualizacji, wykrywania
 pojedynczego procesu przez instalator Windows, retencji dyskowego mirrora workerów
-gatewaya i automatycznego pobierania OTA przez działającą aplikację mobilną.
+gatewaya, automatycznego pobierania OTA przez działającą aplikację mobilną
+oraz powiązania adresu manifestu z oficjalnym repozytorium i tagiem wydania.
 Dostępność zmian w nightly, beta i stable wynika z promocji
 opisanych w [release.md](release.md), a konkretne wersje podają GitHub Releases.
 
@@ -731,10 +732,16 @@ Wersjonowany indeks (`schema: 1`, `releases`) zawiera tag, flagę prerelease,
 czas publikacji, notatki i listę nazw/URL-i wszystkich assetów, w tym `manifest.json`.
 Nie zastępuje manifestu, hashy ani weryfikacji podpisów instalatora i przypiętego TLS.
 Klient odrzuca drafty, duplikaty tagów, nieznany schemat, błędne daty i niebezpieczne URL-e.
+Manifest musi wystąpić dokładnie raz w metadanych każdego wydania w indeksie.
+Dla domyślnego źródła jedynym dozwolonym adresem manifestu jest
+`https://github.com/itsoltech/canopy/releases/download/<tag>/manifest.json`.
+Ta sama reguła obowiązuje resolver binarek po fallbacku do REST API. Resolver
+sprawdza zgodność wersji manifestu z tagiem; mirror i klienci weryfikują SHA-256 binarki.
 
 Tylko niedostępny lub błędny indeks uruchamia fallback do publicznego REST API.
 Brak kanału lub dokładnego tagu w poprawnym indeksie nie wywołuje API.
-Jawny mirror `baseUrl` zachowuje układ API; może wskazać własne `indexUrl`.
+Jawny mirror `baseUrl` zachowuje układ API; może wskazać własne `indexUrl` i lokalizację
+manifestu. Konfiguracja mirrora jest decyzją o zaufaniu do jego metadanych.
 Cache metadanych trwa 15 min; po jego wygaśnięciu klient wysyła `If-None-Match`,
 a `304` zachowuje poprzednią treść. Równoległe żądania tego samego URL-a są scalane.
 Ręczne sprawdzenia i sygnał wykrycia nowego wydania omijają TTL udanych odpowiedzi,
@@ -984,7 +991,8 @@ instalacje i aktualizacje na kliknięcie, źródła najnowszych wersji i przepis
 ## Granice i dalsze prace
 
 - SHA-256 zabezpiecza integralność względem manifestu dostarczonego z zaufanego
-  HTTPS/gatewaya. Weryfikacja podpisów manifestu (minisign/cosign) pozostaje do dodania.
+  HTTPS/gatewaya. Niezależny podpis manifestu wymaga zaufanego klucza wydawcy
+  i wdrożenia w kolejnych wydaniach; obecny pipeline nie publikuje takiego podpisu.
 - Samoczynna wymiana Windows wymaga osobnego instalatora, który przeżywa zatrzymanie
   procesu i potrafi uruchomić usługę oraz rollback.
 - Rollback obejmuje executable, nie migracje bazy. Release wymagający nieodwracalnej

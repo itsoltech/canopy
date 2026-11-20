@@ -28,10 +28,14 @@ const accounts = async (c: ConfigComputer) => (await c.gateway.api.listConnector
 const account = async (c: ConfigComputer, id: string) => (await accounts(c)).find((a) => a.id === id);
 const json = <T>(value: T) => JSON.stringify(value, (_name, v) => (isBigInt(v) ? v.toString() : v));
 
-async function signIn(c: ConfigComputer, fake: ReturnType<typeof fakeConnector>, name: string) {
-  const saved = (
-    await c.gateway.api.saveConnectorAccount({ connectorType: "notion", name, url: fake.url, authKind: "oauth" })
-  ).account!;
+async function signIn(
+  c: ConfigComputer,
+  fake: ReturnType<typeof fakeConnector>,
+  name: string,
+  connectorType = "notion",
+) {
+  const saved = (await c.gateway.api.saveConnectorAccount({ connectorType, name, url: fake.url, authKind: "oauth" }))
+    .account!;
 
   const binding = crypto.randomUUID().replaceAll("-", "");
 
@@ -79,7 +83,7 @@ describe.skipIf(!dockerAvailable)("shared connectors across separate linked data
   );
 
   beforeAll(async () => {
-    fake = fakeConnector({ accountId: "workspace-fixture" });
+    fake = fakeConnector({ accountId: "workspace-fixture", tokenMetadata: () => ({ sub: "fixture-user" }) });
     repo.skill("skills/shared-source", "shared-source");
     repo.commit();
     a = await configComputer("Laptop A", undefined, sources);
@@ -485,6 +489,67 @@ describe.skipIf(!dockerAvailable)("shared connectors across separate linked data
       ),
     ).toBe(true);
   }, 60_000);
+
+  test("separate Slack users and workspace-only identities preserve each account's grants", async () => {
+    let user = "";
+
+    const provider = fakeConnector({
+      accountId: "same-workspace",
+      userToken: true,
+      tokenMetadata: () => ({ authed_user: user ? { id: user } : {} }),
+    });
+
+    try {
+      for (const scenario of ["workspace", "slack-team", "slack-users"]) {
+        const identified = scenario === "slack-users";
+        const type = scenario === "workspace" ? "notion" : "slack";
+        await a.sharing(b.node, false);
+        await wait(() => !configAllowed(b.links, a.node));
+        const name = `Independent ${scenario}`;
+        user = identified ? "UFIRST" : "";
+        const first = await signIn(a, provider, name, type);
+        const original = await credentials(a, first.id);
+        await a.gateway.api.setConnectorAccess({
+          accountId: first.id,
+          expectedRevision: first.revision,
+          workerIds: [a.gateway.workerId],
+        });
+        user = identified ? "USECOND" : "";
+        const second = await signIn(b, provider, name, type);
+        const other = await credentials(b, second.id);
+        expect(original.oauthSubject !== other.oauthSubject).toBe(identified);
+        expect(original.tokens?.access_token !== other.tokens?.access_token).toBe(true);
+        await a.sharing(b.node, true);
+        await wait(async () => !!(await account(a, second.id)) && !!(await account(b, first.id)));
+        expect((await credentials(a, first.id)).tokens?.access_token === original.tokens?.access_token).toBe(true);
+        expect((await credentials(b, second.id)).tokens?.access_token === other.tokens?.access_token).toBe(true);
+        expect(
+          await a.store.query("SELECT account_id FROM connector_worker_grants WHERE account_id IN ($1,$2)", [
+            first.id,
+            second.id,
+          ]),
+        ).toEqual([{ account_id: first.id }]);
+        expect((await account(a, second.id))?.workerIds).toEqual([]);
+
+        if (scenario === "workspace") {
+          // An alias persisted before subject-aware matching must continue to resolve to its granted account.
+          const alias = crypto.randomUUID();
+          await a.store.query(
+            "INSERT INTO config_aliases(owner_user_id,kind,alias_id,global_id) VALUES($1,'connector',$2,$3)",
+            [a.gateway.userId, alias, first.id],
+          );
+          await rename(b, first.id, "Known shared account");
+          await wait(async () => (await account(a, first.id))?.name === "Known shared account");
+          expect((await credentials(a, alias)).tokens?.access_token === original.tokens?.access_token).toBe(true);
+          expect(
+            await a.store.query("SELECT worker_id FROM connector_worker_grants WHERE account_id=$1", [first.id]),
+          ).toEqual([{ worker_id: a.gateway.workerId }]);
+        }
+      }
+    } finally {
+      await provider.close();
+    }
+  }, 90_000);
 
   test("same endpoint and name with different header credentials remain separate accounts", async () => {
     await a.sharing(b.node, false);

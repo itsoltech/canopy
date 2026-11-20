@@ -109,7 +109,10 @@ test.each(["check", "channel"])("manual %s discovers a release inside the automa
                 published_at: "2026-11-10T09:00:00Z",
                 body: "Release notes",
                 assets: [
-                  { name: "manifest.json", browser_download_url: `https://example.com/${published}/manifest.json` },
+                  {
+                    name: "manifest.json",
+                    browser_download_url: `https://github.com/itsoltech/canopy/releases/download/v${published}/manifest.json`,
+                  },
                 ],
               },
             ],
@@ -147,7 +150,10 @@ test.each(["check", "channel"])("manual %s discovers a release inside the automa
     await updates.check();
     expect((await updates.snapshot()).availableVersion).toBe("1.0.1");
     expect(indexCalls).toBe(2);
-    expect(manifests).toEqual(["https://example.com/1.0.0/manifest.json", "https://example.com/1.0.1/manifest.json"]);
+    expect(manifests).toEqual([
+      "https://github.com/itsoltech/canopy/releases/download/v1.0.0/manifest.json",
+      "https://github.com/itsoltech/canopy/releases/download/v1.0.1/manifest.json",
+    ]);
   } finally {
     updates.close();
   }

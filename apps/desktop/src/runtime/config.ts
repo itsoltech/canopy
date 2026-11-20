@@ -8,6 +8,7 @@ import { ui } from "@canopy/contracts";
 
 export interface Secrets {
   databasePassword: string;
+  runtimeDatabasePassword: string;
   secretsKey: string;
   serviceToken: string;
 }

@@ -10,6 +10,10 @@ export class ConnectorFailure extends Error {}
 export type RegisteredApp = OAuthClientInformationMixed & { issuer?: string; redirect_uri?: string };
 
 export interface Credentials {
+  /** Issuer and principal digest from an authenticated token endpoint, versioned for config sync. */
+  oauthSubject?: string;
+  /** An explicitly configured origin that resolved publicly during sign-in must stay public on callback and refresh. */
+  oauthPublicOrigins?: string[];
   slackTeamId?: string;
   slackMessaging?: { accountId: string; revision: string; clientId: string };
   headers?: Record<string, string>;
@@ -22,6 +26,12 @@ export interface Credentials {
   expiresAt?: number;
   /** Hash of provider-supplied account metadata, captured before the SDK strips token extensions. */
   accountIdentity?: string;
+}
+
+export function oauthIdentityChanged(previous: Credentials | undefined, next: Credentials | undefined): boolean {
+  if (previous?.oauthSubject && next?.oauthSubject) return previous.oauthSubject !== next.oauthSubject;
+
+  return !!previous?.accountIdentity && !!next?.accountIdentity && previous.accountIdentity !== next.accountIdentity;
 }
 
 export interface AccountRow {

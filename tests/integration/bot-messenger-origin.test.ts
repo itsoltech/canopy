@@ -1,12 +1,13 @@
 import { afterEach, beforeEach, describe, expect, test } from "bun:test";
 import { create } from "@bufbuild/protobuf";
-import { Provider, ui } from "@canopy/contracts";
+import { InteractionKind, Provider, ui } from "@canopy/contracts";
 import { dockerAvailable } from "@canopy/db/testing";
 import { Effect } from "effect";
 import { SqlClient } from "effect/sql";
 import { MessengerStore, type OutboundResult } from "../../apps/gateway/src/messengers/store.ts";
 import { conversationFiles } from "../../apps/gateway/src/core/bot-files.ts";
 import type { BotTurn } from "../../apps/gateway/src/bots/types.ts";
+import { failAfterCommentary } from "./support/agent-report.ts";
 import { botsSuite } from "./support/bots.ts";
 import { eventually } from "./support/gateway.ts";
 
@@ -126,14 +127,18 @@ describe.skipIf(!dockerAvailable)("messenger work callback origin", () => {
     return { threadId: started.thread_id, turnId: started.turn_id!, call };
   }
 
-  async function finishTarget(threadId: string, turnId: string) {
-    suite.currentWorker.finish(threadId, turnId, "Login repair is ready");
+  async function expectStatus(turnId: string, status: "completed" | "failed") {
     expect(
       await eventually(
         () => query<{ status: string }>("SELECT status FROM turns WHERE id=$1::uuid", [turnId]),
-        (r) => r[0]?.status === "completed",
+        (r) => r[0]?.status === status,
       ),
-    ).toEqual([{ status: "completed" }]);
+    ).toEqual([{ status }]);
+  }
+
+  async function finishTarget(threadId: string, turnId: string) {
+    suite.currentWorker.finish(threadId, turnId, "Login repair is ready");
+    await expectStatus(turnId, "completed");
   }
 
   test("a delegated thread reports once into the originating external conversation", async () => {
@@ -175,6 +180,21 @@ describe.skipIf(!dockerAvailable)("messenger work callback origin", () => {
       "Replied on Slack · Origin workspace · channel CPRODUCT · thread 100.1",
     ]);
     expect(final.bot?.unreadCount).toBe(1); // Only the uncertain delivery notice needs attention.
+  });
+
+  test("a failure before the first message reaches the originating Slack conversation", async () => {
+    const f = await external();
+    const work = await delegated(f.turn);
+    failAfterCommentary(suite.currentWorker, work.threadId, work.turnId, "Stream disconnected");
+    await expectStatus(work.turnId, "failed");
+    await suite.current.bots.run((s) => s.deliver(suite.gw.userId));
+    expect(
+      await query("SELECT conversation_id, input FROM bot_turns WHERE client_request_id=$1", [
+        `thread:${work.call.id}`,
+      ]),
+    ).toEqual([
+      { conversation_id: f.turn.conversation_id, input: expect.stringContaining("Turn failed: Stream disconnected") },
+    ]);
   });
 
   test("an explicit question reaches the same Slack conversation once while the thread keeps working", async () => {
@@ -221,7 +241,7 @@ describe.skipIf(!dockerAvailable)("messenger work callback origin", () => {
     expect((await read(f.botId)).messages.filter((m) => m.senderId !== "activity")).toEqual([]);
   });
 
-  test("a private steer entering a Slack task cannot redirect a mid-turn question", async () => {
+  test.each(["completed", "failed"])("private and Slack input suppress questions and %s reports", async (status) => {
     const f = await external();
     const work = await delegated(f.turn);
     const { bots } = suite.current;
@@ -258,9 +278,89 @@ describe.skipIf(!dockerAvailable)("messenger work callback origin", () => {
     });
 
     expect(result.isError).toBe(true);
+    const requestId = crypto.randomUUID();
+    suite.currentWorker.ask({
+      threadId: work.threadId,
+      turnId: work.turnId,
+      requestId,
+      kind: InteractionKind.QUESTION,
+      requestJson: '{"question":"Private review?"}',
+    });
+    expect(
+      await eventually(
+        () => query("SELECT id FROM interaction_requests WHERE id=$1", [requestId]),
+        (r) => !!r.length,
+      ),
+    ).toHaveLength(1);
+    await bots.run((s) => s.deliver(userId));
+    expect(await query("SELECT call_id FROM bot_thread_question_deliveries WHERE request_id=$1", [requestId])).toEqual(
+      [],
+    );
     expect(await bots.run((s) => s.claim(userId))).toBeUndefined();
-    await finishTarget(work.threadId, work.turnId);
+
+    if (status === "failed") {
+      failAfterCommentary(suite.currentWorker, work.threadId, work.turnId, "Private review error", "Partial review");
+      await expectStatus(work.turnId, "failed");
+    } else await finishTarget(work.threadId, work.turnId);
+    await bots.run((s) => s.deliver(userId));
+    expect(
+      await query("SELECT id FROM bot_turns WHERE client_request_id IN ($1,$2)", [
+        `thread:${work.call.id}`,
+        `thread:${call.id}`,
+      ]),
+    ).toEqual([]);
+    expect(
+      await query("SELECT id FROM bot_messages WHERE bot_id=$1 AND sender_id=$2 AND kind='event'", [
+        f.botId,
+        work.threadId,
+      ]),
+    ).toEqual([]);
+    expect(
+      await query("SELECT delivered FROM bot_thread_watches WHERE call_id IN ($1,$2)", [work.call.id, call.id]),
+    ).toEqual([{ delivered: true }, { delivered: true }]);
   });
+
+  for (const change of ["notify", "delete", "channel"] as const) {
+    test(`a ${change} route change fences the remaining claimed reply`, async () => {
+      const f = await external();
+      const { userId } = suite.gw;
+      const work = await delegated(f.turn);
+      await finishTarget(work.threadId, work.turnId);
+      await suite.current.bots.run((s) => s.deliver(userId));
+      const followup = (await suite.current.bots.run((s) => s.claim(userId)))!;
+      await suite.current.bots.run((s) => s.finish(followup, "completed", "Reviewed"));
+      const rows = await messenger((s) => s.outbound(userId, f.lease, new Date()));
+      expect(rows).toHaveLength(2);
+      const sent: string[] = [];
+
+      const send = (id: string) =>
+        messenger((s) =>
+          s.sendClaimed(userId, f.lease, id, new Date(), async () => {
+            sent.push(id);
+
+            return { sent: true };
+          }),
+        );
+
+      const first = await send(rows[0]!.id);
+      expect(await first?.completion).toEqual({ sent: true });
+      await messenger((s) => s.settleOutbound(userId, f.lease, rows[0]!.id, { sent: true }, new Date()));
+
+      if (change === "delete") await messenger((s) => s.deleteRoute(userId, f.route.id));
+      else
+        await messenger((s) =>
+          s.saveRoute(userId, {
+            ...f.route,
+            ...(change === "notify" ? { delivery: "notify" } : { channelIds: ["COTHER"] }),
+          }),
+        );
+      expect(await send(rows[1]!.id)).toBeUndefined();
+      expect(sent).toEqual([rows[0]!.id]);
+      expect(await query("SELECT status FROM messenger_outbound WHERE id=$1", [rows[1]!.id])).toEqual([
+        { status: "failed" },
+      ]);
+    });
+  }
 
   test("a bot sending a task to an owner-created thread does not grant the delegation tool", async () => {
     const f = await external();

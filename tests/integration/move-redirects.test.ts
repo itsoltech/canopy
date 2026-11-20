@@ -1,6 +1,7 @@
 import { afterAll, beforeAll, describe, expect, test } from "bun:test";
 import { create } from "@bufbuild/protobuf";
-import { computerLink as link } from "@canopy/contracts";
+import { computerLink as link, ui } from "@canopy/contracts";
+import { qualifyId } from "@canopy/domain/computers";
 import { dockerAvailable, startPostgres, type TestPostgres } from "@canopy/db/testing";
 import { Layer, ManagedRuntime } from "effect";
 import { ComputerStore } from "../../apps/gateway/src/computers/store.ts";
@@ -50,8 +51,8 @@ describe.skipIf(!dockerAvailable)("durable move redirects", () => {
       [bot, owner],
     );
     await store.query(
-      `INSERT INTO computer_agent_calls(owner_user_id,peer_node_id,call_id,direction,actor_id,actor_kind,target_id,target_kind,operation,hops)
-      SELECT id,$3,$4::uuid,'outgoing',$4::uuid,'thread',$5::uuid,'thread','send_message',0
+      `INSERT INTO computer_agent_calls(owner_user_id,peer_node_id,call_id,direction,actor_id,actor_kind,target_id,target_kind,operation,hops,result)
+      SELECT id,$3,$4::uuid,'outgoing',$4::uuid,'thread',$5::uuid,'thread','send',0,'{}'::jsonb
       FROM users WHERE id IN($1::uuid,$2::uuid)`,
       [owner, other, former, local, moved],
     );
@@ -62,57 +63,73 @@ describe.skipIf(!dockerAvailable)("durable move redirects", () => {
     await pg?.stop();
   });
 
-  test("only trusted homes can redirect; local threads and bots stay protected and another owner is isolated", async () => {
-    expect(await redirects.learn("d".repeat(64), [item(moved)])).toEqual([]);
-    const notices = [item(local.toUpperCase()), item(bot, "bot"), item(foreign), item(moved), item("invalid")];
-    const learned = await redirects.learn(former, notices);
-
-    expect(learned.map((value) => value.itemId)).toEqual([foreign, moved]);
-    expect(redirects.home(local)).toBeUndefined();
-    expect(redirects.home(bot)).toBeUndefined();
+  test("a former home confirms only its typed references and the receiving owner's calls", async () => {
+    expect(await redirects.learn(home, [item(moved)])).toEqual([]);
+    const learned = await redirects.learn(former, [item(local), item(bot, "bot"), item(foreign), item(moved)]);
+    expect(learned.map((i) => i.itemId)).toEqual([local, bot, foreign, moved]);
+    expect(redirects.map("thread", local)).toBe(local);
+    expect(redirects.map("bot", bot)).toBe(bot);
+    expect(redirects.map("thread", qualifyId(local, former))).toBe(qualifyId(local, home));
+    expect(redirects.map("thread", qualifyId(bot, former))).toBe(qualifyId(bot, former));
     expect(await redirects.learn(former, learned)).toEqual([]);
-    expect(await redirects.learn(former, [item(moved, "thread", 999_999n)])).toEqual([]);
     expect(await redirects.learn(former, [item(moved, "thread", 1_000_001n, self)])).toEqual([]);
     expect(
-      await store.query("SELECT peer_node_id FROM computer_agent_calls WHERE owner_user_id=$1::uuid", [owner]),
-    ).toEqual([{ peer_node_id: home }]);
+      await store.query("SELECT peer_node_id,detached FROM computer_agent_calls WHERE owner_user_id=$1::uuid", [owner]),
+    ).toEqual([{ peer_node_id: home, detached: true }]);
     expect(
       await store.query("SELECT peer_node_id FROM computer_agent_calls WHERE owner_user_id=$1::uuid", [other]),
     ).toEqual([{ peer_node_id: former }]);
     const foreignRedirects = new Redirects(new ComputerStore(runtime, other, Buffer.alloc(32, 1)), () => self);
     await foreignRedirects.load();
-
     expect(foreignRedirects.size).toBe(0);
   });
 
-  test("UUID case preserves single-notice deduplication and routing after reload", async () => {
+  test("thread and bot links survive reload without changing a worker, secret request or operation ID", async () => {
     const upper = crypto.randomUUID().toUpperCase();
-    const notice = item(upper);
-    expect(await redirects.record(notice)).toBe(true);
-    expect(redirects.home(upper)?.item_id).toBe(upper.toLowerCase());
-    expect(redirects.item(upper)?.itemId).toBe(upper.toLowerCase());
-    expect(await redirects.record(notice)).toBe(false);
-    expect(await redirects.learn(former, [item(upper.toLowerCase())])).toEqual([]);
+    const next = "e".repeat(64);
+    await redirects.learn(former, [item(upper), item(upper, "bot", 1_000_000n, next)]);
     await redirects.load();
+    const before = qualifyId(upper, former);
+    const send = create(ui.SendMessageRequestSchema, { threadId: before, clientRequestId: before });
+    expect(redirects.rewrite(ui.SendMessageRequestSchema, send)).toBe(true);
+    expect(send.threadId).toBe(qualifyId(upper.toLowerCase(), home));
+    expect(send.clientRequestId).toBe(before);
+    expect(redirects.map("bot", before)).toBe(qualifyId(upper.toLowerCase(), next));
+    const turn = crypto.randomUUID();
 
-    expect(redirects.home(upper)?.home_node_id).toBe(home);
-    expect(await redirects.record(notice)).toBe(false);
+    const watch = create(ui.WatchThreadRequestSchema, {
+      threadId: before,
+      beforeTurnId: qualifyId(turn, former),
+      syncCursor: { threadId: before, epoch: "old" },
+    });
+
+    expect(redirects.rewrite(ui.WatchThreadRequestSchema, watch)).toBe(true);
+    expect(watch.beforeTurnId).toBe(qualifyId(turn, home));
+    expect(watch.syncCursor).toBeUndefined();
+    const visual = create(ui.GetVisualRequestSchema, { threadId: before, visualId: qualifyId(turn, next) });
+    redirects.rewrite(ui.GetVisualRequestSchema, visual);
+    expect(visual.visualId).toBe(qualifyId(turn, next));
+    const secret = create(ui.RevokeThreadSecretRequestSchema, { requestId: before });
+    expect(redirects.rewrite(ui.RevokeThreadSecretRequestSchema, secret)).toBe(false);
+    const models = create(ui.ListModelsRequestSchema, { workerId: before });
+    expect(redirects.rewrite(ui.ListModelsRequestSchema, models)).toBe(false);
+    expect(redirects.map("thread", qualifyId(upper, next))).toBe(qualifyId(upper, next));
+    expect(redirects.list()).toEqual([]);
   });
 
-  test("ordered notices for one object keep the newest home across a restart", async () => {
+  test("successive departures require each former home and retain the original link", async () => {
     const next = "e".repeat(64);
-    const notices = [item(moved, "thread", 1_000_002n, next), item(moved, "thread", 1_000_001n, home)];
-    expect((await redirects.learn(former, notices)).map((value) => value.homeNodeId)).toEqual([next]);
-    await runtime.dispose();
-    runtime = ManagedRuntime.make(gatewayServices(Buffer.alloc(32, 1)).pipe(Layer.provideMerge(pg.layer)));
-    redirects = new Redirects(new ComputerStore(runtime, owner, Buffer.alloc(32, 1)), () => self);
-    await redirects.load();
 
-    expect(redirects.home(moved)?.home_node_id).toBe(next);
-    expect(await redirects.learn(former, notices)).toEqual([]);
-    expect(redirects.list().map((value) => value.itemId)).toContain(moved);
-    const tied = [item(moved, "thread", 1_000_002n, home), item(moved, "thread", 1_000_002n, next)];
-    expect((await redirects.learn(former, tied)).map((value) => value.homeNodeId)).toEqual([home, next]);
-    expect(redirects.home(moved)?.home_node_id).toBe(next);
+    const second = create(link.MovedItemSchema, {
+      ...item(moved, "thread", 1_000_002n, next),
+      fromNodeId: home,
+    });
+
+    expect(await redirects.learn(former, [second])).toEqual([]);
+    expect(await redirects.learn(home, [second])).toHaveLength(1);
+    await redirects.load();
+    expect(redirects.map("thread", qualifyId(moved, former))).toBe(qualifyId(moved, next));
+    expect(redirects.map("thread", qualifyId(moved, home))).toBe(qualifyId(moved, next));
+    expect(await redirects.learn(former, [item(moved, "thread", 999_999n)])).toEqual([]);
   });
 });

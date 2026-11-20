@@ -17,6 +17,7 @@ import { SqlClient, type SqlError } from "effect/sql";
 import { queryMethods } from "../diagnostics/query-context.ts";
 import type { TurnRow } from "./store.ts";
 import { DISPATCHED, steerTarget } from "./turn-select.ts";
+import { threadBlobAccess } from "./thread-blob-access.ts";
 
 /**
  * Background tasks of a thread for its agent (docs/execution.md, "Zadania w tle", "Pobudka"):
@@ -92,13 +93,14 @@ const taskOf = (row: TaskRow): BackgroundTask | undefined => {
 };
 
 /** The whole output, or the tail of its blob when it was moved there. */
-const outputOf = (sql: SqlClient.SqlClient, task: BackgroundTask) =>
+const outputOf = (sql: SqlClient.SqlClient, threadId: string, task: BackgroundTask) =>
   Effect.gen(function* () {
     if (task.output || !task.outputBlob?.sha256) return task.output;
 
     const rows = yield* sql<{ tail: Uint8Array | null }>`
       SELECT substring(data FROM greatest(1, octet_length(data) - ${OUTPUT_WINDOW_BYTES - 1})) AS tail
-        FROM blobs WHERE sha256 = ${task.outputBlob.sha256}`;
+        FROM blobs WHERE sha256 = ${task.outputBlob.sha256}
+          AND ${threadBlobAccess(sql, threadId, task.outputBlob.sha256)}`;
 
     const tail = rows[0]?.tail;
 
@@ -144,7 +146,7 @@ const byTask = (sql: SqlClient.SqlClient, threadId: string, taskId: string) => s
    ORDER BY (i.item_id = ${taskId}) DESC, i.first_seq DESC LIMIT 1`;
 
 /** The note's view of its task (for the text). */
-const ended = (sql: SqlClient.SqlClient, row: NoteRow) =>
+const ended = (sql: SqlClient.SqlClient, threadId: string, row: NoteRow) =>
   Effect.gen(function* () {
     const task = taskOf(row);
 
@@ -159,7 +161,7 @@ const ended = (sql: SqlClient.SqlClient, row: NoteRow) =>
       exitCode: task.exitCode,
       startedAt: time(task.startedAt),
       endedAt: time(task.endedAt) ?? new Date(row.ended_at),
-      output: yield* outputOf(sql, task),
+      output: yield* outputOf(sql, threadId, task),
     };
 
     return end;
@@ -242,7 +244,7 @@ const deliver = (
       // turn_started (or tick after recovery), rather than bouncing rejected steers back into this same start.
       if (ready.length === 0 || running?.status === "queued") return { settled: harness.length };
 
-      const tasks = (yield* Effect.forEach(ready, (row) => ended(sql, row))).filter(
+      const tasks = (yield* Effect.forEach(ready, (row) => ended(sql, threadId, row))).filter(
         (t): t is BackgroundTaskEnd => t !== undefined,
       );
 
@@ -322,7 +324,7 @@ export class BackgroundTaskStore extends Context.Service<
             const base = row && view(row);
 
             if (!task || !base) return undefined;
-            const output = yield* outputOf(sql, task);
+            const output = yield* outputOf(sql, threadId, task);
 
             const tail =
               outputLines > 0 ? outputTail(output, outputLines, 64_000) : { text: "", truncated: output.length > 0 };

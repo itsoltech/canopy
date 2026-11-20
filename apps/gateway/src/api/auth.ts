@@ -4,7 +4,7 @@ import { Code, ConnectError, createContextKey, type Interceptor } from "@connect
 import { ui } from "@canopy/contracts";
 import { mobileIdentity, type MobileDevices } from "../core/mobile-devices.ts";
 
-/** Set only after authenticating the private BFF service token, never from a client header. */
+/** Authenticated BFF service token on the process listener, outside the public Network access listener. */
 export const serviceIdentity = createContextKey(false);
 
 /**
@@ -18,6 +18,7 @@ export function serviceTokenAuth(
   token: string,
   mobile?: MobileDevices,
   web?: (webVersion: string) => void,
+  listener: "process" | "network" = "process",
 ): Interceptor {
   if (token.length < 32) throw new Error("UI service token must have at least 32 characters");
   const expected = Buffer.from(token);
@@ -28,15 +29,16 @@ export function serviceTokenAuth(
       const presented = Buffer.from(bearer);
 
       if (presented.length === expected.length && timingSafeEqual(presented, expected)) {
-        request.contextValues.set(serviceIdentity, true);
+        request.contextValues.set(serviceIdentity, listener === "process");
         web?.(request.header.get(WEB_VERSION_HEADER) ?? "");
 
         return next(request);
       }
 
-      const identity = await mobile?.authenticate(bearer);
+      if (!mobile) throw new ConnectError("Invalid UI service token", Code.Unauthenticated);
+      const identity = await mobile.authenticate(bearer);
 
-      if (!identity || !mobile) throw new ConnectError("Invalid or revoked device token", Code.Unauthenticated);
+      if (!identity) throw new ConnectError("Invalid or revoked device token", Code.Unauthenticated);
 
       request.contextValues.set(mobileIdentity, identity);
       const controller = new AbortController();
@@ -45,9 +47,12 @@ export function serviceTokenAuth(
       try {
         // Register before rechecking: a concurrent revoke cannot leave an authenticated stream open.
         if (!(await mobile.authenticate(bearer))) throw new ConnectError("Device revoked", Code.Unauthenticated);
-        const response = await next({ ...request, signal: AbortSignal.any([request.signal, controller.signal]) });
+        const signal = AbortSignal.any([request.signal, controller.signal]);
+        const response = await next({ ...request, signal });
 
         if (!response.stream) {
+          // This RPC revokes its own token and returns only an empty acknowledgement after success.
+          if (request.method.name !== "UnpairMobileDevice") controller.signal.throwIfAborted();
           release();
 
           return response;
@@ -57,7 +62,12 @@ export function serviceTokenAuth(
           ...response,
           message: (async function* () {
             try {
-              yield* response.message;
+              for await (const message of response.message) {
+                controller.signal.throwIfAborted();
+                yield message;
+              }
+
+              controller.signal.throwIfAborted();
             } finally {
               release();
             }

@@ -6,7 +6,10 @@ import type { ClaudePermissions } from "./permissions.ts";
 import { claudeFastMode } from "./service-tier.ts";
 import { prepareClaudeUserConfiguration } from "./user-configuration.ts";
 
-/** One subprocess gets one configuration snapshot; local files are read again for the next process. */
+/**
+ * One subprocess gets one configuration snapshot; local files are read again for the next process.
+ * `passive` is for processes that only read what Claude Code offers (the mention catalog).
+ */
 export async function claudeQueryConfiguration(
   runtime: ClaudeInstanceRuntime,
   cwd: string,
@@ -14,6 +17,7 @@ export async function claudeQueryConfiguration(
   env: Env,
   launch: Omit<Options, "sandbox"> & Pick<ClaudePermissions["options"], "sandbox">,
   serviceTier = "default",
+  { passive = false }: { passive?: boolean } = {},
 ) {
   const user = await prepareClaudeUserConfiguration(runtime, cwd);
 
@@ -27,6 +31,9 @@ export async function claudeQueryConfiguration(
       disableSkillShellExecution: true,
       // Override project settings and restored transcript state on every subprocess.
       fastMode: claudeFastMode(serviceTier),
+      // A listing process never runs a prompt: project, local and imported hooks stay silent. Administrator
+      // (managed) hooks and policy still apply; turns keep the operator's existing decision about the project.
+      ...(passive && { disableAllHooks: true }),
     };
 
     // Hook settings must stay out of argv. With a settings file the SDK requires sandbox settings in that file.

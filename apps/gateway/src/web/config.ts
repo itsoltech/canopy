@@ -2,6 +2,7 @@ import { isIP } from "node:net";
 import { homedir } from "node:os";
 import { join } from "node:path";
 import type { InstallKind } from "@canopy/updater";
+import { webProxyHeaders } from "@canopy/transport/web-ingress";
 
 type Env = Readonly<Record<string, string | undefined>>;
 
@@ -108,12 +109,6 @@ export function webListen(env: Env): WebListen {
   return { host, port };
 }
 
-export function isLoopback(host: string): boolean {
-  const bare = host.replace(/^\[|\]$/g, "").toLowerCase();
-
-  return bare === "localhost" || bare === "::1" || (isIP(bare) === 4 && bare.startsWith("127."));
-}
-
 const wildcard = (host: string) => host === "0.0.0.0" || host === "::" || host === "[::]";
 
 /** Where this machine reaches the web: a wildcard bind is reached through loopback. */
@@ -151,8 +146,7 @@ export function webSettings(env: Env) {
   return {
     GATEWAY_SERVICE_TOKEN: token,
     GATEWAY_URL: env["GATEWAY_URL"] || gatewayUrl(env),
-    PROTOCOL_HEADER: env["PROTOCOL_HEADER"] ?? "x-forwarded-proto",
-    HOST_HEADER: env["HOST_HEADER"] ?? "x-forwarded-host",
+    ...webProxyHeaders(env),
     BODY_SIZE_LIMIT: env["BODY_SIZE_LIMIT"] ?? "50M",
   };
 }

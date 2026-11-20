@@ -6,13 +6,12 @@ import { Code, ConnectError } from "@connectrpc/connect";
 
 import { computerLink as link, NoticeLevel, ThreadEventSchema, ui } from "@canopy/contracts";
 
-import { Schema } from "effect";
-
 import { permissionModeOf } from "../store/index.ts";
 
 import { providerOf } from "../store/instance-config.ts";
 
 import { linkedMessage } from "./remote.ts";
+import { uuid } from "./agents-context.ts";
 
 import {
   applyBot,
@@ -21,9 +20,9 @@ import {
   decideTarget,
   finishThread,
   localHistory,
+  MoveRefused,
   moveRow,
   payloadOf,
-  redirectItem,
   stage,
   threadRowJson,
   type MoveRow,
@@ -32,11 +31,13 @@ import { handoffNote, movesState } from "./moves-context.ts";
 import { movesCore, movesRun } from "./moves-recovery.ts";
 import { movesChanged } from "./moves-source.ts";
 import type { ComputerMoves } from "./moves.ts";
+import { movedAttachment, movedVisual, validateMoveContent } from "./move-validation.ts";
 
 export async function movesInspection(hostContext: ComputerMoves, request: link.MoveInspect) {
   const instances = await hostContext[movesState].store.query<{ key: string }>(
-    `SELECT harness || ':' || id AS key FROM provider_instances WHERE harness || ':' || id = ANY($1::text[])`,
-    [request.providerInstances.slice(0, 200)],
+    `SELECT harness || ':' || id AS key FROM provider_instances WHERE harness || ':' || id = ANY($1::text[])
+     AND (created_by IS NULL OR created_by=$2::uuid)`,
+    [request.providerInstances.slice(0, 200), hostContext[movesState].store.owner],
   );
 
   const projects = await hostContext[movesState].store.query<{ id: string }>(
@@ -66,20 +67,27 @@ export async function movesOutcome(hostContext: ComputerMoves, peer: string, mov
 export async function movesPrepare(hostContext: ComputerMoves, peer: string, prepare: link.MovePrepare) {
   const reply = (error: string, state = "refused") => create(link.MoveReplySchema, { state, error });
 
-  if (
-    !/^[0-9a-f-]{36}$/.test(prepare.moveId) ||
-    !/^[0-9a-f-]{36}$/.test(prepare.itemId) ||
-    !["thread", "bot"].includes(prepare.kind)
-  )
+  if (!uuid(prepare.moveId) || !uuid(prepare.itemId) || !["thread", "bot"].includes(prepare.kind))
     return reply("Invalid move");
+  prepare.moveId = prepare.moveId.toLowerCase();
+  prepare.itemId = prepare.itemId.toLowerCase();
   const known = await moveRow(hostContext[movesState].store, prepare.moveId);
 
   if (known)
-    return known.role === "target" && known.peer_node_id === peer
+    return known.role === "target" &&
+      known.peer_node_id === peer &&
+      known.kind === prepare.kind &&
+      known.item_id === prepare.itemId
       ? reply("", known.state === "aborted" ? "refused" : "prepared")
       : reply("Invalid move");
   const placement: MoveRow["placement"] = {};
   const redo: string[] = [];
+
+  try {
+    validateMoveContent(prepare);
+  } catch (error) {
+    return reply(error instanceof MoveRefused ? error.message : "The move contains invalid records.");
+  }
 
   if (prepare.kind === "thread") {
     const threads = prepare.thread?.threads ?? [];
@@ -166,8 +174,14 @@ export async function movesApply(hostContext: ComputerMoves, moveId: string) {
     let ids = [move.item_id];
 
     try {
-      if (move.kind === "bot") await applyBot(hostContext[movesState].store, move, self);
-      else ids = await movesApplyThread(hostContext, move, self);
+      const prepare = await payloadOf(hostContext[movesState].store, move);
+
+      if (prepare.kind !== move.kind || prepare.itemId !== move.item_id || prepare.moveId !== move.id)
+        throw new MoveRefused("The staged item does not match the move decision.");
+      validateMoveContent(prepare);
+
+      if (move.kind === "bot") await applyBot(hostContext[movesState].store, move, self, prepare.bot!);
+      else ids = await movesApplyThread(hostContext, move, self, prepare.thread!);
     } catch (error) {
       // The decision is final: the staged state stays and the tick tries again.
       await hostContext[movesState].store.query(
@@ -182,9 +196,7 @@ export async function movesApply(hostContext: ComputerMoves, moveId: string) {
       return;
     }
 
-    for (const id of ids)
-      await hostContext[movesState].host.redirects.record(redirectItem(id, move.kind, self, move.peer_node_id));
-    hostContext[movesState].host.broadcast(ids.map((id) => redirectItem(id, move.kind, self, move.peer_node_id)));
+    await hostContext[movesState].host.redirects.committed(move.kind, ids, move.peer_node_id);
     await movesChanged(hostContext, move.kind, move.item_id, ids);
   } finally {
     hostContext[movesState].driving.delete(moveId);
@@ -195,17 +207,13 @@ export async function movesApplyThread(
   hostContext: ComputerMoves,
   move: MoveRow,
   self: { nodeId: string; name: string },
+  prepare: link.ThreadMove,
 ) {
-  const prepare = await payloadOf(hostContext[movesState].store, move);
-  const threads = prepare.thread!.threads;
+  const threads = prepare.threads;
   const ids = threads.map((t) => threadRowJson(t.rowJson).id);
 
-  const moved = new Set([
-    ...ids,
-    ...prepare.thread!.files.map((f) =>
-      String(Schema.decodeUnknownSync(Schema.JsonObject)(JSON.parse(f.attachmentJson))["id"]),
-    ),
-  ]);
+  const family = new Set(ids);
+  const files = new Set(prepare.files.map((f) => movedAttachment(f).id));
 
   const workspace = (
     await hostContext[movesState].store.query<{ project_id: string; root_path: string }>(
@@ -215,11 +223,12 @@ export async function movesApplyThread(
   )[0];
 
   if (!workspace) throw new Error("the chosen workspace was removed");
-  const from = prepare.thread!.sourceName || "the other computer";
+  const from = prepare.sourceName || "the other computer";
 
   for (const thread of threads) {
     const row = threadRowJson(thread.rowJson);
-    const history = localHistory(thread.history!, move.peer_node_id, moved);
+    const visuals = new Set(thread.visualsJson.map((json) => movedVisual(json).visual_id));
+    const history = localHistory(thread.history!, move.peer_node_id, { threads: family, files, visuals });
 
     const request = create(ui.CreateThreadRequestSchema, {
       projectId: workspace.project_id,
@@ -265,8 +274,8 @@ export async function movesApplyThread(
           title: row.title,
         }),
         notice: { eventId: notice.eventId, payload: toJson(ThreadEventSchema, notice) },
-        files: prepare.thread!.files,
-        blobs: prepare.thread!.blobs,
+        files: prepare.files,
+        blobs: prepare.blobs,
       }),
     );
 

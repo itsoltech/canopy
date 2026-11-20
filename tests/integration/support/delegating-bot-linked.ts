@@ -1,6 +1,7 @@
 import { expect } from "bun:test";
-import { qualifyId, splitId } from "@canopy/domain/computers";
+import { nodeRef, qualifyId, splitId } from "@canopy/domain/computers";
 import type { BotModel, BotTurn } from "../../../apps/gateway/src/bots/types.ts";
+import { failAfterCommentary } from "./agent-report.ts";
 import { eventually, failure, type TestGateway } from "./gateway.ts";
 
 export async function checkLinkedDelegatingBot(
@@ -9,6 +10,8 @@ export async function checkLinkedDelegatingBot(
   bot: string,
   workspace: string,
   project: string,
+  source: "routine" | "routine and private steer",
+  status: "completed" | "failed",
   setModel: (model: BotModel) => void,
 ) {
   const aNode = a.core.computers!.hello().nodeId;
@@ -126,46 +129,68 @@ export async function checkLinkedDelegatingBot(
       ),
     ).toContain("No active delegation");
 
-    // A private steer from the same bot entered a routine turn. Neither conversation may receive this text.
-    await a.api.sendBotMessage({
-      botId: bot,
-      text: "Ask the running thread to inspect the logs",
-      clientRequestId: crypto.randomUUID(),
-    });
-    expect(
-      await eventually(
-        async () =>
-          (await b.core.linkedAgents.snapshot(threadId)).steers.some(
-            (s) => s.status === "delivered" && s.turnId === turnId,
-          ),
-        Boolean,
-      ),
-    ).toBe(true);
+    const mixed = source === "routine and private steer";
 
-    const mixed = await b.worker.callTool({
-      ...request,
-      callId: crypto.randomUUID(),
-      args: { text: "Private question" },
-    });
+    if (mixed) {
+      await a.api.sendBotMessage({
+        botId: bot,
+        text: "Ask the running thread to inspect the logs",
+        clientRequestId: crypto.randomUUID(),
+      });
+      expect(
+        await eventually(
+          async () =>
+            (await b.core.linkedAgents.snapshot(threadId)).steers.some(
+              (s) => s.status === "delivered" && s.turnId === turnId,
+            ),
+          Boolean,
+        ),
+      ).toBe(true);
 
-    expect(mixed.isError).toBe(true);
-    expect(mixed.content).toContain("more than one bot conversation");
-    b.worker.finish(threadId, turnId, "The repair is ready.");
+      const blocked = await b.worker.callTool({
+        ...request,
+        callId: crypto.randomUUID(),
+        args: { text: "Private question" },
+      });
+
+      expect(blocked.isError).toBe(true);
+      expect(blocked.content).toContain("more than one bot conversation");
+    }
+
+    const outcome = {
+      completed: "The repair is ready.",
+      failed: "Turn failed: Check interrupted\n\nReading the repair log",
+    };
+
+    if (status === "failed")
+      failAfterCommentary(b.worker, threadId, turnId, "Check interrupted", "Reading the repair log", "");
+    else b.worker.finish(threadId, turnId, outcome.completed);
 
     const finals = await eventually(
       () =>
         a.core.linkedAgents.query<BotTurn>(
-          "SELECT * FROM bot_turns WHERE bot_id=$1::uuid AND client_request_id LIKE 'report:%' AND status='completed'",
-          [bot],
+          "SELECT * FROM bot_turns WHERE bot_id=$1::uuid AND client_request_id LIKE $2 AND status='completed'",
+          [bot, `report:${nodeRef(bNode)}:%:${turnId}`],
         ),
-      (rows) => rows.length === 2,
+      (rows) => rows.length === (mixed ? 2 : 1),
     );
 
-    expect(finals.map((t) => t.routine_id)).toContain(routine.id);
-    expect(finals[0]?.input).toContain("The repair is ready.");
-    expect((await read()).messages.some((m) => m.text.includes(args.text) || m.text.includes("Private question"))).toBe(
-      false,
-    );
+    expect(finals.map((t) => t.routine_id).sort()).toEqual((mixed ? [routine.id, null] : [routine.id]).sort());
+    const message = mixed ? "The turn ended." : outcome[status];
+    const report = `[canopy] thread ${target} on ${b.core.computers!.hello().name} ended: ${status}.\n${message}`;
+
+    for (const turn of finals) {
+      const instructions = turn.routine_id
+        ? `Routine instructions (${routineTitle}):\nCheck the remote project.\n\n`
+        : "";
+
+      expect(turn.input).toBe(instructions + report);
+    }
+
+    const visible = (await read()).messages.map((m) => m.text).join("\n");
+
+    for (const hidden of [args.text, "Private question", "Check interrupted", "Reading the repair log"])
+      expect(visible).not.toContain(hidden);
     expect((await b.worker.callTool({ ...request, callId: crypto.randomUUID() })).isError).toBe(true);
   } finally {
     b.worker.holdTurns = false;

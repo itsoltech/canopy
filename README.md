@@ -184,14 +184,14 @@ More options, standalone binaries, systemd and container networking: [docs/deplo
 
 ### Add a worker
 
-Open **Settings → Workers → Add worker**. The wizard creates a one-time token and provides commands for your gateway, including its reachable URL and certificate fingerprint. Copy the generated command exactly.
+Open **Settings → Workers → Add worker**. The wizard creates a one-time token and provides commands for your gateway, including its reachable URL and certificate fingerprint. Run the generated command, then copy the enrollment token separately and paste it at the hidden terminal prompt.
 
 - **Install script:** Linux x64/arm64 or macOS Apple Silicon. It downloads a verified worker matching the gateway, writes the binary to `~/.local/share/canopy/bin/canopy-worker` and a private config to `~/.config/canopy/worker.json`, and sets up systemd or launchd. A remote Network access enrollment command has this form:
 
   ```sh
   curl -fsSL https://canopy.example.com/install/worker.sh | sh -s -- \
     --gateway https://gateway.example.com:24443 \
-    --token <TOKEN> --fingerprint <SHA256_FINGERPRINT> --name 'Home server'
+    --fingerprint <SHA256_FINGERPRINT> --name 'Home server'
   ```
 
   The script URL must be reachable; with an authenticated proxy, use the manual option or download the script with your proxy credentials first. The installer's explicit config path also applies on macOS.
@@ -199,8 +199,8 @@ Open **Settings → Workers → Add worker**. The wizard creates a one-time toke
 - **Docker:** use the optional worker profile in your release's Compose file:
 
   ```sh
-  docker compose --profile worker run --rm worker enroll --gateway http://gateway:7443 --token <TOKEN>
-  docker compose --profile worker up -d
+  docker compose --profile worker run --rm worker enroll --gateway http://gateway:7443 && \
+    docker compose --profile worker up -d
   ```
 
   Agent CLIs must be installed inside your worker image.

@@ -4,7 +4,7 @@ import { Effect, Schema } from "effect";
 import type { SqlClient } from "effect/sql";
 import { uuid } from "../agent-environment/composition.ts";
 import { connectorType } from "../connectors/catalog.ts";
-import { digest, type AccountRow } from "../connectors/records.ts";
+import { digest, oauthIdentityChanged, type AccountRow } from "../connectors/records.ts";
 import { connectorSealing } from "../connectors/sealing.ts";
 import { sharedCredentials } from "../connectors/credential-values.ts";
 import { connectorColumns } from "./connector-values.ts";
@@ -140,8 +140,7 @@ export function applyConnector(sql: SqlClient.SqlClient, owner: string, key: Buf
       revision=connector_accounts.revision+1,updated_at=now() WHERE connector_accounts.owner_user_id=${owner}::uuid`;
 
     if (changed && columns.type === "slack") {
-      const identityChanged =
-        !!old?.accountIdentity && !!value?.accountIdentity && old.accountIdentity !== value.accountIdentity;
+      const identityChanged = oauthIdentityChanged(old, value);
 
       const unknownIdentity =
         !value?.slackTeamId && (!value?.accountIdentity || value.accountIdentity !== old?.accountIdentity);

@@ -1,8 +1,9 @@
 import { auth, type OAuthClientProvider } from "@modelcontextprotocol/sdk/client/auth.js";
-import { Option, Predicate, Schema } from "effect";
+import { Predicate, Schema } from "effect";
 import type { Credentials } from "./store.ts";
-import { oauthFetch } from "./catalog.ts";
-import { digest } from "./records.ts";
+import type { oauthEgress } from "./oauth-egress.ts";
+import { recordOAuthIdentity } from "./oauth-identity.ts";
+import type { AccountRow } from "./records.ts";
 import { httpMcpFailure, networkMcpFailure } from "../bots/mcp-errors.ts";
 
 /** Mutable only inside a gateway operation; the complete state is persisted encrypted. */
@@ -56,7 +57,8 @@ export function oauthProvider(value: Credentials, state: string, redirect: (url:
 }
 
 export async function authorizeOAuth(
-  url: string,
+  account: Pick<AccountRow, "url" | "connector_type">,
+  egress: ReturnType<typeof oauthEgress>,
   value: Credentials,
   state: string,
   scope?: string,
@@ -69,12 +71,12 @@ export async function authorizeOAuth(
       authorizationUrl = redirect.toString();
     }),
     {
-      serverUrl: url,
+      serverUrl: account.url,
       fetchFn: async (input, init) => {
         const exchanging = code !== undefined && init?.method === "POST";
         const signal = AbortSignal.timeout(20_000);
 
-        const response = await oauthFetch(input, { ...init, signal }).catch((cause: unknown) => {
+        const response = await egress.fetch(input, { ...init, signal }).catch((cause: unknown) => {
           if (exchanging) throw networkMcpFailure(cause, "oauth/token", signal);
           throw cause;
         });
@@ -87,31 +89,23 @@ export async function authorizeOAuth(
           if (!response.ok || failure.serverCode) throw failure;
         }
 
-        if (response.ok && init?.method === "POST") {
+        const issuer = value.discovery?.authorizationServerUrl;
+
+        const tokenUrl = issuer
+          ? new URL(value.discovery?.authorizationServerMetadata?.token_endpoint ?? "/token", issuer)
+          : undefined;
+
+        const target = new URL(input instanceof Request ? input.url : String(input));
+
+        if (issuer && tokenUrl?.href === target.href && response.ok && init?.method === "POST") {
           const metadata = await response
             .clone()
             .json()
             .then(Schema.decodeUnknownSync(Schema.JsonObject))
             .catch(() => undefined);
 
-          if (metadata && Predicate.isString(metadata["access_token"])) {
-            const ids = ["workspace_id", "account_id", "user_id", "team_id", "sub"].flatMap((name) =>
-              Predicate.isString(metadata[name]) && metadata[name] ? [[name, metadata[name]]] : [],
-            );
-
-            const owner = metadata["owner"];
-
-            const accountOwner = Schema.is(Schema.Struct({ user: Schema.Struct({ id: Schema.String }) }));
-
-            if (accountOwner(owner)) ids.push(["owner", owner.user.id]);
-
-            if (Predicate.isString(metadata["team_id"])) value.slackTeamId = metadata["team_id"];
-            const slackTeam = Schema.decodeUnknownOption(Schema.Struct({ id: Schema.String }))(metadata["team"]);
-
-            if (Option.isSome(slackTeam)) value.slackTeamId = slackTeam.value.id;
-
-            if (ids.length) value.accountIdentity = digest(JSON.stringify(ids));
-          }
+          if (metadata && Predicate.isString(metadata["access_token"]))
+            recordOAuthIdentity(account.connector_type, value, metadata, issuer);
         }
 
         return response;
@@ -122,11 +116,12 @@ export async function authorizeOAuth(
   );
 
   if (code !== undefined && result !== "AUTHORIZED") throw new Error("OAuth authorization incomplete");
+  value.oauthPublicOrigins = egress.publicOrigins();
 
   return authorizationUrl;
 }
 
-export async function revokeOAuth(value: Credentials): Promise<boolean> {
+export async function revokeOAuth(value: Credentials, egress: ReturnType<typeof oauthEgress>): Promise<boolean> {
   // RFC 7009 metadata the SDK passes through without declaring it.
   const metadata = value.discovery?.authorizationServerMetadata;
   const revocation = Predicate.hasProperty(metadata, "revocation_endpoint") ? metadata.revocation_endpoint : undefined;
@@ -154,7 +149,7 @@ export async function revokeOAuth(value: Credentials): Promise<boolean> {
     }
 
     try {
-      success = (await oauthFetch(endpoint, { method: "POST", headers, body })).ok && success;
+      success = (await egress.fetch(endpoint, { method: "POST", headers, body })).ok && success;
     } catch {
       success = false;
     }

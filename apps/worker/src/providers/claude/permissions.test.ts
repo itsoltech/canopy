@@ -36,7 +36,7 @@ describe("claudePermissions", () => {
           allowUnsandboxedCommands: false,
         },
       },
-      autoAllow: "all",
+      autoAllow: "sandboxed",
     });
   });
 
@@ -98,7 +98,7 @@ describe("claudePermissions", () => {
       { sandbox: claudePermissions(PermissionMode.FULL_AUTO).options.sandbox },
       { permissionMode: "acceptEdits" },
     ]);
-    expect([session.mode, session.autoAllow]).toEqual([PermissionMode.FULL_AUTO, "all"]);
+    expect([session.mode, session.autoAllow]).toEqual([PermissionMode.FULL_AUTO, "sandboxed"]);
   });
 
   test("Full access explicitly disables an inherited sandbox from every non-sandboxed mode", async () => {
