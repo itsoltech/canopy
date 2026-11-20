@@ -15,6 +15,7 @@ Gateway rezerwuje miejsce na metadane aktywnych klientów przed zapełnieniem bu
 Dostępność według [wydań](release.md).
 Na `dev` widok obejmuje też bieżącą zajętość plików Canopy, oddzielnie dla
 gatewaya/desktopu i workerów, z wyłączeniem plików projektów, worktree i scratch (§3.3.1).
+Worker okresowo sprząta lokalny cache podglądów transkryptu (§3.3.1).
 
 Powiązane: [architektura](architecture.md), [protokół](protocol.md), [UI API](ui-api.md),
 [połączone komputery](linked-computers.md), [ustawienia](settings-map.md),
@@ -395,6 +396,11 @@ metadanymi workerów; do lokalnego skanera trafiają tylko ścieżki natywne gat
 Ścieżka Windows zależna od bieżącego katalogu dysku, np. `C:project`, jest względna.
 Stałe wykluczenia workera i desktopu obejmują scratch,
 zarządzane worktree i robocze workspace botów, również wewnątrz katalogu danych.
+
+Worker sprząta `previews` po odtworzeniu stanu przy starcie i potem co godzinę,
+również offline. Usuwa kopie starsze niż siedem dni, jeśli nie są używane przez
+trwający zapis ani przez niepotwierdzone zdarzenie w journalu. Reguły odtwarzania
+opisuje [transkrypt](transcript.md#obrazy).
 
 Worker przesyła wynik istniejącym uwierzytelnionym raportem WorkerLink, bez
 journala i outboxa. Gateway rekonstruuje zamknięte pola, odrzuca niepoprawne

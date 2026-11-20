@@ -10,7 +10,13 @@ import { worktreeFixture } from "./worktrees.ts";
 /** Two desktop homes, real Git origin reads over gRPC, and isolated provider stand-ins. */
 export async function linkedProjectFixture(
   dir: string,
-  options: { shared?: boolean; cloneProgress?: boolean; worktreeProgress?: boolean; diagnostics?: boolean } = {},
+  options: {
+    shared?: boolean;
+    cloneProgress?: boolean;
+    worktreeProgress?: boolean;
+    diagnostics?: boolean;
+    heartbeatMs?: number;
+  } = {},
 ) {
   mkdirSync(join(dir, "a"));
   mkdirSync(join(dir, "b"));
@@ -38,7 +44,7 @@ export async function linkedProjectFixture(
     linkedComputers({
       store: new ComputerStore(fixture.gw.runtime, fixture.gw.userId, fixture.gw.secretsKey),
       host: "127.0.0.1",
-      heartbeatMs: 100,
+      heartbeatMs: options.heartbeatMs ?? 100,
       ...(options.shared
         ? { core: fixture.gw.core, shared: sharedHost(fixture.gw.core, uiHandlers(fixture.gw.core)) }
         : {

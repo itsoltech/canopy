@@ -20,7 +20,7 @@ import { CodexThreads, type CodexThreadsOptions } from "./threads.ts";
 
 const temp = tempDirs();
 
-function fixture(events: ThreadEvent[], logs: string[], enrich?: CodexThreadsOptions["enrich"]) {
+function fixture(events: ThreadEvent[], logs: string[], recordEvent?: CodexThreadsOptions["recordEvent"]) {
   const root = temp("canopy-codex-turn-boundaries-");
   const profile = resolveProfiles([{ id: "native", kind: "native", providers: ["codex"] }])[0]!.resolved!;
 
@@ -33,7 +33,7 @@ function fixture(events: ThreadEvent[], logs: string[], enrich?: CodexThreadsOpt
     profile: () => profile,
     publish: (event) => events.push(event),
     log: (message) => logs.push(message),
-    ...(enrich && { enrich }),
+    ...(recordEvent && { recordEvent }),
     interact: async () => create(InteractionResponseSchema, { allow: false }),
     callTool: async () => create(AgentToolResultSchema, { isError: true }),
   }).pipe(Layer.provideMerge(Journal.layer(join(root, "journal.db"))));
@@ -178,10 +178,10 @@ test("Codex binds a prompt to its RPC response across native wake-ups and late e
       expect(activeWhileJournaling.every(Boolean)).toBe(true);
     }).pipe(
       Effect.provide(
-        fixture(events, logs, async (init) => {
+        fixture(events, logs, (journal, threadId, init) => {
           if (init.body?.case === "turnFinished") activeWhileJournaling.push(active());
 
-          return init;
+          return journal.append(threadId, init);
         }),
       ),
       Effect.scoped,

@@ -138,12 +138,13 @@ export const pruneThreadReplication = (sql: SqlClient.SqlClient, owner: string) 
     const limit =
       retained === null || retained === undefined ? ceiling : BigInt(retained) < ceiling ? BigInt(retained) : ceiling;
 
+    // Pending rows are unpublished invalidations with no issued journal hash.
+    // Readers behind the new floor rebuild from source; active ranges cap it above.
     const rows = yield* sql<{
       seq: string;
       expired: boolean;
-    }>`SELECT seq::text,(created_at<now()-interval '1 hour' AND content_indexed) AS expired
+    }>`SELECT seq::text,(created_at<now()-interval '1 hour' AND (payload IS NULL OR content_indexed)) AS expired
       FROM thread_replication_journal WHERE thread_id=${thread}::uuid AND epoch=${clock.epoch}::uuid
-      AND payload IS NOT NULL
       AND seq>${clock.floor}::bigint AND seq<=${limit} ORDER BY thread_replication_journal.seq LIMIT ${BATCH}`;
 
     let floor = BigInt(clock.floor);

@@ -44,7 +44,7 @@ export async function readHarnessRecord(open: OpenTurn): Promise<HarnessRecord |
       return await readGrokTurn(harness.transcript, harness.sessionId, harness.offset, open.turnId);
 
     return harness.harness === "codex"
-      ? await readCodexTurn(harness.transcript, harness.offset, harness.providerTurn, open.turnId)
+      ? await readCodexTurn(harness.transcript, harness.offset, harness.providerTurn, open.turnId, harness.sessionId)
       : await readClaudeTurn(harness.transcript, harness.sessionId, harness.offset);
   } catch {
     return undefined;

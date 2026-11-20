@@ -28,7 +28,7 @@ writeFileSync(
 import { appendFileSync } from "node:fs";
 if (process.argv[2] === "--version") { console.log("codex-cli 0.164.0"); process.exit(0); }
 const env = process.env;
-appendFileSync(${JSON.stringify(log)}, JSON.stringify({ pid: process.pid, probe: env.PROFILE_PROBE ?? null, token: env.TEAM_TOKEN ?? null, keys: Object.keys(env).filter((k) => k.startsWith("CANOPY_")).sort() }) + "\\n");
+appendFileSync(${JSON.stringify(log)}, JSON.stringify({ pid: process.pid, probe: env.PROFILE_PROBE ?? null, token: env.TEAM_TOKEN ?? null, hasTeamApiKey: Object.hasOwn(env, "CANOPY_TEAM_API_KEY") }) + "\\n");
 let buffer = "";
 for await (const chunk of process.stdin) {
   buffer += chunk;
@@ -57,7 +57,9 @@ const processes = () =>
         .trim()
         .split("\n")
         .filter(Boolean)
-        .map((l) => JSON.parse(l) as { pid: number; probe: string | null; token: string | null; keys: string[] })
+        .map(
+          (l) => JSON.parse(l) as { pid: number; probe: string | null; token: string | null; hasTeamApiKey: boolean },
+        )
     : [];
 
 const alive = (pid: number) => {
@@ -107,12 +109,12 @@ describe("profile environment on the Codex app-server", () => {
     const report = await host.applyConfig(config([proxy]));
     expect(report.applied).toBe(true);
     const started = processes();
-    expect(started.filter((p) => p.keys.includes("CANOPY_TEAM_API_KEY"))).toHaveLength(1);
+    expect(started.filter((p) => p.hasTeamApiKey)).toHaveLength(1);
   });
 
   test("adding variables replaces only the instance process", async () => {
     const before = processes();
-    const previous = before.find((p) => p.keys.includes("CANOPY_TEAM_API_KEY"))!;
+    const previous = before.find((p) => p.hasTeamApiKey)!;
     await host.applyConfig(
       config([
         {
@@ -133,7 +135,7 @@ describe("profile environment on the Codex app-server", () => {
     expect(started).toHaveLength(before.length + 1);
     expect(alive(previous.pid)).toBe(false);
     const own = started.find((p) => p.probe === "probe-7");
-    expect(own).toMatchObject({ token: "t0k", keys: ["CANOPY_TEAM_API_KEY"] });
+    expect(own).toMatchObject({ token: "t0k", hasTeamApiKey: true });
     expect(alive(own!.pid)).toBe(true);
 
     for (const p of before.filter((p) => p.pid !== previous.pid)) expect(alive(p.pid)).toBe(true);
@@ -141,7 +143,7 @@ describe("profile environment on the Codex app-server", () => {
 
   test("changing only the profile's variables restarts only its process", async () => {
     const before = processes();
-    const unrelated = before.filter((p) => p.probe === null && p.keys.length === 0);
+    const unrelated = before.filter((p) => p.probe === null && !p.hasTeamApiKey);
     await host.applyConfig(config([{ ...proxy, env: [{ name: "PROFILE_PROBE", value: "probe-8" }] }]));
 
     const after = await eventually(

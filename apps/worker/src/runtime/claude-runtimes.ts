@@ -133,7 +133,8 @@ export class ClaudeRuntimes {
       viewImage: (threadId, cwd, path) => this.ctx.ops.viewImage(threadId, cwd, path),
       localMcpServers: (tools, threadId, defaults) =>
         this.ctx.state.agentTools.localMcpServers(tools, threadId, defaults),
-      enrich: (init) => this.ctx.state.previews.enrich(usage.failure(init)),
+      recordEvent: (journal, threadId, init) =>
+        this.ctx.state.previews.record(usage.failure(init), (event) => journal.append(threadId, event)),
       closingReason: () => this.ctx.ops.stopReason(),
     });
 

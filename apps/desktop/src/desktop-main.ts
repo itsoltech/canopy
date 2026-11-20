@@ -62,6 +62,9 @@ if (process.platform === "linux" && !app.commandLine.hasSwitch("password-store")
 
 if (process.env["CANOPY_USER_DATA"]) app.setPath("userData", resolve(process.env["CANOPY_USER_DATA"]));
 
+// Bound Chromium's disposable HTTP cache separately from desktop history and updates.
+app.commandLine.appendSwitch("disk-cache-size", String(64 * 1024 * 1024));
+
 const ownsInstance = app.requestSingleInstanceLock();
 
 if (!ownsInstance) app.quit();

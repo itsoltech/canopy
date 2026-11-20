@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, readFileSync, symlinkSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { create } from "@bufbuild/protobuf";
 import { ItemSchema, ItemStatus, TurnEndSource, TurnOutcome } from "@canopy/contracts";
@@ -7,7 +7,7 @@ import { tempDirs } from "@canopy/testing";
 import type { OpenTurn } from "../journal/index.ts";
 import { readClaudeTurn } from "./claude/transcript.ts";
 import { readCodexTurn, threadItem } from "./codex/transcript.ts";
-import { reconcileEvents, WORKER_RESTARTED } from "./reconcile.ts";
+import { readHarnessRecord, reconcileEvents, WORKER_RESTARTED } from "./reconcile.ts";
 
 const tempDir = tempDirs();
 
@@ -39,7 +39,90 @@ type ItemLike = {
 const summary = (items: readonly ItemLike[]) =>
   items.map((i) => [i.itemId, ItemStatus[i.status ?? 0], i.content?.case]);
 
+function movedCodexRollout() {
+  const home = tempDir("canopy-reconcile-codex-");
+  const sessionId = "a682a9b3-1881-4ec4-b46d-b58bf428ab1f";
+  const name = `rollout-2026-11-01T10-00-00-${sessionId}_30f3b8dd-09c0-4e02-9b9b-34045bb69fde.jsonl`;
+  const active = join(home, "sessions", "2026", "11", "01", name);
+  const archived = join(home, "archived_sessions", name);
+
+  const content = readFileSync(fixture("codex-rollout.jsonl"), "utf8")
+    .replace("c0dex-thread", sessionId)
+    .replace("/work/app", "/work/żółw");
+
+  mkdirSync(join(archived, ".."));
+
+  const open: OpenTurn = {
+    threadId: "canopy-thread",
+    turnId: "canopy-turn",
+    items: [],
+    interruptRequested: false,
+    harness: {
+      harness: "codex",
+      transcript: active,
+      sessionId,
+      providerTurn: "",
+      offset: byteOffset(content, '"turn_id":"turn-401"'),
+    },
+  };
+
+  return { active, archived, content, open };
+}
+
 describe("Codex rollout", () => {
+  test("journal recovery uses the same byte offset after Codex archives and compresses the rollout", async () => {
+    const { active, archived, content, open } = movedCodexRollout();
+    const compressed = Bun.zstdCompressSync(Buffer.from(content));
+    writeFileSync(`${archived}.zst`, compressed);
+
+    const record = await readHarnessRecord(open);
+    expect(record?.end).toMatchObject({ outcome: TurnOutcome.FAILED, providerTurnRef: "turn-401" });
+    expect(existsSync(active)).toBe(false);
+    expect(existsSync(archived)).toBe(false);
+    expect(readFileSync(`${archived}.zst`)).toEqual(Buffer.from(compressed));
+  });
+
+  test("journal recovery prefers the plain rollout if native publication left both archive forms", async () => {
+    const { archived, content, open } = movedCodexRollout();
+    writeFileSync(archived, content);
+    writeFileSync(`${archived}.zst`, "invalid Zstandard data");
+
+    expect((await readHarnessRecord(open))?.end?.providerTurnRef).toBe("turn-401");
+  });
+
+  test("journal recovery follows the exact native name back to sessions after unarchive", async () => {
+    const { active, archived, content, open } = movedCodexRollout();
+
+    mkdirSync(join(active, ".."), { recursive: true });
+    writeFileSync(active, content);
+
+    if (!open.harness) throw new Error("Missing fixture harness");
+
+    expect(
+      (await readHarnessRecord({ ...open, harness: { ...open.harness, transcript: archived } }))?.end,
+    ).toMatchObject({
+      outcome: TurnOutcome.FAILED,
+      providerTurnRef: "turn-401",
+    });
+  });
+
+  test.skipIf(process.platform === "win32")("journal recovery rejects a linked compressed archive", async () => {
+    const { archived, content, open } = movedCodexRollout();
+    const other = join(tempDir("canopy-reconcile-other-codex-"), "other.jsonl.zst");
+    writeFileSync(other, Bun.zstdCompressSync(Buffer.from(content)));
+    symlinkSync(other, `${archived}.zst`);
+
+    expect(await readHarnessRecord(open)).toBeUndefined();
+  });
+
+  test("journal recovery cannot infer completion from an invalid compressed rollout", async () => {
+    const { archived, open } = movedCodexRollout();
+
+    writeFileSync(`${archived}.zst`, "invalid Zstandard data");
+
+    expect(await readHarnessRecord(open)).toBeUndefined();
+  });
+
   test("a turn the harness completed: every item under its live id, the final message, usage, completed", async () => {
     const record = await readCodexTurn(fixture("codex-rollout.jsonl"), 0, "turn-done", "platform-turn");
     expect(record?.end).toMatchObject({

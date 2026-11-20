@@ -95,11 +95,7 @@ export function threadEvents(ctx: CodexThreadContext) {
 
         batches.push(
           yield* Effect.forEach(inits, (init) =>
-            (options.enrich
-              ? Effect.promise(() => options.enrich!(init, entry.platformId))
-              : Effect.succeed(init)
-            ).pipe(
-              Effect.flatMap((enriched) => journal.append(entry.platformId, enriched)),
+            (options.recordEvent?.(journal, entry.platformId, init) ?? journal.append(entry.platformId, init)).pipe(
               Effect.tap((event) =>
                 Effect.sync(() => {
                   if (event.body.case === "itemCompleted") entry.mapper.rememberImages(event.body.value.item);

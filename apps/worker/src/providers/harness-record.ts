@@ -31,7 +31,11 @@ export async function readJsonl(path: string, offset: number): Promise<JsonValue
   const file = Bun.file(path);
 
   if (!(await file.exists())) return [];
-  const text = await file.slice(Math.max(0, offset)).text();
+
+  return completeJsonlRecords(await file.slice(Math.max(0, offset)).text());
+}
+
+export function completeJsonlRecords(text: string): JsonValue[] {
   const lines = text.split("\n");
   lines.pop(); // empty after the last newline, or a line still being written
 

@@ -22,6 +22,7 @@ import { secretEventRedactor } from "../runtime/thread-secrets.ts";
 import { journalStatistics, type JournalStatistics } from "./statistics.ts";
 import { workerDiagnostics } from "../diagnostics/worker.ts";
 import { storageCleanup, type StorageCleanupGrant } from "./storage-cleanup.ts";
+import { pendingPreviewHashes } from "./preview-retention.ts";
 
 export type { StorageCleanupGrant } from "./storage-cleanup.ts";
 
@@ -133,6 +134,8 @@ export class Journal extends Context.Service<
      * Events at or below a persisted cursor are dropped on the way.
      */
     pending(persisted: ReadonlyMap<string, bigint>): Effect.Effect<ReadonlyArray<ThreadEvent>, JournalError>;
+    /** Check durable references and prune synchronously so an append cannot race deletion. */
+    prunePreviews(prune: (pending: ReadonlySet<string>) => void): Effect.Effect<void, JournalError>;
     rememberCommand(result: MessageInitShape<typeof CommandResultSchema>): Effect.Effect<void, JournalError>;
     commandResult(commandId: string): Effect.Effect<CommandResult | undefined, JournalError>;
     /** Forget command results older than maxAgeMs (redelivery happens within minutes, not days). */
@@ -377,6 +380,7 @@ function makeJournal(db: Database, diagnostics: boolean): Journal["Service"] {
     pending: Effect.fn("Journal.pending")((persisted: ReadonlyMap<string, bigint>) =>
       attempt("pending", () => pendingTx(persisted)),
     ),
+    prunePreviews: (prune) => attempt("prunePreviews", () => prune(pendingPreviewHashes(db))),
     openBackgroundTasks: Effect.fn("Journal.openBackgroundTasks")(() =>
       attempt("openBackgroundTasks", () =>
         selectBackground.all().map((r) => ({ threadId: r.thread_id, item: fromBinary(ItemSchema, r.item) })),

@@ -17,7 +17,8 @@ podglądu bieżącej zajętości plików Canopy w Diagnostics oraz własnego HTM
 z odizolowanego renderera offscreen, bezpiecznego zamykania po zniszczeniu głównego okna
 oraz stałego zakresu preferencji urządzenia po restarcie lokalnego gatewaya
 i przeciągania okna przy widocznym przycisku „Cite”, podpowiedzi,
-toaście lub komunikacie o zakończonej aktualizacji.
+toaście lub komunikacie o zakończonej aktualizacji. Dyskowy cache HTTP Electron
+ma budżet 64 MiB, a kontroler ustala origin formularzy osobno dla każdego żądania.
 Tryb Local przypina certyfikat własnego gatewaya, używa osobnej roli PostgreSQL
 i sprawdza pochodzenie żądania otwarcia pliku w aplikacji systemowej.
 Dostępność w nightly/beta/stable określają [zasady wydań](release.md) i GitHub Releases.
@@ -52,11 +53,12 @@ Szczegóły kontraktu i kontroli dostępu opisuje [ui-api.md](ui-api.md#pliki-w�
    worker kończy pracę przed gatewayem, a gateway przed PostgreSQL; bezstanowy web zamyka
    swoje połączenia od razu. Zamknięcie stdin po śmierci Electron uruchamia sprzątanie
    kontrolera. Renderer ładuje zwykły origin HTTP i dokładnie ten sam build web, bez kopii
-   komponentów. adapter-node 6 nie czyta `ORIGIN`, a bez nagłówka proxy przyjmuje `https`,
-   więc build desktopu podmienia w `adapter-node.js` stały origin na `CANOPY_WEB_ORIGIN`
-   i dodaje `setOrigin` (dokładnie `http://127.0.0.1:<port>` okna; kontroler ustawia go po
-   załadowaniu). Dostęp do BFF wymaga sekretu sesji uruchomienia, sprawdzanego przed
-   adapter-node także dla plików statycznych, setupu, API i SSE (szczegóły poniżej).
+   komponentów. Kontroler wyłącza konfigurację `ORIGIN` i nadpisuje
+   `X-Forwarded-Proto` wartością `http` po weryfikacji nagłówka `Host`. adapter-node
+   wyznacza origin osobno dla każdego żądania z tego schematu i sprawdzonego
+   hosta z portem (`http://127.0.0.1:<port>` okna). Dostęp do BFF wymaga sekretu
+   sesji uruchomienia, sprawdzanego przed adapter-node także dla plików statycznych,
+   setupu, API i SSE (szczegóły poniżej).
    Kontrola CSRF formularzy SvelteKit zostaje bez zmian. Jedyny wyjątek bez sekretu
    sesji i dla obcego origin to GET dokładnej ścieżki `/api/connectors/oauth/callback`;
    Host nadal musi się zgadzać, a obecne nagłówki Fetch Metadata muszą wskazywać
@@ -1342,6 +1344,12 @@ Aktualizacja aplikacji nie służy do automatycznej zmiany głównej wersji Post
 Wycofanie wadliwego wydania wymaga nowszego wydania naprawczego tego samego kanału;
 aplikacja nie wykonuje rollbacku bazy. Jawny downgrade desktopu nie sprawdza zgodności
 danych i nie daje gwarancji uruchomienia. Wcześniej wykonaj backup.
+
+## Dyskowy cache HTTP
+
+Desktop ustawia przed startem Electron budżet 64 MiB dla dyskowego cache HTTP
+Chromium. Zwalnianiem starszych wpisów zajmuje się Chromium podczas pracy.
+Prywatna kopia historii, dane profilu i pobrane aktualizacje mają osobne zasady.
 
 ## Prywatna kopia historii
 

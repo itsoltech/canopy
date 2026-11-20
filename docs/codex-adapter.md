@@ -2,9 +2,11 @@
 
 Aktualizacja (2026-11-19): karty zgód pokazują faktyczną treść żądania (sekcja „Treść zgód”), a podglądy obrazów natywnych i wygenerowanych dotyczą tylko ukończonych elementów w zakresie wątku.
 
-Status (2026-11-19): runtime wątków, lokalny MCP z narzędziem wiadomości do delegującego bota, poziomy szybkości z katalogu konta,
+Status (2026-11-20): runtime wątków, lokalny MCP z narzędziem wiadomości do delegującego bota, poziomy szybkości z katalogu konta,
 bezstratny zapis obrazów wyników trybu kodu oraz per-modelowe liczniki tokenów i kosztów USD tur
 oraz szacunki równowartości API OpenAI z trwałym cache cennika są zaimplementowane.
+Rekoncyliacja odczytuje rollout przeniesiony przez Codexa między `sessions`
+i `archived_sessions`, również w formacie `.jsonl.zst`.
 Codex ponawia przerwane żądania proxy w bieżącej turze. Na Windows worker uruchamia
 app-server także przez skrypt npm z katalogu ze spacjami. Dostępność wydań według [release.md](release.md).
 
@@ -52,6 +54,12 @@ Gotowe:
 - **Steer:** `turn/steer` z `expectedTurnId` (Codex odmawia, gdy aktywna jest inna tura albo żadna) i `clientUserMessageId = input_id`. Codex emituje item `userMessage` z `clientId`, mapowany na `UserMessage.client_id`, i kontynuuje turę z tym wejściem (wejście przyjęte w trakcie odpowiedzi też trafia do tej tury). Tura już zakończona: `STEER_NOT_RUNNING`.
 - **Wznowienie:** wątek nieznany bieżącemu procesowi jest wznawiany przez `thread/resume` z `ThreadSpec.provider_thread_id` (źródłem prawdy jest gateway).
 - **Rekoncyliacja z rolloutu:** każda tura zapisuje w dzienniku workera ścieżkę rolloutu i id tury Codexa (`turn_harness`). Gdy worker przegapi koniec tury (restart, awaria app-servera), czyta rollout (`transcript.ts`): `event_msg item_completed` przez ten sam mapper co na żywo, koniec z `task_complete` (z `error`: błąd harnessu, kod z `codex_error_info`) albo `turn_aborted`. Gdy app-server kończy się sam, jego tury są rozliczane od razu (bez zapisanego końca: `failed`, `process_exit`), a następna komenda startuje nowy app-server. Przerwanie bez `turn/interrupt` od platformy jest systemowe (Codex przerywa turę także, gdy zamknie mu się wejście). Szczegóły: [durability.md](durability.md#35-rekoncyliacja-z-transkryptu-harnessu).
+- **Przeniesiony rollout.** Dla kanonicznej nazwy z identyfikatorem sesji z dziennika worker szuka tej samej nazwy
+  w katalogu zapisanym przez Codexa, a następnie w drugim katalogu tego samego domu. W każdym katalogu
+  pierwszeństwo ma `.jsonl` przed `.jsonl.zst`. Odczyt nie podąża za dowiązaniami wewnątrz domu.
+  Dekoder Zstandard stosuje zapisany offset do bajtów po dekompresji i przyjmuje do 64 MiB danych od tego offsetu.
+  Nieczytelny plik rozlicza się zgodnie z regułą braku zapisu. Testy `reconcile.test.ts` sprawdzają offset,
+  przeniesienie w obie strony, jednoczesną obecność obu wersji, uszkodzony plik i dowiązanie.
 - **Wątek bez rolloutu:** Codex zapisuje rollout wątku dopiero z pierwszą turą, więc wątek utworzony tuż przed restartem workera i bez żadnej tury nie da się wznowić (`thread/resume` → `no rollout found for thread id …`). Worker zaczyna wtedy nowy wątek (`thread/start` z tymi samymi parametrami i narzędziami szyny), zapisuje go pod tym samym `thread_id` platformy i zgłasza `thread_ready` z `replaces_provider_thread_id` = stary id; gateway podmienia `provider_thread_id` (dozwolone tylko przed pierwszą turą). Nic nie ginie: stary wątek nie miał historii. Fork bez tury (z historią źródła) wznawia się normalnie. Potwierdzone na żywo (`threads.live.test.ts`, 2026-11-01): pusty wątek i pusty fork po restarcie, potem trzeci proces wznawia nowy wątek.
 - **Przerwanie tury spoza procesu:** `InterruptTurn` dla tury, której ten proces workera nie prowadzi, kończy się `TURN_NOT_RUNNING` (sprawdza `WorkerHost`, wspólnie dla Codexa i Claude).
 - **Wyścig końca z przerwaniem:** adapter sprawdza również `finishedTurns`, zanim wyśle `turn/interrupt`; ponowne Stop tej samej tury nie wysyła drugiego RPC. Otrzymane `turn/completed` oznacza koniec przed odczytem rolloutu i zapisem końcowych zdarzeń. Steer nadal używa wyłącznie `turn/steer`, także dla notatek zadań w tle. Odmowa RPC usuwa znacznik przerwania, aby można było ponowić Stop.
@@ -71,6 +79,23 @@ Gotowe:
 - **Żądania serwera:** zgody na komendy i zmiany plików, uprawnienia, pytania i elicitation idą do brokera interakcji, a `item/tool/call` (narzędzia szyny) do gateway. Inne żądania kończą się błędem JSON-RPC.
 
 **Fork od tury** ([threads.md](threads.md#fork-od-tury-fork-from-here)): `thread/fork { threadId: źródło, lastTurnId: provider_turn_ref tury }` (codex-cli 0.164, schemat v2 `ThreadForkParams.lastTurnId`: tury po niej są pominięte; nie z tury w toku, a tury nieudane i przerwane są dozwolone). `thread/rollback` nie jest potrzebny. Bez `after_provider_turn_ref` przy podanej turze worker odmawia (`FORK_POINT_UNKNOWN`) zamiast forkować całą historię. Na żywo: `fork-from-turn.live.test.ts` (trzy tury, fork od drugiej pamięta drugą jako ostatnią).
+
+## Kompresja historii na dysku
+
+**Odłożone:** automatyczna kompresja plików sesji przez Canopy. Eksperymentalne
+`rollout/compress` w Codexie 0.171.0 uruchamia w tle przegląd obu katalogów,
+`sessions` i `archived_sessions`, w całym `CODEX_HOME`. RPC potwierdza zlecenie
+przed końcem operacji. Zapisem `.jsonl.zst` dla plików starszych niż siedem dni
+i koordynacją z natywnymi writerami zarządza Codex. Włączenie wymaga zgodności
+wszystkich czytników, także importu, naprawy i cofania kopii, trwałego usuwania oraz
+starszych CLI po zmianie wersji. Obsługa tego formatu w workerze obejmuje odczyt
+podczas rekoncyliacji. [RPC Codexa](https://github.com/openai/codex/blob/rust-v0.171.0/codex-rs/app-server/src/request_processors/rollout.rs),
+[implementacja kompresji](https://github.com/openai/codex/blob/rust-v0.171.0/codex-rs/rollout/src/compression.rs).
+
+`thread_history_1.sqlite` przechowuje stronicowaną historię Codexa. W wersji 0.171.0
+mechanizm odzyskiwania wolnych stron dostawcy pomija tę bazę. Canopy nie otwiera jej
+do konserwacji ani nie wykonuje na niej `VACUUM`.
+[Konfiguracja baz Codexa](https://github.com/openai/codex/blob/rust-v0.171.0/codex-rs/state/src/sqlite.rs).
 
 ## Mapowanie zdarzeń
 

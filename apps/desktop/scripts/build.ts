@@ -58,33 +58,15 @@ cpSync(join(root, "apps/web/build"), join(runtime, "web"), { recursive: true });
 const adapterConfig = join(runtime, "web/adapter-node.js");
 const adapterSource = readFileSync(adapterConfig, "utf8");
 const directoryDeclaration = "export const dir = dirname(fileURLToPath(import.meta.url));";
+const webEntry = join(runtime, "web/handler.js");
 
 if (!adapterSource.includes(directoryDeclaration))
   throw new Error("adapter-node layout changed; review the desktop asset path override");
 
-// adapter-node 6 has no runtime ORIGIN: without a proxy header it treats every request as https,
-// so SvelteKit's CSRF check rejects the window's http://127.0.0.1 forms. The runtime knows the exact origin.
-const originDeclaration = "export const origin = undefined;";
-
-if (!adapterSource.includes(originDeclaration))
-  throw new Error("adapter-node layout changed; review the desktop origin override");
-
-// The controller serves the web in its own process (src/runtime/web.ts) and sets the window's origin after loading:
-// handler.js reads `origin` on every request, so a live binding with a setter replaces the constant.
 writeFileSync(
   adapterConfig,
-  adapterSource
-    .replace(directoryDeclaration, 'export const dir = process.env["CANOPY_WEB_ASSETS_DIR"];')
-    .replace(
-      originDeclaration,
-      'export let origin = process.env["CANOPY_WEB_ORIGIN"];\nexport function setOrigin(value) { origin = value; }',
-    ),
+  adapterSource.replace(directoryDeclaration, 'export const dir = process.env["CANOPY_WEB_ASSETS_DIR"];'),
 );
-
-// One module for the controller to import: adapter-node's request handler (no listener of its own) and the setter.
-const webEntry = join(runtime, "web/desktop-entry.js");
-
-writeFileSync(webEntry, 'export { handler } from "./handler.js";\nexport { setOrigin } from "./adapter-node.js";\n');
 
 copyFileSync(process.execPath, join(runtime, `bun${suffix}`));
 

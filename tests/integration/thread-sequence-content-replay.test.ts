@@ -3,6 +3,7 @@ import { create } from "@bufbuild/protobuf";
 import { ItemDeltaField, ItemStatus, Provider, ui } from "@canopy/contracts";
 import { dockerAvailable } from "@canopy/db/testing";
 import { applyThreadUpdate } from "@canopy/domain/thread-snapshot";
+import { loadThreadItem } from "@canopy/domain/thread-content";
 import { Effect } from "effect";
 import { SqlClient } from "effect/sql";
 import { ComputerStore } from "../../apps/gateway/src/computers/store.ts";
@@ -170,4 +171,55 @@ describe.skipIf(!dockerAvailable)("sequence replay of repeated lazy entities", (
       ),
     ).toEqual([{ entity_key: "item:latest", sha256: hashes[1]!, seq: "30" }]);
   });
+
+  test("a large diff window and its sealed replay share the complete content", async () => {
+    const id = await thread();
+    const base = await window(id);
+
+    const changes = Array.from({ length: 16 }, (_, file) => ({
+      path: `apps/gateway/src/store/reader-${file}.ts`,
+      kind: "update",
+      diff: Array.from(
+        { length: 90 },
+        (_, line) => `+export const read${line} = () => readTimeline(${file}, ${line});`,
+      ).join("\n"),
+    }));
+
+    gateway.worker.emit(id, "", {
+      case: "itemCompleted",
+      value: {
+        item: {
+          itemId: "patch",
+          status: ItemStatus.COMPLETED,
+          content: { case: "fileChange", value: { changes } },
+        },
+      },
+    });
+
+    await eventually(
+      () => store.query("SELECT 1 FROM thread_items WHERE thread_id=$1::uuid AND item_id='patch'", [id]),
+      (rows) => rows.length === 1,
+    );
+    const checkpoint = await window(id);
+    const replay = await resume(base);
+    const preview = checkpoint.items.find((item) => item.item?.itemId === "patch")!;
+    const reference = preview.contentRef!;
+
+    expect(preview.item?.content).toMatchObject({
+      case: "fileChange",
+      value: { changes: changes.map(({ path }) => ({ path })) },
+    });
+    expect(replay.items.find((item) => item.item?.itemId === "patch")?.contentRef).toEqual(reference);
+    expect(
+      await store.query<{ sha256: string }>("SELECT sha256 FROM thread_replication_content WHERE thread_id=$1", [id]),
+    ).toEqual([{ sha256: reference.sha256 }]);
+
+    const full = await loadThreadItem(
+      reference,
+      (offset, length) => gateway.api.getThreadSyncContent({ threadId: id, sha256: reference.sha256, offset, length }),
+      new AbortController().signal,
+    );
+
+    expect(full.content).toMatchObject({ case: "fileChange", value: { changes } });
+  }, 15_000);
 });

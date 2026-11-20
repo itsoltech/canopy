@@ -1,16 +1,19 @@
 import { expect, test } from "bun:test";
 import { createHash } from "node:crypto";
-import { existsSync, readFileSync, utimesSync } from "node:fs";
+import { existsSync, readFileSync, utimesSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
+import { create } from "@bufbuild/protobuf";
 import { tempDirs } from "@canopy/testing";
-import { ItemStatus } from "@canopy/contracts";
-import { ManagedRuntime } from "effect";
+import { EventAckSchema, ItemStatus, WelcomeSchema } from "@canopy/contracts";
+import { Effect, ManagedRuntime } from "effect";
 import type { SessionUpdate } from "@canopy/grok-acp";
 import { PreviewStore, inlineImages } from "./index.ts";
 import { GrokEventMapper } from "../providers/grok/mapping.ts";
-import { Journal } from "../journal/index.ts";
+import { Journal, type ThreadEventInit } from "../journal/index.ts";
+import { applyAck, resendPending, type GatewayLink } from "../gateway-link/index.ts";
 import { WorkerHost } from "../runtime/host.ts";
-import { writeFileSync } from "node:fs";
+import { HostState } from "../runtime/host-state.ts";
+import { WorkerPreviewCleanup } from "../runtime/preview-cleanup.ts";
 
 const temporary = tempDirs();
 const png = "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=";
@@ -187,50 +190,145 @@ test("Grok malformed MCP image content leaves the completed tool usable and exis
     expect(inlineImages(JSON.stringify(raw), "capture")).toEqual([{ mimeType: "image/png", base64: png }]);
 });
 
-test("startup retains old blobs referenced by unacked or held journal events and prunes them after ACK", async () => {
-  const root = temporary("canopy-preview-pending-retention-");
-  const store = new PreviewStore(root);
-  const ref = store.put(Buffer.from(png, "base64"), "image/png");
-  const orphan = store.put(Buffer.from("unreferenced"), "image/png");
+test("cleanup retains a reused expired preview before append, then retains its journal ref until ACK", async () => {
+  const dataDir = temporary("canopy-preview-inflight-retention-");
+  const runtime = ManagedRuntime.make(Journal.layer(join(dataDir, "journal.db")));
+  const state = new HostState({ runtime, dataDir, clientVersion: "test" });
+  const cleanup = new WorkerPreviewCleanup(state);
+  const bytes = Buffer.from(png, "base64");
+  const ref = state.previews.put(bytes, "image/png");
+  const orphan = state.previews.put(Buffer.from("unreferenced"), "image/png");
+  const path = join(dataDir, "previews", ref.sha256);
+  const orphanPath = join(dataDir, "previews", orphan.sha256);
   const old = new Date(Date.now() - 8 * 24 * 3600_000);
-  const path = join(root, "previews", ref.sha256!);
-  const orphanPath = join(root, "previews", orphan.sha256!);
   utimesSync(path, old, old);
   utimesSync(orphanPath, old, old);
-  const runtime = ManagedRuntime.make(Journal.layer(join(root, "journal.db")));
 
-  try {
-    const event = await runtime.runPromise(
-      Journal.use((journal) =>
-        journal.append("thread", {
+  const beforeAppend = Promise.withResolvers<ThreadEventInit>();
+  const resume = Promise.withResolvers<void>();
+
+  const recorded = runtime.runPromise(
+    Journal.use((journal) =>
+      state.previews.record(
+        {
           body: {
             case: "itemCompleted",
-            value: {
-              item: {
-                itemId: "cell",
-                content: { case: "toolCall", value: { name: "exec", images: [ref] } },
-              },
-            },
+            value: { item: { itemId: "image", content: { case: "toolCall", value: { name: "capture" } } } },
           },
+          rawJson: JSON.stringify({ result: { content: [image] } }),
+        },
+        (enriched) =>
+          Effect.gen(function* () {
+            beforeAppend.resolve(enriched);
+            yield* Effect.promise(() => resume.promise);
+
+            return yield* journal.append("thread", enriched);
+          }),
+      ),
+    ),
+  );
+
+  void recorded.catch(beforeAppend.reject);
+
+  try {
+    expect(await beforeAppend.promise).toMatchObject({
+      body: { value: { item: { content: { value: { images: [ref] } } } } },
+    });
+    expect(await runtime.runPromise(Journal.use((journal) => journal.cursors()))).toEqual([]);
+    await cleanup.start();
+    expect(readFileSync(path)).toEqual(bytes);
+    expect(existsSync(orphanPath)).toBe(false);
+
+    resume.resolve();
+    const event = await recorded;
+    await cleanup.sweep();
+    expect(readFileSync(path)).toEqual(bytes);
+    await runtime.runPromise(applyAck(create(EventAckSchema, { threadId: event.threadId, ackSeq: event.journalSeq })));
+    await cleanup.sweep();
+    expect(existsSync(path)).toBe(false);
+  } finally {
+    resume.resolve();
+    await recorded.catch(() => {});
+    await cleanup.stop();
+    await runtime.dispose();
+  }
+});
+
+test("held refs survive restart and replay until every event referencing the hash is acknowledged", async () => {
+  const root = temporary("canopy-preview-pending-retention-");
+  const store = new PreviewStore(root);
+  const bytes = Buffer.from(png, "base64");
+  const ref = store.put(bytes, "image/png");
+  const old = new Date(Date.now() - 8 * 24 * 3600_000);
+  const file = join(root, "previews", ref.sha256);
+  utimesSync(file, old, old);
+  const journalPath = join(root, "journal.db");
+  const runtime = ManagedRuntime.make(Journal.layer(journalPath));
+
+  const init: ThreadEventInit = {
+    body: {
+      case: "itemCompleted",
+      value: { item: { itemId: "cell", content: { case: "toolCall", value: { name: "exec", images: [ref] } } } },
+    },
+  };
+
+  const first = await runtime
+    .runPromise(
+      Journal.use((journal) =>
+        Effect.gen(function* () {
+          const event = yield* journal.append("first", init);
+          yield* journal.append("second", init);
+          yield* journal.holdPending();
+
+          return event;
         }),
       ),
-    );
+    )
+    .finally(() => runtime.dispose());
 
-    await runtime.runPromise(Journal.use((journal) => journal.holdPending()));
-    const host = new WorkerHost({ runtime, dataDir: root, clientVersion: "test" });
+  const reopened = ManagedRuntime.make(Journal.layer(journalPath));
+  const host = new WorkerHost({ runtime: reopened, dataDir: root, clientVersion: "test" });
+  const sent: Parameters<GatewayLink["send"]>[0][] = [];
 
-    try {
-      expect(existsSync(path)).toBe(true);
-      await host.recover();
-      expect(existsSync(path)).toBe(true);
-      expect(existsSync(orphanPath)).toBe(false);
-      await runtime.runPromise(Journal.use((journal) => journal.ack(event.threadId, event.journalSeq)));
-      await host.recover();
-      expect(existsSync(path)).toBe(false);
-    } finally {
-      await host.close();
-    }
+  const link: GatewayLink = {
+    welcome: create(WelcomeSchema, { isolatedEventIngest: true }),
+    messages: { async *[Symbol.asyncIterator]() {} },
+    closed: Promise.resolve({}),
+    close: () => {},
+    send: (payload) => sent.push(payload),
+  };
+
+  try {
+    expect((await reopened.runPromise(Journal.use((journal) => journal.heldThreads()))).sort()).toEqual([
+      "first",
+      "second",
+    ]);
+    await host.recover();
+    expect(readFileSync(file)).toEqual(bytes);
+    await reopened.runPromise(applyAck(create(EventAckSchema, { threadId: first.threadId, ackSeq: first.journalSeq })));
+    await host.recover();
+    expect(readFileSync(file)).toEqual(bytes);
+    expect(await reopened.runPromise(resendPending(link, (event) => host.sendPreviews(link, event)))).toBe(1);
+    expect(sent).toEqual([
+      {
+        case: "blobChunk",
+        value: { threadId: "second", sha256: ref.sha256, offset: 0n, data: bytes, last: true, mimeType: "image/png" },
+      },
+      { case: "threadEvent", value: expect.objectContaining({ threadId: "second", journalSeq: 1n }) },
+    ]);
+
+    const welcome = create(WelcomeSchema, {
+      isolatedEventIngest: true,
+      persisted: [{ threadId: "second", lastSeq: 1n }],
+    });
+
+    expect(
+      await reopened.runPromise(resendPending({ ...link, welcome }, (event) => host.sendPreviews(link, event))),
+    ).toBe(0);
+    await host.recover();
+    expect(existsSync(file)).toBe(false);
   } finally {
-    await runtime.dispose();
+    await host.close();
+    await reopened.dispose();
   }
 });

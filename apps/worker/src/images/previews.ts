@@ -5,24 +5,23 @@ import {
   fsyncSync,
   mkdirSync,
   openSync,
-  readdirSync,
   readFileSync,
   renameSync,
-  statSync,
-  unlinkSync,
   writeFileSync,
 } from "node:fs";
 import { join } from "node:path";
-import { create, type MessageInitShape } from "@bufbuild/protobuf";
-import { BlobRefSchema, ItemSchema, ItemStatus, type ThreadEvent } from "@canopy/contracts";
+import { create } from "@bufbuild/protobuf";
+import { BlobRefSchema, ItemSchema, ItemStatus, type BlobRef, type ThreadEvent } from "@canopy/contracts";
 import { INLINE_IMAGE_TYPES, previewRefs, type JsonValue, type JsonObject } from "@canopy/domain";
+import { Effect } from "effect";
 import { decodeJsonObject, isString, jsonObject } from "../providers/json.ts";
 import type { GatewayLink } from "../gateway-link/index.ts";
 import sharp from "sharp";
-import type { ThreadEventInit } from "../journal/index.ts";
+import type { JournalError, ThreadEventInit } from "../journal/index.ts";
 import { forTranscript } from "./normalize.ts";
 import { readScopedImage, type ViewImageScope } from "./view-image.ts";
 import { codexOutputImages } from "./codex-output.ts";
+import { expiredPreviews, removeExpiredPreviews } from "./preview-retention.ts";
 
 /**
  * What the agent looked at, for the transcript (docs/transcript.md, "Obrazy"): every image a model saw becomes a
@@ -37,7 +36,9 @@ import { codexOutputImages } from "./codex-output.ts";
  * - Nothing here fails an event: without a preview the item is journaled as it came.
  */
 
-type BlobRefInit = MessageInitShape<typeof BlobRefSchema>;
+type BlobRefInit = Pick<BlobRef, "sha256" | "sizeBytes" | "mimeType">;
+
+type PutPreview = (data: Uint8Array, mimeType: string) => BlobRefInit;
 
 const CHUNK_BYTES = 256 * 1024;
 
@@ -58,11 +59,9 @@ function previewScope(source: string, scope: CodexPreviewScope | undefined): Vie
   }
 }
 
-/** Previews older than this are removed at start (the gateway has them once their events are acked). */
-const KEEP_MS = 7 * 24 * 3600_000;
-
 export class PreviewStore {
   readonly #dir: string;
+  readonly #recording = new Set<Set<string>>();
   /** Previews already sent on a link (the same image shown twice goes once). */
   readonly #sent = new WeakMap<object, Set<string>>();
 
@@ -71,38 +70,55 @@ export class PreviewStore {
     mkdirSync(this.#dir, { recursive: true, mode: 0o700 });
   }
 
-  /** Removes old previews only after pending journal refs have been loaded. */
-  prune(pending: readonly ThreadEvent[], now = Date.now()): number {
-    let removed = 0;
+  /** Lists candidates asynchronously, then checks journal and in-flight refs in the same turn as deletion. */
+  async prune(
+    withPending: (prune: (pending: ReadonlySet<string>) => void) => Promise<void>,
+    signal: AbortSignal,
+  ): Promise<void> {
+    const now = Date.now();
+    const candidates = await expiredPreviews(this.#dir, now, signal);
 
-    const retained = new Set(
-      pending.flatMap((event) => {
-        const body = event.body;
-        const item = body.case === "itemStarted" || body.case === "itemCompleted" ? body.value.item : undefined;
+    if (signal.aborted || candidates.length === 0) return;
 
-        return item ? previewRefs(item).map((ref) => ref.sha256) : [];
-      }),
-    );
+    await withPending((pending) => {
+      if (signal.aborted) return;
+      const retained = new Set(pending);
 
-    for (const name of readdirSync(this.#dir)) {
-      if (retained.has(name)) continue;
-      const path = join(this.#dir, name);
+      for (const recording of this.#recording) for (const hash of recording) retained.add(hash);
 
-      try {
-        if (now - statSync(path).mtimeMs > KEEP_MS) {
-          unlinkSync(path);
-          removed++;
-        }
-      } catch {
-        // gone meanwhile
-      }
-    }
-
-    return removed;
+      removeExpiredPreviews(this.#dir, candidates, retained, now);
+    });
   }
 
-  put(data: Uint8Array, mimeType: string): BlobRefInit {
+  /** Keeps reused and freshly written files alive until the local append has committed. */
+  record(
+    init: ThreadEventInit,
+    append: (event: ThreadEventInit) => Effect.Effect<ThreadEvent, JournalError>,
+    codexScope?: CodexPreviewScope,
+  ): Effect.Effect<ThreadEvent, JournalError> {
+    const body = init.body;
+
+    if ((body?.case !== "itemStarted" && body?.case !== "itemCompleted") || !body.value.item) return append(init);
+    const item = body.value.item;
+
+    return Effect.acquireUseRelease(
+      Effect.sync(() => {
+        const hashes = new Set(previewRefs(create(ItemSchema, item)).map((ref) => ref.sha256));
+        this.#recording.add(hashes);
+
+        return hashes;
+      }),
+      (hashes) =>
+        Effect.promise(() => this.#enrich(init, codexScope, (data, mimeType) => this.put(data, mimeType, hashes))).pipe(
+          Effect.flatMap(append),
+        ),
+      (hashes) => Effect.sync(() => void this.#recording.delete(hashes)),
+    );
+  }
+
+  put(data: Uint8Array, mimeType: string, recording?: Set<string>): BlobRefInit {
     const sha256 = createHash("sha256").update(data).digest("hex");
+    recording?.add(sha256);
     const path = join(this.#dir, sha256);
 
     if (!existsSync(path)) {
@@ -179,10 +195,14 @@ export class PreviewStore {
    * Platform tools provide their own authorized image bytes. Only native Codex image events can use a scoped path.
    */
   async enrich(init: ThreadEventInit, codexScope?: CodexPreviewScope): Promise<ThreadEventInit> {
+    return this.#enrich(init, codexScope, (data, mimeType) => this.put(data, mimeType));
+  }
+
+  async #enrich(init: ThreadEventInit, codexScope: CodexPreviewScope | undefined, put: PutPreview) {
     const body = init.body;
 
     if (body?.case !== "itemCompleted" || !body.value.item) return init;
-    const codex = await codexOutputImages(init, (data, mimeType) => this.put(data, mimeType));
+    const codex = await codexOutputImages(init, put);
 
     if (codex) return codex;
     const kind = body.value.item.content?.case;
@@ -199,9 +219,9 @@ export class PreviewStore {
         const scope = previewScope(image.source, codexScope);
 
         const preview = inline
-          ? await this.#inline(inline)
+          ? await this.#inline(inline, put)
           : scope && image.path
-            ? await this.#file(image.path, scope)
+            ? await this.#file(image.path, scope, put)
             : undefined;
 
         if (!preview) return init;
@@ -223,7 +243,7 @@ export class PreviewStore {
         if (inline.length === 0) return init;
 
         for (const image of inline.slice(0, 8)) {
-          const preview = await this.#inline(image).catch(() => undefined);
+          const preview = await this.#inline(image, put).catch(() => undefined);
 
           if (preview) item.content.value.images.push(create(BlobRefSchema, preview.ref));
         }
@@ -239,6 +259,7 @@ export class PreviewStore {
 
   async #inline(
     image: InlineImage,
+    put: PutPreview,
   ): Promise<{ ref: BlobRefInit; width?: number; height?: number; originalWidth?: number; originalHeight?: number }> {
     const data = Buffer.from(image.base64, "base64");
 
@@ -246,19 +267,19 @@ export class PreviewStore {
       // Exactly what the model saw.
       const { width, height } = await sharp(data).metadata();
 
-      return { ref: this.put(new Uint8Array(data), image.mimeType), ...(width && height && { width, height }) };
+      return { ref: put(new Uint8Array(data), image.mimeType), ...(width && height && { width, height }) };
     }
 
     const preview = await forTranscript(new Uint8Array(data));
 
-    return { ref: this.put(preview.data, preview.mimeType), width: preview.width, height: preview.height };
+    return { ref: put(preview.data, preview.mimeType), width: preview.width, height: preview.height };
   }
 
-  async #file(path: string, scope: ViewImageScope) {
+  async #file(path: string, scope: ViewImageScope, put: PutPreview) {
     const preview = await forTranscript(readScopedImage(path, scope).data);
 
     return {
-      ref: this.put(preview.data, preview.mimeType),
+      ref: put(preview.data, preview.mimeType),
       width: preview.width,
       height: preview.height,
       originalWidth: preview.originalWidth,

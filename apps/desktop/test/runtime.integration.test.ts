@@ -56,10 +56,10 @@ const secrets = (): Secrets => ({
 });
 
 // The window's own form action passes SvelteKit's CSRF origin check (a validation failure, not a 403); a foreign origin does not.
-async function formAction(origin: string, from = origin) {
+async function formAction(origin: string, from = origin, proxyHeaders: Record<string, string> = {}) {
   const response = await webFetch(`${origin}/?/createThread`, {
     method: "POST",
-    headers: { origin: from, accept: "application/json", "x-sveltekit-action": "true" },
+    headers: { ...proxyHeaders, origin: from, accept: "application/json", "x-sveltekit-action": "true" },
     body: new URLSearchParams({ projectId: "" }),
   });
 
@@ -163,6 +163,7 @@ test.skipIf(!existsSync(paths.web))(
       const overview = await webFetch(`${desktop.origin}/api/overview`);
       expect(overview.ok).toBe(true);
       await overview.arrayBuffer();
+      expect((await formAction(desktop.origin)).body).toContain("Choose a project");
       expect(existsSync(join(directory, "postgres"))).toBe(false);
 
       // The setup shell and power events outlive reconfiguration. No local client exists during or after this failure.
@@ -322,6 +323,15 @@ test.skipIf(!existsSync(paths.gateway))(
       expect(await remote.drainWorker(true)).toBe(true);
       await remote.drainWorker(false);
       expect((await formAction(remote.origin)).body).toContain("Choose a project");
+
+      const proxyHeaders = {
+        "x-forwarded-proto": "https",
+        "x-forwarded-host": "proxy.invalid",
+        "x-forwarded-port": "443",
+      };
+
+      expect((await formAction(remote.origin, remote.origin, proxyHeaders)).body).toContain("Choose a project");
+      expect((await formAction(remote.origin, local.origin)).status).toBe(403);
       await until(async () => (await api.getOverview({})).workers.filter((worker) => worker.online).length === 2);
       expect((await api.getOverview({})).workers.filter((worker) => worker.online)).toHaveLength(2);
       const enrollment = await api.getWorkerSetup({});

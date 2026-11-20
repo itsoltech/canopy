@@ -197,6 +197,7 @@ describe.skipIf(!dockerAvailable)("schema on PostgreSQL 17", () => {
       "182_verified_computer_redirects",
       "183_legacy_inline_previews",
       "184_legacy_preview_grants",
+      "185_transcript_structured_raw_refs",
     ]);
   }, 60_000);
 

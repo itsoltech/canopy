@@ -20,7 +20,8 @@ import { inputRecords, probeRecords } from "../fixtures/instance-probe.ts";
 const tempDir = tempDirs();
 
 /** Provider settings of whoever runs the tests (a developer shell, an agent session). */
-const CALLER_PROVIDER_ENV = /^(ANTHROPIC_|CLAUDE|CODEX_|OPENAI_|XAI_|GROK_|CLIPROXY_API_KEY$)/;
+const CALLER_PROVIDER_ENV =
+  /^(ANTHROPIC_|CLAUDE|CODEX_|OPENAI_|XAI_|GROK_|CLIPROXY_API_KEY$|CANOPY_(?:NATIVE|GROK)_API_KEY$)/;
 
 /**
  * The in-process worker hands its own environment to native harnesses. Remove the caller's provider variables for the

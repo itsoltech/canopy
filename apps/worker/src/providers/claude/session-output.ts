@@ -14,10 +14,10 @@ export function sessionOutput(ctx: ClaudeThreadContext) {
     recording++;
 
     try {
-      const enriched = options.enrich ? await options.enrich(init) : init;
+      const event = options.recordEvent?.(journal, threadId, init) ?? journal.append(threadId, init);
 
       return await Effect.runPromise(
-        journal.append(threadId, enriched).pipe(Effect.tap((event) => Effect.sync(() => options.publish(event)))),
+        event.pipe(Effect.tap((recorded) => Effect.sync(() => options.publish(recorded)))),
       );
     } finally {
       recording--;

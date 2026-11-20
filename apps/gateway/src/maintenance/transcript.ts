@@ -134,9 +134,15 @@ const scanTranscript = (sql: SqlClient.SqlClient, threadId: string, initialSeq: 
         const result = compactEventRaw(row.kind, row.payload, row.raw_text);
 
         if (!result) continue;
-        compacted += (yield* sql`UPDATE thread_events SET raw=thread_event_compact_raw(raw,${result.refs}::jsonb),
-            raw_payload_refs=${result.refs}::jsonb
-            WHERE thread_id=${threadId}::uuid AND seq=${row.seq} AND raw_payload_refs IS NULL`).length;
+        compacted += (yield* sql`WITH candidate AS MATERIALIZED (
+            SELECT thread_id,seq,raw,payload FROM thread_events
+            WHERE thread_id=${threadId}::uuid AND seq=${row.seq} AND raw_payload_refs IS NULL FOR UPDATE
+          ), applied AS (
+            SELECT c.thread_id,c.seq,a.raw,a.refs FROM candidate c
+            CROSS JOIN LATERAL thread_event_apply_raw_refs(c.raw,c.payload,${result.refs}::jsonb) a
+          )
+          UPDATE thread_events e SET raw=a.raw,raw_payload_refs=a.refs FROM applied a
+          WHERE e.thread_id=a.thread_id AND e.seq=a.seq AND a.refs IS NOT NULL RETURNING e.seq`).length;
       }
     }
 

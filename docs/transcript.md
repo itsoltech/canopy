@@ -4,11 +4,14 @@ Status (2026-11-20): log zdarzeń, projekcja itemów i bloby obrazów są zaimpl
 w tym zachowanie dostępu do starszych podglądów wszystkich użytkowników podczas aktualizacji,
 bezstratne wyniesienie obrazów wyników trybu kodu Codexa z `raw_json`
 oraz trwały, oddzielny od rozliczeń pomiar bieżącego kontekstu głównej sesji.
+Cache podglądów workera jest sprzątany okresowo, z ochroną plików potrzebnych do odtworzenia zdarzeń.
 Po wznowieniu procesu Claude zachowuje ostatni pełny pomiar do następnego raportu z limitem.
 Jawne raporty zużycia jednej tury zasilają też niezależne od retencji agregaty
 tokenów i zgłoszonych kosztów ([usage.md](usage.md)).
 Wznowienie zakresu zachowuje wiele rewizji tego samego dużego itemu, a wskaźnik
-bieżącej treści wybiera najnowszą z nich. Web/desktop zachowuje kotwicę przewijania
+bieżącej treści wybiera najnowszą z nich. Kompakcja rozpoznaje też dokładne
+duplikaty strukturalnego JSON-a dostawcy i współdzieli pełną treść między
+oknem historii i replayem dużego itemu. Web/desktop zachowuje kotwicę przewijania
 podczas oczekiwania na pierwszy snapshot.
 Plany retencji oznaczono osobno poniżej; dostępność wydań opisuje [release.md](release.md).
 
@@ -194,10 +197,13 @@ obraz inline. Kilka wyników tej samej komórki zachowuje pełny dotychczasowy t
 i zebrane referencje obrazów. Oryginalny rollout harnessu pozostaje bez zmian;
 optymalizacja obejmuje nowe zdarzenia, bez przepisywania zapisanej historii.
 
-Pliki blobów starsze niż siedem dni są sprzątane przy starcie dopiero po odczycie
-journalu. Referencje zdarzeń czekających na ACK, także ze wstrzymaną dostawą,
-chronią pliki przed usunięciem. Po ACK gateway posiada blob związany z wątkiem;
-lokalna kopia może zostać usunięta przy następnym sprzątaniu.
+Worker sprząta pliki cache starsze niż siedem dni po odtworzeniu stanu przy starcie
+i potem co godzinę, również bez połączenia z gatewayem. Nowe i ponownie używane
+pliki są chronione w trakcie wzbogacania zdarzenia i aż do zakończenia zapisu
+w journalu. Przed usunięciem worker sprawdza wszystkie niepotwierdzone zdarzenia,
+także ze wstrzymaną dostawą. Ta ochrona działa bez limitu wieku i po restarcie.
+Potwierdzenie zdarzenia lub zapisany kursor z `Welcome` zwalnia jego referencje;
+plik współdzielony pozostaje na dysku, dopóki potrzebuje go inne zdarzenie.
 
 ### Wynik komendy właściciela
 
@@ -247,13 +253,21 @@ i niesparowane surogaty przez U+FFFD. Nie usuwa spacji Unicode ani zakończeń l
 - `thread_events` nie są usuwane ani zmieniane sekwencyjnie: zachowują payloady,
   granice forków, notice, kwarantannę i kursory ACK.
 - Po godzinie od zapisu, gdy wątek nie ma aktywnej tury ani otwartego itemu,
-  maintenance skanuje najwyżej 256 zdarzeń pod blokadą wątku. Dla znanych
-  `item_started`, `item_delta` i `item_completed` zastępuje tylko długie teksty,
-  które są dokładną kopią tekstu w tym samym payloadzie, wartością `null` i ścieżką
-  w `raw_payload_refs`. `thread_event_raw(raw,payload,raw_payload_refs)` odtwarza
-  pełny JSON dostawcy; metadane, identyfikatory i nieznane pola pozostają dostępne.
+  maintenance skanuje najwyżej 256 zdarzeń z blokadą doradczą chroniącą przed
+  purge. Ingest i maintenance mogą zastąpić dokładne kopie długich ciągów
+  (w tym diffów) wartością `null` i ścieżką w `raw_payload_refs`. Od migracji
+  `0185` ścieżka może też wskazywać ciąg, który koduje obiekt lub tablicę JSON
+  w zmapowanym wyniku lub wejściu narzędzia albo w ogólnym itemie dostawcy.
+  PostgreSQL sprawdza dokładną reprezentację JSONB przed zapisem referencji,
+  w tym precyzję i skalę liczb. `thread_event_raw(raw,payload,raw_payload_refs)`
+  odtwarza pełny JSON dostawcy z zachowaniem metadanych i nieznanych pól.
 - Zdarzenia z obrazami, notice i bez mapowania zachowują pełny `raw`. Wiersze po
   purge nie są kompaktowane; kursor `thread_transcript_compaction` omija już
   sprawdzone stare wiersze i nie pozwala, by nieredukowalny obraz blokował późniejszy
   tekst.
+- Gdy ograniczony podgląd itemu przekracza budżet rekordu replikacji, publikacja
+  skraca podgląd i używa istniejącego hasha pełnej treści w tym samym wątku.
+  Okno i utrwalony rekord wskazują te same bajty, które klient pobiera
+  przez `GetThreadSyncContent`. Historyczne rekordy i ich hashe podlegają
+  dotychczasowej retencji replikacji.
 - Bloby można przenosić do magazynu obiektów (`storage_url`) bez zmiany odwołań.
