@@ -4,7 +4,7 @@ import { Match } from "effect";
 import { ItemSchema, ItemStatus, ui } from "@canopy/contracts";
 import { FeedBuilder, feedScrollKey, resolveFeedScrollKey, type FeedInput } from "../src/lib/features/threads/feed.ts";
 import type { TimelineEntry } from "../src/lib/features/threads/thread-types.ts";
-import { prefetchWorkHistory, recoverFoldRows } from "../src/lib/features/threads/work-history.ts";
+import { hasWorkHistoryGap, recoverFoldRows } from "../src/lib/features/threads/work-history.ts";
 import { buildTimeline } from "../src/lib/features/threads/timeline.ts";
 
 const turns = ["earlier", "latest"].map((id, ordinal) =>
@@ -93,7 +93,7 @@ test("rewound work gaps stay hidden until Show and paging restores the same segm
   const shown = builder.build({ ...partial, openRewinds });
   const gap = shown.findIndex((row) => row.key === "work-gap:earlier");
   expect(gap).toBeGreaterThan(-1);
-  expect(prefetchWorkHistory(shown, gap, gap + 1)).toBe(true);
+  expect(hasWorkHistoryGap(shown, gap, gap + 1)).toBe(true);
 
   const complete = { ...input(entries, false), turns: rewound, openRewinds };
   const restored = builder.build(complete);
@@ -137,13 +137,13 @@ test("paging older steers keeps the reading anchor on its message when segment s
   }
 });
 
-test("overscan requests missing turns and a partial segment before they reach the viewport", () => {
+test("a viewport past the partial segment contains no work gap", () => {
   const rows = new FeedBuilder().build(input(entries.slice(-1), true));
   const gap = rows.findIndex((row) => row.key === "work-gap:latest");
-  expect(prefetchWorkHistory(rows, gap, gap + 1)).toBe(true);
-  expect(prefetchWorkHistory(rows, gap + 1, rows.length)).toBe(false);
+  expect(hasWorkHistoryGap(rows, gap, gap + 1)).toBe(true);
+  expect(hasWorkHistoryGap(rows, gap + 1, rows.length)).toBe(false);
   const complete = new FeedBuilder().build(input(entries, false));
-  expect(prefetchWorkHistory(complete, 0, complete.length)).toBe(false);
+  expect(hasWorkHistoryGap(complete, 0, complete.length)).toBe(false);
 });
 
 test("streaming retains the completed prefix without treating the live tail as another partial turn", () => {
@@ -170,7 +170,7 @@ test("a fresh running turn and newer empty completed turns do not prefetch all o
   const rows = new FeedBuilder().build({ ...state, turns: [turns[0]!, ...newer], working: true });
   expect(rows.filter((row) => row.kind === "work-gap").map((row) => row.turn.id)).toEqual(["earlier"]);
   const start = rows.findIndex((row) => row.key === "input:starting");
-  expect(prefetchWorkHistory(rows, start, rows.length)).toBe(false);
+  expect(hasWorkHistoryGap(rows, start, rows.length)).toBe(false);
 });
 
 test("a derivation mismatch exposes every source row instead of trusting an empty fold", () => {

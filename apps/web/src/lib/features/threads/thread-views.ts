@@ -34,6 +34,7 @@ export const THREAD_VIEW_LIMITS = { count: 12, bytes: 12 * 1024 * 1024 };
 export const threadViews = new RetainedThreads<ThreadMemory>({
   ...THREAD_VIEW_LIMITS,
   idle: (task) => whenIdle(task, 1000),
+  cachedBytes: (snapshot) => threadCache.encodedSize(snapshot),
   settled: (snapshot, bytes) => threadCache.set(snapshot, bytes),
 });
 

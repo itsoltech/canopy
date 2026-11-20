@@ -1,9 +1,10 @@
 import { fromBinary, toBinary, type DescMessage, type MessageShape } from "@bufbuild/protobuf";
+import { bots, ui } from "@canopy/contracts";
+import { threadCacheTail } from "@canopy/domain/thread-cache-tail";
 
 let generation = "";
 let lifetime = 0;
-const pending = new Map<string, { timer: ReturnType<typeof setTimeout>; write: () => void }>();
-const lastWrite = new Map<string, number>();
+const pending = new Map<string, { timer: ReturnType<typeof setTimeout>; next?: () => void }>();
 
 /** No bridge means memory-only browser use. Never persist conversation content in browser storage. */
 export async function loadHistory<D extends DescMessage>(schema: D, key: string): Promise<MessageShape<D> | undefined> {
@@ -21,27 +22,34 @@ export async function loadHistory<D extends DescMessage>(schema: D, key: string)
   }
 }
 
-export function saveHistory<D extends DescMessage>(schema: D, key: string, value: MessageShape<D>) {
+export function saveThreadHistory(snapshot: ui.ThreadSnapshot) {
+  if (snapshot.thread && !snapshot.thread.deletedAt)
+    saveHistory(`thread_${snapshot.thread.id}`, () => toBinary(ui.ThreadSnapshotSchema, threadCacheTail(snapshot)));
+}
+
+export function saveBotHistory(view: bots.BotCachedView) {
+  saveHistory(view.key, () => toBinary(bots.BotCachedViewSchema, view));
+}
+
+function saveHistory(key: string, encode: () => Uint8Array) {
   if (!generation || !window.canopyDesktop?.history) return;
   const heldGeneration = generation;
 
   const write = () => {
-    pending.delete(key);
-    lastWrite.set(key, Date.now());
-    void window.canopyDesktop?.history?.write(heldGeneration, key, toBinary(schema, value)).catch(() => {});
+    const timer = setTimeout(() => {
+      const next = pending.get(key)?.next;
+      pending.delete(key);
+      next?.();
+    }, 2000);
+
+    pending.set(key, { timer });
+    void window.canopyDesktop?.history?.write(heldGeneration, key, encode()).catch(() => {});
   };
 
-  const delay = Math.max(0, 2000 - (Date.now() - (lastWrite.get(key) ?? 0)));
   const held = pending.get(key);
 
-  if (held) {
-    held.write = write;
-
-    return;
-  }
-
-  if (!delay) write();
-  else pending.set(key, { write, timer: setTimeout(() => pending.get(key)?.write(), delay) });
+  if (held) held.next = write;
+  else write();
 }
 
 export function removeHistory(key: string) {
@@ -62,6 +70,5 @@ export function clearHistory() {
 
   for (const entry of pending.values()) clearTimeout(entry.timer);
   pending.clear();
-  lastWrite.clear();
   void window.canopyDesktop?.history?.clear().catch(() => {});
 }

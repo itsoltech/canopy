@@ -17,6 +17,26 @@ export function applyThreadBatch(base: ui.ThreadSnapshot, batch: ui.ThreadSyncBa
   }
 
   validateThreadBatch(batch, cursor.appliedSeq);
+  const last = batch.records.at(-1)?.value;
+
+  const next =
+    last?.case === "thread" && batch.records.every((record) => !record.removed && record.value.case === "thread")
+      ? { ...base, thread: last.value }
+      : applyBatchRecords(base, batch.records);
+
+  return {
+    ...next,
+    syncCursor: create(ui.ThreadSyncCursorSchema, {
+      threadId: batch.threadId,
+      epoch: batch.epoch,
+      appliedSeq: batch.appliedSeq,
+    }),
+    cursor: `range:${batch.epoch}:${batch.appliedSeq}`,
+    lastSeq: next.thread?.lastSeq ?? base.lastSeq,
+  };
+}
+
+function applyBatchRecords(base: ui.ThreadSnapshot, records: ui.ThreadSyncRecord[]) {
   let next = { ...base };
   const turns = new Map(base.turns.map((v) => [v.id, v]));
   const items = new Map(base.items.map((v) => [v.item?.itemId ?? "", v]));
@@ -25,7 +45,7 @@ export function applyThreadBatch(base: ui.ThreadSnapshot, batch: ui.ThreadSyncBa
   const steers = new Map(base.steers.map((v) => [v.id, v]));
   const deliveries = new Map(base.busDeliveries.map((v) => [v.callId, v]));
 
-  for (const record of batch.records) {
+  for (const record of records) {
     const separator = record.key.indexOf(":");
     const kind = record.key.slice(0, separator).replace(/^legacy_/, "");
     const id = record.key.slice(separator + 1);
@@ -126,13 +146,6 @@ export function applyThreadBatch(base: ui.ThreadSnapshot, batch: ui.ThreadSyncBa
     interactions: [...interactions.values()],
     steers: [...steers.values()],
     busDeliveries: [...deliveries.values()],
-    syncCursor: create(ui.ThreadSyncCursorSchema, {
-      threadId: batch.threadId,
-      epoch: batch.epoch,
-      appliedSeq: batch.appliedSeq,
-    }),
-    cursor: `range:${batch.epoch}:${batch.appliedSeq}`,
-    lastSeq: next.thread?.lastSeq ?? base.lastSeq,
   };
 
   return loadedThreadDelta(base, next);

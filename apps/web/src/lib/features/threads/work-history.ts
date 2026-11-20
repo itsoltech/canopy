@@ -34,8 +34,8 @@ export function workHistoryGaps(
   );
 }
 
-/** Fetch before the reader reaches missing work, using the virtualizer's mounted overscan window. */
-export function prefetchWorkHistory(rows: readonly FeedRow[], start: number, end: number): boolean {
+/** Does the row range the reader reached contain any unloaded work? */
+export function hasWorkHistoryGap(rows: readonly FeedRow[], start: number, end: number): boolean {
   return rows.slice(start, end).some((row) => row.kind === "work-gap");
 }
 

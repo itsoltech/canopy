@@ -4,7 +4,7 @@ import { ItemStatus, ui } from "@canopy/contracts";
 import { webDrafts } from "#lib/features/drafts/local.svelte.ts";
 import { limitsOf } from "#lib/features/attachments/draft.svelte.ts";
 import { useSettings } from "#lib/features/settings/settings-state.svelte.ts";
-import { itemContents } from "./components/items/lazy-content.ts";
+import { itemContents } from "./item-content-cache.ts";
 import type { ThreadState } from "./thread-state.svelte.ts";
 
 interface Source {
@@ -24,7 +24,7 @@ export function replyDirectory(source: () => Source) {
       (entry) => entry.turnId === turnId && !entry.item.parentItemId && entry.item.content.case === "agentMessage",
     );
 
-    const item = entry && (itemContents.get(JSON.stringify([id, entry.contentRef?.sha256])) ?? entry.item);
+    const item = entry && (itemContents.get(id, entry.contentRef) ?? entry.item);
 
     return item?.status === ItemStatus.COMPLETED &&
       item.content.case === "agentMessage" &&

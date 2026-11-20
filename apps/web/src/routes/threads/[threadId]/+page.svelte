@@ -31,7 +31,6 @@
   import { provideBackgroundOutput } from "#lib/features/threads/background-output.ts";
   import Composer from "#lib/features/threads/components/Composer.svelte";
   import { ComposerFold } from "#lib/features/threads/components/composer-fold.svelte.ts";
-  import type { ReaderScroll } from "#lib/shared/ui/virtual/scroll.ts";
   import FeedRowView from "#lib/features/threads/components/FeedRowView.svelte";
   import PendingDecisions from "#lib/features/threads/components/interactions/PendingDecisions.svelte";
   import ThreadSecretsPanel from "#lib/features/threads/components/secrets/ThreadSecretsPanel.svelte";
@@ -53,7 +52,7 @@
   import { retainTree, treeOf } from "#lib/features/threads/thread-tree.ts";
   import { createQuoteReveal } from "#lib/features/threads/quote-reveal.svelte.ts";
   import type { FoldReader } from "#lib/features/threads/work-folds.svelte.ts";
-  import { syncWorkFolds, workHistoryPrefetch } from "#lib/features/threads/thread-feed-effects.svelte.ts";
+  import { syncWorkFolds, workHistoryReader } from "#lib/features/threads/thread-feed-effects.svelte.ts";
   import { threadScrollMemory } from "#lib/features/threads/thread-scroll-memory.svelte.ts";
   import { feedEstimate, feedGroup, feedInserted, type FeedRow } from "#lib/features/threads/feed.ts";
   import TurnRail from "#lib/features/threads/rail/TurnRail.svelte";
@@ -213,12 +212,6 @@
     return () => current.dispose();
   });
 
-  function readerScroll(scroll: ReaderScroll) {
-    composer.scroll(scroll);
-
-    if (scroll.up && feedViewport.start < 4) void view.history.load();
-  }
-
   $effect(() => {
     const blocking = view.pending.some(
       (q) => q.kind === InteractionKind.QUESTION && q.status === "pending" && !q.asynchronous,
@@ -249,6 +242,7 @@
   );
 
   const working = $derived(!away && view.running && thread?.status !== "waiting_input");
+  const forkSourceId = $derived(thread?.forkSourceThreadId);
 
   // The feed: inherited history (folded), the thread's own timeline, the working indicator, steers on
   // their way (queued inputs are in the queue panel above the composer). One builder per thread keeps unchanged rows identical, so a delta re-renders one row.
@@ -290,7 +284,7 @@
       results: view.turnResults,
       steering: view.steering,
       working,
-      forkSourceId: thread?.forkSourceThreadId,
+      forkSourceId,
       inheritedEntries: view.inheritedEntries,
       inheritedTurns: view.inheritedTurns,
       historyOpen,
@@ -308,7 +302,11 @@
 
   const turnsOnRail = $derived(railTurns(rows));
   let feedViewport = $state<FeedViewport>({ start: 0, end: 0, height: 0 });
-  const prefetchHistory = workHistoryPrefetch(() => ({ rows, history: view.history }));
+
+  const workHistory = workHistoryReader(
+    () => view,
+    () => rows,
+  );
 
   // Queued messages above the composer (reorder, edit, delete, steer now); confirmed changes go into the
   // thread's state before the stream repeats them.
@@ -671,7 +669,7 @@
                   {scrollMemory}
                   sizes={memory.sizes}
                   loading={!view.loaded || preparing}
-                  ready={scrollMemory.prepared && !prefetchHistory.waiting}
+                  ready={scrollMemory.prepared}
                   key={(row: FeedRow) => row.key}
                   group={feedGroup}
                   estimate={feedEstimate}
@@ -679,13 +677,15 @@
                   label="Timeline"
                   onready={() => finishCreationHandoff(handoff, feed, view.ownTurns.length > 0)}
                   busy={working}
-                  onreaderscroll={readerScroll}
+                  onreaderscroll={(scroll, viewport) => {
+                    composer.scroll(scroll);
+                    workHistory.scroll(scroll, viewport);
+                  }}
                   onreaderscrollend={() => composer.rest()}
                   onlatest={() => composer.expand()}
                   onviewport={(viewport) => {
                     feedViewport = viewport;
                   }}
-                  onwindow={prefetchHistory.update}
                 >
                   {#snippet placeholder()}
                     {#if !view.loaded}<TimelineSkeleton />{/if}
@@ -724,7 +724,10 @@
                   {#snippet row(row: FeedRow)}
                     <FeedRowView
                       {row}
-                      onhistory={() => void view.history.load()}
+                      onhistory={() => {
+                        feed?.keep(row.key);
+                        void workHistory.show(row.key);
+                      }}
                       historyLoading={view.history.loading}
                       historyError={view.history.error}
                       ontoggle={() => (historyOpen = !historyOpen)}

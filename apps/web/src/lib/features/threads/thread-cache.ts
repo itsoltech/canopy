@@ -1,7 +1,8 @@
 import { ThreadCache } from "@canopy/domain/thread-cache";
 import { ui } from "@canopy/contracts";
-import { loadHistory, removeHistory, saveHistory } from "../desktop/history.ts";
+import { loadHistory, removeHistory, saveThreadHistory } from "../desktop/history.ts";
 import { threadCacheTail } from "@canopy/domain/thread-cache-tail";
+import { itemContents } from "./item-content-cache.ts";
 
 /**
  * SPA memory keeps whole snapshots, older pages included, so returning to a thread syncs only what changed.
@@ -21,6 +22,7 @@ class ClientThreadCache extends ThreadCache {
   /** Drop an unusable history checkpoint while keeping the active view and its automation selection. */
   invalidate(id: string) {
     this.#generation++;
+    itemContents.release(id);
     super.delete(id);
     removeHistory(`thread_${id}`);
   }
@@ -32,6 +34,7 @@ class ClientThreadCache extends ThreadCache {
   }
   override clear() {
     this.#generation++;
+    itemContents.release();
     super.clear();
 
     for (const listener of this.#released) listener(undefined);
@@ -48,13 +51,10 @@ class ClientThreadCache extends ThreadCache {
   }
   override set(snapshot: ui.ThreadSnapshot, bytes?: number) {
     const id = snapshot.thread?.id;
-    const tail = threadCacheTail(snapshot);
     super.set(snapshot, bytes);
 
-    if (id && !this.peek(id)) super.set(tail);
-
-    if (snapshot.thread && !snapshot.thread.deletedAt)
-      saveHistory(ui.ThreadSnapshotSchema, `thread_${snapshot.thread.id}`, tail);
+    if (id && !this.peek(id)) super.set(threadCacheTail(snapshot));
+    saveThreadHistory(snapshot);
   }
 }
 

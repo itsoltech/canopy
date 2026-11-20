@@ -3,7 +3,7 @@ import { create, fromBinary, toBinary, toJson } from "@bufbuild/protobuf";
 import { ItemSchema, ItemStatus, Provider, ui } from "@canopy/contracts";
 import { dockerAvailable } from "@canopy/db/testing";
 import { applyThreadUpdate } from "@canopy/domain/thread-snapshot";
-import { prependThreadPage } from "@canopy/domain/history-pages";
+import { mergeThreadHistoryPage } from "@canopy/domain/history-pages";
 import { loadThreadItem } from "@canopy/domain/thread-content";
 import { threadWatchReady } from "@canopy/domain/thread-watch-state";
 import { ComposerConnection } from "@canopy/domain/composer-connection";
@@ -349,21 +349,88 @@ describe.skipIf(!dockerAvailable)("bounded client sequence watch over real gRPC"
     expect(state.syncCursor!.appliedSeq).toBeLessThan(cached.syncCursor!.appliedSeq + 999999n);
     expect(state.items.length).toBeLessThanOrEqual(128);
   });
-  test("paging rewinds the sequence so concurrent edits cannot be lost", async () => {
-    const checkpoint = cached.cursor;
+  test("paging preserves the live watch and replays a concurrent deletion outside the old window", async () => {
+    const target = (
+      await gateway.api.createThread({
+        projectId: cached.thread!.projectId,
+        workspaceId: cached.thread!.workspaceId,
+        provider: Provider.CODEX,
+        clientRequestId: crypto.randomUUID(),
+      })
+    ).thread!.id;
 
-    const page = applyThreadUpdate(
-      undefined,
-      await first({
-        threadId: thread,
-        sequence: true,
-        beforeItemId: cached.historyBeforeItemId,
-      }),
+    await store.query(
+      `INSERT INTO thread_items(thread_id,item_id,type,status,content,first_seq,last_seq)
+       SELECT $1::uuid,'row-' || n,'agent_message','completed',
+         jsonb_build_object('itemId','row-' || n,'agentMessage',jsonb_build_object('text','Original')),n,n
+       FROM generate_series(1,10) n`,
+      [target],
     );
+    const request = { threadId: target, sequence: true, pageSize: 1 };
+    const base = applyThreadUpdate(undefined, await first(request));
+    expect(base.items).toHaveLength(6);
+    const abort = new AbortController();
 
-    const cursor = cached.syncCursor!;
-    const newer = { ...cached, syncCursor: { ...cursor, appliedSeq: cursor.appliedSeq + 1n } };
-    expect(prependThreadPage(newer, page, checkpoint).syncCursor?.appliedSeq).toBe(cursor.appliedSeq);
+    const live = gateway.api
+      .watchThread({ ...request, syncCursor: base.syncCursor }, { signal: abort.signal, timeoutMs: 10000 })
+      [Symbol.asyncIterator]();
+
+    try {
+      const opened = await live.next();
+      expect(opened.value?.change.case).toBe("controls");
+      await gateway.api.updateThread({ threadId: target, title: "Page ahead of renderer" });
+
+      const page = applyThreadUpdate(undefined, await first({ ...request, beforeItemId: base.historyBeforeItemId }));
+      expect(page.syncCursor!.appliedSeq).toBeGreaterThan(base.syncCursor!.appliedSeq);
+      const early = mergeThreadHistoryPage(base, base, page);
+      expect(early.resume).toBe(false);
+      expect(early.snapshot.cursor).toBe(base.cursor);
+      expect(early.snapshot.items).toHaveLength(10);
+      let narrow = base;
+      let expanded = early.snapshot;
+
+      while (narrow.syncCursor!.appliedSeq < page.syncCursor!.appliedSeq) {
+        const update = await live.next();
+
+        if (update.done) throw new Error("Stream closed during paging");
+        narrow = applyThreadUpdate(narrow, update.value);
+        expanded = applyThreadUpdate(expanded, update.value);
+      }
+
+      expect(expanded.thread?.title).toBe("Page ahead of renderer");
+      expect(mergeThreadHistoryPage(base, narrow, page).resume).toBe(false);
+      await store.query("DELETE FROM thread_items WHERE thread_id=$1::uuid AND item_id='row-2'", [target]);
+      await gateway.api.updateThread({ threadId: target, title: "Deletion committed" });
+
+      while (narrow.thread?.title !== "Deletion committed") {
+        const update = await live.next();
+
+        if (update.done) throw new Error("Stream closed before deletion");
+        narrow = applyThreadUpdate(narrow, update.value);
+        expanded = applyThreadUpdate(expanded, update.value);
+      }
+
+      const late = mergeThreadHistoryPage(base, narrow, page);
+      expect(late.resume).toBe(true);
+      expect(late.snapshot.cursor).toBe(page.cursor);
+      let recovered = late.snapshot;
+
+      for await (const update of gateway.api.watchThread(
+        { ...request, syncCursor: recovered.syncCursor },
+        { signal: abort.signal, timeoutMs: 5000 },
+      )) {
+        recovered = applyThreadUpdate(recovered, update);
+
+        if (recovered.syncCursor!.appliedSeq >= narrow.syncCursor!.appliedSeq) break;
+      }
+
+      expect(expanded.items.map((entry) => entry.item?.itemId)).not.toContain("row-2");
+      expect(recovered.items).toEqual(expanded.items);
+      expect(recovered.cursor).toBe(expanded.cursor);
+    } finally {
+      abort.abort();
+      await live.return?.();
+    }
   });
   test("a huge single turn retains supporting metadata and pages its items independently", async () => {
     const turn = crypto.randomUUID();

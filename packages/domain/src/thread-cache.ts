@@ -16,6 +16,13 @@ export class ThreadCache {
     return this.#entries.get(id)?.snapshot;
   }
 
+  /** Only the exact immutable revision has this encoded size. Measuring it does not change LRU order. */
+  encodedSize(snapshot: ui.ThreadSnapshot): number | undefined {
+    const entry = this.#entries.get(snapshot.thread?.id ?? "");
+
+    return entry?.snapshot === snapshot ? entry.bytes : undefined;
+  }
+
   get(id: string): ui.ThreadSnapshot | undefined {
     const entry = this.#entries.get(id);
 

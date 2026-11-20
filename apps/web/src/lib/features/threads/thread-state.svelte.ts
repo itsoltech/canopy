@@ -201,7 +201,26 @@ export class ThreadState {
   }
 
   apply(update: ui.ThreadUpdate): void {
-    this.#snapshot = applyThreadUpdate(this.#snapshot, update);
+    const previous = this.#snapshot;
+    this.#snapshot = applyThreadUpdate(previous, update);
+
+    if (this.loaded && update.change.case === "batch") {
+      if (this.#snapshot === previous) return;
+
+      if (update.change.value.records.every((record) => !record.removed && record.value.case === "thread")) {
+        this.thread = this.#snapshot.thread;
+
+        return;
+      }
+    }
+
+    if (this.loaded && update.change.case === "controls") {
+      this.secrets = this.#snapshot.secrets;
+      this.schedules = this.#snapshot.schedules;
+
+      return;
+    }
+
     this.hasMore = this.#snapshot.historyHasMore || this.#snapshot.historyItemsHasMore;
     this.historyItemsHasMore = this.#snapshot.historyItemsHasMore;
 

@@ -22,8 +22,10 @@ export interface RetainedThreadOptions {
   readonly bytes: number;
   /** Runs work that can wait for an idle moment; returns its cancel. */
   readonly idle: (task: () => void) => () => void;
-  /** A thread left or refreshed off screen: its checkpoint for the snapshot cache. */
-  readonly settled?: (snapshot: ui.ThreadSnapshot, bytes: number) => void;
+  /** Encoded size if the snapshot cache still holds this exact revision. */
+  readonly cachedBytes?: (snapshot: ui.ThreadSnapshot) => number | undefined;
+  /** A thread left or refreshed off screen. Freshly encoded bytes can also be used for its disk write. */
+  readonly settled?: (snapshot: ui.ThreadSnapshot, bytes: number, encoded?: Uint8Array) => void;
 }
 
 /**
@@ -126,10 +128,18 @@ export class RetainedThreads<T extends RetainedThread> {
       if (entry.shown || this.#entries.get(id) !== entry) return;
 
       if (snapshot?.thread && snapshot.cursor) {
-        entry.bytes = toBinary(ui.ThreadSnapshotSchema, snapshot).byteLength;
+        let bytes = this.options.cachedBytes?.(snapshot);
+        let encoded: Uint8Array | undefined;
+
+        if (bytes === undefined) {
+          encoded = toBinary(ui.ThreadSnapshotSchema, snapshot);
+          bytes = encoded.byteLength;
+        }
+
+        entry.bytes = bytes;
 
         // An idle leave may finish after a warm fallback; never roll that cache copy back to this old cursor.
-        if (!entry.behind) this.options.settled?.(snapshot, entry.bytes);
+        if (!entry.behind) this.options.settled?.(snapshot, bytes, encoded);
       }
 
       this.#trim();

@@ -13,7 +13,11 @@ export function useThreadPersistence(id: string) {
   const snapshot = state.view === current ? state.snapshot : current.current;
 
   const setSnapshot = (next: ui.ThreadSnapshot | undefined) =>
-    setState({ view: current, snapshot: next, loaded: true });
+    setState((previous) =>
+      previous.loaded && previous.view === current && previous.snapshot === next
+        ? previous
+        : { view: current, snapshot: next, loaded: true },
+    );
 
   useEffect(() => {
     let cancelled = false;

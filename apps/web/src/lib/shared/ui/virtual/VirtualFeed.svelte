@@ -63,7 +63,6 @@
     onreaderscrollend,
     onlatest,
     onviewport,
-    onwindow,
     scrollMemory,
     sizes,
     loading = false,
@@ -163,8 +162,6 @@
 
   $effect(() => {
     void layout;
-    const window = { start: range[0], end: range[1], height: viewport };
-    untrack(() => onwindow?.(window));
 
     return publishViewport(index, scrollTop - listTop, Math.max(0, viewport - footerHeight), onviewport);
   });
@@ -330,6 +327,13 @@
     if (anchor) anchor.identity = scrollMemory?.identity?.(anchor.key) ?? anchor.key;
   }
 
+  function reportReaderScroll(distance: number, up: number, top: number) {
+    if (!onreaderscroll) return;
+    const height = Math.max(0, viewport - footerHeight);
+    const [start, end] = index.range(top - listTop, top - listTop + height);
+    onreaderscroll({ distance, up }, { start, end, height });
+  }
+
   /** Without `event`, a scroll taken in before its event: rows on screen may still show uncorrected layout. */
   function onscroll(event?: Event) {
     if (!scroller) return;
@@ -345,7 +349,7 @@
 
       stuck = followingAfterScroll(stuck, origin, distance, lastTop - top, Boolean(rowTarget));
 
-      onreaderscroll?.({ distance, up: lastTop - top });
+      reportReaderScroll(distance, lastTop - top, top);
     }
 
     // A smooth scroll moves ahead of its events. Taken in by `settle`, after rows above were re-estimated, the
@@ -598,8 +602,7 @@
           anchor = undefined;
           setTop(0);
 
-          if (previous > 0)
-            onreaderscroll?.({ distance: Math.max(0, scroller.scrollHeight - scroller.clientHeight), up: previous });
+          if (previous > 0) reportReaderScroll(Math.max(0, scroller.scrollHeight - scroller.clientHeight), previous, 0);
         }
 
         opening.schedule(() => ({ following: stuck, anchor }));

@@ -1,5 +1,5 @@
 import { expect, test } from "bun:test";
-import { create, type MessageInitShape } from "@bufbuild/protobuf";
+import { create, fromBinary, toBinary, type MessageInitShape } from "@bufbuild/protobuf";
 import { ItemDeltaField, ItemStatus, ThreadEventSchema, ui } from "@canopy/contracts";
 import { applyThreadUpdate } from "./thread-snapshot.ts";
 
@@ -32,6 +32,99 @@ const output = (entry: ui.TimelineItem | undefined) => {
 
   return content?.case === "commandExecution" ? content.value.output : undefined;
 };
+
+test("decoded control refreshes keep idle checkpoints and replace changed or removed controls", () => {
+  const applyControls = (state: ui.ThreadSnapshot, value: MessageInitShape<typeof ui.ThreadControlsSchema>) => {
+    const update = create(ui.ThreadUpdateSchema, { change: { case: "controls", value } });
+
+    return applyThreadUpdate(state, fromBinary(ui.ThreadUpdateSchema, toBinary(ui.ThreadUpdateSchema, update)));
+  };
+
+  const empty = create(ui.ThreadSnapshotSchema, { cursor: "checkpoint", items: [item("saved")] });
+  expect(applyControls(empty, {})).toBe(empty);
+
+  const secret = { requestId: "request", status: "pending" };
+  const schedules = [{ id: "first" }, { id: "second" }];
+  const active = applyControls(empty, { secrets: [secret], schedules });
+  expect(applyControls(active, { secrets: [secret], schedules })).toBe(active);
+
+  // Field 100 is a varint a newer gateway may send before this client knows its descriptor.
+  const wire = toBinary(ui.ThreadSecretSchema, create(ui.ThreadSecretSchema, secret));
+  const extended = fromBinary(ui.ThreadSecretSchema, new Uint8Array([...wire, 0xa0, 0x06, 0x01]));
+  const newer = applyControls(active, { secrets: [extended], schedules });
+  expect(newer).not.toBe(active);
+  expect(applyControls(newer, { secrets: [extended], schedules })).toBe(newer);
+
+  const saved = applyControls(active, { secrets: [{ ...secret, status: "saved" }], schedules });
+  expect(saved.secrets[0]?.status).toBe("saved");
+  expect(saved.schedules).toBe(active.schedules);
+
+  const reordered = applyControls(saved, { secrets: saved.secrets, schedules: [...schedules].reverse() });
+  expect(reordered.secrets).toBe(saved.secrets);
+  expect(reordered.schedules.map((schedule) => schedule.id)).toEqual(["second", "first"]);
+
+  const cleared = applyControls(reordered, {});
+  expect(cleared.secrets).toEqual([]);
+  expect(cleared.schedules).toEqual([]);
+  expect(cleared.items).toBe(empty.items);
+  expect(cleared.cursor).toBe(empty.cursor);
+  expect(applyControls(cleared, {})).toBe(cleared);
+});
+
+test("header-only sequence batches advance a validated checkpoint and preserve the loaded history window", () => {
+  const base = create(ui.ThreadSnapshotSchema, {
+    thread: { id: "thread", title: "Before", lastSeq: 8n },
+    lastSeq: 8n,
+    syncCursor: { threadId: "thread", epoch: "epoch", appliedSeq: 2n },
+    cursor: "range:epoch:2",
+    turns: [{ id: "turn", ordinal: 10 }],
+    items: [item("saved")],
+    historyHasMore: true,
+    historyBeforeTurnId: "turn",
+  });
+
+  const header = create(ui.ThreadSyncRecordSchema, {
+    seq: 3n,
+    key: "thread:thread",
+    value: { case: "thread", value: { id: "thread", title: "Renamed", lastSeq: 9n } },
+  });
+
+  const batch = create(ui.ThreadSyncBatchSchema, {
+    threadId: "thread",
+    epoch: "epoch",
+    baseSeq: 2n,
+    appliedSeq: 3n,
+    headSeq: 3n,
+    caughtUp: true,
+    records: [header],
+  });
+
+  const apply = (state: ui.ThreadSnapshot, value: ui.ThreadSyncBatch) =>
+    applyThreadUpdate(state, create(ui.ThreadUpdateSchema, { change: { case: "batch", value } }));
+
+  const next = apply(base, batch);
+  expect(next.thread?.title).toBe("Renamed");
+  expect(next.lastSeq).toBe(9n);
+  expect(next.cursor).toBe("range:epoch:3");
+  expect(next.syncCursor?.appliedSeq).toBe(3n);
+  expect(next.items).toBe(base.items);
+  expect(next.turns).toBe(base.turns);
+  expect(next.historyBeforeTurnId).toBe("turn");
+  expect(apply(next, batch)).toBe(next);
+  expect(() => apply(base, { ...batch, epoch: "other" })).toThrow("identity");
+  expect(() => apply(base, { ...batch, records: [{ ...header, seq: 4n }] })).toThrow("incomplete");
+
+  const mixed = apply(base, {
+    ...batch,
+    headSeq: 4n,
+    appliedSeq: 4n,
+    records: [create(ui.ThreadSyncRecordSchema, { seq: 3n, key: "item:saved", removed: true }), { ...header, seq: 4n }],
+  });
+
+  expect(mixed.thread?.title).toBe("Renamed");
+  expect(mixed.items).toEqual([]);
+  expect(mixed.cursor).toBe("range:epoch:4");
+});
 
 test("streaming a long history updates only the own item, preserving inherited id collisions", () => {
   const inherited = item("live", true);

@@ -1,17 +1,15 @@
 import { getContext, setContext } from "svelte";
-import type { Item, ui } from "@canopy/contracts";
-import { SvelteMap } from "svelte/reactivity";
+import { create, fromBinary, toJsonString } from "@bufbuild/protobuf";
+import { ui } from "@canopy/contracts";
+import { loadThreadItem } from "@canopy/domain/thread-content";
+import { itemContents } from "../../item-content-cache.ts";
 
 export interface LazyContent {
   reference: ui.ThreadSyncContent;
   threadId: string;
-  onload: (item: Item) => void;
 }
 
 const KEY = Symbol("lazy-item-content");
-
-/** Completed reads live for the tab's owner session, apart from the timeline reducer. */
-export const itemContents = new SvelteMap<string, Item>();
 
 export const provideLazyContent = (content: () => LazyContent | undefined): void => {
   setContext(KEY, content);
@@ -19,3 +17,28 @@ export const provideLazyContent = (content: () => LazyContent | undefined): void
 
 export const useLazyContent = (): (() => LazyContent | undefined) =>
   getContext<(() => LazyContent | undefined) | undefined>(KEY) ?? (() => undefined);
+
+export function loadItemContent(threadId: string, reference: ui.ThreadSyncContent, signal: AbortSignal) {
+  return itemContents.load(threadId, reference, signal, (readSignal) =>
+    loadThreadItem(
+      reference,
+      async (offset, length) => {
+        const response = await fetch(`/api/threads/${encodeURIComponent(threadId)}/content`, {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          signal: readSignal,
+          body: toJsonString(
+            ui.ThreadSyncContentRequestSchema,
+            create(ui.ThreadSyncContentRequestSchema, { sha256: reference.sha256, offset, length }),
+          ),
+        });
+
+        if (!response.ok) throw new Error("Content unavailable");
+
+        return fromBinary(ui.ThreadSyncContentChunkSchema, new Uint8Array(await response.arrayBuffer()));
+      },
+      readSignal,
+      threadId,
+    ),
+  );
+}

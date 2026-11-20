@@ -57,17 +57,29 @@ export function useStream<T>(
       const { status, ...activity } = recovery.snapshot;
       const connection = phase ?? status;
       const recovered = connection === "syncing" || connection === "live";
-      setState((current) => ({
-        detail: current.key === subscriptionKey && !recovered ? current.detail : undefined,
-        issue: current.key === subscriptionKey && !recovered ? current.issue : undefined,
-        key: subscriptionKey,
-        connection,
-        ...activity,
-        retryAt:
-          activity.retryAt === undefined
-            ? undefined
-            : Math.max(activity.retryAt, client?.diagnostics.snapshot().retryAt ?? 0),
-      }));
+
+      const retryAt =
+        activity.retryAt === undefined
+          ? undefined
+          : Math.max(activity.retryAt, client?.diagnostics.snapshot().retryAt ?? 0);
+
+      setState((current) => {
+        const same = current.key === subscriptionKey;
+        const issue = same && !recovered ? current.issue : undefined;
+        const detail = same && !recovered ? current.detail : undefined;
+
+        if (
+          same &&
+          current.connection === connection &&
+          current.retrying === activity.retrying &&
+          current.retryAt === retryAt &&
+          current.issue === issue &&
+          current.detail === detail
+        )
+          return current;
+
+        return { key: subscriptionKey, connection, retrying: activity.retrying, retryAt, issue, detail };
+      });
 
       if (status === "reconnecting" && recovery.unavailableAt !== undefined)
         timer = setTimeout(
