@@ -13,6 +13,7 @@ import { QuoteAction } from "../../quotes/QuoteAction";
 import { activityHeader } from "../activity-header";
 import { useItemContent } from "../item-content";
 import { LazyItemContent } from "../LazyItemContent";
+import { useMessageActions } from "../useMessageActions";
 
 /** Reasoning, folded: the first line of the summary as a preview, the rest on demand (web: ReasoningView). */
 export function ReasoningView({ reasoning, streaming }: { reasoning: Reasoning; streaming: boolean }) {
@@ -23,6 +24,9 @@ export function ReasoningView({ reasoning, streaming }: { reasoning: Reasoning; 
 
   const summary = streamingText(reasoning.summary, streaming);
   const body = streamingText(reasoning.text, streaming);
+  const distinctBody = reasoning.text !== reasoning.summary ? body : "";
+  const passage = [summary, distinctBody].filter(Boolean).join("\n\n");
+  const actions = useMessageActions(passage, "reasoning", open);
 
   const preview =
     (reasoning.summary ? summary : body)
@@ -70,14 +74,14 @@ export function ReasoningView({ reasoning, streaming }: { reasoning: Reasoning; 
       </Pressable>
       {open && (
         <View style={[activityHeader.body, { gap: 12 }]}>
-          {summary.trim() ? <Markdown text={summary} color={c.muted} /> : null}
-          {body.trim() && reasoning.text !== reasoning.summary ? <Markdown text={body} color={c.faint} /> : null}
-          <QuoteAction
-            text={[reasoning.summary, reasoning.text !== reasoning.summary ? reasoning.text : ""]
-              .filter(Boolean)
-              .join("\n\n")}
-            kind="reasoning"
-          />
+          <Pressable {...actions.trigger} style={{ gap: 12 }}>
+            {summary.trim() ? <Markdown text={summary} selectable={!actions.available} color={c.muted} /> : null}
+            {distinctBody.trim() ? (
+              <Markdown text={distinctBody} selectable={!actions.available} color={c.faint} />
+            ) : null}
+          </Pressable>
+          <QuoteAction text={passage} kind="reasoning" />
+          {actions.menu}
           {lazy && <LazyItemContent key={lazy.reference.sha256} {...lazy} auto subject="thought" />}
         </View>
       )}

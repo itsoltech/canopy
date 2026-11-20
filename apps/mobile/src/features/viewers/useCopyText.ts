@@ -1,21 +1,25 @@
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { AccessibilityInfo, Alert } from "react-native";
 import * as Clipboard from "expo-clipboard";
 
+export async function copyText(text: string) {
+  try {
+    await Clipboard.setStringAsync(text);
+    AccessibilityInfo.announceForAccessibility("Copied");
+
+    return true;
+  } catch {
+    Alert.alert("Could not copy", "Try copying the text again.");
+
+    return false;
+  }
+}
+
 /** Shared by viewer buttons and message action menus; clipboard access follows an explicit action. */
 export function useCopyText(text: string) {
-  const [copied, setCopied] = useState(false);
-  useEffect(() => setCopied(false), [text]);
+  const [copiedText, setCopiedText] = useState<string>();
 
-  async function copy() {
-    try {
-      await Clipboard.setStringAsync(text);
-      setCopied(true);
-      AccessibilityInfo.announceForAccessibility("Copied");
-    } catch {
-      Alert.alert("Could not copy", "Try copying the text again.");
-    }
-  }
+  if (copiedText !== undefined && copiedText !== text) setCopiedText(undefined);
 
-  return { copied, copy };
+  return { copied: copiedText === text, copy: async () => setCopiedText((await copyText(text)) ? text : undefined) };
 }

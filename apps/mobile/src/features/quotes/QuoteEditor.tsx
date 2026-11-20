@@ -11,7 +11,7 @@ import { QuoteSource } from "./QuoteSource";
 import { QuotePassage } from "./QuotePassage";
 import { QuoteEditorFooter } from "./QuoteEditorFooter";
 
-/** Native selection menus cannot add actions in JS. This editable passage lets the reader keep any excerpt. */
+/** Preview and edit a passage and its optional comment before saving the citation. */
 export function QuoteEditor({
   quote,
   onSave,
