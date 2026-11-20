@@ -7,6 +7,10 @@ tury. Przy mieszanych źródłach obowiązują ograniczenia opisane w
 [bots.md](bots.md) i [linked-computers.md](linked-computers.md).
 Dostępność w kanałach według [release.md](release.md).
 
+Status harmonogramów (2026-11-20): właściciel może ustawić Full access dla nowych
+wątków na webie, desktopie i telefonie. Scheduler wybiera worker z obsługą tego trybu.
+Dostępność w kanałach według [release.md](release.md).
+
 Status powiadomień PR (2026-11-19): agent dostaje informację o konflikcie z gałęzią bazową przy uruchomieniu obserwacji CI lub w trakcie jej trwania. Dostępność według [promocji wydań](release.md).
 
 Status odczytu HEIC (2026-11-19): zaimplementowany na workerze dla `view_image`
@@ -466,6 +470,11 @@ Każde wykonane uruchomienie tworzy osobny wątek główny (`origin = schedule`)
 Narzędzia harmonogramu agent-bus **pozostają wyłącznie dla istniejących wątków**. Nowe wątki można
 planować przez UI API albo narzędzia bota `create_schedule` / `update_schedule`.
 
+Właściciel może jawnie wybrać Full access dla każdego uruchomienia harmonogramu.
+Web, desktop i mobile proszą o potwierdzenie wyboru. Edycja zachowuje zapisany tryb,
+a duplikat zaczyna od Full auto i wymaga ponownego wyboru Full access. Narzędzia bota
+ograniczają Full access do Full auto przy tworzeniu i aktualizacji harmonogramu.
+
 `NewThreadSchedule.workspace_mode`: `UNSPECIFIED` rozstrzyga ustawienia worktree przy każdym
 wykonaniu; `CHECKOUT` i `NEW_WORKTREE` wybierają miejsce jawnie (`base_ref` opcjonalny).
 `INHERIT_PARENT` wymaga `parent_thread_id` tego samego właściciela, projektu i workspace'u oraz
@@ -483,6 +492,8 @@ politykom deleted/archived i ochronie zmian. Szczegóły: [worktrees.md](worktre
 
 Worker puli musi być online, mieć aktywny workspace projektu oraz włączoną i dostępną instancję wybranego
 dostawcy i dostępny harness. Wybór odbywa się przy uruchomieniu, nie przy zapisaniu harmonogramu.
+Full access wymaga również capability `full_access` z ostatniego uwierzytelnionego raportu
+workera. Brak takiego workera uruchamia zwykłą politykę oczekiwania lub pomijania.
 Gdy nikogo nie ma, scheduler zachowuje pierwotny termin i ponawia wybór przy kolejnych tickach (co 5 s).
 Okno terminowego wykonania wynosi 2 minuty. Po jego przekroczeniu `skip` zapisuje pominięcie,
 a `run_once` nadal czeka na jednego kwalifikującego się workera i nadrabia dokładnie raz; kolejne terminy

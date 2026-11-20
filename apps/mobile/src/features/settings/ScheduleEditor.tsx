@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { create } from "@bufbuild/protobuf";
 import { timestampDate, timestampFromDate, type Timestamp } from "@bufbuild/protobuf/wkt";
-import { ui } from "@canopy/contracts";
+import { PermissionMode, ui } from "@canopy/contracts";
 import { useOverview } from "../../state/overview";
 import { Button, Field, Notice } from "../../ui/components";
 import { SettingChoice } from "./SettingsGroup";
@@ -15,7 +15,12 @@ import { useWorkerOptions } from "../computers/worker-options";
 import { projectAwayReason } from "@canopy/domain/linked-snapshot";
 import { splitId } from "@canopy/domain/computers";
 import { awayReason, formatPresenceTime } from "@canopy/domain/computer-presence";
-import { duplicateScheduleTimes } from "@canopy/domain/schedule-display";
+import {
+  duplicateSchedulePermission,
+  duplicateScheduleTimes,
+  scheduledFullAccessDescription,
+  scheduledFullAccessUnavailable,
+} from "@canopy/domain/schedule-display";
 
 /** Edits `schedule`, or creates a task: empty, or with the settings of `template` (Duplicate). */
 export function ScheduleEditor({
@@ -39,7 +44,7 @@ export function ScheduleEditor({
   const [draft, setDraft] = useState(() =>
     create(ui.CreateScheduleRequestSchema, {
       threadId: from?.threadId || defaultThreadId,
-      ...scheduleDraft(from),
+      ...scheduleDraft(from, Boolean(template && !schedule)),
     }),
   );
 
@@ -68,15 +73,7 @@ export function ScheduleEditor({
   const save = () => {
     if (removed) return;
 
-    const configuration = create(ui.CreateScheduleRequestSchema, {
-      ...draft,
-      when:
-        kind === "recurring"
-          ? { case: "cron", value: cron }
-          : { case: "runAt", value: timestampFromDate(new Date(date)) },
-      until: kind === "recurring" && until ? timestampFromDate(new Date(until)) : undefined,
-      maxRuns: kind === "recurring" ? draft.maxRuns : 0,
-    });
+    const configuration = scheduleRequest({ draft, kind, date, cron, until });
 
     void resource
       .run(async (api) =>
@@ -152,10 +149,24 @@ export function ScheduleEditor({
 
 const validDate = (text: string) => Number.isFinite(Date.parse(text));
 
-/** The form has everything a save needs (the gateway still validates it). */
-function complete(form: { draft: ui.CreateScheduleRequest; kind: string; date: string; cron: string; until: string }) {
-  const { draft, kind, date, cron, until } = form;
+type ScheduleForm = { draft: ui.CreateScheduleRequest; kind: string; date: string; cron: string; until: string };
 
+function scheduleRequest({ draft, kind, date, cron, until }: ScheduleForm) {
+  return create(ui.CreateScheduleRequestSchema, {
+    ...draft,
+    threadId: draft.target === "thread" ? draft.threadId : "",
+    newThread: draft.target === "new_thread" ? draft.newThread : undefined,
+    when:
+      kind === "recurring"
+        ? { case: "cron", value: cron }
+        : { case: "runAt", value: timestampFromDate(new Date(date)) },
+    until: kind === "recurring" && until ? timestampFromDate(new Date(until)) : undefined,
+    maxRuns: kind === "recurring" ? draft.maxRuns : 0,
+  });
+}
+
+/** The form has everything a save needs (the gateway still validates it). */
+function complete({ draft, kind, date, cron, until }: ScheduleForm) {
   return (
     !!draft.prompt.trim() &&
     (kind !== "once" || validDate(date)) &&
@@ -176,13 +187,18 @@ function startTimes(schedule?: ui.Schedule, template?: ui.Schedule) {
   };
 }
 
-function scheduleDraft(schedule?: ui.Schedule) {
+function scheduleDraft(schedule: ui.Schedule | undefined, duplicate: boolean) {
+  const newThread = schedule?.newThread;
+
   return {
     prompt: schedule?.prompt,
     name: schedule?.configuredName,
     timezone: schedule?.timezone || Intl.DateTimeFormat().resolvedOptions().timeZone,
     target: schedule?.target || "thread",
-    newThread: schedule?.newThread,
+    newThread:
+      newThread && duplicate
+        ? { ...newThread, permissionMode: duplicateSchedulePermission(newThread.permissionMode) }
+        : newThread,
     concurrency: schedule?.concurrency || "skip_if_running",
     missedPolicy: schedule?.missedPolicy || "run_once",
     maxRuns: schedule?.maxRuns,
@@ -256,6 +272,12 @@ function ScheduleThread({
 
   const project = projects.find((p) => p.id === draft.projectId);
 
+  const candidates = workers.filter((worker) =>
+    project?.workspaces.some(
+      (ws) => ws.workerId === worker.id && (draft.placement !== "specific" || ws.id === draft.workspaceId),
+    ),
+  );
+
   return (
     <>
       <SettingChoice
@@ -313,7 +335,11 @@ function ScheduleThread({
         onClose={() => setPermission(false)}
         value={draft.permissionMode}
         onSelect={(permissionMode) => change({ permissionMode })}
+        fullAccessDescription={scheduledFullAccessDescription}
       />
+      {draft.permissionMode === PermissionMode.FULL_ACCESS &&
+        candidates.length > 0 &&
+        !candidates.some((worker) => worker.fullAccess) && <Notice>{scheduledFullAccessUnavailable}</Notice>}
       <Field label="Thread title" value={draft.title} onChangeText={(title) => change({ title })} />
       <SettingChoice
         title="Workspace mode"

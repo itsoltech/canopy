@@ -44,16 +44,13 @@ export function pickPermission(
   mode: PermissionMode,
   current: PermissionMode,
   onSelect: (mode: PermissionMode) => void,
+  description = "The agent edits files and runs commands without asking. No sandbox keeps it in the workspace. It can change any file this computer’s worker can reach and use the network.",
 ) {
   if (mode !== PermissionMode.FULL_ACCESS || mode === current) return onSelect(mode);
-  Alert.alert(
-    "Turn on full access?",
-    "The agent edits files and runs commands without asking. No sandbox keeps it in the workspace. It can change any file this computer’s worker can reach and use the network.",
-    [
-      { text: "Cancel", style: "cancel" },
-      { text: "Turn on full access", style: "destructive", onPress: () => onSelect(mode) },
-    ],
-  );
+  Alert.alert("Turn on full access?", description, [
+    { text: "Cancel", style: "cancel" },
+    { text: "Turn on full access", style: "destructive", onPress: () => onSelect(mode) },
+  ]);
 }
 
 /** Picks a mode; Full access is confirmed each time it is picked. */
@@ -62,16 +59,18 @@ export function PermissionPickerSheet({
   onClose,
   value,
   onSelect,
+  fullAccessDescription,
 }: {
   visible: boolean;
   onClose: () => void;
   value: PermissionMode | undefined;
   onSelect: (mode: PermissionMode) => void;
+  fullAccessDescription?: string;
 }) {
   const current = value === PermissionMode.UNSPECIFIED || value === undefined ? PermissionMode.ASK : value;
 
   function pick(mode: PermissionMode) {
-    pickPermission(mode, current, onSelect);
+    pickPermission(mode, current, onSelect, fullAccessDescription);
   }
 
   return (

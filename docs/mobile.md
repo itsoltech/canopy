@@ -1,6 +1,7 @@
 # Canopy na iOS i Android
 
 Status: opis zaimplementowanego kodu (2026-11-20). Aplikacja używa Expo SDK 58.0.26.
+Właściciel może potwierdzić Full access dla zadania uruchamiającego nowy wątek przy każdym wykonaniu.
 Gest przewijania wątku doczytuje najwyżej jedną stronę historii. Przy zgodnych
 checkpointach połączenie live pozostaje otwarte.
 Przy otwarciu wątku telefon pobiera pytania i zgody tylko od subagentów z oczekującym żądaniem.

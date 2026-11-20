@@ -665,6 +665,8 @@ message Worker {
   bool workspace_branch_switch = 872;
   // Capability thread_file_reveal_v1; the gateway separately requires its own bundled desktop worker.
   bool file_reveal = 873;
+  // Ostatni uwierzytelniony raport workera zawiera capability full_access.
+  bool full_access = 874;
   optional uint32 cli_update_check_minutes = 900; // nadpisanie; brak = konto
   uint32 effective_cli_update_check_minutes = 901;
   google.protobuf.Timestamp cli_updates_checked_at = 902;

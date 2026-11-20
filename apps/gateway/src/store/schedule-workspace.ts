@@ -1,5 +1,5 @@
 import { create, fromJson } from "@bufbuild/protobuf";
-import { ui } from "@canopy/contracts";
+import { PermissionMode, ui } from "@canopy/contracts";
 import { reserveScheduleWorkspace } from "./schedule-worktree-preparation.ts";
 import { Effect } from "effect";
 import type { SqlClient } from "effect/sql";
@@ -97,11 +97,17 @@ export const prepareSchedule = (sql: SqlClient.SqlClient, input: Parameters<BusS
   });
 
 /** Revalidate placement after external I/O; a paused/edited schedule is fenced by the caller first. */
-export const placementAvailable = (sql: SqlClient.SqlClient, schedule: ScheduleRow, prepared: PreparedSchedule) => sql`
+export const placementAvailable = (
+  sql: SqlClient.SqlClient,
+  schedule: ScheduleRow,
+  prepared: PreparedSchedule,
+  permissionMode: PermissionMode,
+) => sql`
   SELECT pw.id FROM project_workspaces pw JOIN workers w ON w.id=pw.worker_id JOIN projects p ON p.id=pw.project_id
   WHERE pw.id=${prepared.placement.id}::uuid AND pw.project_id=${schedule.project_id}::uuid
     AND pw.worker_id=${prepared.placement.worker_id}::uuid AND p.owner_user_id=${prepared.ownerId}::uuid
-    AND pw.archived_at IS NULL AND p.archived_at IS NULL AND w.archived_at IS NULL AND w.revoked_at IS NULL`;
+    AND pw.archived_at IS NULL AND p.archived_at IS NULL AND w.archived_at IS NULL AND w.revoked_at IS NULL
+    AND (${permissionMode !== PermissionMode.FULL_ACCESS}::boolean OR w.capabilities->>'fullAccess' = 'true')`;
 
 export const scheduledThread = (
   sql: SqlClient.SqlClient,

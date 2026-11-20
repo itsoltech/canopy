@@ -1,5 +1,15 @@
 import { timestampDate } from "@bufbuild/protobuf/wkt";
-import type { ui } from "@canopy/contracts";
+import { PermissionMode, type ui } from "@canopy/contracts";
+
+export const scheduledFullAccessDescription =
+  "Each run starts without a sandbox. The agent can change any file its worker can reach and use the network without asking.";
+
+export const scheduledFullAccessUnavailable =
+  "No worker here supports Full access. Choose another worker or permission mode.";
+
+export function duplicateSchedulePermission(mode: PermissionMode): PermissionMode {
+  return mode === PermissionMode.FULL_ACCESS ? PermissionMode.FULL_AUTO : mode;
+}
 
 /** The API falls back to the first 60 message characters when no explicit name was saved. */
 export function scheduleHeading(schedule: Pick<ui.Schedule, "name" | "prompt">): string {

@@ -14,7 +14,7 @@
   import Textarea from "#lib/shared/ui/Textarea.svelte";
   import { createSchedule, updateSchedule } from "./api.ts";
   import { describeCron } from "./schedules.ts";
-  import { duplicateScheduleTimes } from "@canopy/domain/schedule-display";
+  import { duplicateSchedulePermission, duplicateScheduleTimes } from "@canopy/domain/schedule-display";
   import NewThreadScheduleFields from "./NewThreadScheduleFields.svelte";
   import SchedulePreview from "./SchedulePreview.svelte";
   import DialogActions from "#lib/shared/ui/DialogActions.svelte";
@@ -96,6 +96,7 @@
   let busy = $state(false);
   let error = $state<string>();
   let expectedVersion = $state(0);
+  let formOpening = $state(0);
 
   // Every opening starts from a fresh form.
   $effect(() => {
@@ -118,7 +119,13 @@
         : fixedThreadId || groups.length
           ? "thread"
           : "new_thread";
-      newThread = from?.newThread ? create(ui.NewThreadScheduleSchema, from.newThread) : undefined;
+      const spec = from?.newThread;
+      newThread = spec
+        ? create(ui.NewThreadScheduleSchema, {
+            ...spec,
+            permissionMode: editing ? spec.permissionMode : duplicateSchedulePermission(spec.permissionMode),
+          })
+        : undefined;
       concurrency = from?.concurrency || "skip_if_running";
       name = from?.configuredName ?? "";
       missedPolicy = from?.missedPolicy === "skip" ? "skip" : "run_once";
@@ -137,6 +144,7 @@
       );
       maxRuns = from?.maxRuns || 5;
       error = undefined;
+      formOpening++;
     });
   });
 
@@ -272,7 +280,7 @@
       />
     </Field>
     {#if target === "new_thread"}
-      {#key (editing ?? template)?.id}<NewThreadScheduleFields bind:value={newThread} homeId={editing?.id} />{/key}
+      {#key formOpening}<NewThreadScheduleFields bind:value={newThread} homeId={editing?.id} />{/key}
     {:else if editing?.target === "thread"}
       <p class="text-base/6 text-zinc-500 sm:text-sm/6 dark:text-zinc-400">
         In {overview.threads.get(editing.threadId)?.title || "the original thread"}. To use another existing thread,
