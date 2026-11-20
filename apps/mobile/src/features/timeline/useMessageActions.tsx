@@ -1,25 +1,41 @@
-import { useRef, useState } from "react";
-import type { PressableProps } from "react-native";
+import { lazy, Suspense, useMemo, useRef, useState } from "react";
+import { TurboModuleRegistry, type PressableProps } from "react-native";
 import { markdownText } from "@canopy/domain/markdown";
 import { TextActions } from "../viewers/TextActions";
 import { useQuotePassage } from "../quotes/QuoteAction";
 
-/** Message gestures share the kit's sheet; quoting waits until its native modal has dismissed. */
+const canSelect = TurboModuleRegistry.get("RNCWebViewModule") !== null;
+
+const PassageSelection = lazy(() =>
+  import("../quotes/PassageSelection").then((m) => ({ default: m.PassageSelection })),
+);
+
+/** Keep the passage stable as more text streams in. Open the next sheet after the menu has dismissed. */
 export function useMessageActions(text: string, kind?: string, enabled = true, onEdit?: () => void) {
-  const [visible, setVisible] = useState(false);
-  const quoteNext = useRef(false);
-  const editNext = useRef(false);
-  const quote = useQuotePassage(kind ? text : "", kind ?? "");
+  const [menuText, setMenuText] = useState<string>();
+  const [selecting, setSelecting] = useState<string>();
+  const afterDismiss = useRef<() => void>(undefined);
+  const passage = menuText ?? text;
+  const quote = useQuotePassage(kind ? passage : "", kind ?? "");
   const available = enabled && Boolean(text.trim() || onEdit);
+  const plain = useMemo(() => (available ? markdownText(passage) : ""), [available, passage]);
+
+  function openMenu() {
+    setMenuText(text);
+  }
+
+  function defer(action: () => void) {
+    afterDismiss.current = action;
+  }
 
   const trigger: PressableProps = available
     ? {
-        accessibilityLabel: markdownText(text) || "Message with attachments",
+        accessibilityLabel: plain || "Message with attachments",
         accessibilityHint: "Long press for message actions",
         accessibilityActions: [{ name: "longpress", label: "Message actions" }],
-        onLongPress: () => setVisible(true),
+        onLongPress: openMenu,
         onAccessibilityAction: ({ nativeEvent }) => {
-          if (nativeEvent.actionName === "longpress") setVisible(true);
+          if (nativeEvent.actionName === "longpress") openMenu();
         },
       }
     : {};
@@ -30,36 +46,23 @@ export function useMessageActions(text: string, kind?: string, enabled = true, o
     menu: (
       <>
         <TextActions
-          text={text}
-          visible={available && visible}
-          onClose={() => setVisible(false)}
-          onEdit={
-            onEdit
-              ? () => {
-                  editNext.current = true;
-                }
-              : undefined
-          }
-          onQuote={
-            quote.available
-              ? () => {
-                  quoteNext.current = true;
-                }
-              : undefined
-          }
+          text={menuText ?? ""}
+          visible={menuText !== undefined}
+          onClose={() => setMenuText(undefined)}
+          onEdit={onEdit && (() => defer(onEdit))}
+          onQuote={quote.available ? () => defer(quote.open) : undefined}
+          onSelectText={kind && canSelect && plain ? () => defer(() => setSelecting(plain)) : undefined}
           onDismiss={() => {
-            if (editNext.current) {
-              editNext.current = false;
-              onEdit?.();
-
-              return;
-            }
-
-            if (!quoteNext.current) return;
-            quoteNext.current = false;
-            quote.open();
+            const next = afterDismiss.current;
+            afterDismiss.current = undefined;
+            next?.();
           }}
         />
+        {selecting !== undefined && (
+          <Suspense fallback={null}>
+            <PassageSelection text={selecting} onQuote={quote.addSelection} onClose={() => setSelecting(undefined)} />
+          </Suspense>
+        )}
         {quote.editor}
       </>
     ),

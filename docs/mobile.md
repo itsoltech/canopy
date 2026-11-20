@@ -1,6 +1,7 @@
 # Canopy na iOS i Android
 
 Status: opis zaimplementowanego kodu (2026-11-20). Aplikacja używa Expo SDK 58.0.26.
+W wiadomościach agenta i rozwiniętym rozumowaniu można zaznaczyć fragment do skopiowania lub zacytowania.
 Właściciel może potwierdzić Full access dla zadania uruchamiającego nowy wątek przy każdym wykonaniu.
 Gest przewijania wątku doczytuje najwyżej jedną stronę historii. Przy zgodnych
 checkpointach połączenie live pozostaje otwarte.
@@ -1655,9 +1656,14 @@ odczyt do 8 MiB; większa treść wyjaśnia limit i prosi o mniejszy fragment.
 Lista wirtualizuje fragmenty do 4096 znaków, także pojedyncze bardzo długie linie.
 Wynik, diff i bloki kodu mają akcję kopiowania.
 Pełny diff korzysta z tych samych preferencji układu, kolorów, białych znaków i zawijania
-co podgląd. Przytrzymanie wiadomości człowieka otwiera „Copy message”, a ukończonej
-wiadomości agenta „Copy message” i „Quote passage” w arkuszu „Message actions”. Tę samą
-akcję udostępnia czytnik ekranu. Wiadomości pośrednie we foldzie nie mają rzędów ikon.
+co podgląd. Przytrzymanie wiadomości otwiera arkusz „Message actions” z akcją „Copy message”.
+W wiadomości agenta (także w „Working for”) i w rozwiniętym rozumowaniu „Select text”
+otwiera tekst widoczny w chwili przytrzymania. Można przytrzymać słowo i przeciągnąć
+uchwyty przez granice akapitów lub bloków kodu. „Copy” kopiuje dokładne zaznaczenie,
+a „Quote selection” wstawia je do szkicu ze źródłem. Limit 20 tys. znaków dotyczy
+wybranego cytatu. W historii tylko do odczytu menu zaznaczenia udostępnia „Copy”.
+Arkusz akcji wiadomości można też otworzyć czytnikiem ekranu. „Quote passage” nadal
+otwiera edytor całej wypowiedzi. Wiadomości pośrednie we foldzie nie mają rzędów ikon.
 Końcowa odpowiedź ma jeden rząd: „Copy answer”, „Quote passage”, „Fork from here” i czas
 tury. Przytrzymanie działa też na niej. Ikony mają etykiety dostępności, kopiowanie zmienia
 ikonę na check i ogłasza „Copied”, a cele dotyku mają 48 dp. Cytat ze stopki zachowuje
@@ -1678,8 +1684,8 @@ niewysłanych szkiców w tej sesji ekranu. Cofnięta historia jest domyślnie zw
 „N messages rewound” z „Show”/„Hide”, „Undo” i odzyskaniem szkicu przez „Edit message”.
 Undo jest dostępne przed kolejną turą lub cofnięciem; nie uruchamia pracy ponownie
 i nie przywraca stanu plików. Zmiana nie dodaje modułów ani konfiguracji natywnej.
-Treść wiadomości z menu nie konkuruje z natywnym zaznaczaniem; pełne przeglądarki
-zachowują zaznaczanie tekstu.
+Uchwyty zaznaczenia w „Select text” obsługuje system w osobnym widoku WebView.
+Treść wiadomości jest w nim wyłącznie tekstem, a kolejne aktualizacje wiadomości nie przesuwają uchwytów.
 Obrazy i bloby odziedziczonych tur są odczytywane przez ich wątek źródłowy.
 
 Plakietka załącznika otwiera wspólną przeglądarkę: obrazy jako miniatury i pełny ekran,

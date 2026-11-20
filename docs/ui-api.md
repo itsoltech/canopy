@@ -2370,8 +2370,9 @@ z fokusem w opcjonalnym komentarzu. Enter zapisuje komentarz, Shift+Enter dodaje
 nową linię, a Mod+Enter zapisuje także z pola fragmentu. Escape, Cancel i kliknięcie
 poza edytorem zachowują cytat bez niezapisanych zmian. Po zamknięciu kursor wraca
 do kompozytora za cytat. Kliknięcie istniejącego znacznika otwiera ten sam edytor;
-odtworzenie szkicu i wklejenie cytatów go nie otwierają. Mobile zachowuje arkusz
-edycji fragmentu i opcjonalnego komentarza przed dodaniem cytatu.
+odtworzenie szkicu i wklejenie cytatów go nie otwierają. Na mobile „Quote passage”
+otwiera arkusz edycji fragmentu i komentarza, a „Quote selection” wstawia
+zaznaczony tekst bezpośrednio do szkicu ([mobile.md](mobile.md)).
 
 Gateway zastępuje znacznik pełnym fragmentem dokładnie w tym miejscu,
 przed przesunięciem zakresów wzmianek i numerowaniem załączników. Wszystkie harnessy

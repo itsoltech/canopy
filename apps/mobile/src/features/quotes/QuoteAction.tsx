@@ -14,28 +14,37 @@ export const QuoteItem = createContext("");
 export function useQuotePassage(text: string, kind: string, language = "") {
   const directory = useTimelineDirectory();
   const itemId = useContext(QuoteItem);
-  const [open, setOpen] = useState(false);
+  const [quote, setQuote] = useState<ui.Quote>();
 
   const available = Boolean(text.trim() && !directory.readOnly && directory.quote);
 
+  function passage(value: string, sourceKind: string) {
+    const sourceThreadId = directory.sourceId || directory.currentId;
+
+    return create(ui.QuoteSchema, {
+      text: value,
+      sourceItemId: itemId,
+      sourceThreadId,
+      sourceKind,
+      sourceAuthor: providerName(directory.thread(sourceThreadId)?.provider ?? 0),
+      sourceTime: directory.quoteTime?.(itemId),
+      language,
+    });
+  }
+
   return {
     available,
-    open: () => setOpen(true),
+    open: () =>
+      setQuote(
+        passage(
+          kind === "reasoning" ? markdownText(text) : text,
+          kind === "agent_message" ? "agent_message_markdown" : kind,
+        ),
+      ),
+    addSelection: available ? (value: string) => directory.quote?.(passage(value, kind)) : undefined,
     editor:
-      available && open ? (
-        <QuoteEditor
-          quote={create(ui.QuoteSchema, {
-            text: kind === "reasoning" ? markdownText(text) : text,
-            sourceItemId: itemId,
-            sourceThreadId: directory.sourceId || directory.currentId,
-            sourceKind: kind === "agent_message" ? "agent_message_markdown" : kind,
-            sourceAuthor: providerName(directory.thread(directory.sourceId || directory.currentId)?.provider ?? 0),
-            sourceTime: directory.quoteTime?.(itemId),
-            language,
-          })}
-          onSave={(value) => directory.quote?.(value)}
-          onClose={() => setOpen(false)}
-        />
+      available && quote ? (
+        <QuoteEditor quote={quote} onSave={(value) => directory.quote?.(value)} onClose={() => setQuote(undefined)} />
       ) : null,
   };
 }

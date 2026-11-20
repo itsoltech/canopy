@@ -32,7 +32,8 @@ export function AgentMessageView({
   useEffect(() => {
     if (final) replies.resolve(itemId, message.text);
   }, [final, itemId, message.text, replies]);
-  const actions = useMessageActions(text, "agent_message", !streaming);
+  const visibleText = streamingText(text, streaming);
+  const actions = useMessageActions(visibleText, "agent_message");
   const colors = useColors();
   const type = useTypography();
   const [selected, setSelected] = useState<number>();
@@ -41,7 +42,7 @@ export function AgentMessageView({
     <ThreadFileLinks itemId={itemId}>
       <Pressable {...actions.trigger} accessibilityState={{ busy: streaming }}>
         <Markdown
-          text={streamingText(text, streaming)}
+          text={visibleText}
           selectable={!actions.available}
           image={(value) => (
             <MessageImage
