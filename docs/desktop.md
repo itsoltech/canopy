@@ -1,6 +1,7 @@
 # Canopy Desktop
 
-Status: opis zaimplementowanego runtime i pakowania (2026-11-20), w tym ograniczenia
+Status: opis zaimplementowanego runtime i pakowania (2026-11-20). Build przypina Electron 45.4.1,
+Bun 1.4.5 i PostgreSQL 18.7 dla trybu lokalnego. Opis obejmuje też ograniczenia
 prywatnej kopii aktywnego wątku przed wysłaniem jej do procesu głównego oraz przekazywania
 systemowej zmiennej `OS` do instalatora Codex Standalone na Windows,
 ręcznego kopiowania pełnego zaproszenia do parowania przy odmowie dostępu do schowka oraz selektywnego CI dla powłoki Electron, ponawiania
@@ -95,7 +96,7 @@ Szczegóły kontraktu i kontroli dostępu opisuje [ui-api.md](ui-api.md#pliki-w�
    `fc-list`, macOS `NSFontManager` przez systemowy JXA, Windows `InstalledFontCollection`
    przez PowerShell. Polecenia mają limit 10 s i 4 MiB wyjścia, bez shella i bez sieci.
    Wynik zawiera unikalne rodziny, bez duplikatów nazw pełnych i wariantów stylu.
-2. **Baza:** pełny PostgreSQL 18.6 z binariów `@embedded-postgres`, pobieranych tylko
+2. **Baza:** pełny PostgreSQL 18.7 z binariów `@embedded-postgres`, pobieranych tylko
    po wybraniu trybu lokalnego. Aplikacja nie zawiera PostgreSQL. Pierwszy lokalny start
    wymaga internetu; gotowy cache działa offline. Nie wymaga ręcznej instalacji ani
    działającego serwera PostgreSQL na komputerze. Inna instalacja (Homebrew, Postgres.app,
@@ -106,7 +107,7 @@ Szczegóły kontraktu i kontroli dostępu opisuje [ui-api.md](ui-api.md#pliki-w�
    transakcje, blokady, LISTEN/NOTIFY, typy i istniejące migracje bez zmian. Nie dodajemy
    drugiego drivera Effect SQL ani wariantów zapytań. Aktualny checkout zawiera już
    migrację mobile `0046`; desktop nie dodaje żadnej. Pakiet dystrybucyjny ma
-   oznaczenie beta; sam serwer PostgreSQL to wydanie 18.6. Zmiana głównej wersji wymaga
+   oznaczenie beta; sam serwer PostgreSQL to wydanie 18.7. Zmiana głównej wersji wymaga
    osobnej procedury eksportu/upgrade, nie automatycznego usuwania katalogu.
 3. **Dane i sekrety:** wszystko pod `app.getPath('userData')`. Klucz szyfrowania gatewaya,
    token usługi BFF → gateway oraz osobne hasła administratora bazy i roli aplikacji
@@ -575,7 +576,7 @@ wersji PostgreSQL potrzebny jest eksport i jawna procedura migracji.
 
 ## Build i uruchomienie
 
-Wymagania środowiska budującego: Bun **1.4.4**, Node **24 lub nowszy**, natywny host
+Wymagania środowiska budującego: Bun **1.4.5**, Node **24 lub nowszy**, natywny host
 zgodny z docelowym OS/arch. Aplikacja zawiera jeden Bun; PostgreSQL pobiera osobno
 dla trybu lokalnego. CLI agentów instaluje się osobno: ręcznie albo przyciskiem
 w ustawieniach workera.
@@ -666,7 +667,7 @@ resources/runtime/
 ```
 
 Źródło relokowalnych binariów: `@embedded-postgres/<platform-arch>`
-**18.6.0-beta.19**, bazujące na dystrybucji Zonky. Wersja i integralność npm są
+**18.7.0-beta.19**, bazujące na dystrybucji Zonky. Wersja i integralność npm są
 przypięte w `bun.lock`; podczas build wersja jest dodatkowo sprawdzana. Licencje
 PostgreSQL, MIT opakowania, Apache-2.0 dystrybucji oraz odnośniki do bibliotek
 zależnych zapisano w `apps/desktop/THIRD_PARTY_NOTICES.md` i dołączono do paczki.

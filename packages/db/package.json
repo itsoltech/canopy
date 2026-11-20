@@ -11,7 +11,7 @@
     "typecheck": "tsc -p tsconfig.json"
   },
   "dependencies": {
-    "@effect/sql-pg": "4.1.1",
-    "effect": "4.1.1"
+    "@effect/sql-pg": "4.1.4",
+    "effect": "4.1.4"
   }
 }

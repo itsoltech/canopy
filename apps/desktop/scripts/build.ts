@@ -95,7 +95,7 @@ const pgPackage = resolve(dirname(realpathSync(require.resolve(`@embedded-postgr
 const pgManifest: JsonValue = JSON.parse(readFileSync(join(pgPackage, "package.json"), "utf8"));
 const pgVersion = isJsonObject(pgManifest) ? pgManifest["version"] : undefined;
 
-if (pgVersion !== "18.6.0-beta.19") throw new Error("Unexpected PostgreSQL binary version");
+if (pgVersion !== "18.7.0-beta.19") throw new Error("Unexpected PostgreSQL binary version");
 
 // All JS dependencies are bundled except this self-contained SDK. Copy the exact
 // installed files, without a second dependency resolution or workspace sources.

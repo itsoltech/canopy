@@ -273,7 +273,7 @@ Keep gateway, web and workers on the same version. Settings, `GET /api/health` a
 
 ## Building from source
 
-Requirements: [Bun](https://bun.sh) 1.4.4 (pinned in `mise.toml`), Docker and `openssl`.
+Requirements: [Bun](https://bun.sh) 1.4.5 (pinned in `mise.toml`), Docker and `openssl`.
 
 ```sh
 bun install

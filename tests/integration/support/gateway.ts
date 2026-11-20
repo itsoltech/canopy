@@ -54,7 +54,7 @@ import { applyWorkerConfig } from "@canopy/worker/config";
 import { openGatewayLink, type GatewayLink } from "@canopy/worker/gateway-link";
 import { ThreadSecretFiles } from "../../../apps/worker/src/runtime/thread-secrets.ts";
 import { Layer, ManagedRuntime } from "effect";
-import type { SqlClient } from "effect/sql";
+import type { SqlClient, SqlError } from "effect/sql";
 import { DatabaseMonitor, bindDatabaseMonitor, observedSql } from "../../../apps/gateway/src/diagnostics/database.ts";
 import { BotStore } from "../../../apps/gateway/src/bots/store.ts";
 import { MessengerStore } from "../../../apps/gateway/src/messengers/store.ts";
@@ -610,7 +610,11 @@ export async function startTestGateway(
   const pg = options.storage?.pg ?? (await startPostgres({ migrated: true }));
   const secretsKey = options.storage?.secretsKey ?? randomBytes(32);
   const monitor = options.diagnostics ? new DatabaseMonitor() : undefined;
-  const database = monitor ? observedSql(monitor).pipe(Layer.provideMerge(pg.poolLayer)) : pg.layer;
+
+  const database: Layer.Layer<SqlClient.SqlClient, SqlError.SqlError> = monitor
+    ? observedSql(monitor).pipe(Layer.provideMerge(pg.poolLayer))
+    : pg.layer;
+
   const auditDirectory = process.env["CANOPY_SQL_AUDIT_DIR"];
 
   const audit = auditDirectory
