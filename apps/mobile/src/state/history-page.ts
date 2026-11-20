@@ -1,15 +1,15 @@
 import { useEffect, useRef, useState } from "react";
+import type { bots } from "@canopy/contracts";
+import { prependBotPage } from "@canopy/domain/history-pages";
 
-/** Page reads keep the pre-read checkpoint. Reopening replays edits made outside the old loaded window. */
-export function useHistoryPage<T extends { cursor: string; historyHasMore: boolean; historyItemsHasMore?: boolean }>(
+interface PageSource<T> {
+  current: { current: T | undefined };
+  read: (base: T, signal: AbortSignal) => Promise<T>;
+}
+
+export function useHistoryPage<T extends { historyHasMore: boolean; historyItemsHasMore?: boolean }>(
   key: string,
-  options: {
-    current: { current: T | undefined };
-    read: (base: T, signal: AbortSignal) => Promise<T>;
-    merge: (current: T, page: T, checkpoint: string) => T;
-    receive: (value: T) => void;
-    restart: () => void;
-  },
+  options: PageSource<T> & { apply: (base: T, current: T, page: T) => void },
 ) {
   const request = useRef<AbortController | undefined>(undefined);
   const [loading, setLoading] = useState(false);
@@ -33,16 +33,7 @@ export function useHistoryPage<T extends { cursor: string; historyHasMore: boole
         const current = options.current.current;
 
         if (abort.signal.aborted || !current) return;
-        let next: T;
-
-        try {
-          next = options.merge(current, page, base.cursor);
-        } catch {
-          next = { ...current, cursor: "" };
-        }
-
-        options.receive(next);
-        options.restart();
+        options.apply(base, current, page);
       } catch {
         if (!abort.signal.aborted) setError("Could not load earlier messages. Try again.");
       } finally {
@@ -52,6 +43,28 @@ export function useHistoryPage<T extends { cursor: string; historyHasMore: boole
       }
     },
   };
+}
+
+/** Bot watches replay edits outside the old window from the pre-read checkpoint. */
+export function useBotHistoryPage<T extends bots.BotConversation | bots.ReadBotExchangeResponse>(
+  key: string,
+  options: PageSource<T> & { receive: (value: T) => void; restart: () => void },
+) {
+  return useHistoryPage(key, {
+    ...options,
+    apply(base, current, page) {
+      let next: T;
+
+      try {
+        next = prependBotPage(current, page, base.cursor);
+      } catch {
+        next = { ...current, cursor: "" };
+      }
+
+      options.receive(next);
+      options.restart();
+    },
+  });
 }
 
 /** Stops the auxiliary stream as soon as its first state arrives. */

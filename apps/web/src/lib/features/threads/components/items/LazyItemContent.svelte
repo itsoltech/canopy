@@ -1,16 +1,13 @@
 <script lang="ts">
-  import { create, fromBinary, toJsonString } from "@bufbuild/protobuf";
-  import { ui } from "@canopy/contracts";
-  import { loadThreadItem } from "@canopy/domain/thread-content";
+  import type { ui } from "@canopy/contracts";
+  import { loadItemContent } from "./lazy-content.ts";
   import MoreButton from "#lib/shared/ui/MoreButton.svelte";
   import Spinner from "#lib/shared/ui/Spinner.svelte";
   import { formatBytes } from "#lib/shared/format.ts";
-  import type { Item } from "@canopy/contracts";
 
   let {
     reference,
     threadId,
-    onload,
     auto = false,
     active = true,
     signal,
@@ -19,7 +16,6 @@
   }: {
     reference: ui.ThreadSyncContent;
     threadId: string;
-    onload: (item: Item) => void;
     auto?: boolean;
     active?: boolean;
     signal?: AbortSignal;
@@ -47,32 +43,7 @@
     error = "";
 
     try {
-      const item = await loadThreadItem(
-        reference,
-        async (offset, length) => {
-          const response = await fetch(`/api/threads/${encodeURIComponent(threadId)}/content`, {
-            method: "POST",
-            headers: { "content-type": "application/json" },
-            signal,
-            body: toJsonString(
-              ui.ThreadSyncContentRequestSchema,
-              create(ui.ThreadSyncContentRequestSchema, {
-                sha256: reference.sha256,
-                offset,
-                length,
-              }),
-            ),
-          });
-
-          if (!response.ok) throw new Error("Content unavailable");
-
-          return fromBinary(ui.ThreadSyncContentChunkSchema, new Uint8Array(await response.arrayBuffer()));
-        },
-        signal,
-        threadId,
-      );
-
-      if (!signal.aborted) onload(item);
+      await loadItemContent(threadId, reference, signal);
     } catch {
       if (!signal.aborted) error = `Could not load the full ${subject}.`;
     } finally {

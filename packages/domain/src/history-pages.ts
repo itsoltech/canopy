@@ -43,6 +43,35 @@ export function prependThreadPage(
   });
 }
 
+/** A history page and the live stream have independent checkpoints. Never advance the stream from a page. */
+export function mergeThreadHistoryPage(base: ui.ThreadSnapshot, current: ui.ThreadSnapshot, page: ui.ThreadSnapshot) {
+  if (
+    base.thread?.id !== current.thread?.id ||
+    base.historyVersion !== current.historyVersion ||
+    base.historyBeforeTurnId !== current.historyBeforeTurnId ||
+    base.historyBeforeItemId !== current.historyBeforeItemId ||
+    (base.cursor && !current.cursor)
+  )
+    return { snapshot: current, resume: false };
+
+  const live = current.syncCursor;
+  const read = page.syncCursor;
+
+  if (live && read) {
+    if (read.threadId !== live.threadId || read.epoch !== live.epoch) throw new Error("Thread history changed");
+
+    // The page already includes earlier edits through its own seq. Later edits, including deletions outside the
+    // old window, must reach the expanded window before we can keep the higher live checkpoint.
+    const resume = read.appliedSeq < live.appliedSeq;
+    const checkpoint = resume ? `range:${read.epoch}:${read.appliedSeq}` : current.cursor;
+
+    return { snapshot: prependThreadPage(current, page, checkpoint), resume };
+  }
+
+  // Older gateways have opaque cursors. Replay changes observed while the page was being read.
+  return { snapshot: prependThreadPage(current, page, base.cursor), resume: true };
+}
+
 type BotHistory = bots.BotConversation | bots.ReadBotExchangeResponse;
 
 export function prependBotPage<T extends BotHistory>(current: T, page: T, checkpoint = current.cursor): T {

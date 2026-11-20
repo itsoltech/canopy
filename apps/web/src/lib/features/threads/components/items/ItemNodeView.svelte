@@ -5,8 +5,8 @@
   import type { ItemNode } from "../../timeline.ts";
   import ItemNodeView from "./ItemNodeView.svelte";
   import ItemView from "./ItemView.svelte";
-  import { itemContents, provideLazyContent } from "./lazy-content.ts";
-  import type { Item } from "@canopy/contracts";
+  import { provideLazyContent } from "./lazy-content.ts";
+  import { itemContents } from "../../item-content-cache.ts";
   import { providerLabel } from "../../labels.ts";
 
   /**
@@ -15,20 +15,13 @@
    */
   let { node }: { node: ItemNode } = $props();
   const directory = useThreadDirectory();
-  let full = $state<{ key: string; item: Item }>();
-  const contentKey = $derived(JSON.stringify([directory.currentId, node.entry.contentRef?.sha256]));
-
-  const item = $derived((full?.key === contentKey ? full.item : itemContents.get(contentKey)) ?? node.entry.item);
+  const item = $derived(itemContents.get(directory.currentId, node.entry.contentRef) ?? node.entry.item);
 
   provideLazyContent(() =>
     node.entry.contentRef && item === node.entry.item
       ? {
           reference: node.entry.contentRef,
           threadId: directory.currentId,
-          onload: (item) => {
-            itemContents.set(contentKey, item);
-            full = { key: contentKey, item };
-          },
         }
       : undefined,
   );

@@ -8,6 +8,7 @@ import { applyThreadUpdate } from "@canopy/domain/thread-snapshot";
 import { applyBotConversation } from "@canopy/domain/bot-snapshot";
 import { startTestGateway, type TestGateway } from "./support/gateway.ts";
 import { stat } from "node:fs/promises";
+import { clearHistory, loadHistory, saveThreadHistory } from "../../apps/web/src/lib/features/desktop/history.ts";
 
 describe.skipIf(!dockerAvailable)("desktop private history across restarts", () => {
   const directory = tempDir("desktop-history-");
@@ -145,4 +146,64 @@ test("desktop history rejects path traversal, corrupt entries and revoked late w
   await cache.write(generation, `thread_${first}`, bytes(first));
   await revoked;
   expect((await new DesktopHistoryCache(directory).read(`thread_${first}`)).bytes).toBeUndefined();
+});
+
+test("live desktop history persists the latest bounded checkpoint of a burst for reopening", async () => {
+  const directory = tempDir("desktop-history-live-");
+  const cache = new DesktopHistoryCache(directory);
+  const threadId = crypto.randomUUID();
+  const key = `thread_${threadId}`;
+  const settled = Promise.withResolvers<void>();
+  const writes: Promise<void>[] = [];
+  let cleared: Promise<void> | undefined;
+  const original = Object.getOwnPropertyDescriptor(globalThis, "window");
+
+  const history = {
+    read: (id: string) => cache.read(id),
+    write: (generation: string, id: string, bytes: Uint8Array) => {
+      const written = cache.write(generation, id, bytes);
+      writes.push(written);
+
+      if (writes.length === 2) void written.then(settled.resolve, settled.reject);
+
+      return written;
+    },
+    clear: () => (cleared = cache.clear()),
+  };
+
+  Object.defineProperty(globalThis, "window", { configurable: true, value: { canopyDesktop: { history } } });
+
+  try {
+    await loadHistory(ui.ThreadSnapshotSchema, key);
+
+    const snapshot = create(ui.ThreadSnapshotSchema, {
+      thread: { id: threadId },
+      cursor: "first",
+      turns: [{ id: "turn", status: "completed" }],
+      items: Array.from({ length: 300 }, (_, i) =>
+        create(ui.TimelineItemSchema, {
+          turnId: "turn",
+          item: { itemId: String(i), content: { case: "agentMessage", value: { text: "a".repeat(4096) } } },
+        }),
+      ),
+    });
+
+    for (const cursor of ["first", "second", "latest"]) saveThreadHistory({ ...snapshot, cursor });
+    expect(writes).toHaveLength(1);
+    await settled.promise;
+    const restored = await loadHistory(ui.ThreadSnapshotSchema, key);
+    expect(restored?.cursor).toBe("latest");
+    expect(restored?.historyItemsHasMore).toBe(true);
+    expect(restored?.items.length).toBeLessThanOrEqual(128);
+    expect(restored?.items.at(-1)?.item?.itemId).toBe("299");
+    expect(restored?.historyBeforeItemId).toBe(restored?.items[0]?.item?.itemId);
+    expect(snapshot.items).toHaveLength(300);
+  } finally {
+    clearHistory();
+    await Promise.allSettled(writes);
+    await cleared;
+
+    if (original) Object.defineProperty(globalThis, "window", original);
+    else Reflect.deleteProperty(globalThis, "window");
+  }
 });

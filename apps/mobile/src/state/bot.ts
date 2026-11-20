@@ -5,8 +5,7 @@ import { applyBotConversation, answerLiveBotApproval } from "@canopy/domain/bot-
 import { botViewKey } from "@canopy/domain/bot-cache";
 import { useSession } from "./session";
 import { useStream } from "./stream";
-import { prependBotPage } from "@canopy/domain/history-pages";
-import { firstHistoryPage, useHistoryPage } from "./history-page";
+import { firstHistoryPage, useBotHistoryPage } from "./history-page";
 
 /** Load disk before opening the watch. A ref keeps retries on the last atomically applied checkpoint. */
 export function useBotSnapshot(id: string) {
@@ -65,7 +64,7 @@ export function useBotSnapshot(id: string) {
     `bot:${session?.deviceId}:${id}`,
   );
 
-  const history = useHistoryPage(id, {
+  const history = useBotHistoryPage(id, {
     current,
     read: async (base, signal) => {
       if (!client) throw new Error("Gateway unavailable");
@@ -79,7 +78,6 @@ export function useBotSnapshot(id: string) {
         signal,
       );
     },
-    merge: prependBotPage,
     receive: (next) => {
       current.current = next;
       setSnapshot(next);

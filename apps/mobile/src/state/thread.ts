@@ -1,11 +1,11 @@
 import { useMemo, useRef, useState } from "react";
+import { equals } from "@bufbuild/protobuf";
 import { ui } from "@canopy/contracts";
-import { ConnectError, type Client } from "@connectrpc/connect";
+import { ConnectError } from "@connectrpc/connect";
 import { applyThreadUpdate } from "@canopy/domain/thread-snapshot";
 import { useSession } from "./session";
 import { useStream } from "./stream";
-import { prependThreadPage } from "@canopy/domain/history-pages";
-import { firstHistoryPage, useHistoryPage } from "./history-page";
+import { useThreadHistoryPage } from "./thread-history";
 import {
   ThreadWatchRecovery,
   threadWatchMessage,
@@ -27,7 +27,8 @@ import {
 /** Read the durable base before subscribing; every retry uses the latest atomic checkpoint. */
 export function useThreadSnapshot(id: string) {
   const { client, session } = useSession();
-  const { snapshot, setSnapshot, current, view, loaded, reset } = useThreadPersistence(id);
+  const persistence = useThreadPersistence(id);
+  const { snapshot, setSnapshot, current, view, loaded, reset } = persistence;
   const repair = useMemo(() => new ThreadWatchRecovery(), [id, client]);
   const pageSize = useRef(24);
   const computerAway = useMemo(() => ({ current: false }), [id, client]);
@@ -54,12 +55,14 @@ export function useThreadSnapshot(id: string) {
       const sampled =
         update.change.case === "snapshot" || update.change.case === "batch" ? mobileSnapshotStarted(id) : 0;
 
-      if (update.syncStatus) {
-        setSyncStatus(update.syncStatus);
-        computerAway.current = update.syncStatus.reason === "computer_unreachable";
-      }
+      if (update.syncStatus) computerAway.current = update.syncStatus.reason === "computer_unreachable";
 
-      if (update.change.case === "batch") setSyncStatus(threadSyncStatus(update.change.value));
+      const status = update.change.case === "batch" ? threadSyncStatus(update.change.value) : update.syncStatus;
+
+      if (status)
+        setSyncStatus((previous) =>
+          previous && equals(ui.ThreadSyncStatusSchema, previous, status) ? previous : status,
+        );
 
       try {
         current.current = applyThreadUpdate(current.current, update);
@@ -120,16 +123,7 @@ export function useThreadSnapshot(id: string) {
   const connection = syncStatus?.reason ? "error" : stream.connection;
   useThreadLiveness(id, () => current.current?.syncCursor, connection, stream.retry);
 
-  const history = useHistoryPage(id, {
-    current,
-    read: (base, signal) => readThreadPage(client?.api, id, base, signal),
-    merge: prependThreadPage,
-    receive: (next) => {
-      current.current = next;
-      setSnapshot(next);
-    },
-    restart: stream.retry,
-  });
+  const history = useThreadHistoryPage(id, client?.api, persistence, stream.retry);
 
   return {
     snapshot,
@@ -158,33 +152,4 @@ export function useThreadSnapshot(id: string) {
       setSnapshot(current.current);
     },
   };
-}
-
-async function readThreadPage(
-  api: Client<typeof ui.GatewayService> | undefined,
-  id: string,
-  base: ui.ThreadSnapshot,
-  signal: AbortSignal,
-) {
-  if (!api) throw new Error("Gateway unavailable");
-
-  const update = await firstHistoryPage(
-    (signal) =>
-      api.watchThread(
-        {
-          threadId: id,
-          pageSize: 24,
-          sequence: true,
-          beforeItemId: base.historyBeforeItemId,
-          beforeTurnId: base.historyBeforeTurnId,
-          historyVersion: base.historyVersion,
-        },
-        { signal },
-      ),
-    signal,
-  );
-
-  if (update.change.case !== "snapshot") throw new Error("History unavailable");
-
-  return update.change.value;
 }

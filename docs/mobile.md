@@ -1,7 +1,9 @@
 # Canopy na iOS i Android
 
-Status: opis zaimplementowanego kodu (2026-11-19). Przy otwarciu wątku telefon
-pobiera pytania i zgody tylko od subagentów z oczekującym żądaniem. Listy wątków i botów uwzględniają
+Status: opis zaimplementowanego kodu (2026-11-20). Gest przewijania wątku doczytuje
+najwyżej jedną stronę historii. Przy zgodnych checkpointach połączenie live pozostaje otwarte.
+Przy otwarciu wątku telefon pobiera pytania i zgody tylko od subagentów z oczekującym żądaniem.
+Listy wątków i botów uwzględniają
 wysokość banera aktualizacji i stanu połączenia. Wysyłanie wiadomości i start tury
 zachowują położenie rozmowy. Natywny raport Usage pokazuje
 historię kosztów i skrócone liczby tokenów z gatewaya, podział według workera oraz dzienny wykres według dostawcy.
@@ -658,6 +660,10 @@ popovera statusu z ręcznym retry oraz banera nad treścią bez zmiany jej geome
 
 Odświeżenie `WatchThread.controls` co 5 s pozostaje na tym samym strumieniu
 i zachowuje `live`; tylko jawny catch-up lub utrata transportu zmienia gotowość.
+Powtórzone `controls` i pusta partia z tym samym checkpointem nie powodują
+ponownego renderowania ekranu wątku. React dostaje zmianę, gdy zmienia się
+snapshot, postęp synchronizacji lub stan połączenia. Liveness i diagnostyka
+nadal przetwarzają odbierane ramki.
 Wspólny helper kompozytora toleruje 1 s non-live po synchronizacji, bez zmiany
 geometrii przycisków. Send czeka z niezmiennym żądaniem do live, Stop pozostaje
 osiągalny i po powrocie dotyczy wyłącznie nadal działającej tury. Szczegóły:
@@ -1236,6 +1242,9 @@ Kolejne zapisy tej samej niemutowalnej rewizji współdzielą serializację i tr
 zapis, również przy wyjściu z ekranu. Nowa rewizja, odczyt albo inny wątek
 unieważniają to uproszczenie. Błąd dysku pozwala ponowić zapis tej samej rewizji;
 unpair nadal od razu zamyka ścieżkę zapisu. Nie zwiększa to limitów pamięci.
+Przy rozliczaniu rozmiaru opuszczonego widoku klient korzysta z rozmiaru
+tej samej rewizji zapisanego w cache. Gdy rozmiar jest nieznany, bajty uzyskane
+przy pomiarze trafiają również do zapisu na dysk.
 Przygotowanie osi czasu zachowuje tablice itemów niezmienionych tur, dzięki czemu
 `TimelineTurn` nie buduje ponownie drzewa ich pracy przy delcie innej tury.
 Grupowanie dzieci subagenta dopisuje do tablic zamiast kopiować rosnącą grupę.
@@ -1245,8 +1254,10 @@ Pomiary JS i ograniczenia profilowania: [client-performance.md](client-performan
 partiami rekordów od ostatniego seq albo ograniczonym oknem według reguł w `ui-api.md`.
 Klient zatwierdza checkpoint po atomowym zastosowaniu partii współdzielonym reducerem.
 Zimny odczyt prosi o 24 pełne tury, czat bota i wymiana o 50 wiadomości.
-Przewinięcie do starszego końca odwróconej listy pobiera poprzednią stronę;
-„Show earlier messages” pozwala też ponowić odczyt lub rozwinąć krótką listę.
+Ruch palca lub jego bezwładne przewinięcie w stronę starszego końca odwróconej listy
+pobiera najwyżej jedną stronę na gest. Odtworzenie pozycji i zmiany wymiarów listy
+same nie wywołują odczytu. Przycisk „Show earlier messages” pozwala też ponowić odczyt
+lub rozwinąć krótką listę.
 `maintainVisibleContentPosition` utrzymuje widoczny element przy dopisaniu historii.
 Pozycja czytania jest lokalna dla telefonu i parowania: istniejący magazyn
 `DeviceViewPreferences` zachowuje LRU 100 wątków, z podążaniem za końcem albo
@@ -1271,8 +1282,10 @@ Zmiana trafia przez overview również do pozostałych urządzeń. Ręczne
 Wyszukiwanie obejmuje wejścia i odpowiedzi agenta; wpisane zapytanie doczytuje
 strony do początku historii. Zwykłe otwarcie ani restart nie uruchamia tego odczytu.
 Cache zachowuje całe dotąd załadowane okno z granicą strony i kursorem.
-Po dołączeniu strony watch wznawia się od checkpointu sprzed odczytu, żeby odtworzyć
-również równoległe edycje starszych wiadomości. Karty zgód pozostają nieaktywne do
+Gdy checkpoint strony obejmuje zmiany już odebrane na żywo, klient zachowuje
+strumień i jego kursor. Gdy strumień wyprzedził odczytaną stronę, wznawia się od
+checkpointu strony, żeby odtworzyć równoległe edycje i usunięcia w rozszerzonym oknie.
+Przy starszym protokole wznawia się od kursora sprzed odczytu. Karty zgód pozostają nieaktywne do
 potwierdzenia live. Wyjście z ekranu anuluje odczyt.
 Starszy gateway ignoruje pola stronicowania i zwraca całość.
 Stan połączenia wygląda jak w web: stopka listy pokazuje kropkę i „Connected”, „Reconnecting…”

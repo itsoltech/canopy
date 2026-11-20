@@ -1,10 +1,10 @@
 import { create } from "@bufbuild/protobuf";
 import { ui } from "@canopy/contracts";
-import { prependThreadPage } from "@canopy/domain/history-pages";
+import { mergeThreadHistoryPage } from "@canopy/domain/history-pages";
 import { liveSource } from "#lib/shared/live-source.ts";
 import { decode } from "#lib/shared/wire.ts";
 import { bodyJson } from "#lib/shared/json.ts";
-import { saveHistory } from "../desktop/history.ts";
+import { saveThreadHistory } from "../desktop/history.ts";
 import type { ThreadState } from "./thread-state.svelte.ts";
 import { clientMeasurements, clientOpening, timelineRecovery } from "#lib/features/diagnostics/client.ts";
 import { recordThreadWatchFailure } from "@canopy/domain/diagnostics";
@@ -90,7 +90,7 @@ export class ThreadHistory {
         onmessage: (data) => {
           const started = first && opening ? performance.now() : 0;
           const update = decode(ui.ThreadUpdateSchema, JSON.parse(data));
-
+          const previous = this.read();
           this.view.apply(update);
 
           const snapshot = this.read();
@@ -102,7 +102,7 @@ export class ThreadHistory {
             opening?.paint();
           }
 
-          if (snapshot?.thread && snapshot.cursor) saveHistory(ui.ThreadSnapshotSchema, `thread_${id}`, snapshot);
+          if (snapshot?.cursor && snapshot !== previous) saveThreadHistory(snapshot);
           this.view.syncStatus = update.syncStatus ?? this.view.syncStatus;
 
           if (update.change.case === "batch") this.view.syncStatus = threadSyncStatus(update.change.value);
@@ -183,7 +183,6 @@ export class ThreadHistory {
       timelineRecovery("history_window");
     }
 
-    const checkpoint = base.cursor;
     const signal = this.#abort.signal;
 
     try {
@@ -209,10 +208,11 @@ export class ThreadHistory {
         !page.historyReset
       )
         throw new Error("History page did not advance");
-      let next: ui.ThreadSnapshot;
+
+      let merged: ReturnType<typeof mergeThreadHistoryPage>;
 
       try {
-        next = prependThreadPage(current, page, checkpoint);
+        merged = mergeThreadHistoryPage(base, current, page);
       } catch {
         this.reset();
         this.#restart();
@@ -220,8 +220,10 @@ export class ThreadHistory {
         return;
       }
 
-      this.view.apply(create(ui.ThreadUpdateSchema, { change: { case: "snapshot", value: next } }));
-      this.#restart();
+      if (merged.snapshot === current) return;
+      this.view.apply(create(ui.ThreadUpdateSchema, { change: { case: "snapshot", value: merged.snapshot } }));
+
+      if (merged.resume) this.#restart();
       await tick();
       requestAnimationFrame(() => {
         if (!signal.aborted && !document.hidden) clientMeasurements.record(17, performance.now() - started);

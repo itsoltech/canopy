@@ -1,6 +1,7 @@
 # Zwijanie pracy na osi wątku
 
-Status: opis zaimplementowanego kodu web/desktop/mobile (2026-11-17), w tym
+Status: opis zaimplementowanego kodu web/desktop/mobile (2026-11-20), w tym
+doczytywania brakującej pracy podczas przewijania lub na żądanie w web/desktop,
 stosowania „After the turn” do pracy poprzedzającej steer, kompaktowania kontekstu
 jako widocznej granicy segmentów pracy i odstępów wokół wiadomości postępu
 w web/desktop. Dostępność
@@ -131,11 +132,11 @@ natychmiast. Stan ręcznego przełączenia grupy jest lokalny; nie przebudowuje 
 
 Watch `sequence` ma niezależne okna tur i itemów. Rekord zakończonej tury bez
 jej itemów nie oznacza pustej pracy. Web/desktop pokazuje w tym miejscu zwarty
-wiersz „Loading earlier work…”, zamiast pustego „Worked for…” i slotu odpowiedzi.
-Pierwsza tura z okna itemów również może być niepełna; zachowuje już odczytane
-segmenty, steery oraz odpowiedź, z tym samym wierszem nad pracą. Zamontowane
-okno wraz z overscanem uruchamia jeden odczyt starszej strony naraz, zanim
-czytelnik dojdzie do luki. Błąd zatrzymuje prefetch i pokazuje Retry. Stan ten
+wiersz „Show earlier work”. Pierwsza tura z okna itemów również może być niepełna.
+Zachowuje już odczytane segmenty, steery oraz odpowiedź, z tym samym wierszem nad
+pracą. Przewijanie w górę przy widocznej luce pobiera stronę. Przycisk doczytuje
+wybraną turę nawet wtedy, gdy jej praca zajmuje kilka stron. Podczas odczytu
+pokazuje „Loading earlier work…”, a po błędzie udostępnia Retry. Stan ten
 wynika z granicy itemów, także po odczycie starego cache, a nie z preferencji
 foldów. Niezgodność liczby źródłowych wierszy z podsumowaniami segmentów pokazuje
 całą treść bez zwijania i rejestruje odzyskiwanie w Diagnostics.

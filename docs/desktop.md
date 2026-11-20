@@ -1,6 +1,7 @@
 # Canopy Desktop
 
-Status: opis zaimplementowanego runtime i pakowania (2026-11-19), w tym przekazywania
+Status: opis zaimplementowanego runtime i pakowania (2026-11-20), w tym ograniczenia
+prywatnej kopii aktywnego wątku przed wysłaniem jej do procesu głównego oraz przekazywania
 systemowej zmiennej `OS` do instalatora Codex Standalone na Windows,
 ręcznego kopiowania pełnego zaproszenia do parowania przy odmowie dostępu do schowka oraz selektywnego CI dla powłoki Electron, ponawiania
 startu lokalnego gatewaya po serii nieoczekiwanych wyjść, poprawki kodowania
@@ -1329,9 +1330,13 @@ Zmiana trybu lub unpair/revocation usuwa katalog i pamięć; fence generacji
 odrzuca spóźnione zapisy poprzedniej sesji. Zmiana wersji aplikacji sama nie
 czyści historii. Zwykły web pozostaje wyłącznie w pamięci SPA: bez preloadu
 nie zapisuje treści w IndexedDB, localStorage ani na serwerze BFF.
-Odświeżenie listy botów usuwa z dysku także nieotwarte wpisy botów usuniętych,
-zarchiwizowanych lub przeniesionych. Starsze strony powiększają zapisane okno
-razem z jego checkpointem; restart zachowuje miejsce początku załadowanej historii.
+Podczas pracy w wątku renderer zapisuje jego ostatnie wpisy i kursor synchronizacji
+najwyżej raz na dwie sekundy. Dopiero w chwili zapisu wybiera ogon historii
+przez `threadCacheTail` (do 128 wpisów osi, z budżetem 384 KiB na wpisy i powiązane
+steery), koduje go i wysyła przez IPC. Doczytane strony pozostają w pamięci widoku.
+Po restarcie starsze strony są dostępne z gatewaya. W rozmowach botów starsze strony
+powiększają zapisane okno razem z jego checkpointem. Odświeżenie listy botów usuwa
+z dysku także nieotwarte wpisy botów usuniętych, zarchiwizowanych lub przeniesionych.
 
 ## Sprawdzanie runtime i paczek
 

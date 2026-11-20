@@ -1,4 +1,4 @@
-import { create } from "@bufbuild/protobuf";
+import { create, createRegistry, equals, type DescMessage, type MessageShape } from "@bufbuild/protobuf";
 import { ui } from "@canopy/contracts";
 import { eventItemId, reduceItem } from "./items.ts";
 import { applyThreadDelta } from "./thread-mirror.ts";
@@ -12,6 +12,14 @@ const upsert = <T>(rows: T[], value: T, key: (row: T) => string) => [
 ];
 
 const itemPositions = new WeakMap<ui.TimelineItem[], Map<string, number>>();
+const controlEquality = { registry: createRegistry(), unknown: true };
+
+function reuseEqualRows<D extends DescMessage>(schema: D, current: MessageShape<D>[], incoming: MessageShape<D>[]) {
+  if (current.length !== incoming.length) return incoming;
+
+  // SAFETY: Decoded repeated fields have a message at every index and the lengths match.
+  return current.every((row, index) => equals(schema, row, incoming[index]!, controlEquality)) ? current : incoming;
+}
 
 function ownItemPositions(items: ui.TimelineItem[]): Map<string, number> {
   const cached = itemPositions.get(items);
@@ -53,8 +61,15 @@ export function applyThreadUpdate(state: ui.ThreadSnapshot | undefined, update: 
   const previous = state ?? create(ui.ThreadSnapshotSchema);
 
   switch (change.case) {
-    case "controls":
-      return { ...previous, secrets: change.value.secrets, schedules: change.value.schedules };
+    case "controls": {
+      const secrets = reuseEqualRows(ui.ThreadSecretSchema, previous.secrets, change.value.secrets);
+      const schedules = reuseEqualRows(ui.ScheduleSchema, previous.schedules, change.value.schedules);
+
+      return secrets === previous.secrets && schedules === previous.schedules
+        ? previous
+        : { ...previous, secrets, schedules };
+    }
+
     case "thread":
       return { ...previous, thread: change.value };
     case "turn":

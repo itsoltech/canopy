@@ -1,6 +1,8 @@
 # API dla UI i architektura frontendu
 
-Status (2026-11-19): gateway obsługuje osobną subskrypcję oczekujących żądań subagenta.
+Status (2026-11-20): web, desktop i mobile utrzymują strumień wątku przy dołączaniu
+starszej strony z aktualnego checkpointu sekwencyjnego. Gateway obsługuje osobną
+subskrypcję oczekujących żądań subagenta.
 Stopka sidebara w web/desktop pomija skrót do Workers przy jednym workerze.
 Raport Usage pokazuje koszt i tokeny według workera wykonującego pracę.
 W web/desktop przejście z Threads do Bots pomija animację
@@ -748,8 +750,9 @@ Diagnostyka zawiera postęp, klasę błędu i rozmiary, bez treści, hostów ani
 
 Renderer web/desktop nie wyprowadza pustej pracy z samego rekordu tury:
 niezależne okno itemów może jeszcze nie obejmować jej treści. Wiersz
-„Loading earlier work…” zajmuje minimum 44 px. Wejście takiej tury do overscanu
-automatycznie pobiera starszą stronę, z istniejącymi kursorami tur i itemów,
+„Show earlier work” zajmuje minimum 44 px. Przewijanie w górę przy widocznej
+luce lub początku historii pobiera starszą stronę. Naciśnięcie przycisku
+doczytuje pracę do wybranej tury z istniejącymi kursorami tur i itemów,
 jednym odczytem naraz i kotwiczeniem feedu. Brak postępu granic zatrzymuje
 odczyty i pokazuje istniejący błąd z Retry. Cache i wznowienie po seq nie
 zastępują tego odczytu; checkpoint pozostaje atomowy. Settings → Diagnostics
@@ -821,9 +824,11 @@ aktywne subskrypcje mają własne ograniczone wyniki i stan transportu.
 `ThreadSnapshot.sync_cursor` (811) identyfikuje wątek, epokę i zatwierdzony seq.
 Reconnect przekazuje go jako `WatchThreadRequest.sync_cursor` (812); gateway
 wysyła `ThreadUpdate.batch` (811), po najwyżej 64 rekordy / 64 KiB protobuf.
-Reducer publikuje treść i seq atomowo. Odczyt strony nie przesuwa kursora live;
-po scaleniu klient wznawia checkpoint sprzed odczytu strony, żeby odtworzyć
-równoległe zmiany. Nieznana epoka lub przyszły seq daje nowe ograniczone okno.
+Reducer publikuje treść i seq atomowo. Gdy starsza strona obejmuje zmiany aż
+do bieżącego seq widoku, klient dokłada jej wiersze i zachowuje główny watch
+z jego własnym kursorem. Jeśli w międzyczasie watch wyprzedził stronę, klient
+wznawia go od seq tej strony, aby odtworzyć późniejsze edycje i usunięcia
+w powiększonym oknie. Nieznana epoka lub przyszły seq daje nowe ograniczone okno.
 Duże itemy mają podgląd i `content_ref`; pełna treść jest pobierana wyłącznie na
 żądanie przez `GetThreadSyncContent`, w kawałkach do 48 KiB. Uprawnienia i sekrety
 nie wchodzą do dziennika lustra: aktualizuje je osobny `ThreadUpdate.controls`.
@@ -3253,9 +3258,10 @@ strony nie przesuwa kursora głównego watcha i nie zastępuje już otrzymanych
 nowszych wierszy. Delty poza załadowanym oknem są pomijane; starszą treść
 klient odczyta z gatewaya, gdy do niej dojdzie. Reconnect używa dotychczasowego
 kursora dziennika, a niemożliwa resynchronizacja zastępuje okno nowym ogonem.
-Po zakończeniu odczytu strony klient cofa checkpoint do kursora sprzed jej
-rozpoczęcia i wznawia główny watch. Dzięki temu edycja starszego wiersza, która
-przyszła live podczas odczytu, zostaje powtórzona już w powiększonym oknie.
+W wątku z kursorem sekwencyjnym klient porównuje seq zwróconej strony
+z ostatnim seq głównego watcha. Tylko jeśli watch zdążył wyprzedzić stronę,
+wznawia od jej seq. Wątek ze starszym protokołem oraz rozmowy z botami
+i wymiany wznawiają watch od kursora sprzed odczytu strony.
 Wszystkie odczyty, granice i itemy pozostają w zakresie właściciela w gatewayu.
 
 Web i mobile proszą domyślnie o 24 pełne tury lub 50 wiadomości. W web pomocnicze

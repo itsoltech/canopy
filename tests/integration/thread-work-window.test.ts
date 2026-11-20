@@ -4,7 +4,7 @@ import { Provider, ui } from "@canopy/contracts";
 import { ComputerStore } from "../../apps/gateway/src/computers/store.ts";
 import { startTestGateway } from "./support/gateway.ts";
 import { FeedBuilder } from "../../apps/web/src/lib/features/threads/feed.ts";
-import { prefetchWorkHistory } from "../../apps/web/src/lib/features/threads/work-history.ts";
+import { hasWorkHistoryGap } from "../../apps/web/src/lib/features/threads/work-history.ts";
 import { threadCacheTail } from "@canopy/domain/thread-cache-tail";
 import { prependThreadPage } from "@canopy/domain/history-pages";
 import { applyThreadUpdate } from "@canopy/domain/thread-snapshot";
@@ -124,7 +124,7 @@ test.skipIf(!dockerAvailable)(
       for (let count = 0; count < 8; count++) {
         const rows = feed(state);
 
-        if (!prefetchWorkHistory(rows, 0, rows.length)) break;
+        if (!hasWorkHistoryGap(rows, 0, rows.length)) break;
         const page = await read(state);
         expect(page.items.length).toBeLessThanOrEqual(128);
         state = prependThreadPage(state, page, checkpoint);

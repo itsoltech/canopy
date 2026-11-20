@@ -1,6 +1,9 @@
 # Pomiar wydajności klientów
 
-Status (2026-11-15): web/desktop ma współdzielony model odczytu w pamięci BFF,
+Status (2026-11-20): web/desktop doczytuje starszą pracę podczas czytania historii
+i ogranicza pamięć podręczną rozwiniętych treści osi czasu. Klienci ponownie
+wykorzystują znany rozmiar historii przy opuszczaniu wątku.
+Web/desktop ma współdzielony model odczytu w pamięci BFF,
 reaktywne projekcje panelu i list PR oraz dogrzewanie historii po stronie BFF.
 Opis dotyczy implementacji; dostępność w kanałach według [release.md](release.md).
 
@@ -129,9 +132,24 @@ wiarygodnie odtworzyć z samej liczby zdarzeń `Animation` w cudzym śladzie.
 
 ### Strumieniowanie osi czasu
 
-Web/desktop pobiera brakującą pracę tur w zamontowanym oknie wraz z overscanem,
-z jedną stroną w toku. Miernik `Earlier work rendered` obejmuje żądanie starszej
-strony, scalenie, aktualizację Svelte i pierwszy rAF po niej; to proxy gotowości
+W bezczynnym wątku gateway co około 5 s przesyła stan sekretów i harmonogramów
+oraz partię potwierdzającą kursor. Po pierwszym wczytaniu web/desktop aktualizuje
+z takiego stanu tylko sekrety i harmonogramy. Jeśli ich treść i kolejność są takie
+same, zachowuje poprzedni snapshot. Pusta lub powtórzona partia z już zastosowanym
+kursorem nadal przechodzi walidację, a wiersze i indeks pozycji zachowują tożsamość.
+
+Gdy nowa partia aktualizuje wyłącznie nagłówek wątku (np. tytuł lub zużycie
+kontekstu), klient przesuwa kursor i podmienia nagłówek bez sortowania historii.
+Web/desktop zachowuje wtedy wiersze osi czasu oraz lokalne zmiany oczekujące
+na potwierdzenie. Partia zawierająca również zmianę lub usunięcie wpisu przechodzi
+zwykłe scalanie okna.
+
+Web/desktop pobiera jedną starszą stronę, gdy czytelnik przewija w górę przy początku
+załadowanej historii lub widocznej niepełnej turze. „Show earlier work” pozwala
+doczytać wybraną turę, również gdy cała oś mieści się na ekranie. Przy otwarciu
+wątku dostępne wiadomości pojawiają się od razu po odtworzeniu pozycji.
+Miernik `Earlier work rendered` obejmuje żądanie starszej strony, scalenie,
+aktualizację Svelte i pierwszy rAF po niej; to proxy gotowości
 renderera, nie potwierdzenie klatki kompozytora. `Timeline recoveries` zlicza
 odtworzenie niepełnego okna, awaryjne pokazanie wierszy przy niezgodności
 derywacji, timeout pozycjonowania oraz wznowienie zatrzymanego watcha (`stalled_watch`).
@@ -140,9 +158,9 @@ z turami widoku; 10 s rozbieżności uruchamia najpierw dwa wznowienia inkrement
 potem przeładowanie okna jak po odświeżeniu strony. Odstęp rośnie od 30 s do 5 min;
 naprawy nie ustają, dopóki rozbieżność trwa.
 Log zawiera wyłącznie stały powód, liczbę, czas opóźnienia i numer próby,
-bez treści, identyfikatorów i kotwic. Sprawdź scroll do granicy niepełnej tury,
-reload z cache i przejście z innego wątku: treść ma nadejść bez load-more,
-a tekst już czytany ma zachować pozycję. Pozycjonowanie web ma limit 2 s;
+bez treści, identyfikatorów i kotwic. Przy otwarciu dużego wątku sprawdź liczbę
+żądań starszych stron przed pierwszym gestem i po przewinięciu w górę.
+Podczas dołączania strony tekst już czytany ma zachować pozycję. Pozycjonowanie web ma limit 2 s;
 po nim odsłania aktualną treść nawet bez kompletu pomiarów.
 
 Ostatnio otwarte wątki (LRU 12 wątków / 12 MiB zakodowanego protobuf; heap to około
@@ -157,13 +175,15 @@ Otwarcie z zachowaną historią zawsze wznawia własny kursor i dosyła brakują
 nie zastępuje wczytanych stron ogonem BFF. Zimne otwarcie może dostać ogon BFF
 jako pierwszy snapshot, po którym watch kontynuuje od jego kursora.
 Widoczny wątek nie jest usuwany z LRU.
+Po opuszczeniu wątku web, desktop i mobile sprawdzają rozmiar konkretnej
+wersji historii w pamięci podręcznej. Dołączenie starszych wiadomości tworzy
+nową wersję nawet przy tym samym kursorze. Jeśli trzeba ją zakodować, mobile
+wykorzystuje te same bajty do zapisu na dysk.
 Zachowany stan żyje dłużej niż ekran, który go utworzył, więc nie może zawierać `$derived`:
 pochodna należy do efektu aktywnego przy jej utworzeniu i po jego zniszczeniu (np. wyjście
 z ekranu wątku) zwraca już tylko ostatnią wartość (`derived_inert`). Widok pokazywałby wtedy
 stare tury i stan pracy mimo działającego watcha. Takie pola to gettery nad `$state`
-z `lastResult` (`lib/shared/last-result.ts`). Pierwsze zimne otwarcie
-pozostaje ukryte, dopóki zamontowane okno ma wiersze ładowania brakującej pracy (w ramach
-limitu pozycjonowania), żeby luki nie znikały pod czytelnikiem.
+z `lastResult` (`lib/shared/last-result.ts`).
 
 Także callbacki gestów i operacje asynchroniczne mogą przeżyć swój widok.
 Nasłuchy na `window` usuwamy przy odmontowaniu oraz wymianie obsługiwanego stanu;
@@ -385,7 +405,15 @@ z datą utworzenia jako fallbackiem, niezależnie od wybranego `Created` lub `Cu
 Ręczne przeciągnięcie i pozycja przypięcia nie zmieniają tej kolejności;
 przypięte wątki dołączają osobno w ramach wspólnego limitu.
 BFF zapisuje ograniczony checkpoint bez starszych stron wczytanych przez renderer.
-Duże treści nadal są odczytywane na żądanie.
+
+Renderer web/desktop pobiera pełną treść dużego wpisu na żądanie. Zamontowany wiersz
+i akcje odpowiedzi współdzielą wynik dla konkretnego wątku i SHA-256. Po odmontowaniu
+ostatniego odbiorcy cache zachowuje do 32 ostatnio używanych wyników o łącznym
+rozmiarze do 8 MiB według rozmiarów zakodowanych treści. Większy wynik jest dostępny
+do końca wyświetlania. Po usunięciu z cache ponowne rozwinięcie pobiera go ponownie.
+Reset historii wątku usuwa jego wyniki i anuluje odczyty w toku. Wyczyszczenie sesji
+obejmuje wszystkie wątki.
+
 Mobile wybiera 10 ostatnich korzeni, ogranicza zestaw do 16 i rozdziela starty
 o 5 s (najwyżej 12 odczytów/min); używa istniejącego cache trwałego po restarcie.
 Retencja mobilnych widoków korzysta z tego samego `RetainedThreads`: 12 wątków /

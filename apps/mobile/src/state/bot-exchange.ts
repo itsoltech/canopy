@@ -5,8 +5,7 @@ import { applyBotExchange } from "@canopy/domain/bot-snapshot";
 import { botViewKey } from "@canopy/domain/bot-cache";
 import { useSession } from "./session";
 import { useStream } from "./stream";
-import { prependBotPage } from "@canopy/domain/history-pages";
-import { useHistoryPage } from "./history-page";
+import { useBotHistoryPage } from "./history-page";
 
 /** Exchanges are read-only; unary checkpoints share the live retry/foreground lifecycle. */
 export function useBotExchange(id: string) {
@@ -60,7 +59,7 @@ export function useBotExchange(id: string) {
     `bot-exchange:${session?.deviceId}:${id}`,
   );
 
-  const history = useHistoryPage(id, {
+  const history = useBotHistoryPage(id, {
     current,
     read: async (base, signal) => {
       if (!client) throw new Error("Gateway unavailable");
@@ -70,7 +69,6 @@ export function useBotExchange(id: string) {
         { signal },
       );
     },
-    merge: prependBotPage,
     receive: (value) => {
       current.current = value;
       setSnapshot(value);

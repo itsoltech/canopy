@@ -1,7 +1,7 @@
 import type { FeedViewport } from "#lib/shared/ui/virtual/viewport.ts";
+import type { ReaderScroll } from "#lib/shared/ui/virtual/scroll.ts";
+import { hasWorkHistoryGap } from "./work-history.ts";
 import type { FeedRow } from "./feed.ts";
-import type { ThreadHistory } from "./history.svelte.ts";
-import { prefetchWorkHistory } from "./work-history.ts";
 import { untrack } from "svelte";
 import type { WorkFolds, FoldReader } from "./work-folds.svelte.ts";
 import type { ThreadState } from "./thread-state.svelte.ts";
@@ -32,28 +32,44 @@ export function syncWorkFolds(
   });
 }
 
-/**
- * One bounded page at a time; errors require an explicit retry instead of a request loop. `waiting` holds the first
- * reveal while the mounted window still shows loading rows for work a page will fill (bounded by the feed's
- * positioning timeout), so a cold open does not show gaps that collapse under the reader.
- */
-export function workHistoryPrefetch(read: () => { rows: readonly FeedRow[]; history: ThreadHistory }) {
-  let window = $state<FeedViewport>({ start: 0, end: 0, height: 0 });
+/** Scroll reads one page at a time. A gap button reads up to the selected turn, including a multi-page fold. */
+export function workHistoryReader(view: () => ThreadState, rows: () => readonly FeedRow[]) {
+  let generation = 0;
 
-  const missing = $derived.by(() => {
-    const { rows, history } = read();
+  $effect.pre(() => {
+    view();
 
-    return window.height > 0 && !history.error && prefetchWorkHistory(rows, window.start, window.end);
+    return () => {
+      generation++;
+    };
   });
 
-  $effect(() => {
-    if (missing && !read().history.loading) void read().history.load();
-  });
+  function scroll({ up }: ReaderScroll, { start, end, height }: FeedViewport) {
+    const { history } = view();
 
-  return {
-    update: (value: FeedViewport) => (window = value),
-    get waiting() {
-      return missing;
-    },
-  };
+    if (up <= 0 || height <= 0 || history.loading || history.error) return;
+
+    if (start < 4 || hasWorkHistoryGap(rows(), start, end)) void history.load();
+  }
+
+  async function show(key: string) {
+    const opened = generation;
+    const state = view();
+
+    while (opened === generation && rows().some((row) => row.key === key)) {
+      const before = state.snapshot;
+      await state.history.load();
+      const after = state.snapshot;
+
+      if (!before || !after || after.historyVersion !== before.historyVersion) return;
+
+      if (
+        after.historyBeforeItemId === before.historyBeforeItemId &&
+        after.historyBeforeTurnId === before.historyBeforeTurnId
+      )
+        return;
+    }
+  }
+
+  return { scroll, show };
 }

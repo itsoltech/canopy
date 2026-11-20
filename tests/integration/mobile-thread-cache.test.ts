@@ -80,9 +80,12 @@ describe("durable bounded thread snapshots", () => {
   });
 
   test("mobile view retention bounds count and refreshed bytes while protecting the open screen", async () => {
-    const cache = new PersistentThreadCache(new DiskThreadStorage(directory("canopy-cache-views-")));
+    const storage = new DiskThreadStorage(directory("canopy-cache-views-"));
+    const cache = new PersistentThreadCache(storage);
     const visible = cache.open("visible");
-    visible.apply(snapshot("visible"));
+    const base = snapshot("visible");
+    visible.apply(base);
+    await cache.save(base);
     const leave = cache.views.show("visible");
 
     for (let index = 0; index < 13; index++) {
@@ -107,14 +110,25 @@ describe("durable bounded thread snapshots", () => {
     expect(cache.views.usage.bytes).toBeLessThanOrEqual(cache.views.options.bytes);
     expect(cache.views.peek("visible")).toBe(visible);
 
-    // The same oversized payload is allowed while shown, then evicted on leaving.
-    visible.apply(snapshot("visible", "x".repeat(13 * 1024 * 1024)));
+    // Paging can grow the loaded window without advancing the live checkpoint.
+    const older = create(ui.TimelineItemSchema, {
+      item: { itemId: "older", content: { case: "agentMessage", value: { text: "x".repeat(13 * 1024 * 1024) } } },
+    });
+
+    const expanded = { ...base, items: [older] };
+    visible.apply(expanded);
     expect(cache.views.peek("visible")).toBe(visible);
     leave();
     await eventually(
       async () => cache.views.usage.count,
       (count) => count === 0,
     );
+    // The retained view is gone; this cache read waits for its queued disk write.
+    expect((await cache.load("visible"))?.cursor).toBe(base.cursor);
+    const file = (await storage.list()).find((entry) => entry.id === "visible");
+    const expected = toBinary(ui.ThreadSnapshotSchema, expanded);
+    expect(file?.bytes).toBe(expected.byteLength);
+    expect(Buffer.compare(await storage.read(file!.name), expected)).toBe(0);
     cache.open("after").apply(snapshot("after"));
     await cache.close();
     expect(cache.views.usage.count).toBe(0);

@@ -14,7 +14,6 @@
   import ShellMessage from "./ShellMessage.svelte";
   import { activitySurface } from "./activity-header.ts";
   import Button from "#lib/shared/ui/Button.svelte";
-  import Spinner from "#lib/shared/ui/Spinner.svelte";
   import RewindHistory from "./RewindHistory.svelte";
 
   /**
@@ -115,8 +114,9 @@
     {#if historyError}
       <span>{historyError}</span><Button size="sm" variant="ghost" onclick={onhistory}>Retry</Button>
     {:else}
-      {#if historyLoading}<Spinner />{:else}<Icon name="arrow-path" />{/if}
-      <span>Loading earlier work…</span>
+      <Button size="sm" variant="ghost" icon="clock" loading={historyLoading} onclick={onhistory}>
+        {historyLoading ? "Loading earlier work…" : "Show earlier work"}
+      </Button>
     {/if}
   </div>
 {:else if (row.kind === "timeline" || row.kind === "work" || row.kind === "work-group" || row.kind === "answer") && row.history}

@@ -23,6 +23,7 @@ import { mobileFeedLayout } from "../settings/client-diagnostics";
 import { turnNotices } from "@canopy/domain/turn-notices";
 import { ThreadScrollItems, ThreadScrollParent, ThreadScrollTarget } from "../../ui/thread-scroll-items";
 import { scrollTurnKey, useThreadScrollMemory } from "./useThreadScrollMemory";
+import { useThreadHistoryScroll } from "./useThreadHistoryScroll";
 import { RewindGroup, useRewindTimeline } from "./rewind-timeline";
 import { useThreadSeen } from "./useThreadSeen";
 import { ReplySendContext } from "../timeline/ReplySuggestions";
@@ -177,6 +178,10 @@ export function ThreadTimeline({
 
   useThreadSeen(state, memory.positioned);
 
+  const onScroll = useThreadHistoryScroll(memory.onScroll, () => {
+    if (memory.positioned && !following.anchoring.get()) void state.history.load();
+  });
+
   const arrival = useArrivals(latestFirst.map(scrollTurnKey), Boolean(snapshot), { newestFirst: true });
   const days = newDays(rewind.shown);
   const loose = context.notices.filter((n) => !n.turnId && n.notice?.code !== "thread_rewound");
@@ -200,7 +205,7 @@ export function ThreadTimeline({
               <TimelineList
                 {...composer.listProps}
                 CellRendererComponent={FeedAnchorCell}
-                onScroll={memory.onScroll}
+                onScroll={onScroll}
                 onTouchStart={memory.onTouchStart}
                 onScrollToIndexFailed={memory.onScrollToIndexFailed}
                 onViewableItemsChanged={memory.onViewableItemsChanged}
@@ -215,11 +220,6 @@ export function ThreadTimeline({
 
                   if (snapshot?.thread) mobileFeedLayout(snapshot.thread.id);
                 }}
-                onEndReached={() => {
-                  if (memory.positioned && !following.anchoring.get() && !following.isFollowing())
-                    void state.history.load();
-                }}
-                onEndReachedThreshold={0.3}
                 data={latestFirst}
                 keyExtractor={scrollTurnKey}
                 style={[styles.fill, { opacity: memory.positioned ? 1 : 0 }]}

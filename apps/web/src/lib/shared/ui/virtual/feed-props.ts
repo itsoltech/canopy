@@ -28,14 +28,13 @@ export interface VirtualFeedProps<T> {
   inserted?: (row: T) => "unfold" | "reveal" | undefined;
   /** Out: the reader follows the end (the latest rows are on screen). */
   atEnd?: boolean;
-  onreaderscroll?: (scroll: ReaderScroll) => void;
+  /** Reader movement and its destination, before the next frame publishes the viewport. */
+  onreaderscroll?: (scroll: ReaderScroll, viewport: FeedViewport) => void;
   /** A reader's scroll came to rest (after inertia). */
   onreaderscrollend?: () => void;
   onlatest?: () => void;
   /** Measured visible rows (no overscan), published at most once per animation frame. */
   onviewport?: (viewport: FeedViewport) => void;
-  /** Mounted rows including overscan, for bounded history prefetch before missing work reaches the reader. */
-  onwindow?: (viewport: FeedViewport) => void;
   scrollMemory?: FeedScrollMemory;
   /** Row heights owned by the caller (kept across remounts, e.g. per thread); the feed's own otherwise. */
   sizes?: SizeIndex;

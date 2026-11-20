@@ -47,7 +47,8 @@ export class PersistentThreadCache {
 
       return () => clearTimeout(timer);
     },
-    settled: (snapshot) => void this.save(snapshot).catch(() => {}),
+    cachedBytes: (snapshot) => this.#memory.encodedSize(snapshot),
+    settled: (snapshot, _bytes, encoded) => void this.#save(snapshot, encoded).catch(() => {}),
   });
   /** Warming can advance its own window while a reader keeps older pages and their original cursor. */
   readonly warming = {
@@ -124,13 +125,17 @@ export class PersistentThreadCache {
   }
 
   save(snapshot: ui.ThreadSnapshot): Promise<void> {
+    return this.#save(snapshot);
+  }
+
+  #save(snapshot: ui.ThreadSnapshot, encoded?: Uint8Array): Promise<void> {
     if (this.#closed || !snapshot.thread) return Promise.resolve();
     const saved = this.#saving;
 
     // Reducers replace snapshots; periodic saves of the same revision share encoding and disk work.
     if (saved?.snapshot === snapshot && this.#peek(snapshot.thread.id) === snapshot) return saved.promise;
     this.#saving = undefined;
-    const bytes = toBinary(ui.ThreadSnapshotSchema, snapshot);
+    const bytes = encoded ?? toBinary(ui.ThreadSnapshotSchema, snapshot);
     this.#memory.set(snapshot, bytes.byteLength);
 
     const saving = this.#serial(async () => {
