@@ -377,6 +377,8 @@ narzędzie, cel i tryb skali. `Open in new window` otwiera samodzielny podgląd
 tego samego wątku z bieżącymi ustawieniami podglądu. Desktop otwiera natywne
 okno, a web prosi przeglądarkę o okno popup. Widoczne podglądy korzystają
 z tego samego BFF oraz z dotychczasowych reguł dostępu i limitów strumieni.
+Osobne okno pobiera metadane bieżącego wątku krótkimi odczytami, aby potwierdzenia
+klatek i wejście nie czekały na połączenie zajęte przez drugi strumień SSE.
 Zakładka podglądu pliku nadal działa niezależnie
 ([workspace.md](workspace.md#panel-filespreview)).
 

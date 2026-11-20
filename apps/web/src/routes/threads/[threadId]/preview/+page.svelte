@@ -5,25 +5,25 @@
   import type { AgentPreviewTarget } from "@canopy/contracts";
   import { applicationName } from "#lib/application-name.ts";
   import { awayReason } from "#lib/features/computers/computers.ts";
-  import { OverviewState } from "#lib/features/overview/overview-state.svelte.ts";
   import AgentPreviewPanel from "#lib/features/preview/AgentPreviewPanel.svelte";
   import { initialPreviewChoice } from "#lib/features/preview/preview-window.ts";
+  import { connectPreviewWindow, type PreviewWindowContext } from "#lib/features/preview/preview-window-context.ts";
   import { devicePreferences } from "#lib/features/settings/device-preferences.svelte.ts";
   import { applyDeviceAppearance } from "#lib/features/settings/device-appearance.ts";
 
-  const overview = new OverviewState(undefined);
   const threadId = $derived(page.params.threadId ?? "");
-  const thread = $derived(overview.threads.get(threadId));
-  const worker = $derived(overview.worker(thread?.workerId ?? ""));
+  let context = $state.raw<PreviewWindowContext>({ state: "connecting" });
+  const thread = $derived(context.state === "ready" ? context.thread : undefined);
+  const worker = $derived(context.state === "ready" ? context.worker : undefined);
   const threadTitle = $derived(thread?.title || "Preview");
-  const away = $derived(thread?.nodeId ? awayReason(overview.computer(thread.nodeId)) : undefined);
+  const away = $derived(context.state === "ready" && context.thread.nodeId ? awayReason(context.computer) : undefined);
   const initial = untrack(() => initialPreviewChoice(page.url.hash));
   let tool = $state(initial.tool);
   let fit = $state(initial.fit);
   let target = $state<AgentPreviewTarget | undefined>(initial.target);
   let workerId = initial.workerId;
 
-  $effect(() => overview.connect());
+  $effect(() => connectPreviewWindow(threadId, (value) => (context = value)));
 
   onMount(() => devicePreferences.connect());
 
@@ -50,11 +50,11 @@
   <h1 class="min-w-0 shrink-0 truncate border-b border-divider px-3 py-2 text-sm font-medium" title={threadTitle}>
     {threadTitle}
   </h1>
-  {#if overview.connection !== "live"}
+  {#if context.state === "connecting" || context.state === "offline"}
     <p class="m-auto px-4 text-center text-sm text-muted" role="status">
-      {overview.connection === "unavailable" ? "Reconnect to Canopy to open this preview." : "Connecting to Canopy…"}
+      {context.state === "offline" ? "Reconnect to Canopy to open this preview." : "Connecting to Canopy…"}
     </p>
-  {:else if !thread || thread.archivedAt || thread.status === "archived"}
+  {:else if context.state === "unavailable"}
     <p class="m-auto px-4 text-center text-sm text-muted" role="status">
       This thread is unavailable. Open Preview from an active thread.
     </p>
