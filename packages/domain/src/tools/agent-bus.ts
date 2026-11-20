@@ -11,6 +11,7 @@ import {
   type JsonValue,
 } from "../json.ts";
 import { humanizeEnum, humanizeToolName } from "../humanize.ts";
+import { previewLine } from "../first-line.ts";
 import type { IconName } from "@canopy/ui/icons";
 import { describeTool } from "./registry.ts";
 
@@ -268,7 +269,12 @@ export function transcriptOf(result: JsonObject): TranscriptLine[] {
         return [{ key, role: "activity", text: "Thought it through", mono: false }];
       case "command_execution":
         return [
-          { key, role: "activity", text: str(body("commandExecution")["command"]) || "Ran a command", mono: true },
+          {
+            key,
+            role: "activity",
+            text: previewLine(str(body("commandExecution")["command"])) || "Ran a command",
+            mono: true,
+          },
         ];
       case "file_change": {
         const names = listOf(body("fileChange")["changes"]).flatMap((c) => {

@@ -3,8 +3,8 @@
 Status: opis zaimplementowanego kodu web/desktop/mobile (2026-11-20), w tym
 doczytywania brakującej pracy podczas przewijania lub na żądanie w web/desktop,
 stosowania „After the turn” do pracy poprzedzającej steer, kompaktowania kontekstu
-jako widocznej granicy segmentów pracy i odstępów wokół wiadomości postępu
-w web/desktop. Dostępność
+jako widocznej granicy segmentów pracy, odstępów wokół wiadomości postępu
+w web/desktop i krótkich podglądów aktywności. Dostępność
 w wydaniach zależy od kanału.
 
 Wejście tury zawsze poprzedza jej pracę. Gateway zapisuje tekst i wiąże załączniki
@@ -32,6 +32,13 @@ Wiersze narzędzi wewnątrz grup zachowują kompaktowe odstępy, a pionowa linia
 pracy pozostaje ciągła.
 
 Rozwinięcie grupy pokazuje nagłówki itemów. Każdy item startuje zamknięty: również działające i nieudane komendy, MCP, agent-bus, obrazy, podagenci, zadania w tle i checklisty. Błąd, kod wyjścia i dostępne liczby +/− pozostają w nagłówku; wynik, diff i karty szczegółów pojawiają się po rozwinięciu. Stan itemów zachowuje istniejące `UiMemory`; stan foldów i grup trzyma `WorkFolds` na stronie wątku.
+
+Podglądy poleceń, argumentów narzędzi i bieżącej pracy pokazują pierwszą linię,
+do 120 znaków treści. Wielokropek wskazuje skrót. Pełne polecenie, skrypt
+i wynik można przeczytać po rozwinięciu itemu. W web/desktop nagłówki sekcji,
+grup i poleceń nie powielają podglądu w `title`. Wiersz narzędzia może pokazać
+w podpowiedzi krótką, jednoliniową ścieżkę lub adres URL, gdy uzupełnia skróconą
+etykietę.
 
 Poza foldem widać tylko ostatnią wiadomość agenta tury (albo segmentu, niżej), w stałym wierszu `answer:<turnId>`, i to dopiero wtedy, gdy wiadomo, że jest końcowa. Regułę liczy wspólne `answerIndex` (`packages/domain/src/work-fold.ts`) dla webu i mobile:
 

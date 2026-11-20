@@ -1,5 +1,6 @@
 import { ItemStatus, type Item } from "@canopy/contracts";
 import type { IconName } from "@canopy/ui/icons";
+import { previewLine } from "./first-line.ts";
 import { describeTool } from "./tools/registry.ts";
 
 /**
@@ -165,6 +166,10 @@ export function groupSummary(items: readonly Item[]): WorkGroupSummary {
  */
 export const WORK_HINT_SETTLE_MS = 400;
 
+function ongoingHint(text: string): string {
+  return previewLine(text.endsWith("…") ? text : `${text}…`);
+}
+
 /**
  * What a live fold is doing now. Only active work supplies a hint; finished calls never read as still running.
  * `running`: whether an item still runs (a command's background task can outlive it).
@@ -182,21 +187,21 @@ export function currentWorkHint(
   if (activity(item) === "read" && reads.length > 1) return `Reading ${reads.length} files…`;
   const content = item.content;
 
-  if (content.case === "commandExecution") return `Running ${content.value.command.split("\n")[0]}…`;
+  if (content.case === "commandExecution") return ongoingHint(`Running ${content.value.command}`);
 
   if (content.case === "toolCall") {
     const look = describeTool({ ...content.value, running: true });
 
-    return `${look.title}${look.subject ? ` ${look.subject}` : ""}…`;
+    return ongoingHint(look.subject ? `${look.title} ${look.subject}` : look.title);
   }
 
   if (content.case === "fileChange") return `Editing ${content.value.changes.length} files…`;
 
-  if (content.case === "backgroundTask") return content.value.description || "Running a background task…";
+  if (content.case === "backgroundTask") return previewLine(content.value.description) || "Running a background task…";
 
-  if (content.case === "agentBusCall") return `Calling ${content.value.toolName}…`;
+  if (content.case === "agentBusCall") return ongoingHint(`Calling ${content.value.toolName}`);
 
-  if (content.case === "subagent") return content.value.description || "Waiting for a subagent…";
+  if (content.case === "subagent") return previewLine(content.value.description) || "Waiting for a subagent…";
 
   // A message still streaming inside a collapsed fold: its text shows only once it is the answer.
   if (content.case === "agentMessage") return "Writing…";

@@ -2,6 +2,7 @@ import { Text } from "react-native";
 import { ItemStatus, type CommandExecution } from "@canopy/contracts";
 import { streamingText } from "@canopy/ui/streaming";
 import { formatDuration } from "@canopy/domain/format";
+import { previewLine } from "@canopy/domain/first-line";
 import { Badge } from "../../../ui/Badge";
 import { useColors, useTypography } from "../../../ui/theme";
 import { CodeBlock, OutputBlock } from "../CodeBlock";
@@ -20,14 +21,14 @@ export function CommandView({
 }) {
   const c = useColors();
   const type = useTypography();
-  const first = command.command.split("\n")[0] ?? "";
+  const preview = previewLine(command.command);
 
   return (
     <ItemFrame
       icon="command-line"
       status={status}
-      label={`Command ${first}`}
-      title={<RowTitle subject={first} mono />}
+      label={`Command ${preview}`}
+      title={<RowTitle subject={preview} mono />}
       aside={
         <>
           {command.durationMs > 0n && <Aside>{formatDuration(command.durationMs)}</Aside>}
@@ -46,7 +47,7 @@ export function CommandView({
       <OutputBlock
         output={streamingText(command.output, streaming)}
         blob={command.outputBlob}
-        label={`Output of ${first}`}
+        label={`Output of ${preview}`}
         empty={status === ItemStatus.IN_PROGRESS ? "Waiting for output…" : "No output."}
       />
     </ItemFrame>
