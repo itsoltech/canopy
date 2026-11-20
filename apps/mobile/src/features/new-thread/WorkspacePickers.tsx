@@ -1,10 +1,11 @@
 import { useState } from "react";
-import { Text, View } from "react-native";
+import { Text, View, useWindowDimensions } from "react-native";
 import type { GitRef, GitRefs } from "@canopy/contracts";
 import { headLabel, shortWorktreePath } from "@canopy/domain/git-heads";
 import { PickerSheet } from "../../ui/Picker";
 import { Icon } from "../../ui/Icon";
 import { styles, useColors } from "../../ui/theme";
+import { composerGeometry } from "../composer/geometry";
 import { ComposerPill } from "../threads/ComposerBox";
 import type { WorkspaceChoice, WorkspaceDraft } from "./useWorkspaceDraft";
 
@@ -20,28 +21,44 @@ const choiceLabel = (choice: WorkspaceChoice) =>
  * offers worktrees and the folder is a git repository.
  */
 export function WorkspacePills({ draft }: { draft: WorkspaceDraft }) {
+  const { fontScale } = useWindowDimensions();
+  const height = Math.max(composerGeometry.secondary, Math.ceil(styles.meta.lineHeight * fontScale));
+
+  // Git discovery can show or hide these controls after the centered composer has been laid out.
+  return (
+    <View style={[styles.row, { gap: 0, paddingHorizontal: 6, height }]}>
+      {draft.available && <WorkspaceControls draft={draft} />}
+    </View>
+  );
+}
+
+const pillSlot = { flexShrink: 1, minWidth: 0 };
+
+function WorkspaceControls({ draft }: { draft: WorkspaceDraft }) {
   const c = useColors();
   const [picker, setPicker] = useState<"workspace" | "ref" | null>(null);
   const close = () => setPicker(null);
   const choiceKey = (c: WorkspaceChoice) => (c.kind === "existing" ? c.worktree.id : c.kind);
 
-  if (!draft.available) return null;
-
   return (
-    <View style={[styles.row, { gap: 0, paddingHorizontal: 6, flexWrap: "wrap" }]}>
-      <ComposerPill
-        icon={choiceIcon(draft.choice)}
-        title={choiceLabel(draft.choice)}
-        onPress={() => {
-          draft.refresh();
-          setPicker("workspace");
-        }}
-      />
+    <>
+      <View style={pillSlot}>
+        <ComposerPill
+          icon={choiceIcon(draft.choice)}
+          title={choiceLabel(draft.choice)}
+          onPress={() => {
+            draft.refresh();
+            setPicker("workspace");
+          }}
+        />
+      </View>
       {draft.choice.kind === "new" ? (
-        <ComposerPill icon="git-fork" title={draft.branch || "Default branch"} onPress={() => setPicker("ref")} />
+        <View style={pillSlot}>
+          <ComposerPill icon="git-fork" title={draft.branch || "Default branch"} onPress={() => setPicker("ref")} />
+        </View>
       ) : draft.branch ? (
         // The checkout's or the worktree's branch only shows: switching it here could change other threads' files.
-        <View style={[styles.row, { gap: 4, minHeight: 36, paddingHorizontal: 6, flexShrink: 1 }]}>
+        <View style={[styles.row, pillSlot, { gap: 4, paddingHorizontal: 6 }]}>
           <Icon name="git-fork" size={14} color={c.muted} />
           <Text numberOfLines={1} style={[styles.meta, { color: c.muted, flexShrink: 1, fontFamily: "monospace" }]}>
             {draft.branch}
@@ -109,7 +126,7 @@ export function WorkspacePills({ draft }: { draft: WorkspaceDraft }) {
         value={draft.baseRef}
         onSelect={draft.chooseBase}
       />
-    </View>
+    </>
   );
 }
 
