@@ -4,6 +4,7 @@ import { mkdtempSync, readFileSync, readdirSync, rmSync, writeFileSync } from "n
 import { tmpdir } from "node:os";
 import { basename, join } from "node:path";
 import { writeReleaseFiles } from "./release-manifest.ts";
+import { requireBetaPublication, requireNightlyPublication, requireStableBeta } from "./release-publication.ts";
 import {
   uploadRelease,
   type Release,
@@ -11,7 +12,8 @@ import {
   type ReleaseUploadOptions,
   type UploadedAsset,
 } from "./release-upload.ts";
-import { newestRelease } from "../apps/desktop/src/update-releases.ts";
+import { channelFeed, newestRelease, type DesktopRelease } from "../apps/desktop/src/update-releases.ts";
+import type { DesktopChannel } from "../apps/desktop/src/identity.ts";
 
 const directories: string[] = [];
 
@@ -19,10 +21,14 @@ afterEach(() => {
   for (const path of directories.splice(0)) rmSync(path, { recursive: true, force: true });
 });
 
-function fixture(channel = "nightly", existing = true) {
+function fixture(
+  channel: DesktopChannel = "nightly",
+  existing = true,
+  requireStableBeta: ReleaseUploadAdapters["requireStableBeta"] = () => {},
+  version = channel === "stable" ? "0.2.0" : `0.2.0-${channel}.1`,
+) {
   const directory = mkdtempSync(join(tmpdir(), "canopy-release-upload-unit-"));
   directories.push(directory);
-  const version = channel === "stable" ? "0.2.0" : `0.2.0-${channel}.1`;
 
   const options: ReleaseUploadOptions = {
     repo: "itsoltech/canopy",
@@ -37,30 +43,27 @@ function fixture(channel = "nightly", existing = true) {
   let present = existing;
   const uploaded = new Map<string, UploadedAsset>();
   const observed: (string | undefined)[] = [];
+  const feed = `${channelFeed(channel)}-mac.yml`;
+
+  const previous: DesktopRelease = {
+    tag_name: channel === "stable" ? "v0.1.0" : `v0.1.0-${channel}.1`,
+    draft: false,
+    prerelease: channel !== "stable",
+    assets: [{ name: feed }, { name: "manifest.json" }],
+  };
+
+  let nextAssetId = 1;
   let interruptUpload = false;
   let lostPublishResponse = false;
   let corrupt: ((assets: UploadedAsset[]) => UploadedAsset[]) | undefined;
 
   const observe = () => {
-    const selected = newestRelease(
-      [
-        { ...release, assets: [...uploaded.values()] },
-        {
-          tag_name: "v0.1.0",
-          draft: false,
-          prerelease: false,
-          assets: [{ name: "nightly-mac.yml" }, { name: "manifest.json" }],
-        },
-      ],
-      "0.0.0",
-      "nightly",
-      "nightly-mac.yml",
-    );
+    const selected = newestRelease([{ ...release, assets: [...uploaded.values()] }, previous], "0.0.0", channel, feed);
 
     observed.push(selected?.tag_name);
   };
 
-  const local = (name: string): UploadedAsset => {
+  const local = (name: string): Omit<UploadedAsset, "id"> => {
     const bytes = readFileSync(join(directory, name));
 
     return {
@@ -87,12 +90,19 @@ function fixture(channel = "nightly", existing = true) {
 
       return corrupt ? corrupt(assets) : assets;
     },
+    deleteAsset: (_repo, id) => {
+      if (!release.draft) throw new Error("Cannot mutate published assets");
+
+      for (const [name, asset] of uploaded) {
+        if (asset.id === id) uploaded.delete(name);
+      }
+    },
     upload: (_repo, _tag, paths) => {
       if (!release.draft) throw new Error("Cannot mutate published assets");
 
       for (const path of paths) {
         const name = basename(path);
-        uploaded.set(name, local(name));
+        uploaded.set(name, { id: nextAssetId++, ...local(name) });
         observe();
 
         if (interruptUpload) {
@@ -101,10 +111,13 @@ function fixture(channel = "nightly", existing = true) {
         }
       }
     },
+    requireStableBeta,
+    requireBetaPublication: () => {},
+    requireNightlyPublication: () => {},
     publish: (_repo, _id, stable) => {
       expect(stable).toBe(channel === "stable");
 
-      for (const name of readdirSync(directory)) expect(uploaded.get(name)).toEqual(local(name));
+      for (const name of readdirSync(directory)) expect(uploaded.get(name)).toMatchObject(local(name));
       release.draft = false;
       observe();
 
@@ -141,8 +154,7 @@ function fixture(channel = "nightly", existing = true) {
 
     for (const name of installers) write(`Canopy-${version}-${name}`);
 
-    const channels =
-      channel === "stable" ? ["latest", "beta", "nightly"] : channel === "beta" ? ["beta", "nightly"] : ["nightly"];
+    const channels = channel === "stable" ? ["latest", "beta"] : [channel];
 
     for (const feed of channels)
       for (const suffix of ["", "-mac", "-linux", ...(arm ? ["-linux-arm64"] : [])]) write(`${feed}${suffix}.yml`);
@@ -150,6 +162,7 @@ function fixture(channel = "nightly", existing = true) {
 
   return {
     directory,
+    previous,
     options,
     release,
     uploaded,
@@ -171,22 +184,139 @@ function fixture(channel = "nightly", existing = true) {
   };
 }
 
-for (const channel of ["nightly", "beta", "stable"]) {
-  test(`${channel}: old release stays selected until every asset and cumulative feed is verified`, async () => {
+for (const channel of ["nightly", "beta", "stable"] as const) {
+  test(`${channel}: old release stays selected until every asset and feed is verified`, async () => {
     const f = fixture(channel, false);
     await f.generate();
     await f.stage();
     expect(f.release.draft).toBe(true);
-    expect(new Set(f.observed)).toEqual(new Set(["v0.1.0"]));
+    expect(new Set(f.observed)).toEqual(new Set([f.previous.tag_name]));
     await expect(f.publish()).rejects.toThrow("Release is incomplete");
     f.desktop(channel !== "nightly");
     await f.generate();
     await f.publish();
     expect(f.release.draft).toBe(false);
     expect(f.observed.at(-1)).toBe(f.options.tag);
-    expect(new Set(f.observed.slice(0, -1))).toEqual(new Set(["v0.1.0"]));
+    expect(new Set(f.observed.slice(0, -1))).toEqual(new Set([f.previous.tag_name]));
   });
 }
+
+test("a resumed stable draft drops nightly feed aliases before it becomes visible", async () => {
+  const f = fixture("stable");
+  f.desktop();
+  f.uploaded.set("nightly-mac.yml", {
+    id: 0,
+    name: "nightly-mac.yml",
+    size: 123,
+    state: "uploaded",
+    digest: null,
+  });
+  await f.generate();
+  await f.publish();
+  expect(f.release.draft).toBe(false);
+  expect(f.uploaded.has("nightly-mac.yml")).toBe(false);
+});
+
+test("stable can publish after the next nightly series opens and requires the tested beta SHA", async () => {
+  const releases = [
+    { tag_name: "v0.5.0", draft: false, prerelease: false },
+    { tag_name: "v0.6.0-beta.1", draft: false, prerelease: true },
+    { tag_name: "v0.7.0-nightly.4", draft: false, prerelease: true },
+  ];
+
+  const f = fixture("stable", true, undefined, "0.6.0");
+  let betaSha = "first-beta-sha";
+
+  f.adapters.requireStableBeta = (repo, tag, sha) => {
+    expect(f.uploaded.has("manifest.json")).toBe(true);
+    requireStableBeta(repo, tag, sha, {
+      pages: () => releases,
+      git: (...args) => {
+        expect(args.at(-1)).toContain("refs/tags/v0.6.0-beta.1");
+
+        return betaSha;
+      },
+    });
+  };
+
+  f.desktop();
+  await f.generate();
+  await expect(f.publish()).rejects.toThrow("must match v0.6.0-beta.1");
+  expect(f.release.draft).toBe(true);
+  expect(new Set(f.observed)).toEqual(new Set([f.previous.tag_name]));
+
+  betaSha = f.options.sha;
+  await f.publish();
+  expect(f.release.draft).toBe(false);
+});
+
+test("a reserved 0.5.0-nightly.5 stays hidden when stable 0.5.0 publishes during its build", async () => {
+  const old = fixture("nightly", true, undefined, "0.5.0-nightly.5");
+  const next = fixture("nightly", true, undefined, "0.6.0-nightly.1");
+  const stable = { tag_name: "v0.5.0", draft: true, prerelease: false };
+  const gitCalls: string[][] = [];
+
+  const adapters = {
+    pages: () => [stable, { tag_name: "v0.5.0-nightly.4", draft: false, prerelease: true }],
+    git: (...args: string[]) => {
+      gitCalls.push(args);
+
+      return "";
+    },
+  };
+
+  for (const candidate of [old, next])
+    candidate.adapters.requireNightlyPublication = (repo, tag, sha) =>
+      requireNightlyPublication(repo, tag, sha, adapters);
+
+  await old.generate();
+  await old.stage();
+  old.desktop();
+  await old.generate();
+  stable.draft = false;
+  await expect(old.publish()).rejects.toThrow("nightly requires 0.6.0-nightly.1 or later");
+  expect(old.release.draft).toBe(true);
+  expect(old.uploaded.get("manifest.json")?.state).toBe("uploaded");
+  expect(gitCalls).toEqual([]);
+
+  next.desktop();
+  await next.generate();
+  await next.publish();
+  expect(next.release.draft).toBe(false);
+  expect(gitCalls).toContainEqual(["rev-parse", "refs/tags/v0.5.0^{commit}"]);
+});
+
+test("a public beta closes its nightly series before stable and the active beta stays on its minor line", () => {
+  const releases = [
+    { tag_name: "v0.5.0", draft: false, prerelease: false },
+    { tag_name: "v0.6.0-beta.1", draft: false, prerelease: true },
+  ];
+
+  let mainTags = "v0.5.0";
+
+  const adapters = {
+    pages: () => releases,
+    git: (...args: string[]) => (args.includes("--points-at") ? mainTags : "v0.5.0\nv0.6.0-beta.1"),
+  };
+
+  expect(() => requireNightlyPublication("fixture/canopy", "v0.6.0-nightly.5", "sha", adapters)).toThrow(
+    "nightly requires 0.7.0-nightly.1 or later",
+  );
+  requireNightlyPublication("fixture/canopy", "v0.7.0-nightly.1", "sha", adapters);
+  requireBetaPublication("fixture/canopy", "v0.6.0-beta.2", adapters);
+  expect(() => requireBetaPublication("fixture/canopy", "v0.7.0-beta.1", adapters)).toThrow("active beta line");
+
+  mainTags = "v0.6.0-beta.1";
+  expect(() => requireBetaPublication("fixture/canopy", "v0.6.0-beta.2", adapters)).toThrow("next patch version");
+  requireBetaPublication("fixture/canopy", "v0.6.1-beta.1", adapters);
+
+  releases.push({ tag_name: "v0.6.0", draft: false, prerelease: false });
+  requireBetaPublication("fixture/canopy", "v0.7.0-beta.1", adapters);
+  releases.push({ tag_name: "v0.7.0-beta.1", draft: false, prerelease: true });
+  expect(() => requireNightlyPublication("fixture/canopy", "v0.7.0-nightly.5", "sha", adapters)).toThrow(
+    "nightly requires 0.8.0-nightly.1 or later",
+  );
+});
 
 test("interrupted uploads resume the draft; a lost publish response never clobbers public files", async () => {
   const f = fixture();
@@ -231,16 +361,16 @@ for (const problem of ["missing", "state", "size", "digest"]) {
     );
     await expect(f.publish()).rejects.toThrow("Uploaded asset failed verification: nightly-mac.yml");
     expect(f.release.draft).toBe(true);
-    expect(new Set(f.observed)).toEqual(new Set(["v0.1.0"]));
+    expect(new Set(f.observed)).toEqual(new Set([f.previous.tag_name]));
   });
 }
 
-test("missing Windows/macOS/Linux aliases, blockmaps and experimental feeds keep the draft hidden", async () => {
+test("missing Windows/macOS/Linux feeds, blockmaps and experimental feeds keep the draft hidden", async () => {
   for (const missing of [
-    "nightly.yml",
+    "latest.yml",
     "beta-mac.yml",
     "latest-linux.yml",
-    "nightly-linux-arm64.yml",
+    "latest-linux-arm64.yml",
     "Canopy-0.2.0-windows-x64.exe.blockmap",
     "Canopy-0.2.0-darwin-arm64.zip",
   ]) {

@@ -1,5 +1,5 @@
 import { Schema } from "effect";
-import { ReleaseHttp, releaseHttp, secureReleaseUrl, RELEASE_CACHE_MS } from "./http.ts";
+import { ReleaseHttp, ReleaseHttpError, releaseHttp, secureReleaseUrl, RELEASE_CACHE_MS } from "./http.ts";
 
 export const RELEASE_INDEX_URL = "https://itsoltech.github.io/canopy/releases/v1.json";
 export const RELEASE_API_URL = "https://api.github.com/repos/itsoltech/canopy";
@@ -25,6 +25,7 @@ const IndexRelease = Schema.Struct({
 });
 
 const Index = Schema.Struct({ schema: Schema.Literal(1), releases: Schema.Array(IndexRelease) });
+const Comparison = Schema.Struct({ status: Schema.Literals(["ahead", "identical", "behind", "diverged"]) });
 
 export type CatalogRelease = Omit<Schema.Schema.Type<typeof IndexRelease>, "draft"> & { readonly draft: boolean };
 
@@ -136,6 +137,21 @@ export class ReleaseCatalog {
     const text = await this.http.text(`${this.baseUrl}/releases/tags/${encodeURIComponent(tag)}`, refresh);
 
     return parseApiRelease(Schema.decodeUnknownSync(ApiRelease)(JSON.parse(text)));
+  }
+
+  /** A GitHub comparison is forward only when the target contains the running revision. */
+  async isForward(base: string, target: string): Promise<boolean> {
+    const range = `${encodeURIComponent(base)}...${encodeURIComponent(target)}`;
+
+    try {
+      const text = await this.http.text(`${this.baseUrl}/compare/${range}?per_page=1`);
+      const { status } = Schema.decodeUnknownSync(Comparison)(JSON.parse(text));
+
+      return status === "identical" || status === "ahead";
+    } catch (error) {
+      if (error instanceof ReleaseHttpError && error.status === 404) return false;
+      throw error;
+    }
   }
 }
 

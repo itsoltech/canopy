@@ -141,6 +141,12 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           EXPECTED_SHA: ${{ inputs.expected_sha || github.sha }}
         run: node scripts/semantic-release.mjs --dry-run
+      - name: Check the stable commit against the public beta of its series
+        if: steps.plan.outputs.published == 'true' && steps.plan.outputs.channel == 'stable'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PLANNED_TAG: ${{ steps.plan.outputs.tag }}
+        run: bun scripts/release-publication.ts "$EXPECTED_SHA" "$PLANNED_TAG"
       # Nightly skips the experimental targets unless the dispatch asks for them; beta and stable build all.
       - id: matrix
         env:
@@ -521,6 +527,7 @@ jobs:
         env:
           CANOPY_VERSION: ${{ needs.plan.outputs.version }}
           CANOPY_CHANNEL: ${{ needs.plan.outputs.channel }}
+          CANOPY_REVISION: ${{ env.EXPECTED_SHA }}
         run: bun run --cwd apps/desktop build
       - name: Archive the build output with file modes
         shell: bash
@@ -765,8 +772,9 @@ jobs:
     environment: release-publication
     timeout-minutes: 30
     concurrency:
-      group: release-publish-${{ inputs.release_branch && inputs.release_branch != 'current' && format('refs/heads/{0}', inputs.release_branch) || github.ref }}
+      group: release-branch-mutations
       cancel-in-progress: false
+      queue: max
     permissions:
       contents: write
     env:
@@ -804,9 +812,11 @@ jobs:
     runs-on: ubuntu-24.04
     environment: release-publication
     timeout-minutes: 30
+    # Publication gates see a consistent snapshot of previous publications and promotion pushes.
     concurrency:
-      group: release-publish-${{ inputs.release_branch && inputs.release_branch != 'current' && format('refs/heads/{0}', inputs.release_branch) || github.ref }}
+      group: release-branch-mutations
       cancel-in-progress: false
+      queue: max
     permissions:
       contents: write
       packages: write
@@ -830,9 +840,8 @@ jobs:
         with:
           pattern: desktop-*
           path: desktop-artifacts
-      # Stable emits latest/beta/nightly feeds; beta emits beta/nightly; nightly emits nightly.
-      # Aliases refer to this release's single Canopy artifact set (including mac ZIP/blockmaps).
-      - name: Merge desktop update feeds and cumulative channel aliases
+      # Only nightly releases emit nightly feeds. Stable also emits a beta feed for the same assets.
+      - name: Merge desktop update feeds
         run: bun apps/desktop/scripts/merge-update-metadata.ts desktop-artifacts release-assets
       # Keep binaries locally for complete verification; matching draft assets are not uploaded again.
       - name: checksums.txt and manifest.json
@@ -864,10 +873,11 @@ jobs:
 
   backmerge:
     needs: [release, publish-desktop]
-    if: needs.release.outputs.channel == 'stable'
+    if: needs.release.outputs.channel == 'stable' || needs.release.outputs.channel == 'beta'
     uses: ./.github/workflows/backmerge.yml
     with:
-      stable_sha: ${{ inputs.expected_sha || github.sha }}
+      stable_sha: ${{ needs.release.outputs.channel == 'stable' && (inputs.expected_sha || github.sha) || '' }}
+      beta_sha: ${{ needs.release.outputs.channel == 'beta' && (inputs.expected_sha || github.sha) || '' }}
     permissions:
       contents: write
       pull-requests: write

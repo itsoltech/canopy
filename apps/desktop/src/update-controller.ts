@@ -2,7 +2,7 @@ import type { AppUpdater } from "electron-updater";
 import type { AppUpdaterEvents } from "electron-updater/out/AppUpdater.js";
 import type { DesktopUpdateStatus, DesktopReleaseNote } from "@canopy/ui/desktop";
 import type { DesktopChannel } from "./identity.ts";
-import { channelFeed, channelRank, isDesktopChannel } from "./update-releases.ts";
+import { channelFeed, isDesktopChannel } from "./update-releases.ts";
 import { gt } from "semver";
 import { UpdateOperation, UpdateResumed, updateTimeouts } from "./update-operation.ts";
 import type { CheckClock } from "@canopy/domain/update-checks";
@@ -28,20 +28,18 @@ interface Options {
   clock?: CheckClock;
   timeouts?: typeof updateTimeouts;
   save(channel: DesktopChannel): void;
-  confirmDowngrade(channel: DesktopChannel): Promise<boolean>;
   prepare(
     channel: DesktopChannel,
-    allowDowngrade: boolean,
     signal: AbortSignal,
     refresh: boolean,
-  ): Promise<boolean | { available: boolean; releases: DesktopReleaseNote[]; publishing: string | undefined }>;
+  ): Promise<boolean | { version?: string; releases: DesktopReleaseNote[]; publishing: string | undefined }>;
   changed(): void;
   checking?(): void;
   downloaded(): void;
   beforeInstall?(): void;
 }
 
-/** Owns a serialized check/download and a single, non-persistent downgrade grant. */
+/** Owns serialized update checks, downloads and changes to the selected channel. */
 export class UpdateController {
   private state: DesktopUpdateStatus;
   private enabled = false;
@@ -76,7 +74,7 @@ export class UpdateController {
     // Check metadata before touching pending: the feed may still point at the staged version.
     updater.autoDownload = false;
     updater.autoInstallOnAppQuit = false;
-    this.configure(false);
+    this.configure();
     updater.on("error", () => {
       // The promise owns failures; a late error from a retired updater cannot change the new attempt.
     });
@@ -89,18 +87,6 @@ export class UpdateController {
           progress: Math.max(0, Math.min(100, progress.percent)),
         });
       }
-    });
-    updater.on("update-available", (info) => {
-      if (
-        active() &&
-        (!this.state.stagedVersion || gt(info.version, this.state.stagedVersion) || updater.allowDowngrade)
-      )
-        this.publish({
-          phase: "downloading",
-          message: "Downloading update…",
-          progress: 0,
-          updateVersion: info.version,
-        });
     });
     updater.on("update-downloaded", (info) => {
       if (!active()) return;
@@ -115,11 +101,11 @@ export class UpdateController {
     this.state = { ...this.state, ...patch };
     this.options.changed();
   }
-  private configure(downgrade: boolean) {
+  private configure() {
     this.updater.channel = channelFeed(this.state.channel);
     this.updater.allowPrerelease = this.state.channel !== "stable";
     // electron-updater's channel setter itself enables downgrade. Always overwrite it.
-    this.updater.allowDowngrade = downgrade;
+    this.updater.allowDowngrade = false;
   }
   enable(reason?: string) {
     this.enabled = !reason;
@@ -149,28 +135,24 @@ export class UpdateController {
     if (this.installing) return this.status();
 
     if (raw === this.state.channel) return this.status();
-    const downgrade = channelRank[raw] < channelRank[this.state.channel];
     this.publish({ changingChannel: true });
 
     try {
-      if (!downgrade || (await this.options.confirmDowngrade(raw))) {
-        this.options.save(raw);
-        this.staged = undefined;
-        this.publish({
-          channel: raw,
-          phase: this.enabled ? "idle" : "disabled",
-          updateVersion: undefined,
-          stagedVersion: undefined,
-          error: undefined,
-          progress: undefined,
-          releases: undefined,
-          publishing: undefined,
-          message: this.enabled ? "Update channel changed" : this.state.message,
-        });
-        this.configure(false);
-        // The grant exists only for this switch's check/download, never the timer or next launch.
-        await this.runCheck(downgrade);
-      }
+      this.options.save(raw);
+      this.staged = undefined;
+      this.publish({
+        channel: raw,
+        phase: this.enabled ? "idle" : "disabled",
+        updateVersion: undefined,
+        stagedVersion: undefined,
+        error: undefined,
+        progress: undefined,
+        releases: undefined,
+        publishing: undefined,
+        message: this.enabled ? "Update channel changed" : this.state.message,
+      });
+      this.configure();
+      await this.runCheck();
     } finally {
       this.publish({ changingChannel: false });
     }
@@ -178,7 +160,7 @@ export class UpdateController {
     return this.status();
   }
   check() {
-    return this.channelOperation ?? this.runCheck(false);
+    return this.channelOperation ?? this.runCheck();
   }
   setAutomaticUpdates(enabled: boolean): void {
     this.automaticEnabled = enabled;
@@ -194,9 +176,7 @@ export class UpdateController {
     }
   }
   checkAutomatically() {
-    return this.automaticEnabled && !this.channelOperation
-      ? this.runCheck(false, true)
-      : Promise.resolve(this.status());
+    return this.automaticEnabled && !this.channelOperation ? this.runCheck(true) : Promise.resolve(this.status());
   }
   checkRemote() {
     return this.check();
@@ -231,7 +211,7 @@ export class UpdateController {
 
     return false;
   }
-  private runCheck(allowDowngrade: boolean, automatic = false): Promise<DesktopUpdateStatus> {
+  private runCheck(automatic = false): Promise<DesktopUpdateStatus> {
     if (this.running && this.operation) return this.operation;
 
     if (!this.enabled || this.installing) return Promise.resolve(this.status());
@@ -242,7 +222,7 @@ export class UpdateController {
     this.cancelRetry = undefined;
     const operation = Promise.withResolvers<DesktopUpdateStatus>();
     this.operation = operation.promise;
-    void this.performCheck(allowDowngrade, automatic).then(operation.resolve, operation.reject);
+    void this.performCheck(automatic).then(operation.resolve, operation.reject);
 
     return this.operation;
   }
@@ -261,7 +241,7 @@ export class UpdateController {
         : { phase: error ? "error" : "idle", message: error ?? message, error, progress: undefined },
     );
   }
-  private async performCheck(allowDowngrade: boolean, automatic: boolean) {
+  private async performCheck(automatic: boolean) {
     this.running = true;
     this.interrupted = false;
     this.runningAutomatic = automatic;
@@ -272,7 +252,7 @@ export class UpdateController {
         this.attempt = attempt;
 
         try {
-          await this.performAttempt(allowDowngrade, automatic, attempt);
+          await this.performAttempt(automatic, attempt);
           break;
         } catch (error) {
           if (error instanceof ReleaseRateLimit) {
@@ -333,7 +313,7 @@ export class UpdateController {
 
     return this.status();
   }
-  private async performAttempt(allowDowngrade: boolean, automatic: boolean, attempt: UpdateOperation) {
+  private async performAttempt(automatic: boolean, attempt: UpdateOperation) {
     const updater = this.updater;
     this.downloadedVersion = undefined;
     this.publish({
@@ -346,12 +326,12 @@ export class UpdateController {
       publishing: undefined,
       retryAt: undefined,
     });
-    this.configure(allowDowngrade);
+    this.configure();
 
     this.options.checking?.();
 
     const prepared = await attempt.wait("prepare", () =>
-      this.options.prepare(this.state.channel, allowDowngrade, attempt.signal, !automatic),
+      this.options.prepare(this.state.channel, attempt.signal, !automatic),
     );
 
     if (automatic && !this.automaticEnabled) {
@@ -360,16 +340,19 @@ export class UpdateController {
       return;
     }
 
-    const available = prepared === true || (prepared !== false && prepared.available);
+    const version = prepared === true || prepared === false ? undefined : prepared.version;
 
     if (prepared !== true && prepared !== false)
       this.publish({ releases: prepared.releases, publishing: prepared.publishing });
 
-    if (!available) {
+    if (prepared !== true && !version) {
       this.settle(this.state.publishing);
 
       return;
     }
+
+    // Only a release verified by the resolver may cross to a lower-numbered channel.
+    updater.allowDowngrade = !!version && gt(this.state.version, version);
 
     const result = await attempt.wait("check", () =>
       updater.checkForUpdates().then((result) => {
@@ -382,16 +365,27 @@ export class UpdateController {
     this.cancelDownload = () => result?.cancellationToken?.cancel();
     attempt.signal.addEventListener("abort", this.cancelDownload, { once: true });
 
+    if (version && result && result.updateInfo.version !== version) {
+      this.cancelDownload();
+      throw new Error("Feed version differs from the verified release");
+    }
+
     if (automatic && !this.automaticEnabled) this.cancelDownload();
 
     if (
       result?.isUpdateAvailable &&
       (!automatic || this.automaticEnabled) &&
-      (!this.staged?.updateVersion || allowDowngrade || gt(result.updateInfo.version, this.staged.updateVersion))
+      (!this.staged?.updateVersion || gt(result.updateInfo.version, this.staged.updateVersion))
     ) {
+      this.publish({
+        phase: "downloading",
+        message: "Downloading update…",
+        progress: 0,
+        updateVersion: result.updateInfo.version,
+      });
       await attempt.wait("download", () => updater.downloadUpdate(result.cancellationToken));
 
-      if (this.downloadedVersion) {
+      if (this.downloadedVersion === result.updateInfo.version) {
         this.publish({
           phase: "downloaded",
           message: "An update is ready to install",

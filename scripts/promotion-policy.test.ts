@@ -41,6 +41,15 @@ function input(commits: PromotionCommit[]): PromotionInput {
   return { path: "dev-next", target, commits, now, soakMs: DEV_NEXT_SOAK_MS, paused: false, blockers: [] };
 }
 
+function stableInput(commits: PromotionCommit[], beta: PromotionCommit): PromotionInput {
+  return {
+    ...input(commits),
+    path: "next-main",
+    soakMs: DAY,
+    activeBeta: { tag: beta.release!.tag, sha: beta.sha },
+  };
+}
+
 test("soak picks an ancestor; feature and its one-hour-later fix wait until both have soaked", () => {
   const feature = commit(68, 6.5);
   const fix = commit(69, 5.5, "fix: repair feature");
@@ -123,7 +132,7 @@ test("stable also waits for known dev fixes that have not reached beta yet", () 
   const beta = commit(1, 200);
   beta.release = { tag: "v0.2.0-beta.1", readyAt: now - 25 * HOUR };
   const fix = commit(2, 1, "fix: beta defect\n\nFixes: #1");
-  const data: PromotionInput = { ...input([beta]), path: "next-main", soakMs: DAY, pendingFixes: [fix] };
+  const data = { ...stableInput([beta], beta), pendingFixes: [fix] };
   expect(selectPromotion(data).sha).toBe(target);
 });
 
@@ -254,7 +263,7 @@ test("stable pending dev fixes expire strictly after one day of beta eligibility
   const beta = commit(2, 200, "feat: beta", ["beta.ts"]);
   beta.release = { tag: "v0.2.0-beta.1", readyAt: now - 2 * DAY };
   const fix = commit(3, 1, "fix: pending repair\n\nRefs: #1");
-  const data: PromotionInput = { ...input([feature, beta]), path: "next-main", soakMs: DAY, pendingFixes: [fix] };
+  const data = { ...stableInput([feature, beta], beta), pendingFixes: [fix] };
   const held = selectPromotion(data);
   expect(held.sha).toBe(target);
   expect(held.holds[0]?.since).toBe(now - DAY);
@@ -288,20 +297,18 @@ test("expiry cannot bypass exact-commit Release success or the beta burn-in", ()
   const fix = commit(2, 1, "fix: pending repair\n\nRefs: #1");
   expect(selectPromotion(input([{ ...feature, green: false }, fix])).sha).toBe(target);
   feature.release = { tag: "v0.2.0-beta.1", readyAt: now - 23 * HOUR };
-  expect(
-    selectPromotion({ ...input([feature]), path: "next-main", soakMs: DAY, pendingFixes: [fix], holdCapMs: 0 }).sha,
-  ).toBe(target);
+  expect(selectPromotion({ ...stableInput([feature], feature), pendingFixes: [fix], holdCapMs: 0 }).sha).toBe(target);
 });
 
-test("stable only picks beta-tagged commits with manifests aged 24 hours; a newer beta does not reset an older one", () => {
+test("stable selects only the active beta after its own burn-in and green Release", () => {
   const old = commit(1, 200);
   old.release = { tag: "v0.2.0-beta.1", readyAt: now - DAY };
   const young = commit(2, 190, "feat: newer", ["other.ts"]);
   young.release = { tag: "v0.2.0-beta.2", readyAt: now - 23 * HOUR };
-  const data = { ...input([old, young]), path: "next-main" as const, soakMs: DAY };
-  expect(selectPromotion(data).sha).toBe(old.sha);
+  const data = stableInput([old, young], young);
+  expect(selectPromotion(data).sha).toBe(target);
   expect(selectPromotion({ ...data, now: now + HOUR }).sha).toBe(young.sha);
-  expect(selectPromotion({ ...data, commits: [young] }).sha).toBe(target);
+  expect(selectPromotion({ ...data, now: now + HOUR, commits: [old, { ...young, green: false }] }).sha).toBe(target);
 });
 
 test("empty histories, young commits and failed latest CI are no-ops; tags are preferred", () => {

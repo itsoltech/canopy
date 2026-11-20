@@ -1,138 +1,16 @@
 /** Real git mutations are confined to these local bare fixtures; every GitHub request is injected. */
 import { afterEach, expect, test } from "bun:test";
 import { execFileSync } from "node:child_process";
-import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
-import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { isJsonObject, type JsonValue } from "@canopy/domain";
-import { burnInDays, promotionSummary, runPromotion, type PromotionOptions } from "./promote.ts";
+import { isJsonObject } from "@canopy/domain";
+import { burnInDays, promotionSummary, runPromotion } from "./promote.ts";
 import { loadPromotion, type PromotionAdapters } from "./promotion-data.ts";
 import { finishPromotion, preparePromotion } from "./promotion-journal.ts";
 import { DAY, HOLD_CAP_DAYS } from "./promotion-policy.ts";
 
-const dirs: string[] = [];
-const now = Date.parse("2026-11-10T12:00:00Z");
-const options: PromotionOptions = { dryRun: false, paused: false, override: false, burnIn: 1 };
+import { cleanupPromotionFixtures, fixture, now, options } from "./fixtures/promotion.ts";
 
-afterEach(() => {
-  for (const dir of dirs.splice(0)) rmSync(dir, { recursive: true, force: true });
-});
-
-function fixture() {
-  const dir = mkdtempSync(join(tmpdir(), "canopy-promote-unit-"));
-  dirs.push(dir);
-
-  const remote = join(dir, "origin.git"),
-    cwd = join(dir, "checkout");
-
-  execFileSync("git", ["init", "--bare", "--initial-branch=main", remote], { stdio: "pipe" });
-  execFileSync("git", ["clone", remote, cwd], { stdio: "pipe" });
-
-  const git = (...args: string[]) =>
-    execFileSync("git", args, { cwd, encoding: "utf8", stdio: ["ignore", "pipe", "pipe"] }).trim();
-
-  git("config", "user.name", "Promotion fixture");
-  git("config", "user.email", "fixture@example.invalid");
-  git("config", "core.hooksPath", "/dev/null");
-  git("config", "commit.gpgSign", "false");
-  git("config", "tag.gpgSign", "false");
-  git("config", "tag.forceSignAnnotated", "false");
-  git("commit", "--allow-empty", "-m", "chore: bootstrap");
-  git("tag", "v0.1.0");
-  git("branch", "next");
-  git("checkout", "-b", "dev");
-  git("push", "origin", "main", "next", "dev", "--tags");
-  const baseline = git("rev-parse", "HEAD");
-
-  const releases: JsonValue[] = [],
-    issues: JsonValue[] = [],
-    blockers: JsonValue[] = [];
-
-  const pulls = new Map<string, JsonValue[]>();
-  const runs = new Map<string, JsonValue[]>();
-  const writes: { path: string; method: string; body: JsonValue | undefined }[] = [];
-
-  const adapters: PromotionAdapters = {
-    releaseRevision() {
-      throw new Error("Push runs do not need revision artifacts");
-    },
-    git,
-    api(path, method = "GET", body) {
-      if (method !== "GET") {
-        writes.push({ path, method, body });
-
-        return { number: 99 };
-      }
-
-      if (path.includes("/jobs?"))
-        return {
-          jobs: ["linux-x64", "linux-arm64", "darwin-arm64", "windows-x64"].map((target) => ({
-            name: `smoke (${target}, fixture)`,
-            conclusion: "success",
-          })),
-        };
-      const page = Number(new URL(`https://fixture.invalid/${path}`).searchParams.get("page") ?? 1);
-
-      return { workflow_runs: [...runs.values()].flat().slice((page - 1) * 100, page * 100) };
-    },
-    pages(path) {
-      if (path.includes("/releases?")) return releases;
-
-      if (path.includes("labels=release-blocker")) return blockers;
-
-      if (path.includes("/issues?")) return issues;
-
-      if (path.includes("/pulls?")) {
-        const base = new URL(`https://fixture.invalid/${path}`).searchParams.get("base");
-
-        return [...pulls.values()]
-          .flat()
-          .filter((pr) => isJsonObject(pr) && isJsonObject(pr["base"]) && pr["base"]["ref"] === base);
-      }
-
-      throw new Error(`Unexpected fixture API read: ${path}`);
-    },
-  };
-
-  function commit(message: string, ageHours: number, file = "feature.ts") {
-    writeFileSync(join(cwd, file), `${message}\n${ageHours}\n`);
-    git("add", ".");
-    const date = new Date(now - ageHours * 3_600_000).toISOString();
-    execFileSync("git", ["commit", "-m", message], {
-      cwd,
-      env: { ...process.env, GIT_AUTHOR_DATE: date, GIT_COMMITTER_DATE: date },
-      stdio: "pipe",
-    });
-    const sha = git("rev-parse", "HEAD");
-    runs.set(sha, [
-      {
-        id: 1,
-        head_sha: sha,
-        head_branch: "dev",
-        status: "completed",
-        conclusion: "success",
-        run_number: 1,
-        run_attempt: 1,
-      },
-    ]);
-    git("push", "origin", "dev");
-
-    return sha;
-  }
-
-  function release(sha: string, tag: string, ageHours = 100, manifestAgeHours = ageHours) {
-    git("tag", tag, sha);
-    releases.push({
-      tag_name: tag,
-      draft: false,
-      prerelease: true,
-      published_at: new Date(now - ageHours * 3_600_000).toISOString(),
-      assets: [{ name: "manifest.json", updated_at: new Date(now - manifestAgeHours * 3_600_000).toISOString() }],
-    });
-  }
-
-  return { git, baseline, remote, commit, release, adapters, writes, issues, blockers, pulls, runs };
-}
+afterEach(cleanupPromotionFixtures);
 
 test("promotes a soaked ancestor, relies on the push for Release, and leaves newer dev commits behind", async () => {
   const f = fixture();
@@ -213,23 +91,65 @@ test("merged PR hold and explicit PR body links hold a feature; starvation issue
   ).toBe("promotion-hold");
 });
 
-test("stable promotes an older published beta and measures burn-in from the manifest, not merge time", async () => {
+test("stable measures burn-in from the exact beta manifest even as newer nightly publishes", async () => {
   const f = fixture();
   const old = f.commit("feat: original", 200, "a.ts");
   const young = f.commit("feat: later beta", 150, "b.ts");
   f.release(old, "v0.2.0-beta.1", 100, 24);
+  f.release(old, "v0.2.0-nightly.1");
   f.release(young, "v0.2.0-beta.2", 90, 23);
+  f.release(young, "v0.2.0-nightly.2");
+  const newer = f.commit("feat: next nightly series", 100, "nightly.ts");
+  f.release(newer, "v0.10.0-nightly.1");
   f.git("push", "origin", `${young}:refs/heads/next`);
 
   for (const sha of [old, young])
     f.runs.set(sha, [
       { head_sha: sha, head_branch: "next", status: "completed", conclusion: "success", run_number: 1, run_attempt: 1 },
     ]);
-  const result = await runPromotion("fixture/canopy", "next-main", options, f.adapters, now);
-  expect(result.plan.sha).toBe(old);
+  const waiting = await runPromotion("fixture/canopy", "next-main", options, f.adapters, now);
+  expect(waiting.plan.sha).toBe(f.baseline);
+  expect(f.writes).toEqual([]);
+  const result = await runPromotion("fixture/canopy", "next-main", options, f.adapters, now + 3_600_000);
+  expect(result.plan.sha).toBe(young);
   expect(result.version).toBe("0.2.0");
-  expect(f.git("ls-remote", "origin", "refs/heads/main")).toStartWith(old);
+  expect(f.git("ls-remote", "origin", "refs/heads/main")).toStartWith(young);
   expect(f.writes.some((write) => write.path.includes("/dispatches"))).toBe(false);
+});
+
+test("a new beta during promotion recheck invalidates the plan even if its SHA is unchanged", async () => {
+  for (const override of [false, true]) {
+    const f = fixture();
+    const beta = f.commit("feat: promoted beta", 200);
+    f.release(beta, "v0.2.0-beta.9");
+    f.git("push", "origin", `${beta}:refs/heads/next`);
+    f.runs.set(beta, [
+      {
+        head_sha: beta,
+        head_branch: "next",
+        status: "completed",
+        conclusion: "success",
+        run_number: 1,
+        run_attempt: 1,
+      },
+    ]);
+    let listings = 0;
+
+    const adapters: PromotionAdapters = {
+      ...f.adapters,
+      pages(path) {
+        if (path.includes("/releases?") && ++listings === 2) f.release(beta, "v0.2.0-beta.10", 1);
+
+        return f.adapters.pages(path);
+      },
+    };
+
+    await expect(runPromotion("fixture/canopy", "next-main", { ...options, override }, adapters, now)).rejects.toThrow(
+      "Promotion gates changed during selection",
+    );
+    expect(f.git("ls-remote", "origin", "refs/heads/main")).toStartWith(f.baseline);
+    expect(f.writes).toEqual([]);
+  }
 });
 
 test("stable dry-run selects the exact recovered beta despite a later retry of the older push", async () => {
@@ -237,6 +157,7 @@ test("stable dry-run selects the exact recovered beta despite a later retry of t
   const beta = f.commit("feat: recovered beta", 200);
   const workflowSha = f.commit("ci: recovery tooling", 190, "tooling.ts");
   f.release(beta, "v0.2.0-beta.1", 100);
+  f.release(beta, "v0.2.0-nightly.1");
   f.git("push", "origin", `${beta}:refs/heads/next`);
   f.runs.set(beta, [
     {
@@ -319,7 +240,7 @@ test("diverged histories and concurrent target changes cannot result in a non-fa
   const sha = f.commit("feat: source", 50);
   f.release(sha, "v0.2.0-nightly.1");
   f.git("checkout", "next");
-  f.git("commit", "--allow-empty", "-m", "fix: target hotfix");
+  f.git("commit", "--allow-empty", "-m", "docs: target change");
   const hotfix = f.git("rev-parse", "HEAD");
   f.git("push", "origin", `${hotfix}:refs/heads/racer`);
 
@@ -336,7 +257,7 @@ test("diverged histories and concurrent target changes cannot result in a non-fa
   expect(f.git("ls-remote", "origin", "refs/heads/next")).toStartWith(hotfix);
   expect(f.writes.some((write) => write.path.includes("dispatches"))).toBe(false);
   f.git("fetch", "origin");
-  expect(() => loadPromotion("fixture/canopy", "dev-next", DAY, f.adapters, now)).toThrow();
+  await expect(loadPromotion("fixture/canopy", "dev-next", DAY, f.adapters, now)).rejects.toThrow();
 });
 
 test("latest failed CI wins over older green CI and manual override cannot bypass it", async () => {
@@ -432,22 +353,12 @@ test("a large promotion backlog fits the GitHub issue before and after the push"
   expect(receipt).not.toContain("canopy-promotion-pending");
 });
 
-test("untagged fallback requires all four successful smoke jobs; skipped smoke cannot promote", async () => {
+test("a green but untagged dev commit cannot open a beta series after public stable", async () => {
   const f = fixture();
-  const sha = f.commit("feat: no tag", 50);
-
-  const skipped: PromotionAdapters = {
-    ...f.adapters,
-    api(path, method, body) {
-      if (path.includes("/jobs?")) return { jobs: [{ name: "smoke (linux-x64, fixture)", conclusion: "skipped" }] };
-
-      return f.adapters.api(path, method, body);
-    },
-  };
-
-  expect((await runPromotion("fixture/canopy", "dev-next", options, skipped, now)).plan.sha).toBe(f.baseline);
+  f.commit("feat: no tag", 50);
+  const result = await runPromotion("fixture/canopy", "dev-next", { ...options, override: true }, f.adapters, now);
+  expect(result.plan.sha).toBe(f.baseline);
   expect(f.writes).toEqual([]);
-  expect((await runPromotion("fixture/canopy", "dev-next", options, f.adapters, now)).plan.sha).toBe(sha);
 });
 
 test("a fix after a successful push cannot cause history recovery to dispatch another Release", async () => {
@@ -467,23 +378,30 @@ test("a fix after a successful push cannot cause history recovery to dispatch an
   expect(f.git("ls-remote", "origin", "refs/heads/next")).toStartWith(feature);
 });
 
-test("forecast advances beta counters and a fully reverted range produces no release", async () => {
-  const f = fixture();
-  const first = f.commit("feat: original", 100);
-  f.release(first, "v0.2.0-nightly.1");
-  await runPromotion("fixture/canopy", "dev-next", options, f.adapters, now);
-  f.release(first, "v0.2.0-beta.1");
-  const fix = f.commit("fix: correction", 50);
-  f.release(fix, "v0.2.0-nightly.2");
-  expect((await runPromotion("fixture/canopy", "dev-next", options, f.adapters, now)).version).toBe("0.2.0-beta.2");
+test("a fully reverted range produces no release", async () => {
   const reverted = fixture();
   const feature = reverted.commit("feat: original", 100);
   const revert = reverted.commit(`revert: feat: original\n\nThis reverts commit ${feature}.`, 50);
-  reverted.release(revert, "v0.1.1-nightly.1");
+  reverted.release(revert, "v0.2.0-nightly.1");
   expect((await runPromotion("fixture/canopy", "dev-next", options, reverted.adapters, now)).plan.sha).toBe(
     reverted.baseline,
   );
   expect(reverted.writes).toEqual([]);
+});
+
+test("promotion forecasts retain the new minor opened by a fix-only nightly", async () => {
+  const f = fixture();
+  f.release(f.baseline, "v0.5.0");
+  const fix = f.commit("fix: first releasable change after stable", 100);
+  f.release(fix, "v0.6.0-nightly.1");
+  expect((await runPromotion("fixture/canopy", "dev-next", options, f.adapters, now)).version).toBe("0.6.0-beta.1");
+  f.release(fix, "v0.6.0-beta.1");
+  f.runs.set(fix, [
+    { head_sha: fix, head_branch: "next", status: "completed", conclusion: "success", run_number: 1, run_attempt: 1 },
+  ]);
+  expect(
+    (await runPromotion("fixture/canopy", "next-main", { ...options, dryRun: true }, f.adapters, now)).version,
+  ).toBe("0.6.0");
 });
 
 test("the real commitlint configuration accepts documented fix, perf and revert footers", () => {
@@ -505,6 +423,7 @@ test("stable is held by a known dev fix that has not been published as beta", as
   const f = fixture();
   const beta = f.commit("feat: beta feature", 200);
   f.release(beta, "v0.2.0-beta.1", 100);
+  f.release(beta, "v0.2.0-nightly.1");
   f.git("push", "origin", `${beta}:refs/heads/next`);
   f.runs.set(beta, [
     { head_sha: beta, head_branch: "next", status: "completed", conclusion: "success", run_number: 1, run_attempt: 1 },
@@ -540,6 +459,7 @@ test("automatic stable expires a known dev fix only after one day of beta eligib
   const f = fixture();
   const beta = f.commit("feat: beta feature", 240);
   f.release(beta, "v0.2.0-beta.1", 48);
+  f.release(beta, "v0.2.0-nightly.1");
   f.git("push", "origin", `${beta}:refs/heads/next`);
   f.runs.set(beta, [
     { head_sha: beta, head_branch: "next", status: "completed", conclusion: "success", run_number: 1, run_attempt: 1 },
@@ -608,7 +528,7 @@ test("a stable hotfix reached through a second-parent backmerge is retained duri
   f.git("checkout", "main");
   f.git("commit", "--allow-empty", "-m", "fix: stable hotfix");
   const hotfix = f.git("rev-parse", "HEAD");
-  f.git("tag", "v0.1.1", hotfix);
+  f.release(hotfix, "v0.1.1");
   f.git("push", "origin", "main");
   f.git("checkout", "dev");
   f.git("merge", "--no-ff", "main", "-m", "chore(release): propagate hotfix");
@@ -616,6 +536,7 @@ test("a stable hotfix reached through a second-parent backmerge is retained duri
   f.git("push", "origin", "dev", `${merged}:refs/heads/next`);
   f.release(feature, "v0.2.0-beta.1", 150);
   f.release(merged, "v0.2.0-beta.2", 100);
+  f.release(merged, "v0.2.0-nightly.1");
 
   for (const sha of [feature, merged])
     f.runs.set(sha, [
@@ -692,7 +613,7 @@ test("fresh blockers, PR holds, follow-up bodies and CI failures abort the pre-p
     const racing: PromotionAdapters = {
       ...f.adapters,
       git(...args) {
-        if (args[0] === "fetch") {
+        if (args[0] === "fetch" && args.includes("--tags")) {
           if (gate === "blocker") f.blockers.push({ number: 7 });
 
           if (gate === "label")

@@ -1,13 +1,23 @@
 import { api, dispatchRelease, git, repository } from "./release-github.ts";
 import { compareTags } from "./version.ts";
 
-export function runBackmerge(repo: string, stable: string, adapters = { git, api, dispatchRelease }): void {
+export function runBackmerge(
+  repo: string,
+  release: string,
+  adapters = { git, api, dispatchRelease },
+  channel: "stable" | "beta" = "stable",
+): void {
   const { git, api, dispatchRelease } = adapters;
 
-  for (const [source, target] of [
-    ["main", "next"],
-    ["next", "dev"],
-  ] as const) {
+  const directions =
+    channel === "beta"
+      ? ([["next", "dev"]] as const)
+      : ([
+          ["main", "next"],
+          ["next", "dev"],
+        ] as const);
+
+  for (const [source, target] of directions) {
     // Bootstrap runs before next/dev exist.
     try {
       git("rev-parse", "--verify", `origin/${target}`);
@@ -16,7 +26,7 @@ export function runBackmerge(repo: string, stable: string, adapters = { git, api
       break;
     }
 
-    const sourceRef = source === "main" ? stable : "origin/next";
+    const sourceRef = source === "main" || channel === "beta" ? release : "origin/next";
     const sourceSha = git("rev-parse", sourceRef);
 
     const alreadyMerged = git("merge-base", `origin/${target}`, sourceSha) === sourceSha;
@@ -69,7 +79,8 @@ if (import.meta.main) {
   // --force: a tag-triggered checkout already holds the tag (lightweight), which a plain fetch refuses to replace.
   git("fetch", "origin", "--tags", "--force");
 
-  const stable =
+  const latest =
+    process.env["BETA_SHA"] ||
     process.env["STABLE_SHA"] ||
     git("tag", "--merged", "origin/main", "--list", "v*")
       .split("\n")
@@ -77,6 +88,6 @@ if (import.meta.main) {
       .sort(compareTags)
       .at(-1);
 
-  if (!stable) throw new Error("No stable release to back-merge");
-  runBackmerge(repo, stable);
+  if (!latest) throw new Error("No release to back-merge");
+  runBackmerge(repo, latest, undefined, process.env["BETA_SHA"] ? "beta" : "stable");
 }

@@ -1,6 +1,8 @@
 # Aktualizacje Canopy
 
-Status: opis zaimplementowanego kodu (2026-11-19), w tym aktualizacji Canopy przed CLI
+Status: opis zaimplementowanego kodu (2026-11-20), w tym ograniczenia kanału Nightly
+do wydań nightly, sprawdzania historii commitów aktualizacji desktopu i zmiany kanału binarek,
+aktualizacji Canopy przed CLI
 i pomijania komputerów offline w Update all, wspólnego otwierania paneli
 Updates i Provider usage w stopce oraz równoległej aktualizacji
 zdalnych desktopów i workerów binarnych, ponawiania raportu o błędzie workera,
@@ -269,7 +271,8 @@ Szczegóły cache i przekazania ZIP do Squirrel: [desktop.md](desktop.md#automat
 Ręczne i zdalne sprawdzenia dołączają do bieżącego sprawdzania lub pobierania:
 czekają na tę samą próbę, a raport aplikacji nadal pokazuje jej faktyczny etap
 i postęp. Zajętość updatera nie jest błędem aktualizacji. Zmiany kanału czekają
-na bieżącą próbę i wykonują się kolejno; potwierdzenie downgrade'u nadal obowiązuje.
+na bieżącą próbę i wykonują się kolejno. Zmiana preferencji czeka na wydanie zawierające
+kod zainstalowanego buildu.
 Przygotowanie feedu i sprawdzenie metadanych mają po 60 s limitu. Pobieranie ma
 limit 30 min oraz 90 s bez przyrostu liczby pobranych bajtów. Timeout anuluje
 żądanie, zwalnia blokadę i pokazuje powód z możliwością ponowienia.
@@ -451,8 +454,8 @@ workera tego samego właściciela. Samo `worker_id` ani `installKind` nie wystar
 
 Controller przekazuje żądanie przez prywatne IPC do Electron main. Tylko main
 wywołuje `DesktopUpdates`; desktop sam pobiera wydanie swoim normalnym updaterem,
-z własnego kanału. Gateway nie dostarcza binariów desktopu, adresów feedu ani zgody
-na downgrade. Lokalna próba przełączenia kanału musi się zakończyć przed zdalną
+z własnego kanału. Gateway nie dostarcza binariów desktopu ani adresów feedu.
+Lokalna próba przełączenia kanału musi się zakończyć przed zdalną
 aktualizacją. Docelowy SemVer musi być ściśle nowszy, także gdy lokalnie pobrano
 starszą paczkę. Zasady Developer ID/codesign i walidacja Squirrel na macOS pozostają
 obowiązujące; brak podpisanego buildu wyłącza funkcję.
@@ -729,7 +732,8 @@ oraz brak bieżącego wydania w snapshotcie mają jawny stan niekompletności.
 
 Źródło domyślne: `https://itsoltech.github.io/canopy/releases/v1.json`.
 Wersjonowany indeks (`schema: 1`, `releases`) zawiera tag, flagę prerelease,
-czas publikacji, notatki i listę nazw/URL-i wszystkich assetów, w tym `manifest.json`.
+czas publikacji, notatki i nazwy oraz URL-e assetów, w tym `manifest.json`.
+Feed `nightly` widnieje w indeksie wyłącznie przy wydaniach nightly.
 Nie zastępuje manifestu, hashy ani weryfikacji podpisów instalatora i przypiętego TLS.
 Klient odrzuca drafty, duplikaty tagów, nieznany schemat, błędne daty i niebezpieczne URL-e.
 Manifest musi wystąpić dokładnie raz w metadanych każdego wydania w indeksie.
@@ -762,8 +766,8 @@ Cache i backoff są procesowe, restart procesu je zeruje. Stare klienty nadal u�
 Notatki Claude/Codex nadal pochodzą z API dostawcy, ale współdzielą ten sam cache,
 ETag i backoff hosta w BFF. Telefon czyta notatki konkretnej wersji z indeksu.
 
-Kanały: `stable` wybiera najwyższe stabilne semver, `beta` najwyższe ze stable/beta,
-`nightly` najwyższe ze wszystkich wydań (z paginacją i porównaniem semver, nie datą publikacji).
+Kanały: `stable` wybiera najwyższe stable, `beta` najwyższe ze stable/beta,
+`nightly` najwyższe nightly. Resolver porównuje SemVer i uwzględnia kolejne strony katalogu.
 `vX` / `vX.Y` wybierają najwyższe stable z prefiksem, `vX.Y.Z` wskazuje dokładny stabilny tag
 (mirror może zachować również tagi `X.Y.Z`). Drafty i release bez `manifest.json` są pomijane.
 Pipeline przygotowuje `manifest.json` na ukrytym drafcie, najpierw z binariami gatewaya/workera,
@@ -773,6 +777,25 @@ wszystkich wymaganych assetów oraz feedów kanału dla macOS, Linux i Windows
 Gateway pobiera manifest swojej konkretnej wersji również dla prerelease; nie zastępuje go
 manifestem nowszego nightly. Protokół UpdateService pozostaje bez zmian.
 
+Numer SemVer wyznacza kolejność binarek w obrębie jednego kanału. Przy przejściu między
+stable, beta i nightly kandydat musi zawierać commit uruchomionej wersji lub wskazywać
+ten sam commit. Dotyczy to również stabilnego wydania wybranego z kanału `beta`.
+Gateway pomija taki cel, gdy porównanie go odrzuci, i stosuje tę samą regułę dla poleceń
+automatycznych, zapisanych i ręcznych. Worker sprawdza polecenie samodzielnie, również
+od starszego gatewaya. Aktualizator weryfikuje regułę ponownie przed wymianą binarki.
+`force` i `allow_downgrade` nie pozwalają zainstalować starszego lub rozbieżnego kodu.
+Jawna zgoda na niższy SemVer przy zmianie kanału nadal obowiązuje, nawet gdy commit
+docelowy przechodzi porównanie. Supervisor nadal może przywrócić `.bak` po nieudanym starcie.
+
+Porównanie używa endpointu `/compare` tego samego źródła wydań i współdzieli z nim
+cache oraz limity REST API. Bieżącą wersję identyfikuje niezmienny tag `v<wersja>`.
+Kandydat jest identyfikowany pełnym SHA z manifestu, jeśli jest dostępny, albo swoim
+tagiem. Brak potwierdzenia historii wstrzymuje zmianę kanału także wtedy, gdy gateway
+ma binarkę w cache. W obrębie kanału worker nadal może pobrać aktualizację wyłącznie
+z mirrora gatewaya, bez dostępu do REST API. Przy `CANOPY_RELEASE_BASE_URL` sprawdzenie
+zmiany kanału wymaga obsługi `/compare` przez mirror; ustaw adres osobno na workerze,
+jeżeli ma korzystać z tego samego źródła zamiast domyślnego API GitHuba.
+
 **`latest` oznacza teraz stable**, a stare zapisane `updateChannel: "latest"` gateway przy
 starcie zapisuje jako `stable`. Zmienna środowiskowa `latest` i żądania starszych klientów
 także są normalizowane do stable. Nie publikujemy już rolling GitHub release/tagu `latest`
@@ -780,8 +803,7 @@ ani buildów `X.Y.Z-main.<sha7>`. Settings → Workers → Updates pozwala wybra
 lub wpisać stabilny pin. Nightly z dev, beta z next i stable z main opisuje [release.md](release.md).
 Nightly powstaje w cyklu godzinowym, o minucie 40 UTC, tylko dla zmian releasowalnych
 (lub po ręcznym dispatchu). Push do `dev` nie publikuje aktualizacji; cron, kolejka i buildy mogą
-opóźnić jej dostępność. Wybór kanału, porównanie SemVer, feedy desktopu i wymóg manifestu
-pozostają takie same. Nightly, beta i stable wydają SHA zapisane na początku przebiegu
+opóźnić jej dostępność. Nightly, beta i stable wydają SHA zapisane na początku przebiegu
 (lub `expected_sha` dispatchu), także gdy gałąź otrzyma kolejne commity podczas checków.
 Tag, buildy i manifest wskazują ten sam commit; późniejsze zmiany zbiera kolejny przebieg.
 SHA usunięty z historii gałęzi przez force push jest odrzucany przed wydaniem.
@@ -810,10 +832,10 @@ gatewaya/workera nie wybiera tych assetów.
 Desktop ma osobną politykę: Settings → App updates zapisuje kanał w lokalnym
 `userData/app-updates.json` Electrona, bez wywołania gatewaya i bez zmiany kanału
 gatewaya ani workera. Jedna aplikacja Canopy ma wspólne dane dla wszystkich kanałów.
-Stable dopuszcza stable, Beta stable/beta, Nightly wszystkie trzy; resolver wybiera
-najwyższy SemVer. Powrót do stabilniejszego kanału wymaga zgody na pojedynczą próbę
-downgrade'u z ryzykiem niezgodnych danych. Nie jest to rollback bazy ani mechanizm
-UpdateService opisany poniżej. W lokalnym desktopie nowy instalator zawiera też nowy
+Stable dopuszcza stable, Beta dopuszcza stable i beta, a Nightly wyłącznie nightly.
+Resolver porównuje SemVer oraz historię commitów. Wydanie musi zawierać kod z uruchomionego
+buildu. Nightly może przejść do bety o niższym SemVer po potwierdzeniu tego samego lub nowszego kodu.
+W lokalnym desktopie nowy instalator zawiera też nowy
 runtime gatewaya/workera — ich jawne polityki aktualizacji pozostają niezależne.
 Semantyka feedów i migracja starych instalacji: [desktop.md](desktop.md#automatyczne-aktualizacje-desktopu).
 
@@ -880,8 +902,9 @@ executable ani jego `.bak`, `.next` lub rekordu aktualizacji obok binarki.
 5. Zweryfikowane bajty trafiają do pliku `.next` obok executable (ten sam system
    plików), są synchronizowane, otrzymują prawa wykonania, poprzedni plik zostaje
    jako `.bak`, a atomowy rename podmienia executable. Manifest, rozmiar i SHA
-   muszą być poprawne **przed** dopuszczeniem wykonania. Downgrade wymaga jawnego
-   `allow_downgrade` administratora. Stan i identyfikator polecenia zapisuje
+   muszą być poprawne **przed** dopuszczeniem wykonania. Niższy SemVer wymaga jawnego
+   `allow_downgrade` administratora oraz dozwolonego przejścia między wydaniami opisanego
+   powyżej. Stan i identyfikator polecenia zapisuje
    prywatny plik `.update.json` obok binarki.
 
 Zapis rekordu używa osobnego pliku tymczasowego z prawami `0600`, `fsync`
@@ -972,7 +995,7 @@ Skrypt zawsze weryfikuje checksum przed wykonaniem binarki; przekierowania GitHu
 |---|---|
 | `CANOPY_VERSION` | Wspólna wersja, wstrzykiwana przez pipeline. |
 | `CANOPY_UPDATE_CHANNEL` | Kanał początkowy, domyślnie `stable`; `beta`, `nightly` lub stabilny pin. Zapisany wybór administratora ma pierwszeństwo. |
-| `CANOPY_RELEASE_BASE_URL` | Alternatywny HTTPS endpoint o układzie API GitHub (mirror/testy). |
+| `CANOPY_RELEASE_BASE_URL` | Alternatywny HTTPS endpoint o układzie API GitHub (mirror/testy). Worker używa go do porównania historii wydań przy zmianie kanału. |
 | `CANOPY_UPDATE_CACHE_DIR` | Katalog cache gatewaya; ma pierwszeństwo przed `$XDG_CACHE_HOME/canopy/releases` i `~/.cache/canopy/releases`. Brak zapisu powoduje jedno ostrzeżenie i przejście na prywatny, nietrwały katalog pod `os.tmpdir()`. Jeśli on też jest niedostępny, UI dostaje konkretny błąd zamiast informacji o braku połączenia. |
 | `CANOPY_INSTALL_KIND=docker` | Jawnie oznacza kontener; runtime rozpoznaje też `/.dockerenv` i `/run/.containerenv`, a poza kontenerem standalone Bun albo checkout źródeł. |
 

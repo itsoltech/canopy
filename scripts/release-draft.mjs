@@ -47,12 +47,12 @@ export function githubRequest(args, body, run = execFileSync) {
   }
 }
 
-export function findGithubRelease(tag) {
+export function listGithubReleases() {
   const pages = githubRequest(["api", "--paginate", "--slurp", `repos/${repository()}/releases?per_page=100`]);
 
   if (!Array.isArray(pages) || !pages.every(Array.isArray)) throw new Error("Invalid GitHub releases response");
 
-  return pages.flat().find((release) => release.tag_name === tag);
+  return pages.flat();
 }
 
 export function githubDraft(body, repo = repository()) {

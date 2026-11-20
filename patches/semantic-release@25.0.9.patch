@@ -78,3 +78,45 @@ index 8766eda168ff9b4bb6edf5acf71f4ce4077b62a7..afd86a807aa2ae61f2d41f19fd12ac9d
      }
    }
  
+diff --git a/index.js b/index.js
+--- a/index.js
++++ b/index.js
+@@ -108,2 +108,5 @@
+   const errors = [];
++  if (options.filterReleaseTags) {
++    context.branch.tags = options.filterReleaseTags(context.branch);
++  }
+   context.releases = [];
+@@ -200,6 +203,6 @@
+   } else {
+     // Create the tag before calling the publish plugins as some require the tag to exists
+     await tag(nextRelease.gitTag, nextRelease.gitHead, { cwd, env });
+-    await addNote({ channels: [nextRelease.channel] }, nextRelease.gitTag, { cwd, env });
++    await addNote({ channels: [nextRelease.channel], lastReleaseTag: context.lastRelease.gitTag }, nextRelease.gitTag, { cwd, env });
+     await push(options.repositoryUrl, { cwd, env });
+     await pushNotes(options.repositoryUrl, nextRelease.gitTag, { cwd, env });
+diff --git a/lib/get-last-release.js b/lib/get-last-release.js
+--- a/lib/get-last-release.js
++++ b/lib/get-last-release.js
+@@ -24,7 +24,8 @@
+-export default ({ branch, options: { tagFormat } }, { before } = {}) => {
++export default ({ branch, options: { tagFormat, prereleaseBaseTag } }, { before } = {}) => {
+   const [{ version, gitTag, channels } = {}] = branch.tags
+     .filter(
+       (tag) =>
+-        ((branch.type === "prerelease" &&
++        (tag.gitTag === prereleaseBaseTag ||
++          (branch.type === "prerelease" &&
+           tag.channels.some((channel) => isSameChannel(branch.channel, channel)) &&
+           semver
+diff --git a/lib/get-next-version.js b/lib/get-next-version.js
+--- a/lib/get-next-version.js
++++ b/lib/get-next-version.js
+@@ -5,2 +5,2 @@
+-export default ({ branch, nextRelease: { type, channel }, lastRelease, logger }) => {
++export default ({ branch, nextRelease: { type, channel }, lastRelease, options, logger }) => {
+   let version;
+@@ -28,2 +28,3 @@
++    version = options?.adjustReleaseVersion?.(version, branch) ?? version;
+     logger.log("The next release version is %s", version);
+   } else {

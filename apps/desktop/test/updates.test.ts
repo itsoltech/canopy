@@ -19,6 +19,9 @@ import { installAppUpdate, checkWindowsUpdateInstall, WINDOWS_UPDATE_ADMIN_MESSA
 import { RemoteAppUpdate } from "../src/remote-app-update.ts";
 import { create } from "@bufbuild/protobuf";
 import { ui } from "@canopy/contracts";
+import { ReleaseCatalog, RELEASE_INDEX_URL } from "@canopy/domain/release/catalog";
+import { ReleaseHttp } from "@canopy/domain/release/http";
+import { DesktopUpdateFeed } from "../src/update-feed.ts";
 
 const { machOFiles } = require("../scripts/macho.cjs") as { machOFiles: (directory: string) => string[] };
 
@@ -49,7 +52,7 @@ test("selected channels include newer stable releases and reject prerelease leak
   expect(newestRelease(releases, "0.4.0", "beta", "beta-mac.yml")).toBeUndefined();
   expect(newestRelease(releases, "0.4.0", "stable", "latest-mac.yml")).toBeUndefined();
   expect(newestRelease(releases, "0.4.0-nightly.1", "nightly", "nightly-mac.yml")?.tag_name).toBe("v0.5.0-nightly.9");
-  expect(newestRelease(releases, "0.5.0-nightly.9", "stable", "latest-mac.yml", true)?.tag_name).toBe("v0.4.0");
+  expect(newestRelease(releases, "0.5.0-nightly.9", "stable", "latest-mac.yml")).toBeUndefined();
 });
 
 test("mac update metadata preserves both runner architectures and rejects mismatched content", async () => {
@@ -78,9 +81,7 @@ test("mac update metadata preserves both runner architectures and rejects mismat
     "Canopy-0.3.0-beta.1-darwin-arm64.zip",
     "Canopy-0.3.0-beta.1-darwin-x64.zip",
   ]);
-  expect(readFileSync(join(output, "nightly-mac.yml"), "utf8")).toBe(
-    readFileSync(join(output, "beta-mac.yml"), "utf8"),
-  );
+  expect(existsSync(join(output, "nightly-mac.yml"))).toBe(false);
   await expect(
     mergeDesktopUpdates(source, join(directory, "wrong-channel"), "nightly", "0.3.0-beta.1"),
   ).rejects.toThrow("Unexpected");
@@ -184,12 +185,7 @@ async function localFeeds() {
       draft: false,
       prerelease: channel !== "stable",
       assets: [
-        ...(channel === "stable"
-          ? ["latest", "beta", "nightly"]
-          : channel === "beta"
-            ? ["beta", "nightly"]
-            : ["nightly"]
-        ).map((feed) => ({ name: `${feed}-linux.yml` })),
+        ...(channel === "stable" ? ["latest", "beta"] : [channel]).map((feed) => ({ name: `${feed}-linux.yml` })),
         { name: "manifest.json" },
       ],
     });
@@ -215,16 +211,40 @@ async function localFeeds() {
     },
   });
 
-  function fixture(
-    version: string,
-    buildChannel: DesktopChannel,
-    confirm: () => Promise<boolean>,
-    beforeInstall = () => {},
-  ) {
+  function fixture(version: string, buildChannel: DesktopChannel, beforeInstall = () => {}) {
     const data = tempDir("canopy-update-settings-");
     const settings = new UpdateSettings(data);
     const updater = new FeedUpdater(version, data);
     const phases: string[] = [];
+    const comparisons = new Map<string, string>();
+
+    const catalog = new ReleaseCatalog({
+      http: new ReleaseHttp({
+        cacheMs: 0,
+        fetch: async (input) => {
+          if (String(input) !== RELEASE_INDEX_URL) {
+            const tag = new URL(String(input)).pathname.split("...").at(-1) ?? "";
+
+            return Response.json({ status: comparisons.get(tag) ?? "ahead" });
+          }
+
+          return Response.json({
+            schema: 1,
+            releases: releases.map((release) => ({
+              ...release,
+              body: null,
+              published_at: "2026-11-20T08:00:00Z",
+              assets: release.assets.map(({ name }) => ({
+                name,
+                browser_download_url: `https://github.com/itsoltech/canopy/releases/download/${release.tag_name}/${name}`,
+              })),
+            })),
+          });
+        },
+      }),
+    });
+
+    const feed = new DesktopUpdateFeed(() => version, catalog);
 
     const controller = new UpdateController(updater, {
       recover: () => updater,
@@ -232,11 +252,10 @@ async function localFeeds() {
       buildChannel,
       channel: settings.read(buildChannel),
       save: (channel) => settings.write(channel),
-      confirmDowngrade: confirm,
-      prepare: async (channel, downgrade) => {
-        const release = newestRelease(releases, version, channel, `${channelFeed(channel)}-linux.yml`, downgrade);
+      prepare: async (channel, signal, refresh) => {
+        const { release, publishing } = await feed.resolve(channel, signal, refresh);
 
-        if (!release) return false;
+        if (!release) return { releases: [], publishing };
         updater.setFeedURL({
           provider: "generic",
           url: `${server.url}${release.tag_name}/`,
@@ -244,7 +263,7 @@ async function localFeeds() {
         });
 
         return {
-          available: true,
+          version: release.tag_name.slice(1),
           releases: releaseNotes(releases, version, release.tag_name, channel),
           publishing: undefined,
         };
@@ -256,10 +275,10 @@ async function localFeeds() {
 
     controller.enable();
 
-    return { controller, updater, settings, phases };
+    return { controller, updater, settings, phases, comparisons };
   }
 
-  return { server, requests, fixture, publish };
+  return { server, requests, fixture, publish, directory };
 }
 
 for (const platform of ["win32", "darwin", "linux"] as const) {
@@ -267,7 +286,7 @@ for (const platform of ["win32", "darwin", "linux"] as const) {
     const { server, fixture } = await localFeeds();
 
     try {
-      const { controller, updater } = fixture("0.6.0-nightly.0", "nightly", async () => false);
+      const { controller, updater } = fixture("0.6.0-nightly.0", "nightly");
       await controller.check();
       expect(await controller.prepareInstall()).toBe(true);
       installAppUpdate(updater, platform);
@@ -282,7 +301,7 @@ for (const platform of ["win32", "darwin", "linux"] as const) {
 for (const requestedBy of ["", "Office computer"]) {
   test(`Windows remote update from ${requestedBy || "gateway"} installs silently and reports success after relaunch`, async () => {
     const { server, fixture } = await localFeeds();
-    const { controller, updater } = fixture("0.6.0-nightly.0", "nightly", async () => false);
+    const { controller, updater } = fixture("0.6.0-nightly.0", "nightly");
     const path = join(tempDir("canopy-silent-update-"), "remote-update.json");
     let version = controller.status().version;
     const reports: ui.DesktopUpdateState[] = [];
@@ -330,17 +349,13 @@ test("an update needing Windows elevation reports the reason remotely without st
   const { server, fixture } = await localFeeds();
   let machineInstall = true;
 
-  const { controller, updater } = fixture(
-    "0.6.0-nightly.0",
-    "nightly",
-    async () => false,
-    () =>
-      checkWindowsUpdateInstall(
-        "fixture",
-        false,
-        () => ({ status: machineInstall ? 0 : 1 }),
-        () => {},
-      ),
+  const { controller, updater } = fixture("0.6.0-nightly.0", "nightly", () =>
+    checkWindowsUpdateInstall(
+      "fixture",
+      false,
+      () => ({ status: machineInstall ? 0 : 1 }),
+      () => {},
+    ),
   );
 
   const draining: boolean[] = [];
@@ -379,7 +394,7 @@ test.skipIf(process.platform !== "linux")(
     const { server, fixture, publish } = await localFeeds();
 
     try {
-      const { controller, updater } = fixture("0.6.0-nightly.0", "nightly", async () => false);
+      const { controller, updater } = fixture("0.6.0-nightly.0", "nightly");
       await controller.check();
       expect(controller.status()).toMatchObject({
         phase: "downloaded",
@@ -439,7 +454,7 @@ test.skipIf(process.platform !== "linux")(
     const { server, fixture, publish } = await localFeeds();
 
     try {
-      const { controller, updater } = fixture("0.6.0-nightly.0", "nightly", async () => false);
+      const { controller, updater } = fixture("0.6.0-nightly.0", "nightly");
       await controller.check();
       await publish("nightly", "0.6.0-nightly.2");
       updater.failDownload = true;
@@ -465,7 +480,7 @@ test.skipIf(process.platform !== "linux")(
     const { server, fixture, publish } = await localFeeds();
 
     try {
-      const { controller, updater } = fixture("0.6.0-nightly.0", "nightly", async () => false);
+      const { controller, updater } = fixture("0.6.0-nightly.0", "nightly");
       await controller.checkAutomatically();
       await publish("nightly", "0.6.0-nightly.2");
       await controller.checkAutomatically();
@@ -516,7 +531,7 @@ test.skipIf(process.platform !== "linux")(
     let delay = 0;
 
     try {
-      const { controller, updater } = fixture("0.6.0-nightly.0", "nightly", async () => false);
+      const { controller, updater } = fixture("0.6.0-nightly.0", "nightly");
       await controller.check();
       await publish("nightly", "0.6.0-nightly.2");
       const checked = Promise.withResolvers<void>();
@@ -559,9 +574,7 @@ test.skipIf(process.platform !== "linux")(
     const { server, fixture, requests } = await localFeeds();
 
     try {
-      const { controller, updater, settings, phases } = fixture("0.3.0", "stable", async () => {
-        throw new Error("Forward switches must not confirm");
-      });
+      const { controller, updater, settings, phases } = fixture("0.3.0", "stable");
 
       await controller.check();
       expect(updater.downloads).toEqual([{ version: "0.4.0", downgrade: false }]);
@@ -613,8 +626,7 @@ test("an incomplete desktop publication stays visible at the updater boundary in
     buildChannel: "nightly",
     channel: "nightly",
     save() {},
-    confirmDowngrade: async () => false,
-    prepare: async () => ({ available: false, publishing, releases: [] }),
+    prepare: async () => ({ publishing, releases: [] }),
     changed() {},
     downloaded() {},
   });
@@ -627,81 +639,41 @@ test("an incomplete desktop publication stays visible at the updater boundary in
 });
 
 test.skipIf(process.platform !== "linux")(
-  "downgrade needs confirmation and expires after one switch, including a failed download",
+  "switching from Nightly waits for Beta to include the installed commit and checks its feed version",
   async () => {
-    const { server, fixture } = await localFeeds();
+    const { server, fixture, publish, requests, directory } = await localFeeds();
 
     try {
-      let accepted = false;
-      const { controller, updater, settings } = fixture("0.6.0-nightly.2", "nightly", async () => accepted);
-      expect((await controller.setChannel("stable")).changingChannel).toBe(false);
-      expect(settings.read("nightly")).toBe("nightly");
-      expect(updater.downloads).toHaveLength(0);
-      accepted = true;
+      const { controller, updater, settings, comparisons } = fixture("0.6.0-nightly.2", "nightly");
+      comparisons.set("v0.5.0-beta.1", "behind");
+
       await controller.setChannel("stable");
-      expect(updater.downloads).toEqual([{ version: "0.4.0", downgrade: true }]);
-      expect(updater.allowDowngrade).toBe(false);
-      expect(updater.allowPrerelease).toBe(false);
       expect(settings.read("nightly")).toBe("stable");
-      // Less stable preferences always update forward, even while the installed build is nightly.
-      await controller.setChannel("beta");
-      expect(updater.downloads).toHaveLength(1);
-      await controller.setChannel("nightly");
-      // Switching invalidates a staged download; a failure cannot reuse it or retain a grant.
-      updater.failDownload = true;
-      await controller.setChannel("beta");
-      expect(controller.status().phase).toBe("error");
+      expect(updater.downloads).toEqual([]);
+      expect(await controller.setChannel("beta")).toMatchObject({
+        channel: "beta",
+        phase: "idle",
+        message: "Waiting for an update that includes this build",
+      });
+      expect(settings.read("nightly")).toBe("beta");
+      expect(requests).toEqual([]);
+
       expect(updater.allowDowngrade).toBe(false);
-      const count = updater.downloads.length;
-      await controller.check();
-      expect(updater.downloads).toHaveLength(count);
-      expect(controller.status().phase).toBe("idle");
-      expect(controller.status().updateVersion).toBeUndefined();
+      await publish("beta", "0.6.0-beta.1");
+      comparisons.set("v0.6.0-beta.1", "identical");
+      const path = join(directory, "v0.6.0-beta.1/beta-linux.yml");
+      const metadata = readFileSync(path, "utf8");
+      writeFileSync(path, metadata.replace("version: 0.6.0-beta.1", "version: 0.5.0-beta.1"));
+      expect(await controller.check()).toMatchObject({ phase: "error", stagedVersion: undefined });
+      expect(updater.downloads).toEqual([]);
+      expect(updater.allowDowngrade).toBe(false);
+
+      writeFileSync(path, metadata);
+      expect(await controller.check()).toMatchObject({ phase: "downloaded", stagedVersion: "0.6.0-beta.1" });
+      expect(updater.downloads).toEqual([{ version: "0.6.0-beta.1", downgrade: true }]);
+      expect(updater.allowDowngrade).toBe(false);
+      expect(requests).toEqual(["/v0.6.0-beta.1/beta-linux.yml", "/v0.6.0-beta.1/beta-linux.yml"]);
       await expect(controller.setChannel("invalid")).rejects.toThrow("Invalid update channel");
-    } finally {
-      await server.stop(true);
-    }
-  },
-);
-
-test.skipIf(process.platform !== "linux")(
-  "confirmation serializes settings across windows and a restart keeps only the channel",
-  async () => {
-    const { server, fixture } = await localFeeds();
-
-    try {
-      let answer!: (accepted: boolean) => void;
-
-      const confirmation = new Promise<boolean>((resolve) => {
-        answer = resolve;
-      });
-
-      const { controller, updater, settings } = fixture("0.6.0-nightly.2", "nightly", () => confirmation);
-      const switching = controller.setChannel("stable");
-      const queued = controller.setChannel("beta");
-      const checking = controller.checkRemote();
-      expect(updater.downloads).toHaveLength(0);
-      expect(settings.read("nightly")).toBe("nightly");
-      answer(true);
-      await switching;
-      await queued;
-      await checking;
-
-      // The next launch reads a preference, never a stored downgrade authorization.
-      const restored = new UpdateController(updater, {
-        recover: () => updater,
-        version: "0.6.0-nightly.2",
-        buildChannel: "nightly",
-        channel: settings.read("nightly"),
-        save() {},
-        confirmDowngrade: async () => false,
-        prepare: async () => false,
-        changed() {},
-        downloaded() {},
-      });
-
-      expect(restored.status().channel).toBe("beta");
-      expect(updater.allowDowngrade).toBe(false);
     } finally {
       await server.stop(true);
     }
@@ -728,7 +700,7 @@ test.skipIf(process.platform !== "linux")(
     const { server, fixture } = await localFeeds();
 
     try {
-      const { controller, updater } = fixture("0.3.0", "stable", async () => false);
+      const { controller, updater } = fixture("0.3.0", "stable");
       controller.setAutomaticUpdates(false);
       await controller.checkAutomatically();
       expect(updater.downloads).toHaveLength(0);

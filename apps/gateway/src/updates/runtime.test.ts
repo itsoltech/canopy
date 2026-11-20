@@ -3,11 +3,12 @@ import { mkdtemp, open, readdir, rename, rm, utimes, writeFile } from "node:fs/p
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { create } from "@bufbuild/protobuf";
-import { ui } from "@canopy/contracts";
+import { ui, update } from "@canopy/contracts";
 import { RELEASE_INDEX_URL } from "@canopy/domain/release/catalog";
 import { readUpdateRecord, type ReleaseManifest, type UpdateRecord } from "@canopy/updater";
 import { GatewayUpdates } from "./runtime.ts";
 import { gatewayUpdateMayBeStaged } from "./stage.ts";
+import type { WorkerUpdateRow } from "./persistence.ts";
 
 const directories: string[] = [];
 
@@ -200,6 +201,137 @@ test("gateway and linked checks reuse API backoff and expose a scheduled check w
     expect(snapshot.checkError).toStartWith("GitHub is limiting update checks from this network. Next check at ");
     expect(snapshot.checking).toBe(false);
     expect(apiCalls).toBe(1);
+  } finally {
+    updates.close();
+  }
+});
+
+test("a nightly gateway offers only Beta channel releases that contain its running code", async () => {
+  const current = "2.0.0-nightly.4";
+  let version = "2.0.0";
+  const baseUrl = "https://release.fixture/canopy";
+
+  const updates = new GatewayUpdates({
+    kind: "binary",
+    version: current,
+    channel: "beta",
+    cacheDir: await cacheDirectory(),
+    authenticate: async () => undefined,
+    restart: async () => {},
+    persistence: {
+      admin: async () => true,
+      channel: async () => undefined,
+      setChannel: async () => {},
+      workers: async () => [],
+      hello: async () => {},
+      saveCommand: async () => {},
+      report: async () => {},
+    },
+    source: {
+      baseUrl,
+      fetch: async (input) => {
+        const { pathname } = new URL(String(input));
+
+        if (pathname === `/canopy/compare/v${current}...v${version}`)
+          return Response.json({ status: version === "2.0.0" ? "behind" : "identical" });
+
+        if (pathname === `/canopy/manifest-${version}`)
+          return Response.json({
+            schema: 1,
+            version,
+            channel: "stable",
+            commit: "abcdef0",
+            published_at: "2026-11-18T00:00:00Z",
+            protocol: { worker_link: 1, update: 1 },
+            assets: [],
+          } satisfies ReleaseManifest);
+
+        expect(pathname).toBe("/canopy/releases");
+
+        return Response.json([
+          {
+            tag_name: `v${version}`,
+            assets: [{ name: "manifest.json", browser_download_url: `${baseUrl}/manifest-${version}` }],
+          },
+        ]);
+      },
+    },
+  });
+
+  try {
+    await updates.start();
+    await updates.check();
+    expect(await updates.snapshot()).toMatchObject({ gatewayUpdateAvailable: false, availableVersion: "" });
+    await expect(
+      updates.manage(create(ui.ManageUpdatesRequestSchema, { action: "gateway", allowDowngrade: true })),
+    ).rejects.toThrow("Check for a different release");
+    version = "2.0.1";
+    const caughtUp = await updates.manage(create(ui.ManageUpdatesRequestSchema, { action: "check" }));
+    expect(caughtUp).toMatchObject({ gatewayUpdateAvailable: true, availableVersion: version, checkError: "" });
+  } finally {
+    updates.close();
+  }
+});
+
+test("a Beta gateway blocks both fresh and persisted commands for a newer Nightly worker", async () => {
+  const version = "2.0.0-beta.3";
+
+  const worker: WorkerUpdateRow = {
+    id: "nightly-worker",
+    name: "nightly-worker",
+    version: "1.9.0-nightly.4",
+    os: "linux",
+    arch: "x64",
+    status: { installKind: "binary", state: "queued" },
+    command: create(update.UpdateCommandSchema, { id: "persisted", version }),
+  };
+
+  let saves = 0;
+
+  const updates = new GatewayUpdates({
+    kind: "binary",
+    version,
+    cacheDir: await cacheDirectory(),
+    authenticate: async () => worker.id,
+    persistence: {
+      admin: async () => true,
+      channel: async () => undefined,
+      setChannel: async () => {},
+      workers: async () => [worker],
+      hello: async () => {},
+      saveCommand: async () => {
+        saves++;
+      },
+      report: async () => {},
+    },
+    source: {
+      baseUrl: "https://release.fixture",
+      fetch: async (input) =>
+        new URL(String(input)).pathname === `/compare/v${worker.version}...v${version}`
+          ? Response.json({ status: "behind" })
+          : Response.json([]),
+    },
+  });
+
+  try {
+    await updates.start();
+    await updates.check();
+
+    const hello = create(update.CheckRequestSchema, {
+      workerId: worker.id,
+      version: worker.version,
+      installKind: "binary",
+    });
+
+    expect(await updates.service.options.command(worker.id, hello)).toBeUndefined();
+    delete worker.command;
+    await expect(
+      updates.manage(
+        create(ui.ManageUpdatesRequestSchema, { action: "worker", workerId: worker.id, allowDowngrade: true }),
+      ),
+    ).rejects.toThrow("cannot be verified");
+    expect(await updates.service.options.command(worker.id, hello)).toBeUndefined();
+    expect(saves).toBe(0);
   } finally {
     updates.close();
   }

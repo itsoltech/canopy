@@ -617,6 +617,49 @@ describe("independent update service and gateway mirror", () => {
     expect(restarted).toBe(false);
     expect(draining).toBe(false);
   });
+  test.skipIf(process.platform === "win32")("a nightly worker rejects a forced Beta downgrade", async () => {
+    const f = await fixture();
+    const binaryPath = join(f.dir, "worker");
+    await writeFile(binaryPath, "nightly", { mode: 0o700 });
+    const version = "2.0.0-nightly.4";
+    const manifest = { ...f.manifest, version: "2.0.0-beta.3", channel: "beta" };
+
+    const worker = new WorkerUpdates({
+      baseUrl: f.server.url,
+      credential: "credential",
+      workerId: "worker",
+      kind: "binary",
+      version,
+      binaryPath,
+      signal: new AbortController().signal,
+      idle: () => true,
+      drain: () => {},
+      restart: async () => {},
+      source: {
+        baseUrl: "https://release.fixture",
+        fetch: async (input) => {
+          expect(String(input)).toBe(`https://release.fixture/compare/v${version}...v${manifest.version}?per_page=1`);
+
+          return Response.json({ status: "behind" });
+        },
+      },
+    });
+
+    const command = create(update.UpdateCommandSchema, {
+      id: "old-beta",
+      version: manifest.version,
+      manifestJson: JSON.stringify(manifest),
+      preferGatewayMirror: true,
+      allowDowngrade: true,
+      force: true,
+    });
+
+    await expect(worker.apply(command)).rejects.toThrow("cannot be verified");
+    expect(f.reports.map((report) => report.state)).toEqual(["failed"]);
+    expect(f.downloads()).toBe(0);
+    expect(await readFile(binaryPath, "utf8")).toBe("nightly");
+    expect(await readUpdateRecord(binaryPath)).toBeUndefined();
+  });
   test("worker resends a lost failure report without repeating the update", async () => {
     const f = await fixture();
     const binaryPath = join(f.dir, "worker");

@@ -1,4 +1,5 @@
 import { promotionLinks } from "./promotion-links.ts";
+import { compareTags } from "./version.ts";
 
 /** Cutoffs are indices in oldest-first source first-parent history outside target's ancestry. */
 export interface PromotionCommit {
@@ -31,6 +32,11 @@ export interface PromotionInput {
   paused: boolean;
   blockers: number[];
   pendingFixes?: PromotionCommit[];
+  activeBeta?: { tag: string; sha: string };
+  nightlyFloor?: string;
+  pendingRelease?: { branch: "next" | "main"; sha: string };
+  releaseBlock?: string;
+  publicReleaseTags?: string[];
   minimumIndex?: number;
   /** Automatic policy by default; manual Promote supplies Infinity. */
   holdCapMs?: number;
@@ -129,20 +135,26 @@ function readyIndex(input: PromotionInput, ceiling: number): number {
   for (let i = ceiling; i >= (input.minimumIndex ?? 0); i--) {
     const commit = input.commits[i]!;
 
-    if (
-      commit.release &&
-      (input.path === "dev-next" || commit.release.readyAt <= input.now - input.soakMs) &&
-      commit.green
-    )
-      return i;
+    if (!commit.release) continue;
+
+    const eligible =
+      input.path === "dev-next"
+        ? !input.nightlyFloor || compareTags(commit.release.tag, input.nightlyFloor) >= 0
+        : isActiveBeta(input, commit);
+
+    if (eligible && commit.green) return i;
   }
 
-  // Untagged dev commits may use their own green Release run; stable always needs a published beta.
-  if (input.path === "dev-next") {
+  // Without an applicable release floor, untagged dev commits may use their own green Release run.
+  if (input.path === "dev-next" && !input.nightlyFloor) {
     for (let i = ceiling; i >= (input.minimumIndex ?? 0); i--) if (input.commits[i]!.green) return i;
   }
 
   return -1;
+}
+
+function isActiveBeta(input: PromotionInput, commit: PromotionCommit): boolean {
+  return commit.sha === input.activeBeta?.sha && commit.release?.tag === input.activeBeta.tag;
 }
 
 export function selectPromotion(input: PromotionInput): PromotionPlan {
@@ -156,7 +168,12 @@ export function selectPromotion(input: PromotionInput): PromotionPlan {
     // Do not skip a young commit if committer dates are out of order.
     if (input.path === "dev-next" && (since === undefined || since > input.now - input.soakMs)) break;
 
-    if (since !== undefined && since <= input.now - input.soakMs) cutoff = i;
+    if (
+      since !== undefined &&
+      since <= input.now - input.soakMs &&
+      (input.path === "dev-next" || isActiveBeta(input, commit))
+    )
+      cutoff = i;
   }
 
   if (cutoff < (input.minimumIndex ?? 0)) cutoff = -1;
@@ -202,10 +219,17 @@ export function selectPromotion(input: PromotionInput): PromotionPlan {
 
   let reason = cutoff < 0 ? "Nothing ready to promote" : "Ready";
 
-  if (input.paused) reason = "AUTO_PROMOTION=off";
+  if (cutoff < 0 && input.path === "next-main" && input.commits.length) {
+    reason = input.activeBeta
+      ? `Waiting for eligible beta ${input.activeBeta.tag}`
+      : "Stable requires an active public beta";
+  }
+
+  if (input.releaseBlock) reason = input.releaseBlock;
+  else if (input.paused) reason = "AUTO_PROMOTION=off";
   else if (input.blockers.length)
     reason = `Open release-blocker issues: ${input.blockers.map((n) => `#${n}`).join(", ")}`;
-  const blocked = input.paused || input.blockers.length > 0;
+  const blocked = !!input.releaseBlock || input.paused || input.blockers.length > 0;
 
   return {
     initial,

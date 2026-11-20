@@ -25,6 +25,7 @@ export interface CanopyVersion {
 }
 
 const RELEASE_TAG = /^v(\d+)\.(\d+)\.(\d+)(?:-([0-9A-Za-z-]+(?:\.[0-9A-Za-z-]+)*))?$/;
+export const NIGHTLY_DESKTOP_FEED = /^nightly(?:-mac|-linux(?:-arm64)?)?\.yml$/;
 
 function git(...args: string[]): string | undefined {
   const result = Bun.spawnSync(["git", ...args], { stdout: "pipe", stderr: "ignore" });

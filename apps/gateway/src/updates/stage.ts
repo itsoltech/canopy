@@ -47,9 +47,10 @@ export async function stageGatewayRelease(options: {
     binaryPath: options.binaryPath,
     currentVersion: options.currentVersion,
     version: manifest.version,
+    commit: manifest.commit,
     commandId: crypto.randomUUID(),
     asset: releaseAsset(manifest, "gateway", process.platform === "win32" ? "windows" : process.platform, process.arch),
-    source: source.options,
+    source,
     allowDowngrade: options.allowDowngrade,
   });
 }

@@ -7,13 +7,15 @@ import { createHash } from "node:crypto";
 import { existsSync, readdirSync, statSync } from "node:fs";
 import { join, resolve } from "node:path";
 import { api, git, pages, repository } from "./release-github.ts";
-import { resolveVersion } from "./version.ts";
+import { NIGHTLY_DESKTOP_FEED, resolveVersion } from "./version.ts";
 import { limitReleaseBody } from "./release-body.mjs";
 import { githubDraft } from "./release-draft.mjs";
+import { requireBetaPublication, requireNightlyPublication, requireStableBeta } from "./release-publication.ts";
 
 const GENERATED = ["checksums.txt", "manifest.json"];
 
 export interface UploadedAsset {
+  id: number;
   name: string;
   size: number;
   state: string;
@@ -31,6 +33,8 @@ function isAsset<T>(value: T): value is T & UploadedAsset {
   return (
     !!value &&
     typeof value === "object" &&
+    "id" in value &&
+    typeof value.id === "number" &&
     "name" in value &&
     typeof value.name === "string" &&
     "size" in value &&
@@ -70,11 +74,18 @@ export interface ReleaseUploadAdapters {
   find: (repo: string, tag: string) => Release | undefined;
   create: (options: ReleaseUploadOptions) => void;
   assets: (repo: string, id: number) => UploadedAsset[];
+  deleteAsset: (repo: string, id: number) => void;
   upload: (repo: string, tag: string, paths: string[]) => void;
+  requireStableBeta: (repo: string, tag: string, sha: string) => void;
+  requireBetaPublication: (repo: string, tag: string) => void;
+  requireNightlyPublication: (repo: string, tag: string, sha: string) => void;
   publish: (repo: string, id: number, stable: boolean) => void;
 }
 
 const github: ReleaseUploadAdapters = {
+  requireStableBeta,
+  requireBetaPublication,
+  requireNightlyPublication,
   find: (repo, tag) => {
     // The tag endpoint does not reliably find drafts. Authenticated listing includes them.
     const releases = pages(`repos/${repo}/releases?per_page=100`);
@@ -109,6 +120,9 @@ const github: ReleaseUploadAdapters = {
     if (!assets.every(isAsset)) throw new Error("Invalid GitHub assets response");
 
     return assets;
+  },
+  deleteAsset: (repo, id) => {
+    execFileSync("gh", ["api", `repos/${repo}/releases/assets/${id}`, "--method", "DELETE"], { stdio: "inherit" });
   },
   upload: (repo, tag, paths) => {
     execFileSync("gh", ["release", "upload", tag, ...paths, "--repo", repo, "--clobber"], { stdio: "inherit" });
@@ -157,8 +171,7 @@ function requireComplete(names: readonly string[], version: string, channel: str
 
   required.push(...installers.map((name) => `Canopy-${version}-${name}`));
 
-  const channels =
-    channel === "stable" ? ["latest", "beta", "nightly"] : channel === "beta" ? ["beta", "nightly"] : ["nightly"];
+  const channels = channel === "stable" ? ["latest", "beta"] : [channel];
 
   for (const feed of channels) for (const suffix of suffixes) required.push(`${feed}${suffix}.yml`);
   const missing = required.filter((name) => !names.includes(name));
@@ -166,7 +179,7 @@ function requireComplete(names: readonly string[], version: string, channel: str
   if (missing.length) throw new Error(`Release is incomplete: ${missing.join(", ")}`);
 }
 
-async function localAssets(directory: string, names: readonly string[]): Promise<UploadedAsset[]> {
+async function localAssets(directory: string, names: readonly string[]): Promise<Omit<UploadedAsset, "id">[]> {
   return Promise.all(
     names.map(async (name) => {
       const path = join(directory, name);
@@ -179,7 +192,7 @@ async function localAssets(directory: string, names: readonly string[]): Promise
   );
 }
 
-function matches(expected: UploadedAsset, actual: UploadedAsset | undefined): boolean {
+function matches(expected: Omit<UploadedAsset, "id">, actual: UploadedAsset | undefined): boolean {
   return actual?.state === "uploaded" && actual.size === expected.size && actual.digest === expected.digest;
 }
 
@@ -202,6 +215,9 @@ export async function uploadRelease(
       throw new Error(`${name} is missing; run scripts/release-manifest.ts first`);
 
   if (options.publish) requireComplete(names, version, channel);
+
+  if (channel !== "nightly" && names.some((name) => NIGHTLY_DESKTOP_FEED.test(name)))
+    throw new Error("Only nightly releases can publish nightly feeds");
   let release = adapters.find(repo, tag);
 
   if (!release) {
@@ -221,6 +237,11 @@ export async function uploadRelease(
 
   const expected = await localAssets(directory, names);
   const uploaded = adapters.assets(repo, release.id);
+
+  if (options.publish && channel !== "nightly") {
+    for (const asset of uploaded.filter((item) => NIGHTLY_DESKTOP_FEED.test(item.name)))
+      adapters.deleteAsset(repo, asset.id);
+  }
 
   const pending = expected.filter(
     (asset) =>
@@ -245,6 +266,9 @@ export async function uploadRelease(
 
   const verified = adapters.assets(repo, release.id);
 
+  if (options.publish && channel !== "nightly" && verified.some((asset) => NIGHTLY_DESKTOP_FEED.test(asset.name)))
+    throw new Error("A nightly feed is still present on this draft");
+
   for (const asset of expected)
     if (
       !matches(
@@ -255,7 +279,15 @@ export async function uploadRelease(
       throw new Error(`Uploaded asset failed verification: ${asset.name}`);
 
   // The only visibility change. All files, including channel aliases and manifest.json, already exist.
-  if (options.publish) adapters.publish(repo, release.id, channel === "stable");
+  if (options.publish) {
+    if (channel === "stable") adapters.requireStableBeta(repo, tag, sha);
+
+    if (channel === "beta") adapters.requireBetaPublication(repo, tag);
+
+    if (channel === "nightly") adapters.requireNightlyPublication(repo, tag, sha);
+    adapters.publish(repo, release.id, channel === "stable");
+  }
+
   console.info(`${tag}: ${expected.length} assets verified; ${options.publish ? "published" : "draft"}`);
 }
 

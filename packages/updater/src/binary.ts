@@ -4,14 +4,17 @@ import { existsSync } from "node:fs";
 import { chmod, copyFile, lstat, open, readFile, rename, rm } from "node:fs/promises";
 import { dirname } from "node:path";
 import { isJsonObject, type JsonValue } from "@canopy/domain/json";
+import { releaseCatalog } from "@canopy/domain/release/catalog";
 import { CANOPY_VERSION } from "@canopy/domain/release/version";
 import {
   compareVersions,
   releaseFetch,
   type InstallKind,
   type ReleaseAsset,
+  type ReleaseSource,
   type ReleaseSourceOptions,
 } from "./release.ts";
+import { assertBinaryUpdateForward } from "./upgrade-policy.ts";
 
 /** The child requests a restart; the resident old supervisor remains the rollback watchdog. */
 export const UPDATE_RESTART_EXIT_CODE = 75;
@@ -134,10 +137,11 @@ export interface StageUpdateOptions {
   binaryPath: string;
   currentVersion: string;
   version: string;
+  commit?: string;
   commandId: string;
   asset: ReleaseAsset;
   chunks?: AsyncIterable<Uint8Array>;
-  source?: ReleaseSourceOptions;
+  source?: ReleaseSource;
   allowDowngrade?: boolean;
 }
 
@@ -154,6 +158,8 @@ export async function stageBinaryUpdate(options: StageUpdateOptions): Promise<vo
   if (compareVersions(options.version, options.currentVersion) === 0)
     throw new Error("This version is already installed");
 
+  await assertBinaryUpdateForward(options.source?.catalog ?? releaseCatalog, options.currentVersion, options);
+
   if (!(await lstat(binaryPath)).isFile()) throw new Error("Executable must be a regular file, not a symlink");
   const existing = await readUpdateRecord(binaryPath);
 
@@ -164,7 +170,7 @@ export async function stageBinaryUpdate(options: StageUpdateOptions): Promise<vo
   const backup = `${binaryPath}.${crypto.randomUUID()}.backup`;
 
   try {
-    await writeVerified(next, asset, options.chunks ?? downloadAsset(asset, options.source));
+    await writeVerified(next, asset, options.chunks ?? downloadAsset(asset, options.source?.options));
     await chmod(next, 0o700);
     await copyFile(binaryPath, backup);
     const backupFd = await open(backup, "r");

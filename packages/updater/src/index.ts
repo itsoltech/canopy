@@ -9,3 +9,5 @@ export * from "./mirror.ts";
 export * from "./retention.ts";
 
 export * from "./service.ts";
+
+export * from "./upgrade-policy.ts";
