@@ -9,14 +9,18 @@ const matches = (tag, branch) => {
   const version = valid(tag.slice(1));
   const pre = version && prerelease(version);
 
-  return tag.startsWith("v") && version && (pre ? pre[0] === channelFor(branch) : branch === "main");
+  return (
+    version &&
+    tag === `v${version}` &&
+    (pre ? pre[0] === channelFor(branch) && pre.length === 2 && Number.isInteger(pre[1]) : branch === "main")
+  );
 };
 
 /** A matching tag on this exact commit reserves the version even if the draft POST was lost. */
-export async function recoverRelease({ sha, branch, dryRun, findRelease, createDraft, repositoryUrl }) {
+export async function recoverRelease({ sha, branch, dryRun, releases, keepReservation, createDraft, repositoryUrl }) {
   const candidates = git("tag", "--points-at", sha)
     .split("\n")
-    .filter((tag) => matches(tag, branch));
+    .filter((tag) => matches(tag, branch) && keepReservation(tag));
 
   if (!candidates.length) return undefined;
 
@@ -26,7 +30,7 @@ export async function recoverRelease({ sha, branch, dryRun, findRelease, createD
 
   if (process.env.EXPECTED_VERSION && version !== process.env.EXPECTED_VERSION)
     throw new Error(`Planned ${process.env.EXPECTED_VERSION} but the existing tag is ${version}`);
-  const existing = await findRelease(gitTag);
+  const existing = releases.find((release) => release.tag_name === gitTag);
 
   if (existing && (existing.tag_name !== gitTag || existing.prerelease !== (branch !== "main")))
     throw new Error("Existing release does not match the reserved tag/channel");
@@ -39,16 +43,20 @@ export async function recoverRelease({ sha, branch, dryRun, findRelease, createD
   if (!Array.isArray(note.channels) || !note.channels.includes(channel))
     throw new Error("Existing tag lacks semantic-release metadata for this channel");
 
-  const previous = git("tag", "--merged", sha)
-    .split("\n")
-    .filter((tag) => {
-      const v = valid(tag.slice(1));
+  const merged = git("tag", "--merged", sha).split("\n");
 
-      return tag.startsWith("v") && v && gt(version, v) && (!prerelease(v) || matches(tag, branch));
-    })
-    .sort((a, b) => rcompare(a.slice(1), b.slice(1)))[0];
+  const previous =
+    note.lastReleaseTag ??
+    merged
+      .filter((tag) => {
+        const v = valid(tag.slice(1));
 
-  if (!previous) throw new Error("Recovery requires a previous release tag");
+        return tag.startsWith("v") && v && gt(version, v) && (!prerelease(v) || matches(tag, branch));
+      })
+      .sort((a, b) => rcompare(a.slice(1), b.slice(1)))[0];
+
+  if (!previous || !merged.includes(previous))
+    throw new Error("Recovery requires a previous release tag in this history");
   const records = git("log", `${previous}..${sha}`, "--format=%H%x00%s").split("\n").filter(Boolean);
 
   const commits = records.map((record) => {

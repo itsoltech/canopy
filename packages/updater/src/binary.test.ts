@@ -6,7 +6,7 @@ import { join } from "node:path";
 import { createHash } from "node:crypto";
 import { confirmStartup, readUpdateRecord, stageBinaryUpdate, superviseBinary } from "./binary.ts";
 import { whenIdle } from "./idle.ts";
-import type { ReleaseAsset } from "./release.ts";
+import { ReleaseSource, type ReleaseAsset } from "./release.ts";
 
 const directories: string[] = [];
 
@@ -75,9 +75,59 @@ describe.skipIf(process.platform === "win32")("binary update and independent rol
     await expect(
       stageBinaryUpdate({ ...options, version: "0.9.0", asset: artifact(next), chunks: chunks(next) }),
     ).rejects.toThrow("Downgrade");
+    await expect(
+      stageBinaryUpdate({
+        ...options,
+        version: "0.9.0",
+        asset: artifact(next),
+        chunks: chunks(next),
+        allowDowngrade: true,
+      }),
+    ).rejects.toThrow("older than");
     expect(await readFile(binaryPath, "utf8")).toBe(oldBinary);
     expect(await readUpdateRecord(binaryPath)).toBeUndefined();
   });
+  test.each(["ahead", "identical", "behind", "diverged", "missing"])(
+    "cross-channel binary staging requires forward ancestry from a custom mirror (%s)",
+    async (status) => {
+      const binaryPath = await fixture();
+      const next = "#!/bin/sh\nexit 0\n";
+      const currentVersion = "2.0.0-nightly.4";
+      const version = "2.0.0-beta.3";
+      const commit = "a".repeat(40);
+      const baseUrl = "https://release.fixture/canopy";
+
+      const source = new ReleaseSource({
+        baseUrl,
+        fetch: async (input) => {
+          expect(String(input)).toBe(`${baseUrl}/compare/v${currentVersion}...${commit}?per_page=1`);
+
+          return status === "missing" ? new Response(null, { status: 404 }) : Response.json({ status });
+        },
+      });
+
+      const staged = stageBinaryUpdate({
+        binaryPath,
+        currentVersion,
+        version,
+        commit,
+        commandId: "cross-channel",
+        asset: artifact(next),
+        chunks: chunks(next),
+        source,
+        allowDowngrade: true,
+      });
+
+      if (status === "ahead" || status === "identical") {
+        await staged;
+        expect(await readFile(binaryPath, "utf8")).toBe(next);
+      } else {
+        await expect(staged).rejects.toThrow("cannot be verified");
+        expect(await readFile(binaryPath, "utf8")).toBe(oldBinary);
+        expect(await readUpdateRecord(binaryPath)).toBeUndefined();
+      }
+    },
+  );
   test("restores .bak when the new executable exits before connecting", async () => {
     const binaryPath = await fixture(),
       next = "#!/bin/sh\nexit 23\n";

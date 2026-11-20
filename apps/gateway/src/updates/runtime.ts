@@ -2,8 +2,10 @@ import { create } from "@bufbuild/protobuf";
 import { Code, ConnectError } from "@connectrpc/connect";
 import { ui, update } from "@canopy/contracts";
 import { CANOPY_VERSION, releaseChannel } from "@canopy/domain/release/version";
-import { UPDATE_PROTOCOL, workerLinkCompatible } from "@canopy/domain/release/protocol";
+import { UPDATE_PROTOCOL } from "@canopy/domain/release/protocol";
 import {
+  assertBinaryUpdateForward,
+  BinaryReleaseBlocked,
   compareVersions,
   confirmStartup,
   installKind,
@@ -11,7 +13,6 @@ import {
   normalizeChannel,
   readUpdateRecord,
   ReleaseSource,
-  releaseAsset,
   validChannel,
   whenIdle,
   SUPERVISOR_HANDOVER_EXIT_CODE,
@@ -26,6 +27,7 @@ import { updateBusyState, versionAhead } from "./versions.ts";
 import { ReleaseRateLimit } from "@canopy/domain/release/http";
 import { workerUpdateSnapshot } from "./worker-snapshot.ts";
 import { gatewayUpdateMayBeStaged, stageGatewayRelease } from "./stage.ts";
+import { prepareWorkerUpdate } from "./worker-command.ts";
 
 export interface GatewayUpdatesOptions {
   persistence: Pick<
@@ -191,13 +193,27 @@ export class GatewayUpdates {
     return (this.#checking ??= (async () => {
       try {
         clearTimeout(this.#retryTimer);
-        this.#available = await this.source.resolve(this.#channel, undefined, refresh);
+        const manifest = await this.source.resolve(this.#channel, undefined, refresh);
+        this.#available = undefined;
+        let blocked = "";
+
+        try {
+          await assertBinaryUpdateForward(this.source.catalog, this.version, manifest);
+        } catch (cause) {
+          if (!(cause instanceof BinaryReleaseBlocked)) throw cause;
+          blocked = cause.message;
+        }
+
         this.#checkError = "";
 
-        if (this.#ahead(this.#available.version))
-          this.options.found?.({ channel: this.#channel, version: this.#available.version });
+        if (!blocked) {
+          this.#available = manifest;
 
-        if (!["waiting_idle", "downloading", "restarting", "failed"].includes(this.#state)) this.#reason = "";
+          if (this.#ahead(manifest.version))
+            this.options.found?.({ channel: this.#channel, version: manifest.version });
+        }
+
+        if (!["waiting_idle", "downloading", "restarting", "failed"].includes(this.#state)) this.#reason = blocked;
 
         for (const [id, connection] of this.service.connections) {
           void this.#onHello(id, connection.hello).then((command) => {
@@ -317,9 +333,16 @@ export class GatewayUpdates {
           (worker.version === this.version || worker.status.installKind !== "binary" || this.#ahead(worker.version))
         )
           continue;
-        const command = await this.#queue(worker, request.force, request.allowDowngrade);
 
-        if (command) this.service.push(worker.id, command);
+        try {
+          const command = await this.#queue(worker, request.force, request.allowDowngrade);
+
+          if (command) this.service.push(worker.id, command);
+        } catch (error) {
+          if (!(error instanceof BinaryReleaseBlocked)) throw error;
+
+          if (request.action === "worker") throw new ConnectError(error.message, Code.FailedPrecondition);
+        }
       }
     } else throw new ConnectError("Unknown update action", Code.InvalidArgument);
 
@@ -381,8 +404,11 @@ export class GatewayUpdates {
         worker.command?.version === this.version &&
         !["failed", "succeeded", "managed_externally"].includes(worker.status.state ?? "") &&
         worker.command.version !== hello.version
-      )
+      ) {
+        await assertBinaryUpdateForward(this.source.catalog, hello.version, { version: this.version });
+
         return worker.command;
+      }
 
       // No automatic downgrade or repeated failed-update loop, including after rollback.
       if (hello.installKind !== "binary" || worker.status.state === "failed" || hello.version === this.version)
@@ -414,51 +440,15 @@ export class GatewayUpdates {
 
     if (pending) return pending;
 
-    const command = this.#prepareCommand(worker.id, force, allowDowngrade).finally(() =>
-      this.#queuing.delete(worker.id),
-    );
-
-    this.#queuing.set(worker.id, command);
-
-    return command;
-  }
-  async #prepareCommand(workerId: string, force: boolean, allowDowngrade: boolean) {
-    // Auto-update on Hello and Update all share one command, including when their earlier reads raced.
-    const worker = (await this.options.persistence.workers()).find((item) => item.id === workerId);
-
-    if (!worker) throw new ConnectError("Worker not found", Code.NotFound);
-
-    if (worker.version === this.version) return undefined;
-
-    if (worker.status.installKind !== "binary")
-      throw new ConnectError(managedInstructions(worker.status.installKind ?? "source"), Code.FailedPrecondition);
-
-    if (compareVersions(this.version, worker.version) < 0 && !allowDowngrade)
-      throw new ConnectError("Worker downgrade requires an explicit user request", Code.FailedPrecondition);
-
-    if (
-      worker.command &&
-      worker.command.version === this.version &&
-      !["failed", "succeeded", "managed_externally"].includes(worker.status.state ?? "")
-    )
-      return worker.command;
-    const manifest = await this.service.options.mirror.manifest();
-
-    if (!workerLinkCompatible(manifest.protocol.worker_link, manifest.protocol.worker_link))
-      throw new ConnectError("Worker release is incompatible with this gateway protocol", Code.FailedPrecondition);
-    releaseAsset(manifest, "worker", worker.os, worker.arch);
-
-    const command = create(update.UpdateCommandSchema, {
-      id: crypto.randomUUID(),
-      version: this.version,
-      manifestJson: JSON.stringify(manifest),
+    const command = prepareWorkerUpdate(
+      this.options.persistence,
+      this.service.options.mirror,
+      worker.id,
       force,
       allowDowngrade,
-      maxIdleWaitSeconds: 30 * 60,
-      preferGatewayMirror: true,
-    });
+    ).finally(() => this.#queuing.delete(worker.id));
 
-    await this.options.persistence.saveCommand(worker.id, command);
+    this.#queuing.set(worker.id, command);
 
     return command;
   }

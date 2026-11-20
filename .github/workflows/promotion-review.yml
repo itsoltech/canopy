@@ -15,6 +15,7 @@ permissions:
 concurrency:
   group: release-branch-mutations
   cancel-in-progress: false
+  queue: max
 env:
   BUN_VERSION: 1.4.5
 jobs:

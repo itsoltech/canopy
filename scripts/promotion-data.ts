@@ -1,6 +1,9 @@
 import { isJsonArray, isJsonObject, type JsonValue, type JsonObject } from "@canopy/domain/json";
 import { promotionCommitLinks, type PromotionCommit, type PromotionInput } from "./promotion-policy.ts";
 import { attributePromotionFix } from "./promotion-attribution.ts";
+import { promotionReleaseState } from "./promotion-release-state.ts";
+import { firstNightlyAfterRelease, publishedReleaseTags } from "./release-version-policy.mjs";
+import { compareTags } from "./version.ts";
 
 export interface PromotionAdapters {
   git: (...args: string[]) => string;
@@ -74,11 +77,16 @@ function mergedPrs(repo: string, source: string, adapters: PromotionAdapters) {
   return result;
 }
 
-function publishedReleases(repo: string, source: string, adapters: PromotionAdapters) {
+function publishedReleases(
+  releases: readonly JsonValue[],
+  source: string,
+  adapters: PromotionAdapters,
+  activeBeta?: PromotionInput["activeBeta"],
+) {
   const result = new Map<string, { tag: string; readyAt: number }>();
   const pattern = source === "dev" ? /^v\d+\.\d+\.\d+-nightly\.\d+$/ : /^v\d+\.\d+\.\d+-beta\.\d+$/;
 
-  for (const value of adapters.pages(`repos/${repo}/releases?per_page=100`)) {
+  for (const value of releases) {
     const release = object(value);
     const tag = string(release["tag_name"]);
 
@@ -96,16 +104,19 @@ function publishedReleases(repo: string, source: string, adapters: PromotionAdap
     if (!Number.isFinite(readyAt)) throw new Error(`Invalid publication time for ${tag}`);
     const existing = result.get(sha);
 
-    if (!existing || readyAt > existing.readyAt) result.set(sha, { tag, readyAt });
+    if (
+      !existing ||
+      tag === activeBeta?.tag ||
+      (existing.tag !== activeBeta?.tag && compareTags(tag, existing.tag) > 0)
+    )
+      result.set(sha, { tag, readyAt });
   }
 
   return result;
 }
 
-function recoverySha(repo: string, source: string, run: JsonObject, adapters: PromotionAdapters): string | undefined {
+function recoveryRevision(repo: string, run: JsonObject, adapters: PromotionAdapters) {
   // Only trusted release branches can dispatch this workflow. The dispatch ref is not its build revision.
-  if (!["dev", "next", "main"].includes(string(run["head_branch"]))) return;
-
   for (let page = 1; ; page++) {
     const response = object(
       adapters.api(`repos/${repo}/actions/runs/${number(run["id"])}/artifacts?per_page=100&page=${page}`),
@@ -119,17 +130,23 @@ function recoverySha(repo: string, source: string, run: JsonObject, adapters: Pr
       if (artifact["name"] !== "release-revision" || artifact["expired"] !== false) continue;
       const revision = adapters.releaseRevision(repo, number(artifact["id"]));
 
-      if (revision?.branch === source && /^[0-9a-f]{40}$/.test(revision.sha) && revision.sha.length === 40)
-        return revision.sha;
+      if (
+        revision &&
+        ["dev", "next", "main"].includes(revision.branch) &&
+        /^[0-9a-f]{40}$/.test(revision.sha) &&
+        revision.sha.length === 40
+      )
+        return revision;
     }
 
     if (batch.length < 100) return;
   }
 }
 
-function latestRuns(repo: string, source: string, adapters: PromotionAdapters) {
+export function latestRuns(repo: string, source: string, adapters: PromotionAdapters) {
   // Unlike issues/releases, the runs endpoint wraps each page in workflow_runs.
   const runs = new Map<string, JsonObject>();
+  let busy = false;
 
   for (let page = 1; ; page++) {
     const response = object(
@@ -143,13 +160,14 @@ function latestRuns(repo: string, source: string, adapters: PromotionAdapters) {
 
     for (const value of batch) {
       const run = object(value);
+      const dispatch = run["event"] === "workflow_dispatch";
+      const trustedDispatch = dispatch && ["dev", "next", "main"].includes(string(run["head_branch"]));
+      const revision = trustedDispatch ? recoveryRevision(repo, run, adapters) : undefined;
+      const branch = dispatch ? revision?.branch : run["head_branch"];
+      const sha = branch === source ? (revision?.sha ?? string(run["head_sha"])) : undefined;
 
-      const sha =
-        run["event"] === "workflow_dispatch"
-          ? recoverySha(repo, source, run, adapters)
-          : run["head_branch"] === source
-            ? string(run["head_sha"])
-            : undefined;
+      // A newer dispatch may still be building before it uploads its resolved branch/SHA.
+      if (run["status"] !== "completed" && (sha || (trustedDispatch && !revision))) busy = true;
 
       if (!sha) continue;
       const previous = runs.get(sha);
@@ -166,10 +184,10 @@ function latestRuns(repo: string, source: string, adapters: PromotionAdapters) {
     if (batch.length < 100) break;
   }
 
-  return runs;
+  return { runs, busy };
 }
 
-function releaseJobs(repo: string, run: JsonObject, adapters: PromotionAdapters): JsonObject[] {
+export function releaseJobs(repo: string, run: JsonObject, adapters: PromotionAdapters): JsonObject[] {
   const jobs: JsonObject[] = [];
 
   for (let page = 1; ; page++) {
@@ -244,7 +262,6 @@ function pendingDevFixes(
   previous: Map<string, PromotionCommit>,
 ): PromotionCommit[] {
   const devSha = adapters.git("rev-parse", "origin/dev");
-  adapters.git("merge-base", "--is-ancestor", sourceSha, devSha);
 
   return adapters
     .git("rev-list", "--first-parent", "--reverse", `${sourceSha}..${devSha}`)
@@ -253,18 +270,42 @@ function pendingDevFixes(
     .map((sha) => readCommit(sha, prs.get(sha) ?? [], adapters, previous.get(sha)));
 }
 
-export function loadPromotion(
+export async function loadPromotion(
   repo: string,
   path: PromotionInput["path"],
   soakMs: number,
   adapters: PromotionAdapters,
   now = Date.now(),
-  targetOverride?: string,
   previousInput?: PromotionInput,
-): PromotionInput {
+): Promise<PromotionInput> {
   const [source, target] = promotionBranches(path);
   const sourceSha = adapters.git("rev-parse", `origin/${source}`);
-  const targetSha = targetOverride ?? adapters.git("rev-parse", `origin/${target}`);
+  const targetSha = adapters.git("rev-parse", `origin/${target}`);
+  const releaseRecords = adapters.pages(`repos/${repo}/releases?per_page=100`);
+  const publicReleaseTags = publishedReleaseTags(releaseRecords);
+  const releaseState = await promotionReleaseState(path, sourceSha, targetSha, publicReleaseTags, adapters.git);
+  const floor = path === "dev-next" ? firstNightlyAfterRelease(publicReleaseTags) : undefined;
+
+  const blockers = adapters
+    .pages(`repos/${repo}/issues?state=open&labels=release-blocker&per_page=100`)
+    .map(object)
+    .filter((issue) => !issue["pull_request"])
+    .map((issue) => number(issue["number"]));
+
+  const input: PromotionInput = {
+    path,
+    target: targetSha,
+    commits: [],
+    now,
+    soakMs,
+    paused: false,
+    blockers,
+    publicReleaseTags,
+    ...(floor && { nightlyFloor: `v${floor}` }),
+    ...releaseState,
+  };
+
+  if (input.releaseBlock) return input;
   adapters.git("merge-base", "--is-ancestor", targetSha, sourceSha);
 
   const history = adapters
@@ -272,12 +313,11 @@ export function loadPromotion(
     .split("\n")
     .filter(Boolean);
 
-  const releases = history.length
-    ? publishedReleases(repo, source, adapters)
-    : new Map<string, { tag: string; readyAt: number }>();
+  if (!history.length) return input;
+  const releases = publishedReleases(releaseRecords, source, adapters, input.activeBeta);
 
-  const prs = history.length ? mergedPrs(repo, source, adapters) : new Map<string, PromotionCommit["prs"]>();
-  const runs = history.length ? latestRuns(repo, source, adapters) : new Map<string, JsonObject>();
+  const prs = mergedPrs(repo, source, adapters);
+  const { runs } = latestRuns(repo, source, adapters);
 
   const previous = new Map(
     [...(previousInput?.commits ?? []), ...(previousInput?.pendingFixes ?? [])].map((commit) => [commit.sha, commit]),
@@ -313,24 +353,10 @@ export function loadPromotion(
     commits.push(commit);
   }
 
-  const blockers = adapters
-    .pages(`repos/${repo}/issues?state=open&labels=release-blocker&per_page=100`)
-    .map(object)
-    .filter((issue) => !issue["pull_request"])
-    .map((issue) => number(issue["number"]));
+  input.commits = commits;
+  input.minimumIndex = Math.max(0, minimumIndex);
 
-  const input: PromotionInput = {
-    path,
-    target: targetSha,
-    commits,
-    now,
-    soakMs,
-    paused: false,
-    blockers,
-    minimumIndex: Math.max(0, minimumIndex),
-  };
-
-  if (path === "next-main" && commits.length) input.pendingFixes = pendingDevFixes(sourceSha, adapters, prs, previous);
+  if (path === "next-main") input.pendingFixes = pendingDevFixes(sourceSha, adapters, prs, previous);
 
   return input;
 }

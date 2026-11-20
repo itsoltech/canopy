@@ -14,6 +14,7 @@ z wersji binarki. Polecenia `storage` działają poza migracją i usługami apli
 Compose i Desktop Local wykonują `canopy-gateway migrate` przed uruchomieniem gatewaya na oddzielnym koncie SQL.
 Migracja `0184` automatycznie zachowuje podglądy obrazów w historii każdego użytkownika, również przy odłączonych workerach.
 Od 2026-11-19 w kodzie jednorazowy token enrollmentu jest podawany przez stdin.
+Binarny updater na kanale `nightly` wybiera wyłącznie wydania nightly.
 
 Gateway uruchomiony jako serwer (Docker lub samodzielna binarka) ma rolę `server`.
 **Linked computers jest dostępne wyłącznie między aplikacjami Canopy Desktop w trybie
@@ -45,7 +46,7 @@ Szczegóły cache i blokady zmiany major: [desktop.md](desktop.md#postgresql-pob
 | --- | --- | --- | --- |
 | `stable` (`latest`) | `canopy-gateway:stable` | najwyższe stable | stabilne wydania main |
 | `beta` | `canopy-gateway:beta` | najwyższe stable/beta | testowanie wybranego nightly, branch next |
-| `nightly` | `canopy-gateway:nightly` | najwyższe semver ze wszystkich wydań | nowe funkcje z dev |
+| `nightly` | `canopy-gateway:nightly` | najwyższe nightly | nowe funkcje z dev |
 | `v1` | `canopy-gateway:v1` | najwyższe `v1.*.*` | produkcja z automatycznymi poprawkami i nowymi funkcjami 1.x |
 | `v1.2` | `canopy-gateway:v1.2` | najwyższe `v1.2.*` | tylko poprawki |
 | `v1.2.3` | `canopy-gateway:v1.2.3` | `v1.2.3` | zamrożona wersja |
@@ -53,7 +54,7 @@ Szczegóły cache i blokady zmiany major: [desktop.md](desktop.md#postgresql-pob
 Gateway, web i workery powinny być w tej samej wersji (jedna wersja dla wszystkich aplikacji).
 Wersję widać w Settings (dół nawigacji), w `GET /api/health`, w `--version` binarek i w logu startu.
 `latest` jest aliasem stable, nie buildu main HEAD. Piny wybierają wyłącznie stable.
-Updater beta/nightly wybiera także nowsze stable według semver; obrazy Docker beta/nightly
+Binarny updater beta dopuszcza też stable według SemVer. Obrazy Docker beta i nightly
 są aliasami ostatniego wydania własnego kanału. Aby przejść kontenerem na stable, zmień CANOPY_TAG.
 
 Pliki wdrożenia muszą pochodzić z tej samej gałęzi co wybrany kanał obrazów:

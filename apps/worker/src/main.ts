@@ -301,10 +301,13 @@ desktopDrain({
   },
 });
 
+const releaseBaseUrl = process.env["CANOPY_RELEASE_BASE_URL"];
+
 const updates = new WorkerUpdates({
   ...endpointOptions(local),
   credential: local.credential,
   workerId: local.worker_id,
+  ...(releaseBaseUrl && { source: { baseUrl: releaseBaseUrl } }),
   signal: stopping.signal,
   idle: () => host.updateIdle(),
   drain: (value) => {

@@ -86,3 +86,24 @@ test("a conflict opens a PR without pushing or dispatching either downstream bra
   expect(f.dispatches).toEqual([]);
   expect(f.pulls).toEqual([expect.objectContaining({ head: "main", base: "next" })]);
 });
+
+test("a published beta back-merges its precise commit into dev while newer beta work stays on next", () => {
+  const f = fixture();
+  f.git("checkout", "next");
+  writeFileSync(join(f.cwd, "beta.ts"), "tested beta fix\n");
+  f.git("add", "beta.ts");
+  f.git("commit", "-m", "fix: tested beta fix");
+  const published = f.git("rev-parse", "HEAD");
+
+  writeFileSync(join(f.cwd, "beta.ts"), "unpublished beta fix\n");
+  f.git("commit", "-am", "fix: unpublished beta fix");
+  f.git("push", "origin", "next");
+
+  runBackmerge("fixture/canopy", published, f.adapters, "beta");
+  const dev = f.git("rev-parse", "origin/dev");
+
+  expect(f.git("rev-parse", `${dev}^2`)).toBe(published);
+  expect(f.git("show", `${dev}:beta.ts`)).toBe("tested beta fix");
+  expect(f.git("rev-parse", "origin/main")).toBe(f.stable);
+  expect(f.dispatches).toEqual([{ repo: "fixture/canopy", branch: "dev", sha: dev }]);
+});

@@ -19,6 +19,8 @@ oraz stałego zakresu preferencji urządzenia po restarcie lokalnego gatewaya
 i przeciągania okna przy widocznym przycisku „Cite”, podpowiedzi,
 toaście lub komunikacie o zakończonej aktualizacji. Dyskowy cache HTTP Electron
 ma budżet 64 MiB, a kontroler ustala origin formularzy osobno dla każdego żądania.
+Aktualizacje Nightly mają własny feed. Updater sprawdza historię kodu każdego
+kandydata przed pobraniem.
 Tryb Local przypina certyfikat własnego gatewaya, używa osobnej roli PostgreSQL
 i sprawdza pochodzenie żądania otwarcia pliku w aplikacji systemowej.
 Dostępność w nightly/beta/stable określają [zasady wydań](release.md) i GitHub Releases.
@@ -265,8 +267,8 @@ contextIsolation i wyłączoną integrację Node. Linki zewnętrzne otwierają s
 przeglądarkę. `canopy://enroll` jedynie wypełnia formularz — nie zużywa tokenu bez akcji użytkownika.
 Format: `canopy://enroll?gateway=<encoded-origin>&web=<encoded-origin>&token=<encoded-token>`.
 Formularz potwierdza gotowość przez IPC przed dostarczeniem sekretu z linku.
-Lokalny frontend ma też dostęp do wyboru kanału, sprawdzenia i restartu aktualizacji;
-zgodę na downgrade wyświetla natywny dialog main, z domyślnym Cancel.
+Lokalny frontend ma też dostęp do wyboru kanału, sprawdzenia i restartu aktualizacji.
+Main weryfikuje historię kodu przed pobraniem wydania.
 Konfigurację trybu oraz odbiór tokenu
 może wykonać wyłącznie lokalna strona `/desktop`.
 
@@ -830,8 +832,8 @@ oraz dokładnie powyższego wydawcę. Kontrola obowiązuje przy każdej wymagane
 podjętej próbie podpisania i blokuje upload artefaktu. Podpis identyfikuje wydawcę;
 wyświetlenie SmartScreen zależy też od polityk Windows i reputacji pliku.
 
-Updater NSIS działa we wszystkich kanałach: stable publikuje `latest.yml`,
-`beta.yml` i `nightly.yml`, beta dwa ostatnie, nightly tylko `nightly.yml`.
+Updater NSIS działa we wszystkich kanałach. Stable publikuje `latest.yml` i `beta.yml`,
+beta publikuje `beta.yml`, a nightly publikuje `nightly.yml`.
 Podpisany build zapisuje nazwę wydawcy do konfiguracji electron-updater, który
 weryfikuje podpis pobranego instalatora; nie wyłączamy tej kontroli dla unsigned
 nightly. Instalator ma wpis `desktop/windows/x64` w `manifest.json`, a sumy
@@ -1137,8 +1139,8 @@ bez zapisu domyślny jest kanał zainstalowanego buildu.
 **Check now** w centrum aktualizacji i **Check for updates** w ustawieniach działają
 również przy stanie Ready. Najpierw sprawdzamy metadane bez automatycznego pobierania
 (`autoDownload=false`), potem pobieramy tylko cel nowszy od gotowej paczki.
-Brak nowszego wydania zachowuje poprzedni cel. Zgoda na downgrade przy zmianie kanału
-nadal dotyczy tylko jednej próby; zmiana kanału unieważnia poprzednią gotowość w UI.
+Brak nowszego wydania zachowuje poprzedni cel. Zmiana kanału unieważnia poprzednią
+gotowość w UI i od razu sprawdza aktualizacje w wybranym kanale.
 
 Wersję gotową do instalacji (`stagedVersion`) przechowujemy osobno od wersji aktualnie
 pobieranej (`updateVersion`). Ready publikujemy dopiero po zdarzeniu `update-downloaded`
@@ -1256,13 +1258,13 @@ użyj Check now oraz osobno Check for updates i poczekaj na Ready → B. Powtór
 z timerem ustawionym na Every hour. Podczas pobierania B wybierz Restart to update:
 aplikacja ma poczekać, zamknąć usługi, przejść walidację Squirrel i uruchomić B.
 Osobno przerwij pobieranie B: Ready ma wrócić do A z błędem, a restart zainstalować A.
-Sprawdź też brak nowszej wersji, Cancel/zgodę na stabilniejszy kanał na kopii danych,
+Sprawdź też przejście z Nightly do Beta z kodem starszym, identycznym i nowszym,
 zwykłe Quit bez instalacji i zdalną aktualizację po idle/force. Testy na Linuxie nie
 potwierdzają podpisu, rzeczywistego staging Squirrel ani restartu macOS.
 
 W trybie zdalnym Workers gatewaya może zażądać **Update Canopy app** przez
-uwierzytelniony kanał desktopu. Main zachowuje powyższy updater i kanał, odmawia
-downgrade oraz czeka na idle własnego workera przed restartem. Właściciel może
+uwierzytelniony kanał desktopu. Main używa bieżącego kanału oraz wymaga wyższego
+SemVer do zdalnej instalacji i czeka na idle własnego workera przed restartem. Właściciel może
 jawnie wymusić restart oczekującego żądania; desktop pokazuje powiadomienie.
 Postęp i wynik są widoczne zdalnie i audytowane. Szczegóły:
 [updates.md](updates.md#zdalna-aktualizacja-aplikacji-desktopowej).
@@ -1301,24 +1303,22 @@ Nie używa zmiennego GitHub `/latest`, który nie obsługuje poprawnie nightly.
 | --- | --- | --- | --- |
 | Stable | stable | `latest` | false |
 | Beta | stable, beta | `beta` | true |
-| Nightly | stable, beta, nightly | `nightly` | true |
+| Nightly | nightly | `nightly` | true |
 
-Stable publikuje aliasy `latest`, `beta`, `nightly`; beta `beta`, `nightly`;
-nightly tylko `nightly`. Wszystkie aliasy w danym release wskazują na jeden zestaw
-Canopy, nigdy na inne wydanie. Dlatego beta dostanie nowsze stable, ale nowsze beta
-wygrywa ze starszym stable. Ochronę przed prerelease w Stable zapewnia resolver;
-`allowPrerelease` samo nie filtruje generic feedów.
+Alias `beta` w wydaniu stable wskazuje na te same instalatory co `latest`.
+Beta wybiera najwyższą wersję SemVer spośród beta i stable. Nightly ignoruje
+wydania stable i beta, także gdy starsze wydanie zawiera alias feedu `nightly`.
+Tę samą regułę stosują notatki aktualizacji i stan publikacji.
 
-Przejście do mniej stabilnego kanału aktualizuje tylko w przód. Powrót do stabilniejszego
-wymaga natywnego potwierdzenia: może zainstalować starszą wersję, dane zapisane przez
-nowszą wersję mogą być nieczytelne i aplikacja może przestać działać. Po zgodzie
-`allowDowngrade=true` obowiązuje tylko w sprawdzeniu/pobraniu tego przełączenia.
-Po sukcesie, braku wydania lub błędzie wraca do false; nie jest zapisywane i nie przechodzi
-na timer, przycisk Check ani następne uruchomienie. Po nieudanej próbie ponowna zgoda
-wymaga przełączenia kanału ponownie. Kierunek przełączenia porównuje starą i nową
-preferencję; przejście w stronę Nightly nigdy nie zezwala na starszą wersję, nawet gdy
-zainstalowany build nadal pochodzi z Nightly. Podczas operacji wybór jest zablokowany;
-późniejsza zmiana unieważnia poprzednio pobraną aktualizację w UI.
+Zmiana kanału zapisuje preferencję. Desktop może zaczekać w uruchomionym buildzie,
+aż wybrany kanał opublikuje zgodne wydanie. Resolver porównuje przez GitHub commit
+uruchomionego buildu z tagiem kandydata. Dopuszcza identyczny commit lub jego potomka.
+Wydanie oficjalne zawiera SHA buildu do porównania po usunięciu starego tagu nightly.
+Pozostałe buildy używają tagu wersji. Brak potwierdzenia historii wstrzymuje pobieranie.
+Przejście z zainstalowanego Nightly do Beta może mieć niższy SemVer. W takim przypadku
+electron-updater przyjmuje numer wyłącznie dla zweryfikowanego wydania beta, którego
+wersja zgadza się z feedem. Pozostałe przejścia wymagają wyższego SemVer.
+Podczas operacji wybór jest zablokowany. Zmiana kanału unieważnia poprzednią gotowość w UI.
 
 Feed to `latest-mac.yml` / `beta-mac.yml` / `nightly-mac.yml` na macOS,
 odpowiednio `*-linux.yml` (ARM: `*-linux-arm64.yml`) i `latest.yml` / `beta.yml` /
@@ -1341,9 +1341,8 @@ Jeśli końcowa walidacja/instalacja po zatrzymaniu usług zawiedzie, aplikacja 
 błąd i uruchamia ponownie bieżącą wersję zamiast zostawiać zatrzymany runtime.
 
 Aktualizacja aplikacji nie służy do automatycznej zmiany głównej wersji PostgreSQL.
-Wycofanie wadliwego wydania wymaga nowszego wydania naprawczego tego samego kanału;
-aplikacja nie wykonuje rollbacku bazy. Jawny downgrade desktopu nie sprawdza zgodności
-danych i nie daje gwarancji uruchomienia. Wcześniej wykonaj backup.
+Wycofanie wadliwego wydania wymaga nowszego wydania naprawczego tego samego kanału.
+Updater zachowuje historię kodu i używa istniejącej bazy danych.
 
 ## Dyskowy cache HTTP
 

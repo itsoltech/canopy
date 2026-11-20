@@ -18,10 +18,3 @@ export function githubDraft(
   },
   repo?: string,
 ): void;
-export function findGithubRelease(tag: string):
-  | {
-      tag_name: string;
-      draft: boolean;
-      prerelease: boolean;
-    }
-  | undefined;

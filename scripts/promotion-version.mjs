@@ -1,15 +1,14 @@
 /** Read-only forecast using the same Angular analyzer as Release; never invokes semantic-release or push. */
+import { gt, inc } from "semver";
 import { analyzeCommits } from "./release-analyzer.mjs";
 import { promotionHoldCap, selectPromotion } from "./promotion-policy.ts";
-
-function compare(a, b) {
-  const left = a.replace(/^v/, "").split(/[.-]/).map(Number);
-  const right = b.replace(/^v/, "").split(/[.-]/).map(Number);
-
-  for (let i = 0; i < 3; i++) if (left[i] !== right[i]) return left[i] - right[i];
-
-  return 0;
-}
+import {
+  closedBetaCores,
+  latestBetaTag,
+  latestStableTag,
+  nextBetaVersion,
+  stableVersionForBeta,
+} from "./release-version-policy.mjs";
 
 async function analyze(commits, version) {
   return analyzeCommits(
@@ -24,51 +23,48 @@ async function analyze(commits, version) {
 
 export async function forecastPromotion(input, plan, git) {
   if (plan.sha === input.target) return undefined;
-  const tags = git("tag", "--merged", plan.sha, "--list", "v*").split("\n");
 
-  const stable = tags
-    .filter((tag) => /^v\d+\.\d+\.\d+$/.test(tag))
-    .sort(compare)
-    .at(-1);
+  const tags = (...args) =>
+    git("tag", "--list", "v*", ...args)
+      .split("\n")
+      .filter(Boolean);
+
+  const publicTags = input.publicReleaseTags ?? [];
+  const exact = tags("--points-at", plan.sha);
+
+  if (input.path === "next-main") return stableVersionForBeta(publicTags, exact);
+
+  const reachable = tags("--merged", plan.sha);
+  const stable = latestStableTag(reachable);
 
   if (!stable) return undefined; // Same bootstrap guard as semantic-release.mjs.
-  const stableVersion = stable.slice(1);
+  const closed = closedBetaCores(tags(), publicTags, tags("--points-at", "origin/main"));
+  const published = new Set(publicTags);
+  const isEligible = (tag) => published.has(tag) || !closed.has(tag.slice(1).split("-")[0]);
+  const beta = latestBetaTag(reachable.filter(isEligible));
+  const reserved = latestBetaTag(exact.filter(isEligible));
+
+  if (reserved) return published.has(reserved) ? undefined : reserved.slice(1);
+  const base = beta && gt(beta, stable) ? beta : stable;
+  const baseVersion = base.slice(1);
 
   if (
     !(await analyze(
       plan.included.map((commit) => ({ message: commit.message, hash: commit.sha })),
-      stableVersion,
+      baseVersion,
     ))
   )
     return undefined;
-  const hashes = git("rev-list", `${stable}..${plan.sha}`).split("\n").filter(Boolean);
+  const hashes = git("rev-list", `${base}..${plan.sha}`).split("\n").filter(Boolean);
 
   const bump = await analyze(
     hashes.map((sha) => ({ message: git("show", "-s", "--format=%B", sha), hash: sha })),
-    stableVersion,
+    baseVersion,
   );
 
   if (!bump) return undefined;
-  const parts = stableVersion.split(".").map(Number);
-  const index = bump === "major" ? 0 : bump === "minor" ? 1 : 2;
-  parts[index]++;
 
-  for (let i = index + 1; i < 3; i++) parts[i] = 0;
-  let core = parts.join(".");
-
-  if (input.path === "next-main") return core;
-
-  const betaTags = git("tag", "--merged", input.target, "--list", "v*-beta.*")
-    .split("\n")
-    .filter((tag) => /^v\d+\.\d+\.\d+-beta\.\d+$/.test(tag))
-    .sort((a, b) => compare(a, b) || Number(a.split(".").at(-1)) - Number(b.split(".").at(-1)));
-
-  const previous = betaTags.at(-1);
-
-  if (previous && compare(previous, core) > 0) core = previous.slice(1).split("-")[0];
-  const counter = previous && compare(previous, core) === 0 ? Number(previous.split(".").at(-1)) + 1 : 1;
-
-  return `${core}-beta.${counter}`;
+  return nextBetaVersion(`${inc(baseVersion, bump)}-beta.1`, reachable, publicTags, closed);
 }
 
 /** Time-only forecast against the same read-only snapshot; never assumes CI or labels will change. */

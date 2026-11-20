@@ -3,10 +3,12 @@ import type { JsonValue } from "@canopy/domain/json";
 import { loadPromotion, type PromotionAdapters } from "./promotion-data.ts";
 import { DAY, selectPromotion } from "./promotion-policy.ts";
 
-test("a 555-commit range keeps paginated exact-commit gates within the API budget", () => {
+test("a 555-commit range keeps paginated exact-commit gates within the API budget", async () => {
   const history = Array.from({ length: 555 }, (_, i) => (i + 1).toString(16).padStart(40, "0"));
   const target = "0".repeat(40);
   const now = Date.parse("2026-11-13T12:00:00Z");
+  const tags = ["v0.2.0-nightly.1", "v0.2.0-nightly.2"];
+  const publishedAt = new Date(now - DAY).toISOString();
 
   const runs: JsonValue[] = history.map((sha, i) => ({
     id: i + 1,
@@ -57,6 +59,8 @@ test("a 555-commit range keeps paginated exact-commit gates within the API budge
       throw new Error("Push runs do not need revision artifacts");
     },
     git(...args) {
+      if (args[0] === "fetch") return "";
+
       if (args[0] === "merge-base") return target;
 
       if (args[0] === "rev-list") return history.join("\n");
@@ -64,6 +68,10 @@ test("a 555-commit range keeps paginated exact-commit gates within the API budge
       if (args[0] === "diff-tree") return "feature.ts";
 
       if (args[0] === "rev-parse") {
+        const release = tags.findIndex((tag) => args[1] === `${tag}^{commit}`);
+
+        if (release !== -1) return history[553 + release]!;
+
         if (args[1] === "origin/dev") return history.at(-1)!;
 
         if (args[1] === "origin/next") return target;
@@ -112,17 +120,28 @@ test("a 555-commit range keeps paginated exact-commit gates within the API budge
           },
         ];
 
-      if (path.includes("/releases?") || path.includes("/issues?")) return [];
+      if (path.includes("/releases?"))
+        return [
+          { tag_name: "v0.1.0", draft: false, prerelease: false },
+          ...tags.map((tag) => ({
+            tag_name: tag,
+            draft: false,
+            prerelease: true,
+            published_at: publishedAt,
+            assets: [{ name: "manifest.json", updated_at: publishedAt }],
+          })),
+        ];
+
+      if (path.includes("/issues?")) return [];
       throw new Error(`Unexpected GitHub read: ${path}`);
     },
   };
 
-  const input = loadPromotion("fixture/canopy", "dev-next", DAY, adapters, now);
+  const input = await loadPromotion("fixture/canopy", "dev-next", DAY, adapters, now);
   expect(selectPromotion(input).sha).toBe(history[553]!);
   expect(selectPromotion(input).sha).toBe(history[553]!);
   expect(input.commits[0]!.prs[0]!.number).toBe(68);
-  expect(smokeRuns).toHaveLength(1);
-  expect(smokeRuns[0]).toContain("/runs/554/jobs?");
+  expect(smokeRuns).toEqual([]);
   expect(reads).toBeLessThan(20);
 });
 
@@ -172,10 +191,14 @@ function recoveryFixture(path: "dev-next" | "next-main" = "next-main") {
     },
   ];
 
+  releases.push({ tag_name: "v0.1.0", draft: false, prerelease: false });
+
   const reads: string[] = [];
 
   const adapters: PromotionAdapters = {
     git(...args) {
+      if (args[0] === "fetch") return "";
+
       if (args[0] === "merge-base") return target;
 
       if (args[0] === "rev-list") return args[3] === `${sha}..${workflowSha}` ? "" : sha;
@@ -183,7 +206,8 @@ function recoveryFixture(path: "dev-next" | "next-main" = "next-main") {
       if (args[0] === "diff-tree") return "feature.ts";
 
       if (args[0] === "rev-parse") {
-        if (args[1] === `origin/${source}` || args[1] === `${tag}^{commit}`) return sha;
+        if (args[1] === `origin/${source}` || args[1] === `${tag}^{commit}` || args[1] === `refs/tags/${tag}^{commit}`)
+          return sha;
 
         if (args[1] === "origin/dev") return workflowSha;
 
@@ -224,17 +248,17 @@ function recoveryFixture(path: "dev-next" | "next-main" = "next-main") {
   return { sha, target, workflowSha, runs, revision, artifact, jobs, releases, reads, load };
 }
 
-test("recovery publication gates use the artifact SHA for either promotion path", () => {
+test("recovery publication gates use the artifact SHA for either promotion path", async () => {
   for (const path of ["dev-next", "next-main"] as const) {
     const f = recoveryFixture(path);
-    const input = f.load();
+    const input = await f.load();
     expect(input.commits[0]!.green).toBe(true);
     expect(selectPromotion(input).sha).toBe(f.sha);
     expect(f.reads.some((path) => path.includes("/335/jobs?"))).toBe(true);
   }
 });
 
-test("a newer recovery wins over an older push's later cancelled attempt, regardless of API order", () => {
+test("a newer recovery wins over an older push's later cancelled attempt, regardless of API order", async () => {
   for (const reverse of [false, true]) {
     const f = recoveryFixture();
     f.runs.push({
@@ -249,11 +273,11 @@ test("a newer recovery wins over an older push's later cancelled attempt, regard
     });
 
     if (reverse) f.runs.reverse();
-    expect(selectPromotion(f.load()).sha).toBe(f.sha);
+    expect(selectPromotion(await f.load()).sha).toBe(f.sha);
   }
 });
 
-test("dispatch artifacts cannot spoof another branch, SHA, ref, event or an expired/missing revision", () => {
+test("dispatch artifacts cannot spoof another branch, SHA, ref, event or an expired/missing revision", async () => {
   for (const scenario of ["branch", "sha", "short", "newline", "ref", "push", "expired", "missing", "legacy"]) {
     const f = recoveryFixture();
 
@@ -274,35 +298,35 @@ test("dispatch artifacts cannot spoof another branch, SHA, ref, event or an expi
     if (scenario === "expired") f.artifact["expired"] = true;
 
     if (scenario === "missing") f.artifact["name"] = "unrelated";
-    expect(selectPromotion(f.load()).sha, scenario).toBe(f.target);
+    expect(selectPromotion(await f.load()).sha, scenario).toBe(f.target);
   }
 });
 
-test("same-branch dispatches never use the workflow head SHA as fallback", () => {
+test("same-branch dispatches never use the workflow head SHA as fallback", async () => {
   const f = recoveryFixture();
   f.runs[0]!["head_branch"] = "next";
   f.runs[0]!["head_sha"] = f.sha;
   f.revision.sha = f.workflowSha;
-  expect(selectPromotion(f.load()).sha).toBe(f.target);
+  expect(selectPromotion(await f.load()).sha).toBe(f.target);
 });
 
-test("push and scheduled runs retain their exact-head gates without reading recovery artifacts", () => {
+test("push and scheduled runs retain their exact-head gates without reading recovery artifacts", async () => {
   for (const event of ["push", "schedule"]) {
     const f = recoveryFixture();
     f.runs[0]!["event"] = event;
     f.runs[0]!["head_branch"] = "next";
     f.runs[0]!["head_sha"] = f.sha;
     f.revision.branch = "main";
-    expect(selectPromotion(f.load()).sha).toBe(f.sha);
+    expect(selectPromotion(await f.load()).sha).toBe(f.sha);
     expect(f.reads.some((path) => path.includes("/artifacts?"))).toBe(false);
   }
 });
 
-test("green recovery needs public exact-SHA release, CI, all smoke targets and completed publication", () => {
+test("green recovery needs public exact-SHA release, CI, all smoke targets and completed publication", async () => {
   for (const scenario of ["no-release", "draft", "no-manifest", "ci", "smoke", "publication", "failure", "pending"]) {
     const f = recoveryFixture("dev-next");
 
-    if (scenario === "no-release") f.releases.length = 0;
+    if (scenario === "no-release") f.releases.shift();
 
     if (scenario === "draft") f.releases[0] = { tag_name: "v0.2.0-nightly.1", draft: true, prerelease: true };
 
@@ -318,11 +342,11 @@ test("green recovery needs public exact-SHA release, CI, all smoke targets and c
     if (scenario === "failure") f.runs[0]!["conclusion"] = "failure";
 
     if (scenario === "pending") f.runs[0]!["status"] = "in_progress";
-    expect(selectPromotion(f.load()).sha, scenario).toBe(f.target);
+    expect(selectPromotion(await f.load()).sha, scenario).toBe(f.target);
   }
 });
 
-test("newer failed runs and newer failed attempts still block recovery readiness", () => {
+test("newer failed runs and newer failed attempts still block recovery readiness", async () => {
   for (const scenario of ["new-run", "new-attempt"]) {
     const f = recoveryFixture();
     f.runs.push({
@@ -334,6 +358,6 @@ test("newer failed runs and newer failed attempts still block recovery readiness
       run_number: scenario === "new-run" ? 336 : 335,
       run_attempt: 2,
     });
-    expect(selectPromotion(f.load()).sha).toBe(f.target);
+    expect(selectPromotion(await f.load()).sha).toBe(f.target);
   }
 });

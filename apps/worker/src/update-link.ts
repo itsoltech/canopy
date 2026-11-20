@@ -4,6 +4,7 @@ import { MIN_WORKER_LINK_PROTOCOL, UPDATE_PROTOCOL, WORKER_LINK_PROTOCOL } from 
 import { CANOPY_VERSION } from "@canopy/domain/release/version";
 import { createGrpcClientTransport } from "@canopy/transport";
 import {
+  assertBinaryUpdateForward,
   clearUpdateResult,
   compareVersions,
   installKind,
@@ -11,10 +12,12 @@ import {
   parseManifest,
   readUpdateRecord,
   releaseAsset,
+  ReleaseSource,
   stageBinaryUpdate,
   SUPERVISOR_HANDOVER_EXIT_CODE,
   whenIdle,
   type InstallKind,
+  type ReleaseSourceOptions,
 } from "@canopy/updater";
 
 export interface WorkerUpdatesOptions {
@@ -31,6 +34,7 @@ export interface WorkerUpdatesOptions {
   kind?: InstallKind;
   version?: string;
   binaryPath?: string;
+  source?: ReleaseSourceOptions;
 }
 
 /** Independent transport/reconnect loop: it never awaits WorkerLink or provider configuration. */
@@ -40,6 +44,7 @@ export class WorkerUpdates {
   readonly #headers;
   readonly #version: string;
   readonly #kind: InstallKind;
+  readonly #source: ReleaseSource;
   #active: string | undefined;
   #handled = new Set<string>();
   // An interrupted update can finish after Watch has already reconnected.
@@ -47,6 +52,7 @@ export class WorkerUpdates {
   constructor(readonly options: WorkerUpdatesOptions) {
     this.#version = options.version ?? CANOPY_VERSION;
     this.#kind = options.kind ?? installKind();
+    this.#source = new ReleaseSource(options.source);
     this.#headers = { authorization: `Bearer ${options.credential}` };
     this.#client = createClient(
       update.UpdateService,
@@ -198,7 +204,7 @@ export class WorkerUpdates {
         return;
       }
 
-      const manifest = parseManifest(JSON.parse(command.manifestJson));
+      const manifest = parseManifest(JSON.parse(command.manifestJson), this.#source.options);
 
       if (manifest.version !== command.version || manifest.protocol.update !== UPDATE_PROTOCOL)
         throw new Error("Update command does not match the supported release manifest");
@@ -211,6 +217,7 @@ export class WorkerUpdates {
 
       if (compareVersions(command.version, this.#version) < 0 && !command.allowDowngrade)
         throw new Error("Downgrade requires an explicit user request");
+      await assertBinaryUpdateForward(this.#source.catalog, this.#version, manifest);
       const asset = releaseAsset(manifest, "worker", process.platform, process.arch);
       await whenIdle({
         idle: this.options.idle,
@@ -245,9 +252,11 @@ export class WorkerUpdates {
             binaryPath: this.options.binaryPath ?? process.execPath,
             currentVersion: this.#version,
             version: manifest.version,
+            commit: manifest.commit,
             commandId: command.id,
             asset,
             ...(chunks && { chunks }),
+            source: this.#source,
             allowDowngrade: command.allowDowngrade,
           });
           // Once replacement is committed, lost connectivity must not leave the old process running forever.

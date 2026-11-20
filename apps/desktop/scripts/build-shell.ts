@@ -4,6 +4,7 @@ import { execFileSync } from "node:child_process";
 import { desktopIdentity } from "../src/identity.ts";
 
 const root = resolve(import.meta.dir, "..");
+const revision = process.env["CANOPY_REVISION"] ?? "";
 
 mkdirSync(resolve(root, "dist"), { recursive: true });
 
@@ -40,7 +41,10 @@ for (const name of ["main", "desktop-main", "html-viewer-process", "preload", "h
     target: "node",
     format: "cjs",
     external: ["electron"],
-    define: { CANOPY_DESKTOP_CHANNEL: JSON.stringify(desktopIdentity().channel) },
+    define: {
+      CANOPY_DESKTOP_CHANNEL: JSON.stringify(desktopIdentity().channel),
+      CANOPY_DESKTOP_REVISION: JSON.stringify(revision),
+    },
     naming: `${name}.cjs`,
     outdir: resolve(root, "dist"),
   });

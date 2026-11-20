@@ -1,6 +1,8 @@
 # Wydania: wersje, CI, artefakty
 
-Status: opis zaimplementowanego workflow (2026-11-19). Automat sprawdza promocje co godzinę. Domyślne okresy obserwacji to 6 h na dev i 24 h od gotowości bety.
+Status: opis zaimplementowanego workflow (2026-11-20). Automat sprawdza promocje co godzinę.
+Domyślne okresy obserwacji to 6 h na dev i 24 h od gotowości bety. Publikacja bety
+otwiera kolejną serię nightly. Stable zachowuje wersję bazową i SHA przetestowanej bety.
 CI dla PR-ów dobiera testy mobile, interfejsu web i powłoki Electron według zmian.
 Release ponawia pakowanie macOS i Windows po błędzie. Beta publikuje zgodne OTA
 i pomija build oraz wysyłkę iOS do TestFlight. Pełne CI ma osiem shardów i wagi
@@ -34,14 +36,20 @@ Wersja jest w podpowiedzi nagłówka i Settings; ten sam nagłówek działa w dr
   od 1.0.0 zwiększa major. Wrapper `release-analyzer.mjs` przekazuje odpowiednie `releaseRules`
   do `@semantic-release/commit-analyzer` na podstawie ostatniej wersji. Przejście na 1.0.0
   jest świadomą decyzją maintainera i wymaga osobnej zmiany polityki/wyznaczenia tego wydania.
+- Po publikacji bety lub stable `X.Y.Z` następne nightly zaczynają się co najmniej od
+  `X.(Y+1).0-nightly.1`. Wyższy wynik analyzera i dotychczasowej numeracji, np. skok major,
+  zachowujemy. Sama publikacja bety lub stable bez wydawalnej zmiany na `dev` nie tworzy nightly.
+  Przykład: z `0.6.0-nightly.4` powstaje `0.6.0-beta.1`. Kolejna zmiana na `dev` otwiera
+  `0.7.0-nightly.1`. Po publikacji stable `0.6.0` automat może promować gotowy nightly `0.7`
+  do `0.7.0-beta.1`, a jej publikacja otwiera serię `0.8` dla następnych nightly.
 - `release.config.mjs`: Angular analyzer, Angular release notes i `@semantic-release/github`.
   Nie używamy `@semantic-release/git`, npm publish ani commitowanego CHANGELOG-a. Notatki są
   w GitHub Releases; bot nie dopisuje commitów wersji, więc promocje zachowują wspólną historię.
 - **`latest` oznacza teraz najnowsze stable.** Nie powstaje rolling GitHub pre-release `latest`,
   tag `latest` ani obrazy `sha-*`. Tagi wersji pozostają niezmienne. Nie publikujemy poprawek
   starszych linii po nowszym stable bez osobnej polityki obsługi aliasów Docker.
-- Updater: `stable` wybiera najwyższe stabilne semver; `beta` najwyższe stable/beta;
-  `nightly` najwyższe ze wszystkich wydań. Piny `vX`, `vX.Y`, `vX.Y.Z` wybierają tylko stable.
+- Updater: `stable` wybiera najwyższe stable, `beta` najwyższe stable/beta,
+  `nightly` najwyższe nightly. Porównuje SemVer. Piny `vX`, `vX.Y`, `vX.Y.Z` wybierają tylko stable.
   Starsze ustawienie `latest` jest zapisywane jako `stable` przy starcie gatewaya.
 - Samo utworzenie gałęzi na istniejącym tagu i merge `docs:` nie publikuje nowej wersji.
   `scripts/semantic-release.mjs` blokuje automatyczne pierwsze wydanie przed tagiem bootstrap.
@@ -152,11 +160,11 @@ Stare Canopy Beta/Nightly wymagają jednorazowej ręcznej instalacji Canopy — 
 nie aktualizuje między różnymi bundle ID. [Migracja](desktop.md#przejście-ze-starych-canopy-beta--canopy-nightly)
 nie usuwa ani nie importuje starych danych.
 Desktop publikuje też feedy electron-updater i pliki `.blockmap`. Feedy z runnerów są scalane
-przed uploadem i sprawdzane względem SHA-512 assetów. Skrypt merge tworzy aliasy:
-stable → latest/beta/nightly, beta → beta/nightly, nightly → nightly, dla każdej platformy.
-Wszystkie wskazują na jeden zestaw instalatorów tego release. Stable widzi tylko stable,
-Beta także beta, Nightly wszystkie trzy; najwyższy SemVer wygrywa. Brak rollbacku
-bez jednorazowej zgody na stabilniejszy kanał. Manifest nadal oznacza instalatory
+przed uploadem i sprawdzane względem SHA-512 assetów. Stable publikuje feedy `latest`
+i `beta` dla tych samych instalatorów. Wydania beta publikują `beta`, a wydania nightly `nightly`.
+Stable widzi wydania stable, Beta widzi stable i beta, a Nightly widzi tylko nightly.
+Resolver dopuszcza ten sam commit lub jego potomka. Niższy SemVer jest możliwy przy
+przejściu z Nightly do Beta, gdy beta zawiera kod uruchomionego buildu. Manifest nadal oznacza instalatory
 `app: desktop`; feedy/blockmapy są w checksumach. ZIP i blockmapy macOS pozostają
 wymagane; niepodpisane/ad-hoc macOS nie emituje feedu.
 macOS: tylko Apple Silicon (arm64);
@@ -341,8 +349,9 @@ gałęzi trafiają do następnego przebiegu.
 `scripts/semantic-release.mjs` przygotowuje prywatne bare lustro z gałęziami, wszystkimi tagami
 i notes. Wyłącznie ref wydawanej gałęzi w lustrze wskazuje `EXPECTED_SHA`. semantic-release
 25.0.9 dostaje to lustro jako `repositoryUrl`, więc jego kontrola pushu nie odrzuca starszego
-SHA ani nie podciąga nowszych commitów. Analyzer, numeracja kanałów, `EXPECTED_VERSION`
-i format tagu pozostają z `release.config.mjs`. Generator notatek dostaje prawdziwy URL
+SHA ani nie podciąga nowszych commitów. Wrapper czyta publiczne wydania z paginowanego API
+GitHuba. Dla nightly pomija SHA już zawarte w najwyższych publicznych wydaniach beta lub stable.
+Numeracja używa tego snapshotu i bazowego wyniku semantic-release. Generator notatek dostaje prawdziwy URL
 repozytorium, aby zachować linki porównań i commitów. Plugin GitHub jest wyłączony w tym
 wywołaniu: z lokalnego URL nie odczytałby owner/repo i sprawdzałby dostęp także w dry runie.
 
@@ -355,9 +364,10 @@ a kolejne notatki pomija. Po promocji nightly → beta może więc przypisać ni
 `getLastRelease` odrzuci wtedy najnowsze nightly i wyliczy ponownie jego zajęty numer.
 `git tag --merged`, fetch notes, przypięte lustro i analyzer nie gubią tagu.
 Poprawka zachowuje osobne kanały przy promocjach, wspólnych tagach stable/beta/nightly
-i back-merge; nie zmienia wersji, tagów ani notes. Plan i release nakładają tę samą poprawkę
-z rewizji workflow także po instalacji zależności starszego przypiętego źródła;
-niezgodna zależność zatrzymuje przebieg. Kopiują też aktualny analyzer i guard wersji.
+i back-merge. Pozwala też wrapperowi wybrać ostatni opublikowany commit jako punkt odniesienia,
+pominąć zamknięte rezerwacje i zastosować granice wersji przed jej weryfikacją,
+generowaniem notatek i tagowaniem. Plan i release używają tych samych narzędzi i przypiętej
+zależności z rewizji workflow.
 
 Po checkach semantic-release tworzy tag i notes w lustrze; wrapper atomowo wysyła do origin
 wyłącznie tag wydania i notes, bez force i bez pushu gałęzi. Następnie API GitHuba tworzy
@@ -400,6 +410,10 @@ Nie wywołuje wtedy semantic-release, nie tworzy kolejnego numeru, nie przesuwa 
 Istniejący draft wznawia publikację bez ponownego POST; wydanie publiczne kończy plan bez
 nowego wydania. Niezgodny `EXPECTED_VERSION`, brak metadanych kanału, wiele pasujących tagów
 lub przepisana historia kończą przebieg błędem. Błąd odczytu API nie oznacza braku wydania.
+Po publikacji stable wrapper pomija rezerwacje nightly poniżej nowej granicy. Jeśli SHA
+zawiera zmianę wpływającą na wersję od stable, można zaplanować ten sam commit pod nowym
+numerem. Stary tag, notes i draft pozostają, a wznowienie wybiera już tylko rezerwację z
+otwartego zakresu wersji. SHA sprzed publicznego stable kończy plan bez nowego nightly.
 
 `workflow_dispatch.release_branch` wybiera `dev`, `next` lub `main`; domyślne `current`
 zachowuje wybór z ref workflowu. Wspólne blokady używają **gałęzi wydania**, także gdy kod
@@ -407,7 +421,8 @@ workflowu pochodzi z `dev`. Joby plan/release oraz upload używają narzędzi z 
 ale źródła aplikacji, checki i wszystkie artefakty nadal pochodzą z `EXPECTED_SHA`.
 Artefakt `release-revision` przekazuje Mobile release także gałąź kanału, żeby recovery z `dev`
 nie wybierało nightly zamiast beta/stable. Starsze artefakty nadal korzystają z ref przebiegu.
-Pozwala to naprawić publikację starego SHA bez zmieniania jego tagu ani gałęzi kanału.
+Jeśli rezerwacja nadal jest otwarta, pozwala to naprawić publikację starego SHA bez zmieniania
+jego tagu ani gałęzi kanału.
 
 Dla osieroconego `v0.2.0-beta.1` na `31c7f87825b9756d8b1adf677f506519f248f770`,
 po merge poprawki do `dev`, maintainer uruchamia **nowy dispatch z `dev`**:
@@ -433,7 +448,8 @@ nigdy nie publikuje równolegle. Ceną jest oczekiwanie także na desktop/notary
 Nie wolno włączyć `cancel-in-progress: true`: aktywny przebieg może już publikować.
 `dev`, `next`, `main` i poszczególne tagi mają odrębne grupy `release-<ref>`, więc różne kanały
 zachowują równoległe buildy. Push i ręczny dispatch tej samej gałęzi nie publikują równolegle.
-Joby ustalające i publikujące wersję zachowują dotychczasowe blokady per gałąź.
+Joby ustalające wersję mają blokady per gałąź. Wspólna kolejka `release-branch-mutations`
+serializuje zapis na drafcie, końcową publikację i przesunięcia gałęzi przez promocję.
 GitHub uruchamia schedule wyłącznie z domyślnej gałęzi; musi nią pozostać `dev`.
 Guard nie pozwala schedule wydać beta/stable po zmianie gałęzi domyślnej.
 Cron może się opóźnić lub zostać pominięty; następny cykl zbiera wszystkie niewydane zmiany.
@@ -465,7 +481,7 @@ verify → plan ─┬─ checks ────────────→ release
 | --- | --- | --- | --- |
 | `checks` | `ci.yml` | po `plan`; na `dev` tylko gdy `published=true` | — |
 | `verify` | Chroniony ref, pełne SHA, przynależność do historii gałęzi wydania | od razu | — |
-| `plan` | semantic-release **`--dry-run`** na przypiętym lustrze: `version`, `tag`, `channel`, macierz desktop | po `verify`; grupa `release-version-<ref>` | nic (próba pushu tylko do lustra) |
+| `plan` | semantic-release **`--dry-run`** na przypiętym lustrze, macierz desktop, sprawdzenie SHA nowego stable względem publicznego nightly | po `verify`, w grupie `release-version-<ref>` | nic (próba pushu tylko do lustra) |
 | `binaries`, `smoke` | web raz, potem cross-compile wszystkich celów z web w gatewayu; `--version` każdej binarki i `/api/health` z `canopy-gateway web` na jej OS/arch; na linux-x64 pełny gateway (supervisor, PostgreSQL) z web na porcie 3000 | po `plan`, równolegle z checkami | — (artefakt Actions) |
 | `images-build` | buildx `gateway` i `worker`, amd64+arm64 jako archiwa OCI z SBOM i proweniencją; obraz gateway amd64 z cache przechodzi smoke obok PostgreSQL | po `plan` | — (artefakty Actions) |
 | `desktop-build` | Kompilacja aplikacji i runtime na docelowej platformie | po `plan` | — (artefakty Actions) |
@@ -473,8 +489,8 @@ verify → plan ─┬─ checks ────────────→ release
 | `desktop-smoke` | Uruchomienie spakowanego runtime i instalacja Windows na odrębnym runnerze | po `desktop` | — |
 | `release` | semantic-release na lustrze, atomowy push tagu/notes i draft przez API GitHuba | po **zielonych `checks`**; grupa `release-version-<ref>` | tag + ukryty draft |
 | `images` | kopiuje gotowe archiwa OCI do GHCR pod niezmiennym tagiem wydania | po `release` i `images-build` | obraz `vX.Y.Z` |
-| `publish-server` | binaria, `checksums.txt`, `manifest.json` na drafcie | po `checks`, `release`, `binaries`, `smoke`, `images`; grupa `release-publish-<ref>` | nic publicznego |
-| `publish-desktop` | instalatory, blockmapy, scalone feedy, nowe `checksums.txt`/`manifest.json`; weryfikacja, publikacja, aliasy obrazów | po `publish-server` i sukcesie pakowania oraz smoke wymaganych celów desktop; ta sama grupa publikacji | kompletny release |
+| `publish-server` | binaria, `checksums.txt`, `manifest.json` na drafcie | po `checks`, `release`, `binaries`, `smoke`, `images`, we wspólnej kolejce `release-branch-mutations` | nic publicznego |
+| `publish-desktop` | assety desktop, aktualizacja manifestu, weryfikacja assetów i SHA stable, publikacja, aliasy obrazów | po `publish-server` i sukcesie pakowania oraz smoke wymaganych celów desktop, w kolejce `release-branch-mutations` | kompletny release |
 | `release-index` | współdzielony workflow Pages: aktualna strona i indeks wszystkich publicznych wydań | po sukcesie `publish-desktop` | atomowy snapshot CDN |
 | `stop-builds` | `gh run cancel` własnego przebiegu | checki czerwone albo `release` bez wydania/anulowany | — |
 | `nightly-hygiene`, `backmerge` | jak wcześniej | po `publish-desktop`; brak wydania pomija oba | — |
@@ -534,15 +550,20 @@ commity zbiera następny cykl godzinowy lub dispatch, nie sam push.
    liczy `checksums.txt`/`manifest.json` od nowa (wpisy serwerowe są identyczne, dochodzą `app: desktop`),
    wgrywa brakujące lub zmienione pliki. `--publish` wymaga wszystkich binariów, instalatorów,
    blockmap macOS/Windows oraz feedów dla Windows (`<kanał>.yml`), macOS (`<kanał>-mac.yml`)
-   i Linux (`<kanał>-linux.yml`). Stable wymaga aliasów latest/beta/nightly, beta beta/nightly,
-   nightly nightly. Obecny eksperymentalny linux-arm64 musi mieć też swój instalator i feedy.
+   i Linux (`<kanał>-linux.yml`). Stable wymaga feedów `latest` i `beta`, beta wymaga `beta`,
+   a nightly wymaga `nightly`. Przy wznowieniu draftu stable lub beta skrypt usuwa jego stare aliasy
+   `nightly`. Obecny eksperymentalny linux-arm64 musi mieć też swój instalator i feedy.
    Po uploadzie skrypt sprawdza przez paginowane API **stan `uploaded`, rozmiar i SHA-256 każdego
    pliku**, łącznie z feedami i plikami zbiorczymi. Dopiero potem jednym PATCH ustawia `draft=false`;
    prerelease nigdy nie staje się `latest`, stable korzysta z wyboru GitHuba według wersji.
+   Bezpośrednio przed PATCH, w tej samej kolejce co publikacja stable, nightly sprawdza
+   aktualne najwyższe publiczne stable i jego SHA. Draft poniżej granicy następnego minor
+   lub poza historią tego stable zostaje ukryty, nawet jeśli build zakończył się sukcesem.
+   Po zmianie granicy wybierz **Re-run all jobs**, aby przeliczyć wersję i przebudować artefakty.
 5. Aliasy obrazów (`nightly`, `beta`, `stable`, `latest`, `vX`, `vX.Y`) przesuwa
    `scripts/image-aliases.ts` (`docker buildx imagetools create`) **tylko do przodu**: alias wskazujący
    nowszą wersję (adnotacja `org.opencontainers.image.version` indeksu) zostaje. `publish-desktop`
-   jest serializowany per gałąź, więc dwa przebiegi nie cofną aliasu. Poprawka starszej linii stable
+   działa we wspólnej kolejce, więc dwa przebiegi nie cofną aliasu. Poprawka starszej linii stable
    przesuwa `vX.Y`, ale nie `latest`/`stable`. Aliasy zmieniają się dopiero po publikacji release.
 
 Po sukcesie `publish-desktop` job `release-index` wywołuje `.github/workflows/pages.yml`.
@@ -550,7 +571,9 @@ Skrypt `scripts/release-index.ts` pobiera wszystkie strony Releases przez uwierz
 `gh` z `GITHUB_TOKEN` joba. Zapisuje `dist/site/releases/v1.json` (`schema: 1`): tagi,
 prerelease, daty publikacji, notatki i nazwy/URL-e assetów. Pomija drafty, wydania bez
 manifestu/sum oraz pliki w stanie innym niż `uploaded`; wymaga obecności właśnie
-opublikowanego tagu. Waliduje wynik tym samym dekoderem co klient przed uploadem Pages.
+opublikowanego tagu. Katalog pokazuje feed `nightly` wyłącznie przy wydaniach nightly.
+Dzięki temu starszy desktop korzystający z Pages pomija dawne aliasy w wydaniach stable i beta.
+Waliduje wynik tym samym dekoderem co klient przed uploadem Pages.
 Weryfikacja rozmiarów i hashy oraz kompletności platform nadal odbywa się w
 `release-upload.ts` **przed** upublicznieniem release; indeks jest tylko listą.
 
@@ -692,7 +715,7 @@ Do pobierania publicznych aktualizacji aplikacja nie potrzebuje tokena GitHub.
 
 Centrum aktualizacji pobiera również publiczne notatki GitHub Releases, z krótkim
 cache, dla przedziału (wersja zainstalowana, wersja docelowa], od najnowszej.
-Filtrowanie zachowuje hierarchię kanałów stable → beta → nightly. Starsze wydania mogą
+Notatki stosują te same reguły kanałów co wybór aktualizacji. Starsze wydania mogą
 nie mieć feedu danej platformy; klient nadal je pomija. Nowe wydania są publiczne dopiero
 po przygotowaniu desktopu, więc brak feedu nie jest już zwykłym etapem publikacji.
 
@@ -779,9 +802,9 @@ dialogu na każdej wersji macOS. Szczegółowa tabela i lokalne obejście:
    Feedy i blockmapy są uploadowane przed końcowym `manifest.json`; prerelease muszą
    pozostać oznaczone jako prerelease. Stary klient bez updatera wymaga instalacji ręcznej.
 5. Sprawdź pobieranie, postęp, „Restart to update”, czysty shutdown i zachowanie danych.
-   Beta powinna przyjąć nowsze stable, Stable nigdy prerelease. Na kopii danych sprawdź
-   Cancel i zgodę przy nightly → beta/stable oraz beta → stable; po próbie i ponownym
-   starcie brak dalszych downgrade'ów. Zweryfikuj Squirrel i ten sam Developer ID oraz
+   Beta powinna przyjąć nowsze stable, Stable wybiera wyłącznie stable. Sprawdź przejścia
+   nightly → beta/stable oraz beta → stable. Klient czeka, gdy kandydat ma starszy lub rozbieżny
+   commit. Zweryfikuj Squirrel i ten sam Developer ID oraz
    designated requirement. Osobno build ad-hoc: „Updates need a signed build”.
 
 Podpisywania, polityki Gatekeepera, ticketów Apple i rzeczywistej instalacji aktualizacji
@@ -814,7 +837,9 @@ Po zmianie układu runtime i pobieraniu PostgreSQL sprawdź dodatkowo:
 ## Promocja i okres stabilizacji („burn-in”)
 
 Nightly zbiera niewydane zmiany `feat`/`fix`/`perf` na `dev` w cyklu godzinowym lub po dispatchu
-(zmiany bez wpływu na wersję nie publikują buildu). Beta to wybrany nightly; stable to beta po okresie obserwacji.
+(zmiany bez wpływu na wersję nie publikują buildu). Gdy automat wybierze kandydata do bety,
+`next` stabilizuje tę serię aż do publikacji stable. `dev` po publikacji bety wydaje zmiany
+w kolejnej serii nightly. Stable powstaje z SHA gotowej bety tej samej wersji bazowej.
 Promocja przebudowuje ten sam commit z nowym numerem wersji, nie kopiuje binariów między kanałami.
 Okres obserwacji `dev → next` wynosi **6 h od daty commitera każdego commita**
 (`landedAt` z `git show --format=%ct`).
@@ -824,17 +849,18 @@ Pominięty plan bez CI/smoke sam nie potwierdza gotowości nieotagowanego commit
 
 **Automatic promotion** (`promotion-review.yml`) działa **co godzinę**, o :17 UTC (`17 * * * *`).
 Najpierw wykonuje **next → main**, potem **dev → next**, w jednej grupie
-`release-branch-mutations`, wspólnej z ręcznym Promote i Back-merge. Nie wymaga decyzji
+`release-branch-mutations`, wspólnej z ręcznym Promote, Back-merge i publikacją. Nie wymaga decyzji
 maintainera w zwykłym cyklu. Opóźnienia harmonogramu GitHub mogą wydłużyć oczekiwanie.
 Oba workflowy instalują zamrożone zależności, aby prognoza używała tego samego analyzera
 Angular co Release; nie uruchamiają `semantic-release --dry-run`, który sprawdzałby prawo pushu.
 
 1. **Cutoff C0.** Dla dev wybieramy najnowszy ciągły prefiks historii first-parent, którego
    każdy commit ma datę commitera squasha starszą o co najmniej **6 h**. Dla next kandydatami
-   są wyłącznie commity z opublikowanym tagiem beta; wybieramy najnowszy z gotowym manifestem
-   od co najmniej **24 h** (zmienna repozytorium `BETA_BURN_IN_DAYS`, domyślnie 1 doba). Początek obserwacji to późniejszy
+   są commity z opublikowaną betą i gotowym manifestem od co najmniej **24 h**
+   (zmienna repozytorium `BETA_BURN_IN_DAYS`, domyślnie 1 doba). Początek obserwacji to późniejszy
    z `release.published_at` i `manifest.json.updated_at`. Dopisanie desktopu do manifestu
-   zaczyna obserwację tej bety ponownie. Nowsza beta nie zeruje obserwacji starszej.
+   zaczyna obserwację tej bety ponownie. Poprawka na `next` tworzy następną betę. Automat
+   czeka na jej publikację, udany Release i pełny okres obserwacji nowego SHA.
 2. **Poprawki i hold.** Każdy `fix`/`perf`/revert po cutoffie może zatrzymać powiązaną zmianę
    w `(target, C]`. Cofamy cutoff przed najwcześniejszą taką zmianę, potem powtarzamy sprawdzenie
    do punktu stałego. Etykieta `promotion-hold` na scalonym PR zatrzymuje jego squash i cały suffix.
@@ -842,7 +868,7 @@ Angular co Release; nie uruchamiają `semantic-release --dry-run`, który sprawd
    nawet jeżeli są już starsze niż soak, z uwzględnieniem limitu automatycznych holdów.
    Stable sprawdza dodatkowo poprawki na dev, których nie ma jeszcze w next: znana naprawa
    bety zatrzymuje stable, dopóki nie wejdzie do bety i nie przejdzie jej burn-in, z limitem opisanym poniżej.
-   Rozbieżność next/dev zatrzymuje tę ścieżkę do Back-merge; commity dev są tu tylko sygnałami, nigdy kandydatami stable.
+   Commity tylko na `dev` są sygnałami o poprawkach. Kandydat stable pochodzi z `next`.
    Jeżeli funkcja i poprawka są już po soak i obie mieszczą się w cutoffie, idą razem.
    Automatyczny hold z powiązania (jawny link, revert lub blame) wygasa, gdy od kwalifikacji czasowej
    wstrzymanej zmiany (`since`) minęło **więcej niż 24 h**. Dla bety kwalifikacja następuje
@@ -857,23 +883,27 @@ Angular co Release; nie uruchamiają `semantic-release --dry-run`, który sprawd
    Ręczny Promote i override zachowują dotychczasowe zasady.
 3. **Gotowość C.** Najnowszy przebieg Release **dokładnie dla C** na gałęzi źródłowej musi być
    zakończony sukcesem. Późniejszy zielony commit nie dowodzi poprawności wcześniejszego drzewa.
-   Preferujemy najnowszy taki commit z ukończonym release i tagiem nightly; dopiero przy braku
-   takiego tagu szukamy zielonego commita bez tagu w dozwolonym prefiksie dev, wymagając także
-   sukcesu wszystkich czterech jobów `smoke` (pominięty smoke nie wystarcza). Stable zawsze
-   wymaga ukończonej bety. Otwarte issue `release-blocker` blokuje obie ścieżki. Zmienna repo
+   Promocja do bety wybiera SHA z opublikowanym nightly otwartej serii. Oczekujące zmiany,
+   które zdążyły ukazać się przed zamknięciem poprzedniej serii, mogą zostać wydane przez Nightly
+   w nowej serii. Promocja do stable
+   wymaga najnowszej publicznej bety stabilizowanej serii z udanym Release dokładnie dla jej SHA.
+   Automat czeka na niewydane poprawki i aktywną publikację stable. Publiczne nightly z kolejnej
+   serii nie wpływają na wybór kandydata. Otwarte issue `release-blocker`
+   blokuje obie ścieżki. Zmienna repo
    **`AUTO_PROMOTION=off`** wstrzymuje promocje (brak/inna wartość włącza automat).
 4. **Push i raport.** Target musi być przodkiem C. Kandydat C leży na historii first-parent
    źródła; po back-merge hotfixu target może być jego przodkiem przez drugi rodzic merge'a.
    Nie wybieramy wtedy cutoffu sprzed merge'a, który włączył hotfix.
-   Tuż przed zapisem ponownie sprawdzamy referencje, PR-y, blokery i CI. Zwykły push
+   Tuż przed zapisem ponownie sprawdzamy referencje, publikacje, PR-y, blokery i CI. Zwykły push
    `<C>:refs/heads/<target>` bez force nigdy nie cofa gałęzi; rozbieżność wymaga Back-merge.
    Push przez deploy key uruchamia dokładnie jeden Release z `EXPECTED_SHA=C` ze zdarzenia push;
-   skrypt nie wykonuje dispatchu. Hotfix PR scalony do `next`/`main` uruchamia tę samą ścieżkę.
+   skrypt nie wykonuje dispatchu po udanym pushu. Poprawka scalona do `next` uruchamia Release bety.
    `C == target`, brak bootstrapu stable lub zakres bez zmiany wersji oznacza no-op; docs-only
    nie tworzy bety. Każdy przebieg zapisuje C0, C, wersję oczekiwaną, listę włączoną i wykluczoną
    oraz przyczyny hold w job summary, w tym pominięte blokady jako `hold expired after 1 d: <reason>`
-   przy domyślnym limicie. Wersja jest prognozą z tego samego analyzera Angular;
-   Release wyznacza ją ponownie. Issue `Promotion history: <path>` przechowuje historię planów
+   przy domyślnym limicie. Prognoza wersji korzysta z tego samego analyzera Angular
+   i granicy wynikającej z publicznych prereleases w historii kandydata.
+   Release wyznacza wersję ponownie. Issue `Promotion history: <path>` przechowuje historię planów
    przed pushem (nie stanowi dowodu udanej publikacji; dowodem jest przebieg Release).
    Jeśli plan przekracza 64 000 znaków, zgłoszenie zawiera początek planu i odsyłacz do
    pełnego raportu w przebiegu promocji. Pozostałe miejsce mieści potwierdzenie pushu.
@@ -881,6 +911,18 @@ Angular co Release; nie uruchamiają `semantic-release --dry-run`, który sprawd
    **7 dni od jej kwalifikacji czasowej**, tworzymy/aktualizujemy `Promotion stalled: <path>`
    z SHA i powodem (konkretna poprawka oraz PR/SHA/pliki albo etykieta/bloker). Wygasłe holdy
    nie wywołują tego alertu; etykiet i blokerów nie obchodzimy automatycznie.
+
+**Publikacja stable.** Release weryfikuje zgodność SHA z najnowszą publiczną betą dla tej wersji bazowej
+przed uruchomieniem buildów i ponownie po weryfikacji wszystkich assetów, tuż przed
+upublicznieniem draftu. Dotyczy to także pushu do `main`, ręcznego dispatchu, recovery
+oraz chronionego tagu stable. Po przesunięciu `main` do kandydata stable jego wersja bazowa
+jest zamknięta. Późna poprawka bety używa kolejnej dostępnej wersji patch w tej linii.
+Przed upublicznieniem nightly Release ponownie sprawdza dolną granicę od publicznej bety lub stable.
+Jeżeli seria została zamknięta podczas buildu, wydanie pozostaje w drafcie, a kolejny plan
+używa otwartej serii. Ponowienie zakończonej publikacji
+pozostawia publiczne wydanie bez zmian. Do wznowienia starszej rewizji użyj nowego dispatchu
+z `dev` zawierającego aktualną bramkę. Ponowienie historycznego przebiegu używa jego
+pierwotnej definicji workflow.
 
 **Koszt odczytu.** Skrypt stronicuje listę przebiegów `release.yml` i zamkniętych PR-ów
 do `dev`/gałęzi źródłowej, a następnie wiąże je lokalnie przez dokładny SHA. Listę przebiegów
@@ -955,7 +997,8 @@ przewidywanie następnego terminu w dry-runie zmienia wyłącznie czas na tym sa
 historii/CI/etykiet: podaje próg soak, najbliższy cykl o :17 UTC i SHA. Nie zakłada przyszłego
 powodzenia CI ani nie gwarantuje publikacji, jeśli stan repozytorium się zmieni. Parametr
 `override=true` pozwala maintainerowi pominąć soak, pauzę i `promotion-hold`; nie pomija
-powiązanych wykluczonych poprawek, zielonego CI, ukończonej bety dla stable, blockerów ani FF.
+powiązanych wykluczonych poprawek, zielonego CI, ukończonej bety na SHA kandydata stable,
+aktywnej linii beta, blockerów ani FF.
 Stare wejścia `live_smoke`/`update_smoke` zachowano dla kompatybilności dispatchu, ale nie są
 już bramkami. Zmienne `AUTO_PROMOTE_DEV_TO_NEXT` i `NIGHTLY_SMOKE_SHA` nie są używane.
 Odczyt lokalny: `GITHUB_REPOSITORY=itsoltech/canopy bun scripts/promote.ts --automatic --dry-run`.
@@ -963,11 +1006,13 @@ Polecenie fetchuje referencje/tagi i tylko czyta GitHub (autoryzacja `gh`), bez 
 Gdy zapis historii po udanym pushu zawiedzie, następny cykl naprawia wyłącznie issue z planem
 i SHA. Nie ponawia pushu ani nie dispatchuje Release, również dla istniejących znaczników
 `canopy-promotion-pending`. Historia odróżnia zamiar przed pushem od jego potwierdzenia;
-wynik publikacji pozostaje w Release. Nowa poprawka lub hold po pushu wpływa na kolejną
-promocję, nie zatrzymuje już uruchomionego wydania. Nieudany Release ponawiaj przez
-**Re-run all jobs**; brakujący przebieg uruchom ręcznie z aktualnym `expected_sha`.
+wynik publikacji pozostaje w Release. Po potwierdzonym pushu bez przebiegu Release przez godzinę
+albo w przypadku zastąpionej rezerwacji bety automat może uruchomić jedną próbę wznowienia
+z `dev`, z wybraną gałęzią i dokładnym SHA. Aktywny przebieg odkłada wznowienie.
+Nieudane testy i pozostałe awarie Release wymagają usunięcia przyczyny przed publikacją.
 
-Po stable **Back-merge** przenosi hotfix `main` → `next` → `dev` commitami merge bota.
+Po publikacji bety **Back-merge** przenosi jej opublikowany SHA z `next` do `dev`.
+Po stable zachowuje ścieżkę `main` → `next` → `dev` dla poprawek z `main`.
 Push do `next` uruchamia Release; po pushu do `dev` skrypt wykonuje jeden dispatch z SHA merge'a,
 bo `dev` nie ma triggera push Release. Dla promocji bez rozbieżności jest to no-op.
 Przy konflikcie otwiera PR i zatrzymuje dalsze przenoszenie. Po rozwiązaniu konfliktu i squash
@@ -1088,10 +1133,10 @@ Nightly hygiene usuwa wyłącznie wydania nightly i wersje GHCR, pozostawiając 
 Mobile release ustawia wersje jedynie w roboczych `app.json` i `canopy-version.json`, a build number prowadzi EAS;
 Pages publikuje przez API Pages, bez pushu gałęzi. Te workflowy nie wymagają bypassu.
 
-Maintainer nadal promuje ręcznie przez **Promote** (w razie potrzeby `override=true`,
-z zachowaniem obowiązkowych bramek). Pilny hotfix trafia PR-em do `next` lub `main`;
-repo admin scala go przez bypass w trybie `pull_request`, bez bezpośredniego pushu.
-Scalenie uruchamia Release dla SHA hotfixu; po stable Back-merge przenosi go dalej.
+Automat promuje wydania bez ręcznego dispatchu. Maintainer może użyć **Promote**
+z zachowaniem obowiązkowych bramek. Funkcje trafiają do `dev`, a poprawkę do stabilizowanej
+serii można scalić do `next`. Release publikuje betę, uruchamia Back-merge i rozpoczyna okres
+obserwacji. Publikacja stable wymaga dokładnego SHA bety tej samej wersji bazowej.
 
 ### Wydania aplikacji mobilnej
 
@@ -1132,7 +1177,7 @@ protokołu Expo Updates. Wraz z nim wróci podpisywanie: konfiguracja certyfikat
 fingerprintu i nowe binarki weryfikujące podpisy. Szczegóły kanałów, ponowień i rollbacku:
 [mobile.md](mobile.md#wydania-mobilne-testflight-i-ota).
 
-## Bootstrap 0.1.0 — wykonuje rodzic
+## Historyczny bootstrap 0.1.0
 
 1. Po zielonym PR scal tę zmianę do `main` i pobierz jego HEAD. Przed pierwszym stabilnym tagiem
    push main kończy się „no release” (guard bootstrap), nawet jeśli squash ma typ `feat`.
@@ -1145,9 +1190,9 @@ fingerprintu i nowe binarki weryfikujące podpisy. Szczegóły kanałów, ponowi
    `git push origin next dev`. Obie gałęzie kończą się **no release** aż do nowych commitów
    wpływających na wersję. Nie twórz tagów beta/nightly ręcznie.
 4. Ustaw domyślną gałąź `dev`, ustawienia opisane wyżej i ewentualne zmienne promocji.
-5. Przykładowy dalszy cykl: `feat` do dev → **0.2.0-nightly.1**; Promote dev-next →
-   **0.2.0-beta.1**; po dobie obserwacji bety i smoke Promote next-main → **0.2.0**. Hotfix `fix` do main
-   po 0.1.0 → **0.1.1** i back-merge; sam `docs` bez breaking → **no release**.
+5. Przykładowy dalszy cykl: `feat` do dev → **0.2.0-nightly.1** → automatyczna
+   **0.2.0-beta.1**. Kolejna zmiana otwiera **0.3.0-nightly.1**. Po dobie obserwacji bety
+   i smoke automat wydaje **0.2.0** z SHA bety. Sam `docs` bez breaking → **no release**.
 
 ## Weryfikacja kanałów
 
@@ -1173,6 +1218,13 @@ obejmuje wszystkie pliki, wpisy serwerowe się nie zmieniają, a powtórka daje 
 `bun test scripts/release-upload.test.ts` sprawdza widoczność poprzedniej wersji aż do
 końcowej publikacji dla wszystkich kanałów, brakujące platformy/aliasy/blockmapy,
 przerwane uploady, utraconą odpowiedź publikacji, niezmienność publicznych assetów oraz
-odmowę publikacji przy błędnym stanie, rozmiarze lub SHA-256 w API.
+odmowę publikacji przy błędnym stanie, rozmiarze lub SHA-256 w API oraz pozostawienie stable
+w drafcie, gdy podczas buildu ukaże się nowsze nightly z innym SHA.
+Testy promocji sprawdzają brak cofnięcia do starszej bety po zmianie publicznego nightly,
+ponowny odczyt przed pushem i obowiązywanie tej samej bramki przy override.
+Regresja numeracji sprawdza publikację `0.5.0` stable na SHA `0.5.0-nightly.4`,
+przebudowanie starej rezerwacji `0.5.0-nightly.5` jako `0.6.0-nightly.1` na tym samym
+SHA poprawki oraz promocje do `0.6.0-beta.1` i `0.6.0`. Test uploadu sprawdza odmowę
+publikacji starego draftu, gdy stable pojawiło się w trakcie buildu.
 Testy updatera używają lokalnego fixture HTTP
 z prereleases, paginacją i manifestami. Pełna publikacja wymaga uruchomienia workflow na GitHubie.

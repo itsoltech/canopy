@@ -1,4 +1,5 @@
-import { gt, prerelease, valid } from "semver";
+import { gt, valid } from "semver";
+import { releaseChannel } from "@canopy/domain/release/version";
 import type { DesktopReleaseNote } from "@canopy/ui/desktop";
 import type { DesktopChannel } from "./identity.ts";
 
@@ -31,7 +32,6 @@ export function isDesktopRelease(value: unknown): value is DesktopRelease {
   );
 }
 
-export const channelRank = { stable: 0, beta: 1, nightly: 2 } as const;
 export const channelFeed = (channel: DesktopChannel) => (channel === "stable" ? "latest" : channel);
 
 export const isDesktopChannel = (value: unknown): value is DesktopChannel =>
@@ -43,12 +43,13 @@ export function channelReleases(releases: readonly DesktopRelease[], channel: De
       const version = valid(release.tag_name);
 
       if (!version || release.draft) return false;
-      const pre = prerelease(version);
+      const candidate = releaseChannel(version);
 
-      const candidate =
-        !pre && !release.prerelease ? "stable" : release.prerelease && pre?.[0] !== "stable" ? pre?.[0] : undefined;
-
-      return isDesktopChannel(candidate) && channelRank[candidate] <= channelRank[channel];
+      return (
+        candidate !== "development" &&
+        release.prerelease === (candidate !== "stable") &&
+        (candidate === channel || (channel === "beta" && candidate === "stable"))
+      );
     })
     .sort((a, b) => (gt(a.tag_name, b.tag_name) ? -1 : 1));
 }
@@ -71,35 +72,20 @@ export function releaseNotes(
   );
 }
 
-// Feed aliases on each release are cumulative: stable -> all, beta -> beta/nightly.
 export function newestRelease(
   releases: readonly DesktopRelease[],
   current: string,
   channel: DesktopChannel,
   feedFile: string,
-  allowDowngrade = false,
 ) {
-  return releases
-    .filter((release) => {
-      const version = valid(release.tag_name);
-      const pre = version ? prerelease(version) : null;
+  return channelReleases(releases, channel).find(
+    (release) => gt(release.tag_name, current) && hasDesktopFeed(release, feedFile),
+  );
+}
 
-      const releaseChannel =
-        !pre && !release.prerelease
-          ? "stable"
-          : release.prerelease && isDesktopChannel(pre?.[0]) && pre?.[0] !== "stable"
-            ? pre[0]
-            : undefined;
-
-      return (
-        version &&
-        (allowDowngrade || gt(version, current)) &&
-        !release.draft &&
-        releaseChannel !== undefined &&
-        channelRank[releaseChannel] <= channelRank[channel] &&
-        release.assets.some((asset) => asset.name === feedFile) &&
-        release.assets.some((asset) => asset.name === "manifest.json")
-      );
-    })
-    .sort((a, b) => (gt(a.tag_name, b.tag_name) ? -1 : 1))[0];
+export function hasDesktopFeed(release: DesktopRelease, feedFile: string): boolean {
+  return (
+    release.assets.some((asset) => asset.name === feedFile) &&
+    release.assets.some((asset) => asset.name === "manifest.json")
+  );
 }

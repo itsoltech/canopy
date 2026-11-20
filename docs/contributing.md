@@ -1,6 +1,7 @@
 # Współpraca przy Canopy
 
-Status (2026-11-19): obowiązujący proces pracy i weryfikacji, w tym izolacja zasobów
+Status (2026-11-20): obowiązujący proces pracy i weryfikacji, w tym automatyczna
+stabilizacja bety i przenoszenie jej poprawek do dev oraz izolacja zasobów
 testowych, sprzątanie kontenerów PostgreSQL po przerwaniu testów, zasady pisania i przeglądu
 testów asynchronicznych oraz diagnoza niestabilnych testów z historii prób CI.
 
@@ -9,8 +10,9 @@ testów asynchronicznych oraz diagnoza niestabilnych testów z historii prób CI
 1. Funkcje i zwykłe poprawki kieruj do **dev**. PR scalaj przez **squash merge**.
    Tytuł PR staje się jednym commitem Angular, więc kilkadziesiąt commitów roboczych nie
    tworzy kilkudziesięciu wpisów w notatkach wydania.
-2. Pilny hotfix kieruj do **main**. Po stable workflow przenosi go do next i dev commitami merge;
-   przy konflikcie maintainer dostaje PR. Nie pomijaj tego kroku przed kolejną promocją.
+2. Poprawkę przeznaczoną dla stabilizowanej bety maintainer może scalić do **next**.
+   Automat publikuje ją jako nową betę, przenosi do dev i ponownie liczy okres obserwacji.
+   Stable powstaje z SHA gotowej bety swojej wersji bazowej.
 3. Nie kieruj feature PR do next/main. **Automatic promotion** przesuwa dev → next → main pushami
    fast-forward. To wyjątek od scalania feature PR przez squash, opisany w [release.md](release.md).
 

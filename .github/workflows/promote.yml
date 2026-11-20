@@ -24,7 +24,7 @@ on:
         type: boolean
         default: true
       override:
-        description: Bypass soak, pause and promotion-hold (CI, blockers and FF still enforced)
+        description: Bypass soak, pause and promotion-hold (beta line, CI, blockers and fast-forward still apply)
         type: boolean
         default: false
 permissions:
@@ -34,6 +34,7 @@ permissions:
 concurrency:
   group: release-branch-mutations
   cancel-in-progress: false
+  queue: max
 env:
   BUN_VERSION: 1.4.5
 jobs:

@@ -13,6 +13,7 @@ import {
 } from "./promotion-policy.ts";
 import { forecastPromotion, forecastPromotionWindow } from "./promotion-version.mjs";
 import { finishPromotion, preparePromotion, promotionIssueSummary, resumePromotion } from "./promotion-journal.ts";
+import { recoverPendingRelease } from "./promotion-recovery.ts";
 
 export function burnInDays(value: string, policy = "Burn-in"): number {
   if (!/^\d+$/.test(value) || Number(value) > 365)
@@ -29,6 +30,8 @@ export function promotionSummary(input: PromotionInput, plan: PromotionPlan, ver
     `### Promotion ${source} → ${target}`,
     `- Soak: ${input.soakMs / HOUR} h; evaluated at ${new Date(input.now).toISOString()}`,
     `- Target: ${input.target}`,
+    ...(input.activeBeta ? [`- Active public beta: ${input.activeBeta.tag} (${input.activeBeta.sha})`] : []),
+    ...(input.nightlyFloor ? [`- Minimum public nightly version: ${input.nightlyFloor}`] : []),
     `- Candidate C0: ${plan.initial}`,
     `- Final C: ${plan.sha}`,
     `- Expected version: ${version ?? "none (no release)"}; Release recomputes before publishing`,
@@ -84,6 +87,7 @@ function updateStarvationIssue(repo: string, path: string, summary: string, adap
 
 export interface PromotionOptions {
   dryRun: boolean;
+  automatic?: boolean;
   paused: boolean;
   override: boolean;
   burnIn: number;
@@ -99,11 +103,19 @@ export async function runPromotion(
   now = Date.now(),
 ) {
   const [source, target] = promotionBranches(path);
-  const input = loadPromotion(repo, path, path === "dev-next" ? DEV_NEXT_SOAK_MS : options.burnIn * DAY, adapters, now);
+
+  const input = await loadPromotion(
+    repo,
+    path,
+    path === "dev-next" ? DEV_NEXT_SOAK_MS : options.burnIn * DAY,
+    adapters,
+    now,
+  );
+
   input.paused = options.paused && !options.override;
   input.holdCapMs = (options.holdCapDays ?? Infinity) * DAY;
 
-  // Override bypasses timing and PR holds; CI, publication, blockers, follow-ups and FF remain mandatory.
+  // Override bypasses timing and PR holds. The active beta line, CI, publication, blockers, follow-ups and FF still apply.
   if (options.override) {
     input.soakMs = 0;
 
@@ -149,10 +161,23 @@ export async function runPromotion(
 
   if (plan.starved) updateStarvationIssue(repo, path, summary, adapters);
 
-  if (plan.sha === input.target) return { input, plan, version };
+  if (plan.sha === input.target) {
+    if (options.automatic && !input.paused && input.blockers.length === 0 && input.pendingRelease?.branch === target) {
+      adapters.git("fetch", "origin", "dev", "next", "main", "--tags");
+      const pending = await loadPromotion(repo, path, input.soakMs, adapters, now, input);
+
+      const recovered =
+        pending.pendingRelease?.sha === input.pendingRelease.sha && recoverPendingRelease(repo, pending, adapters);
+
+      if (recovered && summaryPath)
+        appendFileSync(summaryPath, `Dispatched Release recovery for ${target} at ${pending.target}.\n`);
+    }
+
+    return { input, plan, version };
+  }
 
   // Recheck refs and gates immediately before writing. No force, lease or backwards movement.
-  adapters.git("fetch", "origin", "dev", source, target);
+  adapters.git("fetch", "origin", "dev", "next", "main", "--tags");
 
   if (
     adapters.git("rev-parse", `origin/${target}`) !== input.target ||
@@ -161,17 +186,30 @@ export async function runPromotion(
     throw new Error("Branch moved during selection; retry next cycle");
   adapters.git("merge-base", "--is-ancestor", input.target, plan.sha);
   adapters.git("merge-base", "--is-ancestor", plan.sha, `origin/${source}`);
-  const rechecked = loadPromotion(repo, path, input.soakMs, adapters, now, undefined, input);
+  const rechecked = await loadPromotion(repo, path, input.soakMs, adapters, now, input);
   rechecked.paused = input.paused;
   rechecked.holdCapMs = input.holdCapMs;
 
   if (options.override)
     for (const commit of rechecked.commits) commit.prs = commit.prs.map((pr) => ({ ...pr, hold: false }));
 
-  if (selectPromotion(rechecked).sha !== plan.sha) throw new Error("Promotion gates changed during selection");
+  const confirmed = selectPromotion(rechecked);
+
+  if (
+    confirmed.sha !== plan.sha ||
+    rechecked.activeBeta?.tag !== input.activeBeta?.tag ||
+    (await forecastPromotion(rechecked, confirmed, adapters.git)) !== version
+  )
+    throw new Error(`Promotion gates changed during selection: ${confirmed.reason}`);
   // Record intent before pushing; a failed history update must never cause a second Release dispatch.
   const issue = preparePromotion(repo, path, plan.sha, summary, adapters);
-  adapters.git("push", "origin", `${plan.sha}:refs/heads/${target}`);
+  const sourceRef = `refs/heads/${source}`;
+  const targetRef = `refs/heads/${target}`;
+  const heads = adapters.git("ls-remote", "--refs", "origin", sourceRef, targetRef).split("\n");
+
+  if (!heads.includes(`${input.commits.at(-1)?.sha}\t${sourceRef}`) || !heads.includes(`${input.target}\t${targetRef}`))
+    throw new Error("Branch moved while recording promotion intent; retry next cycle");
+  adapters.git("push", "origin", `${plan.sha}:${targetRef}`);
   finishPromotion(repo, target, plan.sha, issue, adapters);
   console.log(`Promoted ${source} → ${target}: ${plan.sha}`);
 
@@ -198,6 +236,7 @@ if (import.meta.main) {
 
   const options: PromotionOptions = {
     dryRun: process.argv.includes("--dry-run") || process.env["DRY_RUN"] === "true",
+    automatic,
     paused: process.env["AUTO_PROMOTION"] === "off",
     override: !automatic && process.env["PROMOTION_OVERRIDE"] === "true",
     burnIn: burnInDays(process.env["BURN_IN_DAYS"] || "1"),

@@ -20,7 +20,7 @@
   let pending = $state(false);
   let restarting = $state(false);
 
-  // Select previews its value locally. Restore it after a cancelled native confirmation.
+  // Select previews its value locally. Restore the saved choice if the switch fails.
   let choice = $state("");
 
   const busy = $derived(
@@ -30,7 +30,7 @@
   const options = [
     { value: "stable", label: "Stable", description: "Releases that passed beta." },
     { value: "beta", label: "Beta", description: "New features earlier, plus stable releases." },
-    { value: "nightly", label: "Nightly", description: "A new build every day. Newest changes, more risk." },
+    { value: "nightly", label: "Nightly", description: "Latest development builds." },
   ] as const satisfies readonly SelectOption[];
 
   const label = (channel: string) => options.find((option) => option.value === channel)?.label ?? channel;
@@ -136,7 +136,6 @@
     {/if}
     <PreferenceRow
       title="Update channel"
-      description="Canopy asks before switching to a channel with an older version."
       changed={current.channel !== current.buildChannel}
       onreset={() => change(current.buildChannel)}
     >

@@ -100,7 +100,8 @@ describe("release channels against GitHub fixtures", () => {
     await expect(source.resolve("v2.1.0-beta.2")).rejects.toThrow("Use stable");
     newerStable = true;
 
-    for (const channel of ["stable", "beta", "nightly"]) expect((await source.resolve(channel)).version).toBe("2.2.0");
+    for (const channel of ["stable", "beta"]) expect((await source.resolve(channel)).version).toBe("2.2.0");
+    expect((await source.resolve("nightly")).version).toBe("2.2.0-nightly.1");
   });
   test("rejects insecure sources, redirects, tag/manifest mismatches and prereleases disguised as stable pins", async () => {
     expect(() => new ReleaseSource({ baseUrl: "http://example.com" })).toThrow("HTTPS");

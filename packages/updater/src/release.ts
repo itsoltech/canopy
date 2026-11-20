@@ -240,7 +240,7 @@ export class ReleaseSource {
       if (!match || release.draft || !release.assets?.some((asset) => asset.name === "manifest.json")) return false;
       const stable = !release.prerelease && !match[4];
 
-      if (channel === "nightly") return true;
+      if (channel === "nightly") return release.prerelease && /^nightly\.\d+$/.test(match[4] ?? "");
 
       if (channel === "beta") return stable || (release.prerelease && /^beta\.\d+$/.test(match[4] ?? ""));
 

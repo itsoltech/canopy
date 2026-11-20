@@ -94,9 +94,8 @@ function fixture() {
 
       return updater;
     },
-    prepare: (_channel, _downgrade, signal, refresh) => prepare(signal, refresh),
+    prepare: (_channel, signal, refresh) => prepare(signal, refresh),
     save() {},
-    confirmDowngrade: async () => true,
     changed() {},
     downloaded() {},
   });
@@ -122,7 +121,8 @@ test("manual and remote checks discover newly published desktop builds before th
 
   const catalog = new ReleaseCatalog({
     http: new ReleaseHttp({
-      fetch: async () => {
+      fetch: async (input) => {
+        if (String(input).includes("/compare/")) return Response.json({ status: "ahead" });
         calls++;
 
         return Response.json({
@@ -154,7 +154,7 @@ test("manual and remote checks discover newly published desktop builds before th
   });
 
   const feed = new DesktopUpdateFeed(() => "0.3.0-nightly.1", catalog);
-  prepare(async (signal, refresh) => !!(await feed.resolve("nightly", false, signal, refresh)).release);
+  prepare(async (signal, refresh) => !!(await feed.resolve("nightly", signal, refresh)).release);
 
   expect((await controller.checkAutomatically()).phase).toBe("idle");
   published = true;

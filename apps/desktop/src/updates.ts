@@ -10,6 +10,9 @@ import { UpdateController } from "./update-controller.ts";
 import { UpdateSettings } from "./update-settings.ts";
 import { UpdateCheckSettings } from "./update-check-settings.ts";
 import { UpdateCheckTimer, nextUpdateCheck } from "@canopy/domain/update-checks";
+import { valid } from "semver";
+
+declare const CANOPY_DESKTOP_REVISION: string | undefined;
 
 export class DesktopUpdates {
   private controller?: UpdateController;
@@ -20,7 +23,11 @@ export class DesktopUpdates {
     return (this.checkSettings ??= new UpdateCheckSettings(app.getPath("userData")));
   }
   private readonly identity = desktopIdentity();
-  private readonly feed = new DesktopUpdateFeed(() => app.getVersion());
+  private readonly feed = new DesktopUpdateFeed(
+    () => app.getVersion(),
+    undefined,
+    typeof CANOPY_DESKTOP_REVISION === "undefined" ? undefined : CANOPY_DESKTOP_REVISION,
+  );
   private updater = createAppUpdater();
   private stagedUpdater = this.updater;
   private wakeTimer: ReturnType<typeof setTimeout> | undefined;
@@ -61,21 +68,7 @@ export class DesktopUpdates {
           return this.updater;
         },
         save: (channel) => settings.write(channel),
-        confirmDowngrade: async (channel) =>
-          (
-            await dialog.showMessageBox({
-              type: "warning",
-              title: "Update channel",
-              message: `Switch to ${channel === "stable" ? "Stable" : "Beta"}?`,
-              detail:
-                "This switch allows installing an older version. Data written by newer versions may not be readable, and Canopy may stop working. Back up your data before continuing. Downgrades are allowed only for this switch’s update attempt.",
-              buttons: ["Cancel", "Switch channel"],
-              defaultId: 0,
-              cancelId: 0,
-              noLink: true,
-            })
-          ).response === 1,
-        prepare: (channel, downgrade, signal, refresh) => this.prepare(channel, downgrade, signal, refresh),
+        prepare: (channel, signal, refresh) => this.prepare(channel, signal, refresh),
         changed: this.changed,
         checking: () => this.schedule.save(this.schedule.minutes, Date.now()),
         beforeInstall: () => checkAppUpdateInstall(this.stagedUpdater),
@@ -274,13 +267,14 @@ export class DesktopUpdates {
     }
   }
 
-  private async prepare(channel: DesktopChannel, allowDowngrade: boolean, signal: AbortSignal, refresh: boolean) {
+  private async prepare(channel: DesktopChannel, signal: AbortSignal, refresh: boolean) {
     const updater = this.updater;
-    const result = await this.feed.resolve(channel, allowDowngrade, signal, refresh);
+    const result = await this.feed.resolve(channel, signal, refresh);
     signal.throwIfAborted();
     const { release, feed } = result;
+    const version = release && valid(release.tag_name);
 
-    if (!release) return { available: false, releases: result.releases, publishing: result.publishing };
+    if (!release || !version) return { releases: result.releases, publishing: result.publishing };
     updater.setFeedURL({
       provider: "generic",
       url: `https://github.com/itsoltech/canopy/releases/download/${encodeURIComponent(release.tag_name)}/`,
@@ -288,6 +282,6 @@ export class DesktopUpdates {
       useMultipleRangeRequest: false,
     });
 
-    return { available: true, releases: result.releases, publishing: result.publishing };
+    return { version, releases: result.releases, publishing: result.publishing };
   }
 }

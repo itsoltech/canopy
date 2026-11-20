@@ -104,13 +104,11 @@ export async function mergeDesktopUpdates(source: string, destination: string, c
     }
   }
 
-  // A stable release is eligible for every channel; beta also reaches nightly.
-  const channels =
-    channel === "stable" ? ["latest", "beta", "nightly"] : channel === "beta" ? ["beta", "nightly"] : ["nightly"];
-
   for (const [name, feed] of feeds) {
-    for (const target of channels)
-      writeFileSync(join(destination, name.replace(identity.feed, target)), dump(feed, { lineWidth: -1 }));
+    const metadata = dump(feed, { lineWidth: -1 });
+    writeFileSync(join(destination, name), metadata);
+
+    if (channel === "stable") writeFileSync(join(destination, name.replace(/^latest/, "beta")), metadata);
   }
 }
 

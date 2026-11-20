@@ -48,3 +48,22 @@ test("missing just-published releases, duplicate tags and malformed data fail be
   expect(() => releaseIndex([release, release])).toThrow("Invalid release index");
   expect(() => releaseIndex([{ tag_name: "v1.2.3" }])).toThrow();
 });
+
+test("the public index shows nightly feeds only on nightly releases, including historically published aliases", () => {
+  const releases = ["v0.5.0", "v0.5.0-beta.1", "v0.5.0-nightly.4"].map((tag) => ({
+    ...release,
+    tag_name: tag,
+    prerelease: tag.includes("-"),
+    assets: ["manifest.json", "checksums.txt", "nightly-mac.yml", "nightly-linux-arm64.yml"].map((name) => ({
+      name,
+      browser_download_url: `https://github.com/itsoltech/canopy/releases/download/${tag}/${name}`,
+      state: "uploaded",
+    })),
+  }));
+
+  expect(parseReleaseIndex(releaseIndex(releases)).map((item) => item.assets.map(({ name }) => name))).toEqual([
+    ["manifest.json", "checksums.txt"],
+    ["manifest.json", "checksums.txt"],
+    ["manifest.json", "checksums.txt", "nightly-mac.yml", "nightly-linux-arm64.yml"],
+  ]);
+});
