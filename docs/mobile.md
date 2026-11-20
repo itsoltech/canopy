@@ -1,6 +1,7 @@
 # Canopy na iOS i Android
 
-Status: opis zaimplementowanego kodu (2026-11-19). Listy wątków i botów uwzględniają
+Status: opis zaimplementowanego kodu (2026-11-19). Przy otwarciu wątku telefon
+pobiera pytania i zgody tylko od subagentów z oczekującym żądaniem. Listy wątków i botów uwzględniają
 wysokość banera aktualizacji i stanu połączenia. Wysyłanie wiadomości i start tury
 zachowują położenie rozmowy. Natywny raport Usage pokazuje
 historię kosztów i skrócone liczby tokenów z gatewaya, podział według workera oraz dzienny wykres według dostawcy.
@@ -1785,8 +1786,13 @@ mają wspólne parsowanie i kodowanie odpowiedzi z web (`@canopy/domain/question
 jedna/wiele opcji z opisami i rekomendacją, własny tekst, Back, Skip question, Skip all
 oraz Dismiss request dla pytań synchronicznych. Rekomendacja nie zaznacza odpowiedzi.
 Szkice zostają przy zamykaniu arkusza, przełączaniu zestawów i pisaniu zwykłej wiadomości.
-Pytania subagentów są dostępne w rodzicu z etykietą subagenta; ich strumienie czytają
-żądania bez dołączania historii do feedu rodzica. `AnswerInteraction` idzie tym samym
+Pytania subagentów są dostępne w rodzicu z etykietą subagenta. Pole
+`Thread.has_pending_requests` w overview uwzględnia również pytania asynchroniczne
+pracującego subagenta. Telefon subskrybuje jego żądania do czasu rozstrzygnięcia
+ostatniej sprawy. Strumień zawiera oczekujące interakcje oraz komendy i zmiany plików
+powiązane ze zgodami. Przy połączeniu ze starszym gatewayem telefon sprawdza również
+pracujące wątki, dla których licznik oczekujących interakcji pomija pytania asynchroniczne.
+`AnswerInteraction` idzie tym samym
 przypiętym transportem i tokenem urządzenia co inne RPC. Gateway egzekwuje właściciela,
 ważność i kontrakt odpowiedzi. Oś czasu pokazuje odpowiedzi, pominięcia i odrzucenie.
 Ten sam arkusz obsługuje zgody: Allow, Deny oraz Allow for this session przez

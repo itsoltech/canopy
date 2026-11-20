@@ -8,7 +8,8 @@ steerów przy stronicowaniu lokalnym i offline oraz wspólnego
 limitu 256 kroków automatycznej rozmowy i domyślnego
 steera między rodzicem a dzieckiem, wiadomości do delegującego bota w trakcie pracy oraz deduplikacji raportów jednej tury,
 retencji dziennika źródłowego i dzierżaw treści (migracja 0154) oraz postępu
-przygotowania wątku negocjowanego poza historyczną listą capabilities. Dostępność w kanałach
+przygotowania wątku negocjowanego poza historyczną listą capabilities.
+Odczyt samych pytań i zgód subagenta trafia bezpośrednio do jego domu. Dostępność w kanałach
 nightly, beta i stable wynika z [wydań](release.md), nie z daty tego opisu.
 
 ## Kanały komunikatorów botów
@@ -1508,6 +1509,8 @@ ten sam snapshot z addytywnym `ThreadUpdate.syncing` (800), a następnie przecho
 strumień etapu 2, z przyrostowym pierwszym odczytem, gdy oba końce go obsługują.
 Bez kopii w lustrze oba odczyty korzystają z domu jak dotąd. Listy nadal
 korzystają z domu; lustro synchronizuje się niezależnie od otwartych kart.
+Tryb `WatchThread.requests_only` pomija lustro i odczytuje bieżące pytania,
+zgody i powiązane szczegóły na połączonym komputerze. Wymaga dostępnego domu.
 Web pokazuje ciche „Syncing…” w zarezerwowanym miejscu paska; na telefonie pod etykietą komputera.
 Identyczne itemy i tury zachowują
 tożsamość przy zastąpieniu kopii stanem domu; wirtualizowana oś zachowuje kotwicę czytelnika.

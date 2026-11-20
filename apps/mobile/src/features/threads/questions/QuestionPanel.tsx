@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { Text, View } from "react-native";
 import { InteractionKind, type Item, type ui } from "@canopy/contracts";
 import { Button, Sheet } from "../../../ui/components";
@@ -6,7 +6,7 @@ import { RequestCountdown } from "../../../ui/RequestCountdown";
 import { styles, useColors } from "../../../ui/theme";
 import { useSession } from "../../../state/session";
 import { useStream } from "../../../state/stream";
-import { applyThread } from "../../../api/thread";
+import { childRequestUpdates, hasChildRequests, type ChildRequests } from "./child-requests";
 import { InteractionCard } from "../InteractionCard";
 import { TrayPanel } from "../tray/ComposerTray";
 import { TrayHeader, TrayIcon } from "../tray/TrayHeader";
@@ -14,35 +14,27 @@ import { QuestionForm } from "./QuestionForm";
 import { useQuestionDraft } from "./useQuestionDraft";
 
 /** Child requests and approval details stay separate from the parent's timeline. */
-function ChildQuestions({
-  thread,
-  onChange,
-}: {
-  thread: ui.Thread;
-  onChange: (id: string, requests: ui.Interaction[], items?: ui.TimelineItem[]) => void;
-}) {
+function ChildQuestions({ id, onChange }: { id: string; onChange: (id: string, value?: ChildRequests) => void }) {
   const { client } = useSession();
-  const [snapshot, setSnapshot] = useState<ui.ThreadSnapshot>();
+  const showing = useRef(false);
   useStream(
-    client ? (signal) => client.api.watchThread({ threadId: thread.id, pageSize: 1 }, { signal }) : null,
-    (update: ui.ThreadUpdate) => {
-      setSnapshot((previous) => {
-        const next = applyThread(previous, update);
-
-        return {
-          ...next,
-          items: next.items.filter(
-            (entry) => entry.item?.content.case === "commandExecution" || entry.item?.content.case === "fileChange",
-          ),
-        };
-      });
+    client
+      ? (signal) =>
+          childRequestUpdates(client.api.watchThread({ threadId: id, pageSize: 1, requestsOnly: true }, { signal }))
+      : null,
+    (value) => {
+      if (value || showing.current) onChange(id, value);
+      showing.current = Boolean(value);
     },
-    thread.id,
+    id,
   );
-  useEffect(() => {
-    onChange(thread.id, snapshot?.interactions ?? [], snapshot?.items ?? []);
-  }, [thread.id, snapshot, onChange]);
-  useEffect(() => () => onChange(thread.id, []), [thread.id, onChange]);
+  useEffect(
+    () => () => {
+      if (showing.current) onChange(id);
+      showing.current = false;
+    },
+    [id, onChange],
+  );
 
   return null;
 }
@@ -89,15 +81,20 @@ function QuestionEditor({
  * returned watchers must stay mounted. Synchronous requests come first.
  */
 export function useThreadRequests(interactions: readonly ui.Interaction[], subagents: readonly ui.Thread[]) {
-  const [children, setChildren] = useState<Record<string, { requests: ui.Interaction[]; items: ui.TimelineItem[] }>>(
-    {},
-  );
+  const [children, setChildren] = useState<Record<string, ChildRequests>>({});
+  const watching = subagents.filter(hasChildRequests);
 
-  const onChange = useCallback((id: string, requests: ui.Interaction[], items: ui.TimelineItem[] = []) => {
-    setChildren((previous) => ({ ...previous, [id]: { requests, items } }));
+  const onChange = useCallback((id: string, value?: ChildRequests) => {
+    setChildren((previous) => {
+      if (value) return { ...previous, [id]: value };
+      const next = { ...previous };
+      delete next[id];
+
+      return next;
+    });
   }, []);
 
-  const requests = [...interactions, ...subagents.flatMap((t) => children[t.id]?.requests ?? [])]
+  const requests = [...interactions, ...watching.flatMap((t) => children[t.id]?.requests ?? [])]
     .filter((q) => q.status === "pending")
     .sort((a, b) => Number(a.asynchronous) - Number(b.asynchronous));
 
@@ -106,7 +103,7 @@ export function useThreadRequests(interactions: readonly ui.Interaction[], subag
     subagents,
     /** Approval details from a subagent's stream. */
     items: (threadId: string) => children[threadId]?.items ?? [],
-    watchers: subagents.map((thread) => <ChildQuestions key={thread.id} thread={thread} onChange={onChange} />),
+    watchers: watching.map((thread) => <ChildQuestions key={thread.id} id={thread.id} onChange={onChange} />),
   };
 }
 

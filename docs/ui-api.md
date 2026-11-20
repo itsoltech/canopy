@@ -1,6 +1,7 @@
 # API dla UI i architektura frontendu
 
-Status (2026-11-19): stopka sidebara w web/desktop pomija skrót do Workers przy jednym workerze.
+Status (2026-11-19): gateway obsługuje osobną subskrypcję oczekujących żądań subagenta.
+Stopka sidebara w web/desktop pomija skrót do Workers przy jednym workerze.
 Raport Usage pokazuje koszt i tokeny według workera wykonującego pracę.
 W web/desktop przejście z Threads do Bots pomija animację
 zamykania panelu subagentów, a powrót do Threads wymaga mniej przeliczeń układu.
@@ -780,6 +781,12 @@ lub przeniesiona historia wymuszają pełny snapshot. Zachowane są też konserw
 fallbacki dziennika dla tur ze zmiennymi joinami źródłowymi.
 
 Starszy klient nie ustawia `incremental` i otrzymuje dotychczasowe snapshoty.
+
+`WatchThreadRequest.requests_only` (816) służy do wyświetlania pytań i zgód
+subagenta w wątku rodzica. Każdy snapshot zastępuje zestaw oczekujących interakcji
+tego subagenta i zawiera wyłącznie powiązane elementy potrzebne do zatwierdzenia
+komendy lub zmiany pliku. Pole `Thread.has_pending_requests` (1090) pozwala klientowi
+otworzyć subskrypcję także dla pytania asynchronicznego podczas pracy subagenta.
 
 Nowe web/desktop/mobile ustawiają `WatchThreadRequest.sequence` (811). Pierwszy
 odczyt to ograniczone okno: 24 ostatnie tury i do 128 itemów, maksymalnie 512 KiB

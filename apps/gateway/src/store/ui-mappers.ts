@@ -110,6 +110,7 @@ export function toUiThread(row: ThreadRow): ui.Thread {
     lastSeq: BigInt(row.last_seq),
     createdAt: timestampFromDate(new Date(row.created_at)),
     pendingInteractions: Number(row.pending_interactions ?? 0),
+    hasPendingRequests: row.has_pending_requests,
     turnStarting: row.turn_starting ?? false,
     forkSourceThreadId: row.fork_source_thread_id ?? "",
     forkAfterTurnId: row.fork_after_turn_id ?? "",

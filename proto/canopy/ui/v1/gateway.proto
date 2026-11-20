@@ -734,6 +734,8 @@ message Thread {
   uint64 last_seq = 17;
   google.protobuf.Timestamp created_at = 18;
   uint32 pending_interactions = 19;
+  // Includes asynchronous questions while the agent is working. Absent on older homes.
+  optional bool has_pending_requests = 1090;
   // Fork: wątek, którego historię dziedziczy (pusty, gdy to nie fork).
   string fork_source_thread_id = 20;
   // Wątek główny drzewa (dla wątku głównego: on sam).
@@ -1537,6 +1539,8 @@ message WatchThreadRequest {
   bool background = 814;
   // Linked agent read or action across the Bots and Threads modules.
   bool bot_thread_access = 815;
+  // Only pending interactions and their related approval details, without timeline history.
+  bool requests_only = 816;
 }
 
 message ThreadConnector {

@@ -26,7 +26,8 @@ export const threadSelect = (where: string, extraColumns = "", metadata = false)
           -- An asynchronous question (wait=false) needs the user only once the agent has stopped working.
           SELECT ${metadata ? LIST_COLUMNS : `t.*, ${STARTED_BY_BOT} AS started_by_bot`}, to_char(t.archived_at AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.US"Z"') AS archived_at_key,
                  (SELECT row_to_json(c) FROM (${COMPOSER_CHOICE_SELECT}) c) AS last_user_turn_choices,
-                 (SELECT p.kind FROM projects p WHERE p.id = t.project_id) AS project_kind, ${extraColumns} (SELECT count(*) FROM interaction_requests i WHERE i.thread_id = t.id AND i.status = 'pending' AND (i.question_wait IS DISTINCT FROM false OR t.status NOT IN ('running', 'creating'))) AS pending_interactions,
+                 (SELECT p.kind FROM projects p WHERE p.id = t.project_id) AS project_kind, ${extraColumns}
+                 requests.pending_interactions, requests.has_pending_requests,
                  EXISTS (SELECT 1 FROM turns u WHERE u.thread_id = t.id AND u.status = 'queued' AND ${DISPATCHED}) AS turn_starting,
                  greatest(t.created_at, (SELECT greatest(u.queued_at, coalesce(u.started_at, u.queued_at), coalesce(u.completed_at, u.queued_at))
                    FROM turns u WHERE u.thread_id = t.id
@@ -64,4 +65,8 @@ export const threadSelect = (where: string, extraColumns = "", metadata = false)
                     FROM checkout_heads h WHERE t.worktree_id IS NULL AND h.workspace_id = t.workspace_id) AS checkout_head,
                  (SELECT json_build_object('agent_cli', ti.agent_cli, 'mode', ti.mode, 'imported_at', ti.imported_at)
                     FROM thread_imports ti WHERE ti.thread_id = t.id) AS imported
-            FROM threads t ${where}`;
+            FROM threads t CROSS JOIN LATERAL (
+              SELECT count(*) FILTER (WHERE i.question_wait IS DISTINCT FROM false OR t.status NOT IN ('running', 'creating')) AS pending_interactions,
+                     count(*) > 0 AS has_pending_requests
+                FROM interaction_requests i WHERE i.thread_id = t.id AND i.status = 'pending'
+            ) requests ${where}`;
