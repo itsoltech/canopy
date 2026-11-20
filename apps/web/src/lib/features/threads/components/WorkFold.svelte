@@ -53,9 +53,7 @@
         return `${label}${!starting && span !== undefined ? `\u00a0${formatSpan(span)}` : ""}`;
       }}
     />
-    {#if summary.live && !starting}<span class="min-w-0 truncate text-zinc-400 dark:text-zinc-500" title={hint.current}
-        >{hint.current}</span
-      >
+    {#if summary.live && !starting}<span class="min-w-0 truncate text-zinc-400 dark:text-zinc-500">{hint.current}</span>
     {:else if summary.counts}<span class="min-w-0 truncate text-zinc-400 dark:text-zinc-500">{summary.counts}</span
       >{/if}
     {#if !summary.live && summary.running > 0}

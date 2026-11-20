@@ -32,7 +32,7 @@
       {#if line.role === "activity"}
         <li class="flex min-w-0 items-center gap-1.5 text-sm/5 text-zinc-500 sm:text-xs/5 dark:text-zinc-400">
           <Icon name="wrench" class="size-3.5 shrink-0 fill-zinc-400 dark:fill-zinc-500" />
-          <span class={["truncate", line.mono && "font-mono"]} title={line.text}>{line.text}</span>
+          <span class={["truncate", line.mono && "font-mono"]}>{line.text}</span>
         </li>
       {:else}
         <li class={["flex", line.role === "user" && "justify-end"]}>

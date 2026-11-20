@@ -38,7 +38,6 @@
       activityHeader,
     ]}
     aria-expanded={open}
-    title={running && !open ? `${label} · ${hint}` : label}
     onclick={ontoggle}
   >
     <span class="flex h-lh shrink-0 items-center"

@@ -4,6 +4,13 @@ export interface FirstLine {
   readonly more: boolean;
 }
 
+/** A plain-text preview for compact activity rows. Keep code intact up to the first line break or 120 characters. */
+export function previewLine(text: string): string {
+  const line = /^.{0,120}/u.exec(text)?.[0] ?? "";
+
+  return line.length === text.length ? line : `${line.trimEnd()}…`;
+}
+
 const FENCE = /^\s*(```|~~~)/;
 const RULE = /^\s*([-*_])(\s*\1){2,}\s*$/;
 const BLOCK_MARK = /^\s*(?:#{1,6}\s+|>\s*|[-*+]\s+(?:\[[ xX]\]\s+)?|\d+[.)]\s+)/;

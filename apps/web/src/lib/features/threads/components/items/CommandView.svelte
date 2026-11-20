@@ -1,5 +1,6 @@
 <script lang="ts">
   import { ItemStatus, type CommandExecution } from "@canopy/contracts";
+  import { previewLine } from "@canopy/domain/first-line";
   import { formatDuration } from "#lib/shared/format.ts";
   import Badge from "#lib/shared/ui/Badge.svelte";
   import ItemFrame from "./ItemFrame.svelte";
@@ -12,13 +13,13 @@
     status,
     streaming = false,
   }: { command: CommandExecution; status: ItemStatus; streaming?: boolean } = $props();
+
+  const preview = $derived(previewLine(command.command));
 </script>
 
 <ItemFrame icon="command-line" {status}>
   {#snippet title()}
-    <code class="block truncate font-mono text-xs/6 text-zinc-800 dark:text-zinc-200" title={command.command}
-      >{command.command.split("\n")[0]}</code
-    >
+    <code class="block truncate font-mono text-xs/6 text-zinc-800 dark:text-zinc-200">{preview}</code>
   {/snippet}
   {#snippet aside()}
     {#if command.durationMs > 0n}<span>{formatDuration(command.durationMs)}</span>{/if}
@@ -26,12 +27,7 @@
         >exit {command.exitCode}</Badge
       >{/if}
   {/snippet}
-  <CodeBlock
-    text={command.command}
-    label={command.command.split("\n")[0] ?? ""}
-    data-quote-kind="code"
-    data-quote-lang="sh"
-  />
+  <CodeBlock text={command.command} label={preview} data-quote-kind="code" data-quote-lang="sh" />
   {#if command.cwd}<p class="truncate font-mono text-xs/5 text-zinc-500 dark:text-zinc-400" title={command.cwd}>
       in {command.cwd}
     </p>{/if}
@@ -39,7 +35,7 @@
     quoteKind="command_output"
     output={command.output}
     blob={command.outputBlob}
-    label="Output of {command.command.split('\n')[0]}"
+    label="Output of {preview}"
     empty={status === ItemStatus.IN_PROGRESS ? "Waiting for output…" : "No output."}
     {streaming}
   />

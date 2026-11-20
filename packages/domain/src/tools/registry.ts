@@ -10,6 +10,7 @@ import {
   type JsonValue,
 } from "../json.ts";
 import { basename, humanizeEnum, humanizeServer, humanizeToolName, isOpaqueId, plural } from "../humanize.ts";
+import { previewLine } from "../first-line.ts";
 import type { IconName } from "@canopy/ui/icons";
 import {
   parseFileList,
@@ -59,8 +60,8 @@ export interface ToolLook {
   readonly title: string;
   /** What it did it to (a file name, a pattern, a URL); "" when nothing stands out. */
   readonly subject: string;
-  /** The subject in full (a path, the whole command), for its tooltip. */
-  readonly subjectTitle: string;
+  /** Extra context for a shortened path or URL, when it fits on one short line. */
+  readonly subjectTitle?: string;
   /** The subject is code or a path (monospace). */
   readonly mono: boolean;
   /** A short fact on the right ("lines 10–49", "12 files", "3 of 5 done"). */
@@ -159,7 +160,6 @@ function scriptSubject(call: ToolCallFacts, input: JsonObject): Partial<ToolLook
 
   return {
     subject,
-    subjectTitle: calls.map((c) => c.command ?? humanizeToolName(c.tool)).join("\n"),
     mono: first.command !== undefined,
     detail,
   };
@@ -171,7 +171,6 @@ const SHELL: Describe = (call, input) => {
   return {
     title: verb(call, "Running", "Ran"),
     subject: command,
-    subjectTitle: command,
     mono: true,
     icon: "command-line",
     body: "shell",
@@ -205,7 +204,6 @@ const REGISTRY = new Map<string, Describe>(
     Grep: (call, input) => ({
       title: verb(call, "Searching for", "Searched for"),
       subject: str(input["pattern"]),
-      subjectTitle: str(input["pattern"]),
       mono: true,
       detail: grepDetail(call, input),
       icon: "magnifying-glass",
@@ -217,7 +215,6 @@ const REGISTRY = new Map<string, Describe>(
       return {
         title: verb(call, "Finding files", "Found files"),
         subject: str(input["pattern"]),
-        subjectTitle: str(input["pattern"]),
         mono: true,
         detail: files ? (files.length > 0 ? plural(files.length, "file") : "none") : "",
         icon: "folder-open",
@@ -321,7 +318,7 @@ const REGISTRY = new Map<string, Describe>(
       return {
         title: verb(call, "Editing", "Edited"),
         subject: files.map((f) => basename(f.path)).join(", "),
-        subjectTitle: files.map((f) => f.path).join("\n"),
+        subjectTitle: files.length === 1 ? (files[0]?.path ?? "") : "",
         mono: true,
         detail: files.length > 1 ? plural(files.length, "file") : "",
         icon: "pencil-square",
@@ -375,22 +372,22 @@ export function describeTool(call: ToolCallFacts): ToolLook {
       ? `${humanizeServer(call.server)} · ${humanizeToolName(call.name)}`
       : humanizeToolName(call.name),
     subject: "",
-    subjectTitle: "",
     mono: false,
     detail: "",
     icon: call.server ? "code-bracket" : "wrench",
     body: "generic",
   };
 
-  if (!entry) {
-    const hint = hintOf(input);
+  if (!entry) return { ...base, subject: previewLine(hintOf(input)) };
 
-    return { ...base, subject: hint, subjectTitle: hint };
+  const { subjectTitle, ...look } = { ...base, ...entry(call, input) };
+  const subject = previewLine(look.subject);
+
+  if (subjectTitle && subjectTitle !== subject && subjectTitle === previewLine(subjectTitle)) {
+    return { ...look, subject, subjectTitle };
   }
 
-  const look = { ...base, ...entry(call, input) };
-
-  return { ...look, subjectTitle: look.subjectTitle || look.subject };
+  return { ...look, subject };
 }
 
 /** Known tool names (for tests and the dev gallery). */
