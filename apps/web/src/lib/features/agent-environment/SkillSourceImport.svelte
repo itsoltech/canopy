@@ -114,6 +114,7 @@
                 name="source-skill-{item.path}"
                 label={item.artifact?.name ?? item.path}
                 description={source.preview.source?.wellKnown ? undefined : item.path || "Repository root"}
+                class="min-w-0 wrap-anywhere"
                 disabled={environment.busy}
                 bind:checked={
                   () => source.paths.includes(item.path),
