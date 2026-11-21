@@ -286,8 +286,8 @@ html[data-canopy-platform]:not(:has(:popover-open:not([data-window-keep-drag]), 
     --sidebar-extent: var(--sidebar-width);
   }
 }
-/* Space the docked thread summary takes from the chat column: a 20rem card, 1rem from the area's edge and 1rem clear
-   of the column (summary-layout.svelte.ts). Eases when the card docks or leaves (motion.css `data-chat-settling`). */
+/* Space beside the chat column for the docked summary: the card or mini preview is 20rem wide, and the pill uses its
+   measured width. Both sit 1rem from the area's edge and 1rem clear of the column. Eases on `data-chat-settling`. */
 @property --chat-card-space {
   syntax: "<length>";
   inherits: false;
@@ -302,6 +302,7 @@ html[data-canopy-platform]:not(:has(:popover-open:not([data-window-keep-drag]), 
    would collide it moves only as far as needed, then narrows. All of it is CSS from the sidebar's live width and the
    area's width (100% here), so it moves in the same frame as the sidebar and Files, never a frame behind. */
 .chat-column {
+  --chat-card-space: var(--chat-pill-space, 0px);
   max-width: var(--feed-column-width, var(--chat-width));
   margin-left: auto;
   margin-right: auto;
