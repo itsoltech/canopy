@@ -24,6 +24,7 @@
   import { sidebarDrag } from "./sidebar-drag.ts";
   import SidebarOrderFeedback from "./SidebarOrderFeedback.svelte";
   import SidebarGroupHeading from "./SidebarGroupHeading.svelte";
+  import SidebarThreadDisclosure from "./SidebarThreadDisclosure.svelte";
 
   let {
     currentThreadId,
@@ -87,7 +88,10 @@
   let workingOpen = $state(false);
 
   const grouping = $derived({ groupByWorktree: devicePreferences.view.groupByWorktree });
-  const entries = $derived(sidebarEntries(filtered, settings.sidebar, overview.projectChoices, workingOpen, grouping));
+
+  // Keep the Working rows available for the entire section outro.
+  const entries = $derived(sidebarEntries(filtered, settings.sidebar, overview.projectChoices, true, grouping));
+  const working = $derived(entries.find((entry) => entry.working));
 
   const visible = $derived(
     visibleSidebarEntries(entries, devicePreferences.view.collapsedSidebarGroups, Boolean(query.trim())),
@@ -124,6 +128,9 @@
     return order;
   });
 
+  const inboxLength = $derived(working ? keys.indexOf(working.key) : keys.length);
+  const workingKeys = $derived(keys.slice(inboxLength + 1));
+
   // Every event replaces the thread index, so a row reading the whole list would rerun with every event (hundreds of
   // rows). Each row reads only its own slot, written when something the row shows changed.
   const rows = new Keyed<SidebarRow>(sameSidebarRow);
@@ -148,7 +155,7 @@
   $effect(() => {
     if (filled || keys.length === 0) return;
 
-    if (keys.length <= limit) {
+    if (inboxLength <= limit) {
       filled = true;
 
       return;
@@ -157,8 +164,49 @@
     return whenIdle(() => (limit += ROWS_PER_IDLE), 500);
   });
 
-  const shown = $derived(filled ? keys : keys.slice(0, limit));
+  const shown = $derived(keys.slice(0, filled ? inboxLength : Math.min(inboxLength, limit)));
 </script>
+
+{#snippet renderRows(rowKeys: readonly string[], inbox: boolean)}
+  {#each rowKeys as key, index (key)}
+    {@const entry = rows.get(key)}
+    <li
+      class={["min-w-0", inbox && entry?.thread && "sidebar-entry"]}
+      data-depth={entry?.depth}
+      data-thread-id={entry?.thread?.id}
+      data-grouped-project={entry?.groupedProject || undefined}
+      animate:reorder
+      in:rise={{ delay: inbox ? stagger(index) : 0, instant: !filled }}
+      out:expand
+      onoutrostart={(event) => (event.currentTarget.inert = true)}
+      onintrostart={(event) => (event.currentTarget.inert = false)}
+    >
+      {#if entry?.thread}
+        {@const { thread, sides } = entry}
+        <div class="relative">
+          <SidebarThread
+            {thread}
+            subagentsNeedingInput={entry.subagentsNeedingInput}
+            project={entry.project}
+            worker={entry.worker}
+            groupedProject={entry.groupedProject}
+            groupedWorktree={entry.depth === 2}
+            sides={entry.open ? 0 : sides.active.length}
+            current={thread.id === currentThreadId}
+          />
+        </div>
+        {#if entry.open && (sides.active.length || sides.previous.length)}
+          <SidebarThreadChildren {sides} title={thread.title} {currentThreadId} class="mt-0.5 mb-1 ml-5" />
+        {/if}
+      {:else if entry?.groupKind}<SidebarGroupHeading {entry} searching={Boolean(query.trim())} />
+      {:else if entry}<h2
+          class="sidebar-row-padding pt-3 pb-1 text-sm font-medium text-zinc-500 sm:text-xs dark:text-zinc-400"
+        >
+          {entry.heading}
+        </h2>{/if}
+    </li>
+  {/each}
+{/snippet}
 
 <div class={["flex min-h-full min-w-0 flex-col", className]}>
   <SidebarOrderFeedback {ordering} />
@@ -176,51 +224,20 @@
     </div>
   {:else if filtered.roots.length}
     <ul role="list" class="grid min-w-0 grid-cols-1 gap-0.5" aria-label="Thread inbox" {@attach drag}>
-      {#each shown as key, index (key)}
-        {@const entry = rows.get(key)}
-        <li
-          class={["min-w-0", entry?.thread && "sidebar-entry"]}
-          data-depth={entry?.depth}
-          data-thread-id={entry?.thread?.id}
-          data-grouped-project={entry?.groupedProject || undefined}
-          animate:reorder
-          in:rise={{ delay: stagger(index), instant: !filled }}
-          out:expand
-          onoutrostart={(event) => (event.currentTarget.inert = true)}
-          onintrostart={(event) => (event.currentTarget.inert = false)}
-        >
-          {#if entry?.thread}
-            {@const { thread, sides } = entry}
-            <div class="relative">
-              <SidebarThread
-                {thread}
-                subagentsNeedingInput={entry.subagentsNeedingInput}
-                project={entry.project}
-                worker={entry.worker}
-                groupedProject={entry.groupedProject}
-                groupedWorktree={entry.depth === 2}
-                sides={entry.open ? 0 : sides.active.length}
-                current={thread.id === currentThreadId}
-              />
-            </div>
-            {#if entry.open && (sides.active.length || sides.previous.length)}
-              <SidebarThreadChildren {sides} title={thread.title} {currentThreadId} class="mt-0.5 mb-1 ml-5" />
-            {/if}
-          {:else if entry?.groupKind}<SidebarGroupHeading {entry} searching={Boolean(query.trim())} />
-          {:else if entry?.working}<Button
-              size="sm"
-              variant="ghost"
-              aria-expanded={workingOpen}
-              onclick={() => (workingOpen = !workingOpen)}
-              icon={workingOpen ? "chevron-down" : "chevron-right"}>{entry.heading}</Button
-            >
-          {:else if entry}<h2
-              class="sidebar-row-padding pt-3 pb-1 text-sm font-medium text-zinc-500 sm:text-xs dark:text-zinc-400"
-            >
-              {entry.heading}
-            </h2>{/if}
+      {@render renderRows(shown, true)}
+      {#if working?.heading && shown.length === inboxLength}
+        <li class="min-w-0">
+          <SidebarThreadDisclosure
+            label={working.heading}
+            expanded={workingOpen}
+            ontoggle={() => (workingOpen = !workingOpen)}
+          >
+            <ul role="list" aria-label="Working threads" class="grid min-w-0 grid-cols-1 gap-0.5">
+              {@render renderRows(workingKeys, false)}
+            </ul>
+          </SidebarThreadDisclosure>
         </li>
-      {/each}
+      {/if}
     </ul>
   {/if}
   <SidebarSnoozedThreads

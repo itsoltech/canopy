@@ -1,6 +1,7 @@
 # Projekty, wątki i wątki boczne
 
 Status (2026-11-21): zaimplementowane, w tym usypianie wątków w web/desktop i mobile,
+spójne nagłówki oraz płynne rozwijanie i zwijanie sekcji Snoozed i Working w web/desktop,
 pierwszeństwo jawnie zapisanych uprawnień wątku przed historią tur
 oraz zapis uprawnień Codexa na kolejne tury z kompozytora web/desktop,
 ukrycie Full auto dla Claude na natywnym Windowsie, trwały wpis wątku przed przygotowaniem nowego worktree,
@@ -211,6 +212,10 @@ do zwijanej sekcji **Snoozed**. Można wybrać godzinę, 2 lub 6 godzin, koniec 
 w strefie urządzenia, konkretną datę i czas albo **Until I wake it**. Termin można
 zmienić, a **Wake thread** przywraca wątek od razu. Wątek z terminem sam wraca na
 listę po jego upływie, również po restarcie gatewaya.
+
+W web/desktop nagłówki **Snoozed** i **Working** mają strzałkę rozwijania po lewej
+i licznik w nawiasie po nazwie. Każda sekcja rozwija i zwija listę jako całość.
+Przy ograniczonym ruchu przełączenie jest natychmiastowe.
 
 Uśpiony wątek pozostaje dostępny z sekcji, wyszukiwania i bezpośredniego linku.
 Można go czytać, wysyłać wiadomości, odpowiadać na pytania i zatwierdzać prośby.
