@@ -44,10 +44,7 @@ function useLayoutState() {
   return {
     wide,
     ...moduleSelection,
-    /** The sidebar takes about a third of the window, 260–320 dp. */
-    sidebarWidth: Math.round(Math.min(320, Math.max(260, width * 0.36))),
     sidebarOpen: wide && sidebarOpen,
-    /** The column animates itself (`MainNavigation`'s `SidebarColumn`). */
     toggleSidebar() {
       device.setView({ sidebarCollapsed: sidebarOpen });
     },

@@ -2,8 +2,10 @@
 
 Status: opis zaimplementowanego kodu (2026-11-21), w tym import skilli z publicznych
 witryn HTTPS, usypianie wątków, dostępny offline wykaz licencji open source
-oraz osobne aktualizacje Canopy i CLI dostawców. Licznik i akcja Update all na
-telefonie wynikają z planu instalacji Canopy.
+oraz osobne aktualizacje Canopy i CLI dostawców. Na szerokim oknie iOS i Androida
+sidebar i rozmowa przesuwają wspólną krawędź podczas zwijania i rozwijania.
+Uchwyt na tej krawędzi zmienia szerokość sidebara i zapisuje ją lokalnie.
+Licznik i akcja Update all na telefonie wynikają z planu instalacji Canopy.
 Stany źródeł Usage są widoczne w sekcji **Recording gateways**.
 Settings → Providers pozwala edytować ustawienia CLI instancji Claude, Codexa i Groka.
 Zakres All workers zapisuje wspólne klucze, a zakres pojedynczego workera
@@ -1485,7 +1487,7 @@ oraz niezależne palety Light/Dark są ustawieniami gatewaya, synchronizowanymi 
 Settings korzysta ze wspólnych tokenów tematów Birch, Fern, Lagoon, Cedar, Heather,
 Blossom i Ash. Preferencje urządzenia (typografia, kontrast, diffy i format czasu)
 pozostają w SecureStore telefonu i nie zmieniają preferencji przeglądarki.
-Rozwinięcie archiwum wątków i botów oraz zwinięcie sidebara również należą do telefonu
+Rozwinięcie archiwum wątków i botów oraz szerokość i zwinięcie sidebara również należą do urządzenia
 (`DevicePreferences`, wspólny `@canopy/domain/device-view`). Filtr projektów,
 grupowanie i kolejność grup także należą do tego telefonu. Stan widoku jest zapisany
 w `canopy.client-view.v2.<scope>.json` w katalogu dokumentów, osobno dla certyfikatu
@@ -1498,12 +1500,18 @@ pełna klasyfikacja jest w [settings-map.md](settings-map.md).
 Na wąskim oknie sidebar jest natywnym ekranem listy (stos lista → wątek); web na telefonie
 otwiera go jako drawer. Od 600 dp szerokości okna (klasa large screen Androida: tablety,
 rozłożony foldable, telefon w poziomie) lista zostaje obok otwartego wątku lub czatu, jak
-w desktopowym web (`src/state/layout.tsx`). Ma 260–320 dp, zaznacza otwarty wątek i chowa się
-przyciskiem listy w nagłówku. Układ zależy od szerokości okna, nie typu urządzenia, więc
-składanie, obrót i zmiana rozmiaru przełączają go na żywo; aplikacja nie blokuje orientacji.
-Przekroczenie progu szerokości odtwarza kolumnę sidebara od razu w docelowym stanie,
-bez oczekiwania na callback zamknięcia. Powrót do pionu nie rezerwuje więc miejsca na
-znikający sidebar i nie zwęża przejściowo wątku. Ręczny przycisk nadal animuje panel.
+w desktopowym web. Zaznacza otwarty wątek i chowa się przyciskiem listy w nagłówku.
+Domyślna szerokość to 260–320 dp zależnie od okna. Przeciągnięcie uchwytu na wspólnej
+krawędzi zmienia szerokość na bieżąco, a puszczenie zapisuje wybraną wartość dla tego
+parowania. Dwukrotne stuknięcie przywraca domyślną szerokość. Uchwyt udostępnia
+czytnikom ekranu akcje zmniejszania, zwiększania i przywracania domyślnej
+szerokości sidebara. Minimum to 260 dp, a górny limit
+wynosi 45% użytecznej szerokości okna, co najmniej 260 dp i najwyżej 560 dp.
+Przejściowy limit w mniejszym oknie zachowuje zapisaną preferencję na większe okno.
+Składanie, obrót i zmiana rozmiaru okna przełączają układ od razu po przekroczeniu
+progu. Ręczne zwinięcie i rozwinięcie przesuwają wspólną krawędź sidebara i rozmowy
+w tym samym tempie. Lista zachowuje swoją szerokość podczas animacji. Przy ograniczeniu
+ruchu obie kolumny przechodzą od razu do docelowego układu.
 `ui/ScreenFrame.tsx` stosuje insets do kontrolek, bez obcinania tła ani viewportu listy.
 Nagłówki i stopka sidebara są nieprzezroczystymi nakładkami; ich zmierzona wysokość
 powiększa padding końców list, więc pierwszy i ostatni wiersz są dostępne w całości.
@@ -1514,9 +1522,10 @@ Timeline wątku i bota ma odwrócone końce: górny inset jest na najstarszym ko
 a dolny rezerwuje rzeczywistą wysokość kompozytora wątku lub bota
 i oddzielny inset safe area. Tło kompozytora sięga pod
 home indicator; pod klawiaturą inset zastępuje jej rzeczywisty overlap.
-W podziale na kolumny tylko sidebar dostaje lewy inset, a główny panel prawy; po ukryciu
-sidebara główny panel dostaje obie krawędzie. Lewy inset powiększa szerokość kolumny sidebara,
-zamiast zabierać miejsce jej treści. Settings stosuje tę samą regułę do własnych kolumn:
+W podziale na kolumny lewy inset zostaje po lewej stronie okna, a główny panel
+dostaje prawy. Lewy inset powiększa szerokość otwartego sidebara i pozostaje
+marginesem po jego zwinięciu, więc rozmowa od razu zatrzymuje się na bezpiecznej krawędzi.
+Settings stosuje tę samą regułę do własnych kolumn:
 nawigacja ma 256 dp użytecznej szerokości, a długie etykiety przy większym rozmiarze tekstu
 kończą się wielokropkiem. W szerokim układzie brak wyboru otwiera General; wąski nadal
 zaczyna od listy sekcji. Nagłówek wyrównuje tytuły do kolumn i chroni zamknięcie prawym insetem.
