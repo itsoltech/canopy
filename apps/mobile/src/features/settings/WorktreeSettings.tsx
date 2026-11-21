@@ -3,14 +3,13 @@ import { useLocalSearchParams } from "expo-router";
 import { create } from "@bufbuild/protobuf";
 import { ui } from "@canopy/contracts";
 import { useOverview } from "../../state/overview";
-import { Button, Notice } from "../../ui/components";
+import { Button } from "../../ui/components";
 import { SettingsGroup, SettingsRow, SettingsRowScope, SettingChoice, SettingToggle } from "./SettingsGroup";
 import { SettingsInput } from "./SettingsInput";
-import { SettingsValue } from "./SettingsValue";
-import { ResourceState, confirmAction, useSettingsResource } from "./resource";
+import { ResourceState, useSettingsResource } from "./resource";
 import { ResetSetting } from "./ResetSetting";
-import { SettingsSkeletonRows } from "./SettingsSkeleton";
 import { useWorkerOptions } from "../computers/worker-options";
+import { WorktreeList } from "./WorktreeList";
 
 export function WorktreeSettings() {
   const initial = useLocalSearchParams<{ projectId?: string; workerId?: string; worktreeId?: string }>();
@@ -288,127 +287,5 @@ function WorktreeCleanup({ response, busy, save }: Fields) {
         soon
       />
     </SettingsGroup>
-  );
-}
-
-function WorktreeList({ scope, worktreeId }: { scope: { projectId: string; workerId: string }; worktreeId?: string }) {
-  const resource = useSettingsResource(`ListWorktrees:${scope.projectId}:${scope.workerId}`, (api) =>
-    api.listWorktrees(scope),
-  );
-
-  const [preview, setPreview] = useState<ui.ListWorktreesResponse>();
-
-  const remove = (entry: ui.WorktreeEntry) => {
-    const id = entry.worktree?.id;
-
-    if (!id) return;
-    confirmAction(
-      "Remove worktree",
-      entry.confirmationRequired
-        ? "This deletes local changes in the reviewed worktree. Thread history stays."
-        : "This removes the worktree directory. Thread history stays.",
-      () =>
-        void resource.run((api) =>
-          api.removeWorktree({
-            worktreeId: id,
-            confirmLocalChanges: entry.confirmationRequired,
-            expectedHeadCommit: entry.status?.headCommit ?? "",
-          }),
-        ),
-    );
-  };
-
-  return (
-    <ResourceState resource={resource}>
-      <SettingsGroup title="Worktrees">
-        <SettingsSkeletonRows controls />
-        <Button
-          title="Refresh status"
-          busy={resource.busy}
-          onPress={() => {
-            setPreview(undefined);
-            void resource.reload();
-          }}
-        />
-        {!worktreeId && (
-          <Button
-            title="Preview cleanup"
-            busy={resource.busy}
-            onPress={() =>
-              void resource
-                .run((api) => api.cleanupWorktrees({ ...scope, dryRun: true }))
-                .then((r) => {
-                  if (r) setPreview(r);
-                })
-            }
-          />
-        )}
-        {preview && (
-          <>
-            <Notice>{preview.entries.filter((e) => e.wouldRemove).length} worktrees qualify for cleanup.</Notice>
-            <Button
-              variant="danger"
-              title="Clean up worktrees"
-              disabled={!preview.entries.some((e) => e.wouldRemove)}
-              busy={resource.busy}
-              onPress={() =>
-                confirmAction(
-                  "Clean up worktrees?",
-                  "Canopy removes worktrees that match the cleanup rules. Archived and deleted thread rules can discard local files. Thread history stays.",
-                  () =>
-                    void resource
-                      .run((api) => api.cleanupWorktrees({ ...scope, dryRun: false }))
-                      .then(() => setPreview(undefined)),
-                )
-              }
-            />
-          </>
-        )}
-        {(preview ?? resource.data)?.entries
-          .filter((entry) => !worktreeId || entry.worktree?.id === worktreeId)
-          .map((entry) => (
-            <SettingsRow
-              key={entry.worktree?.id}
-              title={
-                entry.worktree?.detachedCommit
-                  ? `Detached HEAD · ${entry.worktree.detachedCommit}`
-                  : entry.worktree?.branch || "Worktree"
-              }
-              description={entry.worktree?.path}
-            >
-              <SettingsValue
-                title="Status"
-                value={
-                  entry.worktree?.external
-                    ? entry.worktree.unavailableReason || (entry.online ? "Available" : "Offline")
-                    : entry.detail ||
-                      entry.status?.detail ||
-                      (entry.removed ? "Removed" : entry.busy ? "Busy" : entry.online ? "Online" : "Offline")
-                }
-              />
-              {entry.worktree?.external && <SettingsValue title="Management" value="Created outside Canopy" />}
-              {!entry.worktree?.external && (
-                <>
-                  <SettingsValue
-                    title="Changes"
-                    value={`${entry.status?.dirtyFiles ?? 0} files · ${entry.status?.ahead ?? 0} ahead · ${entry.status?.behind ?? 0} behind${entry.status?.unpushed ? " · Unpushed commits" : ""}`}
-                  />
-                  <Button
-                    variant="danger"
-                    title="Remove worktree"
-                    disabled={
-                      resource.busy || !entry.online || entry.busy || entry.removed || !entry.status?.headCommit
-                    }
-                    onPress={() => remove(entry)}
-                  />
-                </>
-              )}
-            </SettingsRow>
-          ))}
-        {resource.data && !resource.data.entries.length && (
-          <SettingsRow title="No worktrees yet" description="Start a thread in a new worktree to add one." />
-        )}
-      </SettingsGroup>
-    </ResourceState>
   );
 }

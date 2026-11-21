@@ -9,6 +9,7 @@ import {
   type NewWorktree,
 } from "./worktree-rollback.ts";
 import { physicalDirectory, sameEntry } from "./worktree-rollback-files.ts";
+import type { FailedWorktreeCleanup } from "./failed-worktree-cleanup.ts";
 
 /** Used by gateways that still wait only 90 seconds for the entire command. */
 const LEGACY_WORKTREE_ADD_TIMEOUT_MS = 60_000;
@@ -23,6 +24,7 @@ export async function addWorktree(
   repo: string,
   tree: NewWorktree,
   timeoutMs = LEGACY_WORKTREE_ADD_TIMEOUT_MS,
+  cleanup?: FailedWorktreeCleanup,
 ): Promise<void> {
   const marker = `Canopy worktree creation ${crypto.randomUUID()}`;
   const ref = `refs/heads/${tree.branch}`;
@@ -75,6 +77,8 @@ export async function addWorktree(
     const interrupted =
       error instanceof GitError && error.cause instanceof ProcessTimeoutError ? error.cause : undefined;
 
+    const stoppedAt = interrupted?.treeTerminated ? BigInt(Date.now() + 1) * 1_000_000n : undefined;
+
     const cleaned =
       (!interrupted || interrupted.treeTerminated) &&
       (await settleWorktreeGit(() => rollbackWorktree(repo, tree, marker, reservation, Boolean(interrupted))).catch(
@@ -82,6 +86,14 @@ export async function addWorktree(
       )) === "removed";
 
     if (cleaned) throw error;
+
+    if (cleanup && stoppedAt && reservation) {
+      try {
+        cleanup.rememberStopped(tree, marker, reservation, stoppedAt);
+      } catch {
+        // Keep the original error and warning if a cleanup receipt cannot be recorded.
+      }
+    }
 
     const cause =
       error instanceof GitError ? error : new GitError("WORKTREE_FAILED", "Git could not create the worktree.");

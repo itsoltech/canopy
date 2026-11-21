@@ -95,7 +95,7 @@ export async function serveLink(
           const command = message.payload.value;
           const tracing = workerTracing.command(command.kind.case);
           // Commands run concurrently (a long turn must not block an interrupt); results go back when ready.
-          void host.handleCommand(command).then((result) => {
+          void host.handleCommand(command, link).then((result) => {
             tracing?.(!result?.ok);
 
             if (!result) return; // the worker is stopping: redelivered to the next process

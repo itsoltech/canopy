@@ -13,8 +13,16 @@
   let {
     entry,
     onchange,
+    oncleanup,
+    cleanupDisabled = false,
     class: className,
-  }: { entry: ui.WorktreeEntry; onchange: () => void; class?: ClassValue } = $props();
+  }: {
+    entry: ui.WorktreeEntry;
+    onchange: () => void;
+    oncleanup?: () => void;
+    cleanupDisabled?: boolean;
+    class?: ClassValue;
+  } = $props();
 
   const overview = useOverview();
   let confirm = $state(false);
@@ -67,7 +75,9 @@
 <div class={["grid gap-2", className]}>
   <div class="flex flex-wrap items-center gap-2">
     <CopyButton text={entry.worktree?.path ?? ""} label="Copy worktree path" />
-    {#if !entry.worktree?.external}
+    {#if oncleanup}
+      <Button size="sm" variant="ghost" disabled={cleanupDisabled || offline} onclick={oncleanup}>Clean up…</Button>
+    {:else if !entry.worktree?.external}
       <Button size="sm" variant="ghost" disabled={unavailable || working} onclick={reveal}>Reveal on computer</Button>
       <Button
         size="sm"

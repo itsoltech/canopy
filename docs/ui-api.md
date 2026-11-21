@@ -56,6 +56,7 @@ propozycje odpowiedzi pomijają zużyte i wysterowane wpisy kolejki;
 porzucone notatki platformy nie udają oczekującego wejścia i nie blokują późniejszych propozycji;
 watch odzyskuje stan po powtarzającym się nieokreślonym błędzie gatewaya;
 usunięte worktree pokazuje wątek tylko do odczytu z kontynuacją w nowym worktree;
+Settings → Worktrees umożliwia ręczne sprzątanie zweryfikowanych niedokończonych checkoutów;
 API workspace udostępnia lokalne `RevealThreadFile`
 oraz stabilne, stronicowane zmiany Git wątku, podgląd dostępnych plików spoza workspace
 tylko do odczytu i pobieranie pełnych plików;
@@ -1480,6 +1481,12 @@ folder na workerze. BFF: `/api/worktrees` (POST lista, DELETE usunięcie),
 `/api/worktrees/cleanup` i `/api/worktrees/reveal` (POST). Wszystkie operacje są owner-scoped,
 zdalne przez linked computers wymagają capability `remote_worktrees`. `Thread.worktree.removed_at` zachowuje historię
 i wyłącza akcje usuniętego katalogu. Pola Cleanup dziedziczą zakresy ustawień Creation/Branches.
+
+W ustawieniach `ListWorktrees` może podać `failed_cleanup_token` lub `failed_cleanup_reason`
+dla odkrytego zablokowanego wpisu. `CleanUpFailedWorktree` przyjmuje `worktree_id`,
+`expected_cleanup_token` i jawne `confirmed`, przez `POST /api/worktrees/failed-cleanup`.
+Gateway ponawia discovery workspace'u właściciela i wymaga włączonego modułu Threads.
+Id zakwalifikowane komputerem kierują akcję do gatewaya, który znalazł wpis.
 
 `ContinueThreadInWorktree(thread_id, base_ref, client_request_id)` tworzy nowy wątek główny z nowym
 worktree w workspace źródła, zachowując ustawienia agenta i dodając skrót widocznej rozmowy przed

@@ -208,6 +208,7 @@ export const SERVED = new Set([
   "ListWorktrees",
   "CleanupWorktrees",
   "RemoveWorktree",
+  "CleanUpFailedWorktree",
   "RevealWorktree",
   "ReadThreadFile",
   "ListThreadDirectory",

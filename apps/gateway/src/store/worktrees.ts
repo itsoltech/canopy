@@ -89,6 +89,8 @@ export interface WorktreeStore {
     workerId: string,
     workspaceId: string,
   ): Fx<readonly WorktreeRow[]>;
+  /** Safety references on a worker. Used only after resolving a workspace the caller can access. */
+  failedWorktreeReferences(workerId: string): Fx<readonly FailedWorktreeReference[]>;
   /** A generated branch name replaces the provisional one (unless another name was reported meanwhile). */
   renameWorktree(id: string, from: string, to: string): Fx<string[]>;
   /**
@@ -110,6 +112,12 @@ export interface WorktreeStore {
 export interface GitHeadValue {
   readonly branch: string;
   readonly detachedCommit: string;
+}
+
+export interface FailedWorktreeReference {
+  id: string;
+  path: string;
+  kind: "worktree" | "workspace" | "thread";
 }
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -183,6 +191,17 @@ export function worktreeStore(sql: SqlClient.SqlClient): WorktreeStore {
                AND worker_id = ${workerId}::uuid AND removed_at IS NULL
                AND workspace_id = ${workspaceId}::uuid
              ORDER BY last_used_at DESC`,
+
+    failedWorktreeReferences: (workerId) =>
+      sql<FailedWorktreeReference>`
+        SELECT id::text, path, 'worktree' AS kind FROM worktrees WHERE worker_id = ${workerId}::uuid
+        UNION ALL
+        SELECT '', root_path, 'workspace' FROM project_workspaces WHERE worker_id = ${workerId}::uuid
+        UNION ALL
+        SELECT '', coalesce(t.cwd, ws.root_path), 'thread'
+          FROM threads t LEFT JOIN project_workspaces ws ON ws.id = t.workspace_id
+         WHERE t.worker_id = ${workerId}::uuid AND t.archived_at IS NULL AND t.deleted_at IS NULL
+           AND coalesce(t.cwd, ws.root_path) <> ''`,
 
     renameWorktree: (id, from, to) =>
       Effect.gen(function* () {

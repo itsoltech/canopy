@@ -13,6 +13,7 @@ import { ThreadHighlight } from "../files/thread-highlight.ts";
 import { ThreadWatch } from "../files/thread-watch.ts";
 import { Code, ConnectError } from "@connectrpc/connect";
 import { serviceIdentity } from "./auth.ts";
+import { cleanUpFailedWorktree } from "../worktrees/failed-cleanup.ts";
 
 /** Git worktrees (docs/worktrees.md): settings scopes and the composer's refs; a thread's folder and files. */
 export function worktreesHandlers(
@@ -32,6 +33,7 @@ export function worktreesHandlers(
   | "listWorktrees"
   | "cleanupWorktrees"
   | "removeWorktree"
+  | "cleanUpFailedWorktree"
   | "revealWorktree"
   | "revealThreadDirectory"
   | "readThreadFile"
@@ -70,6 +72,12 @@ export function worktreesHandlers(
     listWorktrees: (request) => guard(() => core.listWorktrees(request)),
     cleanupWorktrees: (request) => guard(() => core.cleanupWorktrees(request)),
     removeWorktree: (request) => guard(() => core.removeWorktree(request)),
+    cleanUpFailedWorktree: (request, context) =>
+      guard(async () => {
+        await cleanUpFailedWorktree(core, request, context.signal);
+
+        return {};
+      }),
     revealWorktree: (request) =>
       guard(async () => {
         await core.revealWorktree(request);

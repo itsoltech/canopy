@@ -74,6 +74,7 @@ export type HostOperations = HostHooks &
     | "createWorktree"
     | "renameWorktreeBranch"
     | "scanWorktrees"
+    | "failedWorktreeCleanup"
     | "removeWorktree"
     | "cleanupRemovedBranch"
     | "revealWorktree"
@@ -177,6 +178,7 @@ export class HostContext {
       createWorktree: gitCommands.createWorktree.bind(gitCommands),
       renameWorktreeBranch: gitCommands.renameWorktreeBranch.bind(gitCommands),
       scanWorktrees: gitCommands.scanWorktrees.bind(gitCommands),
+      failedWorktreeCleanup: gitCommands.failedWorktreeCleanup.bind(gitCommands),
       cleanupRemovedBranch: gitCommands.cleanupRemovedBranch.bind(gitCommands),
       removeWorktree: gitCommands.removeWorktree.bind(gitCommands),
       revealWorktree: gitCommands.revealWorktree.bind(gitCommands),

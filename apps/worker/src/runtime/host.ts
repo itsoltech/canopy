@@ -301,7 +301,7 @@ export class WorkerHost {
    * The command's result; undefined while the worker stops (shutdown): no answer, so the command stays in the
    * gateway's outbox and the next process gets it (an error would end e.g. a turn the next process can run).
    */
-  async handleCommand(command: Command): Promise<CommandResultInit | undefined> {
+  async handleCommand(command: Command, link = this.#ctx.state.link): Promise<CommandResultInit | undefined> {
     const pending = this.#commands.get(command.commandId);
 
     if (pending) return pending;
@@ -323,7 +323,7 @@ export class WorkerHost {
 
     const current = thread ? this.#ctx.state.turnAdmissions.current(thread) : undefined;
 
-    const execute = () => this.storage.use(() => this.#handleCommand(command, current));
+    const execute = () => this.storage.use(() => this.#handleCommand(command, link, current));
 
     const result = (
       kind.case === "generateText"
@@ -336,7 +336,11 @@ export class WorkerHost {
     return result;
   }
 
-  async #handleCommand(command: Command, current?: () => boolean): Promise<CommandResultInit | undefined> {
+  async #handleCommand(
+    command: Command,
+    link: GatewayLink | undefined,
+    current?: () => boolean,
+  ): Promise<CommandResultInit | undefined> {
     const known = await this.#ctx.state.options.runtime.runPromise(
       Journal.use((j) => j.commandResult(command.commandId)),
     );
@@ -378,7 +382,7 @@ export class WorkerHost {
       const output =
         command.kind.case === "workspaceCopy"
           ? { workspaceCopy: await this.#copies.execute(command.kind.value) }
-          : await this.#ctx.ops.execute(command);
+          : await this.#ctx.ops.execute(command, link);
 
       const result = successResult(command.commandId, output);
 

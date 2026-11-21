@@ -350,6 +350,7 @@ service GatewayService {
   rpc ListWorktrees(ListWorktreesRequest) returns (ListWorktreesResponse);
   rpc CleanupWorktrees(CleanupWorktreesRequest) returns (ListWorktreesResponse);
   rpc RemoveWorktree(RemoveWorktreeRequest) returns (WorktreeEntry);
+  rpc CleanUpFailedWorktree(CleanUpFailedWorktreeRequest) returns (google.protobuf.Empty);
   rpc RevealWorktree(RemoveWorktreeRequest) returns (google.protobuf.Empty);
   rpc ListGitRefs(ListGitRefsRequest) returns (ListGitRefsResponse);
   // Bieżący checkout wątku, capability git_branch_switch_v1 workera i domu.
@@ -3137,6 +3138,8 @@ message WorktreeEntry {
   bool removed = 9;
   bool confirmation_required = 10;
   bool branch_deleted = 11;
+  string failed_cleanup_token = 12;
+  string failed_cleanup_reason = 13;
 }
 
 message ListWorktreesResponse {
@@ -3147,6 +3150,12 @@ message RemoveWorktreeRequest {
   string worktree_id = 1;
   bool confirm_local_changes = 2;
   string expected_head_commit = 3;
+}
+
+message CleanUpFailedWorktreeRequest {
+  string worktree_id = 1;
+  string expected_cleanup_token = 2;
+  bool confirmed = 3;
 }
 
 // Zakres: puste project_id = All projects, puste worker_id = All computers.

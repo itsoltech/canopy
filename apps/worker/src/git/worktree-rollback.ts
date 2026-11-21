@@ -18,9 +18,10 @@ export interface NewWorktree {
   readonly commit: string;
 }
 
-interface Reservation {
+export interface CheckoutReservation {
   readonly checkout: BigIntStats;
   readonly metadata: string;
+  readonly common: BigIntStats;
 }
 
 type RollbackResult =
@@ -73,16 +74,25 @@ export function ownsCheckout(entry: string[], tree: NewWorktree, marker: string)
 
 const stripEol = (text: string) => text.replace(/\r?\n$/, "");
 
-/** Record the identity of a directory we created exclusively, before Git writes a single file. */
-export async function reserveCheckout(repo: string, path: string): Promise<Reservation> {
-  const common = realpathSync(
+export async function worktreeCommonDir(repo: string): Promise<string> {
+  return realpathSync(
     stripEol(await gitOk(repo, ["rev-parse", "--path-format=absolute", "--git-common-dir"], "WORKTREE_FAILED")),
   );
+}
 
+/** Record the identity of a directory we created exclusively, before Git writes a single file. */
+export async function reserveCheckout(repo: string, path: string): Promise<CheckoutReservation> {
+  const common = await worktreeCommonDir(repo);
+  const commonIdentity = physicalDirectory(common);
   const worktrees = join(common, "worktrees");
   const metadata = join(worktrees, basename(path));
 
-  if (!physicalDirectory(dirname(path)) || (statPath(worktrees) && !physicalDirectory(worktrees)) || statPath(metadata))
+  if (
+    !commonIdentity ||
+    !physicalDirectory(dirname(path)) ||
+    (statPath(worktrees) && !physicalDirectory(worktrees)) ||
+    statPath(metadata)
+  )
     throw new GitError("WORKTREE_FAILED", "The worktree location changed during creation. Try again.");
 
   try {
@@ -95,7 +105,7 @@ export async function reserveCheckout(repo: string, path: string): Promise<Reser
 
   if (!checkout) throw new GitError("WORKTREE_FAILED", "The worktree location changed during creation. Try again.");
 
-  return { checkout, metadata };
+  return { checkout, metadata, common: commonIdentity };
 }
 
 function smallFile(path: string): string | undefined {
@@ -116,7 +126,7 @@ async function checkIndex(tree: NewWorktree, metadata: string, interrupted: bool
   const link = join(tree.path, ".git");
   const checkoutLink = statPath(link);
 
-  if (lock && (!interrupted || index || !lock.isFile() || lock.size !== 0n)) return false;
+  if (lock && (!interrupted || index || !lock.isFile() || lock.nlink !== 1n || lock.size !== 0n)) return false;
 
   if (!checkoutLink) return interrupted && !index;
 
@@ -139,24 +149,25 @@ async function checkIndex(tree: NewWorktree, metadata: string, interrupted: bool
   return staged.ok;
 }
 
-async function trackedFiles(repo: string, commit: string): Promise<Map<string, string>> {
+async function trackedFiles(repo: string, commit: string) {
   const tree = await git(repo, ["ls-tree", "-r", "-t", "-z", "--full-tree", commit], GIT_TIMEOUT_MS, {
     maxBytes: 32 * 1024 * 1024,
+    env: { GIT_NO_REPLACE_OBJECTS: "1", GIT_NO_LAZY_FETCH: "1" },
   });
 
   if (!tree.ok) throw new GitError("WORKTREE_FAILED", "Git could not read the worktree base.");
-  const files = new Map<string, string>();
+  const files = new Map<string, { kind: string; oid: string }>();
 
   for (const entry of tree.stdout.split("\0")) {
     const match = /^(040000 tree|100(?:644|755) blob) ([0-9a-f]{40}|[0-9a-f]{64})\t(.+)$/s.exec(entry);
 
-    if (match?.[3] && match[2]) files.set(match[3], match[1] === "040000 tree" ? "" : match[2]);
+    if (match?.[1] && match[2] && match[3]) files.set(match[3], { kind: match[1], oid: match[2] });
   }
 
   return files;
 }
 
-function ownsMetadata(tree: NewWorktree, path: string, marker: string): boolean {
+export function ownsMetadata(tree: NewWorktree, path: string, marker: string): boolean {
   const gitdir = join(path, "gitdir");
   const commondir = join(path, "commondir");
 
@@ -193,33 +204,44 @@ function isCheckoutMetadata(path: string, stat: BigIntStats, root: string): bool
   return metadataFiles.has(key) || /^sharedindex\.[0-9a-f]{40,64}$|^reftable\/[0-9a-fx-]+\.ref$/.test(key);
 }
 
-async function discardCheckout(
+export interface CheckoutPlan {
+  readonly admin: NonNullable<Awaited<ReturnType<typeof inspectDirectory>>>;
+  readonly checkout: NonNullable<Awaited<ReturnType<typeof inspectDirectory>>>;
+}
+
+type PlanFailure = "metadata ownership changed" | "metadata changed" | "index changed" | "checkout changed";
+
+export async function planCheckout(
   repo: string,
   tree: NewWorktree,
   marker: string,
-  reservation: Reservation,
+  metadata: string,
+  target: BigIntStats,
   interrupted: boolean,
-): Promise<RollbackResult> {
-  const { metadata } = reservation;
+  manual?: {
+    readonly metadataEntryAllowed: (path: string, stat: BigIntStats) => boolean;
+    readonly unchangedSinceFailure: (stat: BigIntStats) => boolean;
+  },
+): Promise<CheckoutPlan | { reason: PlanFailure }> {
   const admin = physicalDirectory(metadata);
-  const target = physicalDirectory(tree.path);
   const expires = performance.now() + GIT_TIMEOUT_MS;
 
-  // A missing directory may have been moved away with its .git backlink intact.
-  if (!target || !sameEntry(reservation.checkout, target)) return "checkout changed";
+  if (!admin || !ownsMetadata(tree, metadata, marker)) return { reason: "metadata ownership changed" };
 
-  if (!admin || !ownsMetadata(tree, metadata, marker)) return "metadata ownership changed";
+  if (manual && !manual.unchangedSinceFailure(admin)) return { reason: "metadata changed" };
+
+  if (manual && !manual.unchangedSinceFailure(target)) return { reason: "checkout changed" };
 
   const adminPlan = await inspectDirectory(
     metadata,
     admin,
-    (path, stat) => isCheckoutMetadata(path, stat, metadata),
+    (path, stat) => isCheckoutMetadata(path, stat, metadata) && (manual?.metadataEntryAllowed(path, stat) ?? true),
     expires,
   );
 
-  if (!adminPlan) return "metadata changed";
+  if (!adminPlan) return { reason: "metadata changed" };
 
-  if (!(await checkIndex(tree, metadata, interrupted))) return "index changed";
+  if (!(await checkIndex(tree, metadata, interrupted))) return { reason: "index changed" };
   const tracked = await trackedFiles(repo, tree.commit);
   const link = join(tree.path, ".git");
 
@@ -227,16 +249,44 @@ async function discardCheckout(
     tree.path,
     target,
     (path, stat) => {
+      if (manual && !manual.unchangedSinceFailure(stat)) return false;
+
       if (samePath(path, link))
         return stat.isFile() && pointsTo(path, smallFile(path)?.match(/^gitdir: (.+)$/s)?.[1], metadata);
-      const key = tracked.get(relative(tree.path, path).split(sep).join("/"));
+      const entry = tracked.get(relative(tree.path, path).split(sep).join("/"));
 
-      return stat.isDirectory() ? key === "" : key !== undefined && key !== "" && checkoutBlobMatches(path, stat, key);
+      if (!entry) return false;
+
+      if (stat.isDirectory()) return entry.kind === "040000 tree";
+
+      if (entry.kind === "040000 tree") return false;
+
+      if (manual && process.platform !== "win32" && Boolean(stat.mode & 0o100n) !== (entry.kind === "100755 blob"))
+        return false;
+
+      return checkoutBlobMatches(path, stat, entry.oid);
     },
     expires,
   );
 
-  if (!plan) return "checkout changed";
+  return plan ? { admin: adminPlan, checkout: plan } : { reason: "checkout changed" };
+}
+
+async function discardCheckout(
+  repo: string,
+  tree: NewWorktree,
+  marker: string,
+  reservation: CheckoutReservation,
+  interrupted: boolean,
+): Promise<RollbackResult> {
+  const { metadata } = reservation;
+  const target = physicalDirectory(tree.path);
+
+  // A missing directory may have been moved away with its .git backlink intact.
+  if (!target || !sameEntry(reservation.checkout, target)) return "checkout changed";
+  const plan = await planCheckout(repo, tree, marker, metadata, target, interrupted);
+
+  if ("reason" in plan) return plan.reason;
 
   if (!onlyOwnedRegistration(await registeredWorktrees(repo), tree, marker)) return "registration changed";
 
@@ -244,9 +294,9 @@ async function discardCheckout(
 
   if (!(await ownsBranch(repo, `refs/heads/${tree.branch}`, marker))) return "branch changed";
 
-  if (!directoryStillMatches(metadata, adminPlan)) return "metadata changed";
+  if (!directoryStillMatches(metadata, plan.admin)) return "metadata changed";
 
-  return removeInspectedDirectory(tree.path, plan) && removeInspectedDirectory(metadata, adminPlan)
+  return removeInspectedDirectory(tree.path, plan.checkout) && removeInspectedDirectory(metadata, plan.admin)
     ? "removed"
     : "resources remain";
 }
@@ -257,7 +307,7 @@ async function ownsBranch(repo: string, ref: string, marker: string): Promise<bo
   return reflog.ok && stripEol(reflog.stdout) === marker;
 }
 
-function onlyOwnedRegistration(entries: string[][], tree: NewWorktree, marker: string): boolean {
+export function onlyOwnedRegistration(entries: string[][], tree: NewWorktree, marker: string): boolean {
   const ref = `refs/heads/${tree.branch}`;
   const records = atPath(entries, tree.path);
   const [record] = records;
@@ -275,7 +325,7 @@ export const rollbackWorktree = (
   repo: string,
   tree: NewWorktree,
   marker: string,
-  reservation: Reservation | undefined,
+  reservation: CheckoutReservation | undefined,
   interrupted: boolean,
 ): Promise<RollbackResult> =>
   freshGit(async () => {

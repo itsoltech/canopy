@@ -73,6 +73,7 @@ export function workerCapabilities(options: { localWorker: boolean; fullAccess: 
     "worktree_lifecycle",
     "archived_branch_cleanup",
     "git_worktree_discovery",
+    "failed_worktree_cleanup_v1",
     // git_heads: the live branch of thread checkouts (GitHeads).
     "git_heads",
     "git_pr_context_v1",

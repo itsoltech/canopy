@@ -82,6 +82,15 @@ export async function removeWorktree(
   return decode(ui.WorktreeEntrySchema, await requestJson("DELETE", "/api/worktrees", body, 130_000));
 }
 
+export async function cleanUpFailedWorktree(worktreeId: string, expectedCleanupToken: string): Promise<void> {
+  const body = encode(
+    ui.CleanUpFailedWorktreeRequestSchema,
+    create(ui.CleanUpFailedWorktreeRequestSchema, { worktreeId, expectedCleanupToken, confirmed: true }),
+  );
+
+  await requestJson("POST", "/api/worktrees/failed-cleanup", body, 70_000);
+}
+
 export async function revealWorktree(worktreeId: string): Promise<void> {
   const body = encode(ui.RemoveWorktreeRequestSchema, create(ui.RemoveWorktreeRequestSchema, { worktreeId }));
   await requestJson("POST", "/api/worktrees/reveal", body, 30_000);
