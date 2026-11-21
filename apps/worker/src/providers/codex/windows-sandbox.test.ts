@@ -1,6 +1,5 @@
 import { expect, test } from "bun:test";
 import { mkdirSync, writeFileSync } from "node:fs";
-import { rm } from "node:fs/promises";
 import { join } from "node:path";
 import type { ServerNotification } from "@canopy/codex-protocol";
 import { PermissionMode } from "@canopy/contracts";
@@ -66,7 +65,7 @@ function checkTurn(server: CodexAppServer["Service"], threadId: string, mode: Pe
 test.skipIf(!codex)(
   "sandboxed Codex commands follow mode changes, cold resume, and intentional command denials",
   async () => {
-    const root = temp("canopy-codex-sandbox-");
+    const root = process.env["CANOPY_TEST_CODEX_ROOT"] || temp("canopy-codex-sandbox-");
     const cwd = join(root, "project");
     const home = join(root, "codex");
     mkdirSync(cwd);
@@ -164,10 +163,6 @@ test.skipIf(!codex)(
       expect(approvalRequests).toEqual(["item/commandExecution/requestApproval"]);
     } finally {
       await model.stop();
-
-      // Windows can release sandbox file handles shortly after the app-server exits.
-      if (process.platform === "win32")
-        await rm(root, { recursive: true, force: true, maxRetries: 5, retryDelay: 100 });
     }
   },
   60_000,
