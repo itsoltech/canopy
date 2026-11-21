@@ -39,9 +39,13 @@ export { toConnectError } from "./ui-errors.ts";
 export type UiHandlers = ServiceImpl<typeof ui.GatewayService>;
 
 /** GatewayService for the UI (docs/ui-api.md), with threads of linked computers routed to their home (routed.ts). */
-export function uiRoutes(core: GatewayCore): (router: ConnectRouter) => void {
+export function uiRoutes(core: GatewayCore, options?: { readMaxBytes: number }): (router: ConnectRouter) => void {
   return (router) =>
-    router.service(ui.GatewayService, guardModuleWork(core, withDraftDelivery(core, routed(core, uiHandlers(core)))));
+    router.service(
+      ui.GatewayService,
+      guardModuleWork(core, withDraftDelivery(core, routed(core, uiHandlers(core)))),
+      options,
+    );
 }
 
 /** Writes that can change a bot summary, a connector or a proxy: the owner feed compares at once afterwards. */

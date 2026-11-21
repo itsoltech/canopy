@@ -1,6 +1,7 @@
 # Canopy na iOS i Android
 
 Status: opis zaimplementowanego kodu (2026-11-21). Aplikacja używa Expo SDK 58.0.26.
+W ustawieniach Network access można zwiększyć limit załącznika do 40 MiB na plik.
 Na liście wątków wiersze z pierścieniem pracy pokazują sam czas jej trwania.
 Wiersze bez pierścienia zachowują etykietę „Working”.
 W wiadomościach agenta i rozwiniętym rozumowaniu można zaznaczyć fragment do skopiowania lub zacytowania.
@@ -1630,7 +1631,8 @@ i przesuwania; przesunięcie w dół przy skali 1 zamyka widok. Ten sam viewer o
 lokalny podgląd załącznika w kompozytorze, również podczas wysyłania. iOS eksportuje
 obraz arkuszem Share z usuwanej kopii tymczasowej, Android zapisuje go w katalogu
 wybranym przez użytkownika. Nie dodajemy modułu galerii ani uprawnień do biblioteki zdjęć.
-Obrazy w pamięci widoku mają limit 20 MiB; SVG i inne formaty plikowe nie są renderowane.
+Odczyt obrazu ma limit 40 MiB dla załączników i 20 MiB dla blobów wątku.
+SVG i inne formaty plikowe nie są renderowane.
 Niezmienne obrazy trafiają do prywatnego `Paths.cache/images-v1`: klucz zawiera pełny
 kwalifikowany identyfikator załącznika albo wątku i SHA256 blobu oraz wariant miniatura/pełny.
 Katalog parowania i nazwy plików są haszowane; nie zapisujemy ich w bibliotece zdjęć ani logach.
@@ -1650,7 +1652,7 @@ sesji, a widok do 2000 wierszy, z jawnym komunikatem o obcięciu. Nieprawidłowy
 dekoduje się z zastępowaniem; treść binarna nie ma podglądu. „Rendered” / „Source”
 używa natywnego renderera Markdown i preferencji urządzenia; tekst można kopiować,
 zawijać oraz zapisać/udostępnić w całości. Pełne bajty tekstowego załącznika są
-pobierane dopiero po wybraniu eksportu (do 30 MiB), bez nowych modułów natywnych.
+pobierane dopiero po wybraniu eksportu (do 40 MiB).
 „Show full output” / „Show full diff” otwiera pełny tekst w osobnym widoku. Podgląd inline
 nadal ma 12 tys. znaków. Bloby są pobierane dopiero po otwarciu przez `GetThreadBlob`,
 po autoryzacji właściciela i z routingiem do domu wątku. Gateway i viewer ograniczają
@@ -1691,7 +1693,7 @@ Treść wiadomości jest w nim wyłącznie tekstem, a kolejne aktualizacje wiado
 Obrazy i bloby odziedziczonych tur są odczytywane przez ich wątek źródłowy.
 
 Plakietka załącznika otwiera wspólną przeglądarkę: obrazy jako miniatury i pełny ekran,
-tekst UTF-8 do 128 KiB i 2000 wierszy (Markdown także renderowany), pozostałe pliki do 30 MiB z eksportem
+tekst UTF-8 do 128 KiB i 2000 wierszy (Markdown także renderowany), pozostałe pliki do 40 MiB z eksportem
 przez Share na iOS albo zapis do wskazanego katalogu na Androidzie. Nie renderujemy PDF
 ani plików biurowych wewnątrz aplikacji; web również udostępnia ich pobranie.
 Akcja „Quote passage” przy odpowiedzi, rozumowaniu, kodzie, wyniku i diffie otwiera

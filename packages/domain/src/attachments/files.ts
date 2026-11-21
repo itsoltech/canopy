@@ -11,6 +11,12 @@ export interface AttachmentLimits {
   readonly maxFiles: number;
 }
 
+export const MAX_ATTACHMENT_FILE_MIB = 40;
+export const MAX_ATTACHMENT_FILE_BYTES = MAX_ATTACHMENT_FILE_MIB * 1024 ** 2;
+
+// Leave room for protobuf fields surrounding the file bytes.
+export const MAX_ATTACHMENT_RPC_BYTES = MAX_ATTACHMENT_FILE_BYTES + 2 * 1024 ** 2;
+
 export const DEFAULT_ATTACHMENT_LIMITS: AttachmentLimits = {
   maxFileBytes: 20 * 1024 ** 2,
   maxMessageBytes: 50 * 1024 ** 2,

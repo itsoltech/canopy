@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { ActivityIndicator, Platform, Text, View } from "react-native";
 import type { ui } from "@canopy/contracts";
+import { MAX_ATTACHMENT_FILE_BYTES, MAX_ATTACHMENT_FILE_MIB } from "@canopy/domain";
 import { formatBytes } from "@canopy/domain/format";
 import { attachmentPreviewKind } from "@canopy/domain/attachment-preview";
 import { useSession } from "../../state/session";
@@ -14,8 +15,6 @@ import { readAttachmentPreview } from "./preview";
 import { attachmentFailure } from "./failure";
 import { useAttachmentConnection } from "./useAttachmentConnection";
 import { VideoSummary } from "./VideoSummary";
-
-const FILE_BYTES = 30 * 1024 ** 2;
 
 export function AttachmentViewer({ file, onClose }: { file: ui.Attachment; onClose: () => void }) {
   if (attachmentPreviewKind(file) === "video") return <VideoSummary file={file} onClose={onClose} />;
@@ -39,7 +38,7 @@ function FileViewer({ file, onClose }: { file: ui.Attachment; onClose: () => voi
   const [loaded, setLoaded] = useState(false);
   const kind = attachmentPreviewKind(file);
   const previewable = kind === "text" || kind === "markdown";
-  const tooLarge = file.sizeBytes > BigInt(FILE_BYTES);
+  const tooLarge = file.sizeBytes > BigInt(MAX_ATTACHMENT_FILE_BYTES);
   const { id, mimeType } = file;
   const connection = useAttachmentConnection(id);
 
@@ -71,7 +70,7 @@ function FileViewer({ file, onClose }: { file: ui.Attachment; onClose: () => voi
       .then((response) => {
         if (controller.signal.aborted) return;
 
-        if (response.data.length > FILE_BYTES) throw new Error("File too large");
+        if (response.data.length > MAX_ATTACHMENT_FILE_BYTES) throw new Error("File too large");
         setData(response.data);
         setLoaded(true);
       })
@@ -90,7 +89,7 @@ function FileViewer({ file, onClose }: { file: ui.Attachment; onClose: () => voi
     try {
       const bytes = data ?? (await client.api.getAttachment({ attachmentId: id })).data;
 
-      if (bytes.length > FILE_BYTES) throw new Error("File too large");
+      if (bytes.length > MAX_ATTACHMENT_FILE_BYTES) throw new Error("File too large");
       await exportFile(file.name, bytes, mimeType);
     } catch {
       setError("Could not export the file. Try again.");
@@ -131,7 +130,7 @@ function FileViewer({ file, onClose }: { file: ui.Attachment; onClose: () => voi
         </Text>
         {tooLarge ? (
           <Text accessibilityRole="alert" style={[styles.body, { color: c.muted }]}>
-            This file exceeds the 30 MB limit. Attach a smaller file to view it.
+            {`This file exceeds the ${MAX_ATTACHMENT_FILE_MIB} MiB limit. Attach a smaller file to view it.`}
           </Text>
         ) : error ? (
           <>

@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { Platform, Text, View } from "react-native";
 import type { ui } from "@canopy/contracts";
-import { formatSize, formatVideoDuration } from "@canopy/domain";
+import { MAX_ATTACHMENT_FILE_BYTES, formatSize, formatVideoDuration } from "@canopy/domain";
 import { useSession } from "../../state/session";
 import { FullScreenViewer } from "../../ui/FullScreenViewer";
 import { Button } from "../../ui/Button";
@@ -24,7 +24,7 @@ export function VideoSummary({ file, onClose }: { file: ui.Attachment; onClose: 
     try {
       const response = await client.api.getAttachment({ attachmentId: file.id });
 
-      if (response.data.length > 30 * 1024 ** 2) throw new Error("Video exceeds the viewing limit");
+      if (response.data.length > MAX_ATTACHMENT_FILE_BYTES) throw new Error("Video exceeds the viewing limit");
       await exportFile(file.name, response.data, response.mimeType);
     } catch (cause) {
       setError(attachmentFailure(cause, "Could not export the video. Check the connection, then retry."));

@@ -1,12 +1,13 @@
 import type { ui } from "@canopy/contracts";
 import type { Client } from "@connectrpc/connect";
+import { MAX_ATTACHMENT_FILE_BYTES } from "@canopy/domain";
 
 export type ImageSource =
   | { kind: "thread"; threadId: string; sha256: string; sizeBytes: bigint }
   | { kind: "attachment"; file: ui.Attachment }
   | { kind: "local"; uri: string };
 
-export const IMAGE_BYTES = 20 * 1024 ** 2;
+const THREAD_IMAGE_BYTES = 20 * 1024 ** 2;
 export const rasterImage = /^image\/(png|jpeg|gif|webp)$/i;
 
 export class ImageReadError extends Error {}
@@ -27,9 +28,12 @@ export async function readImage(
   signal: AbortSignal,
 ) {
   const size = source.kind === "thread" ? source.sizeBytes : source.file.sizeBytes;
+  const maxBytes = source.kind === "thread" ? THREAD_IMAGE_BYTES : MAX_ATTACHMENT_FILE_BYTES;
 
-  if (!(thumbnail && source.kind === "attachment" && source.file.hasThumbnail) && size > BigInt(IMAGE_BYTES))
-    throw new ImageReadError("This image exceeds the 20 MB viewing limit. Export a smaller image to view it.");
+  if (!(thumbnail && source.kind === "attachment" && source.file.hasThumbnail) && size > BigInt(maxBytes))
+    throw new ImageReadError(
+      `This image exceeds the ${maxBytes / 1024 ** 2} MiB viewing limit. Export a smaller image to view it.`,
+    );
 
   const response =
     source.kind === "thread"
@@ -39,7 +43,7 @@ export async function readImage(
           { signal },
         );
 
-  if (!rasterImage.test(response.mimeType) || response.data.length > IMAGE_BYTES)
+  if (!rasterImage.test(response.mimeType) || response.data.length > maxBytes)
     throw new ImageReadError("This file cannot be shown as an image. Attach a PNG, JPEG, GIF or WebP image.");
 
   return response;

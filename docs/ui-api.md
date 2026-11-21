@@ -1,6 +1,7 @@
 # API dla UI i architektura frontendu
 
-Status (2026-11-20): web, desktop i mobile utrzymują strumień wątku przy dołączaniu
+Status (2026-11-21): web, desktop i mobile obsługują załączniki do 40 MiB na plik po zmianie ustawienia.
+Klienci utrzymują strumień wątku przy dołączaniu
 starszej strony z aktualnego checkpointu sekwencyjnego. Gateway obsługuje osobną
 subskrypcję oczekujących żądań subagenta.
 Edytor harmonogramu pozwala potwierdzić Full access dla nowych wątków. Pole
@@ -2008,10 +2009,9 @@ pobrania obowiązują również filmy. Starszy dom ignorujący pola zakresu moż
 zwrócić pełny plik: BFF wykorzystuje tę jedną odpowiedź, zamiast pobierać ją
 ponownie dla każdego fragmentu. Pełne strumieniowanie wymaga aktualnego domu.
 
-Limity filmów pozostają takie jak pozostałych plików (domyślnie 20 MiB,
-maksymalnie 30 MiB na plik): upload i dostarczenie do workera nadal przenoszą
-oryginał. Osobny wyższy limit zwiększałby bufory tych ścieżek. Notatka dla
-agenta wymienia video i znany czas; worker dostaje oryginalne bajty na dysku.
+Filmy mają wspólny limit z pozostałymi plikami (domyślnie 20 MiB,
+maksymalnie 40 MiB na plik). Upload i dostarczenie do workera przenoszą
+oryginał, a notatka dla agenta wymienia film i znany czas.
 
 Niezmienne bajty załączników i blobów wątku mają `Cache-Control: private,
 max-age=31536000, immutable` oraz ETag SHA256 faktycznie wysłanego wariantu.
@@ -2035,9 +2035,12 @@ Pliki dołączone do wiadomości (obrazy, zrzuty ekranu, tekst, kod, PDF, archiw
 
 Limity: Settings → Network access → Attachments; domyślnie 20 MiB na plik, 50 MiB na wiadomość i 10 plików.
 `UserSettings.attachment_limits` i `UpdateUserSettingsRequest.attachment_limits` (**701**) zapisują je
-w JSON ustawień właściciela, z istniejącą kontrolą wersji. Zakres: 1 bajt–30 MiB na plik,
+w JSON ustawień właściciela, z istniejącą kontrolą wersji. Zakres: 1 bajt–40 MiB na plik,
 do 1 GiB na wiadomość (nie mniej niż limit pliku), 1–100 plików; UI podaje MiB.
 Kompozytor reaguje na aktualizacje ustawień; gateway odczytuje bazę przy nowych uploadach i wiadomościach.
+`UploadAttachment` odbiera pojedynczy komunikat z całym plikiem. Listener urządzeń
+przyjmuje dla `GatewayService` do 42 MiB na komunikat, z zapasem na pola protobuf.
+Web i desktop mieszczą się w domyślnym limicie ciała żądania BFF (`50M`).
 
 **Notatka platformy.** Gateway składa wejście tury przy przyjęciu wiadomości: `input_text` = notatka + pusta linia + wiadomość (sama notatka, gdy tekstu nie ma), `platform_note` = notatka, `message_text` = wiadomość. UI bierze notatkę i wiadomość osobno (`platform_note`, `message_text`); z cytatami notatka ma też ich blok (niżej, „Cytaty”):
 

@@ -1,3 +1,5 @@
+import { ui } from "@canopy/contracts";
+import { MAX_ATTACHMENT_RPC_BYTES } from "@canopy/domain";
 import { mobileClient } from "./client";
 import { routeFailure } from "./route-diagnostics";
 import { ProbeError } from "./route-probe";
@@ -6,6 +8,8 @@ import { observeResponse } from "./stream-response";
 import { MobileDeparture, plannedDeparture } from "./departure";
 
 export { ProbeError } from "./route-probe";
+
+const ATTACHMENT_PATH = `/${ui.GatewayService.typeName}/${ui.GatewayService.method.getAttachment.name}`;
 
 export interface MobileConnection {
   fingerprint: string;
@@ -71,6 +75,7 @@ export function routedMobileClient(options: {
             selector.failedRequest(route, routeFailure(error instanceof ProbeError ? error.code : ""), started);
         },
         succeeded,
+        source.pathname === ATTACHMENT_PATH ? MAX_ATTACHMENT_RPC_BYTES : undefined,
       );
     } catch (error) {
       // A caller canceling a read must not demote a healthy route shared with other requests.
