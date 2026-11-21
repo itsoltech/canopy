@@ -51,16 +51,22 @@ const WORKTREE_REFUSALS = new Map([
 
 const CLEANUP_INCOMPLETE = " Canopy could not finish cleanup. Check the worktree and branch before retrying.";
 
+const CHECKOUT_TIMEOUT_DETAIL =
+  /^Git timed out after \d{1,10}(?:\.\d{1,3})? s while creating the worktree\. The limit was \d{1,10}(?:\.\d{1,3})? s\.$/;
+
 function spawnWorktreeRefusal(cause: unknown): string | undefined {
   if (cause instanceof WorkerQueryError) {
     // Before workers distinguished the limits, this code covered both.
     if (cause.code === "GIT_TIMEOUT" && cause.message === "git exceeded its time or output limit")
       return "Git exceeded its time or output limit while creating the worktree.";
 
-    const reason = WORKTREE_REFUSALS.get(cause.code) ?? "Could not create a worktree.";
+    const cleanup = cause.message.endsWith(CLEANUP_INCOMPLETE) ? CLEANUP_INCOMPLETE : "";
+    const detail = cause.message.slice(0, cause.message.length - cleanup.length);
 
-    // Older workers can return raw Git output. Only a fixed cleanup notice may accompany the mapped reason.
-    return cause.message.endsWith(CLEANUP_INCOMPLETE) ? reason + CLEANUP_INCOMPLETE : reason;
+    // Older workers can return raw Git output. Only accept the fixed message with numeric timing.
+    if (cause.code === "GIT_TIMEOUT" && CHECKOUT_TIMEOUT_DETAIL.exec(detail)?.[0] === detail) return detail + cleanup;
+
+    return (WORKTREE_REFUSALS.get(cause.code) ?? "Could not create a worktree.") + cleanup;
   }
 
   if (cause instanceof UnavailableError) return "The worker is offline. Reconnect it to create a worktree.";

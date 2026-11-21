@@ -16,6 +16,8 @@ const LEGACY_WORKTREE_ADD_TIMEOUT_MS = 60_000;
 export const WORKTREE_CLEANUP_WARNING =
   "Canopy could not finish cleanup. Check the worktree and branch before retrying.";
 
+const seconds = new Intl.NumberFormat("en", { maximumFractionDigits: 3, useGrouping: false });
+
 /** Use Git for checkout and hooks. Reflog intent and an attempt-specific lock make rollback verifiable. */
 export async function addWorktree(
   repo: string,
@@ -42,7 +44,24 @@ export async function addWorktree(
       ["worktree", "add", "--quiet", "--lock", "--reason", marker, "--no-guess-remote", "--", tree.path, tree.branch],
       timeoutMs,
       { finishAfterAdmission: true },
-    );
+    ).catch((error: Error) => {
+      if (
+        error instanceof GitError &&
+        error.code === "GIT_TIMEOUT" &&
+        error.cause instanceof ProcessTimeoutError &&
+        error.cause.timing
+      ) {
+        const { elapsedMs, limitMs } = error.cause.timing;
+
+        throw new GitError(
+          error.code,
+          `Git timed out after ${seconds.format(elapsedMs / 1000)} s while creating the worktree. The limit was ${seconds.format(limitMs / 1000)} s.`,
+          { cause: error.cause },
+        );
+      }
+
+      throw error;
+    });
 
     if (!checkout.ok)
       throw new GitError(

@@ -1,4 +1,4 @@
-import { afterAll, beforeAll, describe, expect, test } from "bun:test";
+import { afterAll, beforeAll, describe, expect, spyOn, test } from "bun:test";
 import { mkdirSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { create } from "@bufbuild/protobuf";
@@ -8,6 +8,7 @@ import { tempDir } from "@canopy/testing";
 import { nodeRef } from "@canopy/domain/computers";
 import { GatewayStore } from "@canopy/gateway/store";
 import { settleInterruptedWorktreePreparations } from "../../apps/gateway/src/core/worktree-preparation.ts";
+import * as worktreeCheckout from "../../apps/worker/src/git/add-worktree.ts";
 import { worktreeFixture, git } from "./support/worktrees.ts";
 import { eventually } from "./support/gateway.ts";
 import { linkedProjectFixture } from "./support/linked-projects.ts";
@@ -152,6 +153,57 @@ describe.skipIf(!dockerAvailable)("thread preparation progress through real work
     const thread = result.threads.find((entry) => entry.preparationRequestId === input.clientRequestId);
     expect(thread).toMatchObject({ status: "failed", statusDetail: failed.at(-1)?.detail, cwd: "" });
   }, 20_000);
+
+  test.skipIf(process.platform === "win32")(
+    "checkout timeout details reach the UI stream, saved failure and spawn_thread",
+    async () => {
+      const parent = await f.tree();
+      const hooks = join(dir, "slow-checkout-hooks");
+      mkdirSync(hooks);
+      writeFileSync(join(hooks, "post-checkout"), "#!/bin/sh\nsleep 30\n", { mode: 0o755 });
+      git(f.repo, "config", "core.hooksPath", hooks);
+      const addWorktree = worktreeCheckout.addWorktree;
+
+      const checkout = spyOn(worktreeCheckout, "addWorktree").mockImplementation((repo, tree) =>
+        addWorktree(repo, tree, 1500),
+      );
+
+      const input = request();
+      const timing = /^Git timed out after \d+(?:\.\d{1,3})? s while creating the worktree\. The limit was 1\.5 s\.$/;
+
+      try {
+        const events = await Array.fromAsync(f.gw.api.createThreadWithProgress(input));
+        const failure = events.at(-1);
+        expect(failure).toMatchObject({
+          step: "create_worktree",
+          status: "failed",
+          detail: expect.stringMatching(timing),
+        });
+        expect(events.some((event) => event.thread)).toBe(false);
+        const { threads } = await f.gw.api.listThreads({ projectId: f.project.id });
+        expect(threads.find((thread) => thread.preparationRequestId === input.clientRequestId)).toMatchObject({
+          status: "failed",
+          statusDetail: failure?.detail,
+          cwd: "",
+        });
+
+        const result = await f.callTool(parent.id, {
+          title: "Time out a side thread",
+          prompt: "Check the checkout",
+          workspace_mode: "new_worktree",
+          notify: false,
+        });
+
+        expect(result.isError).toBe(true);
+        expect(result.content).toMatch(timing);
+        expect(result.resultJson).toBe(JSON.stringify({ error: result.content }));
+      } finally {
+        checkout.mockRestore();
+        git(f.repo, "config", "--unset", "core.hooksPath");
+      }
+    },
+    15_000,
+  );
 
   test("Git output overflow fails the checkout step and a retry uses the original branch name", async () => {
     const hooks = join(dir, "noisy-checkout-hooks");
