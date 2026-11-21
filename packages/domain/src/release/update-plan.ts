@@ -147,6 +147,20 @@ export const plannedUpdateRun = (snapshot: ui.UpdatesSnapshot, id: string): ui.U
 export const bulkUpdatesAvailable = (snapshot: ui.UpdatesSnapshot): boolean =>
   bulkUpdateSteps(snapshot).some((step) => step.state === "queued");
 
+/** Newer releases for this gateway or its workers that need an external installer. */
+export function externalUpdatesAvailable(snapshot: ui.UpdatesSnapshot): boolean {
+  return (
+    (!snapshot.gatewayBundled && snapshot.gatewayInstallKind !== "binary" && snapshot.gatewayUpdateAvailable) ||
+    snapshot.workers.some(
+      (worker) =>
+        !worker.bundled &&
+        worker.installKind !== "binary" &&
+        worker.installKind !== "desktop" &&
+        newerAppVersion(snapshot.gatewayVersion, worker.version),
+    )
+  );
+}
+
 /** Canopy's part of a result saved or returned by a gateway that also planned CLI installs. */
 export function canopyUpdateRun(run: ui.UpdateRun | undefined): ui.UpdateRun | undefined {
   if (!run?.steps.length) return undefined;

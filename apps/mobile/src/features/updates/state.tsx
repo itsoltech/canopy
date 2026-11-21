@@ -1,12 +1,12 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
-import { ConnectError } from "@connectrpc/connect";
+import { Code, ConnectError } from "@connectrpc/connect";
 import type { ui } from "@canopy/contracts";
 import { useSession } from "../../state/session";
 import { updatesRunning, type UpdateRequest } from "./model";
 import { useOverview } from "../../state/overview";
 import { confirmAppUpdate } from "./confirmation";
 import { useUpdateNotices } from "./use-update-notices";
-import { plannedUpdateRun } from "@canopy/domain/release/update-plan";
+import { bulkUpdatesAvailable, plannedUpdateRun } from "@canopy/domain/release/update-plan";
 import { canopyUpdateAction, canopyUpdateSnapshot, updateGatewayMessage } from "@canopy/domain/release/update-actions";
 import { furthestStatus, runStatuses, updateTargetKey, type UpdateStatus } from "@canopy/domain/release/update-status";
 
@@ -70,45 +70,16 @@ function useUpdateGeneration() {
   return generation;
 }
 
-function useUpdatesState() {
+function useUpdatePolling({
+  reload,
+  open,
+  busy,
+}: {
+  reload: (signal: AbortSignal) => Promise<ui.UpdatesSnapshot | undefined>;
+  open: boolean;
+  busy: boolean;
+}) {
   const { client, active, online } = useSession();
-  const overview = useOverview();
-  const [snapshot, setSnapshot] = useState<ui.UpdatesSnapshot>();
-  const [open, setOpen] = useState(false);
-  const [pending, setPending] = useState("");
-  const [optimistic, setOptimistic] = useState<Optimistic>();
-  const [error, setError] = useState("");
-  const [details, setDetails] = useState("");
-  const [loadError, setLoadError] = useState("");
-  const running = useRef(false);
-  const snapshotRevision = useRef(0);
-  const generation = useUpdateGeneration();
-
-  const reload = useCallback(
-    async (signal?: AbortSignal) => {
-      if (!client) return;
-      const current = generation.current;
-      const revision = snapshotRevision.current;
-
-      try {
-        const value = await client.api.getUpdates({}, { ...(signal && { signal }), timeoutMs: 10_000 });
-
-        if (current === generation.current && revision === snapshotRevision.current && !signal?.aborted) {
-          setSnapshot(canopyUpdateSnapshot(value));
-          setLoadError("");
-          client.departure.reconcile(value);
-        }
-      } catch {
-        if (current === generation.current && !signal?.aborted)
-          setLoadError("Could not load updates. Check the connection and retry.");
-      }
-    },
-    [client],
-  );
-
-  const rows = useRunRows(snapshot, optimistic, pending);
-  // While an action is pending, reads keep going so its progress shows as soon as it starts.
-  const busy = !!pending || (!!snapshot && updatesRunning(snapshot));
   const { pushed, nudge } = useUpdateNotices(active, online);
 
   useEffect(() => {
@@ -131,6 +102,51 @@ function useUpdatesState() {
       clearTimeout(timer);
     };
   }, [client, active, online, reload, open, busy, pushed, nudge]);
+}
+
+function useUpdatesState() {
+  const { client } = useSession();
+  const overview = useOverview();
+  const [snapshot, setSnapshot] = useState<ui.UpdatesSnapshot>();
+  const [open, setOpen] = useState(false);
+  const [pending, setPending] = useState("");
+  const [optimistic, setOptimistic] = useState<Optimistic>();
+  const [error, setError] = useState("");
+  const [details, setDetails] = useState("");
+  const [loadError, setLoadError] = useState("");
+  const running = useRef(false);
+  const snapshotRevision = useRef(0);
+  const generation = useUpdateGeneration();
+
+  const reload = useCallback(
+    async (signal?: AbortSignal) => {
+      if (!client) return;
+      const current = generation.current;
+      const revision = snapshotRevision.current;
+
+      try {
+        const value = await client.api.getUpdates({}, { ...(signal && { signal }), timeoutMs: 10_000 });
+
+        if (current === generation.current && revision === snapshotRevision.current && !signal?.aborted) {
+          const next = canopyUpdateSnapshot(value);
+          setSnapshot(next);
+          setLoadError("");
+          client.departure.reconcile(value);
+
+          return next;
+        }
+      } catch {
+        if (current === generation.current && !signal?.aborted)
+          setLoadError("Could not load updates. Check the connection and retry.");
+      }
+    },
+    [client],
+  );
+
+  const rows = useRunRows(snapshot, optimistic, pending);
+  // While an action is pending, reads keep going so its progress shows as soon as it starts.
+  const busy = !!pending || (!!snapshot && updatesRunning(snapshot));
+  useUpdatePolling({ reload, open, busy });
 
   /** `target`: the row the action belongs to (`updateTargetKey`), shown as Starting until the answer arrives. */
   async function manage(request: UpdateRequest, target = "") {
@@ -173,13 +189,29 @@ function useUpdatesState() {
 
       await reload();
     } catch (cause) {
+      const failure = ConnectError.from(cause);
+
+      // Older gateways report an empty plan with these same words.
+      const emptyPlan =
+        request.action === "update_all" &&
+        failure.code === Code.FailedPrecondition &&
+        failure.rawMessage.startsWith("No updates Canopy can install");
+
+      if (emptyPlan && current === generation.current) {
+        snapshotRevision.current++;
+        const refreshed = await reload();
+
+        if (refreshed && !bulkUpdatesAvailable(refreshed)) return;
+      }
+
       if (current === generation.current) {
-        const message = ConnectError.from(cause).rawMessage;
         setError(
-          updateGatewayMessage(action, message) ||
-            "Canopy could not finish this update action. Check the connection and retry.",
+          emptyPlan
+            ? failure.rawMessage
+            : updateGatewayMessage(action, failure.rawMessage) ||
+                "Canopy could not finish this update action. Check the connection and retry.",
         );
-        setDetails(message);
+        setDetails(emptyPlan ? "" : failure.rawMessage);
       }
     } finally {
       if (current === generation.current) {

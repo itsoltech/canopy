@@ -2,7 +2,7 @@ import type { ui } from "@canopy/contracts";
 import type { DesktopUpdateStatus } from "@canopy/ui/desktop";
 import { updateBusy } from "./updates.svelte.ts";
 
-export { bulkUpdatesAvailable as updatesAvailable } from "@canopy/domain/release/update-plan";
+export { bulkUpdatesAvailable as updatesAvailable, externalUpdatesAvailable } from "@canopy/domain/release/update-plan";
 
 export function workerCurrent(worker: ui.WorkerUpdate, gatewayVersion: string): boolean {
   if (worker.desktop) {
@@ -44,14 +44,3 @@ export const gatewayCurrent = (snapshot: ui.UpdatesSnapshot): boolean =>
 /** Workers with their own row: the desktop app's bundled worker is part of "This Canopy app". */
 export const listedWorkers = (snapshot: ui.UpdatesSnapshot): ui.WorkerUpdate[] =>
   snapshot.workers.filter((worker) => !worker.bundled);
-
-export const externalUpdatesAvailable = (snapshot: ui.UpdatesSnapshot): boolean =>
-  (!snapshot.gatewayBundled && snapshot.gatewayInstallKind !== "binary" && snapshot.gatewayUpdateAvailable) ||
-  listedWorkers(snapshot).some(
-    (worker) =>
-      worker.installKind !== "binary" &&
-      !worker.desktop &&
-      !!worker.version &&
-      worker.version !== snapshot.gatewayVersion &&
-      worker.state !== "ahead",
-  );
