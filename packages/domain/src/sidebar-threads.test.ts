@@ -73,6 +73,29 @@ describe("shared sidebar trees", () => {
     expect(sidebarChildren(filtered.sides.get("parent") ?? [], new Set(ids(filtered.roots))).sides.active).toEqual([]);
   });
 
+  test("snoozed trees and independently snoozed sides stay out of inbox sections and remain searchable", () => {
+    const rows = [
+      thread("sleeping", { snoozed: true }),
+      thread("pinned-review", { parentThreadId: "sleeping", pendingInteractions: 1, status: "waiting_input" }),
+      thread("active", { status: "running" }),
+      thread("quiet-side", { parentThreadId: "active", snoozed: true, unseenResult: "completed" }),
+      thread("archived", { status: "archived", snoozed: true }),
+    ];
+
+    const prefs = settings({ pinnedThreadIds: ["pinned-review"], workingSection: true, groupByProject: true });
+    const filtered = sidebarThreads(rows, prefs, "", projectName);
+
+    expect(ids(filtered.roots)).toEqual(["active"]);
+    expect(new Set(ids(filtered.snoozed))).toEqual(new Set(["sleeping", "quiet-side"]));
+    expect(ids(filtered.snoozedSides.get("sleeping") ?? [])).toEqual(["pinned-review"]);
+    expect(sidebarEntries(filtered, prefs, [], true).map((entry) => entry.heading ?? entry.thread?.id)).toEqual([
+      "Working (1)",
+      "active",
+    ]);
+    expect(ids(sidebarThreads(rows, prefs, "review", projectName).snoozed)).toEqual(["sleeping"]);
+    expect(ids(sidebarThreads(rows, prefs, "quiet", projectName).snoozed)).toEqual(["quiet-side"]);
+  });
+
   test("only questions routed to the user surface on the parent, once per subagent", () => {
     const rows = [
       thread("parent", { status: "running" }),

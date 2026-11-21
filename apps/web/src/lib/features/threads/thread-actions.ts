@@ -8,6 +8,8 @@ export type ThreadActionId =
   | "rename"
   | "regenerate"
   | "read"
+  | "snooze"
+  | "wake"
   | "reveal"
   | "filter"
   | "settings"
@@ -56,6 +58,17 @@ export function threadActions(
       icon: "chat-bubble-left",
       group: 1,
     },
+    ...(!archived && !thread.spawnedByAgent
+      ? [
+          {
+            id: "snooze" as const,
+            label: thread.snoozed ? "Change snooze…" : "Snooze…",
+            icon: "moon" as const,
+            group: 1,
+          },
+          ...(thread.snoozed ? [{ id: "wake" as const, label: "Wake thread", icon: "sun" as const, group: 1 }] : []),
+        ]
+      : []),
     // This computer's file manager opens the thread's directory (worktree or checkout).
     ...(local && thread.cwd
       ? [{ id: "reveal" as const, label: openFolderLabel(os), icon: "folder" as const, group: 2 }]

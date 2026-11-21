@@ -19,8 +19,14 @@ export async function coreBroadcastThread(hostContext: GatewayCore, threadId: st
 
   if ((row.archived_at || row.deleted_at) && row.goal_status === "paused")
     await coreBroadcastGoal(hostContext, threadId);
-  const thread = coreUiThread(hostContext, row);
-  hostContext.hub.publishThread(threadId, create(ui.ThreadUpdateSchema, { change: { case: "thread", value: thread } }));
+  corePublishThreadHeader(hostContext, coreUiThread(hostContext, row));
+}
+
+export function corePublishThreadHeader(hostContext: GatewayCore, thread: ui.Thread): void {
+  hostContext.hub.publishThread(
+    thread.id,
+    create(ui.ThreadUpdateSchema, { change: { case: "thread", value: thread } }),
+  );
   hostContext.hub.publishOverview(create(ui.OverviewUpdateSchema, { change: { case: "thread", value: thread } }));
 }
 

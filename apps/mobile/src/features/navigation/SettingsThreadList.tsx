@@ -13,6 +13,7 @@ import { useMotion } from "../../ui/motion";
 import { SidebarThreadTreeRow } from "./SidebarThreadTree";
 import type { useSidebarThreads } from "./useSidebarThreads";
 import { SidebarArchivedHeader, SidebarArchivedStatus, useArchivedThreads } from "./SidebarArchivedThreads";
+import { SidebarSnoozedHeader, useSnoozedThreads } from "./SidebarSnoozedThreads";
 import { GestureDetector, GestureHandlerRootView } from "react-native-gesture-handler";
 import { useSidebarOrder } from "./sidebar-order";
 import { SidebarDragContext, useSidebarDrag, type SidebarListEntry } from "./sidebar-drag";
@@ -54,6 +55,7 @@ export function SettingsThreadList({
   );
 
   const archive = useArchivedThreads(navigation);
+  const snoozed = useSnoozedThreads(navigation);
   const active = visible.map((entry) => ({ ...entry, section: "active" as const }));
 
   const archived = archive.visible
@@ -76,7 +78,8 @@ export function SettingsThreadList({
 
   const data: SidebarListEntry[] = [
     ...active,
-    ...(!active.length ? [{ key: "empty", section: "empty" as const }] : []),
+    ...(!active.length && !snoozed.count ? [{ key: "empty", section: "empty" as const }] : []),
+    ...snoozed.entries,
     ...archived,
   ];
 
@@ -116,7 +119,7 @@ export function SettingsThreadList({
                   <Animated.View entering={arrival(item.key)} exiting={rise.exiting}>
                     <SidebarNesting depth={item.depth}>
                       <SidebarListEntryView
-                        {...{ item, navigation, archive, rootIds, projects, workers, empty, workingOpen }}
+                        {...{ item, navigation, archive, snoozed, rootIds, projects, workers, empty, workingOpen }}
                         onWorking={() => setWorkingOpen(!workingOpen)}
                       />
                     </SidebarNesting>
@@ -136,6 +139,7 @@ function SidebarListEntryView({
   item,
   navigation,
   archive,
+  snoozed,
   rootIds,
   projects,
   workers,
@@ -146,6 +150,7 @@ function SidebarListEntryView({
   item: SidebarListEntry;
   navigation: ReturnType<typeof useSidebarThreads>;
   archive: ReturnType<typeof useArchivedThreads>;
+  snoozed: ReturnType<typeof useSnoozedThreads>;
   rootIds: ReadonlySet<string>;
   projects: ui.Project[];
   workers: ui.Worker[];
@@ -162,6 +167,8 @@ function SidebarListEntryView({
 
   if (item.section === "status") return <SidebarArchivedStatus archive={archive} />;
 
+  if (item.section === "snoozed" && !item.thread) return <SidebarSnoozedHeader snoozed={snoozed} />;
+
   if (item.section === "archived" && item.thread)
     return (
       <SidebarThreadTreeRow
@@ -174,20 +181,25 @@ function SidebarListEntryView({
       />
     );
 
-  if (item.thread)
+  if (item.thread) {
+    const sleeping = item.section === "snoozed";
+    const children = sleeping ? filtered.snoozedSides : filtered.sides;
+
     return (
       <SidebarThreadTreeRow
         thread={item.thread}
         groupedProject={item.groupedProject}
         groupedWorktree={item.depth === 2}
-        sideThreads={filtered.sides.get(item.thread.id) ?? []}
-        rootIds={rootIds}
+        sideThreads={children.get(item.thread.id) ?? []}
+        rootIds={sleeping ? undefined : rootIds}
+        showSides={sleeping && snoozed.searching}
         current={current}
         projects={projects}
         workers={workers}
-        reorder={navigation.sortMode === "custom" && !item.thread.nodeId}
+        reorder={!sleeping && navigation.sortMode === "custom" && !item.thread.nodeId}
       />
     );
+  }
 
   if (item.groupKind)
     return (

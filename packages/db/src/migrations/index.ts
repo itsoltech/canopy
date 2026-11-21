@@ -15,6 +15,7 @@ import verifiedComputerRedirects from "./0182_verified_computer_redirects.sql" w
 import legacyInlinePreviews from "./0183_legacy_inline_previews.sql" with { type: "text" };
 import legacyPreviewGrants from "./0184_legacy_preview_grants.sql" with { type: "text" };
 import workerOomRecovery from "./0186_worker_oom_recovery.sql" with { type: "text" };
+import threadSnooze from "./0187_thread_snooze.sql" with { type: "text" };
 import transcriptStructuredRawRefs from "./0185_transcript_structured_raw_refs.sql" with { type: "text" };
 import githubPrProjection from "./0177_github_pr_projection.sql" with { type: "text" };
 import messageDelegatingBot from "./0176_message_delegating_bot.sql" with { type: "text" };
@@ -386,6 +387,7 @@ export const migrations = Migrator.fromRecord({
   "0184_legacy_preview_grants": sqlFile(legacyPreviewGrants),
   "0185_transcript_structured_raw_refs": sqlFile(transcriptStructuredRawRefs),
   "0186_worker_oom_recovery": sqlFile(workerOomRecovery),
+  "0187_thread_snooze": sqlFile(threadSnooze),
 });
 
 /** Applies pending migrations in a transaction with a lock, safe to call from a deploy step. */

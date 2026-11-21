@@ -81,6 +81,8 @@ export interface ThreadRow {
   archived_by_thread_id?: string | null;
   archived_by_thread_title?: string | null;
   deleted_at?: Date | null;
+  snoozed?: boolean;
+  snoozed_until?: Date | null;
   marked_unread?: boolean;
   pending_interactions?: bigint | number;
   has_pending_requests?: boolean;

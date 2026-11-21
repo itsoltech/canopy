@@ -6,7 +6,14 @@ import { eventually, type TestGateway } from "./gateway.ts";
 const sql = <A extends object>(gw: TestGateway, text: string, params: unknown[]) =>
   gw.core.computers!.store.query<A>(text, params);
 
-export async function thread(gw: TestGateway, project: string, workspace: string, title: string, message: string) {
+export async function thread(
+  gw: TestGateway,
+  project: string,
+  workspace: string,
+  title: string,
+  message: string,
+  parentThreadId = "",
+) {
   const created = (
     await gw.api.createThread({
       projectId: project,
@@ -15,6 +22,7 @@ export async function thread(gw: TestGateway, project: string, workspace: string
       provider: Provider.CODEX,
       permissionMode: PermissionMode.ASK,
       initialMessage: message,
+      parentThreadId,
       clientRequestId: crypto.randomUUID(),
     })
   ).thread!.id;

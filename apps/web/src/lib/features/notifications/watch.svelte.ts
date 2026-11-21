@@ -1,4 +1,5 @@
 import { untrack } from "svelte";
+import { isThreadSnoozed } from "@canopy/domain/thread-snooze";
 import type { SettingsState } from "#lib/features/settings/settings-state.svelte.ts";
 import { botList } from "#lib/features/bots/bot-list.svelte.ts";
 import type { OverviewState } from "#lib/features/overview/overview-state.svelte.ts";
@@ -31,9 +32,14 @@ export function watchNotifications(
     )
       return;
     const thread = update.change.value;
-    const event = notificationEvent(overview.threads.get(thread.id), thread);
+    const before = overview.threads.get(thread.id);
 
-    if (event) void deliver(threadNotice(overview, thread, event), currentPath());
+    // Both sides of the transition matter. In particular, a wake must not deliver the current result.
+    if (overview.threadSnoozed(thread.id) || isThreadSnoozed(thread, (id) => overview.threads.get(id))) return;
+    const event = notificationEvent(before, thread);
+
+    if (event)
+      void deliver(threadNotice(overview, thread, event), currentPath(), () => !overview.threadSnoozed(thread.id));
   });
 
   let known: ReadonlyMap<string, BotSeen> | undefined;
@@ -59,8 +65,11 @@ export function watchNotifications(
         for (const bot of list) {
           const event = botEvent(known.get(bot.id), bot, now);
 
-          if (event && (event.kind === "message" || !event.approval.threadId || settings.moduleEnabled("threads")))
-            void deliver(botNotice(bot, event), currentPath());
+          if (!event) continue;
+          const threadId = event.kind === "message" ? "" : event.approval.threadId;
+          const allowed = () => !threadId || (settings.moduleEnabled("threads") && !overview.threadSnoozed(threadId));
+
+          if (untrack(allowed)) void deliver(botNotice(bot, event), currentPath(), allowed);
         }
 
       known = new Map(list.map((bot) => [bot.id, botSeen(known?.get(bot.id), bot)]));

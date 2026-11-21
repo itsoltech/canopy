@@ -1,6 +1,7 @@
 # API dla UI i architektura frontendu
 
-Status (2026-11-21): web, desktop i mobile obsługują załączniki do 40 MiB na plik po zmianie ustawienia.
+Status (2026-11-21): web, desktop i mobile obsługują usypianie wątków oraz załączniki
+do 40 MiB na plik po zmianie ustawienia.
 Klienci utrzymują strumień wątku przy dołączaniu
 starszej strony z aktualnego checkpointu sekwencyjnego. Gateway obsługuje osobną
 subskrypcję oczekujących żądań subagenta.
@@ -1561,6 +1562,15 @@ subagentów oraz wcześniejszych tur wątków, które już pracują ponownie. Py
 mają pierwszeństwo; wynik zakończonego wątku głównego lub bocznego użytkownika nadal
 wyłącza drzewo z Working, także przy samych zadaniach w tle. Licznik Working obejmuje
 wyłącznie drzewa w tej sekcji; przypięte pozostają w Pinned.
+
+`SetThreadSnooze` przyjmuje `thread_id`, `snoozed` i opcjonalny `snoozed_until`.
+`snoozed = false` wybudza wątek, a `snoozed = true` bez terminu usypia bezterminowo.
+Gateway sprawdza właściciela i przyszły termin oraz publikuje zmianę w `WatchOverview`
+i strumieniu wątku przy zapisie i automatycznym wybudzeniu. Web/desktop używa
+`POST /api/threads/:threadId/snooze` z polami `snoozed` i opcjonalnym `snoozedUntil`
+w formacie ISO 8601. Natywny mobile wysyła RPC przez Connect. `Thread.snoozed`
+i `Thread.snoozed_until` są częścią metadanych. Klient wylicza z nich sekcję
+**Snoozed** i uwzględnia stan rodziców przy rysowaniu list i dostarczaniu alertów.
 
 Lineage w panelu szczegółów pozostawia wątki boczne użytkownika widoczne. Subagenci mają jeden
 domyślnie zwinięty nagłówek „Subagents” z licznikami pracujących, oczekujących na odpowiedź

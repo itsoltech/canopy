@@ -11,6 +11,9 @@ import { watchSequenceThread } from "../core/sequence-thread-watch.ts";
 import { watchThreadRequests } from "../core/thread-request-watch.ts";
 import { rewindHandlers } from "./ui-rewinds.ts";
 
+const threadResponse = (load: () => Promise<ui.Thread>) =>
+  guard(async () => create(ui.GetThreadResponseSchema, { thread: await load() }));
+
 export function threadsHandlers(
   core: GatewayCore,
 ): Pick<
@@ -34,6 +37,7 @@ export function threadsHandlers(
   | "markThreadSeen"
   | "setThreadRead"
   | "setThreadArchived"
+  | "setThreadSnooze"
   | "deleteThread"
   | "restoreThread"
   | "prepareThreadRewind"
@@ -43,8 +47,7 @@ export function threadsHandlers(
 > {
   return {
     ...rewindHandlers(core),
-    reorderThread: (request) =>
-      guard(async () => create(ui.GetThreadResponseSchema, { thread: await core.reorderThread(request) })),
+    reorderThread: (request) => threadResponse(() => core.reorderThread(request)),
     listThreads: (request) =>
       guard(async () =>
         create(ui.ListThreadsResponseSchema, {
@@ -54,8 +57,7 @@ export function threadsHandlers(
 
     listArchivedThreads: (request) => guard(() => core.listArchivedThreads(request)),
 
-    getThread: (request) =>
-      guard(async () => create(ui.GetThreadResponseSchema, { thread: await core.getThread(request.threadId) })),
+    getThread: (request) => threadResponse(() => core.getThread(request.threadId)),
 
     createThread: (request) =>
       guard(async () =>
@@ -140,12 +142,9 @@ export function threadsHandlers(
         create(ui.MarkThreadSeenResponseSchema, { thread: await core.setThreadRead(request.threadId, request.unread) }),
       ),
 
-    setThreadArchived: (request) =>
-      guard(async () =>
-        create(ui.GetThreadResponseSchema, {
-          thread: await core.setThreadArchived(request.threadId, request.archived),
-        }),
-      ),
+    setThreadArchived: (request) => threadResponse(() => core.setThreadArchived(request.threadId, request.archived)),
+
+    setThreadSnooze: (request) => threadResponse(() => core.snoozes.set(request)),
 
     deleteThread: (request) =>
       guard(async () =>

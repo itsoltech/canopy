@@ -1,6 +1,7 @@
 # Powiadomienia wątków i botów
 
-Status (2026-11-18): web/desktop wysyła powiadomienia tylko z włączonych modułów.
+Status (2026-11-21): uśpione wątki są wyciszone w web/desktop i mobile.
+Web/desktop wysyła powiadomienia tylko z włączonych modułów.
 Powiadomienia wątków obejmują
 tylko wątki główne i wątki boczne użytkownika. Toasty są kartami w prawym dolnym
 rogu, z osobnym nagłówkiem zdarzenia, nazwą i akcją pod treścią oraz większą ikoną
@@ -63,6 +64,9 @@ z zapisanej rozmowy.
   Subagenci (`Thread.spawned_by_agent = true`) nie generują toastów, alertów
   systemowych ani dźwięku — także przy błędzie, zatrzymaniu lub pytaniu skierowanym
   do człowieka. Ich wyniki i oczekujące interakcje pozostają widoczne w wątku rodzica.
+  Uśpiony wątek i jego wątki boczne nie pokazują alertów ani toastów i nie odtwarzają
+  dźwięku. Wybudzenie nie odtwarza zdarzeń z okresu uśpienia. Zachowany stan odczytu
+  i oczekujące interakcje są widoczne po otwarciu wątku. [Usypianie](threads.md#usypianie)
 - **Boty** idą ze wspólnej listy botów (odświeżanej co 5 s i po `bots-changed`).
   Pierwsza lista jest bazą. Alarmuje nowa karta (późniejsza niż znana) albo wiadomość
   o wyższym `seq` od bota do użytkownika. Zdarzenia starsze niż 10 min to historia,
