@@ -284,9 +284,10 @@ describe.skipIf(!dockerAvailable)("paired client updates its gateway's own deskt
     phone = paired();
     app = new LocalApp(gateway, journal, "1.1.0", "1.1.0");
     await until(async () => (await phone.getUpdates({})).app?.phase === "succeeded");
+    const pending = departure.snapshot();
     const recovered = await phone.getUpdates({});
     expect(recovered.app).toMatchObject({ requestId, version: "1.1.0", phase: "succeeded" });
-    departure.reconcile(recovered);
+    departure.reconcile(recovered, pending);
     expect(departure.snapshot()?.state).toBe("succeeded");
     expect(app.checks).toBe(0);
     const audit = await query("SELECT details FROM audit_log WHERE action = 'desktop.update.outcome'", []);

@@ -3,6 +3,7 @@ import type { ui } from "@canopy/contracts";
 import { useSession } from "./session";
 import { useStream } from "./stream";
 import { OverviewInvalidation } from "@canopy/domain/shared-query-events";
+import { plannedDeparture } from "../api/departure";
 
 type Listener = (update: ui.OverviewUpdate) => void;
 
@@ -31,6 +32,8 @@ function useOverviewBusState() {
 
       if (change.case === "threadHeads") heads.current = change.value.heads;
 
+      if (change.case === "gatewayDeparture") client?.departure.receive(change.value);
+
       if (change.case === "thread" && change.value.deletedAt) drafts?.removeThread(change.value.id);
 
       for (const listener of listeners.current) listener(update);
@@ -39,6 +42,14 @@ function useOverviewBusState() {
 
       // A snapshot after a resubscription means the stream had a gap: shared reads are stale once.
       if (change.case === "mobileSnapshot") {
+        const departure = client?.departure.snapshot();
+
+        if (client && plannedDeparture(departure))
+          void client.api
+            .getUpdates({}, { timeoutMs: 10_000 })
+            .then((snapshot) => client.departure.reconcile(snapshot, departure))
+            .catch(() => {});
+
         const gap = snapshots.current++ > 0;
         invalidation.synced(change.value.overview?.workers ?? [], change.value.threads, gap);
 
