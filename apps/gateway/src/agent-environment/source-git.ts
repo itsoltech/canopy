@@ -1,49 +1,18 @@
 import { spawn } from "node:child_process";
 import { processGovernor, killProcessTree } from "@canopy/process-governor";
-import { lookup } from "node:dns/promises";
 import { mkdtemp, readdir, rm, stat } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { isIP } from "node:net";
 import { create } from "@bufbuild/protobuf";
 import { SkillFileSchema, type ui } from "@canopy/contracts";
 import { checkSkillPath, SKILL_FILE_BYTES, SKILL_TOTAL_BYTES } from "@canopy/domain/skill-artifact";
 import { sourceInvalid } from "./source-command.ts";
+import { publicSourceAddress } from "./source-address.ts";
 
 export interface SourceTransport {
   signal?: AbortSignal;
   /** Only server bootstrap/test code supplies these. No RPC accepts endpoints or local paths. */
   fixtureRepo?: (url: string) => string | undefined;
-}
-
-function publicAddress(address: string): boolean {
-  if (isIP(address) !== 4) return false; // IPv4-only connections avoid mapped IPv6 and local IPv6 ranges.
-  const [a = 0, b = 0, c = 0] = address.split(".").map(Number);
-
-  return (
-    ![0, 10, 127].includes(a) &&
-    a < 224 &&
-    !(a === 169 && b === 254) &&
-    !(a === 172 && b >= 16 && b <= 31) &&
-    !(a === 192 && (b === 168 || (b === 0 && [0, 2].includes(c)) || (b === 88 && c === 99))) &&
-    !(a === 198 && (b === 18 || b === 19 || (b === 51 && c === 100))) &&
-    !(a === 203 && b === 0 && c === 113) &&
-    !(a === 100 && b >= 64 && b <= 127)
-  );
-}
-
-async function sourceAddresses(hostname: string, signal?: AbortSignal) {
-  const canceled = Promise.withResolvers<never>();
-  const stop = () => canceled.reject(new Error("Source DNS lookup canceled."));
-  signal?.addEventListener("abort", stop, { once: true });
-
-  try {
-    signal?.throwIfAborted();
-
-    return await Promise.race([lookup(hostname, { all: true, family: 4 }), canceled.promise]);
-  } finally {
-    signal?.removeEventListener("abort", stop);
-  }
 }
 
 async function diskBytes(directory: string): Promise<number> {
@@ -205,17 +174,12 @@ export async function readGitSource<A>(
       fixture.startsWith("http://127.0.0.1:") ? "protocol.http.allow=always" : "protocol.file.allow=always",
     );
   else {
-    if (url.protocol !== "https:" || url.username || url.password)
-      sourceInvalid("Use an HTTPS source without credentials in its URL.");
-    const addresses = await sourceAddresses(url.hostname, transport.signal);
-
-    if (!addresses.length || addresses.some((a) => !publicAddress(a.address)))
-      sourceInvalid("Sources must resolve to public addresses.");
+    const address = await publicSourceAddress(url, transport.signal);
     config.push(
       "-c",
       "protocol.https.allow=always",
       "-c",
-      `http.curloptResolve=${url.hostname}:${url.port || "443"}:${addresses[0]!.address}`,
+      `http.curloptResolve=${url.hostname}:${url.port || "443"}:${address}`,
     );
   }
 

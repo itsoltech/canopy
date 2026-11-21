@@ -37,6 +37,7 @@ export const Source = Schema.Struct({
   ref: Schema.String,
   path: Schema.String,
   credentialAccountId: Schema.String,
+  wellKnown: Schema.optional(Schema.Boolean),
 });
 
 export const isSource = Schema.is(Source);
@@ -44,7 +45,13 @@ export const isSource = Schema.is(Source);
 /** A received source as plain fields; undefined when the value is not a source. */
 export const sourceOf = (value: JsonValue | undefined) =>
   isSource(value)
-    ? { url: value.url, ref: value.ref, path: value.path, credentialAccountId: value.credentialAccountId }
+    ? {
+        url: value.url,
+        ref: value.ref,
+        path: value.path,
+        credentialAccountId: value.credentialAccountId,
+        wellKnown: value.wellKnown ?? false,
+      }
     : undefined;
 
 export const versionHashes = (values: Values) =>

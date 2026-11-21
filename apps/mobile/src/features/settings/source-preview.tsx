@@ -18,6 +18,13 @@ export function useSourcePreview<T>(kind: SourceKind, existing?: ui.LibrarySkill
   const preview =
     review?.command === command && review.credentialAccountId === credentialAccountId ? review.result : undefined;
 
+  const label =
+    kind === "marketplace"
+      ? "Repository or marketplace command"
+      : existing
+        ? "Source URL"
+        : "URL, Git reference or install command";
+
   return {
     resource,
     request: { command, credentialAccountId },
@@ -26,7 +33,8 @@ export function useSourcePreview<T>(kind: SourceKind, existing?: ui.LibrarySkill
     fields: (
       <>
         <Field
-          label={kind === "skill" ? "Git reference or install command" : "Repository or marketplace command"}
+          label={label}
+          placeholder={kind === "skill" && !existing ? "https://example.com" : undefined}
           value={command}
           onChangeText={setCommand}
           autoCapitalize="none"
@@ -39,7 +47,7 @@ export function useSourcePreview<T>(kind: SourceKind, existing?: ui.LibrarySkill
             value={credentialAccountId}
             onChange={setAccountId}
             options={[
-              { value: "", label: "Public repository" },
+              { value: "", label: kind === "skill" ? "Public source" : "Public repository" },
               ...accounts.map((account) => ({ value: account.id, label: account.name })),
             ]}
           />

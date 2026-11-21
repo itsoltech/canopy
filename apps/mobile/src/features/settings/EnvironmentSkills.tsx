@@ -49,7 +49,7 @@ export function EnvironmentSkills({
   return (
     <ResourceState resource={resource}>
       <SettingsGroup title="Skills" actions={<Button title="Add skill" onPress={() => onAdd("skill")} />}>
-        <Button title="Add from Git" onPress={() => onAdd("source")} />
+        <Button title="Import skill" onPress={() => onAdd("source")} />
         {!!snapshot.skills.length && (
           <>
             <Checkbox
@@ -73,7 +73,10 @@ export function EnvironmentSkills({
           </>
         )}
         {!snapshot.skills.length && (
-          <SettingsRow title="No skills yet" description="Add a skill folder, ZIP or Git source." />
+          <SettingsRow
+            title="No skills yet"
+            description="Add skills from a website, a Git repository, a folder or a ZIP file."
+          />
         )}
         {snapshot.skills.map((skill) => (
           <EnvironmentSkillRow
