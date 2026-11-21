@@ -9,13 +9,20 @@ export type DiffRow = ({ context: string } | { before?: string; after?: string }
 export function diffRows(source: string, hideWhitespace: boolean): DiffRow[] {
   const lines = source.split("\n");
   const anchors = diffAnchors(source);
+  const headerless = source.startsWith("@@");
   const rows: DiffRow[] = [];
   let index = 0;
+
+  const isChange = (at: number, sign: "-" | "+") => {
+    const line = lines[at];
+
+    return line?.startsWith(sign) && (headerless || !line.startsWith(sign.repeat(3)));
+  };
 
   while (index < lines.length) {
     const line = lines[index]!;
 
-    if ((!line.startsWith("-") && !line.startsWith("+")) || line.startsWith("---") || line.startsWith("+++")) {
+    if (!isChange(index, "-") && !isChange(index, "+")) {
       rows.push({ context: line, left: anchors[index], right: anchors[index] });
       index++;
       continue;
@@ -25,10 +32,10 @@ export function diffRows(source: string, hideWhitespace: boolean): DiffRow[] {
     const after: string[] = [];
     const beforeStart = index;
 
-    while (lines[index]?.startsWith("-") && !lines[index]!.startsWith("---")) before.push(lines[index++]!);
+    while (isChange(index, "-")) before.push(lines[index++]!);
     const afterStart = index;
 
-    while (lines[index]?.startsWith("+") && !lines[index]!.startsWith("+++")) after.push(lines[index++]!);
+    while (isChange(index, "+")) after.push(lines[index++]!);
 
     for (let i = 0; i < Math.max(before.length, after.length); i++) {
       const old = before[i];

@@ -78,7 +78,7 @@ export function SkillSourceEditor({
                 value={paths.includes(item.path)}
                 onChange={(on) => setPaths(on ? [...paths, item.path] : paths.filter((p) => p !== item.path))}
               />
-              <EnvironmentFiles artifact={item.artifact} before={skill?.artifact} />
+              <EnvironmentFiles artifact={item.artifact} before={skill?.artifact} reviewUpdate={!!skill} />
             </Fragment>
           ))}
           <Field
