@@ -63,6 +63,7 @@ export class ProcessTimeoutError extends Error {
   constructor(
     readonly reason: "timeout" | "output" | "aborted",
     readonly treeTerminated: boolean,
+    readonly timing?: { limitMs: number; elapsedMs: number },
   ) {
     // Existing callers display this message. Use reason when the caller can report each limit separately.
     super("The process exceeded its time or output limit.");
@@ -150,6 +151,7 @@ function capture(input: ProcessInput): Promise<ProcessResult> {
 
     let bytes = 0;
     let stopped: ProcessTimeoutError["reason"] | undefined;
+    let timing: ProcessTimeoutError["timing"];
     let termination: Promise<boolean> | undefined;
     const stdout: Buffer[] = [];
     const stderr: Buffer[] = [];
@@ -157,6 +159,8 @@ function capture(input: ProcessInput): Promise<ProcessResult> {
     const stop = (reason: ProcessTimeoutError["reason"]) => {
       if (stopped) return;
       stopped = reason;
+
+      if (reason === "timeout") timing = { limitMs, elapsedMs: performance.now() - startedAt };
 
       if (child.pid) termination = terminateProcessTree(child.pid);
     };
@@ -168,7 +172,9 @@ function capture(input: ProcessInput): Promise<ProcessResult> {
       else if (!stopped) chunks.push(chunk);
     };
 
-    const timer = setTimeout(() => stop("timeout"), input.timeoutMs ?? 15_000);
+    const limitMs = input.timeoutMs ?? 15_000;
+    const startedAt = performance.now();
+    const timer = setTimeout(() => stop("timeout"), limitMs);
     const abort = () => stop("aborted");
     input.signal?.addEventListener("abort", abort, { once: true });
     child.stdout.on("data", (chunk: Buffer) => append(stdout, chunk));
@@ -196,7 +202,7 @@ function capture(input: ProcessInput): Promise<ProcessResult> {
 
       if (reason)
         void Promise.resolve(termination).then(
-          (done) => reject(new ProcessTimeoutError(reason, done === true)),
+          (done) => reject(new ProcessTimeoutError(reason, done === true, timing)),
           reject,
         );
       else resolve({ code, stdout: Buffer.concat(stdout).toString(), stderr: Buffer.concat(stderr).toString() });

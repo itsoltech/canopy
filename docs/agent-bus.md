@@ -31,9 +31,11 @@ o zadaniach w tle. Lokalny gateway zachowuje oczekujące dostarczenia i wznawia
 ich obsługę po włączeniu Threads. Dostępność w kanałach według [release.md](release.md).
 [Zachowanie botów, oczekujące zgody i wyniki delegowania](bots.md#połączenie-z-wątkami).
 
-Status błędów tworzenia worktree (2026-11-18): zaimplementowane w kodzie;
+Status błędów tworzenia worktree (2026-11-21): zaimplementowane w kodzie;
 dostępność nightly/beta/stable wynika z promocji wydań.
 `spawn_thread` zwraca komunikaty dla rozpoznanych błędów Git i łącza workera.
+Przy zmierzonym przekroczeniu limitu checkoutu komunikat zawiera limit i czas
+do wyzwolenia przerwania. Starsze odpowiedzi zachowują komunikaty bez pomiaru.
 
 Status limitu tworzenia worktree (2026-11-21): `spawn_thread` z nowym worktree
 korzysta z wydłużonego budżetu [tworzenia worktree](worktrees.md) do 315 s na odpowiedź workera.

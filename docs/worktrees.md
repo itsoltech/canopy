@@ -17,6 +17,8 @@ odczyt lokalnych zmian uwzględniający dostępność katalogu i pull origin
 w web/desktop, przełączanie gałęzi z kompozytora oraz przywracanie lokalnych zmian
 po potwierdzeniu stash & pop oraz osobny limit tworzenia worktree dla dużych repozytoriów.
 Tworzenie rozróżnia przekroczenie limitu czasu, rozmiaru wyjścia i błąd Git.
+Po przerwaniu checkoutu przez limit czasu szczegóły błędu pokazują obowiązujący limit
+i zmierzony czas checkoutu.
 Przy wyłączonym **Threads** gateway wstrzymuje okresowe sprzątanie worktree właściciela i nadawanie nazw gałęzi na podstawie rozmowy. Po włączeniu ponownie ocenia polityki sprzątania i podejmuje zarezerwowane operacje usunięcia.
 
 Worker sprząta po nieudanej próbie na podstawie oznaczeń tej próby,
@@ -72,6 +74,12 @@ tych samych limitów workera i czeka do 345 s na poziomie RPC (w przeglądarce d
 Krótkie operacje Git mają limit 15 s. Tryb cichy pomija komunikaty postępu, zachowując błędy.
 Limit 8 MiB przechwyconego wyjścia i kod wyjścia Git różny od zera mają osobne kategorie błędów.
 
+Pomiar trwa od uruchomienia licznika checkoutu do wyzwolenia przerwania przez ten
+licznik. Oczekiwanie na zakończenie procesów, sprzątanie i transport odpowiedzi
+odbywają się po pomiarze. Szczegóły kroku „Create worktree” w web/desktop
+i na mobile oraz odpowiedź `spawn_thread` podają obie wartości tylko wtedy,
+gdy worker zmierzył czas tej operacji.
+
 Worker zakłada gałąź tylko, gdy nazwa jest wolna, oznacza ją w reflogu i rezerwuje
 nowy katalog przed uruchomieniem Git. `git worktree add` rejestruje checkout z blokadą
 oznaczoną identyfikatorem tej samej próby. Po udanym checkoutcie worker zdejmuje blokadę.
@@ -86,7 +94,7 @@ Worker usuwa tylko zweryfikowane pliki i rejestrację tej próby, bez `git workt
 Usunięcie nieużywanej gałęzi porównuje jej bieżący commit z oczekiwanym. Jeśli worker
 nie potrafi potwierdzić stanu, wykryje dowiązanie, dodatkowe pliki lub lokalne zmiany,
 pozostawia niezweryfikowane zasoby i zgłasza niedokończone sprzątanie. Pozostałości prób
-z wcześniejszych wersji pozostają do ręcznej obsługi. `spawn_thread` zwraca stałe, zredagowane komunikaty
+z wcześniejszych wersji pozostają do ręcznej obsługi. `spawn_thread` zwraca zredagowane komunikaty
 ([agent-bus.md](agent-bus.md)).
 
 ## Model danych

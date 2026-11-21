@@ -75,55 +75,80 @@ describe.skipIf(!dockerAvailable)("automation worktrees over gRPC", () => {
 
   test("failed worktree creation returns safe reasons and replays the refusal without creating a child", async () => {
     const parent = await f.tree();
+    const timedCheckout = "Git timed out after 60.012 s while creating the worktree. The limit was 60 s.";
+    const cleanupWarning = " Canopy could not finish cleanup. Check the worktree and branch before retrying.";
+    const privateError = "fatal: cannot read /private/worker/repo during checkout";
 
     const failures = [
-      ["GIT_TIMEOUT", "Git timed out while creating the worktree."],
-      ["legacy-limit", "Git exceeded its time or output limit while creating the worktree."],
-      ["GIT_OUTPUT_LIMIT", "Git exceeded its output limit while creating the worktree."],
-      ["GIT_BUSY", "Git is busy on the worker. Try creating the worktree again shortly."],
-      ["GIT_UNAVAILABLE", "Git could not start on the worker. Check the Git installation."],
-      ["WORKTREE_CHECKOUT_FAILED", "Git could not check out the worktree. Check the Git settings and filters."],
+      ["timed-checkout", "GIT_TIMEOUT", timedCheckout, timedCheckout],
+      ["timed-checkout-cleanup", "GIT_TIMEOUT", timedCheckout + cleanupWarning, timedCheckout + cleanupWarning],
       [
-        "WORKTREE_FAILED",
-        "Git could not create the worktree. Canopy could not finish cleanup. Check the worktree and branch before retrying.",
+        "unsafe-timeout",
+        "GIT_TIMEOUT",
+        timedCheckout + "\n" + privateError,
+        "Git timed out while creating the worktree.",
       ],
-      ["constructor", "Could not create a worktree."],
+      ["untimed-checkout", "GIT_TIMEOUT", "Git exceeded its time limit.", "Git timed out while creating the worktree."],
+      [
+        "legacy-limit",
+        "GIT_TIMEOUT",
+        "git exceeded its time or output limit",
+        "Git exceeded its time or output limit while creating the worktree.",
+      ],
+      ["output-limit", "GIT_OUTPUT_LIMIT", timedCheckout, "Git exceeded its output limit while creating the worktree."],
+      ["busy", "GIT_BUSY", privateError, "Git is busy on the worker. Try creating the worktree again shortly."],
+      [
+        "unavailable",
+        "GIT_UNAVAILABLE",
+        privateError,
+        "Git could not start on the worker. Check the Git installation.",
+      ],
+      [
+        "checkout-failed",
+        "WORKTREE_CHECKOUT_FAILED",
+        privateError,
+        "Git could not check out the worktree. Check the Git settings and filters.",
+      ],
+      [
+        "creation-failed",
+        "WORKTREE_FAILED",
+        privateError + cleanupWarning,
+        "Git could not create the worktree." + cleanupWarning,
+      ],
+      ["unknown-code", "constructor", privateError, "Could not create a worktree."],
     ] as const;
+
+    const responses = new Map(failures.map(([ref, code, detail]) => [String(ref), { code, detail }]));
 
     const handle = f.host.handleCommand.bind(f.host);
     const attempts: string[] = [];
 
     const worker = spyOn(f.host, "handleCommand").mockImplementation(async (command) => {
       if (command.kind.case !== "createWorktree") return handle(command);
-      const fixture = command.kind.value.baseRef;
-      attempts.push(fixture);
+      const ref = command.kind.value.baseRef;
+      const response = responses.get(ref);
 
-      const cleanup =
-        fixture === "WORKTREE_FAILED"
-          ? " Canopy could not finish cleanup. Check the worktree and branch before retrying."
-          : "";
+      if (!response) return handle(command);
+      attempts.push(ref);
 
       return {
         commandId: command.commandId,
         ok: false,
-        errorCode: fixture === "legacy-limit" ? "GIT_TIMEOUT" : fixture,
-        errorMessage:
-          fixture === "legacy-limit"
-            ? "git exceeded its time or output limit"
-            : `fatal: cannot read /private/worker/repo during checkout${cleanup}`,
+        errorCode: response.code,
+        errorMessage: response.detail,
       };
     });
 
     try {
-      for (const [code, reason] of failures) {
-        const args = { title: "Child", prompt: "Code task", workspace_mode: "new_worktree", base_ref: code };
+      for (const [ref, , , reason] of failures) {
+        const args = { title: "Child", prompt: "Code task", workspace_mode: "new_worktree", base_ref: ref };
         const callId = Bun.randomUUIDv7();
         const result = await f.callTool(parent.id, args, callId);
         expect(result).toMatchObject({ isError: true, content: reason, resultJson: JSON.stringify({ error: reason }) });
         expect(await f.callTool(parent.id, args, callId)).toEqual(result);
       }
 
-      expect(attempts).toEqual(failures.map(([code]) => code));
+      expect(attempts).toEqual(failures.map(([ref]) => ref));
       expect(
         await f.sql((sql) => sql`SELECT id FROM threads WHERE parent_thread_id = ${parent.id}::uuid`),
       ).toHaveLength(0);

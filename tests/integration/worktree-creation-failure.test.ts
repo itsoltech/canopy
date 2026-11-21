@@ -138,8 +138,10 @@ test.skipIf(process.platform === "win32")(
     } finally {
       expect(await result).toMatchObject({
         code: "GIT_TIMEOUT",
-        cause: { treeTerminated: true },
-        message: "Git exceeded its time limit.",
+        cause: { treeTerminated: true, timing: { limitMs: 3500 } },
+        message: expect.stringMatching(
+          /^Git timed out after \d+(?:\.\d{1,3})? s while creating the worktree\. The limit was 3\.5 s\.$/,
+        ),
       });
     }
 
@@ -247,11 +249,28 @@ test.skipIf(process.platform === "win32")(
     git(f.repo, "config", "filter.fixture.smudge", `sh "${filter}"`);
     git(f.repo, "config", "filter.fixture.required", "true");
 
-    await expect(f.create(1500)).rejects.toMatchObject({
-      code: "GIT_TIMEOUT",
-      message: "Git exceeded its time limit.",
-    });
-    expect(existsSync(started)).toBe(true);
+    const result = f.create(1500).catch((error: Error) => error);
+
+    try {
+      const deadline = performance.now() + 1400;
+
+      while (!existsSync(started) && performance.now() < deadline) await Bun.sleep(15);
+      expect(existsSync(started)).toBe(true);
+      // Delay the timeout callback while Git is in the filter. A configured limit is not a measurement.
+      Bun.sleepSync(1700);
+    } finally {
+      const error = await result;
+      expect(error).toMatchObject({ code: "GIT_TIMEOUT", cause: { timing: { limitMs: 1500 } } });
+
+      const match =
+        error instanceof Error &&
+        /^Git timed out after (\d+(?:\.\d{1,3})?) s while creating the worktree\. The limit was 1\.5 s\.$/.exec(
+          error.message,
+        );
+
+      expect(Number(match && match[1])).toBeGreaterThanOrEqual(1.65);
+    }
+
     expect(existsSync(f.tree.path)).toBe(false);
     expect(f.branches()).toBe("refs/heads/main");
     expect(f.worktrees()).not.toContain(f.tree.path);
