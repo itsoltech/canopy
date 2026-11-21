@@ -3,8 +3,10 @@ import { timestampFromDate } from "@bufbuild/protobuf/wkt";
 import { Code, ConnectError } from "@connectrpc/connect";
 import { Provider, type ui } from "@canopy/contracts";
 import { dockerAvailable } from "@canopy/db/testing";
+import { Effect } from "effect";
+import { SqlClient } from "effect/sql";
 import { ComputerStore } from "../../apps/gateway/src/computers/store.ts";
-import { eventually, startTestGateway, type TestGateway } from "./support/gateway.ts";
+import { eventually, failure, startTestGateway, type TestGateway } from "./support/gateway.ts";
 
 const rpcCode = (call: Promise<object>) =>
   call.then(
@@ -130,6 +132,65 @@ describe.skipIf(!dockerAvailable)("thread snooze on the gateway", () => {
       worker.holdTurns = false;
     }
   }, 20_000);
+
+  test.each(["archive", "delete"])(
+    "%s lets a side thread recheck its parent foreign keys",
+    async (action) => {
+      const { api, runtime, userId, secretsKey } = gateway!;
+      const threadId = await makeThread(`Parent for ${action}`);
+      const childId = await makeThread("Side thread with an in-flight write", threadId);
+      const store = new ComputerStore(runtime, userId, secretsKey);
+      const ready = Promise.withResolvers<number>();
+      const release = Promise.withResolvers<void>();
+
+      const writer = runtime.runPromise(
+        SqlClient.SqlClient.use((sql) =>
+          sql.withTransaction(
+            Effect.gen(function* () {
+              yield* sql`UPDATE threads SET last_seq=last_seq WHERE id=${childId}::uuid`;
+              ready.resolve((yield* sql<{ pid: number }>`SELECT pg_backend_pid() AS pid`)[0]!.pid);
+              yield* Effect.promise(() => release.promise);
+              // PostgreSQL rechecks the parent reference when the same transaction updates the tuple twice.
+              yield* sql`UPDATE threads SET last_seq=last_seq WHERE id=${childId}::uuid`;
+            }),
+          ),
+        ),
+      );
+
+      void writer.catch(ready.reject);
+      let closing: Promise<string> | undefined;
+
+      try {
+        const pid = await ready.promise;
+        closing = failure(
+          action === "archive"
+            ? api.setThreadArchived({ threadId, archived: true }, { timeoutMs: 10_000 })
+            : api.deleteThread({ threadId }, { timeoutMs: 10_000 }),
+        );
+
+        const blocked = await eventually(
+          () =>
+            store.query(
+              "SELECT pid FROM pg_stat_activity WHERE datname=current_database() AND $1::int=ANY(pg_blocking_pids(pid))",
+              [pid],
+            ),
+          (rows) => rows.length === 1,
+        );
+
+        expect(blocked).toHaveLength(1);
+      } finally {
+        release.resolve();
+        await Promise.allSettled([writer, closing]);
+      }
+
+      await writer;
+      expect(await closing).toBe("");
+
+      if (action === "archive") expect((await api.getThread({ threadId: childId })).thread?.status).toBe("archived");
+      else expect(await rpcCode(api.getThread({ threadId: childId }))).toBe(Code.NotFound);
+    },
+    15_000,
+  );
 
   test("validates deadlines and ownership, then publishes snooze and expiration to both feeds", async () => {
     const { api, core, runtime, userId, secretsKey } = gateway!;

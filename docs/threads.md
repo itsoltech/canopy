@@ -8,7 +8,7 @@ propagacja odmowy prędkości do błędu celu,
 wybór prędkości dostawcy oraz stan tylko do odczytu po usunięciu worktree
 i kontynuacja w nowym wątku z nowym worktree oraz uprawnienia wątku w karcie hover oraz automatyczna archiwizacja po merge PR-ów
 z nadpisaniami projektu i wątku (przełącznik w szczegółach także na mobile),
-zamykanie zasobów przy archiwizacji,
+zamykanie zasobów przy archiwizacji i współbieżny zapis zdarzeń wątku bocznego podczas archiwizacji rodzica,
 retencja archiwum wstrzymywana przy wyłączonym module Threads, grupowanie
 pracujących drzew z nieprzeczytanymi wynikami wcześniejszych tur lub zakończonych subagentów
 wyróżnienie nieotwartych wątków ze szkicem w sidebarze web/desktop oraz
@@ -386,6 +386,10 @@ w archiwum. „Unarchive with parent” przy takim dziecku przywraca głównego 
 Samodzielna archiwizacja bocznego nie zmienia rodzica ani rodzeństwa. Najpierw trzeba przywrócić
 rodzica, aby niezależnie przywrócić jego dziecko. W Archived główny ma jeden wiersz, a boczne są
 pod nim w „Previous agents”; nie powielają się jako osobne wyniki ani na aktywnej liście.
+
+Archiwizacja, miękkie usuwanie i przywracanie blokują zmianę wierszy wątków przez
+inne transakcje. Równoległy zapis workera może sprawdzić klucz obcy wskazujący
+rodzica i zakończyć transakcję, gdy kaskada czeka na jego wątek boczny.
 
 Subagenci są dostępni w szczegółach rodzica, bez własnych wierszy w sidebarze. Domyślna preferencja
 urządzenia grupuje zakończonych pod rozwijanym „N finished”, także gdy nie ma aktywnych.
