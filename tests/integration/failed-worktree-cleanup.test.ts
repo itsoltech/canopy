@@ -179,7 +179,7 @@ describe.skipIf(!dockerAvailable || process.platform === "win32")(
           kind: { case: "failedWorktreeCleanup", value: workerRequest },
         });
 
-        const expectedCleanupToken = proof?.failedWorktreeCleanup?.token;
+        const expectedCleanupToken = proof?.failedWorktreeCleanup?.token ?? "";
         expect(expectedCleanupToken).toBeTruthy();
 
         const runCleanup = (expiresAtMs: bigint) =>
