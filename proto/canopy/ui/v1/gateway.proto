@@ -2335,6 +2335,8 @@ message InstanceRuntime {
   bool own_login = 5;
   // Claude only; absent means isolated configuration.
   canopy.worker.v1.ProviderUserConfiguration user_configuration = 6;
+  // Native-format preferences shared by the instance's workers. Empty clears; absent on save preserves.
+  optional string settings_text = 7;
 }
 
 // Modele instancji w pickerach. Model widoczny = jest w shown albo (dostawca go nie ukrywa i nie ma go w hidden).
@@ -2364,6 +2366,8 @@ message InstanceOverrides {
   string proxy_id = 9;
   // Presence replaces the entire configuration; absent inherits the definition.
   canopy.worker.v1.ProviderUserConfiguration user_configuration = 10;
+  // Preferences defined only on this worker, in the harness's native format.
+  optional string settings_text = 11;
 }
 
 message InstanceOverridesInput {
@@ -2380,6 +2384,8 @@ message InstanceOverridesInput {
   optional string proxy_id = 9;
   // Presence replaces the entire configuration; absent inherits the definition.
   canopy.worker.v1.ProviderUserConfiguration user_configuration = 10;
+  // Empty clears the local preferences; absent preserves them for older clients.
+  optional string settings_text = 11;
 }
 
 // Instancja na jednym workerze: włączenie, nadpisania i ostatni raport workera.

@@ -1,7 +1,8 @@
 <script lang="ts">
-  import { tick, untrack } from "svelte";
+  import { tick, untrack, type Snippet } from "svelte";
   import type { CodeEditor, CodeEditorMemory } from "./code-editor.ts";
   import type { FilePosition } from "@canopy/domain/file-references";
+  import { useField } from "#lib/shared/ui/field.ts";
 
   /**
    * CodeMirror loads when an editable text file opens; read-only previews keep the smaller reader.
@@ -16,6 +17,8 @@
     position,
     positionRevision = 0,
     readonly = false,
+    field,
+    fallback,
   }: {
     text: string;
     fileName: string;
@@ -25,8 +28,11 @@
     position?: FilePosition | undefined;
     positionRevision?: number;
     readonly?: boolean;
+    field?: { placeholder: string };
+    fallback?: Snippet;
   } = $props();
 
+  const fieldContext = useField();
   let host = $state<HTMLDivElement>();
   let editor = $state<CodeEditor>();
   let failed = $state(false);
@@ -59,10 +65,12 @@
             },
             memory,
             readonly,
+            ...(field && { field }),
           }),
         );
         editor = created;
-        created.focus();
+
+        if (!untrack(() => field)) created.focus();
       })
       .catch(() => {
         if (active) failed = true;
@@ -76,7 +84,19 @@
   });
 
   // A reload brings new content: replace it unless it is already what the editor shows.
-  $effect(() => editor?.readOnly(readonly));
+  $effect(() => {
+    const attributes = field &&
+      fieldContext && {
+        id: fieldContext.id,
+        "aria-labelledby": `${fieldContext.id}-label`,
+        "aria-invalid": String(fieldContext.invalid),
+        ...(fieldContext.describedBy && { "aria-describedby": fieldContext.describedBy }),
+        autocapitalize: "off",
+        spellcheck: "false",
+      };
+
+    editor?.configure(readonly, attributes);
+  });
 
   $effect(() => {
     const next = text;
@@ -94,7 +114,18 @@
   });
 </script>
 
-{#if failed}
+{#if failed && fallback}
+  {@render fallback()}
+{:else if failed}
   <p role="alert" class="text-muted">The editor could not load. Reload Canopy and try again.</p>
+{:else if field}
+  <div
+    bind:this={host}
+    class={[
+      "h-32 min-w-0 overflow-hidden rounded-lg bg-surface px-2 font-mono text-base/6 outline-1 -outline-offset-1 outline-divider focus-within:outline-2 focus-within:outline-accent sm:text-sm/6",
+      fieldContext?.invalid && "outline-rose-500",
+    ]}
+  ></div>
+{:else}
+  <div bind:this={host} class="h-full min-h-64 font-mono text-sm/6" aria-label="File content"></div>
 {/if}
-<div bind:this={host} class="h-full min-h-64 font-mono text-sm/6" aria-label="File content"></div>

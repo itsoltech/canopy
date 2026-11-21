@@ -123,6 +123,7 @@ export const toUi = (
     env: envSettings(row.env ?? []),
     runtime: {
       userConfiguration: userConfigurationMessage(row.runtime?.userConfiguration),
+      settingsText: row.runtime?.settingsText,
       binaryPath: row.runtime?.binaryPath ?? "",
       homePath: row.runtime?.homePath ?? "",
       shadowHomePath: row.runtime?.shadowHomePath ?? "",
@@ -155,6 +156,7 @@ export const toUi = (
         explicit: assignment?.enabled !== null && assignment?.enabled !== undefined,
         overrides: {
           userConfiguration: userConfigurationMessage(o.userConfiguration),
+          settingsText: o.settingsText,
           ...(o.binaryPath !== undefined && { binaryPath: o.binaryPath }),
           ...(o.homePath !== undefined && { homePath: o.homePath }),
           ...(o.shadowHomePath !== undefined && { shadowHomePath: o.shadowHomePath }),

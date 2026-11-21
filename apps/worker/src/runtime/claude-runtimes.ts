@@ -113,8 +113,9 @@ export class ClaudeRuntimes {
               ? this.ctx.state.deviceHomes.claude
               : selected.sourceHome,
           ),
-          process.env,
+          { ...process.env, ...profile.env },
           names,
+          runtime.claudeSettings?.effortLevel,
         ),
       profile: (id) => (profile.id === (id || "native") ? profile : undefined),
       publish: (event) => this.ctx.ops.publish(event),

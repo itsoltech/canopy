@@ -1,5 +1,8 @@
 # Adapter Codex (app-server)
 
+Aktualizacja (2026-11-21) obejmuje obsługę preferencji instancji zapisanych
+w [ustawieniach CLI Canopy](worker-config.md#ustawienia-cli-zapisane-w-canopy).
+
 Aktualizacja (2026-11-19): karty zgód pokazują faktyczną treść żądania (sekcja „Treść zgód”), a podglądy obrazów natywnych i wygenerowanych dotyczą tylko ukończonych elementów w zakresie wątku.
 
 Status (2026-11-21): runtime wątków, lokalny MCP z narzędziem wiadomości do delegującego bota, poziomy szybkości z katalogu konta,
@@ -346,6 +349,13 @@ Taka konfiguracja może też wymagać zmiennych środowiskowych niedostępnych w
 Izolowany katalog zapobiega dziedziczeniu prywatnej konfiguracji i dodatkowego kontekstu.
 
 ### Konfiguracja izolacji
+
+Preferencje `config.toml` zapisane w Canopy trafiają jako argumenty `-c`
+przed jawnymi **Launch arguments**. Proces wykorzystuje prywatny `CODEX_HOME`.
+Po zmianie efektywnych preferencji worker czeka na zakończenie pracy procesu,
+po czym uruchamia nowy app-server instancji z dotychczasowym katalogiem sesji.
+Przy ustawionym w Canopy `model_reasoning_effort` worker bierze domyślną
+wartość z konfiguracji uruchomionego procesu, jeśli model ją obsługuje.
 
 1. **Worker zawsze uruchamia app-server z własnym `CODEX_HOME`** (`<data_dir>/codex-home`, `0700`, `prepareCodexHome`). Konfiguracja (dostawcy, MCP, instrukcje) przychodzi z platformy.
    Wątki zachowują `HOME`, `USERPROFILE` i XDG: komendy potomne nadal widzą git identity, SSH, gh i konfigurację narzędzi użytkownika. Globalne instrukcje Codexa pozostają poza izolowanym `CODEX_HOME`; skille urządzenia wyłączają selektory opisane wyżej. Wątki scratch przekazują `project_root_markers=[]`, aby nie odczytywać nadrzędnego `~/AGENTS.md`; projekty zachowują wykrywanie korzenia Git i repozytoryjne instrukcje. Dowód: przechwycenie żądań CLI 0.164.0 w `providers/instruction-isolation.test.ts` i odczyt fixture git identity przez proces potomny w `providers/thread-environment.test.ts`. Źródło i ścieżka loginu nie zmieniają się; samodzielny login istniejący wyłącznie w keyringu nie jest przenoszony przez plik `auth.json`. Prywatne HOME pozostaje tylko dla botów bez shella.

@@ -10,7 +10,7 @@ import { codexTurnPermissions } from "./permissions.ts";
 
 import { CodexThreadError, fail, type CodexThreadContext } from "./thread-types.ts";
 
-export function threadCatalog(ctx: CodexThreadContext) {
+export function threadCatalog(ctx: CodexThreadContext, instanceEffort: Effect.Effect<string | undefined>) {
   const { options, codex } = ctx;
   // One instance process has its own account-aware catalog.
   let catalog: v2.Model[] | undefined;
@@ -35,8 +35,17 @@ export function threadCatalog(ctx: CodexThreadContext) {
     return models;
   });
 
+  const configuredEffort = (profileId: string) => {
+    const appEffort = options.profile(profileId)?.runtime.codexSettings?.model_reasoning_effort;
+
+    return appEffort
+      ? Effect.map(instanceEffort, (effort) => effort ?? appEffort)
+      : Effect.sync(() => options.configuredEffort?.());
+  };
+
   return {
     loadCatalog,
+    configuredEffort,
     listModels: Effect.fn("CodexThreads.listModels")(function* (profileId: string) {
       const profile = options.profile(profileId);
 
@@ -48,7 +57,7 @@ export function threadCatalog(ctx: CodexThreadContext) {
         });
       // A fresh list: model/list again, not the process's cached catalog.
       catalog = undefined;
-      const configured = options.configuredEffort?.();
+      const configured = yield* configuredEffort(profileId);
 
       const models = (yield* loadCatalog.pipe(Effect.mapError(fail("", "model/list")))).map((m) =>
         codexModel(profile.kind === "cliproxyapi" ? { ...m, serviceTiers: [] } : m, configured),
@@ -101,14 +110,14 @@ export function threadCatalog(ctx: CodexThreadContext) {
 
 export function threadTurnSettings(
   ctx: CodexThreadContext,
-  loadCatalog: ReturnType<typeof threadCatalog>["loadCatalog"],
+  { loadCatalog, configuredEffort }: Pick<ReturnType<typeof threadCatalog>, "loadCatalog" | "configuredEffort">,
 ) {
   const { options } = ctx;
 
   /**
    * Every turn names its model, effort and permission mode: Codex keeps a turn's override for the turns after
    * it, so a turn without an override goes back to the catalog's default model and the default effort the
-   * catalog reports for it (the device owner's configured one when the model offers it, else the model's own),
+   * catalog reports for it (the configured effort when the model offers it, else the model's own),
    * and to the thread's permission mode. Approvals already pending in a running turn keep their own policy.
    */
   const turnSettings = (spec: ThreadSpec, settings: TurnSettings | undefined) =>
@@ -122,7 +131,7 @@ export function threadTurnSettings(
         (listed &&
           pickDefaultEffort(
             listed.supportedReasoningEfforts.map((e) => e.reasoningEffort),
-            options.configuredEffort?.(),
+            yield* configuredEffort(spec.providerProfileId),
             listed.defaultReasoningEffort,
           )) ||
         "";

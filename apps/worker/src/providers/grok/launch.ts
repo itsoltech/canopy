@@ -1,6 +1,7 @@
 import { mkdirSync, mkdtempSync, realpathSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { homedir } from "node:os";
+import type { GrokProviderSettings } from "@canopy/domain/provider-settings";
 import type { GrokOptions } from "@canopy/grok-acp";
 import type { ResolvedProfile } from "../profiles.ts";
 import { instanceShadowHome } from "../../config/remote.ts";
@@ -101,6 +102,21 @@ function botSandboxProfile(home: string, sessions: string): string {
   );
 
   return "canopy-bot";
+}
+
+function preferenceConfig(settings: GrokProviderSettings | undefined): string {
+  const { default_reasoning_effort: effort, max_completion_tokens: maxTokens } = settings?.models ?? {};
+  const threshold = settings?.session?.auto_compact_threshold_percent;
+
+  const models = [
+    ...(effort !== undefined ? [`default_reasoning_effort = ${JSON.stringify(effort)}`] : []),
+    ...(maxTokens !== undefined ? [`max_completion_tokens = ${maxTokens}`] : []),
+  ];
+
+  return (
+    (models.length ? `\n[models]\n${models.join("\n")}\n` : "") +
+    (threshold !== undefined ? `\n[session]\nauto_compact_threshold_percent = ${threshold}\n` : "")
+  );
 }
 
 /** Isolated configuration per process; durable sessions per instance. Keys never enter config or argv. */
@@ -217,6 +233,7 @@ export function grokLaunch(options: {
           });
   }
 
+  config += preferenceConfig(runtime.grokSettings);
   writeFileSync(join(home, "config.toml"), config, { mode: 0o600 });
 
   const agent = join(home, "bot.md");

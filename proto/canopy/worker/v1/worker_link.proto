@@ -383,6 +383,9 @@ message ProviderProfileConfig {
   ProxyCodexOptions proxy_codex = 14;
   // Claude only. Absent or UNSPECIFIED = existing isolated configuration.
   ProviderUserConfiguration user_configuration = 15;
+  // Native-format preferences in the instance definition and this worker's overrides.
+  string settings_text = 16;
+  string settings_override_text = 17;
 }
 
 message ProxyCodexOptions {

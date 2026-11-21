@@ -11,6 +11,7 @@ import type {
   ThreadSpec,
 } from "@canopy/contracts";
 import { AsyncChannel } from "@canopy/transport";
+import type { ClaudeProviderSettings } from "@canopy/domain/provider-settings";
 import { Schema } from "effect";
 import { Journal, type ThreadEventInit } from "../../journal/index.ts";
 import type { NativeToolPolicy } from "../native-tools.ts";
@@ -45,8 +46,8 @@ export interface ClaudeThreadsOptions {
   readonly nativeTools: NativeToolPolicy;
   readonly baseEnv: Env;
   /**
-   * The device owner's default effort for a model known by these names (their Claude settings, default-effort.ts);
-   * read on every use. Platform threads do not load user settings, so a turn without an effort gets this one.
+   * The configured default effort for a model known by these names (default-effort.ts).
+   * A turn without an effort of its own uses this default when the model supports it.
    */
   configuredEffort?(names: readonly string[]): string | undefined;
   profile(id: string): ResolvedProfile | undefined;
@@ -85,6 +86,7 @@ export interface ClaudeInstanceRuntime {
   readonly home: string;
   readonly sourceHome?: string;
   readonly userConfiguration?: ProfileUserConfiguration;
+  readonly settings?: ClaudeProviderSettings;
   /** Private platform home, retained as the lookup location of sessions predating durable bindings. */
   readonly platformHome?: string;
   readonly executable?: string;

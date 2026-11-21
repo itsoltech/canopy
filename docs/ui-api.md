@@ -3,6 +3,8 @@
 Status (2026-11-21): web, desktop i mobile obsługują usypianie wątków oraz załączniki
 do 40 MiB na plik po zmianie ustawienia.
 Stany źródeł Usage są widoczne w sekcji **Recording gateways**.
+Settings → Providers udostępnia edytor wspólnych ustawień CLI Claude, Codexa i Groka
+oraz nadpisań pojedynczego workera, z lokalnym kolorowaniem i walidacją JSON.
 Zamknięcie osiągniętego celu zapisuje się w ustawieniach widoku urządzenia.
 Klienci utrzymują strumień wątku przy dołączaniu
 starszej strony z aktualnego checkpointu sekwencyjnego. Gateway obsługuje osobną
@@ -2867,6 +2869,21 @@ przy pierwszym otwarciu, równolegle z listą instancji dostawców. W czasie pob
 działa istniejący dialog ładowania/błędu. Raz załadowany komponent zostaje dostępny
 także podczas animacji zamknięcia. Zmiana bota lub zniszczenie hosta unieważnia
 spóźnioną odpowiedź. Procedura pomiarowa: [client-performance.md](client-performance.md).
+
+### Ustawienia CLI instancji
+
+Web i desktop zapisują tekst JSON Claude albo TOML Codexa i Groka przez dotychczasowe
+`POST /api/providers/save` (`InstanceRuntime.settings_text`) oraz
+`POST /api/providers/worker` (`InstanceOverridesInput.settings_text`).
+Mobile używa tego samego kontraktu gRPC. Brak opcjonalnego pola zachowuje
+poprzedni tekst, a puste pole usuwa ustawienia danego zakresu.
+`ListProviderInstances` zwraca tekst wspólny, a `GetInstanceWorker` zwraca
+lokalne nadpisanie i tekst wspólny z domu wybranego workera.
+Błąd składni, niedozwolone pole lub typ wartości dają `InvalidArgument`.
+Web i desktop ładują edytor kodu oraz gramatykę JSON lub TOML na żądanie.
+Sprawdzenie ustawień Claude po przerwie w pisaniu używa tego samego parsera
+i schematu co gateway, bez dodatkowego wywołania API.
+Zachowanie workera opisuje [konfiguracja workerów](worker-config.md#ustawienia-cli-zapisane-w-canopy).
 
 ### Strefa czasowa użytkownika
 

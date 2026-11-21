@@ -81,6 +81,7 @@ appear only as the literal name used by an external tool).
 | context | the model's context window; variant labels use `1M context` | context length |
 | legacy model | an older model version kept in the collapsible `Legacy models` group | deprecated model (unless the provider declares it deprecated) |
 | agent CLI | the provider's tool installed on a worker | provider CLI, binary, tool |
+| CLI settings | native-format preferences for a provider instance, shared or overridden on one worker | CLI file, user configuration |
 | provider | Anthropic, OpenAI, xAI and their equivalents | vendor, backend |
 | instance | configured access to a provider (Settings → Providers) | account, connection |
 | provider account | the account an agent CLI is signed in with on a worker; its action is `Sign in` (no login), `Sign in again` (expired or rejected login) or `Change account` (signed in) | switch account, sign in again (while the login is fine) |

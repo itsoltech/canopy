@@ -169,6 +169,7 @@ export interface InstanceDraft {
   shadowHomePath: string;
   launchArgs: string;
   ownLogin: boolean;
+  settingsText: string;
   userConfiguration: UserConfigurationDraft;
   /** New instances: where they run. */
   allWorkers: boolean;
@@ -190,6 +191,7 @@ export function newDraft(harness: Provider, workerIds: string[]): InstanceDraft 
     shadowHomePath: "",
     launchArgs: "",
     ownLogin: false,
+    settingsText: "",
     userConfiguration: configurationDraftOf(),
     allWorkers: workerIds.length === 0,
     workerIds,
@@ -211,6 +213,7 @@ export function draftOf(instance: ui.ProviderInstance): InstanceDraft {
     shadowHomePath: instance.runtime?.shadowHomePath ?? "",
     launchArgs: joinArgs(instance.runtime?.launchArgs ?? []),
     ownLogin: instance.runtime?.ownLogin ?? false,
+    settingsText: instance.runtime?.settingsText ?? "",
     userConfiguration: configurationDraftOf(instance.runtime?.userConfiguration),
     allWorkers: instance.allWorkers,
     workerIds: instance.workers.filter((w) => w.enabled).map((w) => w.workerId),
@@ -288,6 +291,7 @@ export function saveRequest(
       shadowHomePath: draft.shadowHomePath.trim(),
       launchArgs: splitArgs(draft.launchArgs),
       ownLogin: draft.ownLogin,
+      settingsText: draft.settingsText,
       userConfiguration: draft.harness === Provider.CLAUDE ? configurationInput(draft.userConfiguration) : undefined,
     },
     accentColor: draft.accentColor,
@@ -301,6 +305,7 @@ export function saveRequest(
 /** A field of the worker's overrides: unset follows the definition. */
 export interface OverrideDraft {
   userConfiguration: UserConfigurationDraft | undefined;
+  settingsText: string;
   proxyId: string;
   binaryPath: string | undefined;
   homePath: string | undefined;
@@ -315,6 +320,7 @@ export function overrideDraftOf(on: ui.InstanceOnWorker | undefined): OverrideDr
   return {
     proxyId: o?.proxyId ?? "",
     userConfiguration: o?.userConfiguration ? configurationDraftOf(o.userConfiguration) : undefined,
+    settingsText: o?.settingsText ?? "",
     binaryPath: o?.binaryPath,
     homePath: o?.homePath,
     shadowHomePath: o?.shadowHomePath,
@@ -327,14 +333,18 @@ export function overrideRequest(
   instance: ui.ProviderInstance,
   workerId: string,
   draft: OverrideDraft,
+  storedSettings: string | undefined,
 ): ui.SetInstanceWorkerRequest {
   const endpoint = instance.kind === ProviderProfileKind.CLIPROXYAPI;
+
+  const settingsText = draft.settingsText !== (storedSettings ?? "") ? draft.settingsText : undefined;
 
   return create(ui.SetInstanceWorkerRequestSchema, {
     harness: instance.harness,
     id: instance.id,
     workerId,
     overrides: {
+      settingsText,
       userConfiguration:
         instance.harness === Provider.CLAUDE && draft.userConfiguration
           ? configurationInput(draft.userConfiguration)

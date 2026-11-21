@@ -17,6 +17,7 @@ import { CANOPY_VERSION } from "@canopy/domain/release/version";
 import {
   COMPUTER_LINK_PROTOCOL,
   MIN_COMPUTER_LINK_PROTOCOL,
+  PROVIDER_SETTINGS_CAPABILITY,
   WORKSPACE_COPY_CAPABILITY,
 } from "@canopy/domain/release/protocol";
 
@@ -146,6 +147,7 @@ export const computersPresenceMethods: ComputersPresenceMethods = {
         ...(this.options.serve ? [WORKSPACE_COPY_CAPABILITY] : []),
         ...(this.options.serve ? ["thread_creation_progress_v1", BOT_THREAD_ACCESS, REMOTE_CLI_UPGRADE_ONLY] : []),
         USAGE_STATS,
+        ...(this.options.serve ? [PROVIDER_SETTINGS_CAPABILITY] : []),
       ],
     });
 

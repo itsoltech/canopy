@@ -7,6 +7,11 @@ import {
   type ProxyCodexOptions,
 } from "@canopy/contracts";
 import { envListProblems } from "@canopy/domain";
+import type {
+  ClaudeProviderSettings,
+  CodexProviderSettings,
+  GrokProviderSettings,
+} from "@canopy/domain/provider-settings";
 import { Match } from "effect";
 
 /**
@@ -26,6 +31,8 @@ interface ProfileConfigBase {
   readonly env?: readonly ProfileEnvVarConfig[];
   /** Turned off by the user: unavailable. */
   readonly disabled?: boolean;
+  /** Safe validation error for CLI settings received from the gateway. */
+  readonly settingsProblem?: string;
   /**
    * How the harness of this instance runs (global provider instances, docs/worker-config.md, section 9); absent =
    * the worker's settings (isolated home under the data dir, device login linked).
@@ -35,6 +42,9 @@ interface ProfileConfigBase {
 
 export interface ProfileRuntimeConfig {
   readonly userConfiguration?: ProfileUserConfiguration;
+  readonly claudeSettings?: ClaudeProviderSettings;
+  readonly codexSettings?: CodexProviderSettings;
+  readonly grokSettings?: GrokProviderSettings;
   /** The harness executable of this instance (else the provider's). */
   readonly executablePath?: string;
   /** The device owner's CLI home the login is linked from (else the worker's CODEX_HOME / CLAUDE_CONFIG_DIR, ~). */
@@ -125,6 +135,9 @@ export function hasOwnRuntime(runtime: ProfileRuntimeConfig): boolean {
     runtime.shadowHomePath ||
     runtime.launchArgs?.length ||
     runtime.userConfiguration ||
+    runtime.claudeSettings ||
+    runtime.codexSettings ||
+    runtime.grokSettings ||
     runtime.ownLogin,
   );
 }
@@ -157,6 +170,8 @@ export function resolveProfiles(configs: readonly ProviderProfileConfig[]): Prof
 
     // Turned off: unused, so not validated further (a stub without endpoint or key).
     if (config.disabled) return { config, problem: "disabled" };
+
+    if (config.settingsProblem) return { config, problem: config.settingsProblem };
 
     let baseUrl: URL | undefined;
 

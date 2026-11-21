@@ -183,8 +183,18 @@ const make = (options: CodexThreadsOptions, setRoute: (handler: ServerRequestHan
 
     if (options.onUsage) yield* Effect.forkScoped(readUsage);
     setRoute(serverRequestHandler(ctx));
-    const catalog = threadCatalog(ctx);
-    const turnSettings = threadTurnSettings(ctx, catalog.loadCatalog);
+
+    // Read the launched config so explicit launch flags can override the effort configured in Canopy.
+    const instanceEffort = yield* Effect.cached(
+      codex.request("config/read", {}).pipe(
+        Effect.map((response) => response?.config?.model_reasoning_effort ?? undefined),
+        Effect.timeout("5 seconds"),
+        Effect.orElseSucceed(() => undefined),
+      ),
+    );
+
+    const catalog = threadCatalog(ctx, instanceEffort);
+    const turnSettings = threadTurnSettings(ctx, catalog);
     const sessions = threadSessions(ctx);
 
     return CodexThreads.of({

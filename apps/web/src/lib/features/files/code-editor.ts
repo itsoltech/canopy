@@ -11,10 +11,12 @@ import {
   highlightActiveLineGutter,
   keymap,
   lineNumbers,
+  placeholder,
   rectangularSelection,
 } from "@codemirror/view";
 import type { FilePosition } from "@canopy/domain/file-references";
 import { workspaceHighlight } from "#lib/features/workspace/workspace-editor.ts";
+import { fieldHighlighting, loadFieldLanguage } from "./field-syntax.ts";
 
 const theme = EditorView.theme({
   "&": { height: "100%", color: "var(--code-fg)", backgroundColor: "transparent", fontSize: "inherit" },
@@ -44,7 +46,7 @@ export interface CodeEditor {
   focus(): void;
   locate(position: FilePosition): void;
   destroy(): void;
-  readOnly(value: boolean): void;
+  configure(value: boolean, attributes?: Record<string, string>): void;
 }
 
 export interface CodeEditorMemory {
@@ -60,6 +62,7 @@ export interface CodeEditorOptions {
   onchange: (text: string) => void;
   memory?: CodeEditorMemory | undefined;
   readonly?: boolean;
+  field?: { placeholder: string };
 }
 
 export function createCodeEditor(parent: HTMLElement, options: CodeEditorOptions): CodeEditor {
@@ -71,6 +74,9 @@ export function createCodeEditor(parent: HTMLElement, options: CodeEditorOptions
   }
 
   let resetting = false;
+  let destroyed = false;
+  const language = new Compartment();
+  const field = options.field;
 
   const view = new EditorView({
     parent,
@@ -79,36 +85,49 @@ export function createCodeEditor(parent: HTMLElement, options: CodeEditorOptions
       EditorState.create({
         doc: options.text,
         extensions: [
-          lineNumbers(),
-          highlightActiveLineGutter(),
-          foldGutter(),
+          ...(field
+            ? [language.of([]), fieldHighlighting, placeholder(field.placeholder)]
+            : [
+                lineNumbers(),
+                highlightActiveLineGutter(),
+                foldGutter(),
+                rectangularSelection(),
+                crosshairCursor(),
+                highlightActiveLine(),
+                highlightSelectionMatches(),
+                search({ top: true }),
+                workspaceHighlight(options.fileName),
+              ]),
           history(),
           drawSelection(),
           indentOnInput(),
           bracketMatching(),
           closeBrackets(),
-          rectangularSelection(),
-          crosshairCursor(),
-          highlightActiveLine(),
-          highlightSelectionMatches(),
-          search({ top: true }),
-          workspaceHighlight(options.fileName),
           theme,
           ...(options.wrap ? [EditorView.lineWrapping] : []),
           events.of([]),
           keymap.of([
             ...closeBracketsKeymap,
             ...defaultKeymap,
-            ...searchKeymap,
+            ...(field ? [] : searchKeymap),
             ...historyKeymap,
-            ...foldKeymap,
-            indentWithTab,
+            ...(field ? [] : [...foldKeymap, indentWithTab]),
           ]),
         ],
       }),
   });
 
   view.dispatch({ effects: events.reconfigure(editorEvents(options, () => resetting)) });
+
+  if (field) {
+    void loadFieldLanguage(options.fileName)
+      .then((syntax) => {
+        if (syntax && !destroyed) view.dispatch({ effects: language.reconfigure(syntax) });
+      })
+      .catch(() => {
+        // The text remains editable if its grammar cannot load.
+      });
+  }
 
   return {
     text: () => view.state.doc.toString(),
@@ -125,9 +144,9 @@ export function createCodeEditor(parent: HTMLElement, options: CodeEditorOptions
       resetting = false;
     },
     focus: () => view.focus(),
-    readOnly(value) {
+    configure(value, attributes) {
       view.dispatch({
-        effects: events.reconfigure(editorEvents({ ...options, readonly: value }, () => resetting)),
+        effects: events.reconfigure(editorEvents({ ...options, readonly: value }, () => resetting, attributes)),
       });
     },
     locate(position) {
@@ -141,16 +160,19 @@ export function createCodeEditor(parent: HTMLElement, options: CodeEditorOptions
       view.focus();
     },
     destroy() {
+      destroyed = true;
+
       if (memory) memory.state = view.state.update({ effects: events.reconfigure([]) }).state;
       view.destroy();
     },
   };
 }
 
-function editorEvents(options: CodeEditorOptions, resetting: () => boolean) {
+function editorEvents(options: CodeEditorOptions, resetting: () => boolean, attributes?: Record<string, string>) {
   return [
     EditorState.readOnly.of(options.readonly ?? false),
     EditorView.editable.of(!options.readonly),
+    ...(attributes ? [EditorView.contentAttributes.of(attributes)] : []),
     EditorView.updateListener.of((update) => {
       if (update.docChanged && !resetting()) options.onchange(update.state.doc.toString());
     }),

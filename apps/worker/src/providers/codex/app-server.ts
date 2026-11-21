@@ -46,6 +46,7 @@ export interface CodexMethods {
   "thread/goal/get": { params: v2.ThreadGoalGetParams; result: v2.ThreadGoalGetResponse };
   "thread/goal/clear": { params: v2.ThreadGoalClearParams; result: v2.ThreadGoalClearResponse };
   "model/list": { params: v2.ModelListParams; result: v2.ModelListResponse };
+  "config/read": { params: v2.ConfigReadParams; result: v2.ConfigReadResponse };
   "thread/backgroundTerminals/list": {
     params: v2.ThreadBackgroundTerminalsListParams;
     result: v2.ThreadBackgroundTerminalsListResponse;

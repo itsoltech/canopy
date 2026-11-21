@@ -6,7 +6,7 @@ import { proxyFingerprint, type ProxyRow } from "../store/proxy-records.ts";
 import { decryptSecret, SECRETS_KEY_ID } from "../store/secrets.ts";
 import type { ConfigRow } from "./persistence.ts";
 import { alive } from "./provider-records.ts";
-import { HARNESSES, instanceColumns, orderedEnv, proxyColumns, valuesOf } from "./provider-values.ts";
+import { instanceColumns, orderedEnv, proxyColumns, valuesOf } from "./provider-values.ts";
 
 export const NOT_SUPPORTED = "Not supported on this computer";
 const MISSING_KEY = "A key is missing on this computer";
@@ -119,7 +119,8 @@ export function applyInstance(sql: SqlClient.SqlClient, owner: string, row: Conf
   return Effect.gen(function* () {
     const harness = row.global_id.split(":")[0] ?? "";
 
-    if (!HARNESSES.has(harness)) return void (row.unsupported = NOT_SUPPORTED);
+    if (harness !== "claude" && harness !== "codex" && harness !== "grok")
+      return void (row.unsupported = NOT_SUPPORTED);
 
     let current =
       (yield* sql<InstanceRow>`SELECT * FROM provider_instances WHERE harness=${harness} AND id=${row.local_id}`)[0];
@@ -190,12 +191,15 @@ export function applyInstance(sql: SqlClient.SqlClient, owner: string, row: Conf
     delete runtime.launchArgs;
     delete runtime.ownLogin;
     delete runtime.userConfiguration;
+    delete runtime.settingsText;
 
     if (columns.launchArgs.length) runtime.launchArgs = columns.launchArgs;
 
     if (columns.ownLogin) runtime.ownLogin = true;
 
     if (columns.userConfiguration) runtime.userConfiguration = columns.userConfiguration;
+
+    if (columns.settingsText) runtime.settingsText = columns.settingsText;
     const [favorites, hidden, shown, custom] = columns.models;
     const baseUrl = endpoint ? (proxy?.base_url ?? columns.baseUrl) : "";
     const key = apiKey ? JSON.stringify({ secretRef: apiKey }) : null;
@@ -229,5 +233,20 @@ export function applyWaiting(sql: SqlClient.SqlClient, owner: string) {
         AND i.proxy_id IS NULL)`;
 
     for (const row of rows) yield* applyInstance(sql, owner, row);
+  });
+}
+
+/** An older gateway could retain settingsText in the record before it knew how to materialize it. */
+export function recoverProviderSettings(sql: SqlClient.SqlClient, owner: string) {
+  return Effect.gen(function* () {
+    const rows = yield* sql<ConfigRow>`SELECT c.* FROM config_items c
+      JOIN provider_instances i ON i.harness=split_part(c.global_id,':',1) AND i.id=c.local_id
+      WHERE c.owner_user_id=${owner}::uuid AND c.kind='instance' AND c.schema_version=1 AND c.unsupported=''
+      AND (i.created_by IS NULL OR i.created_by=c.owner_user_id) AND c.fields ? 'settingsText'
+      AND COALESCE(i.runtime->'settingsText','null'::jsonb) IS DISTINCT FROM c.fields->'settingsText'->'value'`;
+
+    for (const row of rows) yield* applyInstance(sql, owner, row);
+
+    return rows.length > 0;
   });
 }

@@ -1,5 +1,6 @@
 import { ProviderProfileKind } from "@canopy/contracts";
 import { normalizeUserConfiguration, userConfigurationProblem } from "./instance-user-configuration.ts";
+import { settingsFrom } from "./instance-settings.ts";
 import { configTransaction } from "../config-sync/provider-records.ts";
 import { Effect } from "effect";
 import { SqlClient } from "effect/sql";
@@ -111,7 +112,10 @@ export function instanceSave(
 
           if (accent && !ACCENT.test(accent)) return yield* Effect.fail(new Invalid("the accent color is #rrggbb"));
           const env = yield* envFrom(userId, kind, request.env, existing?.env ?? []);
-          const runtime = request.runtime ? yield* runtimeFrom(harness, request.runtime) : { ...existing?.runtime };
+
+          const runtime = request.runtime
+            ? yield* runtimeFrom(harness, request.runtime, existing?.runtime.settingsText)
+            : { ...existing?.runtime };
 
           // Own login also selects the session home. Keep it dormant while using a proxy.
           if (kind === "endpoint" && existing?.runtime.ownLogin) runtime.ownLogin = true;
@@ -273,7 +277,7 @@ export function instanceMutations(
 
             if (problem) return yield* Effect.fail(new Invalid(problem));
             const env = yield* envFrom(userId, row.kind, input.env, overrides.env ?? []);
-            const next: StoredOverrides = {};
+            const next: StoredOverrides = yield* settingsFrom(harness, input.settingsText, overrides.settingsText);
 
             if (input.binaryPath !== undefined) next.binaryPath = input.binaryPath.trim();
 

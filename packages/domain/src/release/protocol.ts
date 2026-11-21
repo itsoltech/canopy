@@ -9,6 +9,7 @@ export const CLAUDE_LIVE_PERMISSIONS_CAPABILITY = "claude_live_permissions_v1";
 
 /** Claude configuration policy and independent login, configuration, session, and private homes. */
 export const CLAUDE_USER_CONFIGURATION_CAPABILITY = "claude_user_configuration_v1";
+export const PROVIDER_SETTINGS_CAPABILITY = "provider_settings_v1";
 
 /** Harness commands honor execution speed, including an explicit reset to Standard. */
 export const SERVICE_TIERS_CAPABILITY = "service_tiers_v1";

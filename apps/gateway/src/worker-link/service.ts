@@ -14,7 +14,7 @@ import { AsyncChannel } from "@canopy/transport";
 import { MIN_WORKER_LINK_PROTOCOL, WORKER_LINK_PROTOCOL, workerLinkCompatible } from "@canopy/domain/release/protocol";
 import { WorkerConnection } from "./connection.ts";
 import { gatewayMessage } from "./messages.ts";
-import { hasClaudeUserConfiguration } from "./configuration-compatibility.ts";
+import { needsConfigurationNegotiation } from "./configuration-compatibility.ts";
 import type { RpcObservation } from "../diagnostics/collector.ts";
 
 export interface WorkerLinkOptions {
@@ -102,7 +102,7 @@ export function createWorkerLink(options: WorkerLinkOptions): WorkerLink {
     const connection = new WorkerConnection(workerId, hello, outbound, options.observeCommand);
     const config = await options.config?.(workerId);
 
-    if (config && (BigInt(config.version ?? 0) !== hello.configVersion || hasClaudeUserConfiguration(config))) {
+    if (config && (BigInt(config.version ?? 0) !== hello.configVersion || needsConfigurationNegotiation(config))) {
       connection.sendConfig(config);
     }
 

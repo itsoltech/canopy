@@ -26,7 +26,14 @@ for (const platform of ["win32", "linux"] as const) {
         const home = temp("canopy-claude-query-");
         const source = temp("canopy-claude-query-source-");
         const sourceSettings = join(source, "settings.json");
-        const original = JSON.stringify({ hooks, sandbox: { enabled: true, allowUnsandboxedCommands: true } });
+
+        const original = JSON.stringify({
+          hooks,
+          language: "English",
+          includeGitInstructions: false,
+          sandbox: { enabled: true, allowUnsandboxedCommands: true },
+        });
+
         writeFileSync(sourceSettings, original);
 
         const { options: permissions } = claudePermissions(mode, platform);
@@ -35,6 +42,7 @@ for (const platform of ["win32", "linux"] as const) {
           {
             home,
             sourceHome: source,
+            settings: { language: "Polish" },
             userConfiguration: {
               mode: ProviderConfigurationMode.LOCAL,
               sourcePath: "",
@@ -78,6 +86,8 @@ for (const platform of ["win32", "linux"] as const) {
           const settings = decodeJsonObject(JSON.parse(importHooks ? readFileSync(argument, "utf8") : argument));
 
           expect(settings["hooks"]).toEqual(importHooks ? hooks : undefined);
+          expect(settings["language"]).toBe("Polish");
+          expect(settings["includeGitInstructions"]).toBe(false);
           expect(settings["sandbox"]).toEqual(permissions.sandbox);
           expect(settings["disableSkillShellExecution"]).toBe(true);
           expect(config.options.permissionMode).toBe(permissions.permissionMode);

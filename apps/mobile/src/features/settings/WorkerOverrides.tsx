@@ -2,12 +2,15 @@ import { useState } from "react";
 import { Text } from "react-native";
 import type { MessageInitShape } from "@bufbuild/protobuf";
 import { ProviderProfileKind, type ui } from "@canopy/contracts";
-import { Button, Field } from "../../ui/components";
+import { Button, Field, Notice } from "../../ui/components";
 import { styles, useColors } from "../../ui/theme";
 import { ProxyPicker } from "../providers/ProxyPicker";
 import { SettingsActions, SettingsSection, SettingToggle } from "./SettingsGroup";
 import { ResourceState, useSettingsResource } from "./resource";
 import { EnvironmentFields, environmentDrafts, environmentInput } from "./EnvironmentFields";
+import { ProviderSettingsEditor } from "./ProviderSettingsEditor";
+import { providerSettingsError } from "./provider-settings-error";
+import { useProviderSettingsDraft } from "./useProviderSettingsDraft";
 
 /**
  * One worker's overrides of an instance (web: OverrideForm): another saved proxy, paths and arguments for its
@@ -22,8 +25,11 @@ export function WorkerOverrides({
   worker: ui.Worker;
   onSaved: () => void;
 }) {
-  const resource = useSettingsResource(`GetInstanceWorker:${worker.id}/${instance.harness}/${instance.id}`, (api) =>
-    api.getInstanceWorker({ workerId: worker.id, harness: instance.harness, id: instance.id }),
+  const resource = useSettingsResource(
+    `GetInstanceWorker:${worker.id}/${instance.harness}/${instance.id}`,
+    (api) => api.getInstanceWorker({ workerId: worker.id, harness: instance.harness, id: instance.id }),
+    true,
+    providerSettingsError,
   );
 
   const stored = resource.data?.worker;
@@ -38,12 +44,15 @@ export function WorkerOverrides({
           overrides={stored?.overrides}
           inherited={resource.data?.inheritedRuntime ?? instance.runtime}
           busy={resource.busy}
+          error={resource.inlineError}
           save={async (overrides) => {
             const result = await resource.run((api) =>
               api.setInstanceWorker({ workerId: worker.id, harness: instance.harness, id: instance.id, overrides }),
             );
 
             if (result) onSaved();
+
+            return !!result;
           }}
         />
       ) : null}
@@ -59,6 +68,7 @@ function OverrideFields({
   overrides,
   inherited,
   busy,
+  error,
   save,
 }: {
   instance: ui.ProviderInstance;
@@ -66,7 +76,8 @@ function OverrideFields({
   overrides: ui.InstanceOverrides | undefined;
   inherited: ui.InstanceRuntime | undefined;
   busy: boolean;
-  save: (overrides: Overrides) => Promise<void>;
+  error: string;
+  save: (overrides: Overrides) => Promise<boolean>;
 }) {
   const c = useColors();
   const [binaryPath, setBinary] = useState(overrides?.binaryPath ?? "");
@@ -76,6 +87,7 @@ function OverrideFields({
   const [argsSet, setArgsSet] = useState(overrides?.launchArgsSet ?? false);
   const [proxyId, setProxy] = useState(overrides?.proxyId ?? "");
   const [env, setEnv] = useState(environmentDrafts(overrides?.env ?? []));
+  const settings = useProviderSettingsDraft(instance.harness, overrides?.settingsText);
 
   const discard = () => {
     setBinary(overrides?.binaryPath ?? "");
@@ -85,18 +97,25 @@ function OverrideFields({
     setArgsSet(overrides?.launchArgsSet ?? false);
     setProxy(overrides?.proxyId ?? "");
     setEnv(environmentDrafts(overrides?.env ?? []));
+    settings.change(undefined);
   };
 
-  const path = (label: string, value: string, set: (v: string) => void, placeholder = "") => (
-    <Field
-      label={label}
-      value={value}
-      onChangeText={set}
-      placeholder={placeholder}
-      autoCapitalize="none"
-      autoCorrect={false}
-    />
-  );
+  async function saveOverrides() {
+    if (!settings.canSave()) return;
+
+    const saved = await save({
+      ...(binaryPath.trim() && { binaryPath: binaryPath.trim() }),
+      ...(homePath.trim() && { homePath: homePath.trim() }),
+      ...(shadowHomePath.trim() && { shadowHomePath: shadowHomePath.trim() }),
+      launchArgsSet: argsSet,
+      launchArgs: launchArgs.split("\n").filter(Boolean),
+      ...(proxyId && { proxyId }),
+      env: environmentInput(env),
+      settingsText: settings.settingsText,
+    });
+
+    if (saved) settings.change(undefined);
+  }
 
   return (
     <>
@@ -128,6 +147,14 @@ function OverrideFields({
           />
         )}
       </SettingsSection>
+      <ProviderSettingsEditor
+        harness={instance.harness}
+        value={settings.value}
+        onChange={settings.change}
+        problem={settings.problem}
+        worker={{ name: worker.name, inherited: inherited?.settingsText }}
+        busy={busy}
+      />
       <SettingsSection
         title={`Environment on ${worker.name}`}
         description="Added to the definition's variables; the same name replaces one."
@@ -139,25 +166,30 @@ function OverrideFields({
         )}
         <EnvironmentFields value={env} onChange={setEnv} />
       </SettingsSection>
+      {!!error && <Notice error>{error}</Notice>}
       <SettingsActions>
         <Button variant="ghost" title="Discard changes" onPress={discard} />
         <Button
           variant="primary"
           title={`Save for ${worker.name}`}
           busy={busy}
-          onPress={() =>
-            void save({
-              ...(binaryPath.trim() && { binaryPath: binaryPath.trim() }),
-              ...(homePath.trim() && { homePath: homePath.trim() }),
-              ...(shadowHomePath.trim() && { shadowHomePath: shadowHomePath.trim() }),
-              launchArgsSet: argsSet,
-              launchArgs: launchArgs.split("\n").filter(Boolean),
-              ...(proxyId && { proxyId }),
-              env: environmentInput(env),
-            })
-          }
+          disabled={settings.saveBlocked}
+          onPress={() => void saveOverrides()}
         />
       </SettingsActions>
     </>
+  );
+}
+
+function path(label: string, value: string, set: (v: string) => void, placeholder = "") {
+  return (
+    <Field
+      label={label}
+      value={value}
+      onChangeText={set}
+      placeholder={placeholder}
+      autoCapitalize="none"
+      autoCorrect={false}
+    />
   );
 }

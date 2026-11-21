@@ -424,7 +424,7 @@ export class GrokThreads {
 
     try {
       const info = await client.initialize();
-      const known = discoveredModels(info);
+      const known = discoveredModels(info, profile.runtime.grokSettings?.models?.default_reasoning_effort);
 
       if (profile.kind !== "cliproxyapi") return { models: known };
       const models = (await proxyModels(profile)).filter((m) => proxyModelFits("grok", m));

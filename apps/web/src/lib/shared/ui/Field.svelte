@@ -43,6 +43,7 @@
 
 {#snippet heading()}
   <label
+    id="{id}-label"
     for={id}
     class="flex items-baseline justify-between gap-2 text-base/6 font-medium text-zinc-950 sm:text-sm/6 dark:text-white"
   >

@@ -29,6 +29,7 @@ const INSTANCE_FIELDS = new Set([
   "launchArgs",
   "ownLogin",
   "userConfiguration",
+  "settingsText",
   "allWorkers",
   "favorites",
   "hidden",

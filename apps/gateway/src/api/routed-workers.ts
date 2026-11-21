@@ -3,6 +3,7 @@ import { create, ScalarType, type DescMessage, type DescMethod, type Message } f
 import { reflect } from "@bufbuild/protobuf/reflect";
 import { connectors, ui } from "@canopy/contracts";
 import { splitId } from "@canopy/domain/computers";
+import { PROVIDER_SETTINGS_CAPABILITY } from "@canopy/domain/release/protocol";
 import { Code, ConnectError } from "@connectrpc/connect";
 import { Effect } from "effect";
 import { SqlClient } from "effect/sql";
@@ -91,6 +92,13 @@ export async function sendWorkerSetting(
 ): Promise<Message> {
   const node = await peerOf(core, ref, method, request);
   await refuseWithoutConfig(core, node);
+
+  if (
+    method.name === "SetInstanceWorker" &&
+    !core.computers?.capabilities(node).includes(PROVIDER_SETTINGS_CAPABILITY) &&
+    linkedMessage(ui.SetInstanceWorkerRequestSchema, request).overrides?.settingsText?.trim()
+  )
+    throw new ConnectError("Update the worker's home computer to edit its CLI settings.", Code.FailedPrecondition);
 
   const response = await single(
     forward(core, node, method, request, AbortSignal.any([signal, AbortSignal.timeout(unaryTimeout(method))])),

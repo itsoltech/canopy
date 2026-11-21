@@ -134,7 +134,7 @@ export function threadStart(
           }
 
           if (!session) {
-            // No effort chosen: the device owner's configured default (docs/claude-adapter.md).
+            // No effort chosen: use the configured default (docs/claude-adapter.md).
             const configured = requested
               ? undefined
               : options.configuredEffort?.([model || "default", resolvedModels.get(model || "default") ?? ""]);

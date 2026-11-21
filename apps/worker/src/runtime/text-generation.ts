@@ -121,6 +121,7 @@ export class TextGeneration {
                 CLAUDE_SECURESTORAGE_CONFIG_DIR: claudeHome?.secureStorageDir ?? sourceHome,
               }),
               ...(executable && { pathToClaudeCodeExecutable: executable }),
+              ...(runtime.claudeSettings && { settings: runtime.claudeSettings }),
             },
             abort.signal,
           ),
