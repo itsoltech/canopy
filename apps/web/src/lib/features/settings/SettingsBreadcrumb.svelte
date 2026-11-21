@@ -11,7 +11,7 @@
    * the page's name keeps its room. On narrow screens the section is a menu of every section
    * (`SettingsSectionMenu`) in place of the first two crumbs. `#settings-title` names the dialog.
    */
-  let { class: className }: { class?: ClassValue } = $props();
+  let { class: className, focused = false }: { class?: ClassValue; focused?: boolean } = $props();
   const overview = useOverview();
   const route = useSettingsRoute();
   const sections = useSettingsSections();
@@ -22,19 +22,21 @@
   const leaf = $derived(project?.name ?? worker?.name);
 </script>
 
-<nav aria-label="Breadcrumb" class={["min-w-0", className]}>
-  <ol
-    role="list"
-    class="flex min-w-0 items-center gap-2 text-base/6 text-zinc-500 sm:text-sm/6 dark:text-zinc-400 [&_[aria-current=page]]:text-zinc-950 dark:[&_[aria-current=page]]:text-white"
-  >
-    <Crumb href="/settings" class="max-lg:hidden">Settings</Crumb>
-    {#if leaf}
-      <Crumb href={section?.href} current={false} class="max-lg:hidden">{section?.label}</Crumb>
-    {:else}
-      <Crumb class="max-lg:hidden">{section?.label ?? "Settings"}</Crumb>
-    {/if}
-    <li class="-ml-2 flex shrink-0 items-center lg:hidden"><SettingsSectionMenu /></li>
-    {#if leaf}<Crumb>{leaf}</Crumb>{/if}
-  </ol>
-  <span id="settings-title" class="sr-only">{leaf ?? section?.label ?? "Settings"}</span>
-</nav>
+{#if !focused}
+  <nav aria-label="Breadcrumb" class={["min-w-0", className]}>
+    <ol
+      role="list"
+      class="flex min-w-0 items-center gap-2 text-base/6 text-zinc-500 sm:text-sm/6 dark:text-zinc-400 [&_[aria-current=page]]:text-zinc-950 dark:[&_[aria-current=page]]:text-white"
+    >
+      <Crumb href="/settings" class="max-lg:hidden">Settings</Crumb>
+      {#if leaf}
+        <Crumb href={section?.href} current={false} class="max-lg:hidden">{section?.label}</Crumb>
+      {:else}
+        <Crumb class="max-lg:hidden">{section?.label ?? "Settings"}</Crumb>
+      {/if}
+      <li class="-ml-2 flex shrink-0 items-center lg:hidden"><SettingsSectionMenu /></li>
+      {#if leaf}<Crumb>{leaf}</Crumb>{/if}
+    </ol>
+  </nav>
+{/if}
+<span id="settings-title" class="sr-only">{leaf ?? section?.label ?? "Settings"}</span>

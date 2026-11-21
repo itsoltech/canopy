@@ -6,18 +6,34 @@
   let {
     title,
     description,
+    anchor,
     class: className,
     actions,
     children,
-  }: { title: string; description?: string; class?: ClassValue; actions?: Snippet; children: Snippet } = $props();
+  }: {
+    title: string;
+    description?: string;
+    anchor?: string | undefined;
+    class?: ClassValue;
+    actions?: Snippet;
+    children: Snippet;
+  } = $props();
 
   const id = $props.id();
+  const headingId = $derived(anchor ?? id);
 </script>
 
-<section class={["grid min-w-0 gap-3 px-4 py-4 sm:px-5", className]} aria-labelledby={id}>
+<section class={["grid min-w-0 gap-3 px-4 py-4 sm:px-5", className]} aria-labelledby={headingId}>
   <div class="flex flex-wrap items-center justify-between gap-x-4 gap-y-2">
     <div class="min-w-0">
-      <h3 {id} class="text-base/6 font-semibold text-zinc-950 sm:text-sm/6 dark:text-white">{title}</h3>
+      <!-- svelte-ignore a11y_no_noninteractive_tabindex (Only sets -1 so following a fragment can focus the heading.) -->
+      <h3
+        id={headingId}
+        tabindex={anchor ? -1 : undefined}
+        class="text-base/6 font-semibold text-zinc-950 sm:text-sm/6 dark:text-white"
+      >
+        {title}
+      </h3>
       {#if description}<p class="text-sm/5 text-pretty text-zinc-500 dark:text-zinc-400">{description}</p>{/if}
     </div>
     {#if actions}<div class="flex shrink-0 items-center gap-2">{@render actions()}</div>{/if}

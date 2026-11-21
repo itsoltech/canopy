@@ -317,6 +317,7 @@ export const importTables: readonly ImportTable[] = [
 const localOnly = [
   "users",
   "schema_migrations",
+  "gateway_onboarding",
   "network_access",
   "mobile_devices",
   "mobile_pairings",

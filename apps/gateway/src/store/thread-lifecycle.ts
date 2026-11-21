@@ -17,11 +17,12 @@ interface Owned {
   purged_at: Date | null;
 }
 
+// Lifecycle writes preserve thread keys. A side thread can recheck its parent FK while the cascade waits for it.
 const owned = (sql: SqlClient.SqlClient, userId: string, threadId: string, deleted = false) =>
   Effect.gen(function* () {
     const row =
       (yield* sql<Owned>`SELECT id, parent_thread_id, deleted_at, deletion_batch_id, archived_at, archived_by, moved_to, purged_at FROM threads
-    WHERE id = ${threadId}::uuid AND owner_user_id = ${userId}::uuid FOR UPDATE`)[0];
+    WHERE id = ${threadId}::uuid AND owner_user_id = ${userId}::uuid FOR NO KEY UPDATE`)[0];
 
     if (!row || (!deleted && row.deleted_at)) return yield* Effect.fail(new NotFound("thread not found"));
 
@@ -33,7 +34,7 @@ const owned = (sql: SqlClient.SqlClient, userId: string, threadId: string, delet
 /** Reopening takes the same thread → worktree locks as cleanup before exposing local work again. */
 const requireReopenableWorktrees = (sql: SqlClient.SqlClient, ids: string[]) =>
   Effect.gen(function* () {
-    yield* sql`SELECT id FROM threads WHERE id = ANY(${ids}::uuid[]) ORDER BY id FOR UPDATE`;
+    yield* sql`SELECT id FROM threads WHERE id = ANY(${ids}::uuid[]) ORDER BY id FOR NO KEY UPDATE`;
 
     const trees = yield* sql<{ removal_token: string | null }>`SELECT w.removal_token FROM worktrees w
       WHERE w.id IN (SELECT worktree_id FROM threads WHERE id = ANY(${ids}::uuid[]))
@@ -85,7 +86,7 @@ export function threadLifecycle(sql: SqlClient.SqlClient, dispatch: Dispatch) {
         WHERE parent_thread_id = ${threadId}::uuid AND owner_user_id = ${userId}::uuid AND deleted_at IS NULL
           AND (CASE WHEN ${archived} THEN archived_at IS NULL
             ELSE archived_at IS NOT NULL AND archived_by = 'cascade' AND archived_by_thread_id = ${threadId}::uuid END)
-        ORDER BY id FOR UPDATE`;
+        ORDER BY id FOR NO KEY UPDATE`;
 
           const ids = [threadId, ...children.map((child) => child.id)];
 
@@ -118,7 +119,7 @@ export function threadLifecycle(sql: SqlClient.SqlClient, dispatch: Dispatch) {
           const rows = yield* sql<{
             id: string;
           }>`SELECT id FROM threads WHERE (id = ${threadId}::uuid OR parent_thread_id = ${threadId}::uuid)
-        AND owner_user_id = ${userId}::uuid AND deleted_at IS NULL ORDER BY id FOR UPDATE`;
+        AND owner_user_id = ${userId}::uuid AND deleted_at IS NULL ORDER BY id FOR NO KEY UPDATE`;
 
           const ids = rows.map((r) => r.id);
           const commands = yield* stopThreadResources(sql, dispatch, ids);
@@ -152,7 +153,7 @@ export function threadLifecycle(sql: SqlClient.SqlClient, dispatch: Dispatch) {
           const restored = yield* sql<{ id: string }>`SELECT id FROM threads
             WHERE owner_user_id = ${userId}::uuid AND deleted_at IS NOT NULL AND moved_to IS NULL AND purged_at IS NULL AND
             (id = ${threadId}::uuid OR (deletion_batch_id = ${threadId}::uuid AND parent_thread_id = ${threadId}::uuid))
-            ORDER BY id FOR UPDATE`;
+            ORDER BY id FOR NO KEY UPDATE`;
 
           yield* requireReopenableWorktrees(
             sql,

@@ -15,6 +15,9 @@ const savedView = Schema.Struct({
   archivedThreadsExpanded: Schema.optionalKey(Schema.Boolean),
   archivedBotsExpanded: Schema.optionalKey(Schema.Boolean),
   sidebarCollapsed: Schema.optionalKey(Schema.Boolean),
+  onboardingWorkerId: Schema.optionalKey(Schema.String),
+  onboardingSkipped: Schema.optionalKey(Schema.Boolean),
+  onboardingSent: Schema.optionalKey(Schema.Boolean),
   threadPanelCollapsed: Schema.optionalKey(Schema.Boolean),
   sidebarWidth: Schema.optionalKey(Schema.Number),
   pullRequestWidth: Schema.optionalKey(Schema.Number),
@@ -48,6 +51,9 @@ export interface DeviceViewValues extends DeviceSidebarValues {
   archivedThreadsExpanded: boolean;
   archivedBotsExpanded: boolean;
   sidebarCollapsed: boolean;
+  onboardingWorkerId: string;
+  onboardingSkipped: boolean;
+  onboardingSent: boolean;
   /** The floating thread summary is collapsed to its pill. */
   threadPanelCollapsed: boolean;
   sidebarWidth: number;
@@ -66,6 +72,9 @@ export const deviceViewDefaults: DeviceViewValues = {
   archivedThreadsExpanded: false,
   archivedBotsExpanded: false,
   sidebarCollapsed: false,
+  onboardingWorkerId: "",
+  onboardingSkipped: false,
+  onboardingSent: false,
   threadPanelCollapsed: false,
   sidebarWidth: 0,
   pullRequestWidth: 0,

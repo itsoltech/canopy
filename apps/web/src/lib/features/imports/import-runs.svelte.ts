@@ -19,6 +19,7 @@ export class ImportRunsState {
   error = $state("");
   busy = $state("");
   #timer: ReturnType<typeof setTimeout> | undefined;
+  #stopped = false;
   #onFinished: () => void;
 
   constructor(onFinished: () => void) {
@@ -72,14 +73,19 @@ export class ImportRunsState {
   }
 
   stop(): void {
+    this.#stopped = true;
+    this.#clearTimer();
+  }
+
+  #clearTimer(): void {
     if (this.#timer) clearTimeout(this.#timer);
     this.#timer = undefined;
   }
 
   #schedule(): void {
-    this.stop();
+    this.#clearTimer();
 
-    if (!this.active) return;
+    if (this.#stopped || !this.active) return;
     const running = this.runs.some((r) => r.status === "running");
 
     this.#timer = setTimeout(

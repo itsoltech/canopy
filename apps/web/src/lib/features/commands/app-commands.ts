@@ -128,6 +128,15 @@ function appActions(context: AppCommandContext): Command[] {
     },
     ...appearanceCommands(context.settings),
     {
+      id: "set-up-canopy",
+      title: "Set up Canopy",
+      group: "actions",
+      icon: "computer-desktop",
+      keywords: "first run onboarding worker agent provider proxy import git projects",
+      href: "/setup",
+      rank: 20,
+    },
+    {
       id: "open-settings",
       title: "Open settings",
       group: "actions",

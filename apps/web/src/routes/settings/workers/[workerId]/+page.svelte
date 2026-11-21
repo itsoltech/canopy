@@ -12,6 +12,8 @@
   import Alert from "#lib/shared/ui/Alert.svelte";
   import SettingsCard from "#lib/shared/ui/SettingsCard.svelte";
 
+  const cliAnchor = "agent-clis";
+
   /** One worker: the same header facts and sections as an expanded worker in Settings → Workers. */
   const route = useSettingsRoute();
   const overview = useOverview();
@@ -22,6 +24,19 @@
   const linked = $derived(record && records.linked(record));
   const worker = $derived(overview.worker(id) ?? linked?.worker);
   const where = $derived(record ? `“${record.computerName}”` : records.records.length ? "this computer" : "");
+  const anchoredWorker = $derived(route.url.hash === `#${cliAnchor}` ? worker?.id : undefined);
+
+  $effect(() => {
+    if (!anchoredWorker) return;
+
+    const frame = requestAnimationFrame(() => {
+      const heading = document.getElementById(cliAnchor);
+      heading?.scrollIntoView({ block: "start" });
+      heading?.focus({ preventScroll: true });
+    });
+
+    return () => cancelAnimationFrame(frame);
+  });
 </script>
 
 <svelte:head><title>{worker?.name ?? "Worker"} · Settings · {applicationName}</title></svelte:head>
@@ -35,7 +50,7 @@
 
 {#if worker}
   <SettingsCard>
-    <WorkerDetails {worker} {environment} {linked} reason onchanged={() => void records.reload()} />
+    <WorkerDetails {worker} {environment} {linked} {cliAnchor} reason onchanged={() => void records.reload()} />
   </SettingsCard>
   {#if environment.error}<Alert tone="error"
       >{environment.error}{#snippet actions()}<Button size="sm" onclick={() => void environment.refresh()}

@@ -1,6 +1,7 @@
 <script lang="ts">
   import type { Snippet } from "svelte";
   import Alert from "#lib/shared/ui/Alert.svelte";
+  import Button from "#lib/shared/ui/Button.svelte";
   import IconButton from "#lib/shared/ui/IconButton.svelte";
   import { exitDuration } from "#lib/shared/ui/motion.ts";
   import { backdropDismiss } from "#lib/shared/ui/backdrop.ts";
@@ -20,10 +21,11 @@
    */
   let {
     open,
+    focused,
     onclose,
     onexited,
     children,
-  }: { open: boolean; onclose: () => void; onexited: () => void; children: Snippet } = $props();
+  }: { open: boolean; focused: boolean; onclose: () => void; onexited: () => void; children: Snippet } = $props();
 
   const settings = useSettings();
 
@@ -68,25 +70,41 @@
     onclose();
   }}
   {...backdropDismiss(() => onclose())}
-  class="t-modal fixed inset-x-0 top-(--window-safe-top) bottom-0 m-0 h-(--window-safe-height) max-h-none w-full max-w-none overflow-hidden bg-white p-0 text-zinc-950 backdrop:bg-zinc-950/40 backdrop:backdrop-blur-[2px] sm:m-auto sm:h-[min(var(--window-safe-height)-3rem,60rem)] sm:w-[min(100vw-3rem,76rem)] sm:rounded-2xl sm:shadow-2xl sm:ring-1 sm:ring-zinc-950/10 dark:bg-zinc-950 dark:text-white dark:backdrop:bg-black/70 dark:sm:shadow-none dark:sm:ring-white/10"
+  class={[
+    "fixed inset-x-0 top-(--window-safe-top) bottom-0 m-0 h-(--window-safe-height) max-h-none w-full max-w-none overflow-hidden p-0",
+    focused
+      ? "bg-canvas text-ink backdrop:bg-transparent"
+      : "t-modal bg-white text-zinc-950 backdrop:bg-zinc-950/40 backdrop:backdrop-blur-[2px] sm:m-auto sm:h-[min(var(--window-safe-height)-3rem,60rem)] sm:w-[min(100vw-3rem,76rem)] sm:rounded-2xl sm:shadow-2xl sm:ring-1 sm:ring-zinc-950/10 dark:bg-zinc-950 dark:text-white dark:backdrop:bg-black/70 dark:sm:shadow-none dark:sm:ring-white/10",
+  ]}
 >
   <div class="flex h-full">
-    <div
-      class="w-(--settings-nav-width) shrink-0 scroll-stable overflow-y-auto border-r border-zinc-950/5 bg-zinc-50 p-3 max-lg:hidden dark:border-white/8 dark:bg-white/2"
-    >
-      <SettingsNav bind:query />
-    </div>
-    <div class="flex min-h-0 min-w-0 flex-1 flex-col">
+    {#if !focused}
       <div
-        class="flex min-h-11 shrink-0 items-center gap-2 border-b border-zinc-950/5 pr-2 pl-4 dark:border-white/8"
-        data-window-drag
+        class="w-(--settings-nav-width) shrink-0 scroll-stable overflow-y-auto border-r border-zinc-950/5 bg-zinc-50 p-3 max-lg:hidden dark:border-white/8 dark:bg-white/2"
       >
-        <SettingsBreadcrumb class="flex-1" />
-        <IconButton icon="x-mark" label="Close settings" onclick={onclose} />
+        <SettingsNav bind:query />
       </div>
+    {/if}
+    <div class="flex min-h-0 min-w-0 flex-1 flex-col">
+      {#if focused}
+        <div class="border-b border-divider" data-window-drag>
+          <div class="mx-auto flex min-h-12 max-w-(--settings-content-width) items-center px-4 sm:px-6">
+            <Button variant="ghost" icon="arrow-left" data-autofocus onclick={onclose}>Back</Button>
+            <SettingsBreadcrumb focused />
+          </div>
+        </div>
+      {:else}
+        <div
+          class="flex min-h-11 shrink-0 items-center gap-2 border-b border-zinc-950/5 pr-2 pl-4 dark:border-white/8"
+          data-window-drag
+        >
+          <SettingsBreadcrumb class="flex-1" />
+          <IconButton icon="x-mark" label="Close settings" onclick={onclose} />
+        </div>
+      {/if}
       <div class="min-h-0 flex-1 scroll-stable overflow-y-auto">
         <div
-          {@attach highlightSettingsMatches(query)}
+          {@attach focused ? undefined : highlightSettingsMatches(query)}
           class="settings-content mx-auto grid grid-cols-1 px-4 py-4 sm:px-6 lg:py-5"
         >
           {#if settings.notice}

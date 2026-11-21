@@ -23,8 +23,10 @@
   import { useGatewayCapabilities } from "#lib/features/desktop/gateway-capabilities.svelte.ts";
   import AccountConfigNotices from "#lib/features/computers/AccountConfigNotices.svelte";
   import { workerRecords } from "#lib/features/workers/worker-records.svelte.ts";
+  import { useSettingsRoute } from "#lib/features/settings/settings-route.ts";
 
   const overview = useOverview();
+  const route = useSettingsRoute();
   const capabilities = useGatewayCapabilities();
   const setup = new WorkerSetup();
   const environment = workerEnvironment();
@@ -40,6 +42,7 @@
   const elsewhere = $derived(overview.workers.some((w) => w.nodeId && !records.record(w.id)));
   const network = useNetworkAccess();
   let adding = $state(false);
+  let closeSettingsWithWizard = false;
   let error = $state("");
   let now = $state(Date.now());
 
@@ -63,6 +66,26 @@
   $effect(() => {
     if (overview.resyncs > 0) void setup.reload();
   });
+
+  $effect(() => {
+    if (!setup.loaded || route.url.searchParams.get("add") !== "1") return;
+
+    void route.consumeQuery("add").then((consumed) => {
+      if (consumed) {
+        closeSettingsWithWizard = true;
+        adding = true;
+      }
+    });
+  });
+
+  function setAdding(open: boolean): void {
+    adding = open;
+
+    if (!open && closeSettingsWithWizard) {
+      closeSettingsWithWizard = false;
+      route.close();
+    }
+  }
 
   async function revoke(id: string) {
     try {
@@ -156,4 +179,4 @@
 <UpdatesPanel />
 <SettingsGroup title="Install over SSH"><WorkerSshKey class="p-4 sm:p-5" /></SettingsGroup>
 <WorkerConnectionSettings {setup} />
-<AddWorkerWizard {setup} workers={environment.snapshot.workers} bind:open={adding} />
+<AddWorkerWizard {setup} workers={environment.snapshot.workers} bind:open={() => adding, setAdding} />

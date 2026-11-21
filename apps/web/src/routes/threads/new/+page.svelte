@@ -12,11 +12,13 @@
   import DraftMoveNotice from "#lib/features/drafts/DraftMoveNotice.svelte";
   import { startingPath, threadCreations } from "#lib/features/threads/thread-creation.svelte.ts";
   import type { ProjectChoice } from "@canopy/domain/projects";
+  import { useGatewayCapabilities } from "#lib/features/desktop/gateway-capabilities.svelte.ts";
   import { awayReason } from "#lib/features/computers/computers.ts";
   import Crumb from "#lib/features/navigation/Crumb.svelte";
   import TopBar from "#lib/features/navigation/TopBar.svelte";
   import { useOverview } from "#lib/features/overview/overview-state.svelte.ts";
   import { useSettings } from "#lib/features/settings/settings-state.svelte.ts";
+  import { devicePreferences } from "#lib/features/settings/device-preferences.svelte.ts";
   import { effectiveDefaults } from "#lib/features/settings/thread-defaults.ts";
   import { defaultProject, defaultWorkspace } from "#lib/features/projects/placement.ts";
   import ProjectPicker from "#lib/features/projects/ProjectPicker.svelte";
@@ -30,6 +32,8 @@
   import { supportedServiceTier } from "#lib/features/models/service-tier.ts";
   import { newThreadModel } from "#lib/features/models/new-thread-model.ts";
   import { useModelCatalog } from "#lib/features/models/model-catalog.svelte.ts";
+  import FirstSendNotice from "#lib/features/onboarding/FirstSendNotice.svelte";
+  import { setupAgentModels } from "#lib/features/onboarding/setup-agent.ts";
   import ModelControls from "#lib/features/models/ModelControls.svelte";
   import PermissionPicker from "#lib/features/threads/components/PermissionPicker.svelte";
   import { availablePermissionMode, fullAutoAvailable, permissionKey } from "#lib/features/threads/labels.ts";
@@ -54,6 +58,7 @@
    */
   let { form }: PageProps = $props();
   const overview = useOverview();
+  const capabilities = useGatewayCapabilities();
   const settings = useSettings();
 
   // ?project=<id> preselects the project; a new link (another project's "New thread") starts over.
@@ -164,7 +169,14 @@
       };
   }
 
-  const initial = $derived(newThreadModel(options, defaults, overview.agentChoiceThreads));
+  const setupOptions = $derived(
+    page.url.searchParams.get("setup") === "1" ? setupAgentModels(worker, models.of(workerId)) : [],
+  );
+
+  const initial = $derived(
+    newThreadModel(setupOptions.length ? setupOptions : options, defaults, overview.agentChoiceThreads),
+  );
+
   const selected = $derived(picked ?? initial.option);
 
   // Not picked and the profile's default: "" (the thread follows the profile's default model).
@@ -311,6 +323,9 @@
         <input type="hidden" name="worktreeId" value={place.form.worktreeId} />
         {#each draft.ids as id (id)}<input type="hidden" name="attachmentId" value={id} />{/each}
         {#if form?.error}<Alert tone="error">{form.error}</Alert>{/if}
+        {#if devicePreferences.viewLoaded && !devicePreferences.view.onboardingSent && (capabilities?.offerOnboarding || page.url.searchParams.get("setup") === "1")}
+          <FirstSendNotice />
+        {/if}
         <ComposerBox
           shell
           bind:value={saved.text}

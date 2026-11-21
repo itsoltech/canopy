@@ -17,6 +17,7 @@ export interface GatewayCompatibility {
   methods: string[];
   gatewayVersion: string;
   linkedComputers: boolean;
+  offerOnboarding: boolean;
   gatewayRole: string;
   /** This server BFF's version against the gateway's (gateway.ts); absent for the desktop. */
   webLag?: "older" | "newer" | "";
@@ -42,6 +43,7 @@ export function desktopGateway(routesJson: string, token: string) {
     methods: [],
     gatewayVersion: "",
     linkedComputers: false,
+    offerOnboarding: false,
     gatewayRole: "",
   };
 
@@ -73,6 +75,7 @@ export function desktopGateway(routesJson: string, token: string) {
         gatewayVersion: info.gatewayVersion,
         methods: info.methods,
         linkedComputers: info.linkedComputers,
+        offerOnboarding: info.offerOnboarding,
         gatewayRole: info.gatewayRole,
         message: Match.value(state).pipe(
           Match.when("app-update", () => "Update this app to connect to this gateway"),
@@ -95,6 +98,7 @@ export function desktopGateway(routesJson: string, token: string) {
         methods: [],
         gatewayVersion: "",
         linkedComputers: false,
+        offerOnboarding: false,
         gatewayRole: "",
       };
     }

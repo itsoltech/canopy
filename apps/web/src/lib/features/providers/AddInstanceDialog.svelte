@@ -36,6 +36,8 @@
     scope,
     onadded,
     prefill,
+    setupProxy = false,
+    deviceHarness,
   }: {
     open?: boolean;
     instances: readonly ui.ProviderInstance[];
@@ -44,6 +46,8 @@
     scope: string | undefined;
     onadded: (instance: ui.ProviderInstance | undefined) => void;
     prefill?: ui.ProviderInstance | undefined;
+    setupProxy?: boolean;
+    deviceHarness?: Provider | undefined;
   } = $props();
 
   const steps = ["Provider", "Identity", "Config"] as const;
@@ -55,8 +59,10 @@
 
   $effect.pre(() => {
     if (!open) return;
-    step = prefill ? 1 : 0;
-    const initial = newDraft(prefill?.harness ?? Provider.CODEX, scope ? [scope] : []);
+    step = prefill || deviceHarness !== undefined ? 1 : 0;
+    const initial = newDraft(prefill?.harness ?? deviceHarness ?? Provider.CODEX, scope ? [scope] : []);
+
+    if (deviceHarness !== undefined) initial.kind = ProviderProfileKind.NATIVE;
 
     if (prefill) {
       initial.kind = ProviderProfileKind.CLIPROXYAPI;
@@ -215,6 +221,11 @@
               errors={shown}
               prefix="new"
             />
+            {#if setupProxy && draft.kind === ProviderProfileKind.CLIPROXYAPI}
+              <p class="text-sm/6 text-zinc-600 dark:text-zinc-400">
+                Your endpoint receives the agent’s model requests. Check how it handles task data.
+              </p>
+            {/if}
             <WorkersField
               {workers}
               allWorkers={draft.allWorkers}

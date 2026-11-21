@@ -1,6 +1,6 @@
 <script lang="ts">
   import { applicationName } from "#lib/application-name.ts";
-  import { onMount } from "svelte";
+  import { onMount, untrack } from "svelte";
   import { useSettingsRoute } from "#lib/features/settings/settings-route.ts";
   import ImportFilters from "#lib/features/imports/ImportFilters.svelte";
   import ImportLibrary from "#lib/features/imports/ImportLibrary.svelte";
@@ -34,7 +34,9 @@
     return () => runs.stop();
   });
 
-  const workers = $derived(overview.workers.filter((w) => !w.nodeId));
+  const workers = $derived(overview.ownWorkers);
+  const requestedWorker = $derived(route.url.searchParams.get("worker"));
+  let appliedWorker: string | null = null;
 
   const options = $derived(
     workers.map((w) => ({
@@ -46,11 +48,22 @@
   );
 
   $effect(() => {
-    if (imports.workerId) return;
-    const wanted = route.url.searchParams.get("worker");
-    const first = workers.find((w) => w.id === wanted) ?? workers.find((w) => w.online);
+    if (requestedWorker !== appliedWorker) {
+      const worker = workers.find((w) => w.id === requestedWorker);
+      appliedWorker = worker?.id ?? null;
 
-    if (first) imports.workerId = first.id;
+      if (worker) {
+        untrack(() => {
+          imports.selectWorker(worker.id);
+
+          if (worker.online && !worker.revokedAt && worker.cliImport) void imports.reuseSuggestion();
+        });
+
+        return;
+      }
+    }
+
+    if (!imports.workerId) imports.selectWorker(workers.find((w) => w.online)?.id ?? "");
   });
 
   const workerName = $derived(workers.find((w) => w.id === imports.scan?.workerId)?.name ?? "this worker");
@@ -71,14 +84,14 @@
           placeholder="Choose a worker"
           {options}
           value={imports.workerId}
-          onchange={(value) => (imports.workerId = value)}
+          onchange={(value) => imports.selectWorker(value)}
         />
       </div>
       <Button
         variant="primary"
         icon="magnifying-glass"
         loading={imports.scanning}
-        disabled={!imports.workerId || imports.scanning}
+        disabled={!imports.workerId || imports.scanning || imports.starting}
         onclick={() => void imports.runScan()}
       >
         {imports.scan ? "Scan again" : "Scan"}

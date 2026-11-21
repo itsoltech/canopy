@@ -17,6 +17,7 @@
     worker,
     environment,
     linked,
+    cliAnchor,
     onchanged,
     reason = false,
     class: className,
@@ -24,6 +25,7 @@
     worker: ui.Worker;
     environment: EnvironmentState;
     linked?: LinkedWorker | undefined;
+    cliAnchor?: string;
     onchanged?: (() => void) | undefined;
     /** Title a read-only worker's note with the reason; in a computer's group the group says it instead. */
     reason?: boolean;
@@ -37,7 +39,7 @@
   {#if readOnly}<div class="px-4 py-4 sm:px-5">
       <Alert title={reason ? readOnly : undefined}>These are the last saved settings.</Alert>
     </div>{/if}
-  <WorkerCliTools {worker} {readOnly} />
+  <WorkerCliTools {worker} {readOnly} anchor={cliAnchor} />
   <WorkerConfiguration {worker} />
   <WorkerAccounts {worker} online={worker.online && !readOnly} />
   {#key worker.id}<WorkerTagEditor {worker} {environment} {linked} {onchanged} />{/key}

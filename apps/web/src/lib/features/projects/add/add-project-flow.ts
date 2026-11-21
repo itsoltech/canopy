@@ -1,5 +1,6 @@
 import type { ui } from "@canopy/contracts";
 import type { IconName } from "#lib/shared/ui/icons.ts";
+import type { DirectoryListing } from "./directory-listing.svelte.ts";
 
 /** Where the new workspace comes from (docs/linked-computers.md, "Dodawanie projektu na dowolnym komputerze"). */
 export type SourceKind = "directory" | "init" | "url" | "github" | "copy";
@@ -51,7 +52,13 @@ export type Step =
   | { readonly kind: "worker" }
   | { readonly kind: "source"; readonly worker: ui.Worker }
   | { readonly kind: "remote"; readonly worker: ui.Worker; readonly source: SourceKind }
-  | { readonly kind: "browse"; readonly worker: ui.Worker; readonly source: SourceKind; readonly remote: string };
+  | { readonly kind: "browse"; readonly worker: ui.Worker; readonly source: SourceKind; readonly remote: string }
+  | {
+      readonly kind: "git-directory" | "git-results";
+      readonly worker: ui.Worker;
+      readonly parent: string;
+      readonly listing: DirectoryListing;
+    };
 
 // Copy keeps its source separate from the destination worker and directory.
 export type CopyStep = {
