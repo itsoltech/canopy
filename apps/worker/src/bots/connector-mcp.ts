@@ -1,27 +1,36 @@
 import { create } from "@bufbuild/protobuf";
-import { AgentToolCallSchema, type InputAttachment, type RunBotTurn } from "@canopy/contracts";
+import { AgentToolCallSchema, Provider, type InputAttachment, type RunBotTurn } from "@canopy/contracts";
 import { verifyAttachment } from "../attachments/files.ts";
 import { forModel, MAX_SOURCE_BYTES } from "../images/normalize.ts";
 import { platformMcp, type McpAttachmentResult } from "../providers/mcp-bus.ts";
 import type { HostOperations } from "../runtime/host-context.ts";
 import { ATTACHMENT_TRUNCATION, BOT_ATTACHMENT_TEXT_LIMIT, botAttachmentText } from "./images.ts";
+import { claudeBotTools, claudeToolResults, readClaudeToolResult } from "./claude-tool-results.ts";
 
 export function botConnectorMcp(
   worker: Pick<HostOperations, "callTool" | "fetchBlob">,
   input: RunBotTurn,
   turnSignal: AbortSignal,
 ) {
+  const results = input.provider === Provider.CLAUDE && input.tools.length ? claudeToolResults() : undefined;
+
   return platformMcp({
     threadId: input.botId,
     depth: 0,
     agentBus: false,
-    connectorTools: input.tools,
+    connectorTools: results ? claudeBotTools(input.tools) : input.tools,
     turnId: () => input.turnId,
-    callTool: (call, signal) =>
-      worker.callTool(
-        create(AgentToolCallSchema, { ...call, botId: input.botId }),
-        signal ? AbortSignal.any([turnSignal, signal]) : turnSignal,
-      ),
+    callTool: async (call, signal) => {
+      const active = signal ? AbortSignal.any([turnSignal, signal]) : turnSignal;
+      active.throwIfAborted();
+
+      if (results && call.toolName === readClaudeToolResult.name) return results.read(call);
+      const result = await worker.callTool(create(AgentToolCallSchema, { ...call, botId: input.botId }), active);
+
+      active.throwIfAborted();
+
+      return results ? results.format(result) : result;
+    },
     attachmentContent: (attachments, signal) => {
       const active = AbortSignal.any([turnSignal, signal]);
 

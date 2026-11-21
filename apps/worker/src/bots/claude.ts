@@ -14,6 +14,7 @@ import { NoticeLevel } from "@canopy/contracts";
 import { claudeLimitError } from "../providers/usage-limits.ts";
 import { claudeFastMode } from "../providers/claude/service-tier.ts";
 import { admitClaudeBotInput, botClaudePrompts, consumedBotInput, nextBotMessage } from "./claude-input.ts";
+import { claudeBotTools } from "./claude-tool-results.ts";
 
 async function observeUsage(ctx: BotHarnessContext, usage: ClaudeUsage, message: SDKMessage) {
   if (usage.observe(message))
@@ -65,7 +66,7 @@ export async function runClaudeBot(ctx: BotHarnessContext): Promise<void> {
   session.save(id);
   await noteSession(ctx, id, resumed);
   const webTools = input.webAccess ? ["WebSearch", "WebFetch"] : [];
-  const allowedTools = [...webTools, ...input.tools.map((t) => `mcp__canopy__${t.name}`)];
+  const allowedTools = [...webTools, ...claudeBotTools(input.tools).map((t) => `mcp__canopy__${t.name}`)];
   const profile = claudeProfileOptions(ctx.profile, process.env);
   const content = await ctx.content(resumed);
   signal.throwIfAborted();
