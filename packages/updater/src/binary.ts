@@ -354,6 +354,7 @@ async function rollBackUnhealthy(options: SupervisorOptions, timedOut: boolean, 
 export async function superviseBinary(options: SupervisorOptions): Promise<number> {
   const supervisorEnv = { ...process.env, ...options.env };
   delete supervisorEnv["CANOPY_SUPERVISED"];
+  delete supervisorEnv["CANOPY_SUPERVISOR_VERSION"];
   const env = { ...supervisorEnv, CANOPY_SUPERVISED: "1" };
 
   const state: SupervisorState = {
@@ -412,7 +413,7 @@ export async function superviseBinary(options: SupervisorOptions): Promise<numbe
         executable = await lstat(options.binaryPath);
         child = governBunSpawn("supervisor", () =>
           Bun.spawn([options.binaryPath, ...options.args], {
-            env,
+            env: { ...env, CANOPY_SUPERVISOR_VERSION: state.handoverUnavailable ? "" : CANOPY_VERSION },
             stdin: "inherit",
             stdout: "inherit",
             stderr: "inherit",

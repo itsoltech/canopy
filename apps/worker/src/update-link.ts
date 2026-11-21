@@ -30,6 +30,7 @@ export interface WorkerUpdatesOptions {
   drain(value: boolean): void;
   restart(exitCode?: number): Promise<void>;
   signal: AbortSignal;
+  deferStartupReport?: boolean;
   log?(message: string): void;
   kind?: InstallKind;
   version?: string;
@@ -45,6 +46,7 @@ export class WorkerUpdates {
   readonly #version: string;
   readonly #kind: InstallKind;
   readonly #source: ReleaseSource;
+  #startupPending: boolean;
   #active: string | undefined;
   #handled = new Set<string>();
   // An interrupted update can finish after Watch has already reconnected.
@@ -53,6 +55,7 @@ export class WorkerUpdates {
     this.#version = options.version ?? CANOPY_VERSION;
     this.#kind = options.kind ?? installKind();
     this.#source = new ReleaseSource(options.source);
+    this.#startupPending = options.deferStartupReport ?? false;
     this.#headers = { authorization: `Bearer ${options.credential}` };
     this.#client = createClient(
       update.UpdateService,
@@ -75,6 +78,13 @@ export class WorkerUpdates {
         connectTimeoutMs: 5000,
       }),
     );
+    this.#reconnect();
+  }
+  startupReady(): void {
+    this.#startupPending = false;
+    this.#reconnect();
+  }
+  #reconnect(): void {
     this.#route.abort();
     this.#route = new AbortController();
   }
@@ -112,7 +122,7 @@ export class WorkerUpdates {
             );
         }
       } catch (error) {
-        if (!this.options.signal.aborted)
+        if (!this.options.signal.aborted && !route.signal.aborted)
           this.options.log?.(
             `update channel unavailable: ${error instanceof Error ? error.message : "connection failed"}`,
           );
@@ -156,7 +166,7 @@ export class WorkerUpdates {
     if (this.#kind !== "binary") return;
     const record = await readUpdateRecord(this.options.binaryPath);
 
-    if (!record || record.state === "restarting") return;
+    if (!record || record.state === "restarting" || (this.#startupPending && record.state === "succeeded")) return;
     await this.#client.report(
       {
         workerId: this.options.workerId,
@@ -188,7 +198,13 @@ export class WorkerUpdates {
     }
   }
   async apply(command: update.UpdateCommand): Promise<void> {
-    if (!command.id || this.#handled.has(command.id) || this.#active) return;
+    if (
+      !command.id ||
+      this.#handled.has(command.id) ||
+      this.#active ||
+      (this.#startupPending && command.version === this.#version)
+    )
+      return;
     this.#active = command.id;
 
     try {

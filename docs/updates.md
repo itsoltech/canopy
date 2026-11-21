@@ -1,6 +1,7 @@
 # Aktualizacje Canopy
 
-Status: opis zaimplementowanego kodu (2026-11-20), w tym ograniczenia kanału Nightly
+Status: opis zaimplementowanego kodu (2026-11-21), w tym przekazania nadzoru workera
+przed obsługą wątków po aktualizacji, ograniczenia kanału Nightly
 do wydań nightly, sprawdzania historii commitów aktualizacji desktopu i zmiany kanału binarek,
 aktualizacji Canopy przed CLI
 i pomijania komputerów offline w Update all, wspólnego otwierania paneli
@@ -927,8 +928,7 @@ przygotuj ten prywatny plik samodzielnie z istniejącą konfiguracją gatewaya.
 Jeśli sprzątanie urządzeń workera się nie powiedzie, worker zapisuje ostrzeżenie,
 próbuje dosłać dziennik i przekazuje sterowanie supervisorowi. Dotyczy to również
 przekazania nadzoru po potwierdzeniu nowej wersji. Trwałe rezerwacje czekają na
-ponowienie sprzątania po starcie. Wynik aktualizacji zależy od potwierdzenia
-startu docelowej binarki przez WorkerLink. Zasady własności opisuje sekcja
+ponowienie sprzątania po starcie. Zasady własności opisuje sekcja
 [Rezerwacje urządzeń i emulatory](automation-tools.md#rezerwacje-urządzeń-i-emulatory).
 
 Nowy gateway potwierdza start po uruchomieniu DB, listenerów i aktualizatora,
@@ -952,6 +952,17 @@ zachowuje PID, argumenty i środowisko usługi oraz standardowe strumienie,
 a nowy supervisor uruchamia właściwy proces usługi. Zdrowe dziecko uruchamia się
 zatem drugi raz; żadne aktywne zadanie nie jest z tego powodu przerywane.
 Kod 76 jest obsługiwany wewnętrznie, nie wymaga restartu przez menedżera usług.
+
+Pierwszy proces docelowej wersji workera potwierdza zgodność łącza po `Welcome`
+i daje supervisorowi do sekundy na wysłanie żądania przekazania. Dotyczy to też
+starszego supervisora, gdy rekord aktualizacji wskazuje zmianę wersji. Jeśli
+żądanie dotrze podczas startu, worker kończy pracę przed odtworzeniem journala
+na łączu i obsługą `Welcome.thread_lifecycle`. Po przekazaniu nowy proces
+normalnie odbiera konfigurację i zaczyna obsługiwać wiadomości z gatewaya.
+Lokalny rekord potwierdza start binarki dla watchdoga. Do UpdateService
+`succeeded` raportuje proces, który zaczyna obsługiwać łącze. Gdy supervisor
+nie obsługuje przekazania lub nie zażąda go w tym czasie, pierwszy proces
+przejmuje tę rolę. Błędy i rollback nadal można raportować niezależnie od WorkerLink.
 
 Obsługę `process.execve` obejmują testy skompilowanych binariów uruchamiane
 z Bun przypiętym w `mise.toml`. Mechanizm działa również na pierwszym planie bez

@@ -1,10 +1,18 @@
 import { expect, test } from "bun:test";
 import { createHash } from "node:crypto";
-import { readFile, writeFile } from "node:fs/promises";
+import { chmod, copyFile, mkdir, readFile, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { setTimeout } from "node:timers/promises";
 import { create } from "@bufbuild/protobuf";
-import { AgentTool, update, WorkerState, type Hello } from "@canopy/contracts";
+import {
+  AgentTool,
+  Provider,
+  ProviderProfileKind,
+  update,
+  WorkerState,
+  type ConfigApplied,
+  type Hello,
+} from "@canopy/contracts";
 import { createWorkerLink } from "@canopy/gateway/worker-link";
 import { startGrpcServer } from "@canopy/transport";
 import { tempDir } from "@canopy/testing";
@@ -18,7 +26,7 @@ import { binaryName, compile, TARGETS } from "../../scripts/build-binaries.ts";
 const target = TARGETS.find((name) => name === `${process.platform}-${process.arch}`);
 
 test.skipIf(!target || installKind() === "docker")(
-  "binary worker updates and reports success with an Android AVD reservation missing its runtime serial",
+  "binary worker hands over before processing archived threads and then configures with a pending AVD reservation",
   async () => {
     if (!target) throw new Error("A standalone build for the host is required");
     const dir = tempDir("canopy-worker-update-cleanup-");
@@ -28,6 +36,12 @@ test.skipIf(!target || installKind() === "docker")(
     const version = "2.0.0-nightly.2";
     const config = join(dir, "worker.json");
     const ownershipPath = join(dir, "device-pool.json");
+    const codex = join(dir, "codex");
+    const codexHome = join(dir, "device-codex");
+    await copyFile(join(import.meta.dir, "fixtures/directory-codex.ts"), codex);
+    await chmod(codex, 0o700);
+    await mkdir(codexHome);
+    await writeFile(join(codexHome, "auth.json"), '{"OPENAI_API_KEY":"fixture"}', { mode: 0o600 });
     const device = { id: "Pixel_9", name: "Pixel_9", platform: "android", kind: "emulator", booted: false };
     const ownership = [{ key: device.id, session: "managed", stop: true, device }];
     await writeFile(ownershipPath, JSON.stringify(ownership), { mode: 0o600 });
@@ -84,19 +98,43 @@ else process.exitCode = 1;
       preferGatewayMirror: true,
     });
 
-    const firstConnection = Promise.withResolvers<void>();
+    const previousConfigured = Promise.withResolvers<void>();
     const afterHandover = Promise.withResolvers<Hello>();
-    const result = Promise.withResolvers<update.ReportRequest>();
+    const configured = Promise.withResolvers<ConfigApplied>();
+    const result = Promise.withResolvers<{ report: update.ReportRequest; connections: number }>();
+    const closedThreadId = Bun.randomUUIDv7();
+    let firstCandidate: Hello | undefined;
     let candidateConnections = 0;
 
     const link = createWorkerLink({
       authenticate: async (value) => (value === credential ? workerId : undefined),
-      welcome: async () => ({ heartbeatIntervalSeconds: 15 }),
-      onConnected: (connection) => {
-        if (connection.hello.host?.workerVersion === previousVersion) firstConnection.resolve();
+      welcome: async (_workerId, hello) => {
+        if (hello.host?.workerVersion === version) firstCandidate ??= hello;
 
+        return {
+          heartbeatIntervalSeconds: 15,
+          // Work queued on the probe link must be left for the replacement process.
+          ...(hello === firstCandidate && { threadLifecycle: { replace: true, closedThreadIds: [closedThreadId] } }),
+        };
+      },
+      config: async () => ({
+        version: 10n,
+        claude: { enabled: false },
+        grok: { enabled: false },
+        codex: { enabled: true, executablePath: codex, linkDeviceLogin: true },
+        profiles: [{ id: "native", kind: ProviderProfileKind.NATIVE, providers: [Provider.CODEX] }],
+      }),
+      onConnected: (connection) => {
         if (connection.hello.host?.workerVersion === version && ++candidateConnections === 2)
           afterHandover.resolve(connection.hello);
+      },
+      onMessage: (connection, message) => {
+        if (message.payload.case === "configApplied") {
+          if (connection.hello.host?.workerVersion === previousVersion) previousConfigured.resolve();
+          else configured.resolve(message.payload.value);
+        }
+
+        return false;
       },
     });
 
@@ -106,7 +144,7 @@ else process.exitCode = 1;
         router.service(update.UpdateService, {
           async *watch(request) {
             if (request.version === previousVersion) {
-              await firstConnection.promise;
+              await previousConfigured.promise;
               yield create(update.UpdateEventSchema, { command });
             }
           },
@@ -114,7 +152,8 @@ else process.exitCode = 1;
             for await (const data of candidate.stream()) yield create(update.ArtifactChunkSchema, { data });
           },
           async report(request) {
-            if (["failed", "succeeded"].includes(request.state)) result.resolve(request);
+            if (["failed", "succeeded"].includes(request.state))
+              result.resolve({ report: request, connections: candidateConnections });
 
             return {};
           },
@@ -138,6 +177,8 @@ else process.exitCode = 1;
         CANOPY_LOG_DIR: join(dir, "logs"),
         CANOPY_NATIVE_DIR: join(dir, "native"),
         CANOPY_WORKTREES_ROOT: join(dir, "worktrees"),
+        CODEX_HOME: codexHome,
+        CLAUDE_CONFIG_DIR: join(dir, "device-claude"),
       },
       stdout: "pipe",
       stderr: "pipe",
@@ -148,9 +189,11 @@ else process.exitCode = 1;
 
     try {
       const completed = async () => {
-        const report = await result.promise;
+        const { report, connections } = await result.promise;
         expect(report).toMatchObject({ commandId: command.id, state: "succeeded", version });
+        expect(connections).toBe(2);
         expect((await afterHandover.promise).state).toBe(WorkerState.ACTIVE);
+        expect(await configured.promise).toMatchObject({ version: 10n, applied: true });
 
         while (await readUpdateRecord(installed)) await setTimeout(20, undefined, { signal: deadline.signal });
       };
@@ -167,6 +210,7 @@ else process.exitCode = 1;
       expect(JSON.parse(await readFile(ownershipPath, "utf8"))).toEqual(ownership);
       const invocations = await readFile(calls, "utf8");
       expect(invocations).toContain('"--session","managed","close"');
+      expect(invocations).not.toContain(closedThreadId);
       expect(invocations).not.toContain('"shutdown"');
     } finally {
       deadline.abort();
@@ -177,7 +221,9 @@ else process.exitCode = 1;
       await server.close(50);
     }
 
-    expect((await output) + (await errors)).toContain("Cannot prove ownership of the Android AVD runtime");
+    const logs = (await output) + (await errors);
+    expect(logs).toContain("Cannot prove ownership of the Android AVD runtime");
+    expect(logs.split("codex runtime started")).toHaveLength(3);
   },
   60_000,
 );
