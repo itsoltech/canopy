@@ -11,6 +11,7 @@ import { deliverThreadQuestions, deliverySources } from "./thread-questions.ts";
 import { turnReport } from "../store/turn-report.ts";
 import { canReportBotTurn } from "./report-origin.ts";
 import { botThreadNoticeTitle, threadNotice } from "./thread-notice.ts";
+import { noUnscopedInteractionInput, watchCompletion, watchNeedsCheck } from "./watch-completion.ts";
 
 /** Watches of threads and steers, wakeups and reminders. */
 export function botWakeups(sql: SqlClient.SqlClient, core: BotCore) {
@@ -99,27 +100,52 @@ export function botDeliveries(sql: SqlClient.SqlClient, core: BotCore) {
             bot_id: string;
             target_thread_id: string;
             target_turn_id: string;
+            result_turn_id: string;
+            incomplete: boolean;
+            last_seq: string;
+            check_at: Date | null;
             hops: number;
             owner_user_id: string;
             status: string;
             error: string | null;
             title: string;
-          }>`SELECT w.*, b.owner_user_id, t.status, t.error, th.title FROM bot_thread_watches w
+          }>`SELECT w.*, b.owner_user_id, th.title, th.last_seq, continuation.check_at,
+        coalesce(continuation.id,t.id) AS result_turn_id,
+        coalesce(continuation.status,t.status) AS status,
+        CASE WHEN continuation.id IS NULL THEN t.error ELSE continuation.error END AS error,
+        continuation.incomplete IS TRUE AS incomplete
+        FROM bot_thread_watches w
         JOIN bots b ON b.id = w.bot_id JOIN turns t ON t.id = w.target_turn_id JOIN threads th ON th.id = t.thread_id
-        WHERE b.owner_user_id=${owner}::uuid AND NOT w.delivered AND b.deleted_at IS NULL AND b.archived_at IS NULL AND b.moved_to IS NULL AND th.owner_user_id = b.owner_user_id AND t.status IN ('completed','failed','interrupted','cancelled') ORDER BY w.call_id LIMIT 32 FOR UPDATE OF b, w SKIP LOCKED`;
+        ${watchCompletion(sql)}
+        WHERE b.owner_user_id=${owner}::uuid AND NOT w.delivered AND b.deleted_at IS NULL AND b.archived_at IS NULL AND b.moved_to IS NULL
+          AND th.owner_user_id = b.owner_user_id AND t.status IN ('completed','failed','interrupted','cancelled')
+          AND ${watchNeedsCheck(sql)} ORDER BY w.call_id LIMIT 32 FOR UPDATE OF b, w SKIP LOCKED`;
+
+          for (const watch of watches) {
+            if (!watch.check_at) continue;
+            yield* sql`UPDATE bot_thread_watches SET continuation_checked_seq=${watch.last_seq}::bigint,
+              continuation_check_at=${watch.check_at} WHERE call_id=${watch.call_id}::uuid`;
+          }
+
+          const finished = watches.filter((w) => w.check_at === null);
 
           const watchSources = yield* deliverySources(
             sql,
-            watches.map((w) => w.call_id),
+            finished.map((w) => w.call_id),
           );
 
           const results = yield* watchTexts(
             sql,
-            watches.map((w) => ({ thread: w.target_thread_id, turn: w.target_turn_id })),
+            finished.map((w) => ({
+              call: w.call_id,
+              thread: w.target_thread_id,
+              turn: w.result_turn_id,
+              root: w.target_turn_id,
+            })),
           );
 
-          for (const watch of watches) {
-            const text = results.get(watch.target_turn_id);
+          for (const watch of finished) {
+            const text = results.get(watch.call_id);
             const source = watchSources.get(watch.call_id);
 
             if (text !== undefined && (source?.origin_enabled ?? true) && (yield* core.originEnabled(source))) {
@@ -129,13 +155,17 @@ export function botDeliveries(sql: SqlClient.SqlClient, core: BotCore) {
               yield* enqueue(
                 watch.owner_user_id,
                 watch.bot_id,
-                `Thread ${title} (${watch.target_thread_id}) ended: ${watch.status}.\n${message}`,
+                watch.incomplete
+                  ? `Thread ${title} (${watch.target_thread_id}): the last confirmed turn ended as ${watch.status}. A background follow-up could not be confirmed.\n${message}`
+                  : `Thread ${title} (${watch.target_thread_id}) ended: ${watch.status}.\n${message}`,
                 `thread:${watch.call_id}`,
                 {
                   hops: watch.hops,
                   sender: watch.target_thread_id,
                   event: true,
-                  displayText: threadNotice(title, watch.status, "", failure),
+                  displayText: watch.incomplete
+                    ? `“${title}” has a partial result`
+                    : threadNotice(title, watch.status, "", failure),
                   ...originOf(source),
                 },
               );
@@ -177,11 +207,16 @@ export function botDeliveries(sql: SqlClient.SqlClient, core: BotCore) {
 }
 
 /** Fetch a text prefix, never complete tool payloads. JS slicing retains the historical UTF-16 limit. */
-export const watchTexts = (sql: SqlClient.SqlClient, requested: readonly { thread: string; turn: string }[]) =>
+export const watchTexts = (
+  sql: SqlClient.SqlClient,
+  requested: readonly { call?: string; thread: string; turn: string; root?: string }[],
+) =>
   sql<{
-    turn: string;
+    call: string;
     text: string;
-  }>`SELECT r.turn,result.text FROM unnest(${requested.map((r) => r.thread)}::uuid[],${requested.map((r) => r.turn)}::uuid[]) r(thread,turn)
+  }>`SELECT r.call,result.text FROM unnest(${requested.map((r) => r.call ?? r.turn)}::uuid[],
+    ${requested.map((r) => r.thread)}::uuid[],${requested.map((r) => r.turn)}::uuid[],
+    ${requested.map((r) => r.root ?? r.turn)}::uuid[]) r(call,thread,turn,root)
   CROSS JOIN LATERAL (WITH texts AS MATERIALIZED (
     SELECT first_seq,left(content->'agentMessage'->>'text',80000) AS text FROM thread_items
     WHERE thread_id=r.thread AND turn_id=r.turn AND type='agent_message'
@@ -189,6 +224,9 @@ export const watchTexts = (sql: SqlClient.SqlClient, requested: readonly { threa
   ), budget AS (
     SELECT first_seq,text,coalesce(sum(length(text)+1) OVER(ORDER BY first_seq ROWS BETWEEN UNBOUNDED PRECEDING AND 1 PRECEDING),0) AS preceding FROM texts
   ) SELECT left(coalesce(string_agg(text,E'\n' ORDER BY first_seq) FILTER(WHERE preceding<=80000),''),80000) AS text FROM budget) result
-  WHERE ${canReportBotTurn(sql, sql`r.thread`, sql`r.turn`)}`.pipe(
-    Effect.map((rows) => new Map(rows.map((row) => [row.turn, row.text.slice(0, 80000)]))),
+  WHERE ${canReportBotTurn(sql, sql`r.thread`, sql`r.turn`)}
+    AND (r.root=r.turn OR (${canReportBotTurn(sql, sql`r.thread`, sql`r.root`, true)}
+      AND ${noUnscopedInteractionInput(sql, sql`r.thread`, sql`r.root`)}
+      AND ${noUnscopedInteractionInput(sql, sql`r.thread`, sql`r.turn`)}))`.pipe(
+    Effect.map((rows) => new Map(rows.map((row) => [row.call, row.text.slice(0, 80000)]))),
   );

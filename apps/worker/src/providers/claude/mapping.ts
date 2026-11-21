@@ -5,7 +5,7 @@ export { isTaskNotificationAck, startsTurn, type GoalVerdict } from "./goal-mapp
 
 import { ClaudeConsumedUsage } from "./consumed-usage.ts";
 import { ClaudeContextUsage } from "./context-usage.ts";
-import { ClaudeBackgroundMapper } from "./background-mapping.ts";
+import { backgroundResultRunId, ClaudeBackgroundMapper } from "./background-mapping.ts";
 import { emptyContent, textContent, toolContent, withOutput, resultText } from "./content-mapping.ts";
 
 export { toolContent, withOutput, resultText } from "./content-mapping.ts";
@@ -474,6 +474,7 @@ export class ClaudeEventMapper {
               : message.subtype,
         }),
         providerTurnRef: this.#lastUuid ?? "",
+        backgroundTaskRunId: backgroundResultRunId(message),
         ...(outcome !== TurnOutcome.COMPLETED && reason && { reason }),
         // Multi-model snapshots are emitted separately; never add a mixed-model accounting bucket.
         ...(this.#consumed.snapshots().length === 1 && { usage: this.#consumed.snapshots()[0] }),

@@ -30,6 +30,7 @@ import { SqlClient } from "effect/sql";
 import { applyGoalState } from "./goals.ts";
 import { compactEventRaw } from "./transcript-raw.ts";
 import { claimPreviews, type PreviewSource } from "./preview-uploads.ts";
+import { recordBackgroundFollowup } from "./background-followup.ts";
 
 /** A worker's steer_dropped notice names the dropped steer as input_id. */
 const decodeSteerDropped = Schema.decodeUnknownOption(Schema.Struct({ input_id: Schema.optional(Schema.String) }));
@@ -243,6 +244,9 @@ export const applySideEffects = (
 
       case "turnFinished": {
         const end = turnEnd(body.value.outcome, body.value.source);
+
+        if (source && event.turnId && body.value.backgroundTaskRunId)
+          yield* recordBackgroundFollowup(sql, threadId, event.turnId, body.value.backgroundTaskRunId);
 
         const oom =
           source &&

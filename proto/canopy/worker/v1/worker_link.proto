@@ -1232,6 +1232,8 @@ message TurnFinished {
   // Rekoncyliacja potwierdziła OOM usługi workera i przerwanie tury bez żądania Stop.
   // Gateway może zakolejkować jedną kontynuację sesji. Starsze workery pomijają flagę.
   bool worker_oom_recovery = 8;
+  // Identyfikator uruchomienia zadania w tle z pochodzenia wyniku Claude.
+  string background_task_run_id = 9;
 }
 
 enum ThreadStatus {
@@ -1591,6 +1593,8 @@ message BackgroundTask {
   google.protobuf.Timestamp ended_at = 231;
   // Kod wyjścia procesu, gdy jest znany (Codex unified exec).
   optional int32 exit_code = 232;
+  // Identyfikator uruchomienia zadania z Claude task_started.
+  string provider_run_id = 233;
 }
 
 // Wywołanie narzędzia szyny agentów (spawn_thread, send_message, wait_threads, ...).

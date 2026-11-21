@@ -18,7 +18,7 @@ export class ClaudeBackgroundMapper {
   /** Tasks that started in the foreground and may be moved to the background later. */
   readonly #foreground = new Map<
     string,
-    { toolUseId: string; description: string; taskType: string; parentTaskId: string; turnId: string }
+    { toolUseId: string; description: string; taskType: string; parentTaskId: string; turnId: string; runId: string }
   >();
   readonly #tasks = new Map<string, LiveTask>();
   /** Background tasks with an open item (task ids). */
@@ -71,6 +71,7 @@ export class ClaudeBackgroundMapper {
       taskType: message.task_type ?? "",
       parentTaskId: message.parent_task_id ?? "",
       turnId: turnId ?? "",
+      runId: message.run_id ?? "",
     };
 
     this.#foreground.set(message.task_id, pending);
@@ -92,6 +93,7 @@ export class ClaudeBackgroundMapper {
       description: pending.description,
       command: call?.command ?? "",
       startedInTurnId: pending.turnId,
+      providerRunId: pending.parentTaskId ? "" : pending.runId,
       parentTaskId: pending.parentTaskId,
       sourceItemId: pending.toolUseId,
       startedAt: timestampNow(),
@@ -204,4 +206,19 @@ function backgroundKind(taskType: string): BackgroundTaskKind {
     default:
       return BackgroundTaskKind.SHELL;
   }
+}
+
+/** Claude's result attests the task notification that started the turn. */
+export function backgroundResultRunId(message: Extract<SDKMessage, { type: "result" }>): string {
+  const origin = message.origin;
+
+  if (
+    origin?.kind !== "task-notification" ||
+    origin.subkind ||
+    message.user_message_uuid ||
+    message.user_message_uuids?.length
+  )
+    return "";
+
+  return origin.runId ?? "";
 }
