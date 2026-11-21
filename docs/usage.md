@@ -1,10 +1,11 @@
 # Statystyki zużycia tokenów i kosztów
 
-Status (2026-11-19): zaimplementowane agregaty zużycia w gatewayu, raporty
+Status (2026-11-21): zaimplementowane agregaty zużycia w gatewayu, raporty
 harnessów, niezależne szacunki ekwiwalentu API OpenAI, wybór kosztu per licznik,
 API `GetUsageStats`, synchronizacja źródeł połączonych komputerów oraz modal
 Usage z jedną kwotą kosztu i podziałem według workera, aktywności oraz poszczególnych botów.
 Web, desktop i [aplikacja mobilna](mobile.md#raport-usage) pokazują w raporcie Usage skrócone liczby tokenów i dzienny wykres według dostawcy.
+Informacje o pokryciu raportu są widoczne przy kwotach i w sekcji **Recording gateways**.
 W web/desktop data wybrana na wykresie ma oznaczenie UTC. Dla jednego dnia oś nie powtarza daty na obu końcach. Przy nawigacji klawiaturą po kilku dniach pojawia się wskazówka o strzałkach.
 Dostępność nightly/beta/stable według [release.md](release.md).
 

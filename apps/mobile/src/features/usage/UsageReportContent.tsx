@@ -7,7 +7,7 @@ import {
   type UsageData,
   type UsageView,
 } from "@canopy/domain/usage-report";
-import { Alert, EmptyState, Notice } from "../../ui/components";
+import { EmptyState, Notice } from "../../ui/components";
 import { font, styles, useColors, useTypography } from "../../ui/theme";
 import { UsageBreakdown, type UsageGroup } from "./UsageBreakdown";
 import { UsageChart } from "./UsageChart";
@@ -26,11 +26,6 @@ export function UsageReportContent({
 }) {
   return (
     <>
-      {data.partial && (
-        <Alert tone="warning" title="Partial coverage">
-          Some usage or costs may be missing. Check Recording gateways for details.
-        </Alert>
-      )}
       {data.totals.reports === 0n ? (
         <EmptyState title="No usage recorded" description="Choose a different period or provider." />
       ) : (

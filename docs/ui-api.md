@@ -2,6 +2,7 @@
 
 Status (2026-11-21): web, desktop i mobile obsługują usypianie wątków oraz załączniki
 do 40 MiB na plik po zmianie ustawienia.
+Stany źródeł Usage są widoczne w sekcji **Recording gateways**.
 Zamknięcie osiągniętego celu zapisuje się w ustawieniach widoku urządzenia.
 Klienci utrzymują strumień wątku przy dołączaniu
 starszej strony z aktualnego checkpointu sekwencyjnego. Gateway obsługuje osobną
@@ -396,9 +397,9 @@ Szczegóły tokenów zależą od danych providera.
 ostatni raport i stan: aktualne dane, synchronizacja, wymagane uaktualnienie,
 wymagane bezpośrednie połączenie, ostatnie zapisane dane albo offline.
 Niepełna partia synchronizacji pozostaje oznaczona do jej zakończenia.
-Brak wcześniejszych danych oraz nieznany koszt nie są przedstawiane jako awaria połączenia. Komunikat o komputerach z niepełnymi danymi
-wynika z ich jawnego stanu, a nie z ogólnego `partial`. Pusty zakres i błąd odczytu
-mają osobne stany z podpowiedzią zmiany filtrów albo ponowieniem.
+Brak wcześniejszych danych oraz nieznany koszt nie są przedstawiane jako awaria
+połączenia. Pusty zakres i błąd odczytu mają osobne stany z podpowiedzią zmiany
+filtrów albo ponowieniem.
 
 ## Szkice kompozytora i przekazywanie między urządzeniami
 
