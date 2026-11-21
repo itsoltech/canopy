@@ -273,10 +273,10 @@ describe.skipIf(!dockerAvailable)("mobile pairing + pinned native app Connect cl
         rawMessage: expect.stringContaining("files can be up to"),
       });
       const { attachment } = await phone.uploadAttachment({ name: "sample.dat", data: data.subarray(0, bytes) });
-      const id = attachment!.id;
+      const { id, sha256 } = attachment!;
       const downloaded = await phone.getAttachment({ attachmentId: id });
       expect(downloaded.data.length).toBe(bytes);
-      expect(createHash("sha256").update(downloaded.data).digest("hex")).toBe(attachment?.sha256);
+      expect(createHash("sha256").update(downloaded.data).digest("hex")).toBe(sha256);
 
       const url = new URL(`http://localhost/api/attachments/${id}?download`);
       const request = new Request(url, { headers: { range: "bytes=-3" } });
