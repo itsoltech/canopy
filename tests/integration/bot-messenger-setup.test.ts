@@ -313,6 +313,12 @@ describe.skipIf(!dockerAvailable)("private owner messenger subscription tools", 
         );
       }
 
+      await query("UPDATE bot_turns SET hops=1 WHERE id=$1", [f.turn.id]);
+      await expect(call(f.turn, "search_canopy_preferences", { query: "color" })).rejects.toThrow(
+        "private owner message",
+      );
+      await query("UPDATE bot_turns SET hops=0 WHERE id=$1", [f.turn.id]);
+
       await query("UPDATE bot_messages SET sender_id='another-bot' WHERE turn_id=$1 AND message_key='input'", [
         f.turn.id,
       ]);

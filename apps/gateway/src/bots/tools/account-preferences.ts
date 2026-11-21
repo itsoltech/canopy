@@ -136,7 +136,7 @@ const setPreference: PlatformTool = {
 export const accountPreferenceTools = [
   define(
     "search_canopy_preferences",
-    "Search supported Canopy account preferences by keywords. Use get_canopy_preference for details and verified navigation.",
+    "Search supported Canopy account preferences by keywords in a private owner turn. Use get_canopy_preference for details and verified navigation.",
     object({ query: str, limit: { type: "integer", minimum: 1 } }, ["query"]),
     "Searching Canopy preferences",
     async (c) => {
@@ -161,7 +161,7 @@ export const accountPreferenceTools = [
   ),
   define(
     "get_canopy_preference",
-    "Read one Canopy preference by search result ID. For a verified path supply the user's client and exact reported app version.",
+    "Read one Canopy preference by search result ID in a private owner turn. For a verified path supply the user's client and exact reported app version.",
     object({ setting_id: str, client: { type: "string", enum: [...SETTINGS_CLIENTS] }, client_version: str }, [
       "setting_id",
     ]),

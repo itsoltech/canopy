@@ -55,7 +55,9 @@ export async function currentBotTools(
   const platform = catalog.filter(
     (tool) =>
       (!turn.conversation_id || EXTERNAL_WORK_TOOLS.has(tool.name)) &&
-      (!accountPreferenceNames.has(tool.name) || (turn.hops === 0 && !turn.routine_id)) &&
+      // Private follow-ups share the owner's native session and tool catalogue. Each preference call still
+      // checks the stored origin in the gateway. Routines and external chats have separate tool policies.
+      (!accountPreferenceNames.has(tool.name) || !turn.routine_id) &&
       (config.files !== false || !BOT_FILE_TOOLS.includes(tool.name)) &&
       (config.webAccess !== false || tool.name !== "get_canopy_release_versions") &&
       (turn.routine_id

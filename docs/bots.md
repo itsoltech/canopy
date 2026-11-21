@@ -1101,9 +1101,11 @@ z czytelnym komunikatem (etap 5). Opcje dostępne przez narzędzia i API, bez no
 | `send_bot_message` | Wiadomość do innego bota właściciela, odpowiedź jako follow-up | P |
 | `ask_user` | Trwałe pytanie i do sześciu opcji | Karta pytania |
 
-Narzędzia preferencji są dostępne tylko w prywatnej turze zainicjowanej przez
-wiadomość właściciela, także bez Web access i przy wyłączonym module Threads.
-Gateway weryfikuje właściciela, pochodzenie wiadomości i ważność lease'u.
+Wywołanie narzędzi preferencji wymaga prywatnej tury zainicjowanej przez wiadomość
+właściciela. Działa także bez Web access i przy wyłączonym module Threads.
+Katalog pozostaje stały podczas prywatnych kontynuacji, żeby harness mógł wznowić
+sesję. Przy wykonaniu gateway weryfikuje właściciela, pochodzenie wiadomości i
+ważność lease'u.
 Bot proponuje zapis po jednoznacznym poleceniu właściciela. Gateway sprawdza
 jednorazową zgodę na tę operację także przy wykonaniu zapisu. Reguły stałe i Full
 auto nie wystarczają. Po równoległej edycji trzeba ponownie odczytać aktualną
