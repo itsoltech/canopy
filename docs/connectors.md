@@ -2,9 +2,11 @@
 
 Projekt i wdrożenie: 2026-11-02. Zakres: konta zdalnych serwerów MCP,
 OAuth w gateway, dostęp wybranych workerów i botów oraz jeden kanał wykonania.
-Status (2026-11-19): jedno konto Slack w Settings → Connectors współdzieli aplikację
+Status (2026-11-21): jedno konto Slack w Settings → Connectors współdzieli aplikację
 OAuth dla narzędzi MCP i wiadomości botów przez Socket Mode. Bot settings → Messengers
 wybiera podłączone konto i trasy; gateway odnawia rotowane tokeny użytkownika i bota.
+Opis w karcie konta w web/desktop wyjaśnia, że Workers obejmuje wszystkie wątki na wybranych
+workerach z uwzględnieniem trybu uprawnień wątku. Dostęp botów ustawia się osobno w Bots.
 Zgoda na zapis MCP obejmuje konkretną operację. Synchronizacja rozpoznaje podmiot OAuth,
 a połączenia z adresami podanymi przez discovery przechodzą kontrolę DNS.
 Usunięcie bota odłącza jego przypisania i trasy od współdzielonych kont.
