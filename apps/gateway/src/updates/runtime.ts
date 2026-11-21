@@ -47,6 +47,7 @@ export interface GatewayUpdatesOptions {
   departure?(state: "updating" | "restarting", target?: string): Promise<void>;
   recovered?(state: string, reason: string, target?: string): Promise<void>;
   idle?(): Promise<boolean>;
+  relocating?(): boolean;
   drain?(value: boolean): void;
   log?(message: string): void;
   pollMs?: number;
@@ -366,6 +367,7 @@ export class GatewayUpdates {
         signal: this.#stopping.signal,
         waiting: async () => {},
         apply: async () => {
+          if (this.options.relocating?.()) throw new Error("Gateway maintenance is in progress");
           this.#setState("downloading");
           this.#reason = "Downloading and verifying the gateway release";
           await stageGatewayRelease({
@@ -391,7 +393,7 @@ export class GatewayUpdates {
     }
   }
   #onHello(workerId: string, hello: update.CheckRequest): Promise<update.UpdateCommand | undefined> {
-    if (!this.#ready) return Promise.resolve(undefined);
+    if (!this.#ready || this.options.relocating?.()) return Promise.resolve(undefined);
 
     if (this.#commands.has(workerId)) return this.#commands.get(workerId)!;
 

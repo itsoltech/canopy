@@ -50,7 +50,7 @@ export function createCoreBots(core: GatewayCore, options: GatewayCoreOptions): 
   return new BotsRuntime({
     runtime: options.runtime,
     userId: options.userId,
-    draining: () => core.updates?.draining ?? false,
+    draining: () => options.relocation?.draining || (core.updates?.draining ?? false),
     connectors: core.connectors,
     harness: (input) => runBotHarness(core, input),
     deliverInterrupt: (workerId) => coreRedeliver(core, workerId),
@@ -150,6 +150,7 @@ export function createCoreScheduler(core: GatewayCore, options: GatewayCoreOptio
     },
     owner: options.instanceId,
     userId: options.userId,
+    draining: () => options.relocation?.draining ?? false,
     log: (message) => coreLog(core, message),
     changed: (scheduleId) => corePublishSchedule(core, scheduleId),
     prepareWorkspace: (request, userId, sourceId) => prepareScheduledWorkspace(core, request, userId, sourceId),
@@ -186,6 +187,7 @@ export function createCoreUpdates(core: GatewayCore, options: GatewayCoreOptions
     departure: (state, target) => core.departures.announce(state, target),
     recovered: (state, reason, target) => core.departures.recover(state, reason, target),
     bundled: core.role === "desktop",
+    relocating: () => options.relocation?.draining ?? false,
     idle: async () =>
       core[coreState].pumpAdmissions === 0 && core.bots.idle && ((await options.updates?.idle?.()) ?? true),
     drain: (value) => {

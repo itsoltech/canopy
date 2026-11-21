@@ -43,6 +43,7 @@
   import WebVersionBanner from "./WebVersionBanner.svelte";
   import Skeleton from "#lib/shared/ui/Skeleton.svelte";
   import GatewayUnavailable from "#lib/shared/ui/GatewayUnavailable.svelte";
+  import MigrationRecoveryLink from "#lib/features/desktop/migration/MigrationRecoveryLink.svelte";
   import type { Snippet } from "svelte";
   import { ThreadActions, provideThreadActions } from "#lib/features/threads/thread-actions.svelte.ts";
   import ThreadActionDialogs from "#lib/features/threads/components/ThreadActionDialogs.svelte";
@@ -345,10 +346,11 @@
     {/if}
     {#if overview.connection === "unavailable" && !showGatewayUnavailable}
       <div class="absolute inset-x-0 top-12 z-10 bg-surface">
-        <Alert tone="warning" banner
-          >The gateway is not responding. {overview.resyncs > 0 ? "Showing the last known state. " : ""}Retrying
-          automatically.</Alert
-        >
+        <Alert tone="warning" banner>
+          The gateway is not responding. {overview.resyncs > 0 ? "Showing the last known state. " : ""}Retrying
+          automatically.
+          <div class="mt-2 empty:hidden"><MigrationRecoveryLink /></div>
+        </Alert>
       </div>
     {/if}
     <main class="min-h-0 flex-1">
@@ -358,7 +360,9 @@
       {:else if !capabilities.supports(page.url.pathname)}
         <GatewayCompatibility message={capabilities.unavailableMessage(page.url.pathname)} desktopActions={false} />
       {:else if showGatewayUnavailable}
-        <GatewayUnavailable retry={() => location.reload()} />
+        <GatewayUnavailable retry={() => location.reload()}>
+          {#snippet actions()}<MigrationRecoveryLink />{/snippet}
+        </GatewayUnavailable>
       {:else if (!ready && !page.error) || redirect}
         <div class="flex h-full flex-col gap-4 p-6" role="status" aria-label="Loading application">
           <Skeleton class="h-6 w-44" />

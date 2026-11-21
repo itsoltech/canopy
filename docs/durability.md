@@ -22,7 +22,7 @@ z wynikiem jego narzędzia i deduplikowane po wywołaniu. Wynik zleconej pracy
 dziedziczy UUID rozmowy źródłowej; usunięcie subskrypcji blokuje późniejsze
 doręczenie zamiast przenosić je do prywatnego czatu.
 
-Status: **w części zaimplementowany** (2026-11-20), w tym jednokrotna kontynuacja rozmowy po potwierdzonym OOM usługi workera, trwałe agregaty tokenów i kosztów, trwały odbiór kanałów Slack, potwierdzenia aktualizacji botów, trwałe przypisanie domu sesji Claude i ochrona jego historii podczas purge oraz zatrzymanie workera bez ponownego uruchamiania cyklicznych sprawdzeń CLI; pozostałe plany oznaczono w sekcjach. Wymaganie: zatrzymanie lub aktualizacja dowolnego procesu nie gubi stanu i nie kończy się błędem widocznym dla użytkownika. Wyjątkiem jest tura agenta przerwana twardym zabiciem procesu (patrz [macierz awarii](#9-macierz-awarii)).
+Status: **w części zaimplementowany** (2026-11-21), w tym jednokrotna kontynuacja rozmowy po potwierdzonym OOM usługi workera, trwałe agregaty tokenów i kosztów, trwały odbiór kanałów Slack, potwierdzenia aktualizacji botów, trwałe przypisanie domu sesji Claude i ochrona jego historii podczas purge, zatrzymanie workera bez ponownego uruchamiania cyklicznych sprawdzeń CLI oraz trwała blokada startu i opróżnianie pracy przy przeniesieniu gatewaya (§4.6.1). Pozostałe plany oznaczono w sekcjach. Wymaganie: zatrzymanie lub aktualizacja dowolnego procesu nie gubi stanu i nie kończy się błędem widocznym dla użytkownika. Wyjątkiem jest tura agenta przerwana twardym zabiciem procesu (patrz [macierz awarii](#9-macierz-awarii)).
 
 Powiązane: [architecture.md](architecture.md), [protocol.md](protocol.md), [data-model.md](data-model.md).
 
@@ -393,6 +393,46 @@ sequenceDiagram
 ```
 
 Przy jednej instancji kroki są te same, tylko workery i UI łączą się z nową wersją po jej starcie. Agenci na workerach pracują dalej, a zdarzenia czekają w dzienniku.
+
+### 4.6.1 Przeniesienie całej instalacji gatewaya
+
+Operacja przeniesienia zapisuje w PostgreSQL identyfikator i stan `draining`.
+Od tej chwili każdy nowy proces gatewaya sprawdza blokadę przed zmianą schematu,
+zapisem danych aplikacji i uruchomieniem nasłuchu. Cykliczne sprawdzanie blokady
+zaczyna się przed otwarciem pierwszego nasłuchu i działa również podczas startu
+wbudowanego webu i aktualizatora. Wykryta blokada obowiązuje od razu. Zamykanie
+czeka na zakończenie rozpoczętych czynności startowych, a kolejki w tle ruszają
+dopiero po starcie i potwierdzeniu gotowości przez mechanizm blokady. Instancje po
+odczytaniu blokady uznają sondę HTTP `/healthz` za niegotową, przestają przyjmować
+nowe RPC użytkowników i pauzują harmonogram, odbiór zewnętrznych wiadomości,
+uruchamianie tur z kolejki i pobieranie kolejnych tur botów. Działające łącza
+workerów przyjmują zdarzenia i potwierdzenia. Odpowiedzi na zgody i polecenia
+zatrzymania działają także podczas opróżniania.
+
+Po utracie sesji sprawdzającej blokadę gateway wstrzymuje przyjmowanie nowej
+pracy i ponawia połączenie z PostgreSQL. Wznawia przyjmowanie po odzyskaniu
+blokady sesyjnej i potwierdzeniu, że przeniesienie nie trwa. Jeśli błąd nastąpi
+w trakcie rejestrowania zamiaru zamknięcia, gateway kończy zamykanie z zachowaną
+blokadą operacji.
+
+Gateway kończy pracę po zapisaniu wyników uruchomionych tur i zadań w tle,
+obsłużeniu poleceń w drodze i zamknięciu usług. Zapis w kolejce oraz polecenia
+niewysłane pozostają w bazie. Operator widzi stan `drained` po sprawdzeniu, że
+poza jego własną sesją nie ma aktywnych sesji ani przygotowanych transakcji
+w tej bazie, a trwały stan nie wskazuje rozpoczętej pracy. Próba dostarczenia
+`StartTurn` bez rozstrzygnięcia może opóźnić ten stan. Po awarii z pozostawioną
+aktywną pracą operator może cofnąć operację przed zatwierdzeniem źródła i
+przywrócić usługę, żeby worker mógł wznowić dostarczanie zdarzeń.
+Potwierdzenie cofnięcia blokady przekazuje informację, czy gateway rozpoczął
+już zamykanie usług. Koordynator może użyć tej informacji, żeby zsynchronizować
+ponowne uruchomienie źródła z końcem zamykania procesu.
+
+Końcowe archiwum zawiera wiersz `drained`. Odtworzenie do celu zapisuje w tej
+samej transakcji potwierdzenie odtworzenia o identycznym identyfikatorze
+operacji. Po zatwierdzeniu przeprowadzki na źródle stan `committed` blokuje
+jego start bezterminowo. Uwierzytelniona aktywacja może usunąć odziedziczoną
+blokadę tylko z bazy zawierającej potwierdzenie odtworzenia tej operacji.
+Przebieg wdrożenia opisano w [deploy.md](deploy.md).
 
 ### 4.7 Stany tury i wątku
 

@@ -33,8 +33,8 @@ export const testAdmin = (port: number) =>
   new SQL({ hostname: "127.0.0.1", port, database: "postgres", username: "postgres", password: "test", max: 1 });
 
 /** Owned by check:tmp, shared by its test process. Each fixture still gets a separate database. */
-export async function startTestPostgresServer() {
-  const owner = fork(fileURLToPath(new URL("./testing-container.ts", import.meta.url)), {
+export async function startTestPostgresServer(major: 17 | 18 = 17) {
+  const owner = fork(fileURLToPath(new URL("./testing-container.ts", import.meta.url)), [String(major)], {
     execArgv: [],
     detached: true,
     stdio: ["ignore", "ignore", "inherit", "ipc"],

@@ -11,9 +11,7 @@ export async function startDatabase(options: {
   directory: string;
   binaries: string;
   password: string;
-  runtimePassword: string;
-  gateway: string;
-  bun: string;
+  bootstrap?: { runtimePassword: string; gateway: string; bun: string };
   supervisor: Supervisor;
   env: NodeJS.ProcessEnv;
 }) {
@@ -23,6 +21,7 @@ export async function startDatabase(options: {
   const data = join(directory, "data");
 
   if (!existsSync(join(data, "PG_VERSION"))) {
+    if (!options.bootstrap) throw new Error("The source PostgreSQL data directory is missing");
     const pwfile = join(directory, "init-password");
     writeFileSync(pwfile, `${password}\n`, { mode: 0o600 });
 
@@ -98,6 +97,11 @@ export async function startDatabase(options: {
       await sql.close();
     }
   });
+  const adminUrl = `${base}/canopy`;
+  const { bootstrap } = options;
+
+  if (!bootstrap) return { adminUrl, runtimeUrl: "" };
+
   const sql = new SQL(`${base}/postgres`, { max: 1 });
 
   try {
@@ -107,17 +111,16 @@ export async function startDatabase(options: {
     await sql.close();
   }
 
-  const bootstrapUrl = `${base}/canopy`;
-  const runtimeUrl = `postgres://canopy_runtime:${encodeURIComponent(options.runtimePassword)}@127.0.0.1:${port}/canopy`;
+  const runtimeUrl = `postgres://canopy_runtime:${encodeURIComponent(bootstrap.runtimePassword)}@127.0.0.1:${port}/canopy`;
   await supervisor.run({
     name: "migrate",
-    command: options.bun,
-    args: [options.gateway, "migrate"],
-    cwd: dirname(options.gateway),
-    env: { ...env, CANOPY_DATABASE_URL: bootstrapUrl, CANOPY_DATABASE_RUNTIME_URL: runtimeUrl },
+    command: bootstrap.bun,
+    args: [bootstrap.gateway, "migrate"],
+    cwd: dirname(bootstrap.gateway),
+    env: { ...env, CANOPY_DATABASE_URL: adminUrl, CANOPY_DATABASE_RUNTIME_URL: runtimeUrl },
   });
 
-  return runtimeUrl;
+  return { adminUrl, runtimeUrl };
 }
 
 /**

@@ -1,4 +1,5 @@
 import { create } from "@bufbuild/protobuf";
+import type { Interceptor } from "@connectrpc/connect";
 import { ui } from "@canopy/contracts";
 import { MAX_ATTACHMENT_RPC_BYTES } from "@canopy/domain";
 import { connectNodeAdapter } from "@connectrpc/connect-node";
@@ -10,19 +11,26 @@ import { offerWorkerRoutes } from "./workers.ts";
 import { workerRoutes } from "../worker-link/routes.ts";
 
 /** Native RPCs only: reject browser origins and authenticate every service at its boundary. */
-export function mountMobileNetwork(core: GatewayCore, network: NetworkAccess, serviceToken: string) {
+export function mountMobileNetwork(
+  core: GatewayCore,
+  network: NetworkAccess,
+  serviceToken: string,
+  maintenance?: Interceptor,
+) {
+  const interceptors = [...(maintenance ? [maintenance] : []), core.diagnostics.interceptor];
+
   const adapter = connectNodeAdapter({
     routes: (router) => {
       core.mobile.routes(router);
       core.desktopControl.routes(router);
       uiRoutes(core, { readMaxBytes: MAX_ATTACHMENT_RPC_BYTES })(router);
     },
-    interceptors: [core.diagnostics.interceptor, serviceTokenAuth(serviceToken, core.mobile, undefined, "network")],
+    interceptors: [...interceptors, serviceTokenAuth(serviceToken, core.mobile, undefined, "network")],
     readMaxBytes: 32 * 1024 * 1024,
   });
 
   const workers = connectNodeAdapter({
-    interceptors: [core.diagnostics.interceptor],
+    interceptors,
     routes: (router) => workerRoutes(core, router, true),
     readMaxBytes: 32 * 1024 * 1024,
   });

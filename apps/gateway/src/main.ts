@@ -12,6 +12,10 @@ if (command === "migrate") {
   const { migrateCli } = await import("./migrate-cli.ts");
 
   process.exit(await migrateCli(Bun.argv.slice(3), Bun.env));
+} else if (command === "migration") {
+  const { migrationCli } = await import("./migration-cli.ts");
+
+  process.exit(await migrationCli(Bun.argv.slice(3), Bun.env));
 } else if (command === "storage") {
   const { storageCli } = await import("./storage-cli.ts");
 

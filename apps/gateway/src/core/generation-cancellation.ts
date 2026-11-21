@@ -2,7 +2,7 @@ import { Effect } from "effect";
 import { SqlClient } from "effect/sql";
 import { lockModuleAdmission, moduleDisabledMessage, ownerModule } from "../store/module-access.ts";
 import type { WorkerConnection, CommandInit } from "../worker-link/index.ts";
-import { coreState, InvalidError } from "./core-context.ts";
+import { coreState, InvalidError, UnavailableError } from "./core-context.ts";
 import type { GatewayCore } from "./core.ts";
 
 const pending = new WeakMap<WorkerConnection, Map<string, bigint>>();
@@ -33,6 +33,9 @@ export function withGenerationVersion<T>(core: GatewayCore, expected: bigint | u
 
     if (!enabled || (expected !== undefined && version !== expected))
       throw new InvalidError(moduleDisabledMessage("threads"));
+
+    if (expected === undefined && core[coreState].options.relocation?.draining)
+      throw new UnavailableError("Gateway maintenance is in progress");
 
     return use(version);
   });

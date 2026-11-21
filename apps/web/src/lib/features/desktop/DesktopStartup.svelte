@@ -4,6 +4,7 @@
   import Button from "#lib/shared/ui/Button.svelte";
   import ProgressBar from "#lib/shared/ui/ProgressBar.svelte";
   import Spinner from "#lib/shared/ui/Spinner.svelte";
+  import MigrationRecoveryLink from "./migration/MigrationRecoveryLink.svelte";
 
   let {
     status,
@@ -49,5 +50,6 @@
         <ProgressBar label="PostgreSQL download" value={status.database.progress} />
       {/if}
     {/if}
+    <div class="empty:hidden"><MigrationRecoveryLink /></div>
   </div>
 </div>

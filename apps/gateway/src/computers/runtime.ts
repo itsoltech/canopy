@@ -1,4 +1,5 @@
 import { create } from "@bufbuild/protobuf";
+import { coreState } from "../core/core-context.ts";
 import { MirrorDiagnostics } from "../diagnostics/sync.ts";
 
 import { Code, ConnectError, type ConnectRouter } from "@connectrpc/connect";
@@ -105,7 +106,10 @@ export class LinkedComputers {
 
     if (options.core) requireDesktopRole(options.core.role);
     this[computersState].routes = new Routes(options.store);
-    options.network.mount("link", linkHandler(this.routes, options.core ? [options.core.diagnostics.interceptor] : []));
+    const interceptors = options.core ? [options.core.diagnostics.interceptor] : [];
+
+    if (this.relocation) interceptors.push(this.relocation.interceptor);
+    options.network.mount("link", linkHandler(this.routes, interceptors));
     this.mirror = new ThreadMirror(options.store, (node) =>
       options.core && (options.core.diagnostics.options.workerDiagnosticsEnabled ?? true)
         ? new MirrorDiagnostics((id, value) => this.diagnostics(node, id, value))
@@ -163,6 +167,10 @@ export class LinkedComputers {
 
   get store() {
     return this.options.store;
+  }
+
+  get relocation() {
+    return this.options.core?.[coreState].options.relocation;
   }
 
   get identity(): LinkIdentity {

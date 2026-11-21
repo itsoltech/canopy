@@ -1,10 +1,47 @@
-import { BrowserWindow, dialog, type IpcMainInvokeEvent } from "electron";
+import { BrowserWindow, dialog, ipcMain, type IpcMainInvokeEvent } from "electron";
 import { sameDesktopConfiguration, type DesktopConfiguration, type DesktopStatus } from "@canopy/ui/desktop";
 import { configuration, type ConfigurationInput } from "./runtime/config.ts";
 import { remoteClient } from "./client-vault.ts";
 import type { DesktopClientCredential } from "./remote-client.ts";
 import type { RemoteAppUpdate } from "./remote-app-update.ts";
 import type { Logs } from "./runtime/log.ts";
+import type { ControllerResult } from "./controller.ts";
+
+interface ModeOptions {
+  status: DesktopStatus;
+  directory: string;
+  remoteUpdate: RemoteAppUpdate | undefined;
+  logs: Logs;
+  closeSettings: () => void;
+  apply: (config: DesktopConfiguration, client: DesktopClientCredential | undefined) => Promise<void>;
+}
+
+export function registerModeIpc(
+  authorize: (event: IpcMainInvokeEvent) => void,
+  lock: () => () => void,
+  readMigration: () => Promise<ControllerResult>,
+  options: () => ModeOptions,
+) {
+  ipcMain.handle("canopy:configure", async (event, raw: ConfigurationInput) => {
+    authorize(event);
+    const release = lock();
+
+    try {
+      const current = await readMigration();
+
+      if (current.migrationRunId && current.migration?.phase !== "completed")
+        throw new Error("Finish the gateway migration before changing desktop mode");
+
+      return await configureDesktopMode(event, raw, options());
+    } finally {
+      release();
+    }
+  });
+  ipcMain.handle("canopy:close-settings", (event) => {
+    authorize(event);
+    options().closeSettings();
+  });
+}
 
 export function openModeChooser(options: {
   current: BrowserWindow | undefined;
@@ -36,17 +73,10 @@ export function closeModeChooser(chooser: BrowserWindow | undefined, application
 }
 
 /** Called only after main has authorized the local setup frame and acquired its configuration lock. */
-export async function configureDesktopMode(
+async function configureDesktopMode(
   event: IpcMainInvokeEvent,
   raw: ConfigurationInput,
-  options: {
-    status: DesktopStatus;
-    directory: string;
-    remoteUpdate: RemoteAppUpdate | undefined;
-    logs: Logs;
-    closeSettings: () => void;
-    apply: (config: DesktopConfiguration, client: DesktopClientCredential | undefined) => Promise<void>;
-  },
+  options: ModeOptions,
 ): Promise<boolean> {
   const { status, directory, remoteUpdate, logs } = options;
   const config = configuration(raw);
