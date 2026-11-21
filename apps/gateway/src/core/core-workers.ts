@@ -29,7 +29,7 @@ import { WorkerIngestQueue } from "./worker-ingest-queue.ts";
 import { syncWorkerThreadLifecycle } from "./worker-thread-lifecycle.ts";
 import { coreTurnLogin } from "./turn-logins.ts";
 import { offerWorkerStorage, completeWorkerStorage } from "./worker-storage.ts";
-import { authorizeLocalAutomation } from "./automation-permissions.ts";
+import { handleWorkerToolCall } from "./worker-tool-call.ts";
 import { allowFullAccessPermission, settleTurnPermissions } from "./live-turn-permissions.ts";
 import { permissionsChanged } from "./turn-permission-state.ts";
 
@@ -159,31 +159,9 @@ export async function coreServe(hostContext: GatewayCore, connection: WorkerConn
         case "interactionRequest":
           await workerInteraction(hostContext, connection, message.payload.value);
           break;
-        case "agentToolCall": {
-          const call = message.payload.value;
-          // Concurrent: wait_threads may take minutes and must not hold up the stream.
-          void (
-            call.botId
-              ? hostContext.bots.harnessTools.handle(call, workerId)
-              : call.toolName === "authorize_local_automation"
-                ? authorizeLocalAutomation(hostContext, call, connection)
-                : call.cancelled
-                  ? hostContext.bus.handle(call, workerId)
-                  : call.connectorAccountId
-                    ? hostContext.connectors.handle(call, workerId)
-                    : hostContext.bus.handle(call, workerId)
-          ).then(
-            (result) => {
-              try {
-                connection.send({ case: "agentToolResult", value: result });
-              } catch {
-                // link closed: the worker re-sends the call and gets the stored result
-              }
-            },
-            (cause: unknown) => coreLog(hostContext, `agent bus call ${call.toolName} failed: ${describeError(cause)}`),
-          );
+        case "agentToolCall":
+          void handleWorkerToolCall(hostContext, connection, message.payload.value);
           break;
-        }
 
         case "heartbeat":
           await cancelStaleGenerations(hostContext, [connection]);

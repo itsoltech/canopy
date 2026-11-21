@@ -18,7 +18,9 @@ import type { SidebarEntry } from "@canopy/domain/sidebar-entries";
 import type { useSidebarOrder } from "./sidebar-order";
 import { dropAt, rowAt, type DragItem, type RowBox } from "./sidebar-drag-target";
 
-export type SidebarListEntry = SidebarEntry & { section: "active" | "archived" | "heading" | "status" | "empty" };
+export type SidebarListEntry = SidebarEntry & {
+  section: "active" | "snoozed" | "archived" | "heading" | "status" | "empty";
+};
 
 function withinWidth(bounds: { left: number; right: number }, x: number) {
   "worklet";

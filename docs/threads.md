@@ -1,6 +1,7 @@
 # Projekty, wątki i wątki boczne
 
-Status (2026-11-19): zaimplementowane, w tym pierwszeństwo jawnie zapisanych uprawnień wątku przed historią tur
+Status (2026-11-21): zaimplementowane, w tym usypianie wątków w web/desktop i mobile,
+pierwszeństwo jawnie zapisanych uprawnień wątku przed historią tur
 oraz zapis uprawnień Codexa na kolejne tury z kompozytora web/desktop,
 ukrycie Full auto dla Claude na natywnym Windowsie, trwały wpis wątku przed przygotowaniem nowego worktree,
 propagacja odmowy prędkości do błędu celu,
@@ -202,6 +203,22 @@ ma te same trzy wartości; aktualizacja zachowuje dotychczasowy wybór projektu.
 Natywne nagłówki i karty mają minimum 48 dp dla dotyku. W lokalnym wariancie worktree
 wiersz mieści tytuł, status oraz oznaczenia po prawej bez dodatkowej pustej linii.
 Szczegóły: [mobile.md](mobile.md).
+
+## Usypianie
+
+**Snooze…** w menu aktywnego wątku głównego lub bocznego użytkownika przenosi go
+do zwijanej sekcji **Snoozed**. Można wybrać godzinę, 2 lub 6 godzin, koniec dnia
+w strefie urządzenia, konkretną datę i czas albo **Until I wake it**. Termin można
+zmienić, a **Wake thread** przywraca wątek od razu. Wątek z terminem sam wraca na
+listę po jego upływie, również po restarcie gatewaya.
+
+Uśpiony wątek pozostaje dostępny z sekcji, wyszukiwania i bezpośredniego linku.
+Można go czytać, wysyłać wiadomości, odpowiadać na pytania i zatwierdzać prośby.
+Bieżące tury, zadania i harmonogramy działają dalej. Uśpione drzewo jest poza
+sekcjami Pinned, Needs attention i Working. Uśpienie rodzica obejmuje jego wątki
+boczne. Wątek boczny uśpiony osobno zostaje w **Snoozed** do własnego wybudzenia.
+Alerty są wyciszone przez cały okres uśpienia. Po wybudzeniu pozostają stan odczytu
+i oczekujące interakcje. [Powiadomienia](notifications.md#kiedy-powiadamiamy)
 
 ## Filtr, menu i archiwum
 

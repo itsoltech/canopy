@@ -1,6 +1,8 @@
 # Połączone komputery
 
-Status: opis zaimplementowanej synchronizacji (2026-11-20), w tym retencji nieopublikowanych wpisów dziennika, weryfikacji obsługi ochrony wersji CLI przez partnera w Update all, kolejności aktualizacji aplikacji i CLI partnerów, wstrzymywania luster wyłączonego modułu, kolejności zakładek konta, kontroli dostępu między botami i wątkami przez łącze, ograniczenia czasu oczekiwania na listę botów w `list_agents` oraz przyrostowej
+Status: opis zaimplementowanej synchronizacji (2026-11-21), w tym usypiania wątków,
+blokady operacji przez łącze podczas opróżniania gatewaya i importu konsolidacji,
+retencji nieopublikowanych wpisów dziennika, weryfikacji obsługi ochrony wersji CLI przez partnera w Update all, kolejności aktualizacji aplikacji i CLI partnerów, wstrzymywania luster wyłączonego modułu, kolejności zakładek konta, kontroli dostępu między botami i wątkami przez łącze, ograniczenia czasu oczekiwania na listę botów w `list_agents` oraz przyrostowej
 synchronizacji agregatów użycia z żądaną szybkością wykonania i podziałem
 według aktywności i botów przez bezpośrednie
 łącza, odwołania zaufania w trakcie handshake, zachowania lokalnych kanałów Slack botów i nadawców historycznych
@@ -13,6 +15,11 @@ Odczyt samych pytań i zgód subagenta trafia bezpośrednio do jego domu. Gatewa
 przekierowań i raportów, spójność przenoszonych danych oraz zgodę na wysyłkę konfiguracji w trakcie
 transmisji. Migracja 0182 odtwarza przekierowania z lokalnych decyzji o przeniesieniu. Dostępność w kanałach
 nightly, beta i stable wynika z [wydań](release.md), nie z daty tego opisu.
+
+`SetThreadSnooze` trafia do domu wątku tak jak inne akcje właściciela. Dom rozgłasza
+stan uśpienia i wybudzenie razem z metadanymi wątku. Przenoszenie między komputerami
+obsługującymi usypianie zachowuje stan i termin, a po przeniesieniu termin obsługuje
+nowy dom. [Usypianie wątków](threads.md#usypianie)
 
 ## Kanały komunikatorów botów
 
@@ -2185,6 +2192,50 @@ katalog, P1 offline i restart W/P1 z czytelnym powodem i bez kolejki, capability
 `schema.test.ts`: migracja 0053, izolacja ownera, brak certyfikatu wpisu pośredniego i kaskady.
 Bezpośrednie W↔P2 po „przedstawieniu” przez P1, discovery relayed computers
 i przechodnia konfiguracja przez relay są odroczone. Przenoszenie rzeczy opisuje etap 8.
+
+## Opróżnianie gatewaya przed migracją
+
+Podczas opróżniania gatewaya przed migracją sparowane komputery mogą ponownie
+nawiązać uwierzytelnione łącze. Gateway sprawdza blokadę osobno dla każdego
+wywołania bezpośredniego i przekazywanego przez pośrednika, również na już
+otwartym łączu. Odrzuca nowe parowania i nowe operacje, a przyjmuje odpowiedzi
+na pytania i zgody, polecenia zatrzymania pracy, rozstrzygnięcia rozpoczętych
+przenosin wątków i botów oraz potwierdzenia odbioru zakresów historii.
+Przyjęte wywołania pojedyncze i strumieniowe operacje wykonujące pracę wliczają
+się do opróżniania. Po cofnięciu blokady to samo łącze może znów przyjmować
+zwykłe operacje.
+
+## Konsolidacja dodatkowego komputera
+
+Konsolidacja dołącza dane właściciela do gatewaya centralnego po trwałym wyłączeniu
+źródła. Podpisany eksport domowy trafia do izolowanej bazy próbnej. Zawiera
+metadane identyfikujące sekrety potrzebne do importu. Zatwierdzone wartości jadą
+osobno kanałem operatora i są szyfrowane kluczem celu. Klucz źródłowy pozostaje
+na komputerze źródłowym.
+
+Import zatrzymuje gateway docelowy na czas jednej transakcji. Dla konfliktów
+konfiguracji wymaga decyzji o zachowaniu wartości źródła albo celu. Wspólny
+projekt zachowuje identyfikator z celu, a zależne rekordy wskazują go po imporcie.
+Workery zachowują identyfikatory, hashe poświadczeń i ich stan odwołania oraz
+powiązania z workspace i sesjami dostawców. Zatwierdzony import zapisuje mapę
+identyfikatorów i potwierdzenie pozwalające ustalić wynik po przerwaniu połączenia.
+
+Lustra i źródłowe kopie rzeczy przeniesionych wcześniej są pomijane. Zweryfikowane
+przekierowania i odnośniki kwalifikowane zachowują odwołania do przeniesionych
+wątków i botów. Gdy importowany wątek i jego zdalny rodzic są już na celu,
+rodzic staje się dostępny pod lokalnym identyfikatorem bez zmiany workera
+dziecka. Gateway usuwa lustra i odwołuje zaufanie do właśnie dołączonego
+źródła. Poświadczenia klientów związanych z tożsamością źródła wymagają
+oddzielnego przełączenia.
+
+Import obejmuje historię wątków i botów, harmonogramy, workspace i załączniki
+z treścią dostępną w bazie. Workspace, worktree i kopie workspace mogą przejść
+tylko wraz z workerem należącym do właściciela źródła. Worker zgłasza bieżący stan
+gałęzi po połączeniu z celem. Pierwotna baza zachowuje dane urządzeń, buforowane
+projekcje, szkice przypisane do urządzeń i zbiorczą historię użycia. Praca w toku,
+nieobsługiwane zależności, brak treści załączników lub kolizja identyfikatorów
+poza obsługiwanymi konfliktami konfiguracji blokują import. Procedurę operatora
+opisuje [instrukcja wdrożenia](deploy.md).
 
 ## Konkretny protokół etapu 8
 

@@ -1,12 +1,11 @@
-import { existsSync, readFileSync, writeFileSync, renameSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import { configuration, initialStatus } from "./config.ts";
 import type { DesktopSavedConfiguration, DesktopStatus } from "@canopy/ui/desktop";
+import { writePrivateFile } from "./private-file.ts";
 
 export function writeConfiguration(directory: string, config: DesktopSavedConfiguration) {
-  const path = join(directory, "desktop.json");
-  writeFileSync(`${path}.new`, JSON.stringify(config, null, 2) + "\n", { mode: 0o600 });
-  renameSync(`${path}.new`, path);
+  writePrivateFile(join(directory, "desktop.json"), JSON.stringify(config, null, 2) + "\n");
 }
 
 /** Resolve the startup surface before the first renderer can ask for status. */

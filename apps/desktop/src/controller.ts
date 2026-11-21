@@ -1,12 +1,19 @@
 import { createInterface } from "node:readline";
 import { DesktopRuntime, type RuntimePaths, type Secrets } from "./runtime/runtime.ts";
-import type { DesktopStatus } from "@canopy/ui/desktop";
+import type {
+  DesktopMigrationApproval,
+  DesktopMigrationStatus,
+  DesktopMigrationTarget,
+  DesktopStatus,
+} from "@canopy/ui/desktop";
 import { configuration, type ConfigurationInput } from "./runtime/config.ts";
 import type { DesktopClientCredential } from "./remote-client.ts";
 import { RemoteDesktopControl } from "./remote-control.ts";
 import { LocalDesktopControl, localControlTarget } from "./local-control.ts";
 import { toJsonString } from "@bufbuild/protobuf";
 import { ui } from "@canopy/contracts";
+import { DesktopGatewayMigration } from "./runtime/migration-desktop.ts";
+import type { MigrationJournal } from "./runtime/migration-state.ts";
 
 export interface ControllerArguments {
   directory?: string;
@@ -19,6 +26,10 @@ export interface ControllerArguments {
   remoteClient?: DesktopClientCredential | undefined;
   draining?: boolean;
   updateState?: string;
+  migrationTarget?: DesktopMigrationTarget;
+  migrationDevice?: NonNullable<MigrationJournal["device"]>;
+  migrationApproval?: DesktopMigrationApproval | undefined;
+  migrationSelectedPeers?: readonly string[] | undefined;
 }
 
 type ControllerRequest = { id: number } & (
@@ -28,6 +39,15 @@ type ControllerRequest = { id: number } & (
   | { action: "presence"; state: string; targetVersion?: string }
   | { action: "worker-drain"; draining: boolean }
   | { action: "remote-update-state"; updateState: string }
+  | { action: "migration-status" | "migration-recover" | "migration-abort" }
+  | { action: "migration-prepare"; migrationTarget: DesktopMigrationTarget }
+  | {
+      action: "migration-activate";
+      migrationDevice: NonNullable<MigrationJournal["device"]>;
+      migrationApproval?: DesktopMigrationApproval;
+      migrationSelectedPeers?: readonly string[];
+    }
+  | { action: "migration-complete"; remoteClient: DesktopClientCredential }
 );
 
 export interface ControllerResult {
@@ -35,6 +55,9 @@ export interface ControllerResult {
   status?: DesktopStatus;
   pids?: number[];
   idle?: boolean;
+  migration?: DesktopMigrationStatus;
+  migrationRunId?: string | undefined;
+  migrationDestination?: { routes: NonNullable<MigrationJournal["routes"]>; profile: string; deviceId: string };
 }
 
 export interface ControllerResponse {
@@ -53,6 +76,7 @@ let ending = false;
 let queue = Promise.resolve();
 let control: RemoteDesktopControl | LocalDesktopControl | undefined;
 let updateState = "";
+let migration: DesktopGatewayMigration | undefined;
 
 function connectControl() {
   control?.stop();
@@ -82,6 +106,7 @@ async function stop() {
   if (ending) return;
   ending = true;
   control?.stop();
+  migration?.stop();
 
   // Bound cleanup even when a startup/enrollment operation has not settled yet.
   const deadline = setTimeout(() => {
@@ -118,6 +143,16 @@ lines.on("line", (line) => {
     return;
   }
 
+  if (request.action === "migration-status" && migration && !ending) {
+    try {
+      send({ id: request.id, result: migration.status() });
+    } catch {
+      send({ id: request.id, error: "Could not read the gateway migration record" });
+    }
+
+    return;
+  }
+
   // Sleep cannot wait behind enrollment, a download or another queued configuration operation.
   if (request.action === "presence" && runtime && !ending) {
     void runtime
@@ -146,13 +181,16 @@ lines.on("line", (line) => {
           request.webToken,
         );
         runtime.hostWebInThisProcess();
+        migration = new DesktopGatewayMigration(runtime, request.secrets.secretsKey);
         const origin = await runtime.initialize(false);
         send({ id, result: { origin, status: runtime.status } });
       } else if (request.action === "restore" && runtime) {
-        await runtime.restore(request.remoteClient);
+        if (migration?.startupHeld()) runtime.holdMigration();
+        else await runtime.restore(request.remoteClient);
         connectControl();
         send({ id, result: { status: runtime.status } });
       } else if (request.action === "configure" && runtime) {
+        if (migration?.pending()) throw new Error("Finish the gateway migration before changing desktop mode");
         const config = configuration(request.configuration);
 
         if (!runtime.configurationUnchanged(config, request.remoteClient)) {
@@ -171,6 +209,30 @@ lines.on("line", (line) => {
         updateState = request.updateState;
         await control?.report(updateState).catch(() => {});
         send({ id, result: {} });
+      } else if (migration && request.action === "migration-prepare") {
+        send({ id, result: await migration.prepare(request.migrationTarget) });
+      } else if (migration && request.action === "migration-activate") {
+        control?.stop();
+        send({
+          id,
+          result: await migration.activate(
+            request.migrationDevice,
+            request.migrationApproval,
+            request.migrationSelectedPeers,
+          ),
+        });
+      } else if (migration && request.action === "migration-recover") {
+        send({ id, result: await migration.recover() });
+      } else if (migration && request.action === "migration-abort") {
+        const result = await migration.abort();
+
+        if (result.migration.phase === "idle") connectControl();
+        send({ id, result });
+      } else if (migration && request.action === "migration-complete") {
+        const result = await migration.complete(request.remoteClient);
+
+        if (result.migration.phase === "completed") connectControl();
+        send({ id, result });
       } else throw new Error("Invalid desktop controller request");
     } catch (error) {
       send({

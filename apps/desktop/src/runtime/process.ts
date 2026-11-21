@@ -45,6 +45,7 @@ export interface ProcessSpec {
 /** Tracks only owned process groups; never uses process-name matching. */
 export class Supervisor {
   private stopping = false;
+  private readonly quiesced = new Set<string>();
   private children = new Map<string, { child: ChildProcess; closed: Promise<void>; spec: ProcessSpec }>();
   private timers = new Set<ReturnType<typeof setTimeout>>();
   constructor(
@@ -56,6 +57,15 @@ export class Supervisor {
   }
   alive(name: string) {
     return this.children.has(name) && !this.stopping;
+  }
+  quiesce(name: string) {
+    this.quiesced.add(name);
+    const entry = this.children.get(name);
+
+    return entry?.closed.then(() => entry.child.exitCode);
+  }
+  resume(name: string) {
+    this.quiesced.delete(name);
   }
   send(name: string, message: string) {
     const child = this.children.get(name)?.child;
@@ -97,7 +107,7 @@ export class Supervisor {
       this.children.delete(spec.name);
       this.changed(spec.name, false);
 
-      if (!this.stopping && spec.restart && (windowsStatus ?? code) !== 78) {
+      if (!this.stopping && !this.quiesced.has(spec.name) && spec.restart && (windowsStatus ?? code) !== 78) {
         const uptime = Math.round(exited - started);
         const continuous = spec.restart === "continuous";
         const stable = uptime >= (continuous ? GATEWAY_STABLE_MS : PROCESS_STABLE_MS);
@@ -119,11 +129,11 @@ export class Supervisor {
         const timer = setTimeout(() => {
           this.timers.delete(timer);
 
-          if (!this.stopping) this.start(spec, Math.min(count, RESTART_LIMIT));
+          if (!this.stopping && !this.quiesced.has(spec.name)) this.start(spec, Math.min(count, RESTART_LIMIT));
         }, wait);
 
         this.timers.add(timer);
-      } else if (!this.stopping && spec.restart) this.changed(spec.name, false, true);
+      } else if (!this.stopping && !this.quiesced.has(spec.name) && spec.restart) this.changed(spec.name, false, true);
     });
 
     return { child, closed };
@@ -146,7 +156,7 @@ export class Supervisor {
   restart(name: string, graceful = false) {
     const entry = this.children.get(name);
 
-    if (!entry || this.stopping) return;
+    if (!entry || this.stopping || this.quiesced.has(name)) return;
     this.signal(entry.child, graceful ? "SIGTERM" : "SIGKILL");
 
     if (graceful) {

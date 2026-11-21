@@ -76,6 +76,7 @@ export interface GatewayCoreOptions {
   readonly diagnosticsStorage?: import("../diagnostics/storage.ts").GatewayStorageOptions;
   readonly logSources?: readonly import("@canopy/logs").LogRegistration[];
   readonly role?: GatewayRole;
+  readonly relocation?: import("../migration/relocation-fence-runtime.ts").RelocationRuntime;
   readonly skillSources?: import("../agent-environment/source-discovery.ts").SourceOptions;
   readonly updates?: Partial<Omit<GatewayUpdatesOptions, "persistence" | "authenticate">>;
   readonly sshSecretsKey?: Buffer;
@@ -251,6 +252,8 @@ export class GatewayCoreState {
   sweepTimer!: ReturnType<typeof setInterval> | undefined;
 
   pumpAdmissions = 0;
+  commandDeliveries = 0;
+  workerToolCalls = 0;
 
   readonly updateDeferred = new Set<string>();
 

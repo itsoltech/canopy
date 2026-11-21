@@ -20,6 +20,7 @@ import { coreBroadcastThread, coreBroadcastTurn, coreLog, coreRun } from "./core
 import { coreBroadcastGoal, coreGoalAnswered, coreGoals } from "./core-goals.ts";
 
 const MODULE_COMMANDS = new Set(["createThread", "startTurn", "steerTurn", "setGoal", "rewindThread", "runBotTurn"]);
+const NEW_THREAD_WORK = new Set(["createThread", "startTurn", "setGoal", "rewindThread"]);
 const replaying = new WeakSet<WorkerConnection>();
 const replayingCleanup = new WeakSet<WorkerConnection>();
 
@@ -118,22 +119,29 @@ export async function coreDispatch(
 
 /** Sends a stored command when the worker is online; offline commands wait in the outbox. */
 export async function coreDeliver(hostContext: GatewayCore, workerId: string, command: Command): Promise<void> {
-  if (hostContext[coreState].actions.defer(() => coreDeliver(hostContext, workerId, command))) return;
+  const state = hostContext[coreState];
+
+  if (state.actions.defer(() => coreDeliver(hostContext, workerId, command))) return;
+  state.commandDeliveries++;
 
   // Callers detach delivery. Observe the whole job, including SQL before dispatch and after the ACK,
   // so disposing the gateway runtime cannot turn interruption into an unhandled promise rejection.
-  const exit = await hostContext[coreState].options.runtime.runPromiseExit(
-    Effect.gen(function* () {
-      let next: Command | undefined = command;
+  const exit = await state.options.runtime
+    .runPromiseExit(
+      Effect.gen(function* () {
+        let next: Command | undefined = command;
 
-      while (next) {
-        const current: Command = next;
-        next = yield* Effect.promise(() => deliverCommand(hostContext, workerId, current));
+        while (next) {
+          const current: Command = next;
+          next = yield* Effect.promise(() => deliverCommand(hostContext, workerId, current));
 
-        if (next) yield* Effect.sleep("1 second");
-      }
-    }),
-  );
+          if (next) yield* Effect.sleep("1 second");
+        }
+      }),
+    )
+    .finally(() => {
+      state.commandDeliveries--;
+    });
 
   if (Exit.isFailure(exit) && !Cause.hasInterruptsOnly(exit.cause))
     coreLog(hostContext, `command ${command.kind.case ?? "unknown"}: delivery or result handling failed`);
@@ -147,6 +155,7 @@ async function deliverCommand(
   const connection = hostContext.link.connections.get(workerId);
 
   const kind = command.kind;
+  const relocation = hostContext[coreState].options.relocation;
 
   if (!connection?.isOpen || !kind.case) return;
 
@@ -164,9 +173,10 @@ async function deliverCommand(
   if (
     command.kind.case === "runBotTurn" &&
     !(await hostContext[coreState].options.runtime.runPromise(
-      BotStore.use((s) => s.harnessDispatchable(command.commandId)),
+      BotStore.use((s) => s.harnessDispatchable(command.commandId, relocation?.draining)),
     ))
   ) {
+    if (relocation?.draining) return;
     await coreRun(hostContext, (s) => s.commandDone(command.commandId, false, { errorCode: "TURN_NOT_RUNNING" }));
 
     return;
@@ -181,6 +191,8 @@ async function deliverCommand(
 
     if (legacyThrough === false) return connection.isOpen ? command : undefined;
     await prepareThreadTools(hostContext, workerId, command);
+
+    if (relocation?.draining && NEW_THREAD_WORK.has(kind.case)) return;
 
     const shell =
       (command.kind.case === "startTurn" || command.kind.case === "steerTurn") &&

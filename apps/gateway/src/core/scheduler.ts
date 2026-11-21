@@ -18,6 +18,7 @@ export interface SchedulerHost {
   queued(threadId: string, turn: TurnRow): Promise<void>;
   readonly owner: string;
   readonly userId: string;
+  draining?(): boolean;
   log(message: string): void;
   /** A schedule ran (or completed, or was cancelled with its thread): announce it. */
   changed(scheduleId: string): Promise<void>;
@@ -81,7 +82,7 @@ export class Scheduler {
       const started = performance.now();
       let handled = 0;
 
-      while (handled < 50) {
+      while (handled < 50 && !this.#host.draining?.()) {
         const current = new Date(now.getTime() + performance.now() - started);
 
         const due = await this.#host.run(

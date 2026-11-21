@@ -1,5 +1,6 @@
 import { afterAll, beforeAll, describe, expect, test } from "bun:test";
 import { create } from "@bufbuild/protobuf";
+import { timestampFromDate } from "@bufbuild/protobuf/wkt";
 import { bots, computerLink as link, Provider, ProviderProfileKind, ui } from "@canopy/contracts";
 import { qualifyId } from "@canopy/domain/computers";
 import { dockerAvailable } from "@canopy/db/testing";
@@ -394,6 +395,36 @@ describe.skipIf(!dockerAvailable)("moving things between linked computers", () =
   test("a moved thread brings its verified previews, including a valid repair of legacy stored bytes", async () => {
     const t = await thread(a, aProject, aWorkspace, "Move previews", "Hello");
     await verifyMovedPreviews(a, c, t, async () => (await move([{ kind: "thread", id: t }])).moves[0]!.id);
+  }, 30_000);
+
+  test("snoozes set through a linked gateway move with a thread and its user side threads", async () => {
+    const parent = await thread(a, aProject, aWorkspace, "Snoozed move", "");
+    const child = await thread(a, aProject, aWorkspace, "Snoozed side thread", "", parent);
+    const until = timestampFromDate(new Date(Date.now() + 60_000));
+
+    const remote = await b.api.setThreadSnooze({
+      threadId: qualifyId(parent, aNode),
+      snoozed: true,
+      snoozedUntil: until,
+    });
+
+    expect(remote.thread).toMatchObject({ id: qualifyId(parent, aNode), snoozed: true, snoozedUntil: until });
+    await a.api.setThreadSnooze({ threadId: child, snoozed: true });
+
+    const started = await move([{ kind: "thread", id: parent }]);
+    expect((await settled(started.moves[0]!.id))?.state).toBe("done");
+    await eventually(
+      async () => (await c.api.getMoves({})).moves.find((record) => record.itemId === parent)?.state,
+      (state) => state === "done",
+    );
+    expect((await c.api.getThread({ threadId: parent })).thread).toMatchObject({ snoozed: true, snoozedUntil: until });
+    const arrived = (await c.api.getThread({ threadId: child })).thread;
+    expect(arrived).toMatchObject({ snoozed: true, parentThreadId: parent });
+    expect(arrived?.snoozedUntil).toBeUndefined();
+    expect((await a.api.setThreadSnooze({ threadId: parent, snoozed: false })).thread).toMatchObject({
+      id: qualifyId(parent, cNode),
+      snoozed: false,
+    });
   }, 30_000);
 
   test("a bot moves with its conversation, routines and reminders: nothing fires twice or is lost; accounts are flagged", async () => {

@@ -204,6 +204,7 @@ export async function exportThread(
       await store.query<{ row: ThreadRowJson }>(
         `SELECT json_build_object('id',id,'kind',kind,'parent_thread_id',parent_thread_id,'title',title,'title_source',title_source,
       'provider',provider,'provider_profile_id',provider_profile_id,'settings',settings,'cwd',cwd,'created_at',created_at,'archived_at',archived_at,'auto_archive_on_merge',auto_archive_on_merge,'runtime',runtime,
+      'snoozed',snoozed,'snoozed_until',snoozed_until,
       'project_id',project_id,'remote_parent_ref',remote_parent_ref,'remote_parent_kind',remote_parent_kind,'last_seq',last_seq) AS row
       FROM threads WHERE id = $1::uuid AND owner_user_id = $2::uuid`,
         [id, owner],

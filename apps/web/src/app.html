@@ -127,7 +127,8 @@
       } catch {
         // The shell remains usable when device storage is unavailable.
       }
-      const startup = location.pathname === "/desktop" && window.canopyDesktop?.startupAppearance;
+      const desktopStandalone = location.pathname === "/desktop" || location.pathname === "/desktop/migration";
+      const startup = desktopStandalone && window.canopyDesktop?.startupAppearance;
       if (startup) {
         root.style.cssText += ";" + startup.style;
         root.dataset.colorScheme = startup.scheme;

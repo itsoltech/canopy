@@ -1,8 +1,11 @@
 # Canopy na iOS i Android
 
-Status: opis zaimplementowanego kodu (2026-11-21), w tym import skilli z publicznych witryn HTTPS.
+Status: opis zaimplementowanego kodu (2026-11-21), w tym import skilli z publicznych
+witryn HTTPS i usypianie wątków.
 Zamknięty przyciskiem × osiągnięty cel pozostaje ukryty po ponownym otwarciu wątku i restarcie aplikacji.
 Aplikacja używa Expo SDK 58.0.26.
+Menu wątku pozwala go uśpić, zmienić termin lub wybudzić. Uśpione wątki pozostają
+dostępne w zwijanej sekcji **Snoozed** z pełną historią i aktywnym kompozytorem.
 W ustawieniach Network access można zwiększyć limit załącznika do 40 MiB na plik.
 Na liście wątków wiersze z pierścieniem pracy pokazują sam czas jej trwania.
 Wiersze bez pierścienia zachowują etykietę „Working”.
@@ -2487,6 +2490,9 @@ korzystają ze wspólnych z web reguł świeżości wiadomości, pytań i zatwie
 wznowienie po uśpieniu i odczyt po błędzie tworzą cichą bazę. Boty zarchiwizowane, przeczytane
 wiadomości i aktualnie otwarty czat nie pokazują alertu. To wyłącznie JS w otwartej aplikacji;
 nie rejestruje powiadomień systemowych ani obsługi w tle.
+Wątki w **Snoozed** i ich wątki boczne nie pokazują powiadomień w aplikacji.
+Ręczne i automatyczne wybudzenie pomija alerty z okresu uśpienia. Datę i godzinę
+wybiera się w tym samym selektorze kalendarza co przy harmonogramach.
 
 Workspace obserwuje widoczny zakres przez `WatchThreadFiles` przez Connect,
 współdzieląc stream drzewa i aktywnego pliku. `useAppActive` anuluje stream,

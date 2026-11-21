@@ -1,6 +1,7 @@
 // A separate process group survives terminal signals to the test runner. The private IPC channel
 // closes even on SIGKILL. Only this process creates and removes its container, in that order.
 const name = `canopy-test-${Bun.randomUUIDv7().slice(-12)}`;
+const image = process.argv[2] === "18" ? "postgres:18" : "postgres:17";
 
 const created = Bun.spawnSync([
   "docker",
@@ -16,7 +17,7 @@ const created = Bun.spawnSync([
   "POSTGRES_INITDB_ARGS=--no-sync",
   "-p",
   "127.0.0.1::5432",
-  "postgres:17",
+  image,
   "-c",
   "fsync=off",
   "-c",

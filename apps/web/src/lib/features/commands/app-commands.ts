@@ -16,6 +16,7 @@ import { awayReason } from "#lib/features/computers/computers.ts";
 import { appearanceCommands } from "./appearance-commands.ts";
 import type { GatewayCapabilities } from "#lib/features/desktop/gateway-capabilities.svelte.ts";
 import type { AddProjectState } from "#lib/features/projects/add/add-project.svelte.ts";
+import { isThreadSnoozed } from "@canopy/domain/thread-snooze";
 
 /** New thread in the current project (Mod+N and Mod+Shift+N belong to the browser: new window, private window). */
 export const NEW_THREAD_HOTKEY = "Mod+Shift+O";
@@ -168,7 +169,9 @@ const projectCommands = (overview: OverviewState, threads: readonly ui.Thread[])
         icon: "cog-6-tooth",
         href: project.kind === "scratch" ? "/settings/threads" : `/settings/projects/${project.id}`,
       },
-      ...threads.flatMap((t) => (project.projectIds.includes(t.projectId) ? [threadCommand(overview, t, true)] : [])),
+      ...threads.flatMap((t) =>
+        project.projectIds.includes(t.projectId) ? [threadCommand(overview, t, !overview.threadSnoozed(t.id))] : [],
+      ),
     ],
   }));
 
@@ -183,7 +186,7 @@ function currentThreadCommands(context: AppCommandContext, thread: ui.Thread | u
         settings.sidebar.pinnedThreadIds.includes(thread.id),
         Boolean(thread.nodeId && awayReason(overview.computer(thread.nodeId))),
       )
-        .filter((a) => ["pin", "rename", "archive", "delete", "read", "filter"].includes(a.id))
+        .filter((a) => ["pin", "rename", "archive", "delete", "read", "filter", "snooze", "wake"].includes(a.id))
         .map((a) => ({
           id: `thread-action:${a.id}`,
           title: a.label,
@@ -211,7 +214,11 @@ function threadModuleCommands(context: AppCommandContext): Command[] {
   let suggested = 0;
 
   const recent = threads.map((thread) => {
-    const show = !isSide(thread) && thread.id !== currentThreadId && suggested < 8;
+    const show =
+      !isSide(thread) &&
+      thread.id !== currentThreadId &&
+      suggested < 8 &&
+      !isThreadSnoozed(thread, (id) => overview.threads.get(id));
 
     if (show) suggested += 1;
 

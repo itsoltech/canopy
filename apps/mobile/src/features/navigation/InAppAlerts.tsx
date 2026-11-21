@@ -1,6 +1,7 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { Pressable, Text } from "react-native";
 import Animated from "react-native-reanimated";
+import type { ui } from "@canopy/contracts";
 import { palette } from "@canopy/ui";
 import { router, useGlobalSearchParams } from "expo-router";
 import { useOverview } from "../../state/overview";
@@ -10,9 +11,18 @@ import { usePaneInsets } from "../../ui/ScreenFrame";
 import { useMotion } from "../../ui/motion";
 import { needsYou } from "@canopy/domain/thread-activity";
 import { sidebarChildren } from "@canopy/domain/sidebar-threads";
+import { isThreadSnoozed } from "@canopy/domain/thread-snooze";
 import { useAppearance } from "../../state/appearance";
 import { useSession } from "../../state/session";
 import { useBotAlerts, type InAppAlert } from "./useBotAlerts";
+
+type NoticeRevision = { revision: string; snoozed: boolean };
+
+function threadSnoozed(threads: ReadonlyMap<string, ui.Thread>, id: string) {
+  const thread = threads.get(id);
+
+  return !!thread && isThreadSnoozed(thread, (parentId) => threads.get(parentId));
+}
 
 /** Alert only for live changes after the initial snapshot, never replay historical results. */
 export function InAppAlerts() {
@@ -21,9 +31,10 @@ export function InAppAlerts() {
   const { threadsEnabled, botsEnabled } = useAppearance();
   const { values } = useDevicePreferences();
   const { id } = useGlobalSearchParams<{ id?: string }>();
-  const previous = useRef<Map<string, string> | null>(null);
+  const previous = useRef<Map<string, NoticeRevision> | null>(null);
+  const byId = useMemo(() => new Map(threads.map((thread) => [thread.id, thread])), [threads]);
   const [alert, setAlert] = useState<InAppAlert>();
-  useBotAlerts(id, setAlert);
+  useBotAlerts(id, (threadId) => threadSnoozed(byId, threadId), setAlert);
   const c = useColors();
   const insets = usePaneInsets();
   const { banner } = useMotion();
@@ -45,6 +56,7 @@ export function InAppAlerts() {
         return {
           thread: t,
           status: needs ? "Needs input" : t.unseenResult,
+          snoozed: isThreadSnoozed(t, (threadId) => byId.get(threadId)),
           revision: `${t.status}:${t.unseenResult}:${needsYou(t) ? t.pendingInteractions : 0}:${subagentsNeedingInput
             .map((child) => child.id)
             .sort()
@@ -52,15 +64,21 @@ export function InAppAlerts() {
         };
       });
 
-    const current = new Map(notices.map((notice) => [notice.thread.id, notice.revision]));
+    const current = new Map(notices.map(({ thread, revision, snoozed }) => [thread.id, { revision, snoozed }]));
 
-    const changed = notices.find(
-      (notice) =>
+    // Advance the baseline during snooze too. The transition back to awake only sets a new baseline.
+    const changed = notices.find((notice) => {
+      const prior = previous.current?.get(notice.thread.id);
+
+      return (
         notice.thread.id !== id &&
-        previous.current?.has(notice.thread.id) &&
-        previous.current.get(notice.thread.id) !== notice.revision &&
-        notice.status,
-    );
+        prior &&
+        !prior.snoozed &&
+        !notice.snoozed &&
+        prior.revision !== notice.revision &&
+        notice.status
+      );
+    });
 
     previous.current = current;
 
@@ -71,7 +89,7 @@ export function InAppAlerts() {
         title: changed.thread.title || "Untitled thread",
         status: changed.status,
       });
-  }, [threads, loaded, id, active, values.inAppNotifications, threadsEnabled]);
+  }, [threads, byId, loaded, id, active, values.inAppNotifications, threadsEnabled]);
   useEffect(() => {
     if (!alert) return;
     const timer = setTimeout(() => setAlert(undefined), 6000);
@@ -79,7 +97,10 @@ export function InAppAlerts() {
     return () => clearTimeout(timer);
   }, [alert]);
 
-  if (alert && (!active || !(alert.kind === "bot" ? botsEnabled : threadsEnabled))) {
+  const alertedThreadId = alert?.kind === "thread" ? alert.id : alert?.threadId;
+  const muted = alertedThreadId && threadSnoozed(byId, alertedThreadId);
+
+  if (alert && (!active || muted || !(alert.kind === "bot" ? botsEnabled : threadsEnabled))) {
     setAlert(undefined);
 
     return null;

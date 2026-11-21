@@ -3,6 +3,12 @@
 Status (2026-11-19): zaimplementowany model, w tym kolejność modułów i zatrzymywanie pracy właściciela po ich wyłączeniu oraz migracje `0153_thread_notice_replication`, `0160_agent_hop_policy`, `0162_service_tiers`, `0164_usage_accounting`, `0165_usage_estimated_cost`, `0169_bot_chat_steer`, `0171_thread_permission_selection`, `0172_usage_activity`, `0173_module_goal_resume`, `0174_schedule_worktree_preparations`, `0176_message_delegating_bot` (rejestracja wywołań narzędzia w `agent_bus_calls`) i `0179_removed_branch_cleanup`.
 Dostępność nightly/beta/stable według [release.md](release.md).
 
+Status (2026-11-21): `0187_thread_snooze` zapisuje usypianie wątków.
+`threads.snoozed` z pustym `snoozed_until` oznacza uśpienie bezterminowe. Wątek
+z terminem przechowuje moment wybudzenia jako `timestamptz`. Gateway odczytuje
+upływające terminy przez częściowy indeks po właścicielu i czyści je po wybudzeniu.
+Zmiana nie nadpisuje statusu tury, uprawnień ani stanu odczytu właściciela.
+
 Status (2026-11-20): migracja `0180_thread_blob_provenance` rozdziela dostęp do podglądów
 od ochrony bajtów starszej historii. Migracja `0184_legacy_preview_grants` zachowuje
 każdemu właścicielowi dostęp do obrazów dostępnych w jego historii przed tą zmianą.

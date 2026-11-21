@@ -4,15 +4,14 @@ import { monitorPower } from "./power-events.ts";
 import { registerWorkspaceClose, requestWorkspaceQuit } from "./workspace-close.ts";
 import { spawn, type ChildProcessWithoutNullStreams } from "node:child_process";
 import { join } from "node:path";
-import type { QuitGuardState, QuitShortcut } from "@canopy/ui/desktop";
-import { initialStatus, serviceEnvironment, type ConfigurationInput } from "./runtime/config.ts";
+import { initialStatus, serviceEnvironment } from "./runtime/config.ts";
 import { desktopLink } from "./desktop-link.ts";
 import { holdConnectorOAuth, registerConnectorOAuthIpc } from "./connector-oauth-ipc.ts";
 import type { ControllerArguments, ControllerResult } from "./controller.ts";
 import { ControllerConnection } from "./controller-connection.ts";
 import { initializeController } from "./controller-initialize.ts";
 import { savedRemoteClient } from "./client-vault.ts";
-import { closeModeChooser, configureDesktopMode, openModeChooser } from "./mode-configuration.ts";
+import { closeModeChooser, openModeChooser, registerModeIpc } from "./mode-configuration.ts";
 import { Logs } from "./runtime/log.ts";
 import { controllerEntry, runtimePaths } from "./runtime/launch.ts";
 import { desktopIdentity, desktopUserData } from "./identity.ts";
@@ -20,7 +19,8 @@ import { DesktopUpdates } from "./updates.ts";
 import { QuitGuard } from "./quit-guard.ts";
 import { systemQuitClock } from "./quit-machine.ts";
 import { quitKeyEvent } from "./quit-key-event.ts";
-import { isQuitShortcut, QuitSettings } from "./quit-settings.ts";
+import { registerQuitIpc } from "./quit-ipc.ts";
+import { QuitSettings } from "./quit-settings.ts";
 import { registerWindowPreferencesIpc } from "./window-chrome.ts";
 import { updateDesktopMenus } from "./desktop-menu.ts";
 import { AppRoutes } from "./app-routes.ts";
@@ -41,6 +41,7 @@ import { configureDesktopApplication, desktopResourcePaths, registerDesktopLifec
 import { showShutdownWindow } from "./shutdown-window.ts";
 import { shutdownDesktop } from "./shutdown.ts";
 import { PreviewWindows } from "./preview-windows.ts";
+import { registerMigrationIpc } from "./migration-ipc.ts";
 
 const identity = desktopIdentity();
 
@@ -301,7 +302,7 @@ function startController() {
   const paths = runtimePaths(runtime);
   controller = spawn(paths.bun, [controllerEntry(runtime)], {
     stdio: "pipe",
-    env: serviceEnvironment(),
+    env: { ...serviceEnvironment(), SSH_AUTH_SOCK: process.env["SSH_AUTH_SOCK"] },
     cwd: runtime,
     windowsHide: true,
   });
@@ -330,6 +331,15 @@ function startController() {
   return paths;
 }
 
+function lockConfiguration() {
+  if (busy) throw new Error("Desktop configuration is already in progress");
+  busy = true;
+
+  return () => {
+    busy = false;
+  };
+}
+
 function registerIpc() {
   previews.register(
     authorize,
@@ -351,35 +361,32 @@ function registerIpc() {
     authorize(event);
     openSettings();
   });
-  ipcMain.handle("canopy:quit-shortcut", (event) => {
-    authorize(event);
-
-    return quitGuard.mode;
-  });
-  ipcMain.on("canopy:quit-guard-delivered", (event, phase: QuitGuardState["phase"], surface: "web" | "shell") => {
-    if (
-      !isTrusted(event) ||
-      !["hint", "holding", "cancel"].includes(phase) ||
-      (surface !== "web" && surface !== "shell")
-    )
-      return;
-    quitLog(
-      `feedback phase=${phase} surface=${surface} window=${event.sender === windowContents(settingsWindow) ? "settings" : "main"}`,
-    );
-  });
-  ipcMain.handle("canopy:set-quit-shortcut", (event, value: QuitShortcut) => {
-    authorize(event);
-
-    if (!isQuitShortcut(value)) throw new Error("Invalid quit shortcut");
-    quitSettings.write(value);
-    quitGuard.cancel();
-    quitGuard.mode = value;
-
-    sendWindowsMessage([window, settingsWindow], (contents) => contents.send("canopy:quit-shortcut", value));
-
-    return value;
+  registerQuitIpc({
+    guard: quitGuard,
+    settings: quitSettings,
+    authorize,
+    trusted: isTrusted,
+    log: quitLog,
+    surface: (event) => (event.sender === windowContents(settingsWindow) ? "settings" : "main"),
+    changed: (value) =>
+      sendWindowsMessage([window, settingsWindow], (contents) => contents.send("canopy:quit-shortcut", value)),
   });
   registerUpdateIpc(updates, () => remoteUpdate, authorize);
+  registerMigrationIpc({
+    directory: app.getPath("userData"),
+    origin: setupOrigin,
+    rpc,
+    authorize,
+    avoidRestart: () => busy || installingUpdate || !!remoteUpdate?.active,
+    onSwitch: async (client) => {
+      previews.closeAll();
+      await history.clear();
+      startupError = "";
+      logs.protect(client.token);
+      remoteUpdate?.selectDevice(client.deviceId);
+      await remoteUpdate?.publish();
+    },
+  });
   registerConnectorOAuthIpc(authorize);
   ipcMain.handle("canopy:enrollment-ready", (event) => {
     authorize(event, true);
@@ -387,39 +394,28 @@ function registerIpc() {
 
     if (pendingLink) enrollment(pendingLink);
   });
-  ipcMain.handle("canopy:configure", async (event, raw: ConfigurationInput) => {
-    authorize(event, true);
+  registerModeIpc(
+    (event) => authorize(event, true),
+    lockConfiguration,
+    () => rpc("migration-status"),
+    () => ({
+      status,
+      directory: app.getPath("userData"),
+      remoteUpdate,
+      logs,
+      closeSettings: () => closeModeChooser(settingsWindow, window),
+      apply: async (config, client) => {
+        previews.closeAll();
+        await history.clear();
+        startupError = "";
+        await rpc("configure", { configuration: config, remoteClient: client });
 
-    if (busy) throw new Error("Desktop configuration is already in progress");
+        if (status.phase === "running") await openApplication();
 
-    busy = true;
-
-    try {
-      return await configureDesktopMode(event, raw, {
-        status,
-        directory: app.getPath("userData"),
-        remoteUpdate,
-        logs,
-        closeSettings: () => closeModeChooser(settingsWindow, window),
-        apply: async (config, client) => {
-          previews.closeAll();
-          await history.clear();
-          startupError = "";
-          await rpc("configure", { configuration: config, remoteClient: client });
-
-          if (status.phase === "running") await openApplication();
-
-          if (status.phase === "error") throw new Error(status.error ?? "Could not save desktop mode");
-        },
-      });
-    } finally {
-      busy = false;
-    }
-  });
-  ipcMain.handle("canopy:close-settings", (event) => {
-    authorize(event, true);
-    closeModeChooser(settingsWindow, window);
-  });
+        if (status.phase === "error") throw new Error(status.error ?? "Could not save desktop mode");
+      },
+    }),
+  );
 }
 
 async function start() {

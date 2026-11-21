@@ -12,6 +12,7 @@ export interface InAppAlert {
   kind: "thread" | "bot";
   title: string;
   status: string;
+  threadId?: string;
 }
 
 type Baseline = { connection: string; list: botContract.ListBotsResponse | undefined; seen?: Map<string, BotSeen> };
@@ -20,7 +21,11 @@ type Baseline = { connection: string; list: botContract.ListBotsResponse | undef
  * Alerts from the shared bot list. Each foreground connection begins with a baseline: the first list read after
  * it, so waking or reconnecting never replays history. A failed read starts a new baseline too.
  */
-export function useBotAlerts(currentId: string | undefined, show: (alert: InAppAlert) => void) {
+export function useBotAlerts(
+  currentId: string | undefined,
+  snoozed: (id: string) => boolean,
+  show: (alert: InAppAlert) => void,
+) {
   const { client, active, online, epoch } = useSession();
   const { values, loaded } = useDevicePreferences();
   const { botsEnabled, threadsEnabled } = useAppearance();
@@ -29,7 +34,10 @@ export function useBotAlerts(currentId: string | undefined, show: (alert: InAppA
   const baseline = useRef<Baseline>({ connection: "", list: undefined });
 
   const deliver = useEffectEvent((alert: InAppAlert) => {
-    if (loaded && active && values.inAppNotifications === "on" && alert.id !== currentId) show(alert);
+    if (loaded && active && values.inAppNotifications === "on" && alert.id !== currentId) {
+      if (alert.threadId && snoozed(alert.threadId)) return;
+      show(alert);
+    }
   });
 
   useEffect(() => {
@@ -55,7 +63,9 @@ export function useBotAlerts(currentId: string | undefined, show: (alert: InAppA
 
       if (!event || (event.kind === "message" && !bot.unreadCount)) continue;
 
-      if (event.kind !== "message" && event.approval.threadId && !threadsEnabled) continue;
+      const threadId = event.kind === "message" ? "" : event.approval.threadId;
+
+      if (threadId && !threadsEnabled) continue;
 
       const status =
         event.kind === "message"
@@ -64,7 +74,13 @@ export function useBotAlerts(currentId: string | undefined, show: (alert: InAppA
             ? "Needs your answer"
             : "Needs your approval";
 
-      deliver({ id: bot.id, kind: "bot", title: bot.configuration?.name || "Bot", status });
+      deliver({
+        id: bot.id,
+        kind: "bot",
+        title: bot.configuration?.name || "Bot",
+        status,
+        ...(threadId && { threadId }),
+      });
     }
 
     baseline.current = { connection, list: list.data, seen: next };

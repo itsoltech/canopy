@@ -8,6 +8,7 @@
   import { useOverview } from "#lib/features/overview/overview-state.svelte.ts";
   import { isSettingsRoute } from "#lib/features/settings/settings-route.ts";
   import { needsYou, unseenResult } from "#lib/features/threads/activity.ts";
+  import { isThreadSnoozed } from "@canopy/domain/thread-snooze";
   import Icon from "#lib/shared/ui/Icon.svelte";
   import ConnectionStatus from "./ConnectionStatus.svelte";
   import UpdatesIndicator from "#lib/features/desktop/UpdatesIndicator.svelte";
@@ -58,7 +59,9 @@
   });
 
   const threadsAttention = $derived.by(() => {
-    const threads = [...overview.threads.values()];
+    const threads = [...overview.threads.values()].filter(
+      (thread) => !isThreadSnoozed(thread, (id) => overview.threads.get(id)),
+    );
 
     return threads.some(needsYou) ? "needs" : threads.some((t) => unseenResult(t) !== undefined) ? "unseen" : undefined;
   });
@@ -68,7 +71,12 @@
 
   const liveBots = $derived(botList.list.filter((bot) => !bot.archived));
   const botsUnread = $derived(liveBots.reduce((sum, bot) => sum + bot.unreadCount, 0));
-  const botsAttention = $derived(liveBots.some((bot) => bot.pendingApproval) ? "needs" : undefined);
+
+  const botsAttention = $derived(
+    liveBots.some((bot) => bot.pendingApproval && !overview.threadSnoozed(bot.pendingApproval.threadId))
+      ? "needs"
+      : undefined,
+  );
 
   const workerCount = $derived(overview.workers.length);
   const online = $derived(overview.workers.filter((w) => w.online).length);

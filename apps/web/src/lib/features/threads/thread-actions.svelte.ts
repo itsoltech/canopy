@@ -24,6 +24,7 @@ export class ThreadActions {
   }>();
   /** The thread "Move to…" is open for (MoveDialog). */
   moving = $state.raw<ui.Thread>();
+  snoozing = $state.raw<ui.Thread>();
   saving = $state(false);
   returnFocus: HTMLElement | undefined;
   constructor(
@@ -89,6 +90,13 @@ export class ThreadActions {
         case "read":
           await this.lifecycle(thread.id, thread.markedUnread || thread.unseenResult ? "read" : "unread");
           break;
+        case "snooze":
+          this.captureFocus();
+          this.snoozing = thread;
+          break;
+        case "wake":
+          await this.setSnooze(thread.id, false);
+          break;
         case "reveal":
           await revealThreadDirectory(thread.id);
           break;
@@ -113,6 +121,19 @@ export class ThreadActions {
     } catch (cause) {
       this.error(cause);
     }
+  }
+
+  async setSnooze(id: string, snoozed: boolean, until?: Date): Promise<void> {
+    const before = this.overview.threads;
+
+    const response = await requestJson("POST", `/api/threads/${encodeURIComponent(id)}/snooze`, {
+      snoozed,
+      snoozedUntil: until?.toISOString(),
+    });
+
+    const { thread } = decode(ui.GetThreadResponseSchema, response);
+
+    if (thread) this.overview.remember([thread], before);
   }
 
   async confirm(title?: string): Promise<void> {
@@ -191,12 +212,15 @@ export class ThreadActions {
       });
   }
   private openDialog(kind: "rename" | "delete" | "unpin" | "archive", thread: ui.Thread): void {
+    this.captureFocus();
+    this.dialog = { kind, thread };
+  }
+  private captureFocus() {
     const focused = document.activeElement instanceof HTMLElement ? document.activeElement : undefined;
     const menu = focused?.closest('[role="menu"]');
     this.returnFocus = menu?.id
       ? (document.querySelector<HTMLElement>(`[aria-controls="${CSS.escape(menu.id)}"]`) ?? focused)
       : focused;
-    this.dialog = { kind, thread };
   }
   private publish(thread: ui.Thread) {
     this.overview.apply(create(ui.OverviewUpdateSchema, { change: { case: "thread", value: thread } }));

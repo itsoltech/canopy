@@ -1,6 +1,7 @@
 import type { ui } from "@canopy/contracts";
 import { needsYou } from "./thread-activity.ts";
 import { compareThreadOrder, type ThreadSortMode } from "./thread-order.ts";
+import { isThreadSnoozed } from "./thread-snooze.ts";
 import { groupSideThreads, isSide } from "./thread-tree.ts";
 
 export const isArchivedSidebarThread = (thread: ui.Thread | undefined): thread is ui.Thread =>
@@ -14,8 +15,8 @@ export function sidebarChildren(children: readonly ui.Thread[], rootIds: Readonl
   };
 }
 
-/** One visibility rule for project/search/archive filtering; archived children remain discoverable in
- * Previous agents. Pins are flat roots so a pinned side thread is visible even with its parent closed. */
+/** Archived children remain discoverable in Previous agents. Active pins are flat roots;
+ * snoozed trees have their own section, including any pinned sides. */
 export function sidebarThreads(
   threads: readonly ui.Thread[],
   settings: ui.SidebarSettings,
@@ -27,12 +28,29 @@ export function sidebarThreads(
   const eligible = threads.filter((t) => !t.deletedAt && (!selected.size || selected.has(t.projectId)));
   const ids = new Set(eligible.map((t) => t.id));
   const archivedParents = new Set(threads.flatMap((t) => (t.status === "archived" ? [t.id] : [])));
+  const byId = new Map(threads.map((t) => [t.id, t]));
+
+  const snoozedIds = new Set(
+    eligible.flatMap((t) => (t.status !== "archived" && isThreadSnoozed(t, (id) => byId.get(id)) ? [t.id] : [])),
+  );
+
   const pins = new Set(settings.pinnedThreadIds);
   const sides = new Map<string, ui.Thread[]>();
+  const snoozedSides = new Map<string, ui.Thread[]>();
 
-  for (const t of eligible)
-    if (isSide(t) && ids.has(t.parentThreadId))
-      sides.set(t.parentThreadId, [...(sides.get(t.parentThreadId) ?? []), t]);
+  for (const t of eligible) {
+    if (!isSide(t) || !ids.has(t.parentThreadId)) continue;
+
+    const parentSnoozed = snoozedIds.has(t.parentThreadId);
+
+    if (!parentSnoozed && snoozedIds.has(t.id)) continue;
+    const children = parentSnoozed ? snoozedSides : sides;
+    const siblings = children.get(t.parentThreadId);
+
+    if (siblings) siblings.push(t);
+    else children.set(t.parentThreadId, [t]);
+  }
+
   const q = query.trim().toLowerCase();
 
   const matches = (t: ui.Thread) =>
@@ -42,6 +60,8 @@ export function sidebarThreads(
     if (t.spawnedByAgent) return false;
 
     if (t.status === "archived") return false;
+
+    if (snoozedIds.has(t.id)) return false;
 
     // Parent events arrive before their cascade children; never flash those children as active roots.
     if (isSide(t) && archivedParents.has(t.parentThreadId)) return false;
@@ -55,7 +75,18 @@ export function sidebarThreads(
     return Number(pins.has(b.id)) - Number(pins.has(a.id)) || compareThreadOrder(a, b, sortMode);
   });
 
-  return { roots, sides, pins };
+  const snoozed = eligible.filter(
+    (t) =>
+      snoozedIds.has(t.id) &&
+      !t.spawnedByAgent &&
+      !archivedParents.has(t.parentThreadId) &&
+      !snoozedIds.has(t.parentThreadId) &&
+      (matches(t) || (snoozedSides.get(t.id) ?? []).some(matches)),
+  );
+
+  snoozed.sort((a, b) => compareThreadOrder(a, b, sortMode));
+
+  return { roots, sides, pins, snoozed, snoozedSides };
 }
 
 /** An archived side under an active main belongs to Previous agents, including when it is current. */

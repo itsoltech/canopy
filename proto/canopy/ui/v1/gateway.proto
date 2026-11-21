@@ -397,6 +397,7 @@ service GatewayService {
   rpc MarkThreadSeen(MarkThreadSeenRequest) returns (MarkThreadSeenResponse);
   rpc SetThreadRead(SetThreadReadRequest) returns (MarkThreadSeenResponse);
   rpc SetThreadArchived(SetThreadArchivedRequest) returns (GetThreadResponse);
+  rpc SetThreadSnooze(SetThreadSnoozeRequest) returns (GetThreadResponse);
   rpc DeleteThread(DeleteThreadRequest) returns (DeleteThreadResponse);
   rpc RestoreThread(RestoreThreadRequest) returns (ListThreadsResponse);
   // Workery innych komputerów grupy konfiguracji z ich rekordów (sekcja na końcu pliku, docs/linked-computers.md).
@@ -831,6 +832,10 @@ message Thread {
   canopy.worker.v1.ContextUsage context_usage = 1070;
   // Identifies the creation progress of a thread whose initial workspace is not ready.
   string preparation_request_id = 1080;
+  // Explicit snooze for this thread. Clients derive ancestor snoozes separately.
+  bool snoozed = 1100;
+  // Absent for an indefinite snooze.
+  google.protobuf.Timestamp snoozed_until = 1101;
   // Puste = dziedziczenie/domyślne profilu; default = jawny standard.
   string service_tier = 43;
 }
@@ -3026,6 +3031,13 @@ message SetThreadReadRequest {
 message SetThreadArchivedRequest {
   string thread_id = 1;
   bool archived = 2;
+}
+
+message SetThreadSnoozeRequest {
+  string thread_id = 1;
+  bool snoozed = 2;
+  // When snoozed is true, omission means indefinite. When false, the thread wakes.
+  google.protobuf.Timestamp snoozed_until = 3;
 }
 
 message DeleteThreadRequest { string thread_id = 1; }

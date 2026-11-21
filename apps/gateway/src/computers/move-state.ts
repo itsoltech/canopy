@@ -255,6 +255,7 @@ export function applyThreadRows(
       yield* sql.unsafe(
         `UPDATE threads SET last_seq = greatest(last_seq, $2), created_at = $3, title = $4, title_source = $5, settings = settings || $6::jsonb, archived_at = $7, auto_archive_on_merge = $8,
       permission_mode_selected = permission_mode_selected OR $9,
+      snoozed = $10, snoozed_until = $11,
       status = CASE WHEN $7::timestamptz IS NULL THEN status ELSE 'archived' END, archived_by = CASE WHEN $7::timestamptz IS NULL THEN NULL ELSE 'user' END
       WHERE id = $1::uuid`,
         [
@@ -267,6 +268,8 @@ export function applyThreadRows(
           row.kind === "main" ? row.archived_at : null,
           row.auto_archive_on_merge ?? null,
           history.thread?.permissionModeSelected ?? false,
+          row.snoozed ?? false,
+          row.snoozed ? (row.snoozed_until ?? null) : null,
         ],
       );
       yield* sql.unsafe(

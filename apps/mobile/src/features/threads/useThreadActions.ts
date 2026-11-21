@@ -1,5 +1,6 @@
 import { useRef, useState } from "react";
 import { create } from "@bufbuild/protobuf";
+import { timestampFromDate } from "@bufbuild/protobuf/wkt";
 import { router, useGlobalSearchParams, usePathname } from "expo-router";
 import { ui } from "@canopy/contracts";
 import { useSession } from "../../state/session";
@@ -134,4 +135,37 @@ export function useThreadActions(thread: ui.Thread) {
   }
 
   return { busy, disabled, pinned, archived, run, commit, rename: (title: string) => execute("rename", title) };
+}
+
+export function useThreadSnooze(thread: ui.Thread, disabled: boolean) {
+  const { client } = useSession();
+  const { updateThreadSnooze } = useOverview();
+  const running = useRef(false);
+  const [busy, setBusy] = useState(false);
+
+  async function setSnooze(snoozed: boolean, until?: Date) {
+    if (!client || disabled || running.current) return false;
+    running.current = true;
+    setBusy(true);
+
+    try {
+      const { thread: saved } = await client.api.setThreadSnooze({
+        threadId: thread.id,
+        snoozed,
+        snoozedUntil: until ? timestampFromDate(until) : undefined,
+      });
+
+      if (!saved) return false;
+      updateThreadSnooze(thread, saved);
+
+      return true;
+    } catch {
+      return false;
+    } finally {
+      running.current = false;
+      setBusy(false);
+    }
+  }
+
+  return { busy, setSnooze };
 }

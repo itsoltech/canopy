@@ -173,6 +173,7 @@ export const SERVED = new Set([
   "MarkThreadSeen",
   "SetThreadRead",
   "SetThreadArchived",
+  "SetThreadSnooze",
   "DeleteThread",
   "RestoreThread",
   "ListModels",

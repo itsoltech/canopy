@@ -122,6 +122,7 @@ export async function corePump(hostContext: GatewayCore, threadId: string): Prom
 
 /** Shared admission path, also used inside the transaction accepting a user message. */
 export async function corePumpQueued(hostContext: GatewayCore, threadId: string): Promise<void> {
+  if (hostContext[coreState].options.relocation?.draining) return;
   const state = await queueAdmissionState(hostContext, threadId);
 
   if (!state) return;
@@ -140,6 +141,7 @@ export async function corePumpQueued(hostContext: GatewayCore, threadId: string)
 
   // The user may reorder or edit the queue meanwhile: the head starts only as read, else it is read again.
   for (let attempt = 0; attempt < 5; attempt++) {
+    if (hostContext[coreState].options.relocation?.draining) return;
     const turn = await coreRun(hostContext, (s) => s.nextTurn(threadId));
 
     if (!turn) return;
@@ -375,6 +377,7 @@ export const coreWorkLoopMethods: CoreWorkLoopMethods = {
     this.checkWatches.start();
     this.githubDetection.start();
     this.proxyAccounts.start();
+    this.snoozes.start();
   },
 
   async stopSweep(this: GatewayCore): Promise<void> {
@@ -393,6 +396,7 @@ export const coreWorkLoopMethods: CoreWorkLoopMethods = {
       this.imports.runner.stop(),
       this.copyJobs.stop(),
       this.checkWatches.stop(),
+      this.snoozes.stop(),
       this.github.stop(),
     ]);
   },

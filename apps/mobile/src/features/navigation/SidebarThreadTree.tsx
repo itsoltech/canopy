@@ -18,6 +18,7 @@ import { useComputerHome } from "../computers/presence";
 import { SidebarUnread } from "./SidebarUnread";
 import { useSidebarTypography } from "./sidebar-scale";
 import { ThreadArchiveSwipe } from "./ThreadArchiveSwipe";
+import { ThreadActionsSheet } from "../threads/ThreadActionsSheet";
 
 interface TreeProps {
   thread: ui.Thread;
@@ -27,6 +28,7 @@ interface TreeProps {
   projects: ui.Project[];
   workers: ui.Worker[];
   archived?: boolean;
+  showSides?: boolean;
   reorder?: boolean;
   groupedProject?: boolean;
   groupedWorktree?: boolean;
@@ -41,6 +43,7 @@ const openTree = (current: ui.Thread | undefined) => current && (isSide(current)
 const sameTree = (a: TreeProps, b: TreeProps) =>
   a.thread === b.thread &&
   a.archived === b.archived &&
+  a.showSides === b.showSides &&
   a.reorder === b.reorder &&
   a.groupedProject === b.groupedProject &&
   a.groupedWorktree === b.groupedWorktree &&
@@ -61,6 +64,7 @@ function SidebarThreadTree({
   projects,
   workers,
   archived = false,
+  showSides = false,
   reorder = false,
   groupedProject = false,
   groupedWorktree = false,
@@ -69,7 +73,7 @@ function SidebarThreadTree({
   const type = useSidebarTypography();
   const [expanded, setExpanded] = useState<boolean>();
   const [previousOpen, setPreviousOpen] = useState(false);
-  const open = expanded ?? (archived || openTree(current) === thread.id);
+  const open = showSides || (expanded ?? (archived || openTree(current) === thread.id));
   const c = useColors();
   const hasSides = sides.active.length + sides.previous.length > 0;
 
@@ -91,7 +95,8 @@ function SidebarThreadTree({
           <Pressable
             accessibilityRole="button"
             accessibilityLabel={`Side threads of ${thread.title}`}
-            accessibilityState={{ expanded: open }}
+            accessibilityState={{ expanded: open, disabled: showSides }}
+            disabled={showSides}
             onPress={() => setExpanded(!open)}
             style={[styles.row, { minHeight: 48, gap: 4, paddingHorizontal: 8 }]}
           >
@@ -147,50 +152,62 @@ function SidebarSideThread({ thread, previous = false }: { thread: ui.Thread; pr
   const pathname = usePathname();
   const { id } = useGlobalSearchParams<{ id?: string }>();
   const active = layout.wide && pathname.startsWith("/thread/") && id === thread.id;
+  const [actions, setActions] = useState<boolean>();
 
   const label = home.away ? "Read-only" : previous ? formatAge(thread.archivedAt) : threadRowLabel(thread);
 
   return (
-    <Pressable
-      accessibilityRole="button"
-      accessibilityLabel={`${thread.title || "Untitled thread"}${label ? `, ${label}` : ""}${home.away ? `, ${home.reason}` : ""}${thread.markedUnread ? ", Unread" : ""}`}
-      accessibilityState={{ selected: active }}
-      onPress={() => void layout.openThread(thread.id)}
-      style={({ pressed }) => [
-        styles.row,
-        {
-          minHeight: 48,
-          borderRadius: 8,
-          paddingHorizontal: 8,
-          opacity: home.away ? 0.55 : 1,
-          backgroundColor: pressed || active ? c.inset : !home.away && isCalm(thread) ? c.well : "transparent",
-        },
-      ]}
-    >
-      <SidebarActivity
-        thread={thread}
-        away={home.away}
-        size={16}
-        idle={
-          <Icon
-            name={thread.forkSourceThreadId ? "square-2-stack" : "arrow-turn-down-right"}
-            size={16}
-            color={c.muted}
-          />
-        }
-      />
-      <Text numberOfLines={1} style={[type.title, { flex: 1, minWidth: 0, color: c.body }]}>
-        {thread.title || "Untitled thread"}
-      </Text>
-      <View style={{ width: 96 }}>
-        <SidebarThreadStatus
+    <>
+      <Pressable
+        accessibilityRole="button"
+        accessibilityLabel={`${thread.title || "Untitled thread"}${label ? `, ${label}` : ""}${home.away ? `, ${home.reason}` : ""}${thread.markedUnread ? ", Unread" : ""}`}
+        accessibilityState={{ selected: active }}
+        onPress={() => void layout.openThread(thread.id)}
+        onLongPress={previous ? undefined : () => setActions(true)}
+        accessibilityHint={previous ? undefined : "Hold for thread actions."}
+        accessibilityActions={previous ? undefined : [{ name: "longpress", label: "Thread actions" }]}
+        onAccessibilityAction={(event) => {
+          if (!previous && event.nativeEvent.actionName === "longpress") setActions(true);
+        }}
+        style={({ pressed }) => [
+          styles.row,
+          {
+            minHeight: 48,
+            borderRadius: 8,
+            paddingHorizontal: 8,
+            opacity: home.away ? 0.55 : 1,
+            backgroundColor: pressed || active ? c.inset : !home.away && isCalm(thread) ? c.well : "transparent",
+          },
+        ]}
+      >
+        <SidebarActivity
           thread={thread}
-          label={home.away ? "Read-only" : undefined}
-          previous={previous}
-          hasWorkingSpinner
+          away={home.away}
+          size={16}
+          idle={
+            <Icon
+              name={thread.forkSourceThreadId ? "square-2-stack" : "arrow-turn-down-right"}
+              size={16}
+              color={c.muted}
+            />
+          }
         />
-      </View>
-      <SidebarUnread unread={thread.markedUnread} />
-    </Pressable>
+        <Text numberOfLines={1} style={[type.title, { flex: 1, minWidth: 0, color: c.body }]}>
+          {thread.title || "Untitled thread"}
+        </Text>
+        <View style={{ width: 96 }}>
+          <SidebarThreadStatus
+            thread={thread}
+            label={home.away ? "Read-only" : undefined}
+            previous={previous}
+            hasWorkingSpinner
+          />
+        </View>
+        <SidebarUnread unread={thread.markedUnread} />
+      </Pressable>
+      {actions !== undefined && (
+        <ThreadActionsSheet thread={thread} visible={actions} onClose={() => setActions(false)} />
+      )}
+    </>
   );
 }

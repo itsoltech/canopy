@@ -56,6 +56,7 @@
     "./new-thread-choices": "./src/new-thread-choices.ts",
     "./composer-pending": "./src/composer-pending.ts",
     "./sidebar-threads": "./src/sidebar-threads.ts",
+    "./thread-snooze": "./src/thread-snooze.ts",
     "./thread-order": "./src/thread-order.ts",
     "./sidebar-entries": "./src/sidebar-entries.ts",
     "./sidebar-groups": "./src/sidebar-groups.ts",

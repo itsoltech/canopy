@@ -6,7 +6,8 @@ uruchamiają osobną usługę web. Ten dokument opisuje kod na `dev`; poniższe 
 pobierania domyślnie wybierają stable. Wersje i kanały: [release.md](release.md). Wszystko pochodzi z
 `ghcr.io/itsoltech/canopy-*` albo z GitHub Releases `itsoltech/canopy`.
 
-Status (2026-11-20): gateway i worker są budowane na Bun 1.4.5. Compose izoluje
+Status (2026-11-21): operacyjne CLI `migration` obsługuje przeniesienie bazy
+gatewaya oraz podgląd Linked Computers. Gateway i worker są budowane na Bun 1.4.5. Compose izoluje
 sieć workera od panelu właściciela, a samodzielny web domyślnie słucha na loopbacku
 i sprawdza nagłówek Host. Kod zawiera operacyjne CLI `storage inspect` i jawny
 reclaim offline przez `VACUUM FULL`. Dostępność w nightly/beta/stable wynika
@@ -658,6 +659,223 @@ desktopu nie używają tego przekazania. W Compose pozostaje `restart: unless-st
 do zwykłych awarii; nowy kod kontenera wchodzi przez `docker compose pull` i
 odtworzenie kontenera, także pod tini. Przekazanie binarki nie zależy od `restart:`
 i nie służy do aktualizacji obrazu.
+
+## Przeniesienie bazy gatewaya na inny serwer
+
+Status (2026-11-21, kod w repozytorium): `canopy-gateway migration cutover`
+obsługuje próbne odtworzenie, opróżnienie źródła i wznawialne przełączenie serwera przez SSH.
+Operator przygotowuje usługi oraz trasy klientów. Dostępność w kanałach wynika z [wydań](release.md).
+
+### Przełączenie serwera przez SSH
+
+Użyj tego samego wydania Canopy z obsługą blokady migracji po obu stronach.
+Przygotuj na celu oddzielną pustą bazę, jej własne poświadczenia administracyjne
+i konto z prawem `CREATEDB` na potrzeby odtworzenia próbnego. PostgreSQL celu
+musi być w tej samej lub nowszej wersji głównej. Oba hosty potrzebują `flock`
+i pakietu klienta PostgreSQL (`psql`, `pg_dump`, `pg_restore`).
+Jeśli PostgreSQL działa na innym hoście, sprawdź tam wolne miejsce na bazę,
+indeksy i WAL. Koordynator sprawdza miejsce na pliki transferu lokalnie,
+a zgodność PostgreSQL i odtworzenie sprawdza w bazie. Dane i schemat są
+przenoszone bez statystyk planisty. PostgreSQL odtworzy statystyki podczas
+analizy tabel.
+
+Zarezerwuj osobny katalog stanu na każdym hoście (0700), a konfigurację JSON
+i opcjonalny plik dotenv zapisz z uprawnieniami 0600. Uruchamiaj polecenia jako
+właściciel tych plików. Plik źródłowy może wyglądać tak:
+
+```json
+{
+  "stateDirectory": "/var/lib/canopy-migration/source",
+  "environmentFile": "/etc/canopy/gateway.env",
+  "target": {
+    "destination": "operator@new-gateway.example.net",
+    "knownHostsFile": "/etc/canopy/migration-known-hosts",
+    "identityFile": "/etc/canopy/migration-ssh-key"
+  },
+  "drainTimeoutSeconds": 300
+}
+```
+
+Na celu lokalna konfiguracja odbiornika domyślnie leży w
+`~/.config/canopy/gateway-migration-target.json`. Ścieżkę może też ustawić
+`CANOPY_MIGRATION_TARGET_CONFIG` w środowisku polecenia po stronie SSH.
+
+```json
+{
+  "stateDirectory": "/var/lib/canopy-migration/target",
+  "environmentFile": "/etc/canopy/target-migration.env",
+  "secretFile": "/etc/canopy/relocated-secrets.env",
+  "service": { "unit": "canopy-gateway.service" }
+}
+```
+
+Przyjmuj tylko operatora SSH z uprawnieniami do odczytu prywatnego środowiska,
+sterowania usługą i odtworzenia bazy. Przed użyciem sprawdź klucz hosta
+i dodaj go do wskazanego pliku known_hosts. Odbiornik to stałe polecenie
+`canopy-gateway migration cutover-target` w PATH zdalnego konta. Można
+przypiąć je jako wymuszone polecenie dedykowanego klucza SSH i wyłączyć
+na tym kluczu przekierowania oraz TTY. Sprawdzanie klucza hosta jest
+obowiązkowe. Poświadczenia PostgreSQL i token usługi pochodzą z konfiguracji
+właściwego hosta. Odbiornik dostaje klucz szyfrowania źródła razem z archiwum
+przez stdin zaszyfrowanego połączenia SSH.
+
+W pliku dotenv celu ustaw `CANOPY_DATABASE_URL` operatora i ten sam
+`CANOPY_DEV_USER_EMAIL`, którego używa źródło. Przy rozdzielonych rolach ustaw
+także lokalne dane do provisioningu runtime celu. Zatrzymaj usługę celu przed
+przygotowaniem. W jej unicie dodaj obowiązkowy wpis
+`EnvironmentFile=/etc/canopy/relocated-secrets.env` po pozostałych plikach
+środowiska i przeładuj konfigurację systemd. Plik jeszcze nie istnieje.
+Koordynator zapisze go z uprawnieniami 0600 przed pierwszym startem celu.
+Domyślny adapter steruje `canopy-gateway.service` przez systemd. Pole
+`service.user` przełącza go na instancję użytkownika. Zarządzane wdrożenie może
+zamiast tego podać `service` z polami `stop`, `start`, `stopped` i `ready`
+jako tablice argumentów. `stopped` zwraca 0 dla zatrzymanej usługi, 1 dla
+działającej, a pozostałe kody oznaczają błąd. `ready` zwraca 0 po sprawdzeniu
+gotowości. Adapter ma utrzymać cel wyłączony do aktywacji i zapisać trwałe
+środowisko startu w taki sposób, by usługa korzystała z `secretFile`.
+
+```sh
+canopy-gateway migration cutover start --config /etc/canopy/cutover.json
+canopy-gateway migration cutover status --config /etc/canopy/cutover.json
+canopy-gateway migration cutover resume --config /etc/canopy/cutover.json
+```
+
+`start` pozostawia działające źródło i raportuje wynik izolowanego odtworzenia
+na celu. Raport zawiera czasy etapów, wersję schematu, tożsamość sieciową
+i liczniki sprawdzonych rekordów. Próba nie uruchamia gatewaya.
+Po zakończeniu próby `resume` wstrzymuje nową pracę, czeka na zakończenie
+aktywnej, zatrzymuje źródłową usługę i przesyła końcową kopię. Aktywacja zaczyna
+się dopiero, gdy cel potwierdzi transakcyjne odtworzenie, a baza źródła zapisze
+trwałą blokadę startu. `status` odczytuje zapisany etap, blokadę źródła i ostatni
+stan potwierdzony przez cel. Po przerwaniu operacji użyj tego samego pliku
+konfiguracji. `resume` uzgadnia stan przed kolejną próbą i wznawia przerwany etap.
+
+Przed trwałym zatwierdzeniem źródła `cutover abort --config FILE` zwalnia
+blokadę źródła i sprząta prywatne pliki transferu. Jeśli działający wcześniej
+gateway zdążył rozpocząć zamykanie, koordynator kończy zatrzymanie, uruchamia
+go ponownie i czeka na gotowość. Jeśli cel jest niedostępny, operacja zapisuje
+oczekujące sprzątanie i ponowi je przy `abort` lub `resume`.
+Jeśli końcowa baza celu zdążyła się odtworzyć, pozostaje z blokadą startu.
+Do nowej próby przygotuj pustą bazę i nowe katalogi stanu. Po zatwierdzeniu
+źródła używaj `status` i `resume`, także po utracie odpowiedzi SSH przy aktywacji.
+Przywrócenie starej instancji po zapisach na celu wymaga aktualnej kopii bazy.
+
+Po aktywacji sprawdź dostęp klientów i workerów. Stary adres może dalej
+działać przez przekierowanie TCP na cel. Dla Desktopu, który ma przejść
+na Remote, podaj w konfiguracji celu `networkOrigins` z adresami HTTPS
+Network access oraz ustaw port nasłuchu usługi przez `CANOPY_NETWORK_PORT`.
+Docelowy certyfikat jest sprawdzany względem odtworzonej tożsamości, a klient
+przed połączeniem sprawdza jego pin.
+
+### Dołączanie Desktopu do wspólnego gatewaya
+
+Po uruchomieniu centralnego gatewaya ten sam odbiornik SSH obsługuje
+**Join a shared server** w kreatorze Desktopu. Użyj konfiguracji działającego
+gatewaya z jego kluczem, kontem właściciela i adresami `networkOrigins`.
+Opcjonalne `CANOPY_MIGRATION_JOIN_CONFIG` wskazuje osobną konfigurację odbioru.
+Jeśli oba pliki dotyczą tej samej usługi, użyj w nich tego samego
+`stateDirectory`, żeby koordynator serializował przełączenia.
+Konto PostgreSQL potrzebuje uprawnień właściciela tabel i `CREATEDB`.
+
+Osoba na każdym Desktopie potwierdza dołączenie lokalnie. Może to zrobić,
+gdy komputer wróci do sieci. Odbiornik sprawdza podpis paczki danych domowych
+i buduje raport na izolowanej kopii. Właściciel wybiera rozstrzygnięcia konfliktów
+i zatwierdza sekrety, które wolno przekazać. Sekrety są szyfrowane kluczem
+centralnego gatewaya. Klucz dołączanego gatewaya pozostaje na jego komputerze.
+
+Import tymczasowo opróżnia i zatrzymuje centralny gateway. Transakcja zapisuje
+dane wraz z potwierdzeniem przypisanym do operacji i skrótu paczki. Po odzyskaniu
+łączności kreator może odczytać potwierdzenie i przejść do przełączenia workera.
+Jeżeli raport zmienił się przed zapisem, wybierz **Review again** w kreatorze
+i zatwierdź nowy raport. Szczegóły danych i powiązań opisuje
+[konsolidacja połączonych komputerów](linked-computers.md#konsolidacja-dodatkowego-komputera).
+
+### Ręczny eksport i odtworzenie
+
+Użyj tego samego wydania Canopy po obu stronach i PostgreSQL na celu w tej samej
+lub nowszej głównej wersji. Na hoście uruchamiającym polecenie potrzebne są
+`psql`, `pg_dump` i `pg_restore` zgodne z serwerem i archiwum. Standardowy
+obraz gatewaya nie zawiera narzędzi PostgreSQL. W instalacji Compose uruchom
+polecenie z binarki operatora mającej prywatną trasę do bazy i dostęp do jej konta
+bootstrapu. Nigdy nie wystawiaj bazy do internetu dla tej operacji.
+
+**Próba.** W załadowanym prywatnym środowisku źródła ustaw `CANOPY_DATABASE_URL`
+z uprawnieniami do odczytu całej bazy, `CANOPY_SECRETS_KEY` i ten sam
+`CANOPY_DEV_USER_EMAIL`, którego używa gateway. Polecenie może czytać działające źródło.
+Wskaż nieistniejący katalog pod zaufanym katalogiem operatora.
+
+```sh
+canopy-gateway migration export --bundle ./canopy-trial
+```
+
+Przekaż katalog przez zaufany kanał, np. SSH. Zachowaj dostęp właściciela
+do katalogu i plików (odpowiednio 0700 i 0600 na Linuksie). Na Windows ogranicz
+ACL katalogu i plików tymczasowych do swojego konta. Archiwum zawiera
+dane aplikacji, w tym historie i załączniki. Manifest uwierzytelnia je kluczem
+źródłowego gatewaya. Przekaż klucz szyfrowania osobnym prywatnym kanałem.
+W środowisku celu załaduj ten klucz i ten sam `CANOPY_DEV_USER_EMAIL`.
+`CANOPY_DATABASE_URL` musi wskazywać oddzielną, pustą bazę próbną z kontem
+operatora. Zablokuj dostęp działających gatewayów do tej bazy.
+
+```sh
+canopy-gateway migration verify --bundle ./canopy-trial
+canopy-gateway migration import --bundle ./canopy-trial --offline
+```
+
+Import sprawdza podpis manifestu i skrót prywatnej kopii, z której odtwarza
+bazę. Katalog tymczasowy (na Linuksie ustawiany przez `TMPDIR`) musi mieć
+miejsce na całe archiwum. Transakcja zatwierdza dane po porównaniu wersji
+schematu, właściciela, certyfikatu i zaszyfrowanego klucza tożsamości.
+Właściciele obiektów i granty są lokalne dla celu. Import odmawia zapisu do
+niepustej bazy. Po niejednoznacznym wyniku zachowaj gateway wyłączony i
+sprawdź stan docelowej bazy przed powtórzeniem operacji.
+
+Próba obejmuje bazę. Do osobnej próby startu użyj izolowanego środowiska
+bez dostępu do rzeczywistych workerów, harmonogramów i integracji.
+Jeśli testujesz również provisioning roli `canopy_runtime`, użyj osobnego
+klastra PostgreSQL. Rola ma nazwę wspólną dla klastra i jest przypisana
+do jednej bazy.
+
+**Przełączenie.** Wstrzymaj nowe tury i pozwól zakończyć się aktywnym zadaniom
+na źródle. Zatrzymaj źródłowy gateway i jego automatyczny restart przed końcowym
+eksportem do nowego katalogu (`migration export --bundle ./canopy-final --offline`).
+Flaga `--offline` sprawdza brak innych sesji i przygotowanych transakcji przed
+zrzutem i po nim. Blokadę ponownego połączenia zapewnia operator.
+Zaimportuj końcową kopię do oddzielnej pustej bazy
+produkcyjnej na celu. Przy rozdzielonych rolach wykonaj `canopy-gateway migrate`
+z konfiguracją bootstrapu i hasła runtime celu, aby odtworzyć uprawnienia. Skonfiguruj
+nasłuch i reverse proxy dla celu, uruchom nową usługę, sprawdź dostęp użytkownika
+i połączenia workerów. Środowisko usługi musi zawierać sprawdzone
+`CANOPY_SECRETS_KEY` i `CANOPY_DEV_USER_EMAIL`. Po rozpoczęciu zapisów na celu dalsza praca ze starą bazą
+wymaga zsynchronizowania z nią aktualnego stanu.
+
+Klucze sieciowe, tokeny klientów i identyfikatory workerów istniejące w bazie
+są zachowywane. Wskaż nowy adres klientom albo utrzymaj stary adres przez
+przekierowanie TCP. Logowania CLI i pliki projektów pozostają na workerach.
+Konfiguracja usług systemowych, adresy hostów, TLS reverse proxy i poświadczenia
+PostgreSQL pochodzą ze środowiska każdego hosta.
+
+Z bazą Desktop Local lub jego odtworzoną kopią polecenie
+`canopy-gateway migration inspect-links` raportuje rekordy należące do źródłowego
+właściciela, oddzielnie od luster, oraz partnerów i wykrytą pracę w toku.
+Odczyt nie przenosi rekordów. Stan pracy może się zmienić po odczycie.
+
+### Lokalne testy migracji
+
+Scenariusze serwerowe i konsolidacja używają osobnych baz PostgreSQL
+i procesów gatewaya. Transport serwerowy jest sprawdzany przez prywatny
+`sshd` nasłuchujący na loopbackie, z własnym kluczem i wymuszonym poleceniem.
+Scenariusz Desktopu wymaga zbudowanego runtime i klienta PostgreSQL 18.
+Test rozpoczyna pracę na wbudowanej bazie, uruchamia cel w osobnym klastrze
+i odtwarza stan kontrolera po przerwaniu przełączenia.
+
+```sh
+bun run --cwd apps/desktop build
+CANOPY_LIVE=1 bun run check:tmp \
+  ./tests/integration/gateway-relocation.live.test.ts \
+  ./tests/integration/gateway-consolidation.live.test.ts \
+  ./apps/desktop/test/migration-desktop.live.test.ts
+```
 
 ## Inspekcja i fizyczne odzyskiwanie miejsca PostgreSQL
 

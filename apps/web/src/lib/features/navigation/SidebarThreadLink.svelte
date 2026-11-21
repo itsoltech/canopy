@@ -30,6 +30,7 @@
   let {
     thread,
     current = false,
+    snoozed = false,
     needsAttention = needsYou(thread),
     compact = false,
     quickArchive = false,
@@ -41,6 +42,7 @@
   }: {
     thread: ui.Thread;
     current?: boolean;
+    snoozed?: boolean;
     needsAttention?: boolean;
     compact?: boolean;
     quickArchive?: boolean;
@@ -140,12 +142,13 @@
             })}
             href="/threads/{thread.id}"
             aria-current={current ? "page" : undefined}
-            data-result={result.current}
-            data-unread={thread.markedUnread || undefined}
-            data-draft={(!current && !away && !needsAttention && draft.current) || undefined}
+            data-result={snoozed ? undefined : result.current}
+            data-unread={(!snoozed && thread.markedUnread) || undefined}
+            data-draft={(!snoozed && !current && !away && !needsAttention && draft.current) || undefined}
             class={[
               "sidebar-row group focus-ring [-webkit-touch-callout:none]",
-              !away &&
+              !snoozed &&
+                !away &&
                 needsAttention &&
                 "bg-amber-500/6 inset-ring inset-ring-amber-500/20 dark:bg-amber-400/6 dark:inset-ring-amber-400/15",
               "aria-[current=page]:bg-zinc-950/6 dark:aria-[current=page]:bg-white/8",
@@ -159,7 +162,7 @@
             {@render children()}
             {#if compact && draft.current}<span class="sr-only">Draft</span>{/if}
             {#if away}<span class="sr-only">Read-only. {away}</span>{/if}
-            {#if thread.markedUnread}<span class="sr-only">Unread</span><span
+            {#if !snoozed && thread.markedUnread}<span class="sr-only">Unread</span><span
                 class="absolute top-1.5 right-1.5 size-1.5 rounded-full bg-brand-500"
                 aria-hidden="true"
               ></span>{/if}
