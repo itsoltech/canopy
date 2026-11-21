@@ -1,5 +1,5 @@
 import { ui } from "@canopy/contracts";
-import { validModuleOrder } from "@canopy/domain";
+import { MAX_ATTACHMENT_FILE_BYTES, MAX_ATTACHMENT_FILE_MIB, validModuleOrder } from "@canopy/domain";
 import { isEntityId } from "@canopy/domain/computers";
 import { isCheckInterval } from "@canopy/domain/update-checks";
 import { harnessOf } from "../store/index.ts";
@@ -29,14 +29,14 @@ export function validateUserSettings(request: ui.UpdateUserSettingsRequest) {
 
     if (
       maxFileBytes < 1n ||
-      maxFileBytes > 30n * 1024n ** 2n ||
+      maxFileBytes > BigInt(MAX_ATTACHMENT_FILE_BYTES) ||
       maxMessageBytes < maxFileBytes ||
       maxMessageBytes > 1024n ** 3n ||
       maxFiles < 1 ||
       maxFiles > 100
     )
       throw new InvalidError(
-        "Choose up to 30 MiB per file, at least that much per message (up to 1 GiB), and 1–100 files.",
+        `Choose up to ${MAX_ATTACHMENT_FILE_MIB} MiB per file, at least that much per message (up to 1 GiB), and 1–100 files.`,
       );
   }
 

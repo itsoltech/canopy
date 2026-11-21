@@ -6,6 +6,9 @@ export { attachmentRange } from "./range.ts";
 
 export {
   DEFAULT_ATTACHMENT_LIMITS,
+  MAX_ATTACHMENT_FILE_BYTES,
+  MAX_ATTACHMENT_FILE_MIB,
+  MAX_ATTACHMENT_RPC_BYTES,
   attachmentPath,
   attachmentsNote,
   formatSize,

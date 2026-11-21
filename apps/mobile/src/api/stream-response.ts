@@ -2,6 +2,7 @@
 export function streamResponse(
   body: ReadableStream<Uint8Array>,
   event: { status: number; headers: Headers | Record<string, string> },
+  maxBytes = 32 * 1024 ** 2,
 ) {
   const response = new Response(null, { status: event.status, headers: event.headers });
 
@@ -17,7 +18,7 @@ export function streamResponse(
         if (done) break;
         size += value.byteLength;
 
-        if (size > 32 * 1024 * 1024) throw new Error("Response is too large.");
+        if (size > maxBytes) throw new Error("Response is too large.");
         chunks.push(value);
       }
     } finally {
@@ -48,7 +49,12 @@ export function streamResponse(
 }
 
 /** Failures after headers also invalidate the route. Cancellation stays local and never replays a request. */
-export function observeResponse(response: Response, failed: (error: Error) => void, activity: () => void = () => {}) {
+export function observeResponse(
+  response: Response,
+  failed: (error: Error) => void,
+  activity: () => void,
+  maxBytes?: number,
+) {
   if (!response.body) return response;
   const reader = response.body.getReader();
 
@@ -79,5 +85,5 @@ export function observeResponse(response: Response, failed: (error: Error) => vo
     },
   });
 
-  return streamResponse(body, response);
+  return streamResponse(body, response, maxBytes);
 }

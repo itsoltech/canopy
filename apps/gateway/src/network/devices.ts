@@ -1,5 +1,6 @@
 import { create } from "@bufbuild/protobuf";
 import { ui } from "@canopy/contracts";
+import { MAX_ATTACHMENT_RPC_BYTES } from "@canopy/domain";
 import { connectNodeAdapter } from "@connectrpc/connect-node";
 import { serviceTokenAuth, uiRoutes } from "../api/index.ts";
 import type { GatewayCore } from "../core/core.ts";
@@ -14,7 +15,7 @@ export function mountMobileNetwork(core: GatewayCore, network: NetworkAccess, se
     routes: (router) => {
       core.mobile.routes(router);
       core.desktopControl.routes(router);
-      uiRoutes(core)(router);
+      uiRoutes(core, { readMaxBytes: MAX_ATTACHMENT_RPC_BYTES })(router);
     },
     interceptors: [core.diagnostics.interceptor, serviceTokenAuth(serviceToken, core.mobile, undefined, "network")],
     readMaxBytes: 32 * 1024 * 1024,

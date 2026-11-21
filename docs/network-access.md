@@ -1,6 +1,7 @@
 # Dostęp sieciowy (Network access)
 
-Status (2026-11-19): tokeny urządzeń obowiązują na listenerze TLS. Odwołanie urządzenia odcina
+Status (2026-11-21): ustawienia załączników pozwalają wybrać do 40 MiB na plik.
+Tokeny urządzeń obowiązują na listenerze TLS. Odwołanie urządzenia odcina
 przygotowane aktualizacje. Worker sprawdza transport przy rejestracji, restarcie i wyborze trasy
 zapasowej. Dostępność według [zasad wydań](release.md).
 
@@ -77,6 +78,10 @@ Gateway opróżnia kolejkę anulowanej subskrypcji overview i sprawdza odwołani
 przed wysłaniem odpowiedzi. `UnpairMobileDevice` po skutecznym odwołaniu własnego
 tokena zwraca puste potwierdzenie. Pakiety wcześniej przekazane transportowi
 pozostają w transporcie.
+
+Żądanie `GatewayService` na tym listenerze ma limit 42 MiB, z zapasem na pola
+protobuf wokół załącznika. Maksimum pliku w ustawieniach to 40 MiB, domyślnie
+20 MiB. Szczegóły limitów i odczytu: [ui-api.md](ui-api.md#załączniki).
 
 Emisja nowego tokena dla desktopu wymaga zaproszenia z Settings → Devices.
 DesktopMigrationService zachowuje odczyt tras dla starszych klientów i kieruje

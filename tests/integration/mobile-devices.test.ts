@@ -8,6 +8,7 @@ import { Effect } from "effect";
 import { SqlClient, type SqlConnection } from "effect/sql";
 import { readPairingQr } from "../../apps/mobile/src/api/client.ts";
 import { routedMobileClient, type MobileConnection } from "../../apps/mobile/src/api/routes.ts";
+import { attachmentResponse } from "../../apps/web/src/lib/server/attachment-response.ts";
 import { nodePinnedTransport } from "./support/phone.ts";
 import { ComputerStore } from "../../apps/gateway/src/computers/store.ts";
 import { NetworkAccess } from "../../apps/gateway/src/network/network.ts";
@@ -250,6 +251,46 @@ describe.skipIf(!dockerAvailable)("mobile pairing + pinned native app Connect cl
     );
     expect(await failure(client(other.deviceToken).api.getOverview({}))).toContain("revoked");
   });
+
+  test("a paired phone can upload and download a 40 MiB attachment", async () => {
+    const paired = await exchange((await invite()).code);
+    const phone = client(paired.deviceToken).api;
+    const original = await phone.getSettings({});
+    const bytes = 40 * 1024 ** 2;
+    const limits = { ...original.attachmentLimits!, maxFileBytes: BigInt(bytes) };
+    const expectedVersion = original.user!.version;
+    await expect(
+      phone.updateUserSettings({ expectedVersion, attachmentLimits: { ...limits, maxFileBytes: BigInt(bytes + 1) } }),
+    ).rejects.toMatchObject({ code: Code.InvalidArgument });
+    const { settings } = await phone.updateUserSettings({ expectedVersion, attachmentLimits: limits });
+
+    try {
+      expect(settings?.attachmentLimits?.maxFileBytes).toBe(BigInt(bytes));
+      const data = new Uint8Array(bytes + 1);
+      data.set([0xa1, 0x23, 0x45], bytes - 3);
+      await expect(phone.uploadAttachment({ name: "sample.dat", data })).rejects.toMatchObject({
+        code: Code.InvalidArgument,
+        rawMessage: expect.stringContaining("files can be up to"),
+      });
+      const { attachment } = await phone.uploadAttachment({ name: "sample.dat", data: data.subarray(0, bytes) });
+      const id = attachment!.id;
+      const downloaded = await phone.getAttachment({ attachmentId: id });
+      expect(downloaded.data.length).toBe(bytes);
+      expect(createHash("sha256").update(downloaded.data).digest("hex")).toBe(attachment?.sha256);
+
+      const url = new URL(`http://localhost/api/attachments/${id}?download`);
+      const request = new Request(url, { headers: { range: "bytes=-3" } });
+      const web = await attachmentResponse(gw.api, id, url, null, request);
+      expect(web.status).toBe(206);
+      expect(new Uint8Array(await web.arrayBuffer())).toEqual(data.subarray(bytes - 3, bytes));
+    } finally {
+      await phone.updateUserSettings({
+        expectedVersion: settings!.version,
+        attachmentLimits: original.attachmentLimits!,
+      });
+      await phone.unpairMobileDevice({});
+    }
+  }, 60_000);
 
   test("phone administration cannot list or revoke another owner's devices, codes or workers", async () => {
     const paired = await exchange((await invite()).code);

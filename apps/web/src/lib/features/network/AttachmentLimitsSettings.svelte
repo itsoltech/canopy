@@ -2,6 +2,7 @@
   import type { ClassValue } from "svelte/elements";
   import { create } from "@bufbuild/protobuf";
   import { ui } from "@canopy/contracts";
+  import { MAX_ATTACHMENT_FILE_MIB } from "@canopy/domain";
   import { useSettings } from "#lib/features/settings/settings-state.svelte.ts";
   import { requestJson } from "#lib/shared/http.ts";
   import { encode } from "#lib/shared/wire.ts";
@@ -15,7 +16,7 @@
   const settings = useSettings();
 
   const fields = [
-    { key: "file", label: "Per file (MiB)", max: 30 },
+    { key: "file", label: "Per file (MiB)", max: MAX_ATTACHMENT_FILE_MIB },
     { key: "message", label: "Per message (MiB)", max: 1024 },
     { key: "files", label: "Files per message", max: 100 },
   ] as const;

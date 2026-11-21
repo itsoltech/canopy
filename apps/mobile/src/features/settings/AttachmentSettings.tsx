@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { create } from "@bufbuild/protobuf";
 import { ui } from "@canopy/contracts";
+import { MAX_ATTACHMENT_FILE_MIB } from "@canopy/domain";
 import { View } from "react-native";
 import { useAppearance } from "../../state/appearance";
 import { Button, Field, Notice } from "../../ui/components";
@@ -19,7 +20,7 @@ export function AttachmentSettings() {
 
   const valid =
     [values.file, values.message, values.files].every((v) => /^\d+$/.test(v) && Number(v) > 0) &&
-    Number(values.file) <= 30 &&
+    Number(values.file) <= MAX_ATTACHMENT_FILE_MIB &&
     Number(values.message) <= 1024 &&
     Number(values.files) <= 100;
 
@@ -41,7 +42,11 @@ export function AttachmentSettings() {
             onChangeText={(value) => setDraft({ ...values, [key]: value })}
           />
         ))}
-        {!valid && <Notice error>Use whole numbers: 1–30 MiB per file, 1–1024 MiB per message and 1–100 files.</Notice>}
+        {!valid && (
+          <Notice error>
+            {`Use whole numbers. Choose 1–${MAX_ATTACHMENT_FILE_MIB} MiB per file, 1–1024 MiB per message and 1–100 files.`}
+          </Notice>
+        )}
         <Button
           variant="primary"
           title="Save limits"

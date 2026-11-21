@@ -1,6 +1,6 @@
 import type { Client } from "@connectrpc/connect";
 import type { ui } from "@canopy/contracts";
-import { attachmentRange } from "@canopy/domain";
+import { MAX_ATTACHMENT_FILE_BYTES, attachmentRange } from "@canopy/domain";
 
 export interface VideoRequest {
   serverId: string;
@@ -33,7 +33,7 @@ export async function readVideoRequest(
     !/^video\/(mp4|webm|quicktime)$/.test(meta.mimeType) ||
     !Number.isSafeInteger(size) ||
     size < 1 ||
-    size > 30 * 1024 ** 2 ||
+    size > MAX_ATTACHMENT_FILE_BYTES ||
     meta.data.length
   )
     throw new Error("Update the computer to play this video, or save the file to open it in another app.");

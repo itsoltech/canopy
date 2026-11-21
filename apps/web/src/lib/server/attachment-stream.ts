@@ -1,7 +1,7 @@
 import type { Client } from "@connectrpc/connect";
 import type { ui } from "@canopy/contracts";
 import { fileResponse } from "./files.ts";
-import { attachmentRange } from "@canopy/domain";
+import { MAX_ATTACHMENT_FILE_BYTES, attachmentRange } from "@canopy/domain";
 
 const CHUNK_BYTES = 256 * 1024;
 
@@ -17,7 +17,7 @@ export async function attachmentStream(
   const meta = await api.getAttachment({ attachmentId, metadataOnly: true }, { signal });
   const size = Number(meta.totalSize || BigInt(meta.data.length));
 
-  if (!meta.attachment || !Number.isSafeInteger(size) || size > 30 * 1024 ** 2)
+  if (!meta.attachment || !Number.isSafeInteger(size) || size > MAX_ATTACHMENT_FILE_BYTES)
     throw new Error("Attachment metadata unavailable");
   const etag = `"${meta.attachment?.sha256}"`;
 
