@@ -42,6 +42,7 @@ const threadWork = new Set<string>([
   "startWorkspaceCopy",
   "retryWorkspaceCopyJob",
   "switchWorkspaceBranch",
+  "cleanUpFailedWorktree",
   "watchAgentPreview",
   "sendAgentPreviewInput",
   "runAgentTool",

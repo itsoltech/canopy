@@ -1,4 +1,5 @@
 import type { Command } from "@canopy/contracts";
+import type { GatewayLink } from "../gateway-link/index.ts";
 import { CliRefused } from "../cli-tools/index.ts";
 
 import { CommandError, type CommandOutput } from "./host-types.ts";
@@ -83,7 +84,7 @@ export class CommandHandlers {
       : { threadDiffPage: await this.#diffs.read(kind.value) };
   }
 
-  async execute(command: Command): Promise<CommandOutput> {
+  async execute(command: Command, link?: GatewayLink): Promise<CommandOutput> {
     const kind = command.kind;
     this.#checkFileThread(kind);
 
@@ -151,6 +152,8 @@ export class CommandHandlers {
     if (kind.case === "renameWorktreeBranch") return this.ctx.ops.renameWorktreeBranch(kind);
 
     if (kind.case === "scanWorktrees") return this.ctx.ops.scanWorktrees(kind);
+
+    if (kind.case === "failedWorktreeCleanup") return this.ctx.ops.failedWorktreeCleanup(kind, link);
 
     if (kind.case === "cleanupRemovedBranch") return this.ctx.ops.cleanupRemovedBranch(kind);
 

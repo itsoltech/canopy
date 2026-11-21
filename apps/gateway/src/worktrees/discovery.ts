@@ -7,9 +7,10 @@ import { coreWorkerQuery } from "../core/core-mentions.ts";
 import type { WorktreeRow } from "../store/worktrees.ts";
 import { ownWorkspace, toUiWorktree } from "./core-worktrees.ts";
 import { coreWorkers } from "../core/core-providers.ts";
+import { inspectFailedWorktrees, type FailedWorktreeCandidate } from "./failed-cleanup.ts";
 
 /** A stable opaque id before adoption; includes the workspace so it grants no cross-project authority. */
-function discoveredId(workspaceId: string, path: string): string {
+export function discoveredId(workspaceId: string, path: string): string {
   const hex = new Bun.CryptoHasher("sha256").update(`${workspaceId}\0${path}`).digest("hex");
 
   return `${hex.slice(0, 8)}-${hex.slice(8, 12)}-${hex.slice(12, 16)}-${hex.slice(16, 20)}-${hex.slice(20, 32)}`;
@@ -143,10 +144,15 @@ export async function selectWorktree(core: GatewayCore, request: ui.CreateThread
 }
 
 /** Owner-scoped workspace enumeration; linked workspaces are queried at their home gateway. */
-export async function discoveredInventory(core: GatewayCore, projectId: string, workerId: string) {
+async function discoveredInventory(
+  core: GatewayCore,
+  projectId: string,
+  workerId: string,
+  registered: ReadonlySet<string>,
+) {
   const projects = await coreRun(core, (s) => s.listProjects(core[coreState].options.userId));
   const allowedWorkers = new Set((await coreWorkers(core)).flatMap((worker) => (worker.nodeId ? [] : [worker.id])));
-  const entries: ui.WorktreeEntry[] = [];
+  const entries: { entry: ui.WorktreeEntry; candidate?: FailedWorktreeCandidate }[] = [];
   const seen = new Set<string>();
 
   for (const project of projects) {
@@ -166,16 +172,20 @@ export async function discoveredInventory(core: GatewayCore, projectId: string, 
         if (!tree.external) continue;
         const key = `${workspace.workerId}\0${tree.path}`;
 
-        if (seen.has(key)) continue;
+        if (seen.has(key) || registered.has(key)) continue;
         seen.add(key);
-        entries.push(
-          create(ui.WorktreeEntrySchema, {
+        entries.push({
+          entry: create(ui.WorktreeEntrySchema, {
             worktree: tree,
             projectId: project.id,
             online: true,
             detail: tree.unavailableReason || "Created outside Canopy",
           }),
-        );
+          ...(tree.locked &&
+            !rows.some((row) => row.id === tree.id) && {
+              candidate: { workspace, worktreeId: tree.id, path: tree.path },
+            }),
+        });
       }
     }
   }
@@ -189,10 +199,15 @@ export async function appendDiscovered(
   rows: readonly WorktreeRow[],
   projectId: string,
   workerId: string,
+  inspectFailed = false,
 ): Promise<void> {
-  const discovered = await discoveredInventory(core, projectId, workerId);
   const registered = new Set(rows.map((row) => `${row.worker_id}\0${row.path}`));
-  entries.push(
-    ...discovered.filter((entry) => !registered.has(`${entry.worktree?.workerId}\0${entry.worktree?.path}`)),
-  );
+  const discovered = await discoveredInventory(core, projectId, workerId, registered);
+
+  if (inspectFailed) {
+    const candidates = discovered.flatMap(({ entry, candidate }) => (candidate ? [{ entry, candidate }] : []));
+    await inspectFailedWorktrees(core, candidates);
+  }
+
+  entries.push(...discovered.map(({ entry }) => entry));
 }

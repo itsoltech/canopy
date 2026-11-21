@@ -526,6 +526,8 @@ message Command {
     FileRequest reveal_file = 236;
     // Ponowienie sprzątania dokładnej lokalnej gałęzi po usunięciu worktree.
     CleanupRemovedBranch cleanup_removed_branch = 237;
+    // Transient, capability failed_worktree_cleanup_v1. Empty token inspects the locked entry.
+    FailedWorktreeCleanup failed_worktree_cleanup = 238;
     // CLI dostawców (sekcja na końcu pliku). Nietrwała: nigdy z outboxa.
     InstallCli install_cli = 800;
     // Local automation tools. These commands are transient and never enter the outbox.
@@ -841,6 +843,7 @@ message CommandResult {
   bool worktree_branch_deleted = 214;
   bool worktree_branch_cleanup_candidate = 238;
   bool worktree_branch_cleanup_finished = 239;
+  FailedWorktreeCleanupInspection failed_worktree_cleanup = 240;
   // Normalized identity only; never the raw remote URL or its credentials.
   string workspace_origin = 216;
   // Credential-free clone URL; only requested by GetWorkspaceCloneSource, never persisted.
@@ -2257,6 +2260,22 @@ message ScanWorktrees {
   bool fetch = 2;
   // Scheduled cleanup yields to interactive work and drops stale queued commands.
   bool background = 3;
+}
+
+message FailedWorktreeCleanup {
+  string repo_path = 1;
+  string path = 2;
+  string expected_cleanup_token = 3;
+  int64 expires_at_ms = 4;
+  // Stored path spellings on this worker, including registrations in other projects.
+  repeated string registered_paths = 5;
+  repeated string live_thread_paths = 6;
+  repeated string workspace_paths = 7;
+}
+
+message FailedWorktreeCleanupInspection {
+  string token = 1;
+  string reason = 2;
 }
 
 message WorktreeStatus {

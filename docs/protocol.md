@@ -974,7 +974,8 @@ Wyszukiwanie plików jest własne workera (nie Codexowe `fuzzyFileSearch`), bo m
 
 ## Git worktrees
 
-Status (2026-11-21): zaimplementowano wydłużony limit checkoutu oraz sprzątanie scalonych lokalnych gałęzi po archiwizacji.
+Status (2026-11-21): zaimplementowano wydłużony limit checkoutu, sprzątanie scalonych lokalnych gałęzi
+po archiwizacji i ręczne sprzątanie zweryfikowanego, niedokończonego checkoutu.
 Dostępność w kanałach zależy od [promocji wydania](release.md).
 
 Capability `worktrees` i `Hello.worktrees_root` (`~/canopy/worktrees`, `CANOPY_WORKTREES_ROOT` albo `<data_dir>/worktrees`, zob. [worktrees.md](worktrees.md#położenie)): nietrwałe komendy `ListGitRefs` (210), `CreateWorktree` (211) i `RenameWorktreeBranch` (212), wyniki w `CommandResult.git_refs` / `worktree`. Worker sam liczy ścieżkę worktree pod korzeniem i uruchamia gita bez powłoki. Starszy worker bez capability nie dostaje tych komend. Bez zmiany `WORKER_LINK_PROTOCOL`. Szczegóły: [worktrees.md](worktrees.md).
@@ -990,6 +991,16 @@ merged/unchanged i aktywność. Usunięcie weryfikuje pierwotny korzeń, rejestr
 i brak aktywnej pracy. Zmiany lokalne wymagają jawnego potwierdzenia ręcznej akcji. Gateway zachowuje
 komendę do wyniku, worker zapisuje zamiar przed usunięciem i wynik w journalu; retry używa tego samego
 command id. Opcjonalny wynik `worktree_branch_deleted` opisuje bezpieczne usunięcie gałęzi.
+
+Capability `failed_worktree_cleanup_v1` dodaje nietrwałe polecenie `FailedWorktreeCleanup` (238).
+Pusty `expected_cleanup_token` zleca inspekcję zablokowanego wpisu i zwraca token stanu albo
+powód odmowy w `CommandResult.failed_worktree_cleanup` (240). Worker zachowuje tożsamość łącza,
+którym odebrał polecenie, i sprawdza ją oraz termin ważności przed pracą i przed usunięciem.
+Gateway przekazuje ścieżki zapisane dla tego workera, aby worker
+mógł porównać również aliasy. Worker chroni ścieżki workspace’ów także bez wątków oraz
+ścieżki nieusuniętych, niezarchiwizowanych wątków.
+Worker sprawdza zawartość ponownie przed usunięciem. Żadna z tych komend nie trafia do outboxa
+ani do dziennika wyników poleceń. Szczegóły są w [worktrees.md](worktrees.md).
 
 Capability `archived_branch_cleanup` pozwala użyć `RemoveWorktree.delete_archived_branch` po sprawdzeniu
 wątków w gatewayu. Pole `track_branch_for_cleanup` pozwala zachować dowód usunięcia czystego checkoutu.

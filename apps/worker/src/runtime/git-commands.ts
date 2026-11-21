@@ -4,9 +4,9 @@ import { Journal } from "../journal/index.ts";
 import { checkedWorktree, scanWorktree } from "../git/worktree-status.ts";
 import { cleanupRemovedBranch, recoverRemoval, removeWorktree } from "../git/remove-worktree.ts";
 import { existsSync, realpathSync } from "node:fs";
-import { join } from "node:path";
+import { dirname, join, relative } from "node:path";
 import { isWithin } from "../git/worktrees.ts";
-import { freshGit, gitOk, GitError, prepareWorktreeGit, waitForWorktreeSlot } from "../git/git.ts";
+import { boundedGit, freshGit, gitOk, GitError, prepareWorktreeGit, waitForWorktreeSlot } from "../git/git.ts";
 import { withProcessPriority } from "@canopy/process-governor";
 import { listGitRefs, repoRoot } from "../git/refs.ts";
 import { matchingCheckoutPaths } from "../git/checkout-paths.ts";
@@ -19,12 +19,17 @@ import { revealInFileManager } from "./reveal.ts";
 import { initRepository } from "../git/project-sources.ts";
 import { GitPrReader } from "../git/pr-context.ts";
 import { withKnownPaths } from "../git/discovery.ts";
+import { FailedWorktreeCleanup } from "../git/failed-worktree-cleanup.ts";
+import type { GatewayLink } from "../gateway-link/index.ts";
 
 /** Git worktrees (docs/worktrees.md): refs of a workspace, new worktrees and their branch names. */
 export class GitCommands {
   readonly #creating = new Map<string, Promise<void>>();
   readonly #prContext = new GitPrReader();
-  constructor(readonly ctx: HostContext) {}
+  readonly #failedCleanup: FailedWorktreeCleanup;
+  constructor(readonly ctx: HostContext) {
+    this.#failedCleanup = new FailedWorktreeCleanup(ctx.state.options.dataDir);
+  }
 
   async readGitPrContext(kind: Extract<Command["kind"], { case: "readGitPrContext" }>): Promise<CommandOutput> {
     this.ctx.ops.checkCwd(kind.value.repoPath);
@@ -110,8 +115,11 @@ export class GitCommands {
 
         const next = waitForWorktreeSlot(previous).then(() =>
           freshGit(() =>
-            createWorktree(this.worktreesRoot, kind.value, (progress) =>
-              this.ctx.ops.send({ case: "queryProgress", value: { ...progress, commandId } }),
+            createWorktree(
+              this.worktreesRoot,
+              kind.value,
+              (progress) => this.ctx.ops.send({ case: "queryProgress", value: { ...progress, commandId } }),
+              this.#failedCleanup,
             ),
           ),
         );
@@ -178,6 +186,67 @@ export class GitCommands {
     return () => Boolean(link && this.ctx.state.link === link && performance.now() < deadline);
   }
 
+  async failedWorktreeCleanup(
+    kind: Extract<Command["kind"], { case: "failedWorktreeCleanup" }>,
+    origin: GatewayLink | undefined,
+  ): Promise<CommandOutput> {
+    const { repoPath, path, expectedCleanupToken, expiresAtMs, registeredPaths, liveThreadPaths, workspacePaths } =
+      kind.value;
+
+    const { state, ops } = this.ctx;
+
+    const assertAuthorized = () => {
+      if (!origin || state.link !== origin || state.closing || Date.now() >= Number(expiresAtMs))
+        throw new GitError("WORKTREE_CLEANUP_EXPIRED", "Cleanup expired. Refresh the worktree list and try again.");
+    };
+
+    return gitStep(() => {
+      assertAuthorized();
+      ops.checkCwd(repoPath);
+
+      return boundedGit(expiresAtMs, async () => {
+        const target = canonicalPath(path);
+
+        const assertIdle = () => {
+          if (registeredPaths.some((registered) => relative(target, canonicalPath(registered)) === ""))
+            throw new GitError("WORKTREE_REGISTERED", "This worktree is already registered in Canopy.");
+
+          if (workspacePaths.some((workspace) => isWithin(target, canonicalPath(workspace))))
+            throw new GitError("WORKTREE_IN_USE", "A Canopy workspace uses this worktree or a folder inside it.");
+
+          if (
+            state.admitting ||
+            [...state.switchingPaths].some((checkout) => overlaps(target, checkout)) ||
+            [...liveThreadPaths, ...state.cwds.values()].some((cwd) => isWithin(target, canonicalPath(cwd)))
+          )
+            throw new GitError("WORKTREE_BUSY", "A Canopy thread or Git operation is using this worktree.");
+          assertAuthorized();
+        };
+
+        if ([...state.removingPaths].some((checkout) => overlaps(target, checkout)))
+          throw new GitError("WORKTREE_BUSY", "Cleanup is already in progress.");
+
+        if (isWithin(target, canonicalPath(repoPath)))
+          throw new GitError("WORKTREE_CLEANUP_UNSAFE", "This worktree contains the project checkout.");
+        assertIdle();
+
+        if (!expectedCleanupToken)
+          return { failedWorktreeCleanup: await freshGit(() => this.#failedCleanup.inspect(repoPath, path)) };
+
+        state.removingPaths.add(target);
+
+        try {
+          await freshGit(() => this.#failedCleanup.remove(repoPath, path, expectedCleanupToken, assertIdle));
+
+          return {};
+        } finally {
+          state.worktreeDiscovery.clear();
+          state.removingPaths.delete(target);
+        }
+      });
+    });
+  }
+
   async removeWorktree(
     kind: Extract<Command["kind"], { case: "removeWorktree" }>,
     commandId: string,
@@ -195,7 +264,8 @@ export class GitCommands {
       if (this.ctx.state.switchingPaths.has(path))
         throw new GitError("WORKTREE_BUSY", "A branch switch is in progress. Wait for it to finish.");
 
-      if (this.ctx.state.removingPaths.has(path)) throw new GitError("WORKTREE_BUSY", "cleanup already in progress");
+      if ([...this.ctx.state.removingPaths].some((target) => overlaps(path, target)))
+        throw new GitError("WORKTREE_BUSY", "cleanup already in progress");
       this.ctx.state.removingPaths.add(path);
 
       try {
@@ -258,6 +328,26 @@ export class GitCommands {
       return {};
     });
   }
+}
+
+function canonicalPath(path: string): string {
+  // Resolve aliases even when a configured subdirectory of the checkout disappeared.
+  let ancestor = path;
+
+  for (;;) {
+    try {
+      return join(realpathSync(ancestor), relative(ancestor, path));
+    } catch {
+      const parent = dirname(ancestor);
+
+      if (parent === ancestor) return path;
+      ancestor = parent;
+    }
+  }
+}
+
+function overlaps(first: string, second: string): boolean {
+  return isWithin(first, second) || isWithin(second, first);
 }
 
 /** Git's failures are final (the same request fails again); their code and message reach the gateway. */

@@ -59,7 +59,7 @@ export const coreWorktreeLifecycleMethods: CoreWorktreeLifecycleMethods = {
     }
 
     if (!request.worktreeId) {
-      await appendDiscovered(this, entries, rows, request.projectId, request.workerId);
+      await appendDiscovered(this, entries, rows, request.projectId, request.workerId, true);
     }
 
     return create(ui.ListWorktreesResponseSchema, { entries });

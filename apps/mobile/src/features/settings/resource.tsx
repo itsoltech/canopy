@@ -56,7 +56,7 @@ export function useSettingsAction(
   const [message, setMessage] = useState("");
   const { reload } = resource;
 
-  async function run<R>(action: (api: SettingsApi) => Promise<R>, success = "") {
+  async function run<R>(action: (api: SettingsApi) => Promise<R>, success = "", onFailure?: (cause: unknown) => void) {
     if (!client || running.current) return undefined;
     running.current = true;
     setBusy(true);
@@ -69,9 +69,11 @@ export function useSettingsAction(
       setMessage(success);
 
       return result;
-    } catch {
+    } catch (cause) {
       await reload().catch(() => undefined);
-      setError(failure);
+
+      if (onFailure) onFailure(cause);
+      else setError(failure);
 
       return undefined;
     } finally {

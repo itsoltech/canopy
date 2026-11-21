@@ -9,12 +9,22 @@
   let {
     entry,
     onchange,
+    oncleanup,
+    cleanupDisabled = false,
     class: className,
-  }: { entry: ui.WorktreeEntry; onchange: () => void; class?: ClassValue } = $props();
+  }: {
+    entry: ui.WorktreeEntry;
+    onchange: () => void;
+    oncleanup?: (entry: ui.WorktreeEntry) => void;
+    cleanupDisabled?: boolean;
+    class?: ClassValue;
+  } = $props();
 
   const overview = useOverview();
   const status = $derived(entry.status);
   const offline = $derived(!entry.online || !overview.worker(entry.worktree?.workerId ?? "")?.online);
+  const inspectFailedSetup = $derived(oncleanup && entry.worktree?.external && entry.worktree.locked);
+  const failedSetup = $derived(inspectFailedSetup && entry.failedCleanupToken);
 </script>
 
 <article class={["grid min-w-0 gap-3 py-4", offline && "opacity-50", className]}>
@@ -34,8 +44,17 @@
     </p>
   {/if}
   <p class="text-base text-zinc-500 sm:text-sm dark:text-zinc-400">
-    {#if entry.worktree?.external}{`Created outside Canopy${entry.worktree.unavailableReason ? ` · ${entry.worktree.unavailableReason}` : ""}`}
+    {#if failedSetup}Canopy setup failed · Locked worktree
+    {:else if entry.worktree?.external}{`Created outside Canopy${entry.worktree.unavailableReason ? ` · ${entry.worktree.unavailableReason}` : ""}`}
     {:else}Managed by Canopy · Last activity {formatRelative(entry.lastActivityAt)} · {entry.detail}{/if}
   </p>
-  <WorktreeActions {entry} {onchange} />
+  {#if inspectFailedSetup && !failedSetup && entry.failedCleanupReason}
+    <p class="text-base wrap-anywhere text-zinc-600 sm:text-sm dark:text-zinc-300">{entry.failedCleanupReason}</p>
+  {/if}
+  <WorktreeActions
+    {entry}
+    {onchange}
+    oncleanup={failedSetup ? () => oncleanup?.(entry) : undefined}
+    cleanupDisabled={cleanupDisabled || entry.busy || entry.removed}
+  />
 </article>

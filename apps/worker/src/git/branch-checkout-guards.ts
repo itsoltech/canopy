@@ -77,6 +77,11 @@ async function transaction(common: string, commands: string, guard: boolean, all
   return await closed;
 }
 
+/** Hold Git's ref lock without changing the branch or writing to its reflog. */
+export function withExpectedBranchTip(common: string, ref: string, expected: string, run: () => Promise<boolean>) {
+  return transaction(common, `option no-deref\0verify ${ref}\0${expected}\0`, true, run);
+}
+
 export async function deleteUnusedBranch(
   repo: string,
   ref: string,

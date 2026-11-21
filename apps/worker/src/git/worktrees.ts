@@ -6,6 +6,7 @@ import { WORKTREE_CHECKOUT_TIMEOUT_MS } from "@canopy/domain/worktree-timing";
 import { FETCH_TIMEOUT_MS, git, GitError, gitMessage, gitOk, validBranch } from "./git.ts";
 import { listGitRefs, repoRoot } from "./refs.ts";
 import { addWorktree } from "./add-worktree.ts";
+import type { FailedWorktreeCleanup } from "./failed-worktree-cleanup.ts";
 
 export type WorktreeInfoInit = MessageInitShape<typeof WorktreeInfoSchema>;
 
@@ -164,6 +165,7 @@ export async function createWorktree(
   managedRoot: string,
   request: CreateWorktree,
   progress?: WorktreeProgress,
+  cleanup?: FailedWorktreeCleanup,
 ): Promise<WorktreeInfoInit> {
   progress?.({ step: "check_workspace", status: "running" });
   const repo = await repoRoot(request.repoPath);
@@ -199,6 +201,7 @@ export async function createWorktree(
     repo,
     { path, branch, commit },
     request.checkoutStartDeadlineMs ? WORKTREE_CHECKOUT_TIMEOUT_MS : undefined,
+    cleanup,
   );
 
   // Preserve the configured root's spelling (it may itself be a symlink); containment uses its real path above.

@@ -16,7 +16,7 @@ export function sameEntry(before: BigIntStats, after: BigIntStats | undefined): 
   return after?.dev === before.dev && after.ino === before.ino && after.birthtimeNs === before.birthtimeNs;
 }
 
-function unchanged(before: BigIntStats, after: BigIntStats | undefined): boolean {
+function unchanged(before: BigIntStats, after: BigIntStats | undefined, renamed = false): boolean {
   return (
     after !== undefined &&
     sameEntry(before, after) &&
@@ -24,14 +24,24 @@ function unchanged(before: BigIntStats, after: BigIntStats | undefined): boolean
     before.nlink === after.nlink &&
     before.size === after.size &&
     before.mtimeNs === after.mtimeNs &&
-    before.ctimeNs === after.ctimeNs
+    (renamed || before.ctimeNs === after.ctimeNs)
   );
 }
 
-interface Directory {
+export interface Directory {
   readonly stat: BigIntStats;
   readonly files: Map<string, BigIntStats>;
   readonly dirs: Map<string, Directory>;
+}
+
+/** Rename can advance the root's ctime. Its identity, other fields and every child must still match. */
+export function relocatedDirectory(path: string, directory: Directory): Directory | undefined {
+  const stat = physicalDirectory(path);
+
+  if (!stat || !unchanged(directory.stat, stat, true)) return;
+  const relocated = { ...directory, stat };
+
+  return directoryStillMatches(path, relocated) ? relocated : undefined;
 }
 
 /** Take a deletion plan without following links or descending into other devices. */

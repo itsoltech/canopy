@@ -30,6 +30,7 @@ export const NOT_REMEMBERED: ReadonlySet<Command["kind"]["case"]> = new Set([
   "createWorktree",
   "renameWorktreeBranch",
   "scanWorktrees",
+  "failedWorktreeCleanup",
   "revealWorktree",
   "revealPath",
   // Explicit owner actions on one file: answered once, never redelivered.

@@ -85,6 +85,7 @@ export function refuseRemoteWorktree(method: DescMethod, request: Message, suppo
       "ListWorktrees",
       "CleanupWorktrees",
       "RemoveWorktree",
+      "CleanUpFailedWorktree",
       "RevealWorktree",
     ].includes(method.name)
   )

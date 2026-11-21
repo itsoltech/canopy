@@ -23,6 +23,8 @@ Przy wyłączonym **Threads** gateway wstrzymuje okresowe sprzątanie worktree w
 
 Worker sprząta po nieudanej próbie na podstawie oznaczeń tej próby,
 również gdy przerwany checkout nie zapisał indeksu ani pliku `.git`.
+Settings → Worktrees udostępnia ręczne **Clean up** po zweryfikowanej, zatrzymanej próbie,
+gdy automatyczny rollback pozostawił niekompletny checkout.
 Opis dotyczy kodu; dostępność nightly/beta/stable wynika z promocji wydań ([release.md](release.md)).
 Etap 1: ustawienia (Creation, Branches,
 domyślny tryb), operacje git na workerze (refy, tworzenie worktree z bazy, start z remote, nazwy gałęzi
@@ -93,9 +95,32 @@ dla małych plików i nie uruchamia filtrów repozytorium.
 Worker usuwa tylko zweryfikowane pliki i rejestrację tej próby, bez `git worktree prune`.
 Usunięcie nieużywanej gałęzi porównuje jej bieżący commit z oczekiwanym. Jeśli worker
 nie potrafi potwierdzić stanu, wykryje dowiązanie, dodatkowe pliki lub lokalne zmiany,
-pozostawia niezweryfikowane zasoby i zgłasza niedokończone sprzątanie. Pozostałości prób
-z wcześniejszych wersji pozostają do ręcznej obsługi. `spawn_thread` zwraca zredagowane komunikaty
+pozostawia niezweryfikowane zasoby i zgłasza niedokończone sprzątanie.
+`spawn_thread` zwraca zredagowane komunikaty
 ([agent-bus.md](agent-bus.md)).
+
+#### Ręczne sprzątanie niekompletnego checkoutu
+
+Po potwierdzonym zatrzymaniu drzewa procesów checkoutu worker może zapisać w swoim katalogu danych
+potwierdzenie próby, której rollback nie usunął. Zapis wiąże identyfikator próby z tożsamością
+repozytorium, zarezerwowanego katalogu checkoutu i katalogu metadanych Git. Sam opis blokady,
+nazwa gałęzi ani reflog nie wystarczają. Wpisy sprzed wprowadzenia zapisu i próby bez potwierdzonego
+zatrzymania pokazują przyczynę odmowy.
+
+Przycisk pojawia się wyłącznie przy niezarejestrowanym wpisie „Locked worktree”, gdy worker potwierdzi
+zgodność rejestracji i gałęzi z pierwotną próbą. Kandydat musi mieć pusty `index.lock`, brak indeksu,
+początkowe metadane i tylko zweryfikowane pliki bazowego commita. Plik `.git` może nie istnieć.
+Jeśli istnieje, musi wskazywać metadane tej samej próby. Zmiany po zatrzymaniu,
+dowiązania i niejednoznaczny stan blokują akcję. Web/desktop i aplikacja mobilna wymagają potwierdzenia.
+Gateway ponawia discovery w projekcie właściciela, a worker sprawdza ponownie stan i użycie ścieżki.
+Sprzątanie blokuje każdy zapisany workspace tego workera w katalogu checkoutu lub jego
+podkatalogu, również bez wątków i gdy ścieżka została zapisana przez alias.
+Sprzątanie usuwa zweryfikowany katalog i jego rejestrację Git, zachowując lokalną gałąź.
+Worker przenosi oba katalogi w prywatne miejsca na tych samych systemach plików i ponownie je
+sprawdza przed odpięciem plików. Gdy wystąpi wyścig lub błąd dysku, dalsze sprzątanie ustaje.
+Komunikat podaje ścieżki przeniesionych plików, które pozostały na workerze.
+Po częściowym automatycznym rollbacku ręczna akcja wymaga nadal możliwości zweryfikowania obu
+katalogów i ich stanu.
 
 ## Model danych
 
@@ -130,8 +155,9 @@ Canopy nigdy nie przejmuje własności takiego katalogu: nie usuwa, nie przenosi
 nazwy katalogu lub gałęzi. Jawny wybór innej, istniejącej gałęzi przez użytkownika jest dozwolony
 na tych samych zasadach bezpieczeństwa co dla checkoutu projektu. Cleanup go pomija,
 ręczne Remove jest odrzucane w gatewayu,
-a trigger bazy blokuje zmianę pochodzenia, ścieżki i rezerwację usunięcia. Ustawienia pokazują
-go tylko do odczytu (z kopiowaniem ścieżki).
+a trigger bazy blokuje zmianę pochodzenia, ścieżki i rezerwację usunięcia. Zaadoptowane wpisy
+zewnętrzne są w ustawieniach tylko do odczytu (z kopiowaniem ścieżki). Zablokowany wpis bez rekordu
+może dostać akcję opisaną w [Ręcznym sprzątaniu niekompletnego checkoutu](#ręczne-sprzątanie-niekompletnego-checkoutu).
 
 **Zgodność i komputery połączone.** Pola protobuf są addytywne; `WORKER_LINK_PROTOCOL = 1`
 pozostaje bez zmian. Worker bez nowej capability nadal daje dotychczasową listę z rejestru;
@@ -378,6 +404,10 @@ HEAD i czas lokalnej aktywności. Skan omija cache wyników procesów git, takż
 podgląd sprzątania od razu uwzględnia dodanie lub usunięcie zmian lokalnych poza Canopy.
 Błąd skanu blokuje usunięcie.
 
+Capability `failed_worktree_cleanup_v1` dodaje nietrwałą komendę `FailedWorktreeCleanup` (238).
+Bez tokenu komenda weryfikuje zablokowany wpis na potrzeby ustawień i zwraca token zweryfikowanego
+stanu lub powód odmowy. Z tokenem powtarza sprawdzenie i wykonuje potwierdzoną akcję.
+
 ### Położenie
 
 Worker ustala zarządzany korzeń raz przy starcie (`resolveWorktreeRoots` w
@@ -503,6 +533,8 @@ Nagłówek: „Applying settings for **[All projects | projekt]** across **[All 
 - **Worktrees:** lista bieżących worktree w wybranym zakresie, status, akcje Copy path i Reveal
   on computer, Remove, Refresh, „Preview cleanup” i „Run cleanup”. Preview pokazuje
   „Will remove N worktrees” oraz przyczynę pozostawienia pozostałych.
+- **Locked worktree:** „Clean up” przy zweryfikowanej pozostałości próby albo przyczyna, dla której
+  worker nie może jej sprzątnąć. Akcja wymaga osobnego potwierdzenia.
 
 Każde pole pokazuje wartość efektywną; nadpisane w bieżącym zakresie ma „Reset” (wraca do wartości
 odziedziczonej, opisanej skąd pochodzi). Zapis od razu, z wersją; konflikt przeładowuje.
@@ -769,6 +801,10 @@ Kontrolki opcji automatyzacji w UI mogą zostać dodane osobno; edytor harmonogr
   na jego rzeczywistej rejestracji (bez indeksu i pliku `.git`, z pustym `index.lock`).
   Sprawdzają też ochronę obcych rejestracji i gałęzi, lokalnych plików, dowiązań
   i niepustego `index.lock`.
+- `apps/worker/src/git/failed-worktree-cleanup.test.ts` odtwarza częściowy checkout w prawdziwym Git.
+  Sprawdza zachowanie zwykłego worktree i lokalnej gałęzi, potwierdzenie po restarcie workera, odmowę
+  przy braku zapisu próby, zmienionych plikach, naprawionym checkoutcie i wpisach podmienionych
+  po odczycie, a także równoległe żądania i zmianę metadanych przed usunięciem.
 
 ## Weryfikacja (nazwy gałęzi)
 
