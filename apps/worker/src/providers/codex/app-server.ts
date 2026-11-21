@@ -1,8 +1,9 @@
 import type { InitializeParams, ServerNotification, ServerRequest, v2 } from "@canopy/codex-protocol";
 import { Context, Effect, Layer, Option, Predicate, PubSub, Schema, Stream } from "effect";
-import { governBunSpawn, windowsCommand, startWorkload } from "@canopy/process-governor";
+import { governBunSpawn, killProcessTree, windowsCommand, startWorkload } from "@canopy/process-governor";
 import type { JsonValue } from "@canopy/domain";
 import { decodeJson } from "../json.ts";
+import { withDeadline } from "../deadline.ts";
 import type { CodexAppServerLaunch } from "./launch.ts";
 import { JsonRpcPeer, RpcError, readLines } from "./rpc.ts";
 
@@ -123,6 +124,16 @@ export class CodexAppServer extends Context.Service<
           (proc) =>
             Effect.promise(async () => {
               proc.stdin.end();
+
+              if (process.platform === "win32") {
+                // EOF lets Codex shut down its sandbox children before they can outlive the app-server.
+                const exited = await withDeadline(proc.exited, 2_000, () => undefined);
+
+                if (exited !== undefined) return;
+
+                if (proc.exitCode === null) await killProcessTree(proc.pid);
+              }
+
               proc.kill();
               await proc.exited;
             }),

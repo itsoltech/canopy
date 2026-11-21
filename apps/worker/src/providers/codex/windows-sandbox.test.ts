@@ -1,5 +1,6 @@
 import { expect, test } from "bun:test";
 import { mkdirSync, writeFileSync } from "node:fs";
+import { rm } from "node:fs/promises";
 import { join } from "node:path";
 import type { ServerNotification } from "@canopy/codex-protocol";
 import { PermissionMode } from "@canopy/contracts";
@@ -163,6 +164,10 @@ test.skipIf(!codex)(
       expect(approvalRequests).toEqual(["item/commandExecution/requestApproval"]);
     } finally {
       await model.stop();
+
+      // Windows can release sandbox file handles shortly after the app-server exits.
+      if (process.platform === "win32")
+        await rm(root, { recursive: true, force: true, maxRetries: 5, retryDelay: 100 });
     }
   },
   60_000,
