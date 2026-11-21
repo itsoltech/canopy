@@ -7,6 +7,7 @@ import type { BotTurn, ToolSpec } from "./types.ts";
 import type { bots } from "@canopy/contracts";
 import { BOT_FILE_TOOLS } from "./tools/workspace.ts";
 import { areaTool, areaTools } from "./tools/index.ts";
+import { accountPreferenceTools } from "./tools/account-preferences.ts";
 import { alwaysAsk } from "./approval-rules.ts";
 import { Invalid } from "../store/errors.ts";
 import { SLACK_POST_ACTION } from "../connectors/slack-post-tool.ts";
@@ -38,6 +39,8 @@ const EXTERNAL_WORK_TOOLS = new Set([
   "ask_user",
 ]);
 
+const accountPreferenceNames = new Set(accountPreferenceTools.map(({ spec }) => spec.name));
+
 export async function currentBotTools(
   options: BotRuntimeOptions,
   config: bots.BotConfiguration,
@@ -52,6 +55,7 @@ export async function currentBotTools(
   const platform = catalog.filter(
     (tool) =>
       (!turn.conversation_id || EXTERNAL_WORK_TOOLS.has(tool.name)) &&
+      (!accountPreferenceNames.has(tool.name) || (turn.hops === 0 && !turn.routine_id)) &&
       (config.files !== false || !BOT_FILE_TOOLS.includes(tool.name)) &&
       (config.webAccess !== false || tool.name !== "get_canopy_release_versions") &&
       (turn.routine_id

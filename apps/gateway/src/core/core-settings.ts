@@ -8,7 +8,7 @@ import { coreState, InvalidError } from "./core-context.ts";
 import type { GatewayCore } from "./core.ts";
 import { coreLog, coreRun } from "./core-broadcast.ts";
 import { configLock } from "../config-sync/persistence.ts";
-import { unpinBot } from "../store/settings.ts";
+import { unpinBot, type AppearancePreferencePatch } from "../store/settings.ts";
 import { validateUserSettings } from "./settings-validation.ts";
 import type { ModuleChange } from "../store/module-transitions.ts";
 import { botModuleChanged } from "./bot-module-runtime.ts";
@@ -66,12 +66,15 @@ export async function coreUnpinRemoteBot(core: GatewayCore, botId: string) {
     core.hub.publishOverview(create(ui.OverviewUpdateSchema, { change: { case: "userSettings", value: settings } }));
 }
 
+type UserSettingsOptions = {
+  readonly receipt?: (sql: SqlClient.SqlClient) => Effect.Effect<void>;
+  /** Internal single-field update. No public RPC accepts a partial appearance section. */
+  readonly appearancePreference?: AppearancePreferencePatch;
+};
+
 export interface CoreSettingsMethods {
   settings(): Promise<ui.GetSettingsResponse>;
-  updateUserSettings(
-    request: ui.UpdateUserSettingsRequest,
-    options?: { readonly receipt?: (sql: SqlClient.SqlClient) => Effect.Effect<void> },
-  ): Promise<ui.UserSettings>;
+  updateUserSettings(request: ui.UpdateUserSettingsRequest, options?: UserSettingsOptions): Promise<ui.UserSettings>;
   updateProjectSettings(request: ui.UpdateProjectSettingsRequest): Promise<ui.ProjectSettings>;
 }
 
@@ -149,7 +152,7 @@ export const coreSettingsMethods: CoreSettingsMethods = {
   async updateUserSettings(
     this: GatewayCore,
     request: ui.UpdateUserSettingsRequest,
-    options?: { readonly receipt?: (sql: SqlClient.SqlClient) => Effect.Effect<void> },
+    options?: UserSettingsOptions,
   ): Promise<ui.UserSettings> {
     validateUserSettings(request);
 
@@ -163,6 +166,7 @@ export const coreSettingsMethods: CoreSettingsMethods = {
         ...(request.appearance && {
           appearance: { ...request.appearance, sidebarWidth: storedSidebarWidth(request.appearance.sidebarWidth) },
         }),
+        ...(options?.appearancePreference && { appearancePreference: options.appearancePreference }),
         ...(request.timezone !== undefined && { timezone: request.timezone }),
         ...(request.threadDefaults && { threadDefaults: request.threadDefaults }),
         ...(request.modelFavorites && { modelFavorites: request.modelFavorites }),

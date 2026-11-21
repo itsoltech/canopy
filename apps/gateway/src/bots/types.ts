@@ -109,6 +109,8 @@ export interface StoredCall {
   id: string;
   turn_id: string;
   call_key: string;
+  /** Included when planning or replaying a call through the approval pipeline. */
+  has_approval?: boolean;
   tool: ToolSpec;
   arguments: JsonObject;
   status: string;

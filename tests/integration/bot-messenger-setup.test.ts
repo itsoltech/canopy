@@ -270,6 +270,25 @@ describe.skipIf(!dockerAvailable)("private owner messenger subscription tools", 
     }
   });
 
+  test("setting writes refuse an owner turn without the stored approval", async () => {
+    const f = await fixture();
+
+    try {
+      const before = (await gw.api.getSettings({})).user!;
+
+      await expect(
+        call(f.turn, "set_canopy_preference", {
+          setting_id: "appearance.color_scheme",
+          value: "dark",
+          expected_version: String(before.version),
+        }),
+      ).rejects.toThrow("needs your approval");
+      expect((await gw.api.getSettings({})).user).toEqual(before);
+    } finally {
+      await finish(f.turn);
+    }
+  });
+
   test("persisted provenance denies forged owner context, background, handoff, bot, exchange and external administration", async () => {
     const f = await fixture();
     const args = subscription(f.account.id);
@@ -320,6 +339,9 @@ describe.skipIf(!dockerAvailable)("private owner messenger subscription tools", 
       const routines = await botStore((s) => s.routines(gw.userId, f.bot.id));
       await query("UPDATE bot_turns SET routine_id=$1 WHERE id=$2", [routines[0]!.id, f.turn.id]);
       await expect(call(f.turn, "save_messenger_subscription", args)).rejects.toThrow("private message");
+      await expect(call(f.turn, "get_canopy_preference", { setting_id: "appearance.color_scheme" })).rejects.toThrow(
+        "private owner message",
+      );
       await query("UPDATE bot_turns SET routine_id=NULL WHERE id=$1", [f.turn.id]);
 
       const route = await messenger((s) =>
@@ -366,6 +388,20 @@ describe.skipIf(!dockerAvailable)("private owner messenger subscription tools", 
         await expect(call({ ...f.turn, conversation_id: null }, name, input)).rejects.toThrow("private message");
       }
 
+      const forgedPrivateTurn = { ...f.turn, conversation_id: null };
+      const before = (await gw.api.getSettings({})).user!;
+
+      await expect(call(forgedPrivateTurn, "search_canopy_preferences", { query: "color" })).rejects.toThrow(
+        "private owner message",
+      );
+      await expect(
+        call(forgedPrivateTurn, "set_canopy_preference", {
+          setting_id: "appearance.color_scheme",
+          value: "dark",
+          expected_version: String(before.version),
+        }),
+      ).rejects.toThrow("private owner message");
+      expect((await gw.api.getSettings({})).user).toEqual(before);
       expect((await messenger((s) => s.routes(gw.userId, f.bot.id)))[0]!.instructions).toBe("Original instructions");
     } finally {
       await finish(f.turn);

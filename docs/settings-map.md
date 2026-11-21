@@ -8,7 +8,8 @@ oraz wspólnego dopasowania słów w wyszukiwaniu ustawień i opcjonalnego wska�
 dostępność kanałów według [release.md](release.md).
 
 Status (2026-11-21): sprawdzanie nazw sekcji ustawień przez czat wdrożono w kodzie
-wątków i prywatnych rozmów bota. Dostępność wydań według [release.md](release.md).
+wątków i prywatnych rozmów bota. Prywatny czat właściciela ma także wyszukiwanie,
+odczyt i zatwierdzany zapis wybranych preferencji konta. Dostępność wydań według [release.md](release.md).
 
 ## Nawigacja
 
@@ -67,6 +68,23 @@ wskazać wyszukiwarkę w Settings. Katalog przydaje się też w prywatnej rozmow
 bota bez dostępu do repozytorium czy internetu. W starszej sesji Codexa
 utrwalony katalog narzędzi może wymagać nowego wątku; reguła niezgadywania
 obowiązuje też przy wznowieniu bez narzędzia.
+
+### Preferencje dostępne dla bota
+
+W prywatnym czacie właściciela `search_canopy_preferences` zwraca krótką listę
+dopasowań, do pięciu pozycji. `get_canopy_preference` odczytuje bieżącą wartość
+jednej pozycji, możliwe wybory, zakres i wersję ustawień konta. Dostępne są
+**Color scheme** (`appearance.color_scheme`) i **Thread width**
+(`appearance.thread_width`). Web, desktop i mobile korzystają z tych samych
+etykiet i opcji co narzędzia. Ścieżka kontrolki wymaga zgodnej, opublikowanej
+wersji klienta. Thread width jest widoczne przy włączonym module Threads.
+
+`set_canopy_preference` przyjmuje identyfikator, jedną z podanych wartości
+i wersję z odczytu. Karta pokazuje nazwę ustawienia, proponowaną wartość i efekt.
+Zapis następuje po zgodzie właściciela i zachowuje pozostałe preferencje. Odpowiedź
+zawiera zapisaną wartość i nową wersję albo przyczynę odmowy. Lokalna konfiguracja
+urządzenia, poświadczenia, integracje, sieć, zasady bezpieczeństwa i uprawnienia
+są poza katalogiem. [Zgody i zakres](bots.md#harmonogramy-ustawienia-i-boty).
 
 ## Preferencje i przeniesienia
 

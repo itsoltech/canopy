@@ -1,5 +1,9 @@
 # Boty
 
+Status (2026-11-21): prywatny czat bota wyszukuje i odczytuje wybrane preferencje
+konta Canopy oraz zmienia jedną z nich po jednorazowej zgodzie właściciela.
+Dostępność wydań według [release.md](release.md).
+
 Status (2026-11-19): wyłączenie modułu Bots zatrzymuje pracę botów właściciela,
 w tym tury na workerach, rutyny i dostarczanie przypomnień.
 W web/desktop akcja Delete bot jest dostępna także dla aktywnych botów.
@@ -955,7 +959,7 @@ nie wymagają kart, więc nie potrzebują reguł.
 Zestaw **zawsze pytaj**, niezależny od reguł i full auto: `create_bot`, `archive_project`,
 `add_workspace`, `update_workspace`, `remove_workspace`, `set_project_defaults`, `set_instance_worker`, `set_instance_models`,
 `set_thread_model`, `archive_thread`, `delete_thread`, `fork_thread`, `set_thread_permission`,
-`answer_interaction`, `stop_background_task`, `cancel_schedule`. `update_self` zawsze pyta
+`answer_interaction`, `stop_background_task`, `cancel_schedule`, `set_canopy_preference`. `update_self` zawsze pyta
 o model, effort, dostawcę, instancję i politykę; nie przyjmuje reguł ani ustawień uprawnień
 wątków. `update_settings.thread_defaults` też zawsze pyta.
 `ask_user` pozostaje pytaniem. Nieznane narzędzie nie dostaje opcji stałej reguły.
@@ -1087,12 +1091,23 @@ z czytelnym komunikatem (etap 5). Opcje dostępne przez narzędzia i API, bez no
 | `set_schedule_status` | Pauza lub wznowienie harmonogramu użytkownika | P |
 | `cancel_schedule` | Anulowanie harmonogramu właściciela lub własnej pobudki bota (`scope`) | A |
 | `schedule_wakeup` | Jednorazowa własna pobudka bota | P |
+| `search_canopy_preferences` | Wyszukuje dostępne dla bota preferencje według słów, do pięciu dopasowań | R |
+| `get_canopy_preference` | Zwraca jedną preferencję, dopuszczalne wartości, bieżącą wartość i wersję. Potwierdza ścieżkę dla rozpoznanej wersji klienta | R |
+| `set_canopy_preference` | Zmienia jedną preferencję z wersją z odczytu i zwraca zapisaną wartość | A |
 | `get_settings` | Domyślne ustawienia wątków i generacji tekstu, wersje użytkownika i projektów; bez wyglądu | R |
 | `update_settings` | Zastąpienie podanych sekcji, optimistic version; zagnieżdżone pola w protobuf JSON | P dla text generation; A dla thread defaults (mogą zmieniać permissions) |
 | `list_bots` | Boty właściciela | R |
 | `create_bot` | Nowy bot na istniejącej instancji harnessu, bez sekretów/MCP | A |
 | `send_bot_message` | Wiadomość do innego bota właściciela, odpowiedź jako follow-up | P |
 | `ask_user` | Trwałe pytanie i do sześciu opcji | Karta pytania |
+
+Narzędzia preferencji są dostępne tylko w prywatnej turze zainicjowanej przez
+wiadomość właściciela, także bez Web access i przy wyłączonym module Threads.
+Gateway weryfikuje właściciela, pochodzenie wiadomości i ważność lease'u.
+Bot proponuje zapis po jednoznacznym poleceniu właściciela. Gateway sprawdza
+jednorazową zgodę na tę operację także przy wykonaniu zapisu. Reguły stałe i Full
+auto nie wystarczają. Po równoległej edycji trzeba ponownie odczytać aktualną
+preferencję. Lista obsługiwanych opcji i zasady nawigacji są w [mapie ustawień](settings-map.md#preferencje-dostępne-dla-bota).
 
 Mutacje używają **tych samych metod `GatewayCore` i walidacji co UI API**.
 `core/action-context.ts` przenosi kontekst transakcji Effect SQL przez asynchroniczne
