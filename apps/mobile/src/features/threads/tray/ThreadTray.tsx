@@ -19,9 +19,11 @@ export function ThreadTray({ state, onGoal }: { state: ThreadState; onGoal: () =
   const device = useDevicePreferences();
   const { thread, snapshot, queue, requests } = state;
   const subagents = useSubagentsPanel(state.activeSubagents);
+
   const goal = showsGoal(snapshot?.goal, device.viewLoaded ? device.view.dismissedGoalIds : undefined)
     ? snapshot.goal
     : undefined;
+
   const disabled = state.home.away || state.stream.connection !== "live";
 
   const delivery =
