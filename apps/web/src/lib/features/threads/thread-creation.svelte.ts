@@ -9,6 +9,7 @@ import { SvelteMap } from "svelte/reactivity";
 import { goto } from "$app/navigation";
 import { draftDelivery } from "#lib/features/drafts/api.ts";
 import { webDrafts } from "#lib/features/drafts/local.svelte.ts";
+import { devicePreferences } from "#lib/features/settings/device-preferences.svelte.ts";
 import type { WebComposerDraft } from "#lib/features/drafts/state.svelte.ts";
 import { prepareDraftForm } from "#lib/features/drafts/form.ts";
 import { bodyJson } from "#lib/shared/json.ts";
@@ -107,6 +108,9 @@ export class ThreadCreation {
   #updateDraft() {
     const draft = this.#matchingDraft();
     const snapshot = this.snapshot;
+
+    if (snapshot?.threadId && this.current && !devicePreferences.view.onboardingSent)
+      devicePreferences.setView({ onboardingSent: true });
 
     if (
       !draft ||

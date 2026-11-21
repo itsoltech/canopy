@@ -24,27 +24,36 @@ export class ImportLibraryState {
   secrets = $state(new Map<string, ReadonlySet<string>>());
   installTarget = $state("source");
   selector = $state(create(contracts.EnvironmentSelectorSchema, { everyone: true }));
+  #request = 0;
 
   async load(scanId: string): Promise<void> {
+    const request = ++this.#request;
     this.loading = true;
     this.error = "";
 
     try {
-      this.items = (await listImportLibrary(scanId)).items;
+      const { items } = await listImportLibrary(scanId);
+
+      if (request !== this.#request) return;
+      this.items = items;
       this.chosen = new Map(suggestedImportKeys(this.items).map((key) => [key, "import"]));
       this.secrets = new Map();
     } catch (error) {
+      if (request !== this.#request) return;
       this.items = [];
       this.chosen = new Map();
       this.error = errorText(error);
     } finally {
-      this.loading = false;
+      if (request === this.#request) this.loading = false;
     }
   }
 
   clear(): void {
+    this.#request++;
+    this.loading = false;
     this.items = [];
     this.chosen = new Map();
+    this.secrets = new Map();
     this.error = "";
     this.installTarget = "source";
     this.selector = create(contracts.EnvironmentSelectorSchema, { everyone: true });

@@ -3,6 +3,7 @@ import { timestampFromMs } from "@bufbuild/protobuf/wkt";
 import { ui } from "@canopy/contracts";
 import { listImportCandidates, scanImport, startImport } from "./api.ts";
 import { ImportLibraryState } from "./import-library.svelte.ts";
+import { reusableSuggestionScan } from "./import-suggestion.ts";
 
 export type Period = "7d" | "30d" | "90d" | "all";
 
@@ -51,6 +52,18 @@ export class ImportState {
   readonly library = new ImportLibraryState();
 
   #request = 0;
+  #scanRequest = 0;
+
+  selectWorker(workerId: string): void {
+    if (this.workerId === workerId) return;
+    this.workerId = workerId;
+    this.#scanRequest++;
+    this.scanning = false;
+    this.starting = false;
+    this.error = "";
+    this.targets = new Map();
+    this.#clearScan();
+  }
 
   filter(): MessageInitShape<typeof ui.ImportCandidateFilterSchema> {
     const days = DAYS[this.period];
@@ -65,22 +78,42 @@ export class ImportState {
   }
 
   async runScan(): Promise<void> {
-    if (!this.workerId) return;
+    if (!this.workerId || this.scanning || this.starting) return;
+    const request = ++this.#scanRequest;
     this.scanning = true;
     this.error = "";
-    this.scan = undefined;
-    this.result = undefined;
-    this.library.clear();
+    this.#clearScan();
 
     try {
-      this.scan = await scanImport(this.workerId);
-      this.resetSelection();
-      await Promise.all([this.load(), this.library.load(this.scan.scanId)]);
+      const scan = await scanImport(this.workerId);
+
+      if (request === this.#scanRequest) await this.#showScan(scan);
     } catch (error) {
-      this.error = errorText(error, "Could not scan this worker. Scan again.");
+      if (request === this.#scanRequest) this.error = errorText(error, "Could not scan this worker. Scan again.");
     } finally {
-      this.scanning = false;
+      if (request === this.#scanRequest) this.scanning = false;
     }
+  }
+
+  async reuseSuggestion(): Promise<void> {
+    const request = this.#scanRequest;
+    const scan = await reusableSuggestionScan(this.workerId);
+
+    if (scan && request === this.#scanRequest && !this.scan && !this.scanning) await this.#showScan(scan);
+  }
+
+  #clearScan(): void {
+    this.#request++;
+    this.scan = undefined;
+    this.result = undefined;
+    this.loading = false;
+    this.resetSelection();
+    this.library.clear();
+  }
+
+  async #showScan(scan: ui.ScanImportResponse): Promise<void> {
+    this.scan = scan;
+    await Promise.all([this.load(), this.library.load(scan.scanId)]);
   }
 
   async load(): Promise<void> {
@@ -179,17 +212,18 @@ export class ImportState {
         mode: this.mode,
       });
 
-      this.resetSelection();
-      this.selectAll(false);
-      await Promise.all([this.load(), this.library.load(scan.scanId)]);
+      if (this.scan === scan) {
+        this.selectAll(false);
+        await Promise.all([this.load(), this.library.load(scan.scanId)]);
+      }
 
       return run;
     } catch (error) {
-      this.error = errorText(error, "Could not start the import. Try again.");
+      if (this.scan === scan) this.error = errorText(error, "Could not start the import. Try again.");
 
       return undefined;
     } finally {
-      this.starting = false;
+      if (this.scan === scan) this.starting = false;
     }
   }
 

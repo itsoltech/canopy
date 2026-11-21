@@ -1,6 +1,7 @@
 # Import z CLI agentów
 
-Status: zaimplementowane (2026-11-18), w tym pauza importu po wyłączeniu modułu Threads i wznowienie od kursora.
+Status: zaimplementowane (2026-11-21), w tym ponowne użycie skanu z sugestii w webie i desktopie oraz pauza
+importu po wyłączeniu modułu Threads i wznowienie od kursora.
 
 Settings → Code → **Import** przenosi do Canopy wątki, które użytkownik prowadził wcześniej w Claude Code,
 Codexie i Groku, tak żeby mógł je czytać i kontynuować. Wybór źródeł działa w webie, desktopie
@@ -367,6 +368,9 @@ Etap 9:
   osobny wiersz. Przy wysokości ekranu poniżej 600 px karta jest ukryta.
 - **Workers.** Menu akcji workera tego komputera ma **Import from this computer** (tylko worker z capability,
   nieaktywne offline albo po odwołaniu): otwiera Settings → Import z tym workerem.
+- **Set up Canopy.** Krok importu otwiera Settings → Import z wybranym workerem. Wejścia z wybranym workerem
+  wykorzystują udany skan rozpoczęty przez sugestię w tej samej karcie, jeśli skan ma mniej niż 30 minut.
+  **Scan** rozpoczyna nowy skan, a **Scan again** odświeża pokazane wyniki.
 - **Telefon.** Settings → Import pozwala wybrać worker tego gatewaya z `cli_import_v1`,
   uruchomić Scan computer i przejrzeć źródła. Filtry obejmują CLI, 7/30/90 dni lub cały czas,
   szukanie, katalog i subagentów. Zaznaczenie dotyczy całego wyniku, niezależnie od strony

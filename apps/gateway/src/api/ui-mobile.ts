@@ -25,6 +25,7 @@ export function mobileHandlers(
         gatewayVersion: CANOPY_VERSION,
         gatewayRole: core.role,
         linkedComputers: core.role === "desktop",
+        offerOnboarding: core.offerOnboarding,
         // The identity's name only: a full computers snapshot (routes, peers, notices) is not needed here.
         gatewayName: core.computers?.hello().name || "your gateway",
         minProtocol: MIN_DESKTOP_CLIENT_PROTOCOL,

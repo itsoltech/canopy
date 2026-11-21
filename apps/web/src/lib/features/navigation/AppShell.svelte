@@ -62,6 +62,8 @@
   import { sidebarThreads } from "@canopy/domain/sidebar-threads";
   import { expandProjectIds } from "@canopy/domain/projects";
   import { receiveThreadHeads } from "#lib/features/threads/warming.ts";
+  import FirstRunIntro from "#lib/features/onboarding/FirstRunIntro.svelte";
+  import { firstRunView } from "#lib/features/onboarding/first-run.ts";
 
   let { children }: { children: Snippet } = $props();
   let usageOpen = $state(false);
@@ -108,6 +110,10 @@
   const redirect = $derived(settings.loaded ? moduleRedirect(page.url, settings.enabledModules) : undefined);
   const threadsEnabled = $derived(settings.loaded && settings.moduleEnabled("threads"));
   const botsEnabled = $derived(settings.loaded && settings.moduleEnabled("bots"));
+  const firstRun = $derived(firstRunView(page.url, overview, capabilities));
+  const showIntroduction = $derived(threadsEnabled && firstRun === "intro");
+  const setupRoute = $derived(page.url.pathname === "/setup" || page.url.pathname.startsWith("/setup/"));
+  const focused = $derived(!page.error && (setupRoute || showIntroduction || firstRun === "loading"));
 
   $effect(() => {
     // A settings overlay may have just disabled its background page. Keep it open until the user leaves it.
@@ -266,7 +272,7 @@
   const wide = new MediaQuery("(min-width: 64rem)");
 
   $effect(() => {
-    if (wide.current) menuOpen = false;
+    if (wide.current || focused) menuOpen = false;
   });
 
   provideShell({ openMenu: () => (menuOpen = true), sidebar });
@@ -325,22 +331,24 @@
      panel) can give the window a page scrollbar. -->
 <div
   class="t-sidebar-shell relative isolate flex h-dvh overflow-clip bg-canvas text-ink"
-  data-sidebar={wide.current && !sidebar.collapsed ? "shown" : "hidden"}
-  data-sidebar-collapsed={sidebar.collapsed || undefined}
+  data-sidebar={!focused && wide.current && !sidebar.collapsed ? "shown" : "hidden"}
+  data-sidebar-collapsed={focused || sidebar.collapsed || undefined}
   data-sidebar-settling={sidebar.settling || undefined}
 >
-  <SidebarColumn {sidebar}>
-    {#if wide.current}<AppSidebar currentThreadId={page.params.threadId} onOpenUsage={openUsage} />{/if}
-  </SidebarColumn>
-  <Drawer bind:open={menuOpen} label="Navigation">
-    {#if !wide.current}<AppSidebar currentThreadId={page.params.threadId} onOpenUsage={openUsage} />{/if}
-  </Drawer>
+  {#if !focused}
+    <SidebarColumn {sidebar}>
+      {#if wide.current}<AppSidebar currentThreadId={page.params.threadId} onOpenUsage={openUsage} />{/if}
+    </SidebarColumn>
+    <Drawer bind:open={menuOpen} label="Navigation">
+      {#if !wide.current}<AppSidebar currentThreadId={page.params.threadId} onOpenUsage={openUsage} />{/if}
+    </Drawer>
+  {/if}
 
   <div
     class="relative flex min-h-0 min-w-0 flex-1 flex-col"
-    data-window-offset={!ready || Boolean(page.error) || undefined}
+    data-window-offset={!ready || firstRun === "loading" || Boolean(page.error) || undefined}
   >
-    {#if !ready || page.error}
+    {#if !ready || firstRun === "loading" || page.error}
       <!-- Keep banners, loading and error content below a static native title strip. -->
       <div class="hidden h-12 shrink-0 desktop:block" data-window-drag></div>
     {/if}
@@ -363,18 +371,20 @@
         <GatewayUnavailable retry={() => location.reload()}>
           {#snippet actions()}<MigrationRecoveryLink />{/snippet}
         </GatewayUnavailable>
-      {:else if (!ready && !page.error) || redirect}
+      {:else if ((!ready || firstRun === "loading") && !page.error) || redirect}
         <div class="flex h-full flex-col gap-4 p-6" role="status" aria-label="Loading application">
           <Skeleton class="h-6 w-44" />
           <div class="m-auto flex w-full max-w-(--chat-width) flex-col gap-4">
             <Skeleton class="h-8 w-64" /><Skeleton class="h-32 w-full" />
           </div>
         </div>
+      {:else if showIntroduction && !page.error}
+        <FirstRunIntro />
       {:else if !isSettingsRoute(page.route.id) || page.error}{@render children()}{/if}
     </main>
   </div>
 </div>
-{#if ready && !capabilities.incompatible}<SettingsOverlay route={children} />{/if}
+{#if ready && !capabilities.incompatible}<SettingsOverlay route={children} {focused} />{/if}
 {#if settings.loaded}{#key threadsEnabled}<CommandPalette registry={commands} {palette} />{/key}{/if}
 {#if ready && threadsEnabled && !capabilities.incompatible}<AddProjectDialog state={addProject} />{/if}
 <Toaster />
@@ -383,6 +393,6 @@
 {/if}
 <UpdateBanner />
 <WebVersionBanner />
-<WhatsNewHost />
+{#if !focused}<WhatsNewHost />{/if}
 <WorkspaceExit />
 <UsageDialog bind:open={usageOpen} />
