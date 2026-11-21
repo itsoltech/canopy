@@ -79,7 +79,7 @@ Gotowe:
   | `FULL_ACCESS` | `never` | `danger-full-access` (w turze `sandboxPolicy: { type: "dangerFullAccess" }`), tylko jawny wybór |
 
   Ta tabela obowiązuje przy `thread/start`, `thread/resume` i `thread/fork`. Każde `turn/start` ponownie przekazuje `approvalPolicy` i `sandboxPolicy` z `StartTurn.permission_mode`, bo Codex zachowuje nadpisania między turami. Zmiana trybu działa od kolejnej tury, również w już załadowanej sesji ([protocol.md](protocol.md#modele-effort-i-steer)).
-  `windows-sandbox.test.ts` sprawdza odczyt Git, zmianę trybu w tej samej sesji, wznowienie po restarcie oraz zachowanie jawnej odmowy z reguł Codexa. Natywne CI na Windows uruchamia test na CLI 0.165.0, z lokalną atrapą modelu.
+  `windows-sandbox.test.ts` używa rzeczywistego app-servera i lokalnej atrapy modelu. Sprawdza odczyt Git, zmianę trybu w tej samej sesji, wznowienie po restarcie oraz zachowanie jawnej odmowy z reguł Codexa. Na Windows test wymaga `codex.exe` w `PATH`.
 
 - **Treść zgód:** karta zgody pokazuje faktyczną treść żądania Codexa w istniejącym kontrakcie `requestJson` (`command`, `reason`, `permissions`). Worker składa `reason` z powodu, rodzaju akcji, katalogu roboczego, środowiska, katalogu z dodatkowym zapisem, kontekstu sieci i dodatkowych uprawnień, więc użytkownik widzi je także, gdy oś czasu ma już komendę lub diff. Zgoda na `item/permissions/requestApproval` przyznaje dokładnie żądane uprawnienia; anulowanie lub odmowa daje pusty zestaw, a zakres sesji tylko po jawnej zgodzie.
 - **Żądania serwera:** zgody na komendy i zmiany plików, uprawnienia, pytania i elicitation idą do brokera interakcji, a `item/tool/call` (narzędzia szyny) do gateway. Inne żądania kończą się błędem JSON-RPC.
