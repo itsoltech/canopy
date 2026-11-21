@@ -49,6 +49,8 @@ async function packed(extraAsarDependency = false) {
     "canopy-gateway.js",
     "canopy-worker.js",
     "canopy-web.js",
+    "THIRD_PARTY_NOTICES.txt",
+    "web/client/open-source-licenses.json",
     "node_modules/@img/sharp-linux-x64/lib/sharp.node",
     "node_modules/@anthropic-ai/claude-agent-sdk/sdk.mjs",
   ])

@@ -5,20 +5,23 @@ import { defineConfig } from "vite";
 import { existsSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
+import { licenseAssets } from "./scripts/license-assets.ts";
 import { buildVersion } from "./scripts/build-version.ts";
 import { retainImmutable, stringList } from "./scripts/release-assets.ts";
 
 const out = process.env["BUILD_DIR"] || "build";
 const node = adapter({ out });
+const licenses = licenseAssets();
 const version = (process.env["WEB_BUILD_VERSION"] ??= buildVersion());
 
 // The Canopy version (scripts/version.ts, docs/release.md), shown in Settings and by /api/health.
 const canopyVersion = process.env["CANOPY_VERSION"] || "0.0.0-dev";
 
 export default defineConfig({
-  worker: { format: "es" },
+  worker: { format: "es", plugins: () => [licenses.track()] },
   plugins: [
     tailwindcss(),
+    licenses.track(),
     {
       name: "canopy-standalone-web",
       apply: "build",
@@ -44,6 +47,7 @@ export default defineConfig({
         async adapt(builder) {
           const previous = stringList(process.env["WEB_PREVIOUS_RELEASES"] ?? "[]");
           const own = retainImmutable(builder.getClientDirectory(), previous);
+          licenses.write(builder.getClientDirectory());
           await node.adapt(builder);
 
           if (!existsSync(join(out, "server/standalone-http.js"))) throw new Error("Missing standalone web listener");

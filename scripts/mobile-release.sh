@@ -34,9 +34,10 @@ if [ -n "$last" ] && git cat-file -e "$last^{commit}" 2>/dev/null; then
   fi
   # A same-SHA native build can have succeeded after its parallel Android OTA step failed.
   if [ "$last" != "$HEAD_SHA" ] && [ "${FORCE:-false}" != true ] && git diff --quiet "$last" HEAD -- \
-    . ../../packages/contracts ../../packages/domain ../../packages/ui ../../package.json ../../bun.lock \
+    . ../../packages/contracts ../../packages/domain ../../packages/syntax ../../packages/ui ../../package.json ../../bun.lock \
+    ../../licenses \
     ../../scripts/mobile-release.sh ../../scripts/mobile-publish-update.sh ../../scripts/mobile-version.sh \
-    ../../.github/workflows/mobile-testflight.yml; then
+    ../../scripts/open-source-licenses.ts ../../.github/workflows/mobile-testflight.yml; then
     echo "Nothing the mobile app uses changed since ${last:0:8}; skipping."; exit 0
   fi
 fi

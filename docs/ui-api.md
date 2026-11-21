@@ -25,6 +25,7 @@ Gateway ogranicza powtórki w strumieniu overview, a BFF współdzieli subskrypc
 przy przełączaniu aktywnego wątku (§ „Współdzielone odczyty”).
 Wyszukiwarka ustawień podświetla dopasowania w otwartej sekcji z pominięciem treści dialogów.
 Boczne menu ustawień web/desktop znów pokazuje ikony obok etykiet sekcji.
+Settings → Open-source licenses w web/desktop pokazuje dołączone pakiety i pełną treść plików licencji.
 W web/desktop odmowa dostępu do schowka w trakcie parowania udostępnia w dialogu pełne zaproszenie desktopowe albo kod telefonu. Pole znika po zamknięciu dialogu, użyciu zaproszenia lub utracie jego ważności.
 Historia importu pokazuje wynik i rozwijane szczegóły, a harmonogram podaje wynik wykonania przed metadanymi.
 Formularz MCP w wątku zachowuje typ wartości liczbowych i logicznych przy wysyłaniu odpowiedzi.
@@ -2466,6 +2467,14 @@ Popraw oba miejsca.
 - **Zmiany na żywo:** przez `Hub` (proces gateway). Przy wielu instancjach będzie to `LISTEN/NOTIFY` (docs/durability.md, 4.3).
 
 ## 4. Frontend (`apps/web`)
+
+### Licencje open source
+
+Settings → Open-source licenses w web/desktop pobiera `/open-source-licenses.json`
+z tego samego originu po otwarciu sekcji. To statyczny plik dystrybucji, także przy
+połączeniu desktopu ze zdalnym gatewayem. Wyszukiwanie filtruje listę po nazwie,
+wersji i oznaczeniu licencji. Nazwy plików i pełna treść licencji oraz plików notice
+są renderowane jako zwykły tekst dopiero po rozwinięciu danego pakietu.
 
 ### Notatki aplikacji
 

@@ -1,9 +1,12 @@
 import { mkdirSync, writeFileSync } from "node:fs";
 import { dirname, resolve } from "node:path";
 import { execFileSync } from "node:child_process";
+import { bunNotices, mergeNotices, type PackageNotice } from "../../../scripts/open-source-licenses.ts";
 import { desktopIdentity } from "../src/identity.ts";
 
 const root = resolve(import.meta.dir, "..");
+const licenseOutput = process.env["CANOPY_SHELL_LICENSES"];
+const notices: PackageNotice[][] = [];
 const revision = process.env["CANOPY_REVISION"] ?? "";
 
 mkdirSync(resolve(root, "dist"), { recursive: true });
@@ -38,6 +41,7 @@ if (process.platform === "darwin") {
 for (const name of ["main", "desktop-main", "html-viewer-process", "preload", "html-preload", "html-compile-worker"]) {
   const result = await Bun.build({
     entrypoints: [resolve(root, `src/${name}.ts`)],
+    metafile: !!licenseOutput,
     target: "node",
     format: "cjs",
     external: ["electron"],
@@ -50,6 +54,10 @@ for (const name of ["main", "desktop-main", "html-viewer-process", "preload", "h
   });
 
   if (!result.success) throw new AggregateError(result.logs, "Electron shell build failed");
+
+  if (licenseOutput) notices.push(bunNotices(result));
 }
 
 writeFileSync(resolve(root, "dist/identity.json"), JSON.stringify(desktopIdentity()));
+
+if (licenseOutput) writeFileSync(licenseOutput, JSON.stringify(mergeNotices(...notices)));

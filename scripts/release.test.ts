@@ -737,6 +737,7 @@ test("server-then-desktop publication keeps checksums.txt and manifest.json cons
 
   for (const name of ["canopy-gateway-linux-x64", "canopy-worker-linux-x64", "canopy-worker-windows-x64.exe"])
     writeFileSync(join(assets, name), `binary ${name}`);
+  writeFileSync(join(assets, "canopy-worker-windows-x64.exe.licenses.txt"), "Canopy third-party notices\n");
   const sha256 = (path: string) => new Bun.CryptoHasher("sha256").update(readFileSync(path)).digest("hex");
 
   const consistent = (manifest: Awaited<ReturnType<typeof writeReleaseFiles>>) => {

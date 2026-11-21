@@ -7,7 +7,8 @@
 **/.tmp
 .tmp
 artifacts
-docs
+docs/*
+!docs/third-party-notices.md
 apps/mobile/*
 !apps/mobile/package.json
 apps/desktop/release

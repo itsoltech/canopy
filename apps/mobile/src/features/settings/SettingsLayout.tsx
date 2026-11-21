@@ -29,10 +29,12 @@ export function SettingsLayout({
   section,
   onSelect,
   children,
+  scrollContent = true,
 }: {
   section: string;
   onSelect: (section: string) => void;
   children: ReactNode;
+  scrollContent?: boolean;
 }) {
   const c = useColors();
   const { wide } = useLayout();
@@ -101,7 +103,7 @@ export function SettingsLayout({
             <Text style={[styles.chromeMeta, { color: c.muted, paddingHorizontal: 10 }]}>Canopy {CANOPY_VERSION}</Text>
           </ScreenScroll>
         )}
-        {(wide || section) && (
+        {scrollContent && (wide || section) && (
           <ScreenScroll
             space={20}
             innerLeft={wide}
@@ -115,6 +117,7 @@ export function SettingsLayout({
             </SettingsDensity.Provider>
           </ScreenScroll>
         )}
+        {!scrollContent && <View style={{ flex: 1, minWidth: 0 }}>{children}</View>}
       </KeyboardViewport>
     </ScreenFrame>
   );
