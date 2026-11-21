@@ -171,6 +171,7 @@
     "@canopy/contracts": "workspace:*",
     "@canopy/ui": "workspace:*",
     "@noble/hashes": "2.0.1",
+    "diff": "9.0.0",
     "effect": "4.1.4",
     "marked": "18.1.2",
     "parse5": "8.0.0",

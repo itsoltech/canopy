@@ -4,6 +4,7 @@
   import type { ui } from "@canopy/contracts";
   import IconButton from "#lib/shared/ui/IconButton.svelte";
   import SkillSourceFiles from "./SkillSourceFiles.svelte";
+  import SkillUpdateFiles from "./SkillUpdateFiles.svelte";
   import { SourceState } from "./source-state.svelte.ts";
   import type { EnvironmentState } from "./environment-state.svelte.ts";
   import EnvironmentSheet from "./EnvironmentSheet.svelte";
@@ -47,16 +48,17 @@
     >
       {#snippet children()}
         {#if controller.preview && controller.preview.source?.commit !== skill.source?.commit}
+          {@const candidate = controller.preview.skills[0]?.artifact}
           <div class="grid min-w-0 gap-4 rounded-xl p-4 ring-1 ring-zinc-950/10 dark:ring-white/10">
             {#if !skill.source?.wellKnown}
               <p class="font-mono text-base wrap-anywhere sm:text-sm">
                 {skill.source?.commit.slice(0, 12)} → {controller.preview.source?.commit.slice(0, 12)}
               </p>
             {/if}
-            {#if controller.preview.skills[0]?.artifact}<SkillSourceFiles
-                artifact={controller.preview.skills[0].artifact}
-                before={skill.artifact}
-              />{/if}
+            {#if candidate}
+              {#if skill.artifact}<SkillUpdateFiles before={skill.artifact} after={candidate} />
+              {:else}<SkillSourceFiles artifact={candidate} />{/if}
+            {/if}
             <p class="text-base text-pretty text-zinc-500 sm:text-sm dark:text-zinc-400">
               Apply approves this exact frozen candidate. Roll back from Library version in the skill editor.
             </p>
