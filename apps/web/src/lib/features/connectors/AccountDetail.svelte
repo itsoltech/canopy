@@ -195,7 +195,9 @@
       <div class="grid gap-3 border-t border-zinc-950/5 p-3 dark:border-white/8">
         {#if settings.moduleEnabled("threads")}
           <p class="text-base/6 text-zinc-500 sm:text-sm/6 dark:text-zinc-400">
-            Threads also follow their permission mode.
+            Selecting a worker gives all its threads access to this account. Each thread still follows its permission
+            mode.
+            {#if settings.moduleEnabled("bots")}Set bot access separately under Bots.{/if}
           </p>
           <AccessPicker
             label="Workers"
