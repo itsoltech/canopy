@@ -90,7 +90,7 @@ export const WorkRail = memo(
         <LayoutAnimationConfig skipEntering>
           {rows.map((row) =>
             row.kind === "row" ? (
-              <BodyRowView key={row.row.key} row={row.row} steers={steers} ended={ended} />
+              <BodyRowView key={row.row.key} row={row.row} steers={steers} ended={ended} inWork />
             ) : (
               <ToolGroup key={row.key} row={row} expanded={expanded} choices={choices} steers={steers} ended={ended} />
             ),

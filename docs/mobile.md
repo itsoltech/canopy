@@ -6,6 +6,7 @@ oraz osobne aktualizacje Canopy i CLI dostawców. Na szerokim oknie iOS i Androi
 sidebar i rozmowa przesuwają wspólną krawędź podczas zwijania i rozwijania.
 Uchwyt na tej krawędzi zmienia szerokość sidebara i zapisuje ją lokalnie.
 Licznik i akcja Update all na telefonie wynikają z planu instalacji Canopy.
+Wiadomości agenta w rozwiniętej aktywności tury mają dodatkowy odstęp pionowy.
 Stany źródeł Usage są widoczne w sekcji **Recording gateways**. Podsumowanie
 podaje liczbę raportów bez kompletnego kosztu.
 Settings → Providers pozwala edytować ustawienia CLI instancji Claude, Codexa i Groka.
@@ -1796,6 +1797,8 @@ z `@canopy/domain/work-fold` co web; tapnięcie decyduje dalej. Grupy narzędzi 
 zwinięte, także pojedyncza grupa. „Tool calls: Expanded” otwiera je podczas pracy niezależnie
 od całej sekcji. Zwinięty nagłówek pokazuje bieżący krok i status. `WorkGroupChoices` zachowuje
 ręczny wybór poza wirtualnymi komórkami, tak jak web ([timeline-folding.md](timeline-folding.md)).
+W rozwiniętej aktywności wiadomości agenta mają po 8 dp dodatkowego odstępu
+nad i pod tekstem, tak jak w webie. Dzięki temu łatwiej odróżnić tekst od grup narzędzi.
 Ręczne wybory foldów i grup pozostają także po ponownym otwarciu wątku, w granicach
 retencji widoków; nie są zapisywane na dysku. Pomiary wysokości komórek nadal należą
 do instancji natywnej `FlatList` i nie przechodzą między ekranami. Preferencje dotyczą tego
