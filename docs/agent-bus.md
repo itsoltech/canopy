@@ -1,5 +1,10 @@
 # Szyna agentów: delegowanie, interakcje, harmonogram
 
+Status (2026-11-21): wątki mogą sprawdzić nazwę sekcji ustawień dla klienta
+i wersji przez `find_canopy_settings`. Przy braku potwierdzenia agent ma
+powiedzieć, czego nie udało się zweryfikować. Zakres narzędzia i wersje:
+[settings-map.md](settings-map.md#odpowiedzi-czatu-o-ustawieniach).
+
 Status (2026-11-19): gateway wiąże nowe wywołania z zapisanym kontekstem tury,
 a odtwarzanie decyzji dostawcy z parą wątek–worker. Raport z błędnej tury zawiera
 stan, zapisany powód i dostępną częściową odpowiedź, gdy odbiorca ma dostęp do całej

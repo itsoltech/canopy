@@ -212,6 +212,7 @@ for (const [name, provider, modelId] of [
           expect(instructions).toContain("Do all work already authorized");
           expect(instructions).toContain('delivery: \\"steer\\"');
           expect(instructions).toContain("finish without another user-facing message");
+          expect(instructions).toContain("Never guess a tab, control, or link.");
           expectReportingRules(instructions);
 
           if (phase === "RESUMED") expect(request).toContain("FIXTURE_REPLY_FIRST");

@@ -1,6 +1,7 @@
 import { Result } from "effect";
 
 import { agentBusToolsFor, SPAWN_PERMISSION_MODES, type AgentBusCall, type SpawnPermissionMode } from "./tools.ts";
+import { SETTINGS_GUIDE_TOOL } from "./settings-guide.ts";
 
 /**
  * Who may do what on the agent bus (docs/agent-bus.md#4-reguły-dostępu-i-limity).
@@ -126,6 +127,7 @@ export function authorizeBusCall(
     case "get_answers":
       return allow;
     case "list_agents":
+    case SETTINGS_GUIDE_TOOL:
     case "list_threads":
     case "list_interactions":
     case "list_schedules":

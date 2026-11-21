@@ -200,3 +200,14 @@ export const settingsSections: readonly SettingsSection[] = [
 ];
 
 export const settingsGroups = ["General", "Code", "Connections"] as const;
+
+/** Settings sections supplied by the desktop client itself. */
+export const desktopSettingsSections: readonly SettingsSection[] = [
+  {
+    href: "/settings/desktop",
+    label: "Desktop",
+    icon: "server",
+    group: "Connections",
+    keywords: "desktop local remote worker computer",
+  },
+];
