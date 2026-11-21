@@ -285,8 +285,9 @@ test.skipIf(!existsSync(paths.gateway))(
       const readWorker = () => Result.getOrThrow(parseLocalConfig(readFileSync(workerPath, "utf8")));
       const workerBefore = readWorker();
       expect(remote.status.workerId).toBe(workerBefore.worker_id);
-      // Initial pairing restarts services. The worker may independently migrate to a pinned
-      // Network access route, but must preserve its enrollment and durable data directory.
+      // Pairing restarts the worker. Wait until it saves the new route so the restarted
+      // worker connects on that route without another expected disconnect during the test.
+      await until(async () => Boolean(readWorker().gateway_fallback));
       await remote.configure(oldConfig, client);
       const workerAfter = readWorker();
       expect(remote.status.workerId).toBe(workerBefore.worker_id);
@@ -295,7 +296,6 @@ test.skipIf(!existsSync(paths.gateway))(
           workerAfter.credential === workerBefore.credential &&
           workerAfter.data_dir === workerBefore.data_dir,
       ).toBe(true);
-      await until(async () => Boolean(readWorker().gateway_fallback));
       const pairedConfig = remote.status.configuration!;
       const pairedPids = remote.pids;
       const savedAt = statSync(join(remoteData, "desktop.json")).mtimeMs;
@@ -332,8 +332,15 @@ test.skipIf(!existsSync(paths.gateway))(
 
       expect((await formAction(remote.origin, remote.origin, proxyHeaders)).body).toContain("Choose a project");
       expect((await formAction(remote.origin, local.origin)).status).toBe(403);
-      await until(async () => (await api.getOverview({})).workers.filter((worker) => worker.online).length === 2);
-      expect((await api.getOverview({})).workers.filter((worker) => worker.online)).toHaveLength(2);
+      let onlineWorkerIds: string[] = [];
+
+      await until(async () => {
+        const { workers } = await api.getOverview({});
+        onlineWorkerIds = workers.filter((worker) => worker.online).map((worker) => worker.id);
+
+        return onlineWorkerIds.length === 2;
+      });
+      expect(onlineWorkerIds.toSorted()).toEqual([workerId, workerBefore.worker_id].toSorted());
       const enrollment = await api.getWorkerSetup({});
       expect(enrollment.enrollments.filter((invite) => invite.usedAt)).toHaveLength(2);
       expect(readFileSync(join(remoteData, "desktop.json"), "utf8").includes(token)).toBe(false);

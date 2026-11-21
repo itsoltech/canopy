@@ -1,6 +1,7 @@
 # Wydania: wersje, CI, artefakty
 
 Status: opis zaimplementowanego workflow (2026-11-21). Buildy publikują wykazy licencji zależności. Automat sprawdza promocje co godzinę.
+Smoke Desktop czeka na zapis trasy Network access przed restartem workera podczas parowania.
 Domyślne okresy obserwacji to 6 h na dev i 24 h od gotowości bety. Publikacja bety
 otwiera kolejną serię nightly. Stable zachowuje wersję bazową i SHA przetestowanej bety.
 CI dla PR-ów dobiera testy mobile, interfejsu web i powłoki Electron według zmian.
@@ -514,6 +515,10 @@ verify → plan ─┬─ checks ────────────→ release
 | `release-index` | współdzielony workflow Pages: aktualna strona i indeks wszystkich publicznych wydań | po sukcesie `publish-desktop` | atomowy snapshot CDN |
 | `stop-builds` | `gh run cancel` własnego przebiegu | checki czerwone albo `release` bez wydania/anulowany | — |
 | `nightly-hygiene`, `backmerge` | jak wcześniej | po `publish-desktop`; brak wydania pomija oba | — |
+
+W smoke Desktop na Linuxie i macOS test parowania czeka, aż zdalny worker zapisze
+zweryfikowaną trasę Network access. Parowanie restartuje workera z zapisaną trasą,
+a test sprawdza obecność obu workerów w tej samej odpowiedzi gatewaya.
 
 **Dobór portu smoke: zaimplementowany w workflow dla wszystkich kanałów.** Test samodzielnego
 `canopy-gateway web` prosi system o wolny port na `127.0.0.1` przez tymczasowy listener Node
