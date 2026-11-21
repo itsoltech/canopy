@@ -11,7 +11,7 @@ import { deliverThreadQuestions, deliverySources } from "./thread-questions.ts";
 import { turnReport } from "../store/turn-report.ts";
 import { canReportBotTurn } from "./report-origin.ts";
 import { botThreadNoticeTitle, threadNotice } from "./thread-notice.ts";
-import { watchCompletion, watchNeedsCheck } from "./watch-completion.ts";
+import { noUnscopedInteractionInput, watchCompletion, watchNeedsCheck } from "./watch-completion.ts";
 
 /** Watches of threads and steers, wakeups and reminders. */
 export function botWakeups(sql: SqlClient.SqlClient, core: BotCore) {
@@ -207,15 +207,16 @@ export function botDeliveries(sql: SqlClient.SqlClient, core: BotCore) {
 }
 
 /** Fetch a text prefix, never complete tool payloads. JS slicing retains the historical UTF-16 limit. */
-const watchTexts = (
+export const watchTexts = (
   sql: SqlClient.SqlClient,
-  requested: readonly { call: string; thread: string; turn: string; root: string }[],
+  requested: readonly { call?: string; thread: string; turn: string; root?: string }[],
 ) =>
   sql<{
     call: string;
     text: string;
-  }>`SELECT r.call,result.text FROM unnest(${requested.map((r) => r.call)}::uuid[],
-    ${requested.map((r) => r.thread)}::uuid[],${requested.map((r) => r.turn)}::uuid[],${requested.map((r) => r.root)}::uuid[]) r(call,thread,turn,root)
+  }>`SELECT r.call,result.text FROM unnest(${requested.map((r) => r.call ?? r.turn)}::uuid[],
+    ${requested.map((r) => r.thread)}::uuid[],${requested.map((r) => r.turn)}::uuid[],
+    ${requested.map((r) => r.root ?? r.turn)}::uuid[]) r(call,thread,turn,root)
   CROSS JOIN LATERAL (WITH texts AS MATERIALIZED (
     SELECT first_seq,left(content->'agentMessage'->>'text',80000) AS text FROM thread_items
     WHERE thread_id=r.thread AND turn_id=r.turn AND type='agent_message'
@@ -224,6 +225,8 @@ const watchTexts = (
     SELECT first_seq,text,coalesce(sum(length(text)+1) OVER(ORDER BY first_seq ROWS BETWEEN UNBOUNDED PRECEDING AND 1 PRECEDING),0) AS preceding FROM texts
   ) SELECT left(coalesce(string_agg(text,E'\n' ORDER BY first_seq) FILTER(WHERE preceding<=80000),''),80000) AS text FROM budget) result
   WHERE ${canReportBotTurn(sql, sql`r.thread`, sql`r.turn`)}
-    AND (r.root=r.turn OR ${canReportBotTurn(sql, sql`r.thread`, sql`r.root`, true)})`.pipe(
+    AND (r.root=r.turn OR (${canReportBotTurn(sql, sql`r.thread`, sql`r.root`, true)}
+      AND ${noUnscopedInteractionInput(sql, sql`r.thread`, sql`r.root`)}
+      AND ${noUnscopedInteractionInput(sql, sql`r.thread`, sql`r.turn`)}))`.pipe(
     Effect.map((rows) => new Map(rows.map((row) => [row.call, row.text.slice(0, 80000)]))),
   );

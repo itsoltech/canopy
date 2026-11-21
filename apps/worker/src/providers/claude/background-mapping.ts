@@ -93,7 +93,7 @@ export class ClaudeBackgroundMapper {
       description: pending.description,
       command: call?.command ?? "",
       startedInTurnId: pending.turnId,
-      providerRunId: pending.runId,
+      providerRunId: pending.parentTaskId ? "" : pending.runId,
       parentTaskId: pending.parentTaskId,
       sourceItemId: pending.toolUseId,
       startedAt: timestampNow(),

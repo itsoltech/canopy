@@ -9,12 +9,14 @@ export function recordBackgroundFollowup(sql: SqlClient.SqlClient, threadId: str
       JOIN turns parent ON parent.id=i.turn_id AND parent.thread_id=i.thread_id
       WHERE i.thread_id=result.thread_id AND i.type='background_task'
         AND i.content->'backgroundTask'->>'providerRunId'=${runId}
+        AND i.content->'backgroundTask'->>'parentTaskId' IS NULL
         AND n.harness_wakes AND n.status<>'cancelled'
-        AND parent.rewind_id IS NULL AND parent.last_seq<result.first_seq AND i.last_seq<result.first_seq
+        AND parent.rewind_id IS NULL AND i.last_seq>parent.last_seq AND i.last_seq<result.first_seq
         AND NOT EXISTS (
           SELECT 1 FROM thread_items other
           JOIN background_task_notes note ON note.thread_id=other.thread_id AND note.item_id=other.item_id
-          WHERE other.thread_id=i.thread_id AND other.turn_id IS DISTINCT FROM i.turn_id
+          WHERE other.thread_id=i.thread_id
+            AND (other.turn_id IS DISTINCT FROM i.turn_id OR other.content->'backgroundTask'->>'parentTaskId' IS NOT NULL)
             AND note.harness_wakes AND other.last_seq>parent.last_seq
         )
         AND NOT EXISTS(SELECT 1 FROM turns seen

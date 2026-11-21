@@ -29,8 +29,9 @@ Status (2026-11-21): worker i gateway zapisują pochodzenie wyniku natywnej
 pobudki Claude używane w [obserwacjach botów](bots.md#wynik-pracy-kontynuowanej-przez-claude).
 Dostępność w kanałach określa [promocja wydania](release.md).
 
-Worker przenosi identyfikator uruchomienia zadania z `task_started.run_id` do
-`BackgroundTask.provider_run_id` (233). Jeśli wynik Claude pochodzi z
+Worker przenosi identyfikator uruchomienia zadania najwyższego poziomu
+z `task_started.run_id` do `BackgroundTask.provider_run_id` (233).
+Jeśli wynik Claude pochodzi z
 `task-notification` i nie wskazuje dołączonej wiadomości klienta, worker przenosi
 `origin.runId` do `TurnFinished.background_task_run_id` (9). Pusty ACK
 powiadomienia bez pracy modelu nie kończy tury. Gateway zapisuje powiązanie raz

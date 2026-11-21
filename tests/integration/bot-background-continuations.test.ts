@@ -22,6 +22,7 @@ describe.skipIf(!dockerAvailable)("a bot watches its work in a persistent thread
   const { suite, add } = botsSuite();
   const botIds: string[] = [];
   let worker: ScriptedWorker;
+  let machine: { workerId: string; credential: string };
   let workspaceId = "";
 
   const query = <T extends object>(text: string, values: string[]) =>
@@ -38,7 +39,7 @@ describe.skipIf(!dockerAvailable)("a bot watches its work in a persistent thread
 
   beforeAll(async () => {
     await suite.current.bots.stop();
-    const machine = await suite.gw.addWorker("Claude", ["/repo"]);
+    machine = await suite.gw.addWorker("Claude", ["/repo"]);
     worker = await suite.gw.connect(machine.workerId, machine.credential, undefined, { claude: true });
     workspaceId = (
       await suite.gw.api.createWorkspace({
@@ -191,6 +192,27 @@ describe.skipIf(!dockerAvailable)("a bot watches its work in a persistent thread
     const wakeFrames = frames.slice(split);
     const start = wakeFrames.findIndex(startsTurn);
     play(wakeFrames.slice(0, start));
+
+    const notes = await eventually(
+      () => query("SELECT item_id FROM background_task_notes WHERE thread_id=$1", [thread]),
+      (rows) => rows.length === 1,
+    );
+
+    expect(notes).toHaveLength(1);
+    worker.link.close();
+
+    const disconnected = await eventually(async () => !suite.gw.core.online.has(machine.workerId), Boolean);
+
+    expect(disconnected).toBe(true);
+    await query("UPDATE background_task_notes SET created_at=now()-interval '1 minute' WHERE thread_id=$1", [thread]);
+    await deliver();
+    expect(await work.reports()).toEqual([]);
+    worker = await suite.gw.connect(machine.workerId, machine.credential, undefined, {
+      claude: true,
+      resumeJournal: true,
+    });
+    worker.holdTurns = true;
+
     const wake = providerTurn(thread);
     mapper.beginTurn(wake);
     await expectStatus(wake, "running");
@@ -317,8 +339,8 @@ describe.skipIf(!dockerAvailable)("a bot watches its work in a persistent thread
     ]);
   });
 
-  for (const revoke of [false, true]) {
-    test(`a Claude follow-up respects a ${revoke ? "revoked" : "live"} Slack route`, async () => {
+  for (const scenario of ["live", "revoked", "private-answer"] as const) {
+    test(`a Claude follow-up respects Slack origin with ${scenario}`, async () => {
       const thread = await fixedThread();
       const botId = await bot("Slack coordinator");
       const { gw } = suite;
@@ -364,28 +386,94 @@ describe.skipIf(!dockerAvailable)("a bot watches its work in a persistent thread
       await deliver();
       expect(await work.reports()).toEqual([]);
 
-      if (revoke) await gw.runtime.runPromise(MessengerStore.use((s) => s.deleteRoute(gw.userId, route.id)));
+      if (scenario === "revoked")
+        await gw.runtime.runPromise(MessengerStore.use((s) => s.deleteRoute(gw.userId, route.id)));
 
       task(thread, work.turn, "external-task", ItemStatus.COMPLETED);
       const wake = providerTurn(thread);
-      result(thread, wake, "The external task result", "external-task");
+      const secretAnswer = "This answer belongs to the Canopy conversation.";
+
+      if (scenario === "private-answer") {
+        await expectStatus(wake, "running");
+        const requestId = Bun.randomUUIDv7();
+        worker.ask({
+          threadId: thread,
+          turnId: wake,
+          requestId,
+          kind: InteractionKind.QUESTION,
+          requestJson: '{"question":"What should go into the report?"}',
+        });
+
+        const pending = await eventually(
+          () => query<{ status: string }>("SELECT status FROM interaction_requests WHERE id=$1", [requestId]),
+          (rows) => rows[0]?.status === "pending",
+        );
+
+        expect(pending).toEqual([{ status: "pending" }]);
+        await deliver();
+        expect(await work.reports()).toEqual([]);
+        await gw.api.answerInteraction({ requestId, answerJson: JSON.stringify({ answer: secretAnswer }) });
+        const gotAnswer = await eventually(async () => worker.interactionResponses.get(requestId), Boolean);
+        expect(gotAnswer?.answerJson).toContain(secretAnswer);
+      }
+
+      result(thread, wake, scenario === "private-answer" ? secretAnswer : "The external task result", "external-task");
       await expectStatus(wake, "completed");
       await deliver();
 
-      expect(await work.reports()).toEqual(
-        revoke
+      const reports = await work.reports();
+      expect(reports).toEqual(
+        scenario === "revoked"
           ? []
           : [
               {
                 bot_id: botId,
                 routine_id: null,
                 conversation_id: original,
-                input: expect.stringContaining("The external task result"),
+                input: expect.stringContaining(
+                  scenario === "private-answer" ? "Foreground progress" : "The external task result",
+                ),
               },
             ],
       );
+
+      if (scenario === "private-answer") {
+        expect(reports[0]?.input).toContain("could not be confirmed");
+        expect(reports[0]?.input).not.toContain(secretAnswer);
+      }
     });
   }
+
+  test("a nested Claude task cannot take over a watch just because it started during the watched turn", async () => {
+    const thread = await fixedThread();
+    const id = await bot("Coordinator");
+    const work = await watch(thread, id);
+    const started = frames.find((m) => m.type === "system" && m.subtype === "task_started")!;
+    const notification = frames.find((m) => m.type === "system" && m.subtype === "task_notification")!;
+    const mapper = new ClaudeEventMapper(work.turn);
+    const [opened] = mapper.map({ ...started, parent_task_id: "older-subagent" });
+    worker.emit(thread, work.turn, opened?.body);
+    result(thread, work.turn, "Foreground result only");
+    await expectStatus(work.turn, "completed");
+    await deliver();
+
+    const [ended] = mapper.map(notification);
+    worker.emit(thread, "", ended?.body);
+    const wake = providerTurn(thread);
+    result(thread, wake, "Other subagent result", started.run_id ?? "");
+    await expectStatus(wake, "completed");
+    await deliver();
+
+    expect(await query("SELECT id FROM turns WHERE id=$1 AND background_task_item_id IS NOT NULL", [wake])).toEqual([]);
+    expect(await work.reports()).toEqual([
+      {
+        bot_id: id,
+        routine_id: null,
+        conversation_id: null,
+        input: expect.stringContaining("Foreground result only"),
+      },
+    ]);
+  });
 
   for (const ending of ["interrupted", "stopped", "timeout"] as const) {
     test(`a background watch settles once when ${ending}`, async () => {

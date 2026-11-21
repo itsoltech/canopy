@@ -94,15 +94,20 @@ raport z ostatniej potwierdzonej tury. Wcześniejsze odpowiedzi zostają w wątk
 Stan oczekiwania, termin i zapis raportu przeżywają restart gatewaya.
 
 Tura bez rozpoznanego zadania w tle oraz przerwana lub nieudana tura początkowa
-kończą obserwację zwykłą ścieżką. Po naturalnym zakończeniu zadania gateway daje
-Claude 15 sekund na rozpoczęcie pobudki. Oczekiwanie łącznie trwa najwyżej godzinę
-od zakończenia tury początkowej. Jeżeli zadanie zatrzymano, zabrakło potwierdzenia
+kończą obserwację zwykłą ścieżką. Zadanie zakończone w trakcie tury może zostać
+rozliczone w jej wyniku. Dla późniejszego zakończenia gateway czeka na zdarzenia
+workera, również przy odtwarzaniu journala po rozłączeniu. Oczekiwanie trwa
+najwyżej godzinę od zakończenia tury początkowej. Jeżeli zadanie zatrzymano, zabrakło potwierdzenia
 pochodzenia albo inna tura przerwała ciąg pracy, raport wskazuje ostatni
-potwierdzony wynik jako częściowy. Tura ze sterowaniem lub zadaniem z innej pracy
-może zawierać cudzy kontekst, więc gateway nie dołącza jej wyniku. Jednoczesne
-źródła wejścia w turze początkowej wykluczają rozszerzenie obserwacji.
+potwierdzony wynik jako częściowy. Tura ze sterowaniem, odpowiedzią na pytanie
+lub formularz albo zadaniem z innej pracy może zawierać cudzy kontekst, więc
+gateway nie dołącza jej wyniku. Zmiana nie rozszerza obserwacji także wtedy, gdy
+tura początkowa łączy różne źródła lub otrzymała odpowiedź na interakcję
+zawierającą treść.
 
-Zakres obejmuje lokalne pobudki `provider` z identyfikatorem uruchomienia zadania.
+Zakres obejmuje lokalne pobudki `provider` z identyfikatorem uruchomienia
+zadania najwyższego poziomu. Wznowienia z ponownie użytym identyfikatorem
+zakończonego zadania wymagają osobnej obsługi cyklu życia zadania.
 Harmonogramy, `agent_bus`, platformowe notatki `background_task` i pobudki bez
 tego identyfikatora nie przedłużają obserwacji. Dotychczasowe notatki o zadaniach
 pozostają dostępne w wątku. Pytania tury początkowej nadal docierają dotychczasową
