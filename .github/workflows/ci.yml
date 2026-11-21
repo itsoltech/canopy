@@ -225,8 +225,10 @@ jobs:
         run: |
           npm install --global @openai/codex@0.165.0
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
-          $env:Path = "$(npm prefix --global);$env:Path"
-          codex.cmd --version
+          $codex = Get-ChildItem (Join-Path (npm root --global) '@openai') -Filter codex.exe -File -Recurse | Select-Object -First 1
+          if (!$codex) { throw 'Codex native executable not found' }
+          $env:Path = "$($codex.DirectoryName);$env:Path"
+          & $codex.FullName --version
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           bun test ./apps/worker/src/providers/codex/windows-sandbox.test.ts
       - uses: actions/download-artifact@v5

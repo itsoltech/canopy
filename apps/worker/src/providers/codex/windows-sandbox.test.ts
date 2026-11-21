@@ -10,9 +10,10 @@ import type { ResolvedProfile } from "../profiles.ts";
 import { CodexAppServer } from "./app-server.ts";
 import { codexAppServerLaunch, codexThreadLaunchArgs, codexThreadProvider } from "./launch.ts";
 import { codexPermissions, codexTurnPermissions } from "./permissions.ts";
+import { codexThreadCwd } from "./thread-params.ts";
 
 const temp = tempDirs();
-const codex = (process.platform === "win32" ? Bun.which("codex.cmd") : null) ?? Bun.which("codex");
+const codex = process.platform === "win32" ? Bun.which("codex.exe") : Bun.which("codex");
 
 if (process.env["CANOPY_TEST_REQUIRE_CODEX"] === "1" && !codex) throw new Error("Codex CLI is required for this test.");
 
@@ -115,7 +116,7 @@ test.skipIf(!codex)(
     });
 
     const params = {
-      cwd,
+      cwd: codexThreadCwd(cwd),
       model: "gpt-6.1-sol",
       ...codexThreadProvider(profile),
       config: { "features.code_mode": false },
@@ -153,7 +154,10 @@ test.skipIf(!codex)(
 
       expect(model.requests).toHaveLength(14);
 
-      for (const call of [1, 3, 7, 13]) expect(toolOutput(model.requests[call]!, call)).toContain("canopy-fixture");
+      for (const call of [1, 3, 7, 13])
+        expect(toolOutput(model.requests[call]!, call), `Git status result for call ${call}`).toContain(
+          "canopy-fixture",
+        );
       expect(toolOutput(model.requests[9]!, 9)).toContain("approval required by policy");
       expect(toolOutput(model.requests[11]!, 11)).toContain("rejected: fixture command denied");
       expect(approvalRequests).toEqual(["item/commandExecution/requestApproval"]);
