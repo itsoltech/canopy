@@ -1,9 +1,12 @@
 import { Schema } from "effect";
+import { isString } from "../../providers/json.ts";
 
 const Request = Schema.Struct({ input: Schema.Array(Schema.Json) });
 
-/** Tool names yield calls, Response entries simulate transport failures. The script ends with a text answer. */
-export function codexToolModel(steps: readonly (string | Response)[], namespace?: string) {
+type ModelStep = string | { name: string; arguments: string } | Response | null;
+
+/** Tool names or calls yield calls, Response entries simulate transport failures, and null yields text. */
+export function codexToolModel(steps: readonly ModelStep[], namespace?: string) {
   const requests: string[] = [];
 
   const server = Bun.serve({
@@ -18,15 +21,15 @@ export function codexToolModel(steps: readonly (string | Response)[], namespace?
       const step = steps[requests.length - 1];
 
       if (step instanceof Response) return step;
+      const call = isString(step) ? { name: step, arguments: "{}" } : step;
 
-      const output = step
+      const output = call
         ? {
             type: "function_call",
             id: `tool-${requests.length}`,
             call_id: `call-${requests.length}`,
             ...(namespace && { namespace }),
-            name: step,
-            arguments: "{}",
+            ...call,
           }
         : {
             type: "message",

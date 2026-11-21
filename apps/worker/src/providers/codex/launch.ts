@@ -15,6 +15,12 @@ export interface CodexAppServerLaunch {
   readonly env: Record<string, string | undefined>;
 }
 
+export function codexThreadLaunchArgs(extraArgs: readonly string[] = []): readonly string[] {
+  // The isolated CODEX_HOME has no Windows sandbox setup by default. Use Codex's unelevated
+  // backend fallback so explicit windows.sandbox settings and managed requirements still win.
+  return process.platform === "win32" ? ["-c", "features.experimental_windows_sandbox=true", ...extraArgs] : extraArgs;
+}
+
 export function codexAppServerLaunch(
   profiles: readonly ResolvedProfile[],
   baseEnv: Env,
