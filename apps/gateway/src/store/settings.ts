@@ -1,6 +1,7 @@
 import { create, fromJson, toJson, type JsonValue } from "@bufbuild/protobuf";
 import { timestampFromDate } from "@bufbuild/protobuf/wkt";
 import { AgentToolSessionDefaultsSchema, type AgentToolSessionDefaults, ui } from "@canopy/contracts";
+import { isJsonObject } from "@canopy/domain";
 import { Context, Effect, Layer } from "effect";
 import { SqlClient, type SqlError } from "effect/sql";
 import { isUniqueViolation } from "./agent-bus.ts";
@@ -20,8 +21,8 @@ import { queryMethods } from "../diagnostics/query-context.ts";
 /**
  * User and project settings (docs/ui-api.md): stored by the gateway, the browser only reads and writes
  * them. Stored sections are read leniently (fields dropped from the contract are ignored).
- * Sections (appearance, thread defaults, model favorites, composer, text generation) are replaced as a whole; every write bumps the version and
- * names the version it started from, so two devices never overwrite each other unnoticed.
+ * UI writes replace supplied sections as a whole. Every write bumps the version and names the version it
+ * started from, so two devices never overwrite each other unnoticed.
  */
 
 /** The write started from an older version: the client reloads and applies its change again. */
@@ -57,6 +58,17 @@ interface Stored extends StoredModuleState {
   cliUpdates?: JsonValue;
   threadRetention?: JsonValue;
   agentToolDefaults?: JsonValue;
+}
+
+/** Internal bot write. Merge the single protobuf field without normalizing neighboring stored fields. */
+export type AppearancePreferencePatch =
+  | { colorScheme: ui.ColorScheme; chatWidth?: never }
+  | { chatWidth: ui.ChatWidth; colorScheme?: never };
+
+function patchAppearance(stored: JsonValue | undefined, patch: AppearancePreferencePatch) {
+  const update = toJson(ui.AppearanceSettingsSchema, create(ui.AppearanceSettingsSchema, patch));
+
+  return { ...(isJsonObject(stored) && stored), ...(isJsonObject(update) && update) };
 }
 
 const appearance = (stored: Stored) =>
@@ -181,6 +193,7 @@ export class SettingsStore extends Context.Service<
       synced?: boolean;
       userId: string;
       appearance?: ui.AppearanceSettings;
+      appearancePreference?: AppearancePreferencePatch;
       threadDefaults?: ui.ThreadDefaults;
       modelFavorites?: ui.ModelFavorites;
       composer?: ui.ComposerSettings;
@@ -228,6 +241,7 @@ export class SettingsStore extends Context.Service<
           synced,
           userId,
           appearance: nextAppearance,
+          appearancePreference,
           threadDefaults: nextDefaults,
           modelFavorites: nextFavorites,
           composer: nextComposer,
@@ -260,6 +274,9 @@ export class SettingsStore extends Context.Service<
                 ...(workerGatewayUrl !== undefined && { workerGatewayUrl }),
                 ...(timezone !== undefined && { timezone }),
                 ...(nextAppearance && { appearance: toJson(ui.AppearanceSettingsSchema, nextAppearance) }),
+                ...(appearancePreference && {
+                  appearance: patchAppearance(stored.appearance, appearancePreference),
+                }),
                 ...(nextDefaults && { threadDefaults: toJson(ui.ThreadDefaultsSchema, nextDefaults) }),
                 ...(nextFavorites && { modelFavorites: toJson(ui.ModelFavoritesSchema, nextFavorites) }),
                 ...(nextComposer && { composer: toJson(ui.ComposerSettingsSchema, nextComposer) }),

@@ -259,6 +259,7 @@ function ownerApprovals(sql: SqlClient.SqlClient, id: string) {
   // Cards deliberately reach the owner; external messages and streaming remain conversation scoped.
   return sql<ApprovalRow & { source_context: string | null }>`SELECT a.*, c.arguments,
               (c.tool ->> 'source' = 'platform' AND c.tool ->> 'name' = 'answer_interaction') AS prepared,
+              (c.tool ->> 'source' = 'platform' AND c.tool ->> 'name' = 'set_canopy_preference') AS preference_change,
               t.routine_title, CASE WHEN a.kind = 'question' THEN c.arguments -> 'options' END AS options,
               CASE WHEN x.id IS NOT NULL THEN concat('External task · Slack account ', ma.name,
                 ' · channel ', x.channel_id, ' · thread ', x.thread_id,

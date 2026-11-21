@@ -8,6 +8,7 @@ import { SLACK_POST_ACTION, slackPostChannel } from "../connectors/slack-post-to
 /** Explicit owner decisions only. These tools cannot be covered by a standing rule or full auto. */
 export const ALWAYS_ASK_TOOLS = new Set([
   "create_bot",
+  "set_canopy_preference",
   "archive_project",
   "add_workspace",
   "update_workspace",

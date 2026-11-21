@@ -56,6 +56,7 @@ export interface ApprovalRow {
   routine_title?: string;
   arguments?: JsonObject;
   prepared?: boolean;
+  preference_change?: boolean;
 }
 
 export const botConfiguration = (row: BotRow) => fromJson(bots.BotConfigurationSchema, row.configuration);
@@ -109,16 +110,18 @@ export const approvalView = (row: ApprovalRow) =>
     turnId: row.turn_id,
     kind: row.kind,
     prompt: row.prompt,
-    fields: row.prepared
-      ? [{ label: "Proposed answer", value: row.prompt.slice(row.prompt.indexOf("\n") + 1) }]
-      : row.arguments
-        ? [
-            ...approvalFields(row.arguments).filter((field) => field.label !== "Attachment ids"),
-            ...(row.prompt.includes("\nFiles:\n")
-              ? [{ label: "Files", value: row.prompt.slice(row.prompt.lastIndexOf("\nFiles:\n") + 8) }]
-              : []),
-          ]
-        : [],
+    fields: row.preference_change
+      ? [{ label: "Effect", value: row.prompt.slice(row.prompt.indexOf("\n") + 1) }]
+      : row.prepared
+        ? [{ label: "Proposed answer", value: row.prompt.slice(row.prompt.indexOf("\n") + 1) }]
+        : row.arguments
+          ? [
+              ...approvalFields(row.arguments).filter((field) => field.label !== "Attachment ids"),
+              ...(row.prompt.includes("\nFiles:\n")
+                ? [{ label: "Files", value: row.prompt.slice(row.prompt.lastIndexOf("\nFiles:\n") + 8) }]
+                : []),
+            ]
+          : [],
     status: row.status,
     answer: row.answer,
     expiresAt: row.expires_at ? timestampFromDate(new Date(row.expires_at)) : undefined,

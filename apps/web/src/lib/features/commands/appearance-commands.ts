@@ -2,23 +2,22 @@ import {
   namesOf,
   colorThemes,
   themeOf,
-  chatWidthLabels,
-  chatWidthNames,
+  widthChoices,
   chatWidthOf,
-  schemeLabels,
-  schemeNames,
+  schemeChoices,
   schemeOf,
 } from "#lib/features/settings/appearance.ts";
 import type { SettingsState } from "#lib/features/settings/settings-state.svelte.ts";
 import type { IconName } from "#lib/shared/ui/icons.ts";
 import type { Command } from "./registry.ts";
+import { threadWidthPreference } from "@canopy/domain";
 import { themes, themeNames } from "@canopy/ui/themes";
 
 const SCHEME_ICONS = {
   system: "computer-desktop",
   light: "sun",
   dark: "moon",
-} satisfies Record<keyof typeof schemeNames, IconName>;
+} satisfies Record<keyof typeof schemeChoices, IconName>;
 
 /** Each theme command changes one variant; the other mode keeps its chosen palette. */
 export function appearanceCommands(settings: SettingsState): Command[] {
@@ -59,33 +58,33 @@ export function appearanceCommands(settings: SettingsState): Command[] {
       rank: 12,
       searchChildren: true,
       children: () =>
-        namesOf(schemeNames).map((name) => ({
+        namesOf(schemeChoices).map((name) => ({
           id: name,
-          title: schemeLabels[name],
+          title: schemeChoices[name].label,
           group: "actions",
           icon: SCHEME_ICONS[name],
           keywords: "appearance color scheme mode",
           checked: schemeOf(appearance) === name,
-          run: () => void settings.updateAppearance({ colorScheme: schemeNames[name] }),
+          run: () => void settings.updateAppearance({ colorScheme: schemeChoices[name].value }),
         })),
     },
     {
       id: "chat-width",
       when: () => settings.moduleEnabled("threads"),
-      title: "Thread width",
+      title: threadWidthPreference.label,
       group: "actions",
       icon: "view-columns",
       keywords: "conversation layout wide narrow",
       rank: 13,
       searchChildren: true,
       children: () =>
-        namesOf(chatWidthNames).map((name) => ({
+        namesOf(widthChoices).map((name) => ({
           id: name,
-          title: chatWidthLabels[name],
+          title: widthChoices[name].label,
           group: "actions",
           keywords: "chat width",
           checked: chatWidthOf(appearance) === name,
-          run: () => void settings.updateAppearance({ chatWidth: chatWidthNames[name] }),
+          run: () => void settings.updateAppearance({ chatWidth: widthChoices[name].value }),
         })),
     },
   ];

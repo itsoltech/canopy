@@ -1,15 +1,14 @@
 <script lang="ts">
   import { applicationName } from "#lib/application-name.ts";
   import {
-    chatWidthLabels,
-    chatWidthNames,
     chatWidthOf,
-    schemeLabels,
-    schemeNames,
+    namesOf,
+    schemeChoices,
     schemeOf,
     themeOf,
-    type ChatWidthName,
+    widthChoices,
   } from "#lib/features/settings/appearance.ts";
+  import { colorSchemePreference, threadWidthPreference } from "@canopy/domain";
   import ThemePreview from "#lib/features/settings/ThemePreview.svelte";
   import ThemePicker from "#lib/features/settings/ThemePicker.svelte";
   import { useSettings } from "#lib/features/settings/settings-state.svelte.ts";
@@ -29,7 +28,7 @@
   const settings = useSettings();
   const scheme = $derived(schemeOf(settings.appearance));
   const chatWidth = $derived(chatWidthOf(settings.appearance));
-  const schemes = ["system", "light", "dark"] as const;
+  const schemes = namesOf(schemeChoices);
 </script>
 
 <svelte:head><title>Appearance · Settings · {applicationName}</title></svelte:head>
@@ -45,19 +44,19 @@
   >
 </div>
 
-<SettingsGroup title="Colors" description="Account">
+<SettingsGroup title={colorSchemePreference.group} description="Account">
   <PreferenceRow
-    title="Color scheme"
-    changed={scheme !== "system"}
-    onreset={() => settings.updateAppearance({ colorScheme: schemeNames.system })}
+    title={colorSchemePreference.label}
+    changed={scheme !== colorSchemePreference.defaultChoice}
+    onreset={() => settings.updateAppearance({ colorScheme: schemeChoices[colorSchemePreference.defaultChoice].value })}
   >
     {#snippet control()}
-      <div class="grid w-80 max-w-full grid-cols-3 gap-2" role="radiogroup" aria-label="Color scheme">
+      <div class="grid w-80 max-w-full grid-cols-3 gap-2" role="radiogroup" aria-label={colorSchemePreference.label}>
         {#each schemes as mode (mode)}
           <OptionTile
             checked={scheme === mode}
-            label={schemeLabels[mode]}
-            onchange={() => settings.updateAppearance({ colorScheme: schemeNames[mode] })}
+            label={schemeChoices[mode].label}
+            onchange={() => settings.updateAppearance({ colorScheme: schemeChoices[mode].value })}
             class="grid gap-2 p-2"
           >
             <div class="relative overflow-hidden rounded-lg">
@@ -69,7 +68,7 @@
                   <ThemePreview theme={themeOf(settings.appearance, "dark")} mode="dark" />
                 </div>{/if}
             </div>
-            <div class="text-center font-medium">{schemeLabels[mode]}</div>
+            <div class="text-center font-medium">{schemeChoices[mode].label}</div>
           </OptionTile>
         {/each}
       </div>
@@ -79,25 +78,28 @@
 
 <ThemePicker />
 
-<SettingsGroup title="Interface" description="This device unless marked Account">
+<SettingsGroup title={threadWidthPreference.group} description="This device unless marked Account">
   <InterfaceSettings />
   {#if settings.moduleEnabled("bots")}<AnimatedMascotsSetting />{/if}
   {#if settings.moduleEnabled("threads")}
     <PreferenceRow
-      title="Thread width"
-      description="Set the width of threads and their message boxes."
-      changed={chatWidth !== "comfortable"}
-      onreset={() => settings.updateAppearance({ chatWidth: chatWidthNames.comfortable })}
+      title={threadWidthPreference.label}
+      description={threadWidthPreference.description}
+      changed={chatWidth !== threadWidthPreference.defaultChoice}
+      onreset={() => settings.updateAppearance({ chatWidth: widthChoices[threadWidthPreference.defaultChoice].value })}
     >
       {#snippet control()}
         <Badge>Account</Badge>
         <Select
           name="chatWidth"
-          aria-label="Thread width"
+          aria-label={threadWidthPreference.label}
           value={chatWidth}
-          onchange={(value) => settings.updateAppearance({ chatWidth: chatWidthNames[value as ChatWidthName] })}
+          onchange={(value) => {
+            const choice = namesOf(widthChoices).find((name) => name === value);
+            if (choice) settings.updateAppearance({ chatWidth: widthChoices[choice].value });
+          }}
           class="w-40"
-          options={Object.entries(chatWidthLabels).map(([value, label]) => ({ value, label }))}
+          options={namesOf(widthChoices).map((value) => ({ value, label: widthChoices[value].label }))}
         />
       {/snippet}
     </PreferenceRow>

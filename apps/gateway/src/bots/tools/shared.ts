@@ -114,6 +114,13 @@ export function decoded<S extends Schema.ConstraintDecoder<unknown>>(
   return Option.getOrThrowWith(Schema.decodeUnknownOption(schema)(value), () => new Invalid("invalid arguments"));
 }
 
+export function settingsVersion(value: string, lookup: string): bigint {
+  if (!/^\d{1,19}$/.test(value))
+    throw new Invalid(`expected_version must be a nonnegative integer string from ${lookup}`);
+
+  return BigInt(value);
+}
+
 export function message<D extends DescMessage>(schema: D, value: JsonValue | undefined): MessageShape<D> {
   if (!isJsonObject(value)) throw new Invalid("configuration must be an object");
 

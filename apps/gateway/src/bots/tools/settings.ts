@@ -1,7 +1,7 @@
 import { create } from "@bufbuild/protobuf";
 import { ui } from "@canopy/contracts";
 import { Invalid } from "../../store/store.ts";
-import { define, json, message, object, str } from "./shared.ts";
+import { define, json, message, object, settingsVersion, str } from "./shared.ts";
 
 const defaults = object({
   workspaceId: str,
@@ -68,7 +68,7 @@ export const settingsTools = [
 
         const result = await core.updateUserSettings(
           create(ui.UpdateUserSettingsRequestSchema, {
-            expectedVersion: version(string("expected_version")),
+            expectedVersion: settingsVersion(string("expected_version"), "get_settings"),
             ...(args["thread_defaults"] !== undefined && {
               threadDefaults: message(ui.ThreadDefaultsSchema, args["thread_defaults"]),
             }),
@@ -101,7 +101,7 @@ export const settingsTools = [
           await core.updateProjectSettings(
             create(ui.UpdateProjectSettingsRequestSchema, {
               projectId: string("project_id"),
-              expectedVersion: version(string("expected_version")),
+              expectedVersion: settingsVersion(string("expected_version"), "get_settings"),
               threadDefaults: message(ui.ThreadDefaultsSchema, args["thread_defaults"]),
             }),
           ),
@@ -110,10 +110,3 @@ export const settingsTools = [
     "approval",
   ),
 ];
-
-function version(value: string): bigint {
-  if (!/^\d{1,19}$/.test(value))
-    throw new Invalid("expected_version must be a nonnegative integer string from get_settings");
-
-  return BigInt(value);
-}

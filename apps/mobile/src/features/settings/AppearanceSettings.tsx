@@ -1,4 +1,5 @@
 import { Pressable, Text, View } from "react-native";
+import { colorSchemePreference, threadWidthPreference } from "@canopy/domain";
 import { ui } from "@canopy/contracts";
 import { themeNames, themes, type ThemeMode } from "@canopy/ui/themes";
 import { useAppearance } from "../../state/appearance";
@@ -26,23 +27,19 @@ export function AppearanceSettings() {
         style={{ alignSelf: "flex-start" }}
         onPress={() => device.reset(appearanceDeviceKeys)}
       />
-      <SettingsGroup title="Colors" description="Account">
-        <SettingsRow title="Color scheme" description="Follow the system or use a fixed light or dark palette.">
+      <SettingsGroup title={colorSchemePreference.group} description="Account">
+        <SettingsRow title={colorSchemePreference.label} description={colorSchemePreference.description}>
           <Skeleton>
             <View style={[styles.row, { alignItems: "stretch" }]}>
-              {(
-                [
-                  { label: "System", value: ui.ColorScheme.SYSTEM },
-                  { label: "Light", value: ui.ColorScheme.LIGHT },
-                  { label: "Dark", value: ui.ColorScheme.DARK },
-                ] as const
-              ).map(({ label, value }) => (
+              {Object.values(colorSchemePreference.choices).map(({ label, value }) => (
                 <Pressable
                   key={value}
                   accessibilityRole="radio"
                   accessibilityLabel={label}
                   accessibilityState={{
-                    checked: (settings.appearance?.colorScheme || ui.ColorScheme.SYSTEM) === value,
+                    checked:
+                      (settings.appearance?.colorScheme ||
+                        colorSchemePreference.choices[colorSchemePreference.defaultChoice].value) === value,
                     disabled: settings.saving,
                   }}
                   disabled={settings.saving}
@@ -55,7 +52,10 @@ export function AppearanceSettings() {
                     borderWidth: 1,
                     borderRadius: 8,
                     borderColor:
-                      (settings.appearance?.colorScheme || ui.ColorScheme.SYSTEM) === value ? c.accent : c.line,
+                      (settings.appearance?.colorScheme ||
+                        colorSchemePreference.choices[colorSchemePreference.defaultChoice].value) === value
+                        ? c.accent
+                        : c.line,
                   }}
                 >
                   <View style={{ overflow: "hidden", borderRadius: 6 }}>
@@ -63,7 +63,7 @@ export function AppearanceSettings() {
                       theme={themeOf(settings.appearance, value === ui.ColorScheme.DARK ? "dark" : "light")}
                       mode={value === ui.ColorScheme.DARK ? "dark" : "light"}
                     />
-                    {value === ui.ColorScheme.SYSTEM && (
+                    {value === colorSchemePreference.choices[colorSchemePreference.defaultChoice].value && (
                       <View
                         style={{ position: "absolute", left: "50%", right: 0, top: 0, bottom: 0, overflow: "hidden" }}
                       >
@@ -84,7 +84,7 @@ export function AppearanceSettings() {
           <ThemeColumn mode="dark" />
         </View>
       </SettingsGroup>
-      <SettingsGroup title="Interface" description="This device unless marked Account">
+      <SettingsGroup title={threadWidthPreference.group} description="This device unless marked Account">
         <DeviceChoiceRow
           preference="contrast"
           title="Contrast"
@@ -114,14 +114,12 @@ export function AppearanceSettings() {
         )}
         {settings.threadsEnabled && (
           <SettingChoice
-            title="Thread width"
-            description="Set the width of threads and their message boxes."
-            value={settings.appearance?.chatWidth || ui.ChatWidth.COMFORTABLE}
-            options={[
-              { value: ui.ChatWidth.COMFORTABLE, label: "Comfortable" },
-              { value: ui.ChatWidth.WIDE, label: "Wide" },
-              { value: ui.ChatWidth.FULL, label: "Full width" },
-            ]}
+            title={threadWidthPreference.label}
+            description={threadWidthPreference.description}
+            value={
+              settings.appearance?.chatWidth || threadWidthPreference.choices[threadWidthPreference.defaultChoice].value
+            }
+            options={Object.values(threadWidthPreference.choices)}
             disabled={settings.saving}
             onChange={(chatWidth) => void settings.updateAppearance({ chatWidth })}
           />

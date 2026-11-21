@@ -1,6 +1,6 @@
 import { ui } from "@canopy/contracts";
 import { create } from "@bufbuild/protobuf";
-import { SIDEBAR_WIDTH } from "@canopy/domain";
+import { appearanceChoiceKey, colorSchemePreference, SIDEBAR_WIDTH, threadWidthPreference } from "@canopy/domain";
 import { accents, type AccentName } from "@canopy/ui";
 import { isThemeName, paletteStyle, themeVariables, type ThemeName, type ThemeMode } from "@canopy/ui/themes";
 import type { DeviceViewValues } from "@canopy/domain/device-view";
@@ -10,17 +10,10 @@ import type { DeviceViewValues } from "@canopy/domain/device-view";
  * `dark` class, `data-light-theme` / `data-dark-theme` (full palettes), `data-chat-width`. The server renders them
  * into the page (hooks.server.ts), the browser updates them when the settings change.
  */
-export type SchemeName = "system" | "light" | "dark";
-
 export type { AccentName } from "@canopy/ui";
 
-export type ChatWidthName = "comfortable" | "wide" | "full";
-
-export const schemeNames: Record<SchemeName, ui.ColorScheme> = {
-  system: ui.ColorScheme.SYSTEM,
-  light: ui.ColorScheme.LIGHT,
-  dark: ui.ColorScheme.DARK,
-};
+export const schemeChoices = colorSchemePreference.choices;
+export const widthChoices = threadWidthPreference.choices;
 
 export const accentNames: Record<AccentName, ui.AccentTheme> = {
   default: ui.AccentTheme.DEFAULT,
@@ -58,13 +51,7 @@ export const themeOf = (appearance: ui.AppearanceSettings | undefined, mode: The
     previousThemes[accentOf(appearance)],
   );
 
-export const chatWidthNames: Record<ChatWidthName, ui.ChatWidth> = {
-  comfortable: ui.ChatWidth.COMFORTABLE,
-  wide: ui.ChatWidth.WIDE,
-  full: ui.ChatWidth.FULL,
-};
-
-/** The names of a name table (`schemeNames`, `accentNames`, `chatWidthNames`), in its order. */
+/** The names of a name table in its order. */
 export const namesOf = <N extends string, V>(table: Readonly<Record<N, V>>): N[] =>
   // SAFETY: the name tables are object literals typed with exactly their name union, so their own keys are N.
   Object.keys(table) as N[];
@@ -77,14 +64,14 @@ const nameOf = <N extends string, V>(table: Record<N, V>, value: V, fallback: N)
   namesOf(table).find((name) => table[name] === value) ?? fallback;
 
 /** Unspecified values are the defaults: system scheme, default accent, comfortable width. */
-export const schemeOf = (appearance: ui.AppearanceSettings | undefined): SchemeName =>
-  nameOf(schemeNames, appearance?.colorScheme, "system");
+export const schemeOf = (appearance: ui.AppearanceSettings | undefined) =>
+  appearanceChoiceKey(schemeChoices, appearance?.colorScheme, colorSchemePreference.defaultChoice);
 
 export const accentOf = (appearance: ui.AppearanceSettings | undefined): AccentName =>
   nameOf(accentNames, appearance?.accent, "default");
 
-export const chatWidthOf = (appearance: ui.AppearanceSettings | undefined): ChatWidthName =>
-  nameOf(chatWidthNames, appearance?.chatWidth, "comfortable");
+export const chatWidthOf = (appearance: ui.AppearanceSettings | undefined) =>
+  appearanceChoiceKey(widthChoices, appearance?.chatWidth, threadWidthPreference.defaultChoice);
 
 /** Values for the `%canopy.*%` placeholders of app.html. */
 export function documentAttributes(appearance: ui.AppearanceSettings | undefined): Map<string, string> {
@@ -111,11 +98,11 @@ export function appearanceFromDocument(): ui.AppearanceSettings {
   const { colorScheme, accent, chatWidth, lightTheme, darkTheme } = data;
 
   return create(ui.AppearanceSettingsSchema, {
-    colorScheme: isName(schemeNames, colorScheme) ? schemeNames[colorScheme] : ui.ColorScheme.SYSTEM,
+    colorScheme: isName(schemeChoices, colorScheme) ? schemeChoices[colorScheme].value : schemeChoices.system.value,
     accent: isName(accentNames, accent) ? accentNames[accent] : ui.AccentTheme.DEFAULT,
     lightTheme: isThemeName(lightTheme) ? colorThemes[lightTheme] : ui.ColorTheme.UNSPECIFIED,
     darkTheme: isThemeName(darkTheme) ? colorThemes[darkTheme] : ui.ColorTheme.UNSPECIFIED,
-    chatWidth: isName(chatWidthNames, chatWidth) ? chatWidthNames[chatWidth] : ui.ChatWidth.COMFORTABLE,
+    chatWidth: isName(widthChoices, chatWidth) ? widthChoices[chatWidth].value : widthChoices.comfortable.value,
     sidebarWidth: Number(data["sidebarWidth"]) || SIDEBAR_WIDTH.default,
     sidebarCollapsed: data["sidebarCollapsed"] === "true",
     threadPanelCollapsed: data["threadPanelCollapsed"] === "true",
@@ -157,17 +144,4 @@ export function applyAppearance(appearance: ui.AppearanceSettings | undefined, v
     .catch(() => undefined);
 }
 
-/** Names of the choices as the settings and the command palette show them. */
-export const schemeLabels: Record<SchemeName, string> = {
-  system: "System",
-  light: "Light",
-  dark: "Dark",
-};
-
 export const accentLabel = (name: AccentName): string => accents.find((a) => a.name === name)?.label ?? name;
-
-export const chatWidthLabels: Record<ChatWidthName, string> = {
-  comfortable: "Comfortable",
-  wide: "Wide",
-  full: "Full width",
-};
