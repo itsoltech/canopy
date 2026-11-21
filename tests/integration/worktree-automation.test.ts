@@ -11,6 +11,11 @@ import { eventually, failure } from "./support/gateway.ts";
 import { git, worktreeFixture } from "./support/worktrees.ts";
 import type { JsonObject } from "@canopy/domain";
 import { qualifyId } from "@canopy/domain/computers";
+import {
+  WORKTREE_CHECKOUT_DEADLINE,
+  WORKTREE_PREPARATION_TIMEOUT_MS,
+  WORKTREE_QUERY_TIMEOUT_MS,
+} from "@canopy/domain/worktree-timing";
 import type { ModelReply } from "../../apps/gateway/src/bots/types.ts";
 
 describe.skipIf(!dockerAvailable)("automation worktrees over gRPC", () => {
@@ -20,6 +25,7 @@ describe.skipIf(!dockerAvailable)("automation worktrees over gRPC", () => {
   let botCallPending = false;
   beforeAll(async () => {
     f = await worktreeFixture(dir, {
+      capabilities: [WORKTREE_CHECKOUT_DEADLINE],
       botModel: async (): Promise<ModelReply> => {
         if (!botCallPending) return { text: "Started", calls: [] };
         botCallPending = false;
@@ -136,9 +142,15 @@ describe.skipIf(!dockerAvailable)("automation worktrees over gRPC", () => {
       command.kind.case === "createWorktree" ? Promise.resolve(undefined) : handle(command),
     );
 
-    const gateway = spyOn(link, "sendCommand").mockImplementation((kind, timeout, ...rest) =>
-      send(kind, kind.case === "createWorktree" ? 50 : timeout, ...rest),
-    );
+    const gateway = spyOn(link, "sendCommand").mockImplementation((kind, timeout, ...rest) => {
+      if (kind.case !== "createWorktree") return send(kind, timeout, ...rest);
+      expect(timeout).toBe(WORKTREE_QUERY_TIMEOUT_MS);
+      const remaining = Number(kind.value.checkoutStartDeadlineMs) - Date.now();
+      expect(remaining).toBeGreaterThan(0);
+      expect(remaining).toBeLessThanOrEqual(WORKTREE_PREPARATION_TIMEOUT_MS);
+
+      return send(kind, 50, ...rest);
+    });
 
     try {
       const result = await f.callTool(parent.id, {

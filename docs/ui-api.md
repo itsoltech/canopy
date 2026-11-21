@@ -195,6 +195,8 @@ zwraca snapshot: prompt, projekt, kroki, wynikowy `threadId`, `done` i publiczny
 komunikat błędu. Obie odpowiedzi mają `no-store`. Klient odpytuje tylko trwające
 przygotowanie, co około 400 ms; odświeżenie widoku korzysta z tego samego zadania.
 Zamknięcie strony nie przerywa operacji na workerze.
+Zadanie BFF, które może utworzyć nowy worktree, czeka na wynik RPC do 345 s.
+[Limity worktree](worktrees.md).
 
 Szczegóły wykonania kroków mają prywatny, ograniczony cache procesu BFF.
 Zakończone wpisy cache'u wygasają po 15 minutach; restart BFF usuwa cache, a zmiana

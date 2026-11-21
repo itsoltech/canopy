@@ -1,7 +1,13 @@
 import { AsyncLocalStorage } from "node:async_hooks";
+import { addAbortListener } from "node:events";
 import { workerDiagnostics } from "../diagnostics/worker.ts";
 import { gitReadEnv, runGitScan, withoutGitHooks } from "./read-policy.ts";
 import type { GitFamily } from "@canopy/domain/diagnostics";
+import {
+  WORKTREE_CHECKOUT_TIMEOUT_MS,
+  WORKTREE_PREPARATION_TIMEOUT_MS,
+  WORKTREE_SETTLEMENT_TIMEOUT_MS,
+} from "@canopy/domain/worktree-timing";
 import {
   processGovernor,
   processKey,
@@ -12,7 +18,7 @@ import {
 
 const freshness = new AsyncLocalStorage<boolean>();
 export const freshGit = <T>(run: () => Promise<T>): Promise<T> => freshness.run(true, run);
-const deadline = new AsyncLocalStorage<AbortSignal>();
+const deadline = new AsyncLocalStorage<{ signal: AbortSignal; worktreeSettleBy?: number }>();
 
 /** Complete data recovery even after the original mutation deadline expires. */
 export const recoverGit = <T>(run: () => Promise<T>): Promise<T> => deadline.exit(run);
@@ -23,7 +29,49 @@ export function boundedGit<T>(expiresAt: bigint, run: () => Promise<T>): Promise
 
   if (remaining <= 0) throw new GitError("SWITCH_EXPIRED", "The Git operation expired. Try again.");
 
-  return deadline.run(AbortSignal.timeout(remaining), run);
+  return deadline.run({ signal: AbortSignal.timeout(remaining) }, run);
+}
+
+function worktreePreparationExpired(cause?: unknown): GitError {
+  return new GitError("GIT_BUSY", "The worker could not prepare the worktree in time. Try again.", { cause });
+}
+
+/** Bound pre-checkout work including time spent waiting behind another creation or for a Git slot. */
+export function prepareWorktreeGit<T>(startDeadlineMs: bigint, run: () => Promise<T>): Promise<T> {
+  if (startDeadlineMs === 0n) return run();
+  const remaining = Math.min(WORKTREE_PREPARATION_TIMEOUT_MS, Number(startDeadlineMs) - Date.now());
+
+  if (remaining <= 0) throw worktreePreparationExpired();
+  const signal = AbortSignal.timeout(remaining);
+
+  const worktreeSettleBy =
+    performance.now() + remaining + WORKTREE_CHECKOUT_TIMEOUT_MS + WORKTREE_SETTLEMENT_TIMEOUT_MS;
+
+  return deadline.run({ signal, worktreeSettleBy }, run);
+}
+
+/** Let verification and rollback run after preparation expires, within the time reserved for settlement. */
+export async function settleWorktreeGit<T>(run: () => Promise<T>): Promise<T> {
+  const worktreeSettleBy = deadline.getStore()?.worktreeSettleBy;
+
+  if (worktreeSettleBy === undefined) return recoverGit(run);
+  const remaining = Math.min(WORKTREE_SETTLEMENT_TIMEOUT_MS, Math.ceil(worktreeSettleBy - performance.now()));
+
+  if (remaining <= 0) throw new GitError("GIT_BUSY", "The worker could not finish the worktree in time.");
+
+  return deadline.run({ signal: AbortSignal.timeout(remaining), worktreeSettleBy }, run);
+}
+
+/** A queued request can expire while the preceding checkout still owns the repository slot. */
+export async function waitForWorktreeSlot(previous: Promise<void>): Promise<void> {
+  const signal = deadline.getStore()?.signal;
+
+  if (!signal) return previous;
+
+  if (signal.aborted) throw worktreePreparationExpired();
+  const expired = Promise.withResolvers<never>();
+  using _listener = addAbortListener(signal, () => expired.reject(worktreePreparationExpired()));
+  await Promise.race([previous, expired.promise]);
 }
 
 /**
@@ -76,11 +124,17 @@ export async function git(
   cwd: string,
   args: readonly string[],
   timeoutMs = GIT_TIMEOUT_MS,
-  input?: { text?: string; env?: Record<string, string>; maxBytes?: number },
+  input?: { text?: string; env?: Record<string, string>; maxBytes?: number; finishAfterAdmission?: boolean },
 ): Promise<GitResult> {
-  const signal = deadline.getStore();
+  const limit = deadline.getStore();
+  const signal = limit?.signal;
+  const worktree = limit?.worktreeSettleBy !== undefined;
 
-  if (signal?.aborted) throw new GitError("SWITCH_EXPIRED", "The Git operation expired. Try again.");
+  const expiry = worktree
+    ? worktreePreparationExpired
+    : (cause?: unknown) => new GitError("SWITCH_EXPIRED", "The Git operation expired. Try again.", { cause });
+
+  if (signal?.aborted) throw expiry();
 
   const read =
     !input?.text &&
@@ -107,7 +161,8 @@ export async function git(
       ? ["status", "--ignore-submodules=dirty", ...args.slice(1)]
       : ["diff", "--no-ext-diff", "--no-textconv", "--ignore-submodules=dirty", ...args.slice(1)];
 
-  const scanSignal = scan ? (signal ?? AbortSignal.timeout(timeoutMs)) : signal;
+  const processSignal = input?.finishAfterAdmission ? undefined : signal;
+  const scanSignal = scan ? (processSignal ?? AbortSignal.timeout(timeoutMs)) : processSignal;
 
   const command = {
     // git diff can refresh worktree index stat entries even with GIT_OPTIONAL_LOCKS=0.
@@ -147,6 +202,7 @@ export async function git(
       { ...command, ...(timing && { onStart: timing.start }) },
       {
         kind: "git",
+        ...(worktree && signal && { signal }),
         ...(read && !freshness.getStore() && { key: processKey(command), ttlMs: 1_000 }),
       },
     );
@@ -155,8 +211,8 @@ export async function git(
 
     return { ok: result.code === 0, stdout: result.stdout, stderr: result.stderr };
   } catch (error) {
-    if (signal?.aborted)
-      throw new GitError("SWITCH_EXPIRED", "The Git operation expired. Try again.", { cause: error });
+    if (signal?.aborted && (!input?.finishAfterAdmission || !(error instanceof ProcessTimeoutError)))
+      throw expiry(error);
 
     if (error instanceof ProcessBusyError) throw new GitError("GIT_BUSY", error.message);
 

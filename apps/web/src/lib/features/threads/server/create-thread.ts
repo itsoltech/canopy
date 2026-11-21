@@ -1,5 +1,6 @@
 import { redirect } from "@sveltejs/kit";
 import type { ui } from "@canopy/contracts";
+import { threadCreationMayCheckout, WORKTREE_CLIENT_TIMEOUT_MS } from "@canopy/domain/worktree-timing";
 import { attempt, failed } from "#lib/server/gateway.ts";
 import { parseThreadForm } from "./thread-form.ts";
 
@@ -14,7 +15,8 @@ export async function createThreadFromForm(
   const request = parseThreadForm(form, action, target);
 
   if (failed(request)) return request;
-  const result = await attempt(action, (api) => api.createThread(request, { timeoutMs: 100_000 }));
+  const timeoutMs = threadCreationMayCheckout(request) ? WORKTREE_CLIENT_TIMEOUT_MS : 100_000;
+  const result = await attempt(action, (api) => api.createThread(request, { timeoutMs }));
 
   if (failed(result)) return result;
   redirect(303, `/threads/${result.thread?.id}`);

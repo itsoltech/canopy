@@ -3,6 +3,7 @@ import * as Crypto from "expo-crypto";
 import { router } from "expo-router";
 import { Code, ConnectError } from "@connectrpc/connect";
 import { splitId } from "@canopy/domain/computers";
+import { WORKTREE_CLIENT_TIMEOUT_MS } from "@canopy/domain/worktree-timing";
 import type { GitRefs, ui } from "@canopy/contracts";
 import { useSession } from "../../state/session";
 import { useOverview } from "../../state/overview";
@@ -111,7 +112,7 @@ export function useWorktreeContinuation(thread: ui.Thread) {
     try {
       const result = await client.api.continueThreadInWorktree(
         { threadId: thread.id, ...intent },
-        { timeoutMs: 130_000 },
+        { timeoutMs: WORKTREE_CLIENT_TIMEOUT_MS },
       );
 
       if (!result.thread) throw new Error("Missing continued thread");

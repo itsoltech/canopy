@@ -2,6 +2,12 @@ import type { CreationProgress } from "../core/thread-progress.ts";
 import { create } from "@bufbuild/protobuf";
 import { timestampFromDate } from "@bufbuild/protobuf/wkt";
 import { ui } from "@canopy/contracts";
+import {
+  LEGACY_WORKTREE_QUERY_TIMEOUT_MS,
+  WORKTREE_CHECKOUT_DEADLINE,
+  WORKTREE_PREPARATION_TIMEOUT_MS,
+  WORKTREE_QUERY_TIMEOUT_MS,
+} from "@canopy/domain/worktree-timing";
 import type { WorktreeRow } from "../store/index.ts";
 import { isAbsolutePath, isWithinWorkspace, normalizePath, pathStyle } from "../store/paths.ts";
 import { coreState, InvalidError, UnavailableError } from "../core/core-context.ts";
@@ -16,9 +22,6 @@ import { selectWorktree, mergeWorktrees } from "./discovery.ts";
 /** Git worktrees in the gateway (docs/worktrees.md): settings scopes, refs for the composer, new worktrees. */
 
 const REFS_TIMEOUT_MS = 20_000;
-
-/** Creating may fetch first (20 s on the worker) and check out a large tree. */
-const CREATE_TIMEOUT_MS = 90_000;
 
 /** The owner's workspace and its project; a workspace of someone else's project is not found. */
 export async function ownWorkspace(hostContext: GatewayCore, workspaceId: string) {
@@ -123,6 +126,7 @@ async function createWorktree(
   const semantic = settings.branchNaming === ui.BranchNaming.SEMANTIC;
 
   const detailed = connection?.hello.capabilities.includes("worktree_progress_v1");
+  const extended = connection?.hello.capabilities.includes(WORKTREE_CHECKOUT_DEADLINE);
 
   if (!detailed) progress?.("create_worktree", "running");
 
@@ -138,9 +142,10 @@ async function createWorktree(
         location: settings.location ?? "",
         startFromRemote: settings.startFromRemote ?? false,
         remote: settings.remote ?? "origin",
+        ...(extended && { checkoutStartDeadlineMs: BigInt(Date.now() + WORKTREE_PREPARATION_TIMEOUT_MS) }),
       },
     },
-    CREATE_TIMEOUT_MS,
+    extended ? WORKTREE_QUERY_TIMEOUT_MS : LEGACY_WORKTREE_QUERY_TIMEOUT_MS,
     {
       ...(scheduledId && { commandId: `schedule-worktree/${scheduledId}` }),
       queryProgress: (event) => {

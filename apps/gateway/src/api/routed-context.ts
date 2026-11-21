@@ -1,5 +1,14 @@
-import { clone, type DescMessage, type DescMethod, type Message, type MessageInitShape } from "@bufbuild/protobuf";
+import {
+  clone,
+  isMessage,
+  type DescMessage,
+  type DescMethod,
+  type Message,
+  type MessageInitShape,
+} from "@bufbuild/protobuf";
 import { Code, ConnectError, type HandlerContext } from "@connectrpc/connect";
+import { ui } from "@canopy/contracts";
+import { threadCreationMayCheckout, WORKTREE_PEER_TIMEOUT_MS } from "@canopy/domain/worktree-timing";
 import type { GatewayCore } from "../core/core.ts";
 import { mapMoveIds } from "../computers/redirect-ids.ts";
 import { nodesOf } from "../computers/remote.ts";
@@ -16,8 +25,17 @@ import { PEER_READ_TIMEOUT_MS, PEER_MUTATION_TIMEOUT_MS, PEER_LONG_CALL_TIMEOUTS
 export const UNARY_TIMEOUT_MS = PEER_MUTATION_TIMEOUT_MS;
 
 /** Calls that may outlast the usual limit at their home: a clone waits for git (docs/linked-computers.md). */
-export const unaryTimeout = (method: DescMethod): number =>
-  PEER_LONG_CALL_TIMEOUTS.get(method.name) ?? (READS.has(method.name) ? PEER_READ_TIMEOUT_MS : UNARY_TIMEOUT_MS);
+export function unaryTimeout(method: DescMethod, request?: Message): number {
+  if (
+    method.name === "ContinueThreadInWorktree" ||
+    (method.name === "CreateThread" &&
+      isMessage(request, ui.CreateThreadRequestSchema) &&
+      threadCreationMayCheckout(request))
+  )
+    return WORKTREE_PEER_TIMEOUT_MS;
+
+  return PEER_LONG_CALL_TIMEOUTS.get(method.name) ?? (READS.has(method.name) ? PEER_READ_TIMEOUT_MS : UNARY_TIMEOUT_MS);
+}
 
 /** Administration stays on this computer; worktree errors explain where to open the workspace. */
 export function refuseForeignAdministration(method: DescMethod, request: Message): void {

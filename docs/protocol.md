@@ -974,10 +974,15 @@ Wyszukiwanie plików jest własne workera (nie Codexowe `fuzzyFileSearch`), bo m
 
 ## Git worktrees
 
-Status (2026-11-19): zaimplementowano sprzątanie scalonych lokalnych gałęzi po archiwizacji.
+Status (2026-11-21): zaimplementowano wydłużony limit checkoutu oraz sprzątanie scalonych lokalnych gałęzi po archiwizacji.
 Dostępność w kanałach zależy od [promocji wydania](release.md).
 
 Capability `worktrees` i `Hello.worktrees_root` (`~/canopy/worktrees`, `CANOPY_WORKTREES_ROOT` albo `<data_dir>/worktrees`, zob. [worktrees.md](worktrees.md#położenie)): nietrwałe komendy `ListGitRefs` (210), `CreateWorktree` (211) i `RenameWorktreeBranch` (212), wyniki w `CommandResult.git_refs` / `worktree`. Worker sam liczy ścieżkę worktree pod korzeniem i uruchamia gita bez powłoki. Starszy worker bez capability nie dostaje tych komend. Bez zmiany `WORKER_LINK_PROTOCOL`. Szczegóły: [worktrees.md](worktrees.md).
+
+Przy capability `worktree_checkout_deadline_v1` gateway wysyła `CreateWorktree.checkout_start_deadline_ms`
+(7, czas Unix w milisekundach) z terminem rozpoczęcia checkoutu. Worker ogranicza przygotowanie
+i kolejkę do tego terminu i najwyżej 35 s od odebrania komendy. Uruchomiony Git ma 240 s.
+Brak pola zachowuje limit 60 s dla zgodności ze starszym gatewayem.
 
 Capability `worktree_lifecycle`: nietrwałe `ScanWorktrees` (213), `RevealWorktree` (215) i trwałe
 `RemoveWorktree` (214). Status obejmuje HEAD, ahead/behind, pliki dirty, niewypchnięte commity,

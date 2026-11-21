@@ -10,6 +10,7 @@
     "./connector-session": "./src/connector-session.ts",
     "./thread-scroll": "./src/thread-scroll.ts",
     "./workspace": "./src/workspace.ts",
+    "./worktree-timing": "./src/worktree-timing.ts",
     "./workspace-copy-jobs": "./src/workspace-copy-jobs.ts",
     "./workspace-modules": "./src/workspace-modules.ts",
     "./workspace-file": "./src/workspace-file.ts",

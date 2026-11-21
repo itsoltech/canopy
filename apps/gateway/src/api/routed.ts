@@ -104,7 +104,7 @@ export function routed(core: GatewayCore, local: UiHandlers): UiHandlers {
                   home,
                   method,
                   request,
-                  AbortSignal.any([context.signal, AbortSignal.timeout(unaryTimeout(method))]),
+                  AbortSignal.any([context.signal, AbortSignal.timeout(unaryTimeout(method, request))]),
                 ),
               ),
             );

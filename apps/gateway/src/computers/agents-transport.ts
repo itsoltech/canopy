@@ -221,7 +221,7 @@ export const agentsTransportMethods: AgentsTransportMethods = {
       node,
       method,
       outbound,
-      signal ?? AbortSignal.timeout(unaryTimeout(method)),
+      signal ?? AbortSignal.timeout(unaryTimeout(method, outbound)),
     )) {
       qualify(output, result, node);
       await ids.map(output, result, "toLocal");

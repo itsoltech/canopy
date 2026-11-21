@@ -167,7 +167,9 @@ Po zerwaniu strumienia lub restarcie klient odczytuje `GetComposerDraftDelivery`
 z trwałego requestu i sprawdza aktywną operację co 3 sekundy. Nie wysyła ponownie
 niepotwierdzonego tworzenia. Dla wysyłki powiązanej ze szkicem gateway utrzymuje
 przygotowanie i rozliczenie potwierdzenia niezależnie od subskrypcji telefonu,
-z własnym limitem oczekiwania 120 s, także na połączonym komputerze.
+z własnym limitem oczekiwania 335 s, gdy tworzenie może wymagać checkoutu, lub 120 s
+w pozostałych przypadkach. Zasada obejmuje połączone komputery. Klient czeka na
+tworzenie wymagające checkoutu do 345 s. [Limity worktree](worktrees.md).
 Potwierdzenie zwraca `threadId` w tym samym odczycie, bez ponownego RPC tworzenia;
 utracone statusy pośrednie nie udają zakończonych kroków. Niepewny wynik i błąd
 zachowują prompt oraz akcję

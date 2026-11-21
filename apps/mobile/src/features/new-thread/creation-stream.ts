@@ -1,5 +1,6 @@
 import { create } from "@bufbuild/protobuf";
 import { ui } from "@canopy/contracts";
+import { threadCreationMayCheckout, WORKTREE_CLIENT_TIMEOUT_MS } from "@canopy/domain/worktree-timing";
 import { Code, ConnectError, type Client } from "@connectrpc/connect";
 
 /** Failures before admission are definitive; start/settlement failures still need reconciliation. */
@@ -16,9 +17,13 @@ export async function streamThreadCreation(
   signal: AbortSignal,
 ) {
   let received = false;
+  const worktree = threadCreationMayCheckout(request);
 
   try {
-    for await (const event of api.createThreadWithProgress(request, { signal, timeoutMs: 110_000 })) {
+    for await (const event of api.createThreadWithProgress(request, {
+      signal,
+      timeoutMs: worktree ? WORKTREE_CLIENT_TIMEOUT_MS : 110_000,
+    })) {
       received = true;
       progress(event);
 
@@ -32,7 +37,11 @@ export async function streamThreadCreation(
   } catch (cause) {
     if (received || ConnectError.from(cause).code !== Code.Unimplemented) throw cause;
     progress(create(ui.CreateThreadProgressSchema, { step: "start_thread", label: "Start thread", status: "running" }));
-    const result = await api.createThread(request, { signal, timeoutMs: 100_000 });
+
+    const result = await api.createThread(request, {
+      signal,
+      timeoutMs: worktree ? WORKTREE_CLIENT_TIMEOUT_MS : 100_000,
+    });
 
     if (result.thread)
       progress(

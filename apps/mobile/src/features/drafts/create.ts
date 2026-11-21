@@ -1,5 +1,6 @@
 import { create } from "@bufbuild/protobuf";
 import { ui } from "@canopy/contracts";
+import { threadCreationMayCheckout, WORKTREE_CLIENT_TIMEOUT_MS } from "@canopy/domain/worktree-timing";
 import { Code, ConnectError, type Client } from "@connectrpc/connect";
 import type { MobileComposerState } from "./store";
 import { uncertainDelivery } from "../threads/pending-message";
@@ -8,7 +9,10 @@ export async function createFromDraft(
   api: Client<typeof ui.GatewayService>,
   draft: MobileComposerState | undefined,
   request: ui.CreateThreadRequest,
-  send = (outgoing: ui.CreateThreadRequest) => api.createThread(outgoing, { timeoutMs: 100_000 }),
+  send = (outgoing: ui.CreateThreadRequest) =>
+    api.createThread(outgoing, {
+      timeoutMs: threadCreationMayCheckout(outgoing) ? WORKTREE_CLIENT_TIMEOUT_MS : 100_000,
+    }),
 ) {
   if (draft?.preparing)
     throw new ConnectError("Wait for the draft to finish loading, then retry.", Code.FailedPrecondition);
