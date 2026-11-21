@@ -270,7 +270,7 @@ function SidebarStatus({
     >
       {meaningful && <SidebarActivity thread={activity} away={away} groupedProject />}
       <Swap value={value} style={{ flex: 1, minWidth: 0 }}>
-        <SidebarThreadStatus thread={thread} label={label} />
+        <SidebarThreadStatus thread={thread} label={label} hasWorkingSpinner={!groupedProject} />
       </Swap>
     </View>
   );
