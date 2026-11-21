@@ -2,7 +2,7 @@ import { useCallback } from "react";
 import { Text } from "react-native";
 import type { ui } from "@canopy/contracts";
 import { formatAge } from "@canopy/domain/format";
-import { threadRowLabel, workState } from "@canopy/domain/thread-activity";
+import { activityOf, threadRowLabel, workState } from "@canopy/domain/thread-activity";
 import { useTimeLabel } from "../../ui/time";
 import { useColors } from "../../ui/theme";
 import { useSidebarTypography } from "./sidebar-scale";
@@ -12,18 +12,27 @@ export function SidebarThreadStatus({
   thread,
   label,
   previous = false,
+  hasWorkingSpinner = false,
 }: {
   thread: ui.Thread;
   label?: string;
   previous?: boolean;
+  hasWorkingSpinner?: boolean;
 }) {
   const c = useColors();
   const type = useSidebarTypography();
   const state = workState(thread);
 
   const format = useCallback(
-    (now: number) => label ?? (previous ? formatAge(thread.archivedAt, now) : threadRowLabel(thread, now)),
-    [thread, label, previous],
+    (now: number) => {
+      if (label !== undefined) return label;
+
+      if (previous) return formatAge(thread.archivedAt, now);
+      const age = hasWorkingSpinner && state === "running" ? formatAge(activityOf(thread), now) : "";
+
+      return age || threadRowLabel(thread, now);
+    },
+    [thread, label, previous, hasWorkingSpinner, state],
   );
 
   const timed =

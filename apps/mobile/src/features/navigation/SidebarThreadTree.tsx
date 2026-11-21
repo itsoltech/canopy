@@ -183,7 +183,12 @@ function SidebarSideThread({ thread, previous = false }: { thread: ui.Thread; pr
         {thread.title || "Untitled thread"}
       </Text>
       <View style={{ width: 96 }}>
-        <SidebarThreadStatus thread={thread} label={home.away ? "Read-only" : undefined} previous={previous} />
+        <SidebarThreadStatus
+          thread={thread}
+          label={home.away ? "Read-only" : undefined}
+          previous={previous}
+          hasWorkingSpinner
+        />
       </View>
       <SidebarUnread unread={thread.markedUnread} />
     </Pressable>

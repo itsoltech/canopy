@@ -1,6 +1,8 @@
 # Canopy na iOS i Android
 
-Status: opis zaimplementowanego kodu (2026-11-20). Aplikacja używa Expo SDK 58.0.26.
+Status: opis zaimplementowanego kodu (2026-11-21). Aplikacja używa Expo SDK 58.0.26.
+Na liście wątków wiersze z pierścieniem pracy pokazują sam czas jej trwania.
+Wiersze bez pierścienia zachowują etykietę „Working”.
 W wiadomościach agenta i rozwiniętym rozumowaniu można zaznaczyć fragment do skopiowania lub zacytowania.
 Właściciel może potwierdzić Full access dla zadania uruchamiającego nowy wątek przy każdym wykonaniu.
 Gest przewijania wątku doczytuje najwyżej jedną stronę historii. Przy zgodnych
@@ -2081,8 +2083,9 @@ Callback klatek rejestruje się dopiero po aktywacji przeciągania i wyłącza p
 zakończeniu lub anulowaniu. Sam wybrany tryb Custom nie utrzymuje zegara UI;
 spóźniony start po zakończeniu gestu ponownie sprawdza aktywny wiersz.
 
-Etykieta „Working 1m” używa tego samego `workingLabel` i `formatAge` z domain co web:
-czas pochodzi z `lastActivityAt`, z fallbackiem do `createdAt`. Tytuł i metadane
+Wiersz z pierścieniem pracy pokazuje po prawej sam czas, np. „10m”. Wiersze grupowane
+bez pierścienia i etykiety dostępności zachowują pełne „Working 10m”. Czas z `formatAge`
+pochodzi z `lastActivityAt`, a w razie jego braku z `createdAt`. Tytuł i metadane
 zachowują zwykły kontrast; sam stan pracy nie dodaje tła. W szerokim układzie tło
 zaznaczenia wskazuje tylko otwarty wątek, także podczas pracy. Pierścień pracy
 dzieli geometrię i kolory z web (`@canopy/ui/thread-row`); animacja Reanimated
