@@ -121,6 +121,8 @@ export interface ScriptedWorkerOptions {
   readonly tracing?: WorkerTracing;
   readonly logs?: LogPullSource;
   readonly secretsDataDir?: string;
+  /** Restore the worker's existing journal sequence when the same worker reconnects. */
+  readonly resumeJournal?: boolean;
   /** Report Claude as available (default: only Codex). */
   readonly claude?: boolean;
   /** Its model catalog (default SCRIPTED_MODELS: Codex only). */
@@ -190,6 +192,10 @@ export class ScriptedWorker {
   ) {
     this.models = options.models ?? SCRIPTED_MODELS;
     this.secrets = options.secretsDataDir ? new ThreadSecretFiles(options.secretsDataDir) : undefined;
+
+    if (options.resumeJournal)
+      for (const { threadId, lastSeq } of link.welcome.persisted) this.#seq.set(threadId, lastSeq);
+
     void this.#loop().catch((error) => {
       // The test closed the link while a command was on its way: like a worker that went away, the reply is lost.
       if (ConnectError.from(error).code !== Code.Unavailable) throw error;

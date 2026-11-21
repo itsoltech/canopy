@@ -306,11 +306,12 @@ async function receiveHandshake(
     connection.remote = new RemoteCalls({
       send: (f, grant) => connection.send(f, grant),
       write: (f, signal, grant) => connection.write(f, signal, grant),
-      serve: (method, request, signal, _, route) =>
-        rpcMessages(
-          computersServeRemote(hostContext, nodeId, connection, method, request, signal, route),
-          registered(method, "home").id,
-        ),
+      serve: (method, request, signal, _, route) => {
+        const messages = computersServeRemote(hostContext, nodeId, connection, method, request, signal, route);
+        const admitted = hostContext.relocation?.guardLinkCall(method, request, messages) ?? messages;
+
+        return rpcMessages(admitted, registered(method, "home").id);
+      },
       name: () => hostContext[computersState].names.get(nodeId) ?? "The other computer",
       allowed: async () => Boolean(await hostContext.store.peer(nodeId)),
       responseSignal: (method) =>

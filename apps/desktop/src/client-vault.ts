@@ -4,6 +4,7 @@ import { join } from "node:path";
 import { toJsonString } from "@bufbuild/protobuf";
 import { ui } from "@canopy/contracts";
 import { configuration } from "./runtime/config.ts";
+import { writePrivateFile } from "./runtime/private-file.ts";
 import {
   credentialMessage,
   pairDesktop,
@@ -13,12 +14,28 @@ import {
   type RemoteConfiguration,
 } from "./remote-client.ts";
 
-async function keychain() {
+export async function keychain() {
   if (
     !(await safeStorage.isAsyncEncryptionAvailable()) ||
     (process.platform === "linux" && safeStorage.getSelectedStorageBackend() === "basic_text")
   )
     throw new Error("Unlock your OS keychain and reopen Canopy to pair this app");
+}
+
+export async function saveRemoteClient(
+  directory: string,
+  config: RemoteConfiguration,
+  client: DesktopClientCredential,
+) {
+  await keychain();
+  const folder = remoteWorkerDirectory(directory, config);
+
+  const sealed = await safeStorage.encryptStringAsync(
+    toJsonString(ui.ExchangeMobilePairingResponseSchema, credentialMessage(client)),
+  );
+
+  mkdirSync(folder, { recursive: true, mode: 0o700 });
+  writePrivateFile(join(folder, "desktop-client.enc"), sealed);
 }
 
 /** Electron main only. No plaintext credential is persisted or returned through renderer IPC. */
@@ -35,13 +52,7 @@ export async function remoteClient(
     await keychain();
     const client = await pairDesktop(invitation);
 
-    const sealed = await safeStorage.encryptStringAsync(
-      toJsonString(ui.ExchangeMobilePairingResponseSchema, credentialMessage(client)),
-    );
-
-    mkdirSync(folder, { recursive: true, mode: 0o700 });
-    writeFileSync(`${file}.new`, sealed, { mode: 0o600 });
-    renameSync(`${file}.new`, file);
+    await saveRemoteClient(directory, config, client);
 
     return client;
   }

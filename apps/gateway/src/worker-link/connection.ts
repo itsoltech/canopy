@@ -94,6 +94,10 @@ export class WorkerConnection {
     return !this.#outbound.closed;
   }
 
+  get idle(): boolean {
+    return this.#pending.size === 0 && this.#unpersisted.size === 0 && this.#inbound.queuedItems === 0;
+  }
+
   hasUnpersistedEvents(threadId: string): boolean {
     return this.#unpersisted.has(threadId);
   }

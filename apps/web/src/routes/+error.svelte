@@ -3,6 +3,7 @@
   import { page } from "$app/state";
   import { invalidateAll } from "$app/navigation";
   import GatewayUnavailable from "#lib/shared/ui/GatewayUnavailable.svelte";
+  import MigrationRecoveryLink from "#lib/features/desktop/migration/MigrationRecoveryLink.svelte";
   import Crumb from "#lib/features/navigation/Crumb.svelte";
   import TopBar from "#lib/features/navigation/TopBar.svelte";
   import Button from "#lib/shared/ui/Button.svelte";
@@ -82,7 +83,9 @@
           {retrying}
           title={reconnecting ? "Reconnecting…" : "Can't reach the gateway"}
           description={reconnecting ? "Canopy keeps your work." : undefined}
-        />
+        >
+          {#snippet actions()}<MigrationRecoveryLink />{/snippet}
+        </GatewayUnavailable>
       {/if}
     </div>
   {:else}

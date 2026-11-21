@@ -47,6 +47,7 @@ async function smoke() {
   ipcMain.handle("canopy:routes-ready", () => undefined);
   ipcMain.handle("canopy:updates", () => undefined);
   ipcMain.handle("canopy:app-update-history", () => []);
+  ipcMain.handle("canopy:migration-status", () => ({ phase: "idle" }));
 
   const session = new DesktopWebSession(() => origin, token);
   session.attach(target.webContents.session, () => [target.webContents]);
@@ -65,11 +66,15 @@ async function smoke() {
     await appearanceWritten.promise;
     assert.equal(readFileSync(cache, "utf8"), saved, "An offline reload must preserve the persisted desktop scheme");
 
-    await target.loadURL(origin + "/desktop");
-    assert.equal(
-      await target.webContents.executeJavaScript("getComputedStyle(document.documentElement).backgroundColor"),
-      expected,
-    );
+    for (const path of ["/desktop", "/desktop/migration"]) {
+      await target.loadURL(origin + path);
+
+      assert.equal(
+        await target.webContents.executeJavaScript("getComputedStyle(document.documentElement).backgroundColor"),
+        expected,
+        path,
+      );
+    }
   } finally {
     target.destroy();
   }

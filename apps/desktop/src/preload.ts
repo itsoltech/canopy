@@ -26,6 +26,14 @@ function subscribe<T>(channel: string, listener: (data: T) => void) {
 }
 
 const bridge: DesktopBridge = {
+  gatewayMigration: {
+    status: () => ipcRenderer.invoke("canopy:migration-status"),
+    prepare: (input) => ipcRenderer.invoke("canopy:migration-prepare", input),
+    activate: (approval, selectedPeerIds) =>
+      ipcRenderer.invoke("canopy:migration-activate", { approval, selectedPeerIds }),
+    recover: () => ipcRenderer.invoke("canopy:migration-recover"),
+    abort: () => ipcRenderer.invoke("canopy:migration-abort"),
+  },
   openPreviewWindow: (path) => ipcRenderer.invoke("canopy:open-preview-window", path),
   openAgentHtml: (specJson, title) => ipcRenderer.invoke("canopy:agent-html-open", specJson, title),
   startAgentHtml: (input) => ipcRenderer.invoke("canopy:agent-html-start", input),

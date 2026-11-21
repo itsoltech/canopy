@@ -129,9 +129,9 @@ autorytatywny zapis pozostaje w gateway i bazie, nie w localStorage.
 Desktop przechowuje wyłącznie `{ scheme, light, dark }` w opcjonalnym
 `appearance-cache.json` w userData. Walidowane IPC wymaga zaufanego nadawcy;
 preload udostępnia odczyt startowy. Powłoka nakłada ten cache przed renderem,
-gdy dokument nie otrzymał ustawień z gatewaya. Dotyczy to ekranu `/desktop`
-i przeładowania aplikacji przy niedostępnym gatewayu. Po połączeniu obowiązują
-ustawienia gatewaya. Main ustawia tło okna i nativeTheme, a na Linux/Windows
+gdy dokument nie otrzymał ustawień z gatewaya. Dotyczy to ekranów `/desktop`
+i `/desktop/migration` oraz przeładowania aplikacji przy niedostępnym gatewayu.
+Po połączeniu obowiązują ustawienia gatewaya. Main ustawia tło okna i nativeTheme, a na Linux/Windows
 także tło i kolor symboli natywnej
 nakładki paska tytułu. Zmiana preferencji systemowej aktualizuje chrom okna.
 Błąd zapisu opcjonalnego cache nie blokuje zmiany aktywnego wyglądu.

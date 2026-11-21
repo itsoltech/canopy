@@ -14,6 +14,7 @@
 
   let { children }: LayoutProps = $props();
   let lastSettings = "/settings";
+  const desktopStandalone = $derived(page.url.pathname === "/desktop" || page.url.pathname === "/desktop/migration");
   const previewWindow = $derived(page.route.id === "/threads/[threadId]/preview");
 
   /** Windows and Linux: the window has no native buttons, the app draws them. */
@@ -22,7 +23,7 @@
   $effect(() => {
     const path = (page.shallow?.url ?? page.url).pathname;
 
-    if (isDesktopRoute(path)) lastSettings = path;
+    if (path.startsWith("/settings") && isDesktopRoute(path)) lastSettings = path;
   });
 
   // A file dropped outside a drop target never replaces the app (browser tab or desktop window).
@@ -38,14 +39,16 @@
     if (!bridge?.onOpenRoute) return;
 
     const unsubscribe = bridge.onOpenRoute((path) => {
-      if (page.url.pathname === "/desktop" || !isDesktopRoute(path)) return;
+      if (desktopStandalone || !isDesktopRoute(path)) return;
 
       void goto(path === "/settings" ? lastSettings : path);
     });
 
-    if (page.url.pathname !== "/desktop") void bridge.readyForRoutes?.();
-
     return unsubscribe;
+  });
+
+  $effect(() => {
+    if (!desktopStandalone) void window.canopyDesktop?.readyForRoutes?.();
   });
 
   onMount(() => {
@@ -80,7 +83,7 @@
   });
 </script>
 
-{#if page.url.pathname === "/desktop" || previewWindow}
+{#if desktopStandalone || previewWindow}
   {@render children()}
 {:else}
   <AppShell>{@render children()}</AppShell>

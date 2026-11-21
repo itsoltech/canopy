@@ -24,7 +24,9 @@ ma budżet 64 MiB, a kontroler ustala origin formularzy osobno dla każdego żą
 Aktualizacje Nightly mają własny feed. Updater sprawdza historię kodu każdego
 kandydata przed pobraniem.
 Tryb Local przypina certyfikat własnego gatewaya, używa osobnej roli PostgreSQL
-i sprawdza pochodzenie żądania otwarcia pliku w aplikacji systemowej.
+i sprawdza pochodzenie żądania otwarcia pliku w aplikacji systemowej. Kreator
+przenoszenia gatewaya koordynuje próbę odtworzenia, blokadę lokalnego startu,
+przełączenie na Remote oraz osobne dołączenie do wspólnego serwera.
 Dostępność w nightly/beta/stable określają [zasady wydań](release.md) i GitHub Releases.
 
 Implementacja: `apps/desktop`. Cele wydania na każdym kanale: **Linux x64,
@@ -300,9 +302,10 @@ Pełne palety Light / Dark z Settings → Appearance obejmują też tło okna.
 Main zachowuje opcjonalny `appearance-cache.json` w userData (wyłącznie nazwy
 motywów i schemat), aby dobrać tło przed utworzeniem BrowserWindow. Preload
 odczytuje go przez walidowane synchroniczne IPC. Przed pierwszym renderem
-ekran `/desktop` oraz powłoka aplikacji bez ustawień z gatewaya stosują te same
-tokeny co okno. Po połączeniu ustawienia właściciela z gatewaya mają pierwszeństwo
-i aktualizują cache oraz okno. Błąd zapisu cache nie blokuje zmiany kolorów.
+ekrany `/desktop` i `/desktop/migration` oraz powłoka aplikacji bez ustawień
+z gatewaya stosują te same tokeny co okno. Po połączeniu ustawienia właściciela
+z gatewaya mają pierwszeństwo i aktualizują cache oraz okno. Błąd zapisu cache
+nie blokuje zmiany kolorów.
 Szczegóły kontraktu i pomiarów opisuje [appearance.md](appearance.md).
 
 Linux i Windows używają `titleBarStyle: hidden` bez natywnego overlay. Minimize,
@@ -588,6 +591,38 @@ Kopię zapasową katalogu danych wykonuj po zamknięciu aplikacji. `secrets.enc`
 związany z magazynem kluczy użytkownika/OS; samo skopiowanie go na inny komputer
 nie zapewnia możliwości odszyfrowania bazy sekretów gatewaya. Przed zmianą głównej
 wersji PostgreSQL potrzebny jest eksport i jawna procedura migracji.
+
+## Migracja gatewaya Local
+
+W **Settings → Desktop** otwórz **Migrate gateway**. Operator najpierw przygotowuje
+host zgodnie z [instrukcją wdrożenia](deploy.md), w tym adresy Network access
+używane po przełączeniu. Podaj nazwę hosta SSH, alias z konfiguracji SSH lub
+adres w formie `user@host`. Klucz hosta musi być wcześniej zaufany w OpenSSH,
+a logowanie ma działać bez interakcji. Desktop używa zainstalowanych narzędzi
+`psql` i `pg_dump` w wersji co najmniej takiej jak główna wersja lokalnego
+PostgreSQL. Zwykły start Local nie wymaga tych narzędzi.
+
+Próba odtworzenia działa na odizolowanej bazie po stronie celu. Przy właściwym
+przełączeniu kontroler utrwala blokadę startu i czeka, aż gateway zakończy
+przyjmowanie zadań i sam zamknie się po opróżnieniu pracy. Kontroler czeka
+na wyjście lokalnego workera, sprawdza blokadę w PostgreSQL, wykonuje końcowy
+eksport i czeka na potwierdzenie celu. Przerwana migracja jest widoczna na
+ekranie startowym. Przed zatwierdzeniem można wycofać operację po potwierdzeniu
+przez cel. Po zatwierdzeniu kontroler sprawdza stan celu i kontynuuje
+odzyskiwanie z zatrzymanym źródłem.
+
+Tryb Remote używa osobnego poświadczenia klienta przechowywanego przez magazyn
+kluczy systemu. Worker zachowuje ID, poświadczenie, dziennik i istniejące
+katalogi sesji. Klucz szyfrowania przenoszonego gatewaya jest wysyłany
+przez uwierzytelnione SSH z prywatnego kontrolera. Renderer widzi stan,
+czasy i publiczne adresy.
+
+Dołączenie kolejnego Desktopu uruchamia się osobno na tym komputerze,
+również gdy wróci do sieci później. Kontroler przekazuje dane należące do
+gatewaya tego komputera, a przed importem użytkownik lokalnie zatwierdza
+końcowy raport, rozstrzyga konflikty i zezwala na przekazanie wybranych
+sekretów. Zmiana raportu wymaga ponownej zgody. Klucz szyfrowania dołączanego
+gatewaya pozostaje na źródle.
 
 ## Build i uruchomienie
 

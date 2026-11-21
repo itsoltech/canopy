@@ -36,6 +36,8 @@ import { embeddedWebOrigin, embeddedWebWanted } from "./web/config.ts";
 import { EmbeddedWebServer } from "./web/server.ts";
 import { WebClientVersions } from "./web/clients.ts";
 import { gatewayStorageOptions } from "./diagnostics/storage-roots.ts";
+import { coreState } from "./core/core-context.ts";
+import { RelocationRuntime, StartupFenced } from "./migration/relocation-fence-runtime.ts";
 
 const env = Bun.env;
 
@@ -85,11 +87,24 @@ const logDirectory = runtimeLogDirectory("gateway", env);
 
 installLogWriter("gateway", logDirectory, [serviceToken, databaseUrl(env), env["CANOPY_SECRETS_KEY"] ?? ""]);
 
+function startupRejected(error: Error): never {
+  console.error(
+    error instanceof StartupFenced
+      ? error.message
+      : "Could not verify the gateway relocation fence at startup. Check PostgreSQL and apply migration 0188.",
+  );
+  process.exit(1);
+}
+
+const relocation = await RelocationRuntime.open(env).catch(startupRejected);
+
 if ((env["CANOPY_MIGRATE"] ?? "1") === "1") {
   const applied = await migrateDatabase(runtime, env);
 
   if (applied.length > 0) console.info(`migrations applied: ${applied.join(", ")}`);
 }
+
+await relocation.assertReady().catch(startupRejected);
 
 // Single development user until authentication lands (docs/ui-api.md).
 const userId = await ensureDevUser(runtime, env["CANOPY_DEV_USER_EMAIL"] ?? "dev@localhost");
@@ -99,6 +114,7 @@ await runtime.runPromise(initializeModuleExecution(userId));
 const core = new GatewayCore({
   role: gatewayRole(env),
   runtime,
+  relocation,
   diagnosticsStorage: gatewayStorageOptions(env, {
     logs: logDirectory,
     spool: () => core.diagnostics.logs.directory,
@@ -124,6 +140,7 @@ const core = new GatewayCore({
     ...(env["CANOPY_UPDATE_CACHE_DIR"] && { cacheDir: env["CANOPY_UPDATE_CACHE_DIR"] }),
     channel: env["CANOPY_UPDATE_CHANNEL"] ?? "stable",
     restart: async (exitCode = UPDATE_RESTART_EXIT_CODE) => {
+      // The executable is already staged. Startup checks the durable fence before serving.
       await stop("updating");
       process.exit(exitCode);
     },
@@ -173,97 +190,217 @@ const network = new NetworkAccess({
 
 core.network = network;
 
-await settleInterruptedWorktreePreparations(core);
-
-const unmountMobile = mountMobileNetwork(core, network, serviceToken);
-
-await startComputerLinks(core, computerStore, network, {
-  transport: multicastTransport,
-  ...(lanUnavailable(env) && { unavailable: lanUnavailable(env)! }),
-});
-
-await network.start();
-
-if (network.listening) console.info(`network access on port ${network.port}`);
-
-await core.syncProviderInstances();
-
-const certFile = env["CANOPY_TLS_CERT"];
-const keyFile = env["CANOPY_TLS_KEY"];
-const processApi = gatewayProcessApi(core, serviceToken, (version) => webClients.seen(version));
-
-const server = await startGrpcServer({
-  routes: processApi.routes,
-  interceptors: [core.diagnostics.interceptor, processApi.auth],
-  host: env["CANOPY_HOST"] ?? "0.0.0.0",
-  port: Number(env["CANOPY_PORT"] ?? 7443),
-  health: () => ({ healthy: core.updates.service.verdict().healthy, version: CANOPY_VERSION }),
-  ...(certFile && keyFile && { tls: { cert: readFileSync(certFile), key: readFileSync(keyFile) } }),
-});
-
-console.info(`gateway ${CANOPY_VERSION} listening on ${server.url}`);
-
-// Before updates.start confirms this version. An update candidate whose web can't start rolls back both, with the
-// web's reason; otherwise the gateway runs on and the web retries (web/process.ts).
-const record = installKind() === "binary" ? await readUpdateRecord() : undefined;
-const candidate = record?.state === "restarting" && record.version === CANOPY_VERSION;
-
-await embeddedWeb?.start(candidate).catch(async (cause: unknown) => {
-  const reason = `The web app of ${CANOPY_VERSION} didn't start: ${cause instanceof Error ? cause.message : String(cause)}`;
-  console.error(reason);
-  await rollbackBinary(process.execPath, reason);
-  // The supervisor restarts the restored executable; its record already says failed.
-  process.exit(UPDATE_RESTART_EXIT_CODE);
-});
-
-core.scheduler.start();
-
-void core.diagnostics.start();
-
 const maintenance = new DatabaseMaintenance(runtime, userId, (ids) => core.threadsChanged(ids));
+let unmountMobile: (() => void) | undefined;
+let server: Awaited<ReturnType<typeof startGrpcServer>> | undefined;
+let stopping: Promise<void> | undefined;
+let relocationTimer: ReturnType<typeof setInterval> | undefined;
+let polling: Promise<void> | undefined;
+let guardRetryAfter = 0;
+let startupComplete = false;
+let intake: "starting" | "running" | "paused" = "starting";
 
-maintenance.start();
+const startup = start(serviceToken);
 
-// Open items of finished turns, threads stuck in a busy or failed look: fixed now and every few minutes.
-core.startSweep();
+try {
+  const exitCode = await startup;
 
-// Notes about ended background tasks that still wait (Claude's grace, a restart in between): delivered every few seconds.
-core.backgroundTasks.start();
+  if (exitCode !== undefined) await stopAndExit(exitCode);
+} catch (error) {
+  await stop().catch(() => console.error("Gateway shutdown could not complete"));
 
-core.bots.start();
+  if (error instanceof StartupFenced) startupRejected(error);
+  throw error;
+}
 
-core.messengers.start();
+startupComplete = true;
 
-await core.updates.start();
+await pollRelocation();
 
-core.updateCenter.start();
+async function start(serviceToken: string): Promise<number | undefined> {
+  await settleInterruptedWorktreePreparations(core);
+  await relocation.assertReady();
 
-async function stop(presence = "shutting_down") {
-  await embeddedWeb?.stop();
-  await core.computers?.close(presence);
-  unmountMobile();
-  await network.close();
-  tailscale.close();
-  core.updateCenter.stop();
-  core.updates.close();
-  core.desktopControl.close();
-  core.appControl.close();
-  core.secrets.stop();
-  await core.scheduler.stop();
-  await maintenance.stop();
-  await core.stopSweep();
-  core.backgroundTasks.stop();
-  await core.messengers.stop();
-  await core.bots.stop();
-  await core.link.shutdown();
-  await core.diagnostics.stop();
-  await server.close();
-  await runtime.dispose();
+  // Even though the listeners may open before web and updater startup complete, admission must
+  // follow the fence from the first listener. Drain and cleanup wait for any in-flight setup.
+  relocationTimer = setInterval(() => void pollRelocation(), 250);
+  await pollRelocation();
+
+  if (stopping) return undefined;
+  unmountMobile = mountMobileNetwork(core, network, serviceToken, relocation.interceptor);
+
+  await startComputerLinks(core, computerStore, network, {
+    transport: multicastTransport,
+    ...(lanUnavailable(env) && { unavailable: lanUnavailable(env)! }),
+  });
+
+  if (stopping) return undefined;
+  await network.start();
+
+  if (network.listening) console.info(`network access on port ${network.port}`);
+  await core.syncProviderInstances();
+
+  if (stopping) return undefined;
+  const certFile = env["CANOPY_TLS_CERT"];
+  const keyFile = env["CANOPY_TLS_KEY"];
+  const processApi = gatewayProcessApi(core, serviceToken, (version) => webClients.seen(version));
+  server = await startGrpcServer({
+    routes: processApi.routes,
+    interceptors: [relocation.interceptor, core.diagnostics.interceptor, processApi.auth],
+    host: env["CANOPY_HOST"] ?? "0.0.0.0",
+    port: Number(env["CANOPY_PORT"] ?? 7443),
+    health: () => ({
+      healthy: !relocation.draining && core.updates.service.verdict().healthy,
+      version: CANOPY_VERSION,
+    }),
+    ...(certFile && keyFile && { tls: { cert: readFileSync(certFile), key: readFileSync(keyFile) } }),
+  });
+  console.info(`gateway ${CANOPY_VERSION} listening on ${server.url}`);
+
+  // A candidate's web must answer before updates.start confirms this version.
+  const record = installKind() === "binary" ? await readUpdateRecord() : undefined;
+  const candidate = record?.state === "restarting" && record.version === CANOPY_VERSION;
+
+  try {
+    await embeddedWeb?.start(candidate);
+  } catch (cause) {
+    const reason = `The web app of ${CANOPY_VERSION} didn't start: ${cause instanceof Error ? cause.message : String(cause)}`;
+    console.error(reason);
+    await rollbackBinary(process.execPath, reason);
+
+    return UPDATE_RESTART_EXIT_CODE;
+  }
+
+  if (stopping) return undefined;
+  await core.updates.start();
+
+  return undefined;
+}
+
+function startIntake() {
+  if (intake === "running") return;
+
+  if (intake === "starting") {
+    void core.diagnostics.start();
+    maintenance.start();
+    core.startSweep();
+    core.backgroundTasks.start();
+    core.bots.start();
+  } else void core.sweep().catch(() => console.error("Gateway relocation: queue resume will retry"));
+
+  intake = "running";
+  core.scheduler.start();
+  core.messengers.start();
+  core.updateCenter.start();
+}
+
+function pollRelocation() {
+  if (stopping || Date.now() < guardRetryAfter) return;
+
+  return (polling ??= checkRelocation().finally(() => {
+    polling = undefined;
+  }));
+}
+
+async function checkRelocation() {
+  const wasRelocating = relocation.relocating;
+
+  try {
+    const idle = await relocation.refresh();
+
+    if (stopping) return;
+
+    if (idle === undefined) {
+      if (!guardRetryAfter) console.warn("Gateway relocation guard lost its database connection and will retry");
+      guardRetryAfter = Date.now() + 1000;
+    } else guardRetryAfter = 0;
+
+    if (!wasRelocating && relocation.relocating) console.info("Gateway relocation: waiting for active work to finish");
+
+    if (!startupComplete) return;
+
+    if (!relocation.draining) {
+      startIntake();
+
+      return;
+    }
+
+    if (intake === "running") {
+      intake = "paused";
+      core.updateCenter.stop();
+      await Promise.all([core.scheduler.stop(), core.messengers.stop()]);
+
+      return;
+    }
+
+    if (
+      idle === true &&
+      relocation.requestsIdle &&
+      core[coreState].pumpAdmissions === 0 &&
+      core[coreState].commandDeliveries === 0 &&
+      core[coreState].workerToolCalls === 0 &&
+      core[coreState].titleJobs.size === 0 &&
+      core.bots.idle &&
+      [...core.link.connections.values()].every((connection) => connection.idle) &&
+      (await relocation.claimShutdown())
+    ) {
+      void stopAndExit(0);
+    }
+  } catch (error) {
+    if (stopping) return;
+    console.error(
+      error instanceof StartupFenced ? error.message : "Gateway relocation guard could not confirm database state",
+    );
+    // A failed shutdown claim may already hold the session lock. Complete shutdown before releasing it.
+    void stopAndExit(1);
+  }
+}
+
+async function stopAndExit(code: number) {
+  try {
+    await stop();
+  } catch {
+    console.error("Gateway shutdown could not complete");
+    process.exit(1);
+  }
+
+  process.exit(code);
+}
+
+function stop(presence = "shutting_down") {
+  return (stopping ??= close(presence));
+}
+
+async function close(presence: string) {
+  clearInterval(relocationTimer);
+  await startup.catch(() => {});
+  await polling;
+
+  try {
+    await embeddedWeb?.stop();
+    await core.computers?.close(presence);
+    tailscale.close();
+    core.updateCenter.stop();
+    core.updates.close();
+    core.desktopControl.close();
+    core.appControl.close();
+    core.secrets.stop();
+    await core.scheduler.stop();
+    await maintenance.stop();
+    await core.stopSweep();
+    core.backgroundTasks.stop();
+    await core.messengers.stop();
+    await core.bots.stop();
+    await core.link.shutdown();
+    unmountMobile?.();
+    await network.close();
+    await core.diagnostics.stop();
+    await server?.close();
+  } finally {
+    await runtime.dispose().finally(() => relocation.close());
+  }
 }
 
 for (const signal of ["SIGINT", "SIGTERM"] as const) {
-  process.once(signal, async () => {
-    await stop();
-    process.exit(0);
-  });
+  process.once(signal, () => void stopAndExit(0));
 }
