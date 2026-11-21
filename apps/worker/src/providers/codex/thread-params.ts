@@ -1,9 +1,16 @@
 import type { ThreadSpec } from "@canopy/contracts";
+import { realpathSync } from "node:fs";
 import { codexThreadProvider } from "./launch.ts";
 import { codexPermissions } from "./permissions.ts";
 import { managedPlugins } from "../../agent-environment/plugin-loading.ts";
 import type { CodexThreadContext } from "./thread-types.ts";
 import { threadInstructions } from "../thread-instructions.ts";
+
+export function codexThreadCwd(cwd: string): string {
+  // On Windows Codex compares legacy and canonical writable roots. Pass the same path to both,
+  // including when Windows returned an 8.3 short name for the workspace.
+  return process.platform === "win32" ? realpathSync.native(cwd) : cwd;
+}
 
 /** Shared placement and permission parameters for start, resume and prefix replacement. */
 export function threadParams(ctx: CodexThreadContext, spec: ThreadSpec) {
@@ -15,7 +22,7 @@ export function threadParams(ctx: CodexThreadContext, spec: ThreadSpec) {
   if (!profile) throw new Error(`provider profile "${spec.providerProfileId || "native"}" is not available`);
 
   return {
-    cwd: spec.cwd,
+    cwd: codexThreadCwd(spec.cwd),
     serviceTier: spec.serviceTier || "default",
     // Scratch sessions must not discover instructions above their isolated directory.
     config: {

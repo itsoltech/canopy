@@ -3,7 +3,7 @@ import { Context, Effect, Exit, Layer, Scope } from "effect";
 import { instanceShadowHome, type AppliedConfig } from "../config/remote.ts";
 import { prepareCodexHome } from "../providers/codex/home.ts";
 import { CodexAppServerStartupError } from "../providers/codex/app-server.ts";
-import { codexAppServerLaunch } from "../providers/codex/launch.ts";
+import { codexAppServerLaunch, codexThreadLaunchArgs } from "../providers/codex/launch.ts";
 import { CodexThreads } from "../providers/codex/threads.ts";
 import { prepareImportedCodexResume } from "../import/codex-provider.ts";
 import { readCodexConfiguredEffort } from "../providers/default-effort.ts";
@@ -160,7 +160,7 @@ export class CodexRuntimes {
         config.nativeTools,
         home.path,
         group.env,
-        runtime.launchArgs,
+        codexThreadLaunchArgs(runtime.launchArgs),
       ),
       clientVersion: this.ctx.state.options.clientVersion,
       onUsage: usage.report,

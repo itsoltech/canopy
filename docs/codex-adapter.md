@@ -2,13 +2,14 @@
 
 Aktualizacja (2026-11-19): karty zgód pokazują faktyczną treść żądania (sekcja „Treść zgód”), a podglądy obrazów natywnych i wygenerowanych dotyczą tylko ukończonych elementów w zakresie wątku.
 
-Status (2026-11-20): runtime wątków, lokalny MCP z narzędziem wiadomości do delegującego bota, poziomy szybkości z katalogu konta,
+Status (2026-11-21): runtime wątków, lokalny MCP z narzędziem wiadomości do delegującego bota, poziomy szybkości z katalogu konta,
 bezstratny zapis obrazów wyników trybu kodu oraz per-modelowe liczniki tokenów i kosztów USD tur
 oraz szacunki równowartości API OpenAI z trwałym cache cennika są zaimplementowane.
 Rekoncyliacja odczytuje rollout przeniesiony przez Codexa między `sessions`
 i `archived_sessions`, również w formacie `.jsonl.zst`.
 Codex ponawia przerwane żądania proxy w bieżącej turze. Na Windows worker uruchamia
-app-server także przez skrypt npm z katalogu ze spacjami. Dostępność wydań według [release.md](release.md).
+app-server także przez skrypt npm z katalogu ze spacjami i ustawia domyślny backend sandboxa dla wątków.
+Dostępność wydań według [release.md](release.md).
 
 Gotowe:
 - typy protokołu z przypiętej wersji: `packages/codex-protocol` (Codex 0.164.0),
@@ -36,6 +37,10 @@ Gotowe:
 - **Start procesu:** na Windows argumenty `-c` (m.in. wybór providera, konfiguracja proxy i selektory skilli)
   zachowują cudzysłowy przy starcie przez `codex.cmd`, także gdy ścieżka zawiera spacje.
   Log workera podaje etap awarii startu i kod wyjścia procesu, jeśli jest dostępny.
+  Windowsowy app-server wątków dostaje domyślny backend sandboxa z ograniczonym tokenem.
+  Codex traktuje `features.experimental_windows_sandbox=true` jako zapasowy wybór `unelevated`, po jawnym `windows.sandbox` i starszym ustawieniu backendu z podwyższonymi uprawnieniami. Wymagania zarządzane Codexa nadal rozstrzygają o dopuszczalnym backendzie. Argumenty instancji są stosowane po domyślnym argumencie workera.
+  Worker rozwiązuje ścieżkę katalogu roboczego przed przekazaniem jej do Codexa na Windows, żeby obie reprezentacje zapisywalnych katalogów w sandboxie używały tej samej ścieżki, także przy krótkich nazwach 8.3.
+  Bez backendu Codex odrzuca w trybie Full auto także zwykłe odczyty wymagające sandboxa. Ask First może w tym przypadku poprosić o zgodę. Reguły zakazujące uruchomienia konkretnej komendy obowiązują w obu trybach. [Polityka wykonania w Codexie 0.165.0](https://github.com/openai/codex/blob/rust-v0.165.0/codex-rs/core/src/exec_policy.rs#L799-L818).
 
 - **Konfiguracja instancji:** jeden app-server per instancja, także bez własnych zmiennych. Każda zmiana oznacza runtime jako nieaktualny; nowa praca czeka na koniec jego tur i zadań w tle, potem jeden restart stosuje najnowszą konfigurację. Inne instancje działają dalej. Ścieżka `CODEX_HOME` nie zależy od rodzaju połączenia, a proxy jest wpisem `model_providers` przez `-c`. `thread/resume` jawnie wybiera bieżący provider (`openai` po powrocie do Device login). Równoczesne wznowienia tej samej sesji korzystają z jednego rejestru.
 
@@ -73,7 +78,8 @@ Gotowe:
   | `FULL_AUTO` | `never` | `workspace-write`, nigdy `danger-full-access` domyślnie |
   | `FULL_ACCESS` | `never` | `danger-full-access` (w turze `sandboxPolicy: { type: "dangerFullAccess" }`), tylko jawny wybór |
 
-  Ta sama tabela idzie w każdym `turn/start` jako `approvalPolicy` + `sandboxPolicy` (tryb tury ze `StartTurn.permission_mode`), bo Codex trzyma nadpisanie dla kolejnych tur ([protocol.md](protocol.md#modele-effort-i-steer)).
+  Ta tabela obowiązuje przy `thread/start`, `thread/resume` i `thread/fork`. Każde `turn/start` ponownie przekazuje `approvalPolicy` i `sandboxPolicy` z `StartTurn.permission_mode`, bo Codex zachowuje nadpisania między turami. Zmiana trybu działa od kolejnej tury, również w już załadowanej sesji ([protocol.md](protocol.md#modele-effort-i-steer)).
+  `windows-sandbox.test.ts` używa rzeczywistego app-servera i lokalnej atrapy modelu. Sprawdza odczyt Git, zmianę trybu w tej samej sesji, wznowienie po restarcie oraz zachowanie jawnej odmowy z reguł Codexa. Na Windows test wymaga `codex.exe` w `PATH`.
 
 - **Treść zgód:** karta zgody pokazuje faktyczną treść żądania Codexa w istniejącym kontrakcie `requestJson` (`command`, `reason`, `permissions`). Worker składa `reason` z powodu, rodzaju akcji, katalogu roboczego, środowiska, katalogu z dodatkowym zapisem, kontekstu sieci i dodatkowych uprawnień, więc użytkownik widzi je także, gdy oś czasu ma już komendę lub diff. Zgoda na `item/permissions/requestApproval` przyznaje dokładnie żądane uprawnienia; anulowanie lub odmowa daje pusty zestaw, a zakres sesji tylko po jawnej zgodzie.
 - **Żądania serwera:** zgody na komendy i zmiany plików, uprawnienia, pytania i elicitation idą do brokera interakcji, a `item/tool/call` (narzędzia szyny) do gateway. Inne żądania kończą się błędem JSON-RPC.
