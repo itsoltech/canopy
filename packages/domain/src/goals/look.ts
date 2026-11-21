@@ -42,11 +42,14 @@ export function goalActions(status: string): GoalActions {
 }
 
 /**
- * Whether the thread shows the goal bar: an open goal always; an achieved one until you dismiss it;
- * a cleared one never (you cleared it, or a new goal replaced it).
+ * Show open goals immediately. Achieved goals wait for local dismissals to load so a dismissed goal
+ * cannot flash on screen at startup.
  */
-export const showsGoal = (goal: ui.Goal | undefined, dismissed: ReadonlySet<string>): goal is ui.Goal =>
-  Boolean(goal) && goal!.status !== "cancelled" && !(isFinishedGoal(goal!.status) && dismissed.has(goal!.id));
+export function showsGoal(goal: ui.Goal | undefined, dismissed: readonly string[] | undefined): goal is ui.Goal {
+  if (!goal || goal.status === "cancelled") return false;
+
+  return goal.status !== "achieved" || (dismissed !== undefined && !dismissed.includes(goal.id));
+}
 
 /**
  * Your decision is stored at once, the harness confirms it with its next report (`native_status`).

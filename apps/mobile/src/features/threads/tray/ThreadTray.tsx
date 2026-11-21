@@ -2,6 +2,7 @@ import { create } from "@bufbuild/protobuf";
 import { ui } from "@canopy/contracts";
 import { showsGoal } from "@canopy/domain/goals";
 import { useAppearance } from "../../../state/appearance";
+import { useDevicePreferences } from "../../settings/device-preferences";
 import { QuestionPanel } from "../questions/QuestionPanel";
 import type { ThreadState } from "../ThreadScreen";
 import { ComposerTray } from "./ComposerTray";
@@ -15,9 +16,12 @@ import { useSubagentsPanel } from "./SubagentsPanel";
  */
 export function ThreadTray({ state, onGoal }: { state: ThreadState; onGoal: () => void }) {
   const settings = useAppearance();
+  const device = useDevicePreferences();
   const { thread, snapshot, queue, requests } = state;
   const subagents = useSubagentsPanel(state.activeSubagents);
-  const goal = showsGoal(snapshot?.goal, state.dismissedGoals) ? snapshot?.goal : undefined;
+  const goal = showsGoal(snapshot?.goal, device.viewLoaded ? device.view.dismissedGoalIds : undefined)
+    ? snapshot.goal
+    : undefined;
   const disabled = state.home.away || state.stream.connection !== "live";
 
   const delivery =
@@ -39,7 +43,7 @@ export function ThreadTray({ state, onGoal }: { state: ThreadState; onGoal: () =
               threadId={thread.id}
               disabled={disabled}
               onOpen={onGoal}
-              onDismiss={() => state.dismissGoal(goal.id)}
+              onDismiss={() => device.dismissGoal(goal.id)}
             />
           ) : null}
           {subagents.panel}

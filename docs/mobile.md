@@ -1,6 +1,7 @@
 # Canopy na iOS i Android
 
 Status: opis zaimplementowanego kodu (2026-11-21), w tym import skilli z publicznych witryn HTTPS.
+Zamknięty przyciskiem × osiągnięty cel pozostaje ukryty po ponownym otwarciu wątku i restarcie aplikacji.
 Aplikacja używa Expo SDK 58.0.26.
 W ustawieniach Network access można zwiększyć limit załącznika do 40 MiB na plik.
 Na liście wątków wiersze z pierścieniem pracy pokazują sam czas jej trwania.
@@ -1892,7 +1893,8 @@ goal…” poza Grokiem i wątkami gatewaya. Cel jest pierwszym panelem zasobnik
 ikona i kolor statusu, treść w jednej linii, kropka ze statusem albo tym, na co czeka
 („Starting…”, „Pausing…”, „Resuming…”), oraz Pause albo Resume obok. Dotknięcie otwiera arkusz
 celu z pełną treścią, ostatnim werdyktem, Clear (z potwierdzeniem) i „Replace the goal…”.
-Osiągnięty cel można zamknąć (×) do końca wizyty; wyczyszczonego nie ma. Wygląd i akcje statusów
+Przycisk × zapisuje ukrycie osiągniętego celu w ustawieniach urządzenia dla danego parowania.
+Kolejny cel tego samego wątku pojawia się normalnie. Wyczyszczonego celu nie ma. Wygląd i akcje statusów
 są wspólne z web (`@canopy/domain/goals`: `goalLook`, `goalActions`, `goalPending`, `showsGoal`).
 Codex przyjmuje budżet tokenów (`SetGoal`).
 Settings → Connectors i panel wątku pokazują status kont jak web; konto z błędem testu

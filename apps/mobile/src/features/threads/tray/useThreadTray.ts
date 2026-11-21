@@ -5,7 +5,7 @@ import { applyThread } from "../../../api/thread";
 import { useThreadRequests } from "../questions/QuestionPanel";
 import { useQueue } from "./useQueue";
 
-/** What the thread's tray shows and edits: its subagents, requests, queue and goal. */
+/** What the thread's tray shows and edits: its subagents, requests and queue. */
 export function useThreadTray({
   id,
   snapshot,
@@ -21,7 +21,6 @@ export function useThreadTray({
 }) {
   /** The queued message open in the editor. */
   const [editing, setEditing] = useState<ui.Turn>();
-  const [dismissedGoals, setDismissedGoals] = useState<ReadonlySet<string>>(new Set());
   // Every subagent's requests reach the parent; only working ones are listed in the tray.
   const subagents = threads.filter((t) => t.spawnedByAgent && t.parentThreadId === id && !t.deletedAt);
   const interactions = snapshot?.interactions.filter((i) => i.status === "pending") ?? [];
@@ -42,7 +41,5 @@ export function useThreadTray({
     queue,
     editing,
     setEditing,
-    dismissedGoals,
-    dismissGoal: (goalId: string) => setDismissedGoals((current) => new Set(current).add(goalId)),
   };
 }

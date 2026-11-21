@@ -389,16 +389,16 @@
   let modelOpen = $state(false);
   let permissionsOpen = $state(false);
 
-  // Goal: the bar above the composer (an open goal, or an achieved one until dismissed in this tab), set
-  // or replaced from the thread's actions or the composer.
   let goalDialog = $state(false);
-  let dismissedGoals = $state(new Set<string>());
 
   // A gateway thread has no harness goals: no goal controls at all.
   const goalsHere = $derived(Boolean(thread && takesGoals(thread)));
   const canGoal = $derived(Boolean(thread && goalsHere && !closed && thread.status !== "creating"));
   const openGoal = $derived(view.goal && !isFinishedGoal(view.goal.status) ? view.goal : undefined);
-  const shownGoal = $derived(showsGoal(view.goal, dismissedGoals) ? view.goal : undefined);
+
+  const shownGoal = $derived(
+    showsGoal(view.goal, device.viewLoaded ? device.view.dismissedGoalIds : undefined) ? view.goal : undefined,
+  );
 
   const setGoalLater = () => {
     if (!workspaceState.wide) workspaceState.panelOpen = false;
@@ -786,7 +786,7 @@
                               embedded
                               compact={composer.compact}
                               onchange={(goal) => view.upsertGoal(goal)}
-                              ondismiss={() => (dismissedGoals = new Set(dismissedGoals).add(shownGoal.id))}
+                              ondismiss={() => device.dismissGoal(shownGoal.id)}
                             />
                           </div>
                         {/if}

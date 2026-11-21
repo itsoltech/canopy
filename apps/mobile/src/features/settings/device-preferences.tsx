@@ -111,6 +111,9 @@ function useDeviceView(scope: string) {
     setView(change: Partial<DeviceViewValues>) {
       if (loaded) store.set(change);
     },
+    dismissGoal(goalId: string) {
+      if (loaded) store.dismissGoal(goalId);
+    },
     saveThreadScroll(threadId: string, position: ThreadScrollPosition) {
       if (loaded) store.set({ threadScroll: rememberThreadScroll(store.values.threadScroll, threadId, position) });
     },

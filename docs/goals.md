@@ -2,7 +2,7 @@
 
 Grok ACP nie ma w tym adapterze mapowania natywnych goals. Gateway odrzuca operacje celów dla Groka, UI ukrywa kontrolki. Zwykłe tury, kolejka i platformowe harmonogramy pozostają dostępne. [Szczegóły](grok-adapter.md).
 
-Status: **zaimplementowane** (2026-11-18). Wyłączenie Threads wstrzymuje aktywne cele właściciela. Po włączeniu gateway wznawia je po zakończeniu sprzątania poprzedniej sesji. Cele wstrzymane ręcznie, zablokowane i zakończone zachowują swój stan. Obsługa obejmuje również błąd celu przy odmowie
+Status: **zaimplementowane** (2026-11-21). Web, desktop i mobile pamiętają ukrycie osiągniętego celu po ponownym otwarciu wątku. Wyłączenie Threads wstrzymuje aktywne cele właściciela. Po włączeniu gateway wznawia je po zakończeniu sprzątania poprzedniej sesji. Cele wstrzymane ręcznie, zablokowane i zakończone zachowują swój stan. Obsługa obejmuje również błąd celu przy odmowie
 prędkości wykonania przed wysłaniem tury oraz pauza przy archiwizacji bez
 automatycznego wznowienia po przywróceniu wątku:
 
@@ -21,6 +21,7 @@ Powiązane: [execution.md](execution.md), [codex-adapter.md](codex-adapter.md), 
 - **Silnikiem jest harness** (Codex goals, Claude Code `/goal`). Platforma nie ma własnego silnika celów: nie zaczyna tur kontynuacji i nie ocenia warunku (decyzja użytkownika, 2026-11-01).
 - **Platforma śledzi i pokazuje** cel: treść, status, zużycie, budżet, tury celu, ostatni werdykt. Stan pochodzi z raportów harnessu (`GoalState`) i z decyzji użytkownika w UI.
 - **Użytkownik steruje** z UI: ustawia, wstrzymuje, wznawia i usuwa cel (`SetGoal`).
+- Przycisk × ukrywa osiągnięty cel nad kompozytorem. Klient zapisuje jego identyfikator w lokalnych ustawieniach widoku. Zapis przetrwa powrót do wątku i restart klienta. Status celu i powiązane tury pozostają w historii.
 - Najwyżej jeden otwarty cel na wątek (`goals_one_open`). Nowy cel zastępuje otwarty (stary: `cancelled`, „replaced by a new goal”).
 
 Szyna agentów nie ma narzędzi celów: model używa narzędzi harnessu ([agent-bus.md](agent-bus.md#3-narzędzia)).
