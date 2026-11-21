@@ -203,6 +203,7 @@ describe.skipIf(!dockerAvailable)("schema on PostgreSQL 17", () => {
       "188_gateway_relocation",
       "189_consolidation",
       "190_settings_guidance",
+      "191_bot_background_continuations",
     ]);
   }, 60_000);
 

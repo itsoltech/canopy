@@ -2,6 +2,7 @@ import { Effect } from "effect";
 import type { SqlClient } from "effect/sql";
 import { ownerModule } from "../store/module-access.ts";
 import { pendingThreadQuestions } from "./thread-questions.ts";
+import { watchNeedsCheck } from "./watch-completion.ts";
 
 /** A conservative preflight. Locks and eligibility are rechecked by the existing durable transactions. */
 export function botPoll(sql: SqlClient.SqlClient, owner: string, now: Date) {
@@ -19,7 +20,8 @@ export function botPoll(sql: SqlClient.SqlClient, owner: string, now: Date) {
       WHERE r.enabled AND r.deleted_at IS NULL AND r.next_run_at<=${now}::timestamptz)
     OR EXISTS(SELECT 1 FROM bot_thread_watches w JOIN owned b ON b.id=w.bot_id
       JOIN turns t ON t.id=w.target_turn_id JOIN threads th ON th.id=t.thread_id
-      WHERE NOT w.delivered AND th.owner_user_id=${owner}::uuid AND t.status IN ('completed','failed','interrupted','cancelled'))
+      WHERE NOT w.delivered AND th.owner_user_id=${owner}::uuid
+        AND t.status IN ('completed','failed','interrupted','cancelled') AND ${watchNeedsCheck(sql)})
     OR EXISTS(SELECT 1 ${pendingThreadQuestions(sql)} AND b.id IN (SELECT id FROM owned))
     OR EXISTS(SELECT 1 FROM bot_thread_watches w JOIN owned b ON b.id=w.bot_id
       JOIN turn_steers s ON s.id=w.target_steer_id

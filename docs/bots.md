@@ -2,6 +2,8 @@
 
 Status (2026-11-21): prywatny czat bota wyszukuje i odczytuje wybrane preferencje
 konta Canopy oraz zmienia jedną z nich po jednorazowej zgodzie właściciela.
+Obserwacja lokalnej tury obejmuje także powiązane wyniki natywnych pobudek Claude
+po zadaniach w tle.
 Dostępność wydań według [release.md](release.md).
 
 Status (2026-11-19): wyłączenie modułu Bots zatrzymuje pracę botów właściciela,
@@ -79,6 +81,34 @@ z rozmową Slack, żaden z jej obserwatorów nie otrzymuje automatycznego raport
 powiadomienia o pytaniu. Pochodzenie z połączonego komputera również stanowi osobne źródło.
 Wynik pozostaje w historii wątku. Gdy wszystkie wejścia pochodzą z jednej rozmowy Slack,
 jej bot dostaje raport zgodnie z aktualną trasą.
+
+#### Wynik pracy kontynuowanej przez Claude
+
+Obserwacja z `start_thread` lub `send_message` zostaje przy tym samym wywołaniu
+i tym samym czacie, rutynie lub rozmowie Slack. Po udanej turze z rozpoznanym
+zadaniem w tle gateway czeka na wynik natywnej pobudki Claude. Identyfikator
+uruchomienia zadania w wyniku Claude musi pasować do zakończonego zadania,
+które powstało podczas obserwowanej pracy. Jeżeli pobudka zaczyna kolejne takie
+zadanie, obserwacja nadal trwa. Po rozstrzygnięciu zadań bot otrzymuje jeden
+raport z ostatniej potwierdzonej tury. Wcześniejsze odpowiedzi zostają w wątku.
+Stan oczekiwania, termin i zapis raportu przeżywają restart gatewaya.
+
+Tura bez rozpoznanego zadania w tle oraz przerwana lub nieudana tura początkowa
+kończą obserwację zwykłą ścieżką. Po naturalnym zakończeniu zadania gateway daje
+Claude 15 sekund na rozpoczęcie pobudki. Oczekiwanie łącznie trwa najwyżej godzinę
+od zakończenia tury początkowej. Jeżeli zadanie zatrzymano, zabrakło potwierdzenia
+pochodzenia albo inna tura przerwała ciąg pracy, raport wskazuje ostatni
+potwierdzony wynik jako częściowy. Tura ze sterowaniem lub zadaniem z innej pracy
+może zawierać cudzy kontekst, więc gateway nie dołącza jej wyniku. Jednoczesne
+źródła wejścia w turze początkowej wykluczają rozszerzenie obserwacji.
+
+Zakres obejmuje lokalne pobudki `provider` z identyfikatorem uruchomienia zadania.
+Harmonogramy, `agent_bus`, platformowe notatki `background_task` i pobudki bez
+tego identyfikatora nie przedłużają obserwacji. Dotychczasowe notatki o zadaniach
+pozostają dostępne w wątku. Pytania tury początkowej nadal docierają dotychczasową
+trasą. Gdy Claude potwierdza pochodzenie pobudki dopiero w jej wyniku, odpowiedź
+na interakcję w trakcie pobudki pozostaje w Canopy. Rozszerzenie tego zakresu
+wymaga odrębnej decyzji i wiarygodnego pochodzenia wejścia w trakcie tury.
 
 Przy wyłączeniu modułu gateway wygasza oczekujące zgody na działania bota w wątkach
 i zamyka oczekujące obserwacje wyników i pytań, także między komputerami. Przy wyłączeniu samych botów
@@ -862,7 +892,8 @@ i `BotMessage.setting_changes` mają numer **430** w swoich komunikatach.
    powiadomienie dla bota raz na subskrypcję i interakcję. Bot może odczytać pytanie
    przez `read_thread` i zaproponować odpowiedź przez `answer_interaction`. Zapis
    powiadomienia i jego deduplikacja są atomowe. Subskrypcja pozostaje aktywna do
-   zakończenia tury. W lokalnych powiadomieniach tytuł zajmuje do 200 jednostek
+   zakończenia tury lub [potwierdzonej kontynuacji](#wynik-pracy-kontynuowanej-przez-claude).
+   W lokalnych powiadomieniach tytuł zajmuje do 200 jednostek
    UTF-16, a treść raportu końcowego do 80 000. Pełny tytuł i wynik pozostają
    zapisane w wątku. Prośby o uprawnienia nadal obsługują karty zgód.
 5. Przed zdalnym MCP zapisujemy `running`. Gdy lease zostaje przejęty po awarii,

@@ -23,6 +23,20 @@ Dostępność w kanałach określa [promocja wydania](release.md).
 
 Worker ustawia `TurnFinished.worker_oom_recovery` przy rekoncyliacji tury, którą przerwała utrata usługi z potwierdzonym wynikiem `oom-kill`. Zapisany wynik harnessu i żądanie Stop mają pierwszeństwo. Gateway sprawdza stan wątku i może zakolejkować jedną kontynuację tej sesji. Brak flagi oznacza dotychczasową obsługę przerwania. Starszy gateway może pominąć nowe pole. [Reguły kolejki i rekoncyliacji](durability.md#34-start-po-awarii).
 
+## Powiązanie pobudki Claude z zadaniem w tle
+
+Status (2026-11-21): worker i gateway zapisują pochodzenie wyniku natywnej
+pobudki Claude używane w [obserwacjach botów](bots.md#wynik-pracy-kontynuowanej-przez-claude).
+Dostępność w kanałach określa [promocja wydania](release.md).
+
+Worker przenosi identyfikator uruchomienia zadania z `task_started.run_id` do
+`BackgroundTask.provider_run_id` (233). Jeśli wynik Claude pochodzi z
+`task-notification` i nie wskazuje dołączonej wiadomości klienta, worker przenosi
+`origin.runId` do `TurnFinished.background_task_run_id` (9). Pusty ACK
+powiadomienia bez pracy modelu nie kończy tury. Gateway zapisuje powiązanie raz
+na zakończone zadanie w tym samym wątku, wyłącznie dla tury `provider`.
+Brak pól w starszych wersjach zachowuje dotychczasową obserwację pojedynczej tury.
+
 ## Wątki delegowane przez boty
 
 Status (2026-11-19): gateway ustawia `ThreadSpec.has_delegating_bot` przy tworzeniu
