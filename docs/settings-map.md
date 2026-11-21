@@ -54,10 +54,11 @@ bez zmian. Opcja wyboru bez działania jest wyłączona z opisem „Soon”.
 
 `find_canopy_settings` czyta katalog sekcji współdzielony z nawigacją aplikacji.
 Potwierdza dokładną nazwę sekcji dla web, desktop, iOS lub Android i wersji
-klienta odpowiadającej katalogowi bieżącego gatewaya. Wydanie ze źródeł
-`0.0.0-dev` określa ścieżkę wyłącznie dla tego samego checkoutu. Wersja workera,
-wybrany kanał aktualizacji i wersja samego gatewaya nie identyfikują klienta.
-Przy nieznanej albo innej wersji narzędzie zwraca brak potwierdzenia.
+klienta odpowiadającej katalogowi bieżącego gatewaya. Wersja workera, wybrany
+kanał aktualizacji i wersja samego gatewaya nie identyfikują klienta.
+Przy nieznanej, rozbieżnej albo deweloperskiej wersji takiej jak `0.0.0-dev`
+narzędzie zwraca brak potwierdzenia. Dla sekcji zależnej od modułu lub funkcji
+gatewaya wynik jest warunkowy. Czat przekazuje warunki razem ze ścieżką.
 
 Dopasowanie słowa kluczowego służy wyłącznie jako sugestia wyszukiwania.
 Potwierdzenie sekcji nie potwierdza konkretnej kontrolki ani jej widoczności na

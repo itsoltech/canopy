@@ -15,7 +15,7 @@ test.skipIf(!Bun.which("codex"))(
   "full-auto Codex threads dispatch Canopy dynamic tools without native approval",
   async () => {
     const dir = temp("canopy-codex-platform-tools-");
-    const names = ["ask_user", "spawn_thread", "send_message"];
+    const names = ["ask_user", "spawn_thread", "send_message", "find_canopy_settings"];
     const model = codexToolModel(names);
     const received: string[] = [];
 

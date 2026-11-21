@@ -6,11 +6,15 @@ import {
   matchesSettingsSection,
   settingsSectionEnabled,
   settingsSearchWords,
+  settingsSectionMethods,
   settingsSections,
 } from "@canopy/ui/settings";
 
-export function findCanopySettings({ query, client, client_version }: SettingsGuideArgs): JsonObject {
-  const reference = { version: CANOPY_VERSION, channel: releaseChannel(CANOPY_VERSION) };
+export function findCanopySettings(
+  { query, client, client_version }: SettingsGuideArgs,
+  version = CANOPY_VERSION,
+): JsonObject {
+  const reference = { version, channel: releaseChannel(version) };
   const clientVersion = client_version?.trim();
 
   if (!client || !clientVersion)
@@ -20,7 +24,13 @@ export function findCanopySettings({ query, client, client_version }: SettingsGu
       missing: [...(!client ? ["client"] : []), ...(!clientVersion ? ["client_version"] : [])],
     };
 
-  if (clientVersion !== CANOPY_VERSION)
+  if (releaseChannel(clientVersion) === "development")
+    return {
+      status: "unconfirmed",
+      reason: "The reported version does not identify a published client build.",
+    };
+
+  if (clientVersion !== version)
     return {
       status: "unconfirmed",
       reference,
@@ -38,21 +48,27 @@ export function findCanopySettings({ query, client, client_version }: SettingsGu
   const words = settingsSearchWords(query);
   const exact = sections.find((section) => settingsSearchWords(section.label).join(" ") === words.join(" "));
 
-  if (exact)
+  if (exact) {
+    const linked = exact.href === "/settings/computers";
+
+    const requiresMethods =
+      (client === "web" || client === "desktop") && Object.hasOwn(settingsSectionMethods, exact.href);
+
+    const conditions = [
+      ...(!settingsSectionEnabled(exact.href, []) ? ["The Threads module must be enabled."] : []),
+      ...(linked ? ["The connected gateway must support linked computers."] : []),
+      ...(!linked && requiresMethods ? [`The connected gateway must support ${exact.label}.`] : []),
+    ];
+
     return {
-      status: "confirmed_section",
+      status: conditions.length ? "conditional_section" : "confirmed_section",
       reference,
       client,
       path: ["Settings", exact.label],
-      scope:
-        "The section label is verified. Individual controls and visibility on the user's device still need verification.",
-      conditions: [
-        ...(!settingsSectionEnabled(exact.href, []) ? ["The Threads module must be enabled."] : []),
-        ...(exact.href === "/settings/computers" ? ["The connected gateway must support linked computers."] : []),
-        "A compatible gateway may be required.",
-        ...(reference.channel === "development" ? ["For source builds this applies only to the same checkout."] : []),
-      ],
+      scope: "The catalogue verifies the section label. Individual controls still need verification.",
+      ...(conditions.length > 0 && { conditions }),
     };
+  }
 
   return {
     status: "unconfirmed",

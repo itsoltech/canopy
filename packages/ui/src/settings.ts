@@ -201,6 +201,21 @@ export const settingsSections: readonly SettingsSection[] = [
 
 export const settingsGroups = ["General", "Code", "Connections"] as const;
 
+/** Gateway methods used to show these sections in web and desktop navigation. */
+export const settingsSectionMethods = {
+  "/settings/providers": ["ListProviderInstances", "SaveProviderInstance"],
+  "/settings/connectors": ["ListConnectors", "SaveConnectorAccount"],
+  "/settings/github": ["ListGitHubAccounts", "BeginGitHubDeviceAuth"],
+  "/settings/workers": ["GetWorkerSetup", "CreateWorkerEnrollment"],
+  "/settings/agent-tools": ["SetAgentToolEnabled", "InstallAgentTool", "RefreshAgentTools"],
+  "/settings/network": ["GetNetworkAccess", "UpdateNetworkAccess"],
+  "/settings/mobile": ["GetMobileDevices", "CreateDesktopPairing"],
+  "/settings/computers": ["GetComputers", "ManageComputer"],
+  "/settings/schedules": ["ListSchedules", "CreateSchedule"],
+  "/settings/projects": ["GetOverview", "CreateProject"],
+  "/settings/import": ["ScanImport", "ListImportCandidates"],
+};
+
 /** Settings sections supplied by the desktop client itself. */
 export const desktopSettingsSections: readonly SettingsSection[] = [
   {
