@@ -95,6 +95,7 @@ export async function gatewayCompatibility(): Promise<GatewayCompatibility> {
       gatewayVersion: info.gatewayVersion,
       gatewayRole: info.gatewayRole,
       linkedComputers: info.linkedComputers,
+      offerOnboarding: info.offerOnboarding,
     };
   } catch (cause) {
     return {
@@ -104,6 +105,7 @@ export async function gatewayCompatibility(): Promise<GatewayCompatibility> {
       gatewayVersion: "",
       gatewayRole: "",
       linkedComputers: false,
+      offerOnboarding: false,
     };
   }
 }

@@ -36,6 +36,8 @@ message ClientCapabilities {
   string gateway_role = 7;
   // Absent/false means linking is unavailable, including on older gateways.
   bool linked_computers = 8;
+  // Whether this is the initial version of a new installation. Older gateways omit it.
+  bool offer_onboarding = 9;
 }
 
 message MobileDevice {

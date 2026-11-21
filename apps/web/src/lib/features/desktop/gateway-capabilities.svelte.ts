@@ -22,6 +22,7 @@ export class GatewayCapabilities {
   message = $state("");
   methods = $state<string[]>();
   linkedComputers = $state(false);
+  offerOnboarding = $state<boolean>();
   /** Set by the BFF only in this desktop's local mode, independent of the gateway's role. */
   localDesktop = $state(false);
   clientPreferencesScope = $state("");
@@ -79,6 +80,7 @@ export class GatewayCapabilities {
       if (this.state !== "unavailable") {
         this.methods = value["methods"].filter(isString);
         this.linkedComputers = value["linkedComputers"] === true;
+        this.offerOnboarding = value["offerOnboarding"] === true;
       }
     } catch {
       this.state = "unavailable";

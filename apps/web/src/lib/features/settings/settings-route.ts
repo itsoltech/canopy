@@ -18,6 +18,10 @@ export interface SettingsRoute<Form = SettingsForm> {
   readonly params: Readonly<Record<string, string>>;
   /** The last form action result of this settings page (SvelteKit's `form`). */
   readonly form: Form;
+  /** Removes a one-shot query parameter once the overlay is open, without adding a history entry. */
+  consumeQuery(name: string): Promise<boolean>;
+  /** Returns to the page underneath the Settings overlay. */
+  close(): void;
   /**
    * Reruns the page's loads that depend on `dependency` (`depends("app:…")`). Use it instead of
    * `invalidate`: over another page that would rerun the page underneath and leave this one stale.

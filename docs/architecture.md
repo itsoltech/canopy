@@ -24,6 +24,7 @@ Powiązane dokumenty:
 - [worker-config.md](worker-config.md) — zdalna konfiguracja workerów (lokalnie tylko połączenie z gateway)
 - [updates.md](updates.md) — niezależny UpdateService, zgodność protokołów, mirror i rollback binarek
 - [provider-cli.md](provider-cli.md) — CLI dostawców na workerach: wykrywanie, najnowsze wersje, instalacja i aktualizacja na kliknięcie (nigdy dołączane do Canopy)
+- [onboarding.md](onboarding.md) — pierwsza konfiguracja workera i agenta, import, projekty i zadanie przykładowe w web/desktop
 - [usage.md](usage.md) — agregaty tokenów, zgłoszonych kosztów i szacowanej równowartości API OpenAI, niezależne od retencji wątków i synchronizowane między połączonymi komputerami.
 - [automation-tools.md](automation-tools.md) — lokalne `agent-browser`, `agent-desktop` i `agent-device`: gotowość, granty, bridge MCP i podgląd
 - [codex-adapter.md](codex-adapter.md) — adapter Codex app-server: protokół, testy na żywo, izolacja `CODEX_HOME`

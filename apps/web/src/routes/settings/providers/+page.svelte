@@ -1,6 +1,6 @@
 <script lang="ts">
   import { applicationName } from "#lib/application-name.ts";
-  import { ui } from "@canopy/contracts";
+  import { Provider, ui } from "@canopy/contracts";
   import { useSettingsRoute } from "#lib/features/settings/settings-route.ts";
   import { useModelCatalog } from "#lib/features/models/model-catalog.svelte.ts";
   import { useOverview } from "#lib/features/overview/overview-state.svelte.ts";
@@ -19,6 +19,7 @@
   import { formatLocalDateTime } from "#lib/shared/format.ts";
   import { toast } from "#lib/shared/ui/toast.svelte.ts";
   import { decode } from "#lib/shared/wire.ts";
+  import { isProviderKey } from "#lib/features/threads/providers.ts";
   import type { PageProps } from "./$types";
   import { workerRecords } from "#lib/features/workers/worker-records.svelte.ts";
 
@@ -45,16 +46,29 @@
   /** Phones show one pane: the list, or the selected instance. */
   let pane = $state<"list" | "detail">("list");
   let adding = $state(false);
+  let setupProxy = $state(false);
+  let deviceHarness = $state<Provider>();
   let toggling = $state<string>();
   let failure = $state<string>();
 
   $effect(() => {
-    const instance = route.url.searchParams.get("instance");
+    const query = route.url.searchParams;
+    const instance = query.get("instance");
+    const workerId = query.get("worker");
+    const add = query.get("add");
+    const provider = query.get("provider") ?? "";
+    const harness = add === "device" && isProviderKey(provider) ? Provider[provider] : undefined;
 
-    if (!instance) return;
-    selectedKey = instance;
-    scope = route.url.searchParams.get("worker") || undefined;
-    pane = "detail";
+    if (instance) {
+      selectedKey = instance;
+      scope = workerId || undefined;
+      pane = query.get("view") === "list" ? "list" : "detail";
+    } else if (workerId && (add === "proxy" || harness !== undefined)) {
+      scope = workerId;
+      setupProxy = add === "proxy";
+      deviceHarness = harness;
+      adding = true;
+    }
   });
 
   const workers = $derived(records.workers);
@@ -155,6 +169,8 @@
       icon="plus"
       aria-label="Add provider"
       onclick={() => {
+        setupProxy = false;
+        deviceHarness = undefined;
         adding = true;
       }}>Add</Button
     >
@@ -223,6 +239,8 @@
   instances={providers.instances}
   {workers}
   {scope}
+  {setupProxy}
+  {deviceHarness}
   onadded={(instance) => {
     providers.put(instance);
     if (instance) select(instanceKeyOf(instance));

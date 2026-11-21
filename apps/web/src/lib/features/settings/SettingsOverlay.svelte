@@ -29,30 +29,30 @@
    * underneath stays mounted, untouched. A settings page loaded on its own (`route`: the route's
    * content) shows in the same dialog until it hands over to the overlay.
    */
-  let { route }: { route: Snippet } = $props();
+  let { route, focused }: { route: Snippet; focused: boolean } = $props();
 
   const routeMode = $derived(
     isSettingsRoute(page.route.id) &&
       (!page.error || !settingsSectionEnabled(page.url.pathname, settings.enabledModules)),
   );
 
-  const shallowKey = $derived(
-    !routeMode && page.shallow?.route && isSettingsRoute(page.shallow.route.id)
-      ? overlayKey(page.shallow.url)
-      : undefined,
+  const shallowUrl = $derived(
+    !routeMode && page.shallow?.route && isSettingsRoute(page.shallow.route.id) ? page.shallow.url : undefined,
   );
 
-  const key = $derived(routeMode ? undefined : (shallowKey ?? overlay.bridging?.key));
+  const shallowKey = $derived(shallowUrl && overlayKey(shallowUrl));
+  const overlayUrl = $derived(shallowUrl ?? overlay.bridging?.url);
+  const key = $derived(!routeMode && overlayUrl ? overlayKey(overlayUrl) : undefined);
 
   type View = { key?: string | undefined; url: SettingsRoute["url"]; params: Readonly<Record<string, string>> };
 
   const view = $derived.by((): View | undefined => {
     if (routeMode) return { url: page.url, params: page.params };
 
-    if (!key) return undefined;
+    if (!key || !overlayUrl) return undefined;
     const entry = overlay.pages.get(key);
 
-    return { key, url: new URL(key, page.url.origin), params: entry?.status === "loaded" ? entry.params : {} };
+    return { key, url: overlayUrl, params: entry?.status === "loaded" ? entry.params : {} };
   });
 
   // What the dialog shows: the current view, or the last one while it plays its exit.
@@ -64,6 +64,12 @@
 
   const shown = $derived(view ?? last);
   const open = $derived(Boolean(view));
+  let fromSetup = $state<boolean>();
+
+  $effect(() => {
+    if (open) fromSetup = untrack(() => focused);
+  });
+
   const allowed = $derived(!shown || settingsSectionEnabled(shown.url.pathname, settings.enabledModules));
   const entry = $derived(shown?.key ? overlay.pages.get(shown.key) : undefined);
 
@@ -121,6 +127,11 @@
     untrack(() => shallowKey && void overlay.reload(shallowKey));
   });
 
+  // The overlay is one history entry over the page: closing is going back to it.
+  const close = () => {
+    if (shallowKey) history.back();
+  };
+
   provideSettingsRoute({
     get url() {
       return shown?.url ?? page.url;
@@ -131,6 +142,10 @@
     get form() {
       return routeMode ? page.form : form;
     },
+    async consumeQuery(name) {
+      return shallowKey ? overlay.consumeQuery(name) : false;
+    },
+    close,
     async refresh(dependency) {
       // Keeps `page.state`; also drops the preloaded data, so the reload below fetches anew.
       await invalidate(dependency, true);
@@ -161,23 +176,26 @@
 
     return () => clearInterval(timer);
   });
-
-  // The overlay is one history entry over the page: closing is going back to it.
-  const close = () => {
-    if (routeMode) return;
-    history.back();
-  };
 </script>
 
 {#if shown}
-  <SettingsDialog {open} onclose={close} onexited={() => !view && (last = undefined)}>
+  <SettingsDialog
+    {open}
+    focused={fromSetup ?? focused}
+    onclose={close}
+    onexited={() => {
+      if (view) return;
+      last = undefined;
+      fromSetup = undefined;
+    }}
+  >
     {#if !allowed}
       <!-- Redirecting to General after the module was turned off. -->
     {:else if capabilities && !capabilities.supports(shown.url.pathname)}
       <AlertCompatibility message={capabilities.unavailableMessage(shown.url.pathname)} desktopActions={false} />
     {:else if !shown.key}
       {@render route()}
-    {:else if overlay.bridging?.key === shown.key && !overlay.bridging.ready}
+    {:else if overlay.bridging && !overlay.bridging.ready && overlayKey(overlay.bridging.url) === shown.key}
       <!-- Handing over: the route's content just left, the same page mounts once the page underneath is in. -->
     {:else if entry?.status === "loaded"}
       <entry.component data={entry.data} {form} />

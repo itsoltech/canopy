@@ -8,12 +8,17 @@
   import WorkerSection from "./WorkerSection.svelte";
 
   /** The agent CLIs on one worker (docs/provider-cli.md): Canopy never bundles them, it installs them on request. */
-  let { worker, readOnly = "" }: { worker: ui.Worker; readOnly?: string } = $props();
+  let {
+    worker,
+    readOnly = "",
+    anchor,
+  }: { worker: ui.Worker; readOnly?: string; anchor?: string | undefined } = $props();
+
   const cli = cliActions();
   const key = $derived(`check/${worker.id}`);
 </script>
 
-<WorkerSection title="Agent CLIs" description="Nothing changes until you install or update.">
+<WorkerSection title="Agent CLIs" description="Nothing changes until you install or update." {anchor}>
   {#snippet actions()}
     <Button
       size="sm"

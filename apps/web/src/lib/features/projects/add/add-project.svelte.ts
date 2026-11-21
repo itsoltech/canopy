@@ -7,10 +7,19 @@ export class AddProjectState {
   /** After adding: go to the project's settings (Settings → Projects) or stay and confirm with a toast. */
   openProject = $state(false);
   project = $state<ui.Project>();
+  workerId = $state<string>();
+  findGit = $state(false);
 
-  show({ openProject = false, project }: { openProject?: boolean; project?: ui.Project } = {}): void {
+  show({
+    openProject = false,
+    project,
+    workerId,
+    findGit = false,
+  }: { openProject?: boolean; project?: ui.Project; workerId?: string; findGit?: boolean } = {}): void {
     this.openProject = openProject;
     this.project = project;
+    this.workerId = workerId;
+    this.findGit = findGit && !project;
     this.open = true;
   }
 }

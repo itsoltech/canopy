@@ -5,6 +5,7 @@ instancji dostawcy i nadpisania na pojedynczym workerze. Dostępność w kanała
 wynika z [promocji wydań](release.md).
 Klienci kolorują składnię JSON i TOML oraz sprawdzają konfigurację Claude
 przed wysłaniem zapisu.
+Web i desktop obsługują wejścia ze strony konfiguracji do kreatora workera i sekcji **Agent CLIs**.
 
 Aktualizacja (2026-11-20): odczyt natywnie skompresowanych rolloutów Codexa
 w rekoncyliacji jest zaimplementowany. Włączenie kompresji przez Canopy pozostaje odłożone.
@@ -97,6 +98,10 @@ reconnect zastępuje ją aktualnym snapshotem. Zadania w tle mogą się zakończ
 ale nie budzą zarchiwizowanego ani usuniętego wątku nową turą.
 
 ## Dodanie maszyny z UI
+
+Na stronie **Set up Canopy** przycisk **Add worker** otwiera ten sam kreator po wczytaniu danych ustawień.
+Zamknięcie kreatora wraca do **Set up Canopy**. Odnośnik do **Agent CLIs** przewija szczegóły
+wybranego workera do tej sekcji.
 
 1. W **Settings → Workers → Add worker** podaj nazwę i opcjonalne **Worker tags**.
    Picker podpowiada ręczne tagi używane przez Twoje workery. Kreator może jednym kliknięciem

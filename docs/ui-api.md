@@ -2,6 +2,8 @@
 
 Status (2026-11-21): web, desktop i mobile obsługują usypianie wątków oraz załączniki
 do 40 MiB na plik po zmianie ustawienia.
+Web i desktop pokazują automatyczne powitanie tylko po potwierdzeniu przez gateway,
+że działa w wersji pierwszego uruchomienia nowej instalacji. [Onboarding](onboarding.md)
 Stany źródeł Usage są widoczne w sekcji **Recording gateways**.
 Settings → Providers udostępnia edytor wspólnych ustawień CLI Claude, Codexa i Groka
 oraz nadpisań pojedynczego workera, z lokalnym kolorowaniem i walidacją JSON.
@@ -1519,6 +1521,9 @@ Szczegóły rozłączenia agentów opisuje [bots.md](bots.md).
 
 Kompozytor nowego wątku ma własny adres `/threads/new`. Starsze linki
 `/?project=…` i `/?workspace=…` zachowują wybór projektu i workera.
+BFF przekazuje `ClientCapabilities.offer_onboarding` jako `offerOnboarding`
+w `GET /api/gateway-capabilities`. Brak sygnału od starszego gatewaya prowadzi
+do zwykłego kompozytora. [Reguły powitania](onboarding.md#1-pierwszy-wątek)
 Przy jednym włączonym module przełącznik zakładek znika. Gdy użytkownik
 wyłączy moduł otwarty pod oknem ustawień, dialog pozostaje otwarty,
 a przekierowanie następuje przy jego zamknięciu.

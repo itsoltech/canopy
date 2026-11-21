@@ -20,6 +20,7 @@ import gatewayRelocation from "./0188_gateway_relocation.sql" with { type: "text
 import consolidation from "./0189_consolidation.sql" with { type: "text" };
 import settingsGuidance from "./0190_settings_guidance.sql" with { type: "text" };
 import botBackgroundContinuations from "./0191_bot_background_continuations.sql" with { type: "text" };
+import gatewayOnboarding from "./0192_gateway_onboarding.sql" with { type: "text" };
 import transcriptStructuredRawRefs from "./0185_transcript_structured_raw_refs.sql" with { type: "text" };
 import githubPrProjection from "./0177_github_pr_projection.sql" with { type: "text" };
 import messageDelegatingBot from "./0176_message_delegating_bot.sql" with { type: "text" };
@@ -183,14 +184,9 @@ import mirrorThreadMetadata from "./0097_mirror_thread_metadata.sql" with { type
 import threadReadMetadata from "./0098_thread_read_metadata.sql" with { type: "text" };
 import messageReceipts from "./0099_message_receipts.sql" with { type: "text" };
 import { splitStatements } from "./split.ts";
-import queueReadIndexes from "./0103_queue_read_indexes.sql" with { type: "text" };
 import databaseRetention from "./0104_database_retention.sql" with { type: "text" };
-import retentionIndexes from "./0105_retention_indexes.sql" with { type: "text" };
-import pollingIndexes from "./0106_polling_indexes.sql" with { type: "text" };
-import lifecycleReadIndexes from "./0107_lifecycle_read_indexes.sql" with { type: "text" };
 import secretDeliveryBatches from "./0108_secret_delivery_batches.sql" with { type: "text" };
-import secretQueueIndexes from "./0109_secret_queue_indexes.sql" with { type: "text" };
-import { indexTasks, runIndexTasks } from "./index-tasks.ts";
+import { reconcileDeferredIndexes } from "./deferred-indexes.ts";
 
 /**
  * Runs a .sql file statement by statement (the driver uses the extended protocol only).
@@ -396,19 +392,16 @@ export const migrations = Migrator.fromRecord({
   "0189_consolidation": sqlFile(consolidation),
   "0190_settings_guidance": sqlFile(settingsGuidance),
   "0191_bot_background_continuations": sqlFile(botBackgroundContinuations),
+  "0192_gateway_onboarding": sqlFile(gatewayOnboarding),
 });
 
 /** Applies pending migrations in a transaction with a lock, safe to call from a deploy step. */
 const migrateSchema = Migrator.make({})({ loader: migrations, table: "schema_migrations" });
 
-const deferredIndexes = indexTasks(
-  [queueReadIndexes, retentionIndexes, pollingIndexes, lifecycleReadIndexes, secretQueueIndexes].join("\n"),
-).filter((task) => task.name !== "worker_commands_redelivery");
-
 const migrateWithIndexes = (concurrent: boolean) =>
   Effect.gen(function* () {
     const applied = yield* migrateSchema;
-    yield* runIndexTasks(deferredIndexes, concurrent, ["worker_commands_open", "worker_commands_redelivery"]);
+    yield* reconcileDeferredIndexes(concurrent);
 
     return applied;
   });

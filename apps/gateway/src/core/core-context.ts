@@ -76,6 +76,7 @@ export interface GatewayCoreOptions {
   readonly diagnosticsStorage?: import("../diagnostics/storage.ts").GatewayStorageOptions;
   readonly logSources?: readonly import("@canopy/logs").LogRegistration[];
   readonly role?: GatewayRole;
+  readonly offerOnboarding?: boolean;
   readonly relocation?: import("../migration/relocation-fence-runtime.ts").RelocationRuntime;
   readonly skillSources?: import("../agent-environment/source-discovery.ts").SourceOptions;
   readonly updates?: Partial<Omit<GatewayUpdatesOptions, "persistence" | "authenticate">>;

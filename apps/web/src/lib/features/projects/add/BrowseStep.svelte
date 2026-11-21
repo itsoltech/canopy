@@ -7,6 +7,7 @@
   import PaletteOption from "#lib/features/commands/PaletteOption.svelte";
   import { pathSeparator } from "#lib/features/overview/workers.ts";
   import Skeleton from "#lib/shared/ui/Skeleton.svelte";
+  import TruncatedText from "#lib/shared/ui/TruncatedText.svelte";
   import { ACTION_LABELS, browseTarget, type BrowseMode } from "./add-project-flow.ts";
   import { directoryText, matching, parsePath, tidyText, upText, type PathStyle } from "./browse-path.ts";
   import { DirectoryListing } from "./directory-listing.svelte.ts";
@@ -26,6 +27,8 @@
     name = "",
     parent = "",
     actionLabel,
+    description,
+    directoryListing,
     busy = false,
     error,
     clone,
@@ -39,6 +42,8 @@
     name?: string;
     parent?: string;
     actionLabel?: string;
+    description?: string;
+    directoryListing?: DirectoryListing;
     busy?: boolean;
     error?: string | undefined;
     clone?: CloneProjectState;
@@ -49,7 +54,7 @@
 
   const id = $props.id();
   const label = $derived(mode === "clone" && error ? "Retry" : (actionLabel ?? ACTION_LABELS[mode]));
-  const listing = untrack(() => new DirectoryListing(worker.id));
+  const listing = untrack(() => directoryListing ?? new DirectoryListing(worker.id));
   let input = $state<HTMLInputElement>();
   let text = $state("");
   let realHome = $state("");
@@ -185,6 +190,13 @@
     class={[paletteInputClass, "font-mono text-sm/6 sm:text-[0.8125rem]/6"]}
   />
 </StepHeader>
+
+{#if description}
+  <div class="shrink-0 border-b border-divider px-4 py-2 text-sm/5 sm:text-xs/4">
+    <TruncatedText text={worker.name} class="font-medium" />
+    <p class="text-muted">{description}</p>
+  </div>
+{/if}
 
 {#if mode === "clone" && clone?.attempted}
   <CloneProgress

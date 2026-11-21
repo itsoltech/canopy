@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { onDestroy } from "svelte";
+  import { onDestroy, untrack } from "svelte";
   import { goto } from "$app/navigation";
   import { ui } from "@canopy/contracts";
   import { workerPresence } from "#lib/features/computers/computers.ts";
@@ -25,6 +25,8 @@
   } from "./add-project-flow.ts";
   import type { AddProjectState } from "./add-project.svelte.ts";
   import BrowseStep from "./BrowseStep.svelte";
+  import GitResultsStep from "./GitResultsStep.svelte";
+  import { DirectoryListing } from "./directory-listing.svelte.ts";
   import { repositoryName } from "./browse-path.ts";
   import { workspaceParent, workspaceDirectoryName } from "@canopy/domain/workspace-sources";
   import ChoiceStep from "./ChoiceStep.svelte";
@@ -130,7 +132,9 @@
       clearTimeout(closed);
       closing = false;
       opener = document.activeElement instanceof HTMLElement ? document.activeElement : undefined;
-      stack = [{ kind: "worker" }];
+      const preferred = untrack(() => choices.find((choice) => choice.key === flow.workerId && !choice.disabled));
+      stack = preferred ? [{ kind: "worker" }, workerStep(preferred.value)] : [{ kind: "worker" }];
+      direction = 1;
       error = undefined;
       busy = false;
       dialog.showModal();
@@ -162,6 +166,12 @@
   const close = () => {
     if (!busy) flow.open = false;
   };
+
+  function workerStep(worker: ui.Worker): Step {
+    return flow.findGit
+      ? { kind: "git-directory", worker, parent: "", listing: new DirectoryListing(worker.id) }
+      : { kind: "source", worker };
+  }
 
   function push(next: Step | CopyStep) {
     direction = 1;
@@ -248,7 +258,7 @@
 <dialog
   use:windowModal
   bind:this={dialog}
-  aria-label={flow.project ? "Add workspace" : "Add project"}
+  aria-label={flow.project ? "Add workspace" : flow.findGit ? "Find Git repositories" : "Add project"}
   onclose={() => {
     if (!flow.open) return;
     flow.open = false;
@@ -260,7 +270,7 @@
   class={paletteDialogClass}
 >
   {#if flow.open || closing}
-    {#key stack.length}
+    {#key step}
       <div class="flex min-h-0 flex-1 flex-col" in:pageIn={{ from: direction }}>
         {#if step.kind === "worker"}
           <ChoiceStep
@@ -268,7 +278,7 @@
             empty="Add a worker in Settings → Workers."
             placeholder="Search workers…"
             {choices}
-            onchoose={(worker) => push({ kind: "source", worker })}
+            onchoose={(worker) => push(workerStep(worker))}
             onclose={close}
           />
         {:else if step.kind === "source"}
@@ -293,6 +303,34 @@
               cloneUrlChosen = true;
               push({ kind: "browse", worker, source, remote: url || remote });
             }}
+            onback={back}
+            onclose={close}
+          />
+        {:else if step.kind === "git-directory"}
+          {@const { worker, listing, parent } = step}
+          <BrowseStep
+            {worker}
+            {parent}
+            mode="add"
+            actionLabel="Find repositories"
+            description="Choose a directory to find the Git repositories inside it."
+            directoryListing={listing}
+            onsubmit={({ dir }) => {
+              stack = [...stack.slice(0, -1), { kind: "git-directory", worker, listing, parent: dir }];
+              push({ kind: "git-results", worker, listing, parent: dir });
+            }}
+            onback={back}
+            onclose={close}
+          />
+        {:else if step.kind === "git-results"}
+          {@const { worker, listing, parent } = step}
+          <GitResultsStep
+            {worker}
+            {listing}
+            {parent}
+            {busy}
+            {error}
+            onsubmit={(dir) => add(worker, "directory", "", { dir, name: "" })}
             onback={back}
             onclose={close}
           />

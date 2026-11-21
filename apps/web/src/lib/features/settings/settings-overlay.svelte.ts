@@ -39,7 +39,7 @@ class SettingsOverlay {
    * A direct load handing over to the overlay: the page shown meanwhile (`handOver`); `ready` once the
    * page underneath is in place (before that the dialog shows the route's own content).
    */
-  bridging = $state<{ readonly key: string; readonly ready: boolean }>();
+  bridging = $state<{ readonly url: URL; readonly ready: boolean }>();
   /** The title of the page underneath: settings pages set their own, closing puts it back. */
   pageTitle: string | undefined;
   #token = 0;
@@ -48,9 +48,10 @@ class SettingsOverlay {
   /** Opens `href` over the current page (`replace`: instead of the settings page already open). */
   async open(href: string, replace: boolean): Promise<void> {
     const token = ++this.#token;
-    let key = overlayKey(href);
+    let url = new URL(href, page.url.origin);
 
     for (let hops = 0; ; hops++) {
+      const key = overlayKey(url);
       const loaded = await this.#load(key);
 
       if (token !== this.#token) return;
@@ -61,19 +62,35 @@ class SettingsOverlay {
       }
 
       // `/settings` goes on to its first section; a redirect out of Settings is a real navigation.
-      const next = overlayKey(loaded.redirect);
+      const next = new URL(loaded.redirect, url);
 
-      if (hops >= 3 || !isSettingsRoute((await match(next))?.id)) return goto(loaded.redirect);
-      key = next;
+      if (hops >= 3 || !isSettingsRoute((await match(next.href))?.id)) return goto(loaded.redirect);
+      url = next;
     }
 
     const over = replace ? page.state.settingsOver : overlayKey(page.url);
-    await goto(key, {
+    await goto(url, {
       shallow: true,
       replace,
       state: { settingsOver: over ?? overlayKey(page.url) },
       persistState: true,
     });
+  }
+
+  /** Removes a one-shot query parameter that has no effect on the page's loaded data. */
+  async consumeQuery(name: string): Promise<boolean> {
+    const current = page.shallow;
+
+    if (!current || !isSettingsRoute(current.route?.id) || !current.url.searchParams.has(name)) return false;
+    const entry = this.pages.get(overlayKey(current.url));
+
+    if (entry?.status !== "loaded") return false;
+    const url = new URL(current.url.href);
+    url.searchParams.delete(name);
+    this.pages.set(overlayKey(url), entry);
+    await goto(url, { shallow: true, replace: true, state: page.state, persistState: true });
+
+    return page.shallow?.url.href === url.href;
   }
 
   /** Loads a page the overlay shows but has not loaded (Forward into Settings, a hand-over). */
@@ -106,7 +123,8 @@ class SettingsOverlay {
   async handOver(enabled: readonly ModuleId[]): Promise<void> {
     if (this.#handingOver) return;
     this.#handingOver = true;
-    const key = overlayKey(page.url);
+    const url = new URL(page.url.href);
+    const key = overlayKey(url);
     const routeId = page.route.id;
     const saved = page.state.settingsOver;
 
@@ -122,12 +140,12 @@ class SettingsOverlay {
           data: page.data,
           params: { ...page.params },
         });
-      this.bridging = { key, ready: false };
+      this.bridging = { url, ready: false };
       await goto(over, { replace: true, reset: false });
       // The page underneath has set its title; the settings page mounts again after it, with its own.
       this.pageTitle = document.title;
-      this.bridging = { key, ready: true };
-      await goto(key, { shallow: true, state: { settingsOver: over }, persistState: true });
+      this.bridging = { url, ready: true };
+      await goto(url, { shallow: true, state: { settingsOver: over }, persistState: true });
     } finally {
       this.bridging = undefined;
       this.#handingOver = false;

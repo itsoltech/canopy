@@ -5,6 +5,7 @@ import { gatewayProcessApi } from "./api/process-routes.ts";
 import { GatewayCore } from "./core/core.ts";
 import { settleInterruptedWorktreePreparations } from "./core/worktree-preparation.ts";
 import { initializeModuleExecution } from "./store/module-transitions.ts";
+import { offerGatewayOnboarding } from "./store/gateway-onboarding.ts";
 import { healthcheck } from "./healthcheck.ts";
 import { ensureDevUser, gatewayRuntime, migrateDatabase, networkPort, webOrigin } from "./runtime.ts";
 import {
@@ -113,6 +114,7 @@ await runtime.runPromise(initializeModuleExecution(userId));
 
 const core = new GatewayCore({
   role: gatewayRole(env),
+  offerOnboarding: await runtime.runPromise(offerGatewayOnboarding(CANOPY_VERSION)),
   runtime,
   relocation,
   diagnosticsStorage: gatewayStorageOptions(env, {

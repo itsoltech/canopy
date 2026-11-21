@@ -103,6 +103,7 @@ export class GatewayCore {
   readonly proxyAccounts = new ProxyAccountsMonitor(this);
   readonly snoozes = new ThreadSnoozes(this);
   readonly role: GatewayRole;
+  readonly offerOnboarding: boolean;
   readonly [coreState] = new GatewayCoreState();
   declare sweep: CoreWorkLoopMethods["sweep"];
   declare startSweep: CoreWorkLoopMethods["startSweep"];
@@ -268,6 +269,7 @@ export class GatewayCore {
 
   constructor(options: GatewayCoreOptions) {
     this.role = options.role ?? "server";
+    this.offerOnboarding = options.offerOnboarding ?? false;
     this.imports = new CliImports(this);
     this.copyJobs = new WorkspaceCopyJobs(this);
     this[coreState].options = options;

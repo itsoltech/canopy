@@ -1,4 +1,5 @@
 import type { ui } from "@canopy/contracts";
+import { timestampMs } from "@bufbuild/protobuf/wkt";
 import { scanImport } from "./api.ts";
 import { agentCliName, counted } from "./labels.ts";
 
@@ -8,6 +9,9 @@ import { agentCliName, counted } from "./labels.ts";
  */
 
 const DISMISSED = "canopy:import-suggestion";
+
+// The gateway retains import scans for 30 minutes (ScanImportResponse).
+const SCAN_TTL_MS = 30 * 60_000;
 
 const scans = new Map<string, Promise<ui.ScanImportResponse | undefined>>();
 
@@ -21,6 +25,16 @@ export function suggestionScan(workerId: string): Promise<ui.ScanImportResponse 
   }
 
   return scan;
+}
+
+/** Reuses a scan already requested by the suggestion without starting a new one. */
+export async function reusableSuggestionScan(workerId: string): Promise<ui.ScanImportResponse | undefined> {
+  const scan = await scans.get(workerId);
+
+  if (scan?.workerId !== workerId || !scan.scannedAt) return undefined;
+  const age = Date.now() - timestampMs(scan.scannedAt);
+
+  return age >= 0 && age < SCAN_TTL_MS ? scan : undefined;
 }
 
 export function suggestionDismissed(): boolean {
