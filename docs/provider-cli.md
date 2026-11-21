@@ -1,6 +1,7 @@
 # CLI dostawców: wykrywanie, instalacja i aktualizacja
 
-Status: opis zaimplementowanego kodu (2026-11-19), w tym etapu CLI po aktualizacjach Canopy
+Status: opis zaimplementowanego kodu (2026-11-21), w tym ponawiania aktualizacji pakietu Groka
+w mise, gdy launcher nadal używa poprzedniej binarki, etapu CLI po aktualizacjach Canopy
 na dostępnych komputerach, aktualizacji globalnych instalacji mise
 i powiązania wyników Update all z konkretną próbą instalacji oraz uruchamiania skryptów CLI
 z katalogów ze spacjami na Windows oraz aktualizacji natywnych instalacji Claude Code
@@ -229,14 +230,25 @@ nie aktualizuje Node, pod którym ktoś wykonał `npm install -g`. Sondy CLI i `
 działają z katalogu domowego workera, tak jak instalator. `mise ls --json --global <narzędzie>` musi
 potwierdzić jedną zainstalowaną globalną wersję, zgodną z wybranym CLI. Wynik `--current` musi
 wskazywać tę samą wersję i źródłowy plik konfiguracji; nadpisanie projektu lub środowiska blokuje przepis.
-Wybrana ścieżka musi być shimem; bezpośrednia ścieżka przez `installs/` (także `latest`),
+Wybrana ścieżka zwykle jest shimem; bezpośrednia ścieżka przez `installs/` (także `latest`),
 konfiguracja tylko projektu, wiele globalnych wersji, nieznane narzędzie lub brak mise zachowują
 polecenie ręczne. Starszy worker bez przepisu również zachowuje polecenie ręczne.
-Symlink mise `latest` wskazuje najwyższą zainstalowaną wersję, także po ponownej aktywacji starszej,
-więc nie pozwala niezawodnie cofnąć aktualizacji.
+Symlink mise `latest` wskazuje najwyższą zainstalowaną wersję, także po ponownej aktywacji starszej.
+Worker może zaktualizować launcher `npm:@xai-official/grok` wykryty automatycznie
+przez taki wpis w PATH, jeśli wskazuje też na niego `mise which grok` i mise obsługuje
+`--tool-option`. W tym przypadku skrypt pakietu przełącza współdzieloną binarkę.
+Jawnie wskazana ścieżka przez `installs/` nadal wymaga ręcznej aktualizacji.
 
 `mise use` instaluje i aktywuje wersję w konfiguracji globalnej, również gdy poprzednia była przypięta.
 Dokładny cel używa `--pin`; cel `latest` pomija tę flagę i respektuje ustawienie pinów mise.
+Jeśli mise obsługuje `--tool-option`, aktualizacja pakietu `npm:@xai-official/grok`
+ponownie instaluje wybraną wersję i zezwala na skrypt instalacyjny tego pakietu
+(`allow_builds`). Wyłącza również cache wyników skryptu aube na czas polecenia,
+bo przełączenie binarki odbywa się poza katalogiem pakietu.
+Zgodne globalne i aktywne wskazania mise pozwalają ponowić
+aktualizację, gdy launcher wciąż uruchamia inną wersję binarki. Wynik instalacji
+potwierdza wersja faktycznie uruchamianego Groka. Starsze mise nadal obsługuje
+aktualizacje przez shim dotychczasowym poleceniem.
 Poprzednie wersje pozostają zainstalowane. Po nieudanej weryfikacji worker ponownie aktywuje
 poprzednią wersję tym samym przepisem; przywrócony wpis jest dokładnym pinem, także gdy wcześniej był `latest`.
 Konfiguracja projektu nie jest przepisywana. Wszystkie aktualizacje mise na workerze współdzielą

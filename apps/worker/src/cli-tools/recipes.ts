@@ -14,7 +14,7 @@ import { miseRecipe } from "./mise.ts";
  */
 
 export type Recipe =
-  | { readonly kind: "run"; readonly argv: readonly string[] }
+  | { readonly kind: "run"; readonly argv: readonly string[]; readonly env?: Readonly<Record<string, string>> }
   | {
       readonly kind: "script";
       readonly url: string;

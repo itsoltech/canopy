@@ -213,7 +213,7 @@ export async function runInstall(input: InstallInput): Promise<InstallOutcome> {
 
   const execute = async (recipe: Recipe, timeoutMs: number): Promise<string | undefined> => {
     let argv: readonly string[];
-    let commandEnv: Record<string, string> = env;
+    let powershellEnv: Record<string, string> | undefined;
     let scriptName: string | undefined;
     let script: string | undefined;
 
@@ -237,15 +237,16 @@ export async function runInstall(input: InstallInput): Promise<InstallOutcome> {
         : ["bash", script, ...recipe.args];
 
       if (powershell) {
-        commandEnv = Object.fromEntries(
+        powershellEnv = Object.fromEntries(
           Object.entries(env).filter(
             ([key]) => !/^CODEX_(?:INSTALL_|NON_INTERACTIVE$|UPDATE_FROM_RELEASE$)/i.test(key),
           ),
         );
-        commandEnv["CODEX_NON_INTERACTIVE"] = "1";
+        powershellEnv["CODEX_NON_INTERACTIVE"] = "1";
       }
     } else argv = recipe.argv;
     emit(`$ ${argv.map((arg) => (arg === script ? scriptName : arg)).join(" ")}`);
+    const commandEnv = powershellEnv ?? { ...env, ...(recipe.kind === "run" && recipe.env) };
     const code = await run(argv, tools.home, commandEnv, timeoutMs, emit);
 
     if (code === null) return `the installer did not finish within ${Math.round(timeoutMs / 60_000)} minutes`;

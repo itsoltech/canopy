@@ -1,6 +1,6 @@
 /** Real discovery and installation against isolated mise homes; no provider or package manager is downloaded. */
 import { afterEach, beforeEach, describe, expect, test } from "bun:test";
-import { chmodSync, existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { chmodSync, existsSync, mkdirSync, readFileSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { create } from "@bufbuild/protobuf";
 import { CliInstallMethod, InstallCliSchema, Provider } from "@canopy/contracts";
@@ -27,7 +27,14 @@ const mise = `${homeOnly}
 case "$1" in
   which) IFS= read -r target < "$HOME/target-$2"; printf '%s\n' "$target"; exit;;
   ls) [ "$2" = --json ] || exit 43; tool="$4";;
-  use) printf '%s\n' "$*" >> "$HOME/calls"; for arg in "$@"; do tool="$arg"; done; tool="\${tool%@*}";;
+  use)
+    if [ "$2" = --help ]; then
+      [ -f "$HOME/legacy-mise" ] || printf '%s\n' '  --tool-option <KEY=VALUE>'
+      exit 0
+    fi
+    printf '%s\n' "$*" >> "$HOME/calls"
+    for arg in "$@"; do tool="$arg"; done
+    tool="\${tool%@*}";;
   *) exit 44;;
 esac
 case "$tool" in
@@ -56,6 +63,13 @@ IFS= read -r owner < "$HOME/owner-$name"
 IFS= read -r suffix < "$HOME/suffix-$name"
 target="$MISE_DATA_DIR/installs/$owner/$version/$suffix"
 [ -x "$target" ] || exit 47
+if [ -f "$HOME/runtime-$name" ]; then
+  /bin/ln -sfn "$version" "$MISE_DATA_DIR/installs/$owner/latest"
+  case " $* " in
+    *" --force --tool-option allow_builds=@xai-official/grok "*)
+      [ "$AUBE_SIDE_EFFECTS_CACHE" != false ] || printf '%s\n' "$version" > "$HOME/runtime-$name";;
+  esac
+fi
 printf '%s\n' "$target" > "$HOME/target-$name.new"
 /bin/mv "$HOME/target-$name.new" "$HOME/target-$name"
 printf '%s\n' "$version" > "$HOME/global-$name.new"
@@ -94,7 +108,7 @@ function device(customData = false) {
 
   const entry = async (spec: CliSpec) => (await tools.report()).tools?.find((tool) => tool.provider === spec.provider);
 
-  function add(spec: CliSpec, owner: string) {
+  function add(spec: CliSpec, owner: string, sharedRuntime = false) {
     const suffix =
       owner.startsWith("npm-") || owner === "node"
         ? `lib/node_modules/${spec.npm}/bin/${spec.name}`
@@ -102,11 +116,17 @@ function device(customData = false) {
 
     const target = (version: string) => join(data, "installs", owner, version, suffix);
 
-    for (const version of ["1.0.0", "2.0.0", "3.0.0"])
-      executable(
-        target(version),
-        version === "3.0.0" ? 'echo "broken target" >&2; exit 7' : `echo '${spec.name} ${version}'`,
-      );
+    for (const version of ["1.0.0", "2.0.0", "3.0.0"]) {
+      const body =
+        version === "3.0.0"
+          ? 'echo "broken target" >&2; exit 7'
+          : sharedRuntime
+            ? `IFS= read -r runtime < "$HOME/runtime-${spec.name}"; echo "${spec.name} $runtime"`
+            : `echo '${spec.name} ${version}'`;
+
+      executable(target(version), body);
+    }
+
     text(`owner-${spec.name}`, owner);
     text(`suffix-${spec.name}`, suffix);
     text(`target-${spec.name}`, target("1.0.0"));
@@ -115,7 +135,14 @@ function device(customData = false) {
     const shim = join(data, "shims", spec.name);
     executable(shim, launcher);
     const latest = join(data, "installs", owner, "latest", suffix);
-    executable(latest, launcher);
+
+    if (sharedRuntime) {
+      text(`runtime-${spec.name}`, "1.0.0");
+      text(`target-${spec.name}`, target("2.0.0"));
+      text(`global-${spec.name}`, "2.0.0");
+      symlinkSync("2.0.0", join(data, "installs", owner, "latest"));
+      env.PATH = `${join(latest, "..")}:${env.PATH}`;
+    } else executable(latest, launcher);
 
     return { shim, latest, previous: target("1.0.0") };
   }
@@ -137,6 +164,8 @@ afterEach(async () => {
 
 const codex = CLIS.find((spec) => spec.name === "codex")!;
 const claude = CLIS.find((spec) => spec.name === "claude")!;
+const grok = CLIS.find((spec) => spec.name === "grok")!;
+const grokNpmSetup = "--force --tool-option allow_builds=@xai-official/grok";
 
 const owners = CLIS.flatMap((spec) => [
   { spec, owner: spec.name, tool: spec.name },
@@ -168,10 +197,39 @@ describe("mise global agent CLIs", () => {
         version: "2.0.0",
         install: { state: "succeeded", targetVersion: "2.0.0", previousVersion: "1.0.0" },
       });
-      expect(d.calls()).toEqual([`use --global --yes --pin ${tool}@2.0.0`]);
+      const setup = tool === "npm:@xai-official/grok" ? `${grokNpmSetup} ` : "";
+
+      expect(d.calls()).toEqual([`use --global --yes --pin ${setup}${tool}@2.0.0`]);
       expect(await d.probe.version(shim)).toEqual({ line: `${spec.name} 2.0.0` });
     },
   );
+
+  test("retries a cached Grok package whose launcher is still using the previous shared binary", async () => {
+    const d = device(true);
+    const { latest, previous } = d.add(grok, "npm-xai-official-grok", true);
+    expect(await d.probe.version(latest)).toEqual({ line: "grok 1.0.0" });
+    d.configured.grok = latest;
+    expect(await d.entry(grok)).toMatchObject({ path: latest, installable: false, version: "1.0.0" });
+    delete d.configured.grok;
+    d.text("target-grok", previous);
+    processGovernor.invalidate();
+    expect(await d.entry(grok)).toMatchObject({ path: latest, installable: false, version: "1.0.0" });
+    d.text("target-grok", latest);
+    processGovernor.invalidate();
+    expect(await d.entry(grok)).toMatchObject({ path: latest, installable: true, version: "1.0.0" });
+
+    await d.tools.start(
+      create(InstallCliSchema, {
+        installId: crypto.randomUUID(),
+        provider: Provider.GROK,
+        version: "2.0.0",
+        upgradeOnly: true,
+      }),
+    );
+    await d.tools.settled(Provider.GROK);
+    expect(await d.entry(grok)).toMatchObject({ path: latest, version: "2.0.0", install: { state: "succeeded" } });
+    expect(d.calls()).toEqual([`use --global --yes --pin ${grokNpmSetup} npm:@xai-official/grok@2.0.0`]);
+  });
 
   test("a configured shim follows an unpinned global update", async () => {
     const d = device();
@@ -186,6 +244,16 @@ describe("mise global agent CLIs", () => {
       install: { state: "succeeded", targetVersion: "latest" },
     });
     expect(d.calls()).toEqual(["use --global --yes codex@latest"]);
+  });
+
+  test("a Grok shim on older mise still updates with the original command", async () => {
+    const d = device();
+    d.add(grok, "npm-xai-official-grok");
+    d.text("legacy-mise", "");
+    await d.start(grok);
+    await d.tools.settled(Provider.GROK);
+    expect(await d.entry(grok)).toMatchObject({ version: "2.0.0", install: { state: "succeeded" } });
+    expect(d.calls()).toEqual(["use --global --yes --pin npm:@xai-official/grok@2.0.0"]);
   });
 
   test("a broken target rolls back before a second provider may change global config", async () => {
