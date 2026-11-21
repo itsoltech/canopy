@@ -2,6 +2,7 @@
 
 Status (2026-11-21): prywatny czat bota wyszukuje i odczytuje wybrane preferencje
 konta Canopy oraz zmienia jedną z nich po jednorazowej zgodzie właściciela.
+Gateway pomija rozumowanie Groka w podglądzie odpowiedzi na żywo i w zapisywanej wiadomości bota.
 Dostępność wydań według [release.md](release.md).
 
 Status (2026-11-19): wyłączenie modułu Bots zatrzymuje pracę botów właściciela,
@@ -773,6 +774,9 @@ wyłącznie dla serwera Canopy; jego wewnętrzne `approvalPolicy="never"` nie je
 ustawieniem bota. Szczegóły odmów i granicy zgód: [bots-harness.md](bots-harness.md#narzędzia-i-granica-bezpieczeństwa).
 Utrata sesji odtwarza kontekst bez ponawiania historycznych narzędzi.
 Czytnik własnego `updates.jsonl` Groka odzyskuje tekst i zapisany koniec tury po awarii.
+Przy składaniu odpowiedzi gateway zapamiętuje identyfikatory itemów wykluczonych
+z wiadomości bota, w tym rozumowania. Zdarzenia rozumowania pozostają w dzienniku
+harnessu.
 
 ### Izolowane generowanie tekstu i dowód dla sesji botów
 

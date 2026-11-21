@@ -44,8 +44,15 @@ async function turn(
   );
   const text = params.prompt.map((p) => p.text ?? "").join("\n");
   transcript(params.sessionId, { sessionUpdate: "user_message_chunk", content: { type: "text", text } });
+  const input = text.split("\n\nCurrent input:\n").at(-1);
 
-  if (text.split("\n\nCurrent input:\n").at(-1)?.includes("STOP_REPLY"))
+  if (input?.includes("THINK_BEFORE_REPLY")) {
+    const update = { sessionUpdate: "agent_thought_chunk", content: { type: "text", text: "Consider the reply" } };
+    transcript(params.sessionId, update);
+    send({ method: "session/update", params: { sessionId: params.sessionId, update } });
+  }
+
+  if (input?.includes("STOP_REPLY"))
     send({
       method: "session/update",
       params: {
