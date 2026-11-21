@@ -38,7 +38,6 @@
 <Dialog bind:open title={request?.action === "update_all" ? "Update all?" : `Update “${computer.name}”?`}>
   <p class="text-base/6 text-pretty whitespace-pre-line text-muted sm:text-sm/6">
     {appRestartDescription(computer.name, turns, "web")}
-    {#if request?.action === "update_all"}Agent CLI updates wait for Canopy updates on every online computer.{/if}
   </p>
   {#if blocked}<p class="mt-3 text-base/6 text-pretty text-muted sm:text-sm/6" role="status">
       Send or discard your drafts and files before updating this computer.

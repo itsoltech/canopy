@@ -21,7 +21,7 @@ import { installAgentTool } from "./install.ts";
 import { agentToolSession } from "./scope.ts";
 import { AgentToolDiscoveryCache } from "./cache.ts";
 import { AgentToolLifecycle } from "./lifecycle.ts";
-import { closeAgentToolSession } from "./cleanup.ts";
+import { AgentToolCleanup } from "./cleanup.ts";
 import { DeviceAutomation } from "./device-automation.ts";
 import { browserDefaultsInitializer } from "./browser-defaults.ts";
 import type { LocalAutomationServer } from "../agent-tools-mcp/stdio.ts";
@@ -67,6 +67,7 @@ export class AgentTools {
   readonly #cache = new AgentToolDiscoveryCache();
   readonly #lifecycle = new AgentToolLifecycle();
   readonly #devices: DeviceAutomation;
+  readonly #cleanup = new AgentToolCleanup(() => this.#probeOptions());
   #last: ReportInit | undefined;
 
   constructor(options: AgentToolsOptions) {
@@ -261,7 +262,7 @@ export class AgentTools {
     this.#devices.fence(threadId);
 
     return this.#lifecycle.close(threadId, async () => {
-      await closeAgentToolSession(agentToolSession(threadId), this.#probeOptions());
+      await this.#cleanup.close(agentToolSession(threadId));
       await this.#devices.release(threadId);
     });
   }

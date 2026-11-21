@@ -1,6 +1,6 @@
 import type { MessageInitShape } from "@bufbuild/protobuf";
 import { ui } from "@canopy/contracts";
-import { cliUpdateActionable, appCheckPause, homeAppComputer } from "@canopy/domain/release/update-actions";
+import { appCheckPause, homeAppComputer } from "@canopy/domain/release/update-actions";
 import { currentRemoteUpdate, newerAppVersion } from "@canopy/domain/release/remote-update-state";
 
 export { bulkUpdatesAvailable } from "@canopy/domain/release/update-plan";
@@ -118,10 +118,8 @@ export function updatesAvailable(snapshot: ui.UpdatesSnapshot, includeLinkedWork
     (home && !!computerAction(home)) ||
     (!snapshot.gatewayBundled && snapshot.gatewayInstallKind === "binary" && snapshot.gatewayUpdateAvailable) ||
     snapshot.computers.some((computer) => !!computerAction(computer)) ||
-    homes.some(
-      ({ home, nodeId }) =>
-        home.workers.some((worker) => !worker.bundled && workerAction(worker, home, !!nodeId)) ||
-        home.cliWorkers.some((worker) => worker.cliTools.some(cliUpdateActionable)),
+    homes.some(({ home, nodeId }) =>
+      home.workers.some((worker) => !worker.bundled && workerAction(worker, home, !!nodeId)),
     )
   );
 }
@@ -134,8 +132,7 @@ export function updatesRunning(snapshot: ui.UpdatesSnapshot) {
       ({ home }) =>
         updateBusy(home.app?.phase) ||
         updateBusy(home.app?.updaterPhase) ||
-        home.workers.some((worker) => updateBusy(worker.state) || updateBusy(worker.desktop?.phase)) ||
-        home.cliWorkers.some((worker) => worker.cliTools.some((item) => item.tool?.install?.state === "running")),
+        home.workers.some((worker) => updateBusy(worker.state) || updateBusy(worker.desktop?.phase)),
     )
   );
 }

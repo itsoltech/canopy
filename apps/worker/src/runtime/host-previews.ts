@@ -1,4 +1,4 @@
-import type { AgentPreviewCommand, ThreadLifecycle } from "@canopy/contracts";
+import type { AgentPreviewCommand } from "@canopy/contracts";
 import { AgentPreviews } from "../agent-preview/index.ts";
 import type { AgentTools } from "../agent-tools/index.ts";
 import type { GatewayLink } from "../gateway-link/index.ts";
@@ -39,17 +39,6 @@ export class HostPreviews {
     }
 
     this.#manager?.accept(command);
-  }
-
-  lifecycle(state: ThreadLifecycle, closed: Set<string>): void {
-    if (state.replace) closed.clear();
-
-    for (const id of state.closedThreadIds) {
-      closed.add(id);
-      void this.#manager?.stopThread(id);
-    }
-
-    for (const id of state.openedThreadIds) closed.delete(id);
   }
 
   async stopThread(threadId: string): Promise<void> {

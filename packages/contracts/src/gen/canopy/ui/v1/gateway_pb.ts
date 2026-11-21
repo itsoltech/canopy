@@ -623,7 +623,10 @@ export const UpdatesRequestSchema: GenMessage<UpdatesRequest> = /*@__PURE__*/
  */
 export type ManageUpdatesRequest = Message<"canopy.ui.v1.ManageUpdatesRequest"> & {
   /**
-   * check | channel | gateway | worker | all | desktop | update_all | computer | computer_check | app | dismiss_run | app_dismiss | computer_dismiss | desktop_dismiss | retry_step | retry_failed
+   * Bulk Canopy updates use canopy_update_all, canopy_retry_step and canopy_retry_failed.
+   * Older clients can use update_all, retry_step and retry_failed for the same Canopy-only operations.
+   *
+   * check | channel | gateway | worker | all | desktop | computer | computer_check | app | dismiss_run | app_dismiss | computer_dismiss | desktop_dismiss
    *
    * @generated from field: string action = 1;
    */
@@ -673,7 +676,7 @@ export type ManageUpdatesRequest = Message<"canopy.ui.v1.ManageUpdatesRequest"> 
   confirmRestart: boolean;
 
   /**
-   * retry_step: index in the current owner-scoped run
+   * retry_step or canopy_retry_step: index in the current owner-scoped run
    *
    * @generated from field: uint32 update_step_index = 9;
    */
@@ -984,7 +987,7 @@ export const UpdateRunSchema: GenMessage<UpdateRun> = /*@__PURE__*/
  */
 export type UpdateStep = Message<"canopy.ui.v1.UpdateStep"> & {
   /**
-   * gateway | worker | cli | desktop | computer | app
+   * gateway | worker | desktop | computer | app (older gateways also sent cli)
    *
    * @generated from field: string kind = 1;
    */

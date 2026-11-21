@@ -8,7 +8,7 @@
   import { cliActions, cliLabel, versionProblem } from "./cli-tools.svelte.ts";
   import { cliExternalInstructions } from "./cli-update-instructions.ts";
   import type { UpdatesState } from "./updates.svelte.ts";
-  import { updateInProgress, updateTargetKey } from "@canopy/domain/release/update-status";
+  import { updateInProgress } from "@canopy/domain/release/update-status";
 
   let {
     worker,
@@ -31,12 +31,7 @@
   const key = $derived(`${worker.id}/${tool?.provider}`);
   const busy = $derived(tool?.install?.state === "running" || cli.pending[key]);
 
-  const blocked = $derived(
-    !worker.online ||
-      !!item.blockedReason ||
-      !!busy ||
-      (!!tool && updates.cliBlocked(worker.id, tool.provider, nodeId)),
-  );
+  const blocked = $derived(!worker.online || !!item.blockedReason || !!busy || updates.cliBlocked(worker.id, nodeId));
 
   const error = $derived(
     cli.errors[key] || (tool?.install?.state === "failed" ? tool.install.error : "") || item.latest?.error || "",
@@ -46,9 +41,7 @@
     !!tool && tool.method !== CliInstallMethod.NOT_INSTALLED && tool.method !== CliInstallMethod.UNSPECIFIED,
   );
 
-  const rowKey = $derived(updateTargetKey({ kind: "cli", nodeId, workerId: worker.id, provider: tool?.provider }));
-
-  const own = $derived(
+  const status = $derived(
     !worker.online
       ? "Offline"
       : busy
@@ -63,9 +56,6 @@
                 ? "available"
                 : "Unavailable",
   );
-
-  const status = $derived(updates.rowStatus(rowKey, own));
-  const step = $derived(updates.failedStep(rowKey));
 
   const detail = $derived(
     (external ? cliExternalInstructions(item) : "") ||
@@ -85,26 +75,19 @@
     current={tool.version || (installed ? "" : "Not installed")}
     target={item.latest?.version}
     {status}
-    error={status === "failed"
-      ? error || updates.snapshot?.run?.steps[step]?.reason || "The update did not finish."
-      : ""}
+    error={status === "failed" ? error : ""}
     busy={updateInProgress(status)}
     class={[!worker.online && "opacity-50", className]}
   >
     {#snippet action()}
-      {#if status === "failed" && (step >= 0 || (item.action && !external))}
+      {#if status === "failed" && item.action && !external}
         <IconButton
           icon="repeat"
           size="sm"
           label="Retry"
-          disabled={blocked || (step >= 0 && !!updates.pending)}
+          disabled={blocked}
           onclick={() => {
-            if (blocked) return;
-            const run = updates.snapshot?.run;
-
-            if (step >= 0 && run)
-              void updates.manage({ action: "retry_step", desktopRequestId: run.id, updateStepIndex: step }, rowKey);
-            else void cli.install(worker.id, tool.provider);
+            if (!blocked) void cli.install(worker.id, tool.provider);
           }}
         />
       {:else if item.action && !external && !updateInProgress(status)}

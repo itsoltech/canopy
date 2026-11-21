@@ -1,14 +1,12 @@
 # CLI dostawców: wykrywanie, instalacja i aktualizacja
 
 Status: opis zaimplementowanego kodu (2026-11-21), w tym ponawiania aktualizacji pakietu Groka
-w mise, gdy launcher nadal używa poprzedniej binarki, etapu CLI po aktualizacjach Canopy
-na dostępnych komputerach, aktualizacji globalnych instalacji mise
-i powiązania wyników Update all z konkretną próbą instalacji oraz uruchamiania skryptów CLI
+w mise, gdy launcher nadal używa poprzedniej binarki, osobnego zarządzania CLI w ustawieniach,
+aktualizacji globalnych instalacji mise oraz uruchamiania skryptów CLI
 z katalogów ze spacjami na Windows oraz aktualizacji natywnych instalacji Claude Code
 i Codex Standalone na Windows z zachowaniem systemowej zmiennej `OS` w Canopy Desktop.
 Stan trwającej instalacji pochodzi z bieżącego łącza workera, a powtórzenie akcji
-dla tej samej wersji korzysta z wyniku aktywnej próby. Worker ponownie sprawdza
-wersję przed instalacją z Update all.
+dla tej samej wersji korzysta z wyniku aktywnej próby.
 Dostępność w nightly, beta i stable wynika z promocji opisanych w [release.md](release.md).
 
 Odczyt statusu konta przez oficjalne CLI, jego ograniczenia oraz zasady
@@ -20,18 +18,10 @@ potrafi je jednak **zainstalować i aktualizować na żądanie**: dla każdego w
 wersję, sposób instalacji i dostępną aktualizację, a instalacja albo aktualizacja rusza wyłącznie po kliknięciu
 właściciela (jeden worker albo „Update all” dla dostawcy). Nic nie instaluje się samo.
 
-Centrum aktualizacji w stopce sidebara obejmuje te same akcje i logi instalatora.
-Jego „Update all” aktualizuje zainstalowane CLI lokalne i połączonych komputerów po zakończeniu aktualizacji
-Canopy na dostępnych komputerach, w tym gatewaya, workerów i aplikacji desktopowych.
-Obejmuje natywne instalacje oraz obsługiwane przepisy npm, Bun, Volta, pnpm i mise,
-tak jak pojedyncze przyciski. Pomija niedostępne komputery oraz instalacje bez obsługi w Canopy;
-popover i panel pokazują każdą pominiętą pozycję oraz powód.
-Przepisy menedżerów opisane poniżej pozostają dostępne także w szczegółach workera;
-brakujące CLI mają osobne „Install”. Każdy krok ponownie sprawdza właściciela,
-zgodność workera i blokady instalatora. Błąd CLI pozwala kontynuować inne pozycje;
-błąd w poprzedzającym etapie aktualizacji Canopy blokuje uruchomienie CLI. Wyniki mają ponowienie pojedynczego kroku. Historia
-Claude Code i Codexa pochodzi z publicznych GitHub Releases; Grok nie ma znanego
-źródła tych notatek, więc centrum pokazuje tę informację i wynik instalatora.
+Licznik, „Update all” i ponowienie w panelu aktualizacji Canopy obejmują wyłącznie aplikacje,
+gateway i workery Canopy. Instalacje i aktualizacje CLI uruchamia się w ustawieniach workera
+lub dostawcy. Dotyczy to także CLI na połączonych komputerach. W ustawieniach widać wersję,
+sposób instalacji, przyczynę odmowy i wynik instalatora.
 
 Kod: `apps/worker/src/cli-tools/*` (wykrywanie, przepisy, instalator), `apps/gateway/src/core/cli-tools.ts`
 (najnowsze wersje, decyzje, RPC), UI w `apps/web/src/lib/features/workers/*Cli*`. Testy:
@@ -65,8 +55,7 @@ Jeżeli instalacja kończy się podczas wykrywania CLI, worker odrzuca wynik roz
 i ponownie odczytuje wersje. Status zakończonej instalacji nie może trafić do raportu ze starą wersją.
 
 `InstallCliRequest.install_id` jest opcjonalnym UUID próby; pusty oznacza wygenerowanie go w gatewayu.
-Gateway przekazuje go workerowi bez zmian. W Update all id jest zapisane przed wysłaniem,
-więc późny raport i powrót po rozłączeniu dotyczą właściwej próby. Id pozostaje niekwalifikowane
+Gateway przekazuje go workerowi bez zmian. Raporty instalatora mają id tej samej próby. Id pozostaje niekwalifikowane
 przez routing połączonych komputerów, a id workera nadal wskazuje jego dom.
 Potwierdzenie startu nie jest wynikiem instalacji; brak potwierdzenia nie dowodzi niepowodzenia.
 `InstallCliRequest.upgrade_only` jest przekazywane do workera z capability `cli_install_upgrade_only`.
@@ -74,7 +63,6 @@ Worker odczytuje bieżącą wersję przed uruchomieniem instalatora. Jeżeli osi
 odświeża raport i zwraca `CLI_ALREADY_CURRENT`, a gateway potwierdza żądanie bez nowej próby.
 Jeżeli nie może odczytać wersji, odmawia startu. Starszy worker wymaga aktualizacji dla
 trybu `upgrade_only`; indywidualne polecenia obsługuje dalej.
-Szczegóły limitów i uzgadniania wyniku: [updates.md](updates.md).
 
 ## Wykrywanie na workerze
 
@@ -145,7 +133,7 @@ pierwsza linia stderr (np. `env: node: No such file or directory`), kod wyjścia
 „Couldn't run codex --version: …”. Przy nieznanej wersji nie ma odznaki „Up to date” ani przycisku aktualizacji.
 
 **Jedno źródło:** raport CLI (`CliToolsReport`), lista Agents (`ConfigApplied.providers`, `prepareSystemProbe`) i
-centrum aktualizacji używają tego samego wyboru i tej samej sondy. Harness uruchamia wybraną kopię
+ustawienia aktualizacji CLI używają tego samego wyboru i tej samej sondy. Harness uruchamia wybraną kopię
 (`findCli` zwraca ją, dopóki istnieje). Ścieżki z instancji (`ProviderProfileConfig.executable_path`) nie są osobno
 raportowane.
 
@@ -260,8 +248,7 @@ zasób `mise:config`, obejmujący aktywację, weryfikację i ewentualny rollback
   `NotFound`), worker online z `cli_install`, metoda z przepisem (Homebrew, asdf, Yarn, Docker i `OTHER` są
   odrzucane niezależnie od tego, co zgłosił worker), brak trwających tur dostawcy, jedna instalacja tego
   samego narzędzia naraz. Różne CLI mogą działać równolegle; worker szereguje tylko wspólny zasób
-  przepisu (`CliTool.install_resource`), obejmując też rollback. Pary i limity opisuje
-  [centrum aktualizacji](updates.md).
+  przepisu (`CliTool.install_resource`), obejmując też rollback.
   O trwającej instalacji decyduje worker. Powtórne kliknięcie dla tej samej wersji śledzi wynik
   potwierdzonej aktywnej próby. Worker sygnalizuje ten przypadek kodem `CLI_INSTALL_SAME_TARGET_RUNNING`,
   a przy innym celu odmawia startu (`CLI_INSTALL_RUNNING`).

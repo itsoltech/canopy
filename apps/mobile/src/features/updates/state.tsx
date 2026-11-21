@@ -7,6 +7,7 @@ import { useOverview } from "../../state/overview";
 import { confirmAppUpdate } from "./confirmation";
 import { useUpdateNotices } from "./use-update-notices";
 import { plannedUpdateRun } from "@canopy/domain/release/update-plan";
+import { canopyUpdateAction, canopyUpdateSnapshot, updateGatewayMessage } from "@canopy/domain/release/update-actions";
 import { furthestStatus, runStatuses, updateTargetKey, type UpdateStatus } from "@canopy/domain/release/update-status";
 
 /** What the user just asked for, shown at once and replaced by the gateway's answer (or reverted by its error). */
@@ -93,7 +94,7 @@ function useUpdatesState() {
         const value = await client.api.getUpdates({}, { ...(signal && { signal }), timeoutMs: 10_000 });
 
         if (current === generation.current && revision === snapshotRevision.current && !signal?.aborted) {
-          setSnapshot(value);
+          setSnapshot(canopyUpdateSnapshot(value));
           setLoadError("");
           client.departure.reconcile(value);
         }
@@ -157,25 +158,28 @@ function useUpdatesState() {
     setOptimistic(expected(request, snapshot, target));
     setError("");
     setDetails("");
+    const action = canopyUpdateAction(request.action);
 
     try {
       const value =
         request.action === "check" && !snapshot?.admin && !snapshot?.gatewayBundled
           ? undefined
-          : await client.api.manageUpdates(request, { timeoutMs: 150_000 });
-
-      if (request.action === "check") await client.api.checkCliUpdates({}, { timeoutMs: 30_000 });
+          : await client.api.manageUpdates({ ...request, action }, { timeoutMs: 150_000 });
 
       if (value && current === generation.current) {
         snapshotRevision.current++;
-        setSnapshot(value);
+        setSnapshot(canopyUpdateSnapshot(value));
       }
 
       await reload();
     } catch (cause) {
       if (current === generation.current) {
-        setError("Canopy could not finish this update action. Check the connection and retry.");
-        setDetails(ConnectError.from(cause).rawMessage);
+        const message = ConnectError.from(cause).rawMessage;
+        setError(
+          updateGatewayMessage(action, message) ||
+            "Canopy could not finish this update action. Check the connection and retry.",
+        );
+        setDetails(message);
       }
     } finally {
       if (current === generation.current) {

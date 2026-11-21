@@ -20,7 +20,6 @@
     class: className,
   }: {
     updates: DesktopUpdatesState;
-    /** Update all handles this computer's restart before starting agent CLI updates. */
     center: UpdatesState;
     /** The gateway reports itself as this app's bundled one (local mode): the app includes it and its worker. */
     bundled?: boolean;
@@ -122,7 +121,7 @@
     line={row === "waiting"
       ? "Restarts after its current turns end."
       : row === "queued" && ready && !worker
-        ? "Restarts before agent CLI updates."
+        ? "Restarts after the other Canopy updates finish."
         : ""}
     error={row === "failed" ? error : ""}
     busy={updateInProgress(row)}

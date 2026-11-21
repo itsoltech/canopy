@@ -23,16 +23,6 @@ export function knownUpdateOffline(step: ui.UpdateStep, snapshot: ui.UpdatesSnap
   if (step.kind === "worker" && worker && !worker.connected)
     return "The worker's update channel is offline. Reconnect it and retry Update all.";
 
-  if (step.kind === "cli") {
-    const cliWorker = home?.cliWorkers.find((item) => item.id === step.workerId);
-
-    if (cliWorker && !cliWorker.online)
-      return (
-        cliWorker.cliTools.find((cli) => cli.tool?.provider === step.provider)?.blockedReason ||
-        "The worker is offline. Reconnect it and retry Update all."
-      );
-  }
-
   const app =
     step.kind === "desktop" ? worker?.desktop : ["computer", "app"].includes(step.kind) ? home?.app : undefined;
 

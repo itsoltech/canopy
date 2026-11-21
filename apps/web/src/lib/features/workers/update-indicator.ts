@@ -13,11 +13,9 @@ export function updateIndicator(
   remoteApp = false,
 ) {
   const workers = snapshot ? listedWorkers(snapshot) : [];
-  const clis = snapshot?.cliWorkers.flatMap((w) => w.cliTools) ?? [];
   const run = snapshot?.run;
   const failedWorker = workers.find((w) => w.state === "failed");
   const failedDesktop = workers.find((w) => w.desktop?.phase === "failed")?.desktop;
-  const failedCli = clis.find((t) => t.tool?.install?.state === "failed");
   const home = snapshot && (!app || remoteApp) ? homeAppComputer(snapshot) : undefined;
 
   const computers = [...(home ? [home] : []), ...(snapshot?.computers ?? [])].map((c) => ({
@@ -37,7 +35,6 @@ export function updateIndicator(
       : "") ||
     (failedWorker ? failedWorker.reason || "Worker update failed" : "") ||
     (failedDesktop ? failedDesktop.reason || "Desktop update failed" : "") ||
-    (failedCli ? failedCli.tool?.install?.error || "Agent CLI update failed" : "") ||
     (failedComputer ? `${failedComputer.name}: ${failedComputer.view.detail || "App update failed"}` : "");
 
   if (failed) return { phase: "error", message: failed, progress: undefined };
@@ -51,7 +48,6 @@ export function updateIndicator(
         ["queued", "waiting_idle", "downloading", "restarting"].includes(w.state) ||
         ["queued", "waiting_idle", "downloading", "restarting"].includes(w.desktop?.phase ?? ""),
     ) ||
-    clis.some((t) => t.tool?.install?.state === "running") ||
     computers.some((c) => c.view.busy);
 
   if (downloading)

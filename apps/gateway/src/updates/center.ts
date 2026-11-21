@@ -1,7 +1,7 @@
 import { create, clone } from "@bufbuild/protobuf";
 import { Code, ConnectError } from "@connectrpc/connect";
 import { ui } from "@canopy/contracts";
-import { plannedUpdateRun } from "@canopy/domain/release/update-plan";
+import { canopyUpdateRun, plannedUpdateRun } from "@canopy/domain/release/update-plan";
 import { knownUpdateOffline } from "@canopy/domain/release/update-offline";
 import { remoteStepCurrent, remoteStepDismissed } from "./remote-outcome.ts";
 import {
@@ -11,11 +11,9 @@ import {
   succeedUpdate,
   UPDATE_CONCURRENCY,
   updateDependencies,
-  updatesConflict,
 } from "./center-scheduling.ts";
 import { UpdateReconnects } from "./center-offline.ts";
 import { computerUpdated } from "./computer-completion.ts";
-import { cliStepComplete, requeueBusyCli, runningCliAttempt, uncertainCliLaunch, waitForCli } from "./center-cli.ts";
 
 const UPDATE_TIMEOUT_MS = 35 * 60_000;
 
@@ -24,7 +22,6 @@ export interface UpdateCenterOptions {
   write(run: ui.UpdateRun): Promise<void>;
   snapshot(): Promise<ui.UpdatesSnapshot>;
   manage(request: ui.ManageUpdatesRequest, nodeId?: string): Promise<ui.UpdatesSnapshot>;
-  install(request: ui.InstallCliRequest, nodeId?: string): Promise<ui.InstallCliResponse>;
   app?(): Promise<string>;
   desktop(request: ui.ManageUpdatesRequest): Promise<string | void>;
   /** Asks a linked computer for an app update; returns the request id there. */
@@ -33,7 +30,6 @@ export interface UpdateCenterOptions {
 
 interface UpdateLaunch {
   step: ui.UpdateStep;
-  waitingSince: string;
   settled: boolean;
   error?: Error;
 }
@@ -67,15 +63,35 @@ export class UpdateCenter {
 
     return next;
   }
+  /** Let a second click or status read see durable progress while the scheduler awaits a snapshot. */
+  private async runningRun() {
+    const run = await this.options.read();
+
+    return run?.state === "running" && run.steps.every((step) => step.kind !== "cli") ? run : undefined;
+  }
+  /** Under the scheduler lock: retire CLI steps from older runs before a resume or an index-based retry. */
+  private async readRun() {
+    const stored = await this.options.read();
+    const run = canopyUpdateRun(stored);
+
+    if (stored?.steps.some((step) => step.kind === "cli")) {
+      const replacement = run ?? create(ui.UpdateRunSchema, { state: "superseded" });
+      // An older client can still submit an index from the unfiltered list.
+      replacement.id = crypto.randomUUID();
+      await this.options.write(replacement);
+    }
+
+    return run;
+  }
   /**
    * Plans, persists and launches the first steps before it answers, so the caller's first snapshot already shows
    * them running. Returns the snapshot it planned from (undefined when a run was already going).
    */
   async begin(confirmRestart = false): Promise<ui.UpdatesSnapshot | undefined> {
-    if ((await this.options.read())?.state === "running") return undefined;
+    if (await this.runningRun()) return undefined;
 
     const snapshot = await this.serialize(async () => {
-      if ((await this.options.read())?.state === "running") return undefined;
+      if ((await this.readRun())?.state === "running") return undefined;
       const snapshot = await this.options.snapshot();
       const run = plannedUpdateRun(snapshot, crypto.randomUUID());
 
@@ -101,11 +117,10 @@ export class UpdateCenter {
   /** `planned`: a snapshot read moments ago in the same operation, so the first launch does not read it again. */
   tick(planned?: ui.UpdatesSnapshot) {
     return (this.ticking ??= this.serialize(async () => {
-      const run = await this.options.read();
+      const run = await this.readRun();
 
       if (run?.state !== "running") return;
       const snapshot = planned ?? (await this.options.snapshot());
-      const contended = new Set<ui.UpdateStep>();
 
       for (const [index, step] of run.steps.entries()) {
         if (step.state !== "running") continue;
@@ -116,11 +131,9 @@ export class UpdateCenter {
         try {
           if (settled) step.requestId = launch.step.requestId;
 
-          if (settled && requeueBusyCli(step, launch.error, launch.waitingSince)) contended.add(step);
-          else if ((!launch || settled || step.kind === "cli") && (await this.complete(step, snapshot)))
-            succeedUpdate(step);
+          if ((!launch || settled) && (await this.complete(step, snapshot))) succeedUpdate(step);
           else if (this.reconnects.deferOrSkip(step, key, run, snapshot)) continue;
-          else if (settled && launch.error && !uncertainCliLaunch(step, launch.error)) throw launch.error;
+          else if (settled && launch.error) throw launch.error;
 
           if (step.state === "running" && Date.now() - Date.parse(step.startedAt) > UPDATE_TIMEOUT_MS)
             throw new Error("Timed out waiting for completion. Retry Update all after checking this item.");
@@ -134,7 +147,7 @@ export class UpdateCenter {
       this.releaseOfflineLaunches(run, snapshot);
 
       for (const [index, step] of run.steps.entries()) {
-        if (step.state !== "queued" || contended.has(step)) continue;
+        if (step.state !== "queued") continue;
 
         if (this.reconnects.deferOrSkip(step, `${run.id}/${index}`, run, snapshot)) continue;
         const dependencies = updateDependencies(step, run.steps);
@@ -148,42 +161,28 @@ export class UpdateCenter {
             !knownUpdateOffline(item, snapshot),
         );
 
-        if (dependency && ["worker", "cli"].includes(step.kind)) {
+        if (dependency && step.kind === "worker") {
           this.fail(step, new ConnectError(dependencyFailureReason(dependency), Code.FailedPrecondition));
           continue;
         }
 
-        const active = run.steps.filter((item) => item.state === "running");
-
-        if (this.activeSlots(run) >= UPDATE_CONCURRENCY || active.some((item) => updatesConflict(step, item, snapshot)))
-          continue;
-
         // An acknowledgement still in flight holds its slot even if its report timed out.
-        if (
-          [...this.launching.values()].some(
-            (item) =>
-              !item.settled && (updatesConflict(step, item.step, snapshot) || ["app", "gateway"].includes(step.kind)),
-          )
-        )
+        if (this.activeSlots(run) >= UPDATE_CONCURRENCY) continue;
+
+        if (["app", "gateway"].includes(step.kind) && [...this.launching.values()].some((item) => !item.settled))
           continue;
 
         try {
-          if (waitForCli(step, snapshot, UPDATE_TIMEOUT_MS)) continue;
-          const following = runningCliAttempt(step, snapshot);
-          const waitingSince = step.startedAt;
           step.state = "running";
           step.startedAt = new Date().toISOString();
-
-          if (step.kind === "cli") step.requestId = following || crypto.randomUUID();
 
           // Persist every reservation before sending; restart never replays an uncertain install.
           await this.options.write(run);
 
           if (await this.complete(step, snapshot, true)) succeedUpdate(step);
-          else if (!following) {
+          else {
             const launch: UpdateLaunch = {
               step: clone(ui.UpdateStepSchema, step),
-              waitingSince,
               settled: false,
             };
 
@@ -269,26 +268,6 @@ export class UpdateCenter {
         create(ui.ManageUpdatesRequestSchema, { action: "worker", workerId: step.workerId }),
         step.nodeId,
       );
-    } else if (step.kind === "cli") {
-      if (!step.version)
-        throw new ConnectError("Check the latest CLI version before installing", Code.FailedPrecondition);
-      const worker = home.workers.find((w) => w.workerId === step.workerId);
-
-      if (!worker || worker.compatibility !== "compatible")
-        throw new ConnectError(
-          "Worker and gateway protocols are incompatible; update the worker first",
-          Code.FailedPrecondition,
-        );
-      await this.options.install(
-        create(ui.InstallCliRequestSchema, {
-          workerId: step.workerId,
-          provider: step.provider,
-          version: step.version,
-          installId: step.requestId,
-          upgradeOnly: true,
-        }),
-        step.nodeId,
-      );
     } else if (step.kind === "desktop") {
       step.requestId =
         (await this.options.desktop(
@@ -343,8 +322,6 @@ export class UpdateCenter {
 
         return true;
       }
-    } else if (step.kind === "cli") {
-      return cliStepComplete(step, snapshot, beforeLaunch);
     } else if (step.kind === "desktop") {
       if (remoteStepCurrent(step, snapshot)) return true;
 
@@ -361,16 +338,15 @@ export class UpdateCenter {
   }
 
   async status(snapshot?: ui.UpdatesSnapshot) {
-    const run = await this.options.read();
+    const run = await this.runningRun();
 
-    // Slow command acknowledgements must not hide the durable progress from readers or a second click.
-    if (run?.state === "running") return clone(ui.UpdateRunSchema, run);
+    if (run) return clone(ui.UpdateRunSchema, run);
 
     return this.serialize(() => this.currentStatus(snapshot));
   }
 
   private async currentStatus(snapshot?: ui.UpdatesSnapshot) {
-    const run = await this.options.read();
+    const run = await this.readRun();
 
     if (run && ["failed", "blocked"].includes(run.state)) {
       const failed = run.steps.filter((step) => ["failed", "blocked"].includes(step.state));
@@ -381,12 +357,7 @@ export class UpdateCenter {
       for (const step of failed) {
         const dismissed = remoteStepDismissed(step, current);
 
-        if (
-          !dismissed &&
-          !remoteStepCurrent(step, current) &&
-          !(step.kind === "cli" && cliStepComplete(step, current, true))
-        )
-          continue;
+        if (!dismissed && !remoteStepCurrent(step, current)) continue;
 
         if (dismissed) step.state = "dismissed";
         else succeedUpdate(step);
@@ -432,7 +403,7 @@ export class UpdateCenter {
 
   private requeue(requestId: string, choose: (run: ui.UpdateRun) => ui.UpdateStep[], confirmRestart: boolean) {
     return this.serialize(async () => {
-      const run = await this.options.read();
+      const run = await this.readRun();
       const steps = run && run.id === requestId && run.state !== "running" ? choose(run) : [];
 
       if (!run || !steps.length || steps.some((step) => !["failed", "blocked"].includes(step.state)))
@@ -452,11 +423,7 @@ export class UpdateCenter {
         }
 
         const current = plan.find(
-          (item) =>
-            item.kind === step.kind &&
-            item.workerId === step.workerId &&
-            item.nodeId === step.nodeId &&
-            item.provider === step.provider,
+          (item) => item.kind === step.kind && item.workerId === step.workerId && item.nodeId === step.nodeId,
         );
 
         if (current?.state === "skipped") {
@@ -485,7 +452,7 @@ export class UpdateCenter {
 
   dismiss(requestId: string, acknowledge?: (step: ui.UpdateStep) => Promise<void>) {
     return this.serialize(async () => {
-      const run = await this.options.read();
+      const run = await this.readRun();
 
       if (!run || run.id !== requestId || !["failed", "blocked"].includes(run.state))
         throw new ConnectError("Choose the current stopped updates to dismiss.", Code.FailedPrecondition);

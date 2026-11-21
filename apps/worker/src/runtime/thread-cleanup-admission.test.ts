@@ -3,6 +3,7 @@ import { existsSync, mkdirSync, readFileSync } from "node:fs";
 import { join, resolve } from "node:path";
 import { create } from "@bufbuild/protobuf";
 import {
+  AgentTool,
   AgentToolResultSchema,
   CommandSchema,
   GoalDirective,
@@ -10,10 +11,12 @@ import {
   Provider,
   SetGoalSchema,
   SteerTurnSchema,
+  ThreadLifecycleSchema,
   ThreadSpecSchema,
 } from "@canopy/contracts";
 import { tempDir } from "@canopy/testing";
 import { Effect, Exit, Layer, ManagedRuntime, Scope } from "effect";
+import { cleanupFixture } from "../agent-tools/cleanup.test-support.ts";
 import { AgentTools } from "../agent-tools/index.ts";
 import { HeadTracker } from "../git/heads.ts";
 import { Journal } from "../journal/index.ts";
@@ -212,3 +215,75 @@ test("unload fences a goal that was waiting for a CLI install when it reached th
     await runtime.dispose();
   }
 });
+
+test("worker reconnect and shutdown clean matching native sessions and retry only unfinished archives", async () => {
+  const f = cleanupFixture();
+  const runtime = ManagedRuntime.make(Journal.layer(join(f.dir, "journal.db")));
+  const failedCleanup = Promise.withResolvers<void>();
+
+  const host = new WorkerHost({
+    runtime,
+    dataDir: f.dir,
+    clientVersion: "test",
+    cliEnv: { HOME: f.dir, PATH: join(f.dir, "bin") },
+    log: (message) => {
+      if (message === "Thread resource cleanup will retry") failedCleanup.resolve();
+    },
+  });
+
+  const failed = crypto.randomUUID();
+  const managed = crypto.randomUUID();
+  const healthy = crypto.randomUUID();
+  const archived = [failed, managed, ...Array.from({ length: 64 }, () => crypto.randomUUID())];
+  const snapshot = create(ThreadLifecycleSchema, { replace: true, closedThreadIds: archived });
+  f.state(AgentTool.BROWSER, { sessions: { [failed]: [], [healthy]: [] }, failClose: true });
+  f.state(AgentTool.DESKTOP, { sessions: { [managed]: [], [healthy]: [] } });
+  f.state(AgentTool.DEVICE, { running: true, sessions: { [managed]: [], [healthy]: [] } });
+
+  try {
+    host.applyThreadLifecycle(snapshot);
+    await failedCleanup.promise;
+    expect(host.threadClosed(failed)).toBe(true);
+    expect(f.read(AgentTool.DEVICE).sessions).toEqual({ [healthy]: [] });
+    expect(f.calls().filter(({ args }) => args.includes("--version"))).toHaveLength(3);
+    expect(f.calls().filter(({ args }) => args.includes("list"))).toHaveLength(3);
+    expect(
+      f
+        .calls()
+        .filter(({ args }) => args.includes("disable"))
+        .map(({ args }) => args[1]),
+    ).toEqual([managed]);
+    expect(
+      f
+        .calls()
+        .filter(({ tool, args }) => tool === "agent-device" && args.includes("close"))
+        .map(({ args }) => args[2]),
+    ).toEqual([managed]);
+
+    // The durable unload ACK establishes that the successful thread finished before the next snapshot.
+    expect(
+      await host.handleCommand(
+        create(CommandSchema, {
+          commandId: crypto.randomUUID(),
+          kind: { case: "unloadThread", value: { threadId: managed } },
+        }),
+      ),
+    ).toMatchObject({ ok: true });
+
+    const beforeReconnect = f.calls().length;
+    f.state(AgentTool.BROWSER, { sessions: { [failed]: [], [healthy]: [] } });
+    host.applyThreadLifecycle(snapshot);
+    // Update shutdown waits for any cleanup that the repeated snapshot schedules.
+    await host.shutdown();
+    expect(f.read(AgentTool.BROWSER).sessions).toEqual({ [healthy]: [] });
+    const retry = f.calls().slice(beforeReconnect);
+    expect(retry.filter(({ args }) => args.includes("--version"))).toHaveLength(3);
+    expect(retry.some(({ args }) => args.includes(managed))).toBe(false);
+    expect(
+      retry.filter(({ args }) => args.includes("session") && args.includes("list") && args.includes("--session")),
+    ).toHaveLength(0);
+  } finally {
+    await host.close();
+    await runtime.dispose();
+  }
+}, 20_000);

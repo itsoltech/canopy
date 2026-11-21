@@ -1,7 +1,8 @@
 # Canopy na iOS i Android
 
 Status: opis zaimplementowanego kodu (2026-11-21), w tym import skilli z publicznych
-witryn HTTPS, usypianie wątków i dostępny offline wykaz licencji open source.
+witryn HTTPS, usypianie wątków, dostępny offline wykaz licencji open source
+oraz osobne aktualizacje Canopy i CLI dostawców.
 Stany źródeł Usage są widoczne w sekcji **Recording gateways**.
 Settings → Providers pozwala edytować ustawienia CLI instancji Claude, Codexa i Groka.
 Zakres All workers zapisuje wspólne klucze, a zakres pojedynczego workera
@@ -1031,7 +1032,10 @@ Ten sam rejestr niewysłanej pracy blokuje żądanie przed potwierdzeniem oraz p
 wysłaniem. Komputer używa istniejącego journalu `RemoteAppUpdate`, czeka na idle,
 ogłasza przerwę gatewaya i raportuje wynik po restarcie. Starsza aplikacja lub
 gateway bez capability pokazuje instrukcję jednorazowej aktualizacji w oknie komputera.
-`Update all` nie restartuje domu telefonu. To zmiana JS/TS bez nowych modułów,
+Arkusz Updates, jego licznik oraz ponowienie błędów obejmują aktualizacje Canopy.
+CLI dostawcy można zaktualizować osobno w ustawieniach workera. Restart własnej
+aplikacji komputera w ramach Update all wymaga takiego samego potwierdzenia jak
+indywidualna aktualizacja. To zmiana JS/TS bez nowych modułów,
 uprawnień ani konfiguracji natywnej; fingerprinty pozostają granicą zgodności OTA.
 
 Wiersz pokazuje kanał, skrócone ID działającego OTA, datę oraz wersję docelowego JS

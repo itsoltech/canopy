@@ -17,8 +17,7 @@ const envelope = z.object({
     .optional(),
 });
 
-/** Pinned CLI grammar: browser 0.43.0, desktop 1.3.1, device 0.21.37. No readiness probes. */
-async function closeTool(spec: AgentToolSpec, session: string, probe: AgentToolProbe): Promise<void> {
+async function cleanupCommand(spec: AgentToolSpec, probe: AgentToolProbe) {
   const source = probe.env ?? process.env;
   const env = toolEnvironment(source);
   const candidates = toolCandidates(spec, source, probe.platform ?? process.platform, probe.dataDir, probe.which);
@@ -38,7 +37,7 @@ async function closeTool(spec: AgentToolSpec, session: string, probe: AgentToolP
   if (!executable) throw new Error(`${spec.label} cleanup requires version ${spec.version}`);
   const { secrets } = installEnv(source);
 
-  const command = async (args: string[], missingSession = false) => {
+  return async (args: string[], missingSession = false) => {
     const result = await runProcess(
       { argv: toolArgv(executable, args, env), env, timeoutMs: 20_000, maxBytes: 512 * 1024 },
       { kind: "utility", maxQueueMs: 2_500 },
@@ -55,46 +54,107 @@ async function closeTool(spec: AgentToolSpec, session: string, probe: AgentToolP
 
     return parsed.data ?? null;
   };
+}
 
-  if (spec.tool === AgentTool.BROWSER) {
-    // session list walks existing daemon registrations; unlike close it never starts a daemon.
+type CleanupCommand = NonNullable<Awaited<ReturnType<typeof cleanupCommand>>>;
+
+/** Read active sessions once after all the threads in this batch have drained their native operations. */
+async function activeSessions(tool: AgentTool, command: CleanupCommand, requested: Set<string>) {
+  if (tool === AgentTool.BROWSER) {
     const data = z.object({ sessions: z.array(z.string()) }).parse(await command(["--json", "session", "list"]));
 
-    if (!data.sessions.includes(session)) return;
-    const closed = await command(["--json", "--session", session, "close"]);
-    z.object({ closed: z.literal(true) }).parse(closed);
-  } else if (spec.tool === AgentTool.DESKTOP) {
-    // Desktop is daemonless. Disable only its persistent cursor; session end permanently seals the namespace.
+    return data.sessions;
+  }
+
+  if (tool === AgentTool.DESKTOP) {
     const data = z
       .object({ sessions: z.array(z.object({ session_id: z.string(), ended_at: z.number().nullable().optional() })) })
       .parse(await command(["session", "list"]));
 
-    if (data.sessions.some((item) => item.session_id === session && item.ended_at == null))
-      await command(["--session", session, "cursor-overlay", "disable"]);
-  } else {
-    // This shared daemon is not owned by a thread. Its offline status avoids starting an unused daemon.
-    const status = z
-      .object({ state: z.enum(["running", "stopped", "unreadable", "invalid"]) })
-      .parse(await command(["--json", "daemon", "status"]));
-
-    if (status.state === "stopped") return;
-
-    if (status.state !== "running") throw new Error("agent-device daemon registration cannot be read");
-    // No app/device positional: release only this named session and its helpers/managed web browser.
-    await command(["--json", "--session", session, "close"], true);
+    return data.sessions.filter((item) => item.ended_at == null).map((item) => item.session_id);
   }
+
+  // Offline status never starts the shared device daemon. A named list includes local sessions across workspaces.
+  const status = z
+    .object({ state: z.enum(["running", "stopped", "unreadable", "invalid"]) })
+    .parse(await command(["--json", "daemon", "status"]));
+
+  if (status.state === "stopped") return [];
+
+  if (status.state !== "running") throw new Error("agent-device daemon registration cannot be read");
+  const [session] = requested;
+
+  if (requested.size <= 1 || !session) return requested;
+
+  const data = z
+    .object({ sessions: z.array(z.object({ name: z.string() })) })
+    .parse(await command(["--json", "--session", session, "session", "list"]));
+
+  return data.sessions.map((item) => item.name);
 }
 
-export async function closeAgentToolSession(session: string, probe: AgentToolProbe): Promise<void> {
-  const failures: Error[] = [];
+async function closeSessions(spec: AgentToolSpec, requested: Set<string>, probe: AgentToolProbe) {
+  const failures = new Map<string, Error>();
+  const command = await cleanupCommand(spec, probe);
 
-  for (const spec of AGENT_TOOL_SPECS) {
+  if (!command) return failures;
+
+  for (const session of new Set(await activeSessions(spec.tool, command, requested))) {
+    if (!requested.has(session)) continue;
+
     try {
-      await serializeAgentTool("operations", () => closeTool(spec, session, probe));
+      if (spec.tool === AgentTool.DESKTOP) {
+        // Session end permanently seals this namespace. Preserve its history and ability to reopen.
+        await command(["--session", session, "cursor-overlay", "disable"]);
+      } else {
+        const closed = await command(["--json", "--session", session, "close"], spec.tool === AgentTool.DEVICE);
+
+        if (spec.tool === AgentTool.BROWSER) z.object({ closed: z.literal(true) }).parse(closed);
+      }
     } catch (error) {
-      failures.push(error instanceof Error ? error : new Error(`${spec.label} cleanup failed`));
+      failures.set(session, error instanceof Error ? error : new Error(`${spec.label} cleanup failed`));
     }
   }
 
-  if (failures.length) throw new AggregateError(failures, "Automation session cleanup failed");
+  return failures;
+}
+
+/** Each tool gets one inventory per batch. Requests that drain later start a fresh inventory. */
+export class AgentToolCleanup {
+  readonly #queued = new Map<AgentTool, { sessions: Set<string>; result: Promise<Map<string, Error>> }>();
+
+  constructor(readonly probe: () => AgentToolProbe) {}
+
+  async close(session: string): Promise<void> {
+    const results = await Promise.allSettled(AGENT_TOOL_SPECS.map((spec) => this.#close(spec, session)));
+    const failures = results.filter((result) => result.status === "rejected");
+
+    if (failures.length)
+      throw new AggregateError(
+        failures.map((result) => result.reason),
+        "Automation session cleanup failed",
+      );
+  }
+
+  async #close(spec: AgentToolSpec, session: string): Promise<void> {
+    let batch = this.#queued.get(spec.tool);
+
+    if (!batch) {
+      const sessions = new Set<string>();
+
+      const result = serializeAgentTool("operations", () => {
+        this.#queued.delete(spec.tool);
+
+        return closeSessions(spec, sessions, this.probe());
+      });
+
+      batch = { sessions, result };
+      this.#queued.set(spec.tool, batch);
+    }
+
+    batch.sessions.add(session);
+    const failure = (await batch.result).get(session);
+
+    if (failure) throw failure;
+  }
 }

@@ -729,7 +729,10 @@ Zasady:
   identyfikatory. Po rejestracji połączenia gateway ponawia snapshot z ochroną
   przed nadpisaniem nowszej zmiany starym odczytem. Worker stosuje Welcome przed
   konfiguracją i blokuje nowe `StartTurn` oraz natywną pobudkę Claude w zamkniętym
-  wątku. Zamyka też jego zasoby wykonawcze. Trwałe `UnloadThread` kończy się
+  wątku. Zamyka też jego zasoby wykonawcze. Po ponownym otrzymaniu tego samego
+  snapshotu zachowuje blokadę przyjmowania pracy i ponawia niedokończone sprzątanie.
+  Nowy proces sprawdza istniejące sesje narzędzi dla całej grupy zamkniętych wątków.
+  Trwałe `UnloadThread` kończy się
   sukcesem dopiero po zatrzymaniu procesów, sesji i podglądów oraz zwolnieniu
   uchwytów; `THREAD_CLEANUP_PENDING` oznacza ponowienie tego samego polecenia.
   Oczekujące sprzątanie nie wygasa i blokuje nowe starty oraz purge historii,
@@ -1197,7 +1200,7 @@ BFF wymaga potwierdzenia obsługi zakresu od domu. Zmiana nie podnosi
 
 ## CLI dostawców
 
-Status (2026-11-19): zaimplementowane raportowanie i instalacja CLI, w tym kontrola wersji na workerze przy Update all.
+Status (2026-11-21): zaimplementowane raportowanie i instalacja CLI na żądanie oraz kontrola wersji na workerze dla poleceń z `upgrade_only`.
 
 Capability `cli_install`: worker wysyła `CliToolsReport` (ścieżka, wersja, sposób instalacji każdego CLI) po połączeniu, po `ProbeProviders`, po instalacji i co 6 h; nietrwała komenda `InstallCli` (nigdy z outboxa) uruchamia stały przepis, postęp idzie w `CliInstallProgress`, wynik w następnym raporcie. Bez zmiany `WORKER_LINK_PROTOCOL`. Szczegóły i zasady: [provider-cli.md](provider-cli.md).
 Capability `cli_install_upgrade_only` potwierdza obsługę `InstallCli.upgrade_only`: worker sprawdza wersję tuż przed instalacją i zwraca `CLI_ALREADY_CURRENT`, gdy wersja docelowa lub nowsza jest już zainstalowana.

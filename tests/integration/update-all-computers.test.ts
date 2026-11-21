@@ -178,7 +178,7 @@ async function fakeApp(
   };
 }
 
-async function clis(gateway: TestGateway, versions: [string, string], state = "", fail = false) {
+async function clis(gateway: TestGateway, versions: [string, string], state = "") {
   await gateway.core.cli.report(
     gateway.core.link.connections.get(gateway.workerId)!,
     create(CliToolsReportSchema, {
@@ -198,8 +198,7 @@ async function clis(gateway: TestGateway, versions: [string, string], state = ""
             command?.case === "installCli" && {
               install: {
                 installId: command.value.installId,
-                state: fail && index === 0 ? "failed" : state,
-                error: fail && index === 0 ? "Download failed. Retry the update." : "",
+                state,
               },
             }),
         };
@@ -297,7 +296,7 @@ describe.skipIf(!dockerAvailable)("Update all across linked computers with fake 
     expect(a.worker.commands.filter((command) => command.case === "installCli")).toHaveLength(0);
   }, 60_000);
 
-  test("linked apps overlap, then the local app updates before any CLI; a restart retains the same run", async () => {
+  test("linked apps overlap, the local app resumes after a restart, and no CLI installer is called", async () => {
     const a = await gateway();
     const b = await gateway();
     const c = await gateway();
@@ -321,36 +320,15 @@ describe.skipIf(!dockerAvailable)("Update all across linked computers with fake 
       }, Boolean),
     ).toBe(true);
 
-    const attempts: { installId: string; persistedId: string | undefined }[] = [];
-
-    for (const [target, name] of [
-      [a, "local"],
-      [b, "linked"],
-    ] as const) {
-      target.worker.handlers.set("installCli", async (value, reply) => {
-        if (value.$typeName !== "canopy.worker.v1.InstallCli") throw new Error("Expected CLI command");
-        const run = await new UpdateRunStore(a.runtime, a.userId).read();
-        const workerId = name === "local" ? a.workerId : qualifyId(b.workerId, nodeId);
-        attempts.push({
-          installId: value.installId,
-          persistedId: run?.steps.find((step) => step.workerId === workerId && step.provider === value.provider)
-            ?.requestId,
-        });
-        events.push(`${name} CLI ${value.provider}`);
-        const codexDone = name === "local" || events.includes(`${name} CLI ${Provider.CODEX}`);
-        await clis(target, ["2.0.0", codexDone ? "2.0.0" : "1.0.0"], "succeeded");
-        reply(true);
-      });
-    }
-
-    expect(await failure(a.api.manageUpdates({ action: "update_all" }))).toContain("Confirm the computer restart");
-    const started = await a.api.manageUpdates({ action: "update_all", confirmRestart: true });
-    expect(started.run?.steps.map((step) => step.kind)).toEqual(["computer", "computer", "app", "cli", "cli", "cli"]);
+    expect(await failure(a.api.manageUpdates({ action: "canopy_update_all" }))).toContain(
+      "Confirm the computer restart",
+    );
+    const started = await a.api.manageUpdates({ action: "canopy_update_all", confirmRestart: true });
+    expect(started.run?.steps.map((step) => step.kind)).toEqual(["computer", "computer", "app"]);
     const duplicate = await a.api.manageUpdates({ action: "update_all" });
     expect(duplicate.run?.id).toBe(started.run?.id);
     await tickUntil(a, () => linked.requests.length === 1 && second.requests.length === 1);
     expect(own.requests).toEqual([]);
-    expect(attempts).toHaveLength(0);
     await linked.finish();
     refreshComputerUpdates(a.core, nodeId);
     await tickUntil(
@@ -358,17 +336,14 @@ describe.skipIf(!dockerAvailable)("Update all across linked computers with fake 
       (run) => run?.steps.find((step) => step.nodeId === nodeId && step.kind === "computer")?.state === "succeeded",
     );
     expect(own.requests).toEqual([]);
-    expect(attempts).toHaveLength(0);
     await second.finish();
     refreshComputerUpdates(a.core, secondNode);
     await tickUntil(a, () => own.requests.length === 1);
-    expect(attempts).toHaveLength(0);
     a.core.updateCenter.stop();
     const resumed = createUpdateCenter(a.core);
     expect((await resumed.status())?.id).toBe(started.run?.id);
     await resumed.tick();
     expect(own.requests).toHaveLength(1);
-    expect(attempts).toHaveLength(0);
     await own.finish();
     expect(
       await eventually(
@@ -383,106 +358,30 @@ describe.skipIf(!dockerAvailable)("Update all across linked computers with fake 
     ).toBe("succeeded");
     expect(events.slice(0, 2).sort()).toEqual(["linked app", "second linked app"]);
     expect(events[2]).toBe("own app");
-    expect(events.filter((event) => event.includes(" CLI ")).sort()).toEqual(
-      [`local CLI ${Provider.CLAUDE}`, `linked CLI ${Provider.CLAUDE}`, `linked CLI ${Provider.CODEX}`].sort(),
-    );
-    expect(attempts).toHaveLength(3);
 
-    for (const attempt of attempts) {
-      expect(attempt.installId).toMatch(/^[0-9a-f-]{36}$/);
-      expect(attempt.persistedId).toBe(attempt.installId);
-    }
-
-    expect(new Set(attempts.map((attempt) => attempt.installId)).size).toBe(3);
-    const cliSteps = (await a.api.getUpdates({})).run?.steps.filter((step) => step.kind === "cli");
-    expect(cliSteps?.map((step) => [step.nodeId, step.workerId, step.provider])).toEqual([
-      ["", a.workerId, Provider.CLAUDE],
-      [nodeId, qualifyId(b.workerId, nodeId), Provider.CLAUDE],
-      [nodeId, qualifyId(b.workerId, nodeId), Provider.CODEX],
-    ]);
-    expect(cliSteps?.map((step) => step.requestId).sort()).toEqual(attempts.map((attempt) => attempt.installId).sort());
+    for (const target of [a, b, c])
+      expect(target.worker.commands.some((command) => command.case === "installCli")).toBe(false);
     expect(
       (await new UpdateRunStore(a.runtime, a.userId).read())?.steps.every((step) => step.state === "succeeded"),
     ).toBe(true);
   }, 90_000);
 
-  test("a CLI failure preserves the completed linked app and other CLI on retry", async () => {
-    const a = await gateway();
-    const b = await gateway();
-    const events: string[] = [];
-    await fakeApp(a, "own app", events, false);
-    const linked = await fakeApp(b, "linked app", events);
-    await clis(a, ["1.0.0", "1.0.0"]);
-    const nodeId = await linkGateways(a, b);
-    expect(await eventually(async () => (await a.api.getUpdates({})).computers[0]?.updates?.app?.ready, Boolean)).toBe(
-      true,
-    );
-    a.worker.handlers.set("installCli", async (value, reply) => {
-      if (value.$typeName !== "canopy.worker.v1.InstallCli") throw new Error("Expected CLI command");
-      const failed = value.provider === Provider.CLAUDE;
-      await clis(a, ["1.0.0", failed ? "1.0.0" : "2.0.0"], "succeeded", true);
-      reply(true);
-    });
-    const started = await a.api.manageUpdates({ action: "update_all" });
-    await tickUntil(a, () => linked.requests.length === 1);
-    await linked.finish();
-    refreshComputerUpdates(a.core, nodeId);
-    await tickUntil(a, (run) => run?.state === "failed");
-    const stopped = (await a.api.getUpdates({})).run!;
-    expect(stopped.steps).toMatchObject([
-      { kind: "computer", state: "succeeded", reason: "" },
-      { kind: "cli", state: "failed" },
-      { kind: "cli", state: "succeeded" },
-    ]);
-    expect(stopped.steps[1]?.reason).toContain("Download failed");
-    expect(
-      await failure(
-        a.api.manageUpdates({ action: "retry_step", desktopRequestId: crypto.randomUUID(), updateStepIndex: 1 }),
-      ),
-    ).toContain("current results");
-    a.worker.handlers.set("installCli", async (_value, reply) => {
-      await clis(a, ["2.0.0", "2.0.0"], "succeeded");
-      reply(true);
-    });
-    await a.api.manageUpdates({ action: "retry_step", desktopRequestId: started.run?.id || "", updateStepIndex: 1 });
-    await tickUntil(a, (run) => run?.state === "succeeded");
-    expect(linked.requests).toHaveLength(1);
-    expect((await a.api.getUpdates({})).run?.id).toBe(started.run?.id);
-  }, 90_000);
-
-  test("slow installer acknowledgements leave progress readable and a second click returns the existing run", async () => {
+  test("both generations of Update all decline CLI-only updates; an explicit CLI update still works", async () => {
     const a = await gateway();
     await clis(a, ["1.0.0", "2.0.0"]);
-    const waiting = Promise.withResolvers<void>();
-    const received = Promise.withResolvers<void>();
-    const acknowledged = Promise.withResolvers<void>();
-    a.worker.handlers.set("installCli", (_value, reply) => {
-      received.resolve();
-      void waiting.promise
-        .then(async () => {
-          await clis(a, ["2.0.0", "2.0.0"], "succeeded");
-          reply(true);
-        })
-        .then(acknowledged.resolve, acknowledged.reject);
-    });
-    const started = await a.api.manageUpdates({ action: "update_all" }, { timeoutMs: 3000 });
-    await received.promise;
+    const { cliWorkers } = await a.api.getUpdates({});
+    expect(cliWorkers.find((worker) => worker.id === a.workerId)?.cliTools[0]?.updateAvailable).toBe(true);
 
-    try {
-      const progress = await a.api.getUpdates({}, { timeoutMs: 3000 });
-      expect(progress.run?.steps[0]?.state).toBe("running");
-      const duplicate = await a.api.manageUpdates({ action: "update_all" }, { timeoutMs: 3000 });
-      expect(duplicate.run?.id).toBe(started.run?.id);
-      expect(a.worker.commands.filter((command) => command.case === "installCli")).toHaveLength(1);
-    } finally {
-      waiting.resolve();
-      // Reported success can reach the update run before the handler sends its ACK.
-      // Drain the handler before teardown closes its worker link, also on assertion failure.
-      await acknowledged.promise;
-    }
+    for (const action of ["update_all", "canopy_update_all"])
+      expect(await failure(a.api.manageUpdates({ action }))).toContain("No updates Canopy can install");
 
-    await tickUntil(a, (run) => run?.state === "succeeded");
-  }, 30_000);
+    expect(await new UpdateRunStore(a.runtime, a.userId).read()).toBeUndefined();
+    expect(a.worker.commands.some((command) => command.case === "installCli")).toBe(false);
+    expect(
+      (await a.api.installCli({ workerId: a.workerId, provider: Provider.CLAUDE, version: "2.0.0" })).started,
+    ).toEqual([a.workerId]);
+    expect(a.worker.commands.filter((command) => command.case === "installCli")).toHaveLength(1);
+  });
 
   test("the own-app step survives a full gateway restart and the app's persisted outcome", async () => {
     const a = await gateway();

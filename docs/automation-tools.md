@@ -1,9 +1,9 @@
 # Narzędzia automatyzacji agentów
 
-Status (2026-11-19): **narzędzia, interaktywny Preview z podglądem zmiany viewportu,
+Status (2026-11-21): **narzędzia, interaktywny Preview z podglądem zmiany viewportu,
 automatyczny mini Preview wątku, pełna karta i osobne okno Preview w web/desktop, ikony obu stanów skali
 oraz rezerwacje urządzeń z oczekiwaniem, uruchamianiem skonfigurowanych emulatorów
-i sprzątaniem sesji przy archiwizacji zaimplementowane**.
+i zbiorczym sprawdzaniem sesji archiwalnych wątków po połączeniu zaimplementowane**.
 Przed włączeniem narzędzia z Preview web/desktop pokazuje zakres zgody: narzędzie staje się dostępne agentom na wybranym workerze.
 Gdy komputer jest niedostępny, Preview pokazuje przyczynę z jego statusu, również podczas aktualizacji.
 Zaległe sprzątanie rezerwacji nie blokuje restartu ani raportu aktualizacji workera.
@@ -264,6 +264,9 @@ więc ten sam wątek może ponownie korzystać z automatyzacji po przywróceniu.
 Rezerwacja Device jest zwalniana po zamknięciu jego sesji; emulator lub symulator
 uruchomiony przez pulę workera jest wtedy wyłączany. Wspólny daemon Device oraz
 aplikacje i sesje innych wątków pozostają dostępne.
+Po połączeniu worker sprawdza sesje narzędzi dla grupy zamkniętych wątków
+i zwalnia zasoby pasujących sesji. Przy kolejnym połączeniu ten sam proces ponawia
+sprzątanie wątków, dla których poprzednia próba się nie powiodła.
 Historia i artefakty na dysku są zachowane. Sprawdzenia istniejących sesji nie
 uruchamiają nieużywanego daemona; brak obsługiwanej binarki albo błąd zamykania
 ograniczają możliwość zwolnienia zasobów natywnych. Błąd wykonanej operacji

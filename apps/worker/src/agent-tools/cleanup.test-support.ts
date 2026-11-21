@@ -39,7 +39,12 @@ if (args[0] === "status") {ok({platform:"linux",supported_surfaces:["window"],pe
 if (JSON.stringify(args) === '["--json","daemon","status"]') {ok({state:state.running?"running":"stopped"});process.exit(0);}
 if (args.at(-1) === "list") {
   if (!args.includes("session")) fail("INVALID_ARGS","session list required");
-  ok({sessions:Object.keys(state.sessions).map(name => ${spec.tool === AgentTool.BROWSER ? "name" : "({session_id:name,ended_at:state.desktopEnded?.includes(name)?1:null})"})});process.exit(0);
+  const sessions = Object.keys(state.sessions).map(name => {
+    if (${spec.tool === AgentTool.BROWSER}) return name;
+    if (${spec.tool === AgentTool.DEVICE}) return {name};
+    return {session_id:name, ended_at:state.desktopEnded?.includes(name)?1:null};
+  });
+  ok({sessions});process.exit(0);
 }
 const session = args.includes("--session") ? args[args.indexOf("--session")+1] : args.at(-1);
 if (${spec.tool === AgentTool.DESKTOP} && args.includes("snapshot")) {

@@ -1,25 +1,25 @@
 import { useState } from "react";
 import { Text, View } from "react-native";
-import { Provider, type ui } from "@canopy/contracts";
+import type { ui } from "@canopy/contracts";
 import { ConnectError } from "@connectrpc/connect";
 import { useSession } from "../../state/session";
 import { styles, useColors } from "../../ui/theme";
+import { Button } from "../../ui/Button";
 import { SettingsDisclosure } from "../settings/SettingsDisclosure";
 import { WorkerCliRow } from "../settings/WorkerCliRow";
 import { useUpdates } from "./state";
 import { updateHomes } from "./model";
 import { UpdateDetails } from "./UpdateDetails";
-import { updateInProgress, updateTargetKey } from "@canopy/domain/release/update-status";
 
 export function CliUpdates({ snapshot, disabled }: { snapshot: ui.UpdatesSnapshot; disabled: boolean }) {
   const { client } = useSession();
-  const { reload, rowStatus } = useUpdates();
-  const [pending, setPending] = useState(false);
-  const [error, setError] = useState("");
+  const { reload } = useUpdates();
+  const [pending, setPending] = useState<"check" | "install">();
+  const [error, setError] = useState<{ message: string; details: string }>();
   const c = useColors();
 
-  const workers = updateHomes(snapshot).flatMap(({ name, nodeId, home }) =>
-    home.cliWorkers.map((worker) => ({ worker, name, nodeId })),
+  const workers = updateHomes(snapshot).flatMap(({ name, home }) =>
+    home.cliWorkers.map((worker) => ({ worker, name })),
   );
 
   const items = workers.flatMap(({ worker }) => worker.cliTools);
@@ -27,59 +27,53 @@ export function CliUpdates({ snapshot, disabled }: { snapshot: ui.UpdatesSnapsho
   if (!items.length) return null;
 
   // One word for the collapsed section: the most urgent of its rows, in the rows' own words.
-  const statuses = workers.flatMap(({ worker, nodeId }) =>
-    worker.cliTools.map((item) =>
-      rowStatus(
-        updateTargetKey({ kind: "cli", nodeId, workerId: worker.id, provider: item.tool?.provider }),
-        item.tool?.install?.state === "running"
-          ? "updating"
-          : item.tool?.install?.state === "failed"
-            ? "failed"
-            : item.updateAvailable
-              ? "available"
-              : "current",
-      ),
-    ),
-  );
+  const count = items.filter((item) => item.updateAvailable).length;
 
-  const count = statuses.filter((status) => status === "available").length;
-
-  const word = statuses.includes("failed")
+  const word = items.some((item) => item.tool?.install?.state === "failed")
     ? "Failed"
-    : statuses.some(updateInProgress)
+    : items.some((item) => item.tool?.install?.state === "running")
       ? "Updating"
-      : statuses.includes("queued")
-        ? "Queued"
-        : count
-          ? `${count} available`
-          : statuses.includes("updated")
-            ? "Updated"
-            : "";
+      : count
+        ? `${count} available`
+        : "";
 
-  async function install(worker: ui.Worker, item: ui.WorkerCliTool) {
-    if (!client || pending || !item.tool) return;
-    setPending(true);
-    setError("");
+  async function manage(install?: Pick<ui.InstallCliRequest, "workerId" | "provider">) {
+    if (!client || pending) return;
+    setPending(install ? "install" : "check");
+    setError(undefined);
 
     try {
-      await client.api.installCli({ workerId: worker.id, provider: item.tool.provider || Provider.UNSPECIFIED });
+      if (install) await client.api.installCli(install);
+      else await client.api.checkCliUpdates({}, { timeoutMs: 30_000 });
       await reload();
     } catch (cause) {
-      setError(ConnectError.from(cause).rawMessage);
+      setError({
+        message: install
+          ? "Could not update the agent CLI. Retry its update below."
+          : "Could not check agent CLIs. Try again.",
+        details: ConnectError.from(cause).rawMessage,
+      });
     } finally {
-      setPending(false);
+      setPending(undefined);
     }
   }
 
   return (
     <View style={{ borderTopWidth: 1, borderColor: c.line, paddingTop: 8 }}>
       <SettingsDisclosure title={`Agent CLIs · ${items.length}${word ? ` · ${word}` : ""}`}>
+        <Button
+          title="Check for updates"
+          size="sm"
+          disabled={disabled || !!pending}
+          busy={pending === "check"}
+          onPress={() => void manage()}
+        />
         {error ? (
           <View style={{ gap: 4 }}>
             <Text accessibilityRole="alert" style={[styles.overlayMeta, { color: c.danger }]}>
-              Could not update the agent CLI. Retry its update below.
+              {error.message}
             </Text>
-            <UpdateDetails text={error} />
+            <UpdateDetails text={error.details} />
           </View>
         ) : null}
         {workers.map(({ worker, name }) => (
@@ -91,8 +85,8 @@ export function CliUpdates({ snapshot, disabled }: { snapshot: ui.UpdatesSnapsho
               <WorkerCliRow
                 key={item.tool?.provider}
                 item={item}
-                disabled={disabled || pending || !worker.online}
-                onInstall={() => void install(worker, item)}
+                disabled={disabled || !!pending || !worker.online}
+                onInstall={() => item.tool && void manage({ workerId: worker.id, provider: item.tool.provider })}
               />
             ))}
           </View>

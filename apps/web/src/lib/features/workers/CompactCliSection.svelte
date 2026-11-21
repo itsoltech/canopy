@@ -9,7 +9,6 @@
   import type { UpdatesState } from "./updates.svelte.ts";
   import UpdateBadge from "./UpdateBadge.svelte";
   import { cliCurrent } from "./compact-updates.ts";
-  import { updateInProgress, updateTargetKey } from "@canopy/domain/release/update-status";
 
   /** Agent CLIs of every computer, collapsed: the count and one badge say whether anything inside needs attention. */
   let {
@@ -39,27 +38,15 @@
 
   // One badge for the collapsed section: the most urgent of its rows, in the rows' own words.
   const statuses = $derived(
-    sections.flatMap((section) =>
-      section.items.map(({ worker, item }) => {
-        const key = `${worker.id}/${item.tool?.provider}`;
+    items.map(({ worker, item }) => {
+      const key = `${worker.id}/${item.tool?.provider}`;
 
-        const own =
-          item.tool?.install?.state === "running" || cli.pending[key]
-            ? "updating"
-            : item.tool?.install?.state === "failed" || cli.errors[key]
-              ? "failed"
-              : cliCurrent(item)
-                ? "current"
-                : item.updateAvailable || item.action
-                  ? "available"
-                  : "current";
+      if (item.tool?.install?.state === "running" || cli.pending[key]) return "updating";
 
-        return updates.rowStatus(
-          updateTargetKey({ kind: "cli", nodeId: section.nodeId, workerId: worker.id, provider: item.tool?.provider }),
-          own,
-        );
-      }),
-    ),
+      if (item.tool?.install?.state === "failed" || cli.errors[key]) return "failed";
+
+      return !cliCurrent(item) && (item.updateAvailable || item.action) ? "available" : "current";
+    }),
   );
 
   const available = $derived(statuses.filter((status) => status === "available").length);
@@ -67,15 +54,11 @@
   const overall = $derived(
     statuses.includes("failed")
       ? "failed"
-      : statuses.some(updateInProgress)
+      : statuses.includes("updating")
         ? "updating"
-        : statuses.includes("queued")
-          ? "queued"
-          : available
-            ? `${available} available`
-            : statuses.includes("updated")
-              ? "updated"
-              : "current",
+        : available
+          ? `${available} available`
+          : "current",
   );
 </script>
 
