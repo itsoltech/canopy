@@ -339,6 +339,55 @@ describe.skipIf(!dockerAvailable)("a bot watches its work in a persistent thread
     ]);
   });
 
+  test("reconnect preserves the report when Hello retires a wake before replaying its result", async () => {
+    const thread = await fixedThread();
+    const id = await bot("Coordinator");
+    const work = await watch(thread, id);
+    task(thread, work.turn, "replay-task");
+    result(thread, work.turn, "Foreground progress");
+    await expectStatus(work.turn, "completed");
+    task(thread, work.turn, "replay-task", ItemStatus.COMPLETED);
+    const wake = providerTurn(thread);
+    await expectStatus(wake, "running");
+    await deliver();
+    expect(await work.reports()).toEqual([]);
+
+    const [cursor] = await query<{ seq: string }>(
+      "SELECT max(acked_seq)::text AS seq FROM worker_journal_cursors WHERE thread_id=$1",
+      [thread],
+    );
+
+    worker.link.close();
+    const disconnected = await eventually(async () => !suite.gw.core.online.has(machine.workerId), Boolean);
+    expect(disconnected).toBe(true);
+    worker = await suite.gw.connect(machine.workerId, machine.credential, undefined, {
+      claude: true,
+      resumeJournal: true,
+      hello: {
+        capabilities: ["running_turns", "bot_harness_v1"],
+        threads: [{ threadId: thread, lastSeq: BigInt(cursor!.seq) + 2n }],
+      },
+    });
+    await expectStatus(wake, "interrupted");
+    // Also force a re-evaluation before replay, when the durable thread sequence has not advanced.
+    await query("UPDATE bot_thread_watches SET continuation_check_at=now() WHERE call_id=$1", [work.callId]);
+    await deliver();
+    expect(await work.reports()).toEqual([]);
+
+    result(thread, wake, "Result restored from the journal", "replay-task");
+    await expectStatus(wake, "completed");
+    await deliver();
+    await deliver();
+    expect(await work.reports()).toEqual([
+      {
+        bot_id: id,
+        routine_id: null,
+        conversation_id: null,
+        input: expect.stringContaining("Result restored from the journal"),
+      },
+    ]);
+  });
+
   for (const scenario of ["live", "revoked", "private-answer"] as const) {
     test(`a Claude follow-up respects Slack origin with ${scenario}`, async () => {
       const thread = await fixedThread();

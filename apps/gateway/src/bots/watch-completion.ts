@@ -1,5 +1,6 @@
 import type { SqlClient, Statement } from "effect/sql";
 import { canReportBotTurn } from "./report-origin.ts";
+import { WORKER_RESTARTED } from "../store/worker-oom-recovery.ts";
 
 /** An unchanged pending watch needs attention only at its next deadline. */
 export function watchNeedsCheck(sql: SqlClient.SqlClient) {
@@ -17,6 +18,14 @@ export function noUnscopedInteractionInput(
   return sql`NOT EXISTS(SELECT 1 FROM interaction_requests q
     WHERE q.thread_id=${thread} AND q.turn_id=${turn}
       AND (q.status='answered' OR coalesce(q.response->>'message','')<>''))`;
+}
+
+/** Hello can retire a turn just before the same connection replays its real result. */
+function workerReplayPending(sql: SqlClient.SqlClient) {
+  return sql`EXISTS(SELECT 1 FROM worker_connections l
+    LEFT JOIN worker_journal_cursors j ON j.worker_id=l.worker_id AND j.journal_id=l.bot_journal_id AND j.thread_id=t.thread_id
+    WHERE l.worker_id=th.worker_id AND l.bot_presence_until>now()
+      AND (l.bot_journal_pending->>t.thread_id::text)::numeric>coalesce(j.acked_seq,0))`;
 }
 
 /**
@@ -47,7 +56,10 @@ export function watchCompletion(sql: SqlClient.SqlClient) {
         AND NOT EXISTS(SELECT 1 FROM turn_steers s WHERE s.turn_id=child.id
           AND s.status IN ('pending','accepted','delivered'))
     ), gap AS (
-      SELECT u.first_seq, u.trigger, u.status FROM turns u
+      SELECT u.first_seq, u.trigger,
+        (u.status='running' OR (u.status='interrupted' AND u.interrupt_source='system'
+          AND u.interrupt_reason=${WORKER_RESTARTED} AND u.last_seq IS NULL AND ${workerReplayPending(sql)})) AS awaiting_result
+      FROM turns u
       WHERE u.thread_id=t.thread_id AND u.first_seq>t.first_seq
         AND NOT EXISTS (SELECT 1 FROM work WHERE work.id=u.id)
       ORDER BY u.first_seq LIMIT 1
@@ -70,7 +82,7 @@ export function watchCompletion(sql: SqlClient.SqlClient) {
         SELECT 1 FROM unresolved u LEFT JOIN gap ON true
         WHERE (gap.first_seq IS NULL AND u.status='in_progress')
           OR (u.harness_wakes AND u.note_status<>'cancelled'
-            AND (gap.first_seq IS NULL OR (gap.trigger='provider' AND gap.status='running' AND gap.first_seq>u.last_seq)))
+            AND (gap.first_seq IS NULL OR (gap.trigger='provider' AND gap.awaiting_result AND gap.first_seq>u.last_seq)))
       )
     )
     SELECT safe.id, safe.status, safe.error, pending.check_at,

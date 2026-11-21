@@ -1,4 +1,5 @@
 import type { SqlClient } from "effect/sql";
+import { WORKER_RESTARTED } from "./worker-oom-recovery.ts";
 
 /** Accept a native Claude result only for an earlier, naturally ended task of the same thread. */
 export function recordBackgroundFollowup(sql: SqlClient.SqlClient, threadId: string, turnId: string, runId: string) {
@@ -24,7 +25,9 @@ export function recordBackgroundFollowup(sql: SqlClient.SqlClient, threadId: str
       HAVING count(*)=1
     )
     WHERE result.thread_id=${threadId}::uuid AND result.id=${turnId}::uuid
-      AND result.trigger='provider' AND result.status='running' AND result.rewind_id IS NULL
+      AND result.trigger='provider' AND result.rewind_id IS NULL
+      AND (result.status='running' OR (result.status='interrupted' AND result.interrupt_source='system'
+        AND result.interrupt_reason=${WORKER_RESTARTED} AND result.last_seq IS NULL))
       AND result.background_task_item_id IS NULL
       AND EXISTS(SELECT 1 FROM threads t WHERE t.id=result.thread_id AND t.provider='claude')
   `;

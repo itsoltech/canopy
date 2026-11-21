@@ -36,6 +36,9 @@ Jeśli wynik Claude pochodzi z
 `origin.runId` do `TurnFinished.background_task_run_id` (9). Pusty ACK
 powiadomienia bez pracy modelu nie kończy tury. Gateway zapisuje powiązanie raz
 na zakończone zadanie w tym samym wątku, wyłącznie dla tury `provider`.
+Jeśli `Hello.running_turns` spowodował przerwanie tej tury, lecz `Hello.threads`
+zapowiada zaległe zdarzenia jej wątku, obserwacja może poczekać na odtworzenie
+wyniku. Późny wynik z journala zastępuje wtedy przerwanie zapisane przy połączeniu.
 Brak pól w starszych wersjach zachowuje dotychczasową obserwację pojedynczej tury.
 
 ## Wątki delegowane przez boty
