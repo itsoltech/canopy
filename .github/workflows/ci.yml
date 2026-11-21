@@ -230,17 +230,7 @@ jobs:
           $env:Path = "$($codex.DirectoryName);$env:Path"
           & $codex.FullName --version
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
-          $sandboxFixture = Join-Path $env:TEMP "canopy-codex-sandbox-$([guid]::NewGuid())"
-          New-Item -ItemType Directory -Path $sandboxFixture -ErrorAction Stop | Out-Null
-          $env:CANOPY_TEST_CODEX_ROOT = $sandboxFixture
-          try {
-            bun test ./apps/worker/src/providers/codex/windows-sandbox.test.ts
-            $testExit = $LASTEXITCODE
-          } finally {
-            # Release the test process's Windows handles before removing the fixture.
-            Remove-Item -LiteralPath $sandboxFixture -Recurse -Force -ErrorAction Stop
-          }
-          exit $testExit
+          bun test ./apps/worker/src/providers/codex/windows-sandbox.test.ts
       - uses: actions/download-artifact@v5
         with:
           name: native-binaries

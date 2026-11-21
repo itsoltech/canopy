@@ -65,7 +65,7 @@ function checkTurn(server: CodexAppServer["Service"], threadId: string, mode: Pe
 test.skipIf(!codex)(
   "sandboxed Codex commands follow mode changes, cold resume, and intentional command denials",
   async () => {
-    const root = process.env["CANOPY_TEST_CODEX_ROOT"] || temp("canopy-codex-sandbox-");
+    const root = temp("canopy-codex-sandbox-");
     const cwd = join(root, "project");
     const home = join(root, "codex");
     mkdirSync(cwd);
@@ -100,7 +100,8 @@ test.skipIf(!codex)(
       undefined,
       home,
       {},
-      codexThreadLaunchArgs([]),
+      // Keep the fixture local and avoid a background marketplace clone during teardown.
+      codexThreadLaunchArgs(["-c", "features.plugins=false"]),
     );
 
     const approvalRequests: string[] = [];
