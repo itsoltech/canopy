@@ -123,6 +123,7 @@ function useUpdatesState() {
       if (!client) return;
       const current = generation.current;
       const revision = snapshotRevision.current;
+      const departure = client.departure.snapshot();
 
       try {
         const value = await client.api.getUpdates({}, { ...(signal && { signal }), timeoutMs: 10_000 });
@@ -131,7 +132,7 @@ function useUpdatesState() {
           const next = canopyUpdateSnapshot(value);
           setSnapshot(next);
           setLoadError("");
-          client.departure.reconcile(value);
+          client.departure.reconcile(value, departure);
 
           return next;
         }

@@ -98,13 +98,7 @@ function useOverviewState() {
   useOverviewEvents((update: ui.OverviewUpdate) => {
     const change = update.change;
 
-    if (change.case === "threadHeads") return;
-
-    if (change.case === "gatewayDeparture") {
-      client?.departure.receive(change.value);
-
-      return;
-    }
+    if (change.case === "threadHeads" || change.case === "gatewayDeparture") return;
 
     if (change.case === "mobileRoutes") {
       client?.update(change.value);
@@ -122,12 +116,6 @@ function useOverviewState() {
 
     if (change.case === "mobileSnapshot") {
       for (const thread of change.value.threads) void archivedCache?.reconcile(thread)?.catch(() => {});
-
-      if (client?.departure.snapshot())
-        void client.api
-          .getUpdates({})
-          .then((snapshot) => client.departure.reconcile(snapshot))
-          .catch(() => {});
       const next = change.value.overview;
       const peers = next?.computers ?? [];
       setProjects((rows) => retainProjects(rows, next?.projects ?? [], peers));

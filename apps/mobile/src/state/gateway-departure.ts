@@ -8,39 +8,39 @@ const empty = () => undefined;
 const subscribeEmpty = () => () => {};
 
 export function useGatewayDeparture() {
-  const { client } = useSession();
+  const { active, client } = useSession();
 
   const value = useSyncExternalStore(
     client?.departure.subscribe ?? subscribeEmpty,
     client?.departure.snapshot ?? empty,
   );
 
-  const [now, setNow] = useState(Date.now());
-  const [received, setReceived] = useState<{ id: string; state: string; until: number }>();
+  const [, refresh] = useState(0);
+  const now = Date.now();
+  const planned = plannedDeparture(value, now);
+  const resultUntil = client?.departure.resultDeadline() ?? 0;
+  const visible = planned || now < resultUntil;
+
+  const until =
+    planned && value ? Number(value.startedAtMs) + Math.min(value.windowMs, DEPARTURE_WINDOW_MS) : resultUntil;
+
   useEffect(() => {
-    if (!value) return;
-    setNow(Date.now());
-    setReceived({ id: value.id, state: value.state, until: Date.now() + 15_000 });
+    if (!active || !visible) return;
+    let timer: ReturnType<typeof setTimeout>;
 
-    const until = plannedDeparture(value)
-      ? Number(value.startedAtMs) + Math.min(value.windowMs, DEPARTURE_WINDOW_MS)
-      : Date.now() + 15_000;
+    const expire = () => {
+      const remaining = until - Date.now();
 
-    const timer = setTimeout(() => setNow(Date.now()), Math.max(0, until - Date.now()));
+      if (remaining > 0) timer = setTimeout(expire, remaining);
+      else refresh((n) => n + 1);
+    };
+
+    timer = setTimeout(expire, Math.max(0, until - Date.now()));
 
     return () => clearTimeout(timer);
-  }, [value]);
-  const planned = plannedDeparture(value, now);
+  }, [active, until, visible]);
 
-  const visible =
-    planned ||
-    (value &&
-      received?.id === value.id &&
-      received.state === value.state &&
-      now < received.until &&
-      ["succeeded", "failed", "rolled_back"].includes(value.state));
-
-  return { value, planned, visible: !!visible };
+  return { value, planned, visible };
 }
 
 export function departureLabel(value: ui.GatewayDeparture, disconnected = false) {

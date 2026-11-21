@@ -6,6 +6,8 @@ oraz osobne aktualizacje Canopy i CLI dostawców. Na szerokim oknie iOS i Androi
 sidebar i rozmowa przesuwają wspólną krawędź podczas zwijania i rozwijania.
 Uchwyt na tej krawędzi zmienia szerokość sidebara i zapisuje ją lokalnie.
 Licznik i akcja Update all na telefonie wynikają z planu instalacji Canopy.
+Komunikat o restarcie znika po potwierdzeniu powrotu gatewaya lub wersji docelowej,
+a zmiana wątku nie przedłuża wyświetlania wyniku.
 Wiadomości agenta w rozwiniętej aktywności tury mają dodatkowy odstęp pionowy.
 Stany źródeł Usage są widoczne w sekcji **Recording gateways**. Podsumowanie
 podaje liczbę raportów bez kompletnego kosztu.
@@ -689,6 +691,9 @@ gotowy snapshot lub ostatnia partia przywraca `live` i odblokowuje kompozytor.
 Błąd lub przedwczesny koniec watcha uruchamia obsługę awarii. Pasek boczny osobno
 śledzi dostępność przez `WatchOverview`.
 Zaplanowane restarty nadal korzystają z osobnego komunikatu i próby co 2,5 s w ograniczonym oknie.
+Ponowne otwarcie `WatchOverview` przy zmianie wątku może odtworzyć zapis restartu.
+Telefon pomija wygasłe zapowiedzi i zapowiedzi zakończonych prób. Krótki baner wyniku
+ma jeden termin dla całej sesji parowania, wspólny dla wszystkich ekranów.
 
 Backoff: 1 / 2 / 4 / 8 / 16 / 30 s z jitterem 80–100%, nigdy ponad 30 s. Czas oczekiwania
 liczy się od zakończenia nieudanej próby. Dla watcha wątku sukces zeruje backoff

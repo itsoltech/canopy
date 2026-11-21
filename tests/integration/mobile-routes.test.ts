@@ -25,6 +25,7 @@ describe("phone route selection", () => {
   let quiet = "";
   let refused = "";
   let requests = 0;
+  let updates = create(ui.UpdatesSnapshotSchema);
 
   beforeAll(async () => {
     const identity = await generateIdentity();
@@ -33,12 +34,16 @@ describe("phone route selection", () => {
     const adapter = connectNodeAdapter({
       routes: (router) =>
         router.service(ui.GatewayService, {
+          getUpdates: () => updates,
           getOverview: () => {
             requests++;
 
             return create(ui.GetOverviewResponseSchema, {});
           },
           async *watchOverview(_request, context) {
+            if (updates.departure)
+              yield create(ui.OverviewUpdateSchema, { change: { case: "gatewayDeparture", value: updates.departure } });
+
             while (!context.signal.aborted) {
               yield create(ui.OverviewUpdateSchema, {});
               await Bun.sleep(25);
@@ -143,19 +148,19 @@ describe("phone route selection", () => {
     );
     await expect(client.api.getOverview({})).rejects.toThrow();
     expect(requests).toBe(before);
+
     // Expiry resumes the ordinary route race. An expired checkpoint also does not survive a phone restart.
-    client.departure.receive(
-      create(ui.GatewayDepartureSchema, {
-        ...announcement,
-        state: "updating",
-        startedAtMs: BigInt(Date.now() - 300_001),
-      }),
-    );
-    await client.api.getOverview({});
-    expect(requests).toBe(before + 1);
-    expect(client.connection().lastAddress).toBe(alive);
-    const restored = routedMobileClient({ connection: client.connection(), transport });
-    expect(restored.departure.snapshot()).toBeUndefined();
+    try {
+      setSystemTime(new Date(Number(announcement.startedAtMs) + announcement.windowMs + 1));
+      await client.api.getOverview({});
+      expect(requests).toBe(before + 1);
+      expect(client.connection().lastAddress).toBe(alive);
+      const restored = routedMobileClient({ connection: client.connection(), transport });
+      restored.departure.receive(announcement);
+      expect(restored.departure.snapshot()).toBeUndefined();
+    } finally {
+      setSystemTime();
+    }
 
     const next = create(ui.GatewayDepartureSchema, {
       ...announcement,
@@ -172,6 +177,87 @@ describe("phone route selection", () => {
     expect(client.departure.snapshot()?.id).toBe(next.id);
     await client.api.getOverview({});
     expect(requests).toBe(before + 2);
+  });
+
+  test("a running target version retires a pending restart even when later subscriptions replay it", async () => {
+    const client = routedMobileClient({
+      connection: { fingerprint, addresses: [alive], lastAddress: alive },
+      transport: nodePinnedTransport(),
+    });
+
+    const started = Date.now();
+
+    const announcement = create(ui.GatewayDepartureSchema, {
+      id: "old-restart",
+      state: "restarting",
+      version: "1.0.0",
+      targetVersion: "1.1.0",
+      startedAtMs: BigInt(started),
+      windowMs: 300_000,
+    });
+
+    const receiveReplay = async () => {
+      const controller = new AbortController();
+
+      try {
+        for await (const { change } of client.api.watchOverview({}, { signal: controller.signal, timeoutMs: 2000 })) {
+          if (change.case === "gatewayDeparture") {
+            client.departure.receive(change.value);
+
+            return;
+          }
+        }
+
+        throw new Error("Overview ended before replaying the restart");
+      } finally {
+        controller.abort();
+      }
+    };
+
+    try {
+      setSystemTime(new Date(started));
+      updates = create(ui.UpdatesSnapshotSchema, { gatewayVersion: announcement.version });
+      const beforeRestart = await client.api.getUpdates({});
+      updates.departure = announcement;
+      await receiveReplay();
+      client.departure.reconcile(beforeRestart, undefined);
+      const pending = client.departure.snapshot();
+      client.departure.reconcile(await client.api.getUpdates({}), pending);
+      expect(client.departure.snapshot()?.state).toBe("restarting");
+
+      updates.gatewayVersion = announcement.targetVersion;
+      client.departure.reconcile(await client.api.getUpdates({}), pending);
+      const returned = client.departure.snapshot();
+      expect(returned).toMatchObject({ state: "succeeded", version: announcement.targetVersion });
+      expect(client.departure.resultDeadline()).toBe(started + 15_000);
+
+      setSystemTime(new Date(started + 16_000));
+      await receiveReplay();
+      client.departure.reconcile(await client.api.getUpdates({}), returned);
+      expect(client.departure.snapshot()).toBe(returned);
+      expect(client.departure.resultDeadline()).toBeLessThan(Date.now());
+
+      updates.departure = undefined;
+      const oldRead = await client.api.getUpdates({});
+
+      const next = create(ui.GatewayDepartureSchema, {
+        ...announcement,
+        id: "new-restart",
+        startedAtMs: BigInt(Date.now()),
+        version: announcement.targetVersion,
+        targetVersion: "",
+      });
+
+      client.departure.receive(next);
+      client.departure.reconcile(oldRead, returned);
+      expect(client.departure.snapshot()).toBe(next);
+
+      client.departure.reconcile(await client.api.getUpdates({}), next);
+      expect(client.departure.snapshot()?.state).toBe("succeeded");
+    } finally {
+      updates = create(ui.UpdatesSnapshotSchema);
+      setSystemTime();
+    }
   });
 
   test("requests at the same time share one race, then reuse the route without a handshake", async () => {
