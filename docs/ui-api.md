@@ -4,7 +4,8 @@ Status (2026-11-21): web, desktop i mobile obsługują usypianie wątków oraz z
 do 40 MiB na plik po zmianie ustawienia.
 Web i desktop pokazują automatyczne powitanie tylko po potwierdzeniu przez gateway,
 że działa w wersji pierwszego uruchomienia nowej instalacji. [Onboarding](onboarding.md)
-Stany źródeł Usage są widoczne w sekcji **Recording gateways**.
+Stany źródeł Usage są widoczne w sekcji **Recording gateways**. Przy częściowym
+pokryciu kosztu podsumowanie podaje liczbę raportów bez kompletnego kosztu.
 Settings → Providers udostępnia edytor wspólnych ustawień CLI Claude, Codexa i Groka
 oraz nadpisań pojedynczego workera, z lokalnym kolorowaniem i walidacją JSON.
 Zamknięcie osiągniętego celu zapisuje się w ustawieniach widoku urządzenia.
@@ -376,24 +377,17 @@ bota. Starszy gateway bez `supportsActivityBreakdown` pokazuje dotychczasowe
 filtry i zestawienia. Informacja o nieprzypisanym zużyciu jest widoczna także
 po wybraniu jednego bota. Szczegóły przypisania: [usage.md](usage.md).
 
-Widok Cost, wykres i pierwsza kolumna kwot w tabeli używają `effectiveCostUsd`.
+Widok Cost używa `effectiveCostUsd` w podsumowaniu, na wykresie i w podziałach.
 Gateway dla każdego raportu wybiera kompletny Reported cost (również znane zero),
 następnie kompletny Estimated API cost, a przy braku obu pozostawia koszt nieznany.
-UI nie dodaje kwot raportowanych do estymowanych. Liczniki
-`effectiveReportedCostReports`, `effectiveEstimatedCostReports` i
-`unknownEffectiveCostReports` pokazują pochodzenie i pokrycie w podsumowaniu,
-przy wskazanym dniu wykresu i w każdym wierszu tabeli. Legenda providera rozróżnia
-Reported, API equivalent oraz mieszane źródło, z oznaczeniem częściowego pokrycia.
-Brak znanej kwoty pozostaje Unknown i przerwą w serii; znane zero to kwota zerowa.
+Przy częściowym pokryciu podsumowanie podaje liczbę raportów bez kompletnego
+kosztu z `unknownEffectiveCostReports`. Kwoty są wyświetlane bez dopisku
+o częściowym pokryciu. Brak znanej kwoty jest widoczny jako **Unknown** i
+przerwa w serii. Znane zero jest widoczne jako kwota zerowa.
 
-Reported cost to niezależna suma kwot USD zgłoszonych przez providera.
-Estimated API cost to niezależna suma wycen według oficjalnych stawek OpenAI API.
-Obie kwoty pojawiają się w osobnych kartach i kolumnach zestawienia; mogą dotyczyć
-tego samego zużycia i zawierać historyczną część bez pełnego pokrycia raportu.
-Karty pokazują liczbę kompletnie wycenionych raportów, a brak wyceny pozostaje
-Unknown. Estymata jest równowartością zużycia API, oddzielną od opłat abonamentowych,
-nie fakturą. Odpowiedź BFF przenosi wszystkie pola bez przeliczania ani pobierania
-cennika przez przeglądarkę. Zmiana Cost / Tokens nadal używa jednej odpowiedzi.
+Odpowiedź BFF przenosi również niezależne sumy zgłoszonych kosztów i szacunków
+równowartości OpenAI API. Przeglądarka nie przelicza kwot ani nie pobiera cennika.
+Zmiana Cost / Tokens używa jednej odpowiedzi.
 Liczniki Input, Output, Cache read, Cache write i Reasoning nie są sumowane podwójnie: cache jest
 częścią input, reasoning częścią output, a Total tokens to input + output.
 Szczegóły tokenów zależą od danych providera.
