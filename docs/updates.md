@@ -1,6 +1,8 @@
 # Aktualizacje Canopy
 
-Status: opis zaimplementowanego kodu (2026-11-21), w tym przekazania nadzoru workera
+Status: opis zaimplementowanego kodu (2026-11-21), w tym raportowania startu i zamykania
+gatewaya oraz etapów przygotowania, pobierania i ponownego łączenia workera,
+przekazania nadzoru workera
 przed obsługą wątków po aktualizacji, zbiorczego sprawdzania sesji zamkniętych wątków
 po powrocie workera, ograniczenia kanału Nightly
 do wydań nightly, sprawdzania historii commitów aktualizacji desktopu i zmiany kanału binarek,
@@ -65,6 +67,18 @@ docelowej wersji przed rozliczeniem checkpointu, telefon zamyka próbę na podst
 wersji. Po powrocie telefon pokazuje wynik przez 15 s od jego odebrania, wraz
 z wersją i dostępem do szczegółów. Odczyt ani zmiana ekranu nie wznawiają tego
 czasu. Starszy gateway bez sygnału działa jak wcześniej.
+
+### Gotowość aktualizatora gatewaya
+
+Odczyt `GetUpdates` może działać wcześniej niż sterowanie aktualizacjami. Pole
+`gateway_state` podaje wtedy `starting` aż do zakończenia kontroli po uruchomieniu
+i odzyskania stanu aktualizatora. Od rozpoczęcia zamykania, także podczas restartu,
+podaje `shutting_down` do zamknięcia połączeń. Te stany mają pierwszeństwo przed wynikiem
+zapisanego przebiegu. Centrum odświeża odczyt automatycznie i w tym czasie wstrzymuje akcje
+aktualizacji. Żądanie odrzucone w chwili zmiany stanu powoduje odświeżenie bez ponowienia
+instalacji. Poza tym oknem wiersz pokazuje rzeczywisty etap wybranej aktualizacji.
+`gateway_target_version` to wybrany cel instalacji, a `available_version` to wynik
+sprawdzenia wydań. W spoczynku strzałka wersji wymaga nowszego dostępnego wydania.
 
 ## Wskaźnik w pasku bocznym
 
@@ -169,7 +183,8 @@ podmienia tekst (`t-swap`). Rozwija się wyłącznie błąd, na kliknięcie; tam
 Dismiss. Słownictwo: Up to date (cichy tekst, bez pigułki), Available, Downloaded
 (dawne „Ready”: pobrane, czeka na restart), Queued, Starting, Updating, Waiting
 („Restarts after its current turns end.”), Restarting, Updated i Failed. Zieleń jest
-tylko dla Updated (przez godzinę po kroku; `UpdateStep.finished_at`). Stany brzegowe
+tylko dla Updated (przez godzinę po kroku; `UpdateStep.finished_at`). Bieżący etap
+ma pierwszeństwo nad wynikiem wcześniejszego kroku. Stany brzegowe
 zachowują własne słowa w neutralnej odznace: Offline, Manual update, Checks paused,
 Managed externally, Unavailable. Sprawdzanie feedu nie zmienia odznak wierszy; widać je
 w nagłówku.
@@ -226,6 +241,15 @@ główną. Telefon nie ma podpowiedzi, więc powód stanu brzegowego trafia do d
 Wiersz workera instalowanego z aplikacją desktopową pokazuje wersję, dostępność
 i połączenie jej kanału sterowania. Pobrana aktualizacja aplikacji pozostaje
 dostępna także po sprawdzeniu, które pominęło wersję docelową.
+
+Aktualizacja binarnego workera przechodzi przez Queued, Preparing (sprawdzenie
+wydania), opcjonalnie Waiting (kończenie aktywnych tur i pracy w tle), Downloading
+(pobieranie i weryfikacja), Restarting i Reconnecting. Restarting jest widoczne
+również w trakcie przerwy w połączeniu. Reconnecting oznacza, że worker zgłosił
+wersję docelową, a gateway czeka jeszcze na potwierdzenie gotowości workera.
+Poza oczekiwanym restartem rozłączenie kanału aktualizacji pokazuje Offline.
+Cel workera pochodzi z aktualnego polecenia, także gdy zmieniła się wersja gatewaya.
+`canopy.update.v1` nadal przesyła stan w istniejącym polu tekstowym.
 
 Settings → Workers → Updates pokazuje stan komputerów i workerów oraz osobne
 akcje instalacji i aktualizacji Agent CLIs. Gateway serwerowy ma pod swoim wierszem pole kanału.

@@ -14,6 +14,8 @@ import {
 } from "./center-scheduling.ts";
 import { UpdateReconnects } from "./center-offline.ts";
 import { computerUpdated } from "./computer-completion.ts";
+import { gatewayUpdateLifecycle } from "@canopy/domain/release/update-status";
+import { updateBusyState } from "./versions.ts";
 
 const UPDATE_TIMEOUT_MS = 35 * 60_000;
 
@@ -283,7 +285,7 @@ export class UpdateCenter {
 
   private async complete(step: ui.UpdateStep, snapshot: ui.UpdatesSnapshot, beforeLaunch = false): Promise<boolean> {
     if (step.kind === "gateway") {
-      if (snapshot.gatewayVersion === step.version) return true;
+      if (snapshot.gatewayVersion === step.version && !gatewayUpdateLifecycle(snapshot.gatewayState)) return true;
 
       if (!beforeLaunch && snapshot.gatewayState === "failed")
         throw new Error(snapshot.gatewayReason || "Gateway update failed");
@@ -320,7 +322,7 @@ export class UpdateCenter {
         if (worker.compatibility !== "compatible")
           throw new Error("The updated worker is incompatible with the gateway protocol");
 
-        return true;
+        return !updateBusyState(worker.state);
       }
     } else if (step.kind === "desktop") {
       if (remoteStepCurrent(step, snapshot)) return true;

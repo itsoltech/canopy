@@ -19,7 +19,12 @@
 {#if run.steps.length || run.state === "running" || run.reason}
   <section class={["grid min-w-0 gap-2", className]} aria-label="Update run">
     <!-- The same single counter as the popover's header; each step's state is in the results below. -->
-    {#if summary}<p class="text-sm/5 tabular-nums" role="status">{summary.text}</p>{/if}
+    {#if summary && (!updates.gatewayTransition || run.state === "running")}<p
+        class="text-sm/5 tabular-nums"
+        role="status"
+      >
+        {summary.text}
+      </p>{/if}
     {#if run.state === "running"}<UpdateProgress label="Update all progress" value={summary?.progress} />{/if}
     {#if run.reason}<p class="break-anywhere text-sm/5 text-rose-600 select-text dark:text-rose-400" role="status">
         {run.reason}

@@ -20,6 +20,8 @@ export async function manageUpdateRun(
   if (request.force || request.allowDowngrade || request.workerId || request.nodeId)
     throw new ConnectError("Bulk updates cannot force a restart or select another target.", Code.InvalidArgument);
 
+  if (core.updates.kind === "binary") core.updates.assertControlReady();
+
   if (action === "update_all") return { planned: await core.updateCenter.begin(request.confirmRestart) };
 
   if (action === "retry_failed") await core.updateCenter.retryFailed(request.desktopRequestId, request.confirmRestart);

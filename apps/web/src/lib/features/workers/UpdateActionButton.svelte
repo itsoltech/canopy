@@ -53,12 +53,14 @@
   );
 
   function act() {
+    if (updates.gatewayTransition) return;
+
     if (restarts && local) confirming = true;
     else void updates.manage(request);
   }
 </script>
 
-{#if retry || running || starting || (snapshot && bulkUpdatesAvailable(snapshot))}
+{#if !updates.gatewayTransition && (retry || running || starting || (snapshot && bulkUpdatesAvailable(snapshot)))}
   <Button size="sm" {variant} loading={running || starting} disabled={!!updates.pending} onclick={act} class={className}
     >{label}</Button
   >

@@ -32,7 +32,6 @@ async function fixture(role: "desktop" | "server") {
     gateway.core.updates.close();
     await gateway.close();
   });
-  await gateway.core.updates.start();
   const external = await gateway.addWorker("build server");
   await gateway.connect(external.workerId, external.credential, "linux");
   const client = createClient(update.UpdateService, createGrpcClientTransport({ baseUrl: gateway.grpcUrl }));
@@ -55,6 +54,7 @@ const byId = (snapshot: Awaited<ReturnType<typeof updatesSnapshot>>, id: string)
 describe.skipIf(!dockerAvailable)("the desktop app's bundled gateway and worker in the updates snapshot", () => {
   test("desktop role: both are part of the app, left out of Update all; an external worker stays", async () => {
     const { gateway, external } = await fixture("desktop");
+    await gateway.core.updates.start();
     const snapshot = await updatesSnapshot(gateway.core);
 
     expect(snapshot.gatewayBundled).toBe(true);
@@ -78,15 +78,36 @@ describe.skipIf(!dockerAvailable)("the desktop app's bundled gateway and worker 
     );
   });
 
-  test("server role: the capability changes nothing", async () => {
+  test("server role: update reads stay available during startup and shutdown", async () => {
     const { gateway, external } = await fixture("server");
-    const snapshot = await updatesSnapshot(gateway.core);
+    const install = () => gateway.api.manageUpdates({ action: "canopy_update_all" });
 
+    expect(await gateway.api.getUpdates({})).toMatchObject({
+      gatewayState: "starting",
+      gatewayVersion: VERSION,
+      gatewayUpdateAvailable: false,
+      availableVersion: "",
+    });
+    expect(await failure(install())).toContain("Gateway update control is starting");
+    await gateway.core.updates.start();
+    await gateway.core.updates.check();
+    const snapshot = await gateway.api.getUpdates({});
+
+    expect(snapshot.gatewayState).toBe("idle");
     expect(snapshot.gatewayBundled).toBe(false);
     expect(snapshot.channel).toBe("stable");
     expect(byId(snapshot, gateway.workerId).bundled).toBe(false);
     expect(byId(snapshot, gateway.workerId).desktop?.disabledReason).toContain("Pair this desktop app");
     expect(byId(snapshot, external).bundled).toBe(false);
     expect(bulkUpdateSteps(snapshot).map((s) => [s.kind, s.workerId])).toEqual([["worker", external]]);
+
+    gateway.core.updates.beginShutdown();
+    expect(await gateway.api.getUpdates({})).toMatchObject({
+      gatewayState: "shutting_down",
+      gatewayVersion: VERSION,
+      gatewayUpdateAvailable: false,
+      availableVersion: "",
+    });
+    expect(await failure(install())).toContain("Gateway update control is shutting down");
   });
 });

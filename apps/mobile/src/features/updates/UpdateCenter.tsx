@@ -18,6 +18,7 @@ import { UpdateFeedback } from "./UpdateSummary";
 import { sheetHeadline, type SheetHeadline } from "./headline";
 import { usePhoneUpdates } from "./phone";
 import { useWhatsNew } from "./whats-new";
+import { gatewayUpdateLifecycle } from "@canopy/domain/release/update-status";
 
 /**
  * The third sidebar action, like the web update center. Its 44 dp slot stays reserved in every state. ⟳ stays Check
@@ -66,6 +67,7 @@ export function UpdateCenter() {
   const starting = !!optimistic && !!pending && pending !== "check";
   const checking = pending === "check" || !!snapshot?.checking || phone.busy;
   const stopped = snapshot?.run && ["failed", "blocked"].includes(snapshot.run.state) ? snapshot.run : undefined;
+  const controlUnavailable = gatewayUpdateLifecycle(snapshot?.gatewayState);
 
   const headline = sheetHeadline({
     snapshot,
@@ -75,15 +77,17 @@ export function UpdateCenter() {
     phoneUpdate: phone.status.isUpdateAvailable || phone.status.isUpdatePending,
   });
 
-  const primary: Primary | undefined = starting
-    ? { title: "Starting…", busy: true }
-    : run?.state === "running"
-      ? { title: "Updating…", busy: true }
-      : stopped
-        ? { title: "Retry failed", request: { action: "retry_failed", desktopRequestId: stopped.id } }
-        : snapshot && bulkUpdatesAvailable(snapshot)
-          ? { title: "Update all", request: { action: "update_all" } }
-          : undefined;
+  const primary: Primary | undefined = controlUnavailable
+    ? undefined
+    : starting
+      ? { title: "Starting…", busy: true }
+      : run?.state === "running"
+        ? { title: "Updating…", busy: true }
+        : stopped
+          ? { title: "Retry failed", request: { action: "retry_failed", desktopRequestId: stopped.id } }
+          : snapshot && bulkUpdatesAvailable(snapshot)
+            ? { title: "Update all", request: { action: "update_all" } }
+            : undefined;
 
   return (
     <Overlay
@@ -104,7 +108,7 @@ export function UpdateCenter() {
           <SheetHeader
             headline={headline}
             checking={checking}
-            pending={!!pending}
+            pending={!!pending || controlUnavailable}
             check={() => {
               void phone.check();
               void manage({ action: "check" });

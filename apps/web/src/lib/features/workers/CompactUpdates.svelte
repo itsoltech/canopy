@@ -27,7 +27,7 @@
   const checking = $derived(snapshot?.checking || updates.pending === "check" || app.status?.phase === "checking");
 
   const headline = $derived(updatesHeadline(updates, app, !!checking));
-  const error = $derived(updates.error || snapshot?.checkError || "");
+  const error = $derived(updates.error || (!updates.gatewayTransition && snapshot?.checkError) || "");
 
   const stopped = $derived(
     snapshot?.run && ["failed", "blocked"].includes(snapshot.run.state) ? snapshot.run : undefined,
@@ -41,6 +41,8 @@
   );
 
   async function check() {
+    if (updates.gatewayTransition) return;
+
     await Promise.all([
       snapshot?.admin || snapshot?.gatewayBundled ? updates.manage({ action: "check" }) : updates.reload(),
       app.status ? app.check() : Promise.resolve(),
@@ -68,8 +70,14 @@
         {#key headline.text}<span class="t-swap">{headline.text}</span>{/key}
       </p>
     </div>
-    <!-- Check never conflicts with a run, so it stays available; it only waits for itself. -->
-    <IconButton size="sm" icon="arrow-path" label="Check now" loading={!!checking} onclick={() => void check()} />
+    <IconButton
+      size="sm"
+      icon="arrow-path"
+      label="Check now"
+      disabled={updates.gatewayTransition}
+      loading={!!checking && !updates.gatewayTransition}
+      onclick={() => void check()}
+    />
     <!-- The divider is the run's bar: no extra line, no space reserved for it. -->
     <div
       class={[

@@ -84,7 +84,7 @@
         {#if app?.phase === "failed"}<div class="mt-2">
             <Button
               size="sm"
-              disabled={!!updates.pending}
+              disabled={!!updates.pending || updates.gatewayTransition}
               onclick={() =>
                 void updates.manage({
                   action: "computer_dismiss",
@@ -98,7 +98,10 @@
             <!-- Both buttons always render; state only disables them, so nothing shifts. -->
             <Button
               size="sm"
-              disabled={!!updates.pending || computer.presence !== "connected" || !app?.connected}
+              disabled={!!updates.pending ||
+                updates.gatewayTransition ||
+                computer.presence !== "connected" ||
+                !app?.connected}
               loading={pending && action === "computer_check"}
               onclick={() => run("computer_check", computer)}>Check now</Button
             >
@@ -106,6 +109,7 @@
               size="sm"
               variant={view.actionable ? "primary" : "secondary"}
               disabled={!!updates.pending ||
+                updates.gatewayTransition ||
                 (!view.actionable && app?.phase !== "failed") ||
                 computer.presence !== "connected" ||
                 !app?.connected ||

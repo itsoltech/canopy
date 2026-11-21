@@ -1,7 +1,7 @@
 import { compareVersions } from "@canopy/updater";
 
 export const updateBusyState = (state: string | undefined) =>
-  ["queued", "waiting_idle", "downloading", "restarting"].includes(state ?? "");
+  ["queued", "preparing", "waiting_idle", "downloading", "restarting", "reconnecting"].includes(state ?? "");
 
 /** A worker version above the gateway's (unknown or unparsable versions are not "ahead"). */
 export function versionAhead(version: string, current: string): boolean {

@@ -6,7 +6,7 @@ import { SettingsDisclosure } from "../settings/SettingsDisclosure";
 import { UpdateDetails } from "./UpdateDetails";
 import { useUpdates } from "./state";
 import { bulkUpdatesAvailable, updateLabel } from "./model";
-import { updateRunSummary } from "@canopy/domain/release/update-status";
+import { gatewayUpdateLifecycle, updateRunSummary } from "@canopy/domain/release/update-status";
 
 /** Loading and action errors share the same recovery controls in settings and the sheet. */
 export function UpdateFeedback() {
@@ -46,6 +46,7 @@ export function UpdateRun({ run }: { run: ui.UpdateRun | undefined }) {
   const { snapshot, pending, manage } = useUpdates();
 
   if (!run?.steps.length) return null;
+  const disabled = !!pending || gatewayUpdateLifecycle(snapshot?.gatewayState);
 
   return (
     <SettingsDisclosure
@@ -61,14 +62,14 @@ export function UpdateRun({ run }: { run: ui.UpdateRun | undefined }) {
             <Button
               title="Request again"
               size="sm"
-              disabled={!!pending}
+              disabled={disabled}
               onPress={() => void manage({ action: "update_all" })}
             />
           )}
           <Button
             title="Dismiss"
             size="sm"
-            disabled={!!pending}
+            disabled={disabled}
             onPress={() => void manage({ action: "dismiss_run", desktopRequestId: run.id })}
           />
         </View>
@@ -88,7 +89,7 @@ export function UpdateRun({ run }: { run: ui.UpdateRun | undefined }) {
             <Button
               title="Retry update"
               size="sm"
-              disabled={!!pending}
+              disabled={disabled}
               onPress={() => void manage({ action: "retry_step", desktopRequestId: run.id, updateStepIndex: index })}
             />
           )}

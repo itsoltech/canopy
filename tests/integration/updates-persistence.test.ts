@@ -106,6 +106,11 @@ describe.skipIf(!dockerAvailable)("durable update metadata and administrator aut
       create(update.CheckRequestSchema, { version: command.version, installKind: "binary" }),
     );
     expect((await store.workers()).find((w) => w.id === gateway.workerId)?.status.state).toBe("restarting");
+    expect((await gateway.api.getUpdates({})).workers.find((w) => w.workerId === gateway.workerId)).toMatchObject({
+      state: "reconnecting",
+      version: command.version,
+      targetVersion: command.version,
+    });
     await gateway.connect(gateway.workerId, gateway.workerCredential, undefined, {
       hello: { host: { workerVersion: "2.4.1" } },
     });
@@ -114,6 +119,9 @@ describe.skipIf(!dockerAvailable)("durable update metadata and administrator aut
       (rows) => rows.some((w) => w.id === gateway.workerId && w.version === "2.4.1"),
     );
     expect((await store.workers()).find((w) => w.id === gateway.workerId)?.status.state).toBe("restarting");
+    expect((await gateway.api.getUpdates({})).workers.find((w) => w.workerId === gateway.workerId)?.state).toBe(
+      "restarting",
+    );
     await gateway.connect(gateway.workerId, gateway.workerCredential, undefined, {
       hello: { host: { workerVersion: command.version } },
     });

@@ -550,6 +550,8 @@ message WorkerUpdate {
   DesktopUpdateState desktop = 9;
   // The desktop app's own local-mode worker: it ships and updates with the app (docs/updates.md).
   bool bundled = 10;
+  // Release selected by the worker's current update command.
+  string target_version = 11;
 }
 message UpdatesSnapshot {
   string gateway_version = 1;
@@ -577,6 +579,8 @@ message UpdatesSnapshot {
   // False from older gateways or desktops without remote updates. Never implies force or downgrade.
   bool app_update_supported = 19;
   string computer_name = 20;
+  // Release selected for the current gateway update, independent of feed checks.
+  string gateway_target_version = 21;
 }
 // A linked computer's Canopy app and what runs on it. Its ids are qualified with its node.
 message ComputerUpdate {

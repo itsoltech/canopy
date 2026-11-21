@@ -220,6 +220,7 @@ export class WorkerUpdates {
         return;
       }
 
+      if (command.version !== this.#version) await this.#report(command, "preparing").catch(() => {});
       const manifest = parseManifest(JSON.parse(command.manifestJson), this.#source.options);
 
       if (manifest.version !== command.version || manifest.protocol.update !== UPDATE_PROTOCOL)

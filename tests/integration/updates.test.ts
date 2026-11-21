@@ -521,7 +521,7 @@ describe("independent update service and gateway mirror", () => {
     expect(restarted).toBe(true);
     expect(f.downloads()).toBe(1);
     expect(await readFile(binaryPath, "utf8")).toBe(f.bytes);
-    expect(f.reports.map((r) => r.state)).toEqual(["waiting_idle", "downloading", "restarting"]);
+    expect(f.reports.map((r) => r.state)).toEqual(["preparing", "waiting_idle", "downloading", "restarting"]);
     await confirmStartup(binaryPath, "2.0.0");
 
     const next = new WorkerUpdates({
@@ -655,7 +655,7 @@ describe("independent update service and gateway mirror", () => {
     });
 
     await expect(worker.apply(command)).rejects.toThrow("cannot be verified");
-    expect(f.reports.map((report) => report.state)).toEqual(["failed"]);
+    expect(f.reports.map((report) => report.state)).toEqual(["preparing", "failed"]);
     expect(f.downloads()).toBe(0);
     expect(await readFile(binaryPath, "utf8")).toBe("nightly");
     expect(await readUpdateRecord(binaryPath)).toBeUndefined();
@@ -709,7 +709,7 @@ describe("independent update service and gateway mirror", () => {
 
     await expect(delivered.promise).resolves.toMatchObject({ commandId: command.id, state: "failed" });
     expect(failureReports).toBe(2);
-    expect(f.reports.map((item) => item.state)).toEqual(["downloading", "failed"]);
+    expect(f.reports.map((item) => item.state)).toEqual(["preparing", "downloading", "failed"]);
   });
   test("a restarted gateway replaces an obsolete queued version through the independent channel", async () => {
     const f = await fixture();
@@ -867,7 +867,8 @@ describe("independent update service and gateway mirror", () => {
     await refused(runtime.manage(create(ui.ManageUpdatesRequestSchema, { action: "gateway" })), Code.PermissionDenied);
     expect(announcements).toHaveLength(0);
     admin = true;
-    await runtime.manage(create(ui.ManageUpdatesRequestSchema, { action: "gateway" }));
+    const updating = await runtime.manage(create(ui.ManageUpdatesRequestSchema, { action: "gateway" }));
+    expect(updating).toMatchObject({ gatewayState: "waiting_idle", gatewayTargetVersion: "2.0.0" });
     expect(announcements).toEqual([{ state: "updating", target: "2.0.0" }]);
     expect(runtime.draining).toBe(true);
     expect(restarted).toBe(false);

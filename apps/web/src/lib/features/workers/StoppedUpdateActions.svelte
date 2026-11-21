@@ -16,7 +16,7 @@
     {/if}
     <Button
       size="sm"
-      disabled={!!updates.pending}
+      disabled={!!updates.pending || updates.gatewayTransition}
       onclick={() => void updates.manage({ action: "dismiss_run", desktopRequestId: run.id })}>Dismiss</Button
     >
   </div>

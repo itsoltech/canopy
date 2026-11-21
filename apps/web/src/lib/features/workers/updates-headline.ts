@@ -4,7 +4,7 @@ import { updateCheckLabel } from "@canopy/domain/computer-presence";
 import type { DesktopUpdatesState } from "#lib/features/desktop/desktop-updates.svelte.ts";
 import { presenceTime } from "#lib/features/computers/computers.ts";
 import type { UpdatesState } from "./updates.svelte.ts";
-import { updateIndicator } from "./update-indicator.ts";
+import { gatewayUpdateActivity, updateIndicator } from "./update-indicator.ts";
 
 export interface UpdatesHeadline {
   text: string;
@@ -20,6 +20,9 @@ export interface UpdatesHeadline {
 export function updatesHeadline(updates: UpdatesState, app: DesktopUpdatesState, checking: boolean): UpdatesHeadline {
   const snapshot = updates.snapshot;
   const line = (text: string, tone: UpdatesHeadline["tone"] = "ink", progress?: number) => ({ text, tone, progress });
+  const gatewayActivity = gatewayUpdateActivity(snapshot?.gatewayState, updates.gatewayTransition);
+
+  if (gatewayActivity) return line(gatewayActivity);
 
   if (updates.optimistic && updates.pending && updates.pending !== "check")
     return line("Starting update…", "ink", updates.optimistic.run ? 0 : undefined);
@@ -29,9 +32,9 @@ export function updatesHeadline(updates: UpdatesState, app: DesktopUpdatesState,
 
   if (checking) return line("Checking for updates…", "muted");
 
-  if (run) return line(run.text, run.tone);
-
   const summary = updateIndicator(app.status, snapshot, app.error || updates.error, updates.pending, app.remote);
+
+  if (run && summary.phase !== "downloading") return line(run.text, run.tone);
 
   const planned = snapshot ? bulkUpdateSteps(snapshot).filter((step) => step.state === "queued").length : 0;
 

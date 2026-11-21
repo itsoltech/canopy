@@ -370,6 +370,8 @@ async function stopAndExit(code: number) {
 }
 
 function stop(presence = "shutting_down") {
+  core.updates.beginShutdown();
+
   return (stopping ??= close(presence));
 }
 

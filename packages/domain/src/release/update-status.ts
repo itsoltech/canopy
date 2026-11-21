@@ -1,4 +1,5 @@
 import type { ui } from "@canopy/contracts";
+import { newerAppVersion } from "./remote-update-state.ts";
 
 /**
  * One vocabulary for every update row on web and mobile (docs/updates.md, "Popover aktualizacji"). Settled states are
@@ -10,9 +11,13 @@ export type UpdateStatus =
   | "downloaded"
   | "queued"
   | "starting"
+  | "preparing"
+  | "downloading"
   | "updating"
   | "waiting"
   | "restarting"
+  | "reconnecting"
+  | "shutting_down"
   | "updated"
   | "failed";
 
@@ -24,16 +29,76 @@ export const UPDATE_BADGES: Record<UpdateStatus, { label: string; tone: UpdateBa
   downloaded: { label: "Downloaded", tone: "sky" },
   queued: { label: "Queued", tone: "neutral" },
   starting: { label: "Starting", tone: "amber" },
+  preparing: { label: "Preparing", tone: "amber" },
+  downloading: { label: "Downloading", tone: "amber" },
   updating: { label: "Updating", tone: "amber" },
   waiting: { label: "Waiting", tone: "amber" },
   restarting: { label: "Restarting", tone: "amber" },
+  reconnecting: { label: "Reconnecting", tone: "amber" },
+  shutting_down: { label: "Shutting down", tone: "amber" },
   updated: { label: "Updated", tone: "emerald" },
   failed: { label: "Failed", tone: "rose" },
 };
 
 /** States that show the row's bar. */
 export const updateInProgress = (status: UpdateStatus | string): boolean =>
-  ["starting", "updating", "waiting", "restarting"].includes(status);
+  [
+    "starting",
+    "preparing",
+    "downloading",
+    "updating",
+    "waiting",
+    "restarting",
+    "reconnecting",
+    "shutting_down",
+  ].includes(status);
+
+export const gatewayUpdateLifecycle = (state: string | undefined): boolean =>
+  state === "starting" || state === "shutting_down";
+
+const BINARY_PHASES = new Map<string, { status: UpdateStatus; detail: string }>([
+  ["starting", { status: "starting", detail: "Updates resume after the gateway starts." }],
+  ["shutting_down", { status: "shutting_down", detail: "Updates resume when the gateway returns." }],
+  ["queued", { status: "queued", detail: "Waiting for the worker to start the update." }],
+  ["preparing", { status: "preparing", detail: "Checking the selected release." }],
+  ["waiting_idle", { status: "waiting", detail: "Waits for active work to finish." }],
+  ["downloading", { status: "downloading", detail: "Downloading and verifying the release." }],
+  ["restarting", { status: "restarting", detail: "Waiting for the new process to start." }],
+  [
+    "reconnecting",
+    { status: "reconnecting", detail: "The new version is running. Waiting for the worker to reconnect." },
+  ],
+  ["failed", { status: "failed", detail: "" }],
+]);
+
+export const binaryUpdateStatus = (state: string): UpdateStatus | undefined => BINARY_PHASES.get(state)?.status;
+
+export const binaryUpdateDetail = (state: string): string => BINARY_PHASES.get(state)?.detail ?? "";
+
+export function gatewayRowTarget(snapshot: ui.UpdatesSnapshot): string {
+  if (gatewayUpdateLifecycle(snapshot.gatewayState)) return "";
+
+  const phase = binaryUpdateStatus(snapshot.gatewayState);
+
+  const target =
+    (phase && updateInProgress(phase) && snapshot.gatewayTargetVersion) ||
+    (snapshot.gatewayUpdateAvailable && newerAppVersion(snapshot.availableVersion, snapshot.gatewayVersion)
+      ? snapshot.availableVersion
+      : "");
+
+  return target === snapshot.gatewayVersion ? "" : target;
+}
+
+export function workerUpdateTarget(worker: ui.WorkerUpdate, gatewayVersion: string): string {
+  if (worker.state === "ahead") return "";
+
+  const phase = binaryUpdateStatus(worker.state);
+
+  const target =
+    (phase && worker.targetVersion) || (newerAppVersion(gatewayVersion, worker.version) ? gatewayVersion : "");
+
+  return target === worker.version ? "" : target;
+}
 
 const RANK: Record<UpdateStatus, number> = {
   current: 0,
@@ -41,11 +106,15 @@ const RANK: Record<UpdateStatus, number> = {
   downloaded: 0,
   queued: 1,
   starting: 2,
+  preparing: 3,
   updating: 3,
   waiting: 4,
-  restarting: 5,
-  updated: 6,
-  failed: 6,
+  downloading: 5,
+  restarting: 6,
+  reconnecting: 7,
+  shutting_down: 8,
+  updated: 9,
+  failed: 9,
 };
 
 /** A shared word; anything else is an edge state that explains itself (Offline, Manual update…). */
@@ -63,10 +132,12 @@ export function updateBadge(status: UpdateStatus | string): { label: string; ton
 export function furthestStatus(own: UpdateStatus | string, run: UpdateStatus | undefined): UpdateStatus | string {
   if (!run) return own;
 
-  if (!isUpdateStatus(own)) return run === "updated" || run === "failed" ? run : own;
+  // A past result cannot replace a live phase or turn an offline or newly available target green.
+  if (run === "updated" && own !== "current") return own;
 
-  // A finished update does not hide a newer one that became available since.
-  if (run === "updated" && own !== "current" && RANK[own] === 0) return own;
+  if (run === "failed" && gatewayUpdateLifecycle(own)) return own;
+
+  if (!isUpdateStatus(own)) return run === "failed" ? run : own;
 
   return RANK[run] > RANK[own] ? run : own;
 }
