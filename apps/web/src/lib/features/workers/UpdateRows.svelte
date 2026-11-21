@@ -4,7 +4,6 @@
   import CompactAppUpdate from "#lib/features/desktop/CompactAppUpdate.svelte";
   import type { DesktopUpdatesState } from "#lib/features/desktop/desktop-updates.svelte.ts";
   import CompactWorkerUpdate from "./CompactWorkerUpdate.svelte";
-  import CompactCliSection from "./CompactCliSection.svelte";
   import CompactComputerUpdate from "./CompactComputerUpdate.svelte";
   import CompactGatewayUpdate from "./CompactGatewayUpdate.svelte";
   import UpdateGroupLabel from "./UpdateGroupLabel.svelte";
@@ -14,7 +13,7 @@
 
   /**
    * The updates center's rows, in the popover and in Settings → Workers → Updates (docs/updates.md): this computer,
-   * linked computers, workers grouped by computer, then agent CLIs collapsed. `gateway` follows a server's gateway row.
+   * linked computers and workers grouped by computer. `gateway` follows a server's gateway row.
    */
   let {
     updates,
@@ -25,7 +24,7 @@
 
   const snapshot = $derived(updates.snapshot);
 
-  // The bundled gateway and worker ship with this app: "This Canopy app" stands for them; their CLIs stay.
+  // The bundled gateway and worker ship with this app: "This Canopy app" stands for them.
   const bundled = $derived(!!snapshot?.gatewayBundled);
 
   const local = $derived(snapshot && (!app.status || app.remote) ? homeAppComputer(snapshot) : undefined);
@@ -69,5 +68,4 @@
       <CompactWorkerUpdate {worker} {updates} home={group.home} nodeId={group.nodeId} {allowForce} />
     {/each}
   {/each}
-  <CompactCliSection {groups} {updates} class="border-t" />
 {/if}

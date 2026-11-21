@@ -267,7 +267,7 @@ Kontrolki pochodzą z kitu; `DesktopUpdateStatus` skupia stan i dialog potwierdz
 
 Ten sam stan i „Update Canopy app” są dostępne w centrum aktualizacji w stopce
 sidebara. „Update all” kolejkuje połączone, obsługiwane aplikacje z wykrytą nowszą
-wersją po gatewayu, binarnych workerach i CLI. Czeka na raport sukcesu po restarcie;
+wersją. Po aktualizacji gatewaya mogą działać równolegle z binarnymi workerami. Czeka na raport sukcesu po restarcie;
 nie wymusza przerwania pracy. Ręczne akcje w Workers pozostają dostępne poza
 trwającą kolejką. Własny desktop ma niezależny restart w tym samym centrum.
 

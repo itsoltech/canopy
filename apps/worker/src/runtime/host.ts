@@ -194,16 +194,23 @@ export class WorkerHost {
   }
 
   applyThreadLifecycle(state: ThreadLifecycle): void {
+    const { closedThreads, unloadingThreads } = this.#ctx.state;
+    const closed = new Set(state.closedThreadIds);
     const opened = new Set(state.openedThreadIds);
 
-    if (state.replace)
-      for (const id of this.#ctx.state.closedThreads) if (!state.closedThreadIds.includes(id)) opened.add(id);
-    this.previews.lifecycle(state, this.#ctx.state.closedThreads);
+    if (state.replace) for (const id of closedThreads) if (!closed.has(id)) opened.add(id);
 
-    for (const id of state.closedThreadIds)
+    for (const id of closed) {
+      // Welcome, the registration snapshot and later reconnects may repeat the same closure.
+      if (closedThreads.has(id) && !unloadingThreads.has(id)) continue;
+      closedThreads.add(id);
       void this.#ctx.ops.releaseThread(id).catch(() => this.#ctx.ops.log("Thread resource cleanup will retry"));
+    }
 
-    for (const id of opened) void this.#ctx.ops.prepareThread(id).catch(() => {});
+    for (const id of opened) {
+      closedThreads.delete(id);
+      void this.#ctx.ops.prepareThread(id).catch(() => {});
+    }
   }
 
   detach(link: GatewayLink): void {

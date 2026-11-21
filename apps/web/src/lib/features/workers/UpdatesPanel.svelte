@@ -10,6 +10,8 @@
   import { useOverview } from "#lib/features/overview/overview-state.svelte.ts";
   import ReleaseChannelField from "./ReleaseChannelField.svelte";
   import UpdateRows from "./UpdateRows.svelte";
+  import CompactCliSection from "./CompactCliSection.svelte";
+  import { homes } from "@canopy/domain/release/computer-update";
   import { DesktopUpdatesState } from "#lib/features/desktop/desktop-updates.svelte.ts";
   import UpdateRun from "./UpdateRun.svelte";
   import { updateCenter, UpdatesState, updateBusy } from "./updates.svelte.ts";
@@ -111,16 +113,14 @@
       {#snippet summary()}Update order{/snippet}
       <p class="pt-2 text-pretty">
         Canopy updates gateways, workers, and apps on all online computers, including this one. Workers wait for their
-        gateway. Once the Canopy updates succeed, agent CLI updates start. Canopy skips offline computers and workers.
-        Independent updates continue after a failure. The results list the installer for items that need a manual
-        update.
+        gateway. Canopy skips offline computers and workers. Independent updates continue after a failure. The results
+        list the installer for items that need a manual update.
       </p>
     </Disclosure>
     {#if snapshot.gatewayBundled}<p class="px-3 py-2 text-sm/5 text-pretty text-muted">
         This computer’s gateway and worker update with its Canopy app.
         {#if app.status && !app.remote}Open <TextLink href="/settings/app-updates">App updates</TextLink> to update it.{/if}
       </p>{/if}
-    <!-- The popover's rows (UpdateRows): computers, workers by computer, agent CLIs by computer. -->
     <div class="min-w-0 px-3">
       <UpdateRows {updates} {app} allowForce>
         {#snippet gateway()}<ReleaseChannelField
@@ -132,6 +132,7 @@
             class="-mx-3"
           />{/snippet}
       </UpdateRows>
+      <CompactCliSection groups={homes(snapshot)} {updates} class="border-t" />
     </div>
     {#if !snapshot.gatewayBundled && !listedWorkers(snapshot).length && !snapshot.computers.length}<p
         class="px-3 py-2 text-sm/5 text-muted"

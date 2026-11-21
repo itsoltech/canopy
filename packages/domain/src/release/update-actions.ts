@@ -1,15 +1,31 @@
-import { CliInstallMethod, type ui } from "@canopy/contracts";
+import { CliInstallMethod, ui } from "@canopy/contracts";
 import { isRateLimitMessage } from "./http.ts";
 import { create } from "@bufbuild/protobuf";
-import { ui as contracts } from "@canopy/contracts";
+import { canopyUpdateRun } from "./update-plan.ts";
 
 export const MANUAL_APP_UPDATE = "Update this computer from its own window once to enable remote updates.";
+
+/** The old action names on older gateways may also install provider CLIs. */
+export const canopyUpdateAction = (action = ""): string =>
+  ["update_all", "retry_failed", "retry_step"].includes(action) ? `canopy_${action}` : action;
+
+export function updateGatewayMessage(action: string, message: string): string {
+  return action.startsWith("canopy_") && message === "Unknown update action"
+    ? "Update Canopy on the gateway to use this action."
+    : "";
+}
+
+/** Older gateways can return a durable plan that includes provider CLI steps. */
+export const canopyUpdateSnapshot = (snapshot: ui.UpdatesSnapshot): ui.UpdatesSnapshot => ({
+  ...snapshot,
+  run: canopyUpdateRun(snapshot.run),
+});
 
 /** The connected gateway's desktop app, rendered with the same row as a linked computer. */
 export function homeAppComputer(snapshot: ui.UpdatesSnapshot): ui.ComputerUpdate | undefined {
   if (!snapshot.gatewayBundled) return;
 
-  return create(contracts.ComputerUpdateSchema, {
+  return create(ui.ComputerUpdateSchema, {
     name: snapshot.computerName || "Canopy on this computer",
     version: snapshot.gatewayVersion,
     presence: "connected",
@@ -68,9 +84,3 @@ export const cliManagedExternally = (item: ui.WorkerCliTool): boolean =>
       CliInstallMethod.DOCKER,
       CliInstallMethod.OTHER,
     ].includes(item.tool.method));
-
-export const cliUpdateActionable = (item: ui.WorkerCliTool): boolean =>
-  !!item.tool?.installable &&
-  !cliManagedExternally(item) &&
-  item.action === "update" &&
-  !item.blockedReason.includes("owner");

@@ -2,7 +2,7 @@
 
 Status: opis zaimplementowanej synchronizacji (2026-11-21), w tym usypiania wątków,
 blokady operacji przez łącze podczas opróżniania gatewaya i importu konsolidacji,
-retencji nieopublikowanych wpisów dziennika, weryfikacji obsługi ochrony wersji CLI przez partnera w Update all, kolejności aktualizacji aplikacji i CLI partnerów, wstrzymywania luster wyłączonego modułu, kolejności zakładek konta, kontroli dostępu między botami i wątkami przez łącze, ograniczenia czasu oczekiwania na listę botów w `list_agents` oraz przyrostowej
+retencji nieopublikowanych wpisów dziennika, osobnych aktualizacji Canopy i CLI partnerów, wstrzymywania luster wyłączonego modułu, kolejności zakładek konta, kontroli dostępu między botami i wątkami przez łącze, ograniczenia czasu oczekiwania na listę botów w `list_agents` oraz przyrostowej
 synchronizacji agregatów użycia z żądaną szybkością wykonania i podziałem
 według aktywności i botów przez bezpośrednie
 łącza, odwołania zaufania w trakcie handshake, zachowania lokalnych kanałów Slack botów i nadawców historycznych
@@ -885,11 +885,10 @@ Capability **`remote_app_update`** dodaje `ComputerUpdateService` (`GetComputerU
 `RequestComputerUpdate`) do listy `SERVED`, wyłącznie na bezpośrednim łączu; relay ich nie
 przenosi. A pokazuje wersję i stan aplikacji B, jego workery i CLI, prosi B o aktualizację,
 a obie strony ją audytują. Szczegóły i kolejność Update all: [updates.md](updates.md#połączone-komputery).
-Update all obejmuje też binarne workery i obsługiwane CLI partnerów przez te same
-sprawdzające właściciela trasy co pojedyncze przyciski. CLI nadal wymaga obustronnego
-Share configuration. Niezależni partnerzy mogą restartować się równolegle. Po nich
-restartuje się własna aplikacja. Gateway wznawia zapisany przebieg po restarcie i uruchamia
-etap CLI po potwierdzeniu aktualizacji Canopy na dostępnych komputerach.
+Update all obejmuje aplikacje partnerów i ich binarne workery. Niezależni partnerzy mogą
+restartować się równolegle. Po nich restartuje się własna aplikacja. Gateway wznawia
+zapisany przebieg po restarcie. Osobna akcja aktualizacji CLI w ustawieniach
+partnera wymaga obustronnego Share configuration.
 Zabezpieczone żądanie CLI z `upgrade_only` wymaga `remote_cli_upgrade_only` na używanym
 łączu. Bez tej capability gateway prosi o aktualizację Canopy na komputerze partnera.
 Pojedyncze żądania bez tego pola nadal działają na starszych połączeniach.

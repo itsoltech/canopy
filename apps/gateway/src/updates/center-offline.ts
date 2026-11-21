@@ -52,7 +52,7 @@ export class UpdateReconnects {
 
     const canReconnect = !peer || !["sleeping", "shutting_down", "pairing_required"].includes(peer.presence);
 
-    if (canReconnect && (step.state === "queued" || step.kind !== "cli")) {
+    if (canReconnect) {
       for (const update of run.steps) {
         if (!restartsUpdateTarget(update, step)) continue;
 

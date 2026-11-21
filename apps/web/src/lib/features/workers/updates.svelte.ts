@@ -1,8 +1,9 @@
 import { create, type MessageInitShape } from "@bufbuild/protobuf";
-import { ui, type Provider } from "@canopy/contracts";
+import { ui } from "@canopy/contracts";
 import { requestJson } from "#lib/shared/http.ts";
 import { decode, encode } from "#lib/shared/wire.ts";
 import { linkedDownloading } from "@canopy/domain/release/computer-update";
+import { canopyUpdateAction, canopyUpdateSnapshot, updateGatewayMessage } from "@canopy/domain/release/update-actions";
 import { workerUpdateSignature } from "@canopy/domain/update-checks";
 import { hasUnsentWork } from "./unsent-work.ts";
 import { plannedUpdateRun } from "@canopy/domain/release/update-plan";
@@ -62,14 +63,13 @@ export class UpdatesState {
         this.run.steps.some((step) => updateTargetKey(step) === key && ["queued", "running"].includes(step.state)))
     );
   }
-  /** CLI actions wait for their own target and worker, or an actual restart of their computer. */
-  cliBlocked(workerId: string, provider: Provider, nodeId = ""): boolean {
+  /** An updating worker or restarting computer cannot run a CLI installer. */
+  cliBlocked(workerId: string, nodeId = ""): boolean {
     const computer = this.snapshot?.computers.find((item) => item.nodeId === nodeId);
     const home = nodeId ? computer?.updates : this.snapshot;
     const worker = home?.workers.find((item) => item.workerId === workerId);
 
     return (
-      this.targetBusy(updateTargetKey({ kind: "cli", nodeId, workerId, provider })) ||
       this.targetBusy(updateTargetKey({ kind: "worker", nodeId, workerId })) ||
       updateBusy(worker?.state ?? "") ||
       ["waiting_idle", "restarting"].includes(worker?.desktop?.phase ?? "") ||
@@ -96,7 +96,7 @@ export class UpdatesState {
       const snapshot = decode(ui.UpdatesSnapshotSchema, await requestJson("GET", "/api/updates"));
 
       if (generation === this.#generation) {
-        this.snapshot = snapshot;
+        this.snapshot = canopyUpdateSnapshot(snapshot);
         this.error = "";
       }
     } catch (error) {
@@ -211,19 +211,23 @@ export class UpdatesState {
     this.pending = input.workerId || input.nodeId || input.action || "update";
     this.error = "";
     this.optimistic = this.#expect(input, target);
+    const action = canopyUpdateAction(input.action);
 
     try {
-      this.snapshot = decode(
+      const snapshot = decode(
         ui.UpdatesSnapshotSchema,
         await requestJson(
           "POST",
           "/api/updates",
-          encode(ui.ManageUpdatesRequestSchema, create(ui.ManageUpdatesRequestSchema, input)),
+          encode(ui.ManageUpdatesRequestSchema, create(ui.ManageUpdatesRequestSchema, { ...input, action })),
           150_000,
         ),
       );
+
+      this.snapshot = canopyUpdateSnapshot(snapshot);
     } catch (error) {
-      this.error = error instanceof Error ? error.message : "Update action failed";
+      const message = error instanceof Error ? error.message : "Update action failed";
+      this.error = updateGatewayMessage(action, message) || message;
     } finally {
       this.#generation++;
       this.pending = "";

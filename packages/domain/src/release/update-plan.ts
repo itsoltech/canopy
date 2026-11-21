@@ -1,6 +1,5 @@
 import { create, type MessageInitShape } from "@bufbuild/protobuf";
-import { Provider, ui } from "@canopy/contracts";
-import { cliUpdateActionable } from "./update-actions.ts";
+import { ui } from "@canopy/contracts";
 import { newerAppVersion } from "./remote-update-state.ts";
 import { knownUpdateOffline } from "./update-offline.ts";
 
@@ -130,47 +129,10 @@ export function bulkUpdateSteps(snapshot: ui.UpdatesSnapshot): ui.UpdateStep[] {
       }),
     });
 
-  for (const { home, nodeId, name } of homes) {
-    for (const worker of home.cliWorkers) {
-      if (!home.workers.some((item) => item.workerId === worker.id)) continue;
-
-      for (const cli of worker.cliTools) {
-        if (!cli.tool || !cli.updateAvailable || cli.blockedReason.includes("owner")) continue;
-
-        const provider =
-          cli.tool.provider === Provider.CLAUDE
-            ? "Claude Code"
-            : cli.tool.provider === Provider.CODEX
-              ? "Codex"
-              : "Grok";
-
-        add({
-          kind: "cli",
-          workerId: worker.id,
-          nodeId,
-          provider: cli.tool.provider,
-          label: `${name ? `${name} · ` : ""}${worker.name} · ${provider}`,
-          version: cli.latest?.version || "",
-          fromVersion: cli.tool.version,
-          ...(!cliUpdateActionable(cli) && {
-            state: "skipped",
-            reason: cli.managedBy
-              ? `Update this agent CLI with ${cli.managedBy}.`
-              : cli.tool.detail || "Update this agent CLI with its installer.",
-          }),
-        });
-      }
-    }
-  }
-
   return steps.filter(
     (step, index) =>
       steps.findIndex(
-        (other) =>
-          other.kind === step.kind &&
-          other.nodeId === step.nodeId &&
-          other.workerId === step.workerId &&
-          other.provider === step.provider,
+        (other) => other.kind === step.kind && other.nodeId === step.nodeId && other.workerId === step.workerId,
       ) === index,
   );
 }
@@ -184,3 +146,31 @@ export const plannedUpdateRun = (snapshot: ui.UpdatesSnapshot, id: string): ui.U
 
 export const bulkUpdatesAvailable = (snapshot: ui.UpdatesSnapshot): boolean =>
   bulkUpdateSteps(snapshot).some((step) => step.state === "queued");
+
+/** Canopy's part of a result saved or returned by a gateway that also planned CLI installs. */
+export function canopyUpdateRun(run: ui.UpdateRun | undefined): ui.UpdateRun | undefined {
+  if (!run?.steps.length) return undefined;
+  const steps = run.steps.filter((step) => step.kind !== "cli");
+
+  if (steps.length === run.steps.length) return run;
+
+  if (!steps.length) return undefined;
+  let state = run.state;
+  let reason = "";
+
+  if (!["dismissed", "superseded"].includes(state)) {
+    const pending = steps.some((step) => ["queued", "running"].includes(step.state));
+    const failed = steps.find((step) => ["failed", "blocked"].includes(step.state));
+
+    if (state === "running" && pending) {
+      if (failed) reason = "Some updates failed. Other updates continue.";
+    } else if (failed) {
+      state = failed.state;
+      reason = failed.reason;
+    } else {
+      state = pending || steps.some((step) => step.state === "dismissed") ? "superseded" : "succeeded";
+    }
+  }
+
+  return create(ui.UpdateRunSchema, { ...run, steps, state, reason });
+}

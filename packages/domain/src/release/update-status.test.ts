@@ -54,7 +54,7 @@ function fleet() {
 }
 
 describe("shared Update all planner", () => {
-  test("clients predict the gateway's plan with every Canopy update before the CLI", () => {
+  test("clients predict only Canopy updates even when the gateway reports CLI updates", () => {
     const run = plannedUpdateRun(fleet(), "pending");
 
     expect(run.state).toBe("running");
@@ -63,29 +63,16 @@ describe("shared Update all planner", () => {
       ["worker", "skipped"],
       ["computer", "queued"],
       ["app", "queued"],
-      ["cli", "queued"],
     ]);
 
     // The keys rows compute for themselves find the predicted steps.
     const statuses = runStatuses(run, NOW);
     expect(statuses.get(updateTargetKey({ kind: "worker", workerId: "w1" }))).toBe("queued");
-    expect(statuses.get(updateTargetKey({ kind: "cli", workerId: "w1", provider: Provider.CLAUDE }))).toBe("queued");
+    expect(statuses.get(updateTargetKey({ kind: "cli", workerId: "w1", provider: Provider.CLAUDE }))).toBeUndefined();
     expect(statuses.get(updateTargetKey({ kind: "computer", nodeId: "studio" }))).toBe("queued");
     expect(statuses.get(updateTargetKey({ kind: "app" }))).toBe("queued");
     expect(statuses.has(updateTargetKey({ kind: "worker", workerId: "w2" }))).toBe(false);
-    expect(updateRunSummary(run, NOW)?.text).toBe("Updating · 0 of 4 done");
-  });
-
-  test("the planner skips an offline installer even when its binary update channel is connected", () => {
-    const snapshot = fleet();
-    snapshot.cliWorkers[0]!.online = false;
-    snapshot.cliWorkers[0]!.cliTools[0]!.blockedReason = "Worker is offline.";
-    const run = plannedUpdateRun(snapshot, "pending");
-    expect(run.steps.find((step) => step.kind === "cli")).toMatchObject({
-      state: "skipped",
-      reason: "Worker is offline.",
-    });
-    expect(run.steps.find((step) => step.workerId === "w1" && step.kind === "worker")?.state).toBe("queued");
+    expect(updateRunSummary(run, NOW)?.text).toBe("Updating · 0 of 3 done");
   });
 });
 

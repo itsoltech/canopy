@@ -14,7 +14,6 @@ import { openSettingsSection } from "../settings/navigation";
 import { useUpdates } from "./state";
 import { bulkUpdatesAvailable, updatesAvailable, updatesRunning, type UpdateRequest } from "./model";
 import { UpdateRows } from "./UpdateRows";
-import { CliUpdates } from "./CliUpdates";
 import { UpdateFeedback } from "./UpdateSummary";
 import { sheetHeadline, type SheetHeadline } from "./headline";
 import { usePhoneUpdates } from "./phone";
@@ -114,14 +113,11 @@ export function UpdateCenter() {
           <ScrollView style={{ flexGrow: 0 }} contentContainerStyle={{ paddingHorizontal: 16, paddingBottom: 12 }}>
             <UpdateFeedback />
             {snapshot && (
-              <>
-                <UpdateRows
-                  snapshot={snapshot}
-                  pending={active}
-                  manage={(request, target) => void manage(request, target)}
-                />
-                <CliUpdates snapshot={snapshot} disabled={active} />
-              </>
+              <UpdateRows
+                snapshot={snapshot}
+                pending={active}
+                manage={(request, target) => void manage(request, target)}
+              />
             )}
             <AppUpdateStatus compact />
           </ScrollView>

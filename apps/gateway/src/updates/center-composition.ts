@@ -6,7 +6,7 @@ import { coreState } from "../core/core-context.ts";
 import { UpdateCenter } from "./center.ts";
 import { UpdateRunStore } from "./run-store.ts";
 import { linkedUpdates, requestComputerUpdate } from "./linked.ts";
-import { installRunCli, manageRunWorker } from "./center-actions.ts";
+import { manageRunWorker } from "./center-actions.ts";
 
 /** With `linked`, linked computers' apps too; a linked computer asking for this one's snapshot gets it without. */
 export async function updatesSnapshot(core: GatewayCore, linked = true) {
@@ -52,7 +52,6 @@ export function createUpdateCenter(core: GatewayCore) {
     },
     snapshot: () => updatesSnapshot(core),
     manage: (request, nodeId) => manageRunWorker(core, request, nodeId),
-    install: (request, nodeId) => installRunCli(core, request, nodeId),
     app: async () => {
       await core.appControl.request({ nodeId: "", name: "" });
 

@@ -525,7 +525,9 @@ message WorkerRequest { string worker_id = 1; }
 
 message UpdatesRequest {}
 message ManageUpdatesRequest {
-  string action = 1; // check | channel | gateway | worker | all | desktop | update_all | computer | computer_check | app | dismiss_run | app_dismiss | computer_dismiss | desktop_dismiss | retry_step | retry_failed
+  // Bulk Canopy updates use canopy_update_all, canopy_retry_step and canopy_retry_failed.
+  // Older clients can use update_all, retry_step and retry_failed for the same Canopy-only operations.
+  string action = 1; // check | channel | gateway | worker | all | desktop | computer | computer_check | app | dismiss_run | app_dismiss | computer_dismiss | desktop_dismiss
   string channel = 2;
   string worker_id = 3;
   bool force = 4;
@@ -534,7 +536,7 @@ message ManageUpdatesRequest {
   string node_id = 7; // computer, computer_check: the directly linked computer whose Canopy app updates or checks
   // Required for app: the user confirmed that this gateway's computer will restart.
   bool confirm_restart = 8;
-  uint32 update_step_index = 9; // retry_step: index in the current owner-scoped run
+  uint32 update_step_index = 9; // retry_step or canopy_retry_step: index in the current owner-scoped run
 }
 message WorkerUpdate {
   string worker_id = 1;
@@ -602,7 +604,7 @@ message UpdateRun {
   repeated UpdateStep steps = 4;
 }
 message UpdateStep {
-  string kind = 1; // gateway | worker | cli | desktop | computer | app
+  string kind = 1; // gateway | worker | desktop | computer | app (older gateways also sent cli)
   string worker_id = 2;
   string label = 3;
   string version = 4;

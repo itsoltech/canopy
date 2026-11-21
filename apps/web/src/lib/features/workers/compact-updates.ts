@@ -1,6 +1,5 @@
 import type { ui } from "@canopy/contracts";
 import type { DesktopUpdateStatus } from "@canopy/ui/desktop";
-import { cliUpdateActionable } from "@canopy/domain/release/update-actions";
 import { updateBusy } from "./updates.svelte.ts";
 
 export { bulkUpdatesAvailable as updatesAvailable } from "@canopy/domain/release/update-plan";
@@ -55,7 +54,4 @@ export const externalUpdatesAvailable = (snapshot: ui.UpdatesSnapshot): boolean 
       !!worker.version &&
       worker.version !== snapshot.gatewayVersion &&
       worker.state !== "ahead",
-  ) ||
-  snapshot.cliWorkers.some((worker) =>
-    worker.cliTools.some((item) => item.updateAvailable && !cliUpdateActionable(item)),
   );

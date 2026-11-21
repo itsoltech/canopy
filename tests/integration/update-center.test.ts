@@ -1,19 +1,10 @@
 import { afterEach, describe, expect, test } from "bun:test";
-import { create, isMessage } from "@bufbuild/protobuf";
+import { create } from "@bufbuild/protobuf";
 import { createClient } from "@connectrpc/connect";
 import { createHash } from "node:crypto";
 import { writeFile } from "node:fs/promises";
 import { join } from "node:path";
-import {
-  CliInstallMethod,
-  CliInstallStatusSchema,
-  CliToolSchema,
-  CliToolsReportSchema,
-  InstallCliSchema,
-  Provider,
-  ui,
-  update,
-} from "@canopy/contracts";
+import { CliInstallMethod, CliToolSchema, CliToolsReportSchema, Provider, ui, update } from "@canopy/contracts";
 import { dockerAvailable } from "@canopy/db/testing";
 import { CLI_INSTALL_UPGRADE_ONLY_CAPABILITY } from "@canopy/domain/release/protocol";
 import { tempDir } from "@canopy/testing";
@@ -28,7 +19,6 @@ import { updatesSnapshot } from "../../apps/gateway/src/updates/center-compositi
 import { eventually, failure, startTestGateway, type TestGateway } from "./support/gateway.ts";
 
 const cleanups: (() => Promise<void> | void)[] = [];
-const cliAttempts = new WeakMap<TestGateway, string>();
 
 afterEach(async () => {
   for (const close of cleanups.splice(0).reverse()) await close();
@@ -146,30 +136,17 @@ async function fixture(kind: "binary" | "docker" = "binary", version = "2.0.0") 
   const iterator = client.watch(hello, { headers, signal: abort.signal })[Symbol.asyncIterator]();
   const opened = await iterator.next();
   expect(opened.value?.gateway?.healthy).toBe(true);
-  gateway.worker.handlers.set("installCli", async (value, reply) => {
-    if (!isMessage(value, InstallCliSchema)) throw new Error("Expected an InstallCli command");
-    cliAttempts.set(gateway, value.installId);
-    await cliReport(gateway, "1.0.0", "running");
-    reply(true);
-  });
 
   return { gateway, client, headers, hello, iterator, restarted: () => restarted };
 }
 
-function cliReport(gateway: TestGateway, version: string, state = "") {
+function cliReport(gateway: TestGateway, version: string) {
   const tool = create(CliToolSchema, {
     provider: Provider.CLAUDE,
     method: CliInstallMethod.NATIVE,
     version,
     installable: true,
   });
-
-  if (state) {
-    const installId = cliAttempts.get(gateway);
-
-    if (!installId) throw new Error("CLI status reported before an installation command");
-    tool.install = create(CliInstallStatusSchema, { installId, state, targetVersion: "2.0.0" });
-  }
 
   return gateway.core.cli.report(
     gateway.core.link.connections.get(gateway.workerId)!,
@@ -219,11 +196,14 @@ function externalCliReport(gateway: TestGateway) {
 }
 
 describe.skipIf(!dockerAvailable)("ordered update all through authenticated gateway and worker gRPC", () => {
-  test("a worker finishes and passes protocol negotiation before its CLI starts; recreation resumes the same durable run", async () => {
+  test("a recreated gateway resumes the same worker run without updating the advertised CLI", async () => {
     const f = await fixture();
     const started = await f.gateway.api.manageUpdates({ action: "update_all" });
     const settingsVersion = (await f.gateway.api.getSettings({})).user!.version;
-    expect(started.run?.steps.map((s) => s.kind)).toEqual(["worker", "cli"]);
+    expect(started.cliWorkers.find((worker) => worker.id === f.gateway.workerId)?.cliTools[0]?.updateAvailable).toBe(
+      true,
+    );
+    expect(started.run?.steps.map((s) => s.kind)).toEqual(["worker"]);
     const command = await workerCommand(f);
     expect(command.version).toBe("2.0.0");
     await f.gateway.core.updateCenter.tick();
@@ -235,7 +215,6 @@ describe.skipIf(!dockerAvailable)("ordered update all through authenticated gate
       write: (run) => store.write(run),
       snapshot: () => updatesSnapshot(f.gateway.core),
       manage: (r) => f.gateway.core.updates.manage(r),
-      install: (r) => f.gateway.core.installCli(r),
       desktop: async () => {
         throw new Error("No desktop selected");
       },
@@ -252,13 +231,7 @@ describe.skipIf(!dockerAvailable)("ordered update all through authenticated gate
     await f.client.check({ ...f.hello, version: "2.0.0" }, { headers: f.headers });
     await resumed.tick();
     await resumed.tick();
-    expect(f.gateway.worker.commands.filter((c) => c.case === "installCli")).toHaveLength(1);
-    expect((await resumed.status())?.steps.map((s) => s.state)).toEqual(["succeeded", "running"]);
-    await resumed.tick();
-    expect((await resumed.status())?.state).toBe("running");
-    await cliReport(f.gateway, "2.0.0", "succeeded");
-    await resumed.tick();
-    await resumed.tick();
+    expect(f.gateway.worker.commands.filter((c) => c.case === "installCli")).toHaveLength(0);
     await f.gateway.api.updateUserSettings({ expectedVersion: settingsVersion, timezone: "Europe/Warsaw" });
     expect((await f.gateway.api.getUpdates({})).run?.state).toBe("succeeded");
   });
@@ -289,7 +262,7 @@ describe.skipIf(!dockerAvailable)("ordered update all through authenticated gate
     }
   });
 
-  test("worker failure blocks the CLI with a retryable reason", async () => {
+  test("a worker failure records the reason and sends no CLI command", async () => {
     const f = await fixture();
     await f.gateway.api.manageUpdates({ action: "update_all" });
     const command = await workerCommand(f);
@@ -316,11 +289,11 @@ describe.skipIf(!dockerAvailable)("ordered update all through authenticated gate
 
     expect(run?.state).toBe("failed");
     expect(run?.steps[0]?.reason).toContain("SHA-256 mismatch");
-    expect(run?.steps[1]?.state).toBe("blocked");
+    expect(run?.steps).toHaveLength(1);
     expect(f.gateway.worker.commands.some((c) => c.case === "installCli")).toBe(false);
   });
 
-  test("a remote app and an unrelated binary worker update together before the CLI; a current app is omitted", async () => {
+  test("a remote app and an unrelated binary worker update together; a current app is omitted", async () => {
     const f = await fixture();
     const store = new UpdateRunStore(f.gateway.runtime, f.gateway.userId);
     const remoteId = crypto.randomUUID();
@@ -356,7 +329,6 @@ describe.skipIf(!dockerAvailable)("ordered update all through authenticated gate
         return snapshot;
       },
       manage: (request) => f.gateway.core.updates.manage(request),
-      install: (request) => f.gateway.core.installCli(request),
       desktop: async (request) => {
         desktops.push(request.workerId);
         phase = "downloading";
@@ -367,10 +339,10 @@ describe.skipIf(!dockerAvailable)("ordered update all through authenticated gate
     });
 
     await center.begin();
-    expect((await center.status())?.steps.map((s) => s.kind)).toEqual(["worker", "desktop", "cli"]);
+    expect((await center.status())?.steps.map((s) => s.kind)).toEqual(["worker", "desktop"]);
     const command = await workerCommand(f, center);
     expect(desktops).toEqual([remoteId]);
-    expect((await center.status())?.steps.map((s) => s.state)).toEqual(["running", "running", "queued"]);
+    expect((await center.status())?.steps.map((s) => s.state)).toEqual(["running", "running"]);
     await f.client.report(
       { workerId: f.gateway.workerId, commandId: command.id, state: "succeeded", version: "2.0.0" },
       { headers: f.headers },
@@ -378,15 +350,13 @@ describe.skipIf(!dockerAvailable)("ordered update all through authenticated gate
     await f.client.check({ ...f.hello, version: "2.0.0" }, { headers: f.headers });
     await center.tick();
     await center.tick();
-    expect((await center.status())?.steps.map((s) => s.state)).toEqual(["succeeded", "running", "queued"]);
+    expect((await center.status())?.steps.map((s) => s.state)).toEqual(["succeeded", "running"]);
     expect(f.gateway.worker.commands.some((command) => command.case === "installCli")).toBe(false);
     phase = "succeeded";
     await center.tick();
     await center.tick();
-    expect((await center.status())?.steps.map((s) => s.state)).toEqual(["succeeded", "succeeded", "running"]);
-    await cliReport(f.gateway, "2.0.0", "succeeded");
-    await center.tick();
-    await center.tick();
+    expect((await center.status())?.steps.map((s) => s.state)).toEqual(["succeeded", "succeeded"]);
+    expect(f.gateway.worker.commands.some((command) => command.case === "installCli")).toBe(false);
     expect(desktops).toEqual([remoteId]);
     expect((await center.status())?.state).toBe("succeeded");
   });
@@ -414,7 +384,7 @@ describe.skipIf(!dockerAvailable)("ordered update all through authenticated gate
     expect(f.gateway.worker.commands.some((c) => c.case === "installCli")).toBe(false);
   });
 
-  test("an external gateway and manager-installed CLIs are skipped while a binary worker updates successfully", async () => {
+  test("an external gateway is skipped while a binary worker updates successfully", async () => {
     const f = await fixture("docker", "1.5.0");
     await externalCliReport(f.gateway);
     const result = await f.gateway.api.manageUpdates({ action: "update_all" });
@@ -422,7 +392,7 @@ describe.skipIf(!dockerAvailable)("ordered update all through authenticated gate
     expect(result.run?.steps.filter((step) => step.state !== "skipped").map((s) => [s.kind, s.version])).toEqual([
       ["worker", "1.5.0"],
     ]);
-    expect(result.run?.steps.filter((step) => step.state === "skipped")).toHaveLength(4);
+    expect(result.run?.steps.filter((step) => step.state === "skipped")).toHaveLength(1);
     const command = await workerCommand(f);
     expect(command.version).toBe("1.5.0");
     await f.client.report(
@@ -483,11 +453,11 @@ describe.skipIf(!dockerAvailable)("ordered update all through authenticated gate
     expect(await eventually(async () => f.restarted(), Boolean)).toBe(true);
     await f.gateway.core.updateCenter.tick();
     const run = await new UpdateRunStore(f.gateway.runtime, f.gateway.userId).read();
-    expect(run?.steps.map((s) => s.state)).toEqual(["running", "queued", "queued"]);
+    expect(run?.steps.map((s) => s.state)).toEqual(["running", "queued"]);
     expect(f.gateway.worker.commands.some((c) => c.case === "installCli")).toBe(false);
   });
 
-  test("a failed gateway blocks its workers and CLIs while an independent app still updates", async () => {
+  test("a failed gateway blocks its workers while an independent app still updates", async () => {
     const f = await fixture("binary", "1.0.0");
     const store = new UpdateRunStore(f.gateway.runtime, f.gateway.userId);
     const commands: string[] = [];
@@ -516,9 +486,6 @@ describe.skipIf(!dockerAvailable)("ordered update all through authenticated gate
         commands.push(request.action);
         throw new Error("Gateway download failed. Check the connection and retry.");
       },
-      install: async () => {
-        throw new Error("A dependent CLI must not start");
-      },
       desktop: async () => {
         commands.push("desktop");
       },
@@ -540,8 +507,46 @@ describe.skipIf(!dockerAvailable)("ordered update all through authenticated gate
     );
 
     expect(commands).toEqual(["gateway", "desktop"]);
-    expect(run?.steps.map((step) => step.state)).toEqual(["failed", "blocked", "succeeded", "blocked"]);
+    expect(run?.steps.map((step) => step.state)).toEqual(["failed", "blocked", "succeeded"]);
     expect(run?.steps[1]?.reason).toContain("Gateway");
+  });
+
+  test("retries reject indices from a mixed legacy run, then retry only its Canopy failure", async () => {
+    const f = await fixture();
+    const store = new UpdateRunStore(f.gateway.runtime, f.gateway.userId);
+
+    const legacy = create(ui.UpdateRunSchema, {
+      id: crypto.randomUUID(),
+      state: "failed",
+      steps: [
+        { kind: "cli", state: "failed", workerId: f.gateway.workerId, provider: Provider.CLAUDE, version: "2.0.0" },
+        { kind: "worker", state: "failed", workerId: f.gateway.workerId, version: "2.0.0", reason: "Download failed" },
+      ],
+    });
+
+    await store.write(legacy);
+
+    for (const action of ["retry_step", "retry_failed", "canopy_retry_step", "canopy_retry_failed"]) {
+      expect(
+        await failure(f.gateway.api.manageUpdates({ action, desktopRequestId: legacy.id, updateStepIndex: 0 })),
+      ).toContain("current results");
+    }
+
+    const migrated = (await f.gateway.api.getUpdates({})).run!;
+    expect(migrated.id).not.toBe(legacy.id);
+    expect(migrated.steps.map((step) => [step.kind, step.state])).toEqual([["worker", "failed"]]);
+    expect((await store.read())?.id).toBe(migrated.id);
+    const retried = await f.gateway.api.manageUpdates({ action: "canopy_retry_failed", desktopRequestId: migrated.id });
+    expect(retried.run?.steps.map((step) => [step.kind, step.state])).toEqual([["worker", "running"]]);
+    const command = await workerCommand(f);
+    await f.client.report(
+      { workerId: f.gateway.workerId, commandId: command.id, state: "succeeded", version: "2.0.0" },
+      { headers: f.headers },
+    );
+    await f.client.check({ ...f.hello, version: "2.0.0" }, { headers: f.headers });
+    await f.gateway.core.updateCenter.tick();
+    expect((await f.gateway.api.getUpdates({})).run?.state).toBe("succeeded");
+    expect(f.gateway.worker.commands.some((command) => command.case === "installCli")).toBe(false);
   });
 
   test("plans and durable state are owner-scoped; a role change prevents binary updates", async () => {

@@ -5,7 +5,6 @@
   import IconButton from "#lib/shared/ui/IconButton.svelte";
   import type { DesktopUpdatesState } from "#lib/features/desktop/desktop-updates.svelte.ts";
   import UpdateRows from "./UpdateRows.svelte";
-  import { cliActions } from "./cli-tools.svelte.ts";
   import type { UpdatesState } from "./updates.svelte.ts";
   import { updatesHeadline } from "./updates-headline.ts";
   import { isRateLimitMessage } from "@canopy/domain/release/http";
@@ -23,15 +22,12 @@
     onnotes,
   }: { updates: UpdatesState; app: DesktopUpdatesState; class?: ClassValue; onnotes?: () => void } = $props();
 
-  const cli = cliActions();
   const snapshot = $derived(updates.snapshot);
 
-  const checking = $derived(
-    snapshot?.checking || updates.pending === "check" || cli.pending["check/"] || app.status?.phase === "checking",
-  );
+  const checking = $derived(snapshot?.checking || updates.pending === "check" || app.status?.phase === "checking");
 
   const headline = $derived(updatesHeadline(updates, app, !!checking));
-  const error = $derived(updates.error || snapshot?.checkError || cli.errors["check/"] || "");
+  const error = $derived(updates.error || snapshot?.checkError || "");
 
   const stopped = $derived(
     snapshot?.run && ["failed", "blocked"].includes(snapshot.run.state) ? snapshot.run : undefined,
@@ -47,7 +43,6 @@
   async function check() {
     await Promise.all([
       snapshot?.admin || snapshot?.gatewayBundled ? updates.manage({ action: "check" }) : updates.reload(),
-      cli.check(),
       app.status ? app.check() : Promise.resolve(),
     ]);
     await updates.reload();
@@ -95,7 +90,6 @@
       >
         {error}
       </p>{/if}
-    <!-- Computers and workers first; agent CLIs collapse below (docs/updates.md). -->
     <UpdateRows {updates} {app} />
     {#if !snapshot}<p class="py-2 text-xs/5 text-muted" role="status">Loading update status…</p>{/if}
   </div>

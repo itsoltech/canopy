@@ -12,20 +12,17 @@
   import UpdateNotes from "./UpdateNotes.svelte";
   import UpdateRun from "./UpdateRun.svelte";
   import UpdateActionButton from "./UpdateActionButton.svelte";
-  import { cliActions } from "./cli-tools.svelte.ts";
   import { updateBusy, updateStateLabel, type UpdatesState } from "./updates.svelte.ts";
 
   let { updates, class: className }: { updates: UpdatesState; class?: ClassValue } = $props();
 
   const snapshot = $derived(updates.snapshot);
-  const cli = cliActions();
   const running = $derived(snapshot?.run?.state === "running");
   const busy = $derived(running || !!updates.pending);
   const gatewayStep = $derived(snapshot?.run?.steps.find((s) => s.kind === "gateway"));
 
   async function check() {
     if (snapshot?.admin) await updates.manage({ action: "check" });
-    await cli.check();
     await updates.reload();
   }
 </script>
@@ -35,18 +32,17 @@
     <UpdateActionButton {updates} />
     <Button
       size="sm"
-      disabled={busy || cli.pending["check/"]}
-      loading={updates.pending === "check" || snapshot?.checking || cli.pending["check/"]}
+      disabled={busy}
+      loading={updates.pending === "check" || snapshot?.checking}
       onclick={() => void check()}>Check for updates</Button
     >
   </div>
   <p class="text-base/6 text-pretty text-zinc-500 sm:text-sm/6 dark:text-zinc-400">
-    Canopy updates gateways, workers, and apps on all online computers, including this one. Once those updates succeed,
-    agent CLI updates start. Canopy skips offline computers and workers. Independent updates continue after a failure.
+    Canopy updates gateways, workers, and apps on all online computers, including this one. Canopy skips offline
+    computers and workers. Independent updates continue after a failure.
   </p>
   {#if updates.error}<Alert tone="error">{updates.error}</Alert>{/if}
   {#if snapshot?.checkError}<Alert tone="error">{snapshot.checkError}</Alert>{/if}
-  {#if cli.errors["check/"]}<Alert tone="error">{cli.errors["check/"]}</Alert>{/if}
   {#if snapshot}
     {#if snapshot.run}<UpdateRun run={snapshot.run} {updates} />{/if}
     <section class="grid gap-3 border-t border-zinc-950/5 pt-4 dark:border-white/10" aria-label="Gateway update">
