@@ -5,7 +5,8 @@ przed obsługą wątków po aktualizacji, zbiorczego sprawdzania sesji zamknięt
 po powrocie workera, ograniczenia kanału Nightly
 do wydań nightly, sprawdzania historii commitów aktualizacji desktopu i zmiany kanału binarek,
 osobnych aktualizacji Canopy i CLI dostawców, wspólnego planu dla licznika i przycisku
-Update all na telefonie, statusu aplikacji desktopowej w mobilnym wierszu jej workera,
+Update all na telefonie, wygaszania mobilnego komunikatu o restarcie po potwierdzeniu
+wersji docelowej, statusu aplikacji desktopowej w mobilnym wierszu jej workera,
 pomijania komputerów offline w Update all,
 wspólnego otwierania paneli Updates i Provider usage w stopce, równoległej aktualizacji
 zdalnych desktopów i workerów binarnych, ponawiania raportu o błędzie workera,
@@ -59,8 +60,11 @@ pinu, bez równoległego wyboru innych adresów. Strumienie na pierwszym planie
 ponawiają subskrypcję co 2,5 s zamiast narastającego backoffu; tło i brak sieci
 nadal zatrzymują próby. Po wygaśnięciu wracają zwykła selekcja tras i komunikaty
 o niedostępności. Ogłoszenie partnera nie zmienia trasy telefonu. Raz wysłane RPC
-nie jest automatycznie odtwarzane. Po powrocie telefon pokazuje krótki wynik,
-wersję oraz szczegóły błędu; starszy gateway bez sygnału działa jak wcześniej.
+nie jest automatycznie odtwarzane. Jeśli `GetUpdates` potwierdzi uruchomienie
+docelowej wersji przed rozliczeniem checkpointu, telefon zamyka próbę na podstawie
+wersji. Po powrocie telefon pokazuje wynik przez 15 s od jego odebrania, wraz
+z wersją i dostępem do szczegółów. Odczyt ani zmiana ekranu nie wznawiają tego
+czasu. Starszy gateway bez sygnału działa jak wcześniej.
 
 ## Wskaźnik w pasku bocznym
 
