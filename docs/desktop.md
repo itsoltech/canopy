@@ -1,6 +1,7 @@
 # Canopy Desktop
 
-Status: opis zaimplementowanego runtime i pakowania (2026-11-21). Build przypina Electron 45.4.1,
+Status: opis zaimplementowanego runtime i pakowania (2026-11-21). Powłoka ładowania
+korzysta z ostatniego zapisanego wyglądu przy niedostępnym gatewayu. Build przypina Electron 45.4.1,
 Bun 1.4.5 i PostgreSQL 18.7 dla trybu lokalnego. Opis obejmuje też ograniczenia
 prywatnej kopii aktywnego wątku przed wysłaniem jej do procesu głównego oraz przekazywania
 systemowej zmiennej `OS` do instalatora Codex Standalone na Windows,
@@ -300,10 +301,12 @@ już obejmuje `apps/*`, więc nowa aplikacja nie wymaga zmiany konfiguracji work
 Pełne palety Light / Dark z Settings → Appearance obejmują też tło okna.
 Main zachowuje opcjonalny `appearance-cache.json` w userData (wyłącznie nazwy
 motywów i schemat), aby dobrać tło przed utworzeniem BrowserWindow. Preload
-odczytuje go przez walidowane synchroniczne IPC; lokalny ekran `/desktop`
-stosuje te same tokeny przed pierwszym renderem. Po połączeniu ustawienia
-właściciela z gatewaya aktualizują cache i okno. Błąd zapisu cache nie blokuje
-zmiany kolorów. Szczegóły kontraktu i pomiarów: [appearance.md](appearance.md).
+odczytuje go przez walidowane synchroniczne IPC. Przed pierwszym renderem
+ekrany `/desktop` i `/desktop/migration` oraz powłoka aplikacji bez ustawień
+z gatewaya stosują te same tokeny co okno. Po połączeniu ustawienia właściciela
+z gatewaya mają pierwszeństwo i aktualizują cache oraz okno. Błąd zapisu cache
+nie blokuje zmiany kolorów.
+Szczegóły kontraktu i pomiarów opisuje [appearance.md](appearance.md).
 
 Linux i Windows używają `titleBarStyle: hidden` bez natywnego overlay. Minimize,
 maximize/restore i close rysuje web (`features/desktop/WindowControls.svelte`)
@@ -426,8 +429,9 @@ zapis, parowanie i restart usług. Nowe zaproszenie lub enrollment są zmianą.
 Wyłącznie rzeczywista zmiana zapisanej konfiguracji pokazuje ostrzeżenie o zatrzymaniu
 agentów oraz natywne potwierdzenie z domyślnym Cancel. Postęp i błąd zapisu są inline;
 pierwszy start usług nadal pokazuje ekran startu.
-Okno pozostaje ukryte do `ready-to-show`, a natywne tło odpowiada jasnemu/ciemnemu
-motywowi systemu także podczas nawigacji. Ekran startu ma ten sam pasek przeciągania
+Okno pozostaje ukryte do `ready-to-show`, a natywne tło podczas nawigacji odpowiada
+zapisanemu schematowi. W trybie System podąża za wyglądem systemu.
+Ekran startu ma ten sam pasek przeciągania
 i `--window-safe-top` co konfiguracja; wskaźnik respektuje ograniczenie ruchu.
 Zdalny web ma 3-sekundowy limit sondy dokumentu. Jeśli działa, otwiera się od razu,
 a niedostępny gateway obsługuje istniejący ekran webu; jeśli sam web nie odpowiada,
