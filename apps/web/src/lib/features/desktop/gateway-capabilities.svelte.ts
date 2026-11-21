@@ -1,4 +1,5 @@
 import { getContext, setContext } from "svelte";
+import { settingsSectionMethods } from "@canopy/ui/settings";
 import { isJsonObject, isString } from "#lib/shared/json.ts";
 import { requestJson } from "#lib/shared/http.ts";
 import { clearHistory } from "./history.ts";
@@ -9,18 +10,8 @@ import { queries } from "#lib/shared/queries.svelte.ts";
 const sections = {
   "/usage": ["GetUsageStats"],
   "/bots": ["ListBots", "GetBot", "SendBotMessage"],
-  "/settings/providers": ["ListProviderInstances", "SaveProviderInstance"],
-  "/settings/connectors": ["ListConnectors", "SaveConnectorAccount"],
-  "/settings/github": ["ListGitHubAccounts", "BeginGitHubDeviceAuth"],
   "/pull-requests": ["GetPullRequest", "LinkThreadPullRequest"],
-  "/settings/workers": ["GetWorkerSetup", "CreateWorkerEnrollment"],
-  "/settings/agent-tools": ["SetAgentToolEnabled", "InstallAgentTool", "RefreshAgentTools"],
-  "/settings/network": ["GetNetworkAccess", "UpdateNetworkAccess"],
-  "/settings/mobile": ["GetMobileDevices", "CreateDesktopPairing"],
-  "/settings/computers": ["GetComputers", "ManageComputer"],
-  "/settings/schedules": ["ListSchedules", "CreateSchedule"],
-  "/settings/projects": ["GetOverview", "CreateProject"],
-  "/settings/import": ["ScanImport", "ListImportCandidates"],
+  ...settingsSectionMethods,
 };
 
 /** Capabilities read again while visible, besides connection changes (ms). */

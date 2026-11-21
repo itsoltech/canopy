@@ -9,6 +9,7 @@ import { RequestSecret } from "./secrets.ts";
 import { DELEGATING_BOT_MESSAGE_GUIDANCE, SUBAGENT_REPORTING_RULES } from "./communication.ts";
 import { RENDER_VISUAL_MAX_ARGUMENTS, renderVisualProblem, renderHtmlProblem, VISUAL_TOOLS } from "./visuals.ts";
 import { HTML_DOCUMENT_BYTES, htmlBytes } from "../visuals/html-source.ts";
+import { SETTINGS_GUIDE_TOOL, settingsGuide } from "./settings-guide.ts";
 
 export { RequestSecret } from "./secrets.ts";
 
@@ -256,6 +257,7 @@ export const AGENT_BUS_TOOLS = {
   ...QUESTION_TOOLS,
   ...IMAGE_TOOLS,
   ...VISUAL_TOOLS,
+  [SETTINGS_GUIDE_TOOL]: settingsGuide,
   request_secret: define({
     name: "request_secret",
     description:

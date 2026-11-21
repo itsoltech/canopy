@@ -7,12 +7,19 @@ grupowania sidebara w web/desktop i mobile, opcjonalnej retencji archiwum wątk�
 oraz wspólnego dopasowania słów w wyszukiwaniu ustawień i opcjonalnego wskaźnika kontekstu w composerze web/desktop;
 dostępność kanałów według [release.md](release.md).
 
+Status (2026-11-21): sprawdzanie nazw sekcji ustawień przez czat wdrożono w kodzie
+wątków i prywatnych rozmów bota. Dostępność wydań według [release.md](release.md).
+
 ## Nawigacja
 
-General: **General → Appearance → Keybindings → Threads → Text generation → Scheduled tasks → Diagnostics**.
-Code: **Projects → Worktrees → Diffs → Agent environment**.
-Connections: **Providers → Connectors → Proxies → Workers → Network access → Devices → Linked computers → Desktop → App updates**.
-Ostatnie dwie strony tylko w desktopie, Linked computers według capability gatewaya.
+General obejmuje **App updates**, **General**, **Appearance**, **Keybindings**,
+**Threads**, **Text generation**, **Scheduled tasks** i **Diagnostics**.
+Code obejmuje **Projects**, **Worktrees**, **Diffs**, **Agent environment**,
+**Agent tools** i **Import**. Agent tools ma ekran w web/desktop.
+Connections obejmuje **Providers**, **GitHub**, **Connectors**, **Proxies**,
+**Workers**, **Network access**, **Devices** i **Linked computers**.
+Ekran **Desktop** dodaje powłoka Electron. Widoczność zależy od aktywnych
+modułów, klienta i możliwości gatewaya.
 
 Wyszukiwarka sekcji w web/desktop i mobile dopasowuje każde słowo zapytania
 do nazwy lub słów kluczowych, niezależnie od kolejności, wielkości liter,
@@ -42,6 +49,24 @@ Reset strony przywraca wyłącznie jej preferencje urządzenia, bez cofania zgó
 Ustawienie, którego funkcja jeszcze nie istnieje, nie udaje działania: `SettingsRow soon`
 pokazuje znacznik „Soon”, blokuje kontrolkę i ukrywa reset, więc zapisana wartość zostaje
 bez zmian. Opcja wyboru bez działania jest wyłączona z opisem „Soon”.
+
+## Odpowiedzi czatu o ustawieniach
+
+`find_canopy_settings` czyta katalog sekcji współdzielony z nawigacją aplikacji.
+Potwierdza dokładną nazwę sekcji dla web, desktop, iOS lub Android i wersji
+klienta odpowiadającej katalogowi bieżącego gatewaya. Wersja workera, wybrany
+kanał aktualizacji i wersja samego gatewaya nie identyfikują klienta.
+Przy nieznanej, rozbieżnej albo deweloperskiej wersji takiej jak `0.0.0-dev`
+narzędzie zwraca brak potwierdzenia. Dla sekcji zależnej od modułu lub funkcji
+gatewaya wynik jest warunkowy. Czat przekazuje warunki razem ze ścieżką.
+
+Dopasowanie słowa kluczowego służy wyłącznie jako sugestia wyszukiwania.
+Potwierdzenie sekcji nie potwierdza konkretnej kontrolki ani jej widoczności na
+danym urządzeniu. W takim przypadku czat ma nazwać brakującą informację albo
+wskazać wyszukiwarkę w Settings. Katalog przydaje się też w prywatnej rozmowie
+bota bez dostępu do repozytorium czy internetu. W starszej sesji Codexa
+utrwalony katalog narzędzi może wymagać nowego wątku; reguła niezgadywania
+obowiązuje też przy wznowieniu bez narzędzia.
 
 ## Preferencje i przeniesienia
 

@@ -64,6 +64,7 @@
         "@canopy/logs": "workspace:*",
         "@canopy/process-governor": "workspace:*",
         "@canopy/transport": "workspace:*",
+        "@canopy/ui": "workspace:*",
         "@canopy/updater": "workspace:*",
         "@connectrpc/connect": "2.3.0",
         "@connectrpc/connect-node": "2.3.0",

@@ -4,19 +4,8 @@ import { useGatewayCapabilities } from "#lib/features/desktop/gateway-capabiliti
 import { useOverview } from "#lib/features/overview/overview-state.svelte.ts";
 import { hasCliUpdates } from "#lib/features/workers/cli-tools.svelte.ts";
 import { useSettings } from "./settings-state.svelte.ts";
-import { settingsSectionEnabled, settingsSections } from "./sections.ts";
+import { desktopSettingsSections, settingsSectionEnabled, settingsSections } from "./sections.ts";
 import { useSettingsRoute } from "./settings-route.ts";
-
-/** Sections only the desktop app has (its local gateway and its own updates). */
-const desktopSections: readonly SettingsSection[] = [
-  {
-    href: "/settings/desktop",
-    label: "Desktop",
-    icon: "server",
-    group: "Connections",
-    keywords: "desktop local remote worker computer",
-  },
-];
 
 /**
  * The settings sections this app and gateway offer, which one is open, and which wait for the user (agent
@@ -38,7 +27,7 @@ export function useSettingsSections() {
       (section) =>
         settingsSectionEnabled(section.href, settings.enabledModules) && (capabilities?.supports(section.href) ?? true),
     ),
-    ...(desktop ? desktopSections : []),
+    ...(desktop ? desktopSettingsSections : []),
   ]);
 
   const hinted = $derived(new Set(overview && hasCliUpdates(overview.workers) ? ["/settings/workers"] : []));

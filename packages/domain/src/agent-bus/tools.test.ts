@@ -62,6 +62,7 @@ describe("tool sets per level", () => {
       "ask_user",
       "cancel_pr_watch",
       "cancel_schedule",
+      "find_canopy_settings",
       "get_answers",
       "get_background_task",
       "get_thread",

@@ -4,7 +4,7 @@ import { busScheduleTool } from "./agent-bus-schedules.ts";
 export { busScheduleTool } from "./agent-bus-schedules.ts";
 
 import { ui } from "@canopy/contracts";
-import { agentCatalog, type AgentBusCall, type SpawnTarget } from "@canopy/domain";
+import { agentCatalog, SETTINGS_GUIDE_TOOL, type AgentBusCall, type SpawnTarget } from "@canopy/domain";
 import { Predicate, type Effect } from "effect";
 import { AgentBusStore, GatewayStore, type CallSource, type ThreadRow } from "../store/index.ts";
 import { busState, scheduleIdOf } from "./agent-bus-context.ts";
@@ -12,6 +12,7 @@ import { busWait } from "./agent-bus-waiting.ts";
 import { busRead } from "./agent-bus-reads.ts";
 import type { AgentBus } from "./agent-bus.ts";
 import { QUESTION_TIMEOUT_MS } from "../store/questions.ts";
+import { findCanopySettings } from "./settings-guide.ts";
 
 /** A created schedule is announced to the UI before the agent hears back. */
 export async function busAnnounced(hostContext: AgentBus, created: Promise<JsonValue>): Promise<JsonValue> {
@@ -35,6 +36,8 @@ export async function busExecute(
     hostContext[busState].host.run(AgentBusStore.use(use));
 
   switch (call.tool) {
+    case SETTINGS_GUIDE_TOOL:
+      return findCanopySettings(call.args);
     case "show_images":
       return hostContext[busState].host.showImages(source, caller, call.args);
     case "import_image_reply":

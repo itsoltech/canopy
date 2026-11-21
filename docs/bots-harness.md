@@ -12,6 +12,11 @@ changelogi Canopy według PR-a. Bot Codex po zerwaniu strumienia przez proxy
 ponawia krok w tej samej turze z wynikami wykonanych narzędzi. [Limity prób i backoff](proxies.md#ponawianie-kroku-codexa)
 Dostępność nightly/beta/stable wynika z promocji wydań ([release.md](release.md)).
 
+Status (2026-11-21): prywatny czat bota ma narzędzie odczytu
+`find_canopy_settings` także bez Web access i przy wyłączonym module Threads.
+Katalog nawigacji jest osobnym źródłem od wartości zwracanych przez
+`get_settings`. [Weryfikacja ścieżek](settings-map.md#odpowiedzi-czatu-o-ustawieniach).
+
 Status prędkości (2026-11-17): zaimplementowana w kodzie; dostępność
 nightly/beta/stable wynika z promocji wydań. Ustawienie **Speed** korzysta z
 katalogu modelu, instancji i workera bota. `BotConfiguration.service_tier`
