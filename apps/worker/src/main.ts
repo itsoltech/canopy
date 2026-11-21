@@ -18,13 +18,8 @@ import { serveLink, WorkerHost } from "./runtime/index.ts";
 import { workerCommand, workerServiceSnippet } from "./enroll.ts";
 import { enrollFromCli } from "./enrollment-cli.ts";
 import { desktopDrain, desktopStatus, workerOnline } from "./desktop-status.ts";
-import {
-  confirmStartup,
-  installKind,
-  onSupervisorHandover,
-  superviseBinary,
-  UPDATE_RESTART_EXIT_CODE,
-} from "@canopy/updater";
+import { installKind, superviseBinary, UPDATE_RESTART_EXIT_CODE } from "@canopy/updater";
+import { BinaryWorkerStartup } from "./startup-handover.ts";
 import { WorkerUpdates } from "./update-link.ts";
 import { applyShellEnv } from "./cli-tools/shell-env.ts";
 import { endpointOptions, WorkerNetworkRoute } from "./network-route.ts";
@@ -309,12 +304,14 @@ desktopDrain({
 });
 
 const releaseBaseUrl = process.env["CANOPY_RELEASE_BASE_URL"];
+const binary = installKind() === "binary";
 
 const updates = new WorkerUpdates({
   ...endpointOptions(local),
   credential: local.credential,
   workerId: local.worker_id,
   ...(releaseBaseUrl && { source: { baseUrl: releaseBaseUrl } }),
+  deferStartupReport: binary,
   signal: stopping.signal,
   idle: () => host.updateIdle(),
   drain: (value) => {
@@ -344,12 +341,7 @@ const networkRoute = new WorkerNetworkRoute({
   changed: (endpoint) => updates.setEndpoint(endpointOptions(endpoint)),
 });
 
-if (installKind() === "binary")
-  onSupervisorHandover(
-    () => updates.handover(),
-    (message) => console.info(message),
-  );
-
+const startup = binary ? new BinaryWorkerStartup(updates, (message) => console.info(message)) : undefined;
 const updateLoop = updates.run();
 
 for (const signal of ["SIGINT", "SIGTERM"] as const) {
@@ -407,6 +399,13 @@ while (!stopping.signal.aborted) {
       },
     });
 
+    if (startup) await startup.confirm(stopping.signal);
+
+    if (stopping.signal.aborted) {
+      link.close();
+      break;
+    }
+
     currentLink = link;
 
     if (link.heldThreads?.size)
@@ -415,7 +414,6 @@ while (!stopping.signal.aborted) {
       );
     workerDiagnostics.record(111, 1);
 
-    if (installKind() === "binary") await confirmStartup();
     desktopStatus("online");
     backoffMs = 1_000;
 
@@ -443,6 +441,8 @@ while (!stopping.signal.aborted) {
     }, link.welcome.heartbeatIntervalSeconds * 1_000);
 
     try {
+      startup?.ready();
+
       ({ drainDelayMs } = await serveLink(
         link,
         host,
