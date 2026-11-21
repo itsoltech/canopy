@@ -15,11 +15,7 @@ import { ComputerStore } from "../../apps/gateway/src/computers/store.ts";
 import { NetworkAccess } from "../../apps/gateway/src/network/network.ts";
 import { mountMobileNetwork } from "../../apps/gateway/src/network/devices.ts";
 import { MobileDeparture, plannedDeparture } from "../../apps/mobile/src/api/departure.ts";
-import {
-  bulkUpdatesAvailable,
-  computerAction,
-  updatesAvailable,
-} from "../../apps/mobile/src/features/updates/model.ts";
+import { bulkUpdatesAvailable, computerAction } from "../../apps/mobile/src/features/updates/model.ts";
 import { computerUpdate } from "@canopy/domain/release/computer-update";
 import { LocalApp } from "./support/local-app.ts";
 import { SERVICE_TOKEN, startTestGateway, eventually, type TestGateway } from "./support/gateway.ts";
@@ -110,7 +106,6 @@ describe.skipIf(!dockerAvailable)("paired client updates its gateway's own deskt
     expect(home.updates?.app).toMatchObject({ version: "1.0.0", availableVersion: "1.1.0", connected: true });
     expect(computerAction(home)).toEqual({ action: "app" });
     expect(computerUpdate(home)).toMatchObject({ status: "available", actionable: true });
-    expect(updatesAvailable(snapshot)).toBe(true);
     expect(bulkUpdatesAvailable(snapshot)).toBe(true);
     expect(await errorCode(phone.manageUpdates({ action: "update_all" }))).toBe(Code.FailedPrecondition);
     expect(app.checks).toBe(0);

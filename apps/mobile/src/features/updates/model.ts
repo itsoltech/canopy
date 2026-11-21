@@ -1,6 +1,7 @@
 import type { MessageInitShape } from "@bufbuild/protobuf";
 import { ui } from "@canopy/contracts";
-import { appCheckPause, homeAppComputer } from "@canopy/domain/release/update-actions";
+import { appCheckPause } from "@canopy/domain/release/update-actions";
+import { appUpdateAvailable } from "@canopy/domain/release/update-plan";
 import { currentRemoteUpdate, newerAppVersion } from "@canopy/domain/release/remote-update-state";
 
 export { bulkUpdatesAvailable } from "@canopy/domain/release/update-plan";
@@ -27,7 +28,7 @@ export const updateLabel = (state = "") =>
     idle: "Up to date",
     paused: "Checks paused",
     running: "Updating…",
-    managed_externally: "Managed externally",
+    managed_externally: "Manual update",
     skipped: "Skipped",
     ahead: "Newer than gateway",
   })[state] ?? "Not checked";
@@ -60,19 +61,21 @@ export function workerAction(
   home: ui.UpdatesSnapshot,
   linked: boolean,
 ): UpdateRequest | undefined {
-  if (updateBusy(worker.state) || updateBusy(worker.desktop?.phase) || !worker.connected) return;
-
   if (worker.desktop) {
-    const app = worker.desktop;
+    const app = currentRemoteUpdate(worker.desktop);
 
     if (
       !linked &&
       app.connected &&
       !app.disabledReason &&
-      (app.phase === "failed" || newerAppVersion(app.availableVersion, app.version))
+      !updateBusy(app.phase) &&
+      !updateBusy(app.updaterPhase) &&
+      (app.phase === "failed" || appUpdateAvailable(app))
     )
       return { action: "desktop", workerId: worker.workerId };
   } else if (
+    worker.connected &&
+    !updateBusy(worker.state) &&
     worker.installKind === "binary" &&
     home.admin &&
     worker.version &&
@@ -108,20 +111,6 @@ export function computerAction(computer: ui.ComputerUpdate): UpdateRequest | und
     return computer.nodeId ? { action: "computer", nodeId: computer.nodeId } : { action: "app" };
 
   return undefined;
-}
-
-export function updatesAvailable(snapshot: ui.UpdatesSnapshot, includeLinkedWorkers = true, includeHomeApp = true) {
-  const homes = includeLinkedWorkers ? updateHomes(snapshot) : [{ home: snapshot, nodeId: "" }];
-  const home = includeHomeApp ? homeAppComputer(snapshot) : undefined;
-
-  return (
-    (home && !!computerAction(home)) ||
-    (!snapshot.gatewayBundled && snapshot.gatewayInstallKind === "binary" && snapshot.gatewayUpdateAvailable) ||
-    snapshot.computers.some((computer) => !!computerAction(computer)) ||
-    homes.some(({ home, nodeId }) =>
-      home.workers.some((worker) => !worker.bundled && workerAction(worker, home, !!nodeId)),
-    )
-  );
 }
 
 export function updatesRunning(snapshot: ui.UpdatesSnapshot) {

@@ -7,6 +7,7 @@ import { join } from "node:path";
 import { CliInstallMethod, CliToolSchema, CliToolsReportSchema, Provider, ui, update } from "@canopy/contracts";
 import { dockerAvailable } from "@canopy/db/testing";
 import { CLI_INSTALL_UPGRADE_ONLY_CAPABILITY } from "@canopy/domain/release/protocol";
+import { bulkUpdatesAvailable, externalUpdatesAvailable } from "@canopy/domain/release/update-plan";
 import { tempDir } from "@canopy/testing";
 import { createGrpcClientTransport } from "@canopy/transport";
 import { GatewayStore } from "@canopy/gateway/store";
@@ -311,6 +312,7 @@ describe.skipIf(!dockerAvailable)("ordered update all through authenticated gate
             workerId: remoteId,
             name: "Remote app",
             installKind: "desktop",
+            state: "managed_externally",
             desktop: {
               version: phase === "succeeded" ? "2.0.0" : "1.0.0",
               availableVersion: "2.0.0",
@@ -322,6 +324,7 @@ describe.skipIf(!dockerAvailable)("ordered update all through authenticated gate
             workerId: crypto.randomUUID(),
             name: "Current app",
             installKind: "desktop",
+            state: "managed_externally",
             desktop: { version: "2.0.0", availableVersion: "2.0.0", connected: true },
           }),
         );
@@ -387,6 +390,9 @@ describe.skipIf(!dockerAvailable)("ordered update all through authenticated gate
   test("an external gateway is skipped while a binary worker updates successfully", async () => {
     const f = await fixture("docker", "1.5.0");
     await externalCliReport(f.gateway);
+    const snapshot = await f.gateway.api.getUpdates({});
+    expect(externalUpdatesAvailable(snapshot)).toBe(true);
+    expect(bulkUpdatesAvailable(snapshot)).toBe(true);
     const result = await f.gateway.api.manageUpdates({ action: "update_all" });
     expect(result.gatewayUpdateAvailable).toBe(true);
     expect(result.run?.steps.filter((step) => step.state !== "skipped").map((s) => [s.kind, s.version])).toEqual([
@@ -407,11 +413,16 @@ describe.skipIf(!dockerAvailable)("ordered update all through authenticated gate
     expect(f.restarted()).toBe(false);
   });
 
-  test("only external items refuse an empty run without persisting a failure", async () => {
+  test("external Canopy updates and an installable CLI leave the Canopy run empty", async () => {
     const f = await fixture("docker", "1.0.0");
-    await externalCliReport(f.gateway);
     await f.client.check({ ...f.hello, installKind: "docker" }, { headers: f.headers });
-    expect(await failure(f.gateway.api.manageUpdates({ action: "update_all" }))).toContain(
+    const snapshot = await f.gateway.api.getUpdates({});
+    expect(snapshot.cliWorkers.find((worker) => worker.id === f.gateway.workerId)?.cliTools[0]?.updateAvailable).toBe(
+      true,
+    );
+    expect(externalUpdatesAvailable(snapshot)).toBe(true);
+    expect(bulkUpdatesAvailable(snapshot)).toBe(false);
+    expect(await failure(f.gateway.api.manageUpdates({ action: "canopy_update_all" }))).toContain(
       "No updates Canopy can install",
     );
     expect((await f.gateway.api.getUpdates({})).run).toBeUndefined();

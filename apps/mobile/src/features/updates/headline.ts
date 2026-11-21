@@ -1,9 +1,9 @@
 import type { ui } from "@canopy/contracts";
 import { updateCheckLabel } from "@canopy/domain/computer-presence";
-import { bulkUpdateSteps } from "@canopy/domain/release/update-plan";
+import { bulkUpdateSteps, externalUpdatesAvailable } from "@canopy/domain/release/update-plan";
 import { updateRunSummary } from "@canopy/domain/release/update-status";
 import { presenceTime } from "../computers/presence";
-import { updatesAvailable, updatesRunning } from "./model";
+import { updateHomes, updatesRunning } from "./model";
 
 export interface SheetHeadline {
   text: string;
@@ -42,14 +42,17 @@ export function sheetHeadline({
   if (summary) return line(summary.text, summary.tone);
 
   // The body says it is loading; the header has nothing to add yet.
-  if (!snapshot) return line("", "muted");
+  if (!snapshot) return line(phoneUpdate ? "Phone update available" : "", "muted");
 
   if (updatesRunning(snapshot)) return line("Updating…");
   const planned = bulkUpdateSteps(snapshot).filter((step) => step.state === "queued").length;
 
   if (planned) return line(planned === 1 ? "1 update available" : `${planned} updates available`);
 
-  if (updatesAvailable(snapshot) || phoneUpdate) return line("Updates available");
+  if (phoneUpdate) return line("Phone update available");
+
+  if (updateHomes(snapshot).some(({ home }) => externalUpdatesAvailable(home)))
+    return line("Manual updates available", "muted");
   const checked = snapshot.app?.lastCheckedAtMs;
 
   return line(checked ? `Up to date · ${updateCheckLabel(checked, presenceTime)}` : "Up to date", "muted");

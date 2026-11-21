@@ -10,20 +10,24 @@ import { confirmAction } from "./resource";
 
 /** Settings and the sidebar sheet share action gates, progress and the durable update run. */
 export function UpdateSettings() {
-  const { snapshot, pending, manage } = useUpdates();
-  const busy = !!pending || snapshot?.run?.state === "running";
+  const { snapshot, pending, manage, setOpen } = useUpdates();
+  const running = snapshot?.run?.state === "running";
+  const busy = !!pending || running;
 
   return (
     <SettingsGroup
       title="Updates"
       actions={
         <SettingsActions>
-          {snapshot && (bulkUpdatesAvailable(snapshot) || snapshot.run?.state === "running") && (
+          {snapshot && (running || bulkUpdatesAvailable(snapshot)) && (
             <Button
-              title={snapshot.run?.state === "running" ? "Show update progress" : "Update all"}
+              title={running ? "Show update progress" : "Update all"}
               size="sm"
               disabled={!!pending}
-              onPress={() => void manage({ action: "update_all" })}
+              onPress={() => {
+                if (running) setOpen(true);
+                else void manage({ action: "update_all" });
+              }}
             />
           )}
           <Button title="Check now" size="sm" disabled={busy} onPress={() => void manage({ action: "check" })} />

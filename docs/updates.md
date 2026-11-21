@@ -4,7 +4,9 @@ Status: opis zaimplementowanego kodu (2026-11-21), w tym przekazania nadzoru wor
 przed obsługą wątków po aktualizacji, zbiorczego sprawdzania sesji zamkniętych wątków
 po powrocie workera, ograniczenia kanału Nightly
 do wydań nightly, sprawdzania historii commitów aktualizacji desktopu i zmiany kanału binarek,
-osobnych aktualizacji Canopy i CLI dostawców, pomijania komputerów offline w Update all,
+osobnych aktualizacji Canopy i CLI dostawców, wspólnego planu dla licznika i przycisku
+Update all na telefonie, statusu aplikacji desktopowej w mobilnym wierszu jej workera,
+pomijania komputerów offline w Update all,
 wspólnego otwierania paneli Updates i Provider usage w stopce, równoległej aktualizacji
 zdalnych desktopów i workerów binarnych, ponawiania raportu o błędzie workera,
 aktualizacji CLI przez mise, restartu workera mimo błędu sprzątania urządzeń,
@@ -217,6 +219,9 @@ obracającej się ⟳.
 Arkusz Updates na telefonie ma te same elementy: nagłówek z linią stanu i paskiem,
 dwuliniowe wiersze z ikoną akcji, stopkę z Settings, warunkowym What's new i akcją
 główną. Telefon nie ma podpowiedzi, więc powód stanu brzegowego trafia do drugiej linii.
+Wiersz workera instalowanego z aplikacją desktopową pokazuje wersję, dostępność
+i połączenie jej kanału sterowania. Pobrana aktualizacja aplikacji pozostaje
+dostępna także po sprawdzeniu, które pominęło wersję docelową.
 
 Settings → Workers → Updates pokazuje stan komputerów i workerów oraz osobne
 akcje instalacji i aktualizacji Agent CLIs. Gateway serwerowy ma pod swoim wierszem pole kanału.
@@ -349,6 +354,9 @@ nawet gdy dla zewnętrznego gatewaya istnieje nowsze wydanie.
 Pusty plan jest odrzucany bez zapisu przebiegu. UI ukrywa wtedy Update all;
 zewnętrzne aktualizacje zachowują wersje i instrukcję pod ikoną informacji,
 ze stanem „Managed externally” i podsumowaniem „Updates available outside Canopy”.
+Na telefonie nowsza wersja wymagająca osobnej instalacji ma stan „Manual update”.
+Na telefonie odrzucenie pustego planu uruchamia ponowny odczyt.
+Jeśli odczyt potwierdza pusty plan, arkusz pokazuje aktualny stan bez błędu połączenia.
 Stary błąd spowodowany wyłącznie zewnętrznym gatewayem nie jest pokazywany,
 gdy bieżący snapshot nie zawiera aktualizacji obsługiwanych przez Canopy.
 

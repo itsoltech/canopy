@@ -4,8 +4,8 @@ import type { ui } from "@canopy/contracts";
 import { homeAppComputer } from "@canopy/domain/release/update-actions";
 import { isRateLimitMessage } from "@canopy/domain/release/http";
 import { computerUpdate } from "@canopy/domain/release/computer-update";
-import { currentRemoteUpdate } from "@canopy/domain/release/remote-update-state";
-import { appRowTarget } from "@canopy/domain/release/update-plan";
+import { currentRemoteUpdate, newerAppVersion } from "@canopy/domain/release/remote-update-state";
+import { appRowTarget, appUpdateAvailable } from "@canopy/domain/release/update-plan";
 import {
   isUpdateStatus,
   updateInProgress,
@@ -62,7 +62,7 @@ function GatewayRow({ snapshot }: { snapshot: ui.UpdatesSnapshot }) {
       : snapshot.gatewayUpdateAvailable
         ? snapshot.gatewayInstallKind === "binary"
           ? "available"
-          : "Managed externally"
+          : "Manual update"
         : snapshot.checkError || !snapshot.availableVersion
           ? "Not checked"
           : "current");
@@ -78,7 +78,15 @@ function GatewayRow({ snapshot }: { snapshot: ui.UpdatesSnapshot }) {
       version={snapshot.gatewayVersion}
       target={snapshot.availableVersion}
       status={status}
-      line={paused ? snapshot.checkError : status === "waiting" ? WAITING : undefined}
+      line={
+        paused
+          ? snapshot.checkError
+          : status === "waiting"
+            ? WAITING
+            : status === "Manual update"
+              ? snapshot.gatewayReason.replace(/^Managed externally\.\s*/, "")
+              : undefined
+      }
       error={
         status === "failed"
           ? snapshot.departure?.reason ||
@@ -195,6 +203,45 @@ function ComputerRow({ computer, pending, manage }: { computer: ui.ComputerUpdat
   );
 }
 
+function workerStatus(
+  worker: ui.WorkerUpdate,
+  app: ui.DesktopUpdateState | undefined,
+  gatewayVersion: string,
+  request: UpdateRequest | undefined,
+): UpdateStatus | string {
+  if (app) {
+    if (app.disabledReason) return "Unavailable";
+
+    if (!app.connected) return "Offline";
+    const phase = PHASE.get(app.phase);
+
+    if (phase) return phase;
+
+    if (app.ready || app.updaterPhase === "downloaded") return "downloaded";
+
+    if (appUpdateAvailable(app)) return "available";
+
+    return app.updaterCurrent || app.availableVersion ? "current" : "Not checked";
+  }
+
+  if (!worker.connected) return "Offline";
+
+  if (worker.installKind === "desktop") return "Unavailable";
+  const phase = PHASE.get(worker.state);
+
+  if (phase) return phase;
+
+  if (worker.state === "ahead") return "Newer than gateway";
+
+  if (worker.version === gatewayVersion && worker.compatibility === "compatible") return "current";
+
+  if (request) return "available";
+
+  return worker.installKind !== "binary" && newerAppVersion(gatewayVersion, worker.version)
+    ? "Manual update"
+    : "Update required";
+}
+
 function WorkerRows({
   home,
   name,
@@ -220,34 +267,18 @@ function WorkerRows({
         {nodeId ? `Workers · ${name}` : "Workers"}
       </Text>
       {workers.map((worker) => {
-        const app = worker.desktop;
+        const app = worker.desktop && currentRemoteUpdate(worker.desktop);
+        const connected = app?.connected ?? worker.connected;
         const request = workerAction(worker, home, !!nodeId);
 
         const key = app
           ? updateTargetKey({ kind: "desktop", workerId: worker.workerId })
           : updateTargetKey({ kind: "worker", nodeId, workerId: worker.workerId });
 
-        const current =
-          worker.compatibility === "compatible" &&
-          (app ? app.version === app.availableVersion : worker.version === home.gatewayVersion);
-
-        const own = !worker.connected
-          ? "Offline"
-          : (PHASE.get(app?.phase || worker.state) ??
-            (request
-              ? "available"
-              : worker.state === "managed_externally"
-                ? "Managed externally"
-                : worker.state === "ahead"
-                  ? "Newer than gateway"
-                  : current
-                    ? "current"
-                    : "Update required"));
-
-        const status = rowStatus(key, own);
+        const status = rowStatus(key, workerStatus(worker, app, home.gatewayVersion, request));
         const step = failedStep(key);
         const run = snapshot?.run;
-        const reason = app?.disabledReason || app?.reason || worker.reason;
+        const reason = app ? app.disabledReason || app.reason : worker.reason.replace(/^Managed externally\.\s*/, "");
 
         return (
           <UpdateRow
@@ -260,13 +291,13 @@ function WorkerRows({
             error={status === "failed" ? reason || run?.steps[step]?.reason || "The update did not finish." : undefined}
             busy={updateInProgress(status)}
             progress={app?.phase === "downloading" ? app.progress : undefined}
-            style={!worker.connected ? { opacity: 0.5 } : undefined}
+            style={!connected ? { opacity: 0.5 } : undefined}
             action={
               status === "failed" && (step >= 0 || request)
                 ? {
                     icon: "repeat",
                     label: "Retry",
-                    disabled: active || !worker.connected,
+                    disabled: active || !connected || !!app?.disabledReason,
                     run: () => {
                       if (step >= 0 && run)
                         manage({ action: "retry_step", desktopRequestId: run.id, updateStepIndex: step }, key);

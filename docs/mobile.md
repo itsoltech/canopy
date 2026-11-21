@@ -2,7 +2,8 @@
 
 Status: opis zaimplementowanego kodu (2026-11-21), w tym import skilli z publicznych
 witryn HTTPS, usypianie wątków, dostępny offline wykaz licencji open source
-oraz osobne aktualizacje Canopy i CLI dostawców.
+oraz osobne aktualizacje Canopy i CLI dostawców. Licznik i akcja Update all na
+telefonie wynikają z planu instalacji Canopy.
 Stany źródeł Usage są widoczne w sekcji **Recording gateways**.
 Settings → Providers pozwala edytować ustawienia CLI instancji Claude, Codexa i Groka.
 Zakres All workers zapisuje wspólne klucze, a zakres pojedynczego workera
@@ -1032,7 +1033,13 @@ Ten sam rejestr niewysłanej pracy blokuje żądanie przed potwierdzeniem oraz p
 wysłaniem. Komputer używa istniejącego journalu `RemoteAppUpdate`, czeka na idle,
 ogłasza przerwę gatewaya i raportuje wynik po restarcie. Starsza aplikacja lub
 gateway bez capability pokazuje instrukcję jednorazowej aktualizacji w oknie komputera.
-Arkusz Updates, jego licznik oraz ponowienie błędów obejmują aktualizacje Canopy.
+Arkusz Updates pokazuje licznik i przycisk Update all tylko dla kroków, które
+Canopy może wykonać. Wiersz workera dostarczanego z aplikacją desktopową korzysta
+ze stanu i kanału aktualizacji aplikacji, również gdy sam worker jest rozłączony.
+Jeśli aktualizacje wymagają ręcznej instalacji, nagłówek pokazuje
+„Manual updates available”.
+Aktualizacja telefonu ma osobną akcję w swoim wierszu. Gdy plan opróżni się
+przed wysłaniem Update all, aplikacja odświeża stan po odpowiedzi gatewaya.
 CLI dostawcy można zaktualizować osobno w ustawieniach workera. Restart własnej
 aplikacji komputera w ramach Update all wymaga takiego samego potwierdzenia jak
 indywidualna aktualizacja. To zmiana JS/TS bez nowych modułów,

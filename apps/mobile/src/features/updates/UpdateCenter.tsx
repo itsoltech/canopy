@@ -12,7 +12,7 @@ import { StatusDot } from "../../ui/Badge";
 import { AppUpdateStatus } from "../settings/AppUpdateStatus";
 import { openSettingsSection } from "../settings/navigation";
 import { useUpdates } from "./state";
-import { bulkUpdatesAvailable, updatesAvailable, updatesRunning, type UpdateRequest } from "./model";
+import { bulkUpdatesAvailable, updatesRunning, type UpdateRequest } from "./model";
 import { UpdateRows } from "./UpdateRows";
 import { UpdateFeedback } from "./UpdateSummary";
 import { sheetHeadline, type SheetHeadline } from "./headline";
@@ -28,7 +28,7 @@ export function UpdateCenterButton() {
   const phone = usePhoneUpdates();
 
   const available = Boolean(
-    (snapshot && updatesAvailable(snapshot)) || phone.status.isUpdateAvailable || phone.status.isUpdatePending,
+    (snapshot && bulkUpdatesAvailable(snapshot)) || phone.status.isUpdateAvailable || phone.status.isUpdatePending,
   );
 
   const running = Boolean((snapshot && updatesRunning(snapshot)) || phone.busy);
