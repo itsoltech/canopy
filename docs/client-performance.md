@@ -300,18 +300,21 @@ Dane mają domyślnie 1000 tur;
 `CANOPY_BENCH_TURNS` zmienia rozmiar. Cache używa adaptera bez dysku: wynik nie
 obejmuje kosztu `expo-file-system`. Bun/JSC nie przewiduje czasów Hermes ani UI.
 
-Przed i po PR zmieniającym aplikację uruchom z `apps/mobile`, osobno dla `ios`
-i `android`:
+Jeśli zmiana może wpłynąć na zgodność z istniejącym runtime OTA, porównaj
+fingerprint bazowej i zmienionej rewizji dla platform objętych zmianą. Hash
+powinien pozostać ten sam, gdy zmiana ma działać z istniejącą binarką.
+W `apps/mobile` wybierz odpowiednie polecenie:
 
 ```bash
 bunx eas-cli@27.4.1 fingerprint:generate --platform ios --build-profile production --json --non-interactive
 bunx eas-cli@27.4.1 fingerprint:generate --platform android --build-profile production --json --non-interactive
 ```
 
-Hash musi pozostać identyczny. Eksportuj obie platformy przez
-`bunx expo export --platform ios --output-dir "$TMPDIR/export-ios"` i analogicznie
-Android. Zapisz rozmiar `.hbc` i assetów. Eksport to bundle JS, bez APK/IPA i bez
-publikacji OTA. Nie uruchamiaj buildów EAS ani generowania projektów natywnych.
+Gdy badasz wpływ zmiany na rozmiar bundla, porównaj rozmiar `.hbc` i assetów
+przed i po zmianie na badanej platformie. Użyj `bunx expo export --platform ios
+--output-dir "$TMPDIR/export-ios"` lub odpowiednika dla Androida. Sprawdź obie
+platformy, jeśli zmiana może wpłynąć na ich bundle w różny sposób. Eksport tworzy
+bundle JS i assety lokalnie, bez APK/IPA i publikacji OTA.
 
 ## Profilowanie na urządzeniu
 

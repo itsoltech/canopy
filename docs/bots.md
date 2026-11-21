@@ -392,9 +392,9 @@ stos trafia do dev jednocześnie. Testy adapterów obejmują włączenie/wyłąc
 narzędzi każdego providera oraz brak narzędzi w handoff. Integracja używa
 prawdziwego gateway↔worker z atrapami CLI, lokalnymi fixture i bez wywołań
 zewnętrznych API. Obejmuje limity, cleanup, owner scoping, restart/deduplikację
-i odczyt wysłanego załącznika przez wspólne API web/mobile. Nie dodajemy testów
-komponentów UI; ręcznie sprawdzamy jasny/ciemny motyw, desktop/telefon i długie
-nazwy. Kontrakty proto są wyłącznie addytywne; migracja jest potrzebna tylko
+i odczyt wysłanego załącznika przez wspólne API web/mobile. Zmienione widoki UI
+sprawdzamy ręcznie zgodnie z [polityką repozytorium](../AGENTS.md#testing-policy).
+Kontrakty proto są wyłącznie addytywne; migracja jest potrzebna tylko
 przy zmianie schematu, z następnym wolnym numerem na dev w chwili otwarcia PR.
 
 ## Historia na urządzeniu i odczyt przyrostowy
@@ -1585,9 +1585,9 @@ i portów istniejącego stosu. Sekrety ładowane wyłącznie z pliku poza repozy
 - Dowody izolacji harnessów: test przechwycenia requestu i live opisane w sekcji 1.
   Sekrety live pochodzą wyłącznie z pliku środowiska poza repozytorium; brak wartości
   w kodzie, commitach, wynikach testów i dokumentacji.
-Widoki UI sprawdzamy ręcznie w obu motywach i przy szerokości desktopu/telefonu,
-zgodnie z polityką repozytorium. Uwzględnij karty interakcji, Edit/Retry, archiwum,
-Undo i kontrolki kompozytora; brak błędów transportu nie dowodzi poprawnego układu.
+Przy zmianie UI sprawdzamy dotknięte widoki zgodnie z [polityką repozytorium](../AGENTS.md#testing-policy).
+Dobierz przypadki do zmiany, np. karty interakcji, Edit/Retry, archiwum, Undo lub
+kontrolki kompozytora.
 
 Dalej: reakcje i odpowiedzi w API, liczniki nieprzeczytanych, harmonogramy cykliczne
 botów, kompakcja kontekstu, stronicowanie i wirtualizacja długich rozmów.

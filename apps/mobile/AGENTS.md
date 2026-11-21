@@ -24,8 +24,6 @@ npx expo-doctor             # diagnose dependency and config issues
 npx expo install --fix      # fix incompatible package versions
 ```
 
-Run lint and typecheck before declaring any task done.
-
 ## Navigation & Routing
 
 - Use **Expo Router** for all navigation. Routes live in `src/app/` — every file there is a screen, `_layout.tsx` files define navigators. Keep non-route code (components, hooks, utils) outside `src/app/`.
@@ -47,5 +45,5 @@ Docs: https://docs.expo.dev/eas/index.md
 - Prefer recommended Expo modules over third-party libraries, and check your available skills before adding dependencies. Docs: https://docs.expo.dev/versions/latest/index.md
 - Keep device tokens in SecureStore. Never put the BFF service token in this application.
 - Use StyleSheet, shared color tokens, system light/dark, safe areas and accessible labels.
-- Verify with lint/typecheck, Expo Doctor, CNG prebuild and both native bundle exports.
-  No UI tests. The pure-TS transport is covered by `tests/integration/mobile-devices.test.ts`.
+- Follow the [repository testing policy](../../AGENTS.md#testing-policy) and choose checks for the affected behavior. Use scoped lint or typechecking when useful, Expo Doctor for dependency or SDK issues, CNG prebuild for changes to native project generation, and a bundle export when the affected bundle needs verification. Check one native platform for shared UI behavior and add the other when the change affects a distinct native path there.
+- No UI tests. The pure-TS transport is covered by `tests/integration/mobile-devices.test.ts`.

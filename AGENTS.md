@@ -72,8 +72,9 @@ Short rules for agents working in this repository. Details live in `docs/` (most
 - Install dependencies only when missing or when dependency manifests or the lockfile changed. Generate affected outputs when their sources change; leave the subsequent full `gen:check` to CI.
 - Documentation-only changes need a diff and content/link review; do not install dependencies or run code checks, tests, or builds for them. Follow the CI workflow's existing selection of checks.
 - Reuse successful local checks while their inputs remain unchanged. In the handoff/PR, state what ran locally and what is left to CI; do not claim pending CI passed. Domain docs listing the full gate describe CI requirements, not additional local checklists.
-- Look at UI changes yourself in a real browser: light + dark, desktop + phone width.
-- Before opening a PR that adds or changes web or desktop UI behavior, verify the same interaction in the native mobile app (`apps/mobile`). If the interaction applies there and is missing, implement it before opening the PR. In the PR description, record the mobile interaction you checked and its result, or explain why it does not apply on mobile.
+- Check changed layouts and interactions in a representative runtime. Use a real browser for the shared web/desktop renderer and a narrow viewport for affected responsive web layouts. Add themes, widths or input modes when the change can affect them differently.
+- For shared code, follow its callers to identify affected behavior. Use a focused test or one representative runtime for shared paths. Add a native client or operating system check when it exercises a distinct affected path, such as Electron window behavior or mobile permissions.
+- Run resource-intensive checks sequentially on shared workers and stop the processes you started when done. If a relevant runtime check is unavailable or the worker lacks resources, use the closest focused check available. You can open the PR with the unverified scenario recorded in its description.
 
 ## Code quality
 
@@ -93,7 +94,7 @@ Short rules for agents working in this repository. Details live in `docs/` (most
 - Motion follows the tokens in `motion.ts` / `motion.css` and respects `prefers-reduced-motion`.
 - Don't center with `-translate-*` on elements that also use a `rise`/`swap` transition: they animate `translate`. Use flex instead.
 - Keep components small and reusable; extract repeated UI.
-- Check UI with short, typical and long/worst-case texts (names, branches, labels) at desktop, narrow and phone widths, where it matters; truncation and wrapping must stay tidy. Use the `design`, `componentize` and `transitions-dev` skills for UI work.
+- Check truncation and wrapping with short, typical and long names, branches or labels where their length can affect the changed layout. Use the `design`, `componentize` and `transitions-dev` skills for UI work.
 - Check overlays, sticky headers and scroll areas for gaps and see-through seams (stray padding, margins or offsets).
 - UI text follows `docs/copy.md`. Run its copy audit (§8) for every feature that changes UI text, fix every failed item before opening the PR and put the result in the PR description; an item left failing needs its reason in the PR. No separate copy review is needed.
 

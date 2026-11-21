@@ -302,5 +302,6 @@ review is needed.
    accessibility and exact values. See the [Canopy UI review rules](ui-review.md).
 7. Minor external gaps skipped; serious dependencies named with an action.
 8. Sentences with "soul" marked, justified, in allowed places, at most one per screen.
-9. Checked with short, typical and long names, at desktop and phone width.
+9. Check short, typical and long values where they can change how the text fits.
+   Check affected viewport widths when wrapping or truncation can vary with layout.
 10. No text relies on colour, an icon's shape or position as its only cue.

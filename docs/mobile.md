@@ -1056,9 +1056,10 @@ Numer wydania nie jest wejściem natywnego fingerprintu: plik JSON jest źródł
 a preset `balanced` SDK 58 pomija wersję marketingową i numer buildu. Hook w
 `fingerprint.config.js` usuwa wyłącznie `extra.canopyVersion` z hashowanej konfiguracji;
 pozostałe pola `extra` nadal wpływają na runtime.
-Po zmianach konfiguracji sprawdź lokalnie `bunx expo-updates fingerprint:generate --platform ios`
-oraz `--platform android` przed i po dwóch różnych tagach; hashe dla każdej platformy muszą
-pozostać identyczne. Zmiana wersji JS nie wymusza nowej binarki i nie blokuje OTA.
+Przy zmianie przygotowania numeru wydania lub reguł fingerprintu porównaj wyniki
+`bunx expo-updates fingerprint:generate` dla dwóch różnych tagów. Użyj `--platform ios`
+lub `--platform android` dla platform objętych zmianą. Sam wybór tagu ma pozostawić
+hash bez zmian, aby wersja JS działała z istniejącą binarką przez OTA.
 
 ### Niepodpisane OTA i własny serwer
 
@@ -2423,13 +2424,17 @@ Na iOS Simulator zachowaj standardowe podpisywanie debug: wyłączenie go przez
 Emulator nie zastępuje kontroli kamery/QR, rzeczywistej klawiatury i odzyskiwania
 połączenia po przejściu w tło na fizycznym telefonie.
 
-Pełną bramkę repozytorium wykonuje GitHub CI. Lokalnie dobieraj kontrole do zmiany
-według [AGENTS.md](../AGENTS.md#testing-policy); zmiana mobile nie wymaga lokalnego
-buildu web ani pełnych testów repo. Zależności instaluj tylko, gdy ich brakuje lub
-zmieniły się manifesty albo lockfile.
+Pełną bramkę repozytorium wykonuje GitHub CI. Dobierz lokalne kontrole do zmiany
+według [AGENTS.md](../AGENTS.md#testing-policy). Wspólne zachowanie UI sprawdź
+na jednej platformie. Drugą uwzględnij, jeśli ma odrębną ścieżkę, na którą może
+wpłynąć zmiana. Zależności instaluj tylko, gdy ich brakuje lub zmieniły się
+manifesty albo lockfile.
 
-Poniższe polecenia z `apps/mobile` służą sprawdzeniu odpowiednich zmian konfiguracji,
-zależności i bundla natywnego; nie są listą do wykonania przy każdej zmianie:
+W `apps/mobile` wybierz polecenie do badanego przypadku. Lint służy sprawdzeniu
+kodu, Expo Doctor diagnozie zależności lub SDK, prebuild sprawdzeniu generowania
+projektu natywnego, a eksport weryfikacji bundla na objętej zmianą platformie.
+Przy kontroli generowania jednego projektu dodaj do `prebuild` opcję
+`--platform ios` albo `--platform android`.
 
 ```bash
 bun run lint
