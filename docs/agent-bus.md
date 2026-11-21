@@ -35,6 +35,9 @@ Status błędów tworzenia worktree (2026-11-18): zaimplementowane w kodzie;
 dostępność nightly/beta/stable wynika z promocji wydań.
 `spawn_thread` zwraca komunikaty dla rozpoznanych błędów Git i łącza workera.
 
+Status limitu tworzenia worktree (2026-11-21): `spawn_thread` z nowym worktree
+korzysta z wydłużonego budżetu [tworzenia worktree](worktrees.md) do 315 s na odpowiedź workera.
+
 Status trybów prędkości (2026-11-17): zaimplementowane w kodzie; dostępność
 nightly/beta/stable wynika z promocji wydań. `list_agents` zwraca
 `service_tiers` modelu z katalogu konkretnej instancji i konta.

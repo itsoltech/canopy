@@ -13,7 +13,7 @@ import {
 import { join } from "node:path";
 import { tempDirs } from "@canopy/testing";
 import { addWorktree, WORKTREE_CLEANUP_WARNING } from "../../apps/worker/src/git/add-worktree.ts";
-import { freshGit } from "../../apps/worker/src/git/git.ts";
+import { freshGit, prepareWorktreeGit } from "../../apps/worker/src/git/git.ts";
 import {
   atPath,
   registeredWorktrees,
@@ -89,6 +89,28 @@ function withIncompleteCheckout() {
   return f;
 }
 
+test("a checkout admitted before preparation expires can still finish and unlock the worktree", async () => {
+  const f = fixture();
+  git(f.repo, "config", "core.hooksPath", f.hooks);
+  writeFileSync(join(f.hooks, "post-checkout"), "#!/bin/sh\nsleep 5\n", { mode: 0o755 });
+  const startBy = Date.now() + 4000;
+
+  await prepareWorktreeGit(BigInt(startBy), () => f.create());
+
+  expect(Date.now()).toBeGreaterThan(startBy);
+  expect(git(f.tree.path, "symbolic-ref", "--short", "HEAD")).toBe(f.tree.branch);
+  expect(readFileSync(join(f.tree.path, "README.md"), "utf8")).toBe("hello");
+  expect(f.worktrees()).not.toContain("locked Canopy worktree creation");
+}, 18_000);
+
+test("an expired preparation leaves the checkout and branch untouched", () => {
+  const f = fixture();
+
+  expect(() => prepareWorktreeGit(BigInt(Date.now() - 1000), () => f.create())).toThrow("could not prepare");
+  expect(existsSync(f.tree.path)).toBe(false);
+  expect(f.branches()).toBe("refs/heads/main");
+});
+
 test.skipIf(process.platform === "win32")(
   "a killed checkout process rolls back without an index or .git",
   async () => {
@@ -96,7 +118,9 @@ test.skipIf(process.platform === "win32")(
     git(f.repo, "config", "filter.fixture.smudge", "sh ../smudge");
     git(f.repo, "config", "filter.fixture.required", "true");
 
-    const result = f.create(3500).then(
+    const startBy = BigInt(Date.now() + 2500);
+
+    const result = prepareWorktreeGit(startBy, () => f.create(3500)).then(
       () => undefined,
       (error: Error) => error,
     );

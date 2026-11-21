@@ -2,6 +2,7 @@ import { existsSync, lstatSync, mkdirSync, realpathSync } from "node:fs";
 import { basename, isAbsolute, join, relative, sep } from "node:path";
 import type { MessageInitShape } from "@bufbuild/protobuf";
 import type { CreateWorktree, RenameWorktreeBranch, WorktreeInfoSchema, QueryProgress } from "@canopy/contracts";
+import { WORKTREE_CHECKOUT_TIMEOUT_MS } from "@canopy/domain/worktree-timing";
 import { FETCH_TIMEOUT_MS, git, GitError, gitMessage, gitOk, validBranch } from "./git.ts";
 import { listGitRefs, repoRoot } from "./refs.ts";
 import { addWorktree } from "./add-worktree.ts";
@@ -194,7 +195,11 @@ export async function createWorktree(
   const path = await freeFolder(repo, parent);
 
   if (!isWithin(root, path)) throw new GitError("PATH_OUTSIDE_ROOT", "the worktree path is outside its root");
-  await addWorktree(repo, { path, branch, commit });
+  await addWorktree(
+    repo,
+    { path, branch, commit },
+    request.checkoutStartDeadlineMs ? WORKTREE_CHECKOUT_TIMEOUT_MS : undefined,
+  );
 
   // Preserve the configured root's spelling (it may itself be a symlink); containment uses its real path above.
   const visiblePath = request.location ? join(request.location, relative(root, path)) : path;

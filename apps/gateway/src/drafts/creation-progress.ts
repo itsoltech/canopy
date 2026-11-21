@@ -5,6 +5,7 @@ import { AsyncChannel } from "@canopy/transport";
 import type { GatewayCore } from "../core/core.ts";
 import { creationEvent } from "../core/thread-progress.ts";
 import { toConnectError } from "../api/ui-errors.ts";
+import { threadCreationMayCheckout, WORKTREE_DRAFT_TIMEOUT_MS } from "@canopy/domain/worktree-timing";
 import type { UiHandlers } from "../api/ui-service.ts";
 import { draftGuard } from "../api/ui-composer-drafts.ts";
 import { deliverDraft } from "./deliver.ts";
@@ -32,11 +33,12 @@ export async function* draftCreationProgress(
   outgoing.draftRevision = 0n;
   // Admission and receipt settlement outlive the subscriber, including routing
   // to a linked home. Keep its authenticated context and bound our own wait.
-  const deadline = Date.now() + CREATION_DELIVERY_TIMEOUT_MS;
+  const timeoutMs = threadCreationMayCheckout(request) ? WORKTREE_DRAFT_TIMEOUT_MS : CREATION_DELIVERY_TIMEOUT_MS;
+  const deadline = Date.now() + timeoutMs;
 
   const operationContext: HandlerContext = {
     ...context,
-    signal: AbortSignal.timeout(CREATION_DELIVERY_TIMEOUT_MS),
+    signal: AbortSignal.timeout(timeoutMs),
     timeoutMs: () => Math.max(0, deadline - Date.now()),
   };
 

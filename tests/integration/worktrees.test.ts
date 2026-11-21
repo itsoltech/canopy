@@ -27,6 +27,7 @@ import { Journal } from "@canopy/worker/journal";
 import { serveLink, WorkerHost } from "@canopy/worker/runtime";
 import { ManagedRuntime } from "effect";
 import { qualifyId } from "@canopy/domain/computers";
+import { WORKTREE_CHECKOUT_DEADLINE, WORKTREE_CLIENT_TIMEOUT_MS } from "@canopy/domain/worktree-timing";
 import { eventually, failure, startTestGateway, type TestGateway } from "./support/gateway.ts";
 
 function sh(cwd: string, ...args: string[]): string {
@@ -121,7 +122,7 @@ describe.skipIf(!dockerAvailable)("git worktrees through the worker link", () =>
       hello: {
         workerId,
         host: { os: process.platform },
-        capabilities: ["worktrees", "generate_text"],
+        capabilities: ["worktrees", "generate_text", "worktree_progress_v1", WORKTREE_CHECKOUT_DEADLINE],
         worktreesRoot: host.worktreesRoot,
         homeDirectory: homedir(),
         ...(await runtime.runPromise(journalHello())),
@@ -247,25 +248,69 @@ describe.skipIf(!dockerAvailable)("git worktrees through the worker link", () =>
     expect([checkout.cwd, checkout.worktree]).toEqual([repo, undefined]);
   });
 
-  test("a checkout slower than the metadata timeout still creates a usable thread", async () => {
+  test("a checkout beyond the old worker query deadline still creates a usable thread", async () => {
     const hooks = join(dir, "slow-checkout-hooks");
     mkdirSync(hooks);
     // A real Git hook models a slow checkout without a large repository or mocked process timers.
-    writeFileSync(join(hooks, "post-checkout"), "#!/bin/sh\nsleep 16\n", { mode: 0o755 });
+    writeFileSync(join(hooks, "post-checkout"), "#!/bin/sh\nsleep 92\n", { mode: 0o755 });
     sh(repo, "config", "core.hooksPath", hooks);
 
     try {
-      const thread = await newWorktreeThread("Slow worktree checkout", "main");
+      let thread: ui.Thread | undefined;
+      const steps: string[] = [];
+
+      for await (const event of gw.api.createThreadWithProgress(
+        {
+          projectId: project.id,
+          workspaceId: workspace.id,
+          provider: Provider.CODEX,
+          initialMessage: "Slow worktree checkout",
+          workspaceMode: ui.WorkspaceMode.NEW_WORKTREE,
+          baseRef: "main",
+        },
+        { timeoutMs: WORKTREE_CLIENT_TIMEOUT_MS },
+      )) {
+        steps.push(`${event.step}:${event.status}`);
+        thread = event.thread ?? thread;
+
+        if (event.step === "create_worktree" && event.status === "running") {
+          const started = performance.now();
+
+          const queued = await host.handleCommand(
+            create(CommandSchema, {
+              commandId: Bun.randomUUIDv7(),
+              kind: {
+                case: "createWorktree",
+                value: {
+                  repoPath: repo,
+                  baseRef: "main",
+                  branch: "canopy/expired-while-queued",
+                  checkoutStartDeadlineMs: BigInt(Date.now() + 2000),
+                },
+              },
+            }),
+          );
+
+          expect(queued).toMatchObject({ ok: false, errorCode: "GIT_BUSY" });
+          expect(performance.now() - started).toBeLessThan(15_000);
+        }
+      }
+
+      expect(steps).toContain("create_worktree:running");
+      expect(steps).toContain("create_worktree:completed");
+
+      if (!thread) throw new Error(`No created thread: ${steps.join(", ")}`);
       expect(thread.worktree?.path).toBe(thread.cwd);
       expect(readFileSync(join(thread.cwd, "README.md"), "utf8")).toBe("hello");
       expect(sh(thread.cwd, "rev-parse", "HEAD")).toBe(localMain);
       expect(sh(repo, "symbolic-ref", "--short", "HEAD")).toBe("main");
+      expect(sh(repo, "branch", "--list", "canopy/expired-while-queued")).toBe("");
       await idle(thread.id);
       expect(readFileSync(join(thread.cwd, "worker-started.txt"), "utf8")).toBe(thread.cwd);
     } finally {
       sh(repo, "config", "--unset", "core.hooksPath");
     }
-  }, 30_000);
+  }, 125_000);
 
   test("first-message file mentions use the new, reused or inherited worktree directory", async () => {
     const initialMessage = "@README.md";

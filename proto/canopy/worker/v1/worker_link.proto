@@ -2128,6 +2128,9 @@ message CreateWorktree {
   // Najpierw najnowszy commit śledzonej gałęzi zdalnej (albo <remote>/<base>), z fetch; inaczej lokalny ref.
   bool start_from_remote = 5;
   string remote = 6;
+  // With worktree_checkout_deadline_v1, the last time checkout may start (Unix milliseconds).
+  // Omitted by older gateways, which only wait for the legacy checkout budget.
+  int64 checkout_start_deadline_ms = 7;
 }
 
 // Zmiana nazwy gałęzi worktree (pod korzeniem), tylko gdy nadal jest w nim wybrana i nie ma upstreamu.

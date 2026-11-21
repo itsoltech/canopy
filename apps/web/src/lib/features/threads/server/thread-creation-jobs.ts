@@ -1,6 +1,7 @@
 import { createHash } from "node:crypto";
 import { toBinary } from "@bufbuild/protobuf";
 import { ui } from "@canopy/contracts";
+import { threadCreationMayCheckout, WORKTREE_CLIENT_TIMEOUT_MS } from "@canopy/domain/worktree-timing";
 import { Code, ConnectError, type Client } from "@connectrpc/connect";
 import { error } from "@sveltejs/kit";
 import { gateway, onGatewayTargetChange } from "#lib/server/gateway.ts";
@@ -37,6 +38,7 @@ interface Job {
   snapshot: ThreadCreationSnapshot;
   fingerprint: string;
   controller: AbortController;
+  timeoutMs: number;
   deadline?: ReturnType<typeof setTimeout>;
   retirement?: ReturnType<typeof setTimeout>;
 }
@@ -136,7 +138,7 @@ async function fallback(job: Job, request: ui.CreateThreadRequest, api: Client<t
       detail: "Preparing the workspace and starting the thread.",
     },
   ];
-  const response = await api.createThread(request, { signal: job.controller.signal, timeoutMs: TIMEOUT_MS });
+  const response = await api.createThread(request, { signal: job.controller.signal, timeoutMs: job.timeoutMs });
 
   if (job.snapshot.done || job.controller.signal.aborted) return;
 
@@ -154,7 +156,7 @@ async function run(job: Job, request: ui.CreateThreadRequest, api: Client<typeof
     try {
       for await (const event of api.createThreadWithProgress(request, {
         signal: job.controller.signal,
-        timeoutMs: TIMEOUT_MS,
+        timeoutMs: job.timeoutMs,
       })) {
         if (job.controller.signal.aborted || job.snapshot.done) return;
         received = true;
@@ -209,6 +211,7 @@ export function startThreadCreation(request: ui.CreateThreadRequest): string {
   const job: Job = {
     fingerprint,
     controller: new AbortController(),
+    timeoutMs: threadCreationMayCheckout(request) ? WORKTREE_CLIENT_TIMEOUT_MS : TIMEOUT_MS,
     snapshot: {
       requestId: request.clientRequestId,
       message: request.initialMessage,
@@ -226,7 +229,7 @@ export function startThreadCreation(request: ui.CreateThreadRequest): string {
   job.deadline = setTimeout(() => {
     failJob(job, "The gateway request timed out", true);
     job.controller.abort();
-  }, TIMEOUT_MS);
+  }, job.timeoutMs);
   job.deadline.unref();
   void run(job, request, api);
 

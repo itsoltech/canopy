@@ -5,7 +5,8 @@ Kopiowanie workspace'u na nowy worker tworzy samodzielny checkout także ze
 wybór obejmuje tylko ignorowane pliki lokalne bez zależności i wyniku builda. Ograniczenia Git:
 [workspace-copy.md](workspace-copy.md).
 
-Status: **etapy 1–3 zaimplementowane** (2026-11-19), w tym sprzątanie lokalnych gałęzi po merge
+Status: **etapy 1–3 zaimplementowane** (2026-11-21), w tym wydłużony limit checkoutu do 240 s
+na zgodnych wersjach gatewaya i workera, sprzątanie lokalnych gałęzi po merge
 i archiwizacji, ponowne wykorzystanie checkoutu terminu harmonogramu po wznowieniu Threads,
 wstrzymanie sprzątania worktree przy wyłączonym module Threads, zapis wątku przed utworzeniem worktree
 i powrót do przygotowania z listy wątków w web/desktop, natychmiastowy widok przygotowania
@@ -53,12 +54,23 @@ Zasady podziału odpowiedzialności:
   dostaje aktualne ustawienia przy następnej komendzie po połączeniu (nic nie jest kopiowane na worker).
 - **Przeglądarka** nigdy nie uruchamia gita; widzi wyniki przez BFF.
 
-Tworzenie checkoutu (`git worktree add --quiet`) ma osobny limit 60 s, zamiast limitu
-15 s używanego do krótkich operacji Git. Tryb cichy pomija komunikaty postępu,
-zachowując błędy. Opcjonalny fetch nadal ma limit 20 s; gateway czeka na utworzenie
-worktree do 90 s. Limit dotyczy także filtrów i hooków uruchomionych przez checkout.
-Jeśli checkout osiągnie limit 8 MiB przechwyconego wyjścia, worker zgłasza inny
-błąd niż po upływie 60 s. Kod wyjścia Git różny od zera to osobna kategoria.
+Tworzenie checkoutu (`git worktree add --quiet`) ma limit 240 s od uruchomienia Git,
+obejmujący też filtry i hooki.
+Worker ma do 35 s od wysłania komendy na przygotowanie i rozpoczęcie checkoutu,
+wliczając kolejki repozytorium i process-governor oraz opcjonalny fetch (do 20 s).
+Gateway czeka do 315 s, z czego ostatnie 40 s stanowi rezerwę na zatrzymanie procesu,
+weryfikację i sprzątanie (do 35 s na polecenia Git po checkoutcie) oraz dostarczenie wyniku.
+Checkout z nowym limitem wymaga obsługi przez obie strony łącza.
+Przy starszym workerze albo gatewayu obowiązują dotychczasowe limity 60 s na checkout i 90 s na wynik komendy.
+
+Web/desktop i mobile czekają na tworzenie wątku, które może wymagać checkoutu, do 345 s.
+Połączony gateway ma do 325 s na wywołanie unary, a niezależna od klienta obsługa
+tworzenia ze szkicu przez strumień ma do 335 s. Kontynuacja w nowym worktree używa
+tych samych limitów workera i czeka do 345 s na poziomie RPC (w przeglądarce do 355 s na BFF).
+`spawn_thread` korzysta z tego samego zapytania workera, mieszczącego się w limicie 330 s wywołania szyny w Claude.
+
+Krótkie operacje Git mają limit 15 s. Tryb cichy pomija komunikaty postępu, zachowując błędy.
+Limit 8 MiB przechwyconego wyjścia i kod wyjścia Git różny od zera mają osobne kategorie błędów.
 
 Worker zakłada gałąź tylko, gdy nazwa jest wolna, oznacza ją w reflogu i rezerwuje
 nowy katalog przed uruchomieniem Git. `git worktree add` rejestruje checkout z blokadą
@@ -695,8 +707,8 @@ Kontrolki opcji automatyzacji w UI mogą zostać dodane osobno; edytor harmonogr
 ## Weryfikacja (etap 1)
 
 - `tests/integration/worktrees.test.ts`: gateway + PostgreSQL + prawdziwy `WorkerHost` i repo
-  tymczasowe (bare origin + klon): refy, worktree z lokalnej i zdalnej bazy, checkout trwający ponad 15 s
-  z późniejszym uruchomieniem wątku, nazwy gałęzi (w tym
+  tymczasowe (bare origin + klon): refy, worktree z lokalnej i zdalnej bazy, checkout trwający ponad 90 s
+  z późniejszym uruchomieniem wątku, wygaśnięcie równoległego żądania w kolejce, nazwy gałęzi (w tym
   semantyczny prefiks przez zaślepkę `GenerateText`), konfinacja ścieżek, owner scoping, ustawienia
   w czterech zakresach ze źródłem dziedziczenia i konfliktem wersji, wątki boczne, ponowne użycie,
   wzmianki plików pierwszej wiadomości rozstrzygane względem nowego, użytego ponownie i odziedziczonego worktree,
@@ -743,8 +755,9 @@ Kontrolki opcji automatyzacji w UI mogą zostać dodane osobno; edytor harmonogr
   zarejestrowanego worktree bez folderu i nazwy rekordu git oraz błąd `PATH_EXISTS`, gdy wszystko zajęte.
 - `tests/integration/worktrees.test.ts`: nowe worktree pod korzeniem i skonfigurowanym `location` mają losowe,
   różne foldery przy tej samej gałęzi.
-- `tests/integration/worktree-creation-failure.test.ts`: timeout z częściowym checkoutem na Linuksie.
-  Na Linuksie i Windows testy odtwarzają stan po zatrzymaniu Git
+- `tests/integration/worktree-creation-failure.test.ts`: na Linuksie rzeczywisty timeout z częściowym
+  checkoutem uruchomionym przed upływem limitu przygotowania. Na Linuksie i w natywnym zadaniu CI dla Windows
+  testy sprawdzają powodzenie wolnego checkoutu rozpoczętego w terminie oraz odtwarzają stan po zatrzymaniu Git
   na jego rzeczywistej rejestracji (bez indeksu i pliku `.git`, z pustym `index.lock`).
   Sprawdzają też ochronę obcych rejestracji i gałęzi, lokalnych plików, dowiązań
   i niepustego `index.lock`.

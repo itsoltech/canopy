@@ -6,7 +6,7 @@ import { cleanupRemovedBranch, recoverRemoval, removeWorktree } from "../git/rem
 import { existsSync, realpathSync } from "node:fs";
 import { join } from "node:path";
 import { isWithin } from "../git/worktrees.ts";
-import { freshGit, gitOk, GitError } from "../git/git.ts";
+import { freshGit, gitOk, GitError, prepareWorktreeGit, waitForWorktreeSlot } from "../git/git.ts";
 import { withProcessPriority } from "@canopy/process-governor";
 import { listGitRefs, repoRoot } from "../git/refs.ts";
 import { matchingCheckoutPaths } from "../git/checkout-paths.ts";
@@ -97,39 +97,44 @@ export class GitCommands {
   ): Promise<CommandOutput> {
     this.ctx.ops.checkCwd(kind.value.repoPath);
 
-    return gitStep(async () => {
-      const common = await gitOk(
-        kind.value.repoPath,
-        ["rev-parse", "--path-format=absolute", "--git-common-dir"],
-        "NOT_A_REPOSITORY",
-      );
+    return gitStep(() =>
+      prepareWorktreeGit(kind.value.checkoutStartDeadlineMs, async () => {
+        const common = await gitOk(
+          kind.value.repoPath,
+          ["rev-parse", "--path-format=absolute", "--git-common-dir"],
+          "NOT_A_REPOSITORY",
+        );
 
-      const key = realpathSync(common.trim());
-      const previous = this.#creating.get(key) ?? Promise.resolve();
+        const key = realpathSync(common.trim());
+        const previous = this.#creating.get(key) ?? Promise.resolve();
 
-      const next = previous.then(() =>
-        freshGit(() =>
-          createWorktree(this.worktreesRoot, kind.value, (progress) =>
-            this.ctx.ops.send({ case: "queryProgress", value: { ...progress, commandId } }),
+        const next = waitForWorktreeSlot(previous).then(() =>
+          freshGit(() =>
+            createWorktree(this.worktreesRoot, kind.value, (progress) =>
+              this.ctx.ops.send({ case: "queryProgress", value: { ...progress, commandId } }),
+            ),
           ),
-        ),
-      );
+        );
 
-      const settled = next.then(
-        () => {},
-        () => {},
-      );
+        const settled = previous
+          .then(() => next)
+          .then(
+            () => {},
+            () => {},
+          );
 
-      this.#creating.set(key, settled);
+        this.#creating.set(key, settled);
+        void settled.then(() => {
+          if (this.#creating.get(key) === settled) this.#creating.delete(key);
+        });
 
-      try {
-        return { worktree: await next };
-      } finally {
-        this.ctx.state.worktreeDiscovery.clear();
-
-        if (this.#creating.get(key) === settled) this.#creating.delete(key);
-      }
-    });
+        try {
+          return { worktree: await next };
+        } finally {
+          this.ctx.state.worktreeDiscovery.clear();
+        }
+      }),
+    );
   }
 
   async renameWorktreeBranch(kind: Extract<Command["kind"], { case: "renameWorktreeBranch" }>): Promise<CommandOutput> {

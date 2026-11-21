@@ -1,4 +1,5 @@
 import { ui } from "@canopy/contracts";
+import { WORKTREE_CLIENT_TIMEOUT_MS } from "@canopy/domain/worktree-timing";
 import { requestJson } from "#lib/shared/http.ts";
 import { decode } from "#lib/shared/wire.ts";
 
@@ -9,7 +10,7 @@ export async function continueThreadInWorktree(threadId: string, baseRef: string
       "POST",
       `/api/threads/${encodeURIComponent(threadId)}/continue-worktree`,
       { baseRef, clientRequestId },
-      135_000,
+      WORKTREE_CLIENT_TIMEOUT_MS + 10_000,
     ),
   );
 

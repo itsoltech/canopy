@@ -12,6 +12,7 @@ import {
   WORKSPACE_COPY_CAPABILITY,
   WORKSPACE_COPY_LEGACY_CAPABILITY,
 } from "@canopy/domain/release/protocol";
+import { WORKTREE_CHECKOUT_DEADLINE } from "@canopy/domain/worktree-timing";
 
 /** What this worker announces in Hello; the gateway sends a command only to workers that announce it. */
 export function workerCapabilities(options: { localWorker: boolean; fullAccess: boolean }): string[] {
@@ -99,6 +100,7 @@ export function workerCapabilities(options: { localWorker: boolean; fullAccess: 
     "project_sources",
     "git_clone_progress_v1",
     "worktree_progress_v1",
+    WORKTREE_CHECKOUT_DEADLINE,
     "workspace_copy_v1",
     WORKSPACE_COPY_LEGACY_CAPABILITY,
     // workspace_copy_batch_v3: batched frames side by side, resumable staging (docs/workspace-copy.md).
