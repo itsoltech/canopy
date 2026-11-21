@@ -18,6 +18,8 @@ Katalog nawigacji jest osobnym źródłem od wartości zwracanych przez
 `get_settings`. [Weryfikacja ścieżek](settings-map.md#odpowiedzi-czatu-o-ustawieniach).
 Bot Grok na Linuksie może otwierać i wznawiać sesje zapisane poza katalogiem
 tymczasowym workera. [Zakres zapisu sandboxa](grok-adapter.md#boty-izolacja-zapisu-sesji).
+Duże wyniki tekstowe narzędzi Canopy bot Claude odczytuje porcjami przez
+`read_tool_result` w bieżącej turze.
 
 Status prędkości (2026-11-17): zaimplementowana w kodzie; dostępność
 nightly/beta/stable wynika z promocji wydań. Ustawienie **Speed** korzysta z
@@ -158,6 +160,15 @@ pozostają wyłączone we wszystkich trzech harnessach: ich sandbox workspace
 nie gwarantuje ograniczenia odczytu hosta. Worker udostępnia tylko login wskazanej instancji,
 bez ustawień, pluginów, skilli i instrukcji katalogu użytkownika. Nie przyjmuje
 ścieżki projektu z komendy bota.
+
+Worker przekazuje botowi Claude tekst wyniku MCP większy niż 16 000 bajtów
+przez pierwszą porcję i identyfikator wyniku. `read_tool_result` przyjmuje ten
+identyfikator oraz `next_offset` z poprzedniej porcji. Tekst pozostaje
+w pamięci serwera MCP bieżącej tury, z budżetem 8 MiB na turę i usuwaniem
+najstarszych wyników po przekroczeniu budżetu. Pojedynczy wynik ponad 8 MiB
+zwraca informację o limicie. Odczyt porcji nie wykonuje ponownie narzędzia
+i nie przyjmuje ścieżek plików. Obejmuje tekst odpowiedzi z gatewaya,
+np. z `read_thread` i `list_schedules`.
 
 Procesy botów Codexa i Groka dostają także prywatne `HOME`, `USERPROFILE` i katalogi
 XDG oraz prywatne `CODEX_HOME` i `CLAUDE_CONFIG_DIR`, również dla zgodności między CLI.
