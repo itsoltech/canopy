@@ -16,6 +16,7 @@ import {
 } from "@canopy/domain/linked-snapshot";
 import { projectChoices } from "@canopy/domain/projects";
 import { latestThreadChoices } from "@canopy/domain/new-thread-choices";
+import { isThreadSnoozed } from "@canopy/domain/thread-snooze";
 import { webDrafts } from "#lib/features/drafts/local.svelte.ts";
 import { receiveBffRead } from "#lib/shared/queries.svelte.ts";
 
@@ -114,6 +115,12 @@ export class OverviewState {
   /** A loaded archive row follows lifecycle events immediately, before the next paged refresh. */
   liveThread(thread: ui.Thread): ui.Thread | undefined {
     return this.#deleted.has(thread.id) ? undefined : (this.threads.get(thread.id) ?? thread);
+  }
+
+  threadSnoozed(id: string): boolean {
+    const thread = this.threads.get(id);
+
+    return thread !== undefined && isThreadSnoozed(thread, (parent) => this.threads.get(parent));
   }
 
   /** Other changes of the stream (settings, schedules) for whoever keeps that state; returns the unsubscribe. */

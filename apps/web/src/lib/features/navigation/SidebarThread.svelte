@@ -36,6 +36,7 @@
     project,
     worker,
     sides = 0,
+    snoozed = false,
     current = false,
     groupedProject = false,
     groupedWorktree = false,
@@ -45,6 +46,7 @@
     project: ui.Project | undefined;
     worker: ui.Worker | undefined;
     sides?: number;
+    snoozed?: boolean;
     current?: boolean;
     groupedProject?: boolean;
     groupedWorktree?: boolean;
@@ -140,6 +142,7 @@
 <SidebarThreadLink
   {thread}
   {current}
+  {snoozed}
   quickArchive
   {groupedWorktree}
   {inlineProvider}
@@ -152,6 +155,10 @@
       {#if away}
         <span class="grid size-5 shrink-0 place-items-center">
           <Icon name="link" class="fill-zinc-400 dark:fill-zinc-500" />
+        </span>
+      {:else if snoozed}
+        <span class="grid size-5 shrink-0 place-items-center">
+          <ProjectMark name={project?.name ?? "?"} kind={project?.kind} />
         </span>
       {:else if showActivity}
         <ThreadActivityMark thread={activity} class="sidebar-row-activity">
@@ -168,6 +175,7 @@
       >{/if}
     <SidebarThreadStatus
       {thread}
+      {snoozed}
       compact={inlineProvider}
       label={!needsYou(thread) && subagentsNeedingInput.length
         ? subagentsNeedingInput.length === 1

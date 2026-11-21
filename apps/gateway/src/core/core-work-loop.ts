@@ -375,6 +375,7 @@ export const coreWorkLoopMethods: CoreWorkLoopMethods = {
     this.checkWatches.start();
     this.githubDetection.start();
     this.proxyAccounts.start();
+    this.snoozes.start();
   },
 
   async stopSweep(this: GatewayCore): Promise<void> {
@@ -393,6 +394,7 @@ export const coreWorkLoopMethods: CoreWorkLoopMethods = {
       this.imports.runner.stop(),
       this.copyJobs.stop(),
       this.checkWatches.stop(),
+      this.snoozes.stop(),
       this.github.stop(),
     ]);
   },

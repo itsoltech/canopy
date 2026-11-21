@@ -21,9 +21,10 @@
   let {
     thread,
     current = false,
+    snoozed = false,
     previous = false,
     class: className,
-  }: { thread: ui.Thread; current?: boolean; previous?: boolean; class?: ClassValue } = $props();
+  }: { thread: ui.Thread; current?: boolean; snoozed?: boolean; previous?: boolean; class?: ClassValue } = $props();
 
   const mark = $derived(sideMark(thread));
   const provider = $derived(providerKeyOf(thread.provider));
@@ -33,6 +34,7 @@
 <SidebarThreadLink
   {thread}
   {current}
+  {snoozed}
   compact
   class={[
     "sidebar-row-padding flex min-h-10 min-w-0 items-center gap-2 rounded-lg py-1.5 sm:min-h-9 pointer-coarse:min-h-12",
@@ -40,7 +42,9 @@
     className,
   ]}
 >
-  {#if previous && provider}<ProviderIcon {provider} class="size-3.5 opacity-70" />{:else}
+  {#if previous && provider}<ProviderIcon {provider} class="size-3.5 opacity-70" />
+  {:else if snoozed}<Icon name={mark.icon} class={["size-3.5", mark.iconClass]} />
+  {:else}
     <ThreadActivityMark {thread} size="sm" class="sidebar-row-activity-small">
       {#snippet idle()}
         <!-- An agent's side thread (subagent) shows what it runs on; forks and your own side threads their kind. -->
@@ -69,5 +73,5 @@
       class="sidebar-swap-resting w-24 shrink-0 truncate text-right text-sm/5 text-zinc-500 tabular-nums sm:text-xs/4.5 dark:text-zinc-400"
       >{formatRelative(when, clock.now)}</time
     >
-  {:else}<ThreadGoalMark {thread} /><SidebarThreadStatus {thread} />{/if}
+  {:else}<ThreadGoalMark {thread} /><SidebarThreadStatus {thread} {snoozed} />{/if}
 </SidebarThreadLink>

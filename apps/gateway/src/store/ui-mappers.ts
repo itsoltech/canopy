@@ -71,6 +71,11 @@ export function toUiComposerChoices(row: ComposerChoiceColumns): ui.ComposerTurn
 }
 
 export function toUiThread(row: ThreadRow): ui.Thread {
+  const snoozedUntil = row.snoozed_until ? new Date(row.snoozed_until) : undefined;
+
+  const snoozed =
+    row.snoozed && !row.archived_at && !row.deleted_at && (!snoozedUntil || snoozedUntil.getTime() > Date.now());
+
   return create(ui.ThreadSchema, {
     ...(row.context_usage && { contextUsage: fromJson(ContextUsageSchema, row.context_usage) }),
     ...(row.last_user_turn_choices && { lastUserTurnChoices: toUiComposerChoices(row.last_user_turn_choices) }),
@@ -102,7 +107,9 @@ export function toUiThread(row: ThreadRow): ui.Thread {
     cwd: row.cwd ?? "",
     status: row.status,
     agentId: row.agent_id ?? "",
-    spawnedByAgent: row.origin === "agent",
+    spawnedByAgent: row.origin === "agent" || Boolean(row.remote_parent_ref),
+    snoozed: snoozed ?? false,
+    ...(snoozed && snoozedUntil && { snoozedUntil: timestampFromDate(snoozedUntil) }),
     scheduleId: row.schedule_id ?? "",
     scheduleName: row.schedule_name ?? "",
     scheduleRun: row.schedule_run ?? 0,

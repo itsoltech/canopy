@@ -85,6 +85,7 @@ import { coreWorktreesMethods, type CoreWorktreesMethods } from "../worktrees/co
 import { coreWorktreeLifecycleMethods, type CoreWorktreeLifecycleMethods } from "../worktrees/core-lifecycle.ts";
 import { WorktreeCleanupSchedule } from "../worktrees/cleanup-schedule.ts";
 import { updateTurnPermissions } from "./live-turn-permissions.ts";
+import { ThreadSnoozes } from "./thread-snoozes.ts";
 
 export {
   describeError,
@@ -100,6 +101,7 @@ export class GatewayCore {
   readonly accounts = new ProviderAccounts(this);
   readonly usage = new ProviderUsage(this);
   readonly proxyAccounts = new ProxyAccountsMonitor(this);
+  readonly snoozes = new ThreadSnoozes(this);
   readonly role: GatewayRole;
   readonly [coreState] = new GatewayCoreState();
   declare sweep: CoreWorkLoopMethods["sweep"];

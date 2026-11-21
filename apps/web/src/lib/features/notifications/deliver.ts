@@ -62,14 +62,14 @@ function showSystem(notice: Notice, sound: boolean): void {
  * Looking at it (a focused, visible window on that path, here or in another tab): no popup or toast, only the
  * sound when it is on. Otherwise a toast in the focused window and one system notification across all of them.
  */
-export async function deliver(notice: Notice, currentPath: string): Promise<void> {
+export async function deliver(notice: Notice, currentPath: string, allowed: () => boolean): Promise<void> {
   const device = devicePreferences.values;
   const choice = device[notice.setting];
   const sound = choice === "sound";
   const here = focused();
 
   if ((here && currentPath === notice.path) || viewedElsewhere(notice.path)) {
-    if (sound && (await claimNotice(notice.key))) playNotificationSound();
+    if (sound && (await claimNotice(notice.key)) && allowed()) playNotificationSound();
 
     return;
   }
@@ -83,7 +83,7 @@ export async function deliver(notice: Notice, currentPath: string): Promise<void
       action: { label: notice.action, run: () => open(notice.path) },
     });
 
-  if (choice !== "off" && (await claimNotice(notice.key))) showSystem(notice, sound);
+  if (choice !== "off" && (await claimNotice(notice.key)) && allowed()) showSystem(notice, sound);
 }
 
 /** Desktop: a click on a native notification focuses the window in main, then navigates here. */

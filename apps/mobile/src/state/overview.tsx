@@ -1,5 +1,6 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { ui } from "@canopy/contracts";
+import { timestampMs } from "@bufbuild/protobuf/wkt";
 import {
   forgetComputerProjects,
   retainProjects,
@@ -20,6 +21,21 @@ const upsertComputer = (rows: ui.LinkedComputer[], value: ui.LinkedComputer) => 
   ...rows.filter((r) => r.nodeId !== value.nodeId),
   value,
 ];
+
+/** Keep stream metadata intact, and only apply the response while the original snooze is current. */
+function applyThreadSnooze(rows: ui.Thread[], before: ui.Thread, saved: ui.Thread) {
+  const row = rows.find((thread) => thread.id === before.id);
+
+  if (!row || row.deletedAt || row.archivedAt || row.status === "archived" || row.snoozed !== before.snoozed)
+    return rows;
+
+  const deadline = (thread: ui.Thread) => (thread.snoozedUntil ? timestampMs(thread.snoozedUntil) : undefined);
+
+  if (deadline(row) !== deadline(before) || (row.snoozed === saved.snoozed && deadline(row) === deadline(saved)))
+    return rows;
+
+  return upsertLinkedRows(rows, [{ ...row, snoozed: saved.snoozed, snoozedUntil: saved.snoozedUntil }]);
+}
 
 function useOverviewState() {
   const { client, archivedCache } = useSession();
@@ -156,14 +172,13 @@ function useOverviewState() {
 
   // Thread events render every reader; derived lists keep their identity so memoized rows can skip them.
   const choices = useMemo(() => projectChoices(projects.filter((project) => !project.archivedAt)), [projects]);
-  const available = useMemo(() => workersWithAvailability(workers, computers), [workers, computers]);
 
   return {
     threads: client ? threads : [],
     lastUsedAgent: client ? lastUsedAgent : undefined,
     projects,
     projectChoices: choices,
-    workers: available,
+    workers: useMemo(() => workersWithAvailability(workers, computers), [workers, computers]),
     computers,
     loaded,
     linkedReads,
@@ -172,6 +187,8 @@ function useOverviewState() {
     setWarmQuery,
     reload,
     updateThread,
+    updateThreadSnooze: (before: ui.Thread, saved: ui.Thread) =>
+      setThreads((rows) => applyThreadSnooze(rows, before, saved)),
     settleThread: useSettleThread(threads, stream.connection === "live", archivedCache, updateThread),
   };
 }

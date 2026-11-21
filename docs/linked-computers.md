@@ -1,6 +1,7 @@
 # Połączone komputery
 
-Status: opis zaimplementowanej synchronizacji (2026-11-20), w tym retencji nieopublikowanych wpisów dziennika, weryfikacji obsługi ochrony wersji CLI przez partnera w Update all, kolejności aktualizacji aplikacji i CLI partnerów, wstrzymywania luster wyłączonego modułu, kolejności zakładek konta, kontroli dostępu między botami i wątkami przez łącze, ograniczenia czasu oczekiwania na listę botów w `list_agents` oraz przyrostowej
+Status: opis zaimplementowanej synchronizacji (2026-11-21), w tym usypiania wątków,
+retencji nieopublikowanych wpisów dziennika, weryfikacji obsługi ochrony wersji CLI przez partnera w Update all, kolejności aktualizacji aplikacji i CLI partnerów, wstrzymywania luster wyłączonego modułu, kolejności zakładek konta, kontroli dostępu między botami i wątkami przez łącze, ograniczenia czasu oczekiwania na listę botów w `list_agents` oraz przyrostowej
 synchronizacji agregatów użycia z żądaną szybkością wykonania i podziałem
 według aktywności i botów przez bezpośrednie
 łącza, odwołania zaufania w trakcie handshake, zachowania lokalnych kanałów Slack botów i nadawców historycznych
@@ -13,6 +14,11 @@ Odczyt samych pytań i zgód subagenta trafia bezpośrednio do jego domu. Gatewa
 przekierowań i raportów, spójność przenoszonych danych oraz zgodę na wysyłkę konfiguracji w trakcie
 transmisji. Migracja 0182 odtwarza przekierowania z lokalnych decyzji o przeniesieniu. Dostępność w kanałach
 nightly, beta i stable wynika z [wydań](release.md), nie z daty tego opisu.
+
+`SetThreadSnooze` trafia do domu wątku tak jak inne akcje właściciela. Dom rozgłasza
+stan uśpienia i wybudzenie razem z metadanymi wątku. Przenoszenie między komputerami
+obsługującymi usypianie zachowuje stan i termin, a po przeniesieniu termin obsługuje
+nowy dom. [Usypianie wątków](threads.md#usypianie)
 
 ## Kanały komunikatorów botów
 

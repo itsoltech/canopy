@@ -13,6 +13,7 @@
   import { sameSidebarRow, sidebarRows, type SidebarRow } from "@canopy/domain/sidebar-rows";
   import { Keyed } from "#lib/shared/keyed.svelte.ts";
   import SidebarArchivedThreads from "./SidebarArchivedThreads.svelte";
+  import SidebarSnoozedThreads from "./SidebarSnoozedThreads.svelte";
   import { requestJson } from "#lib/shared/http.ts";
   import { decode } from "#lib/shared/wire.ts";
   import { whenIdle } from "#lib/shared/idle.ts";
@@ -161,7 +162,7 @@
 
 <div class={["flex min-h-full min-w-0 flex-col", className]}>
   <SidebarOrderFeedback {ordering} />
-  {#if filtered.roots.length === 0}
+  {#if filtered.roots.length === 0 && filtered.snoozed.length === 0}
     <div class="sidebar-row-padding grid justify-items-start gap-2 py-2">
       <p class="text-sm/6 text-pretty text-zinc-500 dark:text-zinc-400">
         {#if settings.sidebar.projectIds.length}No threads in the selected projects.{:else if query}No thread matches “{query}”.{:else if overview.connection === "unavailable"}Threads
@@ -173,7 +174,7 @@
           onclick={() => void settings.updateSidebar({ projectIds: [] })}>Clear filters</Button
         >{/if}
     </div>
-  {:else}
+  {:else if filtered.roots.length}
     <ul role="list" class="grid min-w-0 grid-cols-1 gap-0.5" aria-label="Thread inbox" {@attach drag}>
       {#each shown as key, index (key)}
         {@const entry = rows.get(key)}
@@ -185,6 +186,8 @@
           animate:reorder
           in:rise={{ delay: stagger(index), instant: !filled }}
           out:expand
+          onoutrostart={(event) => (event.currentTarget.inert = true)}
+          onintrostart={(event) => (event.currentTarget.inert = false)}
         >
           {#if entry?.thread}
             {@const { thread, sides } = entry}
@@ -220,5 +223,12 @@
       {/each}
     </ul>
   {/if}
+  <SidebarSnoozedThreads
+    threads={filtered.snoozed}
+    sides={filtered.snoozedSides}
+    {currentThreadId}
+    {openTree}
+    searching={Boolean(query.trim())}
+  />
   <SidebarArchivedThreads {current} {query} class="mt-auto" />
 </div>
