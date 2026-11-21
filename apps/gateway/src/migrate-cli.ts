@@ -60,6 +60,8 @@ export function provisionRuntime(password: string) {
         yield* sql`GRANT USAGE ON SCHEMA public TO canopy_runtime`;
         yield* sql`GRANT SELECT,INSERT,UPDATE,DELETE ON ALL TABLES IN SCHEMA public TO canopy_runtime`;
         yield* sql`REVOKE ALL PRIVILEGES ON public.schema_migrations FROM canopy_runtime`;
+        yield* sql`REVOKE INSERT,UPDATE,DELETE ON public.gateway_relocation_fence FROM canopy_runtime`;
+        yield* sql`REVOKE ALL PRIVILEGES ON public.gateway_relocation_receipts FROM canopy_runtime`;
         yield* sql`GRANT USAGE,SELECT ON ALL SEQUENCES IN SCHEMA public TO canopy_runtime`;
         yield* sql`SELECT set_config('canopy.runtime_verifier',${verifier(password)},true)`;
         yield* sql`DO $password$ BEGIN

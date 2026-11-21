@@ -72,10 +72,13 @@ export class ControllerConnection {
 
       const id = ++this.sequence;
 
-      const timer = setTimeout(() => {
-        this.requests.delete(id);
-        reject(new Error("Desktop operation timed out; see logs"));
-      }, 20 * 60_000);
+      const timer = setTimeout(
+        () => {
+          this.requests.delete(id);
+          reject(new Error("Desktop operation timed out; see logs"));
+        },
+        (action.startsWith("migration-") && action !== "migration-status" ? 120 : 20) * 60_000,
+      );
 
       this.requests.set(id, { resolve: resolveRequest, reject, timer });
       this.controller.stdin.write(JSON.stringify({ id, action, ...args }) + "\n");

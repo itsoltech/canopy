@@ -4,10 +4,10 @@ import { randomBytes } from "node:crypto";
 import type { LocalBffTarget } from "@canopy/domain/bff-target";
 import { sameDesktopConfiguration, type DesktopConfiguration, type DesktopStatus } from "@canopy/ui/desktop";
 import { remoteWorkerDirectory, type DesktopClientCredential, type RemoteConfiguration } from "../remote-client.ts";
-import { desktopWorkerIdle, remoteEnrollment, startDesktopWorker } from "./worker-runtime.ts";
-import { configuration, initialStatus, serviceEnvironment, isWorkerStatus } from "./config.ts";
+import { desktopWorkerIdle, readDesktopWorkerState, remoteEnrollment, startDesktopWorker } from "./worker-runtime.ts";
+import { configuration, initialStatus, serviceEnvironment } from "./config.ts";
 import { localGatewayClient } from "./gateway-env.ts";
-import { startLocalServices } from "./local-services.ts";
+import { startLocalDatabase, startLocalServices } from "./local-services.ts";
 import type { PostgresTestOptions } from "./postgres-install.ts";
 import { Logs } from "./log.ts";
 import { Supervisor, until } from "./process.ts";
@@ -18,6 +18,7 @@ import { livenessProbes, type LivenessProbe } from "./liveness.ts";
 import { DesktopWeb } from "./web.ts";
 import type { Secrets, RuntimePaths } from "./config.ts";
 import { desktopStorage } from "./storage.ts";
+import { MigrationJournalFile, sourceFenced } from "./migration-state.ts";
 
 export type { Secrets, RuntimePaths } from "./config.ts";
 
@@ -29,6 +30,7 @@ export class DesktopRuntime {
   private webPort = 0;
   private workerStatusFile = "";
   private localGateway: LocalBffTarget | undefined;
+  private localDatabase: Awaited<ReturnType<typeof startLocalDatabase>> | undefined;
   private remoteConnection: { client: DesktopClientCredential; directory: string } | undefined;
   remoteControl() {
     return this.remoteConnection;
@@ -115,6 +117,7 @@ export class DesktopRuntime {
   }
   private disconnect() {
     this.localGateway = undefined;
+    this.localDatabase = undefined;
     this.remoteConnection = undefined;
     this.activeClient = undefined;
     this.workerStatusFile = "";
@@ -144,24 +147,8 @@ export class DesktopRuntime {
     }
   }
   private readWorkerStatus() {
-    if (!this.workerStatusFile || !this.services.alive("worker")) return;
-
-    try {
-      const value: unknown = JSON.parse(readFileSync(this.workerStatusFile, "utf8"));
-
-      if (!isWorkerStatus(value)) throw new Error("Invalid worker status");
-
-      const worker =
-        Date.now() - (value.time ?? 0) >= 45_000 || value.status === "offline"
-          ? "offline"
-          : value.status === "online"
-            ? "online"
-            : "connecting";
-
-      this.publish({ worker });
-    } catch {
-      this.publish({ worker: "connecting" });
-    }
+    if (this.workerStatusFile && this.services.alive("worker"))
+      this.publish({ worker: readDesktopWorkerState(this.workerStatusFile) });
   }
   private async checkHealth() {
     if (
@@ -207,8 +194,8 @@ export class DesktopRuntime {
       this.checkingHealth = false;
     }
   }
-  private startLocal(signal: AbortSignal) {
-    return startLocalServices({
+  private localOptions(signal: AbortSignal) {
+    return {
       directory: this.directory,
       paths: this.paths,
       secrets: this.secrets,
@@ -216,10 +203,51 @@ export class DesktopRuntime {
       env: this.env,
       webOrigin: this.setupOrigin,
       signal,
-      progress: (database) => this.publish({ database }),
-      log: (line) => this.logs.write("desktop", line),
+      progress: (database: DesktopStatus["database"]) => this.publish({ database }),
+      log: (line: string) => this.logs.write("desktop", line),
       testing: this.testing,
+    };
+  }
+  async stopLocalForMigration() {
+    this.generation++;
+    this.configured = false;
+    this.health.reset();
+    this.disconnect();
+    await this.services.stop();
+    this.services = this.makeSupervisor();
+    this.holdMigration();
+  }
+  quiesceLocalGateway() {
+    this.generation++;
+    this.configured = false;
+
+    return this.services.quiesce("gateway");
+  }
+  resumeLocalAfterAbortedDrain() {
+    this.services.resume("gateway");
+    this.configured = !!this.localGateway && this.services.alive("gateway");
+
+    return this.configured;
+  }
+  holdMigration() {
+    this.publish({
+      phase: "error",
+      worker: "offline",
+      error: "Gateway migration is paused. Open migration to continue.",
     });
+  }
+  assertMigrationServicesStopped() {
+    if (this.services.alive("gateway") || this.services.alive("worker"))
+      throw new Error("The local gateway and worker must finish stopping");
+  }
+  async migrationDatabase(offline: boolean, signal: AbortSignal) {
+    if (offline) this.assertMigrationServicesStopped();
+    else if (!this.localGateway || !this.services.alive("gateway") || !this.services.alive("postgres"))
+      throw new Error("Start the local gateway before preparing the migration");
+
+    this.localDatabase ??= await startLocalDatabase(this.localOptions(signal), false);
+
+    return this.localDatabase;
   }
   configurationUnchanged(config: DesktopConfiguration, client?: DesktopClientCredential) {
     if (!this.configured || this.state.phase === "error" || (client && client.token !== this.activeClient?.token))
@@ -255,6 +283,9 @@ export class DesktopRuntime {
   async configure(raw: DesktopConfiguration, client?: DesktopClientCredential) {
     const config = configuration(raw);
 
+    if (config.mode === "local" && sourceFenced(new MigrationJournalFile(this.directory).read()))
+      throw new Error("The local gateway is fenced for migration. Open migration to continue.");
+
     if (this.configurationUnchanged(config, client)) return;
     this.generation++;
     this.configured = false;
@@ -286,7 +317,9 @@ export class DesktopRuntime {
       let token: string | undefined;
 
       if (config.mode === "local") {
-        ({ target: local, workerDirectory, token } = await this.startLocal(installing.signal));
+        const services = await startLocalServices(this.localOptions(installing.signal));
+        ({ target: local, workerDirectory, token } = services);
+        this.localDatabase = services.database;
         gatewayUrl = local.gatewayUrl;
       } else {
         ({ gatewayUrl, workerDirectory, token } = await this.startRemote(config, client));

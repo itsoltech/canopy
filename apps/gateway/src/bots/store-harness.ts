@@ -168,9 +168,10 @@ export function botHarnessStore(sql: SqlClient.SqlClient, access: BotAccess) {
       sourceAttachments?: readonly StoredAttachment[],
     ) => persistHarnessCommand(sql, access, turn, workerId, command, sourceAttachments),
     harnessCommandFailure: (id: string) => commandFailure(sql, id),
-    harnessDispatchable: (id: string) =>
+    harnessDispatchable: (id: string, activeOnly = false) =>
       sql`SELECT h.turn_id FROM bot_harness_turns h JOIN bot_turns t ON t.id = h.turn_id JOIN bots b ON b.id = h.bot_id
         WHERE h.command_id = ${id}::uuid AND t.status IN ('queued','running','waiting') AND h.outcome IS NULL
+        AND (NOT ${activeOnly} OR (t.status = 'running' AND t.lease_until > now()))
         AND b.deleted_at IS NULL AND b.archived_at IS NULL AND b.moved_to IS NULL AND ${ownerModule(sql, sql`b.owner_user_id`, "bots")}`.pipe(
         Effect.map((rows) => rows.length > 0),
       ),

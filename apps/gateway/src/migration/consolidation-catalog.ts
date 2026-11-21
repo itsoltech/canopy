@@ -1,0 +1,167 @@
+import { POSTGRES_MAX_MESSAGE_BYTES } from "@canopy/db";
+import { PgClient } from "@effect/sql-pg";
+import { Effect, Redacted } from "effect";
+import type { SqlClient } from "effect/sql";
+import { coveredTables, importTables, type ImportTable } from "./consolidation-tables.ts";
+import { consolidationDigest, consolidationError } from "./consolidation-types.ts";
+
+export type Database = SqlClient.SqlClient;
+
+export const databaseLayer = (url: string, applicationName: string) =>
+  PgClient.layer({
+    url: Redacted.make(url),
+    applicationName,
+    connectTimeout: "5 seconds",
+    maxMessageSize: POSTGRES_MAX_MESSAGE_BYTES,
+    startupParameters: { search_path: "pg_catalog,public" },
+  });
+
+export const ident = (identifier: string) => '"' + identifier.replaceAll('"', '""') + '"';
+export const publicTable = (name: string) => "public." + ident(name);
+export const staged = (name: string) => "pg_temp." + ident("cc_" + name);
+
+interface ForeignKey {
+  name: string;
+  target: string;
+  columns: string[];
+  references: string[];
+  deferrable: boolean;
+  deferred: boolean;
+}
+
+interface TableColumns {
+  name: string;
+  columns: string[];
+  types: string[];
+  written: string[];
+  key: string[];
+}
+
+export interface SelectedTable extends TableColumns, ImportTable {
+  foreignKeys: ForeignKey[];
+}
+
+function columns(sql: Database) {
+  return sql<TableColumns>`
+      SELECT c.relname AS name, array_agg(a.attname::text ORDER BY a.attnum) AS columns,
+        array_agg(format_type(a.atttypid,a.atttypmod) ORDER BY a.attnum) AS types,
+        array_agg(a.attname::text ORDER BY a.attnum) FILTER (WHERE a.attgenerated='') AS written,
+        ARRAY(SELECT k.attname::text FROM pg_index i
+          CROSS JOIN LATERAL unnest(i.indkey) WITH ORDINALITY p(n,position)
+          JOIN pg_attribute k ON k.attrelid=c.oid AND k.attnum=p.n
+          WHERE i.indrelid=c.oid AND i.indisprimary ORDER BY p.position) AS key
+      FROM pg_class c JOIN pg_attribute a ON a.attrelid=c.oid
+      WHERE c.relnamespace='public'::regnamespace AND c.relkind IN ('r','p') AND a.attnum>0 AND NOT a.attisdropped
+      GROUP BY c.oid ORDER BY c.relname
+    `;
+}
+
+export function checkProjectedSchema(sql: Database, selected: readonly SelectedTable[]) {
+  return Effect.gen(function* () {
+    const source = yield* columns(sql);
+
+    const required = new Set([
+      ...selected.map(({ name }) => name),
+      "users",
+      "computer_identity",
+      "gateway_relocation_fence",
+      "config_items",
+      "computer_redirects",
+      "consolidation_export_secrets",
+      "consolidation_export_blockers",
+    ]);
+
+    if (source.some(({ name }) => !required.has(name) && name !== "schema_migrations"))
+      return yield* Effect.fail(
+        consolidationError("The staging database must contain a scoped consolidation projection."),
+      );
+
+    for (const name of required) {
+      if (!source.some((row) => row.name === name))
+        return yield* Effect.fail(consolidationError("The consolidation projection is missing a required table."));
+    }
+
+    for (const table of selected) {
+      const shape = source.find(({ name }) => name === table.name);
+
+      if (
+        !shape ||
+        table.columns.some((column, index) => shape.types[shape.columns.indexOf(column)] !== table.types[index])
+      )
+        return yield* Effect.fail(
+          consolidationError("The consolidation projection has an incompatible column layout."),
+        );
+    }
+  });
+}
+
+/** Column, primary key and FK metadata is checked before creating any staging relations. */
+export function consolidationCatalog(sql: Database) {
+  return Effect.gen(function* () {
+    const [{ id } = { id: 0 }] = yield* sql<{
+      id: number;
+    }>`SELECT max(migration_id) AS id FROM public.schema_migrations`;
+
+    if (id < 189) return yield* Effect.fail(consolidationError("Both databases must have migration 0189 or newer."));
+
+    const tables = yield* columns(sql);
+
+    const unknownTable = tables.find(({ name }) => !coveredTables.has(name));
+
+    if (unknownTable)
+      return yield* Effect.fail(consolidationError("The database contains a table without a consolidation policy."));
+
+    const foreign = yield* sql<ForeignKey & { table: string }>`
+      SELECT o.conname AS name,c.relname AS "table",d.relname AS target,o.condeferrable AS deferrable,
+        o.condeferred AS deferred,
+        ARRAY(SELECT a.attname::text FROM unnest(o.conkey) WITH ORDINALITY p(n,position)
+          JOIN pg_attribute a ON a.attrelid=c.oid AND a.attnum=p.n ORDER BY p.position) AS columns,
+        ARRAY(SELECT a.attname::text FROM unnest(o.confkey) WITH ORDINALITY p(n,position)
+          JOIN pg_attribute a ON a.attrelid=d.oid AND a.attnum=p.n ORDER BY p.position) AS references
+      FROM pg_constraint o JOIN pg_class c ON c.oid=o.conrelid JOIN pg_class d ON d.oid=o.confrelid
+      WHERE c.relnamespace='public'::regnamespace AND d.relnamespace='public'::regnamespace AND o.contype='f'
+      ORDER BY c.relname,o.conname
+    `;
+
+    const selected: SelectedTable[] = [];
+
+    for (const spec of importTables) {
+      const table = tables.find(({ name }) => name === spec.name);
+      const key = spec.name === "worktree_settings" ? ["owner_user_id", "project_id", "worker_id"] : table?.key;
+
+      if (!table || !key?.length)
+        return yield* Effect.fail(consolidationError("A consolidation table has a missing row key or is unavailable."));
+
+      selected.push({ ...table, ...spec, key, foreignKeys: foreign.filter(({ table }) => table === spec.name) });
+    }
+
+    const signature = consolidationDigest(
+      JSON.stringify(
+        selected.map(({ name, columns, types, written, key, foreignKeys }) => ({
+          name,
+          columns,
+          types,
+          written,
+          key,
+          foreignKeys,
+        })),
+      ),
+    );
+
+    // Keep the table allowlist closed to columns and FKs introduced without a reviewed import policy.
+    if (signature !== "fdf4101ecdae72988f406dedfcf1ad1f5077d8df34bd8a5cbc92716c0af060a3")
+      return yield* Effect.fail(
+        consolidationError("The consolidation schema has unsupported columns or foreign keys."),
+      );
+
+    return { selected, signature };
+  });
+}
+
+export function keySql(alias: string, table: SelectedTable) {
+  return `jsonb_build_array(${table.key.map((key) => alias + "." + ident(key) + "::text").join(",")})::text`;
+}
+
+export function sameKey(left: string, right: string, table: SelectedTable) {
+  return table.key.map((key) => `${left}.${ident(key)} IS NOT DISTINCT FROM ${right}.${ident(key)}`).join(" AND ");
+}

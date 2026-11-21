@@ -14,11 +14,14 @@ export interface TestPostgres {
   readonly stop: () => Promise<void>;
 }
 
-/** Isolated PostgreSQL 17 database. Migration tests get an empty database; other fixtures can clone the schema. */
-export async function startPostgres(options: { migrated?: boolean } = {}): Promise<TestPostgres> {
+/** Isolated database, with PostgreSQL 18 available for testing Desktop migration. */
+export async function startPostgres(options: { migrated?: boolean; major?: 17 | 18 } = {}): Promise<TestPostgres> {
   const descriptor = join(tmpdir(), ".canopy-test-postgres-port");
-  const sharedPort = existsSync(descriptor) ? readFileSync(descriptor, "utf8").trim() : undefined;
-  const owned = sharedPort ? undefined : await startTestPostgresServer();
+
+  const sharedPort =
+    options.major !== 18 && existsSync(descriptor) ? readFileSync(descriptor, "utf8").trim() : undefined;
+
+  const owned = sharedPort ? undefined : await startTestPostgresServer(options.major);
   const port = Number(sharedPort ?? owned?.port);
 
   if (!Number.isInteger(port) || port <= 0 || port > 65535) throw new Error("Invalid test PostgreSQL port");

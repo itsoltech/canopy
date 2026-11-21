@@ -5,14 +5,29 @@ import { createClient } from "@connectrpc/connect";
 import { ui } from "@canopy/contracts";
 import { routedPinnedTransport } from "@canopy/transport";
 import type { JsonValue } from "@canopy/domain";
+import type { DesktopStatus } from "@canopy/ui/desktop";
 import type { LocalBffTarget } from "@canopy/domain/bff-target";
 import type { DesktopClientCredential } from "../remote-client.ts";
 import { enrollWorker } from "../../../worker/src/enroll.ts";
-import { isString, isWorkerConfiguration } from "./config.ts";
+import { isString, isWorkerConfiguration, isWorkerStatus } from "./config.ts";
 import type { Logs } from "./log.ts";
 import type { Supervisor } from "./process.ts";
 import { Schema } from "effect";
 import { writePrivateFile } from "./private-file.ts";
+
+export function readDesktopWorkerState(statusFile: string): DesktopStatus["worker"] {
+  try {
+    const value: unknown = JSON.parse(readFileSync(statusFile, "utf8"));
+
+    if (!isWorkerStatus(value)) return "connecting";
+
+    if (Date.now() - (value.time ?? 0) >= 45_000 || value.status === "offline") return "offline";
+
+    return value.status === "online" ? "online" : "connecting";
+  } catch {
+    return "connecting";
+  }
+}
 
 export function desktopWorkerIdle(services: Supervisor, statusFile: string, draining: boolean) {
   const pid = services.send("worker", draining ? "canopy:drain" : "canopy:resume");

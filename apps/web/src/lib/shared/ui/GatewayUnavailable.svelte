@@ -2,6 +2,7 @@
   import Button from "./Button.svelte";
   import Icon from "./Icon.svelte";
   import type { IconName } from "./icons.ts";
+  import type { Snippet } from "svelte";
 
   /** Something the page needs does not answer; retries on its own. Defaults describe this computer's gateway. */
   let {
@@ -10,7 +11,15 @@
     icon = "signal-slash",
     title = "Can't reach the gateway",
     description = "Canopy retries automatically.",
-  }: { retry: () => void; retrying?: boolean; icon?: IconName; title?: string; description?: string } = $props();
+    actions,
+  }: {
+    retry: () => void;
+    retrying?: boolean;
+    icon?: IconName;
+    title?: string;
+    description?: string;
+    actions?: Snippet;
+  } = $props();
 </script>
 
 <div class="grid h-full scroll-stable place-items-center overflow-y-auto p-6">
@@ -18,8 +27,9 @@
     <Icon name={icon} class="fill-zinc-400 dark:fill-zinc-500" />
     <h1 class="mt-3 text-2xl font-semibold tracking-tight text-balance">{title}</h1>
     <p class="mt-2 text-base/6 text-pretty text-zinc-500 sm:text-sm/6 dark:text-zinc-400">{description}</p>
-    <div class="mt-6">
+    <div class="mt-6 flex flex-wrap justify-center gap-2">
       <Button variant="primary" loading={retrying} onclick={retry}>Try again</Button>
+      {@render actions?.()}
     </div>
   </div>
 </div>

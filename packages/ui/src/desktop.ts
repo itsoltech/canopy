@@ -156,7 +156,16 @@ export function sameDesktopConfiguration(
   }
 }
 
+export type {
+  DesktopMigrationApproval,
+  DesktopMigrationBridge,
+  DesktopMigrationReview,
+  DesktopMigrationStatus,
+  DesktopMigrationTarget,
+} from "./desktop-migration.ts";
+
 export interface DesktopBridge {
+  gatewayMigration?: import("./desktop-migration.ts").DesktopMigrationBridge;
   /** Opens only the calling thread's automation preview on the current BFF. */
   openPreviewWindow?(path: string): Promise<void>;
   /** Opens untrusted HTML in a separate, network-denied session. Never runs in the app renderer. */
