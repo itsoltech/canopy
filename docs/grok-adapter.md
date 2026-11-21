@@ -1,5 +1,8 @@
 # Adapter Grok
 
+Aktualizacja (2026-11-21): boty na Linuksie mogą zapisywać trwałe sesje także
+poza katalogiem tymczasowym workera. Dostępność wynika z promocji wydań.
+
 Aktualizacja (2026-11-19): `accept_edits` zatwierdza automatycznie tylko edycje ze ścieżkami w `cwd` wątku (tabela trybów niżej).
 
 Status (2026-11-17): runtime ACP, lokalny MCP automatyzacji i rozliczenia tokenów
@@ -71,24 +74,15 @@ przez Groka; nie zastępujemy HOME ze względu na komendy użytkownika.
 
 Instancja CLIProxyAPI używa odizolowanego `GROK_HOME` i konfiguracji modelu z `env_key`, kluczem wyłącznie w env procesu. Nie przekazujemy klucza w argv, logach, repozytorium ani globalnej konfiguracji użytkownika. Tymczasowe pliki mają 0600, katalog 0700; cleanup po zakończeniu procesu. Backend `chat_completions` używa `/v1/chat/completions`, a katalog modeli `/v1/models`. Własny endpoint ma pierwszeństwo przed loginem urządzenia. Guard auth CLI wymaga dodatkowo `XAI_API_KEY` z tym samym kluczem; samo `env_key` nie wystarcza do utworzenia sesji.
 
-## Boty: budżet i klasyfikacja odpowiedzi
+## Boty: izolacja zapisu sesji
 
-Boty w wariancie B wykonują żądanie w gateway (`bots/model.ts`), nie przez ACP ani
-CLI workera. Grok otrzymuje `/v1/chat/completions`, `stream: false` i model zapisany
-w konfiguracji bota (np. `grok-4.7`). Gateway wymaga aktualnego połączenia Proxy;
-id `native` jest dozwolone po przełączeniu na Proxy, a Device login o dowolnym id
-jest odrzucane.
-
-Żądanie zachowuje domyślny budżet modelu zamiast narzucać `max_tokens: 4096`:
-w modelu rozumującym zbyt mały wspólny budżet może skończyć się przed odpowiedzią
-lub wywołaniem funkcji. Klasyfikacja rozróżnia `length`, niepełny JSON, błędy HTTP
-i nieoczekiwany format, zamiast opisywać je wszystkie jako uciętą odpowiedź.
-Botowe żądanie nie używa streamingu ACP.
-
-Kontrolowany endpoint potwierdza trasę i zachowanie limitu; fake ACP osobno sprawdza
-propagację auth, braku modelu, limitu użycia i zakończenia procesu w wątkach.
-Nie wprowadzono dodatkowych funkcji bezpośredniego API. Zastąpienie runtime botów
-oficjalnymi harnessami na workerze jest osobnym projektem.
+Boty używają Grok CLI przez ACP na workerze, z loginem urządzenia lub przez proxy.
+Na Linuksie prywatny profil sandboxa rozszerza `read-only` o zapis pod rzeczywistą
+ścieżką do katalogu sesji danej rozmowy i instancji. Landlock sprawdza cel
+dowiązania `GROK_HOME/sessions`, więc zapis musi być dozwolony także poza
+tymczasowym domem procesu. Katalog roboczy bota nadal podlega profilowi
+`read-only`. Przy każdym starcie worker odtwarza profil sandboxa i może wznowić
+istniejącą sesję z tego samego katalogu.
 
 ## SDK
 

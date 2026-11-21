@@ -16,6 +16,8 @@ Status (2026-11-21): prywatny czat bota ma narzędzie odczytu
 `find_canopy_settings` także bez Web access i przy wyłączonym module Threads.
 Katalog nawigacji jest osobnym źródłem od wartości zwracanych przez
 `get_settings`. [Weryfikacja ścieżek](settings-map.md#odpowiedzi-czatu-o-ustawieniach).
+Bot Grok na Linuksie może otwierać i wznawiać sesje zapisane poza katalogiem
+tymczasowym workera. [Zakres zapisu sandboxa](grok-adapter.md#boty-izolacja-zapisu-sesji).
 
 Status prędkości (2026-11-17): zaimplementowana w kodzie; dostępność
 nightly/beta/stable wynika z promocji wydań. Ustawienie **Speed** korzysta z

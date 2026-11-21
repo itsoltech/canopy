@@ -1,4 +1,4 @@
-import { mkdirSync, mkdtempSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
+import { mkdirSync, mkdtempSync, realpathSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { homedir } from "node:os";
 import type { GrokOptions } from "@canopy/grok-acp";
@@ -92,6 +92,17 @@ function instructionConfig(env: NodeJS.ProcessEnv, bot: boolean): string {
   return `\n[compat.codex]\nskills = false\n\n[skills]\nignore = [${JSON.stringify(join(deviceHome, ".agents"))}]\n`;
 }
 
+function botSandboxProfile(home: string, sessions: string): string {
+  // Landlock checks the durable directory outside the private home where the sessions symlink points.
+  writeFileSync(
+    join(home, "sandbox.toml"),
+    `[profiles.canopy-bot]\nextends = "read-only"\nread_write = [${JSON.stringify(realpathSync(sessions))}]\n`,
+    { mode: 0o600 },
+  );
+
+  return "canopy-bot";
+}
+
 /** Isolated configuration per process; durable sessions per instance. Keys never enter config or argv. */
 export function grokLaunch(options: {
   dataDir: string;
@@ -150,7 +161,9 @@ export function grokLaunch(options: {
 
   if (options.bot) isolateBotEnv(env, home, options.bot.webAccess);
 
-  if (options.readOnly) env["GROK_SANDBOX"] = "read-only";
+  if (options.bot && options.readOnly && process.platform === "linux")
+    env["GROK_SANDBOX"] = botSandboxProfile(home, sessions);
+  else if (options.readOnly) env["GROK_SANDBOX"] = "read-only";
   else if (options.fullAccess) env["GROK_SANDBOX"] = "off";
   else if (options.fullAuto) env["GROK_SANDBOX"] = "workspace";
   else delete env["GROK_SANDBOX"];
