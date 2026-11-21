@@ -7,8 +7,19 @@ import { useOverview } from "../../state/overview";
 import { confirmAppUpdate } from "./confirmation";
 import { useUpdateNotices } from "./use-update-notices";
 import { bulkUpdatesAvailable, plannedUpdateRun } from "@canopy/domain/release/update-plan";
-import { canopyUpdateAction, canopyUpdateSnapshot, updateGatewayMessage } from "@canopy/domain/release/update-actions";
-import { furthestStatus, runStatuses, updateTargetKey, type UpdateStatus } from "@canopy/domain/release/update-status";
+import {
+  canopyUpdateAction,
+  canopyUpdateSnapshot,
+  updateControlMessage,
+  updateGatewayMessage,
+} from "@canopy/domain/release/update-actions";
+import {
+  furthestStatus,
+  gatewayUpdateLifecycle,
+  runStatuses,
+  updateTargetKey,
+  type UpdateStatus,
+} from "@canopy/domain/release/update-status";
 
 /** What the user just asked for, shown at once and replaced by the gateway's answer (or reverted by its error). */
 interface Optimistic {
@@ -41,8 +52,7 @@ function useRunRows(snapshot: ui.UpdatesSnapshot | undefined, optimistic: Optimi
 
   return {
     run,
-    /** An action is pending or Update all is running. */
-    active: !!pending || run?.state === "running",
+    active: !!pending || run?.state === "running" || gatewayUpdateLifecycle(snapshot?.gatewayState),
     /** A row's badge: the further of its own state, its run step and what the user just started. */
     rowStatus: (key: string, own: UpdateStatus | string) =>
       furthestStatus(furthestStatus(own, statuses.get(key)), optimistic?.rows.get(key)),
@@ -151,7 +161,7 @@ function useUpdatesState() {
 
   /** `target`: the row the action belongs to (`updateTargetKey`), shown as Starting until the answer arrives. */
   async function manage(request: UpdateRequest, target = "") {
-    if (!client || running.current) return;
+    if (!client || running.current || gatewayUpdateLifecycle(snapshot?.gatewayState)) return;
     const current = generation.current;
 
     if (
@@ -191,6 +201,7 @@ function useUpdatesState() {
       await reload();
     } catch (cause) {
       const failure = ConnectError.from(cause);
+      const controlMessage = failure.code === Code.Unavailable ? updateControlMessage(failure.rawMessage) : "";
 
       // Older gateways report an empty plan with these same words.
       const emptyPlan =
@@ -198,11 +209,13 @@ function useUpdatesState() {
         failure.code === Code.FailedPrecondition &&
         failure.rawMessage.startsWith("No updates Canopy can install");
 
-      if (emptyPlan && current === generation.current) {
+      if ((emptyPlan || controlMessage) && current === generation.current) {
         snapshotRevision.current++;
         const refreshed = await reload();
 
-        if (refreshed && !bulkUpdatesAvailable(refreshed)) return;
+        if (refreshed && gatewayUpdateLifecycle(refreshed.gatewayState)) return;
+
+        if (emptyPlan && refreshed && !bulkUpdatesAvailable(refreshed)) return;
       }
 
       if (current === generation.current) {
@@ -212,7 +225,7 @@ function useUpdatesState() {
             : updateGatewayMessage(action, failure.rawMessage) ||
                 "Canopy could not finish this update action. Check the connection and retry.",
         );
-        setDetails(emptyPlan ? "" : failure.rawMessage);
+        setDetails(emptyPlan || controlMessage ? "" : failure.rawMessage);
       }
     } finally {
       if (current === generation.current) {

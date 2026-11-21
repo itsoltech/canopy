@@ -9,9 +9,17 @@ import type { RequestHandler } from "./$types";
 const response = (value: ui.UpdatesSnapshot) =>
   json(encode(ui.UpdatesSnapshotSchema, value), { headers: { "cache-control": "no-store" } });
 
-export const GET: RequestHandler = async () =>
+// Progress polls need a new read even when the gateway has not pushed an invalidation.
+export const GET: RequestHandler = async ({ url }) =>
   response(
-    await call((api) => bffSession().reads.read("GetUpdates", ui.UpdatesSnapshotSchema, () => api.getUpdates({}))),
+    await call((api) =>
+      bffSession().reads.read(
+        "GetUpdates",
+        ui.UpdatesSnapshotSchema,
+        () => api.getUpdates({}),
+        url.searchParams.get("refresh") === "1" ? -1 : undefined,
+      ),
+    ),
   );
 
 export const POST: RequestHandler = async ({ request }) => {

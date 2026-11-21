@@ -17,6 +17,7 @@ export interface UpdateServiceOptions {
   command(workerId: string, hello: update.CheckRequest): Promise<update.UpdateCommand | undefined>;
   report(workerId: string, report: update.ReportRequest): Promise<void>;
   mirror: ReleaseMirror;
+  changed?(): void;
   authIntervalMs?: number;
 }
 
@@ -101,6 +102,7 @@ export class GatewayUpdateService {
     const connection = { channel, hello };
     this.connections.get(hello.workerId)?.channel.close();
     this.connections.set(hello.workerId, connection);
+    this.options.changed?.();
     channel.push(create(update.UpdateEventSchema, { gateway: this.verdict(hello) }));
     // Release lookup may need the internet; the compatibility verdict never waits for it.
     void this.options
@@ -136,7 +138,10 @@ export class GatewayUpdateService {
       clearInterval(heartbeat);
       ctx.signal.removeEventListener("abort", abort);
 
-      if (this.connections.get(hello.workerId) === connection) this.connections.delete(hello.workerId);
+      if (this.connections.get(hello.workerId) === connection) {
+        this.connections.delete(hello.workerId);
+        this.options.changed?.();
+      }
     }
   }
   async *#fetch(request: update.FetchArtifactRequest, ctx: HandlerContext): AsyncIterable<update.ArtifactChunk> {
@@ -178,7 +183,8 @@ export class GatewayUpdateService {
   disconnect(workerId: string): void {
     this.#epoch++;
     this.connections.get(workerId)?.channel.close();
-    this.connections.delete(workerId);
+
+    if (this.connections.delete(workerId)) this.options.changed?.();
   }
   close(): void {
     this.#healthy = false;

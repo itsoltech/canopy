@@ -1,9 +1,11 @@
 import { describe, expect, test } from "bun:test";
 import { create } from "@bufbuild/protobuf";
 import { Provider, ui } from "@canopy/contracts";
-import { plannedUpdateRun } from "./update-plan.ts";
+import { bulkUpdatesAvailable, plannedUpdateRun } from "./update-plan.ts";
 import {
+  binaryUpdateStatus,
   furthestStatus,
+  gatewayRowTarget,
   restartDetail,
   RESTART_WARNING_MS,
   runStatuses,
@@ -83,9 +85,36 @@ describe("row status during and after a run", () => {
     expect(furthestStatus("updating", "queued")).toBe("updating");
     expect(furthestStatus("current", "updated")).toBe("updated");
     expect(furthestStatus("available", "updated")).toBe("available");
+    expect(furthestStatus("starting", "updated")).toBe("starting");
+    expect(furthestStatus("shutting_down", "failed")).toBe("shutting_down");
+    expect(furthestStatus("reconnecting", "failed")).toBe("failed");
+    expect(furthestStatus("Offline", "updated")).toBe("Offline");
     expect(furthestStatus("Offline", "queued")).toBe("Offline");
     expect(furthestStatus("Offline", "failed")).toBe("failed");
     expect(furthestStatus("available", undefined)).toBe("available");
+  });
+
+  test("gateway lifecycle overrides the completed run and an obsolete feed target", () => {
+    const snapshot = create(ui.UpdatesSnapshotSchema, {
+      gatewayState: "starting",
+      gatewayVersion: "2.0.0",
+      availableVersion: "2.1.0",
+      gatewayInstallKind: "binary",
+      gatewayUpdateAvailable: true,
+    });
+
+    expect(furthestStatus(binaryUpdateStatus(snapshot.gatewayState) ?? "current", "updated")).toBe("starting");
+    expect(gatewayRowTarget(snapshot)).toBe("");
+    expect(bulkUpdatesAvailable(snapshot)).toBe(false);
+    snapshot.gatewayState = "downloading";
+    snapshot.gatewayTargetVersion = "2.0.1";
+    expect(gatewayRowTarget(snapshot)).toBe("2.0.1");
+    snapshot.gatewayState = "idle";
+    expect(gatewayRowTarget(snapshot)).toBe("2.1.0");
+    expect(bulkUpdatesAvailable(snapshot)).toBe(true);
+    snapshot.availableVersion = "2.0.0";
+    snapshot.gatewayUpdateAvailable = false;
+    expect(gatewayRowTarget(snapshot)).toBe("");
   });
 
   test("Updated stays an hour; superseded and dismissed runs no longer speak for rows", () => {

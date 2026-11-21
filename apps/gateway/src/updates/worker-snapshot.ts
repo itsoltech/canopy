@@ -12,6 +12,8 @@ export function workerUpdateSnapshot(
   bundled: boolean,
   connected: boolean,
 ): ui.WorkerUpdate {
+  const { state, targetVersion } = w.status;
+
   return create(ui.WorkerUpdateSchema, {
     workerId: w.id,
     name: w.name,
@@ -29,10 +31,12 @@ export function workerUpdateSnapshot(
         }
       : {
           state:
-            w.status.state === "succeeded" && w.version !== version
-              ? "idle"
-              : (w.status.state ??
-                (w.status.installKind && w.status.installKind !== "binary" ? "managed_externally" : "idle")),
+            state === "restarting" && !!targetVersion && w.version === targetVersion
+              ? "reconnecting"
+              : state === "succeeded" && w.version !== version
+                ? "idle"
+                : (state ??
+                  (w.status.installKind && w.status.installKind !== "binary" ? "managed_externally" : "idle")),
           reason:
             w.status.reason ??
             (w.status.installKind && w.status.installKind !== "binary"
@@ -41,6 +45,7 @@ export function workerUpdateSnapshot(
                 ? "This worker has not reported to the update channel. Older installations need one manual upgrade."
                 : ""),
         }),
+    targetVersion: targetVersion ?? "",
     connected,
   });
 }

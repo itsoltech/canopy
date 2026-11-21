@@ -7,8 +7,15 @@
   import UpdateItem from "./UpdateItem.svelte";
   import { workerCurrent } from "./compact-updates.ts";
   import { appRowTarget, appUpdateTarget } from "@canopy/domain/release/update-plan";
-  import type { UpdatesState } from "./updates.svelte.ts";
-  import { updateInProgress, updateTargetKey, type UpdateStatus } from "@canopy/domain/release/update-status";
+  import { workerUpdateOffline, type UpdatesState } from "./updates.svelte.ts";
+  import {
+    binaryUpdateDetail,
+    binaryUpdateStatus,
+    gatewayUpdateLifecycle,
+    updateInProgress,
+    updateTargetKey,
+    workerUpdateTarget,
+  } from "@canopy/domain/release/update-status";
 
   let {
     worker,
@@ -35,6 +42,14 @@
   const desktop = $derived(worker.desktop);
   const connected = $derived(desktop ? desktop.connected : worker.connected);
   const current = $derived(workerCurrent(worker, snapshot?.gatewayVersion ?? ""));
+  const blocked = $derived(updates.gatewayTransition || gatewayUpdateLifecycle(snapshot?.gatewayState));
+
+  const phase = $derived(
+    desktop?.phase === "downloading" ? "updating" : binaryUpdateStatus(desktop?.phase ?? worker.state),
+  );
+
+  const offline = $derived(!desktop && workerUpdateOffline(worker));
+  const target = $derived(desktop ? appRowTarget(desktop) : workerUpdateTarget(worker, snapshot?.gatewayVersion ?? ""));
 
   const failed = $derived(worker.state === "failed" || desktop?.phase === "failed");
   const external = $derived(worker.installKind !== "binary" && !desktop);
@@ -51,12 +66,7 @@
   const actionable = $derived(
     desktop
       ? !linked && desktop.connected && !desktop.disabledReason && !!appUpdateTarget(desktop)
-      : worker.connected &&
-          worker.installKind === "binary" &&
-          !!snapshot?.admin &&
-          !!worker.version &&
-          worker.version !== snapshot.gatewayVersion &&
-          worker.state !== "ahead",
+      : worker.connected && worker.installKind === "binary" && !!snapshot?.admin && !!target,
   );
 
   const key = $derived(
@@ -65,35 +75,25 @@
       : updateTargetKey({ kind: "worker", nodeId, workerId: worker.workerId }),
   );
 
-  const PHASE = new Map<string, UpdateStatus>([
-    ["queued", "queued"],
-    ["downloading", "updating"],
-    ["waiting_idle", "waiting"],
-    ["restarting", "restarting"],
-    ["failed", "failed"],
-  ]);
-
   // A feed check keeps the settled word; the header shows the check.
   const own = $derived(
     desktop
-      ? (PHASE.get(desktop.phase) ?? (current ? "current" : actionable ? "available" : "Unavailable"))
-      : !connected
+      ? (phase ?? (current ? "current" : actionable ? "available" : "Unavailable"))
+      : offline
         ? "Offline"
-        : external && !current
-          ? "Managed externally"
-          : current
+        : (phase ??
+          (current
             ? "current"
-            : (PHASE.get(worker.state) ??
-              (worker.state === "managed_externally"
-                ? "Managed externally"
-                : worker.state === "ahead"
-                  ? "Newer than gateway"
-                  : actionable
-                    ? "available"
-                    : "Unavailable")),
+            : external || worker.state === "managed_externally"
+              ? "Managed externally"
+              : worker.state === "ahead"
+                ? "Newer than gateway"
+                : actionable
+                  ? "available"
+                  : "Unavailable")),
   );
 
-  const status = $derived(updates.rowStatus(key, own));
+  const status = $derived(offline ? own : updates.rowStatus(key, own));
   const step = $derived(updates.failedStep(key));
   const inProgress = $derived(updateInProgress(status));
 
@@ -110,18 +110,24 @@
   name={worker.name}
   icon={desktop ? "computer-desktop" : "server"}
   current={desktop?.version || worker.version}
-  target={desktop ? appRowTarget(desktop) : worker.state !== "ahead" ? snapshot?.gatewayVersion : ""}
+  target={offline ? "" : target}
   {status}
-  line={status === "waiting" ? "Restarts after its current turns end." : ""}
+  line={desktop
+    ? status === "waiting"
+      ? "Restarts after its current turns end."
+      : ""
+    : status === phase
+      ? binaryUpdateDetail(worker.state)
+      : ""}
   error={status === "failed"
     ? desktop?.reason || reason || updates.snapshot?.run?.steps[step]?.reason || "The update did not finish."
     : ""}
   busy={inProgress}
   progress={desktop?.phase === "downloading" ? desktop.progress : undefined}
-  class={[!connected && "opacity-50", className]}
+  class={[!connected && !inProgress && "opacity-50", className]}
 >
   {#snippet action()}
-    {#if status === "failed" && (step >= 0 || (!linked && (failed || actionable)))}
+    {#if !blocked && status === "failed" && (step >= 0 || (!linked && (failed || actionable)))}
       <IconButton
         icon="repeat"
         size="sm"
@@ -130,7 +136,7 @@
         loading={updates.pending === worker.workerId || updates.pending === "retry_step"}
         onclick={retry}
       />
-    {:else if actionable && !inProgress && !current}
+    {:else if !blocked && actionable && status === "available"}
       <IconButton
         icon="arrow-down-tray"
         size="sm"
@@ -139,7 +145,7 @@
         loading={updates.pending === worker.workerId}
         onclick={() => void updates.manage({ action: desktop ? "desktop" : "worker", workerId: worker.workerId }, key)}
       />
-    {:else if allowForce && !linked && desktop?.phase === "waiting_idle" && desktop.connected && !desktop.disabledReason}
+    {:else if !blocked && allowForce && !linked && desktop?.phase === "waiting_idle" && desktop.connected && !desktop.disabledReason}
       <IconButton
         icon="power"
         size="sm"
@@ -159,7 +165,7 @@
       <Button
         size="sm"
         class="justify-self-start"
-        disabled={!!updates.pending}
+        disabled={!!updates.pending || blocked}
         onclick={() =>
           void updates.manage({
             action: "desktop_dismiss",

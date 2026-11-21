@@ -17,7 +17,14 @@
   const status = $derived(updates.status);
 
   const summary = $derived(
-    updateIndicator(status, center.snapshot, updates.error || center.error, center.pending, updates.remote),
+    updateIndicator(
+      status,
+      center.snapshot,
+      updates.error || center.error,
+      center.pending,
+      updates.remote,
+      center.gatewayTransition,
+    ),
   );
 
   const phase = $derived(summary.phase);

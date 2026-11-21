@@ -1,9 +1,17 @@
 import type { DesktopUpdateStatus } from "@canopy/ui/desktop";
 import type { ui } from "@canopy/contracts";
 import { listedWorkers, updatesAvailable, externalUpdatesAvailable } from "./compact-updates.ts";
-import { computerUpdate } from "@canopy/domain/release/computer-update";
+import { computerUpdate, homes } from "@canopy/domain/release/computer-update";
 import { isRateLimitMessage } from "@canopy/domain/release/http";
 import { homeAppComputer } from "@canopy/domain/release/update-actions";
+import { gatewayUpdateLifecycle } from "@canopy/domain/release/update-status";
+import { updateBusy, workerUpdateOffline } from "./updates.svelte.ts";
+
+export function gatewayUpdateActivity(state: string | undefined, gatewayTransition: boolean): string {
+  if (gatewayUpdateLifecycle(state)) return state === "starting" ? "Gateway starting…" : "Gateway shutting down…";
+
+  return gatewayTransition ? "Waiting for the gateway…" : "";
+}
 
 export function updateIndicator(
   app: DesktopUpdateStatus | undefined,
@@ -11,10 +19,15 @@ export function updateIndicator(
   error: string,
   pending = "",
   remoteApp = false,
+  gatewayTransition = false,
 ) {
-  const workers = snapshot ? listedWorkers(snapshot) : [];
+  const gatewayActivity = gatewayUpdateActivity(snapshot?.gatewayState, gatewayTransition);
+
+  if (gatewayActivity) return { phase: "downloading", message: gatewayActivity, progress: undefined };
+
+  const workers = snapshot ? homes(snapshot).flatMap(({ home }) => listedWorkers(home)) : [];
   const run = snapshot?.run;
-  const failedWorker = workers.find((w) => w.state === "failed");
+  const failedWorker = workers.find((w) => w.connected && w.state === "failed");
   const failedDesktop = workers.find((w) => w.desktop?.phase === "failed")?.desktop;
   const home = snapshot && (!app || remoteApp) ? homeAppComputer(snapshot) : undefined;
 
@@ -42,12 +55,8 @@ export function updateIndicator(
   const downloading =
     app?.phase === "downloading" ||
     run?.state === "running" ||
-    ["waiting_idle", "downloading", "restarting"].includes(snapshot?.gatewayState ?? "") ||
-    workers.some(
-      (w) =>
-        ["queued", "waiting_idle", "downloading", "restarting"].includes(w.state) ||
-        ["queued", "waiting_idle", "downloading", "restarting"].includes(w.desktop?.phase ?? ""),
-    ) ||
+    updateBusy(snapshot?.gatewayState ?? "") ||
+    workers.some((w) => (!workerUpdateOffline(w) && updateBusy(w.state)) || updateBusy(w.desktop?.phase ?? "")) ||
     computers.some((c) => c.view.busy);
 
   if (downloading)

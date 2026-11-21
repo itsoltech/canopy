@@ -10,7 +10,7 @@
   import CompactComputerUpdate from "../CompactComputerUpdate.svelte";
   import UpdatesPanel from "../UpdatesPanel.svelte";
   import { UpdatesState } from "../updates.svelte.ts";
-  import { computerStates, fixtureSnapshot, remoteDesktopSnapshot } from "./update-fixtures.ts";
+  import { binaryUpdateSnapshot, computerStates, fixtureSnapshot, remoteDesktopSnapshot } from "./update-fixtures.ts";
   import { bulkUpdateSteps, plannedUpdateRun } from "@canopy/domain/release/update-plan";
 
   /**
@@ -21,10 +21,17 @@
    * `remote=1` identifies this app's worker; `identity=missing` simulates an older desktop bridge.
    * `app=downloading|downloaded|failed|waiting` exercises the merged current-computer row.
    * `run=partial` shows independent CLI actions in settings while Claude installs on the local worker.
+   * `gateway=starting|shutting_down|idle` shows binary updater phases with earlier run results.
    */
   const updates = new UpdatesState();
+  const gateway = page.url.searchParams.get("gateway");
 
-  updates.snapshot = page.url.searchParams.has("remote") ? remoteDesktopSnapshot() : fixtureSnapshot();
+  updates.snapshot =
+    gateway && ["starting", "shutting_down", "idle"].includes(gateway)
+      ? binaryUpdateSnapshot(gateway)
+      : page.url.searchParams.has("remote")
+        ? remoteDesktopSnapshot()
+        : fixtureSnapshot();
 
   const home = computerStates().find((computer) => computer.name === page.url.searchParams.get("home"));
 

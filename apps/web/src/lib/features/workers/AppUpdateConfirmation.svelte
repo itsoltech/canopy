@@ -46,7 +46,7 @@
     <Button data-autofocus onclick={() => (open = false)}>Cancel</Button>
     <Button
       variant="danger"
-      disabled={blocked || !!updates.pending || updates.snapshot?.run?.state === "running"}
+      disabled={blocked || updates.active}
       onclick={() => {
         blocked = !computer.nodeId && hasUnsentWork();
         if (blocked) return;

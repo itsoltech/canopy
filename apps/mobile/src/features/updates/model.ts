@@ -3,13 +3,17 @@ import { ui } from "@canopy/contracts";
 import { appCheckPause } from "@canopy/domain/release/update-actions";
 import { appUpdateAvailable } from "@canopy/domain/release/update-plan";
 import { currentRemoteUpdate, newerAppVersion } from "@canopy/domain/release/remote-update-state";
+import { binaryUpdateStatus, updateInProgress } from "@canopy/domain/release/update-status";
 
 export { bulkUpdatesAvailable } from "@canopy/domain/release/update-plan";
 
 export type UpdateRequest = MessageInitShape<typeof ui.ManageUpdatesRequestSchema>;
 
-export const updateBusy = (state = "") =>
-  ["queued", "checking", "waiting_idle", "downloading", "restarting", "running"].includes(state);
+export const updateBusy = (state = "") => {
+  const phase = binaryUpdateStatus(state);
+
+  return phase ? phase === "queued" || updateInProgress(phase) : state === "checking" || state === "running";
+};
 
 export const updateLabel = (state = "") =>
   ({

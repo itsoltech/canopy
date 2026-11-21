@@ -20,14 +20,14 @@ import {
   type ReleaseManifest,
   type ReleaseSourceOptions,
 } from "@canopy/updater";
-import type { UpdatePersistence, WorkerUpdateRow } from "./persistence.ts";
+import type { UpdatePersistence } from "./persistence.ts";
 import { GatewayUpdateService } from "./service.ts";
 import { GatewayReleaseMirror, UpdateCache } from "./cache.ts";
 import { updateBusyState, versionAhead } from "./versions.ts";
 import { ReleaseRateLimit } from "@canopy/domain/release/http";
 import { workerUpdateSnapshot } from "./worker-snapshot.ts";
 import { gatewayUpdateMayBeStaged, stageGatewayRelease } from "./stage.ts";
-import { prepareWorkerUpdate } from "./worker-command.ts";
+import { prepareWorkerUpdate, workerCommandOnHello } from "./worker-command.ts";
 
 export interface GatewayUpdatesOptions {
   persistence: Pick<
@@ -67,6 +67,7 @@ export class GatewayUpdates {
   #channel: string;
   #available: ReleaseManifest | undefined;
   #state = "idle";
+  #targetVersion = "";
   #reason = "";
   #checking: Promise<void> | undefined;
   #checkedAt = "";
@@ -75,7 +76,7 @@ export class GatewayUpdates {
   #retryTimer: ReturnType<typeof setTimeout> | undefined;
   #stopping = new AbortController();
   #draining = false;
-  #ready = false;
+  #control: "starting" | "ready" | "shutting_down" = "starting";
   #commands = new Map<string, Promise<update.UpdateCommand | undefined>>();
   #queuing = new Map<string, Promise<update.UpdateCommand | undefined>>();
   readonly #cache: UpdateCache;
@@ -100,6 +101,7 @@ export class GatewayUpdates {
       hello: (id, hello) => options.persistence.hello(id, hello).finally(() => options.changed?.()),
       command: (id, hello) => this.#onHello(id, hello),
       report: (id, report) => options.persistence.report(id, report).finally(() => options.changed?.()),
+      changed: () => options.changed?.(),
     });
   }
   async start(): Promise<void> {
@@ -134,7 +136,9 @@ export class GatewayUpdates {
 
     await this.#cache.startRetention(this.source.options);
     await this.options.recovered?.(this.#state, this.#reason);
-    this.#ready = true;
+
+    if (this.#control !== "starting") return;
+    this.#control = "ready";
 
     for (const [id, connection] of this.service.connections) {
       void this.#onHello(id, connection.hello).then((command) => {
@@ -145,8 +149,13 @@ export class GatewayUpdates {
     void this.check();
     this.#timer = setInterval(() => void this.check(), this.options.pollMs ?? 15 * 60_000);
   }
+  beginShutdown(): void {
+    if (this.#control === "shutting_down") return;
+    this.#control = "shutting_down";
+    this.options.changed?.();
+  }
   close(): void {
-    this.#ready = false;
+    this.beginShutdown();
 
     if (this.#timer) clearInterval(this.#timer);
     clearTimeout(this.#retryTimer);
@@ -155,7 +164,8 @@ export class GatewayUpdates {
     this.#cache.close();
   }
   async handover(): Promise<void> {
-    if (!this.#ready || this.kind !== "binary" || !this.options.restart || updateBusyState(this.#state)) return;
+    if (this.#control !== "ready" || this.kind !== "binary" || !this.options.restart || updateBusyState(this.#state))
+      return;
 
     const previousState = this.#state,
       previousReason = this.#reason;
@@ -175,6 +185,8 @@ export class GatewayUpdates {
           this.options.log?.("supervisor handover: waiting for active turns to finish");
         },
         apply: async () => {
+          this.#setState("restarting");
+          this.#reason = "Restarting gateway to finish supervisor handover";
           await this.options.departure?.("restarting");
           await this.options.restart!(SUPERVISOR_HANDOVER_EXIT_CODE);
         },
@@ -210,7 +222,7 @@ export class GatewayUpdates {
         if (!blocked) {
           this.#available = manifest;
 
-          if (this.#ahead(manifest.version))
+          if (versionAhead(manifest.version, this.version))
             this.options.found?.({ channel: this.#channel, version: manifest.version });
         }
 
@@ -238,19 +250,22 @@ export class GatewayUpdates {
       }
     })());
   }
-  #ahead(version: string): boolean {
-    return versionAhead(version, this.version);
-  }
   async snapshot(): Promise<ui.UpdatesSnapshot> {
-    const workers = await this.options.persistence.workers(false);
+    const [workers, admin] = await Promise.all([
+      this.options.persistence.workers(false),
+      this.options.persistence.admin(),
+    ]);
+
+    const availableVersion = this.#control === "ready" ? (this.#available?.version ?? "") : "";
 
     return create(ui.UpdatesSnapshotSchema, {
       gatewayVersion: this.version,
       channel: this.#channel,
-      availableVersion: this.#available?.version ?? "",
-      gatewayUpdateAvailable: this.#ahead(this.#available?.version ?? ""),
+      availableVersion,
+      gatewayUpdateAvailable: versionAhead(availableVersion, this.version),
       gatewayInstallKind: this.kind,
-      gatewayState: this.#state,
+      gatewayState: this.#control === "ready" ? this.#state : this.#control,
+      gatewayTargetVersion: this.#targetVersion,
       gatewayReason: [
         this.kind !== "binary" ? managedInstructions(this.kind) : "",
         this.#reason,
@@ -258,7 +273,7 @@ export class GatewayUpdates {
       ]
         .filter(Boolean)
         .join(" "),
-      admin: await this.options.persistence.admin(),
+      admin,
       checking: !!this.#checking,
       checkedAt: this.#checkedAt,
       checkError: this.#checkError,
@@ -271,8 +286,7 @@ export class GatewayUpdates {
   async manage(request: ui.ManageUpdatesRequest): Promise<ui.UpdatesSnapshot> {
     if (!(await this.options.persistence.admin()))
       throw new ConnectError("Only an administrator can manage updates", Code.PermissionDenied);
-
-    if (!this.#ready) throw new ConnectError("Gateway update control is starting or shutting down", Code.Unavailable);
+    this.assertControlReady();
 
     if (request.action === "channel") {
       if (this.options.bundled)
@@ -311,11 +325,13 @@ export class GatewayUpdates {
 
       if (manifest.protocol.update !== UPDATE_PROTOCOL)
         throw new ConnectError("Release does not support the frozen update protocol", Code.FailedPrecondition);
+      this.#targetVersion = manifest.version;
       this.#setState("waiting_idle");
       this.#reason = "Waiting for active turns to finish";
       await this.options.departure?.("updating", manifest.version);
       const release = this.#cache.retain(manifest.version);
       void this.#updateGateway(manifest, request, release).catch((cause: unknown) => {
+        this.#targetVersion = "";
         this.#setState("failed");
         this.#reason = cause instanceof Error ? cause.message : "Gateway update failed";
         void this.options.recovered?.("failed", this.#reason).catch(() => {
@@ -331,12 +347,14 @@ export class GatewayUpdates {
       for (const worker of selected) {
         if (
           request.action === "all" &&
-          (worker.version === this.version || worker.status.installKind !== "binary" || this.#ahead(worker.version))
+          (worker.version === this.version ||
+            worker.status.installKind !== "binary" ||
+            versionAhead(worker.version, this.version))
         )
           continue;
 
         try {
-          const command = await this.#queue(worker, request.force, request.allowDowngrade);
+          const command = await this.#queue(worker.id, request.force, request.allowDowngrade);
 
           if (command) this.service.push(worker.id, command);
         } catch (error) {
@@ -348,6 +366,13 @@ export class GatewayUpdates {
     } else throw new ConnectError("Unknown update action", Code.InvalidArgument);
 
     return this.snapshot();
+  }
+  assertControlReady(): void {
+    if (this.#control !== "ready")
+      throw new ConnectError(
+        this.#control === "starting" ? "Gateway update control is starting" : "Gateway update control is shutting down",
+        Code.Unavailable,
+      );
   }
   async #updateGateway(
     manifest: ReleaseManifest,
@@ -393,37 +418,13 @@ export class GatewayUpdates {
     }
   }
   #onHello(workerId: string, hello: update.CheckRequest): Promise<update.UpdateCommand | undefined> {
-    if (!this.#ready || this.options.relocating?.()) return Promise.resolve(undefined);
+    if (this.#control !== "ready" || this.options.relocating?.()) return Promise.resolve(undefined);
 
     if (this.#commands.has(workerId)) return this.#commands.get(workerId)!;
 
-    const promise = (async () => {
-      const worker = (await this.options.persistence.workers()).find((w) => w.id === workerId);
-
-      if (!worker) return undefined;
-
-      if (
-        worker.command?.version === this.version &&
-        !["failed", "succeeded", "managed_externally"].includes(worker.status.state ?? "") &&
-        worker.command.version !== hello.version
-      ) {
-        await assertBinaryUpdateForward(this.source.catalog, hello.version, { version: this.version });
-
-        return worker.command;
-      }
-
-      // No automatic downgrade or repeated failed-update loop, including after rollback.
-      if (hello.installKind !== "binary" || worker.status.state === "failed" || hello.version === this.version)
-        return undefined;
-
-      try {
-        if (compareVersions(hello.version, this.version) >= 0) return undefined;
-      } catch {
-        return undefined;
-      }
-
-      return this.#queue(worker, false, false);
-    })()
+    const promise = workerCommandOnHello(this.options.persistence, this.service.options.mirror, hello, () =>
+      this.#queue(workerId, false, false),
+    )
       .catch((cause: unknown) => {
         this.options.log?.(
           `worker update unavailable: ${cause instanceof Error ? cause.message : "release resolution failed"}`,
@@ -437,20 +438,18 @@ export class GatewayUpdates {
 
     return promise;
   }
-  #queue(worker: WorkerUpdateRow, force: boolean, allowDowngrade: boolean): Promise<update.UpdateCommand | undefined> {
-    const pending = this.#queuing.get(worker.id);
+  #queue(workerId: string, force: boolean, allowDowngrade: boolean): Promise<update.UpdateCommand | undefined> {
+    const pending = this.#queuing.get(workerId);
 
     if (pending) return pending;
 
-    const command = prepareWorkerUpdate(
-      this.options.persistence,
-      this.service.options.mirror,
-      worker.id,
-      force,
-      allowDowngrade,
-    ).finally(() => this.#queuing.delete(worker.id));
+    const { mirror } = this.service.options;
 
-    this.#queuing.set(worker.id, command);
+    const command = prepareWorkerUpdate(this.options.persistence, mirror, workerId, force, allowDowngrade).finally(() =>
+      this.#queuing.delete(workerId),
+    );
+
+    this.#queuing.set(workerId, command);
 
     return command;
   }

@@ -5,7 +5,14 @@
   import { gatewayCurrent } from "./compact-updates.ts";
   import type { UpdatesState } from "./updates.svelte.ts";
   import { isRateLimitMessage } from "@canopy/domain/release/http";
-  import { updateInProgress, updateTargetKey, type UpdateStatus } from "@canopy/domain/release/update-status";
+  import {
+    binaryUpdateDetail,
+    binaryUpdateStatus,
+    gatewayRowTarget,
+    gatewayUpdateLifecycle,
+    updateInProgress,
+    updateTargetKey,
+  } from "@canopy/domain/release/update-status";
 
   let { updates, class: className }: { updates: UpdatesState; class?: ClassValue } = $props();
   const snapshot = $derived(updates.snapshot);
@@ -13,20 +20,13 @@
   const external = $derived(snapshot?.gatewayInstallKind !== "binary");
   const reason = $derived(snapshot?.gatewayReason.replace(/^Managed externally\.\s*/, "") ?? "");
   const key = updateTargetKey({ kind: "gateway" });
-
-  const PHASE = new Map<string, UpdateStatus>([
-    ["queued", "queued"],
-    ["waiting_idle", "waiting"],
-    ["downloading", "updating"],
-    ["restarting", "restarting"],
-    ["failed", "failed"],
-  ]);
+  const phase = $derived(binaryUpdateStatus(snapshot?.gatewayState ?? ""));
 
   // A feed check keeps the settled word; the header shows the check.
   const own = $derived(
     !snapshot
       ? "current"
-      : (PHASE.get(snapshot.gatewayState) ??
+      : (phase ??
           (isRateLimitMessage(snapshot.checkError)
             ? "Checks paused"
             : external && snapshot.gatewayUpdateAvailable
@@ -40,7 +40,14 @@
                     : "Not checked")),
   );
 
-  const status = $derived(updates.rowStatus(key, own));
+  const status = $derived(
+    gatewayUpdateLifecycle(snapshot?.gatewayState)
+      ? own
+      : updates.gatewayTransition
+        ? "Unavailable"
+        : updates.rowStatus(key, own),
+  );
+
   const step = $derived(updates.failedStep(key));
   const inProgress = $derived(updateInProgress(status));
 </script>
@@ -50,19 +57,19 @@
     name="Gateway"
     icon="server"
     current={snapshot.gatewayVersion}
-    target={snapshot.gatewayUpdateAvailable ? snapshot.availableVersion : ""}
+    target={updates.gatewayTransition ? "" : gatewayRowTarget(snapshot)}
     {status}
-    line={isRateLimitMessage(snapshot.checkError)
-      ? snapshot.checkError
-      : status === "waiting"
-        ? "Restarts after its current turns end."
+    line={status === phase
+      ? binaryUpdateDetail(snapshot.gatewayState)
+      : !updates.gatewayTransition && isRateLimitMessage(snapshot.checkError)
+        ? snapshot.checkError
         : ""}
     error={status === "failed" ? reason || snapshot.run?.steps[step]?.reason || "The gateway update failed." : ""}
     busy={inProgress}
     class={className}
   >
     {#snippet action()}
-      {#if !external && status === "failed"}
+      {#if !updates.gatewayTransition && !external && status === "failed" && (step >= 0 || snapshot.gatewayUpdateAvailable)}
         <IconButton
           size="sm"
           icon="repeat"
@@ -76,7 +83,7 @@
             else void updates.manage({ action: "gateway" }, key);
           }}
         />
-      {:else if !external && snapshot.gatewayUpdateAvailable && !inProgress}
+      {:else if !updates.gatewayTransition && !external && status === "available"}
         <IconButton
           size="sm"
           icon="arrow-down-tray"
@@ -84,7 +91,7 @@
           disabled={updates.active || !snapshot.admin}
           onclick={() => void updates.manage({ action: "gateway" }, key)}
         />
-      {:else if reason && !inProgress}<IconButton
+      {:else if !updates.gatewayTransition && reason && !inProgress}<IconButton
           size="sm"
           icon="information-circle"
           label={reason}

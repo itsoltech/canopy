@@ -1,7 +1,7 @@
 import type { ui } from "@canopy/contracts";
 import { updateCheckLabel } from "@canopy/domain/computer-presence";
 import { bulkUpdateSteps, externalUpdatesAvailable } from "@canopy/domain/release/update-plan";
-import { updateRunSummary } from "@canopy/domain/release/update-status";
+import { gatewayUpdateLifecycle, updateRunSummary } from "@canopy/domain/release/update-status";
 import { presenceTime } from "../computers/presence";
 import { updateHomes, updatesRunning } from "./model";
 
@@ -31,6 +31,9 @@ export function sheetHeadline({
 }): SheetHeadline {
   const line = (text: string, tone: SheetHeadline["tone"] = "ink", progress?: number) => ({ text, tone, progress });
 
+  if (gatewayUpdateLifecycle(snapshot?.gatewayState))
+    return line(snapshot?.gatewayState === "starting" ? "Gateway is starting…" : "Gateway is shutting down…");
+
   if (starting) return line("Starting update…", "ink", 0);
   const summary = updateRunSummary(run);
 
@@ -39,12 +42,12 @@ export function sheetHeadline({
 
   if (checking) return line("Checking for updates…", "muted");
 
-  if (summary) return line(summary.text, summary.tone);
-
   // The body says it is loading; the header has nothing to add yet.
   if (!snapshot) return line(phoneUpdate ? "Phone update available" : "", "muted");
 
   if (updatesRunning(snapshot)) return line("Updating…");
+
+  if (summary) return line(summary.text, summary.tone);
   const planned = bulkUpdateSteps(snapshot).filter((step) => step.state === "queued").length;
 
   if (planned) return line(planned === 1 ? "1 update available" : `${planned} updates available`);

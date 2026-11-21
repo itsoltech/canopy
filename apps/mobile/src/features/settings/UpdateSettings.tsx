@@ -7,19 +7,21 @@ import { bulkUpdatesAvailable } from "../updates/model";
 import { useUpdates } from "../updates/state";
 import { SettingsGroup, SettingsActions, SettingChoice } from "./SettingsGroup";
 import { confirmAction } from "./resource";
+import { gatewayUpdateLifecycle } from "@canopy/domain/release/update-status";
 
 /** Settings and the sidebar sheet share action gates, progress and the durable update run. */
 export function UpdateSettings() {
   const { snapshot, pending, manage, setOpen } = useUpdates();
   const running = snapshot?.run?.state === "running";
-  const busy = !!pending || running;
+  const controlUnavailable = gatewayUpdateLifecycle(snapshot?.gatewayState);
+  const busy = !!pending || running || controlUnavailable;
 
   return (
     <SettingsGroup
       title="Updates"
       actions={
         <SettingsActions>
-          {snapshot && (running || bulkUpdatesAvailable(snapshot)) && (
+          {snapshot && (running || (!controlUnavailable && bulkUpdatesAvailable(snapshot))) && (
             <Button
               title={running ? "Show update progress" : "Update all"}
               size="sm"

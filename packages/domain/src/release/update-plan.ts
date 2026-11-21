@@ -2,6 +2,7 @@ import { create, type MessageInitShape } from "@bufbuild/protobuf";
 import { ui } from "@canopy/contracts";
 import { newerAppVersion } from "./remote-update-state.ts";
 import { knownUpdateOffline } from "./update-offline.ts";
+import { binaryUpdateStatus, updateInProgress } from "./update-status.ts";
 
 /** A downloaded package stays actionable when a feed check omits availableVersion. */
 export function appUpdateTarget(app: ui.DesktopUpdateState | undefined): string {
@@ -42,6 +43,9 @@ function plannedStep(item: MessageInitShape<typeof ui.UpdateStepSchema>, snapsho
 
 /** Shared eligibility for every Update all control and the owner gateway's durable plan. */
 export function bulkUpdateSteps(snapshot: ui.UpdatesSnapshot): ui.UpdateStep[] {
+  const phase = binaryUpdateStatus(snapshot.gatewayState);
+
+  if (snapshot.gatewayInstallKind === "binary" && phase && updateInProgress(phase)) return [];
   const steps: ui.UpdateStep[] = [];
   const add = (item: MessageInitShape<typeof ui.UpdateStepSchema>) => steps.push(plannedStep(item, snapshot));
 

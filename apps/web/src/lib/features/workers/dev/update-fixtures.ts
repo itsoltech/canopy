@@ -175,6 +175,50 @@ export function remoteDesktopSnapshot(): ui.UpdatesSnapshot {
   });
 }
 
+/** A binary gateway and workers in live phases, with results still visible from an earlier update. */
+export function binaryUpdateSnapshot(gatewayState: string): ui.UpdatesSnapshot {
+  const version = "0.42.0-nightly.20261106.1234+build.0123456789abcdef";
+  const availableVersion = "0.43.0-nightly.1";
+
+  const workers = [
+    worker("prepare", "Build server in the rack room · linux-x64 · 64 GB", "0.41.0", "preparing"),
+    worker("download", "CI runner", "0.41.0", "downloading"),
+    { ...worker("restart", "Render worker", "0.41.0", "restarting"), connected: false },
+    { ...worker("reconnect", "Release worker", version, "reconnecting"), connected: false },
+    { ...worker("offline", "Worker in the lab", "0.41.0"), connected: false },
+    worker("current", "CI", version),
+  ];
+
+  const finishedAt = new Date().toISOString();
+
+  return create(ui.UpdatesSnapshotSchema, {
+    gatewayVersion: version,
+    gatewayInstallKind: "binary",
+    gatewayState,
+    // Leave the older availability in the fixture to exercise the renderer's lifecycle guard.
+    gatewayUpdateAvailable: true,
+    availableVersion,
+    channel: "nightly",
+    admin: true,
+    workers,
+    run: {
+      id: "earlier-update",
+      state: "succeeded",
+      steps: [
+        { kind: "gateway", label: "Gateway", state: "succeeded", version, finishedAt },
+        ...workers.map(({ workerId, name, version }) => ({
+          kind: "worker",
+          workerId,
+          label: name,
+          state: "succeeded",
+          version,
+          finishedAt,
+        })),
+      ],
+    },
+  });
+}
+
 /** One linked computer per state of its app. */
 export const computerStates = () => [
   computer("Up to date", "1", { version: "0.42.0", availableVersion: "0.42.0" }),

@@ -21,7 +21,7 @@ function restarting(update: ui.UpdateStep, snapshot: ui.UpdatesSnapshot): boolea
     case "desktop":
       return worker?.desktop?.phase === "restarting";
     case "worker":
-      return worker?.state === "restarting";
+      return worker?.state === "restarting" || worker?.state === "reconnecting";
     default:
       return false;
   }

@@ -107,7 +107,7 @@
       <Button
         size="sm"
         class="justify-self-start"
-        disabled={!!updates.pending}
+        disabled={!!updates.pending || updates.gatewayTransition}
         onclick={() =>
           void updates.manage({
             action: local ? "app_dismiss" : "computer_dismiss",

@@ -34,8 +34,13 @@
   const app = given?.app ?? new DesktopUpdatesState();
   const overview = useOverview();
   const snapshot = $derived(updates.snapshot);
-  const busy = $derived(updateBusy(snapshot?.gatewayState ?? "") || snapshot?.run?.state === "running");
-  const summary = $derived(updateIndicator(undefined, snapshot, updates.error, updates.pending));
+  const busy = $derived(updates.active || updateBusy(snapshot?.gatewayState ?? ""));
+
+  const summary = $derived(
+    updateIndicator(undefined, snapshot, updates.error, updates.pending, false, updates.gatewayTransition),
+  );
+
+  const error = $derived(updates.error || (!updates.gatewayTransition && snapshot?.checkError) || "");
 
   const checked = $derived.by(() => {
     const at = Date.parse(snapshot?.checkedAt ?? "");
@@ -89,8 +94,8 @@
     <div class="flex shrink-0 items-center gap-1">
       <Button
         size="sm"
-        disabled={!!updates.pending || busy || snapshot?.checking}
-        loading={updates.pending === "check" || snapshot?.checking}
+        disabled={busy || snapshot?.checking}
+        loading={!updates.gatewayTransition && (updates.pending === "check" || snapshot?.checking)}
         onclick={() =>
           void (snapshot?.admin || snapshot?.gatewayBundled ? updates.manage({ action: "check" }) : updates.reload())}
         >Check now</Button
@@ -98,10 +103,8 @@
       <UpdateActionButton {updates} />
     </div>
   </div>
-  {#if updates.error || snapshot?.checkError}<div class="p-3">
-      <Alert tone={isRateLimitMessage(updates.error || snapshot?.checkError || "") ? "info" : "error"}
-        >{updates.error || snapshot?.checkError}</Alert
-      >
+  {#if error}<div class="p-3">
+      <Alert tone={isRateLimitMessage(error) ? "info" : "error"}>{error}</Alert>
     </div>{/if}
   {#if snapshot}
     {#if snapshot.run && snapshot.run.state !== "dismissed"}<UpdateRun
@@ -126,7 +129,7 @@
         {#snippet gateway()}<ReleaseChannelField
             current={snapshot.channel}
             version={snapshot.gatewayVersion}
-            disabled={!snapshot.admin || !!updates.pending || busy}
+            disabled={!snapshot.admin || busy}
             pending={updates.pending === "channel"}
             onsave={(channel) => updates.manage({ action: "channel", channel })}
             class="-mx-3"

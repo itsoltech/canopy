@@ -9,10 +9,23 @@ export const MANUAL_APP_UPDATE = "Update this computer from its own window once 
 export const canopyUpdateAction = (action = ""): string =>
   ["update_all", "retry_failed", "retry_step"].includes(action) ? `canopy_${action}` : action;
 
+export function updateControlMessage(message: string): string {
+  const reason = message.replace(/^\[unavailable\]\s*/i, "");
+
+  if (reason === "Gateway update control is starting") return "The gateway is starting. Try again in a moment.";
+
+  if (reason === "Gateway update control is shutting down")
+    return "The gateway is shutting down. Try again when it returns.";
+
+  return reason === "Gateway update control is starting or shutting down"
+    ? "Wait for the gateway to be ready, then try again."
+    : "";
+}
+
 export function updateGatewayMessage(action: string, message: string): string {
   return action.startsWith("canopy_") && message === "Unknown update action"
     ? "Update Canopy on the gateway to use this action."
-    : "";
+    : updateControlMessage(message);
 }
 
 /** Older gateways can return a durable plan that includes provider CLI steps. */

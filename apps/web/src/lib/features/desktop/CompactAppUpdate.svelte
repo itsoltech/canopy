@@ -183,7 +183,7 @@
         <Button
           size="sm"
           class="justify-self-start"
-          disabled={!!center.pending}
+          disabled={!!center.pending || center.gatewayTransition}
           onclick={() =>
             void center.manage({
               action: "desktop_dismiss",

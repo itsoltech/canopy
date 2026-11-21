@@ -60,6 +60,7 @@ export class BffReads {
     key: string,
     schema: D,
     fetch: () => Promise<MessageShape<D>>,
+    maxAgeMs?: number,
   ): Promise<MessageShape<D>> {
     if (this.#closed) throw new QueryCacheDisposed();
 
@@ -85,7 +86,10 @@ export class BffReads {
     let result: MessageShape<D>;
 
     try {
-      result = await Promise.race([this.#queries.read<MessageShape<D>>(key, () => fetch()), this.#ended.promise]);
+      result = await Promise.race([
+        this.#queries.read<MessageShape<D>>(key, () => fetch(), maxAgeMs),
+        this.#ended.promise,
+      ]);
     } catch (cause) {
       this.#assertGeneration(privateGeneration);
       throw cause;

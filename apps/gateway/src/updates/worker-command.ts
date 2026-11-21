@@ -10,6 +10,35 @@ import {
   type ReleaseMirror,
 } from "@canopy/updater";
 import type { UpdatePersistence } from "./persistence.ts";
+import { versionAhead } from "./versions.ts";
+
+export async function workerCommandOnHello(
+  persistence: Pick<UpdatePersistence, "workers">,
+  mirror: ReleaseMirror,
+  hello: update.CheckRequest,
+  queue: () => Promise<update.UpdateCommand | undefined>,
+): Promise<update.UpdateCommand | undefined> {
+  const worker = (await persistence.workers()).find((item) => item.id === hello.workerId);
+  const { version, source } = mirror;
+
+  if (!worker) return undefined;
+
+  if (
+    worker.command?.version === version &&
+    !["failed", "succeeded", "managed_externally"].includes(worker.status.state ?? "") &&
+    worker.command.version !== hello.version
+  ) {
+    await assertBinaryUpdateForward(source.catalog, hello.version, { version });
+
+    return worker.command;
+  }
+
+  // No automatic downgrade or repeated failed-update loop, including after rollback.
+  if (hello.installKind === "binary" && worker.status.state !== "failed" && versionAhead(version, hello.version))
+    return queue();
+
+  return undefined;
+}
 
 export async function prepareWorkerUpdate(
   persistence: Pick<UpdatePersistence, "workers" | "saveCommand">,

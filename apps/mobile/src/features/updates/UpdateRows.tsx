@@ -7,9 +7,13 @@ import { computerUpdate } from "@canopy/domain/release/computer-update";
 import { currentRemoteUpdate, newerAppVersion } from "@canopy/domain/release/remote-update-state";
 import { appRowTarget, appUpdateAvailable } from "@canopy/domain/release/update-plan";
 import {
+  binaryUpdateDetail,
+  binaryUpdateStatus,
+  gatewayRowTarget,
   isUpdateStatus,
   updateInProgress,
   updateTargetKey,
+  workerUpdateTarget,
   type UpdateStatus,
 } from "@canopy/domain/release/update-status";
 import { presenceTime } from "../computers/presence";
@@ -56,7 +60,7 @@ function GatewayRow({ snapshot }: { snapshot: ui.UpdatesSnapshot }) {
   const paused = isRateLimitMessage(snapshot.checkError);
 
   const own =
-    PHASE.get(snapshot.gatewayState) ??
+    binaryUpdateStatus(snapshot.gatewayState) ??
     (paused
       ? "Checks paused"
       : snapshot.gatewayUpdateAvailable
@@ -71,21 +75,20 @@ function GatewayRow({ snapshot }: { snapshot: ui.UpdatesSnapshot }) {
   const step = failedStep(key);
   const binary = snapshot.gatewayInstallKind === "binary";
   const run = snapshot.run;
+  const target = gatewayRowTarget(snapshot);
 
   return (
     <UpdateRow
       name="Gateway"
       version={snapshot.gatewayVersion}
-      target={snapshot.availableVersion}
+      target={target}
       status={status}
       line={
-        paused
+        status === "Checks paused"
           ? snapshot.checkError
-          : status === "waiting"
-            ? WAITING
-            : status === "Manual update"
-              ? snapshot.gatewayReason.replace(/^Managed externally\.\s*/, "")
-              : undefined
+          : status === "Manual update"
+            ? snapshot.gatewayReason.replace(/^Managed externally\.\s*/, "")
+            : binaryUpdateDetail(snapshot.gatewayState)
       }
       error={
         status === "failed"
@@ -97,7 +100,7 @@ function GatewayRow({ snapshot }: { snapshot: ui.UpdatesSnapshot }) {
       }
       busy={updateInProgress(status)}
       action={
-        binary && status === "failed"
+        binary && status === "failed" && (step >= 0 || snapshot.gatewayUpdateAvailable)
           ? {
               icon: "repeat",
               label: "Retry",
@@ -107,7 +110,7 @@ function GatewayRow({ snapshot }: { snapshot: ui.UpdatesSnapshot }) {
                   ? manage({ action: "retry_step", desktopRequestId: run.id, updateStepIndex: step }, key)
                   : manage({ action: "gateway" }, key),
             }
-          : binary && snapshot.gatewayUpdateAvailable && !updateInProgress(status)
+          : binary && status === "available"
             ? {
                 icon: "arrow-down-tray",
                 label: "Update gateway",
@@ -224,10 +227,10 @@ function workerStatus(
     return app.updaterCurrent || app.availableVersion ? "current" : "Not checked";
   }
 
-  if (!worker.connected) return "Offline";
+  if (!worker.connected && worker.state !== "restarting" && worker.state !== "reconnecting") return "Offline";
 
   if (worker.installKind === "desktop") return "Unavailable";
-  const phase = PHASE.get(worker.state);
+  const phase = binaryUpdateStatus(worker.state);
 
   if (phase) return phase;
 
@@ -285,13 +288,23 @@ function WorkerRows({
             key={worker.workerId}
             name={worker.name}
             version={app?.version || worker.version}
-            target={app ? appRowTarget(app) : worker.state === "ahead" ? "" : home.gatewayVersion}
+            target={app ? appRowTarget(app) : workerUpdateTarget(worker, home.gatewayVersion)}
             status={status}
-            line={status === "waiting" ? WAITING : isUpdateStatus(status) ? undefined : reason}
+            line={
+              isUpdateStatus(status)
+                ? app
+                  ? status === "waiting"
+                    ? WAITING
+                    : undefined
+                  : status === "queued" || updateInProgress(status)
+                    ? binaryUpdateDetail(worker.state)
+                    : undefined
+                : reason
+            }
             error={status === "failed" ? reason || run?.steps[step]?.reason || "The update did not finish." : undefined}
             busy={updateInProgress(status)}
             progress={app?.phase === "downloading" ? app.progress : undefined}
-            style={!connected ? { opacity: 0.5 } : undefined}
+            style={!connected && !updateInProgress(status) ? { opacity: 0.5 } : undefined}
             action={
               status === "failed" && (step >= 0 || request)
                 ? {

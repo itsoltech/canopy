@@ -8,6 +8,7 @@ Uchwyt na tej krawędzi zmienia szerokość sidebara i zapisuje ją lokalnie.
 Licznik i akcja Update all na telefonie wynikają z planu instalacji Canopy.
 Komunikat o restarcie znika po potwierdzeniu powrotu gatewaya lub wersji docelowej,
 a zmiana wątku nie przedłuża wyświetlania wyniku.
+Arkusz Updates pokazuje start i zamykanie gatewaya oraz etapy aktualizacji workerów.
 Wiadomości agenta w rozwiniętej aktywności tury mają dodatkowy odstęp pionowy.
 Stany źródeł Usage są widoczne w sekcji **Recording gateways**. Podsumowanie
 podaje liczbę raportów bez kompletnego kosztu.
@@ -1044,7 +1045,9 @@ wysłaniem. Komputer używa istniejącego journalu `RemoteAppUpdate`, czeka na i
 ogłasza przerwę gatewaya i raportuje wynik po restarcie. Starsza aplikacja lub
 gateway bez capability pokazuje instrukcję jednorazowej aktualizacji w oknie komputera.
 Arkusz Updates pokazuje licznik i przycisk Update all tylko dla kroków, które
-Canopy może wykonać. Wiersz workera dostarczanego z aplikacją desktopową korzysta
+Canopy może wykonać. Podczas startu i zamykania gatewaya arkusz pokazuje bieżący
+stan, wstrzymuje akcje instalacji i sam odświeża odczyt.
+Wiersz workera dostarczanego z aplikacją desktopową korzysta
 ze stanu i kanału aktualizacji aplikacji, również gdy sam worker jest rozłączony.
 Jeśli aktualizacje wymagają ręcznej instalacji, nagłówek pokazuje
 „Manual updates available”.
