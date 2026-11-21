@@ -1,6 +1,7 @@
 # Środowisko agentów
 
-Status: zaimplementowane (2026-11-19), w tym dobór kont do źródła przy imporcie skilli i marketplace,
+Status: zaimplementowane (2026-11-21), w tym diff zmian skilla przed aktualizacją w web/desktop i na mobile,
+dobór kont do źródła przy imporcie skilli i marketplace,
 odczyt dużych artefaktów i raportów
 z PostgreSQL, obsługa znaczników aktywnych sesji Claude i porównywanie konfiguracji
 pluginów niezależnie od kolejności kluczy JSON, porównywanie instalacji Windows
@@ -461,7 +462,11 @@ owner-scoped preview. Addytywne UI RPC i BFF POST
    tożsamość skilla, zapisuje czas/błąd, candidate SHA i ID preview. Zwraca też
    bazowy checksum; zapis metadanych zwiększa rewizję. UI odczytuje świeżą
    rewizję, pokazuje **Update available**, pliki added/modified/removed,
-   script/executable oraz porównanie treści bieżącej i kandydata. Nowy commit
+   script/executable oraz diff wybranego pliku z numerami zakresów, dodanymi i usuniętymi
+   wierszami i maksymalnie trzema wierszami kontekstu z każdej strony. Web/desktop od razu pokazuje pierwszy
+   zmieniony plik, a na mobile diff otwiera się z listy plików. Zmiana uprawnień
+   wykonywania ma osobny komunikat. Dla plików binarnych UI pokazuje metadane,
+   a gdy diff przekracza limit podglądu, udostępnia obie wersje tekstu. Nowy commit
    bez zmiany plików jest widoczny jako zmiana samego upstream commit.
 4. `ApplySkillSource(id, preview_id, expected_revision)` wymaga tego samego
    źródła/ref/ścieżki/konta, nazwy i bazowego checksum. Tworzy kolejny niezmienny
