@@ -224,9 +224,6 @@
             {#snippet actions()}<Button size="sm" onclick={() => revision++}>Try again</Button>{/snippet}
           </Alert>
         {:else if data}
-          {#if data.computers.some((computer) => computer.status !== "ready" && (!computerId || computer.id === computerId))}
-            <Alert tone="info">Some gateways have incomplete usage. Open Recording gateways for details.</Alert>
-          {/if}
           {#if data.supportsActivityBreakdown && data.hasUnattributedUsage}
             <Alert tone="info">
               Canopy can’t identify the activity for some recorded usage.

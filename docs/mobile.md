@@ -2,6 +2,7 @@
 
 Status: opis zaimplementowanego kodu (2026-11-21), w tym import skilli z publicznych
 witryn HTTPS i usypianie wątków.
+Stany źródeł Usage są widoczne w sekcji **Recording gateways**.
 Zamknięty przyciskiem × osiągnięty cel pozostaje ukryty po ponownym otwarciu wątku i restarcie aplikacji.
 Aplikacja używa Expo SDK 58.0.26.
 Menu wątku pozwala go uśpić, zmienić termin lub wybudzić. Uśpione wątki pozostają
@@ -311,8 +312,9 @@ jeśli gateway zwraca te podziały. Gdy raport zawiera podział według workera,
 **Breakdown** domyślnie pokazuje **Worker**. Każdy wiersz podaje koszt lub liczbę
 tokenów workera, który wykonał pracę. **Unknown worker** obejmuje zużycie bez
 zachowanego przypisania. Przy starszym gatewayu domyślną opcją pozostaje **Provider**.
-**Recording gateways** pokazuje stan i początek rejestrowania danych przez każdy
-gateway. Kwoty nieznane i częściowe mają osobne oznaczenia.
+Informacje o pokryciu raportu są widoczne w sekcji **Recording gateways**, która
+pokazuje stan i początek rejestrowania danych przez każdy gateway, oraz przy kwotach.
+Kwoty nieznane i częściowe mają osobne oznaczenia.
 
 Między podsumowaniem a podziałem raportu wykres **Daily trend** pokazuje
 osobną linię dla każdego dostawcy. Początkowo zaznaczony jest ostatni dzień.
