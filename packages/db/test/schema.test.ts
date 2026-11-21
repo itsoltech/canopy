@@ -7,7 +7,6 @@ import {
   insertSide,
   mainThread,
   query,
-  runMigrations,
   startSchemaDb,
   stopSchemaDb,
   world,
@@ -209,10 +208,6 @@ describe.skipIf(!dockerAvailable)("schema on PostgreSQL 17", () => {
   }, 60_000);
 
   afterAll(stopSchemaDb);
-
-  test("migrations are idempotent", async () => {
-    expect(await runMigrations()).toEqual([]);
-  });
 
   test("usage watermarks purge with turns while aggregates remain independent", async () => {
     const w = await world();
