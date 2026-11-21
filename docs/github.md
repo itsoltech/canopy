@@ -1232,8 +1232,9 @@ Copy pozostaje angielskie, zgodne z [copy.md](copy.md): **Connect GitHub**, **Ch
 **No pull requests yet**, **GitHub access expired. Reconnect your account.**,
 **This repository is not available to this account. Choose another account.**
 **GitHub's request limit is reached. Retry after {time}.** Status ma tekst, nie sam kolor.
-Przegląd copy przy zmianach obejmuje krótkie i długie nazwy repo/gałęzi, liczbę pojedynczą/mnogą,
-phone width i wszystkie stany błędów; wynik trafia do opisu każdego zmieniającego UI PR.
+Przy zmianach copy stosujemy audyt z [copy.md](copy.md#8-copy-audit-after-a-feature-checklist).
+W zmienionych tekstach uwzględniamy długość nazw repozytoriów i gałęzi, odmianę liczby,
+stany błędów i szerokości, na których układ wpływa na czytelność. Wynik trafia do opisu PR.
 
 ## 8. Mobile: ten sam zakres
 

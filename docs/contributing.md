@@ -1,9 +1,10 @@
 # Współpraca przy Canopy
 
-Status (2026-11-20): obowiązujący proces pracy i weryfikacji, w tym automatyczna
+Status (2026-11-21): obowiązujący proces pracy i weryfikacji, w tym automatyczna
 stabilizacja bety i przenoszenie jej poprawek do dev oraz izolacja zasobów
 testowych, sprzątanie kontenerów PostgreSQL po przerwaniu testów, zasady pisania i przeglądu
-testów asynchronicznych oraz diagnoza niestabilnych testów z historii prób CI.
+testów asynchronicznych, diagnoza niestabilnych testów z historii prób CI oraz
+dobór lokalnych kontroli do zachowań, na które wpływa zmiana.
 
 ## Gałęzie i scalanie
 
@@ -114,6 +115,22 @@ obowiązkowej listy lokalnych kontroli przed oddaniem pracy lub otwarciem PR.
 Pełne `bun run check`, testy, `check:tmp`, wszystkie shardy, kontrole całego repo
 i buildy zostaw CI. Szerszy przebieg lokalny uzasadnia konkretny błąd, którego nie da się
 wyjaśnić węższą kontrolą, albo jawna prośba użytkownika; sam rozmiar zmiany nie wystarcza.
+
+Przy zmianie UI wybierz środowisko, które pokazuje zmienione zachowanie. Układ
+web/desktop sprawdzisz w przeglądarce. Jeśli zmiana dotyczy widoku responsywnego,
+dobierz szerokości po obu stronach zmienionego progu. Motywy sprawdzaj osobno,
+gdy zmiana wpływa na kolory, kontrast lub czytelność. Powłokę Electron uruchom
+przy zmianie zachowania zależnego od niej, np. okna lub menu systemowego.
+Wspólne zachowanie w aplikacji mobilnej sprawdź na jednej platformie. Dodaj drugą,
+jeśli zmiana dotyka odrębnej ścieżki natywnej, np. obsługi klawiatury albo uprawnień.
+Zmiana wspólnego API lub pakietu może dotyczyć kilku klientów. Wybierz test wspólnej
+logiki, jeśli pokrywa zmienione zachowanie, i sprawdź klienta dodatkowo tam, gdzie
+jego sposób użycia wprowadza osobne ryzyko regresji.
+
+Na współdzielonym workerze wykonuj zasobochłonne kontrole po kolei. Po sprawdzeniu
+zatrzymaj własne procesy. Gdy brakuje odpowiedniego środowiska albo zasobów,
+wykonaj najbliższą dostępną kontrolę i podaj w opisie PR, który scenariusz
+pozostaje do sprawdzenia. Z tą informacją możesz otworzyć PR.
 
 `check:tmp` uruchamia testy i kontroluje sprzątanie zasobów. Przy potrzebie lokalnej
 weryfikacji wybranych testów uruchom z root repo np.:
