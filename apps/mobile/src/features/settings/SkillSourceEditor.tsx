@@ -20,6 +20,8 @@ export function SkillSourceEditor({
   const { resource, request, fields, preview, setPreview } = useSourcePreview<ui.SkillSourcePreview>("skill", skill);
   const [revision, setRevision] = useState(snapshot.revision);
   const [paths, setPaths] = useState<string[]>([]);
+  const source = preview?.source;
+  const upToDate = source?.wellKnown && source.commit === skill?.source?.commit;
 
   const [assignment, setAssignment] = useState(() =>
     create(
@@ -63,10 +65,11 @@ export function SkillSourceEditor({
             })
         }
       />
-      {preview && (
+      {upToDate && <Notice>Up to date</Notice>}
+      {preview && !upToDate && (
         <>
           <Notice>
-            {preview.source?.url} · {preview.source?.ref} · {preview.source?.commit}
+            {source?.wellKnown ? source.url : [source?.url, source?.ref, source?.commit].filter(Boolean).join(" · ")}
           </Notice>
           {preview.notices.map((note, index) => (
             <Notice key={index}>{note}</Notice>

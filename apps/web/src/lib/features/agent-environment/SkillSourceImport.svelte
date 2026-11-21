@@ -39,7 +39,7 @@
 <EnvironmentSheet
   bind:open
   title="Add skills from a source"
-  steps={["Command or repository", "Review skills", "Assign & confirm"]}
+  steps={["Skill source", "Review skills", "Assign & confirm"]}
   bind:step
   busy={source.busy || environment.busy}
   error={source.error || environment.error}
@@ -62,13 +62,13 @@
   {#snippet children(current)}
     {#if current === 0}
       <Field
-        label="Command or repository"
-        description="Paste npx skills add, bunx skills add, a GitHub URL or owner/repo[/path]. Your command is parsed, never executed."
+        label="URL, Git reference or install command"
+        description="Paste an HTTPS website URL or a Git reference such as owner/repo. Canopy also reads npx skills add and bunx skills add commands without running them."
       >
         <Input
           name="skill-source-command"
           bind:value={command}
-          placeholder="npx skills add vercel-labs/agent-browser"
+          placeholder="https://example.com"
           maxlength={4096}
           required
           disabled={source.busy || environment.busy}
@@ -91,9 +91,11 @@
               {source.preview.skills.length === 1 ? "skill" : "skills"}
             </h4>
             <p class="font-mono text-base wrap-anywhere sm:text-sm">{source.preview.source?.url}</p>
-            <p class="text-base wrap-anywhere text-zinc-500 sm:text-sm dark:text-zinc-400">
-              Ref {source.preview.source?.ref} · Commit {source.preview.source?.commit}
-            </p>
+            {#if source.preview.source && !source.preview.source.wellKnown}
+              <p class="text-base wrap-anywhere text-zinc-500 sm:text-sm dark:text-zinc-400">
+                Ref {source.preview.source.ref} · Commit {source.preview.source.commit}
+              </p>
+            {/if}
           </div>
           {#each source.preview.notices as notice (notice)}<p
               class="text-base text-pretty text-zinc-500 sm:text-sm dark:text-zinc-400"
@@ -111,7 +113,7 @@
               <Checkbox
                 name="source-skill-{item.path}"
                 label={item.artifact?.name ?? item.path}
-                description={item.path || "Repository root"}
+                description={source.preview.source?.wellKnown ? undefined : item.path || "Repository root"}
                 disabled={environment.busy}
                 bind:checked={
                   () => source.paths.includes(item.path),
@@ -128,12 +130,14 @@
       {:else}
         <p class="text-base wrap-anywhere text-muted sm:text-sm">
           You selected {source.paths.length}
-          {source.paths.length === 1 ? "skill" : "skills"} from commit {source.preview.source?.commit}.
+          {source.paths.length === 1 ? "skill" : "skills"}{source.preview.source?.wellKnown
+            ? ""
+            : ` from commit ${source.preview.source?.commit ?? ""}`}.
         </p>
         <SkillDestinations bind:skill={source.assignment} workers={environment.snapshot.workers} />
         <Alert
-          >Skills may contain executable code. Add and sync approves the selected files at this commit. Automatic
-          updates start disabled.</Alert
+          >Skills may contain executable code. Add and sync approves the selected files. Automatic updates start
+          disabled.</Alert
         >
       {/if}
     {/if}

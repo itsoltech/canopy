@@ -111,8 +111,10 @@
         {/if}
         {#if skill.source}
           <p class="text-base wrap-anywhere text-zinc-500 sm:text-sm dark:text-zinc-400">
-            Source: {skill.source.url} · {skill.source.ref}. Uploading new files detaches upstream tracking. Rolling
-            back pins the selected version.
+            {[skill.source.url, skill.source.ref].filter(Boolean).join(" · ")}
+          </p>
+          <p class="text-base text-pretty text-zinc-500 sm:text-sm dark:text-zinc-400">
+            Uploading new files stops tracking the source. Rolling back pins the selected version.
           </p>
           <Checkbox
             name="source-auto-update"

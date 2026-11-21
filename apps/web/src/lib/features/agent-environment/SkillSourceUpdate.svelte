@@ -48,9 +48,11 @@
       {#snippet children()}
         {#if controller.preview && controller.preview.source?.commit !== skill.source?.commit}
           <div class="grid min-w-0 gap-4 rounded-xl p-4 ring-1 ring-zinc-950/10 dark:ring-white/10">
-            <p class="font-mono text-base wrap-anywhere sm:text-sm">
-              {skill.source?.commit.slice(0, 12)} → {controller.preview.source?.commit.slice(0, 12)}
-            </p>
+            {#if !skill.source?.wellKnown}
+              <p class="font-mono text-base wrap-anywhere sm:text-sm">
+                {skill.source?.commit.slice(0, 12)} → {controller.preview.source?.commit.slice(0, 12)}
+              </p>
+            {/if}
             {#if controller.preview.skills[0]?.artifact}<SkillSourceFiles
                 artifact={controller.preview.skills[0].artifact}
                 before={skill.artifact}
@@ -60,7 +62,7 @@
             </p>
           </div>
         {:else if controller.preview}<p role="status" class="text-base text-zinc-500 sm:text-sm dark:text-zinc-400">
-            Up to date at this commit.
+            {skill.source?.wellKnown ? "Up to date" : "Up to date at this commit."}
           </p>{:else}<p class="text-base text-muted sm:text-sm">
             {controller.busy ? "Checking upstream…" : "No preview available. Close this sheet and check again."}
           </p>{/if}

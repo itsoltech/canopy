@@ -1,7 +1,7 @@
 # Środowisko agentów
 
-Status: zaimplementowane (2026-11-19), w tym dobór kont do źródła przy imporcie skilli i marketplace,
-odczyt dużych artefaktów i raportów
+Status: zaimplementowane (2026-11-21), w tym import skilli z publicznych witryn HTTPS,
+dobór kont do źródła przy imporcie skilli i marketplace, odczyt dużych artefaktów i raportów
 z PostgreSQL, obsługa znaczników aktywnych sesji Claude i porównywanie konfiguracji
 pluginów niezależnie od kolejności kluczy JSON, porównywanie instalacji Windows
 bez bitów wykonywalności POSIX oraz natywne wersjonowanie cache pluginów Codexa.
@@ -10,7 +10,7 @@ Settings → **Agent environment** zarządza oczekiwanym stanem
 instrukcji, umiejętności i pluginów na komputerach właściciela. Ustawienia należą
 do bazy gatewaya; użytkownik nie konfiguruje zmiennych środowiskowych ani plików
 usług. Etapy 1–4 obejmują instrukcje Claude/Codex, tagi, upload i synchronizację
-skilli Claude/Codex/Grok, źródła Git/skills.sh oraz marketplace i pluginy
+skilli Claude/Codex/Grok, źródła Git, skills.sh i publiczne witryny HTTPS oraz marketplace i pluginy
 Claude/Codex z przypiętymi wersjami. Połączone komputery dzielą bibliotekę jak resztę
 konfiguracji konta ([wspólna konfiguracja](linked-computers.md#środowisko-agentów)).
 
@@ -31,8 +31,8 @@ Puste biblioteki mają przycisk pierwszego dodania; formularze nie pojawiają si
 w treści strony. Puste katalogi nie tworzą disclosures.
 
 Instrukcje przechodzą przez zapis fragmentów, przypisanie i istniejący podgląd
-wyniku dla komputera. Skill zaczyna się od wyboru źródła: folder/ZIP albo Git
-i wklejona komenda `npx skills add`. Dalej są przegląd plików oraz przypisanie.
+wyniku dla komputera. Skill zaczyna się od wyboru źródła: folder/ZIP, repozytorium Git,
+witryna HTTPS lub wklejona komenda `npx skills add`. Dalej są przegląd plików oraz przypisanie.
 Źródła zachowują wybór połączonego konta, a edycja skilla — wersje, pin,
 auto-update i nadpisania maszyn. Podgląd ZIP informuje, że gateway rozpakowuje
 i waliduje archiwum przy zapisie; przegląd poszczególnych plików przed zapisem
@@ -429,6 +429,18 @@ połączenia curl; adresy prywatne/link-local/metadata są odrzucane, proxy oraz
 redirecty wyłączone. Git URL musi używać HTTPS. Fixture transport i registry
 endpoint są wyłącznie opcjami startowymi testu, bez pól w RPC.
 
+Przy imporcie z adresu głównego publicznej witryny HTTPS gateway sprawdza
+`/.well-known/agent-skills/index.json`, a gdy katalogu brak,
+`/.well-known/skills/index.json`. Obsługuje katalog z nazwami skilli i listami
+plików (`name`, `files`). `--skill` pozwala ograniczyć pobieranie do wskazanych
+skilli. Pliki pochodzą z tego samego adresu HTTPS i przechodzą tę samą walidację
+co pliki z Git. Połączenie używa przypiętego publicznego adresu IPv4 z weryfikacją
+certyfikatu dla domeny, bez przekierowań i poświadczeń. Obowiązują limity 1 MiB
+na katalog i pojedynczy plik, 1000 plików na skill oraz 25 MiB danych skilli
+w podglądzie. Brak katalogu przy nowym imporcie pozwala spróbować zwykłego Git.
+Zapisany rodzaj źródła przechodzi do połączonych komputerów. Zamiast commitu
+wersję skilla z witryny identyfikuje suma kontrolna jego plików.
+
 Przy imporcie skilli i marketplace pole **Source access** pojawia się, gdy do
 repozytorium z podanego adresu lub polecenia pasuje połączone konto właściciela
 z OAuth lub nagłówkiem Authorization. Publiczne repozytorium można wczytać bez
@@ -447,18 +459,19 @@ owner-scoped preview. Addytywne UI RPC i BFF POST
 `/api/agent-environment/skills/source/{preview,add,check,apply}`:
 
 1. `PreviewSkillSource(command, credential_account_id)` parsuje referencję,
-   rozwiązuje ref do SHA i zamraża pliki. Zwraca `SkillSourcePreview`: ID,
-   repo/ref/commit, ścieżki i pełne artefakty skilli, licencję repo, notices,
+   rozwiązuje ref Git do SHA lub pobiera pliki z witryny i zamraża ich treść.
+   Zwraca `SkillSourcePreview`: ID, źródło, ścieżki i pełne artefakty skilli, licencję repo, notices,
    sugerowane harnessy/Device CLI, expiry. Nie zmienia biblioteki ani workerów.
-   Panel **Add skill → Git repository or npx skills add command** pokazuje pliki i treść, wyróżnia scripts/hooks,
+   Panel importu pokazuje pliki i treść, wyróżnia scripts/hooks,
    executable, shebang oraz pliki interpretowane; właściciel wybiera skille
    i zwykłe przypisania przed **Add and sync**. Cache: 30 minut, do 5 preview/owner.
 2. `AddSkillSource(preview_id, paths, assignment, expected_revision)` potwierdza
    dokładne zamrożone artefakty, nawet gdy upstream już się przesunął. Atomowo
    tworzy wybrane definicje i wersję 1; source policy zaczyna z manual update.
    Zwykła walidacja przypisań i reconcile pozostają jedyną ścieżką do workerów.
-3. `CheckSkillSource(id)` ponownie pobiera zapisany ref i ścieżkę, porównuje
-   tożsamość skilla, zapisuje czas/błąd, candidate SHA i ID preview. Zwraca też
+3. `CheckSkillSource(id)` ponownie pobiera zapisany ref i ścieżkę lub skill o
+   zapisanej nazwie z witryny. Porównuje tożsamość skilla, zapisuje czas/błąd,
+   SHA kandydata i ID preview. Zwraca też
    bazowy checksum; zapis metadanych zwiększa rewizję. UI odczytuje świeżą
    rewizję, pokazuje **Update available**, pliki added/modified/removed,
    script/executable oraz porównanie treści bieżącej i kandydata. Nowy commit

@@ -1,6 +1,7 @@
 # Canopy na iOS i Android
 
-Status: opis zaimplementowanego kodu (2026-11-21). Aplikacja używa Expo SDK 58.0.26.
+Status: opis zaimplementowanego kodu (2026-11-21), w tym import skilli z publicznych witryn HTTPS.
+Aplikacja używa Expo SDK 58.0.26.
 W ustawieniach Network access można zwiększyć limit załącznika do 40 MiB na plik.
 Na liście wątków wiersze z pierścieniem pracy pokazują sam czas jej trwania.
 Wiersze bez pierścienia zachowują etykietę „Working”.
@@ -1160,6 +1161,8 @@ Przy dodawaniu źródła skilla lub marketplace’u aplikacja pokazuje wybór ko
 gdy dla wpisanego repozytorium jest dostępne pasujące połączenie. Użytkownik może też wybrać
 dostęp publiczny. Zmiana źródła lub konta wymaga podglądu zgodnego z bieżącym wyborem.
 Przy sprawdzaniu zapisanego źródła gateway korzysta z przypisanego mu konta.
+Przy imporcie skilla z publicznej witryny HTTPS telefon korzysta z tej samej ścieżki
+podglądu i potwierdzenia co web. Podgląd pokazuje adres witryny i pobrane pliki do zatwierdzenia.
 
 Przegląd środowiska pokazuje podsumowanie zmian, skrypty/pliki wykonywalne,
 usunięte pliki oraz obie wersje treści. Przy wybraniu wersji skilla telefon

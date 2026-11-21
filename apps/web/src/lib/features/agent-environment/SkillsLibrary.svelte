@@ -125,12 +125,11 @@
           name="skill-add-method"
           bind:value={method}
           options={[
-            { value: "source", label: "Git repository or npx skills add command" },
+            { value: "source", label: "Import from a URL or command" },
             { value: "upload", label: "Upload a folder or ZIP" },
           ]}
         /></Field
-      >
-      <p class="text-base text-muted sm:text-sm">Canopy reads pasted commands without running them.</p>{/snippet}
+      >{/snippet}
   </EnvironmentSheet>
   <SkillEditor
     bind:skill={controller.draft}
@@ -214,7 +213,7 @@
       <div class="grid gap-2 rounded-xl bg-zinc-950/3 p-5 dark:bg-white/4">
         <h3 class="text-base font-medium text-balance">No skills yet</h3>
         <p class="text-base text-pretty text-zinc-500 sm:text-sm dark:text-zinc-400">
-          Add skills from a Git repository, a skill folder or a ZIP file.
+          Add skills from a website, a Git repository, a folder or a ZIP file.
         </p>
       </div>
     {/each}

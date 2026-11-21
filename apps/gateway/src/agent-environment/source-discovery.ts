@@ -4,18 +4,17 @@ import { checkSkillPath, SKILL_TOTAL_BYTES, validateSkillFiles } from "@canopy/d
 import { Schema } from "effect";
 import { sourceInvalid, type parseSourceCommand } from "./source-command.ts";
 import { gitFile, readGitSource, type SourceTransport, type GitEntry } from "./source-git.ts";
+import type { WebsiteTransport } from "./source-https.ts";
+import { sourcePreview, visibleSourceSkill } from "./source-preview.ts";
+import { probeWebsite, readWebsiteSource } from "./source-website.ts";
 
-export interface SourceOptions extends SourceTransport {
+export interface SourceOptions extends SourceTransport, WebsiteTransport {
   /** Test registry uses loopback. Production is fixed to https://skills.sh; never supplied by an RPC. */
   registryBaseUrl?: string;
 }
 
 const Catalog = Schema.Struct({ skills: Schema.Array(Schema.Struct({ name: Schema.String, source: Schema.String })) });
 const Containers = Schema.Struct({ paths: Schema.optional(Schema.Array(Schema.String)) });
-
-const Metadata = Schema.Struct({
-  metadata: Schema.optional(Schema.Struct({ internal: Schema.optional(Schema.Boolean) })),
-});
 
 async function registryLink(command: string, options: SourceOptions): Promise<void> {
   const match = command.trim().match(/^https:\/\/skills\.sh\/([\w.-]+)\/([\w.-]+)\/([\w-]+)$/);
@@ -116,6 +115,13 @@ export async function discoverSource(
 ) {
   await registryLink(originalCommand, options);
 
+  // A previously stored Git source keeps using Git even if its website adds a skill index later.
+  if (parsed.source.wellKnown || (originalCommand && probeWebsite(parsed.source))) {
+    const preview = await readWebsiteSource(parsed, options);
+
+    if (preview) return preview;
+  }
+
   return readGitSource(parsed.source, authorization, options, async (commit, entries, blob) => {
     const licenseFile = entries.find((e) => /^(LICENSE|LICENCE|COPYING)(\.(txt|md))?$/i.test(e.path));
 
@@ -141,16 +147,7 @@ export async function discoverSource(
       const artifact = validateSkillFiles(files);
       const entry = files.find((f) => f.path === "SKILL.md")!;
 
-      const metadata = Buffer.from(entry.content)
-        .toString()
-        .match(/^---\r?\n([\s\S]*?)\r?\n---/);
-
-      const internal = Schema.decodeUnknownSync(Metadata)(Bun.YAML.parse(metadata![1]!)).metadata?.internal;
-      const explicit = parsed.names.includes(artifact.name);
-
-      if (internal && !explicit) continue;
-
-      if (parsed.names.length && !parsed.names.includes("*") && !explicit) continue;
+      if (!visibleSourceSkill(entry.content, artifact.name, parsed.names)) continue;
 
       if (skills.some((s) => s.artifact?.name === artifact.name))
         sourceInvalid("Ambiguous duplicate skill names. Select an explicit repository path.");
@@ -162,18 +159,6 @@ export async function discoverSource(
     if (!skills.length || parsed.names.some((n) => n !== "*" && !skills.some((s) => s.artifact?.name === n)))
       sourceInvalid("No matching skills found. Check the path and --skill names.");
 
-    return create(ui.SkillSourcePreviewSchema, {
-      id: Bun.randomUUIDv7(),
-      source: { ...parsed.source, commit },
-      license,
-      skills,
-      harnesses: parsed.harnesses,
-      deviceHome: parsed.deviceHome,
-      notices: [
-        ...parsed.notices,
-        "Only skill directories are imported. Hooks, MCP, installers and plugin manifests outside them are not activated.",
-      ],
-      expiresAt: new Date(Date.now() + 30 * 60_000).toISOString(),
-    });
+    return sourcePreview(parsed, { ...parsed.source, commit }, skills, license);
   });
 }

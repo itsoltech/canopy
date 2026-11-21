@@ -99,7 +99,7 @@ export class SourceState {
       )
     ) {
       this.preview = undefined;
-      this.environment.notice = "Skills added. Assigned computers will sync the reviewed commit.";
+      this.environment.notice = "Skills added. Assigned computers sync the reviewed files.";
       void revealEnvironmentItem(this.environment.snapshot.skills.find((s) => !previousIds.has(s.id))?.id || "");
     }
   }

@@ -169,7 +169,7 @@ message SkillSource {
   string url = 1;
   string ref = 2;
   string path = 3;
-  string commit = 4;
+  string commit = 4; // Git commit or website artifact checksum.
   string credential_account_id = 5;
   bool auto_update = 6;
   bool pinned = 7;
@@ -177,6 +177,7 @@ message SkillSource {
   string available_commit = 9;
   string update_preview_id = 10;
   string error = 11;
+  bool well_known = 12; // Public website publishing a well-known skills index.
 }
 message ResolvedSourceSkill {
   string path = 1;

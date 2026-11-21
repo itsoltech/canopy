@@ -56,7 +56,7 @@
       value={account?.id ?? ""}
       {disabled}
       options={[
-        { value: "", label: "Public repository · no credentials" },
+        { value: "", label: kind === "skill" ? "Public source" : "Public repository · no credentials" },
         ...eligible.map((a) => ({ value: a.id, label: `${a.name} · ${new URL(a.url).host}` })),
       ]}
       onchange={(id) => {

@@ -114,6 +114,7 @@ export class EnvironmentSources {
 
         for (const item of selected) {
           if (!item.artifact) return yield* Effect.fail(new ConnectError("Invalid preview artifact.", Code.Internal));
+          const commit = source.wellKnown ? item.artifact.checksum : source.commit;
 
           const saved = create(ui.LibrarySkillSchema, {
             ...assignment,
@@ -123,11 +124,11 @@ export class EnvironmentSources {
             versions: [1n],
             artifact: item.artifact,
             overrides: [],
-            source: { ...sourcePolicy(source, source.commit), path: item.path, autoUpdate: false, pinned: false },
+            source: { ...sourcePolicy(source, commit), path: item.path, autoUpdate: false, pinned: false },
           });
 
           yield* checked(() => checkSkillAssignment(saved, machines));
-          yield* addSkillVersion(sql, owner, saved.id, 1n, item.artifact, source.commit);
+          yield* addSkillVersion(sql, owner, saved.id, 1n, item.artifact, commit);
           library.push(saved);
           yield* saveSkillDefinition(sql, owner, saved);
           yield* audit(sql, owner, "environment.source.add", saved.id);
@@ -225,6 +226,7 @@ export class EnvironmentSources {
         if (
           saved.source.url !== source.url ||
           saved.source.ref !== source.ref ||
+          saved.source.wellKnown !== source.wellKnown ||
           saved.source.path !== candidate.path ||
           saved.source.credentialAccountId !== source.credentialAccountId ||
           saved.artifact.checksum !== preview.baseChecksum ||

@@ -119,6 +119,7 @@ function recordOwner(sql: SqlClient.SqlClient, owner: string, node: string) {
                 url: source.url,
                 ref: source.ref,
                 path: source.path,
+                ...(source.wellKnown && { wellKnown: true }),
                 credentialAccountId: yield* connectorId(sql, owner, source.credentialAccountId, true),
               }
             : null,
