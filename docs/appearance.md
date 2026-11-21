@@ -1,5 +1,8 @@
 # Wygląd i pełne palety
 
+Status: opis zaimplementowanego wyglądu (2026-11-21), w tym powłoki ładowania
+Canopy Desktop, gdy gateway jest niedostępny.
+
 Settings → Appearance pozwala wybrać osobno motyw Light i Dark. Color scheme
 (System / Light / Dark) określa, który wariant jest aktywny. Przykład: Fern dla
 Light i Heather dla Dark; System przełącza je zgodnie z preferencją urządzenia.
@@ -125,13 +128,20 @@ autorytatywny zapis pozostaje w gateway i bazie, nie w localStorage.
 
 Desktop przechowuje wyłącznie `{ scheme, light, dark }` w opcjonalnym
 `appearance-cache.json` w userData. Walidowane IPC wymaga zaufanego nadawcy;
-preload udostępnia odczyt startowy, a tylko lokalny ekran `/desktop` nakłada ten
-cache przed renderem. Po połączeniu obowiązują ustawienia gatewaya. Main ustawia
-tło okna i nativeTheme, a na Linux/Windows także tło i kolor symboli natywnej
+preload udostępnia odczyt startowy. Powłoka nakłada ten cache przed renderem,
+gdy dokument nie otrzymał ustawień z gatewaya. Dotyczy to ekranu `/desktop`
+i przeładowania aplikacji przy niedostępnym gatewayu. Po połączeniu obowiązują
+ustawienia gatewaya. Main ustawia tło okna i nativeTheme, a na Linux/Windows
+także tło i kolor symboli natywnej
 nakładki paska tytułu. Zmiana preferencji systemowej aktualizuje chrom okna.
 Błąd zapisu opcjonalnego cache nie blokuje zmiany aktywnego wyglądu.
 
 ## Kontrola wyglądu
+
+Po zbudowaniu webu regresję startu i przeładowania bez gatewaya można sprawdzić
+w rzeczywistym Electronie poleceniem
+`CANOPY_LIVE=1 bun run check:tmp ./apps/desktop/test/startup-appearance.integration.test.ts`.
+Test obejmuje Light i Dark przy przeciwnej preferencji systemu oraz oba warianty System.
 
 Zmiany palety sprawdzaj w obu trybach, także z różnymi wariantami light/dark
 i ustawieniem System. Uwzględnij picker, sidebar, kompozytor z długą ścieżką

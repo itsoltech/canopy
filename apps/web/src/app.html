@@ -110,7 +110,7 @@
       }
     </style>
     <script>
-      // Gateway palettes are already inline. Only the bundled desktop startup uses its chrome cache.
+      // Gateway palettes are already inline. Desktop can still load before its gateway is available.
       const root = document.documentElement;
       try {
         const view = JSON.parse(localStorage.getItem("canopy:preferences:view") || "{}");
@@ -127,14 +127,14 @@
       } catch {
         // The shell remains usable when device storage is unavailable.
       }
-      const startup = location.pathname === "/desktop" && window.canopyDesktop?.startupAppearance;
+      const startup = !root.dataset.colorScheme && window.canopyDesktop?.startupAppearance;
       if (startup) {
         root.style.cssText += ";" + startup.style;
         root.dataset.colorScheme = startup.scheme;
         root.dataset.lightTheme = startup.light;
         root.dataset.darkTheme = startup.dark;
       }
-      const scheme = root.dataset.colorScheme;
+      const scheme = (root.dataset.colorScheme ||= "system");
       root.classList.toggle(
         "dark",
         scheme === "dark" || (scheme === "system" && matchMedia("(prefers-color-scheme: dark)").matches),

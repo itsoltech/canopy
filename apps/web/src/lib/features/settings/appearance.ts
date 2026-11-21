@@ -92,7 +92,7 @@ export function documentAttributes(appearance: ui.AppearanceSettings | undefined
 
   return new Map([
     ["%canopy.dark%", scheme === "dark" ? " dark" : ""],
-    ["%canopy.scheme%", scheme],
+    ["%canopy.scheme%", appearance ? scheme : ""], // An empty scheme allows the desktop startup cache.
     ["%canopy.colorSchemeMeta%", scheme === "system" ? "light dark" : scheme],
     ["%canopy.accent%", accentOf(appearance)],
     ["%canopy.lightTheme%", themeOf(appearance, "light")],
