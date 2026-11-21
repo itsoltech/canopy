@@ -159,7 +159,9 @@ describe.skipIf(!dockerAvailable)("thread snooze on the gateway", () => {
       await Promise.all([nextHeader(overview, (row) => !row.snoozed), nextHeader(sequence, (row) => !row.snoozed)]);
       const deadline = inFuture(3_000);
       const { thread } = await api.setThreadSnooze({ threadId, snoozed: true, snoozedUntil: deadline });
-      expect(thread?.snoozedUntil).toEqual(deadline);
+
+      if (!thread) throw new Error("Snooze response omitted the thread");
+      expect(thread.snoozedUntil).toEqual(deadline);
 
       const sleeping = await Promise.all([
         nextHeader(overview, (row) => row.snoozed),
@@ -176,7 +178,7 @@ describe.skipIf(!dockerAvailable)("thread snooze on the gateway", () => {
 
       for (const header of awake) {
         expect(header.snoozedUntil).toBeUndefined();
-        expect(header.lastSeq).toBe(thread?.lastSeq);
+        expect(header.lastSeq).toBe(thread.lastSeq);
       }
 
       expect(await store.query("SELECT snoozed, snoozed_until FROM threads WHERE id=$1::uuid", [threadId])).toEqual([
