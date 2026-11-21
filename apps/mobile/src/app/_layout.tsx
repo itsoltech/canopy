@@ -73,6 +73,8 @@ function Navigation() {
         <Stack.Protected guard={!session}>
           <Stack.Screen name="pair" options={{ animation: reduced ? "none" : "default" }} />
         </Stack.Protected>
+        <Stack.Screen name="open-source-licenses/index" options={{ animation: reduced ? "none" : "default" }} />
+        <Stack.Screen name="open-source-licenses/details" options={{ animation: reduced ? "none" : "default" }} />
       </Stack>
       <InAppAlerts />
       <UpdateCenter />

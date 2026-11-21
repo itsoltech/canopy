@@ -1,34 +1,20 @@
-# Canopy Desktop — third-party notices
+# Canopy Desktop third-party notices
 
-The packaged application includes Electron, one Bun runtime, bundled JavaScript
-and sharp's native libraries. PostgreSQL is downloaded only for local mode using
-the build-pinned distribution and SHA-512. Agent CLIs (Claude Code, Codex, Grok)
-are prerequisites supplied by the user; Canopy never bundles or downloads them.
-License files in `resources/runtime/licenses`, the binary distribution's MIT
-license, Electron's `LICENSE` / `LICENSES.chromium.html`, and installed npm package
-notices are retained. Upstream source and license references below cover the
-relocatable database distribution and its bundled libraries.
+The build generates `THIRD_PARTY_NOTICES.txt` from the JavaScript bundles,
+native npm packages, Bun runtime and web assets. The app shows the notices
+in Settings under **Open-source licenses**.
 
-| Component | Version | License / source |
-| --- | --- | --- |
-| Electron / Chromium / Node | 45.4.1 | MIT and bundled Chromium/Node notices; https://github.com/electron/electron |
-| electron-updater | 6.8.3 | MIT; https://github.com/electron-userland/electron-builder |
-| Bun | 1.4.5 | MIT; WebKit/JavaScriptCore LGPL-2.1 and additional notices; https://github.com/oven-sh/bun/blob/main/LICENSE.md |
-| PostgreSQL | 18.7 | PostgreSQL License; https://www.postgresql.org/about/licence/ |
-| embedded-postgres relocatable binary distribution | 18.7.0-beta.19 | MIT packaging; Apache-2.0 Zonky distribution; https://github.com/leinelissen/embedded-postgres and https://github.com/zonkyio/embedded-postgres-binaries |
-| PostgreSQL bundled libraries | per target binary distribution | OpenSSL, ICU, zlib, libxml2, libxslt, liblzma, ossp-uuid; sources and build recipes: https://github.com/zonkyio/embedded-postgres-binaries |
-| sharp / libvips | 0.35.5 | Apache-2.0 / LGPL-2.1-or-later and included library notices |
-| Tabler outline icons | @iconify-json/tabler 1.2.43 | MIT; https://github.com/tabler/tabler-icons; full notice in `licenses/Tabler-LICENSE.md` |
-| Claude Agent SDK | 0.3.316 | Anthropic's license/terms in the npm package; not relicensed by Canopy |
+Electron's distribution includes `LICENSE.electron.txt` and
+`LICENSES.chromium.html` with the installed app. The files are in
+`Canopy.app/Contents/Resources` on macOS and beside the executable on Windows
+and Linux.
 
-PostgreSQL distribution pins are recorded separately for linux-x64, linux-arm64,
-darwin-arm64 and windows-x64. No Intel macOS or Windows arm64 app is built.
+Canopy downloads PostgreSQL only for local mode. The selected distribution's
+MIT license, the PostgreSQL copyright notice and Zonky's Apache-2.0 license are
+in `resources/runtime/licenses`. Sources and build recipes for the binary
+distribution are available from
+[embedded-postgres](https://github.com/leinelissen/embedded-postgres) and
+[Zonky](https://github.com/zonkyio/embedded-postgres-binaries).
 
-For redistribution, retain all upstream license files. macOS and Windows installers
-must be signed under the distributor's own identity. No credentials are bundled.
-
-`Bun-LICENSE.md` is taken from `oven-sh/bun`, tag `bun-v1.4.5`, `LICENSE.md`;
-`PostgreSQL-COPYRIGHT` from `postgres/postgres`, tag `REL_18_6`, `COPYRIGHT`;
-`Zonky-LICENSE` from `zonkyio/embedded-postgres-binaries`, `master`, `LICENSE`.
-Bun's license file links its static dependencies, WebKit source and relinking
-instructions. PostgreSQL binary packaging does not change upstream library licenses.
+The Bun license includes upstream library notices and links to Bun's WebKit
+source and relinking instructions.

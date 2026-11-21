@@ -63,6 +63,10 @@ module.exports = async ({ appOutDir, electronPlatformName, packager }) => {
 
   if (!existsSync(join(runtime, "web/client/_app"))) throw new Error("Packaged SvelteKit client assets missing");
 
+  for (const path of ["THIRD_PARTY_NOTICES.txt", "web/client/open-source-licenses.json"]) {
+    if (!existsSync(join(runtime, path))) throw new Error(`Packaged third-party notices missing: ${path}`);
+  }
+
   if (electronPlatformName === "darwin") {
     // afterPack runs before signing. Include extensionless executables, dylibs and native modules.
     const { machOFiles, machOArchitectures } = require("./macho.cjs");

@@ -34,6 +34,7 @@ export interface ReleaseManifest {
   readonly assets: readonly ManifestAsset[];
 }
 
+export const binaryLicenseSuffix = ".licenses.txt";
 const BINARY = /^canopy-(gateway|worker)-(linux|darwin|windows)-(x64|arm64)(\.exe)?$/;
 const DESKTOP = /^Canopy-.+-(linux|darwin|windows)-(x64|arm64)\.(AppImage|deb|dmg|zip|exe)$/;
 const GENERATED = new Set(["checksums.txt", "manifest.json"]);
@@ -139,6 +140,7 @@ export async function releaseManifest(
     .sort();
 
   const assets: ManifestAsset[] = [];
+  const files = new Set(names);
 
   for (const name of names) {
     const kind = classify(name);
@@ -146,6 +148,12 @@ export async function releaseManifest(
     // Desktop updater metadata has no single app/os/arch; keep it outside the frozen
     // gateway/worker manifest format. checksums.txt covers these files as well.
     if (!kind && isDesktopUpdateMetadata(name, channel)) continue;
+
+    if (name.endsWith(binaryLicenseSuffix)) {
+      const binary = name.slice(0, -binaryLicenseSuffix.length);
+
+      if (BINARY.test(binary) && classify(binary) && files.has(binary)) continue;
+    }
 
     if (!kind) throw new Error(`Not a release asset: ${name}`);
     const path = join(directory, name);

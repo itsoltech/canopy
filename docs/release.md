@@ -1,6 +1,6 @@
 # Wydania: wersje, CI, artefakty
 
-Status: opis zaimplementowanego workflow (2026-11-20). Automat sprawdza promocje co godzinę.
+Status: opis zaimplementowanego workflow (2026-11-21). Buildy publikują wykazy licencji zależności. Automat sprawdza promocje co godzinę.
 Domyślne okresy obserwacji to 6 h na dev i 24 h od gotowości bety. Publikacja bety
 otwiera kolejną serię nightly. Stable zachowuje wersję bazową i SHA przetestowanej bety.
 CI dla PR-ów dobiera testy mobile, interfejsu web i powłoki Electron według zmian.
@@ -84,6 +84,26 @@ Stała `CANOPY_VERSION` z `@canopy/domain/release/version` czyta `process.env.CA
 - `canopy-gateway --version`, `canopy-worker --version`.
 
 ## Artefakty
+
+### Licencje zależności
+
+W buildach web, desktop i binarek Canopy odczytuje skład bundli z metadanych
+Vite i Bun. Dołącza też noty dostarczane z pakietami natywnymi, runtime'em Bun
+i używanymi ikonami. Brakujące teksty upstream można dodać w
+`licenses/<nazwa pakietu>/<wersja>/` wraz z informacją o źródle.
+W webie i desktopie wykaz jest dostępny w **Settings → Open-source licenses**.
+Desktop zawiera też tekstowy wykaz w `resources/runtime/THIRD_PARTY_NOTICES.txt`.
+Mobilne wydania i OTA generują plik offline podczas bundlowania Metro
+([mobile.md](mobile.md#licencje-open-source)).
+
+GitHub Release zawiera plik `<nazwa-binarki>.licenses.txt` dla każdej binarki
+gatewaya i workera. `checksums.txt` obejmuje te pliki. Aktualizator nadal odczytuje
+binaria z `manifest.json`. Obrazy Docker przechowują odpowiadający im plik w
+`/usr/share/doc/canopy/THIRD_PARTY_NOTICES.txt`. Licencje pakietów systemowych
+pozostają w katalogach dokumentacji dystrybucji.
+
+Wykaz odtwarza dostępne noty. Obowiązki dystrybucji źródeł i ponownego linkowania
+(np. dotyczące LGPL w Bun i libvips) trzeba ocenić dla użytych binariów i wersji.
 
 ### Binaria gateway i worker
 

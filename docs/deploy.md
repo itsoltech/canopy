@@ -16,6 +16,7 @@ Compose i Desktop Local wykonują `canopy-gateway migrate` przed uruchomieniem g
 Migracja `0184` automatycznie zachowuje podglądy obrazów w historii każdego użytkownika, również przy odłączonych workerach.
 Od 2026-11-19 w kodzie jednorazowy token enrollmentu jest podawany przez stdin.
 Binarny updater na kanale `nightly` wybiera wyłącznie wydania nightly.
+Binaria i obrazy Docker mają wykazy [licencji zależności](release.md#licencje-zależności).
 
 Gateway uruchomiony jako serwer (Docker lub samodzielna binarka) ma rolę `server`.
 **Linked computers jest dostępne wyłącznie między aplikacjami Canopy Desktop w trybie

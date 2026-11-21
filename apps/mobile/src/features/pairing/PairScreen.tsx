@@ -253,6 +253,11 @@ export default function PairScreen() {
             <Text style={[styles.meta, { color: c.muted }]}>
               Your device key stays in encrypted storage. Revoke access in Settings → Devices on another paired device.
             </Text>
+            <Button
+              title="View open-source licenses"
+              variant="text"
+              onPress={() => router.push("/open-source-licenses")}
+            />
           </ScreenScroll>
         </SkeletonScope>
       </KeyboardViewport>

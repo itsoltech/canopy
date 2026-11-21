@@ -1,7 +1,7 @@
 # Canopy na iOS i Android
 
 Status: opis zaimplementowanego kodu (2026-11-21), w tym import skilli z publicznych
-witryn HTTPS i usypianie wątków.
+witryn HTTPS, usypianie wątków i dostępny offline wykaz licencji open source.
 Stany źródeł Usage są widoczne w sekcji **Recording gateways**.
 Zamknięty przyciskiem × osiągnięty cel pozostaje ukryty po ponownym otwarciu wątku i restarcie aplikacji.
 Aplikacja używa Expo SDK 58.0.26.
@@ -126,6 +126,21 @@ Procedury: [development build Androida](#android-emulator-lokalny-development-bu
 [wydania TestFlight i OTA](#wydania-mobilne-testflight-i-ota).
 Opis funkcji poniżej dotyczy bieżącego `dev`; ich dostępność zależy od wersji
 gatewaya i klienta, kanału oraz runtime zainstalowanego buildu.
+
+## Licencje open source
+
+**Settings → Open-source licenses** pozwala wyszukać komponent według nazwy,
+wersji lub licencji i otworzyć dołączone teksty prawne. Przed parowaniem ten sam
+wykaz otwiera **View open-source licenses** na ekranie parowania. Wykaz i teksty
+są częścią pakietu JavaScript i działają bez połączenia z gatewayem ani internetem.
+
+Konfiguracja Metro wywołuje `scripts/open-source-licenses.ts` przez Bun za każdym
+razem, gdy Expo uruchamia bundler. Ta sama ścieżka generuje wykaz dla lokalnego Metro,
+pakietu osadzonego w buildzie natywnym i eksportu EAS Update. Generator odczytuje
+zainstalowane pakiety z workspace Bun i zachowuje dostępne pliki licencji oraz
+noty upstream. Wykaz obejmuje graf zależności npm i dołączone noty natywne.
+Pełny wykaz rozstrzygniętych zależności Maven i CocoaPods wymaga osobnego odczytu
+z każdego buildu dla danej platformy i konfiguracji.
 
 ## Przygotowanie nowego wątku
 

@@ -33,6 +33,7 @@ import { useDevicePreferences } from "./device-preferences";
 import { useLayout } from "../../state/layout";
 import { AppUpdateStatus } from "./AppUpdateStatus";
 import { WhatsNewSettings } from "../updates/WhatsNew";
+import { LicenseList } from "../licenses/LicenseList";
 
 export default function SettingsScreen() {
   const { section: selectedSection = "" } = useLocalSearchParams<{ section?: string }>();
@@ -51,6 +52,14 @@ export default function SettingsScreen() {
   if (!session) return <Redirect href="/pair" />;
 
   if (!settingsSectionEnabled(`/settings/${section}`, settings.modules)) return <Redirect href="/settings/general" />;
+
+  if (section === "open-source-licenses") {
+    return (
+      <SettingsLayout section={section} onSelect={selectSection} scrollContent={false}>
+        <LicenseList innerLeft={wide} />
+      </SettingsLayout>
+    );
+  }
 
   return (
     <SettingsLayout section={section} onSelect={selectSection}>

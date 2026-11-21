@@ -97,6 +97,13 @@ export const settingsSections: readonly SettingsSection[] = [
       "performance health storage disk space logs data cache application database rpc calls network latency rtt history findings computers sync progress remaining records errors failures linked computers",
   },
   {
+    href: "/settings/open-source-licenses",
+    label: "Open-source licenses",
+    icon: "document-text",
+    group: "General",
+    keywords: "legal license licence third party acknowledgments notices copyright dependencies",
+  },
+  {
     href: "/settings/projects",
     label: "Projects",
     icon: "folder",

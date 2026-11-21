@@ -16,10 +16,21 @@
  * Without it the gateway is headless. Release binaries and the gateway image embed it.
  */
 import { createHash } from "node:crypto";
-import { existsSync, mkdirSync, readdirSync, readFileSync, rmSync, statSync } from "node:fs";
+import { existsSync, mkdirSync, readdirSync, readFileSync, rmSync, statSync, writeFileSync } from "node:fs";
 import { join, relative, resolve } from "node:path";
 import { parseArgs } from "node:util";
 import { currentVersion } from "./version.ts";
+import {
+  bunNotices,
+  licenseAsset,
+  mergeNotices,
+  noticesText,
+  packageNotice,
+  readNotices,
+  bunRuntimeNotice,
+  type PackageNotice,
+} from "./open-source-licenses.ts";
+import { binaryLicenseSuffix } from "./release-manifest.ts";
 import { noAgentClis } from "./agent-clis.ts";
 import { packWeb, webBuildVersion } from "../apps/gateway/src/web/archive.ts";
 
@@ -138,7 +149,7 @@ async function npmPackage(name: string, version: string): Promise<string> {
 }
 
 /** Files of sharp's native build for a target, as [path relative to the extraction root, absolute source]. */
-async function sharpFiles(target: Target): Promise<[string, string][]> {
+async function sharpFiles(target: Target) {
   const { sharp, libvips } = sharpVersions();
   const platform = sharpPlatform(target);
   const packages: [string, string][] = [[`@img/sharp-${platform}`, sharp]];
@@ -146,9 +157,15 @@ async function sharpFiles(target: Target): Promise<[string, string][]> {
   // Windows ships libvips inside the sharp package; elsewhere it is a separate package found through the rpath.
   if (!target.startsWith("windows")) packages.push([`@img/sharp-libvips-${platform}`, libvips]);
   const files: [string, string][] = [];
+  const notices: PackageNotice[] = [];
 
   for (const [name, version] of packages) {
     const directory = await npmPackage(name, version);
+    const notice = packageNotice(directory);
+
+    if (!notice) throw new Error(`Missing notice for native package: ${name}`);
+
+    notices.push(notice);
 
     for (const file of readdirSync(join(directory, "lib"), { recursive: true, encoding: "utf8" })) {
       const path = join(directory, "lib", file);
@@ -164,7 +181,7 @@ async function sharpFiles(target: Target): Promise<[string, string][]> {
   if (addon < 0) throw new Error(`sharp ${platform}: no .node addon`);
   files.unshift(...files.splice(addon, 1));
 
-  return files;
+  return { files, notices };
 }
 
 /** The module replacing sharp's platform probe: extracts the embedded files once, then loads the addon. */
@@ -216,6 +233,7 @@ export interface WebArchive {
   file: string;
   key: string;
   version: string;
+  notices: PackageNotice[];
 }
 
 /** Packs a web build once for every gateway target; its version must be the binaries' version. */
@@ -233,11 +251,13 @@ export async function webArchive(build: string, version: string): Promise<WebArc
   const file = join(directory, `web-${key}.zst`);
   await Bun.write(file, bytes);
 
-  return { file, key, version };
+  const notices = readNotices(readFileSync(join(build, "client", licenseAsset), "utf8"));
+
+  return { file, key, version, notices };
 }
 
 /** Replaces the gateway's empty EMBEDDED_WEB with the embedded archive. */
-export function embeddedWebPlugin(web: WebArchive): Bun.BunPlugin {
+export function embeddedWebPlugin(web: Pick<WebArchive, "file" | "key" | "version">): Bun.BunPlugin {
   return {
     name: "canopy-embedded-web",
     setup(builder) {
@@ -268,7 +288,8 @@ export async function compile(
   version: string,
   web?: WebArchive,
 ): Promise<string> {
-  const native = sharpLoader(await sharpFiles(target));
+  const { files, notices } = await sharpFiles(target);
+  const native = sharpLoader(files);
 
   const build = await Bun.build({
     entrypoints: [
@@ -277,6 +298,7 @@ export async function compile(
       ...(resolve(entry) === join(root, APPS.worker) ? [join(root, "apps/worker/src/images/heic-executor.ts")] : []),
     ],
     target: "bun",
+    metafile: true,
     minify: { syntax: true, whitespace: true },
     sourcemap: "none",
     define: { "process.env.CANOPY_VERSION": JSON.stringify(version) },
@@ -324,6 +346,9 @@ export async function compile(
   });
 
   if (!build.success) throw new AggregateError(build.logs, `${outfile}: compilation failed`);
+
+  const licenses = mergeNotices([bunRuntimeNotice()], notices, bunNotices(build), web?.notices ?? []);
+  writeFileSync(outfile + binaryLicenseSuffix, noticesText(licenses));
 
   return outfile;
 }

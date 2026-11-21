@@ -1,6 +1,7 @@
 # Canopy Desktop
 
-Status: opis zaimplementowanego runtime i pakowania (2026-11-21). Powłoka ładowania
+Status: opis zaimplementowanego runtime i pakowania (2026-11-21). Build i ustawienia
+udostępniają licencje dołączonych komponentów. Powłoka ładowania
 korzysta z ostatniego zapisanego wyglądu przy niedostępnym gatewayu. Build przypina Electron 45.4.1,
 Bun 1.4.5 i PostgreSQL 18.7 dla trybu lokalnego. Opis obejmuje też ograniczenia
 prywatnej kopii aktywnego wątku przed wysłaniem jej do procesu głównego oraz przekazywania
@@ -712,7 +713,8 @@ resources/runtime/
   web/                      # assets identycznego adapter-node build
   node_modules/             # sdk.mjs Claude Agent SDK oraz natywne @img sharp/libvips
   licenses/
-  THIRD_PARTY_NOTICES.md
+  THIRD_PARTY_NOTICES.md    # skąd pochodzą licencje środowiska natywnego
+  THIRD_PARTY_NOTICES.txt   # wygenerowany wykaz tego buildu
   target.json
 ```
 
@@ -720,7 +722,9 @@ resources/runtime/
 **18.7.0-beta.19**, bazujące na dystrybucji Zonky. Wersja i integralność npm są
 przypięte w `bun.lock`; podczas build wersja jest dodatkowo sprawdzana. Licencje
 PostgreSQL, MIT opakowania, Apache-2.0 dystrybucji oraz odnośniki do bibliotek
-zależnych zapisano w `apps/desktop/THIRD_PARTY_NOTICES.md` i dołączono do paczki.
+zależnych dołączono do paczki. Ekran **Settings → Open-source licenses** korzysta
+z wykazu lokalnego buildu także w trybie zdalnym. Informacja o plikach Electron
+i Chromium jest w [notach desktopowych](../apps/desktop/THIRD_PARTY_NOTICES.md).
 
 Shell main/preload wraz z electron-updater jest zbundlowany do `dist/*.cjs`.
 Zależności desktopu są `devDependencies`, więc asar zawiera wyłącznie `dist` i

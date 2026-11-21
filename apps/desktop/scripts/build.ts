@@ -10,6 +10,16 @@ import {
   writeFileSync,
 } from "node:fs";
 import { dirname, join, relative, resolve } from "node:path";
+import {
+  bunNotices,
+  fileNotice,
+  installedNotice,
+  licenseAsset,
+  mergeNotices,
+  noticesText,
+  readNotices,
+  bunRuntimeNotice,
+} from "../../../scripts/open-source-licenses.ts";
 import { noAgentClis } from "../../../scripts/agent-clis.ts";
 import type { JsonObject, JsonValue } from "@canopy/domain";
 import { isString } from "../src/runtime/config.ts";
@@ -47,26 +57,12 @@ async function run(args: string[], cwd = root, env: NodeJS.ProcessEnv = process.
 
 await run([process.execPath, "scripts/prepare-identity.ts"], desktop);
 
-await run([process.execPath, "scripts/build-shell.ts"], desktop);
+const desktopLicenses = join(runtime, ".desktop-licenses.json");
 
-await run([process.execPath, "run", "build"], join(root, "apps/web"));
-
-cpSync(join(root, "apps/web/build"), join(runtime, "web"), { recursive: true });
-
-// Bundle adapter-node separately from its client assets. Only this generated
-// desktop copy gets a resource-directory override; the normal web build stays untouched.
-const adapterConfig = join(runtime, "web/adapter-node.js");
-const adapterSource = readFileSync(adapterConfig, "utf8");
-const directoryDeclaration = "export const dir = dirname(fileURLToPath(import.meta.url));";
-const webEntry = join(runtime, "web/handler.js");
-
-if (!adapterSource.includes(directoryDeclaration))
-  throw new Error("adapter-node layout changed; review the desktop asset path override");
-
-writeFileSync(
-  adapterConfig,
-  adapterSource.replace(directoryDeclaration, 'export const dir = process.env["CANOPY_WEB_ASSETS_DIR"];'),
-);
+await run([process.execPath, "scripts/build-shell.ts"], desktop, {
+  ...process.env,
+  CANOPY_SHELL_LICENSES: desktopLicenses,
+});
 
 copyFileSync(process.execPath, join(runtime, `bun${suffix}`));
 
@@ -133,14 +129,10 @@ const claudeSdkExports = Object.keys(await import("@anthropic-ai/claude-agent-sd
   (name) => name !== "default" && /^[A-Za-z_$][\w$]*$/.test(name),
 );
 
-for (const [name, entry] of Object.entries({
-  controller: "src/controller.ts",
-  gateway: "src/sidecars/gateway.ts",
-  worker: "src/sidecars/worker.ts",
-  web: webEntry,
-})) {
+async function buildSidecar(name: string, entry: string) {
   const build = await Bun.build({
     entrypoints: [resolve(desktop, entry)],
+    metafile: true,
     target: "bun",
     // The one Canopy version (scripts/version.ts) in the sidecars; the web build reads the same variable.
     ...(process.env["CANOPY_VERSION"] && {
@@ -205,7 +197,73 @@ for (const [name, entry] of Object.entries({
   });
 
   if (!build.success) throw new AggregateError(build.logs, `Sidecar compilation failed: ${name}`);
+
+  return bunNotices(build);
 }
+
+const sidecars = {
+  controller: "src/controller.ts",
+  gateway: "src/sidecars/gateway.ts",
+  worker: "src/sidecars/worker.ts",
+};
+
+const electron = installedNotice("apps/desktop", "electron");
+
+electron.files.push({
+  name: "Chromium and Node.js notices",
+  text: "See LICENSES.chromium.html included with the Canopy Desktop installation for notices of Chromium and other components distributed with Electron.",
+});
+
+const notices = [
+  [bunRuntimeNotice()],
+  readNotices(readFileSync(desktopLicenses, "utf8")),
+  [electron, ...externalPackages.map((name) => installedNotice("apps/desktop", name))],
+  [installedNotice("apps/desktop", "@anthropic-ai/claude-agent-sdk")],
+  [
+    {
+      name: "PostgreSQL distribution for local mode",
+      version: pgVersion,
+      license: "PostgreSQL License, MIT, Apache-2.0",
+      files: [
+        ...fileNotice(pgPackage, ["LICENSE.md"]),
+        ...fileNotice(join(desktop, "licenses"), ["PostgreSQL-COPYRIGHT", "Zonky-LICENSE"]),
+      ],
+    },
+  ],
+];
+
+if (process.platform === "darwin") notices.push([installedNotice("apps/desktop", "node-api-headers")]);
+
+for (const [name, entry] of Object.entries(sidecars)) notices.push(await buildSidecar(name, entry));
+
+writeFileSync(desktopLicenses, JSON.stringify(mergeNotices(...notices)));
+
+await run([process.execPath, "run", "build"], join(root, "apps/web"), {
+  ...process.env,
+  CANOPY_DESKTOP_LICENSES: desktopLicenses,
+});
+
+rmSync(desktopLicenses);
+
+cpSync(join(root, "apps/web/build"), join(runtime, "web"), { recursive: true });
+
+// Only the desktop copy resolves adapter-node's assets relative to the runtime.
+const adapterConfig = join(runtime, "web/adapter-node.js");
+const adapterSource = readFileSync(adapterConfig, "utf8");
+const directoryDeclaration = "export const dir = dirname(fileURLToPath(import.meta.url));";
+
+if (!adapterSource.includes(directoryDeclaration))
+  throw new Error("adapter-node layout changed; review the desktop asset path override");
+
+writeFileSync(
+  adapterConfig,
+  adapterSource.replace(directoryDeclaration, 'export const dir = process.env["CANOPY_WEB_ASSETS_DIR"];'),
+);
+
+const webNotices = await buildSidecar("web", join(runtime, "web/handler.js"));
+const catalog = readNotices(readFileSync(join(runtime, "web/client", licenseAsset), "utf8"));
+
+writeFileSync(join(runtime, "THIRD_PARTY_NOTICES.txt"), noticesText(mergeNotices(catalog, webNotices)));
 
 copyFileSync(join(desktop, "THIRD_PARTY_NOTICES.md"), join(runtime, "THIRD_PARTY_NOTICES.md"));
 

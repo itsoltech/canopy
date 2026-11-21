@@ -23,11 +23,13 @@ FROM web-build AS gateway-build
 ARG TARGETARCH
 RUN bun scripts/build-binaries.ts --app gateway --target "linux-$(echo "$TARGETARCH" | sed s/amd64/x64/)" --outdir /out \
       --web /out/web \
+ && mv /out/*.licenses.txt /out/THIRD_PARTY_NOTICES.txt \
  && mv /out/canopy-gateway-* /out/canopy-gateway
 
 FROM build AS worker-build
 ARG TARGETARCH
 RUN bun scripts/build-binaries.ts --app worker --target "linux-$(echo "$TARGETARCH" | sed s/amd64/x64/)" --outdir /out \
+ && mv /out/*.licenses.txt /out/THIRD_PARTY_NOTICES.txt \
  && mv /out/canopy-worker-* /out/canopy-worker
 
 # Gateway: gRPC (HTTP/2) for workers and the BFF on 7443, the web app (BFF and SPA) on 3000; CANOPY_WEB=off for
@@ -50,6 +52,7 @@ LABEL org.opencontainers.image.title="canopy-gateway" \
       org.opencontainers.image.version="${CANOPY_VERSION}" \
       org.opencontainers.image.revision="${CANOPY_REVISION}"
 COPY --from=gateway-build /out/canopy-gateway /usr/local/bin/canopy-gateway
+COPY --from=gateway-build /out/THIRD_PARTY_NOTICES.txt /usr/share/doc/canopy/THIRD_PARTY_NOTICES.txt
 # sharp's native library is extracted on first start; /tmp is writable for the nonroot user. The web listens on every
 # container interface on the private control network. Compose relays only WorkerLink into the worker network.
 ENV HOME=/home/canopy CANOPY_VERSION=${CANOPY_VERSION} CANOPY_INSTALL_KIND=docker CANOPY_NATIVE_DIR=/tmp/canopy-native \
@@ -74,6 +77,7 @@ RUN apt-get update \
  && rm -rf /var/lib/apt/lists/* \
  && useradd --create-home --uid 10001 --user-group --shell /bin/bash canopy
 COPY --from=worker-build /out/canopy-worker /usr/local/bin/canopy-worker
+COPY --from=worker-build /out/THIRD_PARTY_NOTICES.txt /usr/share/doc/canopy/THIRD_PARTY_NOTICES.txt
 ENV CANOPY_VERSION=${CANOPY_VERSION} CANOPY_WORKER_STATUS_FILE=/tmp/canopy-worker-status.json \
     CANOPY_WORKTREES_ROOT=/home/canopy/.local/share/canopy/worktrees
 USER canopy
