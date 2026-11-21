@@ -2,6 +2,9 @@ import { expect, test } from "bun:test";
 import { create } from "@bufbuild/protobuf";
 import { Provider, RunBotTurnSchema } from "@canopy/contracts";
 import { tempDirs } from "@canopy/testing";
+import { mkdtempSync, rmSync } from "node:fs";
+import { homedir } from "node:os";
+import { join } from "node:path";
 import { runGrokBot } from "./grok.ts";
 import { botSession } from "./session.ts";
 import { readGrokTurn } from "../providers/grok/transcript.ts";
@@ -13,8 +16,6 @@ const temp = tempDirs();
 test.skipIf(!Bun.which("grok"))(
   "Grok persists resumed bot turns with separate transcript offsets",
   async () => {
-    const root = temp("canopy-grok-transcript-");
-
     const server = Bun.serve({
       hostname: "127.0.0.1",
       port: 0,
@@ -40,6 +41,12 @@ test.skipIf(!Bun.which("grok"))(
 
     let harness: TurnHarness | undefined;
     let previousSession = "";
+
+    // Linux Grok can already write to /tmp, which masks a missing grant for durable sessions.
+    const root =
+      process.platform === "linux"
+        ? mkdtempSync(join(homedir(), ".canopy-grok-transcript-"))
+        : temp("canopy-grok-transcript-");
 
     try {
       for (let turn = 0; turn < 2; turn += 1) {
@@ -91,7 +98,8 @@ test.skipIf(!Bun.which("grok"))(
         ).toEqual(["TRANSCRIPT_OK"]);
       }
     } finally {
-      server.stop(true);
+      await server.stop(true);
+      rmSync(root, { recursive: true, force: true });
     }
   },
   45_000,
