@@ -33,7 +33,7 @@ export interface HarnessTurnRow {
   reason: string;
   error_code: string;
   error_class: string;
-  items: Record<string, string>;
+  items: Record<string, string | null>;
 }
 
 const recordCursor = (sql: SqlClient.SqlClient, worker: string, journal: string, bot: string, seq: bigint) =>
@@ -89,11 +89,31 @@ function updateItems(row: HarnessTurnRow, event: ThreadEvent): void {
   if (body.case === "notice" && body.value.code === "event_quarantined")
     row.items[`quarantine:${event.eventId}`] = body.value.message;
 
-  if (body.case === "itemCompleted" && body.value.item?.content.case === "agentMessage")
-    row.items[body.value.item.itemId] = body.value.item.content.value.text;
+  if (body.case === "itemStarted" || body.case === "itemCompleted") {
+    const item = body.value.item;
 
-  if (body.case === "itemDelta" && body.value.field === ItemDeltaField.TEXT)
-    row.items[body.value.itemId] = (row.items[body.value.itemId] ?? "") + body.value.chunk;
+    if (!item || item.content.case === undefined) return;
+
+    // TEXT deltas carry only an item ID. Persist which items to exclude across batches and reconnects.
+    if (item.content.case !== "agentMessage") row.items[item.itemId] = null;
+    else if (body.case === "itemCompleted") row.items[item.itemId] = item.content.value.text;
+
+    return;
+  }
+
+  if (body.case === "itemDelta" && body.value.field === ItemDeltaField.TEXT) {
+    const { itemId, chunk } = body.value;
+    const previous = row.items[itemId];
+
+    // Codex bot replies can start with a delta, without a preceding itemStarted.
+    if (previous !== null) row.items[itemId] = (previous ?? "") + chunk;
+  }
+}
+
+function replyText(items: HarnessTurnRow["items"]): string {
+  return Object.values(items)
+    .filter((item) => item !== null)
+    .join("\n");
 }
 
 function restoreHarnessStart(sql: SqlClient.SqlClient, worker: string, journal: string, event: ThreadEvent) {
@@ -252,7 +272,7 @@ export function botHarnessStore(sql: SqlClient.SqlClient, access: BotAccess) {
             yield* settleSteerNotice(sql, event, turn?.conversation_id ? bot?.owner_user_id : undefined);
 
             updateItems(row, event);
-            const text = Object.values(row.items).join("\n");
+            const text = replyText(row.items);
             const end = body.case === "turnFinished" ? body.value : undefined;
 
             if (end)

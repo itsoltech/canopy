@@ -1,9 +1,9 @@
 import { afterAll, beforeAll, describe, expect, spyOn, test } from "bun:test";
 import { readFileSync, rmSync } from "node:fs";
 import { join } from "node:path";
-import { create, toJson } from "@bufbuild/protobuf";
+import { create, fromBinary, toJson } from "@bufbuild/protobuf";
 import { timestampDate, timestampFromDate } from "@bufbuild/protobuf/wkt";
-import { AgentToolCallSchema, bots, Provider, ProviderProfileKind } from "@canopy/contracts";
+import { AgentToolCallSchema, bots, Provider, ProviderProfileKind, ThreadEventSchema } from "@canopy/contracts";
 import { GatewayCore } from "@canopy/gateway/core";
 import { startGrpcServer } from "@canopy/transport";
 import { startInstanceFixture, type InstanceFixture } from "./support/instance-fixture.ts";
@@ -159,6 +159,39 @@ describe("bots through official worker harnesses", () => {
       await f.save(Provider.GROK, "bot-native");
     }
   });
+
+  test("Grok reasoning stays out of the live and saved bot reply", async () => {
+    const bot = await add(Provider.GROK);
+    const turnId = await send(bot.id, "THINK_BEFORE_REPLY HOLD:grok-reply");
+
+    try {
+      // Wait for the gateway to process the reasoning delta while the fixture holds back the answer.
+      const reasoningRecorded = await eventually(async () => {
+        const events = await f.query<{ payload: Uint8Array }>(
+          "SELECT payload FROM bot_harness_events WHERE turn_id=$1",
+          [turnId],
+        );
+
+        return events.some(({ payload }) => {
+          const { body } = fromBinary(ThreadEventSchema, payload);
+
+          return body.case === "itemDelta" && body.value.chunk === "Consider the reply";
+        });
+      }, Boolean);
+
+      expect(reasoningRecorded).toBe(true);
+      const live = await read(bot.id);
+      expect(live.working).toBe(true);
+      expect(live.streamingText).toBe("");
+    } finally {
+      await f.release("grok-reply");
+    }
+
+    const result = await settled(bot.id);
+    expect(result.messages.filter((message) => message.senderId === bot.id).map((message) => message.text)).toEqual([
+      "FIXTURE_OK",
+    ]);
+  }, 15_000);
 
   test("a timed-out MCP approval expires durably, broadcasts and rejects late decisions", async () => {
     const bot = await add(Provider.CLAUDE, "always");
