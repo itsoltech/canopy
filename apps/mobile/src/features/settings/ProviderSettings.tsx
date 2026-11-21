@@ -56,7 +56,13 @@ export function ProviderSettings() {
   const minute = useTimeLabel((time) => String(Math.floor(time / 60_000)), true);
   const now = Number(minute) * 60_000;
   const workerOptions = useWorkerRecordOptions(resource.data?.records ?? []);
-  const worker = overview.workers.find((w) => w.id === scope);
+  const record = resource.data?.records.find((w) => w.workerId === scope);
+
+  const worker = scope
+    ? (overview.workers.find((w) => w.id === scope) ??
+      create(ui.WorkerSchema, { id: scope, name: record?.name ?? "Worker", nodeId: record?.nodeId, os: record?.os }))
+    : undefined;
+
   const changed = () => void resource.reload();
 
   const instances = (

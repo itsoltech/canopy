@@ -113,6 +113,37 @@ describe.skipIf(!dockerAvailable)("provider instances, models and proxies across
     expect((await instanceOf(a, Provider.CODEX, "team"))?.label).toBe("Team endpoint renamed");
   }, 40_000);
 
+  test("shared CLI settings replicate exactly while a routed worker override stays at its home", async () => {
+    const instance = { harness: Provider.CODEX, id: "cli-settings" };
+    const shared = '# Shared Codex preferences\nmodel_verbosity = "low"\n\n';
+    const local = '# B only\nmodel_verbosity = "high"\n';
+
+    const get = (computer: ConfigComputer) => instanceOf(computer, instance.harness, instance.id);
+    const remote = { ...instance, workerId: qualifyId(b.gateway.workerId, b.node) };
+
+    await createInstance(a, {
+      ...instance,
+      label: "Codex settings",
+      kind: ProviderProfileKind.NATIVE,
+      runtime: { settingsText: shared },
+    });
+    await wait(async () => (await get(b))?.runtime?.settingsText === shared);
+    await a.gateway.api.setInstanceWorker({ ...remote, overrides: { settingsText: local } });
+    const onRemote = await a.gateway.api.getInstanceWorker(remote);
+    expect(onRemote.inheritedRuntime?.settingsText).toBe(shared);
+    expect(onRemote.worker?.overrides?.settingsText).toBe(local);
+
+    await editInstance(b, instance.harness, instance.id, { runtime: { settingsText: "" } });
+    await wait(async () => (await get(a))?.runtime?.settingsText === undefined);
+    expect((await get(b))?.runtime?.settingsText).toBeUndefined();
+    expect((await get(b))?.workers.find((w) => w.workerId === b.gateway.workerId)?.overrides?.settingsText).toBe(local);
+    expect(
+      (await get(a))?.workers.find((w) => w.workerId === a.gateway.workerId)?.overrides?.settingsText,
+    ).toBeUndefined();
+    expect(json(await a.store.query("SELECT fields FROM config_items WHERE kind='instance'"))).not.toContain("B only");
+    expect(json(await b.store.query("SELECT fields FROM config_items WHERE kind='instance'"))).not.toContain("B only");
+  }, 30_000);
+
   test("keys arrive re-encrypted, run on B's worker and never reach the BFF, history or logs", async () => {
     const config = await profile(b, "team");
     expect(config).toMatchObject({ apiKey: KEY, baseUrl: "http://127.0.0.1:8317" });

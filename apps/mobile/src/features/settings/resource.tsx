@@ -10,6 +10,8 @@ import { SkeletonScope } from "../../ui/Skeleton";
 
 export type SettingsApi = Client<typeof ui.GatewayService>;
 
+type DescribeSettingsFailure = (cause: unknown) => string | undefined;
+
 /** How old a shared settings read may be when a screen opens; events refresh it sooner. */
 const SETTINGS_MAX_AGE_MS = 30_000;
 
@@ -20,7 +22,12 @@ const SETTINGS_MAX_AGE_MS = 30_000;
  * last 30 s. A mutation reads only this resource again; projects, workers and threads follow the stream.
  * Never display raw transport diagnostics.
  */
-export function useSettingsResource<T>(key: string, fetch: (api: SettingsApi) => Promise<T>, enabled = true) {
+export function useSettingsResource<T>(
+  key: string,
+  fetch: (api: SettingsApi) => Promise<T>,
+  enabled = true,
+  describeFailure?: DescribeSettingsFailure,
+) {
   const { client } = useSession();
 
   const shared = useSharedQuery<T>(
@@ -31,7 +38,7 @@ export function useSettingsResource<T>(key: string, fetch: (api: SettingsApi) =>
   );
 
   const error = shared.error ? "Could not load settings. Check the connection and retry." : "";
-  const action = useSettingsAction({ reload: shared.reload, error });
+  const action = useSettingsAction({ reload: shared.reload, error, describeFailure });
 
   return {
     ...action,
@@ -46,13 +53,19 @@ export const workersFollowStream = { reload: async () => {}, error: "", loaded: 
 
 /** Runs settings mutations one at a time; afterwards only the resource behind them reads again. */
 export function useSettingsAction(
-  resource: { reload: () => Promise<void>; error: string; loaded?: boolean },
+  resource: {
+    reload: () => Promise<void>;
+    error: string;
+    loaded?: boolean;
+    describeFailure?: DescribeSettingsFailure | undefined;
+  },
   failure = "Could not save this change. Settings were refreshed. Check the values and retry.",
 ) {
   const { client } = useSession();
   const running = useRef(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
+  const [inlineError, setInlineError] = useState("");
   const [message, setMessage] = useState("");
   const { reload } = resource;
 
@@ -61,6 +74,7 @@ export function useSettingsAction(
     running.current = true;
     setBusy(true);
     setError("");
+    setInlineError("");
     setMessage("");
 
     try {
@@ -73,7 +87,12 @@ export function useSettingsAction(
       await reload().catch(() => undefined);
 
       if (onFailure) onFailure(cause);
-      else setError(failure);
+      else {
+        const description = resource.describeFailure?.(cause);
+
+        if (description) setInlineError(description);
+        else setError(failure);
+      }
 
       return undefined;
     } finally {
@@ -85,6 +104,7 @@ export function useSettingsAction(
   return {
     busy,
     error: error || resource.error,
+    inlineError,
     message,
     initialLoading: resource.loaded === false && !resource.error,
     reload,

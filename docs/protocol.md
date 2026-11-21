@@ -1,5 +1,21 @@
 # Protokół gateway ↔ worker
 
+## Ustawienia CLI instancji
+
+Status (2026-11-21) obejmuje edytor wspólnych i lokalnych ustawień Claude,
+Codexa i Groka. Dostępność w kanałach wynika z [promocji wydań](release.md).
+
+Worker ogłasza addytywną capability `provider_settings_v1`.
+`ProviderProfileConfig.settings_text` (16) przenosi wspólny tekst instancji,
+a `settings_override_text` (17) tekst nadpisania tego workera. Worker waliduje
+obie warstwy i stosuje nadpisania według kluczy, w Groku wewnątrz tabel TOML. Starszy
+worker otrzymuje wyłączony profil tylko dla instancji wymagającej tej
+capability, a gateway pokazuje powód z prośbą o aktualizację. Po odnowieniu
+łącza z nowszym workerem gateway przesyła zapisaną konfigurację.
+Połączone gatewaye ogłaszają tę samą capability w negocjacji swojego łącza,
+aby odrzucić zmianę nadpisania, której starszy gateway domu nie potrafi zapisać.
+Zasady edycji i lista kluczy są w [konfiguracji workerów](worker-config.md#ustawienia-cli-zapisane-w-canopy).
+
 ## Kontynuacja po OOM workera
 
 Status (2026-11-20): worker i gateway obsługują opcjonalną kontynuację rozmowy po potwierdzonym OOM usługi.

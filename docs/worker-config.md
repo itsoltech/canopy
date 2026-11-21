@@ -1,5 +1,11 @@
 # Konfiguracja workerów
 
+Aktualizacja (2026-11-21) obejmuje edytor ustawień CLI Claude, Codexa i Groka dla
+instancji dostawcy i nadpisania na pojedynczym workerze. Dostępność w kanałach
+wynika z [promocji wydań](release.md).
+Klienci kolorują składnię JSON i TOML oraz sprawdzają konfigurację Claude
+przed wysłaniem zapisu.
+
 Aktualizacja (2026-11-20): odczyt natywnie skompresowanych rolloutów Codexa
 w rekoncyliacji jest zaimplementowany. Włączenie kompresji przez Canopy pozostaje odłożone.
 
@@ -568,6 +574,46 @@ Pickery (nowy wątek i wątek) pokazują dla wybranego workera tylko instancje `
   używającej proxy. Pełny status trafia również do `Worker.provider_instances.status` w overview,
   więc połączone komputery pokazują raport domu z jego nadpisaniami i czasem sprawdzenia.
 - **`ProbeProviders`** (UI: Refresh): worker stosuje bieżącą konfigurację jeszcze raz (sprawdza wersje i logowania), wysyła `ConfigApplied` z tą samą wersją i katalog modeli, potem odpowiada. Capability `probe_providers`.
+
+### Ustawienia CLI zapisane w Canopy
+
+W **Settings → Providers → CLI settings** format zależy od instancji.
+Claude używa JSON w formacie `settings.json`. Codex i Grok używają TOML
+w formacie `config.toml`. Zakres **All workers** ustawia wspólne wartości dla workerów
+korzystających z wybranej instancji, także przyszłych. Po wybraniu workera
+podgląd pokazuje wspólny tekst, a edytor zawiera wyłącznie jego nadpisania.
+Worker zastępuje tylko obecne klucze, w tym wartości `false`.
+W Groku nadpisanie dotyczy poszczególnych kluczy wewnątrz tabel TOML.
+Wyczyszczenie edytora workera przywraca dziedziczenie wszystkich kluczy.
+
+Gateway przechowuje tekst obu zakresów z formatowaniem i komentarzami TOML.
+Wspólny tekst synchronizuje istniejący mechanizm konfiguracji połączonych
+komputerów, a nadpisanie zapisuje gateway domu workera. Każdy zakres podlega
+walidacji składni, kluczy i typów oraz limitowi 16 KiB. Logowanie, sekrety,
+uprawnienia i podłączone narzędzia mają własne ustawienia Canopy.
+Sekrety zmiennych środowiskowych należy zapisywać w sekcji **Environment**.
+
+Web i desktop kolorują JSON i TOML w edytorze. Mobile koloruje je w lokalnym
+podglądzie otwieranym przez **Preview syntax**. Klient sprawdza JSON Claude według
+tych samych reguł co gateway po krótkiej przerwie w pisaniu oraz sprawdza
+aktualny tekst przy próbie zapisu. Błąd blokuje zapis i pojawia się przy
+edytorze. Pusty tekst nadal usuwa ustawienia danego zakresu. Pisanie nie
+wysyła żądań walidacji. Gateway nadal sprawdza JSON i TOML przy zapisie.
+
+| Format | Obsługiwane pola |
+|---|---|
+| Claude JSON | `language` (tekst), `effortLevel` (`low`, `medium`, `high`, `xhigh`), `autoCompactWindow` (liczba całkowita dodatnia), `attribution` (wartość logiczna lub obiekt z tekstami `commit` i `pr` oraz logicznym `sessionUrl`), pola logiczne `alwaysThinkingEnabled`, `autoCompactEnabled`, `includeCoAuthoredBy`, `includeGitInstructions`, `respectGitignore`, `showThinkingSummaries` |
+| Codex TOML | `model_reasoning_effort` (`none`, `minimal`, `low`, `medium`, `high`, `xhigh`), `model_reasoning_summary` (`auto`, `concise`, `detailed`, `none`), `model_verbosity` (`low`, `medium`, `high`), `model_context_window` i `model_auto_compact_token_limit` (liczby całkowite dodatnie) |
+| Grok TOML | `models.default_reasoning_effort` (`none`, `minimal`, `low`, `medium`, `high`, `xhigh`, `max`), `models.max_completion_tokens` (liczba całkowita dodatnia), `session.auto_compact_threshold_percent` (liczba całkowita od 0 do 100) |
+
+Claude przekazuje ustawienia do SDK przy otwarciu procesu zapytania. Codex
+przekazuje je przy starcie app-servera danej instancji i wymienia go po
+zakończeniu aktywnej pracy. Grok czyta je z prywatnego `config.toml` procesu
+ACP. Jawny wybór wysiłku dla tury ma pierwszeństwo
+przed domyślną wartością instancji, z zachowaniem natywnego pierwszeństwa
+`CLAUDE_CODE_EFFORT_LEVEL`. Pliki CLI na komputerze, katalogi sesji i dane
+logowania zachowują dotychczasowe położenie i zawartość.
+Szczegóły negocjacji opisuje [protokół](protocol.md#ustawienia-cli-instancji).
 
 ### Konfiguracja użytkownika Claude
 

@@ -18,11 +18,13 @@ export function claudeRuntime(ctx: ClaudeThreadContext) {
   const homes = claudeSessionHomes(ctx.journal);
 
   /** The runtime of a profile: its own (an instance with its own config dir or executable), else the runtime's. */
-  const runtimeOf = (profile: ResolvedProfile, spec?: ThreadSpec): ClaudeInstanceRuntime =>
-    options.runtimeOf?.(profile, spec) ?? {
+  const runtimeOf = (profile: ResolvedProfile, spec?: ThreadSpec): ClaudeInstanceRuntime => ({
+    ...(options.runtimeOf?.(profile, spec) ?? {
       home: options.home,
       ...(options.executable && { executable: options.executable }),
-    };
+    }),
+    ...(profile.runtime.claudeSettings && { settings: profile.runtime.claudeSettings }),
+  });
 
   const queryRuntime = (
     profile: ResolvedProfile,

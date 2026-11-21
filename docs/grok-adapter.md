@@ -3,6 +3,9 @@
 Aktualizacja (2026-11-21): boty na Linuksie mogą zapisywać trwałe sesje także
 poza katalogiem tymczasowym workera. Dostępność wynika z promocji wydań.
 
+Aktualizacja (2026-11-21) obejmuje obsługę preferencji instancji zapisanych
+w [ustawieniach CLI Canopy](worker-config.md#ustawienia-cli-zapisane-w-canopy).
+
 Aktualizacja (2026-11-19): `accept_edits` zatwierdza automatycznie tylko edycje ze ścieżkami w `cwd` wątku (tabela trybów niżej).
 
 Status (2026-11-17): runtime ACP, lokalny MCP automatyzacji i rozliczenia tokenów
@@ -44,6 +47,12 @@ Puste pole i `default` używają zwykłego zachowania modelu.
 promptu i start ze zwykłą szybkością przez skryptowany ACP.
 
 ## Endpointy i izolacja
+
+Ustawienia wspólne i nadpisania workera są scalane według kluczy w tabelach
+`[models]` i `[session]`. Worker zapisuje wynik w prywatnym `config.toml`
+nowego procesu ACP. Jawny wybór wysiłku ma pierwszeństwo przed
+`models.default_reasoning_effort`, jeśli model obsługuje wybór wysiłku.
+Ustawienia logowania, endpointu i uprawnień pozostają zarządzane przez Canopy.
 
 Grok obsługuje backendy `chat_completions` (domyślnie), `responses`, `messages`. Konfiguracja `[model.<id>]` przyjmuje `model`, `base_url` (z `/v1`), `env_key`, `api_backend`. Per-model `env_key` ma pierwszeństwo przed loginem. `GROK_HOME` zmienia katalog konfiguracji, a `GROK_AUTH_PATH` wskazuje plik loginu. `GROK_CONFIG` jest ograniczoną nakładką JSON: **nie** służy do zmiany endpointów ani auth; nie wkładamy tam sekretów.
 

@@ -26,6 +26,7 @@ export async function claudeQueryConfiguration(
 
     const combined = {
       ...user.settings,
+      ...runtime.settings,
       ...exclusions,
       // User skill bodies must not execute inline shell substitutions before Canopy permissions run.
       disableSkillShellExecution: true,

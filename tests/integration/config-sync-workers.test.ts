@@ -2,6 +2,7 @@ import { afterAll, beforeAll, describe, expect, test } from "bun:test";
 import { create } from "@bufbuild/protobuf";
 import { computerLink, Provider, ProviderProfileKind, ui } from "@canopy/contracts";
 import { nodeRef } from "@canopy/domain/computers";
+import { PROVIDER_SETTINGS_CAPABILITY } from "@canopy/domain/release/protocol";
 import { dockerAvailable } from "@canopy/db/testing";
 import { isBigInt } from "@canopy/testing";
 import { configAllowed } from "../../apps/gateway/src/computers/runtime-config.ts";
@@ -36,6 +37,58 @@ const row = async (c: ConfigComputer, id: string) =>
       [c.gateway.userId, id],
     )
   )[0];
+
+test.skipIf(!dockerAvailable)(
+  "an older linked home refuses CLI settings and accepts ordinary worker edits",
+  async () => {
+    const caller = await configComputer("Current computer");
+    let home: ConfigComputer | undefined;
+
+    try {
+      const capabilities = caller.links.hello().capabilities;
+      expect(capabilities).toContain(PROVIDER_SETTINGS_CAPABILITY);
+
+      const legacy = await configComputer(
+        "Older computer",
+        capabilities.filter((capability) => capability !== PROVIDER_SETTINGS_CAPABILITY),
+      );
+
+      home = legacy;
+      await pairConfig(caller, legacy);
+      await wait(() => configAllowed(caller.links, legacy.node) && configAllowed(legacy.links, caller.node));
+      expect(caller.links.capabilities(legacy.node)).not.toContain(PROVIDER_SETTINGS_CAPABILITY);
+
+      const instance = { harness: Provider.CODEX, id: "native" };
+      const remote = { ...instance, workerId: `${legacy.gateway.workerId}~${nodeRef(legacy.node)}` };
+
+      const read = async () =>
+        (await legacy.gateway.api.getInstanceWorker({ ...instance, workerId: legacy.gateway.workerId })).worker;
+
+      const error = await failure(
+        caller.gateway.api.setInstanceWorker({
+          ...remote,
+          enabled: false,
+          overrides: { settingsText: 'model_verbosity = "low"' },
+        }),
+      );
+
+      expect(error).toContain("[failed_precondition] Update the worker's home computer to edit its CLI settings.");
+      expect((await read())?.enabled).toBe(true);
+      expect(await audits(legacy, "computer.config.worker.received", legacy.gateway.workerId)).toHaveLength(0);
+
+      await caller.gateway.api.setInstanceWorker({ ...remote, enabled: false });
+      await caller.gateway.api.setInstanceWorker({
+        ...remote,
+        overrides: { binaryPath: "/opt/codex", settingsText: " \n" },
+      });
+      expect(await read()).toMatchObject({ enabled: false, overrides: { binaryPath: "/opt/codex" } });
+      expect((await read())?.overrides?.settingsText).toBeUndefined();
+    } finally {
+      await Promise.all([caller.close(), home?.close()]);
+    }
+  },
+  60_000,
+);
 
 describe.skipIf(!dockerAvailable)("worker records and remote worker settings across separate databases", () => {
   let a: ConfigComputer;

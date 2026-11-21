@@ -2,13 +2,13 @@ import { afterAll, beforeAll, describe, expect, test } from "bun:test";
 import { Effect } from "effect";
 import { SqlClient } from "effect/sql";
 import { dockerAvailable } from "@canopy/db/testing";
-import { ui } from "@canopy/contracts";
+import { Provider, ProviderProfileKind, ui } from "@canopy/contracts";
 import { create } from "@bufbuild/protobuf";
 import { nodeRef } from "@canopy/domain/computers";
 import { configAllowed } from "../../apps/gateway/src/computers/runtime-config.ts";
 import { nextClock } from "../../apps/gateway/src/config-sync/clock.ts";
 import { configLock, emptyRecord, saveRecord, type ConfigRow } from "../../apps/gateway/src/config-sync/persistence.ts";
-import { configComputer, pairConfig, type ConfigComputer } from "./support/config-sync.ts";
+import { configComputer, createInstance, instanceOf, pairConfig, type ConfigComputer } from "./support/config-sync.ts";
 import { eventually } from "./support/gateway.ts";
 
 const wait = async (predicate: () => Promise<boolean> | boolean) =>
@@ -252,4 +252,30 @@ describe.skipIf(!dockerAvailable)("configuration replay and version skew over li
     await wait(async () => (await b.settings()).timezone === JSON.parse(notice!.value));
     expect((await c.settings()).appearance?.sidebarWidth).toBe(301);
   }, 30_000);
+
+  test("a gateway upgrade materializes retained CLI settings before local records are published", async () => {
+    const id = "cli-settings-upgrade";
+    const settingsText = '# Retained across upgrade\nmodel_verbosity = "low"\n';
+    const get = () => instanceOf(b, Provider.CODEX, id);
+    await createInstance(a, {
+      harness: Provider.CODEX,
+      id,
+      label: "Codex upgrade",
+      kind: ProviderProfileKind.NATIVE,
+      runtime: { settingsText },
+    });
+    await wait(async () => (await get())?.runtime?.settingsText === settingsText);
+    const field = (await record(b, "instance", `codex:${id}`))?.fields["settingsText"];
+    expect(field?.value).toBe(settingsText);
+
+    // Older gateways kept the field in config_items without projecting it to the instance runtime.
+    await b.store.query(
+      "UPDATE provider_instances SET runtime=runtime-'settingsText' WHERE harness='codex' AND id=$1",
+      [id],
+    );
+    expect((await get())?.runtime?.settingsText).toBeUndefined();
+    await b.restart();
+    expect((await get())?.runtime?.settingsText).toBe(settingsText);
+    expect((await record(b, "instance", `codex:${id}`))?.fields["settingsText"]).toEqual(field);
+  }, 40_000);
 });

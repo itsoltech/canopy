@@ -25,6 +25,7 @@ export type StoredEnvVar = {
 
 export interface StoredRuntime {
   userConfiguration?: StoredUserConfiguration;
+  settingsText?: string;
   binaryPath?: string;
   homePath?: string;
   shadowHomePath?: string;
@@ -35,6 +36,7 @@ export interface StoredRuntime {
 /** Per-worker overrides; an absent field means the global definition. */
 export interface StoredOverrides {
   userConfiguration?: StoredUserConfiguration;
+  settingsText?: string;
   binaryPath?: string;
   homePath?: string;
   shadowHomePath?: string;
@@ -82,6 +84,8 @@ export interface AssignmentRow {
 /** A profile of WorkerConfig.profiles as stored (protobuf JSON, secrets as references, defaults omitted). */
 export type StoredProfile = {
   userConfiguration?: JsonValue;
+  settingsText?: string;
+  settingsOverrideText?: string;
   proxyCodex?: ProxyOptions;
   id: string;
   kind: "PROVIDER_PROFILE_KIND_NATIVE" | "PROVIDER_PROFILE_KIND_CLIPROXYAPI";
@@ -198,6 +202,10 @@ export function effectiveProfile(instance: InstanceRow, assignment: AssignmentRo
   const userConfiguration = o.userConfiguration ?? runtime.userConfiguration;
 
   if (userConfiguration) profile.userConfiguration = userConfigurationJson(userConfiguration);
+
+  if (runtime.settingsText) profile.settingsText = runtime.settingsText;
+
+  if (o.settingsText) profile.settingsOverrideText = o.settingsText;
 
   return profile;
 }

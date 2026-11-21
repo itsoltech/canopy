@@ -39,7 +39,12 @@ function fixture() {
     id: "native",
     providers: ["grok"],
     env: { GROK_TEXT_TRACE: traceFile },
-    runtime: { homePath: dir, executablePath: fake, launchArgs: ["--fixture-arg"] },
+    runtime: {
+      homePath: dir,
+      executablePath: fake,
+      launchArgs: ["--fixture-arg"],
+      grokSettings: { models: { default_reasoning_effort: "high", max_completion_tokens: 8192 } },
+    },
   };
 
   return {
@@ -96,6 +101,9 @@ test("Grok native requests use separate disposable ACP homes, no workspace, skil
     expect(session.params._meta.agentProfile).toMatchObject({ tools: [], injectDefaultTools: false });
     expect(session.args).toEqual(expect.arrayContaining(["--model", input.model, "--reasoning-effort", "low"]));
     expect(session.args).not.toContain("--fixture-arg");
+    expect(Bun.TOML.parse(session.config)).toMatchObject({
+      models: { default_reasoning_effort: "high", max_completion_tokens: 8192 },
+    });
     expect(session.config).toContain('action = "deny"');
   }
 

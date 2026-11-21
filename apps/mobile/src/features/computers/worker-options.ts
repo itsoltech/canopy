@@ -29,18 +29,20 @@ export function useWorkerOptions() {
 export function useWorkerRecordOptions(records: readonly ui.WorkerRecord[]) {
   const { workers } = useOverview();
   const options = useWorkerOptions();
+  const known = new Set(workers.map((worker) => worker.id));
+  const available = [...workers];
 
-  return options(
-    records.map(
-      (record) =>
-        workers.find((w) => w.id === record.workerId) ??
-        create(ui.WorkerSchema, {
-          id: record.workerId,
-          name: record.name,
-          nodeId: record.nodeId,
-          os: record.os,
-        }),
-    ),
-    false,
-  );
+  for (const record of records) {
+    if (known.has(record.workerId)) continue;
+    available.push(
+      create(ui.WorkerSchema, {
+        id: record.workerId,
+        name: record.name,
+        nodeId: record.nodeId,
+        os: record.os,
+      }),
+    );
+  }
+
+  return options(available, false);
 }

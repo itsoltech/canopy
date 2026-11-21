@@ -130,7 +130,14 @@ export interface ScriptedWorkerOptions {
   /** More Hello fields (e.g. capabilities and running_turns of a restarted worker). */
   readonly hello?: Pick<
     MessageInitShape<typeof HelloSchema>,
-    "capabilities" | "runningTurns" | "threads" | "attachmentsRoot" | "scratchRoot" | "homeDirectory" | "host"
+    | "capabilities"
+    | "configVersion"
+    | "runningTurns"
+    | "threads"
+    | "attachmentsRoot"
+    | "scratchRoot"
+    | "homeDirectory"
+    | "host"
   >;
 }
 

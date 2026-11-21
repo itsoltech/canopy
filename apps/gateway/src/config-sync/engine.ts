@@ -9,6 +9,7 @@ import type { SharedHost } from "./host.ts";
 import { clockParts, compareClock, nextClock } from "./clock.ts";
 import { configLock, emptyRecord, maxClock, saveRecord, type ConfigRow } from "./persistence.ts";
 import { recordProviders } from "./provider-records.ts";
+import { recoverProviderSettings } from "./provider-apply.ts";
 import { recordProjects } from "./project-records.ts";
 import { recordEnvironment } from "./environment-records.ts";
 import { recordConnectors } from "./connector-records.ts";
@@ -38,7 +39,8 @@ export class ConfigSync {
   /** Seed existing shared configuration using the domain rows' original timestamps. */
   async start() {
     const { store, self } = this;
-    await store.runtime.runPromise(
+
+    const workers = await store.runtime.runPromise(
       Effect.gen(function* () {
         const sql = yield* SqlClient.SqlClient;
         const clock = yield* configLock(sql, store.owner);
@@ -79,17 +81,24 @@ export class ConfigSync {
 
         if (changed) yield* saveRecord(sql, store.owner, row, observed);
         else yield* sql`UPDATE config_clock SET hlc=${observed} WHERE owner_user_id=${store.owner}::uuid`;
-        yield* recordProviders(sql);
+        const recover = yield* recoverProviderSettings(sql, store.owner);
+        const changedWorkers = recover ? yield* syncWorkers(sql, store.owner, store.key) : [];
+
+        if (!recover) yield* recordProviders(sql);
         yield* recordProjects(sql);
         yield* recordConnectors(sql, store.key);
         yield* recordEnvironment(sql);
         yield* recordWorkers(sql, store.owner, self());
+
+        return changedWorkers;
       }).pipe(
         (fx) => Effect.flatMap(SqlClient.SqlClient, (sql) => sql.withTransaction(fx)),
         queryFamily("config.sync"),
         queryRpc,
       ),
     );
+
+    if (workers.length) await this.host.providersChanged?.(workers);
   }
 
   /** Batch and cursor commit together; a crash before commit safely replays the batch. */

@@ -3,6 +3,14 @@
 Status: opis zaimplementowanego kodu (2026-11-21), w tym import skilli z publicznych
 witryn HTTPS i usypianie wątków.
 Stany źródeł Usage są widoczne w sekcji **Recording gateways**.
+Settings → Providers pozwala edytować ustawienia CLI instancji Claude, Codexa i Groka.
+Zakres All workers zapisuje wspólne klucze, a zakres pojedynczego workera
+pozwala je nadpisać i wyświetlić dziedziczone wartości.
+**Preview syntax** koloruje JSON i TOML w lokalnym podglądzie na żądanie.
+Podgląd wspólnych ustawień również pokazuje kolory. Pole edycji zachowuje
+natywne zaznaczanie i kompozycję tekstu.
+Klient sprawdza JSON Claude po przerwie w pisaniu, wskazuje błąd przy polu
+i blokuje wysłanie zapisu do czasu poprawienia tekstu.
 Zamknięty przyciskiem × osiągnięty cel pozostaje ukryty po ponownym otwarciu wątku i restarcie aplikacji.
 Aplikacja używa Expo SDK 58.0.26.
 Menu wątku pozwala go uśpić, zmienić termin lub wybudzić. Uśpione wątki pozostają

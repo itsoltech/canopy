@@ -2,7 +2,16 @@ import { expect, test } from "bun:test";
 import { create } from "@bufbuild/protobuf";
 import { Provider, ProviderConfigurationMode, ProviderProfileKind, WorkerConfigSchema } from "@canopy/contracts";
 import { tempDir } from "@canopy/testing";
-import { chmodSync, existsSync, mkdirSync, readFileSync, readdirSync, rmSync, writeFileSync } from "node:fs";
+import {
+  chmodSync,
+  existsSync,
+  mkdirSync,
+  readFileSync,
+  readdirSync,
+  realpathSync,
+  rmSync,
+  writeFileSync,
+} from "node:fs";
 import { join, resolve } from "node:path";
 import { Effect, Exit, ManagedRuntime, Scope } from "effect";
 import { applyWorkerConfig } from "../config/remote.ts";
@@ -13,7 +22,7 @@ import { HostState } from "./host-state.ts";
 import { probeRecords } from "../../../../tests/integration/fixtures/instance-probe.ts";
 
 async function fixture() {
-  const root = tempDir("canopy-claude-configuration-runtime-");
+  const root = realpathSync(tempDir("canopy-claude-configuration-runtime-"));
   const source = join(root, "source");
   const login = join(root, "login");
   const privateHome = join(root, "private");
@@ -111,7 +120,7 @@ test("runtime restart does not recreate a deleted private home bound to older se
   }
 });
 
-test("model defaults ignore a disabled source and follow it when local/shared configuration is enabled", async () => {
+test("model defaults use the instance effort before the selected device or user source", async () => {
   const f = await fixture();
   const executable = join(f.source, "models-fixture.ts");
   writeFileSync(
@@ -139,16 +148,18 @@ for await (const line of createInterface({ input: process.stdin })) {
   writeFileSync(join(f.login, "settings.json"), '{"effortLevel":"high"}');
 
   try {
-    for (const mode of [
-      ProviderConfigurationMode.ISOLATED,
-      ProviderConfigurationMode.LOCAL,
-      ProviderConfigurationMode.SHARED,
-    ]) {
+    for (const { mode, effort, expected } of [
+      { mode: ProviderConfigurationMode.ISOLATED, expected: "high" },
+      { mode: ProviderConfigurationMode.LOCAL, expected: "low" },
+      { mode: ProviderConfigurationMode.SHARED, expected: "low" },
+      { mode: ProviderConfigurationMode.SHARED, effort: "medium", expected: "medium" },
+    ] as const) {
       const profile = {
         ...f.profile,
         runtime: {
           ...f.profile.runtime,
           executablePath: executable,
+          ...(effort && { claudeSettings: { effortLevel: effort } }),
           userConfiguration: { mode, sourcePath: f.source, instructions: false, skills: false, hooks: false },
         },
       };
@@ -165,7 +176,7 @@ for await (const line of createInterface({ input: process.stdin })) {
         ),
       );
 
-      expect(catalog.models[0]?.defaultEffort).toBe(mode === ProviderConfigurationMode.ISOLATED ? "high" : "low");
+      expect(catalog.models[0]?.defaultEffort).toBe(expected);
       await f.ctx.ops.stopClaude("shared");
     }
   } finally {

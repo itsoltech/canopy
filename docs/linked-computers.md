@@ -15,6 +15,7 @@ Odczyt samych pytań i zgód subagenta trafia bezpośrednio do jego domu. Gatewa
 przekierowań i raportów, spójność przenoszonych danych oraz zgodę na wysyłkę konfiguracji w trakcie
 transmisji. Migracja 0182 odtwarza przekierowania z lokalnych decyzji o przeniesieniu. Dostępność w kanałach
 nightly, beta i stable wynika z [wydań](release.md), nie z daty tego opisu.
+Wspólna definicja instancji obejmuje ustawienia CLI Claude, Codexa i Groka.
 
 `SetThreadSnooze` trafia do domu wątku tak jak inne akcje właściciela. Dom rozgłasza
 stan uśpienia i wybudzenie razem z metadanymi wątku. Przenoszenie między komputerami
@@ -488,7 +489,7 @@ Wspólne jest wszystko, co nie opisuje konkretnej maszyny. Szczegóły:
 
 | Zakres | Co obejmuje | Kto zapisuje |
 |---|---|---|
-| **Wspólne** (domyślnie) | ustawienia konta (wygląd, ogólne, kompozytor, domyślne ustawienia wątków bez workspace'u, generowanie tekstu, strefa, sidebar, domyślna częstotliwość sprawdzania CLI), instancje providerów (nazwa, rodzaj, endpoint, proxy, klucz, zmienne, kolor, modele), proxy, projekty jako tożsamość i ich ustawienia, polityka worktree, biblioteka środowiska agentów (instrukcje, skille, pluginy, marketplace'y), connectory, ich konta i aplikacje OAuth | każdy komputer; wersja per pole |
+| **Wspólne** (domyślnie) | ustawienia konta (wygląd, ogólne, kompozytor, domyślne ustawienia wątków bez workspace'u, generowanie tekstu, strefa, sidebar, domyślna częstotliwość sprawdzania CLI), instancje providerów (nazwa, rodzaj, endpoint, proxy, klucz, zmienne, kolor, modele, ustawienia CLI), proxy, projekty jako tożsamość i ich ustawienia, polityka worktree, biblioteka środowiska agentów (instrukcje, skille, pluginy, marketplace'y), connectory, ich konta i aplikacje OAuth | każdy komputer; wersja per pole |
 | **Komputer** | ścieżki CLI i katalogi domowe instancji, lokalizacja worktree, adresy, porty i dostęp sieciowy, łącza komputerów, sparowane telefony i klienty desktopu, enrollment workerów i klucze SSH, kanał aktualizacji, ustawienia powłoki desktopu, układ paneli i szerokość sidebara | tylko ten komputer |
 | **Worker** | nazwa, tagi, włączenie i nadpisania instancji na workerze, logowania natywne, workspace'y, worktree, nadpisanie częstotliwości sprawdzania CLI, ustawienia worktree workera, dostęp connectorów | tylko dom workera; inne komputery widzą kopię i edytują przez wywołanie do domu |
 | **Urządzenie** | preferencje „This device” w przeglądarce lub aplikacji (localStorage) | ta przeglądarka; nigdy w bazie |
@@ -506,6 +507,7 @@ ale nie są replikowane jako druga edytowalna kopia: kopia offline byłaby ukryt
 - **Ustawienia workera** zapisuje wyłącznie gateway jego domu. Edycja z innego komputera to
   wywołanie do domu, jak przy zdalnych wątkach. Gdy dom jest niedostępny, zmiana jest odrzucana
   od razu z powodem z obecności; ostatnia znana wartość pozostaje do odczytu.
+  Dotyczy to również [nadpisania ustawień CLI](worker-config.md#ustawienia-cli-zapisane-w-canopy).
 - **Sekrety** (klucze instancji i proxy, zmienne sekretne, tokeny connectorów, aplikacje OAuth)
   przechodzą wyłącznie przypiętym łączem mTLS. Odbiorca szyfruje je własnym kluczem. Nie trafiają
   do przeglądarek, modeli, logów ani workerów innych niż te, które ich używają na swoim komputerze.

@@ -1,5 +1,8 @@
 # Adapter Claude (Agent SDK)
 
+Aktualizacja (2026-11-21) obejmuje obsługę preferencji instancji zapisanych
+w [ustawieniach CLI Canopy](worker-config.md#ustawienia-cli-zapisane-w-canopy).
+
 Aktualizacja (2026-11-19): automatyczna zgoda na edycje w `FULL_AUTO` jest ograniczona do `cwd` wątku (tabela trybów niżej).
 
 Status: **działa** (2026-11-18), w tym uruchamianie z importowanymi hookami w trybach z jawną konfiguracją sandboxa, odkrywanie i wybór fast per model/konto, 15-minutowy limit `show_images`, osobiste hooki `PreToolUse` i `PermissionRequest`, import osobistych skilli i komend wraz z zasobami pomocniczymi do 100 000 plików i katalogów oraz 256 MiB z pominięciem kosza skilli, obsługa pustych opcjonalnych metadanych oraz zmiana uprawnień i sandboxa podczas bieżącej tury:
@@ -122,6 +125,12 @@ Pełne wiadomości nigdy nie giną: bez mapowania trafiają do dziennika jako `r
 
 ## Izolacja
 
+- Zapisane w Canopy preferencje `settings.json` zastępują odpowiadające
+  klucze z zaimportowanej konfiguracji użytkownika, projektu i lokalnej.
+  Worker przekazuje wynik do SDK przy otwarciu procesu zapytania i zachowuje
+  pierwszeństwo zarządzanych ustawień Canopy. Domyślny wysiłek instancji
+  zastępuje wartość ze źródłowego pliku po uwzględnieniu
+  `CLAUDE_CODE_EFFORT_LEVEL`. Bieżący proces zachowuje swój zestaw ustawień.
 - **Tryb izolowany:** `CLAUDE_CONFIG_DIR` = prywatny katalog platformy (`<data_dir>/claude-home` albo katalog instancji). Ustawienia, hooki, wtyczki i serwery MCP właściciela urządzenia nie działają w wątkach platformy. Dowiązane jest tylko logowanie (`.credentials.json`), chyba że worker używa CLIProxyAPI.
 - **Tryb lokalny:** sesje pozostają w prywatnym katalogu, a worker odczytuje ze wskazanego źródła wyłącznie bezpieczną listę preferencji. Instrukcje, skille i hooki są osobnymi, domyślnie kontrolowanymi zakresami; skille i komendy trafiają do prywatnej oczyszczonej kopii pluginu `canopy-user`.
 - **Tryb współdzielony:** `CLAUDE_CONFIG_DIR` wskazuje źródło użytkownika, więc sesje i historia są tam zapisywane. Ustawienia nadal są scalane jako `user < project < local`, MCP i logowanie pozostają kontrolowane przez Canopy. Uprawnienia wynikają z trybu Canopy oraz jawnie włączonych hooków użytkownika. Prywatny katalog platformy służy do zarządzanych artefaktów i nie jest czyszczony w katalogu źródłowym.

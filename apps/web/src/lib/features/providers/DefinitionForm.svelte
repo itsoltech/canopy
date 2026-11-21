@@ -13,9 +13,11 @@
   import { draftOf, draftProblems, hasProblems, kindLabel, providerCall, saveRequest } from "./instances.ts";
   import RuntimeFields from "./RuntimeFields.svelte";
   import UserConfigurationFields from "./UserConfigurationFields.svelte";
+  import ProviderSettingsEditor from "./ProviderSettingsEditor.svelte";
   import SettingsSection from "./SettingsSection.svelte";
   import MoveEnvironment from "./MoveEnvironment.svelte";
   import { useOverview } from "#lib/features/overview/overview-state.svelte.ts";
+  import { settingsValidation } from "./settings-validation.svelte.ts";
 
   /**
    * The global definition of an instance (scope "All workers"): name and color, connection, runtime and variables.
@@ -39,6 +41,11 @@
   let busy = $state(false);
   let failure = $state<string>();
 
+  const cli = settingsValidation(
+    () => instance.harness,
+    () => draft.settingsText,
+  );
+
   // Back to the stored definition whenever another revision arrives (after a save, or a change elsewhere).
   // Only the revision: reloads swap in equal instance objects (worker status, model stars) and must keep typed edits.
   const revision = $derived(instance.revision);
@@ -59,7 +66,7 @@
     tried = true;
     failure = undefined;
 
-    if (hasProblems(problems)) return;
+    if (cli.validate() || hasProblems(problems)) return;
     busy = true;
 
     try {
@@ -123,6 +130,13 @@
     </SettingsSection>
   {/if}
 
+  <ProviderSettingsEditor
+    harness={instance.harness}
+    bind:value={draft.settingsText}
+    error={cli.problem}
+    readonly={busy}
+  />
+
   <SettingsSection
     title="Environment"
     description="Variables of the harness process. A secret is stored encrypted and never shown again."
@@ -134,6 +148,6 @@
   {#if failure}<Alert tone="error">{failure}</Alert>{/if}
   <DialogActions>
     <Button variant="ghost" onclick={() => ((draft = draftOf(instance)), (tried = false))}>Discard changes</Button>
-    <Button type="submit" variant="primary" loading={busy}>Save for all workers</Button>
+    <Button type="submit" variant="primary" loading={busy} disabled={cli.blocked}>Save for all workers</Button>
   </DialogActions>
 </form>

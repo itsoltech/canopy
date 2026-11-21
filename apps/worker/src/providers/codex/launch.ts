@@ -37,7 +37,16 @@ export function codexAppServerLaunch(
   extraArgs: readonly string[] = [],
 ): CodexAppServerLaunch {
   if (codexHome) managedPlugins(codexHome, "codex");
-  const command = [codexBin, "app-server", ...codexNativeToolOverrides(nativeTools), ...extraArgs];
+  const [instance, ...others] = profiles.filter((profile) => profile.providers.includes("codex"));
+  const settings = others.length === 0 ? instance?.runtime.codexSettings : undefined;
+
+  const command = [
+    codexBin,
+    "app-server",
+    ...codexNativeToolOverrides(nativeTools),
+    ...Object.entries(settings ?? {}).flatMap(([key, value]) => ["-c", `${key}=${tomlValue(value)}`]),
+    ...extraArgs,
+  ];
 
   const env: NodeJS.ProcessEnv = {
     ...baseEnv,
@@ -49,8 +58,6 @@ export function codexAppServerLaunch(
 
   // Each production runtime serves one instance. Codex also checks the process's current provider when
   // admitting turns: selecting a provider only on thread/start or thread/resume is not enough.
-  const [instance, ...others] = profiles.filter((profile) => profile.providers.includes("codex"));
-
   if (instance && others.length === 0) {
     command.push("-c", `model_provider=${tomlValue(codexThreadProvider(instance).modelProvider)}`);
 

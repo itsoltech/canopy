@@ -40,7 +40,7 @@ export const effortRank = new Map([
   ["ultra", 7],
 ]);
 
-export function discoveredModels(info: InitializeResult): ModelInit[] {
+export function discoveredModels(info: InitializeResult, configuredEffort?: string): ModelInit[] {
   const state = Schema.decodeUnknownSync(ModelDiscovery)(info)._meta?.modelState;
 
   return (state?.availableModels ?? []).map((model) => {
@@ -50,13 +50,20 @@ export function discoveredModels(info: InitializeResult): ModelInit[] {
       (a, b) => (effortRank.get(a) ?? 100) - (effortRank.get(b) ?? 100),
     );
 
+    const isDefault = model.modelId === state?.currentModelId;
+
+    const defaultEffort =
+      isDefault && configuredEffort && efforts.includes(configuredEffort)
+        ? configuredEffort
+        : (meta?.reasoningEfforts?.find((effort) => effort.default)?.id ?? "");
+
     return {
       id: model.modelId,
       displayName: model.name,
       description: model.description ?? "",
-      isDefault: model.modelId === state?.currentModelId,
+      isDefault,
       efforts,
-      defaultEffort: meta?.reasoningEfforts?.find((effort) => effort.default)?.id ?? "",
+      defaultEffort,
     };
   });
 }

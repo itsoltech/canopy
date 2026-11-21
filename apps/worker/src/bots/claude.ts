@@ -101,7 +101,7 @@ export async function runClaudeBot(ctx: BotHarnessContext): Promise<void> {
         strictMcpConfig: true,
         mcpServers: input.tools.length ? { canopy: { type: "http", ...ctx.mcp, alwaysLoad: true } } : {},
         plugins: [],
-        settings: { disableAllHooks: true, fastMode: fast },
+        settings: { ...ctx.profile.runtime.claudeSettings, disableAllHooks: true, fastMode: fast },
         systemPrompt: input.instructions,
         maxTurns: 32,
         includePartialMessages: true,

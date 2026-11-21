@@ -1,12 +1,16 @@
 import { useState } from "react";
 import { Provider, ProviderProfileKind, type ui } from "@canopy/contracts";
-import { Button, Field } from "../../ui/components";
+import { Button, Field, Notice } from "../../ui/components";
+import { useWorkerRecordOptions } from "../computers/worker-options";
 import { SettingsActions, SettingsGroup, SettingChoice, SettingToggle } from "./SettingsGroup";
 import { MoveEnvironment } from "./MoveEnvironment";
 import { ProxyPicker } from "../providers/ProxyPicker";
 import { SettingAccess } from "./SettingAccess";
 import { ResourceState, useSettingsResource } from "./resource";
 import { EnvironmentFields, environmentDrafts, environmentInput } from "./EnvironmentFields";
+import { ProviderSettingsEditor } from "./ProviderSettingsEditor";
+import { providerSettingsError } from "./provider-settings-error";
+import { useProviderSettingsDraft } from "./useProviderSettingsDraft";
 
 const deviceLoginText = (harness: Provider) =>
   harness === Provider.GROK
@@ -24,13 +28,19 @@ function useProviderForm({
   harness: Provider;
   onSaved: () => void;
 }) {
-  const resource = useSettingsResource("ListWorkerRecords", (api) => api.listWorkerRecords({}));
+  const resource = useSettingsResource(
+    "ListWorkerRecords",
+    (api) => api.listWorkerRecords({}),
+    true,
+    providerSettingsError,
+  );
 
   const [id, setId] = useState(instance?.id ?? "");
   const [label, setLabel] = useState(instance?.label ?? "");
   const [accentColor, setAccent] = useState(instance?.accentColor ?? "");
   const [kind, setKind] = useState(instance?.kind ?? ProviderProfileKind.CLIPROXYAPI);
   const [proxyId, setProxy] = useState(instance?.proxyId ?? "");
+  const settings = useProviderSettingsDraft(harness, instance?.runtime?.settingsText);
 
   const [runtime, setRuntime] = useState({
     binaryPath: instance?.runtime?.binaryPath ?? "",
@@ -45,8 +55,10 @@ function useProviderForm({
   const [workerIds, setWorkers] = useState(instance?.workers.filter((w) => w.enabled).map((w) => w.workerId) ?? []);
 
   async function save() {
-    const result = await resource.run(async (api) => {
-      const saved = await api.saveProviderInstance({
+    if (!settings.canSave()) return;
+
+    const result = await resource.run((api) =>
+      api.saveProviderInstance({
         harness,
         id,
         create: !instance,
@@ -55,19 +67,22 @@ function useProviderForm({
         kind,
         proxyId,
         env: environmentInput(env),
-        runtime: { ...runtime, launchArgs: runtime.launchArgs.split("\n").filter(Boolean) },
+        runtime: {
+          ...runtime,
+          launchArgs: runtime.launchArgs.split("\n").filter(Boolean),
+          settingsText: settings.settingsText,
+        },
         expectedRevision: instance?.revision ?? 0n,
         // Editing: where it runs is chosen in the Status section and saved there.
         allWorkers: instance ? instance.allWorkers : allWorkers,
         workerIds: instance ? instance.workers.filter((w) => w.enabled).map((w) => w.workerId) : workerIds,
-      });
+      }),
+    );
 
-      return saved;
-    });
-
-    setEnv(environmentDrafts(instance?.env ?? []));
-
-    if (result) onSaved();
+    if (result) {
+      setEnv(environmentDrafts(instance?.env ?? []));
+      onSaved();
+    }
   }
 
   return {
@@ -84,6 +99,7 @@ function useProviderForm({
     setProxy,
     runtime,
     setRuntime,
+    settings,
     env,
     setEnv,
     allWorkers,
@@ -119,6 +135,7 @@ export function ProviderForm({
     setProxy,
     runtime,
     setRuntime,
+    settings,
     env,
     setEnv,
     allWorkers,
@@ -127,6 +144,8 @@ export function ProviderForm({
     setWorkers,
     save,
   } = useProviderForm({ instance, harness, onSaved });
+
+  const workerOptions = useWorkerRecordOptions(resource.data?.records ?? []);
 
   return (
     <ResourceState resource={resource}>
@@ -163,6 +182,13 @@ export function ProviderForm({
         <ProxyPicker harness={harness} value={proxyId} onChange={setProxy} />
       )}
       <ProviderRuntime runtime={runtime} onChange={setRuntime} harness={harness} />
+      <ProviderSettingsEditor
+        harness={harness}
+        value={settings.value}
+        onChange={settings.change}
+        problem={settings.problem}
+        busy={resource.busy}
+      />
       <SettingsGroup
         title="Environment"
         description="Variables of the harness process. A secret is stored encrypted and never shown again."
@@ -175,7 +201,7 @@ export function ProviderForm({
           <SettingAccess
             title="Workers"
             description="The instance runs only on the chosen workers."
-            options={(resource.data?.records ?? []).map((w) => ({ id: w.workerId, name: w.name }))}
+            options={workerOptions.map((option) => ({ id: option.value, name: option.label }))}
             all={allWorkers}
             ids={workerIds}
             onChange={(next) => {
@@ -185,13 +211,14 @@ export function ProviderForm({
           />
         </SettingsGroup>
       )}
+      {resource.inlineError ? <Notice error>{resource.inlineError}</Notice> : null}
       <SettingsActions>
         {onDiscard ? <Button variant="ghost" title="Discard changes" onPress={onDiscard} /> : null}
         <Button
           variant="primary"
           title={instance ? "Save for all workers" : "Add instance"}
           busy={resource.busy}
-          disabled={!id.trim() || (kind === ProviderProfileKind.CLIPROXYAPI && !proxyId)}
+          disabled={settings.saveBlocked || !id.trim() || (kind === ProviderProfileKind.CLIPROXYAPI && !proxyId)}
           onPress={() => void save()}
         />
       </SettingsActions>

@@ -6,8 +6,9 @@
  */
 import { afterAll, beforeAll, describe, expect, test } from "bun:test";
 import { toJson } from "@bufbuild/protobuf";
-import { PermissionMode, Provider, ProviderProfileKind, ui } from "@canopy/contracts";
+import { PermissionMode, Provider, ProviderProfileKind, type WorkerConfig, ui } from "@canopy/contracts";
 import { dockerAvailable } from "@canopy/db/testing";
+import { PROVIDER_SETTINGS_CAPABILITY } from "@canopy/domain/release/protocol";
 import { Effect } from "effect";
 import { SqlClient } from "effect/sql";
 import { eventually, failure, startTestGateway, type ScriptedWorker, type TestGateway } from "./support/gateway.ts";
@@ -15,6 +16,11 @@ import { eventually, failure, startTestGateway, type ScriptedWorker, type TestGa
 const KEY = "sk-team-secret-4711";
 const TOKEN = "tok-secret-value-0815";
 const KEY_B = "sk-worker-b-0042";
+const settingsWorker = { hello: { capabilities: [PROVIDER_SETTINGS_CAPABILITY] } };
+const nativeCodex = { harness: Provider.CODEX, id: "native", kind: ProviderProfileKind.NATIVE };
+
+const codexProfile = (config: WorkerConfig | undefined) =>
+  config?.profiles.find((p) => p.id === "native" && p.providers.includes(Provider.CODEX));
 
 let gw: TestGateway;
 let workerB: ScriptedWorker;
@@ -49,7 +55,7 @@ const visible = (workers: ui.WorkerModels[], profileId: string) =>
 
 describe.skipIf(!dockerAvailable)("global provider instances (gateway + two scripted workers)", () => {
   beforeAll(async () => {
-    gw = await startTestGateway();
+    gw = await startTestGateway({ worker: settingsWorker });
     const added = await gw.addWorker("desktop", ["/srv"]);
     workerBId = added.workerId;
     workerB = await gw.connect(added.workerId, added.credential);
@@ -368,5 +374,154 @@ describe.skipIf(!dockerAvailable)("global provider instances (gateway + two scri
       "CODEX/team",
       "GROK/native",
     ]);
+  });
+
+  test("CLI settings preserve exact text and apply scoped version changes, including explicit clears", async () => {
+    const shared = '# Keep this comment\nmodel_verbosity = "low"\n\n';
+    const local = '  model_verbosity = "high" # This worker only\n';
+    const worker = { ...nativeCodex, workerId: gw.workerId };
+    const saved = await gw.api.saveProviderInstance({ ...nativeCodex, runtime: { settingsText: shared } });
+    expect(saved.instance?.runtime?.settingsText).toBe(shared);
+
+    const delivered = await eventually(
+      async () => codexProfile(gw.worker.configs.at(-1)),
+      (p) => p?.settingsText === shared,
+    );
+
+    expect(delivered).toMatchObject({ settingsText: shared, settingsOverrideText: "", disabled: false });
+
+    const onLegacy = await eventually(
+      async () => codexProfile(workerB.configs.at(-1)),
+      (p) => p?.disabled === true,
+    );
+
+    expect(onLegacy?.disabled).toBe(true);
+
+    const preserved = await gw.api.saveProviderInstance({ ...nativeCodex, runtime: {} });
+    expect(preserved.instance?.runtime?.settingsText).toBe(shared);
+    expect(preserved.instance?.revision).toBe(saved.instance!.revision + 1n);
+    expect(
+      await failure(
+        gw.api.saveProviderInstance({
+          ...nativeCodex,
+          expectedRevision: saved.instance!.revision,
+          runtime: { settingsText: "" },
+        }),
+      ),
+    ).toContain("changed");
+    expect(
+      await failure(gw.api.saveProviderInstance({ ...nativeCodex, runtime: { settingsText: "invalid [" } })),
+    ).toContain("Check the TOML syntax");
+
+    const versionB = (await workerOf(workerBId)).configVersion;
+    await gw.api.setInstanceWorker({ ...worker, overrides: { settingsText: local } });
+
+    const overridden = await eventually(
+      async () => codexProfile(gw.worker.configs.at(-1)),
+      (p) => p?.settingsOverrideText === local,
+    );
+
+    expect(overridden).toMatchObject({ settingsText: shared, settingsOverrideText: local });
+    expect((await workerOf(workerBId)).configVersion).toBe(versionB);
+    await gw.api.setInstanceWorker({ ...worker, overrides: {} });
+    expect(
+      await failure(gw.api.setInstanceWorker({ ...worker, overrides: { settingsText: 'api_key = "invalid"' } })),
+    ).toContain("Check the supported keys");
+    const read = await gw.api.getInstanceWorker(worker);
+    expect(read.inheritedRuntime?.settingsText).toBe(shared);
+    expect(read.worker?.overrides?.settingsText).toBe(local);
+    expect((await instances()).find((i) => i.harness === Provider.CODEX && i.id === "native")?.revision).toBe(
+      preserved.instance!.revision,
+    );
+
+    await gw.api.setInstanceWorker({ ...worker, overrides: { settingsText: "" } });
+    expect((await gw.api.getInstanceWorker(worker)).worker?.overrides?.settingsText).toBeUndefined();
+
+    const inherited = await eventually(
+      async () => codexProfile(gw.worker.configs.at(-1)),
+      (p) => p?.settingsOverrideText === "",
+    );
+
+    expect(inherited).toMatchObject({ settingsText: shared, settingsOverrideText: "" });
+
+    const cleared = await gw.api.saveProviderInstance({ ...nativeCodex, runtime: { settingsText: " \t\n" } });
+    expect(cleared.instance?.runtime?.settingsText).toBeUndefined();
+
+    const legacyRestored = await eventually(
+      async () => codexProfile(workerB.configs.at(-1)),
+      (p) => p?.disabled === false && p.settingsText === "",
+    );
+
+    expect(legacyRestored).toMatchObject({ settingsText: "", disabled: false });
+  });
+
+  test("Grok receives shared and worker TOML without accepting connection or permission settings", async () => {
+    const nativeGrok = { ...nativeCodex, harness: Provider.GROK };
+    const worker = { ...nativeGrok, workerId: gw.workerId };
+    const shared = '[models]\ndefault_reasoning_effort = "high"\n';
+    const local = "[session]\nauto_compact_threshold_percent = 75\n";
+
+    const grokProfile = () =>
+      gw.worker.configs.at(-1)?.profiles.find((p) => p.id === "native" && p.providers.includes(Provider.GROK));
+
+    const saved = await gw.api.saveProviderInstance({ ...nativeGrok, runtime: { settingsText: shared } });
+    await gw.api.setInstanceWorker({ ...worker, overrides: { settingsText: local } });
+
+    const delivered = await eventually(
+      async () => grokProfile(),
+      (p) => p?.settingsOverrideText === local,
+    );
+
+    expect(delivered).toMatchObject({ settingsText: shared, settingsOverrideText: local, disabled: false });
+    expect(
+      await failure(
+        gw.api.saveProviderInstance({
+          ...nativeGrok,
+          expectedRevision: saved.instance!.revision,
+          runtime: {
+            settingsText: '[models]\ndefault_reasoning_effort = "low"\nextra_headers = { Authorization = "fixture" }',
+          },
+        }),
+      ),
+    ).toContain("Check the supported keys");
+    expect(
+      await failure(
+        gw.api.setInstanceWorker({ ...worker, overrides: { settingsText: '[ui]\npermission_mode = "auto"' } }),
+      ),
+    ).toContain("Check the supported keys");
+    const read = await gw.api.getInstanceWorker(worker);
+
+    expect(read.inheritedRuntime?.settingsText).toBe(shared);
+    expect(read.worker?.overrides?.settingsText).toBe(local);
+  });
+
+  test("an older worker blocks its configured instance, then reuses the same revision after updating", async () => {
+    const added = await gw.addWorker("upgrading worker");
+    const legacy = await gw.connect(added.workerId, added.credential);
+    const worker = { ...nativeCodex, workerId: added.workerId };
+    const settingsText = 'model_verbosity = "medium"\n';
+    const status = async () => (await gw.api.getInstanceWorker(worker)).worker;
+    await gw.api.setInstanceWorker({ ...worker, overrides: { settingsText } });
+
+    const blocked = await eventually(status, (p) => p?.detail.includes("Update this worker") ?? false);
+    expect(blocked).toMatchObject({ enabled: true, available: false, reported: true, synced: true });
+    const config = legacy.configs.at(-1)!;
+    expect(codexProfile(config)?.disabled).toBe(true);
+    expect(config.profiles.find((p) => p.id === "native" && p.providers.includes(Provider.CLAUDE))?.disabled).toBe(
+      false,
+    );
+    expect(codexProfile(gw.worker.configs.at(-1))).toMatchObject({ disabled: false, settingsOverrideText: "" });
+
+    const upgraded = await gw.connect(added.workerId, added.credential, undefined, {
+      hello: { capabilities: [PROVIDER_SETTINGS_CAPABILITY], configVersion: config.version },
+    });
+
+    const ready = await eventually(status, (p) => p?.available === true);
+    expect(ready).toMatchObject({ enabled: true, available: true, synced: true });
+    expect(upgraded.configs.at(-1)?.version).toBe(config.version);
+    expect(codexProfile(upgraded.configs.at(-1))).toMatchObject({
+      disabled: false,
+      settingsOverrideText: settingsText,
+    });
   });
 });

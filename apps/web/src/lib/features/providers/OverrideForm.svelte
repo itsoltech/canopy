@@ -13,8 +13,10 @@
   import RuntimeFields from "./RuntimeFields.svelte";
   import SettingsSection from "./SettingsSection.svelte";
   import UserConfigurationFields from "./UserConfigurationFields.svelte";
+  import ProviderSettingsEditor from "./ProviderSettingsEditor.svelte";
   import { configurationDraftOf } from "./user-configuration.ts";
   import ReportedRuntimePaths from "./ReportedRuntimePaths.svelte";
+  import { settingsValidation } from "./settings-validation.svelte.ts";
 
   /**
    * One worker's overrides of an instance (scope = that worker): paths and arguments for its system, its own
@@ -78,6 +80,11 @@
   let busy = $state(false);
   let failure = $state<string>();
 
+  const cli = settingsValidation(
+    () => instance.harness,
+    () => draft.settingsText,
+  );
+
   // Back to the stored overrides whenever they change (after a save, or a change elsewhere). Compared by value:
   // reloads swap in equal objects and must keep typed edits; row keys are fresh on every draft.
   const storedKey = $derived(JSON.stringify(overrideDraftOf(on), (key, value) => (key === "key" ? undefined : value)));
@@ -116,11 +123,12 @@
     tried = true;
     failure = undefined;
 
-    if (Object.keys(problems.env).length > 0) return;
+    if (readOnly || loading || cli.validate() || Object.keys(problems.env).length > 0) return;
     busy = true;
 
     try {
-      const saved = (await providerCall("worker", overrideRequest(instance, worker.id, merged))).instance;
+      const request = overrideRequest(instance, worker.id, merged, on?.overrides?.settingsText);
+      const saved = (await providerCall("worker", request)).instance;
 
       if (worker.nodeId) await load();
       onsaved(worker.nodeId ? undefined : saved);
@@ -173,6 +181,17 @@
         </SettingsSection>
       {/if}
 
+      <ProviderSettingsEditor
+        harness={instance.harness}
+        bind:value={draft.settingsText}
+        error={cli.problem}
+        readonly={busy || !!readOnly || loading}
+        worker={{
+          name: worker.name,
+          inherited: (worker.nodeId ? remoteRuntime : instance.runtime)?.settingsText ?? "",
+        }}
+      />
+
       <SettingsSection
         title="Environment on {worker.name}"
         description="Added to the definition's variables; the same name replaces one."
@@ -188,7 +207,7 @@
       </SettingsSection>
 
       {#if failure}<Alert tone="error">{failure}</Alert>{/if}
-      <DialogActions>
+      <DialogActions class="sm:flex-wrap">
         <Button
           variant="ghost"
           onclick={() => {
@@ -198,7 +217,9 @@
             tried = false;
           }}>Discard changes</Button
         >
-        <Button type="submit" variant="primary" loading={busy}>Save for {worker.name}</Button>
+        <Button type="submit" variant="primary" loading={busy} disabled={cli.blocked} class="max-w-full">
+          <span class="truncate">Save for {worker.name}</span>
+        </Button>
       </DialogActions>
     </fieldset>
   {/if}

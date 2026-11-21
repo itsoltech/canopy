@@ -113,7 +113,7 @@ export function threadCatalog(ctx: ClaudeThreadContext, runtime: ReturnType<type
               ...queryRuntime(profile, runtimeOf(profile)),
               settingSources: [],
               // Explicit SDK opt-in for discovery; this query receives no prompt.
-              settings: { fastMode: true },
+              settings: { ...profile.runtime.claudeSettings, fastMode: true },
               persistSession: false,
               strictMcpConfig: true,
               mcpServers: {},

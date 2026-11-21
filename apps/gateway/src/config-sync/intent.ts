@@ -12,6 +12,7 @@ const INSTANCE_DEFAULTS = {
   launchArgs: [],
   ownLogin: false,
   userConfiguration: null,
+  settingsText: null,
   allWorkers: true,
   favorites: [],
   hidden: [],

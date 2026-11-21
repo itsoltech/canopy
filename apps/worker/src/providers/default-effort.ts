@@ -35,16 +35,16 @@ const CodexSettings = Schema.Struct({
 });
 
 /**
- * The reasoning effort the device owner set as their default in each harness (docs/protocol.md#modele-effort-i-steer).
- * Platform threads run with isolated homes (home.ts) and Claude without user settings, so the harnesses do not
- * read these files themselves: the worker reads them, reports the value as `ModelInfo.default_effort` and sends
- * it with a turn that has no effort of its own. The files are only read, never written.
+ * Default reasoning effort for the model catalog and turns without an explicit choice
+ * (docs/protocol.md#modele-effort-i-steer). App-configured preferences take precedence over defaults from
+ * the device's CLI files, which the worker reads independently of the harness's isolated home.
  *
  * - Codex (`$CODEX_HOME/config.toml`, else ~/.codex/config.toml): `model_reasoning_effort` of the profile chosen by
  *   the top-level `profile`, else the top-level `model_reasoning_effort`. Project `.codex/config.toml`, system and
  *   managed layers are not read (the catalog is per worker, not per folder).
  * - Claude Code: `CLAUDE_CODE_EFFORT_LEVEL` of the worker's environment (Claude Code gets it too and it wins over
- *   every other source there; `auto` / `unset` = the model's own default), else `~/.claude/settings.json`
+ *   every other source there; `auto` / `unset` = the model's own default), then the app's `effortLevel`,
+ *   then `~/.claude/settings.json`
  *   (`$CLAUDE_CONFIG_DIR/settings.json`): `modelSettings.<model>.effortLevel` (what `/effort` saves), else
  *   `effortLevel`. Project and local settings depend on the folder and are not read for the catalog.
  */
@@ -89,12 +89,15 @@ export function claudeConfiguredEffort(
   settings: typeof ClaudeSettings.Type | undefined,
   env: Env,
   names: readonly string[],
+  appEffort?: string,
 ): string | undefined {
   const fromEnv = env["CLAUDE_CODE_EFFORT_LEVEL"]?.trim().toLowerCase();
 
   if (fromEnv === "auto" || fromEnv === "unset") return undefined;
 
   if (fromEnv) return fromEnv;
+
+  if (appEffort) return appEffort;
   const user = settings;
   const wanted = new Set(names.flatMap((name) => (name ? [canonicalClaudeModel(name)] : [])));
 

@@ -4,7 +4,7 @@ import { Provider, RunBotTurnSchema } from "@canopy/contracts";
 import { tempDirs } from "@canopy/testing";
 import { Schema } from "effect";
 import { createHash } from "node:crypto";
-import { mkdirSync, readdirSync, readlinkSync, symlinkSync, writeFileSync } from "node:fs";
+import { mkdirSync, readFileSync, readdirSync, readlinkSync, realpathSync, symlinkSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { grokBus } from "../providers/grok/bus.ts";
 import { resolveProfiles } from "../providers/profiles.ts";
@@ -106,7 +106,7 @@ test("bot isolation keeps only the selected login and rebuilds pre-isolation ses
   }
 });
 
-test("Grok login uses the selected auth path; only bots replace the shell home", () => {
+test("Grok preferences apply to threads and isolated bots alongside the selected login", () => {
   const user = userEnvironment(temp("canopy-bot-grok-login-"));
   const sourceHome = user.env.GROK_HOME;
   const auth = join(sourceHome, "auth.json");
@@ -119,21 +119,28 @@ test("Grok login uses the selected auth path; only bots replace the shell home",
     [false, false],
   ] as const) {
     const launch = grokLaunch({
-      dataDir: temp("canopy-bot-grok-data-"),
+      dataDir: realpathSync(temp("canopy-bot-grok-data-")),
       profile: {
         kind: "native",
         id: "fixture",
         providers: ["grok"],
         env: { ...user.env, GROK_AUTH_PATH: join(user.env.HOME, "wrong-auth.json") },
-        runtime: { homePath: sourceHome },
+        runtime: { homePath: sourceHome, grokSettings: { session: { auto_compact_threshold_percent: 60 } } },
       },
       linkDeviceLogin,
       ...(bot && { bot: { cwd: sourceHome, instructions: "Use only Canopy tools.", sourceHome } }),
     });
 
     try {
-      expect(launch.options.env?.["HOME"]).toBe(bot ? launch.options.env?.["GROK_HOME"] : user.env.HOME);
+      const home = launch.options.env?.["GROK_HOME"];
+
+      if (!home) throw new Error("Expected a private Grok home");
+      expect(launch.options.env?.["HOME"]).toBe(bot ? home : user.env.HOME);
       expect(launch.options.env?.["GROK_AUTH_PATH"]).toBe(linkDeviceLogin ? auth : undefined);
+      const config = readFileSync(join(home, "config.toml"), "utf8");
+      expect(Bun.TOML.parse(config)).toMatchObject({ session: { auto_compact_threshold_percent: 60 } });
+
+      if (bot) expect(config).toContain('"Bash(*)"');
     } finally {
       launch.cleanup();
     }
