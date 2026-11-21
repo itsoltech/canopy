@@ -131,6 +131,10 @@ export class DevicePreferences {
     if (this.viewLoaded) this.#view.set(change);
   }
 
+  dismissGoal(goalId: string): void {
+    if (this.viewLoaded) this.#view.dismissGoal(goalId);
+  }
+
   connect(): () => void {
     const read = () => {
       try {

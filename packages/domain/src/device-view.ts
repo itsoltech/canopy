@@ -29,6 +29,7 @@ const savedView = Schema.Struct({
   lastSeenAppVersion: Schema.optionalKey(Schema.String),
   appUpdateFrom: Schema.optionalKey(Schema.String),
   threadScroll: Schema.optionalKey(Schema.Array(savedThreadScroll)),
+  dismissedGoalIds: Schema.optionalKey(Schema.Array(Schema.String)),
 });
 
 export type DeviceSidebarValues = Pick<
@@ -40,6 +41,7 @@ export interface DeviceViewValues extends DeviceSidebarValues {
   groupByWorktree: boolean;
   collapsedSidebarGroups: readonly string[];
   threadScroll: readonly SavedThreadScroll[];
+  dismissedGoalIds: readonly string[];
   threadSortMode: ThreadSortMode;
   lastSeenAppVersion: string;
   appUpdateFrom: string;
@@ -57,6 +59,7 @@ export const deviceViewDefaults: DeviceViewValues = {
   groupByWorktree: false,
   collapsedSidebarGroups: [],
   threadScroll: [],
+  dismissedGoalIds: [],
   threadSortMode: "activity",
   lastSeenAppVersion: "",
   appUpdateFrom: "",
@@ -136,6 +139,12 @@ export class DeviceViewPreferences {
 
   set(change: Partial<DeviceViewValues>): void {
     this.#save({ ...this.values, ...change });
+  }
+
+  dismissGoal(goalId: string): void {
+    const { dismissedGoalIds } = this.values;
+
+    if (!dismissedGoalIds.includes(goalId)) this.set({ dismissedGoalIds: [...dismissedGoalIds, goalId] });
   }
 
   #publish(values: DeviceViewValues): void {
