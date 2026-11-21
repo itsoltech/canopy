@@ -347,14 +347,13 @@
     (workspaceState.panelMode === "preview" && workspaceState.panelOpen) || workspaceState.previewTabActive,
   );
 
-  const miniEligible = $derived(
-    Boolean(
-      automaticPreview.selection &&
+  const showMiniPreview = $derived(
+    Boolean(automaticPreview.selection) &&
+      !previewOpen &&
       automaticPreview.workerId === worker?.id &&
       !worktreeRemoved &&
       !thread?.archivedAt &&
       !thread?.deletedAt,
-    ),
   );
 
   const canBranch = $derived(!away && !worktreeRemoved && Boolean(tree && thread && thread.status !== "archived"));
@@ -630,9 +629,10 @@
             bind:this={feedRegion}
             bind:clientWidth={summary.width}
             style:--sidebar-width={workspaceState.sidebarWidth}
+            style:--chat-pill-space={summary.docked ? `calc(${summary.pillWidth}px + 2rem)` : undefined}
             data-chat-placement
-            data-chat-card={summary.card || undefined}
-            data-chat-settling={summary.settling || undefined}
+            data-chat-card={summary.card || (summary.docked && showMiniPreview) || undefined}
+            data-chat-settling={(summary.settling && !showMiniPreview) || undefined}
           >
             <span
               aria-hidden="true"
@@ -645,8 +645,8 @@
                   {tree}
                   floating={summary.floating}
                   docked={summary.docked}
-                  preview={miniEligible && !previewOpen ? miniPreview : undefined}
-                  >{@render threadPanel()}</ThreadSummary
+                  bind:pillWidth={summary.pillWidth}
+                  preview={showMiniPreview ? miniPreview : undefined}>{@render threadPanel()}</ThreadSummary
                 >{/if}
             </div>
             {#key threadId}
@@ -894,7 +894,7 @@
       {worker}
       tool={automaticPreview.selection.tool}
       target={automaticPreview.selection.target}
-      active={miniEligible && !previewOpen && !fileTab}
+      active={showMiniPreview && !fileTab}
       minimized={automaticPreview.minimized}
       offline={away ?? ""}
       onminimize={() => (automaticPreview.minimized = !automaticPreview.minimized)}

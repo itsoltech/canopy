@@ -1,6 +1,7 @@
 # Zakładki wątku i panel Files/Diff/Preview
 
-Status (2026-11-20): **zaimplementowane; układ v3**; zapis i usunięcie pliku oraz odczyty Git paneli są związane z
+Status (2026-11-21): **zaimplementowane; układ v3**; stała górna krawędź osi i gradientu przy zwijaniu
+zadokowanego podsumowania; zapis i usunięcie pliku oraz odczyty Git paneli są związane z
 sprawdzonymi uchwytami i bezpieczną polityką Git (szczegóły niżej), menu ścieżek w rozmowie
 z kopiowaniem pełnej i względnej ścieżki, pobieraniem oraz lokalnym
 `Reveal in Finder/Explorer`, zaznaczanie i kopiowanie tekstu w podglądzie źródła
@@ -388,7 +389,11 @@ Dostępność nightly/beta/stable wynika z [promocji wydań](release.md).
 
 ### Podsumowanie wątku
 
-Na web/desktop zwinięty przycisk szczegółów i mini Preview mają zarezerwowane miejsce nad przewijaną osią. Pierwszy widoczny wiersz wiadomości pozostaje czytelny. Otwarty popover może chwilowo przykryć rozmowę.
+W szerokim układzie web/desktop karta, zwinięta pigułka i mini Preview zajmują
+miejsce obok przewijanej osi. Jej górna krawędź i gradient pozostają pod nagłówkiem
+podczas zwijania i rozwijania karty. W węższym układzie pigułka i mini Preview
+mają miejsce nad osią, dzięki czemu pierwszy widoczny wiersz wiadomości jest
+czytelny. Otwarty popover może chwilowo przykryć rozmowę.
 
 Kolumna rozmowy (`chat-column`) jest wyśrodkowana na **środku okna**, z własną
 maksymalną szerokością; wiadomości i composer zawsze mają tę samą szerokość
@@ -396,12 +401,15 @@ i wyrównanie. Kolumna nie wchodzi na lewy sidebar (z odstępem szyny tur) ani n
 zadokowaną kartę (odstęp 1 rem). Gdy jedna ze stron by kolidowała, kolumna przesuwa
 się tylko tyle, ile trzeba, a dopiero potem zwęża się do minimum 36 rem.
 Położenie kolumny liczy wyłącznie CSS (`layout.css`, `data-chat-placement`): z bieżącej
-szerokości sidebara (`--sidebar-extent`), szerokości obszaru (`100%`) i miejsca karty
-(`--chat-card-space`). Nie ma pomiaru w JS, więc kolumna rusza się w tej samej klatce
-co sidebar i prawy panel, a nie klatkę później. Sidebar i panel zmieniają tylko
-dostępną przestrzeń; gdy kolumna mieści się na środku, nic się nie rusza.
-Otwarcie lub zwinięcie zadokowanej karty przesuwa kolumnę płynnie
-(`--duration-slow`, `--ease-smooth-out`; przy reduced motion natychmiast).
+szerokości sidebara (`--sidebar-extent`), szerokości obszaru (`100%`) i miejsca
+podsumowania (`--chat-card-space`). Rezerwa uwzględnia stałą szerokość karty lub
+mini Preview albo zmierzoną szerokość pigułki. Położenie wynika z tych wartości
+w CSS, więc kolumna rusza się w tej samej klatce co sidebar i prawy panel.
+Sidebar i panel zmieniają tylko dostępną przestrzeń. Kolumna pozostaje na środku,
+gdy się tam mieści. Otwarcie lub zwinięcie zadokowanej karty płynnie zmienia
+rezerwę (`--duration-slow`, `--ease-smooth-out`). Przy widocznym mini Preview
+cała rezerwa pojawia się w chwili zadokowania. Przy reduced motion wszystkie te
+zmiany są natychmiastowe.
 
 `SummaryLayout` decyduje tylko o doku (karta czy pigułka). Decyzja dotyczy stanu
 **końcowego**: do zmierzonej szerokości dodaje drogę, którą sidebar i prawy panel mają

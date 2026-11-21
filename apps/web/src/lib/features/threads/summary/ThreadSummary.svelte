@@ -24,6 +24,7 @@
     docked,
     children,
     preview,
+    pillWidth = $bindable(0),
   }: {
     thread: ui.Thread;
     tree: ThreadTree | undefined;
@@ -33,6 +34,7 @@
     docked: boolean;
     children: Snippet;
     preview?: Snippet;
+    pillWidth?: number;
   } = $props();
 
   const id = $props.id();
@@ -123,13 +125,19 @@
   });
 </script>
 
-<!-- The collapsed pill and its mini preview reserve space above the scrolling timeline. -->
+<!-- Beside the timeline, both summary states share its top edge. Narrow layouts reserve a row for the pill. -->
 <div
-  class={["t-summary-pill z-30 mt-3 mr-4 flex max-w-[calc(100%-2rem)] justify-end", pinned && "absolute top-0 right-0"]}
-  style:margin-bottom={!pinned && preview ? `calc(${previewHeight}px + .75rem)` : undefined}
+  class={["t-summary-pill z-30 mt-3 mr-4 flex max-w-[calc(100%-2rem)] justify-end", docked && "absolute top-0 right-0"]}
+  style:margin-bottom={!docked && preview ? `calc(${previewHeight}px + .75rem)` : undefined}
   data-hidden={pinned || undefined}
   inert={pinned}
-  bind:contentRect={null, (rect: DOMRectReadOnly) => (pillHeight = Math.round(rect.height))}
+  bind:contentRect={
+    null,
+    (rect: DOMRectReadOnly) => {
+      pillHeight = Math.round(rect.height);
+      pillWidth = Math.ceil(rect.width);
+    }
+  }
 >
   <ThreadSummaryPill
     {thread}

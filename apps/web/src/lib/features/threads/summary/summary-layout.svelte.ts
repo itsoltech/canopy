@@ -19,6 +19,8 @@ const CARD_SPACE_REM = 22;
 export class SummaryLayout {
   /** Width of the thread area. */
   width = $state(0);
+  /** Width of the collapsed summary beside the timeline. */
+  pillWidth = $state(0);
   /** Width the chat column may use (the area without the turn rail's padding) once the sidebar and Files settle. */
   inner = $state(0);
   /** Briefly true after the docked card opens or closes, so the column eases to its new place. */
