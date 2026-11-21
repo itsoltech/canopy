@@ -6,7 +6,8 @@ oraz osobne aktualizacje Canopy i CLI dostawców. Na szerokim oknie iOS i Androi
 sidebar i rozmowa przesuwają wspólną krawędź podczas zwijania i rozwijania.
 Uchwyt na tej krawędzi zmienia szerokość sidebara i zapisuje ją lokalnie.
 Licznik i akcja Update all na telefonie wynikają z planu instalacji Canopy.
-Stany źródeł Usage są widoczne w sekcji **Recording gateways**.
+Stany źródeł Usage są widoczne w sekcji **Recording gateways**. Podsumowanie
+podaje liczbę raportów bez kompletnego kosztu.
 Settings → Providers pozwala edytować ustawienia CLI instancji Claude, Codexa i Groka.
 Zakres All workers zapisuje wspólne klucze, a zakres pojedynczego workera
 pozwala je nadpisać i wyświetlić dziedziczone wartości.
@@ -339,9 +340,10 @@ jeśli gateway zwraca te podziały. Gdy raport zawiera podział według workera,
 **Breakdown** domyślnie pokazuje **Worker**. Każdy wiersz podaje koszt lub liczbę
 tokenów workera, który wykonał pracę. **Unknown worker** obejmuje zużycie bez
 zachowanego przypisania. Przy starszym gatewayu domyślną opcją pozostaje **Provider**.
-Informacje o pokryciu raportu są widoczne w sekcji **Recording gateways**, która
-pokazuje stan i początek rejestrowania danych przez każdy gateway, oraz przy kwotach.
-Kwoty nieznane i częściowe mają osobne oznaczenia.
+Sekcja **Recording gateways** pokazuje stan i początek rejestrowania danych
+przez każdy gateway. Podsumowanie kosztu podaje liczbę raportów bez kompletnego
+kosztu. Raport wyświetla kwoty bez dopisku o częściowym pokryciu, a brak znanej
+kwoty oznacza jako **Unknown**.
 
 Między podsumowaniem a podziałem raportu wykres **Daily trend** pokazuje
 osobną linię dla każdego dostawcy. Początkowo zaznaczony jest ostatni dzień.

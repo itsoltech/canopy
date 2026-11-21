@@ -5,7 +5,7 @@ harnessów, niezależne szacunki ekwiwalentu API OpenAI, wybór kosztu per liczn
 API `GetUsageStats`, synchronizacja źródeł połączonych komputerów oraz modal
 Usage z jedną kwotą kosztu i podziałem według workera, aktywności oraz poszczególnych botów.
 Web, desktop i [aplikacja mobilna](mobile.md#raport-usage) pokazują w raporcie Usage skrócone liczby tokenów i dzienny wykres według dostawcy.
-Informacje o pokryciu raportu są widoczne przy kwotach i w sekcji **Recording gateways**.
+Podsumowanie informuje o raportach bez kosztu, a sekcja **Recording gateways** pokazuje pokrycie źródeł.
 W web/desktop data wybrana na wykresie ma oznaczenie UTC. Dla jednego dnia oś nie powtarza daty na obu końcach. Przy nawigacji klawiaturą po kilku dniach pojawia się wskazówka o strzałkach.
 Dostępność nightly/beta/stable według [release.md](release.md).
 
@@ -183,10 +183,10 @@ zmaleć, np. gdy zgłoszone zero zastąpi szacunek albo wzrost bez ceny unieważ
 kompletność. Niezależne sumy kosztów nie są dodawane do siebie: wyceniają to samo
 zużycie. Wybór po zsumowaniu providerów lub modeli prowadziłby do nakładania kwot.
 
-Modal Usage pokazuje wyłącznie wybrany koszt w podsumowaniu, na wykresie i w
-podziałach. Przy częściowej kwocie podsumowanie podaje liczbę raportów bez ceny,
-a wykres i podziały oznaczają kwotę jako częściową. Brak znanej kwoty pozostaje
-widoczny jako `Unknown`. API nadal zwraca też obie niezależne wyceny.
+Raport Usage pokazuje wybrany koszt w podsumowaniu, na wykresie i w podziałach.
+Kwoty są wyświetlane bez dopisku o częściowym pokryciu. Podsumowanie podaje
+liczbę raportów bez kompletnego kosztu przy częściowym pokryciu. Brak znanej
+kwoty jest widoczny jako `Unknown`. API zwraca też obie niezależne wyceny.
 
 Raport Usage wyświetla liczby tokenów poniżej tysiąca w całości. Większe liczby
 zaokrągla do jednego miejsca po przecinku i stosuje skróty `k`, `M`, `B` i `T`

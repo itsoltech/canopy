@@ -117,9 +117,7 @@ export const effectiveCost = (amounts: UsageAmounts) =>
 export function metricValue(amounts: UsageAmounts, view: UsageView): string {
   if (view === "tokens") return shortCount(totalTokens(amounts));
 
-  const cost = effectiveCost(amounts);
-
-  return hasPartialCost(amounts) ? `${cost} (partial)` : cost;
+  return effectiveCost(amounts);
 }
 
 export const metricNumber = (amounts: UsageAmounts, view: UsageView) =>
