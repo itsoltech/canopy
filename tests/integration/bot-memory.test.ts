@@ -209,10 +209,12 @@ describe.skipIf(!dockerAvailable)("durable bot memory through the worker harness
     const external = await memoryChannel(f, bot.id);
     const title = "Juniper timetable";
     const body = "The next tram arrives at noon.";
+
     const write = await external(
       "1000.1",
       toolInput("memory_save", { scope: "conversation", title, body, aliases: ["Juniper"] }),
     );
+
     const saved = result(await answer(write));
     expect(saved).toMatchObject({ scope: "conversation", title, revision: 1 });
     const conversationId = (await command(write)).conversationId;
