@@ -28,20 +28,27 @@ interface Picks {
   readonly baseRef?: string;
 }
 
+interface WorkspaceTarget {
+  readonly workspaceId: string;
+  readonly ready: boolean;
+  /** A link can request an existing worktree, or the current checkout with an empty ID. */
+  readonly worktreeId: string | null;
+}
+
 /**
  * The new-thread composer's workspace and base ref. Refs and earlier worktrees load per workspace while its worker
- * is online and offers worktrees; picks reset when the workspace changes. Until you pick: the default mode of the
- * worktree settings (project × computer).
+ * is online and offers worktrees; picks reset when the workspace or link changes. The link takes precedence over
+ * the worktree settings (project × computer) until you pick.
  */
 export class WorkspaceDraft {
   refs = $state.raw<ui.ListGitRefsResponse | undefined>(undefined);
   loading = $state(false);
   error = $state<string | undefined>(undefined);
-  #picks = $state.raw<Picks>({ workspaceId: "" });
-  #target: () => { workspaceId: string; ready: boolean } | undefined;
+  #picks = $state.raw<Picks>();
+  #target: () => WorkspaceTarget | undefined;
   #loaded = "";
 
-  constructor(target: () => { workspaceId: string; ready: boolean } | undefined) {
+  constructor(target: () => WorkspaceTarget | undefined) {
     this.#target = target;
     $effect(() => {
       const current = this.#target();
@@ -102,7 +109,19 @@ export class WorkspaceDraft {
   }
 
   #own(): Picks | undefined {
-    return this.#picks.workspaceId === this.#loaded ? this.#picks : undefined;
+    return this.#picks?.workspaceId === this.#loaded ? this.#picks : undefined;
+  }
+
+  #linkedWorktree(id: string): ui.ThreadWorktree | undefined {
+    if (this.#target()?.workspaceId !== this.#loaded) return undefined;
+
+    return this.worktrees.find((worktree) => worktree.id === id && !worktree.unavailableReason && !worktree.removedAt);
+  }
+
+  get linkedWorktreeUnavailable(): boolean {
+    const id = this.#target()?.worktreeId;
+
+    return Boolean(id && !this.loading && !this.#own()?.choice && !this.#linkedWorktree(id));
   }
 
   get choice(): WorkspaceChoice {
@@ -110,6 +129,13 @@ export class WorkspaceDraft {
     const picked = this.#own()?.choice;
 
     if (picked) return picked;
+    const linked = this.#target()?.worktreeId ?? null;
+
+    if (linked !== null) {
+      const worktree = linked ? this.#linkedWorktree(linked) : undefined;
+
+      return worktree ? { kind: "existing", worktree } : { kind: "checkout" };
+    }
 
     return this.refs?.settings?.defaultMode === ui.WorkspaceMode.NEW_WORKTREE ? { kind: "new" } : { kind: "checkout" };
   }
@@ -125,6 +151,10 @@ export class WorkspaceDraft {
 
   chooseBase(ref: string): void {
     this.#picks = { ...this.#own(), workspaceId: this.#loaded, baseRef: ref };
+  }
+
+  reset(): void {
+    this.#picks = undefined;
   }
 
   /** Apply the confirmed HEAD immediately, even if refreshing discovery subsequently fails. */

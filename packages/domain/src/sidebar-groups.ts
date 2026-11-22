@@ -17,9 +17,7 @@ export function projectSidebarEntries(
 ): SidebarEntry[] {
   const key = `heading:project:${id}`;
 
-  const entries: SidebarEntry[] = [
-    { key, heading: name, groupKind: "project", projectId: threads[0]?.projectId, count: threads.length },
-  ];
+  const entries: SidebarEntry[] = [{ key, heading: name, groupKind: "project", projectId: id, count: threads.length }];
 
   if (!grouping.groupByWorktree) {
     return [
@@ -48,12 +46,21 @@ export function projectSidebarEntries(
     const head = first.worktree ?? first.checkoutHead;
     const label = head && headLabel(head);
 
+    const target = members.find(
+      (thread) =>
+        (!thread.worktree || (thread.worktree.id && !thread.worktree.removedAt)) &&
+        workspaces.some((workspace) => workspace.id === thread.workspaceId),
+    );
+
     entries.push({
       key: `heading:worktree:${identity}`,
       heading: label || basename(directory) || "Main checkout",
       groupKind: "worktree",
       depth: 1,
       groupTitle: directory,
+      projectId: id,
+      groupWorkspaceId: target?.workspaceId,
+      groupWorktreeId: target?.worktree?.id,
       count: members.length,
     });
 

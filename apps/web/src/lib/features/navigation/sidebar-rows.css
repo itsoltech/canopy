@@ -215,6 +215,68 @@
   font-size: var(--type-sidebar-mark);
 }
 
+.sidebar-group-row {
+  --sidebar-group-action-size: 2.25rem;
+  --sidebar-group-meta-offset: calc(var(--sidebar-group-action-size) - var(--sidebar-row-padding));
+}
+
+@media (width >= 40rem) {
+  .sidebar-group-row {
+    --sidebar-group-action-size: 2rem;
+  }
+}
+
+.sidebar-group-row .sidebar-group-meta {
+  /* The chevron fits just to the left of the new-thread link's hit area. */
+  margin-inline-start: var(--sidebar-group-meta-offset);
+  translate: calc(-1 * var(--sidebar-group-meta-offset)) 0;
+}
+
+.sidebar-group-chevron-hit-area,
+.sidebar-group-new-thread {
+  position: absolute;
+  inset-inline-end: 0;
+  inset-block-end: 0;
+  inline-size: var(--sidebar-group-action-size);
+  block-size: var(--sidebar-group-action-size);
+}
+
+.sidebar-group-chevron-hit-area {
+  pointer-events: none;
+}
+
+.sidebar-group-new-thread {
+  padding-inline-end: var(--sidebar-row-padding);
+}
+
+@media (hover: hover) and (pointer: fine), (pointer: none) {
+  @media (prefers-reduced-motion: no-preference) {
+    .sidebar-group-row .sidebar-group-meta {
+      transition: translate var(--duration-fast) var(--ease-smooth-out);
+    }
+  }
+
+  .sidebar-group-new-thread {
+    transition: opacity var(--duration-quick) var(--ease-in-out);
+  }
+
+  .sidebar-group-chevron-hit-area {
+    pointer-events: auto;
+  }
+
+  /* A pointer entering on the resting chevron can still click to toggle the group. */
+  .sidebar-group-row:not(:has(:focus-visible), :hover:not(:has(.sidebar-group-chevron-hit-area:hover))) {
+    & .sidebar-group-meta {
+      translate: 0;
+    }
+
+    & .sidebar-group-new-thread {
+      opacity: 0;
+      pointer-events: none;
+    }
+  }
+}
+
 /* On a footer handoff the outgoing panel leaves the top layer before it can cover its neighbour. */
 .sidebar-footer-popover-superseded:not(:popover-open) {
   transition: none;
