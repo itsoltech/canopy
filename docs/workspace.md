@@ -2,7 +2,8 @@
 
 Aktualizacja (2026-11-22): ustawienie dostępu do konektora w wątku obejmuje cały projekt.
 
-Status (2026-11-21): **zaimplementowane; układ v3**; stała górna krawędź osi i gradientu przy zwijaniu
+Status (2026-11-22): **zaimplementowane; układ v3**; poprawka regresji Svelte blokującej interfejs
+przy przejściu z Preview na Files; stała górna krawędź osi i gradientu przy zwijaniu
 zadokowanego podsumowania; zapis i usunięcie pliku oraz odczyty Git paneli są związane z
 sprawdzonymi uchwytami i bezpieczną polityką Git (szczegóły niżej), menu ścieżek w rozmowie
 z kopiowaniem pełnej i względnej ścieżki, pobieraniem oraz lokalnym
@@ -485,6 +486,13 @@ Rozpoznawanie celu i granice sesji opisuje
 [automation-tools.md](automation-tools.md#automatyczny-mini-preview).
 
 ### Panel Files/Preview
+
+Renderer web/desktop używa Svelte 5.59.1 z
+[łatą runtime’u](../patches/svelte@5.59.1.patch). Svelte odrzuca oczekującą
+aktualizację listy, jeśli gałąź widoku została zastąpiona w tej samej partii
+zmian. Zapobiega to przerwaniu renderowania po przełączeniu z Preview na Files.
+Łatę można usunąć po aktualizacji do wydania zawierającego
+[poprawkę upstream](https://github.com/sveltejs/svelte/pull/19372).
 
 Prawy panel ma wspólny przełącznik **Files / Preview**. Files zachowuje drzewo,
 nazwę katalogu i akcje `Reload files`/opcje; wybrany plik otwiera kartę głównej
