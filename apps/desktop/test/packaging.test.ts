@@ -1,5 +1,5 @@
 import { expect, test } from "bun:test";
-import { mkdirSync, readFileSync, writeFileSync, lstatSync, readlinkSync, renameSync } from "node:fs";
+import { mkdirSync, readFileSync, writeFileSync, lstatSync, readlinkSync, renameSync, unlinkSync } from "node:fs";
 import { join } from "node:path";
 import { tempDirs } from "@canopy/testing";
 import { noAgentClis } from "../../../scripts/agent-clis.ts";
@@ -9,7 +9,11 @@ const { createPackage } = require("@electron/asar") as { createPackage(source: s
 interface PackageContext {
   appOutDir: string;
   electronPlatformName: string;
-  packager: { appInfo?: { productFilename: string }; platformSpecificBuildOptions?: { binaries: string[] } };
+  packager: {
+    projectDir: string;
+    appInfo?: { productFilename: string };
+    platformSpecificBuildOptions?: { binaries: string[] };
+  };
 }
 
 const verify = require("../scripts/verify-package.cjs") as (context: PackageContext) => Promise<void>;
@@ -30,11 +34,19 @@ const { machOArchitectures, thinMachOFilesPortable } = require("../scripts/macho
 
 const makeTemp = tempDirs();
 
-async function packed(extraAsarDependency = false) {
+const generatedNotices = ["THIRD_PARTY_NOTICES.txt", "web/client/open-source-licenses.json"];
+
+async function packed(extraAsarDependency = false, notices = generatedNotices) {
   // The verifier also writes a size report next to appOutDir.
-  const app = join(makeTemp("canopy-package-guard-"), "unpacked");
+  const projectDir = makeTemp("canopy-package-guard-");
+  const app = join(projectDir, "unpacked");
   const resources = join(app, "resources");
   const runtime = join(resources, "runtime");
+  const preparedRuntime = join(projectDir, "build/runtime");
+
+  mkdirSync(join(preparedRuntime, "web/client"), { recursive: true });
+
+  for (const path of notices) writeFileSync(join(preparedRuntime, path), "fixture");
 
   for (const path of [
     "node_modules/@img/sharp-linux-x64/lib",
@@ -49,8 +61,7 @@ async function packed(extraAsarDependency = false) {
     "canopy-gateway.js",
     "canopy-worker.js",
     "canopy-web.js",
-    "THIRD_PARTY_NOTICES.txt",
-    "web/client/open-source-licenses.json",
+    ...notices,
     "node_modules/@img/sharp-linux-x64/lib/sharp.node",
     "node_modules/@anthropic-ai/claude-agent-sdk/sdk.mjs",
   ])
@@ -76,12 +87,32 @@ async function packed(extraAsarDependency = false) {
 
   await createPackage(shell, join(resources, "app.asar"));
 
-  return { app, resources, runtime, context: { appOutDir: app, electronPlatformName: "linux", packager: {} } };
+  return {
+    app,
+    resources,
+    runtime,
+    context: { appOutDir: app, electronPlatformName: "linux", packager: { projectDir } },
+  };
 }
 
 test("the final asar guard accepts a bundled shell and rejects app node_modules", async () => {
   await expect(verify((await packed()).context)).resolves.toBeUndefined();
   await expect(verify((await packed(true)).context)).rejects.toThrow("asar must not contain node_modules");
+});
+
+test("packaging verifies the notices supplied by the runtime revision", async () => {
+  const historical = await packed(false, ["THIRD_PARTY_NOTICES.md"]);
+  await expect(verify(historical.context)).resolves.toBeUndefined();
+  unlinkSync(join(historical.runtime, "THIRD_PARTY_NOTICES.md"));
+  await expect(verify(historical.context)).rejects.toThrow(
+    "Packaged third-party notices missing: THIRD_PARTY_NOTICES.md",
+  );
+
+  const current = await packed();
+  unlinkSync(join(current.runtime, "web/client/open-source-licenses.json"));
+  await expect(verify(current.context)).rejects.toThrow(
+    "Packaged third-party notices missing: web/client/open-source-licenses.json",
+  );
 });
 
 test("packaging rejects bundled agent CLIs and a bundled database", async () => {
@@ -117,7 +148,11 @@ test("macOS packaging requires an arm64 quit adapter and includes it in signing"
   const context = {
     appOutDir: fixture.app,
     electronPlatformName: "darwin",
-    packager: { appInfo: { productFilename: "Canopy" }, platformSpecificBuildOptions: signing },
+    packager: {
+      ...fixture.context.packager,
+      appInfo: { productFilename: "Canopy" },
+      platformSpecificBuildOptions: signing,
+    },
   };
 
   await expect(verify(context)).rejects.toThrow("quit key event adapter missing");

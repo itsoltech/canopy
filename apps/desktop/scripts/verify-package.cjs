@@ -63,7 +63,15 @@ module.exports = async ({ appOutDir, electronPlatformName, packager }) => {
 
   if (!existsSync(join(runtime, "web/client/_app"))) throw new Error("Packaged SvelteKit client assets missing");
 
-  for (const path of ["THIRD_PARTY_NOTICES.txt", "web/client/open-source-licenses.json"]) {
+  // Recovery can package an earlier runtime with the current workflow.
+  const preparedRuntime = join(packager.projectDir, "build/runtime");
+  const generatedNotices = ["THIRD_PARTY_NOTICES.txt", "web/client/open-source-licenses.json"];
+
+  const requiredNotices = generatedNotices.some((path) => existsSync(join(preparedRuntime, path)))
+    ? generatedNotices
+    : ["THIRD_PARTY_NOTICES.md"];
+
+  for (const path of requiredNotices) {
     if (!existsSync(join(runtime, path))) throw new Error(`Packaged third-party notices missing: ${path}`);
   }
 

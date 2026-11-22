@@ -96,6 +96,8 @@ i używanymi ikonami. Brakujące teksty upstream można dodać w
 `licenses/<nazwa pakietu>/<wersja>/` wraz z informacją o źródle.
 W webie i desktopie wykaz jest dostępny w **Settings → Open-source licenses**.
 Desktop zawiera też tekstowy wykaz w `resources/runtime/THIRD_PARTY_NOTICES.txt`.
+Weryfikacja pakietu wymaga obu wygenerowanych wykazów, gdy przygotowany runtime zawiera
+co najmniej jeden z nich. Dla rewizji sprzed wprowadzenia generatora wymaga wykazu Markdown.
 Mobilne wydania i OTA generują plik offline podczas bundlowania Metro
 ([mobile.md](mobile.md#licencje-open-source)).
 
