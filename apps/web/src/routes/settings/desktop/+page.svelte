@@ -6,6 +6,7 @@
   import SettingsGroup from "#lib/shared/ui/SettingsGroup.svelte";
   import SettingsRow from "#lib/shared/ui/SettingsRow.svelte";
   import WorkerStatus from "#lib/features/desktop/WorkerStatus.svelte";
+  import UsagePingSettings from "#lib/features/desktop/UsagePingSettings.svelte";
 
   let status = $state<DesktopStatus>();
   let hasMigration = $state(false);
@@ -61,5 +62,6 @@
         />
       </SettingsGroup>
     {/if}
+    <UsagePingSettings />
   {:else}<p class="text-base/6 sm:text-sm/6">Desktop settings are available in the Canopy desktop app.</p>{/if}
 </div>

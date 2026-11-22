@@ -82,6 +82,7 @@ appear only as the literal name used by an external tool).
 | model | the model an agent uses | engine, LLM |
 | speed | the provider's execution speed, such as Standard, Fast or Ultrafast | service tier (outside technical details) |
 | API equivalent | estimated value of token consumption at OpenAI API prices; separate from subscription charges or an invoice | actual charge, billed cost (for estimates) |
+| usage ping | daily signal that helps estimate active Canopy installations and app versions | activity log, usage tracking |
 | context | the model's context window; variant labels use `1M context` | context length |
 | legacy model | an older model version kept in the collapsible `Legacy models` group | deprecated model (unless the provider declares it deprecated) |
 | agent CLI | the provider's tool installed on a worker | provider CLI, binary, tool |

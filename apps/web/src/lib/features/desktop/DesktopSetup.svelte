@@ -13,6 +13,7 @@
   import Alert from "#lib/shared/ui/Alert.svelte";
   import ModeChoice from "./ModeChoice.svelte";
   import DesktopStartup from "./DesktopStartup.svelte";
+  import UsagePingSettings from "./UsagePingSettings.svelte";
 
   let { settings = false }: { settings?: boolean } = $props();
 
@@ -20,6 +21,7 @@
   let status = $state<DesktopStatus>();
   let available = $state<boolean>();
   let busy = $state(false);
+  let pingSaving = $state(false);
   const working = $derived(busy || (!settings && status?.phase === "starting"));
 
   const startup = $derived(
@@ -98,7 +100,7 @@
   async function submit(event?: SubmitEvent) {
     event?.preventDefault();
 
-    if (!window.canopyDesktop || working) return;
+    if (!window.canopyDesktop || working || pingSaving) return;
 
     if (canGoBack && unchanged) {
       await back();
@@ -164,7 +166,7 @@
           <div class="grid gap-3 sm:grid-cols-2" aria-label="Canopy mode">
             <ModeChoice
               title="Run Canopy on this computer"
-              description="The gateway and a worker run here. Your data stays on this computer."
+              description="The gateway and a worker run here. Canopy stores your projects and threads on this computer."
               selected={mode === "local"}
               onclick={() => (mode = "local")}
               disabled={working}
@@ -193,6 +195,7 @@
                 workers later, open Settings → Network access.
               </p>
             {/if}
+            {#if settings || !status?.configuration}<UsagePingSettings bind:saving={pingSaving} />{/if}
             {#if message}<Alert tone="error">{message}</Alert>{/if}
             {#if status?.configuration && !unchanged}
               <p class="text-base/6 text-pretty text-zinc-500 sm:text-sm/6 dark:text-zinc-400">
@@ -200,7 +203,7 @@
               </p>
             {/if}
             <div class="flex flex-wrap items-center gap-3">
-              <Button variant="primary" type="submit" loading={working}
+              <Button variant="primary" type="submit" loading={working} disabled={pingSaving}
                 >{status?.configuration ? "Save and open Canopy" : "Open Canopy"}</Button
               >
               {#if busy}<p role="status" class="text-sm text-zinc-500 dark:text-zinc-400">Saving mode settings…</p>{/if}

@@ -238,6 +238,6 @@ export const desktopSettingsSections: readonly SettingsSection[] = [
     label: "Desktop",
     icon: "server",
     group: "Connections",
-    keywords: "desktop local remote worker computer",
+    keywords: "desktop local remote worker computer privacy analytics telemetry usage ping",
   },
 ];

@@ -4,6 +4,7 @@ import { SafeAreaProvider } from "react-native-safe-area-context";
 import { Platform, View } from "react-native";
 import { LayoutAnimationConfig } from "react-native-reanimated";
 import { SessionProvider, useSession } from "../state/session";
+import { UsagePingProvider } from "../state/usage-ping";
 import { ListSkeleton } from "../ui/Skeleton";
 import { AppearanceProvider, useAppearance } from "../state/appearance";
 import { OverviewProvider } from "../state/overview";
@@ -130,13 +131,15 @@ export default function Layout() {
         <OverlayLayer.Provider value={ConfirmHost}>
           <PreferencesProvider>
             <SessionProvider>
-              <DevicePreferencesProvider>
-                <WhatsNewProvider>
-                  <PhoneUpdatesProvider>
-                    <SessionUI />
-                  </PhoneUpdatesProvider>
-                </WhatsNewProvider>
-              </DevicePreferencesProvider>
+              <UsagePingProvider>
+                <DevicePreferencesProvider>
+                  <WhatsNewProvider>
+                    <PhoneUpdatesProvider>
+                      <SessionUI />
+                    </PhoneUpdatesProvider>
+                  </WhatsNewProvider>
+                </DevicePreferencesProvider>
+              </UsagePingProvider>
             </SessionProvider>
           </PreferencesProvider>
         </OverlayLayer.Provider>

@@ -88,6 +88,7 @@
     "./usage-chart": "./src/usage-chart.ts",
     "./usage-report": "./src/usage-report.ts",
     "./usage-summary": "./src/usage-summary.ts",
+    "./usage-ping": "./src/usage-ping.ts",
     "./update-checks": "./src/update-checks.ts",
     "./computers": "./src/computers.ts",
     "./diagnostics": "./src/diagnostics/index.ts",

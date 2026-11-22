@@ -1,6 +1,7 @@
 # Canopy na iOS i Android
 
-Status: opis zaimplementowanego kodu (2026-11-22). Profile EAS przypinają Bun 1.4.5
+Status: opis zaimplementowanego kodu (2026-11-22), w tym dziennego pingu użycia
+z przełącznikiem prywatności i pomijaniem wysyłki offline. Profile EAS przypinają Bun 1.4.5
 dla lockfile w wersji 3. Kompozytor pokazuje przypisany [profil Sandbox](sandbox-profiles.md).
 Edytor zaplanowanych zadań pozwala wybrać profil dla nowego wątku.
 Dostęp wątków do konektorów konfiguruje się dla projektów.
@@ -141,6 +142,27 @@ usuwania i dowolną liczbę dni (1–36500); domyślnie jest wyłączony. Edycja
 szkic ustawienia, a **Save** zapisuje całość do gatewaya. Retencja obejmuje
 istniejące archiwum i trwale usuwa historię, z odroczeniem dla zachowanych forków;
 nie usuwa plików workspace. Szczegóły: [database-retention.md](database-retention.md).
+
+## Dzienny ping użycia
+
+Canopy na iOS i Androidzie wysyła do tego samego raportu Umami co [desktop](desktop.md#dzienny-ping-użycia)
+jeden udany ping na dobę UTC. Po sparowaniu aplikacja sprawdza możliwość wysyłki
+na starcie, przy powrocie na pierwszy plan i po odzyskaniu łączności na pierwszym
+planie. Android wymaga potwierdzonego przez system dostępu do internetu. Na iOS
+Expo raportuje dostępność sieci, która może nie mieć drogi do Umami. Łączność
+z gatewayem nie decyduje o wysyłce pingu. Żądanie ma limit 10 s. Po błędzie następne
+zdarzenie może ponowić próbę po co najmniej 15 minutach. Aplikacja nie odpytuje
+sieci cyklicznie. Deweloperskie sesje Metro pomijają ping.
+
+Przełącznik **Send daily usage ping** jest domyślnie włączony. Można go wyłączyć
+podczas parowania, przed pierwszą wysyłką, albo w **Settings → General → Privacy**.
+Wybór działa bez restartu i pozostaje lokalnie po zmianie parowania.
+
+Sygnał zawiera wersję Canopy, platformę `ios` lub `android`, język,
+rozmiar ekranu w dp i rodzinę architektury CPU, jeśli klient ją rozpoznaje.
+Stały User-Agent `Canopy Mobile` pomija model urządzenia. Żądanie nie zawiera
+identyfikatora użytkownika ani urządzenia, tokenu parowania, ciasteczek ani danych
+o aktywności w Canopy. Odbiorca widzi adres IP połączenia HTTPS.
 
 ## Instalacja i dostępność
 

@@ -18,6 +18,10 @@ const feedback = new QuitFeedback(
 
 ipcRenderer.on("canopy:quit-guard", (_event, state: QuitGuardState) => feedback.receive(state));
 
+window.addEventListener("online", (event) => {
+  if (event.isTrusted) void ipcRenderer.invoke("canopy:usage-ping-online").catch(() => {});
+});
+
 function subscribe<T>(channel: string, listener: (data: T) => void) {
   const receive = (_event: Electron.IpcRendererEvent, data: T) => listener(data);
   ipcRenderer.on(channel, receive);
@@ -26,6 +30,10 @@ function subscribe<T>(channel: string, listener: (data: T) => void) {
 }
 
 const bridge: DesktopBridge = {
+  usagePing: {
+    enabled: () => ipcRenderer.invoke("canopy:usage-ping"),
+    setEnabled: (enabled) => ipcRenderer.invoke("canopy:set-usage-ping", enabled),
+  },
   gatewayMigration: {
     status: () => ipcRenderer.invoke("canopy:migration-status"),
     prepare: (input) => ipcRenderer.invoke("canopy:migration-prepare", input),

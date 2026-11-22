@@ -1,7 +1,28 @@
-import { ipcMain, type IpcMainEvent, type IpcMainInvokeEvent } from "electron";
+import { app, ipcMain, type IpcMainEvent, type IpcMainInvokeEvent } from "electron";
 import type { QuitGuardState, QuitShortcut } from "@canopy/ui/desktop";
-import type { QuitGuard } from "./quit-guard.ts";
+import { QuitGuard } from "./quit-guard.ts";
+import { systemQuitClock, type KeyRepeatTiming } from "./quit-machine.ts";
 import { isQuitShortcut, type QuitSettings } from "./quit-settings.ts";
+
+export function createDesktopQuitGuard(
+  mode: QuitShortcut,
+  repeatTiming: () => KeyRepeatTiming | null,
+  log: (decision: string) => void,
+  emit: (state: QuitGuardState) => void,
+) {
+  return new QuitGuard(
+    mode,
+    {
+      clock: systemQuitClock,
+      shortcut: process.platform === "darwin" ? "⌘Q" : "Ctrl+Q",
+      repeatTiming,
+      quit: () => app.quit(),
+      log,
+      emit,
+    },
+    process.platform,
+  );
+}
 
 export function registerQuitIpc(options: {
   guard: QuitGuard;
