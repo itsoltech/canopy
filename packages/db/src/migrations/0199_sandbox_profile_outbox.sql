@@ -5,6 +5,9 @@ LANGUAGE plpgsql AS $$
 DECLARE
   binding jsonb;
 BEGIN
+  IF TG_OP = 'INSERT' AND NEW.status NOT IN ('pending', 'delivered') THEN
+    RETURN NEW;
+  END IF;
   IF TG_OP = 'UPDATE' AND NEW.status <> 'delivered' THEN
     RETURN NEW;
   END IF;

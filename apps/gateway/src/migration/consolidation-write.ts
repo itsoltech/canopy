@@ -137,6 +137,7 @@ const historicalTriggers = new Map<string, readonly string[]>(
       "threads_before_update",
       "threads_require_visible_parent",
       "threads_worktree_placement",
+      "thread_sandbox_profile_derivation",
       "worktree_available_thread",
       "require_available_thread_branch",
     ],

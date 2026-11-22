@@ -3,7 +3,10 @@ import { expect, test } from "bun:test";
 import { randomBytes } from "node:crypto";
 import { join } from "node:path";
 import { SQL } from "bun";
+import { create, toJson } from "@bufbuild/protobuf";
+import { SandboxProfileBindingSchema, SandboxProfileSchema } from "@canopy/contracts";
 import { dockerAvailable } from "@canopy/db/testing";
+import { sandboxBinding } from "@canopy/domain/sandbox-profiles";
 import { tempDir } from "@canopy/testing";
 import { startTestPostgresServer, testAdmin } from "../../../packages/db/src/testing-server.ts";
 import { generateIdentity } from "../src/computers/identity.ts";
@@ -27,6 +30,8 @@ const ownerEmail = "consolidation@example.test";
 const fixtureValue = "consolidation secret fixture";
 const snoozedUntil = "2099-12-31T23:59:59.123Z";
 const memoryCreatedAt = "2026-08-01T09:15:30.123Z";
+const sandbox = sandboxBinding(create(SandboxProfileSchema, { id: uuid(), name: "Offline" }));
+const sandboxJson = toJson(SandboxProfileBindingSchema, sandbox);
 
 type Fixture = Awaited<ReturnType<typeof seedInstallation>>;
 
@@ -141,6 +146,13 @@ async function seedRows(source: Fixture, target: Fixture, operationId: string) {
   await s`INSERT INTO threads(id,project_id,owner_user_id,kind,root_thread_id,parent_thread_id,depth,runtime,provider,worker_id,workspace_id,cwd,status)
     VALUES(${archivedChild},${sourceProject},${localOwner},'side',${archived},${archived},1,'worker','codex',${worker},${workspace},'/fixture','idle')`;
   await s`UPDATE threads SET archived_at=now() WHERE id IN (${archived},${archivedChild})`;
+  await s`INSERT INTO worker_commands(id,worker_id,thread_id,kind,payload,expires_at,status)
+    VALUES(${uuid()},${worker},${archived},'createThread',''::bytea,now(),'completed')`;
+  const sandboxSettings = JSON.stringify({ permissionMode: "FULL_AUTO", sandboxProfile: sandboxJson });
+
+  await s`UPDATE threads SET settings=settings||${sandboxSettings}::text::jsonb WHERE id=${archived}`;
+  await s`INSERT INTO worker_commands(id,worker_id,thread_id,kind,payload,expires_at,status,sandbox_digest)
+    VALUES(${uuid()},${worker},${archived},'startTurn',''::bytea,now(),'completed',${sandbox.digest})`;
   await s`INSERT INTO blobs(sha256,size_bytes,data) VALUES(${hash},${blob.length},${blob})`;
   await s`INSERT INTO attachments(id,owner_user_id,thread_id,turn_id,sha256,name,mime_type,kind,size_bytes)
     VALUES(${attachment},${localOwner},${thread},${turn},${hash},'fixture.txt','text/plain','file',${blob.length})`;
@@ -511,6 +523,19 @@ test.skipIf(!dockerAvailable)(
       await checkResult(target, source, fixture, operationId);
 
       await using sql = new SQL({ url: target.url, max: 1 });
+      expect(await sql`SELECT settings->'sandboxProfile' AS profile FROM threads WHERE id=${fixture.archived}`).toEqual(
+        [{ profile: sandboxJson }],
+      );
+      expect(
+        await sql`SELECT sandbox_digest,status FROM worker_commands WHERE thread_id=${fixture.archived} ORDER BY kind`,
+      ).toEqual([
+        { sandbox_digest: null, status: "completed" },
+        { sandbox_digest: sandbox.digest, status: "completed" },
+      ]);
+      await expect(sql`INSERT INTO worker_commands(id,worker_id,thread_id,kind,payload,expires_at)
+        VALUES(${uuid()},${fixture.worker},${fixture.archived},'startTurn',''::bytea,now()+interval '1 minute')`).rejects.toThrow(
+        "selected sandbox profile",
+      );
       expect(await sql`SELECT name,all_projects FROM connector_accounts WHERE id=${fixture.targetConnector}`).toEqual([
         { name: "Source connector", all_projects: false },
       ]);
