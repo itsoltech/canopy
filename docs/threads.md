@@ -3,6 +3,7 @@
 Status (2026-11-22): wątki projektowe Claude, Codex i Grok mogą korzystać
 z [pamięci projektu i workera](agent-memory.md). Web i desktop pozwalają przypisać
 własną politykę sieci poleceń w trybie [Sandbox](sandbox-profiles.md).
+Na iOS i Androidzie „New thread” jest na końcu wiersza wyszukiwania wątków.
 
 Status (2026-11-21): zaimplementowane, w tym usypianie wątków w web/desktop i mobile,
 spójne nagłówki oraz płynne rozwijanie i zwijanie sekcji Snoozed i Working w web/desktop,
@@ -124,9 +125,10 @@ workera; po utworzeniu wątku katalog i wyszukiwanie plików używają jego dok�
 
 ## Wiersz wątku
 
-W web/desktop „New thread” jest po prawej stronie wiersza „Search threads”,
-obok filtra projektów i „Add project”. Akcja otwiera formularz nowego wątku,
-a filtr projektów ogranicza widoczną listę.
+„New thread” jest ostatnią akcją w wierszu wyszukiwania wątków w web, desktop,
+iOS i Androidzie. Na telefonie i tablecie jest bezpośrednio obok filtra projektów.
+W web i desktop może je rozdzielać „Add project”. Akcja otwiera formularz nowego
+wątku, a filtr projektów ogranicza widoczną listę.
 
 Domyślny wiersz w sidebarze ma trzy linie o stałej wysokości: projekt ze statusem, tytuł oraz linię meta
 (komputer, miejsce, gałąź, znaczniki i znak dostawcy). Web/desktop i mobile liczą miejsce i gałąź tą samą

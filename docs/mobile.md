@@ -17,6 +17,7 @@ Na szerokim oknie iOS i Androida sidebar i rozmowa przesuwają wspólną krawęd
 podczas zwijania i rozwijania.
 Uchwyt na tej krawędzi zmienia szerokość sidebara i zapisuje ją lokalnie.
 Pasek wątków ma osobne przyciski sortowania i filtrowania po projekcie.
+„New thread” jest ostatnią akcją w wierszu wyszukiwania, tak jak w web i desktop.
 Usunięcie otwartego bota z paska bocznego lub jego ustawień zamyka jego rozmowę.
 Nagłówek sidebara pokazuje kanał aplikacji. Nightly, Beta i Dev mają delikatny
 gradient i słoje drzewa w barwie kanału, tak jak w web i desktop.
