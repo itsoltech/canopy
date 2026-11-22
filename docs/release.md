@@ -2,6 +2,8 @@
 
 Status: opis zaimplementowanego workflow (2026-11-21). Buildy publikują wykazy licencji zależności. Automat sprawdza promocje co godzinę.
 Smoke Desktop czeka na zapis trasy Network access przed restartem workera podczas parowania.
+Release przekazuje klucz automatyzacji repozytorium do wywoływanego workflow Back-merge.
+Manifesty i indeksy obrazów OCI podają SHA wydawanych źródeł także przy wznowieniu z innej gałęzi.
 Domyślne okresy obserwacji to 6 h na dev i 24 h od gotowości bety. Publikacja bety
 otwiera kolejną serię nightly. Stable zachowuje wersję bazową i SHA przetestowanej bety.
 CI dla PR-ów dobiera testy mobile, interfejsu web i powłoki Electron według zmian.
@@ -1136,7 +1138,9 @@ nie tworzy wydania — musi wejść w promowany prefiks z kolejną zmianą wpły
 GitHub nie przyjmuje GitHub Actions (`GITHUB_TOKEN`) jako aktora bypass rulesetu. Zapis gałęzi
 wykonują przez SSH joby `promote`, `review` i `backmerge` z write deploy key
 **Release automation (promote, back-merge)**. Zapisz prywatny klucz jako
-`RELEASE_DEPLOY_KEY` w środowisku `release-automation`. Checkout z chronionej
+`RELEASE_DEPLOY_KEY` w środowisku `release-automation`. Back-merge używa sekretu
+środowiska w pierwszej kolejności. Release przekazuje także sekret repozytorium
+do wywołania Back-merge na czas przenoszenia klucza do środowiska. Checkout z chronionej
 rewizji workflow utrzymuje poświadczenie SSH do końca joba. Brak klucza zatrzymuje
 mutację z komunikatem. Dry run Promote/Automatic promotion działa bez klucza.
 
