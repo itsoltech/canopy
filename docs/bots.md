@@ -1,5 +1,8 @@
 # Boty
 
+Status (2026-11-22): `read_thread` i `list_schedules` obsługują opcjonalny odczyt stron.
+Dostępność w kanałach określa [promocja wydań](release.md).
+
 Status (2026-11-22): gateway udostępnia botom trwałe notatki na wszystkich ich workerach. Zakres narzędzi i
 kontekstu zależy od nadawcy oraz odbiorcy tury. Dostępność w kanałach określa [promocja wydań](release.md).
 
@@ -1129,6 +1132,11 @@ opis `list_workers` mówi o tym wprost. Brak narzędzia do logowania lub rejestr
 | `list_background_tasks` | Zadania w tle z widocznej osi czasu, status i output | R |
 | `stop_background_task` | Stop działającego zadania po item id | A |
 
+W `read_thread` podaj `limit` (np. 5, maks. 100), aby pobrać najnowsze wiadomości
+w kolejności transkryptu wraz z identyfikatorami i czasami ich tur. Starszą stronę
+pobierz z tym samym `thread_id` i `limit`, przekazując `page.next_before` jako `before`.
+`null` oznacza koniec historii. Bez parametrów strony obowiązuje dotychczasowy odczyt.
+
 Fork i wszystkie odpowiedzi na interakcje wymagają zgody konserwatywnie: fork może
 dziedziczyć `full_auto`, a odpowiedź może udzielić uprawnień. Odczyty cudzych wątków,
 workerów i projektów oraz ich mutacje zwracają brak zasobu. Błędne argumenty, modele,
@@ -1164,6 +1172,12 @@ z czytelnym komunikatem (etap 5). Opcje dostępne przez narzędzia i API, bez no
 | `create_bot` | Nowy bot na istniejącej instancji harnessu, bez sekretów/MCP | A |
 | `send_bot_message` | Wiadomość do innego bota właściciela, odpowiedź jako follow-up | P |
 | `ask_user` | Trwałe pytanie i do sześciu opcji | Karta pytania |
+
+W `list_schedules` podaj `limit` (np. 10, maks. 100). Limit obejmuje łącznie
+harmonogramy użytkownika i własne pobudki bota, w tej kolejności. `scope=platform`
+lub `scope=wakeup` zawęża stronę do jednej listy. Przekaż `page.next_offset` jako
+`offset` z tymi samymi filtrami i limitem, aż pole zwróci `null`. Po zmianie listy
+w trakcie odczytu zacznij od pierwszej strony. Bez `limit` i `offset` wynik obejmuje pełne listy.
 
 Wywołanie narzędzi preferencji wymaga prywatnej tury zainicjowanej przez wiadomość
 właściciela. Działa także bez Web access i przy wyłączonym module Threads.

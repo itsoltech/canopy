@@ -212,7 +212,7 @@ describe.skipIf(!dockerAvailable)("messenger work callback origin", () => {
     const read = areaTool.get("read_thread")!.spec;
 
     const readCall = await suite.current.bots.run((s) =>
-      s.planCall(f.turn, "history", read, { thread_id: ownerThread.id }),
+      s.planCall(f.turn, "history", read, { thread_id: ownerThread.id, limit: 1 }),
     );
 
     const options = suite.current[coreState].options;

@@ -299,7 +299,7 @@ export function busScheduleStore(sql: SqlClient.SqlClient): BusScheduleStore {
                 AND ($2::uuid IS NULL OR s.project_id = $2::uuid)
                 AND ($3::uuid IS NULL OR s.thread_id = $3::uuid)
                 AND ($4::boolean OR s.status IN ('active', 'paused'))
-              ORDER BY s.next_run_at NULLS LAST, s.created_at`,
+              ORDER BY s.next_run_at NULLS LAST, s.created_at, s.id`,
         [ownerUserId, projectId || null, threadId || null, includeFinished],
       ),
 

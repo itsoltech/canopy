@@ -193,6 +193,84 @@ describe.skipIf(!dockerAvailable)("owner module settings on the gateway", () => 
     }
   }, 20_000);
 
+  test("list_schedules pages across schedule and wakeup boundaries within the bot's scope", async () => {
+    const bot = await add("Schedule pages", { approvalPolicy: "full_auto" });
+    const other = await add("Unlisted wakeup", { approvalPolicy: "full_auto" });
+
+    const { thread } = await suite.gw.api.createThread({
+      projectId: suite.projectId,
+      workspaceId: suite.workspaceId,
+      provider: Provider.CODEX,
+    });
+
+    const { schedule } = await suite.gw.api.createSchedule({
+      threadId: thread!.id,
+      prompt: "Platform entry",
+      when: { case: "cron", value: "0 9 * * *" },
+    });
+
+    const runAt = new Date(Date.now() + 3600_000).toISOString();
+    let action = "schedule_wakeup";
+    let args: JsonObject = { prompt: "Same run time", run_at: runAt };
+    suite.model = async (input) => {
+      const last = input.messages.at(-1);
+
+      return last?.role === "tool" ? reply(last.text) : tool(action, args);
+    };
+
+    await send(other.id, "Remember");
+    const hidden = (await settled(other.id)).reminders[0]!.id;
+    await send(bot.id, "First reminder");
+    await settled(bot.id);
+    await send(bot.id, "Second reminder");
+    const own = (await settled(bot.id)).reminders.map((row) => row.id).sort();
+
+    const list = async (parameters: JsonObject) => {
+      action = "list_schedules";
+      args = parameters;
+      await send(bot.id, "List schedules");
+
+      return JSON.parse((await settled(bot.id)).messages.at(-1)!.text);
+    };
+
+    expect(own).toHaveLength(2);
+    const filters = { thread_id: thread!.id };
+    const legacy = await list(filters);
+    expect(legacy).toEqual({
+      schedules: [expect.objectContaining({ id: schedule!.id })],
+      wakeups: own.map((id) => expect.objectContaining({ id })),
+    });
+    expect(JSON.stringify(legacy)).not.toContain(hidden);
+    const first = await list({ ...filters, limit: 2 });
+    expect(first).toEqual({ schedules: legacy.schedules, wakeups: [legacy.wakeups[0]], page: { next_offset: 2 } });
+    expect(await list({ ...filters, limit: 2, offset: first.page.next_offset })).toEqual({
+      schedules: [],
+      wakeups: [legacy.wakeups[1]],
+      page: { next_offset: null },
+    });
+    expect(await list({ ...filters, limit: 2, offset: 3 })).toEqual({
+      schedules: [],
+      wakeups: [],
+      page: { next_offset: null },
+    });
+
+    try {
+      await modules("bots");
+      expect(await list({ limit: 1 })).toEqual({
+        schedules: [],
+        wakeups: [legacy.wakeups[0]],
+        page: { next_offset: 1 },
+      });
+      expect(await list({ limit: 1, offset: 1 })).toEqual({
+        schedules: [],
+        wakeups: [legacy.wakeups[1]],
+        page: { next_offset: null },
+      });
+    } finally {
+      await modules("threads", "bots");
+    }
+  }, 20_000);
+
   test("disconnecting an existing delegation removes its live approval and stops the completion report", async () => {
     const owner = await add("Delegator", { approvalPolicy: "full_auto" });
     const worker = suite.gw.worker;

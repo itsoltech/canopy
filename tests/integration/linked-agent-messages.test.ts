@@ -10,7 +10,7 @@ import { BOT_THREADS_DISCONNECTED, moduleDisabledMessage } from "../../apps/gate
 import type { BotTurn } from "../../apps/gateway/src/bots/types.ts";
 import { linkedComputers } from "./support/computers.ts";
 import { startInstanceFixture, type InstanceFixture } from "./support/instance-fixture.ts";
-import { eventually, failure, startTestGateway, type TestGateway } from "./support/gateway.ts";
+import { eventually, failure, startTestGateway, watchUntil, type TestGateway } from "./support/gateway.ts";
 
 describe.skipIf(!dockerAvailable)("linked message authors and bot harness wakeups", () => {
   let fixture: InstanceFixture;
@@ -193,6 +193,51 @@ describe.skipIf(!dockerAvailable)("linked message authors and bot harness wakeup
 
     expect(projected[0]?.text).toBe("FIXTURE_OK");
     expect(Object.values(projected[0]!.items)).toEqual(["FIXTURE_OK"]);
+  }, 30_000);
+
+  test("a bot continues a page from a linked thread on its home computer", async () => {
+    const placement = await b.core.getThread(thread);
+
+    const { thread: history } = await b.api.createThread({
+      projectId: placement.projectId,
+      workspaceId: placement.workspaceId,
+      provider: Provider.CODEX,
+      title: "Paged linked history",
+    });
+
+    for (const text of ["Earlier linked reply", "Latest linked reply"]) {
+      const { turn } = await b.api.sendMessage({ threadId: history!.id, text, clientRequestId: crypto.randomUUID() });
+      const completed = (entry: ui.Turn) => entry.id === turn!.id && entry.status === "completed";
+      await watchUntil(b.api, history!.id, (updates) =>
+        updates.some(
+          ({ change }) =>
+            (change.case === "snapshot" && change.value.turns.some(completed)) ||
+            (change.case === "turn" && completed(change.value)),
+        ),
+      );
+    }
+
+    const readPage = async (before?: string) => {
+      const args = { thread_id: qualifyId(history!.id, lb.hello().nodeId), limit: 1, before };
+      await a.api.sendBotMessage({
+        botId: bot,
+        text: `TOOL:read_thread\nARGS:${JSON.stringify(args)}`,
+        clientRequestId: crypto.randomUUID(),
+      });
+      const reply = (await settle()).messages.at(-1)!.text;
+
+      expect(reply).toStartWith("TOOL_RESULT:");
+
+      return JSON.parse(JSON.parse(reply.slice("TOOL_RESULT:".length)).result.content[0].text);
+    };
+
+    const first = await readPage();
+    expect(first.messages.map((m: { text: string }) => m.text)).toEqual(["Echo: Latest linked reply"]);
+    expect(first.page.next_before).toMatch(/\S/);
+    const older = await readPage(first.page.next_before);
+
+    expect(older.messages.map((m: { text: string }) => m.text)).toEqual(["Echo: Earlier linked reply"]);
+    expect(older.page.next_before).toBeNull();
   }, 30_000);
 
   test("a linked bot steer keeps the author on delivery and on the queued fallback", async () => {
