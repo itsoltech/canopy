@@ -64,6 +64,49 @@ const NewThread = Schema.Struct({
 /** A wakeup as the model reads it: the timestamp in the ISO form `JSON.stringify` gives a Date. */
 export const wakeupView = (w: WakeupRow) => ({ ...w, run_at: w.run_at.toISOString() });
 
+export const schedulePageFields = {
+  limit: { type: "integer", minimum: 1, description: "Records per page, capped at 100 (default 50 in paged mode)." },
+  offset: {
+    type: "integer",
+    minimum: 0,
+    description: "Use page.next_offset from the previous page with the same filters.",
+  },
+};
+
+export const schedulePageDescription =
+  " Pass limit for a small page, then reuse the filters and limit with page.next_offset until it is null. Omit limit and offset for the full list.";
+
+async function listSchedules({ core, optional, args, turn, integer }: ToolContext) {
+  const scope = optional("scope");
+
+  const schedules =
+    scope === "wakeup"
+      ? []
+      : await core.listSchedules(
+          create(ui.ListSchedulesRequestSchema, {
+            projectId: optional("project_id"),
+            threadId: optional("thread_id"),
+            includeFinished: args["include_finished"] === true,
+          }),
+        );
+
+  const wakeups = scope === "platform" ? [] : await core.bots.run((s) => s.wakeups(turn.bot_id));
+  const limit = integer("limit");
+  const offset = integer("offset");
+
+  if (limit === undefined && offset === undefined)
+    return { schedules: schedules.map((s) => json(ui.ScheduleSchema, s)), wakeups: wakeups.map(wakeupView) };
+
+  const start = Math.min(offset ?? 0, schedules.length + wakeups.length);
+  const end = start + Math.min(limit ?? 50, 100);
+
+  return {
+    schedules: schedules.slice(start, end).map((s) => json(ui.ScheduleSchema, s)),
+    wakeups: wakeups.slice(Math.max(0, start - schedules.length), Math.max(0, end - schedules.length)).map(wakeupView),
+    page: { next_offset: end < schedules.length + wakeups.length ? end : null },
+  };
+}
+
 async function configuration(c: ToolContext) {
   if (Boolean(c.optional("run_at")) === Boolean(c.optional("cron")))
     throw new Invalid("provide exactly one of run_at or cron");
@@ -113,30 +156,17 @@ export const scheduleTools = [
   ),
   define(
     "list_schedules",
-    "Schedules: list all platform schedules owned by the user, optionally by project/thread and including finished/cancelled. Also returns this bot's own one-shot wakeups separately; scope= wakeup for reminders only.",
+    "Schedules: list the user's platform schedules (ordered by next run, then creation time), followed by this bot's own one-shot wakeups (ordered by run time). Use scope=wakeup for reminders only or scope=platform for platform schedules only. project_id, thread_id and include_finished filter platform schedules." +
+      schedulePageDescription,
     object({
       project_id: str,
       thread_id: str,
       include_finished: bool,
       scope: { type: "string", enum: ["platform", "wakeup", "all"] },
+      ...schedulePageFields,
     }),
     "Checking schedules",
-    async ({ core, optional, args, turn }) => ({
-      schedules:
-        optional("scope") === "wakeup"
-          ? []
-          : (
-              await core.listSchedules(
-                create(ui.ListSchedulesRequestSchema, {
-                  projectId: optional("project_id"),
-                  threadId: optional("thread_id"),
-                  includeFinished: args["include_finished"] === true,
-                }),
-              )
-            ).map((s) => json(ui.ScheduleSchema, s)),
-      wakeups:
-        optional("scope") === "platform" ? [] : (await core.bots.run((s) => s.wakeups(turn.bot_id))).map(wakeupView),
-    }),
+    listSchedules,
     "read",
   ),
   define(

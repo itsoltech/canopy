@@ -46,7 +46,7 @@ export function botWakeups(sql: SqlClient.SqlClient, core: BotCore) {
         return { schedule_id: call.id };
       }),
     wakeups: (botId: string) =>
-      sql<WakeupRow>`SELECT id, prompt, run_at, cancelled, delivered FROM bot_wakeups WHERE bot_id = ${botId}::uuid ORDER BY run_at`,
+      sql<WakeupRow>`SELECT id, prompt, run_at, cancelled, delivered FROM bot_wakeups WHERE bot_id = ${botId}::uuid ORDER BY run_at,id`,
     cancelReminder: (user: string, botId: string, id: string) =>
       sql.withTransaction(
         Effect.gen(function* () {

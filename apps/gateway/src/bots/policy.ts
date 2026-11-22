@@ -13,6 +13,7 @@ import { accountPreferenceTools } from "./tools/account-preferences.ts";
 import { alwaysAsk } from "./approval-rules.ts";
 import { Invalid } from "../store/errors.ts";
 import { SLACK_POST_ACTION } from "../connectors/slack-post-tool.ts";
+import { schedulePageDescription, schedulePageFields } from "./tools/schedules.ts";
 
 // External messages can request work with existing grants, never administer the owner's account.
 // New platform tools stay private until their external provenance and result routing are reviewed.
@@ -336,7 +337,11 @@ const legacyTools: ToolSpec[] = [
     { run_at: str, prompt: str },
     ["run_at", "prompt"],
   ),
-  tool("list_schedules", "List your own one-shot reminders."),
+  tool(
+    "list_schedules",
+    "List your own one-shot reminders in run time order." + schedulePageDescription,
+    schedulePageFields,
+  ),
   tool("cancel_schedule", "Cancel one of your reminders.", { schedule_id: str }, ["schedule_id"], true),
   tool("archive_thread", "Archive a thread after the user approves.", { thread_id: str }, ["thread_id"], true),
   tool(

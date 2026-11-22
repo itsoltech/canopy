@@ -1,4 +1,4 @@
-import { create, toJson, type JsonObject, type JsonValue } from "@bufbuild/protobuf";
+import { create, toJson, type JsonValue } from "@bufbuild/protobuf";
 
 import { bots, Provider, ui } from "@canopy/contracts";
 
@@ -6,7 +6,7 @@ import { AGENT_BUS, REMOTE_BOTS, splitId } from "@canopy/domain/computers";
 
 import { Match, Predicate, Schema } from "effect";
 
-import type { BotTurn, StoredCall } from "../bots/types.ts";
+import type { BotTurn, StoredCall, ToolResult } from "../bots/types.ts";
 
 import { BotStore } from "../bots/store.ts";
 
@@ -26,28 +26,11 @@ import { PEER_READ_TIMEOUT_MS } from "./timing.ts";
 import { botThreadAudience } from "../core/bot-thread-audience.ts";
 import { botThreadPermission } from "../bots/thread-permission.ts";
 import { delegationPrompt } from "../bots/external-instructions.ts";
+import { readThreadPage, wantsThreadPage } from "../bots/tools/read-thread-page.ts";
 import { SettingsStore } from "../store/settings.ts";
 
 export interface AgentsBotToolsMethods {
-  botTool(
-    turn: BotTurn,
-    call: StoredCall,
-  ): Promise<
-    | string
-    | number
-    | boolean
-    | JsonObject
-    | JsonValue[]
-    | { machine: string }[]
-    | { id: string; name: string | undefined; machine: string | undefined }[]
-    | {
-        turns: { id: string; status: string }[];
-        interactions: { request: any }[];
-        messages: { role: string; text: string }[];
-      }
-    | null
-    | undefined
-  >;
+  botTool(turn: BotTurn, call: StoredCall): Promise<ToolResult>;
 }
 
 export const agentsBotToolsMethods: AgentsBotToolsMethods = {
@@ -242,12 +225,16 @@ async function botDefaultThreadRequest(
 async function readBotThread(hostContext: LinkedAgents, args: Arguments) {
   const snapshot = await hostContext.snapshot(text(args, "thread_id"), "bot-thread");
 
+  const interactions = snapshot.interactions.map((i) => ({
+    ...record(toJson(ui.InteractionSchema, i)),
+    request: JSON.parse(i.requestJson),
+  }));
+
+  if (wantsThreadPage(args)) return { ...readThreadPage(snapshot, args), interactions };
+
   return {
     turns: snapshot.turns.map((t) => ({ id: t.id, status: t.status })),
-    interactions: snapshot.interactions.map((i) => ({
-      ...record(toJson(ui.InteractionSchema, i)),
-      request: JSON.parse(i.requestJson),
-    })),
+    interactions,
     messages: snapshot.items
       .flatMap((i) =>
         i.item?.content.case === "agentMessage" || i.item?.content.case === "userMessage"

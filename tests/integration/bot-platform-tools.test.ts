@@ -218,6 +218,68 @@ describe.skipIf(!dockerAvailable)("bot platform tools through the UI core", () =
     });
   }, 30_000);
 
+  test("read_thread pages across fork history with the matching turn IDs and times", async () => {
+    const [source] = await gw.runtime.runPromise(GatewayStore.use((s) => s.turnsOf(threadId)));
+
+    const fork = await invoke<{ thread_id: string }>(
+      "fork_thread",
+      { thread_id: threadId, turn_id: source!.id, title: "Paged history" },
+      true,
+    );
+
+    const send = async (text: string) => {
+      const { turn } = await gw.api.sendMessage({
+        threadId: fork.thread_id,
+        text,
+        clientRequestId: Bun.randomUUIDv7(),
+      });
+
+      const completed = (item: ui.Turn) => item.id === turn!.id && item.status === "completed";
+      await watchUntil(gw.api, fork.thread_id, (updates) =>
+        updates.some(
+          ({ change }) =>
+            (change.case === "snapshot" && change.value.turns.some(completed)) ||
+            (change.case === "turn" && completed(change.value)),
+        ),
+      );
+
+      return turn!.id;
+    };
+
+    const older = await send("Older reply");
+    const newest = await send("Newest reply");
+    const args = { thread_id: fork.thread_id };
+    const legacy = await invoke("read_thread", args);
+
+    expect(legacy).toEqual({
+      turns: [
+        { id: source!.id, status: "completed", inherited: true, from_thread_id: threadId },
+        { id: older, status: "completed", inherited: false, from_thread_id: fork.thread_id },
+        { id: newest, status: "completed", inherited: false, from_thread_id: fork.thread_id },
+      ],
+      messages: ["pwd", "Older reply", "Newest reply"].map((text) => ({ role: "assistant", text: `Echo: ${text}` })),
+      interactions: [],
+    });
+
+    const first = await invoke<{ page: { next_before: string } }>("read_thread", { ...args, limit: 2 });
+    const before = first.page.next_before;
+
+    expect(first).toMatchObject({
+      turns: [older, newest].map((id) => ({ id, started_at: expect.any(String), completed_at: expect.any(String) })),
+      messages: [
+        { turn_id: older, text: "Echo: Older reply", completed_at: expect.any(String) },
+        { turn_id: newest, text: "Echo: Newest reply", completed_at: expect.any(String) },
+      ],
+      page: { next_before: expect.any(String) },
+    });
+    expect(await invoke("read_thread", { ...args, limit: 2, before })).toMatchObject({
+      turns: [{ id: source!.id, inherited: true, from_thread_id: threadId }],
+      messages: [{ turn_id: source!.id, text: "Echo: pwd" }],
+      page: { next_before: null },
+    });
+    expect(await invoke("read_thread", { thread_id: threadId, before })).toHaveProperty("error");
+  }, 30_000);
+
   test("user schedules support thread/new_thread, edits, optimistic conflicts, pause/resume and cancellation", async () => {
     const runAt = new Date(Date.now() + 3600_000).toISOString();
 
@@ -702,6 +764,12 @@ describe.skipIf(!dockerAvailable)("bot platform tools through the UI core", () =
     expect(await invoke("list_directory", { worker_id: worker.workerId, path: "/foreign" })).toHaveProperty("error");
     expect(await invoke("interrupt_thread", { thread_id: thread.id })).toHaveProperty("error");
     expect(await invoke("get_thread", { thread_id: thread.id })).toHaveProperty("error");
+    expect(await invoke("read_thread", { thread_id: thread.id, limit: 1 })).toHaveProperty("error");
+    expect(await invoke("list_schedules", { project_id: p.id, limit: 1 })).toEqual({
+      schedules: [],
+      wakeups: [],
+      page: { next_offset: null },
+    });
     expect(await invoke("set_schedule_status", { schedule_id: schedule.id, status: "paused" })).toHaveProperty("error");
     expect((await foreign.getThread(thread.id)).title).toBe(thread.title);
     await foreign.link.shutdown();

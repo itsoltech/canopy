@@ -1,4 +1,5 @@
 import { interactionView } from "./tools/threads.ts";
+import { wantsThreadPage } from "./tools/read-thread-page.ts";
 import { authorizeBotThreadCall } from "../core/bot-thread-audience.ts";
 import { isMemoryTool } from "@canopy/domain/memory-tools";
 import { botMemoryCall } from "./memory.ts";
@@ -146,22 +147,18 @@ async function availableBotCall(options: GatewayCoreOptions, call: StoredCall): 
   if (threadToolNames.has(name) || call.arguments["scope"] === "platform") throw new Invalid(BOT_THREADS_DISCONNECTED);
 
   // A disconnected bot can list and cancel its own reminders through the shared schedule tools.
+  const { limit, offset } = call.arguments;
+
   return {
     ...call,
-    arguments: { scope: "wakeup", ...(name === "cancel_schedule" && { schedule_id: call.arguments["schedule_id"]! }) },
+    arguments: {
+      scope: "wakeup",
+      ...(name === "cancel_schedule" && { schedule_id: call.arguments["schedule_id"]! }),
+      ...(name === "list_schedules" && limit !== undefined && { limit }),
+      ...(name === "list_schedules" && offset !== undefined && { offset }),
+    },
   };
 }
-
-const readThread = (id: string, user: string) =>
-  GatewayStore.use((s) =>
-    Effect.gen(function* () {
-      const row = yield* s.thread(id);
-
-      if (row.owner_user_id !== user) return yield* Effect.fail(new NotFound("thread not found"));
-
-      return row;
-    }),
-  );
 
 export async function botPlatform(
   core: GatewayCore,
@@ -188,7 +185,12 @@ export async function botPlatform(
         GatewayStore.use((store) => store.pendingInteractions(string("thread_id"), [questionId])),
       );
 
-      return { interactions: questions.map(interactionView), turns: [], messages: [] };
+      return {
+        interactions: questions.map(interactionView),
+        turns: [],
+        messages: [],
+        ...(wantsThreadPage(args) && { page: { next_before: null } }),
+      };
     }
 
     if (isMemoryTool(call.tool.name)) return await botMemoryCall(context(core, options, turn, call));
@@ -241,23 +243,6 @@ export async function botPlatform(
         return { id: t.id, title: t.title, status: t.status };
       }
 
-      case "read_thread":
-        return options.runtime.runPromise(
-          Effect.gen(function* () {
-            const row = yield* readThread(string("thread_id"), user);
-            const snapshot = yield* GatewayStore.use((s) => s.snapshot(row.id));
-
-            return snapshot.items
-              .flatMap((i) => {
-                const c = i.item?.content;
-
-                return c?.case === "agentMessage" || c?.case === "userMessage"
-                  ? [{ role: c.case === "agentMessage" ? "assistant" : "user", text: c.value.text }]
-                  : [];
-              })
-              .slice(-100);
-          }),
-        );
       case "start_thread":
         return await startThread(core, turn, call, { string, optional });
 
