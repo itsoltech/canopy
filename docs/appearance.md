@@ -1,7 +1,7 @@
 # Wygląd i pełne palety
 
-Status: opis zaimplementowanego wyglądu (2026-11-21), w tym powłoki ładowania
-Canopy Desktop, gdy gateway jest niedostępny.
+Status (2026-11-22): Appearance jest lokalne dla profilu przeglądarki,
+instalacji desktopowej i instalacji mobilnej, również po ponownym uruchomieniu.
 
 Settings → Appearance pozwala wybrać osobno motyw Light i Dark. Color scheme
 (System / Light / Dark) określa, który wariant jest aktywny. Przykład: Fern dla
@@ -102,39 +102,30 @@ indywidualnego napisu, przezroczystości, obrazu ani treści dostarczonej przez 
 
 ## Zapis i pierwszy render
 
-Addytywne pola proto `AppearanceSettings.light_theme` (5) i `dark_theme` (6)
-używają nowego enumu `ColorTheme`. Gateway zapisuje je w istniejącej sekcji
-appearance w `user_settings`, w zakresie właściciela. Nie jest potrzebna migracja
-schematu bazy. Obowiązują istniejące wersjonowanie, konflikt 409 oraz dystrybucja
-ustawień przez Overview. Test integracyjny sprawdza zapis, odczyt i zachowanie
-obu wariantów przy zmianie innej sekcji z drugiego urządzenia.
-Ash dodaje `COLOR_THEME_ASH = 7`, bez zmiany istniejących numerów. Test zapisu
-ustawień obejmuje mieszankę Fern Light / Ash Dark.
-Udostępnianie wyglądu między połączonymi komputerami przenosi także oba warianty;
-osobny test synchronizacji sprawdza je wraz z zachowaniem lokalnej szerokości sidebara.
+Schemat kolorów, obie palety i szerokość wątku są zapisywane na kliencie,
+tak jak pozostałe ustawienia Appearance. Web zapisuje je w cookie profilu
+przeglądarki dla hosta Canopy, desktop w odrębnym profilu Electron, a mobile
+w pamięci aplikacji. Można mieć inny wygląd na każdym urządzeniu, także przy
+połączeniu z tym samym gatewayem. Zmiany z Settings i palety poleceń stosują te
+same preferencje. Restore device defaults przywraca System, Birch / Birch,
+Comfortable i domyślne pozostałe ustawienia Appearance.
 
-Gdy wariant jest UNSPECIFIED, dziedziczy dotychczasowy zapisany akcent:
-Default → Birch, Grove → Fern, Ocean → Lagoon, Ember → Cedar, Iris → Heather,
-Rose → Blossom. Stare pole i numery enumów pozostają w kontrakcie; nowe UI
-zapisuje osobne warianty. Nowy właściciel zaczyna od Birch / Birch i System.
+Przy pierwszym odczycie ustawień konta klient bez zapisanego wyglądu kopiuje
+poprzednie wartości. Późniejsze odczyty konta nie nadpisują lokalnego wyboru.
+Jawna zmiana lub reset przed pierwszym odczytem od razu zapisuje lokalne wartości.
+Dla starego wariantu UNSPECIFIED kopiowanie tłumaczy także dawny akcent
+(Default → Birch, Grove → Fern, Ocean → Lagoon, Ember → Cedar, Iris → Heather,
+Rose → Blossom). Istniejące pola proto i zapis gatewaya obsługują starsze klienty
+oraz dostarczają wartości początkowe przy migracji.
 
-Powłoka SSR wstawia oba zestawy bezpiecznych, stałych wartości CSS oraz atrybuty
-wyboru do HTML. Skrypt w head ustala System przed pierwszym renderem; szkielet
-ładowania korzysta z tych samych kolorów. Zatwierdzony zapis przez BFF aktualizuje
-też trzysekundowy cache powłoki, więc szybkie przeładowanie nie przywraca starej
-palety. Odpowiedź starszego odczytu nie może nadpisać potwierdzonego zapisu.
-Cache BFF zachowuje istniejące założenie pojedynczego użytkownika deweloperskiego;
-autorytatywny zapis pozostaje w gateway i bazie, nie w localStorage.
-
-Desktop przechowuje wyłącznie `{ scheme, light, dark }` w opcjonalnym
-`appearance-cache.json` w userData. Walidowane IPC wymaga zaufanego nadawcy;
-preload udostępnia odczyt startowy. Powłoka nakłada ten cache przed renderem,
-gdy dokument nie otrzymał ustawień z gatewaya. Dotyczy to ekranów `/desktop`
-i `/desktop/migration` oraz przeładowania aplikacji przy niedostępnym gatewayu.
-Po połączeniu obowiązują ustawienia gatewaya. Main ustawia tło okna i nativeTheme, a na Linux/Windows
-także tło i kolor symboli natywnej
-nakładki paska tytułu. Zmiana preferencji systemowej aktualizuje chrom okna.
-Błąd zapisu opcjonalnego cache nie blokuje zmiany aktywnego wyglądu.
+Powłoka HTML wstawia obie palety i atrybuty z walidowanego cookie bez odczytu
+wyglądu przez gRPC. Skrypt w head rozstrzyga System przed pierwszym renderem.
+Karty tego samego webu reagują na zmianę zapisaną w ich wspólnym profilu.
+Desktop zapisuje schemat i obie palety także w `appearance-cache.json` w userData.
+Preload przekazuje je przez walidowane IPC do powłoki startowej, gdy nie ma
+cookie. Main stosuje te kolory podczas tworzenia okna i aktualizuje jego tło
+i nativeTheme po zmianie preferencji. W System chrom reaguje na systemowy
+schemat. Błąd zapisu opcjonalnego cache nie blokuje zmiany aktywnego wyglądu.
 
 ## Kontrola wyglądu
 

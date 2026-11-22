@@ -10,6 +10,8 @@
   import WindowControls from "#lib/features/desktop/WindowControls.svelte";
   import { applyWindowState } from "#lib/features/desktop/window-chrome.ts";
   import { holdFileDrops } from "#lib/features/attachments/file-intake.svelte.ts";
+  import { applyAppearance } from "#lib/features/settings/appearance.ts";
+  import { appearanceState } from "#lib/features/settings/appearance-state.svelte.ts";
   import type { LayoutProps } from "./$types";
 
   let { children }: LayoutProps = $props();
@@ -30,6 +32,12 @@
   onMount(holdFileDrops);
 
   onMount(startClientDiagnostics);
+
+  onMount(() => appearanceState.connect());
+
+  $effect(() => {
+    if (appearanceState.connected) applyAppearance(appearanceState.values);
+  });
 
   beforeNavigate(navigationStarted);
 

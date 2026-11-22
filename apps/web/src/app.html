@@ -4,7 +4,6 @@
   data-application-name="%canopy.applicationName%"
   class="%canopy.dark% bg-canvas antialiased"
   data-color-scheme="%canopy.scheme%"
-  data-accent="%canopy.accent%"
   data-light-theme="%canopy.lightTheme%"
   data-dark-theme="%canopy.darkTheme%"
   data-chat-width="%canopy.chatWidth%"
@@ -110,7 +109,7 @@
       }
     </style>
     <script>
-      // Gateway palettes are already inline. Desktop can still load before its gateway is available.
+      // The browser palette is already inline. Desktop can fall back to its native startup palette.
       const root = document.documentElement;
       try {
         const view = JSON.parse(localStorage.getItem("canopy:preferences:view") || "{}");

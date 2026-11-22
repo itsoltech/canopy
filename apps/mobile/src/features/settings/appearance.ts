@@ -1,4 +1,5 @@
 import { ui } from "@canopy/contracts";
+import type { DeviceAppearance } from "@canopy/domain";
 import { themeNames, type ThemeMode, type ThemeName } from "@canopy/ui/themes";
 
 export const colorThemes: Record<ThemeName, ui.ColorTheme> = {
@@ -11,9 +12,8 @@ export const colorThemes: Record<ThemeName, ui.ColorTheme> = {
   ash: ui.ColorTheme.ASH,
 };
 
-/** Unspecified variants inherit the account's original accent, exactly as on the web. */
-export function themeOf(appearance: ui.AppearanceSettings | undefined, mode: ThemeMode): ThemeName {
-  const value = appearance?.[mode === "light" ? "lightTheme" : "darkTheme"];
+export function themeOf(appearance: DeviceAppearance, mode: ThemeMode): ThemeName {
+  const value = mode === "light" ? appearance.lightTheme : appearance.darkTheme;
 
-  return themeNames.find((name) => colorThemes[name] === value) ?? themeNames[(appearance?.accent || 1) - 1] ?? "birch";
+  return themeNames.find((name) => colorThemes[name] === value) ?? "birch";
 }

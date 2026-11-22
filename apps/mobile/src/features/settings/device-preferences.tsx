@@ -5,6 +5,7 @@ import { rememberThreadScroll, type ThreadScrollPosition } from "@canopy/domain/
 import { mobileFontFamilies } from "./mobile-fonts";
 import { useSession } from "../../state/session";
 import { loadDeviceView, saveDeviceView } from "../../storage/device-view";
+import { useDeviceAppearance } from "./use-device-appearance";
 
 // Device preferences never enter account settings or overwrite another client's choices.
 export const deviceChoices = {
@@ -161,7 +162,7 @@ function readPreferences(raw: string | null): Record<DeviceKey, string> {
   return result;
 }
 
-function useDeviceState(scope: string) {
+function useDeviceState(scope: string, appearance: ReturnType<typeof useDeviceAppearance>) {
   const view = useDeviceView(scope);
   const [values, setValues] = useState({ ...deviceDefaults });
   const [loaded, setLoaded] = useState(false);
@@ -207,6 +208,7 @@ function useDeviceState(scope: string) {
 
   return {
     ...view,
+    appearance,
     values,
     loaded,
     error: error || view.viewError,
@@ -227,17 +229,27 @@ const Context = createContext<ReturnType<typeof useDeviceState> | null>(null);
 
 export function DevicePreferencesProvider({ children }: { children: ReactNode }) {
   const { session } = useSession();
+  // Appearance follows the installation when the pairing changes.
+  const appearance = useDeviceAppearance();
   const scope = session ? `${session.fingerprint}.${session.deviceId}` : "unpaired";
 
   return (
-    <DevicePreferencesSession key={scope} scope={scope}>
+    <DevicePreferencesSession key={scope} scope={scope} appearance={appearance}>
       {children}
     </DevicePreferencesSession>
   );
 }
 
-function DevicePreferencesSession({ children, scope }: { children: ReactNode; scope: string }) {
-  return <Context.Provider value={useDeviceState(scope)}>{children}</Context.Provider>;
+function DevicePreferencesSession({
+  children,
+  scope,
+  appearance,
+}: {
+  children: ReactNode;
+  scope: string;
+  appearance: ReturnType<typeof useDeviceAppearance>;
+}) {
+  return <Context.Provider value={useDeviceState(scope, appearance)}>{children}</Context.Provider>;
 }
 
 export function useDevicePreferences() {

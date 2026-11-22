@@ -3,8 +3,6 @@
   import { applicationName } from "#lib/application-name.ts";
   import { connectWorkspace } from "#lib/features/workspace/workspace.svelte.ts";
   import WorkspaceExit from "#lib/features/workspace/WorkspaceExit.svelte";
-  import { ui } from "@canopy/contracts";
-  import { create } from "@bufbuild/protobuf";
   import { beforeNavigate, goto } from "$app/navigation";
   import { page } from "$app/state";
   import { onMount, onDestroy, untrack } from "svelte";
@@ -15,7 +13,8 @@
   import { MediaQuery } from "svelte/reactivity";
   import AppSidebar from "#lib/features/navigation/AppSidebar.svelte";
   import UsageDialog from "#lib/features/usage/UsageDialog.svelte";
-  import { appearanceFromDocument, applyAppearance } from "#lib/features/settings/appearance.ts";
+  import { applyViewGeometry } from "#lib/features/settings/appearance.ts";
+  import { appearanceState } from "#lib/features/settings/appearance-state.svelte.ts";
   import { SettingsState, provideSettings } from "#lib/features/settings/settings-state.svelte.ts";
   import { isSettingsRoute } from "#lib/features/settings/settings-route.ts";
   import SettingsOverlay from "#lib/features/settings/SettingsOverlay.svelte";
@@ -100,10 +99,7 @@
 
   provideOverview(overview);
 
-  // Settings live in the gateway: seeded by the server, changed from other devices through the stream.
-  const settings = new SettingsState(
-    create(ui.GetSettingsResponseSchema, { user: { appearance: appearanceFromDocument() } }),
-  );
+  const settings = new SettingsState();
 
   provideSettings(settings);
 
@@ -196,6 +192,10 @@
       untrack(() => devicePreferences.initializeView(legacyDeviceView(settings.user)));
   });
 
+  $effect(() => {
+    if (settings.loaded && appearanceState.connected) appearanceState.initialize(settings.user.appearance);
+  });
+
   onMount(() => keybindings.connect());
 
   $effect(() => applyDeviceAppearance(devicePreferences));
@@ -247,18 +247,9 @@
         .then(() => (ready = true));
   });
 
-  // The server rendered the appearance into <html>; keep it current (and follow the system for "system").
-  $effect(() => applyAppearance(settings.appearance, devicePreferences.view));
+  $effect(() => applyViewGeometry(devicePreferences.view));
 
   onMount(() => document.getElementById("canopy-boot")?.remove());
-
-  $effect(() => {
-    const query = matchMedia("(prefers-color-scheme: dark)");
-    const follow = () => applyAppearance(settings.appearance, devicePreferences.view);
-    query.addEventListener("change", follow);
-
-    return () => query.removeEventListener("change", follow);
-  });
 
   // Desktop geometry belongs to this browser profile or desktop shell.
   const sidebar = new SidebarLayout();

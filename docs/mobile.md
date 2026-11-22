@@ -1,7 +1,9 @@
 # Canopy na iOS i Android
 
 Status: opis zaimplementowanego kodu (2026-11-22), w tym dziennego pingu użycia
-z przełącznikiem prywatności i pomijaniem wysyłki offline. Profile EAS przypinają Bun 1.4.5
+z przełącznikiem prywatności i pomijaniem wysyłki offline. Settings → Appearance
+zapisuje schemat kolorów, oba motywy i szerokość wątku w instalacji aplikacji.
+Profile EAS przypinają Bun 1.4.5
 dla lockfile w wersji 3. Kompozytor pokazuje przypisany [profil Sandbox](sandbox-profiles.md).
 Steer od bota pokazuje nazwę nadawcy także po wznowieniu zapisanego strumienia historii.
 Edytor zaplanowanych zadań pozwala wybrać profil dla nowego wątku.
@@ -1547,11 +1549,18 @@ uwzględniają go także przy otwartej klawiaturze. `ChatKeyboard` wiąże regio
 iOS używa `interactive`, Android natywnego `KeyboardGestureArea` oraz insetów edge-to-edge.
 Zmiany klawiatury nie liczą się jako gest zwijający kompozytor. Formularze New thread,
 Pair i Settings korzystają z `KeyboardViewport`, którego padding także śledzi klatki na UI.
-Pełne arkusze i pickery mają własny provider w natywnym oknie. Jasny/ciemny motyw
-oraz niezależne palety Light/Dark są ustawieniami gatewaya, synchronizowanymi między klientami.
-Settings korzysta ze wspólnych tokenów tematów Birch, Fern, Lagoon, Cedar, Heather,
-Blossom i Ash. Preferencje urządzenia (typografia, kontrast, diffy i format czasu)
-pozostają w SecureStore telefonu i nie zmieniają preferencji przeglądarki.
+Pełne arkusze i pickery mają własny provider w natywnym oknie. Settings → Appearance
+przechowuje schemat kolorów (System, Light, Dark), osobne palety Light i Dark oraz
+szerokość wątku w pliku `device-appearance.json` w katalogu dokumentów aplikacji.
+Wybory obowiązują w tej instalacji po restarcie, aktualizacji i zmianie parowania.
+Przy braku lokalnego zapisu aplikacja jednorazowo kopiuje dawne wartości konta, gdy
+odczyta je z gatewaya. Starszy akcent uzupełnia brakujące palety. Jeśli użytkownik
+wcześniej zmieni wygląd lub przywróci domyślne wartości, zapis lokalny ma pierwszeństwo.
+Zmiany i **Restore device defaults** działają offline. Aplikacja pokazuje błąd odczytu
+lub zapisu z akcją ponowienia.
+Settings korzysta ze wspólnych tokenów motywów Birch, Fern, Lagoon, Cedar, Heather,
+Blossom i Ash. Typografia, kontrast, ustawienia diffów i format czasu nadal są
+zapisywane lokalnie w SecureStore.
 Rozwinięcie archiwum wątków i botów oraz szerokość i zwinięcie sidebara również należą do urządzenia
 (`DevicePreferences`, wspólny `@canopy/domain/device-view`). Filtr projektów,
 grupowanie i kolejność grup także należą do tego telefonu. Stan widoku jest zapisany

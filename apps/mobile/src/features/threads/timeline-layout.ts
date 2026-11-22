@@ -9,7 +9,7 @@ export function useThreadTimelineStyle(initial: boolean, composerHeight: number)
   const { bottom } = useContentInsets();
 
   const maxWidth =
-    appearance?.chatWidth === ui.ChatWidth.FULL ? undefined : appearance?.chatWidth === ui.ChatWidth.WIDE ? 1024 : 768;
+    appearance.chatWidth === ui.ChatWidth.FULL ? undefined : appearance.chatWidth === ui.ChatWidth.WIDE ? 1024 : 768;
 
   return {
     maxWidth,

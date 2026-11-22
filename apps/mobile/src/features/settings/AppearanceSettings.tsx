@@ -11,80 +11,46 @@ import { ThemePreview } from "./ThemePreview";
 import { TypographySettings } from "./TypographySettings";
 import { DeviceChoiceRow } from "./DeviceChoiceRow";
 import { appearanceDeviceKeys, useDevicePreferences } from "./device-preferences";
-import { Button } from "../../ui/components";
-import { Skeleton } from "../../ui/Skeleton";
+import { Button, Notice } from "../../ui/components";
+import { Skeleton, SkeletonScope } from "../../ui/Skeleton";
 
 export function AppearanceSettings() {
   const c = useColors();
-  const settings = useAppearance();
+  const { botsEnabled, threadsEnabled } = useAppearance();
   const device = useDevicePreferences();
+  const { appearance } = device;
 
   return (
     <View style={{ gap: 24 }}>
-      <Button
-        title="Restore device defaults"
-        icon="arrow-path"
-        style={{ alignSelf: "flex-start" }}
-        onPress={() => device.reset(appearanceDeviceKeys)}
-      />
-      <SettingsGroup title={colorSchemePreference.group} description="Account">
-        <SettingsRow title={colorSchemePreference.label} description={colorSchemePreference.description}>
-          <Skeleton>
-            <View style={[styles.row, { alignItems: "stretch" }]}>
-              {Object.values(colorSchemePreference.choices).map(({ label, value }) => (
-                <Pressable
-                  key={value}
-                  accessibilityRole="radio"
-                  accessibilityLabel={label}
-                  accessibilityState={{
-                    checked:
-                      (settings.appearance?.colorScheme ||
-                        colorSchemePreference.choices[colorSchemePreference.defaultChoice].value) === value,
-                    disabled: settings.saving,
-                  }}
-                  disabled={settings.saving}
-                  onPress={() => void settings.updateAppearance({ colorScheme: value })}
-                  style={{
-                    flex: 1,
-                    minWidth: 0,
-                    padding: 6,
-                    gap: 6,
-                    borderWidth: 1,
-                    borderRadius: 8,
-                    borderColor:
-                      (settings.appearance?.colorScheme ||
-                        colorSchemePreference.choices[colorSchemePreference.defaultChoice].value) === value
-                        ? c.accent
-                        : c.line,
-                  }}
-                >
-                  <View style={{ overflow: "hidden", borderRadius: 6 }}>
-                    <ThemePreview
-                      theme={themeOf(settings.appearance, value === ui.ColorScheme.DARK ? "dark" : "light")}
-                      mode={value === ui.ColorScheme.DARK ? "dark" : "light"}
-                    />
-                    {value === colorSchemePreference.choices[colorSchemePreference.defaultChoice].value && (
-                      <View
-                        style={{ position: "absolute", left: "50%", right: 0, top: 0, bottom: 0, overflow: "hidden" }}
-                      >
-                        <ThemePreview theme={themeOf(settings.appearance, "dark")} mode="dark" />
-                      </View>
-                    )}
-                  </View>
-                  <Text style={[styles.chrome, { textAlign: "center", color: c.text }]}>{label}</Text>
-                </Pressable>
-              ))}
-            </View>
-          </Skeleton>
-        </SettingsRow>
-      </SettingsGroup>
-      <SettingsGroup title="Themes" description="Account · Your color scheme decides which palette Canopy shows.">
-        <View style={{ flexDirection: "row", gap: 12 }}>
-          <ThemeColumn mode="light" />
-          <ThemeColumn mode="dark" />
-        </View>
-      </SettingsGroup>
-      <SettingsGroup title={threadWidthPreference.group} description="This device unless marked Account">
+      <View style={{ gap: 8 }}>
+        <Notice>These settings apply only to this device.</Notice>
+        {appearance.error ? (
+          <>
+            <Notice error>{appearance.error}</Notice>
+            <Button title="Retry appearance settings" onPress={appearance.retry} style={{ alignSelf: "flex-start" }} />
+          </>
+        ) : null}
+        <Button
+          title="Restore device defaults"
+          icon="arrow-path"
+          style={{ alignSelf: "flex-start" }}
+          disabled={!appearance.editable || !device.loaded}
+          onPress={() => {
+            appearance.reset();
+            device.reset(appearanceDeviceKeys);
+          }}
+        />
+      </View>
+      <SkeletonScope loading={appearance.loading}>
+        <ColorSchemeSettings />
+        <SettingsGroup title="Themes" description="Your color scheme decides which palette Canopy shows.">
+          <View style={{ flexDirection: "row", gap: 12 }}>
+            <ThemeColumn mode="light" />
+            <ThemeColumn mode="dark" />
+          </View>
+        </SettingsGroup>
+      </SkeletonScope>
+      <SettingsGroup title={threadWidthPreference.group}>
         <DeviceChoiceRow
           preference="contrast"
           title="Contrast"
@@ -107,22 +73,22 @@ export function AppearanceSettings() {
         <SettingsRow title="Render math" description="Show LaTeX formulas in messages and previews.">
           <Text style={[styles.chrome, { color: c.muted }]}>Unavailable on mobile · Formulas show their source.</Text>
         </SettingsRow>
-        {settings.botsEnabled && (
+        {botsEnabled && (
           <SettingsRow title="Animated mascots" description="Animate bot mascots in lists and chats.">
             <Text style={[styles.chrome, { color: c.muted }]}>Unavailable on mobile · Mascots stay still.</Text>
           </SettingsRow>
         )}
-        {settings.threadsEnabled && (
-          <SettingChoice
-            title={threadWidthPreference.label}
-            description={threadWidthPreference.description}
-            value={
-              settings.appearance?.chatWidth || threadWidthPreference.choices[threadWidthPreference.defaultChoice].value
-            }
-            options={Object.values(threadWidthPreference.choices)}
-            disabled={settings.saving}
-            onChange={(chatWidth) => void settings.updateAppearance({ chatWidth })}
-          />
+        {threadsEnabled && (
+          <SkeletonScope loading={appearance.loading}>
+            <SettingChoice
+              title={threadWidthPreference.label}
+              description={threadWidthPreference.description}
+              value={appearance.values.chatWidth}
+              options={Object.values(threadWidthPreference.choices)}
+              disabled={!appearance.editable}
+              onChange={(chatWidth) => appearance.update({ chatWidth })}
+            />
+          </SkeletonScope>
         )}
       </SettingsGroup>
       <TypographySettings />
@@ -130,10 +96,62 @@ export function AppearanceSettings() {
   );
 }
 
+function ColorSchemeSettings() {
+  const c = useColors();
+  const { appearance } = useDevicePreferences();
+
+  return (
+    <SettingsGroup title={colorSchemePreference.group}>
+      <SettingsRow title={colorSchemePreference.label} description={colorSchemePreference.description}>
+        <Skeleton>
+          <View style={[styles.row, { alignItems: "stretch" }]}>
+            {Object.values(colorSchemePreference.choices).map(({ label, value }) => {
+              const checked = appearance.values.colorScheme === value;
+              const mode = value === ui.ColorScheme.DARK ? "dark" : "light";
+
+              return (
+                <Pressable
+                  key={value}
+                  accessibilityRole="radio"
+                  accessibilityLabel={label}
+                  accessibilityState={{ checked, disabled: !appearance.editable }}
+                  disabled={!appearance.editable}
+                  onPress={() => appearance.update({ colorScheme: value })}
+                  style={{
+                    flex: 1,
+                    minWidth: 0,
+                    padding: 6,
+                    gap: 6,
+                    borderWidth: 1,
+                    borderRadius: 8,
+                    borderColor: checked ? c.accent : c.line,
+                  }}
+                >
+                  <View style={{ overflow: "hidden", borderRadius: 6 }}>
+                    <ThemePreview theme={themeOf(appearance.values, mode)} mode={mode} />
+                    {value === ui.ColorScheme.SYSTEM && (
+                      <View
+                        style={{ position: "absolute", left: "50%", right: 0, top: 0, bottom: 0, overflow: "hidden" }}
+                      >
+                        <ThemePreview theme={themeOf(appearance.values, "dark")} mode="dark" />
+                      </View>
+                    )}
+                  </View>
+                  <Text style={[styles.chrome, { textAlign: "center", color: c.text }]}>{label}</Text>
+                </Pressable>
+              );
+            })}
+          </View>
+        </Skeleton>
+      </SettingsRow>
+    </SettingsGroup>
+  );
+}
+
 function ThemeColumn({ mode }: { mode: ThemeMode }) {
   const c = useColors();
-  const settings = useAppearance();
-  const selected = themeOf(settings.appearance, mode);
+  const { appearance } = useDevicePreferences();
+  const selected = themeOf(appearance.values, mode);
 
   return (
     <View
@@ -149,12 +167,10 @@ function ThemeColumn({ mode }: { mode: ThemeMode }) {
           <Pressable
             accessibilityRole="radio"
             accessibilityLabel={`${themes[name].label}, ${mode} theme`}
-            accessibilityState={{ checked: selected === name, disabled: settings.saving }}
-            disabled={settings.saving}
+            accessibilityState={{ checked: selected === name, disabled: !appearance.editable }}
+            disabled={!appearance.editable}
             onPress={() =>
-              void settings.updateAppearance(
-                mode === "light" ? { lightTheme: colorThemes[name] } : { darkTheme: colorThemes[name] },
-              )
+              appearance.update(mode === "light" ? { lightTheme: colorThemes[name] } : { darkTheme: colorThemes[name] })
             }
             style={{
               minWidth: 0,

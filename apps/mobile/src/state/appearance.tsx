@@ -1,9 +1,7 @@
 import { createContext, useCallback, useContext, useEffect, useRef, useState, type ReactNode } from "react";
 import { useColorScheme } from "react-native";
-import { create } from "@bufbuild/protobuf";
 import { ui } from "@canopy/contracts";
 import { enabledModules } from "@canopy/domain";
-import { accents } from "@canopy/ui";
 import { useSession } from "./session";
 import { useOverviewEvents } from "./overview-bus";
 import { useDevicePreferences } from "../features/settings/device-preferences";
@@ -90,8 +88,12 @@ function useAppearanceState() {
     if (user && deviceId) void rememberModules(deviceId, moduleOrder).catch(() => {});
   }, [deviceId, moduleOrder, rememberModules, user]);
 
-  const appearance = user?.appearance;
   const device = useDevicePreferences();
+  const { initialize: initializeAppearance, values: appearance } = device.appearance;
+
+  useEffect(() => {
+    if (user) initializeAppearance(user.appearance);
+  }, [initializeAppearance, user]);
 
   useEffect(() => {
     if (!user || !device.viewLoaded) return;
@@ -99,8 +101,8 @@ function useAppearanceState() {
   }, [user, device]);
 
   const dark =
-    appearance?.colorScheme === ui.ColorScheme.DARK ||
-    ((!appearance?.colorScheme || appearance.colorScheme === ui.ColorScheme.SYSTEM) && system === "dark");
+    appearance.colorScheme === ui.ColorScheme.DARK ||
+    (appearance.colorScheme === ui.ColorScheme.SYSTEM && system === "dark");
 
   return {
     user,
@@ -115,7 +117,6 @@ function useAppearanceState() {
     projectDefaults: (projectId: string) => projects.find((p) => p.projectId === projectId)?.threadDefaults,
     appearance,
     dark,
-    accent: accents[Math.max(0, (appearance?.accent ?? 1) - 1)]?.name ?? "default",
     error,
     saving,
     reload,
@@ -146,11 +147,6 @@ function useAppearanceState() {
       } finally {
         setSaving(false);
       }
-    },
-    updateAppearance(patch: Partial<ui.AppearanceSettings>) {
-      return this.update({
-        appearance: Object.assign(create(ui.AppearanceSettingsSchema, appearance), patch),
-      });
     },
   };
 }

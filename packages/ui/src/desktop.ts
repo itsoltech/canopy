@@ -205,14 +205,14 @@ export interface DesktopBridge {
   onOpenRoute?(listener: (path: string) => void): () => void;
   readyForRoutes?(): Promise<void>;
   readonly platform: string;
-  /** Read-only startup cache, used by the bundled setup page before its first paint. */
+  /** Local startup palette, also used by the setup page before its first paint. */
   readonly startupAppearance?: {
     scheme: DesktopAppearance["scheme"];
     light: ThemeName;
     dark: ThemeName;
     style: string;
   };
-  /** Chrome cache only; the gateway remains the owner of appearance settings. */
+  /** Apply local color preferences to native chrome and remember them for startup. */
   setAppearance?(appearance: DesktopAppearance): Promise<void>;
   windowState(): Promise<DesktopWindowState>;
   onWindowState(listener: (state: DesktopWindowState) => void): () => void;

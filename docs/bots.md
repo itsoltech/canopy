@@ -9,9 +9,11 @@ kontekstu zależy od nadawcy oraz odbiorcy tury. W web/desktop gradient kompozyt
 w odstępie pod ostatnim wpisem i przechodzi pod paskiem przewijania.
 Dostępność w kanałach określa [promocja wydań](release.md).
 
-Status (2026-11-21): prywatny czat bota wyszukuje i odczytuje wybrane preferencje
-konta Canopy oraz zmienia jedną z nich po jednorazowej zgodzie właściciela.
-Gateway pomija rozumowanie Groka w podglądzie odpowiedzi na żywo i w zapisywanej wiadomości bota.
+Status (2026-11-22): narzędzia bota dla Appearance obsługują dawne wartości domyślne.
+Bieżący wygląd zapisuje klient.
+
+Status (2026-11-21): gateway pomija rozumowanie Groka w podglądzie odpowiedzi
+na żywo i w zapisywanej wiadomości bota.
 Dostępność wydań według [release.md](release.md).
 
 Status (2026-11-19): wyłączenie modułu Bots zatrzymuje pracę botów właściciela,
@@ -1169,9 +1171,9 @@ z czytelnym komunikatem (etap 5). Opcje dostępne przez narzędzia i API, bez no
 | `set_schedule_status` | Pauza lub wznowienie harmonogramu użytkownika | P |
 | `cancel_schedule` | Anulowanie harmonogramu właściciela lub własnej pobudki bota (`scope`) | A |
 | `schedule_wakeup` | Jednorazowa własna pobudka bota | P |
-| `search_canopy_preferences` | Wyszukuje dostępne dla bota preferencje według słów, do pięciu dopasowań | R |
-| `get_canopy_preference` | Zwraca jedną preferencję, dopuszczalne wartości, bieżącą wartość i wersję. Potwierdza ścieżkę dla rozpoznanej wersji klienta | R |
-| `set_canopy_preference` | Zmienia jedną preferencję z wersją z odczytu i zwraca zapisaną wartość | A |
+| `search_canopy_preferences` | Wyszukuje kontrolki Appearance według słów, do pięciu dopasowań | R |
+| `get_canopy_preference` | Zwraca możliwe wybory oraz dawną wartość domyślną i jej wersję. Potwierdza ścieżkę dla rozpoznanej wersji klienta | R |
+| `set_canopy_preference` | Zmienia dawną wartość domyślną z wersją z odczytu i zwraca zapisaną wartość | A |
 | `get_settings` | Domyślne ustawienia wątków i generacji tekstu, wersje użytkownika i projektów; bez wyglądu | R |
 | `update_settings` | Zastąpienie podanych sekcji, optimistic version; zagnieżdżone pola w protobuf JSON | P dla text generation; A dla thread defaults (mogą zmieniać permissions) |
 | `list_bots` | Boty właściciela | R |

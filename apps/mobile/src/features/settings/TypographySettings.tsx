@@ -7,7 +7,7 @@ import { mobileFontOptions } from "./mobile-fonts";
 export function TypographySettings() {
   return (
     <View style={{ gap: 24 }}>
-      <SettingsGroup title="Typography" description="This device · Choose from built-in fonts.">
+      <SettingsGroup title="Typography">
         <DeviceChoiceRow
           preference="interfaceFont"
           title="Interface font"

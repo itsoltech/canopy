@@ -100,7 +100,7 @@ function preferencePatch(setting: Setting, value: string): AppearancePreferenceP
 const setPreference: PlatformTool = {
   ...define(
     "set_canopy_preference",
-    "Change one supported Canopy account preference only on an explicit owner request in this chat. Use the value and version from get_canopy_preference. Always asks for approval.",
+    "Change a legacy appearance default on explicit owner request. This affects older clients and the initial import on clients without saved appearance. Use the value and version from get_canopy_preference. Always asks for approval.",
     object({ setting_id: str, value: str, expected_version: str }, ["setting_id", "value", "expected_version"]),
     "Updating a Canopy preference",
     (c) =>
@@ -128,7 +128,7 @@ const setPreference: PlatformTool = {
       throw new SettingsConflict("Settings changed elsewhere. Read the preference again before proposing a change.");
 
     return {
-      prompt: `Change your Canopy account preference “${setting.label}” to “${label}”?\n${setting.description}`,
+      prompt: `Change the legacy default for “${setting.label}” to “${label}”?\nOlder clients and clients importing appearance for the first time use this default.`,
     };
   },
 };
@@ -136,7 +136,7 @@ const setPreference: PlatformTool = {
 export const accountPreferenceTools = [
   define(
     "search_canopy_preferences",
-    "Search supported Canopy account preferences by keywords in a private owner turn. Use get_canopy_preference for details and verified navigation.",
+    "Find appearance controls by keyword in a private owner turn. Use get_canopy_preference for navigation and legacy defaults.",
     object({ query: str, limit: { type: "integer", minimum: 1 } }, ["query"]),
     "Searching Canopy preferences",
     async (c) => {
@@ -161,7 +161,7 @@ export const accountPreferenceTools = [
   ),
   define(
     "get_canopy_preference",
-    "Read one Canopy preference by search result ID in a private owner turn. For a verified path supply the user's client and exact reported app version.",
+    "Read a legacy appearance default by search result ID. For a verified path to the device setting, supply the user's client and exact app version. Device-local values are unavailable to this tool.",
     object({ setting_id: str, client: { type: "string", enum: [...SETTINGS_CLIENTS] }, client_version: str }, [
       "setting_id",
     ]),
@@ -177,7 +177,7 @@ export const accountPreferenceTools = [
         id: setting.id,
         label: setting.label,
         description: setting.description,
-        scope: "owner account on this gateway",
+        scope: "legacy appearance default on this gateway",
         clients: [...SETTINGS_CLIENTS],
         type: "enum",
         choices: Object.entries(setting.choices).map(([value, { label }]) => ({ value, label })),
