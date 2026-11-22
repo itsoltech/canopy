@@ -9,6 +9,7 @@ import { queryFamily } from "../diagnostics/query-context.ts";
 export type ProjectIds = {
   toGlobal(id: string): string;
   toLocal(id: string): string;
+  canonical(id: string): string;
   known: Set<string>;
   local: Set<string>;
 };
@@ -24,11 +25,26 @@ export function projectIds(sql: SqlClient.SqlClient, owner: string) {
     const locals = new Map(records.map((r) => [r.global_id, r.local_id]));
     const globals = new Map(records.map((r) => [r.local_id, r.global_id]));
     const alias = new Map(aliases.map((a) => [a.alias_id, a.global_id]));
-    const canonical = (id: string) => alias.get(id) ?? globals.get(id) ?? id;
+
+    const canonical = (id: string) => {
+      const seen = new Set<string>();
+
+      while (alias.has(id) && !seen.has(id)) {
+        seen.add(id);
+        id = alias.get(id)!;
+      }
+
+      return id;
+    };
 
     return {
-      toGlobal: (id: string) => canonical(splitId(id).id),
+      toGlobal: (id: string) => {
+        const plain = splitId(id).id;
+
+        return canonical(alias.has(plain) ? plain : (globals.get(plain) ?? plain));
+      },
       toLocal: (id: string) => locals.get(canonical(splitId(id).id)) ?? id,
+      canonical,
       known: new Set([...locals.keys(), ...globals.keys(), ...alias.keys()]),
       local: new Set(globals.keys()),
     };

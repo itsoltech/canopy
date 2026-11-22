@@ -1,7 +1,7 @@
 # Canopy na iOS i Android
 
 Status: opis zaimplementowanego kodu (2026-11-22). Profile EAS przypinają Bun 1.4.5
-dla lockfile w wersji 3. Opis obejmuje Settings → Memory, import skilli z publicznych
+dla lockfile w wersji 3. Dostęp wątków do konektorów konfiguruje się dla projektów. Opis obejmuje Settings → Memory, import skilli z publicznych
 witryn HTTPS, usypianie wątków, dostępny offline wykaz licencji open source
 oraz osobne aktualizacje Canopy i CLI dostawców. Ukończone przygotowanie wątku
 domyślnie zwija kroki do wiersza „Thread prepared”. Na szerokim oknie iOS i Androida
@@ -471,7 +471,7 @@ Lista PR przenosi się do modułu Pull requests; w podsumowaniu pozostaje skrót
 najnowszego PR. Pełna karta zachowuje Summary/Timeline/Code i istniejące akcje,
 a przygotowanie kontekstu/cytowanie wybiera Thread i aktualizuje jego szkic bez
 zmiany trasy. Tasks rozdziela harmonogramy od zadań w tle i otwiera wynik zadania
-w karcie. Connectors zachowuje granty całego workera. Nieaktywne moduły są
+w karcie. Connectors edytuje dostęp do konta dla całego projektu wątku. Nieaktywne moduły są
 odmontowane, dane korzystają ze współdzielonego cache parowania, a ponowne
 otwarcie sekcji PR korzysta z zapamiętanej prezentacji. Nie zmieniamy konfiguracji
 natywnej ani fingerprintów.

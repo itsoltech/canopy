@@ -150,7 +150,7 @@ function ConnectorActions({
         onPress={() =>
           confirmAction(
             "Delete account",
-            "This removes the account from computers sharing configuration. Workers and bots lose access. A linked computer can restore it for 90 days.",
+            "This removes the account from computers sharing configuration. Threads and bots lose access. A linked computer can restore it for 90 days.",
             () =>
               void resource
                 .run((api) => api.deleteConnectorAccount({ accountId: account.id }))

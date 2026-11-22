@@ -47,14 +47,7 @@ async function cleanupCandidate(core: GatewayCore, row: RemovedBranchRow) {
 
   const verified =
     target.mergedPrRepository &&
-    (await mergedProof(
-      core,
-      row.owner_user_id,
-      row.worker_id,
-      target.mergedPrRepository,
-      target.branch,
-      expectedHeadCommit,
-    ));
+    (await mergedProof(core, row, target.mergedPrRepository, target.branch, expectedHeadCommit));
 
   const attempt = Bun.randomUUIDv7();
 

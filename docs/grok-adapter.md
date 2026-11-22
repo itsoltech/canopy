@@ -1,5 +1,7 @@
 # Adapter Grok
 
+Aktualizacja (2026-11-22): gateway sprawdza grant projektu przy wywołaniu konektora z wątku.
+
 Aktualizacja (2026-11-21): boty na Linuksie mogą zapisywać trwałe sesje także
 poza katalogiem tymczasowym workera. Dostępność wynika z promocji wydań.
 
@@ -168,7 +170,7 @@ przypięte binarki przez stdio, a ACP dostaje prywatne endpointy HTTP per
 `threadId`. Każdy call przechodzi przez autoryzację gatewaya; klucze modelu nie
 trafiają do procesu automatyzacji. Szczegóły: [automation-tools.md](automation-tools.md).
 
-Ten sam serwer wystawia platformowe connectory z `ThreadSpec.connectorTools`. Wywołanie zawiera identyfikator konta, a item zachowuje nazwę konta i typ connectora; gateway nadal sprawdza grant workera. Zmiana katalogu narzędzi powoduje restart/load sesji z aktualnym MCP dopiero na granicy tur, z zachowaniem ID i historii. Worker raportuje zastosowany katalog, a notatka `[canopy]` opisuje zmianę przy następnej wiadomości. Test `bus.test.ts` pokrywa bearer, zakres dostępnych narzędzi, konto i metadane transkryptu. Wyłączenie zewnętrznych MCP poniżej dotyczy konfiguracji urządzenia, nie connectorów Canopy.
+Ten sam serwer wystawia platformowe connectory z `ThreadSpec.connectorTools`. Wywołanie zawiera identyfikator konta, a item zachowuje nazwę konta i typ connectora. Gateway sprawdza grant projektu wątku. Zmiana katalogu narzędzi powoduje restart/load sesji z aktualnym MCP dopiero na granicy tur, z zachowaniem ID i historii. Worker raportuje zastosowany katalog, a notatka `[canopy]` opisuje zmianę przy następnej wiadomości. Test `bus.test.ts` pokrywa bearer, zakres dostępnych narzędzi, konto i metadane transkryptu. Wyłączenie zewnętrznych MCP poniżej dotyczy konfiguracji urządzenia, nie connectorów Canopy.
 
 Załączniki obrazowe są wysyłane jako ACP image tylko po zadeklarowaniu capability; pozostałe jako ścieżki. Obraz umieszczony w tekście idzie zaraz za swoim znacznikiem, a umieszczony plik zostaje znacznikiem z numerem z notatki (`grok/input.ts`, [protocol.md](protocol.md#załączniki-w-tekście)). Zewnętrzne MCP z konfiguracji Claude/Cursor i managed MCP są wyłączone w tym procesie. Klucze modelu są wykluczone ze środowiska shella. Natywne subagenty, workflows i goals Groka są wyłączone; delegowanie odbywa się przez platformowe `spawn_thread`.
 

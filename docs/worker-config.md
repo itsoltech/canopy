@@ -1,5 +1,7 @@
 # Konfiguracja workerów
 
+Aktualizacja (2026-11-22): katalog konektorów wątku wynika z dostępu jego projektu.
+
 Aktualizacja (2026-11-21) obejmuje edytor ustawień CLI Claude, Codexa i Groka dla
 instancji dostawcy i nadpisania na pojedynczym workerze. Dostępność w kanałach
 wynika z [promocji wydań](release.md).
@@ -403,10 +405,10 @@ sequenceDiagram
 
 Zmiana względem wcześniejszego założenia „poświadczenia LLM nie opuszczają urządzenia”: dotyczy ono teraz tylko logowania CLI na urządzeniu (`claude login`, `codex login`). Klucze pośredników zarządzane centralnie przechodzą przez gateway.
 
-Konta [Connectors](connectors.md) mają podobne przypisanie „all / chosen workers”,
-ale ich poświadczenia **nie są synchronizowane**. Worker dostaje jedynie katalog
-narzędzi w `ThreadSpec.connector_tools`; wywołania wracają do gateway linkiem gRPC.
-Konto należy do właściciela wątku. Granty botów są niezależne od grantów workerów.
+Dostęp wątku do konta [Connectors](connectors.md) wynika z grantu projektu.
+Gateway przekazuje workerowi katalog narzędzi w `ThreadSpec.connector_tools`
+i obsługuje ich wywołania przez gRPC. Poświadczenia pozostają w gatewayu.
+Konto należy do właściciela wątku. Granty botów są niezależne od grantów projektów.
 Aktualny katalog jest dołączany także do każdej kolejnej tury istniejącego wątku;
 adapter stosuje zmianę między turami i raportuje ją do panelu. Nie wymaga to
 przesyłania poświadczeń konektora ani przerywania bieżącej pracy.

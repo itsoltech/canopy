@@ -67,7 +67,7 @@ const CONNECTOR_LABELS = new Map(
     url: "Endpoint",
     transport: "Transport",
     authKind: "Sign-in method",
-    allWorkers: "All workers",
+    projectAccess: "Project access",
     allBots: "All bots",
     tools: "Tools",
     accountIdentity: "Account",
@@ -161,6 +161,10 @@ export function configFieldLabel(field: string, kind = "settings") {
 const object = Schema.is(Schema.Record(Schema.String, Schema.MutableJson));
 const plainVariable = Schema.is(Schema.Struct({ value: Schema.String }));
 
+const projectAccess = Schema.is(
+  Schema.Struct({ allProjects: Schema.Boolean, projectIds: Schema.Array(Schema.String) }),
+);
+
 const connection = Schema.is(
   Schema.Struct({
     kind: Schema.optional(Schema.String),
@@ -198,6 +202,13 @@ export function configItemValue(field: string, value: string) {
   if (field === "proxy") return parsed ? "A different proxy" : "No proxy";
 
   if (field === "accountIdentity") return parsed ? "A different account" : "Not set";
+
+  if (field === "projectAccess" && projectAccess(parsed)) {
+    if (parsed.allProjects) return "All projects";
+    const count = parsed.projectIds.length;
+
+    return count ? `${count} selected ${count === 1 ? "project" : "projects"}` : "No projects";
+  }
 
   const named = ENVIRONMENT_VALUES.get(field) ?? (field.startsWith("version.") ? "A different version" : undefined);
 

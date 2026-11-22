@@ -4,6 +4,7 @@ import { Code, ConnectError } from "@connectrpc/connect";
 
 import { bots, github, computerLink as link, ui } from "@canopy/contracts";
 import { REMOTE_BOTS, REMOTE_BOT_COMPOSER, REMOTE_THREAD_PANEL } from "@canopy/domain/computers";
+import { PROJECT_CONNECTOR_ACCESS } from "./capabilities.ts";
 import {
   GITHUB_ACCOUNTS,
   GITHUB_PR,
@@ -94,7 +95,9 @@ export const GITHUB_METHODS = new Set([
 ]);
 
 export function botFeature(method: { name: string }, request: Message): string | undefined {
-  if (["GetThreadPanel", "SetThreadConnectorGrant"].includes(method.name)) return REMOTE_THREAD_PANEL;
+  if (method.name === "GetThreadPanel") return REMOTE_THREAD_PANEL;
+
+  if (method.name === "SetThreadConnectorGrant") return PROJECT_CONNECTOR_ACCESS;
 
   if (["RerunPullRequestChecks", "CancelPullRequestCheckRun"].includes(method.name)) return GITHUB_WRITE;
 
@@ -258,7 +261,6 @@ export const SERVED = new Set([
   "SetEnvironmentTags",
   "GetWorktreeSettings",
   "UpdateWorktreeSettings",
-  "SetConnectorAccess",
   "RefreshProviders",
   "InstallCli",
   "CheckCliUpdates",
@@ -286,7 +288,7 @@ export const UPDATE_METHODS = new Set(["GetComputerUpdates", "RequestComputerUpd
 /**
  * Stage 6 (shared configuration): a worker's settings, changed at its home over a link that carries
  * configuration. Every worker and workspace id must be the home's; both computers audit the edit.
- * SetInstanceWorkers and SetConnectorAccess with workers of several computers are split by the caller.
+ * SetInstanceWorkers with workers of several computers is split by the caller.
  */
 // StartProviderLogin is deliberately absent here and from SERVED: a sign-in replaces the CLI login of that computer,
 // so only its own owner starts it on its own gateway, never a linked computer.
@@ -300,7 +302,6 @@ export const WORKER_SETTINGS = new Set([
   "SetEnvironmentTags",
   "GetWorktreeSettings",
   "UpdateWorktreeSettings",
-  "SetConnectorAccess",
   "RefreshProviders",
   "InstallCli",
   "CheckCliUpdates",

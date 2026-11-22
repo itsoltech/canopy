@@ -84,9 +84,9 @@ describe.skipIf(!dockerAvailable)("GitHub detection races, replay and cleanup au
     const calls = fixture.requests.length;
     expect((await request()).links).toHaveLength(0);
     expect(fixture.requests.length).toBeGreaterThan(calls);
-    expect(await githubCleanupProof(f.gw.core.github, f.gw.userId, f.workerId, "itsoltech/canopy", branch, head)).toBe(
-      false,
-    );
+    expect(
+      await githubCleanupProof(f.gw.core.github, f.gw.userId, f.project.id, "itsoltech/canopy", branch, head),
+    ).toBe(false);
   });
 
   test("worker tool event is replayed after a detector restart without reviving its tombstone", async () => {
@@ -202,11 +202,11 @@ describe.skipIf(!dockerAvailable)("GitHub detection races, replay and cleanup au
     expect(result.links.some((link) => [64, 65].includes(link.summary?.ref?.number ?? 0))).toBe(false);
   });
 
-  test("cleanup needs the selected PAT's worker grant and fresh exact merged proof", async () => {
+  test("cleanup needs the selected PAT's project grant and fresh exact merged proof", async () => {
     fixture.pulls.clear();
     fixture.pulls.set(63, detectionPull(63, branch, head, { state: "merged" }));
 
-    const connector = (
+    let connector = (
       await f.gw.api.saveConnectorAccount({
         connectorType: "github",
         name: "Cleanup PAT",
@@ -224,16 +224,29 @@ describe.skipIf(!dockerAvailable)("GitHub detection races, replay and cleanup au
     });
 
     const proof = (sha = head) =>
-      githubCleanupProof(f.gw.core.github, f.gw.userId, f.workerId, "itsoltech/canopy", branch, sha);
+      githubCleanupProof(f.gw.core.github, f.gw.userId, f.project.id, "itsoltech/canopy", branch, sha);
+
+    const grant = async (projectId: string) => {
+      connector = (
+        await f.gw.api.setConnectorAccess({
+          accountId: connector.id,
+          expectedRevision: connector.revision,
+          projectIds: [projectId],
+        })
+      ).account!;
+      // Grant changes the connector revision and requires an explicit PAT reselection.
+      await f.gw.api.useGitHubPat({ connectorAccountId: connector.id });
+    };
 
     expect(await proof()).toBe(false);
-    await f.gw.api.setConnectorAccess({
-      accountId: connector.id,
-      expectedRevision: connector.revision,
-      workerIds: [f.workerId],
-    });
-    // Grant changes the connector revision and requires an explicit PAT reselection.
-    await f.gw.api.useGitHubPat({ connectorAccountId: connector.id });
+    const other = (await f.gw.api.createProject({ name: "Other cleanup project" })).project!;
+    await f.gw.api.createWorkspace({ projectId: other.id, workerId: f.workerId, rootPath: f.repo });
+    await grant(other.id);
+    const calls = fixture.requests.length;
+    expect(await proof()).toBe(false);
+    expect(fixture.requests).toHaveLength(calls);
+
+    await grant(f.project.id);
     expect(await proof()).toBe(true);
     expect(await proof("0".repeat(40))).toBe(false);
     fixture.pulls.set(63, detectionPull(63, branch, head, { state: "closed" }));

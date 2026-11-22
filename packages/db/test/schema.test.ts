@@ -198,6 +198,7 @@ describe.skipIf(!dockerAvailable)("schema on PostgreSQL 17", () => {
       "194_thread_memory_audience",
       "195_network_access_allowed_networks",
       "196_memory_note_creation",
+      "197_connector_project_access",
     ]);
   }, 60_000);
 

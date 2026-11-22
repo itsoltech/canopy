@@ -1,14 +1,11 @@
 import { randomUUID } from "node:crypto";
-import { create, ScalarType, type DescMessage, type DescMethod, type Message } from "@bufbuild/protobuf";
+import { ScalarType, type DescMessage, type DescMethod, type Message } from "@bufbuild/protobuf";
 import { reflect } from "@bufbuild/protobuf/reflect";
-import { connectors, ui } from "@canopy/contracts";
+import { ui } from "@canopy/contracts";
 import { splitId } from "@canopy/domain/computers";
 import { PROVIDER_SETTINGS_CAPABILITY } from "@canopy/domain/release/protocol";
 import { Code, ConnectError } from "@connectrpc/connect";
-import { Effect } from "effect";
-import { SqlClient } from "effect/sql";
 import { linkedMessage, WORKER_SETTINGS } from "../computers/remote.ts";
-import { globalIds } from "../config-sync/worker-records.ts";
 import type { GatewayCore } from "../core/core.ts";
 import { ConfigIds } from "./routed-config.ts";
 import { PLAIN, single, unaryTimeout } from "./routed-context.ts";
@@ -118,22 +115,21 @@ export async function sendWorkerSetting(
 
 /**
  * The home's checks before a linked computer's worker setting runs: the link carries configuration, every worker is
- * this computer's, and the shared parts stay untouched. Returns an answer when the home handles the call here.
+ * this computer's, and the shared parts stay untouched.
  */
 export async function receiveWorkerSetting(
   core: GatewayCore,
   method: DescMethod,
   request: Message,
   peer: string,
-): Promise<Message | undefined> {
+): Promise<void> {
   const computers = core.computers;
 
   if (!computers || !(await ConfigIds.carries(core, peer)))
     throw new ConnectError("Configuration sharing is off for this link", Code.FailedPrecondition);
   const ids = workerIdsOf(method.input, request);
 
-  if (!ids.length && method.name !== "SetConnectorAccess")
-    throw new ConnectError("Choose a worker on this computer", Code.InvalidArgument);
+  if (!ids.length) throw new ConnectError("Choose a worker on this computer", Code.InvalidArgument);
 
   const owned =
     ids.every((id) => PLAIN.test(id)) &&
@@ -151,20 +147,6 @@ export async function receiveWorkerSetting(
     const tags = linkedMessage(ui.SetEnvironmentTagsRequestSchema, request);
     tags.expectedRevision = (await core.environment.snapshot()).revision;
   }
-
-  if (method.name === "SetConnectorAccess") {
-    const access = linkedMessage(connectors.SetConnectorAccessRequestSchema, request);
-
-    const local = await computers.store.runtime.runPromise(
-      Effect.flatMap(SqlClient.SqlClient, (sql) => globalIds(sql, computers.store.owner, "connector")),
-    );
-
-    return create(connectors.ConnectorAccountResponseSchema, {
-      account: await core.connectors.workerAccess(local.toLocal(access.accountId), access.workerIds),
-    });
-  }
-
-  return undefined;
 }
 
 /** After the home applied a linked computer's worker setting: its records follow, and the edit is audited. */

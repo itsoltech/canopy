@@ -374,7 +374,7 @@ describe.skipIf(!dockerAvailable)("live Claude permissions through gateway and s
     await gw.api.setConnectorAccess({
       accountId: account.id,
       expectedRevision: account.revision,
-      workerIds: [gw.workerId],
+      projectIds: [projectId],
     });
     const scope = await running(PermissionMode.ASK);
     const callId = crypto.randomUUID();

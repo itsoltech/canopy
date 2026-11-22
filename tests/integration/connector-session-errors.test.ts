@@ -5,7 +5,7 @@ import { startInstanceFixture, type InstanceFixture } from "./support/instance-f
 import { fakeConnector } from "./support/connector.ts";
 import { eventually } from "./support/gateway.ts";
 
-async function connect(f: InstanceFixture, remote: ReturnType<typeof fakeConnector>) {
+async function connect(f: InstanceFixture, remote: ReturnType<typeof fakeConnector>, projectId: string) {
   const account = (
     await f.gw.api.saveConnectorAccount({
       connectorType: "custom",
@@ -22,7 +22,7 @@ async function connect(f: InstanceFixture, remote: ReturnType<typeof fakeConnect
     await f.gw.api.setConnectorAccess({
       accountId: account.id,
       expectedRevision: account.revision,
-      workerIds: [f.workerId],
+      projectIds: [projectId],
     })
   ).account!;
 
@@ -40,7 +40,7 @@ test.skipIf(!dockerAvailable)(
       const thread = await f.thread(Provider.CODEX);
       const baseline = await f.send(thread.id, "Baseline");
       expect((await f.finished(thread.id, baseline.id)).status).toBe("completed");
-      const { account, tools } = await connect(f, remote);
+      const { account, tools } = await connect(f, remote, thread.projectId);
       const failed = await f.send(thread.id, "New connector");
       expect((await f.finished(thread.id, failed.id)).status).toBe("failed");
       const panel = () => f.gw.api.getThreadPanel({ threadId: thread.id });
@@ -87,14 +87,18 @@ test.skipIf(!dockerAvailable)(
       const first = await f.send(thread.id, "CONNECTOR_BACKGROUND");
       expect((await f.finished(thread.id, first.id)).status).toBe("completed");
       const original = f.records().findLast((r) => r.harness === "claude" && r.event === "turn")!;
-      const { account, tools } = await connect(f, remote);
+      const { account, tools } = await connect(f, remote, thread.projectId);
       const second = await f.send(thread.id, "Use the new connector");
       expect((await f.finished(thread.id, second.id)).status).toBe("completed");
       const attached = f.records().findLast((r) => r.harness === "claude" && r.event === "turn")!;
       expect(attached.tools).toEqual(expect.arrayContaining(tools.map((t) => t.name)));
       expect(attached.pid).toBe(original.pid);
       expect(attached.session).toBe(original.session);
-      await f.gw.api.setConnectorAccess({ accountId: account.id, expectedRevision: account.revision, workerIds: [] });
+      await f.gw.api.setConnectorAccess({
+        accountId: account.id,
+        expectedRevision: account.revision,
+        allProjects: false,
+      });
       const third = await f.send(thread.id, "Connector removed");
       expect((await f.finished(thread.id, third.id)).status).toBe("completed");
       const detached = f.records().findLast((r) => r.harness === "claude" && r.event === "turn")!;

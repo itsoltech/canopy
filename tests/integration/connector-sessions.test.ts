@@ -41,7 +41,7 @@ for (const [harness, provider] of [
           await f.gw.api.setConnectorAccess({
             accountId: account.id,
             expectedRevision: account.revision,
-            workerIds: [f.workerId],
+            projectIds: [thread.projectId],
           })
         ).account!;
 
@@ -67,7 +67,11 @@ for (const [harness, provider] of [
           panel,
           (p) => p.connectors.find((a) => a.accountId === account.id)?.sessionState === "available",
         );
-        await f.gw.api.setConnectorAccess({ accountId: account.id, expectedRevision: granted.revision, workerIds: [] });
+        await f.gw.api.setConnectorAccess({
+          accountId: account.id,
+          expectedRevision: granted.revision,
+          allProjects: false,
+        });
         expect((await panel()).connectors.find((a) => a.accountId === account.id)?.sessionState).toBe(
           "pending_removal",
         );

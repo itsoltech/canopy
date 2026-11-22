@@ -19,7 +19,7 @@ import { applyProject, applyProjectConfiguration } from "./project-apply.ts";
 import { ENVIRONMENT_KINDS } from "./environment-values.ts";
 import { applyEnvironment } from "./environment-apply.ts";
 import { CONNECTOR_KINDS } from "./connector-values.ts";
-import { applyConnector } from "./connector-apply.ts";
+import { applyConnector, reviseAliasedProjectAccounts } from "./connector-apply.ts";
 import { homeWritten, WORKER_KIND } from "./worker-records.ts";
 import { configEquality } from "./equality.ts";
 
@@ -45,9 +45,9 @@ const ORDER = [
   "computer",
   "proxy",
   "instance",
+  "project",
   "oauth_app",
   "connector",
-  "project",
   "project_settings",
   "worktree_policy",
   "instruction",
@@ -180,6 +180,12 @@ export function receiveItem(ctx: ReceiveContext, received: Received, result: Rec
     if (compareClock(received.row.deleted.hlc, result.last) > 0) result.last = received.row.deleted.hlc;
 
     if (placed.republish) yield* saveRecord(sql, owner, placed.republish, result.last);
+
+    if (placed.aliased) {
+      const accounts = yield* reviseAliasedProjectAccounts(sql, owner, row.global_id);
+      result.connectors ||= accounts.length > 0;
+      result.projects = true;
+    }
 
     if (!changed && !placed.moved) return;
 

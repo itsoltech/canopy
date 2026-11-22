@@ -34,6 +34,7 @@ export function writeConsolidation(
 
     yield* storeApprovedSecrets(target, input, tables, review, matches, approval, approvedSecrets);
     yield* retireSourceLeases(target);
+    yield* selectConnectorProjectGrants(target, input.target.ownerUserId);
 
     const populated = tables.filter(({ name }) => review.counts[name]);
     const fences = yield* suspendHistoricalAdmission(target, populated);
@@ -46,6 +47,21 @@ export function writeConsolidation(
     for (const table of populated) yield* writeTable(target, table);
 
     return fences;
+  });
+}
+
+/** The selected account supplies its complete access policy, even when its grant list is empty. */
+function selectConnectorProjectGrants(sql: Database, owner: string) {
+  return Effect.gen(function* () {
+    yield* sql`DELETE FROM public.connector_project_grants g USING pg_temp.cc_merge m,pg_temp.cc_choices c
+      WHERE m.table_name='connector_accounts' AND c.table_name=m.table_name AND c.source_key=m.source_key
+        AND c.choice='source' AND g.account_id=m.target_id`;
+    yield* sql`DELETE FROM pg_temp.cc_connector_project_grants g USING pg_temp.cc_merge m,pg_temp.cc_choices c
+      WHERE m.table_name='connector_accounts' AND c.table_name=m.table_name AND c.source_key=m.source_key
+        AND c.choice='target' AND g.account_id=m.target_id`;
+    yield* sql`UPDATE pg_temp.cc_connector_project_grants g SET project_id=i.global_id::uuid
+      FROM public.config_items i WHERE i.owner_user_id=${owner}::uuid AND i.kind='project' AND i.unsupported=''
+        AND i.local_id=g.project_id::text AND i.global_id ~ '^[0-9a-f]{8}(-[0-9a-f]{4}){3}-[0-9a-f]{12}$'`;
   });
 }
 
@@ -221,6 +237,7 @@ function shiftSequences(sql: Database, populated: readonly SelectedTable[]) {
 
 const insertConflicts = new Map([
   ["blobs", "ON CONFLICT (sha256) DO NOTHING"],
+  ["connector_project_grants", "ON CONFLICT (account_id,project_id) DO NOTHING"],
   ["agent_memory_scopes", "ON CONFLICT (owner_user_id,scope_key) DO UPDATE SET revision=excluded.revision"],
 ]);
 

@@ -5,6 +5,7 @@ import { decryptSecret } from "../store/secrets.ts";
 import { equalValue, type Field } from "./persistence.ts";
 import { secretField } from "./provider-values.ts";
 import type { Cipher } from "./secrets.ts";
+import { connectorProjectAccess } from "./connector-values.ts";
 
 /** Compare effective values without changing their LWW versions or exposing secrets. */
 export function configEquality(sql: SqlClient.SqlClient, owner: string, key: Buffer) {
@@ -27,6 +28,9 @@ export function configEquality(sql: SqlClient.SqlClient, owner: string, key: Buf
 
     const value = (kind: string, name: string, raw: JsonValue): JsonValue => {
       if (kind === "instance" && name === "proxy" && Predicate.isString(raw)) return canonical("proxy", raw);
+
+      if (kind === "connector" && name === "projectAccess")
+        return connectorProjectAccess(raw, (id) => canonical("project", id));
 
       if (kind === "settings" && raw === null) {
         if (name === "general.confirmDelete") return true;

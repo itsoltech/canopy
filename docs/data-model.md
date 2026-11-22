@@ -2,7 +2,8 @@
 
 Status (2026-11-22): migracje `0193_agent_memory` i `0194_thread_memory_audience`
 dodają [pamięć wątków i botów](agent-memory.md), rewizje zakresów oraz
-pochodzenie delegowanych wątków potrzebne do autoryzacji dostępu.
+pochodzenie delegowanych wątków potrzebne do autoryzacji dostępu. Migracja
+`0197_connector_project_access` zastępuje granty workerów grantami projektów.
 
 Status (2026-11-19): zaimplementowany model, w tym kolejność modułów i zatrzymywanie pracy właściciela po ich wyłączeniu oraz migracje `0153_thread_notice_replication`, `0160_agent_hop_policy`, `0162_service_tiers`, `0164_usage_accounting`, `0165_usage_estimated_cost`, `0169_bot_chat_steer`, `0171_thread_permission_selection`, `0172_usage_activity`, `0173_module_goal_resume`, `0174_schedule_worktree_preparations`, `0176_message_delegating_bot` (rejestracja wywołań narzędzia w `agent_bus_calls`) i `0179_removed_branch_cleanup`.
 
@@ -382,8 +383,10 @@ wyniki sprawdzeń upstream, raporty i decyzje driftu zostają lokalne.
 Migracja `0077_config_connectors` dodaje `updated_at` do `connector_oauth_apps`. Gateway inicjalizuje
 rekordy `connector` i `oauth_app` oraz ich zaszyfrowane pola `credentials` w `config_secrets`.
 Nagłówki i tokeny nigdy nie są wartościami JSON w `config_items` ani w historii. Historia Restore
-trzyma przegrane sekrety wyłącznie jako lokalny ciphertext. Stan, ostatnie użycie, namespace i granty
-workerów/botów zostają w tabelach domeny danego komputera.
+trzyma przegrane sekrety wyłącznie jako lokalny ciphertext. Stan, ostatnie użycie, namespace i indywidualne granty botów zostają w tabelach
+domeny danego komputera. `connector_accounts.all_projects` i `connector_project_grants`
+materializują współdzielone pole `projectAccess`. Grant wskazuje kanoniczny UUID
+projektu i może zostać zapisany przed dotarciem rekordu projektu.
 
 Migracja `0088_thread_mirror_delta` rozszerza commit-ordered dziennik `computer_thread_changes`
 o rodzaj i klucz zmienionej projekcji. Itemy są wskazywane przez `item_id`, tury przez `id`,

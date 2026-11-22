@@ -1,15 +1,14 @@
-import { create, fromJson } from "@bufbuild/protobuf";
-import { timestampFromDate } from "@bufbuild/protobuf/wkt";
-import { connectors } from "@canopy/contracts";
 import { Effect } from "effect";
 import type { SqlClient } from "effect/sql";
 import { fail, type AccountRow, type ExecutionSource } from "./records.ts";
 import type { connectorSealing } from "./sealing.ts";
 import { connectorId } from "../config-sync/connector-apply.ts";
+import { connectorAccountViews } from "./account-views.ts";
+import { projectConnectorAccess } from "./project-access.ts";
 
-/** Owned accounts, their views and the grants that authorize a worker thread or a bot. */
+/** Owned accounts, their views and the grants that authorize a project or a bot. */
 export function connectorAccounts(sql: SqlClient.SqlClient, sealing: ReturnType<typeof connectorSealing>) {
-  const { unseal } = sealing;
+  const { view, views } = connectorAccountViews(sql, sealing);
 
   const owned = (user: string, id: string, lock = false) =>
     Effect.flatMap(connectorId(sql, user, id), (local) =>
@@ -21,58 +20,6 @@ export function connectorAccounts(sql: SqlClient.SqlClient, sealing: ReturnType<
         .pipe(Effect.flatMap((r) => (r[0] ? Effect.succeed(r[0]) : fail("Connector account not found")))),
     );
 
-  const render = (row: AccountRow, workers: string[], bots: string[]) =>
-    create(connectors.ConnectorAccountSchema, {
-      id: row.id,
-      connectorType: row.connector_type,
-      name: row.name,
-      namespace: row.namespace,
-      url: row.url,
-      transport: row.transport,
-      authKind: row.auth_kind,
-      status: row.status,
-      ...(row.status === "error" && row.error && { error: fromJson(connectors.ConnectorErrorSchema, row.error) }),
-      allWorkers: row.all_workers,
-      workerIds: workers,
-      allBots: row.all_bots,
-      botIds: bots,
-      revision: BigInt(row.revision),
-      ...(row.last_used_at && { lastUsedAt: timestampFromDate(new Date(row.last_used_at)) }),
-      headerNames: [...new Set([...Object.keys(unseal(row).headers ?? {}), ...Object.keys(row.legacy_headers)])],
-    });
-
-  const views = (rows: readonly AccountRow[]) =>
-    Effect.gen(function* () {
-      if (!rows.length) return [];
-      const ids = rows.map((row) => row.id);
-
-      const workers = yield* sql<{ account_id: string; id: string }>`SELECT account_id,worker_id AS id
-      FROM connector_worker_grants WHERE account_id=ANY(${ids}::uuid[]) ORDER BY account_id,worker_id`;
-
-      const bots = yield* sql<{ account_id: string; id: string }>`SELECT g.account_id,g.bot_id AS id
-      FROM connector_bot_grants g JOIN bots b ON b.id=g.bot_id
-      WHERE g.account_id=ANY(${ids}::uuid[]) AND b.deleted_at IS NULL ORDER BY g.account_id,g.bot_id`;
-
-      const group = (grants: readonly { account_id: string; id: string }[]) => {
-        const result = new Map<string, string[]>();
-
-        for (const grant of grants) {
-          const ids = result.get(grant.account_id) ?? [];
-          ids.push(grant.id);
-          result.set(grant.account_id, ids);
-        }
-
-        return result;
-      };
-
-      const workerGroups = group(workers);
-      const botGroups = group(bots);
-
-      return rows.map((row) => render(row, workerGroups.get(row.id) ?? [], botGroups.get(row.id) ?? []));
-    });
-
-  const view = (row: AccountRow) => views([row]).pipe(Effect.map((rows) => rows[0]!));
-
   const authorize = (source: ExecutionSource, connected = true) =>
     Effect.gen(function* () {
       const account = yield* owned(source.userId, source.accountId);
@@ -81,21 +28,18 @@ export function connectorAccounts(sql: SqlClient.SqlClient, sealing: ReturnType<
         return yield* fail("Connector needs reconnect or is disconnected");
 
       if (source.threadId) {
-        const thread = (yield* sql<{
-          worker_id: string;
-        }>`SELECT worker_id FROM threads WHERE id=${source.threadId}::uuid
-        AND owner_user_id=${source.userId}::uuid AND runtime='worker' AND archived_at IS NULL AND deleted_at IS NULL`)[0];
+        const allowed = yield* sql`SELECT 1 FROM threads t JOIN workers w ON w.id=t.worker_id
+          JOIN connector_accounts a ON a.id=${account.id}::uuid AND a.revision=${account.revision}::bigint
+          WHERE t.id=${source.threadId}::uuid AND t.owner_user_id=${source.userId}::uuid
+          AND t.runtime='worker' AND t.archived_at IS NULL AND t.deleted_at IS NULL
+          AND w.id=${source.workerId ?? null}::uuid AND w.revoked_at IS NULL AND w.archived_at IS NULL
+          AND (w.owner_user_id=${source.userId}::uuid OR w.owner_user_id IS NULL)
+          AND ${projectConnectorAccess(sql, source.userId, sql`t.project_id`, {
+            id: sql`a.id`,
+            allProjects: sql`a.all_projects`,
+          })}`;
 
-        if (!thread || thread.worker_id !== source.workerId) return yield* fail("Connector access denied");
-
-        const worker =
-          yield* sql`SELECT id FROM workers WHERE id=${thread.worker_id}::uuid AND revoked_at IS NULL AND archived_at IS NULL
-        AND (owner_user_id=${source.userId}::uuid OR owner_user_id IS NULL)`;
-
-        const grant =
-          yield* sql`SELECT 1 FROM connector_worker_grants WHERE account_id=${account.id}::uuid AND worker_id=${thread.worker_id}::uuid`;
-
-        if (!worker.length || (!account.all_workers && !grant.length)) return yield* fail("Connector access denied");
+        if (!allowed.length) return yield* fail("Connector access denied");
       } else if (source.botId) {
         const bot =
           yield* sql`SELECT id FROM bots WHERE id=${source.botId}::uuid AND owner_user_id=${source.userId}::uuid AND deleted_at IS NULL AND archived_at IS NULL`;
@@ -111,19 +55,20 @@ export function connectorAccounts(sql: SqlClient.SqlClient, sealing: ReturnType<
 
   const list = (
     user: string,
-    scope: { workerId?: string; threadId?: string; botId?: string; connectorType?: string } = {},
+    scope: { projectId?: string; threadId?: string; botId?: string; connectorType?: string } = {},
     metadataOnly = false,
   ) =>
     Effect.gen(function* () {
-      let workerId = scope.workerId;
+      let projectId = scope.projectId;
 
       if (scope.threadId) {
         const row = (yield* sql<{
-          worker_id: string;
-        }>`SELECT worker_id FROM threads WHERE id=${scope.threadId}::uuid AND owner_user_id=${user}::uuid AND deleted_at IS NULL`)[0];
+          project_id: string;
+        }>`SELECT project_id FROM threads WHERE id=${scope.threadId}::uuid
+          AND owner_user_id=${user}::uuid AND deleted_at IS NULL AND runtime='worker'`)[0];
 
         if (!row) return yield* fail("Thread not found");
-        workerId = row.worker_id;
+        projectId = row.project_id;
       }
 
       if (
@@ -135,11 +80,18 @@ export function connectorAccounts(sql: SqlClient.SqlClient, sealing: ReturnType<
 
       const rows =
         yield* sql<AccountRow>`SELECT a.id,a.owner_user_id,a.connector_type,a.name,a.namespace,a.url,a.transport,
-      a.auth_kind,a.credentials,a.legacy_headers,a.status,a.error,a.all_workers,a.all_bots,a.revision,a.last_used_at,
+      a.auth_kind,a.credentials,a.legacy_headers,a.status,a.error,a.all_projects,a.all_bots,a.revision,a.last_used_at,
       ${metadataOnly ? sql`'[]'::jsonb` : sql`a.tools`} AS tools
       FROM connector_accounts a WHERE owner_user_id=${user}::uuid
       AND (${scope.connectorType ?? null}::text IS NULL OR a.connector_type=${scope.connectorType ?? null})
-      AND (${workerId ?? null}::uuid IS NULL OR (a.all_workers OR EXISTS(SELECT 1 FROM connector_worker_grants g WHERE g.account_id=a.id AND g.worker_id=${workerId ?? null}::uuid)))
+      AND ${
+        projectId
+          ? projectConnectorAccess(sql, user, projectId, {
+              id: sql`a.id`,
+              allProjects: sql`a.all_projects`,
+            })
+          : sql`true`
+      }
       AND (${scope.botId ?? null}::uuid IS NULL OR (a.all_bots OR EXISTS(SELECT 1 FROM connector_bot_grants g WHERE g.account_id=a.id AND g.bot_id=${scope.botId ?? null}::uuid)))
       ORDER BY connector_type, name, id`;
 

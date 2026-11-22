@@ -556,7 +556,7 @@ describe.skipIf(!dockerAvailable)("shared Slack app and rotating bot authorizati
       url: mcp.url,
       transport: "http",
       authKind: "oauth",
-      allWorkers: false,
+      projectAccess: { allProjects: false, projectIds: [] },
       allBots: false,
       tools: [],
       credentials: "remote-secret-version",

@@ -1,10 +1,11 @@
-import { fromJson, toJson } from "@bufbuild/protobuf";
+import { fromJson, toJson, type JsonValue } from "@bufbuild/protobuf";
 import { ConnectorToolSchema } from "@canopy/contracts";
 import { Predicate, Schema } from "effect";
 import { connectorType, connectorUrl } from "../connectors/catalog.ts";
 import type { Credentials } from "../connectors/records.ts";
 import { digest } from "../connectors/records.ts";
 import type { Values } from "./provider-values.ts";
+import { UUID } from "./project-values.ts";
 
 export const CONNECTOR_KINDS = new Set(["connector", "oauth_app"]);
 
@@ -15,12 +16,31 @@ export const CONNECTOR_FIELDS = new Set([
   "url",
   "transport",
   "authKind",
-  "allWorkers",
+  "projectAccess",
   "allBots",
   "tools",
   "accountIdentity",
   "credentials",
 ]);
+
+const projectAccess = Schema.is(
+  Schema.Struct({
+    allProjects: Schema.Boolean,
+    projectIds: Schema.Array(Schema.String.check(Schema.isPattern(UUID))),
+  }),
+);
+
+/** One field versions the complete access replacement, including the explicit list. */
+export function connectorProjectAccess(value: JsonValue | undefined, canonical: (id: string) => string = (id) => id) {
+  if (!projectAccess(value)) return { allProjects: false, projectIds: [] };
+
+  return {
+    allProjects: value.allProjects,
+    projectIds: [
+      ...new Set(value.projectIds.map((id) => canonical(id.toLowerCase())).filter((id) => UUID.test(id))),
+    ].sort(),
+  };
+}
 
 /** Provider-supplied account metadata, never the client id, access token or refresh token. */
 export function accountIdentity(value: Credentials) {
@@ -94,7 +114,6 @@ export function connectorColumns(values: Values) {
       url,
       transport,
       authKind,
-      allWorkers: values["allWorkers"] === true,
       allBots: values["allBots"] === true,
       tools: tools.map((t) => toJson(ConnectorToolSchema, fromJson(ConnectorToolSchema, t))),
     };

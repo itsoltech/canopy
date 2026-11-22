@@ -74,12 +74,12 @@ export function placeProject(
       const joined = current ? yield* joinProjectRecords(sql, owner, current, candidate.global_id, local) : candidate;
       yield* moveProjectChildren(sql, owner, id, candidate.global_id, local);
 
-      return { item: { ...item, global_id: candidate.global_id }, current: joined, moved: !!current };
+      return { item: { ...item, global_id: candidate.global_id }, current: joined, moved: !!current, aliased: true };
     }
 
     const moved = yield* joinProjectRecords(sql, owner, candidate, id, local);
     yield* moveProjectChildren(sql, owner, candidate.global_id, id, local);
 
-    return { item, current: moved, moved: true };
+    return { item, current: moved, moved: true, aliased: true };
   });
 }

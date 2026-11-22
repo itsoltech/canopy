@@ -65,18 +65,18 @@ describe.skipIf(!dockerAvailable)("migration 0041: bot MCP registry to connector
     await runtime?.dispose();
     await pg?.stop();
   });
-  test("keeps account ids and encrypted secret references, migrates only owned attachments, grants no workers", async () => {
+  test("keeps account ids and encrypted secret references, migrates only owned attachments, grants no projects", async () => {
     const rows = await query<{
       id: string;
       connector_type: string;
       status: string;
-      all_workers: boolean;
+      all_projects: boolean;
       all_bots: boolean;
       credentials: unknown;
       legacy_headers: unknown;
     }>("SELECT * FROM connector_accounts ORDER BY name");
 
-    expect(rows.map((r) => [r.id, r.connector_type, r.status, r.all_workers, r.all_bots, r.credentials])).toEqual([
+    expect(rows.map((r) => [r.id, r.connector_type, r.status, r.all_projects, r.all_bots, r.credentials])).toEqual([
       [disabled, "custom", "disconnected", false, false, null],
       [server, "custom", "connected", false, false, null],
     ]);
@@ -84,7 +84,7 @@ describe.skipIf(!dockerAvailable)("migration 0041: bot MCP registry to connector
     expect(await query("SELECT account_id,bot_id FROM connector_bot_grants")).toEqual([
       { account_id: server, bot_id: bot },
     ]);
-    expect(await query("SELECT * FROM connector_worker_grants")).toHaveLength(0);
+    expect(await query("SELECT * FROM connector_project_grants")).toHaveLength(0);
     expect(
       (await query<{ ciphertext: Uint8Array }>("SELECT ciphertext FROM secrets WHERE id=$1", secret))[0]!.ciphertext,
     ).toEqual(new Uint8Array([1, 2, 3]));

@@ -3,11 +3,11 @@ import type { GitHubAccounts } from "./service.ts";
 import { DiscoveredPull } from "./discovery.ts";
 import { repositoryName } from "./repository-accounts.ts";
 
-/** Product sign-in grants no agent/worker access. Only an explicitly granted PAT can supply cleanup proof. */
+/** A selected PAT must have project access to supply cleanup proof. */
 export async function githubCleanupProof(
   accounts: GitHubAccounts,
   owner: string,
-  worker: string,
+  projectId: string,
   name: string,
   branch: string,
   head: string,
@@ -17,11 +17,11 @@ export async function githubCleanupProof(
   try {
     repositoryName(name);
     const { mapping, row } = await accounts.prs.repositories.selected(name);
+    const { connector_account_id: connectorId, connector_revision: revision } = row;
 
-    if (!row.connector_account_id || row.auth_kind !== "pat") return false;
+    if (row.auth_kind !== "pat" || !connectorId || revision === null) return false;
 
-    const granted = () =>
-      accounts.run((s) => s.detectionCleanupGrant(owner, row.connector_account_id!, worker, row.connector_revision!));
+    const granted = () => accounts.run((s) => s.detectionCleanupGrant(owner, connectorId, projectId, revision));
 
     if (!(await granted()).length) return false;
     const params = new URLSearchParams({ state: "closed", head: `${name.split("/")[0]}:${branch}`, per_page: "100" });

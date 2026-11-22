@@ -47,7 +47,7 @@ export interface AccountRow {
   legacy_headers: Record<string, { secretRef: string }>;
   status: string;
   error: JsonValue | null;
-  all_workers: boolean;
+  all_projects: boolean;
   all_bots: boolean;
   revision: bigint | string;
   tools: JsonValue[];

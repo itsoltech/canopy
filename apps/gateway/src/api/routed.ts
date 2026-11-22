@@ -268,11 +268,11 @@ export function remoteServe(local: UiHandlers, core?: GatewayCore): RemoteServe 
     const setting = core && peerNodeId && WORKER_SETTINGS.has(method.name) ? peerNodeId : undefined;
 
     try {
-      const answer = setting && (await receiveWorkerSetting(core!, method, request, setting));
+      if (setting) await receiveWorkerSetting(core!, method, request, setting);
 
       if (method.methodKind === "unary") {
         const response = await linkedWrite(method, request, peerNodeId ?? "", "home", async () =>
-          create(method.output, answer || (await unary(own[method.localName]!, request, context))),
+          create(method.output, await unary(own[method.localName]!, request, context)),
         );
 
         if (core && peerNodeId) await auditHomeAction(core, "received", method, response, peerNodeId);

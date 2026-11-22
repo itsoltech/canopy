@@ -8,10 +8,12 @@ import type { RequestHandler } from "./$types";
 export const POST: RequestHandler = async ({ request, params }) => {
   const body = await readMessage(request, connectors.SetConnectorAccessRequestSchema);
 
+  const allProjects = body.allProjects ?? (body.projectIds.length ? false : undefined);
+
   return json(
     encode(
       connectors.ConnectorAccountResponseSchema,
-      await call((api) => api.setConnectorAccess({ ...body, accountId: params.accountId })),
+      await call((api) => api.setConnectorAccess({ ...body, accountId: params.accountId, allProjects })),
     ),
   );
 };

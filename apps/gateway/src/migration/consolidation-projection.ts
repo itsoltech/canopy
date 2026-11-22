@@ -259,6 +259,28 @@ function exportTable(sql: Database, table: SelectedTable, owner: string, writer:
 
     if (name === "worker_model_catalogs" || name === "checkout_heads") return;
 
+    if (name === "connector_project_grants") {
+      // Transfer only grants with a real project of the exported owner. The projection uses the
+      // source's local project id so staging can rebase it with the rest of the project references.
+      yield* exportRows(
+        sql,
+        `SELECT to_jsonb(r)::text AS payload FROM (
+        SELECT DISTINCT g.account_id,p.id AS project_id FROM public.connector_project_grants g
+        JOIN public.connector_accounts a ON a.id=g.account_id
+        JOIN public.projects p ON p.owner_user_id=a.owner_user_id AND p.kind='project'
+        LEFT JOIN public.config_items c ON c.owner_user_id=p.owner_user_id AND c.kind='project'
+          AND c.local_id=p.id::text AND c.unsupported=''
+        LEFT JOIN public.config_aliases l ON l.owner_user_id=p.owner_user_id AND l.kind='project' AND l.alias_id=g.project_id::text
+        WHERE a.owner_user_id=$1::uuid AND COALESCE(l.global_id,g.project_id::text)=COALESCE(c.global_id,p.id::text)
+        ORDER BY g.account_id,p.id) r`,
+        [owner],
+        name,
+        writer,
+      );
+
+      return;
+    }
+
     // Generated primary keys identify source rows during staging. The target recomputes them.
     const columns = table.columns
       .filter((column) => column !== secret && (written.includes(column) || table.key.includes(column)))

@@ -86,17 +86,17 @@ describe.skipIf(!enabled)("connectors (Codex + Claude, live CLIProxyAPI)", () =>
       })
     ).account!;
 
+    projectId = (await gw.api.createProject({ name: "Live connectors" })).project!.id;
     account = (
       await gw.api.setConnectorAccess({
         accountId: account.id,
         expectedRevision: account.revision,
-        workerIds: [added.workerId],
+        projectIds: [projectId],
       })
     ).account!;
     toolName = (await gw.api.testConnector({ accountId: account.id })).tools.find(
       (t) => t.remoteName === "read_marker",
     )!.name;
-    projectId = (await gw.api.createProject({ name: "Live connectors" })).project!.id;
     workspaceId = (await gw.api.createWorkspace({ projectId, workerId: added.workerId, rootPath: repo })).workspace!.id;
     await liveProxyReady(gw, added.workerId);
   }, 180_000);

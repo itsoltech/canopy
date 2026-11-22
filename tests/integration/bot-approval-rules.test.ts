@@ -426,7 +426,7 @@ describe.skipIf(!dockerAvailable)("bot-started thread approvals", () => {
     suite.gw.worker.holdTurns = false;
   }, 30_000);
 
-  test("same-bot connector rules apply inside a started thread but never replace worker grants", async () => {
+  test("same-bot connector rules require project access inside a started thread", async () => {
     suite.gw.worker.holdTurns = true;
     const bot = await add("Inherited connector", { mcpServerIds: [suite.serverId] });
     suite.model = async (i) =>
@@ -481,14 +481,17 @@ describe.skipIf(!dockerAvailable)("bot-started thread approvals", () => {
       await suite.gw.api.setConnectorAccess({
         accountId: account.id,
         expectedRevision: account.revision,
-        allWorkers: true,
+        projectIds: [thread.projectId],
         botIds: [bot.id],
       })
     ).account!;
 
-    const connector = (await suite.current.connectors.tools(suite.gw.userId, { workerId: suite.gw.workerId })).find(
-      (t) => t.accountId === account.id,
-    )!;
+    const connector = (
+      await suite.current.connectors.tools(suite.gw.userId, {
+        projectId: thread.projectId,
+        workerId: suite.gw.workerId,
+      })
+    ).find((t) => t.accountId === account.id)!;
 
     const requestId = Bun.randomUUIDv7();
 
@@ -521,6 +524,7 @@ describe.skipIf(!dockerAvailable)("bot-started thread approvals", () => {
     await suite.gw.api.setConnectorAccess({
       accountId: account.id,
       expectedRevision: account.revision,
+      allProjects: false,
       botIds: [bot.id],
     });
     expect((await call(Bun.randomUUIDv7())).isError).toBe(true);

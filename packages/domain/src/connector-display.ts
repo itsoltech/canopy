@@ -14,20 +14,26 @@ export function connectorStatus(status: string): string {
 
 export function connectorAccessSummary(
   account: {
-    allWorkers: boolean;
-    workerIds: readonly string[];
+    allProjects?: boolean | undefined;
+    projectIds: readonly string[];
     allBots: boolean;
     botIds: readonly string[];
   },
   modules: readonly ModuleId[] = enabledModules(),
 ): string {
-  const workers = account.allWorkers
-    ? "All workers"
-    : `${account.workerIds.length} ${account.workerIds.length === 1 ? "worker" : "workers"}`;
+  const projects = account.allProjects
+    ? "All projects"
+    : `${account.projectIds.length} ${account.projectIds.length === 1 ? "project" : "projects"}`;
 
   const bots = account.allBots
     ? "All bots"
     : `${account.botIds.length} ${account.botIds.length === 1 ? "bot" : "bots"}`;
 
-  return modules.map((id) => (id === "threads" ? workers : bots)).join(" · ");
+  return modules
+    .flatMap((id) => {
+      if (id === "bots") return [bots];
+
+      return account.allProjects === undefined ? [] : [projects];
+    })
+    .join(" · ");
 }

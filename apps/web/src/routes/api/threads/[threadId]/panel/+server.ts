@@ -1,4 +1,4 @@
-import { json } from "@sveltejs/kit";
+import { error, json } from "@sveltejs/kit";
 import { ui } from "@canopy/contracts";
 import { call } from "#lib/server/gateway.ts";
 import { readMessage } from "#lib/server/body.ts";
@@ -20,6 +20,8 @@ export const GET: RequestHandler = async ({ params }) => {
 
 export const PUT: RequestHandler = async ({ params, request }) => {
   const grant = await readMessage(request, ui.SetThreadConnectorGrantRequestSchema);
+
+  if (!grant.projectScope) error(400, "Could not read the project grant. Reload the page, then retry.");
 
   const value = await call(async (api) => {
     const session = bffSession();

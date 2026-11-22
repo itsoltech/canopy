@@ -215,13 +215,14 @@ describe.skipIf(!dockerAvailable)("connector test diagnostics at the gateway bou
   }, 25_000);
 
   test("automatic scoped listing retries error accounts even with a cached catalog", async () => {
-    const workerId = gw.workerId;
+    const projectId = (await gw.api.createProject({ name: "Connector recovery" })).project!.id;
+    const catalog = () => gw.core.connectors.tools(gw.userId, { projectId, workerId: gw.workerId });
 
     const saved = (
       await gw.api.saveConnectorAccount({ connectorType: "custom", name: "recover", url: fake.url, token: fake.secret })
     ).account!;
 
-    await gw.api.setConnectorAccess({ accountId: saved.id, expectedRevision: saved.revision, workerIds: [workerId] });
+    await gw.api.setConnectorAccess({ accountId: saved.id, expectedRevision: saved.revision, projectIds: [projectId] });
     const before = await gw.api.testConnector({ accountId: saved.id });
     expect(before.tools).toHaveLength(2);
     const warnings = spyOn(console, "warn").mockImplementation(() => undefined);
@@ -229,21 +230,17 @@ describe.skipIf(!dockerAvailable)("connector test diagnostics at the gateway bou
     try {
       reply = (method) => (method === "tools/list" ? new Response(null, { status: 503 }) : undefined);
       expect((await gw.api.testConnector({ accountId: saved.id })).account!.status).toBe("error");
-      expect(
-        (await gw.core.connectors.tools(gw.userId, { workerId })).filter((t) => t.accountId === saved.id),
-      ).toHaveLength(0);
+      expect((await catalog()).filter((t) => t.accountId === saved.id)).toHaveLength(0);
       expect(await stored(saved.id)).toMatchObject({ kind: "http" });
       reply = () => undefined;
-      const recovered = await gw.core.connectors.tools(gw.userId, { workerId });
+      const recovered = await catalog();
       expect(recovered.filter((t) => t.accountId === saved.id)).toEqual(before.tools);
       const account = (await gw.api.listConnectors({})).accounts.find((a) => a.id === saved.id)!;
       expect(account.status).toBe("connected");
       expect(account.error).toBeUndefined();
       expect(await stored(saved.id)).toBeNull();
       await gw.api.disconnectConnector({ accountId: saved.id });
-      expect((await gw.core.connectors.tools(gw.userId, { workerId })).some((t) => t.accountId === saved.id)).toBe(
-        false,
-      );
+      expect((await catalog()).some((t) => t.accountId === saved.id)).toBe(false);
     } finally {
       reply = () => undefined;
       warnings.mockRestore();

@@ -65,6 +65,10 @@ async function seedRows(source: Fixture, target: Fixture, operationId: string) {
   const workspace = uuid();
   const sourceProject = uuid();
   const targetProject = uuid();
+  const sourceConnector = uuid();
+  const targetConnector = uuid();
+  const sourceProjectGlobal = uuid();
+  const targetProjectGlobal = uuid();
   const thread = uuid();
   const turn = uuid();
   const fork = uuid();
@@ -93,6 +97,15 @@ async function seedRows(source: Fixture, target: Fixture, operationId: string) {
   await s`INSERT INTO projects(id,owner_user_id,name,slug) VALUES
     (${sourceProject},${localOwner},'Source project','common'),(${foreignProject},${foreignOwner},'Foreign','foreign')`;
   await d`INSERT INTO projects(id,owner_user_id,name,slug) VALUES (${targetProject},${centralOwner},'Target project','common')`;
+  await s`INSERT INTO config_items(owner_user_id,kind,global_id,local_id,revision)
+    VALUES(${localOwner},'project',${sourceProjectGlobal},${sourceProject},1)`;
+  await d`INSERT INTO config_items(owner_user_id,kind,global_id,local_id,revision)
+    VALUES(${centralOwner},'project',${targetProjectGlobal},${targetProject},1)`;
+  await s`INSERT INTO connector_accounts(id,owner_user_id,connector_type,name,namespace,url,transport,auth_kind,status)
+    VALUES(${sourceConnector},${localOwner},'custom','Source connector','fixture','https://source.example.test','http','headers','disconnected')`;
+  await d`INSERT INTO connector_accounts(id,owner_user_id,connector_type,name,namespace,url,transport,auth_kind,status,all_projects)
+    VALUES(${targetConnector},${centralOwner},'custom','Target connector','fixture','https://target.example.test','http','headers','disconnected',true)`;
+  await s`INSERT INTO connector_project_grants(account_id,project_id) VALUES(${sourceConnector},${sourceProjectGlobal})`;
   await d`INSERT INTO threads(id,project_id,owner_user_id,kind,root_thread_id,provider,runtime,status)
     VALUES(${moved},${targetProject},${centralOwner},'main',${moved},'openai','gateway','idle')`;
   await d`INSERT INTO threads(id,project_id,owner_user_id,kind,root_thread_id,provider,runtime,status,remote_parent_kind,remote_parent_ref)
@@ -175,6 +188,8 @@ async function seedRows(source: Fixture, target: Fixture, operationId: string) {
     memory,
     sourceProject,
     targetProject,
+    targetConnector,
+    targetProjectGlobal,
     worker,
     revoked,
     workspace,
@@ -441,11 +456,17 @@ test.skipIf(!dockerAvailable)(
 
         const review = await inspectConsolidation(input);
         expect(review.blockers).toEqual([]);
-        expect(review.conflicts.map(({ table }) => table)).toEqual(["projects", "secrets", "worktree_settings"]);
+        expect(review.conflicts.map(({ table }) => table).sort()).toEqual([
+          "connector_accounts",
+          "projects",
+          "secrets",
+          "worktree_settings",
+        ]);
         expect(review.secrets).toHaveLength(2);
         expect(review.counts.threads).toBe(5);
         expect(review.counts.schedules).toBe(1);
         expect(review.counts.project_workspaces).toBe(1);
+        expect(review.counts.connector_project_grants).toBe(1);
         expect(review.counts.checkout_heads).toBe(0);
 
         const approval = {
@@ -488,6 +509,14 @@ test.skipIf(!dockerAvailable)(
       });
 
       await checkResult(target, source, fixture, operationId);
+
+      await using sql = new SQL({ url: target.url, max: 1 });
+      expect(await sql`SELECT name,all_projects FROM connector_accounts WHERE id=${fixture.targetConnector}`).toEqual([
+        { name: "Source connector", all_projects: false },
+      ]);
+      expect(
+        await sql`SELECT project_id FROM connector_project_grants WHERE account_id=${fixture.targetConnector}`,
+      ).toEqual([{ project_id: fixture.targetProjectGlobal }]);
     } finally {
       await server.stop();
     }

@@ -1052,7 +1052,7 @@ Nowy gateway pomija historyczne pole `delete_branch`, a nowy worker ignoruje je 
 
 Skan worktree wykrywa również squash/rebase merge po fetch przez patch-equivalence albo zawarcie
 pełnego diffu gałęzi w bazie. `WorktreeStatus.github_repository` zawiera tylko owner/repo z remote.
-Gateway może potwierdzić scalony PR przez konektor właściciela z grantem workera i przekazać
+Gateway może potwierdzić scalony PR przez konektor właściciela z grantem projektu i przekazać
 `WorktreeTarget.merged_pr_head` + `merged_pr_repository`; worker uznaje je tylko dla dokładnego HEAD
 i własnego remote. Konektor oraz poświadczenia pozostają w gatewayu. Pola są addytywne.
 

@@ -7,6 +7,9 @@ export const USAGE_STATS = "usage_stats_v1";
 
 export const BOT_THREAD_ACCESS = "bot_thread_access_v1";
 
+/** A thread-panel write changes the thread's project grant. */
+export const PROJECT_CONNECTOR_ACCESS = "project_connector_access_v1";
+
 /** This gateway classifies bot and thread callers before dispatch and checks the origin on forwarded calls. */
 export const AGENT_MEMORY_AUDIENCE = "agent_memory_audience_v1";
 

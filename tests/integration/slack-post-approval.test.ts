@@ -87,8 +87,11 @@ describe.skipIf(!dockerAvailable)("direct Slack posts through gateway and worker
     ).toBe("");
     const post = (await catalog()).find((tool) => tool.name.endsWith("__canopy_post_slack"))!;
     expect(post.readOnly).toBe(false);
+    const thread = await f.thread(Provider.CODEX);
     expect(
-      (await core.connectors.tools(userId, { workerId: f.workerId })).some((tool) => tool.name === post.name),
+      (await core.connectors.tools(userId, { projectId: thread.projectId, workerId: f.workerId })).some(
+        (tool) => tool.name === post.name,
+      ),
     ).toBe(false);
 
     const replyIn = (channel: string, parent: string) =>
@@ -179,9 +182,8 @@ describe.skipIf(!dockerAvailable)("direct Slack posts through gateway and worker
       accountId: account.id,
       expectedRevision: current.revision,
       botIds: [bot.id],
-      workerIds: [f.workerId],
+      projectIds: [thread.projectId],
     });
-    const thread = await f.thread(Provider.CODEX);
 
     const turn = await api.sendMessage({
       threadId: thread.id,

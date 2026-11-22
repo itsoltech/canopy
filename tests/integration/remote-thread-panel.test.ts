@@ -59,7 +59,7 @@ describe.skipIf(!dockerAvailable)("remote thread panel at its authoritative home
     ).account!;
 
     account = saved.id;
-    await gw.api.setConnectorAccess({ accountId: account, expectedRevision: saved.revision, workerIds: [gw.workerId] });
+    await gw.api.setConnectorAccess({ accountId: account, expectedRevision: saved.revision, projectIds: [project] });
     await gw.api.testConnector({ accountId: account });
 
     const owner = crypto.randomUUID();
@@ -109,6 +109,7 @@ describe.skipIf(!dockerAvailable)("remote thread panel at its authoritative home
       accountLabel: "work",
       status: "connected",
       granted: true,
+      allProjects: false,
     });
     const wire = toJsonString(ui.ThreadPanelSchema, remote);
 
@@ -192,11 +193,24 @@ describe.skipIf(!dockerAvailable)("remote thread panel at its authoritative home
     expect((await call()).isError).toBe(false);
     let metadata = (await panel()).connectors[0]!;
 
+    const legacy = await failure(
+      a.gateway.api.setThreadConnectorGrant({
+        threadId: q(thread),
+        accountId: q(account),
+        expectedRevision: metadata.revision,
+        granted: false,
+      }),
+    );
+
+    expect(legacy).toContain("Update Canopy");
+    expect((await call()).isError).toBe(false);
+
     const revoked = await a.gateway.api.setThreadConnectorGrant({
       threadId: q(thread),
       accountId: q(account),
       expectedRevision: metadata.revision,
       granted: false,
+      projectScope: true,
     });
 
     expect(revoked.connectors[0]!.granted).toBe(false);
@@ -208,6 +222,7 @@ describe.skipIf(!dockerAvailable)("remote thread panel at its authoritative home
           accountId: q(account),
           expectedRevision: metadata.revision,
           granted: true,
+          projectScope: true,
         }),
       ),
     ).toContain("reload");
@@ -217,6 +232,7 @@ describe.skipIf(!dockerAvailable)("remote thread panel at its authoritative home
       accountId: q(account),
       expectedRevision: metadata.revision,
       granted: true,
+      projectScope: true,
     });
     expect((await call()).isError).toBe(false);
   });
@@ -230,6 +246,7 @@ describe.skipIf(!dockerAvailable)("remote thread panel at its authoritative home
           accountId: q(foreignAccount),
           expectedRevision: 1n,
           granted: true,
+          projectScope: true,
         }),
       ),
     ).toContain("not found");
@@ -240,6 +257,7 @@ describe.skipIf(!dockerAvailable)("remote thread panel at its authoritative home
           accountId: q(account),
           expectedRevision: 1n,
           granted: true,
+          projectScope: true,
         }),
       ),
     ).toContain("failed");
@@ -250,6 +268,7 @@ describe.skipIf(!dockerAvailable)("remote thread panel at its authoritative home
           accountId: account,
           expectedRevision: 1n,
           granted: true,
+          projectScope: true,
         }),
       ),
     ).toContain("same computer");
@@ -367,6 +386,7 @@ describe.skipIf(!dockerAvailable)("remote thread panel at its authoritative home
           threadId: q(thread),
           accountId: q(account),
           granted: false,
+          projectScope: true,
           expectedRevision: cached.connectors[0]!.revision,
         }),
       ),

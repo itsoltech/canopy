@@ -5,17 +5,7 @@ import { connectorType, connectorUrl } from "./catalog.ts";
 import { checked, digest, fail, type Credentials } from "./records.ts";
 import type { ConnectorBase } from "./accounts.ts";
 import { connectorTransaction } from "../config-sync/connector-records.ts";
-
-function activeWorkers(sql: SqlClient.SqlClient, user: string, ids: readonly string[]) {
-  return Effect.gen(function* () {
-    for (const id of new Set(ids))
-      if (
-        !(yield* sql`SELECT id FROM workers WHERE id=${id}::uuid AND (owner_user_id=${user}::uuid OR owner_user_id IS NULL) AND revoked_at IS NULL AND archived_at IS NULL`)
-          .length
-      )
-        return yield* fail("Worker not found");
-  });
-}
+import { replaceProjectAccess } from "./project-access.ts";
 
 /** Why these headers can't be stored, or "" when they can. */
 function headerProblem(headers: Readonly<Record<string, string>>): string {
@@ -36,7 +26,7 @@ function headerProblem(headers: Readonly<Record<string, string>>): string {
   return "";
 }
 
-/** Saving accounts and their worker and bot access. */
+/** Saving accounts and their project and bot access. */
 export function connectorWrites(sql: SqlClient.SqlClient, base: ConnectorBase, key: Buffer) {
   const { owned, seal, credentials, view, audit } = base;
 
@@ -140,10 +130,14 @@ export function connectorWrites(sql: SqlClient.SqlClient, base: ConnectorBase, k
           if (BigInt(row.revision) !== request.expectedRevision)
             return yield* fail("Connector changed; reload and try again");
 
-          if (request.workerIds.length > 256 || request.botIds.length > 256)
+          if (request.allWorkers || request.workerIds.length)
+            return yield* fail("Update Canopy to change project access");
+
+          if (request.projectIds.length > 256 || request.botIds.length > 256)
             return yield* fail("Too many connector grants");
 
-          yield* activeWorkers(sql, user, request.workerIds);
+          if (request.allProjects !== undefined || request.projectIds.length)
+            yield* replaceProjectAccess(sql, row, request.allProjects ?? false, request.projectIds);
 
           for (const id of new Set(request.botIds))
             if (
@@ -151,12 +145,8 @@ export function connectorWrites(sql: SqlClient.SqlClient, base: ConnectorBase, k
                 .length
             )
               return yield* fail("Bot not found");
-          yield* sql`UPDATE connector_accounts SET all_workers=${request.allWorkers},all_bots=${request.allBots},revision=revision+1,updated_at=now() WHERE id=${row.id}::uuid`;
-          yield* sql`DELETE FROM connector_worker_grants WHERE account_id=${row.id}::uuid`;
+          yield* sql`UPDATE connector_accounts SET all_bots=${request.allBots},revision=revision+1,updated_at=now() WHERE id=${row.id}::uuid`;
           yield* sql`DELETE FROM connector_bot_grants WHERE account_id=${row.id}::uuid`;
-
-          for (const id of new Set(request.workerIds))
-            yield* sql`INSERT INTO connector_worker_grants(account_id,worker_id) VALUES (${row.id}::uuid,${id}::uuid)`;
 
           for (const id of new Set(request.botIds))
             yield* sql`INSERT INTO connector_bot_grants(account_id,bot_id) VALUES (${row.id}::uuid,${id}::uuid)`;
@@ -166,25 +156,6 @@ export function connectorWrites(sql: SqlClient.SqlClient, base: ConnectorBase, k
           return yield* view(yield* owned(user, row.id));
         }),
         user,
-      ),
-    /** A linked computer's edit: only this computer's workers' grants; account and bot access stay as they are. */
-    workerAccess: (user: string, accountId: string, workerIds: readonly string[]) =>
-      connectorTransaction(
-        sql,
-        key,
-        Effect.gen(function* () {
-          const row = yield* owned(user, accountId, true);
-
-          if (workerIds.length > 256) return yield* fail("Too many connector grants");
-          yield* activeWorkers(sql, user, workerIds);
-          yield* sql`DELETE FROM connector_worker_grants WHERE account_id=${row.id}::uuid`;
-
-          for (const id of new Set(workerIds))
-            yield* sql`INSERT INTO connector_worker_grants(account_id,worker_id) VALUES (${row.id}::uuid,${id}::uuid)`;
-          yield* audit({ userId: user, accountId: row.id }, "access", "updated");
-
-          return yield* view(yield* owned(user, row.id));
-        }),
       ),
   };
 }

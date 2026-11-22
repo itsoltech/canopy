@@ -5,6 +5,7 @@ import { nodeRef } from "@canopy/domain/computers";
 import { PROVIDER_SETTINGS_CAPABILITY } from "@canopy/domain/release/protocol";
 import { dockerAvailable } from "@canopy/db/testing";
 import { isBigInt } from "@canopy/testing";
+import { PROJECT_CONNECTOR_ACCESS } from "../../apps/gateway/src/computers/capabilities.ts";
 import { configAllowed } from "../../apps/gateway/src/computers/runtime-config.ts";
 import { methodNamed } from "../../apps/gateway/src/computers/remote.ts";
 import { single } from "../../apps/gateway/src/api/routed-context.ts";
@@ -50,13 +51,27 @@ test.skipIf(!dockerAvailable)(
 
       const legacy = await configComputer(
         "Older computer",
-        capabilities.filter((capability) => capability !== PROVIDER_SETTINGS_CAPABILITY),
+        capabilities.filter(
+          (capability) => ![PROVIDER_SETTINGS_CAPABILITY, PROJECT_CONNECTOR_ACCESS].includes(capability),
+        ),
       );
 
       home = legacy;
       await pairConfig(caller, legacy);
       await wait(() => configAllowed(caller.links, legacy.node) && configAllowed(legacy.links, caller.node));
       expect(caller.links.capabilities(legacy.node)).not.toContain(PROVIDER_SETTINGS_CAPABILITY);
+
+      expect(
+        await failure(
+          caller.gateway.api.setThreadConnectorGrant({
+            threadId: `${crypto.randomUUID()}~${nodeRef(legacy.node)}`,
+            accountId: `${crypto.randomUUID()}~${nodeRef(legacy.node)}`,
+            projectScope: true,
+            granted: true,
+            expectedRevision: 1n,
+          }),
+        ),
+      ).toContain("needs an update for this action");
 
       const instance = { harness: Provider.CODEX, id: "native" };
       const remote = { ...instance, workerId: `${legacy.gateway.workerId}~${nodeRef(legacy.node)}` };
@@ -241,36 +256,7 @@ describe.skipIf(!dockerAvailable)("worker records and remote worker settings acr
     expect(json(await b.store.query("SELECT * FROM config_items"))).not.toContain(KEY);
   }, 45_000);
 
-  test("access lists naming workers of both computers are split: each home writes its own workers", async () => {
-    const saved = (
-      await a.gateway.api.saveConnectorAccount({
-        connectorType: "custom",
-        name: "Split",
-        url: "https://mcp.example.test/mcp",
-        authKind: "headers",
-        token: "header-secret",
-      })
-    ).account!;
-
-    await wait(async () => (await b.gateway.api.listConnectors({})).accounts.some((x) => x.id === saved.id));
-
-    const grants = (c: ConfigComputer) =>
-      c.store.query<{ worker_id: string }>(
-        "SELECT worker_id::text FROM connector_worker_grants WHERE account_id=$1::uuid",
-        [saved.id],
-      );
-
-    await a.gateway.api.setConnectorAccess({
-      accountId: saved.id,
-      workerIds: [a.gateway.workerId, q()],
-      expectedRevision: saved.revision,
-    });
-    expect((await grants(a)).map((g) => g.worker_id)).toEqual([a.gateway.workerId]);
-    expect((await grants(b)).map((g) => g.worker_id)).toEqual([worker]);
-    await wait(async () =>
-      ((await a.gateway.api.listConnectors({})).accounts.find((x) => x.id === saved.id)?.workerIds ?? []).includes(q()),
-    );
-
+  test("provider access lists naming workers of both computers reach each home", async () => {
     await a.gateway.api.setInstanceWorkers({
       harness: Provider.CODEX,
       id: "team",
@@ -284,14 +270,6 @@ describe.skipIf(!dockerAvailable)("worker records and remote worker settings acr
     );
 
     expect(team[0]?.enabled).toBe(false);
-    // The shared parts (all workers, bots) are A's write; B changed only its worker.
-    expect(
-      (
-        await b.store.query<{ all_workers: boolean }>("SELECT all_workers FROM connector_accounts WHERE id=$1::uuid", [
-          saved.id,
-        ])
-      )[0]?.all_workers,
-    ).toBe(false);
   }, 45_000);
 
   test("ids of another computer, or of nobody's worker, are refused", async () => {
@@ -406,6 +384,7 @@ describe.skipIf(!dockerAvailable)("worker records and remote worker settings acr
   }, 30_000);
 
   test("an unreachable home fails at once; nothing is applied when it returns", async () => {
+    const before = await audits(a, "computer.config.worker.sent", worker);
     await b.links.close();
     await wait(() => !a.links.reachable().includes(b.node));
     const started = Date.now();
@@ -417,7 +396,7 @@ describe.skipIf(!dockerAvailable)("worker records and remote worker settings acr
     const copy = (await records(a)).find((r) => r.workerId === q())!;
     expect(copy.name).toBe("Studio");
     expect(copy.readOnlyReason).toMatch(/Laptop B/);
-    expect(await audits(a, "computer.config.worker.sent", worker)).toHaveLength(7);
+    expect(await audits(a, "computer.config.worker.sent", worker)).toEqual(before);
 
     await b.restart();
     await wait(() => configAllowed(a.links, b.node) && configAllowed(b.links, a.node));

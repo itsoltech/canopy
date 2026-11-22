@@ -19,9 +19,11 @@ describe.skipIf(!dockerAvailable)("connectors: OAuth, gateway grants and worker 
 
   let projectId = "",
     workspaceId = "",
+    otherWorkspace = "",
+    deniedProject = "",
     deniedWorkspace = "";
 
-  let deniedWorker: ScriptedWorker;
+  let otherWorker: ScriptedWorker;
   const seen: ModelInput[] = [];
   let automaticTool = "";
 
@@ -50,15 +52,16 @@ describe.skipIf(!dockerAvailable)("connectors: OAuth, gateway grants and worker 
       await gw.api.setConnectorAccess({
         accountId: account.id,
         expectedRevision: account.revision,
-        workerIds: [gw.workerId],
+        allProjects: false,
+        projectIds: [projectId],
         botIds,
       })
     ).account!;
 
-  const thread = async (permissionMode = PermissionMode.FULL_AUTO, workspace = workspaceId) => {
+  const thread = async (permissionMode = PermissionMode.FULL_AUTO, workspace = workspaceId, project = projectId) => {
     const t = (
       await gw.api.createThread({
-        projectId,
+        projectId: project,
         workspaceId: workspace,
         provider: Provider.CODEX,
         permissionMode,
@@ -128,11 +131,15 @@ describe.skipIf(!dockerAvailable)("connectors: OAuth, gateway grants and worker 
     );
     projectId = (await gw.api.createProject({ name: "Connectors" })).project!.id;
     workspaceId = (await gw.api.createWorkspace({ projectId, workerId: gw.workerId, rootPath: "/repo" })).workspace!.id;
-    const other = await gw.addWorker("denied", ["/repo"]);
-    deniedWorker = await gw.connect(other.workerId, other.credential);
-    deniedWorker.holdTurns = true;
-    deniedWorkspace = (await gw.api.createWorkspace({ projectId, workerId: other.workerId, rootPath: "/repo" }))
+    const other = await gw.addWorker("other placement", ["/repo"]);
+    otherWorker = await gw.connect(other.workerId, other.credential);
+    otherWorker.holdTurns = true;
+    otherWorkspace = (await gw.api.createWorkspace({ projectId, workerId: other.workerId, rootPath: "/repo" }))
       .workspace!.id;
+    deniedProject = (await gw.api.createProject({ name: "Other project" })).project!.id;
+    deniedWorkspace = (
+      await gw.api.createWorkspace({ projectId: deniedProject, workerId: gw.workerId, rootPath: "/repo/other" })
+    ).workspace!.id;
   }, 60_000);
   afterAll(async () => {
     await fake?.close();
@@ -195,21 +202,29 @@ describe.skipIf(!dockerAvailable)("connectors: OAuth, gateway grants and worker 
     expect((await waiting).isError).toBe(false);
     const readonly = await thread(PermissionMode.READ_ONLY);
     expect((await call(readonly, account.id, write.name)).isError).toBe(true);
-    const denied = await thread(PermissionMode.FULL_AUTO, deniedWorkspace);
+    const denied = await thread(PermissionMode.FULL_AUTO, deniedWorkspace, deniedProject);
     expect((await call(denied, account.id, read.name)).isError).toBe(true);
+    expect((await gw.api.listConnectors({ threadId: denied.id })).accounts.some((a) => a.id === account.id)).toBe(
+      false,
+    );
+    const other = await thread(PermissionMode.FULL_AUTO, otherWorkspace);
+    expect((await gw.api.listConnectors({ threadId: other.id })).accounts.some((a) => a.id === account.id)).toBe(true);
     expect(
       (
-        await deniedWorker.callTool({
-          threadId: denied.id,
-          turnId: denied.turnId,
+        await otherWorker.callTool({
+          threadId: other.id,
+          turnId: other.turnId,
           connectorAccountId: account.id,
           tool: read.name,
-          args: { marker: "denied-worker" },
+          args: { marker: "same-project" },
         })
       ).isError,
-    ).toBe(true);
+    ).toBe(false);
+    expect((await call(other, account.id, read.name)).isError).toBe(true);
     // Revocation must reject even a previously completed call's replay.
-    account = (await gw.api.setConnectorAccess({ accountId: account.id, expectedRevision: account.revision })).account!;
+    account = (
+      await gw.api.setConnectorAccess({ accountId: account.id, expectedRevision: account.revision, allProjects: false })
+    ).account!;
     expect((await call(t, account.id, read.name, callId)).isError).toBe(true);
 
     const otherUser = await gw.runtime.runPromise(
@@ -229,7 +244,7 @@ describe.skipIf(!dockerAvailable)("connectors: OAuth, gateway grants and worker 
     account = await grant(account);
     await gw.api.deleteConnectorAccount({ accountId: account.id });
     expect((await gw.api.listConnectors({})).accounts.some((a) => a.id === account.id)).toBe(false);
-    expect(await query("SELECT 1 FROM connector_worker_grants WHERE account_id=$1::uuid", account.id)).toHaveLength(0);
+    expect(await query("SELECT 1 FROM connector_project_grants WHERE account_id=$1::uuid", account.id)).toHaveLength(0);
     expect(await query("SELECT 1 FROM connector_audit WHERE thread_id=$1::uuid", t.id)).not.toHaveLength(0);
     expect((await call(t, account.id, read.name)).isError).toBe(true);
   }, 30_000);
