@@ -9,6 +9,7 @@ import { Journal } from "@canopy/worker/journal";
 import { WorkerHost, serveLink } from "@canopy/worker/runtime";
 import { ManagedRuntime } from "effect";
 import { startTestGateway, eventually, watchUntil } from "./support/gateway.ts";
+import { cacheXaiPriceFixture } from "../../apps/worker/src/providers/fixtures/xai-pricing.ts";
 
 const tempDir = tempDirs();
 const fake = resolve(import.meta.dir, "../../apps/worker/src/providers/grok/fixtures/agent.ts");
@@ -73,6 +74,7 @@ test.skipIf(!dockerAvailable)(
     };
 
     try {
+      await cacheXaiPriceFixture(data);
       await Bun.write(
         join(repo, "fixture.png"),
         Buffer.from(
@@ -176,6 +178,17 @@ test.skipIf(!dockerAvailable)(
       expect(
         initial.state.items.some((i) => i.item?.content.case === "image" && !!i.item.content.value.blob?.sha256),
       ).toBe(true);
+      expect((await turn("USAGE_COST")).state.turns.at(-1)?.status).toBe("completed");
+      const usage = await gw.api.getUsageStats({ days: 7, provider: "grok", activityKind: "thread" });
+      const modelUsage = usage.models.find((model) => model.key === "grok-4.6")?.totals;
+      expect(modelUsage).toMatchObject({
+        reports: 1n,
+        inputTokens: 250_000n,
+        unknownCostReports: 1n,
+        effectiveEstimatedCostReports: 1n,
+        unknownEffectiveCostReports: 0n,
+      });
+      expect(modelUsage?.effectiveCostUsd).toBeCloseTo(0.485);
       const allowed = await turn("PERMISSION", true);
       expect(allowed.answered.size).toBe(1);
       expect(

@@ -1,7 +1,7 @@
 # Statystyki zużycia tokenów i kosztów
 
-Status (2026-11-21): zaimplementowane agregaty zużycia w gatewayu, raporty
-harnessów, niezależne szacunki ekwiwalentu API OpenAI, wybór kosztu per licznik,
+Status (2026-11-22): zaimplementowane agregaty zużycia w gatewayu, raporty
+harnessów, niezależne szacunki ekwiwalentu API OpenAI i xAI, wybór kosztu per licznik,
 API `GetUsageStats`, synchronizacja źródeł połączonych komputerów oraz modal
 Usage z jedną kwotą kosztu i podziałem według workera, aktywności oraz poszczególnych botów.
 Web, desktop i [aplikacja mobilna](mobile.md#raport-usage) pokazują w raporcie Usage skrócone liczby tokenów i dzienny wykres według dostawcy.
@@ -37,10 +37,11 @@ usuwa zużycia już zgłoszonego przez harness.
 - `reported_cost_usd` jest opcjonalną kwotą USD rzeczywiście zgłoszoną przez
   providera. Jawne zero jest znanym kosztem; brak pola oznacza nieznany koszt.
   Starsze nieopcjonalne `cost_usd` nie dowodzi znajomości ceny i nie zasila agregatów.
-- `estimated_cost_usd` jest osobnym, opcjonalnym szacunkiem ekwiwalentu API OpenAI.
-  Nie jest rachunkiem za subskrypcję ani dowodem opłaty providera. Worker wycenia
-  odpowiedź Codexa według zamrożonej próbki cennika models.dev wyłącznie dla OpenAI;
-  brak dowodu modelu, tokenów lub odpowiedniej ceny oznacza nieznany szacunek.
+- `estimated_cost_usd` jest osobnym, opcjonalnym szacunkiem wartości tokenów
+  według cen API. Worker wycenia odpowiedzi Codexa według cennika OpenAI,
+  a sumy promptów Groka według podstawowych stawek API xAI z models.dev.
+  Brak modelu w cenniku, poprawnych tokenów lub odpowiedniej stawki oznacza
+  nieznany szacunek. Kwota opisuje wartość tokenów, niezależnie od rozliczeń konta.
   Jawne zero jest znane. `pricing_version` zachowuje zwarty opis pochodzenia cen
   użytych w liczniku (źródło, data, hash i tier), bez osobnego rekordu SQL odpowiedzi.
 - Model pochodzi z raportu harnessu; jeśli raport go nie podaje, gateway zachowuje
@@ -54,8 +55,11 @@ Codex `usageMetadata.amount` jest kwotą USD jednej odpowiedzi; adapter sumuje
 ją per tura/model z deduplikacją ID odpowiedzi. Jawne zero jest znaną ceną,
 a brak lub niepoprawna kwota pozostają nieznane. Wycena jest kompletna dopiero,
 gdy obejmuje wszystkie zaobserwowane tokeny i odpowiedzi danego licznika.
-Grok rozlicza jawne metadane zakończenia promptu; rozmiar kontekstu z ACP nie
-stanowi dowodu przepływu tokenów. Szczegóły źródeł i granic opisują adaptery.
+Grok rozlicza jawne metadane zakończenia promptu. ACP podaje sumy dla modelu,
+które mogą obejmować kilka wywołań, więc szacunek stosuje stawki podstawowe
+do tokenów wejścia, odczytu cache i wyjścia. Dopłaty za długi kontekst,
+region i osobno rozliczane narzędzia są poza tym szacunkiem. Szczegóły
+źródeł i granic opisują adaptery.
 
 Rekoncyliacja po awarii odtwarza dostępne pomiary per model niezależnie od tego,
 czy harness zdążył zapisać koniec tury. Claude odtwarza raporty wiadomości
@@ -64,7 +68,7 @@ do wybranego modelu: po reroutingu mogłoby to ponownie rozliczyć zużycie
 już zapisane pod rzeczywistym modelem. Bez dowodu modelu obsługującego wywołanie
 takie zużycie pozostaje poza agregatami. Brak raportu nie oznacza zera.
 
-Worker utrzymuje trwały lokalny cache cennika OpenAI z models.dev i współdzieli
+Worker utrzymuje trwałe lokalne cache cenników OpenAI i xAI z models.dev i współdzieli
 odświeżenia w toku; nie wykonuje HTTP dla każdej inferencji. Nieznany model może
 wywołać odświeżenie z cooldownem. Nowy cennik służy kolejnym obserwacjom:
 wcześniejsze odpowiedzi zachowują swoje ceny i nie są przeliczane wstecz.

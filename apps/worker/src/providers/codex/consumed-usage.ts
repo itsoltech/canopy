@@ -1,8 +1,8 @@
 import type { ThreadEventInit } from "../../journal/index.ts";
 import type { ServerNotification, v2 } from "@canopy/codex-protocol";
 import { addUsage, emptyUsage, reportedUsd, tokenCount, tokenFields, type ConsumedUsage } from "../token-usage.ts";
-import type { OpenAiPricingCatalog } from "../pricing/openai-catalog.ts";
-import { quoteOpenAi, validOpenAiUsage } from "../pricing/openai-rates.ts";
+import type { OpenAiPricingCatalog } from "../pricing/model-catalog.ts";
+import { quoteOpenAi, validTokenUsage } from "../pricing/model-rates.ts";
 import { ResponseQuotes } from "../pricing/response-quotes.ts";
 
 export function codexTokens(usage: v2.TokenUsageBreakdown): ConsumedUsage {
@@ -133,8 +133,8 @@ export class CodexConsumedUsage {
     if (tokenFields.some((key) => delta[key] > 0n)) {
       const single =
         proven &&
-        validOpenAiUsage(usage.last) &&
-        validOpenAiUsage(usage.total) &&
+        validTokenUsage(usage.last) &&
+        validTokenUsage(usage.total) &&
         tokenFields.every((key) => delta[key] === last[key]);
 
       const rates = this.pricing?.get(turn.raw.model ?? "");
@@ -167,7 +167,7 @@ export class CodexConsumedUsage {
       "raw",
       params.usage ? codexTokens(params.usage) : emptyUsage(),
       rates && params.usage ? quoteOpenAi(rates, params.usage, tier, this.#observedAt(params)) : undefined,
-      !!params.usage && validOpenAiUsage(params.usage),
+      !!params.usage && validTokenUsage(params.usage),
     );
     const cost = responseCost(params.usageMetadata?.amount);
 

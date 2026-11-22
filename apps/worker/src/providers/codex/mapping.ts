@@ -7,7 +7,7 @@ import { turnEndSource, turnOutcome, threadStatus, snake } from "./status-mappin
 export { codexErrorCode } from "./status-mapping.ts";
 
 import { CodexConsumedUsage } from "./consumed-usage.ts";
-import type { OpenAiPricingCatalog } from "../pricing/openai-catalog.ts";
+import type { OpenAiPricingCatalog } from "../pricing/model-catalog.ts";
 import { timestampNow } from "@bufbuild/protobuf/wkt";
 import type { FunctionCallOutputBody, ResponseItem, ServerNotification, v2 } from "@canopy/codex-protocol";
 import {

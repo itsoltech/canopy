@@ -1,4 +1,4 @@
-import { rateHash, type ApiQuote } from "./openai-rates.ts";
+import { rateHash, type ApiQuote } from "./model-rates.ts";
 
 /** Bounded provenance for cumulative snapshots, including turns that span catalog refreshes. */
 export class FrozenQuotes {
