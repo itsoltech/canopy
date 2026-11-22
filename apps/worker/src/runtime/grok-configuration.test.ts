@@ -126,7 +126,11 @@ test("Grok settings reconcile at the turn boundary and resume the durable sessio
     await first;
 
     await ctx.ops.runGrok((threads) =>
-      threads.startTurn(spec, "second", create(UserInputSchema, { text: "Continue the conversation" })),
+      threads.startTurn(spec, "second", create(UserInputSchema, { text: "Continue the conversation" }), {
+        model: "",
+        effort: "",
+        habitContext: "SANDBOX",
+      }),
     );
     expect(state.grok.get("native")).not.toBe(original);
     expect(existsSync(oldHome)).toBe(false);
@@ -136,6 +140,17 @@ test("Grok settings reconcile at the turn boundary and resume the durable sessio
       { outcome: TurnOutcome.COMPLETED, providerTurnRef: spec.providerThreadId },
       { outcome: TurnOutcome.COMPLETED, providerTurnRef: spec.providerThreadId },
     ]);
+
+    const messages = events.flatMap((event) =>
+      event.turnId === "second" && event.body.case === "itemCompleted" ? [event.body.value.item?.content] : [],
+    );
+
+    expect(messages.find((item) => item?.case === "userMessage")).toMatchObject({
+      value: { text: "Continue the conversation" },
+    });
+    expect(messages.find((item) => item?.case === "agentMessage")).toMatchObject({
+      value: { text: expect.stringMatching(/^SANDBOX=/) },
+    });
   } finally {
     answer.resolve(create(InteractionResponseSchema, { cancelled: true }));
     await first?.catch(() => undefined);

@@ -158,10 +158,21 @@ async function startPreparedThread(
   const commit = async () => {
     await requireThreadModule(core);
 
+    const humanAuthored =
+      options.ownerInput && !options.automated && !message?.shell && !!request.initialMessage.trim();
+
     const row = pending
       ? await finishWorktreePlacement(core, pending, request)
       : await coreRun(core, (s) =>
-          s.createThread(userId, message ? { ...request, initialMessage: "" } : request, undefined, options.automated),
+          s.createThread(
+            userId,
+            message ? { ...request, initialMessage: "" } : request,
+            undefined,
+            options.automated,
+            undefined,
+            undefined,
+            humanAuthored,
+          ),
         );
 
     if (options.remoteParent) await annotateRemoteParent(core, row, options.remoteParent);
@@ -185,7 +196,16 @@ async function startPreparedThread(
           text: request.initialMessage,
           userId,
           clientRequestId: request.clientRequestId,
-          ...(input && { input }),
+          ...(humanAuthored
+            ? {
+                input: {
+                  ...input,
+                  text: input?.text ?? request.initialMessage,
+                  message: request.initialMessage,
+                  humanAuthored,
+                },
+              }
+            : input && { input }),
         }),
       );
 

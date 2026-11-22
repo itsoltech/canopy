@@ -34,6 +34,7 @@ import { agentToolsHandlers } from "./ui-agent-tools.ts";
 import { withDraftDelivery } from "../drafts/delivery.ts";
 import { liveTurnPermissionHandlers } from "./ui-live-permissions.ts";
 import { memoryHandlers } from "../memory/ui.ts";
+import { reflectionHandlers } from "../memory/reflection-ui.ts";
 
 export { toConnectError } from "./ui-errors.ts";
 
@@ -85,6 +86,7 @@ function withFeedNudges(core: GatewayCore, handlers: UiHandlers): UiHandlers {
 export function uiHandlers(core: GatewayCore): UiHandlers {
   return withFeedNudges(core, {
     ...memoryHandlers(core),
+    ...reflectionHandlers(core),
     ...usageHandlers(core),
     ...composerDraftHandlers(core),
     ...agentToolsHandlers(core),

@@ -2491,6 +2491,17 @@ wersji. Po konflikcie edytor zachowuje wpisany tekst, aby użytkownik mógł
 go skopiować przed ponownym wczytaniem listy. Desktop sprawdza dostępność
 trzech metod pamięci na podłączonym gatewayu.
 
+### Refleksja
+
+Status (2026-11-22): Habits jest zaimplementowane we wspólnym rendererze web
+i desktop oraz w mobilnym kliencie Connect.
+`GET /api/memory/habits` pobiera ustawienia, katalog i sugestie przez
+`GetMemoryHabits`. `PUT /api/memory/habits` przekazuje wersjonowane ustawienia
+do `UpdateMemoryReflection`. `POST /api/memory/habits/[habitId]` przekazuje
+decyzję z rewizjami do `ResolveMemoryHabit`. Ścieżki korzystają z autoryzacji
+właściciela gatewaya. Starszy gateway może nadal obsługiwać same notatki.
+[Refleksja](agent-memory.md#refleksja)
+
 ### Licencje open source
 
 Settings → Open-source licenses w web/desktop pobiera `/open-source-licenses.json`

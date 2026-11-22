@@ -18,6 +18,7 @@ import type { GatewayCore } from "./core.ts";
 import { coreSteerAnswered } from "./core-messages.ts";
 import { coreBroadcastThread, coreBroadcastTurn, coreLog, coreRun } from "./core-broadcast.ts";
 import { coreBroadcastGoal, coreGoalAnswered, coreGoals } from "./core-goals.ts";
+import { sendWithHabitContext, type OutboundKind } from "../memory/habit-context-dispatch.ts";
 
 const MODULE_COMMANDS = new Set(["createThread", "startTurn", "steerTurn", "setGoal", "rewindThread", "runBotTurn"]);
 const NEW_THREAD_WORK = new Set(["createThread", "startTurn", "setGoal", "rewindThread"]);
@@ -147,6 +148,21 @@ export async function coreDeliver(hostContext: GatewayCore, workerId: string, co
     coreLog(hostContext, `command ${command.kind.case ?? "unknown"}: delivery or result handling failed`);
 }
 
+function sendWorkerCommand(
+  hostContext: GatewayCore,
+  connection: WorkerConnection,
+  command: Command,
+  kind: OutboundKind,
+  timeout: number,
+) {
+  return sendWithHabitContext(hostContext, connection, command.commandId, kind, (outbound) => {
+    const send = () => ({ ack: connection.sendCommand(outbound, timeout, command.commandId).catch(() => undefined) });
+
+    // Commit the outbox handoff under its module fence. Release the lock before waiting for the ACK.
+    return MODULE_COMMANDS.has(kind.case) ? coreRun(hostContext, (s) => s.sendPending(command, send)) : send();
+  });
+}
+
 async function deliverCommand(
   hostContext: GatewayCore,
   workerId: string,
@@ -222,13 +238,7 @@ async function deliverCommand(
         ? SHELL_INPUT_TIMEOUT_MS + 60_000
         : (hostContext[coreState].options.commandTimeoutMs ?? 60_000);
 
-      const send = () => ({ ack: connection.sendCommand(kind, timeout, command.commandId).catch(() => undefined) });
-
-      // The link queues the frame synchronously. Serialize the handoff with expiry in the disabling transaction,
-      // including pages prefetched on a different gateway; release the row before waiting for the worker.
-      const needsModule = MODULE_COMMANDS.has(kind.case);
-
-      const sent = needsModule ? await coreRun(hostContext, (s) => s.sendPending(command, send)) : send();
+      const sent = await sendWorkerCommand(hostContext, connection, command, kind, timeout);
 
       if (!sent) return;
       result = await sent.ack;

@@ -210,7 +210,11 @@ export function coreSteers<A, E>(
 }
 
 export interface CoreMessagesMethods {
-  sendMessage(request: ui.SendMessageRequest, linked?: LinkedMessageInput): Promise<MessageResponse>;
+  sendMessage(
+    request: ui.SendMessageRequest,
+    linked?: LinkedMessageInput,
+    ownerInput?: boolean,
+  ): Promise<MessageResponse>;
   updateThread(request: ui.UpdateThreadRequest): Promise<ui.Thread>;
   interrupt(threadId: string): Promise<void>;
 }
@@ -296,10 +300,10 @@ export const coreMessagesMethods: CoreMessagesMethods = {
    * A message: the next turn (queue), or into the running turn (steer; without one it is queued too).
    * Idempotent by client_request_id across both.
    */
-  sendMessage(this: GatewayCore, request, linked) {
+  sendMessage(this: GatewayCore, request, linked, ownerInput = false) {
     return messageReceipt(this, request, {
       prepare: () => prepareMessage(this, request, linked),
-      admit: (prepared, state) => admitMessage(this, request, linked, prepared, state),
+      admit: (prepared, state) => admitMessage(this, request, linked, prepared, state, ownerInput),
     });
   },
 };

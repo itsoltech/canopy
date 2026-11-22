@@ -16,6 +16,8 @@ export interface TurnSettings {
   /** Called only after this turn's connector catalog has attached successfully. */
   readonly connectorsReady?: () => Promise<void>;
   readonly connectorNote?: string;
+  /** Approved project habits carried privately by StartTurn for this provider submission. */
+  readonly habitContext?: string;
   /** Synchronous fence checked after async preparation, immediately before provider submission. */
   readonly canSubmit?: () => boolean;
 }

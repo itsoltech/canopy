@@ -37,6 +37,7 @@ export interface SteerRow {
     Pick<
       TurnRow["input"],
       | "attachments"
+      | "humanAuthored"
       | "sender"
       | "sourceKind"
       | "sourceStatus"

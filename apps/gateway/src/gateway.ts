@@ -28,6 +28,7 @@ import { NetworkAccess } from "./network/network.ts";
 import { mountMobileNetwork } from "./network/devices.ts";
 import { loadSecretsKey } from "./store/secrets.ts";
 import { gatewayRole } from "./role.ts";
+import { ReflectionJob } from "./memory/reflection-job.ts";
 import { DatabaseMaintenance } from "./maintenance/job.ts";
 import { databaseUrl } from "./database-credentials.ts";
 import { installLogWriter, runtimeLogDirectory, registeredLogs } from "@canopy/logs";
@@ -192,6 +193,7 @@ const network = new NetworkAccess({
 
 core.network = network;
 
+const reflection = new ReflectionJob(core);
 const maintenance = new DatabaseMaintenance(runtime, userId, (ids) => core.threadsChanged(ids));
 let unmountMobile: (() => void) | undefined;
 let server: Awaited<ReturnType<typeof startGrpcServer>> | undefined;
@@ -291,6 +293,7 @@ function startIntake() {
   } else void core.sweep().catch(() => console.error("Gateway relocation: queue resume will retry"));
 
   intake = "running";
+  reflection.start();
   core.scheduler.start();
   core.messengers.start();
   core.updateCenter.start();
@@ -330,7 +333,7 @@ async function checkRelocation() {
     if (intake === "running") {
       intake = "paused";
       core.updateCenter.stop();
-      await Promise.all([core.scheduler.stop(), core.messengers.stop()]);
+      await Promise.all([reflection.stop(), core.scheduler.stop(), core.messengers.stop()]);
 
       return;
     }
@@ -389,6 +392,7 @@ async function close(presence: string) {
     core.desktopControl.close();
     core.appControl.close();
     core.secrets.stop();
+    await reflection.stop();
     await core.scheduler.stop();
     await maintenance.stop();
     await core.stopSweep();

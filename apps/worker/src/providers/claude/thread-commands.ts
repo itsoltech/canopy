@@ -166,17 +166,7 @@ export function threadStart(
             if (mode !== session.mode) await switchMode(session, mode);
             await session.refreshConnectors(spec);
             await settings?.connectorsReady?.();
-            await submitClaudeTurn(
-              ctx,
-              session,
-              turnId,
-              input,
-              model,
-              canSubmit,
-              turns,
-              record,
-              settings?.connectorNote,
-            );
+            await submitClaudeTurn(ctx, session, turnId, input, model, canSubmit, turns, record, settings);
           } finally {
             session.admitting = false;
             turns.closeWhenIdle(session);

@@ -41,6 +41,9 @@ test.skipIf(!codex)(
     ]).find((p) => p.config.id === "connector-test")!.resolved!;
 
     const events: ThreadEvent[] = [];
+    const habitContext = "[canopy] Approved project habit fixture: use FIXTURE_HABIT.";
+    const revocation = "[canopy] Ignore earlier project habits. FIXTURE_REVOCATION";
+    const habitContexts = [habitContext, "", revocation, ""];
 
     const spec = create(ThreadSpecSchema, {
       threadId: crypto.randomUUID(),
@@ -94,6 +97,7 @@ test.skipIf(!codex)(
                 model: "",
                 effort: "",
                 connectorNote: index === 0 ? "[canopy] Connector Custom MCP server · fixture is now available." : "",
+                habitContext: habitContexts[index] ?? "",
               },
             );
 
@@ -110,20 +114,22 @@ test.skipIf(!codex)(
               done.body.case === "turnFinished" && { outcome: done.body.value.outcome, reason: done.body.value.reason },
             ).toEqual({ outcome: TurnOutcome.COMPLETED, reason: "" });
 
-            const user = events.findLast(
-              (e) =>
-                e.turnId === turnId &&
-                e.body.case === "itemCompleted" &&
-                e.body.value.item?.content.case === "userMessage",
+            const messages = events.flatMap((event) =>
+              event.turnId === turnId &&
+              event.body.case === "itemCompleted" &&
+              event.body.value.item?.content.case === "userMessage"
+                ? [event.body.value.item.content.value.text]
+                : [],
             );
 
-            expect(
-              user?.body.case === "itemCompleted" &&
-                user.body.value.item?.content.case === "userMessage" &&
-                user.body.value.item.content.value.text,
-            ).toBe(`Remember FIXTURE_CONNECTOR_${index}`);
+            expect(messages).toEqual([`Remember FIXTURE_CONNECTOR_${index}`]);
             const requests = model.requests.map((raw) => decodeJsonObject(JSON.parse(raw)));
             const request = requests.findLast((body) => Array.isArray(body["input"]))!;
+
+            const contents = JSON.stringify(request);
+
+            if (index < 2) expect(contents.match(/FIXTURE_HABIT/g)).toHaveLength(1);
+            else expect(contents.match(/FIXTURE_REVOCATION/g)).toHaveLength(1);
 
             // The adapter checks the real per-thread MCP inventory before accepting every turn.
             if (index > 0) expect(JSON.stringify(request)).toContain("FIXTURE_CONNECTOR_0");

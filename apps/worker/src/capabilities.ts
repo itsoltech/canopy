@@ -30,6 +30,7 @@ export function workerCapabilities(options: { localWorker: boolean; fullAccess: 
     "diagnostics_v1",
     "worker_diagnostics_v1",
     "shell_input_v1",
+    "memory_habits_v1",
     "provider_account_status",
     CLAUDE_USER_CONFIGURATION_CAPABILITY,
     PROVIDER_SETTINGS_CAPABILITY,

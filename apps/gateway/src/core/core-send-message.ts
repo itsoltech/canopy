@@ -134,6 +134,7 @@ export async function admitMessage(
   linked: LinkedMessageInput | undefined,
   validated: PreparedMessage,
   state: AdmissionState,
+  ownerInput: boolean,
 ): Promise<MessageResponse> {
   const { threadId, clientRequestId } = request;
   let prepared = validated;
@@ -157,7 +158,14 @@ export async function admitMessage(
       goal: await core.setGoal(create(ui.SetGoalRequestSchema, { threadId, action: "set", objective: prepared.goal })),
     };
 
-  const { input, permissionMode } = prepared;
+  const { permissionMode } = prepared;
+  const original = prepared.input;
+
+  const input =
+    ownerInput && !linked && !request.replySuggestionItemId && !original?.shellCommand && request.text.trim()
+      ? { ...original, text: original?.text ?? request.text, message: request.text, humanAuthored: true }
+      : original;
+
   const userId = core[coreState].options.userId;
   const running = await coreRun(core, (s) => s.steerTarget(threadId));
 

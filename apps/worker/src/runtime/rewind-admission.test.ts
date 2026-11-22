@@ -113,11 +113,10 @@ for (const provider of [Provider.CLAUDE, Provider.CODEX]) {
 
     const spec = create(ThreadSpecSchema, { threadId: Bun.randomUUIDv7(), cwd: root, provider, enableAgentBus: true });
 
-    const start = (text: string) =>
-      create(StartTurnSchema, { thread: spec, turnId: Bun.randomUUIDv7(), input: { text } });
+    const start = (text: string, habitContext = "") =>
+      create(StartTurnSchema, { thread: spec, turnId: Bun.randomUUIDv7(), input: { text }, habitContext });
 
-    const send = async (text: string) => {
-      const value = start(text);
+    const send = async (value: ReturnType<typeof start>) => {
       await ctx.ops.startTurn({ case: "startTurn", value }, Bun.randomUUIDv7());
       await until(() => events.some((event) => event.turnId === value.turnId && event.body.case === "turnFinished"));
     };
@@ -129,8 +128,11 @@ for (const provider of [Provider.CLAUDE, Provider.CODEX]) {
       const ready = events.find((event) => event.body.case === "threadReady");
       spec.providerThreadId = ready?.body.case === "threadReady" ? ready.body.value.providerThreadId : "";
       const original = spec.providerThreadId;
-      await send("APPLE");
-      await send("BANANA");
+      const habit = provider === Provider.CLAUDE ? "Remember FIXTURE_HABIT" : "";
+      const first = start("APPLE", habit);
+      await send(first);
+      await send(first); // The same StartTurn was redelivered after its events committed.
+      await send(start("BANANA"));
       const entered = Promise.withResolvers<void>();
       const held = Promise.withResolvers<void>();
       release = held.resolve;
@@ -170,16 +172,25 @@ for (const provider of [Provider.CLAUDE, Provider.CODEX]) {
       spec.providerThreadId = result.rewind?.providerThreadId ?? "";
       expect(spec.providerThreadId).not.toBe(original);
       await ctx.ops.startTurn({ case: "startTurn", value: pending }, Bun.randomUUIDv7());
-      await send("BLUEBERRY");
+      await send(start("BLUEBERRY"));
       const cancelled = new Set([pending.turnId, queued.turnId]);
       expect(events.filter((event) => cancelled.has(event.turnId))).toEqual([]);
 
       if (provider === Provider.CLAUDE) {
-        expect(inputRecords(trace).map((record) => record.parts.map((part) => part.text ?? "").join(""))).toEqual([
-          "APPLE",
-          "BANANA",
-          "BLUEBERRY",
+        expect(inputRecords(trace).map((record) => record.parts.map((part) => part.text))).toEqual([
+          ["APPLE", habit],
+          ["BANANA"],
+          ["BLUEBERRY"],
         ]);
+        expect(
+          events.flatMap((event) =>
+            event.turnId === first.turnId &&
+            event.body.case === "itemCompleted" &&
+            event.body.value.item?.content.case === "userMessage"
+              ? [event.body.value.item.content.value.text]
+              : [],
+          ),
+        ).toEqual(["APPLE"]);
         const folder = root.replace(/[^a-zA-Z0-9]/g, "-");
         expect(readFileSync(join(home, "projects", folder, `${original}.jsonl`), "utf8")).not.toContain("BLUEBERRY");
       } else {

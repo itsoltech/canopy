@@ -30,6 +30,7 @@ export interface ThreadStore {
     automated?: AutomatedAccess,
     handoff?: string,
     preparationFingerprint?: string,
+    humanInitialInput?: boolean,
   ): Fx<ThreadRow>;
   thread(threadId: string, includeDeleted?: boolean, metadataOnly?: boolean): Fx<ThreadRow>;
   /** The owner saw the thread up to `upToSeq` (capped at its last event; the marker only grows). False when nothing changed. */

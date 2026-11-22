@@ -658,6 +658,8 @@ message StartTurn {
   PermissionMode permission_mode = 42;
   // Puste = domyślne profilu; default = jawne standardowe wykonanie.
   string service_tier = 43;
+  // Zatwierdzone preferencje w osobnym kontekście modelu. Wymaga capability memory_habits_v1.
+  string habit_context = 44;
 }
 
 message UserInput {

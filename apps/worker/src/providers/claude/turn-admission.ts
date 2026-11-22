@@ -6,6 +6,7 @@ import { sessionCompletion } from "./session-completion.ts";
 import type { ClaudeThreadContext, Session } from "./thread-types.ts";
 import type { sessionOutput } from "./session-output.ts";
 import type { sessionTurns } from "./session-turns.ts";
+import type { TurnSettings } from "../turn-input.ts";
 
 export async function submitClaudeTurn(
   ctx: ClaudeThreadContext,
@@ -16,8 +17,9 @@ export async function submitClaudeTurn(
   canSubmit: () => boolean,
   turns: ReturnType<typeof sessionTurns>,
   record: ReturnType<typeof sessionOutput>["record"],
-  connectorNote?: string,
+  settings?: Pick<TurnSettings, "connectorNote" | "habitContext">,
 ): Promise<void> {
+  const { connectorNote, habitContext } = settings ?? {};
   const content = await claudeContent(connectorNote ? { ...input, text: `${input.text}\n\n${connectorNote}` } : input);
   const current = () => ctx.sessions.get(session.threadId) === session && !session.closing && canSubmit();
 
@@ -37,20 +39,28 @@ export async function submitClaudeTurn(
   }
 
   session.input.push(
-    userMessage(content, {
-      uuid: Schema.decodeUnknownSync(
-        Schema.TemplateLiteral([
-          Schema.String,
-          "-",
-          Schema.String,
-          "-",
-          Schema.String,
-          "-",
-          Schema.String,
-          "-",
-          Schema.String,
-        ]),
-      )(turnId),
-    }),
+    userMessage(
+      habitContext
+        ? [
+            ...(Array.isArray(content) ? content : [{ type: "text" as const, text: content }]),
+            { type: "text", text: habitContext },
+          ]
+        : content,
+      {
+        uuid: Schema.decodeUnknownSync(
+          Schema.TemplateLiteral([
+            Schema.String,
+            "-",
+            Schema.String,
+            "-",
+            Schema.String,
+            "-",
+            Schema.String,
+            "-",
+            Schema.String,
+          ]),
+        )(turnId),
+      },
+    ),
   );
 }
