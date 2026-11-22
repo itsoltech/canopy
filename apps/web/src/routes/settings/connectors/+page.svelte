@@ -18,15 +18,16 @@
   import type { PageProps } from "./$types";
   import ConfigNotices from "#lib/features/computers/ConfigNotices.svelte";
   import ConnectionError from "#lib/features/connectors/ConnectionError.svelte";
-  import { workerRecords } from "#lib/features/workers/worker-records.svelte.ts";
-  import { workerAccessOptions } from "#lib/features/access/access-options.ts";
 
   let { data }: PageProps = $props();
   const settings = useSettings();
   const overview = useOverview();
-  const records = workerRecords(overview);
 
-  const workers = $derived(workerAccessOptions(records));
+  const projects = $derived(
+    overview.ownProjects.flatMap(({ id, name, archivedAt, kind }) =>
+      !archivedAt && kind !== "scratch" ? [{ id, name }] : [],
+    ),
+  );
 
   const route = useSettingsRoute();
   let catalog = $state(untrack(() => decode(connectors.ListConnectorsResponseSchema, data.connections)));
@@ -204,7 +205,8 @@
               <AccountDetail
                 {account}
                 type={entry}
-                {workers}
+                {projects}
+                projectsLoaded={overview.resyncs > 0}
                 {bots}
                 {oauthCompletion}
                 onupdate={update}

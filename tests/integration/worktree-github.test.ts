@@ -47,7 +47,16 @@ describe.skipIf(!dockerAvailable)("GitHub merged PR evidence for worktree cleanu
     await f?.close();
   });
 
-  test("an owner account without a worker grant cannot mark a branch merged", async () => {
+  test("a grant on another project on the same worker cannot mark a branch merged", async () => {
+    const other = (await f.gw.api.createProject({ name: "Other cleanup project" })).project!;
+    await f.gw.api.createWorkspace({ projectId: other.id, workerId: f.workerId, rootPath: f.repo });
+    account = (
+      await f.gw.api.setConnectorAccess({
+        accountId: account.id,
+        expectedRevision: account.revision,
+        projectIds: [other.id],
+      })
+    ).account!;
     expect((await f.entry(thread.worktree!.id)).status?.merged).toBe(false);
     expect(fake.calls).toHaveLength(0);
   });
@@ -57,7 +66,7 @@ describe.skipIf(!dockerAvailable)("GitHub merged PR evidence for worktree cleanu
       await f.gw.api.setConnectorAccess({
         accountId: account.id,
         expectedRevision: account.revision,
-        workerIds: [f.workerId],
+        projectIds: [f.project.id],
       })
     ).account!;
     merged = false;
@@ -69,7 +78,9 @@ describe.skipIf(!dockerAvailable)("GitHub merged PR evidence for worktree cleanu
     expect(fake.calls.map((c) => c.name)).toContain("pull_request_read");
     const calls = fake.calls.length;
     const other = await f.gw.runtime.runPromise(GatewayStore.use((s) => s.ensureUser("github-other@x", "Other")));
-    expect(await f.gw.core.connectors.worktreeMerged(other, f.workerId, "canopy-test/repo", branch, head)).toBe(false);
+    expect(
+      await f.gw.core.connectors.worktreeMerged(other, f.project.id, f.workerId, "canopy-test/repo", branch, head),
+    ).toBe(false);
     expect(fake.calls).toHaveLength(calls);
     commit(thread.cwd, "after-merge.txt", "new work\n");
     expect((await f.entry(thread.worktree!.id)).status?.merged).toBe(false);

@@ -2,7 +2,7 @@ import type { ui } from "@canopy/contracts";
 import type { Hub } from "../core/hub.ts";
 import type { ConfigSync } from "../config-sync/engine.ts";
 
-/** Changes that may touch a worker record: the worker, its instances, tags, workspaces and connector access. */
+/** Changes that may touch a worker record: the worker, its instances, tags and workspaces. */
 const WATCHED = new Set<ui.OverviewUpdate["change"]["case"]>([
   "worker",
   "workerRemoved",

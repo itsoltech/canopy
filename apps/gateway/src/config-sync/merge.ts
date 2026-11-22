@@ -12,6 +12,9 @@ import { sawVersion } from "./ancestry.ts";
 
 export const jsonValue = Schema.decodeUnknownSync(Schema.MutableJson);
 
+const retiredField = (kind: string, name: string) =>
+  (kind === "connector" && name === "allWorkers") || (kind === "worker" && name === "connectors");
+
 /** Secret values ride only on the link stream, keyed by version (see secrets.ts). */
 export function wireItem(row: ConfigRow, secrets: ReadonlyMap<string, string> = new Map()): link.ConfigItem {
   const field = (value: Field, name = "deleted") => {
@@ -34,7 +37,9 @@ export function wireItem(row: ConfigRow, secrets: ReadonlyMap<string, string> = 
     identity: row.identity,
     fields: Object.fromEntries(
       Object.entries(row.fields).flatMap(([k, v]) =>
-        row.kind === "settings" && DEVICE_SETTINGS_FIELDS.has(k) ? [] : [[k, field(v, k)]],
+        retiredField(row.kind, k) || (row.kind === "settings" && DEVICE_SETTINGS_FIELDS.has(k))
+          ? []
+          : [[k, field(v, k)]],
       ),
     ),
     deleted: field(row.deleted),
@@ -95,6 +100,8 @@ export function readItem(item: link.ConfigItem): ConfigRow {
     throw new ConnectError("Invalid configuration deletion", Code.InvalidArgument);
 
   for (const [name, field] of Object.entries(item.fields)) {
+    if (retiredField(row.kind, name)) continue;
+
     if (
       !/^[a-zA-Z][a-zA-Z0-9_.]{0,199}$/.test(name) ||
       name.split(".").some((p) => ["__proto__", "constructor", "prototype"].includes(p))

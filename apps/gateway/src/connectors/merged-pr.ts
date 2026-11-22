@@ -32,20 +32,29 @@ export async function worktreeMerged(
   runtime: Pick<ConnectorsRuntime, "run">,
   connect: (user: string, id: string) => Promise<{ server: McpConnection; row: AccountRow }>,
   userId: string,
+  projectId: string,
   workerId: string,
   repository: string,
   branch: string,
   head: string,
 ) {
-  const rows = await runtime.run((s) => s.list(userId, { workerId }));
+  const readGrants = () => runtime.run((s) => s.list(userId, { projectId, connectorType: "github" }));
+  const rows = await readGrants();
 
-  for (const row of rows.filter((r) => r.connector_type === "github" && r.status === "connected")) {
+  for (const row of rows.filter((r) => r.status === "connected")) {
     try {
       const connection = await connect(userId, row.id);
-      const current = await runtime.run((s) => s.list(userId, { workerId }));
 
-      if (!current.some((r) => r.id === row.id && r.revision === connection.row.revision)) continue;
+      const stillGranted = async () =>
+        (await readGrants()).some(
+          (r) => r.id === row.id && r.status === "connected" && r.revision === connection.row.revision,
+        );
+
+      if (!(await stillGranted())) continue;
+
       const merged = await mergedPullRequest(connection.server, repository, branch, head);
+
+      if (merged && !(await stillGranted())) continue;
       await runtime.run((s) =>
         s.audit({ userId, workerId, accountId: row.id }, "worktree.merged_pr", merged ? "merged" : "unmerged"),
       );

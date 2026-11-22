@@ -1,6 +1,7 @@
 <script lang="ts">
   import type { ui } from "@canopy/contracts";
   import type { ClassValue } from "svelte/elements";
+  import { useOverview } from "#lib/features/overview/overview-state.svelte.ts";
   import type { useThreadPanel } from "#lib/features/threads/thread-panel.svelte.ts";
   import Dialog from "#lib/shared/ui/Dialog.svelte";
   import Switch from "#lib/shared/ui/Switch.svelte";
@@ -23,11 +24,17 @@
     class?: ClassValue;
   } = $props();
 
-  let busy = $state("");
+  const overview = useOverview();
+  const project = $derived(overview.project(thread.projectId));
+  const hasProject = $derived(!!thread.projectId && project?.kind !== "scratch" && !project?.archivedAt);
+  const accounts = $derived(panel.data?.connectors.filter((account) => account.revision > 0n) ?? []);
+  const hasLegacyGrants = $derived(accounts.some((account) => account.allProjects === undefined));
+  let pending = $state<{ accountId: string; granted: boolean }>();
   let error = $state("");
 
   async function change(account: ui.ThreadConnector, granted: boolean) {
-    busy = account.accountId;
+    if (disabled || !hasProject || pending || account.allProjects !== false || thread.status === "archived") return;
+    pending = { accountId: account.accountId, granted };
     error = "";
 
     try {
@@ -35,15 +42,22 @@
     } catch (cause) {
       error = cause instanceof Error ? cause.message : "Could not change access. Reload and try again.";
     } finally {
-      busy = "";
+      pending = undefined;
     }
   }
 </script>
 
-<Dialog bind:open title="Manage connector access" description="Changes apply to every thread on this worker.">
+<Dialog
+  bind:open
+  title="Manage connector access"
+  description={hasProject ? "Changes apply to every thread in this project." : "This thread has no active project."}
+>
   <div class={["grid min-w-0 gap-3", className]}>
     {#if error}<Alert tone="error">{error}</Alert>{/if}
-    {#each panel.data?.connectors.filter((account) => account.revision > 0n) ?? [] as account (account.accountId)}
+    {#if hasProject && hasLegacyGrants}
+      <p class="text-sm/5 text-zinc-500 dark:text-zinc-400">Update the gateway to manage project access.</p>
+    {/if}
+    {#each accounts as account (account.accountId)}
       <div class="flex min-w-0 items-center justify-between gap-3">
         <div class="min-w-0">
           <p
@@ -53,15 +67,17 @@
             {account.connectorName} · {account.accountLabel}
           </p>
           <p class="text-sm/5 text-zinc-500 dark:text-zinc-400">{accountStatus(account.status)}</p>
-          {#if account.allWorkers}<p class="text-sm/5 text-zinc-500 dark:text-zinc-400">
-              All workers · Manage on {homeName}
-            </p>{/if}
+          {#if account.allProjects}<p class="text-sm/5 text-zinc-500 dark:text-zinc-400">All projects</p>{/if}
         </div>
         <Switch
-          checked={account.granted}
+          checked={pending?.accountId === account.accountId ? pending.granted : account.granted}
           name={account.accountId}
           label={`Allow ${account.connectorName} · ${account.accountLabel}`}
-          disabled={disabled || account.allWorkers || !!busy || thread.status === "archived"}
+          disabled={disabled ||
+            !hasProject ||
+            account.allProjects !== false ||
+            !!pending ||
+            thread.status === "archived"}
           onchange={(granted) => change(account, granted)}
         />
       </div>

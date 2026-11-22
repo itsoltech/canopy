@@ -176,10 +176,11 @@ describe.skipIf(!dockerAvailable)("durable Slack MCP user refresh", () => {
       VALUES(${gw.userId}::uuid,'connector',${alias},${id})`,
     );
     const account = await connector((s) => s.owned(gw.userId, id));
+    const projectId = (await gw.api.createProject({ name: "Slack refresh" })).project!.id;
     await gw.api.setConnectorAccess({
       accountId: id,
       expectedRevision: BigInt(account.revision),
-      workerIds: [gw.workerId],
+      projectIds: [projectId],
       botIds: [f.route.botId],
     });
     await expire(id, true);
@@ -223,7 +224,7 @@ describe.skipIf(!dockerAvailable)("durable Slack MCP user refresh", () => {
       expect(new Set(values.map((result) => digest(result.value.tokens?.refresh_token ?? ""))).size).toBe(1);
       expect(values.every((result) => result.row.id === id && !!result.value.oauthSubject)).toBe(true);
       const savedAccount = (await gw.api.listConnectors({})).accounts.find((a) => a.id === id);
-      expect(savedAccount?.workerIds).toContain(gw.workerId);
+      expect(savedAccount?.projectIds).toContain(projectId);
       expect(savedAccount?.botIds).toContain(f.route.botId);
       expect((await connector((s) => s.owned(gw.userId, id))).slack_refresh_attempt).toBeNull();
       expect((await connector((s) => s.owned(gw.userId, id))).name).toBe("Renamed while refreshing");

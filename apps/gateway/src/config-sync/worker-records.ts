@@ -89,9 +89,6 @@ function homeValues(
       FROM provider_instance_workers i JOIN workers w ON w.id=i.worker_id LEFT JOIN proxies p ON p.id=i.proxy_id
       WHERE w.owner_user_id=${owner}::uuid`;
 
-    const grants = yield* sql<{ account_id: string; worker_id: string }>`SELECT g.account_id::text,g.worker_id::text
-      FROM connector_worker_grants g JOIN connector_accounts a ON a.id=g.account_id WHERE a.owner_user_id=${owner}::uuid`;
-
     const workspaces = yield* sql<{
       id: string;
       project_id: string;
@@ -109,7 +106,6 @@ function homeValues(
 
     const instance = yield* instanceIds(sql, owner);
     const projects = yield* projectIds(sql, owner);
-    const connectors = yield* globalIds(sql, owner, "connector");
     const values = new Map<string, Map<string, JsonValue>>();
 
     for (const w of workers) {
@@ -126,10 +122,6 @@ function homeValues(
           tags: [...(environment?.manual_tags ?? [])].sort(),
           automaticTags: [...(environment?.automatic_tags ?? [])].sort(),
           cliUpdateCheckMinutes: minutes ?? null,
-          connectors: grants
-            .filter((g) => g.worker_id === w.id)
-            .map((g) => connectors.toGlobal(g.account_id))
-            .sort(),
           workspaces: workspaces
             .filter((s) => s.worker_id === w.id)
             .map((s) => ({

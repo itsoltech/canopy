@@ -7,7 +7,7 @@ import type { AccountRow } from "../connectors/records.ts";
 import { connectorSealing } from "../connectors/sealing.ts";
 import { decryptSecret, encryptSecret } from "../store/secrets.ts";
 import { compareClock, nextClock } from "./clock.ts";
-import { accountIdentity, CONNECTOR_FIELDS, connectorIdentity } from "./connector-values.ts";
+import { accountIdentity, CONNECTOR_FIELDS, connectorIdentity, connectorProjectAccess } from "./connector-values.ts";
 import { compactTombstone } from "./merge.ts";
 import { configLock, emptyRecord, equalValue, type ConfigRow } from "./persistence.ts";
 import { saveRecords } from "./record-batches.ts";
@@ -15,6 +15,7 @@ import { alive } from "./provider-records.ts";
 import type { Values } from "./provider-values.ts";
 import { cipherOf, currentSecret, pruneSecrets, recordCiphers, storeSecret } from "./secrets.ts";
 import { lockModuleAdmission } from "../store/module-access.ts";
+import { projectIds } from "./project-aliases.ts";
 
 /** Every local shared write locks the clock before accounts, including OAuth refresh transactions. */
 export function connectorTransaction<A, E, R>(
@@ -61,6 +62,14 @@ function recordOwner(sql: SqlClient.SqlClient, key: Buffer, owner: string, node:
     const accounts = yield* sql<AccountRow & { updated_at: Date }>`SELECT * FROM connector_accounts
       WHERE owner_user_id=${owner}::uuid ORDER BY id`;
 
+    const grants = yield* sql<{ account_id: string; project_ids: string[] }>`SELECT g.account_id::text,
+      array_agg(g.project_id::text ORDER BY g.project_id) AS project_ids
+      FROM connector_project_grants g JOIN connector_accounts a ON a.id=g.account_id
+      WHERE a.owner_user_id=${owner}::uuid GROUP BY g.account_id`;
+
+    const byAccount = new Map(grants.map((grant) => [grant.account_id, grant.project_ids]));
+    const projects = yield* projectIds(sql, owner);
+
     const apps = yield* sql<{ connector_type: string; credentials: Uint8Array; updated_at: Date }>`SELECT *
       FROM connector_oauth_apps WHERE owner_user_id=${owner}::uuid ORDER BY connector_type`;
 
@@ -87,7 +96,10 @@ function recordOwner(sql: SqlClient.SqlClient, key: Buffer, owner: string, node:
                   : randomBytes(16).toString("hex")
               : (values[name] ?? null);
 
-          if (old ? equalValue(old.value, value) : value === null) continue;
+          if (name === "projectAccess") {
+            // An unconfigured account has no field to compete with another computer's explicit edit.
+            if (equalValue(connectorProjectAccess(old?.value, projects.canonical), value)) continue;
+          } else if (old ? equalValue(old.value, value) : value === null) continue;
 
           const hlc =
             row.revision === "0" && !row.deleted.hlc
@@ -124,7 +136,10 @@ function recordOwner(sql: SqlClient.SqlClient, key: Buffer, owner: string, node:
           url: a.url,
           transport: a.transport,
           authKind: a.auth_kind,
-          allWorkers: a.all_workers,
+          projectAccess: connectorProjectAccess(
+            { allProjects: a.all_projects, projectIds: byAccount.get(a.id) ?? [] },
+            projects.canonical,
+          ),
           allBots: a.all_bots,
           tools: a.tools.map((t) =>
             toJson(

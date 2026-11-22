@@ -212,30 +212,12 @@ describe.skipIf(!dockerAvailable)("bots, schedules and worker settings at their 
     await f.a.gateway.api.updateWorktreeSettings({ workerId: worker(), settings: { branchPrefix: "studio" } });
     expect((await f.a.gateway.api.getWorktreeSettings({ workerId: worker() })).settings?.branchPrefix).toBe("studio");
 
-    const connector = (
-      await f.a.gateway.api.saveConnectorAccount({
-        connectorType: "custom",
-        name: "Studio service",
-        url: "https://mcp.example.test/mcp",
-        authKind: "headers",
-        token: "fixture-connector-key",
-      })
-    ).account!;
-
-    await wait(async () => (await f.b.api.listConnectors({})).accounts.some((a) => a.id === connector.id));
-    await f.a.gateway.api.setConnectorAccess({
-      accountId: connector.id,
-      workerIds: [worker()],
-      expectedRevision: connector.revision,
-    });
-    await wait(async () => {
-      const record = (await f.a.gateway.api.listWorkerRecords({})).records.find((r) => r.workerId === worker());
-
-      return (
-        !!record?.worktreeSettings.some((s) => s.settings?.branchPrefix === "studio") &&
-        record.connectorAccountIds.includes(connector.id)
-      );
-    });
+    await wait(
+      async () =>
+        (await f.a.gateway.api.listWorkerRecords({})).records
+          .find((r) => r.workerId === worker())
+          ?.worktreeSettings.some((s) => s.settings?.branchPrefix === "studio") ?? false,
+    );
     const record = (await f.a.gateway.api.listWorkerRecords({})).records.find((r) => r.workerId === worker())!;
     expect(record.computerName).toBe("Studio B");
     expect(record.readOnlyReason).toBe("");

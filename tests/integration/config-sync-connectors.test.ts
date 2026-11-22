@@ -5,9 +5,12 @@ import { isBigInt, tempDir } from "@canopy/testing";
 import { dockerAvailable } from "@canopy/db/testing";
 import { GatewayStore } from "@canopy/gateway/store";
 import { Effect } from "effect";
+import { SqlClient } from "effect/sql";
 import { configAllowed } from "../../apps/gateway/src/computers/runtime-config.ts";
+import { nextClock } from "../../apps/gateway/src/config-sync/clock.ts";
 import { wireItem } from "../../apps/gateway/src/config-sync/merge.ts";
 import type { ConfigRow } from "../../apps/gateway/src/config-sync/persistence.ts";
+import { projectTransaction } from "../../apps/gateway/src/config-sync/project-records.ts";
 import { versionKey } from "../../apps/gateway/src/config-sync/secrets.ts";
 import { decryptSecret } from "../../apps/gateway/src/store/secrets.ts";
 import { SourceDatabase } from "../../apps/gateway/src/agent-environment/source-database.ts";
@@ -92,9 +95,7 @@ describe.skipIf(!dockerAvailable)("shared connectors across separate linked data
     id = (await signIn(a, fake, "Work")).id;
     await a.gateway.api.setConnectorAccess({
       accountId: id,
-      allWorkers: true,
       allBots: true,
-      workerIds: [a.gateway.workerId],
       expectedRevision: (await account(a, id))!.revision,
     });
     await pairConfig(a, b);
@@ -140,19 +141,25 @@ describe.skipIf(!dockerAvailable)("shared connectors across separate linked data
     expect(fake.refreshes).toBe(1);
   }, 45_000);
 
-  test("A's connected account runs through B's worker without sign-in; machine state and grants stay at home", async () => {
+  test("a project grant replicates to B; the connected account runs there without another sign-in", async () => {
     const onA = (await account(a, id))!;
     const onB = (await account(b, id))!;
-    expect(onB.allWorkers).toBe(true);
+    expect(onB.allProjects).toBe(false);
     expect(onB.allBots).toBe(true);
-    // A's worker grant is A's: B lists it from A's worker record and stores no grant of its own.
-    expect(onB.workerIds).toEqual([`${a.gateway.workerId}~${a.node.slice(0, 16)}`]);
-    expect(await b.store.query("SELECT 1 FROM connector_worker_grants WHERE account_id=$1::uuid", [id])).toHaveLength(
-      0,
-    );
     expect(onB.namespace).not.toBe(onA.namespace);
     b.gateway.worker.holdTurns = true;
     const project = (await b.gateway.api.createProject({ name: "Connector use" })).project!;
+
+    await wait(async () => (await a.gateway.core.overview()).projects.some((p) => p.id === project.id));
+    await a.gateway.api.setConnectorAccess({
+      accountId: id,
+      allProjects: false,
+      allBots: true,
+      projectIds: [project.id],
+      expectedRevision: (await account(a, id))!.revision,
+    });
+    await wait(async () => (await account(b, id))?.projectIds.includes(project.id) ?? false);
+    expect((await account(b, id))?.workerIds).toEqual([]);
 
     const workspace = (
       await b.gateway.api.createWorkspace({ projectId: project.id, workerId: b.gateway.workerId, rootPath: "/repo" })
@@ -209,6 +216,99 @@ describe.skipIf(!dockerAvailable)("shared connectors across separate linked data
 
     expect(Buffer.from(aCipher).equals(Buffer.from(bCipher))).toBe(false);
     expect(() => decryptSecret(a.gateway.secretsKey, bCipher)).toThrow();
+  }, 40_000);
+
+  test("a grant arriving before its shared project resolves after a rekey and replicates revocation", async () => {
+    const accountId = (
+      await a.gateway.api.saveConnectorAccount({
+        connectorType: "custom",
+        name: "Delayed project grant",
+        url: fake.url,
+        token: fake.secret,
+      })
+    ).account!.id;
+
+    const project = (await b.gateway.api.createProject({ name: "Local project identity" })).project!.id;
+
+    const workspace = (
+      await b.gateway.api.createWorkspace({
+        projectId: project,
+        workerId: b.gateway.workerId,
+        rootPath: "/local-project-identity",
+      })
+    ).workspace!.id;
+
+    await b.gateway.runtime.runPromise(
+      Effect.flatMap(SqlClient.SqlClient, (sql) =>
+        projectTransaction(
+          sql,
+          sql`UPDATE project_workspaces SET git_origin='code.example.test/team/delayed-project-grant' WHERE id=${workspace}::uuid`,
+        ),
+      ),
+    );
+
+    const thread = (
+      await b.gateway.api.createThread({ projectId: project, workspaceId: workspace, provider: Provider.CODEX })
+    ).thread!.id;
+
+    const metadata = async () =>
+      (await b.gateway.api.getThreadPanel({ threadId: thread })).connectors.find((c) => c.accountId === accountId)!;
+
+    const record = async (kind: string, local: string) =>
+      (await b.store.query<ConfigRow>("SELECT * FROM config_items WHERE kind=$1 AND local_id=$2", [kind, local]))[0]!;
+
+    await wait(async () => !!(await account(b, accountId)));
+
+    const receive = (item: computerLink.ConfigItem) =>
+      b.links.config!.receive(a.node, create(computerLink.ConfigUpdateSchema, { items: [item] }), () => true);
+
+    const [clock] = await b.store.query<{ hlc: string }>("SELECT hlc FROM config_clock");
+    const old = wireItem(await record("connector", accountId));
+    old.fields = {
+      allWorkers: create(computerLink.ConfigFieldSchema, { hlc: nextClock(clock!.hlc, a.node), valueJson: "true" }),
+    };
+    const baseline = (await metadata()).revision;
+    await receive(old);
+    expect((await metadata()).granted).toBe(false);
+    expect((await metadata()).revision).toBe(baseline);
+
+    const sharedId = "00000000-0000-4000-8000-000000000001";
+
+    const grant = create(computerLink.ConfigItemSchema, {
+      ...old,
+      fields: {
+        projectAccess: create(computerLink.ConfigFieldSchema, {
+          hlc: nextClock(old.fields["allWorkers"]!.hlc, a.node),
+          valueJson: JSON.stringify({ allProjects: false, projectIds: [sharedId] }),
+        }),
+      },
+    });
+
+    await receive(grant);
+    expect(
+      await b.store.query("SELECT project_id FROM connector_project_grants WHERE account_id=$1", [accountId]),
+    ).toEqual([{ project_id: sharedId }]);
+    expect((await metadata()).granted).toBe(false);
+    const pendingRevision = (await metadata()).revision;
+
+    await receive(wireItem({ ...(await record("project", project)), global_id: sharedId }));
+    expect((await metadata()).granted).toBe(true);
+    expect((await metadata()).revision).toBeGreaterThan(pendingRevision);
+    expect((await account(b, accountId))?.projectIds).toEqual([project]);
+    await wait(async () => !!(await account(a, accountId))?.projectIds.length);
+
+    await b.gateway.api.setThreadConnectorGrant({
+      threadId: thread,
+      accountId,
+      projectScope: true,
+      granted: false,
+      expectedRevision: (await metadata()).revision,
+    });
+    await wait(async () => (await account(a, accountId))?.projectIds.length === 0);
+    expect((await record("connector", accountId)).fields["projectAccess"]?.value).toEqual({
+      allProjects: false,
+      projectIds: [],
+    });
   }, 40_000);
 
   test("test diagnostics and recovery stay local without publishing configuration revisions", async () => {
@@ -357,6 +457,15 @@ describe.skipIf(!dockerAvailable)("shared connectors across separate linked data
   }, 40_000);
 
   test("delete is shared, with one Restore notice retaining encrypted working credentials", async () => {
+    const project = (await a.gateway.api.createProject({ name: "Deleted connector access" })).project!;
+    await a.gateway.api.setConnectorAccess({
+      accountId: id,
+      allProjects: true,
+      projectIds: [project.id],
+      allBots: true,
+      expectedRevision: (await account(a, id))!.revision,
+    });
+    await wait(async () => (await account(b, id))?.projectIds.includes(project.id) ?? false);
     const before = fake.revoked.length;
     await a.gateway.api.deleteConnectorAccount({ accountId: id });
     await wait(async () => !(await account(b, id)));
@@ -373,6 +482,8 @@ describe.skipIf(!dockerAvailable)("shared connectors across separate linked data
     );
     await b.gateway.api.manageConfigNotice({ id: notices[0]!.id, action: "restore" });
     await wait(async () => !!(await account(a, id)) && !!(await account(b, id)));
+    expect(await account(a, id)).toMatchObject({ allProjects: true, projectIds: [] });
+    expect(await account(b, id)).toMatchObject({ allProjects: true, projectIds: [] });
     expect((await b.gateway.api.testConnector({ accountId: id })).tools).toHaveLength(2);
   }, 40_000);
 
@@ -509,10 +620,11 @@ describe.skipIf(!dockerAvailable)("shared connectors across separate linked data
         user = identified ? "UFIRST" : "";
         const first = await signIn(a, provider, name, type);
         const original = await credentials(a, first.id);
+        const project = (await a.gateway.api.createProject({ name })).project!;
         await a.gateway.api.setConnectorAccess({
           accountId: first.id,
           expectedRevision: first.revision,
-          workerIds: [a.gateway.workerId],
+          projectIds: [project.id],
         });
         user = identified ? "USECOND" : "";
         const second = await signIn(b, provider, name, type);
@@ -524,12 +636,12 @@ describe.skipIf(!dockerAvailable)("shared connectors across separate linked data
         expect((await credentials(a, first.id)).tokens?.access_token === original.tokens?.access_token).toBe(true);
         expect((await credentials(b, second.id)).tokens?.access_token === other.tokens?.access_token).toBe(true);
         expect(
-          await a.store.query("SELECT account_id FROM connector_worker_grants WHERE account_id IN ($1,$2)", [
+          await a.store.query("SELECT account_id FROM connector_project_grants WHERE account_id IN ($1,$2)", [
             first.id,
             second.id,
           ]),
         ).toEqual([{ account_id: first.id }]);
-        expect((await account(a, second.id))?.workerIds).toEqual([]);
+        expect((await account(a, second.id))?.projectIds).toEqual([]);
 
         if (scenario === "workspace") {
           // An alias persisted before subject-aware matching must continue to resolve to its granted account.
@@ -542,8 +654,8 @@ describe.skipIf(!dockerAvailable)("shared connectors across separate linked data
           await wait(async () => (await account(a, first.id))?.name === "Known shared account");
           expect((await credentials(a, alias)).tokens?.access_token === original.tokens?.access_token).toBe(true);
           expect(
-            await a.store.query("SELECT worker_id FROM connector_worker_grants WHERE account_id=$1", [first.id]),
-          ).toEqual([{ worker_id: a.gateway.workerId }]);
+            await a.store.query("SELECT project_id FROM connector_project_grants WHERE account_id=$1", [first.id]),
+          ).toEqual([{ project_id: project.id }]);
         }
       }
     } finally {

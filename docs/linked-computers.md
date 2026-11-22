@@ -6,6 +6,8 @@ zakresie wymaga izolowanego przyjęcia wiadomości przez dom odbiorcy.
 Konsolidacja przenosi [pamięć agentów i botów](agent-memory.md) wraz z danymi
 właściciela i dostępnymi datami utworzenia notatek.
 Ogłoszenia mDNS respektują sieci wybrane w [Network access](network-access.md).
+Dostęp connectorów dla wątków należy do projektu i synchronizuje się z kontem
+connectora. Konsolidacja przenosi dostęp według zatwierdzonego wyboru konta.
 
 Status: opis zaimplementowanej synchronizacji (2026-11-21), w tym usypiania wątków,
 blokady operacji przez łącze podczas opróżniania gatewaya i importu konsolidacji,
@@ -246,7 +248,7 @@ kopii. Dzięki temu nie ma scalania historii, a nic nie wykonuje się dwa razy.
 | Bot (rozmowa, rutyny, przypomnienia, notatki handoff) | gateway, na którym go utworzono | rozmowa i edycja zdalnie; wykonuje się tylko u siebie |
 | Harmonogramy | dom wątku albo bota | widoczne i edytowalne zdalnie |
 | Worker, workspace (katalog projektu na maszynie) | swoja maszyna | można uruchomić wątek na workerze innego komputera — wątek mieszka wtedy tam |
-| Konto connectora | wspólna konfiguracja konta | poświadczenia replikowane i szyfrowane kluczem każdego komputera; dostęp workerów per worker |
+| Konto connectora | wspólna konfiguracja konta | poświadczenia replikowane i szyfrowane kluczem każdego komputera; dostęp według wspólnego id projektu |
 | Projekt | rekord na każdym komputerze; globalne id konfiguracji i wspólna tożsamość git origin w pickerach | workspace'y zachowują projekt i komputer domu; aliasy konfiguracji opisano niżej |
 
 Tworzenie wątku na workerze komputera B z UI komputera A jest wywołaniem do B; B zostaje właścicielem.
@@ -447,16 +449,17 @@ Wybór trybu sortowania pozostaje preferencją urządzenia, poza config sync.
 
 Panel wątku używa `GetThreadPanel` z capability `remote_thread_panel_v1`.
 Dom sprawdza właściciela wątku i zwraca oddzielne DTO: nazwę connectora,
-etykietę konta, status oraz metadane dostępu workera, bez URL-i, nagłówków,
+etykietę konta, status oraz metadane dostępu projektu, bez URL-i, nagłówków,
 diagnoz konta i poświadczeń. Lista do zarządzania obejmuje także konta bez grantu;
-zwykła sekcja pokazuje tylko konta dostępne workerowi wątku.
+zwykła sekcja pokazuje konta dostępne w projekcie wątku.
 
 `SetThreadConnectorGrant` wraca do domu niezależnie od Share configuration.
-Dom sprawdza właściciela wątku, workera i konta oraz rewizję konta, blokuje konto
-i zmienia wyłącznie grant tego workera. Zmiana dotyczy wszystkich jego wątków.
-Dziedziczone All workers i administracja kontem pozostają w ustawieniach domu;
-UI pokazuje „Manage on …”. Wykonanie narzędzia nadal sprawdza aktualny grant
-i politykę zgód w gatewayu domu.
+Do zapisu oba komputery wymagają capability `project_connector_access_v1`
+oraz żądania z `project_scope=true`. Dom sprawdza właściciela wątku, projektu
+i konta oraz rewizję konta, blokuje konto i zmienia grant projektu. Zmiana dotyczy
+jego wątków na wszystkich workerach. Zmiany All projects wykonuje się w
+Settings → Connectors. Wykonanie narzędzia sprawdza aktualny grant i politykę zgód
+w gatewayu domu.
 
 Harmonogramy tworzymy, edytujemy i anulujemy istniejącymi RPC trasowanymi do domu.
 `computer_thread_panels` przechowuje wyłącznie ostatnią poprawną odpowiedź panelu
@@ -496,9 +499,9 @@ Wspólne jest wszystko, co nie opisuje konkretnej maszyny. Szczegóły:
 
 | Zakres | Co obejmuje | Kto zapisuje |
 |---|---|---|
-| **Wspólne** (domyślnie) | ustawienia konta (wygląd, ogólne, kompozytor, domyślne ustawienia wątków bez workspace'u, generowanie tekstu, strefa, sidebar, domyślna częstotliwość sprawdzania CLI), instancje providerów (nazwa, rodzaj, endpoint, proxy, klucz, zmienne, kolor, modele, ustawienia CLI), proxy, projekty jako tożsamość i ich ustawienia, polityka worktree, biblioteka środowiska agentów (instrukcje, skille, pluginy, marketplace'y), connectory, ich konta i aplikacje OAuth | każdy komputer; wersja per pole |
+| **Wspólne** (domyślnie) | ustawienia konta (wygląd, ogólne, kompozytor, domyślne ustawienia wątków bez workspace'u, generowanie tekstu, strefa, sidebar, domyślna częstotliwość sprawdzania CLI), instancje providerów (nazwa, rodzaj, endpoint, proxy, klucz, zmienne, kolor, modele, ustawienia CLI), proxy, projekty jako tożsamość i ich ustawienia, polityka worktree, biblioteka środowiska agentów (instrukcje, skille, pluginy, marketplace'y), connectory, ich konta, dostęp projektu i aplikacje OAuth | każdy komputer; wersja per pole |
 | **Komputer** | ścieżki CLI i katalogi domowe instancji, lokalizacja worktree, adresy, porty i dostęp sieciowy, łącza komputerów, sparowane telefony i klienty desktopu, enrollment workerów i klucze SSH, kanał aktualizacji, ustawienia powłoki desktopu, układ paneli i szerokość sidebara | tylko ten komputer |
-| **Worker** | nazwa, tagi, włączenie i nadpisania instancji na workerze, logowania natywne, workspace'y, worktree, nadpisanie częstotliwości sprawdzania CLI, ustawienia worktree workera, dostęp connectorów | tylko dom workera; inne komputery widzą kopię i edytują przez wywołanie do domu |
+| **Worker** | nazwa, tagi, włączenie i nadpisania instancji na workerze, logowania natywne, workspace'y, worktree, nadpisanie częstotliwości sprawdzania CLI, ustawienia worktree workera | tylko dom workera; inne komputery widzą kopię i edytują przez wywołanie do domu |
 | **Urządzenie** | preferencje „This device” w przeglądarce lub aplikacji (localStorage) | ta przeglądarka; nigdy w bazie |
 
 Rzeczy wykonawcze (wątki, boty z konfiguracją i rutynami, harmonogramy, sekrety wątków) nadal mają
@@ -2516,10 +2519,10 @@ Stos PR-ów: `feat/linked-shared-config-N` ([etapy](#etapy-wspólnej-konfiguracj
 | instrukcje, skille, pluginy, marketplace'y i ich wersje | `instruction_documents*`, `agent_skills*`, `agent_plugins*`, `agent_marketplaces` | wspólne | biblioteka konta; selektory wskazują workery po uuid |
 | tagi workera | `worker_environments.manual_tags` | worker | opis maszyny |
 | raport środowiska, tagi automatyczne, podglądy | `worker_environments`, `*_previews` | worker / lokalne | stan wykonania |
-| konto connectora: typ, nazwa, adres, transport, `all_workers`, `all_bots`, katalog narzędzi | `connector_accounts` | wspólne | jedno konto zewnętrzne |
+| konto connectora: typ, nazwa, adres, transport, `all_bots`, katalog narzędzi | `connector_accounts` | wspólne | jedno konto zewnętrzne |
 | poświadczenia connectora, nagłówki, aplikacje OAuth | `connector_accounts.credentials`, `connector_oauth_apps` | wspólne, sekret | ponownie szyfrowane u odbiorcy |
 | stan konta connectora, diagnoza `error`, ostatnie użycie, przestrzeń nazw | `connector_accounts` | komputer | wynik użycia na tym komputerze |
-| dostęp connectora dla workera | `connector_worker_grants` | worker | uprawnienie maszyny |
+| dostęp connectora dla projektu | `connector_accounts.all_projects`, `connector_project_grants` | wspólne | jedno pole konfiguracji z globalnymi id projektów |
 | dostęp connectora dla bota, granty | `connector_bot_grants` | dom bota | część bota |
 | stan OAuth, wykonania, audyt connectorów | `connector_oauth_states`, `connector_executions`, `connector_audit` | lokalne | stan wykonania |
 | boty, rutyny, przypomnienia | `bots`, `bot_routines`, `bot_wakeups` | dom | rzeczy wykonawcze |
@@ -2946,23 +2949,22 @@ z weryfikacją.
 ### Rekordy workerów i edycja zdalna
 
 Dom publikuje rekord `worker` każdego swojego workera: nazwę, system, tagi, instancje na workerze
-(włączenie, nadpisania bez wartości sekretów), nadpisanie częstotliwości CLI, ustawienia worktree workera
-i dostęp connectorów. Partnerzy zapisują go jako kopię tylko do odczytu. Rekord z cudzym `home_node_id`
+(włączenie, nadpisania bez wartości sekretów), nadpisanie częstotliwości CLI i ustawienia worktree workera.
+Partnerzy zapisują go jako kopię tylko do odczytu. Rekord z cudzym `home_node_id`
 zmieniony przez kogokolwiek poza domem jest odrzucany.
 
 Edycja ustawień workera z innego komputera to wywołanie do domu przez trasę etapu 2. `SERVED` obejmuje
 `RenameWorker`, `SetInstanceWorker`, `SetWorkerCliUpdateSettings`,
-`SetEnvironmentTags`, `GetWorktreeSettings` i `UpdateWorktreeSettings` z workerem, `SetConnectorAccess` (część workerów domu),
+`SetEnvironmentTags`, `GetWorktreeSettings` i `UpdateWorktreeSettings` z workerem,
 `RefreshProviders`, `InstallCli`, `CheckCliUpdates`, `StartProviderLogin` i `ListDirectory`.
 `GetInstanceWorker` odczytuje bez sekretów nadpisania instancji i odziedziczony runtime domu;
 `GetWorkerEnvironment` i `SetWorkerEnvironmentOverride` obsługują podgląd i wyjątki środowiska.
 Dom wykonuje je własnymi handlerami jako właściciel tego gatewaya. Każde id workera i workspace'u musi
-należeć do domu. Żądanie mieszające komputery jest odrzucane. `SetConnectorAccess` z workerami kilku
-komputerów rozdziela gateway wywołujący: część wspólną zapisuje lokalnie, a części workerów wysyła do domów.
-Tak samo `SetInstanceWorkers`: `all_workers` jest polem wspólnym, a workery innych komputerów dostają
+należeć do domu. Żądanie mieszające komputery jest odrzucane.
+W `SetInstanceWorkers` pole `all_workers` jest wspólne, a workery innych komputerów dostają
 `SetInstanceWorker`. Relay nie przenosi żadnej z tych metod.
 Obie strony zapisują `audit_log` `computer.config.worker.sent` / `.received`.
-Odczyty nie tworzą wpisów audytu. Providers, Agent environment, Worktrees i Connectors używają
+Odczyty nie tworzą wpisów audytu. Providers, Agent environment i Worktrees używają
 `ListWorkerRecords` do list workerów pogrupowanych według komputera. Offline worktree pokazuje zapisane
 nadpisania bez zgadywania wartości dziedziczonych; pozostałe odczyty szczegółów wymagają połączenia z domem.
 
@@ -3125,8 +3127,13 @@ bazami PostgreSQL i kluczami sekretów, przypięte mTLS, skryptowane workery. Be
    Implementacja etapu 5: migracja **0077_config_connectors** dodaje `updated_at` aplikacji OAuth.
    Gateway inicjalizuje rekordy `connector` i `oauth_app` ze znacznikami czasu domeny. Każdy wspólny zapis,
    także wynik refresh, najpierw blokuje `config_clock` i zapisuje rekord w tej samej transakcji.
-   Pola konta: `type`, `name`, `url`, `transport`, `authKind`, `allWorkers`, `allBots`, `tools`,
+   Pola konta: `type`, `name`, `url`, `transport`, `authKind`, `projectAccess`, `allBots`, `tools`,
    `accountIdentity`, `credentials`; aplikacji: `type`, `credentials` (client id i sekret razem).
+   `projectAccess` przechowuje `allProjects` i listę `projectIds` w jednej wersji, z globalnymi
+   identyfikatorami projektu. Grant odebrany przed projektem zaczyna działać po odebraniu projektu.
+   Odbiorca uwzględnia aliasy także po zmianie kanonicznego id. Brak pola oznacza brak grantu,
+   a odwołanie istniejącego dostępu zapisuje pustą listę z nową wersją. Odbiorca pomija dawne
+   `allWorkers` i `worker.connectors`.
    `credentials` idzie wyłącznie przez `config_secrets`, nigdy przez `GetConfigBlob`. Odbiór aplikacji
    i kont poprzedza źródła skilli; aliasy zachowują lokalne id oraz granty. Tożsamość dostawcy jest hashem
    metadanych konta, a nie client id ani tokenu. Stan, ostatnie użycie i namespace zostają lokalne.
@@ -3136,10 +3143,12 @@ bazami PostgreSQL i kluczami sekretów, przypięte mTLS, skryptowane workery. Be
    Odebranie faktycznie nowych poświadczeń usuwa stary błąd, nie kopiuje wyniku testu partnera.
    Nowsze poświadczenia usuwają lokalny stan needs reconnect; starszy zegar ich nie nadpisze.
    Delete nie odwołuje tokenu: tombstone zachowuje zaszyfrowane poświadczenia do Restore przez 90 dni.
-   Disconnect odwołuje dostęp i replikuje usunięcie poświadczeń. Restore nie przywraca indywidualnych grantów.
+   Disconnect odwołuje dostęp i replikuje usunięcie poświadczeń. Restore usuniętego konta zachowuje
+   flagę All projects. Dostęp poszczególnych projektów wymaga ponownego nadania.
    UI nie oznacza wspólnego konta; stan lokalny opisuje „This computer”, konflikty i usunięcia mają Restore.
-   `connector_worker_grants` oraz zdalny zapis dostępu obsługuje etap 6; granty botów pozostają w domu.
-6. **Rekordy workerów i edycja zdalna.** Rekord `worker`, rozszerzony `SERVED`, rozdzielanie `SetConnectorAccess`,
+   Granty botów pozostają w domu. Konsolidacja przenosi zweryfikowane granty z zatwierdzonego konta
+   i tłumaczy id projektów na tożsamości celu.
+6. **Rekordy workerów i edycja zdalna.** Rekord `worker`, rozszerzony `SERVED`,
    audyt, listy workerów wszystkich komputerów w ustawieniach (**0078_config_workers**). Testy: zmiana
    nadpisania instancji workera B z A zapisana tylko w bazie B; częstotliwość CLI workera B; niedostępny B
    daje natychmiastowy błąd i nic nie zostaje zastosowane po powrocie; partner nie może zapisać rekordu
@@ -3149,7 +3158,7 @@ bazami PostgreSQL i kluczami sekretów, przypięte mTLS, skryptowane workery. Be
    indeks kopii po domu, indeks audytu, `proxies.worker_scoped`). Dom zapisuje rekordy przy starcie, po każdej
    zmianie widocznej w overview, po edycji z innego komputera i co 30 s (`config-sync/worker-records.ts`,
    `computers/runtime-workers.ts`). Pola: `name`, `os`, `arch`, `hostname`, `revoked`, `tags`,
-   `automaticTags`, `cliUpdateCheckMinutes`, `connectors` (globalne id), `workspaces`
+   `automaticTags`, `cliUpdateCheckMinutes`, `workspaces`
    (`{id, project, path, worktrees}`), `instances` (mapa `harness:globalne id` → `{enabled, keySet,
    overrides, env}`, tylko nazwy) i `worktree` (mapa globalne id projektu, `""` = zakres workera →
    ustawienia). Nazwy pól rekordu nie mogą zawierać `:` ani `-`, dlatego instancje i zakresy są mapami
@@ -3159,14 +3168,13 @@ bazami PostgreSQL i kluczami sekretów, przypięte mTLS, skryptowane workery. Be
    `proxy`, nie ma go w Settings → Proxies i instancja nie może go użyć, więc klucz nie opuszcza domu.
    `SERVED` obejmuje `GetWorktreeSettings` (odczyt bez audytu), a nie obejmuje `SetInstanceWorkers`: ta
    lista ma pole wspólne `all_workers`, więc wywołujący zapisuje je lokalnie, a workerom innych komputerów
-   wysyła `SetInstanceWorker` z różnicą względem rekordu. `SetConnectorAccess` od partnera zmienia w domu
-   wyłącznie granty jego workerów (`workerAccess`). `SetEnvironmentTags` od partnera pomija rewizję
+   wysyła `SetInstanceWorker` z różnicą względem rekordu. `SetEnvironmentTags` od partnera pomija rewizję
    biblioteki wywołującego: tagi jednego workera nie kolidują z resztą biblioteki. Każdy dom grupy, którego
    dotyczy zmiana listy, musi być osiągalny, zanim cokolwiek zostanie zapisane. Nadpisanie wspólnego proxy workera
    (`proxy_id`) jest tłumaczone przez aliasy w etapie 7. Worker komputera z grupy,
    ale bez bezpośredniego łącza, jest tylko do odczytu („Change this worker's settings on “Laptop B”.”).
    UI etapu 6: Settings → Workers i strona workera. Listy z [UI](#ui-wspólnej-konfiguracji)
-   (Providers, Agent environment, Worktrees, Connectors) są uzupełnione w etapie 7.
+   (Providers, Agent environment, Worktrees) są uzupełnione w etapie 7.
    Testy: `tests/integration/config-sync-workers.test.ts`.
 7. **Rzeczy z domem tworzone z dowolnego komputera.** `CreateBot` i `CreateSchedule` trasowane według workera
    z pickera; edycja harmonogramów partnera. Bez migracji. Testy: bot utworzony z A na workerze B mieszka

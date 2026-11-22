@@ -1,5 +1,7 @@
 # Zakładki wątku i panel Files/Diff/Preview
 
+Aktualizacja (2026-11-22): ustawienie dostępu do konektora w wątku obejmuje cały projekt.
+
 Status (2026-11-21): **zaimplementowane; układ v3**; stała górna krawędź osi i gradientu przy zwijaniu
 zadokowanego podsumowania; zapis i usunięcie pliku oraz odczyty Git paneli są związane z
 sprawdzonymi uchwytami i bezpieczną polityką Git (szczegóły niżej), menu ścieżek w rozmowie
@@ -337,8 +339,8 @@ Preview można przenieść do pełnej karty głównego obszaru lub otworzyć w o
 | Cel, kolejka, prośby o zgodę i sekret | Obecny zasobnik rozmowy |
 
 Moduły `Pull requests`, `Tasks` i `Connectors` w panelu zostały usunięte: ich
-minimalne widoki powtarzały sekcje podsumowania. Zmiana grantu connectora nadal
-dotyczy **workera i wszystkich jego wątków**. Zatrzymanie, anulowanie i zarządzanie
+minimalne widoki powtarzały sekcje podsumowania. Zmiana dostępu do connectora
+dotyczy wszystkich wątków projektu. Zatrzymanie, anulowanie i zarządzanie
 worktree zachowują istniejące potwierdzenia i autoryzację. Podsumowanie nie powtarza
 tytułu, modelu, uprawnień, kosztu ani statusu obecnych w nagłówku i przy composerze.
 

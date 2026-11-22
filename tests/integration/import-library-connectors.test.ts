@@ -147,9 +147,9 @@ describe.skipIf(!dockerAvailable)("CLI import: MCP servers as connected accounts
 
     expect(run.library[0]).toMatchObject({ status: "done" });
     expect(run.library[0]?.detail).toContain("Enter Authorization there");
-    expect(account).toMatchObject({ connectorType: "custom", url: fake.url, allWorkers: false, allBots: false });
+    expect(account).toMatchObject({ connectorType: "custom", url: fake.url, allProjects: false, allBots: false });
     expect(account.headerNames).toEqual([]);
-    expect(account.workerIds).toEqual([]);
+    expect(account.projectIds).toEqual([]);
     await f.gw.api.undoImportRun({ runId: run.id });
     expect((await accounts()).some((a) => a.name === "fixture-live")).toBe(false);
   });
@@ -192,7 +192,7 @@ describe.skipIf(!dockerAvailable)("CLI import: MCP servers as connected accounts
       expect(readFileSync(join(f.data, name)).includes(Buffer.from(fake.secret))).toBe(false);
 
     // Undo keeps an account the owner changed since (access given).
-    await f.gw.api.setConnectorAccess({ accountId: account.id, allWorkers: true, expectedRevision: account.revision });
+    await f.gw.api.setConnectorAccess({ accountId: account.id, allProjects: true, expectedRevision: account.revision });
     const undone = await f.gw.api.undoImportRun({ runId: run.id });
     expect(undone.library[0]?.status).toBe("kept");
     expect((await accounts()).some((a) => a.id === account.id)).toBe(true);

@@ -7,6 +7,7 @@ interaktywny i automatyczny mini podgląd automatyzacji w wątku oraz aplikacja 
 z ręcznym Preview Browser/Desktop/Device oraz kanały botów Slack przez Socket Mode
 z trwałym buforem wiadomości, aktualizacjami aktywnej tury i konfiguracją
 nasłuchiwania przez prywatną rozmowę z botem.
+Aktualizacja (2026-11-22): dostęp wątków do konektorów wynika z grantów projektów.
 BFF materializuje stan odczytu ze wspólnego gRPC overview
 i współdzieli go między oknami; dogrzewanie historii odbywa się w BFF.
 Logowanie użytkowników nie istnieje; otwarte decyzje są w §11. Ten dokument opisuje
@@ -18,7 +19,7 @@ Powiązane dokumenty:
 
 - [agent-memory.md](agent-memory.md) — pamięć wątków i botów, zakresy dostępu, wyszukiwanie w gatewayu i edycja w ustawieniach.
 - [bots.md](bots.md) — rozmowy botów, trwałość i narzędzia; [bots-harness.md](bots-harness.md) — migracja inferencji na oficjalne harnessy workerów.
-- [connectors.md](connectors.md) — współdzielone konta zewnętrznych MCP, OAuth w gateway, granty workerów/botów i proxy bez poświadczeń na workerze.
+- [connectors.md](connectors.md) — współdzielone konta zewnętrznych MCP, OAuth w gateway, granty projektów i botów oraz proxy bez poświadczeń na workerze.
 - [github.md](github.md) — konto GitHub App, device flow oraz odczyt, review, cykl PR, metadane i sterowanie CI v1.
 - [protocol.md](protocol.md) — kanał gRPC gateway ↔ worker
 - [data-model.md](data-model.md) — model danych PostgreSQL i reguły dostępu

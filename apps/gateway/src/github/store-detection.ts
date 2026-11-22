@@ -3,6 +3,7 @@ import { fromJsonString, toJson } from "@bufbuild/protobuf";
 import { GitPrContextSchema, type GitPrContext } from "@canopy/contracts";
 import { Effect, Schema } from "effect";
 import type { SqlClient } from "effect/sql";
+import { projectConnectorAccess } from "../connectors/project-access.ts";
 
 export interface DetectionThread {
   thread_id: string;
@@ -23,10 +24,10 @@ export interface ContextRow {
 /** Durable scheduling and watermarks are separate from ingest and its ACK transaction. */
 export function githubDetectionStore(sql: SqlClient.SqlClient) {
   return {
-    detectionCleanupGrant: (owner: string, account: string, worker: string, revision: bigint) => sql`
+    detectionCleanupGrant: (owner: string, account: string, projectId: string, revision: bigint) => sql`
       SELECT a.id FROM connector_accounts a WHERE a.owner_user_id=${owner}::uuid AND a.id=${account}::uuid
       AND a.connector_type='github' AND a.status='connected' AND a.revision=${revision}::bigint
-      AND (a.all_workers OR EXISTS(SELECT 1 FROM connector_worker_grants g WHERE g.account_id=a.id AND g.worker_id=${worker}::uuid))`,
+      AND ${projectConnectorAccess(sql, owner, projectId, { id: sql`a.id`, allProjects: sql`a.all_projects` })}`,
     detectionSeed: (owner: string) => sql`INSERT INTO github_detection_jobs(owner_user_id,thread_id)
       SELECT owner_user_id,id FROM threads WHERE owner_user_id=${owner}::uuid AND worker_id IS NOT NULL
       AND deleted_at IS NULL AND archived_at IS NULL

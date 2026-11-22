@@ -1,12 +1,13 @@
 # Konektory Canopy
 
 Projekt i wdrożenie: 2026-11-02. Zakres: konta zdalnych serwerów MCP,
-OAuth w gateway, dostęp wybranych workerów i botów oraz jeden kanał wykonania.
-Status (2026-11-21): jedno konto Slack w Settings → Connectors współdzieli aplikację
+OAuth w gateway, dostęp wybranych projektów i botów oraz jeden kanał wykonania.
+Status (2026-11-22): dostęp wątków do kont wynika z grantów projektów.
+Jedno konto Slack w Settings → Connectors współdzieli aplikację
 OAuth dla narzędzi MCP i wiadomości botów przez Socket Mode. Bot settings → Messengers
 wybiera podłączone konto i trasy; gateway odnawia rotowane tokeny użytkownika i bota.
-Opis w karcie konta w web/desktop wyjaśnia, że Workers obejmuje wszystkie wątki na wybranych
-workerach z uwzględnieniem trybu uprawnień wątku. Dostęp botów ustawia się osobno w Bots.
+Pole Projects w karcie konta obejmuje wszystkie wątki w wybranych projektach,
+na każdym workerze projektu. Wątki nadal stosują swój tryb uprawnień. Dostęp botów ustawia się w Bots.
 Zgoda na zapis MCP obejmuje konkretną operację. Synchronizacja rozpoznaje podmiot OAuth,
 a połączenia z adresami podanymi przez discovery przechodzą kontrolę DNS.
 Usunięcie bota odłącza jego przypisania i trasy od współdzielonych kont.
@@ -17,7 +18,7 @@ Log gatewaya pokazuje odbiór zdarzeń Socket Mode, przyczyny pominięcia,
 wynik zapisu do kolejki i rozłączenia.
 Panel web/desktop jest odświeżany reaktywnie w pamięci BFF
 i dostarczany przez SSE; autoryzacja uwzględnia zmiany uprawnień bieżącej tury Claude.
-Panel natywnego mobile rozróżnia dostęp workera i katalog bieżącej tury:
+Panel natywnego mobile rozróżnia dostęp projektu i katalog bieżącej tury:
 Available, Available next turn, Access removed, Unavailable oraz Error.
 Zachowuje podłączone konto po odebraniu grantu do czasu aktualizacji katalogu;
 szczegóły błędu sesji rozwija się przez Show details.
@@ -27,16 +28,21 @@ Dostępność kanałów według [release.md](release.md).
 
 Typ konektora opisuje usługę, konto opisuje nazwaną autoryzację (np. „personal”,
 „work”), a grant określa dostęp. Konto należy do użytkownika. Domyślnie nie ma
-grantów. „All” obejmuje również przyszłe workery/boty **tego użytkownika**;
-współdzielony worker nadal widzi wyłącznie konta właściciela konkretnego wątku.
-Wybrane workery i boty są niezależnymi zbiorami. Konta nie dziedziczą uprawnień
-innych kont tego samego typu.
+grantów. All projects i All bots obejmują także przyszłe projekty i boty
+**tego użytkownika**. Wątki w No project nie korzystają z kont konektorów.
+Wybrane projekty i boty są niezależnymi zbiorami. Każde konto ma własne granty.
 
 Migracja **0041_connectors** przenosi stare `bot_mcp_servers` do kont typu
 `custom`, zachowując ID, nazwy, transport i odwołania do zaszyfrowanych nagłówków.
 `bot_mcp_connections` stają się grantami wybranych botów. Nie powstają granty
 workerów. Stare RPC pozostają adapterem zgodności; nowa konfiguracja korzysta
 z Connectors. Stare tabele pozostają wyłącznie jako źródło migracji.
+
+Migracja **0197_connector_project_access** przenosi All workers na All projects.
+Indywidualny grant przechodzi na aktywny projekt, jeśli wszystkie znane miejsca
+pracy i istniejące wątki projektu były objęte grantem. Instalacje współdzielące
+konfigurację mogą mieć dodatkowe miejsca pracy u partnerów, dlatego indywidualne
+granty wymagają ponownego wyboru projektów. Granty botów są zachowywane.
 
 Gateway jest jedynym klientem zewnętrznego MCP. Tokeny, refresh tokeny, sekrety
 aplikacji OAuth i PKCE są zaszyfrowane AES-256-GCM kluczem `CANOPY_SECRETS_KEY`.
@@ -54,7 +60,7 @@ Negatywny wynik Test wraca jako konto ze stanem `error` i pustą listą narzędz
 błędy samego żądania lub zapisu nadal są błędami RPC.
 Udany test, ponowne połączenie lub Disconnect usuwa poprzednią diagnozę.
 Stan `error` wstrzymuje narzędzia; UI pokazuje „Connection error · Tools unavailable”.
-Następne pobranie narzędzi dla uprawnionego workera lub bota ponawia listing,
+Następne pobranie narzędzi dla uprawnionego projektu lub bota ponawia listing,
 także gdy konto ma zapisany katalog. Sukces przywraca `connected` i usuwa diagnozę.
 Niepowodzenie nadal wyklucza narzędzia z tej tury; `disconnected` i `needs_reconnect`
 nie są automatycznie ponawiane i wymagają ponownego połączenia.
@@ -66,9 +72,9 @@ do jego usług prywatnych; nie uruchamia procesów ani transportu stdio.
 Konta i aplikacje OAuth są **wspólną konfiguracją** połączonych komputerów. Każdy gateway szyfruje
 poświadczenia własnym kluczem; nie wysyła ich do workerów, modeli ani UI. Łącze z wyłączonym Share
 configuration nie przenosi definicji ani sekretów. Stan połączenia, diagnoza `error`, ostatnie użycie i namespace są lokalne;
-UI opisuje je jako „This computer”, a samo konto nie ma znaczka wspólności. `all_workers` i `all_bots`
-są wspólne. Konkretne granty workerów zostają w domu workera (rekordy i edycja zdalna: etap 6),
-a granty botów w domu bota. Przeniesienie bota nadal wymaga nadania mu dostępu w nowym domu.
+UI opisuje je jako „This computer”. Zakres Projects, w tym All projects,
+synchronizuje się z kontem jako jedno pole `projectAccess` z kanonicznymi ID projektów.
+All bots jest wspólne, a indywidualne granty botów są zapisywane w domu bota. Przeniesienie bota nadal wymaga nadania mu dostępu w nowym domu.
 Nieudany Test nie publikuje tych lokalnych pól ani nie zwiększa rewizji wspólnej konfiguracji.
 Udany Test publikuje tylko rzeczywistą zmianę katalogu narzędzi; sam powrót do `connected`
 nie zwiększa rewizji. Zmiana nazwy, grantów lub katalogu na innym komputerze zachowuje
@@ -77,7 +83,7 @@ i ponownie wyznacza lokalny stan połączenia.
 
 Rekordy `connector` i `oauth_app` inicjalizuje gateway przy starcie; migracja **0077_config_connectors**
 dodaje czas zapisu aplikacji. Zapis najpierw blokuje `config_clock`, a potem konto, i zapisuje rekord
-w tej samej transakcji. Definicja obejmuje typ, nazwę, URL, transport, metodę logowania, dostęp All
+w tej samej transakcji. Definicja obejmuje typ, nazwę, URL, transport, metodę logowania, dostęp projektów, All bots
 i narzędzia; poświadczenia wraz z nagłówkami są jednym sekretnym polem `credentials` w `config_secrets`.
 Klient OAuth (także client ID i zapamiętany redirect) jest osobnym zaszyfrowanym rekordem per typ.
 `GetConfigBlob` nadal obsługuje wyłącznie treść biblioteki, nigdy sekrety connectorów.
@@ -206,9 +212,9 @@ Jawne Disconnect nadal wykonuje revoke i replikuje brak poświadczeń. Konflikt 
 sekrety są w niej wyłącznie jako „A different key”, a hash tożsamości jako „A different account”.
 Potwierdzenie Disconnect mówi „Computers sharing configuration lose access to this account. You can
 reconnect it later.” Potwierdzenie Delete mówi „This removes the account from computers sharing
-configuration. Workers and bots lose access. A linked computer can restore it for 90 days.”
+configuration. Threads and bots lose access. A linked computer can restore it for 90 days.”
 Pola notek używają etykiet „Connector”, „Name”, „Endpoint”, „Transport”, „Sign-in method”,
-„All workers”, „All bots”, „Tools”, „Account”, „Credentials” i „Deleted”.
+„Project access”, „All bots”, „Tools”, „Account”, „Credentials” i „Deleted”.
 
 Odświeżenie tokenów jest zmianą sekretnego pola z nowym HLC. Przyjęcie nowszych poświadczeń usuwa lokalne
 `needs_reconnect`; spóźniony starszy token przegrywa i pozostaje tylko w zaszyfrowanej historii.
@@ -226,7 +232,7 @@ Nazwy są stabilne i rozdzielone per konto (`github_work_<id>__create_issue`),
 także gdy nazwy dwóch kont są identyczne po normalizacji. Opisy podają typ i konto.
 Rename unieważnia cache opisów; techniczna nazwa narzędzia pozostaje stabilna.
 Wywołanie `AgentToolCall` wraca istniejącym linkiem gRPC do gateway. Gateway
-sprawdza worker, właściciela wątku, bieżącą turę, grant i bieżący katalog konta.
+sprawdza workera, właściciela wątku, bieżącą turę, grant projektu i bieżący katalog konta.
 Zmiana grantów odbiera możliwość wykonania natychmiast. Katalog istniejącego wątku
 aktualizuje się przed następną turą, z zachowaniem historii i bez przerywania pracy
 ([mechanizmy adapterów](#ograniczenia-sesji-harnessów)). Odebrany grant blokuje
@@ -285,7 +291,7 @@ pobranych bajtów. Odczyt z konektora wymaga capability `agent_tool_attachments_
 ### Bezpośrednia wysyłka w Slacku
 
 Po włączeniu wiadomości na koncie Slack w Settings → Connectors gateway
-udostępnia narzędzie `canopy_post_slack` botom i workerom z grantem tego konta.
+udostępnia narzędzie `canopy_post_slack` botom i wątkom w projektach z grantem tego konta.
 Aplikacja musi mieć dostęp do rozmowy w Slacku. Używa istniejącego bot scope
 `chat:write`. Trasa nasłuchiwania nie jest potrzebna do wysyłki.
 Gateway wywołuje `chat.postMessage` jako aplikacja Canopy z użyciem tokenu bota.
@@ -332,13 +338,13 @@ i raporty sesji unieważniają odczyt; gotowy panel wraca przez SSE `read-model`
 bez cyklicznych odczytów HTTP renderera.
 Jego DTO zawiera wyłącznie nazwy, statusy i metadane grantów; nie zawiera URL-i,
 nazw nagłówków, błędów konta ani poświadczeń. „Manage connector access” zmienia
-przez `SetThreadConnectorGrant` dostęp workera w domu wątku, z kontrolą właściciela
-i rewizji. Zmiana dotyczy wszystkich wątków tego workera; All workers oraz
-konfigurację konta edytujemy w domu. Cache zdalnego panelu jest tylko do odczytu
+przez `SetThreadConnectorGrant` dostęp projektu w domu wątku, z kontrolą właściciela
+i rewizji. Zmiana obejmuje wszystkie wątki projektu. All projects i pełną listę
+grantów edytuje się w Settings → Connectors. Cache zdalnego panelu jest tylko do odczytu
 i nigdy nie udziela grantu. Szczegóły: [połączone komputery](linked-computers.md#panel-wątku-i-archiwum).
 
 Settings → Connectors pokazuje katalog, nazwane konta, stan, ostatnie użycie,
-test z listą narzędzi, rename, reconnect, disconnect oraz dostęp workerów/botów.
+test z listą narzędzi, rename, reconnect, disconnect oraz dostęp projektów i botów.
 Konta są zwartymi wierszami jednej listy z separatorami. Menu wiersza zawiera Test,
 Reconnect, Rename…, Edit access, Disconnect i Delete…. Kliknięcie wiersza rozwija
 edytor dostępu; zmiana nazwy otwiera osobny dialog. Wynik testu pozostaje pod

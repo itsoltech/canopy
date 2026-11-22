@@ -28,6 +28,7 @@ export function useThreadPanel(threadId: () => string) {
             accountId: account.accountId,
             granted,
             expectedRevision: account.revision.toString(),
+            projectScope: true,
           }),
         ),
       );

@@ -21,7 +21,13 @@ import { CONNECTOR_KINDS } from "./connector-values.ts";
 
 type Key = { identity: string; secret: string | undefined };
 
-export type Placement = { item: ConfigRow; current: ConfigRow | undefined; moved: boolean; republish?: ConfigRow };
+export type Placement = {
+  item: ConfigRow;
+  current: ConfigRow | undefined;
+  moved: boolean;
+  republish?: ConfigRow;
+  aliased?: boolean;
+};
 
 function keyOf(
   sql: SqlClient.SqlClient,

@@ -19,7 +19,7 @@ import { PROJECT_KINDS } from "./project-values.ts";
 import { ENVIRONMENT_KINDS } from "./environment-values.ts";
 import { applyEnvironment } from "./environment-apply.ts";
 import { cipherOf, pruneSecrets, recordCiphers, storeSecret } from "./secrets.ts";
-import { CONNECTOR_KINDS } from "./connector-values.ts";
+import { CONNECTOR_KINDS, connectorProjectAccess } from "./connector-values.ts";
 import { applyConnector } from "./connector-apply.ts";
 import { configEquality } from "./equality.ts";
 import { queryFamily, queryRpc } from "../diagnostics/query-context.ts";
@@ -113,7 +113,8 @@ export async function configNotices(sync: ConfigSync) {
     LEFT JOIN config_items c ON c.owner_user_id=h.owner_user_id AND c.kind='computer' AND c.global_id=h.notice_node_id
     LEFT JOIN config_items i ON i.owner_user_id=h.owner_user_id AND i.kind=h.kind AND i.global_id=h.global_id
     LEFT JOIN config_items project ON project.owner_user_id=h.owner_user_id AND project.kind='project' AND project.global_id=h.global_id
-    WHERE h.owner_user_id=$1::uuid AND h.kind NOT IN ('worker','computer') AND h.state='open' AND h.superseded_at>now()-interval '90 days' ORDER BY h.superseded_at DESC`,
+    WHERE h.owner_user_id=$1::uuid AND h.kind NOT IN ('worker','computer') AND NOT(h.kind='connector' AND h.field='allWorkers')
+      AND h.state='open' AND h.superseded_at>now()-interval '90 days' ORDER BY h.superseded_at DESC`,
     [sync.store.owner],
   );
 
@@ -170,8 +171,13 @@ function restore(sync: ConfigSync, row: ConfigRow, history: readonly HistoryRow[
       const ancestry = yield* fieldAncestry(sql, store.owner, row, h.field, [{ ...h.ancestry, hlc: h.hlc }]);
       const seen = ancestry.prev;
 
+      const value =
+        row.kind === "connector" && h.reason === "deleted" && h.field === "projectAccess"
+          ? { allProjects: connectorProjectAccess(h.value).allProjects, projectIds: [] }
+          : h.value;
+
       const next = {
-        value: h.value,
+        value,
         hlc: clock,
         prev: compareClock(h.hlc, seen) > 0 ? h.hlc : seen,
         seen: ancestry.seen,

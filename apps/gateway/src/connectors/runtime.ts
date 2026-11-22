@@ -59,11 +59,27 @@ export class ConnectorsRuntime {
   stop() {
     this.#stopped = true;
   }
-  /** Gateway-owned cleanup read: the owner's GitHub account must be granted to this worker. */
-  async worktreeMerged(userId: string, workerId: string, repository: string, branch: string, head: string) {
-    if (userId !== this.options.userId || !repository || !head) return false;
+  /** Gateway-owned cleanup read for a GitHub account granted to the worktree's project. */
+  async worktreeMerged(
+    userId: string,
+    projectId: string,
+    workerId: string,
+    repository: string,
+    branch: string,
+    head: string,
+  ) {
+    if (userId !== this.options.userId || !projectId || !repository || !head) return false;
 
-    return worktreeMerged(this, (user, id) => this.#connection(user, id), userId, workerId, repository, branch, head);
+    return worktreeMerged(
+      this,
+      (user, id) => this.#connection(user, id),
+      userId,
+      projectId,
+      workerId,
+      repository,
+      branch,
+      head,
+    );
   }
   async list(request: connectors.ListConnectorsRequest) {
     if (request.threadId && request.botId) throw new ConnectorFailure("Choose a thread or bot");
@@ -96,9 +112,6 @@ export class ConnectorsRuntime {
   }
   access(request: connectors.SetConnectorAccessRequest) {
     return this.run((s) => s.access(this.options.userId, request));
-  }
-  workerAccess(accountId: string, workerIds: readonly string[]) {
-    return this.run((s) => s.workerAccess(this.options.userId, accountId, workerIds));
   }
   saveApp(request: connectors.SaveConnectorOAuthAppRequest) {
     return this.run((s) => s.saveApp(this.options.userId, request));
@@ -230,14 +243,14 @@ export class ConnectorsRuntime {
   }
   async tools(
     user: string,
-    scope: { workerId?: string; botId?: string },
+    scope: { projectId: string; workerId: string } | { botId: string },
     includeSlackPost = true,
     includeSlackDownload = true,
   ): Promise<ConnectorTool[]> {
     const rows = await this.run((s) => s.list(user, scope));
     const tools: ConnectorTool[] = [];
 
-    const workerId = scope.workerId;
+    const workerId = "workerId" in scope ? scope.workerId : undefined;
 
     const download =
       includeSlackDownload &&

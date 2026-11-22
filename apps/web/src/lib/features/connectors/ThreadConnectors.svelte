@@ -61,7 +61,7 @@
       {#if !status && !accounts.length}<span
           class="text-zinc-500 dark:text-zinc-400"
           role="status"
-          aria-label="No accounts granted to this worker">None</span
+          aria-label="No connector accounts available to this thread">None</span
         >{/if}
     </div>
     <button

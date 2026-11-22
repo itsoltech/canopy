@@ -127,6 +127,7 @@ const rootTables: ImportTable[] = [
         "key_id",
         "legacy_headers",
         "status",
+        "all_projects",
         "tools",
         "revision",
         "updated_at",
@@ -197,10 +198,8 @@ const botChannel = (throughConversation = false) => `EXISTS (SELECT FROM public.
   JOIN public.bots b ON b.id=r.bot_id WHERE ${throughConversation ? "c.id=s.conversation_id" : "r.id=s.route_id"}
     AND r.owner_user_id=$1::uuid AND b.owner_user_id=r.owner_user_id AND b.moved_to IS NULL)`;
 
-const imports = ["import_runs", "import_items", "import_library_items"];
-
 const repoData: ImportTable[] = [
-  ...imports.map((name) => ({ name, filter: owned })),
+  ...["import_runs", "import_items", "import_library_items"].map((name) => ({ name, filter: owned })),
   { name: "thread_imports", filter: `${owned} AND ${thread()}` },
   { name: "worktrees", filter: `${owned} AND ${project()} AND ${worker()}` },
   {
@@ -285,7 +284,7 @@ export const importTables: readonly ImportTable[] = [
   { name: "bot_mcp_servers", filter: owned },
   { name: "bot_mcp_connections", filter: bot() },
   { name: "bot_composer_drafts", filter: `${owned} AND ${bot()}` },
-  { name: "connector_worker_grants", filter: `${connector} AND ${worker()}` },
+  { name: "connector_project_grants", filter: `${connector} AND ${project()}` },
   { name: "connector_bot_grants", filter: `${connector} AND ${bot()}` },
   {
     name: "connector_executions",

@@ -88,16 +88,13 @@ describe.skipIf(!dockerAvailable)("deleting bots through the gateway", () => {
       ),
     );
 
-  async function watchThread(turn: BotTurn) {
-    const project = (await gw.api.createProject({ name: "Watched project" })).project!;
-
-    const workspace = (
-      await gw.api.createWorkspace({ projectId: project.id, workerId: gw.workerId, rootPath: "/repo" })
-    ).workspace!;
+  async function watchThread(turn: BotTurn, projectId: string) {
+    const workspace = (await gw.api.createWorkspace({ projectId, workerId: gw.workerId, rootPath: "/repo" }))
+      .workspace!;
 
     const thread = (
       await gw.api.createThread({
-        projectId: project.id,
+        projectId,
         workspaceId: workspace.id,
         provider: Provider.CODEX,
         model: "gpt-6.1-sol",
@@ -175,10 +172,11 @@ describe.skipIf(!dockerAvailable)("deleting bots through the gateway", () => {
       })
     ).account!;
 
+    const project = (await gw.api.createProject({ name: "Watched project" })).project!;
     await gw.api.setConnectorAccess({
       accountId: account.id,
       expectedRevision: account.revision,
-      workerIds: [gw.workerId],
+      projectIds: [project.id],
       botIds: [bot.id, sibling.id],
     });
 
@@ -192,7 +190,7 @@ describe.skipIf(!dockerAvailable)("deleting bots through the gateway", () => {
     await run((store) => store.approval(active, approval, "Continue?", true));
     const pending = await reminder(active, "Still pending");
     const scheduled = await routine(active);
-    const watch = await watchThread(active);
+    const watch = await watchThread(active, project.id);
     const { turnId: queued } = await send(bot.id, "Queued input");
     const history = await transcript(bot.id);
     const before = await deletionState(bot.id);
@@ -249,9 +247,9 @@ describe.skipIf(!dockerAvailable)("deleting bots through the gateway", () => {
     expect(await query("SELECT bot_id FROM connector_bot_grants WHERE account_id=$1::uuid", account.id)).toEqual([
       { bot_id: sibling.id },
     ]);
-    expect(await query("SELECT worker_id FROM connector_worker_grants WHERE account_id=$1::uuid", account.id)).toEqual([
-      { worker_id: gw.workerId },
-    ]);
+    expect(
+      await query("SELECT project_id FROM connector_project_grants WHERE account_id=$1::uuid", account.id),
+    ).toEqual([{ project_id: project.id }]);
     expect(await deletionState(foreignBot)).toEqual(foreign);
     expect(history).toContainEqual({ id: expect.any(String), text: "Past answer" });
     expect(await transcript(bot.id)).toEqual(history);

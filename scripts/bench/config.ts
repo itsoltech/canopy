@@ -87,7 +87,7 @@ try {
       SELECT md5('bench-connector-'||n)::uuid,${ids.owner}::uuid,'custom','Synthetic '||n,'synthetic_'||n,
         'https://example.invalid','http','headers','connected',jsonb_build_array(jsonb_build_object('blob',repeat('x',65536)))
       FROM generate_series(1,32)n`;
-      yield* sql`INSERT INTO connector_worker_grants(account_id,worker_id) SELECT id,${ids.worker}::uuid
+      yield* sql`INSERT INTO connector_project_grants(account_id,project_id) SELECT id,md5('project-1')::uuid
       FROM connector_accounts WHERE owner_user_id=${ids.owner}::uuid`;
       yield* sql`INSERT INTO connector_bot_grants(account_id,bot_id) SELECT a.id,b.id FROM connector_accounts a
       CROSS JOIN LATERAL (SELECT id FROM bots ORDER BY id LIMIT 1)b WHERE a.owner_user_id=${ids.owner}::uuid`;

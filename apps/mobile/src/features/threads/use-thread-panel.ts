@@ -20,6 +20,7 @@ export function useThreadPanel(threadId: string, enabled: boolean) {
         accountId: account.accountId,
         granted,
         expectedRevision: account.revision,
+        projectScope: true,
       });
 
       queries.set(key, panel);

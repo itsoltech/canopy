@@ -47,8 +47,8 @@ message ConnectorAccount {
   string transport = 6;
   string auth_kind = 7;
   string status = 8;
-  bool all_workers = 9;
-  repeated string worker_ids = 10;
+  bool all_workers = 9 [deprecated = true];
+  repeated string worker_ids = 10 [deprecated = true];
   bool all_bots = 11;
   repeated string bot_ids = 12;
   uint64 revision = 13;
@@ -56,6 +56,8 @@ message ConnectorAccount {
   repeated string header_names = 15;
   // Redacted test failure, visible only to the account's owner.
   ConnectorError error = 16;
+  optional bool all_projects = 17;
+  repeated string project_ids = 18;
 }
 message ConnectorError {
   string kind = 1;
@@ -80,11 +82,14 @@ message SaveConnectorAccountRequest {
 message ConnectorAccountResponse { ConnectorAccount account = 1; }
 message SetConnectorAccessRequest {
   string account_id = 1;
-  bool all_workers = 2;
-  repeated string worker_ids = 3;
+  bool all_workers = 2 [deprecated = true];
+  repeated string worker_ids = 3 [deprecated = true];
   bool all_bots = 4;
   repeated string bot_ids = 5;
   uint64 expected_revision = 6;
+  // A specified flag or a nonempty project_ids list replaces project access.
+  optional bool all_projects = 7;
+  repeated string project_ids = 8;
 }
 message ConnectorAccountRequest { string account_id = 1; }
 message DeleteConnectorAccountResponse {}

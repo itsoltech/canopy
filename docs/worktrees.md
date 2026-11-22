@@ -5,8 +5,9 @@ Kopiowanie workspace'u na nowy worker tworzy samodzielny checkout także ze
 wybór obejmuje tylko ignorowane pliki lokalne bez zależności i wyniku builda. Ograniczenia Git:
 [workspace-copy.md](workspace-copy.md).
 
-Status: **etapy 1–3 zaimplementowane** (2026-11-21), w tym wydłużony limit checkoutu do 240 s
-na zgodnych wersjach gatewaya i workera, sprzątanie lokalnych gałęzi po merge
+Status: **etapy 1–3 zaimplementowane** (2026-11-22), w tym sprawdzanie dostępu konektora GitHub
+do projektu worktree przy potwierdzaniu merge, wydłużony limit checkoutu do 240 s na zgodnych wersjach
+gatewaya i workera, sprzątanie lokalnych gałęzi po merge
 i archiwizacji, ponowne wykorzystanie checkoutu terminu harmonogramu po wznowieniu Threads,
 wstrzymanie sprzątania worktree przy wyłączonym module Threads, zapis wątku przed utworzeniem worktree
 i powrót do przygotowania z listy wątków w web/desktop, natychmiastowy widok przygotowania
@@ -676,7 +677,7 @@ pokazuje pełną ścieżkę i osobny picker gałęzi opisany wyżej; „Manage w
   wszystkie commity patch-equivalent (`git cherry`, bez pomijania własnych merge commitów) albo cały
   diff merge-base → HEAD zawarty w bazie. Ostatni wariant sprawdza odwrócenie patcha w osobnym indeksie,
   bez zmiany checkoutu i indeksu użytkownika; obsługuje wielocommitowy squash. Częściowo scalona gałąź
-  zostaje. GitHub: gateway odczytuje zamknięte PR-y przez konto właściciela z grantem workera i uznaje
+  zostaje. GitHub: gateway odczytuje zamknięte PR-y przez konto właściciela z dostępem do projektu worktree i uznaje
   tylko PR z `merged = true`, tym samym repo, gałęzią i dokładnym HEAD. Worker dostaje wyłącznie
   owner/repo i potwierdzony SHA, ponownie sprawdza je przed usunięciem; żadnych poświadczeń.
   Błąd konektora zostawia niezależny wynik gita; błąd fetch blokuje usunięcie. Commity potwierdzone
@@ -823,6 +824,6 @@ Kontrolki opcji automatyzacji w UI mogą zostać dodane osobno; edytor harmonogr
   zmiana ustawień przed wykonaniem, offline/reconnect, sprzątanie i odrzucenie cudzego projektu.
 - `worktree-merged.test.ts`: wielocommitowy squash, rebase/cherry-pick i częściowe scalenie;
   status i bezpieczne sprzątanie po fetch.
-- `worktree-github.test.ts`: prawdziwy transport MCP do zaślepki GitHub, grant workera i właściciel,
+- `worktree-github.test.ts`: prawdziwy transport MCP do zaślepki GitHub, grant projektu i właściciel,
   closed bez merged, nieaktualny SHA i usunięcie po potwierdzeniu PR bez sekretów na workerze.
 - Migracja `0068` aktualizuje triggery miejsca wątku; test schematu sprawdza listę i idempotencję migracji.

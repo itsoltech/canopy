@@ -9,9 +9,17 @@ import { connectorType } from "./catalog.ts";
 import { connectorSessionState } from "./session-state.ts";
 import { linkedMessengerActive } from "../messengers/linked-account.ts";
 import { connectorToolCatalog } from "./slack-post-tool.ts";
+import { projectIds } from "../config-sync/project-aliases.ts";
+import { canonicalGrant, projectConnectorAccess } from "./project-access.ts";
 
 /** Read no credential-bearing columns, including when the account is disconnected. */
-export function threadConnectorList(sql: SqlClient.SqlClient, user: string, worker: string, threadId: string) {
+export function threadConnectorList(
+  sql: SqlClient.SqlClient,
+  user: string,
+  worker: string,
+  project: string,
+  threadId: string,
+) {
   return sql<{
     id: string;
     connector_type: string;
@@ -19,16 +27,18 @@ export function threadConnectorList(sql: SqlClient.SqlClient, user: string, work
     name: string;
     namespace: string;
     status: string;
-    all_workers: boolean;
+    all_projects: boolean;
     revision: string;
     granted: boolean;
     slack_post: boolean;
     slack_download: boolean;
     tools: JsonValue[];
   }>`
-    SELECT c.id,c.connector_type,c.auth_kind,c.name,c.namespace,c.status,c.all_workers,c.revision::text,c.tools,
-      c.all_workers OR EXISTS(SELECT 1 FROM connector_worker_grants g
-        WHERE g.account_id=c.id AND g.worker_id=${worker || null}::uuid) AS granted,
+    SELECT c.id,c.connector_type,c.auth_kind,c.name,c.namespace,c.status,c.all_projects,c.revision::text,c.tools,
+      ${projectConnectorAccess(sql, user, worker ? project : null, {
+        id: sql`c.id`,
+        allProjects: sql`c.all_projects`,
+      })} AS granted,
       c.connector_type='slack' AND EXISTS(SELECT 1 FROM messenger_accounts a
         WHERE a.connector_account_id=c.id AND a.owner_user_id=c.owner_user_id AND a.enabled AND a.deleted_at IS NULL
           AND ${linkedMessengerActive(sql)}) AS slack_post,
@@ -46,7 +56,7 @@ export function threadConnectorList(sql: SqlClient.SqlClient, user: string, work
             accountLabel: row.name,
             status: row.status,
             granted: row.granted,
-            allWorkers: row.all_workers,
+            allProjects: row.all_projects,
             revision: BigInt(row.revision),
           }),
         ),
@@ -65,35 +75,41 @@ export function threadConnectorList(sql: SqlClient.SqlClient, user: string, work
   );
 }
 
-/** Change only this thread's worker grant, under the same account lock as account-wide edits. */
+/** Edit the thread's project grant under the same account lock as account-wide edits. */
 export function threadConnectorGrant(sql: SqlClient.SqlClient, base: ConnectorBase, key: Buffer) {
   return (user: string, request: ui.SetThreadConnectorGrantRequest) =>
     connectorTransaction(
       sql,
       key,
       Effect.gen(function* () {
-        const threads = yield* sql<{ worker_id: string }>`SELECT t.worker_id FROM threads t
-        JOIN workers w ON w.id=t.worker_id WHERE t.id=${request.threadId}::uuid
+        if (!request.projectScope) return yield* fail("Update Canopy to change project access");
+
+        const threads = yield* sql<{
+          worker_id: string;
+          project_id: string;
+        }>`SELECT t.worker_id,t.project_id FROM threads t
+        JOIN projects p ON p.id=t.project_id AND p.owner_user_id=t.owner_user_id WHERE t.id=${request.threadId}::uuid
         AND t.owner_user_id=${user}::uuid AND t.deleted_at IS NULL AND t.archived_at IS NULL
-        AND (w.owner_user_id=${user}::uuid OR w.owner_user_id IS NULL)
-        AND w.archived_at IS NULL AND w.revoked_at IS NULL FOR SHARE OF t,w`;
+        AND t.runtime='worker' AND p.kind='project' AND p.archived_at IS NULL AND NOT p.config_deleted FOR SHARE OF t,p`;
 
         const thread = threads[0];
 
-        if (!thread) return yield* fail("Thread or worker not found");
+        if (!thread) return yield* fail("Choose a thread in an active project");
         const account = yield* base.owned(user, request.accountId, true);
 
         if (BigInt(account.revision) !== request.expectedRevision)
           return yield* fail("Connector changed; reload and try again");
 
-        if (account.all_workers) return yield* fail("Manage access for all workers on the home computer");
+        if (account.all_projects) return yield* fail("Change access for all projects in Settings → Connectors");
+        const ids = yield* projectIds(sql, user);
+        const project = ids.toGlobal(thread.project_id);
 
         if (request.granted)
-          yield* sql`INSERT INTO connector_worker_grants(account_id,worker_id)
-          VALUES(${account.id}::uuid,${thread.worker_id}::uuid) ON CONFLICT DO NOTHING`;
+          yield* sql`INSERT INTO connector_project_grants(account_id,project_id)
+          VALUES(${account.id}::uuid,${project}::uuid) ON CONFLICT DO NOTHING`;
         else
-          yield* sql`DELETE FROM connector_worker_grants WHERE account_id=${account.id}::uuid
-          AND worker_id=${thread.worker_id}::uuid`;
+          yield* sql`DELETE FROM connector_project_grants g WHERE account_id=${account.id}::uuid
+          AND ${canonicalGrant(sql, user, sql`g.project_id::text`)}=${project}`;
         yield* sql`UPDATE connector_accounts SET revision=revision+1,updated_at=now() WHERE id=${account.id}::uuid`;
         yield* base.audit(
           { userId: user, accountId: account.id, threadId: request.threadId, workerId: thread.worker_id },

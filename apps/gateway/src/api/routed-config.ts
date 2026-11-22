@@ -82,6 +82,7 @@ export class ConfigIds {
         local: new Set<string>(),
         toGlobal: (id: string) => id,
         toLocal: (id: string) => id,
+        canonical: (id: string) => id,
       };
     this.#projects ??= store.runtime.runPromise(
       Effect.flatMap(SqlClient.SqlClient, (sql) => projectIds(sql, store.owner)),

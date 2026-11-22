@@ -3,7 +3,8 @@
 Status (2026-11-22): web i desktop udostępniają Settings → Memory do przeglądania
 i edycji notatek agentów i botów, z wyszukiwaniem, filtrami i datą utworzenia.
 Web, desktop i mobile obsługują usypianie wątków oraz załączniki
-do 40 MiB na plik po zmianie ustawienia.
+do 40 MiB na plik po zmianie ustawienia. Dostęp wątków do konektorów wynika
+z grantów projektów.
 Pasek wątków w web i desktop ma osobne przyciski sortowania i filtrowania po projektach.
 Web i desktop pokazują automatyczne powitanie tylko po potwierdzeniu przez gateway,
 że działa w wersji pierwszego uruchomienia nowej instalacji. [Onboarding](onboarding.md)
@@ -517,8 +518,8 @@ historii przed wysłaniem. Zasada domu dla zdalnych celów: [linked-computers.md
 
 Panel wątku ma własny odczyt `GetThreadPanel(GetThreadRequest)` w zakresie
 właściciela. Zwraca `ThreadPanel`: bezpieczne metadane connectorów i grantów
-workera oraz harmonogramy domu. `SetThreadConnectorGrant` zmienia pojedynczy
-grant workera z kontrolą rewizji i zwraca odświeżony panel. BFF udostępnia je
+projektu oraz harmonogramy domu. `SetThreadConnectorGrant` z `project_scope`
+zmienia pojedynczy grant projektu z kontrolą rewizji i zwraca odświeżony panel. BFF udostępnia je
 jako `GET/PUT /api/threads/:id/panel`; mobile używa tych samych RPC bezpośrednio.
 Połączone gatewaye negocjują `remote_thread_panel_v1`; cache odpowiedzi po utracie
 domu oznaczamy `stale`, a brak ostatniej odpowiedzi także `unavailable`.
@@ -1053,6 +1054,9 @@ Szczegóły: [worktrees.md](worktrees.md#przełączanie-gałęzi-z-podsumowania)
 
 `connectors.proto` i osiem RPC `GatewayService` obsługują katalog, nazwane konta,
 granty, test, disconnect, aplikacje OAuth oraz begin/complete autoryzacji.
+`SetConnectorAccess` przyjmuje `all_projects` i `project_ids`, a brak obu pól
+pozostawia dostęp projektów podczas edycji botów. DTO kont i panelu wątku
+sygnalizują obsługę grantów projektów przez obecność pola `all_projects`.
 Publiczne DTO nie zwracają poświadczeń. BFF `/api/connectors/**` wiąże sesję OAuth
 prywatnym cookie w webie, a w desktopie sekretem procesu BFF, i przekazuje callback
 do gateway. Wynik callbacku jest jawny
@@ -1220,16 +1224,15 @@ i `ManageSharedConfig` zwracają Unimplemented, a `PushSharedConfig` nie jest ob
 Od etapu 6 workery mają rekordy, które zapisuje wyłącznie ich dom. `ListWorkerRecords`
 (`GET /api/workers/records`) zwraca kopie rekordów workerów innych komputerów grupy konfiguracji:
 kwalifikowane `worker_id`, nazwę komputera, tagi, nadpisanie częstotliwości CLI, stan instancji
-(`key_set` bez wartości), dostęp connectorów, workspace'y i ustawienia worktree, z lokalnymi id
+(`key_set` bez wartości), workspace'y i ustawienia worktree, z lokalnymi id
 elementów wspólnych. `read_only_reason` jest pusty, gdy edycja dociera do domu; inaczej zawiera powód
 z obecności. `OverviewUpdate.worker_records_changed` (822) oznacza nową kopię. `RenameWorker`,
 `SetInstanceWorker`, `SetWorkerCliUpdateSettings`, `SetEnvironmentTags`, `Get`/`UpdateWorktreeSettings`,
-`SetConnectorAccess`, `RefreshProviders`, `InstallCli`, `CheckCliUpdates` i `StartProviderLogin`
-z kwalifikowanym workerem trafiają do domu. `SetInstanceWorkers` i `SetConnectorAccess` z workerami
-kilku komputerów gateway rozdziela, a `ListConnectors` pokazuje granty workerów innych komputerów
-z ich rekordów. [Rekordy workerów i edycja zdalna](linked-computers.md#rekordy-workerów-i-edycja-zdalna).
+`RefreshProviders`, `InstallCli`, `CheckCliUpdates` i `StartProviderLogin`
+z kwalifikowanym workerem trafiają do domu. `SetInstanceWorkers` z workerami kilku komputerów
+gateway rozdziela. Dostęp connectorów synchronizuje się w rekordach kont zamiast rekordów workerów. [Rekordy workerów i edycja zdalna](linked-computers.md#rekordy-workerów-i-edycja-zdalna).
 
-Etap 7 uzupełnia te listy w Providers, Agent environment, Worktrees i Connectors, z grupami komputerów
+Etap 7 uzupełnia te listy w Providers, Agent environment i Worktrees, z grupami komputerów
 i blokadą zmian dla `read_only_reason`. `GetInstanceWorker` (POST `/api/workers/:id/instance`) zwraca
 stan i nadpisania jednej instancji bez sekretów oraz runtime odziedziczony w domu. `proxy_id` wspólnego
 proxy przechodzi przez aliasy; id proxy `worker_scoped` nie wraca do wywołującego.

@@ -7,7 +7,7 @@ import { SqlClient } from "effect/sql";
 import { instanceIds } from "../config-sync/aliases.ts";
 import type { ConfigRow } from "../config-sync/persistence.ts";
 import { projectIds } from "../config-sync/project-aliases.ts";
-import { globalIds, WORKER_KIND } from "../config-sync/worker-records.ts";
+import { WORKER_KIND } from "../config-sync/worker-records.ts";
 import type { GatewayCore } from "../core/core.ts";
 import { providerOf } from "../store/instance-config.ts";
 import { storedSettings } from "../worktrees/settings.ts";
@@ -74,7 +74,6 @@ export async function listWorkerRecords(core: GatewayCore): Promise<ui.ListWorke
       Effect.all({
         instances: instanceIds(sql, store.owner),
         projects: projectIds(sql, store.owner),
-        connectors: globalIds(sql, store.owner, "connector"),
       }),
     ),
   );
@@ -141,7 +140,6 @@ export async function listWorkerRecords(core: GatewayCore): Promise<ui.ListWorke
             ]
           : [];
       }),
-      connectorAccountIds: list("connectors").map(ids.connectors.toLocal),
       workspaces: (() => {
         const value = valueOf(row, "workspaces");
 

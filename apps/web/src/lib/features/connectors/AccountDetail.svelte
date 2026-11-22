@@ -32,7 +32,8 @@
     account,
     oauthCompletion,
     type,
-    workers,
+    projects,
+    projectsLoaded,
     bots,
     onupdate,
     onremove,
@@ -41,7 +42,8 @@
     account: connectors.ConnectorAccount;
     oauthCompletion?: connectors.CompleteConnectorOAuthResponse | undefined;
     type: connectors.ConnectorType;
-    workers: readonly AccessOption[];
+    projects: readonly AccessOption[];
+    projectsLoaded: boolean;
     bots: readonly AccessOption[];
     onupdate: (account: connectors.ConnectorAccount, alreadyConnected?: boolean) => void;
     onremove: (id: string) => void;
@@ -52,17 +54,7 @@
   let name = $state(untrack(() => account.name));
 
   /** The access being saved; the pickers show it until the account comes back. */
-  let pending = $state<{ allWorkers: boolean; workerIds: string[]; allBots: boolean; botIds: string[] }>();
-  let savingGroup = $state<"workers" | "bots">();
-
-  const access = $derived(
-    pending ?? {
-      allWorkers: account.allWorkers,
-      workerIds: [...account.workerIds],
-      allBots: account.allBots,
-      botIds: [...account.botIds],
-    },
-  );
+  let pending = $state<{ group: "projects" | "bots"; choice: AccessChoice }>();
 
   let busy = $state("");
   let error = $state("");
@@ -88,7 +80,26 @@
   function actionBody(action: string): JsonObject {
     const expectedRevision = account.revision.toString();
 
-    if (action === "access" && pending) return { ...pending, expectedRevision };
+    if (action === "access" && pending) {
+      const { group, choice } = pending;
+
+      if (group === "projects")
+        return {
+          allProjects: choice.all,
+          projectIds: [...choice.ids],
+          allBots: account.allBots,
+          botIds: [...account.botIds],
+          expectedRevision,
+        };
+
+      return {
+        // A bot-only edit on an older gateway must carry its existing worker access.
+        ...(account.allProjects === undefined && { allWorkers: account.allWorkers, workerIds: [...account.workerIds] }),
+        allBots: choice.all,
+        botIds: [...choice.ids],
+        expectedRevision,
+      };
+    }
 
     if (action === "rename") return { id: account.id, name, expectedRevision };
 
@@ -137,18 +148,13 @@
     } finally {
       busy = "";
       pending = undefined;
-      savingGroup = undefined;
     }
   }
 
   /** Access saves as soon as a picker closes with a change, like the other switches in Settings. */
-  function saveAccess(group: "workers" | "bots", next: AccessChoice) {
-    const shown = access;
-    savingGroup = group;
-    pending =
-      group === "workers"
-        ? { ...shown, allWorkers: next.all, workerIds: [...next.ids] }
-        : { ...shown, allBots: next.all, botIds: [...next.ids] };
+  function saveAccess(group: "projects" | "bots", choice: AccessChoice) {
+    if (busy || (group === "projects" && account.allProjects === undefined)) return;
+    pending = { group, choice };
     void run("access");
   }
 </script>
@@ -194,30 +200,30 @@
     <div transition:expand={{ instantReduced: true }}>
       <div class="grid gap-3 border-t border-zinc-950/5 p-3 dark:border-white/8">
         {#if settings.moduleEnabled("threads")}
-          <p class="text-base/6 text-zinc-500 sm:text-sm/6 dark:text-zinc-400">
-            Selecting a worker gives all its threads access to this account. Each thread still follows its permission
-            mode.
-            {#if settings.moduleEnabled("bots")}Set bot access separately under Bots.{/if}
-          </p>
-          <AccessPicker
-            label="Workers"
-            icon="computer-desktop"
-            options={workers}
-            all={access.allWorkers}
-            ids={access.workerIds}
-            saving={savingGroup === "workers"}
-            disabled={!!busy}
-            onchange={(next) => saveAccess("workers", next)}
-          />
+          {#if account.allProjects === undefined}
+            <p class="text-sm/5 text-zinc-500 dark:text-zinc-400">Update the gateway to manage project access.</p>
+          {:else}
+            <AccessPicker
+              label="Projects"
+              description="Each thread in a selected project can use this account within its permission mode."
+              icon="folder"
+              options={projects}
+              all={pending?.group === "projects" ? pending.choice.all : account.allProjects}
+              ids={pending?.group === "projects" ? pending.choice.ids : account.projectIds}
+              saving={pending?.group === "projects"}
+              disabled={!!busy || !projectsLoaded}
+              onchange={(next) => saveAccess("projects", next)}
+            />
+          {/if}
         {/if}
         {#if settings.moduleEnabled("bots")}
           <AccessPicker
             label="Bots"
             icon="chat-bubble-left-right"
             options={bots}
-            all={access.allBots}
-            ids={access.botIds}
-            saving={savingGroup === "bots"}
+            all={pending?.group === "bots" ? pending.choice.all : account.allBots}
+            ids={pending?.group === "bots" ? pending.choice.ids : account.botIds}
+            saving={pending?.group === "bots"}
             disabled={!!busy || !botList.loaded || Boolean(botList.error)}
             onchange={(next) => saveAccess("bots", next)}
           />
@@ -292,8 +298,8 @@
   bind:open={deleting}
   title="Delete {type.name} · {account.name}?"
   description={type.id === "slack"
-    ? "This removes the account from computers sharing configuration. Workers and bots lose tool access. Message reception stops and route history stays saved. A linked computer can restore the account for 90 days."
-    : "This removes the account from computers sharing configuration. Workers and bots lose access. A linked computer can restore it for 90 days."}
+    ? "This removes the account from computers sharing configuration. Threads and bots lose tool access. Message reception stops and route history stays saved. A linked computer can restore the account for 90 days."
+    : "This removes the account from computers sharing configuration. Threads and bots lose access. A linked computer can restore it for 90 days."}
   dismissible={!busy}
 >
   <DialogActions

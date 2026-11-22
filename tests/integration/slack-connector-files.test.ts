@@ -56,7 +56,7 @@ describe.skipIf(!dockerAvailable)("Slack connector attachments through the gatew
     mcp.close();
   });
 
-  test("a granted bot imports a forwardable image, and a read-only thread can download it under its own grant", async () => {
+  test("a granted bot imports a forwardable image, and a read-only thread can download it with project access", async () => {
     const { api, core, userId } = f.gw;
     const bot = await f.add(Provider.CODEX, f.workerId, "full_auto");
     await api.saveConnectorOAuthApp({
@@ -87,7 +87,7 @@ describe.skipIf(!dockerAvailable)("Slack connector attachments through the gatew
 
     expect(connected.error).toBe("");
 
-    const findTool = async (scope: { workerId?: string; botId?: string }) =>
+    const findTool = async (scope: { projectId: string; workerId: string } | { botId: string }) =>
       (await core.connectors.tools(userId, scope)).find((tool) => tool.remoteName === SLACK_DOWNLOAD_ACTION);
 
     expect(await findTool({ botId: bot.id })).toBeUndefined();
@@ -100,7 +100,9 @@ describe.skipIf(!dockerAvailable)("Slack connector attachments through the gatew
 
     const tool = (await findTool({ botId: bot.id }))!;
     expect(tool.readOnly).toBe(true);
-    expect(await findTool({ workerId: f.workerId })).toBeUndefined();
+    const thread = await f.thread(Provider.CODEX);
+    const projectScope = { projectId: thread.projectId, workerId: f.workerId };
+    expect(await findTool(projectScope)).toBeUndefined();
 
     await f.tool(bot.id, tool.name, { file_id: slackFileId });
     await f.settled(bot.id);
@@ -114,7 +116,6 @@ describe.skipIf(!dockerAvailable)("Slack connector attachments through the gatew
     expect(imported[0]?.name).toBe("screen.png");
     expect(infoReads).toBe(1);
 
-    const thread = await f.thread(Provider.CODEX);
     await f.tool(bot.id, "send_message", {
       thread_id: thread.id,
       text: "Inspect it",
@@ -136,14 +137,14 @@ describe.skipIf(!dockerAvailable)("Slack connector attachments through the gatew
 
     expect(forwarded?.subarray(1, 4).toString()).toBe("PNG");
 
-    const threadGrant = await api.setConnectorAccess({
+    const projectGrant = await api.setConnectorAccess({
       accountId: account.id,
       expectedRevision: granted.account!.revision,
       botIds: [bot.id],
-      workerIds: [f.workerId],
+      projectIds: [thread.projectId],
     });
 
-    expect((await findTool({ workerId: f.workerId }))?.name).toBe(tool.name);
+    expect((await findTool(projectScope))?.name).toBe(tool.name);
 
     const turn = await api.sendMessage({
       threadId: thread.id,
@@ -189,7 +190,8 @@ describe.skipIf(!dockerAvailable)("Slack connector attachments through the gatew
       await fetching.promise;
       await api.setConnectorAccess({
         accountId: account.id,
-        expectedRevision: threadGrant.account!.revision,
+        expectedRevision: projectGrant.account!.revision,
+        allProjects: false,
         botIds: [bot.id],
       });
     } finally {

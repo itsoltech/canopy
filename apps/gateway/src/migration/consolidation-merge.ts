@@ -155,7 +155,8 @@ function rewriteScope(
       if (column !== undefined) maps.set(column, key.target);
     }
 
-    if (table.name === "worktree_settings") maps.set("project_id", "projects");
+    if (table.name === "worktree_settings" || table.name === "connector_project_grants")
+      maps.set("project_id", "projects");
 
     for (const [field, from] of maps) {
       const col = ident(field);
@@ -221,7 +222,7 @@ export function checkTableReferences(sql: Database, tables: readonly SelectedTab
         [name],
       );
 
-      if (name !== "blobs" && name !== "agent_memory_scopes" && !table.sequence)
+      if (name !== "blobs" && name !== "agent_memory_scopes" && name !== "connector_project_grants" && !table.sequence)
         blockers.push(...collisions.map(({ key }) => ({ table: name, key, reason: "target_row_identity_collision" })));
 
       for (const foreign of table.foreignKeys) {

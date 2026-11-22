@@ -1567,13 +1567,14 @@ message ThreadConnector {
   string account_label = 3;
   string status = 4;
   bool granted = 5;
-  // Access inherited from All workers is managed in the home's account settings.
-  bool all_workers = 6;
+  bool all_workers = 6 [deprecated = true];
   uint64 revision = 7;
   // Last provider attachment compared with the current authorized catalog.
   string session_state = 8; // available | pending | pending_removal | failed | unavailable
   string session_detail = 9;
   bool session_attached = 10;
+  // Presence indicates that access is scoped to the thread's project.
+  optional bool all_projects = 11;
 }
 message ThreadPanel {
   repeated ThreadConnector connectors = 1;
@@ -1586,6 +1587,8 @@ message SetThreadConnectorGrantRequest {
   string account_id = 2;
   bool granted = 3;
   uint64 expected_revision = 4;
+  // Prevents older clients from editing a project's access as if it were a worker grant.
+  bool project_scope = 5;
 }
 
 message ThreadSnapshot {

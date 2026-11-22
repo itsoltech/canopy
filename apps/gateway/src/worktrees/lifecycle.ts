@@ -16,14 +16,13 @@ import { githubCleanupProof } from "../github/cleanup-proof.ts";
 
 export const mergedProof = async (
   core: GatewayCore,
-  owner: string,
-  worker: string,
+  row: Pick<WorktreeLifecycleRow, "owner_user_id" | "project_id" | "worker_id">,
   repository: string,
   branch: string,
   head: string,
 ) =>
-  (await githubCleanupProof(core.github, owner, worker, repository, branch, head)) ||
-  core.connectors.worktreeMerged(owner, worker, repository, branch, head);
+  (await githubCleanupProof(core.github, row.owner_user_id, row.project_id, repository, branch, head)) ||
+  core.connectors.worktreeMerged(row.owner_user_id, row.project_id, row.worker_id, repository, branch, head);
 
 export function worktreeTarget(
   row: WorktreeLifecycleRow,
@@ -174,14 +173,7 @@ export async function scanEntry(core: GatewayCore, row: WorktreeLifecycleRow, fe
       entry.status &&
       !entry.detail &&
       !entry.status.merged &&
-      (await mergedProof(
-        core,
-        row.owner_user_id,
-        row.worker_id,
-        entry.status.githubRepository,
-        entry.status.branch,
-        entry.status.headCommit,
-      ))
+      (await mergedProof(core, row, entry.status.githubRepository, entry.status.branch, entry.status.headCommit))
     ) {
       entry.status.merged = true;
       entry.status.unpushed = false;
@@ -235,14 +227,7 @@ export async function removeEntry(
 
   const confirmedPr =
     status.githubRepository &&
-    (await mergedProof(
-      core,
-      row.owner_user_id,
-      row.worker_id,
-      status.githubRepository,
-      status.branch,
-      status.headCommit,
-    ));
+    (await mergedProof(core, row, status.githubRepository, status.branch, status.headCommit));
 
   const trackBranch = Boolean(
     settings.deleteLocalBranch &&

@@ -1,13 +1,11 @@
 import { create, type DescMethod, type Message } from "@bufbuild/protobuf";
-import { connectors, ui } from "@canopy/contracts";
+import { ui } from "@canopy/contracts";
 import { qualifyId, splitId } from "@canopy/domain/computers";
 import type { HandlerContext } from "@connectrpc/connect";
 import { Effect, Option, Schema } from "effect";
 import { SqlClient } from "effect/sql";
 import { methodNamed } from "../computers/remote.ts";
 import { instanceIds } from "../config-sync/aliases.ts";
-import type { ConfigRow } from "../config-sync/persistence.ts";
-import { globalIds } from "../config-sync/worker-records.ts";
 import type { GatewayCore } from "../core/core.ts";
 import { harnessOf } from "../store/instance-config.ts";
 import { single } from "./routed-context.ts";
@@ -47,94 +45,10 @@ async function deliver(core: GatewayCore, method: DescMethod, changes: readonly 
   };
 }
 
-function shared(core: GatewayCore) {
+function sharedInstances(core: GatewayCore) {
   const store = core.computers!.store;
 
-  return store.runtime.runPromise(
-    Effect.flatMap(SqlClient.SqlClient, (sql) =>
-      Effect.all({ connectors: globalIds(sql, store.owner, "connector"), instances: instanceIds(sql, store.owner) }),
-    ),
-  );
-}
-
-const granted = (row: ConfigRow, account: string) => {
-  const value = row.fields["connectors"]?.value;
-
-  return Array.isArray(value) && value.includes(account);
-};
-
-export async function setConnectorAccess(
-  core: GatewayCore,
-  local: UiHandlers,
-  request: connectors.SetConnectorAccessRequest,
-  context: HandlerContext,
-): Promise<connectors.ConnectorAccountResponse> {
-  if (!core.computers?.config)
-    return create(connectors.ConnectorAccountResponseSchema, await local.setConnectorAccess(request, context));
-  const ids = await shared(core);
-  const account = ids.connectors.toGlobal(request.accountId);
-  const wanted = new Set(request.workerIds.filter((id) => splitId(id).node));
-  const homes = new Map<string, string[]>();
-
-  for (const row of await workerRecordRows(core)) {
-    const id = qualifyId(row.global_id, row.home_node_id);
-
-    if (granted(row, account) !== wanted.has(id)) homes.set(row.home_node_id, []);
-  }
-
-  for (const id of wanted) homes.set(await homeOf(core, id), []);
-
-  for (const id of wanted) homes.get(await homeOf(core, id))!.push(splitId(id).id);
-  const method = methodNamed("SetConnectorAccess")!;
-
-  const send = await deliver(
-    core,
-    method,
-    [...homes].map(([node, workerIds]) => ({
-      node,
-      request: create(connectors.SetConnectorAccessRequestSchema, { accountId: account, workerIds }),
-      workers: workerIds,
-    })),
-    context.signal,
-  );
-
-  const own = request.workerIds.filter((id) => !splitId(id).node);
-
-  const response = create(
-    connectors.ConnectorAccountResponseSchema,
-    await local.setConnectorAccess(
-      create(connectors.SetConnectorAccessRequestSchema, { ...request, workerIds: own }),
-      context,
-    ),
-  );
-
-  await send();
-  response.account?.workerIds.push(...wanted);
-
-  return response;
-}
-
-/** Accounts list every computer's workers with access, from the homes' records. */
-export async function listConnectors(
-  core: GatewayCore,
-  local: UiHandlers,
-  request: connectors.ListConnectorsRequest,
-  context: HandlerContext,
-): Promise<connectors.ListConnectorsResponse> {
-  const response = create(connectors.ListConnectorsResponseSchema, await local.listConnectors(request, context));
-  const rows = await workerRecordRows(core);
-
-  if (!rows.length) return response;
-  const ids = await shared(core);
-
-  for (const account of response.accounts) {
-    const global = ids.connectors.toGlobal(account.id);
-
-    for (const row of rows)
-      if (granted(row, global)) account.workerIds.push(qualifyId(row.global_id, row.home_node_id));
-  }
-
-  return response;
+  return store.runtime.runPromise(Effect.flatMap(SqlClient.SqlClient, (sql) => instanceIds(sql, store.owner)));
 }
 
 export async function setInstanceWorkers(
@@ -147,9 +61,9 @@ export async function setInstanceWorkers(
 
   if (!core.computers?.config || !harness)
     return create(ui.SetInstanceWorkersResponseSchema, await local.setInstanceWorkers(request, context));
-  const ids = await shared(core);
+  const ids = await sharedInstances(core);
   const before = (await core.listProviderInstances()).find((i) => i.harness === request.harness && i.id === request.id);
-  const key = `${harness}:${ids.instances.toGlobal(harness, request.id)}`;
+  const key = `${harness}:${ids.toGlobal(harness, request.id)}`;
   const wanted = new Set(request.workerIds.filter((id) => splitId(id).node));
   const changes: Change[] = [];
 
@@ -158,7 +72,7 @@ export async function setInstanceWorkers(
       node,
       request: create(ui.SetInstanceWorkerRequestSchema, {
         harness: request.harness,
-        id: ids.instances.toGlobal(harness, request.id),
+        id: ids.toGlobal(harness, request.id),
         workerId,
         enabled,
       }),
@@ -194,10 +108,7 @@ export async function setInstanceWorkers(
 /** The routed handlers that split access lists by home; this computer's records follow its own part. */
 export function splitOverrides(core: GatewayCore, local: UiHandlers): Partial<UiHandlers> {
   return {
-    setConnectorAccess: (request, context) =>
-      settled(core, undefined, setConnectorAccess(core, local, request, context)),
     setInstanceWorkers: (request, context) =>
       settled(core, undefined, setInstanceWorkers(core, local, request, context)),
-    listConnectors: (request, context) => listConnectors(core, local, request, context),
   };
 }
