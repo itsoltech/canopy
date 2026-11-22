@@ -23,7 +23,7 @@ import { SearchField } from "../../ui/SearchField";
 import { BotListItem } from "../bots/BotListItem";
 import { SettingsThreadList } from "./SettingsThreadList";
 import { useSidebarThreads } from "./useSidebarThreads";
-import { SidebarOptions } from "./SidebarOptions";
+import { SidebarProjectFilter, SidebarSort } from "./SidebarThreadPickers";
 import { CreateBot } from "../bots/CreateBot";
 import { useDevicePreferences } from "../settings/device-preferences";
 import { SidebarBrand, SidebarReleaseArt } from "./SidebarBrand";
@@ -34,7 +34,7 @@ function useSidebarState() {
   const { selectedModule: section, selectModule: setSection } = useLayout();
   const { modules } = useAppearance();
   const [queries, setQueries] = useState({ threads: "", bots: "" });
-  const [filterOpen, setFilterOpen] = useState(false);
+  const [threadPicker, setThreadPicker] = useState<"sort" | "filter" | null>(null);
   const navigation = useSidebarThreads(queries.threads);
   const selectedProjectId = navigation.settings.projectIds[0];
 
@@ -63,8 +63,8 @@ function useSidebarState() {
     bots,
     botError,
     botsLoaded,
-    filterOpen,
-    setFilterOpen,
+    threadPicker,
+    setThreadPicker,
     projectId,
     setProjectId,
     query,
@@ -75,11 +75,14 @@ function useSidebarState() {
 function SidebarHeader({ state }: { state: ReturnType<typeof useSidebarState> }) {
   const c = useColors();
   const [creating, setCreating] = useState(false);
-  const { section, setSection, queries, setQueries, setFilterOpen, projectId, navigation, bots } = state;
+  const { section, setSection, queries, setQueries, setThreadPicker, projectId, navigation, bots } = state;
   const unread = bots.reduce((sum, bot) => sum + (bot.archived ? 0 : bot.unreadCount), 0);
-  // The project filter is named in words, not only by the tinted funnel.
   const filtered = section === "threads" ? navigation.choices.find((p) => p.id === projectId) : undefined;
   const searchLabel = filtered ? `Search ${filtered.name} threads` : `Search ${section}`;
+
+  const filterLabel = projectId
+    ? `Filter by project, ${filtered ? `${filtered.name} selected` : "active"}`
+    : "Filter by project";
 
   return (
     <>
@@ -118,17 +121,22 @@ function SidebarHeader({ state }: { state: ReturnType<typeof useSidebarState> })
         <SearchField
           bare
           label={searchLabel}
+          placeholder={section === "threads" ? "Search" : undefined}
           value={queries[section]}
           onChange={(value) => setQueries({ ...queries, [section]: value })}
           style={{ flex: 1 }}
         />
         {section === "threads" && (
-          <IconButton
-            icon="bars-3"
-            label={projectId ? "Thread options, filtered" : "Thread options"}
-            color={projectId ? c.accent : undefined}
-            onPress={() => setFilterOpen(true)}
-          />
+          <>
+            <IconButton icon="sort-descending" label="Sort threads" onPress={() => setThreadPicker("sort")} />
+            <IconButton
+              icon="funnel"
+              label={filterLabel}
+              variant={projectId ? "secondary" : "ghost"}
+              color={projectId ? c.accent : undefined}
+              onPress={() => setThreadPicker("filter")}
+            />
+          </>
         )}
       </View>
     </>
@@ -289,7 +297,7 @@ function BotList({ state }: { state: ReturnType<typeof useSidebarState> }) {
 export function AppSidebar() {
   const c = useColors();
   const state = useSidebarState();
-  const { ready, session, workers, stream, filterOpen, setFilterOpen, navigation, projectId } = state;
+  const { ready, session, workers, stream, threadPicker, setThreadPicker, navigation, projectId } = state;
 
   if (!ready) return <ListSkeleton />;
 
@@ -314,12 +322,15 @@ export function AppSidebar() {
     >
       <SidebarLists state={state} />
       {state.section === "threads" && (
-        <SidebarOptions
-          navigation={navigation}
-          projectId={projectId}
-          visible={filterOpen}
-          onClose={() => setFilterOpen(false)}
-        />
+        <>
+          <SidebarSort visible={threadPicker === "sort"} onClose={() => setThreadPicker(null)} />
+          <SidebarProjectFilter
+            navigation={navigation}
+            projectId={projectId}
+            visible={threadPicker === "filter"}
+            onClose={() => setThreadPicker(null)}
+          />
+        </>
       )}
     </ScreenFrame>
   );
