@@ -27,6 +27,12 @@ import { styles, useColors } from "../../ui/theme";
 
 const SIDEBAR_WIDTH = 256;
 
+const mobileSettingsSections = settingsSections.map((section) =>
+  section.href === "/settings/general"
+    ? { ...section, keywords: `${section.keywords} privacy analytics telemetry usage ping` }
+    : section,
+);
+
 export function SettingsLayout({
   section,
   onSelect,
@@ -46,7 +52,7 @@ export function SettingsLayout({
   const [capabilities, setCapabilities] = useState<ui.ClientCapabilities>();
   const [error, setError] = useState("");
   const [query, setQuery] = useState("");
-  const current = settingsSections.find((s) => s.href.endsWith(`/${section}`));
+  const current = mobileSettingsSections.find((s) => s.href.endsWith(`/${section}`));
 
   useEffect(() => {
     let active = true;
@@ -64,7 +70,7 @@ export function SettingsLayout({
     };
   }, [client]);
 
-  const sections = settingsSections.filter(
+  const sections = mobileSettingsSections.filter(
     (s) =>
       settingsSectionEnabled(s.href, modules) &&
       (capabilities?.linkedComputers || s.href !== "/settings/computers") &&

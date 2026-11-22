@@ -165,6 +165,10 @@ export type {
 } from "./desktop-migration.ts";
 
 export interface DesktopBridge {
+  usagePing?: {
+    enabled(): Promise<boolean>;
+    setEnabled(enabled: boolean): Promise<boolean>;
+  };
   gatewayMigration?: import("./desktop-migration.ts").DesktopMigrationBridge;
   /** Opens only the calling thread's automation preview on the current BFF. */
   openPreviewWindow?(path: string): Promise<void>;

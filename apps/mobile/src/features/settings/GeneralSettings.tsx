@@ -10,6 +10,7 @@ import { useDevicePreferences } from "./device-preferences";
 import { ResetSetting } from "./ResetSetting";
 import { ModuleSettings } from "./ModuleSettings";
 import { AppUpdateStatus } from "./AppUpdateStatus";
+import { UsagePingSettings } from "./UsagePingSettings";
 
 export function GeneralSettings() {
   const settings = useAppearance();
@@ -37,6 +38,7 @@ export function GeneralSettings() {
         onPress={() => device.reset(["inAppNotifications", "timeFormat"])}
       />
       <ModuleSettings />
+      <UsagePingSettings />
       <SettingsGroup title="Notifications" description="This device · Only while a Canopy window is open.">
         {settings.threadsEnabled && (
           <SettingChoice

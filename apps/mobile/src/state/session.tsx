@@ -140,6 +140,7 @@ function useSessionState() {
     reconnect: () => resetSession(client, () => setEpoch((n) => n + 1)),
     // A private tailnet gateway may be reachable even when public internet probes fail.
     online: network.isConnected !== false,
+    internetReachable: network.isInternetReachable === true,
     async pair(value: DeviceSession) {
       threadCreations?.dispose();
       await clearVisualCaches();

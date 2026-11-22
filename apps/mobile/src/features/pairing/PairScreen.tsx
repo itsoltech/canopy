@@ -11,9 +11,11 @@ import { readPairingQr } from "../../api/client";
 import { routedMobileClient } from "../../api/routes";
 import { pinnedTransport } from "../../api/pinned";
 import { useSession } from "../../state/session";
+import { useUsagePing } from "../../state/usage-ping";
 import { Button, Field, Notice } from "../../ui/components";
 import { styles, useColors } from "../../ui/theme";
 import { useScannerBack } from "./useScannerBack";
+import { UsagePingSettings } from "../settings/UsagePingSettings";
 
 function usePairing() {
   const { session, ready, pair, error: sessionError } = useSession();
@@ -147,6 +149,7 @@ function usePairing() {
 
 export default function PairScreen() {
   const c = useColors();
+  const { saving: savingUsagePing } = useUsagePing();
 
   const {
     session,
@@ -171,6 +174,7 @@ export default function PairScreen() {
   } = usePairing();
 
   if (session) return <Redirect href="/" />;
+  const canPair = gatewayUrl.trim() && fingerprint.trim() && code.trim() && name.trim();
 
   return (
     <ScreenFrame>
@@ -244,10 +248,11 @@ export default function PairScreen() {
               editable={!busy}
             />
             <Field label="Device name" value={name} onChangeText={setName} maxLength={100} editable={!busy} />
+            <UsagePingSettings disabled={busy} />
             <Button
               title="Pair this phone"
               onPress={() => void connect()}
-              disabled={!gatewayUrl.trim() || !fingerprint.trim() || !code.trim() || !name.trim()}
+              disabled={!canPair || savingUsagePing}
               busy={busy}
             />
             <Text style={[styles.meta, { color: c.muted }]}>

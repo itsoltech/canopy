@@ -16,10 +16,8 @@ import { Logs } from "./runtime/log.ts";
 import { controllerEntry, runtimePaths } from "./runtime/launch.ts";
 import { desktopIdentity, desktopUserData } from "./identity.ts";
 import { DesktopUpdates } from "./updates.ts";
-import { QuitGuard } from "./quit-guard.ts";
-import { systemQuitClock } from "./quit-machine.ts";
 import { quitKeyEvent } from "./quit-key-event.ts";
-import { registerQuitIpc } from "./quit-ipc.ts";
+import { createDesktopQuitGuard, registerQuitIpc } from "./quit-ipc.ts";
 import { QuitSettings } from "./quit-settings.ts";
 import { registerWindowPreferencesIpc } from "./window-chrome.ts";
 import { updateDesktopMenus } from "./desktop-menu.ts";
@@ -42,6 +40,7 @@ import { showShutdownWindow } from "./shutdown-window.ts";
 import { shutdownDesktop } from "./shutdown.ts";
 import { PreviewWindows } from "./preview-windows.ts";
 import { registerMigrationIpc } from "./migration-ipc.ts";
+import { DesktopUsagePing } from "./usage-ping.ts";
 
 const identity = desktopIdentity();
 
@@ -84,22 +83,12 @@ const logs = new Logs(join(app.getPath("userData"), "logs"));
 const startupFailed = startupFailure(logs, () => quitting);
 const history = desktopHistory();
 const quitSettings = new QuitSettings(app.getPath("userData"));
+const usagePing = new DesktopUsagePing(app.getPath("userData"));
 const quitLog = (decision: string) => logs.write("desktop", `quit-guard ${decision}`);
 const quitKey = quitKeyEvent(quitLog);
 
-const quitGuard = new QuitGuard(
-  quitSettings.read(),
-  {
-    clock: systemQuitClock,
-    shortcut: process.platform === "darwin" ? "⌘Q" : "Ctrl+Q",
-    repeatTiming: quitKey.timing,
-    quit: () => app.quit(),
-    log: quitLog,
-    emit: (state) => {
-      sendWindowsMessage([window, settingsWindow], (contents) => contents.send("canopy:quit-guard", state));
-    },
-  },
-  process.platform,
+const quitGuard = createDesktopQuitGuard(quitSettings.read(), quitKey.timing, quitLog, (state) =>
+  sendWindowsMessage([window, settingsWindow], (contents) => contents.send("canopy:quit-guard", state)),
 );
 
 const webSession = new DesktopWebSession(() => setupOrigin);
@@ -167,7 +156,7 @@ function showMain() {
 }
 
 function createWindow(main = false) {
-  return createDesktopWindow({
+  const target = createDesktopWindow({
     appRoutes,
     placement: main ? windowPlacement(app.getPath("userData"), windowSizeLimits) : undefined,
     productName: identity.displayName,
@@ -178,6 +167,14 @@ function createWindow(main = false) {
     setupOrigin: () => setupOrigin,
     webUrl: () => status.webUrl,
   });
+
+  if (main) target.on("focus", sendUsagePing);
+
+  return target;
+}
+
+function sendUsagePing() {
+  if (!quitting && status.configuration) void usagePing.sendIfDue();
 }
 
 function openRoute(path: string) {
@@ -372,6 +369,9 @@ function registerIpc() {
       sendWindowsMessage([window, settingsWindow], (contents) => contents.send("canopy:quit-shortcut", value)),
   });
   registerUpdateIpc(updates, () => remoteUpdate, authorize);
+  usagePing.registerIpc(authorize, (event) => {
+    if (event.sender === windowContents(window) && window?.isFocused()) sendUsagePing();
+  });
   registerMigrationIpc({
     directory: app.getPath("userData"),
     origin: setupOrigin,
@@ -409,6 +409,7 @@ function registerIpc() {
         await history.clear();
         startupError = "";
         await rpc("configure", { configuration: config, remoteClient: client });
+        sendUsagePing();
 
         if (status.phase === "running") await openApplication();
 
@@ -432,6 +433,7 @@ async function start() {
 
   setupOrigin = initialized.origin;
   status = initialized.status;
+  sendUsagePing();
   registerIpc();
   window = createWindow(true);
   webSession.attach(window.webContents.session, appContents);

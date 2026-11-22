@@ -1,6 +1,7 @@
 # Canopy Desktop
 
-Status: opis zaimplementowanego runtime i pakowania (2026-11-22). Aktualizator używa
+Status: opis zaimplementowanego runtime i pakowania (2026-11-22), w tym dziennego
+pingu użycia z przełącznikiem prywatności i pomijaniem wysyłki offline. Aktualizator używa
 `electron-updater` 6.8.11. Build i ustawienia
 udostępniają licencje dołączonych komponentów. Powłoka ładowania
 korzysta z ostatniego zapisanego wyglądu przy niedostępnym gatewayu. Build przypina Electron 45.4.1,
@@ -35,6 +36,30 @@ Dostępność w nightly/beta/stable określają [zasady wydań](release.md) i Gi
 Implementacja: `apps/desktop`. Cele wydania na każdym kanale: **Linux x64,
 macOS arm64 i Windows x64**. Linux arm64 pozostaje eksperymentalny.
 Produkt: **Canopy** — jedna instalacja z lokalnym wyborem kanału aktualizacji.
+
+## Dzienny ping użycia
+
+Canopy Desktop domyślnie wysyła do `https://analytics.itsol.tech/api/send` sygnał
+`/ping` w Umami, najwyżej raz na dobę UTC na profil aplikacji. Służy do
+szacowania liczby aktywnych instalacji i używanych wersji. Podczas pierwszej
+konfiguracji lub później w **Settings → Desktop → Privacy** przełącznik
+**Send daily usage ping** pozwala wyłączyć kolejne wysyłki bez restartu.
+Przełącznik jest też w oknie wyboru trybu desktopu, dostępnym z ekranu
+odzyskiwania nawet przy niedostępnym gatewayu.
+Pierwsza próba następuje po zapisaniu konfiguracji. Przy kolejnych uruchomieniach
+aplikacja próbuje wysłać ping na starcie, przy odzyskaniu fokusu głównego okna
+lub po zgłoszeniu powrotu łączności w aktywnym oknie. Gdy Electron zgłasza brak
+sieci, aplikacja pomija próbę. Dostępność sieci nie gwarantuje, że Umami odpowie.
+Żądanie ma limit 10 s. Po błędzie następne zdarzenie może ponowić próbę po co
+najmniej 15 minutach. Aplikacja nie odpytuje sieci cyklicznie.
+
+Ping zachowuje identyfikator witryny i format istniejącego raportu Umami. Zawiera
+wersję aplikacji, platformę, architekturę procesora, język aplikacji, rozmiar głównego
+ekranu i standardowy nagłówek User-Agent Electrona. Canopy nie dodaje identyfikatora
+użytkownika ani urządzenia, ciasteczek, poświadczeń, danych projektów ani zdarzeń
+interakcji. Odbiorca widzi adres IP połączenia HTTPS. Ustawienie i data pingu
+są lokalne dla profilu desktopu, wspólne dla trybów Local i Remote oraz kanałów
+aktualizacji. Ping działa w pakowanej aplikacji desktopowej.
 
 ## Decyzje
 
