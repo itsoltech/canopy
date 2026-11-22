@@ -1,7 +1,7 @@
 // oxlint-disable-next-line typescript/triple-slash-reference -- gateway and integration tests typecheck this file under their own tsconfig; only a reference carries the ambient "*.sql" module declaration with it.
 /// <reference path="../sql-modules.d.ts" />
 import { Effect } from "effect";
-import { Migrator, SqlClient } from "effect/sql";
+import { Migrator } from "effect/sql";
 import sharedSlack from "./0166_shared_slack.sql" with { type: "text" };
 import botThreadQuestions from "./0168_bot_thread_questions.sql" with { type: "text" };
 import threadWorktreePreparation from "./0167_thread_worktree_preparation.sql" with { type: "text" };
@@ -187,24 +187,9 @@ import consumedBusTurns from "./0096_consumed_bus_turns.sql" with { type: "text"
 import mirrorThreadMetadata from "./0097_mirror_thread_metadata.sql" with { type: "text" };
 import threadReadMetadata from "./0098_thread_read_metadata.sql" with { type: "text" };
 import messageReceipts from "./0099_message_receipts.sql" with { type: "text" };
-import { splitStatements } from "./split.ts";
 import databaseRetention from "./0104_database_retention.sql" with { type: "text" };
 import secretDeliveryBatches from "./0108_secret_delivery_batches.sql" with { type: "text" };
-import { reconcileDeferredIndexes } from "./deferred-indexes.ts";
-
-/**
- * Runs a .sql file statement by statement (the driver uses the extended protocol only).
- * Migrations stay plain SQL so they can be reviewed and replayed with psql.
- * The migrator wraps each migration in a transaction.
- */
-const sqlFile = (content: string) =>
-  Effect.gen(function* () {
-    const sql = yield* SqlClient.SqlClient;
-
-    for (const statement of splitStatements(content)) {
-      yield* sql.unsafe(statement).raw;
-    }
-  });
+import { createMigrator, sqlFile } from "./run.ts";
 
 /** Ordered by the numeric prefix. Never edit an applied migration; add a new one (expand/contract). */
 export const migrations = Migrator.fromRecord({
@@ -403,16 +388,4 @@ export const migrations = Migrator.fromRecord({
   "0196_memory_note_creation": sqlFile(memoryNoteCreation),
 });
 
-/** Applies pending migrations in a transaction with a lock, safe to call from a deploy step. */
-const migrateSchema = Migrator.make({})({ loader: migrations, table: "schema_migrations" });
-
-const migrateWithIndexes = (concurrent: boolean) =>
-  Effect.gen(function* () {
-    const applied = yield* migrateSchema;
-    yield* reconcileDeferredIndexes(concurrent);
-
-    return applied;
-  });
-
-export const migrate = migrateWithIndexes(false);
-export const migrateOnline = migrateWithIndexes(true);
+export const { migrate, migrateOnline } = createMigrator(migrations);
