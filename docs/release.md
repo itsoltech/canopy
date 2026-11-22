@@ -1,7 +1,7 @@
 # Wydania: wersje, CI, artefakty
 
 Status: opis zaimplementowanego workflow (2026-11-22). Buildy publikują wykazy licencji zależności. Automat sprawdza promocje co godzinę.
-Sidebar oznacza kanał uruchomionej aplikacji rysunkiem drzewa Canopy.
+Sidebar oznacza kanał uruchomionej aplikacji rysunkiem drzewa Canopy o wspólnym obrysie korony i konarów.
 Pakowanie Desktop i generowanie fingerprintu Expo używają poprawionego `minimatch`.
 Smoke Desktop czeka na zapis trasy Network access przed restartem workera podczas parowania.
 Pakowanie Desktop archiwizuje runtime do smoke z katalogu właściwego dla architektury Linuxa.
@@ -23,7 +23,7 @@ Jedna wersja dla wszystkich aplikacji (gateway, worker, web, desktop, mobile). W
 semantic-release z commitów Angular po squash merge. Wdrożenie: [deploy.md](deploy.md).
 Zasady commitów i wybór gałęzi: [contributing.md](contributing.md).
 
-Tło nagłówka sidebara wykorzystuje drzewo z propozycji 12. W Dev ma postać
+Tło nagłówka sidebara wykorzystuje drzewo z [propozycji 13](../design/brand/README.md). W Dev ma postać
 niebieskiego rysunku technicznego z siatką i linią wymiarową. W Nightly drzewu
 towarzyszą fioletowe gwiazdy, a w Becie korona ma bursztynowe kreskowanie i dwa
 opadające liście. Stable pokazuje jednobarwną sylwetkę znaku. Dev, Nightly
