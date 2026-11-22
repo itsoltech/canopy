@@ -14,7 +14,7 @@ export const permissionModes = [
   { mode: PermissionMode.READ_ONLY, label: "Read only", description: "Reads files, never changes them." },
   {
     mode: PermissionMode.FULL_AUTO,
-    label: "Full auto",
+    label: "Sandbox",
     description: "Runs without asking, sandboxed to the workspace.",
   },
   { mode: PermissionMode.FULL_ACCESS, label: "Full access", description: "Runs without asking and without a sandbox." },

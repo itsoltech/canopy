@@ -18,3 +18,7 @@ export const MIRROR_PAUSED = {
   threads: "thread_mirror_paused",
   bots: "bot_mirror_paused",
 } as const;
+
+export const LINKED_DRAFT_SANDBOX_SNAPSHOT = "gateway_draft_sandbox_snapshot_v1";
+export const LINKED_SANDBOX_PROFILES = "gateway_sandbox_profiles_v1";
+export const LINKED_SCHEDULE_SANDBOX_PROFILES = "gateway_schedule_sandbox_profiles_v1";

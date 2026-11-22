@@ -10,7 +10,8 @@ export function claudeFastMode(serviceTier: string): boolean {
 
 /** Flag settings opt into SDK fast mode and override the restored session's speed. */
 export async function configureClaudeSpeed(session: Session, serviceTier: string): Promise<void> {
-  await session.query.applyFlagSettings({ fastMode: claudeFastMode(serviceTier) });
+  // The profiled process already has the chosen speed in its immutable startup settings.
+  if (!session.sandboxProfileDigest) await session.query.applyFlagSettings({ fastMode: claudeFastMode(serviceTier) });
 
   if (serviceTier === "fast") {
     const initialized = await session.query.reinitialize();

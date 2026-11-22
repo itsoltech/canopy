@@ -1,5 +1,6 @@
 import { create } from "@bufbuild/protobuf";
 import { CommandResultSchema, type Command, type CommandResult } from "@canopy/contracts";
+import { commandThreadSpec } from "./thread-sandbox.ts";
 import { SERVICE_TIERS_CAPABILITY } from "@canopy/domain/release/protocol";
 
 export const SERVICE_TIERS_UNSUPPORTED = "Update this worker to use speed settings, or choose another worker.";
@@ -28,7 +29,7 @@ function commandServiceTier(command: Command): string {
     case "steerTurn":
       return command.kind.value.serviceTier;
     case "startTurn":
-      return command.kind.value.serviceTier || command.kind.value.thread?.serviceTier || "";
+      return command.kind.value.serviceTier || commandThreadSpec(command)?.serviceTier || "";
     default:
       return "";
   }

@@ -13,6 +13,8 @@ import { mentionsFromJson } from "./mentions.ts";
 import { coreSendSteer, coreSteers } from "./core-messages.ts";
 import { coreRun } from "./core-broadcast.ts";
 import { coreShellInput } from "./core-shell.ts";
+import { threadSandbox } from "../store/thread-sandbox.ts";
+import { sandboxGoalText, SANDBOX_GOAL_UNAVAILABLE, SANDBOX_SHELL_UNAVAILABLE } from "./thread-sandbox.ts";
 import { toUiQuote } from "../store/quotes.ts";
 
 export async function corePublishQueued(hostContext: GatewayCore, row: TurnRow): Promise<ui.Turn> {
@@ -72,6 +74,12 @@ export const coreQueueMethods: CoreQueueMethods = {
     const current = await coreQueue(this, (q) => q.queued({ turnId: request.turnId, ownerUserId }));
     const thread = await coreRun(this, (s) => s.thread(current.thread_id));
     const text = request.text;
+
+    if (threadSandbox(thread)) {
+      if (text.startsWith("!")) throw new InvalidError(SANDBOX_SHELL_UNAVAILABLE);
+
+      if (sandboxGoalText(text)) throw new InvalidError(SANDBOX_GOAL_UNAVAILABLE);
+    }
 
     const given =
       request.mentionsComplete || request.mentions.length > 0

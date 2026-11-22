@@ -5,6 +5,7 @@ import type { SqlClient } from "effect/sql";
 import { Invalid, NotFound, one, type Fx } from "./errors.ts";
 import type { ThreadStore } from "./threads-store.ts";
 import type { OutboxStore } from "./outbox.ts";
+import { SANDBOX_DERIVATION_UNAVAILABLE, threadSandbox } from "./thread-sandbox.ts";
 import { rewindTarget, type RewindTarget } from "./rewind-target.ts";
 import { rewindDraft } from "./rewind-draft.ts";
 import { completeRewind } from "./rewind-result.ts";
@@ -93,6 +94,8 @@ export function rewindStore(sql: SqlClient.SqlClient, store: () => ThreadStore &
           }
 
           const point = yield* rewindTarget(sql, owner, request.threadId, request.turnId);
+
+          if (threadSandbox(point.thread)) return yield* Effect.fail(new Invalid(SANDBOX_DERIVATION_UNAVAILABLE));
 
           if (request.restoreFiles && point.thread.provider !== "claude")
             return yield* Effect.fail(new Invalid("Files stay as they are. Choose conversation only."));

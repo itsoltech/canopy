@@ -4,6 +4,7 @@ import { ui, type Command } from "@canopy/contracts";
 import { agentKey, fuzzyRank, SUBAGENT_REPORTING_RULES, type AgentBusArgs, type SpawnTarget } from "@canopy/domain";
 import { Effect } from "effect";
 import type { SqlClient } from "effect/sql";
+import { SANDBOX_DERIVATION_UNAVAILABLE, threadSandbox } from "./thread-sandbox.ts";
 import { Invalid, type ThreadRow, type TurnRow } from "./store.ts";
 import { finishedTurn } from "./notification-observation.ts";
 import { pendingMessages, waitingForMessage, type BusMessage } from "./bus-messages.ts";
@@ -83,6 +84,11 @@ const spawn = (
     Effect.gen(function* () {
       if (!(yield* lockedOwnerModule(sql, caller.owner_user_id, "threads")))
         return yield* Effect.fail(new Invalid(moduleDisabledMessage("threads")));
+
+      const parent = (yield* sql<Pick<ThreadRow, "settings">>`
+        SELECT settings FROM threads WHERE id=${caller.id}::uuid AND owner_user_id=${caller.owner_user_id}::uuid FOR UPDATE`)[0];
+
+      if (parent && threadSandbox(parent)) return yield* Effect.fail(new Invalid(SANDBOX_DERIVATION_UNAVAILABLE));
       const notify = args.notify ?? true;
       yield* insertCall(sql, { source, tool: "spawn_thread", args, status: "completed", hops, notify });
       const id = Bun.randomUUIDv7();
@@ -177,7 +183,10 @@ const send = (sql: SqlClient.SqlClient, { source, caller, args, hops }: Paramete
       const waiting = running && (yield* waitingForMessage(sql, target.id, running.id, caller.id));
 
       const steer =
-        running && !waiting && (args.delivery === "steer" || ((ancestor || descendant) && args.delivery !== "queue"));
+        running &&
+        !waiting &&
+        !threadSandbox(target) &&
+        (args.delivery === "steer" || ((ancestor || descendant) && args.delivery !== "queue"));
 
       const input: TurnInput = {
         note:
@@ -229,7 +238,9 @@ const send = (sql: SqlClient.SqlClient, { source, caller, args, hops }: Paramete
             }
           : args.delivery === "steer" && {
               delivery: "queue",
-              note: "No turn is running there: the message runs as the next turn.",
+              note: threadSandbox(target)
+                ? "Messages for a thread with a sandbox profile run in its next turn."
+                : "No turn is running there: the message runs as the next turn.",
             }),
       };
 

@@ -2,6 +2,10 @@
 
 Aktualizacja (2026-11-22): katalog konektorów wątku wynika z dostępu jego projektu.
 
+Aktualizacja (2026-11-22): worker raportuje obsługę trybu offline i listy domen
+oddzielnie dla instancji dostawcy. Wymagania operatora i diagnostykę odrzucenia
+profilu opisuje [sandbox-profiles.md](sandbox-profiles.md).
+
 Aktualizacja (2026-11-21) obejmuje edytor ustawień CLI Claude, Codexa i Groka dla
 instancji dostawcy i nadpisania na pojedynczym workerze. Dostępność w kanałach
 wynika z [promocji wydań](release.md).

@@ -49,7 +49,13 @@ export function ComposerControls({
   );
 }
 
-export function ComposerPickers({ state }: { state: ReturnType<typeof useComposerSettings> }) {
+export function ComposerPickers({
+  state,
+  allowPermission = true,
+}: {
+  state: ReturnType<typeof useComposerSettings>;
+  allowPermission?: boolean;
+}) {
   const { picker, setPicker, section, current, effort, serviceTier, permissionMode, update } = state;
   const close = () => setPicker(null);
 
@@ -85,10 +91,12 @@ export function ComposerPickers({ state }: { state: ReturnType<typeof useCompose
         onSelect={(next) => update({ serviceTier: next })}
       />
       <PermissionPickerSheet
-        visible={picker === "permission"}
+        visible={allowPermission && picker === "permission"}
         onClose={close}
         value={permissionMode}
-        onSelect={(mode) => update({ permissionMode: mode })}
+        onSelect={(mode) => {
+          if (allowPermission) update({ permissionMode: mode });
+        }}
       />
     </>
   );

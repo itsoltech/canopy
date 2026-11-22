@@ -44,8 +44,8 @@ export const deliverCheckNotes = (sql: SqlClient.SqlClient, owner: string, threa
         return { cancelled: 0 };
 
       // Lifecycle changes take the thread lock first, then settle their pending deliveries.
-      const thread = (yield* sql<{ closed: boolean }>`
-        SELECT (archived_at IS NOT NULL OR deleted_at IS NOT NULL) AS closed FROM threads WHERE id = ${threadId}::uuid AND owner_user_id = ${owner}::uuid FOR UPDATE`)[0];
+      const thread = (yield* sql<{ closed: boolean; sandbox: boolean }>`
+        SELECT (archived_at IS NOT NULL OR deleted_at IS NOT NULL) AS closed, (settings->>'sandboxProfile' IS NOT NULL) AS sandbox FROM threads WHERE id = ${threadId}::uuid AND owner_user_id = ${owner}::uuid FOR UPDATE`)[0];
 
       if (!thread) return { cancelled: 0 };
 
@@ -77,7 +77,7 @@ export const deliverCheckNotes = (sql: SqlClient.SqlClient, owner: string, threa
       const ids = ready.map((n) => n.id);
       const hops = Math.max(...ready.map((n) => n.hops));
 
-      if (running) {
+      if (running && !thread.sandbox) {
         const steerId = Bun.randomUUIDv7();
         yield* sql`
           INSERT INTO turn_steers (id, thread_id, turn_id, input, hops, background_note)

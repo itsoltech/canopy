@@ -9,7 +9,7 @@ import type { GatewayCore } from "./core.ts";
 import { coreLog, coreRun } from "./core-broadcast.ts";
 import { configLock } from "../config-sync/persistence.ts";
 import { unpinBot, type AppearancePreferencePatch } from "../store/settings.ts";
-import { validateUserSettings } from "./settings-validation.ts";
+import { validateSandboxProfiles, validateUserSettings } from "./settings-validation.ts";
 import type { ModuleChange } from "../store/module-transitions.ts";
 import { botModuleChanged } from "./bot-module-runtime.ts";
 import { reconcileThreadModule } from "./thread-module-runtime.ts";
@@ -155,6 +155,7 @@ export const coreSettingsMethods: CoreSettingsMethods = {
     options?: UserSettingsOptions,
   ): Promise<ui.UserSettings> {
     validateUserSettings(request);
+    const sandboxProfiles = request.sandboxProfiles && validateSandboxProfiles(request.sandboxProfiles);
 
     if (request.threadDefaults) await coreCheckThreadDefaults(this, request.threadDefaults);
 
@@ -176,6 +177,7 @@ export const coreSettingsMethods: CoreSettingsMethods = {
         ...(request.modules && { modules: request.modules }),
         ...(request.threadRetention && { threadRetention: request.threadRetention }),
         ...(request.agentToolDefaults && { agentToolDefaults: request.agentToolDefaults }),
+        ...(sandboxProfiles && { sandboxProfiles }),
         ...(request.textGeneration && { textGeneration: request.textGeneration }),
         ...(request.sidebar && {
           sidebar: {

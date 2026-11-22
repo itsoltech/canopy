@@ -30,7 +30,7 @@ export function QueueMenu({
   onClose: () => void;
   onEdit: (turn: ui.Turn) => void;
   onMove: (turn: ui.Turn, index: number) => void;
-  onDelivery: (delivery: ui.MessageDelivery) => void;
+  onDelivery?: (delivery: ui.MessageDelivery) => void;
 }) {
   const pending = useRef<(() => void) | undefined>(undefined);
   const queues = delivery === ui.MessageDelivery.QUEUE;
@@ -45,7 +45,10 @@ export function QueueMenu({
         { value: "bottom", label: "Move to bottom", icon: "arrow-down", disabled: disabled || index >= count - 1 },
       ],
     },
-    {
+  ];
+
+  if (onDelivery)
+    sections.push({
       options: [
         queues
           ? {
@@ -61,15 +64,14 @@ export function QueueMenu({
               description: "Send queues for the next turn. Hold Send to steer.",
             },
       ],
-    },
-  ];
+    });
 
   function run(action: Action) {
     if (!turn) return;
 
     if (action === "edit") pending.current = () => onEdit(turn);
-    else if (action === "steer") onDelivery(ui.MessageDelivery.STEER);
-    else if (action === "queue") onDelivery(ui.MessageDelivery.QUEUE);
+    else if (action === "steer") onDelivery?.(ui.MessageDelivery.STEER);
+    else if (action === "queue") onDelivery?.(ui.MessageDelivery.QUEUE);
     else onMove(turn, { up: index - 1, down: index + 1, top: 0, bottom: count - 1 }[action]);
   }
 

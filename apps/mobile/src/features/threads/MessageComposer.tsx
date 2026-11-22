@@ -1,5 +1,5 @@
 import { ScrollView, Text, View } from "react-native";
-import { ui } from "@canopy/contracts";
+import { ui, type SandboxProfileBinding } from "@canopy/contracts";
 import type { ComposerPick } from "@canopy/domain/composer-choices";
 import { ComposerBox, ComposerPill } from "./ComposerBox";
 import { styles, useColors } from "../../ui/theme";
@@ -19,6 +19,8 @@ import { DraftMoveNotice } from "../drafts/DraftMoveNotice";
 import { PendingDraft } from "../drafts/PendingDraft";
 import { UsageWarning } from "./UsageWarning";
 import { ComposerControls, ComposerPickers } from "./ComposerModelControls";
+import { Icon } from "../../ui/Icon";
+import { sandboxProfileLabel, sandboxShellUnavailable } from "./sandbox";
 
 export function MessageComposer({
   thread,
@@ -50,11 +52,12 @@ export function MessageComposer({
   const { user } = useAppearance();
   const { focused } = useComposerMotion();
   const state = useComposerSettings(thread, worker, message.persistent);
-  const { setPicker } = state;
-  const look = permissionLook(state.permissionMode);
+  const sandbox = thread?.sandboxProfile;
 
   const primary =
-    user?.composer?.runningDelivery === ui.MessageDelivery.QUEUE ? ui.MessageDelivery.QUEUE : ui.MessageDelivery.STEER;
+    sandbox || user?.composer?.runningDelivery === ui.MessageDelivery.QUEUE
+      ? ui.MessageDelivery.QUEUE
+      : ui.MessageDelivery.STEER;
 
   return (
     <>
@@ -76,12 +79,16 @@ export function MessageComposer({
           onChange={message.setText}
           badges={message.badges}
           triggers
+          shellUnavailable={sandbox ? sandboxShellUnavailable : undefined}
           onSend={() => send(thread?.status === "running" ? primary : ui.MessageDelivery.QUEUE, state.override)}
-          onAlternate={() =>
-            send(
-              primary === ui.MessageDelivery.QUEUE ? ui.MessageDelivery.STEER : ui.MessageDelivery.QUEUE,
-              state.override,
-            )
+          onAlternate={
+            sandbox
+              ? undefined
+              : () =>
+                  send(
+                    primary === ui.MessageDelivery.QUEUE ? ui.MessageDelivery.STEER : ui.MessageDelivery.QUEUE,
+                    state.override,
+                  )
           }
           primary={primary === ui.MessageDelivery.QUEUE ? "queue" : "steer"}
           onStop={stop}
@@ -119,18 +126,45 @@ export function MessageComposer({
               )}
             </ScrollView>
           </DraftMoveNotice>
-          <ComposerPill
-            icon={look.icon}
-            title={permissionLabel(state.permissionMode)}
-            warning={look.tone === "warning"}
-            danger={look.tone === "danger"}
-            onPress={() => setPicker("permission")}
-          />
+          <ComposerPermission state={state} sandbox={sandbox} />
         </View>
       </ComposerFold>
       {message.persistent && <PendingDraft draft={message.persistent} />}
-      <ComposerPickers state={state} />
+      <ComposerPickers state={state} allowPermission={!sandbox} />
     </>
+  );
+}
+
+function ComposerPermission({
+  state,
+  sandbox,
+}: {
+  state: ReturnType<typeof useComposerSettings>;
+  sandbox?: SandboxProfileBinding;
+}) {
+  const c = useColors();
+
+  if (!sandbox) {
+    const look = permissionLook(state.permissionMode);
+
+    return (
+      <ComposerPill
+        icon={look.icon}
+        title={permissionLabel(state.permissionMode)}
+        warning={look.tone === "warning"}
+        danger={look.tone === "danger"}
+        onPress={() => state.setPicker("permission")}
+      />
+    );
+  }
+
+  return (
+    <View style={[styles.row, { maxWidth: "74%", gap: 4, paddingHorizontal: 6 }]}>
+      <Icon name="shield-exclamation" size={14} color={c.warning} />
+      <Text numberOfLines={1} style={[styles.meta, { color: c.warning, flexShrink: 1 }]}>
+        {sandboxProfileLabel(sandbox)}
+      </Text>
+    </View>
   );
 }
 

@@ -21,6 +21,7 @@ import { CodexEventMapper } from "./mapping.ts";
 import { RolloutTail } from "./rollout.ts";
 import type { codexConnectorMcp } from "./connector-mcp.ts";
 import type { LocalAgentToolMcpServer } from "../../agent-tools/index.ts";
+import type { SandboxEvidence } from "./sandbox-profile.ts";
 
 export class CodexThreadError extends Schema.TaggedError<CodexThreadError>()("CodexThreadError", {
   threadId: Schema.String,
@@ -37,6 +38,8 @@ export interface CodexThreadsOptions {
   onUsage?(snapshot: import("@canopy/contracts").ProviderUsageSnapshot): void;
   readonly launch: CodexAppServerLaunch;
   readonly clientVersion: string;
+  /** Set by the host only for a verified Linux sandbox and stable policy sources. */
+  readonly sandboxProfileRuntime?: { readonly policyDirectory: string };
   /** Resolved provider profile by id ("" = native). */
   profile(id: string): ResolvedProfile | undefined;
   /** Repair an imported copy for the selected connection; returns its verified private rollout path. */
@@ -73,6 +76,8 @@ export interface CodexThreadsOptions {
 
 export interface Entry {
   serviceTier?: string;
+  readonly sandboxProfile: SandboxEvidence | undefined;
+  sandboxProfileInvalid?: boolean;
   readonly platformId: string;
   readonly codexId: string;
   readonly mapper: CodexEventMapper;

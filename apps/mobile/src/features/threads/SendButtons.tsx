@@ -38,30 +38,37 @@ export function SendButtons({
       <SplitSend primary={primary} onSend={onSend} onAlternate={alternate} busy={busy} unavailable={unavailable} />
     );
 
+  const queue = running && !stop && primary === "queue";
+  const ink = unavailable ? c.faint : stop ? c.background : c.onAccent;
+
   return (
     <Pressable
       accessibilityRole="button"
-      accessibilityLabel={stop ? "Stop the turn" : "Send message"}
+      accessibilityLabel={stop ? "Stop the turn" : queue ? "Queue for the next turn" : "Send message"}
       accessibilityState={{ busy: busy && !stop, disabled: unavailable }}
       disabled={unavailable}
       onPress={onSend}
       style={({ pressed }) => ({
-        width: 36,
+        width: queue ? undefined : 36,
         height: 36,
         borderRadius: 18,
         alignItems: "center",
         justifyContent: "center",
+        flexDirection: "row",
+        paddingHorizontal: queue ? 12 : undefined,
+        gap: 6,
         backgroundColor: disabled || unavailable ? c.line : stop ? c.text : pressed ? c.actionPressed : c.action,
       })}
     >
       {busy && !stop ? (
         <ActivityIndicator size="small" color={c.muted} />
       ) : (
-        <Icon
-          name={stop ? "stop" : "arrow-up"}
-          color={unavailable ? c.faint : stop ? c.background : c.onAccent}
-          size={18}
-        />
+        <Icon name={stop ? "stop" : queue ? "queue-list" : "arrow-up"} color={ink} size={queue ? 16 : 18} />
+      )}
+      {queue && (
+        <Text numberOfLines={1} style={[styles.meta, { fontFamily: font.medium, color: ink }]}>
+          Queue
+        </Text>
       )}
     </Pressable>
   );

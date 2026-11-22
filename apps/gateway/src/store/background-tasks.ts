@@ -178,8 +178,8 @@ const deliver = (
       if (!(yield* lockedOwnerModule(sql, owner, "threads"))) return { settled: 0 };
 
       // Lifecycle changes take the thread lock first, then settle their pending deliveries.
-      const thread = (yield* sql<{ closed: boolean; runtime: string }>`
-        SELECT (archived_at IS NOT NULL OR deleted_at IS NOT NULL) AS closed, runtime FROM threads WHERE id = ${threadId}::uuid AND owner_user_id = ${owner}::uuid FOR UPDATE`)[0];
+      const thread = (yield* sql<{ closed: boolean; runtime: string; sandbox: boolean }>`
+        SELECT (archived_at IS NOT NULL OR deleted_at IS NOT NULL) AS closed, runtime, (settings->>'sandboxProfile' IS NOT NULL) AS sandbox FROM threads WHERE id = ${threadId}::uuid AND owner_user_id = ${owner}::uuid FOR UPDATE`)[0];
 
       if (!thread) return { settled: 0 };
 
@@ -253,7 +253,7 @@ const deliver = (
       const ids = ready.map((n) => n.item_id);
       const hops = Math.max(...ready.map((n) => n.hops));
 
-      if (running) {
+      if (running && !thread.sandbox) {
         const steerId = Bun.randomUUIDv7();
         yield* sql`
           INSERT INTO turn_steers (id, thread_id, turn_id, input, hops, background_note)

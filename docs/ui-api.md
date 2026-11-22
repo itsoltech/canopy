@@ -1,6 +1,8 @@
 # API dla UI i architektura frontendu
 
-Status (2026-11-22): web i desktop udostępniają Settings → Memory do przeglądania
+Status (2026-11-22): web i desktop pozwalają zarządzać profilami Sandbox w ustawieniach i wybierać je w wątkach.
+Gateway sprawdza wybrany profil przed wysłaniem synchronizowanego szkicu nowego wątku.
+web i desktop udostępniają Settings → Memory do przeglądania
 i edycji notatek agentów i botów, z wyszukiwaniem, filtrami i datą utworzenia.
 Web, desktop i mobile obsługują usypianie wątków oraz załączniki
 do 40 MiB na plik po zmianie ustawienia. Dostęp wątków do konektorów wynika
@@ -510,7 +512,13 @@ kolejne przejęcie i lokalne przywracanie czekają, więc nie gubią przejętego
 `CreateThread.initial_quotes` (922) obsługuje cytaty pierwszej wiadomości. Rewizja
 przekazanego szkicu jest sprawdzana przed wysłaniem; starsza rewizja zapisu jest
 akceptowana tylko przy tym samym kluczu wysyłki. Przejęcie odnawia ten klucz,
-więc stara rewizja źródła nie dociera do workera. Payload do 512 KiB, tekst do 100 000 znaków, do 20 załączników, 100 rekordów
+więc stara rewizja źródła nie dociera do workera. Szkic nowego wątku może
+przechowywać wybrany profil Sandbox. Zapis z pominiętym profilem zachowuje wybór
+przez odmowę zapisu, chyba że klient jawnie przesyła `clear_sandbox_profile`.
+Przed `CreateThread` i `CreateThreadWithProgress` gateway porównuje ID i snapshot
+z aktualnym katalogiem właściciela. Rozbieżność zatrzymuje wysyłkę i wymaga
+ponownego wyboru profilu. Oczekiwany digest towarzyszy utworzeniu także na
+połączonym komputerze oraz w ponowieniach wysyłki. Payload do 512 KiB, tekst do 100 000 znaków, do 20 załączników, 100 rekordów
 właściciela i 30 dni retencji niewysłanej treści. Pruning nie usuwa rozpoczętych
 wysyłek; małe receipty usuwa 30 dni po wysłaniu, bez usuwania natywnej deduplikacji.
 Treść jest prywatna, nigdy logowana ani dołączana do
@@ -1732,6 +1740,18 @@ wobec procesu tego samego użytkownika: [desktop.md](desktop.md#granice-i-zgodno
 | `StopBackgroundTask` | zatrzymanie zadania w tle (`thread_id`, `item_id` itemu `background_task`, musi być `in_progress`) → komenda `StopTask`; item kończy się `interrupted` (`stop_reason = stopped_by_user`), gdy worker to zgłosi ([execution.md](execution.md#4-zadania-w-tle)) |
 | `ListProviderInstances`, `SaveProviderInstance`, `DeleteProviderInstance`, `SetInstanceWorkers`, `SetInstanceWorker`, `SetInstanceModels`, `RefreshProviders`, `StartProviderLogin` | globalne instancje dostawców ([worker-config.md](worker-config.md#9-globalne-instancje-dostawców)): lista z definicją (bez wartości sekretów: `api_key_set`, zmienna-sekret z pustą wartością), wyborem modeli, liczbą wątków i stanem na każdym workerze (`InstanceOnWorker`: włączona, wybór jawny czy z `all_workers`, nadpisania, ostatni raport: `available`, `detail`, `version`, `auth`, `authenticated`, `checked_at`, `synced`); nowa (`create`, id: małe litery, cyfry, `-`, `_`; unikalne w obrębie dostawcy; od razu `all_workers` albo `worker_ids`) albo zmieniona definicja (`expected_revision`; inna = `FailedPrecondition`); usunięcie nieużywanej (używana: `FailedPrecondition`); gdzie działa (wszystkie workery albo wybrane); włączenie i nadpisania na jednym workerze (sekret bez wartości = bez zmian, `api_key` pusty = klucz definicji); modele (`favorites_only` = sama gwiazdka z pickera); ponowne sprawdzenie na workerach online (`ProbeProviders`, `skipped` = pominięte z powodem); logowanie ChatGPT kodem urządzenia (Codex z `own_login`). Każda zmiana definicji albo przypisania zapisuje nowe wersje konfiguracji tylko workerom, których efektywne instancje się zmieniły, i wysyła je tym online; zmiany na żywo w `OverviewUpdate.worker` (`Worker.provider_instances`: id, dostawca, nazwa, kolor, włączona, dostępna, ulubione) |
 | `GetSettings`, `UpdateUserSettings`, `UpdateProjectSettings` | ustawienia użytkownika (schemat kolorów, osobne palety Light / Dark, szerokość czatu, przypięcia, domyślne nowych wątków i modele) i projektu (domyślne wątków, nadpisują użytkownika). Gateway przechowuje je w `user_settings` / `project_settings`. Filtr sidebara i geometria paneli należą do klienta. Zapis zastępuje podane sekcje z kontrolą wersji; konflikt z innym urządzeniem = `FailedPrecondition` (BFF: 409), klient pobiera ustawienia od nowa. Zmiany na żywo w `OverviewUpdate.user_settings` / `project_settings` |
+
+`UserSettings.sandbox_profiles` i `UpdateUserSettingsRequest.sandbox_profiles` (905)
+przechowują nazwane zestawy dokładnych domen w ustawieniach właściciela. Zapis
+zastępuje podaną sekcję z kontrolą wersji. Pusta lista usuwa cały katalog,
+a pominięcie sekcji zachowuje jej dotychczasową wartość. Gateway zapisuje nazwy
+i domeny po normalizacji oraz wymaga unikalnych nazw i identyfikatorów.
+Web i desktop pokazują katalog w Settings → Threads. Wybór profilu w wątku
+zapisuje osobny snapshot z identyfikatorem i skrótem zasad. Menu uprawnień
+korzysta z raportu aktualnie wybranej instancji na workerze i pokazuje powód
+niedostępności. Zmiana profilu w istniejącym wątku wymaga zakończenia pracy
+i potwierdzenia zamknięcia sesji przez workera. Szczegóły i zakres:
+[sandbox-profiles.md](sandbox-profiles.md).
 
 UI składa itemy na żywo tym samym reducerem co gateway (`reduceItem` z `@canopy/domain`).
 

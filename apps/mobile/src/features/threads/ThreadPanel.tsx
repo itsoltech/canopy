@@ -17,6 +17,7 @@ import { ThreadPullRequests } from "../github/ThreadPullRequests";
 import { ThreadAutoArchive } from "./ThreadAutoArchive";
 import { ThreadPanelSection } from "./ThreadPanelSection";
 import { ThreadSchedules } from "./ThreadSchedules";
+import { sandboxProfileLabel } from "./sandbox";
 
 export function PanelRow({
   title,
@@ -111,6 +112,14 @@ export function ThreadPanel({
               <Text style={[type.meta, { color: c.muted }]}>{worker?.online ? "Online" : "Offline"}</Text>
             </View>
             <ThreadPlacement thread={thread} onClose={onClose} />
+            {thread.sandboxProfile && (
+              <View style={[styles.row, { minHeight: 40 }]}>
+                <Icon name="shield-exclamation" />
+                <Text selectable style={[type.chrome, { flex: 1, color: c.text }]}>
+                  {sandboxProfileLabel(thread.sandboxProfile)}
+                </Text>
+              </View>
+            )}
             {!!thread.permissionModeNote && (
               <Text style={[type.meta, { color: c.muted }]}>{thread.permissionModeNote}</Text>
             )}

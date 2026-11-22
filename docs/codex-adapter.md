@@ -1,5 +1,9 @@
 # Adapter Codex (app-server)
 
+Aktualizacja (2026-11-22): nazwany profil offline używa osobnego identyfikatora
+uprawnień w Codexie. Adapter porównuje politykę przy starcie i przy wznowieniu.
+Wymagania wersji, workera i administratora opisuje [Profile Sandbox](sandbox-profiles.md).
+
 Aktualizacja (2026-11-21) obejmuje obsługę preferencji instancji zapisanych
 w [ustawieniach CLI Canopy](worker-config.md#ustawienia-cli-zapisane-w-canopy).
 

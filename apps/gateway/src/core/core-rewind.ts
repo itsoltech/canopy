@@ -1,3 +1,4 @@
+import { SANDBOX_DERIVATION_UNAVAILABLE, threadSandbox } from "../store/thread-sandbox.ts";
 import { create } from "@bufbuild/protobuf";
 import { RewindThreadSchema, ui } from "@canopy/contracts";
 import { THREAD_REWIND_CAPABILITY } from "@canopy/domain/release/protocol";
@@ -10,6 +11,8 @@ import { rewindCommand, rewindResponse } from "../store/rewinds.ts";
 
 async function rewindConnection(core: GatewayCore, threadId: string) {
   const thread = await core.getThread(threadId);
+
+  if (thread.sandboxProfile) throw new InvalidError(SANDBOX_DERIVATION_UNAVAILABLE);
   const connection = core.link.connections.get(thread.workerId);
 
   if (!connection?.isOpen) throw new UnavailableError("Connect this thread's worker before editing.");
@@ -42,7 +45,10 @@ export const coreRewindMethods: CoreRewindMethods = {
       store.prepareRewind(this[coreState].options.userId, request.threadId, request.turnId),
     );
 
+    if (threadSandbox(point.thread)) throw new InvalidError(SANDBOX_DERIVATION_UNAVAILABLE);
     const spec = await coreRun(this, (store) => store.thread(request.threadId).pipe(Effect.map(store.threadSpec)));
+
+    if (spec.sandboxProfile) throw new InvalidError(SANDBOX_DERIVATION_UNAVAILABLE);
 
     const files =
       point.thread.provider === "claude"

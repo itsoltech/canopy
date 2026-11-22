@@ -5,6 +5,7 @@ import { claudeInstructionSettings, managedClaudeInstructions } from "./instruct
 import type { ClaudePermissions } from "./permissions.ts";
 import { claudeFastMode } from "./service-tier.ts";
 import { prepareClaudeUserConfiguration } from "./user-configuration.ts";
+import { claudeProfileSandbox, claudeSandboxEnvironment } from "./sandbox-profile.ts";
 
 /**
  * One subprocess gets one configuration snapshot; local files are read again for the next process.
@@ -17,8 +18,36 @@ export async function claudeQueryConfiguration(
   env: Env,
   launch: Omit<Options, "sandbox"> & Pick<ClaudePermissions["options"], "sandbox">,
   serviceTier = "default",
-  { passive = false }: { passive?: boolean } = {},
+  { passive = false, allowedDomains }: { passive?: boolean; allowedDomains?: string[] | undefined } = {},
 ) {
+  if (allowedDomains) {
+    const { pathToClaudeCodeExecutable, spawnClaudeCodeProcess } = launch;
+
+    if (!pathToClaudeCodeExecutable) throw new Error("The Claude Sandbox profile requires an explicit CLI executable.");
+
+    const settings = {
+      ...runtime.settings,
+      ...(await claudeInstructionSettings(cwd, scratch, runtime.home, env)),
+      disableAllHooks: true,
+      disableSkillShellExecution: true,
+      fastMode: claudeFastMode(serviceTier),
+    };
+
+    return {
+      options: {
+        env: claudeSandboxEnvironment(launch.env),
+        settingSources: [],
+        pathToClaudeCodeExecutable,
+        ...(spawnClaudeCodeProcess && { spawnClaudeCodeProcess }),
+        permissionMode: "acceptEdits",
+        sandbox: claudeProfileSandbox(allowedDomains),
+        settings,
+      } satisfies Options,
+      instructions: managedClaudeInstructions(runtime.platformHome ?? runtime.home),
+      close: async () => {},
+    };
+  }
+
   const user = await prepareClaudeUserConfiguration(runtime, cwd);
 
   try {

@@ -1,3 +1,4 @@
+import { SandboxSupportSchema } from "@canopy/contracts";
 /**
  * Gateway on PostgreSQL with a scripted worker, for end-to-end tests of the UI API and the agent bus:
  * BFF client (gRPC, service token) -> GatewayService -> core -> outbox -> worker link -> scripted worker
@@ -118,6 +119,7 @@ export type CommandReplyExtra = Omit<MessageInitShape<typeof CommandResultSchema
 
 export interface ScriptedWorkerOptions {
   readonly onCommand?: (command: Command) => void;
+  readonly sandboxOffline?: boolean;
   readonly tracing?: WorkerTracing;
   readonly logs?: LogPullSource;
   readonly secretsDataDir?: string;
@@ -393,7 +395,13 @@ export class ScriptedWorker {
                 ? { provider: Provider.CLAUDE, available: true, version: "2.1.316" }
                 : { provider: Provider.CLAUDE, available: false, detail: "claude CLI not found" },
             ],
-            profiles,
+            profiles: this.options.sandboxOffline
+              ? profiles.map((profile) =>
+                  profile.providers?.length === 1 && profile.providers[0] === Provider.CODEX
+                    ? { ...profile, sandboxSupport: create(SandboxSupportSchema, { offline: true }) }
+                    : profile,
+                )
+              : profiles,
           },
         });
         this.link.send({
@@ -459,7 +467,7 @@ export class ScriptedWorker {
             });
           break;
         case "createThread": {
-          const spec = kind.value.thread!;
+          const spec = (kind.value.profiledThread?.thread ?? kind.value.thread)!;
 
           if (spec.cwd.includes("forbidden")) {
             reply(false, { errorCode: "CWD_NOT_FOUND", errorMessage: `${spec.cwd} does not exist` });
@@ -529,7 +537,8 @@ export class ScriptedWorker {
         }
 
         case "startTurn": {
-          const { thread, turnId, input, model, effort, permissionMode } = kind.value;
+          const { turnId, input, model, effort, permissionMode } = kind.value;
+          const thread = kind.value.profiledThread?.thread ?? kind.value.thread;
           const threadId = thread!.threadId;
           this.inputs.set(threadId, [...(this.inputs.get(threadId) ?? []), input!.text]);
           this.attachments.set(turnId, input!.attachments);

@@ -58,6 +58,7 @@ interface Stored extends StoredModuleState {
   cliUpdates?: JsonValue;
   threadRetention?: JsonValue;
   agentToolDefaults?: JsonValue;
+  sandboxProfiles?: JsonValue;
 }
 
 /** Internal bot write. Merge the single protobuf field without normalizing neighboring stored fields. */
@@ -102,6 +103,9 @@ const toUser = (row: Row | undefined) => {
     threadDefaults: threadDefaults(stored),
     agentToolDefaults: fromJson(AgentToolSessionDefaultsSchema, stored.agentToolDefaults ?? {}, {
       ignoreUnknownFields: true,
+    }),
+    ...(stored.sandboxProfiles && {
+      sandboxProfiles: fromJson(ui.SandboxProfilesSchema, stored.sandboxProfiles, { ignoreUnknownFields: true }),
     }),
     modules: moduleSettings(stored),
     threadRetention: fromJson(ui.ThreadRetentionSettingsSchema, stored.threadRetention ?? {}, {
@@ -204,6 +208,7 @@ export class SettingsStore extends Context.Service<
       modules?: ui.ModuleSettings;
       threadRetention?: ui.ThreadRetentionSettings;
       agentToolDefaults?: AgentToolSessionDefaults;
+      sandboxProfiles?: ui.SandboxProfiles;
       timezone?: string;
       workerGatewayUrl?: string;
       attachmentLimits?: ui.AttachmentLimits;
@@ -252,6 +257,7 @@ export class SettingsStore extends Context.Service<
           modules,
           threadRetention,
           agentToolDefaults,
+          sandboxProfiles,
           timezone,
           workerGatewayUrl,
           attachmentLimits,
@@ -289,6 +295,7 @@ export class SettingsStore extends Context.Service<
                 ...(agentToolDefaults && {
                   agentToolDefaults: toJson(AgentToolSessionDefaultsSchema, agentToolDefaults),
                 }),
+                ...(sandboxProfiles && { sandboxProfiles: toJson(ui.SandboxProfilesSchema, sandboxProfiles) }),
               };
 
               const row = yield* write({

@@ -1,5 +1,6 @@
 import { create } from "@bufbuild/protobuf";
 import { Provider, ui } from "@canopy/contracts";
+import { SANDBOX_PROFILES_CAPABILITY } from "@canopy/domain/sandbox-profiles";
 import { Effect } from "effect";
 import { harnessOf, InstanceStore } from "../store/index.ts";
 import { coreState, describeError, InvalidError } from "./core-context.ts";
@@ -59,6 +60,17 @@ export async function coreWorkers(hostContext: GatewayCore): Promise<ui.Worker[]
 
   for (const worker of workers) {
     worker.providerInstances = instances.get(worker.id) ?? [];
+    const connection = hostContext.link.connections.get(worker.id);
+    const live = connection?.sandboxConfigReport;
+
+    const sandboxAvailable =
+      connection?.isOpen &&
+      connection.hello.capabilities.includes(SANDBOX_PROFILES_CAPABILITY) &&
+      live?.applied &&
+      live.version === worker.configVersion &&
+      live.version === worker.appliedVersion;
+
+    if (!sandboxAvailable) for (const profile of worker.profiles) profile.sandboxSupport = undefined;
 
     for (const instance of worker.providerInstances) {
       instance.usage = instance.enabled ? usage.get(`${worker.id}/${instance.harness}/${instance.id}`) : undefined;
@@ -72,7 +84,7 @@ export async function coreWorkers(hostContext: GatewayCore): Promise<ui.Worker[]
       }
     }
 
-    worker.networkRouteStatus = hostContext.link.connections.get(worker.id)?.networkRouteStatus;
+    worker.networkRouteStatus = connection?.networkRouteStatus;
   }
 
   await hostContext.cli.decorate(workers);

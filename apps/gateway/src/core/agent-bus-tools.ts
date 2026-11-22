@@ -1,3 +1,4 @@
+import { SANDBOX_DERIVATION_UNAVAILABLE, threadSandbox } from "../store/thread-sandbox.ts";
 import { create, type JsonValue } from "@bufbuild/protobuf";
 import { busScheduleTool } from "./agent-bus-schedules.ts";
 
@@ -7,7 +8,7 @@ import { ui } from "@canopy/contracts";
 import { agentCatalog, SETTINGS_GUIDE_TOOL, type AgentBusCall, type SpawnTarget } from "@canopy/domain";
 import { Predicate, type Effect } from "effect";
 import { AgentBusStore, GatewayStore, type CallSource, type ThreadRow } from "../store/index.ts";
-import { busState, scheduleIdOf } from "./agent-bus-context.ts";
+import { BusRefusal, busState, scheduleIdOf } from "./agent-bus-context.ts";
 import { busWait } from "./agent-bus-waiting.ts";
 import { busRead } from "./agent-bus-reads.ts";
 import type { AgentBus } from "./agent-bus.ts";
@@ -60,6 +61,7 @@ export async function busExecute(
     case "list_agents":
       return agentCatalog(target, await hostContext[busState].host.spawnInstances(caller));
     case "spawn_thread": {
+      if (threadSandbox(caller)) throw new BusRefusal(SANDBOX_DERIVATION_UNAVAILABLE);
       const placement = await hostContext[busState].host.prepareWorkspace?.(caller, call.args);
 
       const spawn = () =>

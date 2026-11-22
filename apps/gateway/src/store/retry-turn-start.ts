@@ -15,11 +15,17 @@ export const retryTurnStart = (sql: SqlClient.SqlClient, commandId: string, resu
 
       if (!thread) return undefined;
 
-      const rejected = (yield* sql<{ worker_id: string; turn_id: string; payload: Uint8Array; expires_at: Date }>`
+      const rejected = (yield* sql<{
+        worker_id: string;
+        turn_id: string;
+        payload: Uint8Array;
+        expires_at: Date;
+        sandbox_digest: string | null;
+      }>`
         UPDATE worker_commands SET status = 'failed', result = ${JSON.stringify(storageJson(result))}::jsonb,
           completed_at = now()
         WHERE id = ${commandId}::uuid AND kind = 'startTurn' AND status IN ('pending', 'delivered')
-        RETURNING worker_id, turn_id, payload, expires_at`)[0];
+        RETURNING worker_id, turn_id, payload, expires_at, sandbox_digest`)[0];
 
       if (!rejected || thread.closed) return undefined;
       const queued = yield* sql`SELECT id FROM turns WHERE id = ${rejected.turn_id}::uuid AND status = 'queued'`;
@@ -29,9 +35,9 @@ export const retryTurnStart = (sql: SqlClient.SqlClient, commandId: string, resu
       const command: Command = fromBinary(CommandSchema, rejected.payload);
       command.commandId = Bun.randomUUIDv7();
       yield* sql`
-        INSERT INTO worker_commands (id, worker_id, thread_id, turn_id, kind, payload, expires_at, delivered_epoch)
+        INSERT INTO worker_commands (id, worker_id, thread_id, turn_id, kind, payload, expires_at, delivered_epoch, sandbox_digest)
         VALUES (${command.commandId}::uuid, ${rejected.worker_id}::uuid, ${thread.id}::uuid,
-          ${rejected.turn_id}::uuid, 'startTurn', ${toBinary(CommandSchema, command)}, ${rejected.expires_at}, 0)`;
+          ${rejected.turn_id}::uuid, 'startTurn', ${toBinary(CommandSchema, command)}, ${rejected.expires_at}, 0, ${rejected.sandbox_digest})`;
 
       return command;
     }),

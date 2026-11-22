@@ -11,6 +11,7 @@
   import SubagentDisplaySettings from "#lib/features/settings/SubagentDisplaySettings.svelte";
   import WorkFoldSettings from "#lib/features/settings/WorkFoldSettings.svelte";
   import FollowUpSettings from "#lib/features/settings/FollowUpSettings.svelte";
+  import SandboxProfilesSettings from "#lib/features/settings/SandboxProfilesSettings.svelte";
   import SubagentPermissionSettings from "#lib/features/settings/SubagentPermissionSettings.svelte";
   import ThreadRetentionSettings from "#lib/features/settings/ThreadRetentionSettings.svelte";
   import AutoArchiveSettings from "#lib/features/settings/AutoArchiveSettings.svelte";
@@ -26,6 +27,7 @@
 <WorkFoldSettings />
 <FollowUpSettings />
 <SubagentPermissionSettings />
+<SandboxProfilesSettings />
 <AutoArchiveSettings />
 <ThreadRetentionSettings />
 

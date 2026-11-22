@@ -14,6 +14,7 @@ import {
   WORKSPACE_COPY_LEGACY_CAPABILITY,
 } from "@canopy/domain/release/protocol";
 import { WORKTREE_CHECKOUT_DEADLINE } from "@canopy/domain/worktree-timing";
+import { SANDBOX_PROFILES_CAPABILITY } from "@canopy/domain/sandbox-profiles";
 
 /** What this worker announces in Hello; the gateway sends a command only to workers that announce it. */
 export function workerCapabilities(options: { localWorker: boolean; fullAccess: boolean }): string[] {
@@ -34,6 +35,7 @@ export function workerCapabilities(options: { localWorker: boolean; fullAccess: 
     "provider_account_status",
     CLAUDE_USER_CONFIGURATION_CAPABILITY,
     PROVIDER_SETTINGS_CAPABILITY,
+    SANDBOX_PROFILES_CAPABILITY,
     "running_turns",
     "thread_lifecycle_v1",
     "thread_storage_cleanup_v1",

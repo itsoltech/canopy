@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { Pressable, Text, View } from "react-native";
 import { router } from "expo-router";
-import type { ui } from "@canopy/contracts";
+import { PermissionMode, type ui } from "@canopy/contracts";
 import { timestampDate } from "@bufbuild/protobuf/wkt";
 import { describeCron, scheduleHeading, scheduleRunLabel } from "@canopy/domain/schedule-display";
 import { dayKey } from "@canopy/domain/format";
@@ -12,6 +12,7 @@ import { Icon } from "../../ui/Icon";
 import { useColors, useTypography } from "../../ui/theme";
 import { Accordion } from "../../ui/Accordion";
 import { SettingsGroup } from "./SettingsGroup";
+import { scheduledSandboxLabel } from "./schedule-sandbox";
 
 const statuses = new Map([
   ["completed", "Done"],
@@ -110,7 +111,7 @@ export function ScheduleTaskRow({
         </View>
         {reason && <Text style={[type.meta, { color: c.muted }]}>{reason} Read-only</Text>}
         <Accordion open={open} style={{ marginTop: -2 }}>
-          <ScheduleTaskDetails schedule={s} when={when} reason={reason} onDuplicate={onDuplicate} />
+          <ScheduleTaskDetails schedule={s} thread={thread} when={when} reason={reason} onDuplicate={onDuplicate} />
         </Accordion>
       </View>
     </SettingsGroup>
@@ -120,21 +121,27 @@ export function ScheduleTaskRow({
 /** The expanded part of a row: full message, state, edits, recent runs and Duplicate. */
 function ScheduleTaskDetails({
   schedule: s,
+  thread,
   when,
   reason,
   onDuplicate,
 }: {
   schedule: ui.Schedule;
+  thread?: ui.Thread;
   when: string;
   reason?: string;
   onDuplicate: () => void;
 }) {
   const c = useColors();
   const type = useTypography();
+  const target = s.target === "new_thread" ? s.newThread : thread;
 
   return (
     <View style={{ gap: 6, paddingTop: 8 }}>
       <Text style={[type.meta, { color: c.muted }]}>{when}</Text>
+      {(target?.sandboxProfile || target?.permissionMode === PermissionMode.FULL_AUTO) && (
+        <Text style={[type.meta, { color: c.muted }]}>{scheduledSandboxLabel(target.sandboxProfile)}</Text>
+      )}
       {s.maxRuns > 0 && (
         <Text style={[type.meta, { color: c.muted }]}>
           {s.runs} of {s.maxRuns} runs

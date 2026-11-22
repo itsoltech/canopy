@@ -130,7 +130,7 @@ function previousContext(
 
 /** Reserve the initial block or its one revocation before sending. The marker stores only rule identities. */
 export function reserveHabitContext(ownerId: string, workerId: string, turn: StartTurn) {
-  const thread = turn.thread;
+  const thread = turn.profiledThread?.thread ?? turn.thread;
 
   if (!thread?.enableMemory || thread.hasDelegatingBot || turn.input?.authorUserId !== ownerId)
     return Effect.succeed("");

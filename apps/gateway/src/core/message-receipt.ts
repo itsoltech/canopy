@@ -21,6 +21,7 @@ export interface AdmissionState {
   provider: string;
   provider_profile_id: string | null;
   model: string;
+  sandbox_digest: string;
   archived: boolean;
   deleted: boolean;
   rewind_pending_id: string | null;
@@ -99,7 +100,8 @@ async function receipt(
       // Separate from the lock: this snapshot follows it, so it sees what committed while the lock waited
       // (a receipt, an unlinked pull request, an import), not only the thread row itself.
       const rows = yield* sql<AdmissionState & { response: Uint8Array | null }>`SELECT r.response,t.worker_id,t.cwd,
-        t.provider,t.provider_profile_id,coalesce(t.settings->>'model','') AS model,t.archived_at IS NOT NULL AS archived,
+        t.provider,t.provider_profile_id,coalesce(t.settings->>'model','') AS model,
+        coalesce(t.settings#>>'{sandboxProfile,digest}','') AS sandbox_digest,t.archived_at IS NOT NULL AS archived,
         t.deleted_at IS NOT NULL AS deleted,t.rewind_pending_id,t.pull_request_revision::text AS pull_request_revision,
         (SELECT ti.mode FROM thread_imports ti WHERE ti.thread_id=t.id) AS import_mode,
         EXISTS(SELECT 1 FROM import_items i WHERE i.thread_id=t.id AND i.status IN ('pending','importing')) AS importing

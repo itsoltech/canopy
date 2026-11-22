@@ -141,7 +141,7 @@
   const continueRequest = crypto.randomUUID();
 
   async function continueTurn() {
-    if (continuing === "sending" || continuing === "sent") return;
+    if (directory.sendBlockedReason || continuing === "sending" || continuing === "sent") return;
     continuing = "sending";
 
     try {
@@ -179,7 +179,9 @@
       onsignin={appSignIn && !directory.readOnly && worker?.online && !login.code ? confirmSignIn : undefined}
       signingIn={login.busy}
       {signInLabel}
-      onretry={!directory.readOnly && !turn.inherited && thread?.status === "idle" ? continueTurn : undefined}
+      onretry={!directory.readOnly && !directory.sendBlockedReason && !turn.inherited && thread?.status === "idle"
+        ? continueTurn
+        : undefined}
       onchangemodel={!directory.readOnly && !turn.inherited && thread ? () => (modelOpen = true) : undefined}
     />
     {#if !historical && confirming && !login.code && worker}
@@ -230,8 +232,8 @@
         <button
           type="button"
           class="font-medium text-sky-700 hover:underline disabled:opacity-60 disabled:hover:no-underline dark:text-sky-400"
-          disabled={continuing === "sending" || continuing === "sent"}
-          title="Send a message to resume this thread"
+          disabled={Boolean(directory.sendBlockedReason) || continuing === "sending" || continuing === "sent"}
+          title={directory.sendBlockedReason ?? "Send a message to resume this thread"}
           onclick={continueTurn}
         >
           {continuing === "sent"

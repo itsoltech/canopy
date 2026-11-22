@@ -68,6 +68,8 @@ appear only as the literal name used by an external tool).
 | side thread | a thread branched off another thread | sub-thread, child thread, branch |
 | snooze, wake | move a thread to `Snoozed` and mute its alerts, or bring it back | pause, resume, unarchive |
 | turn | one request and the agent's answer in a thread | run, request, round |
+| Sandbox | the thread permission mode that runs commands within the agent's sandbox | Full auto |
+| sandbox profile | a named set of network rules for commands in a thread's sandbox | provider profile |
 | diff | changes in the thread’s directory compared with Git HEAD | patch viewer |
 | review | a draft of comments on a diff, sent to the agent together | feedback batch |
 | citation | an inline token containing a quoted passage; `Cite` inserts it, `quote` names its text | footnote, reference |

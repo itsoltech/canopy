@@ -9,6 +9,7 @@ import { toUiAttachment } from "./attachments.ts";
 import { toUiQuote } from "./quotes.ts";
 import { mentionsFromJson } from "../core/mentions.ts";
 import { providerOf } from "./instance-config.ts";
+import { threadSandbox } from "./thread-sandbox.ts";
 import { threadNotice } from "./thread-notice.ts";
 import { toUiChecksNote } from "./pr-check-ui.ts";
 import type { InteractionRow, ThreadRow, TurnRow } from "./rows.ts";
@@ -127,6 +128,7 @@ export function toUiThread(row: ThreadRow): ui.Thread {
     ...(row.last_activity_at && { lastActivityAt: timestampFromDate(new Date(row.last_activity_at)) }),
     goalStatus: row.goal_status ?? "",
     backgroundTasks: Number(row.background_tasks ?? 0),
+    sandboxProfile: threadSandbox(row),
     runtime: row.runtime,
     lastMessage: row.last_message ?? "",
     ...threadNotice(row),

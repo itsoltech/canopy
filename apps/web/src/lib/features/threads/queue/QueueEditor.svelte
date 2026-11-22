@@ -28,6 +28,7 @@
     onsave,
     oncancel,
     allowEmpty = false,
+    shellUnavailable,
     attachments = [],
     quotes: initialQuotes = [],
     class: className,
@@ -37,6 +38,7 @@
     onsave: (text: string, mentions: Mention[], quotes: ui.Quote[]) => Promise<string | undefined>;
     oncancel: () => void;
     allowEmpty?: boolean;
+    shellUnavailable?: string | undefined;
     attachments?: readonly ui.Attachment[];
     quotes?: readonly ui.Quote[];
     class?: ClassValue;
@@ -53,6 +55,7 @@
   let error = $state<string | undefined>(undefined);
   let editor = $state<EditorControls>();
   const id = $props.id();
+  const shellBlocker = $derived(value.trimStart().startsWith("!") ? shellUnavailable : undefined);
 
   const key = (list: readonly Mention[]) => list.map((m) => `${m.kind}:${m.name}:${m.start}-${m.end}`).join("|");
 
@@ -79,7 +82,7 @@
   async function save(event?: SubmitEvent) {
     event?.preventDefault();
 
-    if (saving) return;
+    if (saving || shellBlocker) return;
 
     if (
       value === text &&
@@ -131,13 +134,19 @@
       <p id="{id}-error" class="min-w-0 flex-1 text-sm/5 text-rose-700 sm:text-xs/5 dark:text-rose-400" role="alert">
         {error}
       </p>
+    {:else if shellBlocker}
+      <p class="min-w-0 flex-1 text-sm/5 text-rose-700 sm:text-xs/5 dark:text-rose-400" role="status">
+        {shellBlocker}
+      </p>
     {:else if leaving.length > 0}
       <p class="min-w-0 flex-1 text-sm/5 text-pretty text-zinc-500 sm:text-xs/5 dark:text-zinc-400" role="status">
         {leaving.length === 1 ? `${leaving[0]} leaves` : `${leaving.length} files leave`} the message when you save.
       </p>
     {/if}
     <Button variant="ghost" size="sm" onclick={oncancel}>Cancel</Button>
-    <Button type="submit" size="sm" loading={saving} disabled={!allowEmpty && !value.trim()}>Save</Button>
+    <Button type="submit" size="sm" loading={saving} disabled={Boolean(shellBlocker) || (!allowEmpty && !value.trim())}
+      >Save</Button
+    >
   </div>
 </form>
 <EditorAttachmentPreview {attachments} {editor} />

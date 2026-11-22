@@ -1,5 +1,13 @@
 # Protokół gateway ↔ worker
 
+## Profile Sandbox
+
+Status (2026-11-22): worker ogłasza addytywną capability `sandbox_profiles_v1`
+i raportuje możliwości CLI w `ProviderProfile.sandbox_support`. Gateway
+przesyła związany profil w osobnym polu `profiled_thread` komend utworzenia
+wątku i startu tury. `FULL_AUTO` zachowuje numer i oznacza tryb Sandbox w UI.
+Przebieg negocjacji i odmowy opisuje [sandbox-profiles.md](sandbox-profiles.md#transport-i-ponowienia).
+
 ## Ustawienia CLI instancji
 
 Status (2026-11-21) obejmuje edytor wspólnych i lokalnych ustawień Claude,
@@ -859,6 +867,41 @@ pusta lista zwraca zero katalogów.
 **Model i wysiłek tury.** `StartTurn.model` / `effort` to wartości rozstrzygnięte przez gateway (nadpisanie z wiadomości, inaczej domyślne wątku). Codex dostaje je w `turn/start`, zawsze jawnie: bez wyboru domyślny model katalogu i jego `default_effort` (wyżej), bo nadpisanie w Codexie obowiązuje także kolejne tury. Claude dostaje `model` i `effort` w `query()` (`low | medium | high | xhigh | max`; inna wartość = błąd startu tury); bez wyboru skonfigurowany domyślny wysiłek dla tego modelu, jeśli jest.
 
 **Tryb uprawnień tury.** `StartTurn.permission_mode` to tryb rozstrzygnięty przez gateway, zawsze ustawiony: nadpisanie z wiadomości (`SendMessage.permission_mode`), inaczej domyślny wątku (`ThreadSpec.permission_mode`, zmieniany przez `UpdateThread`). Tura zapisuje go w `turns.permission_mode` (w kolejce: nadpisanie albo pusty). `UNSPECIFIED` (starszy gateway) = tryb wątku. Steer dołącza do tury w toku z jej trybem; nadpisanie steera obowiązuje, gdy wiadomość wraca do kolejki. `UpdateThread` i wybór kolejnej wiadomości nadal dotyczą następnych tur; osobne `UpdateTurnPermissions` zmienia bieżącą turę Claude.
+
+**Profile Sandbox.** Status (2026-11-22): zapis powiązania i sprawdzanie
+gotowości w gatewayu zaimplementowane. Dostępność w kanałach wynika z
+[promocji wydań](release.md). Właściciel jawnie wybiera profil dla trybu
+`FULL_AUTO` w `CreateThread` lub `UpdateThread`. Gateway utrwala
+znormalizowaną kopię profilu z digestem w ustawieniach wątku i zwraca ją
+w `Thread.sandbox_profile`. Edycja i usunięcie profilu z katalogu nie zmienia
+istniejącego powiązania. Zmiana lub wyczyszczenie wymaga zakończenia pracy
+i potwierdzonego `UnloadThread`. Gateway zapisuje unload w outboksie, czeka na
+potwierdzenie i pod blokadą wątku ponownie sprawdza stan przed zapisem wyboru.
+
+`CreateThread` i `StartTurn` zapisują w outboksie `profiled_thread` z kopią
+polityki i specyfikacją wątku. Zwykłe pole `thread` jest puste, więc starszy
+worker nie otrzymuje kompletnej komendy. Gateway przed wysłaniem i ponowieniem
+sprawdza capability `sandbox_profiles_v1` oraz raport `ConfigApplied` aktualnej
+konfiguracji i połączenia dla instancji dostawcy. Brak obsługi kończy polecenie
+błędem. Przed otrzymaniem bieżącego raportu zapisane polecenie czeka w
+outboksie. Powiązany wątek przyjmuje wiadomości jako kolejne tury. Nie obsługuje
+bezpośredniego shella kompozytora, zmiany uprawnień w trakcie tury, celów harnessu,
+cofania do wcześniejszej wiadomości, tworzenia wątków pochodnych ani przenoszenia
+między komputerami. Jawne wybory profilu na połączonym komputerze wymagają
+capability `gateway_sandbox_profiles_v1`.
+
+**Harmonogramy z profilem Sandbox.** Status (2026-11-22): zapis i wykonanie
+zaimplementowane w gatewayu. Przy tworzeniu nowego wątku przez harmonogram
+właściciel wybiera `NewThreadSchedule.sandbox_profile_id` w trybie `FULL_AUTO`.
+Gateway zapisuje przypisany snapshot w `schedules.new_thread` i używa go przy
+każdym wystąpieniu. Edycja z pominiętym polem albo z tym samym ID zachowuje
+snapshot. Jawna pusta wartość usuwa powiązanie. Następny wybór z katalogu
+utrwala jego bieżącą wersję. Gateway pomija workery bez gotowej obsługi i
+ponawia wystąpienie zgodnie z dotychczasową polityką harmonogramu, jeżeli
+żaden worker nie jest dostępny. Wątek i jego komenda powstają w jednej
+transakcji. Harmonogram kierowany do istniejącego wątku kolejkuje wiadomość
+pod bieżącym powiązaniem wątku. Jawne wybory na połączonym komputerze wymagają
+capability `gateway_schedule_sandbox_profiles_v1`.
 
 **Zmiana podczas tury Claude.** Capability `claude_live_permissions_v1` dodaje nietrwałą komendę `Command.update_turn_permissions` (20), z dokładnymi `thread_id`, `turn_id` i `permission_mode`. Gateway wymaga właściciela, bieżącej tury Claude i połączonego workera; `FULL_ACCESS` nadal wymaga `full_access`. Worker szereguje zmiany w sesji, wyłącza automatyczne zgody na czas zmiany, stosuje sandbox i tryb SDK, a po sukcesie zapisuje `ThreadEvent.turn_permissions_changed` (21) przed wynikiem komendy. Journal odtwarza zastosowany tryb po utracie ACK; gateway aktualizuje tylko wskazaną turę i publikuje jej zmianę. Autoryzacja narzędzi czeka na zastosowanie zmiany. Błąd częściowej zmiany zatrzymuje sesję. Polecenie nie jest ponawiane przez outbox i nie zmienia domyślnych wątku.
 

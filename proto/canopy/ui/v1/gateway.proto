@@ -853,6 +853,7 @@ message Thread {
   google.protobuf.Timestamp snoozed_until = 1101;
   // Puste = dziedziczenie/domyślne profilu; default = jawny standard.
   string service_tier = 43;
+  canopy.worker.v1.SandboxProfileBinding sandbox_profile = 44;
 }
 
 message ReorderThreadRequest {
@@ -1448,6 +1449,9 @@ message CreateThreadRequest {
   string worktree_id = 902;
   // Puste = dziedziczenie/domyślne profilu; default = jawny standard.
   string service_tier = 43;
+  string sandbox_profile_id = 44;
+  // Oczekiwany skrót profilu odtworzonego z zapisanego szkicu.
+  string sandbox_profile_digest = 45;
 }
 
 // Continue a removed managed worktree in a new main thread without resuming its provider session.
@@ -1842,6 +1846,10 @@ message NewThreadSchedule {
   string permission_mode_note = 13;
   // Puste = dziedziczenie/domyślne profilu; default = jawny standard.
   string service_tier = 14;
+  // Nieustawione zachowuje wybór przy edycji. Pusta wartość wybiera politykę domyślną.
+  optional string sandbox_profile_id = 15;
+  // Snapshot przypisany przez gateway. Klient wybiera ID.
+  canopy.worker.v1.SandboxProfileBinding sandbox_profile = 16;
 }
 
 message ScheduleRun {
@@ -2018,6 +2026,11 @@ message UserSettings {
   ThreadRetentionSettings thread_retention = 902;
   canopy.worker.v1.AgentToolSessionDefaults agent_tool_defaults = 903;
   ModuleSettings modules = 904;
+  SandboxProfiles sandbox_profiles = 905;
+}
+
+message SandboxProfiles {
+  repeated canopy.worker.v1.SandboxProfile profiles = 1;
 }
 
 message ThreadRetentionSettings {
@@ -2106,6 +2119,7 @@ message UpdateUserSettingsRequest {
   ThreadRetentionSettings thread_retention = 902;
   canopy.worker.v1.AgentToolSessionDefaults agent_tool_defaults = 903;
   ModuleSettings modules = 904;
+  SandboxProfiles sandbox_profiles = 905;
 }
 
 message UpdateUserSettingsResponse {
@@ -2208,6 +2222,8 @@ message UpdateThreadRequest {
   bool reset_auto_archive_on_merge = 1061;
   // Puste = dziedziczenie/domyślne profilu; default = jawny standard.
   optional string service_tier = 43;
+  // Nieustawione = bez zmian; puste = polityka domyślna dostawcy.
+  optional string sandbox_profile_id = 44;
 }
 
 message RegenerateTitleRequest {

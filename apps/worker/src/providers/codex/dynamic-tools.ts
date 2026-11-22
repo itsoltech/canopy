@@ -131,6 +131,7 @@ export function serverRequestHandler(ctx: CodexThreadContext): ServerRequestHand
     switch (request.method) {
       case "item/commandExecution/requestApproval":
       case "item/fileChange/requestApproval": {
+        if (entry?.sandboxProfile) return { decision: "decline" };
         const details = approvalDetails(decodeApproval(request.params));
 
         const answer = await interact(
@@ -151,6 +152,7 @@ export function serverRequestHandler(ctx: CodexThreadContext): ServerRequestHand
       }
 
       case "item/permissions/requestApproval": {
+        if (entry?.sandboxProfile) return { permissions: {}, scope: "turn" };
         const details = approvalDetails(decodeApproval(request.params));
         const permissions = Schema.decodeUnknownSync(Schema.JsonObject)(request.params.permissions);
         const answer = await interact(InteractionKind.PERMISSION, "permissions", { ...details, permissions });

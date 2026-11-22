@@ -36,7 +36,7 @@ export const MODE_LABELS = new Map([
   [PermissionMode.ASK, "Ask first"],
   [PermissionMode.ACCEPT_EDITS, "Accept edits"],
   [PermissionMode.READ_ONLY, "Read only"],
-  [PermissionMode.FULL_AUTO, "Full auto"],
+  [PermissionMode.FULL_AUTO, "Sandbox"],
   [PermissionMode.FULL_ACCESS, "Full access"],
 ]);
 

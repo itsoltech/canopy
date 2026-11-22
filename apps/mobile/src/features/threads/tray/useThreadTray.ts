@@ -29,7 +29,7 @@ export function useThreadTray({
     threadId: id,
     turns: snapshot?.turns ?? [],
     steers: snapshot?.steers ?? [],
-    running: thread?.status === "running",
+    canSteer: thread?.status === "running" && !thread.sandboxProfile,
     apply: (update) => setSnapshot((current) => applyThread(current, update)),
   });
 

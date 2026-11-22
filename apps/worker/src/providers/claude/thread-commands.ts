@@ -14,6 +14,7 @@ import { userMessage } from "./session-io.ts";
 import { configureClaudeSpeed } from "./service-tier.ts";
 import { submitClaudeTurn } from "./turn-admission.ts";
 import { claudeSessionHomes, requireClaudeSessionHome } from "./session-home.ts";
+import { claudeSandboxProfile } from "./sandbox-profile.ts";
 
 export function threadCreation(ctx: ClaudeThreadContext, runtime: ReturnType<typeof claudeRuntime>) {
   const { options, journal } = ctx;
@@ -113,6 +114,7 @@ export function threadStart(
           const canSubmit = settings?.canSubmit ?? (() => true);
 
           if (!canSubmit()) return;
+          const sandboxProfile = claudeSandboxProfile(spec.sandboxProfile, mode);
           let session = sessions.get(spec.threadId);
 
           // A process that is ending (idle, no tasks) finishes first; the turn gets a new one.
@@ -123,8 +125,15 @@ export function threadStart(
 
           if (session?.turn) throw new Error("a turn of this thread is already running");
 
-          if (session && session.mode !== mode && session.mapper.backgroundTasks.length === 0) {
-            // Only the grace period after tasks keeps it: a new process starts with the turn's mode.
+          const freshSandbox = sandboxProfile || session?.sandboxProfileDigest;
+
+          if (session && freshSandbox && session.mapper.backgroundTasks.length > 0)
+            throw new Error(
+              "Wait for Claude background tasks to finish before starting this turn with a different process.",
+            );
+
+          if (session && (freshSandbox || (session.mode !== mode && session.mapper.backgroundTasks.length === 0))) {
+            // A named profile always gets fresh startup settings, even when its digest has not changed.
             if (session.closeTimer) clearTimeout(session.closeTimer);
             session.closeTimer = undefined;
             session.closing = true;

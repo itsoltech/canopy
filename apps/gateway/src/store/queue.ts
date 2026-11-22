@@ -99,6 +99,34 @@ const lockUserMessage = (sql: SqlClient.SqlClient, turnId: string, ownerUserId: 
     return turn;
   });
 
+const steerQueuedMessage = (sql: SqlClient.SqlClient, turnId: string, ownerUserId: string) =>
+  sql.withTransaction(
+    Effect.gen(function* () {
+      const turn = yield* lockUserMessage(sql, turnId, ownerUserId);
+
+      const running = yield* sql<{ id: string; worker_id: string | null; sandbox: boolean }>`
+        SELECT u.id, t.worker_id, (t.settings->>'sandboxProfile' IS NOT NULL) AS sandbox FROM turns u JOIN threads t ON t.id = u.thread_id
+         WHERE u.thread_id = ${turn.thread_id}::uuid AND u.status = 'running'`;
+
+      if (running[0]?.sandbox)
+        return yield* Effect.fail(
+          new QueueConflict("Messages for a thread with a sandbox profile run in its next turn."),
+        );
+
+      if (!running[0]?.worker_id)
+        return yield* Effect.fail(new QueueConflict("no turn is running; the message stays in the queue"));
+      const id = Bun.randomUUIDv7();
+      yield* sql`
+        INSERT INTO turn_steers (id, thread_id, turn_id, input, author_user_id, model, effort, service_tier, permission_mode, from_turn_id)
+        VALUES (${id}::uuid, ${turn.thread_id}::uuid, ${running[0].id}::uuid, ${JSON.stringify(turn.input)}::jsonb,
+                ${turn.author_user_id}::uuid, ${turn.model ?? ""}, ${turn.effort ?? ""}, ${turn.service_tier ?? ""}, ${turn.permission_mode ?? ""}, ${turnId}::uuid)`;
+      yield* sql`UPDATE turns SET status = 'cancelled', withdrawn = 'steered', completed_at = now() WHERE id = ${turnId}::uuid`;
+      const steer = (yield* sql<SteerRow>`SELECT * FROM turn_steers WHERE id = ${id}::uuid`)[0]!;
+
+      return { steer, turn: yield* readOne(sql, turnId) };
+    }),
+  );
+
 export class QueueStore extends Context.Service<
   QueueStore,
   {
@@ -188,6 +216,16 @@ export class QueueStore extends Context.Service<
             Effect.gen(function* () {
               const turn = yield* lockUserMessage(sql, turnId, ownerUserId);
 
+              if (
+                input.shellCommand !== undefined &&
+                (yield* sql`
+                SELECT id FROM threads WHERE id=${turn.thread_id}::uuid AND settings->>'sandboxProfile' IS NOT NULL`)
+                  .length
+              )
+                return yield* Effect.fail(
+                  new Invalid("Composer shell commands are unavailable with a sandbox profile."),
+                );
+
               if (turn.revision !== expectedRevision)
                 return yield* Effect.fail(
                   new QueueConflict("this message was changed elsewhere; edit the new version"),
@@ -232,28 +270,7 @@ export class QueueStore extends Context.Service<
             }),
           ),
 
-        steer: ({ turnId, ownerUserId }) =>
-          sql.withTransaction(
-            Effect.gen(function* () {
-              const turn = yield* lockUserMessage(sql, turnId, ownerUserId);
-
-              const running = yield* sql<{ id: string; worker_id: string | null }>`
-                SELECT u.id, t.worker_id FROM turns u JOIN threads t ON t.id = u.thread_id
-                 WHERE u.thread_id = ${turn.thread_id}::uuid AND u.status = 'running'`;
-
-              if (!running[0]?.worker_id)
-                return yield* Effect.fail(new QueueConflict("no turn is running; the message stays in the queue"));
-              const id = Bun.randomUUIDv7();
-              yield* sql`
-                INSERT INTO turn_steers (id, thread_id, turn_id, input, author_user_id, model, effort, service_tier, permission_mode, from_turn_id)
-                VALUES (${id}::uuid, ${turn.thread_id}::uuid, ${running[0].id}::uuid, ${JSON.stringify(turn.input)}::jsonb,
-                        ${turn.author_user_id}::uuid, ${turn.model ?? ""}, ${turn.effort ?? ""}, ${turn.service_tier ?? ""}, ${turn.permission_mode ?? ""}, ${turnId}::uuid)`;
-              yield* sql`UPDATE turns SET status = 'cancelled', withdrawn = 'steered', completed_at = now() WHERE id = ${turnId}::uuid`;
-              const steer = (yield* sql<SteerRow>`SELECT * FROM turn_steers WHERE id = ${id}::uuid`)[0]!;
-
-              return { steer, turn: yield* readOne(sql, turnId) };
-            }),
-          ),
+        steer: ({ turnId, ownerUserId }) => steerQueuedMessage(sql, turnId, ownerUserId),
 
         whileHead: ({ ownerUserId, threadId, turnId, revision }, start) =>
           sql.withTransaction(

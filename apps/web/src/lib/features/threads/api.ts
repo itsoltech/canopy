@@ -78,6 +78,7 @@ export async function updateThread(
     serviceTier?: string;
     permissionMode?: PermissionModeKey;
     title?: string;
+    sandboxProfileId?: string;
     autoArchiveOnMerge?: boolean;
     resetAutoArchiveOnMerge?: boolean;
   },

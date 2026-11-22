@@ -10,6 +10,7 @@ import { coreCheckProvider, coreStartThread } from "../core/core-threads.ts";
 import { coreUiThread } from "../core/core-titles.ts";
 import { inheritedPermissionMode } from "../core/full-access.ts";
 import type { GatewayCore } from "../core/core.ts";
+import { SANDBOX_DERIVATION_UNAVAILABLE, threadSandbox } from "../store/thread-sandbox.ts";
 import type { ThreadRow } from "../store/rows.ts";
 import { corePrepareWorkspace, ownWorkspace } from "./core-worktrees.ts";
 import { removedWorktreeHandoff } from "./continuation-handoff.ts";
@@ -95,6 +96,8 @@ export async function continueThreadInWorktree(
 }
 
 async function checkSource(core: GatewayCore, source: ThreadRow): Promise<void> {
+  if (threadSandbox(source)) throw new InvalidError(SANDBOX_DERIVATION_UNAVAILABLE);
+
   if (source.runtime !== "worker" || !source.worktree_id || !source.workspace_id || !source.worker_id)
     throw new InvalidError("This thread has no removed managed worktree");
 

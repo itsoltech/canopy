@@ -117,7 +117,7 @@ export function threadsHandlers(
       guard(() => readRangeContent(core[coreState].options.runtime, core[coreState].options.userId, request)),
 
     updateThread: (request) =>
-      guard(async () => create(ui.UpdateThreadResponseSchema, { thread: await core.updateThread(request) })),
+      guard(async () => create(ui.UpdateThreadResponseSchema, { thread: await core.updateThread(request, true) })),
 
     regenerateTitle: (request) =>
       guard(async () => {

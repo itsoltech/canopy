@@ -34,7 +34,7 @@ export const automatedPermission = (
         return {
           permissionMode: "FULL_AUTO",
           permissionModeNote:
-            "This computer limits Full access to Full auto. Choose another mode or enable Full access on this computer.",
+            "This computer uses Sandbox when Full access is unavailable. Choose a different permission mode or enable Full access on this computer.",
         };
     }
 

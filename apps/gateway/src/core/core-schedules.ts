@@ -1,4 +1,5 @@
-import { create } from "@bufbuild/protobuf";
+import { SANDBOX_DERIVATION_UNAVAILABLE, threadSandbox } from "../store/thread-sandbox.ts";
+import { create, fromJson } from "@bufbuild/protobuf";
 import { PermissionMode, ui } from "@canopy/contracts";
 import { Effect } from "effect";
 import { timestampFromDate } from "@bufbuild/protobuf/wkt";
@@ -13,6 +14,7 @@ import { coreCheckModel } from "./core-models.ts";
 import { coreInstances, coreWorkers } from "./core-providers.ts";
 import { coreRun } from "./core-broadcast.ts";
 import { splitId } from "@canopy/domain/computers";
+import { scheduleSandboxSelection } from "./schedule-sandbox.ts";
 import { refuseRemoteAutomation } from "../worktrees/remote.ts";
 
 type ScheduleAuthor = "owner" | "bot";
@@ -21,6 +23,7 @@ async function coreScheduleConfiguration(
   hostContext: GatewayCore,
   request: ui.CreateScheduleRequest,
   author: ScheduleAuthor,
+  previous?: ui.NewThreadSchedule,
 ): Promise<NewSchedule> {
   const target = request.target || "thread";
 
@@ -33,6 +36,9 @@ async function coreScheduleConfiguration(
 
   if (target === "thread") {
     if (request.newThread) throw new InvalidError("thread target cannot include new_thread");
+
+    if (previous?.sandboxProfile && author !== "owner")
+      throw new InvalidError("Only the owner can change the target of a schedule with a sandbox profile.");
     const thread = await coreRun(hostContext, (s) => s.thread(request.threadId));
 
     if (thread.owner_user_id !== hostContext[coreState].options.userId || thread.deleted_at)
@@ -68,6 +74,8 @@ async function coreScheduleConfiguration(
         parent.workspace_id !== spec.workspaceId
       )
         throw new InvalidError("parent thread must belong to this project and workspace");
+
+      if (threadSandbox(parent)) throw new InvalidError(SANDBOX_DERIVATION_UNAVAILABLE);
     } else if (spec.parentThreadId) throw new InvalidError("parent_thread_id is only for inherit_parent");
     const placement = spec.placement || "any";
 
@@ -76,6 +84,7 @@ async function coreScheduleConfiguration(
     if (!harnessOf(spec.provider)) throw new InvalidError("choose a provider");
 
     if (!Object.values(PermissionMode).includes(spec.permissionMode)) throw new InvalidError("unknown permission mode");
+    const sandboxProfile = await scheduleSandboxSelection(hostContext, spec, previous, author === "owner");
 
     const project = (await coreRun(hostContext, (s) => s.listProjects(hostContext[coreState].options.userId))).find(
       (p) => p.id === spec.projectId,
@@ -118,11 +127,13 @@ async function coreScheduleConfiguration(
 
     newThread = create(ui.NewThreadScheduleSchema, {
       ...spec,
+      sandboxProfileId: sandboxProfile?.profile?.id,
+      sandboxProfile,
       placement,
       title: spec.title.trim(),
       permissionMode: limited ? PermissionMode.FULL_AUTO : spec.permissionMode || PermissionMode.ASK,
       permissionModeNote: limited
-        ? "Bot schedules use Full auto in place of Full access. Edit this schedule to choose another mode."
+        ? "Bot schedules use Sandbox when Full access is selected. Edit this schedule to choose a different mode."
         : "",
     });
   }
@@ -198,8 +209,11 @@ export const coreSchedulesMethods: CoreSchedulesMethods = {
     if (!request.configuration) throw new InvalidError("configuration is required");
 
     if (!request.expectedVersion) throw new InvalidError("expected_version is required");
-    const configuration = await coreScheduleConfiguration(this, request.configuration, author);
     const previous = await coreBus(this, (s) => s.schedule(request.scheduleId));
+
+    if (previous.owner_user_id !== this[coreState].options.userId) throw new InvalidError("schedule not found");
+    const previousSpec = previous.new_thread ? fromJson(ui.NewThreadScheduleSchema, previous.new_thread) : undefined;
+    const configuration = await coreScheduleConfiguration(this, request.configuration, author, previousSpec);
 
     const row = await coreBus(this, (s) =>
       s.updateSchedule({
@@ -207,6 +221,10 @@ export const coreSchedulesMethods: CoreSchedulesMethods = {
         expectedVersion: request.expectedVersion,
         userId: this[coreState].options.userId,
         schedule: configuration,
+        ownerSandboxWrite:
+          author === "owner" &&
+          previousSpec?.sandboxProfile !== undefined &&
+          previousSpec.sandboxProfile.digest !== configuration.newThread?.sandboxProfile?.digest,
       }),
     );
 

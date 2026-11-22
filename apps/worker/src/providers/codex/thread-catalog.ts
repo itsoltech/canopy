@@ -153,7 +153,11 @@ export function threadTurnSettings(
         serviceTier,
         ...(model && { model }),
         ...(effort && { effort }),
-        ...codexTurnPermissions(settings?.permissionMode || spec.permissionMode),
+        // The verified named profile is sticky. A legacy override would replace it. Re-selecting
+        // the name here would reload config sources after its effective policy was checked.
+        ...(spec.sandboxProfile
+          ? { approvalPolicy: "never" as const }
+          : codexTurnPermissions(settings?.permissionMode || spec.permissionMode)),
       };
     });
 

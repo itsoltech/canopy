@@ -6,7 +6,7 @@ import { toUiSteer, toUiTurn } from "../store/index.ts";
 import { AgentBus } from "./agent-bus.ts";
 import { Scheduler } from "./scheduler.ts";
 import { PrCheckWatches } from "./pr-check-watches.ts";
-import { scheduleWorkerEligible } from "@canopy/domain";
+import { confirmScheduleSandboxWorker, eligibleScheduleWorkers } from "./schedule-sandbox.ts";
 import { titleContext } from "./thread-titles.ts";
 import { BotsRuntime } from "../bots/runtime.ts";
 import { botPlatform, describeBotTool, prepareBotTool } from "../bots/platform.ts";
@@ -19,7 +19,6 @@ import { coreStartThread } from "./core-threads.ts";
 import { coreAnswer, corePublishInteraction } from "./core-interactions.ts";
 import { coreQueueSteer, coreSendSteer, coreSteers } from "./core-messages.ts";
 import { coreSpawnInstances } from "./core-models.ts";
-import { coreWorkers } from "./core-providers.ts";
 import { coreAutoTitle, coreUiThread } from "./core-titles.ts";
 import { coreBroadcastThread, coreBroadcastTurn, coreLog, coreRun } from "./core-broadcast.ts";
 import { corePublishSchedule } from "./core-schedules.ts";
@@ -154,13 +153,9 @@ export function createCoreScheduler(core: GatewayCore, options: GatewayCoreOptio
     log: (message) => coreLog(core, message),
     changed: (scheduleId) => corePublishSchedule(core, scheduleId),
     prepareWorkspace: (request, userId, sourceId) => prepareScheduledWorkspace(core, request, userId, sourceId),
-    eligibleWorkers: async (schedule) => {
-      const spec = fromJson(ui.NewThreadScheduleSchema, schedule.new_thread!);
-
-      return (await coreWorkers(core))
-        .filter((w) => scheduleWorkerEligible(w, spec, spec.placement !== "specific"))
-        .map((w) => w.id);
-    },
+    eligibleWorkers: (schedule) =>
+      eligibleScheduleWorkers(core, fromJson(ui.NewThreadScheduleSchema, schedule.new_thread!)),
+    confirmSandboxWorker: (workerId, spec) => confirmScheduleSandboxWorker(core, workerId, spec),
     created: async ({ thread, command, newWorktree }, prompt) => {
       core.hub.publishOverview(
         create(ui.OverviewUpdateSchema, { change: { case: "thread", value: coreUiThread(core, thread) } }),

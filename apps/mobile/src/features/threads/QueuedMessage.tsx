@@ -12,6 +12,7 @@ import { MessageSpans } from "../composer/MessageText";
 import { editText, isAttachment, trimValue, type MessageValue } from "../composer/message-value";
 import { useUpdateBlocker } from "../updates/useUpdateBlocker";
 import { inlineLegacyQuotes } from "@canopy/domain";
+import { sandboxShellUnavailable, startsWithShellCommand } from "./sandbox";
 
 const failure = (cause: unknown) => ConnectError.from(cause).rawMessage;
 
@@ -19,15 +20,23 @@ const failure = (cause: unknown) => ConnectError.from(cause).rawMessage;
  * Edit of a queued message (it keeps its place and overrides): its files are the same badges as in the composer and
  * go whole when deleted; a file whose badge is gone leaves the message on Save, which the line under the field says.
  */
-export function QueueEditor({ turn, onClose }: { turn: ui.Turn | undefined; onClose: () => void }) {
+export function QueueEditor({
+  turn,
+  sandboxBound,
+  onClose,
+}: {
+  turn: ui.Turn | undefined;
+  sandboxBound: boolean;
+  onClose: () => void;
+}) {
   return (
     <Overlay visible={Boolean(turn)} onClose={onClose} label="Edit queued message">
-      {turn ? <EditorBody key={`${turn.id}:${turn.revision}`} turn={turn} onClose={onClose} /> : null}
+      {turn ? <EditorBody key={`${turn.id}:${turn.revision}`} {...{ turn, sandboxBound, onClose }} /> : null}
     </Overlay>
   );
 }
 
-function EditorBody({ turn, onClose }: { turn: ui.Turn; onClose: () => void }) {
+function EditorBody({ turn, sandboxBound, onClose }: { turn: ui.Turn; sandboxBound: boolean; onClose: () => void }) {
   const c = useColors();
   const { client } = useSession();
 
@@ -46,9 +55,10 @@ function EditorBody({ turn, onClose }: { turn: ui.Turn; onClose: () => void }) {
   );
 
   const allowEmpty = turn.attachments.length > leaving.length;
+  const shellBlocked = sandboxBound && startsWithShellCommand(value.text);
 
   async function save() {
-    if (!client || saving) return;
+    if (!client || saving || shellBlocked) return;
     const trimmed = trimValue(value);
 
     if (trimmed.text === turn.messageText && value.mentions.length === initial.mentions.length) return onClose();
@@ -93,9 +103,9 @@ function EditorBody({ turn, onClose }: { turn: ui.Turn; onClose: () => void }) {
       >
         <MessageSpans value={value} />
       </TextInput>
-      {error ? (
+      {shellBlocked || error ? (
         <Text accessibilityRole="alert" style={[styles.overlayMeta, { color: c.danger }]}>
-          {error}
+          {shellBlocked ? sandboxShellUnavailable : error}
         </Text>
       ) : leaving.length ? (
         <Text accessibilityLiveRegion="polite" style={[styles.overlayMeta, { color: c.muted }]}>
@@ -108,7 +118,7 @@ function EditorBody({ turn, onClose }: { turn: ui.Turn; onClose: () => void }) {
           variant="primary"
           title="Save"
           busy={saving}
-          disabled={!allowEmpty && !value.text.trim()}
+          disabled={shellBlocked || (!allowEmpty && !value.text.trim())}
           onPress={() => void save()}
         />
       </View>

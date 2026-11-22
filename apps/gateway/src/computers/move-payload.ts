@@ -36,6 +36,7 @@ export const ThreadRowSchema = Schema.Struct({
     serviceTier: Schema.optionalKey(Schema.String),
     permissionMode: Schema.optionalKey(Schema.String),
     instructions: Schema.optionalKey(Schema.String),
+    sandboxProfile: Schema.optionalKey(Schema.MutableJson),
   }),
   cwd: Schema.NullOr(Schema.String),
   created_at: Schema.String,
@@ -53,8 +54,14 @@ export const ThreadRowSchema = Schema.Struct({
 
 export type ThreadRowJson = typeof ThreadRowSchema.Type;
 
-export const threadRowJson = (json: string): ThreadRowJson =>
-  Schema.decodeUnknownSync(ThreadRowSchema)(JSON.parse(json));
+export function threadRowJson(json: string): ThreadRowJson {
+  const row = Schema.decodeUnknownSync(ThreadRowSchema)(JSON.parse(json));
+
+  if (row.settings.sandboxProfile != null)
+    throw new MoveRefused("Threads with a sandbox profile must stay on their home computer.");
+
+  return row;
+}
 
 export const JsonRow = Schema.Record(Schema.String, Schema.MutableJson);
 

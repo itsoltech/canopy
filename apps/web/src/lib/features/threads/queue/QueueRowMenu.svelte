@@ -21,7 +21,7 @@
     index: number;
     count: number;
     hints: readonly string[];
-    delivery: "steer" | "queue";
+    delivery: "steer" | "queue" | undefined;
     onedit?: (() => void) | undefined;
     onmove: (index: number) => void;
     ondelivery: (delivery: "steer" | "queue") => void;
@@ -39,18 +39,20 @@
   <MenuItem icon="arrow-up" disabled={index === 0} onselect={() => onmove(0)}>Move to top</MenuItem>
   <MenuItem icon="arrow-down" disabled={index === count - 1} onselect={() => onmove(count - 1)}>Move to bottom</MenuItem
   >
-  <MenuSeparator />
-  {#if delivery === "queue"}
-    <MenuItem
-      icon="arrow-turn-down-right"
-      description="Send messages into the running turn by default."
-      onselect={() => ondelivery("steer")}>Turn off queueing</MenuItem
-    >
-  {:else}
-    <MenuItem
-      icon="queue-list"
-      description="Save new messages for the next turn by default."
-      onselect={() => ondelivery("queue")}>Turn on queueing</MenuItem
-    >
+  {#if delivery}
+    <MenuSeparator />
+    {#if delivery === "queue"}
+      <MenuItem
+        icon="arrow-turn-down-right"
+        description="Send messages into the running turn by default."
+        onselect={() => ondelivery("steer")}>Turn off queueing</MenuItem
+      >
+    {:else}
+      <MenuItem
+        icon="queue-list"
+        description="Save new messages for the next turn by default."
+        onselect={() => ondelivery("queue")}>Turn on queueing</MenuItem
+      >
+    {/if}
   {/if}
 </DropdownMenu>

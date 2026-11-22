@@ -1,9 +1,10 @@
 import { create } from "@bufbuild/protobuf";
-import { ui } from "@canopy/contracts";
+import { PermissionMode, ui, type SandboxProfileBinding } from "@canopy/contracts";
 import { Effect } from "effect";
 import { SqlClient } from "effect/sql";
 import { corePrepareWorkspace, resolveWorkspaceMode, type PreparedWorkspace } from "../worktrees/core-worktrees.ts";
 import { coreNameBranchLater } from "../worktrees/branch-naming.ts";
+import { DRAFT_SANDBOX_RESELECT, SANDBOX_DERIVATION_UNAVAILABLE, threadSandbox } from "../store/thread-sandbox.ts";
 import type { AutomatedAccess } from "../store/automated-permissions.ts";
 import { harnessOf, turnEffort, type ThreadRow } from "../store/index.ts";
 import { coreBroadcastTurn, coreRun } from "./core-broadcast.ts";
@@ -14,6 +15,14 @@ import { coreMessageAttachments } from "./core-attachments.ts";
 import { coreComposeInput, coreMessageMentions } from "./core-mentions.ts";
 import { coreCheckModel, coreProfileModels } from "./core-models.ts";
 import { coreGoals } from "./core-goals.ts";
+import {
+  checkSandboxPlacement,
+  ownerSandboxBinding,
+  sandboxGoalText,
+  SANDBOX_GOAL_UNAVAILABLE,
+  SANDBOX_MODE_REQUIRED,
+  SANDBOX_SHELL_UNAVAILABLE,
+} from "./thread-sandbox.ts";
 import { coreShellInput } from "./core-shell.ts";
 import { requireThreadModule } from "./thread-module-runtime.ts";
 import type { GatewayCore } from "./core.ts";
@@ -51,6 +60,14 @@ async function completedCreation(core: GatewayCore, input: ui.CreateThreadReques
 
   if (!previous) return;
 
+  const binding = threadSandbox(previous);
+
+  if (input.sandboxProfileDigest && input.sandboxProfileDigest !== binding?.digest)
+    throw new InvalidError(DRAFT_SANDBOX_RESELECT);
+
+  if (input.sandboxProfileId && input.sandboxProfileId !== binding?.profile?.id)
+    throw new InvalidError("This request already created a thread with a different sandbox selection.");
+
   if (previous.preparation_fingerprint)
     throw new InvalidError(previous.status_detail ?? "This thread is still being prepared.");
 
@@ -67,6 +84,13 @@ async function completedCreation(core: GatewayCore, input: ui.CreateThreadReques
 }
 
 async function checkPlacement(core: GatewayCore, input: ui.CreateThreadRequest, automated?: AutomatedAccess) {
+  if (input.parentThreadId) {
+    const parent = await coreRun(core, (s) => s.thread(input.parentThreadId));
+
+    if (parent.owner_user_id === core[coreState].options.userId && threadSandbox(parent))
+      throw new InvalidError(SANDBOX_DERIVATION_UNAVAILABLE);
+  }
+
   const source = input.forkAtTurnId && !input.parentThreadId ? await coreForkRequest(core, input) : input;
 
   const asked = await inheritThreadServiceTier(
@@ -147,6 +171,7 @@ async function startPreparedThread(
   message: InitialMessage,
   options: CreationOptions,
   pending?: ThreadRow,
+  sandboxProfile?: SandboxProfileBinding,
 ) {
   const { request } = prepared;
 
@@ -172,6 +197,7 @@ async function startPreparedThread(
             undefined,
             undefined,
             humanAuthored,
+            sandboxProfile,
           ),
         );
 
@@ -245,6 +271,12 @@ async function createOnce(
   fingerprint?: string,
 ) {
   const { progress } = options;
+
+  if (input.sandboxProfileId && (!options.ownerInput || options.automated || options.remoteParent))
+    throw new InvalidError("Only the owner can select a sandbox profile.");
+
+  if (input.sandboxProfileDigest && !input.sandboxProfileId) throw new InvalidError(DRAFT_SANDBOX_RESELECT);
+
   progress?.("check_workspace", "running");
   const previous = await completedCreation(core, input);
 
@@ -259,9 +291,15 @@ async function createOnce(
 
   const asked = await checkPlacement(core, input, options.automated);
 
+  const sandbox = await creationSandbox(core, asked);
+
+  if (sandbox && asked.initialMessage.startsWith("!")) throw new InvalidError(SANDBOX_SHELL_UNAVAILABLE);
+
+  if (sandbox && sandboxGoalText(asked.initialMessage)) throw new InvalidError(SANDBOX_GOAL_UNAVAILABLE);
+
   const pending =
     fingerprint && asked.workspaceMode === ui.WorkspaceMode.NEW_WORKTREE
-      ? await reserveWorktreeThread(core, asked, fingerprint)
+      ? await reserveWorktreeThread(core, asked, fingerprint, sandbox)
       : undefined;
 
   try {
@@ -275,14 +313,33 @@ async function createOnce(
 
     progress?.("prepare_message", "running");
     const message = await prepareInitialMessage(core, prepared.request, options.ownerInput);
+
+    if (sandbox && message?.shell) throw new InvalidError(SANDBOX_SHELL_UNAVAILABLE);
+
+    if (sandbox && message?.goal !== undefined) throw new InvalidError(SANDBOX_GOAL_UNAVAILABLE);
     progress?.("prepare_message", "completed");
     progress?.("start_thread", "running");
 
-    return await startPreparedThread(core, prepared, message, options, pending);
+    return await startPreparedThread(core, prepared, message, options, pending, sandbox);
   } catch (error) {
     if (pending) await failWorktreePreparation(core, pending, error);
     throw error;
   }
+}
+
+async function creationSandbox(core: GatewayCore, request: ui.CreateThreadRequest) {
+  if (!request.sandboxProfileId) return;
+
+  if (request.permissionMode !== PermissionMode.FULL_AUTO) throw new InvalidError(SANDBOX_MODE_REQUIRED);
+
+  const profile = await ownerSandboxBinding(core, request.sandboxProfileId, request.sandboxProfileDigest);
+  const projects = await coreRun(core, (s) => s.listProjects(core[coreState].options.userId));
+  const workspace = projects.flatMap((project) => project.workspaces).find((item) => item.id === request.workspaceId);
+
+  if (!workspace) throw new InvalidError("Workspace not found.");
+  await checkSandboxPlacement(core, workspace.workerId, request.provider, request.providerProfileId, profile);
+
+  return profile;
 }
 
 export function coreCreateThread(

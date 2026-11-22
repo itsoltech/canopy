@@ -37,8 +37,11 @@ export class ComposerPermissionsState {
   get liveTurnId() {
     const { thread, worker, running, runningTurn } = this.context();
 
-    if (running && thread.provider === Provider.CLAUDE && worker?.claudeLivePermissions)
+    if (!this.sandboxProfile && running && thread.provider === Provider.CLAUDE && worker?.claudeLivePermissions)
       return runningTurn?.id || undefined;
+  }
+  get sandboxProfile() {
+    return this.#thread.sandboxProfile?.profile;
   }
   get threadDefault() {
     const thread = this.#thread;
@@ -64,6 +67,8 @@ export class ComposerPermissionsState {
   get messageMode() {
     const { saved } = this.context();
     const thread = this.#thread;
+
+    if (this.sandboxProfile) return PermissionMode.UNSPECIFIED;
 
     if (thread.provider === Provider.CODEX)
       return saved.pendingSend?.permissionMode ?? codexMessagePermission(thread, saved.choices.permissionMode);
@@ -101,6 +106,10 @@ export class ComposerPermissionsState {
     return undefined;
   }
   get explanation() {
+    const profile = this.sandboxProfile;
+
+    if (profile) return `This thread uses “${profile.name}”.`;
+
     if (this.threadDefault) {
       const description =
         this.scope === "message"
@@ -159,7 +168,7 @@ export class ComposerPermissionsState {
     }
   }
   async select(next: PermissionModeKey) {
-    if (this.locked) return;
+    if (this.locked || this.sandboxProfile) return;
     const { thread, saved, onturn } = this.context();
     this.error = "";
 

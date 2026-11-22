@@ -1,7 +1,8 @@
 # Projekty, wątki i wątki boczne
 
 Status (2026-11-22): wątki projektowe Claude, Codex i Grok mogą korzystać
-z [pamięci projektu i workera](agent-memory.md).
+z [pamięci projektu i workera](agent-memory.md). Web i desktop pozwalają przypisać
+własną politykę sieci poleceń w trybie [Sandbox](sandbox-profiles.md).
 
 Status (2026-11-21): zaimplementowane, w tym usypianie wątków w web/desktop i mobile,
 spójne nagłówki oraz płynne rozwijanie i zwijanie sekcji Snoozed i Working w web/desktop,
@@ -55,14 +56,14 @@ wracają do wątku głównego. Escape w otwartym pickerze najpierw zamyka picker
 Szkic bierze tryb uprawnień wątku głównego, z wyjątkiem Full access: wtedy zaczyna od Full auto.
 
 **Tryby uprawnień** (`PermissionPicker`, „Permissions…”, domyślne wątków): Ask first, Accept edits,
-Read only, Full auto i Full access (bez pytań i bez sandboxa,
-[protocol.md](protocol.md#modele-effort-i-steer)). Full auto automatycznie zatwierdza komendy
+Read only, Sandbox i Full access (bez pytań i bez sandboxa,
+[protocol.md](protocol.md#modele-effort-i-steer)). Sandbox automatycznie zatwierdza komendy
 w sandboxie workspace'u. Gdy celem jest Claude na natywnym Windowsie, kompozytory,
-dialog uprawnień i edytor harmonogramu web/desktop nie oferują Full auto.
+dialog uprawnień i edytor harmonogramu web/desktop nie oferują trybu Sandbox.
 Nowy wątek, wątek boczny i ustawienia harmonogramu dla tego celu używają Ask first,
-jeśli wybór lub domyślna wartość wskazuje Full auto. Istniejący wątek z zapisanym Full auto
+jeśli wybór lub domyślna wartość wskazuje Sandbox. Istniejący wątek z zapisanym trybem Sandbox
 nadal pokazuje swój tryb i informuje, że polecenia powłoki wymagają zgody.
-Przy nieustalonym celu opis Full auto informuje o ograniczeniu na Windows.
+Przy nieustalonym celu opis trybu Sandbox informuje o ograniczeniu na Windows.
 Full access ma kolor rose i ikonę `shield-off`
 (pigułka kompozytora, panel, hover card, `PermissionModeTitle` z odznaką „No sandbox”). Każdy wybór
 Full access w pickerze i w domyślnych wątków potwierdza dialog „Turn on full access?”

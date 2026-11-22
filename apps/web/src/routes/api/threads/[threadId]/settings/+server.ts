@@ -16,6 +16,7 @@ const Body = Schema.Struct({
   resetAutoArchiveOnMerge: Schema.optionalKey(Schema.Boolean),
   // Enum key; missing = unchanged.
   permissionMode: Schema.optionalKey(Schema.Literals(["ASK", "ACCEPT_EDITS", "READ_ONLY", "FULL_AUTO", "FULL_ACCESS"])),
+  sandboxProfileId: Schema.optionalKey(Schema.String.check(Schema.isMaxLength(36))),
 });
 
 /** The thread's default model, effort and permission mode (UpdateThread), for turns without a per-message choice. */

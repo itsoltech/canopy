@@ -14,7 +14,7 @@ interface Source {
 }
 
 /** Historical sources keep their buttons; only the current own answer can send a reply. */
-export function replyDirectory(source: () => Source) {
+export function replyDirectory(source: () => Source, sendBlockedReason: () => string | undefined) {
   const settings = useSettings();
 
   function replySource(turnId: string) {
@@ -80,6 +80,7 @@ export function replyDirectory(source: () => Source) {
 
       return Boolean(
         !readOnly &&
+        !sendBlockedReason() &&
         thread?.status === "idle" &&
         thread.runtime === "worker" &&
         thread.import?.mode !== "history" &&

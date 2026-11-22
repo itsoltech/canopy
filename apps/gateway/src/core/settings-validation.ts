@@ -1,11 +1,31 @@
-import { ui } from "@canopy/contracts";
+import { ui, type SandboxProfile } from "@canopy/contracts";
 import { MAX_ATTACHMENT_FILE_BYTES, MAX_ATTACHMENT_FILE_MIB, validModuleOrder } from "@canopy/domain";
 import { isEntityId } from "@canopy/domain/computers";
+import { normalizeSandboxProfile } from "@canopy/domain/sandbox-profiles";
 import { isCheckInterval } from "@canopy/domain/update-checks";
 import { harnessOf } from "../store/index.ts";
 import { checkFavorites, InvalidError } from "./core-context.ts";
 import { validateAgentToolDefaults } from "./agent-tool-defaults-validation.ts";
 import { checkWorkerGatewayUrl } from "./worker-administration.ts";
+
+export function validateSandboxProfiles(section: ui.SandboxProfiles): ui.SandboxProfiles {
+  let profiles: SandboxProfile[];
+
+  try {
+    profiles = section.profiles.map(normalizeSandboxProfile);
+  } catch (error) {
+    if (error instanceof Error) throw new InvalidError(error.message);
+    throw error;
+  }
+
+  if (new Set(profiles.map((profile) => profile.id)).size !== profiles.length)
+    throw new InvalidError("Each sandbox profile must have a unique ID.");
+
+  if (new Set(profiles.map((profile) => profile.name.toLowerCase())).size !== profiles.length)
+    throw new InvalidError("Choose a different name for each sandbox profile.");
+
+  return { ...section, profiles };
+}
 
 /** Shared by local UI writes and config materialization before the domain store is changed. */
 export function validateUserSettings(request: ui.UpdateUserSettingsRequest) {

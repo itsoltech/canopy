@@ -64,6 +64,11 @@ export function livePermissions(ctx: ClaudeThreadContext) {
         check();
 
         if (!session) return;
+
+        if (session.sandboxProfileDigest)
+          throw new Error(
+            "A Claude Sandbox profile is fixed for this turn. Change permissions before starting a new turn.",
+          );
         await switchSessionMode(session, mode, {
           check,
           invalidate: () => invalidateSessionPermissions(session),

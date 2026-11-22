@@ -69,6 +69,7 @@ function useThreadState(id: string) {
   const following = useFollowingList<ui.Turn>(true, compactThreadComposerHeight, creation?.preparationAnchor?.distance);
   const [details, setDetails] = useState(false);
   const { projects, workers, threads } = useOverview();
+  const thread = snapshot?.thread ?? threads.find((t) => t.id === id);
   const message = usePersistentMessage(create(ui.ComposerDraftTargetSchema, { threadId: id }), threadVisible);
   const quotes = useQuoteDraft(undefined, {}, message);
 
@@ -82,6 +83,7 @@ function useThreadState(id: string) {
     message,
     quotes,
     connection,
+    sandboxBound: Boolean(thread?.sandboxProfile),
     setSnapshot,
     onSend: following.resumeFollowing,
     replySourceId: activeReplySource(snapshot),
@@ -90,7 +92,6 @@ function useThreadState(id: string) {
   const { stop, stopping } = useThreadStop(id, snapshot, connection, setError);
   useContextDraft(id, message, setError);
 
-  const thread = snapshot?.thread ?? threads.find((t) => t.id === id);
   const archived = Boolean(thread?.archivedAt) || thread?.status === "archived";
   const home = useComputerHome(thread?.nodeId || splitId(id).node);
   const worker = workers.find((w) => w.id === thread?.workerId);

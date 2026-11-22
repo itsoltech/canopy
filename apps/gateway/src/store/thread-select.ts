@@ -15,7 +15,8 @@ const LIST_COLUMNS = `t.id,t.project_id,t.owner_user_id,t.kind,t.parent_thread_i
   t.title_source,t.title_revision,t.title_requested,t.last_seq,t.created_at,t.archived_at,t.archived_by,
   t.archived_by_thread_id,t.deleted_at,t.snoozed,t.snoozed_until,t.worktree_id,t.creation_request_id,t.preparation_fingerprint,
   NULL::text AS provider_thread_id,''::text AS title_context,
-  t.context_usage,t.auto_archive_on_merge,t.newest_pull_request,t.pull_request_count,t.pull_request_revision,t.sidebar_order_key,t.rewind_pending_id,t.list_settings AS settings`;
+  t.context_usage,t.auto_archive_on_merge,t.newest_pull_request,t.pull_request_count,t.pull_request_revision,t.sidebar_order_key,t.rewind_pending_id,(t.list_settings || CASE WHEN t.settings ? 'sandboxProfile'
+    THEN jsonb_build_object('sandboxProfile', t.settings->'sandboxProfile') ELSE '{}'::jsonb END) AS settings`;
 
 export const STARTED_BY_BOT = "EXISTS (SELECT 1 FROM bot_started_threads s WHERE s.thread_id = t.id)";
 

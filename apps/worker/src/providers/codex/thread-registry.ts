@@ -5,12 +5,14 @@ import { CodexEventMapper } from "./mapping.ts";
 import { RolloutTail } from "./rollout.ts";
 
 import type { Entry, CodexThreadContext } from "./thread-types.ts";
+import type { SandboxEvidence } from "./sandbox-profile.ts";
 
 export function registerThread(
   ctx: CodexThreadContext,
   platformId: string,
   codexId: string,
   rolloutPath: string | null,
+  sandboxProfile?: SandboxEvidence,
 ): Entry {
   const { byPlatform, byCodex } = ctx;
   const pendingTurns: string[] = [];
@@ -43,6 +45,7 @@ export function registerThread(
   const rollout = rolloutPath ? { tail: new RolloutTail(rolloutPath), ended: new Set<string>() } : undefined;
 
   const entry: Entry = {
+    sandboxProfile,
     platformId,
     codexId,
     mapper,

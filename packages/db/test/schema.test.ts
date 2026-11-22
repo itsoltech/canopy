@@ -1,6 +1,16 @@
 import { afterAll, beforeAll, describe, expect, test } from "bun:test";
 import { dockerAvailable } from "../src/testing.ts";
-import { completedTurn, failure, id, mainThread, query, startSchemaDb, stopSchemaDb, world } from "./support/schema.ts";
+import {
+  completedTurn,
+  failure,
+  id,
+  insertSide,
+  mainThread,
+  query,
+  startSchemaDb,
+  stopSchemaDb,
+  world,
+} from "./support/schema.ts";
 
 describe.skipIf(!dockerAvailable)("schema on PostgreSQL 17", () => {
   beforeAll(async () => {
@@ -200,6 +210,7 @@ describe.skipIf(!dockerAvailable)("schema on PostgreSQL 17", () => {
       "196_memory_note_creation",
       "197_connector_project_access",
       "198_memory_reflection",
+      "199_sandbox_profile_outbox",
     ]);
   }, 60_000);
 
@@ -745,6 +756,100 @@ describe.skipIf(!dockerAvailable)("schema on PostgreSQL 17", () => {
       expect(await failure(insert, [w.user, 24001, []])).toContain("network_access_pkey");
       await query(`DELETE FROM network_access`);
     });
+  });
+
+  test("a gateway using the legacy outbox cannot start, derive, or move a profiled thread", async () => {
+    const w = await world();
+    const thread = await mainThread(w);
+    const digest = "a".repeat(64);
+
+    await query(
+      `UPDATE threads SET settings = jsonb_build_object('sandboxProfile', jsonb_build_object('digest', $2::text))
+       WHERE id = $1`,
+      [thread, digest],
+    );
+
+    const start = `INSERT INTO worker_commands (id, worker_id, thread_id, kind, payload, expires_at)
+      VALUES ($1, $2, $3, 'startTurn', ''::bytea, now() + interval '1 minute')`;
+
+    expect(await failure(start, [id(), w.worker, thread])).toContain("selected sandbox profile");
+    const side = insertSide(w, { parent: thread, root: thread });
+    expect(await failure(side.sql, side.params)).toContain("preserving its sandbox profile");
+    expect(await failure(`UPDATE threads SET moved_to = 'other' WHERE id = $1`, [thread])).toContain(
+      "while a sandbox profile is selected",
+    );
+    expect(
+      await failure(
+        `INSERT INTO computer_agent_calls
+         (owner_user_id, peer_node_id, call_id, direction, actor_id, actor_kind, operation, hops)
+         VALUES ($1, 'target', $2, 'outgoing', $3, 'thread', 'spawn', 1)`,
+        [w.user, id(), thread],
+      ),
+    ).toContain("cannot spawn across computers");
+    expect(
+      await failure(
+        `INSERT INTO threads
+         (id, project_id, owner_user_id, kind, root_thread_id, runtime, provider, worker_id, workspace_id, cwd, creation_request_id)
+         VALUES ($1, $2, $3, 'main', $1, 'worker', 'claude', $4, $5, '/repo', $6)`,
+        [id(), w.project, w.user, w.worker, w.workspace, `worktree-continuation:${thread}:${id()}`],
+      ),
+    ).toContain("worktree continuation must preserve");
+
+    await query(
+      `INSERT INTO worker_commands (id, worker_id, thread_id, kind, payload, expires_at, sandbox_digest)
+       VALUES ($1, $2, $3, 'startTurn', ''::bytea, now() + interval '1 minute', $4)`,
+      [id(), w.worker, thread, digest],
+    );
+  });
+
+  test("a gateway using the legacy scheduler cannot discard a selected or inherited policy", async () => {
+    const w = await world();
+    const parent = await mainThread(w);
+    const child = await mainThread(w);
+    const schedule = id();
+    const binding = { digest: "b".repeat(64) };
+
+    const add = `INSERT INTO schedules (id, project_id, kind, prompt, run_at, next_run_at,
+      created_by_user_id, target, new_thread)
+      VALUES ($1, $2, 'once', 'Check status', now(), now(), $3, 'new_thread', $4::jsonb)`;
+
+    await query(add, [schedule, w.project, w.user, JSON.stringify({ parentThreadId: parent })]);
+    await query(`UPDATE threads SET settings=jsonb_build_object('sandboxProfile', $2::jsonb) WHERE id=$1`, [
+      parent,
+      JSON.stringify(binding),
+    ]);
+
+    const run = `UPDATE threads SET origin='schedule', schedule_id=$2, schedule_run=1 WHERE id=$1`;
+
+    expect(await failure(run, [child, schedule])).toContain("preserving the parent sandbox profile");
+    const selected = id();
+
+    await query(add, [selected, w.project, w.user, JSON.stringify({ sandboxProfile: binding })]);
+    expect(await failure(run, [child, selected])).toContain("without its sandbox profile");
+    expect(await failure("UPDATE schedules SET new_thread='{}'::jsonb WHERE id=$1", [selected])).toContain(
+      "requires a compatible gateway",
+    );
+  });
+
+  test("a gateway using legacy drafts cannot save or send over the selected policy", async () => {
+    const w = await world();
+    const draft = id();
+
+    await query(
+      `INSERT INTO composer_drafts (id, owner_user_id, device_id, target_key, payload, revision, mutation_id,
+       sandbox_profile_selected) VALUES ($1, $2, 'desktop', 'workspace', ''::bytea, 1, 'save', true)`,
+      [draft, w.user],
+    );
+
+    expect(await failure("UPDATE composer_drafts SET payload=decode('12','hex') WHERE id=$1", [draft])).toContain(
+      "requires a compatible gateway",
+    );
+
+    const claim = `UPDATE composer_drafts SET sending_request_id='send', send_request=decode(repeat('a', $2), 'hex')
+      WHERE id=$1`;
+
+    expect(await failure(claim, [draft, 64])).toContain("requires a compatible gateway");
+    await query(claim, [draft, 128]);
   });
 
   describe("agents", () => {

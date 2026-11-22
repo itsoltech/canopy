@@ -1,7 +1,7 @@
 import { Code, ConnectError } from "@connectrpc/connect";
 import type { GatewayCore } from "../core/core.ts";
 import { coreState } from "../core/core-context.ts";
-import { settleDraftDelivery } from "./delivery-receipt.ts";
+import { settleDraftDelivery, type DraftDeliveryReceipt } from "./delivery-receipt.ts";
 import { notifyDrafts } from "./events.ts";
 
 const flights = new WeakMap<GatewayCore, Map<string, Promise<void>>>();
@@ -10,8 +10,8 @@ const flights = new WeakMap<GatewayCore, Map<string, Promise<void>>>();
 export async function deliverDraft<A>(
   core: GatewayCore,
   id: string,
-  prepare: () => Promise<{ sent: boolean; notify: boolean; attempt: string; active: boolean }>,
-  send: () => Promise<A>,
+  prepare: () => Promise<DraftDeliveryReceipt>,
+  send: (receipt: DraftDeliveryReceipt) => Promise<A>,
 ): Promise<A> {
   const { actions } = core[coreState];
 
@@ -19,7 +19,7 @@ export async function deliverDraft<A>(
 
   if (receipt.notify) notifyDrafts(core);
 
-  if (receipt.sent) return send();
+  if (receipt.sent) return send(receipt);
   const active = flights.get(core) ?? new Map<string, Promise<void>>();
 
   if (receipt.active) {
@@ -37,7 +37,7 @@ export async function deliverDraft<A>(
   flights.set(core, active);
 
   try {
-    return await deliverClaimed(core, id, receipt.attempt, send);
+    return await deliverClaimed(core, id, receipt.attempt, () => send(receipt));
   } finally {
     active.delete(id);
     completion.resolve();

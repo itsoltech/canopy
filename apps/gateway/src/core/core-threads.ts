@@ -3,8 +3,9 @@ import { coreCreateThread } from "./create-thread.ts";
 import { create, type MessageInitShape } from "@bufbuild/protobuf";
 import type { CreationProgress } from "./thread-progress.ts";
 import { ForkSpecSchema, Provider, ui } from "@canopy/contracts";
+import { SqlClient } from "effect/sql";
 import { Effect } from "effect";
-import { NotFound, type ThreadRow } from "../store/index.ts";
+import { GatewayStore, NotFound, type ThreadRow } from "../store/index.ts";
 import { coreDeliver, coreDispatch } from "./core-commands.ts";
 import { coreState, InvalidError, TTL } from "./core-context.ts";
 import type { GatewayCore } from "./core.ts";
@@ -13,6 +14,7 @@ import { coreWorkers } from "./core-providers.ts";
 import { coreUiThread } from "./core-titles.ts";
 import { coreBroadcastThread, coreRun } from "./core-broadcast.ts";
 import { coreAnnounceSchedule } from "./core-schedules.ts";
+import { sandboxCommandThread, SANDBOX_DERIVATION_UNAVAILABLE, threadSandbox } from "../store/thread-sandbox.ts";
 import type { AutomatedAccess } from "../store/automated-permissions.ts";
 
 /**
@@ -74,6 +76,8 @@ export async function coreForkRequest(
   if (from.owner_user_id !== hostContext[coreState].options.userId) throw new InvalidError("thread not found");
 
   if (from.runtime !== "worker" || !from.workspace_id) throw new InvalidError("only threads on a worker can be forked");
+
+  if (threadSandbox(from)) throw new InvalidError(SANDBOX_DERIVATION_UNAVAILABLE);
   const source = coreUiThread(hostContext, from);
 
   return create(ui.CreateThreadRequestSchema, {
@@ -99,7 +103,6 @@ export async function coreForkRequest(
 
 /** CreateThread to the worker (with the fork point of a forked thread), then announce the thread. */
 export async function coreStartThread(hostContext: GatewayCore, row: ThreadRow): Promise<void> {
-  const spec = await coreRun(hostContext, (s) => Effect.succeed(s.threadSpec(row)));
   let fork: MessageInitShape<typeof ForkSpecSchema> | undefined;
 
   if (row.fork_source_thread_id) {
@@ -117,10 +120,20 @@ export async function coreStartThread(hostContext: GatewayCore, row: ThreadRow):
 
   await hostContext[coreState].actions.transaction(async () => {
     await requireThreadModule(hostContext);
+
+    const spec = await hostContext[coreState].actions.run(
+      Effect.gen(function* () {
+        const sql = yield* SqlClient.SqlClient;
+        yield* sql`SELECT id FROM threads WHERE id=${row.id}::uuid FOR UPDATE`;
+
+        return yield* GatewayStore.use((s) => s.thread(row.id).pipe(Effect.map(s.threadSpec)));
+      }),
+    );
+
     await coreDispatch(
       hostContext,
       row.worker_id ?? "",
-      { kind: { case: "createThread", value: { thread: spec, ...(fork && { fork }) } } },
+      { kind: { case: "createThread", value: { ...sandboxCommandThread(spec), ...(fork && { fork }) } } },
       { threadId: row.id, ttlSeconds: TTL.createThread },
     );
   });

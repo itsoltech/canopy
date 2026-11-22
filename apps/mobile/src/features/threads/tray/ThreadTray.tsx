@@ -53,8 +53,11 @@ export function ThreadTray({ state, onGoal }: { state: ThreadState; onGoal: () =
             queue={queue}
             disabled={disabled}
             delivery={delivery}
-            onDelivery={(runningDelivery) =>
-              void settings.update({ composer: create(ui.ComposerSettingsSchema, { runningDelivery }) })
+            onDelivery={
+              thread.sandboxProfile
+                ? undefined
+                : (runningDelivery) =>
+                    void settings.update({ composer: create(ui.ComposerSettingsSchema, { runningDelivery }) })
             }
             onEdit={state.setEditing}
           />

@@ -100,6 +100,38 @@ describe.skipIf(!dockerAvailable)("settings expansion persistence, checks and ow
     }
   });
 
+  test("sandbox profile settings are owner-scoped and reject invalid or stale changes", async () => {
+    const before = (await gw.api.getSettings({})).user!;
+    const id = Bun.randomUUIDv7();
+    const profile = { id, name: " GitHub ", allowedDomains: ["API.GitHub.com", "github.com", "GitHub.com"] };
+
+    const saved = (
+      await gw.api.updateUserSettings({ expectedVersion: before.version, sandboxProfiles: { profiles: [profile] } })
+    ).settings!;
+
+    const catalog = saved.sandboxProfiles;
+    expect(catalog?.profiles).toMatchObject([{ id, name: "GitHub", allowedDomains: ["api.github.com", "github.com"] }]);
+    expect((await other.settings()).user?.sandboxProfiles).toBeUndefined();
+    expect(
+      await failure(gw.api.updateUserSettings({ expectedVersion: before.version, sandboxProfiles: { profiles: [] } })),
+    ).toContain("changed");
+    expect(
+      await failure(
+        gw.api.updateUserSettings({
+          expectedVersion: saved.version,
+          sandboxProfiles: { profiles: [{ ...profile, allowedDomains: ["https://github.com"] }] },
+        }),
+      ),
+    ).toContain("exact domain names");
+    expect((await gw.api.getSettings({})).user?.sandboxProfiles).toEqual(catalog);
+
+    const reset = (
+      await gw.api.updateUserSettings({ expectedVersion: saved.version, sandboxProfiles: { profiles: [] } })
+    ).settings!;
+
+    expect(reset.sandboxProfiles?.profiles).toEqual([]);
+  });
+
   test("general and sidebar sections survive a new core, reject stale writes, isolate owners and reset without losing pins", async () => {
     const before = (await gw.api.getSettings({})).user!;
 

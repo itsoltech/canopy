@@ -1,6 +1,9 @@
 import { requireThreadModule } from "./thread-module-runtime.ts";
 import { create } from "@bufbuild/protobuf";
 import { GoalDirective, ItemStatus, ui, type CommandResult } from "@canopy/contracts";
+import { SqlClient } from "effect/sql";
+import { threadSandbox } from "../store/thread-sandbox.ts";
+import { SANDBOX_GOAL_UNAVAILABLE } from "./thread-sandbox.ts";
 import { Effect } from "effect";
 import { claudeGoalCommand, isFinished } from "@canopy/domain";
 import { GoalStore, toUiGoal, toUiTurn, type GoalRow, type ThreadRow } from "../store/index.ts";
@@ -19,6 +22,8 @@ export async function coreGoalToHarness(
   objective = "",
   tokenBudget = 0n,
 ): Promise<void> {
+  if (threadSandbox(thread)) throw new InvalidError(SANDBOX_GOAL_UNAVAILABLE);
+
   if (thread.provider === "claude") {
     // The evaluator keeps a goal turn running: stopping the goal stops the turn.
     if (directive !== GoalDirective.RUN) await hostContext.interrupt(thread.id);
@@ -133,6 +138,13 @@ export interface CoreGoalsMethods {
  *   running turn (the evaluator keeps a goal turn going) and queue `/goal clear`; resume sets it again.
  */
 async function setThreadGoal(this: GatewayCore, request: ui.SetGoalRequest): Promise<string> {
+  await this[coreState].actions.run(
+    Effect.flatMap(
+      SqlClient.SqlClient,
+      (sql) =>
+        sql`SELECT id FROM threads WHERE id=${request.threadId}::uuid AND owner_user_id=${this[coreState].options.userId}::uuid FOR UPDATE`,
+    ),
+  );
   const thread = await coreRun(this, (s) => s.thread(request.threadId));
 
   if (thread.owner_user_id !== this[coreState].options.userId) throw new InvalidError("thread not found");
@@ -144,6 +156,8 @@ async function setThreadGoal(this: GatewayCore, request: ui.SetGoalRequest): Pro
   if (thread.rewind_pending_id) throw new InvalidError("This thread is rewinding. Wait for it to finish.");
 
   if (thread.runtime !== "worker" || !thread.worker_id) throw new InvalidError("goals need a worker thread");
+
+  if (threadSandbox(thread)) throw new InvalidError(SANDBOX_GOAL_UNAVAILABLE);
 
   if (thread.provider === "grok") throw new InvalidError("Grok ACP goals are not supported yet");
   const claude = thread.provider === "claude";

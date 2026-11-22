@@ -101,6 +101,8 @@ export interface Session {
   readonly sessionId: string;
   readonly cwd: string;
   readonly query: Query;
+  /** A named sandbox profile is pinned for the lifetime of this process. */
+  readonly sandboxProfileDigest?: string | undefined;
   /** The input stream: turn inputs and steered messages. */
   readonly input: AsyncChannel<SDKUserMessage>;
   readonly mapper: ClaudeEventMapper;

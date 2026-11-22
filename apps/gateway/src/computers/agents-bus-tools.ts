@@ -1,3 +1,4 @@
+import { SANDBOX_DERIVATION_UNAVAILABLE, threadSandbox } from "../store/thread-sandbox.ts";
 import { create, toJson, type JsonValue } from "@bufbuild/protobuf";
 
 import { Code, ConnectError } from "@connectrpc/connect";
@@ -155,6 +156,7 @@ export const agentsBusToolsMethods: AgentsBusToolsMethods = {
     await this.sameHome(node, args);
 
     if (call.tool === "spawn_thread") {
+      if (threadSandbox(caller)) return fail(SANDBOX_DERIVATION_UNAVAILABLE);
       refuseRemoteAutomation(call.args.workspace_mode, call.args.fork);
 
       if (!this.core.computers!.reachable().includes(node)) throw await this.core.computers!.unavailable(node);

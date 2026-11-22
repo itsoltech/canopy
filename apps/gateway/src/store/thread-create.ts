@@ -1,15 +1,17 @@
-import { ui } from "@canopy/contracts";
+import { toJson } from "@bufbuild/protobuf";
+import { SandboxProfileBindingSchema, ui, type SandboxProfileBinding } from "@canopy/contracts";
 import { Effect } from "effect";
 import type { SqlClient } from "effect/sql";
 import { Invalid, one } from "./errors.ts";
 import { isAbsolutePath, isWithinWorkspace, normalizePath, pathStyle, scratchCwd } from "./paths.ts";
 import { harnessOf } from "./instance-config.ts";
-import type { TurnRow } from "./rows.ts";
+import type { ThreadRow, TurnRow } from "./rows.ts";
 import { permissionModeName } from "./ui-mappers.ts";
 import type { ThreadStore } from "./threads-store.ts";
 import type { WorktreeStore } from "./worktrees.ts";
 import { automatedPermission } from "./automated-permissions.ts";
 import { busPermissionMode } from "./agent-bus-types.ts";
+import { DRAFT_SANDBOX_RESELECT, SANDBOX_DERIVATION_UNAVAILABLE, threadSandbox } from "./thread-sandbox.ts";
 import type { AutomatedAccess } from "./automated-permissions.ts";
 
 const creationAccess = (
@@ -44,18 +46,20 @@ const forkPoint = (sql: SqlClient.SqlClient, ownerUserId: string, request: ui.Cr
     if (request.parentThreadId && !request.fork)
       return yield* Effect.fail(new Invalid("fork_at_turn_id with a parent needs fork"));
 
-    const rows = yield* sql<TurnRow & { provider: string; provider_thread_id: string | null }>`
-              SELECT u.*, s.provider, s.provider_thread_id FROM turns u
+    const rows = yield* sql<TurnRow & Pick<ThreadRow, "provider" | "provider_thread_id" | "settings">>`
+              SELECT u.*, s.provider, s.provider_thread_id, s.settings FROM turns u
                 JOIN thread_fork_chain(${from}::uuid) c ON c.thread_id = u.thread_id
                 JOIN threads s ON s.id = u.thread_id
                 JOIN threads f ON f.id = ${from}::uuid
                WHERE u.id = ${request.forkAtTurnId}::uuid AND f.owner_user_id = ${ownerUserId}::uuid
                  AND (c.upto_seq IS NULL OR u.last_seq <= c.upto_seq)
-                 AND thread_turn_visible_at(u.id,coalesce(c.upto_seq,f.last_seq))`;
+                 AND thread_turn_visible_at(u.id,coalesce(c.upto_seq,f.last_seq)) FOR SHARE OF s`;
 
     const point = rows[0];
 
     if (!point) return yield* Effect.fail(new Invalid("the turn is not in this thread's history"));
+
+    if (threadSandbox(point)) return yield* Effect.fail(new Invalid(SANDBOX_DERIVATION_UNAVAILABLE));
 
     if (point.provider === "grok") return yield* Effect.fail(new Invalid("Grok ACP does not support session forks"));
 
@@ -100,47 +104,99 @@ function creationAudience(
   });
 }
 
+const creationWorkspace = (sql: SqlClient.SqlClient, ownerUserId: string, request: ui.CreateThreadRequest) =>
+  Effect.flatMap(
+    sql<{
+      id: string;
+      project_id: string;
+      worker_id: string;
+      root_path: string;
+      os: string;
+      project_kind: string;
+    }>`
+          SELECT pw.id, pw.project_id, pw.worker_id, pw.root_path, w.os, p.kind AS project_kind
+            FROM project_workspaces pw JOIN workers w ON w.id = pw.worker_id JOIN projects p ON p.id = pw.project_id
+           WHERE pw.id = ${request.workspaceId}::uuid AND pw.project_id = ${request.projectId}::uuid
+             AND p.owner_user_id = ${ownerUserId}::uuid AND p.archived_at IS NULL
+             AND (w.owner_user_id IS NULL OR w.owner_user_id = ${ownerUserId}::uuid)
+             AND w.archived_at IS NULL AND w.revoked_at IS NULL
+             AND (pw.archived_at IS NULL OR ${request.parentThreadId !== "" || request.forkAtTurnId !== ""}::boolean)
+           FOR SHARE OF p`,
+    (rows) => one(rows, "workspace"),
+  );
+
+function replayCreation(
+  sql: SqlClient.SqlClient,
+  ownerUserId: string,
+  request: ui.CreateThreadRequest,
+  readThread: ThreadStore["thread"],
+) {
+  return Effect.gen(function* () {
+    if (!request.clientRequestId) return;
+
+    yield* sql`SELECT pg_advisory_xact_lock(hashtextextended(${`${ownerUserId}:${request.clientRequestId}`}, 9236))`;
+
+    const previous = (yield* sql<{ id: string }>`SELECT id FROM threads
+      WHERE owner_user_id=${ownerUserId}::uuid AND creation_request_id=${request.clientRequestId}`)[0];
+
+    if (!previous) return;
+    const existing = yield* readThread(previous.id);
+    const binding = threadSandbox(existing);
+
+    if (request.sandboxProfileDigest && request.sandboxProfileDigest !== binding?.digest)
+      return yield* Effect.fail(new Invalid(DRAFT_SANDBOX_RESELECT));
+
+    if (request.sandboxProfileId && request.sandboxProfileId !== binding?.profile?.id)
+      return yield* Effect.fail(
+        new Invalid("This request already created a thread with a different sandbox selection."),
+      );
+
+    return existing;
+  });
+}
+
 export function threadCreation(
   sql: SqlClient.SqlClient,
   self: () => Pick<ThreadStore, "thread"> & Pick<WorktreeStore, "ownWorktree">,
 ): Pick<ThreadStore, "createThread"> {
   return {
-    createThread: (ownerUserId, request, movedId, automated, handoff, preparationFingerprint, humanInitialInput) =>
+    createThread: (
+      ownerUserId,
+      request,
+      movedId,
+      automated,
+      handoff,
+      preparationFingerprint,
+      humanInitialInput,
+      sandboxProfile,
+    ) =>
       sql.withTransaction(
         Effect.gen(function* () {
-          if (request.clientRequestId) {
-            yield* sql`SELECT pg_advisory_xact_lock(hashtextextended(${`${ownerUserId}:${request.clientRequestId}`}, 9236))`;
+          const previous = yield* replayCreation(sql, ownerUserId, request, self().thread);
 
-            const previous = (yield* sql<{ id: string }>`SELECT id FROM threads
-              WHERE owner_user_id=${ownerUserId}::uuid AND creation_request_id=${request.clientRequestId}`)[0];
-
-            if (previous) return yield* self().thread(previous.id);
-          }
-
-          const workspace = yield* one(
-            yield* sql<{
-              id: string;
-              project_id: string;
-              worker_id: string;
-              root_path: string;
-              os: string;
-              project_kind: string;
-            }>`
-                    SELECT pw.id, pw.project_id, pw.worker_id, pw.root_path, w.os, p.kind AS project_kind
-                      FROM project_workspaces pw JOIN workers w ON w.id = pw.worker_id JOIN projects p ON p.id = pw.project_id
-                     WHERE pw.id = ${request.workspaceId}::uuid AND pw.project_id = ${request.projectId}::uuid
-                       AND p.owner_user_id = ${ownerUserId}::uuid AND p.archived_at IS NULL
-                       AND (w.owner_user_id IS NULL OR w.owner_user_id = ${ownerUserId}::uuid)
-                       AND w.archived_at IS NULL AND w.revoked_at IS NULL
-                       AND (pw.archived_at IS NULL OR ${request.parentThreadId !== "" || request.forkAtTurnId !== ""}::boolean)
-                     FOR SHARE OF p`,
-            "workspace",
-          );
-
+          if (previous) return previous;
+          const workspace = yield* creationWorkspace(sql, ownerUserId, request);
           const provider = harnessOf(request.provider);
 
           if (!provider) return yield* Effect.fail(new Invalid("unknown provider"));
           const id = movedId ?? Bun.randomUUIDv7();
+          const sourceIds = [request.parentThreadId, request.forkThreadId].filter(Boolean);
+
+          if (sourceIds.length) {
+            const sourcePolicies = yield* sql<Pick<ThreadRow, "settings">>`
+              SELECT settings FROM threads WHERE id=ANY(${sourceIds}::uuid[]) AND owner_user_id=${ownerUserId}::uuid
+              ORDER BY id FOR SHARE`;
+
+            if (sourcePolicies.some(threadSandbox))
+              return yield* Effect.fail(new Invalid(SANDBOX_DERIVATION_UNAVAILABLE));
+          }
+
+          if (request.sandboxProfileDigest && request.sandboxProfileDigest !== sandboxProfile?.digest)
+            return yield* Effect.fail(new Invalid(DRAFT_SANDBOX_RESELECT));
+
+          if (request.sandboxProfileId && (!sandboxProfile || request.sandboxProfileId !== sandboxProfile.profile?.id))
+            return yield* Effect.fail(new Invalid("Choose an available sandbox profile."));
+
           const parent = request.parentThreadId ? yield* self().thread(request.parentThreadId) : undefined;
 
           if (parent && parent.owner_user_id !== ownerUserId)
@@ -226,7 +282,11 @@ export function threadCreation(
           const access = yield* creationAccess(sql, ownerUserId, workspace.worker_id, request, automated);
 
           const audience = yield* creationAudience(sql, request.parentThreadId, forkSource, request, automated);
-          const settings = creationSettings(request, access, handoff);
+
+          if (sandboxProfile && access.permissionMode !== "FULL_AUTO")
+            return yield* Effect.fail(new Invalid("Sandbox profiles require Full auto."));
+
+          const settings = creationSettings(request, access, handoff, sandboxProfile);
 
           yield* sql`
                   INSERT INTO threads (id, project_id, owner_user_id, kind, parent_thread_id, root_thread_id, depth, runtime, provider,
@@ -263,6 +323,7 @@ function creationSettings(
   request: ui.CreateThreadRequest,
   access: { permissionMode: string; permissionModeNote?: string },
   handoff?: string,
+  sandboxProfile?: SandboxProfileBinding,
 ): string {
   return JSON.stringify({
     model: request.model,
@@ -271,5 +332,6 @@ function creationSettings(
     ...access,
     instructions: request.instructions,
     ...(handoff && { handoff }),
+    ...(sandboxProfile && { sandboxProfile: toJson(SandboxProfileBindingSchema, sandboxProfile) }),
   });
 }
