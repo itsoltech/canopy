@@ -51,6 +51,8 @@ export const icons = {
   "bars-2": ["M4 8h16M4 16h16"],
   // menu-2
   "bars-3": ["M4 6h16M4 12h16M4 18h16"],
+  // sort-descending
+  "sort-descending": ["M4 6h9m-9 6h7m-7 6h7m4-3l3 3l3-3m-3-9v12"],
   // plus
   plus: ["M12 5v14m-7-7h14"],
   // terminal-2

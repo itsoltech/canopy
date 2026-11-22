@@ -7,6 +7,7 @@ oraz osobne aktualizacje Canopy i CLI dostawców. Ukończone przygotowanie wątk
 domyślnie zwija kroki do wiersza „Thread prepared”. Na szerokim oknie iOS i Androida
 sidebar i rozmowa przesuwają wspólną krawędź podczas zwijania i rozwijania.
 Uchwyt na tej krawędzi zmienia szerokość sidebara i zapisuje ją lokalnie.
+Pasek wątków ma osobne przyciski sortowania i filtrowania po projekcie.
 Nagłówek sidebara pokazuje kanał aplikacji. Nightly, Beta i Dev mają delikatny
 gradient i słoje drzewa w barwie kanału, tak jak w web i desktop.
 Licznik i akcja Update all na telefonie wynikają z planu instalacji Canopy.
@@ -2131,6 +2132,11 @@ Nagłówki projektów mają znaki z inicjałami, a podgrupy pokazują gałąź l
 oraz liczbę wątków. Oba poziomy można zwinąć niezależnie; zapis należy do telefonu
 i parowania. Wyszukiwanie odsłania grupy wyników bez zmiany zapamiętanego zwinięcia.
 Wcięcia po 20 dp i pionowe linie pokazują projekt → worktree → wątki.
+
+Obok wyszukiwania „Sort threads” otwiera wybór kolejności, a „Filter by project”
+otwiera wybór jednego projektu. „All projects” czyści filtr. Przy więcej niż sześciu
+projektach arkusz filtra udostępnia „Search projects”. Bieżący wybór w każdym
+arkuszu ma znacznik wyboru. Na szerokich oknach wybory otwierają się w kartach.
 
 Karty pod projektem nie powtarzają jego nazwy ani znaku. Pod worktree pomijają też
 katalog i gałąź. Nazwa i ikona workera znikają wyłącznie dla jedynego niezrewokowanego
