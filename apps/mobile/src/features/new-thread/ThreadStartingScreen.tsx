@@ -1,5 +1,5 @@
 import { useEffect, useLayoutEffect } from "react";
-import { Redirect, Stack, router, useIsFocused, usePathname } from "expo-router";
+import { Redirect, router, useIsFocused, usePathname } from "expo-router";
 import { useSession } from "../../state/session";
 import { ScreenFrame } from "../../ui/ScreenFrame";
 import { ScreenScroll } from "../../ui/ScreenScroll";
@@ -48,7 +48,6 @@ export function ThreadStartingScreen({ id }: { id: string }) {
         />
       }
     >
-      <Stack.Screen options={{ animation: "none" }} />
       {job ? (
         <PreparationConversation job={job} />
       ) : (

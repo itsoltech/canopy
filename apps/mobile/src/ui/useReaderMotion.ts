@@ -28,6 +28,8 @@ export function useReaderMotion(anchoring: SharedValue<boolean>) {
       },
       end: () => {
         "worklet";
+
+        if (!gesture.get()) return;
         gesture.set(false);
         released.set(Date.now());
       },

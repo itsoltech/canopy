@@ -20,8 +20,8 @@ export interface ThreadCreation {
   confirmed: boolean;
   /** User's choice survives the route handoff and timeline row remounts for this job. */
   preparationExpanded?: boolean;
-  /** Volatile first-prompt anchor, relative to the chat viewport, across the route and snapshot handoff. */
-  preparationAnchor?: { top: number };
+  /** Volatile reading position relative to both edges of the first-turn timeline. */
+  preparationAnchor?: { fromOldest: number; distance: number };
 }
 
 interface CreationJob extends ThreadCreation {

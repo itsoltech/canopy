@@ -1,5 +1,5 @@
 import { useCallback, useState } from "react";
-import { Platform, type FlatList, type FlatListProps } from "react-native";
+import { Platform, type FlatList } from "react-native";
 import {
   scrollTo,
   useAnimatedRef,
@@ -21,19 +21,24 @@ const FOLLOW_THRESHOLD = 96;
  * The scroll position lives on the UI thread; React hears only when the reader leaves or reaches the bottom.
  * Pass `listProps` to a Reanimated list (`Animated.FlatList`, `TimelineList`).
  */
-export function useFollowingList<Item>(keyboardChat = false, initialComposerHeight = 0) {
+export function useFollowingList<Item>(keyboardChat = false, initialComposerHeight = 0, initialDistance = 0) {
   const list = useAnimatedRef<FlatList<Item>>();
-  const [atBottom, setAtBottom] = useState(true);
-  const scrollY = useSharedValue(0);
+  const [atBottom, setAtBottom] = useState(initialDistance <= FOLLOW_THRESHOLD);
+  const insets = useContentInsets();
+  const ios = Platform.OS === "ios";
+
+  const [initialOffset] = useState(
+    () => initialDistance - (keyboardChat && ios ? insets.bottom + initialComposerHeight : 0),
+  );
+
+  const scrollY = useSharedValue(initialOffset);
   const corrections = useSharedValue(0);
-  const bottom = useSharedValue(true);
+  const bottom = useSharedValue(initialDistance <= FOLLOW_THRESHOLD);
   const correcting = useSharedValue(false);
-  const anchoring = useSharedValue(false);
+  const anchoring = useSharedValue(initialDistance > FOLLOW_THRESHOLD);
   const reader = useReaderMotion(anchoring);
   const keyboard = useKeyboardFrame();
   const composerInset = useSharedValue(initialComposerHeight);
-  const insets = useContentInsets();
-  const ios = Platform.OS === "ios";
 
   // iOS exposes the chat inset as a negative offset; Android's synthetic inset keeps its end at zero.
   const minimum = useDerivedValue(() =>
@@ -53,7 +58,10 @@ export function useFollowingList<Item>(keyboardChat = false, initialComposerHeig
     [minimum],
   );
 
-  const isFollowing = useCallback(() => distance(scrollY.get()) <= FOLLOW_THRESHOLD, [scrollY, distance]);
+  const isFollowing = useCallback(
+    (offset = scrollY.get()) => distance(offset) <= FOLLOW_THRESHOLD,
+    [scrollY, distance],
+  );
 
   /** Records a scroll position (a worklet: scroll handlers call it on the UI thread). `own`: a position this
    * feed just set itself (an anchor correction), which the reader then reads from. */
@@ -116,17 +124,24 @@ export function useFollowingList<Item>(keyboardChat = false, initialComposerHeig
     },
   });
 
-  let anchor: FlatListProps<Item>["maintainVisibleContentPosition"] = {
-    minIndexForVisible: 0,
-    autoscrollToTopThreshold: FOLLOW_THRESHOLD,
-  };
+  function correctReading(offset: number) {
+    corrections.set(corrections.get() + 1);
+    list.current?.scrollToOffset({ offset: Math.max(minimum.get(), offset), animated: false });
+  }
 
-  // Native autoscroll targets zero (ignoring UIKit's negative inset); on Android it can also react to
-  // asynchronous card measurements near the end. Keep anchoring configured without that extra jump.
-  if (keyboardChat) anchor = { minIndexForVisible: 0 };
+  function finishReading(offset = scrollY.get(), reapply = false) {
+    const at = isFollowing(offset);
+
+    if (reapply || Math.abs(scrollY.get() - offset) >= 1) correctReading(offset);
+    scrollY.set(offset);
+    anchoring.set(false);
+    bottom.set(at);
+    setAtBottom(at);
+  }
 
   return {
     list,
+    initialOffset,
     composerInset,
     scrollY,
     anchoring,
@@ -137,27 +152,19 @@ export function useFollowingList<Item>(keyboardChat = false, initialComposerHeig
     distance,
     minimum,
     corrections,
+    correctReading,
+    finishReading,
     resumeFollowing: () => jump(false),
-    restoreReading: (offset?: number) => {
-      anchoring.set(true);
-      corrections.set(corrections.get() + 1);
-
-      if (offset !== undefined) {
-        const y = Math.max(minimum.get(), offset);
-        list.current?.scrollToOffset({ offset: y, animated: false });
-        scrollY.set(y);
-      }
-
-      bottom.set(false);
-      setAtBottom(false);
-    },
     showLatest: () => jump(true),
     listProps: {
       ref: list,
       inverted: true,
       onScroll,
       scrollEventThrottle: 16,
-      maintainVisibleContentPosition: anchor,
+      // Native autoscroll targets zero, ignoring the chat's negative inset on iOS.
+      maintainVisibleContentPosition: keyboardChat
+        ? { minIndexForVisible: 0 }
+        : { minIndexForVisible: 0, autoscrollToTopThreshold: FOLLOW_THRESHOLD },
     },
   };
 }

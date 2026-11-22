@@ -28,8 +28,9 @@ import { RewindGroup, useRewindTimeline } from "./rewind-timeline";
 import { useThreadSeen } from "./useThreadSeen";
 import { ReplySendContext } from "../timeline/ReplySuggestions";
 import type { NoticeState } from "@canopy/domain/turn-notices";
-import { useThreadCreation } from "../new-thread/useThreadCreation";
-import { ThreadPreparationTimeline } from "../new-thread/ThreadPreparationTimeline";
+import { ThreadPreparationProgress, ThreadPreparationRow } from "../new-thread/ThreadPreparationRow";
+import type { ThreadCreation } from "../new-thread/thread-creations";
+import { usePreparationAnchor } from "../new-thread/usePreparationAnchor";
 import { useThreadTimelineStyle } from "./timeline-layout";
 
 /** What the timeline's items look up: other threads, items, deliveries, and its tasks by their command. */
@@ -157,23 +158,29 @@ export function ThreadTimeline({
   state: ThreadState;
   composer: ReturnType<typeof useFloatingComposer<ui.Turn>>;
 }) {
-  const { turns, following, snapshot } = state;
-  const creation = useThreadCreation(state.id, true);
-  const initial = Boolean(creation && turns.length === 1 && turns[0]?.ordinal === 1);
-  const contentStyle = useThreadTimelineStyle(initial);
+  const { turns, following, snapshot, creation } = state;
+  const first = turns.find((turn) => turn.ordinal > 0);
+  const staging = first ? undefined : creation;
+  const initial = Boolean(creation && !turns.some((turn) => turn.ordinal > 1));
+  const contentStyle = useThreadTimelineStyle(initial, composer.height);
+
+  const [contentOffset] = useState(() =>
+    creation?.preparationAnchor ? { x: 0, y: following.initialOffset } : undefined,
+  );
+
   const { directory, context } = useTimelineData(state);
   const anchor = useFeedAnchor(following);
   const rewind = useRewindTimeline(turns);
-  const latestFirst = useMemo(() => [...rewind.shown].reverse(), [rewind.shown]);
+  const latestFirst = useMemo(() => (staging ? [] : [...rewind.shown].reverse()), [rewind.shown, staging]);
 
   const memory = useThreadScrollMemory(
     state.id,
     latestFirst,
-    Boolean(snapshot && (!creation || turns.length)),
+    Boolean(snapshot && !staging),
     following,
     composer.listProps.onScroll,
     composer.restoreReading,
-    creation,
+    Boolean(creation?.preparationAnchor),
   );
 
   useThreadSeen(state, memory.positioned);
@@ -181,6 +188,17 @@ export function ThreadTimeline({
   const onScroll = useThreadHistoryScroll(memory.onScroll, () => {
     if (memory.positioned && !following.anchoring.get()) void state.history.load();
   });
+
+  const preparation = usePreparationAnchor(initial ? creation : undefined, following, onScroll, Boolean(staging));
+  const visible = staging || memory.positioned || (creation && !memory.target);
+
+  useEffect(() => {
+    if (!initial && creation) creation.preparationAnchor = undefined;
+
+    return () => {
+      if (creation) creation.preparationAnchor = undefined;
+    };
+  }, [creation, initial]);
 
   const arrival = useArrivals(latestFirst.map(scrollTurnKey), Boolean(snapshot), { newestFirst: true });
   const days = newDays(rewind.shown);
@@ -193,9 +211,6 @@ export function ThreadTimeline({
   const [entryIndex] = useState(() => new TimelineEntries());
   const entries = useMemo(() => entryIndex.build(snapshot?.items ?? []), [entryIndex, snapshot?.items]);
 
-  if ((!snapshot || !turns.length) && creation)
-    return <ThreadPreparationTimeline job={creation} inset={following.composerInset} />;
-
   return (
     <ReplySendContext.Provider value={state.replies}>
       <TimelineDirectoryProvider value={directory}>
@@ -205,39 +220,33 @@ export function ThreadTimeline({
               <TimelineList
                 {...composer.listProps}
                 CellRendererComponent={FeedAnchorCell}
-                onScroll={onScroll}
-                onTouchStart={memory.onTouchStart}
+                contentOffset={contentOffset}
+                onScroll={preparation.onScroll}
+                onTouchStart={preparation.onTouchStart}
                 onScrollToIndexFailed={memory.onScrollToIndexFailed}
                 onViewableItemsChanged={memory.onViewableItemsChanged}
                 composerInset={following.composerInset}
-                onLayout={() => {
+                onLayout={(event) => {
+                  preparation.onLayout(event);
                   memory.restore();
 
                   if (snapshot?.thread) mobileFeedLayout(snapshot.thread.id);
                 }}
-                onContentSizeChange={() => {
+                onContentSizeChange={(width, height) => {
+                  preparation.onContentSizeChange(width, height);
                   memory.restore();
 
                   if (snapshot?.thread) mobileFeedLayout(snapshot.thread.id);
                 }}
                 data={latestFirst}
                 keyExtractor={scrollTurnKey}
-                style={[styles.fill, { opacity: memory.positioned ? 1 : 0 }]}
+                style={[styles.fill, { opacity: visible ? 1 : 0 }]}
                 contentContainerStyle={contentStyle}
+                maintainVisibleContentPosition={preparation.maintainVisibleContentPosition}
                 keyboardShouldPersistTaps="handled"
                 // Inverted: the footer is the top of the feed, the header sits under the latest turn.
-                ListFooterComponent={
-                  <View style={{ gap: 16, paddingBottom: 16 }}>
-                    <HistoryFooter
-                      hasMore={snapshot?.historyHasMore || snapshot?.historyItemsHasMore}
-                      history={state.history}
-                    />
-                    {!snapshot && <ConversationSkeleton />}
-                    {snapshot?.thread && !turns.length && !state.archived && (
-                      <Notice>This thread is ready for your first message.</Notice>
-                    )}
-                  </View>
-                }
+                ListEmptyComponent={staging && <ThreadPreparationRow job={staging} />}
+                ListFooterComponent={<TimelineHead state={state} staging={Boolean(staging)} />}
                 // A turn that arrives (a sent or queued message) fades in; one that only scrolls into view does not, and
                 // neither do the rows it mounts with. Later rows inside it animate themselves (TimelineTurn).
                 renderItem={({ item, index }) => (
@@ -255,11 +264,11 @@ export function ThreadTimeline({
                       directory={directory}
                       newDay={days.has(item)}
                       historical={index !== 0}
-                      entering={arrival(scrollTurnKey(item))}
+                      entering={creation && item.ordinal === 1 ? undefined : arrival(scrollTurnKey(item))}
                     />
                   </RewindGroup>
                 )}
-                ListHeaderComponent={<TimelineTail notices={loose} steers={steering} />}
+                ListHeaderComponent={<TimelineTail notices={loose} steers={steering} staging={staging} />}
               />
             </FeedAnchorProvider>
           </ThreadScrollTarget.Provider>
@@ -269,14 +278,32 @@ export function ThreadTimeline({
   );
 }
 
+function TimelineHead({ state, staging }: { state: ThreadState; staging: boolean }) {
+  const { snapshot, turns, archived, history } = state;
+
+  return (
+    <View style={{ gap: 16, paddingBottom: 16 }}>
+      <HistoryFooter hasMore={snapshot?.historyHasMore || snapshot?.historyItemsHasMore} history={history} />
+      {!staging && !snapshot && <ConversationSkeleton />}
+      {!staging && snapshot?.thread && !turns.length && !archived && (
+        <Notice>This thread is ready for your first message.</Notice>
+      )}
+    </View>
+  );
+}
+
 function TimelineTail({
   notices,
   steers,
+  staging,
 }: {
   notices: readonly (ui.ThreadNotice & NoticeState)[];
   steers: readonly ui.Steer[];
+  staging?: ThreadCreation;
 }) {
   const { rise } = useMotion();
+
+  if (staging) return <ThreadPreparationProgress job={staging} />;
 
   return (
     <View style={{ gap: 12, paddingBottom: steers.length || notices.length ? 12 : 0 }}>

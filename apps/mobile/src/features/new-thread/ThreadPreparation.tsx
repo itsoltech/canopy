@@ -33,7 +33,7 @@ const icons = new Map<string, IconName>([
 ]);
 
 /** The same preparation steps stay beneath the first message after the thread opens. */
-export function ThreadPreparation({ job }: { job: ThreadCreation }) {
+export function ThreadPreparation({ job, staging = false }: { job: ThreadCreation; staging?: boolean }) {
   const c = useColors();
   const type = useTypography();
   const active = !job.done && !job.uncertain && !job.confirmed;
@@ -47,7 +47,7 @@ export function ThreadPreparation({ job }: { job: ThreadCreation }) {
     </View>
   );
 
-  if (job.confirmed && !failed && job.steps.length)
+  if (job.confirmed && !failed && job.steps.length && !staging)
     return (
       <PreparedChecklist key={job.id} job={job}>
         {steps}

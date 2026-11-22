@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState, useSyncExternalStore } from "react";
 import { BackHandler, Text, View } from "react-native";
 import { create } from "@bufbuild/protobuf";
 import { ConversationSkeleton, SkeletonScope } from "../../ui/Skeleton";
-import { Redirect, Stack, useLocalSearchParams } from "expo-router";
+import { Redirect } from "expo-router";
 import { useContextDraft } from "../github/useContextDraft";
 import { ScreenFrame } from "../../ui/ScreenFrame";
 import { styles, useColors } from "../../ui/theme";
@@ -50,11 +50,13 @@ import { Button } from "../../ui/Button";
 import { ArchivedThreadState } from "./ArchivedThreadState";
 import { RemovedWorktree } from "./RemovedWorktree";
 import { activeReplySource } from "./reply-suggestions";
+import { useThreadCreation } from "../new-thread/useThreadCreation";
 
 export type ThreadState = ReturnType<typeof useThreadState>;
 
 function useThreadState(id: string) {
   const { session, client, ready, online, threadCache, workspace: store } = useSession();
+  const creation = useThreadCreation(id, true);
   const workspace = store.view(id);
   const threadVisible = useSyncExternalStore(store.subscribe, () => workspace.active === "thread");
   const { snapshot, setSnapshot, stream, history, syncStatus, view } = useThreadSnapshot(id);
@@ -64,7 +66,7 @@ function useThreadState(id: string) {
     Boolean(threadCache?.peek(id)?.thread),
     Boolean(warming?.enabled && threadCacheCurrent(threadCache?.peek(id), warming.head(id))),
   );
-  const following = useFollowingList<ui.Turn>(true, compactThreadComposerHeight);
+  const following = useFollowingList<ui.Turn>(true, compactThreadComposerHeight, creation?.preparationAnchor?.distance);
   const [details, setDetails] = useState(false);
   const { projects, workers, threads } = useOverview();
   const message = usePersistentMessage(create(ui.ComposerDraftTargetSchema, { threadId: id }), threadVisible);
@@ -126,6 +128,7 @@ function useThreadState(id: string) {
     client,
     ready,
     snapshot,
+    creation,
     view,
     busy,
     waiting,
@@ -179,7 +182,15 @@ function useThreadComposer(state: ThreadState) {
     message.value.text.length || message.value.mentions.length || message.files.files.length || quotes.quotes.length,
   );
 
-  return useFloatingComposer(following, false, compactThreadComposerHeight, hasDraft);
+  const composer = useFloatingComposer(following, false, compactThreadComposerHeight, hasDraft);
+
+  return {
+    ...composer,
+    showLatest: () => {
+      if (state.creation) state.creation.preparationAnchor = undefined;
+      composer.showLatest();
+    },
+  };
 }
 
 export function ThreadScreen({ id }: { id: string }) {
@@ -213,7 +224,6 @@ export function ThreadScreen({ id }: { id: string }) {
   const composer = useThreadComposer(state);
 
   const [sheet, setSheet] = useState<"goal" | "side" | "files" | "preview" | null>(null);
-  const { preparation } = useLocalSearchParams<{ preparation?: string }>();
 
   const { session, ready, snapshot, following, setDetails, projects, thread, turns, blocked } = state;
 
@@ -262,7 +272,6 @@ export function ThreadScreen({ id }: { id: string }) {
           </>
         }
       >
-        {preparation === "1" && <Stack.Screen options={{ animation: "none" }} />}
         <ChatKeyboard composerHeight={composer.height}>
           <View
             style={[

@@ -12,8 +12,6 @@ import { restoreThreadAnchor, threadAnchorOffset, type ThreadScrollPosition } fr
 import { useDevicePreferences } from "../settings/device-preferences";
 import type { useFollowingList } from "../../ui/useFollowingList";
 import type { ScrollItem } from "../../ui/thread-scroll-items";
-import type { ThreadCreation } from "../new-thread/thread-creations";
-import { usePreparationHandoff } from "../new-thread/usePreparationHandoff";
 
 export const scrollTurnKey = (turn: ui.Turn) => `${turn.fromThreadId}:${turn.id}`;
 
@@ -35,15 +33,14 @@ export function useThreadScrollMemory(
   following: ReturnType<typeof useFollowingList<ui.Turn>>,
   onScroll: ScrollHandlerProcessed,
   readHistory: () => void,
-  preparation?: ThreadCreation,
+  preparingReader = false,
 ) {
   const preferences = useDevicePreferences();
-  const latest = useRef({ preferences, turns, loaded, following, readHistory, preparation });
+  const latest = useRef({ preferences, turns, loaded, following, readHistory, preparingReader });
   useLayoutEffect(() => {
-    latest.current = { preferences, turns, loaded, following, readHistory, preparation };
+    latest.current = { preferences, turns, loaded, following, readHistory, preparingReader };
   });
   const [items] = useState(() => new Map<string, ScrollItem>());
-  const handoff = usePreparationHandoff(following, items, turns.length === 1 && turns[0]?.ordinal === 1);
   const [initial] = useState(() => preferences.view.threadScroll.find((entry) => entry.threadId === id)?.position);
   const [positioned, setPositioned] = useState(false);
   const done = useRef(false);
@@ -85,62 +82,56 @@ export function useThreadScrollMemory(
       });
   }, [items, save]);
 
-  const finish = useCallback((followingEnd: boolean, keepComposer = false) => {
+  const finish = useCallback((followingEnd: boolean) => {
     if (!active.current) return;
     const { following } = latest.current;
 
     if (followingEnd) following.resumeFollowing();
     else {
-      following.restoreReading();
+      following.finishReading();
 
-      if (!keepComposer) latest.current.readHistory();
+      if (!latest.current.preparingReader && !following.isFollowing()) latest.current.readHistory();
     }
 
-    if (latest.current.preparation) latest.current.preparation.preparationAnchor = undefined;
     done.current = true;
     setPositioned(true);
   }, []);
 
   const restore = useCallback(
     function restore() {
-      if (!active.current || !latest.current.loaded) return;
-
-      if (done.current) return handoff.restore();
+      if (!active.current || !latest.current.loaded || done.current) return;
 
       const { following, turns } = latest.current;
 
-      const preparation = latest.current.preparation?.preparationAnchor;
-      const position = restorationPosition(initial, preparation, turns);
+      if (initial?.mode !== "anchor") return finish(!latest.current.preparingReader);
 
-      if (!position) return finish(true);
-
-      if (preparation) handoff.hold(position.key, preparation.top);
-      const target = restoreThreadAnchor(position, turns.map(scrollTurnKey));
+      const target = restoreThreadAnchor(initial, turns.map(scrollTurnKey));
 
       if (!target || retries.current++ >= 60) return finish(true);
-      const item = items.get(position.key);
+      const item = items.get(initial.key);
 
       if (!item) {
         // Restoring a reading position: the feed must not pull it back to the end meanwhile.
-        following.restoreReading();
+        following.anchoring.set(true);
         following.list.current?.scrollToIndex({ index: target.index, animated: false, viewPosition: 1 });
       } else
         following.list.current?.getNativeScrollRef()?.measureInWindow((_x: number, edge: number) => {
           item.node.measureInWindow((_x, top, _w, height) => {
             if (!active.current || done.current || height <= 0) return;
+            const delta = top - edge + threadAnchorOffset(initial.offset, height);
+            const current = following.scrollY.get();
+            const offset = Math.max(following.minimum.get(), current - delta);
 
-            const delta =
-              top - edge + threadAnchorOffset(position.offset, height, preparation ? Math.max(0, preparation.top) : 0);
+            if (Math.abs(delta) < 1 || Math.abs(offset - current) < 1) return finish(false);
 
-            if (Math.abs(delta) < 1)
-              finish(Boolean(preparation && following.distance(following.scrollY.get()) < 0.5), Boolean(preparation));
-            else following.restoreReading(following.scrollY.get() - delta);
+            following.anchoring.set(true);
+            following.correctReading(offset);
           });
         });
       cancelAnimationFrame(frame.current);
       frame.current = requestAnimationFrame(restore);
     },
-    [initial, items, finish, handoff],
+    [initial, items, finish],
   );
 
   // A short thread fills the viewport-high content container both before and after it loads, so no layout or
@@ -156,8 +147,6 @@ export function useThreadScrollMemory(
     onMomentumEnd: () => scheduleOnRN(capture),
   });
 
-  const composed = useComposedEventHandler([onScroll, memoryScroll, handoff.onScroll]);
-
   const onViewableItemsChanged = useCallback<NonNullable<FlatListProps<ui.Turn>["onViewableItemsChanged"]>>(() => {
     if (done.current) capture();
   }, [capture]);
@@ -172,29 +161,10 @@ export function useThreadScrollMemory(
     target: initial?.mode === "anchor" ? initial.key : undefined,
     positioned,
     restore,
-    onScroll: composed,
-    onTouchStart: handoff.cancel,
+    onScroll: useComposedEventHandler([onScroll, memoryScroll]),
     onScrollToIndexFailed,
     onViewableItemsChanged,
   };
-}
-
-function restorationPosition(
-  saved: ThreadScrollPosition | undefined,
-  preparation: ThreadCreation["preparationAnchor"],
-  turns: readonly ui.Turn[],
-): Extract<ThreadScrollPosition, { mode: "anchor" }> | undefined {
-  if (saved?.mode === "anchor") return saved;
-  const first = turns.find((turn) => turn.ordinal === 1);
-
-  return preparation && first
-    ? {
-        mode: "anchor",
-        key: `${scrollTurnKey(first)}/input`,
-        parent: scrollTurnKey(first),
-        offset: -preparation.top,
-      }
-    : undefined;
 }
 
 function useScrollLifecycle(capture: () => void, active: RefObject<boolean>, frame: RefObject<number>) {
