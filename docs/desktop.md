@@ -1,6 +1,7 @@
 # Canopy Desktop
 
-Status: opis zaimplementowanego runtime i pakowania (2026-11-21). Build i ustawienia
+Status: opis zaimplementowanego runtime i pakowania (2026-11-22). Aktualizator używa
+`electron-updater` 6.8.11. Build i ustawienia
 udostępniają licencje dołączonych komponentów. Powłoka ładowania
 korzysta z ostatniego zapisanego wyglądu przy niedostępnym gatewayu. Build przypina Electron 45.4.1,
 Bun 1.4.5 i PostgreSQL 18.7 dla trybu lokalnego. Opis obejmuje też ograniczenia
@@ -1225,16 +1226,18 @@ czyści go po błędzie/anulowaniu. Nasze adaptery używają dwóch naprzemienny
 cache (główny i `replacement`) i zachowują poprzedni helper do pełnego sukcesu.
 Błąd przywraca helper i pozostawia poprzedni plik. Na macOS finalizacja cache poprzedza
 podmianę proxy/feedu. Zwykłe zamknięcie i osłona Quit pozostają bez automatycznej instalacji.
+Warstwa podmiany przekazuje do biblioteki obiekt `DownloadExecutorResult` z plikiem
+aktualizacji i ewentualną paczką. Publiczna metoda `downloadUpdate()` zwraca listę ścieżek.
 
-Źródła dla **electron-updater 6.8.3**:
-[instrukcja](https://github.com/electron-userland/electron-builder/blob/electron-updater%406.8.3/pages/auto-update.md),
-[AppUpdater](https://github.com/electron-userland/electron-builder/blob/electron-updater%406.8.3/packages/electron-updater/src/AppUpdater.ts),
-[DownloadedUpdateHelper](https://github.com/electron-userland/electron-builder/blob/electron-updater%406.8.3/packages/electron-updater/src/DownloadedUpdateHelper.ts),
-[MacUpdater](https://github.com/electron-userland/electron-builder/blob/electron-updater%406.8.3/packages/electron-updater/src/MacUpdater.ts),
-[BaseUpdater](https://github.com/electron-userland/electron-builder/blob/electron-updater%406.8.3/packages/electron-updater/src/BaseUpdater.ts),
-[NSIS](https://github.com/electron-userland/electron-builder/blob/electron-updater%406.8.3/packages/electron-updater/src/NsisUpdater.ts),
-[AppImage](https://github.com/electron-userland/electron-builder/blob/electron-updater%406.8.3/packages/electron-updater/src/AppImageUpdater.ts),
-[deb](https://github.com/electron-userland/electron-builder/blob/electron-updater%406.8.3/packages/electron-updater/src/DebUpdater.ts).
+Dokumentacja aktualizacji oraz źródła **electron-updater 6.8.11**.
+[Instrukcja](https://www.electron.build/docs/features/auto-update/),
+[AppUpdater](https://github.com/electron-userland/electron-builder/blob/electron-updater%406.8.11/packages/electron-updater/src/AppUpdater.ts),
+[DownloadedUpdateHelper](https://github.com/electron-userland/electron-builder/blob/electron-updater%406.8.11/packages/electron-updater/src/DownloadedUpdateHelper.ts),
+[MacUpdater](https://github.com/electron-userland/electron-builder/blob/electron-updater%406.8.11/packages/electron-updater/src/MacUpdater.ts),
+[BaseUpdater](https://github.com/electron-userland/electron-builder/blob/electron-updater%406.8.11/packages/electron-updater/src/BaseUpdater.ts),
+[NSIS](https://github.com/electron-userland/electron-builder/blob/electron-updater%406.8.11/packages/electron-updater/src/NsisUpdater.ts),
+[AppImage](https://github.com/electron-userland/electron-builder/blob/electron-updater%406.8.11/packages/electron-updater/src/AppImageUpdater.ts),
+[deb](https://github.com/electron-userland/electron-builder/blob/electron-updater%406.8.11/packages/electron-updater/src/DebUpdater.ts).
 
 **Windows — zakres i ograniczenia.** `oneClick: false`,
 `allowToChangeInstallationDirectory: true` i `perMachine: false` pozostają bez zmian:

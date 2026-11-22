@@ -1,6 +1,7 @@
 # Canopy na iOS i Android
 
-Status: opis zaimplementowanego kodu (2026-11-21), w tym import skilli z publicznych
+Status: opis zaimplementowanego kodu (2026-11-22). Profile EAS przypinają Bun 1.4.5
+dla lockfile w wersji 3. Opis obejmuje import skilli z publicznych
 witryn HTTPS, usypianie wątków, dostępny offline wykaz licencji open source
 oraz osobne aktualizacje Canopy i CLI dostawców. Na szerokim oknie iOS i Androida
 sidebar i rozmowa przesuwają wspólną krawędź podczas zwijania i rozwijania.
@@ -583,6 +584,8 @@ Po `bun install` z hoisted Doctor przechodzi. Pakiety wymagające JS API TypeScr
 `typescript: npm:@typescript/typescript6@6.0.2`, a `@typescript/native: npm:typescript@7.0.2`
 zachowuje binarkę `tsc` 7 dla pozostałych workspace'ów. Web/mobile mają własny TS 6.0.3.
 ESLint 9.39.5 jest przypięty, bo obecny eslint-plugin-react nie obsługuje ESLint 10.
+EAS Build używa Bun 1.4.5 zgodnie z `mise.toml`. Lockfile w wersji 3 zapisuje
+regułę, która przypina poprawiony `minimatch` w generatorze fingerprintu Expo.
 
 Animacje stanu UI robi `react-native-reanimated` **4.7.1** z `react-native-worklets` **0.13.0**
 (wersje z `bunx expo install`). Wtyczkę Babel worklets konfiguruje sam `babel-preset-expo`,

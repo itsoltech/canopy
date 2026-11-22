@@ -1,6 +1,7 @@
 # Wydania: wersje, CI, artefakty
 
-Status: opis zaimplementowanego workflow (2026-11-21). Buildy publikują wykazy licencji zależności. Automat sprawdza promocje co godzinę.
+Status: opis zaimplementowanego workflow (2026-11-22). Buildy publikują wykazy licencji zależności. Automat sprawdza promocje co godzinę.
+Pakowanie Desktop i generowanie fingerprintu Expo używają poprawionego `minimatch`.
 Smoke Desktop czeka na zapis trasy Network access przed restartem workera podczas parowania.
 Domyślne okresy obserwacji to 6 h na dev i 24 h od gotowości bety. Publikacja bety
 otwiera kolejną serię nightly. Stable zachowuje wersję bazową i SHA przetestowanej bety.
@@ -256,6 +257,18 @@ przeliczone z assetami desktop (`publish-desktop`); wpisy serwerowe w obu wersja
 Publiczny release od początku zawiera komplet assetów i feedów wszystkich wymaganych platform.
 
 ## Workflowy GitHub Actions
+
+Reguły w głównym `package.json` przypinają `minimatch` 11.0.9 dla konkretnych
+wersji `app-builder-lib`, `@electron/universal` i `@expo/fingerprint`.
+Usuń daną regułę, gdy nadrzędny pakiet zacznie pobierać wersję z poprawką
+[CVE-2026-118764](https://github.com/advisories/GHSA-g3hv-75wg-m249).
+
+Pełny audyt nadal wykazuje
+[CVE-2026-118773](https://github.com/advisories/GHSA-3g3m-2fjr-6pw4)
+i CVE-2026-118764 w kopiach `glob` i `minimatch` osadzonych w paczce
+`npm` dostarczanej przez `@semantic-release/npm`. Bun instaluje te pliki z paczki
+nadrzędnej nawet wtedy, gdy reguła rozwiązywania zależności zmieni wersję
+w lockfile. `release.config.mjs` publikuje artefakty przez plugin GitHuba.
 
 `.github/workflows/ci.yml` (pull requesty; wywoływany też przez Release) w pełnym przebiegu uruchamia równolegle:
 
