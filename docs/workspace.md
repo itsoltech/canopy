@@ -2,7 +2,9 @@
 
 Aktualizacja (2026-11-22): ustawienie dostępu do konektora w wątku obejmuje cały projekt.
 
-Status (2026-11-22): **zaimplementowane; układ v3**; poprawka regresji Svelte blokującej interfejs
+Status (2026-11-22): **zaimplementowane; układ v3**; osobne okno Preview zachowuje
+ramkę przy powiększaniu podglądu i nie przerywa transmisji po pojedynczym błędzie
+odczytu stanu wątku. Poprawka regresji Svelte blokującej interfejs
 przy przejściu z Preview na Files; stała górna krawędź osi i gradientu przy zwijaniu
 zadokowanego podsumowania; zapis i usunięcie pliku oraz odczyty Git paneli są związane z
 sprawdzonymi uchwytami i bezpieczną polityką Git (szczegóły niżej), menu ścieżek w rozmowie
@@ -525,6 +527,11 @@ z którego zostało otwarte, także po przełączeniu rozmowy w głównym oknie.
 Przejmuje początkowy wybór narzędzia, celu i skali, a potem prowadzi własny podgląd
 tej samej sesji. Zamknięcie okna kończy jego transmisję. Na desktopie ponowne
 otwarcie istniejącego okna wątku przenosi do niego fokus.
+W osobnym oknie `Expand preview` wypełnia dostępną przestrzeń wewnątrz okna,
+dzięki czemu nadal można przeciągnąć jego krawędzie. `Restore preview` przywraca
+nagłówek wątku. Po pojedynczym przejściowym błędzie odczytu metadanych okno
+zachowuje widok i ponawia odczyt po sekundzie. Drugi błąd wyświetla stan rozłączenia,
+a powrót metadanych przywraca podgląd. Utrata dostępu do wątku jest pokazywana od razu.
 Browser pokazuje karty sesji wątku i pozwala przełączyć aktywną kartę; zachowuje ustawiony przez agenta viewport
 przy zmianie szerokości panelu i udostępnia pasek z polami szerokości oraz wysokości
 oraz uchwyty krawędzi do jawnej zmiany viewportu.
