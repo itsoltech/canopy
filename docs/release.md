@@ -6,6 +6,7 @@ Smoke Desktop czeka na zapis trasy Network access przed restartem workera podcza
 Pakowanie Desktop archiwizuje runtime do smoke z katalogu właściwego dla architektury Linuxa.
 Smoke Desktop pobiera testy i ich zależności z rewizji pakowanego runtime'u.
 Release przekazuje klucz automatyzacji repozytorium do wywoływanego workflow Back-merge.
+Manifesty i indeksy obrazów OCI podają SHA wydawanych źródeł także przy wznowieniu z innej gałęzi.
 Domyślne okresy obserwacji to 6 h na dev i 24 h od gotowości bety. Publikacja bety
 otwiera kolejną serię nightly. Stable zachowuje wersję bazową i SHA przetestowanej bety.
 CI dla PR-ów dobiera testy mobile, interfejsu web i powłoki Electron według zmian.

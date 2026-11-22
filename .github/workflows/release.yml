@@ -400,6 +400,7 @@ jobs:
             org.opencontainers.image.revision=${{ env.EXPECTED_SHA }}
           annotations: |
             org.opencontainers.image.version=${{ needs.plan.outputs.version }}
+            org.opencontainers.image.revision=${{ env.EXPECTED_SHA }}
       - uses: docker/build-push-action@v6
         env:
           DOCKER_BUILD_RECORD_UPLOAD: false
