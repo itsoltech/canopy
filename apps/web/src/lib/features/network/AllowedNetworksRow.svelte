@@ -31,6 +31,7 @@
   let draft = $state(options.map((option) => ({ ...option, checked: false })));
 
   const selected = $derived(draft.flatMap(({ kind, checked }) => (checked ? [kind] : [])));
+
   const canApply = $derived(
     !network.busy && selected.length > 0 && draft.some(({ kind, checked }) => checked !== allowed.includes(kind)),
   );
@@ -43,6 +44,7 @@
 
   async function apply(event: SubmitEvent) {
     event.preventDefault();
+
     if (!canApply || saving) return;
     failure = undefined;
     saving = true;

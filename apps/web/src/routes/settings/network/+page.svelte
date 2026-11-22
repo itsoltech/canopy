@@ -22,9 +22,11 @@
   const capabilities = useGatewayCapabilities();
   const status = $derived(network.status);
   const noAddresses = $derived(status.state === "on" && !status.addresses.length);
+
   const otherHostnames = $derived(
     status.hostnames.filter((hostname) => !status.addresses.some((a) => a.kind === "hostname" && a.host === hostname)),
   );
+
   let error = $state("");
   let hostnameOpen = $state(false);
   let portOpen = $state(false);
