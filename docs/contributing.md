@@ -1,10 +1,17 @@
 # Współpraca przy Canopy
 
-Status (2026-11-21): obowiązujący proces pracy i weryfikacji, w tym automatyczna
+Status (2026-11-22): obowiązujący proces pracy i weryfikacji, w tym formularze
+zgłoszeń GitHub, prywatne zgłaszanie podatności i automatyczna
 stabilizacja bety i przenoszenie jej poprawek do dev oraz izolacja zasobów
 testowych, sprzątanie kontenerów PostgreSQL po przerwaniu testów, zasady pisania i przeglądu
 testów asynchronicznych, diagnoza niestabilnych testów z historii prób CI oraz
 dobór lokalnych kontroli do zachowań, na które wpływa zmiana.
+
+## Zgłoszenia na GitHubie
+
+W **New issue** wybierz **Bug report**, aby opisać błąd, albo **Feature request**,
+aby opisać potrzebę i przykład użycia. Podejrzenie podatności zgłoś przez prywatny
+formularz GitHuba. Link do niego jest dostępny w **New issue** i w [SECURITY.md](../SECURITY.md).
 
 ## Gałęzie i scalanie
 
