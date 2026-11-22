@@ -36,7 +36,7 @@ export const BOT_THREAD_PERMISSION_OPTIONS = [
   },
   {
     value: "full_auto",
-    label: "Full auto",
+    label: "Sandbox",
     description: "Thread tools run without asking, within the agent’s sandbox.",
   },
   {

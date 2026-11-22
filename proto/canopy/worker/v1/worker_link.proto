@@ -239,6 +239,7 @@ message ProviderProfile {
   // Default store for new sessions; existing sessions can retain a previously bound store.
   string session_home_path = 13;
   string private_home_path = 14;
+  SandboxSupport sandbox_support = 15;
 }
 
 message ProviderInfo {
@@ -613,6 +614,32 @@ message ThreadSpec {
   bool enable_memory = 15;
   // Puste = domyślne profilu; default = jawne standardowe wykonanie.
   string service_tier = 43;
+  // Wewnętrzny znormalizowany snapshot. Na linku wysyłany w ProfiledThread.
+  SandboxProfileBinding sandbox_profile = 44;
+}
+
+message SandboxProfile {
+  string id = 1;
+  string name = 2;
+  // Dokładne domeny dostępne dla poleceń. Pusta lista blokuje połączenia wychodzące.
+  repeated string allowed_domains = 3;
+}
+
+message SandboxProfileBinding {
+  SandboxProfile profile = 1;
+  string digest = 2;
+}
+
+message ProfiledThread {
+  ThreadSpec thread = 1;
+  SandboxProfileBinding binding = 2;
+}
+
+message SandboxSupport {
+  bool offline = 1;
+  bool domains = 2;
+  string offline_reason = 3;
+  string domains_reason = 4;
 }
 
 message ConnectorTool {
@@ -641,6 +668,8 @@ message ForkSpec {
 message CreateThread {
   ThreadSpec thread = 1;
   ForkSpec fork = 2; // nieustawione = wątek bez historii
+  // Wyklucza thread. Starszy worker odmówi startu z brakującym thread.
+  ProfiledThread profiled_thread = 3;
 }
 
 // Nowa tura. Worker w razie potrzeby wznawia wątek (resume) na podstawie ThreadSpec.
@@ -660,6 +689,8 @@ message StartTurn {
   string service_tier = 43;
   // Zatwierdzone preferencje w osobnym kontekście modelu. Wymaga capability memory_habits_v1.
   string habit_context = 44;
+  // Wyklucza thread. Starszy worker odmówi startu z brakującym thread.
+  ProfiledThread profiled_thread = 45;
 }
 
 message UserInput {

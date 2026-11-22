@@ -4,12 +4,14 @@ import { reserveScheduleWorkspace } from "./schedule-worktree-preparation.ts";
 import { Effect } from "effect";
 import type { SqlClient } from "effect/sql";
 import type { BusScheduleStore } from "./bus-schedules.ts";
+import { sandboxCommandThread } from "./thread-sandbox.ts";
 import { GatewayStore, Invalid } from "./store.ts";
 import type { ScheduleRow } from "./agent-bus-types.ts";
 
 export interface PreparedSchedule {
   readonly request: ui.CreateThreadRequest;
   readonly ownerId: string;
+  readonly sandboxVersion?: bigint;
   readonly placement: { readonly id: string; readonly worker_id: string };
 }
 
@@ -28,6 +30,15 @@ export const prepareSchedule = (sql: SqlClient.SqlClient, input: Parameters<BusS
 
     if (schedule.concurrency === "skip_if_running" && (yield* scheduleBusy(sql, schedule.id)).length) return;
     const spec = fromJson(ui.NewThreadScheduleSchema, schedule.new_thread);
+
+    if (
+      (spec.sandboxProfileId || spec.sandboxProfile) &&
+      (!spec.sandboxProfileId ||
+        !spec.sandboxProfile?.digest ||
+        spec.sandboxProfile.profile?.id !== spec.sandboxProfileId ||
+        spec.permissionMode !== PermissionMode.FULL_AUTO)
+    )
+      return yield* Effect.fail(new Invalid("This schedule has no valid saved sandbox profile for its selection."));
 
     const candidates = yield* sql<{
       id: string;
@@ -61,6 +72,7 @@ export const prepareSchedule = (sql: SqlClient.SqlClient, input: Parameters<BusS
       effort: spec.effort,
       serviceTier: spec.serviceTier,
       permissionMode: spec.permissionMode,
+      ...(spec.sandboxProfileId && { sandboxProfileId: spec.sandboxProfileId }),
       title: spec.title,
       workspaceMode: reservation.mode,
       clientRequestId: worktreeId,
@@ -93,7 +105,19 @@ export const prepareSchedule = (sql: SqlClient.SqlClient, input: Parameters<BusS
           )
         : request;
 
-    return { request: prepared, ownerId, placement } satisfies PreparedSchedule;
+    const confirm = input.confirmSandboxWorker;
+
+    const sandboxVersion =
+      spec.sandboxProfile && confirm ? yield* Effect.promise(() => confirm(placement.worker_id, spec)) : undefined;
+
+    if (spec.sandboxProfile && sandboxVersion === undefined) return;
+
+    return {
+      request: prepared,
+      ownerId,
+      placement,
+      ...(sandboxVersion !== undefined && { sandboxVersion }),
+    } satisfies PreparedSchedule;
   });
 
 /** Revalidate placement after external I/O; a paused/edited schedule is fenced by the caller first. */
@@ -107,7 +131,10 @@ export const placementAvailable = (
   WHERE pw.id=${prepared.placement.id}::uuid AND pw.project_id=${schedule.project_id}::uuid
     AND pw.worker_id=${prepared.placement.worker_id}::uuid AND p.owner_user_id=${prepared.ownerId}::uuid
     AND pw.archived_at IS NULL AND p.archived_at IS NULL AND w.archived_at IS NULL AND w.revoked_at IS NULL
-    AND (${permissionMode !== PermissionMode.FULL_ACCESS}::boolean OR w.capabilities->>'fullAccess' = 'true')`;
+    AND (${permissionMode !== PermissionMode.FULL_ACCESS}::boolean OR w.capabilities->>'fullAccess' = 'true')
+    AND (${prepared.sandboxVersion ?? null}::bigint IS NULL OR EXISTS (
+      SELECT 1 FROM worker_configs c WHERE c.worker_id=w.id AND c.version=${prepared.sandboxVersion ?? null}::bigint
+    ))`;
 
 export const scheduledThread = (
   sql: SqlClient.SqlClient,
@@ -127,6 +154,10 @@ export const scheduledThread = (
         permissionModeNote: spec.permissionModeNote,
         memoryAudience: schedule.memory_audience,
       },
+      undefined,
+      undefined,
+      undefined,
+      spec.sandboxProfile,
     );
 
     yield* sql`UPDATE threads SET origin='schedule', schedule_id=${schedule.id}::uuid,
@@ -137,7 +168,7 @@ export const scheduledThread = (
     const command = yield* gateway.enqueueCommand({
       workerId: prepared.placement.worker_id,
       threadId: owner.id,
-      command: { kind: { case: "createThread", value: { thread: gateway.threadSpec(owner) } } },
+      command: { kind: { case: "createThread", value: sandboxCommandThread(gateway.threadSpec(owner)) } },
       ttlSeconds: 365 * 24 * 3600,
     });
 

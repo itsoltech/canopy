@@ -28,6 +28,9 @@ export function threadBlocker(sql: Sql, owner: string, family: string[]) {
   return Effect.gen(function* () {
     const busy = yield* sql.unsafe<{ reason: string }>(
       `SELECT CASE
+      WHEN EXISTS (SELECT 1 FROM threads WHERE id = ANY($1::uuid[])
+        AND settings->'sandboxProfile' IS NOT NULL AND settings->'sandboxProfile' <> 'null'::jsonb)
+        THEN 'Threads with a sandbox profile must stay on their home computer.'
       WHEN EXISTS (SELECT 1 FROM threads WHERE id = ANY($1::uuid[]) AND memory_audience <> '') THEN 'Threads delegated to a restricted audience must stay on their home computer.'
       WHEN EXISTS (SELECT 1 FROM turns WHERE thread_id = ANY($1::uuid[]) AND status IN ('queued','running')) THEN 'A turn is running or queued. Wait for it to finish or stop it, then move.'
       WHEN EXISTS (SELECT 1 FROM threads WHERE id = ANY($1::uuid[]) AND status = 'running') THEN 'A turn is running. Wait for it to finish or stop it, then move.'

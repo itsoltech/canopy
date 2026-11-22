@@ -63,8 +63,10 @@ export async function* draftCreationProgress(
               toBinary(ui.CreateThreadRequestSchema, request),
               request.clientRequestId,
               request.parentThreadId,
+              request,
             ),
-          async () => {
+          async ({ sandboxProfileDigest }) => {
+            outgoing.sandboxProfileDigest = sandboxProfileDigest ?? outgoing.sandboxProfileDigest;
             let thread: ui.Thread | undefined;
 
             for await (const value of handlers.createThreadWithProgress(outgoing, operationContext)) {

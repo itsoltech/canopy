@@ -7,6 +7,7 @@ import { Invalid, NotFound } from "../store/errors.ts";
 import { checkedQuotes } from "../core/quotes.ts";
 import { AttachmentStore, toUiAttachment } from "../store/attachments.ts";
 import { toUiQuote } from "../store/quotes.ts";
+import { validateDraftSandbox } from "./sandbox.ts";
 import { splitId } from "@canopy/domain/computers";
 
 export const uuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -69,6 +70,8 @@ export function validateDraft(sql: SqlClient.SqlClient, owner: string, draft: ui
       title = `New thread · ${row.name}`;
     }
 
+    const sandboxProfile = yield* validateDraftSandbox(content.sandboxProfile, target.threadId);
+
     const checked = yield* Effect.try({
       try: () => {
         const mentions = checkMentions(content.text, content.mentions);
@@ -115,6 +118,7 @@ export function validateDraft(sql: SqlClient.SqlClient, owner: string, draft: ui
       takenByDeviceName: "",
       content: {
         ...content,
+        sandboxProfile,
         mentions: checked.mentions,
         quotes: checked.quotes.map(toUiQuote),
         attachments: attachments.map(toUiAttachment),

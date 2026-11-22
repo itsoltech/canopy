@@ -66,11 +66,13 @@ export function withDraftDelivery(core: GatewayCore, handlers: UiHandlers): UiHa
                   toBinary(ui.CreateThreadRequestSchema, request),
                   request.clientRequestId,
                   request.parentThreadId,
+                  request,
                 ),
-              async () => {
+              async ({ sandboxProfileDigest }) => {
                 const outgoing = clone(ui.CreateThreadRequestSchema, request);
                 outgoing.draftId = "";
                 outgoing.draftRevision = 0n;
+                outgoing.sandboxProfileDigest = sandboxProfileDigest ?? outgoing.sandboxProfileDigest;
                 const result = create(ui.CreateThreadResponseSchema, await handlers.createThread(outgoing, context));
 
                 return result;

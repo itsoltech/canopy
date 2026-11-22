@@ -6,6 +6,9 @@ import {
   AGENT_PREVIEW_CLIENT_ACK,
   PROJECT_CONNECTOR_ACCESS,
   DIAGNOSTICS_LOGS,
+  LINKED_DRAFT_SANDBOX_SNAPSHOT,
+  LINKED_SCHEDULE_SANDBOX_PROFILES,
+  LINKED_SANDBOX_PROFILES,
   USAGE_STATS,
 } from "./capabilities.ts";
 
@@ -149,7 +152,16 @@ export const computersPresenceMethods: ComputersPresenceMethods = {
         ...(this.options.serve ? [WORKSPACE_COPY_CAPABILITY] : []),
         ...(this.options.serve ? ["thread_creation_progress_v1", BOT_THREAD_ACCESS, REMOTE_CLI_UPGRADE_ONLY] : []),
         USAGE_STATS,
-        ...(this.options.serve ? [PROVIDER_SETTINGS_CAPABILITY, AGENT_MEMORY_AUDIENCE, PROJECT_CONNECTOR_ACCESS] : []),
+        ...(this.options.serve
+          ? [
+              PROVIDER_SETTINGS_CAPABILITY,
+              AGENT_MEMORY_AUDIENCE,
+              PROJECT_CONNECTOR_ACCESS,
+              LINKED_SANDBOX_PROFILES,
+              LINKED_DRAFT_SANDBOX_SNAPSHOT,
+              LINKED_SCHEDULE_SANDBOX_PROFILES,
+            ]
+          : []),
       ],
     });
 

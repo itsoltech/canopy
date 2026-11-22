@@ -6,10 +6,16 @@
     state,
     disabled = false,
     onconfirmfullaccess,
-  }: { state: ComposerPermissionsState; disabled?: boolean; onconfirmfullaccess: () => void } = $props();
+    onmanage,
+  }: {
+    state: ComposerPermissionsState;
+    disabled?: boolean;
+    onconfirmfullaccess: () => void;
+    onmanage?: (() => void) | undefined;
+  } = $props();
 </script>
 
-<div class="grid min-w-0 justify-items-end gap-1">
+<div class="grid max-w-full min-w-0 justify-items-end gap-1">
   <PermissionPicker
     value={state.value}
     fullAuto={state.fullAuto}
@@ -17,6 +23,9 @@
       if (!disabled) void state.select(mode);
     }}
     disabled={disabled || state.locked}
+    fixed={Boolean(state.sandboxProfile)}
+    sandboxProfileName={state.sandboxProfile?.name}
+    {onmanage}
     scope={state.scope}
     nextTurnMode={state.nextTurnMode}
     confirmFullAccess={state.confirmFullAccess}

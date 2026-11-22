@@ -1,9 +1,11 @@
 import type { ui } from "@canopy/contracts";
 import { turnQuoteTime } from "#lib/features/quotes/inline.ts";
+import { useOverview } from "#lib/features/overview/overview-state.svelte.ts";
 import { provideThreadDirectory } from "./thread-directory.ts";
 import type { ThreadState } from "./thread-state.svelte.ts";
 import { isTerminal } from "./timeline.ts";
 import { replyDirectory } from "./reply-directory.ts";
+import { threadSandboxRefusal } from "./sandbox-profiles.ts";
 
 /** Live timeline context shared by message actions, quotes and provider items. */
 export function providePageDirectory(
@@ -16,6 +18,14 @@ export function providePageDirectory(
   lookup: (id: string) => ui.Thread | undefined,
   reveal: (quote: ui.Quote) => Promise<boolean>,
 ) {
+  const overview = useOverview();
+
+  function sendBlockedReason() {
+    const thread = source().view.thread;
+
+    return threadSandboxRefusal(thread, thread && overview.worker(thread.workerId));
+  }
+
   provideThreadDirectory({
     get currentId() {
       return source().id;
@@ -23,7 +33,10 @@ export function providePageDirectory(
     get readOnly() {
       return source().readOnly;
     },
-    ...replyDirectory(source),
+    get sendBlockedReason() {
+      return sendBlockedReason();
+    },
+    ...replyDirectory(source, sendBlockedReason),
     get replySuggestions() {
       return source().view.replySuggestions;
     },

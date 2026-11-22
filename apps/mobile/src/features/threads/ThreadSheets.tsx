@@ -49,6 +49,7 @@ export function ThreadSheets({
       />
       <QueueEditor
         turn={state.home.away || state.worktreeRemoved ? undefined : state.editing}
+        sandboxBound={Boolean(thread?.sandboxProfile)}
         onClose={() => state.setEditing(undefined)}
       />
     </>

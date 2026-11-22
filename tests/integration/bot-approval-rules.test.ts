@@ -249,7 +249,7 @@ describe.skipIf(!dockerAvailable)("bot-started thread approvals", () => {
         expect(thread.permissionMode).toBe(expected);
 
         if (["same_bot", "user_default", "full_access"].includes(threadPermission))
-          expect(thread.permissionModeNote).toContain("limits Full access to Full auto");
+          expect(thread.permissionModeNote).toContain("uses Sandbox when Full access is unavailable");
 
         const ready = await eventually(
           async () => suite.gw.worker.created.find((t) => t.threadId === thread.id),

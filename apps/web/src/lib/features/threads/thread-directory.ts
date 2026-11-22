@@ -8,6 +8,7 @@ export interface ThreadDirectory {
   /** The thread being shown. */
   readonly currentId: string;
   readonly readOnly?: boolean;
+  readonly sendBlockedReason?: string | undefined;
   /** Latest visible turn, excluding messages still waiting in the queue. */
   readonly latestTurnId?: string;
   readonly replySuggestions?: ReplySuggestionsState;

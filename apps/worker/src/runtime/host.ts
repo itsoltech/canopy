@@ -39,6 +39,7 @@ import { WorkerStorageCleanup } from "./storage-cleanup.ts";
 import { HostPreviews } from "./host-previews.ts";
 import { WorkerPreviewCleanup } from "./preview-cleanup.ts";
 import { NOT_REMEMBERED, rememberSuccess } from "./command-policy.ts";
+import { normalizeSandboxCommand, requireSandboxSupport } from "./sandbox-command.ts";
 
 export type { WorkerHostOptions } from "./host-types.ts";
 /**
@@ -313,6 +314,11 @@ export class WorkerHost {
 
     if (pending) return pending;
 
+    const normalized = normalizeSandboxCommand(command);
+
+    if ("failure" in normalized) return normalized.failure;
+    command = normalized.command;
+
     const kind = command.kind;
 
     if (kind.case === "cancelTextGeneration") {
@@ -379,6 +385,7 @@ export class WorkerHost {
     try {
       // A CLI being installed: its new work waits for the install to end (docs/provider-cli.md).
       if (provider) await this.#ctx.state.cli.settled(provider);
+      requireSandboxSupport(command, this.#ctx.state.config?.profiles);
 
       if (current && !current())
         throw new CommandError("THREAD_CLOSED", "This command was cancelled while the thread was closing.", true);

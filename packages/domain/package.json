@@ -81,6 +81,7 @@
     "./proxy-capacity": "./src/proxy-capacity.ts",
     "./provider-instances": "./src/provider-instances.ts",
     "./provider-settings": "./src/provider-settings.ts",
+    "./sandbox-profiles": "./src/sandbox-profiles.ts",
     "./provider-settings-json": "./src/provider-settings-json.ts",
     "./provider-settings-editor": "./src/provider-settings-editor.ts",
     "./sidebar-usage": "./src/sidebar-usage.ts",

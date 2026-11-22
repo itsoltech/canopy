@@ -8,6 +8,7 @@ import { checkedPermissionMode, coreState, InvalidError, UnavailableError } from
 import { coreBroadcastTurn, coreRun } from "./core-broadcast.ts";
 import { coreAnswer } from "./core-interactions.ts";
 import { coreCheckFullAccess } from "./full-access.ts";
+import { threadSandbox } from "../store/thread-sandbox.ts";
 import { permissionChanges, permissionsChanged, withTurnPermissionMutation } from "./turn-permission-state.ts";
 import type { GatewayCore } from "./core.ts";
 
@@ -84,6 +85,8 @@ async function apply(core: GatewayCore, request: ui.UpdateTurnPermissionsRequest
 
   if (thread.owner_user_id !== core[coreState].options.userId || thread.archived_at)
     throw new NotFound("thread not found");
+
+  if (threadSandbox(thread)) throw new InvalidError("Live permission changes are unavailable with a sandbox profile.");
 
   if (thread.provider !== "claude" || thread.runtime !== "worker")
     throw new InvalidError("Live permission changes are available only for Claude.");

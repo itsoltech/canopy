@@ -18,6 +18,7 @@ message ComposerDraftContent {
   string provider_profile_id = 9;
   canopy.worker.v1.Provider provider = 10;
   optional string service_tier = 11;
+  canopy.worker.v1.SandboxProfile sandbox_profile = 12;
 }
 
 message ComposerDraftTarget {
@@ -44,6 +45,8 @@ message SaveComposerDraftRequest {
   ComposerDraft draft = 1;
   uint64 expected_revision = 2;
   string mutation_id = 3;
+  // Wybór braku profilu przez właściciela. Starszy klient może pominąć nieznane pole profilu.
+  bool clear_sandbox_profile = 4;
 }
 message ListComposerDraftsRequest {
   string device_id = 1;
@@ -115,5 +118,6 @@ message LocalComposerDraft {
   string published_content = 6;
   bytes pending_create = 7;
   string pending_form = 8;
+  bool clear_sandbox_profile = 9;
 }
 message LocalComposerDrafts { repeated LocalComposerDraft entries = 1; }

@@ -1,10 +1,12 @@
 <script lang="ts">
   import { create, isMessage } from "@bufbuild/protobuf";
   import { timestampDate, timestampFromDate } from "@bufbuild/protobuf/wkt";
-  import { ui } from "@canopy/contracts";
+  import { PermissionMode, ui } from "@canopy/contracts";
   import timeZones from "@canopy/ui/timezones";
   import { untrack } from "svelte";
   import { useOverview } from "#lib/features/overview/overview-state.svelte.ts";
+  import { permissionLabel } from "#lib/features/threads/labels.ts";
+  import { defaultSandboxProfile } from "#lib/features/threads/sandbox-profiles.ts";
   import Alert from "#lib/shared/ui/Alert.svelte";
   import Button from "#lib/shared/ui/Button.svelte";
   import Dialog from "#lib/shared/ui/Dialog.svelte";
@@ -78,6 +80,7 @@
   let threadId = $state("");
   let target = $state<"thread" | "new_thread">("thread");
   let newThread = $state<ui.NewThreadSchedule>();
+  let sandboxError = $state<string>();
   let concurrency = $state("skip_if_running");
   let name = $state("");
   let prompt = $state("");
@@ -97,6 +100,8 @@
   let error = $state<string>();
   let expectedVersion = $state(0);
   let formOpening = $state(0);
+
+  const targetThread = $derived(overview.threads.get(threadId) ?? threads.find((thread) => thread.id === threadId));
 
   // Every opening starts from a fresh form.
   $effect(() => {
@@ -144,6 +149,7 @@
       );
       maxRuns = from?.maxRuns || 5;
       error = undefined;
+      sandboxError = undefined;
       formOpening++;
     });
   });
@@ -170,6 +176,8 @@
 
     if (target === "new_thread" && (!newThread?.projectId || !newThread.provider))
       return "Choose a project and an agent.";
+
+    if (target === "new_thread" && sandboxError) return sandboxError;
 
     const destination = {
       target,
@@ -280,30 +288,48 @@
       />
     </Field>
     {#if target === "new_thread"}
-      {#key formOpening}<NewThreadScheduleFields bind:value={newThread} homeId={editing?.id} />{/key}
-    {:else if editing?.target === "thread"}
-      <p class="text-base/6 text-zinc-500 sm:text-sm/6 dark:text-zinc-400">
-        In {overview.threads.get(editing.threadId)?.title || "the original thread"}. To use another existing thread,
-        create a separate task.
-      </p>
-    {:else if !fixedThreadId}
-      <Field label="Thread" class="min-w-0">
-        <Select
-          name="threadId"
-          bind:value={threadId}
-          options={groups.length
-            ? groups.flatMap((group) =>
-                group.threads.map((thread) => ({
-                  value: thread.id,
-                  label: thread.title,
-                  disabled: Boolean(thread.nodeId && awayReason(overview.computer(thread.nodeId))),
-                  description: thread.nodeId ? awayReason(overview.computer(thread.nodeId)) : undefined,
-                  group: `${group.project.name} · ${group.project.nodeId ? computerName(overview.computer(group.project.nodeId)) : "This computer"}`,
-                })),
-              )
-            : [{ value: "", label: "No threads yet" }]}
+      {#key formOpening}
+        <NewThreadScheduleFields
+          bind:value={newThread}
+          bind:sandboxError
+          savedSandboxProfile={editing?.newThread?.sandboxProfile?.profile}
+          templateSandboxProfile={template?.newThread?.sandboxProfile?.profile}
+          homeId={editing?.id}
         />
-      </Field>
+      {/key}
+    {:else}
+      <div class="grid min-w-0 gap-2">
+        {#if editing?.target === "thread"}
+          <p class="text-base/6 wrap-anywhere text-zinc-500 sm:text-sm/6 dark:text-zinc-400">
+            In {targetThread?.title || "the original thread"}. To use another existing thread, create a separate task.
+          </p>
+        {:else if !fixedThreadId}
+          <Field label="Thread" class="min-w-0">
+            <Select
+              name="threadId"
+              bind:value={threadId}
+              options={groups.length
+                ? groups.flatMap((group) =>
+                    group.threads.map((thread) => ({
+                      value: thread.id,
+                      label: thread.title,
+                      disabled: Boolean(thread.nodeId && awayReason(overview.computer(thread.nodeId))),
+                      description: thread.nodeId ? awayReason(overview.computer(thread.nodeId)) : undefined,
+                      group: `${group.project.name} · ${group.project.nodeId ? computerName(overview.computer(group.project.nodeId)) : "This computer"}`,
+                    })),
+                  )
+                : [{ value: "", label: "No threads yet" }]}
+            />
+          </Field>
+        {/if}
+        {#if targetThread}
+          <p class="text-base/6 wrap-anywhere text-zinc-500 sm:text-sm/5 dark:text-zinc-400">
+            Uses thread permissions · {targetThread.permissionMode === PermissionMode.FULL_AUTO
+              ? `Sandbox - ${targetThread.sandboxProfile?.profile?.name ?? defaultSandboxProfile.label}`
+              : permissionLabel(targetThread.permissionMode)}
+          </p>
+        {/if}
+      </div>
     {/if}
 
     <Field label="Message to the agent">
@@ -451,6 +477,7 @@
         type="submit"
         variant="primary"
         icon={editing ? "check" : template ? "document-duplicate" : "clock"}
+        disabled={target === "new_thread" && Boolean(sandboxError)}
         loading={busy}>{editing ? "Save changes" : template ? "Duplicate task" : "Schedule"}</Button
       >
     </DialogActions>

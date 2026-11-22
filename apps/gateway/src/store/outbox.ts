@@ -101,11 +101,17 @@ export function outboxStore(sql: SqlClient.SqlClient): OutboxStore {
       Effect.gen(function* () {
         const message = create(CommandSchema, { ...command });
         message.commandId ||= Bun.randomUUIDv7();
+        const kind = message.kind;
+
+        const sandboxDigest =
+          kind.case === "createThread" || kind.case === "startTurn"
+            ? kind.value.profiledThread?.binding?.digest
+            : undefined;
 
         yield* sql`
-                INSERT INTO worker_commands (id, worker_id, thread_id, turn_id, kind, payload, expires_at, delivered_epoch)
+                INSERT INTO worker_commands (id, worker_id, thread_id, turn_id, kind, payload, expires_at, delivered_epoch, sandbox_digest)
                 VALUES (${message.commandId}::uuid, ${workerId}::uuid, ${threadId ?? null}::uuid, ${turnId ?? null}::uuid,
-                        ${message.kind.case ?? "unknown"}, ${toBinary(CommandSchema, message)}, now() + make_interval(secs => ${ttlSeconds}), 0)
+                        ${kind.case ?? "unknown"}, ${toBinary(CommandSchema, message)}, now() + make_interval(secs => ${ttlSeconds}), 0, ${sandboxDigest ?? null})
                 ON CONFLICT (id) DO NOTHING`;
 
         return message;

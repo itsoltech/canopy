@@ -134,6 +134,7 @@ export async function coreServe(hostContext: GatewayCore, connection: WorkerConn
 
           if (report.applied) hostContext.accounts.applied(connection, report.version);
           await coreBroadcastWorkers(hostContext);
+          await coreRedeliver(hostContext, workerId);
           break;
         }
 

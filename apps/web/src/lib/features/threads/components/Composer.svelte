@@ -28,6 +28,7 @@
     note,
     onsent,
     ongoal,
+    onpermissions,
     top,
     status,
     questions = [],
@@ -47,6 +48,7 @@
     note?: string | undefined;
     onsent?: ((response: ui.SendMessageResponse) => void) | undefined;
     ongoal?: (() => void) | undefined;
+    onpermissions?: (() => void) | undefined;
     top?: Snippet | undefined;
     status?: Snippet | undefined;
     questions?: ui.Interaction[];
@@ -114,8 +116,8 @@
 
   const answering = $derived(session && !session.done && !session.messaging);
   const approval = $derived(questions.find((q) => q.kind === InteractionKind.PERMISSION && q.status === "pending"));
-  let steeringRequest = $state<string>();
-  const steering = $derived(Boolean(approval && steeringRequest === approval.requestId));
+  let approvalEditorRequest = $state<string>();
+  const approvalEditorOpen = $derived(Boolean(approval && approvalEditorRequest === approval.requestId));
 
   // Blocking questions stay expanded; asynchronous answers follow composer compaction.
   const folded = $derived(compact && active?.asynchronous !== false);
@@ -126,6 +128,7 @@
   <ComposerPermissions
     state={permissions}
     {disabled}
+    onmanage={onpermissions}
     onconfirmfullaccess={() => (fullAccessTarget = { threadId: thread.id, turnId: permissions.liveTurnId })}
   />
 {/snippet}
@@ -172,15 +175,21 @@
       <Button
         size="sm"
         variant="ghost"
-        aria-expanded={steering}
-        onclick={() => (steeringRequest = steering ? undefined : approval.requestId)}
-        >{steering ? "Hide steer editor" : "Steer instead"}</Button
+        aria-expanded={approvalEditorOpen}
+        onclick={() => (approvalEditorRequest = approvalEditorOpen ? undefined : approval.requestId)}
+        >{thread.sandboxProfile
+          ? approvalEditorOpen
+            ? "Hide editor"
+            : "Queue a message"
+          : approvalEditorOpen
+            ? "Hide steer editor"
+            : "Steer instead"}</Button
       >
     </div>
   {/if}
   <div
-    class={["relative min-w-0", (answering || (approval && !steering)) && "hidden"]}
-    inert={Boolean(answering || (approval && !steering))}
+    class={["relative min-w-0", (answering || (approval && !approvalEditorOpen)) && "hidden"]}
+    inert={Boolean(answering || (approval && !approvalEditorOpen))}
   >
     <MessageComposer
       {thread}
@@ -195,7 +204,7 @@
       {disabled}
       {note}
       {onsent}
-      {ongoal}
+      ongoal={permissions.sandboxProfile ? undefined : ongoal}
       compact={folded || Boolean(approval)}
       {panelsLabel}
       {onexpand}

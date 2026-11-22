@@ -194,7 +194,7 @@ export interface ThreadSummary {
   readonly lastTurn: string;
   readonly lastTurnStatus: string;
   readonly lastMessage: string;
-  /** What it runs with, in words ("gpt-5 · high · Full auto"). */
+  /** What it runs with, in words ("gpt-5 · high · Sandbox"). */
   readonly settings: string;
 }
 
@@ -230,7 +230,7 @@ export function permissionWords(mode: string): string {
   const key = mode.toLowerCase().replace(/^permission_mode_/, "");
 
   return (
-    { read_only: "Read only", ask: "Ask first", accept_edits: "Accept edits", full_auto: "Full auto" }[key] ??
+    { read_only: "Read only", ask: "Ask first", accept_edits: "Accept edits", full_auto: "Sandbox" }[key] ??
     humanizeEnum(mode)
   );
 }

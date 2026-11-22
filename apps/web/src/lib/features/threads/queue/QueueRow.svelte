@@ -29,6 +29,7 @@
     dragging,
     offset,
     delivery,
+    shellUnavailable,
     onmove,
     ondragstart,
     onsteer,
@@ -48,10 +49,11 @@
     editing: boolean;
     dragging: boolean;
     offset: number;
-    delivery: "steer" | "queue";
+    delivery: "steer" | "queue" | undefined;
+    shellUnavailable?: string | undefined;
     onmove: (index: number) => void;
     ondragstart: (event: PointerEvent) => void;
-    onsteer: () => void;
+    onsteer?: (() => void) | undefined;
     ondelete: () => void;
     onedit: () => void;
     onsave: (text: string, mentions: Mention[], quotes: ui.Quote[]) => Promise<string | undefined>;
@@ -102,6 +104,7 @@
       text={messageOf(turn)}
       mentions={turn.messageText ? turn.mentions : []}
       allowEmpty={carriesMore(turn)}
+      {shellUnavailable}
       {onsave}
       {oncancel}
     />
@@ -139,7 +142,7 @@
           {hints.join(" · ")}
         </p>
       {/if}
-      {#if own && running}
+      {#if own && running && onsteer}
         <span class="flex shrink-0" {@attach tooltip("Send it into the running turn now")}>
           <Button variant="text" size="sm" icon="arrow-turn-down-right" onclick={onsteer}
             ><span class="max-sm:sr-only">Steer</span></Button

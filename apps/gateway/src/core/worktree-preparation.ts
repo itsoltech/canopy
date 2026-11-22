@@ -1,6 +1,6 @@
 import { createHash } from "node:crypto";
 import { toBinary } from "@bufbuild/protobuf";
-import { ui } from "@canopy/contracts";
+import { ui, type SandboxProfileBinding } from "@canopy/contracts";
 import { Effect } from "effect";
 import { SqlClient } from "effect/sql";
 import { toConnectError } from "../api/ui-errors.ts";
@@ -47,9 +47,23 @@ export async function singleCreation(
   }
 }
 
-export async function reserveWorktreeThread(core: GatewayCore, request: ui.CreateThreadRequest, fingerprint: string) {
+export async function reserveWorktreeThread(
+  core: GatewayCore,
+  request: ui.CreateThreadRequest,
+  fingerprint: string,
+  sandboxProfile?: SandboxProfileBinding,
+) {
   const row = await coreRun(core, (s) =>
-    s.createThread(core[coreState].options.userId, request, undefined, undefined, undefined, fingerprint),
+    s.createThread(
+      core[coreState].options.userId,
+      request,
+      undefined,
+      undefined,
+      undefined,
+      fingerprint,
+      undefined,
+      sandboxProfile,
+    ),
   );
 
   if (row.preparation_fingerprint !== fingerprint)

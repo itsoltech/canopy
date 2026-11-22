@@ -1,4 +1,4 @@
-import { create } from "@bufbuild/protobuf";
+import { create, type JsonValue } from "@bufbuild/protobuf";
 import { ui, type CommandResult } from "@canopy/contracts";
 import { Effect, Match } from "effect";
 import { mentionsFromJson } from "./mentions.ts";
@@ -7,6 +7,9 @@ import { SteerStore, toUiDelivery, toUiSteer, turnEffort } from "../store/index.
 import { coreDispatch } from "./core-commands.ts";
 import { checkedPermissionMode, coreState, InvalidError, TTL } from "./core-context.ts";
 import type { GatewayCore } from "./core.ts";
+import { threadSandbox } from "../store/thread-sandbox.ts";
+import { SANDBOX_STEER_UNAVAILABLE } from "./thread-sandbox.ts";
+import { withSandboxUpdate } from "./update-thread-sandbox.ts";
 import { coreCheckFullAccess } from "./full-access.ts";
 import { coreCheckModel, coreProfileModels } from "./core-models.ts";
 import { coreUiThread } from "./core-titles.ts";
@@ -32,6 +35,8 @@ export async function coreSendSteer(hostContext: GatewayCore, steerId: string): 
   if (steer.status !== "pending") return;
   const thread = await coreRun(hostContext, (s) => s.thread(steer.thread_id));
   await corePublishSteer(hostContext, steerId);
+
+  if (threadSandbox(thread)) return coreQueueSteer(hostContext, steerId, SANDBOX_STEER_UNAVAILABLE);
 
   if (!thread.worker_id) return void (await coreQueueSteer(hostContext, steerId, "the thread has no worker"));
   await coreDispatch(
@@ -215,57 +220,15 @@ export interface CoreMessagesMethods {
     linked?: LinkedMessageInput,
     ownerInput?: boolean,
   ): Promise<MessageResponse>;
-  updateThread(request: ui.UpdateThreadRequest): Promise<ui.Thread>;
+  updateThread(request: ui.UpdateThreadRequest, ownerInput?: boolean): Promise<ui.Thread>;
   interrupt(threadId: string): Promise<void>;
 }
 
 const messageActions: Omit<CoreMessagesMethods, "sendMessage"> = {
   /** The thread's default model, effort and permission mode for turns without an override. */
-  async updateThread(this: GatewayCore, request: ui.UpdateThreadRequest): Promise<ui.Thread> {
-    const thread = await coreRun(this, (s) => s.thread(request.threadId));
-
-    if (thread.owner_user_id !== this[coreState].options.userId || thread.archived_at)
-      throw new InvalidError("thread not found");
-
-    if (request.resetAutoArchiveOnMerge && request.autoArchiveOnMerge !== undefined)
-      throw new InvalidError("Choose an override or reset automatic archiving, not both.");
-    const title = request.title?.trim();
-
-    if (title !== undefined && (!title || title.length > 200 || /[\r\n\p{Cc}]/u.test(title)))
-      throw new InvalidError("title must be one line with 1–200 characters");
-    const model = request.model ?? thread.settings.model ?? "";
-    // The requested effort is judged; the current default follows a new model (none without efforts, else the
-    // model's default when it does not offer it).
-    const current = thread.settings.effort ?? "";
-    let effort = current;
-
-    if (request.model !== undefined || request.effort !== undefined) {
-      await coreCheckModel(this, { thread }, model, request.effort ?? "");
-      effort = turnEffort((await coreProfileModels(this, { thread })).models, model, request.effort ?? current);
-    }
-
-    if (request.model !== undefined || request.serviceTier !== undefined)
-      await coreCheckModel(this, { thread }, model, "", request.serviceTier ?? thread.settings.serviceTier ?? "");
-
-    // Only the owner (UI) changes the mode; agents have no bus tool for it (docs/ui-api.md, FULL_AUTO and
-    // FULL_ACCESS only deliberately).
-    const permissionMode = request.permissionMode === undefined ? "" : checkedPermissionMode(request.permissionMode);
-
-    if (request.permissionMode !== undefined) coreCheckFullAccess(this, thread.worker_id, request.permissionMode);
-
-    if (title !== undefined) await coreRun(this, (s) => s.renameThread(thread.id, title));
-
-    const row = await coreRun(this, (s) =>
-      s.updateThreadSettings(
-        request.threadId,
-        {
-          ...(request.model !== undefined && { model: request.model }),
-          ...(request.serviceTier !== undefined && { serviceTier: request.serviceTier }),
-          ...((request.effort !== undefined || effort !== current) && { effort }),
-          ...(permissionMode && { permissionMode }),
-        },
-        request.resetAutoArchiveOnMerge ? null : request.autoArchiveOnMerge,
-      ),
+  async updateThread(this: GatewayCore, request: ui.UpdateThreadRequest, ownerInput = false): Promise<ui.Thread> {
+    const row = await withSandboxUpdate(this, request, ownerInput, (binding) =>
+      updateThreadDefaults(this, request, binding),
     );
 
     await coreBroadcastThread(this, row.id);
@@ -293,6 +256,55 @@ const messageActions: Omit<CoreMessagesMethods, "sendMessage"> = {
     });
   },
 };
+
+async function updateThreadDefaults(thisCore: GatewayCore, request: ui.UpdateThreadRequest, binding?: JsonValue) {
+  const thread = await coreRun(thisCore, (s) => s.thread(request.threadId));
+
+  if (thread.owner_user_id !== thisCore[coreState].options.userId || thread.archived_at)
+    throw new InvalidError("thread not found");
+
+  if (request.resetAutoArchiveOnMerge && request.autoArchiveOnMerge !== undefined)
+    throw new InvalidError("Choose an override or reset automatic archiving, not both.");
+  const title = request.title?.trim();
+
+  if (title !== undefined && (!title || title.length > 200 || /[\r\n\p{Cc}]/u.test(title)))
+    throw new InvalidError("title must be one line with 1–200 characters");
+  const model = request.model ?? thread.settings.model ?? "";
+  // The requested effort is judged; the current default follows a new model (none without efforts, else the
+  // model's default when it does not offer it).
+  const current = thread.settings.effort ?? "";
+  let effort = current;
+
+  if (request.model !== undefined || request.effort !== undefined) {
+    await coreCheckModel(thisCore, { thread }, model, request.effort ?? "");
+    effort = turnEffort((await coreProfileModels(thisCore, { thread })).models, model, request.effort ?? current);
+  }
+
+  if (request.model !== undefined || request.serviceTier !== undefined)
+    await coreCheckModel(thisCore, { thread }, model, "", request.serviceTier ?? thread.settings.serviceTier ?? "");
+
+  // Only the owner (UI) changes the mode; agents have no bus tool for it (docs/ui-api.md, FULL_AUTO and
+  // FULL_ACCESS only deliberately).
+  const permissionMode = request.permissionMode === undefined ? "" : checkedPermissionMode(request.permissionMode);
+
+  if (request.permissionMode !== undefined) coreCheckFullAccess(thisCore, thread.worker_id, request.permissionMode);
+
+  if (title !== undefined) await coreRun(thisCore, (s) => s.renameThread(thread.id, title));
+
+  return coreRun(thisCore, (s) =>
+    s.updateThreadSettings(
+      request.threadId,
+      {
+        ...(request.model !== undefined && { model: request.model }),
+        ...(request.serviceTier !== undefined && { serviceTier: request.serviceTier }),
+        ...((request.effort !== undefined || effort !== current) && { effort }),
+        ...(permissionMode && { permissionMode }),
+        ...(binding !== undefined && { sandboxProfile: binding }),
+      },
+      request.resetAutoArchiveOnMerge ? null : request.autoArchiveOnMerge,
+    ),
+  );
+}
 
 export const coreMessagesMethods: CoreMessagesMethods = {
   ...messageActions,

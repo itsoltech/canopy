@@ -12,6 +12,7 @@ import type { WorkerConnection } from "../worker-link/index.ts";
 import type { PendingCommand } from "../store/outbox.ts";
 import { coreState, HARNESS_ERROR_CODES, SETTLE_TURN_ENDED } from "./core-context.ts";
 import { coreEndLostTurns, coreSettle } from "./core-work-loop.ts";
+import { commandThreadSpec, sandboxCommandRefusal } from "./thread-sandbox.ts";
 import { fullAccessRefusal } from "./full-access.ts";
 import { serviceTierRefusal } from "./service-tier-compatibility.ts";
 import type { GatewayCore } from "./core.ts";
@@ -153,10 +154,25 @@ function sendWorkerCommand(
   connection: WorkerConnection,
   command: Command,
   kind: OutboundKind,
-  timeout: number,
+  shell: boolean,
+  sandboxReport: WorkerConnection["sandboxConfigReport"],
 ) {
+  const timeout = shell ? SHELL_INPUT_TIMEOUT_MS + 60_000 : (hostContext[coreState].options.commandTimeoutMs ?? 60_000);
+
   return sendWithHabitContext(hostContext, connection, command.commandId, kind, (outbound) => {
-    const send = () => ({ ack: connection.sendCommand(outbound, timeout, command.commandId).catch(() => undefined) });
+    const profiled =
+      (outbound.case === "createThread" || outbound.case === "startTurn") && outbound.value.profiledThread;
+
+    const send = () => {
+      if (
+        profiled &&
+        (connection.sandboxConfigReport !== sandboxReport ||
+          hostContext.link.connections.get(connection.workerId) !== connection)
+      )
+        return;
+
+      return { ack: connection.sendCommand(outbound, timeout, command.commandId).catch(() => undefined) };
+    };
 
     // Commit the outbox handoff under its module fence. Release the lock before waiting for the ACK.
     return MODULE_COMMANDS.has(kind.case) ? coreRun(hostContext, (s) => s.sendPending(command, send)) : send();
@@ -206,7 +222,14 @@ async function deliverCommand(
       legacyThrough = await stopLegacyThreadWork(hostContext, connection, command.commandId);
 
     if (legacyThrough === false) return connection.isOpen ? command : undefined;
-    await prepareThreadTools(hostContext, workerId, command);
+
+    if (!result) await prepareThreadTools(hostContext, workerId, command);
+
+    const sandboxRefusal = await sandboxCommandRefusal(hostContext, connection, command);
+    const sandboxReport = connection.sandboxConfigReport;
+
+    if (sandboxRefusal === false) return;
+    result ??= sandboxRefusal;
 
     if (relocation?.draining && NEW_THREAD_WORK.has(kind.case)) return;
 
@@ -234,11 +257,7 @@ async function deliverCommand(
       });
 
     if (!result) {
-      const timeout = shell
-        ? SHELL_INPUT_TIMEOUT_MS + 60_000
-        : (hostContext[coreState].options.commandTimeoutMs ?? 60_000);
-
-      const sent = await sendWorkerCommand(hostContext, connection, command, kind, timeout);
+      const sent = await sendWorkerCommand(hostContext, connection, command, kind, shell, sandboxReport);
 
       if (!sent) return;
       result = await sent.ack;
@@ -280,7 +299,7 @@ async function deliverCommand(
       hostContext.diagnostics.collector.measure(44, 1);
       coreLog(
         hostContext,
-        `turn_start_requeued thread=${command.kind.value.thread?.threadId ?? ""} turn=${command.kind.value.turnId}`,
+        `turn_start_requeued thread=${commandThreadSpec(command)?.threadId ?? ""} turn=${command.kind.value.turnId}`,
       );
     }
 
@@ -363,7 +382,7 @@ async function resumeAfterUnload(core: GatewayCore, threadId: string): Promise<v
 
 async function prepareThreadTools(core: GatewayCore, workerId: string, command: Command): Promise<void> {
   if (command.kind.case !== "createThread" && command.kind.case !== "startTurn") return;
-  const spec = command.kind.value.thread;
+  const spec = commandThreadSpec(command);
 
   if (!spec) return;
   const thread = await coreRun(core, (s) => s.thread(spec.threadId));
@@ -382,7 +401,7 @@ async function commandFailed(
 
   switch (command.kind.case) {
     case "createThread": {
-      const threadId = command.kind.value.thread?.threadId ?? "";
+      const threadId = commandThreadSpec(command)?.threadId ?? "";
       await coreRun(hostContext, (s) => s.setThreadStatus(threadId, "failed", `${result.errorCode}: ${reason}`));
       await coreBroadcastThread(hostContext, threadId);
 
@@ -401,7 +420,8 @@ async function commandFailed(
     }
 
     case "startTurn": {
-      const { thread, turnId } = command.kind.value;
+      const { turnId } = command.kind.value;
+      const thread = commandThreadSpec(command);
       const source = HARNESS_ERROR_CODES.has(result.errorCode) ? "harness" : "platform";
       await coreRun(hostContext, (s) => s.failTurn(turnId, reason, source, result.errorCode));
       await coreBroadcastTurn(hostContext, thread?.threadId ?? "", turnId);

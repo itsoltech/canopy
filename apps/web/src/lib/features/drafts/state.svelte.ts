@@ -1,40 +1,36 @@
-import { create, clone, fromBinary, toBinary, toJsonString } from "@bufbuild/protobuf";
-import { ui, type Mention } from "@canopy/contracts";
+import { create, clone, fromBinary, toBinary } from "@bufbuild/protobuf";
+import { PermissionMode, SandboxProfileSchema, ui, type Mention, type SandboxProfile } from "@canopy/contracts";
 import type { AttachmentLimits } from "@canopy/domain";
 import {
   ComposerLocalStore,
   composerTargetKey,
   hasComposerContent,
-  mergeComposerContent,
   sameComposerInput,
 } from "@canopy/domain/composer-drafts";
-import { AttachmentDraft, type DraftFile } from "#lib/features/attachments/draft.svelte.ts";
+import { AttachmentDraft } from "#lib/features/attachments/draft.svelte.ts";
 import { useQuoteDrafts } from "#lib/features/quotes/quote-drafts.svelte.ts";
 import { saveDraft, deleteDraft, continueDraft, listDrafts } from "./api.ts";
 import { trimValue } from "#lib/features/mentions/editor.ts";
-import { toWire, type QuoteDraft } from "#lib/features/quotes/quote.ts";
+import { toWire } from "#lib/features/quotes/quote.ts";
 import { HttpError } from "#lib/shared/http.ts";
 import { recoverDraft } from "./recovery.ts";
 import { restoreLocalFiles } from "./local-files.ts";
+import {
+  draftChoices,
+  draftContentJson,
+  matchesPublishedSandbox,
+  takeDraftContent,
+  type DraftChoices,
+} from "./draft-content.ts";
+import { restoreComposer, snapshotComposer, type ComposerSnapshot } from "./snapshot.ts";
 
-export interface ComposerSnapshot {
-  text: string;
-  mentions: Mention[];
-  files: DraftFile[];
-  quotes: readonly QuoteDraft[];
-  choices?: WebComposerDraft["choices"];
-}
+export type { ComposerSnapshot } from "./snapshot.ts";
 
 /** Local snapshot/restore is independent of gateway handoff (`apply`) and its revision. */
 export class WebComposerDraft {
   text = $state("");
   mentions = $state<Mention[]>([]);
-  choices = $state<
-    Pick<
-      ui.ComposerDraftContent,
-      "model" | "effort" | "serviceTier" | "permissionMode" | "provider" | "providerProfileId"
-    >
-  >({ provider: 0, providerProfileId: "" });
+  choices = $state<DraftChoices>(draftChoices(undefined));
   error = $state("");
   moved = $state("");
   pendingSend = $state<ui.SendMessageRequest>();
@@ -50,6 +46,7 @@ export class WebComposerDraft {
   #saving: Promise<ui.ComposerDraft> | undefined;
   #published = "";
   #active = false;
+  #clearSandboxProfile = false;
   retired = false;
   #mutation: string = crypto.randomUUID();
   constructor(
@@ -73,16 +70,10 @@ export class WebComposerDraft {
   #restore(entry: ui.LocalComposerDraft) {
     this.publishedAtMs = entry.draft?.updatedAtMs ?? 0n;
     const content = entry.draft?.content;
+    this.#clearSandboxProfile = entry.clearSandboxProfile;
     this.text = content?.text ?? "";
     this.mentions = content?.mentions ?? [];
-    this.choices = {
-      model: content?.model,
-      effort: content?.effort,
-      serviceTier: content?.serviceTier,
-      permissionMode: content?.permissionMode,
-      provider: content?.provider ?? 0,
-      providerProfileId: content?.providerProfileId ?? "",
-    };
+    this.choices = draftChoices(content);
     this.files.files = restoreLocalFiles(entry.files);
     this.files.place(this.mentions);
   }
@@ -124,6 +115,18 @@ export class WebComposerDraft {
   get locked() {
     return this.preparing || Boolean(this.pendingSend || this.pendingForm);
   }
+  selectSandboxPermissions(permissionMode: PermissionMode, profile: SandboxProfile | undefined) {
+    if (this.locked) return;
+
+    if (profile) this.#clearSandboxProfile = false;
+    else if (this.choices.sandboxProfile) this.#clearSandboxProfile = true;
+
+    this.choices = {
+      ...this.choices,
+      permissionMode,
+      sandboxProfile: profile && clone(SandboxProfileSchema, profile),
+    };
+  }
   acceptMove(move: ui.ComposerDraftMove) {
     if (move.id !== this.id || this.revision > move.sourceRevision || this.locked) return;
     this.activate();
@@ -131,7 +134,7 @@ export class WebComposerDraft {
     const unchanged =
       this.revision === move.sourceRevision &&
       !this.files.blocker &&
-      this.#published === toJsonString(ui.ComposerDraftContentSchema, this.content(true));
+      this.#published === draftContentJson(this.content(true));
 
     if (unchanged) this.clear();
     else this.fork();
@@ -143,38 +146,10 @@ export class WebComposerDraft {
     return recoverDraft(this);
   }
   snapshot(): ComposerSnapshot {
-    if (this.files.blocker) throw new Error(this.files.blocker);
-    this.activate();
-
-    return {
-      text: this.text,
-      mentions: this.mentions.map((m) => ({ ...m })),
-      files: this.files.attached.map((f) => ({ ...f, localUrl: undefined })),
-      quotes: useQuoteDrafts()
-        .list(this.quoteKey)
-        .map((q) => ({ ...q })),
-      choices: { ...this.choices },
-    };
+    return snapshotComposer(this);
   }
   restore(snapshot: ComposerSnapshot) {
-    if (this.locked) throw new Error("Retry the pending message before restoring a draft.");
-
-    if (this.files.blocker) throw new Error(this.files.blocker);
-
-    if (snapshot.files.some((f) => !f.attachment || f.status !== "ready"))
-      throw new Error("Wait for uploads, or remove the files that could not be attached.");
-    // Hydrate once before replacement so a later mount cannot restore stale citations over an edit.
-    this.activate();
-    this.files.clear();
-    this.files.files = snapshot.files.map((f) => ({ ...f, localUrl: undefined }));
-    this.text = snapshot.text;
-    this.mentions = snapshot.mentions.map((m) => ({ ...m }));
-    useQuoteDrafts().place(
-      this.quoteKey,
-      snapshot.quotes.map((q) => ({ ...q })),
-    );
-
-    if (snapshot.choices) this.choices = { ...snapshot.choices };
+    restoreComposer(this, snapshot);
 
     // A local swap changes message identity, never the gateway CAS revision.
     if (this.#entry.draft?.content) this.#entry.draft.content.clientRequestId = crypto.randomUUID();
@@ -219,21 +194,22 @@ export class WebComposerDraft {
       publishedContent: this.#published,
       pendingSend: this.pendingSend ? toBinary(ui.SendMessageRequestSchema, this.pendingSend) : new Uint8Array(),
       pendingForm: this.pendingForm,
+      clearSandboxProfile: this.#clearSandboxProfile,
       draft: { ...draft, content: this.content() },
-      files: this.files.attached.map((f) => ({
-        key: f.key,
-        name: f.name,
-        size: BigInt(f.size),
-        kind: f.image ? "image" : f.video ? "video" : "file",
-        attachment: f.attachment,
-        contextScope: f.contextScope ?? "",
+      files: this.files.attached.map((file) => ({
+        key: file.key,
+        name: file.name,
+        size: BigInt(file.size),
+        kind: file.image ? "image" : file.video ? "video" : "file",
+        attachment: file.attachment,
+        contextScope: file.contextScope ?? "",
       })),
     });
     this.local.put(this.#entry);
 
     if (this.moved && !sameComposerInput(previous, this.#entry)) this.moved = "";
   }
-  async publish(): Promise<ui.ComposerDraft> {
+  async publish(retryClear = true): Promise<ui.ComposerDraft> {
     if (this.retired) throw new Error("Draft changed in another tab");
 
     if (this.pendingSend || this.pendingForm)
@@ -244,7 +220,7 @@ export class WebComposerDraft {
     if (this.#saving) {
       await this.#saving;
 
-      return this.publish();
+      return this.publish(retryClear);
     }
 
     this.persist();
@@ -269,29 +245,29 @@ export class WebComposerDraft {
       return outgoing;
     }
 
-    const serialized = toJsonString(
-      ui.ComposerDraftContentSchema,
-      outgoing.content ?? create(ui.ComposerDraftContentSchema),
-    );
+    const serialized = draftContentJson(outgoing.content);
 
-    if (this.#published === serialized && draft.revision) return outgoing;
-    await this.local.checkpoint();
-    this.#saving = saveDraft(outgoing, this.#mutation);
+    const clearSandboxProfile = this.#clearSandboxProfile && !outgoing.content?.sandboxProfile;
+
+    if (this.#published === serialized && draft.revision && !clearSandboxProfile) return outgoing;
+    const mutation = this.#mutation;
+    const saving = this.local.checkpoint().then(() => saveDraft(outgoing, mutation, clearSandboxProfile));
+    this.#saving = saving;
     let saved: ui.ComposerDraft;
 
     try {
-      saved = await this.#saving;
+      saved = await saving;
 
       if (this.retired || this.id !== outgoing.id) return saved;
+
+      if (clearSandboxProfile && !saved.content?.sandboxProfile) this.#clearSandboxProfile = false;
+      this.#restorePreservedSandbox(outgoing, saved);
       this.publishedAtMs = saved.updatedAtMs;
       this.#entry = create(ui.LocalComposerDraftSchema, {
         ...this.#entry,
         draft: { ...saved, content: this.content() },
       });
-      this.#published = toJsonString(
-        ui.ComposerDraftContentSchema,
-        saved.content ?? create(ui.ComposerDraftContentSchema),
-      );
+      this.#published = draftContentJson(saved.content);
       this.#mutation = crypto.randomUUID();
       this.error = "";
       this.persist();
@@ -311,7 +287,7 @@ export class WebComposerDraft {
         this.fork();
         this.#saving = undefined;
 
-        return this.publish();
+        return this.publish(retryClear);
       }
 
       if (cause instanceof HttpError && cause.status === 426) {
@@ -322,12 +298,38 @@ export class WebComposerDraft {
       this.error = "Could not hand off this draft. Check the connection, then retry.";
       throw new Error(this.error);
     } finally {
-      this.#saving = undefined;
+      if (this.#saving === saving) this.#saving = undefined;
     }
 
-    return saved;
+    // A replay can acknowledge an earlier save with this mutation ID. Retry the outstanding clear at the new revision.
+    return retryClear && clearSandboxProfile && this.#clearSandboxProfile ? this.publish(false) : saved;
+  }
+  #restorePreservedSandbox(outgoing: ui.ComposerDraft, saved: ui.ComposerDraft) {
+    const sandboxProfile = saved.content?.sandboxProfile;
+
+    // The gateway may preserve a profile that an older client omitted. Keep any newer local choice.
+    if (
+      sandboxProfile &&
+      !outgoing.content?.sandboxProfile &&
+      !this.choices.sandboxProfile &&
+      !this.#clearSandboxProfile
+    )
+      this.choices = { ...this.choices, permissionMode: PermissionMode.FULL_AUTO, sandboxProfile };
   }
   async publishForSend() {
+    if (this.#clearSandboxProfile || this.choices.sandboxProfile) {
+      await this.#saving;
+
+      const pending = () =>
+        this.#clearSandboxProfile || !matchesPublishedSandbox(this.#published, this.choices.sandboxProfile);
+
+      if (this.revision && pending()) {
+        await this.publish();
+
+        if (pending()) throw new Error("Could not save this draft’s sandbox choice. Retry before sending.");
+      }
+    }
+
     this.persist();
 
     return this.#entry.draft;
@@ -398,10 +400,7 @@ export class WebComposerDraft {
     if (this.files.blocker) throw new Error(this.files.blocker);
     this.moved = "";
 
-    const content =
-      !replace && hasComposerContent(this.content()) && incoming.content
-        ? mergeComposerContent(this.content(true), incoming.content)
-        : incoming.content;
+    const content = takeDraftContent(this.content(true), incoming.content, replace);
 
     const draft = create(ui.ComposerDraftSchema, {
       ...incoming,
@@ -439,7 +438,8 @@ export class WebComposerDraft {
     this.files.clear();
     this.text = "";
     this.mentions = [];
-    this.choices = { provider: 0, providerProfileId: "" };
+    this.choices = draftChoices(undefined);
+    this.#clearSandboxProfile = false;
     useQuoteDrafts().clear(this.quoteKey);
     this.local.remove(target);
     this.#entry = clone(

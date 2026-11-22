@@ -89,6 +89,7 @@
     onqueue,
     primary = "steer",
     onalternate,
+    queueNext = false,
     controls,
     context,
     drafts,
@@ -104,6 +105,7 @@
     progressHref,
     secret = false,
     shell = false,
+    shellUnavailable,
     compact = false,
     panelsLabel,
     onexpand,
@@ -131,6 +133,8 @@
     primary?: "steer" | "queue";
     /** Queueing on: steer the message (Mod+Enter, the button's menu). */
     onalternate?: (() => void) | undefined;
+    /** A running turn only accepts messages for the next turn. */
+    queueNext?: boolean;
     controls?: Snippet;
     context?: Snippet;
     drafts?: Snippet;
@@ -148,6 +152,7 @@
     secret?: boolean;
     /** Owner thread composers only; bots and other text inputs keep their existing semantics. */
     shell?: boolean;
+    shellUnavailable?: string | undefined;
     compact?: boolean;
     panelsLabel?: string | undefined;
     onexpand?: ((activity?: ComposerActivity) => void) | undefined;
@@ -156,13 +161,15 @@
     class?: ClassValue;
   } = $props();
 
-  const TRIGGER_HINT = ["/ commands", "$ skills", "@ files", "# threads", "! shell"];
+  const TRIGGER_HINT = ["/ commands", "$ skills", "@ files", "# threads"];
   const shellMode = $derived(shell && value.startsWith("!"));
   const triggers: ReadonlySet<TriggerChar> = $derived(new Set(shellMode ? [] : ["/", "$", "@", "#"]));
   const trimmed = $derived(trimValue({ text: value, mentions }));
 
   // The empty composer lists what each trigger character does.
-  const hint = $derived(shell && sources ? TRIGGER_HINT : undefined);
+  const hint = $derived(
+    shell && sources ? (shellUnavailable ? TRIGGER_HINT : [...TRIGGER_HINT, "! shell"]) : undefined,
+  );
 
   const primaryShortcut = $derived(keybindings.get("composer:send")[0]);
   const alternateShortcut = $derived(keybindings.get("composer:alternate")[0]);
@@ -176,13 +183,14 @@
 
   // A shell command goes alone: its badges (files, mentions) and quotes hold it, the hint by "+" says why.
   const shellBlocker = $derived(
-    shellMode && (hasFiles || elementCount > 0 || mentions.length > 0)
+    shellMode && !shellUnavailable && (hasFiles || elementCount > 0 || mentions.length > 0)
       ? "Remove attachments, quotes and mentions to send a shell command."
       : undefined,
   );
 
   const deliveryBlocker = $derived(
-    blockedReason ??
+    (shellMode ? shellUnavailable : undefined) ??
+      blockedReason ??
       shellBlocker ??
       draft?.blocker ??
       (disabled ? "Messaging is unavailable for this thread." : !canSend ? "Sending is unavailable." : undefined),
@@ -425,7 +433,7 @@
     </div>
     {#if shell}
       <p class="min-h-5 px-4 text-xs/5 text-rose-700 dark:text-rose-300" role="status">
-        {#if shellMode}Runs as a shell command when delivered.{/if}
+        {#if shellMode}{shellUnavailable ?? "Runs as a shell command when delivered."}{/if}
       </p>
     {/if}
     <input type="hidden" {name} value={shell && value.trimStart().startsWith("!") ? value.trimEnd() : trimmed.text} />
@@ -503,6 +511,18 @@
             <Icon name="arrow-path" tone="inherit" />
             <TouchTarget />
           </a>
+        {:else if queueNext && hasContent}
+          <DisabledControlHint reason={sendBlocker}>
+            <ComposerTextButton
+              label="Queue"
+              ariaLabel="Queue for the next turn"
+              hint="Queue for the next turn"
+              hotkey={primaryShortcut}
+              icon="queue-list"
+              {sending}
+              disabled={Boolean(sendBlocker)}
+            />
+          </DisabledControlHint>
         {:else if oncontinue && !hasContent && !shellMode}
           <DisabledControlHint reason={deliveryBlocker}>
             <ComposerTextButton

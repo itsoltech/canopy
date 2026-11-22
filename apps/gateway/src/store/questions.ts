@@ -161,7 +161,8 @@ export function questionStore(sql: SqlClient.SqlClient): QuestionStore {
                 archived_at: Date | null;
                 deleted_at: Date | null;
                 worker_id: string | null;
-              }>`SELECT archived_at, deleted_at, worker_id FROM threads WHERE id = ${candidate.thread_id}::uuid FOR UPDATE`;
+                sandbox: boolean;
+              }>`SELECT archived_at,deleted_at,worker_id,(settings->>'sandboxProfile' IS NOT NULL) AS sandbox FROM threads WHERE id = ${candidate.thread_id}::uuid FOR UPDATE`;
 
               const rows = yield* sql<InteractionRow & { hops: number; asking_status: string }>`
             SELECT q.*, c.hops, u.status AS asking_status FROM interaction_requests q
@@ -189,7 +190,7 @@ export function questionStore(sql: SqlClient.SqlClient): QuestionStore {
                 id: string;
               }>`SELECT id FROM turns WHERE thread_id = ${row.thread_id}::uuid AND status = 'running' LIMIT 1`;
 
-              if (!row.question_wait && running[0] && threads[0]?.worker_id) {
+              if (!row.question_wait && running[0] && threads[0].worker_id && !threads[0].sandbox) {
                 const steerId = Bun.randomUUIDv7();
                 yield* sql`INSERT INTO turn_steers(id, thread_id, turn_id, input, agent_call_id, hops)
               VALUES (${steerId}::uuid, ${row.thread_id}::uuid, ${running[0].id}::uuid, ${JSON.stringify(input)}::jsonb, ${row.question_call_id!}::uuid, ${row.hops})`;

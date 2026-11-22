@@ -1,4 +1,5 @@
 import { lockedOwnerModule, ownerModule } from "./module-access.ts";
+import { threadSandbox } from "./thread-sandbox.ts";
 import { create, toBinary, type JsonValue } from "@bufbuild/protobuf";
 import { CommandSchema } from "@canopy/contracts";
 import { Effect } from "effect";
@@ -123,7 +124,7 @@ const deliverNotification = (
 
       const hops = (call.hops ?? 0) + 1;
 
-      if (running && caller.worker_id) {
+      if (running && caller.worker_id && !threadSandbox(caller)) {
         const steerId = Bun.randomUUIDv7();
         yield* sql`INSERT INTO turn_steers(id, thread_id, turn_id, input, notification_call_id, hops)
               VALUES (${steerId}::uuid, ${caller.id}::uuid, ${running.id}::uuid, ${inputJson(input)}::jsonb, ${callId}::uuid, ${hops})`;

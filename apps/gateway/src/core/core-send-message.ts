@@ -12,6 +12,15 @@ import { coreComposeInput, coreMessageMentions } from "./core-mentions.ts";
 import { coreCheckModel } from "./core-models.ts";
 import { coreAutoTitle } from "./core-titles.ts";
 import { coreRun } from "./core-broadcast.ts";
+import { providerOf } from "../store/instance-config.ts";
+import { threadSandbox } from "../store/thread-sandbox.ts";
+import {
+  checkSandboxPlacement,
+  sandboxGoalText,
+  SANDBOX_GOAL_UNAVAILABLE,
+  SANDBOX_MODE_REQUIRED,
+  SANDBOX_SHELL_UNAVAILABLE,
+} from "./thread-sandbox.ts";
 import { coreShellInput } from "./core-shell.ts";
 import { coreEnqueueTurn } from "./core-enqueue-turn.ts";
 import { coreSendSteer, coreSteers, type LinkedMessageInput } from "./core-messages.ts";
@@ -85,6 +94,25 @@ export async function prepareMessage(
     request.mentions,
     files?.files,
   );
+
+  const sandbox = threadSandbox(thread);
+
+  if (sandbox) {
+    if (shell || linked?.input.shellCommand !== undefined) throw new InvalidError(SANDBOX_SHELL_UNAVAILABLE);
+
+    if (goal !== undefined || sandboxGoalText(linked?.input.text ?? request.text))
+      throw new InvalidError(SANDBOX_GOAL_UNAVAILABLE);
+
+    if (request.permissionMode && checkedPermissionMode(request.permissionMode) !== "FULL_AUTO")
+      throw new InvalidError(SANDBOX_MODE_REQUIRED);
+    await checkSandboxPlacement(
+      core,
+      thread.worker_id ?? "",
+      providerOf(thread.provider),
+      thread.provider_profile_id ?? "",
+      sandbox,
+    );
+  }
 
   if (goal !== undefined) {
     // The platform's /goal: the rest of the message is the objective (docs/goals.md).
@@ -169,7 +197,7 @@ export async function admitMessage(
   const userId = core[coreState].options.userId;
   const running = await coreRun(core, (s) => s.steerTarget(threadId));
 
-  if (request.delivery === ui.MessageDelivery.STEER && running && thread.worker_id) {
+  if (request.delivery === ui.MessageDelivery.STEER && running && thread.worker_id && !threadSandbox(thread)) {
     const created = await coreSteers(core, (s) =>
       s.create({
         threadId,
@@ -246,6 +274,7 @@ function admissionState(thread: ThreadRow): AdmissionState {
     provider: thread.provider,
     provider_profile_id: thread.provider_profile_id,
     model: thread.settings.model ?? "",
+    sandbox_digest: threadSandbox(thread)?.digest ?? "",
     archived: Boolean(thread.archived_at),
     deleted: Boolean(thread.deleted_at),
     rewind_pending_id: thread.rewind_pending_id ?? null,
@@ -264,6 +293,7 @@ function admissionKey(state: AdmissionState): string {
     state.provider,
     state.provider_profile_id,
     state.model,
+    state.sandbox_digest,
     state.archived,
     state.deleted,
     state.rewind_pending_id,

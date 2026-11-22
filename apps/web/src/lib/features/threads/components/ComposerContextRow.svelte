@@ -26,7 +26,7 @@
 </script>
 
 <div class={["composer-context @container/context min-w-0", className]} data-composer-context>
-  <div class="grid grid-cols-[minmax(0,1fr)_auto] items-start gap-x-2">
+  <div class="grid grid-cols-[minmax(0,1fr)_minmax(0,min(65%,max(13.5rem,38cqw)))] items-start gap-x-2">
     <div class="grid min-w-0 items-center gap-x-1 gap-y-1 @min-[44rem]/context:flex pointer-coarse:gap-y-4">
       <div
         class={[
@@ -39,7 +39,7 @@
       </div>
       {#if hasWorkspace && workspaceControl}
         <div
-          class="grid min-h-(--control-chrome) min-w-0 grid-cols-[7rem_minmax(0,1fr)] items-center gap-1 max-sm:min-h-(--control-touch) @min-[34rem]/context:grid-cols-2 @min-[44rem]/context:flex pointer-coarse:min-h-(--control-touch)"
+          class="grid min-h-(--control-chrome) min-w-0 grid-cols-[min(7rem,50%)_minmax(0,1fr)] items-center gap-1 max-sm:min-h-(--control-touch) @min-[34rem]/context:grid-cols-2 @min-[44rem]/context:flex pointer-coarse:min-h-(--control-touch)"
         >
           <div class="min-w-0 @max-[34rem]/context:max-w-28 @min-[44rem]/context:max-w-40">
             {@render workspaceControl()}
@@ -48,7 +48,7 @@
         </div>
       {/if}
     </div>
-    <div class="flex min-h-8 items-center justify-end">{@render permissionControl()}</div>
+    <div class="flex min-h-8 min-w-0 items-center justify-end">{@render permissionControl()}</div>
   </div>
 </div>
 

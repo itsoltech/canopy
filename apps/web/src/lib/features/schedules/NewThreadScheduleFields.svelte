@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { Provider, PermissionMode, ui } from "@canopy/contracts";
+  import { Provider, PermissionMode, type SandboxProfile, ui } from "@canopy/contracts";
   import { scheduleWorkerEligible } from "@canopy/domain";
   import { scheduledFullAccessDescription, scheduledFullAccessUnavailable } from "@canopy/domain/schedule-display";
   import { create } from "@bufbuild/protobuf";
@@ -10,27 +10,46 @@
   import { supportedServiceTier } from "#lib/features/models/service-tier.ts";
   import ModelControls from "#lib/features/models/ModelControls.svelte";
   import { useOverview } from "#lib/features/overview/overview-state.svelte.ts";
+  import { useSettings } from "#lib/features/settings/settings-state.svelte.ts";
   import PermissionPicker from "#lib/features/threads/components/PermissionPicker.svelte";
+  import SandboxProfileMenu from "#lib/features/threads/components/SandboxProfileMenu.svelte";
   import {
     availablePermissionMode,
     fullAutoAvailable,
     permissionKey,
     type PermissionModeKey,
   } from "#lib/features/threads/labels.ts";
+  import {
+    defaultSandboxProfile,
+    linkedSandboxSelection,
+    sandboxProfileOption,
+  } from "#lib/features/threads/sandbox-profiles.ts";
   import Field from "#lib/shared/ui/Field.svelte";
   import Input from "#lib/shared/ui/Input.svelte";
   import Select from "#lib/shared/ui/Select.svelte";
+  import { scheduleSandboxProblem, workerSandboxProblem } from "./schedule-sandbox.ts";
   import { placementLabels } from "./schedules.ts";
   import { workerRecords } from "#lib/features/workers/worker-records.svelte.ts";
   import { splitId } from "@canopy/domain/computers";
 
   let {
     value = $bindable(),
+    sandboxError = $bindable(),
+    savedSandboxProfile,
+    templateSandboxProfile,
     homeId,
     class: className,
-  }: { value?: ui.NewThreadSchedule | undefined; homeId?: string; class?: ClassValue } = $props();
+  }: {
+    value?: ui.NewThreadSchedule | undefined;
+    sandboxError?: string | undefined;
+    savedSandboxProfile?: SandboxProfile | undefined;
+    templateSandboxProfile?: SandboxProfile | undefined;
+    homeId?: string;
+    class?: ClassValue;
+  } = $props();
 
   const overview = useOverview();
+  const settings = useSettings();
   const catalog = useModelCatalog();
   const records = workerRecords(overview);
   const home = $derived(homeId === undefined ? undefined : (splitId(homeId).node ?? ""));
@@ -76,6 +95,8 @@
   let serviceTier = $state<string | undefined>(initial?.serviceTier || undefined);
 
   let permission = $state<PermissionModeKey>(initial ? permissionKey(initial.permissionMode) : "ASK");
+  let pickedSandboxId = $state(initial?.sandboxProfileId ?? initial?.sandboxProfile?.profile?.id ?? "");
+  let pickedSandboxName = $state(initial?.sandboxProfile?.profile?.name ?? "Saved profile");
 
   let title = $state(initial?.title ?? "");
   const project = $derived(overview.projectChoice(projectId));
@@ -115,12 +136,86 @@
   );
 
   const fullAuto = $derived(
-    fullAutoAvailable(option && Provider[option.provider], placement === "specific" ? modelWorker?.os : undefined),
+    fullAutoAvailable(option && Provider[option.provider], placement === "specific" ? workers[0]?.os : undefined),
   );
 
-  const effectivePermission = $derived(availablePermissionMode(permission, fullAuto));
+  // Keep a named profile visible when a placement change makes it unavailable.
+  const effectivePermission = $derived(pickedSandboxId ? permission : availablePermissionMode(permission, fullAuto));
+  const activeSandboxId = $derived(effectivePermission === "FULL_AUTO" ? pickedSandboxId : "");
 
-  const eligible = $derived(value ? workers.filter((w) => scheduleWorkerEligible(w, value!)) : []);
+  const spec = $derived(
+    create(ui.NewThreadScheduleSchema, {
+      projectId:
+        placement === "specific" ? (workspaces.find((ws) => ws.id === workspaceId)?.projectId ?? projectId) : projectId,
+      placement,
+      workspaceId: placement === "specific" ? workspaceId : "",
+      provider: option ? Provider[option.provider] : Provider.UNSPECIFIED,
+      providerProfileId: option?.profileId ?? "",
+      model: option?.model ?? "",
+      effort: option?.efforts.length ? (effort ?? "") : "",
+      serviceTier: supportedServiceTier(option, serviceTier),
+      permissionMode: PermissionMode[effectivePermission],
+      sandboxProfileId: activeSandboxId || (savedSandboxProfile ? "" : undefined),
+      title,
+      workspaceMode: initial?.workspaceMode,
+      baseRef: initial?.baseRef,
+      parentThreadId: initial?.parentThreadId,
+    }),
+  );
+
+  const preservesSandbox = $derived(Boolean(savedSandboxProfile && activeSandboxId === savedSandboxProfile.id));
+  const linkedWorker = $derived(placement === "specific" && Boolean(workers[0]?.nodeId));
+
+  const profiles = $derived([
+    ...(savedSandboxProfile ? [savedSandboxProfile] : []),
+    ...settings.sandboxProfiles.filter((profile) => profile.id !== savedSandboxProfile?.id),
+  ]);
+
+  const sandboxOptions = $derived([
+    defaultSandboxProfile,
+    ...profiles.map((profile) =>
+      sandboxProfileOption(
+        profile,
+        linkedWorker && profile.id !== savedSandboxProfile?.id
+          ? linkedSandboxSelection
+          : scheduleSandboxProblem(workers, spec, profile),
+      ),
+    ),
+    ...(activeSandboxId && !profiles.some((profile) => profile.id === activeSandboxId)
+      ? [
+          {
+            value: activeSandboxId,
+            label: templateSandboxProfile?.id === activeSandboxId ? templateSandboxProfile.name : pickedSandboxName,
+            description: "This profile is no longer in Settings.",
+            disabled: true,
+          },
+        ]
+      : []),
+  ]);
+
+  const selectedSandboxOption = $derived(sandboxOptions.find((entry) => entry.value === activeSandboxId));
+  const sandboxProblem = $derived(selectedSandboxOption?.disabled ? selectedSandboxOption.description : undefined);
+  const selectedProfile = $derived(profiles.find((profile) => profile.id === activeSandboxId));
+
+  const eligible = $derived(
+    workers.filter(
+      (worker) =>
+        scheduleWorkerEligible(worker, spec) &&
+        (!activeSandboxId ||
+          (!sandboxProblem && selectedProfile && !workerSandboxProblem(worker, spec, selectedProfile))),
+    ),
+  );
+
+  function pickPermission(mode: PermissionModeKey) {
+    permission = mode;
+
+    if (mode !== "FULL_AUTO") pickedSandboxId = "";
+  }
+
+  function pickSandboxProfile(id: string) {
+    pickedSandboxId = id;
+    pickedSandboxName = sandboxOptions.find((entry) => entry.value === id)?.label ?? "Saved profile";
+  }
 
   $effect(() => {
     if (!workspaces.some((w) => w.id === workspaceId)) workspaceId = workspaces[0]?.id ?? "";
@@ -149,22 +244,9 @@
   });
 
   $effect(() => {
-    value = create(ui.NewThreadScheduleSchema, {
-      projectId:
-        placement === "specific" ? (workspaces.find((ws) => ws.id === workspaceId)?.projectId ?? projectId) : projectId,
-      placement,
-      workspaceId: placement === "specific" ? workspaceId : "",
-      provider: option ? Provider[option.provider] : Provider.UNSPECIFIED,
-      providerProfileId: option?.profileId ?? "",
-      model: option?.model ?? "",
-      effort: option?.efforts.length ? (effort ?? "") : "",
-      serviceTier: supportedServiceTier(option, serviceTier),
-      permissionMode: PermissionMode[effectivePermission],
-      title,
-      workspaceMode: initial?.workspaceMode,
-      baseRef: initial?.baseRef,
-      parentThreadId: initial?.parentThreadId,
-    });
+    value = spec;
+    sandboxError =
+      sandboxProblem && !preservesSandbox ? `${sandboxProblem} Choose another profile or worker.` : undefined;
   });
 </script>
 
@@ -221,14 +303,22 @@
         value={effectivePermission}
         {fullAuto}
         fullAccessDescription={scheduledFullAccessDescription}
-        onselect={(next) => (permission = next)}
-      />
+        sandboxProfileName={activeSandboxId ? selectedSandboxOption?.label : undefined}
+        onselect={pickPermission}
+      >
+        {#snippet sandboxProfiles()}
+          <SandboxProfileMenu options={sandboxOptions} value={activeSandboxId} onselect={pickSandboxProfile} />
+        {/snippet}
+      </PermissionPicker>
     </div>
     {#if option}<p class="text-base/6 text-zinc-500 sm:text-sm/5 dark:text-zinc-400">
         {option.provider === "CLAUDE" ? "Claude" : option.provider === "GROK" ? "Grok" : "Codex"} · {option.profileName}
       </p>{/if}
     <p aria-live="polite" class="text-base/6 text-pretty text-zinc-500 sm:text-sm/5 dark:text-zinc-400">
-      {#if eligible.length}Eligible now: {eligible.map((w) => w.name).join(", ")}.
+      {#if sandboxProblem}
+        {#if preservesSandbox}{sandboxProblem} The task keeps its saved profile.
+        {:else}{sandboxError}{/if}
+      {:else if eligible.length}Eligible now: {eligible.map((w) => w.name).join(", ")}.
       {:else if effectivePermission === "FULL_ACCESS" && workers.length && !workers.some((w) => w.fullAccess)}
         {scheduledFullAccessUnavailable}
       {:else if placement === "specific"}No eligible worker online. The thread will wait for this worker.

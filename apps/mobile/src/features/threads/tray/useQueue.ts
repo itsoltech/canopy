@@ -14,7 +14,7 @@ export interface QueueSource {
   readonly threadId: string;
   readonly turns: readonly ui.Turn[];
   readonly steers: readonly ui.Steer[];
-  readonly running: boolean;
+  readonly canSteer: boolean;
   readonly apply: (update: ui.ThreadUpdate) => void;
 }
 
@@ -23,7 +23,7 @@ export interface QueueSource {
  * once (a new order, a deleted or steered message gone). The gateway confirms each change; a refusal (the message
  * already started) puts back what it has and a toast says why. Deleting offers Undo.
  */
-export function useQueue({ threadId, turns, steers, running, apply }: QueueSource) {
+export function useQueue({ threadId, turns, steers, canSteer, apply }: QueueSource) {
   const { client } = useSession();
   const [order, setOrder] = useState<string[]>();
   const [hidden, setHidden] = useState<ReadonlySet<string>>(new Set());
@@ -101,10 +101,9 @@ export function useQueue({ threadId, turns, steers, running, apply }: QueueSourc
 
   return {
     rows,
-    running,
     move,
     remove,
-    steer,
+    steer: canSteer ? steer : undefined,
     /** The steer that could not join the running turn and is this queued turn again (runs at its place). */
     fallback: (turnId: string) => steers.findLast((s) => s.queuedTurnId === turnId && s.status === "queued"),
   };

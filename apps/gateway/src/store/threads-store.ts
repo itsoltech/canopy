@@ -1,6 +1,6 @@
 import { ownerModule } from "./module-access.ts";
-import { create } from "@bufbuild/protobuf";
-import { ThreadSpecSchema, ui, type ThreadSpec } from "@canopy/contracts";
+import { create, type JsonValue } from "@bufbuild/protobuf";
+import { ThreadSpecSchema, ui, type SandboxProfileBinding, type ThreadSpec } from "@canopy/contracts";
 import { DELEGATING_BOT_MESSAGE_GUIDANCE, SUBAGENT_REPORTING_RULES } from "@canopy/domain";
 import { Effect } from "effect";
 import type { SqlClient } from "effect/sql";
@@ -12,6 +12,7 @@ import { MEMORY_GUIDANCE } from "@canopy/domain/memory-tools";
 import { hasDelegatingBot, type ThreadRow } from "./rows.ts";
 import { listThreadSelect, threadSelect } from "./thread-select.ts";
 import { permissionModeOf } from "./ui-mappers.ts";
+import { threadSandbox } from "./thread-sandbox.ts";
 import { storageText } from "./event-text.ts";
 import type { AutomatedAccess } from "./automated-permissions.ts";
 import { queryFamily } from "../diagnostics/query-context.ts";
@@ -31,6 +32,7 @@ export interface ThreadStore {
     handoff?: string,
     preparationFingerprint?: string,
     humanInitialInput?: boolean,
+    sandboxProfile?: SandboxProfileBinding,
   ): Fx<ThreadRow>;
   thread(threadId: string, includeDeleted?: boolean, metadataOnly?: boolean): Fx<ThreadRow>;
   /** The owner saw the thread up to `upToSeq` (capped at its last event; the marker only grows). False when nothing changed. */
@@ -53,7 +55,13 @@ export interface ThreadStore {
   /** The thread's default model, effort and permission mode (unset = unchanged). */
   updateThreadSettings(
     threadId: string,
-    settings: { model?: string; effort?: string; serviceTier?: string; permissionMode?: string },
+    settings: {
+      model?: string;
+      effort?: string;
+      serviceTier?: string;
+      permissionMode?: string;
+      sandboxProfile?: JsonValue;
+    },
     autoArchiveOnMerge?: boolean | null,
   ): Fx<ThreadRow>;
   renameThread(threadId: string, title: string): Fx<ThreadRow>;
@@ -143,6 +151,7 @@ function threadSpec(row: ThreadRow) {
       .filter(Boolean)
       .join("\n\n"),
     permissionMode: permissionModeOf(row.settings.permissionMode || "ASK"),
+    sandboxProfile: threadSandbox(row),
     // Agent bus tools for every worker thread: Codex dynamicTools, Claude MCP (docs/agent-bus.md).
     enableMemory: memoryEnabled,
     enableAgentBus: row.runtime === "worker",

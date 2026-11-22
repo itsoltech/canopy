@@ -23,6 +23,7 @@ export interface DraftRow {
   send_request: Uint8Array | null;
   delivery_request_id: string | null;
   send_attempt_id: string | null;
+  sandbox_profile_selected: boolean;
 }
 
 export const conflict = () =>
@@ -78,6 +79,13 @@ export function composerDraftStore(sql: SqlClient.SqlClient, owner: string) {
           )
             return yield* Effect.fail(conflict());
 
+          if (row && row.sandbox_profile_selected && !saved.content?.sandboxProfile && !request.clearSandboxProfile)
+            return yield* Effect.fail(
+              new SettingsConflict(
+                "This draft has a sandbox profile. Open it in an updated Canopy client to keep or clear the profile.",
+              ),
+            );
+
           if (!row)
             yield* sql`DELETE FROM composer_drafts WHERE id IN (SELECT id FROM composer_drafts
               WHERE owner_user_id=${owner}::uuid AND expires_at<=now() AND sending_request_id IS NULL AND NOT sent
@@ -101,12 +109,17 @@ export function composerDraftStore(sql: SqlClient.SqlClient, owner: string) {
           if (!target) return yield* Effect.fail(new Invalid("Draft target is missing"));
           const ref = target.threadId || target.parentThreadId;
           const threadId = ref && !splitId(ref).node ? ref : null;
-          yield* sql`INSERT INTO composer_drafts(id,owner_user_id,device_id,target_key,thread_id,target_thread_ref,payload,revision,mutation_id)
+          const sandboxSelected = Boolean(saved.content?.sandboxProfile);
+
+          if (row?.sandbox_profile_selected)
+            yield* sql`SELECT set_config('canopy.sandbox_profile_draft_write', '1', true)`;
+          yield* sql`INSERT INTO composer_drafts(id,owner_user_id,device_id,target_key,thread_id,target_thread_ref,payload,revision,mutation_id,sandbox_profile_selected)
         VALUES(${saved.id}::uuid,${owner}::uuid,${saved.deviceId},${draftTargetKey(target)},${threadId}::uuid,
         ${ref},
-        ${toBinary(ui.ComposerDraftSchema, saved)},${saved.revision},${request.mutationId})
+        ${toBinary(ui.ComposerDraftSchema, saved)},${saved.revision},${request.mutationId},${sandboxSelected})
         ON CONFLICT(id) DO UPDATE SET device_id=excluded.device_id,payload=excluded.payload,revision=excluded.revision,
         target_key=excluded.target_key,thread_id=excluded.thread_id,target_thread_ref=excluded.target_thread_ref,
+        sandbox_profile_selected=excluded.sandbox_profile_selected,
         mutation_id=excluded.mutation_id,taken_by=NULL,claim_id=NULL,updated_at=now(),expires_at=now()+interval '30 days'`;
           yield* sql`DELETE FROM composer_draft_attachments WHERE draft_id=${saved.id}::uuid`;
 
@@ -148,6 +161,9 @@ export function composerDraftStore(sql: SqlClient.SqlClient, owner: string) {
           if (draft.content) draft.content.clientRequestId = crypto.randomUUID();
           draft.takenByDeviceId = request.deviceId;
           draft.takenByDeviceName = request.deviceName;
+
+          if (row.sandbox_profile_selected)
+            yield* sql`SELECT set_config('canopy.sandbox_profile_draft_write', '1', true)`;
           yield* sql`UPDATE composer_drafts SET taken_by=${request.deviceId},claim_id=${request.mutationId},
         revision=${draft.revision},payload=${toBinary(ui.ComposerDraftSchema, draft)} WHERE id=${request.id}::uuid`;
 

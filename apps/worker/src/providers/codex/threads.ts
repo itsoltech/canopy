@@ -16,6 +16,7 @@ import { threadSessions } from "./thread-sessions.ts";
 import { codexConnectorMcp } from "./connector-mcp.ts";
 import { codexUsage } from "../usage-limits.ts";
 import { codexThreadCommands } from "./thread-commands.ts";
+import { verifiedSandbox } from "./sandbox-profile.ts";
 import type { RewindThread } from "@canopy/contracts";
 
 export { CodexThreadError, type CodexThreadsOptions, type InteractionInit } from "./thread-types.ts";
@@ -165,6 +166,13 @@ const make = (options: CodexThreadsOptions, setRoute: (handler: ServerRequestHan
 
           const threadId = jsonString(jsonObject(decodeJson(notification.params ?? null))?.["threadId"]);
           const entry = threadId ? ctx.byCodex.get(threadId) : undefined;
+
+          if (entry?.sandboxProfile && notification.method === "thread/settings/updated") {
+            const { sandboxPolicy, ...settings } = notification.params.threadSettings;
+
+            if (!verifiedSandbox(entry.sandboxProfile, { ...settings, sandbox: sandboxPolicy }))
+              entry.sandboxProfileInvalid = true;
+          }
 
           return entry
             ? Effect.acquireUseRelease(

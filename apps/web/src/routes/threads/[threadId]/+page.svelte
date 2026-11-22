@@ -801,6 +801,7 @@
                             compact={composer.compact}
                             embedded
                             delivery={settings.runningDelivery}
+                            sandboxBound={Boolean(thread?.sandboxProfile)}
                             ondelivery={(delivery) => void settings.updateRunningDelivery(delivery)}
                           />
                         </div>
@@ -843,6 +844,7 @@
                               thread.rewindPending ||
                               rewind.busy}
                             note={composerNote}
+                            onpermissions={() => (permissionsOpen = true)}
                             onsent={(response) => {
                               if (response.turn) view.upsertTurn(response.turn);
                               if (response.steer) view.upsertSteer(response.steer);

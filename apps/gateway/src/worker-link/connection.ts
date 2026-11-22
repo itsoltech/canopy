@@ -6,6 +6,7 @@ import {
   type ThreadEvent,
   WorkerConfigSchema,
   type CommandResult,
+  type ConfigApplied,
   type CloneProgress,
   type QueryProgress,
   type GatewayMessage,
@@ -54,6 +55,7 @@ export class WorkerConnection {
   readonly storageCleanupDeferred = new Set<string>();
   storageCleanupPending: { requestId: string; ids: string[]; sentAt: number } | undefined;
   networkRouteStatus: NetworkRouteStatus | undefined;
+  sandboxConfigReport: ConfigApplied | undefined;
   /** Worker messages after the handshake. CommandResults matched by sendCommand() are not repeated here. */
   readonly messages: AsyncIterable<WorkerMessage>;
   /** Resolves when the stream ends, for any reason. */
@@ -119,6 +121,7 @@ export class WorkerConnection {
   }
 
   sendConfig(config: MessageInitShape<typeof WorkerConfigSchema>): void {
+    this.sandboxConfigReport = undefined;
     this.send({ case: "config", value: this.#configuration.prepare(config) });
   }
 
@@ -221,9 +224,11 @@ export class WorkerConnection {
     } else this.#previousTextThread = "";
 
     if (message.payload.case === "configApplied") {
+      const report = this.#configuration.report(message.payload.value);
+      this.sandboxConfigReport = report;
       this.#inbound.push({
         ...message,
-        payload: { case: "configApplied", value: this.#configuration.report(message.payload.value) },
+        payload: { case: "configApplied", value: report },
       });
 
       return;

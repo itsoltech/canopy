@@ -8,6 +8,7 @@
   import ComposerPanelHeader from "../components/ComposerPanelHeader.svelte";
   import ComposerPanelBody from "../components/ComposerPanelBody.svelte";
   import Icon from "#lib/shared/ui/Icon.svelte";
+  import { sandboxShellUnavailable } from "../sandbox-profiles.ts";
 
   /**
    * The queued messages, attached above the composer: the composer's surface with only its
@@ -19,6 +20,7 @@
     queue,
     delivery,
     ondelivery,
+    sandboxBound = false,
     embedded = false,
     compact = false,
     class: className,
@@ -26,6 +28,7 @@
     queue: QueueState;
     delivery: "steer" | "queue";
     ondelivery: (delivery: "steer" | "queue") => void;
+    sandboxBound?: boolean;
     embedded?: boolean;
     compact?: boolean;
     class?: ClassValue;
@@ -86,10 +89,11 @@
               editing={queue.editing === turn.id}
               dragging={drag.id === turn.id}
               offset={drag.id === turn.id ? drag.offset : 0}
-              {delivery}
+              delivery={sandboxBound ? undefined : delivery}
+              shellUnavailable={sandboxBound ? sandboxShellUnavailable : undefined}
               onmove={(to) => void queue.move(turn.id, to)}
               ondragstart={(event) => drag.start(event, turn.id)}
-              onsteer={() => void queue.steer(turn)}
+              onsteer={sandboxBound ? undefined : () => void queue.steer(turn)}
               ondelete={() => void queue.remove(turn)}
               onedit={() => (queue.editing = turn.id)}
               onsave={(text, mentions, quotes) => queue.edit(turn, text, mentions, quotes)}

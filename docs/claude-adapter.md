@@ -1,5 +1,9 @@
 # Adapter Claude (Agent SDK)
 
+Aktualizacja (2026-11-22): nazwany profil Sandbox wymaga nowego procesu
+z obowiązkowym sandboxem powłoki i ścisłą listą domen. Warunki zgodności
+opisuje [Profile Sandbox](sandbox-profiles.md).
+
 Aktualizacja (2026-11-21) obejmuje obsługę preferencji instancji zapisanych
 w [ustawieniach CLI Canopy](worker-config.md#ustawienia-cli-zapisane-w-canopy).
 

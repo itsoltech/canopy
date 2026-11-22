@@ -21,8 +21,8 @@ export const permissionModes = [
   { value: "READ_ONLY", label: "Read only", description: "Reads files, never changes them." },
   {
     value: "FULL_AUTO",
-    label: "Full auto",
-    description: "Runs in a workspace sandbox. Unavailable for Claude on native Windows.",
+    label: "Sandbox",
+    description: "Runs in a workspace sandbox. Claude needs a worker running inside WSL2 on Windows.",
   },
   { value: "FULL_ACCESS", label: "Full access", description: "Runs without asking and without a sandbox." },
 ] as const satisfies readonly { value: keyof typeof PermissionMode; label: string; description: string }[];
@@ -44,7 +44,8 @@ export const isPermissionModeAvailable = (mode: PermissionModeKey, fullAuto: boo
 export const availablePermissionMode = (mode: PermissionModeKey, fullAuto: boolean | undefined): PermissionModeKey =>
   isPermissionModeAvailable(mode, fullAuto) ? mode : "ASK";
 
-export const savedFullAutoDescription = "Full auto asks before running shell commands on this worker.";
+export const savedFullAutoDescription =
+  "Claude cannot sandbox shell commands on this native Windows worker and asks before running them.";
 
 export function permissionDescription(mode: (typeof permissionModes)[number], fullAuto: boolean | undefined) {
   return mode.value === "FULL_AUTO" && fullAuto ? "Runs without asking, sandboxed to the workspace." : mode.description;

@@ -1,6 +1,12 @@
 import { create, equals, type DescMessage, type MessageShape } from "@bufbuild/protobuf";
 import { getContext, setContext } from "svelte";
-import { AgentToolSessionDefaultsSchema, type AgentToolSessionDefaults, ui } from "@canopy/contracts";
+import {
+  AgentToolSessionDefaultsSchema,
+  SandboxProfileSchema,
+  type AgentToolSessionDefaults,
+  type SandboxProfile,
+  ui,
+} from "@canopy/contracts";
 import { enabledModules, type ModuleId } from "@canopy/domain";
 import { deviceSidebarSettings, type DeviceSidebarValues } from "@canopy/domain/device-view";
 import { devicePreferences } from "./device-preferences.svelte.ts";
@@ -26,6 +32,7 @@ const userSchemas = {
   threadRetention: ui.ThreadRetentionSettingsSchema,
   cliUpdates: ui.CliUpdateSettingsSchema,
   agentToolDefaults: AgentToolSessionDefaultsSchema,
+  sandboxProfiles: ui.SandboxProfilesSchema,
 } as const;
 
 type UserSection = keyof typeof userSchemas;
@@ -40,9 +47,9 @@ interface ServerSettings {
  * loaded through the BFF, changed by writes, and kept current by the overview stream
  * (changes from other devices and tabs).
  *
- * A write replaces one section and names the version it started from. Writes run one at a time; a
- * change shows at once and is applied again on top of whatever the gateway has when it is sent. A
- * conflict (409: changed elsewhere in between) reloads the settings and applies the change once more.
+ * A write replaces one section and names the version it started from. Writes run one at a time and
+ * most changes show immediately. A conflict (409: changed elsewhere in between) reloads the settings
+ * and retries the patch once.
  */
 export class SettingsState {
   loaded = $state(false);
@@ -71,6 +78,43 @@ export class SettingsState {
 
   get threadDefaults(): ui.ThreadDefaults {
     return this.user.threadDefaults ?? create(ui.ThreadDefaultsSchema);
+  }
+
+  get sandboxProfiles(): readonly SandboxProfile[] {
+    return this.user.sandboxProfiles?.profiles ?? [];
+  }
+
+  async saveSandboxProfile(profile: SandboxProfile, original?: SandboxProfile): Promise<boolean> {
+    await this.#writeUser("sandboxProfiles", (current) => {
+      const existing = current.profiles.find((item) => item.id === profile.id);
+
+      if (original ? !existing || !equals(SandboxProfileSchema, existing, original) : existing) return current;
+
+      if (existing && equals(SandboxProfileSchema, existing, profile)) return current;
+
+      return {
+        ...current,
+        profiles: original
+          ? current.profiles.map((item) => (item.id === profile.id ? profile : item))
+          : [...current.profiles, profile],
+      };
+    });
+
+    const saved = this.sandboxProfiles.find((item) => item.id === profile.id);
+
+    return Boolean(saved && equals(SandboxProfileSchema, saved, profile));
+  }
+
+  async deleteSandboxProfile(profile: SandboxProfile): Promise<boolean> {
+    await this.#writeUser("sandboxProfiles", (current) => {
+      const existing = current.profiles.find((item) => item.id === profile.id);
+
+      if (!existing || !equals(SandboxProfileSchema, existing, profile)) return current;
+
+      return { ...current, profiles: current.profiles.filter((item) => item.id !== profile.id) };
+    });
+
+    return !this.sandboxProfiles.some((item) => item.id === profile.id);
   }
 
   get textGeneration(): ui.TextGenerationSettings {
@@ -331,18 +375,25 @@ export class SettingsState {
     const blank = () => create(schema) as ui.UserSettings[S] & {};
     const current = () => this.user[section] ?? blank();
     const confirmed = () => this.#server.user[section] ?? blank();
-    const show = () => (this.user = { ...this.user, [section]: patch(current()) });
-    show();
+    const show = (next: ui.UserSettings[S] & {}) => (this.user = { ...this.user, [section]: next });
+    // The thread picker should only see saved shell policies. The profile editor reports write errors inline.
+    const optimistic = section !== "sandboxProfiles";
+
+    if (optimistic) show(patch(current()));
 
     return this.#enqueue(async () => {
       const before = confirmed();
 
       for (let attempt = 0; ; attempt++) {
-        show();
+        const base = optimistic ? current() : confirmed();
+        const next = patch(base);
+
+        if (optimistic) show(next);
+        else if (next === base) return;
 
         try {
           const body = create(ui.UpdateUserSettingsRequestSchema, {
-            [section]: this.user[section],
+            [section]: next,
             expectedVersion: this.#server.user.version,
           });
 
@@ -358,7 +409,7 @@ export class SettingsState {
 
           return;
         } catch (cause) {
-          if (!(await this.#retryAfterConflict(cause, attempt, confirmed, before, schema))) {
+          if (!(await this.#retryAfterConflict(cause, attempt, confirmed, before, schema, !optimistic))) {
             this.user = { ...this.user, [section]: this.#server.user[section] };
 
             return;

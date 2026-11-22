@@ -4,6 +4,8 @@ import { mentionsFromWire } from "#lib/features/mentions/wire.ts";
 import { isProviderKey, providerKeyOf } from "../providers.ts";
 import { isPermissionModeName } from "../labels.ts";
 import { create, fromJsonString } from "@bufbuild/protobuf";
+import { createHash } from "node:crypto";
+import { normalizeSandboxProfile, sandboxProfileIdentity } from "@canopy/domain/sandbox-profiles";
 
 const text = (form: FormData, key: string) => String(form.get(key) ?? "").trim();
 
@@ -66,6 +68,23 @@ export function parseThreadForm(form: FormData, action: string, target: { projec
     return fail(400, { action, error: "The message's mentions could not be read" });
   }
 
+  const sandboxProfileId = text(form, "sandboxProfileId");
+  const profile = content.sandboxProfile;
+  let sandboxProfileDigest = "";
+
+  if (profile || sandboxProfileId) {
+    if (!profile || profile.id !== sandboxProfileId || mode !== "FULL_AUTO")
+      return fail(400, { action, error: "The sandbox profile changed. Select it again before sending." });
+
+    try {
+      sandboxProfileDigest = createHash("sha256")
+        .update(sandboxProfileIdentity(normalizeSandboxProfile(profile)))
+        .digest("hex");
+    } catch {
+      return fail(400, { action, error: "The sandbox profile could not be read. Select it again before sending." });
+    }
+  }
+
   return create(ui.CreateThreadRequestSchema, {
     projectId,
     workspaceId,
@@ -76,6 +95,8 @@ export function parseThreadForm(form: FormData, action: string, target: { projec
     effort: text(form, "effort"),
     serviceTier: text(form, "serviceTier"),
     permissionMode: PermissionMode[mode],
+    sandboxProfileId,
+    sandboxProfileDigest,
     initialMessage,
     initialQuotes: content.quotes,
     draftId: text(form, "draftId"),

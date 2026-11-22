@@ -28,6 +28,12 @@ import {
   TTL,
   violates,
 } from "./core-context.ts";
+import {
+  sandboxGoalText,
+  SANDBOX_GOAL_UNAVAILABLE,
+  SANDBOX_MODE_REQUIRED,
+  SANDBOX_SHELL_UNAVAILABLE,
+} from "./thread-sandbox.ts";
 import type { GatewayCore } from "./core.ts";
 import { corePublishInteraction } from "./core-interactions.ts";
 import { corePublishSteer, coreQueueSteer, coreSteers } from "./core-messages.ts";
@@ -35,6 +41,7 @@ import { coreProfileModels } from "./core-models.ts";
 import { queueAdmissionState, resumeModuleGoal, pumpResumedThreads } from "./thread-module-runtime.ts";
 import { recoverThreadCreation } from "./thread-creation-recovery.ts";
 import { cancelStaleOomRecovery } from "../store/worker-oom-recovery.ts";
+import { sandboxCommandThread } from "../store/thread-sandbox.ts";
 import { storedShellResult } from "../store/shell-input.ts";
 import { takeBranchNote } from "../store/thread-branches.ts";
 import { coreBroadcastThread, coreBroadcastTurn, coreLog, coreRun } from "./core-broadcast.ts";
@@ -175,6 +182,37 @@ function queuedTurnInput(turn: TurnRow, userId: string) {
   };
 }
 
+function sandboxTurnProblem(threadMode: string, turnMode: string, turn: TurnRow) {
+  if (threadMode !== "FULL_AUTO" || turnMode !== "FULL_AUTO") return SANDBOX_MODE_REQUIRED;
+
+  if (turn.input.shellCommand !== undefined) return SANDBOX_SHELL_UNAVAILABLE;
+
+  if (turn.trigger === "goal" || sandboxGoalText(turn.input.text ?? "")) return SANDBOX_GOAL_UNAVAILABLE;
+
+  return undefined;
+}
+
+function applyBranchNote(threadId: string, turn: TurnRow, command: Command, note: string | undefined) {
+  if (!note || command.kind.case !== "startTurn" || !command.kind.value.input) return Effect.void;
+  const input = command.kind.value.input;
+  const prefix = `${note}\n\n`;
+  input.contextNote = joinNotes(note, turn.input.note ?? "");
+  input.text = prefix + input.text;
+
+  for (const mention of input.mentions) {
+    mention.start += prefix.length;
+    mention.end += prefix.length;
+  }
+
+  return takeBranchNote(threadId, turn.id, {
+    text: input.text,
+    note: joinNotes(note, turn.input.note ?? ""),
+    branchNote: note,
+    message: turn.input.message ?? turn.input.text ?? "",
+    delivered: mentionsToJson(input.mentions),
+  });
+}
+
 /** StartTurn for the queue's head, only while it still is the head as read (QueueStore.whileHead). */
 export async function coreStartTurn(hostContext: GatewayCore, thread: ThreadRow, turn: TurnRow): Promise<boolean> {
   const threadId = thread.id;
@@ -222,26 +260,31 @@ export async function coreStartTurn(hostContext: GatewayCore, thread: ThreadRow,
                       current.settings.serviceTier ?? "",
                     );
 
-              const problem = serviceTierProblem(models, model, serviceTier);
+              const threadPermissionMode = permissionModeName(spec.permissionMode) || "ASK";
+              const permissionMode = turn.permission_mode || threadPermissionMode;
+
+              const sandboxProblem = spec.sandboxProfile
+                ? sandboxTurnProblem(threadPermissionMode, permissionMode, turn)
+                : undefined;
+
+              const problem = sandboxProblem ?? serviceTierProblem(models, model, serviceTier);
 
               if (problem) {
-                yield* s.failTurn(turn.id, problem, "platform", "SERVICE_TIER_UNAVAILABLE");
+                const code = sandboxProblem ? "SANDBOX_PROFILE_UNAVAILABLE" : "SERVICE_TIER_UNAVAILABLE";
+                yield* s.failTurn(turn.id, problem, "platform", code);
                 rejectedGoal = Boolean(
-                  yield* GoalStore.use((goals) => goals.turnFailed(turn.id, `SERVICE_TIER_UNAVAILABLE: ${problem}`)),
+                  yield* GoalStore.use((goals) => goals.turnFailed(turn.id, `${code}: ${problem}`)),
                 );
                 rejected = true;
 
                 return;
               }
 
-              const threadPermissionMode = permissionModeName(spec.permissionMode) || "ASK";
-              const permissionMode = turn.permission_mode || threadPermissionMode;
-
               const command = create(CommandSchema, {
                 kind: {
                   case: "startTurn",
                   value: {
-                    thread: spec,
+                    ...sandboxCommandThread(spec),
                     turnId: turn.id,
                     input: queuedTurnInput(turn, hostContext[coreState].options.userId),
                     model,
@@ -252,27 +295,7 @@ export async function coreStartTurn(hostContext: GatewayCore, thread: ThreadRow,
                 },
               });
 
-              const note = current.settings.branchNote;
-
-              if (note && command.kind.case === "startTurn" && command.kind.value.input) {
-                const input = command.kind.value.input;
-                const prefix = `${note}\n\n`;
-                input.contextNote = joinNotes(note, turn.input.note ?? "");
-                input.text = prefix + input.text;
-
-                for (const mention of input.mentions) {
-                  mention.start += prefix.length;
-                  mention.end += prefix.length;
-                }
-
-                yield* takeBranchNote(threadId, turn.id, {
-                  text: input.text,
-                  note: joinNotes(note, turn.input.note ?? ""),
-                  branchNote: note,
-                  message: turn.input.message ?? turn.input.text ?? "",
-                  delivered: mentionsToJson(input.mentions),
-                });
-              }
+              yield* applyBranchNote(threadId, turn, command, current.settings.branchNote);
 
               if (
                 model !== (turn.model ?? "") ||

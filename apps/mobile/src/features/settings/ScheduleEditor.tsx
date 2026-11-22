@@ -3,6 +3,7 @@ import { create } from "@bufbuild/protobuf";
 import { timestampDate, timestampFromDate, type Timestamp } from "@bufbuild/protobuf/wkt";
 import { PermissionMode, ui } from "@canopy/contracts";
 import { useOverview } from "../../state/overview";
+import { useAppearance } from "../../state/appearance";
 import { Button, Field, Notice } from "../../ui/components";
 import { SettingChoice } from "./SettingsGroup";
 import { ResourceState, useSettingsResource } from "./resource";
@@ -15,6 +16,12 @@ import { useWorkerOptions } from "../computers/worker-options";
 import { projectAwayReason } from "@canopy/domain/linked-snapshot";
 import { splitId } from "@canopy/domain/computers";
 import { awayReason, formatPresenceTime } from "@canopy/domain/computer-presence";
+import {
+  scheduleSandboxChoices,
+  scheduledSandboxLabel,
+  scheduleThreadWorkers,
+  type ScheduleSandboxChoices,
+} from "./schedule-sandbox";
 import {
   duplicateSchedulePermission,
   duplicateScheduleTimes,
@@ -57,8 +64,14 @@ export function ScheduleEditor({
     setDraft(create(ui.CreateScheduleRequestSchema, { ...draft, ...patch }));
 
   const project = overview.projects.find((row) => row.id === draft.newThread?.projectId);
+  const sandbox = useScheduleSandbox(draft, project, schedule, template);
   const threadHome = useComputerHome(splitId(draft.threadId).node);
-  const workspace = project?.workspaces.find((row) => row.id === draft.newThread?.workspaceId);
+
+  const workspace =
+    draft.newThread?.placement === "specific"
+      ? project?.workspaces.find((row) => row.id === draft.newThread?.workspaceId)
+      : undefined;
+
   const workspaceHome = useComputerHome(splitId(workspace?.workerId ?? "").node);
 
   const removed =
@@ -71,7 +84,7 @@ export function ScheduleEditor({
       : workspaceHome.away || Boolean(project && projectAwayReason(project, overview.workers, overview.computers));
 
   const save = () => {
-    if (removed) return;
+    if (removed || sandbox?.blocked) return;
 
     const configuration = scheduleRequest({ draft, kind, date, cron, until });
 
@@ -90,7 +103,7 @@ export function ScheduleEditor({
     <ResourceState resource={resource}>
       <Field label="Name" value={draft.name} onChangeText={(name) => change({ name })} />
       <Field label="Message" multiline value={draft.prompt} onChangeText={(prompt) => change({ prompt })} />
-      <ScheduleTarget draft={draft} change={change} />
+      <ScheduleTarget draft={draft} change={change} sandbox={sandbox} />
       {removed && <Notice>This worktree was removed. Choose another thread or continue in a new worktree.</Notice>}
       <SettingChoice
         title="When"
@@ -140,11 +153,34 @@ export function ScheduleEditor({
         variant="primary"
         title={schedule ? "Save schedule" : template ? "Duplicate schedule" : "Create schedule"}
         busy={resource.busy}
-        disabled={home.away || targetAway || removed || !complete({ draft, kind, date, cron, until })}
+        disabled={
+          home.away || targetAway || removed || sandbox?.blocked || !complete({ draft, kind, date, cron, until })
+        }
         onPress={save}
       />
     </ResourceState>
   );
+}
+
+function useScheduleSandbox(
+  draft: ui.CreateScheduleRequest,
+  project: ui.Project | undefined,
+  schedule: ui.Schedule | undefined,
+  template: ui.Schedule | undefined,
+) {
+  const { workers } = useOverview();
+  const { user } = useAppearance();
+  const spec = draft.newThread;
+
+  if (draft.target !== "new_thread" || spec?.permissionMode !== PermissionMode.FULL_AUTO) return undefined;
+
+  return scheduleSandboxChoices({
+    spec,
+    workers: scheduleThreadWorkers(project, workers, spec),
+    profiles: user?.sandboxProfiles?.profiles ?? [],
+    saved: schedule?.newThread?.sandboxProfile?.profile,
+    template: template?.newThread?.sandboxProfile?.profile,
+  });
 }
 
 const validDate = (text: string) => Number.isFinite(Date.parse(text));
@@ -152,10 +188,12 @@ const validDate = (text: string) => Number.isFinite(Date.parse(text));
 type ScheduleForm = { draft: ui.CreateScheduleRequest; kind: string; date: string; cron: string; until: string };
 
 function scheduleRequest({ draft, kind, date, cron, until }: ScheduleForm) {
+  const spec = draft.target === "new_thread" ? draft.newThread : undefined;
+
   return create(ui.CreateScheduleRequestSchema, {
     ...draft,
     threadId: draft.target === "thread" ? draft.threadId : "",
-    newThread: draft.target === "new_thread" ? draft.newThread : undefined,
+    newThread: spec && { ...spec, workspaceId: spec.placement === "specific" ? spec.workspaceId : "" },
     when:
       kind === "recurring"
         ? { case: "cron", value: cron }
@@ -189,16 +227,19 @@ function startTimes(schedule?: ui.Schedule, template?: ui.Schedule) {
 
 function scheduleDraft(schedule: ui.Schedule | undefined, duplicate: boolean) {
   const newThread = schedule?.newThread;
+  const savedId = newThread?.sandboxProfile?.profile?.id;
 
   return {
     prompt: schedule?.prompt,
     name: schedule?.configuredName,
     timezone: schedule?.timezone || Intl.DateTimeFormat().resolvedOptions().timeZone,
     target: schedule?.target || "thread",
-    newThread:
-      newThread && duplicate
-        ? { ...newThread, permissionMode: duplicateSchedulePermission(newThread.permissionMode) }
-        : newThread,
+    newThread: newThread && {
+      ...newThread,
+      permissionMode: duplicate ? duplicateSchedulePermission(newThread.permissionMode) : newThread.permissionMode,
+      sandboxProfileId: savedId ? (duplicate ? savedId : undefined) : newThread.sandboxProfileId,
+      sandboxProfile: undefined,
+    },
     concurrency: schedule?.concurrency || "skip_if_running",
     missedPolicy: schedule?.missedPolicy || "run_once",
     maxRuns: schedule?.maxRuns,
@@ -208,11 +249,20 @@ function scheduleDraft(schedule: ui.Schedule | undefined, duplicate: boolean) {
 function ScheduleTarget({
   draft,
   change,
+  sandbox,
 }: {
   draft: ui.CreateScheduleRequest;
   change: (v: Partial<ui.CreateScheduleRequest>) => void;
+  sandbox?: ScheduleSandboxChoices;
 }) {
   const { threads, computers } = useOverview();
+  const thread = draft.target === "thread" ? threads.find((entry) => entry.id === draft.threadId) : undefined;
+
+  const permissions =
+    thread &&
+    (thread.sandboxProfile || thread.permissionMode === PermissionMode.FULL_AUTO
+      ? scheduledSandboxLabel(thread.sandboxProfile)
+      : permissionLabel(thread.permissionMode));
 
   return (
     <>
@@ -249,22 +299,24 @@ function ScheduleTarget({
             })}
         />
       ) : (
-        <ScheduleThread value={draft.newThread} onChange={(newThread) => change({ newThread })} />
+        <ScheduleThread value={draft.newThread} sandbox={sandbox} onChange={(newThread) => change({ newThread })} />
       )}
+      {permissions && <Notice>Uses thread permissions · {permissions}</Notice>}
     </>
   );
 }
 
 function ScheduleThread({
   value,
+  sandbox,
   onChange,
 }: {
   value?: ui.NewThreadSchedule;
+  sandbox?: ScheduleSandboxChoices;
   onChange: (v: ui.NewThreadSchedule) => void;
 }) {
   const { projects, workers, computers } = useOverview();
   const workerOptions = useWorkerOptions();
-  const [permission, setPermission] = useState(false);
   const draft = create(ui.NewThreadScheduleSchema, value);
 
   const change = (patch: Partial<ui.NewThreadSchedule>) =>
@@ -272,11 +324,7 @@ function ScheduleThread({
 
   const project = projects.find((p) => p.id === draft.projectId);
 
-  const candidates = workers.filter((worker) =>
-    project?.workspaces.some(
-      (ws) => ws.workerId === worker.id && (draft.placement !== "specific" || ws.id === draft.workspaceId),
-    ),
-  );
+  const candidates = scheduleThreadWorkers(project, workers, draft);
 
   return (
     <>
@@ -329,14 +377,7 @@ function ScheduleThread({
           change({ provider: c.provider, providerProfileId: c.profileId, model: c.model, effort })
         }
       />
-      <Button title={`Permissions: ${permissionLabel(draft.permissionMode)}`} onPress={() => setPermission(true)} />
-      <PermissionPickerSheet
-        visible={permission}
-        onClose={() => setPermission(false)}
-        value={draft.permissionMode}
-        onSelect={(permissionMode) => change({ permissionMode })}
-        fullAccessDescription={scheduledFullAccessDescription}
-      />
+      <SchedulePermissions draft={draft} change={change} sandbox={sandbox} />
       {draft.permissionMode === PermissionMode.FULL_ACCESS &&
         candidates.length > 0 &&
         !candidates.some((worker) => worker.fullAccess) && <Notice>{scheduledFullAccessUnavailable}</Notice>}
@@ -352,6 +393,47 @@ function ScheduleThread({
         ]}
       />
       <Field label="Base ref" value={draft.baseRef} onChangeText={(baseRef) => change({ baseRef })} />
+    </>
+  );
+}
+
+function SchedulePermissions({
+  draft,
+  change,
+  sandbox,
+}: {
+  draft: ui.NewThreadSchedule;
+  change: (patch: Partial<ui.NewThreadSchedule>) => void;
+  sandbox?: ScheduleSandboxChoices;
+}) {
+  const [permission, setPermission] = useState(false);
+
+  function pickPermission(permissionMode: PermissionMode) {
+    const sandboxProfileId =
+      sandbox && permissionMode !== PermissionMode.FULL_AUTO ? sandbox.selectionId("") : draft.sandboxProfileId;
+
+    change({ permissionMode, sandboxProfileId });
+  }
+
+  return (
+    <>
+      <Button title={`Permissions: ${permissionLabel(draft.permissionMode)}`} onPress={() => setPermission(true)} />
+      <PermissionPickerSheet
+        visible={permission}
+        onClose={() => setPermission(false)}
+        value={draft.permissionMode}
+        onSelect={pickPermission}
+        fullAccessDescription={scheduledFullAccessDescription}
+      />
+      {sandbox && (
+        <SettingChoice
+          title="Sandbox profile"
+          value={sandbox.value}
+          onChange={(id) => change({ sandboxProfileId: sandbox.selectionId(id) })}
+          options={sandbox.options}
+          description={sandbox.problem}
+        />
+      )}
     </>
   );
 }

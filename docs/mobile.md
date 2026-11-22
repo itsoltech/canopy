@@ -1,7 +1,9 @@
 # Canopy na iOS i Android
 
 Status: opis zaimplementowanego kodu (2026-11-22). Profile EAS przypinają Bun 1.4.5
-dla lockfile w wersji 3. Dostęp wątków do konektorów konfiguruje się dla projektów.
+dla lockfile w wersji 3. Kompozytor pokazuje przypisany [profil Sandbox](sandbox-profiles.md).
+Edytor zaplanowanych zadań pozwala wybrać profil dla nowego wątku.
+Dostęp wątków do konektorów konfiguruje się dla projektów.
 Opis obejmuje Habits w Settings → Memory, import skilli z publicznych
 witryn HTTPS, usypianie wątków, dostępny offline wykaz licencji open source
 oraz osobne aktualizacje Canopy i CLI dostawców. Ukończone przygotowanie wątku

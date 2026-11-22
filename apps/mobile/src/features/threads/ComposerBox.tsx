@@ -12,9 +12,10 @@ import type { ComposerPendingItem } from "@canopy/domain/composer-pending";
 import { composerGeometry } from "../composer/geometry";
 import { SendButtons } from "./SendButtons";
 import { useTween } from "../../ui/motion";
+import { startsWithShellCommand } from "./sandbox";
 
 /** What each trigger character does, as on the web; no-break spaces keep each item on one line. */
-const TRIGGER_HINT = ["/ commands", "$ skills", "@ files", "# threads", "! shell"]
+const TRIGGER_HINT = ["/ commands", "$ skills", "@ files", "# threads"]
   .map((item) => item.replace(" ", "\u00a0"))
   .join(" · ");
 
@@ -66,6 +67,7 @@ export interface ComposerBoxProps {
   triggers?: boolean;
   /** Bot chats treat leading exclamation marks as ordinary text. */
   shellCommands?: boolean;
+  shellUnavailable?: string;
   canSend?: boolean;
 }
 
@@ -96,6 +98,7 @@ export function ComposerBox({
   badges,
   triggers = false,
   shellCommands = true,
+  shellUnavailable,
   canSend = true,
 }: ComposerBoxProps) {
   const c = useColors();
@@ -103,8 +106,8 @@ export function ComposerBox({
   const sendInset = Math.max(60, sendWidth + 14);
   const empty = !text.trim() && files === 0;
   // A leading "!" runs the text as a shell command on the worker when it is delivered (docs/ui-api.md).
-  const shell = shellCommands && text.startsWith("!");
-  const shellIssue = shell && (text.trim() === "!" || files > 0);
+  const shell = shellCommands && (shellUnavailable ? startsWithShellCommand(text) : text.startsWith("!"));
+  const shellIssue = shell && (shellUnavailable || text.trim() === "!" || files > 0);
   const stop = running && empty && Boolean(onStop);
 
   const unavailable = stop
@@ -149,7 +152,9 @@ export function ComposerBox({
           compact={compact}
           pending={pending}
           onExpand={onExpand}
-          placeholder={triggers ? TRIGGER_HINT : placeholder}
+          placeholder={
+            triggers ? TRIGGER_HINT + (shellCommands && !shellUnavailable ? " · !\u00a0shell" : "") : placeholder
+          }
           triggers={triggers}
           label={label}
           badges={badges}
@@ -157,7 +162,7 @@ export function ComposerBox({
         />
         {!inline && (
           <ComposerFold open={!compact} expandedHeight={composerGeometry.toolbar} hideWhileWriting={false}>
-            <ComposerControls shell={shell} files={files} attachment={attachment} sendWidth={sendInset}>
+            <ComposerControls {...{ shell, shellUnavailable, files, attachment }} sendWidth={sendInset}>
               {controls}
             </ComposerControls>
           </ComposerFold>
@@ -194,12 +199,14 @@ export function ComposerBox({
 /** The toolbar folds without unmounting its attachment and model pickers; the pills glide aside for the send slot. */
 function ComposerControls({
   shell,
+  shellUnavailable,
   files,
   attachment,
   sendWidth,
   children,
 }: {
   shell: boolean;
+  shellUnavailable?: string;
   files: number;
   attachment: ReactNode;
   sendWidth: number;
@@ -215,27 +222,33 @@ function ComposerControls({
       style={[styles.row, { minHeight: composerGeometry.toolbar, padding: 10, paddingLeft: 12, gap: 4 }, slot]}
     >
       {!shell && attachment ? <View style={{ flexShrink: 0 }}>{attachment}</View> : null}
-      <ScrollView
-        ref={scroll}
-        horizontal
-        alwaysBounceHorizontal={false}
-        bounces={false}
-        showsHorizontalScrollIndicator={false}
-        keyboardShouldPersistTaps="handled"
-        // Keep the trailing choices beside Send as the catalog or available width changes.
-        onContentSizeChange={() => scroll.current?.scrollToEnd({ animated: false })}
-        onLayout={() => scroll.current?.scrollToEnd({ animated: false })}
-        contentContainerStyle={[styles.row, { flexGrow: 1, justifyContent: "flex-end", gap: 4 }]}
-        style={{ flex: 1, minWidth: 0, marginRight: 4 }}
-      >
-        {shell ? (
-          <Text numberOfLines={2} style={[styles.caption, { color: c.danger, flexShrink: 1 }]}>
-            {files > 0 ? "Remove the files to run a shell command." : "Runs as a shell command when delivered."}
-          </Text>
-        ) : (
-          children
-        )}
-      </ScrollView>
+      {shell && shellUnavailable ? (
+        <Text accessibilityLiveRegion="polite" style={[styles.caption, { color: c.danger, flex: 1 }]}>
+          {shellUnavailable}
+        </Text>
+      ) : (
+        <ScrollView
+          ref={scroll}
+          horizontal
+          alwaysBounceHorizontal={false}
+          bounces={false}
+          showsHorizontalScrollIndicator={false}
+          keyboardShouldPersistTaps="handled"
+          // Keep the trailing choices beside Send as the catalog or available width changes.
+          onContentSizeChange={() => scroll.current?.scrollToEnd({ animated: false })}
+          onLayout={() => scroll.current?.scrollToEnd({ animated: false })}
+          contentContainerStyle={[styles.row, { flexGrow: 1, justifyContent: "flex-end", gap: 4 }]}
+          style={{ flex: 1, minWidth: 0, marginRight: 4 }}
+        >
+          {shell ? (
+            <Text numberOfLines={2} style={[styles.caption, { color: c.danger, flexShrink: 1 }]}>
+              {files > 0 ? "Remove the files to run a shell command." : "Runs as a shell command when delivered."}
+            </Text>
+          ) : (
+            children
+          )}
+        </ScrollView>
+      )}
     </Animated.View>
   );
 }

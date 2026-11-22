@@ -23,6 +23,7 @@ export interface SchedulerHost {
   /** A schedule ran (or completed, or was cancelled with its thread): announce it. */
   changed(scheduleId: string): Promise<void>;
   eligibleWorkers(schedule: ScheduleRow): Promise<readonly string[]>;
+  confirmSandboxWorker?(workerId: string, spec: ui.NewThreadSchedule): Promise<bigint | undefined>;
   created(result: NonNullable<FiredSchedule["created"]>, prompt: string): Promise<void>;
   prepareWorkspace?(request: ui.CreateThreadRequest, userId: string, sourceId: string): Promise<ui.CreateThreadRequest>;
 }
@@ -132,6 +133,7 @@ export class Scheduler {
           eligibleWorkerIds,
           now,
           ...(this.#host.prepareWorkspace && { prepareWorkspace: this.#host.prepareWorkspace }),
+          ...(this.#host.confirmSandboxWorker && { confirmSandboxWorker: this.#host.confirmSandboxWorker }),
         }),
       ),
     );

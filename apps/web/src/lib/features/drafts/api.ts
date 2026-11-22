@@ -9,7 +9,7 @@ export const draftDelivery = async (request: ui.GetComposerDraftDeliveryRequest)
     await requestJson("POST", "/api/drafts/delivery", encode(ui.GetComposerDraftDeliveryRequestSchema, request)),
   );
 
-export const saveDraft = async (draft: ui.ComposerDraft, mutationId: string) =>
+export const saveDraft = async (draft: ui.ComposerDraft, mutationId: string, clearSandboxProfile = false) =>
   decode(
     ui.ComposerDraftSchema,
     await requestJson(
@@ -17,7 +17,12 @@ export const saveDraft = async (draft: ui.ComposerDraft, mutationId: string) =>
       "/api/drafts",
       encode(
         ui.SaveComposerDraftRequestSchema,
-        create(ui.SaveComposerDraftRequestSchema, { draft, expectedRevision: draft.revision, mutationId }),
+        create(ui.SaveComposerDraftRequestSchema, {
+          draft,
+          expectedRevision: draft.revision,
+          mutationId,
+          clearSandboxProfile,
+        }),
       ),
     ),
   );

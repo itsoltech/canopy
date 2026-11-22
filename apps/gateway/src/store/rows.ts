@@ -63,6 +63,7 @@ export interface ThreadRow {
     instructions?: string;
     handoff?: string;
     branchNote?: string;
+    sandboxProfile?: JsonValue | null;
   };
   status: string;
   status_detail: string | null;

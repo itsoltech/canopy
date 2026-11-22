@@ -42,6 +42,7 @@
   import { useThreadDirectory } from "../thread-directory.ts";
   import ContextIndicator from "./ContextIndicator.svelte";
   import { devicePreferences } from "#lib/features/settings/device-preferences.svelte.ts";
+  import { sandboxShellUnavailable, threadSandboxRefusal } from "../sandbox-profiles.ts";
 
   /**
    * Message box of a thread. Each send carries an idempotency key, so a retried send never runs
@@ -165,6 +166,10 @@
   );
 
   const draft = $derived(saved.files);
+  const sandboxBound = $derived(Boolean(thread.sandboxProfile));
+  const sandboxRefusal = $derived(threadSandboxRefusal(thread, worker));
+  const shellUnavailable = $derived(sandboxBound ? sandboxShellUnavailable : undefined);
+
   const quoteDrafts = useQuoteDrafts();
   const quotes = $derived(quoteDrafts.list(thread.id));
   const rewind = useThreadRewind();
@@ -225,7 +230,7 @@
   // One key per message: a retry after a network error reuses it, a new message gets a new one.
 
   // While a turn runs Enter steers, or queues when queueing is on (Settings, the queue panel's menu).
-  const primary = $derived(settings?.runningDelivery ?? "steer");
+  const primary = $derived(sandboxBound ? "queue" : (settings?.runningDelivery ?? "steer"));
 
   function submit(event: SubmitEvent) {
     event.preventDefault();
@@ -246,6 +251,8 @@
       directory.replySuggestions?.sending ||
       composer.preparing ||
       savingPermissions ||
+      sandboxRefusal ||
+      (sandboxBound && (delivery === "steer" || (composer.pendingSend?.text ?? text).startsWith("!"))) ||
       disabled ||
       !composerAvailable
     )
@@ -395,6 +402,9 @@
     </div>
   {/if}
   {#if error}<Alert tone="error">{error}</Alert>{/if}
+  {#if !disabled && sandboxRefusal}<Alert tone="warning" title="Saved sandbox profile unavailable">
+      {sandboxRefusal}
+    </Alert>{/if}
   <UsageWarning
     usage={worker?.providerInstances.find(
       (instance) => instance.harness === thread.provider && instance.id === (thread.providerProfileId || "native"),
@@ -404,26 +414,32 @@
   <ComposerBox
     bind:this={box}
     shell
+    {shellUnavailable}
     {compact}
     {panelsLabel}
     {onexpand}
     bind:value={saved.text}
     bind:mentions={saved.mentions}
     {sources}
-    placeholder={running ? "Steer the agent, or queue for the next turn…" : "Ask anything…"}
+    placeholder={running
+      ? sandboxBound
+        ? "Queue a message for the next turn…"
+        : "Steer the agent, or queue for the next turn…"
+      : "Ask anything…"}
     disabled={disabled || sending || !composerAvailable || directory.replySuggestions?.sending}
     readonly={saved.locked}
     stopDisabled={disabled}
-    canSend={!savingPermissions}
+    canSend={!savingPermissions && !sandboxRefusal}
     {sending}
     {stopping}
     onstop={running ? interrupt : undefined}
     oncontinue={() => void send("queue", true)}
-    onqueue={running ? () => void send("queue") : undefined}
+    queueNext={running && sandboxBound}
+    onqueue={running && !sandboxBound ? () => void send("queue") : undefined}
     {primary}
-    onalternate={running ? () => void send("steer") : undefined}
+    onalternate={running && !sandboxBound ? () => void send("steer") : undefined}
     {draft}
-    blockedReason={disabled ? note : savingPermissions ? "Changing permissions…" : undefined}
+    blockedReason={disabled ? note : savingPermissions ? "Changing permissions…" : sandboxRefusal}
     deliveryNotice={outcome}
     elementCount={quotes.length}
     quoteKey={thread.id}

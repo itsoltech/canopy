@@ -1,6 +1,6 @@
 import type { v2 } from "@canopy/codex-protocol";
 import { workerDiagnostics } from "../../diagnostics/worker.ts";
-import { GoalDirective, type ThreadSpec, type UserInput } from "@canopy/contracts";
+import { GoalDirective, PermissionMode, type ThreadSpec, type UserInput } from "@canopy/contracts";
 import { Effect } from "effect";
 import { SteerError, type TurnSettings } from "../turn-input.ts";
 import { codexUserInput } from "./input.ts";
@@ -28,6 +28,18 @@ export function threadTurns(
       settings?: TurnSettings,
     ) {
       if (settings?.canSubmit?.() === false) return "";
+
+      if (
+        spec.sandboxProfile &&
+        (input.shellCommand !== undefined ||
+          (settings?.permissionMode && settings.permissionMode !== PermissionMode.FULL_AUTO))
+      )
+        return yield* new CodexThreadError({
+          threadId: spec.threadId,
+          operation: "turn/start",
+          message:
+            "A custom Codex sandbox profile requires Sandbox mode and cannot run direct composer shell commands.",
+        });
       const enteredAt = workerDiagnostics.enabled ? workerDiagnostics.monotonic() : 0;
       const previous = mcpSpecs.get(spec.threadId);
       let entry = yield* ensureLoaded(spec, settings?.recoveryContext);
@@ -49,6 +61,13 @@ export function threadTurns(
       const chosen = yield* turnSettings(spec, settings);
 
       if (byPlatform.get(spec.threadId) !== entry || settings?.canSubmit?.() === false) return "";
+
+      if (entry.sandboxProfileInvalid)
+        return yield* new CodexThreadError({
+          threadId: spec.threadId,
+          operation: "turn/start",
+          message: "The loaded Codex session lost its verified sandbox profile.",
+        });
       // record() buffers notifications until the response binds this accepted choice to its native turn.
       entry.pendingTurns.push(turnId);
 
@@ -137,6 +156,12 @@ function threadSteering(ctx: CodexThreadContext) {
         });
       }
 
+      if (entry.sandboxProfileInvalid || (entry.sandboxProfile && input.shellCommand !== undefined))
+        return yield* new SteerError({
+          code: "STEER_REJECTED",
+          message: "This input cannot run under the loaded Codex sandbox profile.",
+        });
+
       if (settings?.serviceTier && settings.serviceTier !== (entry.serviceTier || "default"))
         return yield* new SteerError({
           code: "STEER_REJECTED",
@@ -177,6 +202,12 @@ export function threadGoals(ctx: CodexThreadContext, ensureLoaded: ReturnType<ty
       objective: string,
       tokenBudget: bigint,
     ) {
+      if (spec.sandboxProfile)
+        return yield* new CodexThreadError({
+          threadId: spec.threadId,
+          operation: "goal",
+          message: "Harness goals are unavailable with a custom Codex sandbox profile.",
+        });
       const entry = yield* ensureLoaded(spec);
 
       // origin "user": the platform acts for the user who set the goal in the UI.

@@ -2222,6 +2222,10 @@ zwykłe operacje.
 
 ## Konsolidacja dodatkowego komputera
 
+Status (2026-11-22): konsolidacja wymaga migracji 0199 po obu stronach.
+Import zachowuje wiązania profili Sandbox, listę profili właściciela
+i skróty polityk zapisane w historii poleceń.
+
 Konsolidacja dołącza dane właściciela do gatewaya centralnego po trwałym wyłączeniu
 źródła. Podpisany eksport domowy trafia do izolowanej bazy próbnej. Zawiera
 metadane identyfikujące sekrety potrzebne do importu. Zatwierdzone wartości jadą

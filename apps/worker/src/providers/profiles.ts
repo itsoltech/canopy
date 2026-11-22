@@ -13,6 +13,7 @@ import type {
   GrokProviderSettings,
 } from "@canopy/domain/provider-settings";
 import { Match } from "effect";
+import { sandboxSupport } from "./sandbox-support.ts";
 
 /**
  * Provider profiles come from the remote worker configuration (WorkerConfig.profiles, docs/worker-config.md).
@@ -228,16 +229,21 @@ export function resolveProfiles(configs: readonly ProviderProfileConfig[]): Prof
 export function toProfileReport(status: ProfileStatus): MessageInitShape<typeof ProviderProfileSchema> {
   const { config } = status;
 
+  const providers = providersOf(config).map((p) =>
+    Match.value(p).pipe(
+      Match.when("claude", () => Provider.CLAUDE),
+      Match.when("grok", () => Provider.GROK),
+      Match.orElse(() => Provider.CODEX),
+    ),
+  );
+
+  const [provider] = providers;
+
   return {
     id: config.id,
     kind: config.kind === "native" ? ProviderProfileKind.NATIVE : ProviderProfileKind.CLIPROXYAPI,
-    providers: providersOf(config).map((p) =>
-      Match.value(p).pipe(
-        Match.when("claude", () => Provider.CLAUDE),
-        Match.when("grok", () => Provider.GROK),
-        Match.orElse(() => Provider.CODEX),
-      ),
-    ),
+    providers,
+    ...(providers.length === 1 && provider !== undefined && { sandboxSupport: sandboxSupport(provider, status) }),
     ...(config.kind === "cliproxyapi" && URL.canParse(config.baseUrl) && { endpoint: new URL(config.baseUrl).origin }),
     available: status.resolved !== undefined,
     ...(status.problem !== undefined && { detail: status.problem }),

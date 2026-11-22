@@ -9,10 +9,26 @@ import { prepareImportedCodexResume } from "../import/codex-provider.ts";
 import { readCodexConfiguredEffort } from "../providers/default-effort.ts";
 import { type ProfileRuntimeConfig, type ResolvedProfile } from "../providers/profiles.ts";
 import { join } from "node:path";
+import { realpathSync, statSync } from "node:fs";
 
 import { CommandError, kindOf, taskOf, usableBy, codexProfileGroup, type CodexGroup } from "./host-types.ts";
 import type { HostContext } from "./host-context.ts";
 import { reportsPlanUsage, usageReporter } from "./usage-limits.ts";
+
+function privatePolicyDirectory(path: string): string | undefined {
+  if (process.platform !== "linux") return undefined;
+
+  try {
+    const canonical = realpathSync(path);
+    const stat = statSync(canonical);
+
+    if (stat.isDirectory() && stat.uid === process.getuid?.() && (stat.mode & 0o777) === 0o700) return canonical;
+  } catch {
+    return undefined;
+  }
+
+  return undefined;
+}
 
 export class CodexRuntimes {
   constructor(readonly ctx: HostContext) {}
@@ -141,6 +157,8 @@ export class CodexRuntimes {
     });
 
     if (home.problem) this.ctx.ops.log(`codex home: ${home.problem}`);
+    // Protect the real private Codex policy and credentials from shell reads in a profiled session.
+    const policyDirectory = home.login === "none" ? privatePolicyDirectory(home.path) : undefined;
 
     const usage = usageReporter(
       this.ctx,
@@ -163,6 +181,7 @@ export class CodexRuntimes {
         codexThreadLaunchArgs(runtime.launchArgs),
       ),
       clientVersion: this.ctx.state.options.clientVersion,
+      ...(policyDirectory && { sandboxProfileRuntime: { policyDirectory } }),
       onUsage: usage.report,
       configuredEffort: () => readCodexConfiguredEffort(deviceHome),
       profile: (id) => profiles.find((p) => p.id === (id || "native")),

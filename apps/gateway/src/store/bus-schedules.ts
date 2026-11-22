@@ -44,6 +44,7 @@ export interface BusScheduleStore {
     expectedVersion: number;
     userId: string;
     schedule: NewSchedule;
+    ownerSandboxWrite?: boolean;
   }): Fx<ScheduleRow>;
   /** Pause (no next run), resume (with the next run) or cancel. */
   setScheduleStatus(input: {
@@ -72,6 +73,7 @@ export interface BusScheduleStore {
     nextRunAt: Date | undefined;
     eligibleWorkerIds: readonly string[];
     now: Date;
+    confirmSandboxWorker?: (workerId: string, spec: ui.NewThreadSchedule) => Promise<bigint | undefined>;
     prepareWorkspace?: (
       request: ui.CreateThreadRequest,
       userId: string,
@@ -124,6 +126,16 @@ export const fireSchedule = (sql: SqlClient.SqlClient, args: Parameters<BusSched
           if (busy.length) {
             run = false;
             outcome = "running";
+          }
+        }
+
+        if (spec?.parentThreadId && run) {
+          const source = (yield* sql<{ sandbox: boolean }>`SELECT settings->>'sandboxProfile' IS NOT NULL AS sandbox
+            FROM threads WHERE id=${spec.parentThreadId}::uuid AND owner_user_id=${project.owner_user_id}::uuid FOR SHARE`)[0];
+
+          if (source?.sandbox) {
+            run = false;
+            outcome = "missed";
           }
         }
 
@@ -192,7 +204,13 @@ export const fireSchedule = (sql: SqlClient.SqlClient, args: Parameters<BusSched
 const updateSchedule = (
   sql: SqlClient.SqlClient,
   store: Pick<BusScheduleStore, "schedule">,
-  { scheduleId, expectedVersion, userId, schedule }: Parameters<BusScheduleStore["updateSchedule"]>[0],
+  {
+    scheduleId,
+    expectedVersion,
+    userId,
+    schedule,
+    ownerSandboxWrite,
+  }: Parameters<BusScheduleStore["updateSchedule"]>[0],
 ) =>
   sql.withTransaction(
     Effect.gen(function* () {
@@ -236,6 +254,8 @@ const updateSchedule = (
         yield* sql`SELECT id FROM projects WHERE id = ${projectId}::uuid AND owner_user_id = ${userId}::uuid AND archived_at IS NULL FOR SHARE`;
 
       if (!project.length) return yield* Effect.fail(new Invalid("project not found"));
+
+      if (ownerSandboxWrite) yield* sql`SELECT set_config('canopy.sandbox_profile_schedule_write', '1', true)`;
       yield* sql`UPDATE schedules SET thread_id = ${schedule.threadId || null}::uuid,
           project_id = coalesce(${schedule.newThread?.projectId ?? null}::uuid, (SELECT project_id FROM threads WHERE id = ${schedule.threadId || null}::uuid)),
           target = ${schedule.newThread ? "new_thread" : "thread"},

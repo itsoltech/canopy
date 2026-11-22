@@ -36,6 +36,9 @@
   import { setupAgentModels } from "#lib/features/onboarding/setup-agent.ts";
   import ModelControls from "#lib/features/models/ModelControls.svelte";
   import PermissionPicker from "#lib/features/threads/components/PermissionPicker.svelte";
+  import SandboxProfileMenu from "#lib/features/threads/components/SandboxProfileMenu.svelte";
+  import { newThreadSandboxPicker } from "#lib/features/threads/new-thread-sandbox.ts";
+  import { sandboxShellUnavailable } from "#lib/features/threads/sandbox-profiles.ts";
   import { availablePermissionMode, fullAutoAvailable, permissionKey } from "#lib/features/threads/labels.ts";
   import Alert from "#lib/shared/ui/Alert.svelte";
   import ButtonLink from "#lib/shared/ui/ButtonLink.svelte";
@@ -196,10 +199,36 @@
 
   // Your pick stays with the new-thread draft (leave and come back); unset = the defaults (Settings → Threads).
   const fullAuto = $derived(fullAutoAvailable(selected && Provider[selected.provider], worker?.os));
+  const sandboxProfile = $derived(saved.choices.sandboxProfile);
+  const sandboxProfileId = $derived(sandboxProfile?.id ?? "");
+  const shellUnavailable = $derived(sandboxProfile ? sandboxShellUnavailable : undefined);
 
   const permissionMode = $derived(
-    availablePermissionMode(permissionKey(saved.choices.permissionMode ?? defaults.permissionMode), fullAuto),
+    sandboxProfile
+      ? "FULL_AUTO"
+      : availablePermissionMode(permissionKey(saved.choices.permissionMode ?? defaults.permissionMode), fullAuto),
   );
+
+  const sandboxPicker = $derived(
+    newThreadSandboxPicker(sandboxProfile, settings.sandboxProfiles, settings.loaded, {
+      worker,
+      provider: selected && Provider[selected.provider],
+      profileId: selected?.profileId ?? "",
+    }),
+  );
+
+  const sandboxRefusal = $derived(sandboxPicker.refusal);
+
+  function pickPermissions(mode: typeof permissionMode) {
+    saved.selectSandboxPermissions(PermissionMode[mode], mode === "FULL_AUTO" ? sandboxProfile : undefined);
+  }
+
+  function pickSandboxProfile(id: string) {
+    const profile = settings.sandboxProfiles.find((item) => item.id === id);
+
+    if (id && !profile) return;
+    saved.selectSandboxPermissions(PermissionMode.FULL_AUTO, profile);
+  }
 
   // Mentions of the first message: commands, skills and files of the chosen worker, folder and agent.
   const sources = new MentionSources(() => {
@@ -257,7 +286,9 @@
   );
 
   const blockedReason = $derived(
-    branchBusy ? "Switching branch…" : (workerNote ?? (place.loading ? workspaceNote : undefined) ?? draft.blocker),
+    branchBusy
+      ? "Switching branch…"
+      : (workerNote ?? (place.loading ? workspaceNote : undefined) ?? sandboxRefusal ?? draft.blocker),
   );
 </script>
 
@@ -297,7 +328,7 @@
         class="grid gap-3"
         use:enhance={({ cancel, formData }) => {
           cancel();
-          if (blockedReason || busy || saved.preparing) return;
+          if (blockedReason || busy || saved.preparing || (shellUnavailable && saved.text.startsWith("!"))) return;
           busy = true;
           void threadCreations.start(saved, formData).catch(() => {
             busy = false;
@@ -318,16 +349,21 @@
         <input type="hidden" name="serviceTier" value={serviceTier} />
         <input type="hidden" name="workspaceId" value={workspace?.id ?? ""} />
         <input type="hidden" name="permissionMode" value={permissionMode} />
+        <input type="hidden" name="sandboxProfileId" value={sandboxProfileId} />
         <input type="hidden" name="workspaceMode" value={place.form.workspaceMode} />
         <input type="hidden" name="baseRef" value={place.form.baseRef} />
         <input type="hidden" name="worktreeId" value={place.form.worktreeId} />
         {#each draft.ids as id (id)}<input type="hidden" name="attachmentId" value={id} />{/each}
         {#if form?.error}<Alert tone="error">{form.error}</Alert>{/if}
+        {#if sandboxRefusal && !workerNote}<Alert tone="warning" title="Selected sandbox profile unavailable">
+            {sandboxRefusal}
+          </Alert>{/if}
         {#if devicePreferences.viewLoaded && !devicePreferences.view.onboardingSent && (capabilities?.offerOnboarding || page.url.searchParams.get("setup") === "1")}
           <FirstSendNotice />
         {/if}
         <ComposerBox
           shell
+          {shellUnavailable}
           bind:value={saved.text}
           bind:mentions={saved.mentions}
           quoteKey={saved.quoteKey}
@@ -335,7 +371,7 @@
           sending={busy}
           readonly={busy || saved.locked}
           progressHref={saved.preparing && pendingRequestId ? startingPath(pendingRequestId) : undefined}
-          canSend={!blocker && !draft.blocker && !branchBusy}
+          canSend={!blocker && !sandboxRefusal && !draft.blocker && !branchBusy}
           {blockedReason}
           autofocus
           label="Task for the agent"
@@ -420,8 +456,18 @@
                 <PermissionPicker
                   value={permissionMode}
                   {fullAuto}
-                  onselect={(mode) => (saved.choices = { ...saved.choices, permissionMode: PermissionMode[mode] })}
-                />
+                  disabled={busy || saved.locked}
+                  sandboxProfileName={sandboxProfile?.name}
+                  onselect={pickPermissions}
+                >
+                  {#snippet sandboxProfiles()}
+                    <SandboxProfileMenu
+                      options={sandboxPicker.options}
+                      value={sandboxPicker.value}
+                      onselect={pickSandboxProfile}
+                    />
+                  {/snippet}
+                </PermissionPicker>
               {/snippet}
             </ComposerContextRow>
           {/snippet}

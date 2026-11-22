@@ -5,18 +5,30 @@ import type { GatewayCore } from "../core/core.ts";
 import { coreState } from "../core/core-context.ts";
 import { conflict, decodeDraft, type DraftRow } from "./store.ts";
 import { uuid } from "./content.ts";
+import { draftSandboxDigest, type DraftSandboxSelection } from "./sandbox.ts";
 import { NotFound } from "../store/errors.ts";
+
+export interface DraftDeliveryReceipt {
+  sent: boolean;
+  notify: boolean;
+  attempt: string;
+  active: boolean;
+  sandboxProfileDigest?: string;
+}
+
+const DIGEST_BYTES = 32;
 
 export function prepareDraftDelivery(
   core: GatewayCore,
   id: string,
   revision: bigint,
   target: string,
-  kind: string,
+  kind: "send" | "create",
   bytes: Uint8Array,
   requestId: string,
   parent = "",
-) {
+  selection?: DraftSandboxSelection,
+): Promise<DraftDeliveryReceipt> {
   const attempt = crypto.randomUUID();
 
   const {
@@ -66,6 +78,12 @@ export function prepareDraftDelivery(
       }
 
       const draft = decodeDraft(row);
+      // Legacy receipts contain only the request hash. Bound receipts also retain the
+      // policy digest, so a retry uses the admitted policy after the draft payload is cleared.
+      const signature = row.send_request && Buffer.from(row.send_request);
+
+      const savedDigest =
+        signature?.length === DIGEST_BYTES * 2 ? signature.subarray(DIGEST_BYTES).toString("hex") : undefined;
 
       const unsavedRetry =
         row.device_id === "send-receipt" &&
@@ -79,15 +97,20 @@ export function prepareDraftDelivery(
           (row.taken_by || draft.content?.clientRequestId !== requestId)) ||
         (!row.sent && !unsavedRetry && (draft.target?.threadId || draft.target?.workspaceId) !== target) ||
         (row.send_kind && row.send_kind !== kind) ||
-        (row.send_request && !Buffer.from(row.send_request).equals(hash))
+        (signature && !signature.subarray(0, DIGEST_BYTES).equals(hash))
       )
         return yield* Effect.fail(conflict());
 
-      if (row.sent) return { sent: true, notify: false, attempt, active: false };
+      const profile = draft.content?.sandboxProfile;
+      const digest = savedDigest ?? (profile ? yield* draftSandboxDigest(userId, profile, selection) : undefined);
+      const policy = digest ? { sandboxProfileDigest: digest } : {};
 
-      if (row.delivery_active) return { sent: false, notify: false, attempt, active: true };
+      if (row.sent) return { sent: true, notify: false, attempt, active: false, ...policy };
+
+      if (row.delivery_active) return { sent: false, notify: false, attempt, active: true, ...policy };
+      const receiptSignature = digest ? Buffer.concat([hash, Buffer.from(digest, "hex")]) : hash;
       yield* sql`UPDATE composer_drafts SET sending_request_id=${requestId},
-        send_kind=${kind},send_request=${hash},delivery_request_id=${requestId},
+        send_kind=${kind},send_request=${receiptSignature},delivery_request_id=${requestId},
         send_attempt_id=${attempt}::uuid,send_active_until=now()+interval '5 minutes' WHERE id=${id}::uuid`;
 
       return {
@@ -95,6 +118,7 @@ export function prepareDraftDelivery(
         notify: row.device_id !== "send-receipt" && !row.sending_request_id,
         attempt,
         active: false,
+        ...policy,
       };
     }),
   );

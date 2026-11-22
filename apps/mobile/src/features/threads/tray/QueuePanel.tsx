@@ -41,7 +41,7 @@ export function QueuePanel({
   queue: Queue;
   disabled: boolean;
   delivery: ui.MessageDelivery;
-  onDelivery: (delivery: ui.MessageDelivery) => void;
+  onDelivery?: (delivery: ui.MessageDelivery) => void;
   onEdit: (turn: ui.Turn) => void;
 }) {
   const c = useColors();
@@ -71,10 +71,9 @@ export function QueuePanel({
             <Animated.View key={turn.id} entering={rise.entering} exiting={rise.exiting} layout={layout}>
               <QueueRow
                 turn={turn}
-                running={queue.running}
                 fallback={Boolean(queue.fallback(turn.id))}
                 disabled={disabled}
-                onSteer={() => void queue.steer(turn)}
+                onSteer={queue.steer ? () => void queue.steer?.(turn) : undefined}
                 onDelete={() => void queue.remove(turn)}
                 onMore={() => setMenu(turn.id)}
               />
@@ -103,7 +102,6 @@ export function QueuePanel({
 
 function QueueRow({
   turn,
-  running,
   fallback,
   disabled,
   onSteer,
@@ -111,10 +109,9 @@ function QueueRow({
   onMore,
 }: {
   turn: ui.Turn;
-  running: boolean;
   fallback: boolean;
   disabled: boolean;
-  onSteer: () => void;
+  onSteer?: () => void;
   onDelete: () => void;
   onMore: () => void;
 }) {
@@ -139,7 +136,7 @@ function QueueRow({
       <View style={[styles.row, { justifyContent: "flex-end", gap: 8 }]}>
         {preview.text && preview.summary ? <QueueSummary preview={preview} /> : null}
         <View style={{ flex: 1 }} />
-        {running ? (
+        {onSteer ? (
           <Button
             title="Steer"
             variant="ghost"

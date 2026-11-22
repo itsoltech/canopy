@@ -11,6 +11,7 @@ import { useSession } from "../../state/session";
 import { withSentMessage } from "./sent-message";
 import { confirmMessage, uncertainDelivery } from "./pending-message";
 import { useReplySuggestionSend } from "./useReplySuggestionSend";
+import { sandboxShellUnavailable, startsWithShellCommand } from "./sandbox";
 
 /** The gateway refused the message; other failures leave delivery uncertain. */
 function deliveryError(failure: ConnectError) {
@@ -19,17 +20,20 @@ function deliveryError(failure: ConnectError) {
     : "Could not confirm delivery. Retry with the same text to send it only once.";
 }
 
-export function useThreadSend(options: {
+interface ThreadSendOptions {
   id: string;
   message: MessageDraft;
   quotes: ReturnType<typeof useQuoteDraft>;
   connection: ComposerConnection;
+  sandboxBound: boolean;
   setSnapshot: (update: (previous: ui.ThreadSnapshot | undefined) => ui.ThreadSnapshot | undefined) => void;
   onSend: () => void;
   replySourceId?: string;
-}) {
+}
+
+export function useThreadSend(options: ThreadSendOptions) {
   const { client, session, expired } = useSession();
-  const { id, message, quotes, connection, setSnapshot } = options;
+  const { id, message, quotes, connection, sandboxBound, setSnapshot } = options;
   const [busy, setBusy] = useState(false);
   const [waiting, setWaiting] = useState(false);
   const [error, setError] = useState("");
@@ -59,6 +63,7 @@ export function useThreadSend(options: {
 
   async function send(delivery: ui.MessageDelivery, choices?: ComposerPick) {
     const { text: value, attachmentIds, mentions, quotes: sentQuotes } = message.outgoing();
+    const pendingSend = message.persistent?.pendingSend;
 
     if (
       !client ||
@@ -70,13 +75,22 @@ export function useThreadSend(options: {
       sending.current
     )
       return;
+
+    if (sandboxBound && startsWithShellCommand(pendingSend?.text ?? value)) {
+      setError(sandboxShellUnavailable);
+
+      return;
+    }
+
+    const requestDelivery = sandboxBound ? ui.MessageDelivery.QUEUE : delivery;
+    const overrides = sandboxBound ? { ...choices, permissionMode: undefined } : choices;
     sending.current = true;
     replies.invalidate();
     options.onSend();
     setBusy(true);
     setWaiting(!connection.live);
     setError("");
-    const key = JSON.stringify({ value, delivery, attachmentIds, mentions, quotes: sentQuotes, choices });
+    const key = JSON.stringify({ value, requestDelivery, attachmentIds, mentions, quotes: sentQuotes, overrides });
 
     if (pending.current?.key !== key)
       pending.current = { key, id: message.persistent?.requestId ?? Crypto.randomUUID() };
@@ -91,7 +105,7 @@ export function useThreadSend(options: {
     if (message.persistent) message.persistent.preparing = true;
 
     try {
-      let request = message.persistent?.pendingSend;
+      let request = pendingSend;
 
       if (!request) {
         const published = await message.persistent?.publishForSend();
@@ -100,12 +114,12 @@ export function useThreadSend(options: {
           draftRevision: published?.revision ?? 0n,
           threadId: id,
           text: value,
-          delivery,
+          delivery: requestDelivery,
           attachmentIds,
           mentions,
           quotes: sentQuotes,
           clientRequestId: message.persistent?.requestId ?? pending.current.id,
-          ...choices,
+          ...overrides,
         });
         await message.persistent?.beginSend(request);
       }

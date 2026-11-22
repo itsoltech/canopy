@@ -19,6 +19,9 @@ export function sessionPermissions(options: ClaudeThreadsOptions) {
   const canUseTool =
     (spec: ThreadSpec, turnId: () => string, autoAllow: () => AutoAllow): CanUseTool =>
     async (toolName, input, context) => {
+      if (spec.sandboxProfile && toolName === "SandboxNetworkAccess")
+        return { behavior: "deny", message: "The Sandbox profile does not allow this destination." };
+
       if (toolName.startsWith(`mcp__${BUS_SERVER}__`) && context.mcpServer?.source === "sdk")
         return { behavior: "allow", updatedInput: input };
       const question = toolName === "AskUserQuestion";

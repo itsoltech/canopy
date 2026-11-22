@@ -17,6 +17,7 @@ import { Code, ConnectError } from "@connectrpc/connect";
 import { Match } from "effect";
 import { linkedMessage, mapIds, methodNamed, movedItems, qualify, unqualify } from "../computers/remote.ts";
 import type { GatewayCore } from "../core/core.ts";
+import { requireLinkedSandboxProfiles } from "./routed-sandbox.ts";
 import { redirected, single, target } from "./routed-context.ts";
 import { toConnectError } from "./ui-errors.ts";
 import { ConfigIds } from "./routed-config.ts";
@@ -298,6 +299,7 @@ async function* send(
   request: Message,
   signal: AbortSignal,
 ): AsyncGenerator<Message> {
+  requireLinkedSandboxProfiles(computers.capabilities(nodeId), method, request);
   const outbound = clone(method.input, request);
   await restrictLinkedApproval(core.linkedAgents, outbound, nodeId);
 
