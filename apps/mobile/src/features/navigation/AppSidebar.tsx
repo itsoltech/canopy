@@ -98,11 +98,7 @@ function SidebarHeader({ state }: { state: ReturnType<typeof useSidebarState> })
         ]}
       >
         <SidebarBrand />
-        <IconButton
-          icon="pencil-square"
-          label={section === "bots" ? "Create bot" : "New thread"}
-          onPress={() => (section === "bots" ? setCreating(true) : router.push("/new-thread"))}
-        />
+        {section === "bots" && <IconButton icon="pencil-square" label="Create bot" onPress={() => setCreating(true)} />}
       </View>
       {state.modules.length > 1 && (
         <Segmented
@@ -117,7 +113,7 @@ function SidebarHeader({ state }: { state: ReturnType<typeof useSidebarState> })
         />
       )}
       {creating && section === "bots" && <CreateBot onClose={() => setCreating(false)} />}
-      <View style={[styles.row, { paddingHorizontal: 12, paddingBottom: 8 }]}>
+      <View style={[styles.row, { gap: 4, paddingHorizontal: 8, paddingBottom: 8 }]}>
         <SearchField
           bare
           label={searchLabel}
@@ -136,6 +132,7 @@ function SidebarHeader({ state }: { state: ReturnType<typeof useSidebarState> })
               color={projectId ? c.accent : undefined}
               onPress={() => setThreadPicker("filter")}
             />
+            <IconButton icon="pencil-square" label="New thread" onPress={() => router.push("/new-thread")} />
           </>
         )}
       </View>

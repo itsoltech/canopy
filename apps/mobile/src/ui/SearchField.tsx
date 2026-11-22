@@ -26,6 +26,7 @@ export function SearchField({
 }) {
   const c = useColors();
   const [focused, setFocused] = useState(false);
+  const leftPadding = bare ? 4 : 10;
 
   return (
     <View
@@ -33,13 +34,14 @@ export function SearchField({
         styles.row,
         {
           minHeight: 40,
-          paddingLeft: 10,
+          paddingLeft: leftPadding,
           borderRadius: 8,
           borderWidth: 1,
           borderColor: bare ? "transparent" : c.ring,
           backgroundColor: bare ? "transparent" : c.surface,
         },
-        focused && { borderWidth: 2, borderColor: c.brand, paddingLeft: 9 },
+        bare && { gap: 4 },
+        focused && { borderWidth: 2, borderColor: c.brand, paddingLeft: leftPadding - 1 },
         style,
       ]}
     >
@@ -57,19 +59,21 @@ export function SearchField({
         returnKeyType="search"
         style={[styles.body, { flex: 1, minWidth: 0, color: c.text, paddingVertical: 8 }]}
       />
-      <View style={{ width: 36, alignItems: "center" }}>
-        {value ? (
-          <Pressable
-            accessibilityRole="button"
-            accessibilityLabel="Clear search"
-            onPress={() => onChange("")}
-            hitSlop={6}
-            style={{ width: 32, height: 32, alignItems: "center", justifyContent: "center" }}
-          >
-            <Icon name="x-circle" color={c.faint} />
-          </Pressable>
-        ) : null}
-      </View>
+      {(!bare || value.length > 0) && (
+        <View style={{ width: bare ? 32 : 36, alignItems: "center" }}>
+          {value ? (
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel="Clear search"
+              onPress={() => onChange("")}
+              hitSlop={6}
+              style={{ width: 32, height: 32, alignItems: "center", justifyContent: "center" }}
+            >
+              <Icon name="x-circle" color={c.faint} />
+            </Pressable>
+          ) : null}
+        </View>
+      )}
     </View>
   );
 }
