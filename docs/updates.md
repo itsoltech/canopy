@@ -1,6 +1,6 @@
 # Aktualizacje Canopy
 
-Status: opis zaimplementowanego kodu (2026-11-21), w tym raportowania startu i zamykania
+Status: opis zaimplementowanego kodu (2026-11-22), w tym raportowania startu i zamykania
 gatewaya oraz etapów przygotowania, pobierania i ponownego łączenia workera,
 przekazania nadzoru workera
 przed obsługą wątków po aktualizacji, zbiorczego sprawdzania sesji zamkniętych wątków
@@ -8,7 +8,8 @@ po powrocie workera, ograniczenia kanału Nightly
 do wydań nightly, sprawdzania historii commitów aktualizacji desktopu i zmiany kanału binarek,
 osobnych aktualizacji Canopy i CLI dostawców, wspólnego planu dla licznika i przycisku
 Update all na telefonie, wygaszania mobilnego komunikatu o restarcie po potwierdzeniu
-wersji docelowej, statusu aplikacji desktopowej w mobilnym wierszu jej workera,
+wersji docelowej lub gotowości binarnego gatewaya po zapowiedzi bez wersji docelowej,
+statusu aplikacji desktopowej w mobilnym wierszu jej workera,
 pomijania komputerów offline w Update all,
 wspólnego otwierania paneli Updates i Provider usage w stopce, równoległej aktualizacji
 zdalnych desktopów i workerów binarnych, ponawiania raportu o błędzie workera,
@@ -49,6 +50,9 @@ odczytuje istniejący journal updatera i zapisuje `succeeded`, `failed` albo
 `rolled_back` z przyczyną. `GetUpdates.departure` i pierwsza wiadomość kolejnego
 overview odtwarzają wynik; raport lokalnej aplikacji desktopowej korzysta z tego
 samego checkpointu. Stan partnera jest kwalifikowany jego `node_id`.
+Po zapowiedzi restartu bez wersji docelowej telefon może usunąć ją również na podstawie
+bieżącego stanu `idle` lub `succeeded` samodzielnego binarnego gatewaya. Zapowiedź
+pozostaje aktywna podczas startu i zamykania, dopóki gateway nie zgłosi wyniku.
 
 Lokalny kontroler desktopu przekazuje docelową wersję również przy zwykłym
 „Restart to update”. Restart zdrowia ogłasza `restarting`, o ile gateway nadal
