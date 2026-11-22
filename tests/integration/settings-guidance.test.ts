@@ -45,6 +45,36 @@ test("section evidence is scoped to a published client build and carries visibil
   expect(lookup("web", "Fictional panel")).toMatchObject({ status: "unconfirmed", search_suggestions: [] });
 });
 
+test("Network access purpose is available independently of verified navigation", () => {
+  const version = "0.90.0-nightly.5";
+  const query = "Network access";
+  const sectionPurpose = expect.stringContaining("It has no effect on outbound internet access from an agent process");
+
+  for (const args of [
+    { query },
+    { query, client: "desktop" },
+    { query, client_version: version },
+    { query, client: "desktop", client_version: "0.6.0-beta.1" },
+  ] satisfies SettingsGuideArgs[]) {
+    const result = findCanopySettings(args, version);
+    expect(result).toMatchObject({ status: "unconfirmed", section_purpose: sectionPurpose });
+    expect(result).not.toHaveProperty("path");
+  }
+
+  expect(findCanopySettings({ query, client: "desktop", client_version: version }, version)).toMatchObject({
+    status: "conditional_section",
+    path: ["Settings", "Network access"],
+    section_purpose: sectionPurpose,
+    conditions: ["The connected gateway must support Network access."],
+  });
+  expect(
+    findCanopySettings(
+      { query: "allow agent outbound internet access to GitHub", client: "desktop", client_version: version },
+      version,
+    ),
+  ).toMatchObject({ status: "unconfirmed", search_suggestions: [] });
+});
+
 describe.skipIf(!dockerAvailable)("Canopy Settings guidance through chat", () => {
   let f: HarnessBots;
 
@@ -82,6 +112,21 @@ describe.skipIf(!dockerAvailable)("Canopy Settings guidance through chat", () =>
       reason: expect.stringContaining("does not identify a published client build"),
     });
     expect(result).not.toHaveProperty("path");
+
+    const withoutClient = await gw.worker.callTool({
+      threadId: thread.id,
+      tool: SETTINGS_GUIDE_TOOL,
+      args: { query: "Network access" },
+    });
+
+    expect(withoutClient.isError).toBe(false);
+    const network = JSON.parse(withoutClient.resultJson);
+    expect(network).toMatchObject({
+      status: "unconfirmed",
+      missing: ["client", "client_version"],
+      section_purpose: expect.stringContaining("manages incoming connections to Canopy"),
+    });
+    expect(network).not.toHaveProperty("path");
   });
 
   test("the in-app bot can verify guidance with Web access and Threads disabled", async () => {

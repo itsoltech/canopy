@@ -38,6 +38,7 @@ export { agentBusToolSpecs, type ToolJsonSpec } from "./tool-specs.ts";
 export { DELEGATING_BOT_MESSAGE_GUIDANCE, SUBAGENT_REPORTING_RULES } from "./communication.ts";
 
 export {
+  NETWORK_ACCESS_PURPOSE,
   SETTINGS_CLIENTS,
   SETTINGS_GUIDE_TOOL,
   SETTINGS_REPLY_GUIDANCE,

@@ -1,5 +1,5 @@
 import type { JsonObject } from "@bufbuild/protobuf";
-import type { SettingsGuideArgs } from "@canopy/domain";
+import { NETWORK_ACCESS_PURPOSE, type SettingsGuideArgs } from "@canopy/domain";
 import { CANOPY_VERSION, releaseChannel } from "@canopy/domain/release/version";
 import {
   desktopSettingsSections,
@@ -16,10 +16,13 @@ export function findCanopySettings(
 ): JsonObject {
   const reference = { version, channel: releaseChannel(version) };
   const clientVersion = client_version?.trim();
+  const sectionQuery = settingsSearchWords(query).join(" ");
+  const sectionContext = sectionQuery === "network access" ? { section_purpose: NETWORK_ACCESS_PURPOSE } : {};
 
   if (!client || !clientVersion)
     return {
       status: "unconfirmed",
+      ...sectionContext,
       reason: "The client's platform and exact Canopy app version are required to verify a section.",
       missing: [...(!client ? ["client"] : []), ...(!clientVersion ? ["client_version"] : [])],
     };
@@ -27,12 +30,14 @@ export function findCanopySettings(
   if (releaseChannel(clientVersion) === "development")
     return {
       status: "unconfirmed",
+      ...sectionContext,
       reason: "The reported version does not identify a published client build.",
     };
 
   if (clientVersion !== version)
     return {
       status: "unconfirmed",
+      ...sectionContext,
       reference,
       reason: "This catalogue cannot verify a Settings path for a different client build.",
     };
@@ -45,8 +50,7 @@ export function findCanopySettings(
           (section) => client === "web" || section.href !== "/settings/agent-tools",
         );
 
-  const words = settingsSearchWords(query);
-  const exact = sections.find((section) => settingsSearchWords(section.label).join(" ") === words.join(" "));
+  const exact = sections.find((section) => settingsSearchWords(section.label).join(" ") === sectionQuery);
 
   if (exact) {
     const linked = exact.href === "/settings/computers";
@@ -66,6 +70,7 @@ export function findCanopySettings(
       client,
       path: ["Settings", exact.label],
       scope: "The catalogue verifies the section label. Individual controls still need verification.",
+      ...sectionContext,
       ...(conditions.length > 0 && { conditions }),
     };
   }
@@ -73,7 +78,7 @@ export function findCanopySettings(
   return {
     status: "unconfirmed",
     reason: "The catalogue does not verify a section or control for this query.",
-    search_suggestions: words.length
+    search_suggestions: sectionQuery
       ? sections.flatMap((section) => (matchesSettingsSection(section, query) ? [section.label] : []))
       : [],
   };
