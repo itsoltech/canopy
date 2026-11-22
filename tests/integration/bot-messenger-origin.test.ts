@@ -130,7 +130,7 @@ describe.skipIf(!dockerAvailable)("messenger work callback origin", () => {
     return { threadId: started.thread_id, turnId: started.turn_id!, call };
   }
 
-  async function expectStatus(turnId: string, status: "completed" | "failed") {
+  async function expectStatus(turnId: string, status: "running" | "completed" | "failed") {
     expect(
       await eventually(
         () => query<{ status: string }>("SELECT status FROM turns WHERE id=$1::uuid", [turnId]),
