@@ -26,7 +26,7 @@ import { useSidebarThreads } from "./useSidebarThreads";
 import { SidebarProjectFilter, SidebarSort } from "./SidebarThreadPickers";
 import { CreateBot } from "../bots/CreateBot";
 import { useDevicePreferences } from "../settings/device-preferences";
-import { SidebarBrand, SidebarReleaseArt } from "./SidebarBrand";
+import { SidebarBrand, SidebarWatermark } from "./SidebarBrand";
 
 function useSidebarState() {
   const { session, ready, bots } = useSession();
@@ -306,7 +306,6 @@ export function AppSidebar() {
   return (
     <ScreenFrame
       backgroundColor={c.sidebar}
-      headerBackground={<SidebarReleaseArt />}
       header={
         <>
           <SidebarHeader state={state} />
@@ -320,6 +319,7 @@ export function AppSidebar() {
         </>
       }
     >
+      <SidebarWatermark />
       <SidebarLists state={state} />
       {state.section === "threads" && (
         <>

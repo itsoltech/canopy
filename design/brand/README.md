@@ -30,6 +30,10 @@ Te krzywe są dostępne w [geometrii znaku](../../packages/ui/src/canopy-tree.ts
 | --- | --- | --- | --- | --- |
 | **12** | [SVG Dev](sidebar-12/canopy-dev.svg) | [SVG Nightly](sidebar-12/canopy-nightly.svg) | [SVG Beta](sidebar-12/canopy-beta.svg) | [SVG Stable](sidebar-12/canopy-stable.svg) |
 | **13** | [SVG Dev](sidebar-13/canopy-dev.svg) | [SVG Nightly](sidebar-13/canopy-nightly.svg) | [SVG Beta](sidebar-13/canopy-beta.svg) | [SVG Stable](sidebar-13/canopy-stable.svg) |
+| **14** | [SVG Dev](sidebar-14/canopy-dev.svg) | [SVG Nightly](sidebar-14/canopy-nightly.svg) | [SVG Beta](sidebar-14/canopy-beta.svg) | [SVG Stable](sidebar-14/canopy-stable.svg) |
+
+W propozycji 14 drzewo z wersji 13 zajmuje większą część szerokości panelu, a prawa krawędź kadru przycina koronę.
+Środek kompozycji przypada na 62% wysokości sidebara (obszar rysunku od 28% do 96%).
 
 Każdy SVG ma przezroczyste tło i kolory dla jasnego oraz ciemnego motywu.
 Web, desktop i mobile korzystają ze [wspólnej grafiki](../../packages/ui/src/sidebar-art.ts).

@@ -2,8 +2,7 @@ import { contextType, palette } from "@canopy/ui";
 import { sidebarIcon, sidebarIdentity } from "@canopy/ui/sidebar-art";
 import { channel } from "expo-updates";
 import { StyleSheet, Text, View } from "react-native";
-import Svg, { Defs, LinearGradient, Rect, Stop, SvgXml } from "react-native-svg";
-import { usePaneInsets } from "../../ui/ScreenFrame";
+import { SvgXml } from "react-native-svg";
 import { styles, useColors, useTypography } from "../../ui/theme";
 
 const release = channel === "nightly" || channel === "beta" ? channel : channel ? "stable" : "development";
@@ -41,44 +40,22 @@ export function SidebarBrand() {
   );
 }
 
-const artHeight = 88;
-
-/** The tint extends through the status bar, while the tree aligns with the pane's safe edge. */
-export function SidebarReleaseArt() {
-  const { top, right } = usePaneInsets();
+export function SidebarWatermark() {
   const { dark } = useColors();
-  const height = top + artHeight;
-  const development = release === "development";
 
   return (
     <View
       pointerEvents="none"
       accessibilityElementsHidden
       importantForAccessibility="no-hide-descendants"
-      style={[brand.backdrop, { height }]}
+      style={brand.watermark}
     >
-      {release !== "stable" && (
-        <Svg width="100%" height={height}>
-          <Defs>
-            <LinearGradient id="tint" x1="0%" y1="0%" x2="0%" y2="100%">
-              <Stop offset="0%" stopColor={tone[500]} stopOpacity={development ? 0.08 : 0.1} />
-              <Stop offset="50%" stopColor={tone[500]} stopOpacity={development ? 0.03 : 0.04} />
-              <Stop offset="100%" stopColor={tone[500]} stopOpacity={0} />
-            </LinearGradient>
-          </Defs>
-          <Rect width="100%" height={height} fill="url(#tint)" />
-        </Svg>
-      )}
-      {/* Narrow panes crop the scene's left margin so the tree stays beside the compose button. */}
-      <View style={[brand.artwork, { top: top + 4, right: right + 3 }]}>
-        <SvgXml xml={identity.art} color={identity.ink[dark ? "dark" : "light"]} width={160} height={artHeight} />
-      </View>
+      <SvgXml xml={identity.art} color={identity.ink[dark ? "dark" : "light"]} width="100%" height="100%" />
     </View>
   );
 }
 
 const brand = StyleSheet.create({
   title: { flexShrink: 1 },
-  backdrop: { position: "absolute", top: 0, left: 0, right: 0, overflow: "hidden" },
-  artwork: { position: "absolute", width: "50%", alignItems: "flex-end", overflow: "hidden" },
+  watermark: { position: "absolute", top: "28%", bottom: "4%", left: 0, right: 0, overflow: "hidden" },
 });

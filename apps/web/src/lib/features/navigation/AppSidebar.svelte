@@ -9,6 +9,8 @@
   import { isSettingsRoute } from "#lib/features/settings/settings-route.ts";
   import { needsYou, unseenResult } from "#lib/features/threads/activity.ts";
   import { isThreadSnoozed } from "@canopy/domain/thread-snooze";
+  import { CANOPY_VERSION, releaseChannel } from "@canopy/domain/release/version";
+  import { sidebarIdentity } from "@canopy/ui/sidebar-art";
   import Icon from "#lib/shared/ui/Icon.svelte";
   import ConnectionStatus from "./ConnectionStatus.svelte";
   import UpdatesIndicator from "#lib/features/desktop/UpdatesIndicator.svelte";
@@ -29,6 +31,8 @@
   import { useGatewayCapabilities } from "#lib/features/desktop/gateway-capabilities.svelte.ts";
   import { footerPopovers } from "./footer-popovers.svelte.ts";
 
+  const channel = releaseChannel(CANOPY_VERSION);
+  const identity = sidebarIdentity[channel];
   const footer = footerPopovers();
   const capabilities = useGatewayCapabilities();
   const addProject = useAddProject();
@@ -90,8 +94,16 @@
 </script>
 
 <!-- Compact chrome (docs/ui-scale.md): text one step below the pages beside it. -->
-<div class="density-chrome sidebar-scale @container flex h-full flex-col">
-  <SidebarHeader>
+<div class="density-chrome sidebar-scale @container relative isolate flex h-full flex-col">
+  <div
+    class="sidebar-watermark pointer-events-none absolute inset-x-0 top-[28%] bottom-[4%] -z-10 overflow-hidden forced-colors:hidden"
+    style:--ink-light={identity.ink.light}
+    style:--ink-dark={identity.ink.dark}
+    aria-hidden="true"
+  >
+    {@html identity.art}
+  </div>
+  <SidebarHeader {channel}>
     {#if settings.loaded && section === "bots"}
       <a href="/bots?create=1" class={iconLink} aria-label="Create bot">
         <Icon name="pencil-square" />
@@ -207,3 +219,9 @@
     />
   </div>
 </div>
+
+<style>
+  .sidebar-watermark {
+    color: light-dark(var(--ink-light), var(--ink-dark));
+  }
+</style>

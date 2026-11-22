@@ -1,7 +1,7 @@
 # Wydania: wersje, CI, artefakty
 
 Status: opis zaimplementowanego workflow (2026-11-22). Buildy publikują wykazy licencji zależności. Automat sprawdza promocje co godzinę.
-Sidebar oznacza kanał uruchomionej aplikacji rysunkiem drzewa Canopy o wspólnym obrysie korony i konarów.
+Sidebar oznacza kanał uruchomionej aplikacji dużym, półprzezroczystym drzewem w tle listy.
 Pakowanie Desktop i generowanie fingerprintu Expo używają poprawionego `minimatch`.
 Smoke Desktop czeka na zapis trasy Network access przed restartem workera podczas parowania.
 Pakowanie Desktop archiwizuje runtime do smoke z katalogu właściwego dla architektury Linuxa.
@@ -23,7 +23,8 @@ Jedna wersja dla wszystkich aplikacji (gateway, worker, web, desktop, mobile). W
 semantic-release z commitów Angular po squash merge. Wdrożenie: [deploy.md](deploy.md).
 Zasady commitów i wybór gałęzi: [contributing.md](contributing.md).
 
-Tło nagłówka sidebara wykorzystuje drzewo z [propozycji 13](../design/brand/README.md). W Dev ma postać
+Lista wątków i botów przewija się na nieruchomym tle z [propozycji 14](../design/brand/README.md#tła-sidebara).
+Prawa krawędź panelu przycina koronę drzewa. W Dev drzewo ma postać
 niebieskiego rysunku technicznego z siatką i linią wymiarową. W Nightly drzewu
 towarzyszą fioletowe gwiazdy, a w Becie korona ma bursztynowe kreskowanie i dwa
 opadające liście. Stable pokazuje jednobarwną sylwetkę znaku. Dev, Nightly
@@ -31,7 +32,7 @@ i Beta mają też nazwę kanału pod nazwą aplikacji.
 
 W web i desktop o wyglądzie decyduje `CANOPY_VERSION` **uruchomionego buildu**.
 Wersję można odczytać w podpowiedzi nagłówka i w Settings. Wąski drawer webowy
-korzysta z tego samego nagłówka. Aplikacja natywna dobiera rysunek według kanału
+korzysta z tego samego tła. Aplikacja natywna dobiera rysunek według kanału
 Expo Updates.
 
 ## Schemat wersji

@@ -1,7 +1,7 @@
 # Canopy na iOS i Android
 
-Status: opis zaimplementowanego kodu (2026-11-22), w tym nowego logo Canopy i grafiki
-kanału w nagłówku sidebara oraz dziennego pingu użycia z przełącznikiem prywatności
+Status: opis zaimplementowanego kodu (2026-11-22), w tym nowego logo Canopy i dużego
+znaku wodnego kanału za listami w sidebarze oraz dziennego pingu użycia z przełącznikiem prywatności
 i pomijaniem wysyłki offline. Settings → Appearance
 zapisuje schemat kolorów, oba motywy i szerokość wątku w instalacji aplikacji.
 Profile EAS przypinają Bun 1.4.5
@@ -1069,13 +1069,15 @@ wstrzymane kanały i rollouty; nie przepina ich automatycznie. **Nie mapuj `beta
 nie jest instalacją przypisaną do kanału wydania.
 
 Obok nazwy Canopy w nagłówku sidebara widnieje płaska ikona drzewa o boku 24 dp,
-wspólna z web i desktop. Rysunek po prawej zależy od lokalnego kanału Expo Updates.
-**Dev** (build bez kanału) pokazuje błękitny rysunek techniczny drzewa, **Nightly**
-fioletowe drzewo z gwiazdami, a **Beta** bursztynową rycinę. W tych wariantach
-etykieta kanału widnieje pod nazwą Canopy, a delikatny gradient blednie od paska
-stanu w dół. Wydanie **Stable** i nierozpoznany kanał pokazują zwykły znak drzewa
-bez podpisu kanału. Grafika mieści się w bezpiecznym obszarze ekranu i działa
-offline zarówno na ekranie listy, jak i w układzie z dwiema kolumnami.
+wspólna z web i desktop. Wariant grafiki zależy od lokalnego kanału Expo Updates.
+**Dev** (build bez kanału) ma błękitny rysunek techniczny drzewa, **Nightly**
+fioletowe drzewo z gwiazdami, a **Beta** bursztynową rycinę. W tych trzech
+wariantach etykieta kanału widnieje pod nazwą Canopy. Wydanie **Stable**
+i nierozpoznany kanał pokazują zwykły znak drzewa bez podpisu kanału.
+
+Drzewo w tle listy wątków i botów zajmuje większą część szerokości panelu.
+Środek rysunku przypada na 62% wysokości sidebara. Lista przewija się nad grafiką
+zarówno na ekranie telefonu, jak i w układzie z dwiema kolumnami.
 
 `updates.checkAutomatically: ON_LOAD` sprawdza aktualizacje na zimnym starcie.
 `fallbackToCacheTimeout: 0` uruchamia od razu ostatni lokalny bundle (także offline);
