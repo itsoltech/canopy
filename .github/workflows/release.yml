@@ -695,6 +695,8 @@ jobs:
         run: |
           if [ "$RUNNER_OS" = "macOS" ]; then
             resources="apps/desktop/release/$CANOPY_CHANNEL/mac-arm64/Canopy.app/Contents/Resources"
+          elif [ "$RUNNER_ARCH" = "ARM64" ]; then
+            resources="apps/desktop/release/$CANOPY_CHANNEL/linux-arm64-unpacked/resources"
           else
             resources="apps/desktop/release/$CANOPY_CHANNEL/linux-unpacked/resources"
           fi
@@ -736,7 +738,8 @@ jobs:
     steps:
       - uses: actions/checkout@v5
         with:
-          ref: ${{ github.workflow_sha }}
+          # Smoke tests import Desktop code and must match the packaged runtime.
+          ref: ${{ env.EXPECTED_SHA }}
           persist-credentials: false
       - uses: ./.github/actions/setup-bun
       - uses: actions/download-artifact@v5

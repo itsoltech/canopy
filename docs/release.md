@@ -3,6 +3,8 @@
 Status: opis zaimplementowanego workflow (2026-11-22). Buildy publikują wykazy licencji zależności. Automat sprawdza promocje co godzinę.
 Pakowanie Desktop i generowanie fingerprintu Expo używają poprawionego `minimatch`.
 Smoke Desktop czeka na zapis trasy Network access przed restartem workera podczas parowania.
+Pakowanie Desktop archiwizuje runtime do smoke z katalogu właściwego dla architektury Linuxa.
+Smoke Desktop pobiera testy i ich zależności z rewizji pakowanego runtime'u.
 Domyślne okresy obserwacji to 6 h na dev i 24 h od gotowości bety. Publikacja bety
 otwiera kolejną serię nightly. Stable zachowuje wersję bazową i SHA przetestowanej bety.
 CI dla PR-ów dobiera testy mobile, interfejsu web i powłoki Electron według zmian.
@@ -95,6 +97,8 @@ i używanymi ikonami. Brakujące teksty upstream można dodać w
 `licenses/<nazwa pakietu>/<wersja>/` wraz z informacją o źródle.
 W webie i desktopie wykaz jest dostępny w **Settings → Open-source licenses**.
 Desktop zawiera też tekstowy wykaz w `resources/runtime/THIRD_PARTY_NOTICES.txt`.
+Weryfikacja pakietu wymaga obu wygenerowanych wykazów, gdy przygotowany runtime zawiera
+co najmniej jeden z nich. Dla rewizji sprzed wprowadzenia generatora wymaga wykazu Markdown.
 Mobilne wydania i OTA generują plik offline podczas bundlowania Metro
 ([mobile.md](mobile.md#licencje-open-source)).
 
@@ -520,7 +524,7 @@ verify → plan ─┬─ checks ────────────→ release
 | `images-build` | buildx `gateway` i `worker`, amd64+arm64 jako archiwa OCI z SBOM i proweniencją; obraz gateway amd64 z cache przechodzi smoke obok PostgreSQL | po `plan` | — (artefakty Actions) |
 | `desktop-build` | Kompilacja aplikacji i runtime na docelowej platformie | po `plan` | — (artefakty Actions) |
 | `desktop` | Pakowanie, podpisy i notaryzacja z przygotowanego runtime | po `desktop-build` i zielonych `checks` | — (artefakty Actions) |
-| `desktop-smoke` | Uruchomienie spakowanego runtime i instalacja Windows na odrębnym runnerze | po `desktop` | — |
+| `desktop-smoke` | Testy z `EXPECTED_SHA` uruchamiają spakowany runtime; na Windows instalują pakiet na odrębnym runnerze | po `desktop` | — |
 | `release` | semantic-release na lustrze, atomowy push tagu/notes i draft przez API GitHuba | po **zielonych `checks`**; grupa `release-version-<ref>` | tag + ukryty draft |
 | `images` | kopiuje gotowe archiwa OCI do GHCR pod niezmiennym tagiem wydania | po `release` i `images-build` | obraz `vX.Y.Z` |
 | `publish-server` | binaria, `checksums.txt`, `manifest.json` na drafcie | po `checks`, `release`, `binaries`, `smoke`, `images`, we wspólnej kolejce `release-branch-mutations` | nic publicznego |
