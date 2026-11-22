@@ -61,6 +61,19 @@ const withBot = (list: botContract.ListBotsResponse | undefined, bot: botContrac
       : [...(list?.bots ?? []), bot],
   );
 
+export function removeBotFromList(queries: QueryCache, id: string) {
+  const list = queries.snapshot<botContract.ListBotsResponse>(BOT_LIST).data;
+
+  if (!list) return;
+  queries.set(
+    BOT_LIST,
+    withBots(
+      list,
+      list.bots.filter((bot) => bot.id !== id),
+    ),
+  );
+}
+
 /** Apply the confirmed count without replacing newer messages or unrelated sidebar state. */
 export function updateBotRead(queries: QueryCache, read: botContract.Bot) {
   const list = queries.snapshot<botContract.ListBotsResponse>(BOT_LIST).data;
@@ -107,13 +120,7 @@ export function useBotListSync() {
 
     if (change.case === "linkedReadCompleted" && change.value === "ListBots") queries.invalidate(BOT_LIST);
 
-    if (change.case === "botRemoved" && queries.snapshot(BOT_LIST).loaded)
-      queries.set<botContract.ListBotsResponse>(BOT_LIST, (current) =>
-        withBots(
-          current,
-          (current?.bots ?? []).filter((b) => b.id !== change.value),
-        ),
-      );
+    if (change.case === "botRemoved") removeBotFromList(queries, change.value);
   });
 
   // The stream is down while in the background or offline: nothing is pushed then.
