@@ -9,8 +9,9 @@ sidebar i rozmowa przesuwają wspólną krawędź podczas zwijania i rozwijania.
 Uchwyt na tej krawędzi zmienia szerokość sidebara i zapisuje ją lokalnie.
 Nagłówek sidebara pokazuje kanał aplikacji.
 Licznik i akcja Update all na telefonie wynikają z planu instalacji Canopy.
-Komunikat o restarcie znika po potwierdzeniu powrotu gatewaya lub wersji docelowej,
-a zmiana wątku nie przedłuża wyświetlania wyniku.
+Komunikat o restarcie znika po potwierdzeniu powrotu gatewaya lub wersji docelowej.
+Stan gotowości binarnego gatewaya kończy także zapowiedź restartu bez zmiany wersji.
+Zmiana wątku nie przedłuża wyświetlania wyniku.
 Arkusz Updates pokazuje start i zamykanie gatewaya oraz etapy aktualizacji workerów.
 Wiadomości agenta w rozwiniętej aktywności tury mają dodatkowy odstęp pionowy.
 Stany źródeł Usage są widoczne w sekcji **Recording gateways**. Podsumowanie
@@ -703,6 +704,9 @@ Zaplanowane restarty nadal korzystają z osobnego komunikatu i próby co 2,5 s w
 Ponowne otwarcie `WatchOverview` przy zmianie wątku może odtworzyć zapis restartu.
 Telefon pomija wygasłe zapowiedzi i zapowiedzi zakończonych prób. Krótki baner wyniku
 ma jeden termin dla całej sesji parowania, wspólny dla wszystkich ekranów.
+Podczas startu i zamykania sama wersja z GetUpdates nie kończy zapowiedzi. Gdy odczyt
+rozpoczęty po zapowiedzi restartu bez wersji docelowej potwierdzi gotowość samodzielnego
+binarnego gatewaya, telefon usuwa baner i przywraca zwykły stan połączenia.
 
 Backoff: 1 / 2 / 4 / 8 / 16 / 30 s z jitterem 80–100%, nigdy ponad 30 s. Czas oczekiwania
 liczy się od zakończenia nieudanej próby. Dla watcha wątku sukces zeruje backoff
