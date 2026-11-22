@@ -1,11 +1,42 @@
 import { create } from "@bufbuild/protobuf";
 import { ui } from "@canopy/contracts";
-import { Code, ConnectError } from "@connectrpc/connect";
+import { Code, ConnectError, type HandlerContext } from "@connectrpc/connect";
+import { coreState } from "../core/core-context.ts";
 import { type GatewayCore } from "../core/core.ts";
 import { mobileGuard, mobileIdentity } from "../core/mobile-devices.ts";
 import type { UiHandlers } from "./ui-service.ts";
+import { serviceIdentity } from "./auth.ts";
 import { CANOPY_VERSION } from "@canopy/domain/release/version";
 import { DESKTOP_CLIENT_PROTOCOL, MIN_DESKTOP_CLIENT_PROTOCOL } from "@canopy/domain/release/protocol";
+
+function phoneIdentity(core: GatewayCore, context: HandlerContext) {
+  const identity = context.values.get(mobileIdentity);
+
+  return identity?.clientKind === "mobile" && identity.userId === core[coreState].options.userId ? identity : undefined;
+}
+
+function pairedPhone(core: GatewayCore, context: HandlerContext) {
+  const identity = phoneIdentity(core, context);
+
+  if (!identity) throw new ConnectError("Mobile device token required", Code.Unauthenticated);
+
+  return identity.deviceId;
+}
+
+const mayConfigurePushRelay = (core: GatewayCore, context: HandlerContext) =>
+  core.mobilePush.settingsEditable && context.values.get(serviceIdentity);
+
+async function pushRelayGuard<A>(core: GatewayCore, context: HandlerContext, run: () => A | Promise<A>) {
+  if (!mayConfigurePushRelay(core, context))
+    throw new ConnectError("Push relay settings require gateway administration access", Code.PermissionDenied);
+
+  try {
+    return await run();
+  } catch (error) {
+    if (error instanceof ConnectError) throw error;
+    throw new ConnectError("Could not access push relay settings. Try again.", Code.FailedPrecondition);
+  }
+}
 
 export function mobileHandlers(
   core: GatewayCore,
@@ -18,14 +49,24 @@ export function mobileHandlers(
   | "revokeMobilePairing"
   | "revokeMobileDevice"
   | "unpairMobileDevice"
+  | "setMobilePushSubscription"
+  | "beginManagedMobilePush"
+  | "completeManagedMobilePush"
+  | "resolveMobilePush"
+  | "getPushRelaySettings"
+  | "updatePushRelaySettings"
 > {
   return {
-    getClientCapabilities: async () =>
+    getClientCapabilities: async (_request, context) =>
       create(ui.ClientCapabilitiesSchema, {
         gatewayVersion: CANOPY_VERSION,
         gatewayRole: core.role,
         linkedComputers: core.role === "desktop",
         offerOnboarding: core.offerOnboarding,
+        mobilePush: core.mobilePush.manualAvailable && !!phoneIdentity(core, context),
+        managedMobilePush: core.mobilePush.managedAvailable && !!phoneIdentity(core, context),
+        localPushRelaySettings: core.role === "desktop" && mayConfigurePushRelay(core, context),
+        pushRelaySettings: mayConfigurePushRelay(core, context),
         // The identity's name only: a full computers snapshot (routes, peers, notices) is not needed here.
         gatewayName: core.computers?.hello().name || "your gateway",
         minProtocol: MIN_DESKTOP_CLIENT_PROTOCOL,
@@ -38,6 +79,17 @@ export function mobileHandlers(
     getMobileDevices: () => mobileGuard(() => core.mobile.list()),
 
     createMobilePairing: () => mobileGuard(() => core.mobile.create()),
+    getPushRelaySettings: (_request, context) => pushRelayGuard(core, context, () => core.mobilePush.relaySettings()),
+    updatePushRelaySettings: (request, context) =>
+      pushRelayGuard(core, context, () => core.mobilePush.updateRelaySettings(request)),
+    setMobilePushSubscription: (request, context) =>
+      mobileGuard(() => core.mobilePush.subscribe(pairedPhone(core, context), request)),
+    beginManagedMobilePush: (request, context) =>
+      mobileGuard(() => core.mobilePush.beginManaged(pairedPhone(core, context), request, context.signal)),
+    completeManagedMobilePush: (request, context) =>
+      mobileGuard(() => core.mobilePush.completeManaged(pairedPhone(core, context), request, context.signal)),
+    resolveMobilePush: (request, context) =>
+      mobileGuard(() => core.mobilePush.resolve(pairedPhone(core, context), request.receiptId)),
 
     revokeMobilePairing: (r) =>
       mobileGuard(async () => {

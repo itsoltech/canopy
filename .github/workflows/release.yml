@@ -124,6 +124,7 @@ jobs:
       channel: ${{ steps.plan.outputs.channel }}
       tag: ${{ steps.plan.outputs.tag }}
       desktop_matrix: ${{ steps.matrix.outputs.value }}
+      image_apps: ${{ steps.image-apps.outputs.value }}
     steps:
       - uses: actions/checkout@v5
         with:
@@ -158,6 +159,15 @@ jobs:
             targets="$targets"',{"target":"linux-arm64","runner":"ubuntu-24.04-arm","experimental":true}'
           fi
           echo "value={\"include\":[$targets]}" >> "$GITHUB_OUTPUT"
+      - name: Select image targets in the release revision
+        id: image-apps
+        run: |
+          apps='"gateway","worker"'
+          dockerfile="$(git show "$EXPECTED_SHA:Dockerfile")"
+          if grep -qE '^FROM .+ AS push-relay$' <<<"$dockerfile"; then
+            apps="$apps"',"push-relay"'
+          fi
+          echo "value=[$apps]" >> "$GITHUB_OUTPUT"
 
   # Reserve the version: tag and draft GitHub Release after checks, only with the planned version
   # (EXPECTED_VERSION, scripts/release-expected-version.mjs). Refuse rewritten history, allow newer commits.
@@ -376,7 +386,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        app: [gateway, worker]
+        app: ${{ fromJSON(needs.plan.outputs.image_apps) }}
     runs-on: ubuntu-24.04
     timeout-minutes: 60
     steps:
@@ -420,24 +430,24 @@ jobs:
             CANOPY_REVISION=${{ env.EXPECTED_SHA }}
           cache-from: type=gha,scope=${{ matrix.app }}
           cache-to: type=gha,mode=max,scope=${{ matrix.app }}
-      # The gateway image serves the web too: the amd64 image from the cache, started next to PostgreSQL.
-      - if: matrix.app == 'gateway'
+      # Load the amd64 image from the build cache for the container smoke tests.
+      - if: matrix.app == 'gateway' || matrix.app == 'push-relay'
         uses: docker/build-push-action@v6
         env:
           DOCKER_BUILD_RECORD_UPLOAD: false
           DOCKER_BUILD_SUMMARY: false
         with:
           context: .
-          target: gateway
+          target: ${{ matrix.app }}
           platforms: linux/amd64
           load: true
-          tags: canopy-gateway:smoke
+          tags: canopy-${{ matrix.app }}:smoke
           provenance: false
           sbom: false
           build-args: |
             CANOPY_VERSION=${{ needs.plan.outputs.version }}
             CANOPY_REVISION=${{ env.EXPECTED_SHA }}
-          cache-from: type=gha,scope=gateway
+          cache-from: type=gha,scope=${{ matrix.app }}
       - name: Gateway image serves its web
         if: matrix.app == 'gateway'
         env:
@@ -469,6 +479,38 @@ jobs:
           docker rm -f canopy-smoke-gateway canopy-smoke-pg >/dev/null
           "$ok"
 
+      - name: Push relay image accepts HTTPS and requires a bearer
+        if: matrix.app == 'push-relay'
+        run: |
+          scratch="$(mktemp -d)"
+          container=
+          trap '
+            if [ -n "$container" ]; then docker rm -f "$container" >/dev/null; fi
+            rm -rf "$scratch"
+          ' EXIT
+          mkdir -m 0755 "$scratch/tls"
+          openssl req -x509 -newkey ec -pkeyopt ec_paramgen_curve:prime256v1 -nodes -days 1 -subj /CN=localhost \
+            -addext 'subjectAltName=DNS:localhost' -keyout "$scratch/tls/key.pem" -out "$scratch/tls/cert.pem"
+          chmod 0644 "$scratch/tls/key.pem" "$scratch/tls/cert.pem"
+          container="$(docker run -d -p 127.0.0.1::24444 \
+            --mount "type=bind,source=$scratch/tls,target=/tls,readonly" \
+            -e CANOPY_PUSH_RELAY_TLS_CERT_FILE=/tls/cert.pem -e CANOPY_PUSH_RELAY_TLS_KEY_FILE=/tls/key.pem \
+            -e CANOPY_PUSH_RELAY_BEARER_SHA256="$(openssl rand -hex 32)" -e EXPO_ACCESS_TOKEN=smoke \
+            canopy-push-relay:smoke)"
+          address="$(docker port "$container" 24444/tcp)"
+          for _ in $(seq 1 20); do
+            status="$(curl -s --max-time 2 --cacert "$scratch/tls/cert.pem" -X POST \
+              -o /dev/null -w '%{http_code}' "https://localhost:${address##*:}/v1/push" || true)"
+            if [ "$status" = 401 ]; then
+              test "$(docker exec "$container" id -u)" = 65532
+              docker exec "$container" test -s /usr/share/doc/canopy/THIRD_PARTY_NOTICES.txt
+              exit 0
+            fi
+            sleep 1
+          done
+          docker logs "$container"
+          exit 1
+
       - uses: actions/upload-artifact@v4
         with:
           name: image-${{ matrix.app }}
@@ -479,12 +521,12 @@ jobs:
 
   # Publication copies the already-built OCI image, including its index and attestations.
   images:
-    needs: [release, images-build]
+    needs: [plan, release, images-build]
     if: needs.release.outputs.published == 'true'
     strategy:
       fail-fast: false
       matrix:
-        app: [gateway, worker]
+        app: ${{ fromJSON(needs.plan.outputs.image_apps) }}
     runs-on: ubuntu-24.04
     environment: release-publication
     timeout-minutes: 20
@@ -811,7 +853,7 @@ jobs:
   # Stage 2: required desktop targets must succeed. Upload and verify the complete set before publishing
   # the draft or moving image aliases. Failed jobs can resume the same draft without exposing partial feeds.
   publish-desktop:
-    needs: [release, publish-server, desktop, desktop-smoke]
+    needs: [plan, release, publish-server, desktop, desktop-smoke]
     if: ${{ !cancelled() && needs.publish-server.result == 'success' && needs.desktop.result == 'success' && needs.desktop-smoke.result == 'success' }}
     runs-on: ubuntu-24.04
     environment: release-publication
@@ -863,6 +905,8 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
       - name: Image channel aliases (forward only)
+        env:
+          CANOPY_IMAGE_APPS: ${{ join(fromJSON(needs.plan.outputs.image_apps), ' ') }}
         run: GITHUB_SHA="$EXPECTED_SHA" bun scripts/image-aliases.ts
 
   release-index:

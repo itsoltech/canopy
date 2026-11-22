@@ -11,10 +11,13 @@ import { ResetSetting } from "./ResetSetting";
 import { ModuleSettings } from "./ModuleSettings";
 import { AppUpdateStatus } from "./AppUpdateStatus";
 import { UsagePingSettings } from "./UsagePingSettings";
+import { MobilePushSettings } from "./MobilePushSettings";
+import { useMobilePush } from "../notifications/PushProvider";
 
 export function GeneralSettings() {
   const settings = useAppearance();
   const device = useDevicePreferences();
+  const push = useMobilePush();
   const c = useColors();
   const sidebar = settings.sidebar;
   const disabled = !device.viewLoaded;
@@ -35,35 +38,20 @@ export function GeneralSettings() {
         title="Restore device defaults"
         icon="arrow-path"
         style={{ alignSelf: "flex-start" }}
-        onPress={() => device.reset(["inAppNotifications", "timeFormat"])}
+        onPress={() => {
+          device.reset(["inAppNotifications", "timeFormat"]);
+
+          if (push.state?.requested) void push.registration?.setEnabled(false);
+        }}
       />
       <ModuleSettings />
       <UsagePingSettings />
-      <SettingsGroup title="Notifications" description="This device · Only while a Canopy window is open.">
-        {settings.threadsEnabled && (
-          <SettingChoice
-            title="Thread notifications"
-            description="Send system alerts when threads finish, fail or need you."
-            value="off"
-            disabled
-            options={[
-              { value: "off", label: "Off" },
-              { value: "notifications", label: "Notifications" },
-              { value: "sound", label: "Notifications with sound" },
-            ]}
-            onChange={() => {}}
-          />
-        )}
-        {settings.threadsEnabled && (
-          <SettingsRow
-            title="System notifications unavailable"
-            description="This mobile build does not include system notifications."
-          />
-        )}
+      <SettingsGroup title="Notifications" description="This device">
+        <MobilePushSettings />
         <DeviceChoiceRow
           preference="inAppNotifications"
           title="In-app notifications"
-          description="Show alerts from other conversations while Canopy has focus."
+          description="Show alerts from other threads and chats while Canopy is open."
           options={[
             { value: "on", label: "On" },
             { value: "off", label: "Off" },

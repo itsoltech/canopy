@@ -3,7 +3,7 @@
  *   1. GitHub releases: keeps the 10 newest complete nightly prereleases (with manifest.json); deletes older ones and
  *      incomplete ones (no manifest.json) that are past the grace period and have a newer complete nightly.
  *      Git tags stay: semantic-release needs prerelease counters and channel history.
- *   2. GHCR `canopy-{gateway,worker}`: deletes package versions tagged only with nightly versions that are no
+ *   2. GHCR `canopy-{gateway,worker,push-relay}`: deletes package versions tagged only with nightly versions that are no
  *      longer kept, then the untagged manifests (platforms, attestations) that only their OCI index referenced.
  *      The retired `canopy-web` image (the gateway serves the web) is left as it is.
  * Anything newer than the grace period stays, as does any version carrying another tag or targeted by an alias.
@@ -12,7 +12,7 @@
 const NIGHTLY = /^v\d+\.\d+\.\d+-nightly\.\d+$/;
 const KEEP_COMPLETE = 10;
 export const GRACE_MS = 6 * 60 * 60 * 1000;
-const APPS = ["gateway", "worker"];
+const APPS = ["gateway", "worker", "push-relay"];
 const ALIASES = ["nightly", "beta", "latest", "stable"];
 const VERSION_ANNOTATION = "org.opencontainers.image.version";
 
@@ -296,7 +296,7 @@ export async function runHygiene(options: HygieneOptions): Promise<HygieneResult
     const name = `canopy-${app}`;
 
     try {
-      result.deletedVersions[name] = await prunePackage(name);
+      result.deletedVersions[name] = await prunePackage(name, app === "push-relay");
     } catch (error) {
       const message =
         error instanceof HttpError && [401, 403, 404].includes(error.status)
@@ -310,9 +310,18 @@ export async function runHygiene(options: HygieneOptions): Promise<HygieneResult
 
   return result;
 
-  async function prunePackage(name: string): Promise<string[]> {
+  async function prunePackage(name: string, allowUnpublished: boolean): Promise<string[]> {
     const base = `orgs/${owner}/packages/container/${name}/versions`;
-    const versions = await pages(`${base}?per_page=100&state=active`, isPackageVersion);
+
+    const versions = await pages(`${base}?per_page=100&state=active`, isPackageVersion).catch((error) => {
+      if (!allowUnpublished || !(error instanceof HttpError) || error.status !== 404) throw error;
+      log(`GHCR ${name}: package not visible, skipping retention`);
+
+      return [];
+    });
+
+    if (!versions.length) return [];
+
     const registry = await registryClient(name, options, owner, call);
     const manifests = new Map<string, Manifest | null>();
 

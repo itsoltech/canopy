@@ -18,6 +18,7 @@ export interface GatewayCompatibility {
   gatewayVersion: string;
   linkedComputers: boolean;
   offerOnboarding: boolean;
+  pushRelaySettings?: boolean;
   gatewayRole: string;
   /** This server BFF's version against the gateway's (gateway.ts); absent for the desktop. */
   webLag?: "older" | "newer" | "";

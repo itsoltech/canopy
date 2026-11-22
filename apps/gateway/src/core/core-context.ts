@@ -78,6 +78,8 @@ export interface GatewayCoreOptions {
   readonly role?: GatewayRole;
   readonly offerOnboarding?: boolean;
   readonly relocation?: import("../migration/relocation-fence-runtime.ts").RelocationRuntime;
+  readonly managedMobilePush?: import("../push/managed-enrollment.ts").ManagedPushOptions;
+  readonly relaySettingsKey?: Buffer;
   readonly skillSources?: import("../agent-environment/source-discovery.ts").SourceOptions;
   readonly updates?: Partial<Omit<GatewayUpdatesOptions, "persistence" | "authenticate">>;
   readonly sshSecretsKey?: Buffer;

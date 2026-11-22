@@ -25,6 +25,7 @@ export class GatewayCapabilities {
   offerOnboarding = $state<boolean>();
   /** Set by the BFF only in this desktop's local mode, independent of the gateway's role. */
   localDesktop = $state(false);
+  pushRelaySettings = $state(false);
   clientPreferencesScope = $state("");
   /** This web app is "older" or "newer" than the gateway; "" when they match or it doesn't apply. */
   webLag = $state("");
@@ -77,6 +78,9 @@ export class GatewayCapabilities {
       this.message = value["message"];
 
       // An outage says nothing about feature support. Keep the last successful negotiation.
+      if (value["pushRelaySettings"] === true || value["pushRelaySettings"] === false)
+        this.pushRelaySettings = value["pushRelaySettings"];
+
       if (this.state !== "unavailable") {
         this.methods = value["methods"].filter(isString);
         this.linkedComputers = value["linkedComputers"] === true;

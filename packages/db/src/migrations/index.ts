@@ -193,6 +193,7 @@ import threadReadMetadata from "./0098_thread_read_metadata.sql" with { type: "t
 import messageReceipts from "./0099_message_receipts.sql" with { type: "text" };
 import databaseRetention from "./0104_database_retention.sql" with { type: "text" };
 import secretDeliveryBatches from "./0108_secret_delivery_batches.sql" with { type: "text" };
+import { mobilePushMigrations } from "./mobile-push.ts";
 import { createMigrator, sqlFile } from "./run.ts";
 
 /** Ordered by the numeric prefix. Never edit an applied migration; add a new one (expand/contract). */
@@ -394,6 +395,7 @@ export const migrations = Migrator.fromRecord({
   "0198_memory_reflection": sqlFile(memoryReflection),
   "0199_sandbox_profile_outbox": sqlFile(sandboxProfileOutbox),
   "0200_bot_steer_senders": sqlFile(botSteerSenders),
+  ...mobilePushMigrations,
 });
 
 export const { migrate, migrateOnline } = createMigrator(migrations);

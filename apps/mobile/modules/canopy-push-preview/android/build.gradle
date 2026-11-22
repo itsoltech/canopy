@@ -1,0 +1,32 @@
+plugins {
+  id 'com.android.library'
+  id 'expo-module-gradle-plugin'
+}
+
+group = 'app.canopy'
+version = '1.0.0'
+
+android {
+  namespace 'app.canopy.pushpreview'
+  defaultConfig {
+    versionCode 1
+    versionName '1.0.0'
+  }
+}
+
+// Follow Expo autolinking's choice between the precompiled AAR and a source project.
+def notifications = gradle.extensions.getByName('expoGradle').config.allProjects.find {
+  it.name == 'expo-notifications'
+}
+
+dependencies {
+  if (notifications.usePublication) {
+    def publication = notifications.publication
+    implementation "${publication.groupId}:${publication.artifactId}:${publication.version}"
+  } else {
+    implementation project(':expo-notifications')
+  }
+  // Match expo-notifications, which keeps these dependencies off the consumer compile classpath.
+  implementation 'androidx.core:core:1.17.0'
+  implementation 'com.google.firebase:firebase-messaging:25.0.1'
+}
