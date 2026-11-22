@@ -6,12 +6,24 @@ import { watchSession } from "./session-liveness.ts";
 
 export type Handler = (request: http2.Http2ServerRequest, response: http2.Http2ServerResponse) => void | Promise<void>;
 
-export type Listener = { host: string; port: number; close: (graceMs?: number) => Promise<void> };
+export type Listener = {
+  host: string;
+  port: number;
+  enforceAccess: (graceMs?: number) => void;
+  close: (graceMs?: number) => Promise<void>;
+};
 
 /** How often an idle peer must answer an HTTP/2 PING, and how long it has to answer. */
 export type Liveness = { intervalMs: number; timeoutMs: number };
 
 const LIVENESS: Liveness = { intervalMs: 20_000, timeoutMs: 60_000 };
+
+function rejectConnection(socket: Socket, accepts: ((socket: Socket) => boolean) | undefined) {
+  if (accepts?.(socket) !== false) return false;
+  socket.destroy();
+
+  return true;
+}
 
 /** One TLS port for phones and linked computers. TLS proves this computer's pinned certificate to
  * both; a linked computer also presents its own certificate, so `route` sends it to the link service,
@@ -21,6 +33,7 @@ export async function openListener(options: {
   port: number;
   identity: { certificate: string; privateKey: string };
   route: (socket: TLSSocket) => Handler | undefined;
+  accepts?: (socket: Socket) => boolean;
   liveness?: Liveness;
   log?: (message: string) => void;
 }): Promise<Listener> {
@@ -39,7 +52,8 @@ export async function openListener(options: {
     },
     (request, response) => {
       // SAFETY: a secure server only creates requests on TLS sockets.
-      const handler = options.route(request.socket as TLSSocket);
+      const socket = request.socket as TLSSocket;
+      const handler = options.accepts?.(socket) === false ? undefined : options.route(socket);
 
       if (handler) return handler(request, response);
       response.writeHead(403);
@@ -48,6 +62,7 @@ export async function openListener(options: {
   );
 
   const sockets = new Set<Socket>();
+  const secureSockets = new Set<TLSSocket>();
   const sessions = new Set<http2.ServerHttp2Session>();
   const retiring = new Map<http2.ServerHttp2Session, () => void>();
   let sequence = 0;
@@ -58,7 +73,9 @@ export async function openListener(options: {
     );
 
   // Include unfinished TLS handshakes in shutdown; they may now wait longer for a waking VPN.
-  server.on("connection", (socket: Socket) => {
+  server.prependListener("connection", (socket: Socket) => {
+    if (rejectConnection(socket, options.accepts)) return;
+
     sockets.add(socket);
     socket.once("close", () => sockets.delete(socket));
   });
@@ -78,6 +95,10 @@ export async function openListener(options: {
     });
   });
   server.on("secureConnection", (socket: TLSSocket) => {
+    if (rejectConnection(socket, options.accepts)) return;
+
+    secureSockets.add(socket);
+    socket.once("close", () => secureSockets.delete(socket));
     const id = ++sequence;
     const started = Date.now();
 
@@ -102,6 +123,13 @@ export async function openListener(options: {
 
   let closing: Promise<void> | undefined;
   let timer: ReturnType<typeof setTimeout> | undefined;
+  let enforcement: ReturnType<typeof setTimeout> | undefined;
+
+  const enforceAccess = () => {
+    enforcement = undefined;
+
+    for (const socket of secureSockets) rejectConnection(socket, options.accepts);
+  };
 
   const destroy = () => {
     clearTimeout(timer);
@@ -113,10 +141,17 @@ export async function openListener(options: {
     host: options.host,
     // SAFETY: listen completed on a TCP host/port, so address() is an AddressInfo.
     port: (server.address() as AddressInfo).port,
+    enforceAccess: (graceMs = 0) => {
+      if (graceMs > 0) {
+        clearTimeout(enforcement);
+        enforcement = setTimeout(enforceAccess, graceMs);
+      } else if (!enforcement) enforceAccess();
+    },
     close: (graceMs = 0) => {
       closing ??= new Promise<void>((resolve) => {
         server.close(() => {
           clearTimeout(timer);
+          clearTimeout(enforcement);
           resolve();
         });
 

@@ -24,16 +24,17 @@ export function reachableAt(status: ui.NetworkAccess, shown = 2) {
   return more > 0 ? `${hosts.slice(0, shown).join(", ")} and ${more} more` : hosts.join(", ");
 }
 
-/** One sentence for the state: what works now, or what to do. */
+/** What works now and any action the gateway reports. */
 export function networkSummary(status: ui.NetworkAccess, linkedComputers = false) {
-  if (status.state === "error") return status.error;
+  if (status.state === "on" && !status.addresses.length) return status.note || "No connection addresses are available.";
 
-  if (status.state !== "on")
-    return linkedComputers
+  let summary = status.error;
+
+  if (status.state === "on") summary = `Reachable at ${reachableAt(status)}.`;
+  else if (status.state !== "error")
+    summary = linkedComputers
       ? "Phones and other computers can't connect to this computer yet."
       : "Paired devices and remote workers can't connect to this gateway yet.";
 
-  return status.addresses.length
-    ? `Reachable at ${reachableAt(status)}.`
-    : "On, but this computer isn't connected to a network right now.";
+  return [summary, status.note].filter(Boolean).join(" ");
 }

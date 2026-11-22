@@ -99,7 +99,7 @@ type Options = {
   self: () => { nodeId: string; privateKey: string };
   partners: () => Promise<readonly { node_id: string; certificate: string }[]>;
   /** Where this computer's link listener can be reached on the local network, or nothing to announce. */
-  listener: () => { port: number; host: string } | undefined;
+  listener: () => { port: number; host: string; accepts?: (address: string, peer?: string) => boolean } | undefined;
   /** A partner announced an address in this computer's subnet. Not trusted until a pinned handshake. */
   found: (nodeId: string, address: string) => void | Promise<void>;
   now?: () => number;
@@ -198,6 +198,8 @@ export class LanDiscovery {
 
     for (const i of this.#transport.interfaces()) {
       if (listener.host !== "0.0.0.0" && listener.host !== "::" && listener.host !== i.address) continue;
+
+      if (listener.accepts?.(i.address, to?.address) === false) continue;
 
       if (to && !subnets([i]).check(to.address, "ipv4")) continue;
       const answers: dns.Answer[] = [];

@@ -55,6 +55,19 @@ describe("tailnet addresses first", () => {
     expect(preferTailnet([LAN, TAILNET], undefined)).toEqual([LAN, TAILNET]);
   });
 
+  test("restricted access offers MagicDNS only with a local tailnet address", () => {
+    const connected = parseStatus(JSON.stringify(statusJson({ dnsName: MAGIC })));
+    const ipv6 = "fd7a:115c:a1e0::a";
+    const tailnet = { ...connected, ipv6: [ipv6] };
+
+    expect(preferTailnet([LAN, TAILNET], tailnet, () => false)).toEqual([LAN]);
+    expect(preferTailnet([LAN, TAILNET], tailnet, (host) => host === ipv6).map((address) => address.host)).toEqual([
+      MAGIC,
+      ipv6,
+      LAN.host,
+    ]);
+  });
+
   test("an SSH install on loopback points at the tailnet address", () => {
     expect(() =>
       requireRemoteWorkerAddress("http://127.0.0.1:7443", "192.0.2.40", {

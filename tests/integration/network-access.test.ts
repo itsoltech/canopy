@@ -1,4 +1,6 @@
 import { afterAll, beforeAll, describe, expect, test } from "bun:test";
+import { once } from "node:events";
+import * as http2 from "node:http2";
 import { createServer, type Server } from "node:net";
 import type { AddressInfo } from "node:net";
 import * as tls from "node:tls";
@@ -8,6 +10,7 @@ import { dockerAvailable } from "@canopy/db/testing";
 import type { LinkedComputers } from "../../apps/gateway/src/computers/runtime.ts";
 import { ComputerStore } from "../../apps/gateway/src/computers/store.ts";
 import { classify, hostnameEntry } from "../../apps/gateway/src/network/addresses.ts";
+import { acceptsNetwork } from "../../apps/gateway/src/network/allowed-networks.ts";
 import { localNetworkBlocked } from "../../apps/gateway/src/network/local-network.ts";
 import { NetworkAccess } from "../../apps/gateway/src/network/network.ts";
 import { networkPort } from "../../apps/gateway/src/runtime.ts";
@@ -39,8 +42,10 @@ async function occupy(): Promise<Server & { port: number }> {
   return Object.assign(server, { port: (server.address() as AddressInfo).port });
 }
 
-const update = (action: string, extra: { enabled?: boolean; port?: number; hostnames?: string[] } = {}) =>
-  create(ui.UpdateNetworkAccessRequestSchema, { action, ...extra });
+const update = (
+  action: string,
+  extra: { enabled?: boolean; port?: number; hostnames?: string[]; allowedNetworks?: string[] } = {},
+) => create(ui.UpdateNetworkAccessRequestSchema, { action, ...extra });
 
 describe("network addresses", () => {
   test("only addresses other devices can use are offered, each with its kind", () => {
@@ -60,6 +65,29 @@ describe("network addresses", () => {
 
     for (const bad of ["https://x.example", "x.example/path", "bad host", "x.example:70000", "1.2.3"])
       expect(() => hostnameEntry(bad)).toThrow("isn't a hostname");
+  });
+
+  test("restricted access uses the actual destination and peer, including forwarded traffic", () => {
+    const destinations = new Map<string, Parameters<typeof acceptsNetwork>[0]>([
+      ["192.168.1.20", ["lan"]],
+      ["100.101.2.3", ["tailscale"]],
+      ["fd7a:115c:a1e0::a", ["tailscale"]],
+      ["10.8.0.2", ["vpn"]],
+    ]);
+
+    const permits = (allowed: Parameters<typeof acceptsNetwork>[0], localAddress: string, remoteAddress: string) =>
+      acceptsNetwork(allowed, destinations, { localAddress, remoteAddress });
+
+    expect(permits(["lan"], "::ffff:192.168.1.20", "192.168.1.30")).toBe(true);
+    expect(permits(["lan"], "192.168.1.20", "203.0.113.42")).toBe(false);
+    expect(permits(["public"], "192.168.1.20", "::ffff:cb00:712a")).toBe(true);
+    expect(permits(["public"], "192.168.1.20", "192.168.1.30")).toBe(false);
+    expect(permits(["tailscale"], "100.101.2.3", "192.168.1.30")).toBe(false);
+    expect(permits(["tailscale"], "100.101.2.3", "100.101.2.4")).toBe(true);
+    expect(permits(["tailscale", "lan"], "fd7a:115c:a1e0:0:0:0:0:a", "fd7a:115c:a1e0::b")).toBe(true);
+    expect(permits(["tailscale", "lan"], "10.8.0.2", "10.8.0.3")).toBe(false);
+    expect(permits(["vpn"], "10.8.0.2", "10.8.0.3")).toBe(true);
+    expect(permits(["lan"], "127.0.0.1", "127.0.0.1")).toBe(false);
   });
 
   test("macOS local network denial is told apart from an unreachable computer", () => {
@@ -211,6 +239,63 @@ describe.skipIf(!dockerAvailable)("network access on a gateway", () => {
     } finally {
       delete gw.core.network;
       await access.close();
+    }
+  }, 20_000);
+
+  test("a restricted network selection withdraws routes, closes existing sessions and survives restart", async () => {
+    const detect = () => [
+      { host: "100.101.2.3", kind: "tailscale" as const, interfaceName: "tailscale0" },
+      { host: "192.168.1.20", kind: "lan" as const, interfaceName: "eth0" },
+    ];
+
+    const access = await network({ detect });
+    gw.core.network = access;
+    access.mount("device", (_request, response) => {
+      response.writeHead(200);
+    });
+    await gw.api.updateNetworkAccess({ action: "set_hostnames", hostnames: ["gateway.example.net", "gateway.local"] });
+    const on = await gw.api.updateNetworkAccess({ action: "set_enabled", enabled: true });
+    const phone = http2.connect(`https://127.0.0.1:${on.port}`, { rejectUnauthorized: false });
+    const disconnected = new Promise<void>((resolve) => phone.once("close", resolve));
+    phone.on("error", () => {});
+
+    try {
+      const stream = phone.request({ ":path": "/watch" });
+      stream.on("error", () => {});
+      await once(stream, "response");
+      expect(on.allowedNetworks).toEqual(["tailscale", "lan", "public", "vpn"]);
+      expect(await failure(gw.api.updateNetworkAccess({ action: "set_allowed_networks" }))).toContain(
+        "Select at least one supported network",
+      );
+      expect(
+        await failure(
+          gw.api.updateNetworkAccess({ action: "set_allowed_networks", allowedNetworks: ["lan", "unknown"] }),
+        ),
+      ).toContain("Select at least one supported network");
+
+      const restricted = await gw.api.updateNetworkAccess({
+        action: "set_allowed_networks",
+        allowedNetworks: ["tailscale", "lan"],
+      });
+
+      expect(restricted.addresses.map((a) => a.host)).toEqual(["100.101.2.3", "192.168.1.20", "gateway.local"]);
+      expect(restricted.hostnames).toEqual(["gateway.example.net", "gateway.local"]);
+      expect(await open(on.port)).toBe(false);
+      await disconnected;
+      await access.close();
+
+      const restarted = await network({ detect });
+      gw.core.network = restarted;
+      expect((await gw.api.getNetworkAccess({})).allowedNetworks).toEqual(["tailscale", "lan"]);
+      expect(await open(on.port)).toBe(false);
+      await gw.api.updateNetworkAccess({ action: "set_allowed_networks", allowedNetworks: on.allowedNetworks });
+      expect(await open(on.port)).toBe(true);
+    } finally {
+      phone.destroy();
+      await disconnected;
+      await gw.api.updateNetworkAccess({ action: "set_enabled", enabled: false });
+      await gw.api.updateNetworkAccess({ action: "set_hostnames" });
+      delete gw.core.network;
     }
   }, 20_000);
 });

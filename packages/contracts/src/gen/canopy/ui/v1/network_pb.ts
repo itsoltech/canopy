@@ -10,11 +10,10 @@ import type { Message } from "@bufbuild/protobuf";
  * Describes the file canopy/ui/v1/network.proto.
  */
 export const file_canopy_ui_v1_network: GenFile = /*@__PURE__*/
-  fileDesc("ChpjYW5vcHkvdWkvdjEvbmV0d29yay5wcm90bxIMY2Fub3B5LnVpLnYxIlQKDk5ldHdvcmtBZGRyZXNzEg4KBm9yaWdpbhgBIAEoCRIMCgRob3N0GAIgASgJEgwKBGtpbmQYAyABKAkSFgoOaW50ZXJmYWNlX25hbWUYBCABKAki8wEKDU5ldHdvcmtBY2Nlc3MSDwoHZW5hYmxlZBgBIAEoCBINCgVzdGF0ZRgCIAEoCRINCgVlcnJvchgDIAEoCRIMCgRwb3J0GAQgASgNEhIKCnBvcnRfZml4ZWQYBSABKAgSLwoJYWRkcmVzc2VzGAYgAygLMhwuY2Fub3B5LnVpLnYxLk5ldHdvcmtBZGRyZXNzEhEKCWhvc3RuYW1lcxgHIAMoCRITCgtmaW5nZXJwcmludBgIIAEoCRIMCgRub3RlGAkgASgJEioKCXRhaWxzY2FsZRgKIAEoCzIXLmNhbm9weS51aS52MS5UYWlsc2NhbGUizAEKCVRhaWxzY2FsZRINCgVzdGF0ZRgBIAEoCRIQCghkbnNfbmFtZRgCIAEoCRIMCgRpcHY0GAMgAygJEgwKBGlwdjYYBCADKAkSDwoHdGFpbG5ldBgFIAEoCRIRCgltYWdpY19kbnMYBiABKAgSGgoSaHR0cHNfY2VydGlmaWNhdGVzGAcgASgIEhUKDWNoZWNrZWRfYXRfbXMYCCABKAMSKwoFaHR0cHMYCSABKAsyHC5jYW5vcHkudWkudjEuVGFpbHNjYWxlSHR0cHMisQEKDlRhaWxzY2FsZUh0dHBzEg8KB2VuYWJsZWQYASABKAgSDQoFc3RhdGUYAiABKAkSDAoEcG9ydBgDIAEoDRIWCg5wb3J0X2F1dG9tYXRpYxgEIAEoCBILCgN1cmwYBSABKAkSDQoFZXJyb3IYBiABKAkSEwoLdW5hdmFpbGFibGUYByABKAkSEQoJYWRtaW5fdXJsGAggASgJEhUKDWFsbG93ZWRfbG9naW4YCSABKAkiGQoXR2V0TmV0d29ya0FjY2Vzc1JlcXVlc3QiXgoaVXBkYXRlTmV0d29ya0FjY2Vzc1JlcXVlc3QSDgoGYWN0aW9uGAEgASgJEg8KB2VuYWJsZWQYAiABKAgSDAoEcG9ydBgDIAEoDRIRCglob3N0bmFtZXMYBCADKAliBnByb3RvMw");
+  fileDesc("ChpjYW5vcHkvdWkvdjEvbmV0d29yay5wcm90bxIMY2Fub3B5LnVpLnYxIlQKDk5ldHdvcmtBZGRyZXNzEg4KBm9yaWdpbhgBIAEoCRIMCgRob3N0GAIgASgJEgwKBGtpbmQYAyABKAkSFgoOaW50ZXJmYWNlX25hbWUYBCABKAkijQIKDU5ldHdvcmtBY2Nlc3MSDwoHZW5hYmxlZBgBIAEoCBINCgVzdGF0ZRgCIAEoCRINCgVlcnJvchgDIAEoCRIMCgRwb3J0GAQgASgNEhIKCnBvcnRfZml4ZWQYBSABKAgSLwoJYWRkcmVzc2VzGAYgAygLMhwuY2Fub3B5LnVpLnYxLk5ldHdvcmtBZGRyZXNzEhEKCWhvc3RuYW1lcxgHIAMoCRITCgtmaW5nZXJwcmludBgIIAEoCRIMCgRub3RlGAkgASgJEioKCXRhaWxzY2FsZRgKIAEoCzIXLmNhbm9weS51aS52MS5UYWlsc2NhbGUSGAoQYWxsb3dlZF9uZXR3b3JrcxgLIAMoCSLMAQoJVGFpbHNjYWxlEg0KBXN0YXRlGAEgASgJEhAKCGRuc19uYW1lGAIgASgJEgwKBGlwdjQYAyADKAkSDAoEaXB2NhgEIAMoCRIPCgd0YWlsbmV0GAUgASgJEhEKCW1hZ2ljX2RucxgGIAEoCBIaChJodHRwc19jZXJ0aWZpY2F0ZXMYByABKAgSFQoNY2hlY2tlZF9hdF9tcxgIIAEoAxIrCgVodHRwcxgJIAEoCzIcLmNhbm9weS51aS52MS5UYWlsc2NhbGVIdHRwcyKxAQoOVGFpbHNjYWxlSHR0cHMSDwoHZW5hYmxlZBgBIAEoCBINCgVzdGF0ZRgCIAEoCRIMCgRwb3J0GAMgASgNEhYKDnBvcnRfYXV0b21hdGljGAQgASgIEgsKA3VybBgFIAEoCRINCgVlcnJvchgGIAEoCRITCgt1bmF2YWlsYWJsZRgHIAEoCRIRCglhZG1pbl91cmwYCCABKAkSFQoNYWxsb3dlZF9sb2dpbhgJIAEoCSIZChdHZXROZXR3b3JrQWNjZXNzUmVxdWVzdCJ4ChpVcGRhdGVOZXR3b3JrQWNjZXNzUmVxdWVzdBIOCgZhY3Rpb24YASABKAkSDwoHZW5hYmxlZBgCIAEoCBIMCgRwb3J0GAMgASgNEhEKCWhvc3RuYW1lcxgEIAMoCRIYChBhbGxvd2VkX25ldHdvcmtzGAUgAygJYgZwcm90bzM");
 
 /**
- * Network access (docs/network-access.md): one switch per computer lets phones and linked computers
- * connect to a pinned TLS listener on every interface. Settings live in the database.
+ * Network access (docs/network-access.md): settings for the pinned TLS listener.
  *
  * @generated from message canopy.ui.v1.NetworkAddress
  */
@@ -122,6 +121,13 @@ export type NetworkAccess = Message<"canopy.ui.v1.NetworkAccess"> & {
    * @generated from field: canopy.ui.v1.Tailscale tailscale = 10;
    */
   tailscale?: Tailscale | undefined;
+
+  /**
+   * Allowed network kinds: tailscale, lan, public, vpn. Empty on gateways without network selection.
+   *
+   * @generated from field: repeated string allowed_networks = 11;
+   */
+  allowedNetworks: string[];
 };
 
 /**
@@ -289,7 +295,7 @@ export const GetNetworkAccessRequestSchema: GenMessage<GetNetworkAccessRequest> 
  */
 export type UpdateNetworkAccessRequest = Message<"canopy.ui.v1.UpdateNetworkAccessRequest"> & {
   /**
-   * set_enabled, set_port, choose_port (a new free port), set_hostnames, refresh_tailscale,
+   * set_enabled, set_allowed_networks, set_port, choose_port (a new free port), set_hostnames, refresh_tailscale,
    * set_tailscale_https (enabled), set_tailscale_https_port (port; 0 = automatic)
    *
    * @generated from field: string action = 1;
@@ -310,6 +316,11 @@ export type UpdateNetworkAccessRequest = Message<"canopy.ui.v1.UpdateNetworkAcce
    * @generated from field: repeated string hostnames = 4;
    */
   hostnames: string[];
+
+  /**
+   * @generated from field: repeated string allowed_networks = 5;
+   */
+  allowedNetworks: string[];
 };
 
 /**

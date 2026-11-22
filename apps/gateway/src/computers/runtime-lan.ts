@@ -15,12 +15,12 @@ import { PEER_ROUTE_FLUSH_MS } from "./timing.ts";
  * and added hostnames). A change is announced over the link. */
 export function computersAdvertise(hostContext: LinkedComputers) {
   const network = hostContext.options.network;
-  const port = network.port;
+  const port = network.allowsLan ? network.port : undefined;
   const interfaces = hostContext[computersState].lan?.transport?.interfaces() ?? [];
   const next = network.origins().slice(0, 16);
 
   // A new network or listener: announce on the local network at once, not at the next window.
-  const key = `${port ?? ""}|${interfaces.map((i) => i.address).join()}`;
+  const key = `${port ?? ""}|${interfaces.map((i) => `${i.address}:${network.allowsLanAddress(i.address)}`).join()}`;
   const knownNetwork = Boolean(hostContext[computersState].network);
   const changedInterfaces = Boolean(hostContext[computersState].network) && key !== hostContext[computersState].network;
 
@@ -76,9 +76,12 @@ export async function computersDiscovery(hostContext: LinkedComputers) {
       }),
       partners: () => hostContext.store.peers(),
       listener: () => {
-        const { port, host } = hostContext.options.network;
+        const network = hostContext.options.network;
+        const { port, host, allowsLan } = network;
 
-        return port && host ? { port, host } : undefined;
+        if (!allowsLan || !port || !host) return undefined;
+
+        return { port, host, accepts: (address, peer) => network.allowsLanAddress(address, peer) };
       },
       found: (nodeId, address) => computersFound(hostContext, nodeId, address),
     });
@@ -108,11 +111,14 @@ export function computersLanState(hostContext: LinkedComputers) {
 
   if (unavailable || !hostContext[computersState].lan)
     return { state: "unavailable", note: unavailable || "Starting…" };
-  const host = hostContext.options.network.host;
+  const network = hostContext.options.network;
+  const { host } = network;
 
   const reachable =
     host &&
-    (WILDCARD.has(host) || hostContext[computersState].lan.transport?.interfaces().some((i) => i.address === host));
+    hostContext[computersState].lan.transport
+      ?.interfaces()
+      .some(({ address }) => (WILDCARD.has(host) || address === host) && network.allowsLanAddress(address));
 
   return {
     state: "active",
