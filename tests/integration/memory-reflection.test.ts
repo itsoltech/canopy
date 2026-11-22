@@ -56,14 +56,14 @@ describe.skipIf(!dockerAvailable)("memory reflection from owner messages to a wo
         (turns) => !!turns.length && turns.every((turn) => turn.status === "completed"),
       );
 
-    const examples = [
+    const examples: readonly [title: string, text: string][] = [
       ["Navigation layout", "After UI changes, show a screenshot of the navigation."],
       ["Settings layout", "Po zmianach UI pokaż zrzut ekranu ustawień."],
       ["Mobile layout", "After changing the UI, show a screenshot of the updated screen."],
     ];
 
     for (const [index, [title, text]] of examples.entries()) {
-      const thread = await newThread(title!, index === 0 ? text : "");
+      const thread = await newThread(title, index === 0 ? text : "");
 
       if (index !== 0) await gw.api.sendMessage({ threadId: thread.id, clientRequestId: crypto.randomUUID(), text });
       await complete(thread.id);
