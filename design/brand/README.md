@@ -6,3 +6,4 @@ Każda przedstawiona wersja ma osobny numer i własne pliki SVG. Kolejne zmiany 
 | --- | --- | --- | --- |
 | **01** · Liść oddzielony od „C” | <img src="canopy-icon.svg" alt="" width="36" height="36"> | [Na jasne tło](canopy-wordmark.svg) · [Na ciemne tło](canopy-wordmark-inverse.svg) | [Znak](canopy-mark.svg) · [Ikona](canopy-icon.svg) |
 | **02** · Liść w obrysie „C” | <img src="canopy-leaf-icon.svg" alt="" width="36" height="36"> | [Na jasne tło](canopy-leaf-wordmark.svg) · [Na ciemne tło](canopy-leaf-wordmark-inverse.svg) | [Znak](canopy-leaf-mark.svg) · [Ikona](canopy-leaf-icon.svg) |
+| **03** · Drzewo wyrastające z „a” | <img src="canopy-tree-icon.svg" alt="" width="36" height="36"> | [Na jasne tło](canopy-tree-wordmark.svg) · [Na ciemne tło](canopy-tree-wordmark-inverse.svg) | [Znak](canopy-tree-mark.svg) · [Ikona](canopy-tree-icon.svg) |
