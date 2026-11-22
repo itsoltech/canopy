@@ -18,6 +18,8 @@ export interface ThreadCreation {
   uncertain: boolean;
   threadId: string;
   confirmed: boolean;
+  /** User's choice survives the route handoff and timeline row remounts for this job. */
+  preparationExpanded?: boolean;
   /** Volatile first-prompt anchor, relative to the chat viewport, across the route and snapshot handoff. */
   preparationAnchor?: { top: number };
 }

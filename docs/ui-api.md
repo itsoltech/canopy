@@ -140,8 +140,9 @@ kolejną turę zachowuje nadpisanie. Szczegóły trwałości i walidacji:
 
 ## Przygotowanie nowego wątku
 
-Status (2026-11-18): zaimplementowane, w tym powrót z listy wątków do przygotowania
-nowego worktree i ponawianie po jednoznacznej odmowie. Dostępność w kanałach: [release.md](release.md).
+Status (2026-11-22): zaimplementowane, w tym zwijanie ukończonej checklisty na
+web, desktop i mobile, powrót z listy wątków do przygotowania nowego worktree
+i ponawianie po jednoznacznej odmowie. Dostępność w kanałach: [release.md](release.md).
 
 Kompozytor nowego wątku w web/desktop otwiera `/threads/starting/<clientRequestId>`
 od razu po wysłaniu, przed oczekiwaniem na Git. Pokazuje tę samą wiadomość użytkownika
@@ -150,7 +151,7 @@ pominięcia i błędu. Widok pracy agenta pojawia się dopiero po przygotowaniu.
 Po potwierdzeniu utworzenia wątku klient zastępuje adres przez `/threads/<id>`;
 nie przenosi użytkownika, który w międzyczasie otworzył inną stronę.
 
-Po pomyślnym przygotowaniu web/desktop automatycznie zwija listę do wiersza
+Po pomyślnym przygotowaniu web, desktop i mobile automatycznie zwijają listę do wiersza
 „Thread prepared”, ze strzałką i separatorem jak przy aktywności tury.
 Rozwinięcie pokazuje wszystkie kroki, ich statusy i szczegóły; ręczny wybór
 przetrwa wirtualizację wiersza osi czasu. Przygotowanie w toku i nieudane

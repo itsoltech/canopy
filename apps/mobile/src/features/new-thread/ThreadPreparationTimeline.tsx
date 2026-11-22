@@ -46,11 +46,7 @@ export function ThreadPreparationTimeline({ job, inset }: { job: ThreadCreation;
               mentions={job.request.initialMentions}
               quotes={job.request.initialQuotes}
             />
-            <ThreadPreparation
-              steps={job.steps}
-              done={Boolean(job.threadId) || job.confirmed}
-              active={!job.done && !job.uncertain && !job.confirmed}
-            />
+            <ThreadPreparation job={job} />
             <PreparationRecovery job={job} />
           </View>
         </View>
