@@ -3,6 +3,7 @@
 Status (2026-11-22): web i desktop udostępniają Settings → Memory do przeglądania
 i edycji notatek agentów i botów. Web, desktop i mobile obsługują usypianie wątków oraz załączniki
 do 40 MiB na plik po zmianie ustawienia.
+Pasek wątków w web i desktop ma osobne przyciski sortowania i filtrowania po projektach.
 Web i desktop pokazują automatyczne powitanie tylko po potwierdzeniu przez gateway,
 że działa w wersji pierwszego uruchomienia nowej instalacji. [Onboarding](onboarding.md)
 Stany źródeł Usage są widoczne w sekcji **Recording gateways**. Przy częściowym
@@ -3152,7 +3153,9 @@ i nie przekracza nagłówków, z wyjątkiem przypinania/odpinania. Archiwum zach
 dotychczasową kolejność archiwizacji. Zagnieżdżone wątki boczne zachowują drzewo;
 przypięte boczne można porządkować jak pozostałe korzenie.
 
-Menu „Thread options” obok wyszukiwania łączy wybór sortowania z filtrem projektów.
+Przyciski „Sort threads” i „Filter by project” obok wyszukiwania otwierają osobne
+popovery. Ikona filtra pokazuje liczbę wybranych projektów. Opcja „All projects”
+czyści filtr. Na wąskim ekranie filtr otwiera się w dolnym arkuszu.
 W Custom przeciąganie myszą zaczyna się po ruchu o 6 px; sam klik otwiera wątek.
 Wskaźnik pokazuje miejsce upuszczenia, krawędzie listy przewijają ją automatycznie,
 a górna strefa „Drop here to pin” podświetla przekroczenie progu przypinania.

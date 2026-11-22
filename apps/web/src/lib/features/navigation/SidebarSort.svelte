@@ -3,12 +3,14 @@
   import { devicePreferences } from "#lib/features/settings/device-preferences.svelte.ts";
   import Button from "#lib/shared/ui/Button.svelte";
   import Icon from "#lib/shared/ui/Icon.svelte";
-  import type { ClassValue } from "svelte/elements";
-
-  let { class: className }: { class?: ClassValue } = $props();
+  import IconButton from "#lib/shared/ui/IconButton.svelte";
+  import Popover from "#lib/shared/ui/Popover.svelte";
 </script>
 
-<div class={className} role="group" aria-label="Sort threads">
+<Popover label="Sort threads" placement="bottom-end" class="w-56 max-w-[calc(100vw-1rem)] p-1.5">
+  {#snippet trigger(props)}
+    <IconButton {...props} icon="sort-descending" label="Sort threads" />
+  {/snippet}
   <p class="px-2 pt-1 pb-0.5 text-sm font-medium text-zinc-500 sm:text-xs dark:text-zinc-400">Sort threads</p>
   {#each threadSortModes as mode (mode.value)}
     <Button
@@ -31,4 +33,4 @@
       Use Move in the thread menu, or Alt+↑/↓.
     </p>
   {/if}
-</div>
+</Popover>
