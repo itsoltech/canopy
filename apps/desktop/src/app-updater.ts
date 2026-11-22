@@ -43,7 +43,7 @@ class StagedMacUpdater extends MacUpdater {
     task = cancellable(task);
     let installFeed: MacUpdateFeed | undefined;
 
-    const files = await this.downloads.run(
+    const result = await this.downloads.run(
       this.downloadedUpdateHelper,
       (helper) => {
         this.downloadedUpdateHelper = helper;
@@ -52,7 +52,7 @@ class StagedMacUpdater extends MacUpdater {
         // Finish cache writes before replacing Squirrel's proxy/feed for the previous ZIP.
         let downloaded: UpdateDownloadedEvent | undefined;
 
-        const files = await super.executeDownload({
+        const result = await super.executeDownload({
           ...task,
           done: async (event) => {
             downloaded = event;
@@ -70,13 +70,13 @@ class StagedMacUpdater extends MacUpdater {
           installFeed = feed;
         }
 
-        return files;
+        return result;
       },
     );
 
     if (installFeed) this.installFeed = installFeed;
 
-    return files;
+    return result;
   }
   override quitAndInstall() {
     if (!this.installFeed) {
