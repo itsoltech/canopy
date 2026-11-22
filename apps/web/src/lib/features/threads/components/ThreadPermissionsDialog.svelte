@@ -23,6 +23,7 @@
   } from "../labels.ts";
   import {
     defaultSandboxProfile,
+    linkedSandboxSelection,
     nativeWindowsSandboxMode,
     sandboxProfileGroups,
     sandboxProfileOption,
@@ -70,7 +71,14 @@
           },
         ]
       : []),
-    ...settings.sandboxProfiles.map((profile) => sandboxProfileOption(profile, sandboxProfileProblem(target, profile))),
+    ...settings.sandboxProfiles.map((profile) =>
+      sandboxProfileOption(
+        profile,
+        (thread.nodeId || worker?.nodeId) && profile.id !== savedChoice
+          ? linkedSandboxSelection
+          : sandboxProfileProblem(target, profile),
+      ),
+    ),
   ]);
 
   const groups = $derived(sandboxProfileGroups(options));

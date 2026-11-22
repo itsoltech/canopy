@@ -3,6 +3,7 @@ import type { SelectOption } from "#lib/shared/ui/listbox.ts";
 
 export const sandboxProfilesSettingsHref = "/settings/threads#sandbox-profiles";
 export const nativeWindowsSandboxMode = "Claude needs a worker running inside WSL2 to use Sandbox on Windows.";
+export const linkedSandboxSelection = "Open Canopy on the linked computer to choose a sandbox profile.";
 
 export const sandboxShellUnavailable =
   "Shell commands are unavailable with a sandbox profile. Remove ! to use plain text.";

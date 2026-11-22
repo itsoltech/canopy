@@ -19,7 +19,11 @@
     permissionKey,
     type PermissionModeKey,
   } from "#lib/features/threads/labels.ts";
-  import { defaultSandboxProfile, sandboxProfileOption } from "#lib/features/threads/sandbox-profiles.ts";
+  import {
+    defaultSandboxProfile,
+    linkedSandboxSelection,
+    sandboxProfileOption,
+  } from "#lib/features/threads/sandbox-profiles.ts";
   import Field from "#lib/shared/ui/Field.svelte";
   import Input from "#lib/shared/ui/Input.svelte";
   import Select from "#lib/shared/ui/Select.svelte";
@@ -173,7 +177,7 @@
       sandboxProfileOption(
         profile,
         linkedWorker && profile.id !== savedSandboxProfile?.id
-          ? "Choose a new profile on the linked computer."
+          ? linkedSandboxSelection
           : scheduleSandboxProblem(workers, spec, profile),
       ),
     ),

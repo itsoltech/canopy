@@ -29,6 +29,9 @@ synchronizacji. Gdy wybrany profil zmieni się w katalogu lub z niego
 zniknie, szkic zachowuje wybór i prosi o wybranie dostępnego profilu albo
 przejście na **Harness default** przed wysłaniem.
 
+Katalog należy do gatewaya komputera. Nowy wybór dla wątku lub harmonogramu
+na połączonym komputerze wykonuje się w Canopy na tym komputerze.
+
 ## Harmonogramy
 
 Harmonogram tworzący nowy wątek zapisuje własny snapshot profilu. Zmiana lub
