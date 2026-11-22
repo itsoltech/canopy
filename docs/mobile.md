@@ -25,7 +25,7 @@ Licznik i akcja Update all na telefonie wynikają z planu instalacji Canopy.
 Komunikat o restarcie znika po potwierdzeniu powrotu gatewaya lub wersji docelowej.
 Stan gotowości binarnego gatewaya kończy także zapowiedź restartu bez zmiany wersji.
 Zmiana wątku nie przedłuża wyświetlania wyniku.
-Puste pole wiadomości w wątku zajmuje jeden wiersz do ustawienia fokusu.
+Puste pole wiadomości w wątku zajmuje jeden wiersz do ustawienia fokusu i wraca do tej wysokości po wysłaniu szkicu.
 Arkusz Updates pokazuje start i zamykanie gatewaya oraz etapy aktualizacji workerów.
 Wiadomości agenta w rozwiniętej aktywności tury mają dodatkowy odstęp pionowy.
 Stany źródeł Usage są widoczne w sekcji **Recording gateways**. Podsumowanie
@@ -1718,7 +1718,9 @@ Podświetlenie po naciśnięciu zachowuje okrągły kształt przycisku.
 W wątku puste pole bez fokusu ma 44 dp wysokości. Fokus rozwija je wraz z paskiem pisania.
 Po utracie fokusu lub schowaniu klawiatury pole pozostaje rozwinięte, jeśli szkic zawiera
 tekst, wzmiankę, cytat lub załącznik. Puste pole wraca do jednego wiersza, a lista odzyskuje
-zwolnione miejsce. Kolejka, subagenci, cel, prośby o odpowiedź i wiersze statusu pozostają
+zwolnione miejsce. Wysyłka szkicu zdejmuje fokus przed zablokowaniem pola. Po potwierdzeniu
+dostarczenia szkic jest czyszczony i pole się zwija. W razie błędu zachowany szkic pozostaje
+rozwinięty. Kolejka, subagenci, cel, prośby o odpowiedź i wiersze statusu pozostają
 widoczne również nad zwiniętym polem. Przewijanie wątku nie zmienia rozmiaru pola.
 
 Czat bota zachowuje zwijanie podczas czytania historii według reguł webowego `ComposerCompaction`:

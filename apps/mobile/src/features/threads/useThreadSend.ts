@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from "react";
+import { Keyboard } from "react-native";
 import * as Crypto from "expo-crypto";
 import { Code, ConnectError } from "@connectrpc/connect";
 import { ui } from "@canopy/contracts";
@@ -86,6 +87,8 @@ export function useThreadSend(options: ThreadSendOptions) {
     const overrides = sandboxBound ? { ...choices, permissionMode: undefined } : choices;
     sending.current = true;
     replies.invalidate();
+    // Blur the input while it is still editable so an empty draft can fold after delivery.
+    Keyboard.dismiss();
     options.onSend();
     setBusy(true);
     setWaiting(!connection.live);
