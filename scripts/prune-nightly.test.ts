@@ -78,7 +78,7 @@ function gatewayVersions() {
   return rows;
 }
 
-function fakeGitHub() {
+function fakeGitHub(relayPublished: boolean) {
   const deletes: string[] = [];
   const rows = gatewayVersions();
 
@@ -123,10 +123,28 @@ function fakeGitHub() {
       if (path === "/orgs/itsoltech/packages/container/canopy-worker/versions")
         return Response.json({ message: "Package not found." }, { status: 404 });
 
+      if (path === "/orgs/itsoltech/packages/container/canopy-push-relay/versions") {
+        if (!relayPublished) return Response.json({ message: "Package not found." }, { status: 404 });
+
+        return Response.json([
+          {
+            id: 25,
+            name: "sha256:relay",
+            created_at: ago(100),
+            updated_at: ago(100),
+            metadata: { package_type: "container", container: { tags: ["v0.3.0-nightly.1"] } },
+          },
+        ]);
+      }
+
       if (path === "/token")
         return request.headers.get("authorization")?.startsWith("Basic ")
           ? Response.json({ token: "registry-token" })
           : new Response(null, { status: 401 });
+
+      if (path === "/v2/itsoltech/canopy-push-relay/manifests/sha256:relay")
+        return Response.json({ mediaType: INDEX, manifests: [] }, { headers: { "content-type": INDEX } });
+
       const manifest = path.match(/^\/v2\/itsoltech\/canopy-gateway\/manifests\/(.+)$/);
 
       if (manifest) {
@@ -152,8 +170,8 @@ afterAll(() => {
   for (const server of servers) server.stop(true);
 });
 
-async function run(dryRun: boolean) {
-  const fake = fakeGitHub();
+async function run(dryRun: boolean, relayPublished: boolean) {
+  const fake = fakeGitHub(relayPublished);
   servers.push(fake.server);
   const lines: string[] = [];
   const errors: string[] = [];
@@ -178,7 +196,7 @@ async function run(dryRun: boolean) {
 }
 
 test("hygiene deletes old and abandoned nightlies and only the GHCR versions nobody else references", async () => {
-  const { result, deletes, lines } = await run(false);
+  const { result, deletes, lines } = await run(false, true);
   const releaseIds = Object.fromEntries(releases().map((release) => [release.id, release.tag_name]));
   expect(
     deletes
@@ -203,6 +221,7 @@ test("hygiene deletes old and abandoned nightlies and only the GHCR versions nob
   ] as const)
     for (const child of children) expect(gateway.indexOf(child)).toBeLessThan(gateway.indexOf(index));
   expect(deletes.some((path) => /canopy-(web|worker)/.test(path))).toBe(false);
+  expect(deletes).toContain("/orgs/itsoltech/packages/container/canopy-push-relay/versions/25");
   // The retired canopy-web image keeps every existing version (docs/release.md, "Retencja nightly").
   expect(result.deletedVersions).not.toHaveProperty("canopy-web");
   // Missing package access is reported clearly; the releases were pruned anyway.
@@ -213,12 +232,14 @@ test("hygiene deletes old and abandoned nightlies and only the GHCR versions nob
 });
 
 test("dry run plans the same deletions and deletes nothing", async () => {
-  const { result, deletes, lines } = await run(true);
+  const { result, deletes, lines } = await run(true, false);
   expect(deletes).toEqual([]);
   expect(result.deletedReleases.sort()).toEqual(["v0.3.0-nightly.1", "v0.3.0-nightly.7"]);
   expect(
     result.deletedVersions["canopy-gateway"]!.map((label) => Number(label.split(" ")[0])).sort((a, b) => a - b),
   ).toEqual([1, 2, 3, 4, 5, 6, 9, 10]);
   expect(lines.filter((line) => line.includes("would delete"))).toHaveLength(10);
+  expect(result.errors).toHaveLength(1);
+  expect(lines).toContain("GHCR canopy-push-relay: package not visible, skipping retention");
   expect(lines.some((line) => line.startsWith("deleted"))).toBe(false);
 });

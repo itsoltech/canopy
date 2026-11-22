@@ -97,6 +97,7 @@ appear only as the literal name used by an external tool).
 | pace | reported limit use compared with even use until reset; differences use percentage points (pp) | burn rate, velocity |
 | management key | the CLIProxyAPI key that lets Canopy read a proxy's accounts | admin key, management password |
 | gateway | Canopy's central service that the UI connects to | server, backend, hub |
+| push relay | the service that sends mobile push notifications from a gateway | proxy, tunnel |
 | worker | the Canopy process that runs agents on a computer | runner, agent host, node |
 | computer | a physical machine running Canopy or a worker | machine, host, box, node |
 | device | a phone or tablet paired with Canopy | phone app, client |

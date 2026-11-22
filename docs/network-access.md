@@ -2,8 +2,12 @@
 
 Status (2026-11-22): w ustawieniach Network access można wybrać sieci, z których
 gateway przyjmuje połączenia. Wybór obowiązuje na listenerze TLS i w ogłoszeniach
-tras. Tokeny urządzeń obowiązują na listenerze TLS, a worker sprawdza transport przy
-rejestracji, restarcie i wyborze trasy zapasowej. Dostępność według [zasad wydań](release.md).
+tras. Ustawienia pozwalają też zwiększyć limit załączników do 40 MiB na plik.
+Web serwerowy i lokalny Desktop pozwalają skonfigurować własny relay mobilnych
+powiadomień w tym widoku.
+Tokeny urządzeń obowiązują na listenerze TLS. Odwołanie urządzenia odcina
+przygotowane aktualizacje. Worker sprawdza transport przy rejestracji, restarcie i wyborze trasy
+zapasowej. Dostępność według [zasad wydań](release.md).
 
 Przełącznik **Settings → Network access → „Let phones and other computers connect”**
 uruchamia listener TLS dla połączonych komputerów i telefonów. W tych samych
@@ -49,6 +53,18 @@ jej rolę pełni `UpdateNetworkAccess` `set_enabled`.
 opcjonalny port ustalony przez wdrożenie serwerowe (opublikowany port kontenera). Gdy jest ustawiony,
 wygrywa z portem z bazy, UI pokazuje go tylko do odczytu („Set by this server's configuration”),
 a zapisany w bazie wybór zostaje na start bez tej zmiennej. Niepoprawna wartość zatrzymuje start gatewaya.
+
+## Mobilne powiadomienia push
+
+W webie serwerowym i lokalnym Desktop sekcja **Mobile push relay** pokazuje relay Canopy,
+adres własnego relaya lub stan bez konfiguracji. Telefon aktywuje relay
+Canopy przez atestację po włączeniu **System notifications**. Własny relay ma
+pierwszeństwo. Zapis jest lokalny dla gatewaya, wchodzi w życie bez restartu
+i działa także przy zamkniętym listenerze telefonu. Powrót do relaya Canopy
+zachowuje wybory użytkowników i przełącza wysyłkę po aktywacji na telefonie.
+Konfiguracja jest dostępna przez własny BFF gatewaya. Zapis w panelu ma
+pierwszeństwo przed domyślną konfiguracją serwera z otoczenia procesu.
+[Wdrożenie relaya](deploy.md#relay-powiadomień-push).
 
 ## Listener
 

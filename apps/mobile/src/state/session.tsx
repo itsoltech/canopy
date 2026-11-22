@@ -23,6 +23,7 @@ import { prepareMobileDrafts } from "../features/drafts/storage";
 import { clearVisualCaches } from "../features/visuals/visual-source";
 import type { MobileDrafts } from "../features/drafts/store";
 import { useThreadCreations } from "../features/new-thread/useThreadCreations";
+import { withdrawMobilePushLocally } from "../features/notifications/native-push";
 
 const SHARED_READ_FAILED = "Could not load settings. Check the connection and retry.";
 
@@ -78,13 +79,7 @@ function useSessionState() {
   const threadCreations = useThreadCreations(client?.api, drafts, active, epoch);
   const workspace = useWorkspaceStore(client, session);
   useEffect(() => (client ? startMobileDiagnostics(client.api) : undefined), [client]);
-  useEffect(() => {
-    if (!client || !drafts || !active) return;
-    const controller = new AbortController();
-    void drafts.watch(client.api, controller.signal);
-
-    return () => controller.abort();
-  }, [client, drafts, active, epoch]);
+  useDraftWatch(client, drafts, active, epoch);
 
   const modelCatalog = useMemo(() => new ModelCatalogCache(client?.api), [client]);
   // Reads shared by every screen of this pairing; a new pairing or unpair fences the old one's requests.
@@ -92,7 +87,7 @@ function useSessionState() {
 
   useSessionConnections(client, setActive, setEpoch);
 
-  async function clearHistory(revoked = false) {
+  async function clearHistory(revoked: boolean, pushKeyCleared: boolean) {
     threadCreations?.dispose();
     workspace.clear();
     await clearVisualCaches();
@@ -111,13 +106,14 @@ function useSessionState() {
     setBotCache(null);
     setImageCache(null);
     setBots([]);
-    setError(historyMessage(cleared, revoked));
+    setError(historyMessage(cleared && pushKeyCleared, revoked));
   }
 
   const removal = useSessionRemoval(client, session?.deviceId, clearHistory);
 
   return {
     rememberModules: useCallback((id: string, order: string) => persistence.rememberModules(id, order), [persistence]),
+    rememberMobilePush: persistence.rememberMobilePush,
     threadCreations,
     drafts,
     session,
@@ -168,18 +164,21 @@ function useSessionState() {
 }
 
 /** One removal per pairing; expected stream failures wait for the unpair RPC's outcome. */
+type ClearPairing = (revoked: boolean, pushKeyCleared: boolean) => Promise<void>;
+
 class SessionRemoval {
+  readonly lifetime = new AbortController();
   #unpairing = false;
   #unauthenticated = false;
   #clearing: Promise<void> | undefined;
 
   constructor(readonly client: ReturnType<typeof routedMobileClient> | null) {}
 
-  forget(clearHistory: (revoked?: boolean) => Promise<void>) {
+  forget(clearHistory: ClearPairing) {
     return this.#clear(clearHistory);
   }
 
-  async unpair(revoke: () => Promise<void>, clearHistory: (revoked?: boolean) => Promise<void>) {
+  async unpair(revoke: () => Promise<void>, clearHistory: ClearPairing) {
     if (this.#unpairing || this.#clearing) return;
     // Set intent synchronously, before revocation can end any of this pairing's streams.
     this.#unpairing = true;
@@ -199,7 +198,7 @@ class SessionRemoval {
     await this.#clear(clearHistory);
   }
 
-  expired(clearHistory: (revoked?: boolean) => Promise<void>) {
+  expired(clearHistory: ClearPairing) {
     if (this.#clearing) return this.#clearing;
 
     if (this.#unpairing) {
@@ -211,19 +210,22 @@ class SessionRemoval {
     return this.#clear(clearHistory, true);
   }
 
-  #clear(clearHistory: (revoked?: boolean) => Promise<void>, revoked = false) {
-    return (this.#clearing ??= clearHistory(revoked));
+  #clear(clearHistory: ClearPairing, revoked = false) {
+    this.lifetime.abort();
+
+    return (this.#clearing ??= withdrawMobilePushLocally().then((cleared) => clearHistory(revoked, cleared)));
   }
 }
 
 function useSessionRemoval(
   client: ReturnType<typeof routedMobileClient> | null,
   deviceId: string | undefined,
-  clearHistory: (revoked?: boolean) => Promise<void>,
+  clearHistory: ClearPairing,
 ) {
   const removal = useMemo(() => new SessionRemoval(client), [client]);
 
   return {
+    pairingSignal: removal.lifetime.signal,
     forget: () => removal.forget(clearHistory),
     unpair: () =>
       client && deviceId
@@ -247,6 +249,21 @@ function useSessionQueries(client: ReturnType<typeof routedMobileClient> | null)
   useEffect(() => () => searches.dispose(), [searches]);
 
   return { queries, searches };
+}
+
+function useDraftWatch(
+  client: ReturnType<typeof routedMobileClient> | null,
+  drafts: MobileDrafts | null,
+  active: boolean,
+  epoch: number,
+) {
+  useEffect(() => {
+    if (!client || !drafts || !active) return;
+    const controller = new AbortController();
+    void drafts.watch(client.api, controller.signal);
+
+    return () => controller.abort();
+  }, [client, drafts, active, epoch]);
 }
 
 function historyMessage(cleared: boolean, revoked: boolean) {

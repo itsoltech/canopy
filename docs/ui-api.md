@@ -17,6 +17,9 @@ pokryciu kosztu podsumowanie podaje liczbę raportów bez kompletnego kosztu.
 Settings → Providers udostępnia edytor wspólnych ustawień CLI Claude, Codexa i Groka
 oraz nadpisań pojedynczego workera, z lokalnym kolorowaniem i walidacją JSON.
 Zamknięcie osiągniętego celu zapisuje się w ustawieniach widoku urządzenia.
+Sparowane telefony mogą rejestrować powiadomienia push z szyfrowanym podglądem.
+Relay Canopy wydaje poświadczenie sparowanemu gatewayowi po atestacji telefonu.
+BFF serwera i lokalnego Desktopu zarządza konfiguracją relaya przez GatewayService.
 Klienci utrzymują strumień wątku przy dołączaniu
 starszej strony z aktualnego checkpointu sekwencyjnego. Gateway obsługuje osobną
 subskrypcję oczekujących żądań subagenta.
@@ -981,6 +984,34 @@ sparowanego telefonu albo desktopu. Publiczne
 `MobilePairingService.ExchangeMobilePairing` jednorazowo wymienia kod na revocable
 token urządzenia, przechowywany jako hash w DB i w SecureStore na telefonie.
 `UnpairMobileDevice` odwołuje wyłącznie bieżące urządzenie z context auth.
+
+Sparowany telefon może odczytać `GetClientCapabilities.mobile_push`
+i zarządzać własnym pushem przez `SetMobilePushSubscription`. Włączenie przyjmuje
+token Expo i klucz podglądu. `ResolveMobilePush` przyjmuje losowy identyfikator
+i zwraca wątek lub bota bieżącego właściciela i parowania. Te dwa RPC wymagają
+tokenu telefonu na listenerze Network access. Podglądy są szyfrowane od gatewaya
+do telefonu. [Powiadomienia](notifications.md#push-na-ios-i-androidzie).
+
+BFF serwera i lokalnego Desktopu odczytuje `GetClientCapabilities.push_relay_settings`
+i zarządza relayem przez `GetPushRelaySettings` oraz `UpdatePushRelaySettings`
+(`GET /api/push-relay` i `PUT /api/push-relay`, bez cache).
+Gateway wymaga tokena usługi na prywatnym listenerze procesu.
+Odpowiedzi zawierają adres własnego relaya, informację o skonfigurowanym prywatnym
+CA i dostępności relaya Canopy.
+Token relaya zapisuje się zaszyfrowany w lokalnej bazie. Zmiana adresu wymaga
+nowego tokena, a zmiany konfiguracji działają bez restartu. Na serwerze zapis
+z BFF zastępuje początkową konfigurację środowiskową, także po usunięciu relaya.
+
+`GetClientCapabilities.managed_mobile_push` ogłasza automatyczną aktywację
+relaya Canopy dla sparowanego telefonu. `BeginManagedMobilePush` przyjmuje
+token Expo i podaje wyzwanie do App Attest lub Play Integrity oraz, na Androidzie,
+numer projektu. `CompleteManagedMobilePush` przyjmuje dowód i klucz podglądu
+po przypiętym TLS. Token relaya pozostaje przy gatewayu. Gdy aktualne poświadczenie
+już istnieje i nie trzeba ponawiać atestacji, odpowiedź Begin ma puste
+`enrollment_id`, a telefon odnawia subskrypcję przez `SetMobilePushSubscription`.
+W trakcie ponownej atestacji `refresh_existing_grant` pozwala odnowić subskrypcję
+z dotychczasowym ważnym poświadczeniem. Własny relay korzysta z
+`SetMobilePushSubscription` bez atestacji.
 
 Token telefonu daje ten sam dostęp właściciela do RPC GatewayService co BFF,
 w tym administrację workerami, siecią, urządzeniami i aktualizacjami.

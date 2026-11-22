@@ -4,6 +4,7 @@ import { releaseIdentity } from "@canopy/domain/release/identity";
 import { releaseChannel } from "@canopy/domain/release/version";
 
 const profile = process.env.EAS_BUILD_PROFILE;
+const googleServicesFile = process.env.CANOPY_ANDROID_GOOGLE_SERVICES_FILE;
 
 const profileChannel =
   profile === "production" || profile === "preview"
@@ -15,6 +16,9 @@ const profileChannel =
         : undefined;
 
 const versionChannel = releaseChannel(release.version);
+
+const appAttestEnvironment =
+  process.env.CANOPY_APP_ATTEST_ENV ?? (versionChannel === "development" ? "development" : "production");
 
 const identity = releaseIdentity(
   process.env.CANOPY_CHANNEL || profileChannel || (versionChannel === "development" ? "stable" : versionChannel),
@@ -32,6 +36,10 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
   extra: { ...config.extra, canopyVersion: release.version },
   ios: {
     ...config.ios,
+    entitlements: {
+      ...config.ios?.entitlements,
+      "com.apple.developer.devicecheck.appattest-environment": appAttestEnvironment,
+    },
     infoPlist: {
       ...config.ios?.infoPlist,
       // The paired computer has a self-signed certificate, trusted only through its pinned SHA-256
@@ -43,6 +51,7 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
   },
   android: {
     ...config.android,
+    googleServicesFile: googleServicesFile || config.android?.googleServicesFile,
     adaptiveIcon: {
       foregroundImage: `${assets}/adaptive-foreground.png`,
       backgroundImage: `${assets}/adaptive-background.png`,
@@ -52,6 +61,10 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
   },
   plugins: [
     "./plugins/media-network.cjs",
+    "./plugins/push-opt-in.cjs",
+    ["expo-notifications", { defaultChannel: "canopy-updates" }],
+    "./plugins/android-push-preview.cjs",
+    "./plugins/push-preview-ios.cjs",
     ["expo-video", { supportsBackgroundPlayback: false, supportsPictureInPicture: false }],
     ...(config.plugins ?? []).filter((plugin) => !(Array.isArray(plugin) && plugin[0] === "expo-splash-screen")),
     [

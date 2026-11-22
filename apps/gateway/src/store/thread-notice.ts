@@ -6,7 +6,7 @@ import type { NoticeInteractionColumns, ThreadRow } from "./rows.ts";
 const text = (value: JsonValue | undefined) => (Predicate.isString(value) ? value : "");
 
 /** What a pending request asks, in the request shapes the interaction cards read (questions.ts, PermissionRequest). */
-function asked(interaction: NoticeInteractionColumns): string {
+export function interactionNoticeText(interaction: NoticeInteractionColumns): string {
   const outer = isJsonObject(interaction.request) ? interaction.request : {};
   const input = outer["input"];
   const request = isJsonObject(input) ? input : outer;
@@ -28,7 +28,7 @@ export function threadNotice(row: ThreadRow) {
   const turn = row.unseen_turn;
 
   const preview = interaction
-    ? asked(interaction)
+    ? interactionNoticeText(interaction)
     : turn?.message || (turn?.status === "failed" && turn.error ? safeFailureDetail(turn.error) : "");
 
   return {

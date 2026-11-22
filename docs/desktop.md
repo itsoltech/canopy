@@ -4,7 +4,12 @@ Status: opis zaimplementowanego runtime i pakowania (2026-11-22), w tym dzienneg
 pingu użycia z przełącznikiem prywatności i pomijaniem wysyłki offline. Aktualizator używa
 `electron-updater` 6.8.11. Build i ustawienia
 udostępniają licencje dołączonych komponentów. Powłoka ładowania
-korzysta z wyglądu tej instalacji także przy niedostępnym gatewayu. Build przypina Electron 45.4.1,
+korzysta z wyglądu tej instalacji także przy niedostępnym gatewayu.
+Desktop w trybie lokalnym aktywuje relay Canopy po weryfikacji sparowanego
+telefonu. Własny relay można skonfigurować przez **Settings → Network access**.
+Gateway szyfruje poświadczenie i stosuje zapis bez restartu.
+[Konfiguracja relaya](deploy.md#relay-powiadomień-push).
+Build przypina Electron 45.4.1,
 Bun 1.4.5 i PostgreSQL 18.7 dla trybu lokalnego. Opis obejmuje też ograniczenia
 prywatnej kopii aktywnego wątku przed wysłaniem jej do procesu głównego oraz przekazywania
 systemowej zmiennej `OS` do instalatora Codex Standalone na Windows,

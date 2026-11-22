@@ -9,7 +9,8 @@
       "developmentClient": true,
       "distribution": "internal",
       "env": {
-        "CANOPY_DEV_HTTP": "1"
+        "CANOPY_DEV_HTTP": "1",
+        "CANOPY_APP_ATTEST_ENV": "development"
       }
     },
     "development-simulator": {
@@ -21,7 +22,7 @@
     "preview": {
       "bun": "1.4.5",
       "channel": "nightly",
-      "env": { "CANOPY_CHANNEL": "nightly" },
+      "env": { "CANOPY_CHANNEL": "nightly", "CANOPY_APP_ATTEST_ENV": "production" },
       "environment": "production",
       "distribution": "internal",
       "android": {
@@ -41,7 +42,7 @@
     "production": {
       "bun": "1.4.5",
       "channel": "nightly",
-      "env": { "CANOPY_CHANNEL": "nightly" },
+      "env": { "CANOPY_CHANNEL": "nightly", "CANOPY_APP_ATTEST_ENV": "production" },
       "environment": "production",
       "autoIncrement": true
     },

@@ -79,6 +79,13 @@ export function clientPreferencesScope(): string {
   );
 }
 
+/** Authorization for settings that require the gateway's private BFF identity. */
+export function hasGatewayServiceAccess() {
+  const { desktop, target, token } = current();
+
+  return !desktop && target?.mode !== "offline" && !!token;
+}
+
 export async function gatewayCompatibility(): Promise<GatewayCompatibility> {
   const { desktop } = current();
 
@@ -96,6 +103,7 @@ export async function gatewayCompatibility(): Promise<GatewayCompatibility> {
       gatewayRole: info.gatewayRole,
       linkedComputers: info.linkedComputers,
       offerOnboarding: info.offerOnboarding,
+      pushRelaySettings: info.pushRelaySettings || info.localPushRelaySettings,
     };
   } catch (cause) {
     return {

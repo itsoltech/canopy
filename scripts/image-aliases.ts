@@ -52,7 +52,9 @@ if (import.meta.main) {
   const aliases = resolveVersion({ tag, commit }).dockerTags.filter((alias) => alias !== tag);
 
   // canopy-web is retired (the gateway image serves the web); its aliases stay on its last release.
-  for (const app of ["gateway", "worker"]) {
+  const apps = (process.env["CANOPY_IMAGE_APPS"] ?? "gateway worker").split(" ");
+
+  for (const app of apps) {
     const image = `${namespace}/canopy-${app}`;
 
     for (const alias of aliases) {

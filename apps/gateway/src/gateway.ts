@@ -40,6 +40,8 @@ import { WebClientVersions } from "./web/clients.ts";
 import { gatewayStorageOptions } from "./diagnostics/storage-roots.ts";
 import { coreState } from "./core/core-context.ts";
 import { RelocationRuntime, StartupFenced } from "./migration/relocation-fence-runtime.ts";
+import { configuredManagedRelayOrigin } from "./push/managed-relay.ts";
+import { pushRelayOptions } from "./push/relay.ts";
 
 const env = Bun.env;
 
@@ -87,7 +89,12 @@ const webClients = new WebClientVersions(CANOPY_VERSION, embeddedWeb !== undefin
 const runtime = gatewayRuntime(env);
 const logDirectory = runtimeLogDirectory("gateway", env);
 
-installLogWriter("gateway", logDirectory, [serviceToken, databaseUrl(env), env["CANOPY_SECRETS_KEY"] ?? ""]);
+installLogWriter("gateway", logDirectory, [
+  serviceToken,
+  databaseUrl(env),
+  env["CANOPY_SECRETS_KEY"] ?? "",
+  env["CANOPY_PUSH_RELAY_BEARER"] ?? "",
+]);
 
 function startupRejected(error: Error): never {
   console.error(
@@ -113,11 +120,17 @@ const userId = await ensureDevUser(runtime, env["CANOPY_DEV_USER_EMAIL"] ?? "dev
 
 await runtime.runPromise(initializeModuleExecution(userId));
 
+const role = gatewayRole(env);
+const secretsKey = loadSecretsKey(env);
+const managedPushOrigin = configuredManagedRelayOrigin(role, env);
+
 const core = new GatewayCore({
-  role: gatewayRole(env),
+  role,
   offerOnboarding: await runtime.runPromise(offerGatewayOnboarding(CANOPY_VERSION)),
   runtime,
   relocation,
+  ...(managedPushOrigin && { managedMobilePush: { origin: managedPushOrigin, secretsKey } }),
+  relaySettingsKey: secretsKey,
   diagnosticsStorage: gatewayStorageOptions(env, {
     logs: logDirectory,
     spool: () => core.diagnostics.logs.directory,
@@ -170,7 +183,7 @@ if (installKind() === "binary")
     (message) => console.info(message),
   );
 
-const computerStore = new ComputerStore(runtime, userId, loadSecretsKey(env));
+const computerStore = new ComputerStore(runtime, userId, secretsKey);
 const fixedPort = networkPort(env);
 const web = webOrigin(env) ?? (embeddedWeb && embeddedWebOrigin(env));
 
@@ -223,6 +236,7 @@ await pollRelocation();
 
 async function start(serviceToken: string): Promise<number | undefined> {
   await settleInterruptedWorktreePreparations(core);
+  await core.mobilePush.initialize(role === "server" ? () => pushRelayOptions(env) : undefined);
   await relocation.assertReady();
 
   // Even though the listeners may open before web and updater startup complete, admission must
@@ -296,6 +310,7 @@ function startIntake() {
   reflection.start();
   core.scheduler.start();
   core.messengers.start();
+  core.mobilePush.start();
   core.updateCenter.start();
 }
 
@@ -333,7 +348,7 @@ async function checkRelocation() {
     if (intake === "running") {
       intake = "paused";
       core.updateCenter.stop();
-      await Promise.all([reflection.stop(), core.scheduler.stop(), core.messengers.stop()]);
+      await Promise.all([reflection.stop(), core.scheduler.stop(), core.messengers.stop(), core.mobilePush.pause()]);
 
       return;
     }
@@ -384,6 +399,7 @@ async function close(presence: string) {
   await polling;
 
   try {
+    await core.mobilePush.close();
     await embeddedWeb?.stop();
     await core.computers?.close(presence);
     tailscale.close();

@@ -6,8 +6,14 @@ uruchamiają osobną usługę web. Ten dokument opisuje kod na `dev`; poniższe 
 pobierania domyślnie wybierają stable. Wersje i kanały: [release.md](release.md). Wszystko pochodzi z
 `ghcr.io/itsoltech/canopy-*` albo z GitHub Releases `itsoltech/canopy`.
 
-Status (2026-11-21): operacyjne CLI `migration` obsługuje przeniesienie bazy
-gatewaya oraz podgląd Linked Computers. Gateway i worker są budowane na Bun 1.4.5. Compose izoluje
+Status (2026-11-22): relay mobilnych powiadomień może wydawać poświadczenia
+po App Attest lub Play Integrity. Obsługuje ich odwołanie i ogranicza odnawianie
+do 90 dni od ostatniej atestacji. Gateway zachowuje obsługę własnych relayów.
+Własny relay można zapisać w panelu webowym serwera.
+Workflow Release publikuje osobny obraz relaya w GHCR.
+Operacyjne CLI `migration` obsługuje przeniesienie bazy gatewaya oraz podgląd
+Linked Computers.
+Gateway i worker są budowane na Bun 1.4.5. Compose izoluje
 sieć workera od panelu właściciela, a samodzielny web domyślnie słucha na loopbacku
 i sprawdza nagłówek Host. Kod zawiera operacyjne CLI `storage inspect` i jawny
 reclaim offline przez `VACUUM FULL`. Dostępność w nightly/beta/stable wynika
@@ -25,6 +31,7 @@ discovery/mDNS, luster, wspólnej konfiguracji, przenoszenia ani relay. Web i de
 remote połączone z serwerem nie pokazują tych funkcji. Istniejące rekordy partnerów
 pozostają w bazie ze stanem `inactive`, bez połączeń i synchronizacji; nic nie jest usuwane.
 Telefony, sparowane klienty desktopowe i workery korzystają dalej z Network access.
+Relay powiadomień to oddzielna usługa, dostępna niezależnie od roli gatewaya.
 
 Każdy komputer wykonujący zadania agentów musi mieć osobno zainstalowane
 **Claude Code (`claude`), Codex (`codex`) lub Grok (`grok`)** dla używanego providera.
@@ -958,3 +965,93 @@ CLI nie wykonuje automatycznych prób ani reclaimu podczas startu gatewaya.
 - **Desktop**: instalator nowej wersji z tego samego release (`Canopy-<wersja>-<os>-<arch>.*`).
 - Do przypięcia używaj pełnej wersji (`vX.Y.Z`, `vX.Y.Z-beta.N`, `vX.Y.Z-nightly.N`).
   Nie ma rolling binariów `latest` ani obrazów `sha-*`. Starsze nightly podlegają retencji.
+
+## Relay powiadomień push
+
+Relay działa jako osobny proces. Obraz `ghcr.io/itsoltech/canopy-push-relay`
+dziedziczy tag wersji i aliasy kanałów wydania, np. `nightly`, `beta` i `stable`.
+Obraz nasłuchuje na `0.0.0.0:24444` i uruchamia relay jako UID i GID 65532.
+Przekaż ustawienia przy uruchamianiu kontenera. Zamontuj pliki TLS i poświadczenie
+konta usługi Google tylko do odczytu, z uprawnieniami do odczytu dla procesu.
+W trybie z atestacją zamontuj trwały katalog SQLite z prawem zapisu dla UID 65532.
+Ścieżki w zmiennych wskazują pliki wewnątrz kontenera.
+
+Ze źródeł można go uruchomić poleceniem `bun run --filter @canopy/push-relay start`.
+Włącz uwierzytelnianie żądań
+push w projekcie Expo aplikacji i udostępnij relayowi poświadczenie z dostępem
+do tego projektu. Relay wysyła przez HTTPS do Expo Push Service. APNs i FCM
+konfiguruje właściciel aplikacji w EAS.
+
+| Zmienna relaya | Wartość |
+| --- | --- |
+| `CANOPY_PUSH_RELAY_TLS_CERT_FILE` | Plik PEM z certyfikatem i łańcuchem dla nazwy hosta relaya |
+| `CANOPY_PUSH_RELAY_TLS_KEY_FILE` | Plik PEM z kluczem prywatnym serwera |
+| `CANOPY_PUSH_RELAY_BEARER_SHA256` | Opcjonalna lista hashy ręcznie wydanych tokenów, każdy jako SHA-256 w hex, rozdzielonych przecinkiem |
+| `EXPO_ACCESS_TOKEN` | Token do wysyłki i odczytu potwierdzeń projektu Expo |
+| `CANOPY_PUSH_RELAY_HOST` | Adres nasłuchu. Domyślnie `127.0.0.1` ze źródeł i `0.0.0.0` w obrazie |
+| `CANOPY_PUSH_RELAY_PORT` | Port TLS. Domyślnie `24444` |
+
+### Relay Canopy z automatyczną aktywacją
+
+Lokalny Desktop używa `https://notifications-relay.canopy.itsol.tech` jako
+domyślnego adresu. Gateway serwerowy może użyć relaya z atestacją, ustawiając
+`CANOPY_MANAGED_PUSH_RELAY_ORIGIN` na jego adres HTTPS. Własna konfiguracja
+z ręcznie wydanym tokenem ma pierwszeństwo.
+
+Włącz przynajmniej jedną platformę, skonfiguruj podpisaną aplikację i zachowaj
+trwały stan relaya. Na publicznym relayu limity rejestracji używają adresu
+połączenia TCP. Kieruj ruch bezpośrednio lub przez warstwę transportową zachowującą
+adres. Relay nie ufa przekazanym nagłówkom IP.
+
+| Zmienna | Wartość |
+| --- | --- |
+| `CANOPY_PUSH_RELAY_ENROLLMENT_DB` | Ścieżka do trwałej, prywatnej bazy SQLite relaya |
+| `CANOPY_PUSH_APPLE_TEAM_ID` | Prefiks App ID użyty w podpisie aplikacji |
+| `CANOPY_PUSH_APPLE_BUNDLE_ID` | Bundle ID aplikacji z App Attest |
+| `CANOPY_PUSH_APPLE_ENVIRONMENT` | `production` domyślnie, również dla TestFlight. `development` wyłącznie w odizolowanym środowisku testowym |
+| `CANOPY_PUSH_ANDROID_PACKAGE_NAME` | Pakiet podpisanej aplikacji Android |
+| `CANOPY_PUSH_ANDROID_CLOUD_PROJECT_NUMBER` | Dziesiętny numer projektu Google Cloud z Play Integrity API |
+| `CANOPY_PUSH_ANDROID_SERVICE_ACCOUNT_FILE` | Prywatny plik JSON konta usługi uprawnionego do weryfikacji Play Integrity |
+| `CANOPY_PUSH_ANDROID_SIGNING_CERT_SHA256` | Dozwolone odciski SHA-256 certyfikatów podpisujących build, w hex, rozdzielone przecinkiem |
+| `CANOPY_PUSH_ANDROID_ALLOW_UNRECOGNIZED_VERSION` | Opcjonalne `1` pozwala zweryfikować ręcznie instalowany APK przy rozpoznanym podpisie aplikacji i integralnym urządzeniu. Domyślnie wymagany jest `PLAY_RECOGNIZED` |
+
+Wyzwanie wygasa po 5 minutach. Atestacja obejmuje platformę i token Expo telefonu.
+Relay zapisuje hashe poświadczenia i celu wysyłki. Poświadczenie jest ograniczone
+do jednego tokena Expo i platformy, wygasa po 35 dniach i może zostać odnowione
+najdalej do 90 dni od atestacji. Gdy odnowienie osiąga tę granicę, telefon ponawia
+atestację po otwarciu aplikacji i korzysta z dotychczasowego poświadczenia do jego
+wygaśnięcia lub zastąpienia. Migracja bazy relaya daje istniejącym
+poświadczeniom okres przejściowy do 35 dni. Po rozparowaniu lub wyłączeniu push
+gateway odwołuje poświadczenie na relayu. Jeśli relay jest niedostępny, odwołanie
+czeka w trwałej kolejce gatewaya.
+Sprawdź atestację na fizycznym iPhonie z TestFlight i na podpisanym APK przed
+włączeniem ruchu produkcyjnego. [App Attest w Expo SDK 58](https://docs.expo.dev/versions/v58.0.0/sdk/app-integrity/) ·
+[Werdykty Play Integrity](https://developer.android.com/google/play/integrity/verdicts).
+
+### Własny relay z ręcznie wydanym tokenem
+
+Dla każdej instalacji użyj osobnego tokenu z 32 losowych bajtów zakodowanych
+jako base64url bez dopełnienia. Oblicz SHA-256 z 43 znaków tokenu bez końca linii.
+Po zmianie tokenu usuń jego stary hash z konfiguracji i uruchom relay ponownie.
+
+W **webie serwerowym** lub **Desktopie w trybie lokalnym** otwórz **Settings →
+Network access → Mobile push relay → Use custom relay**. Podaj adres HTTPS
+i token tej instalacji. Jeśli relay korzysta z prywatnego CA, wklej jego
+certyfikat w formacie PEM. Zapis działa bez restartu. Zmiana adresu wymaga
+podania tokena dla nowego adresu.
+
+Wdrożenie serwerowe może ustawić wartości początkowe przez `CANOPY_PUSH_RELAY_ORIGIN`
+i `CANOPY_PUSH_RELAY_BEARER`. Compose odczytuje obie zmienne z `.env`. Dla
+prywatnego CA ustaw `CANOPY_PUSH_RELAY_CA_FILE` na plik PEM z tym CA. W Compose
+dodaj zmienną i zamontuj plik tylko do odczytu w override. Gateway korzysta
+z tych wartości, dopóki właściciel nie zapisze wyboru w panelu. Po usunięciu
+własnego relaya w panelu gateway pozostaje przy relayu Canopy, jeśli jest
+dostępny, albo wstrzymuje wysyłkę. Ten wybór obowiązuje także po restarcie.
+
+Gateway weryfikuje nazwę hosta i łańcuch certyfikatu, wymaga TLS 1.3 i odrzuca
+przekierowania. Konfiguracja relaya jest opcjonalna.
+
+Do wysłania alertu relay potrzebuje tokenu Expo i zaszyfrowanego podglądu.
+Podgląd odszyfrowuje telefon. [Zakres powiadomień i prywatność](notifications.md#push-na-ios-i-androidzie) ·
+[Wymagania buildu mobilnego](mobile.md#powiadomienia-push) ·
+[Konfiguracja Expo Push](https://docs.expo.dev/push-notifications/push-notifications-setup/).
