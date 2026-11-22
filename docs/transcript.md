@@ -13,6 +13,8 @@ bieżącej treści wybiera najnowszą z nich. Kompakcja rozpoznaje też dokładn
 duplikaty strukturalnego JSON-a dostawcy i współdzieli pełną treść między
 oknem historii i replayem dużego itemu. Web/desktop zachowuje kotwicę przewijania
 podczas oczekiwania na pierwszy snapshot.
+Aktualizacja (2026-11-22): w web/desktop gradient kompozytora mieści się w odstępie
+pod ostatnim wierszem i przechodzi pod paskiem przewijania.
 Plany retencji oznaczono osobno poniżej; dostępność wydań opisuje [release.md](release.md).
 
 Wymaganie: frontend pokazuje **wszystko**: wiadomości, rozumowanie, każde narzędzie z wejściem i pełnym wynikiem, zmiany plików, plany, subagentów, zadania w tle, zgody, wywołania innych agentów i zdarzenia systemowe. Także to, co dzieje się **między turami**.
