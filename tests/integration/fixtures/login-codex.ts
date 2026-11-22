@@ -7,6 +7,8 @@ import { existsSync, readFileSync, writeFileSync, unlinkSync } from "node:fs";
 import { join } from "node:path";
 import { createInterface } from "node:readline";
 import type { JsonObject } from "@canopy/domain";
+import { Schema } from "effect";
+import { HttpMcp, httpTools } from "./instance-mcp.ts";
 
 const home = process.env["CODEX_HOME"]!;
 const auth = join(home, "auth.json");
@@ -28,6 +30,11 @@ if (process.argv[2] === "login" && process.argv[3] === "status") {
 
 const send = (message: JsonObject) => process.stdout.write(JSON.stringify(message) + "\n");
 const notify = (method: string, params: JsonObject) => send({ method, params });
+const catalogs = new Map<string, string[]>();
+
+const decodeConfig = Schema.decodeUnknownSync(
+  Schema.Struct({ mcp_servers: Schema.optionalKey(Schema.Record(Schema.String, HttpMcp)) }),
+);
 
 // Fixture tokens only: an expired login holds the word, a fresh one does not.
 const expired = () => existsSync(auth) && readFileSync(auth, "utf8").includes("expired");
@@ -68,11 +75,22 @@ for await (const line of createInterface({ input: process.stdin })) {
   if (request.method === "initialize") send({ id, result: { userAgent: "login-fixture" } });
   else if (request.method === "model/list") send({ id, result: { data: [], nextCursor: null } });
   else if (request.method === "mcpServerStatus/list") {
-    const server = { name: "canopy_connectors", runtimeStatus: "connected", toolsError: null, tools: {} };
+    const names = catalogs.get(params.threadId) ?? [];
+
+    const server = {
+      name: "canopy_connectors",
+      runtimeStatus: "connected",
+      toolsError: null,
+      tools: Object.fromEntries(names.map((name) => [name, { name }])),
+    };
+
     send({ id, result: { data: [server], nextCursor: null } });
-  } else if (request.method === "thread/start" || request.method === "thread/resume")
-    send({ id, result: { thread: { id: params.threadId ?? crypto.randomUUID(), path: null } } });
-  else if (request.method === "turn/start")
+  } else if (request.method === "thread/start" || request.method === "thread/resume") {
+    const threadId = params.threadId ?? crypto.randomUUID();
+    const config = decodeConfig(params.config ?? {});
+    catalogs.set(threadId, await httpTools(config.mcp_servers?.["canopy_connectors"]));
+    send({ id, result: { thread: { id: threadId, path: null } } });
+  } else if (request.method === "turn/start")
     turn(id, params.threadId, params.input.map((part: { text?: string }) => part.text ?? "").join("\n"));
   else if (request.method === "account/read") send({ id, result: { account: null, requiresOpenaiAuth: true } });
   else if (request.method === "account/login/start") {

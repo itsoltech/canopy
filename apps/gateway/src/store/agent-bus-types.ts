@@ -82,6 +82,7 @@ export interface Notification {
 
 export interface ScheduleRow {
   id: string;
+  memory_audience: string;
   thread_id: string | null;
   kind: "once" | "recurring";
   prompt: string;

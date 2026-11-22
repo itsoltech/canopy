@@ -47,6 +47,8 @@ export interface ModelReply {
 
 export interface ModelInput {
   turn?: BotTurn;
+  memoryContext?: string;
+  isolatedInput?: boolean;
   configuration: bots.BotConfiguration;
   instructions: string;
   messages: ModelMessage[];

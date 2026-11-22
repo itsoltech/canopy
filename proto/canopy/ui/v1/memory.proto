@@ -1,0 +1,57 @@
+syntax = "proto3";
+
+package canopy.ui.v1;
+
+import "google/protobuf/timestamp.proto";
+
+enum MemoryNoteScope {
+  MEMORY_NOTE_SCOPE_UNSPECIFIED = 0;
+  MEMORY_NOTE_SCOPE_PROJECT = 1;
+  MEMORY_NOTE_SCOPE_WORKER = 2;
+  MEMORY_NOTE_SCOPE_BOT = 3;
+  MEMORY_NOTE_SCOPE_CONVERSATION = 4;
+}
+
+message MemoryNote {
+  string id = 1;
+  MemoryNoteScope scope = 2;
+  string title = 3;
+  string body = 4;
+  repeated string aliases = 5;
+  bool pinned = 6;
+  uint32 revision = 7;
+  string project_id = 8;
+  string worker_id = 9;
+  string bot_id = 10;
+  string conversation_id = 11;
+  string source_kind = 12;
+  string source_id = 13;
+  string source_turn_id = 14;
+  google.protobuf.Timestamp updated_at = 15;
+  string scope_label = 16;
+}
+
+message ListMemoryNotesRequest {
+  MemoryNoteScope scope = 1;
+  uint32 limit = 2;
+  string cursor = 3;
+}
+
+message ListMemoryNotesResponse {
+  repeated MemoryNote notes = 1;
+  string next_cursor = 2;
+}
+
+message UpdateMemoryNoteRequest {
+  string note_id = 1;
+  uint32 expected_revision = 2;
+  string title = 3;
+  string body = 4;
+  repeated string aliases = 5;
+  bool pinned = 6;
+}
+
+message DeleteMemoryNoteRequest {
+  string note_id = 1;
+  uint32 expected_revision = 2;
+}

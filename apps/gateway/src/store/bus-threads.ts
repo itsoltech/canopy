@@ -113,14 +113,14 @@ const spawn = (
       yield* sql`
             INSERT INTO threads (id, project_id, owner_user_id, kind, parent_thread_id, root_thread_id, depth, origin, spawned_by_call_id,
                                  interaction_route, runtime, provider, provider_profile_id, worker_id, workspace_id, cwd,
-                                 fork_source_thread_id, settings, status, title, worktree_id)
+                                 fork_source_thread_id, settings, status, title, worktree_id, memory_audience)
             VALUES (${id}::uuid, ${caller.project_id}::uuid, ${caller.owner_user_id}::uuid, 'side', ${caller.id}::uuid,
                     ${caller.root_thread_id}::uuid, ${caller.depth + 1}, 'agent', ${source.callId}::uuid,
                     ${args.interactions ?? "parent"}, 'worker', ${target.harness},
                     ${target.instance && target.instance !== "native" ? target.instance : null},
                     ${caller.worker_id}::uuid, ${caller.workspace_id}::uuid, ${cwd},
                     ${args.fork ? caller.id : null}::uuid, ${JSON.stringify(settings)}::jsonb, 'creating', ${args.title.trim()},
-                    ${worktreeId}::uuid)`;
+                    ${worktreeId}::uuid, ${caller.memory_audience ?? ""})`;
 
       const input: TurnInput = {
         note: `[canopy] Task from the thread "${caller.title}" (thread_id: ${caller.id}). ` + SUBAGENT_REPORTING_RULES,
@@ -257,7 +257,8 @@ export function busThreadStore(sql: SqlClient.SqlClient): BusThreadStore {
         if (scope === "all") {
           const owned = yield* sql<{ id: string; title: string }>`
                 SELECT t.id, t.title FROM threads t
-                 WHERE t.owner_user_id = ${caller.owner_user_id}::uuid AND t.id <> ${caller.id}::uuid AND t.archived_at IS NULL AND t.deleted_at IS NULL
+                 WHERE (${caller.memory_audience ?? ""}='' OR t.memory_audience=${caller.memory_audience ?? ""})
+                   AND t.owner_user_id = ${caller.owner_user_id}::uuid AND t.id <> ${caller.id}::uuid AND t.archived_at IS NULL AND t.deleted_at IS NULL
                  ORDER BY greatest(t.created_at, (SELECT max(coalesce(u.completed_at, u.started_at, u.queued_at)) FROM turns u WHERE u.thread_id = t.id)) DESC
                  LIMIT 500`;
 
@@ -275,9 +276,9 @@ export function busThreadStore(sql: SqlClient.SqlClient): BusThreadStore {
           scope === "children"
             ? yield* sql<{
                 id: string;
-              }>`SELECT id FROM threads WHERE parent_thread_id = ${caller.id}::uuid AND archived_at IS NULL AND deleted_at IS NULL ORDER BY created_at`
+              }>`SELECT id FROM threads WHERE parent_thread_id = ${caller.id}::uuid AND (${caller.memory_audience ?? ""}='' OR memory_audience=${caller.memory_audience ?? ""}) AND archived_at IS NULL AND deleted_at IS NULL ORDER BY created_at`
             : yield* sql<{ id: string }>`
-                    SELECT id FROM threads WHERE root_thread_id = ${caller.root_thread_id}::uuid AND id <> ${caller.id}::uuid AND archived_at IS NULL AND deleted_at IS NULL
+                    SELECT id FROM threads WHERE root_thread_id = ${caller.root_thread_id}::uuid AND (${caller.memory_audience ?? ""}='' OR memory_audience=${caller.memory_audience ?? ""}) AND id <> ${caller.id}::uuid AND archived_at IS NULL AND deleted_at IS NULL
                      ORDER BY depth, created_at`;
 
         return yield* Effect.forEach(rows, (r) => summary(sql, r.id));

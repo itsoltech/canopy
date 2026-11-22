@@ -32,9 +32,17 @@ export function stageConsolidation(
 
     for (const table of tables) {
       const name = staged(table.name);
-      const columns = table.written.map(ident).join(",");
-      yield* target.unsafe(`CREATE TEMP TABLE ${ident("cc_" + table.name)} ON COMMIT DROP AS
+
+      if (table.name === "agent_memory_scopes") {
+        // Project identities may merge during review. Recompute the derived scope key when they do.
+        yield* target`CREATE TEMP TABLE cc_agent_memory_scopes (
+          LIKE public.agent_memory_scopes INCLUDING GENERATED, __source_key text, __has_secret boolean
+        ) ON COMMIT DROP`;
+      } else {
+        const columns = table.written.map(ident).join(",");
+        yield* target.unsafe(`CREATE TEMP TABLE ${ident("cc_" + table.name)} ON COMMIT DROP AS
         SELECT ${columns},NULL::text AS __source_key,false AS __has_secret FROM ${publicTable(table.name)} WITH NO DATA`);
+      }
 
       counts[table.name] = yield* stageTable(source, target, input.source.ownerUserId, table);
 

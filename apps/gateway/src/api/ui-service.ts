@@ -33,6 +33,7 @@ import { composerDraftHandlers } from "./ui-composer-drafts.ts";
 import { agentToolsHandlers } from "./ui-agent-tools.ts";
 import { withDraftDelivery } from "../drafts/delivery.ts";
 import { liveTurnPermissionHandlers } from "./ui-live-permissions.ts";
+import { memoryHandlers } from "../memory/ui.ts";
 
 export { toConnectError } from "./ui-errors.ts";
 
@@ -83,6 +84,7 @@ function withFeedNudges(core: GatewayCore, handlers: UiHandlers): UiHandlers {
 /** This computer's own GatewayService. Thin: validation and state live in the core and the store. */
 export function uiHandlers(core: GatewayCore): UiHandlers {
   return withFeedNudges(core, {
+    ...memoryHandlers(core),
     ...usageHandlers(core),
     ...composerDraftHandlers(core),
     ...agentToolsHandlers(core),

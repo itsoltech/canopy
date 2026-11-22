@@ -1,9 +1,9 @@
 import { afterAll, beforeAll, describe, expect, test } from "bun:test";
-import { create } from "@bufbuild/protobuf";
+import { create, fromJsonString } from "@bufbuild/protobuf";
 import { timestampDate } from "@bufbuild/protobuf/wkt";
 import {
   AgentToolCallSchema,
-  type bots,
+  bots,
   InteractionKind,
   Provider,
   ThreadEventSchema,
@@ -371,21 +371,40 @@ describe.skipIf(!dockerAvailable)("bot execution summaries over gRPC", () => {
     const stream = watch(id);
 
     try {
-      const now = new Date();
-      await core.bots.run((s) => s.enqueue(userId, id, "Routine setup", crypto.randomUUID()));
-      const seed = (await core.bots.run((s) => s.claim(userId)))!;
+      const { turnId: setup } = await gw.api.sendBotMessage({
+        botId: id,
+        text: "Schedule a periodic check",
+        clientRequestId: crypto.randomUUID(),
+      });
 
-      const routine = await core.bots.run((s) =>
-        s.createRoutine(
-          userId,
-          seed,
-          crypto.randomUUID(),
-          { title: "Periodic check", instructions: "Check quietly", cron: "*/15 * * * *", timezone: "UTC" },
-          now,
-        ),
+      await expectCommandAcknowledged(setup);
+      worker.emit(id, setup, { case: "turnStarted", value: {} });
+
+      const result = await core.bots.harnessTools.handle(
+        create(AgentToolCallSchema, {
+          botId: id,
+          threadId: id,
+          turnId: setup,
+          callId: crypto.randomUUID(),
+          toolName: "create_routine",
+          argumentsJson: JSON.stringify({
+            title: "Periodic check",
+            instructions: "Check quietly",
+            cron: "*/15 * * * *",
+            timezone: "UTC",
+          }),
+        }),
+        gw.workerId,
       );
 
-      await core.bots.run((s) => s.finish(seed, "completed", "Scheduled"));
+      const routine = fromJsonString(bots.BotRoutineSchema, result.resultJson);
+      worker.finish(id, setup, "Scheduled");
+      expect(
+        await eventually(
+          async () => (await read(id)).messages.at(-1)?.text,
+          (text) => text === "Scheduled",
+        ),
+      ).toBe("Scheduled");
       await core.bots.run((s) => s.deliverRoutines(userId, timestampDate(routine.nextRunAt!)));
 
       const turns = await query<{ id: string }>("SELECT id FROM bot_turns WHERE routine_id=$1::uuid", [routine.id]);
@@ -396,8 +415,9 @@ describe.skipIf(!dockerAvailable)("bot execution summaries over gRPC", () => {
       await stream.expectSummary(false);
       await core.bots.tick();
       await expectCommandAcknowledged(turnId);
+      const beforeStart = stream.updates.length;
       worker.emit(id, turnId, { case: "turnStarted", value: {} });
-      await stream.expectSummary(true);
+      await stream.expectSummary(true, beforeStart);
       expect((await read(id)).working).toBe(false);
 
       const beforeArchive = stream.updates.length;

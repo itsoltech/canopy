@@ -1,3 +1,4 @@
+import { rebaseAgentMemory } from "./consolidation-memory.ts";
 import { Effect } from "effect";
 import {
   ident,
@@ -55,6 +56,8 @@ export function mergeConsolidation(
     for (const table of tables) {
       if (counts[table.name]) blockers.push(...(yield* rewriteScope(sql, table, tables, input)));
     }
+
+    blockers.push(...(yield* rebaseAgentMemory(sql, input)));
 
     for (const table of tables) {
       if (table.matchAfterRebase && counts[table.name]) yield* matchMerge(sql, table, input.target.ownerUserId);
@@ -125,7 +128,7 @@ function rewriteScope(
 
     const users = new Set(table.foreignKeys.filter((key) => key.target === "users").flatMap((key) => key.columns));
 
-    if (table.name === "thread_visuals") users.add("owner_user_id");
+    if (table.name === "thread_visuals" || table.name === "agent_memory_notes") users.add("owner_user_id");
 
     for (const column of users) {
       blockers.push(...(yield* checkScope(sql, input.source.ownerUserId, table.name, column)));
@@ -218,7 +221,7 @@ export function checkTableReferences(sql: Database, tables: readonly SelectedTab
         [name],
       );
 
-      if (name !== "blobs" && !table.sequence)
+      if (name !== "blobs" && name !== "agent_memory_scopes" && !table.sequence)
         blockers.push(...collisions.map(({ key }) => ({ table: name, key, reason: "target_row_identity_collision" })));
 
       for (const foreign of table.foreignKeys) {

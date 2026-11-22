@@ -2,7 +2,7 @@ import { isMessage, type DescMessage, type Message } from "@bufbuild/protobuf";
 import { ui } from "@canopy/contracts";
 import { isEntityId, qualifyId, splitId } from "@canopy/domain/computers";
 import { Predicate } from "effect";
-import type { Arguments } from "./agents-context.ts";
+import { SEND_ISOLATED_BOT_MESSAGE, type Arguments } from "./agents-context.ts";
 import { mapIds } from "./remote-ids.ts";
 
 export type MoveKind = "thread" | "bot";
@@ -80,6 +80,8 @@ export function mapMoveIds(desc: DescMessage, message: Message, map: (value: str
 }
 
 export function movedAgentTarget(operation: string, args: Arguments) {
+  if (operation === SEND_ISOLATED_BOT_MESSAGE && args["target_kind"] === "bot") operation = "send";
+
   if (
     !["send", "get_thread", "read_thread", "interrupt_thread", "close_thread"].includes(operation) ||
     !Predicate.isString(args["target"])

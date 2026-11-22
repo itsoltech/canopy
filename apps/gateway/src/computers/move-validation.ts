@@ -238,6 +238,10 @@ export function validateMoveContent(prepare: link.MovePrepare) {
   for (const [index, thread] of (prepare.thread?.threads ?? []).entries()) {
     const row = threadRowJson(thread.rowJson);
 
+    // Also check exports resumed after an upgrade, whose family was frozen before audience isolation.
+    if (row.memory_audience)
+      throw new MoveRefused("Threads delegated to a restricted audience must stay on their home computer.");
+
     if (
       !UUID.test(row.id) ||
       threadIds.has(row.id) ||

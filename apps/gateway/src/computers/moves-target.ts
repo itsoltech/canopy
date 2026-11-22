@@ -210,7 +210,10 @@ export async function movesApplyThread(
   prepare: link.ThreadMove,
 ) {
   const threads = prepare.threads;
-  const ids = threads.map((t) => threadRowJson(t.rowJson).id);
+  const rows = threads.map((t) => threadRowJson(t.rowJson));
+  const ids = rows.map((row) => row.id);
+  // Older sources omitted bot watches and fork origins. Isolate the imported family before any turn can run.
+  const legacyAudience = rows.some((row) => row.memory_audience === undefined) ? `legacy:move:${move.id}` : undefined;
 
   const family = new Set(ids);
   const files = new Set(prepare.files.map((f) => movedAttachment(f).id));
@@ -260,23 +263,27 @@ export async function movesApplyThread(
       },
     });
 
-    await movesCore(hostContext).createMovedThread(request, row.id, () =>
-      applyThreadRows(hostContext[movesState].store, move, thread, {
-        threadId: row.id,
-        projectId: workspace.project_id,
-        ordinalTurn: crypto.randomUUID(),
-        history,
-        handoff: handoffNote(history, {
-          from,
-          to: self.name,
-          oldCwd: row.cwd ?? "",
-          newCwd: workspace.root_path,
-          title: row.title,
+    await movesCore(hostContext).createMovedThread(
+      request,
+      row.id,
+      () =>
+        applyThreadRows(hostContext[movesState].store, move, thread, {
+          threadId: row.id,
+          projectId: workspace.project_id,
+          ordinalTurn: crypto.randomUUID(),
+          history,
+          handoff: handoffNote(history, {
+            from,
+            to: self.name,
+            oldCwd: row.cwd ?? "",
+            newCwd: workspace.root_path,
+            title: row.title,
+          }),
+          notice: { eventId: notice.eventId, payload: toJson(ThreadEventSchema, notice) },
+          files: prepare.files,
+          blobs: prepare.blobs,
         }),
-        notice: { eventId: notice.eventId, payload: toJson(ThreadEventSchema, notice) },
-        files: prepare.files,
-        blobs: prepare.blobs,
-      }),
+      row.kind === "main" ? legacyAudience : undefined,
     );
 
     if (row.kind === "main" && row.archived_at)

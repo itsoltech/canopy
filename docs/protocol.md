@@ -937,6 +937,11 @@ status, kod wyjścia oraz oddzieloną treść stdout/stderr. Surowy prefiks `!` 
 
 ## Szyna agentów
 
+Status (2026-11-22): `ThreadSpec.enable_memory` udostępnia narzędzia pamięci
+wątków Claude, Codex i Grok przez istniejące kanały MCP i `AgentToolCall`.
+`RunBotTurn.memory_context` przekazuje blok pamięci oddzielnie od wejścia
+użytkownika i klucza konfiguracji sesji. [Pamięć agentów i botów](agent-memory.md)
+
 Wywołania narzędzi szyny (`spawn_thread`, `send_message`, `wait_threads`, ... — [agent-bus.md](agent-bus.md)) z agenta SDK wracają do gateway jako `AgentToolCall`. Gateway:
 
 1. zwraca zapisany wynik, jeśli `call_id` już był wykonany (ponowienie po zerwaniu połączenia),

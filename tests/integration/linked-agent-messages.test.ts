@@ -1,5 +1,5 @@
 import { afterAll, beforeAll, describe, expect, test } from "bun:test";
-import { fromJson, type JsonValue } from "@bufbuild/protobuf";
+import { create, fromJson, type JsonValue } from "@bufbuild/protobuf";
 import { InteractionKind, Provider, ui } from "@canopy/contracts";
 import { dockerAvailable } from "@canopy/db/testing";
 import { qualifyId } from "@canopy/domain/computers";
@@ -152,7 +152,10 @@ describe.skipIf(!dockerAvailable)("linked message authors and bot harness wakeup
     expect(await failure(a.core.getThread(thread))).toBeTruthy();
   }, 30_000);
 
-  test("remote completion wakes the resumed harness, stores a readable event and commits one answer", async () => {
+  test("remote completion uses an isolated harness session, stores a readable event and commits one answer", async () => {
+    const latestTurn = () => fixture.records().findLast((r) => r.harness === "claude" && r.event === "turn");
+    const ownerTurn = latestTurn();
+    expect(ownerTurn).toBeDefined();
     const held = [...b.worker.started.keys()].at(-1)!;
     b.worker.holdTurns = false;
     b.worker.finish(thread, held, "Remote reply");
@@ -178,7 +181,10 @@ describe.skipIf(!dockerAvailable)("linked message authors and bot harness wakeup
     expect(turns[0]?.input).toContain("Remote reply");
     const history = await a.core.bots.run((s) => s.history(turns[0]!));
     expect(history.some((m) => m.role === "user" && m.text === turns[0]!.input)).toBe(true);
-    expect(fixture.records().some((r) => r.harness === "claude" && r.event === "resume")).toBe(true);
+    const callback = latestTurn();
+    expect(callback).toBeDefined();
+    expect(callback!.session).not.toBe(ownerTurn!.session);
+    expect(callback!.home).not.toBe(ownerTurn!.home);
 
     const projected = await fixture.query<{ text: string; items: Record<string, string> }>(
       "SELECT h.text,h.items FROM bot_harness_turns h JOIN bot_turns t ON t.id=h.turn_id WHERE t.bot_id=$1::uuid ORDER BY t.created_at DESC LIMIT 1",
@@ -376,6 +382,45 @@ describe.skipIf(!dockerAvailable)("linked message authors and bot harness wakeup
       b.worker.finish(current, held.id, "Approval test finished");
     }
   }, 30_000);
+
+  test("the thread home rejects linked queues and steers into a different audience", async () => {
+    const placement = await b.core.getThread(thread);
+
+    const restricted = await b.core.createThread(
+      create(ui.CreateThreadRequestSchema, {
+        projectId: placement.projectId,
+        workspaceId: placement.workspaceId,
+        provider: Provider.CODEX,
+        title: "Conversation task",
+      }),
+      undefined,
+      false,
+      { memoryAudience: `conversation:${bot}:${crypto.randomUUID()}` },
+    );
+
+    const node = lb.hello().nodeId;
+    const target = qualifyId(restricted.id, node);
+    expect((await a.api.getThread({ threadId: target })).thread?.id).toBe(target);
+
+    for (const delivery of ["queue", "steer"]) {
+      const send = a.core.linkedAgents.send(
+        node,
+        "send",
+        { kind: "bot", id: bot, name: "Main Bot", hops: 1 },
+        crypto.randomUUID(),
+        { target: restricted.id, target_kind: "thread", delivery, prompt: "private owner input" },
+      );
+
+      expect(await failure(send)).toContain("Choose a thread delegated from this conversation");
+    }
+
+    expect(
+      await b.core.linkedAgents.query(
+        "SELECT id FROM turns WHERE thread_id=$1::uuid UNION ALL SELECT id FROM turn_steers WHERE thread_id=$1::uuid",
+        [restricted.id],
+      ),
+    ).toHaveLength(0);
+  }, 15000);
 
   for (const home of ["bot", "thread"]) {
     test(`re-enabling modules at the ${home} home does not revive a pending linked report`, async () => {

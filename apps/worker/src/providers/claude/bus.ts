@@ -10,6 +10,7 @@ import { agentBusToolSpecs, agentBusToolsFor, VIEW_IMAGE_TOOL, viewImageSpec } f
 import { z } from "zod";
 import type { ViewImageResult } from "../../images/index.ts";
 import { toolCallId } from "../tool-call-id.ts";
+import { threadMemoryTools } from "../memory-tools.ts";
 import { BUS_SERVER } from "./mapping.ts";
 import type { JsonValue } from "@canopy/domain";
 import { Schema } from "effect";
@@ -30,6 +31,7 @@ export interface ClaudeBusOptions {
   readonly connectorTools?: readonly ConnectorTool[];
   readonly threadId: string;
   readonly depth: number;
+  readonly enableMemory?: boolean;
   readonly hasDelegatingBot?: boolean;
   /** Agent bus tools (ThreadSpec.enable_agent_bus); view_image is there either way when viewImage is set. */
   readonly agentBus: boolean;
@@ -71,7 +73,7 @@ export function claudeBusServer(options: ClaudeBusOptions): McpSdkServerConfigWi
     alwaysLoad: true,
     timeout: IMAGE_PUBLICATION_TIMEOUT_MS,
     tools: [
-      ...(options.agentBus ? busTools(options) : []),
+      ...busTools(options),
       ...(options.connectorTools ?? []).map(
         (spec) =>
           ({
@@ -137,7 +139,10 @@ function viewImageTool(view: (path: string) => Promise<ViewImageResult>) {
 }
 
 function busTools(options: ClaudeBusOptions) {
-  return agentBusToolSpecs(agentBusToolsFor(options.depth, options.hasDelegatingBot)).map(
+  return [
+    ...(options.agentBus ? agentBusToolSpecs(agentBusToolsFor(options.depth, options.hasDelegatingBot)) : []),
+    ...threadMemoryTools(options.enableMemory),
+  ].map(
     (spec) =>
       ({
         name: spec.name,

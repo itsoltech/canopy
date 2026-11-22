@@ -5,6 +5,7 @@ import { formatSize, type JsonObject } from "@canopy/domain";
 import type { GatewayCore } from "./core.ts";
 import { coreState } from "./core-context.ts";
 import { BotStore } from "../bots/store.ts";
+import { botMemoryAccess } from "../bots/memory.ts";
 import { Invalid } from "../store/store.ts";
 import type { AttachmentRow } from "../store/attachments.ts";
 import type { BotTurn, StoredCall } from "../bots/types.ts";
@@ -25,10 +26,21 @@ export async function conversationFiles(core: GatewayCore, turn: BotTurn, ids?: 
     Effect.gen(function* () {
       const sql = yield* SqlClient.SqlClient;
 
+      const history =
+        Boolean(turn.conversation_id) ||
+        (yield* botMemoryAccess(sql, owner, turn).pipe(
+          Effect.map((access) => access.scopes.length > 0),
+          Effect.catchIf(
+            (error) => error instanceof Invalid,
+            () => Effect.succeed(false),
+          ),
+        ));
+
       const rows = yield* sql<AttachmentRow>`SELECT a.* FROM attachments a JOIN bots b ON b.id=a.bot_id
         JOIN bot_turns t ON t.id=a.bot_turn_id AND t.bot_id=b.id
       WHERE a.owner_user_id=${owner}::uuid AND b.owner_user_id=${owner}::uuid
         AND b.id=${turn.bot_id}::uuid AND b.deleted_at IS NULL AND b.archived_at IS NULL AND b.moved_to IS NULL
+        AND (${history} OR t.id=${turn.id}::uuid)
         AND t.conversation_id IS NOT DISTINCT FROM ${turn.conversation_id ?? null}::uuid ORDER BY a.id`;
 
       if (ids === undefined) return rows;
@@ -109,10 +121,7 @@ export async function forwardedNotice(core: GatewayCore, turn: BotTurn, call: St
   );
 }
 
-export async function forwardingApproval(core: GatewayCore, turn: BotTurn, call: StoredCall, prompt: string) {
-  const ids = forwardingIds(call.arguments);
-  localForwardTarget(call.arguments, ids);
-
+export async function forwardingApproval(core: GatewayCore, turn: BotTurn, ids: readonly string[], prompt: string) {
   if (!ids.length) return undefined;
   const files = await conversationFiles(core, turn, ids);
 

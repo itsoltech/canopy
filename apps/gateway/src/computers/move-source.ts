@@ -28,6 +28,7 @@ export function threadBlocker(sql: Sql, owner: string, family: string[]) {
   return Effect.gen(function* () {
     const busy = yield* sql.unsafe<{ reason: string }>(
       `SELECT CASE
+      WHEN EXISTS (SELECT 1 FROM threads WHERE id = ANY($1::uuid[]) AND memory_audience <> '') THEN 'Threads delegated to a restricted audience must stay on their home computer.'
       WHEN EXISTS (SELECT 1 FROM turns WHERE thread_id = ANY($1::uuid[]) AND status IN ('queued','running')) THEN 'A turn is running or queued. Wait for it to finish or stop it, then move.'
       WHEN EXISTS (SELECT 1 FROM threads WHERE id = ANY($1::uuid[]) AND status = 'running') THEN 'A turn is running. Wait for it to finish or stop it, then move.'
       WHEN EXISTS (SELECT 1 FROM interaction_requests WHERE thread_id = ANY($1::uuid[]) AND status = 'pending') THEN 'A question or approval is waiting for an answer.'
@@ -205,7 +206,7 @@ export async function exportThread(
         `SELECT json_build_object('id',id,'kind',kind,'parent_thread_id',parent_thread_id,'title',title,'title_source',title_source,
       'provider',provider,'provider_profile_id',provider_profile_id,'settings',settings,'cwd',cwd,'created_at',created_at,'archived_at',archived_at,'auto_archive_on_merge',auto_archive_on_merge,'runtime',runtime,
       'snoozed',snoozed,'snoozed_until',snoozed_until,
-      'project_id',project_id,'remote_parent_ref',remote_parent_ref,'remote_parent_kind',remote_parent_kind,'last_seq',last_seq) AS row
+      'project_id',project_id,'memory_audience',memory_audience,'remote_parent_ref',remote_parent_ref,'remote_parent_kind',remote_parent_kind,'last_seq',last_seq) AS row
       FROM threads WHERE id = $1::uuid AND owner_user_id = $2::uuid`,
         [id, owner],
       )

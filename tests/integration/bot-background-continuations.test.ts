@@ -1,9 +1,21 @@
 import { afterEach, beforeAll, describe, expect, test } from "bun:test";
 import { readFileSync } from "node:fs";
-import { BackgroundTaskKind, InteractionKind, ItemStatus, Provider, TurnOrigin, TurnOutcome } from "@canopy/contracts";
+import { create } from "@bufbuild/protobuf";
+import {
+  ui,
+  BackgroundTaskKind,
+  InteractionKind,
+  ItemStatus,
+  Provider,
+  TurnOrigin,
+  TurnOutcome,
+} from "@canopy/contracts";
 import { dockerAvailable } from "@canopy/db/testing";
 import { GatewayCore } from "@canopy/gateway/core";
 import { SqlClient } from "effect/sql";
+import { botPlatform } from "../../apps/gateway/src/bots/platform.ts";
+import { areaTool } from "../../apps/gateway/src/bots/tools/index.ts";
+import { coreState } from "../../apps/gateway/src/core/core-context.ts";
 import { MessengerStore } from "../../apps/gateway/src/messengers/store.ts";
 import type { RoutineOrigin } from "../../apps/gateway/src/bots/routines.ts";
 import { ClaudeEventMapper, startsTurn } from "../../apps/worker/src/providers/claude/mapping.ts";
@@ -87,33 +99,55 @@ describe.skipIf(!dockerAvailable)("a bot watches its work in a persistent thread
     return result.id;
   }
 
-  async function watch(thread: string, botId: string, origin: RoutineOrigin = {}) {
+  async function watch(thread: string | undefined, botId: string, origin: RoutineOrigin = {}) {
     const { bots } = suite.current;
     const owner = suite.gw.userId;
 
-    await bots.run((s) => s.enqueue(owner, botId, "Run this", Bun.randomUUIDv7(), origin));
+    const routine = origin.routineId;
+    const key = routine ? `routine:${routine}:${new Date().toISOString()}` : Bun.randomUUIDv7();
+    await bots.run((s) =>
+      s.enqueue(owner, botId, "Run this", key, {
+        ...origin,
+        ...(routine && { hops: 1, sender: "system", event: true }),
+      }),
+    );
     const source = (await bots.run((s) => s.claim(owner)))!;
     expect(source.bot_id).toBe(botId);
 
     const call = await bots.run((s) =>
       s.planCall(
         source,
-        "send",
-        { name: "send_message", description: "", source: "platform", parameters: {} },
+        "delegate",
+        { name: thread ? "send_message" : "start_thread", description: "", source: "platform", parameters: {} },
         {
-          thread_id: thread,
+          ...(thread && { thread_id: thread }),
           delivery: "queue",
           text: "Run the requested work",
         },
       ),
     );
 
-    const sent = await suite.current.sendBotThreadMessage(source, call, thread, "Run the requested work", "queue");
+    const sent = thread
+      ? await suite.current.sendBotThreadMessage(source, call, thread, "Run the requested work", "queue")
+      : await suite.current.startBotThread(
+          source,
+          call,
+          create(ui.CreateThreadRequestSchema, {
+            projectId: suite.projectId,
+            workspaceId,
+            provider: Provider.CLAUDE,
+            title: "Delegated work",
+            initialMessage: "Run the requested work",
+            clientRequestId: call.id,
+          }),
+        );
+
     await bots.run((s) => s.finish(source, "completed", ""));
-    await expectStatus(sent.turn_id, "running");
+    await expectStatus(sent.turn_id!, "running");
 
     return {
-      turn: sent.turn_id,
+      turn: sent.turn_id!,
+      thread: sent.thread_id,
       callId: call.id,
       reports: () =>
         query<{ input: string; bot_id: string; routine_id: string | null; conversation_id: string | null }>(
@@ -261,12 +295,17 @@ describe.skipIf(!dockerAvailable)("a bot watches its work in a persistent thread
   test("a recurring routine keeps its own context and completes promptly without background work", async () => {
     const thread = await fixedThread();
     const id = await bot("Scheduled coordinator");
-    const routine = Bun.randomUUIDv7();
-    await query(
-      `INSERT INTO bot_routines(id,bot_id,title,instructions,cron,timezone,schedule_text,hops,next_run_at)
-        VALUES ($1,$2,'Check progress','Check progress','*/15 * * * *','UTC','Every 15 minutes',1,now()+interval '15 minutes')`,
-      [routine, id],
-    );
+    const { bots } = suite.current;
+    const owner = suite.gw.userId;
+    await bots.run((s) => s.enqueue(owner, id, "Set up a recurring progress check", Bun.randomUUIDv7()));
+    const creator = (await bots.run((s) => s.claim(owner)))!;
+    const config = { title: "Check progress", instructions: "Check progress", cron: "*/15 * * * *", timezone: "UTC" };
+    const spec = areaTool.get("create_routine")!.spec;
+    const creation = await bots.run((s) => s.planCall(creator, "create", spec, config));
+    const routine = creation.id;
+    const created = await botPlatform(suite.current, suite.current[coreState].options, creator, creation);
+    expect(created).toMatchObject({ id: routine });
+    await bots.run((s) => s.finish(creator, "completed", ""));
     const work = await watch(thread, id, { routineId: routine, routineTitle: "Check progress" });
 
     const schedule = await worker.callTool({
@@ -296,6 +335,18 @@ describe.skipIf(!dockerAvailable)("a bot watches its work in a persistent thread
     ]);
 
     expect(questions).toEqual([{ routine_id: routine }]);
+    const questionTurn = (await bots.run((s) => s.claim(suite.gw.userId)))!;
+    expect(questionTurn.client_request_id).toBe(`thread-question:${work.callId}:${requestId}`);
+    const read = areaTool.get("read_thread")!.spec;
+    const readCall = await bots.run((s) => s.planCall(questionTurn, "read-question", read, { thread_id: thread }));
+    const preview = await botPlatform(suite.current, suite.current[coreState].options, questionTurn, readCall);
+    expect(preview).toMatchObject({
+      turns: [],
+      messages: [],
+      interactions: [expect.objectContaining({ requestId, request: { question: "Which milestone should I use?" } })],
+    });
+    await bots.run((s) => s.finish(questionTurn, "completed", ""));
+
     expect(await work.reports()).toEqual([]);
 
     const permissionId = Bun.randomUUIDv7();
@@ -390,7 +441,7 @@ describe.skipIf(!dockerAvailable)("a bot watches its work in a persistent thread
 
   for (const scenario of ["live", "revoked", "private-answer"] as const) {
     test(`a Claude follow-up respects Slack origin with ${scenario}`, async () => {
-      const thread = await fixedThread();
+      worker.holdTurns = true;
       const botId = await bot("Slack coordinator");
       const { gw } = suite;
 
@@ -428,7 +479,8 @@ describe.skipIf(!dockerAvailable)("a bot watches its work in a persistent thread
           VALUES ($1,$3,'CPRODUCT','100.1',now()),($2,$3,'CPRODUCT','200.1',now())`,
         [original, different, route.id],
       );
-      const work = await watch(thread, botId, { conversationId: original });
+      const work = await watch(undefined, botId, { conversationId: original });
+      const thread = work.thread;
       task(thread, work.turn, "external-task");
       result(thread, work.turn, "Foreground progress");
       await expectStatus(work.turn, "completed");

@@ -204,6 +204,8 @@ describe.skipIf(!dockerAvailable)("schema on PostgreSQL 17", () => {
       "190_settings_guidance",
       "191_bot_background_continuations",
       "192_gateway_onboarding",
+      "193_agent_memory",
+      "194_thread_memory_audience",
     ]);
   }, 60_000);
 

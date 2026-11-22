@@ -1,3 +1,5 @@
+import { botMemoryTools } from "./memory.ts";
+import type { MemoryAccess } from "../memory/tools.ts";
 import { DEFAULT_BUS_LIMITS, type JsonObject, type JsonValue } from "@canopy/domain";
 import { botThreadConnectionEnabled } from "../store/module-access.ts";
 import type { BotRuntimeOptions } from "./runtime.ts";
@@ -45,6 +47,7 @@ export async function currentBotTools(
   options: BotRuntimeOptions,
   config: bots.BotConfiguration,
   turn: BotTurn,
+  memory: MemoryAccess,
 ): Promise<ToolSpec[]> {
   if (turn.handoff_configuration) return [];
 
@@ -55,8 +58,6 @@ export async function currentBotTools(
   const platform = catalog.filter(
     (tool) =>
       (!turn.conversation_id || EXTERNAL_WORK_TOOLS.has(tool.name)) &&
-      // Private follow-ups share the owner's native session and tool catalogue. Each preference call still
-      // checks the stored origin in the gateway. Routines and external chats have separate tool policies.
       (!accountPreferenceNames.has(tool.name) || !turn.routine_id) &&
       (config.files !== false || !BOT_FILE_TOOLS.includes(tool.name)) &&
       (config.webAccess !== false || tool.name !== "get_canopy_release_versions") &&
@@ -65,7 +66,11 @@ export async function currentBotTools(
         : tool.name !== "message_user"),
   );
 
-  return [...platform, ...(await options.connectors.botTools(turn.bot_id, turn, config.files !== false))];
+  return [
+    ...platform,
+    ...botMemoryTools(memory),
+    ...(await options.connectors.botTools(turn.bot_id, turn, config.files !== false)),
+  ];
 }
 
 /** An allowlist of descriptors, never a model-supplied tool name, grants capability. */
@@ -214,6 +219,10 @@ export function statusPhrase<T extends Pick<ToolSpec, "name" | "source" | "serve
       return `Renaming ${label(args["thread_name"], "a thread")}`;
     case "set_thread_model":
       return `Updating settings for ${label(args["thread_name"], "a thread")}`;
+    case "memory_search":
+      return "Searching memory";
+    case "memory_save":
+      return "Saving a memory note";
     case "ask_user":
       return "Waiting for your answer";
     default:

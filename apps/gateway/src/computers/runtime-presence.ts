@@ -1,6 +1,7 @@
 import { create } from "@bufbuild/protobuf";
 import {
   MIRROR_PAUSED,
+  AGENT_MEMORY_AUDIENCE,
   BOT_THREAD_ACCESS,
   AGENT_PREVIEW_CLIENT_ACK,
   DIAGNOSTICS_LOGS,
@@ -147,7 +148,7 @@ export const computersPresenceMethods: ComputersPresenceMethods = {
         ...(this.options.serve ? [WORKSPACE_COPY_CAPABILITY] : []),
         ...(this.options.serve ? ["thread_creation_progress_v1", BOT_THREAD_ACCESS, REMOTE_CLI_UPGRADE_ONLY] : []),
         USAGE_STATS,
-        ...(this.options.serve ? [PROVIDER_SETTINGS_CAPABILITY] : []),
+        ...(this.options.serve ? [PROVIDER_SETTINGS_CAPABILITY, AGENT_MEMORY_AUDIENCE] : []),
       ],
     });
 

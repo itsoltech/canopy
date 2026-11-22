@@ -1,3 +1,4 @@
+import { requireOwnerBotTurn } from "./owner-turn.ts";
 import { create, fromJson } from "@bufbuild/protobuf";
 import { bots, Provider } from "@canopy/contracts";
 import { Effect, Predicate } from "effect";
@@ -204,6 +205,14 @@ export function botSelfUpdate(sql: SqlClient.SqlClient, core: BotCore) {
           if (!approved.length)
             return yield* Effect.fail(new Invalid("changing model, effort or approval policy requires user approval"));
         }
+
+        if (given.has("name") || given.has("instructions") || given.has("append_instructions"))
+          yield* requireOwnerBotTurn(
+            sql,
+            user,
+            turn,
+            "Changing my name or instructions requires a private owner message.",
+          );
 
         const row = yield* owned(user, turn.bot_id, true);
         const before = botConfiguration(row);

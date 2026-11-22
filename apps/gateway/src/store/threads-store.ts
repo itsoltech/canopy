@@ -8,6 +8,7 @@ import { Invalid, NotFound, one, type Fx } from "./errors.ts";
 import { searchThreads } from "./thread-search.ts";
 import { archivedPage } from "./archived-pagination.ts";
 import { providerOf } from "./instance-config.ts";
+import { MEMORY_GUIDANCE } from "@canopy/domain/memory-tools";
 import { hasDelegatingBot, type ThreadRow } from "./rows.ts";
 import { listThreadSelect, threadSelect } from "./thread-select.ts";
 import { permissionModeOf } from "./ui-mappers.ts";
@@ -39,6 +40,7 @@ export interface ThreadStore {
     projectId: string,
     includeArchived?: boolean,
     sidebarOnly?: boolean,
+    memoryAudience?: string,
   ): Fx<ReadonlyArray<ThreadRow>>;
   listArchivedThreads(
     ownerUserId: string,
@@ -112,6 +114,43 @@ const archivedThreads = (sql: SqlClient.SqlClient, ownerUserId: string, request:
     };
   });
 
+function threadSpec(row: ThreadRow) {
+  const memoryEnabled = row.runtime === "worker" && row.project_kind === "project" && row.memory_audience === "";
+
+  return create(ThreadSpecSchema, {
+    threadId: row.id,
+    provider: providerOf(row.provider),
+    providerProfileId: row.provider_profile_id ?? "",
+    cwd: row.cwd ?? "",
+    scratch: row.project_kind === "scratch",
+    model: row.settings.model ?? "",
+    serviceTier: row.settings.serviceTier ?? "",
+    // A thread moved from a linked computer continues with its handoff note (stage 8).
+    instructions: [
+      row.runtime === "worker"
+        ? "When asked to show screenshots or how changes look, use show_images to publish representative local images with descriptive alt text. view_image inspects an image for you; it does not show it to the user. Publish before deleting source files. Only claim delivery after show_images succeeds. Local Markdown images are copied only after the message finishes; keep those files until the turn ends. Bare paths remain file previews, and remote image URLs are not loaded automatically. If show_images is unavailable in an older thread, say so and ask the user to start a new thread."
+        : undefined,
+      memoryEnabled ? MEMORY_GUIDANCE : undefined,
+      row.settings.instructions,
+      row.settings.handoff,
+      hasDelegatingBot(row) ? DELEGATING_BOT_MESSAGE_GUIDANCE : undefined,
+      (row.origin === "agent" && row.depth > 0) ||
+      (row.remote_parent_ref && row.remote_parent_kind === "thread" && !row.remote_parent_detached)
+        ? SUBAGENT_REPORTING_RULES
+        : undefined,
+    ]
+      .filter(Boolean)
+      .join("\n\n"),
+    permissionMode: permissionModeOf(row.settings.permissionMode || "ASK"),
+    // Agent bus tools for every worker thread: Codex dynamicTools, Claude MCP (docs/agent-bus.md).
+    enableMemory: memoryEnabled,
+    enableAgentBus: row.runtime === "worker",
+    hasDelegatingBot: hasDelegatingBot(row),
+    providerThreadId: row.provider_thread_id ?? "",
+    depth: row.remote_parent_ref ? 1 : row.depth,
+  });
+}
+
 export function threadStore(sql: SqlClient.SqlClient): Omit<ThreadStore, "createThread"> {
   const store: Omit<ThreadStore, "createThread"> = {
     lastUsedAgent: (ownerUserId) =>
@@ -163,53 +202,23 @@ export function threadStore(sql: SqlClient.SqlClient): Omit<ThreadStore, "create
         return rows[0].changed;
       }),
 
-    listThreads: (ownerUserId, projectId, includeArchived = false, sidebarOnly = false) =>
+    listThreads: (ownerUserId, projectId, includeArchived = false, sidebarOnly = false, memoryAudience = "") =>
       sql.unsafe<ThreadRow>(
         listThreadSelect(`WHERE t.owner_user_id = $1::uuid AND ($2::uuid IS NULL OR t.project_id = $2::uuid)
-              AND t.deleted_at IS NULL AND (CASE WHEN $4::boolean THEN ((t.archived_at IS NULL AND NOT EXISTS
+              AND t.deleted_at IS NULL AND ($5::text = '' OR t.memory_audience = $5) AND (CASE WHEN $4::boolean THEN ((t.archived_at IS NULL AND NOT EXISTS
                 (SELECT 1 FROM threads parent WHERE parent.id = t.parent_thread_id AND parent.archived_at IS NOT NULL)) OR
                 (t.kind = 'side' AND EXISTS (SELECT 1 FROM threads parent WHERE parent.id = t.parent_thread_id
                   AND parent.owner_user_id = t.owner_user_id AND parent.archived_at IS NULL AND parent.deleted_at IS NULL)))
                 ELSE ($3::boolean OR t.archived_at IS NULL) END)
               AND EXISTS (SELECT 1 FROM projects p WHERE p.id = t.project_id AND p.archived_at IS NULL) ORDER BY t.created_at`),
-        [ownerUserId, projectId || null, includeArchived, sidebarOnly],
+        [ownerUserId, projectId || null, includeArchived, sidebarOnly, memoryAudience],
       ),
 
     listArchivedThreads: (ownerUserId, request) => archivedThreads(sql, ownerUserId, request),
     searchThreads: (ownerUserId, query, excludeThreadId, limit) =>
       searchThreads(sql, ownerUserId, query, excludeThreadId, limit),
 
-    threadSpec: (row) =>
-      create(ThreadSpecSchema, {
-        threadId: row.id,
-        provider: providerOf(row.provider),
-        providerProfileId: row.provider_profile_id ?? "",
-        cwd: row.cwd ?? "",
-        scratch: row.project_kind === "scratch",
-        model: row.settings.model ?? "",
-        serviceTier: row.settings.serviceTier ?? "",
-        // A thread moved from a linked computer continues with its handoff note (stage 8).
-        instructions: [
-          row.runtime === "worker"
-            ? "When asked to show screenshots or how changes look, use show_images to publish representative local images with descriptive alt text. view_image inspects an image for you; it does not show it to the user. Publish before deleting source files. Only claim delivery after show_images succeeds. Local Markdown images are copied only after the message finishes; keep those files until the turn ends. Bare paths remain file previews, and remote image URLs are not loaded automatically. If show_images is unavailable in an older thread, say so and ask the user to start a new thread."
-            : undefined,
-          row.settings.instructions,
-          row.settings.handoff,
-          hasDelegatingBot(row) ? DELEGATING_BOT_MESSAGE_GUIDANCE : undefined,
-          (row.origin === "agent" && row.depth > 0) ||
-          (row.remote_parent_ref && row.remote_parent_kind === "thread" && !row.remote_parent_detached)
-            ? SUBAGENT_REPORTING_RULES
-            : undefined,
-        ]
-          .filter(Boolean)
-          .join("\n\n"),
-        permissionMode: permissionModeOf(row.settings.permissionMode || "ASK"),
-        // Agent bus tools for every worker thread: Codex dynamicTools, Claude MCP (docs/agent-bus.md).
-        enableAgentBus: row.runtime === "worker",
-        hasDelegatingBot: hasDelegatingBot(row),
-        providerThreadId: row.provider_thread_id ?? "",
-        depth: row.remote_parent_ref ? 1 : row.depth,
-      }),
+    threadSpec,
 
     setThreadStatus: (threadId, status, detail) =>
       sql`UPDATE threads SET status = ${status}, status_detail = ${detail} WHERE id = ${threadId}::uuid AND deleted_at IS NULL AND archived_at IS NULL`.pipe(

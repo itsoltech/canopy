@@ -1,4 +1,5 @@
 import { useState, type ReactNode } from "react";
+import type { ui } from "@canopy/contracts";
 import { Pressable, Text, View } from "react-native";
 import { useEffect } from "react";
 import { router, useNavigation } from "expo-router";
@@ -10,6 +11,7 @@ import {
   settingsSectionEnabled,
   matchesSettingsSection,
   settingsGroups,
+  settingsSectionMethods,
   settingsSections,
   type SettingsSection,
 } from "@canopy/ui/settings";
@@ -41,7 +43,7 @@ export function SettingsLayout({
   const insets = usePaneInsets();
   const { client } = useSession();
   const { modules } = useAppearance();
-  const [linked, setLinked] = useState(false);
+  const [capabilities, setCapabilities] = useState<ui.ClientCapabilities>();
   const [error, setError] = useState("");
   const [query, setQuery] = useState("");
   const current = settingsSections.find((s) => s.href.endsWith(`/${section}`));
@@ -51,7 +53,7 @@ export function SettingsLayout({
     void client?.api
       .getClientCapabilities({})
       .then((r) => {
-        if (active) setLinked(r.linkedComputers);
+        if (active) setCapabilities(r);
       })
       .catch(() => {
         if (active) setError("Could not check available settings. Reopen Settings to retry.");
@@ -65,7 +67,9 @@ export function SettingsLayout({
   const sections = settingsSections.filter(
     (s) =>
       settingsSectionEnabled(s.href, modules) &&
-      (linked || s.href !== "/settings/computers") &&
+      (capabilities?.linkedComputers || s.href !== "/settings/computers") &&
+      (s.href !== "/settings/memory" ||
+        settingsSectionMethods["/settings/memory"].every((method) => capabilities?.methods.includes(method))) &&
       matchesSettingsSection(s, query),
   );
 

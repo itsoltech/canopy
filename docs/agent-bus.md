@@ -1,5 +1,13 @@
 # Szyna agentów: delegowanie, interakcje, harmonogram
 
+Status (2026-11-22): gateway zachowuje źródło delegacji zewnętrznej przez wznowienia, forki
+i lokalne wątki boczne. Agent takiej delegacji odczytuje historię i kieruje wiadomości wyłącznie
+do wątków tej samej grupy odbiorców na swoim komputerze. Narzędzie `list_threads` stosuje tę samą granicę.
+Przy aktualizacji gateway wyłącza pamięć w starszych sesjach o niejednoznacznym pochodzeniu,
+również w ich kontynuacjach i sesjach uruchamianych przez powiązane harmonogramy.
+Zwykłe wątki projektu mają odświeżany katalog narzędzi pamięci opisany w [agent-memory.md](agent-memory.md).
+Dostępność w kanałach wynika z [promocji wydań](release.md).
+
 Status (2026-11-21): wątki mogą sprawdzić nazwę sekcji ustawień dla klienta
 i wersji przez `find_canopy_settings`. Przy braku potwierdzenia agent ma
 powiedzieć, czego nie udało się zweryfikować. Zakres narzędzia i wersje:

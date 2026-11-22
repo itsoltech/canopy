@@ -1,7 +1,9 @@
 /** Scripted Codex peer: real JSON-RPC dispatch, dynamic tool items, and whitespace-only text deltas. */
 import { createInterface } from "node:readline";
 import type { JsonObject } from "@canopy/domain";
+import { Schema } from "effect";
 import { decodeJsonObject, jsonObject, jsonString } from "../../../apps/worker/src/providers/json.ts";
+import { HttpMcp, httpTools } from "../fixtures/instance-mcp.ts";
 import { textChunks } from "./bus-text.ts";
 
 const send = (message: JsonObject) => process.stdout.write(`${JSON.stringify(message)}\n`);
@@ -9,7 +11,12 @@ const notify = (method: string, params: JsonObject) => send({ method, params });
 const threadId = "bus-fixture-thread";
 const turnId = "bus-fixture-turn";
 let args: JsonObject = {};
+let tools: string[] = [];
 const tool = process.argv[2] ?? "send_message";
+
+const decodeConfig = Schema.decodeUnknownSync(
+  Schema.Struct({ mcp_servers: Schema.optionalKey(Schema.Record(Schema.String, HttpMcp)) }),
+);
 
 for await (const line of createInterface({ input: process.stdin })) {
   const request = decodeJsonObject(JSON.parse(line));
@@ -19,12 +26,24 @@ for await (const line of createInterface({ input: process.stdin })) {
   if (id === undefined) continue;
 
   if (request["method"] === "initialize") send({ id, result: { userAgent: "bus-fixture" } });
-  else if (request["method"] === "thread/start") send({ id, result: { thread: { id: threadId, path: null } } });
-  else if (request["method"] === "model/list") send({ id, result: { data: [], nextCursor: null } });
+  else if (request["method"] === "thread/start") {
+    const config = decodeConfig(params["config"] ?? {});
+    tools = await httpTools(config.mcp_servers?.["canopy_connectors"]);
+    send({ id, result: { thread: { id: threadId, path: null } } });
+  } else if (request["method"] === "model/list") send({ id, result: { data: [], nextCursor: null } });
   else if (request["method"] === "mcpServerStatus/list")
     send({
       id,
-      result: { data: [{ name: "canopy_connectors", runtimeStatus: "connected", tools: {} }], nextCursor: null },
+      result: {
+        data: [
+          {
+            name: "canopy_connectors",
+            runtimeStatus: "connected",
+            tools: Object.fromEntries(tools.map((name) => [name, { name }])),
+          },
+        ],
+        nextCursor: null,
+      },
     });
   else if (request["method"] === "turn/start") {
     const input = params["input"];

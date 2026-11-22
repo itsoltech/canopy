@@ -38,6 +38,24 @@ export interface AgentsBusToolsMethods {
   send(node: string, operation: string, actor: Actor, callId: string, args: Arguments): Promise<JsonValue>;
 }
 
+function requireLocalAudienceTarget(call: AgentBusCall, caller: ThreadRow) {
+  const args: Arguments = call.args;
+
+  const ids = [
+    args["workspace_id"],
+    args["thread_id"],
+    args["request_id"],
+    ...(call.tool === "wait_threads" ? call.args.thread_ids : []),
+  ];
+
+  if (
+    (call.tool === "message_delegating_bot" && caller.remote_parent_kind === "bot") ||
+    ids.some((id) => Predicate.isString(id) && splitId(id).node) ||
+    (call.tool === "send_message" && call.args.target_kind === "bot")
+  )
+    fail("Choose a thread delegated from this conversation on this computer.");
+}
+
 export const agentsBusToolsMethods: AgentsBusToolsMethods = {
   async extend(this: LinkedAgents, call: AgentBusCall, caller: ThreadRow, result: JsonValue): Promise<JsonValue> {
     if (call.tool === "list_agents") return { ...record(result), linked_computers: await this.catalog() };
@@ -88,9 +106,12 @@ export const agentsBusToolsMethods: AgentsBusToolsMethods = {
     call: AgentBusCall,
     caller: ThreadRow,
   ): Promise<JsonValue | undefined> {
+    this.redirect(call.args);
+
+    if (caller.memory_audience) requireLocalAudienceTarget(call, caller);
+
     if (call.tool === "message_delegating_bot" && caller.remote_parent_kind === "bot")
       return messageLinkedDelegatingBot(this, request, caller, call.args.text);
-    this.redirect(call.args);
 
     if (call.tool === "wait_threads" && call.args.thread_ids.some((id) => splitId(id).node)) {
       return await waitLinkedThreads(this, request, call, caller);

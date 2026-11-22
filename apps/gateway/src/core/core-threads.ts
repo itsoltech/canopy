@@ -156,7 +156,12 @@ export async function coreArchiveThread(
 
 export interface CoreThreadsMethods {
   reorderThread(request: ui.ReorderThreadRequest): Promise<ui.Thread>;
-  listThreads(projectId: string, includeArchived?: boolean, sidebarOnly?: boolean): Promise<ui.Thread[]>;
+  listThreads(
+    projectId: string,
+    includeArchived?: boolean,
+    sidebarOnly?: boolean,
+    memoryAudience?: string,
+  ): Promise<ui.Thread[]>;
   listArchivedThreads(request: ui.ListArchivedThreadsRequest): Promise<ui.ListArchivedThreadsResponse>;
   getThread(threadId: string): Promise<ui.Thread>;
   setThreadRead(threadId: string, unread: boolean): Promise<ui.Thread>;
@@ -191,9 +196,12 @@ export const coreThreadsMethods: CoreThreadsMethods = {
     projectId: string,
     includeArchived = false,
     sidebarOnly = false,
+    memoryAudience = "",
   ): Promise<ui.Thread[]> {
     return (
-      await coreRun(this, (s) => s.listThreads(this[coreState].options.userId, projectId, includeArchived, sidebarOnly))
+      await coreRun(this, (s) =>
+        s.listThreads(this[coreState].options.userId, projectId, includeArchived, sidebarOnly, memoryAudience),
+      )
     ).map((row) => coreUiThread(this, row));
   },
 

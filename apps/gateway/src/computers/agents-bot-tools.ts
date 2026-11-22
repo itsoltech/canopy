@@ -23,6 +23,7 @@ import { requireLinkedModules } from "./agents-module-access.ts";
 import type { LinkedAgents } from "./agents.ts";
 import { gather } from "../api/routed-overview.ts";
 import { PEER_READ_TIMEOUT_MS } from "./timing.ts";
+import { botThreadAudience } from "../core/bot-thread-audience.ts";
 import { botThreadPermission } from "../bots/thread-permission.ts";
 import { delegationPrompt } from "../bots/external-instructions.ts";
 import { SettingsStore } from "../store/settings.ts";
@@ -56,7 +57,7 @@ export const agentsBotToolsMethods: AgentsBotToolsMethods = {
     this.redirect(args);
 
     if (call.tool.name === "list_threads") {
-      return await listBotThreads(this, args);
+      return await listBotThreads(this, args, await botThreadAudience(this.core, turn));
     }
 
     if (call.tool.name === "list_bots") {
@@ -117,26 +118,7 @@ export const agentsBotToolsMethods: AgentsBotToolsMethods = {
           }),
         );
       case "send_bot_message":
-        return action(async () => {
-          const target = text(args, "bot_id");
-
-          const result = await this.send(node, "send", actor, call.id, {
-            target: splitId(target).id,
-            target_kind: "bot",
-            prompt: text(args, "text"),
-            notify: true,
-          });
-
-          if (!turn.routine_id)
-            await this.query(
-              `INSERT INTO bot_messages(id,bot_id,turn_id,message_key,sender_id,recipient_id,kind,text,exchange_id)
-          VALUES ($1::uuid,$2::uuid,$3::uuid,$4,$2,$5,'event',$6,$7::uuid) ON CONFLICT(turn_id,message_key) DO NOTHING`,
-              [crypto.randomUUID(), turn.bot_id, turn.id, `linked:${call.id}`, target, text(args, "text"), call.id],
-            );
-          await this.query("UPDATE bots SET revision=revision+1,updated_at=now() WHERE id=$1::uuid", [turn.bot_id]);
-
-          return { ...record(result), bot_id: target, exchange_id: call.id };
-        });
+        return action(() => sendLinkedBotMessage(this, turn, actor, node, call.id, args));
       case "get_thread":
         return toJson(
           ui.ThreadSchema,
@@ -192,6 +174,36 @@ export const agentsBotToolsMethods: AgentsBotToolsMethods = {
   },
 };
 
+async function sendLinkedBotMessage(
+  host: LinkedAgents,
+  turn: BotTurn,
+  actor: Actor,
+  node: string,
+  callId: string,
+  args: Arguments,
+) {
+  const target = text(args, "bot_id");
+
+  const requiresIsolatedBot = Boolean(await botThreadAudience(host.core, turn));
+
+  const result = await host.send(node, "send", { ...actor, requiresIsolatedBot }, callId, {
+    target: splitId(target).id,
+    target_kind: "bot",
+    prompt: text(args, "text"),
+    notify: true,
+  });
+
+  if (!turn.routine_id)
+    await host.query(
+      `INSERT INTO bot_messages(id,bot_id,turn_id,message_key,sender_id,recipient_id,kind,text,exchange_id)
+  VALUES ($1::uuid,$2::uuid,$3::uuid,$4,$2,$5,'event',$6,$7::uuid) ON CONFLICT(turn_id,message_key) DO NOTHING`,
+      [crypto.randomUUID(), turn.bot_id, turn.id, `linked:${callId}`, target, text(args, "text"), callId],
+    );
+  await host.query("UPDATE bots SET revision=revision+1,updated_at=now() WHERE id=$1::uuid", [turn.bot_id]);
+
+  return { ...record(result), bot_id: target, exchange_id: callId };
+}
+
 function botThreadRequest(args: Arguments, callId: string): ui.CreateThreadRequest {
   return create(ui.CreateThreadRequestSchema, {
     workspaceMode: ui.WorkspaceMode.CHECKOUT,
@@ -246,9 +258,11 @@ async function readBotThread(hostContext: LinkedAgents, args: Arguments) {
   };
 }
 
-async function listBotThreads(hostContext: LinkedAgents, args: Arguments): Promise<JsonValue> {
+async function listBotThreads(hostContext: LinkedAgents, args: Arguments, audience: string): Promise<JsonValue> {
   await requireLinkedModules(hostContext);
   const project = Predicate.isString(args["project_id"]) ? args["project_id"] : "";
+
+  if (audience && splitId(project).node) return [];
 
   const request = create(ui.ListThreadsRequestSchema, {
     projectId: project,
@@ -258,9 +272,9 @@ async function listBotThreads(hostContext: LinkedAgents, args: Arguments): Promi
 
   let threads = splitId(project).node
     ? (await hostContext.ui("ListThreads", request, ui.ListThreadsResponseSchema)).threads
-    : await hostContext.core.listThreads(project, request.includeArchived);
+    : await hostContext.core.listThreads(project, request.includeArchived, false, audience);
 
-  if (!project) {
+  if (!project && !audience) {
     // Offline UI mirrors cannot attest the home's current module preference.
     const computers = hostContext.core.computers;
     const nodes = computers?.reachable().filter((node) => computers.capabilities(node).includes(AGENT_BUS)) ?? [];

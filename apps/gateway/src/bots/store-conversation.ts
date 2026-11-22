@@ -105,11 +105,11 @@ export function botConversation(sql: SqlClient.SqlClient, core: BotCore) {
       WHERE m.exchange_id = ${id}::uuid AND b.owner_user_id = ${user}::uuid AND b.deleted_at IS NULL AND (t.reply_to_bot_id IS NOT NULL OR t.remote_recipient_ref IS NOT NULL) AND m.message_key IN ('input','answer') ORDER BY m.seq`.pipe(
         Effect.map((r) => r.map(messageView)),
       ),
-    history: (turn: BotTurn) =>
+    history: (turn: BotTurn, currentTurnOnly = false) =>
       sql<
         MessageRow & { model_text: string }
       >`SELECT * FROM (SELECT m.*, CASE WHEN m.message_key='input' THEN t.input ELSE m.text END AS model_text, t.created_at AS turn_created, t.id AS turn_order FROM bot_messages m JOIN bot_turns t ON t.id = m.turn_id
-      WHERE m.bot_id = ${turn.bot_id}::uuid AND t.conversation_id IS NOT DISTINCT FROM ${turn.conversation_id ?? null}::uuid AND m.sender_id NOT IN ('self','activity') AND (${Boolean(turn.handoff_configuration)} OR (t.created_at, t.id) <= (SELECT created_at, id FROM bot_turns WHERE id = ${turn.id}::uuid))
+      WHERE m.bot_id = ${turn.bot_id}::uuid AND (NOT ${currentTurnOnly} OR t.id=${turn.id}::uuid) AND t.conversation_id IS NOT DISTINCT FROM ${turn.conversation_id ?? null}::uuid AND m.sender_id NOT IN ('self','activity') AND (${Boolean(turn.handoff_configuration)} OR (t.created_at, t.id) <= (SELECT created_at, id FROM bot_turns WHERE id = ${turn.id}::uuid))
       ORDER BY t.created_at DESC, t.id DESC, m.seq DESC LIMIT ${turn.routine_id ? 60 : 2147483647}) recent ORDER BY turn_created, turn_order, seq`.pipe(
         Effect.map((rows): ModelMessage[] => [
           ...rows.map((r): ModelMessage => ({

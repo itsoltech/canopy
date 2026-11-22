@@ -6,6 +6,7 @@ import type { CallSource } from "../store/agent-bus-types.ts";
 import { BOT_THREADS_DISCONNECTED, lockedBotThreadConnection } from "../store/module-access.ts";
 import { Invalid } from "../store/store.ts";
 import { DISPATCHED } from "../store/turn-select.ts";
+import { canReportBotTurn } from "./report-origin.ts";
 import { originOf } from "./routines.ts";
 import type { BotCore } from "./store-queue.ts";
 import { botThreadNoticeTitle } from "./thread-notice.ts";
@@ -76,6 +77,13 @@ export function messageDelegatingBot(
 
       if (origins.length > 1 || (yield* linkedBotInput(sql, owner, source)).length)
         return yield* Effect.fail(new Invalid("This turn has multiple bot message origins."));
+
+      if (origin.conversation_id) {
+        const safe =
+          yield* sql`SELECT 1 WHERE ${canReportBotTurn(sql, sql`${source.threadId}::uuid`, sql`${source.turnId}::uuid`)}`;
+
+        if (!safe.length) return yield* Effect.fail(new Invalid("This turn has multiple message origins."));
+      }
 
       if (origin.bot_id !== creator.bot_id)
         return yield* Effect.fail(new Invalid("This turn was delegated by a different bot."));

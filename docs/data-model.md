@@ -1,5 +1,9 @@
 # Model danych (PostgreSQL)
 
+Status (2026-11-22): migracje `0193_agent_memory` i `0194_thread_memory_audience`
+dodają [pamięć wątków i botów](agent-memory.md), rewizje zakresów oraz
+pochodzenie delegowanych wątków potrzebne do autoryzacji dostępu.
+
 Status (2026-11-19): zaimplementowany model, w tym kolejność modułów i zatrzymywanie pracy właściciela po ich wyłączeniu oraz migracje `0153_thread_notice_replication`, `0160_agent_hop_policy`, `0162_service_tiers`, `0164_usage_accounting`, `0165_usage_estimated_cost`, `0169_bot_chat_steer`, `0171_thread_permission_selection`, `0172_usage_activity`, `0173_module_goal_resume`, `0174_schedule_worktree_preparations`, `0176_message_delegating_bot` (rejestracja wywołań narzędzia w `agent_bus_calls`) i `0179_removed_branch_cleanup`.
 
 Migracja `0192_gateway_onboarding` oznacza nowo inicjalizowaną bazę w tabeli

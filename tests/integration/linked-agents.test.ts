@@ -463,8 +463,11 @@ describe.skipIf(!dockerAvailable)("linked bots and agent bus: two independent ho
   test("bots can message simultaneously beyond 100 hops without holding cross-computer SQL locks", async () => {
     const barrier = Promise.withResolvers<void>();
     let arrived = 0;
+    const exchangeInputs: ModelInput[] = [];
 
     const answer = async (i: ModelInput, target: string): Promise<Awaited<ReturnType<BotModel>>> => {
+      if (i.turn?.hops === 101 || i.turn?.hops === 102) exchangeInputs.push(i);
+
       if (input(i) !== "simultaneous exchange" || i.messages.at(-1)?.role === "tool")
         return reply("Simultaneous exchange acknowledged");
 
@@ -514,6 +517,15 @@ describe.skipIf(!dockerAvailable)("linked bots and agent bus: two independent ho
         ),
       ).toBe(true);
       await settle(gw, bot);
+    }
+
+    expect(exchangeInputs.map((i) => i.turn!.hops).sort()).toEqual([101, 101, 102, 102]);
+
+    for (const i of exchangeInputs) {
+      expect(i.isolatedInput).toBe(true);
+      expect(i.memoryContext).toBe("");
+      expect(i.tools.some((tool) => tool.name === "memory_search" || tool.name === "memory_save")).toBe(false);
+      expect(i.messages.filter((message) => message.role === "user")).toHaveLength(1);
     }
 
     modelA = async (i) => reply(`A: ${input(i)}`);

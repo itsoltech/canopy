@@ -1,5 +1,10 @@
 # Połączone komputery
 
+Status (2026-11-22): gateway sprawdza pochodzenie automatycznej delegacji przed
+udostępnieniem tras z historią wątków. Wymiana bot↔bot z tury o ograniczonym
+zakresie wymaga izolowanego przyjęcia wiadomości przez dom odbiorcy.
+Konsolidacja przenosi [pamięć agentów i botów](agent-memory.md) wraz z danymi właściciela.
+
 Status: opis zaimplementowanej synchronizacji (2026-11-21), w tym usypiania wątków,
 blokady operacji przez łącze podczas opróżniania gatewaya i importu konsolidacji,
 retencji nieopublikowanych wpisów dziennika, osobnych aktualizacji Canopy i CLI partnerów, wstrzymywania luster wyłączonego modułu, kolejności zakładek konta, kontroli dostępu między botami i wątkami przez łącze, ograniczenia czasu oczekiwania na listę botów w `list_agents` oraz przyrostowej
@@ -1805,8 +1810,10 @@ rutyn/przypomnień. Po powrocie łącza odczyt wraca do domu. Żaden zapis nie t
 Wewnętrzne `LinkedAgentsService.CallAgentBus(LinkedAgentCall)` jest dostępne wyłącznie po
 przypiętym mTLS, dla aktywnego partnera z `agent_bus`. Niesie uuid wywołania, lokalne id i rodzaj
 aktora (`thread`/`bot`), `hops`, operację i JSON argumentów. Nie jest publiczną metodą API.
-Operacje: `spawn`, `send`, `get_thread`, `read_thread`, `answer`, `interrupt_thread`, `close_thread`,
-`question`, `report`. Nie ma arbitralnego wywoływania handlerów ani routingu dalej.
+Operacje obejmują `spawn`, `send`, `get_thread`, `read_thread`, `answer`, `interrupt_thread`,
+`close_thread`, `question`, `report` i `send_isolated_bot_message`. Dom odbiorcy
+bez obsługi izolowanej operacji odrzuca takie wywołanie. Nie ma arbitralnego wywoływania
+handlerów ani routingu dalej.
 
 `list_agents` pokazuje nazwy komputerów, status/błąd, projekty/workspace'y, workery, boty i modele.
 Katalogi botów również oznaczają dom nazwą. Model przekazuje kwalifikowane id bez zmian:
@@ -2228,6 +2235,15 @@ rodzic staje się dostępny pod lokalnym identyfikatorem bez zmiany workera
 dziecka. Gateway usuwa lustra i odwołuje zaufanie do właśnie dołączonego
 źródła. Poświadczenia klientów związanych z tożsamością źródła wymagają
 oddzielnego przełączenia.
+
+Konsolidacja pamięci wymaga zgodnego katalogu bazy po obu stronach i migracji
+co najmniej 0194. Notatki i potwierdzenia operacji przechodzą razem z zakresem.
+Przy połączeniu projektów różne wpisy trafiają do wspólnej pamięci obok wpisów
+docelowych. Zakres dostaje nową rewizję w bazie docelowej. Kolizja identyfikatora
+notatki lub brak powiązanego zasobu wymaga rozstrzygnięcia przed importem.
+Powiązanie wątku z rozmową lub rutyną zachowuje ograniczenie dostępu. Jeśli
+podmiot ograniczenia nie jest częścią importu, wątek pozostaje odizolowany
+od innych rozmów na celu.
 
 Import obejmuje historię wątków i botów, harmonogramy, workspace i załączniki
 z treścią dostępną w bazie. Workspace, worktree i kopie workspace mogą przejść

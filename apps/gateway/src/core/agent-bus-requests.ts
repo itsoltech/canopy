@@ -129,6 +129,7 @@ export const busRequestsMethods: BusRequestsMethods = {
         s.facts({
           source,
           targetIds: targetsOf(call),
+          matchAudience: ["send_message", "schedule_wakeup", "schedule_recurring"].includes(call.tool),
           ...(spawn?.ok && { spawnTarget: spawn.target }),
           ...(call.tool === "answer_interaction" && { interactionId: call.args.request_id }),
           ...(call.tool === "cancel_schedule" && { scheduleId: call.args.schedule_id }),
@@ -158,7 +159,8 @@ export const busRequestsMethods: BusRequestsMethods = {
         spawn?.ok ? spawn.target : callerTarget(caller, sourceTurn),
       );
 
-      if (this[busState].host.extend) result = await this[busState].host.extend(call, caller, result);
+      if (this[busState].host.extend && !(caller.memory_audience && call.tool === "list_threads"))
+        result = await this[busState].host.extend(call, caller, result);
 
       if (!STORES_ITS_CALL.has(call.tool)) {
         await this[busState].host.run(

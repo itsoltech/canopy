@@ -4,6 +4,7 @@ import { existsSync, mkdirSync, readdirSync, readFileSync, writeFileSync } from 
 import { dirname, join } from "node:path";
 import { createInterface } from "node:readline";
 import type { JsonObject } from "@canopy/domain";
+import { isMemoryTool } from "@canopy/domain/memory-tools";
 import { recordInput, recordProbe, releaseProbe } from "./instance-probe.ts";
 import { botFailure, botTool, codexBotConfig } from "./bot-probe.ts";
 import { decodeJsonObject, jsonObject } from "../../../apps/worker/src/providers/json.ts";
@@ -275,11 +276,13 @@ for await (const line of createInterface({ input: process.stdin })) {
     recordProbe("codex", request.method, session, params.modelProvider);
     send({ id, result: { thread: { id: session, path: null } } });
   } else if (request.method === "mcpServerStatus/list") {
-    const names =
+    const attachFailed =
       process.env["PROFILE_PROBE"] === "connector-failure" &&
-      !existsSync(join(dirname(process.env["INSTANCE_TRACE"]!), "release-attach"))
-        ? []
-        : (catalogs.get(params.threadId) ?? []);
+      !existsSync(join(dirname(process.env["INSTANCE_TRACE"]!), "release-attach"));
+
+    const names = catalogs.get(params.threadId) ?? [];
+    // Simulate a missing external connector while the platform's memory catalog remains attached.
+    const attached = attachFailed ? names.filter(isMemoryTool) : names;
 
     send({
       id,
@@ -289,7 +292,7 @@ for await (const line of createInterface({ input: process.stdin })) {
             name: "canopy_connectors",
             runtimeStatus: "connected",
             toolsError: null,
-            tools: Object.fromEntries(names.map((name) => [name, { name }])),
+            tools: Object.fromEntries(attached.map((name) => [name, { name }])),
           },
         ],
         nextCursor: null,

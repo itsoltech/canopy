@@ -8,10 +8,12 @@ import { Schema } from "effect";
 
 import { AgentBusStore } from "../store/index.ts";
 
+import { requireThreadAudience } from "../core/bot-thread-audience.ts";
 import { BotStore } from "../bots/store.ts";
 
 import {
   requireLinkedChainCapacity,
+  SEND_ISOLATED_BOT_MESSAGE,
   fail,
   record,
   text,
@@ -182,6 +184,12 @@ export const agentsReceiveMethods: AgentsReceiveMethods = {
 
     if (["report", "question"].includes(call.operation)) return this.deliver(node, call, args);
 
+    if (call.operation === SEND_ISOLATED_BOT_MESSAGE) {
+      if (call.actorKind !== "bot" || args["target_kind"] !== "bot") return fail("Invalid linked bot exchange");
+
+      return receiveLinkedTurn(this, node, { ...call, operation: "send" }, args);
+    }
+
     if (["spawn", "send"].includes(call.operation)) {
       return await receiveLinkedTurn(this, node, call, args);
     }
@@ -233,6 +241,7 @@ export const agentsReceiveMethods: AgentsReceiveMethods = {
       );
 
       if (!owned.length) return fail("You can only control threads you spawned on this computer");
+      await requireThreadAudience(this.core, id, "", true);
 
       if (call.operation === "answer") {
         const answer = await this.core.answerInteraction(
@@ -384,6 +393,7 @@ async function receiveLinkedTurn(
           qualifyId(call.actorId, node),
         ]);
       } else {
+        await requireThreadAudience(hostContext.core, target, "", true);
         const thread = await hostContext.core.getThread(target);
 
         if (!(await hostContext.core.overview()).workers.some((w) => w.id === thread.workerId && w.online))

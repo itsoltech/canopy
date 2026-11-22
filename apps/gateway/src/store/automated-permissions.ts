@@ -10,6 +10,7 @@ import type { ThreadRow } from "./rows.ts";
 
 export interface AutomatedAccess {
   startedByBot?: string;
+  memoryAudience?: string;
   permissionModeNote?: string;
 }
 

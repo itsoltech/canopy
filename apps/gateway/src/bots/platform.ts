@@ -1,3 +1,7 @@
+import { interactionView } from "./tools/threads.ts";
+import { authorizeBotThreadCall } from "../core/bot-thread-audience.ts";
+import { isMemoryTool } from "@canopy/domain/memory-tools";
+import { botMemoryCall } from "./memory.ts";
 import { create } from "@bufbuild/protobuf";
 import { bots, Provider, ui } from "@canopy/contracts";
 import type { JsonObject } from "@canopy/domain";
@@ -30,7 +34,12 @@ const legacyProvider = (name: string) =>
 /** Resolve display labels through the same owner-scoped paths as the action. */
 export async function describeBotTool(core: GatewayCore, tool: ToolSpec, args: JsonObject): Promise<string> {
   if (tool.source !== "platform") return statusPhrase(tool, args);
-  args = Object.fromEntries(Object.entries(args).filter(([key]) => !key.endsWith("_name")));
+  const fields = tool.parameters["properties"];
+  args = Object.fromEntries(
+    Object.entries(args).filter(
+      ([key]) => !key.endsWith("_name") && Predicate.isObject(fields) && Object.hasOwn(fields, key),
+    ),
+  );
   const options = core[coreState].options;
 
   if (
@@ -100,23 +109,27 @@ export async function prepareBotTool(
   turn: BotTurn,
   call: StoredCall,
 ): Promise<{ prompt?: string } | undefined> {
-  if (call.tool.source === "platform") call = await availableBotCall(options, call);
+  if (call.tool.source !== "platform") return undefined;
+  call = await availableBotCall(options, call);
 
-  if (call.tool.source === "platform" && ["start_thread", "send_message", "send_bot_message"].includes(call.tool.name))
-    nextReplyHop(turn.hops);
+  if (["start_thread", "send_message", "send_bot_message"].includes(call.tool.name)) nextReplyHop(turn.hops);
 
-  if (call.tool.source === "platform" && ["start_thread", "send_message"].includes(call.tool.name)) {
+  if (["start_thread", "send_message"].includes(call.tool.name)) {
     validate(call.tool.parameters, call.arguments);
+    const ids = forwardingIds(call.arguments);
+    localForwardTarget(call.arguments, ids);
+    await authorizeBotThreadCall(core, turn, call);
 
     return forwardingApproval(
       core,
       turn,
-      call,
+      ids,
       approvalPrompt(call.tool, call.arguments, await describeBotTool(core, call.tool, call.arguments)),
     );
   }
 
-  const registered = call.tool.source === "platform" ? areaTool.get(call.tool.name) : undefined;
+  await authorizeBotThreadCall(core, turn, call);
+  const registered = areaTool.get(call.tool.name);
 
   if (!registered?.prepare) return undefined;
   validate(registered.spec.parameters, call.arguments);
@@ -139,6 +152,17 @@ async function availableBotCall(options: GatewayCoreOptions, call: StoredCall): 
   };
 }
 
+const readThread = (id: string, user: string) =>
+  GatewayStore.use((s) =>
+    Effect.gen(function* () {
+      const row = yield* s.thread(id);
+
+      if (row.owner_user_id !== user) return yield* Effect.fail(new NotFound("thread not found"));
+
+      return row;
+    }),
+  );
+
 export async function botPlatform(
   core: GatewayCore,
   options: GatewayCoreOptions,
@@ -149,17 +173,6 @@ export async function botPlatform(
   const { string, optional } = context(core, options, turn, call);
   const user = options.userId;
 
-  const readThread = (id: string) =>
-    GatewayStore.use((s) =>
-      Effect.gen(function* () {
-        const row = yield* s.thread(id);
-
-        if (row.owner_user_id !== user) return yield* Effect.fail(new NotFound("thread not found"));
-
-        return row;
-      }),
-    );
-
   const action = <A, E>(effect: Effect.Effect<A, E, GatewayStore | BotStore>) =>
     options.runtime.runPromise(BotStore.use((s) => s.action(turn, call, effect)));
 
@@ -168,6 +181,18 @@ export async function botPlatform(
     validate(call.tool.parameters, args);
 
     if (["start_thread", "send_message"].includes(call.tool.name)) localForwardTarget(args, forwardingIds(args));
+    const questionId = await authorizeBotThreadCall(core, turn, call);
+
+    if (questionId && call.tool.name === "read_thread") {
+      const questions = await core[coreState].actions.run(
+        GatewayStore.use((store) => store.pendingInteractions(string("thread_id"), [questionId])),
+      );
+
+      return { interactions: questions.map(interactionView), turns: [], messages: [] };
+    }
+
+    if (isMemoryTool(call.tool.name)) return await botMemoryCall(context(core, options, turn, call));
+
     const linked = await core.linkedAgents.botTool(turn, call);
 
     if (linked !== undefined) return linked;
@@ -219,7 +244,7 @@ export async function botPlatform(
       case "read_thread":
         return options.runtime.runPromise(
           Effect.gen(function* () {
-            const row = yield* readThread(string("thread_id"));
+            const row = yield* readThread(string("thread_id"), user);
             const snapshot = yield* GatewayStore.use((s) => s.snapshot(row.id));
 
             return snapshot.items

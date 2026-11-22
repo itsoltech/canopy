@@ -3,7 +3,9 @@ import { create } from "@bufbuild/protobuf";
 import { bots, Provider, ui } from "@canopy/contracts";
 import { DEFAULT_BUS_LIMITS, type JsonObject } from "@canopy/domain";
 import { dockerAvailable } from "@canopy/db/testing";
-import { Effect, Match } from "effect";
+import { Effect } from "effect";
+import { botThreadAudience } from "../../apps/gateway/src/core/bot-thread-audience.ts";
+import type { BotTurn } from "../../apps/gateway/src/bots/types.ts";
 import { SqlClient } from "effect/sql";
 import { eventually } from "./support/gateway.ts";
 import { botsSuite, lastInput, reply, tool } from "./support/bots.ts";
@@ -38,7 +40,11 @@ describe.skipIf(!dockerAvailable)("bot message guard and approval boundaries", (
 
   const enqueue = (botId: string, hops: number) =>
     suite.current.bots.run((s) =>
-      s.enqueue(suite.gw.userId, botId, "Continue automatically", crypto.randomUUID(), { hops }),
+      s.enqueue(suite.gw.userId, botId, "Continue automatically", crypto.randomUUID(), {
+        hops,
+        sender: "system",
+        event: true,
+      }),
     );
 
   const call = async (turnId: string) =>
@@ -53,35 +59,44 @@ describe.skipIf(!dockerAvailable)("bot message guard and approval boundaries", (
       const sender = await add(`${name} sender`, { approvalPolicy: "always" });
       const recipient = await add(`${name} recipient`);
 
-      const target = await suite.current.createThread(
-        create(ui.CreateThreadRequestSchema, {
-          projectId: suite.projectId,
-          workspaceId: suite.workspaceId,
-          provider: Provider.CODEX,
-          providerProfileId: "bots-test",
-          model: "gpt-6.1-sol",
-        }),
-      );
+      const messageArgs = async (turn: BotTurn): Promise<JsonObject> => {
+        if (name === "start_thread")
+          return {
+            project_id: suite.projectId,
+            workspace_id: suite.workspaceId,
+            provider: "codex",
+            provider_instance: "bots-test",
+            model: "gpt-6.1-sol",
+            prompt: "Continue the work",
+          };
 
-      const args: JsonObject = Match.value(name).pipe(
-        Match.when("start_thread", () => ({
-          project_id: suite.projectId,
-          workspace_id: suite.workspaceId,
-          provider: "codex",
-          provider_instance: "bots-test",
-          model: "gpt-6.1-sol",
-          prompt: "Continue the work",
-        })),
-        Match.when("send_message", () => ({ thread_id: target.id, text: "Continue the work" })),
-        Match.orElse(() => ({ bot_id: recipient.id, text: "Continue the work" })),
-      );
+        if (name === "send_bot_message") return { bot_id: recipient.id, text: "Continue the work" };
+
+        // A delegated turn can message a thread in its own audience. Each automatic chain has a distinct origin.
+        const target = await suite.current.createThread(
+          create(ui.CreateThreadRequestSchema, {
+            projectId: suite.projectId,
+            workspaceId: suite.workspaceId,
+            provider: Provider.CODEX,
+            providerProfileId: "bots-test",
+            model: "gpt-6.1-sol",
+          }),
+          undefined,
+          false,
+          { memoryAudience: await botThreadAudience(suite.current, turn), startedByBot: sender.id },
+        );
+
+        return { thread_id: target.id, text: "Continue the work" };
+      };
 
       suite.model = async (input) => {
         if (input.configuration.name === recipient.configuration!.name) return reply("Recipient finished");
 
         if (/^(Thread |Message from )/.test(lastInput(input))) return reply("Response received");
 
-        return input.messages.at(-1)?.role === "tool" ? reply(input.messages.at(-1)!.text) : tool(name, args);
+        return input.messages.at(-1)?.role === "tool"
+          ? reply(input.messages.at(-1)!.text)
+          : tool(name, await messageArgs(input.turn!));
       };
 
       for (const hops of [8, 100, DEFAULT_BUS_LIMITS.maxHops - 2]) {

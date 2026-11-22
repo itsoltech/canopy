@@ -109,9 +109,12 @@ export class HarnessTools {
         return reply("External conversation is unavailable", true);
       const config = botConfiguration(await this.run((s) => s.owned(this.options.userId, turn.bot_id)));
 
-      const tools = await currentBotTools(this.options, config, turn);
+      if (turn.handoff_configuration) return reply("Tools are unavailable during handoff", true);
 
       try {
+        const access = await this.run((s) => s.memoryAccess(this.options.userId, turn));
+        const tools = await currentBotTools(this.options, config, turn, access);
+
         const result = await runToolCall(
           { options: this.options, run: this.run, keepLease: true, ...(expiresAt && { expiresAt }) },
           turn,

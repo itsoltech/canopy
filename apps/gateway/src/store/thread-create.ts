@@ -76,6 +76,30 @@ const forkPoint = (sql: SqlClient.SqlClient, ownerUserId: string, request: ui.Cr
     return point;
   });
 
+/** A fork can select an ancestor turn while copying its named source's instructions and placement. */
+function creationAudience(
+  sql: SqlClient.SqlClient,
+  parentId: string,
+  sourceId: string | null,
+  request: ui.CreateThreadRequest,
+  automated?: AutomatedAccess,
+) {
+  return Effect.gen(function* () {
+    const ids = [parentId, sourceId, request.forkAtTurnId && request.forkThreadId].filter((id) => !!id);
+
+    const histories = ids.length
+      ? yield* sql<{ memory_audience: string }>`SELECT memory_audience FROM threads WHERE id=ANY(${ids}::uuid[])`
+      : [];
+
+    const audience = automated?.memoryAudience ?? histories[0]?.memory_audience ?? "";
+
+    if (histories.some((row) => row.memory_audience !== audience))
+      return yield* Effect.fail(new Invalid("Choose a thread from this conversation."));
+
+    return audience;
+  });
+}
+
 export function threadCreation(
   sql: SqlClient.SqlClient,
   self: () => Pick<ThreadStore, "thread"> & Pick<WorktreeStore, "ownWorktree">,
@@ -201,17 +225,18 @@ export function threadCreation(
 
           const access = yield* creationAccess(sql, ownerUserId, workspace.worker_id, request, automated);
 
+          const audience = yield* creationAudience(sql, request.parentThreadId, forkSource, request, automated);
           const settings = creationSettings(request, access, handoff);
 
           yield* sql`
                   INSERT INTO threads (id, project_id, owner_user_id, kind, parent_thread_id, root_thread_id, depth, runtime, provider,
                                        provider_profile_id, worker_id, workspace_id, cwd, fork_source_thread_id, fork_after_turn_id, settings, status, title, title_source,
-                                       worktree_id, creation_request_id, preparation_fingerprint)
+                                       worktree_id, creation_request_id, preparation_fingerprint, memory_audience)
                   VALUES (${id}::uuid, ${workspace.project_id}::uuid, ${ownerUserId}::uuid, ${parent ? "side" : "main"},
                           ${parent?.id ?? null}::uuid, ${parent?.root_thread_id ?? id}::uuid, ${parent ? parent.depth + 1 : 0}, 'worker', ${provider},
                           ${request.providerProfileId && request.providerProfileId !== "native" ? request.providerProfileId : null}, ${workspace.worker_id}::uuid, ${workspace.id}::uuid, ${preparationFingerprint ? null : cwd},
                           ${forkSource}::uuid, ${forkAfterTurn}::uuid, ${settings}::jsonb, 'creating', ${request.title.trim() || request.initialMessage.trim().split("\n")[0]?.slice(0, 60) || "New thread"}, ${request.title.trim() ? "user" : "provisional"},
-                          ${worktree?.id ?? inherited?.worktree_id ?? null}::uuid, ${request.clientRequestId || null}, ${preparationFingerprint ?? null})`;
+                          ${worktree?.id ?? inherited?.worktree_id ?? null}::uuid, ${request.clientRequestId || null}, ${preparationFingerprint ?? null}, ${audience})`;
 
           if (automated?.startedByBot)
             yield* sql`INSERT INTO bot_started_threads(thread_id, bot_id) VALUES (${id}::uuid, ${automated.startedByBot}::uuid)`;

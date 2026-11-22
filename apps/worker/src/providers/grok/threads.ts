@@ -40,6 +40,24 @@ const ToolInput = Schema.Struct({
   tool_input: Schema.optionalKey(Schema.Json),
 });
 
+function sessionSettings(spec: ThreadSpec, settings?: TurnSettings) {
+  const chosen = {
+    model: settings?.model || spec.model,
+    effort: settings?.effort || "",
+    permissionMode: settings?.permissionMode || spec.permissionMode,
+  };
+
+  const key = JSON.stringify([
+    chosen,
+    spec.enableMemory,
+    spec.connectorTools,
+    spec.hasDelegatingBot,
+    automationMcpKey(spec),
+  ]);
+
+  return { chosen, key };
+}
+
 interface Options {
   dataDir: string;
   executable: string;
@@ -113,13 +131,7 @@ export class GrokThreads {
 
     if (!profile) throw new Error("Grok provider instance unavailable");
 
-    const chosen = {
-      model: settings?.model || spec.model,
-      effort: settings?.effort || "",
-      permissionMode: settings?.permissionMode || spec.permissionMode,
-    };
-
-    const key = JSON.stringify([chosen, spec.connectorTools, spec.hasDelegatingBot, automationMcpKey(spec)]);
+    const { chosen, key } = sessionSettings(spec, settings);
     const previous = this.#entries.get(spec.threadId);
 
     if (previous?.turnId) throw new Error("Grok turn already running");
@@ -172,6 +184,7 @@ export class GrokThreads {
       bus = grokBus({
         threadId: spec.threadId,
         depth: spec.depth,
+        enableMemory: spec.enableMemory,
         agentBus: spec.enableAgentBus ? agentBusToolsFor(spec.depth, spec.hasDelegatingBot) : false,
         turnId: () => entry?.turnId ?? "",
         callTool: this.options.callTool,

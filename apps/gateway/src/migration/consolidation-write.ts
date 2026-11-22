@@ -39,6 +39,10 @@ export function writeConsolidation(
     const fences = yield* suspendHistoricalAdmission(target, populated);
     yield* shiftSequences(target, populated);
 
+    // These clocks only identify snapshots on the target installation. Newly merged notes must
+    // invalidate a preexisting scope even when the source happened to have the same revision.
+    yield* target`UPDATE pg_temp.cc_agent_memory_scopes SET revision=nextval('public.agent_memory_revision')`;
+
     for (const table of populated) yield* writeTable(target, table);
 
     return fences;
@@ -215,12 +219,18 @@ function shiftSequences(sql: Database, populated: readonly SelectedTable[]) {
   });
 }
 
+const insertConflicts = new Map([
+  ["blobs", "ON CONFLICT (sha256) DO NOTHING"],
+  ["agent_memory_scopes", "ON CONFLICT (owner_user_id,scope_key) DO UPDATE SET revision=excluded.revision"],
+]);
+
 function writeTable(sql: Database, table: SelectedTable) {
   return Effect.gen(function* () {
     const { name, merge, written } = table;
     const target = publicTable(name);
     const stage = staged(name);
-    const conflict = name === "blobs" ? "ON CONFLICT (sha256) DO NOTHING" : "";
+
+    const conflict = insertConflicts.get(name) ?? "";
     const cols = written.map(ident).join(",");
     const select = written.map((field) => "s." + ident(field)).join(",");
 

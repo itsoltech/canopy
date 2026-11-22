@@ -1,5 +1,8 @@
 # Projekty, wątki i wątki boczne
 
+Status (2026-11-22): wątki projektowe Claude, Codex i Grok mogą korzystać
+z [pamięci projektu i workera](agent-memory.md).
+
 Status (2026-11-21): zaimplementowane, w tym usypianie wątków w web/desktop i mobile,
 spójne nagłówki oraz płynne rozwijanie i zwijanie sekcji Snoozed i Working w web/desktop,
 pierwszeństwo jawnie zapisanych uprawnień wątku przed historią tur
