@@ -44,7 +44,7 @@
       const channelIds = slackIds(channels, "channel");
       const userIds = slackIds(users, "user");
 
-      if (!accountId) throw new Error("Choose a Slack account before saving.");
+      if (!accountId) throw new Error("Choose a Slack Bot account before saving.");
 
       if ((mentions || observe) && !channelIds.length)
         throw new Error("Add Slack channel IDs for mentions or channel monitoring.");
@@ -74,7 +74,7 @@
 
 <div class="grid min-w-0 gap-3 rounded-xl border border-zinc-950/10 p-4 dark:border-white/10" aria-busy={busy}>
   <h4 class="font-medium">{route ? "Edit message route" : "Add message route"}</h4>
-  <Field label="Slack account"
+  <Field label="Slack Bot account"
     ><Select class="min-w-0" bind:value={accountId} {options} disabled={busy || !!route} /></Field
   >
   <Field label="Allowed user IDs" description="Only these Slack users can trigger the bot. Separate IDs with commas.">

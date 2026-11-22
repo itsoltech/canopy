@@ -92,7 +92,7 @@
   {/if}
   {#if !loading && loaded}
     <div class="flex min-w-0 flex-wrap items-center justify-between gap-3">
-      <a href="/settings/connectors" class="font-medium underline underline-offset-4">Manage Slack accounts</a>
+      <a href="/settings/connectors" class="font-medium underline underline-offset-4">Manage Slack Bot accounts</a>
       <Button size="sm" disabled={busy || !!editRoute} onclick={reload}>Refresh status</Button>
     </div>
     <div class="grid min-w-0 gap-3">
@@ -101,7 +101,7 @@
         {@const account = catalog.accounts.find((item) => item.id === route.accountId)}
         <div class="grid min-w-0 gap-2 rounded-lg bg-zinc-950/3 p-3 dark:bg-white/5">
           <p class="truncate font-medium" title={account?.name}>
-            {account?.name ?? "Slack account"}
+            {account?.name ?? "Slack Bot account"}
           </p>
           <p class="text-sm text-zinc-500 dark:text-zinc-400">
             {route.delivery === "reply" ? "Reply in Slack" : "Notify in Canopy"}
@@ -145,9 +145,7 @@
           >
         </div>
       {:else if !routes.length}
-        <p class="text-zinc-500 dark:text-zinc-400">
-          No connected Slack accounts. Connect an account and authorize messages to add a route.
-        </p>
+        <p class="text-zinc-500 dark:text-zinc-400">Connect a Slack Bot account in Settings to add a message route.</p>
       {/if}
     </div>
     {#if remove}

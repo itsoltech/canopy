@@ -5,15 +5,20 @@ const labels = new Map([
   ["notion", "Notion"],
   ["linear", "Linear"],
   ["atlassian", "Atlassian"],
-  ["slack", "Slack"],
+  ["slack", "Slack User"],
   ["microsoft", "Microsoft 365"],
   ["google", "Google Workspace"],
 ]);
 
 /** Only fixed copy and allowlisted provider labels enter this credential-free document. */
-export function connectorOAuthResult(connectorType: string | undefined, desktop: boolean): Response {
+export function connectorOAuthResult(
+  connectorType: string | undefined,
+  desktop: boolean,
+  slackMessaging = false,
+): Response {
   const connected = connectorType !== undefined;
-  const title = connected ? `${labels.get(connectorType) ?? "Account"} connected` : "Sign-in could not finish";
+  const outcome = slackMessaging ? "Slack Bot authorized" : `${labels.get(connectorType ?? "") ?? "Account"} connected`;
+  const title = connected ? outcome : "Sign-in could not finish";
 
   const message = connected
     ? "You can close this tab and return to Canopy."

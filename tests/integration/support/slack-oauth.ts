@@ -14,6 +14,7 @@ export function slackOAuthFixture() {
   let rejectRefresh = false;
   let holdRefresh: Promise<void> | undefined;
   let refreshStarted: (() => void) | undefined;
+  let onAuthTest: (() => Response | void | Promise<Response | void>) | undefined;
   const requests: URLSearchParams[] = [];
   const methods: string[] = [];
 
@@ -31,7 +32,8 @@ export function slackOAuthFixture() {
       methods.push(method ?? "");
       const body = new URLSearchParams(await request.text());
 
-      if (method === "auth.test") return Response.json({ ok: true, team_id: "T12345", bot_id: "B1", user_id: "UBOT" });
+      if (method === "auth.test")
+        return (await onAuthTest?.()) ?? Response.json({ ok: true, team_id: "T12345", bot_id: "B1", user_id: "UBOT" });
 
       if (method === "bots.info") return Response.json({ ok: true, bot: { app_id: "A1" } });
 
@@ -115,6 +117,9 @@ export function slackOAuthFixture() {
     },
     set refreshStarted(value: (() => void) | undefined) {
       refreshStarted = value;
+    },
+    set onAuthTest(value: (() => Response | void | Promise<Response | void>) | undefined) {
+      onAuthTest = value;
     },
     consent(url: string) {
       const authorization = new URL(url);

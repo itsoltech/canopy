@@ -14,6 +14,7 @@ export function connectorStatus(status: string): string {
 
 export function connectorAccessSummary(
   account: {
+    connectorType?: string;
     allProjects?: boolean | undefined;
     projectIds: readonly string[];
     allBots: boolean;
@@ -25,9 +26,11 @@ export function connectorAccessSummary(
     ? "All projects"
     : `${account.projectIds.length} ${account.projectIds.length === 1 ? "project" : "projects"}`;
 
+  const bot = account.connectorType === "slack" ? "Canopy bot" : "bot";
+
   const bots = account.allBots
-    ? "All bots"
-    : `${account.botIds.length} ${account.botIds.length === 1 ? "bot" : "bots"}`;
+    ? `All ${bot}s`
+    : `${account.botIds.length} ${account.botIds.length === 1 ? bot : `${bot}s`}`;
 
   return modules
     .flatMap((id) => {

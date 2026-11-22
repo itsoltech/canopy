@@ -80,9 +80,12 @@ export function connectorTestError(
     .filter(Boolean)
     .join("; ");
 
+  const slack = type === "slack";
+  const service = slack ? "Slack" : (connectorType(type)?.name ?? "The server");
+
   return create(connectors.ConnectorErrorSchema, {
     kind: error.kind,
-    message: explanation(error, connectorType(type)?.name ?? "The server", type === "slack"),
+    message: explanation(error, service, slack),
     detail,
   });
 }

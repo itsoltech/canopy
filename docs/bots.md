@@ -23,6 +23,7 @@ Panel Bots w web/desktop oznacza pracujące boty na przypiętych kafelkach i zwy
 Aktualizacja rozmowy zachowuje w panelu stan pracy i oczekującej zgody z podsumowania bota.
 Mobilna rozmowa potwierdza odczyt najnowszych wiadomości i odświeża listę botów.
 Wysyłana wiadomość ma przygaszony dymek, który zachowuje wysokość po potwierdzeniu.
+Settings → Connectors → Slack Bot zarządza kontami wiadomości obok Slack User.
 Zaimplementowano trwałe rozmowy botów przez Slack Socket Mode,
 buforowanie, załączniki, formatowanie odpowiedzi, izolację historii kanałów i przyznane narzędzia
 w turach zewnętrznych. Konektor Slack umożliwia pobranie pliku po jego identyfikatorze.
@@ -155,10 +156,10 @@ wymiany między botami.
 
 ## Rozmowy przez komunikatory
 
-Konto Slack w Settings → Connectors współdzieli jedną aplikację OAuth dla MCP
-oraz wiadomości przez Socket Mode. Jedna instalacja w workspace ma wiele tras
-do botów. Dodatkowa zgoda OAuth pobiera token bota bez zmiany tokenu MCP;
-gateway odnawia rotowane tokeny. App-level token, bot token i refresh token są
+Settings → Connectors → Slack Bot zarządza wiadomościami przez Socket Mode. Jedna
+instalacja w workspace ma wiele tras do botów. Można użyć niezależnej aplikacji
+z tokenem bota lub aplikacji Slack User z osobną zgodą OAuth bota. Gateway
+odnawia rotowane tokeny współdzielonej aplikacji. App-level token, bot token i refresh token są
 szyfrowane; listy, protobuf, worker i model ich nie otrzymują. Gateway weryfikuje
 zgodność aplikacji i workspace przed odbiorem. Konsument konta utrzymuje odnawiany
 lease w PostgreSQL; nowy token lease odcina poprzedni proces także po restarcie.
@@ -258,7 +259,7 @@ atrapy nie dowodzą poprawności uprawnień konkretnej instalacji Slack.
 
 ### Konfiguracja nasłuchiwania przez prywatną rozmowę
 
-Właściciel najpierw włącza wiadomości konta Slack w Settings → Connectors.
+Właściciel najpierw podłącza konto w Settings → Connectors → Slack Bot.
 Bot settings → Messengers wybiera to konto i konfiguruje trasy. Instalacja
 wymaga `channels:read` i `groups:read` do wyszukiwania kanałów; po dodaniu tych
 scopes należy ponownie zainstalować aplikację i zaprosić ją do kanałów. Tokenów

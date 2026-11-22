@@ -20,10 +20,10 @@ export function saveMessengerAccount(
       Effect.gen(function* () {
         if (!input.name.trim() || input.name.length > 120) return yield* Effect.fail(new Invalid("A name is required"));
         yield* sql`SELECT id FROM users WHERE id=${owner}::uuid FOR NO KEY UPDATE`;
-        let prior = input.id ? yield* owned(owner, input.id) : undefined;
-        const connectorId = input.connectorAccountId || prior?.connector_account_id;
+        const initial = input.id ? yield* owned(owner, input.id) : undefined;
+        const connectorId = input.connectorAccountId || initial?.connector_account_id;
 
-        if (prior?.connector_client_id && !connectorId)
+        if (initial?.connector_client_id && !connectorId)
           return yield* Effect.fail(new Invalid("Reconnect the Slack connection first"));
         let app: RegisteredApp | undefined;
 
@@ -36,7 +36,7 @@ export function saveMessengerAccount(
           if (!app?.client_id || !app.client_secret)
             return yield* Effect.fail(new Invalid("Save the shared Slack app first"));
 
-          if (prior?.connector_account_id && prior.connector_account_id !== connectorId)
+          if (initial?.connector_account_id && initial.connector_account_id !== connectorId)
             return yield* Effect.fail(new Invalid("This messenger belongs to another Slack connection"));
           yield* sql`UPDATE connector_oauth_apps SET client_id=${app.client_id}
         WHERE owner_user_id=${owner}::uuid AND connector_type='slack'`;
@@ -47,16 +47,27 @@ export function saveMessengerAccount(
           if (!connector.length) return yield* Effect.fail(new Invalid("Choose your Slack connection"));
 
           const duplicate = yield* sql`SELECT id FROM messenger_accounts WHERE connector_account_id=${connectorId}::uuid
-        AND deleted_at IS NULL AND id<>${prior?.id ?? Bun.randomUUIDv7()}::uuid`;
+        AND deleted_at IS NULL AND id<>${initial?.id ?? Bun.randomUUIDv7()}::uuid`;
 
           if (duplicate.length)
             return yield* Effect.fail(new Invalid("This Slack connection already has messaging enabled"));
         }
 
         // Refresh settlement does not take the shared config lock; reread credentials under the account lock.
-        if (prior) {
-          yield* sql`SELECT id FROM messenger_accounts WHERE id=${prior.id}::uuid AND owner_user_id=${owner}::uuid FOR UPDATE`;
-          prior = yield* owned(owner, prior.id);
+        let prior: AccountRow | undefined;
+
+        if (initial) {
+          yield* sql`SELECT id FROM messenger_accounts WHERE id=${initial.id}::uuid AND owner_user_id=${owner}::uuid FOR UPDATE`;
+          prior = yield* owned(owner, initial.id);
+
+          if (
+            prior.connector_account_id !== initial.connector_account_id ||
+            prior.connector_client_id !== initial.connector_client_id
+          )
+            return yield* Effect.fail(new Invalid("Slack connection changed. Try again."));
+
+          if (input.validatedRevision !== undefined && BigInt(prior.revision) !== input.validatedRevision)
+            return yield* Effect.fail(new Invalid("Slack credentials changed during validation. Try again."));
         }
 
         const previous = prior ? openMessengerCredentials(key, prior) : undefined;
@@ -75,7 +86,11 @@ export function saveMessengerAccount(
         )
           return yield* Effect.fail(new Invalid("Slack app token is required; manual accounts also need a bot token"));
         const id = prior?.id ?? Bun.randomUUIDv7();
-        const externalId = connectorId ? (prior?.external_id ?? `pending:${id}`) : input.externalId;
+        const tokensChanged = !!(input.appToken || input.botToken);
+
+        const externalId = connectorId
+          ? (prior?.external_id ?? `pending:${id}`)
+          : (input.externalId ?? (tokensChanged ? undefined : prior?.external_id));
 
         if (!externalId || externalId.length > 200 || (!connectorId && prior && prior.external_id !== externalId))
           return yield* Effect.fail(new Invalid("Reconnect using the same Slack workspace"));
@@ -86,8 +101,7 @@ export function saveMessengerAccount(
         if (duplicate.length) return yield* Effect.fail(new Invalid("This Slack workspace is already connected"));
 
         const changed =
-          !!input.appToken ||
-          !!input.botToken ||
+          tokensChanged ||
           (connectorId && !prior?.connector_account_id) ||
           (!!app && app.client_id !== prior?.connector_client_id);
 

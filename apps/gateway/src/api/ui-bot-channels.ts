@@ -1,6 +1,7 @@
 import { create } from "@bufbuild/protobuf";
 import { ui } from "@canopy/contracts";
 import { Code, ConnectError } from "@connectrpc/connect";
+import { slackBotAppManifest } from "../connectors/slack-app.ts";
 import { MessengerStore } from "../messengers/store.ts";
 import { validateSlackAccount, slackMessengerAppManifest, slackMessengerAppCreateUrl } from "../messengers/slack.ts";
 import { type GatewayCore } from "../core/core.ts";
@@ -25,45 +26,30 @@ export function botChannelHandlers(
 
   return {
     listMessengerAccounts: () =>
-      messengerGuard(async () =>
-        create(ui.ListMessengerAccountsResponseSchema, {
+      messengerGuard(async () => {
+        const botApp = slackBotAppManifest();
+
+        return create(ui.ListMessengerAccountsResponseSchema, {
           accounts: (await state.options.runtime.runPromise(MessengerStore.use((s) => s.accounts(owner)))).map(
             (account) => create(ui.MessengerAccountSchema, account),
           ),
           slackAppManifest: slackMessengerAppManifest(),
           slackAppCreateUrl: slackMessengerAppCreateUrl(),
-        }),
-      ),
+          slackBotAppManifest: botApp.manifest,
+          slackBotAppCreateUrl: botApp.createUrl,
+        });
+      }),
     saveMessengerAccount: (r, context) =>
       messengerGuard(async () => {
-        const previous = r.id
-          ? await state.options.runtime.runPromise(MessengerStore.use((s) => s.savedCredentials(owner, r.id)))
-          : undefined;
-
-        const metadata = r.id
-          ? (await state.options.runtime.runPromise(MessengerStore.use((s) => s.accounts(owner)))).find(
-              (a) => a.id === r.id,
-            )
-          : undefined;
-
-        const connectorAccountId = r.connectorAccountId || metadata?.connectorAccountId;
-
-        const credentials = {
-          appToken: r.appToken ?? previous?.appToken ?? "",
-          botToken: r.botToken ?? previous?.botToken ?? "",
-        };
-
-        const identity = connectorAccountId
-          ? { externalId: "" }
-          : await validateSlackAccount(credentials, context.signal, state.options.messengerTransport);
+        const validation = await validateStandaloneEdit(core, r, context.signal);
 
         const account = await state.options.runtime.runPromise(
           MessengerStore.use((s) =>
             s.saveAccount(owner, {
               ...(r.id && { id: r.id }),
               name: r.name,
-              ...(connectorAccountId && { connectorAccountId }),
-              externalId: identity.externalId,
+              ...(r.connectorAccountId && { connectorAccountId: r.connectorAccountId }),
+              ...validation,
               ...(r.enabled !== undefined && { enabled: r.enabled }),
               ...(r.appToken !== undefined && { appToken: r.appToken }),
               ...(r.botToken !== undefined && { botToken: r.botToken }),
@@ -130,6 +116,31 @@ export function botChannelHandlers(
         return create(ui.DeleteBotMessengerRouteResponseSchema);
       }),
   };
+}
+
+async function validateStandaloneEdit(core: GatewayCore, request: ui.SaveMessengerAccountRequest, signal: AbortSignal) {
+  const { connectorAccountId, id, appToken, botToken } = request;
+
+  if (connectorAccountId || (id && appToken === undefined && botToken === undefined)) return undefined;
+
+  const { runtime, userId, messengerTransport } = core[coreState].options;
+
+  const previous = id
+    ? await runtime.runPromise(MessengerStore.use((s) => s.standaloneCredentialsForSave(userId, id)))
+    : undefined;
+
+  if (id && !previous) return undefined;
+
+  const { externalId } = await validateSlackAccount(
+    {
+      appToken: appToken ?? previous?.appToken ?? "",
+      botToken: botToken ?? previous?.botToken ?? "",
+    },
+    signal,
+    messengerTransport,
+  );
+
+  return { externalId, ...(previous && { validatedRevision: previous.revision }) };
 }
 
 /** Never echo or log provider failures, SQL parameters or write-only credentials. */

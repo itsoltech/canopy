@@ -21,7 +21,6 @@
   import { botList } from "#lib/features/bots/bot-list.svelte.ts";
   import { useSettings } from "#lib/features/settings/settings-state.svelte.ts";
   import AccountSummary from "./AccountSummary.svelte";
-  import SlackMessages from "./SlackMessages.svelte";
   import AccessPicker from "#lib/features/access/AccessPicker.svelte";
   import type { AccessOption } from "#lib/features/access/access-options.ts";
   import ToolCatalog from "./ToolCatalog.svelte";
@@ -231,12 +230,6 @@
       </div>
     </div>
   {/if}
-  {#if type.id === "slack" && settings.moduleEnabled("bots")}<SlackMessages
-      {account}
-      {oauthCompletion}
-      {onupdate}
-      onreconnect={() => (reconnecting = true)}
-    />{/if}
   {#if tools && account.status === "connected"}
     {@const verified = tools}
     {#if verified.length}
@@ -283,7 +276,7 @@
   bind:open={disconnecting}
   title="Disconnect {account.name}?"
   description={type.id === "slack"
-    ? "Computers sharing configuration lose tool access. Message reception pauses and routes stay saved. Reconnect and authorize messages to resume."
+    ? "Computers sharing configuration lose tool access. Any linked Slack Bot stops receiving messages. Reconnect and authorize the bot to resume."
     : "Computers sharing configuration lose access to this account. You can reconnect it later."}
   dismissible={!busy}
 >
@@ -298,7 +291,7 @@
   bind:open={deleting}
   title="Delete {type.name} · {account.name}?"
   description={type.id === "slack"
-    ? "This removes the account from computers sharing configuration. Threads and bots lose tool access. Message reception stops and route history stays saved. A linked computer can restore the account for 90 days."
+    ? "This removes the account from computers sharing configuration. Threads and bots lose tool access. Any linked Slack Bot stops receiving messages. Its message routes stay saved. A linked computer can restore the account for 90 days."
     : "This removes the account from computers sharing configuration. Threads and bots lose access. A linked computer can restore it for 90 days."}
   dismissible={!busy}
 >

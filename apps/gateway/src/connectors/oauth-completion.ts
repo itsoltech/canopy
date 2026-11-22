@@ -32,6 +32,7 @@ export async function completeOAuth(
       "This code belongs to another sign-in window. Use the window that started sign-in, or start again.",
     );
   const session = await runtime.run((s) => s.consumeState(user, request.state, request.browserBinding));
+  const slackMessaging = Boolean(session.value.slackMessaging);
 
   if (session.used) {
     const connected = await runtime.run((s) =>
@@ -40,16 +41,13 @@ export async function completeOAuth(
 
         return {
           account: yield* s.view(row),
-          messaging: session.value.slackMessaging ? yield* s.slackMessagingConnected(row) : false,
+          messaging: slackMessaging ? yield* s.slackMessagingConnected(row) : false,
         };
       }),
     );
 
-    if (
-      session.completed &&
-      (session.value.slackMessaging ? connected.messaging : connected.account.status === "connected")
-    )
-      return { account: connected.account, alreadyConnected: true };
+    if (session.completed && (slackMessaging ? connected.messaging : connected.account.status === "connected"))
+      return { account: connected.account, alreadyConnected: true, slackMessaging };
     throw oauthFailure("oauth_used", "This code was already used. Start sign-in again.");
   }
 
@@ -113,5 +111,5 @@ export async function completeOAuth(
     ),
   );
 
-  return { account, alreadyConnected: false };
+  return { account, alreadyConnected: false, slackMessaging };
 }

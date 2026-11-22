@@ -1,14 +1,16 @@
 import { setTimeout as delay } from "node:timers/promises";
 import { afterAll, beforeAll, beforeEach, describe, expect, test } from "bun:test";
 import { create, type JsonObject } from "@bufbuild/protobuf";
-import { bots, Provider } from "@canopy/contracts";
+import { bots, Provider, ui } from "@canopy/contracts";
 import { dockerAvailable } from "@canopy/db/testing";
+import { createClient, createRouterTransport } from "@connectrpc/connect";
 import { Effect } from "effect";
 import { SqlClient } from "effect/sql";
 import { applyConnector } from "../../apps/gateway/src/config-sync/connector-apply.ts";
 import { emptyRecord } from "../../apps/gateway/src/config-sync/persistence.ts";
 import { storeSecret } from "../../apps/gateway/src/config-sync/secrets.ts";
 import { GatewayStore } from "@canopy/gateway/store";
+import { uiRoutes } from "../../apps/gateway/src/api/ui-service.ts";
 import { MessengerStore } from "../../apps/gateway/src/messengers/store.ts";
 import { encryptSecret } from "../../apps/gateway/src/store/secrets.ts";
 import { oauthRedirectUrl } from "../../apps/gateway/src/connectors/catalog.ts";
@@ -70,6 +72,7 @@ describe.skipIf(!dockerAvailable)("shared Slack app and rotating bot authorizati
     slack.rejectRefresh = false;
     slack.holdRefresh = undefined;
     slack.refreshStarted = undefined;
+    slack.onAuthTest = undefined;
 
     for (const account of await messenger((s) => s.accounts(gw.userId)))
       await messenger((s) => s.deleteAccount(gw.userId, account.id));
@@ -189,6 +192,101 @@ describe.skipIf(!dockerAvailable)("shared Slack app and rotating bot authorizati
     );
   };
 
+  // Bun's HTTP/2 connection can stall on errors returned after the Slack Socket Mode probe.
+  const localApi = () => createClient(ui.GatewayService, createRouterTransport(uiRoutes(gw.core)));
+
+  test("standalone installation exposes a bot-only manifest and saves metadata during a Slack outage", async () => {
+    const catalog = await gw.api.listMessengerAccounts({});
+    const shared = JSON.parse(catalog.slackAppManifest);
+    const standalone = JSON.parse(catalog.slackBotAppManifest);
+    const createUrl = new URL(catalog.slackBotAppCreateUrl);
+    expect(createUrl.origin).toBe("https://api.slack.com");
+    expect(JSON.parse(createUrl.searchParams.get("manifest_json")!)).toEqual(standalone);
+    expect(standalone.features).toEqual(shared.features);
+    expect(standalone.oauth_config).toEqual({ scopes: { bot: shared.oauth_config.scopes.bot } });
+    expect(standalone.settings).toEqual({
+      org_deploy_enabled: shared.settings.org_deploy_enabled,
+      socket_mode_enabled: true,
+      event_subscriptions: shared.settings.event_subscriptions,
+    });
+    expect((await gw.api.listConnectors({})).accounts).toEqual([]);
+
+    const { account } = await gw.api.saveMessengerAccount({
+      name: "Standalone bot",
+      appToken: "xapp-fixture",
+      botToken: "xoxb-fixture",
+    });
+
+    expect(account?.externalId).toBe("T12345:B1");
+    expect(account?.requiresSlackUser).toBe(false);
+
+    slack.onAuthTest = () => new Response(null, { status: 503 });
+    const requests = slack.methods.length;
+    const id = account!.id;
+    const paused = await gw.api.saveMessengerAccount({ id, name: "Renamed bot", enabled: false });
+    expect(paused.account).toMatchObject({ id, externalId: "T12345:B1", name: "Renamed bot", enabled: false });
+    const resumed = await gw.api.saveMessengerAccount({ id, name: "Renamed bot", enabled: true });
+    expect(resumed.account?.enabled).toBe(true);
+    expect(slack.methods).toHaveLength(requests);
+
+    slack.onAuthTest = () => Response.json({ ok: true, team_id: "TOTHER", bot_id: "B1", user_id: "UBOT" });
+    await expect(
+      localApi().saveMessengerAccount({ id, name: "Renamed bot", botToken: "xoxb-other-workspace" }),
+    ).rejects.toThrow("Reconnect using the same Slack workspace");
+    expect(await messenger((s) => s.savedCredentials(gw.userId, id))).toMatchObject({ botToken: "xoxb-fixture" });
+  });
+
+  test("concurrent standalone credential changes cannot save a token pair that was never validated", async () => {
+    const { account } = await gw.api.saveMessengerAccount({
+      name: "Standalone bot",
+      appToken: "xapp-original",
+      botToken: "xoxb-original",
+    });
+
+    const started = Promise.withResolvers<void>();
+    const held = Promise.withResolvers<void>();
+    slack.onAuthTest = () => {
+      slack.onAuthTest = undefined;
+      started.resolve();
+
+      return held.promise;
+    };
+
+    const id = account!.id;
+    const editing = localApi().saveMessengerAccount({ id, name: "Standalone bot", appToken: "xapp-replacement" });
+
+    try {
+      await Promise.race([
+        started.promise,
+        editing.then(() => {
+          throw new Error("Validation finished before the Slack request barrier");
+        }),
+      ]);
+      await gw.api.saveMessengerAccount({ id, name: "Standalone bot", botToken: "xoxb-replacement" });
+      held.resolve();
+      await expect(editing).rejects.toThrow("Slack credentials changed during validation");
+      expect(await messenger((s) => s.savedCredentials(gw.userId, id))).toMatchObject({
+        appToken: "xapp-original",
+        botToken: "xoxb-replacement",
+      });
+    } finally {
+      held.resolve();
+      await Promise.allSettled([editing]);
+    }
+  });
+
+  test("messenger accounts still require Slack User after their linked connector is deleted", async () => {
+    const f = await setup();
+    expect(f.linked.requiresSlackUser).toBe(true);
+    await gw.api.deleteConnectorAccount({ accountId: f.account.id });
+    const { accounts } = await gw.api.listMessengerAccounts({});
+    expect(accounts[0]).toMatchObject({
+      id: f.linked.id,
+      connectorAccountId: "",
+      requiresSlackUser: true,
+    });
+  });
+
   test("same registered app preserves MCP user tokens, requires consent, binds browser and receipts, then rotates once concurrently", async () => {
     const f = await setup();
     const userTokens = await connector((s) => s.owned(gw.userId, f.account.id).pipe(Effect.flatMap(s.credentials)));
@@ -198,8 +296,8 @@ describe.skipIf(!dockerAvailable)("shared Slack app and rotating bot authorizati
     expect(await messenger((s) => s.claimAccount(gw.userId, f.linked.id, "pending", new Date()))).toBeUndefined();
     expect((await complete(f.pending, "w".repeat(43))).failure?.kind).toBe("oauth_binding");
     const exchanges = slack.exchanges;
-    expect((await complete(f.pending)).error).toBe("");
-    expect((await complete(f.pending)).alreadyConnected).toBe(true);
+    expect(await complete(f.pending)).toMatchObject({ error: "", slackMessaging: true });
+    expect(await complete(f.pending)).toMatchObject({ alreadyConnected: true, slackMessaging: true });
     expect(slack.exchanges).toBe(exchanges + 1);
     expect(await connector((s) => s.owned(gw.userId, f.account.id).pipe(Effect.flatMap(s.credentials)))).toEqual(
       userTokens,

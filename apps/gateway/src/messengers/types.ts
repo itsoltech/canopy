@@ -5,6 +5,7 @@ export interface MessengerAccount {
   provider: "slack";
   externalId: string;
   connectorAccountId?: string;
+  requiresSlackUser: boolean;
   enabled: boolean;
   status: string;
 }
@@ -24,8 +25,10 @@ export interface SlackBotAuthorization extends MessengerCredentials {
 }
 
 export interface SaveMessengerAccount {
-  /** Verified by the gateway adapter before persistence. */
-  externalId: string;
+  /** Verified by the gateway adapter before persisting stand-alone credentials. */
+  externalId?: string;
+  /** Revision of an existing stand-alone token pair used for validation outside the transaction. */
+  validatedRevision?: bigint;
   id?: string;
   connectorAccountId?: string;
   name: string;

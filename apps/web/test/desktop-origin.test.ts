@@ -86,6 +86,8 @@ describe("desktop BFF origin boundary", () => {
   test("result documents use fixed copy, strip callback parameters and restrict scripts and embedding", async () => {
     const success = connectorOAuthResult("notion", true);
     expect(await success.text()).toContain("Notion connected");
+    expect(await connectorOAuthResult("slack", true).text()).toContain("Slack User connected");
+    expect(await connectorOAuthResult("slack", true, true).text()).toContain("Slack Bot authorized");
     const result = connectorOAuthResult("<script>untrusted</script>", true);
     const html = await result.text();
     expect(html).not.toContain("untrusted");
