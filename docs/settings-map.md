@@ -7,9 +7,11 @@ grupowania sidebara w web/desktop i mobile, opcjonalnej retencji archiwum wątk�
 oraz wspólnego dopasowania słów w wyszukiwaniu ustawień i opcjonalnego wskaźnika kontekstu w composerze web/desktop;
 dostępność kanałów według [release.md](release.md).
 
-Status (2026-11-21): sprawdzanie nazw sekcji ustawień przez czat wdrożono w kodzie
-wątków i prywatnych rozmów bota. Prywatny czat właściciela ma także wyszukiwanie,
-odczyt i zatwierdzany zapis wybranych preferencji konta. Dostępność wydań według [release.md](release.md).
+Status (2026-11-22): sprawdzanie nazw sekcji ustawień przez czat wdrożono w kodzie
+wątków i prywatnych rozmów bota. Odpowiedzi o Network access korzystają z opisu
+zakresu tej sekcji również przy nieznanym kliencie. Prywatny czat właściciela ma
+wyszukiwanie, odczyt i zatwierdzany zapis wybranych preferencji konta.
+Dostępność wydań według [release.md](release.md).
 
 ## Nawigacja
 
@@ -56,15 +58,22 @@ bez zmian. Opcja wyboru bez działania jest wyłączona z opisem „Soon”.
 `find_canopy_settings` czyta katalog sekcji współdzielony z nawigacją aplikacji.
 Potwierdza dokładną nazwę sekcji dla web, desktop, iOS lub Android i wersji
 klienta odpowiadającej katalogowi bieżącego gatewaya. Wersja workera, wybrany
-kanał aktualizacji i wersja samego gatewaya nie identyfikują klienta.
+kanał aktualizacji i wersja samego gatewaya nie identyfikują klienta. Wątek
+nie otrzymuje rodzaju klienta ani wersji aplikacji wraz z wiadomością. Sam
+system Windows nie rozstrzyga, czy autor używa aplikacji Desktop czy web.
 Przy nieznanej, rozbieżnej albo deweloperskiej wersji takiej jak `0.0.0-dev`
 narzędzie zwraca brak potwierdzenia. Dla sekcji zależnej od modułu lub funkcji
 gatewaya wynik jest warunkowy. Czat przekazuje warunki razem ze ścieżką.
 
 Dopasowanie słowa kluczowego służy wyłącznie jako sugestia wyszukiwania.
-Potwierdzenie sekcji nie potwierdza konkretnej kontrolki ani jej widoczności na
-danym urządzeniu. W takim przypadku czat ma nazwać brakującą informację albo
-wskazać wyszukiwarkę w Settings. Katalog przydaje się też w prywatnej rozmowie
+Potwierdzenie sekcji dotyczy jej nazwy. Przed podaniem ścieżki czat sprawdza też,
+czy zakres sekcji pasuje do pytania. Brakujące informacje nazywa wprost i wtedy
+pozostawia ścieżkę niepotwierdzoną. Dla zapytania o Network access narzędzie
+opisuje połączenia przychodzące do Canopy także przy braku danych klienta.
+Sekcja nie steruje połączeniami wychodzącymi procesu agenta, w tym z GitHubem.
+[Zakres ustawień sieciowych](network-access.md).
+
+Katalog przydaje się też w prywatnej rozmowie
 bota bez dostępu do repozytorium czy internetu. W starszej sesji Codexa
 utrwalony katalog narzędzi może wymagać nowego wątku; reguła niezgadywania
 obowiązuje też przy wznowieniu bez narzędzia.
