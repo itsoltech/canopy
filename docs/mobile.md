@@ -5,6 +5,7 @@ z przełącznikiem prywatności i pomijaniem wysyłki offline. Settings → Appe
 zapisuje schemat kolorów, oba motywy i szerokość wątku w instalacji aplikacji.
 Profile EAS przypinają Bun 1.4.5
 dla lockfile w wersji 3. Kompozytor pokazuje przypisany [profil Sandbox](sandbox-profiles.md).
+Rozszerzenie podglądu powiadomień na iOS deklaruje wymagane przez App Store Connect `CFBundleName`.
 Steer od bota pokazuje nazwę nadawcy także po wznowieniu zapisanego strumienia historii.
 Edytor zaplanowanych zadań pozwala wybrać profil dla nowego wątku.
 Dostęp wątków do konektorów konfiguruje się dla projektów.
@@ -879,6 +880,7 @@ Wymagany jest nowy build Expo SDK 58 z `expo-notifications` i modułem natywnym
   dodaje uprawnienie APNs, a plugin Canopy tworzy i osadza rozszerzenie
   `CanopyPushPreviewService` (`<bundleIdentifier>.push-preview`). EAS potrzebuje
   profilu podpisywania dla rozszerzenia i dostępu do współdzielonej grupy Keychain.
+  `Info.plist` rozszerzenia zawiera własne `CFBundleName` do walidacji paczki przez App Store Connect.
   Klucz podglądu jest dostępny po pierwszym odblokowaniu bieżącego urządzenia.
   Ustaw uprawnienie App Attest dla głównego App ID. Fizyczny iPhone w TestFlight
   zgłasza atestację produkcyjną.
