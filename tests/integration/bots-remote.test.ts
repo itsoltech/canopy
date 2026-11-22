@@ -2,14 +2,135 @@ import { describe, expect, test } from "bun:test";
 import { create } from "@bufbuild/protobuf";
 import { bots, Provider, ui } from "@canopy/contracts";
 import { dockerAvailable } from "@canopy/db/testing";
+import { applyThreadUpdate } from "@canopy/domain/thread-snapshot";
 import { GatewayStore } from "@canopy/gateway/store";
 import { Effect } from "effect";
 import { SqlClient } from "effect/sql";
 import { eventually } from "./support/gateway.ts";
 import { botsSuite, reply, tool, lastInput } from "./support/bots.ts";
+import republishBotSteers from "../../packages/db/src/migrations/0200_bot_steer_senders.sql" with { type: "text" };
+
+const caughtUpBotSteer = (state: ui.ThreadSnapshot, text: string, update: ui.ThreadUpdate) =>
+  update.change.case === "batch" &&
+  update.change.value.caughtUp &&
+  state.steers.some((steer) => steer.text === text && steer.status === "delivered");
 
 describe.skipIf(!dockerAvailable)("gateway bots: remote MCP capabilities and worker threads", () => {
   const { suite, add, read, settled, send, restart } = botsSuite();
+
+  test("mobile sequence reads keep bot steers visible live and repair sender attribution on resume", async () => {
+    const { api, worker, runtime } = suite.gw;
+    const projectId = (await api.createProject({ name: "Mobile steer history" })).project!.id;
+
+    const workspaceId = (
+      await api.createWorkspace({ projectId, workerId: suite.gw.workerId, rootPath: "/repo/mobile-steers" })
+    ).workspace!.id;
+
+    worker.holdTurns = true;
+
+    const thread = (
+      await api.createThread({
+        projectId,
+        workspaceId,
+        provider: Provider.CODEX,
+        providerProfileId: "bots-test",
+      })
+    ).thread!;
+
+    const turn = (await api.sendMessage({ threadId: thread.id, text: "Keep working while the bot sends an update" }))
+      .turn!;
+
+    await eventually(
+      () => api.getThread({ threadId: thread.id }),
+      (result) => result.thread?.status === "running",
+    );
+
+    const bot = await add("Service Desk");
+    const report = "Received the thread result";
+    const text = "The customer confirmed they use Canopy Desktop.";
+    suite.model = async (input) => {
+      if (lastInput(input).startsWith("Thread ")) return reply(report);
+
+      return input.messages.at(-1)?.role === "tool"
+        ? reply("Update sent")
+        : tool("send_message", { thread_id: thread.id, text, delivery: "steer" });
+    };
+
+    const abort = new AbortController();
+    const request = { threadId: thread.id, sequence: true, pageSize: 24 };
+    const options = { signal: abort.signal, timeoutMs: 12_000 };
+    const stream = api.watchThread(request, options)[Symbol.asyncIterator]();
+    let state: ui.ThreadSnapshot | undefined;
+
+    try {
+      const initial = await stream.next();
+
+      if (initial.done) throw new Error("Mobile watch ended before the initial window");
+      state = applyThreadUpdate(undefined, initial.value);
+      await send(bot.id, "Forward the update");
+      await settled(bot.id);
+
+      for (;;) {
+        const next = await stream.next();
+
+        if (next.done) throw new Error("Mobile watch ended before the steer arrived");
+        state = applyThreadUpdate(state, next.value);
+
+        if (caughtUpBotSteer(state, text, next.value)) break;
+      }
+    } finally {
+      abort.abort();
+      await stream.return?.();
+      worker.holdTurns = false;
+      worker.finish(thread.id, turn.id, "Finished");
+      await eventually(
+        () => api.getThread({ threadId: thread.id }),
+        (result) => result.thread?.status === "idle",
+      );
+    }
+
+    const steer = state.steers.find((entry) => entry.text === text)!;
+
+    expect(steer.sender?.botId).toBe(bot.id);
+    expect(
+      state.items.some(({ item }) => item?.content.case === "userMessage" && item.content.value.clientId === steer.id),
+    ).toBe(true);
+
+    // An older app already acknowledged this checkpoint with the delivered item and no sender.
+    steer.sender = undefined;
+    await runtime.runPromise(SqlClient.SqlClient.use((sql) => sql.unsafe(republishBotSteers)));
+
+    const resume = new AbortController();
+
+    try {
+      for await (const update of api.watchThread(
+        { ...request, syncCursor: state.syncCursor },
+        { signal: resume.signal, timeoutMs: 8_000 },
+      )) {
+        expect(update.change.case).not.toBe("snapshot");
+        state = applyThreadUpdate(state, update);
+
+        if (caughtUpBotSteer(state, text, update) && state.steers.some((entry) => entry.sender?.botId === bot.id))
+          break;
+      }
+    } finally {
+      resume.abort();
+    }
+
+    expect(state.steers.find((entry) => entry.id === steer.id)?.sender?.title).toBe("Service Desk");
+    expect(
+      state.items.filter(
+        ({ item }) => item?.content.case === "userMessage" && item.content.value.clientId === steer.id,
+      ),
+    ).toHaveLength(1);
+
+    const finished = await eventually(
+      () => read(bot.id),
+      (result) => !result.working && result.messages.some((message) => message.text === report),
+    );
+
+    expect(finished.messages.some((message) => message.text === report)).toBe(true);
+  }, 20_000);
 
   test("remote MCP registry hides secrets, denies stdio, and requires approval for writes", async () => {
     expect((await suite.gw.api.testBotMcpServer({ serverId: suite.serverId })).tools[0]?.name).toBe(
@@ -312,6 +433,8 @@ describe.skipIf(!dockerAvailable)("gateway bots: remote MCP capabilities and wor
         (t) => t.status === "running",
       );
       const bot = await add(`Steer ${mode}`);
+      const text = `steer ${mode}`;
+
       suite.model = async (i) => {
         if (lastInput(i).startsWith("Thread ")) {
           expect(lastInput(i)).toContain(mode === "not_running" ? "Echo: steer not_running" : "Finished accept");
@@ -321,15 +444,40 @@ describe.skipIf(!dockerAvailable)("gateway bots: remote MCP capabilities and wor
 
         return i.messages.at(-1)?.role === "tool"
           ? reply("Message sent")
-          : tool("send_message", { thread_id: thread.id, text: `steer ${mode}`, delivery: "steer" });
+          : tool("send_message", { thread_id: thread.id, text, delivery: "steer" });
       };
 
-      await send(bot.id, "steer it");
-      await settled(bot.id);
-      await eventually(
-        async () => suite.currentWorker.steered.size,
-        (n) => n > 0,
+      const updates: ui.Steer[] = [];
+
+      const stopObserving = suite.current.hub.observeThread(thread.id, ({ change }) => {
+        if (change.case === "steer" && change.value.text === text) updates.push(change.value);
+      });
+
+      try {
+        await send(bot.id, "steer it");
+        await settled(bot.id);
+      } finally {
+        stopObserving();
+      }
+
+      expect(updates[0]).toMatchObject({ status: "pending", sender: { botId: bot.id } });
+
+      const status = mode === "accept" ? "delivered" : "queued";
+
+      const snapshot = await eventually(
+        () => suite.current.linkedAgents.snapshot(thread.id),
+        (s) => s.steers.some((steer) => steer.text === text && steer.status === status),
       );
+
+      const steer = snapshot.steers.find((entry) => entry.text === text && entry.status === status)!;
+
+      expect(steer.sender).toMatchObject({
+        botId: bot.id,
+        title: bot.configuration!.name,
+        botShape: bot.configuration!.shape,
+        botColor: bot.configuration!.color,
+      });
+
       const target = await suite.gw.runtime.runPromise(GatewayStore.use((s) => s.runningTurn(thread.id)));
       expect(target).toBeDefined();
       suite.currentWorker.holdTurns = false;

@@ -14,8 +14,7 @@ import {
 
 describe.skipIf(!dockerAvailable)("schema on PostgreSQL 17", () => {
   beforeAll(async () => {
-    const applied = await startSchemaDb();
-    expect(applied.map(([n, name]) => `${n}_${name}`)).toEqual([
+    expect((await startSchemaDb()).map(([n, name]) => `${n}_${name}`)).toEqual([
       "1_init",
       "2_worker_config",
       "3_gateway_runtime",
@@ -211,6 +210,7 @@ describe.skipIf(!dockerAvailable)("schema on PostgreSQL 17", () => {
       "197_connector_project_access",
       "198_memory_reflection",
       "199_sandbox_profile_outbox",
+      "200_bot_steer_senders",
     ]);
   }, 60_000);
 

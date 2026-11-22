@@ -174,6 +174,9 @@ export async function coreQueueSteer(hostContext: GatewayCore, steerId: string, 
 }
 
 export async function corePublishSteer(hostContext: GatewayCore, steerId: string, consumed = false): Promise<void> {
+  // A bot's send records its author in the same transaction after admitting the steer.
+  if (hostContext[coreState].actions.defer(() => corePublishSteer(hostContext, steerId, consumed))) return;
+
   const steer = await coreSteers(hostContext, (s) => s.steer(steerId)).catch(() => undefined);
 
   if (!steer) return;
