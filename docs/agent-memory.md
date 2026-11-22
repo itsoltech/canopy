@@ -96,6 +96,8 @@ przenosi notatki, ich zakresy oraz potwierdzenia operacji.
 Status (2026-11-22): Habits w Settings → Memory, okresowa analiza wiadomości,
 przegląd sugestii i dostarczanie zatwierdzonych nawyków do Claude, Codexa i Groka
 są zaimplementowane. Dostępność zależy od [promocji wydania](release.md).
+Konsolidacja przenosi zatwierdzone reguły jako notatki. Ustawienia analizy,
+sugestie, dowody i stan dostarczania pozostają w źródłowym gatewayu.
 
 **Habits** to krótkie reguły projektu. Refleksja wykrywa powtarzane prośby,
 przypomnienia i korekty właściciela dotyczące formy odpowiedzi lub prezentacji
