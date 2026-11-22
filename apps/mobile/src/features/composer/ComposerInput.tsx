@@ -7,7 +7,7 @@ import { MessageSpans } from "./MessageText";
 import { useComposerMotion } from "./ComposerFold";
 import { useChatInputID } from "./ChatKeyboard";
 import { useKeyboardBlur } from "./useKeyboardBlur";
-import { composerGeometry } from "./geometry";
+import { compactInputHeight, composerGeometry } from "./geometry";
 import { ComposerPending } from "./ComposerPending";
 import { useCitationInput } from "./useCitationInput";
 
@@ -62,12 +62,10 @@ export function ComposerInput({
     const writes = inline ? 0 : writing.get() * t;
     const padTop = interpolate(t, [0, 1], [10, expandedPadding.top]);
     const padBottom = interpolate(t, [0, 1], [10, expandedPadding.bottom]);
-    const max = interpolate(t, [0, 1], [44, 160]);
+    const max = interpolate(t, [0, 1], [compactInputHeight, 160]);
+    const min = inline ? compactInputHeight : interpolate(t, [0, 1], [compactInputHeight, composerGeometry.input]);
 
-    const natural = Math.min(
-      max,
-      Math.max(inline ? 44 : interpolate(t, [0, 1], [44, composerGeometry.input]), lines.get() + padTop + padBottom),
-    );
+    const natural = Math.min(max, Math.max(min, lines.get() + padTop + padBottom));
 
     const writingSize = Math.max(natural, resting.get() + room.get());
 
@@ -107,7 +105,7 @@ export function ComposerInput({
               Math.min(
                 160,
                 Math.max(
-                  inline ? 44 : composerGeometry.input,
+                  inline ? compactInputHeight : composerGeometry.input,
                   lines.get() + expandedPadding.top + expandedPadding.bottom,
                 ),
               ),

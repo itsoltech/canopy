@@ -23,11 +23,14 @@ import { useAppActive } from "../../ui/active";
 export function ComposerCoverage({
   children,
   value,
+  resizeInset,
   fade,
   latest,
 }: {
   children: ReactNode;
   value?: SharedValue<number>;
+  /** A composer that expands for editing also gives its space back when the draft is empty. */
+  resizeInset?: boolean;
   fade?: ReactNode;
   /** Floats above the visible stack, outside its clipping and measurement. */
   latest?: ReactNode;
@@ -53,9 +56,9 @@ export function ComposerCoverage({
   useAnimatedReaction(
     () => height.get(),
     (next) => {
-      // Folding changes only the overlay. Releasing the native inset moves an inverted Android feed and
-      // can make its synthetic scroll events look like a gesture back to the end.
-      if (value) value.set(Math.max(value.get(), next - safe, 0));
+      if (!value) return;
+      // Scroll-driven folding retains its reserve so synthetic scroll events cannot reopen the composer.
+      value.set(Math.max(resizeInset ? 0 : value.get(), next - safe));
     },
   );
 

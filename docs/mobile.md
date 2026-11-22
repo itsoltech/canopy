@@ -13,6 +13,7 @@ Licznik i akcja Update all na telefonie wynikają z planu instalacji Canopy.
 Komunikat o restarcie znika po potwierdzeniu powrotu gatewaya lub wersji docelowej.
 Stan gotowości binarnego gatewaya kończy także zapowiedź restartu bez zmiany wersji.
 Zmiana wątku nie przedłuża wyświetlania wyniku.
+Puste pole wiadomości w wątku zajmuje jeden wiersz do ustawienia fokusu.
 Arkusz Updates pokazuje start i zamykanie gatewaya oraz etapy aktualizacji workerów.
 Wiadomości agenta w rozwiniętej aktywności tury mają dodatkowy odstęp pionowy.
 Stany źródeł Usage są widoczne w sekcji **Recording gateways**. Podsumowanie
@@ -1616,16 +1617,17 @@ pomija ten nagłówek. „Show latest” wątku jest wyśrodkowany nad zmierzony
 kompozytorze; wejście i wyjście używają `pop` z obsługą ograniczenia ruchu.
 Podświetlenie po naciśnięciu zachowuje okrągły kształt przycisku.
 
-Reguły zwijania pochodzą z webowego `ComposerCompaction`: co najmniej 192 dp od końca
-i 96 dp ruchu ku starszym wiadomościom, rozwinięcie do 8 dp od końca albo po tapnięciu,
-fokusie lub pisaniu. Liczą się tylko gesty czytelnika (od początku przeciągnięcia do końca
-jego rozpędu), bez aktualizacji streamu, korekt kotwicy i zmian klawiatury. Synchroniczne
-pytanie utrzymuje kompozytor otwarty. Mobile dodatkowo nie zwija niepustego szkicu,
-załączników ani otwartej listy wzmianek. Decyzję podejmuje worklet przewijania
-(`useAnimatedScrollHandler` w `useFloatingComposer`) na wątku UI i w tej samej klatce
-uruchamia animację; React dostaje tylko zmianę stanu (zwinięty/otwarty, na dole/nie).
-Pozycja przewijania żyje we wspólnej wartości (`useFollowingList`), więc listy rozmów
-to listy Reanimated (`TimelineList`, `Animated.FlatList`). Wszystkie części kompozytora
+W wątku puste pole bez fokusu ma 44 dp wysokości. Fokus rozwija je wraz z paskiem pisania.
+Po utracie fokusu lub schowaniu klawiatury pole pozostaje rozwinięte, jeśli szkic zawiera
+tekst, wzmiankę, cytat lub załącznik. Puste pole wraca do jednego wiersza, a lista odzyskuje
+zwolnione miejsce. Kolejka, subagenci, cel, prośby o odpowiedź i wiersze statusu pozostają
+widoczne również nad zwiniętym polem. Przewijanie wątku nie zmienia rozmiaru pola.
+
+Czat bota zachowuje zwijanie podczas czytania historii według reguł webowego `ComposerCompaction`:
+co najmniej 192 dp od końca i 96 dp ruchu ku starszym wiadomościom, rozwinięcie blisko końca
+lub po tapnięciu, fokusie albo pisaniu. Pozycja przewijania żyje we wspólnej wartości
+(`useFollowingList`), więc listy rozmów to listy Reanimated (`TimelineList`, `Animated.FlatList`).
+Wszystkie części kompozytora
 czytają jedną wartość postępu (`ComposerMotionContext`): `ComposerFold` animuje własną
 przyciętą wysokość i przezroczystość, a pole tekstowe i przycisk wysyłania swoje rozmiary
 i położenie (tokeny `motion.slow` / `motion.medium`, `smoothOut`); ograniczenie ruchu
@@ -1643,14 +1645,14 @@ wybranego przycisku, a przeciąganie uchwytów zaznaczenia nadal należy do pola
 Poprawka dla React Native 0.88.1 dotyczy wszystkich pól tekstowych
 ([zgłoszenie w React Native](https://github.com/react/react-native/issues/58445)).
 
-Podczas pisania (fokus pola) dolny pasek pozostaje widoczny: przycisk załączników, model,
+Podczas pisania (fokus pola) dolny pasek jest widoczny: przycisk załączników, model,
 effort oraz wysyłanie/stop. Chowa się tylko dodatkowy wiersz z workerem, celem i trybem
 uprawnień (`motion.fast`, przy ograniczeniu ruchu od razu). Pole przejmuje wyłącznie jego
 zmierzoną wysokość, więc kompozytor zachowuje wysokość, a tekst ma więcej miejsca.
 Dolny pasek zachowuje własną wysokość i miejsce na wysyłanie/stop; podglądy dodanych załączników też zostają.
 Wybory i załączniki zostają, bo kontrolki pozostają zamontowane. Po utracie fokusu albo
-zamknięciu klawiatury kontrolki wracają (Android po zamknięciu klawiatury zostawia fokus
-w polu, więc kompozytor sam je wtedy zdejmuje).
+zamknięciu klawiatury dodatkowy wiersz wraca w rozwiniętym kompozytorze. Android po
+zamknięciu klawiatury zostawia fokus w polu, więc kompozytor sam go wtedy zdejmuje.
 Na iOS i Androidzie każdy modal (w tym model, effort i spinacz) najpierw czeka na
 `KeyboardController.dismiss()`, a następnie prezentuje własne okno. Nie ma stałego timeoutu.
 Wyszukiwanie w pickerze otwiera nową klawiaturę, śledzoną przez provider jego okna.
@@ -2647,10 +2649,10 @@ Dokument nadal raportuje wysokość przez walidowany kanał shella, a WebView ma
 jawne `flex: 0`. Androidowa lista nie odłącza natywnych podwidoków przez clipping;
 odległe tury nadal są wirtualizowane.
 
-Zwijanie composera zmienia wyłącznie nakładkę, zachowując największą zmierzoną
-rezerwę listy na czas otwarcia wątku. Otwarcie przez przewijanie wymaga ruchu palca
-w stronę końca; zatrzymanie momentum dotknięciem nie dziedziczy poprzedniego
-gestu. Natywne kotwiczenie wątku nie ma progu autoscroll do zera.
+Rezerwa listy wątku podąża za zmierzoną wysokością kompozytora i jego nakładek.
+W czacie bota otwarcie composera przez przewijanie wymaga ruchu w stronę końca;
+zatrzymanie momentum dotknięciem nie dziedziczy poprzedniego gestu.
+Natywne kotwiczenie wątku nie ma progu autoscroll do zera.
 
 Android uzgadnia końcową wysokość IME również przez zdarzenia `Keyboard` React Native,
 w tym zmianę wysokości bez zamykania klawiatury. Natywne klatki nadal prowadzą animację;

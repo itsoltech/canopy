@@ -6,7 +6,7 @@ import { Redirect, Stack, useLocalSearchParams } from "expo-router";
 import { useContextDraft } from "../github/useContextDraft";
 import { ScreenFrame } from "../../ui/ScreenFrame";
 import { styles, useColors } from "../../ui/theme";
-import { InteractionKind, ui } from "@canopy/contracts";
+import { ui } from "@canopy/contracts";
 import { useSession } from "../../state/session";
 import { useThreadSnapshot } from "../../state/thread";
 import { Notice } from "../../ui/components";
@@ -30,7 +30,7 @@ import { FloatingComposer } from "../composer/FloatingComposer";
 import { useFloatingComposer } from "../composer/useFloatingComposer";
 import { MentionSuggestions } from "../composer/MentionSuggestions";
 import { visibleTurns } from "./thread-turns";
-import { threadComposerHeight } from "../composer/geometry";
+import { compactThreadComposerHeight } from "../composer/geometry";
 import { ThreadRequests } from "./ThreadRequests";
 import { ImportedThreadComposer } from "../imports/ImportedThreadComposer";
 import { useQuoteDraft } from "../quotes/useQuoteDraft";
@@ -64,7 +64,7 @@ function useThreadState(id: string) {
     Boolean(threadCache?.peek(id)?.thread),
     Boolean(warming?.enabled && threadCacheCurrent(threadCache?.peek(id), warming.head(id))),
   );
-  const following = useFollowingList<ui.Turn>(true, threadComposerHeight);
+  const following = useFollowingList<ui.Turn>(true, compactThreadComposerHeight);
   const [details, setDetails] = useState(false);
   const { projects, workers, threads } = useOverview();
   const message = usePersistentMessage(create(ui.ComposerDraftTargetSchema, { threadId: id }), threadVisible);
@@ -172,15 +172,14 @@ function useThreadState(id: string) {
   };
 }
 
-/** Pending drafts can fold into their summary; an open mention list or synchronous question stays open. */
 function useThreadComposer(state: ThreadState) {
-  const { message, interactions } = state;
+  const { message, quotes, following } = state;
 
-  return useFloatingComposer(
-    state.following,
-    Boolean(message.trigger) || interactions.some((i) => i.kind === InteractionKind.QUESTION && !i.asynchronous),
-    threadComposerHeight,
+  const hasDraft = Boolean(
+    message.value.text.length || message.value.mentions.length || message.files.files.length || quotes.quotes.length,
   );
+
+  return useFloatingComposer(following, false, compactThreadComposerHeight, hasDraft);
 }
 
 export function ThreadScreen({ id }: { id: string }) {
@@ -280,6 +279,7 @@ export function ThreadScreen({ id }: { id: string }) {
                 <FloatingComposer
                   motion={composer.motion}
                   coverage={following.composerInset}
+                  resizeInset
                   onLayout={composer.measure}
                   onExpand={composer.expand}
                   onLatest={following.atBottom ? undefined : composer.showLatest}
