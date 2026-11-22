@@ -1,8 +1,9 @@
 # Pamięć agentów i botów
 
 Status (2026-11-22): zaimplementowana pamięć gatewaya dla wątków i botów oraz
-Settings → Memory w webie, desktopie i aplikacji mobilnej. Dostępność zależy od
-[promocji wydania](release.md).
+Settings → Memory w webie, desktopie i aplikacji mobilnej. Web i desktop mają
+wyszukiwanie, filtry projektu i workera oraz daty utworzenia notatek. Dostępność
+zależy od [promocji wydania](release.md).
 
 ## Zakres
 
@@ -51,12 +52,21 @@ muszą umieć przekazać i egzekwować uprawnienia delegowanej pracy. Bardzo sta
 gatewaye używały zwykłych tras UI właściciela do części automatycznych odczytów.
 Pełne rozróżnienie tych odczytów wymaga aktualizacji gatewaya źródłowego.
 
-## Edycja i usuwanie
+## Przeglądanie, edycja i usuwanie
 
-W **Settings → Memory** można filtrować listę według zakresu, otworzyć pełną
-treść, zmienić tytuł, treść, aliasy i przypięcie oraz trwale usunąć notatkę
-po potwierdzeniu. Operacje sprawdzają rewizję otwartej wersji. Konflikt
-wymaga odczytania aktualnego wpisu przed ponownym zapisem.
+W **Settings → Memory** można filtrować według zakresu, otworzyć pełną treść,
+zmienić tytuł, treść, aliasy i przypięcie oraz trwale usunąć notatkę po
+potwierdzeniu. Operacje sprawdzają rewizję otwartej wersji. Konflikt wymaga
+odczytania aktualnego wpisu przed ponownym zapisem.
+
+Web i desktop wyszukują fragmenty tytułów, treści i aliasów bez rozróżniania
+wielkości liter. Wyszukiwanie i filtry działają razem na wszystkich notatkach
+właściciela. Filtr projektu obejmuje jego notatki wspólne oraz przypisane do
+workerów. Filtr workera wybiera notatki z jego zakresu. Lista pokazuje podgląd
+treści i datę utworzenia, po 20 wpisów na stronę, w grupach według dnia
+ostatniej zmiany. W szczegółach edytowanej notatki widać obie daty, jeśli
+data utworzenia jest dostępna. Data historycznych wpisów pochodzi z czasu
+zapisu pierwszej rewizji lub znacznika czasu w identyfikatorze UUIDv7.
 
 Nowe odczyty uwzględniają edycję i usunięcie. Treść zacytowana wcześniej
 w odpowiedzi jest częścią historii rozmowy. Pliki pamięci CLI dostawców mają

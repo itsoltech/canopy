@@ -1,7 +1,8 @@
 # API dla UI i architektura frontendu
 
 Status (2026-11-22): web i desktop udostępniają Settings → Memory do przeglądania
-i edycji notatek agentów i botów. Web, desktop i mobile obsługują usypianie wątków oraz załączniki
+i edycji notatek agentów i botów, z wyszukiwaniem, filtrami i datą utworzenia.
+Web, desktop i mobile obsługują usypianie wątków oraz załączniki
 do 40 MiB na plik po zmianie ustawienia.
 Web i desktop pokazują automatyczne powitanie tylko po potwierdzeniu przez gateway,
 że działa w wersji pierwszego uruchomienia nowej instalacji. [Onboarding](onboarding.md)
@@ -2472,10 +2473,15 @@ Popraw oba miejsca.
 ### Pamięć agentów i botów
 
 W Settings → Memory użytkownik przegląda notatki zapisane w gatewayu. Lista
-pobiera strony przez `GET /api/memory` (opcjonalne `scope` i `cursor`). Filtr
-obejmuje projekt, projekt na danym workerze, bota lub rozmowę zewnętrzną.
-Wiersz otwiera pełną treść, aliasy i etykietę zakresu. Użytkownik może zmienić
-tytuł, treść, aliasy i przypięcie albo potwierdzić trwałe usunięcie.
+pobiera 20 wpisów przez `POST /api/memory` (opcjonalne `scope`, `projectId`,
+`workerId`, `query` i `cursor` w ciele żądania). `GET /api/memory` obsługuje
+starsze wersje klientów z parametrami `scope` i `cursor`. Gateway łączy warunki przed stronicowaniem
+i zwraca kursor oparty na czasie aktualizacji i ID. Pierwsza strona prosi
+o `filterOptions`, które zawiera projekty i workery właściciela z zapisanymi
+notatkami, niezależnie od wybranych filtrów. Bez tego pola web i desktop
+udostępniają filtr zakresu. Wiersze grupują się według dnia aktualizacji i
+pokazują podgląd oraz opcjonalną datę utworzenia. W szczegółach użytkownik może
+zmienić tytuł, treść, aliasy i przypięcie albo potwierdzić trwałe usunięcie.
 `PUT` i `DELETE /api/memory/[noteId]` przekazują do gatewaya rewizję oglądanej
 wersji. Po konflikcie edytor zachowuje wpisany tekst, aby użytkownik mógł
 go skopiować przed ponownym wczytaniem listy. Desktop sprawdza dostępność

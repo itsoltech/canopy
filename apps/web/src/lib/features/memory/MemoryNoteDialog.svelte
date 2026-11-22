@@ -2,7 +2,7 @@
   import { tick } from "svelte";
   import type { ui } from "@canopy/contracts";
   import { noteScopeLabel } from "@canopy/domain/memory-scopes";
-  import { formatDateTime, isoDateTime } from "#lib/shared/format.ts";
+  import { formatEnglishDateTime, isoDateTime } from "#lib/shared/format.ts";
   import { HttpError } from "#lib/shared/http.ts";
   import Alert from "#lib/shared/ui/Alert.svelte";
   import Badge from "#lib/shared/ui/Badge.svelte";
@@ -120,8 +120,11 @@
         {/if}
         <div class="flex flex-wrap items-center gap-2 text-sm/5 text-muted sm:text-xs/5">
           {#if note.pinned}<Badge compact>Pinned</Badge>{/if}
-          {#if note.updatedAt}<time datetime={isoDateTime(note.updatedAt)}
-              >Updated {formatDateTime(note.updatedAt)}</time
+          {#if note.createdAt}<time datetime={isoDateTime(note.createdAt)}
+              >Created {formatEnglishDateTime(note.createdAt)}</time
+            >{/if}
+          {#if note.updatedAt && (!note.createdAt || note.revision > 1)}<time datetime={isoDateTime(note.updatedAt)}
+              >Updated {formatEnglishDateTime(note.updatedAt)}</time
             >{/if}
         </div>
       {/if}

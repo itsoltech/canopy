@@ -24,6 +24,7 @@ import gatewayOnboarding from "./0192_gateway_onboarding.sql" with { type: "text
 import agentMemory from "./0193_agent_memory.sql" with { type: "text" };
 import threadMemoryAudience from "./0194_thread_memory_audience.sql" with { type: "text" };
 import networkAccessAllowedNetworks from "./0195_network_access_allowed_networks.sql" with { type: "text" };
+import memoryNoteCreation from "./0196_memory_note_creation.sql" with { type: "text" };
 import transcriptStructuredRawRefs from "./0185_transcript_structured_raw_refs.sql" with { type: "text" };
 import githubPrProjection from "./0177_github_pr_projection.sql" with { type: "text" };
 import messageDelegatingBot from "./0176_message_delegating_bot.sql" with { type: "text" };
@@ -399,6 +400,7 @@ export const migrations = Migrator.fromRecord({
   "0193_agent_memory": sqlFile(agentMemory),
   "0194_thread_memory_audience": sqlFile(threadMemoryAudience),
   "0195_network_access_allowed_networks": sqlFile(networkAccessAllowedNetworks),
+  "0196_memory_note_creation": sqlFile(memoryNoteCreation),
 });
 
 /** Applies pending migrations in a transaction with a lock, safe to call from a deploy step. */

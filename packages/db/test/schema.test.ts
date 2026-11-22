@@ -207,6 +207,7 @@ describe.skipIf(!dockerAvailable)("schema on PostgreSQL 17", () => {
       "193_agent_memory",
       "194_thread_memory_audience",
       "195_network_access_allowed_networks",
+      "196_memory_note_creation",
     ]);
   }, 60_000);
 

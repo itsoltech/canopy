@@ -1,16 +1,24 @@
 import { create } from "@bufbuild/protobuf";
 import { ui } from "@canopy/contracts";
+import { memoryScopes } from "@canopy/domain/memory-scopes";
 import { requestJson } from "#lib/shared/http.ts";
 import { decode, encode } from "#lib/shared/wire.ts";
 
-export async function listMemoryNotes(scope: string, cursor: string, signal?: AbortSignal) {
-  const query = new URLSearchParams({ scope });
+export interface MemoryFilters {
+  scope: string;
+  projectId: string;
+  workerId: string;
+  query: string;
+}
 
-  if (cursor) query.set("cursor", cursor);
+export async function listMemoryNotes(filters: MemoryFilters, cursor: string, signal: AbortSignal) {
+  const schema = ui.ListMemoryNotesRequestSchema;
+  const scope = memoryScopes.find((item) => item.value === filters.scope)?.scope ?? ui.MemoryNoteScope.UNSPECIFIED;
+  const body = create(schema, { ...filters, scope, cursor });
 
   return decode(
     ui.ListMemoryNotesResponseSchema,
-    await requestJson("GET", `/api/memory?${query}`, undefined, undefined, signal),
+    await requestJson("POST", "/api/memory", encode(schema, body), undefined, signal),
   );
 }
 

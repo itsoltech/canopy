@@ -1,46 +1,76 @@
 <script lang="ts">
-  import { onMount } from "svelte";
+  import { onMount, tick } from "svelte";
   import type { ui } from "@canopy/contracts";
-  import { memoryScopes, noteScopeLabel } from "@canopy/domain/memory-scopes";
+  import { memoryScopes } from "@canopy/domain/memory-scopes";
   import { applicationName } from "#lib/application-name.ts";
-  import { listMemoryNotes } from "#lib/features/memory/api.ts";
+  import { listMemoryNotes, type MemoryFilters } from "#lib/features/memory/api.ts";
+  import MemoryFilterPicker from "#lib/features/memory/MemoryFilterPicker.svelte";
   import MemoryNoteDialog from "#lib/features/memory/MemoryNoteDialog.svelte";
+  import MemoryNoteList from "#lib/features/memory/MemoryNoteList.svelte";
   import Alert from "#lib/shared/ui/Alert.svelte";
-  import Badge from "#lib/shared/ui/Badge.svelte";
   import Button from "#lib/shared/ui/Button.svelte";
   import EmptyState from "#lib/shared/ui/EmptyState.svelte";
-  import Icon from "#lib/shared/ui/Icon.svelte";
+  import SearchField from "#lib/shared/ui/SearchField.svelte";
   import Select from "#lib/shared/ui/Select.svelte";
-  import SettingsCard from "#lib/shared/ui/SettingsCard.svelte";
   import Spinner from "#lib/shared/ui/Spinner.svelte";
-  import TruncatedText from "#lib/shared/ui/TruncatedText.svelte";
 
-  let scope = $state("all");
+  const defaults: MemoryFilters = { scope: "all", projectId: "", workerId: "", query: "" };
+  const searchId = $props.id();
+  let filters = $state.raw(defaults);
+  let filterOptions = $state.raw<ui.MemoryFilterOptions>();
   let notes = $state.raw<ui.MemoryNote[]>([]);
-  let cursor = $state("");
+  let page = $state(0);
+  let cursors = $state.raw([""]);
   let loading = $state(true);
-  let failedAfter = $state<string>();
+  let failedPage = $state<number>();
   let request: AbortController | undefined;
+  let debounce: ReturnType<typeof setTimeout> | undefined;
+  let resultsHeading = $state<HTMLHeadingElement>();
   let dialog: MemoryNoteDialog;
 
-  async function load(after = "") {
+  const filtered = $derived(
+    filters.scope !== "all" || !!filters.projectId || !!filters.workerId || !!filters.query.trim(),
+  );
+
+  async function load(index = 0, reveal = false) {
+    const after = cursors[index];
+
+    if (after === undefined) return;
+    clearTimeout(debounce);
     request?.abort();
     const controller = new AbortController();
     request = controller;
     loading = true;
-    failedAfter = undefined;
+    failedPage = undefined;
 
     try {
-      const result = await listMemoryNotes(scope, after, controller.signal);
+      const result = await listMemoryNotes({ ...filters, query: filters.query.trim() }, after, controller.signal);
 
       if (controller.signal.aborted) return;
-      const rows = new Map((after ? notes : []).map((note) => [note.id, note]));
 
-      for (const note of result.notes) rows.set(note.id, note);
-      notes = [...rows.values()];
-      cursor = result.nextCursor;
+      if (index > 0 && !result.notes.length) {
+        await load(index - 1, reveal);
+
+        return;
+      }
+
+      if (!after) {
+        filterOptions = result.filterOptions;
+
+        if (!filterOptions) filters = { ...defaults, scope: filters.scope };
+      }
+
+      notes = result.notes;
+      page = index;
+      cursors = [...cursors.slice(0, index + 1), ...(result.nextCursor ? [result.nextCursor] : [])];
+
+      if (reveal) {
+        await tick();
+
+        if (!controller.signal.aborted) resultsHeading?.focus();
+      }
     } catch {
-      if (!controller.signal.aborted) failedAfter = after;
+      if (!controller.signal.aborted) failedPage = index;
     } finally {
       if (!controller.signal.aborted) loading = false;
     }
@@ -49,74 +79,135 @@
   onMount(() => {
     void load();
 
-    return () => request?.abort();
+    return () => {
+      clearTimeout(debounce);
+      request?.abort();
+    };
   });
 
-  function changeScope(value: string) {
-    scope = value;
+  function applyFilters(next: MemoryFilters, delay = 0) {
+    filters = next;
     notes = [];
-    cursor = "";
-    void load();
+    page = 0;
+    cursors = [""];
+    loading = true;
+    failedPage = undefined;
+    request?.abort();
+    clearTimeout(debounce);
+
+    if (delay) debounce = setTimeout(() => void load(), delay);
+    else void load();
+  }
+
+  function search(query: string) {
+    const next = { ...filters, query };
+
+    if (query.trim() === filters.query.trim()) filters = next;
+    else applyFilters(next, 200);
+  }
+
+  function clearFilters() {
+    document.getElementById(searchId)?.focus();
+    applyFilters(defaults);
   }
 
   function changeNote(id: string, updated?: ui.MemoryNote) {
-    notes = updated ? notes.map((item) => (item.id === id ? updated : item)) : notes.filter((item) => item.id !== id);
-    // A changed note may move between pages. Fetch a fresh cursor after the mutation.
+    notes = updated ? notes.map((note) => (note.id === id ? updated : note)) : notes.filter((note) => note.id !== id);
+    // Edits can change whether a note matches and move it to another page.
     void load();
   }
 </script>
 
 <svelte:head><title>Memory · Settings · {applicationName}</title></svelte:head>
 
-<section aria-label="Memory notes" class="grid min-w-0 grid-cols-1 gap-3">
-  <div class="flex flex-wrap items-start justify-between gap-3">
-    <div class="min-w-0 px-1">
-      <h2 class="text-base/7 font-semibold">Memory</h2>
-      <p class="text-base/6 text-pretty text-muted sm:text-sm/6">Notes that agents and bots save for future turns.</p>
-    </div>
-    <Select aria-label="Filter notes by scope" options={memoryScopes} value={scope} onchange={changeScope} />
+<section aria-label="Memory notes" class="grid min-w-0 grid-cols-1 gap-4">
+  <div class="min-w-0 px-1">
+    <h2 class="text-base/7 font-semibold">Memory</h2>
+    <p class="text-base/6 text-pretty text-muted sm:text-sm/6">Notes that agents and bots save for future turns.</p>
   </div>
+
+  <div
+    class="grid min-w-0 grid-cols-2 items-center gap-2 @min-[34rem]/settings-content:grid-cols-[repeat(3,minmax(0,1fr))_auto] @min-[48rem]/settings-content:grid-cols-[minmax(0,2fr)_repeat(3,minmax(0,1fr))_auto]"
+  >
+    {#if filterOptions}
+      <SearchField
+        id={searchId}
+        label="Search notes"
+        placeholder="Search notes"
+        bind:value={() => filters.query, search}
+        maxlength={200}
+        class="col-span-full min-h-(--settings-control-height) bg-surface @min-[48rem]/settings-content:col-span-1"
+      />
+    {/if}
+    <Select
+      aria-label={`Scope — ${memoryScopes.find((item) => item.value === filters.scope)?.label ?? "All scopes"}`}
+      options={memoryScopes}
+      value={filters.scope}
+      onchange={(scope) => applyFilters({ ...filters, scope })}
+    />
+    {#if filterOptions}
+      <MemoryFilterPicker
+        label="Project"
+        allLabel="All projects"
+        searchLabel="Find a project"
+        options={filterOptions.projects}
+        value={filters.projectId}
+        onchange={(projectId) => applyFilters({ ...filters, projectId })}
+      />
+      <MemoryFilterPicker
+        label="Worker"
+        allLabel="All workers"
+        searchLabel="Find a worker"
+        options={filterOptions.workers}
+        value={filters.workerId}
+        onchange={(workerId) => applyFilters({ ...filters, workerId })}
+      />
+      <div class="justify-self-end">
+        <Button variant="ghost" disabled={!filtered} onclick={clearFilters}>Clear filters</Button>
+      </div>
+    {/if}
+  </div>
+
   {#if notes.length}
-    <SettingsCard>
-      <ul role="list" class="divide-y divide-divider">
-        {#each notes as note (note.id)}
-          <li>
-            <button
-              type="button"
-              class="settings-row flex w-full min-w-0 items-center gap-3 px-3 py-2 text-start focus-ring hover:bg-zinc-950/5 focus-visible:-outline-offset-2 dark:hover:bg-white/5"
-              onclick={() => dialog.inspect(note)}
-            >
-              <span class="grid min-w-0 flex-1 grid-cols-1">
-                <TruncatedText text={note.title} class="text-base/6 font-medium sm:text-sm/6" />
-                <TruncatedText text={noteScopeLabel(note)} class="text-sm/5 text-muted sm:text-xs/5" />
-              </span>
-              {#if note.pinned}<Badge compact>Pinned</Badge>{/if}
-              <Icon name="chevron-right" />
-            </button>
-          </li>
-        {/each}
-      </ul>
-    </SettingsCard>
+    <div class="grid min-w-0 gap-2" aria-busy={loading}>
+      <h3 bind:this={resultsHeading} tabindex="-1" class="w-fit rounded-sm px-1 text-sm/5 font-medium focus-ring">
+        Notes by last update
+      </h3>
+      <MemoryNoteList {notes} query={filters.query.trim()} onopen={(note) => dialog.inspect(note)} />
+    </div>
   {/if}
+
   {#if loading}
     <p class="flex items-center justify-center gap-2 py-6 text-base/6 text-muted sm:text-sm/6" role="status">
       <Spinner />Loading notes…
     </p>
-  {:else if failedAfter !== undefined}
+  {:else if failedPage !== undefined}
     <Alert tone="error" title="Could not load notes">
       Check your connection and try again.
-      {#snippet actions()}<Button size="sm" onclick={() => load(failedAfter)}>Try again</Button>{/snippet}
+      {#snippet actions()}<Button size="sm" onclick={() => load(failedPage)}>Try again</Button>{/snippet}
     </Alert>
   {:else if !notes.length}
-    {#if scope === "all"}
-      <EmptyState title="No memory notes yet" description="Ask an agent or bot to remember a decision." />
-    {:else}
+    {#if filtered && filterOptions}
+      <EmptyState title="No matching notes" description="Try a different search or clear the filters." />
+    {:else if filtered}
       <EmptyState title="No notes in this scope">
-        {#snippet action()}<Button size="sm" onclick={() => changeScope("all")}>Show all notes</Button>{/snippet}
+        {#snippet action()}<Button size="sm" onclick={clearFilters}>Show all notes</Button>{/snippet}
       </EmptyState>
+    {:else}
+      <EmptyState title="No memory notes yet" description="Ask an agent or bot to remember something." />
     {/if}
-  {:else if cursor}
-    <div class="justify-self-center"><Button size="sm" onclick={() => load(cursor)}>Load more notes</Button></div>
+  {/if}
+
+  {#if notes.length && cursors.length > 1}
+    <nav aria-label="Notes pagination" class="flex flex-wrap items-center justify-between gap-2 px-1">
+      <span class="text-sm/5 text-muted tabular-nums sm:text-xs/5" role="status">Page {page + 1}</span>
+      <div class="flex flex-wrap gap-2">
+        <Button disabled={loading || page === 0} icon="chevron-left" onclick={() => load(page - 1, true)}>
+          Previous
+        </Button>
+        <Button disabled={loading || page + 1 >= cursors.length} onclick={() => load(page + 1, true)}>Next</Button>
+      </div>
+    </nav>
   {/if}
 </section>
 
