@@ -65,6 +65,9 @@ export function threadTurns(
               ? [{ type: "text" as const, text: settings.connectorNote, text_elements: [] }]
               : []),
           ],
+          ...(settings?.habitContext && {
+            additionalContext: { "canopy.projectHabits": { kind: "untrusted", value: settings.habitContext } },
+          }),
           ...chosen,
         })
         .pipe(

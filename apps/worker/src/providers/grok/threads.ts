@@ -315,6 +315,8 @@ export class GrokThreads {
         entry.client.capabilities?.agentCapabilities?.promptCapabilities?.image === true,
       );
 
+      if (settings?.habitContext) prompt.push({ type: "text", text: settings.habitContext });
+
       if (this.#entries.get(spec.threadId) !== entry || settings?.canSubmit?.() === false)
         throw new TurnAdmissionCancelled();
 

@@ -4,7 +4,8 @@ Status (2026-11-22): gateway sprawdza pochodzenie automatycznej delegacji przed
 udostępnieniem tras z historią wątków. Wymiana bot↔bot z tury o ograniczonym
 zakresie wymaga izolowanego przyjęcia wiadomości przez dom odbiorcy.
 Konsolidacja przenosi [pamięć agentów i botów](agent-memory.md) wraz z danymi
-właściciela i dostępnymi datami utworzenia notatek.
+właściciela i dostępnymi datami utworzenia notatek. Stan refleksji nawyków
+pozostaje na źródle.
 Ogłoszenia mDNS respektują sieci wybrane w [Network access](network-access.md).
 Dostęp connectorów dla wątków należy do projektu i synchronizuje się z kontem
 connectora. Konsolidacja przenosi dostęp według zatwierdzonego wyboru konta.
@@ -2251,6 +2252,8 @@ notatki lub brak powiązanego zasobu wymaga rozstrzygnięcia przed importem.
 Powiązanie wątku z rozmową lub rutyną zachowuje ograniczenie dostępu. Jeśli
 podmiot ograniczenia nie jest częścią importu, wątek pozostaje odizolowany
 od innych rozmów na celu.
+Zatwierdzone nawyki przechodzą jako zwykłe notatki projektu. Ustawienia,
+sugestie, dowody i stan wykonań refleksji pozostają w bazie źródłowej.
 
 Import obejmuje historię wątków i botów, harmonogramy, workspace i załączniki
 z treścią dostępną w bazie. Workspace, worktree i kopie workspace mogą przejść

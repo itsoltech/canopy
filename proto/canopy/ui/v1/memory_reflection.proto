@@ -1,0 +1,81 @@
+syntax = "proto3";
+
+package canopy.ui.v1;
+
+import "canopy/worker/v1/worker_link.proto";
+import "google/protobuf/timestamp.proto";
+
+message MemoryReflectionSettings {
+  bool enabled = 1;
+  uint32 interval_minutes = 2;
+  repeated string project_ids = 3;
+  string worker_id = 4;
+  canopy.worker.v1.Provider provider = 5;
+  string profile_id = 6;
+  string model = 7;
+  string effort = 8;
+  uint32 revision = 9;
+  google.protobuf.Timestamp next_run_at = 10;
+  google.protobuf.Timestamp last_run_at = 11;
+  string last_run_state = 12;
+}
+
+message MemoryReflectionProject {
+  string id = 1;
+  string name = 2;
+}
+
+message MemoryReflectionModel {
+  string worker_id = 1;
+  string worker_name = 2;
+  canopy.worker.v1.Provider provider = 3;
+  string profile_id = 4;
+  string model = 5;
+  string label = 6;
+  repeated string efforts = 7;
+}
+
+message MemoryHabitEvidence {
+  string thread_id = 1;
+  string title = 2;
+  string message_id = 3;
+}
+
+message MemoryHabitSuggestion {
+  string id = 1;
+  uint32 revision = 2;
+  string project_id = 3;
+  string project_name = 4;
+  string rule = 5;
+  uint32 evidence_count = 6;
+  repeated MemoryHabitEvidence evidence = 7;
+  bool suspended = 8;
+  uint32 note_revision = 9;
+}
+
+message MemoryReflectionUsage {
+  uint32 attempts = 1;
+  uint64 input_tokens = 2;
+  uint64 output_tokens = 3;
+  optional double reported_cost_usd = 4;
+}
+
+message MemoryHabitsSnapshot {
+  MemoryReflectionSettings settings = 1;
+  repeated MemoryReflectionProject projects = 2;
+  repeated MemoryReflectionModel models = 3;
+  repeated MemoryHabitSuggestion suggestions = 4;
+  MemoryReflectionUsage usage = 5;
+}
+
+message UpdateMemoryReflectionRequest {
+  MemoryReflectionSettings settings = 1;
+}
+
+message ResolveMemoryHabitRequest {
+  string habit_id = 1;
+  uint32 expected_revision = 2;
+  bool approve = 3;
+  string rule = 4;
+  uint32 expected_note_revision = 5;
+}

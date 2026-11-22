@@ -28,3 +28,5 @@ export * from "./gen/canopy/ui/v1/bot_channels_pb.ts";
 export * from "./gen/canopy/ui/v1/usage_pb.ts";
 
 export * from "./gen/canopy/ui/v1/memory_pb.ts";
+
+export * from "./gen/canopy/ui/v1/memory_reflection_pb.ts";

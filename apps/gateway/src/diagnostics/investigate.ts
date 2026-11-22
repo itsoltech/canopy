@@ -90,7 +90,7 @@ export async function investigate(
       clientRequestId,
     });
 
-    const thread = await core.createThread(ordinary, undefined, true);
+    const thread = await core.createThread(ordinary);
     await actionQuery(
       core,
       `INSERT INTO diagnostics_investigations(owner_user_id,request_id,request_hash,thread_id)

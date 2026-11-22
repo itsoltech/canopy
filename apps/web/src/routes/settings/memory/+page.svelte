@@ -9,6 +9,7 @@
   import MemoryNoteList from "#lib/features/memory/MemoryNoteList.svelte";
   import Alert from "#lib/shared/ui/Alert.svelte";
   import Button from "#lib/shared/ui/Button.svelte";
+  import HabitSettings from "#lib/features/memory/HabitSettings.svelte";
   import EmptyState from "#lib/shared/ui/EmptyState.svelte";
   import SearchField from "#lib/shared/ui/SearchField.svelte";
   import Select from "#lib/shared/ui/Select.svelte";
@@ -117,6 +118,8 @@
     void load();
   }
 </script>
+
+<HabitSettings onapproved={() => void load()} />
 
 <svelte:head><title>Memory · Settings · {applicationName}</title></svelte:head>
 

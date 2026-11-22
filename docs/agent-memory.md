@@ -5,6 +5,8 @@ Settings → Memory w webie, desktopie i aplikacji mobilnej. Web i desktop mają
 wyszukiwanie, filtry projektu i workera oraz daty utworzenia notatek. Dostępność
 zależy od [promocji wydania](release.md).
 
+Okresową analizę wiadomości opisuje [Refleksja](#refleksja).
+
 ## Zakres
 
 Gateway przechowuje pojedyncze notatki w PostgreSQL. Identyfikatory zakresu
@@ -88,3 +90,99 @@ ostrzejsze kryteria i może zwrócić pusty wynik.
 Przy zmianie domowego gatewaya notatki są dostępne w domu pierwotnym. Pełna
 [konsolidacja gatewayów](linked-computers.md#konsolidacja-dodatkowego-komputera)
 przenosi notatki, ich zakresy oraz potwierdzenia operacji.
+
+## Refleksja
+
+Status (2026-11-22): Habits w Settings → Memory, okresowa analiza wiadomości,
+przegląd sugestii i dostarczanie zatwierdzonych nawyków do Claude, Codexa i Groka
+są zaimplementowane. Dostępność zależy od [promocji wydania](release.md).
+Konsolidacja przenosi zatwierdzone reguły jako notatki. Ustawienia analizy,
+sugestie, dowody i stan dostarczania pozostają w źródłowym gatewayu.
+
+**Habits** to krótkie reguły projektu. Refleksja wykrywa powtarzane prośby,
+przypomnienia i korekty właściciela dotyczące formy odpowiedzi lub prezentacji
+wyniku. Właściciel sprawdza przykłady i zatwierdza, zmienia albo odrzuca
+sugestię. Zatwierdzony nawyk jest zwykłą notatką projektu. Szablony używają
+prostego języka inspirowanego ASD-STE100. Przykład:
+
+> After UI changes, capture a screenshot. Show it with `show_images`.
+
+### Ustawienia i źródła
+
+- Refleksja jest domyślnie wyłączona. Właściciel wybiera projekty, profil
+  dostawcy i częstotliwość. Dostępne interwały to 6, 12 i 24 godziny oraz
+  3 i 7 dni. Domyślne są 24 godziny. Jeden profil działa na wybranym workerze
+  właściciela, któremu przypisano wybrane projekty.
+- Pierwszy przebieg może objąć ostatnie 30 dni. Wątek kwalifikuje się po
+  archiwizacji albo po 7 dniach bez wiadomości właściciela, po zakończeniu
+  tur i zadań w tle. Gateway czyta oryginalną treść dostarczonych tur i
+  steeringu oznaczoną przy przyjęciu bezpośredniej wypowiedzi właściciela.
+  Starsze wiadomości bez tego oznaczenia są pomijane.
+- Zakres obejmuje prywatne wątki wybranych projektów na domowym gatewayu.
+  Gateway pomija odziedziczony prefiks forka, importy, wątki o węższym
+  audytorium, wejścia automatyczne, odpowiedzi sugerowane przez agenta i
+  komendy powłoki. Ekstraktor pomija cytaty, załączniki, bloki kodu, logi
+  oraz fragmenty z rozpoznanymi sekretami.
+
+### Przebieg i dowody
+
+Gateway rezerwuje partię wiadomości jednego projektu w PostgreSQL. Partia
+mieści do 8 KiB wraz z poleceniem. Przy braku kwalifikujących się wiadomości
+gateway pomija wywołanie modelu. Inferencję wykonuje izolowany
+[GenerateText](thread-titles.md#izolacja-sdk) na workerze. Model Auto wybiera
+Haiku dla Claude, Luna lub Mini dla Codexa i Mini dla Groka oraz niski
+obsługiwany effort. Brak małego modelu odkłada analizę. Jawny wybór modelu
+i effort ma pierwszeństwo.
+
+Model zwraca do trzech wyników ze słownika warunków, czynności i rodzajów
+sygnału. Odsyła do wiadomości przez tymczasowe identyfikatory. Gateway
+sprawdza wynik i liczy niezależne przypadki. Do przeglądu potrzeba dowodów
+z trzech różnych wątków należących do co najmniej dwóch rodzin w ciągu
+60 dni. Wątki boczne i forki liczą się w rodzinie swojego źródła.
+„Znowu brakuje zrzutu” jest sygnałem pominięcia. Sama prośba o zrzut jest
+dowodem prośby.
+
+Źródła przechowuje się jako identyfikatory bez kopii wypowiedzi. Cofnięcie,
+ukrycie albo purge źródła aktualizuje podstawę oczekującej sugestii.
+Właściciel widzi przykłady z nadal dostępnych rozmów. Rozstrzygnięcie
+sprawdza rewizje.
+Ponowna analiza dowodów nie odtwarza odrzuconej lub usuniętej reguły.
+Nowsza sprzeczna korekta może wstrzymać automatyczne podawanie nawyku do
+decyzji właściciela.
+
+Gateway zwalnia transakcję przed inferencją. Zapis wyniku sprawdza
+dzierżawę, rewizję ustawień i dostępność źródeł. Wyłączenie analizy
+unieważnia spóźniony wynik i anuluje zadanie na zgodnym workerze.
+Utrata odpowiedzi po wysłaniu może oznaczać naliczenie kosztu. Taka
+próba zachowuje rezerwację na interwał i dowody wysyłki, więc restart
+jej nie ponowi. Brak workera przed wysłaniem pozwala odroczyć próbę.
+Settings → Memory pokazuje poprzedni i następny przebieg oraz próby,
+zgłoszone tokeny i dostępny koszt z ostatnich 30 dni. Raporty dostawcy
+liczą się również w kategorii Other generation w [Usage](usage.md).
+
+### Kontekst agenta
+
+Gateway wybiera reguły lokalnie według tematu zadania i przypięcia
+w projekcie. Na przykład „Popraw ten przycisk” może dobrać regułę o
+zrzucie. Pierwszeństwo mają bieżące polecenie właściciela i uprawnienia
+tury. Nawyki pozostają w zakresie projektu. Zakres obejmujący wiele
+projektów jest osobnym rozszerzeniem.
+
+Automatyczny blok zawiera do 8 reguł. Całość z nagłówkiem ma limit
+500 szacowanych tokenów i 1500 bajtów UTF-8. Przy braku dopasowania
+gateway pomija blok. Pozostałe notatki są dostępne przez `memory_search`.
+
+Worker z capability `memory_habits_v1` dostaje opcjonalny blok
+`StartTurn.habit_context`. Oś czasu Canopy pokazuje oryginalną wiadomość
+właściciela. Gateway zapisuje rezerwację raz na wątek przed dostarczeniem.
+Kolejna tura, ponowienie komendy i zimne wznowienie nie dopisują kopii.
+Przerwanie po zapisie rezerwacji może pominąć blok. Fork tej samej rodziny
+może odziedziczyć wcześniej wysłaną wiadomość. Gateway pomija nowe
+automatyczne bloki w forkach, delegacjach, scratch i rozmowach botów.
+
+Edycja lub usunięcie zmienia wybór dla kolejnych wątków. Reguła wysłana
+wcześniej może pozostać w historii dostawcy i dalej zajmować miejsce w
+kontekście. Następna tura właściciela w oznaczonym wątku dostaje jedno
+krótkie odwołanie, jeśli blok utracił ważność. W odziedziczonej historii
+forka obowiązuje cykl życia jego transkryptu.
+[Kontrakt workera](protocol.md#szyna-agentów)

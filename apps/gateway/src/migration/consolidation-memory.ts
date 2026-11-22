@@ -2,10 +2,29 @@ import { Effect } from "effect";
 import type { Database } from "./consolidation-catalog.ts";
 import type { ConsolidationBlocker, ConsolidationInput } from "./consolidation-types.ts";
 
+const ownerMemory = "s.owner_user_id=$1::uuid";
+
 // Empty source clocks are rebuildable. Keep every populated owner scope, so an unavailable
 // referenced worker or bot becomes a review blocker instead of silently losing its notes.
-export const populatedMemoryScope = `s.owner_user_id=$1::uuid AND EXISTS (SELECT FROM public.agent_memory_notes n
+const populatedMemoryScope = `${ownerMemory} AND EXISTS (SELECT FROM public.agent_memory_notes n
   WHERE n.owner_user_id=s.owner_user_id AND n.scope_key=s.scope_key)`;
+
+export const memoryImportTables = [
+  { name: "agent_memory_scopes", filter: populatedMemoryScope },
+  { name: "agent_memory_notes", filter: ownerMemory },
+  { name: "agent_memory_operations", filter: ownerMemory },
+];
+
+// Approved rules move as agent_memory_notes. Reflection settings, review state and
+// delivery receipts belong to the source gateway and never activate analysis on the target.
+export const reflectionSourceTables = [
+  "memory_reflection_settings",
+  "memory_reflection_runs",
+  "memory_reflection_checked",
+  "memory_habits",
+  "memory_habit_evidence",
+  "memory_habit_thread_contexts",
+];
 
 export function rebaseAgentMemory(sql: Database, input: ConsolidationInput) {
   return Effect.gen(function* () {

@@ -160,6 +160,8 @@ export interface TurnRow {
    * worker; quotes = the passages of the thread it quotes (shown to the model in the note).
    */
   input: {
+    /** Direct owner text admitted by the UI API. Automation can also create turns with trigger='user'. */
+    humanAuthored?: boolean;
     shellCommand?: string;
     shellInputId?: string;
     shellResult?: JsonValue;

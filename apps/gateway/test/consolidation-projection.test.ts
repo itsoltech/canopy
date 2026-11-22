@@ -55,6 +55,18 @@ function seed(sql: SqlClient.SqlClient) {
     yield* sql`INSERT INTO public.projects (id,owner_user_id,name,slug) VALUES
       (${project}::uuid,${owner}::uuid,'Home project fixture','home'),
       (gen_random_uuid(),${other}::uuid,'Foreign project fixture','foreign')`;
+    yield* sql`INSERT INTO public.agent_memory_scopes(owner_user_id,project_id)
+      VALUES (${owner}::uuid,${project}::uuid)`;
+    const habitNote = randomUUID();
+
+    yield* sql`INSERT INTO public.agent_memory_notes(id,owner_user_id,scope_key,title,body)
+      SELECT ${habitNote}::uuid,owner_user_id,scope_key,'Review the UI','Show one screenshot after UI changes.'
+      FROM public.agent_memory_scopes WHERE owner_user_id=${owner}::uuid AND project_id=${project}::uuid`;
+    yield* sql`INSERT INTO public.memory_reflection_settings(owner_user_id,enabled,project_ids)
+      VALUES (${owner}::uuid,true,ARRAY[${project}::uuid])`;
+    yield* sql`INSERT INTO public.memory_habits(id,owner_user_id,project_id,habit_key,rule,state,note_id)
+      VALUES (gen_random_uuid(),${owner}::uuid,${project}::uuid,'ui_changes:show_screenshot',
+        'Show one screenshot after UI changes.','approved',${habitNote}::uuid)`;
     yield* sql`INSERT INTO public.config_items(owner_user_id,kind,global_id,local_id,home_node_id,fields,revision) VALUES
       (${owner}::uuid,'project',${project},${project},'','{"fixture":"discard unused config fields"}',1),
       (${owner}::uuid,'worker','peer-worker','',${peer},'{"fixture":"peer-only worker metadata"}',2)`;
@@ -142,6 +154,7 @@ test.skipIf(!dockerAvailable || !Bun.which("psql"))(
       expect(archive).toContain("Home project fixture");
       expect(archive).toContain("Preserve departure route");
       expect(archive).toContain("/home-workspace-fixture");
+      expect(archive).toContain("Show one screenshot after UI changes.");
 
       for (const secret of [
         secretKey,
@@ -166,6 +179,8 @@ test.skipIf(!dockerAvailable || !Bun.which("psql"))(
         "/other-workspace-fixture",
         "derived worker report",
         "discard unused config fields",
+        "memory_reflection_settings",
+        "memory_habits",
       ])
         expect(archive).not.toContain(omitted);
 

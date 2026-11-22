@@ -110,10 +110,15 @@ export const coreQueueMethods: CoreQueueMethods = {
 
     const base: TurnInputJson = attachments.length > 0 ? attachmentsInput(attachments, text, mentions) : { text };
 
-    const input =
+    const composed =
       coreShellInput(text, Boolean(attachments.length || quotes.length || request.mentions.length)) ??
       coreComposeInput(this, thread.provider, text, mentions, base, quotes) ??
       base;
+
+    const input =
+      current.input.humanAuthored && !composed.shellCommand
+        ? { ...composed, message: text, humanAuthored: true }
+        : composed;
 
     const row = await coreQueue(this, (q) =>
       q.edit({ turnId: request.turnId, ownerUserId, input, expectedRevision: request.expectedRevision }),

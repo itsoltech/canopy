@@ -1,4 +1,4 @@
-import { populatedMemoryScope } from "./consolidation-memory.ts";
+import { memoryImportTables, reflectionSourceTables } from "./consolidation-memory.ts";
 
 export interface ImportTable {
   name: string;
@@ -293,9 +293,7 @@ export const importTables: readonly ImportTable[] = [
   { name: "messenger_accounts", filter: owned, secret: "credentials" },
   { name: "bot_channel_routes", filter: `${owned} AND ${bot()}` },
   { name: "bot_channel_conversations", filter: botChannel() },
-  { name: "agent_memory_scopes", filter: populatedMemoryScope },
-  { name: "agent_memory_notes", filter: owned },
-  { name: "agent_memory_operations", filter: owned },
+  ...memoryImportTables,
   { name: "bot_channel_inputs", filter: botChannel(true) },
   { name: "bot_channel_messages", filter: botChannel(true), sequence: "id" },
   {
@@ -364,6 +362,7 @@ const localOnly = [
   "config_secrets",
   "config_history",
   "database_maintenance",
+  ...reflectionSourceTables,
   "connector_oauth_states",
   "diagnostics_grants",
   "diagnostics_investigations",

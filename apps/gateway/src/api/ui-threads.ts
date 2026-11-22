@@ -14,6 +14,11 @@ import { rewindHandlers } from "./ui-rewinds.ts";
 const threadResponse = (load: () => Promise<ui.Thread>) =>
   guard(async () => create(ui.GetThreadResponseSchema, { thread: await load() }));
 
+const sendMessage = (core: GatewayCore, request: ui.SendMessageRequest, protocol: string) =>
+  guard(async () =>
+    create(ui.SendMessageResponseSchema, await core.sendMessage(request, undefined, protocol !== "canopy.link")),
+  );
+
 export function threadsHandlers(
   core: GatewayCore,
 ): Pick<
@@ -64,7 +69,7 @@ export function threadsHandlers(
         create(ui.CreateThreadResponseSchema, { thread: await core.createThread(request, undefined, true) }),
       ),
 
-    sendMessage: (request) => guard(async () => create(ui.SendMessageResponseSchema, await core.sendMessage(request))),
+    sendMessage: (request, context) => sendMessage(core, request, context.protocolName),
 
     interruptThread: (request) =>
       guard(async () => {

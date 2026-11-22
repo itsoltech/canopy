@@ -1,7 +1,8 @@
 # Canopy na iOS i Android
 
 Status: opis zaimplementowanego kodu (2026-11-22). Profile EAS przypinają Bun 1.4.5
-dla lockfile w wersji 3. Dostęp wątków do konektorów konfiguruje się dla projektów. Opis obejmuje Settings → Memory, import skilli z publicznych
+dla lockfile w wersji 3. Dostęp wątków do konektorów konfiguruje się dla projektów.
+Opis obejmuje Habits w Settings → Memory, import skilli z publicznych
 witryn HTTPS, usypianie wątków, dostępny offline wykaz licencji open source
 oraz osobne aktualizacje Canopy i CLI dostawców. Ukończone przygotowanie wątku
 domyślnie zwija kroki do wiersza „Thread prepared”. Na szerokim oknie iOS i Androida
@@ -2271,6 +2272,11 @@ Lista pokazuje kolejne strony i pozwala filtrować zakres projektu, workera, bot
 Arkusz pokazuje całą notatkę i pozwala zmienić tytuł, treść, aliasy i przypięcie.
 Usunięcie wymaga potwierdzenia. Zapis i usunięcie sprawdzają rewizję. Po konflikcie
 użytkownik może wczytać aktualną wersję do porównania, zachowując zmienione pola szkicu.
+
+Habits używa osobnych arkuszy konfiguracji refleksji i przeglądu sugestii.
+Właściciel wybiera projekty, harmonogram i model oraz może otworzyć wątki
+źródłowe. Zatwierdzenie odświeża listę notatek.
+[Refleksja](agent-memory.md#refleksja)
 
 Settings → Import pokazuje przebiegi importu CLI: postęp, datę, liczniki, bieżący wątek i akcje
 Cancel, Resume / Retry failed oraz Remove imported items z potwierdzeniem. Aktywny przebieg

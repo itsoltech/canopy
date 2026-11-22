@@ -111,7 +111,16 @@ export class ThreadCommands {
     commandId: string,
     current: () => boolean,
   ): Promise<CommandOutput> {
-    const { thread: spec, turnId, input: rawInput, model, effort, permissionMode, serviceTier } = kind.value;
+    const {
+      thread: spec,
+      turnId,
+      input: rawInput,
+      model,
+      effort,
+      permissionMode,
+      serviceTier,
+      habitContext,
+    } = kind.value;
 
     if (!spec || !rawInput) throw new CommandError("INVALID_COMMAND", "thread spec or input missing", true);
 
@@ -177,6 +186,7 @@ export class ThreadCommands {
       serviceTier,
       permissionMode: permissionMode || spec.permissionMode,
       recoveryContext,
+      habitContext,
       ...connectors,
       canSubmit,
     };

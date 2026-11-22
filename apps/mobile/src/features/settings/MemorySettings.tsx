@@ -12,6 +12,7 @@ import { Icon } from "../../ui/Icon";
 import { ScreenScroll } from "../../ui/ScreenScroll";
 import { SkeletonScope } from "../../ui/Skeleton";
 import { font, useColors, useTypography } from "../../ui/theme";
+import { MemoryHabits } from "./MemoryHabits";
 import { MemoryNoteSheet } from "./MemoryNoteSheet";
 import { SettingChoice, SettingsActions, SettingsGroup } from "./SettingsGroup";
 import { SettingsSkeletonRows } from "./SettingsSkeleton";
@@ -65,6 +66,7 @@ export function MemorySettings() {
         style={{ flex: 1, minWidth: 0 }}
         contentContainerStyle={{ maxWidth: 1024, gap: 16 }}
       >
+        <MemoryHabits onApproved={refresh} />
         {page.data === null ? (
           <Notice>Update Canopy on your gateway to manage memory notes.</Notice>
         ) : (

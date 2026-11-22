@@ -105,7 +105,7 @@ export function threadCreation(
   self: () => Pick<ThreadStore, "thread"> & Pick<WorktreeStore, "ownWorktree">,
 ): Pick<ThreadStore, "createThread"> {
   return {
-    createThread: (ownerUserId, request, movedId, automated, handoff, preparationFingerprint) =>
+    createThread: (ownerUserId, request, movedId, automated, handoff, preparationFingerprint, humanInitialInput) =>
       sql.withTransaction(
         Effect.gen(function* () {
           if (request.clientRequestId) {
@@ -245,13 +245,17 @@ export function threadCreation(
             yield* sql`
                     INSERT INTO turns (id, thread_id, ordinal, trigger, author_user_id, client_request_id, input)
                     VALUES (${Bun.randomUUIDv7()}::uuid, ${id}::uuid, 1, 'user', ${ownerUserId}::uuid, ${request.clientRequestId || null},
-                            ${JSON.stringify({ text: request.initialMessage })}::jsonb)`;
+                            ${initialTurnInput(request.initialMessage, humanInitialInput)}::jsonb)`;
           }
 
           return yield* self().thread(id);
         }),
       ),
   };
+}
+
+function initialTurnInput(text: string, humanAuthored: boolean | undefined): string {
+  return JSON.stringify(humanAuthored ? { text, message: text, humanAuthored } : { text });
 }
 
 /** Only internal callers can supply a platform handoff; public requests carry no settings object. */
