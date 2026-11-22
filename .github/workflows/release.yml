@@ -738,7 +738,8 @@ jobs:
     steps:
       - uses: actions/checkout@v5
         with:
-          ref: ${{ github.workflow_sha }}
+          # Smoke tests import Desktop code and must match the packaged runtime.
+          ref: ${{ env.EXPECTED_SHA }}
           persist-credentials: false
       - uses: ./.github/actions/setup-bun
       - uses: actions/download-artifact@v5
