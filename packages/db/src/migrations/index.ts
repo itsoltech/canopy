@@ -28,6 +28,7 @@ import memoryNoteCreation from "./0196_memory_note_creation.sql" with { type: "t
 import connectorProjectAccess from "./0197_connector_project_access.sql" with { type: "text" };
 import memoryReflection from "./0198_memory_reflection.sql" with { type: "text" };
 import sandboxProfileOutbox from "./0199_sandbox_profile_outbox.sql" with { type: "text" };
+import botSteerSenders from "./0200_bot_steer_senders.sql" with { type: "text" };
 import transcriptStructuredRawRefs from "./0185_transcript_structured_raw_refs.sql" with { type: "text" };
 import githubPrProjection from "./0177_github_pr_projection.sql" with { type: "text" };
 import messageDelegatingBot from "./0176_message_delegating_bot.sql" with { type: "text" };
@@ -392,6 +393,7 @@ export const migrations = Migrator.fromRecord({
   "0197_connector_project_access": sqlFile(connectorProjectAccess),
   "0198_memory_reflection": sqlFile(memoryReflection),
   "0199_sandbox_profile_outbox": sqlFile(sandboxProfileOutbox),
+  "0200_bot_steer_senders": sqlFile(botSteerSenders),
 });
 
 export const { migrate, migrateOnline } = createMigrator(migrations);

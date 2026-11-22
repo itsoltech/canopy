@@ -67,6 +67,11 @@ export interface SteerRow {
   from_turn_id?: string | null;
   /** Joined: the calling thread of an agent's steer, and who it is (AgentSender). */
   source_thread_id?: string | null;
+  /** Joined: the local bot that sent this steer. */
+  source_bot_id?: string | null;
+  source_bot_name?: string | null;
+  source_bot_shape?: string | null;
+  source_bot_color?: string | null;
   /** The platform's note about background tasks that ended (no author; background_task_notes.steer_id). */
   background_note?: boolean;
   /** Joined: the tasks of such a note (item ids). */
@@ -74,6 +79,26 @@ export interface SteerRow {
 }
 
 type Fx<A> = Effect.Effect<A, SqlError.SqlError | NotFound | Invalid>;
+
+// An answer comes from whoever answered, which can be a parent thread, a bot or the owner.
+const source = `CASE WHEN s.notification_call_id IS NOT NULL THEN c.target_thread_id
+  WHEN c.tool = 'ask_user' THEN (SELECT q.answered_by_thread_id FROM interaction_requests q WHERE q.question_call_id = c.id)
+  ELSE c.source_thread_id END`;
+
+const select = `
+  SELECT s.*, ${source} AS source_thread_id,
+         st.title AS source_title, st.provider AS source_provider, st.provider_profile_id AS source_profile_id,
+         coalesce(nullif(su.model, ''), st.settings ->> 'model', '') AS source_model, st.project_id AS source_project_id,
+         st.worker_id AS source_worker_id,
+         b.id AS source_bot_id, b.configuration ->> 'name' AS source_bot_name,
+         b.configuration ->> 'shape' AS source_bot_shape, b.configuration ->> 'color' AS source_bot_color,
+         CASE WHEN s.background_note THEN ARRAY(SELECT n.item_id FROM background_task_notes n WHERE n.steer_id = s.id ORDER BY n.ended_at, n.item_id) END AS background_item_ids
+    FROM turn_steers s LEFT JOIN agent_bus_calls c ON c.id = coalesce(s.agent_call_id, s.notification_call_id)
+    LEFT JOIN threads st ON st.id = ${source}
+    LEFT JOIN turns su ON su.id = CASE WHEN s.notification_call_id IS NOT NULL THEN c.target_turn_id ELSE c.source_turn_id END
+    LEFT JOIN bot_tool_calls bc ON bc.id = s.bot_call_id
+    LEFT JOIN bot_turns bt ON bt.id = bc.turn_id
+    LEFT JOIN bots b ON b.id = bt.bot_id`;
 
 export class SteerStore extends Context.Service<
   SteerStore,
@@ -116,21 +141,6 @@ export class SteerStore extends Context.Service<
     SteerStore,
     Effect.gen(function* () {
       const sql = yield* SqlClient.SqlClient;
-
-      // An answer to the agent's own ask_user comes from whoever answered (a parent thread, or nobody: you or a bot), not from itself.
-      const source = `CASE WHEN s.notification_call_id IS NOT NULL THEN c.target_thread_id
-        WHEN c.tool = 'ask_user' THEN (SELECT q.answered_by_thread_id FROM interaction_requests q WHERE q.question_call_id = c.id)
-        ELSE c.source_thread_id END`;
-
-      const select = `
-        SELECT s.*, ${source} AS source_thread_id,
-               st.title AS source_title, st.provider AS source_provider, st.provider_profile_id AS source_profile_id,
-               coalesce(nullif(su.model, ''), st.settings ->> 'model', '') AS source_model, st.project_id AS source_project_id,
-               st.worker_id AS source_worker_id,
-               CASE WHEN s.background_note THEN ARRAY(SELECT n.item_id FROM background_task_notes n WHERE n.steer_id = s.id ORDER BY n.ended_at, n.item_id) END AS background_item_ids
-          FROM turn_steers s LEFT JOIN agent_bus_calls c ON c.id = coalesce(s.agent_call_id, s.notification_call_id)
-          LEFT JOIN threads st ON st.id = ${source}
-          LEFT JOIN turns su ON su.id = CASE WHEN s.notification_call_id IS NOT NULL THEN c.target_turn_id ELSE c.source_turn_id END`;
 
       const one = (id: string) =>
         sql
@@ -262,7 +272,14 @@ export class SteerStore extends Context.Service<
 }
 
 export function toUiSteer(row: SteerRow & SenderColumns): ui.Steer {
-  const sender = toUiSender(row, row.input.sender);
+  const sender = row.source_bot_id
+    ? create(ui.AgentSenderSchema, {
+        botId: row.source_bot_id,
+        title: row.source_bot_name || "a bot",
+        botShape: row.source_bot_shape ?? "",
+        botColor: row.source_bot_color ?? "",
+      })
+    : toUiSender(row, row.input.sender);
 
   return create(ui.SteerSchema, {
     id: row.id,

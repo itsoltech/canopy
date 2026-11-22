@@ -96,6 +96,7 @@ export function SenderLabel({
           {sender && !sender.botId ? <ProviderIcon provider={sender.provider} /> : null}
           {quiet ? (
             <Text numberOfLines={1} style={[styles.meta, { flexShrink: 1, color: c.muted }]}>
+              {sender?.botId && !sender.computerName ? "· " : ""}
               {quiet}
             </Text>
           ) : null}

@@ -170,7 +170,7 @@
 {/snippet}
 
 {#snippet deliveryNote()}
-  <span class="max-w-[calc(100%-2rem)] shrink-0 truncate whitespace-nowrap" title={note?.text}>· {note?.text}</span>
+  <span class="min-w-0 truncate whitespace-nowrap" title={note?.text}>· {note?.text}</span>
 {/snippet}
 
 {#snippet chip(index: number)}

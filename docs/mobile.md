@@ -3,6 +3,7 @@
 Status: opis zaimplementowanego kodu (2026-11-22), w tym dziennego pingu użycia
 z przełącznikiem prywatności i pomijaniem wysyłki offline. Profile EAS przypinają Bun 1.4.5
 dla lockfile w wersji 3. Kompozytor pokazuje przypisany [profil Sandbox](sandbox-profiles.md).
+Steer od bota pokazuje nazwę nadawcy także po wznowieniu zapisanego strumienia historii.
 Edytor zaplanowanych zadań pozwala wybrać profil dla nowego wątku.
 Dostęp wątków do konektorów konfiguruje się dla projektów.
 Opis obejmuje Habits w Settings → Memory, import skilli z publicznych
@@ -1878,6 +1879,11 @@ Kompaktowanie kontekstu jest granicą segmentu, tak jak steer. Wiersz
 „Context compacted” stoi między poprzednią a dalszą pracą, poza zwijanymi foldami
 i grupami narzędzi. Pozostaje widoczny po zwinięciu aktywności oraz po ponownym
 otwarciu wątku; podział wynika z zapisanego itemu `context_compaction`.
+
+Steer od bota jest wiadomością od agenta, z nazwą i awatarem nadawcy obok stanu
+dostarczenia. Po wejściu do tury dymek stoi poza zwijaną aktywnością. Przy
+wznowieniu strumienia sekwencyjnego gateway uzupełnia nadawcę także we wcześniej
+zapisanym oknie historii telefonu.
 
 **Zasobnik nad kompozytorem** (`features/threads/tray`, web: `ComposerTop`) to jeden stos paneli
 na powierzchni kompozytora: zaokrąglone tylko górne rogi, wcięcie 16 dp (promień rogu pola),

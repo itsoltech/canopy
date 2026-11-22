@@ -2,6 +2,7 @@
 
 Status (2026-11-22): web i desktop pozwalają zarządzać profilami Sandbox w ustawieniach i wybierać je w wątkach.
 Gateway sprawdza wybrany profil przed wysłaniem synchronizowanego szkicu nowego wątku.
+Web, desktop i mobile oznaczają bota jako nadawcę wiadomości dołączanej do trwającej tury.
 web i desktop udostępniają Settings → Memory do przeglądania
 i edycji notatek agentów i botów, z wyszukiwaniem, filtrami i datą utworzenia.
 Web, desktop i mobile obsługują usypianie wątków oraz załączniki
@@ -2254,7 +2255,10 @@ szczegóły i zweryfikowane możliwości harnessów: [threads.md](threads.md).
 Panel nad kompozytorem pokazuje wyłącznie wiadomości użytkownika (`trigger = user`, puste `source_kind` i `source_thread_id`). Raporty szyny agentów, fallbacki steerów platformy, notatki zadań w tle i inne wyzwalacze platformowe są z niego wykluczone, także przy lokalnym przestawianiu kolejności. Nie wyglądają jak wiadomości użytkownika oczekujące na wysłanie. Reguły dostarczenia i wygaszania raportów: [agent-bus.md](agent-bus.md#asynchroniczność). API kolejki zachowuje możliwość przestawiania tur platformy przez innych klientów.
 
 Steer przyjęty przez RPC (`accepted`) nadal czeka na potwierdzenie wejścia przez
-`user_message.client_id`. Dopiero ten item dostaje „Steered into this turn”. Jeśli
+`user_message.client_id`. Dopiero ten item dostaje „Steered into this turn”.
+Dla lokalnego bota gateway uzupełnia `Steer.sender` z zapisanego powiązania
+`turn_steers.bot_call_id`. Klient pokazuje nazwę bota i stosuje styl wiadomości
+od agenta w trakcie dostarczania i w historii. Jeśli
 tura skończy się bez niego, gateway publikuje `status = queued`, `queued_turn_id`
 i `reason`, nawet bez osobnej odmowy workera. Istniejący panel kolejki pokazuje
 powód, a po starcie wiadomość jest wejściem własnej tury. Nie pozostaje wiersz
