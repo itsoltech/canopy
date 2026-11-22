@@ -36,7 +36,7 @@ export function SettingsThreadList({
   empty: ReactNode;
 }) {
   const padding = useContentPadding(8);
-  const { rise } = useMotion();
+  const { rise, layout } = useMotion();
   const [workingOpen, setWorkingOpen] = useState(false);
   const { filtered, settings, choices } = navigation;
   const { view } = useDevicePreferences();
@@ -60,7 +60,7 @@ export function SettingsThreadList({
 
   const archived = archive.visible
     ? [
-        { key: "archived-heading", section: "heading" as const },
+        { key: "archived-heading", section: "archived-heading" as const },
         ...(archive.expanded
           ? [
               ...archive.roots.map((thread) => ({
@@ -116,7 +116,11 @@ export function SettingsThreadList({
                 renderItem={({ item }) => (
                   // Every entry that leaves (an archived row, the archived section at 0, the empty state) fades out while
                   // the cells below glide up (`SidebarOrderCell`), so archiving never jumps the list.
-                  <Animated.View entering={arrival(item.key)} exiting={rise.exiting}>
+                  <Animated.View
+                    entering={arrival(item.key)}
+                    exiting={rise.exiting}
+                    layout={item.section === "archived-heading" ? layout : undefined}
+                  >
                     <SidebarNesting depth={item.depth}>
                       <SidebarListEntryView
                         {...{ item, navigation, archive, snoozed, rootIds, projects, workers, empty, workingOpen }}
@@ -163,7 +167,7 @@ function SidebarListEntryView({
 
   if (item.section === "empty") return empty;
 
-  if (item.section === "heading") return <SidebarArchivedHeader archive={archive} />;
+  if (item.section === "archived-heading") return <SidebarArchivedHeader archive={archive} />;
 
   if (item.section === "status") return <SidebarArchivedStatus archive={archive} />;
 

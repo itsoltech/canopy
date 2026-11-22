@@ -12,6 +12,7 @@ import { useSidebarDragContext, type SidebarListEntry } from "./sidebar-drag";
 export function SidebarOrderCell({
   cellKey,
   children,
+  item,
   onLayout,
   onFocusCapture,
   style,
@@ -41,7 +42,8 @@ export function SidebarOrderCell({
   return (
     <Animated.View
       layout={layout}
-      style={[style, animated]}
+      // Fill spare viewport space before Archived without taking its rows out of the FlatList.
+      style={[style, item.section === "archived-heading" && { flexGrow: 1, justifyContent: "flex-end" }, animated]}
       onFocusCapture={onFocusCapture}
       onLayout={(event) => {
         onLayout?.(event);

@@ -30,7 +30,7 @@ export function SidebarSnoozedHeader({ snoozed }: { snoozed: ReturnType<typeof u
       accessibilityState={{ expanded, disabled: searching }}
       disabled={searching}
       onPress={toggle}
-      style={[styles.row, { padding: 12, minHeight: 48, marginTop: 24 }]}
+      style={[styles.row, { padding: 12, minHeight: 48, marginTop: 8 }]}
     >
       <Chevron open={expanded} size={14} />
       <Text style={[styles.meta, { color: c.muted, fontVariant: ["tabular-nums"] }]}>Snoozed · {formatted}</Text>

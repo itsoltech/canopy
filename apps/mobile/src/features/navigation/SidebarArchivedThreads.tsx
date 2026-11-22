@@ -144,7 +144,7 @@ export function SidebarArchivedHeader({ archive }: { archive: ArchivedThreads })
       accessibilityLabel={`Archived, ${archive.total ?? "loading"}`}
       accessibilityState={{ expanded: archive.expanded }}
       onPress={archive.toggle}
-      style={[styles.row, { padding: 12, minHeight: 48, marginTop: 24 }]}
+      style={[styles.row, { padding: 12, minHeight: 48, marginTop: 8 }]}
     >
       <Chevron open={archive.expanded} size={14} />
       <Text style={[styles.meta, { color: c.muted, fontVariant: ["tabular-nums"] }]}>
