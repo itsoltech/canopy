@@ -20,9 +20,7 @@ import { ThreadPreparation } from "../new-thread/ThreadPreparation";
 function InitialPreparation({ threadId }: { threadId: string }) {
   const job = useThreadCreation(threadId, true);
 
-  return job ? (
-    <ThreadPreparation steps={job.steps} done={Boolean(job.threadId) || job.confirmed} active={false} />
-  ) : null;
+  return job ? <ThreadPreparation job={job} /> : null;
 }
 
 function UserTurnInput({ turn }: { turn: ui.Turn }) {

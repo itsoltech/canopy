@@ -3,7 +3,8 @@
 Status: opis zaimplementowanego kodu (2026-11-22). Profile EAS przypinają Bun 1.4.5
 dla lockfile w wersji 3. Opis obejmuje Settings → Memory, import skilli z publicznych
 witryn HTTPS, usypianie wątków, dostępny offline wykaz licencji open source
-oraz osobne aktualizacje Canopy i CLI dostawców. Na szerokim oknie iOS i Androida
+oraz osobne aktualizacje Canopy i CLI dostawców. Ukończone przygotowanie wątku
+domyślnie zwija kroki do wiersza „Thread prepared”. Na szerokim oknie iOS i Androida
 sidebar i rozmowa przesuwają wspólną krawędź podczas zwijania i rozwijania.
 Uchwyt na tej krawędzi zmienia szerokość sidebara i zapisuje ją lokalnie.
 Licznik i akcja Update all na telefonie wynikają z planu instalacji Canopy.
@@ -192,8 +193,11 @@ widoczny prompt z checklistą, bez zastępowania ich szkieletem.
 Menedżer parowania utrzymuje do 40 przygotowań i deduplikuje aktywną operację po
 niezmiennym `clientRequestId`. Nawigacja następuje przed checkpointem szkicu i RPC;
 opuszczenie ekranu nie anuluje tworzenia. Potwierdzony wynik czyści tylko odpowiedni
-szkic i zastępuje ekran przygotowania, jeżeli użytkownik nadal go ogląda. Gotowa
-checklista pozostaje pod pierwszą wiadomością w bieżącej sesji; nie jest zapisywana
+szkic i zastępuje ekran przygotowania, jeżeli użytkownik nadal go ogląda. Po sukcesie
+checklista zwija się pod pierwszą wiadomością do wiersza „Thread prepared”.
+Dotknięcie wiersza rozwija lub zwija kroki, a wybór pozostaje w bieżącej sesji
+przy zmianie ekranu i odmontowaniu wiersza. Kroki w toku i przy błędzie są widoczne
+od razu. Pusty wynik nie ma przełącznika. Checklista nie jest zapisywana
 w transkrypcie ani odtwarzana z historii po restarcie. Zmiana parowania usuwa cache
 i odcina stare subskrypcje przed zamknięciem magazynu szkiców.
 

@@ -1,13 +1,20 @@
 import { useState } from "react";
-import { StyleSheet, Text, View } from "react-native";
+import { Pressable, StyleSheet, Text, View } from "react-native";
+import Animated from "react-native-reanimated";
 import type { ui } from "@canopy/contracts";
 import type { IconName } from "@canopy/ui/icons";
-import { Spinner } from "../../ui/Badge";
+import { Rule, Spinner } from "../../ui/Badge";
 import { Button } from "../../ui/Button";
 import { Icon } from "../../ui/Icon";
+import { Chevron } from "../../ui/MotionViews";
+import { useAnchoredToggle } from "../../ui/feed-anchor";
 import { useReducedMotion } from "../../ui/motion";
 import { font, useColors, useTypography } from "../../ui/theme";
+import { TimelineDisclosure } from "../timeline/TimelineDisclosure";
 import { useCopyText } from "../viewers/useCopyText";
+import type { ThreadCreation } from "./thread-creations";
+
+const prepared = "Thread prepared";
 
 const statuses = new Map([
   ["pending", "Pending"],
@@ -26,28 +33,74 @@ const icons = new Map<string, IconName>([
 ]);
 
 /** The same preparation steps stay beneath the first message after the thread opens. */
-export function ThreadPreparation({
-  steps,
-  done = false,
-  active = true,
-}: {
-  steps: readonly ui.CreateThreadProgress[];
-  done?: boolean;
-  active?: boolean;
-}) {
+export function ThreadPreparation({ job }: { job: ThreadCreation }) {
   const c = useColors();
   const type = useTypography();
-  const failed = steps.some((step) => step.status === "failed");
-  const complete = done || steps.some((step) => step.step === "start_thread" && step.status === "completed");
+  const active = !job.done && !job.uncertain && !job.confirmed;
+  const failed = (!job.confirmed && job.done && !job.uncertain) || job.steps.some((step) => step.status === "failed");
+
+  const steps = (
+    <View style={layout.checklist}>
+      {job.steps.map((step) => (
+        <PreparationStep key={step.step} step={step} active={active} />
+      ))}
+    </View>
+  );
+
+  if (job.confirmed && !failed && job.steps.length)
+    return (
+      <PreparedChecklist key={job.id} job={job}>
+        {steps}
+      </PreparedChecklist>
+    );
+
+  const heading = failed
+    ? "Could not start thread"
+    : job.confirmed
+      ? prepared
+      : active
+        ? "Preparing thread…"
+        : "Thread preparation";
 
   return (
     <View style={layout.checklist}>
       <Text accessibilityRole="header" style={[type.chrome, { fontFamily: font.medium, color: c.text }]}>
-        {complete ? "Thread prepared" : failed || !active ? "Thread preparation" : "Preparing thread…"}
+        {heading}
       </Text>
-      {steps.map((step) => (
-        <PreparationStep key={step.step} step={step} active={active} />
-      ))}
+      {job.steps.length > 0 && steps}
+    </View>
+  );
+}
+
+function PreparedChecklist({ job, children }: { job: ThreadCreation; children: React.ReactNode }) {
+  const c = useColors();
+  const type = useTypography();
+  const { header, toggle } = useAnchoredToggle();
+  const [open, setOpen] = useState(job.preparationExpanded ?? false);
+
+  const flip = () => {
+    job.preparationExpanded = !job.preparationExpanded;
+    setOpen(job.preparationExpanded);
+  };
+
+  return (
+    <View>
+      <Animated.View ref={header} collapsable={false}>
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel={prepared}
+          accessibilityState={{ expanded: open }}
+          onPress={() => toggle(flip)}
+          style={layout.summary}
+        >
+          <Chevron open={open} color={c.faint} />
+          <Text style={[type.chrome, layout.title, { fontFamily: font.medium, color: c.muted }]}>{prepared}</Text>
+          <Rule />
+        </Pressable>
+      </Animated.View>
+      <TimelineDisclosure open={open} style={layout.details}>
+        {children}
+      </TimelineDisclosure>
     </View>
   );
 }
@@ -116,6 +169,8 @@ function FailureDetails({ detail }: { detail: string }) {
 
 const layout = StyleSheet.create({
   checklist: { gap: 8, minWidth: 0 },
+  summary: { flexDirection: "row", alignItems: "center", gap: 8, minHeight: 44, paddingVertical: 8 },
+  title: { flexShrink: 1, marginRight: 4 },
   step: { gap: 4, minWidth: 0 },
   row: { flexDirection: "row", alignItems: "flex-start", gap: 8 },
   indicator: { width: 16, alignItems: "center", justifyContent: "center" },
