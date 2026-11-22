@@ -16,7 +16,7 @@ import { CodexConsumedUsage } from "./codex/consumed-usage.ts";
 import type { ConsumedUsage } from "./token-usage.ts";
 import { ClaudeUsage } from "./claude/usage.ts";
 import { codexUsage } from "./usage-limits.ts";
-import type { OpenAiPricingCatalog } from "./pricing/openai-catalog.ts";
+import type { OpenAiPricingCatalog } from "./pricing/model-catalog.ts";
 
 export interface TextInput {
   readonly onConsumedUsage?: ((usage: ConsumedUsage) => void) | undefined;

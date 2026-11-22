@@ -1,5 +1,6 @@
 import { GrokSessionCost, grokPromptUsage, type GrokCompletion } from "./consumed-usage.ts";
 import { type ConsumedUsage } from "../token-usage.ts";
+import type { XaiPricingCatalog } from "../pricing/model-catalog.ts";
 import { clone, create } from "@bufbuild/protobuf";
 import { ItemDeltaField, ItemSchema, ItemStatus, type Item } from "@canopy/contracts";
 import type { SessionUpdate, ToolCall } from "@canopy/grok-acp";
@@ -26,8 +27,8 @@ export class GrokEventMapper {
   constructor(
     readonly turnId: string,
     readonly cwd: string,
-    readonly model = "",
     readonly costs = new GrokSessionCost(),
+    readonly pricing?: XaiPricingCatalog,
   ) {
     costs.beginTurn();
   }
@@ -36,10 +37,8 @@ export class GrokEventMapper {
     return this.#usage;
   }
 
-  complete(event: GrokCompletion): ThreadEventInit[] {
-    this.#usage = grokPromptUsage(event).map((usage) => ({ ...usage, requestedServiceTier: "default" }));
-
-    if (this.#usage.length === 1 && this.#cost !== undefined) this.#usage[0]!.reportedCostUsd = this.#cost;
+  async complete(event: GrokCompletion): Promise<ThreadEventInit[]> {
+    this.#usage = await grokPromptUsage(event, this.#cost, this.pricing);
 
     return [
       { turnId: this.turnId, rawJson: JSON.stringify(event) },

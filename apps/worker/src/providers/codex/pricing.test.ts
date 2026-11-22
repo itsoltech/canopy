@@ -14,7 +14,7 @@ import {
 import { tempDirs } from "@canopy/testing";
 import { Layer, ManagedRuntime } from "effect";
 import { CodexConsumedUsage } from "./consumed-usage.ts";
-import { OpenAiPricingCatalog } from "../pricing/openai-catalog.ts";
+import { OpenAiPricingCatalog } from "../pricing/model-catalog.ts";
 import { openAiPriceFixture } from "../fixtures/openai-pricing.ts";
 import { generateCodexText } from "../generate-text.ts";
 import { resolveProfiles } from "../profiles.ts";

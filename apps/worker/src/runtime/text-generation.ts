@@ -105,6 +105,7 @@ export class TextGeneration {
               profile,
               executable,
               dataDir: this.ctx.state.options.dataDir,
+              pricing: this.ctx.state.xaiPricing,
               linkDeviceLogin: config.grok.linkDeviceLogin,
             },
             abort.signal,

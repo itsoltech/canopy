@@ -208,7 +208,7 @@ test("Claude mapper captures requested speed for live and terminal snapshots and
   expect(snapshots([assistant, result]).every((usage) => usage?.requestedServiceTier === "default")).toBe(true);
 });
 
-test("Grok complete metadata is per prompt; context occupancy never becomes consumed tokens", () => {
+test("Grok complete metadata is per prompt; context occupancy never becomes consumed tokens", async () => {
   const completion = {
     type: "complete" as const,
     stopReason: "end_turn",
@@ -218,7 +218,8 @@ test("Grok complete metadata is per prompt; context occupancy never becomes cons
     },
   };
 
-  expect(grokPromptUsage(completion)).toMatchObject([
+  const usage = await grokPromptUsage(completion);
+  expect(usage).toMatchObject([
     {
       model: "grok",
       inputTokens: 11n,
@@ -228,10 +229,10 @@ test("Grok complete metadata is per prompt; context occupancy never becomes cons
       reasoningOutputTokens: 2n,
     },
   ]);
-  expect(grokPromptUsage({ type: "complete", stopReason: "cancelled", usage: { used: 5000, size: 100000 } })).toEqual(
-    [],
-  );
-  expect(grokPromptUsage(completion)[0]?.reportedCostUsd).toBeUndefined();
+  expect(
+    await grokPromptUsage({ type: "complete", stopReason: "cancelled", usage: { used: 5000, size: 100000 } }),
+  ).toEqual([]);
+  expect(usage[0]?.reportedCostUsd).toBeUndefined();
 });
 
 test("Grok session USD costs require a known baseline and reject unsupported currency and invalid amounts", () => {
