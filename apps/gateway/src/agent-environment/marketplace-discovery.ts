@@ -26,6 +26,8 @@ export function installReference(command: string) {
 
 export async function discoverMarketplace(source: ui.SkillSource, authorization: string, options: SourceTransport) {
   return readGitSource(source, authorization, options, async (commit, entries, blob) => {
+    for (const entry of entries) checkSkillPath(entry.path);
+
     const marker = [".agents/plugins/marketplace.json", ".claude-plugin/marketplace.json"]
       .map((path) => entries.find((e) => e.path === path))
       .find(Boolean);
