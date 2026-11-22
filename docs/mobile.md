@@ -7,6 +7,7 @@ oraz osobne aktualizacje Canopy i CLI dostawców. Ukończone przygotowanie wątk
 domyślnie zwija kroki do wiersza „Thread prepared”. Na szerokim oknie iOS i Androida
 sidebar i rozmowa przesuwają wspólną krawędź podczas zwijania i rozwijania.
 Uchwyt na tej krawędzi zmienia szerokość sidebara i zapisuje ją lokalnie.
+Nagłówek sidebara pokazuje kanał aplikacji.
 Licznik i akcja Update all na telefonie wynikają z planu instalacji Canopy.
 Komunikat o restarcie znika po potwierdzeniu powrotu gatewaya lub wersji docelowej,
 a zmiana wątku nie przedłuża wyświetlania wyniku.
@@ -1027,6 +1028,11 @@ wskazywać wyłącznie własną gałąź aktualizacji o tej samej nazwie. Planne
 wstrzymane kanały i rollouty; nie przepina ich automatycznie. **Nie mapuj `beta`/`stable` do
 `nightly`**, nawet przy tym samym fingerprint. Development client służy do pracy z Metro,
 nie jest instalacją przypisaną do kanału wydania.
+
+Pod nazwą Canopy w nagłówku sidebara klient pokazuje **Nightly**, **Beta** lub
+**Dev** (build deweloperski bez kanału). Wydanie stable pokazuje samą nazwę Canopy,
+tak jak web i desktop. Oznaczenie korzysta z lokalnego kanału Expo Updates
+i działa offline zarówno na ekranie listy, jak i w układzie z dwiema kolumnami.
 
 `updates.checkAutomatically: ON_LOAD` sprawdza aktualizacje na zimnym starcie.
 `fallbackToCacheTimeout: 0` uruchamia od razu ostatni lokalny bundle (także offline);

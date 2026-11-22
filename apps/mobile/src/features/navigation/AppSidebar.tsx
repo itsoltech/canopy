@@ -5,12 +5,14 @@ import { useMotion } from "../../ui/motion";
 import { useArrivals } from "../../ui/MotionViews";
 import { ListSkeleton } from "../../ui/Skeleton";
 import { Redirect, router } from "expo-router";
+import { channel } from "expo-updates";
 import { ScreenFrame, useContentPadding } from "../../ui/ScreenFrame";
 import { SidebarFooter } from "./SidebarFooter";
 import { SidebarCopyJobs } from "../copy-jobs/SidebarCopyJobs";
 import { bots as botContract } from "@canopy/contracts";
 import { timestampMs } from "@bufbuild/protobuf/wkt";
 import { compareConversations } from "@canopy/domain/bot-chat";
+import { contextType, palette } from "@canopy/ui";
 import { useLayout } from "../../state/layout";
 import { useSession } from "../../state/session";
 import { useBotList } from "../../state/bot-list";
@@ -18,7 +20,7 @@ import { useAppearance } from "../../state/appearance";
 import { useOverview } from "../../state/overview";
 import { Button, EmptyState, IconButton, Notice, Segmented } from "../../ui/components";
 import { ConnectionBanner } from "./ConnectionStatus";
-import { styles, useColors } from "../../ui/theme";
+import { styles, useColors, useTypography } from "../../ui/theme";
 import { SearchField } from "../../ui/SearchField";
 import { BotListItem } from "../bots/BotListItem";
 import { SettingsThreadList } from "./SettingsThreadList";
@@ -71,6 +73,43 @@ function useSidebarState() {
   };
 }
 
+function SidebarBrand() {
+  const c = useColors();
+  const type = useTypography();
+  const shade = c.dark ? 400 : 800;
+
+  const release =
+    channel === "nightly"
+      ? { label: "Nightly", color: palette.violet[shade] }
+      : channel === "beta"
+        ? { label: "Beta", color: palette.amber[shade] }
+        : !channel
+          ? { label: "Dev", color: c.muted }
+          : undefined;
+
+  return (
+    <View style={[styles.row, { flexShrink: 1 }]}>
+      <Image
+        source={require("../../../../web/static/canopy-logo.png")}
+        style={{ width: 24, height: 24, borderRadius: 6 }}
+      />
+      <View style={{ flexShrink: 1 }}>
+        <Text numberOfLines={1} style={[styles.label, { color: c.text }]}>
+          Canopy
+        </Text>
+        {release && (
+          <Text
+            numberOfLines={1}
+            style={[contextType.context, { color: release.color, fontFamily: type.mono.fontFamily }]}
+          >
+            {release.label}
+          </Text>
+        )}
+      </View>
+    </View>
+  );
+}
+
 function SidebarHeader({ state }: { state: ReturnType<typeof useSidebarState> }) {
   const c = useColors();
   const [creating, setCreating] = useState(false);
@@ -86,20 +125,14 @@ function SidebarHeader({ state }: { state: ReturnType<typeof useSidebarState> })
         style={[
           styles.row,
           {
-            height: 48,
+            minHeight: 48,
             paddingLeft: 16,
             paddingRight: 8,
             justifyContent: "space-between",
           },
         ]}
       >
-        <View style={styles.row}>
-          <Image
-            source={require("../../../../web/static/canopy-logo.png")}
-            style={{ width: 24, height: 24, borderRadius: 6 }}
-          />
-          <Text style={[styles.label, { color: c.text }]}>Canopy</Text>
-        </View>
+        <SidebarBrand />
         <IconButton
           icon="pencil-square"
           label={section === "bots" ? "Create bot" : "New thread"}
