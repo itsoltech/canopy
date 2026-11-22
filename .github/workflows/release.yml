@@ -695,6 +695,8 @@ jobs:
         run: |
           if [ "$RUNNER_OS" = "macOS" ]; then
             resources="apps/desktop/release/$CANOPY_CHANNEL/mac-arm64/Canopy.app/Contents/Resources"
+          elif [ "$RUNNER_ARCH" = "ARM64" ]; then
+            resources="apps/desktop/release/$CANOPY_CHANNEL/linux-arm64-unpacked/resources"
           else
             resources="apps/desktop/release/$CANOPY_CHANNEL/linux-unpacked/resources"
           fi

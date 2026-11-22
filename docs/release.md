@@ -3,6 +3,7 @@
 Status: opis zaimplementowanego workflow (2026-11-22). Buildy publikują wykazy licencji zależności. Automat sprawdza promocje co godzinę.
 Pakowanie Desktop i generowanie fingerprintu Expo używają poprawionego `minimatch`.
 Smoke Desktop czeka na zapis trasy Network access przed restartem workera podczas parowania.
+Pakowanie Desktop archiwizuje runtime do smoke z katalogu właściwego dla architektury Linuxa.
 Domyślne okresy obserwacji to 6 h na dev i 24 h od gotowości bety. Publikacja bety
 otwiera kolejną serię nightly. Stable zachowuje wersję bazową i SHA przetestowanej bety.
 CI dla PR-ów dobiera testy mobile, interfejsu web i powłoki Electron według zmian.
