@@ -29,6 +29,8 @@ Zamknięty przyciskiem × osiągnięty cel pozostaje ukryty po ponownym otwarciu
 Aplikacja używa Expo SDK 58.0.26.
 Menu wątku pozwala go uśpić, zmienić termin lub wybudzić. Uśpione wątki pozostają
 dostępne w zwijanej sekcji **Snoozed** z pełną historią i aktywnym kompozytorem.
+**Snoozed** przylega do listy aktywnych wątków, a **Archived** przy krótkiej liście
+schodzi do dołu widoku, nad stopkę sidebara.
 W ustawieniach Network access można zwiększyć limit załącznika do 40 MiB na plik.
 Na liście wątków wiersze z pierścieniem pracy pokazują sam czas jej trwania.
 Wiersze bez pierścienia zachowują etykietę „Working”.
@@ -2192,6 +2194,8 @@ Podpis miejsca używa wspólnego `threadPlace`: „scratch folder”, HEAD workt
 (gałąź lub detached commit), potem nazwa katalogu. Inicjały i ton znaku projektu
 są wspólne; neutralny znak w ciemnym motywie używa stopnia 300, tak jak web.
 
+Przy krótkiej liście wolne miejsce wypada przed sekcją **Archived**, a przy długiej
+sekcja przewija się za pozostałymi wątkami.
 Tapnięcie Archived zmienia lokalny stan od razu; zapis ustawienia w gatewayu działa
 w tle. Osobny cache `Paths.cache/archived-threads-v1` zachowuje ostatnio odczytane
 strony dla najwyżej 8 filtrów, razem z metadanymi projektów i workerów. Używa tego

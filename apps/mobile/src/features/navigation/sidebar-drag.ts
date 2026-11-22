@@ -19,7 +19,7 @@ import type { useSidebarOrder } from "./sidebar-order";
 import { dropAt, rowAt, type DragItem, type RowBox } from "./sidebar-drag-target";
 
 export type SidebarListEntry = SidebarEntry & {
-  section: "active" | "snoozed" | "archived" | "heading" | "status" | "empty";
+  section: "active" | "snoozed" | "archived" | "archived-heading" | "status" | "empty";
 };
 
 function withinWidth(bounds: { left: number; right: number }, x: number) {
