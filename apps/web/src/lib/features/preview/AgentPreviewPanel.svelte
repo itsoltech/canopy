@@ -154,10 +154,11 @@
     }
   }
 
-  async function fullscreen(): Promise<void> {
+  async function toggleExpanded(): Promise<void> {
     if (!root) return;
 
-    if (document.fullscreenElement === root) await document.exitFullscreen();
+    if (location === "window") expanded = !expanded;
+    else if (document.fullscreenElement === root) await document.exitFullscreen();
     else if (expanded) expanded = false;
     else {
       try {
@@ -233,8 +234,8 @@
     <IconButton
       size="sm"
       icon={expanded ? "arrows-pointing-in" : "arrow-top-right-on-square"}
-      label={expanded ? "Exit fullscreen" : "Expand preview"}
-      onclick={() => void fullscreen().catch(() => {})}
+      label={expanded ? (location === "window" ? "Restore preview" : "Exit fullscreen") : "Expand preview"}
+      onclick={() => void toggleExpanded().catch(() => {})}
     />
   </div>
   {#if windowError}

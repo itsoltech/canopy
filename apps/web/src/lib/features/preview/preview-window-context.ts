@@ -37,6 +37,8 @@ export function connectPreviewWindow(threadId: string, receive: (context: Previe
   const lifetime = new AbortController();
   let request: AbortController | undefined;
   let timer: ReturnType<typeof setTimeout> | undefined;
+  let state: PreviewWindowContext["state"] = "connecting";
+  let retrying = false;
 
   const refresh = async () => {
     if (document.hidden || request || lifetime.signal.aborted) return;
@@ -47,8 +49,25 @@ export function connectPreviewWindow(threadId: string, receive: (context: Previe
 
     if (lifetime.signal.aborted || document.hidden) return;
 
-    if (!signal.aborted) receive(result);
-    timer = setTimeout(refresh, signal.aborted ? 0 : 5000);
+    if (signal.aborted) {
+      timer = setTimeout(refresh, 0);
+
+      return;
+    }
+
+    // A late metadata response can time out while frames and input are still flowing.
+    // Confirm the failure before tearing down a live panel and losing its focus.
+    if (result.state === "offline" && state === "ready" && !retrying) {
+      retrying = true;
+      timer = setTimeout(refresh, 1000);
+
+      return;
+    }
+
+    state = result.state;
+    retrying = false;
+    receive(result);
+    timer = setTimeout(refresh, 5000);
   };
 
   const visibility = () => {

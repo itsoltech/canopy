@@ -1,6 +1,6 @@
 # Narzędzia automatyzacji agentów
 
-Status (2026-11-21): **narzędzia, interaktywny Preview z podglądem zmiany viewportu,
+Status (2026-11-22): **narzędzia, interaktywny Preview z podglądem zmiany viewportu,
 automatyczny mini Preview wątku, pełna karta i osobne okno Preview w web/desktop, ikony obu stanów skali
 oraz rezerwacje urządzeń z oczekiwaniem, uruchamianiem skonfigurowanych emulatorów
 i zbiorczym sprawdzaniem sesji archiwalnych wątków po połączeniu zaimplementowane**.
@@ -13,6 +13,7 @@ katalogu cache workera zamiast współdzielonego katalogu tymczasowego.
 Desktop Preview zachowuje katalog okien, gdy narzędzie zgłosi nieprawidłową geometrię okna.
 Web/desktop potwierdza klatki po narysowaniu obrazu; odświeżanie metadanych celu
 i naprawa kursora historii zachowują działający podgląd.
+Osobne okno ponawia pojedynczy nieudany odczyt stanu wątku bez przerywania podglądu.
 Osobna zakładka Settings → Agent tools grupuje dostęp i instalacje według narzędzia;
 włączenie na połączonym workerze automatycznie rozpoczyna potrzebną instalację.
 Karty mają zapisane ustawienia początkowe sesji wspólne dla workerów użytkownika.
@@ -382,6 +383,8 @@ okno, a web prosi przeglądarkę o okno popup. Widoczne podglądy korzystają
 z tego samego BFF oraz z dotychczasowych reguł dostępu i limitów strumieni.
 Osobne okno pobiera metadane bieżącego wątku krótkimi odczytami, aby potwierdzenia
 klatek i wejście nie czekały na połączenie zajęte przez drugi strumień SSE.
+Powiększenie podglądu w osobnym oknie wypełnia jego wnętrze i pozostawia dostępną
+zmianę rozmiaru okna.
 Zakładka podglądu pliku nadal działa niezależnie
 ([workspace.md](workspace.md#panel-filespreview)).
 

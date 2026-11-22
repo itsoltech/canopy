@@ -16,7 +16,8 @@ pomijania cache przy ręcznym sprawdzaniu aktualizacji, wykrywania pojedynczego 
 i wykluczenia własnego PID instalatora/deinstalatora z wyszukiwania i zamykania procesów,
 ręcznego odzyskiwania aktualizacji Windows
 i odmowy startu lokalnej bazy z uprawnieniami administratora, sesji dostępu do lokalnego BFF,
-samodzielnego okna Preview automatyzacji,
+samodzielnego okna Preview automatyzacji ze zmianą rozmiaru po powiększeniu
+podglądu i odzyskiwaniem po błędzie odczytu stanu wątku,
 podglądu bieżącej zajętości plików Canopy w Diagnostics oraz własnego HTML w rozmowie
 z odizolowanego renderera offscreen, bezpiecznego zamykania po zniszczeniu głównego okna
 oraz stałego zakresu preferencji urządzenia po restarcie lokalnego gatewaya
@@ -158,7 +159,8 @@ Szczegóły kontraktu i kontroli dostępu opisuje [ui-api.md](ui-api.md#pliki-w�
 **Osobne okno Preview.** Główne okno może otworzyć samodzielny Preview bieżącego
 wątku w trybie lokalnym i zdalnym. Electron dopuszcza wyłącznie trasę Preview
 tego wątku na aktualnym originie BFF. Natywne okno można przenieść na drugi
-monitor. Ma własny renderer w sandboxie i nie dostaje mostka preload. Nadal
+monitor i zmieniać jego rozmiar także po użyciu `Expand preview`, które wypełnia
+wnętrze okna. Ma własny renderer w sandboxie i nie dostaje mostka preload. Nadal
 korzysta z bieżącego BFF i autoryzacji sesji wątku. Zmiana trybu lub celu
 gatewaya, utrata parowania oraz zatrzymanie usług zamykają okna Preview.
 
