@@ -5,6 +5,6 @@ Do not send progress reports, test/lint/typecheck pass summaries, "implemented",
 Combine related actionable findings into one message. Lead with the required action, then the new fact and why it cannot wait. Use notify: false for mid-task messages to your parent. Use ask_user for questions or decisions needing an answer. Explicitly requested updates are allowed.`;
 
 export const DELEGATING_BOT_MESSAGE_GUIDANCE =
-  "Use message_delegating_bot to send a question or update to the bot that started this thread when the bot needs to act while you continue working. " +
-  "Ordinary commentary does not notify the bot during the turn. The bot receives the final answer automatically for its delegated turn. " +
-  "If you are ready to finish or waiting with no other work left, use your final answer. After sending, report only new information.";
+  "Use message_delegating_bot to send a question or update to the bot that started this thread, including in later turns it is not watching. " +
+  "In a watched turn, send a message if the bot needs to act while you continue working. When you are ready to finish, the final answer is reported automatically. " +
+  "For an unwatched turn, use the tool whenever the bot needs to receive a message, including a result. Ordinary commentary stays in the thread. After sending, report only new information.";

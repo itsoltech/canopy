@@ -21,7 +21,7 @@ function delegationOrigins(sql: SqlClient.SqlClient, source: CallSource) {
     FROM bot_thread_watches w JOIN bot_tool_calls c ON c.id=w.call_id
     JOIN bot_turns bt ON bt.id=c.turn_id AND bt.bot_id=w.bot_id
     LEFT JOIN turn_steers s ON s.id=w.target_steer_id AND s.thread_id=w.target_thread_id
-    WHERE w.target_thread_id=${source.threadId}::uuid AND NOT w.delivered
+    WHERE w.target_thread_id=${source.threadId}::uuid
       AND (CASE WHEN w.target_steer_id IS NULL THEN w.target_turn_id
             WHEN s.status='delivered' THEN s.turn_id WHEN s.status='queued' THEN s.queued_turn_id END)=${source.turnId}::uuid
     GROUP BY bt.bot_id, bt.conversation_id, bt.routine_id LIMIT 2`;
@@ -31,8 +31,7 @@ function linkedBotInput(sql: SqlClient.SqlClient, owner: string, source: CallSou
   return sql`SELECT 1 FROM computer_agent_calls c
     LEFT JOIN turn_steers s ON s.id=c.target_steer_id AND s.thread_id=c.target_id
     WHERE c.owner_user_id=${owner}::uuid AND c.direction='incoming' AND c.actor_kind='bot'
-      AND c.target_kind='thread' AND c.target_id=${source.threadId}::uuid AND c.notify
-      AND NOT c.detached AND c.report_status='pending'
+      AND c.target_kind='thread' AND c.target_id=${source.threadId}::uuid
       AND (CASE WHEN c.target_steer_id IS NULL THEN c.target_turn_id
            WHEN s.status='delivered' THEN s.turn_id WHEN s.status='queued' THEN s.queued_turn_id END)=${source.turnId}::uuid
     LIMIT 1`;
@@ -69,27 +68,25 @@ export function messageDelegatingBot(
 
       if (!turn) return yield* Effect.fail(new Invalid("Only the current turn can message its delegating bot."));
 
+      // A delivered watch can still identify the source of input to this turn.
       const origins = yield* delegationOrigins(sql, source);
       const origin = origins[0];
-
-      if (!origin)
-        return yield* Effect.fail(new Invalid("The bot that started this thread is not watching this turn."));
 
       if (origins.length > 1 || (yield* linkedBotInput(sql, owner, source)).length)
         return yield* Effect.fail(new Invalid("This turn has multiple bot message origins."));
 
-      if (origin.conversation_id) {
+      if (origin?.conversation_id) {
         const safe =
           yield* sql`SELECT 1 WHERE ${canReportBotTurn(sql, sql`${source.threadId}::uuid`, sql`${source.turnId}::uuid`)}`;
 
         if (!safe.length) return yield* Effect.fail(new Invalid("This turn has multiple message origins."));
       }
 
-      if (origin.bot_id !== creator.bot_id)
+      if (origin && origin.bot_id !== creator.bot_id)
         return yield* Effect.fail(new Invalid("This turn was delegated by a different bot."));
 
       // The watch reserves its return hop. A steer may have entered a turn deeper in another chain.
-      const hops = Math.max(turn.hops + 1, origin.hops);
+      const hops = Math.max(turn.hops + 1, origin?.hops ?? 0);
 
       if (hops > DEFAULT_BUS_LIMITS.maxHops)
         return yield* Effect.fail(new Invalid("This automated conversation reached its step limit."));

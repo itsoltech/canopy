@@ -29,8 +29,8 @@ Status powiadomień PR (2026-11-19): agent dostaje informację o konflikcie z ga
 Status odczytu HEIC (2026-11-19): zaimplementowany na workerze dla `view_image`
 i podglądów transkryptu. Dostępność w kanałach według [release.md](release.md).
 
-Status połączenia z botami (2026-11-19): wątek założony przez bota może wysłać mu
-wiadomość w trakcie delegowanej tury przez `message_delegating_bot`. Wyłączenie
+Status połączenia z botami (2026-11-22): wątek założony przez bota może wysłać mu
+wiadomość przez `message_delegating_bot` także w turach bez obserwacji. Wyłączenie
 Threads albo Bots przez właściciela blokuje komunikację wątek ↔ bot, także przez
 łącze komputerów. Przy włączonym Threads i wyłączonym Bots szyna nadal
 obsługuje komunikację między wątkami. Wyłączenie Threads zatrzymuje przyjmowanie
@@ -187,7 +187,7 @@ Jedna definicja w Effect Schema (`AGENT_BUS_TOOLS`). Z niej powstaje JSON Schema
 | `list_agents` | ✓ | ✓ | na czym można uruchomić subagenta: instancje dostawców workera (`claude/native`, `codex/cliproxyapi`, ...) z modelami, wysiłkami i domyślnymi; plus własne ustawienia wywołującego |
 | `spawn_thread` | ✓ | | subagent = nowy wątek boczny: `title`, `prompt`, `instructions?` (rola), `provider?`, `model?`, `effort?`, `fork?`, `notify?`, `interactions?` (`parent` domyślnie, `human`), `workspace_mode?` i `base_ref?`; zwraca od razu `thread_id`, `turn_id` i ustawienia dziecka (`provider`, `model`, `effort`, `permission_mode`) |
 | `send_message` | ✓ | ✓ | wiadomość do wątku z drzewa albo dowolnego wątku właściciela: `delivery` `queue`/`steer`, `notify?` |
-| `message_delegating_bot` | tylko w wątku bota | tylko w wątku bota | pytanie lub aktualizacja do bota, który uruchomił wątek i oczekuje wyniku tej tury. Wynik końcowy wraca automatycznie. |
+| `message_delegating_bot` | tylko w wątku bota | tylko w wątku bota | wiadomość do bota, który uruchomił wątek. Automatyczny wynik wraca przy obserwowanej turze. |
 | `wait_threads` | ✓ | ✓ | czekanie na wątki (`any`/`all`, ≤ 300 s, ponawialne); zwraca status i wynik ostatniej tury każdego, wcześniej także pytania lub skierowane do wywołującego wiadomości (`messages`) |
 | `get_thread` / `read_thread` / `list_threads` | ✓ | ✓ | status (z dostawcą, modelem, wysiłkiem, uprawnieniami, `last_turn`, projektem i workerem), transkrypt, lista (`children`, `tree`, `all` z `query` i `limit`) |
 | `interrupt_thread` / `close_thread` | ✓ | | sterowanie potomkami |

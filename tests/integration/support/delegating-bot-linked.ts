@@ -192,6 +192,57 @@ export async function checkLinkedDelegatingBot(
     for (const hidden of [args.text, "Private question", "Check interrupted", "Reading the repair log"])
       expect(visible).not.toContain(hidden);
     expect((await b.worker.callTool({ ...request, callId: crypto.randomUUID() })).isError).toBe(true);
+
+    const followup = await b.api.sendMessage({
+      threadId,
+      text: "Check the private deployment",
+      clientRequestId: crypto.randomUUID(),
+    });
+
+    const followupTurn = followup.turn!.id;
+    expect(await eventually(async () => b.worker.started.has(followupTurn), Boolean)).toBe(true);
+    const update = "The private deployment is ready.";
+
+    const sentPrivately = await b.worker.callTool({
+      ...request,
+      turnId: followupTurn,
+      callId: crypto.randomUUID(),
+      args: { text: update },
+    });
+
+    expect(sentPrivately.isError, sentPrivately.content).toBe(false);
+    const privateResponse = JSON.parse(sentPrivately.resultJson);
+    expect(privateResponse).toMatchObject({ bot_id: qualifyId(bot, aNode), delivery: "queue" });
+
+    const [privateCallback] = await eventually(
+      () =>
+        a.core.linkedAgents.query<BotTurn>("SELECT * FROM bot_turns WHERE id=$1::uuid", [
+          splitId(privateResponse.turn_id).id,
+        ]),
+      (rows) => rows[0]?.status === "completed",
+    );
+
+    expect(privateCallback?.status).toBe("completed");
+    expect(privateCallback?.routine_id).toBeNull();
+    expect(privateCallback?.input).toContain(update);
+    expect(
+      await failure(
+        b.core.linkedAgents.call(aNode, request.tool, { ...actor, id: crypto.randomUUID() }, crypto.randomUUID(), {
+          spawn_id: spawn!.call_id,
+          text: update,
+        }),
+      ),
+    ).toContain("No active delegation");
+    b.worker.finish(threadId, followupTurn, update);
+    expect(
+      await eventually(
+        async () =>
+          (await b.core.linkedAgents.snapshot(threadId)).turns.some(
+            (t) => t.id === followupTurn && t.status === "completed",
+          ),
+        Boolean,
+      ),
+    ).toBe(true);
   } finally {
     b.worker.holdTurns = false;
     await a.api.deleteBotRoutine({ botId: bot, routineId: routine.id });

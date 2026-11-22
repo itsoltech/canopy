@@ -317,6 +317,47 @@ describe.skipIf(!dockerAvailable)("messenger work callback origin", () => {
     expect((await read(f.botId)).messages.filter((m) => m.senderId !== "activity")).toEqual([]);
   });
 
+  test("an owner follow-up can message the creator after the Slack report was delivered", async () => {
+    const f = await external();
+    const work = await delegated(f.turn);
+    const { bots } = suite.current;
+    const { userId } = suite.gw;
+    await finishTarget(work.threadId, work.turnId);
+    await bots.run((s) => s.deliver(userId));
+    const report = (await bots.run((s) => s.claim(userId)))!;
+    expect(report.conversation_id).toBe(f.turn.conversation_id);
+    await bots.run((s) => s.finish(report, "completed", ""));
+
+    const { turn } = await suite.gw.api.sendMessage({
+      threadId: work.threadId,
+      text: "Verify this with the private deployment details",
+      clientRequestId: crypto.randomUUID(),
+    });
+
+    await expectStatus(turn!.id, "running");
+    const text = "The private deployment has been verified.";
+
+    const call = {
+      threadId: work.threadId,
+      turnId: turn!.id,
+      tool: "message_delegating_bot",
+      args: { text },
+      callId: crypto.randomUUID(),
+    };
+
+    const sent = await suite.currentWorker.callTool(call);
+    expect(sent.isError, sent.content).toBe(false);
+    expect((await suite.currentWorker.callTool(call)).resultJson).toBe(sent.resultJson);
+    const callback = (await bots.run((s) => s.claim(userId)))!;
+    expect(callback.bot_id).toBe(f.botId);
+    expect(callback.conversation_id).toBeNull();
+    expect(callback.input).toContain(text);
+    await bots.run((s) => s.finish(callback, "completed", "Received privately"));
+    await finishTarget(work.threadId, turn!.id);
+    await bots.run((s) => s.deliver(userId));
+    expect(await bots.run((s) => s.claim(userId))).toBeUndefined();
+  });
+
   test.each(["completed", "failed"])("private and Slack input suppress questions and %s reports", async (status) => {
     const f = await external();
     const work = await delegated(f.turn);

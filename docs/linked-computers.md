@@ -9,6 +9,8 @@ pozostaje na źródle.
 Ogłoszenia mDNS respektują sieci wybrane w [Network access](network-access.md).
 Dostęp connectorów dla wątków należy do projektu i synchronizuje się z kontem
 connectora. Konsolidacja przenosi dostęp według zatwierdzonego wyboru konta.
+Wątek uruchomiony przez bota na połączonym komputerze może wysłać mu
+wiadomość także w dalszych turach bez obserwacji.
 
 Status: opis zaimplementowanej synchronizacji (2026-11-21), w tym usypiania wątków,
 blokady operacji przez łącze podczas opróżniania gatewaya i importu konsolidacji,
@@ -45,9 +47,12 @@ zewnętrznych rozmów poza świadomie wysłanym powiadomieniem.
 Gdy bot uruchomił wątek na połączonym komputerze, `message_delegating_bot`
 przesyła wiadomość zwrotną przez łącze do domu bota. Dom wątku sprawdza,
 które wiadomości bota weszły do bieżącej tury. Dom bota odczytuje z pierwotnego
-wywołania identyfikator rozmowy lub rutyny. Niejednoznaczne źródło, odłączony
-rodzic lub niedostępne łącze powodują odmowę. Przy trasie przez pośrednika
-również on musi obsługiwać tę operację.
+wywołania identyfikator rozmowy lub rutyny. Przy późniejszej turze bez własnego
+źródła delegowania oba domy potwierdzają powiązanie z wywołaniem tworzącym
+wątek, a bot otrzymuje wiadomość w prywatnym czacie. Obsługa tej ścieżki
+wymaga aktualizacji obu domów. Niejednoznaczne źródło, odłączony rodzic lub
+niedostępne łącze powodują odmowę. Przy trasie przez pośrednika również on
+musi obsługiwać tę operację.
 
 Wyłączenie Bots w domu konta zamyka nasłuch Slack. Bramka odrzuca nowe zdarzenia
 także ze starego gniazda i wstrzymuje wysyłanie odpowiedzi. Wiadomości odebrane

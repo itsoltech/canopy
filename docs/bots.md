@@ -1,6 +1,7 @@
 # Boty
 
 Status (2026-11-22): `read_thread` i `list_schedules` obsługują opcjonalny odczyt stron.
+`message_delegating_bot` działa również w późniejszych turach wątku założonego przez bota.
 Dostępność w kanałach określa [promocja wydań](release.md).
 
 Status (2026-11-22): gateway udostępnia botom trwałe notatki na wszystkich ich workerach. Zakres narzędzi i
@@ -70,16 +71,18 @@ wznowieniu. Bot zachowuje własne wiadomości, rutyny, przypomnienia i przyznane
 Gdy włączony jest wyłącznie moduł Bots, `list_schedules` i `cancel_schedule` obsługują własne przypomnienia bota.
 
 W wątku uruchomionym przez bota agent może wywołać `message_delegating_bot({text})`,
-gdy potrzebuje przekazać pytanie lub ustalenie przed końcem pracy. Przykładowo może
-poprosić o wersję systemu zgłaszającego i w tym czasie dalej analizować kod.
-Gateway ustala odbiorcę na podstawie delegowania w bieżącej turze. Wiadomość trafia
-do źródłowej rozmowy lub rutyny bota. Przy zgłoszeniu ze Slacka odpowiedź do
-uczestników przekazuje bot zgodnie z ustawieniami Messages.
+gdy potrzebuje przekazać pytanie, ustalenie lub wynik. Gateway ustala odbiorcę
+na podstawie zapisanej relacji z botem, który założył wątek. Jeśli bieżąca tura
+ma jednoznaczne źródło delegowania od tego bota, wiadomość trafia do źródłowej
+rozmowy lub rutyny. Przy zgłoszeniu ze Slacka odpowiedź do uczestników przekazuje bot
+zgodnie z ustawieniami Messages. Wiadomość z późniejszej tury bez własnego źródła
+delegowania trafia do prywatnego czatu bota.
 
-Zwykły wpis agenta w trakcie pracy nie budzi bota. Gdy agent kończy pracę lub
-potrzebuje odpowiedzi, żeby wykonać kolejny krok, wystarczy odpowiedź końcowa.
-Jeśli agent wysłał już pytanie narzędziem, w odpowiedzi końcowej podaje tylko nowe
-ustalenia. Każde jawne wywołanie pozostawia obserwację końca tury aktywną.
+Zwykły wpis agenta w trakcie pracy pozostaje w historii wątku. Bot obserwujący
+turę dostaje jej wynik automatycznie. Przy pracy poza obserwowaną turą agent
+używa narzędzia także wtedy, gdy bot ma dostać wynik. Jeśli agent wysłał już pytanie
+narzędziem, w odpowiedzi końcowej podaje tylko nowe ustalenia. Jawna wiadomość
+nie zmienia istniejącej obserwacji końca tury.
 
 Przy automatycznych powiadomieniach o pytaniu i wyniku gateway sprawdza początkowe
 wejście, wiadomości dołączane do tury oraz wszystkich obserwatorów, również z poprzedniej
