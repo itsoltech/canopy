@@ -33,7 +33,7 @@ export function SidebarThreadMeta({
   groupedProject?: boolean;
   groupedWorktree?: boolean;
 }) {
-  const c = useColors();
+  const c = useColors("sidebar-list");
   const type = useSidebarTypography();
   const directory = groupedWorktree ? "" : place.place;
   const branch = groupedWorktree ? "" : place.branch;
@@ -88,7 +88,7 @@ export function SidebarThreadMarks({
   draft?: boolean;
   compact?: boolean;
 }) {
-  const c = useColors();
+  const c = useColors("sidebar-list");
   const type = useSidebarTypography();
 
   return (

@@ -32,7 +32,7 @@ export function SidebarGroupHeading({
   searching: boolean;
 }) {
   const device = useDevicePreferences();
-  const c = useColors();
+  const c = useColors("sidebar-list");
   const type = useSidebarTypography();
   const groups = device.view.collapsedSidebarGroups;
   const collapsed = !searching && groups.includes(entry.key);
@@ -61,7 +61,7 @@ export function SidebarGroupHeading({
         <Text numberOfLines={1} style={[type.meta, { flex: 1, minWidth: 0, color: c.muted }]}>
           {entry.heading}
         </Text>
-        <Text style={[type.caption, { color: c.faint, fontVariant: ["tabular-nums"] }]}>{count}</Text>
+        <Text style={[type.caption, { color: c.muted, fontVariant: ["tabular-nums"] }]}>{count}</Text>
         <Chevron open={!collapsed} size={14} color={c.muted} />
       </Pressable>
     </View>

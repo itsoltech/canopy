@@ -3,6 +3,7 @@ import { sidebarIcon, sidebarIdentity } from "@canopy/ui/sidebar-art";
 import { channel } from "expo-updates";
 import { StyleSheet, Text, View } from "react-native";
 import { SvgXml } from "react-native-svg";
+import { useContentInsets } from "../../ui/ScreenFrame";
 import { styles, useColors, useTypography } from "../../ui/theme";
 
 const release = channel === "nightly" || channel === "beta" ? channel : channel ? "stable" : "development";
@@ -42,13 +43,14 @@ export function SidebarBrand() {
 
 export function SidebarWatermark() {
   const { dark } = useColors();
+  const { top, bottom } = useContentInsets();
 
   return (
     <View
       pointerEvents="none"
       accessibilityElementsHidden
       importantForAccessibility="no-hide-descendants"
-      style={brand.watermark}
+      style={[brand.watermark, { top, bottom }]}
     >
       <SvgXml xml={identity.art} color={identity.ink[dark ? "dark" : "light"]} width="100%" height="100%" />
     </View>
@@ -57,5 +59,5 @@ export function SidebarWatermark() {
 
 const brand = StyleSheet.create({
   title: { flexShrink: 1 },
-  watermark: { position: "absolute", top: "28%", bottom: "4%", left: 0, right: 0, overflow: "hidden" },
+  watermark: { position: "absolute", left: 0, right: 0, overflow: "hidden" },
 });

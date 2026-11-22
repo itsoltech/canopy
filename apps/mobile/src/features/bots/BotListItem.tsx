@@ -16,7 +16,7 @@ import { IconButton } from "../../ui/components";
 import { useSidebarTypography } from "../navigation/sidebar-scale";
 
 export function BotListItem({ bot }: { bot: bots.Bot }) {
-  const c = useColors();
+  const c = useColors("sidebar-list");
   const type = useSidebarTypography();
   const [actions, setActions] = useState(false);
   const home = useComputerHome(bot.nodeId);

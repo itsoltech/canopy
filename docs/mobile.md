@@ -1,6 +1,6 @@
 # Canopy na iOS i Android
 
-Status: opis zaimplementowanego kodu (2026-11-22), w tym nowego logo Canopy i dużego
+Status: opis zaimplementowanego kodu (2026-11-23), w tym nowego logo Canopy i zanikającego
 znaku wodnego kanału za listami w sidebarze oraz dziennego pingu użycia z przełącznikiem prywatności
 i pomijaniem wysyłki offline. Settings → Appearance
 zapisuje schemat kolorów, oba motywy i szerokość wątku w instalacji aplikacji.
@@ -1075,9 +1075,13 @@ fioletowe drzewo z gwiazdami, a **Beta** bursztynową rycinę. W tych trzech
 wariantach etykieta kanału widnieje pod nazwą Canopy. Wydanie **Stable**
 i nierozpoznany kanał pokazują zwykły znak drzewa bez podpisu kanału.
 
-Drzewo w tle listy wątków i botów zajmuje większą część szerokości panelu.
-Środek rysunku przypada na 62% wysokości sidebara. Lista przewija się nad grafiką
-zarówno na ekranie telefonu, jak i w układzie z dwiema kolumnami.
+Duży znak wodny zaczyna się tuż pod nawigacją, przy prawej krawędzi panelu.
+Cały rysunek stopniowo zanika ku dołowi i pozostaje nieruchomy, gdy lista
+wątków lub botów przewija się nad nim. W jasnym motywie podpisy i czasy
+w wierszach są ciemniejsze, żeby były czytelne także na liniach rysunku.
+Obszar grafiki mieści się między zmierzonym nagłówkiem a stopką, które zachowują
+jednolite tło. Grafika działa offline zarówno na ekranie listy, jak i w układzie
+z dwiema kolumnami.
 
 `updates.checkAutomatically: ON_LOAD` sprawdza aktualizacje na zimnym starcie.
 `fallbackToCacheTimeout: 0` uruchamia od razu ostatni lokalny bundle (także offline);

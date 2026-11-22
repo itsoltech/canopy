@@ -1,6 +1,6 @@
 # Canopy Desktop
 
-Status: opis zaimplementowanego runtime i pakowania (2026-11-22), w tym dziennego
+Status: opis zaimplementowanego runtime i pakowania (2026-11-23), w tym dziennego
 pingu użycia z przełącznikiem prywatności i pomijaniem wysyłki offline. Aktualizator używa
 `electron-updater` 6.8.11. Build i ustawienia
 udostępniają licencje dołączonych komponentów. Powłoka ładowania
@@ -27,7 +27,8 @@ toaście lub komunikacie o zakończonej aktualizacji. Dyskowy cache HTTP Electro
 ma budżet 64 MiB, a kontroler ustala origin formularzy osobno dla każdego żądania.
 Aktualizacje Nightly mają własny feed. Updater sprawdza historię kodu każdego
 kandydata przed pobraniem.
-Za listą sidebara widać duże, półprzezroczyste drzewo w kolorze kanału uruchomionego frontendu.
+Za listą sidebara widać duże drzewo w kolorze kanału uruchomionego frontendu.
+Krycie rysunku stopniowo maleje od nawigacji w dół.
 Tryb Local przypina certyfikat własnego gatewaya, używa osobnej roli PostgreSQL
 i sprawdza pochodzenie żądania otwarcia pliku w aplikacji systemowej. Kreator
 przenoszenia gatewaya koordynuje próbę odtworzenia, blokadę lokalnego startu,

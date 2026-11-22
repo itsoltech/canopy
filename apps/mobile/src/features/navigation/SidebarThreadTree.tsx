@@ -74,7 +74,7 @@ function SidebarThreadTree({
   const [expanded, setExpanded] = useState<boolean>();
   const [previousOpen, setPreviousOpen] = useState(false);
   const open = showSides || (expanded ?? (archived || openTree(current) === thread.id));
-  const c = useColors();
+  const c = useColors("sidebar-list");
   const hasSides = sides.active.length + sides.previous.length > 0;
 
   return (
@@ -145,7 +145,7 @@ function SidebarThreadTree({
 }
 
 function SidebarSideThread({ thread, previous = false }: { thread: ui.Thread; previous?: boolean }) {
-  const c = useColors();
+  const c = useColors("sidebar-list");
   const type = useSidebarTypography();
   const home = useComputerHome(thread.nodeId);
   const layout = useLayout();

@@ -159,7 +159,7 @@ function orderBots(list: readonly botContract.Bot[], pinned: readonly string[]):
 }
 
 function SidebarLists({ state }: { state: ReturnType<typeof useSidebarState> }) {
-  const c = useColors();
+  const c = useColors("sidebar-list");
 
   const { section, navigation, projects, workers, loaded, query, projectId, setProjectId, stream } = state;
 

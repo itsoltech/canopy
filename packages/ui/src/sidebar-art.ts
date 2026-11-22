@@ -8,11 +8,27 @@ export const sidebarIcon = `<svg xmlns="http://www.w3.org/2000/svg" width="100%"
   <g transform="translate(6.58 17.65) scale(.66)" fill="#194a34">${tree}</g>
 </svg>`;
 
-// The square art meets the pane's right edge. The crown continues beyond that edge in all four scenes.
-function scene(drawing: string, surroundings = "") {
-  return `<svg xmlns="http://www.w3.org/2000/svg" width="100%" height="100%" viewBox="0 0 200 200" preserveAspectRatio="xMaxYMid meet" fill="currentColor">
-    ${surroundings}
-    <g transform="translate(32 18) scale(1.18)">${drawing}</g>
+// White stops in a luminance mask fade the entire scene together on web and react-native-svg.
+function scene(channel: string, drawing: string, surroundings = "") {
+  const id = `canopy-sidebar-${channel}`;
+
+  return `<svg xmlns="http://www.w3.org/2000/svg" width="100%" height="100%" viewBox="0 0 200 200" preserveAspectRatio="xMaxYMin meet" fill="currentColor">
+    <defs>
+      <linearGradient id="${id}-fade" gradientUnits="userSpaceOnUse" x1="0" y1="0" x2="0" y2="200">
+        <stop offset="0" stop-color="white"/>
+        <stop offset=".32" stop-color="white" stop-opacity=".92"/>
+        <stop offset=".63" stop-color="white" stop-opacity=".63"/>
+        <stop offset=".85" stop-color="white" stop-opacity=".28"/>
+        <stop offset="1" stop-color="white" stop-opacity="0"/>
+      </linearGradient>
+      <mask id="${id}-mask" maskUnits="userSpaceOnUse" x="0" y="0" width="200" height="200">
+        <rect width="200" height="200" fill="url(#${id}-fade)"/>
+      </mask>
+    </defs>
+    <g mask="url(#${id}-mask)">
+      ${surroundings}
+      <g transform="translate(32 18) scale(1.18)">${drawing}</g>
+    </g>
   </svg>`;
 }
 
@@ -52,6 +68,7 @@ export const sidebarIdentity = {
     tone: "sky",
     ink: { light: palette.blue[700], dark: palette.blue[300] },
     art: scene(
+      "dev",
       `<g fill-opacity=".025" stroke="currentColor" stroke-opacity=".17" stroke-width="1" stroke-linejoin="round">${tree}</g>`,
       guides,
     ),
@@ -60,13 +77,14 @@ export const sidebarIdentity = {
     label: "Nightly",
     tone: "violet",
     ink: { light: palette.violet[700], dark: palette.violet[300] },
-    art: scene(`<g opacity=".085">${tree}</g>`, stars),
+    art: scene("nightly", `<g opacity=".085">${tree}</g>`, stars),
   },
   beta: {
     label: "Beta",
     tone: "amber",
     ink: { light: palette.amber[700], dark: palette.amber[300] },
     art: scene(
+      "beta",
       `<path fill-rule="evenodd" opacity=".085" d="${canopyTree.branches}"/>
        <path fill-opacity=".035" stroke="currentColor" stroke-width=".85" stroke-opacity=".13" d="${canopyTree.crown}"/>
        ${hatching}`,
@@ -77,6 +95,6 @@ export const sidebarIdentity = {
     label: "Stable",
     tone: "emerald",
     ink: { light: "#194a34", dark: "#dfecd0" },
-    art: scene(`<g opacity=".07">${tree}</g>`),
+    art: scene("stable", `<g opacity=".07">${tree}</g>`),
   },
 } as const;

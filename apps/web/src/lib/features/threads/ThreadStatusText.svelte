@@ -39,7 +39,7 @@
 
 <span
   class={["flex shrink-0 items-center gap-1 text-sm/5 whitespace-nowrap tabular-nums sm:text-xs/5", className]}
-  style:--working-light={workingColors.light.text}
+  style:--working-light={`var(--sidebar-working-light, ${workingColors.light.text})`}
   style:--working-dark={workingColors.dark.text}
 >
   {#key state}<span class="flex items-center" in:swap>

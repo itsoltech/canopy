@@ -79,14 +79,17 @@ export function colorsFor(dark: boolean, theme: ThemeName = "birch") {
 
 export type Colors = ReturnType<typeof colorsFor>;
 
-export function useColors() {
+export function useColors(surface?: "sidebar-list") {
   const { dark, appearance } = useAppearance();
   const { values } = useDevicePreferences();
   const theme = themeOf(appearance, dark ? "dark" : "light");
   const colors = colorsFor(dark, theme);
   const neutral = themes[theme][dark ? "dark" : "light"];
 
-  if (values.contrast === "standard") return colors;
+  if (values.contrast === "standard") {
+    // The channel drawing darkens the light sidebar behind list captions.
+    return surface === "sidebar-list" && !dark ? { ...colors, muted: colors.soft } : colors;
+  }
 
   return {
     ...colors,
