@@ -7,7 +7,8 @@ oraz osobne aktualizacje Canopy i CLI dostawców. Ukończone przygotowanie wątk
 domyślnie zwija kroki do wiersza „Thread prepared”. Na szerokim oknie iOS i Androida
 sidebar i rozmowa przesuwają wspólną krawędź podczas zwijania i rozwijania.
 Uchwyt na tej krawędzi zmienia szerokość sidebara i zapisuje ją lokalnie.
-Nagłówek sidebara pokazuje kanał aplikacji.
+Nagłówek sidebara pokazuje kanał aplikacji. Nightly, Beta i Dev mają delikatny
+gradient i słoje drzewa w barwie kanału, tak jak w web i desktop.
 Licznik i akcja Update all na telefonie wynikają z planu instalacji Canopy.
 Komunikat o restarcie znika po potwierdzeniu powrotu gatewaya lub wersji docelowej.
 Stan gotowości binarnego gatewaya kończy także zapowiedź restartu bez zmiany wersji.
