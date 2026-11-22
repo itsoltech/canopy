@@ -13,6 +13,8 @@ Dostęp connectorów dla wątków należy do projektu i synchronizuje się z kon
 connectora. Konsolidacja przenosi dostęp według zatwierdzonego wyboru konta.
 Wątek uruchomiony przez bota na połączonym komputerze może wysłać mu
 wiadomość także w dalszych turach bez obserwacji.
+Zamrażanie rodziny wątków do przeniesienia pozwala workerowi dokończyć zapis
+wątku bocznego i sprawdzenie jego kluczy obcych.
 
 Status: opis zaimplementowanej synchronizacji (2026-11-21), w tym usypiania wątków,
 blokady operacji przez łącze podczas opróżniania gatewaya i importu konsolidacji,
@@ -2314,12 +2316,15 @@ z zakresem właściciela. Ostateczny eksport nadal następuje po zamrożeniu rze
 Oba komputery prowadzą trwały rekord `computer_moves` (rola `source`/`target`, stan, błąd, rzeczy
 do ponownego zrobienia). Jeden niezakończony ruch na rzecz (indeks częściowy).
 
-1. **Zamrożenie (źródło, jedna transakcja).** `SELECT … FOR UPDATE` rodziny wątku lub bota, sprawdzenie
-   blokad, `moved_to = <cel>`, wstrzymanie aktywnych harmonogramów wątku (z zapisaniem ich stanu
-   i najbliższego terminu w `frozen`) i rekord `preparing`. Od tej chwili nic nowego nie startuje:
-   triggery `BEFORE INSERT` na `turns`, `turn_steers` i `bot_turns` odrzucają nową turę zamrożonej
-   rzeczy (blokada `KEY SHARE` czeka na trwające zamrożenie), planista rutyn, przypomnień i obserwacji
-   bota pomija boty z `moved_to`, a API odpowiada na zapis „Moving to Laptop C. Try again in a moment.”
+1. **Zamrożenie (źródło, jedna transakcja).** Źródło najpierw blokuje rodzinę wątku przez
+   `SELECT … FOR NO KEY UPDATE`, aby równoległy zapis wątku bocznego mógł sprawdzić klucze obce
+   wskazujące rodzica. Po zablokowaniu całej rodziny wzmacnia blokady do `FOR UPDATE`.
+   Przy przenoszeniu bota od razu używa `FOR UPDATE`. Sprawdza blokady przeniesienia, zapisuje
+   `moved_to = <cel>`, wstrzymuje aktywne harmonogramy wątku (z zapisaniem ich stanu
+   i najbliższego terminu w `frozen`) i rekord `preparing`. Triggery `BEFORE INSERT` na `turns`,
+   `turn_steers` i `bot_turns` odczytują `moved_to` pod blokadą `FOR KEY SHARE`, więc czekają na
+   zwolnienie `FOR UPDATE` i odrzucają nową turę zamrożonej rzeczy. Planista rutyn, przypomnień
+   i obserwacji bota pomija boty z `moved_to`. API odpowiada na zapis „Moving to Laptop C. Try again in a moment.”
    Odczyty działają dalej.
 2. **Przygotowanie (cel).** Źródło eksportuje pełny stan i wysyła `PrepareMove`. Cel sprawdza workspace,
    instancje dostawców, brak tej rzeczy u siebie i zapisuje ładunek w rekordzie `prepared` — nic jeszcze

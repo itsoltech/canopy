@@ -498,26 +498,16 @@ describe.skipIf(!dockerAvailable)("ask_user (gateway + scripted worker)", () => 
   test("cancellation arriving before a synchronous question fences its later replay", async () => {
     const source = await start();
     const callId = Bun.randomUUIDv7();
-    gw.worker.link.send({
-      case: "agentToolCall",
-      value: create(AgentToolCallSchema, {
-        ...source,
-        callId,
-        toolName: "ask_user",
-        argumentsJson: JSON.stringify({ questions, wait: true }),
-        cancelled: true,
-      }),
+    const call = { ...source, callId, tool: "ask_user", args: { questions, wait: true } };
+    // The cancellation and the replay have the same call ID on the link.
+    expect(await gw.worker.callTool({ ...call, cancelled: true })).toMatchObject({
+      isError: true,
+      content: "This request expired.",
     });
 
-    const rows = await eventually(
-      () => query<{ status: string }>("SELECT status FROM interaction_requests WHERE id = $1::uuid", callId),
-      (r) => r[0]?.status === "expired",
-    );
-
+    const rows = await query<{ status: string }>("SELECT status FROM interaction_requests WHERE id = $1::uuid", callId);
     expect(rows).toEqual([{ status: "expired" }]);
-    expect(
-      json(await gw.worker.callTool({ ...source, callId, tool: "ask_user", args: { questions, wait: true } })).status,
-    ).toBe("expired");
+    expect(json(await gw.worker.callTool(call)).status).toBe("expired");
     expect(await pending(source.threadId)).toEqual([]);
     await expect(
       gw.core.answerInteraction(create(ui.AnswerInteractionRequestSchema, { requestId: callId, answerJson })),

@@ -67,7 +67,7 @@ export function threadFamily(sql: Sql, owner: string, threadId: string, lock = f
       project_id: string;
     }>(
       `SELECT id, kind, parent_thread_id, title, runtime, moved_to, deleted_at, archived_at, project_id FROM threads
-        WHERE owner_user_id = $2::uuid AND (id = $1::uuid OR (parent_thread_id = $1::uuid AND deleted_at IS NULL)) ORDER BY (id = $1::uuid) DESC, created_at, id${lock ? " FOR UPDATE" : ""}`,
+        WHERE owner_user_id = $2::uuid AND (id = $1::uuid OR (parent_thread_id = $1::uuid AND deleted_at IS NULL)) ORDER BY (id = $1::uuid) DESC, created_at, id${lock ? " FOR NO KEY UPDATE" : ""}`,
       [threadId, owner],
     );
 
@@ -125,6 +125,9 @@ export function freezeThread(
       const { error, main, family } = yield* threadFamily(sql, owner, input.threadId, true);
 
       if (error || !main) return { error };
+      // Let in-flight side-thread writes finish their parent FK checks while we collect the family.
+      // Once we hold every row, exclude the move guards' KEY SHARE locks before checking for work.
+      yield* sql.unsafe(`SELECT id FROM threads WHERE id = ANY($1::uuid[]) ORDER BY id FOR UPDATE`, [family]);
       const blocked = yield* threadBlocker(sql, owner, family);
 
       if (blocked) return { error: blocked };
