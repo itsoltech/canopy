@@ -343,6 +343,7 @@
     },
   },
   "patchedDependencies": {
+    "svelte@5.59.1": "patches/svelte@5.59.1.patch",
     "@electron/notarize@2.5.0": "patches/@electron%2Fnotarize@2.5.0.patch",
     "app-builder-lib@26.18.0": "patches/app-builder-lib@26.18.0.patch",
     "react-native@0.88.1": "patches/react-native@0.88.1.patch",
