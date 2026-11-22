@@ -227,6 +227,12 @@ export const icons = {
   "arrow-top-right-on-square": ["M12 6H6a2 2 0 0 0-2 2v10a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-6m-7 1l9-9m-5 0h5v5"],
 
   window: ["M4 5h16a1 1 0 0 1 1 1v12a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V6a1 1 0 0 1 1-1zm-1 5h18M7 7.5h.01m3 0h.01"],
+  // Simple Icons GitHub (CC0), reused for the GitHub connector mark.
+  github: [
+    "M12 .297c-6.63 0-12 5.373-12 12 0 5.303 3.438 9.8 8.205 11.385.6.113.82-.258.82-.577 0-.285-.01-1.04-.015-2.04-3.338.724-4.042-1.61-4.042-1.61C4.422 18.07 3.633 17.7 3.633 17.7c-1.087-.744.084-.729.084-.729 1.205.084 1.838 1.236 1.838 1.236 1.07 1.835 2.809 1.305 3.495.998.108-.776.417-1.305.76-1.605-2.665-.3-5.466-1.332-5.466-5.93 0-1.31.465-2.38 1.235-3.22-.135-.303-.54-1.523.105-3.176 0 0 1.005-.322 3.3 1.23.96-.267 1.98-.399 3-.405 1.02.006 2.04.138 3 .405 2.28-1.552 3.285-1.23 3.285-1.23.645 1.653.24 2.873.12 3.176.765.84 1.23 1.91 1.23 3.22 0 4.61-2.805 5.625-5.475 5.92.42.36.81 1.096.81 2.22 0 1.606-.015 2.896-.015 3.286 0 .315.21.69.825.57C20.565 22.092 24 17.592 24 12.297c0-6.627-5.373-12-12-12",
+  ],
+  // plug
+  plug: ["M9.785 6L18 14.215l-2.054 2.054a5.81 5.81 0 1 1-8.215-8.215zM4 20l3.5-3.5M15 4l-3.5 3.5M20 9l-3.5 3.5"],
   // link
   link: [
     "m9 15l6-6m-4-3l.463-.536a5 5 0 0 1 7.071 7.072L18 13m-5 5l-.397.534a5.07 5.07 0 0 1-7.127 0a4.97 4.97 0 0 1 0-7.071L6 11",
@@ -362,5 +368,5 @@ export const iconStyle = { viewBox: "0 0 24 24", strokeWidth: 2.25 } as const;
 
 export type IconName = keyof typeof icons;
 
-/** Filled outline geometry keeps its own line weight instead of receiving another stroke. */
-export const filledIcons: ReadonlySet<IconName> = new Set<IconName>(["bolt-double"]);
+/** Filled glyphs use their original geometry without an added stroke. */
+export const filledIcons: ReadonlySet<IconName> = new Set<IconName>(["bolt-double", "github"]);
