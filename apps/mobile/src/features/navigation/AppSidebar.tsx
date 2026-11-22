@@ -1,18 +1,16 @@
 import { useState } from "react";
-import { Image, Text, View } from "react-native";
+import { Text, View } from "react-native";
 import Animated from "react-native-reanimated";
 import { useMotion } from "../../ui/motion";
 import { useArrivals } from "../../ui/MotionViews";
 import { ListSkeleton } from "../../ui/Skeleton";
 import { Redirect, router } from "expo-router";
-import { channel } from "expo-updates";
 import { ScreenFrame, useContentPadding } from "../../ui/ScreenFrame";
 import { SidebarFooter } from "./SidebarFooter";
 import { SidebarCopyJobs } from "../copy-jobs/SidebarCopyJobs";
 import { bots as botContract } from "@canopy/contracts";
 import { timestampMs } from "@bufbuild/protobuf/wkt";
 import { compareConversations } from "@canopy/domain/bot-chat";
-import { contextType, palette } from "@canopy/ui";
 import { useLayout } from "../../state/layout";
 import { useSession } from "../../state/session";
 import { useBotList } from "../../state/bot-list";
@@ -20,7 +18,7 @@ import { useAppearance } from "../../state/appearance";
 import { useOverview } from "../../state/overview";
 import { Button, EmptyState, IconButton, Notice, Segmented } from "../../ui/components";
 import { ConnectionBanner } from "./ConnectionStatus";
-import { styles, useColors, useTypography } from "../../ui/theme";
+import { styles, useColors } from "../../ui/theme";
 import { SearchField } from "../../ui/SearchField";
 import { BotListItem } from "../bots/BotListItem";
 import { SettingsThreadList } from "./SettingsThreadList";
@@ -28,6 +26,7 @@ import { useSidebarThreads } from "./useSidebarThreads";
 import { SidebarOptions } from "./SidebarOptions";
 import { CreateBot } from "../bots/CreateBot";
 import { useDevicePreferences } from "../settings/device-preferences";
+import { SidebarBrand, SidebarReleaseArt } from "./SidebarBrand";
 
 function useSidebarState() {
   const { session, ready, bots } = useSession();
@@ -71,43 +70,6 @@ function useSidebarState() {
     query,
     navigation,
   };
-}
-
-function SidebarBrand() {
-  const c = useColors();
-  const type = useTypography();
-  const shade = c.dark ? 400 : 800;
-
-  const release =
-    channel === "nightly"
-      ? { label: "Nightly", color: palette.violet[shade] }
-      : channel === "beta"
-        ? { label: "Beta", color: palette.amber[shade] }
-        : !channel
-          ? { label: "Dev", color: c.muted }
-          : undefined;
-
-  return (
-    <View style={[styles.row, { flexShrink: 1 }]}>
-      <Image
-        source={require("../../../../web/static/canopy-logo.png")}
-        style={{ width: 24, height: 24, borderRadius: 6 }}
-      />
-      <View style={{ flexShrink: 1 }}>
-        <Text numberOfLines={1} style={[styles.label, { color: c.text }]}>
-          Canopy
-        </Text>
-        {release && (
-          <Text
-            numberOfLines={1}
-            style={[contextType.context, { color: release.color, fontFamily: type.mono.fontFamily }]}
-          >
-            {release.label}
-          </Text>
-        )}
-      </View>
-    </View>
-  );
 }
 
 function SidebarHeader({ state }: { state: ReturnType<typeof useSidebarState> }) {
@@ -336,6 +298,7 @@ export function AppSidebar() {
   return (
     <ScreenFrame
       backgroundColor={c.sidebar}
+      headerBackground={<SidebarReleaseArt />}
       header={
         <>
           <SidebarHeader state={state} />
