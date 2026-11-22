@@ -99,6 +99,9 @@ export async function authorizeBotThreadCall(core: GatewayCore, turn: BotTurn, c
           ? (core.computers?.redirects.map("bot", id) ?? id)
           : id;
 
+    // A bot exchange can cross homes because the destination must accept an isolated bot turn.
+    if (name === "send_bot_message" && key === "bot_id" && !turn.conversation_id) continue;
+
     if (audience && splitId(ref).node)
       throw new Invalid("Choose a thread on this computer for delegated work from this conversation.");
   }

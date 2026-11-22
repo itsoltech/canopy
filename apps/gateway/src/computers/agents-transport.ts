@@ -8,7 +8,7 @@ import { Effect, Predicate, Schema } from "effect";
 
 import { SqlClient } from "effect/sql";
 
-import { fail, qualifyResult, type Actor, type Arguments } from "./agents-context.ts";
+import { fail, qualifyResult, SEND_ISOLATED_BOT_MESSAGE, type Actor, type Arguments } from "./agents-context.ts";
 import {
   targetKind,
   requireAgentModules,
@@ -108,7 +108,7 @@ export const agentsTransportMethods: AgentsTransportMethods = {
         node,
         link.LinkedAgentsService.method.callAgentBus,
         create(link.LinkedAgentCallSchema, {
-          operation,
+          operation: operation === "send" && actor.requiresIsolatedBot ? SEND_ISOLATED_BOT_MESSAGE : operation,
           callId,
           actorId: actor.id,
           actorKind: actor.kind,

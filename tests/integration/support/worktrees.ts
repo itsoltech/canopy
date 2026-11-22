@@ -2,6 +2,7 @@ import { chmodSync, copyFileSync, mkdirSync, rmSync, writeFileSync } from "node:
 import { expect } from "bun:test";
 import { homedir } from "node:os";
 import { join } from "node:path";
+import { fileURLToPath } from "node:url";
 import { create, type MessageInitShape } from "@bufbuild/protobuf";
 import { CommandSchema, Provider, ui, type AgentToolResult } from "@canopy/contracts";
 import type { JsonValue } from "@canopy/domain";
@@ -46,7 +47,7 @@ export async function worktreeFixture(
   dir: string,
   options: {
     botModel?: BotModel;
-    /** Optional provider stand-in for observing harness creation. */
+    /** Optional executable provider stand-in for observing harness creation. */
     codexFixture?: URL;
     role?: "desktop" | "server";
     diagnostics?: boolean;
@@ -62,12 +63,16 @@ export async function worktreeFixture(
   const repo = join(dir, "repo");
   const origin = join(dir, "origin.git");
   const home = join(dir, "codex-home");
-  const executable = join(dir, "codex");
+  const executable = options.codexFixture ? fileURLToPath(options.codexFixture) : join(dir, "codex");
   mkdirSync(data);
   mkdirSync(home);
   writeFileSync(join(home, "auth.json"), JSON.stringify({ tokens: { access_token: "fixture" } }));
-  copyFileSync(options.codexFixture ?? new URL("../fixtures/directory-codex.ts", import.meta.url), executable);
-  chmodSync(executable, 0o755);
+
+  if (!options.codexFixture) {
+    copyFileSync(new URL("../fixtures/directory-codex.ts", import.meta.url), executable);
+    chmodSync(executable, 0o755);
+  }
+
   git(dir, "init", "-q", "--bare", "-b", "main", origin);
   git(dir, "clone", "-q", origin, repo);
   commit(repo);

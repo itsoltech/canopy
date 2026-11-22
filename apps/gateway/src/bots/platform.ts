@@ -109,25 +109,27 @@ export async function prepareBotTool(
   turn: BotTurn,
   call: StoredCall,
 ): Promise<{ prompt?: string } | undefined> {
-  if (call.tool.source === "platform") call = await availableBotCall(options, call);
+  if (call.tool.source !== "platform") return undefined;
+  call = await availableBotCall(options, call);
 
-  await authorizeBotThreadCall(core, turn, call);
+  if (["start_thread", "send_message", "send_bot_message"].includes(call.tool.name)) nextReplyHop(turn.hops);
 
-  if (call.tool.source === "platform" && ["start_thread", "send_message", "send_bot_message"].includes(call.tool.name))
-    nextReplyHop(turn.hops);
-
-  if (call.tool.source === "platform" && ["start_thread", "send_message"].includes(call.tool.name)) {
+  if (["start_thread", "send_message"].includes(call.tool.name)) {
     validate(call.tool.parameters, call.arguments);
+    const ids = forwardingIds(call.arguments);
+    localForwardTarget(call.arguments, ids);
+    await authorizeBotThreadCall(core, turn, call);
 
     return forwardingApproval(
       core,
       turn,
-      call,
+      ids,
       approvalPrompt(call.tool, call.arguments, await describeBotTool(core, call.tool, call.arguments)),
     );
   }
 
-  const registered = call.tool.source === "platform" ? areaTool.get(call.tool.name) : undefined;
+  await authorizeBotThreadCall(core, turn, call);
+  const registered = areaTool.get(call.tool.name);
 
   if (!registered?.prepare) return undefined;
   validate(registered.spec.parameters, call.arguments);
@@ -177,6 +179,8 @@ export async function botPlatform(
   try {
     call = await availableBotCall(options, call);
     validate(call.tool.parameters, args);
+
+    if (["start_thread", "send_message"].includes(call.tool.name)) localForwardTarget(args, forwardingIds(args));
     const questionId = await authorizeBotThreadCall(core, turn, call);
 
     if (questionId && call.tool.name === "read_thread") {
@@ -189,7 +193,6 @@ export async function botPlatform(
 
     if (isMemoryTool(call.tool.name)) return await botMemoryCall(context(core, options, turn, call));
 
-    if (["start_thread", "send_message"].includes(call.tool.name)) localForwardTarget(args, forwardingIds(args));
     const linked = await core.linkedAgents.botTool(turn, call);
 
     if (linked !== undefined) return linked;

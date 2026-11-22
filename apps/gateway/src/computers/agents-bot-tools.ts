@@ -118,26 +118,7 @@ export const agentsBotToolsMethods: AgentsBotToolsMethods = {
           }),
         );
       case "send_bot_message":
-        return action(async () => {
-          const target = text(args, "bot_id");
-
-          const result = await this.send(node, "send", actor, call.id, {
-            target: splitId(target).id,
-            target_kind: "bot",
-            prompt: text(args, "text"),
-            notify: true,
-          });
-
-          if (!turn.routine_id)
-            await this.query(
-              `INSERT INTO bot_messages(id,bot_id,turn_id,message_key,sender_id,recipient_id,kind,text,exchange_id)
-          VALUES ($1::uuid,$2::uuid,$3::uuid,$4,$2,$5,'event',$6,$7::uuid) ON CONFLICT(turn_id,message_key) DO NOTHING`,
-              [crypto.randomUUID(), turn.bot_id, turn.id, `linked:${call.id}`, target, text(args, "text"), call.id],
-            );
-          await this.query("UPDATE bots SET revision=revision+1,updated_at=now() WHERE id=$1::uuid", [turn.bot_id]);
-
-          return { ...record(result), bot_id: target, exchange_id: call.id };
-        });
+        return action(() => sendLinkedBotMessage(this, turn, actor, node, call.id, args));
       case "get_thread":
         return toJson(
           ui.ThreadSchema,
@@ -192,6 +173,36 @@ export const agentsBotToolsMethods: AgentsBotToolsMethods = {
     }
   },
 };
+
+async function sendLinkedBotMessage(
+  host: LinkedAgents,
+  turn: BotTurn,
+  actor: Actor,
+  node: string,
+  callId: string,
+  args: Arguments,
+) {
+  const target = text(args, "bot_id");
+
+  const requiresIsolatedBot = Boolean(await botThreadAudience(host.core, turn));
+
+  const result = await host.send(node, "send", { ...actor, requiresIsolatedBot }, callId, {
+    target: splitId(target).id,
+    target_kind: "bot",
+    prompt: text(args, "text"),
+    notify: true,
+  });
+
+  if (!turn.routine_id)
+    await host.query(
+      `INSERT INTO bot_messages(id,bot_id,turn_id,message_key,sender_id,recipient_id,kind,text,exchange_id)
+  VALUES ($1::uuid,$2::uuid,$3::uuid,$4,$2,$5,'event',$6,$7::uuid) ON CONFLICT(turn_id,message_key) DO NOTHING`,
+      [crypto.randomUUID(), turn.bot_id, turn.id, `linked:${callId}`, target, text(args, "text"), callId],
+    );
+  await host.query("UPDATE bots SET revision=revision+1,updated_at=now() WHERE id=$1::uuid", [turn.bot_id]);
+
+  return { ...record(result), bot_id: target, exchange_id: callId };
+}
 
 function botThreadRequest(args: Arguments, callId: string): ui.CreateThreadRequest {
   return create(ui.CreateThreadRequestSchema, {

@@ -121,10 +121,7 @@ export async function forwardedNotice(core: GatewayCore, turn: BotTurn, call: St
   );
 }
 
-export async function forwardingApproval(core: GatewayCore, turn: BotTurn, call: StoredCall, prompt: string) {
-  const ids = forwardingIds(call.arguments);
-  localForwardTarget(call.arguments, ids);
-
+export async function forwardingApproval(core: GatewayCore, turn: BotTurn, ids: readonly string[], prompt: string) {
   if (!ids.length) return undefined;
   const files = await conversationFiles(core, turn, ids);
 

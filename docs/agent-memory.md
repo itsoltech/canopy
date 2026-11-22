@@ -40,7 +40,9 @@ sesji. Handoff zachowuje osobną funkcję przekazania stanu pracy przy zmianie
 modelu. Uprawnienia zapisu zależą także od pochodzenia wejścia. Bezpośrednia
 rozmowa właściciela i zaufany start rutyny mogą zapisywać pamięć bota,
 a zewnętrzne wiadomości mogą aktualizować pamięć własnej rozmowy. Przychodzące
-wymiany bot–bot używają odrębnego kontekstu wykonania.
+wymiany bot–bot używają odrębnego kontekstu wykonania. Jeżeli taka wymiana
+zaczyna się w turze z ograniczonym dostępem i przekracza granicę gatewaya,
+dom odbiorcy musi obsługiwać izolowane przyjęcie wiadomości.
 
 Delegowane wątki używają zakresu odbiorców ustalonego przez gateway. Węższa
 delegacja dziedziczy ten zakres w kolejnych wątkach i korzysta z odpowiednio

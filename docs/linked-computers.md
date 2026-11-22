@@ -1,8 +1,9 @@
 # Połączone komputery
 
 Status (2026-11-22): gateway sprawdza pochodzenie automatycznej delegacji przed
-udostępnieniem tras z historią wątków. Konsolidacja przenosi
-[pamięć agentów i botów](agent-memory.md) wraz z danymi właściciela.
+udostępnieniem tras z historią wątków. Wymiana bot↔bot z tury o ograniczonym
+zakresie wymaga izolowanego przyjęcia wiadomości przez dom odbiorcy.
+Konsolidacja przenosi [pamięć agentów i botów](agent-memory.md) wraz z danymi właściciela.
 
 Status: opis zaimplementowanej synchronizacji (2026-11-21), w tym usypiania wątków,
 blokady operacji przez łącze podczas opróżniania gatewaya i importu konsolidacji,
@@ -1809,8 +1810,10 @@ rutyn/przypomnień. Po powrocie łącza odczyt wraca do domu. Żaden zapis nie t
 Wewnętrzne `LinkedAgentsService.CallAgentBus(LinkedAgentCall)` jest dostępne wyłącznie po
 przypiętym mTLS, dla aktywnego partnera z `agent_bus`. Niesie uuid wywołania, lokalne id i rodzaj
 aktora (`thread`/`bot`), `hops`, operację i JSON argumentów. Nie jest publiczną metodą API.
-Operacje: `spawn`, `send`, `get_thread`, `read_thread`, `answer`, `interrupt_thread`, `close_thread`,
-`question`, `report`. Nie ma arbitralnego wywoływania handlerów ani routingu dalej.
+Operacje obejmują `spawn`, `send`, `get_thread`, `read_thread`, `answer`, `interrupt_thread`,
+`close_thread`, `question`, `report` i `send_isolated_bot_message`. Dom odbiorcy
+bez obsługi izolowanej operacji odrzuca takie wywołanie. Nie ma arbitralnego wywoływania
+handlerów ani routingu dalej.
 
 `list_agents` pokazuje nazwy komputerów, status/błąd, projekty/workspace'y, workery, boty i modele.
 Katalogi botów również oznaczają dom nazwą. Model przekazuje kwalifikowane id bez zmian:

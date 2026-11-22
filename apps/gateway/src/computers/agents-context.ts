@@ -11,7 +11,11 @@ import { Effect, Predicate, Schema } from "effect";
 
 import type { CoreServices } from "../core/core.ts";
 
+/** Older homes reject this operation instead of running the exchange in their private bot session. */
+export const SEND_ISOLATED_BOT_MESSAGE = "send_isolated_bot_message";
+
 export type Actor = {
+  requiresIsolatedBot?: boolean;
   id: string;
   kind: "thread" | "bot";
   hops: number;
