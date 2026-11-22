@@ -22,6 +22,7 @@ export function FloatingComposer({
   tray,
   onAccessoryLayout,
   coverage,
+  resizeInset,
 }: {
   children: ReactNode;
   /** Popovers never participate in the measured composer or the feed's reserve. */
@@ -39,6 +40,7 @@ export function FloatingComposer({
   onLatest?: (() => void) | undefined;
   /** Whole stack coverage; its safe-area portion is already owned by the native scroll view. */
   coverage?: SharedValue<number>;
+  resizeInset?: boolean;
 }) {
   const c = useColors();
   const insets = useContentInsets();
@@ -65,7 +67,12 @@ export function FloatingComposer({
           >
             {overlay}
           </View>
-          <ComposerCoverage value={coverage} fade={<Fade />} latest={onLatest && <LatestButton onPress={onLatest} />}>
+          <ComposerCoverage
+            value={coverage}
+            resizeInset={resizeInset}
+            fade={<Fade />}
+            latest={onLatest && <LatestButton onPress={onLatest} />}
+          >
             <View pointerEvents="box-none" style={{ zIndex: 1, flexShrink: 1, minHeight: 0 }}>
               {/* Status rows and the tray share the composer's canvas and fade, so the feed passes under them. */}
               <View

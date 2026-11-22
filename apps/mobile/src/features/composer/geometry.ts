@@ -10,3 +10,6 @@ export const composerGeometry = {
 };
 
 export const threadComposerHeight = Object.values(composerGeometry).reduce((sum, size) => sum + size, 0);
+
+export const compactInputHeight = 44;
+export const compactThreadComposerHeight = compactInputHeight + composerGeometry.padding + composerGeometry.border;
