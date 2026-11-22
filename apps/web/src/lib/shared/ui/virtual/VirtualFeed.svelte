@@ -93,7 +93,7 @@
   /** From the footer's bottom to its visible top edge (footer-edge.ts). */
   let footerEdge = $state(0);
 
-  /** Width of the scroller's vertical scrollbar (the backdrop under the composer stops before it). */
+  /** Width reserved by the scroller for a classic scrollbar. */
   let gutter = $state(0);
   let measured = $state(0);
 
@@ -566,7 +566,11 @@
   const onkeydown = (event: KeyboardEvent) => navigateFeedKey(event, footerElement, scroller, positions, focusRow);
 </script>
 
-<div class="relative h-full">
+<div
+  class="feed-shell relative h-full [--feed-end-gap:--spacing(8)]"
+  style:--feed-edge="{footerEdge}px"
+  style:--feed-gutter="{gutter}px"
+>
   <!-- The viewport already has a fixed height and clips overflow. Size/layout/paint containment
        prevents growing descendants from invalidating the surrounding application layout. -->
   <!-- The labelled, focusable scroll region supports native scrolling keys. -->
@@ -610,7 +614,7 @@
   >
     <div class="chat-column flex min-h-full flex-col px-4 sm:px-6">
       <!-- A steady containing block: row transitions start and cancel without relayout of the list. -->
-      <div class="flex grow [transform:translateY(0)] flex-col pt-2 pb-8">
+      <div class="flex grow [transform:translateY(0)] flex-col pt-2 pb-(--feed-end-gap)">
         {@render top?.()}
         {#if rows.length === 0 && placeholder}<div class="mt-auto">{@render placeholder()}</div>{/if}
         <!-- Keys and focus bubble up from the focusable articles (WAI-ARIA feed). -->
@@ -657,23 +661,18 @@
   <div
     aria-hidden="true"
     class={[
-      "pointer-events-none absolute top-0 left-0 z-10 h-6 bg-linear-to-b from-surface to-transparent transition-opacity duration-(--duration-fast) ease-smooth-out motion-reduce:transition-none",
+      "pointer-events-none absolute top-0 right-(--feed-gutter) left-0 z-10 h-6 bg-linear-to-b from-surface to-transparent transition-opacity duration-(--duration-fast) ease-smooth-out motion-reduce:transition-none",
       scrollTop < 1 && "opacity-0",
     ]}
-    style:right="{gutter}px"
   ></div>
   <!-- The footer and its fade are siblings of the scroller. Resizing them cannot move a row,
      change the virtual window, or make the browser reveal a contenteditable's flow position. -->
-  <div class="pointer-events-none absolute bottom-0 left-0 isolate z-10 [contain:layout]" style:right="{gutter}px">
+  <div class="pointer-events-none absolute right-(--feed-gutter) bottom-0 left-0 isolate z-10 [contain:layout]">
     <div class="relative">
       <!-- Fade: the composer's shadow in the thread surface colour. Solid only below the composer's visible edge,
            then a gradient that starts right at that edge, so Jump to latest sits on the transition.
            The shell takes the footer's natural height; the rows' end space is the separate, steadier reserve. -->
-      <div
-        bind:this={footerShell}
-        class="absolute inset-x-0 bottom-0 isolate [--feed-fade:--spacing(16)]"
-        style:--feed-edge="{footerEdge}px"
-      >
+      <div bind:this={footerShell} class="absolute inset-x-0 bottom-0 isolate">
         <div class="[clip-path:inset(-2rem_-4px_0)]">
           <!-- svelte-ignore a11y_no_static_element_interactions -->
           <div class="chat-column px-4 sm:px-6" {onkeydown}>
@@ -688,10 +687,7 @@
             </div>
           </div>
         </div>
-        <div
-          class="absolute inset-x-0 bottom-0 -z-10 h-(--feed-edge) bg-surface before:absolute before:inset-x-0 before:bottom-full before:h-(--feed-fade) before:bg-linear-to-t before:from-surface before:to-transparent"
-          aria-hidden="true"
-        ></div>
+        <div class="footer-backdrop inset-x-0 -z-10" aria-hidden="true"></div>
         <FeedFooterActions
           accessory={footerAccessory}
           showJump={!stuck && extent.overflows && !extent.endVisible}
@@ -701,3 +697,21 @@
     </div>
   </div>
 </div>
+
+<style>
+  .feed-shell::before,
+  .footer-backdrop {
+    position: absolute;
+    bottom: 0;
+    height: calc(var(--feed-edge) + var(--feed-end-gap));
+    background: linear-gradient(to top, var(--color-surface) var(--feed-edge), transparent);
+    pointer-events: none;
+  }
+
+  /* Continue the backdrop under the transparent scrollbar track, behind the thumb. */
+  .feed-shell::before {
+    content: "";
+    right: 0;
+    width: var(--feed-gutter);
+  }
+</style>

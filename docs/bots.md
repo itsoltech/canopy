@@ -4,7 +4,9 @@ Status (2026-11-22): `read_thread` i `list_schedules` obsługują opcjonalny odc
 Dostępność w kanałach określa [promocja wydań](release.md).
 
 Status (2026-11-22): gateway udostępnia botom trwałe notatki na wszystkich ich workerach. Zakres narzędzi i
-kontekstu zależy od nadawcy oraz odbiorcy tury. Dostępność w kanałach określa [promocja wydań](release.md).
+kontekstu zależy od nadawcy oraz odbiorcy tury. W web/desktop gradient kompozytora mieści się
+w odstępie pod ostatnim wpisem i przechodzi pod paskiem przewijania.
+Dostępność w kanałach określa [promocja wydań](release.md).
 
 Status (2026-11-21): prywatny czat bota wyszukuje i odczytuje wybrane preferencje
 konta Canopy oraz zmienia jedną z nich po jednorazowej zgodzie właściciela.
