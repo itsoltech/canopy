@@ -878,6 +878,8 @@ jobs:
     needs: [release, publish-desktop]
     if: needs.release.outputs.channel == 'stable' || needs.release.outputs.channel == 'beta'
     uses: ./.github/workflows/backmerge.yml
+    secrets:
+      repository_deploy_key: ${{ secrets.RELEASE_DEPLOY_KEY }}
     with:
       stable_sha: ${{ needs.release.outputs.channel == 'stable' && (inputs.expected_sha || github.sha) || '' }}
       beta_sha: ${{ needs.release.outputs.channel == 'beta' && (inputs.expected_sha || github.sha) || '' }}
