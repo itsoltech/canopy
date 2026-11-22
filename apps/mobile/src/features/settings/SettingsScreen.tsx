@@ -65,16 +65,14 @@ export default function SettingsScreen() {
   return (
     <SettingsLayout section={section} onSelect={selectSection}>
       {device.error ? <Notice error>{device.error}</Notice> : null}
-      {settings.error ? (
+      {settings.error && section !== "appearance" ? (
         <View style={{ gap: 8 }}>
           <Notice error>{settings.error}</Notice>
           <Button title="Retry settings" onPress={() => void settings.reload()} />
         </View>
       ) : null}
       <SkeletonScope
-        loading={
-          !settings.user && !settings.error && ["general", "appearance", "threads", "text-generation"].includes(section)
-        }
+        loading={!settings.user && !settings.error && ["general", "threads", "text-generation"].includes(section)}
       >
         {section === "general" && <GeneralSettings />}
         {section === "app-updates" && (

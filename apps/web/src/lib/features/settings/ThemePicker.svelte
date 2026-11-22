@@ -12,7 +12,7 @@
   const modes: ThemeMode[] = ["light", "dark"];
 </script>
 
-<SettingsGroup title="Themes" description="Account · Your color scheme decides which palette Canopy shows.">
+<SettingsGroup title="Themes">
   <div class="@container p-(--settings-row-x)">
     <div class="grid grid-cols-2 gap-3 sm:gap-4">
       {#each modes as mode (mode)}

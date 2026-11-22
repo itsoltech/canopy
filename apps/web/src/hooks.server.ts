@@ -1,7 +1,7 @@
 import { building, dev } from "$app/env";
 import type { Handle, ServerInit } from "@sveltejs/kit/hooks";
-import { documentAttributes } from "#lib/features/settings/appearance.ts";
-import { shellAppearance } from "#lib/server/shell-appearance.ts";
+import { parseDeviceAppearance } from "@canopy/domain";
+import { appearanceCookie, documentAttributes } from "#lib/features/settings/appearance.ts";
 import { requireServiceToken } from "#lib/server/gateway.ts";
 import { desktopWebOrigin, trustedDesktopRequest } from "#lib/server/desktop-origin.ts";
 import { trustedDevRequest } from "#lib/server/dev-origin.ts";
@@ -11,10 +11,6 @@ export const init: ServerInit = () => {
   if (!building) requireServiceToken();
 };
 
-/**
- * The SPA shell carries the gateway's appearance on <html>; client components seed from it before
- * their first paint. The short cached lookup has a deadline, including when the gateway is down.
- */
 export const handle: Handle = async ({ event, resolve }) => {
   const desktopOrigin = desktopWebOrigin();
 
@@ -24,13 +20,12 @@ export const handle: Handle = async ({ event, resolve }) => {
   if (dev && !desktopOrigin && !trustedDevRequest(event.request, event.url))
     return new Response("Untrusted web origin", { status: 403, headers: { "cache-control": "no-store" } });
   const page = !event.isDataRequest && !event.url.pathname.startsWith("/api/");
-  const desktopStandalone = event.url.pathname === "/desktop" || event.url.pathname === "/desktop/migration";
-  const appearance = page && !desktopStandalone ? shellAppearance() : undefined;
+  const appearance = page ? parseDeviceAppearance(event.cookies.get(appearanceCookie) ?? null) : undefined;
   const identity = page && !building ? shellIdentity() : undefined;
 
   const response = await resolve(event, {
     transformPageChunk: async ({ html }) => {
-      const attributes = documentAttributes(await appearance);
+      const attributes = documentAttributes(appearance);
       const channel = await identity;
       attributes.set("%canopy.applicationName%", channel?.displayName ?? "Canopy");
       attributes.set("%canopy.channelAssets%", channel?.assets ?? "/channels/stable");
@@ -43,6 +38,9 @@ export const handle: Handle = async ({ event, resolve }) => {
     response.headers.set("cache-control", "no-store");
     response.headers.delete("etag");
   }
+
+  if (page && response.headers.get("content-type")?.startsWith("text/html"))
+    response.headers.set("cache-control", "private, no-store");
 
   return response;
 };

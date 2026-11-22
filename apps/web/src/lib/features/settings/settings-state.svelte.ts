@@ -7,9 +7,10 @@ import {
   type SandboxProfile,
   ui,
 } from "@canopy/contracts";
-import { enabledModules, type ModuleId } from "@canopy/domain";
+import { enabledModules, type DeviceAppearance, type ModuleId } from "@canopy/domain";
 import { deviceSidebarSettings, type DeviceSidebarValues } from "@canopy/domain/device-view";
 import { devicePreferences } from "./device-preferences.svelte.ts";
+import { appearanceState } from "./appearance-state.svelte.ts";
 import { HttpError, requestJson } from "#lib/shared/http.ts";
 import { decode, encode } from "#lib/shared/wire.ts";
 import { userTimeZone } from "#lib/shared/ui/date-time.ts";
@@ -22,7 +23,6 @@ export interface SettingsNotice {
 
 const userSchemas = {
   modules: ui.ModuleSettingsSchema,
-  appearance: ui.AppearanceSettingsSchema,
   threadDefaults: ui.ThreadDefaultsSchema,
   modelFavorites: ui.ModelFavoritesSchema,
   composer: ui.ComposerSettingsSchema,
@@ -68,12 +68,8 @@ export class SettingsState {
     projects: new Map(),
   };
 
-  constructor(initial: ui.GetSettingsResponse | undefined) {
-    if (initial) this.#replace(initial);
-  }
-
-  get appearance(): ui.AppearanceSettings {
-    return this.user.appearance ?? create(ui.AppearanceSettingsSchema);
+  get appearance(): DeviceAppearance {
+    return appearanceState.values;
   }
 
   get threadDefaults(): ui.ThreadDefaults {
@@ -306,10 +302,8 @@ export class SettingsState {
     }).catch(() => undefined);
   }
 
-  updateAppearance(
-    change: Partial<Omit<MessageShape<typeof ui.AppearanceSettingsSchema>, "$typeName">>,
-  ): Promise<void> {
-    return this.#writeUser("appearance", (current) => ({ ...current, ...change }));
+  updateAppearance(change: Partial<DeviceAppearance>): void {
+    appearanceState.update(change);
   }
 
   updateThreadDefaults(next: ui.ThreadDefaults): Promise<void> {

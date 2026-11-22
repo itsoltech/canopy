@@ -7,6 +7,8 @@ Konsolidacja przenosi [pamięć agentów i botów](agent-memory.md) wraz z danym
 właściciela i dostępnymi datami utworzenia notatek. Stan refleksji nawyków
 pozostaje na źródle.
 Ogłoszenia mDNS respektują sieci wybrane w [Network access](network-access.md).
+Bieżący wygląd zapisuje klient. Połączone gatewaye zachowują synchronizację
+dawnych wartości domyślnych dla zgodności ze starszymi klientami.
 Dostęp connectorów dla wątków należy do projektu i synchronizuje się z kontem
 connectora. Konsolidacja przenosi dostęp według zatwierdzonego wyboru konta.
 Wątek uruchomiony przez bota na połączonym komputerze może wysłać mu
@@ -505,7 +507,7 @@ Wspólne jest wszystko, co nie opisuje konkretnej maszyny. Szczegóły:
 
 | Zakres | Co obejmuje | Kto zapisuje |
 |---|---|---|
-| **Wspólne** (domyślnie) | ustawienia konta (wygląd, ogólne, kompozytor, domyślne ustawienia wątków bez workspace'u, generowanie tekstu, strefa, sidebar, domyślna częstotliwość sprawdzania CLI), instancje providerów (nazwa, rodzaj, endpoint, proxy, klucz, zmienne, kolor, modele, ustawienia CLI), proxy, projekty jako tożsamość i ich ustawienia, polityka worktree, biblioteka środowiska agentów (instrukcje, skille, pluginy, marketplace'y), connectory, ich konta, dostęp projektu i aplikacje OAuth | każdy komputer; wersja per pole |
+| **Wspólne** (domyślnie) | ustawienia konta (dawne domyślne wartości wyglądu, ogólne, kompozytor, domyślne ustawienia wątków bez workspace'u, generowanie tekstu, strefa, sidebar, domyślna częstotliwość sprawdzania CLI), instancje providerów (nazwa, rodzaj, endpoint, proxy, klucz, zmienne, kolor, modele, ustawienia CLI), proxy, projekty jako tożsamość i ich ustawienia, polityka worktree, biblioteka środowiska agentów (instrukcje, skille, pluginy, marketplace'y), connectory, ich konta, dostęp projektu i aplikacje OAuth | każdy komputer; wersja per pole |
 | **Komputer** | ścieżki CLI i katalogi domowe instancji, lokalizacja worktree, adresy, porty i dostęp sieciowy, łącza komputerów, sparowane telefony i klienty desktopu, enrollment workerów i klucze SSH, kanał aktualizacji, ustawienia powłoki desktopu, układ paneli i szerokość sidebara | tylko ten komputer |
 | **Worker** | nazwa, tagi, włączenie i nadpisania instancji na workerze, logowania natywne, workspace'y, worktree, nadpisanie częstotliwości sprawdzania CLI, ustawienia worktree workera | tylko dom workera; inne komputery widzą kopię i edytują przez wywołanie do domu |
 | **Urządzenie** | preferencje „This device” w przeglądarce lub aplikacji (localStorage) | ta przeglądarka; nigdy w bazie |
@@ -1621,7 +1623,7 @@ same na każdym komputerze:
 |---|---|---|
 | `instance:<harness>:<id>` | nazwa, rodzaj, endpoint, kolor, klucz API, zmienne (także sekretne) | ścieżki CLI, katalogi, argumenty, własne logowanie, workery i ich nadpisania, stan instalacji CLI |
 | `models:<harness>:<id>` | ulubione, ukryte, pokazane i własne modele instancji | — |
-| `settings:appearance` | schemat kolorów, osobne pełne palety Light / Dark, szerokość czatu | układ paneli i paska bocznego |
+| `settings:appearance` | dawne wartości domyślne schematu, palet i szerokości czatu, dla starszych klientów i pierwszego importu | bieżący wygląd klienta, układ paneli i paska bocznego |
 | `settings:thread_defaults` | dostawca, instancja, uprawnienia, modele | domyślny workspace |
 | `settings:timezone` | strefa IANA | — |
 | `settings:text_generation` | instancja, model, wysiłek, instrukcje tytułów | — |
@@ -2506,7 +2508,8 @@ Stos PR-ów: `feat/linked-shared-config-N` ([etapy](#etapy-wspólnej-konfiguracj
 
 | Dane | Źródło | Zakres | Powód |
 |---|---|---|---|
-| wygląd: schemat, akcent, palety Light/Dark, szerokość czatu | `user_settings.appearance` | wspólne | wybór użytkownika, nie ekranu |
+| bieżący schemat, palety Light/Dark, szerokość czatu | preferencje klienta | urządzenie | lokalny wygląd |
+| dawne wartości domyślne wyglądu | `user_settings.appearance` | wspólne | zgodność ze starszymi klientami i pierwszy import |
 | szerokość i zwinięcie sidebara, filtr, grupowanie, kolejność projektów, sekcja Working, tryb sortowania wątków, zwinięty panel wątku, rozwinięcie archiwum wątków/botów | preferencje urządzenia (web/desktop: profil przeglądarki, mobile: SecureStore) | urządzenie | stan konkretnego widoku; stare pola konta służą tylko jednorazowej inicjalizacji |
 | kolejność włączonych modułów Threads i Bots | `user_settings.settings.modules.enabled` | wspólne | jedna lista wersjonowana w całości |
 | ogólne (potwierdzenia), kompozytor (Enter w trakcie tury) | `user_settings.general`, `.composer` | wspólne | nawyki użytkownika |

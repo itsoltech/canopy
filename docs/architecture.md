@@ -8,6 +8,7 @@ z ręcznym Preview Browser/Desktop/Device oraz kanały botów Slack przez Socket
 z trwałym buforem wiadomości, aktualizacjami aktywnej tury i konfiguracją
 nasłuchiwania przez prywatną rozmowę z botem.
 Aktualizacja (2026-11-22): dostęp wątków do konektorów wynika z grantów projektów.
+Ustawienia Appearance są preferencjami klienta.
 BFF materializuje stan odczytu ze wspólnego gRPC overview
 i współdzieli go między oknami; dogrzewanie historii odbywa się w BFF.
 Logowanie użytkowników nie istnieje; otwarte decyzje są w §11. Ten dokument opisuje
@@ -112,6 +113,10 @@ HTTP/2 dla lokalnych i zdalnych unary oraz lokalnych i zdalnych subskrypcji, wi�
 akcja lub stream nie zajmuje lokalnych slotów. Szczegóły i czasy: [linked-computers.md](linked-computers.md#zsumowany-widok).
 
 ### Stan klienta: szkice i workspace wątku
+
+Schemat, palety i szerokość wątku są preferencjami lokalnego profilu klienta.
+Nowe klienty jednorazowo kopiują dawne ustawienia konta przy braku zapisu
+lokalnego. [Wygląd](appearance.md)
 
 Szkice kompozytora są prywatnymi danymi właściciela, oddzielonymi od historii.
 Klient zachowuje lokalny szkic dla każdego wątku i celu nowego wątku.

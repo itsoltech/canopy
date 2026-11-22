@@ -1,6 +1,7 @@
 # API dla UI i architektura frontendu
 
 Status (2026-11-22): web i desktop pozwalają zarządzać profilami Sandbox w ustawieniach i wybierać je w wątkach.
+Appearance zapisuje schemat, palety i szerokość wątku w profilu klienta.
 Gateway sprawdza wybrany profil przed wysłaniem synchronizowanego szkicu nowego wątku.
 Web, desktop i mobile oznaczają bota jako nadawcę wiadomości dołączanej do trwającej tury.
 web i desktop udostępniają Settings → Memory do przeglądania
@@ -2724,7 +2725,7 @@ Kod wg funkcji (`#lib/features/*`), kod tylko serwerowy w katalogach `server/` (
 | Ścieżka | Rola |
 |---|---|
 | `src/env.ts` | `GATEWAY_URL`, `GATEWAY_SERVICE_TOKEN` (`defineEnvVars`, odczyt przy starcie, nie przy buildzie) |
-| `src/hooks.server.ts`, `lib/server/shell-appearance.ts` | `init`: wymaga tokenu usługi; `handle`: wpisuje wygląd konta w `<html>` przez `transformPageChunk` (schemat, dwie palety inline, szerokość czatu). Geometria paneli zaczyna od domyślnych wartości i jest odtwarzana z lokalnego zakresu gatewaya; stare pola konta nie sterują powłoką. Cache wyglądu w procesie: 3 s, wspólne trwające pobranie, deadline 750 ms; podczas awarii ostatni znany wygląd albo domyślny. Zatwierdzony zapis przez BFF odświeża cache i chroni go przed spóźnionym odczytem. „System” rozstrzyga skrypt w `<head>`. Cache dotyczy obecnego pojedynczego użytkownika deweloperskiego |
+| `src/hooks.server.ts`, `features/settings/appearance-state.svelte.ts` | `init` wymaga tokenu usługi. `handle` wstawia do `<html>` schemat, dwie palety inline i szerokość czatu z walidowanego cookie klienta. Skrypt w `<head>` rozstrzyga System. Preferencje są lokalne, a ustawienia konta służą do jednorazowego importu przy braku zapisu. Geometria paneli jest odtwarzana z lokalnego zakresu gatewaya. |
 | `lib/server/gateway.ts` | klient gRPC z tokenem; `call` używa wspólnego `gateway-errors.ts`: `InvalidArgument` → 400, `FailedPrecondition` → 409, `Internal` → 500 z oczyszczonym komunikatem gatewaya, transportowe `Unavailable` → 502 „Could not reach the gateway. Check that it is running, then retry.”, domenowe `Unavailable` → 503 z powodem, deadline → 504; pozostałe nieoczekiwane błędy → 500. Komunikaty nie ujawniają adresów URL, tokenów ani lokalnych przyczyn transportu. `attempt` dla akcji formularzy zamienia 4xx w `fail` (komunikat przy formularzu) |
 | `lib/server/sse.ts`, `body.ts` | strumień gRPC → SSE: po krótkim sprawdzeniu gateway ramka `ready`, heartbeat co 10 s, przy błędzie ramka `failure`, a przy niedostępnym komputerze `away`; zerwanie połączenia z gatewayem bez `canopy-error-scope` (`canceled`, `unavailable`, `internal`, np. restart gatewaya) tylko zamyka odpowiedź, więc przeglądarka łączy się ponownie z backoffem bez zużywania budżetu napraw wątku; zwykłe wywołania gRPC mają deadline 3 s, strumienie bez limitu całkowitego czasu. Ścisłe dekodowanie JSON (nadmiarowe pola → 400): `readBody` (Effect Schema) i `readMessage` (wiadomość kontraktu w JSON protobuf) |
 | `lib/shared/wire.ts`, `http.ts` | JSON protobuf (`toJson` / `fromJson`) między serwerem a przeglądarką: te same schematy po obu stronach; `requestJson` (wywołania BFF z przeglądarki, `HttpError` ze statusem, np. 409) |

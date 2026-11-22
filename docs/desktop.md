@@ -4,7 +4,7 @@ Status: opis zaimplementowanego runtime i pakowania (2026-11-22), w tym dzienneg
 pingu użycia z przełącznikiem prywatności i pomijaniem wysyłki offline. Aktualizator używa
 `electron-updater` 6.8.11. Build i ustawienia
 udostępniają licencje dołączonych komponentów. Powłoka ładowania
-korzysta z ostatniego zapisanego wyglądu przy niedostępnym gatewayu. Build przypina Electron 45.4.1,
+korzysta z wyglądu tej instalacji także przy niedostępnym gatewayu. Build przypina Electron 45.4.1,
 Bun 1.4.5 i PostgreSQL 18.7 dla trybu lokalnego. Opis obejmuje też ograniczenia
 prywatnej kopii aktywnego wątku przed wysłaniem jej do procesu głównego oraz przekazywania
 systemowej zmiennej `OS` do instalatora Codex Standalone na Windows,
@@ -331,10 +331,11 @@ Pełne palety Light / Dark z Settings → Appearance obejmują też tło okna.
 Main zachowuje opcjonalny `appearance-cache.json` w userData (wyłącznie nazwy
 motywów i schemat), aby dobrać tło przed utworzeniem BrowserWindow. Preload
 odczytuje go przez walidowane synchroniczne IPC. Przed pierwszym renderem
-ekrany `/desktop` i `/desktop/migration` oraz powłoka aplikacji bez ustawień
-z gatewaya stosują te same tokeny co okno. Po połączeniu ustawienia właściciela
-z gatewaya mają pierwszeństwo i aktualizują cache oraz okno. Błąd zapisu cache
-nie blokuje zmiany kolorów.
+powłoka aplikacji oraz ekrany `/desktop` i `/desktop/migration` stosują paletę
+z profilu Electron lub z pliku startowego. Zmiany w Appearance aktualizują
+profil, kolory okna i plik startowy. Ustawienia właściciela z gatewaya służą
+do pierwszego importu przy braku zapisu lokalnego. Błąd zapisu cache nie
+blokuje zmiany kolorów.
 Szczegóły kontraktu i pomiarów opisuje [appearance.md](appearance.md).
 
 Linux i Windows używają `titleBarStyle: hidden` bez natywnego overlay. Minimize,

@@ -40,7 +40,7 @@ export function windowAppearance(): DesktopAppearance {
 
       if (isAppearance(value)) cached = value;
     } catch {
-      /* Startup cache is optional; gateway settings replace it when the page is ready. */
+      /* The renderer applies its browser profile's preferences when the page is ready. */
     }
   }
 

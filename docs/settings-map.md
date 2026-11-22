@@ -10,7 +10,8 @@ dostępność kanałów według [release.md](release.md).
 Status (2026-11-22): sprawdzanie nazw sekcji ustawień przez czat wdrożono w kodzie
 wątków i prywatnych rozmów bota. Odpowiedzi o Network access korzystają z opisu
 zakresu tej sekcji również przy nieznanym kliencie. Prywatny czat właściciela ma
-wyszukiwanie, odczyt i zatwierdzany zapis wybranych preferencji konta.
+wyszukiwanie, odczyt i zatwierdzany zapis dawnych domyślnych wartości wyglądu.
+Appearance w bieżących klientach jest zapisywane na urządzeniu.
 Dostępność wydań według [release.md](release.md).
 
 ## Nawigacja
@@ -82,15 +83,17 @@ obowiązuje też przy wznowieniu bez narzędzia.
 
 W prywatnym czacie właściciela `search_canopy_preferences` zwraca krótką listę
 dopasowań, do pięciu pozycji. `get_canopy_preference` odczytuje bieżącą wartość
-jednej pozycji, możliwe wybory, zakres i wersję ustawień konta. Dostępne są
+jednej pozycji, możliwe wybory, zakres i wersję ustawień konta. Wartość dotyczy
+starszych klientów i jednorazowego importu w nowych klientach. Dostępne są
 **Color scheme** (`appearance.color_scheme`) i **Thread width**
 (`appearance.thread_width`). Web, desktop i mobile korzystają z tych samych
 etykiet i opcji co narzędzia. Ścieżka kontrolki wymaga zgodnej, opublikowanej
 wersji klienta. Thread width jest widoczne przy włączonym module Threads.
 
 `set_canopy_preference` przyjmuje identyfikator, jedną z podanych wartości
-i wersję z odczytu. Karta pokazuje nazwę ustawienia, proponowaną wartość i efekt.
-Zapis następuje po zgodzie właściciela i zachowuje pozostałe preferencje. Odpowiedź
+i wersję z odczytu. Karta pokazuje nazwę ustawienia, proponowaną wartość i zakres.
+Zapis dawnej wartości domyślnej następuje po zgodzie właściciela. Zapisany już
+wygląd klienta edytuje się bezpośrednio w jego Settings → Appearance. Odpowiedź
 zawiera zapisaną wartość i nową wersję albo przyczynę odmowy. Lokalna konfiguracja
 urządzenia, poświadczenia, integracje, sieć, zasady bezpieczeństwa i uprawnienia
 są poza katalogiem. [Zgody i zakres](bots.md#harmonogramy-ustawienia-i-boty).
@@ -115,9 +118,9 @@ są poza katalogiem. [Zgody i zakres](bots.md#harmonogramy-ustawienia-i-boty).
 | Threads / Archived threads | Auto-delete archived threads; czas w dniach | konto/DB | Off | Trwałe usuwanie historii po 1–36500 dniach od archiwizacji, również istniejącego archiwum; jawny Save, wyłączenie zatrzymuje nowe usunięcia; pliki projektu pozostają, źródła potrzebne zachowanym forkom czekają |
 | Threads / Turn activity | While working | urządzenie | Expanded | Rozwinięta lub zwinięta praca podczas tury; Expanded pokazuje postęp, podsumowania rozumowania i narzędzia. Ręczny wybór foldu ma pierwszeństwo; osobny reset |
 | Threads / Turn activity | After the turn | urządzenie | Collapse | Collapse zamyka pracę przy niepustej odpowiedzi oznaczonej final_answer, a bez wiarygodnej fazy przy końcu tury; Keep open zostawia ją rozwiniętą. Czytana praca i ręczny wybór pozostają zachowane; osobny reset |
-| Appearance / Colors | Color scheme; Light theme; Dark theme | konto | System; Birch; Birch | Pełne palety, w tym Ash, niezależne dla obu trybów |
+| Appearance / Colors | Color scheme; Light theme; Dark theme | urządzenie | System; Birch; Birch | Pełne palety, w tym Ash, niezależne dla obu trybów |
 | Appearance / Interface | Contrast | urządzenie | Standard | Wzmocnienie kontrastu tekstu pomocniczego i obrysów w obu schematach |
-| Appearance / Interface | Thread width | konto | Comfortable | Szerokość wątku i kompozytora |
+| Appearance / Interface | Thread width | urządzenie | Comfortable | Szerokość wątku i kompozytora |
 | Appearance / Interface | Effort display | urządzenie | Name | Nazwa lub paski w kontrolkach wysiłku modelu, z dostępną nazwą |
 | Appearance / Interface | Context display | urządzenie | Off | Off / Circle / Text / Bar we wszystkich wątkach web/desktop; ostatni raport zajętości i limitu kontekstu, szczegóły po hoverze, fokusie klawiatury lub dotknięciu. Nie uwzględnia szkicu; brak pomiaru ukrywa wskaźnik, zachowując miejsce. Reset pola i całej strony przywraca Off |
 | Appearance / Interface | Render math | urządzenie | On | LaTeX w wiadomościach; wyłączenie pokazuje źródło |
@@ -180,8 +183,9 @@ Pola proto pozostają dla starych klientów. Nowe klienty nie zmieniają ich prz
 obsłudze widoku; synchronizacja konfiguracji nie eksportuje ani nie stosuje tych pól.
 Reset stron General/Appearance nie zmienia zapamiętanego stanu widoku.
 
-Audyt pozostałych pól konta: schemat/palety kolorów i szerokość czatu pozostają
-na koncie jako preferowany wygląd i długość wiersza, niezależne od geometrii paneli.
+Schemat i palety kolorów oraz szerokość czatu są częścią lokalnego Appearance.
+Przy pierwszym odczycie ustawień klient importuje stary wygląd, jeśli nie ma
+jeszcze zapisanego wyboru. [Zapis i pierwszy render](appearance.md#zapis-i-pierwszy-render).
 Potwierdzenia, domyślne nowego wątku i tryb Steer/Queue nadal opisują zachowanie.
 Przypięcia wątków/botów organizują zasoby i także pozostają na koncie. Nowe klienty
 zmieniają w sekcji `sidebar` wyłącznie przypięcia, zachowując stare pola dla migracji.
