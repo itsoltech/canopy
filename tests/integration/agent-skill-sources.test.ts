@@ -19,6 +19,8 @@ const repo = sourceRepository(root, "collection");
 const broken = sourceRepository(root, "broken");
 const registry = skillRegistry();
 const gitHttp = sourceGitHttp(root);
+const reviewDescription = "Review each patch carefully. ".repeat(50).trimEnd();
+const reviewDocument = `---\nname: review\ndescription: ${reviewDescription}\n---\nFirst reviewed version.\n`;
 let gateway: Awaited<ReturnType<typeof startTestGateway>>;
 let machine: Awaited<ReturnType<typeof skillMachine>>;
 let firstCommit: string;
@@ -32,8 +34,11 @@ const preview = (
 ) => gateway.api.previewSkillSource({ command, credentialAccountId });
 
 beforeAll(async () => {
-  repo.skill("skills/review", "review", "First reviewed version.");
+  repo.skill("skills/review", "review");
+  repo.file("skills/review/SKILL.md", reviewDocument);
   repo.skill("skills/testing", "tests");
+  repo.file("skills/broken/SKILL.md", "---\nname: broken\ndescription: Use these variants: first and second.\n---\n");
+  repo.file("website/favicon@2x.png", "Unrelated website asset");
   repo.file("LICENSE", "MIT fixture license");
   firstCommit = repo.commit();
   broken.skill("skills/bad", "bad");
@@ -90,9 +95,15 @@ describe("gateway skill source resolution and maintenance", () => {
     expect(resolved.source?.commit).toBe(firstCommit);
     expect(resolved.harnesses).toEqual(["claude", "codex"]);
     expect(resolved.deviceHome).toBe(true);
-    expect(resolved.skills[0]?.artifact?.files.find((f) => f.path === "scripts/check.sh")?.executable).toBe(true);
+    const artifact = resolved.skills[0]?.artifact;
+    expect(artifact?.description).toBe(`${reviewDescription.slice(0, 1023).trimEnd()}…`);
+    expect(artifact?.files.find((f) => f.path === "scripts/check.sh")?.executable).toBe(true);
+    expect(artifact?.files.some((f) => f.path.endsWith("favicon@2x.png"))).toBe(false);
+    expect(resolved.notices.some((notice) => notice.includes("skills/broken/SKILL.md"))).toBe(true);
+    expect(await failure(preview("fixture/collection/skills/broken"))).toContain("invalid YAML");
     expect((await snapshot()).revision).toBe(before.revision);
     expect(before.skills.length).toBe(0);
+    repo.git("rm", "skills/broken/SKILL.md", "website/favicon@2x.png");
     repo.skill("skills/review", "review", "Moved before confirmation.");
     repo.commit();
 
@@ -107,6 +118,7 @@ describe("gateway skill source resolution and maintenance", () => {
     expect((await current()).source?.commit).toBe(firstCommit);
     expect((await current()).source?.autoUpdate).toBe(false);
     await installed("First reviewed version.");
+    expect(readFileSync(join(machine.dataDir, "codex-home/skills/review/SKILL.md"), "utf8")).toBe(reviewDocument);
     expect(
       await failure(
         gateway.api.addSkillSource({
@@ -324,6 +336,10 @@ describe("gateway skill source resolution and maintenance", () => {
       expect(await failure(preview(command))).not.toBe("");
     }
 
+    broken.file("skills/bad/diagram@2x.png", "Nonportable skill asset");
+    broken.commit();
+    expect(await failure(preview("https://example.invalid/repo.git"))).not.toBe("");
+    broken.git("rm", "skills/bad/diagram@2x.png");
     broken.file("skills/bad/oversized.bin", new Uint8Array(1024 * 1024 + 1));
     broken.commit();
     expect(await failure(preview("https://example.invalid/repo.git"))).toContain("limit");
