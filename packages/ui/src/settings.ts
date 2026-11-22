@@ -163,14 +163,14 @@ export const settingsSections: readonly SettingsSection[] = [
   {
     href: "/settings/github",
     label: "GitHub",
-    icon: "link",
+    icon: "github",
     group: "Connections",
     keywords: "github account device code app installations repositories personal access token",
   },
   {
     href: "/settings/connectors",
     label: "Connectors",
-    icon: "link",
+    icon: "plug",
     group: "Connections",
     keywords:
       "github slack outlook microsoft notion linear google atlassian custom mcp server oauth accounts integrations access authentication endpoint url token secret headers client secret scopes",
@@ -178,7 +178,7 @@ export const settingsSections: readonly SettingsSection[] = [
   {
     href: "/settings/proxies",
     label: "Proxies",
-    icon: "link",
+    icon: "arrows-right-left",
     group: "Connections",
     keywords: "proxy cliproxyapi anthropic openai endpoint secret key connection",
   },

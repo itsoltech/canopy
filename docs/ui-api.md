@@ -34,7 +34,9 @@ Akcja Delete bot w web/desktop działa także dla aktywnego bota.
 Gateway ogranicza powtórki w strumieniu overview, a BFF współdzieli subskrypcję
 przy przełączaniu aktywnego wątku (§ „Współdzielone odczyty”).
 Wyszukiwarka ustawień podświetla dopasowania w otwartej sekcji z pominięciem treści dialogów.
-Boczne menu ustawień web/desktop znów pokazuje ikony obok etykiet sekcji.
+Boczne menu ustawień web/desktop pokazuje ikony obok etykiet sekcji. Web, desktop
+i mobile używają logo GitHuba w sekcji GitHub, wtyczki w Connectors i strzałek
+w przeciwnych kierunkach w Proxies.
 Settings → Open-source licenses w web/desktop pokazuje dołączone pakiety i pełną treść plików licencji.
 W web/desktop odmowa dostępu do schowka w trakcie parowania udostępnia w dialogu pełne zaproszenie desktopowe albo kod telefonu. Pole znika po zamknięciu dialogu, użyciu zaproszenia lub utracie jego ważności.
 Historia importu pokazuje wynik i rozwijane szczegóły, a harmonogram podaje wynik wykonania przed metadanymi.
