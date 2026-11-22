@@ -1,0 +1,20 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="128" height="128" viewBox="0 0 128 128" role="img" aria-label="Canopy">
+  <title>Canopy</title>
+  <rect width="128" height="128" rx="28" fill="#B8E886"/>
+  <g transform="translate(14 22) scale(.84)" fill="#20392D">
+    <path d="M123 -3
+             C117 17 107 30 89 37
+             C73 44 54 43 39 52
+             C47 38 57 28 73 21
+             C47 24 26 41 26 59
+             C26 73 37 81 52 81
+             C65 81 75 73 83 61
+             L101 75
+             C89 94 72 104 50 104
+             C20 104 0 84 0 57
+             C0 24 27 0 64 0
+             C76 0 85 2 96 2
+             C107 2 116 0 123 -3
+             Z"/>
+  </g>
+</svg>
