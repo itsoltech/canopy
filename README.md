@@ -10,7 +10,7 @@
   Respond to approval requests from your phone.
 </p>
 <p align="center">
-  <a href="https://github.com/itsoltech/canopy/releases/latest"><strong>Download Canopy ↓</strong></a>
+  <a href="https://canopy.itsol.tech/#download"><strong>Download Canopy ↓</strong></a>
   &nbsp;·&nbsp; <a href="#quickstart">Quickstart</a>
   &nbsp;·&nbsp; <a href="#documentation">Docs</a>
 </p>
