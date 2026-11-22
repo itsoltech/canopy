@@ -52,19 +52,23 @@ export const SLACK_BOT_SCOPES = [
   "users:read",
 ] as const;
 
+const slackBotFeatures = {
+  bot_user: { display_name: "Canopy", always_online: false },
+  app_home: { home_tab_enabled: false, messages_tab_enabled: true, messages_tab_read_only_enabled: false },
+};
+
+const slackBotSettings = {
+  org_deploy_enabled: false,
+  socket_mode_enabled: true,
+};
+
+const slackBotEvents = {
+  bot_events: ["app_mention", "message.im", "message.mpim", "message.channels", "message.groups"],
+};
+
 /** One app supplies MCP user authorization and the bot authorization used for Socket Mode. */
 export function slackAppManifest(redirectUrl: string) {
-  const manifest = {
-    display_information: {
-      name: "Canopy",
-      description: "Canopy agents read and send Slack messages for you. Made by IT SOL.",
-      // Emerald 700 from the Canopy palette (packages/ui/src/palette.json, the Grove accent).
-      background_color: "#007a55",
-    },
-    features: {
-      bot_user: { display_name: "Canopy", always_online: false },
-      app_home: { home_tab_enabled: false, messages_tab_enabled: true, messages_tab_read_only_enabled: false },
-    },
+  return manifestWithCreateUrl("Canopy agents read and send Slack messages for you. Made by IT SOL.", {
     oauth_config: {
       redirect_urls: [redirectUrl],
       scopes: { user: [...SLACK_USER_SCOPES], bot: [...SLACK_BOT_SCOPES] },
@@ -72,14 +76,31 @@ export function slackAppManifest(redirectUrl: string) {
     },
     settings: {
       is_mcp_enabled: true,
-      org_deploy_enabled: false,
-      socket_mode_enabled: true,
+      ...slackBotSettings,
       token_rotation_enabled: true,
       app_level_token_rotation_enabled: false,
-      event_subscriptions: {
-        bot_events: ["app_mention", "message.im", "message.mpim", "message.channels", "message.groups"],
-      },
+      event_subscriptions: slackBotEvents,
     },
+  });
+}
+
+export function slackBotAppManifest() {
+  return manifestWithCreateUrl("Canopy bots send and receive Slack messages. Made by IT SOL.", {
+    oauth_config: { scopes: { bot: [...SLACK_BOT_SCOPES] } },
+    settings: { ...slackBotSettings, event_subscriptions: slackBotEvents },
+  });
+}
+
+function manifestWithCreateUrl(description: string, options: { oauth_config: object; settings: object }) {
+  const manifest = {
+    display_information: {
+      name: "Canopy",
+      description,
+      // Emerald 700 from the Canopy palette (packages/ui/src/palette.json, the Grove accent).
+      background_color: "#007a55",
+    },
+    features: slackBotFeatures,
+    ...options,
   };
 
   return {

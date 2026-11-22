@@ -19,10 +19,10 @@ export const CONNECTOR_TYPES = [
   },
   {
     id: "slack",
-    name: "Slack",
+    name: "Slack User",
     url: "https://mcp.slack.com/mcp",
     authKinds: ["oauth"],
-    requirements: "Messages and channels through Slack's MCP server. Needs a Slack app.",
+    requirements: "Lets agents read and send messages as you through Slack's MCP server. Requires a Slack app.",
     documentationUrl: "https://docs.slack.dev/ai/slack-mcp-server/",
     authMethods: AUTH_METHODS.slack,
   },

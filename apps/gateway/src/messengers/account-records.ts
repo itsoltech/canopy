@@ -41,6 +41,7 @@ export const accountView = (row: AccountRow): MessengerAccount => ({
   provider: row.provider,
   externalId: row.external_id,
   connectorAccountId: row.connector_account_id ?? "",
+  requiresSlackUser: row.connector_client_id !== null,
   enabled: row.enabled,
   status: row.status,
 });

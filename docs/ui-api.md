@@ -53,8 +53,9 @@ kontrakt kompozytora i wątków udostępnia szybkość wykonania `service_tier`;
 Claude zachowuje 330 s dla interakcji mimo 15-minutowego limitu MCP dla publikacji obrazów;
 Preview web/desktop używa potwierdzeń klienta po narysowaniu klatki i zachowuje
 subskrypcję przy odświeżaniu metadanych celu oraz naprawie kursora historii;
-Settings → Connectors zarządza wspólnym kontem Slack i zgodą na wiadomości,
-a Bot settings → Messengers wybiera konto i trasy przez owner-scoped RPC i BFF; instrukcje tras określają
+Settings → Connectors pokazuje Slack User do autoryzacji MCP i osobną sekcję
+Slack Bot do konfiguracji wiadomości. Bot settings → Messengers wybiera konto
+Slack Bot i trasy przez owner-scoped RPC i BFF; instrukcje tras określają
 trwałe zachowanie dla źródła, a rozmowy korzystają z narzędzi przyznanych botowi;
 web/desktop ma osobny modal Usage z kosztami raportowanymi przez providerów
 i estymowaną równowartością API według cen OpenAI, wyświetlanymi z dokładnością do centa,
@@ -3629,13 +3630,15 @@ Gateway nie zapisuje patchy w bazie. Szczegóły granic i limitów:
 `ListMessengerAccounts`, `SaveMessengerAccount`, `DeleteMessengerAccount`,
 `ListBotMessengerRoutes`, `SaveBotMessengerRoute`, `DeleteBotMessengerRoute`.
 Publiczne konto zawiera nazwę, provider, identyfikator zewnętrzny, enabled, status
-i `connector_account_id`; żaden odczyt nie zawiera tokenów. Lista kont dodaje ten
-sam manifest i URL aplikacji co Connectors. Save przyjmuje `connector_account_id`
-oraz wyłącznie zapisywalny `app_token`; zapis tworzy stan `needs_authorization`
-do czasu dodatkowej zgody OAuth na wiadomości. `BeginConnectorOAuth.slack_messaging`
-wybiera bot OAuth tej samej zapisanej aplikacji Slack, zachowując poświadczenia MCP.
-Starszy zapis `app_token`/`bot_token` pozostaje obsługiwany, a pominięcie tokenów
-zachowuje dotychczasowe wartości. Identyfikator instalacji wynika z weryfikacji
+i `connector_account_id`. Pole `requires_slack_user` identyfikuje powiązanie także po
+usunięciu tego konta Slack User. Odczyty nie zawierają tokenów. Lista kont zawiera
+manifest i URL aplikacji Slack Bot oraz dotychczasowe pola manifestu aplikacji
+współdzielonej. Samodzielne połączenie przyjmuje wyłącznie zapisywalne `app_token`
+i `bot_token`. Dla aplikacji współdzielonej zapis przyjmuje `connector_account_id`
+i `app_token` i ustawia `needs_authorization` do czasu zgody OAuth bota.
+`BeginConnectorOAuth.slack_messaging` wybiera tę zgodę, zachowując poświadczenia
+MCP. `CompleteConnectorOAuthResponse.slack_messaging` oznacza wynik autoryzacji
+bota. Pominięcie tokenów zachowuje dotychczasowe wartości. Identyfikator instalacji wynika z weryfikacji
 w Slack, nie z żądania klienta.
 
 BFF wystawia `GET/POST /api/messengers/accounts`,
@@ -3647,10 +3650,11 @@ w komunikacie błędu. Poświadczenia trafiają tylko do gatewaya: brak zapisu
 w preferencjach, szkicach lub localStorage. Gateway wyprowadza właściciela
 z kontekstu, a store sprawdza własność kont i botów.
 
-Sekcja wiadomości w Settings → Connectors zapisuje token aplikacji i uruchamia
-zgodę OAuth przez `POST /api/connectors/:accountId/oauth` z `slackMessaging: true`.
-Pozwala wstrzymać odbiór, ponowić zgodę lub odłączyć wiadomości dla wszystkich
-botów. Bot settings → Messengers wybiera podłączone konto i zapisuje trasy,
+Sekcja Slack Bot w Settings → Connectors pozwala użyć niezależnej aplikacji
+Slack lub aplikacji zarejestrowanej w Slack User. Dla aplikacji współdzielonej
+uruchamia OAuth bota przez `POST /api/connectors/:accountId/oauth` z
+`slackMessaging: true`. Pozwala edytować konto, wstrzymać odbiór i usunąć trasy
+przez odłączenie Slack Bot. Bot settings → Messengers wybiera podłączone konto i zapisuje trasy,
 z odnośnikiem do globalnej konfiguracji. Trasa wymaga jawnej listy użytkowników, waliduje identyfikatory kanałów,
 wybiera DM, wzmianki i monitorowanie oraz dostawę do Slack lub Canopy.
 Monitorowanie jawnie informuje o turach i kosztach modelu. Instrukcje trasy są

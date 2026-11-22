@@ -10,12 +10,16 @@ message MessengerAccount {
   bool enabled = 5;
   string status = 6;
   string connector_account_id = 7;
+  // True for a bot authorized through Slack User, including when its connector account was removed.
+  bool requires_slack_user = 8;
 }
 message ListMessengerAccountsRequest {}
 message ListMessengerAccountsResponse {
   repeated MessengerAccount accounts = 1;
   string slack_app_manifest = 2;
   string slack_app_create_url = 3;
+  string slack_bot_app_manifest = 4;
+  string slack_bot_app_create_url = 5;
 }
 message SaveMessengerAccountRequest {
   string id = 1;

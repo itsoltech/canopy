@@ -45,6 +45,15 @@ export function messengerAccounts(sql: SqlClient.SqlClient, key: Buffer) {
     credentials: messengerCredentials(sql, key),
     savedCredentials: (owner: string, id: string) =>
       owned(owner, id).pipe(Effect.map((row) => openMessengerCredentials(key, row))),
+    standaloneCredentialsForSave: (owner: string, id: string) =>
+      owned(owner, id).pipe(
+        Effect.map((row) => {
+          if (row.connector_account_id || row.connector_client_id) return undefined;
+          const { appToken, botToken } = openMessengerCredentials(key, row);
+
+          return { appToken, botToken, revision: BigInt(row.revision) };
+        }),
+      ),
     saveAccount: saveMessengerAccount(sql, key, owned),
     deleteAccount: (owner: string, id: string) =>
       sql.withTransaction(

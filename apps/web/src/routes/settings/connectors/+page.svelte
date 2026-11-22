@@ -10,6 +10,7 @@
   import ConnectorIcon from "#lib/features/connectors/ConnectorIcon.svelte";
   import ConnectAccountDialog from "#lib/features/connectors/ConnectAccountDialog.svelte";
   import AccountDetail from "#lib/features/connectors/AccountDetail.svelte";
+  import SlackBotConnections from "#lib/features/connectors/SlackBotConnections.svelte";
   import Alert from "#lib/shared/ui/Alert.svelte";
   import Button from "#lib/shared/ui/Button.svelte";
   import InsetList from "#lib/shared/ui/InsetList.svelte";
@@ -57,6 +58,8 @@
 
   let selected = $state("");
   let connecting = $state(false);
+  let addingSlackBot = $state(false);
+  let slackBotReady = $state(false);
   let oauthCompletion = $state<connectors.CompleteConnectorOAuthResponse>();
   let oauthError = $state<connectors.ConnectorError>();
   let notice = $state(untrack(() => route.url.searchParams.get("connection")));
@@ -79,7 +82,10 @@
       oauthError = response?.failure;
 
       if (response?.account && !response.error) {
-        update(response.account, response.alreadyConnected);
+        if (response.slackMessaging) {
+          notice = "slack-bot-authorized";
+          window.dispatchEvent(new Event("messenger-accounts-changed"));
+        } else update(response.account, response.alreadyConnected);
         oauthCompletion = response;
       } else notice = "error";
     });
@@ -173,7 +179,8 @@
   {#each refreshing as computer (computer.nodeId)}
     <Alert>{computer.unavailableReason}</Alert>
   {/each}
-  {#if notice === "already-connected"}<Alert>Already connected.</Alert>{:else if notice === "connected"}<Alert
+  {#if notice === "slack-bot-authorized"}<Alert>Slack Bot authorized.</Alert
+    >{:else if notice === "already-connected"}<Alert>Already connected.</Alert>{:else if notice === "connected"}<Alert
       >Account connected. Manage access from the account menu.</Alert
     >{:else if notice === "error" && oauthError}<ConnectionError
       error={oauthError}
@@ -193,12 +200,18 @@
           class="max-w-full"
           ><ConnectorIcon type={entry.id} class="shrink-0" /><span class="min-w-0 truncate">{entry.name}</span></Button
         >
+        {#if entry.id === "slack" && settings.moduleEnabled("bots")}
+          <Button size="sm" disabled={!slackBotReady} onclick={() => (addingSlackBot = true)}>
+            <ConnectorIcon type="slack" />
+            Slack Bot
+          </Button>
+        {/if}
       {/each}
     </div>
   </section>
-  <section aria-label="Connected accounts" class="grid gap-4">
-    <h2 class="text-lg font-semibold text-balance">Your accounts</h2>
-    {#if accounts.length}<InsetList label="Your accounts">
+  <section aria-label="Tool accounts" class="grid gap-4">
+    <h2 class="text-lg font-semibold text-balance">Tool accounts</h2>
+    {#if accounts.length}<InsetList label="Tool accounts">
         {#each accounts as account (account.id)}
           {@const entry = catalog.types.find((t) => t.id === account.connectorType)}
           {#if entry}<li>
@@ -218,5 +231,13 @@
         No accounts connected yet.
       </p>{/if}
   </section>
+  {#if settings.moduleEnabled("bots")}
+    <SlackBotConnections
+      slackUsers={accounts.filter((account) => account.connectorType === "slack")}
+      {oauthCompletion}
+      bind:adding={addingSlackBot}
+      bind:ready={slackBotReady}
+    />
+  {/if}
 </div>
 {#if connecting && type}<ConnectAccountDialog bind:open={connecting} {type} {oauthCompletion} onsave={update} />{/if}

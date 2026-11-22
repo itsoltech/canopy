@@ -3,15 +3,17 @@
 Projekt i wdrożenie: 2026-11-02. Zakres: konta zdalnych serwerów MCP,
 OAuth w gateway, dostęp wybranych projektów i botów oraz jeden kanał wykonania.
 Status (2026-11-22): dostęp wątków do kont wynika z grantów projektów.
-Jedno konto Slack w Settings → Connectors współdzieli aplikację
-OAuth dla narzędzi MCP i wiadomości botów przez Socket Mode. Bot settings → Messengers
-wybiera podłączone konto i trasy; gateway odnawia rotowane tokeny użytkownika i bota.
+Settings → Connectors rozróżnia **Slack User** (narzędzia MCP działające jako
+użytkownik) i **Slack Bot** (wiadomości przez Socket Mode). Bot settings → Messengers
+wybiera konto Slack Bot i jego trasy. Dotychczasowe połączenia i trasy zachowują
+identyfikatory, a gateway nadal odnawia rotowane tokeny współdzielonych aplikacji.
 Pole Projects w karcie konta obejmuje wszystkie wątki w wybranych projektach,
 na każdym workerze projektu. Wątki nadal stosują swój tryb uprawnień. Dostęp botów ustawia się w Bots.
 Zgoda na zapis MCP obejmuje konkretną operację. Synchronizacja rozpoznaje podmiot OAuth,
 a połączenia z adresami podanymi przez discovery przechodzą kontrolę DNS.
 Usunięcie bota odłącza jego przypisania i trasy od współdzielonych kont.
-Po włączeniu wiadomości konto udostępnia też sformatowaną wysyłkę jako Canopy przez Slack Web API.
+Połączenie Slack Bot korzystające z aplikacji Slack User udostępnia też
+sformatowaną wysyłkę jako Canopy przez Slack Web API.
 Bot i jego rutyny mogą korzystać ze stałej zgody właściciela na wysyłkę do wybranej rozmowy Slack.
 Boty i wątki mogą pobierać udostępnione pliki Slack, a wiadomości Socket Mode mogą zawierać załączniki.
 Log gatewaya pokazuje odbiór zdarzeń Socket Mode, przyczyny pominięcia,
@@ -290,7 +292,7 @@ pobranych bajtów. Odczyt z konektora wymaga capability `agent_tool_attachments_
 
 ### Bezpośrednia wysyłka w Slacku
 
-Po włączeniu wiadomości na koncie Slack w Settings → Connectors gateway
+Po autoryzacji Slack Bot korzystającego z aplikacji Slack User gateway
 udostępnia narzędzie `canopy_post_slack` botom i wątkom w projektach z grantem tego konta.
 Aplikacja musi mieć dostęp do rozmowy w Slacku. Używa istniejącego bot scope
 `chat:write`. Trasa nasłuchiwania nie jest potrzebna do wysyłki.
@@ -373,9 +375,9 @@ Usługa bez DCR (`oauth_app_required`: GitHub, Slack) pokazuje formularz aplikac
 ze stałym redirect URL (`redirect_url`), dopóki aplikacja nie zostanie zapisana; w innych
 typach scopes i zarejestrowana aplikacja oraz własne nagłówki są opcjami Advanced.
 
-**Jedna aplikacja Slack dla Canopy.** Slack nie ma DCR, więc właściciel zapisuje
-client ID i secret swojej aplikacji w Settings → Connectors. Gateway buduje wspólny
-manifest (`apps/gateway/src/connectors/slack-app.ts`, pola `app_manifest`
+**Slack User.** Slack nie ma DCR, więc właściciel zapisuje client ID i secret
+swojej aplikacji w Settings → Connectors i loguje się na konto użytkownika.
+Gateway buduje wspólny manifest (`apps/gateway/src/connectors/slack-app.ts`, pola `app_manifest`
 i `app_create_url`): nazwa „Canopy”, stały redirect URL, user scopes narzędzi MCP,
 bot scopes wiadomości, bot user, App Home, subskrypcje zdarzeń,
 `settings.is_mcp_enabled: true`, `settings.socket_mode_enabled: true`, PKCE S256
@@ -392,10 +394,10 @@ Następnie trzeba ponownie zainstalować aplikację. Włączonej rotacji tokenó
 nie pozwala wyłączyć; Canopy obsługuje ją także dla tokenu bota. „Use an existing
 Slack app” korzysta z tego samego client ID i secret, bez tworzenia drugiej aplikacji.
 
-Narzędzia MCP i wiadomości wymagają osobnych zgód OAuth, ale używają jednej
-zarejestrowanej aplikacji i jednego konta w Canopy. MCP korzysta z user OAuth;
-sekcja wiadomości tego samego konta pobiera bot token przez standardowy OAuth
-Slack. Konfigurację odbioru opisuje [sekcja komunikatora](#slack-jako-komunikator-bota).
+Slack User przyznaje dostęp użytkownika do MCP. Przy konfiguracji Slack Bot
+właściciel może wybrać tę samą aplikację i udzielić osobnej zgody OAuth na
+dostęp bota. Slack Bot obsługuje też niezależną aplikację. Konfigurację odbioru
+opisuje [sekcja komunikatora](#slack-jako-komunikator-bota).
 
 ### Slack: wymagania i diagnoza
 
@@ -489,13 +491,15 @@ narzędzie w rzeczywistym modelu Codexa.
 
 ## Slack jako komunikator bota
 
-Settings → Connectors zarządza wspólnym kontem Slack oraz jego sekcją wiadomości.
-Właściciel zapisuje app-level token `xapp-…` z `connections:write`, a następnie
-udziela zgody na wiadomości w Slack przez OAuth tej samej aplikacji, której używa
-MCP. Bot token i refresh token wracają bezpośrednio do gatewaya; nie trzeba
-kopiować tokenu bota. Oba flow zachowują stały callback, stan jednorazowy,
-powiązanie z właścicielem i przeglądarką oraz PKCE S256. Zgoda na wiadomości
-nie nadpisuje tokenów MCP.
+W Settings → Connectors → Slack Bot właściciel może utworzyć aplikację z manifestu
+dla bota i zainstalować ją w workspace. Przy wyłączonej rotacji zapisuje app-level
+token `xapp-…` z `connections:write` oraz Bot User OAuth Token `xoxb-…` z tej samej
+aplikacji. Połączenie działa bez konta Slack User.
+
+Jeżeli właściciel wybierze aplikację zarejestrowaną w Slack User, podaje tylko
+app-level token i autoryzuje Slack Bot w Slacku. Gateway odbiera bot token i refresh
+token przez OAuth ze stałym callbackiem, stanem jednorazowym, powiązaniem z
+właścicielem i przeglądarką oraz PKCE S256. Zgoda bota zachowuje tokeny MCP.
 
 Aplikację należy zaprosić do wybranych kanałów; po zmianie scopes lub manifestu
 trzeba ją ponownie zainstalować. Dla automatycznego odbioru udostępnionych plików
@@ -514,11 +518,13 @@ Odnawianie tokenu użytkownika MCP również zapisuje trwałą próbę przed sie
 nieznanego wyniku nie ponawia po restarcie. Zmiana workspace w zgodzie MCP, także
 przez synchronizację z innym komputerem, wymaga ponownej zgody na wiadomości.
 Tokeny i client secret są szyfrowane, nie trafiają do modeli ani workerów;
-odczyty UI zawierają tylko publiczne metadane. Starsze konta z ręcznym bot tokenem
-pozostają obsługiwane; powiązanie tej samej instalacji zachowuje konto i jego trasy.
+odczyty UI zawierają tylko publiczne metadane. Dotychczasowe konta pojawiają się
+w sekcji Slack Bot. Powiązanie tej samej instalacji z aplikacją Slack User
+zachowuje konto i jego trasy.
 
-Wyłączenie lub odłączenie konta w Connectors oraz zmiana client ID aplikacji
-odcinają odbiór, nowe działania tur zewnętrznych i wysyłkę. Ponowna autoryzacja
+Wstrzymanie Slack Bot odcina odbiór, nowe działania tur zewnętrznych i wysyłkę.
+Dla aplikacji współdzielonej ten sam skutek ma odłączenie powiązanego konta Slack
+User lub zmiana client ID aplikacji. Ponowna autoryzacja
 przywraca dostęp dopiero po sprawdzeniu tożsamości; usunięcie konta wiadomości
 usuwa jego trasy. Przy pobieraniu z kolejki i osobno przed rozpoczęciem każdego
 żądania do Slacka gateway sprawdza dzierżawę konta, aktywność bota i trasy, kanał,

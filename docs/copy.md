@@ -105,9 +105,12 @@ appear only as the literal name used by an external tool).
 | directory | a directory on disk | folder (exception: a "skill folder" picked in the file manager) |
 | worktree | a git worktree, managed by Canopy or created outside it | branch copy, checkout |
 | bot | a conversational partner on the gateway that remembers the conversation | assistant, agent |
-| messenger account | a reusable message connection linked to a connected Slack account, managed in Settings → Connectors | connector, MCP account |
+| Slack User | a connected Slack account that lets agents use Slack tools as the signed-in user | Slack (when distinguishing from Slack Bot) |
+| Slack Bot | a Slack app connection that receives and replies to messages as the app’s bot | Slack messages |
+| messenger account | a reusable message connection managed in Settings → Connectors → Slack Bot | connector, MCP account |
 | message route | a bot’s allowed senders, channels and response destination for a connected messenger account | subscription, webhook |
 | connected account | an external app account from Settings → Connectors | integration, service, app login |
+| Tool accounts | the section for connected accounts that provide tools to agents and bots | Your accounts (when distinguishing from Slack Bot accounts) |
 | allowed action | a standing bot approval rule explicitly saved by the owner | trusted prompt, automatic grant |
 | schedule | a scheduled message or wake-up | cron, job, timer |
 | skill, plugin, marketplace | items in Agent environment | extension, add-on |

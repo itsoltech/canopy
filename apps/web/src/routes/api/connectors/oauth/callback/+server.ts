@@ -6,6 +6,7 @@ import { desktopWebOrigin } from "#lib/server/desktop-origin.ts";
 
 export const GET: RequestHandler = async ({ url, cookies }) => {
   let connectorType: string | undefined;
+  let slackMessaging = false;
 
   try {
     const response = await gateway().completeConnectorOAuth(
@@ -19,10 +20,13 @@ export const GET: RequestHandler = async ({ url, cookies }) => {
       { timeoutMs: 60_000 },
     );
 
-    if (response.account && !response.error) connectorType = response.account.connectorType;
+    if (response.account && !response.error) {
+      connectorType = response.account.connectorType;
+      slackMessaging = response.slackMessaging;
+    }
   } catch {
     /* Codes, tokens and provider errors never enter logs or the result page. */
   }
 
-  return connectorOAuthResult(connectorType, Boolean(desktopWebOrigin()));
+  return connectorOAuthResult(connectorType, Boolean(desktopWebOrigin()), slackMessaging);
 };

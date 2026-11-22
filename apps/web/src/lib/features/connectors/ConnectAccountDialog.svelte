@@ -76,7 +76,7 @@
     seenCompletion = oauthCompletion;
     const completed = oauthCompletion?.account;
 
-    if (open && waiting && completed && completed.id === savedAccount?.id)
+    if (open && waiting && !oauthCompletion?.slackMessaging && completed && completed.id === savedAccount?.id)
       untrack(() => connected(completed, oauthCompletion?.alreadyConnected));
   });
 
