@@ -1,7 +1,6 @@
 import { useState } from "react";
 import { Text, View } from "react-native";
 import { confirm } from "../../ui/Confirm";
-import { router } from "expo-router";
 import { openSettingsSection } from "../settings/navigation";
 import type { bots } from "@canopy/contracts";
 import { useSession } from "../../state/session";
@@ -9,6 +8,7 @@ import { Button, Notice } from "../../ui/components";
 import { styles, useColors } from "../../ui/theme";
 import { ConnectorList, useConnectors } from "../connectors/Connectors";
 import { ItemComputerMove } from "../settings/ItemComputerMove";
+import { useDeleteBot } from "./useDeleteBot";
 
 export function BotSettingsExtras({
   bot,
@@ -20,6 +20,7 @@ export function BotSettingsExtras({
   disabled: boolean;
 }) {
   const { client } = useSession();
+  const deleteBot = useDeleteBot();
   const { list, error: connectionsError } = useConnectors(undefined, bot.id);
   const c = useColors();
   const [busy, setBusy] = useState(false);
@@ -27,15 +28,14 @@ export function BotSettingsExtras({
   const [moving, setMoving] = useState(false);
 
   async function act(remove: boolean) {
+    if (!client) return;
     setBusy(true);
 
     try {
-      if (remove) await client!.api.deleteBot({ botId: bot.id });
-      else if (bot.archived) await client!.api.unarchiveBot({ botId: bot.id });
-      else await client!.api.archiveBot({ botId: bot.id });
+      if (remove) await deleteBot(bot.id);
+      else if (bot.archived) await client.api.unarchiveBot({ botId: bot.id });
+      else await client.api.archiveBot({ botId: bot.id });
       onClose();
-
-      if (remove) router.replace("/");
     } catch {
       setError(remove ? "Could not delete this bot. Try again." : "Could not archive this bot. Try again.");
     } finally {

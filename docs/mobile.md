@@ -8,6 +8,7 @@ domyślnie zwija kroki do wiersza „Thread prepared”. Na szerokim oknie iOS i
 sidebar i rozmowa przesuwają wspólną krawędź podczas zwijania i rozwijania.
 Uchwyt na tej krawędzi zmienia szerokość sidebara i zapisuje ją lokalnie.
 Pasek wątków ma osobne przyciski sortowania i filtrowania po projekcie.
+Usunięcie otwartego bota z paska bocznego lub jego ustawień zamyka jego rozmowę.
 Nagłówek sidebara pokazuje kanał aplikacji. Nightly, Beta i Dev mają delikatny
 gradient i słoje drzewa w barwie kanału, tak jak w web i desktop.
 Licznik i akcja Update all na telefonie wynikają z planu instalacji Canopy.
@@ -1214,6 +1215,9 @@ Panel bota pozwala wstrzymać/włączyć i usunąć rutynę oraz anulować przyp
 Usunięcie rutyny wymaga potwierdzenia. Akcje są dostępne wyłącznie przy aktywnym
 odczycie rozmowy i dostępnym domu. Menu bota (przycisk lub długie przytrzymanie
 wiersza) obsługuje przypinanie, edycję, archiwizację, usuwanie i przenoszenie.
+Po potwierdzeniu usunięcia przez gateway klient usuwa bota ze wspólnej listy.
+Jeśli jego rozmowa jest otwarta, telefon wraca do listy Bots, a szeroki układ
+pokazuje w prawym panelu wybór rozmowy. Usunięcie innego bota pozostawia otwartą rozmowę.
 Sekcja **Archived bots** udostępnia archiwum i przywracanie rozmów.
 
 Kreator otwiera wybór pierwszego modelu. Walidacja nazwy (w tym duplikatów)

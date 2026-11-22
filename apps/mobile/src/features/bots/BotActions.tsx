@@ -10,11 +10,13 @@ import { Button, Notice, Sheet } from "../../ui/components";
 import { confirm } from "../../ui/Confirm";
 import { BotSettings } from "./BotSettings";
 import { ItemComputerMove } from "../settings/ItemComputerMove";
+import { useDeleteBot } from "./useDeleteBot";
 
 export function BotActions({ bot, visible, onClose }: { bot: bots.Bot; visible: boolean; onClose: () => void }) {
   const settings = useAppearance();
   const { client, online } = useSession();
   const refreshBots = useRefreshBots();
+  const deleteBot = useDeleteBot();
   const home = useComputerHome(bot.nodeId);
   const [panel, setPanel] = useState("");
   const [busy, setBusy] = useState(false);
@@ -39,10 +41,11 @@ export function BotActions({ bot, visible, onClose }: { bot: bots.Bot; visible: 
               : [...(sidebar?.pinnedBotIds ?? []), bot.id],
           }),
         });
-      else if (kind === "delete") await client.api.deleteBot({ botId: bot.id });
+      else if (kind === "delete") await deleteBot(bot.id);
       else if (bot.archived) await client.api.unarchiveBot({ botId: bot.id });
       else await client.api.archiveBot({ botId: bot.id });
-      await refreshBots();
+
+      if (kind !== "delete") await refreshBots();
       await settings.reload();
       onClose();
     } catch {
