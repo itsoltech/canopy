@@ -283,7 +283,8 @@ export function busScheduleStore(sql: SqlClient.SqlClient): BusScheduleStore {
     listSchedules: (callerId) =>
       sql<ScheduleRow>`
             SELECT s.* FROM schedules s JOIN threads t ON t.id = s.thread_id
-             WHERE (t.id = ${callerId}::uuid OR t.parent_thread_id = ${callerId}::uuid) AND s.status IN ('active', 'paused')
+              JOIN threads c ON c.id=${callerId}::uuid AND (c.memory_audience='' OR c.memory_audience=t.memory_audience)
+             WHERE (t.id = c.id OR t.parent_thread_id = c.id) AND s.status IN ('active', 'paused')
              ORDER BY s.next_run_at NULLS LAST`,
 
     cancelSchedule: (scheduleId) =>

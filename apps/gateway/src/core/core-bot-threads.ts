@@ -6,6 +6,7 @@ import { BotStore } from "../bots/store.ts";
 import type { BotTurn, StoredCall } from "../bots/types.ts";
 import { delegationPrompt } from "../bots/external-instructions.ts";
 import { coreRedeliver } from "./core-commands.ts";
+import { botThreadAudience, requireThreadAudience } from "./bot-thread-audience.ts";
 import { coreState, InvalidError } from "./core-context.ts";
 import { corePublishSteer } from "./core-messages.ts";
 import type { GatewayCore } from "./core.ts";
@@ -44,6 +45,10 @@ export const coreBotThreadsMethods: CoreBotThreadsMethods = {
   /** Bot actions use the UI's validation, with creation, worker outbox, watch and result in one transaction. */
   async startBotThread(this: GatewayCore, turn: BotTurn, call: StoredCall, request: ui.CreateThreadRequest) {
     return this.botAction(turn, call, async () => {
+      const memoryAudience = await botThreadAudience(this, turn);
+
+      if (request.forkThreadId || request.parentThreadId)
+        await requireThreadAudience(this, request.forkThreadId || request.parentThreadId, memoryAudience, true);
       const initialAttachmentIds = await copyConversationFiles(this, turn, call);
       const bot = await this.bots.get(turn.bot_id);
       const defaults = await this.settings();
@@ -58,7 +63,7 @@ export const coreBotThreadsMethods: CoreBotThreadsMethods = {
         }),
         undefined,
         false,
-        { startedByBot: turn.bot_id },
+        { startedByBot: turn.bot_id, memoryAudience },
       );
 
       const turnId = await this.watchBotThread(turn, call, thread.id);
@@ -111,6 +116,7 @@ export const coreBotThreadsMethods: CoreBotThreadsMethods = {
     if (delivery !== "queue" && delivery !== "steer") throw new InvalidError("delivery must be queue or steer");
 
     const result = await this.botAction(turn, call, async () => {
+      await requireThreadAudience(this, threadId, await botThreadAudience(this, turn), true);
       const thread = await this.getThread(threadId);
       const attachmentIds = await copyConversationFiles(this, turn, call);
 

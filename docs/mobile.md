@@ -1,7 +1,7 @@
 # Canopy na iOS i Android
 
 Status: opis zaimplementowanego kodu (2026-11-22). Profile EAS przypinają Bun 1.4.5
-dla lockfile w wersji 3. Opis obejmuje import skilli z publicznych
+dla lockfile w wersji 3. Opis obejmuje Settings → Memory, import skilli z publicznych
 witryn HTTPS, usypianie wątków, dostępny offline wykaz licencji open source
 oraz osobne aktualizacje Canopy i CLI dostawców. Na szerokim oknie iOS i Androida
 sidebar i rozmowa przesuwają wspólną krawędź podczas zwijania i rozwijania.
@@ -2235,6 +2235,12 @@ Keybindings jest wyszukiwalną referencją dla klawiatur sprzętowych, bez edycj
 przeglądarki. Kontrolki lokalnego procesu Electron i jego updatera są ukryte jak w web
 remote; aktualizacje gatewaya/workera pozostają w Workers. Powiadomienia systemowe są
 oznaczone jako niedostępne w tym buildzie, bez pozornego przełącznika push.
+Settings → Memory pojawia się, gdy gateway obsługuje listę, zapis i usuwanie notatek.
+Lista pokazuje kolejne strony i pozwala filtrować zakres projektu, workera, bota lub rozmowy.
+Arkusz pokazuje całą notatkę i pozwala zmienić tytuł, treść, aliasy i przypięcie.
+Usunięcie wymaga potwierdzenia. Zapis i usunięcie sprawdzają rewizję. Po konflikcie
+użytkownik może wczytać aktualną wersję do porównania, zachowując zmienione pola szkicu.
+
 Settings → Import pokazuje przebiegi importu CLI: postęp, datę, liczniki, bieżący wątek i akcje
 Cancel, Resume / Retry failed oraz Remove imported items z potwierdzeniem. Aktywny przebieg
 odświeża listę co 3 s, gdy aplikacja jest na pierwszym planie. Nieudane przywrócenie pozwala

@@ -10,7 +10,7 @@ const NOTICE_SOURCE = 2000;
 // List consumers need the UI row, never agent instructions, handoff or title-generation context.
 const LIST_COLUMNS = `t.id,t.project_id,t.owner_user_id,t.kind,t.parent_thread_id,t.remote_parent_ref,
   t.remote_parent_kind,t.remote_parent_detached,t.root_thread_id,t.depth,t.origin,t.schedule_id,t.schedule_name,
-  t.schedule_run,t.interaction_route,t.agent_id,t.runtime,t.provider,t.provider_profile_id,t.worker_id,
+  t.memory_audience,t.schedule_run,t.interaction_route,t.agent_id,t.runtime,t.provider,t.provider_profile_id,t.worker_id,
   t.workspace_id,t.cwd,t.fork_source_thread_id,t.fork_after_turn_id,t.status,t.status_detail,t.title,t.permission_mode_selected,
   t.title_source,t.title_revision,t.title_requested,t.last_seq,t.created_at,t.archived_at,t.archived_by,
   t.archived_by_thread_id,t.deleted_at,t.snoozed,t.snoozed_until,t.worktree_id,t.creation_request_id,t.preparation_fingerprint,

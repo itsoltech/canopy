@@ -13,6 +13,7 @@ test("Grok MCP rejects unauthenticated/unknown tools and preserves connector acc
     depth: 0,
     turnId: () => "turn",
     agentBus: false,
+    enableMemory: true,
     connectorTools: [
       create(ConnectorToolSchema, {
         accountId: "account",
@@ -78,6 +79,23 @@ test("Grok MCP rejects unauthenticated/unknown tools and preserves connector acc
 
     expect(((await denied.json()) as { error: unknown }).error).toBeTruthy();
     expect(calls).toHaveLength(1);
+    await fetch(bus.server.url, {
+      ...request,
+      headers,
+      body: JSON.stringify({
+        jsonrpc: "2.0",
+        id: 3,
+        method: "tools/call",
+        params: { name: "memory_search", arguments: { queries: ["release"] } },
+      }),
+    });
+    expect(calls[1]).toMatchObject({
+      threadId: "thread",
+      turnId: "turn",
+      toolName: "memory_search",
+      connectorAccountId: "",
+      argumentsJson: '{"queries":["release"]}',
+    });
   } finally {
     bus.close();
   }

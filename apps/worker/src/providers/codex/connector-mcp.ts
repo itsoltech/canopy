@@ -1,4 +1,5 @@
 import type { ThreadSpec } from "@canopy/contracts";
+import { threadMemoryTools } from "../memory-tools.ts";
 import { Effect } from "effect";
 import { platformMcp, type PlatformMcp } from "../mcp-bus.ts";
 import type { CodexThreadContext } from "./thread-types.ts";
@@ -12,7 +13,12 @@ const botTools = (spec?: ThreadSpec) =>
   spec?.enableAgentBus && spec.hasDelegatingBot ? (["message_delegating_bot"] as const) : [];
 
 const catalogKey = (spec: ThreadSpec) =>
-  JSON.stringify([connectorSessionCatalog(spec.connectorTools), botTools(spec), automationMcpKey(spec)]);
+  JSON.stringify([
+    connectorSessionCatalog(spec.connectorTools),
+    botTools(spec),
+    spec.enableMemory,
+    automationMcpKey(spec),
+  ]);
 
 /** A private transport per thread; external credentials and authorization remain in the gateway. */
 export function codexConnectorMcp(ctx: CodexThreadContext) {
@@ -43,6 +49,9 @@ export function codexConnectorMcp(ctx: CodexThreadContext) {
       bridge = platformMcp({
         threadId: spec.threadId,
         depth: spec.depth,
+        get enableMemory() {
+          return ctx.mcpSpecs.get(spec.threadId)?.enableMemory ?? false;
+        },
         get agentBus() {
           return botTools(ctx.mcpSpecs.get(spec.threadId));
         },
@@ -142,7 +151,11 @@ export const refreshCodexConnectors = (
 
     const server = inventory.data.find((s) => s.name === "canopy_connectors");
 
-    const expected = [...spec.connectorTools.map((t) => t.name), ...botTools(spec)].sort();
+    const expected = [
+      ...spec.connectorTools.map((t) => t.name),
+      ...botTools(spec),
+      ...threadMemoryTools(spec.enableMemory).map((t) => t.name),
+    ].sort();
 
     if (
       server?.runtimeStatus !== "connected" ||

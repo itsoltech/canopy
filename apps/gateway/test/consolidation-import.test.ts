@@ -156,7 +156,22 @@ async function seedRows(source: Fixture, target: Fixture, operationId: string) {
   await d`INSERT INTO computer_mirror_threads(owner_user_id,origin_node_id,generation,thread_id,snapshot,thread_metadata)
     SELECT owner_user_id,origin_node_id,generation,${thread},${blob},${blob} FROM computer_mirror_state`;
 
+  const memory = await seedMemory(s, d, source, target, {
+    sourceProject,
+    targetProject,
+    worker,
+    bot,
+    thread,
+    turn,
+    child,
+    foreignOwner,
+    foreignProject,
+  });
+
+  await s`UPDATE schedules SET memory_audience=${"legacy:schedule:" + schedule} WHERE id=${schedule}`;
+
   return {
+    memory,
     sourceProject,
     targetProject,
     worker,
@@ -179,6 +194,57 @@ async function seedRows(source: Fixture, target: Fixture, operationId: string) {
   };
 }
 
+async function seedMemory(
+  s: SQL,
+  d: SQL,
+  source: Fixture,
+  target: Fixture,
+  f: {
+    sourceProject: string;
+    targetProject: string;
+    worker: string;
+    bot: string;
+    thread: string;
+    turn: string;
+    child: string;
+    foreignOwner: string;
+    foreignProject: string;
+  },
+) {
+  const owner = source.ownerUserId;
+
+  const account = uuid(),
+    route = uuid(),
+    conversation = uuid();
+
+  await s`INSERT INTO messenger_accounts(id,owner_user_id,name,external_id,credentials)
+    VALUES(${account},${owner},'Chat fixture','T1',${encryptSecret(source.secretsKey, fixtureValue)})`;
+  await s`INSERT INTO bot_channel_routes(id,owner_user_id,bot_id,account_id)
+    VALUES(${route},${owner},${f.bot},${account})`;
+  await s`INSERT INTO bot_channel_conversations(id,route_id,channel_id,thread_id,open_until)
+    VALUES(${conversation},${route},'C1','123',now())`;
+  await s`INSERT INTO agent_memory_scopes(owner_user_id,project_id,worker_id,bot_id,conversation_id) VALUES
+    (${owner},${f.sourceProject},NULL,NULL,NULL),(${owner},${f.sourceProject},${f.worker},NULL,NULL),
+    (${owner},NULL,NULL,${f.bot},NULL),(${owner},NULL,NULL,${f.bot},${conversation}),
+    (${f.foreignOwner},${f.foreignProject},NULL,NULL,NULL)`;
+  await s`INSERT INTO agent_memory_notes(id,owner_user_id,scope_key,title,body,aliases,pinned,revision,source_kind,source_id,source_turn_id)
+    SELECT gen_random_uuid(),owner_user_id,scope_key,split_part(scope_key,':',1),'source note','{alternate}',true,3,
+      'thread',${f.thread},${f.turn} FROM agent_memory_scopes`;
+  await s`INSERT INTO agent_memory_operations(owner_user_id,operation_id,request_hash,note_id,note_revision)
+    VALUES(${owner},'old-operation','digest',${uuid()},1)`;
+
+  const [clock] =
+    await d`INSERT INTO agent_memory_scopes(owner_user_id,project_id) VALUES(${target.ownerUserId},${f.targetProject}) RETURNING revision`;
+
+  await d`INSERT INTO agent_memory_notes(id,owner_user_id,scope_key,title,body)
+    SELECT ${uuid()},owner_user_id,scope_key,'existing','target note' FROM agent_memory_scopes`;
+  const audience = `conversation:${f.bot}:${conversation}`;
+  await s`UPDATE threads SET memory_audience=${audience} WHERE id=${f.thread}`;
+  await s`UPDATE threads SET memory_audience=${"conversation:" + uuid() + ":" + uuid()} WHERE id=${f.child}`;
+
+  return { audience, clock: String(clock.revision) };
+}
+
 async function seedNonHomeWorkspaces(sql: SQL, project: string, foreignOwner: string) {
   const foreign = uuid();
   const shared = uuid();
@@ -196,6 +262,8 @@ async function seedNonHomeWorkspaces(sql: SQL, project: string, foreignOwner: st
 
 async function checkResult(target: Fixture, source: Fixture, f: FixtureRows, operationId: string) {
   await using sql = new SQL({ url: target.url, max: 1 });
+
+  await checkMemory(sql, target.ownerUserId, f);
 
   const [placement] = await sql`SELECT project_id,owner_user_id,worker_id,workspace_id,provider_thread_id,schedule_id,
     snoozed,snoozed_until=${snoozedUntil}::timestamptz AS deadline_preserved
@@ -270,6 +338,46 @@ async function checkResult(target: Fixture, source: Fixture, f: FixtureRows, ope
   expect(blob?.hash).toBe(f.hash);
 }
 
+async function checkMemory(sql: SQL, owner: string, f: FixtureRows) {
+  const keys = [
+    `project:${f.targetProject}`,
+    `worker:${f.targetProject}:${f.worker}`,
+    `bot:${f.bot}`,
+    f.memory.audience,
+  ];
+
+  const notes =
+    await sql`SELECT title,scope_key,revision,aliases,pinned,source_id,source_turn_id FROM agent_memory_notes
+    WHERE owner_user_id=${owner} AND body='source note' ORDER BY scope_key`;
+
+  expect(notes).toEqual(
+    keys.sort().map((scope_key) => ({
+      title: scope_key.split(":")[0],
+      scope_key,
+      revision: 3,
+      aliases: ["alternate"],
+      pinned: true,
+      source_id: f.thread,
+      source_turn_id: f.turn,
+    })),
+  );
+  expect(await sql`SELECT body FROM agent_memory_notes WHERE title='existing'`).toEqual([{ body: "target note" }]);
+
+  const [clock] =
+    await sql`SELECT revision::text FROM agent_memory_scopes WHERE scope_key=${"project:" + f.targetProject}`;
+
+  expect(clock.revision).not.toBe(f.memory.clock);
+  expect(await sql`SELECT owner_user_id FROM agent_memory_operations WHERE operation_id='old-operation'`).toEqual([
+    { owner_user_id: owner },
+  ]);
+  const [live] = await sql`SELECT memory_audience FROM threads WHERE id=${f.thread}`;
+  const [orphan] = await sql`SELECT memory_audience FROM threads WHERE id=${f.child}`;
+  const [schedule] = await sql`SELECT memory_audience FROM schedules WHERE id=${f.schedule}`;
+  expect(live.memory_audience).toBe(f.memory.audience);
+  expect(orphan.memory_audience).toMatch(/^legacy:consolidation:/);
+  expect(schedule.memory_audience).toMatch(/^legacy:consolidation:/);
+}
+
 async function fixtureFailure(target: Fixture, enabled: boolean) {
   await using sql = new SQL({ url: target.url, max: 1 });
 
@@ -314,10 +422,24 @@ test.skipIf(!dockerAvailable)(
           target: { secretsKey: target.secretsKey, ownerUserId: target.ownerUserId },
         };
 
+        // A target transcript whose original audience vanished must not become readable by the
+        // incoming conversation with matching IDs. Clearing the fixture restores the normal review.
+        {
+          await using sql = new SQL({ url: target.url, max: 1 });
+          await sql`UPDATE threads SET memory_audience=${fixture.memory.audience} WHERE id=${fixture.centralChild}`;
+          const collision = await inspectConsolidation(input);
+          expect(collision.blockers).toContainEqual({
+            table: "threads",
+            key: fixture.centralChild,
+            reason: "destination_memory_audience_collision",
+          });
+          await sql`UPDATE threads SET memory_audience='' WHERE id=${fixture.centralChild}`;
+        }
+
         const review = await inspectConsolidation(input);
         expect(review.blockers).toEqual([]);
         expect(review.conflicts.map(({ table }) => table)).toEqual(["projects", "secrets", "worktree_settings"]);
-        expect(review.secrets).toHaveLength(1);
+        expect(review.secrets).toHaveLength(2);
         expect(review.counts.threads).toBe(5);
         expect(review.counts.schedules).toBe(1);
         expect(review.counts.project_workspaces).toBe(1);

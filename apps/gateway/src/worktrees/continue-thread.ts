@@ -76,7 +76,17 @@ export async function continueThreadInWorktree(
     );
     const handoff = await removedWorktreeHandoff(core, source);
     const prepared = await corePrepareWorkspace(core, request);
-    const row = await coreRun(core, (s) => s.createThread(owner, prepared.request, undefined, undefined, handoff));
+
+    const row = await coreRun(core, (s) =>
+      s.createThread(
+        owner,
+        prepared.request,
+        undefined,
+        source.memory_audience ? { memoryAudience: source.memory_audience } : undefined,
+        handoff,
+      ),
+    );
+
     // Settings and outbox are committed together. No provider fork or model turn is requested.
     await coreStartThread(core, row);
 

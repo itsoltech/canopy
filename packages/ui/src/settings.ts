@@ -74,6 +74,13 @@ export const settingsSections: readonly SettingsSection[] = [
       "new thread defaults project worker agent model profile permissions workspace archived threads retention auto-delete delete after days cleanup clean up history subagents finished list turn activity while working after turn tool calls reasoning progress expanded collapsed messages steer queue delivery",
   },
   {
+    href: "/settings/memory",
+    label: "Memory",
+    icon: "square-2-stack",
+    group: "General",
+    keywords: "agent bot memory notes aliases pinned project worker conversation scope edit delete",
+  },
+  {
     href: "/settings/text-generation",
     label: "Text generation",
     icon: "sparkles",
@@ -218,6 +225,7 @@ export const settingsSectionMethods = {
   "/settings/network": ["GetNetworkAccess", "UpdateNetworkAccess"],
   "/settings/mobile": ["GetMobileDevices", "CreateDesktopPairing"],
   "/settings/computers": ["GetComputers", "ManageComputer"],
+  "/settings/memory": ["ListMemoryNotes", "UpdateMemoryNote", "DeleteMemoryNote"],
   "/settings/schedules": ["ListSchedules", "CreateSchedule"],
   "/settings/projects": ["GetOverview", "CreateProject"],
   "/settings/import": ["ScanImport", "ListImportCandidates"],

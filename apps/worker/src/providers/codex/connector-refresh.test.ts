@@ -79,10 +79,15 @@ test.skipIf(!codex)(
           spec.providerThreadId = yield* threads.create(spec);
 
           for (const [index, tools] of [[tool], [], [tool], []].entries()) {
-            spec.connectorTools = tools;
+            const current = create(ThreadSpecSchema, {
+              ...spec,
+              connectorTools: tools,
+              enableMemory: index === 1 || index === 2,
+            });
+
             const turnId = crypto.randomUUID();
             yield* threads.startTurn(
-              spec,
+              current,
               turnId,
               create(UserInputSchema, { text: `Remember FIXTURE_CONNECTOR_${index}` }),
               {

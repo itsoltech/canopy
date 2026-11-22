@@ -31,6 +31,7 @@ export interface ThreadRow {
   kind: "main" | "side";
   parent_thread_id: string | null;
   started_by_bot?: boolean;
+  memory_audience?: string;
   remote_parent_ref?: string | null;
   remote_parent_kind?: string | null;
   remote_parent_detached?: boolean;

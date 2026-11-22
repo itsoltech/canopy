@@ -26,7 +26,7 @@ async function snapshot(c: ToolContext) {
 const threadPhrase = (verb: string) => (a: JsonObject) => `${verb} ${label(a["thread_name"], "a thread")}`;
 
 /** Pending interactions with their request parsed, and for questions the exact answer shape. */
-function interactionView(i: ui.Interaction) {
+export function interactionView(i: ui.Interaction) {
   const { requestJson: _, ...rest } = jsonObject(ui.InteractionSchema, i);
   let request: JsonValue | undefined = undefined;
 

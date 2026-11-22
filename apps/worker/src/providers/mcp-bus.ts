@@ -20,6 +20,7 @@ import {
 } from "@canopy/domain";
 import type { ViewImageResult } from "../images/index.ts";
 import type { McpServer } from "@canopy/grok-acp";
+import { threadMemoryTools } from "./memory-tools.ts";
 import { toolCallId } from "./tool-call-id.ts";
 import { Schema } from "effect";
 import type { JsonValue } from "@canopy/domain";
@@ -54,6 +55,7 @@ export interface PlatformMcpOptions {
   threadId: string;
   depth: number;
   agentBus?: false | readonly AgentBusToolName[];
+  enableMemory?: boolean;
   connectorTools?: readonly ConnectorTool[];
   record?(event: ThreadEventInit): Promise<ThreadEvent | void>;
   viewImage?(path: string): Promise<ViewImageResult>;
@@ -69,6 +71,7 @@ export function platformMcp(options: PlatformMcpOptions): PlatformMcp {
 
   const tools = () => [
     ...(options.agentBus === false ? [] : agentBusToolSpecs(options.agentBus ?? agentBusToolsFor(options.depth))),
+    ...threadMemoryTools(options.enableMemory),
     ...(options.connectorTools ?? []).map((t) => ({
       name: t.name,
       description: t.description,

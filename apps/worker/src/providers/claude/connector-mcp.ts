@@ -1,6 +1,7 @@
 import type { McpServerConfig, Query } from "@anthropic-ai/claude-agent-sdk";
 import type { ConnectorTool } from "@canopy/contracts";
 import { connectorSessionCatalog } from "@canopy/domain/connector-session";
+import { threadMemoryTools } from "../memory-tools.ts";
 import { BUS_SERVER } from "./mapping.ts";
 
 /** SDK replacement preserves the query; native CLI attachment completes asynchronously. */
@@ -10,23 +11,31 @@ export function claudeConnectorRefresh(
   servers: (tools: readonly ConnectorTool[]) => Record<string, McpServerConfig>,
   initialRevision = "",
   initialDelegatingBot = false,
+  initialMemory = false,
 ) {
   let catalog: string | undefined = JSON.stringify([
     connectorSessionCatalog(initial),
     initialRevision,
     initialDelegatingBot,
+    initialMemory,
   ]);
 
-  const toolNames = (tools: readonly ConnectorTool[], delegatingBot: boolean) => [
+  const toolNames = (tools: readonly ConnectorTool[], delegatingBot: boolean, memory: boolean) => [
+    ...threadMemoryTools(memory).map((t) => t.name),
     ...tools.map((t) => t.name),
     ...(delegatingBot ? ["message_delegating_bot"] : []),
   ];
 
-  let previous = toolNames(initial, initialDelegatingBot);
+  let previous = toolNames(initial, initialDelegatingBot, initialMemory);
 
-  return async (tools: readonly ConnectorTool[], revision = initialRevision, delegatingBot = initialDelegatingBot) => {
-    const next = JSON.stringify([connectorSessionCatalog(tools), revision, delegatingBot]);
-    const names = toolNames(tools, delegatingBot);
+  return async (
+    tools: readonly ConnectorTool[],
+    revision = initialRevision,
+    delegatingBot = initialDelegatingBot,
+    memory = initialMemory,
+  ) => {
+    const next = JSON.stringify([connectorSessionCatalog(tools), revision, delegatingBot, memory]);
+    const names = toolNames(tools, delegatingBot, memory);
 
     try {
       if (catalog !== next) {

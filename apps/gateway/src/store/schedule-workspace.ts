@@ -125,6 +125,7 @@ export const scheduledThread = (
       undefined,
       {
         permissionModeNote: spec.permissionModeNote,
+        memoryAudience: schedule.memory_audience,
       },
     );
 

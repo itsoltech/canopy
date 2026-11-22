@@ -35,6 +35,7 @@ import { watchTiming } from "./watch-liveness.ts";
 import { readThreadRange } from "./range-source.ts";
 import { serveHomeLogs } from "../diagnostics/log-serving.ts";
 import { serveHomeTrace } from "../diagnostics/trace-serving.ts";
+import { requireAgentOrigin, requireLinkedAnswerAudience } from "./agents-audience.ts";
 import { serveUsageBuckets } from "./usage-serving.ts";
 
 // ------------------------------------------------------------------ stage 2: remote threads
@@ -50,6 +51,8 @@ export async function* computersServeRemote(
   signal: AbortSignal,
   route?: RelayRoute,
 ): AsyncGenerator<Message> {
+  requireAgentOrigin(connection, method, request);
+
   if (method.parent.typeName === link.UsageService.typeName) {
     if (route?.targetNodeId || route?.originNodeId || route?.relayHops)
       throw new ConnectError("Usage statistics require a direct link", Code.PermissionDenied);
@@ -220,6 +223,7 @@ export async function* computersServeHome(
   if (!hostContext.hello().capabilities.includes(feature) || !connection.capabilities?.has(feature))
     throw new ConnectError("Both computers need an update for this linked action", Code.Unimplemented);
 
+  await requireLinkedAnswerAudience(hostContext.store, request);
   signal = mirrorSignal(hostContext, method, signal);
 
   if (method.name === "AckThreadRange" || method.name === "GetThreadRange") {

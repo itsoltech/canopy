@@ -45,6 +45,7 @@ export const ThreadRowSchema = Schema.Struct({
   snoozed_until: Schema.optionalKey(Schema.NullOr(Schema.String)),
   runtime: Schema.String,
   project_id: Schema.String,
+  memory_audience: Schema.optionalKey(Schema.String),
   remote_parent_ref: Schema.NullOr(Schema.String),
   remote_parent_kind: Schema.NullOr(Schema.String),
   last_seq: Schema.Union([Schema.String, Schema.Number]),

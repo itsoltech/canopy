@@ -1,6 +1,7 @@
 # API dla UI i architektura frontendu
 
-Status (2026-11-21): web, desktop i mobile obsługują usypianie wątków oraz załączniki
+Status (2026-11-22): web i desktop udostępniają Settings → Memory do przeglądania
+i edycji notatek agentów i botów. Web, desktop i mobile obsługują usypianie wątków oraz załączniki
 do 40 MiB na plik po zmianie ustawienia.
 Web i desktop pokazują automatyczne powitanie tylko po potwierdzeniu przez gateway,
 że działa w wersji pierwszego uruchomienia nowej instalacji. [Onboarding](onboarding.md)
@@ -2466,6 +2467,18 @@ Popraw oba miejsca.
 - **Zmiany na żywo:** przez `Hub` (proces gateway). Przy wielu instancjach będzie to `LISTEN/NOTIFY` (docs/durability.md, 4.3).
 
 ## 4. Frontend (`apps/web`)
+
+### Pamięć agentów i botów
+
+W Settings → Memory użytkownik przegląda notatki zapisane w gatewayu. Lista
+pobiera strony przez `GET /api/memory` (opcjonalne `scope` i `cursor`). Filtr
+obejmuje projekt, projekt na danym workerze, bota lub rozmowę zewnętrzną.
+Wiersz otwiera pełną treść, aliasy i etykietę zakresu. Użytkownik może zmienić
+tytuł, treść, aliasy i przypięcie albo potwierdzić trwałe usunięcie.
+`PUT` i `DELETE /api/memory/[noteId]` przekazują do gatewaya rewizję oglądanej
+wersji. Po konflikcie edytor zachowuje wpisany tekst, aby użytkownik mógł
+go skopiować przed ponownym wczytaniem listy. Desktop sprawdza dostępność
+trzech metod pamięci na podłączonym gatewayu.
 
 ### Licencje open source
 

@@ -1,5 +1,9 @@
 # Boty przez oficjalne harnessy
 
+Status (2026-11-22): Claude, Codex i Grok otrzymują aktualną pamięć bota lub rozmowy również po wznowieniu
+sesji. Tury przekazujące wiadomości między botami mają oddzielne katalogi sesji i ograniczoną historię.
+Dostępność w kanałach określa [promocja wydań](release.md).
+
 Status (2026-11-19): zaimplementowane w kodzie, także zwykłe przyznane narzędzia, izolacja rozmów zewnętrznych
 i nietrwałe wejścia do aktywnej tury rozmowy zewnętrznej lub prywatnego czatu.
 Wznowienie wywołania narzędzia po restarcie sprawdza jego utrwaloną treść i zakres zgody.
@@ -114,8 +118,10 @@ Sekrety połączeń i dane logowania nigdy nie są częścią promptu.
 
 ## Sesja i kontekst
 
-`bot_conversations_v1` dodaje `RunBotTurn.conversation_id` (16): UUID rozmowy
-zewnętrznej. Puste pole zachowuje dotychczasową prywatną sesję i jej pliki.
+`RunBotTurn.conversation_id` (17) wybiera katalog izolowanej sesji przez
+capability `bot_conversations_v1`. Dla Slacka zawiera UUID rozmowy, a dla
+wymiany z innym botem lub wejścia o niepotwierdzonym pochodzeniu — UUID tury.
+Puste pole wybiera prywatną sesję bota i jej pliki.
 Niepuste pole wybiera osobny home harnessu i workspace dla pary bot–rozmowa;
 zmiana dostawcy współdzieli pliki tylko wewnątrz tej rozmowy. Retencja obejmuje
 również te workspace'y i pomija aktywne rozmowy oraz dowiązania. Gateway musi
@@ -222,6 +228,12 @@ fingerprint modelu i pełnych deskryptorów narzędzi. Dodanie konta (także z �
 nadanie lub odebranie grantu i usunięcie konta wymuszają nową sesję na następnej
 wiadomości, jeżeli zmieniają dostępne narzędzia. Rozmowa i identyfikator bota
 pozostają te same; zmienia się wyłącznie ukryta sesja harnessu.
+
+Pole `RunBotTurn.memory_context` (18) przenosi tekst notatek z ID i rewizjami wybranych przez gateway na tę
+turę. Wspólny kod wejścia do Claude, Codexa i Groka dołącza go zarówno przy tworzeniu sesji, jak i przy
+wznowieniu. Treść notatek pozostaje poza kluczem konfiguracji oraz wiadomością w bazie czatu. Po restarcie
+rozpoczęta tura dostaje tę samą zapisaną komendę, a następna pobiera aktualne wersje. Starszy worker pomija
+addytywne pole. Handoff zachowuje dotychczasowe instrukcje, notatkę przekazania i pusty katalog narzędzi.
 
 ### Edycja instrukcji i ustawień
 

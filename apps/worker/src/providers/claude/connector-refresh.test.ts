@@ -31,11 +31,14 @@ test.skipIf(!executable)(
       readOnly: true,
     });
 
+    let enableMemory = false;
+
     const servers = (tools: readonly (typeof tool)[]) => ({
       canopy: claudeBusServer({
         threadId: crypto.randomUUID(),
         depth: 0,
         agentBus: false,
+        enableMemory,
         connectorTools: tools,
         turnId: () => "",
         toolUseId: () => undefined,
@@ -75,10 +78,17 @@ test.skipIf(!executable)(
     const refresh = claudeConnectorRefresh(q, [], servers);
 
     try {
-      for (const attached of [false, true, false]) {
-        await refresh(attached ? [tool] : []);
+      for (const [attached, memory] of [
+        [false, true],
+        [true, true],
+        [true, false],
+        [false, false],
+      ] as const) {
+        enableMemory = memory;
+        await refresh(attached ? [tool] : [], "", false, memory);
         const status = (await q.mcpServerStatus()).find((s) => s.name === "canopy");
         expect(status?.status).toBe("connected");
+        expect(status?.tools?.some((t) => t.name.endsWith("memory_search"))).toBe(memory);
         expect(status?.tools?.some((t) => t.name === tool.name || t.name === `mcp__canopy__${tool.name}`)).toBe(
           attached,
         );

@@ -609,6 +609,8 @@ message ThreadSpec {
   uint32 depth = 13;
   // Wątek utworzył bot lokalny albo nadal połączony bot na innym komputerze.
   bool has_delegating_bot = 14;
+  // Pamięć projektu i workera dostępna z tej sesji. Gateway potwierdza zakres dla każdego wywołania.
+  bool enable_memory = 15;
   // Puste = domyślne profilu; default = jawne standardowe wykonanie.
   string service_tier = 43;
 }
@@ -1079,8 +1081,10 @@ message RunBotTurn {
   bool files = 15;
   // Puste = domyślne profilu; default = jawne standardowe wykonanie.
   string service_tier = 16;
-  // bot_conversations_v1: external conversation UUID; empty preserves the private bot session.
+  // bot_conversations_v1: external conversation UUID or isolated relay turn UUID; empty uses the private bot session.
   string conversation_id = 17;
+  // Fresh scoped recall for this turn. Kept separate from session identity and the owner message.
+  string memory_context = 18;
 }
 
 message SteerBotTurn {

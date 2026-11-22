@@ -16,6 +16,7 @@ GitHub Releases.
 
 Powiązane dokumenty:
 
+- [agent-memory.md](agent-memory.md) — pamięć wątków i botów, zakresy dostępu, wyszukiwanie w gatewayu i edycja w ustawieniach.
 - [bots.md](bots.md) — rozmowy botów, trwałość i narzędzia; [bots-harness.md](bots-harness.md) — migracja inferencji na oficjalne harnessy workerów.
 - [connectors.md](connectors.md) — współdzielone konta zewnętrznych MCP, OAuth w gateway, granty workerów/botów i proxy bez poświadczeń na workerze.
 - [github.md](github.md) — konto GitHub App, device flow oraz odczyt, review, cykl PR, metadane i sterowanie CI v1.

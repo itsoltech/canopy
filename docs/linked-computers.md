@@ -1,5 +1,9 @@
 # Połączone komputery
 
+Status (2026-11-22): gateway sprawdza pochodzenie automatycznej delegacji przed
+udostępnieniem tras z historią wątków. Konsolidacja przenosi
+[pamięć agentów i botów](agent-memory.md) wraz z danymi właściciela.
+
 Status: opis zaimplementowanej synchronizacji (2026-11-21), w tym usypiania wątków,
 blokady operacji przez łącze podczas opróżniania gatewaya i importu konsolidacji,
 retencji nieopublikowanych wpisów dziennika, osobnych aktualizacji Canopy i CLI partnerów, wstrzymywania luster wyłączonego modułu, kolejności zakładek konta, kontroli dostępu między botami i wątkami przez łącze, ograniczenia czasu oczekiwania na listę botów w `list_agents` oraz przyrostowej
@@ -2228,6 +2232,15 @@ rodzic staje się dostępny pod lokalnym identyfikatorem bez zmiany workera
 dziecka. Gateway usuwa lustra i odwołuje zaufanie do właśnie dołączonego
 źródła. Poświadczenia klientów związanych z tożsamością źródła wymagają
 oddzielnego przełączenia.
+
+Konsolidacja pamięci wymaga zgodnego katalogu bazy po obu stronach i migracji
+co najmniej 0194. Notatki i potwierdzenia operacji przechodzą razem z zakresem.
+Przy połączeniu projektów różne wpisy trafiają do wspólnej pamięci obok wpisów
+docelowych. Zakres dostaje nową rewizję w bazie docelowej. Kolizja identyfikatora
+notatki lub brak powiązanego zasobu wymaga rozstrzygnięcia przed importem.
+Powiązanie wątku z rozmową lub rutyną zachowuje ograniczenie dostępu. Jeśli
+podmiot ograniczenia nie jest częścią importu, wątek pozostaje odizolowany
+od innych rozmów na celu.
 
 Import obejmuje historię wątków i botów, harmonogramy, workspace i załączniki
 z treścią dostępną w bazie. Workspace, worktree i kopie workspace mogą przejść

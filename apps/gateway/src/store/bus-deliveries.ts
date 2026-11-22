@@ -171,7 +171,8 @@ export function busDeliveryStore(sql: SqlClient.SqlClient): BusDeliveryStore {
       sql<{ request_id: string; thread_id: string; kind: string; tool_name: string; request: JsonValue }>`
             SELECT i.id AS request_id, i.thread_id, i.kind, i.tool_name, i.request FROM interaction_requests i
               JOIN threads t ON t.id = i.thread_id
-             WHERE t.parent_thread_id = ${callerId}::uuid AND i.status = 'pending' AND i.routed_to = 'parent'
+              JOIN threads c ON c.id=${callerId}::uuid AND c.memory_audience=t.memory_audience
+             WHERE t.parent_thread_id=c.id AND i.status = 'pending' AND i.routed_to = 'parent'
              ORDER BY i.created_at`,
 
     deliveries: (by) => {

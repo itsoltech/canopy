@@ -14,6 +14,7 @@ export function claudeSessionMcp(
   turnId: () => string,
   calls: Map<string, string[]>,
 ) {
+  let enableMemory = spec.enableMemory;
   let automationKey = automationMcpKey(spec);
   let hasDelegatingBot = spec.enableAgentBus && spec.hasDelegatingBot;
   let automation = automationMcp(options, spec, turnId);
@@ -23,6 +24,7 @@ export function claudeSessionMcp(
       threadId: spec.threadId,
       depth: spec.depth,
       hasDelegatingBot,
+      enableMemory,
       agentBus: spec.enableAgentBus,
       connectorTools: tools,
       turnId,
@@ -47,9 +49,17 @@ export function claudeSessionMcp(
       ...["agent_browser", "agent_desktop", "agent_device"].map((name) => `mcp__${name}__*`),
     ],
     refreshFor(query: Query) {
-      const refresh = claudeConnectorRefresh(query, spec.connectorTools, servers, automationKey, hasDelegatingBot);
+      const refresh = claudeConnectorRefresh(
+        query,
+        spec.connectorTools,
+        servers,
+        automationKey,
+        hasDelegatingBot,
+        enableMemory,
+      );
 
       return async (current: ThreadSpec) => {
+        enableMemory = current.enableMemory;
         const next = automationMcpKey(current);
         hasDelegatingBot = current.enableAgentBus && current.hasDelegatingBot;
 
@@ -59,7 +69,7 @@ export function claudeSessionMcp(
           automationKey = next;
         }
 
-        await refresh(current.connectorTools, automationKey, hasDelegatingBot);
+        await refresh(current.connectorTools, automationKey, hasDelegatingBot, enableMemory);
       };
     },
     close: async () => {

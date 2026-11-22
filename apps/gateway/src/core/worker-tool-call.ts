@@ -1,3 +1,5 @@
+import { isMemoryTool } from "@canopy/domain/memory-tools";
+import { threadMemoryCall } from "./thread-memory.ts";
 import type { AgentToolCall } from "@canopy/contracts";
 import type { WorkerConnection } from "../worker-link/index.ts";
 import { authorizeLocalAutomation } from "./automation-permissions.ts";
@@ -9,6 +11,8 @@ async function callTool(core: GatewayCore, connection: WorkerConnection, call: A
   const { workerId } = connection;
 
   if (call.botId) return core.bots.harnessTools.handle(call, workerId);
+
+  if (isMemoryTool(call.toolName)) return threadMemoryCall(core, call, connection);
 
   if (call.toolName === "authorize_local_automation") return authorizeLocalAutomation(core, call, connection);
 

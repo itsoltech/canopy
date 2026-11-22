@@ -74,6 +74,8 @@ appear only as the literal name used by an external tool).
 | visual | an interactive explanation the agent publishes in a thread; controls change it locally (`Visual` in titles) | widget, app, embed, applet |
 | shell command | an owner's command entered with a leading `!`; runs when delivered | terminal message, bash mode |
 | agent | Claude, Codex or Grok working in a thread | assistant, AI, model (a model is something else) |
+| memory note | a saved note an agent or bot can recall within its scope | memory entry, memory record |
+| alias | an alternate search term for a memory note | tag, keyword (in Memory) |
 | subagent | an agent started by another agent in a side thread | sub-agent, child agent |
 | model | the model an agent uses | engine, LLM |
 | speed | the provider's execution speed, such as Standard, Fast or Ultrafast | service tier (outside technical details) |

@@ -1,10 +1,11 @@
 import { afterAll, beforeAll, describe, expect, test } from "bun:test";
-import { create } from "@bufbuild/protobuf";
+import { create, isMessage } from "@bufbuild/protobuf";
 import { Code, ConnectError } from "@connectrpc/connect";
-import { computerLink as link } from "@canopy/contracts";
+import { computerLink as link, Provider } from "@canopy/contracts";
 import { dockerAvailable } from "@canopy/db/testing";
 import {
   CONFIG_SYNC,
+  qualifyId,
   MOVE_ITEMS,
   REMOTE_APP_UPDATE,
   REMOTE_GIT_STATUS,
@@ -12,11 +13,12 @@ import {
 } from "@canopy/domain/computers";
 import { AsyncChannel } from "@canopy/transport";
 import { USAGE_STATS } from "../../apps/gateway/src/computers/capabilities.ts";
+import { threadRowJson } from "../../apps/gateway/src/computers/move-payload.ts";
 import { ComputerStore } from "../../apps/gateway/src/computers/store.ts";
 import { startComputerLinks } from "../../apps/gateway/src/computers/start.ts";
 import { linkClient } from "../../apps/gateway/src/computers/transport.ts";
 import { NetworkAccess } from "../../apps/gateway/src/network/network.ts";
-import { eventually, startTestGateway, type TestGateway } from "./support/gateway.ts";
+import { eventually, failure, startTestGateway, type TestGateway } from "./support/gateway.ts";
 
 /** Use the desktop startup path: lean link fixtures omit production capabilities. */
 async function desktop(storage?: TestGateway, legacy = false) {
@@ -61,6 +63,73 @@ async function desktop(storage?: TestGateway, legacy = false) {
       await gateway.close(keepDatabase);
     },
   };
+}
+
+/** The pre-memory exporter included history but omitted the origin of a thread's delegated work. */
+async function moveLegacyFamily(
+  source: Awaited<ReturnType<typeof desktop>>,
+  target: Awaited<ReturnType<typeof desktop>>,
+  workspaceId: string,
+) {
+  const api = source.gateway.api;
+  const project = (await api.createProject({ name: "Legacy family" })).project!;
+
+  const workspace = (
+    await api.createWorkspace({
+      projectId: project.id,
+      workerId: source.gateway.workerId,
+      rootPath: "/legacy",
+    })
+  ).workspace!;
+
+  const placement = { projectId: project.id, workspaceId: workspace.id, provider: Provider.CODEX };
+  const main = (await api.createThread({ ...placement, title: "Legacy import" })).thread!;
+  const side = (await api.createThread({ ...placement, title: "Side thread", parentThreadId: main.id })).thread!;
+  const dest = target.computers.moves!;
+  const serve = dest.serve.bind(dest);
+
+  dest.serve = (peer, method, request) => {
+    if (isMessage(request, link.MovePrepareSchema)) {
+      for (const member of request.thread?.threads ?? []) {
+        const { memory_audience: _, ...legacy } = threadRowJson(member.rowJson);
+        member.rowJson = JSON.stringify(legacy);
+      }
+    }
+
+    return serve(peer, method, request);
+  };
+
+  try {
+    const nodeId = target.computers.hello().nodeId;
+    const items = [{ kind: "thread", id: main.id }];
+
+    const move = (
+      await api.startMove({
+        nodeId,
+        items,
+        placements: [{ projectId: project.id, workspaceId: qualifyId(workspaceId, nodeId) }],
+      })
+    ).moves[0]!;
+
+    const completed = await eventually(
+      () => target.gateway.api.getMoves({}),
+      (r) => r.moves.some((m) => m.id === move.id && m.state === "done"),
+      15000,
+    );
+
+    expect(completed.moves.find((m) => m.id === move.id)?.state).toBe("done");
+
+    const members = await target.store.query<{ memory_audience: string }>(
+      "SELECT memory_audience FROM threads WHERE id=ANY($1::uuid[])",
+      [[main.id, side.id]],
+    );
+
+    expect(members).toEqual(Array.from({ length: 2 }, () => ({ memory_audience: `legacy:move:${move.id}` })));
+    const preview = await target.gateway.api.previewMove({ nodeId: source.computers.hello().nodeId, items });
+    expect(preview.items[0]?.blocked).toContain("restricted audience");
+  } finally {
+    dest.serve = serve;
+  }
 }
 
 describe.skipIf(!dockerAvailable)("production desktop capability compatibility", () => {
@@ -182,5 +251,53 @@ describe.skipIf(!dockerAvailable)("production desktop capability compatibility",
       expect(peer.capabilities).not.toContain(USAGE_STATS);
       expect(peer.capabilities).not.toContain("thread_creation_progress_v1");
     }
+
+    const project = (await a.gateway.api.createProject({ name: "Project memory" })).project!;
+
+    const workspace = (
+      await a.gateway.api.createWorkspace({
+        projectId: project.id,
+        workerId: a.gateway.workerId,
+        rootPath: "/repo",
+      })
+    ).workspace!;
+
+    const thread = (
+      await a.gateway.api.createThread({
+        projectId: project.id,
+        workspaceId: workspace.id,
+        provider: Provider.CODEX,
+        title: "Owner thread",
+      })
+    ).thread!;
+
+    const home = a.computers.hello().nodeId;
+    const id = qualifyId(thread.id, home);
+    const agents = b.gateway.core.linkedAgents;
+
+    expect((await agents.thread(id)).title).toBe(thread.title);
+    expect(await failure(agents.thread(id, "bot-thread"))).toContain("Update Canopy on the sending computer");
+    expect(await failure(agents.snapshot(id, "bot-thread"))).toContain("Update Canopy on the sending computer");
+
+    for (const operation of ["read_thread", "get_thread", "spawn", "send"]) {
+      const responses = b.computers.remote(
+        home,
+        link.LinkedAgentsService.method.callAgentBus,
+        create(link.LinkedAgentCallSchema, {
+          operation,
+          actorKind: "bot",
+          actorId: crypto.randomUUID(),
+          callId: crypto.randomUUID(),
+          argumentsJson: JSON.stringify({ target: thread.id, delivery: "steer", prompt: "legacy input" }),
+        }),
+        AbortSignal.timeout(5000),
+      );
+
+      expect(await failure(responses[Symbol.asyncIterator]().next())).toContain(
+        "Update Canopy on the sending computer",
+      );
+    }
+
+    await moveLegacyFamily(b, a, workspace.id);
   }, 60_000);
 });

@@ -197,10 +197,14 @@ export async function runBotHarness(core: GatewayCore, input: ModelInput): Promi
     await waitForBotInterrupt(core, input, workerId, turn.bot_id);
     const connection = core.link.connections.get(workerId);
 
-    if (turn.conversation_id && connection?.isOpen && !connection.hello.capabilities.includes("bot_conversations_v1"))
+    if (
+      (turn.conversation_id || input.isolatedInput) &&
+      connection?.isOpen &&
+      !connection.hello.capabilities.includes("bot_conversations_v1")
+    )
       throw new ProviderFailure(
         "configuration",
-        "Update this worker to receive messages from external conversations.",
+        "Update this worker to receive messages from isolated conversations.",
         "platform",
       );
 
@@ -229,7 +233,9 @@ export async function runBotHarness(core: GatewayCore, input: ModelInput): Promi
               serviceTier: input.configuration.serviceTier,
               instructions: input.instructions,
               configurationKey: configurationKey(input.configuration, conversation),
-              conversationId: turn.conversation_id ?? "",
+              memoryContext: input.memoryContext ?? "",
+              // Each relay gets an isolated provider home and workspace, including on older conversation-aware workers.
+              conversationId: input.isolatedInput ? turn.id : (turn.conversation_id ?? ""),
               webAccess: !turn.handoff_configuration && (input.configuration.webAccess ?? true),
               files: !turn.handoff_configuration && (input.configuration.files ?? true),
               ...images,

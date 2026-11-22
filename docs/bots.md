@@ -1,5 +1,8 @@
 # Boty
 
+Status (2026-11-22): gateway udostępnia botom trwałe notatki na wszystkich ich workerach. Zakres narzędzi i
+kontekstu zależy od nadawcy oraz odbiorcy tury. Dostępność w kanałach określa [promocja wydań](release.md).
+
 Status (2026-11-21): prywatny czat bota wyszukuje i odczytuje wybrane preferencje
 konta Canopy oraz zmienia jedną z nich po jednorazowej zgodzie właściciela.
 Gateway pomija rozumowanie Groka w podglądzie odpowiedzi na żywo i w zapisywanej wiadomości bota.
@@ -294,6 +297,26 @@ nie mogą zmieniać nasłuchiwania ani odkrywać kont. Autoryzacja nie opiera si
 treści promptu. Testy `tests/integration/bot-messenger-setup.test.ts` obejmują
 odkrywanie bez poświadczeń w wyniku, paginację, trwałe instrukcje, idempotencję,
 zakres własnego bota oraz odrzucenie nieuprawnionego pochodzenia.
+
+## Trwałe notatki bota
+
+Prywatna wiadomość właściciela oraz zaplanowane uruchomienie jego rutyny mają odczyt i zapis w zakresie
+**Bot**. Rutyna zapisuje tylko zweryfikowane fakty potrzebne w kolejnych uruchomieniach. Wynik konektora
+lub zleconej pracy nie jest źródłem nowych preferencji właściciela. Automatyczna kontynuacja przypisana do
+takiej rutyny ma odczyt. Zmiana nazwy lub instrukcji bota oraz tytułu lub instrukcji rutyny wymaga
+prywatnej wiadomości właściciela. Wymiana z innym botem, także odpowiedź wracająca do rutyny, dostaje tylko
+własne wejście, bez prywatnej pamięci, historii i handoffu. Pobudka lub powiadomienie bez rozpoznanego
+zakresu również działa w osobnej sesji.
+
+Wiadomość ze Slacka może wyszukiwać i zapisywać notatki w zakresie **Conversation** dla konkretnego bota i
+UUID rozmowy. Wyniki zadań wracające do tej rozmowy mogą odczytać jej notatki. Gateway ponownie sprawdza
+aktywną trasę i lease przed wykonaniem narzędzia. Ani treść wiadomości, ani argument narzędzia nie mogą
+wybrać innego bota lub rozmowy.
+
+`memory_search` przyjmuje do trzech krótkich zapytań. `memory_save` tworzy notatkę lub aktualizuje wskazane
+ID z oczekiwaną rewizją. Narzędzia działają również przy wyłączonym Files lub module Threads. Przypięte i
+trafne notatki trafiają do wejścia modelu na początku nowej tury. Po edycji lub usunięciu następne pobranie
+uwzględnia zmianę; wcześniejsze wypowiedzi i zapisane handoffy zachowują swoją treść.
 
 ## Bezczynna kolejka
 
@@ -1144,8 +1167,7 @@ z czytelnym komunikatem (etap 5). Opcje dostępne przez narzędzia i API, bez no
 
 Wywołanie narzędzi preferencji wymaga prywatnej tury zainicjowanej przez wiadomość
 właściciela. Działa także bez Web access i przy wyłączonym module Threads.
-Katalog pozostaje stały podczas prywatnych kontynuacji, żeby harness mógł wznowić
-sesję. Przy wykonaniu gateway weryfikuje właściciela, pochodzenie wiadomości i
+Przy wykonaniu gateway weryfikuje właściciela, pochodzenie wiadomości i
 ważność lease'u.
 Bot proponuje zapis po jednoznacznym poleceniu właściciela. Gateway sprawdza
 jednorazową zgodę na tę operację także przy wykonaniu zapisu. Reguły stałe i Full

@@ -47,8 +47,6 @@ export async function runToolCall(
 
     if (call.status === "completed" || call.status === "interrupted") result = call.result;
     else {
-      const phrase = (await ctx.options.describeTool?.(tool, call.arguments)) ?? statusPhrase(tool, call.arguments);
-
       const policyTool =
         tool.name === "update_settings" && call.arguments["thread_defaults"] !== undefined
           ? { ...tool, dangerous: true }
@@ -59,6 +57,11 @@ export async function runToolCall(
       const prepared = await ctx.options.prepareTool?.(turn, call).catch((cause: unknown) => {
         result = platformError(cause);
       });
+
+      const phrase =
+        result === undefined
+          ? ((await ctx.options.describeTool?.(tool, call.arguments)) ?? statusPhrase(tool, call.arguments))
+          : statusPhrase(tool);
 
       if (
         result === undefined &&

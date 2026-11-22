@@ -36,6 +36,7 @@ export interface BusCallStore {
   facts(input: {
     source: CallSource;
     targetIds: readonly string[];
+    matchAudience?: boolean;
     /** spawn_thread: where the new thread runs (resolveSpawnTarget), for the fork rule. */
     spawnTarget?: SpawnTarget;
     interactionId?: string;
@@ -88,7 +89,7 @@ export function busCallStore(sql: SqlClient.SqlClient): BusCallStore {
         : Effect.succeed(undefined),
     contextTurn: (threadId) => busContextTurn(sql, threadId),
 
-    facts: ({ source, targetIds, spawnTarget, interactionId, scheduleId, scheduleThreadId }) =>
+    facts: ({ source, targetIds, matchAudience, spawnTarget, interactionId, scheduleId, scheduleThreadId }) =>
       Effect.gen(function* () {
         const caller = yield* thread(sql, source.threadId);
         const callerHops = yield* busHops(sql, source);
@@ -98,8 +99,9 @@ export function busCallStore(sql: SqlClient.SqlClient): BusCallStore {
 
         const addressed = ids.length
           ? yield* sql.unsafe<ThreadNodeRow>(
-              `SELECT ${nodeColumns} FROM threads WHERE id=ANY($1::uuid[]) AND deleted_at IS NULL`,
-              [ids],
+              `SELECT ${nodeColumns} FROM threads WHERE id=ANY($1::uuid[]) AND deleted_at IS NULL
+                AND ($2::text IS NULL OR memory_audience=$2)`,
+              [ids, caller.memory_audience || (matchAudience ? "" : null)],
             )
           : [];
 
@@ -127,7 +129,9 @@ export function busCallStore(sql: SqlClient.SqlClient): BusCallStore {
             routed_to: InteractionFacts["routedTo"];
             status: string;
           }>`
-                SELECT id, thread_id, kind, routed_to, status FROM interaction_requests WHERE id = ${interactionId}::uuid`;
+                SELECT i.id, i.thread_id, i.kind, i.routed_to, i.status FROM interaction_requests i
+                JOIN threads t ON t.id=i.thread_id AND t.memory_audience=${caller.memory_audience}
+                WHERE i.id=${interactionId}::uuid`;
 
           const row = rows[0];
 
@@ -152,7 +156,8 @@ export function busCallStore(sql: SqlClient.SqlClient): BusCallStore {
 
         if (scheduleId && isUuid(scheduleId)) {
           const rows = yield* sql<{ id: string; thread_id: string }>`
-                SELECT id, thread_id FROM schedules WHERE id = ${scheduleId}::uuid AND status IN ('active', 'paused')`;
+                SELECT s.id, s.thread_id FROM schedules s JOIN threads t ON t.id=s.thread_id
+                WHERE s.id=${scheduleId}::uuid AND t.memory_audience=${caller.memory_audience} AND s.status IN ('active', 'paused')`;
 
           if (rows[0]) {
             schedule = { id: rows[0].id, threadId: rows[0].thread_id };

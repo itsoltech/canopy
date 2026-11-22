@@ -1,5 +1,6 @@
 import { Context, Effect, Layer } from "effect";
 import { SqlClient } from "effect/sql";
+import { botMemoryAccess } from "./memory.ts";
 import { botAccess } from "./store-access.ts";
 import { botConfig } from "./store-config.ts";
 import { botQueue } from "./store-queue.ts";
@@ -37,6 +38,7 @@ function makeStore(sql: SqlClient.SqlClient, key: Buffer) {
   const core = { ...access, ...config, ...queue };
 
   return {
+    memoryAccess: (owner: string, turn: import("./types.ts").BotTurn) => botMemoryAccess(sql, owner, turn),
     conversationContext: (turn: import("./types.ts").BotTurn) => conversationContext(sql, turn),
     originEnabled: core.originEnabled,
     messageDelegatingBot: (owner: string, source: CallSource, text: string) =>

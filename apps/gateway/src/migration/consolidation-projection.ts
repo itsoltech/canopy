@@ -259,8 +259,9 @@ function exportTable(sql: Database, table: SelectedTable, owner: string, writer:
 
     if (name === "worker_model_catalogs" || name === "checkout_heads") return;
 
-    const columns = written
-      .filter((column) => column !== secret)
+    // Generated primary keys identify source rows during staging. The target recomputes them.
+    const columns = table.columns
+      .filter((column) => column !== secret && (written.includes(column) || table.key.includes(column)))
       .map((column) => {
         const replacement = replacedColumns.get(name)?.[column];
 

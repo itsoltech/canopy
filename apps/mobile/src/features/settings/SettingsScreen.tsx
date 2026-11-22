@@ -34,6 +34,7 @@ import { useLayout } from "../../state/layout";
 import { AppUpdateStatus } from "./AppUpdateStatus";
 import { WhatsNewSettings } from "../updates/WhatsNew";
 import { LicenseList } from "../licenses/LicenseList";
+import { MemorySettings } from "./MemorySettings";
 
 export default function SettingsScreen() {
   const { section: selectedSection = "" } = useLocalSearchParams<{ section?: string }>();
@@ -53,10 +54,10 @@ export default function SettingsScreen() {
 
   if (!settingsSectionEnabled(`/settings/${section}`, settings.modules)) return <Redirect href="/settings/general" />;
 
-  if (section === "open-source-licenses") {
+  if (section === "open-source-licenses" || section === "memory") {
     return (
       <SettingsLayout section={section} onSelect={selectSection} scrollContent={false}>
-        <LicenseList innerLeft={wide} />
+        {section === "memory" ? <MemorySettings key={session.deviceId} /> : <LicenseList innerLeft={wide} />}
       </SettingsLayout>
     );
   }

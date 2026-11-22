@@ -18,7 +18,12 @@ import { followOverviewHeads } from "./overview-thread-heads.ts";
 
 export interface CoreWatchMethods {
   movedHistory(threadId: string): Promise<ui.ThreadSnapshot | undefined>;
-  createMovedThread(request: ui.CreateThreadRequest, id: string, prepare: () => Promise<void>): Promise<void>;
+  createMovedThread(
+    request: ui.CreateThreadRequest,
+    id: string,
+    prepare: () => Promise<void>,
+    memoryAudience?: string,
+  ): Promise<void>;
   watchThread(
     threadId: string,
     signal: AbortSignal,
@@ -58,6 +63,7 @@ export const coreWatchMethods: CoreWatchMethods = {
     request: ui.CreateThreadRequest,
     id: string,
     prepare: () => Promise<void>,
+    memoryAudience?: string,
   ): Promise<void> {
     const existing = await coreRun(this, (s) => s.thread(id)).catch(() => undefined);
 
@@ -87,7 +93,14 @@ export const coreWatchMethods: CoreWatchMethods = {
     const chosen = known ? request : create(ui.CreateThreadRequestSchema, { ...request, model: "", effort: "" });
     await coreCheckModel(this, where, chosen.model, "", chosen.serviceTier);
     const effort = turnEffort((await coreProfileModels(this, where)).models, chosen.model, chosen.effort);
-    await coreRun(this, (s) => s.createThread(this[coreState].options.userId, { ...chosen, effort }, id));
+    await coreRun(this, (s) =>
+      s.createThread(
+        this[coreState].options.userId,
+        { ...chosen, effort },
+        id,
+        memoryAudience ? { memoryAudience } : undefined,
+      ),
+    );
     await prepare();
     await coreStartThread(this, await coreRun(this, (s) => s.thread(id)));
   },
