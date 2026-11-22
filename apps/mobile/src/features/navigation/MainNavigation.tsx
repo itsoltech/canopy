@@ -59,8 +59,15 @@ function Screens() {
     >
       <Stack.Screen name="index" />
       <Stack.Protected guard={threadsEnabled}>
-        <Stack.Screen name="thread/[id]" />
-        <Stack.Screen name="thread-starting/[id]" />
+        <Stack.Screen
+          name="thread/[id]"
+          options={({ route }) =>
+            route.params && "preparation" in route.params && route.params.preparation === "1"
+              ? { animation: "none" }
+              : {}
+          }
+        />
+        <Stack.Screen name="thread-starting/[id]" options={{ animation: "none" }} />
         <Stack.Screen name="new-thread" />
         <Stack.Screen name="pull-request/[id]" />
       </Stack.Protected>

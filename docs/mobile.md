@@ -4,8 +4,10 @@ Status: opis zaimplementowanego kodu (2026-11-22). Profile EAS przypinają Bun 1
 dla lockfile w wersji 3. Dostęp wątków do konektorów konfiguruje się dla projektów. Opis obejmuje Settings → Memory, import skilli z publicznych
 witryn HTTPS, usypianie wątków, dostępny offline wykaz licencji open source
 oraz osobne aktualizacje Canopy i CLI dostawców. Ukończone przygotowanie wątku
-domyślnie zwija kroki do wiersza „Thread prepared”. Na szerokim oknie iOS i Androida
-sidebar i rozmowa przesuwają wspólną krawędź podczas zwijania i rozwijania.
+domyślnie zwija kroki do wiersza „Thread prepared”. Pierwsza tura zastępuje
+podgląd przygotowania w tej samej liście i zachowuje pozycję czytania.
+Na szerokim oknie iOS i Androida sidebar i rozmowa przesuwają wspólną krawędź
+podczas zwijania i rozwijania.
 Uchwyt na tej krawędzi zmienia szerokość sidebara i zapisuje ją lokalnie.
 Pasek wątków ma osobne przyciski sortowania i filtrowania po projekcie.
 Usunięcie otwartego bota z paska bocznego lub jego ustawień zamyka jego rozmowę.
@@ -186,23 +188,23 @@ o powrocie do szkicu i blokuje kolejne wiadomości do zakończenia przygotowania
 Przygotowanie używa tego samego `ThreadHeaderBar`, `TimelineList`, granicy dnia
 oraz `FloatingComposer` z zablokowanym `ComposerBox`; nie tworzy fikcyjnego wątku
 ani tury. Szerokość rozmowy, safe area i wysokość rezerwy kompozytora są wspólne.
-Krótki prompt jest zakotwiczony u góry także w świeżym wątku z jedną turą:
-dodawanie prawdziwych kroków poniżej nie przesuwa promptu, dopóki treść mieści się
-w widoku. Dla długiej treści przygotowanie zapamiętuje położenie promptu względem
-viewportu, utrzymuje je podczas zmian checklisty dla czytającego historię
-i odtwarza po zmianie trasy oraz nadejściu pierwszego snapshotu,
-zamiast wracać do końca. Kotwica czytającego pozostaje aktywna przy zmianach
-wysokości pierwszej tury, także po dodaniu stopki zakończenia; nowy gest przewijania
-lub druga tura kończy tę ochronę. To nietrwały stan pojedynczego przygotowania; późniejsze
-przewijanie podlega regułom czytania historii i `Show latest`. Zastąpienie trasy nie
-uruchamia animacji slajdu. Do nadejścia pierwszej rzeczywistej tury pozostaje
-widoczny prompt z checklistą, bez zastępowania ich szkieletem.
+Przygotowanie używa jednorzędowego pola, tak jak otwarty wątek z pustym szkicem.
+Krótki prompt jest zakotwiczony u góry także w świeżym wątku z jedną turą,
+dopóki rozmowa mieści się nad kompozytorem. Checklista ma osobny wiersz listy.
+Po przewinięciu w górę przygotowanie zapamiętuje położenie promptu względem widoku
+i odtwarza je przy zmianach checklisty,
+po zmianie trasy i po nadejściu pierwszej tury. Kotwica pozostaje aktywna przy zmianach
+wysokości pierwszej tury, a dotknięcie listy w otwartym wątku lub druga tura kończy tę ochronę.
+Czytający przy końcu listy nadal widzi jej koniec. Widoczność przycisku
+`Show latest messages` wynika z rzeczywistego offsetu listy po odtworzeniu kotwicy.
+Zastąpienie trasy odbywa się bez animacji slajdu. Na ekranie wątku pierwsza tura
+zastępuje podgląd z checklistą w tej samej natywnej liście.
 
 Menedżer parowania utrzymuje do 40 przygotowań i deduplikuje aktywną operację po
 niezmiennym `clientRequestId`. Nawigacja następuje przed checkpointem szkicu i RPC;
 opuszczenie ekranu nie anuluje tworzenia. Potwierdzony wynik czyści tylko odpowiedni
-szkic i zastępuje ekran przygotowania, jeżeli użytkownik nadal go ogląda. Po sukcesie
-checklista zwija się pod pierwszą wiadomością do wiersza „Thread prepared”.
+szkic i zastępuje ekran przygotowania, jeżeli użytkownik nadal go ogląda. Checklista
+zwija się do wiersza „Thread prepared” w chwili pojawienia się pierwszej tury.
 Dotknięcie wiersza rozwija lub zwija kroki, a wybór pozostaje w bieżącej sesji
 przy zmianie ekranu i odmontowaniu wiersza. Kroki w toku i przy błędzie są widoczne
 od razu. Pusty wynik nie ma przełącznika. Checklista nie jest zapisywana
