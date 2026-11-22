@@ -29,17 +29,33 @@ message MemoryNote {
   string source_turn_id = 14;
   google.protobuf.Timestamp updated_at = 15;
   string scope_label = 16;
+  google.protobuf.Timestamp created_at = 17;
 }
 
 message ListMemoryNotesRequest {
   MemoryNoteScope scope = 1;
   uint32 limit = 2;
   string cursor = 3;
+  string project_id = 4;
+  string worker_id = 5;
+  string query = 6;
+  bool include_filter_options = 7;
+}
+
+message MemoryFilterOption {
+  string id = 1;
+  string label = 2;
+}
+
+message MemoryFilterOptions {
+  repeated MemoryFilterOption projects = 1;
+  repeated MemoryFilterOption workers = 2;
 }
 
 message ListMemoryNotesResponse {
   repeated MemoryNote notes = 1;
   string next_cursor = 2;
+  MemoryFilterOptions filter_options = 3;
 }
 
 message UpdateMemoryNoteRequest {

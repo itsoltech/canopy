@@ -34,44 +34,62 @@ function scopeFilter(scope: ui.MemoryNoteScope): MemoryScope["kind"] | undefined
   }
 }
 
-function noteLabels(runtime: CoreRuntime, ownerId: string, notes: readonly MemoryNote[]) {
+function scopeLabels(runtime: CoreRuntime, ownerId: string, scopes: readonly MemoryScope[]) {
   return runtime.runPromise(
     Effect.gen(function* () {
       const sql = yield* SqlClient.SqlClient;
-      const projects: string[] = [];
-      const workers: string[] = [];
-      const bots: string[] = [];
-      const conversations: string[] = [];
+      const projects = new Set<string>();
+      const workers = new Set<string>();
+      const bots = new Set<string>();
+      const conversations = new Set<string>();
 
-      for (const { scope } of notes) {
-        if ("projectId" in scope) projects.push(scope.projectId);
+      for (const scope of scopes) {
+        if ("projectId" in scope) projects.add(scope.projectId);
 
-        if ("workerId" in scope) workers.push(scope.workerId);
+        if ("workerId" in scope) workers.add(scope.workerId);
 
-        if ("botId" in scope) bots.push(scope.botId);
+        if ("botId" in scope) bots.add(scope.botId);
 
-        if ("conversationId" in scope) conversations.push(scope.conversationId);
+        if ("conversationId" in scope) conversations.add(scope.conversationId);
       }
 
       const rows = yield* sql<{ kind: string; id: string; label: string }>`
         SELECT 'project' AS kind,id,name AS label FROM projects
-          WHERE id=ANY(${projects}::uuid[]) AND owner_user_id=${ownerId}::uuid
+          WHERE id=ANY(${[...projects]}::uuid[]) AND owner_user_id=${ownerId}::uuid
         UNION ALL SELECT 'worker',w.id,w.name FROM workers w
-          WHERE w.id=ANY(${workers}::uuid[]) AND (
+          WHERE w.id=ANY(${[...workers]}::uuid[]) AND (
             w.owner_user_id=${ownerId}::uuid OR (w.owner_user_id IS NULL AND EXISTS (
               SELECT 1 FROM project_workspaces ws JOIN projects p ON p.id=ws.project_id
               WHERE ws.worker_id=w.id AND p.owner_user_id=${ownerId}::uuid
             ))
           )
         UNION ALL SELECT 'bot',id,configuration->>'name' FROM bots
-          WHERE id=ANY(${bots}::uuid[]) AND owner_user_id=${ownerId}::uuid
+          WHERE id=ANY(${[...bots]}::uuid[]) AND owner_user_id=${ownerId}::uuid
         UNION ALL SELECT 'conversation',c.id,concat_ws(' · ','Slack',c.channel_id,nullif(c.thread_id,'')) FROM bot_channel_conversations c
           JOIN bot_channel_routes r ON r.id=c.route_id
-          WHERE c.id=ANY(${conversations}::uuid[]) AND r.owner_user_id=${ownerId}::uuid`;
+          WHERE c.id=ANY(${[...conversations]}::uuid[]) AND r.owner_user_id=${ownerId}::uuid`;
 
       return new Map(rows.map(({ kind, id, label }) => [`${kind}/${id}`, label]));
     }),
   );
+}
+
+function filterOptions(scopes: readonly MemoryScope[], labels: ReadonlyMap<string, string>) {
+  const projects = new Set<string>();
+  const workers = new Set<string>();
+
+  for (const scope of scopes) {
+    if ("projectId" in scope) projects.add(scope.projectId);
+
+    if ("workerId" in scope) workers.add(scope.workerId);
+  }
+
+  const options = (ids: Set<string>, kind: string, label: string) =>
+    Array.from(ids, (id) => ({ id, label: labels.get(`${kind}/${id}`) || `${label} ${id.slice(0, 8)}` })).sort(
+      (a, b) => a.label.localeCompare(b.label) || a.id.localeCompare(b.id),
+    );
+
+  return { projects: options(projects, "project", "Project"), workers: options(workers, "worker", "Worker") };
 }
 
 function uiNote(note: MemoryNote, labels: ReadonlyMap<string, string>): ui.MemoryNote {
@@ -104,6 +122,7 @@ function uiNote(note: MemoryNote, labels: ReadonlyMap<string, string>): ui.Memor
     conversationId,
     ...(source && { sourceKind: source.kind, sourceId: source.id, sourceTurnId: source.turnId }),
     updatedAt: timestampFromDate(note.updatedAt),
+    ...(note.createdAt && { createdAt: timestampFromDate(note.createdAt) }),
     scopeLabel,
   });
 }
@@ -140,13 +159,19 @@ export function memoryHandlers(
           scope: scopeFilter(request.scope),
           cursor: request.cursor,
           limit: request.limit,
+          projectId: request.projectId,
+          workerId: request.workerId,
+          query: request.query,
         });
 
-        const labels = notes.length ? await noteLabels(runtime, userId, notes) : new Map<string, string>();
+        const available = request.includeFilterOptions ? await store.filterScopes(userId) : [];
+        const scopes = [...notes.map((note) => note.scope), ...available];
+        const labels = scopes.length ? await scopeLabels(runtime, userId, scopes) : new Map<string, string>();
 
         return create(ui.ListMemoryNotesResponseSchema, {
           notes: notes.map((note) => uiNote(note, labels)),
           nextCursor,
+          ...(request.includeFilterOptions && { filterOptions: filterOptions(available, labels) }),
         });
       }),
     updateMemoryNote: (request) =>
@@ -154,7 +179,7 @@ export function memoryHandlers(
         const { noteId, expectedRevision, title, body, aliases, pinned } = request;
         const note = await store.edit(userId, noteId, { title, body, aliases, pinned }, expectedRevision);
 
-        return uiNote(note, await noteLabels(runtime, userId, [note]));
+        return uiNote(note, await scopeLabels(runtime, userId, [note.scope]));
       }),
     deleteMemoryNote: (request) =>
       memoryGuard(async () => {

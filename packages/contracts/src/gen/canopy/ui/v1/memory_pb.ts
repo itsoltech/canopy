@@ -12,7 +12,7 @@ import type { Message } from "@bufbuild/protobuf";
  * Describes the file canopy/ui/v1/memory.proto.
  */
 export const file_canopy_ui_v1_memory: GenFile = /*@__PURE__*/
-  fileDesc("ChljYW5vcHkvdWkvdjEvbWVtb3J5LnByb3RvEgxjYW5vcHkudWkudjEi6wIKCk1lbW9yeU5vdGUSCgoCaWQYASABKAkSLAoFc2NvcGUYAiABKA4yHS5jYW5vcHkudWkudjEuTWVtb3J5Tm90ZVNjb3BlEg0KBXRpdGxlGAMgASgJEgwKBGJvZHkYBCABKAkSDwoHYWxpYXNlcxgFIAMoCRIOCgZwaW5uZWQYBiABKAgSEAoIcmV2aXNpb24YByABKA0SEgoKcHJvamVjdF9pZBgIIAEoCRIRCgl3b3JrZXJfaWQYCSABKAkSDgoGYm90X2lkGAogASgJEhcKD2NvbnZlcnNhdGlvbl9pZBgLIAEoCRITCgtzb3VyY2Vfa2luZBgMIAEoCRIRCglzb3VyY2VfaWQYDSABKAkSFgoOc291cmNlX3R1cm5faWQYDiABKAkSLgoKdXBkYXRlZF9hdBgPIAEoCzIaLmdvb2dsZS5wcm90b2J1Zi5UaW1lc3RhbXASEwoLc2NvcGVfbGFiZWwYECABKAkiZQoWTGlzdE1lbW9yeU5vdGVzUmVxdWVzdBIsCgVzY29wZRgBIAEoDjIdLmNhbm9weS51aS52MS5NZW1vcnlOb3RlU2NvcGUSDQoFbGltaXQYAiABKA0SDgoGY3Vyc29yGAMgASgJIlcKF0xpc3RNZW1vcnlOb3Rlc1Jlc3BvbnNlEicKBW5vdGVzGAEgAygLMhguY2Fub3B5LnVpLnYxLk1lbW9yeU5vdGUSEwoLbmV4dF9jdXJzb3IYAiABKAkigwEKF1VwZGF0ZU1lbW9yeU5vdGVSZXF1ZXN0Eg8KB25vdGVfaWQYASABKAkSGQoRZXhwZWN0ZWRfcmV2aXNpb24YAiABKA0SDQoFdGl0bGUYAyABKAkSDAoEYm9keRgEIAEoCRIPCgdhbGlhc2VzGAUgAygJEg4KBnBpbm5lZBgGIAEoCCJFChdEZWxldGVNZW1vcnlOb3RlUmVxdWVzdBIPCgdub3RlX2lkGAEgASgJEhkKEWV4cGVjdGVkX3JldmlzaW9uGAIgASgNKrABCg9NZW1vcnlOb3RlU2NvcGUSIQodTUVNT1JZX05PVEVfU0NPUEVfVU5TUEVDSUZJRUQQABIdChlNRU1PUllfTk9URV9TQ09QRV9QUk9KRUNUEAESHAoYTUVNT1JZX05PVEVfU0NPUEVfV09SS0VSEAISGQoVTUVNT1JZX05PVEVfU0NPUEVfQk9UEAMSIgoeTUVNT1JZX05PVEVfU0NPUEVfQ09OVkVSU0FUSU9OEARiBnByb3RvMw", [file_google_protobuf_timestamp]);
+  fileDesc("ChljYW5vcHkvdWkvdjEvbWVtb3J5LnByb3RvEgxjYW5vcHkudWkudjEimwMKCk1lbW9yeU5vdGUSCgoCaWQYASABKAkSLAoFc2NvcGUYAiABKA4yHS5jYW5vcHkudWkudjEuTWVtb3J5Tm90ZVNjb3BlEg0KBXRpdGxlGAMgASgJEgwKBGJvZHkYBCABKAkSDwoHYWxpYXNlcxgFIAMoCRIOCgZwaW5uZWQYBiABKAgSEAoIcmV2aXNpb24YByABKA0SEgoKcHJvamVjdF9pZBgIIAEoCRIRCgl3b3JrZXJfaWQYCSABKAkSDgoGYm90X2lkGAogASgJEhcKD2NvbnZlcnNhdGlvbl9pZBgLIAEoCRITCgtzb3VyY2Vfa2luZBgMIAEoCRIRCglzb3VyY2VfaWQYDSABKAkSFgoOc291cmNlX3R1cm5faWQYDiABKAkSLgoKdXBkYXRlZF9hdBgPIAEoCzIaLmdvb2dsZS5wcm90b2J1Zi5UaW1lc3RhbXASEwoLc2NvcGVfbGFiZWwYECABKAkSLgoKY3JlYXRlZF9hdBgRIAEoCzIaLmdvb2dsZS5wcm90b2J1Zi5UaW1lc3RhbXAiuwEKFkxpc3RNZW1vcnlOb3Rlc1JlcXVlc3QSLAoFc2NvcGUYASABKA4yHS5jYW5vcHkudWkudjEuTWVtb3J5Tm90ZVNjb3BlEg0KBWxpbWl0GAIgASgNEg4KBmN1cnNvchgDIAEoCRISCgpwcm9qZWN0X2lkGAQgASgJEhEKCXdvcmtlcl9pZBgFIAEoCRINCgVxdWVyeRgGIAEoCRIeChZpbmNsdWRlX2ZpbHRlcl9vcHRpb25zGAcgASgIIi8KEk1lbW9yeUZpbHRlck9wdGlvbhIKCgJpZBgBIAEoCRINCgVsYWJlbBgCIAEoCSJ8ChNNZW1vcnlGaWx0ZXJPcHRpb25zEjIKCHByb2plY3RzGAEgAygLMiAuY2Fub3B5LnVpLnYxLk1lbW9yeUZpbHRlck9wdGlvbhIxCgd3b3JrZXJzGAIgAygLMiAuY2Fub3B5LnVpLnYxLk1lbW9yeUZpbHRlck9wdGlvbiKSAQoXTGlzdE1lbW9yeU5vdGVzUmVzcG9uc2USJwoFbm90ZXMYASADKAsyGC5jYW5vcHkudWkudjEuTWVtb3J5Tm90ZRITCgtuZXh0X2N1cnNvchgCIAEoCRI5Cg5maWx0ZXJfb3B0aW9ucxgDIAEoCzIhLmNhbm9weS51aS52MS5NZW1vcnlGaWx0ZXJPcHRpb25zIoMBChdVcGRhdGVNZW1vcnlOb3RlUmVxdWVzdBIPCgdub3RlX2lkGAEgASgJEhkKEWV4cGVjdGVkX3JldmlzaW9uGAIgASgNEg0KBXRpdGxlGAMgASgJEgwKBGJvZHkYBCABKAkSDwoHYWxpYXNlcxgFIAMoCRIOCgZwaW5uZWQYBiABKAgiRQoXRGVsZXRlTWVtb3J5Tm90ZVJlcXVlc3QSDwoHbm90ZV9pZBgBIAEoCRIZChFleHBlY3RlZF9yZXZpc2lvbhgCIAEoDSqwAQoPTWVtb3J5Tm90ZVNjb3BlEiEKHU1FTU9SWV9OT1RFX1NDT1BFX1VOU1BFQ0lGSUVEEAASHQoZTUVNT1JZX05PVEVfU0NPUEVfUFJPSkVDVBABEhwKGE1FTU9SWV9OT1RFX1NDT1BFX1dPUktFUhACEhkKFU1FTU9SWV9OT1RFX1NDT1BFX0JPVBADEiIKHk1FTU9SWV9OT1RFX1NDT1BFX0NPTlZFUlNBVElPThAEYgZwcm90bzM", [file_google_protobuf_timestamp]);
 
 /**
  * @generated from message canopy.ui.v1.MemoryNote
@@ -97,6 +97,11 @@ export type MemoryNote = Message<"canopy.ui.v1.MemoryNote"> & {
    * @generated from field: string scope_label = 16;
    */
   scopeLabel: string;
+
+  /**
+   * @generated from field: google.protobuf.Timestamp created_at = 17;
+   */
+  createdAt?: Timestamp | undefined;
 };
 
 /**
@@ -124,6 +129,26 @@ export type ListMemoryNotesRequest = Message<"canopy.ui.v1.ListMemoryNotesReques
    * @generated from field: string cursor = 3;
    */
   cursor: string;
+
+  /**
+   * @generated from field: string project_id = 4;
+   */
+  projectId: string;
+
+  /**
+   * @generated from field: string worker_id = 5;
+   */
+  workerId: string;
+
+  /**
+   * @generated from field: string query = 6;
+   */
+  query: string;
+
+  /**
+   * @generated from field: bool include_filter_options = 7;
+   */
+  includeFilterOptions: boolean;
 };
 
 /**
@@ -132,6 +157,50 @@ export type ListMemoryNotesRequest = Message<"canopy.ui.v1.ListMemoryNotesReques
  */
 export const ListMemoryNotesRequestSchema: GenMessage<ListMemoryNotesRequest> = /*@__PURE__*/
   messageDesc(file_canopy_ui_v1_memory, 1);
+
+/**
+ * @generated from message canopy.ui.v1.MemoryFilterOption
+ */
+export type MemoryFilterOption = Message<"canopy.ui.v1.MemoryFilterOption"> & {
+  /**
+   * @generated from field: string id = 1;
+   */
+  id: string;
+
+  /**
+   * @generated from field: string label = 2;
+   */
+  label: string;
+};
+
+/**
+ * Describes the message canopy.ui.v1.MemoryFilterOption.
+ * Use `create(MemoryFilterOptionSchema)` to create a new message.
+ */
+export const MemoryFilterOptionSchema: GenMessage<MemoryFilterOption> = /*@__PURE__*/
+  messageDesc(file_canopy_ui_v1_memory, 2);
+
+/**
+ * @generated from message canopy.ui.v1.MemoryFilterOptions
+ */
+export type MemoryFilterOptions = Message<"canopy.ui.v1.MemoryFilterOptions"> & {
+  /**
+   * @generated from field: repeated canopy.ui.v1.MemoryFilterOption projects = 1;
+   */
+  projects: MemoryFilterOption[];
+
+  /**
+   * @generated from field: repeated canopy.ui.v1.MemoryFilterOption workers = 2;
+   */
+  workers: MemoryFilterOption[];
+};
+
+/**
+ * Describes the message canopy.ui.v1.MemoryFilterOptions.
+ * Use `create(MemoryFilterOptionsSchema)` to create a new message.
+ */
+export const MemoryFilterOptionsSchema: GenMessage<MemoryFilterOptions> = /*@__PURE__*/
+  messageDesc(file_canopy_ui_v1_memory, 3);
 
 /**
  * @generated from message canopy.ui.v1.ListMemoryNotesResponse
@@ -146,6 +215,11 @@ export type ListMemoryNotesResponse = Message<"canopy.ui.v1.ListMemoryNotesRespo
    * @generated from field: string next_cursor = 2;
    */
   nextCursor: string;
+
+  /**
+   * @generated from field: canopy.ui.v1.MemoryFilterOptions filter_options = 3;
+   */
+  filterOptions?: MemoryFilterOptions | undefined;
 };
 
 /**
@@ -153,7 +227,7 @@ export type ListMemoryNotesResponse = Message<"canopy.ui.v1.ListMemoryNotesRespo
  * Use `create(ListMemoryNotesResponseSchema)` to create a new message.
  */
 export const ListMemoryNotesResponseSchema: GenMessage<ListMemoryNotesResponse> = /*@__PURE__*/
-  messageDesc(file_canopy_ui_v1_memory, 2);
+  messageDesc(file_canopy_ui_v1_memory, 4);
 
 /**
  * @generated from message canopy.ui.v1.UpdateMemoryNoteRequest
@@ -195,7 +269,7 @@ export type UpdateMemoryNoteRequest = Message<"canopy.ui.v1.UpdateMemoryNoteRequ
  * Use `create(UpdateMemoryNoteRequestSchema)` to create a new message.
  */
 export const UpdateMemoryNoteRequestSchema: GenMessage<UpdateMemoryNoteRequest> = /*@__PURE__*/
-  messageDesc(file_canopy_ui_v1_memory, 3);
+  messageDesc(file_canopy_ui_v1_memory, 5);
 
 /**
  * @generated from message canopy.ui.v1.DeleteMemoryNoteRequest
@@ -217,7 +291,7 @@ export type DeleteMemoryNoteRequest = Message<"canopy.ui.v1.DeleteMemoryNoteRequ
  * Use `create(DeleteMemoryNoteRequestSchema)` to create a new message.
  */
 export const DeleteMemoryNoteRequestSchema: GenMessage<DeleteMemoryNoteRequest> = /*@__PURE__*/
-  messageDesc(file_canopy_ui_v1_memory, 4);
+  messageDesc(file_canopy_ui_v1_memory, 6);
 
 /**
  * @generated from enum canopy.ui.v1.MemoryNoteScope

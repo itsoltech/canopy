@@ -149,7 +149,13 @@ export function consolidationCatalog(sql: Database) {
     );
 
     // Keep the table allowlist closed to columns and FKs introduced without a reviewed import policy.
-    if (signature !== "00bd5f210514e9a5d7918e36745470fa908d042e1dba85bfb5768eacbea40c20")
+    // Migration 0196 adds agent_memory_notes.created_at to the transferred columns.
+    const reviewedSignature =
+      id < 196
+        ? "00bd5f210514e9a5d7918e36745470fa908d042e1dba85bfb5768eacbea40c20"
+        : "a63bce03ea3a4b10a8a41de926dbc676539c54f4013c8efc699077dd8e204c83";
+
+    if (signature !== reviewedSignature)
       return yield* Effect.fail(
         consolidationError("The consolidation schema has unsupported columns or foreign keys."),
       );

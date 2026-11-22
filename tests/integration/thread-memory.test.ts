@@ -1,9 +1,12 @@
 import { afterEach, beforeEach, describe, expect, test } from "bun:test";
+import type { MessageInitShape } from "@bufbuild/protobuf";
 import { PermissionMode, Provider, ui } from "@canopy/contracts";
 import { dockerAvailable } from "@canopy/db/testing";
 import type { JsonObject } from "@canopy/domain";
 import { GatewayStore } from "@canopy/gateway/store";
-import { Schema } from "effect";
+import { Effect, Schema } from "effect";
+import { SqlClient } from "effect/sql";
+import { memoryFor, type MemoryDraft, type MemoryScope } from "../../apps/gateway/src/memory/store.ts";
 import { eventually, failure, startTestGateway, type ScriptedWorker, type TestGateway } from "./support/gateway.ts";
 import { startInstanceFixture } from "./support/instance-fixture.ts";
 
@@ -48,6 +51,36 @@ async function search(turn: ActiveTurn, ...queries: string[]) {
 
   return decodeSearch(result.content).notes;
 }
+
+function lookupPlacements(gw: TestGateway, projectId: string) {
+  return gw.runtime.runPromise(
+    GatewayStore.use((store) =>
+      Effect.gen(function* () {
+        const place = (projectId: string, workerId: string) =>
+          store.createWorkspace({ projectId, workerId, rootPath: "/repo/lookup", label: "Lookup" });
+
+        const build = yield* store.addWorker({ name: "Build server", ownerUserId: gw.userId });
+        const buildWorkspace = yield* place(projectId, build.workerId);
+        const tools = yield* store.createProject(gw.userId, "Build tools");
+        const toolsWorkspace = yield* place(tools.id, gw.workerId);
+        const emptyProject = yield* store.createProject(gw.userId, "Empty project");
+        const emptyWorker = yield* store.addWorker({ name: "Empty worker", ownerUserId: gw.userId });
+        const emptyWorkspace = yield* place(emptyProject.id, emptyWorker.workerId);
+
+        const foreignOwner = yield* store.ensureUser("other@localhost", "Other owner");
+        const foreignProject = yield* store.createProject(foreignOwner, "Private project");
+        const foreignWorker = yield* store.addWorker({ name: "Private worker", ownerUserId: foreignOwner });
+        const foreignWorkspace = yield* place(foreignProject.id, foreignWorker.workerId);
+
+        return { buildWorkspace, toolsWorkspace, emptyWorkspace, foreignOwner, foreignWorkspace };
+      }),
+    ),
+  );
+}
+
+const workerScope = ({ projectId, workerId }: ui.Workspace): MemoryScope => ({ kind: "worker", projectId, workerId });
+
+const noteIds = (notes: readonly { id: string }[]) => notes.map(({ id }) => id);
 
 describe.skipIf(!dockerAvailable)("thread memory over the worker link and Settings gRPC", () => {
   let gw: TestGateway;
@@ -173,11 +206,92 @@ describe.skipIf(!dockerAvailable)("thread memory over the worker link and Settin
     });
   }, 30_000);
 
+  test("Settings lists matching owner notes and returns filter choices independently of the page", async () => {
+    const { projectId, workerId } = workspace;
+
+    const { buildWorkspace, toolsWorkspace, emptyWorkspace, foreignOwner, foreignWorkspace } = await lookupPlacements(
+      gw,
+      projectId,
+    );
+
+    const memory = memoryFor(gw.runtime);
+    const seed = (scope: MemoryScope, draft: MemoryDraft) => memory.save(gw.userId, scope, draft);
+    const main = workerScope(workspace);
+
+    const shared = await seed(
+      { kind: "project", projectId },
+      { title: "Shared G%_ATE policy", body: "Release rules." },
+    );
+
+    const title = await seed(main, { title: "Deploy through G%_ATE", body: "Release steps." });
+    const body = await seed(main, { title: "Run the pipeline", body: "Use the G%_ATE settings." });
+
+    const alias = await seed(main, {
+      title: "Review the run",
+      body: "Release checklist.",
+      aliases: ["Deploy", "Old G%_ATE"],
+    });
+
+    const wildcard = await seed(main, { title: "GXX_ATE", body: "G%XATE" });
+    const elsewhere = { title: "G%_ATE configuration", body: "Release settings." };
+    const onBuild = await seed(workerScope(buildWorkspace), elsewhere);
+    const inTools = await seed(workerScope(toolsWorkspace), elsewhere);
+    await memory.save(foreignOwner, workerScope(foreignWorkspace), elsewhere);
+
+    const deleted = await seed(workerScope(emptyWorkspace), elsewhere);
+    await gw.api.deleteMemoryNote({ noteId: deleted.id, expectedRevision: deleted.revision });
+
+    // Exercise the ID tie-breaker and ensure a newer nonmatch cannot consume a page slot.
+    const matches = noteIds([title, body, alias]).sort().reverse();
+    await gw.runtime.runPromise(
+      SqlClient.SqlClient.use(
+        (sql) => sql`UPDATE agent_memory_notes SET updated_at = CASE WHEN id = ${wildcard.id}::uuid
+          THEN '2026-02-02'::timestamptz ELSE '2026-02-01'::timestamptz END
+          WHERE id = ANY(${[...matches, wildcard.id]}::uuid[])`,
+      ),
+    );
+
+    const lookup = async (request: MessageInitShape<typeof ui.ListMemoryNotesRequestSchema>) =>
+      noteIds((await gw.api.listMemoryNotes(request)).notes).sort();
+
+    const query = "g%_ate";
+    expect(await lookup({ query })).toEqual([...matches, shared.id, onBuild.id, inTools.id].sort());
+    expect(await lookup({ projectId })).toEqual([...matches, wildcard.id, shared.id, onBuild.id].sort());
+    expect(await lookup({ workerId })).toEqual([...matches, wildcard.id, inTools.id].sort());
+    expect(await lookup({ projectId, scope: ui.MemoryNoteScope.PROJECT, query })).toEqual([shared.id]);
+    expect(await lookup({ projectId: foreignWorkspace.projectId, workerId: foreignWorkspace.workerId, query })).toEqual(
+      [],
+    );
+
+    const filters = { projectId, workerId, scope: ui.MemoryNoteScope.WORKER, query, limit: 2 };
+    const first = await gw.api.listMemoryNotes({ ...filters, includeFilterOptions: true });
+    expect(noteIds(first.notes)).toEqual(matches.slice(0, 2));
+    expect(first.nextCursor).not.toBe("");
+    const second = await gw.api.listMemoryNotes({ ...filters, cursor: first.nextCursor });
+    expect(noteIds(second.notes)).toEqual(matches.slice(2));
+    expect(second.nextCursor).toBe("");
+    expect(second.filterOptions).toBeUndefined();
+
+    const options = (choices: readonly ui.MemoryFilterOption[] | undefined) =>
+      choices?.map(({ id, label }) => ({ id, label })).sort((a, b) => a.label.localeCompare(b.label));
+
+    expect(options(first.filterOptions?.projects)).toEqual([
+      { id: toolsWorkspace.projectId, label: "Build tools" },
+      { id: projectId, label: "Shared memory" },
+    ]);
+    expect(options(first.filterOptions?.workers)).toEqual([
+      { id: buildWorkspace.workerId, label: "Build server" },
+      { id: workerId, label: "laptop" },
+    ]);
+  }, 30_000);
+
   test("Settings edit and deletion invalidate a warm search and reject stale revisions", async () => {
     const writer = await start(workspace);
     const draft = { scope: "project", title: "Toolchain", body: "Use the installed compiler.", aliases: ["cinnabar"] };
     const saved = await save(writer, draft);
     expect(await search(writer, "cinnabar")).toEqual([{ ...draft, ...saved }]);
+    const original = (await gw.api.listMemoryNotes({})).notes[0];
+    expect(original?.createdAt).toBeDefined();
 
     const edit = {
       noteId: saved.note_id,
@@ -190,6 +304,8 @@ describe.skipIf(!dockerAvailable)("thread memory over the worker link and Settin
 
     const edited = await gw.api.updateMemoryNote(edit);
     expect(edited).toMatchObject({ id: saved.note_id, revision: saved.revision + 1, pinned: true });
+    expect(edited.createdAt).toEqual(original?.createdAt);
+    expect((await gw.api.listMemoryNotes({})).notes[0]?.createdAt).toEqual(original?.createdAt);
     expect(await failure(gw.api.updateMemoryNote({ ...edit, body: "Overwritten" }))).toContain("[failed_precondition]");
     expect(await failure(gw.api.deleteMemoryNote(edit))).toContain("[failed_precondition]");
     expect(await search(writer, "cinnabar")).toEqual([]);

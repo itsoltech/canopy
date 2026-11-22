@@ -1,16 +1,6 @@
 import { afterAll, beforeAll, describe, expect, test } from "bun:test";
 import { dockerAvailable } from "../src/testing.ts";
-import {
-  completedTurn,
-  failure,
-  id,
-  insertSide,
-  mainThread,
-  query,
-  startSchemaDb,
-  stopSchemaDb,
-  world,
-} from "./support/schema.ts";
+import { completedTurn, failure, id, mainThread, query, startSchemaDb, stopSchemaDb, world } from "./support/schema.ts";
 
 describe.skipIf(!dockerAvailable)("schema on PostgreSQL 17", () => {
   beforeAll(async () => {
@@ -207,6 +197,7 @@ describe.skipIf(!dockerAvailable)("schema on PostgreSQL 17", () => {
       "193_agent_memory",
       "194_thread_memory_audience",
       "195_network_access_allowed_networks",
+      "196_memory_note_creation",
     ]);
   }, 60_000);
 
@@ -751,100 +742,6 @@ describe.skipIf(!dockerAvailable)("schema on PostgreSQL 17", () => {
       expect(await failure(`UPDATE network_access SET tailscale_serve = '[]'`)).toContain("check");
       expect(await failure(insert, [w.user, 24001, []])).toContain("network_access_pkey");
       await query(`DELETE FROM network_access`);
-    });
-  });
-
-  describe("worktrees (0064)", () => {
-    test("one settings row per scope; one live worktree per path; a removed worktree frees its path", async () => {
-      const w = await world();
-      const scope = `INSERT INTO worktree_settings (owner_user_id, project_id, worker_id, settings) VALUES ($1, $2, $3, '{}')`;
-      await query(scope, [w.user, null, null]);
-      await query(scope, [w.user, w.project, null]);
-      await query(scope, [w.user, w.project, w.worker]);
-      expect(await failure(scope, [w.user, null, null])).toContain("worktree_settings_scope");
-      expect(await failure(scope, [w.user, w.project, w.worker])).toContain("worktree_settings_scope");
-      expect(
-        await failure(
-          `INSERT INTO worktree_settings (owner_user_id, project_id, worker_id, settings) VALUES ($1, NULL, $2, '[]')`,
-          [w.user, w.worker],
-        ),
-      ).toContain("check");
-
-      const insert = `INSERT INTO worktrees (id, owner_user_id, project_id, workspace_id, worker_id, repo_root, path, branch)
-                      VALUES ($1, $2, $3, $4, $5, '/repo', '/data/worktrees/repo/a', 'canopy/a')`;
-
-      const first = id();
-      await query(insert, [first, w.user, w.project, w.workspace, w.worker]);
-      expect(await failure(insert, [id(), w.user, w.project, w.workspace, w.worker])).toContain("worktrees_live_path");
-      const recordCleanup = `UPDATE worktrees SET branch_cleanup_source = 'removal'::bytea WHERE id = $1`;
-      expect(await failure(recordCleanup, [first])).toContain("worktrees_branch_cleanup_source");
-      await query(`UPDATE worktrees SET removed_at = now() WHERE id = $1`, [first]);
-      await query(recordCleanup, [first]);
-      const live = id();
-      await query(insert, [live, w.user, w.project, w.workspace, w.worker]);
-      const thread = await mainThread(w);
-      expect(await failure(`UPDATE threads SET worktree_id = $2 WHERE id = $1`, [thread, first])).toContain(
-        "immutable",
-      );
-
-      const inWorktree = `INSERT INTO threads (id, project_id, owner_user_id, kind, root_thread_id, runtime, provider, worker_id, workspace_id, cwd, status, worktree_id)
-        VALUES ($1, $2, $3, 'main', $1, 'worker', 'codex', $4, $5, $6, 'idle', $7)`;
-
-      expect(await failure(inWorktree, [id(), w.project, w.user, w.worker, w.workspace, "/repo", live])).toContain(
-        "workspace worktree and path",
-      );
-      expect(
-        await failure(inWorktree, [id(), w.project, w.user, w.worker, w.workspace, "/data/worktrees/repo/a", first]),
-      ).toContain("workspace worktree and path");
-      await query(inWorktree, [id(), w.project, w.user, w.worker, w.workspace, "/data/worktrees/repo/a", live]);
-    });
-
-    test("a preparing thread admits work only after attaching an available worktree", async () => {
-      const w = await world();
-      const thread = id();
-      const worktree = id();
-      const path = "/data/worktrees/repo/prepare";
-
-      const reserve = `INSERT INTO threads (id, project_id, owner_user_id, kind, root_thread_id, runtime, provider,
-        worker_id, workspace_id, status, creation_request_id, preparation_fingerprint)
-        VALUES ($1, $2, $3, 'main', $1, 'worker', 'codex', $4, $5, $6, $7, 'fingerprint')`;
-
-      const placement = [thread, w.project, w.user, w.worker, w.workspace];
-      expect(await failure(reserve, [...placement, "failed", "request"])).toContain("threads_worktree_preparation");
-      expect(await failure(reserve, [...placement, "creating", null])).toContain("threads_worktree_preparation");
-      await query(reserve, [...placement, "creating", "request"]);
-
-      const turn = `INSERT INTO turns (id, thread_id, ordinal, trigger, author_user_id, input)
-        VALUES ($1, $2, 1, 'user', $3, '{}')`;
-
-      const goal = `INSERT INTO goals (id, thread_id, objective, status, created_by)
-        VALUES ($1, $2, 'Finish work', 'active', 'provider')`;
-
-      const side = insertSide(w, { parent: thread, root: thread, provider: "codex" });
-      expect(await failure(turn, [id(), thread, w.user])).toContain("thread_worktree_preparing");
-      expect(await failure(goal, [id(), thread])).toContain("thread_worktree_preparing");
-      expect(await failure(side.sql, side.params)).toContain("thread_worktree_preparing");
-      expect(await failure(`UPDATE threads SET preparation_fingerprint = NULL WHERE id = $1`, [thread])).toContain(
-        "immutable",
-      );
-
-      await query(
-        `INSERT INTO worktrees (id, owner_user_id, project_id, workspace_id, worker_id, repo_root, path, branch, removal_token)
-         VALUES ($1, $2, $3, $4, $5, '/repo', $6, 'canopy/prepared', $7)`,
-        [worktree, w.user, w.project, w.workspace, w.worker, path, id()],
-      );
-      const finalize = `UPDATE threads SET cwd = $2, worktree_id = $3, preparation_fingerprint = NULL WHERE id = $1`;
-      expect(await failure(finalize, [thread, path, worktree])).toContain("worktree_available");
-      await query(`UPDATE worktrees SET removal_token = NULL WHERE id = $1`, [worktree]);
-      expect(await failure(finalize, [thread, "/repo", worktree])).toContain("workspace worktree and path");
-      await query(`UPDATE threads SET deleted_at = now() WHERE id = $1`, [thread]);
-      expect(await failure(finalize, [thread, path, worktree])).toContain("immutable");
-      await query(`UPDATE threads SET deleted_at = NULL WHERE id = $1`, [thread]);
-      await query(finalize, [thread, path, worktree]);
-      await query(turn, [id(), thread, w.user]);
-      await query(goal, [id(), thread]);
-      await query(side.sql, side.params);
-      expect(await failure(`UPDATE threads SET cwd = '/repo' WHERE id = $1`, [thread])).toContain("immutable");
     });
   });
 

@@ -28,6 +28,7 @@ export interface MemoryNote {
   pinned: boolean;
   revision: number;
   source?: MemorySource | undefined;
+  createdAt?: Date | undefined;
   updatedAt: Date;
 }
 
@@ -63,7 +64,7 @@ export function scopeKey(scope: MemoryScope) {
   }
 }
 
-function scopeFromKey(key: string): MemoryScope {
+export function scopeFromKey(key: string): MemoryScope {
   const [kind, parent, child] = key.split(":");
 
   if (parent) {
@@ -117,6 +118,7 @@ export interface NoteRow {
   source_kind: "thread" | "bot" | null;
   source_id: string | null;
   source_turn_id: string | null;
+  created_at: Date | null;
   updated_at: Date;
 }
 
@@ -129,6 +131,7 @@ export function noteFromRow(row: NoteRow): MemoryNote {
     aliases: row.aliases,
     pinned: row.pinned,
     revision: row.revision,
+    ...(row.created_at !== null && { createdAt: new Date(row.created_at) }),
     updatedAt: new Date(row.updated_at),
     ...(row.source_kind &&
       row.source_id &&

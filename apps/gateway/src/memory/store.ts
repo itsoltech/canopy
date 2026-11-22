@@ -6,6 +6,7 @@ import {
   checkedDraft,
   noteFromRow,
   pageLimit,
+  scopeFromKey,
   scopeKey,
   uuid,
   type MemoryDraft,
@@ -24,6 +25,9 @@ interface ListOptions {
   scope?: MemoryScope | MemoryScope["kind"] | undefined;
   cursor?: string | undefined;
   limit?: number | undefined;
+  projectId?: string | undefined;
+  workerId?: string | undefined;
+  query?: string | undefined;
 }
 
 function decodeCursor(cursor?: string) {
@@ -111,6 +115,11 @@ class MemoryStore {
     const cursor = decodeCursor(options.cursor);
     const limit = pageLimit(options.limit, 30, 100);
     const { scope } = options;
+    const projectId = options.projectId ? uuid(options.projectId) : null;
+    const workerId = options.workerId ? uuid(options.workerId) : null;
+    const text = options.query?.trim() ?? "";
+
+    if (text.length > 200 || text.includes("\0")) throw new Invalid("Use up to 200 characters to search notes.");
 
     const rows = await this.runtime.runPromise(
       SqlClient.SqlClient.use((sql) => {
@@ -122,7 +131,21 @@ class MemoryStore {
 
         const page = cursor ? sql`AND (updated_at,id)<(${cursor.date}::timestamptz,${cursor.id}::uuid)` : sql``;
 
-        return sql<NoteRow>`SELECT * FROM agent_memory_notes WHERE owner_user_id=${owner}::uuid ${filter} ${page}
+        const placement =
+          projectId || workerId
+            ? sql`AND EXISTS (SELECT FROM agent_memory_scopes s
+                WHERE s.owner_user_id=n.owner_user_id AND s.scope_key=n.scope_key
+                  AND (${projectId}::uuid IS NULL OR s.project_id=${projectId}::uuid)
+                  AND (${workerId}::uuid IS NULL OR s.worker_id=${workerId}::uuid))`
+            : sql``;
+
+        const match = text
+          ? sql`AND (strpos(lower(title), lower(${text})) > 0 OR strpos(lower(body), lower(${text})) > 0
+              OR EXISTS (SELECT FROM unnest(aliases) AS a(alias) WHERE strpos(lower(a.alias), lower(${text})) > 0))`
+          : sql``;
+
+        return sql<NoteRow>`SELECT n.* FROM agent_memory_notes n WHERE owner_user_id=${owner}::uuid
+        ${filter} ${placement} ${match} ${page}
         ORDER BY updated_at DESC,id DESC LIMIT ${limit + 1}`;
       }),
     );
@@ -131,6 +154,18 @@ class MemoryStore {
     const last = notes.at(-1);
 
     return { notes, nextCursor: rows.length > limit && last ? `${last.updatedAt.toISOString()}|${last.id}` : "" };
+  }
+
+  async filterScopes(owner: string) {
+    const rows = await this.runtime.runPromise(
+      SqlClient.SqlClient.use(
+        (sql) => sql<{ scope_key: string }>`SELECT s.scope_key FROM agent_memory_scopes s
+          WHERE s.owner_user_id=${owner}::uuid AND s.project_id IS NOT NULL
+            AND EXISTS (SELECT FROM agent_memory_notes n WHERE n.owner_user_id=s.owner_user_id AND n.scope_key=s.scope_key)`,
+      ),
+    );
+
+    return rows.map(({ scope_key }) => scopeFromKey(scope_key));
   }
 
   async save(
