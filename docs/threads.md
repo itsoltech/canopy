@@ -4,6 +4,8 @@ Status (2026-11-22): wątki projektowe Claude, Codex i Grok mogą korzystać
 z [pamięci projektu i workera](agent-memory.md). Web i desktop pozwalają przypisać
 własną politykę sieci poleceń w trybie [Sandbox](sandbox-profiles.md).
 Na iOS i Androidzie „New thread” jest na końcu wiersza wyszukiwania wątków.
+Web i desktop pokazują skróty „New thread” w nagłówkach projektów i worktree po najechaniu
+kursorem lub ustawieniu fokusu klawiaturą. Na ekranach dotykowych skróty są stale widoczne.
 
 Status (2026-11-21): zaimplementowane, w tym usypianie wątków w web/desktop i mobile,
 spójne nagłówki oraz płynne rozwijanie i zwijanie sekcji Snoozed i Working w web/desktop,
@@ -256,6 +258,15 @@ Przycisk obok „Search threads” otwiera wyszukiwanie projektów i wybór wiel
 Filtr oraz przypięcia są wspólne dla urządzeń, zapisane w gateway.
 Wyszukiwanie tytułów wątków głównych i bocznych oraz nazw projektów działa wewnątrz filtra.
 Aktywny filtr ma licznik i szybkie czyszczenie; pusty wynik ma „Clear filters”.
+
+W web/desktop ikona „New thread” przy nagłówku projektu otwiera kompozytor
+z wybranym projektem i jego zwykłymi ustawieniami początkowymi. Kiedy ikona się pojawia,
+przejmuje pozycję strzałki przy prawej krawędzi, wyrównaną z ikoną dostawcy w wierszu wątku.
+Strzałka i licznik odsuwają się razem w lewo, a nazwa zachowuje swoje miejsce. Przy ograniczeniu
+ruchu zmiana pozycji jest natychmiastowa. Ikona przy nagłówku
+worktree wybiera także komputer i dokładny katalog grupy: bieżący checkout albo
+istniejący worktree. Wysłanie pierwszej wiadomości tworzy wątek. Jeśli wskazany
+worktree przestanie być dostępny, kompozytor wymaga innego wyboru przed wysłaniem.
 
 Pod aktywnymi wątkami znajduje się zwijana sekcja „Archived · N” z chevronem. Licznik obejmuje
 główne wiersze pasujące do filtra projektów i wyszukiwania. Stan rozwinięcia zapisuje się w gateway

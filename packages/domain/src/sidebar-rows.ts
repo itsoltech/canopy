@@ -15,6 +15,8 @@ export interface SidebarRow {
   readonly depth?: 1 | 2 | undefined;
   readonly groupKind?: "project" | "worktree" | undefined;
   readonly groupTitle?: string | undefined;
+  readonly groupWorkspaceId?: string | undefined;
+  readonly groupWorktreeId?: string | undefined;
   readonly count?: number | undefined;
   readonly project?: ui.Project | undefined;
   readonly worker?: ui.Worker | undefined;
@@ -33,6 +35,8 @@ export const sameSidebarRow = (a: SidebarRow, b: SidebarRow): boolean =>
   a.depth === b.depth &&
   a.groupKind === b.groupKind &&
   a.groupTitle === b.groupTitle &&
+  a.groupWorkspaceId === b.groupWorkspaceId &&
+  a.groupWorktreeId === b.groupWorktreeId &&
   a.count === b.count &&
   a.project === b.project &&
   a.worker === b.worker &&
@@ -68,6 +72,8 @@ export function sidebarRows(
       depth: entry.depth,
       groupKind: entry.groupKind,
       groupTitle: entry.groupTitle,
+      groupWorkspaceId: entry.groupWorkspaceId,
+      groupWorktreeId: entry.groupWorktreeId,
       count: entry.count,
       project: thread
         ? lookup.project(thread.projectId)
