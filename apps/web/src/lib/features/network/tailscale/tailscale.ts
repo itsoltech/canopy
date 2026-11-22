@@ -46,9 +46,7 @@ export function tailscaleState(status: ui.Tailscale) {
     return {
       title: "Connected",
       tone: "emerald" as const,
-      description: status.tailnet
-        ? `On the “${status.tailnet}” tailnet. Phones, computers and workers try its name first.`
-        : "Phones, computers and workers try its name first.",
+      description: status.tailnet ? `On the “${status.tailnet}” tailnet.` : undefined,
     };
 
   return STATES.get(status.state) ?? { title: status.state, tone: "neutral" as const, description: "" };

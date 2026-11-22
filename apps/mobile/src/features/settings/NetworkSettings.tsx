@@ -2,12 +2,16 @@ import { View } from "react-native";
 import { ui } from "@canopy/contracts";
 import { create } from "@bufbuild/protobuf";
 import type { MessageInitShape } from "@bufbuild/protobuf";
+import { useSession } from "../../state/session";
 import { Button, Notice } from "../../ui/components";
 import { SettingsGroup, SettingsRow, SettingToggle } from "./SettingsGroup";
 import { SettingsInput } from "./SettingsInput";
 import { SettingsValue } from "./SettingsValue";
 import { ResourceState, confirmAction, useSettingsResource } from "./resource";
 import { AttachmentSettings } from "./AttachmentSettings";
+import { AllowedNetworksSetting } from "./AllowedNetworksSetting";
+
+const NETWORK_ACCESS_QUERY = "GetNetworkAccess";
 
 type Change = (
   action: string,
@@ -15,19 +19,27 @@ type Change = (
 ) => Promise<boolean>;
 
 export function NetworkSettings() {
-  const resource = useSettingsResource("GetNetworkAccess", (api) => api.getNetworkAccess({}));
+  const { queries } = useSession();
+  const resource = useSettingsResource(NETWORK_ACCESS_QUERY, (api) => api.getNetworkAccess({}));
   const { data: capabilities } = useSettingsResource("GetClientCapabilities", (api) => api.getClientCapabilities({}));
   const status = resource.data ?? (resource.initialLoading ? create(ui.NetworkAccessSchema) : undefined);
 
   const change = async (action: string, patch: MessageInitShape<typeof ui.UpdateNetworkAccessRequestSchema> = {}) =>
-    !!(await resource.run((api) => api.updateNetworkAccess({ ...patch, action })));
+    !!(await resource.run(async (api) => {
+      const updated = await api.updateNetworkAccess({ ...patch, action });
+
+      // A change can cut off this device before the follow-up read.
+      queries.set(NETWORK_ACCESS_QUERY, updated, true);
+
+      return updated;
+    }));
 
   return (
     <ResourceState resource={resource}>
       <Notice>
         {capabilities?.linkedComputers
-          ? "Pair phones and link your other computers on any network they share with this one: Wi-Fi, Tailscale or the internet."
-          : "Connect paired devices and remote workers over Wi-Fi, Tailscale or the internet."}
+          ? "Pair phones and link other computers over the networks this computer makes available."
+          : "Connect paired devices and remote workers over the networks this computer makes available."}
       </Notice>
       <SettingsGroup title="This computer">
         <SettingToggle
@@ -47,11 +59,18 @@ export function NetworkSettings() {
                 )
           }
         />
+        {!!status?.allowedNetworks.length && (
+          <AllowedNetworksSetting
+            value={status.allowedNetworks}
+            busy={resource.busy}
+            onApply={(allowedNetworks) => change("set_allowed_networks", { allowedNetworks })}
+          />
+        )}
       </SettingsGroup>
       {status && (
         <>
           {status.error ? <Notice error>{status.error}</Notice> : null}
-          {status.note ? <Notice>{status.note}</Notice> : null}
+          {status.note && status.addresses.length > 0 ? <Notice>{status.note}</Notice> : null}
           <SettingsGroup
             title="Reachable at"
             description={
@@ -78,12 +97,15 @@ export function NetworkSettings() {
                 }
               />
             ))}
-            {!status.addresses.length && (
-              <SettingsRow
-                title={status.state === "on" ? "No network right now" : "Not reachable"}
-                description="Connect this computer to a network, or add a hostname."
-              />
-            )}
+            {!status.addresses.length &&
+              (status.note ? (
+                <Notice>{status.note}</Notice>
+              ) : (
+                <SettingsRow
+                  title={status.state === "on" ? "No reachable addresses" : "Not reachable"}
+                  description={status.state === "on" ? "Check this computer’s network connection." : undefined}
+                />
+              ))}
             <SettingsInput
               title="Hostnames"
               description="Add one hostname per line, including a forwarded port when needed."

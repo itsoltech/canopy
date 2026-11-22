@@ -1,9 +1,12 @@
 import { create } from "@bufbuild/protobuf";
 import { Code, ConnectError } from "@connectrpc/connect";
 import { ui } from "@canopy/contracts";
+import type { Socket } from "node:net";
 import type { TLSSocket } from "node:tls";
 import type { ComputerStore } from "../computers/store.ts";
-import { containerBridged, detectAddresses, hostnameEntry, originOf, type DetectedAddress } from "./addresses.ts";
+import { containerBridged, detectAddresses, hostnameEntry, type DetectedAddress } from "./addresses.ts";
+import { acceptsNetwork, allowsAllNetworks, connectionDestinations, selectedNetworks } from "./allowed-networks.ts";
+import { publishedAddresses } from "./published-addresses.ts";
 import {
   errorCode,
   listenError,
@@ -13,7 +16,7 @@ import {
   type Listener,
   type SystemCode,
 } from "./listener.ts";
-import { loadSettings, saveSettings, type NetworkSettings } from "./settings.ts";
+import { defaultNetworkSettings, loadSettings, saveSettings } from "./settings.ts";
 import { localNetworkBlocked, LOCAL_NETWORK_HELP } from "./local-network.ts";
 import { requireDesktopRole, type GatewayRole } from "../role.ts";
 import type { Tailscale } from "./tailscale/tailscale.ts";
@@ -42,16 +45,18 @@ type Service = "link" | "device";
 // Ports a computer picks for itself: below every system's ephemeral range, above the well-known ones.
 const randomPort = () => 20_000 + Math.floor(Math.random() * 12_000);
 
-/** Network access (docs/network-access.md): one in-app switch lets phones and linked computers connect.
- * The listener is on every interface; pinned TLS and pairing are the security boundary. Settings are
- * stored in the database; the addresses are detected and refreshed while the computer changes networks. */
+// Give the update response and advertised routes a chance to reach clients on an excluded network.
+const ROUTE_FLUSH_MS = 500;
+
+/** Settings and route announcements for the pinned TLS listener (docs/network-access.md). */
 export class NetworkAccess {
-  #settings: NetworkSettings = { enabled: false, port: null, hostnames: [] };
+  #settings = defaultNetworkSettings();
   #identity: { certificate: string; privateKey: string; fingerprint: string } | undefined;
   #listener: Listener | undefined;
   readonly #retiring = new Set<Listener>();
   #error = "";
   #detected: DetectedAddress[] = [];
+  #destinations = connectionDestinations({});
   #published = "";
   #timer: ReturnType<typeof setInterval> | undefined;
   #queue: Promise<unknown> = Promise.resolve();
@@ -89,7 +94,7 @@ export class NetworkAccess {
     return this.#serial(async () => {
       this.#identity = await this.options.store.identity();
       this.#settings = await loadSettings(this.options.store);
-      this.#detected = this.#detect();
+      this.#detect();
       await this.#apply();
       this.#timer = setInterval(() => void this.refresh(), this.options.pollMs ?? 10_000);
       this.#timer.unref?.();
@@ -115,6 +120,20 @@ export class NetworkAccess {
     return this.#listener?.host;
   }
 
+  get allowsLan() {
+    return this.#settings.allowedNetworks.includes("lan");
+  }
+
+  allowsLanAddress(localAddress: string, remoteAddress = localAddress) {
+    return (
+      this.allowsLan &&
+      acceptsNetwork(this.#settings.allowedNetworks, this.#destinations, {
+        localAddress,
+        remoteAddress,
+      })
+    );
+  }
+
   get fingerprint() {
     return this.#identity?.fingerprint ?? "";
   }
@@ -124,30 +143,19 @@ export class NetworkAccess {
     const port = this.#listener?.port;
 
     if (!port) return [];
+    const restricted = !allowsAllNetworks(this.#settings.allowedNetworks);
 
     const detected = preferTailnet(
       this.options.host && !this.options.detect
         ? [{ host: this.options.host, kind: "lan" as const, interfaceName: "" }]
         : this.#detected,
       this.options.tailscale?.snapshot,
+      restricted
+        ? (host) => acceptsNetwork(["tailscale"], this.#destinations, { localAddress: host, remoteAddress: host })
+        : undefined,
     );
 
-    const all = [
-      ...detected.map((a) =>
-        create(ui.NetworkAddressSchema, {
-          origin: originOf(a.host.includes(":") ? `[${a.host}]` : a.host, port),
-          host: a.host,
-          kind: a.kind,
-          interfaceName: a.interfaceName,
-        }),
-      ),
-      ...this.#settings.hostnames.map((entry) =>
-        create(ui.NetworkAddressSchema, { origin: originOf(entry, port), host: entry, kind: "hostname" }),
-      ),
-    ];
-
-    // A hostname the user added that is also the MagicDNS name is listed once.
-    return all.filter((a, index) => all.findIndex((b) => b.origin === a.origin) === index);
+    return publishedAddresses(port, this.#settings, detected, this.#destinations);
   }
 
   /** The tailnet origin of the listener (MagicDNS name, else tailnet IPv4); empty while either is off. */
@@ -170,6 +178,7 @@ export class NetworkAccess {
       portFixed: this.options.port !== undefined,
       addresses: this.addresses(),
       hostnames: this.#settings.hostnames,
+      allowedNetworks: this.#settings.allowedNetworks,
       fingerprint: this.fingerprint,
       note,
       tailscale: tailscaleMessage(this.options.tailscale?.snapshot, this.#https?.message()),
@@ -188,6 +197,12 @@ export class NetworkAccess {
         this.#settings = { ...this.#settings, enabled: request.enabled };
         await saveSettings(this.options.store, this.#settings);
         await this.#apply();
+      } else if (request.action === "set_allowed_networks") {
+        const next = { ...this.#settings, allowedNetworks: selectedNetworks(request.allowedNetworks) };
+        await saveSettings(this.options.store, next);
+        this.#settings = next;
+        this.#publish();
+        this.#enforceAccess(ROUTE_FLUSH_MS);
       } else if (request.action === "set_port" || request.action === "choose_port") {
         await this.#changePort(request.action === "set_port" ? request.port : undefined);
       } else if (request.action === "set_hostnames") {
@@ -200,7 +215,7 @@ export class NetworkAccess {
       } else if (request.action === "refresh_tailscale") {
         await this.options.tailscale?.refresh();
         await this.#https?.sync();
-        this.#detected = this.#detect();
+        this.#detect();
         this.#publish();
       } else if (request.action === "set_tailscale_https") {
         await this.#tailscaleHttps().setEnabled(request.enabled);
@@ -226,7 +241,7 @@ export class NetworkAccess {
   /** Re-detects this computer's addresses (a new Wi-Fi, a VPN went up) and tells listeners. */
   refresh() {
     return this.#serial(async () => {
-      this.#detected = this.#detect();
+      this.#detect();
 
       if (this.#settings.enabled && !this.#listener) await this.#apply();
       this.#publish();
@@ -252,7 +267,20 @@ export class NetworkAccess {
   }
 
   #detect() {
-    return this.options.detect?.() ?? (this.options.host ? [] : detectAddresses());
+    this.#detected = this.options.detect?.() ?? (this.options.host ? [] : detectAddresses());
+    const tailnet = this.options.tailscale?.snapshot;
+
+    this.#destinations = connectionDestinations(
+      undefined,
+      tailnet?.state === "connected" ? [...tailnet.ipv4, ...tailnet.ipv6] : [],
+    );
+    this.#enforceAccess();
+  }
+
+  #enforceAccess(graceMs?: number) {
+    this.#listener?.enforceAccess(graceMs);
+
+    for (const listener of this.#retiring) listener.enforceAccess(graceMs);
   }
 
   #note() {
@@ -260,10 +288,20 @@ export class NetworkAccess {
 
     if (!this.#listener) return "";
 
-    if (!this.options.host && !this.options.detect && containerBridged() && !this.#settings.hostnames.length)
+    if (this.addresses().length) return "";
+
+    if (
+      !this.options.host &&
+      !this.options.detect &&
+      this.#settings.allowedNetworks.includes("public") &&
+      containerBridged() &&
+      !this.#settings.hostnames.length
+    )
       return "Canopy runs in a container and can't see this server's addresses. Add the server's hostname or IP address.";
 
-    return this.addresses().length ? "" : "This computer isn't connected to a network right now.";
+    return allowsAllNetworks(this.#settings.allowedNetworks)
+      ? "This computer isn't connected to a network right now."
+      : "No addresses are available on the allowed networks.";
   }
 
   /** Opens or closes the listener to match the switch. A failure is kept as the visible error. */
@@ -310,6 +348,7 @@ export class NetworkAccess {
       port,
       identity: this.#identity!,
       route: (socket: TLSSocket) => this.#route(socket),
+      accepts: (socket: Socket) => acceptsNetwork(this.#settings.allowedNetworks, this.#destinations, socket),
       ...(this.options.log && { log: this.options.log }),
     };
 
@@ -366,7 +405,7 @@ export class NetworkAccess {
   }
 
   #publish() {
-    const key = `${this.#listener?.port ?? ""}|${this.origins().join()}|${this.#error}`;
+    const key = `${this.#listener?.port ?? ""}|${this.origins().join()}|${this.#settings.allowedNetworks.join()}|${this.#error}`;
 
     if (key === this.#published) return;
     this.#published = key;

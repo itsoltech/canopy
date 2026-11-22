@@ -1,15 +1,16 @@
 # Dostęp sieciowy (Network access)
 
-Status (2026-11-21): ustawienia załączników pozwalają wybrać do 40 MiB na plik.
-Tokeny urządzeń obowiązują na listenerze TLS. Odwołanie urządzenia odcina
-przygotowane aktualizacje. Worker sprawdza transport przy rejestracji, restarcie i wyborze trasy
-zapasowej. Dostępność według [zasad wydań](release.md).
+Status (2026-11-22): w ustawieniach Network access można wybrać sieci, z których
+gateway przyjmuje połączenia. Wybór obowiązuje na listenerze TLS i w ogłoszeniach
+tras. Tokeny urządzeń obowiązują na listenerze TLS, a worker sprawdza transport przy
+rejestracji, restarcie i wyborze trasy zapasowej. Dostępność według [zasad wydań](release.md).
 
-Jeden przełącznik na komputer: **Settings → Network access → „Let phones and other computers connect”**.
-Włączony otwiera jeden listener TLS na wszystkich interfejsach; z niego korzystają połączone komputery
-i telefony. Nie ma wyboru interfejsu, nie ma zmiennych środowiskowych do ustawienia
-na desktopie i nie trzeba nic zmieniać po przejściu do innej sieci. Granicą bezpieczeństwa jest
-przypięty certyfikat tego komputera i parowanie, nie sieć.
+Przełącznik **Settings → Network access → „Let phones and other computers connect”**
+uruchamia listener TLS dla połączonych komputerów i telefonów. W tych samych
+ustawieniach **Allowed networks** pozwala wybrać dowolną kombinację Tailscale,
+sieci lokalnej, publicznego internetu i innych VPN. Gateway zapamiętuje zestaw także
+po wyłączeniu dostępu. Zmiana może rozłączyć klientów korzystających z wykluczonej
+sieci. Każde połączenie nadal wymaga przypiętego certyfikatu i uwierzytelnienia.
 
 **Połączone komputery są funkcją wyłącznie lokalnego trybu Canopy Desktop.** Kontroler
 desktopu ustala wewnętrzną rolę `desktop` dla własnego gatewaya; zwykły start gatewaya
@@ -22,8 +23,10 @@ pozostają w bazie jako `inactive`, bez połączeń i synchronizacji.
 i desktopie remote; brak capability ukrywa tę funkcję, także przy starym gatewayu.
 
 Implementacja: `apps/gateway/src/network/` (`network.ts` — stan i ustawienia, `listener.ts` — serwer TLS,
-`addresses.ts` — wykrywanie adresów i nazwy hostów, `local-network.ts` — podpowiedź macOS), migracja
-**0055_network_access**, kontrakt `proto/canopy/ui/v1/network.proto` (`GetNetworkAccess`,
+`addresses.ts` — wykrywanie adresów, `allowed-networks.ts` — kontrola połączeń,
+`published-addresses.ts` — ogłaszane adresy, `local-network.ts` — podpowiedź macOS),
+migracje **0055_network_access** i **0195_network_access_allowed_networks**,
+kontrakt `proto/canopy/ui/v1/network.proto` (`GetNetworkAccess`,
 `UpdateNetworkAccess`), UI `apps/web/src/lib/features/network` i `/settings/network`.
 
 ## Ustawienia i ich źródło
@@ -36,6 +39,7 @@ Ustawienia leżą w bazie gatewaya (`network_access`, jeden wiersz na gateway, o
 | `enabled` | przełącznik „Let phones and other computers connect” | wyłączony (bezpieczny desktop) |
 | `port` | port listenera | wybierany przy pierwszym włączeniu i zapisywany |
 | `hostnames` | dodatkowe nazwy (`host` albo `host:port`), maks. 8 | brak |
+| `allowed_networks` | niepusty zestaw rodzajów sieci (`tailscale`, `lan`, `public`, `vpn`) | wszystkie, także po aktualizacji |
 
 Migracja włącza dostęp tylko komputerom, które miały już połączonych partnerów (ich listener działał),
 a starą kolumnę `computer_identity.listener_enabled` usuwa. Akcja `ManageComputer` `listener` zniknęła;
@@ -62,6 +66,25 @@ ale go nie wymaga:
   (dotychczasowe zasady pinu, samopodpisu i `Pair`/`Connect` bez zmian);
 - rola `server` odrzuca połączenie z certyfikatem klienta, bez montowania usługi łącza;
 - połączenie **bez certyfikatu** trafia do usług urządzeń (telefony, etap 2); bez nich dostaje 403.
+
+Przy wyborze części sieci gateway sprawdza lokalny adres gniazda i adres klienta
+przed przyjęciem TLS. Tailscale wymaga lokalnego adresu tailnetu na rozpoznanym
+interfejsie i adresu klienta z puli Tailscale. Inne VPN rozpoznaje po lokalnym
+interfejsie. Na prywatnym adresie LAN klient z publicznym IP liczy się jako ruch
+publiczny (np. po przekierowaniu portu z zachowaniem adresu źródłowego).
+Klient z prywatnym IP liczy się jako ruch LAN. Publiczny adres docelowy należy do
+sieci publicznej. Reguły używają adresów widocznych dla procesu gatewaya. Jeżeli
+router, proxy lub kontener podstawia własny adres źródłowy, gateway widzi ten adres.
+Port nadal korzysta z jednego gniazda. Firewall hosta i reguły tailnetu mogą
+dodatkowo ograniczyć ruch. Wybór wszystkich sieci zachowuje dotychczasową
+dostępność wszystkich interfejsów.
+
+Gateway stosuje nowy wybór od razu do nowych połączeń i żądań. Ogłasza zaktualizowane
+trasy i po krótkiej przerwie zamyka sesje na wykluczonych sieciach. Po wyłączeniu
+LAN linkowanie może dalej szukać partnerów przez mDNS, lecz nie ogłasza przez mDNS
+własnego listenera. Ustawienie dotyczy wyłącznie portu Network access. Serwerowy
+port gRPC workerów, reverse proxy oraz osobne HTTPS over Tailscale mają własne
+reguły dostępu.
 
 Tożsamość i lista partnerów są gotowe przed otwarciem listenera. Gdy usługa komputerów
 jest jeszcze uruchamiana albo już zatrzymywana, `Pair` i `Connect` zwracają `Unavailable`,
@@ -131,13 +154,20 @@ po nazwie. Sama nazwa nie dowodzi osiągalności; klient nadal weryfikuje przypi
 Bez Tailscale kolejność to LAN, pozostałe VPN, publiczne IPv4.
 Dodane nazwy i adresy publiczne (`hostname`) idą na końcu, na
 porcie listenera albo na własnym porcie (`canopy.example.com:8443`, gdy router przekierowuje inny port).
+Ogłaszana lista zawiera tylko wybrane sieci. Zapisane nazwy i adresy pozostają
+dostępne do edycji. Gateway przypisuje wpis do sieci według dopasowania do
+wykrytego adresu lub własnej nazwy MagicDNS, a potem według rodzaju adresu IP.
+Nazwy z końcówką `.local` domyślnie należą do LAN, pozostałe nazwy do sieci publicznej.
 Zmiana listy jest ogłaszana od razu partnerom (ramka `routes`, [etap 6](linked-computers.md#ogłaszanie-adresów-przez-łącze)).
 Nowe QR oraz odpowiedzi `UpdateNetworkAccess` i ogłoszenia `mobile_routes` korzystają z tej samej
-przefiltrowanej listy. Telefon zastępuje nią wcześniej zapisane adresy, bez ponownego parowania.
+przefiltrowanej listy. Telefon zapisuje niepustą listę tras bez ponownego parowania.
+Przy pustej liście zachowuje znane adresy do ponowienia połączenia, gdy gateway znów je udostępni.
 
 Lista adresów **nie jest zaufaniem**: każde połączenie i tak sprawdza przypięty certyfikat.
 
-Gdy Tailscale jest połączony, pierwszym adresem jest nazwa MagicDNS, a za nią adres tailnetu
+Gdy Tailscale jest połączony i dozwolony, pierwszym adresem jest nazwa MagicDNS, a za nią adres tailnetu.
+Przy ograniczonym wyborze gateway sprawdza, czy adres tailnetu jest widoczny na interfejsie
+procesu. Używa IPv6, jeśli dostępny jest tylko taki adres
 ([tailscale.md](tailscale.md#automatyczne-użycie-tailnetu)).
 
 ### Podpowiedzi zamiast instrukcji
@@ -149,12 +179,15 @@ Pole `note` pojawia się tylko, gdy coś wymaga działania:
 - macOS odmówił dostępu do sieci lokalnej: połączenie z adresem w podsieci własnego interfejsu kończy
   się `EHOSTUNREACH`/`ENETUNREACH` → komunikat z drogą do System Settings → Privacy & Security → Local
   Network (także zamiast ogólnego „unreachable” przy parowaniu);
-- włączony dostęp bez żadnego adresu → „This computer isn't connected to a network right now.”
+- włączony dostęp bez adresów w wybranych sieciach → „No addresses are available on the allowed networks.”
 
 ## UI
 
-- **Settings → Network access**: przełącznik, „Reachable at” (adres, rodzaj, interfejs, kopiowanie,
-  usuwanie dodanych nazw, „Add hostname”), „Advanced” (port i „Change”, odcisk certyfikatu).
+- **Settings → Network access** w webie, desktopie i aplikacji mobilnej: główny przełącznik
+  i podsumowanie „Allowed networks”. „Change” otwiera listę wyboru, a „Apply”
+  zapisuje wszystkie zmiany jednocześnie. „Reachable at” pokazuje aktualne adresy.
+  Dodane nazwy można edytować po wyłączeniu ich sieci. „Advanced” pokazuje port
+  i odcisk certyfikatu.
 - **Settings → Network access → Tailscale**: stan Tailscale, nazwa MagicDNS i adresy tailnetu z kopiowaniem,
   „Check again” oraz „HTTPS over Tailscale” (przełącznik, adres z kodem QR, port) — [tailscale.md](tailscale.md).
 - **Settings → Linked computers**: karta stanu („Network access is on · Reachable at 192.168.1.20,

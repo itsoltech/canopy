@@ -8,15 +8,18 @@ import type { TailscaleSnapshot } from "./status.ts";
 export function preferTailnet(
   detected: DetectedAddress[],
   tailscale: TailscaleSnapshot | undefined,
+  reachable?: (host: string) => boolean,
 ): { host: string; kind: DetectedAddress["kind"]; interfaceName: string }[] {
   if (tailscale?.state !== "connected") return detected;
 
   const tailnet = new Set(tailscale.ipv4);
-  const name = tailscale.magicDns && tailscale.dnsName ? [tailscale.dnsName] : [];
+  const ipv4 = reachable ? tailscale.ipv4.filter(reachable) : tailscale.ipv4;
+  const addresses = reachable && !ipv4.length ? tailscale.ipv6.filter(reachable) : ipv4;
+  const name = (!reachable || addresses.length) && tailscale.magicDns && tailscale.dnsName ? [tailscale.dnsName] : [];
 
   return [
     ...name.map((host) => ({ host, kind: "tailscale" as const, interfaceName: "MagicDNS" })),
-    ...tailscale.ipv4.map((host) => ({
+    ...addresses.map((host) => ({
       host,
       kind: "tailscale" as const,
       interfaceName: detected.find((a) => a.host === host)?.interfaceName ?? "Tailscale",

@@ -4,9 +4,11 @@ import { networkInterfaces } from "node:os";
 import { Code, ConnectError } from "@connectrpc/connect";
 
 /** How a phone or another computer reaches an address (shown next to it in Settings). */
-export type AddressKind = "lan" | "tailscale" | "vpn" | "public" | "hostname";
+export const NETWORK_KINDS = ["tailscale", "lan", "public", "vpn"] as const;
 
-export type DetectedAddress = { host: string; kind: Exclude<AddressKind, "hostname">; interfaceName: string };
+export type NetworkKind = (typeof NETWORK_KINDS)[number];
+
+export type DetectedAddress = { host: string; kind: NetworkKind; interfaceName: string };
 
 // Container and VM bridges are internal to this computer: nothing outside can use them.
 const BRIDGE =
@@ -36,7 +38,19 @@ export function isPrivateIpv4(host: string) {
   );
 }
 
-export function classify(host: string, interfaceName: string): DetectedAddress["kind"] | undefined {
+export function classify(host: string, interfaceName: string): NetworkKind | undefined {
+  if (BRIDGE.test(interfaceName) || VIRTUAL_ADAPTER.test(interfaceName)) return undefined;
+
+  if (isIP(host) === 6) {
+    if (isTailnetAddress(host) && VPN.test(interfaceName)) return "tailscale";
+
+    if (/^utun/i.test(interfaceName)) return undefined;
+
+    const kind = ipv6Scope(host);
+
+    return kind && VPN.test(interfaceName) ? "vpn" : kind;
+  }
+
   if (
     isIP(host) !== 4 ||
     inRange(host, "0.0.0.0", 8) ||
@@ -46,11 +60,8 @@ export function classify(host: string, interfaceName: string): DetectedAddress["
   )
     return undefined;
 
-  if (BRIDGE.test(interfaceName) || VIRTUAL_ADAPTER.test(interfaceName)) return undefined;
-
   // 100.64.0.0/10 is Tailscale's address space (and carrier-grade NAT elsewhere).
-  if (inRange(host, "100.64.0.0", 10) && (VPN.test(interfaceName) || /tailscale/i.test(interfaceName)))
-    return "tailscale";
+  if (isTailnetAddress(host) && (VPN.test(interfaceName) || /tailscale/i.test(interfaceName))) return "tailscale";
 
   // macOS utun devices also belong to private relays and VM software. Only advertise their tailnet IPs.
   if (/^utun/i.test(interfaceName)) return undefined;
@@ -58,6 +69,18 @@ export function classify(host: string, interfaceName: string): DetectedAddress["
   if (VPN.test(interfaceName)) return "vpn";
 
   return isPrivateIpv4(host) || inRange(host, "100.64.0.0", 10) ? "lan" : "public";
+}
+
+export function isTailnetAddress(host: string) {
+  return isIP(host) === 4 ? inRange(host, "100.64.0.0", 10) : /^fd7a:115c:a1e0:/i.test(host);
+}
+
+function ipv6Scope(host: string): "lan" | "public" | undefined {
+  if (/^f[cd][0-9a-f]{2}:/i.test(host)) return "lan";
+
+  if (/^[23][0-9a-f]{3}:/i.test(host)) return "public";
+
+  return undefined;
 }
 
 /** A container on Docker's default bridge network sees only its own internal addresses. */

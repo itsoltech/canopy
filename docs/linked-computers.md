@@ -4,6 +4,7 @@ Status (2026-11-22): gateway sprawdza pochodzenie automatycznej delegacji przed
 udostępnieniem tras z historią wątków. Wymiana bot↔bot z tury o ograniczonym
 zakresie wymaga izolowanego przyjęcia wiadomości przez dom odbiorcy.
 Konsolidacja przenosi [pamięć agentów i botów](agent-memory.md) wraz z danymi właściciela.
+Ogłoszenia mDNS respektują sieci wybrane w [Network access](network-access.md).
 
 Status: opis zaimplementowanej synchronizacji (2026-11-21), w tym usypiania wątków,
 blokady operacji przez łącze podczas opróżniania gatewaya i importu konsolidacji,
@@ -651,8 +652,9 @@ niedostępności; nie obiecuje wtedy samoistnego odzyskania zaufania.
 ### Listener i sieć
 
 Listener łącza jest częścią [dostępu sieciowego](network-access.md): jeden przełącznik w Settings →
-Network access („Let phones and other computers connect”) otwiera port TLS na wszystkich interfejsach,
-a połączenia z certyfikatem klienta trafiają do `ComputerLinkService`. Port jest wybierany raz i
+Network access („Let phones and other computers connect”) uruchamia port TLS z wyborem
+**Allowed networks**, a połączenia z certyfikatem klienta trafiają do `ComputerLinkService`.
+Port jest wybierany raz i
 zapisany w bazie (`network_access`), adresy są wykrywane i odświeżane, dodatkowe nazwy hostów dodaje się
 w UI; serwer w kontenerze może ustalić port przez `CANOPY_NETWORK_PORT`. Dawne `CANOPY_LINK_HOST`,
 `CANOPY_LINK_PORT`, `CANOPY_LINK_ADDRESSES`, desktopowe `computer-link.json` i wybór interfejsu

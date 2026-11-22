@@ -1,11 +1,13 @@
 # Tailscale
 
-Status: opis zaimplementowanego zachowania (2026-11-15), w tym niedostępności
-HTTPS over Tailscale dla roli `desktop`. Dostępność w nightly/beta/stable określają
+Status: opis zaimplementowanego zachowania (2026-11-22), w tym wyboru Tailscale
+w Allowed networks i niedostępności HTTPS over Tailscale dla roli `desktop`.
+Dostępność w nightly/beta/stable określają
 [zasady wydań](release.md) i GitHub Releases.
 
 Canopy sam wykrywa Tailscale na komputerze gatewaya i korzysta z niego bez dodatkowej konfiguracji:
-nazwa MagicDNS staje się pierwszym adresem Network access, a opcjonalny przełącznik **HTTPS over
+nazwa MagicDNS staje się pierwszym adresem Network access, jeżeli Tailscale jest dozwolony,
+a opcjonalny przełącznik **HTTPS over
 Tailscale** na gatewayu serwerowym udostępnia web UI pod `https://<nazwa-magicdns>` z ważnym
 certyfikatem. Canopy nigdy nie loguje do Tailscale, nie zmienia ACL, kluczy, exit node ani preferencji
 i **nigdy nie włącza Funnel**.
@@ -44,14 +46,16 @@ Odczyt jest cache'owany 5 s (Settings odświeża co 5 s), odświeżany co 30 s w
 
 ## Automatyczne użycie tailnetu
 
-Bez żadnych ustawień. Gdy Tailscale jest `connected`, lista adresów Network access zaczyna się od
+Domyślnie Tailscale jest dozwolony. Gdy Tailscale jest `connected` i zaznaczony
+w **Allowed networks**, lista adresów Network access zaczyna się od
 nazwy MagicDNS (`https://<nazwa>:<port listenera>`, rodzaj `tailscale`, interfejs „MagicDNS”), potem
-adres IPv4 tailnetu, a dalej jak dotąd: LAN, VPN, publiczne, dodane nazwy. Bez MagicDNS pierwszy jest
-adres IPv4 tailnetu. Nazwa dodana ręcznie, równa nazwie MagicDNS, nie jest powielana. Ta kolejność trafia
+adres tailnetu, a dalej dozwolone adresy LAN, VPN, publiczne i dodane nazwy. Bez MagicDNS pierwszy jest
+adres tailnetu. Przy ograniczonym wyborze gateway ogłasza adres tailnetu widoczny
+w jego sieci. Używa IPv6, gdy jedyny dostępny adres tailnetu ma tę wersję.
+Nazwa dodana ręcznie, równa nazwie MagicDNS, nie jest powielana. Ta kolejność trafia
 wszędzie, gdzie gateway używa `NetworkAccess.addresses()`/`origins()`:
 
-- ogłoszenia tras dla połączonych komputerów (`NodeHello.addresses`, ramka `routes`); adresy LAN zostają,
-  za nazwą MagicDNS;
+- ogłoszenia tras dla połączonych komputerów (`NodeHello.addresses`, ramka `routes`);
 - domyślny „Gateway address for workers” (pusty wpis = pierwszy adres) i instalator SSH;
 - trasy w kodach QR i linkach parowania telefonów i klientów desktopowych;
 - karta Network access i podsumowanie w Linked computers.

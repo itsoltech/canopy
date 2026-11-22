@@ -51,9 +51,7 @@
   <SettingsGroup>
     <SettingsRow
       {title}
-      description={network.loaded
-        ? [networkSummary(status, capabilities?.linkedComputers), status.note].filter(Boolean).join(" ")
-        : undefined}
+      description={network.loaded ? networkSummary(status, capabilities?.linkedComputers) : undefined}
     >
       {#snippet leading()}<StatusDot {tone} />{/snippet}
       {#snippet control()}

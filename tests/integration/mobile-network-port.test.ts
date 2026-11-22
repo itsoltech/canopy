@@ -143,4 +143,27 @@ describe.skipIf(!dockerAvailable)("paired phone port changes", () => {
     },
     15_000,
   );
+
+  test("a paired phone gets the saved policy response before its excluded path closes", async () => {
+    const pairing = await paired();
+    const connection = gw.core.mobile.networkRoutes();
+    const phone = routedMobileClient({ connection, token: pairing.deviceToken, transport });
+
+    try {
+      const changed = await phone.api.updateNetworkAccess({
+        action: "set_allowed_networks",
+        allowedNetworks: ["tailscale"],
+      });
+
+      expect(changed.allowedNetworks).toEqual(["tailscale"]);
+      expect(changed.addresses).toEqual([]);
+      expect((await gw.api.getNetworkAccess({})).allowedNetworks).toEqual(["tailscale"]);
+      await expect(transport.probe(connection.addresses[0]!, connection.fingerprint)).rejects.toThrow();
+    } finally {
+      await gw.api.updateNetworkAccess({
+        action: "set_allowed_networks",
+        allowedNetworks: ["tailscale", "lan", "public", "vpn"],
+      });
+    }
+  }, 10_000);
 });

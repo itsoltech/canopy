@@ -6,6 +6,7 @@
   import SettingsGroup from "#lib/shared/ui/SettingsGroup.svelte";
   import SettingsRow from "#lib/shared/ui/SettingsRow.svelte";
   import IconButton from "#lib/shared/ui/IconButton.svelte";
+  import AllowedNetworksRow from "#lib/features/network/AllowedNetworksRow.svelte";
   import HostnameDialog from "#lib/features/network/HostnameDialog.svelte";
   import NetworkAddressRow from "#lib/features/network/NetworkAddressRow.svelte";
   import NetworkSwitchRow from "#lib/features/network/NetworkSwitchRow.svelte";
@@ -20,6 +21,12 @@
   const network = useNetworkAccess();
   const capabilities = useGatewayCapabilities();
   const status = $derived(network.status);
+  const noAddresses = $derived(status.state === "on" && !status.addresses.length);
+
+  const otherHostnames = $derived(
+    status.hostnames.filter((hostname) => !status.addresses.some((a) => a.kind === "hostname" && a.host === hostname)),
+  );
+
   let error = $state("");
   let hostnameOpen = $state(false);
   let portOpen = $state(false);
@@ -40,6 +47,20 @@
   }
 
   const setHostnames = (hostnames: string[]) => change("set_hostnames", { hostnames });
+
+  function removeHostname(hostname: string) {
+    void setHostnames(status.hostnames.filter((entry) => entry !== hostname));
+  }
+
+  function hostnameStatus(hostname: string) {
+    if (status.state !== "on") return "Added by you";
+    const authority = /:\d+$/.test(hostname) ? hostname : `${hostname}:${status.port}`;
+
+    if (status.addresses.some((address) => address.origin === `https://${authority}`))
+      return "Matches a listed address";
+
+    return "Excluded by allowed networks";
+  }
 </script>
 
 <svelte:head><title>Network access · Settings · {applicationName}</title></svelte:head>
@@ -47,8 +68,8 @@
   <h1 class="text-base/7 font-semibold text-zinc-950 dark:text-white">Network access</h1>
   <p class="text-base/6 text-pretty text-zinc-500 sm:text-sm/6 dark:text-zinc-400">
     {capabilities?.linkedComputers
-      ? "Pair phones and link your other computers on any network they share with this one: Wi-Fi, Tailscale or the internet."
-      : "Connect paired devices and remote workers over Wi-Fi, Tailscale or the internet."}
+      ? "Connect phones, linked computers and remote workers to this gateway."
+      : "Connect paired devices and remote workers to this gateway."}
   </p>
 </div>
 {#if network.error}<ConnectionRequestError
@@ -73,6 +94,7 @@
     disabled={!network.loaded || !!network.error || network.busy}
     onchange={(enabled) => void change("set_enabled", { enabled })}
   />
+  {#if status.allowedNetworks.length}<AllowedNetworksRow {network} />{/if}
 </SettingsGroup>
 {#if network.loaded}
   {#if status.state === "error"}<Alert tone="error" title="Network access can't start"
@@ -82,7 +104,7 @@
           onclick={() => void change("choose_port")}>Pick a free port</Button
         >{/if}</Alert
     >{/if}
-  {#if status.note}<Alert tone="warning">{status.note}</Alert>{/if}
+  {#if status.note && !noAddresses}<Alert tone="warning">{status.note}</Alert>{/if}
   <SettingsGroup
     title="Reachable at"
     description={capabilities?.linkedComputers
@@ -100,36 +122,48 @@
           <NetworkAddressRow
             {address}
             busy={!!network.error || network.busy}
-            onremove={address.kind === "hostname"
-              ? () => void setHostnames(status.hostnames.filter((h) => h !== address.host))
-              : undefined}
+            onremove={address.kind === "hostname" ? () => removeHostname(address.host) : undefined}
           />
         {/each}
       </ul>
+    {:else if noAddresses}
+      <p class="px-4 py-3 text-base/6 text-pretty text-zinc-500 sm:text-sm/6 dark:text-zinc-400">
+        {status.note || "No connection addresses are available."}
+      </p>
     {:else}
       <SettingsRow
-        title={status.state === "on" ? "No network right now" : "Not reachable"}
-        description={status.state === "on"
-          ? "Connect this computer to a network, or add a hostname."
-          : network.error
-            ? undefined
-            : status.state === "off"
-              ? "Turn on network access to see this computer's addresses."
-              : "Resolve the network access error above to make this computer reachable."}
+        title="Not reachable"
+        description={network.error
+          ? undefined
+          : status.state === "off"
+            ? "Turn on network access to see this computer's addresses."
+            : "Resolve the network access error above to make this computer reachable."}
       />
-      {#each status.hostnames as hostname (hostname)}
-        <SettingsRow title={hostname} description="Added by you">
-          {#snippet control()}<IconButton
+    {/if}
+  </SettingsGroup>
+  {#if otherHostnames.length}
+    <SettingsGroup title="Saved hostnames">
+      <ul role="list" class="divide-y divide-zinc-950/5 dark:divide-white/8">
+        {#each otherHostnames as hostname (hostname)}
+          <li class="flex items-center gap-3 px-4 py-3">
+            <div class="min-w-0 flex-1">
+              <p class="font-mono text-base/6 break-all text-zinc-950 select-text sm:text-sm/6 dark:text-white">
+                {hostname}
+              </p>
+              <p class="text-sm/5 text-zinc-500 dark:text-zinc-400">{hostnameStatus(hostname)}</p>
+            </div>
+            <IconButton
               icon="trash"
               label={`Remove ${hostname}`}
               size="sm"
               disabled={!!network.error || network.busy}
-              onclick={() => void setHostnames(status.hostnames.filter((h) => h !== hostname))}
-            />{/snippet}
-        </SettingsRow>
-      {/each}
-    {/if}
-  </SettingsGroup>
+              onclick={() => removeHostname(hostname)}
+            />
+          </li>
+        {/each}
+      </ul>
+    </SettingsGroup>
+  {/if}
   <TailscaleSettings {network} />
   <SettingsGroup title="Advanced">
     <SettingsRow
