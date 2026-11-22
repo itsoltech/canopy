@@ -21,16 +21,17 @@ import type { ModelReply } from "../../apps/gateway/src/bots/types.ts";
 describe.skipIf(!dockerAvailable)("automation worktrees over gRPC", () => {
   const dir = tempDir("canopy-worktree-automation-");
   let f: Awaited<ReturnType<typeof worktreeFixture>>;
-  let botArgs: JsonObject = {};
-  let botCallPending = false;
+  const botRequests = new Map<string, JsonObject>();
   beforeAll(async () => {
     f = await worktreeFixture(dir, {
       capabilities: [WORKTREE_CHECKOUT_DEADLINE],
-      botModel: async (): Promise<ModelReply> => {
-        if (!botCallPending) return { text: "Started", calls: [] };
-        botCallPending = false;
+      botModel: async ({ turn, messages }): Promise<ModelReply> => {
+        // A delegated thread can queue its own bot turn while the next request is pending.
+        const args = turn && botRequests.get(turn.client_request_id);
 
-        return { text: "", calls: [{ id: Bun.randomUUIDv7(), name: "start_thread", arguments: botArgs }] };
+        return args && messages.at(-1)?.role !== "tool"
+          ? { text: "", calls: [{ id: "start-thread", name: "start_thread", arguments: args }] }
+          : { text: "Acknowledged", calls: [] };
       },
     });
     f.gw.core.bots.start();
@@ -400,7 +401,8 @@ describe.skipIf(!dockerAvailable)("automation worktrees over gRPC", () => {
     ).bot!;
 
     const runBot = async (extra: JsonObject) => {
-      botArgs = {
+      const clientRequestId = Bun.randomUUIDv7();
+      botRequests.set(clientRequestId, {
         project_id: f.project.id,
         workspace_id: f.workspace.id,
         provider: "codex",
@@ -408,44 +410,56 @@ describe.skipIf(!dockerAvailable)("automation worktrees over gRPC", () => {
         model: "gpt-6.1-sol",
         prompt: "Code task",
         ...extra,
-      };
-      const before = new Set((await f.gw.api.listThreads({ projectId: f.project.id })).threads.map((t) => t.id));
-      botCallPending = true;
-      await f.gw.api.sendBotMessage({ botId: bot.id, text: "Run code", clientRequestId: Bun.randomUUIDv7() });
+      });
 
-      const listed = await eventually(
-        () => f.gw.api.listThreads({ projectId: f.project.id }),
-        (r) => r.threads.some((t) => !before.has(t.id)),
-      );
+      try {
+        const { turnId } = await f.gw.api.sendBotMessage({ botId: bot.id, text: "Run code", clientRequestId });
 
-      await eventually(
-        () => f.gw.core.bots.run((s) => s.conversation(f.gw.userId, bot.id)),
-        (r) => !r.working,
-      );
+        const [result] = await eventually(
+          () =>
+            f.sql(
+              (sql) => sql<{ status: string; finished: boolean; thread_id: string | null; error: string | null }>`
+            SELECT t.status, t.finished_at IS NOT NULL AS finished,
+                   c.result->>'thread_id' AS thread_id, c.result->>'error' AS error
+            FROM bot_turns t LEFT JOIN bot_tool_calls c ON c.turn_id=t.id AND c.tool->>'name'='start_thread'
+            WHERE t.id=${turnId}::uuid`,
+            ),
+          ([row]) => row?.finished === true,
+        );
 
-      return listed.threads.find((t) => !before.has(t.id))!;
+        if (!result?.finished || result.status !== "completed" || !result.thread_id)
+          throw new Error(`Bot turn ${turnId} did not create a thread: ${JSON.stringify(result)}`);
+
+        return (await f.gw.api.getThread({ threadId: result.thread_id })).thread!;
+      } finally {
+        botRequests.delete(clientRequestId);
+      }
     };
 
     await f.settings({ defaultMode: ui.WorkspaceMode.NEW_WORKTREE });
-    const isolated = await runBot({});
-    await f.settled(isolated);
 
-    const [start] = await f.sql(
-      (sql) =>
-        sql<{
-          payload: Uint8Array;
-        }>`SELECT payload FROM worker_commands WHERE thread_id=${isolated.id}::uuid AND kind='createThread'`,
-    );
+    try {
+      const isolated = await runBot({});
+      await f.settled(isolated);
 
-    const command = fromBinary(CommandSchema, start!.payload);
-    expect(command.kind.case === "createThread" && command.kind.value.thread?.hasDelegatingBot).toBe(true);
-    expect(readFileSync(join(isolated.cwd, "worker-started.txt"), "utf8")).toBe(isolated.cwd);
-    const inherited = await runBot({ workspace_mode: "inherit_parent", parent_thread_id: isolated.id });
-    expect([inherited.cwd, inherited.worktree?.id]).toEqual([isolated.cwd, isolated.worktree!.id]);
-    const checkout = await runBot({ workspace_mode: "checkout" });
-    expect([checkout.cwd, checkout.worktree]).toEqual([f.repo, undefined]);
-    await f.settings({ defaultMode: ui.WorkspaceMode.CHECKOUT });
-  });
+      const [start] = await f.sql(
+        (sql) =>
+          sql<{
+            payload: Uint8Array;
+          }>`SELECT payload FROM worker_commands WHERE thread_id=${isolated.id}::uuid AND kind='createThread'`,
+      );
+
+      const command = fromBinary(CommandSchema, start!.payload);
+      expect(command.kind.case === "createThread" && command.kind.value.thread?.hasDelegatingBot).toBe(true);
+      expect(readFileSync(join(isolated.cwd, "worker-started.txt"), "utf8")).toBe(isolated.cwd);
+      const inherited = await runBot({ workspace_mode: "inherit_parent", parent_thread_id: isolated.id });
+      expect([inherited.cwd, inherited.worktree?.id]).toEqual([isolated.cwd, isolated.worktree!.id]);
+      const checkout = await runBot({ workspace_mode: "checkout" });
+      expect([checkout.cwd, checkout.worktree]).toEqual([f.repo, undefined]);
+    } finally {
+      await f.settings({ defaultMode: ui.WorkspaceMode.CHECKOUT });
+    }
+  }, 30_000);
 
   test("automation trees participate in deleted-thread cleanup and foreign source threads are refused", async () => {
     const parent = await f.tree();

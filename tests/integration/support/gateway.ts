@@ -242,6 +242,7 @@ export class ScriptedWorker {
     callId?: string;
     connectorAccountId?: string;
     expiresAt?: Date;
+    cancelled?: boolean;
   }): Promise<AgentToolResult> {
     const callId = input.callId ?? Bun.randomUUIDv7();
 
@@ -258,6 +259,7 @@ export class ScriptedWorker {
           argumentsJson: JSON.stringify(input.args),
           connectorAccountId: input.connectorAccountId ?? "",
           expiresAt: input.expiresAt ? timestampFromDate(input.expiresAt) : undefined,
+          cancelled: input.cancelled ?? false,
         },
       });
     });
