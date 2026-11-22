@@ -3,7 +3,8 @@
 Status (2026-11-22): gateway sprawdza pochodzenie automatycznej delegacji przed
 udostępnieniem tras z historią wątków. Wymiana bot↔bot z tury o ograniczonym
 zakresie wymaga izolowanego przyjęcia wiadomości przez dom odbiorcy.
-Konsolidacja przenosi [pamięć agentów i botów](agent-memory.md) wraz z danymi właściciela.
+Konsolidacja przenosi [pamięć agentów i botów](agent-memory.md) wraz z danymi
+właściciela i dostępnymi datami utworzenia notatek.
 Ogłoszenia mDNS respektują sieci wybrane w [Network access](network-access.md).
 
 Status: opis zaimplementowanej synchronizacji (2026-11-21), w tym usypiania wątków,
@@ -2240,6 +2241,7 @@ oddzielnego przełączenia.
 
 Konsolidacja pamięci wymaga zgodnego katalogu bazy po obu stronach i migracji
 co najmniej 0194. Notatki i potwierdzenia operacji przechodzą razem z zakresem.
+Od migracji 0196 eksport i import zachowują także daty utworzenia notatek.
 Przy połączeniu projektów różne wpisy trafiają do wspólnej pamięci obok wpisów
 docelowych. Zakres dostaje nową rewizję w bazie docelowej. Kolizja identyfikatora
 notatki lub brak powiązanego zasobu wymaga rozstrzygnięcia przed importem.

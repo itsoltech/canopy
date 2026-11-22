@@ -26,6 +26,7 @@ const uuid = Bun.randomUUIDv7;
 const ownerEmail = "consolidation@example.test";
 const fixtureValue = "consolidation secret fixture";
 const snoozedUntil = "2099-12-31T23:59:59.123Z";
+const memoryCreatedAt = "2026-08-01T09:15:30.123Z";
 
 type Fixture = Awaited<ReturnType<typeof seedInstallation>>;
 
@@ -227,9 +228,10 @@ async function seedMemory(
     (${owner},${f.sourceProject},NULL,NULL,NULL),(${owner},${f.sourceProject},${f.worker},NULL,NULL),
     (${owner},NULL,NULL,${f.bot},NULL),(${owner},NULL,NULL,${f.bot},${conversation}),
     (${f.foreignOwner},${f.foreignProject},NULL,NULL,NULL)`;
-  await s`INSERT INTO agent_memory_notes(id,owner_user_id,scope_key,title,body,aliases,pinned,revision,source_kind,source_id,source_turn_id)
+  await s`INSERT INTO agent_memory_notes(id,owner_user_id,scope_key,title,body,aliases,pinned,revision,source_kind,source_id,source_turn_id,created_at)
     SELECT gen_random_uuid(),owner_user_id,scope_key,split_part(scope_key,':',1),'source note','{alternate}',true,3,
-      'thread',${f.thread},${f.turn} FROM agent_memory_scopes`;
+      'thread',${f.thread},${f.turn},CASE WHEN scope_key NOT LIKE 'bot:%' THEN ${memoryCreatedAt}::timestamptz END
+    FROM agent_memory_scopes`;
   await s`INSERT INTO agent_memory_operations(owner_user_id,operation_id,request_hash,note_id,note_revision)
     VALUES(${owner},'old-operation','digest',${uuid()},1)`;
 
@@ -346,8 +348,8 @@ async function checkMemory(sql: SQL, owner: string, f: FixtureRows) {
     f.memory.audience,
   ];
 
-  const notes =
-    await sql`SELECT title,scope_key,revision,aliases,pinned,source_id,source_turn_id FROM agent_memory_notes
+  const notes = await sql`SELECT title,scope_key,revision,aliases,pinned,source_id,source_turn_id,
+      created_at=${memoryCreatedAt}::timestamptz AS creation_time_preserved FROM agent_memory_notes
     WHERE owner_user_id=${owner} AND body='source note' ORDER BY scope_key`;
 
   expect(notes).toEqual(
@@ -359,6 +361,7 @@ async function checkMemory(sql: SQL, owner: string, f: FixtureRows) {
       pinned: true,
       source_id: f.thread,
       source_turn_id: f.turn,
+      creation_time_preserved: scope_key.startsWith("bot:") ? null : true,
     })),
   );
   expect(await sql`SELECT body FROM agent_memory_notes WHERE title='existing'`).toEqual([{ body: "target note" }]);
