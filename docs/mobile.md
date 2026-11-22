@@ -1,7 +1,8 @@
 # Canopy na iOS i Android
 
-Status: opis zaimplementowanego kodu (2026-11-22), w tym dziennego pingu użycia
-z przełącznikiem prywatności i pomijaniem wysyłki offline. Settings → Appearance
+Status: opis zaimplementowanego kodu (2026-11-22), w tym nowego logo Canopy i grafiki
+kanału w nagłówku sidebara oraz dziennego pingu użycia z przełącznikiem prywatności
+i pomijaniem wysyłki offline. Settings → Appearance
 zapisuje schemat kolorów, oba motywy i szerokość wątku w instalacji aplikacji.
 Profile EAS przypinają Bun 1.4.5
 dla lockfile w wersji 3. Kompozytor pokazuje przypisany [profil Sandbox](sandbox-profiles.md).
@@ -18,8 +19,6 @@ podczas zwijania i rozwijania.
 Uchwyt na tej krawędzi zmienia szerokość sidebara i zapisuje ją lokalnie.
 Pasek wątków ma osobne przyciski sortowania i filtrowania po projekcie.
 Usunięcie otwartego bota z paska bocznego lub jego ustawień zamyka jego rozmowę.
-Nagłówek sidebara pokazuje kanał aplikacji. Nightly, Beta i Dev mają delikatny
-gradient i słoje drzewa w barwie kanału, tak jak w web i desktop.
 Licznik i akcja Update all na telefonie wynikają z planu instalacji Canopy.
 Komunikat o restarcie znika po potwierdzeniu powrotu gatewaya lub wersji docelowej.
 Stan gotowości binarnego gatewaya kończy także zapowiedź restartu bez zmiany wersji.
@@ -1069,10 +1068,14 @@ wstrzymane kanały i rollouty; nie przepina ich automatycznie. **Nie mapuj `beta
 `nightly`**, nawet przy tym samym fingerprint. Development client służy do pracy z Metro,
 nie jest instalacją przypisaną do kanału wydania.
 
-Pod nazwą Canopy w nagłówku sidebara klient pokazuje **Nightly**, **Beta** lub
-**Dev** (build deweloperski bez kanału). Wydanie stable pokazuje samą nazwę Canopy,
-tak jak web i desktop. Oznaczenie korzysta z lokalnego kanału Expo Updates
-i działa offline zarówno na ekranie listy, jak i w układzie z dwiema kolumnami.
+Obok nazwy Canopy w nagłówku sidebara widnieje płaska ikona drzewa o boku 24 dp,
+wspólna z web i desktop. Rysunek po prawej zależy od lokalnego kanału Expo Updates.
+**Dev** (build bez kanału) pokazuje błękitny rysunek techniczny drzewa, **Nightly**
+fioletowe drzewo z gwiazdami, a **Beta** bursztynową rycinę. W tych wariantach
+etykieta kanału widnieje pod nazwą Canopy, a delikatny gradient blednie od paska
+stanu w dół. Wydanie **Stable** i nierozpoznany kanał pokazują zwykły znak drzewa
+bez podpisu kanału. Grafika mieści się w bezpiecznym obszarze ekranu i działa
+offline zarówno na ekranie listy, jak i w układzie z dwiema kolumnami.
 
 `updates.checkAutomatically: ON_LOAD` sprawdza aktualizacje na zimnym starcie.
 `fallbackToCacheTimeout: 0` uruchamia od razu ostatni lokalny bundle (także offline);

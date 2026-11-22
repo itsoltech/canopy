@@ -16,3 +16,13 @@ Każda przedstawiona wersja ma osobny numer i własne pliki SVG. Kolejne zmiany 
 | **10** · Arbor z ciemną koroną | <img src="canopy-arbor-deep-icon.svg" alt="" width="36" height="36"> | [Na jasne tło](canopy-arbor-deep-wordmark.svg) · [Na ciemne tło](canopy-arbor-deep-wordmark-inverse.svg) | [Znak](canopy-arbor-deep-mark.svg) · [Ikona](canopy-arbor-deep-icon.svg) |
 | **11** · Arbor w jednym kolorze | <img src="canopy-arbor-mono-icon.svg" alt="" width="36" height="36"> | [Na jasne tło](canopy-arbor-mono-wordmark.svg) · [Na ciemne tło](canopy-arbor-mono-wordmark-inverse.svg) | [Znak](canopy-arbor-mono-mark.svg) · [Ikona](canopy-arbor-mono-icon.svg) |
 | **12** · Arbor z ciaśniejszym napisem | <img src="canopy-arbor-kerned-icon.svg" alt="" width="36" height="36"> | [Na jasne tło](canopy-arbor-kerned-wordmark.svg) · [Na ciemne tło](canopy-arbor-kerned-wordmark-inverse.svg) | [Znak](canopy-arbor-kerned-mark.svg) · [Ikona](canopy-arbor-kerned-icon.svg) |
+
+## Tła sidebara z propozycji 12
+
+| Dev · rysunek techniczny | Nightly · gwiazdy | Beta · rycina | Stable · sylwetka |
+| --- | --- | --- | --- |
+| [SVG Dev](sidebar-12/canopy-dev.svg) | [SVG Nightly](sidebar-12/canopy-nightly.svg) | [SVG Beta](sidebar-12/canopy-beta.svg) | [SVG Stable](sidebar-12/canopy-stable.svg) |
+
+Każdy SVG ma przezroczyste tło i kolory dla jasnego oraz ciemnego motywu.
+Web, desktop i mobile korzystają ze [wspólnej grafiki](../../packages/ui/src/sidebar-art.ts).
+Dobór wariantu opisuje [dokumentacja wydań](../../docs/release.md).

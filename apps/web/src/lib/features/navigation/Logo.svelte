@@ -1,6 +1,7 @@
 <script lang="ts">
   import type { Snippet } from "svelte";
   import type { ClassValue } from "svelte/elements";
+  import { sidebarIcon } from "@canopy/ui/sidebar-art";
 
   let {
     subtitle,
@@ -17,7 +18,7 @@
     className,
   ]}
 >
-  <img src="/canopy-logo.png" alt="" width="24" height="24" class="size-6 shrink-0 rounded-md" />
+  <span aria-hidden="true" class="sidebar-logo-tile size-6 shrink-0">{@html sidebarIcon}</span>
   <div class="min-w-0">
     <div class="truncate leading-5">Canopy</div>
     {@render subtitle?.()}

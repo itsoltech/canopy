@@ -2,7 +2,7 @@
   import type { Snippet } from "svelte";
   import type { ClassValue } from "svelte/elements";
   import { CANOPY_VERSION, releaseChannel } from "@canopy/domain/release/version";
-  import type { Tone } from "#lib/shared/ui/tone.ts";
+  import { sidebarIdentity } from "@canopy/ui/sidebar-art";
   import { textTones } from "#lib/shared/ui/tone.ts";
   import Logo from "./Logo.svelte";
 
@@ -13,32 +13,7 @@
   }: { children: Snippet; version?: string; class?: ClassValue } = $props();
 
   const channel = $derived(releaseChannel(version));
-
-  const identity = $derived(
-    (
-      {
-        stable: { label: "Stable", tone: "neutral", surface: "", rings: "" },
-        beta: {
-          label: "Beta",
-          tone: "amber",
-          surface: "from-amber-500/10 via-amber-500/4",
-          rings: "border-amber-600/15 dark:border-amber-400/15",
-        },
-        nightly: {
-          label: "Nightly",
-          tone: "violet",
-          surface: "from-violet-500/10 via-violet-500/4",
-          rings: "border-violet-600/15 dark:border-violet-400/15",
-        },
-        development: {
-          label: "Dev",
-          tone: "neutral",
-          surface: "from-zinc-500/8 via-zinc-500/3",
-          rings: "border-zinc-600/10 dark:border-zinc-400/10",
-        },
-      } satisfies Record<typeof channel, { label: string; tone: Tone; surface: string; rings: string }>
-    )[channel],
-  );
+  const identity = $derived(sidebarIdentity[channel]);
 </script>
 
 <div
@@ -46,33 +21,18 @@
   data-release-channel={channel}
   title={`Canopy ${version}${channel === "stable" ? "" : ` · ${identity.label}`}`}
 >
-  <!-- Quiet tree-ring contours: build identity, with no animation or imagery behind the navigation. The tint and the
-       rings run past the header and fade out, so the build colour melts into the sidebar instead of ending in an edge.
-       They sit beside the row, not in it: on macOS the row is the window's title strip, and only its own box drags. -->
-  {#if channel !== "stable"}
-    <div
-      class={[
-        "pointer-events-none absolute inset-x-0 top-0 -bottom-10 -z-10 bg-linear-to-b to-transparent",
-        identity.surface,
-      ]}
-      aria-hidden="true"
-    ></div>
-    <div
-      class="pointer-events-none absolute inset-x-0 top-0 -bottom-10 -z-10 overflow-hidden mask-b-from-40% mask-b-to-100%"
-      aria-hidden="true"
-    >
-      {#each [0, 1, 2] as ring}
-        <div
-          class={[
-            "absolute top-6 right-8 h-(--ring-height) w-(--ring-width) -translate-y-1/2 -rotate-24 rounded-[50%] border",
-            identity.rings,
-          ]}
-          style:--ring-width={`${10 + ring * 3}rem`}
-          style:--ring-height={`${5 + ring * 1.5}rem`}
-        ></div>
-      {/each}
+  <!-- The art extends below the macOS title strip. Only the adjacent header row should drag the window. -->
+  <div
+    class="channel-art pointer-events-none absolute inset-x-0 top-0 -bottom-10 -z-10 overflow-hidden"
+    class:tinted={channel !== "stable"}
+    style:--ink-light={identity.ink.light}
+    style:--ink-dark={identity.ink.dark}
+    aria-hidden="true"
+  >
+    <div class="channel-drawing absolute top-0 right-1 aspect-20/11 w-1/2 max-w-40">
+      {@html identity.art}
     </div>
-  {/if}
+  </div>
   <div
     class="canopy-sidebar-header density-standard flex h-12 items-center justify-between gap-2 pr-(--sidebar-row-inset) pl-(--sidebar-gutter)"
     data-window-drag
@@ -92,3 +52,30 @@
     <div class="shrink-0">{@render children()}</div>
   </div>
 </div>
+
+<style>
+  .channel-art {
+    color: light-dark(var(--ink-light), var(--ink-dark));
+    mask-image: linear-gradient(to bottom, black 53%, transparent);
+  }
+  .tinted {
+    background: linear-gradient(to bottom, color-mix(in srgb, currentColor 9%, transparent), transparent);
+  }
+  /* In a narrow macOS column the window controls take the left gutter. Keep the tree between the name and action. */
+  @container (max-width: 17rem) {
+    :global(html[data-canopy-platform="darwin"]:not([data-window-fullscreen]))
+      .canopy-sidebar-header
+      :global(.sidebar-logo-tile) {
+      display: none;
+    }
+    :global(html[data-canopy-platform="darwin"]:not([data-window-fullscreen])) .channel-drawing {
+      right: 1rem;
+      mask-image: linear-gradient(to right, transparent 39%, black 54% 81%, transparent 95%);
+    }
+  }
+  @media (forced-colors: active) {
+    .channel-art {
+      display: none;
+    }
+  }
+</style>
