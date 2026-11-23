@@ -3,7 +3,7 @@ import { webProcessEnv } from "./config.ts";
 import { EmbeddedWebServer } from "./server.ts";
 
 /**
- * `canopy-gateway web`: only the embedded web, in this process (release smoke tests, a web kept apart from its
+ * `canopy-gateway web`: only the embedded web, in this process (binary smoke tests, a web kept apart from its
  * gateway). The gateway itself serves the web in its own process (server.ts) and never runs this.
  */
 export async function serveEmbeddedWeb(): Promise<number | undefined> {

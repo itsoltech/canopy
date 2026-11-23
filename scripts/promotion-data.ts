@@ -210,13 +210,24 @@ function successfulSmoke(jobs: JsonObject[]): boolean {
   );
 }
 
+const verifiedCi = "Verified CI";
+
+export function releaseCiGate(jobs: JsonObject[]): JsonObject | undefined {
+  return (
+    jobs.find((job) => job["name"] === verifiedCi) ??
+    jobs.find((job) => job["name"] === "checks / Typecheck, tests, builds")
+  );
+}
+
 function recoveryPublished(repo: string, run: JsonObject, adapters: PromotionAdapters): boolean {
   const jobs = releaseJobs(repo, run, adapters);
+  const ci = releaseCiGate(jobs);
 
   // A reserved tag/artifact alone is not publication. A no-release rerun can be green with skipped jobs.
   return (
-    successfulSmoke(jobs) &&
-    ["checks / Typecheck, tests, builds", "release", "publish-desktop"].every((name) =>
+    ci?.["conclusion"] === "success" &&
+    (ci["name"] === verifiedCi || successfulSmoke(jobs)) &&
+    ["release", "publish-desktop"].every((name) =>
       jobs.some((job) => job["name"] === name && job["conclusion"] === "success"),
     )
   );

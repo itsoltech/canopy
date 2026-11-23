@@ -1,0 +1,306 @@
+name: Artifact smoke
+
+on:
+  workflow_call:
+
+permissions:
+  contents: read
+
+env:
+  BUN_VERSION: 1.4.5
+
+jobs:
+  # ci.yml builds the web and all binary pairs together on the push revision.
+  binaries:
+    name: Standalone (${{ matrix.target }})
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { target: linux-x64, runner: ubuntu-24.04 }
+          - { target: linux-arm64, runner: ubuntu-24.04-arm }
+          - { target: darwin-arm64, runner: macos-15 }
+          - { target: windows-x64, runner: windows-2025, suffix: .exe }
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 10
+    steps:
+      - uses: actions/download-artifact@v5
+        with:
+          name: native-binaries
+      - name: Read the compiled version
+        shell: bash
+        run: |
+          expected="$(cat ci-version.txt)"
+          test -n "$expected"
+          printf 'EXPECTED=%s\n' "$expected" >> "$GITHUB_ENV"
+      - name: Start each binary
+        shell: bash
+        env:
+          CANOPY_NATIVE_DIR: ${{ runner.temp }}/canopy-native
+        run: |
+          for app in gateway worker; do
+            binary="./canopy-$app-${{ matrix.target }}${{ matrix.suffix }}"
+            chmod +x "$binary"
+            actual="$("$binary" --version | tr -d '\r')"
+            echo "$binary: $actual"
+            test "$actual" = "$EXPECTED"
+          done
+          # Native image-export calls (bun:ffi) on this OS/arch: show_images depends on them.
+          "./canopy-worker-${{ matrix.target }}${{ matrix.suffix }}" self-check
+      - name: Embedded web answers with the compiled version
+        shell: bash
+        env:
+          CANOPY_NATIVE_DIR: ${{ runner.temp }}/canopy-native
+          CANOPY_WEB_DIR: ${{ runner.temp }}/canopy-web
+        run: |
+          # A throwaway service token: `web` only refuses to start without one; no gateway is called.
+          # Let the runner choose the port: hosted runners can have fixed high ports in use already.
+          CANOPY_WEB_PORT="$(node -e 'const net=require("node:net"); const server=net.createServer(); server.listen(0,"127.0.0.1",()=>{const address=server.address(); if (!address || typeof address === "string") process.exitCode=1; else process.stdout.write(String(address.port)); server.close();});')"
+          export CANOPY_WEB_PORT
+          echo "Using embedded web port $CANOPY_WEB_PORT"
+          CANOPY_UI_SERVICE_TOKEN="smoke-$RANDOM-$RANDOM-0123456789abcdef0123456789" \
+            "./canopy-gateway-${{ matrix.target }}${{ matrix.suffix }}" web &
+          web=$!
+          health=""
+          for _ in $(seq 1 120); do
+            health="$(curl -fsS "http://127.0.0.1:$CANOPY_WEB_PORT/api/health" || true)"
+            [ -n "$health" ] && break
+            sleep 0.5
+          done
+          echo "$health"
+          kill "$web" || true
+          grep -Fq "\"version\":\"$EXPECTED\"" <<<"$health"
+      # The installed shape on a Linux server: supervisor, gateway and web from one binary, PostgreSQL alongside.
+      - name: Binary gateway serves its web
+        if: matrix.target == 'linux-x64'
+        shell: bash
+        env:
+          CANOPY_NATIVE_DIR: ${{ runner.temp }}/canopy-native
+          CANOPY_WEB_DIR: ${{ runner.temp }}/canopy-web
+          CANOPY_UPDATE_CACHE_DIR: ${{ runner.temp }}/canopy-releases
+          CANOPY_LOG_DIR: ${{ runner.temp }}/canopy-logs
+          CANOPY_HOST: 127.0.0.1
+          CANOPY_PORT: "7443"
+        run: |
+          docker run -d --name canopy-smoke-pg -e POSTGRES_PASSWORD=smoke -e POSTGRES_DB=canopy \
+            -p 127.0.0.1:5432:5432 postgres:17
+          until docker exec canopy-smoke-pg pg_isready -h 127.0.0.1 -U postgres -d canopy; do sleep 1; done
+          install -m 0755 canopy-gateway-linux-x64 "$RUNNER_TEMP/canopy-gateway"
+          export CANOPY_DATABASE_URL=postgres://postgres:smoke@127.0.0.1:5432/canopy
+          CANOPY_UI_SERVICE_TOKEN="$(openssl rand -hex 32)"
+          CANOPY_SECRETS_KEY="$(openssl rand -base64 32)"
+          export CANOPY_UI_SERVICE_TOKEN CANOPY_SECRETS_KEY
+          "$RUNNER_TEMP/canopy-gateway" >gateway.log 2>&1 &
+          gateway=$!
+          health=""
+          for _ in $(seq 1 120); do
+            health="$(curl -fsS http://127.0.0.1:3000/api/health || true)"
+            [ -n "$health" ] && break
+            sleep 1
+          done
+          echo "$health"
+          ok=true
+          grep -Fq "\"version\":\"$EXPECTED\"" <<<"$health" || ok=false
+          "$RUNNER_TEMP/canopy-gateway" healthcheck || ok=false
+          test "$(curl -s -o /dev/null -w '%{http_code}' http://127.0.0.1:3000/)" = 200 || ok=false
+          kill -TERM "$gateway" || ok=false
+          wait "$gateway" || ok=false
+          grep -v '^\s' gateway.log | tail -n 20
+          docker rm -f canopy-smoke-pg >/dev/null
+          "$ok"
+
+  images:
+    env:
+      CANOPY_VERSION: &smoke-version 0.0.0-nightly.1
+    name: Image (${{ matrix.app }})
+    strategy:
+      fail-fast: false
+      matrix:
+        app: [gateway, push-relay]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          ref: ${{ github.sha }}
+          persist-credentials: false
+      - uses: docker/setup-buildx-action@v3
+      - uses: docker/build-push-action@v6
+        env:
+          DOCKER_BUILD_RECORD_UPLOAD: false
+          DOCKER_BUILD_SUMMARY: false
+        with:
+          context: .
+          target: ${{ matrix.app }}
+          platforms: linux/amd64
+          load: true
+          tags: canopy-${{ matrix.app }}:smoke
+          provenance: false
+          sbom: false
+          build-args: |
+            CANOPY_VERSION=${{ env.CANOPY_VERSION }}
+            CANOPY_REVISION=${{ github.sha }}
+          cache-from: type=gha,scope=${{ matrix.app }}
+      - name: Gateway image serves its web
+        if: matrix.app == 'gateway'
+        run: |
+          docker network create canopy-smoke
+          docker run -d --name canopy-smoke-pg --network canopy-smoke \
+            -e POSTGRES_PASSWORD=smoke -e POSTGRES_DB=canopy postgres:17
+          until docker exec canopy-smoke-pg pg_isready -h 127.0.0.1 -U postgres -d canopy; do sleep 1; done
+          docker run -d --name canopy-smoke-gateway --network canopy-smoke -p 127.0.0.1:3000:3000 \
+            -e CANOPY_DATABASE_URL=postgres://postgres:smoke@canopy-smoke-pg:5432/canopy \
+            -e CANOPY_UI_SERVICE_TOKEN="$(openssl rand -hex 32)" -e CANOPY_SECRETS_KEY="$(openssl rand -base64 32)" \
+            canopy-gateway:smoke
+          health=""
+          for _ in $(seq 1 120); do
+            health="$(curl -fsS http://127.0.0.1:3000/api/health || true)"
+            [ -n "$health" ] && break
+            sleep 1
+          done
+          echo "$health"
+          ok=true
+          grep -Fq "\"version\":\"$CANOPY_VERSION\"" <<<"$health" || ok=false
+          docker exec canopy-smoke-gateway canopy-gateway healthcheck || ok=false
+          docker exec canopy-smoke-gateway printenv CANOPY_INSTALL_KIND | grep -qx docker || ok=false
+          test "$(curl -s -o /dev/null -w '%{http_code}' http://127.0.0.1:3000/)" = 200 || ok=false
+          # DNS rebinding guard: an unknown Host name is refused.
+          test "$(curl -s -o /dev/null -w '%{http_code}' -H 'Host: evil.example' http://127.0.0.1:3000/api/health)" = 421 || ok=false
+          docker logs canopy-smoke-gateway 2>&1 | grep -v '^\s' | tail -n 20
+          docker rm -f canopy-smoke-gateway canopy-smoke-pg >/dev/null
+          "$ok"
+
+      - name: Push relay image accepts HTTPS and requires a bearer
+        if: matrix.app == 'push-relay'
+        run: |
+          scratch="$(mktemp -d)"
+          container=
+          trap '
+            if [ -n "$container" ]; then docker rm -f "$container" >/dev/null; fi
+            rm -rf "$scratch"
+          ' EXIT
+          mkdir -m 0755 "$scratch/tls"
+          openssl req -x509 -newkey ec -pkeyopt ec_paramgen_curve:prime256v1 -nodes -days 1 -subj /CN=localhost \
+            -addext 'subjectAltName=DNS:localhost' -keyout "$scratch/tls/key.pem" -out "$scratch/tls/cert.pem"
+          chmod 0644 "$scratch/tls/key.pem" "$scratch/tls/cert.pem"
+          container="$(docker run -d -p 127.0.0.1::24444 \
+            --mount "type=bind,source=$scratch/tls,target=/tls,readonly" \
+            -e CANOPY_PUSH_RELAY_TLS_CERT_FILE=/tls/cert.pem -e CANOPY_PUSH_RELAY_TLS_KEY_FILE=/tls/key.pem \
+            -e CANOPY_PUSH_RELAY_BEARER_SHA256="$(openssl rand -hex 32)" -e EXPO_ACCESS_TOKEN=smoke \
+            canopy-push-relay:smoke)"
+          address="$(docker port "$container" 24444/tcp)"
+          for _ in $(seq 1 20); do
+            status="$(curl -s --max-time 2 --cacert "$scratch/tls/cert.pem" -X POST \
+              -o /dev/null -w '%{http_code}' "https://localhost:${address##*:}/v1/push" || true)"
+            if [ "$status" = 401 ]; then
+              test "$(docker exec "$container" id -u)" = 65532
+              docker exec "$container" test -s /usr/share/doc/canopy/THIRD_PARTY_NOTICES.txt
+              exit 0
+            fi
+            sleep 1
+          done
+          docker logs "$container"
+          exit 1
+
+  desktop:
+    env:
+      CANOPY_VERSION: *smoke-version
+      CANOPY_CHANNEL: nightly
+      CANOPY_REVISION: ${{ github.sha }}
+    name: Package desktop (${{ matrix.target }})
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { target: linux-x64, runner: ubuntu-24.04, resources: linux-unpacked/resources }
+          - { target: darwin-arm64, runner: macos-26, resources: mac-arm64/canopy.app/Contents/Resources }
+          - { target: windows-x64, runner: windows-2025 }
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          ref: ${{ github.sha }}
+          persist-credentials: false
+      - uses: actions/cache/restore@v4
+        with:
+          path: |
+            ~/.cache/electron
+            ~/.cache/electron-builder
+            ~/Library/Caches/electron
+            ~/Library/Caches/electron-builder
+            ~/AppData/Local/electron/Cache
+            ~/AppData/Local/electron-builder/Cache
+          key: electron-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('bun.lock') }}
+          restore-keys: electron-${{ runner.os }}-${{ runner.arch }}-
+      - uses: ./.github/actions/setup-bun
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 24
+      - name: Build the desktop runtime
+        run: bun run --cwd apps/desktop build
+      # Linux and macOS smoke the sidecars after electron-builder's resource filtering.
+      # Windows exercises NSIS install, update and uninstall, so it needs the full installer.
+      - name: Package the desktop runtime
+        shell: bash
+        working-directory: apps/desktop
+        env:
+          CSC_IDENTITY_AUTO_DISCOVERY: "false"
+        run: |
+          if [ "$RUNNER_OS" = Windows ]; then
+            bun scripts/package.ts
+          else
+            bun scripts/package.ts --dir
+          fi
+      - name: Archive packaged runtime with file modes
+        if: runner.os != 'Windows'
+        shell: bash
+        env:
+          RESOURCES: apps/desktop/release/nightly/${{ matrix.resources }}
+        run: tar -czf "$RUNNER_TEMP/smoke-runtime.tar.gz" -C "$RESOURCES" runtime
+      - uses: actions/upload-artifact@v4
+        with:
+          name: desktop-smoke-${{ matrix.target }}
+          path: ${{ runner.os == 'Windows' && 'apps/desktop/release/nightly/Canopy-*-windows-x64.exe' || format('{0}/smoke-runtime.tar.gz', runner.temp) }}
+          compression-level: 0
+          if-no-files-found: error
+          retention-days: 1
+          overwrite: true
+
+  desktop-smoke:
+    name: Desktop smoke (${{ matrix.target }})
+    needs: desktop
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { target: linux-x64, runner: ubuntu-24.04 }
+          # actool needs macOS 26 for the release icons. Test the packaged runtime on macOS 15.
+          - { target: darwin-arm64, runner: macos-15 }
+          - { target: windows-x64, runner: windows-2025 }
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          ref: ${{ github.sha }}
+          persist-credentials: false
+      - uses: ./.github/actions/setup-bun
+      - uses: actions/download-artifact@v5
+        with:
+          name: desktop-smoke-${{ matrix.target }}
+          path: ${{ runner.temp }}/desktop-smoke
+      - name: Install Windows package and smoke sidecars
+        if: runner.os == 'Windows'
+        shell: pwsh
+        env:
+          CANOPY_VERSION: *smoke-version
+        run: ./apps/desktop/scripts/smoke-windows.ps1 -ReleaseDirectory "$env:RUNNER_TEMP/desktop-smoke"
+      - name: Verify packaged runtime and downloaded PostgreSQL
+        if: runner.os != 'Windows'
+        shell: bash
+        env:
+          CANOPY_DESKTOP_RUNTIME: ${{ runner.temp }}/runtime
+        run: |
+          tar -xf "$RUNNER_TEMP/desktop-smoke/smoke-runtime.tar.gz" -C "$RUNNER_TEMP"
+          bun test apps/desktop/test/*.integration.test.ts

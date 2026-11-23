@@ -1,8 +1,7 @@
 # Releases main/next pushes, hourly dev snapshots, manual stable tags and dispatches (docs/release.md).
-# `plan` decides whether to release before dev checks/builds; nothing is
-# tagged, pushed to GHCR or uploaded before `checks` pass. Server artifacts are staged on a draft;
-# publication waits for desktop builds, feeds and verification. All dev events share one active run and only the newest pending run;
-# each branch has its own queue. GITHUB_TOKEN tags do not trigger another workflow.
+# A planned release requires successful Push CI for its exact source SHA before any builds or writes.
+# Server artifacts are staged on a draft; publication waits for desktop builds, feeds and verification.
+# Each branch has one active run and only its newest pending run. GITHUB_TOKEN tags do not trigger another workflow.
 # Builds use the validated source SHA. Planning, tagging and publishing use the workflow revision.
 name: Release
 
@@ -99,12 +98,23 @@ jobs:
           fi
 
   checks:
+    name: Verified CI
     needs: plan
-    # Keep main/next/tag checks even for no-release runs; dev pays for CI only for a planned nightly.
-    if: needs.plan.outputs.published == 'true' || (inputs.release_branch && inputs.release_branch != 'current' && inputs.release_branch || github.ref_name) != 'dev'
-    uses: ./.github/workflows/ci.yml
-    with:
-      revision: ${{ inputs.expected_sha || github.sha }}
+    if: needs.plan.outputs.published == 'true'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
+    permissions:
+      contents: read
+      actions: read
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          ref: ${{ github.workflow_sha }}
+          persist-credentials: false
+      - name: Require successful Push CI for the release commit
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: bash .github/scripts/verify-push-ci.sh
 
   # Dry run: the version this run will release. Shares the per-branch group with `release`, so it never plans
   # while another run of the branch is tagging.
@@ -231,11 +241,11 @@ jobs:
           retention-days: 90
           overwrite: true
 
-  # Nothing of this run will be published: checks failed or the release could not reserve its version.
+  # Stop parallel builds if the release could not reserve its version.
   # A later scheduled/dispatched dev run picks up the commits. Stop builds, including macOS notarization.
   stop-builds:
-    needs: [plan, checks, release]
-    if: always() && needs.plan.outputs.published == 'true' && (needs.checks.result == 'failure' || needs.release.result == 'failure' || needs.release.result == 'cancelled' || (needs.release.result == 'success' && needs.release.outputs.published != 'true'))
+    needs: [plan, release]
+    if: always() && needs.plan.outputs.published == 'true' && (needs.release.result == 'failure' || needs.release.result == 'cancelled' || (needs.release.result == 'success' && needs.release.outputs.published != 'true'))
     runs-on: ubuntu-24.04
     timeout-minutes: 5
     permissions:
@@ -243,17 +253,12 @@ jobs:
     steps:
       - env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          CHECKS: ${{ needs.checks.result }}
         run: |
-          if [ "$CHECKS" = failure ]; then
-            echo "::error::Checks failed; nothing is published and the builds are stopped."
-          else
-            echo "::notice::Release did not publish; inspect its result before retrying."
-          fi
+          echo "::notice::Release did not reserve its version; stopping the builds."
           gh run cancel "$GITHUB_RUN_ID" --repo "$GITHUB_REPOSITORY"
 
   binaries:
-    needs: plan
+    needs: [plan, checks]
     if: needs.plan.outputs.published == 'true'
     runs-on: ubuntu-24.04
     timeout-minutes: 30
@@ -281,107 +286,9 @@ jobs:
           retention-days: 7
           overwrite: true
 
-  # Each binary starts on its own OS/arch (`--version` already loads the embedded sharp/libvips; `self-check` runs the image-export FFI;
-  # `canopy-gateway web` serves the embedded web).
-  smoke:
-    needs: [plan, binaries]
-    if: needs.plan.outputs.published == 'true'
-    strategy:
-      fail-fast: false
-      matrix:
-        include:
-          - { target: linux-x64, runner: ubuntu-24.04 }
-          - { target: linux-arm64, runner: ubuntu-24.04-arm }
-          - { target: darwin-arm64, runner: macos-15 }
-          - { target: windows-x64, runner: windows-2025, suffix: .exe }
-    runs-on: ${{ matrix.runner }}
-    timeout-minutes: 10
-    steps:
-      - uses: actions/download-artifact@v5
-        with:
-          name: binaries
-      - name: Start each binary
-        shell: bash
-        env:
-          EXPECTED: ${{ needs.plan.outputs.version }}
-          CANOPY_NATIVE_DIR: ${{ runner.temp }}/canopy-native
-        run: |
-          for app in gateway worker; do
-            binary="./canopy-$app-${{ matrix.target }}${{ matrix.suffix }}"
-            chmod +x "$binary"
-            actual="$("$binary" --version | tr -d '\r')"
-            echo "$binary: $actual"
-            test "$actual" = "$EXPECTED"
-          done
-          # Native image-export calls (bun:ffi) on this OS/arch: show_images depends on them.
-          "./canopy-worker-${{ matrix.target }}${{ matrix.suffix }}" self-check
-      - name: Embedded web answers with the release version
-        shell: bash
-        env:
-          EXPECTED: ${{ needs.plan.outputs.version }}
-          CANOPY_NATIVE_DIR: ${{ runner.temp }}/canopy-native
-          CANOPY_WEB_DIR: ${{ runner.temp }}/canopy-web
-        run: |
-          # A throwaway service token: `web` only refuses to start without one; no gateway is called.
-          # Let the runner choose the port: hosted runners can have fixed high ports in use already.
-          CANOPY_WEB_PORT="$(node -e 'const net=require("node:net"); const server=net.createServer(); server.listen(0,"127.0.0.1",()=>{const address=server.address(); if (!address || typeof address === "string") process.exitCode=1; else process.stdout.write(String(address.port)); server.close();});')"
-          export CANOPY_WEB_PORT
-          echo "Using embedded web port $CANOPY_WEB_PORT"
-          CANOPY_UI_SERVICE_TOKEN="smoke-$RANDOM-$RANDOM-0123456789abcdef0123456789" \
-            "./canopy-gateway-${{ matrix.target }}${{ matrix.suffix }}" web &
-          web=$!
-          health=""
-          for _ in $(seq 1 120); do
-            health="$(curl -fsS "http://127.0.0.1:$CANOPY_WEB_PORT/api/health" || true)"
-            [ -n "$health" ] && break
-            sleep 0.5
-          done
-          echo "$health"
-          kill "$web" || true
-          grep -q "\"version\":\"$EXPECTED\"" <<<"$health"
-      # The installed shape on a Linux server: supervisor, gateway and web from one binary, PostgreSQL alongside.
-      - name: Binary gateway serves its web
-        if: matrix.target == 'linux-x64'
-        shell: bash
-        env:
-          EXPECTED: ${{ needs.plan.outputs.version }}
-          CANOPY_NATIVE_DIR: ${{ runner.temp }}/canopy-native
-          CANOPY_WEB_DIR: ${{ runner.temp }}/canopy-web
-          CANOPY_UPDATE_CACHE_DIR: ${{ runner.temp }}/canopy-releases
-          CANOPY_LOG_DIR: ${{ runner.temp }}/canopy-logs
-          CANOPY_HOST: 127.0.0.1
-          CANOPY_PORT: "7443"
-        run: |
-          docker run -d --name canopy-smoke-pg -e POSTGRES_PASSWORD=smoke -e POSTGRES_DB=canopy \
-            -p 127.0.0.1:5432:5432 postgres:17
-          until docker exec canopy-smoke-pg pg_isready -h 127.0.0.1 -U postgres -d canopy; do sleep 1; done
-          install -m 0755 canopy-gateway-linux-x64 "$RUNNER_TEMP/canopy-gateway"
-          export CANOPY_DATABASE_URL=postgres://postgres:smoke@127.0.0.1:5432/canopy
-          CANOPY_UI_SERVICE_TOKEN="$(openssl rand -hex 32)"
-          CANOPY_SECRETS_KEY="$(openssl rand -base64 32)"
-          export CANOPY_UI_SERVICE_TOKEN CANOPY_SECRETS_KEY
-          "$RUNNER_TEMP/canopy-gateway" >gateway.log 2>&1 &
-          gateway=$!
-          health=""
-          for _ in $(seq 1 120); do
-            health="$(curl -fsS http://127.0.0.1:3000/api/health || true)"
-            [ -n "$health" ] && break
-            sleep 1
-          done
-          echo "$health"
-          ok=true
-          grep -q "\"version\":\"$EXPECTED\"" <<<"$health" || ok=false
-          "$RUNNER_TEMP/canopy-gateway" healthcheck || ok=false
-          test "$(curl -s -o /dev/null -w '%{http_code}' http://127.0.0.1:3000/)" = 200 || ok=false
-          kill -TERM "$gateway" || ok=false
-          wait "$gateway" || ok=false
-          grep -v '^\s' gateway.log | tail -n 20
-          docker rm -f canopy-smoke-pg >/dev/null
-          "$ok"
-
-  # Builds an OCI archive beside the checks with no registry write access.
+  # Build OCI archives without registry write access.
   images-build:
-    needs: plan
+    needs: [plan, checks]
     if: needs.plan.outputs.published == 'true'
     strategy:
       fail-fast: false
@@ -430,87 +337,6 @@ jobs:
             CANOPY_REVISION=${{ env.EXPECTED_SHA }}
           cache-from: type=gha,scope=${{ matrix.app }}
           cache-to: type=gha,mode=max,scope=${{ matrix.app }}
-      # Load the amd64 image from the build cache for the container smoke tests.
-      - if: matrix.app == 'gateway' || matrix.app == 'push-relay'
-        uses: docker/build-push-action@v6
-        env:
-          DOCKER_BUILD_RECORD_UPLOAD: false
-          DOCKER_BUILD_SUMMARY: false
-        with:
-          context: .
-          target: ${{ matrix.app }}
-          platforms: linux/amd64
-          load: true
-          tags: canopy-${{ matrix.app }}:smoke
-          provenance: false
-          sbom: false
-          build-args: |
-            CANOPY_VERSION=${{ needs.plan.outputs.version }}
-            CANOPY_REVISION=${{ env.EXPECTED_SHA }}
-          cache-from: type=gha,scope=${{ matrix.app }}
-      - name: Gateway image serves its web
-        if: matrix.app == 'gateway'
-        env:
-          EXPECTED: ${{ needs.plan.outputs.version }}
-        run: |
-          docker network create canopy-smoke
-          docker run -d --name canopy-smoke-pg --network canopy-smoke \
-            -e POSTGRES_PASSWORD=smoke -e POSTGRES_DB=canopy postgres:17
-          until docker exec canopy-smoke-pg pg_isready -h 127.0.0.1 -U postgres -d canopy; do sleep 1; done
-          docker run -d --name canopy-smoke-gateway --network canopy-smoke -p 127.0.0.1:3000:3000 \
-            -e CANOPY_DATABASE_URL=postgres://postgres:smoke@canopy-smoke-pg:5432/canopy \
-            -e CANOPY_UI_SERVICE_TOKEN="$(openssl rand -hex 32)" -e CANOPY_SECRETS_KEY="$(openssl rand -base64 32)" \
-            canopy-gateway:smoke
-          health=""
-          for _ in $(seq 1 120); do
-            health="$(curl -fsS http://127.0.0.1:3000/api/health || true)"
-            [ -n "$health" ] && break
-            sleep 1
-          done
-          echo "$health"
-          ok=true
-          grep -q "\"version\":\"$EXPECTED\"" <<<"$health" || ok=false
-          docker exec canopy-smoke-gateway canopy-gateway healthcheck || ok=false
-          docker exec canopy-smoke-gateway printenv CANOPY_INSTALL_KIND | grep -qx docker || ok=false
-          test "$(curl -s -o /dev/null -w '%{http_code}' http://127.0.0.1:3000/)" = 200 || ok=false
-          # DNS rebinding guard: an unknown Host name is refused.
-          test "$(curl -s -o /dev/null -w '%{http_code}' -H 'Host: evil.example' http://127.0.0.1:3000/api/health)" = 421 || ok=false
-          docker logs canopy-smoke-gateway 2>&1 | grep -v '^\s' | tail -n 20
-          docker rm -f canopy-smoke-gateway canopy-smoke-pg >/dev/null
-          "$ok"
-
-      - name: Push relay image accepts HTTPS and requires a bearer
-        if: matrix.app == 'push-relay'
-        run: |
-          scratch="$(mktemp -d)"
-          container=
-          trap '
-            if [ -n "$container" ]; then docker rm -f "$container" >/dev/null; fi
-            rm -rf "$scratch"
-          ' EXIT
-          mkdir -m 0755 "$scratch/tls"
-          openssl req -x509 -newkey ec -pkeyopt ec_paramgen_curve:prime256v1 -nodes -days 1 -subj /CN=localhost \
-            -addext 'subjectAltName=DNS:localhost' -keyout "$scratch/tls/key.pem" -out "$scratch/tls/cert.pem"
-          chmod 0644 "$scratch/tls/key.pem" "$scratch/tls/cert.pem"
-          container="$(docker run -d -p 127.0.0.1::24444 \
-            --mount "type=bind,source=$scratch/tls,target=/tls,readonly" \
-            -e CANOPY_PUSH_RELAY_TLS_CERT_FILE=/tls/cert.pem -e CANOPY_PUSH_RELAY_TLS_KEY_FILE=/tls/key.pem \
-            -e CANOPY_PUSH_RELAY_BEARER_SHA256="$(openssl rand -hex 32)" -e EXPO_ACCESS_TOKEN=smoke \
-            canopy-push-relay:smoke)"
-          address="$(docker port "$container" 24444/tcp)"
-          for _ in $(seq 1 20); do
-            status="$(curl -s --max-time 2 --cacert "$scratch/tls/cert.pem" -X POST \
-              -o /dev/null -w '%{http_code}' "https://localhost:${address##*:}/v1/push" || true)"
-            if [ "$status" = 401 ]; then
-              test "$(docker exec "$container" id -u)" = 65532
-              docker exec "$container" test -s /usr/share/doc/canopy/THIRD_PARTY_NOTICES.txt
-              exit 0
-            fi
-            sleep 1
-          done
-          docker logs "$container"
-          exit 1
-
       - uses: actions/upload-artifact@v4
         with:
           name: image-${{ matrix.app }}
@@ -552,7 +378,7 @@ jobs:
           skopeo copy --all --preserve-digests --dest-authfile "$HOME/.docker/config.json" \
             "oci-archive:$RUNNER_TEMP/image.oci.tar" "docker://$IMAGE"
   desktop-build:
-    needs: plan
+    needs: [plan, checks]
     if: needs.plan.outputs.published == 'true'
     strategy:
       fail-fast: false
@@ -730,28 +556,6 @@ jobs:
         env:
           CANOPY_CHANNEL: ${{ needs.plan.outputs.channel }}
         run: node apps/desktop/scripts/verify-macos.cjs "apps/desktop/release/$CANOPY_CHANNEL"
-      - name: Archive packaged runtime for the isolated smoke
-        if: ${{ !startsWith(matrix.target, 'windows-') }}
-        shell: bash
-        env:
-          CANOPY_CHANNEL: ${{ needs.plan.outputs.channel }}
-        run: |
-          if [ "$RUNNER_OS" = "macOS" ]; then
-            resources="apps/desktop/release/$CANOPY_CHANNEL/mac-arm64/canopy.app/Contents/Resources"
-          elif [ "$RUNNER_ARCH" = "ARM64" ]; then
-            resources="apps/desktop/release/$CANOPY_CHANNEL/linux-arm64-unpacked/resources"
-          else
-            resources="apps/desktop/release/$CANOPY_CHANNEL/linux-unpacked/resources"
-          fi
-          tar -czf "$RUNNER_TEMP/smoke-runtime.tar.gz" -C "$resources" runtime
-      - uses: actions/upload-artifact@v4
-        if: ${{ !startsWith(matrix.target, 'windows-') }}
-        with:
-          name: smoke-runtime-${{ matrix.target }}
-          path: ${{ runner.temp }}/smoke-runtime.tar.gz
-          if-no-files-found: error
-          retention-days: 7
-          overwrite: true
       - uses: actions/upload-artifact@v4
         with:
           name: desktop-${{ matrix.target }}
@@ -770,50 +574,10 @@ jobs:
           retention-days: 7
           overwrite: true
 
-  desktop-smoke:
-    needs: [plan, desktop]
-    strategy:
-      fail-fast: false
-      matrix: ${{ fromJSON(needs.plan.outputs.desktop_matrix) }}
-    runs-on: ${{ matrix.runner }}
-    continue-on-error: ${{ matrix.experimental }}
-    timeout-minutes: 30
-    steps:
-      - uses: actions/checkout@v5
-        with:
-          # Smoke tests import Desktop code and must match the packaged runtime.
-          ref: ${{ env.EXPECTED_SHA }}
-          persist-credentials: false
-      - uses: ./.github/actions/setup-bun
-      - uses: actions/download-artifact@v5
-        if: matrix.target == 'windows-x64'
-        with:
-          name: desktop-${{ matrix.target }}
-          path: apps/desktop/release/${{ needs.plan.outputs.channel }}
-      - name: Install Windows package and smoke sidecars
-        if: matrix.target == 'windows-x64'
-        shell: pwsh
-        env:
-          CANOPY_VERSION: ${{ needs.plan.outputs.version }}
-        run: ./apps/desktop/scripts/smoke-windows.ps1 -ReleaseDirectory apps/desktop/release/${{ needs.plan.outputs.channel }}
-      - uses: actions/download-artifact@v5
-        if: ${{ !startsWith(matrix.target, 'windows-') }}
-        with:
-          name: smoke-runtime-${{ matrix.target }}
-          path: ${{ runner.temp }}
-      - name: Verify packaged runtime and downloaded PostgreSQL
-        if: ${{ !startsWith(matrix.target, 'windows-') }}
-        shell: bash
-        env:
-          CANOPY_DESKTOP_RUNTIME: ${{ runner.temp }}/runtime
-        run: |
-          tar -xf "$RUNNER_TEMP/smoke-runtime.tar.gz" -C "$RUNNER_TEMP"
-          bun test apps/desktop/test/*.integration.test.ts
-
   # Stage 1: stage binaries and server metadata on the hidden draft. No updater sees this stage.
   publish-server:
-    needs: [checks, release, binaries, smoke, images]
-    if: ${{ !cancelled() && needs.release.outputs.published == 'true' && needs.checks.result == 'success' && needs.binaries.result == 'success' && needs.smoke.result == 'success' && needs.images.result == 'success' }}
+    needs: [release, binaries, images]
+    if: ${{ !cancelled() && needs.release.outputs.published == 'true' && needs.binaries.result == 'success' && needs.images.result == 'success' }}
     runs-on: ubuntu-24.04
     environment: release-publication
     timeout-minutes: 30
@@ -853,8 +617,8 @@ jobs:
   # Stage 2: required desktop targets must succeed. Upload and verify the complete set before publishing
   # the draft or moving image aliases. Failed jobs can resume the same draft without exposing partial feeds.
   publish-desktop:
-    needs: [plan, release, publish-server, desktop, desktop-smoke]
-    if: ${{ !cancelled() && needs.publish-server.result == 'success' && needs.desktop.result == 'success' && needs.desktop-smoke.result == 'success' }}
+    needs: [plan, release, publish-server, desktop]
+    if: ${{ !cancelled() && needs.publish-server.result == 'success' && needs.desktop.result == 'success' }}
     runs-on: ubuntu-24.04
     environment: release-publication
     timeout-minutes: 30

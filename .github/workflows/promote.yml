@@ -12,7 +12,7 @@ on:
         type: number
         default: 1
       live_smoke:
-        description: Legacy confirmation (automated Release smoke now gates promotion)
+        description: Legacy confirmation (Push CI covers automated smoke tests)
         type: boolean
         default: false
       update_smoke:

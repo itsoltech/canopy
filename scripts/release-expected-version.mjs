@@ -1,7 +1,7 @@
 /**
  * semantic-release plugin: refuse an existing tag or a version different from EXPECTED_VERSION before tagging.
- * The release workflow plans the version with a dry run and builds artifacts while the checks run; the real
- * release after the checks must publish exactly that version (docs/release.md).
+ * The release workflow plans the version with a dry run. After verifying Push CI, tag reservation and artifact
+ * builds use the planned version (docs/release.md).
  */
 import { spawnSync } from "node:child_process";
 

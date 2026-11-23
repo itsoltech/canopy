@@ -60,7 +60,7 @@ export function promotionSummary(input: PromotionInput, plan: PromotionPlan, ver
     "Dev changes not yet on beta (follow-up signals only):",
     ...(input.pendingFixes ?? []).map((commit) => `- ${commit.sha} ${commit.message.split("\n")[0]}`),
     "",
-    "Smoke evidence: successful Release on the exact commit (CI, binary startup on all server targets, publication). No human live/update confirmation.",
+    "Promotion uses automated CI and Release results for the candidate commit.",
   ];
 
   return `${lines.join("\n")}\n`;

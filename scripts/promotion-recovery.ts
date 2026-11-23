@@ -2,6 +2,7 @@ import {
   latestRuns,
   promotionBranches,
   promotionIssues,
+  releaseCiGate,
   releaseJobs,
   type PromotionAdapters,
 } from "./promotion-data.ts";
@@ -34,10 +35,7 @@ function recordedPush(body: string, pending: PendingRelease, now: number): boole
 }
 
 function failedAfterPlanning(jobs: ReturnType<typeof releaseJobs>, retiredReservation: boolean): boolean {
-  const succeeded = jobs.some(
-    (job) => job["name"] === "checks / Typecheck, tests, builds" && job["conclusion"] === "success",
-  );
-
+  const succeeded = releaseCiGate(jobs)?.["conclusion"] === "success";
   const versionOrPublication = ["release", "publish-server", "publish-desktop"];
 
   return jobs.some(

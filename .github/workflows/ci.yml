@@ -1,20 +1,14 @@
-# Reused by Release. The aggregate name is the public check contract; live tests stay opt-in.
+# Reused by Push CI. The aggregate name is the public check contract; live tests stay opt-in.
 name: CI
 
 on:
   pull_request:
   workflow_call:
-    inputs:
-      revision:
-        description: Exact Release commit to check
-        required: false
-        type: string
-        default: ""
 
 permissions:
   contents: read
 
-# Cancel obsolete PR work, including all shards. Release callers each have an independent group.
+# Cancel obsolete PR work, including all shards. Push CI checks the exact commit in a separate group for each run.
 concurrency:
   group: ci-${{ github.event_name == 'pull_request' && github.ref || github.run_id }}
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
@@ -52,9 +46,11 @@ jobs:
     timeout-minutes: 15
     steps:
       - uses: actions/checkout@v5
-        with:
-          ref: ${{ inputs.revision || github.sha }}
       - uses: ./.github/actions/setup-bun
+      - name: Validate the merged commit title
+        if: github.event_name == 'push'
+        # GitHub appends the PR number to the validated title when it squashes a PR.
+        run: git show -s --format=%s HEAD | sed -E 's/ \(#[0-9]+\)$//' | bunx --no-install commitlint
       - name: Every test file belongs to exactly one shard
         run: bun scripts/test-shards.ts --check
       - name: Generated code is up to date
@@ -106,7 +102,6 @@ jobs:
     steps:
       - uses: actions/checkout@v5
         with:
-          ref: ${{ inputs.revision || github.sha }}
           # Local-git release fixtures and scripts/version.ts read release tags.
           fetch-depth: 0
       - uses: actions/setup-node@v5
@@ -126,6 +121,7 @@ jobs:
         if: always()
         with:
           name: test-profile-${{ matrix.shard }}
+          overwrite: true
           path: |
             ${{ runner.temp }}/tests-${{ matrix.shard }}.xml
             ${{ runner.temp }}/timings-${{ matrix.shard }}.json
@@ -141,19 +137,24 @@ jobs:
     steps:
       - uses: actions/checkout@v5
         with:
-          ref: ${{ inputs.revision || github.sha }}
           fetch-depth: 0
       - uses: ./.github/actions/setup-bun
       - name: Version
         id: version
-        env:
-          RELEASE_REVISION: ${{ inputs.revision || github.sha }}
-        run: GITHUB_SHA="$RELEASE_REVISION" bun scripts/version.ts --github-output
+        run: bun scripts/version.ts --github-output
       - name: Web build
         env:
           CANOPY_VERSION: ${{ steps.version.outputs.version }}
         run: bun scripts/build-web.ts
+      - name: Release binary targets for Push CI
+        if: github.event_name == 'push'
+        env:
+          CANOPY_VERSION: ${{ steps.version.outputs.version }}
+        run: |
+          bun scripts/build-binaries.ts --target all --web dist/web
+          printf '%s\n' "$CANOPY_VERSION" > dist/release/ci-version.txt
       - name: Gateway and worker binaries (linux-x64)
+        if: github.event_name == 'pull_request'
         env:
           CANOPY_VERSION: ${{ steps.version.outputs.version }}
         run: |
@@ -162,6 +163,7 @@ jobs:
           test "$(dist/release/canopy-worker-linux-x64 --version)" = "$CANOPY_VERSION"
           dist/release/canopy-worker-linux-x64 self-check
       - name: Embedded web answers with the build version
+        if: github.event_name == 'pull_request'
         env:
           CANOPY_VERSION: ${{ steps.version.outputs.version }}
           CANOPY_WEB_DIR: ${{ runner.temp }}/canopy-web
@@ -181,18 +183,32 @@ jobs:
       # Image export calls native APIs per OS (bun:ffi), and the embedded web listens through the OS's sockets;
       # only a binary on that OS proves them.
       - name: Native binaries (darwin-arm64, windows-x64)
+        if: github.event_name == 'pull_request'
         env:
           CANOPY_VERSION: ${{ steps.version.outputs.version }}
         run: |
           bun scripts/build-binaries.ts --app worker --target darwin-arm64,windows-x64
           bun scripts/build-binaries.ts --app gateway --target windows-x64 --web dist/web
       - uses: actions/upload-artifact@v4
+        if: github.event_name == 'pull_request'
         with:
           name: native-binaries
+          overwrite: true
           path: |
             dist/release/canopy-worker-darwin-arm64
             dist/release/canopy-worker-windows-x64.exe
             dist/release/canopy-gateway-windows-x64.exe
+          if-no-files-found: error
+          retention-days: 1
+      - uses: actions/upload-artifact@v4
+        if: github.event_name == 'push'
+        with:
+          name: native-binaries
+          overwrite: true
+          path: |
+            dist/release/canopy-*
+            !dist/release/*.licenses.txt
+            dist/release/ci-version.txt
           if-no-files-found: error
           retention-days: 1
 
@@ -209,8 +225,6 @@ jobs:
     timeout-minutes: 10
     steps:
       - uses: actions/checkout@v5
-        with:
-          ref: ${{ inputs.revision || github.sha }}
       - name: Decode the small Dev app icon representations with macOS
         if: matrix.target == 'darwin-arm64'
         shell: bash
@@ -242,9 +256,11 @@ jobs:
         if: matrix.target == 'windows-x64'
         run: bun test ./apps/worker/src/git/failed-worktree-cleanup.test.ts ./tests/integration/worktree-creation-failure.test.ts
       - uses: actions/download-artifact@v5
+        if: github.event_name == 'pull_request'
         with:
           name: native-binaries
       - name: Open, stat, read and export an image through the pinned native calls
+        if: github.event_name == 'pull_request'
         shell: bash
         env:
           CANOPY_NATIVE_DIR: ${{ runner.temp }}/canopy-native
@@ -253,9 +269,9 @@ jobs:
           chmod +x "$binary"
           "$binary" --version
           "$binary" self-check
-      # The release smoke's check, on a PR: Windows sockets differ (a reduced environment broke every listen).
+      # A reduced environment once prevented the embedded web from listening on Windows.
       - name: Embedded web answers with the build version
-        if: matrix.target == 'windows-x64'
+        if: github.event_name == 'pull_request' && matrix.target == 'windows-x64'
         shell: bash
         env:
           CANOPY_WEB_DIR: ${{ runner.temp }}/canopy-web
@@ -276,9 +292,14 @@ jobs:
           kill "$web" || true
           grep -q "\"version\":\"$expected\"" <<<"$health"
 
+  artifact-smoke:
+    needs: builds
+    if: github.event_name == 'push'
+    uses: ./.github/workflows/artifact-smoke.yml
+
   check:
     name: Typecheck, tests, builds
-    needs: [changes, static, clients, tests, builds, native]
+    needs: [changes, static, clients, tests, builds, native, artifact-smoke]
     if: always()
     runs-on: ubuntu-24.04
     timeout-minutes: 5
@@ -290,11 +311,18 @@ jobs:
           TESTS: ${{ needs.tests.result }}
           BUILDS: ${{ needs.builds.result }}
           NATIVE: ${{ needs.native.result }}
+          SMOKE: ${{ needs.artifact-smoke.result }}
           CLIENTS: ${{ needs.clients.result }}
           SCOPE: ${{ needs.changes.outputs.scope }}
         run: |
           test "$CHANGES" = success
           test "$STATIC" = success
+          if [[ "$GITHUB_EVENT_NAME" == push ]]; then
+            test "$SCOPE" = full
+            test "$SMOKE" = success
+          else
+            test "$SMOKE" = skipped
+          fi
           case "$SCOPE" in
             full) expected_full=success; expected_clients=skipped ;;
             clients) expected_full=skipped; expected_clients=success ;;
@@ -307,8 +335,6 @@ jobs:
           test "$NATIVE" = "$expected_full"
       - uses: actions/checkout@v5
         if: needs.changes.outputs.scope == 'full'
-        with:
-          ref: ${{ inputs.revision || github.sha }}
       - uses: ./.github/actions/setup-bun
         if: needs.changes.outputs.scope == 'full'
         with:

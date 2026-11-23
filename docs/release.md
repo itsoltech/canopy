@@ -1,6 +1,8 @@
 # Wydania: wersje, CI, artefakty
 
-Status: opis zaimplementowanego workflow (2026-11-23). Buildy publikują wykazy licencji zależności. Automat sprawdza promocje co godzinę.
+Status: opis zaimplementowanego workflow (2026-11-23). Push CI weryfikuje dokładny commit źródłowy.
+Nightly, beta i stable wymagają jego sukcesu przed buildem, tagowaniem, podpisywaniem i publikacją.
+Buildy publikują wykazy licencji zależności. Automat sprawdza promocje co godzinę.
 Web, Desktop i mobile używają ikony danego wydania. Lokalny Dev ma własny niebieski wariant.
 Drzewo kanału w tle sidebara zanika przy wyszukiwarce. W Nightly, Becie i Dev
 pod drzewem widać także gradient na całą szerokość nagłówka.
@@ -11,8 +13,7 @@ Pakowanie macOS i test natywny CI kompilują ikony na `macos-26`.
 Release buduje i publikuje osobny obraz `canopy-push-relay` dla rewizji zawierających ten cel.
 Pakowanie Desktop i generowanie fingerprintu Expo używają poprawionego `minimatch`.
 Smoke Desktop czeka na zapis trasy Network access przed restartem workera podczas parowania.
-Pakowanie Desktop archiwizuje runtime do smoke z katalogu właściwego dla architektury Linuxa.
-Smoke Desktop pobiera testy i ich zależności z rewizji pakowanego runtime'u.
+CI testuje pakiet Desktop z tej samej rewizji co jego runtime.
 Smoke Desktop po aktualizacji przez instalator Windows sprawdza, czy BFF
 podaje ikonę sidebara Nightly bez kompresji oraz z Brotli i gzip.
 Release przekazuje klucz automatyzacji repozytorium do wywoływanego workflow Back-merge.
@@ -25,8 +26,8 @@ i pomija build oraz wysyłkę iOS do TestFlight. Pełne CI ma osiem shardów i w
 odświeżone z pełnych raportów CI. Pomiary poniżej opisują przebieg sprzed zmiany shardów;
 wpływ na czas CI wymaga pomiaru kolejnych przebiegów. Kod sprawdza rewizję
 Release przed checkoutem źródeł, a podpisywanie i publikacja działają na artefaktach
-w środowiskach chronionych. Smoke uruchamia spakowane pliki w osobnym jobie bez
-sekretów podpisu. Konfigurację środowisk utrzymuje maintainer.
+w środowiskach chronionych. CI wykonuje smoke na paczkach testowych bez sekretów podpisu.
+Konfigurację środowisk utrzymuje maintainer.
 
 Jedna wersja dla wszystkich aplikacji (gateway, worker, web, desktop, mobile, relay push). Wersję wyznacza
 semantic-release z commitów Angular po squash merge. Wdrożenie: [deploy.md](deploy.md).
@@ -84,7 +85,7 @@ bun scripts/version.ts --field version # jedno pole
 bun scripts/version.ts --github-output # klucze do $GITHUB_OUTPUT
 ```
 
-W CI wszystkie buildy dostają dokładną wersję wyjściową semantic-release. Lokalnie skrypt czyta
+W Release wszystkie buildy dostają dokładną wersję wyjściową semantic-release. Lokalnie skrypt czyta
 tag na HEAD; bez niego zwraca niepublikowaną wersję `X.Y.Z-dev.<sha7>` i pustą listę tagów Docker.
 
 ## Wstrzykiwanie wersji
@@ -298,11 +299,32 @@ i CVE-2026-118764 w kopiach `glob` i `minimatch` osadzonych w paczce
 nadrzędnej nawet wtedy, gdy reguła rozwiązywania zależności zmieni wersję
 w lockfile. `release.config.mjs` publikuje artefakty przez plugin GitHuba.
 
-`.github/workflows/ci.yml` (pull requesty; wywoływany też przez Release) w pełnym przebiegu uruchamia równolegle:
+Workflow **Push CI** (`.github/workflows/push-ci.yml`) działa po pushu na chronioną
+gałąź wydania. Każdy push do `dev`, także po squash merge, uruchamia pełne CI dla
+końcowego SHA. Na `next` workflow szuka przebiegu dla tego samego SHA na `dev`.
+Na `main` sprawdza najpierw `dev`, potem `next`. Jeśli znajdzie wcześniejszy
+przebieg, pomija ponowne testowanie. SHA bez wcześniejszego przebiegu, np. po
+scaleniu hotfixa, przechodzi pełne CI na gałęzi, na którą trafił.
 
-- `static`: `gen:check`, `typecheck`, lint, format i kontrolę podziału plików testowych;
-- osiem jobów `tests`: każdy uruchamia własne `check:tmp`, JUnit i pomiar czasu plików;
-- `builds`: build web i binaria linux-x64 z kontrolą `--version`.
+Push CI korzysta z `.github/workflows/ci.yml`. Ten sam workflow obsługuje PR-y
+z zakresem wybranym według zmienionych plików. W pełnym przebiegu działają następujące joby.
+
+- `static` sprawdza `gen:check`, typy, lint, format i podział plików testowych. Przy pushu sprawdza też tytuł scalonego commita przez commitlint.
+- Osiem jobów `tests` uruchamia własne `check:tmp`, generuje raporty JUnit i mierzy czas poszczególnych plików.
+- `builds` kompiluje web i binaria. `native` sprawdza działanie na macOS i Windows.
+
+Push CI uruchamia też `artifact-smoke.yml` dla tego samego SHA.
+
+- **Binaria.** Na linux-x64, linux-arm64, darwin-arm64 i windows-x64 smoke sprawdza `--version`
+  gatewaya i workera, eksport obrazu w `canopy-worker self-check` i wersję zwracaną przez
+  `/api/health` wbudowanego web. System przydziela wolny port na `127.0.0.1`.
+  Na linux-x64 test uruchamia również cały gateway z supervisorem i PostgreSQL.
+- **Obrazy.** Na linux/amd64 test startuje obraz gatewaya z PostgreSQL i sprawdza dostęp do web.
+  Relay musi odpowiedzieć przez HTTPS i odrzucić żądanie bez poświadczeń.
+- **Desktop.** CI pakuje runtime Linuxa i macOS do katalogu i uruchamia testy integracyjne
+  sidecarów z pobieranym PostgreSQL. Test parowania czeka na zapis trasy Network access przed
+  restartem workera. Na Windows CI instaluje testowy NSIS i sprawdza aktualizację oraz działanie
+  zainstalowanych usług. Release buduje później paczki dystrybucyjne z wersją i kanałem z planu.
 
 Końcowy job **Typecheck, tests, builds** wymaga powodzenia wszystkich wybranych części.
 W pełnym przebiegu pobiera też raporty shardów i sprawdza, czy każdy plik testowy wystąpił dokładnie raz.
@@ -336,13 +358,12 @@ przekierowania OAuth trafia pod `https://itsoltech.github.io/canopy/oauth/callba
 Zmiany `.github/**` zawsze wymagają całości, również przy rozszerzeniu `.md`.
 Zakres PR-a liczymy od wspólnego przodka z gałęzią bazową. Porównanie obejmuje oba końce rename.
 Błąd odczytu zmian blokuje PR.
-Release z zaplanowanym nightly oraz przebiegi `main`/`next`/tagowe uruchamiają cały zestaw.
-Nightly bez wydania pomija CI. Testy live są opt-in (`CANOPY_LIVE`, prywatne klucze)
-i nie mają sekretów w CI. Nowy push do PR anuluje cały stary CI, łącznie z shardami;
-wywołania z Release mają osobne grupy (`run_id`). Bun, cache pakietów i zamrożona instalacja
-są we wspólnej akcji `.github/actions/setup-bun`.
+Testy live są opt-in (`CANOPY_LIVE`, prywatne klucze) i nie mają sekretów w CI.
+Nowy push do PR anuluje jego poprzedni przebieg, łącznie z shardami. Przebiegi CI
+po pushu na chronioną gałąź są niezależne. Bun, cache pakietów i zamrożoną instalację
+zapewnia wspólna akcja `.github/actions/setup-bun`.
 
-Job `builds` kompiluje też workera na darwin-arm64 i windows-x64, a `native` uruchamia
+W pełnym CI PR-a job `builds` kompiluje też workera na darwin-arm64 i windows-x64, a `native` uruchamia
 `canopy-worker self-check` na macOS i Windows. Eksport obrazów woła natywne API każdego
 systemu przez `bun:ffi` (otwarcie, metadane, odczyt, ścieżka, zamknięcie), więc tylko binarka
 na danym systemie to sprawdza; testy na Linuksie tego nie wykryją.
@@ -359,7 +380,7 @@ przed PR; lokalną weryfikację dobieramy według [AGENTS.md](../AGENTS.md#testi
 `test-profile-<numer>` (7 dni). Do odświeżenia wag scal mapy `files` ze wszystkich raportów;
 nie używaj raportu jednego sharda jako całej mapy.
 
-Podział na osiem shardów obowiązuje w pełnym CI PR-ów i w Release. Każdy plik nadal
+Podział na osiem shardów obowiązuje w pełnym CI PR-ów i chronionych gałęzi. Każdy plik nadal
 wykonuje się dokładnie raz; nie filtrujemy testów według zmienionych pakietów.
 Podwojenie liczby runnerów skraca najdłuższy job testowy, ale zwiększa łączny koszt
 checkoutów, instalacji i uruchomienia baz; rzeczywisty czas zależy też od kolejki runnerów.
@@ -368,8 +389,8 @@ ośmiu raportów oraz sukcesu każdej wybranej części CI.
 Pełne CI ostatnich PR-ów przed zmianą trwało około 11–12 minut
 ([przykładowy przebieg](https://github.com/itsoltech/canopy/actions/runs/43827887639));
 statyczne checki i buildy kończyły się po około 2–3 minutach od startu jobów.
-Przy dostępnych runnerach osiem shardów daje prognozę około 5–7 minut na pełne CI;
-to szacunek, wymagający potwierdzenia po zmianie, a nie wynik zmierzonego przebiegu.
+Szacunek 5–7 minut dla pełnego CI na PR zakładał osiem shardów i dostępne od razu runnery.
+Po pushu do tego czasu dochodzi pakowanie i smoke artefaktów.
 
 `check:tmp` zarządza jednym PostgreSQL 17 na przebieg/shard i usuwa kontener po zakończeniu
 procesu testowego. Każdy fixture dostaje osobną bazę. Gatewaye klonują niemodyfikowalny,
@@ -380,29 +401,41 @@ Bezpośrednie `bun test <plik>` nadal działa z własnym kontenerem fixture'a.
 (`40 * * * *`). Większość zmian trafia na telefony jako aktualizacja OTA, więc wychodzą wkrótce po scaleniu.
 Nietypowa minuta :40 omija zatłoczone pełne godziny i połówki na GitHubie. Najpierw `plan` wykonuje dry run semantic-release: brak nowych commitów lub
 wyłącznie commity bez wpływu na wersję (`docs`, `ci`, `chore`, `test`, `refactor`, `style`, `build`
-bez `BREAKING CHANGE`) daje `published=false`. Wtedy nie startują ani CI (w tym shardy testów),
-ani buildy, publikacja czy retencja po wydaniu; nie powstaje tag. Pozostaje koszt checkoutu,
+bez `BREAKING CHANGE`) daje `published=false`. W każdym kanale Release pomija wtedy odczyt
+wyniku CI, buildy i publikację. Pozostaje koszt checkoutu,
 instalacji zależności i dry runu. To ten sam analyzer i historia kanałów co przy publikacji,
 bez osobnego przybliżania reguł commitów lub porównywania wyłącznie plików.
 
 | Zdarzenie / ref | Zachowanie |
 | --- | --- |
-| push do `dev` | bez Release i dodatkowego CI; CI każdego PR pozostaje bez zmian |
-| schedule na domyślnej gałęzi `dev` | plan; CI i buildy tylko dla nowego nightly |
+| push do `dev` | pełne CI dla SHA pushu |
+| schedule na domyślnej gałęzi `dev` | plan, a dla nowego nightly weryfikacja wyniku CI i budowa wydania |
 | dispatch na `dev` | wydanie od razu, przez tę samą bramkę; wymagany `expected_sha` z historii gałęzi |
 | push na `next` lub `main` | beta / stable dla SHA zdarzenia push, także po promocji i hotfix PR |
 | dispatch na `next` lub `main` | ręczne wydanie z wymaganym `expected_sha` z historii gałęzi |
-| push chronionego tagu `vX.Y.Z` | ręczne stable z historii `main`, z obowiązkowym CI |
+| push chronionego tagu `vX.Y.Z` | ręczne stable z historii `main`, z wymaganym wynikiem CI dla tego SHA |
 
-Nie dodajemy CI po każdym pushu do `dev`: duplikowałoby pełne shardy CI z PR i późniejszego
-wydania. Oznacza to brak natychmiastowego sygnału o błędzie wynikającym z połączenia zmian;
-pełne CI uruchomi się przed publikacją releasowalnego nightly. Sam PR nadal wymaga CI.
+Po zaplanowaniu wydania w każdym kanale job **Verified CI** odczytuje z Actions
+pierwotny przebieg `push-ci.yml` dla dokładnego `EXPECTED_SHA` ze zdarzenia
+`push` na chroniony `dev`, `next` lub `main` w tym repozytorium.
+Przy dispatchu starszej rewizji szuka wyniku dla wydawanych źródeł, nawet jeśli
+sam workflow ma nowszy SHA.
+
+Jeśli Push CI czeka w kolejce lub trwa, Verified CI czeka na wynik w ramach 60-minutowego
+limitu joba. Log wskazuje obserwowany przebieg. Budowa wydania, tagowanie, podpisywanie
+i publikacja wymagają sukcesu zarówno tego przebiegu, jak i jego zbiorczego joba
+`checks / Typecheck, tests, builds`.
+Brak przebiegu, nieudane lub pominięte wymagane sprawdzenia, niepełne dane albo błąd API
+blokują wydanie. Historyczny SHA bez wyniku Push CI również nie przechodzi tej bramki.
+Przebieg PR-a i pominięty zestaw testów na gałęzi docelowej promocji
+nie zastępują pierwotnego wyniku. Release nie powtarza testów ani smoke.
+
 Push przez deploy key uruchamia Release, dlatego Promote i Back-merge do `next` nie wykonują
 dodatkowego dispatchu. Back-merge do `dev` nadal dispatchuje Release z `expected_sha` commita merge.
 Job `verify` dopuszcza wyłącznie chronione refy i sprawdza pełne `EXPECTED_SHA`
 z dispatchu albo `github.sha` względem historii wybranej chronionej gałęzi
 (w przypadku tagu: `main`). Pobiera tylko historię do osobnego bare repozytorium
-z prawem odczytu. Dopiero po sprawdzeniu CI i buildy pobierają zatwierdzone źródła.
+z prawem odczytu. Dopiero po sprawdzeniu historii Release może pobrać zatwierdzone źródła.
 Plan, tagowanie, pakowanie desktopu i publikacja wykonują narzędzia z rewizji
 workflow. Manifest czyta wersje protokołów z zatwierdzonego SHA jako dane.
 `release` ponawia sprawdzenie historii tuż przed pushem tagu. Nowe commity na
@@ -441,7 +474,8 @@ Promocja rozpoznaje również recovery dispatch uruchomiony z nowszym toolingiem
 dla starszego SHA na `next`: czyta `release-sha` i `release-branch` z artefaktu tego konkretnego
 przebiegu, zamiast przypisywać mu `head_sha`/`head_branch` refa dispatchu. Nie wymaga odczytu inputs API.
 Wymaga pełnego SHA, zgodnej gałęzi, publicznego wydania z manifestem na tym SHA oraz sukcesu
-CI, wszystkich czterech smoke i `publish-desktop` w zakończonym zielonym przebiegu.
+`Verified CI`, `release` i `publish-desktop` w zakończonym przebiegu. W historycznych
+przebiegach recovery sprawdza dawny zbiorczy job CI i cztery joby smoke binariów.
 Sam zarezerwowany tag, artefakt albo zielony przebieg z pominiętą publikacją nie wystarcza.
 Artefakt rewizji zachowujemy 90 dni; starsze artefakty z retencją 7 dni działają do wygaśnięcia.
 Brak, niepełna rewizja (starszy artefakt bez gałęzi) lub wygaśnięcie artefaktu nie daje dispatchowi
@@ -480,28 +514,28 @@ otwartego zakresu wersji. SHA sprzed publicznego stable kończy plan bez nowego 
 `workflow_dispatch.release_branch` wybiera `dev`, `next` lub `main`; domyślne `current`
 zachowuje wybór z ref workflowu. Wspólne blokady używają **gałęzi wydania**, także gdy kod
 workflowu pochodzi z `dev`. Joby plan/release oraz upload używają narzędzi z `github.workflow_sha`,
-ale źródła aplikacji, checki i wszystkie artefakty nadal pochodzą z `EXPECTED_SHA`.
+a źródła aplikacji i wszystkie artefakty pochodzą z `EXPECTED_SHA`. Tego samego SHA
+wymaga `Verified CI`.
 Artefakt `release-revision` przekazuje Mobile release także gałąź kanału, żeby recovery z `dev`
 nie wybierało nightly zamiast beta/stable. Starsze artefakty nadal korzystają z ref przebiegu.
 Jeśli rezerwacja nadal jest otwarta, pozwala to naprawić publikację starego SHA bez zmieniania
 jego tagu ani gałęzi kanału.
 
-Dla osieroconego `v0.2.0-beta.1` na `31c7f87825b9756d8b1adf677f506519f248f770`,
-po merge poprawki do `dev`, maintainer uruchamia **nowy dispatch z `dev`**:
+Aby wznowić osieroconą betę, maintainer uruchamia nowy dispatch z `dev`.
+W zmiennej `SHA_BETY` ustawia pełny SHA rezerwacji z udanym Push CI.
 
 ```sh
 gh workflow run release.yml --repo itsoltech/canopy --ref dev \
   -f release_branch=next \
-  -f expected_sha=31c7f87825b9756d8b1adf677f506519f248f770
+  -f expected_sha="$SHA_BETY"
 ```
 
 Zwykłe Re-run starego przebiegu ani dispatch z niezmienionego `next` nie wczytają poprawki.
 Nie trzeba tworzyć/usuwać tagu, zmieniać notes ani ponownie wykonywać Promote.
-Plan poda `0.2.0-beta.1`; checki i buildy wystartują ponownie, a `release` utworzy draft
-na istniejącym tagu. Dalej obowiązuje zwykła kolejność images → publish-server → publish-desktop
-→ release-index. `backmerge` działa tylko dla stable, a nightly-hygiene tylko dla nightly,
-więc beta pomija oba zgodnie z dotychczasowymi warunkami. Wymagane podpisy i kompletny zestaw
-artefaktów nadal blokują publikację; udane wcześniejsze checki nie omijają tych bramek.
+Plan poda zarezerwowaną wersję. Po potwierdzeniu wcześniejszego CI job `release`
+utworzy draft na istniejącym tagu. Dalej obowiązuje zwykła kolejność images →
+publish-server → publish-desktop → release-index. Publikacja wymaga podpisów zgodnych
+z polityką kanału oraz kompletnego zestawu zweryfikowanych artefaktów.
 
 Wszystkie przebiegi danej gałęzi (push, schedule i dispatch) mają wspólną grupę całego workflow
 z `cancel-in-progress: false`: aktywny przebieg kończy się bez anulowania, a spośród oczekujących
@@ -528,49 +562,37 @@ na niezerowy kod wyjścia pakowania, bez dopasowywania komunikatów usług Apple
 błąd kompilacji kończy job od razu. Przed ponowną próbą usuwa cały katalog
 `apps/desktop/release/<kanał>`, zachowując runtime i cache pobrań. Linux ma jedną próbę.
 Anulowanie nie jest ponawiane; po ostatnim błędzie job zachowuje kod wyjścia pakowania.
-Weryfikacja podpisów, smoke i upload nadal wymagają udanego pakowania.
+Po udanym pakowaniu Release sprawdza podpisy przed przekazaniem plików do publikacji.
 Ta sama akcja działa w ręcznym `desktop-windows.yml`; lokalne polecenia `package:*`
 zachowują pojedynczą próbę.
 
-```text
-verify → plan ─┬─ checks ────────────→ release ──┐
-               ├─ binaries → smoke ─────────────┼─→ publish-server ─→ publish-desktop
-               ├─ images-build → images ────────┘                       ↑
-               └─ desktop-build → desktop (po checks) → desktop-smoke ┘
+```mermaid
+flowchart LR
+    verify --> plan --> ci["Verified CI"]
+    ci --> release --> images
+    ci --> images-build --> images
+    ci --> binaries
+    ci --> desktop-build --> desktop
+    images --> publish-server
+    binaries --> publish-server
+    publish-server --> publish-desktop
+    desktop --> publish-desktop
 ```
 
-| Job | Co robi | Kiedy startuje | Publikuje |
-| --- | --- | --- | --- |
-| `checks` | `ci.yml` | po `plan`; na `dev` tylko gdy `published=true` | — |
-| `verify` | Chroniony ref, pełne SHA, przynależność do historii gałęzi wydania | od razu | — |
-| `plan` | semantic-release **`--dry-run`** na przypiętym lustrze, macierz desktop, sprawdzenie SHA nowego stable względem publicznego nightly | po `verify`, w grupie `release-version-<ref>` | nic (próba pushu tylko do lustra) |
-| `binaries`, `smoke` | web raz, potem cross-compile wszystkich celów z web w gatewayu; `--version` każdej binarki i `/api/health` z `canopy-gateway web` na jej OS/arch; na linux-x64 pełny gateway (supervisor, PostgreSQL) z web na porcie 3000 | po `plan`, równolegle z checkami | — (artefakt Actions) |
-| `images-build` | buildx `gateway`, `worker` i `push-relay` dla amd64 i arm64 jako archiwa OCI z SBOM i proweniencją; smoke amd64 sprawdza web gatewaya obok PostgreSQL i HTTPS relaya | po `plan` | — (artefakty Actions) |
-| `desktop-build` | Kompilacja aplikacji i runtime na docelowej platformie | po `plan` | — (artefakty Actions) |
-| `desktop` | Pakowanie, podpisy i notaryzacja z przygotowanego runtime | po `desktop-build` i zielonych `checks` | — (artefakty Actions) |
-| `desktop-smoke` | Testy z `EXPECTED_SHA` uruchamiają spakowany runtime; na Windows instalują pakiet na odrębnym runnerze | po `desktop` | — |
-| `release` | semantic-release na lustrze, atomowy push tagu/notes i draft przez API GitHuba | po **zielonych `checks`**; grupa `release-version-<ref>` | tag + ukryty draft |
-| `images` | kopiuje gotowe archiwa OCI do GHCR pod niezmiennym tagiem wydania | po `release` i `images-build` | obraz `vX.Y.Z` |
-| `publish-server` | binaria, `checksums.txt`, `manifest.json` na drafcie | po `checks`, `release`, `binaries`, `smoke`, `images`, we wspólnej kolejce `release-branch-mutations` | nic publicznego |
-| `publish-desktop` | assety desktop, aktualizacja manifestu, weryfikacja assetów i SHA stable, publikacja, aliasy obrazów | po `publish-server` i sukcesie pakowania oraz smoke wymaganych celów desktop, w kolejce `release-branch-mutations` | kompletny release |
-| `release-index` | współdzielony workflow Pages: aktualna strona i indeks wszystkich publicznych wydań | po sukcesie `publish-desktop` | atomowy snapshot CDN |
-| `stop-builds` | `gh run cancel` własnego przebiegu | checki czerwone albo `release` bez wydania/anulowany | — |
-| `nightly-hygiene`, `backmerge` | jak wcześniej | po `publish-desktop`; brak wydania pomija oba | — |
-
-W smoke Desktop na Linuxie i macOS test parowania czeka, aż zdalny worker zapisze
-zweryfikowaną trasę Network access. Parowanie restartuje workera z zapisaną trasą,
-a test sprawdza obecność obu workerów w tej samej odpowiedzi gatewaya.
-
-**Dobór portu smoke: zaimplementowany w workflow dla wszystkich kanałów.** Test samodzielnego
-`canopy-gateway web` prosi system o wolny port na `127.0.0.1` przez tymczasowy listener Node
-na porcie `0`, odczytuje przydzielony numer i zamyka listener przed startem binarki. Ten sam
-numer trafia do `CANOPY_WEB_PORT` i sondy `/api/health`, która nadal wymaga wersji z `plan`.
-Konfiguracja pochodzi z rewizji workflow; nie wymaga wydania nowej wersji aplikacji.
-
-**Nic nie jest publikowane przed zielonymi testami.** Równolegle z `checks` powstają wyłącznie artefakty
-Actions i cache buildx (prywatne dla repozytorium). Tag, GitHub Release, obraz w GHCR, assety
-release i aliasy obrazów zależą od `release`, a ten od `checks`. Dry run nie tworzy tagu ani notes;
-wystarcza `contents: read`, bo próba pushu semantic-release dotyczy lokalnego lustra.
+| Job Release | Wynik |
+| --- | --- |
+| `verify` | Sprawdza chroniony ref, pełne SHA i przynależność do historii gałęzi wydania. |
+| `plan` | Wykonuje dry run semantic-release na przypiętym lustrze, wybiera cele desktopu i obrazów. Dla nowego stable sprawdza SHA względem publicznej bety tej serii. |
+| `checks` (Verified CI) | Dla zaplanowanego wydania sprawdza wcześniejszy wynik CI po pushu na chronioną gałąź. |
+| `binaries` | Buduje web i osadza go w binariach gatewaya. Kompiluje binaria gatewaya i workera dla wszystkich celów. |
+| `images-build` | Buduje archiwa OCI dla amd64 i arm64 z SBOM i proweniencją. |
+| `desktop-build`, `desktop` | Budują runtime desktopu i pakują go dla wybranych platform. Podpisy i notaryzacja wymagają udanej bramki CI. |
+| `release` | Po sukcesie Verified CI rezerwuje wersję, wysyła tag oraz notes i tworzy ukryty draft. |
+| `images` | Kopiuje archiwa OCI do GHCR pod niezmiennym tagiem wydania. |
+| `publish-server` | Wgrywa binaria, `checksums.txt` i `manifest.json` na draft. |
+| `publish-desktop` | Dodaje instalatory, scala feedy, aktualizuje manifest i weryfikuje assety. Publikuje kompletny release i przesuwa aliasy obrazów. |
+| `stop-builds` | Zatrzymuje pozostałe buildy, gdy rezerwacja wersji zawiedzie albo nie dojdzie do wydania. |
+| `release-index`, `nightly-hygiene`, `backmerge` | Po publikacji aktualizują indeks Pages oraz wykonują retencję nightly albo back-merge bety/stable. |
 
 **Wersja z planu.** Buildy dostają wersję z `plan`. `release` uruchamia semantic-release
 z `EXPECTED_VERSION`; plugin `scripts/release-expected-version.mjs` (krok `verifyRelease`, przed
@@ -595,8 +617,8 @@ zobaczy istniejące `v0.2.0-nightly.147` i dla kolejnych releasowalnych commitó
 `0.2.0-nightly.148`, o ile wcześniejszy przebieg nie zarezerwował już tego numeru.
 
 **Przesunięta gałąź.** Nowy commit przed `plan` albo podczas checków nie anuluje aktywnego
-wydania. Tag nadal wskazuje SHA startowe. `stop-builds` zatrzymuje buildy i notaryzację przy
-czerwonych checkach, przepisanej historii lub innym błędzie rezerwacji wersji. GitHub nadal
+wydania. Tag nadal wskazuje SHA startowe. Jeśli rezerwacja wersji zawiedzie,
+np. z powodu przepisanej historii, `stop-builds` zatrzymuje rozpoczęte buildy i notaryzację. GitHub nadal
 zastępuje starszy oczekujący przebieg nowszym; aktywnego nie anuluje. Na `dev` późniejsze
 commity zbiera następny cykl godzinowy lub dispatch, nie sam push.
 
@@ -684,7 +706,7 @@ nightly, beta i stable. Tylko linux-arm64 pozostaje eksperymentalny (`continue-o
 buduje go beta i stable, a nightly tylko przy ręcznym dispatchu z `desktop_all_targets: true`
 (dispatch wymaga `expected_sha` z historii gałęzi i wydaje tylko, gdy są niewydane commity).
 Dla darwin-arm64 pakowanie działa na `macos-26`, gdzie `actool` ma systemowe frameworki
-potrzebne do kompilacji ikon. Build runtime i smoke nadal używają `macos-15`.
+potrzebne do kompilacji ikon. Release buduje runtime dla macOS na `macos-15`.
 
 **Cache.** Pakiety Bun (`~/.bun/install/cache`, klucz z `bun.lock`) we wszystkich jobach z instalacją;
 pobrania Electron/electron-builder w jobach desktop; warstwy obrazów w cache GHA per aplikacja.
@@ -693,7 +715,10 @@ Bundla web nie współdzielimy między jobami desktop: osobny job buildu opóźn
 
 ### Oczekiwane czasy
 
-| Etap | Od startu aktywnego Release (bez oczekiwania na cron/kolejkę) |
+Poniższe pomiary pochodzą z [nightly z 16 listopada 2026](https://github.com/itsoltech/canopy/actions/runs/43799913460).
+W tamtym przebiegu testy i smoke działały wewnątrz Release.
+
+| Etap | Od startu Release z 16 listopada (bez oczekiwania na cron/kolejkę) |
 | --- | --- |
 | `plan` gotowy, start buildów | ~1 min |
 | artefakt desktop Linux gotowy do uploadu | ~5 min |
@@ -704,23 +729,16 @@ Bundla web nie współdzielimy między jobami desktop: osobny job buildu opóźn
 | **kompletny publiczny release i aliasy obrazów** (po macOS i Windows) | **~20,5 min**, zależnie od podpisów/notaryzacji |
 | cały workflow, w tym indeks Pages i retencja | ~21,5 min |
 
-Czasy są orientacyjne; punktem odniesienia jest pełny
-[przebieg nightly z 16 listopada 2026](https://github.com/itsoltech/canopy/actions/runs/43799913460).
-`checks` używa teraz ośmiu równoległych shardów. Wagi odświeżone z tego przebiegu dają
-prognozę około 251 s testów na każdy shard zamiast zmierzonych 277/484/581/663 s
-w starym podziale na cztery shardy (samo odświeżenie wag dałoby około 501 s przy czterech);
-to prognoza z sum czasów plików, bez checkoutu, instalacji i narzutu runnera.
-Nowy plik bez pomiaru nadal dostaje 1000 ms. Odświeżenie wag i zwiększenie liczby
-shardów nie zmieniają zakresu testów; rzeczywisty zysk potwierdzą kolejne przebiegi.
-Najdłuższą ścieżkę wyznaczał `desktop (darwin-arm64)`: od rozpoczęcia podpisywania
-do sukcesu notaryzacji minęło około 12,5 minuty, a weryfikacja zapakowanego runtime
-dodała około 2 minuty. CI i pozostałe buildy już pracują równolegle z macOS, więc
-nowy podział skraca bramkę CI, ale w tym przebiegu nie skróciłby czasu publikacji.
+W tym wydaniu od rozpoczęcia podpisywania macOS do końca notaryzacji minęło około 12,5 minuty.
+Obecny Release odczytuje wcześniejszy wynik CI i wykonuje własne buildy wersji dystrybucyjnej.
+Czas publikacji po przeniesieniu testów wymaga pomiaru na GitHub Actions.
 Merge do `dev` czeka na najbliższy cykl godzinowy, a nowy przebieg dodatkowo na zakończenie
 całego aktywnego nightly. Ręczny dispatch omija oczekiwanie na cron, ale nie blokadę przebiegów.
 
 ### Ponowienia i błąd notaryzacji
 
+- Gdy Verified CI zatrzyma wydanie, sprawdź przebieg Push CI dla źródłowego SHA.
+  Po naprawieniu przejściowej awarii i udanym ponowieniu tego CI ponów Release.
 - Po błędzie buildów albo publikacji użyj **Re-run failed jobs**: zachowuje wyjścia `plan`/`release`
   i powtarza nieudane joby z zależnymi. Ponowienie całego workflow po utworzeniu tagu kończy się
   „no release”, bo tag już istnieje. Artefakty buildów Actions żyją 7 dni, a artefakt rewizji 90 dni.
@@ -746,7 +764,7 @@ GitHub Actions nie da się uruchomić lokalnie. Na pierwszych przebiegach `dev` 
 aliasu (log `stays at`/`→`), a `imagetools create` zachowuje obie platformy i SBOM; `release-upload.ts`
 podmienia `manifest.json`/`checksums.txt` przez `.next` (brak pozostałych plików `.next`);
 `publish-desktop` widzi artefakty z poprzedniej próby po **Re-run failed jobs**; `stop-builds`
-anuluje przebieg z błędem checków lub wydania. Gdy podczas aktywnego nightly trafi zwykły merge,
+anuluje przebieg po nieudanej rezerwacji wersji. Gdy podczas aktywnego nightly trafi zwykły merge,
 sprawdź, że tag, manifest i rewizja obrazu nadal wskazują SHA startowe, draft pozostaje ukryty
 do pełnej weryfikacji, a kolejny naturalny cykl obejmuje późniejszy commit z kolejnym numerem
 nightly. Nie wymaga to force pushu ani ręcznego dispatchu. Dwa merge'e przed cyklem dają jeden nightly z obu commitów;
@@ -765,7 +783,7 @@ Instaluje NSIS, sprawdza `--version` zainstalowanych gatewaya/workera i zachowuj
 artefakt przez 3 dni, bez publikacji wydania. Nie potwierdza zachowania SmartScreen.
 Konfiguracja certyfikatu macOS włącza obowiązkowy signing,
 a kompletny zestaw notaryzacji włącza wbudowane `mac.notarize` i stapling przed zip/dmg.
-Kontrola CI sprawdza app przez `codesign --verify --deep --strict`, każdy runtime Mach-O
+Release sprawdza app przez `codesign --verify --deep --strict`, każdy runtime Mach-O
 oddzielnie, Developer ID przez requirement i `spctl -a -vv` dla podpisanych buildów.
 Notaryzowany build musi przejść Gatekeeper i `xcrun stapler validate`.
 Patch Bun do `@electron/notarize@2.5.0` ponawia samo `staple` z walidacją do pięciu
@@ -882,8 +900,8 @@ Po zmianie układu runtime i pobieraniu PostgreSQL sprawdź dodatkowo:
 
 1. `package-sizes-darwin-arm64.json`, brak `app.asar.unpacked` i node_modules w asar,
    jeden Bun, brak PG/CLI w app, same arm64 Mach-O. Framework Electron zostaje.
-   CI ma przejść `Verify packaged runtime and downloaded PostgreSQL`: lokalny rejestr
-   HTTP podaje prawdziwy pakiet PG, który jest weryfikowany, odchudzany, podpisywany
+   W CI po pushu test spakowanego runtime pobiera prawdziwy pakiet PG z lokalnego rejestru
+   HTTP. Pakiet jest weryfikowany, odchudzany, podpisywany
    ad-hoc i używany do rzeczywistego enrollment/startu/stopu i recovery bazy.
 2. Na czystym Apple Silicon **bez Xcode/CLT** pobierz notarized dmg/zip w przeglądarce
    z quarantine i uruchom normalnie z Findera. Pierwszy local ma pokazać postęp,
@@ -913,7 +931,7 @@ Okres obserwacji `dev → next` wynosi **6 h od daty commitera każdego commita*
 (`landedAt` z `git show --format=%ct`).
 Godzinowe grupowanie oznacza mniej commitów z własnym zielonym Release; promocja może wybrać
 starszy ukończony nightly lub poczekać, aż cały nowszy prefiks dojrzeje i przejdzie Release.
-Pominięty plan bez CI/smoke sam nie potwierdza gotowości nieotagowanego commita.
+Wynik samego CI gałęzi nie potwierdza publikacji wydania.
 
 **Automatic promotion** (`promotion-review.yml`) działa **co godzinę**, o :17 UTC (`17 * * * *`).
 Najpierw wykonuje **next → main**, potem **dev → next**, w jednej grupie
@@ -996,9 +1014,8 @@ pierwotnej definicji workflow.
 do `dev`/gałęzi źródłowej, a następnie wiąże je lokalnie przez dokładny SHA. Listę przebiegów
 filtruje lokalnie, aby nie obciąć historii na limicie 1000 wyników filtrowanego wyszukiwania
 Actions. Artefakt rewizji pobiera tylko dla dispatchów z zaufanych gałęzi wydania.
-Joby pobiera dopiero dla rozważanego kandydata: smoke bez opublikowanego tagu albo pełne
-dowody CI/smoke/publikacji recovery;
-preferencja tagów, najnowszego przebiegu i jego próby pozostaje bez zmian.
+Dla rozważanego kandydata może pobrać joby Release, by sprawdzić bramkę CI i publikację.
+Obsługuje również historyczne przebiegi z testami smoke w Release.
 Recheck ponownie odczytuje publikacje, PR-y, CI i blokery. Wykorzystuje wyłącznie niezmienne
 dane git z pierwszego odczytu; zmianę jawnych linków w body PR uwzględnia także w atrybucji.
 Pusty zakres nie pobiera publikacji, PR-ów ani przebiegów. Limit workflow pozostaje 10 minut.
@@ -1051,13 +1068,11 @@ Dotknięcie tego samego pliku nie wystarcza do powiązania. Blame jest przybliż
 błędu: naprawa może dotyczyć logiki w innym miejscu albo mieć niejednoznaczny kontekst dopisku.
 Jawne stopki pozostają podstawową konwencją i mają pierwszeństwo przed atrybucją linii.
 
-**Smoke zamiast checkboxów.** Automat niczego nie zaznacza w imieniu człowieka.
-Zielony Release obejmuje CI, testy updatera w CI, start binariów gateway/worker z kontrolą
-wersji na linux-x64/linux-arm64/darwin-arm64/windows-x64 oraz publikację serwera;
-stable dodatkowo wymaga tej samej automatycznej weryfikacji na becie i jej burn-in.
-Nie jest to ludzkie potwierdzenie live smoke dostawców ani pełny scenariusz self-update/rollback
-w realnej instalacji. Te ręczne potwierdzenia przestają być warunkiem promocji. Nie dodajemy
-nowego testu E2E aktualizacji; zachowujemy istniejące testy updatera i smoke Release.
+Automat korzysta z wyniku CI po pushu, które obejmuje testy updatera i uruchomienie
+binariów na czterech celach serwerowych. Release potwierdza ten wynik dla wydawanego SHA
+i publikuje zweryfikowane artefakty. Promocja do stable wymaga również publikacji bety
+oraz zakończenia jej okresu obserwacji. Testy live dostawców i ręczny scenariusz
+self-update/rollback na realnej instalacji pozostają opcjonalne.
 
 **Ręczny Promote.** Uruchom dispatch na chronionym `dev`. Nadal wybiera `dev-next`/`next-main` tym samym algorytmem.
 `dry_run` (domyślnie true) wypisuje plan bez pushu, dispatchu i zapisu issue. Opcjonalne
