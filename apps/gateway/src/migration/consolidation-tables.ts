@@ -129,6 +129,7 @@ const rootTables: ImportTable[] = [
         "legacy_headers",
         "status",
         "all_projects",
+        "no_project",
         "tools",
         "revision",
         "updated_at",

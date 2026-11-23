@@ -2235,8 +2235,9 @@ zwykłe operacje.
 
 ## Konsolidacja dodatkowego komputera
 
-Status (2026-11-22): konsolidacja wymaga migracji 0199 po obu stronach.
-Import zachowuje wiązania profili Sandbox, listę profili właściciela
+Status (2026-11-23): konsolidacja wymaga migracji 0207 po obu stronach.
+Import zachowuje zakres No project z zatwierdzonego konta konektora oraz
+wiązania profili Sandbox, listę profili właściciela
 i skróty polityk zapisane w historii poleceń.
 
 Konsolidacja dołącza dane właściciela do gatewaya centralnego po trwałym wyłączeniu
@@ -2547,6 +2548,7 @@ Stos PR-ów: `feat/linked-shared-config-N` ([etapy](#etapy-wspólnej-konfiguracj
 | poświadczenia connectora, nagłówki, aplikacje OAuth | `connector_accounts.credentials`, `connector_oauth_apps` | wspólne, sekret | ponownie szyfrowane u odbiorcy |
 | stan konta connectora, diagnoza `error`, ostatnie użycie, przestrzeń nazw | `connector_accounts` | komputer | wynik użycia na tym komputerze |
 | dostęp connectora dla projektu | `connector_accounts.all_projects`, `connector_project_grants` | wspólne | jedno pole konfiguracji z globalnymi id projektów |
+| dostęp connectora w No project | `connector_accounts.no_project` | wspólne | osobne pole konfiguracji konta |
 | dostęp connectora dla bota, granty | `connector_bot_grants` | dom bota | część bota |
 | stan OAuth, wykonania, audyt connectorów | `connector_oauth_states`, `connector_executions`, `connector_audit` | lokalne | stan wykonania |
 | boty, rutyny, przypomnienia | `bots`, `bot_routines`, `bot_wakeups` | dom | rzeczy wykonawcze |

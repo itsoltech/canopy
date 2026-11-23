@@ -106,8 +106,8 @@ async function seedRows(source: Fixture, target: Fixture, operationId: string) {
     VALUES(${localOwner},'project',${sourceProjectGlobal},${sourceProject},1)`;
   await d`INSERT INTO config_items(owner_user_id,kind,global_id,local_id,revision)
     VALUES(${centralOwner},'project',${targetProjectGlobal},${targetProject},1)`;
-  await s`INSERT INTO connector_accounts(id,owner_user_id,connector_type,name,namespace,url,transport,auth_kind,status)
-    VALUES(${sourceConnector},${localOwner},'custom','Source connector','fixture','https://source.example.test','http','headers','disconnected')`;
+  await s`INSERT INTO connector_accounts(id,owner_user_id,connector_type,name,namespace,url,transport,auth_kind,status,no_project)
+    VALUES(${sourceConnector},${localOwner},'custom','Source connector','fixture','https://source.example.test','http','headers','disconnected',true)`;
   await d`INSERT INTO connector_accounts(id,owner_user_id,connector_type,name,namespace,url,transport,auth_kind,status,all_projects)
     VALUES(${targetConnector},${centralOwner},'custom','Target connector','fixture','https://target.example.test','http','headers','disconnected',true)`;
   await s`INSERT INTO connector_project_grants(account_id,project_id) VALUES(${sourceConnector},${sourceProjectGlobal})`;
@@ -536,9 +536,9 @@ test.skipIf(!dockerAvailable)(
         VALUES(${uuid()},${fixture.worker},${fixture.archived},'startTurn',''::bytea,now()+interval '1 minute')`).rejects.toThrow(
         "selected sandbox profile",
       );
-      expect(await sql`SELECT name,all_projects FROM connector_accounts WHERE id=${fixture.targetConnector}`).toEqual([
-        { name: "Source connector", all_projects: false },
-      ]);
+      expect(
+        await sql`SELECT name,all_projects,no_project FROM connector_accounts WHERE id=${fixture.targetConnector}`,
+      ).toEqual([{ name: "Source connector", all_projects: false, no_project: true }]);
       expect(
         await sql`SELECT project_id FROM connector_project_grants WHERE account_id=${fixture.targetConnector}`,
       ).toEqual([{ project_id: fixture.targetProjectGlobal }]);
