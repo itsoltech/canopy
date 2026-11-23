@@ -50,3 +50,13 @@ gładką bursztynową koronę, a po jej lewej stronie opadają dwa liście.
 Każdy SVG ma przezroczyste tło i kolory dla jasnego oraz ciemnego motywu.
 Web, desktop i mobile korzystają ze [wspólnej grafiki](../../packages/ui/src/sidebar-art.ts).
 Dobór wariantu opisuje [dokumentacja wydań](../../docs/release.md).
+
+## Ikony aplikacji
+
+| Propozycja | Stable | Beta | Nightly | Dev |
+| --- | --- | --- | --- | --- |
+| **19** | [<img src="app-icons-19/canopy-stable.svg" width="64" height="64" alt="Zielone drzewo na szałwiowym tle">](app-icons-19/canopy-stable.svg) | [<img src="app-icons-19/canopy-beta.svg" width="64" height="64" alt="Brązowe drzewo i dwa opadające liście na bursztynowym tle">](app-icons-19/canopy-beta.svg) | [<img src="app-icons-19/canopy-nightly.svg" width="64" height="64" alt="Lawendowe drzewo, półksiężyc i gwiazdy na fioletowym tle">](app-icons-19/canopy-nightly.svg) | [<img src="app-icons-19/canopy-dev.svg" width="64" height="64" alt="Niebieski rysunek techniczny drzewa z siatką i linią wymiarową">](app-icons-19/canopy-dev.svg) |
+
+W propozycji 19 wszystkie cztery ikony mają obrys i kadrowanie drzewa z propozycji 13.
+Kolor całego kafelka pozwala odróżnić wydania także przy 16 px. Siatka w wariancie
+Dev przebiega za drzewem, a oba liście Bety są oddzielone od korony i konarów.
