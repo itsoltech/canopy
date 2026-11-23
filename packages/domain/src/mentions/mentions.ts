@@ -1,4 +1,6 @@
 import { create } from "@bufbuild/protobuf";
+import { isEntityId } from "../computers.ts";
+import { issueNotes, validIssueSnapshot } from "./issues.ts";
 import { MentionKind, MentionSchema, Provider, type Mention } from "@canopy/contracts";
 
 /**
@@ -14,7 +16,7 @@ import { MentionKind, MentionSchema, Provider, type Mention } from "@canopy/cont
  *   from the mentions; threads get the platform note.
  */
 
-/** The character that starts each kind's placeholder (and opens its popup in the composer). */
+/** Composer triggers. Selected GitHub references keep their familiar owner/repo#number spelling. */
 export const MENTION_TRIGGERS = {
   command: "/",
   skill: "$",
@@ -23,6 +25,7 @@ export const MENTION_TRIGGERS = {
   thread: "#",
   bot: "@",
   connector: "@",
+  issue: "#",
   attachment: "[",
 } as const;
 
@@ -31,7 +34,7 @@ export const MAX_MENTIONS = 50;
 /** Attachments placed in the text count apart from MAX_MENTIONS: the attachment limits bound them. */
 export const MAX_ATTACHMENT_MENTIONS = 100;
 
-export type MentionKindName = "command" | "skill" | "plugin" | "file" | "thread" | "bot" | "connector" | "attachment";
+export type MentionKindName = keyof typeof MENTION_TRIGGERS;
 
 export function mentionKindName(kind: MentionKind): MentionKindName | undefined {
   switch (kind) {
@@ -49,6 +52,8 @@ export function mentionKindName(kind: MentionKind): MentionKindName | undefined 
       return "bot";
     case MentionKind.CONNECTOR:
       return "connector";
+    case MentionKind.ISSUE:
+      return "issue";
     case MentionKind.ATTACHMENT:
       return "attachment";
     default:
@@ -57,12 +62,14 @@ export function mentionKindName(kind: MentionKind): MentionKindName | undefined 
 }
 
 /** The text a mention occupies in the message. */
-export function mentionPlaceholder(mention: Pick<Mention, "kind" | "name" | "label">): string {
+export function mentionPlaceholder(mention: Pick<Mention, "kind" | "name" | "label" | "issue">): string {
   const kind = mentionKindName(mention.kind);
 
   if (!kind) return "";
 
   if (kind === "attachment") return `[${mention.label || mention.name}]`;
+
+  if (kind === "issue" && mention.issue?.provider === "github") return mention.name;
 
   return `${MENTION_TRIGGERS[kind]}${kind === "thread" || kind === "bot" || kind === "connector" ? mention.label || mention.name : mention.name}`;
 }
@@ -119,7 +126,7 @@ export function checkMentions(text: string, mentions: readonly Mention[]): Menti
 
     if (m.start < end) throw new MentionError(`the ${kind} mention "${m.name}" overlaps another one`);
 
-    if (!text.startsWith(MENTION_TRIGGERS[kind], m.start))
+    if (kind !== "issue" && !text.startsWith(MENTION_TRIGGERS[kind], m.start))
       throw new MentionError(`the ${kind} mention "${m.name}" does not start with ${MENTION_TRIGGERS[kind]}`);
 
     if (kind === "command" && ++commands > 1) throw new MentionError("a message can run one command");
@@ -132,6 +139,15 @@ export function checkMentions(text: string, mentions: readonly Mention[]): Menti
     if (kind === "bot" && !UUID.test(m.name)) throw new MentionError(`"${m.name}" is not a bot id`);
 
     if (kind === "connector" && !UUID.test(m.name)) throw new MentionError("invalid connector account id");
+
+    if (kind === "issue") {
+      const marker = text.slice(m.start, m.end);
+      // A previously saved issue draft can still carry its original % marker and offsets.
+      const legacy = !m.issue?.pullRequest && marker === `%${m.name}`;
+
+      if (!isEntityId(m.source) || !validIssueSnapshot(m) || (!legacy && marker !== mentionPlaceholder(m)))
+        throw new MentionError("invalid issue mention");
+    }
 
     if (kind === "attachment" && !UUID.test(m.name)) throw new MentionError(`"${m.name}" is not an attachment id`);
     end = m.end;
@@ -273,7 +289,7 @@ function shifted(m: Mention, by: number): Mention {
 
 /** Platform note lines for what the provider has no native input for. */
 function mentionNotes(provider: Provider, mentions: readonly Mention[], invoked: Mention | undefined): string[] {
-  const lines: string[] = [];
+  const lines = issueNotes(mentions);
   const threads = mentions.filter((m) => m.kind === MentionKind.THREAD);
 
   if (threads.length > 0) {

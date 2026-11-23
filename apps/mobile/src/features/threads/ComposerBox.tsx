@@ -15,7 +15,7 @@ import { useTween } from "../../ui/motion";
 import { startsWithShellCommand } from "./sandbox";
 
 /** What each trigger character does, as on the web; no-break spaces keep each item on one line. */
-const TRIGGER_HINT = ["/ commands", "$ skills", "@ files", "# threads"]
+const TRIGGER_HINT = ["/ commands", "$ skills", "@ files", "# references"]
   .map((item) => item.replace(" ", "\u00a0"))
   .join(" · ");
 

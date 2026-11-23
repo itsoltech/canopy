@@ -183,7 +183,8 @@
     {quoteKey}
     disabled={disabled || sending}
     onpaste={(event) => intake?.paste(event)}
-    acceptChip={(m) => m.kind !== MentionKind.ATTACHMENT || Boolean(files?.file(m.name))}
+    acceptChip={(m) =>
+      m.kind !== MentionKind.ISSUE && (m.kind !== MentionKind.ATTACHMENT || Boolean(files?.file(m.name)))}
     {sources}
     triggers={BOT_MENTION_TRIGGERS}
     anchor={box}

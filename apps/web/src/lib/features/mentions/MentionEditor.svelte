@@ -1,5 +1,5 @@
 <script lang="ts">
-  import type { Mention } from "@canopy/contracts";
+  import { MentionKind, type Mention } from "@canopy/contracts";
   import type { ClassValue } from "svelte/elements";
   import type { Snippet } from "svelte";
   import {
@@ -34,18 +34,19 @@
   import { blockHtml, findFences, openingFence } from "./markdown.ts";
   import MentionList from "./MentionList.svelte";
   import MentionSuggestions from "./MentionSuggestions.svelte";
-  import type { MentionOption, MentionSourceSet } from "./sources.svelte.ts";
+  import { triggerPresentation, type MentionOption, type MentionSourceSet } from "./sources.svelte.ts";
+  import { mentionsKey } from "./wire.ts";
   import type { QuoteDraft } from "#lib/features/quotes/quote.ts";
   import EditorCitations from "#lib/features/quotes/EditorCitations.svelte";
   import { useQuoteDrafts } from "#lib/features/quotes/quote-drafts.svelte.ts";
-  import { untrack } from "svelte";
+  import { onDestroy, untrack } from "svelte";
   import { isWorkspaceFileDrag } from "#lib/features/workspace/file-drag.ts";
 
   /**
    * The composer's text field with inline mentions (docs/ui-api.md, "Wzmianki"): a contenteditable whose model is
    * `value` (plain text) and `mentions` (ranges in it). Typing a trigger at the start of a line or after a space
    * opens the popup above the composer: "/" commands, "$" skills and plugins (Codex's convention), "@" files of
-   * the thread's folder, "#" other threads. ↑↓ move, Enter or Tab insert the chip, Escape closes; a tap inserts too.
+   * the thread's folder, "#" issues, pull requests and threads. ↑↓ move, Enter or Tab insert the chip, Escape closes.
    * A chip is one unit: Backspace or Delete next to it removes it whole (and Undo brings it back). `editor` lets the
    * composer put chips at the caret (attachments: docs/ui-api.md, "Załączniki w tekście") and take them out;
    * `acceptChip` says which chips a paste may bring back (others stay their text); `onchipclick` gets a click on one.
@@ -154,9 +155,6 @@
   let active = $state(0);
   let popupOpen = $state(false);
 
-  const mentionsKey = (list: readonly Mention[]) =>
-    list.map((m) => `${m.kind}:${m.name}:${m.start}-${m.end}`).join("|");
-
   const blocks = new CodeBlocks({
     changed: () => sync(false),
     exit(block, side) {
@@ -174,6 +172,8 @@
 
   $effect(() => () => blocks.clear());
 
+  onDestroy(() => sources?.close());
+
   // An outside change (cleared after sending, a restored draft): render it.
   $effect(() => {
     const text = value;
@@ -186,6 +186,10 @@
     markTicks(root);
     shown = { text, key };
     trigger = undefined;
+
+    // An older draft can carry %KEY. Reading the restored chips moves all following ranges to the current markers.
+    if (mentions.some((m) => m.kind === MentionKind.ISSUE && text.slice(m.start, m.end) === `%${m.name}`))
+      untrack(() => sync(false));
   });
 
   const results = $derived(sources?.results);
@@ -194,16 +198,7 @@
   const loading = $derived(catalogTrigger ? (sources?.catalogState?.loading ?? false) : (results?.loading ?? false));
   const error = $derived(catalogTrigger ? sources?.catalogState?.error : results?.error);
 
-  const emptyText = $derived(
-    sources?.presentation?.[lastChar]?.empty ??
-      (lastChar === "/"
-        ? "No commands match"
-        : lastChar === "$"
-          ? "No skills or plugins match"
-          : lastChar === "@"
-            ? "No files match"
-            : "No threads match"),
-  );
+  const presentation = $derived(sources?.presentation?.[lastChar] ?? triggerPresentation[lastChar]);
 
   // Catalog lists react to the catalog arriving.
   $effect(() => {
@@ -211,6 +206,11 @@
       void sources.catalog?.entries;
       sources.query(trigger.char, trigger.query);
     }
+  });
+
+  // The new-thread composer can switch projects while the picker is open.
+  $effect(() => {
+    if (trigger?.char === "#") sources?.query(trigger.char, trigger.query);
   });
 
   $effect(() => {
@@ -282,11 +282,12 @@
 
     dismissed = undefined;
 
-    if (found.char !== trigger?.char || found.query !== trigger?.query) active = 0;
+    if (found.char === trigger?.char && found.query === trigger?.query) return;
+    active = 0;
     trigger = found;
 
     // Catalog triggers query from the effect above (it also follows the catalog arriving).
-    if (found.char === "@" || found.char === "#") sources.query(found.char, found.query);
+    if (found.char === "@") sources.query(found.char, found.query);
   }
 
   /** Replaces the trigger and its query with the chip (and a space after it), as one undoable edit. */
@@ -417,6 +418,12 @@
       if ((event.key === "Enter" || event.key === "Tab") && plainKey && options[active]) {
         event.preventDefault();
         choose(options[active]!);
+
+        return;
+      }
+
+      if (event.key === "Enter" && plainKey && trigger.char === "#" && loading) {
+        event.preventDefault();
 
         return;
       }
@@ -557,20 +564,13 @@
   <MentionSuggestions bind:open={popupOpen} {anchor} label="{label}: suggestions" class={suggestionsClass}>
     <MentionList
       id="{id}-popup"
-      label={sources?.presentation?.[lastChar]?.label ??
-        (lastChar === "@"
-          ? "Files"
-          : lastChar === "#"
-            ? "Threads"
-            : lastChar === "/"
-              ? "Commands"
-              : "Skills and plugins")}
+      label={presentation.label}
       {optionIcon}
       {options}
       {active}
       {loading}
       {error}
-      empty={emptyText}
+      empty={results?.empty ?? presentation.empty}
       onchoose={choose}
       onactive={(index) => (active = index)}
     />

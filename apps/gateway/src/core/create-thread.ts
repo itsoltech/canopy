@@ -125,7 +125,7 @@ async function prepareInitialMessage(core: GatewayCore, request: ui.CreateThread
 
   const { mentions, goal } = await coreMessageMentions(
     core,
-    { cwd: request.cwd || workspace?.rootPath || "" },
+    { workspaceId: request.workspaceId, cwd: request.cwd || workspace?.rootPath || "" },
     request.initialMessage,
     request.initialMentions,
     files?.files,

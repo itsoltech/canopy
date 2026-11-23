@@ -2,6 +2,8 @@ import { describe, expect, test } from "bun:test";
 import { create, fromBinary, toBinary } from "@bufbuild/protobuf";
 import { MentionKind, MentionSchema, Provider, UserInputSchema, ui, type Mention } from "@canopy/contracts";
 import { fuzzyMatch, fuzzyRank } from "./fuzzy.ts";
+import { composerMentionTrigger } from "./trigger.ts";
+import { orderedTrackerMatches } from "./issues.ts";
 import { checkMentions, composeMessage, MentionError, mentionLabel, mentionPlaceholder } from "./mentions.ts";
 
 const THREAD = "0193a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a5b";
@@ -32,6 +34,24 @@ function message(...parts: Part[]) {
 const slices = (text: string, mentions: readonly Mention[]) => mentions.map((m) => text.slice(m.start, m.end));
 
 describe("placeholders and labels", () => {
+  test("a numbered GitHub reference ranks ahead of a matching tracker suffix within contiguous groups", () => {
+    const jira = create(ui.IssueSearchMatchSchema, { key: "APP-123", provider: "atlassian" });
+    const other = create(ui.IssueSearchMatchSchema, { key: "app/web#9", provider: "github", pullRequest: true });
+    const pr = create(ui.IssueSearchMatchSchema, { key: "app/web#123", provider: "github", pullRequest: true });
+
+    expect(orderedTrackerMatches([jira, other, pr], "123")).toEqual([pr, other, jira]);
+    expect(orderedTrackerMatches([other, pr, jira], "app-123")).toEqual([jira, other, pr]);
+  });
+
+  test("web and mobile use the same hash query boundary for references", () => {
+    expect(composerMentionTrigger("Review #acme/app#123")?.query).toBe("acme/app#123");
+    expect(composerMentionTrigger("Review #restore\u00a0sync")?.query).toBe("restore sync");
+    expect(composerMentionTrigger("#restore sync #123")?.query).toBe("123");
+    expect(composerMentionTrigger("Use #123 in @src")?.char).toBe("@");
+    expect(composerMentionTrigger("Use #123", new Set(["@"]))).toBeUndefined();
+    expect(composerMentionTrigger("%OPS-4")).toBeUndefined();
+  });
+
   test("each kind starts with its trigger", () => {
     expect(mentionPlaceholder({ kind: MentionKind.COMMAND, name: "review", label: "" })).toBe("/review");
     expect(mentionPlaceholder({ kind: MentionKind.SKILL, name: "transitions-dev", label: "Transitions Dev" })).toBe(
@@ -97,6 +117,91 @@ describe("checkMentions", () => {
 });
 
 describe("composeMessage", () => {
+  test("issue snapshots survive the wire and keep distinct sources for the same key", () => {
+    const text = "Implement #OPS-7 with #OPS-7";
+
+    const mentions = [text.indexOf("#"), text.lastIndexOf("#")].map((start, index) =>
+      create(MentionSchema, {
+        kind: MentionKind.ISSUE,
+        source: THREAD,
+        name: "OPS-7",
+        path: `https://site${index}.atlassian.net/browse/OPS-7`,
+        issue: {
+          provider: "atlassian",
+          title: "Restore sync",
+          status: "Open",
+          description: "Prerequisites\n\nAcceptance criteria",
+        },
+        start,
+        end: start + "#OPS-7".length,
+      }),
+    );
+
+    const input = fromBinary(UserInputSchema, toBinary(UserInputSchema, create(UserInputSchema, { text, mentions })));
+    const checked = checkMentions(input.text, input.mentions);
+
+    for (const provider of [Provider.CODEX, Provider.CLAUDE, Provider.GROK]) {
+      const output = composeMessage(provider, input.text, checked);
+      expect(output.note).toContain(mentions[0]!.path);
+      expect(output.note).toContain(mentions[1]!.path);
+      expect(output.note).toContain(JSON.stringify(mentions[0]!.issue!.description));
+      expect(output.note).not.toContain("\n\n");
+      expect(slices(output.text, output.mentions)).toEqual(["#OPS-7", "#OPS-7"]);
+    }
+
+    const first = mentions[0]!;
+    expect(checkMentions(text.replaceAll("#", "%"), mentions)).toEqual(mentions);
+    expect(() => checkMentions(text, [{ ...first, path: "javascript:void(0)" }])).toThrow(MentionError);
+    expect(() => checkMentions(text, [{ ...first, source: "bad-account" }])).toThrow(MentionError);
+    expect(() => checkMentions(text, [{ ...first, name: "OPS-8" }])).toThrow(MentionError);
+  });
+
+  test("a thread, issue and pull request keep their identities and delivered ranges", () => {
+    const text = "Review acme/app#123 alongside #OPS-4 in #Sprint";
+    const place = (marker: string) => ({ start: text.indexOf(marker), end: text.indexOf(marker) + marker.length });
+
+    const pr = create(MentionSchema, {
+      kind: MentionKind.ISSUE,
+      name: "acme/app#123",
+      path: "https://github.com/acme/app/pull/123",
+      source: THREAD,
+      issue: { provider: "github", title: "Restore sync", pullRequest: true },
+      ...place("acme/app#123"),
+    });
+
+    const issue = create(MentionSchema, {
+      kind: MentionKind.ISSUE,
+      name: "OPS-4",
+      path: "https://linear.app/team/issue/OPS-4",
+      source: THREAD,
+      issue: { provider: "linear", title: "Sync failed" },
+      ...place("#OPS-4"),
+    });
+
+    const thread = create(MentionSchema, {
+      kind: MentionKind.THREAD,
+      name: THREAD,
+      label: "Sprint",
+      ...place("#Sprint"),
+    });
+
+    const checked = checkMentions(text, [thread, pr, issue]);
+    const out = composeMessage(Provider.CODEX, text, checked);
+
+    expect(slices(out.text, out.mentions)).toEqual([pr.name, "#OPS-4", "#Sprint"]);
+    expect(checked.map(mentionPlaceholder)).toEqual(slices(out.text, out.mentions));
+    expect(out.note).toContain('"kind":"pull_request"');
+    expect(out.note).toContain('"kind":"issue"');
+    expect(out.note).toContain("read_thread");
+    expect(() => checkMentions(text, [{ ...pr, path: "https://github.com/acme/app/issues/123" }])).toThrow(
+      MentionError,
+    );
+    expect(() => checkMentions(text, [{ ...pr, path: "https://github.com/acme/app/pull/234" }])).toThrow(MentionError);
+    expect(() =>
+      checkMentions(text, [create(MentionSchema, { ...issue, issue: { ...issue.issue!, pullRequest: true } })]),
+    ).toThrow(MentionError);
+  });
+
   test("Codex: the text stays as written, threads get a note and the ranges follow it", () => {
     const { text, mentions } = message("Use ", { kind: MentionKind.SKILL, name: "imagegen" }, " and see ", {
       kind: MentionKind.THREAD,

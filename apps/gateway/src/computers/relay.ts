@@ -21,7 +21,7 @@ import { SqlClient } from "effect/sql";
 import { ComputerStore, type PeerRow } from "./store.ts";
 import { linkedMessage, MOVE_METHODS, SERVED, UPDATE_METHODS, WORKER_SETTINGS } from "./remote.ts";
 import { GITHUB_METHODS, THREAD_SECRET_METHODS } from "./remote-policy.ts";
-import { BOT_THREAD_ACCESS, AGENT_PREVIEW_CLIENT_ACK, PROJECT_CONNECTOR_ACCESS } from "./capabilities.ts";
+import { BOT_THREAD_ACCESS, AGENT_PREVIEW_CLIENT_ACK, PROJECT_CONNECTOR_ACCESS, ISSUE_SEARCH } from "./capabilities.ts";
 
 // Configuration (which can contain credentials) is deliberately absent, even when
 // every participant supports stage 4. Routes and relay itself are never inherited.
@@ -43,6 +43,7 @@ const FEATURES = new Set([
   REMOTE_BOT_COMPOSER,
   REMOTE_THREAD_PANEL,
   PROJECT_CONNECTOR_ACCESS,
+  ISSUE_SEARCH,
   AGENT_BUS,
   GITHUB_PR,
 ]);

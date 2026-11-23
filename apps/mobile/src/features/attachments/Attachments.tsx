@@ -10,13 +10,21 @@ export { AttachmentChips } from "./AttachmentChips";
 
 type Draft = ReturnType<typeof useAttachmentDraft>;
 
-type Source = "photos" | "files" | "paste";
+type Source = "photos" | "files" | "paste" | "references";
 
 /**
- * Paper clip in the composer: choose photos or files, or paste the clipboard's image. Whether the clipboard holds
+ * The composer menu adds files, clipboard images and (in threads) references. Whether the clipboard holds
  * one is asked as the menu opens (no content is read, so no paste prompt); reading it waits for "Paste image".
  */
-export function AttachButton({ draft, disabled }: { draft: Draft; disabled?: boolean }) {
+export function AttachButton({
+  draft,
+  disabled,
+  onFindReference,
+}: {
+  draft: Draft;
+  disabled?: boolean;
+  onFindReference?: (() => void) | undefined;
+}) {
   const c = useColors();
   const [open, setOpen] = useState(false);
   const [image, setImage] = useState(false);
@@ -38,6 +46,8 @@ export function AttachButton({ draft, disabled }: { draft: Draft; disabled?: boo
 
     try {
       if (!source || disabled) return;
+
+      if (source === "references") return onFindReference?.();
       await (source === "photos" ? draft.pickPhotos() : source === "files" ? draft.pickFiles() : draft.pasteImage());
     } finally {
       locked.current = false;
@@ -49,7 +59,9 @@ export function AttachButton({ draft, disabled }: { draft: Draft; disabled?: boo
     <>
       <Pressable
         accessibilityRole="button"
-        accessibilityLabel={draft.imagesOnly ? "Attach images" : "Attach files"}
+        accessibilityLabel={
+          onFindReference ? "Attach files or add a reference" : draft.imagesOnly ? "Attach images" : "Attach files"
+        }
         disabled={disabled || busy}
         onPress={() => void show()}
         style={({ pressed }) => ({
@@ -62,7 +74,7 @@ export function AttachButton({ draft, disabled }: { draft: Draft; disabled?: boo
           opacity: disabled ? 0.4 : 1,
         })}
       >
-        <Icon name="paper-clip" />
+        <Icon name={onFindReference ? "plus" : "paper-clip"} />
       </Pressable>
       <PickerSheet
         title="Attach"
@@ -81,6 +93,16 @@ export function AttachButton({ draft, disabled }: { draft: Draft; disabled?: boo
                 icon: "photo" as const,
               },
               { value: "files" as const, label: "Files", icon: "document-text" as const },
+              ...(onFindReference
+                ? [
+                    {
+                      value: "references" as const,
+                      label: "Mention",
+                      description: "Issues, pull requests and threads",
+                      icon: "link" as const,
+                    },
+                  ]
+                : []),
               ...(image
                 ? [{ value: "paste" as const, label: "Paste image", icon: "clipboard-document" as const }]
                 : []),

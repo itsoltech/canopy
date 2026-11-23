@@ -4,7 +4,7 @@ import { Code, ConnectError } from "@connectrpc/connect";
 
 import { bots, github, computerLink as link, ui } from "@canopy/contracts";
 import { REMOTE_BOTS, REMOTE_BOT_COMPOSER, REMOTE_THREAD_PANEL } from "@canopy/domain/computers";
-import { PROJECT_CONNECTOR_ACCESS } from "./capabilities.ts";
+import { PROJECT_CONNECTOR_ACCESS, ISSUE_SEARCH } from "./capabilities.ts";
 import {
   GITHUB_ACCOUNTS,
   GITHUB_PR,
@@ -96,6 +96,8 @@ export const GITHUB_METHODS = new Set([
 
 export function botFeature(method: { name: string }, request: Message): string | undefined {
   if (method.name === "GetThreadPanel") return REMOTE_THREAD_PANEL;
+
+  if (method.name === "SearchIssues") return ISSUE_SEARCH;
 
   if (method.name === "SetThreadConnectorGrant") return PROJECT_CONNECTOR_ACCESS;
 
@@ -201,6 +203,7 @@ export const SERVED = new Set([
   "SteerQueuedTurn",
   "ListMentionCatalog",
   "SearchFiles",
+  "SearchIssues",
   "ListGitRefs",
   "ListThreadBranches",
   "GetThreadGitStatus",

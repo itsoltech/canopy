@@ -3,8 +3,9 @@ import { MentionKind, type bots, type connectors } from "@canopy/contracts";
 import { fuzzyRank } from "@canopy/domain/mentions";
 import { splitId } from "@canopy/domain/computers";
 import { useSession } from "../../state/session";
-import { MentionOptions } from "../composer/MentionSuggestions";
-import type { ActiveTrigger, MentionOption } from "../composer/useMentionSuggestions";
+import { MentionOptions } from "../composer/MentionOptions";
+import type { ActiveTrigger } from "../composer/mention-trigger";
+import type { MentionOption } from "../composer/useMentionSuggestions";
 
 export function BotMentionSuggestions({
   id,

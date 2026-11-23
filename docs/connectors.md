@@ -3,6 +3,7 @@
 Projekt i wdrożenie: 2026-11-02. Zakres: konta zdalnych serwerów MCP,
 OAuth w gateway, dostęp wybranych projektów i botów oraz jeden kanał wykonania.
 Status (2026-11-23): każde konto ma niezależny, domyślnie wyłączony zakres No project.
+Aktualizacja (2026-11-23): pod `#` kompozytor wątku wyszukuje zgłoszenia z Atlassian (Jira), Linear i GitHub, pull requesty z GitHub i inne wątki Canopy.
 Aktualizacja (2026-11-23): lista kont Slack Bot w web/desktop wyrównuje status do
 prawej krawędzi w szerokim widoku i pokazuje go pod nazwą konta w wąskim.
 Aktualizacja (2026-11-23): transport OAuth przechodzi na kolejny zweryfikowany
@@ -32,6 +33,26 @@ Zachowuje podłączone konto po odebraniu grantu do czasu aktualizacji katalogu;
 szczegóły błędu sesji rozwija się przez Show details.
 Aktualizacja (2026-11-23): wątki Claude przyjmują warunkowe schematy narzędzi MCP.
 Dostępność kanałów według [release.md](release.md).
+
+## Zgłoszenia w kompozytorze wątku
+
+W Settings → Connectors podłącz konto Atlassian, Linear albo GitHub i włącz dostęp
+dla projektu. Dla wątku poza projektem włącz No project. Wpisz `#` w kompozytorze,
+a następnie klucz, numer lub fragment tytułu. Wyniki są pogrupowane jako
+**Issues**, **Pull requests** i **Threads**. Możesz wybrać kilka pozycji
+w jednej wiadomości. Agent otrzyma rodzaj, klucz, tytuł, link oraz dostępne
+status i opis z chwili wyboru. Wzmianka o wątku pozwala agentowi odczytać go w Canopy.
+
+W repozytorium GitHub wpisz np. `#123`, a dla innego repozytorium
+`#owner/repo#123`. Po wyborze w wiadomości zostaje `owner/repo#123`.
+W Jira i Linear możesz wpisać np. `#OPS-42`. Możesz też wkleić po `#`
+link do zgłoszenia lub pull requestu. Wyszukiwanie tekstowe w Jira obejmuje
+do czterech witryn na konto. Link kieruje zapytanie do konkretnej witryny.
+
+Gateway wykonuje wyszukiwanie przy użyciu narzędzi odczytu MCP dla kont danego
+właściciela z dostępem w wybranym zakresie. Przyjęcie wiadomości sprawdza
+aktualny dostęp do konta. Ewentualną zmianę zgłoszenia agent wykonuje osobnym
+wywołaniem konektora w ramach uprawnień wątku.
 
 ## Decyzje
 

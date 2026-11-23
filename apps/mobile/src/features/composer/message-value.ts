@@ -36,7 +36,21 @@ const moved = (m: Mention, by: number) => create(MentionSchema, { ...m, start: m
 export function insertMention(
   value: MessageValue,
   selection: { start: number; end: number },
-  mention: Pick<Mention, "kind" | "name" | "label"> & Partial<Pick<Mention, "path" | "source" | "isDir">>,
+  mention: Pick<Mention, "kind" | "name" | "label"> & Partial<Pick<Mention, "path" | "source" | "isDir" | "issue">>,
+): Placed {
+  return insertToken(value, selection, mentionPlaceholder(mention), mention);
+}
+
+/** The Attach menu starts the same query as a typed #. Keep the selected text and put the caret after #. */
+export function insertReferenceTrigger(value: MessageValue, caret: number): Placed {
+  return insertToken(value, { start: caret, end: caret }, "#");
+}
+
+function insertToken(
+  value: MessageValue,
+  selection: { start: number; end: number },
+  placeholder: string,
+  mention?: Parameters<typeof insertMention>[2],
 ): Placed {
   // Never inside another badge: the insertion point moves past it.
   const inside = [...value.mentions, ...(value.quotes ?? []).filter(isPlacedQuote)].find(
@@ -45,16 +59,16 @@ export function insertMention(
 
   const start = inside ? inside.end : Math.min(selection.start, value.text.length);
   const end = inside ? inside.end : Math.max(start, Math.min(selection.end, value.text.length));
-  const placeholder = mentionPlaceholder(mention);
   const before = value.text.slice(0, start);
   const lead = before && !/\s$/.test(before) ? " " : "";
   const after = value.text.slice(end);
-  const trail = after.startsWith(" ") ? "" : " ";
+  const trail = after.startsWith(" ") || (!mention && !after) ? "" : " ";
   const at = start + lead.length;
-  const added = create(MentionSchema, { ...mention, start: at, end: at + placeholder.length });
   const shift = lead.length + placeholder.length + trail.length - (end - start);
 
   const mentions = value.mentions.flatMap((m) => (m.end <= start ? [m] : m.start >= end ? [moved(m, shift)] : []));
+
+  if (mention) mentions.push(create(MentionSchema, { ...mention, start: at, end: at + placeholder.length }));
 
   const quotes = value.quotes?.flatMap((q) =>
     q.start === undefined || q.end === undefined || q.end <= start
@@ -65,8 +79,8 @@ export function insertMention(
   );
 
   return {
-    value: { text: before + lead + placeholder + trail + after, mentions: byStart([...mentions, added]), quotes },
-    caret: at + placeholder.length + trail.length,
+    value: { text: before + lead + placeholder + trail + after, mentions: byStart(mentions), quotes },
+    caret: at + placeholder.length + (mention ? trail.length : 0),
   };
 }
 

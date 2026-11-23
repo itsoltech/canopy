@@ -1,6 +1,7 @@
 import { create, toJson } from "@bufbuild/protobuf";
-import { MentionKind, MentionSchema, type Mention } from "@canopy/contracts";
+import { MentionSchema, type Mention } from "@canopy/contracts";
 import { hasPlatformNote, mentionLabel, mentionPlaceholder } from "@canopy/domain";
+import type { ComposerTriggerChar } from "@canopy/domain/mentions";
 import { INLINE_RENDERERS, type InlineElement, type MentionData } from "./kinds.ts";
 import { isJsonArray, isJsonObject, isString, parseJson } from "#lib/shared/json.ts";
 import { decode } from "#lib/shared/wire.ts";
@@ -311,40 +312,12 @@ export function chipsFromClipboard(data: string): EditorValue | undefined {
   }
 }
 
-export type TriggerChar = "/" | "$" | "@" | "#";
+export type TriggerChar = ComposerTriggerChar;
 
-const isTriggerChar = (char: string | undefined): char is TriggerChar =>
-  char === "/" || char === "$" || char === "@" || char === "#";
-
-export interface ActiveTrigger {
-  readonly char: TriggerChar;
-  /** What was typed after the trigger. */
-  readonly query: string;
-  /** Characters from the trigger to the caret (to select and replace them with the chip). */
-  readonly length: number;
-}
-
-/**
- * The trigger the caret is in: a trigger character at the start of the line or after whitespace, then the query up
- * to the caret without whitespace ("#" allows single spaces, thread titles have them).
- */
-export function activeTrigger(before: string, enabled: ReadonlySet<TriggerChar>): ActiveTrigger | undefined {
-  const match = /(?:^|[\s ])([/$@#])([^\s ]*)$/.exec(before) ?? /(?:^|[\s ])(#)((?:[^\s #]+ ?){0,6})$/.exec(before);
-
-  if (!match) return undefined;
-  const char = match[1];
-  const query = match[2] ?? "";
-
-  if (!isTriggerChar(char) || !enabled.has(char) || query.length > 120) return undefined;
-
-  return { char, query, length: query.length + 1 };
-}
-
-export const MENTION_KIND_OF: Record<Exclude<TriggerChar, "$">, MentionKind> = {
-  "/": MentionKind.COMMAND,
-  "@": MentionKind.FILE,
-  "#": MentionKind.THREAD,
-};
+export {
+  composerMentionTrigger as activeTrigger,
+  type ComposerMentionTrigger as ActiveTrigger,
+} from "@canopy/domain/mentions";
 
 /** The value without surrounding whitespace, ranges moved along (mentions are never whitespace). */
 export function trimValue(value: EditorValue): EditorValue {

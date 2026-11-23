@@ -1,4 +1,5 @@
 import type { SqlClient } from "effect/sql";
+import { issueSources, type IssueScope } from "./issue-access.ts";
 import { connectorAccounts } from "./accounts.ts";
 import { connectorSealing } from "./sealing.ts";
 import { connectorWrites } from "./store-writes.ts";
@@ -25,6 +26,7 @@ export function connectorStore(sql: SqlClient.SqlClient, key: Buffer) {
     views: base.views,
     authorize: base.authorize,
     list: base.list,
+    issueSources: (owner: string, scope?: IssueScope) => issueSources(sql, owner, scope),
     updateCredentials: base.updateCredentials,
     audit: base.audit,
     transaction: <A, E, R>(effect: Effect.Effect<A, E, R>) => connectorTransaction(sql, key, effect),

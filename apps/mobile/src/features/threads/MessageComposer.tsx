@@ -102,6 +102,7 @@ export function MessageComposer({
           attachment={
             <AttachButton
               draft={message.files}
+              onFindReference={message.findReference}
               disabled={disabled || busy || Boolean(message.persistent?.pendingSend)}
             />
           }

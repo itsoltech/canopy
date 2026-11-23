@@ -2,6 +2,18 @@ export { fuzzyMatch, fuzzyRank, type FuzzyMatch } from "./fuzzy.ts";
 
 export { relocateMentions } from "./relocate.ts";
 
+export { composerMentionTrigger, type ComposerMentionTrigger, type ComposerTriggerChar } from "./trigger.ts";
+
+export {
+  ISSUE_MENTION_LIMITS,
+  exactTrackerMatch,
+  githubMentionTarget,
+  issueMention,
+  issueTrackerName,
+  orderedTrackerMatches,
+  parseIssueUrl,
+} from "./issues.ts";
+
 export { attachmentMarker, numberAttachmentMarkers, orderAttachments, placedAttachmentIds } from "./attachments.ts";
 
 export {

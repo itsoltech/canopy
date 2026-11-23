@@ -94,48 +94,45 @@ export async function withMcp<A>(
 }
 
 export async function mcpTools(server: McpConnection, signal: AbortSignal): Promise<ToolSpec[]> {
-  return withMcp(
-    server,
-    signal,
-    async (client) => {
-      const tools: ToolSpec[] = [];
-      let cursor: string | undefined;
+  return withMcp(server, signal, (client) => listMcpTools(client, server, signal), "tools/list");
+}
 
-      do {
-        const page = await client.listTools(cursor ? { cursor } : {}, { signal, timeout: 15_000 });
+export async function listMcpTools(client: Client, server: McpConnection, signal: AbortSignal): Promise<ToolSpec[]> {
+  const tools: ToolSpec[] = [];
+  let cursor: string | undefined;
 
-        for (const t of page.tools) {
-          const remote = t.name.replace(/[^a-zA-Z0-9_]/g, "_");
+  do {
+    const page = await client.listTools(cursor ? { cursor } : {}, { signal, timeout: 15_000 });
 
-          const suffix =
-            remote.length > 22 || remote !== t.name
-              ? `${remote.slice(0, 13)}_${createHash("sha256").update(t.name).digest("hex").slice(0, 8)}`
-              : remote;
+    for (const t of page.tools) {
+      const remote = t.name.replace(/[^a-zA-Z0-9_]/g, "_");
 
-          tools.push({
-            name: server.namespace
-              ? `${server.namespace.slice(0, 39)}__${suffix}`
-              : `mcp_${createHash("sha256").update(`${server.id}/${t.name}`).digest("hex").slice(0, 24)}`,
-            description: `${server.name}: ${t.description ?? t.name}`.slice(0, 8000),
-            parameters: toolSchema(t.inputSchema),
-            source: "mcp",
-            serverId: server.id,
-            serverName: server.name,
-            remoteName: t.name,
-            readOnly: t.annotations?.readOnlyHint === true && t.annotations?.destructiveHint !== true,
-            dangerous: t.annotations?.destructiveHint === true,
-          });
-        }
+      const suffix =
+        remote.length > 22 || remote !== t.name
+          ? `${remote.slice(0, 13)}_${createHash("sha256").update(t.name).digest("hex").slice(0, 8)}`
+          : remote;
 
-        cursor = page.nextCursor;
+      tools.push({
+        name: server.namespace
+          ? `${server.namespace.slice(0, 39)}__${suffix}`
+          : `mcp_${createHash("sha256").update(`${server.id}/${t.name}`).digest("hex").slice(0, 24)}`,
+        description: `${server.name}: ${t.description ?? t.name}`.slice(0, 8000),
+        parameters: toolSchema(t.inputSchema),
+        source: "mcp",
+        serverId: server.id,
+        serverName: server.name,
+        remoteName: t.name,
+        readOnly: t.annotations?.readOnlyHint === true && t.annotations?.destructiveHint !== true,
+        dangerous: t.annotations?.destructiveHint === true,
+      });
+    }
 
-        if (tools.length > 256) throw new Error("MCP tool catalog is too large");
-      } while (cursor);
+    cursor = page.nextCursor;
 
-      return tools;
-    },
-    "tools/list",
-  );
+    if (tools.length > 256) throw new Error("MCP tool catalog is too large");
+  } while (cursor);
+
+  return tools;
 }
 
 export async function mcpCall(

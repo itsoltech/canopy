@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Text, View } from "react-native";
+import { ScrollView, Text, View } from "react-native";
 import { create } from "@bufbuild/protobuf";
 import { ConnectError } from "@connectrpc/connect";
 import { PermissionMode, ui } from "@canopy/contracts";
@@ -14,6 +14,7 @@ import { DraftActions } from "../drafts/DraftActions";
 import { DraftMoveNotice } from "../drafts/DraftMoveNotice";
 import { PendingDraft } from "../drafts/PendingDraft";
 import { createFromDraft } from "../drafts/create";
+import { ReferenceSuggestions } from "../composer/ReferenceSuggestions";
 import { ComposerBox } from "./ComposerBox";
 import { AttachButton, AttachmentChips } from "../attachments/Attachments";
 import { Overlay } from "../../ui/Overlay";
@@ -64,6 +65,8 @@ function SideThreadForm({ main, onClose }: { main: ui.Thread; onClose: () => voi
   const [error, setError] = useState("");
   const closed = main.status === "archived" || Boolean(main.archivedAt || main.deletedAt || main.worktree?.removedAt);
 
+  const locked = closed || busy || Boolean(message.persistent?.pendingCreate);
+
   async function start() {
     if (!client || closed || (!message.value.text.trim() && !message.files.ids.length) || message.files.blocker || busy)
       return;
@@ -110,7 +113,7 @@ function SideThreadForm({ main, onClose }: { main: ui.Thread; onClose: () => voi
   }
 
   return (
-    <View style={{ padding: 16, gap: 16 }}>
+    <ScrollView keyboardShouldPersistTaps="handled" contentContainerStyle={{ padding: 16, gap: 16 }}>
       <SheetDragArea>
         <Text accessibilityRole="header" style={[styles.overlayHeading, { color: c.muted }]}>
           New side thread
@@ -129,10 +132,16 @@ function SideThreadForm({ main, onClose }: { main: ui.Thread; onClose: () => voi
         files={message.files.ids.length}
         controls={<ComposerControls state={settings} thread={main} />}
         top={<AttachmentChips files={message.files.files} onRemove={message.remove} />}
-        attachment={
-          <AttachButton draft={message.files} disabled={busy || Boolean(message.persistent?.pendingCreate)} />
-        }
+        attachment={<AttachButton draft={message.files} onFindReference={message.findReference} disabled={locked} />}
       />
+      {!locked && (
+        <ReferenceSuggestions
+          scope={create(ui.MentionScopeSchema, { threadId: main.id })}
+          trigger={message.trigger}
+          onPick={(option) => message.pickMention(option.mention)}
+          inline
+        />
+      )}
       {message.persistent && (
         <>
           <PendingDraft draft={message.persistent} />
@@ -158,6 +167,6 @@ function SideThreadForm({ main, onClose }: { main: ui.Thread; onClose: () => voi
           onPress={() => void start()}
         />
       </View>
-    </View>
+    </ScrollView>
   );
 }

@@ -1,33 +1,13 @@
 import { useEffect, useEffectEvent, useState } from "react";
-import { MentionKind, type MentionCatalogEntry, type ui } from "@canopy/contracts";
+import { MentionKind, type MentionCatalogEntry, type Mention, type ui } from "@canopy/contracts";
 import { fuzzyRank } from "@canopy/domain/mentions";
 import { ConnectError } from "@connectrpc/connect";
+import type { ActiveTrigger } from "./mention-trigger";
 import { useSession } from "../../state/session";
-
-/** A trigger character the caret is in, what was typed after it and how many characters to replace. */
-export interface ActiveTrigger {
-  readonly char: "/" | "$" | "@" | "#";
-  readonly query: string;
-  readonly length: number;
-}
-
-/**
- * The trigger before the caret, as on the web (apps/web features/mentions/editor.ts): at the start of a line or after
- * whitespace, then the query without whitespace ("#" allows single spaces, thread titles have them).
- */
-export function activeTrigger(before: string): ActiveTrigger | undefined {
-  const match = /(?:^|\s)([/$@#])(\S*)$/.exec(before) ?? /(?:^|\s)(#)((?:[^\s#]+ ?){0,6})$/.exec(before);
-  const char = match?.[1];
-  const query = match?.[2] ?? "";
-
-  if ((char !== "/" && char !== "$" && char !== "@" && char !== "#") || query.length > 120) return undefined;
-
-  return { char, query, length: query.length + 1 };
-}
 
 export interface MentionOption {
   readonly key: string;
-  readonly mention: { kind: MentionKind; name: string; label: string; path: string; source: string; isDir: boolean };
+  readonly mention: Pick<Mention, "kind" | "name" | "label" | "path" | "source" | "isDir" | "issue">;
   readonly title: string;
   readonly detail: string;
   readonly group: string;
@@ -74,12 +54,12 @@ function fromCatalog(entries: readonly MentionCatalogEntry[], char: "/" | "$", q
 /** A scope's commands and skills, shared by its composers. */
 const CATALOG_MAX_AGE_MS = 60_000;
 
-/** Files and threads change outside Canopy: a search is reused only briefly (reopening the list). */
+/** Reopening a file search reuses its results briefly. */
 const SEARCH_MAX_AGE_MS = 8000;
 
 /**
  * What the mention list offers for a trigger (docs/ui-api.md, "Wzmianki"): "/" commands and "$" skills and plugins
- * from the thread's catalog (listed once), "@" files and "#" threads searched as you type.
+ * from the thread's catalog (listed once), "@" files searched as you type.
  */
 export function useMentionSuggestions(scope: ui.MentionScope | undefined, trigger: ActiveTrigger | undefined) {
   const { client, queries, searches } = useSession();
@@ -92,7 +72,7 @@ export function useMentionSuggestions(scope: ui.MentionScope | undefined, trigge
     : "";
 
   const wantsCatalog = trigger?.char === "/" || trigger?.char === "$";
-  const searchKey = trigger && !wantsCatalog ? `${scopeKey}|${trigger.char}|${trigger.query}` : "";
+  const searchKey = trigger?.char === "@" ? `${scopeKey}|${trigger.char}|${trigger.query}` : "";
 
   const listCatalog = useEffectEvent(async () => {
     if (!client || !scope) return [];
@@ -125,50 +105,25 @@ export function useMentionSuggestions(scope: ui.MentionScope | undefined, trigge
 
   // Reads the current scope and trigger; the effect below runs again only when the search key changes.
   const search = useEffectEvent(async (): Promise<MentionOption[]> => {
-    if (!client || !trigger) return [];
+    if (!client || !scope || trigger?.char !== "@") return [];
 
-    if (trigger.char === "@") {
-      if (!scope) return [];
-
-      const { result } = await searches.read(
-        `SearchFiles:${scopeKey}:${trigger.query}`,
-        () => client.api.searchFiles({ scope, query: trigger.query, limit: LIMIT }, { timeoutMs: 25_000 }),
-        SEARCH_MAX_AGE_MS,
-      );
-
-      return (result?.matches ?? []).map((m) => {
-        const slash = m.path.lastIndexOf("/");
-
-        return {
-          key: `file:${m.path}`,
-          mention: { kind: MentionKind.FILE, name: m.path, label: "", path: "", source: "", isDir: m.isDir },
-          title: m.path.slice(slash + 1),
-          detail: slash > 0 ? m.path.slice(0, slash) : "",
-          group: "Files",
-        };
-      });
-    }
-
-    const { threads } = await searches.read(
-      `SearchThreads:${scope?.threadId ?? ""}:${trigger.query}`,
-      () => client.api.searchThreads({ query: trigger.query, excludeThreadId: scope?.threadId ?? "", limit: 20 }),
+    const { result } = await searches.read(
+      `SearchFiles:${scopeKey}:${trigger.query}`,
+      () => client.api.searchFiles({ scope, query: trigger.query, limit: LIMIT }, { timeoutMs: 25_000 }),
       SEARCH_MAX_AGE_MS,
     );
 
-    return threads.map((t) => ({
-      key: `thread:${t.id}`,
-      mention: {
-        kind: MentionKind.THREAD,
-        name: t.id,
-        label: t.title || "Untitled",
-        path: "",
-        source: "",
-        isDir: false,
-      },
-      title: t.title || "Untitled",
-      detail: t.status,
-      group: "Threads",
-    }));
+    return (result?.matches ?? []).map((m) => {
+      const slash = m.path.lastIndexOf("/");
+
+      return {
+        key: `file:${m.path}`,
+        mention: { kind: MentionKind.FILE, name: m.path, label: "", path: "", source: "", isDir: m.isDir },
+        title: m.path.slice(slash + 1),
+        detail: slash > 0 ? m.path.slice(0, slash) : "",
+        group: "Files",
+      };
+    });
   });
 
   useEffect(() => {

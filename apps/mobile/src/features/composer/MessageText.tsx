@@ -1,10 +1,26 @@
-import { Text, type TextStyle } from "react-native";
+import { Linking, Text, type TextStyle } from "react-native";
 import { MentionKind, type Mention, type ui } from "@canopy/contracts";
-import { citationTokenLabel } from "@canopy/domain";
+import { citationTokenLabel, issueTrackerName, parseIssueUrl } from "@canopy/domain";
 import type { InlineElements } from "../../ui/markdown";
 import { font, useColors } from "../../ui/theme";
 import { rangesOf, segmentsOf, type MessageValue } from "./message-value";
 import { InlineCitation } from "../quotes/InlineCitation";
+
+function issueLabel(mention: Mention) {
+  const issue = mention.issue;
+
+  return issue
+    ? [
+        issue.pullRequest ? "Pull request" : "Issue",
+        mention.name,
+        issue.title,
+        issueTrackerName(issue.provider),
+        issue.status,
+      ]
+        .filter(Boolean)
+        .join(", ")
+    : undefined;
+}
 
 export type BadgeTone = "uploading" | "failed" | undefined;
 
@@ -34,7 +50,12 @@ export function MessageSpans({
         <InlineCitation key={index} quote={segment.quote} />
       )
     ) : segment.mention ? (
-      <MentionBadge key={index} text={segment.text} tone={tone?.(segment.mention)} />
+      <MentionBadge
+        key={index}
+        text={segment.text}
+        tone={tone?.(segment.mention)}
+        label={issueLabel(segment.mention)}
+      />
     ) : (
       <Text key={index}>{segment.text}</Text>
     ),
@@ -47,11 +68,13 @@ export function MentionBadge({
   tone,
   onPress,
   label,
+  role,
 }: {
   text: string;
   tone?: BadgeTone;
   onPress?: (() => void) | undefined;
-  label?: string;
+  label?: string | undefined;
+  role?: "link" | undefined;
 }) {
   const c = useColors();
 
@@ -62,7 +85,12 @@ export function MentionBadge({
   };
 
   return (
-    <Text style={style} onPress={onPress} accessibilityLabel={label} accessibilityRole={onPress ? "button" : undefined}>
+    <Text
+      style={style}
+      onPress={onPress}
+      accessibilityLabel={label}
+      accessibilityRole={role ?? (onPress ? "button" : undefined)}
+    >
       {text}
     </Text>
   );
@@ -87,14 +115,24 @@ export function mentionElements(
       if (element?.quote) return <InlineCitation quote={element.quote} />;
       const mention = element?.mention;
 
-      return mention ? (
+      if (!mention) return null;
+      const marker = text.slice(mention.start, mention.end);
+      const href = mention.kind === MentionKind.ISSUE ? parseIssueUrl(mention.path)?.href : undefined;
+
+      return (
         <MentionBadge
-          text={text.slice(mention.start, mention.end)}
+          text={mention.issue?.pullRequest ? `PR · ${marker}` : marker}
+          label={issueLabel(mention)}
+          role={href ? "link" : undefined}
           onPress={
-            mention.kind === MentionKind.ATTACHMENT && onAttachment ? () => onAttachment(mention.name) : undefined
+            href
+              ? () => void Linking.openURL(href).catch(() => undefined)
+              : mention.kind === MentionKind.ATTACHMENT && onAttachment
+                ? () => onAttachment(mention.name)
+                : undefined
           }
         />
-      ) : null;
+      );
     },
   };
 }

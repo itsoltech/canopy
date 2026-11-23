@@ -23,6 +23,20 @@ export async function searchFiles(scope: MentionScope, query: string, limit = 50
   return decode(ui.SearchFilesResponseSchema, await requestJson("POST", "/api/mentions/files", body, 25_000));
 }
 
+export async function searchIssues(
+  scope: MentionScope,
+  query: string,
+  limit: number,
+  signal: AbortSignal,
+): Promise<ui.SearchIssuesResponse> {
+  const body = encode(
+    ui.SearchIssuesRequestSchema,
+    create(ui.SearchIssuesRequestSchema, { scope, query, limit, includePullRequests: true }),
+  );
+
+  return decode(ui.SearchIssuesResponseSchema, await requestJson("POST", "/api/mentions/issues", body, 40_000, signal));
+}
+
 export async function searchThreads(
   query: string,
   excludeThreadId = "",

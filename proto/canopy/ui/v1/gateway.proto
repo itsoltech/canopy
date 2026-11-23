@@ -407,6 +407,7 @@ service GatewayService {
   // Wzmianki w kompozytorze (sekcja na końcu pliku): komendy, skille i pluginy dostawcy, pliki workspace'u, wątki.
   rpc ListMentionCatalog(ListMentionCatalogRequest) returns (ListMentionCatalogResponse);
   rpc SearchFiles(SearchFilesRequest) returns (SearchFilesResponse);
+  rpc SearchIssues(SearchIssuesRequest) returns (SearchIssuesResponse);
   rpc SearchThreads(SearchThreadsRequest) returns (SearchThreadsResponse);
   // Stan przeczytania (sekcja na końcu pliku): użytkownik widział wątek do zdarzenia up_to_seq (ostatnia wiadomość
   // agenta była na ekranie); Thread.unseen_result gaśnie na wszystkich urządzeniach (OverviewUpdate.thread).
@@ -3050,6 +3051,32 @@ message SearchFilesRequest {
 
 message SearchFilesResponse {
   canopy.worker.v1.FileSearchResult result = 1;
+}
+
+message SearchIssuesRequest {
+  MentionScope scope = 1;
+  string query = 2;
+  uint32 limit = 3;
+  // Klient potrafi rozróżnić zgłoszenie i pull request w wynikach.
+  bool include_pull_requests = 4;
+}
+
+message IssueSearchMatch {
+  string account_id = 1;
+  string provider = 2;
+  string key = 3;
+  string title = 4;
+  string url = 5;
+  string description = 6;
+  string status = 7;
+  string account_label = 8;
+  bool pull_request = 9;
+}
+
+message SearchIssuesResponse {
+  repeated IssueSearchMatch issues = 1;
+  repeated string warnings = 2;
+  uint32 connected_sources = 3;
 }
 
 message SearchThreadsRequest {
