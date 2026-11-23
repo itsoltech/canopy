@@ -90,14 +90,12 @@
 </script>
 
 <section aria-labelledby="slack-bot-heading" class="grid min-w-0 gap-4">
-  <div class="flex flex-wrap items-start justify-between gap-2">
-    <div class="grid gap-1">
-      <h2 id="slack-bot-heading" class="text-lg font-semibold">Slack Bot accounts</h2>
-      <p class="text-base/6 text-zinc-500 sm:text-sm/6 dark:text-zinc-400">
-        Receive and reply to Slack messages as your Slack app’s bot.
-      </p>
-    </div>
+  <div class="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-x-2">
+    <h2 id="slack-bot-heading" class="text-lg font-semibold">Slack Bot accounts</h2>
     <Button size="sm" variant="ghost" disabled={loading} onclick={reload}>Refresh status</Button>
+    <p class="col-span-full text-base/6 text-zinc-500 sm:text-sm/6 dark:text-zinc-400">
+      Receive and reply to Slack messages as your Slack app’s bot.
+    </p>
   </div>
   {#if loading}
     <p role="status" class="text-sm text-zinc-500 dark:text-zinc-400">Loading Slack Bot accounts…</p>
