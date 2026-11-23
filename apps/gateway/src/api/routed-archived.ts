@@ -1,13 +1,12 @@
 import { create } from "@bufbuild/protobuf";
 import { timestampDate } from "@bufbuild/protobuf/wkt";
 import { ui } from "@canopy/contracts";
-import { splitId, THREAD_MIRROR } from "@canopy/domain/computers";
+import { isEntityId, splitId, THREAD_MIRROR } from "@canopy/domain/computers";
 import { Code, ConnectError } from "@connectrpc/connect";
-import { createHash } from "node:crypto";
 import { Schema } from "effect";
 import type { GatewayCore } from "../core/core.ts";
 import { coreState } from "../core/core-context.ts";
-import { archivedPage } from "../store/archived-pagination.ts";
+import { archivedPage, archivedScope, archivedWorkerIds } from "../store/archived-pagination.ts";
 import { ConfigIds } from "./routed-config.ts";
 import type { UiHandlers } from "./ui-service.ts";
 
@@ -29,14 +28,15 @@ export function linkedArchive(core: GatewayCore, local: UiHandlers): UiHandlers[
     if (!core.computers) return local.listArchivedThreads(request, context);
     const size = Math.min(request.pageSize || 20, 100);
     const projects = [...new Set(request.projectIds)].sort();
+    const workers = archivedWorkerIds(request.workerIds);
 
     if (projects.some((id) => !uuid.test(splitId(id).id)))
       throw new ConnectError("Invalid archived project filter", Code.InvalidArgument);
-    const query = request.query.trim().toLowerCase();
 
-    const scope = createHash("sha256")
-      .update(JSON.stringify([core[coreState].options.userId, projects, query]))
-      .digest("hex");
+    if (workers.some((id) => !isEntityId(id)))
+      throw new ConnectError("Invalid archived worker filter", Code.InvalidArgument);
+    const query = request.query.trim().toLowerCase();
+    const scope = archivedScope(core[coreState].options.userId, projects, query, workers);
 
     let cursor: typeof Cursor.Type | undefined;
 
@@ -58,11 +58,13 @@ export function linkedArchive(core: GatewayCore, local: UiHandlers): UiHandlers[
     }
 
     const localProjects = projects.filter((id) => !splitId(id).node);
+    const localWorkers = workers.filter((id) => !splitId(id).node);
 
     const localRequest = create(ui.ListArchivedThreadsRequestSchema, {
       ...request,
       pageSize: size,
       projectIds: localProjects,
+      workerIds: localWorkers,
       pageToken: "",
     });
 
@@ -73,11 +75,11 @@ export function linkedArchive(core: GatewayCore, local: UiHandlers): UiHandlers[
       );
 
     const own =
-      projects.length && !localProjects.length
+      (projects.length && !localProjects.length) || (workers.length && !localWorkers.length)
         ? create(ui.ListArchivedThreadsResponseSchema)
         : create(ui.ListArchivedThreadsResponseSchema, await local.listArchivedThreads(localRequest, context));
 
-    const remote = await archivedMirrors(core, projects, query);
+    const remote = await archivedMirrors(core, projects, new Set(workers), query);
 
     const after = (thread: ui.Thread) =>
       !cursor ||
@@ -101,7 +103,7 @@ export function linkedArchive(core: GatewayCore, local: UiHandlers): UiHandlers[
   };
 }
 
-async function archivedMirrors(core: GatewayCore, projects: string[], query: string) {
+async function archivedMirrors(core: GatewayCore, projects: string[], workers: ReadonlySet<string>, query: string) {
   const threads: ui.Thread[] = [];
   const sideThreads: ui.Thread[] = [];
   const computers = core.computers!;
@@ -133,6 +135,7 @@ async function archivedMirrors(core: GatewayCore, projects: string[], query: str
         thread.deletedAt ||
         !names.has(thread.projectId) ||
         (projects.length && !projects.includes(thread.projectId)) ||
+        (workers.size && !workers.has(thread.workerId)) ||
         (thread.kind === ui.ThreadKind.SIDE && visible.has(thread.parentThreadId))
       )
         continue;

@@ -13,6 +13,8 @@ export interface SidebarEntry {
   projectId?: string | undefined;
   groupKind?: "project" | "worktree";
   groupTitle?: string;
+  groupWorkspaceId?: string | undefined;
+  groupWorktreeId?: string | undefined;
   count?: number;
 }
 

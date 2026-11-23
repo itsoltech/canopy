@@ -1,7 +1,7 @@
 import type { ConsumedUsage } from "../token-usage.ts";
 import { tokenFields } from "../token-usage.ts";
 import { FrozenQuotes } from "./frozen-quotes.ts";
-import type { ApiQuote } from "./openai-rates.ts";
+import type { ApiQuote } from "./model-rates.ts";
 
 type Source = "raw" | "counter";
 

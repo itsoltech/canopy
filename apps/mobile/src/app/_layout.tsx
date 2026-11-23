@@ -16,6 +16,8 @@ import { useColors } from "../ui/theme";
 import { useReducedMotion } from "../ui/motion";
 import { DevicePreferencesProvider } from "../features/settings/device-preferences";
 import { InAppAlerts } from "../features/navigation/InAppAlerts";
+import { PushProvider } from "../features/notifications/PushProvider";
+import { PushTaps } from "../features/notifications/PushTaps";
 import { ConfirmHost } from "../ui/Confirm";
 import { OverlayLayer } from "../ui/overlay-stack";
 import { ToastHost } from "../ui/Toast";
@@ -77,6 +79,7 @@ function Navigation() {
         <Stack.Screen name="open-source-licenses/index" options={{ animation: reduced ? "none" : "default" }} />
         <Stack.Screen name="open-source-licenses/details" options={{ animation: reduced ? "none" : "default" }} />
       </Stack>
+      <PushTaps />
       <InAppAlerts />
       <UpdateCenter />
       <WhatsNewSheet />
@@ -133,11 +136,13 @@ export default function Layout() {
             <SessionProvider>
               <UsagePingProvider>
                 <DevicePreferencesProvider>
-                  <WhatsNewProvider>
-                    <PhoneUpdatesProvider>
-                      <SessionUI />
-                    </PhoneUpdatesProvider>
-                  </WhatsNewProvider>
+                  <PushProvider>
+                    <WhatsNewProvider>
+                      <PhoneUpdatesProvider>
+                        <SessionUI />
+                      </PhoneUpdatesProvider>
+                    </WhatsNewProvider>
+                  </PushProvider>
                 </DevicePreferencesProvider>
               </UsagePingProvider>
             </SessionProvider>

@@ -23,6 +23,7 @@ const savedView = Schema.Struct({
   pullRequestWidth: Schema.optionalKey(Schema.Number),
   filesPanelWidth: Schema.optionalKey(Schema.Number),
   projectIds: Schema.optionalKey(Schema.Array(Schema.String)),
+  workerIds: Schema.optionalKey(Schema.Array(Schema.String)),
   groupByProject: Schema.optionalKey(Schema.Boolean),
   groupByWorktree: Schema.optionalKey(Schema.Boolean),
   collapsedSidebarGroups: Schema.optionalKey(Schema.Array(Schema.String)),
@@ -41,6 +42,7 @@ export type DeviceSidebarValues = Pick<
 >;
 
 export interface DeviceViewValues extends DeviceSidebarValues {
+  workerIds: readonly string[];
   groupByWorktree: boolean;
   collapsedSidebarGroups: readonly string[];
   threadScroll: readonly SavedThreadScroll[];
@@ -62,6 +64,7 @@ export interface DeviceViewValues extends DeviceSidebarValues {
 }
 
 export const deviceViewDefaults: DeviceViewValues = {
+  workerIds: [],
   groupByWorktree: false,
   collapsedSidebarGroups: [],
   threadScroll: [],

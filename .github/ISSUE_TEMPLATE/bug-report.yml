@@ -1,0 +1,44 @@
+name: Bug report
+description: Report a problem you ran into while using Canopy.
+labels: [bug]
+body:
+  - type: input
+    id: version
+    attributes:
+      label: Canopy version
+      description: Include the update channel or Docker image tag if you know it.
+      placeholder: 0.6.0 stable
+    validations:
+      required: true
+  - type: input
+    id: environment
+    attributes:
+      label: Environment
+      description: Include the operating system and where the problem occurred. Add the browser version for web issues.
+      placeholder: Windows 11, Canopy Desktop in Local mode
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to reproduce
+      description: List the steps that lead to the problem.
+    validations:
+      required: true
+  - type: textarea
+    id: actual
+    attributes:
+      label: What happened?
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: What did you expect?
+    validations:
+      required: true
+  - type: textarea
+    id: attachments
+    attributes:
+      label: Screenshots or logs
+      description: Attach anything that helps explain the problem. Remove credentials and personal data before posting.

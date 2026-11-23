@@ -33,6 +33,7 @@ export class ProviderRuntimes {
       key,
       runtime: new GrokThreads({
         dataDir: this.ctx.state.options.dataDir,
+        pricing: this.ctx.state.xaiPricing,
         executable: config.grok.executable,
         linkDeviceLogin: config.grok.linkDeviceLogin,
         idleUnloadMs: config.limits.idleUnloadSeconds * 1000,

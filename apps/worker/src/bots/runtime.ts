@@ -225,6 +225,7 @@ export class BotTurns {
 
     const context = {
       pricing: this.ctx.state.pricing,
+      xaiPricing: this.ctx.state.xaiPricing,
       ...(steering && { steering }),
       onUsage: usage?.report,
       usageSnapshot: this.ctx.state.usage.get(`${input.provider}/${profile.id}`)?.snapshot,

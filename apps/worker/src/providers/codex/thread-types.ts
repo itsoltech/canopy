@@ -34,7 +34,7 @@ export class CodexThreadError extends Schema.TaggedError<CodexThreadError>()("Co
 export type InteractionInit = Omit<MessageInitShape<typeof InteractionRequestSchema>, "threadId" | "requestId">;
 
 export interface CodexThreadsOptions {
-  pricing?: import("../pricing/openai-catalog.ts").OpenAiPricingCatalog | undefined;
+  pricing?: import("../pricing/model-catalog.ts").OpenAiPricingCatalog | undefined;
   onUsage?(snapshot: import("@canopy/contracts").ProviderUsageSnapshot): void;
   readonly launch: CodexAppServerLaunch;
   readonly clientVersion: string;

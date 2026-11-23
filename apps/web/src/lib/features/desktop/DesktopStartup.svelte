@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { browser } from "$app/env";
   import type { DesktopStatus } from "@canopy/ui/desktop";
   import Alert from "#lib/shared/ui/Alert.svelte";
   import Button from "#lib/shared/ui/Button.svelte";
@@ -13,6 +14,7 @@
     onretry,
   }: { status?: DesktopStatus; message: string; retrying: boolean; onretry: () => void } = $props();
 
+  const icon = (browser && window.canopyDesktop?.startupIcon) || "/channels/stable/icon-192.png";
   const failed = $derived(!retrying && (Boolean(message) || status?.phase === "error"));
 
   const line = $derived(
@@ -24,7 +26,7 @@
 </script>
 
 <div class="mx-auto grid w-full max-w-md gap-6 px-6 sm:px-10">
-  <img src="/icon-192.png" alt="" width="64" height="64" class="size-16" />
+  <img src={icon} alt="" width="64" height="64" class="size-16" />
   <div class="grid gap-3">
     <h1 class="text-3xl font-semibold tracking-tight">Canopy</h1>
     {#if failed}

@@ -22,12 +22,14 @@
   let {
     current,
     query,
+    workerIds,
     class: className,
-  }: { current?: ui.Thread | undefined; query: string; class?: ClassValue } = $props();
+  }: { current?: ui.Thread | undefined; query: string; workerIds: readonly string[]; class?: ClassValue } = $props();
 
   const overview = useOverview();
   const settings = useSettings();
   const projectIds = $derived(expandProjectIds(settings.sidebar.projectIds, overview.projectChoices));
+  const filter = $derived({ projectIds, workerIds: [...workerIds], query });
   const id = $props.id();
   const expanded = $derived(devicePreferences.view.archivedThreadsExpanded);
 
@@ -39,6 +41,7 @@
       projectIds,
       query,
       (id) => overview.project(id)?.name ?? "",
+      workerIds,
     ),
   );
 
@@ -51,6 +54,8 @@
       });
 
       for (const id of request.projectIds) params.append("projectId", id);
+
+      for (const id of request.workerIds ?? []) params.append("workerId", id);
       const before = overview.threads;
 
       const page = decode(
@@ -104,10 +109,10 @@
   });
 
   $effect(() => {
-    const filter = { projectIds, query };
+    const selection = filter;
     const open = expanded;
     const version = `${overview.resyncs}:${revision}`;
-    untrack(() => void pager.refresh(filter, open, version));
+    untrack(() => void pager.refresh(selection, open, version));
   });
 
   // Opening should find its first page already here: warm it once the sidebar is idle (again after the
@@ -122,7 +127,7 @@
     if (!expanded) pager.prefetch();
   };
 
-  const retry = () => void pager.refresh({ projectIds, query }, expanded, `${overview.resyncs}:${revision}`);
+  const retry = () => void pager.refresh(filter, expanded, `${overview.resyncs}:${revision}`);
 
   function outgoing(event: Event & { currentTarget: HTMLElement }) {
     const node = event.currentTarget;

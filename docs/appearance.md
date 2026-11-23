@@ -1,7 +1,8 @@
 # Wygląd i pełne palety
 
-Status (2026-11-22): Appearance jest lokalne dla profilu przeglądarki,
-instalacji desktopowej i instalacji mobilnej, również po ponownym uruchomieniu.
+Status (2026-11-23): web, desktop i mobile używają zróżnicowanej palety
+oznaczeń nowych i zapisanych projektów. Appearance jest lokalne dla profilu
+przeglądarki, instalacji desktopowej i instalacji mobilnej, również po ponownym uruchomieniu.
 
 Settings → Appearance pozwala wybrać osobno motyw Light i Dark. Color scheme
 (System / Light / Dark) określa, który wariant jest aktywny. Przykład: Fern dla
@@ -40,6 +41,11 @@ odcieniem dla tekstu. `themes.css` nakłada tokeny na istniejące klasy Tailwind
 zinc, white/black, brand i statusy, łącznie z modyfikatorami przezroczystości.
 Wspólna powłoka, dialogi, popovery, pola i przyciski używają też nazw semantycznych.
 Zmiana motywu obejmuje istniejące ekrany bez warunków zależnych od nazwy motywu.
+
+Kolor oznaczenia projektu wynika z hasza jego nazwy i wspólnej palety ośmiu
+odcieni. Ta sama nazwa daje ten sam odcień na każdym kliencie, a zmiana nazwy
+może zmienić odcień. Klient wylicza kolor przy wyświetlaniu także dla zapisanych
+projektów. Aplikacja nie zapisuje koloru projektu ani nie oferuje jego wyboru.
 
 | Motyw | Charakter | Canvas Light | Canvas Dark |
 | --- | --- | --- | --- |

@@ -98,7 +98,7 @@
             {/if}
           </div>
           {#each source.preview.notices as notice (notice)}<p
-              class="text-base text-pretty text-zinc-500 sm:text-sm dark:text-zinc-400"
+              class="text-base text-pretty wrap-anywhere text-zinc-500 sm:text-sm dark:text-zinc-400"
             >
               {notice}
             </p>{/each}

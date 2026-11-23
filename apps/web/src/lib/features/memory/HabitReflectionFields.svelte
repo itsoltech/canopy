@@ -1,14 +1,14 @@
 <script lang="ts">
   import type { ui } from "@canopy/contracts";
   import { count } from "@canopy/domain/usage-report";
-  import { effortLevel } from "#lib/features/models/catalog.ts";
   import { useOverview } from "#lib/features/overview/overview-state.svelte.ts";
-  import { providerLabel } from "#lib/features/threads/labels.ts";
-  import { instanceLabel } from "#lib/features/threads/providers.ts";
+  import { providerKeyOf } from "#lib/features/threads/providers.ts";
   import { formatDateTime, isoDateTime } from "#lib/shared/format.ts";
   import Select from "#lib/shared/ui/Select.svelte";
   import SettingsRow from "#lib/shared/ui/SettingsRow.svelte";
   import Switch from "#lib/shared/ui/Switch.svelte";
+  import HabitModelControls from "./HabitModelControls.svelte";
+  import HabitProfilePicker from "./HabitProfilePicker.svelte";
   import HabitProjectPicker from "./HabitProjectPicker.svelte";
   import { habitReportedCost } from "./habits-format.ts";
 
@@ -117,17 +117,6 @@
         (!draft.effort || efforts.includes(draft.effort)));
   });
 
-  function profileName(option: ui.MemoryReflectionModel): string {
-    const worker = overview.ownWorkers.find((worker) => worker.id === option.workerId);
-    const provider = providerLabel(option.provider);
-    const id = option.profileId || "native";
-    const instance = worker?.providerInstances.find((item) => item.harness === option.provider && item.id === id);
-
-    const name = instanceLabel(instance ?? { id, label: "" });
-
-    return [provider, name !== provider && name, worker?.name || option.workerName].filter(Boolean).join(" · ");
-  }
-
   function changeProfile(key: string) {
     const next = profiles.get(key);
 
@@ -174,65 +163,27 @@
 </SettingsRow>
 <SettingsRow title="Provider profile" description={profileHint}>
   {#snippet control()}
-    <Select
-      aria-label="Provider profile"
-      options={[...profiles].map(([value, option]) => {
-        const label = profileName(option);
-
-        return { value, label, tooltip: label };
-      })}
+    <HabitProfilePicker
+      {profiles}
       value={profileKey(draft)}
       placeholder={draft.workerId ? "Unavailable profile" : "Choose a provider profile"}
       disabled={disabled || !profiles.size}
-      class="w-64 max-w-full"
       onchange={changeProfile}
     />
   {/snippet}
 </SettingsRow>
-<SettingsRow
-  title="Model"
-  description={profile && draft.model && !model ? "Choose an available model or use Auto." : undefined}
->
-  {#snippet control()}
-    <Select
-      aria-label="Model"
-      options={[
-        { value: "", label: "Auto" },
-        ...[...modelOptions.values()].map((option) => ({
-          value: option.model,
-          label: option.label || option.model,
-          tooltip: option.label || option.model,
-        })),
-      ]}
-      value={draft.model}
-      placeholder={draft.model || "Auto"}
-      disabled={disabled || !profile}
-      class="w-64 max-w-full"
-      onchange={(model) => {
-        if (model !== draft.model) draft = { ...draft, model, effort: "" };
-      }}
-    />
-  {/snippet}
-</SettingsRow>
-{#if efforts.length || (model && draft.effort)}
-  <SettingsRow
-    title="Reasoning effort"
-    description={draft.effort && !efforts.includes(draft.effort)
-      ? "Choose an available effort or use Auto."
-      : undefined}
-  >
-    {#snippet control()}
-      <Select
-        aria-label="Reasoning effort"
-        options={[{ value: "", label: "Auto" }, ...efforts.map((id) => ({ value: id, label: effortLevel(id).label }))]}
-        value={draft.effort}
-        placeholder={draft.effort}
-        {disabled}
-        onchange={(effort) => (draft = { ...draft, effort })}
-      />
-    {/snippet}
-  </SettingsRow>
-{/if}
+<HabitModelControls
+  models={modelOptions}
+  model={draft.model}
+  effort={draft.effort}
+  provider={providerKeyOf(draft.provider)}
+  profileAvailable={!!profile}
+  {disabled}
+  onmodel={(model) => {
+    if (model !== draft.model) draft = { ...draft, model, effort: "" };
+  }}
+  oneffort={(effort) => (draft = { ...draft, effort })}
+/>
 {#if showNext || settings.lastRunAt || lastCheck}
   <div class="settings-row flex flex-wrap gap-x-4 gap-y-1 px-4 py-3 text-sm/5 text-muted" role="status">
     {#if showNext}<span

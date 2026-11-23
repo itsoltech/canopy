@@ -118,7 +118,14 @@ export async function runGrokBot(ctx: BotHarnessContext): Promise<void> {
 
     if (opened.models && opened.models.currentModelId !== input.model) await client.setModel(id, input.model);
     signal.throwIfAborted();
-    const mapper = new GrokEventMapper(input.turnId, session.cwd, input.model, new GrokSessionCost(Boolean(resumed)));
+
+    const mapper = new GrokEventMapper(
+      input.turnId,
+      session.cwd,
+      new GrokSessionCost(Boolean(resumed)),
+      ctx.xaiPricing,
+    );
+
     let complete = false;
 
     const content = await ctx.content(Boolean(resumed));
@@ -136,7 +143,7 @@ export async function runGrokBot(ctx: BotHarnessContext): Promise<void> {
 
         for (const init of mapper.update(withoutToolImages(event.update))) await ctx.record(init);
       } else {
-        for (const init of mapper.complete(event)) await ctx.record(init);
+        for (const init of await mapper.complete(event)) await ctx.record(init);
         signal.throwIfAborted();
 
         if (event.stopReason !== "end_turn") throw new BotHarnessFailure(grokStopReason(event.stopReason));

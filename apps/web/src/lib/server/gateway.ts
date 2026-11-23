@@ -96,6 +96,8 @@ export async function gatewayCompatibility(): Promise<GatewayCompatibility> {
       gatewayRole: info.gatewayRole,
       linkedComputers: info.linkedComputers,
       offerOnboarding: info.offerOnboarding,
+      archiveWorkerFilter: info.archiveWorkerFilter,
+      pushRelaySettings: info.pushRelaySettings || info.localPushRelaySettings,
     };
   } catch (cause) {
     return {

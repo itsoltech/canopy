@@ -1,6 +1,8 @@
 import type { PromptEvent } from "@canopy/grok-acp";
 import { Option, Schema } from "effect";
 import { emptyUsage, reportedUsd, tokenCount, type ConsumedUsage } from "../token-usage.ts";
+import type { XaiPricingCatalog } from "../pricing/model-catalog.ts";
+import { quoteXai } from "../pricing/model-rates.ts";
 
 const Counters = Schema.Struct({
   inputTokens: Schema.Number,
@@ -29,21 +31,45 @@ const completion = Schema.decodeUnknownOption(
 /** Grok 1.0.70 reports consumed tokens per prompt in _meta.usage, including cancelled prompts. */
 export type GrokCompletion = Extract<PromptEvent, { type: "complete" }>;
 
-export function grokPromptUsage(event: GrokCompletion): ConsumedUsage[] {
+export async function grokPromptUsage(
+  event: GrokCompletion,
+  cost?: number,
+  pricing?: XaiPricingCatalog,
+): Promise<ConsumedUsage[]> {
   const meta = Option.getOrUndefined(completion(event))?._meta;
 
   if (!meta?.usage) return [];
-  const models = meta.usage.modelUsage ?? { [meta.modelId ?? ""]: meta.usage };
+  const perModel = Object.entries(meta.usage.modelUsage ?? {});
+  const models = perModel.length ? perModel : [[meta.modelId ?? "", meta.usage] as const];
 
-  return Object.entries(models).map(([model, usage]) => ({
-    ...emptyUsage(),
-    inputTokens: tokenCount(usage.inputTokens),
-    outputTokens: tokenCount(usage.outputTokens),
-    cachedInputTokens: tokenCount(usage.cachedReadTokens),
-    cacheWriteInputTokens: tokenCount(usage.cacheCreationTokens),
-    reasoningOutputTokens: tokenCount(usage.reasoningTokens),
-    model,
-  }));
+  return Promise.all(
+    models.map(async ([model, usage]) => {
+      const counts = {
+        inputTokens: usage.inputTokens,
+        outputTokens: usage.outputTokens,
+        cachedInputTokens: usage.cachedReadTokens ?? 0,
+        cacheWriteInputTokens: usage.cacheCreationTokens ?? 0,
+        reasoningOutputTokens: usage.reasoningTokens ?? 0,
+      };
+
+      await pricing?.prepare(model);
+      const rates = pricing?.get(model);
+      const quote = rates && quoteXai(rates, counts);
+
+      return {
+        ...emptyUsage(),
+        inputTokens: tokenCount(counts.inputTokens),
+        outputTokens: tokenCount(counts.outputTokens),
+        cachedInputTokens: tokenCount(counts.cachedInputTokens),
+        cacheWriteInputTokens: tokenCount(counts.cacheWriteInputTokens),
+        reasoningOutputTokens: tokenCount(counts.reasoningOutputTokens),
+        model,
+        requestedServiceTier: "default",
+        reportedCostUsd: models.length === 1 ? cost : undefined,
+        ...(quote && { estimatedCostUsd: quote.usd, pricingVersion: quote.version }),
+      };
+    }),
+  );
 }
 
 /** ACP UsageUpdate.cost is a cumulative session amount; unknown resumed baselines are never charged. */

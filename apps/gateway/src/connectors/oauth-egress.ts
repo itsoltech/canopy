@@ -52,6 +52,12 @@ type Address = { address: string; family: number };
 const resolveHost = (host: string) => lookup(host, { all: true });
 const vendorOrigins = new Set(CONNECTOR_TYPES.flatMap((type) => (type.url ? [new URL(type.url).origin] : [])));
 
+export class OAuthEndpointRedirect extends Error {
+  constructor(readonly status: number) {
+    super("OAuth endpoint redirected");
+  }
+}
+
 async function sendPinned(url: URL, address: Address, input: Request, signal: AbortSignal): Promise<Response> {
   const request = url.protocol === "https:" ? httpsRequest : httpRequest;
   const body = input.body ? Buffer.from(await input.arrayBuffer()) : undefined;
@@ -76,7 +82,7 @@ async function sendPinned(url: URL, address: Address, input: Request, signal: Ab
 
         if (status >= 300 && status < 400) {
           res.destroy();
-          reject(new Error("OAuth endpoint redirected"));
+          reject(new OAuthEndpointRedirect(status));
 
           return;
         }

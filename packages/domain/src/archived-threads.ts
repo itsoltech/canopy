@@ -2,6 +2,7 @@ import type { ui } from "@canopy/contracts";
 
 export interface ArchivedFilter {
   projectIds: string[];
+  workerIds?: string[];
   query: string;
 }
 
@@ -91,7 +92,12 @@ export class ArchivedThreadsPager {
 
   /** `version` changes whenever the archive may have changed (stream updates, reconnects). */
   async refresh(filter: ArchivedFilter, expanded: boolean, version = ""): Promise<void> {
-    const key = JSON.stringify([[...filter.projectIds].sort(), filter.query.trim().toLowerCase()]);
+    const key = JSON.stringify([
+      [...filter.projectIds].sort(),
+      [...(filter.workerIds ?? [])].sort(),
+      filter.query.trim().toLowerCase(),
+    ]);
+
     const filterChanged = key !== this.#key;
 
     if (filterChanged) {

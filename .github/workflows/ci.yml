@@ -209,9 +209,20 @@ jobs:
     timeout-minutes: 10
     steps:
       - uses: actions/checkout@v5
-        if: matrix.target == 'windows-x64'
         with:
           ref: ${{ inputs.revision || github.sha }}
+      - name: Decode the small Canopy app icon representations with macOS
+        if: matrix.target == 'darwin-arm64'
+        shell: bash
+        run: |
+          for channel in stable beta nightly; do
+            iconset="$RUNNER_TEMP/canopy-$channel.iconset"
+            iconutil -c iconset -o "$iconset" "apps/web/static/channels/$channel/icon.icns"
+            for size in 16 32; do
+              test -s "$iconset/icon_${size}x${size}.png"
+              test -s "$iconset/icon_${size}x${size}@2x.png"
+            done
+          done
       - uses: ./.github/actions/setup-bun
         if: matrix.target == 'windows-x64'
       - name: Windows CLI launcher argument round-trip

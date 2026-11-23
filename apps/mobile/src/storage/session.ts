@@ -2,11 +2,14 @@ import * as SecureStore from "expo-secure-store";
 import type { MobileConnection } from "../api/routes";
 import { isGatewayAddress } from "../api/client";
 
+export type MobilePushPreference = "on" | "off";
+
 export interface DeviceSession extends MobileConnection {
   gatewayUrl: string;
   deviceId: string;
   deviceName: string;
   moduleOrder?: string;
+  mobilePush?: MobilePushPreference;
   token: string;
 }
 
@@ -17,6 +20,7 @@ function isDeviceSession(value: unknown): value is DeviceSession {
     !!value &&
     typeof value === "object" &&
     (!("moduleOrder" in value) || typeof value.moduleOrder === "string") &&
+    (!("mobilePush" in value) || value.mobilePush === "on" || value.mobilePush === "off") &&
     "gatewayUrl" in value &&
     typeof value.gatewayUrl === "string" &&
     "deviceId" in value &&
@@ -103,6 +107,16 @@ export class SessionPersistence {
       this.#current = next;
     });
   }
+
+  rememberMobilePush = (deviceId: string, mobilePush: MobilePushPreference | undefined) =>
+    this.#serial(async () => {
+      const current = this.#current;
+
+      if (!current || current.deviceId !== deviceId || current.mobilePush === mobilePush) return;
+      const next = { ...current, mobilePush };
+      await saveSession(next);
+      this.#current = next;
+    });
 
   forget() {
     this.#current = null;

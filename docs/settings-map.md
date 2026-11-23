@@ -1,6 +1,11 @@
 # Mapa ustawień Canopy
 
-Status (2026-11-20): mapa zaimplementowanych ustawień, w tym Full access dla nowych wątków harmonogramu, usuwania scalonych lokalnych gałęzi po archiwizacji, kolejności zakładek i wstrzymywania pracy modułów,
+Status (2026-11-21): mapa zaimplementowanych ustawień. Lokalny Desktop zawiera
+ustawienia relaya mobilnych powiadomień z automatyczną aktywacją relaya Canopy.
+Panel webowy serwera również pozwala konfigurować własny relay.
+Mapa obejmuje również Full access dla
+nowych wątków harmonogramu, usuwanie scalonych lokalnych gałęzi po archiwizacji,
+kolejność zakładek i wstrzymywanie pracy modułów,
 zgody reguł Archived/Deleted
 threads na sprzątanie lokalnych plików worktree oraz wspólnego wyboru
 grupowania sidebara w web/desktop i mobile, opcjonalnej retencji archiwum wątków
@@ -162,6 +167,7 @@ projektów, poświadczeń, zaproszeń ani zasobów. Domyślne „brak” oznacza
 | Workers | Enrollments; public gateway URL; SSH install; name/tags; CLI updates; Updates (ten komputer, połączone komputery, workery i Agent CLIs według komputera) | konto/worker: automatic URL, konfiguracja workera | Rejestracja i zdalna konfiguracja workerów. Profile workera ustawia Providers; limity `WorkerConfig.limits` nie mają UI, a worker egzekwuje z nich tylko `idleUnloadSeconds` |
 | Network access | Enabled; port; hostnames; routes; TLS fingerprint | komputer gatewaya: Off, automatyczny port | Osiągalność gatewaya i przypięty TLS; adres nasłuchu ustawia wyłącznie konfiguracja gatewaya |
 | Network access / Attachments | Per file; per message; file count | konto: 20 MiB, 50 MiB, 10 | Limity uploadu egzekwowane przez gateway |
+| Network access / Mobile push relay | Canopy relay; Relay address; Relay token; prywatne CA | web serwerowy: konfiguracja wdrożenia. Lokalny Desktop: relay Canopy | Relay Canopy aktywuje się po włączeniu push na sparowanym telefonie i weryfikacji aplikacji. Wybór zapisany w panelu ma pierwszeństwo i działa bez restartu. |
 | Devices | Pairing code / QR; device list; revoke | konto/zasoby: brak | Dostęp telefonów i klientów desktopowych |
 | Linked computers | Identity; link/pair; rename; onward sharing; unlink; per-item sharing/conflicts | komputer gatewaya: brak linków, lokalne | Wzajemny dostęp i jawne udostępnianie konfiguracji |
 | Desktop | Local/remote mode; worker status; detected CLIs; change mode | urządzenie/store: wybór przy konfiguracji | Wyłącznie topologia uruchomienia i status lokalnych usług; bez ogólnych preferencji zachowania |

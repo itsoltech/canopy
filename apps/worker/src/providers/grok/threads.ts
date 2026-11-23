@@ -29,11 +29,12 @@ import { grokPrompt } from "./input.ts";
 import { grokLaunch } from "./launch.ts";
 import { grokBus, platformToolName } from "./bus.ts";
 import { GrokSessionCost } from "./consumed-usage.ts";
+import type { XaiPricingCatalog } from "../pricing/model-catalog.ts";
 import { GrokEventMapper } from "./mapping.ts";
 import { discoveredModels } from "./model-discovery.ts";
 import { automationMcp, automationMcpKey } from "../local-automation.ts";
 import type { LocalAgentToolMcpServer } from "../../agent-tools/index.ts";
-import { closeGrokResources, grokPermission } from "./lifecycle.ts";
+import { closeGrokResources, grokPermission, type GrokPermissionEntry } from "./lifecycle.ts";
 
 const ToolInput = Schema.Struct({
   tool_name: Schema.optionalKey(Schema.String),
@@ -60,6 +61,7 @@ function sessionSettings(spec: ThreadSpec, settings?: TurnSettings) {
 
 interface Options {
   dataDir: string;
+  pricing?: XaiPricingCatalog;
   executable: string;
   linkDeviceLogin: boolean;
   idleUnloadMs?: number;
@@ -76,17 +78,14 @@ interface Options {
   ): readonly LocalAgentToolMcpServer[];
 }
 
-interface Entry {
+interface Entry extends GrokPermissionEntry {
   client: GrokClient;
   session: SessionResult;
   dispose(): Promise<void>;
-  turnId: string;
-  mode: PermissionMode;
   interrupted: boolean;
   settings: string;
   costs: GrokSessionCost;
   toolUses: Map<string, { name: string; args: JsonValue }>;
-  approvals: Set<string>;
   idleTimer?: ReturnType<typeof setTimeout>;
 }
 
@@ -288,7 +287,7 @@ export class GrokThreads {
     entry.turnId = turnId;
     entry.interrupted = false;
     entry.toolUses.clear();
-    const mapper = new GrokEventMapper(turnId, spec.cwd, settings?.model || spec.model, entry.costs);
+    const mapper = new GrokEventMapper(turnId, spec.cwd, entry.costs, this.options.pricing);
     const record = (init: ThreadEventInit) => this.options.record(spec.threadId, init);
     await record({ turnId, body: { case: "turnStarted", value: { model: settings?.model || spec.model } } });
     await record({
@@ -334,7 +333,7 @@ export class GrokThreads {
 
           for (const init of mapper.update(update)) await record(init);
         } else {
-          for (const init of mapper.complete(event)) await record(init);
+          for (const init of await mapper.complete(event)) await record(init);
 
           if (event.stopReason === "cancelled") {
             outcome = TurnOutcome.INTERRUPTED;

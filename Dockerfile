@@ -1,8 +1,7 @@
 # syntax=docker/dockerfile:1.7
-# Canopy images (docs/release.md, docs/deploy.md). One file, two targets (the gateway serves the web):
-#   docker buildx build --target gateway|worker --build-arg CANOPY_VERSION=1.2.3 --platform linux/amd64,linux/arm64 .
-# Builds run on the build platform and cross-compile for TARGETARCH (bun build --compile), so arm64 needs no
-# emulation except for the worker's package install.
+# Canopy images (docs/release.md, docs/deploy.md):
+#   docker buildx build --target gateway|worker|push-relay --build-arg CANOPY_VERSION=1.2.3 --platform linux/amd64,linux/arm64 .
+# Build stages run on the build platform. Gateway and worker cross-compile, and the relay bundle is portable JavaScript.
 
 ARG BUN_VERSION=1.4.5
 
@@ -14,6 +13,29 @@ RUN --mount=type=cache,target=/root/.bun/install/cache \
       --filter @canopy/gateway --filter @canopy/worker --filter @canopy/web
 ARG CANOPY_VERSION=0.0.0-dev
 ENV CANOPY_VERSION=${CANOPY_VERSION}
+
+FROM --platform=$BUILDPLATFORM oven/bun:${BUN_VERSION} AS push-relay-build
+WORKDIR /src
+COPY . .
+RUN --mount=type=cache,target=/root/.bun/install/cache \
+    bun install --frozen-lockfile --ignore-scripts --filter @canopy/push-relay \
+ && bun scripts/build-push-relay.ts /out
+
+FROM oven/bun:${BUN_VERSION}-slim AS push-relay
+ARG CANOPY_VERSION=0.0.0-dev
+ARG CANOPY_REVISION=unknown
+LABEL org.opencontainers.image.title="canopy-push-relay" \
+      org.opencontainers.image.description="Canopy mobile push relay" \
+      org.opencontainers.image.source="https://github.com/itsoltech/canopy" \
+      org.opencontainers.image.version="${CANOPY_VERSION}" \
+      org.opencontainers.image.revision="${CANOPY_REVISION}"
+COPY --from=push-relay-build /out/relay.js /app/relay.js
+COPY --from=push-relay-build /out/THIRD_PARTY_NOTICES.txt /usr/share/doc/canopy/THIRD_PARTY_NOTICES.txt
+ENV CANOPY_VERSION=${CANOPY_VERSION} CANOPY_PUSH_RELAY_HOST=0.0.0.0
+USER 65532:65532
+WORKDIR /app
+EXPOSE 24444
+ENTRYPOINT ["/usr/local/bin/bun", "/app/relay.js"]
 
 # The web is target-independent JavaScript; the gateway binary embeds it (canopy-gateway web).
 FROM build AS web-build

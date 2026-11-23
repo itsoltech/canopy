@@ -7,6 +7,7 @@ import { Effect } from "effect";
 import { SqlClient } from "effect/sql";
 import type { CoreRuntime } from "./core.ts";
 import type { NetworkAccess } from "../network/network.ts";
+import { retirePushGrant } from "../push/revocation-store.ts";
 
 const digest = (value: string) => createHash("sha256").update(value).digest("hex");
 const uuid = (value: string) => /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(value);
@@ -310,6 +311,13 @@ export class MobileDevices {
                 : yield* sql<PairingRow>`UPDATE mobile_pairings SET revoked_at = coalesce(revoked_at, now()) WHERE id = ${id}::uuid AND owner_user_id = ${userId}::uuid AND used_at IS NULL RETURNING *`;
 
             if (!rows.length) return undefined;
+
+            if (kind === "device") {
+              yield* sql`DELETE FROM mobile_push_enrollments WHERE device_id = ${id}::uuid`;
+              yield* retirePushGrant(sql, userId, id);
+              yield* sql`DELETE FROM mobile_push_subscriptions WHERE device_id = ${id}::uuid`;
+            }
+
             yield* sql`INSERT INTO audit_log (id, actor_user_id, action, target_type, target_id)
           VALUES (${Bun.randomUUIDv7()}::uuid, ${userId}::uuid, ${`${rows[0]!.client_kind}.${kind}.revoke`}, ${`mobile_${kind}`}, ${id}::uuid)`;
 

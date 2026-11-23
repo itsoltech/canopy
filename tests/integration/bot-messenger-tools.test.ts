@@ -2,12 +2,17 @@ import { afterAll, beforeAll, describe, expect, test } from "bun:test";
 import { create, fromBinary } from "@bufbuild/protobuf";
 import { AgentToolCallSchema, CommandSchema, PermissionMode, Provider, type bots } from "@canopy/contracts";
 import { dockerAvailable } from "@canopy/db/testing";
+import { qualifyId } from "@canopy/domain/computers";
+import { remoteServe, uiHandlers } from "@canopy/gateway/api";
 import { Effect } from "effect";
 import { join } from "node:path";
+import { ComputerStore } from "../../apps/gateway/src/computers/store.ts";
 import { MessengerStore } from "../../apps/gateway/src/messengers/store.ts";
 import type { AccountLease, MessengerRoute } from "../../apps/gateway/src/messengers/types.ts";
 import { botContexts } from "./fixtures/bot-probe.ts";
 import { fakeConnector } from "./support/connector.ts";
+import { linkedComputers } from "./support/computers.ts";
+import { configComputer } from "./support/config-sync.ts";
 import { eventually } from "./support/gateway.ts";
 import { harnessBots, type HarnessBots } from "./support/harness-bots.ts";
 
@@ -22,7 +27,7 @@ describe.skipIf(!dockerAvailable)("external bot tools use ordinary owner grants"
     f.gw.runtime.runPromise(MessengerStore.use(use));
 
   beforeAll(async () => {
-    f = await harnessBots();
+    f = await harnessBots({ role: "desktop" });
 
     const account = await run((s) =>
       s.saveAccount(f.gw.userId, {
@@ -88,8 +93,11 @@ describe.skipIf(!dockerAvailable)("external bot tools use ordinary owner grants"
     await f.gw.core.bots.tick();
 
     const rows = await f.query<{ id: string }>(
-      "SELECT t.id FROM bot_turns t JOIN bot_channel_conversations c ON c.id=t.conversation_id WHERE c.route_id=$1 AND c.thread_id=$2 ORDER BY t.created_at DESC,t.id DESC LIMIT 1",
-      [route.id, threadId ?? stamp],
+      `SELECT t.id FROM bot_turns t JOIN bot_channel_conversations c ON c.id=t.conversation_id
+       JOIN bot_channel_inputs i ON i.turn_id=t.id AND t.client_request_id='messenger:' || i.id::text
+       JOIN bot_channel_messages m ON m.input_id=i.id AND m.conversation_id=c.id
+       WHERE c.route_id=$1 AND c.thread_id=$2 AND m.message_id=$3`,
+      [route.id, threadId ?? stamp, `${stamp}:0`],
     );
 
     expect(rows).toHaveLength(1);
@@ -229,10 +237,11 @@ describe.skipIf(!dockerAvailable)("external bot tools use ordinary owner grants"
     await finished(held);
   }, 20_000);
 
-  test("external delegation starts a work thread after private approval and retains conversation provenance", async () => {
-    const { bot, route } = await source(Provider.CODEX);
+  test("a conversation can continue its delegated thread after a second computer links", async () => {
+    const { bot, route } = await source(Provider.CODEX, "always");
     const target = await f.thread(Provider.CODEX);
     const title = `External delegation ${bot.id}`;
+    const conversation = `delegation-${bot.id}`;
 
     const turnId = await begin(
       route,
@@ -245,6 +254,7 @@ describe.skipIf(!dockerAvailable)("external bot tools use ordinary owner grants"
         prompt: "Implement the standing task",
         title,
       })}`,
+      conversation,
     );
 
     const card = await pending(bot.id);
@@ -271,9 +281,103 @@ describe.skipIf(!dockerAvailable)("external bot tools use ordinary owner grants"
     );
 
     expect(followups).toHaveLength(1);
-    expect(followups[0]?.conversation_id).toBeTruthy();
+    const conversationId = followups[0]?.conversation_id;
+
+    if (!conversationId) throw new Error("The delegation report must keep its conversation ID");
     expect((await f.read(bot.id)).messages.filter((m) => m.senderId !== "activity")).toEqual([]);
-  }, 25_000);
+
+    const send = (threadId: string, text: string, sourceThread = conversation, attachmentIds: string[] = []) =>
+      begin(
+        route,
+        `TOOL:send_message\nARGS:${JSON.stringify({ thread_id: threadId, text, delivery: "queue", attachment_ids: attachmentIds })}`,
+        sourceThread,
+      );
+
+    const rejected = async (...args: Parameters<typeof send>) => (await finished(await send(...args)))[0]?.text;
+
+    const continueThread = async (ref: string, message: string) => {
+      const turnId = await send(ref, message);
+      const approval = await pending(bot.id);
+      expect(approval.prompt).toContain(title);
+      await f.gw.api.answerBotApproval({ approvalId: approval.id, approve: true });
+      expect((await finished(turnId))[0]?.text).toContain(started.id);
+      expect(
+        await eventually(
+          () =>
+            f.query<{ status: string; conversation_id: string; thread_id: string; text: string }>(
+              `SELECT r.status,r.conversation_id,t.thread_id,t.input->>'text' AS text
+               FROM bot_tool_calls c JOIN bot_turns r ON r.client_request_id='thread:' || c.id::text
+               JOIN bot_thread_watches w ON w.call_id=c.id JOIN turns t ON t.id=w.target_turn_id AND t.bot_call_id=c.id
+               WHERE c.turn_id=$1 AND r.bot_id=$2`,
+              [turnId, bot.id],
+            ),
+          (rows) => rows[0]?.status === "completed",
+        ),
+      ).toEqual([
+        {
+          status: "completed",
+          conversation_id: conversationId,
+          thread_id: started.id,
+          text: expect.stringContaining(message),
+        },
+      ]);
+    };
+
+    await continueThread(started.id, "Continue before pairing");
+
+    const home = f.gw;
+
+    const links = linkedComputers({
+      store: new ComputerStore(home.runtime, home.userId, home.secretsKey),
+      host: "127.0.0.1",
+      heartbeatMs: 150,
+      core: home.core,
+      serve: remoteServe(uiHandlers(home.core), home.core),
+    });
+
+    const peer = await configComputer("Second computer");
+
+    try {
+      home.core.computers = links;
+      home.core.network = links.options.network;
+      await links.start();
+      const invite = await links.createPairing(false);
+      await peer.links.pair(links.addresses[0]!, invite.code, false);
+      const homeNode = links.hello().nodeId;
+      expect(
+        await eventually(() => Promise.resolve(links.canCall(peer.node) && peer.links.canCall(homeNode)), Boolean),
+      ).toBe(true);
+
+      const qualified = qualifyId(started.id, homeNode);
+      expect((await peer.gateway.api.getThread({ threadId: qualified })).thread?.id).toBe(qualified);
+      await continueThread(started.id, "Continue locally after pairing");
+      await continueThread(qualified, "Continue using the second computer's reference");
+
+      expect(await rejected(qualified, "Different conversation", `unrelated-${bot.id}`)).toContain(
+        "Choose a thread delegated from this conversation",
+      );
+      expect(await rejected(qualifyId(target.id, homeNode), "Unrelated local thread")).toContain(
+        "Choose a thread delegated from this conversation",
+      );
+      expect(await rejected(qualifyId(started.id, peer.node), "Wrong home")).toContain(
+        "Choose a thread on this computer",
+      );
+      expect(await rejected(qualified, "Forward a file", conversation, [crypto.randomUUID()])).toContain(
+        "Files cannot be forwarded to another computer",
+      );
+      expect(
+        await f.query<{ count: number }>(
+          "SELECT count(*)::int AS count FROM turns WHERE thread_id IN ($1,$2) AND trigger='bot'",
+          [started.id, target.id],
+        ),
+      ).toEqual([{ count: 4 }]);
+    } finally {
+      await peer.close();
+      await links.close();
+      delete home.core.computers;
+      delete home.core.network;
+    }
+  }, 45_000);
 
   test("external source instructions cannot administer owner configuration even with full auto", async () => {
     const { bot, route } = await source(Provider.CODEX, "full_auto");

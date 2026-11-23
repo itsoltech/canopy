@@ -1,6 +1,11 @@
 # Powiadomienia wątków i botów
 
-Status (2026-11-21): uśpione wątki są wyciszone w web/desktop i mobile.
+Status (2026-11-23): kod iOS/Android obsługuje push z podglądem szyfrowanym od
+gatewaya do telefonu. Funkcja wymaga nowego buildu natywnego i konfiguracji relaya.
+Lokalny Desktop domyślnie używa relaya Canopy. W webie serwerowym i w obu
+trybach Desktopu można wybrać relay Canopy albo skonfigurować własny w Network access.
+Relay Canopy obsługuje też automatyczną ponowną atestację i odwołanie poświadczeń.
+Alerty w aplikacji pomijają uśpione wątki w web/desktop i mobile.
 Web/desktop wysyła powiadomienia tylko z włączonych modułów.
 Powiadomienia wątków obejmują
 tylko wątki główne i wątki boczne użytkownika. Toasty są kartami w prawym dolnym
@@ -8,8 +13,8 @@ rogu, z osobnym nagłówkiem zdarzenia, nazwą i akcją pod treścią oraz więk
 statusu, bez wyłączania przeciągania okna desktopu. Opis dotyczy kodu; dostępność
 nightly/beta/stable określają [wydania](release.md).
 
-Web i desktop pokazują alerty systemowe o wątkach i botach, tylko gdy otwarte jest
-okno Canopy. Push na telefon jest poza tym zakresem ([mobile.md](mobile.md)).
+Web i desktop pokazują alerty systemowe o wątkach i botach, gdy otwarte jest okno
+Canopy. Na telefonie push działa także poza otwartą aplikacją.
 Kod: `apps/web/src/lib/features/notifications`, `apps/desktop/src/notifications.ts`,
 `apps/gateway/src/store/thread-notice.ts`, `packages/domain/src/notice-preview.ts`.
 
@@ -153,12 +158,76 @@ są pod pierwszym włączonym wierszem. Wątki nie mają wyboru rodzajów zdarze
 boty też go nie mają. Preferencje „powiedz mi tylko gdy…” bot trzyma w instrukcjach
 ([bots.md](bots.md)).
 
+## Push na iOS i Androidzie
+
+**Settings → General → Notifications → System notifications** jest ustawieniem
+sparowanego telefonu, domyślnie wyłączonym. Włączenie prosi o zgodę systemu.
+Powiadomienie pokazuje tytuł wątku lub nazwę bota i krótką, oczyszczoną treść.
+System decyduje o widoczności podglądu na ekranie blokady. Podczas pracy w Canopy
+pozostają alerty w aplikacji. Dotknięcie powiadomienia otwiera rozmowę przez
+sparowany gateway, jeśli telefon ma do niego trasę.
+
+Relay Canopy wydaje poświadczenie automatycznie po weryfikacji aplikacji przez
+Apple App Attest lub Google Play Integrity. Użytkownik włącza powiadomienia
+na sparowanym telefonie i zatwierdza zgodę systemu. Weryfikacja używa jednorazowego
+wyzwania powiązanego z platformą i tokenem Expo uzyskanym przez ten telefon.
+Wydane poświadczenie może wysyłać powiadomienia tylko do zweryfikowanego celu.
+Gateway zapisuje je zaszyfrowane i odnawia przed wygaśnięciem. Poświadczenie
+można odnawiać na okresy do 35 dni przez maksymalnie 90 dni od ostatniej atestacji.
+Przed końcem tego okresu aplikacja ponawia atestację automatycznie przy zwykłym
+otwarciu Canopy. Dotychczasowe poświadczenie działa do wygaśnięcia także wtedy,
+gdy dostawca atestacji jest chwilowo niedostępny. Aplikacja zachowuje wybór
+użytkownika i zgody systemu. Przy własnym relayu gateway używa poświadczenia
+skonfigurowanego przez operatora.
+
+Push powstaje na sparowanym gatewayu po zakończeniu, błędzie lub systemowym
+przerwaniu tury, prośbie o zgodę lub pytaniu z wątku oraz po wiadomości, prośbie
+o zgodę lub pytaniu bota. Lokalna transakcja zapisuje identyfikatory zdarzenia
+i urządzeń w kolejce. Filtry uwzględniają włączone moduły, archiwum,
+subagentów, odczytane wyniki i rozstrzygnięte interakcje. Kolejka przeżywa restart.
+Wyciszenie wątku wstrzymuje wysyłkę oczekujących alertów z tego wątku i jego
+ręcznych wątków bocznych. Zdarzenia z okresu wyciszenia nie trafiają do kolejki.
+Lustra połączonych komputerów nie tworzą nowych powiadomień. Próby wysłania
+trwają do 5 min, a dostawca może dostarczyć push przez kolejne 10 min.
+Identyfikator można odczytać przez dobę i tylko z tego samego parowania.
+Przy utracie odpowiedzi dostawcy ponowienie może spowodować powtórne doręczenie.
+
+### Prywatność transportu i podglądu
+
+Telefon tworzy 256-bitowy klucz podglądu dla bieżącego parowania i przekazuje go
+gatewayowi po przypiętym TLS wraz z tokenem Expo. Gateway szyfruje oba w bazie
+kluczem `CANOPY_SECRETS_KEY`. Podgląd powstaje dopiero przy wysyłce.
+Gateway szyfruje go przez AES-256-GCM z losowym nonce i uwierzytelnia razem
+z losowym identyfikatorem powiadomienia. Żądanie do relaya używa TLS 1.3
+z weryfikacją certyfikatu i osobnego poświadczenia instalacji.
+Relay przekazuje zaszyfrowany podgląd do Expo Push Service, który dostarcza go
+przez APNs albo FCM. Usługi pośredniczące obsługują dane dostawy, np. token urządzenia,
+rozmiar i czas wysyłki. Tytuł i treść są dostępne gatewayowi oraz sparowanemu
+telefonowi. Identyfikator rozmowy pozostaje na gatewayu.
+
+Odszyfrowanie wykonuje rozszerzenie iOS albo natywna usługa Androida. Jeśli
+odszyfrowanie jest niemożliwe, odebrany alert pokazuje „You have a new update.”.
+Android po restarcie może wstrzymać doręczenia do pierwszego odblokowania.
+Wyłączenie push usuwa klucz podglądu z telefonu i zapisuje wyrejestrowanie do
+ponowienia, jeśli gateway jest niedostępny. Wyrejestrowanie i odwołanie parowania
+unieważniają rejestrację na gatewayu. Gateway zapisuje również odwołanie
+poświadczenia na relayu Canopy i ponawia je po odzyskaniu połączenia, również po
+restarcie gatewaya. Wiadomości przyjęte już przez dostawcę mogą jeszcze dotrzeć.
+Aplikacja odnawia 30-dniową ważność rejestracji, gdy użytkownik do niej wraca.
+
+[Budowanie aplikacji](mobile.md#powiadomienia-push) · [Uruchomienie relaya](deploy.md#relay-powiadomień-push)
+
 ## Weryfikacja
 
 - `tests/integration/thread-reads.test.ts`: podgląd pytania, oczyszczona i zamaskowana
   odpowiedź, `interrupted_by_user`, czyszczenie po `MarkThreadSeen`.
 - `tests/integration/bots.test.ts`: `pending_approval` w `ListBots`, pusta lista innego
   właściciela, brak karty po odpowiedzi.
+- `tests/integration/mobile-push.test.ts`: trwałe zdarzenie wątku, zaszyfrowany podgląd
+  przez HTTPS, weryfikacja powiązania podglądu z identyfikatorem, izolacja urządzeń
+  i aktywacja relaya z testowym weryfikatorem atestacji.
+- `apps/push-relay/src`: testy relaya przez TLS, walidacja przykładów App Attest
+  i weryfikacja werdyktów Play Integrity z symulowaną odpowiedzią Google.
 - Ręcznie w Chromium: dwie karty, ta sama origin, alerty wątku i bota, oglądanie,
   przeładowanie. Linux: natywny alert przez D-Bus z nazwą i ikoną, kliknięcie.
   Koniec tury wątku głównego i bocznego użytkownika powiadamia; koniec tury,

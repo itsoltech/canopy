@@ -1,0 +1,14 @@
+{
+  "name": "@canopy/push-relay",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "start": "bun src/main.ts",
+    "typecheck": "tsc -p tsconfig.json"
+  },
+  "dependencies": {
+    "@peculiar/x509": "1.14.2",
+    "cbor": "10.0.12"
+  }
+}

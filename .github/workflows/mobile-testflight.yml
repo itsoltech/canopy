@@ -104,6 +104,18 @@ jobs:
         with:
           node-version: 24
 
+      - name: Prepare Android push configuration for fingerprint and OTA
+        if: steps.version.outputs.tag
+        env:
+          GOOGLE_SERVICES_JSON: ${{ secrets.CANOPY_ANDROID_GOOGLE_SERVICES_JSON }}
+        run: |
+          if [[ -n "$GOOGLE_SERVICES_JSON" ]]; then
+            umask 077
+            google_services=$(mktemp "$RUNNER_TEMP/canopy-google-services.XXXXXX")
+            printf '%s' "$GOOGLE_SERVICES_JSON" > "$google_services"
+            echo "CANOPY_ANDROID_GOOGLE_SERVICES_FILE=$google_services" >> "$GITHUB_ENV"
+          fi
+
       - id: plan
         if: steps.version.outputs.tag
         working-directory: apps/mobile

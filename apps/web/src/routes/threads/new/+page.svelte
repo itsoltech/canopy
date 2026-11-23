@@ -1,6 +1,7 @@
 <script lang="ts">
   import { applicationName } from "#lib/application-name.ts";
   import { enhance } from "$app/forms";
+  import { onNavigate } from "$app/navigation";
   import { page } from "$app/state";
   import { Provider, PermissionMode, ui } from "@canopy/contracts";
   import { create, toJsonString } from "@bufbuild/protobuf";
@@ -64,13 +65,13 @@
   const capabilities = useGatewayCapabilities();
   const settings = useSettings();
 
-  // ?project=<id> preselects the project; a new link (another project's "New thread") starts over.
+  // Sidebar links can select the project alone or an exact checkout.
   const requested = $derived(page.url.searchParams.get("project") ?? "");
-  let picks = $state<{ requested: string; projectId?: string; workspaceId?: string }>({ requested: "" });
-  const placed = $derived(picks.requested === requested ? picks : undefined);
+  let picks = $state<{ projectId?: string; workspaceId?: string }>();
+  const linkedWorktree = $derived(picks ? null : page.url.searchParams.get("worktree"));
 
   const project = $derived(
-    overview.projectChoice(placed?.projectId ?? "") ??
+    overview.projectChoice(picks?.projectId ?? "") ??
       defaultProject({
         projects: overview.projectChoices,
         threads: overview.threads.values(),
@@ -86,9 +87,10 @@
   const workspace = $derived.by(() => {
     if (!project) return undefined;
 
-    const pick = project.workspaces.find(
-      (w) => w.id === (placed?.workspaceId ?? page.url.searchParams.get("workspace")),
-    );
+    const requestedWorkspace = picks?.workspaceId ?? page.url.searchParams.get("workspace");
+    const pick = project.workspaces.find((w) => w.id === requestedWorkspace);
+
+    if (linkedWorktree !== null) return pick;
 
     const online = (id: string) => overview.worker(id)?.online ?? false;
 
@@ -109,18 +111,29 @@
   // Checkout, new worktree or a previous one, and the base ref (docs/worktrees.md): when the worker offers worktrees.
   const place = new WorkspaceDraft(() =>
     workspace && project?.kind !== "scratch"
-      ? { workspaceId: workspace.id, ready: Boolean(worker?.online && worker.worktrees) }
+      ? {
+          workspaceId: workspace.id,
+          ready: Boolean(worker?.online && worker.worktrees),
+          worktreeId: linkedWorktree,
+        }
       : undefined,
   );
+
+  onNavigate(({ from, to, type }) => {
+    if (to?.route.id === "/threads/new" && (type === "link" || from?.url.search !== to.url.search)) {
+      picks = undefined;
+      place.reset();
+    }
+  });
 
   let branchBusy = $state(false);
 
   const pickProject = (next: ProjectChoice) => {
-    if (!branchBusy) picks = { requested, projectId: next.id };
+    if (!branchBusy) picks = { projectId: next.id };
   };
 
   const pickWorkspace = (next: ui.Workspace) => {
-    if (!branchBusy) picks = { requested, projectId: project?.id, workspaceId: next.id };
+    if (!branchBusy) picks = { projectId: project?.id, workspaceId: next.id };
   };
 
   // Model options (provider × profile × model) from the worker's catalog. Until you pick one: the defaults'
@@ -285,10 +298,18 @@
     place.loading ? "Loading workspace options…" : place.error ? place.error : place.refs?.detail || undefined,
   );
 
+  const placementNote = $derived(
+    linkedWorktree !== null && !workspace
+      ? "This workspace is no longer in the project. Choose another computer."
+      : place.linkedWorktreeUnavailable && worker?.online
+        ? "This worktree is unavailable. Choose another workspace or start from the project header."
+        : undefined,
+  );
+
   const blockedReason = $derived(
     branchBusy
       ? "Switching branch…"
-      : (workerNote ?? (place.loading ? workspaceNote : undefined) ?? sandboxRefusal ?? draft.blocker),
+      : (placementNote ?? workerNote ?? (place.loading ? workspaceNote : undefined) ?? sandboxRefusal ?? draft.blocker),
   );
 </script>
 
@@ -355,6 +376,7 @@
         <input type="hidden" name="worktreeId" value={place.form.worktreeId} />
         {#each draft.ids as id (id)}<input type="hidden" name="attachmentId" value={id} />{/each}
         {#if form?.error}<Alert tone="error">{form.error}</Alert>{/if}
+        {#if placementNote}<Alert tone="warning">{placementNote}</Alert>{/if}
         {#if sandboxRefusal && !workerNote}<Alert tone="warning" title="Selected sandbox profile unavailable">
             {sandboxRefusal}
           </Alert>{/if}
@@ -371,7 +393,7 @@
           sending={busy}
           readonly={busy || saved.locked}
           progressHref={saved.preparing && pendingRequestId ? startingPath(pendingRequestId) : undefined}
-          canSend={!blocker && !sandboxRefusal && !draft.blocker && !branchBusy}
+          canSend={!blocker && !placementNote && !sandboxRefusal && !draft.blocker && !branchBusy}
           {blockedReason}
           autofocus
           label="Task for the agent"

@@ -6,6 +6,7 @@ użycia z przełącznikiem prywatności i pomijaniem wysyłki offline. Settings 
 zapisuje schemat kolorów, oba motywy i szerokość wątku w instalacji aplikacji.
 Profile EAS przypinają Bun 1.4.5
 dla lockfile w wersji 3. Kompozytor pokazuje przypisany [profil Sandbox](sandbox-profiles.md).
+Rozszerzenie podglądu powiadomień na iOS deklaruje wymagane przez App Store Connect `CFBundleName`.
 Steer od bota pokazuje nazwę nadawcy także po wznowieniu zapisanego strumienia historii.
 Edytor zaplanowanych zadań pozwala wybrać profil dla nowego wątku.
 Dostęp wątków do konektorów konfiguruje się dla projektów.
@@ -18,12 +19,13 @@ Na szerokim oknie iOS i Androida sidebar i rozmowa przesuwają wspólną krawęd
 podczas zwijania i rozwijania.
 Uchwyt na tej krawędzi zmienia szerokość sidebara i zapisuje ją lokalnie.
 Pasek wątków ma osobne przyciski sortowania i filtrowania po projekcie.
+„New thread” jest ostatnią akcją w wierszu wyszukiwania, tak jak w web i desktop.
 Usunięcie otwartego bota z paska bocznego lub jego ustawień zamyka jego rozmowę.
 Licznik i akcja Update all na telefonie wynikają z planu instalacji Canopy.
 Komunikat o restarcie znika po potwierdzeniu powrotu gatewaya lub wersji docelowej.
 Stan gotowości binarnego gatewaya kończy także zapowiedź restartu bez zmiany wersji.
 Zmiana wątku nie przedłuża wyświetlania wyniku.
-Puste pole wiadomości w wątku zajmuje jeden wiersz do ustawienia fokusu.
+Puste pole wiadomości w wątku zajmuje jeden wiersz do ustawienia fokusu i wraca do tej wysokości po wysłaniu szkicu.
 Arkusz Updates pokazuje start i zamykanie gatewaya oraz etapy aktualizacji workerów.
 Wiadomości agenta w rozwiniętej aktywności tury mają dodatkowy odstęp pionowy.
 Stany źródeł Usage są widoczne w sekcji **Recording gateways**. Podsumowanie
@@ -42,6 +44,9 @@ Menu wątku pozwala go uśpić, zmienić termin lub wybudzić. Uśpione wątki p
 dostępne w zwijanej sekcji **Snoozed** z pełną historią i aktywnym kompozytorem.
 **Snoozed** przylega do listy aktywnych wątków, a **Archived** przy krótkiej liście
 schodzi do dołu widoku, nad stopkę sidebara.
+Powiadomienia push mogą pokazywać podglądy odszyfrowywane na telefonie.
+Relay Canopy może aktywować się automatycznie po atestacji aplikacji.
+Aplikacja automatycznie ponawia atestację przed wygaśnięciem poświadczenia.
 W ustawieniach Network access można zwiększyć limit załącznika do 40 MiB na plik.
 Na liście wątków wiersze z pierścieniem pracy pokazują sam czas jej trwania.
 Wiersze bez pierścienia zachowują etykietę „Working”.
@@ -844,6 +849,59 @@ Rodzaj `desktop` ustala gateway podczas tworzenia zaproszenia; kod telefonu nie
 działa w wymianie desktopowej. Lokalny kanał sterowania aplikacją desktopową
 nadal wymaga własnego uwierzytelnienia i nie należy do mobilnego klienta.
 Przyszłe logowanie/multi-user musi zastąpić to mapowanie, nie rozszerzyć współdzielony token.
+
+### Powiadomienia push
+
+Powiadomienia w Modules włączonych na koncie można uruchomić w **Settings →
+General → Notifications**. Po otwarciu rozmowy treść jest pobierana tym samym
+Connect z przypiętym TLS. Podgląd jest już w powiadomieniu, więc do jego
+wyświetlenia wystarczy łączność telefonu z usługą push. Szczegóły zdarzeń
+i metadanych opisuje
+[notifications.md](notifications.md#push-na-ios-i-androidzie).
+
+Włącz **System notifications** i udziel zgody systemowej. Gdy gateway korzysta
+z relaya Canopy, relay weryfikuje aplikację i wydaje poświadczenie dla tego telefonu.
+To domyślna konfiguracja lokalnego Desktopu. Ponowna atestacja odbywa się przy
+otwarciu aplikacji, bez ponownego pytania o zgodę systemową. W trakcie weryfikacji
+obowiązuje dotychczasowe poświadczenie, dopóki jest ważne. Relay Canopy lub
+własny relay można wybrać w webie serwerowym i w obu trybach Desktopu w
+**Settings → Network access → Mobile push relay**.
+
+Wyłączenie **System notifications** zapisuje wybór na telefonie i usuwa lokalny
+klucz podglądu także offline. Aplikacja ponawia wyrejestrowanie przy następnym
+połączeniu z gatewayem. Dostawca może jeszcze doręczyć wcześniej przyjęty alert,
+ale telefon bez klucza nie odszyfruje podglądu.
+
+Wymagany jest nowy build Expo SDK 58 z `expo-notifications` i modułem natywnym
+`CanopyPushPreview`. Automatyczna aktywacja wymaga także `@expo/app-integrity`.
+
+- **iOS.** Skonfiguruj poświadczenia APNs w projekcie EAS aplikacji. Plugin Expo
+  dodaje uprawnienie APNs, a plugin Canopy tworzy i osadza rozszerzenie
+  `CanopyPushPreviewService` (`<bundleIdentifier>.push-preview`). EAS potrzebuje
+  profilu podpisywania dla rozszerzenia i dostępu do współdzielonej grupy Keychain.
+  `Info.plist` rozszerzenia zawiera własne `CFBundleName` do walidacji paczki przez App Store Connect.
+  Klucz podglądu jest dostępny po pierwszym odblokowaniu bieżącego urządzenia.
+  Ustaw uprawnienie App Attest dla głównego App ID. Fizyczny iPhone w TestFlight
+  zgłasza atestację produkcyjną.
+- **Android.** Dodaj `CANOPY_ANDROID_GOOGLE_SERVICES_FILE` jako zmienną typu
+  File w środowisku EAS używanym przez build. Plik `google-services.json`
+  musi odpowiadać pakietowi Androida. Skonfiguruj też poświadczenie FCM v1 dla
+  projektu w EAS. Canopy odbiera wysokopriorytetowe wiadomości z danymi w usłudze
+  natywnej i wyświetla je w kanale `canopy-updates`. Klucz jest chroniony
+  przez Android Keystore i przechowywany poza kopią zapasową.
+  Ustaw sekret GitHub Actions `CANOPY_ANDROID_GOOGLE_SERVICES_JSON` na tę samą
+  zawartość pliku, żeby workflow obliczał zgodny fingerprint i publikował OTA
+  dla binarki z FCM. Przy ręcznym `eas update` podaj ten plik przez
+  `CANOPY_ANDROID_GOOGLE_SERVICES_FILE` w lokalnym środowisku.
+  Play Integrity pobiera numer projektu Google Cloud z odpowiedzi relaya.
+  Włączenie automatycznej aktywacji dla ręcznie instalowanego APK zależy od
+  werdyktu Play Integrity i listy dozwolonych podpisów z konfiguracji relaya.
+
+Próba na fizycznych urządzeniach obu platform powinna objąć wyrażenie zgody,
+podgląd przy zablokowanym ekranie, pushe przy otwartej i zamkniętej aplikacji,
+dotknięcie alertu przy zimnym starcie, zmianę parowania oraz cofnięcie zgody.
+Zmiana modułów natywnych i rozszerzenia zmienia fingerprint, więc dystrybucja
+tej funkcji wymaga binarki. [Wdrożenie relaya](deploy.md#relay-powiadomień-push).
 
 Web pokazuje metadane i pozwala odwołać kod lub token. Revoke kończy otwarte streamy
 w tym procesie i odrzuca kolejne RPC; pozostałe urządzenia zachowują dostęp.
@@ -1672,7 +1730,9 @@ Podświetlenie po naciśnięciu zachowuje okrągły kształt przycisku.
 W wątku puste pole bez fokusu ma 44 dp wysokości. Fokus rozwija je wraz z paskiem pisania.
 Po utracie fokusu lub schowaniu klawiatury pole pozostaje rozwinięte, jeśli szkic zawiera
 tekst, wzmiankę, cytat lub załącznik. Puste pole wraca do jednego wiersza, a lista odzyskuje
-zwolnione miejsce. Kolejka, subagenci, cel, prośby o odpowiedź i wiersze statusu pozostają
+zwolnione miejsce. Wysyłka szkicu zdejmuje fokus przed zablokowaniem pola. Po potwierdzeniu
+dostarczenia szkic jest czyszczony i pole się zwija. W razie błędu zachowany szkic pozostaje
+rozwinięty. Kolejka, subagenci, cel, prośby o odpowiedź i wiersze statusu pozostają
 widoczne również nad zwiniętym polem. Przewijanie wątku nie zmienia rozmiaru pola.
 
 Czat bota zachowuje zwijanie podczas czytania historii według reguł webowego `ComposerCompaction`:
@@ -2650,8 +2710,9 @@ modułów natywnych, konfiguracji ani zależności aplikacji.
 `In-app notifications` obejmuje inne wątki i czaty botów na tym urządzeniu. Alerty botów
 korzystają ze wspólnych z web reguł świeżości wiadomości, pytań i zatwierdzeń. Pierwszy odczyt,
 wznowienie po uśpieniu i odczyt po błędzie tworzą cichą bazę. Boty zarchiwizowane, przeczytane
-wiadomości i aktualnie otwarty czat nie pokazują alertu. To wyłącznie JS w otwartej aplikacji;
-nie rejestruje powiadomień systemowych ani obsługi w tle.
+wiadomości i aktualnie otwarty czat nie pokazują alertu. Ustawienie dotyczy alertów
+w otwartej aplikacji. Osobne ustawienie **System notifications** korzysta z natywnej
+obsługi systemowej w tle.
 Wątki w **Snoozed** i ich wątki boczne nie pokazują powiadomień w aplikacji.
 Ręczne i automatyczne wybudzenie pomija alerty z okresu uśpienia. Datę i godzinę
 wybiera się w tym samym selektorze kalendarza co przy harmonogramach.

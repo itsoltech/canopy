@@ -1,10 +1,19 @@
 # Canopy Desktop
 
-Status: opis zaimplementowanego runtime i pakowania (2026-11-23), w tym dziennego
-pingu użycia z przełącznikiem prywatności i pomijaniem wysyłki offline. Aktualizator używa
+Status: opis zaimplementowanego runtime i pakowania (2026-11-23). Ekran startu,
+okna, zasobnik i instalatory używają ikon z propozycji 19 dla Stable, Beta,
+Nightly i lokalnego Dev. Opis obejmuje też dzienny ping użycia z przełącznikiem
+prywatności i pomijaniem wysyłki offline. Aktualizator używa
 `electron-updater` 6.8.11. Build i ustawienia
 udostępniają licencje dołączonych komponentów. Powłoka ładowania
-korzysta z wyglądu tej instalacji także przy niedostępnym gatewayu. Build przypina Electron 45.4.1,
+korzysta z wyglądu tej instalacji także przy niedostępnym gatewayu.
+Ikona aplikacji macOS zawiera małe reprezentacje 1× i 2× zgodne z odczytem z bundla.
+Desktop w trybie lokalnym aktywuje relay Canopy po weryfikacji sparowanego
+telefonu. Od 2026-11-23 oba tryby Desktopu pozwalają wybrać relay Canopy lub
+skonfigurować własny na bieżącym gatewayu przez **Settings → Network access**.
+Gateway szyfruje poświadczenie i stosuje zapis bez restartu.
+[Konfiguracja relaya](deploy.md#relay-powiadomień-push).
+Build przypina Electron 45.4.1,
 Bun 1.4.5 i PostgreSQL 18.7 dla trybu lokalnego. Opis obejmuje też ograniczenia
 prywatnej kopii aktywnego wątku przed wysłaniem jej do procesu głównego oraz przekazywania
 systemowej zmiennej `OS` do instalatora Codex Standalone na Windows,
@@ -443,9 +452,11 @@ Niepełne `initdb` również zgłasza błąd zamiast usuwać istniejące dane.
 ### Ekran uruchamiania
 
 Kontroler odczytuje zapisany tryb z `desktop.json` przed otwarciem pierwszego okna.
-Skonfigurowana aplikacja ładuje `/desktop` jako ekran startu: logo Canopy, krótki
-status połączenia ze zdalnym hostem lub startu usług lokalnych, a przy pobieraniu
-PostgreSQL pasek postępu. Błędy udostępniają „Try again” i „Open desktop settings”.
+Skonfigurowana aplikacja ładuje `/desktop` jako ekran startu. Ikona pochodzi
+z kanału zainstalowanej aplikacji i jest dostępna przed połączeniem z gatewayem.
+Ekran pokazuje krótki status połączenia ze zdalnym hostem lub startu usług lokalnych,
+a przy pobieraniu PostgreSQL także pasek postępu. Błędy udostępniają „Try again”
+i „Open desktop settings”.
 Jeśli PostgreSQL zgłosi odmowę pracy z uprawnieniami administratora, ekran od razu
 wyjaśnia przyczynę i poleca zamknąć Canopy oraz otworzyć je bez „Run as administrator”.
 Komunikat wynika z odpowiedzi procesu bazy, nie z samego braku gotowości SQL;
@@ -687,10 +698,13 @@ bun run --cwd apps/desktop package:windows
 `CANOPY_TARGET` opcjonalnie deklaruje cel i musi zgadzać się z hostem. Build odrzuca
 cross-host, zamiast dołączyć niezgodne biblioteki sharp lub pin PostgreSQL. Do ponownego
 pakowania już zbudowanego runtime: `bun run --cwd apps/desktop scripts/package.ts`.
-`CANOPY_CHANNEL=stable|beta|nightly` określa kanał buildu i domyślny wybór aktualizacji (domyślnie stable).
+`CANOPY_CHANNEL` jawnie wybiera wygląd buildu. Bez tej zmiennej powłoka rozpoznaje
+Stable, Beta i Nightly po `CANOPY_VERSION`; wersja deweloperska i uruchomienie
+ze źródeł bez wersji mają ikonę Dev. Wydania ustawiają obie zmienne.
 Przykład: `CANOPY_CHANNEL=beta CANOPY_VERSION=0.2.0-beta.1 bun run --cwd apps/desktop package:mac`.
 Wynik jest w `apps/desktop/release/<kanał>/`; katalog jest ignorowany przez git.
-Skrypt pakowania w razie zmiany kanału odświeża shell i ikonę, zachowując zbudowany runtime.
+Skrypt pakowania w razie zmiany kanału przebudowuje powłokę i zachowuje
+zbudowany runtime. Zasoby ikony pobiera z katalogu wybranego kanału przy każdym pakowaniu.
 
 | Cel | Host / przykład runnera GitHub Actions | Pakiet PG | Instalator | Weryfikacja tutaj |
 | --- | --- | --- | --- | --- |
@@ -831,19 +845,31 @@ Zmiana kanału zastępuje tę samą aplikację. userData jest wspólne: macOS
 `~/Library/Application Support/Canopy`, Windows `%APPDATA%/Canopy`, Linux
 `${XDG_CONFIG_HOME:-~/.config}/Canopy`. `CANOPY_USER_DATA` pozostaje nadpisaniem diagnostycznym.
 
-Nazwa widoczna i ikona zależą od **zainstalowanego buildu**: stable to `Canopy`
-z niezmienionym źródłowym PNG; beta to `Canopy (Beta)` z drzewem w oliwkowo-złotych
-barwach na tle zachodu; nightly to `Canopy (Nightly)` z drzewem w chłodnych,
-przygaszonych barwach, gwiazdami i księżycem. Zmiana preferencji aktualizacji nie
-zmienia nazwy ani ikony przed instalacją. Sidebar oznacza wersję
-uruchomionego web buildu; sekcja App updates pokazuje wersję i kanał samego Electrona,
-także gdy lokalny frontend łączy się ze zdalnym gatewayem o innej wersji.
+Nazwa widoczna i ikona pochodzą z metadanych zbudowanej powłoki. Stable ma nazwę
+`Canopy` i zielone drzewo na jasnym tle. Beta (`Canopy (Beta)`) ma bursztynowe
+tło i dwa opadające liście. Nightly (`Canopy (Nightly)`) ma fioletowe tło,
+półksiężyc i gwiazdy. Lokalny Dev zachowuje nazwę `Canopy` i ma jasny obrys
+drzewa na niebieskiej siatce. Warianty pokazuje [propozycja 19](../design/brand/app-icons-19).
+
+Lokalne uruchomienie Electron czyta PNG z `apps/web/static/channels/<kanał>/`
+(dla Dev: `development`). Instalator umieszcza wybrany PNG w zasobach aplikacji
+jako `icon.png` na potrzeby okien i zasobnika. macOS odczytuje ikonę Docka
+z ICNS w zainstalowanym bundlu; uruchomienie ze źródeł ustawia ją z PNG.
+Ekran startu otrzymuje ścieżkę ikony powłoki przez preload. Sidebar oznacza
+wersję uruchomionego web buildu. Wybór kanału aktualizacji działa niezależnie
+od ikony także w trybie Remote. Ustawienia aktualizacji obsługują Stable, Beta
+i Nightly; dla lokalnego Dev domyślnym wyborem jest Stable.
 
 | Platforma | Zależne od kanału | Stałe przy zmianie kanału |
 |---|---|---|
 | macOS | `CFBundleDisplayName` (Dock), ikona ICNS, menu aplikacji, About i tytuł okna | Nazwa pliku bundle, `CFBundleName`, executable, bundle ID i identyfikatory helperów |
 | Windows | Nazwy skrótów NSIS, `uninstallDisplayName`, ikona ICO i tytuł okna | `productName`, katalog instalacji, appId/GUID, executable, klucze rejestru instalatora i cache aktualizacji |
 | Linux | `Name` wpisu desktop, PNG i tytuł okna | `canopy.desktop`, `StartupWMClass`, nazwa pakietu deb, katalog instalacji i wzorzec `artifactName` |
+
+Dla 16 i 32 pt w skali 1× ICNS używa osobnych danych RGB i maski alfa, a w skali 2×
+używa PNG. Zapobiega to zniekształceniu małych ikon, które macOS może pokazać przy
+odczycie PNG zapisanych w blokach `icp4` i `icp5` z bundla aplikacji. Weryfikacja
+konkretnego launchera wymaga sprawdzenia zainstalowanej aplikacji na macOS.
 
 `desktopUserData()` jawnie przypina katalog do `Canopy`, niezależnie od nazwy
 widocznej. Także `app.setName()` pozostaje `Canopy`: Electron 45 używa tej wartości

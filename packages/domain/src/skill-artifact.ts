@@ -28,6 +28,9 @@ export function skillManifestDigest(files: readonly Pick<SkillFile, "path" | "ch
 }
 
 const Metadata = Schema.Struct({ name: Schema.String, description: Schema.String });
+const SKILL_DESCRIPTION_LENGTH = 1024;
+
+export class InvalidSkillYamlError extends Error {}
 
 export function validateArtifactFiles(input: readonly SkillFile[]) {
   if (!input.length || input.length > SKILL_FILE_COUNT) throw new Error("Upload between 1 and 1000 skill files.");
@@ -83,11 +86,27 @@ export function validateSkillFiles(input: readonly SkillFile[]) {
     .match(/^---\r?\n([\s\S]*?)\r?\n---(?:\r?\n|$)/);
 
   if (!frontmatter) throw new Error("SKILL.md must start with YAML name and description frontmatter.");
-  const metadata = Schema.decodeUnknownSync(Metadata)(Bun.YAML.parse(frontmatter[1]!));
+  let metadata;
 
-  if (!skillName(metadata.name) || !metadata.description.trim() || metadata.description.length > 1024)
-    throw new Error("Use a lowercase hyphenated skill name (64 characters) and a description (1024 characters).");
+  try {
+    metadata = Schema.decodeUnknownSync(Metadata)(Bun.YAML.parse(frontmatter[1]!));
+  } catch (cause) {
+    if (!(cause instanceof SyntaxError)) throw cause;
+    throw new InvalidSkillYamlError("SKILL.md contains invalid YAML. Fix the file, then retry.");
+  }
+
+  if (!skillName(metadata.name) || !metadata.description.trim())
+    throw new Error("Use a lowercase hyphenated skill name (64 characters) and a nonempty description.");
   checkSkillPath(metadata.name);
 
-  return create(SkillArtifactSchema, { ...metadata, files, checksum: skillManifestDigest(files) });
+  // Keep the library summary bounded and preserve the source SKILL.md and its checksum.
+  const description =
+    metadata.description.length > SKILL_DESCRIPTION_LENGTH
+      ? `${metadata.description
+          .slice(0, SKILL_DESCRIPTION_LENGTH - 1)
+          .trimEnd()
+          .toWellFormed()}…`
+      : metadata.description;
+
+  return create(SkillArtifactSchema, { name: metadata.name, description, files, checksum: skillManifestDigest(files) });
 }

@@ -1,10 +1,13 @@
 import { mkdirSync, readFileSync, renameSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { z } from "zod";
-import { parseOpenAiRates, rateHash, type FrozenOpenAiRates } from "./openai-rates.ts";
+import { parseModelRates, rateHash, type FrozenModelRates } from "./model-rates.ts";
 
-export const OPENAI_CATALOG_SOURCE =
-  "https://raw.githubusercontent.com/anomalyco/models.dev/dev/providers/openai/models/";
+const CATALOG_ROOT = "https://raw.githubusercontent.com/anomalyco/models.dev/dev/providers";
+
+type PricingProvider = "openai" | "xai";
+
+type CatalogOptions = { source?: string; now?: () => number };
 
 const DAY = 86_400_000;
 const MAX_MODELS = 256;
@@ -23,10 +26,10 @@ const diskSchema = z.object({
   entries: z.array(entrySchema).max(MAX_MODELS),
 });
 
-type Entry = z.infer<typeof entrySchema> & { frozen?: FrozenOpenAiRates };
+type Entry = z.infer<typeof entrySchema> & { frozen?: FrozenModelRates };
 
-/** Official OpenAI files only; durable misses, last-good prices and backoff survive worker restarts. */
-export class OpenAiPricingCatalog {
+/** Provider-scoped prices, durable misses and backoff survive worker restarts. */
+class ModelPricingCatalog {
   readonly #entries = new Map<string, Entry>();
   readonly #path: string;
   readonly #now: () => number;
@@ -35,14 +38,18 @@ export class OpenAiPricingCatalog {
   #pending: Promise<void> | undefined;
   #fetchingModel: string | undefined;
 
-  constructor(dataDir: string, options: { source?: string; now?: () => number } = {}) {
-    this.#path = join(dataDir, "pricing", "openai.json");
-    this.#source = options.source ?? OPENAI_CATALOG_SOURCE;
+  constructor(
+    dataDir: string,
+    readonly provider: PricingProvider,
+    options: CatalogOptions,
+  ) {
+    this.#path = join(dataDir, "pricing", `${provider}.json`);
+    this.#source = options.source ?? `${CATALOG_ROOT}/${provider}/models/`;
     this.#now = options.now ?? Date.now;
     this.#restore();
   }
 
-  get(model: string): FrozenOpenAiRates | undefined {
+  get(model: string): FrozenModelRates | undefined {
     return this.#entries.get(model)?.frozen;
   }
 
@@ -82,7 +89,7 @@ export class OpenAiPricingCatalog {
       source: `${this.#source}${entry.id}.toml`,
       sourceDate: entry.sourceDate,
       hash: rateHash(entry.text),
-      rates: parseOpenAiRates(entry.text, entry.id),
+      rates: parseModelRates(entry.text, this.provider),
     };
   }
 
@@ -173,6 +180,18 @@ export class OpenAiPricingCatalog {
     } catch {
       // Read-only storage must not prevent a turn; the process still retains its bounded cache.
     }
+  }
+}
+
+export class OpenAiPricingCatalog extends ModelPricingCatalog {
+  constructor(dataDir: string, options: CatalogOptions = {}) {
+    super(dataDir, "openai", options);
+  }
+}
+
+export class XaiPricingCatalog extends ModelPricingCatalog {
+  constructor(dataDir: string, options: CatalogOptions = {}) {
+    super(dataDir, "xai", options);
   }
 }
 

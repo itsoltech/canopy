@@ -2,13 +2,30 @@ import { afterAll, beforeAll, describe, expect, test } from "bun:test";
 import { create } from "@bufbuild/protobuf";
 import { Provider, ThreadEventSchema, ui } from "@canopy/contracts";
 import { dockerAvailable } from "@canopy/db/testing";
+import { qualifyId } from "@canopy/domain/computers";
+import { remoteServe, uiHandlers } from "@canopy/gateway/api";
 import { Effect } from "effect";
 import { SqlClient } from "effect/sql";
 import { ComputerStore } from "../../apps/gateway/src/computers/store.ts";
 import { readThreadRange } from "../../apps/gateway/src/computers/range-source.ts";
 import { freezeThread } from "../../apps/gateway/src/computers/move-source.ts";
 import { ingestThread } from "../../apps/gateway/src/store/ingest.ts";
-import { eventually, failure, startTestGateway } from "./support/gateway.ts";
+import { linkedComputers } from "./support/computers.ts";
+import { eventually, failure, startTestGateway, type TestGateway } from "./support/gateway.ts";
+
+function moveLinks(gateway: TestGateway, store: ComputerStore) {
+  const links = linkedComputers({
+    store,
+    host: "127.0.0.1",
+    core: gateway.core,
+    serve: remoteServe(uiHandlers(gateway.core), gateway.core),
+  });
+
+  gateway.core.computers = links;
+  gateway.core.network = links.options.network;
+
+  return links;
+}
 
 describe.skipIf(!dockerAvailable)("thread publication, sends and moves lock ordering", () => {
   let gateway: Awaited<ReturnType<typeof startTestGateway>>;
@@ -233,12 +250,12 @@ describe.skipIf(!dockerAvailable)("thread publication, sends and moves lock orde
     let sending: Promise<string> | undefined;
 
     try {
-      const movingPid = await blockedQuery("ORDER BY (id = ", pid);
+      await blockedQuery("FROM threads", pid);
       sending = failure(
         gateway.api.sendMessage({ threadId: thread, text: "during move", clientRequestId: crypto.randomUUID() }),
       );
-      // The sender queues behind the move's tuple lock, not a wall-clock delay.
-      await blockedQuery("", movingPid);
+      // With both row locks held, PostgreSQL can report either transaction as the sender's blocker.
+      await blockedQuery("AND purged_at IS NULL FOR UPDATE");
     } finally {
       gate.release();
       await Promise.allSettled([reading, moving, sending, gate.done]);
@@ -253,4 +270,105 @@ describe.skipIf(!dockerAvailable)("thread publication, sends and moves lock orde
     expect(error).not.toBe("");
     expect((await store.query("SELECT id FROM turns WHERE thread_id=$1::uuid", [thread])).length).toBe(0);
   }, 15_000);
+
+  test("StartMove lets a side thread finish rechecking its parent foreign keys", async () => {
+    const parentId = await newThread();
+    const { thread: parent } = await gateway.api.getThread({ threadId: parentId });
+
+    const { thread: child } = await gateway.api.createThread({
+      projectId: parent!.projectId,
+      workspaceId: parent!.workspaceId,
+      provider: Provider.CODEX,
+      parentThreadId: parentId,
+      title: "Side thread with an in-flight write",
+    });
+
+    const childId = child!.id;
+
+    const ready = await eventually(
+      () => gateway.api.getThread({ threadId: childId }),
+      ({ thread }) => thread?.status === "idle",
+    );
+
+    expect(ready.thread?.status).toBe("idle");
+    const target = await startTestGateway({ role: "desktop" });
+    const sourceLinks = moveLinks(gateway, store);
+    const targetLinks = moveLinks(target, new ComputerStore(target.runtime, target.userId, target.secretsKey));
+
+    try {
+      await Promise.all([sourceLinks.start(), targetLinks.start()]);
+      const nodeId = targetLinks.hello().nodeId;
+      const invitation = await target.api.createComputerPairing({});
+      await gateway.api.linkComputer({ address: targetLinks.addresses[0]!, code: invitation.code });
+      expect(await eventually(async () => sourceLinks.reachable().includes(nodeId), Boolean, 15_000)).toBe(true);
+
+      const project = (await target.api.createProject({ name: "Move target" })).project!;
+
+      const workspace = (
+        await target.api.createWorkspace({ projectId: project.id, workerId: target.workerId, rootPath: "/repo/move" })
+      ).workspace!;
+
+      const locked = Promise.withResolvers<number>();
+      const release = Promise.withResolvers<void>();
+
+      const writer = gateway.runtime.runPromise(
+        SqlClient.SqlClient.use((sql) =>
+          sql.withTransaction(
+            Effect.gen(function* () {
+              yield* sql`UPDATE threads SET last_seq=last_seq WHERE id=${childId}::uuid`;
+              locked.resolve((yield* sql<{ pid: number }>`SELECT pg_backend_pid() AS pid`)[0]!.pid);
+              yield* Effect.promise(() => release.promise);
+              // Like worker ingest, a second update in the same transaction rechecks the parent FK.
+              yield* sql`UPDATE threads SET last_seq=last_seq WHERE id=${childId}::uuid`;
+            }),
+          ),
+        ),
+      );
+
+      void writer.catch(locked.reject);
+      let moving: Promise<ui.MovesSnapshot> | undefined;
+      let waiting: Promise<number> | undefined;
+
+      try {
+        const pid = await locked.promise;
+        moving = gateway.api.startMove(
+          {
+            nodeId,
+            items: [{ kind: "thread", id: parentId }],
+            placements: [{ projectId: parent!.projectId, workspaceId: qualifyId(workspace.id, nodeId) }],
+          },
+          { timeoutMs: 10_000 },
+        );
+
+        waiting = blockedQuery("FROM threads", pid);
+        await Promise.race([
+          waiting,
+          moving.then(() => {
+            throw new Error("StartMove completed before waiting on the side-thread writer");
+          }),
+        ]);
+      } finally {
+        release.resolve();
+        await Promise.allSettled([waiting, moving, writer]);
+      }
+
+      const [started] = await Promise.all([moving, writer]);
+      const move = started?.moves[0];
+      expect(move?.itemId).toBe(parentId);
+
+      const arrived = await eventually(
+        async () => (await target.api.getMoves({})).moves.find((record) => record.id === move?.id),
+        (record) => record?.state === "done",
+        15_000,
+      );
+
+      expect(arrived).toMatchObject({ state: "done", error: "" });
+      expect((await target.api.getThread({ threadId: childId })).thread?.parentThreadId).toBe(parentId);
+    } finally {
+      await Promise.allSettled([sourceLinks.close(), targetLinks.close()]);
+      delete gateway.core.computers;
+      delete gateway.core.network;
+      await target.close();
+    }
+  }, 45_000);
 });

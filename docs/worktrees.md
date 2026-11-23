@@ -5,7 +5,8 @@ Kopiowanie workspace'u na nowy worker tworzy samodzielny checkout także ze
 wybór obejmuje tylko ignorowane pliki lokalne bez zależności i wyniku builda. Ograniczenia Git:
 [workspace-copy.md](workspace-copy.md).
 
-Status: **etapy 1–3 zaimplementowane** (2026-11-22), w tym sprawdzanie dostępu konektora GitHub
+Status: **etapy 1–3 zaimplementowane** (2026-11-23), w tym ponawianie odczytu opcji workspace'u
+po przejściowym błędzie w kompozytorze web/desktop i sprawdzanie dostępu konektora GitHub
 do projektu worktree przy potwierdzaniu merge, wydłużony limit checkoutu do 240 s na zgodnych wersjach
 gatewaya i workera, sprzątanie lokalnych gałęzi po merge
 i archiwizacji, ponowne wykorzystanie checkoutu terminu harmonogramu po wznowieniu Threads,
@@ -145,6 +146,11 @@ Gateway przyjmuje wyłącznie id workspace'u projektu właściciela. Nie przyjmu
 repozytorium od klienta. Discovery używa istniejącego `ListGitRefs` (`worktrees_only` pomija
 refy i status), ma wspólny limit 3 s oraz cache 2 s na workerze (maksymalnie 64 workspace'y).
 Otwarcie pickera odświeża listę; poprzedni snapshot pozostaje widoczny podczas odczytu.
+Web/desktop zaczyna odczyt dla wybranego workspace'u, gdy worker jest online
+i obsługuje worktrees. Worker może wtedy jeszcze stosować konfigurację startową.
+Po przekroczeniu limitu czasu lub chwilowej niedostępności BFF ponawia odczyt raz,
+po sekundzie, dla tego samego workspace'u. Zmiana workspace'u lub zamknięcie
+kompozytora anuluje oczekiwanie na jego wynik.
 Id odkrytego wpisu jest deterministycznym skrótem id workspace'u i ścieżki, a nie uprawnieniem.
 Przed wyborem gateway ponawia discovery bez cache (`fresh_worktrees`) i sprawdza wpis od nowa.
 

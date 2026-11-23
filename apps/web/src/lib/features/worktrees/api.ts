@@ -22,10 +22,11 @@ export async function saveWorktreeSettings(
   return decode(ui.WorktreeSettingsResponseSchema, await requestJson("PUT", "/api/worktrees/settings", body));
 }
 
-export async function listGitRefs(workspaceId: string): Promise<ui.ListGitRefsResponse> {
+export async function listGitRefs(workspaceId: string, signal?: AbortSignal): Promise<ui.ListGitRefsResponse> {
   const body = encode(ui.ListGitRefsRequestSchema, create(ui.ListGitRefsRequestSchema, { workspaceId }));
 
-  return decode(ui.ListGitRefsResponseSchema, await requestJson("POST", "/api/worktrees/refs", body, 25_000));
+  // Leave room for the BFF to retry its 25 s read once.
+  return decode(ui.ListGitRefsResponseSchema, await requestJson("POST", "/api/worktrees/refs", body, 55_000, signal));
 }
 
 export async function workspaceBranches(workspaceId: string, worktreeId: string): Promise<ui.ListGitRefsResponse> {

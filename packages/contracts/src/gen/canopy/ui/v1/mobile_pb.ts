@@ -12,7 +12,7 @@ import type { Message } from "@bufbuild/protobuf";
  * Describes the file canopy/ui/v1/mobile.proto.
  */
 export const file_canopy_ui_v1_mobile: GenFile = /*@__PURE__*/
-  fileDesc("ChljYW5vcHkvdWkvdjEvbW9iaWxlLnByb3RvEgxjYW5vcHkudWkudjEiPgoXRGVza3RvcE1pZ3JhdGlvblJlcXVlc3QSEQoJd29ya2VyX2lkGAEgASgJEhAKCHBsYXRmb3JtGAIgASgJIhsKGUNsaWVudENhcGFiaWxpdGllc1JlcXVlc3Qi9gEKEkNsaWVudENhcGFiaWxpdGllcxIXCg9nYXRld2F5X3ZlcnNpb24YASABKAkSFAoMZ2F0ZXdheV9uYW1lGAIgASgJEhQKDG1pbl9wcm90b2NvbBgDIAEoDRIUCgxtYXhfcHJvdG9jb2wYBCABKA0SDwoHbWV0aG9kcxgFIAMoCRIqCgZyb3V0ZXMYBiABKAsyGi5jYW5vcHkudWkudjEuTW9iaWxlUm91dGVzEhQKDGdhdGV3YXlfcm9sZRgHIAEoCRIYChBsaW5rZWRfY29tcHV0ZXJzGAggASgIEhgKEG9mZmVyX29uYm9hcmRpbmcYCSABKAgi+gEKDE1vYmlsZURldmljZRIKCgJpZBgBIAEoCRIMCgRuYW1lGAIgASgJEhAKCHBsYXRmb3JtGAMgASgJEi4KCmNyZWF0ZWRfYXQYBCABKAsyGi5nb29nbGUucHJvdG9idWYuVGltZXN0YW1wEjAKDGxhc3Rfc2Vlbl9hdBgFIAEoCzIaLmdvb2dsZS5wcm90b2J1Zi5UaW1lc3RhbXASLgoKcmV2b2tlZF9hdBgGIAEoCzIaLmdvb2dsZS5wcm90b2J1Zi5UaW1lc3RhbXASFwoPcGFpcmluZ192ZXJzaW9uGAcgASgNEhMKC2NsaWVudF9raW5kGAggASgJItABCg1Nb2JpbGVQYWlyaW5nEgoKAmlkGAEgASgJEi4KCmV4cGlyZXNfYXQYAiABKAsyGi5nb29nbGUucHJvdG9idWYuVGltZXN0YW1wEisKB3VzZWRfYXQYAyABKAsyGi5nb29nbGUucHJvdG9idWYuVGltZXN0YW1wEi4KCnJldm9rZWRfYXQYBCABKAsyGi5nb29nbGUucHJvdG9idWYuVGltZXN0YW1wEhEKCWRldmljZV9pZBgFIAEoCRITCgtjbGllbnRfa2luZBgGIAEoCSIZChdHZXRNb2JpbGVEZXZpY2VzUmVxdWVzdCK3AQoYR2V0TW9iaWxlRGV2aWNlc1Jlc3BvbnNlEhMKC2dhdGV3YXlfdXJsGAEgASgJEisKB2RldmljZXMYAiADKAsyGi5jYW5vcHkudWkudjEuTW9iaWxlRGV2aWNlEi0KCHBhaXJpbmdzGAMgAygLMhsuY2Fub3B5LnVpLnYxLk1vYmlsZVBhaXJpbmcSKgoGcm91dGVzGAQgASgLMhouY2Fub3B5LnVpLnYxLk1vYmlsZVJvdXRlcyIcChpDcmVhdGVNb2JpbGVQYWlyaW5nUmVxdWVzdCKaAQobQ3JlYXRlTW9iaWxlUGFpcmluZ1Jlc3BvbnNlEiwKB3BhaXJpbmcYASABKAsyGy5jYW5vcHkudWkudjEuTW9iaWxlUGFpcmluZxIMCgRjb2RlGAIgASgJEhMKC2dhdGV3YXlfdXJsGAMgASgJEioKBnJvdXRlcxgEIAEoCzIaLmNhbm9weS51aS52MS5Nb2JpbGVSb3V0ZXMiHQoPTW9iaWxlSWRSZXF1ZXN0EgoKAmlkGAEgASgJIhkKF01vYmlsZU9wZXJhdGlvblJlc3BvbnNlIhsKGVVucGFpck1vYmlsZURldmljZVJlcXVlc3QiTAocRXhjaGFuZ2VNb2JpbGVQYWlyaW5nUmVxdWVzdBIMCgRjb2RlGAEgASgJEgwKBG5hbWUYAiABKAkSEAoIcGxhdGZvcm0YAyABKAkijQEKHUV4Y2hhbmdlTW9iaWxlUGFpcmluZ1Jlc3BvbnNlEioKBmRldmljZRgBIAEoCzIaLmNhbm9weS51aS52MS5Nb2JpbGVEZXZpY2USFAoMZGV2aWNlX3Rva2VuGAIgASgJEioKBnJvdXRlcxgDIAEoCzIaLmNhbm9weS51aS52MS5Nb2JpbGVSb3V0ZXMiNgoMTW9iaWxlUm91dGVzEhMKC2ZpbmdlcnByaW50GAEgASgJEhEKCWFkZHJlc3NlcxgCIAMoCTKIAQoUTW9iaWxlUGFpcmluZ1NlcnZpY2UScAoVRXhjaGFuZ2VNb2JpbGVQYWlyaW5nEiouY2Fub3B5LnVpLnYxLkV4Y2hhbmdlTW9iaWxlUGFpcmluZ1JlcXVlc3QaKy5jYW5vcHkudWkudjEuRXhjaGFuZ2VNb2JpbGVQYWlyaW5nUmVzcG9uc2UyigEKFURlc2t0b3BQYWlyaW5nU2VydmljZRJxChZFeGNoYW5nZURlc2t0b3BQYWlyaW5nEiouY2Fub3B5LnVpLnYxLkV4Y2hhbmdlTW9iaWxlUGFpcmluZ1JlcXVlc3QaKy5jYW5vcHkudWkudjEuRXhjaGFuZ2VNb2JpbGVQYWlyaW5nUmVzcG9uc2Uy5QEKF0Rlc2t0b3BNaWdyYXRpb25TZXJ2aWNlEl4KGUdldERlc2t0b3BNaWdyYXRpb25Sb3V0ZXMSJS5jYW5vcHkudWkudjEuRGVza3RvcE1pZ3JhdGlvblJlcXVlc3QaGi5jYW5vcHkudWkudjEuTW9iaWxlUm91dGVzEmoKFE1pZ3JhdGVEZXNrdG9wQ2xpZW50EiUuY2Fub3B5LnVpLnYxLkRlc2t0b3BNaWdyYXRpb25SZXF1ZXN0GisuY2Fub3B5LnVpLnYxLkV4Y2hhbmdlTW9iaWxlUGFpcmluZ1Jlc3BvbnNlYgZwcm90bzM", [file_google_protobuf_timestamp]);
+  fileDesc("ChljYW5vcHkvdWkvdjEvbW9iaWxlLnByb3RvEgxjYW5vcHkudWkudjEiPgoXRGVza3RvcE1pZ3JhdGlvblJlcXVlc3QSEQoJd29ya2VyX2lkGAEgASgJEhAKCHBsYXRmb3JtGAIgASgJIhsKGUNsaWVudENhcGFiaWxpdGllc1JlcXVlc3QihwMKEkNsaWVudENhcGFiaWxpdGllcxIXCg9nYXRld2F5X3ZlcnNpb24YASABKAkSFAoMZ2F0ZXdheV9uYW1lGAIgASgJEhQKDG1pbl9wcm90b2NvbBgDIAEoDRIUCgxtYXhfcHJvdG9jb2wYBCABKA0SDwoHbWV0aG9kcxgFIAMoCRIqCgZyb3V0ZXMYBiABKAsyGi5jYW5vcHkudWkudjEuTW9iaWxlUm91dGVzEhQKDGdhdGV3YXlfcm9sZRgHIAEoCRIYChBsaW5rZWRfY29tcHV0ZXJzGAggASgIEhgKEG9mZmVyX29uYm9hcmRpbmcYCSABKAgSIQoZbG9jYWxfcHVzaF9yZWxheV9zZXR0aW5ncxgKIAEoCBIbChNtYW5hZ2VkX21vYmlsZV9wdXNoGAsgASgIEhsKE3B1c2hfcmVsYXlfc2V0dGluZ3MYDCABKAgSEwoLbW9iaWxlX3B1c2gYDSABKAgSHQoVYXJjaGl2ZV93b3JrZXJfZmlsdGVyGA4gASgIIvoBCgxNb2JpbGVEZXZpY2USCgoCaWQYASABKAkSDAoEbmFtZRgCIAEoCRIQCghwbGF0Zm9ybRgDIAEoCRIuCgpjcmVhdGVkX2F0GAQgASgLMhouZ29vZ2xlLnByb3RvYnVmLlRpbWVzdGFtcBIwCgxsYXN0X3NlZW5fYXQYBSABKAsyGi5nb29nbGUucHJvdG9idWYuVGltZXN0YW1wEi4KCnJldm9rZWRfYXQYBiABKAsyGi5nb29nbGUucHJvdG9idWYuVGltZXN0YW1wEhcKD3BhaXJpbmdfdmVyc2lvbhgHIAEoDRITCgtjbGllbnRfa2luZBgIIAEoCSLQAQoNTW9iaWxlUGFpcmluZxIKCgJpZBgBIAEoCRIuCgpleHBpcmVzX2F0GAIgASgLMhouZ29vZ2xlLnByb3RvYnVmLlRpbWVzdGFtcBIrCgd1c2VkX2F0GAMgASgLMhouZ29vZ2xlLnByb3RvYnVmLlRpbWVzdGFtcBIuCgpyZXZva2VkX2F0GAQgASgLMhouZ29vZ2xlLnByb3RvYnVmLlRpbWVzdGFtcBIRCglkZXZpY2VfaWQYBSABKAkSEwoLY2xpZW50X2tpbmQYBiABKAkiGQoXR2V0TW9iaWxlRGV2aWNlc1JlcXVlc3QitwEKGEdldE1vYmlsZURldmljZXNSZXNwb25zZRITCgtnYXRld2F5X3VybBgBIAEoCRIrCgdkZXZpY2VzGAIgAygLMhouY2Fub3B5LnVpLnYxLk1vYmlsZURldmljZRItCghwYWlyaW5ncxgDIAMoCzIbLmNhbm9weS51aS52MS5Nb2JpbGVQYWlyaW5nEioKBnJvdXRlcxgEIAEoCzIaLmNhbm9weS51aS52MS5Nb2JpbGVSb3V0ZXMiHAoaQ3JlYXRlTW9iaWxlUGFpcmluZ1JlcXVlc3QimgEKG0NyZWF0ZU1vYmlsZVBhaXJpbmdSZXNwb25zZRIsCgdwYWlyaW5nGAEgASgLMhsuY2Fub3B5LnVpLnYxLk1vYmlsZVBhaXJpbmcSDAoEY29kZRgCIAEoCRITCgtnYXRld2F5X3VybBgDIAEoCRIqCgZyb3V0ZXMYBCABKAsyGi5jYW5vcHkudWkudjEuTW9iaWxlUm91dGVzIh0KD01vYmlsZUlkUmVxdWVzdBIKCgJpZBgBIAEoCSIZChdNb2JpbGVPcGVyYXRpb25SZXNwb25zZSIbChlVbnBhaXJNb2JpbGVEZXZpY2VSZXF1ZXN0IhoKGFB1c2hSZWxheVNldHRpbmdzUmVxdWVzdCKjAQoRUHVzaFJlbGF5U2V0dGluZ3MSDgoGb3JpZ2luGAEgASgJEhYKDmhhc19wcml2YXRlX2NhGAIgASgIEhkKEW1hbmFnZWRfYXZhaWxhYmxlGAMgASgIEhYKDm1hbmFnZWRfb3JpZ2luGAQgASgJEhcKD21hbmFnZWRfZW5hYmxlZBgFIAEoCBIaChJtYW5hZ2VkX2J5X2RlZmF1bHQYBiABKAgihQEKHlVwZGF0ZVB1c2hSZWxheVNldHRpbmdzUmVxdWVzdBIOCgZyZW1vdmUYASABKAgSDgoGb3JpZ2luGAIgASgJEg4KBmJlYXJlchgDIAEoCRITCgZjYV9wZW0YBCABKAlIAIgBARITCgt1c2VfbWFuYWdlZBgFIAEoCEIJCgdfY2FfcGVtIlwKIFNldE1vYmlsZVB1c2hTdWJzY3JpcHRpb25SZXF1ZXN0Eg8KB2VuYWJsZWQYASABKAgSEgoKZXhwb190b2tlbhgCIAEoCRITCgtwcmV2aWV3X2tleRgDIAEoCSIzCh1CZWdpbk1hbmFnZWRNb2JpbGVQdXNoUmVxdWVzdBISCgpleHBvX3Rva2VuGAEgASgJIpABCh5CZWdpbk1hbmFnZWRNb2JpbGVQdXNoUmVzcG9uc2USFQoNZW5yb2xsbWVudF9pZBgBIAEoCRIRCgljaGFsbGVuZ2UYAiABKAkSJAocYW5kcm9pZF9jbG91ZF9wcm9qZWN0X251bWJlchgDIAEoCRIeChZyZWZyZXNoX2V4aXN0aW5nX2dyYW50GAQgASgIInMKIENvbXBsZXRlTWFuYWdlZE1vYmlsZVB1c2hSZXF1ZXN0EhUKDWVucm9sbG1lbnRfaWQYASABKAkSEwoLYXR0ZXN0YXRpb24YAiABKAkSDgoGa2V5X2lkGAMgASgJEhMKC3ByZXZpZXdfa2V5GAQgASgJIi4KGFJlc29sdmVNb2JpbGVQdXNoUmVxdWVzdBISCgpyZWNlaXB0X2lkGAEgASgJIlEKGVJlc29sdmVNb2JpbGVQdXNoUmVzcG9uc2USEwoJdGhyZWFkX2lkGAEgASgJSAASEAoGYm90X2lkGAIgASgJSABCDQoLZGVzdGluYXRpb24iTAocRXhjaGFuZ2VNb2JpbGVQYWlyaW5nUmVxdWVzdBIMCgRjb2RlGAEgASgJEgwKBG5hbWUYAiABKAkSEAoIcGxhdGZvcm0YAyABKAkijQEKHUV4Y2hhbmdlTW9iaWxlUGFpcmluZ1Jlc3BvbnNlEioKBmRldmljZRgBIAEoCzIaLmNhbm9weS51aS52MS5Nb2JpbGVEZXZpY2USFAoMZGV2aWNlX3Rva2VuGAIgASgJEioKBnJvdXRlcxgDIAEoCzIaLmNhbm9weS51aS52MS5Nb2JpbGVSb3V0ZXMiNgoMTW9iaWxlUm91dGVzEhMKC2ZpbmdlcnByaW50GAEgASgJEhEKCWFkZHJlc3NlcxgCIAMoCTKIAQoUTW9iaWxlUGFpcmluZ1NlcnZpY2UScAoVRXhjaGFuZ2VNb2JpbGVQYWlyaW5nEiouY2Fub3B5LnVpLnYxLkV4Y2hhbmdlTW9iaWxlUGFpcmluZ1JlcXVlc3QaKy5jYW5vcHkudWkudjEuRXhjaGFuZ2VNb2JpbGVQYWlyaW5nUmVzcG9uc2UyigEKFURlc2t0b3BQYWlyaW5nU2VydmljZRJxChZFeGNoYW5nZURlc2t0b3BQYWlyaW5nEiouY2Fub3B5LnVpLnYxLkV4Y2hhbmdlTW9iaWxlUGFpcmluZ1JlcXVlc3QaKy5jYW5vcHkudWkudjEuRXhjaGFuZ2VNb2JpbGVQYWlyaW5nUmVzcG9uc2Uy5QEKF0Rlc2t0b3BNaWdyYXRpb25TZXJ2aWNlEl4KGUdldERlc2t0b3BNaWdyYXRpb25Sb3V0ZXMSJS5jYW5vcHkudWkudjEuRGVza3RvcE1pZ3JhdGlvblJlcXVlc3QaGi5jYW5vcHkudWkudjEuTW9iaWxlUm91dGVzEmoKFE1pZ3JhdGVEZXNrdG9wQ2xpZW50EiUuY2Fub3B5LnVpLnYxLkRlc2t0b3BNaWdyYXRpb25SZXF1ZXN0GisuY2Fub3B5LnVpLnYxLkV4Y2hhbmdlTW9iaWxlUGFpcmluZ1Jlc3BvbnNlYgZwcm90bzM", [file_google_protobuf_timestamp]);
 
 /**
  * @generated from message canopy.ui.v1.DesktopMigrationRequest
@@ -103,6 +103,41 @@ export type ClientCapabilities = Message<"canopy.ui.v1.ClientCapabilities"> & {
    * @generated from field: bool offer_onboarding = 9;
    */
   offerOnboarding: boolean;
+
+  /**
+   * The local Desktop BFF can configure this gateway's push relay.
+   *
+   * @generated from field: bool local_push_relay_settings = 10;
+   */
+  localPushRelaySettings: boolean;
+
+  /**
+   * This paired phone can enroll for the managed relay using app attestation.
+   *
+   * @generated from field: bool managed_mobile_push = 11;
+   */
+  managedMobilePush: boolean;
+
+  /**
+   * The authenticated BFF service or paired desktop can configure this gateway's push relay.
+   *
+   * @generated from field: bool push_relay_settings = 12;
+   */
+  pushRelaySettings: boolean;
+
+  /**
+   * A manually configured push relay is available to this paired mobile client.
+   *
+   * @generated from field: bool mobile_push = 13;
+   */
+  mobilePush: boolean;
+
+  /**
+   * ListArchivedThreads honors worker_ids in its rows, count and cursors.
+   *
+   * @generated from field: bool archive_worker_filter = 14;
+   */
+  archiveWorkerFilter: boolean;
 };
 
 /**
@@ -344,6 +379,274 @@ export const UnpairMobileDeviceRequestSchema: GenMessage<UnpairMobileDeviceReque
   messageDesc(file_canopy_ui_v1_mobile, 11);
 
 /**
+ * @generated from message canopy.ui.v1.PushRelaySettingsRequest
+ */
+export type PushRelaySettingsRequest = Message<"canopy.ui.v1.PushRelaySettingsRequest"> & {
+};
+
+/**
+ * Describes the message canopy.ui.v1.PushRelaySettingsRequest.
+ * Use `create(PushRelaySettingsRequestSchema)` to create a new message.
+ */
+export const PushRelaySettingsRequestSchema: GenMessage<PushRelaySettingsRequest> = /*@__PURE__*/
+  messageDesc(file_canopy_ui_v1_mobile, 12);
+
+/**
+ * @generated from message canopy.ui.v1.PushRelaySettings
+ */
+export type PushRelaySettings = Message<"canopy.ui.v1.PushRelaySettings"> & {
+  /**
+   * Empty when no custom relay is configured. The bearer and CA are write-only.
+   *
+   * @generated from field: string origin = 1;
+   */
+  origin: string;
+
+  /**
+   * @generated from field: bool has_private_ca = 2;
+   */
+  hasPrivateCa: boolean;
+
+  /**
+   * The gateway uses or automatically falls back to a managed relay.
+   *
+   * @generated from field: bool managed_available = 3;
+   */
+  managedAvailable: boolean;
+
+  /**
+   * The managed relay the owner can select. Absent from older gateways.
+   *
+   * @generated from field: string managed_origin = 4;
+   */
+  managedOrigin: string;
+
+  /**
+   * @generated from field: bool managed_enabled = 5;
+   */
+  managedEnabled: boolean;
+
+  /**
+   * Removing a custom relay automatically restores the managed relay.
+   *
+   * @generated from field: bool managed_by_default = 6;
+   */
+  managedByDefault: boolean;
+};
+
+/**
+ * Describes the message canopy.ui.v1.PushRelaySettings.
+ * Use `create(PushRelaySettingsSchema)` to create a new message.
+ */
+export const PushRelaySettingsSchema: GenMessage<PushRelaySettings> = /*@__PURE__*/
+  messageDesc(file_canopy_ui_v1_mobile, 13);
+
+/**
+ * @generated from message canopy.ui.v1.UpdatePushRelaySettingsRequest
+ */
+export type UpdatePushRelaySettingsRequest = Message<"canopy.ui.v1.UpdatePushRelaySettingsRequest"> & {
+  /**
+   * @generated from field: bool remove = 1;
+   */
+  remove: boolean;
+
+  /**
+   * @generated from field: string origin = 2;
+   */
+  origin: string;
+
+  /**
+   * Omit to keep the existing credential at the same origin.
+   *
+   * @generated from field: string bearer = 3;
+   */
+  bearer: string;
+
+  /**
+   * Omit to keep the CA at the same origin. Send an empty string to use system trust.
+   *
+   * @generated from field: optional string ca_pem = 4;
+   */
+  caPem?: string | undefined;
+
+  /**
+   * Select the managed relay without supplying a custom relay credential.
+   *
+   * @generated from field: bool use_managed = 5;
+   */
+  useManaged: boolean;
+};
+
+/**
+ * Describes the message canopy.ui.v1.UpdatePushRelaySettingsRequest.
+ * Use `create(UpdatePushRelaySettingsRequestSchema)` to create a new message.
+ */
+export const UpdatePushRelaySettingsRequestSchema: GenMessage<UpdatePushRelaySettingsRequest> = /*@__PURE__*/
+  messageDesc(file_canopy_ui_v1_mobile, 14);
+
+/**
+ * @generated from message canopy.ui.v1.SetMobilePushSubscriptionRequest
+ */
+export type SetMobilePushSubscriptionRequest = Message<"canopy.ui.v1.SetMobilePushSubscriptionRequest"> & {
+  /**
+   * @generated from field: bool enabled = 1;
+   */
+  enabled: boolean;
+
+  /**
+   * @generated from field: string expo_token = 2;
+   */
+  expoToken: string;
+
+  /**
+   * Base64url AES-256-GCM key generated by the phone; sent only over the paired TLS connection.
+   *
+   * @generated from field: string preview_key = 3;
+   */
+  previewKey: string;
+};
+
+/**
+ * Describes the message canopy.ui.v1.SetMobilePushSubscriptionRequest.
+ * Use `create(SetMobilePushSubscriptionRequestSchema)` to create a new message.
+ */
+export const SetMobilePushSubscriptionRequestSchema: GenMessage<SetMobilePushSubscriptionRequest> = /*@__PURE__*/
+  messageDesc(file_canopy_ui_v1_mobile, 15);
+
+/**
+ * @generated from message canopy.ui.v1.BeginManagedMobilePushRequest
+ */
+export type BeginManagedMobilePushRequest = Message<"canopy.ui.v1.BeginManagedMobilePushRequest"> & {
+  /**
+   * @generated from field: string expo_token = 1;
+   */
+  expoToken: string;
+};
+
+/**
+ * Describes the message canopy.ui.v1.BeginManagedMobilePushRequest.
+ * Use `create(BeginManagedMobilePushRequestSchema)` to create a new message.
+ */
+export const BeginManagedMobilePushRequestSchema: GenMessage<BeginManagedMobilePushRequest> = /*@__PURE__*/
+  messageDesc(file_canopy_ui_v1_mobile, 16);
+
+/**
+ * @generated from message canopy.ui.v1.BeginManagedMobilePushResponse
+ */
+export type BeginManagedMobilePushResponse = Message<"canopy.ui.v1.BeginManagedMobilePushResponse"> & {
+  /**
+   * Empty when no new attestation is needed.
+   *
+   * @generated from field: string enrollment_id = 1;
+   */
+  enrollmentId: string;
+
+  /**
+   * @generated from field: string challenge = 2;
+   */
+  challenge: string;
+
+  /**
+   * @generated from field: string android_cloud_project_number = 3;
+   */
+  androidCloudProjectNumber: string;
+
+  /**
+   * The current grant can still refresh the subscription while the phone attests again.
+   *
+   * @generated from field: bool refresh_existing_grant = 4;
+   */
+  refreshExistingGrant: boolean;
+};
+
+/**
+ * Describes the message canopy.ui.v1.BeginManagedMobilePushResponse.
+ * Use `create(BeginManagedMobilePushResponseSchema)` to create a new message.
+ */
+export const BeginManagedMobilePushResponseSchema: GenMessage<BeginManagedMobilePushResponse> = /*@__PURE__*/
+  messageDesc(file_canopy_ui_v1_mobile, 17);
+
+/**
+ * @generated from message canopy.ui.v1.CompleteManagedMobilePushRequest
+ */
+export type CompleteManagedMobilePushRequest = Message<"canopy.ui.v1.CompleteManagedMobilePushRequest"> & {
+  /**
+   * @generated from field: string enrollment_id = 1;
+   */
+  enrollmentId: string;
+
+  /**
+   * @generated from field: string attestation = 2;
+   */
+  attestation: string;
+
+  /**
+   * Apple App Attest key identifier. Android leaves this empty.
+   *
+   * @generated from field: string key_id = 3;
+   */
+  keyId: string;
+
+  /**
+   * @generated from field: string preview_key = 4;
+   */
+  previewKey: string;
+};
+
+/**
+ * Describes the message canopy.ui.v1.CompleteManagedMobilePushRequest.
+ * Use `create(CompleteManagedMobilePushRequestSchema)` to create a new message.
+ */
+export const CompleteManagedMobilePushRequestSchema: GenMessage<CompleteManagedMobilePushRequest> = /*@__PURE__*/
+  messageDesc(file_canopy_ui_v1_mobile, 18);
+
+/**
+ * @generated from message canopy.ui.v1.ResolveMobilePushRequest
+ */
+export type ResolveMobilePushRequest = Message<"canopy.ui.v1.ResolveMobilePushRequest"> & {
+  /**
+   * @generated from field: string receipt_id = 1;
+   */
+  receiptId: string;
+};
+
+/**
+ * Describes the message canopy.ui.v1.ResolveMobilePushRequest.
+ * Use `create(ResolveMobilePushRequestSchema)` to create a new message.
+ */
+export const ResolveMobilePushRequestSchema: GenMessage<ResolveMobilePushRequest> = /*@__PURE__*/
+  messageDesc(file_canopy_ui_v1_mobile, 19);
+
+/**
+ * @generated from message canopy.ui.v1.ResolveMobilePushResponse
+ */
+export type ResolveMobilePushResponse = Message<"canopy.ui.v1.ResolveMobilePushResponse"> & {
+  /**
+   * @generated from oneof canopy.ui.v1.ResolveMobilePushResponse.destination
+   */
+  destination: {
+    /**
+     * @generated from field: string thread_id = 1;
+     */
+    value: string;
+    case: "threadId";
+  } | {
+    /**
+     * @generated from field: string bot_id = 2;
+     */
+    value: string;
+    case: "botId";
+  } | { case: undefined; value?: undefined };
+};
+
+/**
+ * Describes the message canopy.ui.v1.ResolveMobilePushResponse.
+ * Use `create(ResolveMobilePushResponseSchema)` to create a new message.
+ */
+export const ResolveMobilePushResponseSchema: GenMessage<ResolveMobilePushResponse> = /*@__PURE__*/
+  messageDesc(file_canopy_ui_v1_mobile, 20);
+
+/**
  * @generated from message canopy.ui.v1.ExchangeMobilePairingRequest
  */
 export type ExchangeMobilePairingRequest = Message<"canopy.ui.v1.ExchangeMobilePairingRequest"> & {
@@ -370,7 +673,7 @@ export type ExchangeMobilePairingRequest = Message<"canopy.ui.v1.ExchangeMobileP
  * Use `create(ExchangeMobilePairingRequestSchema)` to create a new message.
  */
 export const ExchangeMobilePairingRequestSchema: GenMessage<ExchangeMobilePairingRequest> = /*@__PURE__*/
-  messageDesc(file_canopy_ui_v1_mobile, 12);
+  messageDesc(file_canopy_ui_v1_mobile, 21);
 
 /**
  * @generated from message canopy.ui.v1.ExchangeMobilePairingResponse
@@ -397,7 +700,7 @@ export type ExchangeMobilePairingResponse = Message<"canopy.ui.v1.ExchangeMobile
  * Use `create(ExchangeMobilePairingResponseSchema)` to create a new message.
  */
 export const ExchangeMobilePairingResponseSchema: GenMessage<ExchangeMobilePairingResponse> = /*@__PURE__*/
-  messageDesc(file_canopy_ui_v1_mobile, 13);
+  messageDesc(file_canopy_ui_v1_mobile, 22);
 
 /**
  * Addresses are hints; only the out-of-band certificate fingerprint grants trust.
@@ -421,7 +724,7 @@ export type MobileRoutes = Message<"canopy.ui.v1.MobileRoutes"> & {
  * Use `create(MobileRoutesSchema)` to create a new message.
  */
 export const MobileRoutesSchema: GenMessage<MobileRoutes> = /*@__PURE__*/
-  messageDesc(file_canopy_ui_v1_mobile, 14);
+  messageDesc(file_canopy_ui_v1_mobile, 23);
 
 /**
  * Public, rate-limited exchange. No service token is ever sent to a phone.

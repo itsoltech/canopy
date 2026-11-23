@@ -187,6 +187,12 @@ service GatewayService {
   rpc RevokeMobilePairing(MobileIdRequest) returns (MobileOperationResponse);
   rpc RevokeMobileDevice(MobileIdRequest) returns (MobileOperationResponse);
   rpc UnpairMobileDevice(UnpairMobileDeviceRequest) returns (MobileOperationResponse);
+  rpc GetPushRelaySettings(PushRelaySettingsRequest) returns (PushRelaySettings);
+  rpc UpdatePushRelaySettings(UpdatePushRelaySettingsRequest) returns (PushRelaySettings);
+  rpc SetMobilePushSubscription(SetMobilePushSubscriptionRequest) returns (MobileOperationResponse);
+  rpc BeginManagedMobilePush(BeginManagedMobilePushRequest) returns (BeginManagedMobilePushResponse);
+  rpc CompleteManagedMobilePush(CompleteManagedMobilePushRequest) returns (MobileOperationResponse);
+  rpc ResolveMobilePush(ResolveMobilePushRequest) returns (ResolveMobilePushResponse);
   rpc GetWorkerSetup(GetWorkerSetupRequest) returns (GetWorkerSetupResponse);
   rpc CreateWorkerEnrollment(CreateWorkerEnrollmentRequest) returns (CreateWorkerEnrollmentResponse);
   rpc RevokeWorkerEnrollment(RevokeWorkerEnrollmentRequest) returns (WorkerOperationResponse);
@@ -1382,6 +1388,7 @@ message ListArchivedThreadsRequest {
   uint32 page_size = 3; // 0 = 20, najwyżej 100
   string page_token = 4; // nieprzezroczysty kursor; obowiązuje tylko dla tych samych filtrów
   bool count_only = 5; // zwinięta sekcja: bez przesyłania wierszy
+  repeated string worker_ids = 6; // puste = wszystkie; lokalne UUID lub identyfikatory połączonych komputerów
 }
 
 message ListArchivedThreadsResponse {

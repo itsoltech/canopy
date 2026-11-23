@@ -3,6 +3,7 @@ import { join } from "node:path";
 import { GrokClient } from "@canopy/grok-acp";
 import type { TextInput } from "../generate-text.ts";
 import type { ResolvedProfile } from "../profiles.ts";
+import type { XaiPricingCatalog } from "../pricing/model-catalog.ts";
 import { grokLaunch } from "./launch.ts";
 import { GrokSessionCost, grokPromptUsage } from "./consumed-usage.ts";
 import { textAgent } from "./text-agent.ts";
@@ -14,6 +15,7 @@ export async function generateGrokText(
   input: TextInput,
   options: {
     dataDir: string;
+    pricing?: XaiPricingCatalog;
     profile: ResolvedProfile;
     executable?: string | undefined;
     baseEnv?: NodeJS.ProcessEnv;
@@ -77,11 +79,8 @@ export async function generateGrokText(
 
     for await (const event of client.prompt(session.sessionId, [{ type: "text", text: input.prompt }], deadline)) {
       if (event.type === "complete") {
-        const snapshots = grokPromptUsage(event);
-
-        if (snapshots.length === 1 && cost !== undefined) snapshots[0]!.reportedCostUsd = cost;
-
-        for (const usage of snapshots) input.onConsumedUsage?.({ ...usage, requestedServiceTier: "default" });
+        if (input.onConsumedUsage)
+          for (const usage of await grokPromptUsage(event, cost, options.pricing)) input.onConsumedUsage(usage);
         deadline.throwIfAborted();
 
         if (event.stopReason !== "end_turn") throw new Error("Incomplete Grok text generation");

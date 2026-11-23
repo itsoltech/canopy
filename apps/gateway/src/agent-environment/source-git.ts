@@ -5,7 +5,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { create } from "@bufbuild/protobuf";
 import { SkillFileSchema, type ui } from "@canopy/contracts";
-import { checkSkillPath, SKILL_FILE_BYTES, SKILL_TOTAL_BYTES } from "@canopy/domain/skill-artifact";
+import { SKILL_FILE_BYTES, SKILL_TOTAL_BYTES } from "@canopy/domain/skill-artifact";
 import { sourceInvalid } from "./source-command.ts";
 import { publicSourceAddress } from "./source-address.ts";
 
@@ -213,7 +213,6 @@ export async function readGitSource<A>(
       if (!match || !["100644", "100755"].includes(match[1]!) || match[2] !== "blob")
         sourceInvalid("Repositories containing symlinks, submodules or special entries are rejected.");
       const path = match[5]!;
-      checkSkillPath(path);
       const size = Number(match[4]);
       total += size;
 

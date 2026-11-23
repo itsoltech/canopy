@@ -3,6 +3,7 @@ import { connectors } from "@canopy/contracts";
 import { ConnectorFailure } from "./records.ts";
 import { connectorUrl } from "./catalog.ts";
 import { beginOAuth } from "./sign-in.ts";
+import { OAuthStartFailure, type OAuthStartStage } from "./oauth-error.ts";
 import { beginSlackMessaging } from "./slack-messaging-oauth.ts";
 import { slackRequest, type SlackTransport } from "../messengers/slack-http.ts";
 import type { ConnectorsRuntime } from "./runtime.ts";
@@ -11,7 +12,7 @@ export async function beginConnectorOAuth(
   runtime: Pick<ConnectorsRuntime, "run">,
   user: string,
   request: connectors.BeginConnectorOAuthRequest,
-  transport?: SlackTransport,
+  options: { messengerTransport?: SlackTransport; log?: (message: string) => void },
 ) {
   if (!/^[\w-]{32,128}$/.test(request.browserBinding) || request.scope.length > 4000)
     throw new ConnectorFailure("Invalid OAuth session");
@@ -26,6 +27,7 @@ export async function beginConnectorOAuth(
   if (row.auth_kind !== "oauth") throw new ConnectorFailure("This account uses token authentication");
   const app = await runtime.run((s) => s.app(user, row.connector_type));
   const previous = await runtime.run((s) => s.credentials(row));
+  let stage: OAuthStartStage = "authorization";
 
   try {
     if (request.slackMessaging && (!app || previous.client?.client_id !== app.client_id))
@@ -39,7 +41,7 @@ export async function beginConnectorOAuth(
         previous.tokens.access_token,
         new URLSearchParams(),
         undefined,
-        transport,
+        options.messengerTransport,
       );
 
       if (!identity.team_id) throw new Error("Slack workspace is unavailable");
@@ -71,10 +73,14 @@ export async function beginConnectorOAuth(
     if (authorization.searchParams.get("code_challenge_method") !== "S256") throw new Error("PKCE required");
 
     if (request.slackMessaging && previous.slackTeamId) value.slackTeamId = previous.slackTeamId;
+    stage = "state";
     await runtime.run((s) => s.saveState(user, row, state, request.browserBinding, value));
 
     return create(connectors.BeginConnectorOAuthResponseSchema, { authorizationUrl: url });
-  } catch {
+  } catch (error) {
+    const failure = error instanceof OAuthStartFailure ? error : new OAuthStartFailure(stage);
+
+    options.log?.(`connectors: oauth start failed stage ${failure.stage} status ${failure.status}`);
     throw new ConnectorFailure("Could not start OAuth. Check the server metadata and registered OAuth app.");
   }
 }

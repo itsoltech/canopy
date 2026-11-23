@@ -2,6 +2,8 @@
 
 Status: opis zaimplementowanego workflow (2026-11-23). Buildy publikują wykazy licencji zależności. Automat sprawdza promocje co godzinę.
 Drzewo kanału zanika przy wyszukiwarce sidebara. Betę oznacza bursztynowa korona z opadającymi liśćmi.
+Natywne CI na macOS sprawdza odczyt małych reprezentacji ikon aplikacji.
+Release buduje i publikuje osobny obraz `canopy-push-relay` dla rewizji zawierających ten cel.
 Pakowanie Desktop i generowanie fingerprintu Expo używają poprawionego `minimatch`.
 Smoke Desktop czeka na zapis trasy Network access przed restartem workera podczas parowania.
 Pakowanie Desktop archiwizuje runtime do smoke z katalogu właściwego dla architektury Linuxa.
@@ -19,7 +21,7 @@ Release przed checkoutem źródeł, a podpisywanie i publikacja działają na ar
 w środowiskach chronionych. Smoke uruchamia spakowane pliki w osobnym jobie bez
 sekretów podpisu. Konfigurację środowisk utrzymuje maintainer.
 
-Jedna wersja dla wszystkich aplikacji (gateway, worker, web, desktop, mobile). Wersję wyznacza
+Jedna wersja dla wszystkich aplikacji (gateway, worker, web, desktop, mobile, relay push). Wersję wyznacza
 semantic-release z commitów Angular po squash merge. Wdrożenie: [deploy.md](deploy.md).
 Zasady commitów i wybór gałęzi: [contributing.md](contributing.md).
 
@@ -156,7 +158,8 @@ Wbudowany web dodaje do gatewaya ok. 13 MiB (linux-x64 0.3.0-dev: 131,0 → 144,
 
 ### Obrazy Docker
 
-Jeden `Dockerfile` (kontekst: root repozytorium), cele `gateway` (z wbudowanym web) i `worker`:
+Jeden `Dockerfile` z kontekstem w katalogu głównym repozytorium definiuje cele
+`gateway` (z wbudowanym web), `worker` i `push-relay`.
 
 ```sh
 V=$(bun scripts/version.ts --field version)
@@ -168,17 +171,20 @@ docker buildx build --target gateway --build-arg CANOPY_VERSION=$V --build-arg C
 | --- | --- | --- | --- | --- |
 | `canopy-gateway` | `debian:bookworm-slim` + git, ca-certificates, libstdc++6 | binarka gateway z wbudowanym web (`--web`, porty 7443 i 3000, `CANOPY_INSTALL_KIND=docker`, `CANOPY_WEB_HOST=0.0.0.0`); Git do źródeł skilli | `canopy` (65532), HOME `/home/canopy` | `canopy-gateway healthcheck` (TCP na `CANOPY_PORT` i `/api/health` web tej wersji) |
 | `canopy-worker` | `debian:bookworm-slim` + git, curl, ssh, tini | binarka worker | `canopy` (10001) | `canopy-worker healthcheck` (link online wg `CANOPY_WORKER_STATUS_FILE`) |
+| `canopy-push-relay` | `oven/bun:<wersja>-slim` | pakiet relaya uruchamiany przez Bun, HTTPS na 24444 | UID i GID 65532 | — |
 
 
-Wszystkie zmienne runtime mają prefiks `CANOPY_`.
+Zmienne runtime Canopy mają prefiks `CANOPY_`. Relay pobiera poświadczenie Expo
+z `EXPO_ACCESS_TOKEN` zgodnie z [instrukcją wdrożenia](deploy.md#relay-powiadomień-push).
 
 Obraz `canopy-web` nie jest już budowany ani wydawany: web jest częścią `canopy-gateway`
 (przejście dla Compose: [deploy.md](deploy.md#docker-compose-jeden-host)). Istniejące wersje i aliasy
 `canopy-web` w GHCR zostają nietknięte — release ich nie przesuwa, a retencja nightly ich nie usuwa;
 ewentualne sprzątanie pakietu należy do maintainera.
 
-Kompilacja zawsze na `BUILDPLATFORM` (cross-compile), więc arm64 nie wymaga emulacji poza
-`apt-get` w obrazie workera.
+Kompilacja binarek i bundlowanie relaya odbywają się na `BUILDPLATFORM`.
+Bundle relaya działa z Bun dla architektury obrazu docelowego.
+Etap instalacji pakietów systemowych używa architektury docelowej.
 
 ### Desktop
 
@@ -216,6 +222,8 @@ Podglądy mobilne obejmują maskę iOS w 1024/180/120/87/60 px, maski Androida
 (koło, squircle i zaokrąglony kwadrat), rząd ikon iPhone’a oraz duże ikony TestFlight.
 PNG, wielorozdzielcze ICO i ICNS, ikony Expo i osobne warstwy adaptive Androida
 są commitowane; release tylko wybiera właściwe pliki i nie wymaga generatora.
+Natywne CI uruchamia `iconutil` dla ICNS wszystkich kanałów i sprawdza, czy
+narzędzie eksportuje reprezentacje 16 i 32 pt w skali 1× i 2×.
 Generator wycina drzewo kluczem nasycenia/jasności, czyści i wygładza maskę oraz
 usuwa kolor tła z krawędzi. Cienie, półtony i światła otrzymują osobne stopnie
 koloru; światło z prawej pozostaje wewnątrz maski. Warianty zachowują oryginalny
@@ -531,7 +539,7 @@ verify → plan ─┬─ checks ────────────→ release
 | `verify` | Chroniony ref, pełne SHA, przynależność do historii gałęzi wydania | od razu | — |
 | `plan` | semantic-release **`--dry-run`** na przypiętym lustrze, macierz desktop, sprawdzenie SHA nowego stable względem publicznego nightly | po `verify`, w grupie `release-version-<ref>` | nic (próba pushu tylko do lustra) |
 | `binaries`, `smoke` | web raz, potem cross-compile wszystkich celów z web w gatewayu; `--version` każdej binarki i `/api/health` z `canopy-gateway web` na jej OS/arch; na linux-x64 pełny gateway (supervisor, PostgreSQL) z web na porcie 3000 | po `plan`, równolegle z checkami | — (artefakt Actions) |
-| `images-build` | buildx `gateway` i `worker`, amd64+arm64 jako archiwa OCI z SBOM i proweniencją; obraz gateway amd64 z cache przechodzi smoke obok PostgreSQL | po `plan` | — (artefakty Actions) |
+| `images-build` | buildx `gateway`, `worker` i `push-relay` dla amd64 i arm64 jako archiwa OCI z SBOM i proweniencją; smoke amd64 sprawdza web gatewaya obok PostgreSQL i HTTPS relaya | po `plan` | — (artefakty Actions) |
 | `desktop-build` | Kompilacja aplikacji i runtime na docelowej platformie | po `plan` | — (artefakty Actions) |
 | `desktop` | Pakowanie, podpisy i notaryzacja z przygotowanego runtime | po `desktop-build` i zielonych `checks` | — (artefakty Actions) |
 | `desktop-smoke` | Testy z `EXPECTED_SHA` uruchamiają spakowany runtime; na Windows instalują pakiet na odrębnym runnerze | po `desktop` | — |
@@ -1090,7 +1098,7 @@ oznacza liczbę wersji, nie gwarantowane 10 godzin historii.
    wymagać ręcznego przejścia na zachowany release.
    Drafty są pomijane przez retencję, także gdy mają już serwerowy `manifest.json`;
    pozostają do ponowienia albo ręcznego porządkowania przez maintainera.
-2. **GHCR** (`canopy-gateway`, `canopy-worker`, REST
+2. **GHCR** (`canopy-gateway`, `canopy-worker`, `canopy-push-relay`, REST
    `/orgs/{org}/packages/container/{name}/versions`). Usuwa wersję pakietu (digest) tylko gdy:
    - wszystkie jej tagi to wersje `vX.Y.Z-nightly.N`, których nightly nie jest już zachowany
      (także sprzed lat, bez release'u) i które są starsze od najnowszego ukończonego nightly;
@@ -1107,6 +1115,7 @@ oznacza liczbę wersji, nie gwarantowane 10 godzin historii.
    usuwanego rodzica (pochodzenie nieustalone) nie rusza; takie sieroty, np. po ręcznym usunięciu
    indeksu, usuwa administrator. Błąd odczytu rejestru pomija cały pakiet. Wycofany pakiet `canopy-web`
    nie jest przeglądany: jego wersje zostają.
+   Niedostępny pakiet relaya z odpowiedzią HTTP 404 jest pomijany, także przed pierwszą publikacją.
 
 Najpierw releases, potem GHCR: brak dostępu do pakietu kończy job błędem z opisem dopiero po
 przycięciu releases. Wydanie to nie dotyka — `nightly-hygiene` startuje po `publish-desktop` i nic od

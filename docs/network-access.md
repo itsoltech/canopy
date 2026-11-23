@@ -1,9 +1,13 @@
 # Dostęp sieciowy (Network access)
 
-Status (2026-11-22): w ustawieniach Network access można wybrać sieci, z których
+Status (2026-11-23): w ustawieniach Network access można wybrać sieci, z których
 gateway przyjmuje połączenia. Wybór obowiązuje na listenerze TLS i w ogłoszeniach
-tras. Tokeny urządzeń obowiązują na listenerze TLS, a worker sprawdza transport przy
-rejestracji, restarcie i wyborze trasy zapasowej. Dostępność według [zasad wydań](release.md).
+tras. Ustawienia pozwalają też zwiększyć limit załączników do 40 MiB na plik.
+Web serwerowy i Desktop w obu trybach pozwalają wybrać relay mobilnych
+powiadomień Canopy lub skonfigurować własny.
+Tokeny urządzeń obowiązują na listenerze TLS. Odwołanie urządzenia odcina
+przygotowane aktualizacje. Worker sprawdza transport przy rejestracji, restarcie i wyborze trasy
+zapasowej. Dostępność według [zasad wydań](release.md).
 
 Przełącznik **Settings → Network access → „Let phones and other computers connect”**
 uruchamia listener TLS dla połączonych komputerów i telefonów. W tych samych
@@ -16,7 +20,7 @@ sieci. Każde połączenie nadal wymaga przypiętego certyfikatu i uwierzytelnie
 desktopu ustala wewnętrzną rolę `desktop` dla własnego gatewaya; zwykły start gatewaya
 ma rolę `server`. Na serwerze przełącznik nosi nazwę „Let devices and workers connect”
 i obsługuje telefony, sparowane klienty desktopowe oraz workery. Nie uruchamia usług
-linkowania, discovery/mDNS, luster, wspólnej konfiguracji, przenoszenia ani relay.
+linkowania, discovery/mDNS, luster, wspólnej konfiguracji ani przenoszenia i pośrednictwa między gatewayami.
 Połączenia komputerów z certyfikatem klienta są odrzucane. Zapisane dawne relacje
 pozostają w bazie jako `inactive`, bez połączeń i synchronizacji.
 `GetClientCapabilities.linked_computers` steruje widocznością linkowania w webie
@@ -49,6 +53,20 @@ jej rolę pełni `UpdateNetworkAccess` `set_enabled`.
 opcjonalny port ustalony przez wdrożenie serwerowe (opublikowany port kontenera). Gdy jest ustawiony,
 wygrywa z portem z bazy, UI pokazuje go tylko do odczytu („Set by this server's configuration”),
 a zapisany w bazie wybór zostaje na start bez tej zmiennej. Niepoprawna wartość zatrzymuje start gatewaya.
+
+## Mobilne powiadomienia push
+
+W webie serwerowym i Desktop w obu trybach sekcja **Mobile push relay** pokazuje
+bieżący relay lub stan bez konfiguracji. **Use Canopy relay** włącza domyślny
+relay `https://notifications-relay.canopy.itsol.tech`. **Use custom relay**
+przyjmuje własny adres HTTPS i token. Telefon aktywuje relay Canopy przez atestację
+po włączeniu **System notifications**. Gateway zapisuje wybór i stosuje go bez
+restartu, także przy zamkniętym listenerze telefonu. Przejście na relay Canopy
+zachowuje wybory użytkowników i przełącza wysyłkę po aktywacji na telefonie.
+W trybie Remote potrzebny jest sparowany Desktop i gateway, który ogłasza obsługę
+konfiguracji relaya dla tej sesji. Zapis w panelu ma pierwszeństwo przed domyślną
+konfiguracją serwera z otoczenia procesu.
+[Wdrożenie relaya](deploy.md#relay-powiadomień-push).
 
 ## Listener
 

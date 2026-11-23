@@ -143,7 +143,7 @@ for await (const line of createInterface({ input: process.stdin })) {
       id: m.id,
       result: {
         stopReason: text.includes("REFUSE") ? "refusal" : "end_turn",
-        _meta: { modelId: "grok-4.7-fast", usage: { inputTokens: 3, outputTokens: 2 } },
+        _meta: { modelId: "grok-4.6", usage: { inputTokens: 3, outputTokens: 2 } },
       },
     });
   } else if (m.id === "reject" || m.id === "cancel") {

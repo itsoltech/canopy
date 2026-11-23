@@ -85,6 +85,20 @@ for await (const line of createInterface({ input: process.stdin })) {
 
     if (text.includes("FAIL_EXIT")) process.exit(7);
 
+    if (text.includes("USAGE_COST")) {
+      send({
+        id: m.id,
+        result: {
+          stopReason: "end_turn",
+          _meta: {
+            modelId: "grok-4.6",
+            usage: { inputTokens: 250_000, outputTokens: 10_000, cachedReadTokens: 50_000, reasoningTokens: 5_000 },
+          },
+        },
+      });
+      continue;
+    }
+
     // The sandbox profile this process runs with (the permission mode's launch setting).
     if (text.includes("SANDBOX")) {
       const profile = process.env["GROK_SANDBOX"] ?? "unset";

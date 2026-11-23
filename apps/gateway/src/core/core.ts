@@ -31,6 +31,7 @@ import type { ConnectorsRuntime } from "../connectors/runtime.ts";
 import { MessengerRuntime } from "../messengers/runtime.ts";
 import { WorkerAdministration } from "./worker-administration.ts";
 import { MobileDevices } from "./mobile-devices.ts";
+import { MobilePush } from "../push/mobile-push.ts";
 import { DesktopControl } from "../desktop-updates/control.ts";
 import { LocalAppControl } from "../desktop-updates/local.ts";
 import { DesktopUpdateStore } from "../desktop-updates/store.ts";
@@ -52,9 +53,8 @@ import type { LinkedComputers } from "../computers/runtime.ts";
 import type { NetworkAccess } from "../network/network.ts";
 import { LinkedAgents } from "../computers/agents.ts";
 import type { GatewayRole } from "../role.ts";
-import { coreState, type GatewayCoreOptions } from "./core-context.ts";
+import { coreState, GatewayCoreState, type GatewayCoreOptions } from "./core-context.ts";
 import { createCoreWorkerLink } from "./core-workers.ts";
-import { coreSendSteer } from "./core-messages.ts";
 import { coreAttachmentsMethods, type CoreAttachmentsMethods } from "./core-attachments.ts";
 import { coreBotThreadsMethods, type CoreBotThreadsMethods } from "./core-bot-threads.ts";
 import {
@@ -65,11 +65,10 @@ import {
   coreRun,
   type CoreBroadcastMethods,
 } from "./core-broadcast.ts";
-import { GatewayCoreState } from "./core-context.ts";
 import { coreGoalsMethods, coreStopTask, type CoreGoalsMethods } from "./core-goals.ts";
 import { coreInteractionsMethods, type CoreInteractionsMethods } from "./core-interactions.ts";
 import { coreMentionsMethods, type CoreMentionsMethods } from "./core-mentions.ts";
-import { coreMessagesMethods, type CoreMessagesMethods } from "./core-messages.ts";
+import { coreMessagesMethods, coreSendSteer, type CoreMessagesMethods } from "./core-messages.ts";
 import { coreModelsMethods, type CoreModelsMethods } from "./core-models.ts";
 import { coreProjectsMethods, type CoreProjectsMethods } from "./core-projects.ts";
 import { coreProvidersMethods, type CoreProvidersMethods } from "./core-providers.ts";
@@ -216,6 +215,7 @@ export class GatewayCore {
   readonly updateCenter: UpdateCenter;
 
   readonly mobile: MobileDevices;
+  readonly mobilePush: MobilePush;
   readonly desktopControl: DesktopControl;
   /** Local mode: this desktop app's own control channel (remote app updates from linked computers). */
   readonly appControl: LocalAppControl;
@@ -291,6 +291,7 @@ export class GatewayCore {
       network: () => this.network,
       publish: (update) => this.hub.publishOverview(update),
     });
+    this.mobilePush = MobilePush.forGateway(options);
     this.desktopControl = new DesktopControl(
       new DesktopUpdateStore(options.runtime, options.userId),
       this.mobile,
@@ -394,19 +395,17 @@ export class GatewayCore {
   // ------------------------------------------------------------------ attachments
 
   get attachmentLimits(): Promise<AttachmentLimits> {
-    return this.settingsStoreUser().then((user) =>
+    const { actions, options } = this[coreState];
+
+    return actions.run(SettingsStore.use((s) => s.user(options.userId))).then((user) =>
       user.attachmentLimits
         ? {
             maxFileBytes: Number(user.attachmentLimits.maxFileBytes),
             maxMessageBytes: Number(user.attachmentLimits.maxMessageBytes),
             maxFiles: user.attachmentLimits.maxFiles,
           }
-        : (this[coreState].options.attachmentLimits ?? DEFAULT_ATTACHMENT_LIMITS),
+        : (options.attachmentLimits ?? DEFAULT_ATTACHMENT_LIMITS),
     );
-  }
-
-  private settingsStoreUser() {
-    return this[coreState].actions.run(SettingsStore.use((s) => s.user(this[coreState].options.userId)));
   }
 }
 

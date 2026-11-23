@@ -6,7 +6,8 @@ import {
   type SdkMcpToolDefinition,
 } from "@anthropic-ai/claude-agent-sdk";
 import { AgentToolCallSchema, type AgentToolCall, type AgentToolResult, type ConnectorTool } from "@canopy/contracts";
-import { agentBusToolSpecs, agentBusToolsFor, VIEW_IMAGE_TOOL, viewImageSpec } from "@canopy/domain";
+import { agentBusToolSpecs, agentBusToolsFor, VIEW_IMAGE_TOOL, viewImageSpec, type ToolJsonSpec } from "@canopy/domain";
+import { ListToolsRequestSchema, ToolSchema, type Tool } from "@modelcontextprotocol/sdk/types.js";
 import { z } from "zod";
 import type { ViewImageResult } from "../../images/index.ts";
 import { toolCallId } from "../tool-call-id.ts";
@@ -19,6 +20,11 @@ import { decodeJsonObject, isString } from "../json.ts";
 const decodeExtra = Schema.decodeUnknownSync(
   Schema.Struct({ _meta: Schema.optionalKey(Schema.UndefinedOr(Schema.JsonObject)) }),
 );
+
+interface BusTool extends Omit<SdkMcpToolDefinition, "inputSchema"> {
+  inputSchema: Tool["inputSchema"];
+  argumentSchema: z.ZodType;
+}
 
 /**
  * Agent bus tools for Claude: an in-process MCP server "canopy" (tools `mcp__canopy__<name>`),
@@ -67,113 +73,102 @@ export function claudeBusToolNames(depth: number, hasDelegatingBot = false): str
 export const CLAUDE_VIEW_IMAGE_TOOL = `mcp__${BUS_SERVER}__${VIEW_IMAGE_TOOL}`;
 
 export function claudeBusServer(options: ClaudeBusOptions): McpSdkServerConfigWithInstance {
-  return createSdkMcpServer({
+  const tools = [
+    ...busTools(options),
+    ...(options.connectorTools ?? []).map((spec) => ({
+      name: spec.name,
+      description: spec.description,
+      inputSchema: ToolSchema.shape.inputSchema.parse(JSON.parse(spec.inputSchemaJson)),
+      // The remote server validates its own arguments. Retain every field for approval and forwarding.
+      argumentSchema: z.looseObject({}),
+      handler: remoteToolHandler(options, spec.name, spec.accountId),
+    })),
+    ...(options.viewImage ? [viewImageTool(options.viewImage)] : []),
+  ];
+
+  const server = createSdkMcpServer({
     name: BUS_SERVER,
-    // Always in the prompt: deferred behind tool search, models do not find them (seen live).
-    alwaysLoad: true,
     timeout: IMAGE_PUBLICATION_TIMEOUT_MS,
-    tools: [
-      ...busTools(options),
-      ...(options.connectorTools ?? []).map(
-        (spec) =>
-          ({
-            name: spec.name,
-            description: spec.description,
-            // SAFETY: The SDK accepts a full Zod schema at runtime; its declaration only describes raw shapes.
-            inputSchema: z.fromJSONSchema(JSON.parse(spec.inputSchemaJson)) as never,
-            handler: async (rawArgs, extra) => {
-              const args = decodeJsonObject(rawArgs);
-              const meta = decodeExtra(extra ?? {})._meta;
+    tools: tools.map(({ name, description, argumentSchema, handler }) => ({
+      name,
+      description,
+      // SAFETY: The SDK accepts a full Zod schema at runtime; its declaration only describes raw shapes.
+      inputSchema: argumentSchema as never,
+      handler,
+    })),
+  });
 
-              const id = isString(meta?.["claudecode/toolUseId"])
-                ? meta["claudecode/toolUseId"]
-                : (options.toolUseId(spec.name, args) ?? crypto.randomUUID());
+  // Advertise the source JSON Schemas directly so keywords such as if/then/else survive the SDK transport.
+  server.instance.server.setRequestHandler(ListToolsRequestSchema, () => ({
+    tools: tools.map(({ name, description, inputSchema }) => ({
+      name,
+      description,
+      inputSchema,
+      // Always in the prompt: deferred behind tool search, models do not find them (seen live).
+      _meta: { "anthropic/alwaysLoad": true },
+    })),
+  }));
 
-              const result = await timedCall(
-                options,
-                create(AgentToolCallSchema, {
-                  callId: toolCallId(options.threadId, id),
-                  threadId: options.threadId,
-                  turnId: options.turnId(),
-                  itemId: id,
-                  toolName: spec.name,
-                  connectorAccountId: spec.accountId,
-                  argumentsJson: JSON.stringify(args),
-                }),
-              );
+  return server;
+}
 
-              return {
-                content: [{ type: "text" as const, text: result.content }],
-                ...(result.isError && { isError: true }),
-              };
-            },
-          }) satisfies SdkMcpToolDefinition,
-      ),
-      ...(options.viewImage ? [viewImageTool(options.viewImage)] : []),
-    ],
+function platformTool(spec: ToolJsonSpec, handler: SdkMcpToolDefinition["handler"]): BusTool {
+  const inputSchema = ToolSchema.shape.inputSchema.parse(spec.inputSchema);
+  // SAFETY: Platform specs come from Canopy's JSON Schema generators.
+  const argumentSchema = z.fromJSONSchema(spec.inputSchema as Parameters<typeof z.fromJSONSchema>[0]);
+
+  return { ...spec, inputSchema, argumentSchema, handler };
+}
+
+function viewImageTool(view: (path: string) => Promise<ViewImageResult>): BusTool {
+  return platformTool(viewImageSpec(), async (rawArgs) => {
+    const args = decodeJsonObject(rawArgs);
+    const result = await view(isString(args["path"]) ? args["path"] : "");
+
+    if (!result.ok) return { content: [{ type: "text" as const, text: result.message }], isError: true };
+
+    return {
+      content: [
+        { type: "image" as const, data: result.base64, mimeType: result.mimeType },
+        { type: "text" as const, text: result.summary },
+      ],
+    };
   });
 }
 
-function viewImageTool(view: (path: string) => Promise<ViewImageResult>) {
-  const spec = viewImageSpec();
-
-  return {
-    name: spec.name,
-    description: spec.description,
-    // SAFETY: viewImageSpec supplies a JSON Schema; the SDK supports full Zod schemas despite its raw-shape type.
-    inputSchema: z.fromJSONSchema(spec.inputSchema as Parameters<typeof z.fromJSONSchema>[0]) as never,
-    handler: async (rawArgs) => {
-      const args = decodeJsonObject(rawArgs);
-      const result = await view(isString(args["path"]) ? args["path"] : "");
-
-      if (!result.ok) return { content: [{ type: "text" as const, text: result.message }], isError: true };
-
-      return {
-        content: [
-          { type: "image" as const, data: result.base64, mimeType: result.mimeType },
-          { type: "text" as const, text: result.summary },
-        ],
-      };
-    },
-  } satisfies SdkMcpToolDefinition;
-}
-
-function busTools(options: ClaudeBusOptions) {
+function busTools(options: ClaudeBusOptions): BusTool[] {
   return [
     ...(options.agentBus ? agentBusToolSpecs(agentBusToolsFor(options.depth, options.hasDelegatingBot)) : []),
     ...threadMemoryTools(options.enableMemory),
-  ].map(
-    (spec) =>
-      ({
-        name: spec.name,
-        description: spec.description,
-        // SAFETY: Agent bus specs supply JSON Schema; the SDK supports full Zod schemas despite its raw-shape type.
-        inputSchema: z.fromJSONSchema(spec.inputSchema as Parameters<typeof z.fromJSONSchema>[0]) as never,
-        handler: async (rawArgs, extra) => {
-          const args = decodeJsonObject(rawArgs);
-          const meta = decodeExtra(extra ?? {})._meta;
+  ].map((spec) => platformTool(spec, remoteToolHandler(options, spec.name)));
+}
 
-          const fromMeta = isString(meta?.["claudecode/toolUseId"]) ? meta["claudecode/toolUseId"] : undefined;
+function remoteToolHandler(
+  options: ClaudeBusOptions,
+  name: string,
+  connectorAccountId = "",
+): SdkMcpToolDefinition["handler"] {
+  return async (rawArgs, extra) => {
+    const args = decodeJsonObject(rawArgs);
+    const id = decodeExtra(extra ?? {})._meta?.["claudecode/toolUseId"];
+    const useId = isString(id) ? id : (options.toolUseId(name, args) ?? crypto.randomUUID());
 
-          const useId = fromMeta ?? options.toolUseId(spec.name, args) ?? crypto.randomUUID();
+    const result = await timedCall(
+      options,
+      create(AgentToolCallSchema, {
+        callId: toolCallId(options.threadId, useId),
+        threadId: options.threadId,
+        turnId: options.turnId(),
+        itemId: useId,
+        toolName: name,
+        connectorAccountId,
+        argumentsJson: JSON.stringify(args),
+      }),
+    );
 
-          const result = await timedCall(
-            options,
-            create(AgentToolCallSchema, {
-              callId: toolCallId(options.threadId, useId),
-              threadId: options.threadId,
-              turnId: options.turnId(),
-              itemId: useId,
-              toolName: spec.name,
-              argumentsJson: JSON.stringify(args),
-            }),
-          );
-
-          return {
-            content: [{ type: "text" as const, text: result.content }],
-            ...(result.isError && { isError: true }),
-          };
-        },
-      }) satisfies SdkMcpToolDefinition,
-  );
+    return {
+      content: [{ type: "text", text: result.content }],
+      ...(result.isError && { isError: true }),
+    };
+  };
 }

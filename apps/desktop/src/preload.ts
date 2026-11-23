@@ -1,4 +1,5 @@
 import { contextBridge, ipcRenderer } from "electron";
+import { releaseIdentity, type ReleaseChannel } from "@canopy/domain/release/identity";
 import type {
   DesktopBridge,
   DesktopHtmlEvent,
@@ -11,6 +12,10 @@ import type {
 import { QuitFeedback } from "./quit-feedback.ts";
 import { quitFallback } from "./quit-fallback.ts";
 import { isDesktopRoute } from "@canopy/ui/desktop";
+
+declare const CANOPY_DESKTOP_CHANNEL: ReleaseChannel | undefined;
+
+const { assets } = releaseIdentity(typeof CANOPY_DESKTOP_CHANNEL === "undefined" ? "stable" : CANOPY_DESKTOP_CHANNEL);
 
 const feedback = new QuitFeedback(
   quitFallback((phase) => ipcRenderer.send("canopy:quit-guard-delivered", phase, "shell")),
@@ -64,6 +69,7 @@ const bridge: DesktopBridge = {
       if (isDesktopRoute(path)) listener(path);
     }),
   readyForRoutes: () => ipcRenderer.invoke("canopy:routes-ready"),
+  startupIcon: `${assets}/icon-192.png`,
   startupAppearance: ipcRenderer.sendSync("canopy:appearance-startup"),
   setAppearance: (appearance) => ipcRenderer.invoke("canopy:appearance", appearance),
   windowState: () => ipcRenderer.invoke("canopy:window-state"),

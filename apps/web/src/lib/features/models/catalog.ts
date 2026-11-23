@@ -383,7 +383,10 @@ export function threadModelOptions(
 }
 
 /** The effort `option` runs with when none is chosen: `inherited` if the model takes it, else its default. */
-export function effectiveEffort(option: ModelOption, inherited: string | undefined): string | undefined {
+export function effectiveEffort(
+  option: Pick<ModelOption, "efforts" | "defaultEffort">,
+  inherited: string | undefined,
+): string | undefined {
   return inherited && option.efforts.some((e) => e.id === inherited) ? inherited : option.defaultEffort;
 }
 

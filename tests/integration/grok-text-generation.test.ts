@@ -13,6 +13,7 @@ import { WorkerHost, serveLink } from "@canopy/worker/runtime";
 import { ManagedRuntime } from "effect";
 import { eventually, startTestGateway } from "./support/gateway.ts";
 import { commit, git } from "./support/worktrees.ts";
+import { cacheXaiPriceFixture } from "../../apps/worker/src/providers/fixtures/xai-pricing.ts";
 
 test.skipIf(!dockerAvailable)(
   "Grok titles and semantic branches go through gateway → worker → isolated CLI ACP",
@@ -23,6 +24,7 @@ test.skipIf(!dockerAvailable)(
     const traceFile = join(dir, "trace.jsonl");
     const fake = resolve(import.meta.dir, "../../apps/worker/src/providers/grok/fixtures/text-agent.ts");
     mkdirSync(data);
+    await cacheXaiPriceFixture(data);
     mkdirSync(repo);
     git(repo, "init", "-q", "-b", "main");
     commit(repo);
@@ -212,7 +214,11 @@ test.skipIf(!dockerAvailable)(
       expect(readFileSync(traceFile, "utf8")).not.toContain(request.prompt);
       expect(
         await connection.sendCommand({ case: "generateText", value: { ...request, prompt: "Fresh request" } }),
-      ).toMatchObject({ ok: true, generatedText: "Grok title" });
+      ).toMatchObject({
+        ok: true,
+        generatedText: "Grok title",
+        consumedUsages: [{ model: "grok-4.6", estimatedCostUsd: 0.000018 }],
+      });
     } finally {
       link.close();
       await serving;

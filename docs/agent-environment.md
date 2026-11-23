@@ -6,6 +6,9 @@ przy imporcie skilli i marketplace, odczyt dużych artefaktów i raportów z Pos
 obsługa znaczników aktywnych sesji Claude i porównywanie konfiguracji
 pluginów niezależnie od kolejności kluczy JSON, porównywanie instalacji Windows
 bez bitów wykonywalności POSIX oraz natywne wersjonowanie cache pluginów Codexa.
+Aktualizacja (2026-11-22): import skilli z Git sprawdza przenośność ścieżek
+w katalogach skilli, obsługuje dłuższe opisy w `SKILL.md` i zgłasza pominięte
+pliki z błędną składnią YAML.
 Dostępność w kanałach nightly/beta/stable wynika z wydań ([release.md](release.md)).
 Settings → **Agent environment** zarządza oczekiwanym stanem
 instrukcji, umiejętności i pluginów na komputerach właściciela. Ustawienia należą
@@ -297,7 +300,10 @@ kolizje wielkości liter (także katalogów), konflikty plik/katalog i zip bombs
 
 Migracja `0058_agent_skills` dodaje owner-scoped definicje i niezmienne artefakty
 wersji. `SkillArtifact` zawiera nazwę folderu, opis, SHA-256 manifestu oraz pliki
-z SHA-256 i flagą executable. Upload tworzy kolejny numer wersji; wybór wcześniejszej
+z SHA-256 i flagą executable. Opis w metadanych artefaktu jest skracany do
+1024 znaków. Treść `SKILL.md` jest zapisywana i dostarczana w całości.
+Instalacja skilli z dłuższymi opisami wymaga workera obsługującego tę walidację.
+Upload tworzy kolejny numer wersji; wybór wcześniejszej
 wersji wykonuje rollback bez mutowania historii. Selektory są takie jak dla
 instrukcji. `SkillMachineOverride` wyłącza element lub przypina wersję; `version=0`
 dziedziczy wybraną wersję biblioteki. Gateway odrzuca kolizje celów i ponad 25 MiB
@@ -466,6 +472,9 @@ owner-scoped preview. Addytywne UI RPC i BFF POST
    Panel importu pokazuje pliki i treść, wyróżnia scripts/hooks,
    executable, shebang oraz pliki interpretowane; właściciel wybiera skille
    i zwykłe przypisania przed **Add and sync**. Cache: 30 minut, do 5 preview/owner.
+   Podgląd z Git pomija skille z błędną składnią YAML i wskazuje pominięty
+   plik w komunikacie. Żądanie kończy się błędem, gdy nie ma poprawnych wyników
+   lub brakuje skilla wybranego przez `--skill`.
 2. `AddSkillSource(preview_id, paths, assignment, expected_revision)` potwierdza
    dokładne zamrożone artefakty, nawet gdy upstream już się przesunął. Atomowo
    tworzy wybrane definicje i wersję 1; source policy zaczyna z manual update.
@@ -501,7 +510,9 @@ Rewizja oraz checksum blokują zapis na podstawie nieaktualnego przeglądu.
 Limity repo: 5000 plików, 16 MiB/plik, 50 MiB zadeklarowanych blobów. Limity
 wybranego preview: 100 skilli i łącznie 25 MiB, nadal 1 MiB/plik oraz walidacja
 artefaktu etapu 2. Całe drzewo odrzuca symlinki, gitlink/submoduły, specjalne
-wpisy i nieprzenośne ścieżki; nie wykonuje się filtrów repo. Fetch jest shallow,
+wpisy. Przy imporcie skilli test przenośności ścieżek obejmuje pliki w odkrytych
+katalogach skilli. Przy imporcie marketplace obejmuje całe drzewo.
+Nie wykonuje się filtrów repo. Fetch jest shallow,
 stdout/stderr ograniczone, pojedynczy proces ma 60 s, całe resolution 120 s
 (także oczekiwanie na DNS można anulować). Shallow fetch wymaga smart HTTP;
 dumb HTTP jest odrzucany przed odczytem alternatywnych adresów obiektów.

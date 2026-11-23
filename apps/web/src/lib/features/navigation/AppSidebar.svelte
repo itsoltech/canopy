@@ -19,9 +19,10 @@
   import SectionSwitch from "./SectionSwitch.svelte";
   import type { ModuleId } from "@canopy/domain";
   import { useSettings } from "#lib/features/settings/settings-state.svelte.ts";
+  import { devicePreferences } from "#lib/features/settings/device-preferences.svelte.ts";
   import { sectionMemory, sectionOf } from "./sections.svelte.ts";
   import SidebarThreads from "./SidebarThreads.svelte";
-  import SidebarProjectFilter from "./SidebarProjectFilter.svelte";
+  import SidebarFilters from "./SidebarFilters.svelte";
   import SidebarSort from "./SidebarSort.svelte";
   import SidebarCopyJobs from "#lib/features/projects/SidebarCopyJobs.svelte";
   import IconButton from "#lib/shared/ui/IconButton.svelte";
@@ -85,6 +86,8 @@
 
   const workerCount = $derived(overview.workers.length);
   const online = $derived(overview.workers.filter((w) => w.online).length);
+  const allowWorkers = $derived(capabilities?.archiveWorkerFilter === true);
+  const workerIds = $derived(allowWorkers ? devicePreferences.view.workerIds : []);
 
   // Settings as a page (loaded on its own) or over the current one.
   const settingsActive = $derived(isSettingsRoute(page.route.id) || isSettingsRoute(page.shallow?.route?.id));
@@ -154,7 +157,7 @@
         {#if section === "threads"}
           <div class="flex shrink-0 items-center">
             <SidebarSort />
-            <SidebarProjectFilter />
+            <SidebarFilters {allowWorkers} {workerIds} />
             {#if addProject}<IconButton
                 icon="folder-plus"
                 label="Add project"
@@ -176,7 +179,7 @@
       aria-label={section === "threads" ? "Threads" : "Bots"}
     >
       {#if section === "threads"}
-        <SidebarThreads {currentThreadId} query={queries.threads} />
+        <SidebarThreads {currentThreadId} {workerIds} query={queries.threads} />
       {:else}
         <LiveBotsNav query={queries.bots} />
       {/if}

@@ -205,6 +205,8 @@ export interface DesktopBridge {
   onOpenRoute?(listener: (path: string) => void): () => void;
   readyForRoutes?(): Promise<void>;
   readonly platform: string;
+  /** Bundled icon for the installed desktop channel. */
+  readonly startupIcon?: string;
   /** Local startup palette, also used by the setup page before its first paint. */
   readonly startupAppearance?: {
     scheme: DesktopAppearance["scheme"];

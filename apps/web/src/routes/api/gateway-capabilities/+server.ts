@@ -3,12 +3,18 @@ import { gatewayCompatibility, clientPreferencesScope } from "#lib/server/gatewa
 import { isLocalDesktop } from "#lib/server/desktop-origin.ts";
 import type { RequestHandler } from "./$types";
 
-export const GET: RequestHandler = async () =>
-  json(
+export const GET: RequestHandler = async () => {
+  const scope = clientPreferencesScope();
+  const localDesktop = isLocalDesktop();
+  const compatibility = await gatewayCompatibility();
+
+  return json(
     {
-      ...(await gatewayCompatibility()),
-      clientPreferencesScope: clientPreferencesScope(),
-      localDesktop: isLocalDesktop(),
+      ...compatibility,
+      clientPreferencesScope: scope,
+      localDesktop,
+      localPushRelaySettings: localDesktop && compatibility.pushRelaySettings === true,
     },
     { headers: { "cache-control": "no-store" } },
   );
+};

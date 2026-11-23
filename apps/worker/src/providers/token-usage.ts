@@ -9,7 +9,7 @@ export interface ConsumedUsage {
   cacheWriteInputTokens: bigint;
   reasoningOutputTokens: bigint;
   reportedCostUsd?: number | undefined;
-  /** OpenAI API-equivalent token valuation, distinct from provider-reported billing. */
+  /** API-equivalent token valuation, distinct from provider-reported billing. */
   estimatedCostUsd?: number | undefined;
   pricingVersion?: string;
   model?: string;

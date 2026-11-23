@@ -4,6 +4,7 @@ import type { ResolvedProfile } from "../providers/profiles.ts";
 import type { BotSession } from "./session.ts";
 import type { BotContent } from "./images.ts";
 import type { BotSteering } from "./steering.ts";
+import type { OpenAiPricingCatalog, XaiPricingCatalog } from "../providers/pricing/model-catalog.ts";
 
 /** Stable harness code only; provider payloads and stderr never enter gateway-visible reasons. */
 export class BotHarnessFailure extends Error {
@@ -16,7 +17,8 @@ export class BotHarnessFailure extends Error {
 }
 
 export interface BotHarnessContext {
-  pricing?: import("../providers/pricing/openai-catalog.ts").OpenAiPricingCatalog | undefined;
+  pricing?: OpenAiPricingCatalog;
+  xaiPricing?: XaiPricingCatalog;
   steering?: BotSteering;
   onUsage?: ((snapshot: ProviderUsageSnapshot) => void) | undefined;
   usageSnapshot?: ProviderUsageSnapshot | undefined;

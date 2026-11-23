@@ -1,6 +1,11 @@
 import { create } from "@bufbuild/protobuf";
 import { ui } from "@canopy/contracts";
-import { checkSkillPath, SKILL_TOTAL_BYTES, validateSkillFiles } from "@canopy/domain/skill-artifact";
+import {
+  checkSkillPath,
+  InvalidSkillYamlError,
+  SKILL_TOTAL_BYTES,
+  validateSkillFiles,
+} from "@canopy/domain/skill-artifact";
 import { Schema } from "effect";
 import { sourceInvalid, type parseSourceCommand } from "./source-command.ts";
 import { gitFile, readGitSource, type SourceTransport, type GitEntry } from "./source-git.ts";
@@ -132,19 +137,30 @@ export async function discoverSource(
 
     const roots = await discoveryRoots(entries, blob, parsed.source.path, parsed.fullDepth);
     const skills: ui.ResolvedSourceSkill[] = [];
+    const invalidYaml: string[] = [];
     let total = 0;
 
     for (const root of roots) {
       const files = [];
 
       for (const entry of entries.filter((e) => under(e.path, root))) {
+        checkSkillPath(entry.path);
         total += entry.size;
 
         if (total > SKILL_TOTAL_BYTES) sourceInvalid("Preview artifacts are limited to 25 MiB in total.");
         files.push(gitFile(entry, await blob(entry), root));
       }
 
-      const artifact = validateSkillFiles(files);
+      let artifact;
+
+      try {
+        artifact = validateSkillFiles(files);
+      } catch (cause) {
+        if (!(cause instanceof InvalidSkillYamlError)) throw cause;
+        invalidYaml.push(root ? `${root}/SKILL.md` : "SKILL.md");
+        continue;
+      }
+
       const entry = files.find((f) => f.path === "SKILL.md")!;
 
       if (!visibleSourceSkill(entry.content, artifact.name, parsed.names)) continue;
@@ -156,9 +172,21 @@ export async function discoverSource(
       if (skills.length > 100) sourceInvalid("A source preview supports at most 100 skills.");
     }
 
-    if (!skills.length || parsed.names.some((n) => n !== "*" && !skills.some((s) => s.artifact?.name === n)))
-      sourceInvalid("No matching skills found. Check the path and --skill names.");
+    const [firstInvalid] = invalidYaml;
 
-    return sourcePreview(parsed, { ...parsed.source, commit }, skills, license);
+    const yamlNotice = firstInvalid
+      ? invalidYaml.length === 1
+        ? `Skipped “${firstInvalid}” because it contains invalid YAML. Fix the file in the repository, then retry.`
+        : `Skipped ${invalidYaml.length} skill files with invalid YAML, including “${firstInvalid}”. Fix the files in the repository, then retry.`
+      : "";
+
+    if (!skills.length || parsed.names.some((n) => n !== "*" && !skills.some((s) => s.artifact?.name === n)))
+      sourceInvalid(yamlNotice || "No matching skills found. Check the path and --skill names.");
+
+    const preview = sourcePreview(parsed, { ...parsed.source, commit }, skills, license);
+
+    if (yamlNotice) preview.notices.push(yamlNotice);
+
+    return preview;
   });
 }

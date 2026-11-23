@@ -28,63 +28,73 @@ interface Picks {
   readonly baseRef?: string;
 }
 
+interface WorkspaceTarget {
+  readonly workspaceId: string;
+  readonly ready: boolean;
+  /** A link can request an existing worktree, or the current checkout with an empty ID. */
+  readonly worktreeId: string | null;
+}
+
 /**
  * The new-thread composer's workspace and base ref. Refs and earlier worktrees load per workspace while its worker
- * is online and offers worktrees; picks reset when the workspace changes. Until you pick: the default mode of the
- * worktree settings (project × computer).
+ * is online and offers worktrees; picks reset when the workspace or link changes. The link takes precedence over
+ * the worktree settings (project × computer) until you pick.
  */
 export class WorkspaceDraft {
   refs = $state.raw<ui.ListGitRefsResponse | undefined>(undefined);
   loading = $state(false);
   error = $state<string | undefined>(undefined);
-  #picks = $state.raw<Picks>({ workspaceId: "" });
-  #target: () => { workspaceId: string; ready: boolean } | undefined;
-  #loaded = "";
+  #picks = $state.raw<Picks>();
+  #target: () => WorkspaceTarget | undefined;
+  #readyWorkspace = $derived.by(() => {
+    const target = this.#target();
 
-  constructor(target: () => { workspaceId: string; ready: boolean } | undefined) {
+    return target?.ready ? target.workspaceId : "";
+  });
+  #loaded = "";
+  #readAbort?: AbortController;
+
+  constructor(target: () => WorkspaceTarget | undefined) {
     this.#target = target;
     $effect(() => {
-      const current = this.#target();
-      const key = current?.ready ? current.workspaceId : "";
+      const workspaceId = this.#readyWorkspace;
+      this.#loaded = workspaceId;
+      this.refs = undefined;
+      this.error = undefined;
+      this.loading = Boolean(workspaceId);
 
-      if (key !== this.#loaded) void this.#load(key);
+      if (!workspaceId) return;
+      void this.#read(workspaceId, true);
+
+      return () => this.#readAbort?.abort();
     });
-  }
-
-  async #load(workspaceId: string): Promise<void> {
-    this.#loaded = workspaceId;
-    this.refs = undefined;
-    this.error = undefined;
-    this.loading = Boolean(workspaceId);
-
-    if (!workspaceId) return;
-
-    try {
-      const refs = await listGitRefs(workspaceId);
-
-      if (this.#loaded === workspaceId) this.refs = refs;
-    } catch (cause) {
-      if (this.#loaded === workspaceId) this.error = cause instanceof Error ? cause.message : "Refs are unavailable";
-    } finally {
-      if (this.#loaded === workspaceId) this.loading = false;
-    }
   }
 
   /** Opening the picker re-reads Git; keep the current choices visible while refreshing. */
   async refresh(): Promise<void> {
-    const workspaceId = this.#loaded;
+    if (this.#loaded && !this.loading) await this.#read(this.#loaded, false);
+  }
 
-    if (!workspaceId) return;
+  async #read(workspaceId: string, initial: boolean): Promise<void> {
+    this.#readAbort?.abort();
+    const { signal } = (this.#readAbort = new AbortController());
 
     try {
-      const refs = await listGitRefs(workspaceId);
+      const refs = await listGitRefs(workspaceId, signal);
 
-      if (workspaceId === this.#loaded) {
+      if (!signal.aborted) {
         this.refs = refs;
         this.error = undefined;
       }
-    } catch {
-      if (workspaceId === this.#loaded) this.error = "Could not refresh worktrees. Reopen the picker to retry.";
+    } catch (cause) {
+      if (!signal.aborted)
+        this.error = initial
+          ? cause instanceof Error
+            ? cause.message
+            : "Refs are unavailable"
+          : "Could not refresh worktrees. Reopen the picker to retry.";
+    } finally {
+      if (initial && !signal.aborted) this.loading = false;
     }
   }
 
@@ -102,7 +112,19 @@ export class WorkspaceDraft {
   }
 
   #own(): Picks | undefined {
-    return this.#picks.workspaceId === this.#loaded ? this.#picks : undefined;
+    return this.#picks?.workspaceId === this.#loaded ? this.#picks : undefined;
+  }
+
+  #linkedWorktree(id: string): ui.ThreadWorktree | undefined {
+    if (this.#target()?.workspaceId !== this.#loaded) return undefined;
+
+    return this.worktrees.find((worktree) => worktree.id === id && !worktree.unavailableReason && !worktree.removedAt);
+  }
+
+  get linkedWorktreeUnavailable(): boolean {
+    const id = this.#target()?.worktreeId;
+
+    return Boolean(id && !this.loading && !this.#own()?.choice && !this.#linkedWorktree(id));
   }
 
   get choice(): WorkspaceChoice {
@@ -110,6 +132,13 @@ export class WorkspaceDraft {
     const picked = this.#own()?.choice;
 
     if (picked) return picked;
+    const linked = this.#target()?.worktreeId ?? null;
+
+    if (linked !== null) {
+      const worktree = linked ? this.#linkedWorktree(linked) : undefined;
+
+      return worktree ? { kind: "existing", worktree } : { kind: "checkout" };
+    }
 
     return this.refs?.settings?.defaultMode === ui.WorkspaceMode.NEW_WORKTREE ? { kind: "new" } : { kind: "checkout" };
   }
@@ -125,6 +154,10 @@ export class WorkspaceDraft {
 
   chooseBase(ref: string): void {
     this.#picks = { ...this.#own(), workspaceId: this.#loaded, baseRef: ref };
+  }
+
+  reset(): void {
+    this.#picks = undefined;
   }
 
   /** Apply the confirmed HEAD immediately, even if refreshing discovery subsequently fails. */

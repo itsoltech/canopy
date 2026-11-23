@@ -1,6 +1,8 @@
 # Adapter Grok
 
-Aktualizacja (2026-11-22): gateway sprawdza grant projektu przy wywołaniu konektora z wątku.
+Aktualizacja (2026-11-22): Usage pokazuje szacunkowy koszt tokenów Groka według
+podstawowych stawek API xAI. Gateway sprawdza grant projektu przy wywołaniu
+konektora z wątku.
 
 Aktualizacja (2026-11-21): boty na Linuksie mogą zapisywać trwałe sesje także
 poza katalogiem tymczasowym workera. Dostępność wynika z promocji wydań.
@@ -133,7 +135,7 @@ CLI 1.0.70 zwraca w zakończeniu `session/prompt` rozszerzenie `_meta.usage`:
 `reasoningTokens` oraz mapę `modelUsage`. Są to liczniki pojedynczego promptu,
 bez tokenów odziedziczonej sesji. Potwierdza to test prawdziwego CLI z lokalną
 atrapą endpointu: dwa kolejne prompty, także po `session/load`, raportują
-oddzielne zużycie. Bez mapy modeli adapter używa `_meta.modelId`.
+oddzielne zużycie. Przy braku lub pustej mapie modeli adapter używa `_meta.modelId`.
 
 Adapter publikuje te dane jako `usageUpdated` ze `scope=TURN` osobno dla każdego
 modelu; input obejmuje cache read/write, a reasoning jest podzbiorem outputu.
@@ -149,7 +151,16 @@ pierwszy prompt po wznowieniu bez znanej bazy nie dostaje odziedziczonego kosztu
 Kwota trafia do opcjonalnego `reportedCostUsd` tylko przy jednoznacznym modelu
 z metadanych zakończenia. Przy wielu modelach bez kosztów per model pozostaje
 nieznana; nie rozdzielamy jej proporcją tokenów. Brak kwoty i znane zero są
-odrębne. Nie stosujemy cennika ani estymacji kosztu na podstawie tokenów.
+odrębne.
+
+Worker zapisuje `estimatedCostUsd` i `pricingVersion` dla poszczególnych modeli
+raportowanych przez CLI. Stawki wejścia, cache i wyjścia pochodzą z
+[katalogu xAI w models.dev](https://github.com/anomalyco/models.dev/tree/dev/providers/xai/models)
+i mają trwały cache na workerze. Stawki podstawowe dają porównywalną wycenę
+sum promptu także wtedy, gdy złożyło się na nie kilka wywołań API. Przy braku
+kompletnej stawki dla modelu i zaobserwowanych tokenów szacunek pozostaje nieznany.
+Usage wybiera w pierwszej kolejności pełny koszt zgłoszony przez CLI.
+Szczegóły agregacji: [Usage](usage.md#koszt-i-pokrycie).
 
 ## Uprawnienia i narzędzia platformy
 

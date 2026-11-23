@@ -34,6 +34,7 @@ import {
 import { migrate } from "@canopy/db";
 import { startPostgres, type TestPostgres } from "@canopy/db/testing";
 import { GatewayCore, type GatewayCoreOptions } from "@canopy/gateway/core";
+import type { PushRelayOptions } from "../../../apps/gateway/src/push/relay.ts";
 import { gatewayProcessApi } from "../../../apps/gateway/src/api/process-routes.ts";
 import {
   AgentBusStore,
@@ -241,6 +242,7 @@ export class ScriptedWorker {
     callId?: string;
     connectorAccountId?: string;
     expiresAt?: Date;
+    cancelled?: boolean;
   }): Promise<AgentToolResult> {
     const callId = input.callId ?? Bun.randomUUIDv7();
 
@@ -257,6 +259,7 @@ export class ScriptedWorker {
           argumentsJson: JSON.stringify(input.args),
           connectorAccountId: input.connectorAccountId ?? "",
           expiresAt: input.expiresAt ? timestampFromDate(input.expiresAt) : undefined,
+          cancelled: input.cancelled ?? false,
         },
       });
     });
@@ -609,6 +612,8 @@ export interface TestGateway {
 export async function startTestGateway(
   options: {
     role?: GatewayCoreOptions["role"];
+    mobilePush?: PushRelayOptions;
+    managedMobilePush?: Omit<NonNullable<GatewayCoreOptions["managedMobilePush"]>, "secretsKey">;
     skillSources?: GatewayCoreOptions["skillSources"];
     cliLatest?: GatewayCoreOptions["cliLatest"];
     updates?: GatewayCoreOptions["updates"];
@@ -695,6 +700,8 @@ export async function startTestGateway(
 
   const core = new GatewayCore({
     ...(options.role && { role: options.role }),
+    ...(options.managedMobilePush && { managedMobilePush: { ...options.managedMobilePush, secretsKey } }),
+    relaySettingsKey: secretsKey,
     ...(options.skillSources && { skillSources: options.skillSources }),
     runtime,
     instanceId: "test",
@@ -724,6 +731,7 @@ export async function startTestGateway(
   });
 
   const processApi = gatewayProcessApi(core, SERVICE_TOKEN);
+  await core.mobilePush.initialize(options.role === "desktop" ? undefined : () => options.mobilePush);
 
   const grpc = await startGrpcServer({
     routes: processApi.routes,
@@ -799,6 +807,7 @@ export async function startTestGateway(
     connect,
     close: async (keepDatabase = false) => {
       await core.stopSweep();
+      await core.mobilePush.close();
       await core.messengers.stop();
       await core.bots.stop();
 

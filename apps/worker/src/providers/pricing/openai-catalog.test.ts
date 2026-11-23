@@ -3,7 +3,7 @@ import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { z } from "zod";
 import { tempDirs } from "@canopy/testing";
-import { OpenAiPricingCatalog } from "./openai-catalog.ts";
+import { OpenAiPricingCatalog } from "./model-catalog.ts";
 import { openAiPriceFixture } from "../fixtures/openai-pricing.ts";
 
 const temporary = tempDirs();
