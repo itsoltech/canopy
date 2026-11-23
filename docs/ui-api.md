@@ -1,6 +1,7 @@
 # API dla UI i architektura frontendu
 
 Status (2026-11-23): web i desktop pozwalają zarządzać profilami Sandbox w ustawieniach i wybierać je w wątkach.
+Nakładka Settings jest dostępna przed pierwszą odpowiedzią z gatewaya.
 Nagłówek sidebara pokazuje ikonę i tło uruchomionego frontendu. Faviconę, manifest PWA
 i ikony ekranów początkowych opisują [zasady wyboru grafiki](release.md#ikony-kanałów).
 Appearance zapisuje schemat, palety i szerokość wątku w profilu klienta.
@@ -337,6 +338,9 @@ W sidebarze węższym niż 16 rem stopka zmniejsza odstępy i zostawia samą iko
 workerów, gdy skrót jest widoczny. Licznik pozostaje w dostępnej nazwie linku.
 
 Zębatka w stopce sidebara otwiera Settings bezpośrednio.
+Pierwsza synchronizacja z gatewayem nie warunkuje otwarcia Settings.
+Jeśli strona Settings została otwarta bezpośrednio podczas przerwy w połączeniu,
+zamknięcie prowadzi do strony głównej.
 Osobna ikona Usage obok niej otwiera modal, pozostawiając bazową stronę zamontowaną.
 Host modalu pozostaje w AppShell niezależnie od szerokości sidebara;
 otwarcie na telefonie zamyka nawigację. Starszy gateway bez `GetUsageStats`

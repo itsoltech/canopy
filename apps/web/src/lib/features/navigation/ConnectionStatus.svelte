@@ -93,7 +93,12 @@
             : "Retrying…"}</span
       >
     </div>
-    <div class="flex h-8 justify-end">
+    <div class="flex h-8 justify-end gap-2">
+      {#if connection !== "live" && window.canopyDesktop}
+        <Button size="sm" variant="ghost" class="mr-auto" onclick={() => window.canopyDesktop?.openSettings()}
+          >Open desktop settings</Button
+        >
+      {/if}
       <Button
         size="sm"
         disabled={connection === "live"}

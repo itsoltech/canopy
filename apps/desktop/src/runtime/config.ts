@@ -1,7 +1,7 @@
 import { createServer } from "node:net";
 import { homedir } from "node:os";
 import { delimiter } from "node:path";
-import type { DesktopConfiguration, DesktopStatus } from "@canopy/ui/desktop";
+import type { DesktopConfiguration, DesktopSavedConfiguration, DesktopStatus } from "@canopy/ui/desktop";
 import type { JsonObject, JsonValue } from "@canopy/domain";
 import { fromJsonString } from "@bufbuild/protobuf";
 import { ui } from "@canopy/contracts";
@@ -83,7 +83,10 @@ export function origin(value: string | null | undefined, label: string) {
   return url.origin;
 }
 
-export function configuration(value: ConfigurationInput | null | undefined): DesktopConfiguration {
+export function configuration(
+  value: ConfigurationInput | null | undefined,
+  saved?: DesktopSavedConfiguration,
+): DesktopConfiguration {
   if (!isConfigurationInput(value)) throw new Error("Invalid desktop configuration");
   const c = value;
 
@@ -124,12 +127,18 @@ export function configuration(value: ConfigurationInput | null | undefined): Des
 
     if (c.workerGatewayUrl !== undefined && !isString(c.workerGatewayUrl)) throw new Error("Invalid worker address");
 
+    const workerGatewayUrl = isString(c.workerGatewayUrl)
+      ? origin(c.workerGatewayUrl, "Worker address")
+      : saved?.mode === "remote"
+        ? (saved.workerGatewayUrl ?? saved.gatewayUrl)
+        : undefined;
+
     return {
       mode: "remote",
       gatewayUrl,
       ...(isString(c.webUrl) && { webUrl: origin(c.webUrl, "Web address") }),
       ...(isString(c.pairingInvitation) && { pairingInvitation: c.pairingInvitation }),
-      ...(isString(c.workerGatewayUrl) && { workerGatewayUrl: origin(c.workerGatewayUrl, "Worker address") }),
+      ...(workerGatewayUrl && { workerGatewayUrl }),
       ...(isString(token) && { enrollmentToken: token }),
       ...(isString(fingerprint) && fingerprint && { gatewayFingerprint: fingerprint.toLowerCase() }),
     };

@@ -3,15 +3,16 @@ import { delimiter, dirname, join } from "node:path";
 import { randomBytes } from "node:crypto";
 import type { LocalBffTarget } from "@canopy/domain/bff-target";
 import { sameDesktopConfiguration, type DesktopConfiguration, type DesktopStatus } from "@canopy/ui/desktop";
-import { remoteWorkerDirectory, type DesktopClientCredential, type RemoteConfiguration } from "../remote-client.ts";
-import { desktopWorkerIdle, readDesktopWorkerState, remoteEnrollment, startDesktopWorker } from "./worker-runtime.ts";
+import type { DesktopClientCredential } from "../remote-client.ts";
+import { desktopWorkerIdle, readDesktopWorkerState, startDesktopWorker } from "./worker-runtime.ts";
 import { configuration, initialStatus, serviceEnvironment } from "./config.ts";
 import { localGatewayClient } from "./gateway-env.ts";
 import { startLocalDatabase, startLocalServices } from "./local-services.ts";
+import { startRemoteServices } from "./remote-services.ts";
 import type { PostgresTestOptions } from "./postgres-install.ts";
 import { Logs } from "./log.ts";
 import { Supervisor, until } from "./process.ts";
-import { savedStatus, writeConfiguration } from "./saved-status.ts";
+import { savedConfiguration, savedStatus, writeConfiguration } from "./saved-status.ts";
 import { stableWebPort } from "./web-port.ts";
 import { HealthChecks } from "./health.ts";
 import { livenessProbes, type LivenessProbe } from "./liveness.ts";
@@ -255,33 +256,8 @@ export class DesktopRuntime {
 
     return sameDesktopConfiguration(config, this.state.configuration);
   }
-  private async startRemote(config: RemoteConfiguration, client?: DesktopClientCredential) {
-    const workerDirectory = remoteWorkerDirectory(this.directory, config);
-    let gatewayUrl = client?.addresses[0] ?? config.gatewayUrl;
-    let token = config.enrollmentToken;
-
-    if (client) {
-      this.logs.protect(client.token);
-      await this.#web().start(this.setupOrigin, {
-        mode: "remote",
-        gatewayUrl,
-        desktopClient: {
-          token: client.token,
-          routes: JSON.stringify({ fingerprint: client.fingerprint, addresses: client.addresses }),
-        },
-      });
-
-      if (!token) {
-        const enrollment = await remoteEnrollment(client, workerDirectory, this.logs);
-        token = enrollment?.token;
-        gatewayUrl = enrollment?.gatewayUrl || gatewayUrl;
-      }
-    }
-
-    return { gatewayUrl, workerDirectory, token };
-  }
   async configure(raw: DesktopConfiguration, client?: DesktopClientCredential) {
-    const config = configuration(raw);
+    const config = configuration(raw, this.state.configuration);
 
     if (config.mode === "local" && sourceFenced(new MigrationJournalFile(this.directory).read()))
       throw new Error("The local gateway is fenced for migration. Open migration to continue.");
@@ -313,6 +289,7 @@ export class DesktopRuntime {
     try {
       let gatewayUrl: string;
       let local: LocalBffTarget | undefined;
+      let remote: Awaited<ReturnType<typeof startRemoteServices>> | undefined;
       let workerDirectory: string;
       let token: string | undefined;
 
@@ -322,14 +299,22 @@ export class DesktopRuntime {
         this.localDatabase = services.database;
         gatewayUrl = local.gatewayUrl;
       } else {
-        ({ gatewayUrl, workerDirectory, token } = await this.startRemote(config, client));
+        remote = await startRemoteServices({
+          config,
+          credential: client,
+          directory: this.directory,
+          logs: this.logs,
+          origin: this.setupOrigin,
+          web: this.#web(),
+        });
+        ({ gatewayUrl, workerDirectory, token } = remote);
       }
 
       installing.signal.throwIfAborted();
 
       const worker = await startDesktopWorker({
         directory: workerDirectory,
-        gatewayUrl: config.mode === "remote" && config.enrollmentToken ? config.gatewayUrl : gatewayUrl,
+        gatewayUrl: remote?.workerAddress ?? gatewayUrl,
         token,
         fingerprint: config.mode === "remote" ? config.gatewayFingerprint || client?.fingerprint : undefined,
         local,
@@ -380,10 +365,7 @@ export class DesktopRuntime {
         return;
       }
 
-      const saved =
-        config.mode === "remote"
-          ? { mode: config.mode, gatewayUrl, workerGatewayUrl: config.workerGatewayUrl ?? config.gatewayUrl }
-          : config;
+      const saved = savedConfiguration(config, gatewayUrl);
 
       installing.signal.throwIfAborted();
 
@@ -395,8 +377,8 @@ export class DesktopRuntime {
       this.probes = local ? livenessProbes(local) : [];
       this.activeClient = client;
 
-      if (config.mode === "remote" && client && this.workerStatusFile)
-        this.remoteConnection = { client, directory: workerDirectory };
+      if (remote?.client && this.workerStatusFile)
+        this.remoteConnection = { client: remote.client, directory: workerDirectory };
       this.publish({ phase: "running", configuration: saved });
     } catch (error) {
       this.disconnect();
