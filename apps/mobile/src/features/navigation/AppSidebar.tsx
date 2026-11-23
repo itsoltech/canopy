@@ -303,7 +303,6 @@ function SidebarContent({ state }: { state: ReturnType<typeof useSidebarState> }
     <>
       <SidebarGradient topInset={insets.top} />
       <View
-        onLayout={(event) => setViewportHeight(event.nativeEvent.layout.height)}
         style={{
           flex: 1,
           marginTop: insets.top,
@@ -313,7 +312,13 @@ function SidebarContent({ state }: { state: ReturnType<typeof useSidebarState> }
           overflow: "hidden",
         }}
       >
-        <SidebarLists state={state} header={header} />
+        {/* Only the docking space is clipped. The brand stays inside its native cell for hit testing and accessibility. */}
+        <View
+          onLayout={(event) => setViewportHeight(event.nativeEvent.layout.height)}
+          style={{ flex: 1, marginTop: -header.brandHeight }}
+        >
+          <SidebarLists state={state} header={header} />
+        </View>
       </View>
     </>
   );

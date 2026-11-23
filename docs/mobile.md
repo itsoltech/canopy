@@ -1,7 +1,8 @@
 # Canopy na iOS i Android
 
 Status (2026-11-23): na listach Threads i Bots wiersz z nazwą Canopy przewija się razem
-z listą. Przełącznik modułu, wyszukiwarka i akcje listy zatrzymują się pod paskiem stanu.
+z listą. Czytnik ekranu może odczytać widoczną nazwę aplikacji i etykietę kanału.
+Przełącznik modułu, wyszukiwarka i akcje listy zatrzymują się pod paskiem stanu.
 
 Status (2026-11-23): Settings otwiera General. Menu sekcji na telefonie i panel boczny
 na tablecie zachowują wyszukiwanie i pozycję listy. Każda odwiedzona sekcja
