@@ -18,8 +18,8 @@ import { pinImageRoot } from "./export-root.ts";
 import { ThreadImageExports } from "./exports.ts";
 
 /**
- * Release smoke for the native calls show_images makes (bun:ffi), on its own runner: open this binary through its
- * pinned directory (open, stat, read, path, close), then export a multi-chunk file end to end.
+ * Exercises the native calls used by show_images (bun:ffi). Opens this binary through its
+ * pinned directory (open, stat, read, path, close), then exports a multi-chunk file end to end.
  */
 export async function imageExportSelfCheck(): Promise<string | undefined> {
   try {

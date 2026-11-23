@@ -1,7 +1,8 @@
 # Canopy Desktop
 
-Status: opis zaimplementowanego runtime i pakowania (2026-11-23). Ekran startu,
-okna, zasobnik i instalatory używają osobnych ikon dla Stable, Beta,
+Status: opis zaimplementowanego runtime i pakowania (2026-11-23). CI po pushu sprawdza
+runtime i instalator Windows. Release buduje paczki dystrybucyjne i sprawdza ich podpisy.
+Ekran startu, okna, zasobnik i instalatory używają osobnych ikon dla Stable, Beta,
 Nightly i lokalnego Dev. Ekran startu pokazuje pełną wersję uruchomionego pakietu
 Desktop przed połączeniem z gatewayem. Ikona w nagłówku sidebara ma bok 32 px przy domyślnej
 skali w każdym kanale. Opis obejmuje też dzienny ping użycia z przełącznikiem
@@ -742,8 +743,8 @@ Pakowanie wydań na macOS wymaga aktywnego Xcode 26 lub nowszego, aby skompilowa
 | --- | --- | --- | --- | --- |
 | Linux x64 | `ubuntu-24.04` | `linux-x64` | AppImage, deb | build + run AppImage |
 | Linux arm64 | `ubuntu-24.04-arm` lub natywny self-hosted ARM64 | `linux-arm64` | AppImage, deb | niewykonana |
-| macOS arm64 | `macos-26` (pakowanie), `macos-15` (build runtime i smoke) | `darwin-arm64` | dmg, zip | niewykonana |
-| Windows x64 | `windows-2025` | `windows-x64` | NSIS `.exe` + `.blockmap`, feed kanału; Azure Trusted Signing | build, instalacja i smoke sidecarów w workflow wydania |
+| macOS arm64 | `macos-26` (pakowanie), `macos-15` (build runtime wydania i smoke w Push CI) | `darwin-arm64` | dmg, zip | niewykonana |
+| Windows x64 | `windows-2025` | `windows-x64` | NSIS `.exe` + `.blockmap`, feed kanału; Azure Trusted Signing | CI po pushu instaluje NSIS i sprawdza sidecary |
 
 Linux x64, macOS arm64 i Windows x64 są pełnymi celami każdego kanału: nightly,
 beta i stable. Linux arm64 pozostaje eksperymentalny (`continue-on-error`): beta
@@ -754,14 +755,14 @@ Windows buduje i weryfikuje workflow wydania (`release.yml`).
 Workflow `desktop-windows.yml` uruchamiany ręcznie (`workflow_dispatch`) buduje
 Windows na `windows-2025`, wymaga sekretów Azure i kontroli podpisów.
 Instaluje NSIS i uruchamia zainstalowane
-sidecary gateway/worker z `--version` (ten sam zakres co binarny smoke wydania).
+sidecary gateway/worker z `--version`.
 Nie publikuje tagów ani wydań; artefakt Actions przechowuje przez 3 dni.
 
-Te joby realizuje `desktop` w `.github/workflows/release.yml` ([release.md](release.md)):
-z `CANOPY_VERSION` i `CANOPY_CHANNEL` nazwy plików to `Canopy-<wersja>-<linux|darwin|windows>-<x64|arm64>.<ext>`,
-macOS dostaje też `zip`, podpisywanie jest warunkowe. Każdy job CI: checkout tego samego commita → instalacja Node/Bun → `bun install`
-→ wspólna akcja `.github/actions/package-desktop` (build runtime, potem pakowanie) → zachowanie plików z
-`apps/desktop/release/<kanał>`. Przed budową sprawdź `process.platform/process.arch`;
+Po potwierdzeniu wyniku Push CI job `desktop-build` w Release buduje runtime dla wskazanego
+SHA. Job `desktop` pakuje go akcją `.github/actions/package-desktop` z wersją i kanałem wydania,
+a następnie sprawdza wymagane podpisy. Z `CANOPY_VERSION` i `CANOPY_CHANNEL` nazwy plików
+to `Canopy-<wersja>-<linux|darwin|windows>-<x64|arm64>.<ext>`. macOS dostaje też `zip`.
+Gotowe pliki trafiają do `apps/desktop/release/<kanał>`. Przed budową sprawdź `process.platform/process.arch`;
 host musi odpowiadać wierszowi tabeli. Brak Windows arm64 jest celowy.
 Runner nie potrzebuje sekretów gatewaya ani kluczy providerów. Publikowanie
 wyłączono (`--publish never`). Metadata `homepage` używa identyfikatora `canopy://desktop`;
@@ -773,7 +774,7 @@ całe wywołanie `scripts/package.ts` po niezerowym kodzie wyjścia, bez analizy
 Runtime buduje się raz; błąd kompilacji nie uruchamia retry. Przed ponownym pakowaniem
 akcja usuwa katalog wynikowy bieżącego kanału, aby nie zachować częściowych instalatorów,
 feedów ani podpisów. Cache pobrań i zbudowany runtime pozostają. Anulowanie i ostatni
-błąd kończą job; kontrola podpisów i smoke nadal blokują upload. Linux i lokalne
+błąd kończą job. Upload w Release wymaga poprawnego wyniku kontroli podpisów. Linux i lokalne
 polecenia `package:*` zachowują jedną próbę. Istniejący retry staplera macOS działa
 niezależnie, wewnątrz próby pakowania.
 

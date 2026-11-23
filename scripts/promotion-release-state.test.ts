@@ -136,7 +136,9 @@ test("a closed public beta ahead of stable does not freeze the first promotion o
   expect(result.version).toBe("0.6.0-beta.1");
 });
 
-test("automatic recovery dispatches a retired beta once after a version or publication failure", async () => {
+const ciGates = ["Verified CI", "checks / Typecheck, tests, builds"];
+
+test.each(ciGates)("retired beta recovery requires %s to pass before a release failure", async (gate) => {
   const f = fixture();
   const beta = f.commit("feat: stabilizing candidate", 200);
   f.release(beta, "v0.2.0-beta.1");
@@ -167,7 +169,7 @@ test("automatic recovery dispatches a retired beta once after a version or publi
       if (path.includes("/42/jobs?"))
         return {
           jobs: [
-            { name: "checks / Typecheck, tests, builds", conclusion: checks },
+            { name: gate, conclusion: checks },
             { name: "release", conclusion: checks === "success" ? "failure" : "skipped" },
           ],
         };

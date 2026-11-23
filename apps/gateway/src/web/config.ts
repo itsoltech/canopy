@@ -152,7 +152,7 @@ export function webSettings(env: Env) {
 }
 
 /**
- * `canopy-gateway web` on its own (release smoke tests, a separate web): only the allowlisted variables and the
+ * `canopy-gateway web` on its own (binary smoke tests, a separate web): only the allowlisted variables and the
  * web's settings; gateway secrets (database URL, secrets key, TLS key) are left out.
  */
 export function webProcessEnv(env: Env, platform: NodeJS.Platform = process.platform) {

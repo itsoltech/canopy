@@ -145,7 +145,7 @@ test("a 555-commit range keeps paginated exact-commit gates within the API budge
   expect(reads).toBeLessThan(20);
 });
 
-function recoveryFixture(path: "dev-next" | "next-main" = "next-main") {
+function recoveryFixture(path: "dev-next" | "next-main" = "next-main", ci: "verified" | "legacy" = "verified") {
   const sha = "a".repeat(40),
     target = "0".repeat(40),
     workflowSha = "b".repeat(40);
@@ -170,16 +170,17 @@ function recoveryFixture(path: "dev-next" | "next-main" = "next-main") {
   const revision = { sha, branch: source };
   const artifact = { id: 12, name: "release-revision", expired: false };
 
-  const jobs = [
-    ...["linux-x64", "linux-arm64", "darwin-arm64", "windows-x64"].map((platform) => ({
-      name: `smoke (${platform}, fixture)`,
-      conclusion: "success",
-    })),
-    ...["checks / Typecheck, tests, builds", "release", "publish-desktop"].map((name) => ({
-      name,
-      conclusion: "success",
-    })),
-  ];
+  const checks =
+    ci === "verified"
+      ? ["Verified CI"]
+      : [
+          ...["linux-x64", "linux-arm64", "darwin-arm64", "windows-x64"].map(
+            (platform) => `smoke (${platform}, fixture)`,
+          ),
+          "checks / Typecheck, tests, builds",
+        ];
+
+  const jobs = [...checks, "release", "publish-desktop"].map((name) => ({ name, conclusion: "success" }));
 
   const releases: JsonValue[] = [
     {
@@ -248,9 +249,9 @@ function recoveryFixture(path: "dev-next" | "next-main" = "next-main") {
   return { sha, target, workflowSha, runs, revision, artifact, jobs, releases, reads, load };
 }
 
-test("recovery publication gates use the artifact SHA for either promotion path", async () => {
+test.each(["verified", "legacy"] as const)("%s CI uses the artifact SHA for either promotion path", async (ci) => {
   for (const path of ["dev-next", "next-main"] as const) {
-    const f = recoveryFixture(path);
+    const f = recoveryFixture(path, ci);
     const input = await f.load();
     expect(input.commits[0]!.green).toBe(true);
     expect(selectPromotion(input).sha).toBe(f.sha);
@@ -322,8 +323,8 @@ test("push and scheduled runs retain their exact-head gates without reading reco
   }
 });
 
-test("green recovery needs public exact-SHA release, CI, all smoke targets and completed publication", async () => {
-  for (const scenario of ["no-release", "draft", "no-manifest", "ci", "smoke", "publication", "failure", "pending"]) {
+test("green recovery needs a public release with a manifest and a successful run", async () => {
+  for (const scenario of ["no-release", "draft", "no-manifest", "failure", "pending"]) {
     const f = recoveryFixture("dev-next");
 
     if (scenario === "no-release") f.releases.shift();
@@ -333,18 +334,25 @@ test("green recovery needs public exact-SHA release, CI, all smoke targets and c
     if (scenario === "no-manifest")
       f.releases[0] = { tag_name: "v0.2.0-nightly.1", draft: false, prerelease: true, assets: [] };
 
-    if (scenario === "ci") f.jobs[4]!["conclusion"] = "skipped";
-
-    if (scenario === "smoke") f.jobs[0]!["conclusion"] = "skipped";
-
-    if (scenario === "publication") f.jobs[6]!["conclusion"] = "skipped";
-
     if (scenario === "failure") f.runs[0]!["conclusion"] = "failure";
 
     if (scenario === "pending") f.runs[0]!["status"] = "in_progress";
     expect(selectPromotion(await f.load()).sha, scenario).toBe(f.target);
   }
 });
+
+test.each(["verified", "legacy"] as const)(
+  "%s recovery requires every verification and publication job",
+  async (ci) => {
+    const f = recoveryFixture("dev-next", ci);
+
+    for (const job of f.jobs) {
+      job.conclusion = "skipped";
+      expect(selectPromotion(await f.load()).sha, job.name).toBe(f.target);
+      job.conclusion = "success";
+    }
+  },
+);
 
 test("newer failed runs and newer failed attempts still block recovery readiness", async () => {
   for (const scenario of ["new-run", "new-attempt"]) {
