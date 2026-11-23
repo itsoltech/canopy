@@ -218,14 +218,18 @@ test("macOS packaging preserves the install identity, localizes its name and sig
     },
   };
 
-  await expect(verify(context)).rejects.toThrow("quit key event adapter missing");
+  await expect(verify(context)).rejects.toThrow("Packaged native addon missing: quit-key-event.node");
   mkdirSync(join(resources, "native"));
   const adapter = join(resources, "native/quit-key-event.node");
   writeFileSync(adapter, "not a Mach-O");
-  await expect(verify(context)).rejects.toThrow("adapter must be an arm64 Mach-O");
+  await expect(verify(context)).rejects.toThrow("Native addon must be an arm64 Mach-O: quit-key-event.node");
   writeFileSync(adapter, arm64);
+  const permission = join(resources, "native/notification-permission.node");
+  await expect(verify(context)).rejects.toThrow("Packaged native addon missing: notification-permission.node");
+  writeFileSync(permission, arm64);
   await expect(verify(context)).resolves.toBeUndefined();
   expect(signing.binaries).toContain(adapter);
+  expect(signing.binaries).toContain(permission);
 
   for (const locale of ["en", "pl"]) {
     const localization = readFileSync(join(resources, `${locale}.lproj/InfoPlist.strings`), "utf8");

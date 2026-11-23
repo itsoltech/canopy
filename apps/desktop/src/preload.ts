@@ -65,6 +65,12 @@ const bridge: DesktopBridge = {
   },
   platform: process.platform,
   showNotification: (notice) => ipcRenderer.invoke("canopy:notification", notice),
+  ...(process.platform === "darwin" && {
+    notificationPermission: {
+      status: () => ipcRenderer.invoke("canopy:notification-permission"),
+      request: () => ipcRenderer.invoke("canopy:request-notification-permission"),
+    },
+  }),
   onNotificationClick: (listener) => subscribe<string>("canopy:notification-click", listener),
   onOpenRoute: (listener) =>
     subscribe<string>("canopy:open-route", (path) => {

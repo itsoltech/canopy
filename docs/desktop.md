@@ -8,6 +8,7 @@ prywatności i pomijaniem wysyłki offline. Aktualizator używa
 `electron-updater` 6.8.11. Build i ustawienia
 udostępniają licencje dołączonych komponentów. Powłoka ładowania
 korzysta z wyglądu tej instalacji także przy niedostępnym gatewayu.
+Na macOS włączenie alertów o wątkach lub botach prosi o zgodę systemu.
 Ustawienia Desktopu i konfiguracja połączenia są dostępne także przed
 odebraniem pierwszego stanu z gatewaya.
 Na Windows i Linuksie otwarte Ustawienia pozwalają przeciągać okno za jego górny pasek.
@@ -139,7 +140,9 @@ Szczegóły kontraktu i kontroli dostępu opisuje [ui-api.md](ui-api.md#pliki-w�
    skopiowane w systemie, bez IPC do plików ([ui-api.md](ui-api.md#wklejanie-i-upuszczanie-plików)).
    Alerty wątków i botów idą przez IPC `canopy:notification` do natywnego `Notification`
    procesu main (tylko ścieżki wątku lub bota, każdy klucz raz; [notifications.md](notifications.md));
-   uprawnienie `notifications` jest rezerwą dla Notification API strony.
+   uprawnienie `notifications` jest rezerwą dla Notification API strony. Na macOS
+   osobne, autoryzowane wywołania IPC odczytują zgodę systemu i wywołują pytanie przez
+   moduł natywny `notification-permission.node` dołączony do paczki aplikacji.
    Natywne menu kontekstowe (`context-menu.ts`) daje Copy dla zaznaczenia oraz role
    Undo, Redo, Cut, Copy, Paste i Select All w polach edycji. Przy włączonym sprawdzaniu
    pisowni pokazuje propozycje poprawek. Linki mają Copy link, a zewnętrzne linki

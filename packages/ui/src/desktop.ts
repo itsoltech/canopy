@@ -172,6 +172,11 @@ export interface DesktopFileDownload {
   bytesPerSecond: number;
 }
 
+export interface DesktopNotificationPermission {
+  status(): Promise<NotificationPermission>;
+  request(): Promise<NotificationPermission>;
+}
+
 export interface DesktopBridge {
   usagePing?: {
     enabled(): Promise<boolean>;
@@ -209,6 +214,8 @@ export interface DesktopBridge {
     path: string;
     sound: boolean;
   }): Promise<boolean>;
+  /** macOS notification authorization for this app bundle. */
+  notificationPermission?: DesktopNotificationPermission;
   /** The path of a clicked notification, after main has focused this window. */
   onNotificationClick?(listener: (path: string) => void): () => void;
   /** Main requests Settings navigation after the application has mounted. */

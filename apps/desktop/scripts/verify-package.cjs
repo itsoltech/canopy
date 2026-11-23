@@ -107,16 +107,19 @@ module.exports = async ({ appOutDir, electronPlatformName, packager }) => {
   if (electronPlatformName === "darwin") {
     // afterPack runs before signing. Include extensionless executables, dylibs and native modules.
     const { machOFiles, machOArchitectures } = require("./macho.cjs");
-    const native = join(resources, "native/quit-key-event.node");
-
-    if (!existsSync(native)) throw new Error("Packaged quit key event adapter missing");
     const binaries = machOFiles(runtime);
 
     if (!binaries.length) throw new Error("No macOS runtime binaries found");
 
-    if (machOArchitectures(native).join() !== "arm64")
-      throw new Error("Quit key event adapter must be an arm64 Mach-O");
-    binaries.push(native);
+    for (const name of ["quit-key-event.node", "notification-permission.node"]) {
+      const addon = join(resources, "native", name);
+
+      if (!existsSync(addon)) throw new Error(`Packaged native addon missing: ${name}`);
+
+      if (machOArchitectures(addon).join() !== "arm64")
+        throw new Error(`Native addon must be an arm64 Mach-O: ${name}`);
+      binaries.push(addon);
+    }
 
     for (const binary of machOFiles(application))
       if (machOArchitectures(binary).join() !== "arm64")

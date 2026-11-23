@@ -15,28 +15,34 @@ mkdirSync(resolve(root, "dist"), { recursive: true });
 if (process.platform === "darwin") {
   const native = resolve(root, "build/native");
   mkdirSync(native, { recursive: true });
-  execFileSync(
-    "xcrun",
-    [
-      "clang++",
-      "-bundle",
-      "-undefined",
-      "dynamic_lookup",
-      "-fobjc-arc",
-      "-DNAPI_VERSION=8",
-      "-mmacosx-version-min=12.0",
-      "-arch",
-      process.arch === "arm64" ? "arm64" : "x86_64",
-      "-framework",
-      "AppKit",
-      "-I",
-      resolve(dirname(require.resolve("node-api-headers/package.json")), "include"),
-      resolve(root, "native/quit-key-event.mm"),
-      "-o",
-      resolve(native, "quit-key-event.node"),
-    ],
-    { stdio: "inherit" },
-  );
+
+  for (const [name, framework] of [
+    ["quit-key-event", "AppKit"],
+    ["notification-permission", "UserNotifications"],
+  ] as const) {
+    execFileSync(
+      "xcrun",
+      [
+        "clang++",
+        "-bundle",
+        "-undefined",
+        "dynamic_lookup",
+        "-fobjc-arc",
+        "-DNAPI_VERSION=8",
+        "-mmacosx-version-min=12.0",
+        "-arch",
+        process.arch === "arm64" ? "arm64" : "x86_64",
+        "-framework",
+        framework,
+        "-I",
+        resolve(dirname(require.resolve("node-api-headers/package.json")), "include"),
+        resolve(root, `native/${name}.mm`),
+        "-o",
+        resolve(native, `${name}.node`),
+      ],
+      { stdio: "inherit" },
+    );
+  }
 }
 
 for (const name of ["main", "desktop-main", "html-viewer-process", "preload", "html-preload", "html-compile-worker"]) {

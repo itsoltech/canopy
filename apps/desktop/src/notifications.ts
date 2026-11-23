@@ -1,5 +1,10 @@
 import { BrowserWindow, ipcMain, Notification, type IpcMainInvokeEvent } from "electron";
 import { Schema } from "effect";
+import {
+  canShowNotifications,
+  notificationPermission,
+  requestNotificationPermission,
+} from "./notification-permission.ts";
 
 const Notice = Schema.Struct({
   key: Schema.String.check(Schema.isPattern(/^[a-z]+:[a-zA-Z0-9~:-]{1,200}$/)),
@@ -28,11 +33,25 @@ function firstTime(key: string, now: number): boolean {
  * (noticePreview: no markdown or credentials); the click focuses that window and sends the path back.
  */
 export function registerNotifications(authorize: (event: IpcMainInvokeEvent) => void, iconPath: string): void {
-  ipcMain.handle("canopy:notification", (event, raw: Schema.Codec.Encoded<typeof Notice>) => {
+  if (process.platform === "darwin") {
+    ipcMain.handle("canopy:notification-permission", (event) => {
+      authorize(event);
+
+      return notificationPermission();
+    });
+    ipcMain.handle("canopy:request-notification-permission", (event) => {
+      authorize(event);
+
+      return requestNotificationPermission();
+    });
+  }
+
+  ipcMain.handle("canopy:notification", async (event, raw: Schema.Codec.Encoded<typeof Notice>) => {
     authorize(event);
     const value = Schema.decodeUnknownSync(Notice)(raw);
 
-    if (!Notification.isSupported() || !firstTime(value.key, Date.now())) return false;
+    if (!(await canShowNotifications()) || event.sender.isDestroyed() || !firstTime(value.key, Date.now()))
+      return false;
 
     const notification = new Notification({
       title: value.title,
