@@ -4,6 +4,11 @@ import { environmentSelected } from "./environment-selectors.ts";
 
 export type EnvironmentKind = "instructions" | "skills" | "plugins";
 
+const hasSyncError = (file: { status: string }) => ["error", "drift", "kept"].includes(file.status);
+
+const hasCurrentReport = (worker: ui.EnvironmentWorker) =>
+  worker.supported && worker.online && worker.report?.revision === worker.desiredRevision;
+
 /** Records keep linked destinations visible even when their home cannot report its files. */
 export function libraryWorkers(local: readonly ui.EnvironmentWorker[], records: readonly ui.WorkerRecord[]) {
   return [
@@ -44,16 +49,9 @@ export function workerSyncState(worker: ui.EnvironmentWorker): "Synced" | "Synci
     ...(worker.report?.plugins ?? []),
   ];
 
-  if (worker.compositionError || statuses.some((f) => ["error", "drift", "kept"].includes(f.status))) return "Error";
+  if (worker.compositionError || statuses.some(hasSyncError)) return "Error";
 
-  if (
-    !worker.supported ||
-    !worker.online ||
-    !worker.report ||
-    worker.report.revision !== worker.desiredRevision ||
-    statuses.some((f) => f.status !== "applied")
-  )
-    return "Syncing";
+  if (!hasCurrentReport(worker) || statuses.some((f) => f.status !== "applied")) return "Syncing";
 
   return "Synced";
 }
@@ -71,14 +69,15 @@ export function libraryItemState(
   if (!matching.length) return "Not installed";
 
   const states = matching.map((w) => {
-    if (workerSyncState(w) === "Error") return "Error";
-
+    // Destination errors without a harness or ID apply to the whole report section.
     const files =
       kind === "instructions"
-        ? (w.report?.files ?? []).filter((f) => f.harness === harness)
-        : (w.report?.[kind] ?? []).filter((f) => f.skillId === id);
+        ? (w.report?.files ?? []).filter((f) => !f.harness || f.harness === harness)
+        : (w.report?.[kind] ?? []).filter((f) => !f.skillId || f.skillId === id);
 
-    return workerSyncState(w) === "Synced" && files.length && files.every((f) => f.status === "applied")
+    if (files.some(hasSyncError)) return "Error";
+
+    return !w.compositionError && hasCurrentReport(w) && files.length && files.every((f) => f.status === "applied")
       ? "Synced"
       : "Syncing";
   });
