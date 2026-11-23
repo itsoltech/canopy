@@ -6,6 +6,7 @@ export function fakeConnector(
   options: {
     call?: (name: string, args: JsonValue) => JsonValue;
     accountId?: string;
+    clientMetadata?: { clientId: string; redirect: string };
     tokenMetadata?: () => JsonObject;
     response?: (
       method: string,
@@ -20,6 +21,9 @@ export function fakeConnector(
 ) {
   const secret = `connector-secret-${crypto.randomUUID()}`;
   const clients = new Map<string, { redirect: string; secret?: string }>();
+  const clientMetadata = options.clientMetadata;
+
+  if (clientMetadata) clients.set(clientMetadata.clientId, { redirect: clientMetadata.redirect });
   const codes = new Map<string, { challenge: string; client: string; redirect: string }>();
   const access = new Set<string>();
   const refresh = new Set<string>();
@@ -51,7 +55,9 @@ export function fakeConnector(
           issuer: url,
           authorization_endpoint: `${url}/authorize`,
           token_endpoint: `${url}/token`,
-          registration_endpoint: `${url}/register`,
+          ...(clientMetadata
+            ? { client_id_metadata_document_supported: true }
+            : { registration_endpoint: `${url}/register` }),
           revocation_endpoint: `${url}/revoke`,
           response_types_supported: ["code"],
           grant_types_supported: ["authorization_code", "refresh_token"],

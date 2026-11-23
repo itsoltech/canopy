@@ -1,6 +1,10 @@
 import { discoverOAuthServerInfo } from "@modelcontextprotocol/sdk/client/auth.js";
 import { randomBytes } from "node:crypto";
-import { returnState } from "@canopy/domain/oauth-return";
+import {
+  DEFAULT_OAUTH_REDIRECT_URL,
+  OAUTH_CLIENT_METADATA_REDIRECT_URL,
+  returnState,
+} from "@canopy/domain/oauth-return";
 import { oauthRedirectUrl } from "./catalog.ts";
 import { authorizeOAuth, oauthProvider } from "./oauth.ts";
 import { OAuthStartFailure } from "./oauth-error.ts";
@@ -40,23 +44,38 @@ export async function beginOAuth(
     );
   }
 
-  const s256 = discovery.authorizationServerMetadata?.code_challenge_methods_supported?.includes("S256");
+  const metadata = discovery.authorizationServerMetadata;
+  const s256 = metadata?.code_challenge_methods_supported?.includes("S256");
+  const defaultRedirect = s256 ? oauthRedirectUrl() : callback;
+
+  const previousClient =
+    !previous.client?.issuer || new URL(previous.client.issuer).href === new URL(discovery.authorizationServerUrl).href
+      ? previous.client
+      : undefined;
+
+  const useClientMetadata =
+    defaultRedirect === DEFAULT_OAUTH_REDIRECT_URL &&
+    metadata?.client_id_metadata_document_supported === true &&
+    !(previousClient && previous.redirectUri === defaultRedirect);
+
   // Manually registered apps keep the callback they were saved with, including older installation callbacks.
-  const redirectUri = app ? app.redirect_uri || callback : s256 ? oauthRedirectUrl() : callback;
+  const redirectUri = app
+    ? app.redirect_uri || callback
+    : useClientMetadata
+      ? OAUTH_CLIENT_METADATA_REDIRECT_URL
+      : defaultRedirect;
 
   if (redirectUri !== callback && !s256) throw new OAuthStartFailure("discovery", discoveryStatus);
 
-  const client =
-    app ??
-    (previous.redirectUri === redirectUri &&
-    (!previous.client?.issuer ||
-      new URL(previous.client.issuer).href === new URL(discovery.authorizationServerUrl).href)
-      ? previous.client
-      : undefined);
+  const client = app ?? (previous.redirectUri === redirectUri ? previousClient : undefined);
 
   const value: Credentials = { redirectUri, ...(client && { client }) };
   const nonce = randomBytes(32).toString("base64url");
-  const state = redirectUri === callback ? nonce : returnState(nonce, desktop ? { desktop: true } : { callback });
+
+  const state =
+    redirectUri === callback || (redirectUri === OAUTH_CLIENT_METADATA_REDIRECT_URL && !desktop)
+      ? nonce
+      : returnState(nonce, desktop ? { desktop: true } : { callback });
 
   try {
     // Apply the same issuer validation as token exchange before registration or authorization.
@@ -65,7 +84,6 @@ export async function beginOAuth(
     throw new OAuthStartFailure("discovery", discoveryStatus);
   }
 
-  const metadata = discovery.authorizationServerMetadata;
   const missingRegistration = metadata && !metadata.registration_endpoint;
   let registrationStatus: number | undefined;
 

@@ -5,6 +5,8 @@ OAuth w gateway, dostęp wybranych projektów i botów oraz jeden kanał wykonan
 Status (2026-11-23): każde konto ma niezależny, domyślnie wyłączony zakres No project.
 Aktualizacja (2026-11-23): transport OAuth przechodzi na kolejny zweryfikowany
 adres po błędzie zestawiania TCP. Log i eksport diagnostyczny opisują błędy sieci OAuth.
+Aktualizacja (2026-11-23): logowanie MCP obsługuje publiczny dokument metadanych
+klienta OAuth (CIMD), używany m.in. przez ElevenLabs.
 Settings → Connectors rozróżnia **Slack User** (narzędzia MCP działające jako
 użytkownik) i **Slack Bot** (wiadomości przez Socket Mode). Bot settings → Messengers
 wybiera konto Slack Bot i jego trasy. Dotychczasowe połączenia i trasy zachowują
@@ -114,7 +116,7 @@ Gdy konto jeszcze nie dotarło, sprawdzenie źródła prosi o odczekanie i ponow
 BFF rozpoczyna autoryzację i przekazuje callback do gateway przez uwierzytelnione
 gRPC. Publiczny callback to `/api/connectors/oauth/callback` na origin Canopy.
 Gateway używa MCP SDK **1.32.2**: protected resource metadata (RFC 9728),
-metadata authorization servera (RFC 8414), DCR i Authorization Code + PKCE S256.
+metadata authorization servera (RFC 8414), CIMD, DCR i Authorization Code + PKCE S256.
 Gateway rozwiązuje nazwy docelowe przed połączeniem i łączy się z wybranym adresem IP,
 zachowując nazwę hosta dla TLS. Dla celu wskazanego w metadanych wszystkie odpowiedzi DNS
 muszą być publiczne. Prywatny adres jest dopuszczony dla dokładnego origin wpisanego przez
@@ -152,7 +154,7 @@ otwartego klienta jako `OverviewUpdate.connectors_changed` (bez stałego odpytyw
 [ui-api.md](ui-api.md#współdzielone-odczyty)). Granty sprawdza zawsze gateway przy wykonaniu.
 ### Stały redirect OAuth
 
-Nowe rejestracje DCR oraz aplikacje bez DCR (`oauth_app_required`: Slack, GitHub OAuth app)
+Nowe rejestracje DCR oraz aplikacje konfigurowane ręcznie (`oauth_app_required`: Slack, GitHub OAuth app)
 korzystają z **jednego stałego redirect URL dla wszystkich instalacji**: statycznej strony
 `https://itsoltech.github.io/canopy/oauth/callback` (GitHub Pages tego repozytorium,
 źródło `site/oauth/`, workflow `pages.yml`). Dzięki temu manifest aplikacji Slack jest
@@ -169,6 +171,20 @@ serwera, nie nazwa konektora. Bez ogłoszonego S256 DCR zachowuje callback insta
 SDK nadal wysyła challenge S256 i odrzuca metadane jawnie wykluczające tę metodę.
 Zapisana aplikacja ze stałym redirectem bez ogłoszonego S256 nie rozpoczyna logowania.
 Uwierzytelnianie tokenem lub nagłówkami nie używa redirectów.
+
+Jeśli serwer autoryzacji ogłasza `client_id_metadata_document_supported: true`,
+gateway może użyć `https://itsoltech.github.io/canopy/oauth/client-metadata.json`
+jako identyfikatora publicznego klienta. GitHub Pages publikuje dokument razem
+z jego dedykowanym callbackiem `https://itsoltech.github.io/canopy/oauth/client-callback`.
+Ta strona przekazuje kod wyłącznie do aplikacji desktopowej lub pokazuje go
+do skopiowania. W web po zgodzie użytkownik kopiuje kod, wraca do Canopy
+i wkleja go w „Paste a sign-in code”.
+Ręcznie skonfigurowana aplikacja i pasująca zapisana rejestracja mają pierwszeństwo.
+Instalacja z własnym `CANOPY_OAUTH_REDIRECT_URL` korzysta z DCR, jeśli serwer
+je oferuje. W wydaniu z obsługą CIMD ElevenLabs można dodać jako Custom MCP server
+z adresem `https://api.elevenlabs.io/v1/mcp`, transportem Streamable HTTP
+i logowaniem OAuth.
+[Dokumentacja ElevenLabs](https://elevenlabs.io/docs/eleven-api/resources/mcp-server)
 
 Gateway używa tego adresu jako `redirect_uri` w autoryzacji i w wymianie kodu (PKCE S256
 pozostaje obowiązkowe), a drogę powrotu zapisuje w `state`
@@ -215,14 +231,15 @@ istniejących aplikacji. Ręczne aplikacje zapisane bez redirectu nadal używaj�
 instalacji; formularz Advanced pokazuje dla nich ten adres. Nie można automatycznie
 zmienić redirectu aplikacji zarejestrowanej ręcznie u dostawcy.
 
-Klient DCR pamięta dokładny redirect w zaszyfrowanych poświadczeniach konta
+Konto CIMD lub DCR pamięta identyfikator klienta i dokładny redirect w zaszyfrowanych poświadczeniach
 (`Credentials.redirectUri`). Zmiana konfiguracji nie zmienia rozpoczętej wymiany kodu
 ani odświeżania istniejących tokenów. Stare rejestracje nadal działają. Dopiero jawne
 Reconnect wykonuje discovery ponownie i wybiera aktualny adres: stały dla S256,
 callback instalacji bez ogłoszonego S256 albo override. Gdy adres i issuer są takie
-same, używa istniejącego klienta; gdy się zmienią, rejestruje nowego. Zmiana endpointu
-lub sposobu uwierzytelniania usuwa poprzednią rejestrację. W obu krokach jednej sesji
-(autoryzacja i wymiana kodu) gateway wysyła identyczny `redirect_uri`.
+same, używa istniejącego klienta. Gdy się zmienią, wybiera klienta CIMD lub rejestruje
+nowego przez DCR. Zmiana endpointu lub sposobu uwierzytelniania usuwa poprzednią
+rejestrację. W obu krokach jednej sesji (autoryzacja i wymiana kodu) gateway
+wysyła identyczny `redirect_uri`.
 
 Każde konto zachowuje własną rejestrację/tokeny; odświeżanie jest serializowane
 blokadą konta w PostgreSQL, również przy wielu gatewayach. Brak możliwości

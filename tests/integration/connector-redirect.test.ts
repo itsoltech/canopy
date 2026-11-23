@@ -1,7 +1,13 @@
 import { afterAll, beforeAll, describe, expect, test } from "bun:test";
 import { dockerAvailable } from "@canopy/db/testing";
-import { pastedCode, returnState, returnTarget } from "@canopy/domain/oauth-return";
-import { DEFAULT_OAUTH_REDIRECT_URL } from "../../apps/gateway/src/connectors/catalog.ts";
+import {
+  DEFAULT_OAUTH_REDIRECT_URL,
+  OAUTH_CLIENT_METADATA_REDIRECT_URL,
+  OAUTH_CLIENT_METADATA_URL,
+  pastedCode,
+  returnState,
+  returnTarget,
+} from "@canopy/domain/oauth-return";
 import { fakeConnector } from "./support/connector.ts";
 import { startTestGateway, type TestGateway } from "./support/gateway.ts";
 
@@ -26,12 +32,12 @@ describe.skipIf(!dockerAvailable)("connector OAuth redirect selection", () => {
     await gw?.close();
   });
 
-  async function account() {
+  async function account(url = fake.url) {
     return (
       await gw.api.saveConnectorAccount({
         connectorType: "custom",
         name: "Redirect test",
-        url: fake.url,
+        url,
         authKind: "oauth",
       })
     ).account!;
@@ -74,6 +80,41 @@ describe.skipIf(!dockerAvailable)("connector OAuth redirect selection", () => {
     expect((await gw.api.completeConnectorOAuth(request)).account?.status).toBe("connected");
     expect(fake.tokenRedirects.at(-1)).toBe(DEFAULT_OAUTH_REDIRECT_URL);
     expect((await gw.api.completeConnectorOAuth(request)).alreadyConnected).toBe(true);
+  });
+
+  test("CIMD-only providers authorize, exchange and refresh using the published client ID", async () => {
+    const provider = fakeConnector({
+      clientMetadata: { clientId: OAUTH_CLIENT_METADATA_URL, redirect: OAUTH_CLIENT_METADATA_REDIRECT_URL },
+    });
+
+    try {
+      provider.duration = 1;
+      const saved = await account(provider.url);
+      const { auth, state, code } = await begin(saved.id);
+      expect(auth.searchParams.get("client_id")).toBe(OAUTH_CLIENT_METADATA_URL);
+      expect(auth.searchParams.get("redirect_uri")).toBe(OAUTH_CLIENT_METADATA_REDIRECT_URL);
+      expect(returnTarget(`?state=${state}&code=${code}`)).toBeUndefined();
+
+      const completed = await gw.api.completeConnectorOAuth({
+        pastedCode: pastedCode(state, code),
+        browserBinding: binding,
+      });
+
+      expect(completed.account?.status).toBe("connected");
+      expect(provider.tokenRedirects).toEqual([OAUTH_CLIENT_METADATA_REDIRECT_URL]);
+
+      provider.duration = 3600;
+      expect((await gw.api.testConnector({ accountId: saved.id })).tools).toHaveLength(2);
+      expect(provider.refreshes).toBe(1);
+
+      const desktop = await begin(saved.id, true);
+      expect(desktop.auth.searchParams.get("client_id")).toBe(OAUTH_CLIENT_METADATA_URL);
+      expect(returnTarget(`?state=${desktop.state}&code=${desktop.code}`)?.url).toStartWith("canopy://oauth/callback?");
+
+      expect(provider.registrations).toBe(0);
+    } finally {
+      await provider.close();
+    }
   });
 
   test("DCR without advertised S256 keeps the installation callback", async () => {
