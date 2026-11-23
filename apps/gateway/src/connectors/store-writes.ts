@@ -145,7 +145,9 @@ export function connectorWrites(sql: SqlClient.SqlClient, base: ConnectorBase, k
                 .length
             )
               return yield* fail("Bot not found");
-          yield* sql`UPDATE connector_accounts SET all_bots=${request.allBots},revision=revision+1,updated_at=now() WHERE id=${row.id}::uuid`;
+          yield* sql`UPDATE connector_accounts SET all_bots=${request.allBots},
+          no_project=COALESCE(${request.noProject ?? null}::boolean,no_project),
+          revision=revision+1,updated_at=now() WHERE id=${row.id}::uuid`;
           yield* sql`DELETE FROM connector_bot_grants WHERE account_id=${row.id}::uuid`;
 
           for (const id of new Set(request.botIds))

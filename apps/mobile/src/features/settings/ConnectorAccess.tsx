@@ -1,8 +1,8 @@
 import type { connectors } from "@canopy/contracts";
 import { useAppearance } from "../../state/appearance";
 import { useOverview } from "../../state/overview";
-import { SettingsGroup } from "./SettingsGroup";
-import { ResourceState, useSettingsAction, workersFollowStream } from "./resource";
+import { SettingsGroup, SettingToggle } from "./SettingsGroup";
+import { ResourceState, useSettingsAction } from "./resource";
 import { useBotList } from "../../state/bot-list";
 import { SettingAccess } from "./SettingAccess";
 import { Notice } from "../../ui/components";
@@ -12,34 +12,34 @@ export function ConnectorAccess({
   onChanged,
 }: {
   account: connectors.ConnectorAccount;
-  onChanged: () => void;
+  onChanged: () => Promise<void>;
 }) {
   const list = useBotList();
   const { botsEnabled, threadsEnabled } = useAppearance();
-  const resource = useSettingsAction(botsEnabled ? list : workersFollowStream);
+  const resource = useSettingsAction({ reload: onChanged, error: "" });
+  const botError = botsEnabled ? list.error : "";
   const { projects, loaded } = useOverview();
 
   const change = (
     patch:
       | Pick<connectors.SetConnectorAccessRequest, "allProjects" | "projectIds">
+      | { noProject: boolean }
       | {
           allBots: boolean;
           botIds: string[];
         },
   ) =>
-    void resource
-      .run((api) =>
-        api.setConnectorAccess({
-          accountId: account.id,
-          expectedRevision: account.revision,
-          // A bot-only edit on an older gateway must carry its existing worker access.
-          ...(account.allProjects === undefined && { allWorkers: account.allWorkers, workerIds: account.workerIds }),
-          allBots: account.allBots,
-          botIds: account.botIds,
-          ...patch,
-        }),
-      )
-      .then(onChanged);
+    void resource.run((api) =>
+      api.setConnectorAccess({
+        accountId: account.id,
+        expectedRevision: account.revision,
+        // A bot-only edit on an older gateway must carry its existing worker access.
+        ...(account.allProjects === undefined && { allWorkers: account.allWorkers, workerIds: account.workerIds }),
+        allBots: account.allBots,
+        botIds: account.botIds,
+        ...patch,
+      }),
+    );
 
   const projectOptions = projects
     .filter((project) => !project.nodeId && !project.archivedAt && project.kind !== "scratch")
@@ -50,7 +50,13 @@ export function ConnectorAccess({
     .map((bot) => ({ id: bot.id, name: bot.configuration?.name || "Bot" }));
 
   return (
-    <ResourceState resource={resource}>
+    <ResourceState
+      resource={{
+        ...resource,
+        error: resource.error || botError,
+        reload: botError && !resource.error ? list.reload : resource.reload,
+      }}
+    >
       <SettingsGroup title="Access" description="Choose who can use this account.">
         {threadsEnabled &&
           (account.allProjects === undefined ? (
@@ -64,6 +70,19 @@ export function ConnectorAccess({
               ids={account.projectIds}
               disabled={resource.busy || !loaded}
               onChange={(next) => change({ allProjects: next.all, projectIds: [...next.ids] })}
+            />
+          ))}
+        {threadsEnabled &&
+          account.allProjects !== undefined &&
+          (account.noProject === undefined ? (
+            <Notice>Update the gateway to set No project access.</Notice>
+          ) : (
+            <SettingToggle
+              title="No project"
+              description="Lets threads without a project use this account."
+              value={account.noProject}
+              disabled={resource.busy}
+              onChange={(noProject) => change({ noProject })}
             />
           ))}
         {botsEnabled && (

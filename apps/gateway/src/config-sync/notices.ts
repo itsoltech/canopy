@@ -171,10 +171,14 @@ function restore(sync: ConfigSync, row: ConfigRow, history: readonly HistoryRow[
       const ancestry = yield* fieldAncestry(sql, store.owner, row, h.field, [{ ...h.ancestry, hlc: h.hlc }]);
       const seen = ancestry.prev;
 
-      const value =
-        row.kind === "connector" && h.reason === "deleted" && h.field === "projectAccess"
-          ? { allProjects: connectorProjectAccess(h.value).allProjects, projectIds: [] }
-          : h.value;
+      let value = h.value;
+
+      if (row.kind === "connector" && h.reason === "deleted") {
+        if (h.field === "projectAccess")
+          value = { allProjects: connectorProjectAccess(h.value).allProjects, projectIds: [] };
+
+        if (h.field === "noProject") value = false;
+      }
 
       const next = {
         value,

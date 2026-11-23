@@ -58,6 +58,8 @@ message ConnectorAccount {
   ConnectorError error = 16;
   optional bool all_projects = 17;
   repeated string project_ids = 18;
+  // Absent on gateways without support for the independent No project scope.
+  optional bool no_project = 19;
 }
 message ConnectorError {
   string kind = 1;
@@ -90,6 +92,8 @@ message SetConnectorAccessRequest {
   // A specified flag or a nonempty project_ids list replaces project access.
   optional bool all_projects = 7;
   repeated string project_ids = 8;
+  // When present, updates No project access independently of named projects.
+  optional bool no_project = 9;
 }
 message ConnectorAccountRequest { string account_id = 1; }
 message DeleteConnectorAccountResponse {}

@@ -38,6 +38,7 @@ export function threadConnectorList(
       ${projectConnectorAccess(sql, user, worker ? project : null, {
         id: sql`c.id`,
         allProjects: sql`c.all_projects`,
+        noProject: sql`c.no_project`,
       })} AS granted,
       c.connector_type='slack' AND EXISTS(SELECT 1 FROM messenger_accounts a
         WHERE a.connector_account_id=c.id AND a.owner_user_id=c.owner_user_id AND a.enabled AND a.deleted_at IS NULL

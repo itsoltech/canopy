@@ -8,6 +8,7 @@ z ręcznym Preview Browser/Desktop/Device oraz kanały botów Slack przez Socket
 z trwałym buforem wiadomości, aktualizacjami aktywnej tury i konfiguracją
 nasłuchiwania przez prywatną rozmowę z botem.
 Aktualizacja (2026-11-22): dostęp wątków do konektorów wynika z grantów projektów.
+Aktualizacja (2026-11-23): wątki poza projektami korzystają z osobnego grantu No project.
 Statystyki zużycia zawierają szacunki według stawek API OpenAI i xAI.
 Ustawienia Appearance są preferencjami klienta.
 BFF materializuje stan odczytu ze wspólnego gRPC overview

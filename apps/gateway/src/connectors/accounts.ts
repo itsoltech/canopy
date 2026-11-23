@@ -37,6 +37,7 @@ export function connectorAccounts(sql: SqlClient.SqlClient, sealing: ReturnType<
           AND ${projectConnectorAccess(sql, source.userId, sql`t.project_id`, {
             id: sql`a.id`,
             allProjects: sql`a.all_projects`,
+            noProject: sql`a.no_project`,
           })}`;
 
         if (!allowed.length) return yield* fail("Connector access denied");
@@ -55,7 +56,7 @@ export function connectorAccounts(sql: SqlClient.SqlClient, sealing: ReturnType<
 
   const list = (
     user: string,
-    scope: { projectId?: string; threadId?: string; botId?: string; connectorType?: string } = {},
+    scope: { projectId?: string; threadId?: string; workerId?: string; botId?: string; connectorType?: string } = {},
     metadataOnly = false,
   ) =>
     Effect.gen(function* () {
@@ -80,7 +81,7 @@ export function connectorAccounts(sql: SqlClient.SqlClient, sealing: ReturnType<
 
       const rows =
         yield* sql<AccountRow>`SELECT a.id,a.owner_user_id,a.connector_type,a.name,a.namespace,a.url,a.transport,
-      a.auth_kind,a.credentials,a.legacy_headers,a.status,a.error,a.all_projects,a.all_bots,a.revision,a.last_used_at,
+      a.auth_kind,a.credentials,a.legacy_headers,a.status,a.error,a.all_projects,a.no_project,a.all_bots,a.revision,a.last_used_at,
       ${metadataOnly ? sql`'[]'::jsonb` : sql`a.tools`} AS tools
       FROM connector_accounts a WHERE owner_user_id=${user}::uuid
       AND (${scope.connectorType ?? null}::text IS NULL OR a.connector_type=${scope.connectorType ?? null})
@@ -89,6 +90,8 @@ export function connectorAccounts(sql: SqlClient.SqlClient, sealing: ReturnType<
           ? projectConnectorAccess(sql, user, projectId, {
               id: sql`a.id`,
               allProjects: sql`a.all_projects`,
+              // Only thread catalogs use the scratch scope. Project-only reads also back worktree cleanup.
+              noProject: scope.threadId || scope.workerId ? sql`a.no_project` : false,
             })
           : sql`true`
       }

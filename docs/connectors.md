@@ -2,7 +2,7 @@
 
 Projekt i wdrożenie: 2026-11-02. Zakres: konta zdalnych serwerów MCP,
 OAuth w gateway, dostęp wybranych projektów i botów oraz jeden kanał wykonania.
-Status (2026-11-22): dostęp wątków do kont wynika z grantów projektów.
+Status (2026-11-23): każde konto ma niezależny, domyślnie wyłączony zakres No project.
 Aktualizacja (2026-11-23): transport OAuth przechodzi na kolejny zweryfikowany
 adres po błędzie zestawiania TCP. Log i eksport diagnostyczny opisują błędy sieci OAuth.
 Settings → Connectors rozróżnia **Slack User** (narzędzia MCP działające jako
@@ -27,7 +27,6 @@ Available, Available next turn, Access removed, Unavailable oraz Error.
 Zachowuje podłączone konto po odebraniu grantu do czasu aktualizacji katalogu;
 szczegóły błędu sesji rozwija się przez Show details.
 Aktualizacja (2026-11-23): wątki Claude przyjmują warunkowe schematy narzędzi MCP.
-Web i desktop objaśniają wykluczenie No project w ustawieniach konektorów i panelu wątku.
 Dostępność kanałów według [release.md](release.md).
 
 ## Decyzje
@@ -35,8 +34,9 @@ Dostępność kanałów według [release.md](release.md).
 Typ konektora opisuje usługę, konto opisuje nazwaną autoryzację (np. „personal”,
 „work”), a grant określa dostęp. Konto należy do użytkownika. Domyślnie nie ma
 grantów. All projects i All bots obejmują także przyszłe projekty i boty
-**tego użytkownika**. Wątki w No project nie korzystają z kont konektorów.
-Wybrane projekty i boty są niezależnymi zbiorami. Każde konto ma własne granty.
+**tego użytkownika**. All projects obejmuje wyłącznie projekty. Użytkownik osobno
+włącza No project dla wątków poza projektami. Wybrane projekty, No project i boty
+są niezależnymi zakresami. Każde konto ma własne granty.
 
 Migracja **0041_connectors** przenosi stare `bot_mcp_servers` do kont typu
 `custom`, zachowując ID, nazwy, transport i odwołania do zaszyfrowanych nagłówków.
@@ -49,6 +49,8 @@ Indywidualny grant przechodzi na aktywny projekt, jeśli wszystkie znane miejsca
 pracy i istniejące wątki projektu były objęte grantem. Instalacje współdzielące
 konfigurację mogą mieć dodatkowe miejsca pracy u partnerów, dlatego indywidualne
 granty wymagają ponownego wyboru projektów. Granty botów są zachowywane.
+Migracja **0207_connector_no_project** dodaje wyłączony zakres No project do
+dotychczasowych kont i ustawia tę samą wartość domyślną dla nowych kont.
 
 Gateway jest jedynym klientem zewnętrznego MCP. Tokeny, refresh tokeny, sekrety
 aplikacji OAuth i PKCE są zaszyfrowane AES-256-GCM kluczem `CANOPY_SECRETS_KEY`.
@@ -80,6 +82,8 @@ poświadczenia własnym kluczem; nie wysyła ich do workerów, modeli ani UI. Ł
 configuration nie przenosi definicji ani sekretów. Stan połączenia, diagnoza `error`, ostatnie użycie i namespace są lokalne;
 UI opisuje je jako „This computer”. Zakres Projects, w tym All projects,
 synchronizuje się z kontem jako jedno pole `projectAccess` z kanonicznymi ID projektów.
+Pole `noProject` synchronizuje się niezależnie. Brak pola w starszej konfiguracji
+oznacza wyłączony dostęp.
 All bots jest wspólne, a indywidualne granty botów są zapisywane w domu bota. Przeniesienie bota nadal wymaga nadania mu dostępu w nowym domu.
 Nieudany Test nie publikuje tych lokalnych pól ani nie zwiększa rewizji wspólnej konfiguracji.
 Udany Test publikuje tylko rzeczywistą zmianę katalogu narzędzi; sam powrót do `connected`
@@ -255,7 +259,8 @@ Nazwy są stabilne i rozdzielone per konto (`github_work_<id>__create_issue`),
 także gdy nazwy dwóch kont są identyczne po normalizacji. Opisy podają typ i konto.
 Rename unieważnia cache opisów; techniczna nazwa narzędzia pozostaje stabilna.
 Wywołanie `AgentToolCall` wraca istniejącym linkiem gRPC do gateway. Gateway
-sprawdza workera, właściciela wątku, bieżącą turę, grant projektu i bieżący katalog konta.
+sprawdza workera, właściciela wątku, bieżącą turę, grant projektu lub No project
+i bieżący katalog konta. Katalog narzędzi wątku stosuje tę samą regułę zakresu.
 Zmiana grantów odbiera możliwość wykonania natychmiast. Katalog istniejącego wątku
 aktualizuje się przed następną turą, z zachowaniem historii i bez przerywania pracy
 ([mechanizmy adapterów](#ograniczenia-sesji-harnessów)). Odebrany grant blokuje
@@ -314,7 +319,7 @@ pobranych bajtów. Odczyt z konektora wymaga capability `agent_tool_attachments_
 ### Bezpośrednia wysyłka w Slacku
 
 Po autoryzacji Slack Bot korzystającego z aplikacji Slack User gateway
-udostępnia narzędzie `canopy_post_slack` botom i wątkom w projektach z grantem tego konta.
+udostępnia narzędzie `canopy_post_slack` botom i wątkom objętym grantem tego konta.
 Aplikacja musi mieć dostęp do rozmowy w Slacku. Używa istniejącego bot scope
 `chat:write`. Trasa nasłuchiwania nie jest potrzebna do wysyłki.
 Gateway wywołuje `chat.postMessage` jako aplikacja Canopy z użyciem tokenu bota.
@@ -362,12 +367,13 @@ bez cyklicznych odczytów HTTP renderera.
 Jego DTO zawiera wyłącznie nazwy, statusy i metadane grantów; nie zawiera URL-i,
 nazw nagłówków, błędów konta ani poświadczeń. „Manage connector access” zmienia
 przez `SetThreadConnectorGrant` dostęp projektu w domu wątku, z kontrolą właściciela
-i rewizji. Zmiana obejmuje wszystkie wątki projektu. All projects i pełną listę
-grantów edytuje się w Settings → Connectors. Cache zdalnego panelu jest tylko do odczytu
+i rewizji. Zmiana obejmuje wszystkie wątki projektu. All projects, pełną listę
+grantów i No project edytuje się w Settings → Connectors. Wątek w No project
+pokazuje dostęp wynikający z ustawień konta. Cache zdalnego panelu jest tylko do odczytu
 i nigdy nie udziela grantu. Szczegóły: [połączone komputery](linked-computers.md#panel-wątku-i-archiwum).
 
 Settings → Connectors pokazuje katalog, nazwane konta, stan, ostatnie użycie,
-test z listą narzędzi, rename, reconnect, disconnect oraz dostęp projektów i botów.
+test z listą narzędzi, rename, reconnect, disconnect oraz dostęp Projects, No project i Bots.
 Konta są zwartymi wierszami jednej listy z separatorami. Menu wiersza zawiera Test,
 Reconnect, Rename…, Edit access, Disconnect i Delete…. Kliknięcie wiersza rozwija
 edytor dostępu; zmiana nazwy otwiera osobny dialog. Wynik testu pozostaje pod
@@ -382,9 +388,8 @@ użycia i dostęp. Bieżący komputer nie jest powtarzany w każdym wierszu tele
 Web i aplikacja natywna współdzielą zaokrąglanie czasu: 59,5 minuty przechodzi
 w godzinę, a 23,5 godziny — w dzień, także w skróconym zapisie.
 Kontrolki korzystają z istniejącego kitu; wybór wielokrotny jest listą custom.
-Edytor Projects w web/desktop wyjaśnia, że All projects wyklucza No project.
-Pusty panel Connectors w wątku No project i jego okno zarządzania podają powód
-niedostępności.
+W web, desktop i mobile przełącznik No project jest osobną kontrolką dostępu
+konta. Odtworzenie usuniętego konta pozostawia No project wyłączone.
 Sekcja Connections bota pokazuje konta z grantów; `@` ma grupę Connectors i chip
 „GitHub · work”. Gateway waliduje wzmiankę względem grantu i dodaje wskazanie
 konta wyłącznie do wejścia modelu. Panel wątku pokazuje dostępne konta, a oś

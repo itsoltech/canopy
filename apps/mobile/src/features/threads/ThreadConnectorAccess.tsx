@@ -6,11 +6,11 @@ import { Switch } from "../../ui/Switch";
 import { styles, useColors } from "../../ui/theme";
 import { openSettingsSection } from "../settings/navigation";
 import type { useThreadPanel } from "./use-thread-panel";
-import { useOverview } from "../../state/overview";
 
 /** The gateway returns the current session status after each project grant edit. */
 export function ThreadConnectorAccess({
   thread,
+  project,
   panel,
   disabled,
   homeName,
@@ -18,6 +18,7 @@ export function ThreadConnectorAccess({
   onClose,
 }: {
   thread: ui.Thread;
+  project: ui.Project | undefined;
   panel: ReturnType<typeof useThreadPanel>;
   disabled: boolean;
   homeName: string;
@@ -25,9 +26,8 @@ export function ThreadConnectorAccess({
   onClose: () => void;
 }) {
   const c = useColors();
-  const { projects } = useOverview();
-  const project = projects.find((candidate) => candidate.id === thread.projectId);
-  const hasProject = !!thread.projectId && project?.kind !== "scratch" && !project?.archivedAt;
+  const noProject = project?.kind === "scratch";
+  const hasProject = project?.kind === "project" && !project.archivedAt;
   const accounts = panel.data?.connectors.filter((account) => account.revision > 0n) ?? [];
   const hasLegacyGrants = accounts.some((account) => account.allProjects === undefined);
   const [busy, setBusy] = useState(false);
@@ -48,9 +48,13 @@ export function ThreadConnectorAccess({
   }
 
   return (
-    <Sheet title="Manage connector access" visible={visible} onClose={onClose}>
+    <Sheet title={noProject ? "Connector access" : "Manage connector access"} visible={visible} onClose={onClose}>
       <Text style={[styles.meta, { color: c.muted }]}>
-        {hasProject ? "Changes apply to every thread in this project." : "This thread has no active project."}
+        {noProject
+          ? "Access applies to every thread in No project."
+          : hasProject
+            ? "Changes apply to every thread in this project."
+            : "This thread has no active project."}
       </Text>
       {!!error && (
         <Text accessibilityRole="alert" style={[styles.meta, { color: c.danger }]}>
@@ -67,21 +71,31 @@ export function ThreadConnectorAccess({
             <Text numberOfLines={2} style={[styles.body, { color: c.text }]}>
               {account.connectorName} · {account.accountLabel}
             </Text>
-            {account.allProjects && <Text style={[styles.meta, { color: c.muted }]}>All projects</Text>}
+            {noProject ? (
+              <Text style={[styles.meta, { color: c.muted }]}>{account.granted ? "Access granted" : "No access"}</Text>
+            ) : (
+              account.allProjects && <Text style={[styles.meta, { color: c.muted }]}>All projects</Text>
+            )}
           </View>
-          <Switch
-            label={`Allow ${account.connectorName} · ${account.accountLabel}`}
-            value={account.granted}
-            disabled={disabled || busy || !hasProject || account.allProjects !== false || thread.status === "archived"}
-            onChange={(granted) => void change(account, granted)}
-          />
+          {!noProject && (
+            <Switch
+              label={`Allow ${account.connectorName} · ${account.accountLabel}`}
+              value={account.granted}
+              disabled={
+                disabled || busy || !hasProject || account.allProjects !== false || thread.status === "archived"
+              }
+              onChange={(granted) => void change(account, granted)}
+            />
+          )}
         </View>
       ))}
       {thread.nodeId ? (
-        <Text style={[styles.meta, { color: c.muted }]}>Manage accounts on {homeName}</Text>
+        <Text style={[styles.meta, { color: c.muted }]}>
+          {noProject ? `Open Settings → Connectors on “${homeName}”.` : `Manage accounts on ${homeName}`}
+        </Text>
       ) : (
         <Button
-          title="Manage accounts"
+          title={noProject ? "Open connector settings" : "Manage accounts"}
           onPress={() => {
             onClose();
             openSettingsSection("connectors");

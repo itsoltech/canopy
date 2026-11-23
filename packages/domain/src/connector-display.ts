@@ -17,6 +17,7 @@ export function connectorAccessSummary(
     connectorType?: string;
     allProjects?: boolean | undefined;
     projectIds: readonly string[];
+    noProject?: boolean | undefined;
     allBots: boolean;
     botIds: readonly string[];
   },
@@ -32,11 +33,12 @@ export function connectorAccessSummary(
     ? `All ${bot}s`
     : `${account.botIds.length} ${account.botIds.length === 1 ? bot : `${bot}s`}`;
 
-  return modules
-    .flatMap((id) => {
-      if (id === "bots") return [bots];
+  const threads: string[] = [];
 
-      return account.allProjects === undefined ? [] : [projects];
-    })
-    .join(" · ");
+  if (account.noProject) threads.push("No project");
+
+  if (account.allProjects !== undefined && (!account.noProject || account.allProjects || account.projectIds.length))
+    threads.push(projects);
+
+  return modules.flatMap((id) => (id === "bots" ? [bots] : threads)).join(" · ");
 }

@@ -145,6 +145,7 @@ describe.skipIf(!dockerAvailable)("shared connectors across separate linked data
     const onA = (await account(a, id))!;
     const onB = (await account(b, id))!;
     expect(onB.allProjects).toBe(false);
+    expect(onB.noProject).toBe(false);
     expect(onB.allBots).toBe(true);
     expect(onB.namespace).not.toBe(onA.namespace);
     b.gateway.worker.holdTurns = true;
@@ -462,10 +463,15 @@ describe.skipIf(!dockerAvailable)("shared connectors across separate linked data
       accountId: id,
       allProjects: true,
       projectIds: [project.id],
+      noProject: true,
       allBots: true,
       expectedRevision: (await account(a, id))!.revision,
     });
-    await wait(async () => (await account(b, id))?.projectIds.includes(project.id) ?? false);
+    await wait(async () => {
+      const replicated = await account(b, id);
+
+      return !!replicated?.projectIds.includes(project.id) && replicated.noProject === true;
+    });
     const before = fake.revoked.length;
     await a.gateway.api.deleteConnectorAccount({ accountId: id });
     await wait(async () => !(await account(b, id)));
@@ -482,8 +488,8 @@ describe.skipIf(!dockerAvailable)("shared connectors across separate linked data
     );
     await b.gateway.api.manageConfigNotice({ id: notices[0]!.id, action: "restore" });
     await wait(async () => !!(await account(a, id)) && !!(await account(b, id)));
-    expect(await account(a, id)).toMatchObject({ allProjects: true, projectIds: [] });
-    expect(await account(b, id)).toMatchObject({ allProjects: true, projectIds: [] });
+    expect(await account(a, id)).toMatchObject({ allProjects: true, projectIds: [], noProject: false });
+    expect(await account(b, id)).toMatchObject({ allProjects: true, projectIds: [], noProject: false });
     expect((await b.gateway.api.testConnector({ accountId: id })).tools).toHaveLength(2);
   }, 40_000);
 

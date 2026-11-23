@@ -23,6 +23,7 @@ export function connectorAccountViews(sql: SqlClient.SqlClient, sealing: ReturnT
       ...(row.status === "error" && row.error && { error: fromJson(connectors.ConnectorErrorSchema, row.error) }),
       allProjects: row.all_projects,
       projectIds: projects,
+      noProject: row.no_project,
       allBots: row.all_bots,
       botIds: bots,
       revision: BigInt(row.revision),
