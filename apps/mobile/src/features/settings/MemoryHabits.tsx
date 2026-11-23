@@ -130,8 +130,7 @@ export function MemoryHabits({ onApproved }: { onApproved: () => void }) {
       {snapshot && sheet?.kind === "settings" && (
         <MemoryReflectionSheet
           settings={settings}
-          projects={snapshot.projects}
-          models={snapshot.models}
+          snapshot={snapshot}
           onSave={save}
           onReload={reload}
           onClose={close}

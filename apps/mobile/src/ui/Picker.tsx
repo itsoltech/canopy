@@ -40,6 +40,7 @@ export interface PickerSection<T> {
   /** Stable identity when separate projects or computers have the same display name. */
   id?: string;
   title?: string;
+  wrapTitle?: boolean;
   separator?: boolean;
   options: PickerOption<T>[];
 }
@@ -132,7 +133,7 @@ export function PickerSheet<T>({
             {section.title ? (
               <Text
                 accessibilityRole="header"
-                numberOfLines={1}
+                numberOfLines={section.wrapTitle ? undefined : 1}
                 style={[
                   styles.overlayHeading,
                   { color: c.muted, paddingHorizontal: 8, paddingTop: 6, paddingBottom: 2 },

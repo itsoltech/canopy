@@ -1,104 +1,88 @@
 <script lang="ts">
-  import type { ui } from "@canopy/contracts";
-  import EffortPicker from "#lib/features/models/EffortPicker.svelte";
-  import { effortLevel } from "#lib/features/models/catalog.ts";
-  import type { ProviderKey } from "#lib/features/threads/providers.ts";
-  import Icon from "#lib/shared/ui/Icon.svelte";
-  import IconButton from "#lib/shared/ui/IconButton.svelte";
-  import PillButton from "#lib/shared/ui/PillButton.svelte";
-  import ResettableControl from "#lib/shared/ui/ResettableControl.svelte";
+  import { Provider, type ui } from "@canopy/contracts";
+  import { modelKey, type ModelOption } from "#lib/features/models/catalog.ts";
+  import { useModelCatalog } from "#lib/features/models/model-catalog.svelte.ts";
+  import SettingsModelControls from "#lib/features/models/SettingsModelControls.svelte";
+  import { useOverview } from "#lib/features/overview/overview-state.svelte.ts";
+  import {
+    instanceLabel,
+    instanceOf,
+    profileIdValue,
+    providerKeyOf,
+    providerName,
+  } from "#lib/features/threads/providers.ts";
   import SettingsRow from "#lib/shared/ui/SettingsRow.svelte";
-  import HabitModelPicker from "./HabitModelPicker.svelte";
+  import { habitModelOptions } from "./habit-model-options.ts";
 
   let {
     models,
-    model,
-    effort,
-    provider,
-    profileAvailable,
+    draft = $bindable(),
+    valid = $bindable(false),
     disabled,
-    onmodel,
-    oneffort,
   }: {
-    models: ReadonlyMap<string, ui.MemoryReflectionModel>;
-    model: string;
-    effort: string;
-    provider: ProviderKey | undefined;
-    profileAvailable: boolean;
+    models: ui.MemoryReflectionModel[];
+    draft: ui.MemoryReflectionSettings;
+    valid?: boolean;
     disabled: boolean;
-    onmodel: (id: string) => void;
-    oneffort: (id: string) => void;
   } = $props();
 
-  const selected = $derived(models.get(model));
+  const overview = useOverview();
+  const catalog = useModelCatalog();
+  const options = $derived(habitModelOptions(models, overview.ownWorkers, catalog.workers));
+  const provider = $derived(providerKeyOf(draft.provider));
+  const profileId = $derived(profileIdValue(draft.profileId));
+  const key = $derived(provider && modelKey(provider, profileId, draft.model));
+  const option = $derived(options.find((item) => item.key === key));
+  const effortValid = $derived(!draft.effort || option?.efforts.some((level) => level.id === draft.effort));
 
-  const effortOption = $derived(
-    selected?.efforts.length && provider
-      ? {
-          provider,
-          name: selected.label || selected.model,
-          efforts: selected.efforts.map(effortLevel),
-          defaultEffort: undefined,
-        }
-      : undefined,
-  );
+  const missingSelection = $derived.by(() => {
+    if (!provider || option) return undefined;
+    const instance = overview.ownWorkers.map((worker) => instanceOf(worker, provider, profileId)).find((item) => item);
+    const label = instanceLabel(instance ?? { id: profileId || "native", label: "" });
 
-  const effortAvailable = $derived(effortOption?.efforts.some((option) => option.id === effort));
-  const unavailable = $derived(disabled || !profileAvailable);
-  let modelOpen = $state(false);
-  let effortOpen = $state(false);
+    return `${draft.model || "Auto"} · ${providerName(provider)} · ${label}`;
+  });
 
   const description = $derived.by(() => {
-    if (!profileAvailable) return "Choose a provider profile first.";
+    if (!options.length) return "Connect a worker with a signed-in provider, then refresh habits.";
 
-    if (!model) return "Choose a specific model to set reasoning effort.";
+    if (missingSelection) return "This model is unavailable. Choose another model.";
 
-    if (!selected) return "Choose an available model or use Auto.";
+    if (draft.enabled && !provider) return "Choose a model to turn on habit checks.";
 
-    if (effort && !effortAvailable) return "Reset reasoning effort to use Auto.";
+    if (!effortValid) return "This reasoning effort is unavailable. Reset it to Auto.";
 
-    return effortOption ? undefined : "This model has no adjustable reasoning effort.";
+    if (option && !option.model) return "Auto uses a small model from this provider profile.";
+
+    return undefined;
   });
 
   $effect(() => {
-    if (unavailable) modelOpen = false;
-
-    if (unavailable || !effortOption) effortOpen = false;
+    valid = !!option && !!effortValid;
   });
+
+  function select(next: ModelOption | undefined) {
+    if (!next || next.key === key) return;
+    draft = {
+      ...draft,
+      provider: Provider[next.provider],
+      profileId: next.profileId || "native",
+      model: next.model,
+      effort: "",
+    };
+  }
 </script>
 
-<SettingsRow title="Model and reasoning" {description}>
-  <fieldset disabled={unavailable} class="min-w-0 pt-3">
-    <ResettableControl changed={!!effort && !unavailable} align="start">
-      <div class="flex min-w-0 items-center gap-1">
-        <HabitModelPicker
-          {models}
-          value={model}
-          {provider}
-          bind:open={modelOpen}
-          disabled={unavailable}
-          onchange={onmodel}
-        />
-        {#if effortOption}
-          <span class="shrink-0">
-            <EffortPicker
-              option={effortOption}
-              bind:open={effortOpen}
-              bind:value={() => (effortAvailable ? effort : undefined), (next) => oneffort(next ?? "")}
-              onmodel={() => (modelOpen = true)}
-              automatic
-            />
-          </span>
-        {:else}
-          <PillButton disabled class="shrink-0 pl-1.5 opacity-50">
-            <Icon name="light-bulb" size="sm" />
-            Reasoning effort
-          </PillButton>
-        {/if}
-      </div>
-      {#snippet reset()}
-        <IconButton icon="arrow-path" label="Reset reasoning effort to Auto" size="sm" onclick={() => oneffort("")} />
-      {/snippet}
-    </ResettableControl>
-  </fieldset>
+<SettingsRow title="Habit check model" {description}>
+  <div class="min-w-0 pt-3">
+    <SettingsModelControls
+      {options}
+      bind:option={() => option, select}
+      bind:effort={() => draft.effort || undefined, (effort) => (draft = { ...draft, effort: effort ?? "" })}
+      {missingSelection}
+      resetLabel="Reset reasoning effort to Auto"
+      automaticEffort
+      disabled={disabled || !options.length}
+    />
+  </div>
 </SettingsRow>

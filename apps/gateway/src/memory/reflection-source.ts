@@ -4,7 +4,6 @@ import type { SqlClient } from "effect/sql";
 
 export interface ReflectionSettings {
   owner_user_id: string;
-  worker_id: string | null;
   project_ids: string[];
   interval_minutes: number;
   provider: Provider;
@@ -95,10 +94,12 @@ export function checkSources(
   expected: ReflectionSource[],
 ) {
   return Effect.gen(function* () {
+    if (!expected.length) return false;
     const threadIds = [...new Set(expected.map((source) => source.thread_id))].sort();
-    // Serializes with SendMessage, archive, retention and rewind during reservation and result application.
-    yield* sql`SELECT id FROM threads WHERE owner_user_id=${settings.owner_user_id}::uuid AND id=ANY(${threadIds}::uuid[])
-      ORDER BY id FOR SHARE`;
+    // Hold both the source project and its threads through admission or result application.
+    yield* sql`SELECT t.id FROM threads t JOIN projects p ON p.id=t.project_id AND p.owner_user_id=t.owner_user_id
+      WHERE t.owner_user_id=${settings.owner_user_id}::uuid AND t.id=ANY(${threadIds}::uuid[])
+      ORDER BY t.id FOR SHARE OF p,t`;
     const live = yield* reflectionSources(sql, settings, now, expected);
     const byId = new Map(live.map((s) => [s.message_id, s]));
 

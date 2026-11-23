@@ -10,19 +10,20 @@ import { coreState } from "../core/core-context.ts";
 import type { GatewayCore } from "../core/core.ts";
 import { Invalid, NotFound } from "../store/errors.ts";
 import { INSTANCE_ID, NATIVE_ID } from "../store/instance-config.ts";
-import { applyInstanceModels, harnessOf, InstanceStore, ModelStore, SettingsConflict } from "../store/index.ts";
+import { harnessOf, SettingsConflict } from "../store/index.ts";
 import { uuid } from "./model.ts";
 import { cancelReflection } from "./reflection-generation.ts";
+import { reflectionProfiles } from "./reflection-profiles.ts";
 import { resolveHabit, suggestionsFor } from "./reflection-review.ts";
 
 const DEFAULT_INTERVAL_MINUTES = 1_440;
 const INTERVALS = new Set([360, 720, DEFAULT_INTERVAL_MINUTES, 4_320, 10_080]);
 
 interface SettingsRow {
+  worker_id: string | null;
   enabled: boolean;
   interval_minutes: number;
   project_ids: string[];
-  worker_id: string | null;
   provider: Provider;
   profile_id: string;
   model: string;
@@ -63,80 +64,26 @@ function projectsFor(sql: SqlClient.SqlClient, owner: string) {
     ORDER BY name,id`;
 }
 
-function reflectionModels(sql: SqlClient.SqlClient, owner: string, projectIds?: string[], workerId?: string) {
-  return Effect.gen(function* () {
-    const workers = yield* sql<{ id: string; name: string }>`
-      SELECT w.id,w.name FROM workers w
-      WHERE w.owner_user_id=${owner}::uuid
-        AND w.archived_at IS NULL AND w.revoked_at IS NULL
-        ${workerId ? sql`AND w.id=${workerId}::uuid` : sql``}
-        AND EXISTS (
-          SELECT 1 FROM project_workspaces pw JOIN projects p ON p.id=pw.project_id
-          WHERE pw.worker_id=w.id AND pw.archived_at IS NULL
-            AND p.owner_user_id=${owner}::uuid AND p.kind='project' AND p.archived_at IS NULL AND NOT p.config_deleted
-        )
-        ${
-          projectIds?.length
-            ? sql`AND NOT EXISTS (
-          SELECT 1 FROM unnest(${projectIds}::uuid[]) AS selected(project_id)
-          WHERE NOT EXISTS (
-            SELECT 1 FROM project_workspaces pw WHERE pw.project_id=selected.project_id
-              AND pw.worker_id=w.id AND pw.archived_at IS NULL
-          )
-        )`
-            : sql``
-        }
-      ORDER BY w.name,w.id`;
-
-    if (!workers.length) return [];
-
-    const instances = yield* InstanceStore.use((store) => store.workerInstances());
-
-    const catalogs = yield* ModelStore.use((store) =>
-      store.catalogs(
-        owner,
-        workers.map(({ id }) => id),
+function reflectionModels(sql: SqlClient.SqlClient, owner: string) {
+  return reflectionProfiles(sql, owner).pipe(
+    Effect.map((profiles) =>
+      profiles.flatMap(({ worker, profile }) =>
+        profile.models
+          .filter((model) => model.id && !model.hidden)
+          .map((model) =>
+            create(ui.MemoryReflectionModelSchema, {
+              workerId: worker.id,
+              workerName: worker.name,
+              provider: profile.provider,
+              profileId: profile.profileId || NATIVE_ID,
+              model: model.id,
+              label: model.displayName || model.id,
+              efforts: model.efforts,
+            }),
+          ),
       ),
-    );
-
-    const rules = yield* InstanceStore.use((store) => store.modelRules());
-    const catalogByWorker = new Map(catalogs.map((catalog) => [catalog.workerId, applyInstanceModels(catalog, rules)]));
-
-    // Both the catalog and the last applied profile report survive a worker disconnect.
-    return workers.flatMap(({ id, name }) =>
-      (catalogByWorker.get(id)?.profiles ?? []).flatMap((profile) => {
-        const profileId = profile.profileId || NATIVE_ID;
-
-        const eligible = instances
-          .get(id)
-          ?.some(
-            (instance) =>
-              instance.harness === profile.provider &&
-              instance.id === profileId &&
-              instance.enabled &&
-              instance.available,
-          );
-
-        if (!eligible) return [];
-
-        return profile.models.flatMap((model) =>
-          model.id && !model.hidden
-            ? [
-                create(ui.MemoryReflectionModelSchema, {
-                  workerId: id,
-                  workerName: name,
-                  provider: profile.provider,
-                  profileId,
-                  model: model.id,
-                  label: model.displayName || model.id,
-                  efforts: model.efforts,
-                }),
-              ]
-            : [],
-        );
-      }),
-    );
-  });
+    ),
+  );
 }
 
 type SettingsInput = Pick<
@@ -148,15 +95,10 @@ function checkedSettings(input: ui.MemoryReflectionSettings | undefined): Settin
   if (!input || !INTERVALS.has(input.intervalMinutes)) throw new Invalid("Choose a valid reflection schedule.");
   const { enabled, intervalMinutes, provider, profileId, model, effort, revision } = input;
   const projectIds = [...new Set(input.projectIds.map(uuid))];
-  const workerId = input.workerId ? uuid(input.workerId) : "";
 
   if (enabled && !projectIds.length) throw new Invalid("Select at least one project.");
 
-  if (
-    workerId
-      ? !harnessOf(provider) || !profileId
-      : enabled || provider !== Provider.UNSPECIFIED || profileId || model || effort
-  )
+  if (provider === Provider.UNSPECIFIED ? enabled || profileId || model || effort : !harnessOf(provider) || !profileId)
     throw new Invalid("Choose a reflection provider profile.");
 
   if (
@@ -167,13 +109,22 @@ function checkedSettings(input: ui.MemoryReflectionSettings | undefined): Settin
   )
     throw new Invalid("Choose a valid reflection model and effort.");
 
-  return { enabled, intervalMinutes, projectIds, workerId, provider, profileId, model, effort, revision };
+  return {
+    enabled,
+    intervalMinutes,
+    projectIds,
+    workerId: input.workerId ? uuid(input.workerId) : "",
+    provider,
+    profileId,
+    model,
+    effort,
+    revision,
+  };
 }
 
 function sameModel(input: SettingsInput, old: SettingsRow | undefined) {
   return (
-    old?.worker_id === input.workerId &&
-    old.provider === input.provider &&
+    old?.provider === input.provider &&
     old.profile_id === input.profileId &&
     old.model === input.model &&
     old.effort === input.effort
@@ -194,10 +145,12 @@ function validateSelection(
       return yield* Effect.fail(new Invalid("Choose projects available on this computer."));
 
     // Allow turning reflection off when a saved project or provider has become unavailable.
-    if (!input.workerId || (!input.enabled && sameModel(input, old))) return;
-    const models = yield* reflectionModels(sql, owner, input.projectIds, input.workerId);
+    if (input.provider === Provider.UNSPECIFIED) return null;
 
-    const eligible = models.some(
+    if (!input.enabled && sameModel(input, old)) return input.workerId === old?.worker_id ? input.workerId : null;
+    const models = yield* reflectionModels(sql, owner);
+
+    const eligible = models.filter(
       (model) =>
         model.provider === input.provider &&
         model.profileId === input.profileId &&
@@ -205,10 +158,13 @@ function validateSelection(
         (!input.effort || model.efforts.includes(input.effort)),
     );
 
-    if (!eligible)
+    if (!eligible.length)
       return yield* Effect.fail(
-        new Invalid("Choose a model and provider profile available for the selected projects."),
+        new Invalid("Choose an available model and reasoning effort for this provider profile."),
       );
+
+    // Older clients display a worker with their selection. Keep that hint only if the owner can use it.
+    return eligible.some((model) => model.workerId === input.workerId) ? input.workerId : null;
   });
 }
 
@@ -220,13 +176,13 @@ function writeSettings(sql: SqlClient.SqlClient, owner: string, input: SettingsI
       const [old] = yield* settingsRows(sql, owner, true);
 
       if (input.revision !== (old?.revision ?? 0)) return yield* Effect.fail(conflict);
-      yield* validateSelection(sql, owner, input, old);
-      const { enabled, intervalMinutes, projectIds, workerId, provider, profileId, model, effort, revision } = input;
+      const workerHint = yield* validateSelection(sql, owner, input, old);
+      const { enabled, intervalMinutes, projectIds, provider, profileId, model, effort, revision } = input;
 
       const [row] = yield* sql<SettingsRow>`
         INSERT INTO memory_reflection_settings AS s
           (owner_user_id,enabled,interval_minutes,project_ids,worker_id,provider,profile_id,model,effort,revision,next_run_at)
-        VALUES (${owner}::uuid,${enabled},${intervalMinutes},${projectIds}::uuid[],${workerId || null}::uuid,
+        VALUES (${owner}::uuid,${enabled},${intervalMinutes},${projectIds}::uuid[],${workerHint}::uuid,
           ${provider},${profileId},${model},${effort},1,CASE WHEN ${enabled} THEN clock_timestamp() END)
         ON CONFLICT (owner_user_id) DO UPDATE SET enabled=excluded.enabled,interval_minutes=excluded.interval_minutes,
           project_ids=excluded.project_ids,worker_id=excluded.worker_id,provider=excluded.provider,
@@ -309,6 +265,7 @@ export function reflectionHandlers(
 
             return create(ui.MemoryHabitsSnapshotSchema, {
               settings: settingsMessage(settings),
+              automaticWorkerSelection: true,
               projects: [...projects],
               models,
               suggestions: [...suggestions],

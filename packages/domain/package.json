@@ -5,6 +5,7 @@
   "type": "module",
   "exports": {
     "./memory-tools": "./src/memory-tools.ts",
+    "./reflection-models": "./src/reflection-models.ts",
     "./memory-scopes": "./src/memory-scopes.ts",
     "./reply-suggestions": "./src/reply-suggestions.ts",
     "./config-notice": "./src/config-notice.ts",

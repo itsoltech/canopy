@@ -2,25 +2,30 @@ import { useState } from "react";
 import { PickerSheet } from "../../ui/Picker";
 import { Segmented } from "../../ui/Segmented";
 import { ProviderIcon } from "../../ui/ProviderIcon";
-import { type ModelChoice, type ModelSection } from "./catalog";
+import type { ModelChoice } from "./catalog";
 import { useEffortLabel } from "../settings/display";
 
+type PickerModel = Pick<ModelChoice, "key" | "provider" | "model" | "name"> &
+  Partial<Pick<ModelChoice, "favorite" | "isDefault">>;
+
 /** Models grouped by provider instance, with search once the list gets long. */
-export function ModelPickerSheet({
+export function ModelPickerSheet<T extends PickerModel>({
   visible,
   onClose,
   sections,
   value,
   onSelect,
   preferFavorites = false,
+  showProfile = false,
 }: {
   visible: boolean;
   onClose: () => void;
-  sections: ModelSection[];
+  sections: { key: string; title: string; choices: T[] }[];
   /** `ModelChoice.key` of the current model. */
   value: string | undefined;
-  onSelect: (choice: ModelChoice) => void;
+  onSelect: (choice: T) => void;
   preferFavorites?: boolean;
+  showProfile?: boolean;
 }) {
   const choices = sections.flatMap((s) => s.choices);
   const hasFavorites = choices.some((choice) => choice.favorite);
@@ -64,10 +69,13 @@ export function ModelPickerSheet({
       }}
       note={choices.length ? undefined : "The worker has not listed its models yet."}
       sections={shown.map((section) => ({
-        title: sections.length > 1 ? section.title : undefined,
+        id: section.key,
+        title: showProfile || sections.length > 1 ? section.title : undefined,
+        wrapTitle: showProfile,
         options: section.choices.map((c) => ({
           value: c.key,
           label: c.name,
+          wrapLabel: showProfile,
           badge: c.isDefault ? "Default" : undefined,
           leading: <ProviderIcon provider={c.provider} size={18} />,
           keywords: `${c.model} ${section.title}`,
@@ -84,12 +92,14 @@ export function EffortPickerSheet({
   choice,
   value,
   onSelect,
+  automatic = false,
 }: {
   visible: boolean;
   onClose: () => void;
-  choice: ModelChoice | undefined;
+  choice: (Pick<ModelChoice, "efforts"> & Partial<Pick<ModelChoice, "defaultEffort">>) | undefined;
   value: string;
   onSelect: (effort: string) => void;
+  automatic?: boolean;
 }) {
   const effortLabel = useEffortLabel();
 
@@ -102,12 +112,15 @@ export function EffortPickerSheet({
       onSelect={onSelect}
       sections={[
         {
-          options: (choice?.efforts ?? []).map((id) => ({
-            value: id,
-            label: effortLabel(id),
-            badge: id === choice?.defaultEffort ? "Default" : undefined,
-            icon: "light-bulb" as const,
-          })),
+          options: [
+            ...(automatic ? [{ value: "", label: "Auto" }] : []),
+            ...(choice?.efforts ?? []).map((id) => ({
+              value: id,
+              label: effortLabel(id),
+              badge: id === choice?.defaultEffort ? "Default" : undefined,
+              icon: "light-bulb" as const,
+            })),
+          ],
         },
       ]}
     />

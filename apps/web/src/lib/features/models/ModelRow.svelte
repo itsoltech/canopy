@@ -63,22 +63,26 @@
       {#if instance}<InstanceTag name={instance.name} accent={instance.accent} class="text-sm/5 sm:text-xs/4" />{/if}
     </span>
     {#if shortcut}<Kbd hotkey={shortcut} />{/if}
-    <IconButton
-      icon="star"
-      size="sm"
-      tabindex={-1}
-      label={starred
-        ? `Remove ${option.name} (${option.profileName}) from favorites`
-        : `Add ${option.name} (${option.profileName}) to favorites`}
-      aria-pressed={starred}
-      class={["-my-1", popping && "t-pop"]}
-      iconClass={starred ? "text-amber-500" : ["fill-zinc-300 dark:fill-zinc-600", !active && "pointer-fine:invisible"]}
-      onclick={(event) => {
-        event.stopPropagation();
-        if (!starred) pop();
-        onstar();
-      }}
-    />
+    {#if option.model}
+      <IconButton
+        icon="star"
+        size="sm"
+        tabindex={-1}
+        label={starred
+          ? `Remove ${option.name} (${option.profileName}) from favorites`
+          : `Add ${option.name} (${option.profileName}) to favorites`}
+        aria-pressed={starred}
+        class={["-my-1", popping && "t-pop"]}
+        iconClass={starred
+          ? "text-amber-500"
+          : ["fill-zinc-300 dark:fill-zinc-600", !active && "pointer-fine:invisible"]}
+        onclick={(event) => {
+          event.stopPropagation();
+          if (!starred) pop();
+          onstar();
+        }}
+      />
+    {/if}
     <Icon name="check" class={["text-brand-600 dark:text-brand-400", !selected && "invisible"]} />
   {/if}
 </div>

@@ -1,6 +1,6 @@
 # Pamięć agentów i botów
 
-Status (2026-11-22): zaimplementowana pamięć gatewaya dla wątków i botów oraz
+Status (2026-11-23): zaimplementowana pamięć gatewaya dla wątków i botów oraz
 Settings → Memory w webie, desktopie i aplikacji mobilnej. Web i desktop mają
 wyszukiwanie, filtry projektu i workera oraz daty utworzenia notatek. Dostępność
 zależy od [promocji wydania](release.md).
@@ -93,12 +93,12 @@ przenosi notatki, ich zakresy oraz potwierdzenia operacji.
 
 ## Refleksja
 
-Status (2026-11-22): Habits w Settings → Memory, okresowa analiza wiadomości,
+Status (2026-11-23): Habits w Settings → Memory, okresowa analiza wiadomości,
 przegląd sugestii i dostarczanie zatwierdzonych nawyków do Claude, Codexa i Groka
 są zaimplementowane. Dostępność zależy od [promocji wydania](release.md).
-Aktualizacja (2026-11-23): wyszukiwanie profili i modeli oraz wspólny wiersz
-wyboru modelu i poziomu rozumowania w webie i desktopie. Selektor Habits
-pozwala zaznaczyć wszystkie dostępne projekty jedną opcją.
+Ustawienia Habits w webie, desktopie i aplikacji mobilnej pozwalają wybrać
+model z profilu dostawcy oraz poziom rozumowania. Gateway dobiera workera
+przy każdym przebiegu analizy.
 Konsolidacja przenosi zatwierdzone reguły jako notatki. Ustawienia analizy,
 sugestie, dowody i stan dostarczania pozostają w źródłowym gatewayu.
 
@@ -112,21 +112,18 @@ prostego języka inspirowanego ASD-STE100. Przykład:
 
 ### Ustawienia i źródła
 
-- Refleksja jest domyślnie wyłączona. Właściciel wybiera projekty, profil
-  dostawcy i częstotliwość. Dostępne interwały to 6, 12 i 24 godziny oraz
-  3 i 7 dni. Domyślne są 24 godziny. Jeden profil działa na wybranym workerze
-  właściciela, któremu przypisano wybrane projekty. W webie i desktopie lista
-  grupuje profile według dostawcy i pozwala wyszukiwać według dostawcy,
-  nazwy workera lub profilu.
+- Refleksja jest domyślnie wyłączona. Właściciel wybiera projekty, których
+  wiadomości chce analizować, oraz częstotliwość. Dostępne interwały to
+  6, 12 i 24 godziny oraz 3 i 7 dni. Domyślne są 24 godziny.
 - W webie i desktopie opcja All projects zaznacza wszystkie dostępne projekty
   niezależnie od wyszukiwania. Ponowne kliknięcie przy pełnym wyborze czyści
   zaznaczenie. Zapis obejmuje bieżący wybór. Aby uwzględnić nowo dodane
   projekty, zaktualizuj wybór i zapisz go ponownie.
-- Po wybraniu profilu można wyszukiwać jego modele według nazwy lub
-  identyfikatora albo zostawić Auto. W wierszu Model and reasoning obok
-  modelu jest kontrolka poziomu rozumowania taka jak w Text generation.
-  Po wybraniu modelu obsługującego poziomy można ustawić poziom suwakiem
-  lub wrócić do Auto. Zmiana modelu ustawia poziom z powrotem na Auto.
+- Wybór modelu obejmuje profile dostawców na workerach właściciela.
+  Ten sam model z tego samego profilu pojawia się raz, nawet gdy działa
+  na kilku komputerach. Można wybrać konkretny model i obsługiwany poziom
+  rozumowania albo Auto dla danego profilu. Ustawienia modelu Habits są
+  niezależne od ustawień generowania tytułów i nazw gałęzi.
 - Pierwszy przebieg może objąć ostatnie 30 dni. Wątek kwalifikuje się po
   archiwizacji albo po 7 dniach bez wiadomości właściciela, po zakończeniu
   tur i zadań w tle. Gateway czyta oryginalną treść dostarczonych tur i
@@ -143,7 +140,11 @@ prostego języka inspirowanego ASD-STE100. Przykład:
 Gateway rezerwuje partię wiadomości jednego projektu w PostgreSQL. Partia
 mieści do 8 KiB wraz z poleceniem. Przy braku kwalifikujących się wiadomości
 gateway pomija wywołanie modelu. Inferencję wykonuje izolowany
-[GenerateText](thread-titles.md#izolacja-sdk) na workerze. Model Auto wybiera
+[GenerateText](thread-titles.md#izolacja-sdk). Gateway wybiera połączony worker
+właściciela z dostępnym profilem, modelem i poziomem rozumowania. Worker dostaje
+wybrane fragmenty wiadomości w prompcie i może wykonać analizę bez katalogu
+roboczego projektu. Wcześniej zapisane ustawienia zachowują wybór profilu
+i modelu. Model Auto wybiera
 Haiku dla Claude, Luna lub Mini dla Codexa i Mini dla Groka oraz niski
 obsługiwany effort. Brak małego modelu odkłada analizę. Jawny wybór modelu
 i effort ma pierwszeństwo.

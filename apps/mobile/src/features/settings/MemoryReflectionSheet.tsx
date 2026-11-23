@@ -1,5 +1,10 @@
 import { useRef, useState } from "react";
 import { ui } from "@canopy/contracts";
+import {
+  reflectionGatewayUpdate,
+  reflectionModelChoices,
+  reflectionWorkerForSave,
+} from "@canopy/domain/reflection-models";
 import { Code, ConnectError } from "@connectrpc/connect";
 import { useOverview } from "../../state/overview";
 import { Button, Notice, Sheet } from "../../ui/components";
@@ -17,25 +22,20 @@ const intervals = [
 
 type Settings = ui.MemoryReflectionSettings;
 
-function useReflectionChoices(
-  draft: Settings,
-  projects: ui.MemoryReflectionProject[],
-  models: ui.MemoryReflectionModel[],
-) {
+function useReflectionChoices(draft: Settings, snapshot: ui.MemoryHabitsSnapshot) {
   const overview = useOverview();
+  const { projects, models } = snapshot;
+  const workerId = reflectionWorkerForSave(snapshot, draft, overview.projects);
+  const modelChoices = reflectionModelChoices(models, overview.workers);
   const projectOptions: AccessOption[] = [...projects];
-  const selectedProjects = overview.projects.filter(({ id }) => draft.projectIds.includes(id));
 
-  const availableModels = models.filter(({ workerId }) =>
-    selectedProjects.every(({ workspaces }) => workspaces.some((workspace) => workspace.workerId === workerId)),
-  );
-
-  const profileModels = availableModels.filter(
+  const chosenModel = modelChoices.find(
     (item) =>
-      item.workerId === draft.workerId && item.provider === draft.provider && item.profileId === draft.profileId,
+      item.provider === draft.provider &&
+      item.profileId === (draft.profileId || "native") &&
+      item.model === draft.model,
   );
 
-  const chosenModel = profileModels.find(({ model }) => model === draft.model);
   const missingProjects = draft.projectIds.filter((id) => !projects.some((project) => project.id === id));
 
   for (const id of missingProjects) projectOptions.push({ id, name: "Unavailable project" });
@@ -44,9 +44,8 @@ function useReflectionChoices(
     !draft.enabled ||
     (!!draft.projectIds.length &&
       !missingProjects.length &&
-      !!profileModels.length &&
-      (!draft.model || !!chosenModel) &&
-      (!draft.effort || chosenModel?.efforts.includes(draft.effort)));
+      !!chosenModel &&
+      (!draft.effort || chosenModel.efforts.includes(draft.effort)));
 
   const projectHint = !projects.length
     ? "Add a project to turn on habit checks."
@@ -56,14 +55,13 @@ function useReflectionChoices(
         ? "Remove unavailable projects to turn on habit checks."
         : undefined;
 
-  return { availableModels, projectOptions, projectHint, valid };
+  return { modelChoices, chosenModel, projectOptions, projectHint, valid, workerId };
 }
 
 function hasChanges(saved: Settings, draft: Settings) {
   return (
     saved.enabled !== draft.enabled ||
     saved.intervalMinutes !== draft.intervalMinutes ||
-    saved.workerId !== draft.workerId ||
     saved.provider !== draft.provider ||
     saved.profileId !== draft.profileId ||
     saved.model !== draft.model ||
@@ -75,15 +73,13 @@ function hasChanges(saved: Settings, draft: Settings) {
 
 export function MemoryReflectionSheet({
   settings,
-  projects,
-  models,
+  snapshot,
   onSave,
   onReload,
   onClose,
 }: {
   settings: Settings;
-  projects: ui.MemoryReflectionProject[];
-  models: ui.MemoryReflectionModel[];
+  snapshot: ui.MemoryHabitsSnapshot;
   onSave: (draft: Settings) => Promise<void>;
   onReload: () => Promise<void>;
   onClose: () => void;
@@ -92,9 +88,11 @@ export function MemoryReflectionSheet({
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const saving = useRef(false);
-  const choices = useReflectionChoices(draft, projects, models);
+  const choices = useReflectionChoices(draft, snapshot);
   const changedElsewhere = draft.revision !== settings.revision;
-  const canSave = !changedElsewhere && choices.valid && hasChanges(settings, draft);
+  const changed = hasChanges(settings, draft);
+  const needsUpdate = changed && choices.valid && choices.workerId === undefined;
+  const canSave = !changedElsewhere && choices.valid && changed && !needsUpdate;
 
   function change(patch: Partial<Settings>) {
     setError("");
@@ -102,13 +100,17 @@ export function MemoryReflectionSheet({
   }
 
   async function save() {
-    if (saving.current || !canSave) return;
+    if (saving.current || !canSave || choices.workerId === undefined) return;
     saving.current = true;
     setBusy(true);
     setError("");
 
     try {
-      await onSave(draft);
+      await onSave({
+        ...draft,
+        workerId: choices.workerId,
+        profileId: draft.provider ? draft.profileId || "native" : "",
+      });
       onClose();
     } catch (cause) {
       const { code } = ConnectError.from(cause);
@@ -117,7 +119,7 @@ export function MemoryReflectionSheet({
         setError("Habit settings changed. Close this sheet and refresh habits.");
         await onReload();
       } else if (code === Code.InvalidArgument) {
-        setError("Could not save habit settings. Check the projects, provider profile and model.");
+        setError("Could not save habit settings. Check the projects, model and reasoning effort.");
         await onReload();
       } else {
         setError("Could not save habit settings. Check the connection and retry.");
@@ -162,10 +164,10 @@ export function MemoryReflectionSheet({
         />
       </SettingsGroup>
       <MemoryReflectionModelFields
-        models={choices.availableModels}
+        choices={choices.modelChoices}
+        selected={choices.chosenModel}
         draft={draft}
         busy={busy}
-        hasProfiles={!!models.length}
         onChange={change}
       />
       {changedElsewhere ? (
@@ -180,6 +182,8 @@ export function MemoryReflectionSheet({
             }}
           />
         </>
+      ) : needsUpdate ? (
+        <Notice>{reflectionGatewayUpdate}</Notice>
       ) : error ? (
         <Notice error>{error}</Notice>
       ) : null}

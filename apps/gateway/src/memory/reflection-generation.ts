@@ -1,29 +1,14 @@
-import { Provider, type ProfileModels, type ui } from "@canopy/contracts";
+import { Provider, type ProfileModels } from "@canopy/contracts";
 import { Effect } from "effect";
 import { SqlClient } from "effect/sql";
 import { coreState } from "../core/core-context.ts";
-import { coreForPickers, coreModelCatalogs } from "../core/core-models.ts";
-import { coreWorkers } from "../core/core-providers.ts";
 import type { GatewayCore } from "../core/core.ts";
 import { accountGeneration } from "../usage/generation.ts";
 import type { WorkerConnection } from "../worker-link/index.ts";
 import { checkSources, type ReflectionSettings, type ReflectionSource } from "./reflection-source.ts";
+import { lockReflectionWorker, reflectionProfiles } from "./reflection-profiles.ts";
 import { lockedOwnerModule } from "../store/module-access.ts";
-
-export function reflectionWorkspaces(
-  sql: SqlClient.SqlClient,
-  owner: string,
-  project: string,
-  worker: string | null,
-  lock = false,
-) {
-  return sql<{ id: string }>`SELECT w.id FROM workers w JOIN project_workspaces pw ON pw.worker_id=w.id
-    JOIN projects p ON p.id=pw.project_id AND p.owner_user_id=w.owner_user_id
-    WHERE w.owner_user_id=${owner}::uuid AND w.revoked_at IS NULL AND w.archived_at IS NULL
-      AND p.id=${project}::uuid AND p.kind='project' AND p.archived_at IS NULL AND NOT p.config_deleted
-      AND pw.archived_at IS NULL AND (${worker}::uuid IS NULL OR w.id=${worker}::uuid)
-      ORDER BY w.id,pw.id ${lock ? sql`FOR SHARE OF w,p,pw` : sql``}`;
-}
+import { NATIVE_ID } from "../store/instance-config.ts";
 
 function smallTier(provider: Provider, id: string) {
   if (provider === Provider.CLAUDE) return /\bhaiku\b/i.test(id) ? 0 : Infinity;
@@ -34,18 +19,19 @@ function smallTier(provider: Provider, id: string) {
 }
 
 function reflectionModel(catalog: ProfileModels, settings: ReflectionSettings) {
-  const listed = catalog.models.filter((model) => model.id && !model.hidden);
+  const listed = catalog.models.filter(
+    (model) => model.id && !model.hidden && (!settings.effort || model.efforts.includes(settings.effort)),
+  );
 
   const model = settings.model
-    ? listed.find((m) => [m.id, m.resolvedModel, ...m.aliases].includes(settings.model))
+    ? (listed.find((m) => m.id === settings.model) ??
+      listed.find((m) => m.resolvedModel === settings.model || m.aliases.includes(settings.model)))
     : listed
         .map((m) => ({ m, tier: smallTier(catalog.provider, m.resolvedModel || m.id) }))
         .filter(({ tier }) => Number.isFinite(tier))
         .sort((a, b) => a.tier - b.tier || b.m.id.localeCompare(a.m.id, "en", { numeric: true }))[0]?.m;
 
   if (!model) return undefined;
-
-  if (settings.effort && !model.efforts.includes(settings.effort)) return undefined;
 
   const effort =
     settings.effort ||
@@ -57,7 +43,7 @@ function reflectionModel(catalog: ProfileModels, settings: ReflectionSettings) {
 }
 
 interface GenerationTarget {
-  worker: ui.Worker;
+  worker: { id: string; name: string; version: bigint };
   connection: WorkerConnection;
   provider: Provider;
   profileId: string;
@@ -68,45 +54,28 @@ interface GenerationTarget {
 export async function reflectionTarget(
   core: GatewayCore,
   settings: ReflectionSettings,
-  project: string,
 ): Promise<GenerationTarget | undefined> {
-  const allowed = await core[coreState].options.runtime.runPromise(
-    SqlClient.SqlClient.use((sql) => reflectionWorkspaces(sql, settings.owner_user_id, project, settings.worker_id)),
+  const connections = new Map(
+    [...core.link.connections].filter(
+      ([, connection]) => connection.isOpen && connection.hello.capabilities.includes("generate_text"),
+    ),
   );
 
-  const ids = [...new Set(allowed.map((w) => w.id))].filter((id) =>
-    core.link.connections.get(id)?.hello.capabilities.includes("generate_text"),
+  if (!connections.size) return undefined;
+
+  const profiles = await core[coreState].options.runtime.runPromise(
+    SqlClient.SqlClient.use((sql) => reflectionProfiles(sql, settings.owner_user_id, [...connections.keys()])),
   );
-
-  if (!ids.length) return undefined;
-
-  const [workers, catalogs] = await Promise.all([
-    coreWorkers(core),
-    coreModelCatalogs(core, ids).then((models) => coreForPickers(core, models)),
-  ]);
 
   const provider = settings.provider;
-  const profileId = settings.profile_id || "native";
+  const profileId = settings.profile_id || NATIVE_ID;
 
-  for (const id of ids) {
-    const worker = workers.find((w) => w.id === id);
+  for (const { worker, profile } of profiles) {
+    if (profile.provider !== provider || (profile.profileId || NATIVE_ID) !== profileId) continue;
+    const connection = connections.get(worker.id);
 
-    if (
-      !worker?.providerInstances.some((i) => i.harness === provider && i.id === profileId && i.enabled && i.available)
-    )
-      continue;
-    const connection = core.link.connections.get(id);
-
-    if (!connection?.isOpen || !connection.hello.capabilities.includes("generate_text")) continue;
-
-    const catalog = catalogs
-      .find(
-        (c) =>
-          c.workerId === id && c.configVersion === worker.appliedVersion && c.configVersion === worker.configVersion,
-      )
-      ?.profiles.find((p) => p.provider === provider && (p.profileId || "native") === profileId);
-
-    const choice = catalog && reflectionModel(catalog, settings);
+    if (!connection?.isOpen) continue;
+    const choice = reflectionModel(profile, settings);
 
     if (choice) return { worker, connection, provider, profileId, ...choice };
   }
@@ -171,12 +140,11 @@ export async function reflectionGenerate(
         AND r.id=${id}::uuid AND r.state='running' AND r.lease_until>${now} FOR SHARE OF s,r`;
 
           if (!live || !(yield* checkSources(sql, settings, now, sources))) return undefined;
-          const projectId = sources[0]?.project_id;
 
-          if (!projectId) return undefined;
-          const allowed = yield* reflectionWorkspaces(sql, owner, projectId, worker.id, true);
+          if (!(yield* lockReflectionWorker(sql, owner, worker))) return undefined;
 
-          if (relocation?.draining || !connection.isOpen || !allowed.length) return undefined;
+          if (relocation?.draining || !connection.isOpen || core.link.connections.get(worker.id) !== connection)
+            return undefined;
           pending.set(core, job);
 
           return {
