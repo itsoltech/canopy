@@ -2,7 +2,8 @@
 
 Status: opis zaimplementowanego kodu (2026-11-23), w tym czterech wariantów ikony Canopy
 na ekranie głównym telefonu, podczas parowania i w nagłówku sidebara. Znak wodny
-kanału zanika przed listą wątków i botów. Dzienny ping użycia ma przełącznik
+kanału zaczyna się poniżej górnego bezpiecznego marginesu i zanika przed listą
+wątków i botów. Dzienny ping użycia ma przełącznik
 prywatności i pomija wysyłkę offline. Settings → Appearance
 zapisuje schemat kolorów, oba motywy i szerokość wątku w instalacji aplikacji.
 Od 2026-11-23 opis obejmuje zamykanie banerów powiadomień przesunięciem w górę.
@@ -1146,7 +1147,7 @@ pokazuje samą nazwę.
 Znak wodny jest wyrównany do prawej krawędzi nagłówka, za nazwą Canopy,
 przełącznikiem Threads/Bots i polem wyszukiwania. Rysunek stopniowo zanika,
 aż przy dolnej krawędzi nagłówka staje się całkowicie przezroczysty. Jego obszar
-dopasowuje się do wysokości kontrolek i górnego bezpiecznego marginesu.
+dopasowuje się do wysokości kontrolek poniżej górnego bezpiecznego marginesu.
 Listy wątków i botów mają jednolite tło już od pierwszego wiersza. Etykieta
 nieaktywnej zakładki i podpowiedź w polu wyszukiwania mają zwiększony kontrast w obu schematach
 kolorów. W jasnym schemacie ciemniejsze są także podpisy wierszy. Grafika działa
@@ -1664,8 +1665,8 @@ Składanie, obrót i zmiana rozmiaru okna przełączają układ od razu po przek
 progu. Ręczne zwinięcie i rozwinięcie przesuwają wspólną krawędź sidebara i rozmowy
 w tym samym tempie. Lista zachowuje swoją szerokość podczas animacji. Przy ograniczeniu
 ruchu obie kolumny przechodzą od razu do docelowego układu.
-`ui/ScreenFrame.tsx` stosuje insets do kontrolek. Grafika sidebara sięga pod pasek
-stanu, a nawigacja i baner połączenia zajmują własne miejsce nad listą. Przewijane
+`ui/ScreenFrame.tsx` stosuje insets do kontrolek. Pasek stanu ma jednolite tło
+sidebara, a nawigacja i baner połączenia zajmują własne miejsce nad listą. Przewijane
 wiersze są przycinane na dolnej krawędzi nagłówka. Nieprzezroczysta stopka nakłada
 się na listę, a padding odpowiadający jej wysokości i dolnemu insetowi pozwala
 odsłonić ostatni wiersz w całości. Ikony paska stanu zmieniają jasność wraz z motywem.
