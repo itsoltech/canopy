@@ -1,5 +1,9 @@
 # Połączone komputery
 
+Status (2026-11-23): `send_message` bota akceptuje identyfikator z przyrostkiem
+własnego gatewaya. Dostęp do wątku sprawdza jego dom zgodnie z zakresem rozmowy.
+Dostępność w kanałach określa [promocja wydań](release.md).
+
 Status (2026-11-22): gateway sprawdza pochodzenie automatycznej delegacji przed
 udostępnieniem tras z historią wątków. Wymiana bot↔bot z tury o ograniczonym
 zakresie wymaga izolowanego przyjęcia wiadomości przez dom odbiorcy.
