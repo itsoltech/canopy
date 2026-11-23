@@ -8,7 +8,8 @@ import { provideFileLinks, type FileLinkHandler } from "#lib/shared/ui/markdown/
 import { copyText } from "#lib/shared/clipboard.ts";
 import { HttpError } from "#lib/shared/http.ts";
 import { toast } from "#lib/shared/ui/toast.svelte.ts";
-import { downloadFile, openFile, readFile } from "./api.ts";
+import { openFile, readFile } from "./api.ts";
+import { startFileDownload } from "./file-downloads.svelte.ts";
 import { fileLocation } from "@canopy/domain/file-references";
 import { useWorkspace, workspaceStore } from "#lib/features/workspace/workspace.svelte.ts";
 import { goto } from "$app/navigation";
@@ -90,18 +91,12 @@ class ThreadFileLinks implements FileLinkHandler {
     throw new Error("No relative path is available. Use Copy full path.");
   }
 
-  async download(path: string): Promise<void> {
+  download(path: string): void {
     const threadId = this.threadId();
 
     if (!threadId || this.local(threadId)) return;
 
-    try {
-      await downloadFile(threadId, fileLocation(path).path, this.itemId());
-    } catch (cause) {
-      toast(cause instanceof HttpError ? cause.message : "Could not download the file. Try again.", {
-        tone: "error",
-      });
-    }
+    void startFileDownload(threadId, fileLocation(path).path, this.itemId());
   }
 
   #preview(target: FileTarget): void {

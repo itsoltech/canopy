@@ -164,6 +164,14 @@ export type {
   DesktopMigrationTarget,
 } from "./desktop-migration.ts";
 
+export interface DesktopFileDownload {
+  id: string;
+  state: "progressing" | "completed" | "cancelled" | "failed";
+  receivedBytes: number;
+  totalBytes: number;
+  bytesPerSecond: number;
+}
+
 export interface DesktopBridge {
   usagePing?: {
     enabled(): Promise<boolean>;
@@ -172,6 +180,8 @@ export interface DesktopBridge {
   gatewayMigration?: import("./desktop-migration.ts").DesktopMigrationBridge;
   /** Opens only the calling thread's automation preview on the current BFF. */
   openPreviewWindow?(path: string): Promise<void>;
+  /** Progress from Electron for file links downloaded from this window's BFF. */
+  onFileDownload?(listener: (event: DesktopFileDownload) => void): () => void;
   /** Opens untrusted HTML in a separate, network-denied session. Never runs in the app renderer. */
   openAgentHtml?(specJson: string, title: string): Promise<void>;
   /** Inline pixels from the same isolated browser process; replaces any separate viewer. */

@@ -26,16 +26,19 @@ export async function readFile(
   );
 }
 
-export async function downloadFile(threadId: string, path: string, itemId: string): Promise<void> {
+export async function prepareFileDownload(
+  threadId: string,
+  path: string,
+  itemId: string,
+  downloadId?: string,
+): Promise<string> {
   const query = new URLSearchParams({ path, itemId });
-  const href = `${filesPath(threadId)}/download?${query}`;
-  await requestJson("GET", `${href}&check=1`, undefined, TIMEOUT_MS);
+  const endpoint = `${filesPath(threadId)}/download`;
+  await requestJson("GET", `${endpoint}?${query}&check=1`, undefined, TIMEOUT_MS);
 
-  // Let the browser or Electron own the transfer and pick the save location.
-  const link = document.createElement("a");
-  link.href = href;
-  link.download = "";
-  link.click();
+  if (downloadId) query.set("downloadId", downloadId);
+
+  return `${endpoint}?${query}`;
 }
 
 export async function writeFile(

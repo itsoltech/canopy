@@ -2,6 +2,7 @@ import { contextBridge, ipcRenderer } from "electron";
 import { appIdentity, type AppChannel } from "@canopy/domain/release/identity";
 import type {
   DesktopBridge,
+  DesktopFileDownload,
   DesktopHtmlEvent,
   DesktopStatus,
   DesktopUpdateStatus,
@@ -48,6 +49,7 @@ const bridge: DesktopBridge = {
     abort: () => ipcRenderer.invoke("canopy:migration-abort"),
   },
   openPreviewWindow: (path) => ipcRenderer.invoke("canopy:open-preview-window", path),
+  onFileDownload: (listener) => subscribe<DesktopFileDownload>("canopy:file-download", listener),
   openAgentHtml: (specJson, title) => ipcRenderer.invoke("canopy:agent-html-open", specJson, title),
   startAgentHtml: (input) => ipcRenderer.invoke("canopy:agent-html-start", input),
   commandAgentHtml: (id, command) => ipcRenderer.invoke("canopy:agent-html-command", id, command),

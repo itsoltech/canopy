@@ -11,6 +11,7 @@ import { attachContextMenu } from "./context-menu.ts";
 import { browserLink } from "./context-menu-template.ts";
 import { attachWorkspaceClose } from "./workspace-close.ts";
 import { windowContents } from "./window-message.ts";
+import { trackFileDownloads } from "./file-downloads.ts";
 
 interface WindowOptions {
   appRoutes: AppRoutes;
@@ -96,6 +97,7 @@ export function createDesktopWindow(options: WindowOptions) {
   attachWorkspaceClose(target);
   trackAppRoutes(target, options.appRoutes);
   attachWindowChrome(target);
+  trackFileDownloads(target.webContents, options.webUrl);
   const trusted = () => [options.setupOrigin(), options.webUrl()];
   attachContextMenu(target, trusted);
   options.placement?.track(target);
