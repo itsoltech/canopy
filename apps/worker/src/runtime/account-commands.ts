@@ -36,6 +36,7 @@ function environment(ctx: HostContext, config: AppliedConfig, resolved: Resolved
     join(ctx.state.options.dataDir, `${harness}-home`);
 
   let env: NodeJS.ProcessEnv = { ...process.env, ...resolved.env };
+  let loginLinkProblem: string | undefined;
 
   if (harness === "claude") {
     const home = prepareClaudeHome({
@@ -67,6 +68,7 @@ function environment(ctx: HostContext, config: AppliedConfig, resolved: Resolved
 
     configDir = home.path;
     env["CODEX_HOME"] = configDir;
+    loginLinkProblem = home.linkFailed ? home.problem : undefined;
   } else {
     mkdirSync(configDir, { recursive: true, mode: 0o700 });
     env["GROK_HOME"] = configDir;
@@ -83,7 +85,7 @@ function environment(ctx: HostContext, config: AppliedConfig, resolved: Resolved
       });
   }
 
-  return { configDir, env };
+  return { configDir, env, loginLinkProblem };
 }
 
 async function readEntry(
@@ -119,7 +121,7 @@ async function readEntry(
       });
     }
 
-    const { env, configDir } = environment(ctx, config, resolved, harness);
+    const { env, configDir, loginLinkProblem } = environment(ctx, config, resolved, harness);
 
     const query: AccountQuery = {
       harness,
@@ -155,7 +157,11 @@ async function readEntry(
       }),
     };
 
-    const account = await ctx.state.accounts.read(query, refresh);
+    const account =
+      loginLinkProblem && resolved.kind === "native"
+        ? accountResult("error", configDir, loginLinkProblem)
+        : await ctx.state.accounts.read(query, refresh);
+
     const claude = harness === "claude" ? ctx.state.claude.get(resolved.id) : undefined;
 
     if (claude && !ctx.state.staleRuntimes.has(`claude/${resolved.id}`))

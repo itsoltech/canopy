@@ -1,5 +1,8 @@
 # Boty przez oficjalne harnessy
 
+Aktualizacja (2026-11-23): na Windowsie istniejące rozmowy botów Codex przechodzą
+z twardych dowiązań na dowiązania symboliczne przy użyciu bieżącego loginu instancji.
+
 Status (2026-11-22): Claude, Codex i Grok otrzymują aktualną pamięć bota lub rozmowy również po wznowieniu
 sesji. Tury przekazujące wiadomości między botami mają oddzielne katalogi sesji i ograniczoną historię.
 Dostępność w kanałach określa [promocja wydań](release.md).
@@ -200,8 +203,11 @@ przechwycenie żądania CLI z zasianym katalogiem użytkownika. Nie zmieniamy HO
 sprawdzenia rzeczywistego logowania na macOS.
 
 Codex także na macOS odczytuje plik `auth.json` spod `CODEX_HOME`. Bot jawnie
-ustawia `cli_auth_credentials_store="file"` i dowiązuje tylko ten plik z katalogu
-logowania wybranej instancji; zmiana HOME nie zmienia źródła ani dowiązania.
+ustawia `cli_auth_credentials_store="file"` i dowiązuje symbolicznie ten plik z
+katalogu logowania wybranej instancji. Istniejąca rozmowa zachowuje sesję przy
+migracji dowiązania. Na Windowsie udostępnienie loginu botowi wymaga uprawnienia
+do tworzenia dowiązań symbolicznych, które zapewnia m.in. tryb dewelopera.
+Zmiana HOME nie zmienia źródła ani dowiązania.
 Konfiguracja instancji nie jest kopiowana. Magazyny `keyring` i `auto` są osobnymi
 trybami CLI: bezpośredni wpis keyringu jest identyfikowany hashem kanonicznego
 `CODEX_HOME`. Samo zachowanie HOME nie przeniosłoby takiego wpisu do prywatnego

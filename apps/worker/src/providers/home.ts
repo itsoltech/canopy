@@ -1,6 +1,6 @@
-import { existsSync, linkSync, lstatSync, mkdirSync, readlinkSync, statSync, unlinkSync, symlinkSync } from "node:fs";
+import { existsSync, lstatSync, mkdirSync, realpathSync, renameSync, statSync, symlinkSync, unlinkSync } from "node:fs";
 import { homedir } from "node:os";
-import { join } from "node:path";
+import { join, relative, resolve } from "node:path";
 import type { Env } from "./profiles.ts";
 import { providerHomeProblem } from "./home-paths.ts";
 
@@ -19,6 +19,7 @@ export interface ProviderHome {
    */
   readonly login: "linked" | "own" | "none";
   readonly problem?: string;
+  readonly linkFailed?: true;
 }
 
 /** Bots have no shell and can replace HOME to hide device compatibility paths. */
@@ -69,6 +70,9 @@ export interface ProviderHomeOptions {
   readonly linkDeviceLogin: boolean;
   /** The home keeps its own login (e.g. signed in from the app): a link left from before goes, its own file stays. */
   readonly ownLogin?: boolean;
+  /** In managed homes only, preserve a possible detached legacy link under a backup name. */
+  readonly recoverLegacyLogin?: () => boolean;
+  readonly linkProblem?: string;
   /** Shown when the device has no login file. */
   readonly missingLogin: string;
 }
@@ -80,9 +84,14 @@ export function prepareProviderHome(options: ProviderHomeOptions): ProviderHome 
   if (problem) throw new Error(problem);
   mkdirSync(path, { recursive: true, mode: 0o700 });
   const target = join(path, options.loginFile);
-  const source = join(options.deviceHome, options.loginFile);
-  const protectedSource = join(options.protectedDeviceHome ?? options.deviceHome, options.loginFile);
-  const shared = isSharedFile(target, [source, protectedSource]);
+  const source = resolve(options.deviceHome, options.loginFile);
+  const protectedSource = resolve(options.protectedDeviceHome ?? options.deviceHome, options.loginFile);
+  const current = lstatSync(target, { bigint: true, throwIfNoEntry: false });
+  const sources = [source, protectedSource];
+
+  if (current?.isFile() && sources.some((candidate) => sameResolvedPath(target, candidate)))
+    throw new Error("The shadow home contains the device login. Choose a different shadow home.");
+  const shared = current?.isSymbolicLink() || isLegacyHardLink(target, sources);
 
   if (options.ownLogin) {
     if (shared) removeIfPresent(target);
@@ -90,9 +99,15 @@ export function prepareProviderHome(options: ProviderHomeOptions): ProviderHome 
     return { path, login: existsSync(target) ? "own" : "none" };
   }
 
-  // A regular login may belong to the user or an instance with its own login. Never replace it implicitly.
-  if (existsSync(target) && !shared)
-    throw new Error("The shadow home already contains a login. Use its own login or choose a different shadow home.");
+  if (current && !shared) {
+    if (!current.isFile() || !options.recoverLegacyLogin?.())
+      throw new Error("The shadow home already contains a login. Use its own login or choose a different shadow home.");
+
+    if (options.linkDeviceLogin && existsSync(source))
+      return installLoginLink(path, source, target, options.linkProblem, true);
+
+    archiveLogin(target, Bun.randomUUIDv7());
+  }
 
   if (!options.linkDeviceLogin) {
     removeIfPresent(target);
@@ -106,47 +121,62 @@ export function prepareProviderHome(options: ProviderHomeOptions): ProviderHome 
     return { path, login: "none", problem: `${options.missingLogin} (${source})` };
   }
 
-  if (isSymlinkTo(target, source)) return { path, login: "linked" };
+  if (current?.isSymbolicLink() && sameResolvedPath(target, source)) return { path, login: "linked" };
   removeIfPresent(target);
 
-  try {
-    symlinkSync(source, target);
-
-    return { path, login: "linked" };
-  } catch {
-    // Pinned Codex writes auth.json in place. NTFS hard links share refresh writes without symlink privileges.
-    if (process.platform === "win32") {
-      try {
-        linkSync(source, target);
-
-        return { path, login: "linked" };
-      } catch {
-        /* Refuse stale copies. */
-      }
-    }
-
-    return {
-      path,
-      login: "none",
-      problem:
-        "cannot link the device login; allow symbolic links on this computer or use an instance with its own login",
-    };
-  }
+  return installLoginLink(path, source, target, options.linkProblem);
 }
 
-function isSharedFile(path: string, sources: readonly string[]): boolean {
+function installLoginLink(
+  path: string,
+  source: string,
+  target: string,
+  problem = "Could not link the device login. Allow symbolic links on this computer or use an instance with its own login.",
+  backupCurrent = false,
+): ProviderHome {
+  // Stage the link first so a privilege error leaves any independent login in place.
+  const suffix = backupCurrent ? Bun.randomUUIDv7() : undefined;
+  const staged = suffix ? `${target}.canopy-link-${suffix}` : target;
+
   try {
-    const stat = lstatSync(path);
+    symlinkSync(source, staged, "file");
+  } catch {
+    return { path, login: "none", linkFailed: true, problem };
+  }
 
-    if (stat.isSymbolicLink()) return true;
+  if (suffix) {
+    try {
+      archiveLogin(target, suffix);
+      renameSync(staged, target);
+    } finally {
+      removeIfPresent(staged);
+    }
+  }
 
-    if (!stat.isFile() || stat.nlink < 2) return false;
+  return { path, login: "linked" };
+}
+
+function archiveLogin(path: string, suffix: string): void {
+  renameSync(path, `${path}.canopy-backup-${suffix}`);
+}
+
+export function isLegacyHardLink(path: string, sources: readonly string[]): boolean {
+  try {
+    const stat = lstatSync(path, { bigint: true });
+
+    if (!stat.isFile() || stat.nlink < 2n) return false;
+    const canonical = realpathSync(path);
 
     return sources.some((source) => {
       try {
-        const device = statSync(source);
+        const device = statSync(source, { bigint: true });
 
-        return device.isFile() && device.dev === stat.dev && device.ino === stat.ino;
+        return (
+          device.isFile() &&
+          device.dev === stat.dev &&
+          device.ino === stat.ino &&
+          relative(canonical, realpathSync(source)) !== ""
+        );
       } catch {
         return false;
       }
@@ -156,9 +186,9 @@ function isSharedFile(path: string, sources: readonly string[]): boolean {
   }
 }
 
-function isSymlinkTo(path: string, target: string): boolean {
+function sameResolvedPath(path: string, target: string): boolean {
   try {
-    return lstatSync(path).isSymbolicLink() && readlinkSync(path) === target;
+    return relative(realpathSync(path), realpathSync(target)) === "";
   } catch {
     return false;
   }

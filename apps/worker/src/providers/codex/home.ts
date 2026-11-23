@@ -1,6 +1,7 @@
 import { homedir } from "node:os";
 import { join } from "node:path";
 import { prepareProviderHome, type ProviderHome } from "../home.ts";
+import { isManagedCodexLogin } from "./legacy-login.ts";
 
 /**
  * Isolated CODEX_HOME for platform threads (docs/codex-adapter.md, decided 2026-11-01).
@@ -29,14 +30,20 @@ export function deviceCodexHome(env: Readonly<Record<string, string | undefined>
   return env["CODEX_HOME"] || join(home, ".codex");
 }
 
-export function prepareCodexHome(options: CodexHomeOptions): CodexHome {
+export function prepareCodexHome(options: CodexHomeOptions, platform = process.platform): CodexHome {
+  const path = options.path ?? join(options.dataDir, "codex-home");
+
   return prepareProviderHome({
-    path: options.path ?? join(options.dataDir, "codex-home"),
+    path,
     loginFile: "auth.json",
     deviceHome: options.deviceCodexHome ?? deviceCodexHome(process.env),
     protectedDeviceHome: options.protectedDeviceHome ?? deviceCodexHome(process.env),
     linkDeviceLogin: options.linkDeviceLogin,
     ...(options.ownLogin && { ownLogin: true }),
+    ...(platform === "win32" && {
+      recoverLegacyLogin: () => isManagedCodexLogin(options.dataDir, path),
+      linkProblem: "Canopy could not use the device login. Enable Windows Developer Mode to share it.",
+    }),
     missingLogin: "no Codex login on this device; run `codex login` or use a CLIProxyAPI profile",
   });
 }

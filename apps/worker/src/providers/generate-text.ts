@@ -172,10 +172,11 @@ export async function generateCodexText(
 
     const home = prepareCodexHome({
       dataDir: scratch,
-      linkDeviceLogin: true,
+      linkDeviceLogin: options.profile.kind === "native",
       ...(sourceHome && { deviceCodexHome: sourceHome }),
     });
 
+    if (home.linkFailed) throw new Error(home.problem);
     const model = input.model;
 
     if (!model) throw new Error("Codex text generation needs a model from the instance's catalog");

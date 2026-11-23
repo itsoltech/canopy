@@ -1,5 +1,8 @@
 # Adapter Codex (app-server)
 
+Aktualizacja (2026-11-23): worker migruje twarde dowiązania logowania Codexa na
+Windowsie, również w katalogach zapisanych rozmów botów.
+
 Aktualizacja (2026-11-22): nazwany profil offline używa osobnego identyfikatora
 uprawnień w Codexie. Adapter porównuje politykę przy starcie i przy wznowieniu.
 Wymagania wersji, workera i administratora opisuje [Profile Sandbox](sandbox-profiles.md).
@@ -363,6 +366,19 @@ wartość z konfiguracji uruchomionego procesu, jeśli model ją obsługuje.
 
 1. **Worker zawsze uruchamia app-server z własnym `CODEX_HOME`** (`<data_dir>/codex-home`, `0700`, `prepareCodexHome`). Konfiguracja (dostawcy, MCP, instrukcje) przychodzi z platformy.
    Wątki zachowują `HOME`, `USERPROFILE` i XDG: komendy potomne nadal widzą git identity, SSH, gh i konfigurację narzędzi użytkownika. Globalne instrukcje Codexa pozostają poza izolowanym `CODEX_HOME`; skille urządzenia wyłączają selektory opisane wyżej. Wątki scratch przekazują `project_root_markers=[]`, aby nie odczytywać nadrzędnego `~/AGENTS.md`; projekty zachowują wykrywanie korzenia Git i repozytoryjne instrukcje. Dowód: przechwycenie żądań CLI 0.164.0 w `providers/instruction-isolation.test.ts` i odczyt fixture git identity przez proces potomny w `providers/thread-environment.test.ts`. Źródło i ścieżka loginu nie zmieniają się; samodzielny login istniejący wyłącznie w keyringu nie jest przenoszony przez plik `auth.json`. Prywatne HOME pozostaje tylko dla botów bez shella.
-2. **Logowanie właściciela urządzenia jest dowiązywane** (`~/.codex/auth.json` → `codex-home/auth.json`; token odświeża się wspólnie z CLI). Wyjątek: workery korzystające z CLIProxyAPI, gdzie gateway ustawia `WorkerConfig.codex.device_login = NONE` i dowiązanie jest usuwane. Windows może użyć twardego dowiązania na tym samym wolumenie: przypięty Codex zapisuje refresh w miejscu. Jeśli system odmawia obu rodzajów dowiązania, nie kopiujemy pliku; potrzebne są uprawnienia do symlinków albo własny login instancji.
+2. **Logowanie właściciela urządzenia używa dowiązania symbolicznego**
+   (`codex-home/auth.json` wskazuje na `~/.codex/auth.json`). Codex może
+   atomowo zastąpić plik źródłowy podczas zapisu logowania lub odświeżenia.
+   Przy wczytaniu konfiguracji na Windowsie worker usuwa rozpoznane twarde
+   dowiązania także z nieaktywnych katalogów instancji i botów. Jeśli po
+   wymianie pliku źródłowego w zarządzanym katalogu pozostał odłączony
+   `auth.json`, worker podczas przygotowania katalogu zachowuje go jako
+   `auth.json.canopy-backup-…` i dowiązuje bieżący plik. W niestandardowym
+   katalogu poza danymi workera zastany niezależny plik wymaga wyboru własnego
+   logowania, przeniesienia pliku lub wskazania innego katalogu.
+   Gdy Windows odmawia utworzenia dowiązania symbolicznego, użyj
+   trybu dewelopera Windows, aby udostępnić logowanie wątkom i botom.
+   Wątek może też używać instancji z własnym logowaniem. Gdy gateway
+   ustawia `WorkerConfig.codex.device_login = NONE`, worker usuwa dowiązanie.
 3. **Natywni subagenci są wyłączeni** także dla modeli z `multi_agent_version: "v2"` w katalogu: `-c agents.enabled=false` obok `features.multi_agent*=false` (same feature'y nie wygrywają z katalogiem; [agent-bus.md](agent-bus.md#1-natywna-orkiestracja-dostawców-wyłączona)).
 4. **Konektory konta są wyłączone** (`features.apps=false`). Po zalogowaniu kontem ChatGPT Codex uruchamia wbudowany serwer MCP `codex_apps` z aplikacjami połączonymi z kontem właściciela. W wątkach platformy byłby to dostęp do jego prywatnych kont. Można je świadomie włączyć (`NativeToolsConfig.connectors`).
