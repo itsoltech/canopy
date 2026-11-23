@@ -68,6 +68,7 @@ const CONNECTOR_LABELS = new Map(
     transport: "Transport",
     authKind: "Sign-in method",
     projectAccess: "Project access",
+    noProject: "No project access",
     allBots: "All bots",
     tools: "Tools",
     accountIdentity: "Account",
@@ -202,6 +203,8 @@ export function configItemValue(field: string, value: string) {
   if (field === "proxy") return parsed ? "A different proxy" : "No proxy";
 
   if (field === "accountIdentity") return parsed ? "A different account" : "Not set";
+
+  if (field === "noProject") return parsed === true ? "Allowed" : "Off";
 
   if (field === "projectAccess" && projectAccess(parsed)) {
     if (parsed.allProjects) return "All projects";

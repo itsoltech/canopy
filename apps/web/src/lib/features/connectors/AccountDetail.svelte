@@ -12,6 +12,7 @@
   import Disclosure from "#lib/shared/ui/Disclosure.svelte";
   import Field from "#lib/shared/ui/Field.svelte";
   import Input from "#lib/shared/ui/Input.svelte";
+  import Switch from "#lib/shared/ui/Switch.svelte";
   import DropdownMenu from "#lib/shared/ui/DropdownMenu.svelte";
   import MenuItem from "#lib/shared/ui/MenuItem.svelte";
   import MenuSeparator from "#lib/shared/ui/MenuSeparator.svelte";
@@ -52,8 +53,10 @@
   const settings = useSettings();
   let name = $state(untrack(() => account.name));
 
-  /** The access being saved; the pickers show it until the account comes back. */
-  let pending = $state<{ group: "projects" | "bots"; choice: AccessChoice }>();
+  type AccessEdit = { group: "projects" | "bots"; choice: AccessChoice } | { group: "noProject"; enabled: boolean };
+
+  /** The controls show the access being saved until the account comes back. */
+  let pending = $state<AccessEdit>();
 
   let busy = $state("");
   let error = $state("");
@@ -80,7 +83,17 @@
     const expectedRevision = account.revision.toString();
 
     if (action === "access" && pending) {
-      const { group, choice } = pending;
+      const { group } = pending;
+
+      if (group === "noProject")
+        return {
+          noProject: pending.enabled,
+          allBots: account.allBots,
+          botIds: [...account.botIds],
+          expectedRevision,
+        };
+
+      const { choice } = pending;
 
       if (group === "projects")
         return {
@@ -150,10 +163,13 @@
     }
   }
 
-  /** Access saves as soon as a picker closes with a change, like the other switches in Settings. */
-  function saveAccess(group: "projects" | "bots", choice: AccessChoice) {
-    if (busy || (group === "projects" && account.allProjects === undefined)) return;
-    pending = { group, choice };
+  function saveAccess(edit: AccessEdit) {
+    if (busy) return;
+
+    if (edit.group === "projects" && account.allProjects === undefined) return;
+
+    if (edit.group === "noProject" && account.noProject === undefined) return;
+    pending = edit;
     void run("access");
   }
 </script>
@@ -204,15 +220,34 @@
           {:else}
             <AccessPicker
               label="Projects"
-              description="The All projects option excludes No project."
+              description="Each thread in a selected project can use this account within its permission mode."
               icon="folder"
               options={projects}
               all={pending?.group === "projects" ? pending.choice.all : account.allProjects}
               ids={pending?.group === "projects" ? pending.choice.ids : account.projectIds}
               saving={pending?.group === "projects"}
               disabled={!!busy || !projectsLoaded}
-              onchange={(next) => saveAccess("projects", next)}
+              onchange={(choice) => saveAccess({ group: "projects", choice })}
             />
+            {#if account.noProject !== undefined}
+              <div class="flex min-h-12 min-w-0 items-center justify-between gap-4 sm:min-h-9">
+                <div class="min-w-0">
+                  <p class="text-base/6 font-medium text-zinc-950 sm:text-sm/6 dark:text-white">No project</p>
+                  <p class="text-sm/5 text-pretty text-zinc-500 dark:text-zinc-400">
+                    Lets threads without a project use this account.
+                  </p>
+                </div>
+                <Switch
+                  name="noProject"
+                  label="No project"
+                  checked={pending?.group === "noProject" ? pending.enabled : account.noProject}
+                  disabled={!!busy}
+                  onchange={(enabled) => saveAccess({ group: "noProject", enabled })}
+                />
+              </div>
+            {:else}
+              <p class="text-sm/5 text-zinc-500 dark:text-zinc-400">Update the gateway to set No project access.</p>
+            {/if}
           {/if}
         {/if}
         {#if settings.moduleEnabled("bots")}
@@ -224,7 +259,7 @@
             ids={pending?.group === "bots" ? pending.choice.ids : account.botIds}
             saving={pending?.group === "bots"}
             disabled={!!busy || !botList.loaded || Boolean(botList.error)}
-            onchange={(next) => saveAccess("bots", next)}
+            onchange={(choice) => saveAccess({ group: "bots", choice })}
           />
         {/if}
       </div>

@@ -20,7 +20,11 @@ export function projectConnectorAccess(
   sql: SqlClient.SqlClient,
   owner: string,
   projectId: string | null | Statement.Fragment,
-  account: { id: string | Statement.Fragment; allProjects: boolean | Statement.Fragment },
+  account: {
+    id: string | Statement.Fragment;
+    allProjects: boolean | Statement.Fragment;
+    noProject?: boolean | Statement.Fragment;
+  },
 ) {
   const project = canonicalGrant(sql, owner, sql`COALESCE(ci.global_id,p.id::text)`);
   const grant = canonicalGrant(sql, owner, sql`g.project_id::text`);
@@ -30,11 +34,12 @@ export function projectConnectorAccess(
     LEFT JOIN config_items ci ON ci.owner_user_id=p.owner_user_id AND ci.kind='project'
       AND ci.local_id=p.id::text AND ci.unsupported=''
     WHERE p.id=${projectId}::uuid AND p.owner_user_id=${owner}::uuid
-      AND p.kind='project' AND p.archived_at IS NULL AND NOT p.config_deleted
-      AND (${account.allProjects} OR EXISTS (
-        SELECT 1 FROM connector_project_grants g
-        WHERE g.account_id=${account.id}::uuid AND ${grant}=${project}
-      ))
+      AND p.archived_at IS NULL AND NOT p.config_deleted
+      AND ((p.kind='scratch' AND ${account.noProject ?? false}) OR
+        (p.kind='project' AND (${account.allProjects} OR EXISTS (
+          SELECT 1 FROM connector_project_grants g
+          WHERE g.account_id=${account.id}::uuid AND ${grant}=${project}
+        ))))
   )`;
 }
 

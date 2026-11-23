@@ -141,13 +141,13 @@ export function applyConnector(sql: SqlClient.SqlClient, owner: string, key: Buf
 
     const saved =
       yield* sql`INSERT INTO connector_accounts(id,owner_user_id,connector_type,name,namespace,url,transport,auth_kind,
-      credentials,status,all_projects,all_bots,tools,slack_team_id)
+      credentials,status,all_projects,no_project,all_bots,tools,slack_team_id)
       VALUES(${row.local_id}::uuid,${owner}::uuid,${columns.type},${columns.name},${namespace},${columns.url},${columns.transport},
-      ${columns.authKind},${secret?.ciphertext ?? null},${status},${access.allProjects},${columns.allBots},${JSON.stringify(tools)}::jsonb,${value?.slackTeamId ?? current?.slack_team_id ?? null})
+      ${columns.authKind},${secret?.ciphertext ?? null},${status},${access.allProjects},${v["noProject"] === true},${columns.allBots},${JSON.stringify(tools)}::jsonb,${value?.slackTeamId ?? current?.slack_team_id ?? null})
       ON CONFLICT(id) DO UPDATE SET connector_type=EXCLUDED.connector_type,name=EXCLUDED.name,url=EXCLUDED.url,
       transport=EXCLUDED.transport,auth_kind=EXCLUDED.auth_kind,credentials=EXCLUDED.credentials,legacy_headers='{}',
       status=EXCLUDED.status,error=CASE WHEN ${changed} THEN NULL ELSE connector_accounts.error END,
-      all_projects=EXCLUDED.all_projects,all_bots=EXCLUDED.all_bots,tools=EXCLUDED.tools,
+      all_projects=EXCLUDED.all_projects,no_project=EXCLUDED.no_project,all_bots=EXCLUDED.all_bots,tools=EXCLUDED.tools,
       slack_team_id=EXCLUDED.slack_team_id,
       slack_refresh_attempt=CASE WHEN ${changed} THEN NULL ELSE connector_accounts.slack_refresh_attempt END,
       slack_refresh_started_at=CASE WHEN ${changed} THEN NULL ELSE connector_accounts.slack_refresh_started_at END,

@@ -48,6 +48,7 @@ export interface AccountRow {
   status: string;
   error: JsonValue | null;
   all_projects: boolean;
+  no_project: boolean;
   all_bots: boolean;
   revision: bigint | string;
   tools: JsonValue[];

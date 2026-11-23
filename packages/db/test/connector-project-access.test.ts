@@ -69,6 +69,7 @@ test.skipIf(!dockerAvailable)(
               { account_id: account, project_id: covered },
             ]);
             expect(yield* sql`SELECT id FROM connector_accounts WHERE all_projects`).toEqual([{ id: globalAccount }]);
+            expect(yield* sql`SELECT id FROM connector_accounts WHERE no_project`).toEqual([]);
             expect(yield* sql`SELECT login,connector_revision::text FROM github_accounts ORDER BY login`).toEqual([
               { login: "current", connector_revision: "2" },
               { login: "stale", connector_revision: "0" },

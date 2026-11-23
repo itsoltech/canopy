@@ -17,6 +17,7 @@ export const CONNECTOR_FIELDS = new Set([
   "transport",
   "authKind",
   "projectAccess",
+  "noProject",
   "allBots",
   "tools",
   "accountIdentity",

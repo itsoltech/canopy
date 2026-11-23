@@ -26,7 +26,8 @@
   let managing = $state(false);
 
   const overview = useOverview();
-  const noProject = $derived(overview.project(thread.projectId)?.kind === "scratch");
+  const project = $derived(overview.project(thread.projectId));
+  const noProject = $derived(project?.kind === "scratch");
 
   const accounts = $derived(
     panel.data?.connectors.filter((account) => account.granted || account.sessionAttached) ?? [],
@@ -73,13 +74,14 @@
       disabled={disabled || !panel.data}
       onclick={() => (managing = true)}
       class="shrink-0 text-zinc-500 underline decoration-zinc-400/50 underline-offset-2 hover:text-zinc-900 disabled:opacity-50 dark:hover:text-zinc-100"
-      >Manage</button
     >
+      {noProject ? "View access" : "Manage"}
+    </button>
   </div>
   {#if status}
     <p role="status" class="text-zinc-500 dark:text-zinc-400">{status}</p>
   {:else if noProject && !accounts.length}
-    <p class="text-zinc-500 dark:text-zinc-400">Connectors are unavailable in No project.</p>
+    <p role="status" class="text-zinc-500 dark:text-zinc-400">No accounts have access in No project.</p>
   {/if}
   {#if accounts.length > 0}<ul role="list" class="grid">
       {#each accounts as account (account.accountId)}
@@ -101,4 +103,4 @@
     </ul>{/if}
 </section>
 
-<ThreadConnectorDialog bind:open={managing} {thread} {panel} {disabled} {homeName} />
+<ThreadConnectorDialog bind:open={managing} {thread} {project} {panel} {disabled} {homeName} />

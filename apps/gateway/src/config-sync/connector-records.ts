@@ -45,6 +45,20 @@ export function recordConnectors(sql: SqlClient.SqlClient, key: Buffer) {
   });
 }
 
+function sharedTools(account: AccountRow) {
+  return account.tools.map((tool) =>
+    toJson(
+      ConnectorToolSchema,
+      create(ConnectorToolSchema, {
+        ...fromJson(ConnectorToolSchema, tool),
+        accountId: "",
+        accountName: "",
+        name: "",
+      }),
+    ),
+  );
+}
+
 function recordOwner(sql: SqlClient.SqlClient, key: Buffer, owner: string, node: string) {
   return Effect.gen(function* () {
     const clock = yield* configLock(sql, owner);
@@ -99,6 +113,8 @@ function recordOwner(sql: SqlClient.SqlClient, key: Buffer, owner: string, node:
           if (name === "projectAccess") {
             // An unconfigured account has no field to compete with another computer's explicit edit.
             if (equalValue(connectorProjectAccess(old?.value, projects.canonical), value)) continue;
+          } else if (name === "noProject" && !old && value === false) {
+            continue;
           } else if (old ? equalValue(old.value, value) : value === null) continue;
 
           const hlc =
@@ -140,18 +156,9 @@ function recordOwner(sql: SqlClient.SqlClient, key: Buffer, owner: string, node:
             { allProjects: a.all_projects, projectIds: byAccount.get(a.id) ?? [] },
             projects.canonical,
           ),
+          noProject: a.no_project,
           allBots: a.all_bots,
-          tools: a.tools.map((t) =>
-            toJson(
-              ConnectorToolSchema,
-              create(ConnectorToolSchema, {
-                ...fromJson(ConnectorToolSchema, t),
-                accountId: "",
-                accountName: "",
-                name: "",
-              }),
-            ),
-          ),
+          tools: sharedTools(a),
           accountIdentity: credentials ? accountIdentity(credentials) : "",
         },
         credentials ? JSON.stringify(credentials) : null,

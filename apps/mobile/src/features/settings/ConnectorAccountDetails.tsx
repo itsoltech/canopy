@@ -75,7 +75,7 @@ export function ConnectorAccountDetails({
               />
             ) : (
               <>
-                <ConnectorAccess account={account} onChanged={() => void onChanged()} />
+                <ConnectorAccess account={account} onChanged={onChanged} />
                 <SettingsValue title="Endpoint" value={`${account.transport} · ${account.url}`} />
                 {!!account.headerNames.length && (
                   <SettingsValue title="Secret headers" value={account.headerNames.join(", ")} />
