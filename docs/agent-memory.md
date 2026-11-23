@@ -96,8 +96,8 @@ przenosi notatki, ich zakresy oraz potwierdzenia operacji.
 Status (2026-11-22): Habits w Settings → Memory, okresowa analiza wiadomości,
 przegląd sugestii i dostarczanie zatwierdzonych nawyków do Claude, Codexa i Groka
 są zaimplementowane. Dostępność zależy od [promocji wydania](release.md).
-Aktualizacja (2026-11-23): wyszukiwanie profili i modeli oraz stały wiersz
-wyboru poziomu rozumowania w webie i desktopie.
+Aktualizacja (2026-11-23): wyszukiwanie profili i modeli oraz wspólny wiersz
+wyboru modelu i poziomu rozumowania w webie i desktopie.
 Konsolidacja przenosi zatwierdzone reguły jako notatki. Ustawienia analizy,
 sugestie, dowody i stan dostarczania pozostają w źródłowym gatewayu.
 
@@ -118,9 +118,10 @@ prostego języka inspirowanego ASD-STE100. Przykład:
   grupuje profile według dostawcy i pozwala wyszukiwać według dostawcy,
   nazwy workera lub profilu.
 - Po wybraniu profilu można wyszukiwać jego modele według nazwy lub
-  identyfikatora albo zostawić Auto. Wiersz Reasoning effort jest zawsze
-  widoczny. Ręczny wybór udostępnia poziomy obsługiwane przez jawnie wybrany
-  model. Zmiana modelu ustawia poziom z powrotem na Auto.
+  identyfikatora albo zostawić Auto. W wierszu Model and reasoning obok
+  modelu jest kontrolka poziomu rozumowania taka jak w Text generation.
+  Po wybraniu modelu obsługującego poziomy można ustawić poziom suwakiem
+  lub wrócić do Auto. Zmiana modelu ustawia poziom z powrotem na Auto.
 - Pierwszy przebieg może objąć ostatnie 30 dni. Wątek kwalifikuje się po
   archiwizacji albo po 7 dniach bez wiadomości właściciela, po zakończeniu
   tur i zadań w tle. Gateway czyta oryginalną treść dostarczonych tur i

@@ -25,16 +25,19 @@
     inherited,
     open = $bindable(false),
     onmodel,
+    automatic = false,
     adaptive = false,
     class: className,
   }: {
-    option: ModelOption;
+    option: Pick<ModelOption, "provider" | "name" | "efforts" | "defaultEffort">;
     value?: string | undefined;
     /** Effort that applies when none is chosen (a thread's default). */
     inherited?: string | undefined;
     open?: boolean;
     /** Open the model picker (the model line in the popover). */
     onmodel: () => void;
+    /** The caller picks a low supported effort when none is selected. */
+    automatic?: boolean;
     adaptive?: boolean;
     class?: ClassValue;
   } = $props();
@@ -42,7 +45,17 @@
   const steps = $derived(option.efforts.map((e) => ({ value: e.id, label: e.label })));
   const fallback = $derived(effectiveEffort(option, inherited));
   const current = $derived(value ?? fallback);
-  const label = $derived(current ? effortLevel(current).label : "Default");
+  const unsetLabel = $derived(automatic ? "Auto" : "Default");
+  const label = $derived(current ? effortLevel(current).label : unsetLabel);
+
+  const resetLabel = $derived(
+    automatic
+      ? "Reset reasoning effort to Auto"
+      : fallback
+        ? `Reset to the default (${effortLevel(fallback).label})`
+        : "Reset to the default",
+  );
+
   const rank = $derived(option.efforts.findIndex((e) => e.id === current));
   const isDefault = $derived(fallback !== undefined && current === fallback);
 
@@ -97,7 +110,7 @@
       <IconButton
         icon="arrow-path"
         size="sm"
-        label={fallback ? `Reset to the default (${effortLevel(fallback).label})` : "Reset to the default"}
+        label={resetLabel}
         disabled={!value}
         onclick={(event) => {
           value = undefined;
@@ -135,7 +148,7 @@
       {steps}
       variant="pill"
       label="Reasoning effort"
-      unsetLabel="Default"
+      {unsetLabel}
       value={current}
       onchange={(next) => (value = next)}
       autofocus
@@ -143,7 +156,11 @@
     <!-- Shown whatever the value (it is about the model), so choosing one never resizes the popover. -->
     {#if !fallback}
       <p class="text-center text-sm/5 text-pretty text-zinc-500 sm:text-xs/4 dark:text-zinc-400">
-        {option.name} has no default effort listed: {providerName(option.provider)} uses its own.
+        {#if automatic}
+          Auto uses a low effort level supported by this model.
+        {:else}
+          {option.name} has no default effort listed: {providerName(option.provider)} uses its own.
+        {/if}
       </p>
     {/if}
   </div>

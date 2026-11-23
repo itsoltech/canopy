@@ -1,13 +1,13 @@
 <script lang="ts">
   import type { ui } from "@canopy/contracts";
   import { count } from "@canopy/domain/usage-report";
-  import { effortLevel } from "#lib/features/models/catalog.ts";
   import { useOverview } from "#lib/features/overview/overview-state.svelte.ts";
+  import { providerKeyOf } from "#lib/features/threads/providers.ts";
   import { formatDateTime, isoDateTime } from "#lib/shared/format.ts";
   import Select from "#lib/shared/ui/Select.svelte";
   import SettingsRow from "#lib/shared/ui/SettingsRow.svelte";
   import Switch from "#lib/shared/ui/Switch.svelte";
-  import HabitModelPicker from "./HabitModelPicker.svelte";
+  import HabitModelControls from "./HabitModelControls.svelte";
   import HabitProfilePicker from "./HabitProfilePicker.svelte";
   import HabitProjectPicker from "./HabitProjectPicker.svelte";
   import { habitReportedCost } from "./habits-format.ts";
@@ -107,24 +107,6 @@
           : undefined,
   );
 
-  const modelHint = $derived(
-    !profile
-      ? "Choose a provider profile first."
-      : draft.model && !model
-        ? "Choose an available model or use Auto."
-        : undefined,
-  );
-
-  const effortHint = $derived.by(() => {
-    if (!profile) return undefined;
-
-    if (!model) return "Choose a specific model to set reasoning effort.";
-
-    if (draft.effort && !efforts.includes(draft.effort)) return "Choose an available effort or use Auto.";
-
-    return efforts.length ? undefined : "This model has no adjustable reasoning effort.";
-  });
-
   $effect(() => {
     valid =
       !draft.enabled ||
@@ -190,31 +172,18 @@
     />
   {/snippet}
 </SettingsRow>
-<SettingsRow title="Model" description={modelHint}>
-  {#snippet control()}
-    <HabitModelPicker
-      models={modelOptions}
-      value={draft.model}
-      disabled={disabled || !profile}
-      onchange={(model) => {
-        if (model !== draft.model) draft = { ...draft, model, effort: "" };
-      }}
-    />
-  {/snippet}
-</SettingsRow>
-<SettingsRow title="Reasoning effort" description={effortHint}>
-  {#snippet control()}
-    <Select
-      aria-label="Reasoning effort"
-      options={[{ value: "", label: "Auto" }, ...efforts.map((id) => ({ value: id, label: effortLevel(id).label }))]}
-      value={draft.effort}
-      placeholder={effortLevel(draft.effort).label}
-      disabled={disabled || !model || (!efforts.length && !draft.effort)}
-      class="w-64 max-w-full"
-      onchange={(effort) => (draft = { ...draft, effort })}
-    />
-  {/snippet}
-</SettingsRow>
+<HabitModelControls
+  models={modelOptions}
+  model={draft.model}
+  effort={draft.effort}
+  provider={providerKeyOf(draft.provider)}
+  profileAvailable={!!profile}
+  {disabled}
+  onmodel={(model) => {
+    if (model !== draft.model) draft = { ...draft, model, effort: "" };
+  }}
+  oneffort={(effort) => (draft = { ...draft, effort })}
+/>
 {#if showNext || settings.lastRunAt || lastCheck}
   <div class="settings-row flex flex-wrap gap-x-4 gap-y-1 px-4 py-3 text-sm/5 text-muted" role="status">
     {#if showNext}<span
