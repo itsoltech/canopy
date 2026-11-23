@@ -10,6 +10,7 @@ Natywne CI na macOS sprawdza odczyt małych reprezentacji ikony Dev i nazwę
 wyświetlaną przez Finder. Wydania macOS i iOS kompilują ikony z projektów Icon Composer.
 Przed publikacją Release sprawdza nazwę i grafikę także w podpisanej paczce.
 Pakowanie macOS i test natywny CI kompilują ikony na `macos-26`.
+GitHub Pages udostępnia film demonstracyjny z README i strony głównej Canopy.
 Release buduje i publikuje osobny obraz `canopy-push-relay` dla rewizji zawierających ten cel.
 Pakowanie Desktop i generowanie fingerprintu Expo używają poprawionego `minimatch`.
 Smoke Desktop czeka na zapis trasy Network access przed restartem workera podczas parowania.
@@ -355,6 +356,8 @@ Kontroler uruchamia osobne procesy i ładuje gotowy BFF. Te zależności wykracz
 `scripts/build-site.ts` do `dist/site` i publikuje go `actions/deploy-pages`. Strona
 przekierowania OAuth trafia pod `https://itsoltech.github.io/canopy/oauth/callback`
 ([konektory](connectors.md#stały-redirect-zarejestrowanych-aplikacji)).
+Film demonstracyjny z `site/demo/canopy-demo.mp4` jest dostępny pod
+[`/canopy/demo/canopy-demo.mp4`](https://itsoltech.github.io/canopy/demo/canopy-demo.mp4).
 Zmiany `.github/**` zawsze wymagają całości, również przy rozszerzeniu `.md`.
 Zakres PR-a liczymy od wspólnego przodka z gałęzią bazową. Porównanie obejmuje oba końce rename.
 Błąd odczytu zmian blokuje PR.
