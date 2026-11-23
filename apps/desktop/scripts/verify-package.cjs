@@ -3,6 +3,34 @@ const { join } = require("node:path");
 const { listPackage } = require("@electron/asar");
 const { packageMetrics } = require("./package-metrics.cjs");
 
+function verifySidebarIcons(preparedRuntime, runtime) {
+  const channels = "web/client/channels";
+  const preparedChannels = join(preparedRuntime, channels);
+
+  // A recovery build can use a runtime from before channel-specific artwork.
+  if (!existsSync(preparedChannels)) return;
+
+  for (const channel of readdirSync(preparedChannels)) {
+    const icon = `${channels}/${channel}/icon.svg`;
+
+    if (!existsSync(join(preparedRuntime, icon))) continue;
+
+    // Adapter-node negotiates precompressed variants from its build-time asset table.
+    for (const suffix of ["", ".br", ".gz"]) {
+      const asset = icon + suffix;
+      const prepared = join(preparedRuntime, asset);
+      const packaged = join(runtime, asset);
+
+      if (!existsSync(prepared)) throw new Error(`Built sidebar icon asset missing: ${asset}`);
+
+      if (!existsSync(packaged)) throw new Error(`Packaged sidebar icon asset missing: ${asset}`);
+
+      if (!readFileSync(packaged).equals(readFileSync(prepared)))
+        throw new Error(`Packaged sidebar icon asset differs from the web build: ${asset}`);
+    }
+  }
+}
+
 // Validate the final resources, not the build directory. electron-builder deliberately
 // filters a root node_modules directory unless it has its own resource mapping.
 module.exports = async ({ appOutDir, electronPlatformName, packager }) => {
@@ -65,6 +93,7 @@ module.exports = async ({ appOutDir, electronPlatformName, packager }) => {
 
   // Recovery can package an earlier runtime with the current workflow.
   const preparedRuntime = join(packager.projectDir, "build/runtime");
+  verifySidebarIcons(preparedRuntime, runtime);
   const generatedNotices = ["THIRD_PARTY_NOTICES.txt", "web/client/open-source-licenses.json"];
 
   const requiredNotices = generatedNotices.some((path) => existsSync(join(preparedRuntime, path)))

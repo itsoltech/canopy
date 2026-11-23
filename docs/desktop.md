@@ -41,7 +41,9 @@ toaście lub komunikacie o zakończonej aktualizacji. Dyskowy cache HTTP Electro
 ma budżet 64 MiB, a kontroler ustala origin formularzy osobno dla każdego żądania.
 Aktualizacje Nightly mają własny feed. Updater sprawdza historię kodu każdego
 kandydata przed pobraniem.
-Desktop pakuje ikonę sidebara wraz z wariantami Brotli i gzip z tego samego buildu web.
+Pakowanie Desktop sprawdza, czy ikony sidebara wraz z wariantami Brotli i gzip
+są identyczne z plikami z buildu web. Smoke na Windows sprawdza odpowiedzi
+z BFF zainstalowanej aplikacji po aktualizacji instalacji.
 Drzewo kanału uruchomionego frontendu tworzy tło górnej części sidebara.
 Koronę widać za nagłówkiem i zakładkami. Przy dolnej krawędzi wyszukiwarki krycie rysunku spada do zera.
 Tryb Local przypina certyfikat własnego gatewaya, używa osobnej roli PostgreSQL
