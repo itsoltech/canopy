@@ -25,6 +25,16 @@ export function normalizeUserConfiguration(value: StoredUserConfiguration): Stor
 export function userConfigurationProblem(harness: string, value: StoredUserConfiguration): string | undefined {
   const normalized = normalizeUserConfiguration(value);
 
+  if (harness === "codex") {
+    if (normalized.mode !== ProviderConfigurationMode.ISOLATED && normalized.mode !== ProviderConfigurationMode.SHARED)
+      return "Choose Isolated or Use CLI home for Codex.";
+
+    if (normalized.sourcePath || normalized.instructions || normalized.skills || normalized.hooks)
+      return "Codex uses the CLI home path. Clear the Claude configuration options.";
+
+    return undefined;
+  }
+
   if (
     normalized.mode !== ProviderConfigurationMode.ISOLATED &&
     normalized.mode !== ProviderConfigurationMode.LOCAL &&
@@ -33,7 +43,7 @@ export function userConfigurationProblem(harness: string, value: StoredUserConfi
     return "Choose an isolated, local, or shared user configuration.";
 
   if (harness !== "claude" && normalized.mode !== ProviderConfigurationMode.ISOLATED)
-    return "Local and shared user configuration are available only for Claude. Choose isolated configuration.";
+    return "Choose isolated configuration for Grok.";
   const path = normalized.sourcePath;
   const fromHome = path === "~" || path.startsWith("~/") || path.startsWith("~\\");
 
@@ -47,8 +57,29 @@ export function userConfigurationProblem(harness: string, value: StoredUserConfi
   return undefined;
 }
 
-export const userConfigurationMessage = (value: StoredUserConfiguration | undefined) =>
-  value ? create(ProviderUserConfigurationSchema, value) : undefined;
+/** Older gateways accepted unused Claude fields on isolated Codex instances. */
+export function storedUserConfiguration(harness: string, value: StoredUserConfiguration): StoredUserConfiguration {
+  if (
+    harness === "codex" &&
+    (value.mode === ProviderConfigurationMode.ISOLATED || value.mode === ProviderConfigurationMode.UNSPECIFIED)
+  ) {
+    return {
+      mode: ProviderConfigurationMode.ISOLATED,
+      sourcePath: "",
+      instructions: false,
+      skills: false,
+      hooks: false,
+    };
+  }
 
-export const userConfigurationJson = (value: StoredUserConfiguration) =>
-  toJson(ProviderUserConfigurationSchema, create(ProviderUserConfigurationSchema, value));
+  return value;
+}
+
+export const userConfigurationMessage = (harness: string, value: StoredUserConfiguration | undefined) =>
+  value ? create(ProviderUserConfigurationSchema, storedUserConfiguration(harness, value)) : undefined;
+
+export const userConfigurationJson = (harness: string, value: StoredUserConfiguration) =>
+  toJson(
+    ProviderUserConfigurationSchema,
+    create(ProviderUserConfigurationSchema, storedUserConfiguration(harness, value)),
+  );

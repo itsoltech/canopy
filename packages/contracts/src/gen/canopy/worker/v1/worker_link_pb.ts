@@ -1202,7 +1202,7 @@ export type ProviderConfig = Message<"canopy.worker.v1.ProviderConfig"> & {
   requiredVersion: string;
 
   /**
-   * Codex: logowanie właściciela urządzenia w izolowanym CODEX_HOME workera (docs/codex-adapter.md).
+   * Pozwala korzystać z loginu CLI urządzenia. Wątki Codexa mogą otworzyć katalog CLI bezpośrednio.
    *
    * @generated from field: canopy.worker.v1.DeviceLogin device_login = 4;
    */
@@ -1226,7 +1226,7 @@ export type ProviderUserConfiguration = Message<"canopy.worker.v1.ProviderUserCo
   mode: ProviderConfigurationMode;
 
   /**
-   * Empty = the worker's detected Claude configuration directory, independent of home_path.
+   * Claude only. Empty uses its detected configuration directory. Codex selects the CLI home via home_path.
    *
    * @generated from field: string source_path = 2;
    */
@@ -1358,7 +1358,7 @@ export type ProviderProfileConfig = Message<"canopy.worker.v1.ProviderProfileCon
   proxyCodex?: ProxyCodexOptions | undefined;
 
   /**
-   * Claude only. Absent or UNSPECIFIED = existing isolated configuration.
+   * Claude configuration or explicit SHARED CLI home for native Codex. Absent or UNSPECIFIED keeps isolation.
    *
    * @generated from field: canopy.worker.v1.ProviderUserConfiguration user_configuration = 15;
    */
@@ -9175,7 +9175,7 @@ export const DeviceLoginSchema: GenEnum<DeviceLogin> = /*@__PURE__*/
   enumDesc(file_canopy_worker_v1_worker_link, 2);
 
 /**
- * Claude user configuration, independent of the login source and private session home.
+ * Claude user configuration or the home used by native Codex threads.
  *
  * @generated from enum canopy.worker.v1.ProviderConfigurationMode
  */

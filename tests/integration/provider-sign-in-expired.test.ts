@@ -1,9 +1,10 @@
 import { afterAll, beforeAll, describe, expect, test } from "bun:test";
-import { existsSync, mkdirSync, realpathSync, renameSync, unlinkSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, readFileSync, realpathSync, renameSync, unlinkSync, writeFileSync } from "node:fs";
 import { join, resolve } from "node:path";
-import { Provider, ProviderProfileKind } from "@canopy/contracts";
+import { Provider, ProviderConfigurationMode, ProviderProfileKind } from "@canopy/contracts";
 import { dockerAvailable } from "@canopy/db/testing";
 import { REJECTED_LOGIN_DETAIL } from "@canopy/domain/provider-accounts";
+import { CODEX_CLI_HOME_CAPABILITY } from "@canopy/domain/release/protocol";
 import { GatewayStore } from "@canopy/gateway/store";
 import { tempDir } from "@canopy/testing";
 import { journalHello, openGatewayLink, type GatewayLink } from "@canopy/worker/gateway-link";
@@ -12,6 +13,7 @@ import { serveLink, WorkerHost } from "@canopy/worker/runtime";
 import { Effect, ManagedRuntime } from "effect";
 import { SqlClient } from "effect/sql";
 import { eventually, failure, startTestGateway, type TestGateway } from "./support/gateway.ts";
+import { snapshot } from "./support/thread-move.ts";
 
 /**
  * `codex login status` says "Logged in" while the refresh token is expired; only a turn finds out. The rejected turn
@@ -98,7 +100,13 @@ describe.skipIf(!dockerAvailable)("expired provider sign-in over the gateway↔w
       hello: {
         workerId,
         host: { os: process.platform },
-        capabilities: ["provider_account_status", "probe_providers", "codex_device_login", "codex_device_login_linked"],
+        capabilities: [
+          "provider_account_status",
+          "probe_providers",
+          "codex_device_login",
+          "codex_device_login_linked",
+          CODEX_CLI_HOME_CAPABILITY,
+        ],
         ...(await runtime.runPromise(journalHello())),
       },
     });
@@ -291,4 +299,54 @@ describe.skipIf(!dockerAvailable)("expired provider sign-in over the gateway↔w
       await failure(gw.api.startProviderLogin({ harness: Provider.CODEX, id: "native", workerId: platform.workerId })),
     ).toContain("worker not found");
   });
+
+  test("the same thread can use the terminal login directly while its private login link is blocked", async () => {
+    expect(await eventually(lastTurn, (status) => status === "idle", 15_000)).toBe("idle");
+    const lock = join(dir, "data", "codex-home", "auth.lock");
+    const config = join(deviceCodex, "config.toml");
+    const target = { harness: Provider.CODEX, id: "native", workerId };
+    writeFileSync(config, 'model_reasoning_effort = "low"\n');
+    writeFileSync(lock + ".conflict", "occupied");
+    renameSync(lock + ".conflict", lock);
+
+    try {
+      // The terminal renewed the login. Reopening the isolated runtime exposes the conflicting lock.
+      const auth = join(deviceCodex, "auth.json");
+      writeFileSync(auth + ".new", '{"tokens":{"access_token":"fixture-renewed"}}');
+      renameSync(auth + ".new", auth);
+      await gw.api.refreshProviders(target);
+      const lockProblem = expect.stringContaining("Could not share the Codex login lock");
+      expect(await eventually(providersAccount, (a) => a?.state === "error", 20_000)).toMatchObject({
+        detail: lockProblem,
+      });
+      const rejected = await send("Continue");
+      expect(await finished(rejected)).toBe("failed");
+      expect((await snapshot(gw, threadId)).turns.find((turn) => turn.id === rejected)).toMatchObject({
+        errorCode: "PROVIDER_UNAVAILABLE",
+        errorClass: "configuration",
+        error: lockProblem,
+      });
+
+      await gw.api.setInstanceWorker({
+        ...target,
+        overrides: { userConfiguration: { mode: ProviderConfigurationMode.SHARED } },
+      });
+      await eventually(providersAccount, (a) => a?.state === "signed_in", 20_000);
+
+      const held = await send("HOLD:login");
+
+      try {
+        expect(await eventually(async () => existsSync(join(deviceCodex, "turn-started")), Boolean, 15_000)).toBe(true);
+      } finally {
+        writeFileSync(join(deviceCodex, "release-turn"), "");
+      }
+
+      expect(await finished(held)).toBe("completed");
+      expect(readFileSync(config, "utf8")).toBe('model_reasoning_effort = "low"\n');
+      expect(readFileSync(lock, "utf8")).toBe("occupied");
+      expect(readFileSync(auth, "utf8")).toBe('{"tokens":{"access_token":"fixture-renewed"}}');
+    } finally {
+      unlinkSync(lock);
+    }
+  }, 75_000);
 });

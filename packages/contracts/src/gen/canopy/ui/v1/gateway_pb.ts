@@ -7918,7 +7918,7 @@ export type InstanceRuntime = Message<"canopy.ui.v1.InstanceRuntime"> & {
   ownLogin: boolean;
 
   /**
-   * Claude only; absent means isolated configuration.
+   * Claude configuration or the native Codex CLI home. New instances default to isolated.
    *
    * @generated from field: canopy.worker.v1.ProviderUserConfiguration user_configuration = 6;
    */

@@ -259,6 +259,20 @@ describe.skipIf(!dockerAvailable)("provider instances, models and proxies across
     expect((await profile(b, "team")).apiKey).toBe(KEY_A);
   }, 40_000);
 
+  test("Codex CLI home selection syncs without copying a computer’s CLI path", async () => {
+    const id = "codex-home-sync";
+    const mode = ProviderConfigurationMode.SHARED;
+    await createInstance(a, {
+      harness: Provider.CODEX,
+      id,
+      label: "Team Codex",
+      kind: ProviderProfileKind.NATIVE,
+      runtime: { userConfiguration: { mode }, homePath: "/computer-a/codex" },
+    });
+    await wait(async () => (await instanceOf(b, Provider.CODEX, id))?.runtime?.userConfiguration?.mode === mode);
+    expect((await instanceOf(b, Provider.CODEX, id))?.runtime?.homePath).toBe("");
+  });
+
   test("Claude configuration choices sync while source paths and worker overrides remain local", async () => {
     const local = {
       mode: ProviderConfigurationMode.LOCAL,

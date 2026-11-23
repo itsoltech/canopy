@@ -111,11 +111,13 @@
   const shown = $derived(tried ? problems : { env: {} });
   const endpoint = $derived(instance.kind === ProviderProfileKind.CLIPROXYAPI);
 
+  const inheritedRuntime = $derived(worker.nodeId ? remoteRuntime : instance.runtime);
+
   const inherited = $derived({
-    binaryPath: (worker.nodeId ? remoteRuntime : instance.runtime)?.binaryPath ?? "",
-    homePath: (worker.nodeId ? remoteRuntime : instance.runtime)?.homePath ?? "",
-    shadowHomePath: (worker.nodeId ? remoteRuntime : instance.runtime)?.shadowHomePath ?? "",
-    launchArgs: joinArgs((worker.nodeId ? remoteRuntime : instance.runtime)?.launchArgs ?? []),
+    binaryPath: inheritedRuntime?.binaryPath ?? "",
+    homePath: inheritedRuntime?.homePath ?? "",
+    shadowHomePath: inheritedRuntime?.shadowHomePath ?? "",
+    launchArgs: joinArgs(inheritedRuntime?.launchArgs ?? []),
   });
 
   async function submit(event: SubmitEvent) {
@@ -169,13 +171,21 @@
           {inherited}
           prefix="ovr"
         />
+        {#if instance.harness === Provider.CODEX && instance.kind === ProviderProfileKind.NATIVE && !inheritedRuntime?.ownLogin}
+          <UserConfigurationFields
+            codex
+            bind:value={draft.userConfiguration}
+            inherited={configurationDraftOf(inheritedRuntime?.userConfiguration)}
+            prefix="ovr"
+          />
+        {/if}
       </SettingsSection>
 
       {#if instance.harness === Provider.CLAUDE}
         <SettingsSection title="Claude configuration on {worker.name}">
           <UserConfigurationFields
             bind:value={draft.userConfiguration}
-            inherited={configurationDraftOf((worker.nodeId ? remoteRuntime : instance.runtime)?.userConfiguration)}
+            inherited={configurationDraftOf(inheritedRuntime?.userConfiguration)}
             prefix="ovr"
           />
         </SettingsSection>
@@ -188,7 +198,7 @@
         readonly={busy || !!readOnly || loading}
         worker={{
           name: worker.name,
-          inherited: (worker.nodeId ? remoteRuntime : instance.runtime)?.settingsText ?? "",
+          inherited: inheritedRuntime?.settingsText ?? "",
         }}
       />
 

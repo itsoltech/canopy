@@ -1,4 +1,5 @@
 import { Effect } from "effect";
+import { unsubscribeThread } from "./thread-path.ts";
 import { threadEvents } from "./thread-events.ts";
 import { fail, type CodexThreadContext, type CodexThreadError } from "./thread-types.ts";
 
@@ -45,14 +46,18 @@ export function unloadCodexThread(ctx: CodexThreadContext, threadId: string) {
         .request("thread/backgroundTerminals/clean", { threadId: entry.codexId })
         .pipe(Effect.mapError(fail(threadId, "unload tasks")), native);
 
-      const archived = yield* ctx.codex
-        .request("thread/archive", { threadId: entry.codexId })
-        .pipe(Effect.mapError(fail(threadId, "unload")), Effect.as(true), native);
+      const release = entry.privateRollout
+        ? unsubscribeThread(ctx, entry)
+        : ctx.codex
+            .request("thread/archive", { threadId: entry.codexId })
+            .pipe(Effect.mapError(fail(threadId, "unload")));
+
+      const released = yield* release.pipe(Effect.as(true), native);
 
       // Finish any notification already being journaled before dropping its registry entry.
       yield* threadEvents(ctx).record(entry).pipe(Effect.ignore);
 
-      if (archived) {
+      if (released) {
         ctx.byCodex.delete(entry.codexId);
         ctx.byPlatform.delete(threadId);
       }

@@ -167,6 +167,8 @@ const make = (options: CodexThreadsOptions, setRoute: (handler: ServerRequestHan
           const threadId = jsonString(jsonObject(decodeJson(notification.params ?? null))?.["threadId"]);
           const entry = threadId ? ctx.byCodex.get(threadId) : undefined;
 
+          if (notification.method === "thread/closed") entry?.onClosed?.();
+
           if (entry?.sandboxProfile && notification.method === "thread/settings/updated") {
             const { sandboxPolicy, ...settings } = notification.params.threadSettings;
 

@@ -1,4 +1,5 @@
-import { ProviderConfigurationMode, type ProviderUserConfiguration } from "@canopy/contracts";
+import { Provider, ProviderConfigurationMode, type ProviderUserConfiguration } from "@canopy/contracts";
+import { codexHomeModes } from "@canopy/domain/provider-instances";
 
 export interface UserConfigurationDraft {
   mode: ProviderConfigurationMode;
@@ -16,10 +17,14 @@ export const configurationDraftOf = (value?: ProviderUserConfiguration): UserCon
   hooks: value?.hooks ?? false,
 });
 
-export const configurationInput = (value: UserConfigurationDraft): UserConfigurationDraft => ({
-  ...value,
-  sourcePath: value.sourcePath.trim(),
-});
+export function configurationInput(harness: Provider, value: UserConfigurationDraft | undefined) {
+  if (!value) return undefined;
+
+  if (harness === Provider.CODEX)
+    return { mode: value.mode === ProviderConfigurationMode.SHARED ? value.mode : ProviderConfigurationMode.ISOLATED };
+
+  return harness === Provider.CLAUDE ? { ...value, sourcePath: value.sourcePath.trim() } : undefined;
+}
 
 export const configurationModes = [
   { value: "isolated", label: "Isolated", mode: ProviderConfigurationMode.ISOLATED },
@@ -31,10 +36,14 @@ export const configurationModes = [
 export function selectConfiguration(
   selection: string,
   previous: UserConfigurationDraft | undefined,
+  codex: boolean,
 ): UserConfigurationDraft | undefined {
-  const mode = configurationModes.find((option) => option.value === selection)?.mode;
+  const modes = codex ? codexHomeModes : configurationModes;
+  const mode = modes.find((option) => option.value === selection)?.mode;
 
   if (mode === undefined) return undefined;
+
+  if (codex) return { ...configurationDraftOf(), mode };
 
   return {
     mode,

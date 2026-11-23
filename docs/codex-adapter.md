@@ -4,6 +4,9 @@ Aktualizacja (2026-11-23): worker przywraca zapis historii Codexa potrzebny do
 forka po archiwizacji. Na Windowsie migruje twarde dowiązania logowania Codexa,
 również w katalogach zapisanych rozmów botów. Na Windowsie, macOS i Linuksie
 odtwarza powiązanie zarządzanego katalogu z bieżącym loginem i współdzieli blokadę zapisu CLI.
+Wątki z włączonym **Use CLI home** korzystają z loginu i konfiguracji CLI
+bez dowiązań na wszystkich trzech systemach. Błąd dowiązania w trybie izolacji
+trafia do statusu konta i do wątku.
 
 Aktualizacja (2026-11-22): nazwany profil offline używa osobnego identyfikatora
 uprawnień w Codexie. Adapter porównuje politykę przy starcie i przy wznowieniu.
@@ -54,7 +57,7 @@ Gotowe:
   Worker rozwiązuje ścieżkę katalogu roboczego przed przekazaniem jej do Codexa na Windows, żeby obie reprezentacje zapisywalnych katalogów w sandboxie używały tej samej ścieżki, także przy krótkich nazwach 8.3.
   Bez backendu Codex odrzuca w trybie Full auto także zwykłe odczyty wymagające sandboxa. Ask First może w tym przypadku poprosić o zgodę. Reguły zakazujące uruchomienia konkretnej komendy obowiązują w obu trybach. [Polityka wykonania w Codexie 0.165.0](https://github.com/openai/codex/blob/rust-v0.165.0/codex-rs/core/src/exec_policy.rs#L799-L818).
 
-- **Konfiguracja instancji:** jeden app-server per instancja, także bez własnych zmiennych. Każda zmiana oznacza runtime jako nieaktualny; nowa praca czeka na koniec jego tur i zadań w tle, potem jeden restart stosuje najnowszą konfigurację. Inne instancje działają dalej. Ścieżka `CODEX_HOME` nie zależy od rodzaju połączenia, a proxy jest wpisem `model_providers` przez `-c`. `thread/resume` jawnie wybiera bieżący provider (`openai` po powrocie do Device login). Równoczesne wznowienia tej samej sesji korzystają z jednego rejestru.
+- **Konfiguracja instancji:** jeden app-server per instancja, także bez własnych zmiennych. Każda zmiana oznacza runtime jako nieaktualny; nowa praca czeka na koniec jego tur i zadań w tle, potem jeden restart stosuje najnowszą konfigurację. Inne instancje działają dalej. W trybie izolowanym ścieżka `CODEX_HOME` nie zależy od rodzaju połączenia, a proxy jest wpisem `model_providers` przez `-c`. `thread/resume` jawnie wybiera bieżący provider (`openai` po powrocie do Device login). Równoczesne wznowienia tej samej sesji korzystają z jednego rejestru.
 
 - **Zmiana połączenia:** wątek zachowuje `provider_profile_id` (id instancji), a jawna zmiana jej połączenia obejmuje kolejne tury istniejących wątków. Device login używa providera `openai`, proxy — `canopy_<id instancji>` (myślniki zamienione na podkreślenia). `canopy_native` oznacza zatem proxy instancji o id `native`, nie logowanie urządzenia. App-server dostaje również `-c model_provider=…` z tym samym wyborem: samo `modelProvider` w żądaniu nie wystarcza wersjom CLI sprawdzającym bieżący provider procesu przy `turn/start`. Sekrety nadal trafiają wyłącznie do env; plik konfiguracyjny domu CLI urządzenia pozostaje bez zmian.
 - **Historia przy zmianie połączenia:** Codex 0.164.0 obsługuje jawne `modelProvider` w zimnym `thread/resume`, więc id sesji, pełna historia i referencje tur pozostają te same. Nie potrzeba nowej sesji, skrótu historii z importu ani notatki o takim przeniesieniu. Źródła przypiętego tagu: [app-server — wznowienie i fork](https://github.com/openai/codex/blob/rust-v0.164.0/codex-rs/app-server/src/request_processors/thread_processor.rs), [core — wznowienie z historią](https://github.com/openai/codex/blob/rust-v0.164.0/codex-rs/core/src/thread_manager.rs), [kontrola wymagań providera](https://github.com/openai/codex/blob/rust-v0.164.0/codex-rs/app-server/src/config_manager.rs). Fork także przyjmuje provider, ale tworzyłby zbędną nową tożsamość sesji. Zarządzane wymagania Codexa mogą nadal zabronić danej trasy; Canopy ich nie omija. Odmowa „This chat uses …, but your current provider is …” ma klasę `connection_changed`, opis przywrócenia poprzedniego połączenia i akcję ustawień, zamiast komunikatu o błędzie wewnętrznym.
@@ -362,16 +365,42 @@ model, serwery MCP, wtyczki i hooki działałyby także w wątkach platformy.
 Taka konfiguracja może też wymagać zmiennych środowiskowych niedostępnych workerowi.
 Izolowany katalog zapobiega dziedziczeniu prywatnej konfiguracji i dodatkowego kontekstu.
 
+### Korzystanie z katalogu CLI
+
+Opcja **Use CLI home** na instancji natywnej uruchamia proces wątków z
+`CODEX_HOME` ustawionym na katalog logowania instancji. Domyślnie jest to
+`CODEX_HOME` w środowisku workera lub `~/.codex` konta systemowego workera.
+Codex otwiera skonfigurowany w CLI magazyn poświadczeń i sam obsługuje
+odświeżanie tokenów. Ustawienia użytkownika, instrukcje, MCP i hooki tego
+katalogu mogą działać w wątkach. Nadpisania instancji i uprawnienia wątku
+są przekazywane jak dotychczas. Canopy nie zapisuje ustawień instancji do
+pliku `config.toml` użytkownika.
+
+Proces otrzymuje `sqlite_home` wskazujący prywatny katalog instancji.
+Pozwala to wznowić wcześniejsze zwykłe wątki z ich indeksem i historią.
+Nowo tworzone pliki sesji zapisuje Codex pod wybranym katalogiem CLI.
+Do kontynuacji takiego wątku po przełączeniu instancji na katalog izolowany
+trzeba ponownie wybrać jego katalog CLI. Sprzątanie danych Canopy dotyczy
+wyłącznie prywatnych plików zarządzanych przez worker.
+Import w trybie **Use CLI home** zachowuje historię z możliwością kontynuacji
+w nowym wątku. Natywne kopie z wcześniejszych importów pozostają w katalogu prywatnym. Dla takich
+wątków należy wybrać **Isolated**, aby kontynuować pracę na zaimportowanej kopii.
+
+Boty oraz generator tytułów nadal uruchamiają Codexa w wydzielonych katalogach.
+Przy logowaniu natywnym wymagają dostępnego loginu plikowego oraz możliwości
+utworzenia dowiązań. Osobny login instancji i połączenia proxy używają
+prywatnego katalogu instancji.
+
 ### Konfiguracja izolacji
 
 Preferencje `config.toml` zapisane w Canopy trafiają jako argumenty `-c`
-przed jawnymi **Launch arguments**. Proces wykorzystuje prywatny `CODEX_HOME`.
+przed jawnymi **Launch arguments**. W trybie izolowanym proces wykorzystuje prywatny `CODEX_HOME`.
 Po zmianie efektywnych preferencji worker czeka na zakończenie pracy procesu,
 po czym uruchamia nowy app-server instancji z dotychczasowym katalogiem sesji.
 Przy ustawionym w Canopy `model_reasoning_effort` worker bierze domyślną
 wartość z konfiguracji uruchomionego procesu, jeśli model ją obsługuje.
 
-1. **Worker zawsze uruchamia app-server z własnym `CODEX_HOME`** (`<data_dir>/codex-home`, `0700`, `prepareCodexHome`). Konfiguracja (dostawcy, MCP, instrukcje) przychodzi z platformy.
+1. **W trybie izolowanym worker uruchamia app-server z własnym `CODEX_HOME`** (`<data_dir>/codex-home`, `0700`, `prepareCodexHome`). Konfiguracja (dostawcy, MCP, instrukcje) przychodzi z platformy.
    Wątki zachowują `HOME`, `USERPROFILE` i XDG: komendy potomne nadal widzą git identity, SSH, gh i konfigurację narzędzi użytkownika. Globalne instrukcje Codexa pozostają poza izolowanym `CODEX_HOME`; skille urządzenia wyłączają selektory opisane wyżej. Wątki scratch przekazują `project_root_markers=[]`, aby nie odczytywać nadrzędnego `~/AGENTS.md`; projekty zachowują wykrywanie korzenia Git i repozytoryjne instrukcje. Dowód: przechwycenie żądań CLI 0.164.0 w `providers/instruction-isolation.test.ts` i odczyt fixture git identity przez proces potomny w `providers/thread-environment.test.ts`. Źródło i ścieżka loginu nie zmieniają się; samodzielny login istniejący wyłącznie w keyringu nie jest przenoszony przez plik `auth.json`. Prywatne HOME pozostaje tylko dla botów bez shella.
 2. **Logowanie właściciela urządzenia używa dowiązania symbolicznego**
    (`codex-home/auth.json` wskazuje na `~/.codex/auth.json`). Oba katalogi
@@ -390,9 +419,10 @@ wartość z konfiguracji uruchomionego procesu, jeśli model ją obsługuje.
    `auth.json.canopy-backup-…` i dowiązuje bieżący plik. W niestandardowym
    katalogu poza danymi workera zastany niezależny plik wymaga wyboru własnego
    logowania, przeniesienia pliku lub wskazania innego katalogu.
-   Gdy Windows odmawia utworzenia dowiązania symbolicznego, użyj
-   trybu dewelopera Windows, aby udostępnić logowanie wątkom i botom.
-   Wątek może też używać instancji z własnym logowaniem. Gdy gateway
+   Gdy Windows odmawia utworzenia dowiązania symbolicznego, wątki mogą korzystać
+   z **Use CLI home** na tej samej instancji. Przy zachowaniu prywatnego katalogu
+   opcja **Own login** umożliwia odrębne logowanie kodem urządzenia.
+   Gdy gateway
    ustawia `WorkerConfig.codex.device_login = NONE`, worker usuwa dowiązanie.
 3. **Natywni subagenci są wyłączeni** także dla modeli z `multi_agent_version: "v2"` w katalogu: `-c agents.enabled=false` obok `features.multi_agent*=false` (same feature'y nie wygrywają z katalogiem; [agent-bus.md](agent-bus.md#1-natywna-orkiestracja-dostawców-wyłączona)).
 4. **Konektory konta są wyłączone** (`features.apps=false`). Po zalogowaniu kontem ChatGPT Codex uruchamia wbudowany serwer MCP `codex_apps` z aplikacjami połączonymi z kontem właściciela. W wątkach platformy byłby to dostęp do jego prywatnych kont. Można je świadomie włączyć (`NativeToolsConfig.connectors`).

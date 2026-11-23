@@ -1,6 +1,6 @@
 <script lang="ts">
   import type { ClassValue } from "svelte/elements";
-  import { Provider, type ui } from "@canopy/contracts";
+  import { Provider, ProviderProfileKind, type ui } from "@canopy/contracts";
   import { untrack } from "svelte";
   import Alert from "#lib/shared/ui/Alert.svelte";
   import Button from "#lib/shared/ui/Button.svelte";
@@ -97,7 +97,7 @@
     <AccentPicker name="accent" bind:value={draft.accentColor} />
   </SettingsSection>
 
-  <SettingsSection title="Connection" description="Applies from the next turn. Threads keep their sessions.">
+  <SettingsSection title="Connection" description="Connection changes apply from the next turn.">
     <ConnectionFields
       harness={instance.harness}
       bind:kind={draft.kind}
@@ -106,6 +106,9 @@
       errors={shown}
       prefix="def"
     />
+    {#if instance.harness === Provider.CODEX && draft.kind === ProviderProfileKind.NATIVE && !draft.ownLogin}
+      <UserConfigurationFields codex bind:value={draft.userConfiguration} prefix="def" />
+    {/if}
   </SettingsSection>
 
   <SettingsSection

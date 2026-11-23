@@ -114,7 +114,7 @@ export class ProviderRuntimes {
         if (this.ctx.state.closing || this.ctx.state.shuttingDown)
           throw new CommandError("WORKER_DRAINING", "worker is stopping", false);
 
-        if (!current) await this.#reconcile();
+        if (!current) await this.#reconcile(key);
         const wanted = wantedRuntimes(this.ctx).get(key);
         const active = runtimeKeys(this.ctx).get(key);
 
@@ -168,11 +168,12 @@ export class ProviderRuntimes {
     }
   }
 
-  async #reconcile(): Promise<void> {
+  async #reconcile(requestedKey?: string): Promise<void> {
     if (this.ctx.state.closing || this.ctx.state.shuttingDown) return;
     const wanted = wantedRuntimes(this.ctx);
     const active = runtimeKeys(this.ctx);
     let changed = false;
+    let startupError: CommandError | undefined;
 
     for (const key of new Set([...active.keys(), ...wanted.keys()])) {
       const next = wanted.get(key);
@@ -193,12 +194,15 @@ export class ProviderRuntimes {
       if (next)
         await next.start().catch((error: Error) => {
           // A failed instance must not disconnect WorkerLink or block other providers and bot commands.
+          if (key === requestedKey && error instanceof CommandError) startupError = error;
           this.ctx.ops.log(`provider runtime unavailable (${classifyFailure(error.message)})`);
         });
       changed = true;
     }
 
     if (changed) this.wakeRuntimes();
+
+    if (startupError) throw startupError;
   }
 
   stopReason(): string {

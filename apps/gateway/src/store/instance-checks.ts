@@ -122,7 +122,7 @@ export const toUi = (
     apiKeySet: isRef(row.api_key),
     env: envSettings(row.env ?? []),
     runtime: {
-      userConfiguration: userConfigurationMessage(row.runtime?.userConfiguration),
+      userConfiguration: userConfigurationMessage(row.harness, row.runtime?.userConfiguration),
       settingsText: row.runtime?.settingsText,
       binaryPath: row.runtime?.binaryPath ?? "",
       homePath: row.runtime?.homePath ?? "",
@@ -155,7 +155,7 @@ export const toUi = (
         enabled: enabledOn(row, assignment),
         explicit: assignment?.enabled !== null && assignment?.enabled !== undefined,
         overrides: {
-          userConfiguration: userConfigurationMessage(o.userConfiguration),
+          userConfiguration: userConfigurationMessage(row.harness, o.userConfiguration),
           settingsText: o.settingsText,
           ...(o.binaryPath !== undefined && { binaryPath: o.binaryPath }),
           ...(o.homePath !== undefined && { homePath: o.homePath }),

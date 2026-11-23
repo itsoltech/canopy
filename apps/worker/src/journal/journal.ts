@@ -96,6 +96,8 @@ export class Journal extends Context.Service<
   Journal,
   {
     readonly journalId: string;
+    codexCliHome(id: string): Effect.Effect<string | undefined, JournalError>;
+    rememberCodexCliHome(id: string, home: string): Effect.Effect<void, JournalError>;
     claudeSessionHome: ReturnType<typeof claudeSessionTracking>["claudeSessionHome"];
     isClaudeSessionHomeBound: ReturnType<typeof claudeSessionTracking>["isClaudeSessionHomeBound"];
     bindClaudeSessionHome: ReturnType<typeof claudeSessionTracking>["bindClaudeSessionHome"];
@@ -173,6 +175,7 @@ export class Journal extends Context.Service<
 
 const SCHEMA = `
   CREATE TABLE IF NOT EXISTS meta (key TEXT PRIMARY KEY, value TEXT NOT NULL);
+  CREATE TABLE IF NOT EXISTS codex_cli_homes (session_id TEXT PRIMARY KEY, home TEXT NOT NULL);
   CREATE TABLE IF NOT EXISTS thread_seq (thread_id TEXT PRIMARY KEY, last_seq INTEGER NOT NULL);
   CREATE TABLE IF NOT EXISTS events (
     thread_id   TEXT NOT NULL,
@@ -263,6 +266,24 @@ function botAdmission(db: Database, append: (botId: string, event: ThreadEventIn
 
     return event;
   });
+}
+
+function codexCliHomes(
+  db: Database,
+  attempt: <A>(operation: string, run: () => A) => Effect.Effect<A, JournalError>,
+): Pick<Journal["Service"], "codexCliHome" | "rememberCodexCliHome"> {
+  return {
+    codexCliHome: (id) =>
+      attempt(
+        "codexCliHome",
+        () =>
+          db.query<{ home: string }, [string]>("SELECT home FROM codex_cli_homes WHERE session_id = ?").get(id)?.home,
+      ),
+    rememberCodexCliHome: (id, home) =>
+      attempt("rememberCodexCliHome", () => {
+        db.query("INSERT OR IGNORE INTO codex_cli_homes VALUES (?, ?)").run(id, home);
+      }),
+  };
 }
 
 function makeJournal(db: Database, diagnostics: boolean, serviceInvocation: string): Journal["Service"] {
@@ -360,6 +381,7 @@ function makeJournal(db: Database, diagnostics: boolean, serviceInvocation: stri
 
   return Journal.of({
     ...homes,
+    ...codexCliHomes(db, attempt),
     ...commandTracking(db, attempt),
     hasStartedTurn: turns.hasStartedTurn,
     wasInterrupted: turns.wasInterrupted,

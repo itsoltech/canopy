@@ -1,6 +1,12 @@
 import { describe, expect, test } from "bun:test";
 import { create, fromJson, type MessageInitShape } from "@bufbuild/protobuf";
-import { Provider, ProviderConfigurationMode, ProviderProfileKind, WorkerConfigSchema } from "@canopy/contracts";
+import {
+  DeviceLogin,
+  Provider,
+  ProviderConfigurationMode,
+  ProviderProfileKind,
+  WorkerConfigSchema,
+} from "@canopy/contracts";
 import { tempDir } from "@canopy/testing";
 import { mkdirSync, symlinkSync, writeFileSync } from "node:fs";
 import { homedir } from "node:os";
@@ -32,6 +38,65 @@ function fixture(profiles: NonNullable<MessageInitShape<typeof WorkerConfigSchem
 }
 
 describe("WorkerConfig user configuration policy and effective paths", () => {
+  test("Codex uses the selected login home for direct CLI sessions, only for native device login", () => {
+    const shared = { mode: ProviderConfigurationMode.SHARED };
+    const provider = { providers: [Provider.CODEX], kind: ProviderProfileKind.NATIVE, userConfiguration: shared };
+
+    const { root, homes, config } = fixture([
+      { ...provider, id: "device" },
+      { ...provider, id: "custom" },
+      { ...provider, id: "own", ownLogin: true },
+      {
+        ...provider,
+        id: "endpoint",
+        kind: ProviderProfileKind.CLIPROXYAPI,
+        apiKey: "fixture",
+        baseUrl: "https://proxy.invalid",
+      },
+      { ...provider, id: "invalid", userConfiguration: { mode: ProviderConfigurationMode.LOCAL } },
+    ]);
+
+    const custom = join(root, "custom");
+    mkdirSync(custom);
+    config.profiles[1]!.homePath = custom;
+
+    // A keyring-backed device login has no auth.json. The CLI account probe owns its status.
+    const applied = applyWorkerConfig(config, { ...probe, login: () => null }, homes);
+    const report = (id: string) => applied.report.profiles?.find((p) => p.id === id);
+    expect(report("device")).toMatchObject({
+      available: true,
+      sessionHomePath: homes.codex,
+      loginHomePath: homes.codex,
+      configurationHomePath: homes.codex,
+      privateHomePath: join(homes.dataDir, "codex-home"),
+    });
+    expect(report("custom")).toMatchObject({
+      available: true,
+      loginHomePath: custom,
+      sessionHomePath: custom,
+      privateHomePath: join(homes.dataDir, "homes", "codex-custom"),
+    });
+    expect(report("own")).toMatchObject({
+      available: false,
+      detail: "not signed in",
+      sessionHomePath: join(homes.dataDir, "homes", "codex-own"),
+    });
+    expect(report("endpoint")).toMatchObject({
+      available: true,
+      auth: "endpoint key",
+      sessionHomePath: join(homes.dataDir, "codex-home"),
+    });
+    expect(report("invalid")).toMatchObject({ available: false });
+
+    config.codex!.deviceLogin = DeviceLogin.NONE;
+    const off = applyWorkerConfig(config, probe, homes);
+    expect(off.report.profiles?.find((p) => p.id === "custom")).toMatchObject({
+      available: false,
+      sessionHomePath: join(homes.dataDir, "homes", "codex-custom"),
+      detail: "device login is turned off for this worker",
+    });
+  });
+
   test("protobuf policies survive decoding; the three modes report independent storage and login paths", () => {
     const sources = ["~", "~/.claude/configured", "~\\.claude\\configured"];
 
@@ -156,5 +221,32 @@ describe("WorkerConfig user configuration policy and effective paths", () => {
     expect(
       result.report.profiles?.find((p) => p.id === "native" && p.providers?.includes(Provider.CLAUDE))?.available,
     ).toBe(true);
+  });
+
+  test("the direct Codex CLI home must be separate from the private SQLite and managed files", () => {
+    const { root, homes, config } = fixture([]);
+    const alias = join(root, "alias");
+    symlinkSync(homes.codex, alias, "dir");
+    const file = join(root, "file");
+    writeFileSync(file, "fixture");
+    config.profiles.push(
+      ...create(WorkerConfigSchema, {
+        profiles: [
+          { id: "alias", shadowHomePath: alias },
+          { id: "nested", shadowHomePath: join(alias, "not-created") },
+          { id: "parent", shadowHomePath: root },
+          { id: "source-file", homePath: file },
+        ].map((paths) => ({
+          ...paths,
+          kind: ProviderProfileKind.NATIVE,
+          providers: [Provider.CODEX],
+          userConfiguration: { mode: ProviderConfigurationMode.SHARED },
+        })),
+      }).profiles,
+    );
+    const report = applyWorkerConfig(config, probe, homes).report;
+
+    for (const { id } of config.profiles)
+      expect(report.profiles?.find((p) => p.id === id)).toMatchObject({ available: false });
   });
 });

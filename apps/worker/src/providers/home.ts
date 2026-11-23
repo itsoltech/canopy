@@ -82,7 +82,7 @@ export interface ProviderHomeOptions {
   readonly ownLogin?: boolean;
   /** In managed homes only, preserve a possible detached legacy link under a backup name. */
   readonly recoverLegacyLogin?: () => boolean;
-  readonly linkProblem?: string;
+  readonly linkProblem?: (cause: unknown) => string;
   /** Shown when the device has no login file. */
   readonly missingLogin: string;
 }
@@ -144,7 +144,7 @@ function installLoginLink(
   path: string,
   source: string,
   target: string,
-  problem = "Could not link the device login. Allow symbolic links on this computer or use an instance with its own login.",
+  linkProblem?: ProviderHomeOptions["linkProblem"],
   backupCurrent = false,
 ): ProviderHome {
   // Stage the link first so a privilege error leaves any independent login in place.
@@ -153,7 +153,11 @@ function installLoginLink(
 
   try {
     symlinkSync(source, staged, "file");
-  } catch {
+  } catch (cause) {
+    const problem =
+      linkProblem?.(cause) ??
+      "Could not link the device login. Allow symbolic links on this computer or use an instance with its own login.";
+
     return { path, login: "none", linkFailed: true, problem };
   }
 

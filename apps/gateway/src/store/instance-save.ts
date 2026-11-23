@@ -1,5 +1,9 @@
 import { ProviderProfileKind } from "@canopy/contracts";
-import { normalizeUserConfiguration, userConfigurationProblem } from "./instance-user-configuration.ts";
+import {
+  normalizeUserConfiguration,
+  storedUserConfiguration,
+  userConfigurationProblem,
+} from "./instance-user-configuration.ts";
 import { settingsFrom } from "./instance-settings.ts";
 import { configTransaction } from "../config-sync/provider-records.ts";
 import { Effect } from "effect";
@@ -116,6 +120,10 @@ export function instanceSave(
           const runtime = request.runtime
             ? yield* runtimeFrom(harness, request.runtime, existing?.runtime.settingsText)
             : { ...existing?.runtime };
+
+          // Clients predating Codex home selection omit this field even when editing other runtime settings.
+          if (harness === "codex" && !request.runtime?.userConfiguration && existing?.runtime.userConfiguration)
+            runtime.userConfiguration = storedUserConfiguration(harness, existing.runtime.userConfiguration);
 
           // Own login also selects the session home. Keep it dormant while using a proxy.
           if (kind === "endpoint" && existing?.runtime.ownLogin) runtime.ownLogin = true;

@@ -157,6 +157,8 @@ export async function generateCodexText(
   input: TextInput,
   options: {
     launch: CodexAppServerLaunch;
+    /** Direct CLI instances have no prepared login link in their private home. */
+    loginHome?: string | undefined;
     profile: ResolvedProfile;
     dataDir: string;
     clientVersion: string;
@@ -168,7 +170,7 @@ export async function generateCodexText(
   mkdirSync(scratch, { recursive: true, mode: 0o700 });
 
   try {
-    const sourceHome = options.launch.env["CODEX_HOME"];
+    const sourceHome = options.loginHome ?? options.launch.env["CODEX_HOME"];
 
     const home = prepareCodexHome({
       dataDir: scratch,

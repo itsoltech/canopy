@@ -247,6 +247,12 @@ Szczegóły blokad, odzyskiwania i prywatnego refa: [worktrees.md](worktrees.md#
 
 ## Konfiguracja użytkownika Claude
 
+Aktualizacja (2026-11-23) obejmuje także natywne instancje Codexa.
+`codex_cli_home_v1` potwierdza obsługę `SHARED` przez wątki Codexa.
+W tym trybie źródłem loginu i konfiguracji jest katalog CLI na workerze.
+Proxy i własny login instancji korzystają z prywatnego katalogu. Szczegóły
+wyboru i zgodności opisuje [konfiguracja workera](worker-config.md#katalog-cli-dla-wątków-codexa).
+
 Status (2026-11-16): zaimplementowana w kodzie. Dostępność nightly/beta/stable
 wynika z promocji wydań; nie zmienia się `WORKER_LINK_PROTOCOL`.
 
@@ -261,8 +267,7 @@ zastępuje ją wraz z wartościami `false`.
 Worker zachowuje politykę w efektywnym runtime. Sam rozwija `~`, `~/…` oraz
 `~\…`; gateway nie interpretuje katalogu domowego innego komputera. Nieprawidłowy
 tryb, źródło niebędące katalogiem lub błąd inspekcji ścieżek wyłącza pojedynczą
-instancję, pozostawiając pozostałą konfigurację aktywną. Codex/Grok dopuszczają
-wyłącznie `ISOLATED`. Capability `claude_user_configuration_v1` potwierdza obsługę
+instancję, pozostawiając pozostałą konfigurację aktywną. Grok dopuszcza wyłącznie `ISOLATED`. Capability `claude_user_configuration_v1` potwierdza obsługę
 polityki. Dla workera bez niej gateway wysyła profile `LOCAL`/`SHARED` jako
 wyłączone i pokazuje wymóg aktualizacji; inne profile nadal działają. Dotyczy to
 zarówno konfiguracji początkowej, jak i późniejszych zmian. Żądana polityka

@@ -1,8 +1,16 @@
 import { useState } from "react";
-import { Provider, ProviderProfileKind, type ui } from "@canopy/contracts";
+import { create } from "@bufbuild/protobuf";
+import {
+  Provider,
+  ProviderConfigurationMode,
+  ProviderUserConfigurationSchema,
+  ProviderProfileKind,
+  type ui,
+} from "@canopy/contracts";
 import { Button, Field, Notice } from "../../ui/components";
 import { useWorkerRecordOptions } from "../computers/worker-options";
 import { SettingsActions, SettingsGroup, SettingChoice, SettingToggle } from "./SettingsGroup";
+import { CodexHomeField } from "./CodexHomeField";
 import { MoveEnvironment } from "./MoveEnvironment";
 import { ProxyPicker } from "../providers/ProxyPicker";
 import { SettingAccess } from "./SettingAccess";
@@ -48,6 +56,11 @@ function useProviderForm({
     shadowHomePath: instance?.runtime?.shadowHomePath ?? "",
     launchArgs: instance?.runtime?.launchArgs.join("\n") ?? "",
     ownLogin: instance?.runtime?.ownLogin ?? false,
+    userConfiguration:
+      instance?.runtime?.userConfiguration ??
+      (harness === Provider.CODEX
+        ? create(ProviderUserConfigurationSchema, { mode: ProviderConfigurationMode.ISOLATED })
+        : undefined),
   });
 
   const [env, setEnv] = useState(environmentDrafts(instance?.env ?? []));
@@ -158,7 +171,7 @@ export function ProviderForm({
         setAccent={setAccent}
         editing={!!instance}
       />
-      <SettingsGroup title="Connection" description="Applies from the next turn. Threads keep their sessions.">
+      <SettingsGroup title="Connection" description="Connection changes apply from the next turn.">
         <SettingChoice
           title="Connection"
           value={kind}
@@ -175,6 +188,12 @@ export function ProviderForm({
             description="Sign in with ChatGPT in a separate session home. Changing this home may start fresh sessions."
             value={runtime.ownLogin}
             onChange={(ownLogin) => setRuntime({ ...runtime, ownLogin })}
+          />
+        )}
+        {harness === Provider.CODEX && kind === ProviderProfileKind.NATIVE && !runtime.ownLogin && (
+          <CodexHomeField
+            value={runtime.userConfiguration}
+            onChange={(userConfiguration) => setRuntime({ ...runtime, userConfiguration })}
           />
         )}
       </SettingsGroup>
@@ -306,7 +325,7 @@ function ProviderRuntime({
         autoCorrect={false}
       />
       <Field
-        label="Shadow home path"
+        label={harness === Provider.CODEX ? "Private state directory" : "Shadow home path"}
         value={runtime.shadowHomePath}
         onChangeText={(shadowHomePath) => onChange({ ...runtime, shadowHomePath })}
         autoCapitalize="none"

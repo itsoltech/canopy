@@ -1,6 +1,7 @@
 import { afterAll, afterEach, beforeAll, describe, expect, test } from "bun:test";
 import { readdirSync, rmSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
+import { Provider, ProviderConfigurationMode } from "@canopy/contracts";
 import { dockerAvailable } from "@canopy/db/testing";
 import { tempDir } from "@canopy/testing";
 import { failurePresentation } from "@canopy/domain/failure-presentation";
@@ -63,6 +64,38 @@ describe.skipIf(!dockerAvailable)("CLI import: Codex", () => {
     // No echo of the prompt as an item: it is the turn's input.
     expect(content.some((c) => c?.case === "userMessage")).toBe(false);
     await f.gw.api.undoImportRun({ runId: done.id });
+  }, 60_000);
+
+  test("direct CLI mode imports history without adopting or changing the source rollout", async () => {
+    const target = { harness: Provider.CODEX, id: "native", workerId: f.workerId };
+    const activeHome = () => f.gw.api.getInstanceWorker(target).then((response) => response.worker?.sessionHomePath);
+    const device = join(f.home, ".codex");
+
+    try {
+      await f.gw.api.setInstanceWorker({
+        ...target,
+        overrides: { userConfiguration: { mode: ProviderConfigurationMode.SHARED } },
+      });
+      await eventually(activeHome, (home) => home === device);
+      const original = treeFingerprint(join(device, "sessions"));
+      const run = await importAll("continue");
+
+      try {
+        expect(run).toMatchObject({ status: "completed", done: 2, failed: 0 });
+
+        for (const item of run.items) {
+          expect(item.continueMode).toBe("history");
+          expect(item.warnings.join(" ")).toContain("Select Isolated");
+        }
+      } finally {
+        await f.gw.api.undoImportRun({ runId: run.id });
+      }
+
+      expect(treeFingerprint(join(device, "sessions"))).toBe(original);
+    } finally {
+      await f.gw.api.setInstanceWorker({ ...target, overrides: {} });
+      await eventually(activeHome, (home) => home === join(f.data, "codex-home"));
+    }
   }, 60_000);
 
   test("continues natively: Codex resumes the thread from a copy in Canopy's private CODEX_HOME", async () => {

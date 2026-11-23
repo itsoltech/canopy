@@ -28,6 +28,7 @@ export interface CodexMethods {
   "account/rateLimits/read": { params: v2.GetAccountRateLimitsParams; result: v2.GetAccountRateLimitsResponse };
   "mcpServerStatus/list": { params: v2.ListMcpServerStatusParams; result: v2.ListMcpServerStatusResponse };
   "account/read": { params: v2.GetAccountParams; result: v2.GetAccountResponse };
+  "thread/read": { params: v2.ThreadReadParams; result: v2.ThreadReadResponse };
   "thread/start": { params: v2.ThreadStartParams; result: v2.ThreadStartResponse };
   "thread/resume": { params: v2.ThreadResumeParams; result: v2.ThreadResumeResponse };
   "thread/inject_items": { params: v2.ThreadInjectItemsParams; result: v2.ThreadInjectItemsResponse };

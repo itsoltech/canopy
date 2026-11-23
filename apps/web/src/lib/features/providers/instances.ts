@@ -292,7 +292,7 @@ export function saveRequest(
       launchArgs: splitArgs(draft.launchArgs),
       ownLogin: draft.ownLogin,
       settingsText: draft.settingsText,
-      userConfiguration: draft.harness === Provider.CLAUDE ? configurationInput(draft.userConfiguration) : undefined,
+      userConfiguration: configurationInput(draft.harness, draft.userConfiguration),
     },
     accentColor: draft.accentColor,
     expectedRevision: options.expectedRevision,
@@ -345,10 +345,7 @@ export function overrideRequest(
     workerId,
     overrides: {
       settingsText,
-      userConfiguration:
-        instance.harness === Provider.CLAUDE && draft.userConfiguration
-          ? configurationInput(draft.userConfiguration)
-          : undefined,
+      userConfiguration: configurationInput(instance.harness, draft.userConfiguration),
       ...(draft.binaryPath !== undefined && { binaryPath: draft.binaryPath }),
       ...(draft.homePath !== undefined && { homePath: draft.homePath }),
       ...(draft.shadowHomePath !== undefined && { shadowHomePath: draft.shadowHomePath }),

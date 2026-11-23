@@ -52,8 +52,17 @@ export function userConfigurationProblem(harness: string, runtime: ProfileRuntim
   )
     return "Choose an isolated, local, or shared user configuration.";
 
+  if (harness === "codex" && policy.mode === ProviderConfigurationMode.SHARED) {
+    if (policy.sourcePath || policy.instructions || policy.skills || policy.hooks)
+      return "Codex uses the CLI home path. Clear the Claude configuration options.";
+
+    return undefined;
+  }
+
   if (harness !== "claude" && policy.mode !== ProviderConfigurationMode.ISOLATED)
-    return "Local and shared user configuration are available only for Claude. Choose isolated configuration.";
+    return harness === "codex"
+      ? "Choose Isolated or Use CLI home for Codex."
+      : "Choose isolated configuration for Grok.";
 
   try {
     if (policy.sourcePath) providerConfigurationPath(policy.sourcePath);

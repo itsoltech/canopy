@@ -201,7 +201,8 @@ export function effectiveProfile(instance: InstanceRow, assignment: AssignmentRo
 
   const userConfiguration = o.userConfiguration ?? runtime.userConfiguration;
 
-  if (userConfiguration) profile.userConfiguration = userConfigurationJson(userConfiguration);
+  if (userConfiguration && (instance.harness !== "codex" || (!endpoint && !runtime.ownLogin)))
+    profile.userConfiguration = userConfigurationJson(instance.harness, userConfiguration);
 
   if (runtime.settingsText) profile.settingsText = runtime.settingsText;
 

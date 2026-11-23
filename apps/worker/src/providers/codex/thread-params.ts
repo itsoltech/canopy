@@ -1,8 +1,7 @@
 import type { ThreadSpec } from "@canopy/contracts";
 import { realpathSync } from "node:fs";
-import { codexThreadProvider } from "./launch.ts";
+import { checkCodexPlugins, codexThreadProvider } from "./launch.ts";
 import { codexPermissions } from "./permissions.ts";
-import { managedPlugins } from "../../agent-environment/plugin-loading.ts";
 import type { CodexThreadContext } from "./thread-types.ts";
 import { threadInstructions } from "../thread-instructions.ts";
 import type { CodexSandboxProfile } from "./sandbox-profile.ts";
@@ -15,9 +14,9 @@ export function codexThreadCwd(cwd: string): string {
 
 /** Shared placement and permission parameters for start, resume and prefix replacement. */
 export function threadParams(ctx: CodexThreadContext, spec: ThreadSpec, sandboxProfile?: CodexSandboxProfile) {
-  const home = ctx.options.launch.env["CODEX_HOME"];
+  const home = ctx.options.launch.cliHomes ?? ctx.options.launch.env["CODEX_HOME"];
 
-  if (home) managedPlugins(home, "codex");
+  if (home) checkCodexPlugins(home);
   const profile = ctx.options.profile(spec.providerProfileId);
 
   if (!profile) throw new Error(`provider profile "${spec.providerProfileId || "native"}" is not available`);

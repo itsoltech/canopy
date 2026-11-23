@@ -1,6 +1,9 @@
 import { create } from "@bufbuild/protobuf";
 import { timestampMs, timestampNow } from "@bufbuild/protobuf/wkt";
 import { ProviderAccountStatusSchema, type ProviderAccountStatus } from "@canopy/contracts";
+import { codexLoginProblem } from "./codex-login-problems.ts";
+
+export { codexLoginProblems } from "./codex-login-problems.ts";
 
 /** Display fields are explicitly selected. Output, errors and unknown CLI fields never cross this boundary. */
 export function accountText(value: string | null | undefined, secrets: readonly string[] = []): string {
@@ -128,7 +131,7 @@ export function sanitizeAccountStatus(
       loginSecureStorageDir: accountText(value.loginSecureStorageDir, secrets),
     }),
     proxyName: accountText(value.proxyName, secrets),
-    detail: details.has(value.detail) ? value.detail : "",
+    detail: details.has(value.detail) ? value.detail : (codexLoginProblem(value.detail) ?? ""),
     loginRevision: /^[0-9a-f]{16}$/.test(value.loginRevision) ? value.loginRevision : "",
     loginId: /^[\w-]{1,64}$/.test(value.loginId) ? value.loginId : "",
     loginOutcome: ["pending", "signed_in", "failed"].includes(value.loginOutcome) ? value.loginOutcome : "",

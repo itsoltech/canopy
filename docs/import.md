@@ -1,5 +1,10 @@
 # Import z CLI agentów
 
+Aktualizacja (2026-11-23): import przy włączonym **Use CLI home** zachowuje
+historię i pozwala kontynuować w nowym wątku. Do wznowienia natywnej kopii
+wybierz **Isolated**. Oddzielny katalog chroni źródłową sesję CLI, która ma
+ten sam identyfikator co jej oczyszczona kopia.
+
 Status: zaimplementowane (2026-11-21), w tym ponowne użycie skanu z sugestii w webie i desktopie oraz pauza
 importu po wyłączeniu modułu Threads i wznowienie od kursora.
 

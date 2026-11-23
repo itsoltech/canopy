@@ -5,7 +5,8 @@ import {
   claudeConfigurationHomeProblem,
   userConfigurationProblem,
 } from "../providers/claude/configuration-homes.ts";
-import { providerHomeProblem } from "../providers/home-paths.ts";
+import { codexCliHomeProblem, providerHomeProblem } from "../providers/home-paths.ts";
+import { directCodexHome } from "../providers/codex/home.ts";
 import { loginRevision } from "../providers/account-parser.ts";
 import type { ProfileStatus } from "../providers/profiles.ts";
 import { instanceShadowHome } from "./homes.ts";
@@ -57,7 +58,11 @@ export function inspectProfilePaths(
       };
     }
 
-    const problem = providerHomeProblem(privateHome, loginSource, homes.codex);
+    const cliHome = directCodexHome(status.config, linkDeviceLogin, homes.codex);
+
+    const problem = cliHome
+      ? codexCliHomeProblem(privateHome, cliHome, homes.codex)
+      : providerHomeProblem(privateHome, loginSource, homes.codex);
 
     if (problem) return unavailable(status, problem);
 
@@ -66,8 +71,8 @@ export function inspectProfilePaths(
       loginHomePath,
       ...(status.config.kind === "native" &&
         (runtime?.ownLogin || linkDeviceLogin) && { codexLoginRevision: loginRevision("codex", loginHomePath) }),
-      configurationHomePath: privateHome,
-      sessionHomePath: privateHome,
+      configurationHomePath: cliHome ?? privateHome,
+      sessionHomePath: cliHome ?? privateHome,
       privateHomePath: privateHome,
     };
   } catch {

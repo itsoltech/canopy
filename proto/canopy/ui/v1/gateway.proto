@@ -2381,7 +2381,7 @@ message InstanceRuntime {
   repeated string launch_args = 4;
   // Własne logowanie instancji (np. ChatGPT przez StartProviderLogin) zamiast logowania urządzenia.
   bool own_login = 5;
-  // Claude only; absent means isolated configuration.
+  // Claude configuration or the native Codex CLI home. New instances default to isolated.
   canopy.worker.v1.ProviderUserConfiguration user_configuration = 6;
   // Native-format preferences shared by the instance's workers. Empty clears; absent on save preserves.
   optional string settings_text = 7;

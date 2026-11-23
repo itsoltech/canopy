@@ -1,10 +1,10 @@
 import { expect, test } from "bun:test";
-import { Provider, ProviderConfigurationMode, ProviderProfileKind } from "@canopy/contracts";
-import { CLAUDE_USER_CONFIGURATION_CAPABILITY } from "@canopy/domain/release/protocol";
+import { DeviceLogin, Provider, ProviderConfigurationMode, ProviderProfileKind } from "@canopy/contracts";
+import { CLAUDE_USER_CONFIGURATION_CAPABILITY, CODEX_CLI_HOME_CAPABILITY } from "@canopy/domain/release/protocol";
 import { connectWorker, startGateway, take } from "./helpers.ts";
 
-for (const supported of [false, true]) {
-  test(`WorkerLink negotiates Claude policy on initial config and pushes (${supported ? "capable" : "legacy"})`, async () => {
+for (const claudeSupported of [false, true]) {
+  test(`WorkerLink negotiates independent Claude and Codex policies on initial config and pushes (${claudeSupported ? "Claude" : "Codex"})`, async () => {
     const configuration = {
       version: 7n,
       profiles: [
@@ -13,6 +13,12 @@ for (const supported of [false, true]) {
           providers: [Provider.CLAUDE],
           kind: ProviderProfileKind.NATIVE,
           userConfiguration: { mode: ProviderConfigurationMode.SHARED, sourcePath: "~/claude" },
+        },
+        {
+          id: "configured-codex",
+          providers: [Provider.CODEX],
+          kind: ProviderProfileKind.NATIVE,
+          userConfiguration: { mode: ProviderConfigurationMode.SHARED },
         },
         { id: "native", providers: [Provider.CODEX], kind: ProviderProfileKind.NATIVE },
         {
@@ -29,7 +35,7 @@ for (const supported of [false, true]) {
       hello: {
         workerId: "worker-1",
         configVersion: configuration.version,
-        capabilities: supported ? [CLAUDE_USER_CONFIGURATION_CAPABILITY] : [],
+        capabilities: [claudeSupported ? CLAUDE_USER_CONFIGURATION_CAPABILITY : CODEX_CLI_HOME_CAPABILITY],
       },
     });
 
@@ -40,9 +46,10 @@ for (const supported of [false, true]) {
       expect(initial?.payload.case).toBe("config");
 
       if (initial?.payload.case !== "config") throw new Error("Expected initial configuration.");
-      expect(initial.payload.value.profiles[0]?.disabled).toBe(!supported);
-      expect(initial.payload.value.profiles[1]?.disabled).toBe(false);
-      expect(initial.payload.value.profiles[2]?.disabled).toBe(!supported);
+      expect(initial.payload.value.profiles[0]?.disabled).toBe(!claudeSupported);
+      expect(initial.payload.value.profiles[1]?.disabled).toBe(claudeSupported);
+      expect(initial.payload.value.profiles[2]?.disabled).toBe(false);
+      expect(initial.payload.value.profiles[3]?.disabled).toBe(!claudeSupported);
       expect(configuration.profiles[0]).not.toHaveProperty("disabled");
       gateway.link.pushConfig("worker-1", { ...configuration, version: 8n });
       const [pushed] = await take(worker.messages, 1);
@@ -50,7 +57,8 @@ for (const supported of [false, true]) {
       expect(pushed?.payload.case).toBe("config");
 
       if (pushed?.payload.case !== "config") throw new Error("Expected updated configuration.");
-      expect(pushed.payload.value.profiles[0]?.disabled).toBe(!supported);
+      expect(pushed.payload.value.profiles[0]?.disabled).toBe(!claudeSupported);
+      expect(pushed.payload.value.profiles[1]?.disabled).toBe(claudeSupported);
       worker.send({
         case: "configApplied",
         value: {
@@ -60,9 +68,10 @@ for (const supported of [false, true]) {
             {
               id: "configured",
               providers: [Provider.CLAUDE],
-              available: supported,
-              detail: supported ? "" : "disabled",
+              available: claudeSupported,
+              detail: claudeSupported ? "" : "disabled",
             },
+            { id: "configured-codex", providers: [Provider.CODEX], available: !claudeSupported },
             { id: "native", providers: [Provider.CODEX], available: true },
           ],
         },
@@ -71,9 +80,23 @@ for (const supported of [false, true]) {
 
       if (reported?.payload.case !== "configApplied") throw new Error("Expected configuration report.");
       expect(reported.payload.value.profiles[0]?.detail).toBe(
-        supported ? "" : "Update this worker to use local or shared Claude configuration.",
+        claudeSupported ? "" : "Update this worker to use local or shared Claude configuration.",
       );
-      expect(reported.payload.value.profiles[1]?.available).toBe(true);
+      expect(reported.payload.value.profiles[1]?.detail).toBe(
+        claudeSupported ? "Update this worker to use the Codex CLI home." : "",
+      );
+      expect(reported.payload.value.profiles[2]?.available).toBe(true);
+      gateway.link.pushConfig("worker-1", {
+        ...configuration,
+        codex: { enabled: true, deviceLogin: DeviceLogin.NONE },
+        version: 9n,
+      });
+      const [privateConfig] = await take(worker.messages, 1);
+
+      if (privateConfig?.payload.case !== "config") throw new Error("Expected updated device login configuration.");
+      expect(privateConfig.payload.value.profiles[1]?.disabled).toBe(false);
+      expect(privateConfig.payload.value.profiles[1]?.userConfiguration).toBeUndefined();
+      expect(configuration.profiles[1]?.userConfiguration?.mode).toBe(ProviderConfigurationMode.SHARED);
     } finally {
       worker.close();
       await gateway.link.shutdown();

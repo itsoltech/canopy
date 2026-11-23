@@ -1,4 +1,5 @@
 import { classifyFailure, type FailureCode } from "./failures.ts";
+import { codexLoginProblem } from "./codex-login-problems.ts";
 
 const explanations: Record<FailureCode, string> = {
   auth_required: "Your provider login was rejected or has expired.",
@@ -32,7 +33,7 @@ export function failurePresentation(message: string, code: string, proxy: boolea
 
   return {
     kind,
-    explanation: (proxy && proxyExplanations.get(kind)) || explanations[kind],
+    explanation: codexLoginProblem(message) || (proxy && proxyExplanations.get(kind)) || explanations[kind],
     model: kind === "model_unavailable" || kind === "stream_cut_off",
     settings: [
       "auth_required",

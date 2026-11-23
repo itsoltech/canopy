@@ -53,7 +53,9 @@
     label={harness === Provider.GROK ? "GROK_HOME path" : codex ? "CODEX_HOME path" : "Login source"}
     description={harness === Provider.CLAUDE
       ? "Uses the Claude account signed in here, independently of user configuration."
-      : "The device's CLI home the login is linked from."}
+      : codex
+        ? "The worker detects the CLI home when no path is set."
+        : "The device's CLI home the login is linked from."}
   >
     <Input
       name="{prefix}-home"
@@ -66,12 +68,12 @@
   </Field>
   <Field
     layout="row"
-    label={harness === Provider.CLAUDE ? "Private state directory" : "Shadow home path"}
+    label={harness === Provider.GROK ? "Shadow home path" : "Private state directory"}
     description={harness === Provider.GROK
       ? "Login home for an instance with its own login. ACP sessions live in the worker's data directory."
       : harness === Provider.CLAUDE
         ? "Stores private thread history and state when user configuration is isolated or local."
-        : "Isolated home the harness runs in: sessions and state, the login linked or its own."}
+        : "Stores Canopy’s private Codex state, including the thread index."}
   >
     <Input
       name="{prefix}-shadow"

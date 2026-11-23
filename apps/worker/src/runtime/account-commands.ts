@@ -1,5 +1,5 @@
-import { join } from "node:path";
-import { mkdirSync } from "node:fs";
+import { join, resolve } from "node:path";
+import { mkdirSync, realpathSync } from "node:fs";
 import { create } from "@bufbuild/protobuf";
 import {
   Provider,
@@ -10,7 +10,7 @@ import {
 import { Context, Effect } from "effect";
 import { instanceShadowHome, type AppliedConfig } from "../config/remote.ts";
 import { prepareClaudeHome } from "../providers/claude/home.ts";
-import { prepareCodexHome } from "../providers/codex/home.ts";
+import { directCodexHome, prepareCodexInstanceHome } from "../providers/codex/home.ts";
 import { claudeProfileOptions } from "../providers/claude/profile.ts";
 import { providersOf, resolveProfiles, type ProfileStatus, type ResolvedProfile } from "../providers/profiles.ts";
 import { CodexThreads } from "../providers/codex/threads.ts";
@@ -37,6 +37,7 @@ function environment(ctx: HostContext, config: AppliedConfig, resolved: Resolved
 
   let env: NodeJS.ProcessEnv = { ...process.env, ...resolved.env };
   let loginLinkProblem: string | undefined;
+  let cliHome = false;
 
   if (harness === "claude") {
     const home = prepareClaudeHome({
@@ -57,16 +58,17 @@ function environment(ctx: HostContext, config: AppliedConfig, resolved: Resolved
       CLAUDE_SECURESTORAGE_CONFIG_DIR: home.secureStorageDir,
     };
   } else if (harness === "codex") {
-    const home = prepareCodexHome({
+    const home = prepareCodexInstanceHome(resolved, {
       dataDir: ctx.state.options.dataDir,
       path: configDir,
-      ownLogin: runtime.ownLogin ?? false,
       linkDeviceLogin: config.codex.linkDeviceLogin,
-      deviceCodexHome: runtime.homePath || ctx.state.deviceHomes.codex,
-      protectedDeviceHome: ctx.state.deviceHomes.codex,
+      deviceHome: ctx.state.deviceHomes.codex,
     });
 
     configDir = home.path;
+    cliHome = home.login === "cli";
+
+    if (cliHome) env = { ...process.env };
     env["CODEX_HOME"] = configDir;
     loginLinkProblem = home.linkFailed ? home.problem : undefined;
   } else {
@@ -85,7 +87,7 @@ function environment(ctx: HostContext, config: AppliedConfig, resolved: Resolved
       });
   }
 
-  return { configDir, env, loginLinkProblem };
+  return { configDir, env, loginLinkProblem, cliHome };
 }
 
 async function readEntry(
@@ -121,7 +123,7 @@ async function readEntry(
       });
     }
 
-    const { env, configDir, loginLinkProblem } = environment(ctx, config, resolved, harness);
+    const { env, configDir, loginLinkProblem, cliHome } = environment(ctx, config, resolved, harness);
 
     const query: AccountQuery = {
       harness,
@@ -129,7 +131,7 @@ async function readEntry(
       configDir,
       env,
       executable: resolved.runtime.executablePath || config[harness].executable || "",
-      args: resolved.runtime.launchArgs ?? [],
+      args: cliHome ? [] : (resolved.runtime.launchArgs ?? []),
       configVersion: config.version,
       secrets: [
         ...(resolved.kind === "cliproxyapi" ? [resolved.apiKey] : []),
@@ -171,7 +173,7 @@ async function readEntry(
 
     const loginDir =
       resolved.kind === "native"
-        ? resolved.runtime.ownLogin || !config[harness].linkDeviceLogin
+        ? cliHome || resolved.runtime.ownLogin || !config[harness].linkDeviceLogin
           ? configDir
           : (harness === "claude" && env["CLAUDE_SECURESTORAGE_CONFIG_DIR"]) ||
             resolved.runtime.homePath ||
@@ -185,7 +187,7 @@ async function readEntry(
       profileId: resolved.id,
       account: {
         ...account,
-        configDir: resolved.runtime.shadowHomePath ? account.configDir : "",
+        configDir: cliHome || resolved.runtime.shadowHomePath ? account.configDir : "",
         loginDir: accountText(loginDir, query.secrets),
         loginExecutable: resolved.kind === "native" ? accountText(query.executable, query.secrets) : "",
         ...(harness === "claude" && {
@@ -206,6 +208,36 @@ async function readEntry(
   }
 }
 
+/** An OS keyring exposes no file revision. An explicit refresh reloads each alias of that store. */
+function refreshKeyring(ctx: HostContext, config: AppliedConfig, profileId: string): boolean {
+  const homes = new Map<string, string>();
+
+  for (const status of config.profiles) {
+    if (status.codexLoginRevision !== "" || !status.resolved) continue;
+    const home = directCodexHome(status.config, config.codex.linkDeviceLogin, ctx.state.deviceHomes.codex);
+
+    if (!home || loginRevision("codex", home)) continue;
+
+    try {
+      homes.set(status.config.id, realpathSync(home));
+    } catch {
+      homes.set(status.config.id, resolve(home));
+    }
+  }
+
+  const selected = profileId ? homes.get(profileId) : undefined;
+  let changed = false;
+
+  for (const [id, home] of homes) {
+    if (profileId && home !== selected) continue;
+    const key = `codex/${id}`;
+    ctx.state.loginGenerations.set(key, (ctx.state.loginGenerations.get(key) ?? 0) + 1);
+    changed = true;
+  }
+
+  return changed;
+}
+
 export async function providerAccounts(ctx: HostContext, request: GetProviderAccounts) {
   let config = ctx.state.config;
 
@@ -214,18 +246,24 @@ export async function providerAccounts(ctx: HostContext, request: GetProviderAcc
   if (
     request.refresh &&
     (!request.provider || request.provider === Provider.CODEX) &&
-    config?.version === request.configVersion &&
-    config.profiles.some(
+    config?.version === request.configVersion
+  ) {
+    const keyring = refreshKeyring(ctx, config, request.profileId);
+
+    const changed = config.profiles.some(
       (p) =>
         (!request.profileId || p.config.id === request.profileId) &&
         p.codexLoginRevision !== undefined &&
         p.loginHomePath &&
         p.codexLoginRevision !== loginRevision("codex", p.loginHomePath),
-    )
-  ) {
-    ctx.state.accounts.invalidate();
-    await ctx.ops.probe();
-    config = ctx.state.config;
+    );
+
+    if (keyring || changed) ctx.state.accounts.invalidate();
+
+    if (changed) {
+      await ctx.ops.probe();
+      config = ctx.state.config;
+    } else if (keyring) await ctx.ops.reconcileRuntimes();
   }
 
   if (!config || config.version !== request.configVersion)
