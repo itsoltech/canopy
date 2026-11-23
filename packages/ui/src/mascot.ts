@@ -4,6 +4,8 @@
  * box (see `BotAvatar`).
  */
 
+import { hashString } from "./hash.ts";
+
 export interface MascotShape {
   body: string;
   /** Vertical centre of the eyes for this body. */
@@ -235,20 +237,8 @@ export interface Mascot {
   smile: boolean;
 }
 
-/** FNV-1a, 32 bit: stable across sessions and runtimes. */
-function hash(value: string): number {
-  let h = 0x811c9dc5;
-
-  for (let i = 0; i < value.length; i++) {
-    h ^= value.charCodeAt(i);
-    h = Math.imul(h, 0x01000193) >>> 0;
-  }
-
-  return h;
-}
-
 export function mascotFor(id: string, shape?: string): Mascot {
-  const h = hash(id);
+  const h = hashString(id);
 
   return {
     shape:
