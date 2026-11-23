@@ -1,3 +1,4 @@
+import { hashString } from "./hash.ts";
 import palette from "./palette.json";
 
 /** Shared semantic working colours; the activity mark is one step lighter than text in light mode. */
@@ -7,16 +8,24 @@ export const workingColors = {
 } as const;
 
 /** Project marks use the same pastel fill and identity on every client. Neutrals follow the owner palette. */
-const projectTones = ["emerald", "rose", "amber", "sky", "violet", "fuchsia", "cyan", "lime", "zinc"] as const;
+const projectTones = ["rose", "amber", "lime", "teal", "blue", "violet", "fuchsia", "zinc"] as const;
 
 export function projectMark(name: string) {
-  const tone =
-    projectTones[[...name].reduce((hash, ch) => (hash * 31 + ch.charCodeAt(0)) >>> 0, 7) % projectTones.length]!;
+  const hash = hashString(name);
+  // Fold in the upper half so the palette index uses more than the three lowest bits of FNV-1a.
+  const tone = projectTones[((hash ^ (hash >>> 16)) >>> 0) % projectTones.length]!;
 
   const words = name.split(/[^\p{L}\p{N}]+/u).filter(Boolean);
   const initials = (words.length > 1 ? `${words[0]![0]}${words[1]![0]}` : (words[0] ?? "?").slice(0, 2)).toUpperCase();
 
-  return { tone, initials, light: 700, dark: tone === "zinc" ? 300 : 400, fill: 500, opacity: 0.15 } as const;
+  return {
+    tone,
+    initials,
+    light: tone === "zinc" ? 700 : 800,
+    dark: tone === "zinc" ? 300 : 400,
+    fill: 500,
+    opacity: 0.15,
+  } as const;
 }
 
 /** Same track and quarter ring as the web spinner. Rotation is the default CSS spin cycle. */
