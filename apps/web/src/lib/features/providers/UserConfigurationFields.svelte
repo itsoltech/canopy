@@ -1,5 +1,6 @@
 <script lang="ts">
   import { ProviderConfigurationMode } from "@canopy/contracts";
+  import { codexHomeDescription, codexHomeModes, defaultCodexHomeMode } from "@canopy/domain/provider-instances";
   import Checkbox from "#lib/shared/ui/Checkbox.svelte";
   import Field from "#lib/shared/ui/Field.svelte";
   import Input from "#lib/shared/ui/Input.svelte";
@@ -9,45 +10,57 @@
   let {
     value = $bindable(),
     inherited,
+    codexId,
     prefix,
   }: {
     value: UserConfigurationDraft | undefined;
     inherited?: UserConfigurationDraft;
+    codexId?: string;
     prefix: string;
   } = $props();
 
-  const selection = $derived(
-    value ? (configurationModes.find((option) => option.mode === value?.mode)?.value ?? "isolated") : "inherit",
+  const codex = $derived(codexId !== undefined);
+
+  const defaultMode = $derived(
+    codexId !== undefined ? defaultCodexHomeMode(codexId) : ProviderConfigurationMode.ISOLATED,
   );
 
-  const inheritedLabel = $derived(configurationModes.find((option) => option.mode === inherited?.mode)?.label);
+  const modes = $derived(codex ? codexHomeModes : configurationModes);
+
+  const selection = $derived(
+    value ? (modes.find((option) => option.mode === (value?.mode || defaultMode))?.value ?? "isolated") : "inherit",
+  );
+
+  const inheritedLabel = $derived(modes.find((option) => option.mode === (inherited?.mode || defaultMode))?.label);
 
   const options = $derived([
     ...(inherited ? [{ value: "inherit", label: `Inherit definition (${inheritedLabel})` }] : []),
-    ...configurationModes,
+    ...modes,
   ]);
 
   const description = $derived(
-    !value
-      ? "Uses the definition's configuration, including its source directory."
-      : value.mode === ProviderConfigurationMode.LOCAL
-        ? "Uses local settings and preferences while keeping thread history private."
-        : value.mode === ProviderConfigurationMode.SHARED
-          ? "Shares thread history with Claude Code in the source directory."
-          : "Keeps Claude's settings and thread history in Canopy's private directory.",
+    codex
+      ? codexHomeDescription
+      : !value
+        ? "Uses the definition's configuration, including its source directory."
+        : value.mode === ProviderConfigurationMode.LOCAL
+          ? "Uses local settings and preferences while keeping thread history private."
+          : value.mode === ProviderConfigurationMode.SHARED
+            ? "Shares thread history with Claude Code in the source directory."
+            : "Keeps Claude's settings and thread history in Canopy's private directory.",
   );
 </script>
 
 <div class="settings-form">
-  <Field layout="row" label="User configuration" {description}>
+  <Field layout="row" label={codex ? "Codex home" : "User configuration"} {description}>
     <Select
       name="{prefix}-configuration"
       value={selection}
       {options}
-      onchange={(selected) => (value = selectConfiguration(selected, value ?? inherited))}
+      onchange={(selected) => (value = selectConfiguration(selected, value ?? inherited, codex))}
     />
   </Field>
-  {#if value && value.mode !== ProviderConfigurationMode.ISOLATED}
+  {#if !codex && value && value.mode !== ProviderConfigurationMode.ISOLATED}
     <Field
       layout="row"
       label="Configuration source"

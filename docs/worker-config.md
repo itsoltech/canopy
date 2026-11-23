@@ -1,5 +1,7 @@
 # Konfiguracja workerów
 
+Aktualizacja (2026-11-23) włącza **Use CLI home** domyślnie dla wbudowanej instancji `codex/native` z logowaniem urządzenia na Windowsie, macOS i Linuksie.
+
 Aktualizacja (2026-11-22): katalog konektorów wątku wynika z dostępu jego projektu.
 
 Aktualizacja (2026-11-22): worker raportuje obsługę trybu offline i listy domen
@@ -341,7 +343,7 @@ Wypisuje **sekretny** `worker.json`; przekieruj go do pliku z umask 077, nie do 
 | `data_dir` (dziennik, bloby w drodze, scratch) | profile dostawców (wbudowany `native` i własne) z kluczami i zmiennymi środowiskowymi |
 | `ping_interval_seconds` (utrzymanie mapowania NAT) | natywne narzędzia (subagenci, harmonogram) |
 | | limity (tury, zadania w tle, drain, zwalnianie) |
-| | Codex: dowiązanie logowania urządzenia do izolowanego `CODEX_HOME` (`device_login`) |
+| | Codex: wybór logowania urządzenia (`device_login`), przez katalog CLI lub dowiązanie w trybie izolowanym |
 | | instancje dostawców: efektywny wynik globalnych definicji i nadpisań workera (sekcja 9) |
 
 ## 2. Plik lokalny
@@ -536,7 +538,7 @@ Status: **zaimplementowane** (migracja `0018_global_providers`; gateway `store/i
 
 Wbudowane instancje `claude/native`, `codex/native` i `grok/native` istnieją zawsze; można im nadać nazwę, zmienne i ścieżki, wyłączyć na wybranym workerze oraz przełączać Device login ↔ Proxy. Id `native` pozostaje stałe, także dla instancji z istniejącymi wątkami. Nie można ich usunąć.
 
-Przełączenie połączenia zachowuje katalog sesji: Claude używa tego samego `CLAUDE_CONFIG_DIR`, Codex tego samego `CODEX_HOME` z wpisem `model_providers` przekazanym przez `-c`, a Grok tego samego trwałego katalogu `sessions`. `own_login` zostaje zachowane jako wybór katalogu także podczas używania proxy. Codex wybiera provider również na poziomie procesu (`-c model_provider=…`), zgodnie z `modelProvider` przy tworzeniu i wznowieniu; Device login to `openai`, a proxy instancji `native` to `canopy_native`. Jawne nadpisanie przy wznowieniu zachowuje pełną historię bez tworzenia nowej sesji ([adapter](codex-adapter.md#runtime-wątków)). Claude wznawia sesję przez SDK, a Grok przez `session/load`; oba używają bieżącego połączenia i tego samego magazynu historii, bez wiązania z identyfikatorem providera Codexa. Test gateway↔worker przełącza wszystkie trzy harnessy Device login → proxy → Device login. Jawna zmiana ścieżki katalogu lub `own_login` jest osobną operacją i może wskazać magazyn bez poprzednich sesji; ta operacja nie przenosi historii automatycznie.
+Przy izolowanej konfiguracji przełączenie połączenia zachowuje katalog sesji: Claude używa tego samego `CLAUDE_CONFIG_DIR`, Codex tego samego `CODEX_HOME` z wpisem `model_providers` przekazanym przez `-c`, a Grok tego samego trwałego katalogu `sessions`. `own_login` zostaje zachowane jako wybór katalogu także podczas używania proxy. Codex wybiera provider również na poziomie procesu (`-c model_provider=…`), zgodnie z `modelProvider` przy tworzeniu i wznowieniu; Device login to `openai`, a proxy instancji `native` to `canopy_native`. Jawne nadpisanie przy wznowieniu zachowuje pełną historię bez tworzenia nowej sesji ([adapter](codex-adapter.md#runtime-wątków)). Claude wznawia sesję przez SDK, a Grok przez `session/load`; oba używają bieżącego połączenia i tego samego magazynu historii, bez wiązania z identyfikatorem providera Codexa. Test gateway↔worker przełącza wszystkie trzy harnessy Device login → proxy → Device login. Jawna zmiana ścieżki katalogu lub `own_login` jest osobną operacją i może wskazać magazyn bez poprzednich sesji; ta operacja nie przenosi historii automatycznie.
 
 ### 9.2. Synchronizacja
 
@@ -580,7 +582,7 @@ Pickery (nowy wątek i wątek) pokazują dla wybranego workera tylko instancje `
   tylko wtedy, gdy jego urządzenie i i-węzeł odpowiadają znanemu plikowi logowania
   urządzenia; sam licznik dowiązań nie wystarcza. Hardlink do innego pliku pozostaje
   chroniony jak własny login.
-- **Raport per instancja** (`ConfigApplied.profiles`): `version` (wersja jej pliku wykonywalnego albo dostawcy), `auth` i `authenticated`: endpoint — „endpoint key”; native — login w katalogu (Codex `auth.json`: „ChatGPT” albo „OpenAI API key”, czytany tylko kształt; Claude `.credentials.json`: „Claude account”; na macOS Claude trzyma login w pęku kluczy: nieznane), albo klucz w zmiennych (`ANTHROPIC_API_KEY` itd.). Native bez logowania, brak CLI albo plik wykonywalny, który się nie uruchamia, robią instancję niedostępną z powodem (`not signed in`, `no Codex login on this device`, `… not found or not runnable`) — bez wpisu w `issues`.
+- **Raport per instancja** (`ConfigApplied.profiles`): `version` (wersja jej pliku wykonywalnego albo dostawcy), `auth` i `authenticated`: endpoint — „endpoint key”; native — login w katalogu (Codex `auth.json`: „ChatGPT” albo „OpenAI API key”, czytany tylko kształt; Claude `.credentials.json`: „Claude account”; na macOS Claude trzyma login w pęku kluczy: nieznane), albo klucz w zmiennych (`ANTHROPIC_API_KEY` itd.). W trybie Codexa **Use CLI home** brak pliku `auth.json` pozwala CLI sprawdzić także login z systemowego magazynu poświadczeń. Native bez logowania, brak CLI albo plik wykonywalny, który się nie uruchamia, robią instancję niedostępną z powodem (`not signed in`, `no Codex login on this device`, `… not found or not runnable`) — bez wpisu w `issues`.
 - `InstanceOnWorker.kind` to rodzaj połączenia z tego raportu, także dla wbudowanej instancji `native`
   używającej proxy. Pełny status trafia również do `Worker.provider_instances.status` w overview,
   więc połączone komputery pokazują raport domu z jego nadpisaniami i czasem sprawdzenia.
@@ -626,13 +628,29 @@ przed domyślną wartością instancji, z zachowaniem natywnego pierwszeństwa
 logowania zachowują dotychczasowe położenie i zawartość.
 Szczegóły negocjacji opisuje [protokół](protocol.md#ustawienia-cli-instancji).
 
+### Katalog CLI dla wątków Codexa
+
+Wbudowana instancja `codex/native` z połączeniem **Device login** domyślnie
+używa trybu **Use CLI home**. Po aktualizacji workera wcześniejsza konfiguracja
+bez zapisanego wyboru również używa loginu i ustawień terminala. Katalog określa
+`home_path`, następnie zmienna `CODEX_HOME` procesu workera lub `~/.codex`.
+Ten tryb działa bez uprawnienia do tworzenia dowiązań.
+
+Pozostałe instancje Codexa domyślnie używają **Isolated**. W tym trybie prywatny
+katalog workera może korzystać z dowiązania do plikowego loginu terminala.
+Wybór na workerze ma pierwszeństwo przed wyborem w definicji instancji,
+a oba przed wartością domyślną. Proxy, własny login instancji i wyłączenie
+logowania urządzenia zachowują prywatny katalog. Worker bez capability
+`codex_cli_home_v1` stosuje swój dotychczasowy domyślny tryb. Jawny wybór
+**Use CLI home** dla aktywnego logowania urządzenia wymaga aktualizacji takiego workera.
+Szczegóły historii, importu i botów opisuje [adapter Codexa](codex-adapter.md#korzystanie-z-katalogu-cli).
+
 ### Konfiguracja użytkownika Claude
 
 `ProviderProfileConfig.user_configuration` określa tryb i niezależne wybory
 instrukcji, skilli oraz hooków. Brak wiadomości i `UNSPECIFIED` zachowują izolację.
 Gateway zapisuje pełną politykę w `runtime.userConfiguration`; obecne nadpisanie
-workera zastępuje ją w całości, również wartościami `false`. Codex i Grok
-odrzucają tryby inne niż izolowany jako błąd jednej instancji.
+workera zastępuje ją w całości, również wartościami `false`. Grok obsługuje wyłącznie izolację.
 
 Worker ogłasza `claude_user_configuration_v1`. Bez tej capability gateway
 wyłącza w przesyłanej konfiguracji tylko aktywne profile `LOCAL`/`SHARED`,
@@ -721,14 +739,14 @@ wątki przekazują dodatkowo `claudeMdExcludes`: globalne instrukcje i pliki pow
 repozytorium/worktree (scratch: powyżej cwd) są wykluczone. `HOME` Claude pozostaje
 bez zmian ze względu na logowanie. Wątki Codexa/Groka również zachowują HOME,
 USERPROFILE i XDG, aby shell miał konfigurację git, SSH i narzędzi użytkownika.
-Codex wyłącza znalezione domowe `.agents/skills` przez natywne selektory `skills.config`
+W trybie izolowanym Codex wyłącza znalezione domowe `.agents/skills` przez natywne selektory `skills.config`
 przy starcie app-servera (nowe skille wymagają restartu workera).
 Grok wyłącza źródła zgodności i pamięć flagami, a domowe `.agents` przez `[skills] ignore`.
 Izolowane `CODEX_HOME`/`GROK_HOME` odcinają globalne instrukcje tych CLI.
 Codex scratch wyłącza szukanie korzenia projektu (`project_root_markers=[]`).
 Grok scratch wymusza folder trust w prywatnym GROK_HOME bez zaufanych projektów,
 żeby nie ładować reguł nadrzędnego repozytorium obejmującego data dir.
-Źródła loginu nie zmieniają się: izolowany `CODEX_HOME` i jawne `GROK_AUTH_PATH`.
+Codex korzysta z magazynu logowania wybranego przez tryb instancji, a Grok z jawnego `GROK_AUTH_PATH`.
 Prywatne HOME pozostaje dla botów bez shella.
 Skille negocjują osobną capability `agent_skills_v1`. Claude ładuje zarządzane
 `<actual home>/canopy-environment/skills` jako jawny lokalny plugin bez włączania

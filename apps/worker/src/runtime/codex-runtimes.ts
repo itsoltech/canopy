@@ -1,14 +1,15 @@
 import { BackgroundTaskKind, Provider, type Item } from "@canopy/contracts";
 import { Context, Effect, Exit, Layer, Scope } from "effect";
 import { instanceShadowHome, type AppliedConfig } from "../config/remote.ts";
-import { prepareCodexHome } from "../providers/codex/home.ts";
+import { prepareCodexInstanceHome } from "../providers/codex/home.ts";
+import { codexLoginProblems } from "@canopy/domain/provider-accounts";
 import { CodexAppServerStartupError } from "../providers/codex/app-server.ts";
 import { codexAppServerLaunch, codexThreadLaunchArgs } from "../providers/codex/launch.ts";
 import { CodexThreads } from "../providers/codex/threads.ts";
 import { prepareImportedCodexResume } from "../import/codex-provider.ts";
 import { readCodexConfiguredEffort } from "../providers/default-effort.ts";
-import { join } from "node:path";
-import { realpathSync, statSync } from "node:fs";
+import { join, resolve } from "node:path";
+import { lstatSync, mkdirSync, realpathSync, statSync } from "node:fs";
 
 import { CommandError, kindOf, taskOf, usableBy, codexProfileGroup, type CodexGroup } from "./host-types.ts";
 import type { HostContext } from "./host-context.ts";
@@ -99,11 +100,12 @@ export class CodexRuntimes {
   codexGroups(config: AppliedConfig): Map<string, CodexGroup> {
     const groups = new Map<string, CodexGroup>();
 
-    if (!config.codex.enabled || !config.codex.executable) return groups;
+    if (!config.codex.enabled) return groups;
 
     // Separate processes even when env/homes match: one instance must drain independently of the others.
     for (const { resolved: profile, codexLoginRevision } of config.profiles) {
-      if (!profile || !usableBy(profile, "codex")) continue;
+      if (!profile || !usableBy(profile, "codex") || !(profile.runtime.executablePath || config.codex.executable))
+        continue;
       const profiles = [profile];
       groups.set(codexProfileGroup(profile.id), {
         profiles,
@@ -134,25 +136,29 @@ export class CodexRuntimes {
     if (!config) return;
     const { profiles, runtime } = group;
 
-    const shadow =
-      group.id !== undefined
-        ? instanceShadowHome(this.ctx.state.options.dataDir, "codex", group.id, runtime)
-        : undefined;
+    const dataDir = this.ctx.state.options.dataDir;
 
-    const deviceHome = runtime.homePath || this.ctx.state.deviceHomes.codex;
+    const privateHome = resolve(
+      instanceShadowHome(dataDir, "codex", group.id ?? "native", runtime) ?? join(dataDir, "codex-home"),
+    );
 
-    const home = prepareCodexHome({
-      dataDir: this.ctx.state.options.dataDir,
-      ...(shadow && { path: shadow }),
-      ...(runtime.ownLogin && { ownLogin: true }),
+    const deviceHome = this.ctx.state.deviceHomes.codex;
+
+    const home = prepareCodexInstanceHome(profiles[0]!, {
+      dataDir,
+      path: privateHome,
       linkDeviceLogin: config.codex.linkDeviceLogin,
-      deviceCodexHome: deviceHome,
-      protectedDeviceHome: this.ctx.state.deviceHomes.codex,
+      deviceHome,
     });
+
+    const cliHomes = home.login === "cli" ? { cliHome: home.path, privateHome } : undefined;
+
+    if (cliHomes) mkdirSync(privateHome, { recursive: true, mode: 0o700 });
 
     if (home.problem) this.ctx.ops.log(`codex home: ${home.problem}`);
 
-    if (home.linkFailed && profiles.some((profile) => profile.kind === "native")) throw new Error(home.problem);
+    if (home.linkFailed && profiles.some((profile) => profile.kind === "native"))
+      throw new CommandError("PROVIDER_UNAVAILABLE", home.problem ?? codexLoginProblems.link, true);
     // Protect the real private Codex policy and credentials from shell reads in a profiled session.
     const policyDirectory = home.login === "none" ? privatePolicyDirectory(home.path) : undefined;
 
@@ -172,22 +178,40 @@ export class CodexRuntimes {
         process.env,
         runtime.executablePath || config.codex.executable,
         config.nativeTools,
-        home.path,
+        cliHomes ?? home.path,
         group.env,
-        codexThreadLaunchArgs(runtime.launchArgs),
+        codexThreadLaunchArgs([
+          ...(runtime.launchArgs ?? []),
+          ...(cliHomes
+            ? [
+                "-c",
+                `sqlite_home=${JSON.stringify(privateHome)}`,
+                "-c",
+                "features.background_paginated_rollout_migration=false",
+              ]
+            : []),
+        ]),
       ),
       clientVersion: this.ctx.state.options.clientVersion,
       ...(policyDirectory && { sandboxProfileRuntime: { policyDirectory } }),
       onUsage: usage.report,
-      configuredEffort: () => readCodexConfiguredEffort(deviceHome),
+      configuredEffort: () => readCodexConfiguredEffort(runtime.homePath || deviceHome),
       profile: (id) => profiles.find((p) => p.id === (id || "native")),
-      importedResumePath: (spec, provider) =>
-        prepareImportedCodexResume(
-          this.ctx.state.imports.copyManifest("codex", spec.providerProfileId, spec.providerThreadId),
-          home.path,
-          spec.providerThreadId,
-          provider,
-        ),
+      ...(cliHomes && { previousPrivateHome: privateHome }),
+      importedResumePath: (spec, provider) => {
+        const manifest = this.ctx.state.imports.copyManifest("codex", spec.providerProfileId, spec.providerThreadId);
+
+        if (cliHomes) {
+          if (lstatSync(manifest, { throwIfNoEntry: false }))
+            throw new Error(
+              "Switch this instance to an isolated Codex home to continue the imported thread from its private copy.",
+            );
+
+          return undefined;
+        }
+
+        return prepareImportedCodexResume(manifest, privateHome, spec.providerThreadId, provider);
+      },
       publish: (event) => this.ctx.ops.publish(event),
       log: (message) => this.ctx.ops.log(message),
       onActivitySettled: () => {

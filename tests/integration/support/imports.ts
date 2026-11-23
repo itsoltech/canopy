@@ -3,6 +3,7 @@ import { fileURLToPath } from "node:url";
 import { homedir } from "node:os";
 import { join } from "node:path";
 import { GatewayStore } from "@canopy/gateway/store";
+import { CODEX_CLI_HOME_CAPABILITY } from "@canopy/domain/release/protocol";
 import { journalHello, openGatewayLink, type GatewayLink } from "@canopy/worker/gateway-link";
 import { Journal } from "@canopy/worker/journal";
 import { serveLink, WorkerHost } from "@canopy/worker/runtime";
@@ -51,7 +52,7 @@ export async function importFixture(
 
   if (options.grok) writeFileSync(join(home, ".grok", "auth.json"), JSON.stringify({ token: "fixture" }));
 
-  // The device login the Codex instance links (a fixture token, like the worktree fixture's).
+  // The terminal login for both the default CLI home and explicitly isolated Codex imports.
   if (options.codex)
     writeFileSync(join(home, ".codex", "auth.json"), JSON.stringify({ tokens: { access_token: "fixture" } }));
 
@@ -120,7 +121,7 @@ export async function importFixture(
         workerId,
         host: { os: process.platform },
         homeDirectory: homedir(),
-        capabilities: ["cli_import_v1", "cli_import_library_v1"],
+        capabilities: ["cli_import_v1", "cli_import_library_v1", CODEX_CLI_HOME_CAPABILITY],
         scratchRoot: join(data, "scratch"),
         ...(await runtime.runPromise(journalHello())),
       },

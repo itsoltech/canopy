@@ -18,11 +18,11 @@ import {
 } from "./instance-config.ts";
 import { encryptSecret, SECRETS_KEY_ID } from "./secrets.ts";
 import { Invalid, NotFound } from "./store.ts";
-import { SECRET_PREFIX, checkArgs, checkPath, toUi, type ConfigRow, type WorkerRow } from "./instance-checks.ts";
+import { SECRET_PREFIX, checkRuntime, toUi, type ConfigRow, type WorkerRow } from "./instance-checks.ts";
 import { migrateProxies } from "./proxy-migration.ts";
 import { isCredentialEnv, protectCredentialEnv } from "./credential-env.ts";
 import { recordProviders } from "../config-sync/provider-records.ts";
-import { normalizeUserConfiguration, userConfigurationProblem } from "./instance-user-configuration.ts";
+import { storedUserConfiguration } from "./instance-user-configuration.ts";
 import { settingsFrom } from "./instance-settings.ts";
 
 /** Instances, assignments and workers as stored, and the settings view of them. */
@@ -146,12 +146,7 @@ export function instanceWrites(sql: SqlClient.SqlClient, secretsKey: Buffer, rea
 
   const runtimeFrom = (harness: Harness, runtime: ui.InstanceRuntime, currentSettings: string | undefined) =>
     Effect.gen(function* () {
-      const problem =
-        checkPath("binary path", runtime.binaryPath) ??
-        checkPath("home path", runtime.homePath) ??
-        checkPath("shadow home path", runtime.shadowHomePath) ??
-        checkArgs(runtime.launchArgs) ??
-        (runtime.userConfiguration && userConfigurationProblem(harness, runtime.userConfiguration));
+      const problem = checkRuntime(harness, runtime);
 
       if (problem) return yield* Effect.fail(new Invalid(problem));
       const stored: StoredRuntime = yield* settingsFrom(harness, runtime.settingsText, currentSettings);
@@ -166,7 +161,9 @@ export function instanceWrites(sql: SqlClient.SqlClient, secretsKey: Buffer, rea
 
       if (runtime.ownLogin) stored.ownLogin = true;
 
-      if (runtime.userConfiguration) stored.userConfiguration = normalizeUserConfiguration(runtime.userConfiguration);
+      const policy = storedUserConfiguration(harness, runtime.userConfiguration);
+
+      if (policy) stored.userConfiguration = policy;
 
       return stored;
     });

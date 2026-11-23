@@ -236,6 +236,8 @@ jobs:
         run: bun test ./packages/process-governor/src/windows-command.test.ts
       - name: Codex device login recovery
         run: bun test ./apps/worker/src/providers/codex/home.test.ts ./apps/worker/src/bots/codex-login.test.ts
+      - name: Default Codex CLI home after upgrade
+        run: bun test ./apps/worker/src/config/user-configuration.test.ts -t "built-in Codex device login"
       - name: Windows worktree checkout and cleanup
         if: matrix.target == 'windows-x64'
         run: bun test ./apps/worker/src/git/failed-worktree-cleanup.test.ts ./tests/integration/worktree-creation-failure.test.ts

@@ -1,6 +1,7 @@
 import { afterAll, afterEach, beforeAll, describe, expect, test } from "bun:test";
 import { readdirSync, rmSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
+import { Provider, ProviderConfigurationMode } from "@canopy/contracts";
 import { dockerAvailable } from "@canopy/db/testing";
 import { tempDir } from "@canopy/testing";
 import { failurePresentation } from "@canopy/domain/failure-presentation";
@@ -13,6 +14,9 @@ import { importFixture } from "./support/imports.ts";
 describe.skipIf(!dockerAvailable)("CLI import: Codex", () => {
   const dir = tempDir("canopy-import-codex-");
   let f: Awaited<ReturnType<typeof importFixture>>;
+
+  const target = () => ({ harness: Provider.CODEX, id: "native", workerId: f.workerId });
+  const activeHome = async () => (await f.gw.api.getInstanceWorker(target())).worker?.sessionHomePath;
 
   const finished = (runId: string) =>
     eventually(
@@ -65,7 +69,33 @@ describe.skipIf(!dockerAvailable)("CLI import: Codex", () => {
     await f.gw.api.undoImportRun({ runId: done.id });
   }, 60_000);
 
-  test("continues natively: Codex resumes the thread from a copy in Canopy's private CODEX_HOME", async () => {
+  test("the default CLI home imports history without adopting or changing the source rollout", async () => {
+    const device = join(f.home, ".codex");
+    expect(await eventually(activeHome, (home) => home === device)).toBe(device);
+    const original = treeFingerprint(join(device, "sessions"));
+    const run = await importAll("continue");
+
+    try {
+      expect(run).toMatchObject({ status: "completed", done: 2, failed: 0 });
+
+      for (const item of run.items) {
+        expect(item.continueMode).toBe("history");
+        expect(item.warnings.join(" ")).toContain("Select Isolated");
+      }
+    } finally {
+      await f.gw.api.undoImportRun({ runId: run.id });
+    }
+
+    expect(treeFingerprint(join(device, "sessions"))).toBe(original);
+  }, 60_000);
+
+  test("an explicitly isolated instance resumes a private copy of the Codex rollout", async () => {
+    await f.gw.api.setInstanceWorker({
+      ...target(),
+      overrides: { userConfiguration: { mode: ProviderConfigurationMode.ISOLATED } },
+    });
+    const privateHome = join(f.data, "codex-home");
+    expect(await eventually(activeHome, (home) => home === privateHome)).toBe(privateHome);
     const done = await importAll("continue");
     const main = done.items.find((i) => i.cwd.endsWith("project"))!;
     expect(main.continueMode).toBe("native");
@@ -79,7 +109,7 @@ describe.skipIf(!dockerAvailable)("CLI import: Codex", () => {
       )
     )[0]!.native_id;
 
-    const sessions = join(f.data, "codex-home", "sessions");
+    const sessions = join(privateHome, "sessions");
     expect(readdirSync(sessions, { recursive: true }).some((p) => String(p).endsWith(`${sessionId}.jsonl`))).toBe(true);
 
     await f.gw.api.sendMessage({
@@ -107,7 +137,7 @@ describe.skipIf(!dockerAvailable)("CLI import: Codex", () => {
 
     // The other imported session has not been loaded: exercise a refused cold resume too.
     const other = done.items.find((i) => i.cwd.endsWith("other"))!;
-    const marker = join(f.data, "codex-home", "refuse-import-resume");
+    const marker = join(privateHome, "refuse-import-resume");
     writeFileSync(marker, "fixture refusal");
 
     try {

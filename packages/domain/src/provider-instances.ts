@@ -1,5 +1,12 @@
-import { Provider, ProviderProfileKind, type ProviderAccountStatus, type ui } from "@canopy/contracts";
+import {
+  Provider,
+  ProviderConfigurationMode,
+  ProviderProfileKind,
+  type ProviderAccountStatus,
+  type ui,
+} from "@canopy/contracts";
 import type { Tone } from "./status-look.ts";
+import { codexLoginProblem } from "./codex-login-problems.ts";
 
 /**
  * How a provider instance reads in Settings → Providers on every client (web: InstanceRow/InstanceDetail, mobile:
@@ -8,6 +15,27 @@ import type { Tone } from "./status-look.ts";
 
 export const harnessName = (harness: Provider): string =>
   harness === Provider.CLAUDE ? "Claude" : harness === Provider.GROK ? "Grok" : "Codex";
+
+/** Default for a native Codex instance using the device login. */
+export const defaultCodexHomeMode = (id: string): ProviderConfigurationMode =>
+  id === "native" ? ProviderConfigurationMode.SHARED : ProviderConfigurationMode.ISOLATED;
+
+export const codexHomeModes = [
+  {
+    value: "isolated",
+    label: "Isolated",
+    mode: ProviderConfigurationMode.ISOLATED,
+    description: "Use Canopy’s private home to continue imported copies of threads.",
+  },
+  {
+    value: "shared",
+    label: "Use CLI home",
+    mode: ProviderConfigurationMode.SHARED,
+    description: "Use the terminal login and its settings, including MCP servers and hooks.",
+  },
+] as const;
+
+export const codexHomeDescription = "Codex saves new thread files in the selected home.";
 
 /** The label, else the harness's name for the built-in device login ("Codex", "Claude"), else the id. */
 export const instanceName = (instance: Pick<ui.ProviderInstance, "label" | "id" | "builtIn" | "harness">): string =>
@@ -29,6 +57,10 @@ export interface InstanceStatus {
   readonly tone: Tone;
 }
 
+function loginUnavailable(on: ui.InstanceOnWorker): boolean {
+  return on.account?.state === "error" && !!codexLoginProblem(on.account.detail);
+}
+
 /** One line for an instance on a worker, as the list and the detail show it (e.g. "Authenticated · ChatGPT"). */
 export function statusOn(on: ui.InstanceOnWorker | undefined, online: boolean): InstanceStatus {
   if (!on) return { label: "Unknown worker", tone: "neutral" };
@@ -43,6 +75,8 @@ export function statusOn(on: ui.InstanceOnWorker | undefined, online: boolean): 
 
   // The CLI still reports the login, but a turn's harness rejected it (the gateway's account mark).
   if (on.available && on.account?.state === "expired") return { label: "Sign-in expired", tone: "amber" };
+
+  if (loginUnavailable(on)) return { label: "Login unavailable", tone: "amber" };
 
   if (on.account?.state === "stored") return { label: "Login saved", tone: "neutral" };
 
@@ -66,7 +100,7 @@ export function statusAcross(instance: ui.ProviderInstance): InstanceStatus {
   const enabled = instance.workers.filter((w) => w.enabled);
 
   if (enabled.length === 0) return { label: "Not on any worker", tone: "neutral" };
-  const usable = enabled.filter((w) => w.available).length;
+  const usable = enabled.filter((w) => w.available && !loginUnavailable(w)).length;
   const of = `${enabled.length} worker${enabled.length === 1 ? "" : "s"}`;
 
   if (usable === enabled.length) return { label: `Ready on ${of}`, tone: "emerald" };

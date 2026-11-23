@@ -12,18 +12,28 @@ export type StoredUserConfiguration = Pick<
   "mode" | "sourcePath" | "instructions" | "skills" | "hooks"
 >;
 
-export function normalizeUserConfiguration(value: StoredUserConfiguration): StoredUserConfiguration {
+function normalizeUserConfiguration(value: StoredUserConfiguration): StoredUserConfiguration {
   return {
-    mode: value.mode === ProviderConfigurationMode.UNSPECIFIED ? ProviderConfigurationMode.ISOLATED : value.mode,
-    sourcePath: value.sourcePath.trim(),
-    instructions: value.instructions,
-    skills: value.skills,
-    hooks: value.hooks,
+    mode: value.mode || ProviderConfigurationMode.ISOLATED,
+    sourcePath: value.sourcePath?.trim() ?? "",
+    instructions: value.instructions ?? false,
+    skills: value.skills ?? false,
+    hooks: value.hooks ?? false,
   };
 }
 
 export function userConfigurationProblem(harness: string, value: StoredUserConfiguration): string | undefined {
   const normalized = normalizeUserConfiguration(value);
+
+  if (harness === "codex") {
+    if (normalized.mode !== ProviderConfigurationMode.ISOLATED && normalized.mode !== ProviderConfigurationMode.SHARED)
+      return "Choose Isolated or Use CLI home for Codex.";
+
+    if (normalized.sourcePath || normalized.instructions || normalized.skills || normalized.hooks)
+      return "Codex uses the CLI home path. Clear the Claude configuration options.";
+
+    return undefined;
+  }
 
   if (
     normalized.mode !== ProviderConfigurationMode.ISOLATED &&
@@ -33,7 +43,7 @@ export function userConfigurationProblem(harness: string, value: StoredUserConfi
     return "Choose an isolated, local, or shared user configuration.";
 
   if (harness !== "claude" && normalized.mode !== ProviderConfigurationMode.ISOLATED)
-    return "Local and shared user configuration are available only for Claude. Choose isolated configuration.";
+    return "Choose isolated configuration for Grok.";
   const path = normalized.sourcePath;
   const fromHome = path === "~" || path.startsWith("~/") || path.startsWith("~\\");
 
@@ -47,8 +57,25 @@ export function userConfigurationProblem(harness: string, value: StoredUserConfi
   return undefined;
 }
 
-export const userConfigurationMessage = (value: StoredUserConfiguration | undefined) =>
-  value ? create(ProviderUserConfigurationSchema, value) : undefined;
+/** Missing Codex policy inherits. Older gateways also stored unused Claude fields on isolated Codex instances. */
+export function storedUserConfiguration(
+  harness: string,
+  value: StoredUserConfiguration | undefined,
+): StoredUserConfiguration | undefined {
+  if (!value || (harness === "codex" && !value.mode)) return undefined;
+
+  if (harness === "codex" && value.mode === ProviderConfigurationMode.ISOLATED) {
+    return { mode: value.mode, sourcePath: "", instructions: false, skills: false, hooks: false };
+  }
+
+  return normalizeUserConfiguration(value);
+}
+
+export function userConfigurationMessage(harness: string, value: StoredUserConfiguration | undefined) {
+  const stored = storedUserConfiguration(harness, value);
+
+  return stored && create(ProviderUserConfigurationSchema, stored);
+}
 
 export const userConfigurationJson = (value: StoredUserConfiguration) =>
   toJson(ProviderUserConfigurationSchema, create(ProviderUserConfigurationSchema, value));

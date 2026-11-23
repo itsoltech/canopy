@@ -8,7 +8,8 @@ import { providersOf } from "../providers/profiles.ts";
 import { startCliLogin, type CliLogin } from "../providers/cli-login.ts";
 import { startCodexDeviceLogin } from "../providers/codex/login.ts";
 import { codexAppServerLaunch } from "../providers/codex/launch.ts";
-import { prepareCodexHome } from "../providers/codex/home.ts";
+import { directCodexHome, prepareCodexHome } from "../providers/codex/home.ts";
+import { codexCliHomeProblem } from "../providers/home-paths.ts";
 import { prepareClaudeHome } from "../providers/claude/home.ts";
 import { grokAuthPath } from "../providers/grok/home.ts";
 import { CommandError, type CommandOutput } from "./host-types.ts";
@@ -59,13 +60,27 @@ export class ProviderLogins {
         false,
       );
 
-    const home = resolve(
-      runtime.ownLogin
-        ? instanceShadowHome(this.ctx.state.options.dataDir, harness, status.config.id, runtime)!
-        : runtime.homePath ||
-            this.ctx.state.deviceHomes[harness] ||
-            join(this.ctx.state.options.dataDir, `${harness}-home`),
-    );
+    const cliHome =
+      harness === "codex"
+        ? directCodexHome(status.config, config.codex.linkDeviceLogin, this.ctx.state.deviceHomes.codex)
+        : undefined;
+
+    if (cliHome) {
+      const privateHome = this.ctx.state.codexHome(status.config.id);
+      const problem = codexCliHomeProblem(privateHome, cliHome, this.ctx.state.deviceHomes.codex);
+
+      if (problem) throw new CommandError("PROVIDER_UNAVAILABLE", problem, true);
+    }
+
+    const home =
+      cliHome ??
+      resolve(
+        runtime.ownLogin
+          ? instanceShadowHome(this.ctx.state.options.dataDir, harness, status.config.id, runtime)!
+          : runtime.homePath ||
+              this.ctx.state.deviceHomes[harness] ||
+              join(this.ctx.state.options.dataDir, `${harness}-home`),
+      );
 
     if (!runtime.ownLogin || harness === "grok") mkdirSync(home, { recursive: true, mode: 0o700 });
 
@@ -119,7 +134,7 @@ export class ProviderLogins {
 
     const key = `${harness}/${realpathSync(store)}${authPath ? `/${basename(authPath)}` : ""}`;
 
-    return { harness, home, executable, env, id: status.config.id, key, config };
+    return { harness, home, executable, env, id: status.config.id, key, config, cliHome };
   }
 
   async start(provider: Provider, id: string): Promise<NonNullable<CommandOutput["login"]>> {
@@ -170,7 +185,15 @@ export class ProviderLogins {
     const login =
       target.harness === "codex"
         ? await startCodexDeviceLogin({
-            launch: codexAppServerLaunch([], target.env, target.executable, target.config.nativeTools),
+            launch: codexAppServerLaunch(
+              [],
+              target.env,
+              target.executable,
+              target.config.nativeTools,
+              undefined,
+              {},
+              target.cliHome ? ["-c", 'model_provider="openai"'] : [],
+            ),
             clientVersion: this.ctx.state.options.clientVersion,
             signal: this.ctx.state.authAbort.signal,
           })

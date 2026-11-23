@@ -1,6 +1,9 @@
 import type { Env, ResolvedProfile } from "../profiles.ts";
 import { codexNativeToolOverrides, DEFAULT_NATIVE_TOOL_POLICY, type NativeToolPolicy } from "../native-tools.ts";
 import { managedPlugins } from "../../agent-environment/plugin-loading.ts";
+import { pluginIndexPath } from "../../agent-environment/plugin-config.ts";
+import { lstatSync } from "node:fs";
+import { Predicate } from "effect";
 import { deviceSkillOverrides } from "./skills.ts";
 
 /**
@@ -13,6 +16,26 @@ import { deviceSkillOverrides } from "./skills.ts";
 export interface CodexAppServerLaunch {
   readonly command: readonly string[];
   readonly env: Record<string, string | undefined>;
+  readonly cliHomes?: CodexCliHomes;
+}
+
+interface CodexCliHomes {
+  readonly cliHome: string;
+  readonly privateHome: string;
+}
+
+/** Check the private deployment on every launch/start. The CLI's own configuration can be large or symlinked. */
+export function checkCodexPlugins(home: string | CodexCliHomes): void {
+  if (Predicate.isString(home)) {
+    managedPlugins(home, "codex");
+
+    return;
+  }
+
+  managedPlugins(home.privateHome, "codex");
+
+  if (lstatSync(pluginIndexPath(home.cliHome, "codex"), { throwIfNoEntry: false }))
+    managedPlugins(home.cliHome, "codex");
 }
 
 export function codexThreadLaunchArgs(extraArgs: readonly string[] = []): readonly string[] {
@@ -26,17 +49,20 @@ export function codexAppServerLaunch(
   baseEnv: Env,
   codexBin = "codex",
   nativeTools: NativeToolPolicy = DEFAULT_NATIVE_TOOL_POLICY,
-  /**
-   * Isolated Codex home for platform agents (CODEX_HOME). Without it Codex reads the device owner's
-   * ~/.codex: their config, MCP servers, plugins and hooks apply to platform threads too.
-   */
-  codexHome?: string,
+  /** A private CODEX_HOME, or the device CLI home with its separate Canopy deployment. */
+  codexHome?: string | CodexCliHomes,
   /** The profile's own variables (a process that serves one profile with variables). */
   profileEnv: Readonly<Record<string, string>> = {},
   /** Launch arguments of the instance (a process that serves one instance with its own runtime). */
   extraArgs: readonly string[] = [],
 ): CodexAppServerLaunch {
-  if (codexHome) managedPlugins(codexHome, "codex");
+  const cliHomes = Predicate.isString(codexHome) ? undefined : codexHome;
+  const path = Predicate.isString(codexHome) ? codexHome : cliHomes?.cliHome;
+
+  if (cliHomes && (profiles.length !== 1 || profiles[0]?.kind !== "native"))
+    throw new Error("Only a single native Codex instance may run in the CLI home.");
+
+  if (codexHome) checkCodexPlugins(codexHome);
   const [instance, ...others] = profiles.filter((profile) => profile.providers.includes("codex"));
   const settings = others.length === 0 ? instance?.runtime.codexSettings : undefined;
 
@@ -51,10 +77,10 @@ export function codexAppServerLaunch(
   const env: NodeJS.ProcessEnv = {
     ...baseEnv,
     ...profileEnv,
-    ...(codexHome !== undefined && { CODEX_HOME: codexHome }),
+    ...(path !== undefined && { CODEX_HOME: path }),
   };
 
-  if (codexHome) command.push(...deviceSkillOverrides(env));
+  if (Predicate.isString(codexHome)) command.push(...deviceSkillOverrides(env));
 
   // Each production runtime serves one instance. Codex also checks the process's current provider when
   // admitting turns: selecting a provider only on thread/start or thread/resume is not enough.
@@ -96,7 +122,7 @@ export function codexAppServerLaunch(
     env[keyEnv] = profile.apiKey;
   }
 
-  return { command, env };
+  return { command, env, ...(cliHomes && { cliHomes }) };
 }
 
 /** Also sent on resume: omitting the native provider would retain the rollout's previous proxy. */

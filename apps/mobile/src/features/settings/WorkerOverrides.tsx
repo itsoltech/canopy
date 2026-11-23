@@ -1,13 +1,14 @@
 import { useState } from "react";
 import { Text } from "react-native";
 import type { MessageInitShape } from "@bufbuild/protobuf";
-import { ProviderProfileKind, type ui } from "@canopy/contracts";
+import { Provider, ProviderConfigurationMode, ProviderProfileKind, type ui } from "@canopy/contracts";
 import { Button, Field, Notice } from "../../ui/components";
 import { styles, useColors } from "../../ui/theme";
 import { ProxyPicker } from "../providers/ProxyPicker";
 import { SettingsActions, SettingsSection, SettingToggle } from "./SettingsGroup";
 import { ResourceState, useSettingsResource } from "./resource";
 import { EnvironmentFields, environmentDrafts, environmentInput } from "./EnvironmentFields";
+import { CodexHomeField } from "./CodexHomeField";
 import { ProviderSettingsEditor } from "./ProviderSettingsEditor";
 import { providerSettingsError } from "./provider-settings-error";
 import { useProviderSettingsDraft } from "./useProviderSettingsDraft";
@@ -62,15 +63,7 @@ export function WorkerOverrides({
 
 type Overrides = MessageInitShape<typeof ui.InstanceOverridesInputSchema>;
 
-function OverrideFields({
-  instance,
-  worker,
-  overrides,
-  inherited,
-  busy,
-  error,
-  save,
-}: {
+interface OverrideFieldsProps {
   instance: ui.ProviderInstance;
   worker: ui.Worker;
   overrides: ui.InstanceOverrides | undefined;
@@ -78,8 +71,11 @@ function OverrideFields({
   busy: boolean;
   error: string;
   save: (overrides: Overrides) => Promise<boolean>;
-}) {
+}
+
+function OverrideFields({ instance, worker, overrides, inherited, busy, error, save }: OverrideFieldsProps) {
   const c = useColors();
+  const [userConfiguration, setUserConfiguration] = useState(overrides?.userConfiguration);
   const [binaryPath, setBinary] = useState(overrides?.binaryPath ?? "");
   const [homePath, setHome] = useState(overrides?.homePath ?? "");
   const [shadowHomePath, setShadow] = useState(overrides?.shadowHomePath ?? "");
@@ -90,6 +86,7 @@ function OverrideFields({
   const settings = useProviderSettingsDraft(instance.harness, overrides?.settingsText);
 
   const discard = () => {
+    setUserConfiguration(overrides?.userConfiguration);
     setBinary(overrides?.binaryPath ?? "");
     setHome(overrides?.homePath ?? "");
     setShadow(overrides?.shadowHomePath ?? "");
@@ -112,6 +109,7 @@ function OverrideFields({
       ...(proxyId && { proxyId }),
       env: environmentInput(env),
       settingsText: settings.settingsText,
+      userConfiguration,
     });
 
     if (saved) settings.change(undefined);
@@ -131,9 +129,24 @@ function OverrideFields({
         title={`Runtime on ${worker.name}`}
         description="Empty fields follow the definition (shown greyed out)."
       >
+        {instance.harness === Provider.CODEX &&
+          instance.kind === ProviderProfileKind.NATIVE &&
+          !inherited?.ownLogin && (
+            <CodexHomeField
+              instanceId={instance.id}
+              value={userConfiguration}
+              inherited={inherited?.userConfiguration?.mode ?? ProviderConfigurationMode.UNSPECIFIED}
+              onChange={setUserConfiguration}
+            />
+          )}
         {path("CLI path", binaryPath, setBinary, inherited?.binaryPath)}
         {path("CLI home path", homePath, setHome, inherited?.homePath)}
-        {path("Shadow home path", shadowHomePath, setShadow, inherited?.shadowHomePath)}
+        {path(
+          instance.harness === Provider.CODEX ? "Private state directory" : "Shadow home path",
+          shadowHomePath,
+          setShadow,
+          inherited?.shadowHomePath,
+        )}
         <SettingToggle title="Override launch arguments" value={argsSet} onChange={setArgsSet} />
         {argsSet && (
           <Field

@@ -1,4 +1,5 @@
-import { ProviderConfigurationMode, type ProviderUserConfiguration } from "@canopy/contracts";
+import { Provider, ProviderConfigurationMode, type ProviderUserConfiguration } from "@canopy/contracts";
+import { codexHomeModes } from "@canopy/domain/provider-instances";
 
 export interface UserConfigurationDraft {
   mode: ProviderConfigurationMode;
@@ -8,18 +9,26 @@ export interface UserConfigurationDraft {
   hooks: boolean;
 }
 
-export const configurationDraftOf = (value?: ProviderUserConfiguration): UserConfigurationDraft => ({
-  mode: value?.mode || ProviderConfigurationMode.ISOLATED,
+export const configurationDraftOf = (
+  value?: ProviderUserConfiguration,
+  harness?: Provider,
+): UserConfigurationDraft => ({
+  mode:
+    value?.mode ||
+    (harness === Provider.CODEX ? ProviderConfigurationMode.UNSPECIFIED : ProviderConfigurationMode.ISOLATED),
   sourcePath: value?.sourcePath ?? "",
   instructions: value?.instructions ?? false,
   skills: value?.skills ?? false,
   hooks: value?.hooks ?? false,
 });
 
-export const configurationInput = (value: UserConfigurationDraft): UserConfigurationDraft => ({
-  ...value,
-  sourcePath: value.sourcePath.trim(),
-});
+export function configurationInput(harness: Provider, value: UserConfigurationDraft | undefined) {
+  if (!value) return undefined;
+
+  if (harness === Provider.CODEX) return value.mode ? { mode: value.mode } : undefined;
+
+  return harness === Provider.CLAUDE ? { ...value, sourcePath: value.sourcePath.trim() } : undefined;
+}
 
 export const configurationModes = [
   { value: "isolated", label: "Isolated", mode: ProviderConfigurationMode.ISOLATED },
@@ -31,10 +40,14 @@ export const configurationModes = [
 export function selectConfiguration(
   selection: string,
   previous: UserConfigurationDraft | undefined,
+  codex: boolean,
 ): UserConfigurationDraft | undefined {
-  const mode = configurationModes.find((option) => option.value === selection)?.mode;
+  const modes = codex ? codexHomeModes : configurationModes;
+  const mode = modes.find((option) => option.value === selection)?.mode;
 
   if (mode === undefined) return undefined;
+
+  if (codex) return { ...configurationDraftOf(), mode };
 
   return {
     mode,

@@ -42,6 +42,8 @@ export interface CodexThreadsOptions {
   readonly sandboxProfileRuntime?: { readonly policyDirectory: string };
   /** Resolved provider profile by id ("" = native). */
   profile(id: string): ResolvedProfile | undefined;
+  /** Original Canopy rollout and SQLite home when running in the device CLI home. */
+  readonly previousPrivateHome?: string;
   /** Repair an imported copy for the selected connection; returns its verified private rollout path. */
   importedResumePath?(spec: ThreadSpec, modelProvider: string): string | undefined;
   /** Called after an event is safely in the journal (e.g. send it to the gateway when connected). */
@@ -104,6 +106,9 @@ export interface Entry {
   /** Codex turns the platform asked to interrupt (their interruption is the user's). */
   readonly interrupting: Set<string>;
   readonly rolloutPath: string | null;
+  /** Set while releasing an out-of-home rollout through unsubscribe and immediate idle unload. */
+  onClosed?: () => void;
+  privateRollout?: string;
 }
 
 export interface CodexThreadContext {

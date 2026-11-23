@@ -7880,8 +7880,7 @@ export const ProfileEnvVarInputSchema: GenMessage<ProfileEnvVarInput> = /*@__PUR
   messageDesc(file_canopy_ui_v1_gateway, 164);
 
 /**
- * Jak worker uruchamia harness instancji. Puste = ustawienia workera (izolowany katalog w data_dir, logowanie
- * urządzenia dowiązane z domyślnego katalogu domowego CLI).
+ * Jak worker uruchamia harness instancji. Puste = ustawienia domyślne tej instancji na workerze.
  *
  * @generated from message canopy.ui.v1.InstanceRuntime
  */
@@ -7892,7 +7891,7 @@ export type InstanceRuntime = Message<"canopy.ui.v1.InstanceRuntime"> & {
   binaryPath: string;
 
   /**
-   * Katalog CLI właściciela urządzenia (CODEX_HOME / CLAUDE_CONFIG_DIR), z którego dowiązywane jest logowanie.
+   * Katalog CLI właściciela urządzenia (CODEX_HOME / CLAUDE_CONFIG_DIR) używany do logowania urządzenia.
    *
    * @generated from field: string home_path = 2;
    */
@@ -7918,7 +7917,8 @@ export type InstanceRuntime = Message<"canopy.ui.v1.InstanceRuntime"> & {
   ownLogin: boolean;
 
   /**
-   * Claude only; absent means isolated configuration.
+   * Claude configuration or native Codex home selection. The built-in codex/native defaults to the CLI home
+   * for device login. Other instances default to isolation.
    *
    * @generated from field: canopy.worker.v1.ProviderUserConfiguration user_configuration = 6;
    */

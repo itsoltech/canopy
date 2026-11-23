@@ -192,7 +192,7 @@ export function newDraft(harness: Provider, workerIds: string[]): InstanceDraft 
     launchArgs: "",
     ownLogin: false,
     settingsText: "",
-    userConfiguration: configurationDraftOf(),
+    userConfiguration: configurationDraftOf(undefined, harness),
     allWorkers: workerIds.length === 0,
     workerIds,
   };
@@ -214,7 +214,7 @@ export function draftOf(instance: ui.ProviderInstance): InstanceDraft {
     launchArgs: joinArgs(instance.runtime?.launchArgs ?? []),
     ownLogin: instance.runtime?.ownLogin ?? false,
     settingsText: instance.runtime?.settingsText ?? "",
-    userConfiguration: configurationDraftOf(instance.runtime?.userConfiguration),
+    userConfiguration: configurationDraftOf(instance.runtime?.userConfiguration, instance.harness),
     allWorkers: instance.allWorkers,
     workerIds: instance.workers.filter((w) => w.enabled).map((w) => w.workerId),
   };
@@ -292,7 +292,7 @@ export function saveRequest(
       launchArgs: splitArgs(draft.launchArgs),
       ownLogin: draft.ownLogin,
       settingsText: draft.settingsText,
-      userConfiguration: draft.harness === Provider.CLAUDE ? configurationInput(draft.userConfiguration) : undefined,
+      userConfiguration: configurationInput(draft.harness, draft.userConfiguration),
     },
     accentColor: draft.accentColor,
     expectedRevision: options.expectedRevision,
@@ -345,10 +345,7 @@ export function overrideRequest(
     workerId,
     overrides: {
       settingsText,
-      userConfiguration:
-        instance.harness === Provider.CLAUDE && draft.userConfiguration
-          ? configurationInput(draft.userConfiguration)
-          : undefined,
+      userConfiguration: configurationInput(instance.harness, draft.userConfiguration),
       ...(draft.binaryPath !== undefined && { binaryPath: draft.binaryPath }),
       ...(draft.homePath !== undefined && { homePath: draft.homePath }),
       ...(draft.shadowHomePath !== undefined && { shadowHomePath: draft.shadowHomePath }),

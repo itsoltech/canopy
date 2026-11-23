@@ -1,6 +1,12 @@
 import { homedir } from "node:os";
 import { existsSync, lstatSync, readlinkSync, renameSync, symlinkSync, unlinkSync } from "node:fs";
 import { join, relative, resolve } from "node:path";
+import { codexLoginProblems } from "@canopy/domain/provider-accounts";
+import { defaultCodexHomeMode } from "@canopy/domain/provider-instances";
+import { Predicate } from "effect";
+import { ProviderConfigurationMode } from "@canopy/contracts";
+import type { ProviderProfileConfig } from "../profiles.ts";
+import { codexCliHomeProblem } from "../home-paths.ts";
 import { prepareProviderHome, type ProviderHome } from "../home.ts";
 import { isManagedCodexLogin } from "./legacy-login.ts";
 
@@ -31,9 +37,53 @@ export function deviceCodexHome(env: Readonly<Record<string, string | undefined>
   return env["CODEX_HOME"] || join(home, ".codex");
 }
 
+/** The built-in native instance defaults to its device CLI home. Other instances opt in explicitly. */
+export function directCodexHome(
+  profile: Pick<ProviderProfileConfig, "id" | "kind" | "runtime">,
+  linkDeviceLogin: boolean,
+  deviceHome: string,
+): string | undefined {
+  const { runtime } = profile;
+
+  if (profile.kind !== "native" || runtime?.ownLogin || !linkDeviceLogin) return undefined;
+  const configured = runtime?.userConfiguration?.mode ?? ProviderConfigurationMode.UNSPECIFIED;
+  const mode = configured === ProviderConfigurationMode.UNSPECIFIED ? defaultCodexHomeMode(profile.id) : configured;
+
+  return mode === ProviderConfigurationMode.SHARED ? resolve(runtime?.homePath || deviceHome) : undefined;
+}
+
+/** Isolated instances prepare their login. Direct instances only validate the two roots. */
+export function prepareCodexInstanceHome(
+  profile: Pick<ProviderProfileConfig, "id" | "kind" | "runtime">,
+  options: { dataDir: string; path: string; deviceHome: string; linkDeviceLogin: boolean },
+): Omit<CodexHome, "login"> & { login: CodexHome["login"] | "cli" } {
+  const { path, deviceHome, linkDeviceLogin } = options;
+  const cliHome = directCodexHome(profile, linkDeviceLogin, deviceHome);
+
+  if (cliHome) {
+    const problem = codexCliHomeProblem(path, cliHome, deviceHome);
+
+    if (problem) throw new Error(problem);
+
+    return { path: cliHome, login: "cli" };
+  }
+
+  return prepareCodexHome({
+    dataDir: options.dataDir,
+    path,
+    linkDeviceLogin,
+    ownLogin: profile.runtime?.ownLogin ?? false,
+    deviceCodexHome: profile.runtime?.homePath || deviceHome,
+    protectedDeviceHome: deviceHome,
+  });
+}
+
 export function prepareCodexHome(options: CodexHomeOptions, platform = process.platform): CodexHome {
   const path = options.path ?? join(options.dataDir, "codex-home");
   const deviceHome = options.deviceCodexHome ?? deviceCodexHome(process.env);
+
+  const windowsLinkDenied = (cause: unknown) =>
+    platform === "win32" && Predicate.hasProperty(cause, "code") && (cause.code === "EPERM" || cause.code === "EACCES");
 
   const home = prepareProviderHome({
     path,
@@ -45,9 +95,7 @@ export function prepareCodexHome(options: CodexHomeOptions, platform = process.p
     recoverLegacyLogin: () =>
       (platform === "win32" || (options.linkDeviceLogin && existsSync(join(deviceHome, "auth.json")))) &&
       isManagedCodexLogin(options.dataDir, path),
-    ...(platform === "win32" && {
-      linkProblem: "Canopy could not use the device login. Enable Windows Developer Mode to share it.",
-    }),
+    linkProblem: (cause) => (windowsLinkDenied(cause) ? codexLoginProblems.windows : codexLoginProblems.link),
     missingLogin: "no Codex login on this device; run `codex login` or use a CLIProxyAPI profile",
   });
 
@@ -58,12 +106,14 @@ export function prepareCodexHome(options: CodexHomeOptions, platform = process.p
   } else if (home.login === "linked") {
     try {
       linkCodexWriteLock(path, deviceHome);
-    } catch {
+    } catch (cause) {
+      const denied = windowsLinkDenied(cause) && Predicate.hasProperty(cause, "syscall") && cause.syscall === "symlink";
+
       return {
         path,
         login: "none",
         linkFailed: true,
-        problem: "Could not share the Codex login lock. Check the instance home and its permissions.",
+        problem: denied ? codexLoginProblems.windows : codexLoginProblems.lock,
       };
     }
   }

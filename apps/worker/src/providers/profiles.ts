@@ -35,8 +35,8 @@ interface ProfileConfigBase {
   /** Safe validation error for CLI settings received from the gateway. */
   readonly settingsProblem?: string;
   /**
-   * How the harness of this instance runs (global provider instances, docs/worker-config.md, section 9); absent =
-   * the worker's settings (isolated home under the data dir, device login linked).
+   * How the harness of this instance runs. When absent, the built-in Codex device login uses its CLI home.
+   * Other instances use their worker defaults (docs/worker-config.md, section 9).
    */
   readonly runtime?: ProfileRuntimeConfig;
 }

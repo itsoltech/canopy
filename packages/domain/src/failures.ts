@@ -1,3 +1,5 @@
+import { codexLoginProblem } from "./codex-login-problems.ts";
+
 /** Stable failure classes shared by gateway inference, harnesses and clients. */
 export const FAILURE_CODES = [
   "auth_required",
@@ -21,6 +23,8 @@ export function classifyFailure(message: string, code = ""): FailureCode {
   const explicit = FAILURE_CODES.find((value) => value === code);
 
   if (explicit) return explicit;
+
+  if (codexLoginProblem(message)) return "configuration";
   const text = `${code.replace(/[A-Z]/g, (letter) => `_${letter.toLowerCase()}`)} ${message}`;
 
   if (

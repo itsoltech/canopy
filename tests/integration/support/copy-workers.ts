@@ -1,4 +1,4 @@
-import { chmodSync, copyFileSync, mkdirSync, writeFileSync } from "node:fs";
+import { chmodSync, copyFileSync, mkdirSync } from "node:fs";
 import { join } from "node:path";
 import { ManagedRuntime } from "effect";
 import { GatewayStore } from "@canopy/gateway/store";
@@ -6,14 +6,14 @@ import { Journal } from "@canopy/worker/journal";
 import { journalHello, openGatewayLink, type GatewayLink } from "@canopy/worker/gateway-link";
 import { WorkerHost, serveLink } from "@canopy/worker/runtime";
 import { eventually, type TestGateway } from "./gateway.ts";
+import { codexFixtureHomes } from "./codex-device.ts";
 
 /**
  * A real worker for workspace copies that can restart its process (same data directory) and reconnect to a
  * restarted gateway with the same credential.
  */
 export async function copyWorker(gateway: TestGateway, dir: string, name: string) {
-  mkdirSync(dir, { recursive: true });
-  writeFileSync(join(dir, "auth.json"), JSON.stringify({ tokens: { access_token: "fixture" } }));
+  const deviceHomes = codexFixtureHomes(dir);
   const executable = join(dir, "codex");
   copyFileSync(new URL("../fixtures/directory-codex.ts", import.meta.url), executable);
   chmodSync(executable, 0o755);
@@ -31,8 +31,7 @@ export async function copyWorker(gateway: TestGateway, dir: string, name: string
   mkdirSync(data, { recursive: true });
   const runtime = ManagedRuntime.make(Journal.layer(join(data, "journal.db")));
 
-  const start = () =>
-    new WorkerHost({ runtime, dataDir: data, clientVersion: "test", deviceHomes: { codex: dir, claude: dir } });
+  const start = () => new WorkerHost({ runtime, dataDir: data, clientVersion: "test", deviceHomes });
 
   let host = start();
   let link: GatewayLink | undefined;

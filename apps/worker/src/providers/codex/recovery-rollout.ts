@@ -15,7 +15,7 @@ const ROLLOUT_NAME = new RegExp(
 const MAX_COMPRESSED_TAIL_BYTES = 64 * 1024 * 1024;
 
 /** Native archive/unarchive and compression preserve the exact rollout name and its uncompressed offsets. */
-function nativeRollout(path: string, sessionId: string) {
+export function nativeRollout(path: string, sessionId: string) {
   if (!isAbsolute(path)) return undefined;
   const name = basename(path).replace(/\.zst$/, "");
   const match = ROLLOUT_NAME.exec(name);

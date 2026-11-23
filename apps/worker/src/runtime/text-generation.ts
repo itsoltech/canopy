@@ -4,6 +4,7 @@ import { Provider, UsageSchema, type Usage, type Command } from "@canopy/contrac
 import { Match } from "effect";
 import { instanceShadowHome, type AppliedConfig } from "../config/remote.ts";
 import { codexAppServerLaunch } from "../providers/codex/launch.ts";
+import { directCodexHome } from "../providers/codex/home.ts";
 import { generateGrokText } from "../providers/grok/generate-text.ts";
 import { generateClaudeText, generateCodexText } from "../providers/generate-text.ts";
 import { claudeProfileOptions } from "../providers/claude/profile.ts";
@@ -135,6 +136,7 @@ export class TextGeneration {
               profile,
               pricing: this.ctx.state.pricing,
               clientVersion: this.ctx.state.options.clientVersion,
+              loginHome: directCodexHome(profile, config.codex.linkDeviceLogin, this.ctx.state.deviceHomes.codex),
               launch: codexAppServerLaunch(
                 [profile],
                 process.env,

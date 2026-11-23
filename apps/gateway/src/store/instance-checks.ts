@@ -1,7 +1,7 @@
 import { create, fromJson, type JsonValue } from "@bufbuild/protobuf";
 import { timestampFromDate } from "@bufbuild/protobuf/wkt";
 import { ConfigAppliedSchema, Provider, ProviderProfileKind, ui, type ConfigApplied } from "@canopy/contracts";
-import { userConfigurationMessage } from "./instance-user-configuration.ts";
+import { userConfigurationMessage, userConfigurationProblem } from "./instance-user-configuration.ts";
 import { Effect } from "effect";
 import { type SqlError } from "effect/sql";
 import {
@@ -93,6 +93,19 @@ export function checkArgs(args: readonly string[]): string | undefined {
   return undefined;
 }
 
+export function checkRuntime(
+  harness: Harness,
+  runtime: ui.InstanceRuntime | ui.InstanceOverridesInput,
+): string | undefined {
+  return (
+    checkPath("binary path", runtime.binaryPath) ??
+    checkPath("home path", runtime.homePath) ??
+    checkPath("shadow home path", runtime.shadowHomePath) ??
+    checkArgs(runtime.launchArgs) ??
+    (runtime.userConfiguration && userConfigurationProblem(harness, runtime.userConfiguration))
+  );
+}
+
 export function checkBaseUrl(value: string): string | undefined {
   const url = URL.canParse(value.trim()) ? new URL(value.trim()) : undefined;
 
@@ -122,7 +135,7 @@ export const toUi = (
     apiKeySet: isRef(row.api_key),
     env: envSettings(row.env ?? []),
     runtime: {
-      userConfiguration: userConfigurationMessage(row.runtime?.userConfiguration),
+      userConfiguration: userConfigurationMessage(row.harness, row.runtime?.userConfiguration),
       settingsText: row.runtime?.settingsText,
       binaryPath: row.runtime?.binaryPath ?? "",
       homePath: row.runtime?.homePath ?? "",
@@ -155,7 +168,7 @@ export const toUi = (
         enabled: enabledOn(row, assignment),
         explicit: assignment?.enabled !== null && assignment?.enabled !== undefined,
         overrides: {
-          userConfiguration: userConfigurationMessage(o.userConfiguration),
+          userConfiguration: userConfigurationMessage(row.harness, o.userConfiguration),
           settingsText: o.settingsText,
           ...(o.binaryPath !== undefined && { binaryPath: o.binaryPath }),
           ...(o.homePath !== undefined && { homePath: o.homePath }),

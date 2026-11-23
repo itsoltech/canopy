@@ -22,6 +22,7 @@
   } from "./instances.ts";
   import RuntimeFields from "./RuntimeFields.svelte";
   import UserConfigurationFields from "./UserConfigurationFields.svelte";
+  import { configurationDraftOf } from "./user-configuration.ts";
   import WorkersField from "./WorkersField.svelte";
 
   /**
@@ -176,7 +177,13 @@
                   checked={draft.harness === h.value}
                   title={harnessName(h.value)}
                   description={h.description}
-                  onchange={() => (draft.harness = h.value)}
+                  onchange={() => {
+                    if (draft.harness !== h.value) {
+                      draft.harness = h.value;
+                      draft.userConfiguration = configurationDraftOf(undefined, h.value);
+                      draft.ownLogin = false;
+                    }
+                  }}
                 >
                   {#snippet leading()}<InstanceMark
                       instance={{ harness: h.value, accentColor: "" }}
@@ -221,6 +228,9 @@
               errors={shown}
               prefix="new"
             />
+            {#if draft.harness === Provider.CODEX && draft.kind === ProviderProfileKind.NATIVE && !draft.ownLogin}
+              <UserConfigurationFields codexId={draft.id} bind:value={draft.userConfiguration} prefix="new" />
+            {/if}
             {#if setupProxy && draft.kind === ProviderProfileKind.CLIPROXYAPI}
               <p class="text-sm/6 text-zinc-600 dark:text-zinc-400">
                 Your endpoint receives the agent’s model requests. Check how it handles task data.

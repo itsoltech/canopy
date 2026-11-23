@@ -6,7 +6,7 @@ import { providerSettingsText } from "../store/instance-settings.ts";
 import { ACCENT, MAX_MODELS, checkArgs, checkBaseUrl } from "../store/instance-checks.ts";
 import { proxyOptions, proxyRoot, type ProxyOptions, type ProxyRow } from "../store/proxy-records.ts";
 import type { Fields } from "./persistence.ts";
-import { normalizeUserConfiguration, userConfigurationProblem } from "../store/instance-user-configuration.ts";
+import { storedUserConfiguration, userConfigurationProblem } from "../store/instance-user-configuration.ts";
 
 /**
  * Shared fields of provider instances and proxies (docs/linked-computers.md, "Inwentarz"). CLI paths and homes
@@ -54,6 +54,9 @@ export function secretField(kind: string, name: string, value: JsonValue | undef
 /** An instance as a record. `proxy` is the proxy's global id; secret fields get a placeholder token. */
 export function instanceValues(row: InstanceRow, proxy: string) {
   const runtime = row.runtime ?? {};
+
+  const userConfiguration = storedUserConfiguration(row.harness, runtime.userConfiguration);
+
   const secrets: SecretRefs = new Map();
 
   const key = row.kind === "endpoint" && !row.proxy_id && isRef(row.api_key) ? row.api_key.secretRef : "";
@@ -86,12 +89,12 @@ export function instanceValues(row: InstanceRow, proxy: string) {
     ["settingsText", runtime.settingsText ?? null],
     [
       "userConfiguration",
-      runtime.userConfiguration
+      userConfiguration
         ? {
-            mode: runtime.userConfiguration.mode,
-            instructions: runtime.userConfiguration.instructions,
-            skills: runtime.userConfiguration.skills,
-            hooks: runtime.userConfiguration.hooks,
+            mode: userConfiguration.mode,
+            instructions: userConfiguration.instructions,
+            skills: userConfiguration.skills,
+            hooks: userConfiguration.hooks,
           }
         : null,
     ],
@@ -162,14 +165,16 @@ export function instanceColumns(values: Values, current: InstanceRow | undefined
 
     const policy = values["userConfiguration"];
 
+    const currentPolicy = storedUserConfiguration(harness, current?.runtime.userConfiguration);
+
     const userConfiguration =
       policy === undefined
-        ? current?.runtime.userConfiguration
+        ? currentPolicy
         : policy === null
           ? undefined
-          : normalizeUserConfiguration({
+          : storedUserConfiguration(harness, {
               ...userConfigurationPolicy(policy),
-              sourcePath: current?.runtime.userConfiguration?.sourcePath ?? "",
+              sourcePath: currentPolicy?.sourcePath ?? "",
             });
 
     const models = ["favorites", "hidden", "shown", "custom"].map((name) =>

@@ -1,11 +1,12 @@
 import { expect, test } from "bun:test";
-import { readFileSync, writeFileSync } from "node:fs";
+import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { tempDir } from "@canopy/testing";
 import { codexTextCatalog, codexTextOverrides } from "./generate-text.ts";
 import { generateClaudeText, generateCodexText } from "./generate-text.ts";
 import { claudeProfileOptions } from "./claude/profile.ts";
 import { codexAppServerLaunch } from "./codex/launch.ts";
+import { isolatedHomeEnvironment } from "./home.ts";
 import { resolveProfiles } from "./profiles.ts";
 
 const dir = tempDir("canopy-text-config-");
@@ -164,7 +165,7 @@ test.skipIf(!Bun.which("claude"))(
 );
 
 test.skipIf(!Bun.which("codex"))(
-  "Codex generation reports real response usage with cached input and reasoning as subsets",
+  "Codex generates text with the selected CLI login in isolation and reports response usage",
   async () => {
     const output = [
       {
@@ -176,11 +177,26 @@ test.skipIf(!Bun.which("codex"))(
       },
     ];
 
+    const cliHome = join(dir, "cli");
+    const privateHome = join(dir, "private");
+    mkdirSync(cliHome);
+    mkdirSync(privateHome);
+    writeFileSync(join(cliHome, "auth.json"), JSON.stringify({ OPENAI_API_KEY: "fixture-cli" }));
+    writeFileSync(join(privateHome, "auth.json"), JSON.stringify({ OPENAI_API_KEY: "fixture-stale" }));
+    // The title process must not parse or inherit the user's CLI configuration.
+    writeFileSync(join(cliHome, "config.toml"), "not valid TOML");
+
     const server = Bun.serve({
       hostname: "127.0.0.1",
       port: 0,
-      fetch: () =>
-        new Response(
+      fetch: (request) => {
+        if (request.headers.get("Upgrade")?.toLowerCase() === "websocket") return new Response(null, { status: 426 });
+
+        if (request.method === "GET") return Response.json({ data: [], models: [] });
+
+        if (request.headers.get("Authorization") !== "Bearer fixture-cli") return new Response(null, { status: 403 });
+
+        return new Response(
           [
             { type: "response.output_item.done", output_index: 0, item: output[0] },
             {
@@ -202,12 +218,13 @@ test.skipIf(!Bun.which("codex"))(
             .map((event) => `data: ${JSON.stringify(event)}\n\n`)
             .join(""),
           { headers: { "content-type": "text/event-stream" } },
-        ),
+        );
+      },
     });
 
-    const profile = resolveProfiles([
-      { kind: "cliproxyapi", id: "fixture", baseUrl: server.url.toString(), apiKey: "test", providers: ["codex"] },
-    ]).find((entry) => entry.config.id === "fixture")!.resolved!;
+    const profile = resolveProfiles([{ kind: "native", id: "fixture", providers: ["codex"] }]).find(
+      (entry) => entry.config.id === "fixture",
+    )!.resolved!;
 
     const consumed: import("./token-usage.ts").ConsumedUsage[] = [];
 
@@ -216,7 +233,16 @@ test.skipIf(!Bun.which("codex"))(
         await generateCodexText(
           { model: "gpt-6.1-sol", effort: "low", prompt: "Say Done", onConsumedUsage: (usage) => consumed.push(usage) },
           {
-            launch: codexAppServerLaunch([profile], process.env, "codex", undefined, dir),
+            launch: codexAppServerLaunch(
+              [profile],
+              { ...process.env, ...isolatedHomeEnvironment(dir), OPENAI_API_KEY: undefined, CODEX_API_KEY: undefined },
+              "codex",
+              undefined,
+              privateHome,
+              {},
+              ["-c", `openai_base_url=${JSON.stringify(new URL("v1", server.url).href)}`],
+            ),
+            loginHome: cliHome,
             profile,
             dataDir: dir,
             clientVersion: "test",

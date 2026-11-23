@@ -13,6 +13,7 @@ import { THREAD_IMAGE_REPLIES_CAPABILITY } from "@canopy/domain/release/protocol
 import { ManagedRuntime } from "effect";
 import { SqlClient } from "effect/sql";
 import { eventually, startTestGateway, type TestGateway } from "./support/gateway.ts";
+import { codexFixtureHomes } from "./support/codex-device.ts";
 import { pruneDatabase } from "../../apps/gateway/src/maintenance/prune.ts";
 
 const temp = tempDirs();
@@ -84,6 +85,7 @@ describe.skipIf(!dockerAvailable)("image replies through the real WorkerHost and
     host = new WorkerHost({
       runtime,
       dataDir: data,
+      deviceHomes: codexFixtureHomes(dir),
       clientVersion: "test",
       probe: {
         which: () => executable,

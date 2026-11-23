@@ -7,6 +7,7 @@ import {
   ConfigAppliedSchema,
   DeviceLogin,
   Provider,
+  ProviderConfigurationMode,
   type ConfigIssue,
   type ProviderConfig,
   type WorkerConfig,
@@ -25,6 +26,7 @@ import { grokAuthPath } from "../providers/grok/home.ts";
 import { instanceShadowHome } from "./homes.ts";
 import { profileConfig } from "./profile-config.ts";
 import { inspectProfilePaths } from "./profile-paths.ts";
+import { directCodexHome } from "../providers/codex/home.ts";
 
 export { instanceHome, instanceShadowHome } from "./homes.ts";
 
@@ -73,7 +75,7 @@ export async function prepareSystemProbe(
 
 export interface ProviderRuntime {
   readonly enabled: boolean;
-  /** Codex: link the device owner's login into the worker's isolated CODEX_HOME (default yes). */
+  /** Use the device owner's CLI login when the instance has no login of its own (default yes). */
   readonly linkDeviceLogin: boolean;
   /** Resolved executable, when enabled and found. */
   readonly executable?: string;
@@ -317,11 +319,18 @@ function perHarness(status: ProfileStatus): ProfileStatus[] {
 
   if (harnesses.length < 2) return [status];
 
-  return harnesses.map((harness) => ({
-    ...status,
-    config: { ...status.config, providers: [harness] },
-    ...(status.resolved && { resolved: { ...status.resolved, providers: [harness] } }),
-  }));
+  return harnesses.map((harness) => {
+    const config = { ...status.config, providers: [harness] };
+
+    // SHARED on older multi-provider entries selected the Claude user directory only.
+    if (harness === "codex" && config.runtime?.userConfiguration?.mode === ProviderConfigurationMode.SHARED) {
+      const problem = "Select Use CLI home on an instance configured specifically for Codex.";
+
+      return { config: { ...config, settingsProblem: problem }, problem };
+    }
+
+    return { ...status, config, ...(status.resolved && { resolved: { ...status.resolved, providers: [harness] } }) };
+  });
 }
 
 function inspectProfile(
@@ -373,6 +382,9 @@ function inspectProfile(
       : { ...versioned, authenticated: false };
 
   if (!status.resolved || !homes || !probe.login) return versioned;
+
+  // The CLI can store this login in the OS keyring. Only its login status command can identify the account.
+  if (harness === "codex" && directCodexHome(config, runtime.linkDeviceLogin, homes.codex)) return versioned;
 
   // Native: the instance's own login (shadow home), the device owner's (linked), or keys in the environment.
   const vars = { ...homes.env, ...status.resolved.env };

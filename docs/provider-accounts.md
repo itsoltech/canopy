@@ -4,9 +4,11 @@ Aktualizacja (2026-11-23): Refresh konta lub workera uwzględnia zmianę pliku
 logowania Codexa w terminalu. Worker wznawia obsługę instancji z nowym loginem,
 gdy zakończą się jej aktywne tury i zadania w tle.
 Jeśli loginu brakuje, próba uruchomienia tury podaje przyczynę niedostępności wybranej instancji.
+Jeśli worker nie może dowiązać pliku loginu lub jego blokady, przy koncie
+i w błędzie tury pokazuje się przyczyna. Instancja ze zgłoszonym błędem
+udostępniania loginu ma status **Login unavailable**.
 
-Status: opis zaimplementowanego kodu (2026-11-17), w tym szerszego wskaźnika
-limitów w sidebarze web/desktop. Dostępność w wydaniach: [release.md](release.md).
+Status (2026-11-23) obejmuje domyślne korzystanie z loginu CLI przez wątki wbudowanej instancji `codex/native` oraz raportowanie błędów dowiązań w trybie izolowanym. Dostępność w wydaniach: [release.md](release.md).
 
 Konta proxy mają osobny ręczny wybór planu w Settings → Proxies → Accounts (web i mobile).
 Wybór wygrywa z wykrywaniem i zasila ważoną pojemność; **Automatic** go usuwa.
@@ -48,12 +50,29 @@ wylogowania: rozstrzyga odpowiedź `claude auth status --json`.
 Ta zmienna wybiera również `.credentials.json` na Linuxie i Windowsie.
 Shadow home nie kopiuje ani nie dowiązuje tego pliku: CLI czyta i odświeża
 bezpośrednio źródłowy magazyn, także gdy odświeżenie atomowo zastępuje plik.
-Codex używa dowiązań symbolicznych do pliku logowania i jego blokady zapisu.
+W trybie **Use CLI home** wątki Codexa używają bezpośrednio magazynu CLI.
+Za odczyt i odświeżanie loginu odpowiada Codex. Gdy CLI przechowuje konto
+w systemowym magazynie poświadczeń, sama dostępność instancji oznacza, że
+worker może uruchomić CLI. Stan zalogowania podaje `codex login status`
+w raporcie konta. Ręczny **Refresh** po zmianie takiego loginu odtwarza
+procesy korzystające z tego magazynu po zakończeniu aktywnej pracy.
+W trybie **Isolated** Canopy używa dowiązań symbolicznych do pliku logowania i jego blokady zapisu.
 Dowiązanie do `auth.json` pozostaje na miejscu także wtedy, gdy przy sprawdzaniu
 konta pomiędzy wylogowaniem i ponownym logowaniem z terminala brakuje pliku źródłowego. Worker
 migruje wcześniejsze twarde dowiązania na Windowsie podczas wczytywania
 konfiguracji i przygotowania katalogu. Szczegóły migracji i uprawnień:
 [izolacja Codexa](codex-adapter.md#konfiguracja-izolacji).
+
+Po aktualizacji workera wbudowana instancja `codex/native` z logowaniem urządzenia
+i bez zapisanego wyboru używa **Use CLI home**. Jeśli terminal jest już zalogowany,
+możesz od razu ponowić turę w tym samym zwykłym wątku. Przy błędzie dowiązania
+na instancji z izolacją możesz wybrać **Use CLI home** w definicji instancji lub
+w nadpisaniu dla workera. Na Windowsie, macOS i Linuksie
+app-server korzysta wtedy z katalogu wybranego dla logowania CLI i czyta
+jego konfigurację, w tym instrukcje, serwery MCP oraz hooki. Ten tryb nie wymaga
+nowego logowania ani uprawnienia do tworzenia dowiązań. Własny login instancji
+pozostaje opcją dla osób, które potrzebują osobnego konta. Boty i generator
+tytułów mają prywatne katalogi i do użycia plikowego loginu nadal potrzebują dowiązań.
 
 Jeśli tura zgłasza `refresh_token_reused` lub „refresh token was already used”,
 Canopy udostępnia akcję ponownego logowania. Jeśli terminal ma już świeży login,
@@ -130,7 +149,7 @@ opuszczają magazynu CLI. Zamknięcie workera anuluje proces logowania.
 
 ### Login odrzucony w turze
 
-`codex login status` czyta tylko `auth.json`: wygasły refresh token nadal daje
+`codex login status` sprawdza lokalny magazyn: wygasły refresh token nadal daje
 „Logged in using ChatGPT”, a `account/read` bez odświeżenia tokenu też tego
 nie wykryje. Claude i Grok mają tę samą lukę. Prawdę zna dopiero tura, więc:
 

@@ -11,6 +11,7 @@ import { WorkerHost, serveLink } from "@canopy/worker/runtime";
 import { THREAD_IMAGE_REPLIES_CAPABILITY } from "@canopy/domain/release/protocol";
 import { ManagedRuntime } from "effect";
 import { eventually, startTestGateway } from "./support/gateway.ts";
+import { codexFixtureHomes } from "./support/codex-device.ts";
 
 const temp = tempDirs();
 
@@ -52,6 +53,7 @@ test.skipIf(!dockerAvailable)(
     const host = new WorkerHost({
       runtime,
       dataDir: data,
+      deviceHomes: codexFixtureHomes(dir),
       clientVersion: "test",
       probe: {
         which: () => executable,

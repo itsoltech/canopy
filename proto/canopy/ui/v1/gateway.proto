@@ -2370,18 +2370,18 @@ message ProfileEnvVarInput {
   optional string value = 3;
 }
 
-// Jak worker uruchamia harness instancji. Puste = ustawienia workera (izolowany katalog w data_dir, logowanie
-// urządzenia dowiązane z domyślnego katalogu domowego CLI).
+// Jak worker uruchamia harness instancji. Puste = ustawienia domyślne tej instancji na workerze.
 message InstanceRuntime {
   string binary_path = 1;
-  // Katalog CLI właściciela urządzenia (CODEX_HOME / CLAUDE_CONFIG_DIR), z którego dowiązywane jest logowanie.
+  // Katalog CLI właściciela urządzenia (CODEX_HOME / CLAUDE_CONFIG_DIR) używany do logowania urządzenia.
   string home_path = 2;
   // Izolowany katalog harnessu instancji (stan i sesje; z own_login także logowanie).
   string shadow_home_path = 3;
   repeated string launch_args = 4;
   // Własne logowanie instancji (np. ChatGPT przez StartProviderLogin) zamiast logowania urządzenia.
   bool own_login = 5;
-  // Claude only; absent means isolated configuration.
+  // Claude configuration or native Codex home selection. The built-in codex/native defaults to the CLI home
+  // for device login. Other instances default to isolation.
   canopy.worker.v1.ProviderUserConfiguration user_configuration = 6;
   // Native-format preferences shared by the instance's workers. Empty clears; absent on save preserves.
   optional string settings_text = 7;

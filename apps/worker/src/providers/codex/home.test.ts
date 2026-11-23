@@ -1,5 +1,7 @@
 import { describe, expect, test } from "bun:test";
+import { execFileSync } from "node:child_process";
 import {
+  chmodSync,
   lstatSync,
   mkdirSync,
   mkdtempSync,
@@ -14,7 +16,7 @@ import {
 } from "node:fs";
 import { join } from "node:path";
 import { tempDir } from "@canopy/testing";
-import { deviceCodexHome, prepareCodexHome } from "./home.ts";
+import { deviceCodexHome, prepareCodexHome, prepareCodexInstanceHome } from "./home.ts";
 import { removeLegacyCodexHardLinks } from "./legacy-login.ts";
 
 const base = tempDir("canopy-codex-home-test-");
@@ -53,6 +55,36 @@ describe("prepareCodexHome", () => {
 
     expect(home.login).toBe("none");
     expect(home.problem).toContain("codex login");
+  });
+
+  test.skipIf(process.getuid?.() === 0)("Windows link denial leaves the device login usable by the CLI", () => {
+    const dataDir = mkdtempSync(join(base, "denied-"));
+    const path = join(dataDir, "codex-home");
+    const deviceHome = device(true);
+    mkdirSync(path);
+    const windows = process.platform === "win32";
+
+    // Deny file creation only inside this test home, including on privileged Windows CI runners.
+    if (windows) execFileSync("icacls", [path, "/deny", "*S-1-1-0:(WD)"]);
+    else chmodSync(path, 0o500);
+
+    try {
+      const denied = prepareCodexHome({ dataDir, deviceCodexHome: deviceHome, linkDeviceLogin: true }, "win32");
+      expect(denied.linkFailed).toBe(true);
+      expect(denied.problem).toContain("Use CLI home");
+
+      const direct = prepareCodexInstanceHome(
+        { id: "native", kind: "native" },
+        { dataDir, path, deviceHome, linkDeviceLogin: true },
+      );
+
+      expect(direct).toEqual({ path: deviceHome, login: "cli" });
+      expect(lstatSync(join(path, "auth.json"), { throwIfNoEntry: false })).toBeUndefined();
+      expect(readFileSync(join(deviceHome, "auth.json"), "utf8")).toBe('{"tokens":{}}');
+    } finally {
+      if (windows) execFileSync("icacls", [path, "/remove:d", "*S-1-1-0"]);
+      else chmodSync(path, 0o700);
+    }
   });
 
   test("CLIProxyAPI-only workers: the link is removed when turned off", () => {
