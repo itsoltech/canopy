@@ -43,3 +43,29 @@ test("BFF failure diagnostics identify the RPC and time without request data or 
     logged.mockRestore();
   }
 });
+
+test("canceling a pending file range is quiet while an unexpected remote cancellation is reported", async () => {
+  const logged = spyOn(console, "error").mockImplementation(() => {});
+  const abort = new AbortController();
+
+  const transport: Transport = {
+    unary: async (_method, signal) => {
+      if (signal) abort.abort();
+      throw new ConnectError("File read canceled", Code.Canceled);
+    },
+    stream: async () => {
+      throw new Error("unused");
+    },
+  };
+
+  const client = createClient(ui.GatewayService, logGatewayFailures(transport));
+
+  try {
+    await expect(client.readThreadFile({}, { signal: abort.signal })).rejects.toMatchObject({ code: Code.Canceled });
+    expect(logged).not.toHaveBeenCalled();
+    await expect(client.readThreadFile({})).rejects.toMatchObject({ code: Code.Canceled });
+    expect(logged).toHaveBeenCalledTimes(1);
+  } finally {
+    logged.mockRestore();
+  }
+});

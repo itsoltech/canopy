@@ -4,8 +4,10 @@
   import { languageOfPath } from "#lib/shared/ui/code/languages.ts";
   import WorkspaceMarkdown from "./WorkspaceMarkdown.svelte";
   import FileImage from "./FileImage.svelte";
-  import type { FilePosition } from "@canopy/domain/file-references";
+  import VideoPlayer from "#lib/features/attachments/VideoPlayer.svelte";
+  import { fileName, type FilePosition } from "@canopy/domain/file-references";
   import type { WorkspaceFileTarget } from "@canopy/domain/workspace-file";
+  import { workspaceVideoUrl } from "./api.ts";
 
   /**
    * A read file, read-only: Markdown rendered, everything else highlighted by its extension with line numbers
@@ -15,6 +17,7 @@
     file,
     text,
     name,
+    video,
     loading,
     rendered,
     local,
@@ -24,6 +27,7 @@
     file: ui.ThreadFile | undefined;
     text: string;
     name: string;
+    video: boolean;
     loading: boolean;
     rendered: boolean;
     /** The file is on this computer: its default app can show what Canopy cannot. */
@@ -33,8 +37,14 @@
   } = $props();
 </script>
 
-{#if !file}
+{#if !file || (video && loading)}
   {#if loading}<p role="status" class="p-4 text-sm text-muted">Opening the file…</p>{/if}
+{:else if video}
+  {@const path = file.path || file.relativePath || target.path}
+  {@const src = workspaceVideoUrl(target.threadId, path, target.itemId)}
+  {#key `${src}:${file.modifiedMs}:${file.size}:${file.sha256}`}
+    <VideoPlayer {src} label={fileName(path)} embedded />
+  {/key}
 {:else if file.truncated && file.binary}
   <p class="p-4 text-sm text-muted">This file exceeds the 2 MB preview limit. Open it on the thread’s computer.</p>
 {:else if /^image\/(png|jpeg|gif|webp|avif)$/.test(file.mimeType)}

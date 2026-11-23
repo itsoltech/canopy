@@ -214,7 +214,7 @@ export class WorkspaceFile {
 
       if (found) this.file = { ...base, readOnly: file.readOnly };
 
-      if (found && file.sha256 === base.sha256) {
+      if (found && file.sha256 && file.sha256 === base.sha256) {
         this.changedOnDisk = false;
         this.removedOnDisk = false;
         this.diskText = undefined;
@@ -238,6 +238,7 @@ export class WorkspaceFile {
 
         this.draft = this.text;
         this.changedOnDisk = false;
+        this.removedOnDisk = false;
         this.diskText = undefined;
       }
     } catch {

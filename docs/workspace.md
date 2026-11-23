@@ -2,7 +2,8 @@
 
 Aktualizacja (2026-11-22): ustawienie dostępu do konektora w wątku obejmuje cały projekt.
 
-Status (2026-11-23): **zaimplementowane; układ v3**; Canopy Desktop pokazuje postęp
+Status (2026-11-23): **zaimplementowane, układ v3**. Karta pliku w web i desktopie
+odtwarza wideo strumieniowo z komputera wątku. Canopy Desktop pokazuje postęp
 pobierania plików z rozmowy. Osobne okno Preview zachowuje
 ramkę przy powiększaniu podglądu i nie przerywa transmisji po pojedynczym błędzie
 odczytu stanu wątku. Poprawka regresji Svelte blokującej interfejs
@@ -838,6 +839,12 @@ edycja, zapis, konflikt, linie, zakresy i drzewo mają pełny parytet. Kolorowan
 podczas pisania na telefonie pozostaje poza zakresem v1.
 
 ### Binaria, obrazy i duże pliki
+
+W web i desktopie karta pliku odtwarza rozpoznane po zawartości MP4, WebM i MOV,
+również powyżej 2 MiB. Dostępność kodeka zależy od odtwarzacza na urządzeniu.
+Przeglądarka pobiera metadane przy otwarciu karty i żąda zakresów bajtów
+podczas odtwarzania i przewijania. Plik może leżeć na zdalnym workerze
+z obsługą `thread_file_download_v1`.
 
 Rastrowe PNG/JPEG/WebP/GIF/AVIF tylko po sniffingu typu i sprawdzeniu rozmiaru,
 z wymiarami i rozmiarem w stopce. Limit dekodowania: 16 megapikseli i jedna aktywna

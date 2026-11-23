@@ -11,6 +11,14 @@ export function workspaceImageUrl(threadId: string, path: string, itemId: string
   return `${filesPath(threadId)}?${new URLSearchParams({ path, itemId, image: "1" })}`;
 }
 
+export function workspaceVideoUrl(threadId: string, path: string, itemId?: string): string {
+  const query = new URLSearchParams({ path });
+
+  if (itemId) query.set("itemId", itemId);
+
+  return `${filesPath(threadId)}/video?${query}`;
+}
+
 export async function readFile(
   threadId: string,
   path: string,
@@ -18,7 +26,7 @@ export async function readFile(
   expectedSha256 = "",
   signal?: AbortSignal,
 ): Promise<ui.ThreadFile> {
-  const query = new URLSearchParams({ path, itemId, expectedSha256 });
+  const query = new URLSearchParams({ path, itemId, expectedSha256, omitVideoContent: "1" });
 
   return decode(
     ui.ThreadFileSchema,

@@ -130,12 +130,17 @@ function readOnly(path: string): boolean {
   }
 }
 
-export function readThreadFile(path: string, maxBytes: number, includeBinary = false): FileContentInit {
+export function readThreadFile(
+  path: string,
+  maxBytes: number,
+  preview?: Pick<FileRequest, "includeBinary" | "omitVideoContent">,
+): FileContentInit {
   const limit = Math.min(maxBytes > 0 ? maxBytes : DEFAULT_MAX_BYTES, DEFAULT_MAX_BYTES);
   const truncated = statSync(path).size > limit;
   const head = readHead(path, limit);
   const complete = truncated ? completeUtf8(head) : head;
   const detected = sniff(complete, path);
+  const includeBinary = preview?.includeBinary && !(preview.omitVideoContent && detected.kind === "video");
   const text = detected.text && isUtf8(complete);
   const shown = text ? complete : head;
 

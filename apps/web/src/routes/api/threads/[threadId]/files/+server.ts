@@ -27,18 +27,24 @@ export const GET: RequestHandler = async ({ params, url, request }) => {
   const path = url.searchParams.get("path") ?? "";
   const itemId = url.searchParams.get("itemId") ?? "";
   const expectedSha256 = url.searchParams.get("expectedSha256") ?? "";
+  const omitVideoContent = url.searchParams.get("omitVideoContent") === "1";
 
   if (!path || path.length > 4096 || itemId.length > 1024 || expectedSha256.length > 64)
     error(400, "Invalid file path");
 
   const file = await call((api) =>
     api.readThreadFile(
-      { threadId: params.threadId, path, itemId, expectedSha256 },
+      { threadId: params.threadId, path, itemId, expectedSha256, omitVideoContent },
       { signal: request.signal, timeoutMs: TIMEOUT_MS },
     ),
   );
 
-  return url.searchParams.has("image") ? workspaceImageResponse(file) : json(encode(ui.ThreadFileSchema, file));
+  if (url.searchParams.has("image")) return workspaceImageResponse(file);
+
+  // Older workers still return the binary prefix. The workspace player reads it through the range endpoint.
+  if (omitVideoContent && file.mimeType.startsWith("video/")) file.content = new Uint8Array();
+
+  return json(encode(ui.ThreadFileSchema, file));
 };
 
 const Write = Schema.Struct({

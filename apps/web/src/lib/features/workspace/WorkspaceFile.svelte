@@ -11,6 +11,7 @@
   import type { WorkspaceFile } from "@canopy/domain/workspace-file";
   import { observeWorkspaceFile } from "@canopy/domain/workspace-changes";
   import { fileName } from "@canopy/domain/file-references";
+  import { attachmentPreviewKind } from "@canopy/domain/attachment-preview";
   import Alert from "#lib/shared/ui/Alert.svelte";
   import Button from "#lib/shared/ui/Button.svelte";
   import CopyButton from "#lib/shared/ui/CopyButton.svelte";
@@ -119,19 +120,24 @@
   });
 
   const markdown = $derived(markdownName && !viewer.file?.binary);
+
+  const video = $derived(
+    viewer.file !== undefined && attachmentPreviewKind({ name, mimeType: viewer.file.mimeType }) === "video",
+  );
+
   const watchPath = $derived(viewer.file?.relativePath);
 
   const notice = $derived.by((): FileNotice | undefined => {
     const position = viewer.position;
 
-    if (viewer.file && position && position.line > viewer.text.split("\n").length)
+    if (viewer.file && !video && position && position.line > viewer.text.split("\n").length)
       return {
         text: "Line outside the preview",
         detail: "This line is outside the preview. Choose a visible line.",
         action: { label: "Go to line", run: () => (goOpen = true) },
       };
 
-    if (viewer.file?.truncated)
+    if (viewer.file?.truncated && !video)
       return { text: "Showing the first 2 MB", detail: "Showing the first 2 MB. This file is read only." };
 
     if (document.readOnlyReason) return { text: "Read only", detail: document.readOnlyReason };
@@ -374,6 +380,7 @@
           file={viewer.file}
           text={viewer.draft}
           {name}
+          {video}
           loading={viewer.loading}
           {rendered}
           {local}
