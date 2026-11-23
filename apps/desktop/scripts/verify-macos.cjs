@@ -1,6 +1,7 @@
 const { execFileSync, spawnSync } = require("node:child_process");
 const { readdirSync } = require("node:fs");
 const { join } = require("node:path");
+const { extractFile } = require("@electron/asar");
 const { machOFiles, machOArchitectures } = require("./macho.cjs");
 
 if (process.platform !== "darwin") throw new Error("Verify macOS signatures on a macOS runner");
@@ -63,6 +64,19 @@ function verifyJit(path) {
 }
 
 for (const application of applications) {
+  const resources = join(application, "Contents/Resources");
+  const identity = JSON.parse(extractFile(join(resources, "app.asar"), "dist/identity.json"));
+  execFileSync(
+    "swift",
+    [
+      join(__dirname, "verify-macos-presentation.swift"),
+      application,
+      identity.displayName,
+      join(__dirname, "../../web/static/channels", identity.channel),
+    ],
+    { stdio: "inherit" },
+  );
+
   for (const binary of machOFiles(application))
     if (machOArchitectures(binary).join() !== "arm64")
       throw new Error(`macOS app contains a non-arm64 Mach-O: ${binary}`);

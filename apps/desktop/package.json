@@ -64,19 +64,11 @@
     "extraResources": [
       {
         "from": "build/runtime",
-        "to": "runtime",
-        "filter": [
-          "**/*",
-          "!web/client/channels/**"
-        ]
+        "to": "runtime"
       },
       {
         "from": "build/runtime/node_modules",
         "to": "runtime/node_modules"
-      },
-      {
-        "from": "../web/static/channels",
-        "to": "runtime/web/client/channels"
       }
     ],
     "protocols": [

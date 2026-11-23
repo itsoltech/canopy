@@ -92,6 +92,8 @@ module.exports = async ({ appOutDir, electronPlatformName, packager }) => {
     for (const binary of machOFiles(application))
       if (machOArchitectures(binary).join() !== "arm64")
         throw new Error(`Packaged Mach-O must be arm64 only: ${binary}`);
+    const { prepareMacPresentation } = require("./macos-presentation.cjs");
+    prepareMacPresentation(resources, packager.platformSpecificBuildOptions.extendInfo.CFBundleIconFile);
     packager.platformSpecificBuildOptions.binaries = binaries;
     console.info(`Signing ${binaries.length} runtime Mach-O files with inherited JIT entitlements`);
   }

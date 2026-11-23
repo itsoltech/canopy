@@ -1,8 +1,20 @@
 import { expect, test } from "bun:test";
-import { mkdirSync, readFileSync, writeFileSync, lstatSync, readlinkSync, renameSync, unlinkSync } from "node:fs";
-import { join } from "node:path";
+import {
+  copyFileSync,
+  mkdirSync,
+  readFileSync,
+  writeFileSync,
+  lstatSync,
+  readlinkSync,
+  renameSync,
+  unlinkSync,
+} from "node:fs";
+import { dirname, join, resolve } from "node:path";
 import { tempDirs } from "@canopy/testing";
 import { noAgentClis } from "../../../scripts/agent-clis.ts";
+import { desktopIdentity } from "../src/identity.ts";
+import { channelConfiguration } from "../scripts/channel-configuration.ts";
+import { savePlistFile } from "app-builder-lib/out/util/plist.js";
 
 const { createPackage } = require("@electron/asar") as { createPackage(source: string, output: string): Promise<void> };
 
@@ -12,7 +24,7 @@ interface PackageContext {
   packager: {
     projectDir: string;
     appInfo?: { productFilename: string };
-    platformSpecificBuildOptions?: { binaries: string[] };
+    platformSpecificBuildOptions?: { binaries: string[]; extendInfo: { CFBundleIconFile: string } };
   };
 }
 
@@ -78,6 +90,7 @@ async function packed(extraAsarDependency = false, notices = generatedNotices) {
   const shell = makeTemp("canopy-asar-source-");
   mkdirSync(join(shell, "dist"));
   writeFileSync(join(shell, "dist/main.cjs"), "module.exports = {};");
+  writeFileSync(join(shell, "dist/identity.json"), JSON.stringify(desktopIdentity("nightly")));
   writeFileSync(join(shell, "package.json"), JSON.stringify({ main: "dist/main.cjs" }));
 
   if (extraAsarDependency) {
@@ -124,12 +137,27 @@ test("packaging rejects bundled agent CLIs and a bundled database", async () => 
   await expect(verify(second.context)).rejects.toThrow("PostgreSQL must be downloaded only for local mode");
 });
 
-test("macOS packaging requires an arm64 quit adapter and includes it in signing", async () => {
+test("macOS packaging preserves the install identity, localizes its name and signs the native adapter", async () => {
   const fixture = await packed();
-  const application = join(fixture.app, "Canopy.app");
+  const identity = desktopIdentity("nightly");
+  const { mac } = channelConfiguration(identity);
+  const artwork = dirname(resolve(import.meta.dir, "..", mac.icon));
+  const application = join(fixture.app, "canopy.app");
   const resources = join(application, "Contents/Resources");
   mkdirSync(join(application, "Contents"), { recursive: true });
   renameSync(fixture.resources, resources);
+
+  for (const locale of ["en", "pl"]) mkdirSync(join(resources, `${locale}.lproj`));
+  copyFileSync(join(artwork, "icon.icns"), join(resources, "icon.icns"));
+  copyFileSync(join(artwork, "icon-512.png"), join(resources, "icon.png"));
+  mkdirSync(join(application, "Contents/MacOS"));
+  writeFileSync(join(application, "Contents/MacOS/canopy"), "#!/bin/sh\nexit 0\n", { mode: 0o755 });
+  await savePlistFile(join(application, "Contents/Info.plist"), {
+    CFBundleExecutable: identity.executableName,
+    CFBundleIdentifier: identity.appId,
+    CFBundlePackageType: "APPL",
+    ...mac.extendInfo,
+  });
   const runtime = join(resources, "runtime");
   renameSync(join(runtime, "node_modules/@img/sharp-linux-x64"), join(runtime, "node_modules/@img/sharp-darwin-arm64"));
   writeFileSync(join(runtime, "target.json"), JSON.stringify({ target: "darwin-arm64" }));
@@ -143,14 +171,14 @@ test("macOS packaging requires an arm64 quit adapter and includes it in signing"
   );
   const arm64 = Buffer.from("cffaedfe0c0000010000000061726d3634", "hex");
   writeFileSync(join(runtime, "bun"), arm64);
-  const signing = { binaries: [] as string[] };
+  const signing = { binaries: [] as string[], extendInfo: mac.extendInfo };
 
   const context = {
     appOutDir: fixture.app,
     electronPlatformName: "darwin",
     packager: {
       ...fixture.context.packager,
-      appInfo: { productFilename: "Canopy" },
+      appInfo: { productFilename: "canopy" },
       platformSpecificBuildOptions: signing,
     },
   };
@@ -163,7 +191,31 @@ test("macOS packaging requires an arm64 quit adapter and includes it in signing"
   writeFileSync(adapter, arm64);
   await expect(verify(context)).resolves.toBeUndefined();
   expect(signing.binaries).toContain(adapter);
-});
+
+  for (const locale of ["en", "pl"]) {
+    const localization = readFileSync(join(resources, `${locale}.lproj/InfoPlist.strings`), "utf8");
+    expect(localization).toContain('"CFBundleDisplayName" = "Canopy (Nightly)";');
+    expect(localization).toContain('"CFBundleName" = "Canopy (Nightly)";');
+  }
+
+  expect(readFileSync(join(resources, mac.extendInfo.CFBundleIconFile))).toEqual(
+    readFileSync(join(artwork, "icon.icns")),
+  );
+
+  if (process.platform === "darwin") {
+    const check = Bun.spawnSync([
+      "swift",
+      join(import.meta.dir, "../scripts/verify-macos-presentation.swift"),
+      application,
+      identity.displayName,
+      artwork,
+      "-AppleLanguages",
+      "(pl)",
+    ]);
+
+    expect(check.exitCode, check.stderr.toString()).toBe(0);
+  }
+}, 60_000);
 
 test("the size guard rejects duplicated large files even outside node_modules", () => {
   const app = makeTemp("canopy-duplicate-binary-");

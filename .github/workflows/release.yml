@@ -737,7 +737,7 @@ jobs:
           CANOPY_CHANNEL: ${{ needs.plan.outputs.channel }}
         run: |
           if [ "$RUNNER_OS" = "macOS" ]; then
-            resources="apps/desktop/release/$CANOPY_CHANNEL/mac-arm64/Canopy.app/Contents/Resources"
+            resources="apps/desktop/release/$CANOPY_CHANNEL/mac-arm64/canopy.app/Contents/Resources"
           elif [ "$RUNNER_ARCH" = "ARM64" ]; then
             resources="apps/desktop/release/$CANOPY_CHANNEL/linux-arm64-unpacked/resources"
           else
