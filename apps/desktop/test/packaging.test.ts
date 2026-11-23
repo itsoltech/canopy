@@ -49,42 +49,40 @@ const makeTemp = tempDirs();
 
 const generatedNotices = ["THIRD_PARTY_NOTICES.txt", "web/client/open-source-licenses.json"];
 
-async function packed(extraAsarDependency = false, notices = generatedNotices) {
+async function packed(extraAsarDependency = false, notices = generatedNotices, platform: "linux" | "win32" = "linux") {
   // The verifier also writes a size report next to appOutDir.
   const projectDir = makeTemp("canopy-package-guard-");
   const app = join(projectDir, "unpacked");
   const resources = join(app, "resources");
   const runtime = join(resources, "runtime");
   const preparedRuntime = join(projectDir, "build/runtime");
+  const target = `${platform}-x64`;
+  const sharp = `node_modules/@img/sharp-${target}/lib`;
 
   mkdirSync(join(preparedRuntime, "web/client"), { recursive: true });
 
   for (const path of notices) writeFileSync(join(preparedRuntime, path), "fixture");
 
-  for (const path of [
-    "node_modules/@img/sharp-linux-x64/lib",
-    "node_modules/@anthropic-ai/claude-agent-sdk",
-    "web/client/_app",
-  ])
+  for (const path of [sharp, "node_modules/@anthropic-ai/claude-agent-sdk", "web/client/_app"])
     mkdirSync(join(runtime, path), { recursive: true });
 
   for (const path of [
-    "bun",
+    platform === "win32" ? "bun.exe" : "bun",
     "canopy-controller.js",
     "canopy-gateway.js",
     "canopy-worker.js",
     "canopy-web.js",
     ...notices,
-    "node_modules/@img/sharp-linux-x64/lib/sharp.node",
+    `${sharp}/sharp.node`,
     "node_modules/@anthropic-ai/claude-agent-sdk/sdk.mjs",
   ])
     writeFileSync(join(runtime, path), "fixture");
-  writeFileSync(join(runtime, "target.json"), JSON.stringify({ target: "linux-x64" }));
+  writeFileSync(join(runtime, "target.json"), JSON.stringify({ target }));
   writeFileSync(
     join(runtime, "postgres.json"),
     JSON.stringify({
-      packageName: "@embedded-postgres/linux-x64",
-      target: "linux-x64",
+      packageName: `@embedded-postgres/${target.replace("win32", "windows")}`,
+      target,
       integrity: `sha512-${Buffer.alloc(64).toString("base64")}`,
     }),
   );
@@ -105,7 +103,7 @@ async function packed(extraAsarDependency = false, notices = generatedNotices) {
     app,
     resources,
     runtime,
-    context: { appOutDir: app, electronPlatformName: "linux", packager: { projectDir } },
+    context: { appOutDir: app, electronPlatformName: platform, packager: { projectDir } },
   };
 }
 
@@ -127,6 +125,32 @@ test("packaging verifies the notices supplied by the runtime revision", async ()
   await expect(verify(current.context)).rejects.toThrow(
     "Packaged third-party notices missing: web/client/open-source-licenses.json",
   );
+});
+
+test("packaging preserves the built sidebar icon and its compressed variants", async () => {
+  const { context, runtime } = await packed(false, generatedNotices, "win32");
+  const directory = "web/client/channels/nightly";
+  const built = join(context.packager.projectDir, "build/runtime", directory);
+  const packaged = join(runtime, directory);
+  mkdirSync(built, { recursive: true });
+  mkdirSync(packaged, { recursive: true });
+
+  for (const asset of ["icon.svg", "icon.svg.br", "icon.svg.gz"]) {
+    writeFileSync(join(built, asset), asset);
+    copyFileSync(join(built, asset), join(packaged, asset));
+  }
+
+  await expect(verify(context)).resolves.toBeUndefined();
+
+  // The old package copied the original artwork and dropped both generated files.
+  for (const asset of ["icon.svg.br", "icon.svg.gz"]) {
+    unlinkSync(join(packaged, asset));
+    await expect(verify(context)).rejects.toThrow(`Packaged sidebar icon asset missing: ${directory}/${asset}`);
+    copyFileSync(join(built, asset), join(packaged, asset));
+  }
+
+  writeFileSync(join(packaged, "icon.svg"), "different revision");
+  await expect(verify(context)).rejects.toThrow("Packaged sidebar icon asset differs from the web build");
 });
 
 test("packaging rejects bundled agent CLIs and a bundled database", async () => {
