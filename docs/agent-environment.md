@@ -9,6 +9,8 @@ bez bitów wykonywalności POSIX oraz natywne wersjonowanie cache pluginów Code
 Aktualizacja (2026-11-22): import skilli z Git sprawdza przenośność ścieżek
 w katalogach skilli, obsługuje dłuższe opisy w `SKILL.md` i zgłasza pominięte
 pliki z błędną składnią YAML.
+Aktualizacja (2026-11-23): status wiersza biblioteki uwzględnia raporty
+dotyczące danego skilla, pluginu lub harnessu instrukcji.
 Dostępność w kanałach nightly/beta/stable wynika z wydań ([release.md](release.md)).
 Settings → **Agent environment** zarządza oczekiwanym stanem
 instrukcji, umiejętności i pluginów na komputerach właściciela. Ustawienia należą
@@ -56,11 +58,13 @@ w bibliotece nie instaluje go na workerach. Instalację zleca dopiero przypisani
 wszystkie komputery, wybrane workery albo tagi. Licznik przypisań obejmuje także
 komputery offline; nie jest potwierdzeniem zapisu plików.
 
-Wiersze przypisanych elementów oraz **Computers & preview** używają stanów
-**Synced**, **Syncing**, **Error**. **Synced** wymaga aktualnego raportu zastosowania;
-brak raportu, starsza rewizja lub komputer offline oznacza **Syncing**. Błąd
-kompozycji, zapisu lub lokalna zmiana wymagająca decyzji oznacza **Error**.
-Połączony komputer bez pobranego raportu pozostaje w stanie oczekiwania.
+**Computers & preview** podaje zbiorczy status komputera i szczegóły problemów.
+Wiersz przypisanego elementu pokazuje **Error**, gdy raport zawiera problem
+dotyczący tego skilla, pluginu lub harnessu instrukcji. Błąd wyznaczenia celów
+dla całej kategorii dotyczy wszystkich jej wierszy na tym komputerze.
+**Synced** wymaga aktualnego raportu zastosowania. Wiersz bez potwierdzenia
+pozostaje w stanie **Syncing**, m.in. przy błędzie kompozycji lub gdy komputer
+jest offline. Szczegół błędu kompozycji widać w statusie komputera.
 Plugin z katalogu bez zatwierdzonego przypisania pokazuje **Review required**
 i akcję **Review**. Przypisanie nadal wymaga przeglądu i osobnego potwierdzenia checksumu.
 

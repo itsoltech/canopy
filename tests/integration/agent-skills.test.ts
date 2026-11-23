@@ -3,6 +3,7 @@ import { existsSync, readFileSync, symlinkSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { clone, create, toJson } from "@bufbuild/protobuf";
 import { AgentEnvironmentReportSchema, SkillFileSchema, ui, type EnvironmentSkillStatus } from "@canopy/contracts";
+import { libraryItemState, workerSyncState } from "@canopy/domain/environment-library";
 import { GatewayStore } from "@canopy/gateway/store";
 import { tempDir } from "@canopy/testing";
 import { AgentEnvironment } from "../../apps/gateway/src/agent-environment/service.ts";
@@ -130,8 +131,23 @@ test("bulk installation through sequential saves keeps revision checks and insta
     ),
   ).toContain("changed");
 
-  for (const id of ids) {
-    current = await gateway.api.deleteLibrarySkill({ id, expectedRevision: current.revision });
+  const path = join(linux.deviceHomes.claude, "skills/bulk-first/SKILL.md");
+  const installed = readFileSync(path, "utf8");
+
+  try {
+    await drift(path, `${installed}\nLocal change.\n`);
+    const reported = await settled();
+    const selector = create(ui.EnvironmentSelectorSchema, { workerIds: [linux.workerId] });
+
+    expect(workerSyncState(reported)).toBe("Error");
+    expect(libraryItemState([reported], selector, "skills", ids[0]!)).toBe("Error");
+    expect(libraryItemState([reported], selector, "skills", ids[1]!)).toBe("Synced");
+  } finally {
+    writeFileSync(path, installed);
+
+    for (const id of ids) {
+      current = await gateway.api.deleteLibrarySkill({ id, expectedRevision: current.revision });
+    }
   }
 });
 
