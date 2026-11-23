@@ -1,4 +1,5 @@
 import { auth, type OAuthClientProvider } from "@modelcontextprotocol/sdk/client/auth.js";
+import { OAUTH_CLIENT_METADATA_REDIRECT_URL, OAUTH_CLIENT_METADATA_URL } from "@canopy/domain/oauth-return";
 import { Predicate, Schema } from "effect";
 import type { Credentials } from "./store.ts";
 import type { oauthEgress } from "./oauth-egress.ts";
@@ -11,6 +12,8 @@ import { httpMcpFailure, networkMcpFailure } from "../bots/mcp-errors.ts";
 export function oauthProvider(value: Credentials, state: string, redirect: (url: URL) => void): OAuthClientProvider {
   return {
     redirectUrl: value.redirectUri,
+    // The public metadata document permits only the shared Pages callback.
+    ...(value.redirectUri === OAUTH_CLIENT_METADATA_REDIRECT_URL && { clientMetadataUrl: OAUTH_CLIENT_METADATA_URL }),
     clientMetadata: {
       client_name: "Canopy",
       redirect_uris: value.redirectUri ? [value.redirectUri] : [],

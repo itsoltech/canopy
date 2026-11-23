@@ -1,10 +1,8 @@
 import { create } from "@bufbuild/protobuf";
 import { connectors } from "@canopy/contracts";
+import { DEFAULT_OAUTH_REDIRECT_URL } from "@canopy/domain/oauth-return";
 import { AUTH_METHODS } from "./auth-methods.ts";
 import { slackAppManifest } from "./slack-app.ts";
-
-/** The redirect page on the repository's GitHub Pages site; it returns each sign-in to its own Canopy. */
-export const DEFAULT_OAUTH_REDIRECT_URL = "https://itsoltech.github.io/canopy/oauth/callback";
 
 /** Endpoints checked against vendor documentation, 2026-11-02; never imply a live account check. */
 export const CONNECTOR_TYPES = [

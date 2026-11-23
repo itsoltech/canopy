@@ -1,10 +1,15 @@
 /**
- * Builds the GitHub Pages site (`site/`) into `dist/site`: the OAuth redirect page with its script inlined
- * and a CSP that allows only that script and style, by hash.
+ * Builds the OAuth client metadata and redirect page for GitHub Pages.
+ * The redirect page has a CSP that allows only its inline script and style, by hash.
  */
 import { createHash } from "node:crypto";
 import { mkdir, readFile, writeFile } from "node:fs/promises";
-import { join } from "node:path";
+import { basename, join } from "node:path";
+import {
+  DEFAULT_OAUTH_REDIRECT_URL,
+  OAUTH_CLIENT_METADATA_REDIRECT_URL,
+  OAUTH_CLIENT_METADATA_URL,
+} from "@canopy/domain/oauth-return";
 
 const root = join(import.meta.dir, "..");
 const out = join(root, "dist/site");
@@ -46,7 +51,24 @@ const page = inlined.replace("__CSP__", csp);
 
 await mkdir(join(out, "oauth"), { recursive: true });
 
-await writeFile(join(out, "oauth/callback.html"), page);
+const callbackFile = (url: string) => join(out, "oauth", `${basename(new URL(url).pathname)}.html`);
+
+await writeFile(callbackFile(DEFAULT_OAUTH_REDIRECT_URL), page.replace("<body>", "<body data-web-return>"));
+
+await writeFile(callbackFile(OAUTH_CLIENT_METADATA_REDIRECT_URL), page);
+
+const metadata = {
+  client_id: OAUTH_CLIENT_METADATA_URL,
+  client_name: "Canopy",
+  redirect_uris: [OAUTH_CLIENT_METADATA_REDIRECT_URL],
+  grant_types: ["authorization_code", "refresh_token"],
+  response_types: ["code"],
+  token_endpoint_auth_method: "none",
+};
+
+const metadataFile = basename(new URL(OAUTH_CLIENT_METADATA_URL).pathname);
+
+await writeFile(join(out, "oauth", metadataFile), `${JSON.stringify(metadata, null, 2)}\n`);
 
 // GitHub Pages serves a Jekyll build unless told otherwise.
 await writeFile(join(out, ".nojekyll"), "");

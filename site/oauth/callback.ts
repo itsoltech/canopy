@@ -1,4 +1,4 @@
-import { pastedCode, returnTarget } from "../../packages/domain/src/oauth-return.ts";
+import { isOAuthState, pastedCode, returnTarget } from "../../packages/domain/src/oauth-return.ts";
 
 /**
  * Sends a sign-in back to its Canopy. A browser may block opening the desktop app without a click, so an
@@ -7,6 +7,9 @@ import { pastedCode, returnTarget } from "../../packages/domain/src/oauth-return
  */
 const params = new URLSearchParams(location.search);
 const target = returnTarget(location.search);
+
+// Only the callback for registered clients can forward codes to a web installation.
+const webReturn = document.body.hasAttribute("data-web-return");
 const status = document.getElementById("status");
 const manual = document.getElementById("manual");
 const output = document.getElementById("code");
@@ -22,8 +25,10 @@ function fallback() {
 
   if (!status || !manual || !output || !copy) return;
 
-  if (!target || !state || !code) {
-    status.textContent = target
+  const valid = target || (!webReturn && state && isOAuthState(state));
+
+  if (!valid || !state || !code) {
+    status.textContent = valid
       ? "Sign-in did not finish. Start it again in Canopy."
       : "This sign-in link is not valid. Start sign-in again in Canopy.";
 
@@ -33,6 +38,10 @@ function fallback() {
   const text = pastedCode(state, code);
   output.textContent = text;
   manual.hidden = false;
+
+  if (!webReturn && !target?.desktop)
+    status.textContent = "Copy this code. In Canopy’s Connect dialog, select Paste a sign-in code.";
+
   copy.addEventListener("click", () => {
     void navigator.clipboard.writeText(text).then(
       () => (copy.textContent = "Copied"),
@@ -43,10 +52,9 @@ function fallback() {
 
 const missed = "If Canopy did not open, select Open Canopy, or copy this code and paste it in the Connect dialog.";
 
-if (!target) fallback();
-else {
-  fallback();
+fallback();
 
+if (target && (webReturn || target.desktop)) {
   if (open && target.desktop) {
     open.setAttribute("href", target.url);
     open.hidden = false;

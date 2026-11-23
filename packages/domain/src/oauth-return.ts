@@ -6,6 +6,10 @@
  */
 export const OAUTH_CALLBACK_PATH = "/api/connectors/oauth/callback";
 
+export const DEFAULT_OAUTH_REDIRECT_URL = "https://itsoltech.github.io/canopy/oauth/callback";
+export const OAUTH_CLIENT_METADATA_URL = new URL("client-metadata.json", DEFAULT_OAUTH_REDIRECT_URL).href;
+export const OAUTH_CLIENT_METADATA_REDIRECT_URL = new URL("client-callback", DEFAULT_OAUTH_REDIRECT_URL).href;
+
 export const DESKTOP_OAUTH_RETURN = "canopy://oauth/callback";
 
 /** Query keys a provider returns; nothing else reaches the desktop app. */
