@@ -238,7 +238,7 @@ describe.skipIf(!dockerAvailable)("external bot tools use ordinary owner grants"
   }, 20_000);
 
   test("a conversation can continue its delegated thread after a second computer links", async () => {
-    const { bot, route } = await source(Provider.CODEX);
+    const { bot, route } = await source(Provider.CODEX, "always");
     const target = await f.thread(Provider.CODEX);
     const title = `External delegation ${bot.id}`;
     const conversation = `delegation-${bot.id}`;
@@ -281,33 +281,46 @@ describe.skipIf(!dockerAvailable)("external bot tools use ordinary owner grants"
     );
 
     expect(followups).toHaveLength(1);
-    expect(followups[0]?.conversation_id).toBeTruthy();
+    const conversationId = followups[0]?.conversation_id;
+
+    if (!conversationId) throw new Error("The delegation report must keep its conversation ID");
     expect((await f.read(bot.id)).messages.filter((m) => m.senderId !== "activity")).toEqual([]);
 
-    const send = async (threadId: string, text: string, sourceThread = conversation, attachmentIds: string[] = []) => {
-      const turnId = await begin(
+    const send = (threadId: string, text: string, sourceThread = conversation, attachmentIds: string[] = []) =>
+      begin(
         route,
         `TOOL:send_message\nARGS:${JSON.stringify({ thread_id: threadId, text, delivery: "queue", attachment_ids: attachmentIds })}`,
         sourceThread,
       );
 
-      return { turnId, text: (await finished(turnId))[0]?.text };
-    };
+    const rejected = async (...args: Parameters<typeof send>) => (await finished(await send(...args)))[0]?.text;
 
     const continueThread = async (ref: string, message: string) => {
-      const result = await send(ref, message);
-      expect(result.text).toContain(started.id);
+      const turnId = await send(ref, message);
+      const approval = await pending(bot.id);
+      expect(approval.prompt).toContain(title);
+      await f.gw.api.answerBotApproval({ approvalId: approval.id, approve: true });
+      expect((await finished(turnId))[0]?.text).toContain(started.id);
       expect(
         await eventually(
           () =>
-            f.query<{ status: string }>(
-              `SELECT r.status FROM bot_tool_calls c JOIN bot_turns r ON r.client_request_id='thread:' || c.id::text
+            f.query<{ status: string; conversation_id: string; thread_id: string; text: string }>(
+              `SELECT r.status,r.conversation_id,t.thread_id,t.input->>'text' AS text
+               FROM bot_tool_calls c JOIN bot_turns r ON r.client_request_id='thread:' || c.id::text
+               JOIN bot_thread_watches w ON w.call_id=c.id JOIN turns t ON t.id=w.target_turn_id AND t.bot_call_id=c.id
                WHERE c.turn_id=$1 AND r.bot_id=$2`,
-              [result.turnId, bot.id],
+              [turnId, bot.id],
             ),
           (rows) => rows[0]?.status === "completed",
         ),
-      ).toEqual([{ status: "completed" }]);
+      ).toEqual([
+        {
+          status: "completed",
+          conversation_id: conversationId,
+          thread_id: started.id,
+          text: expect.stringContaining(message),
+        },
+      ]);
     };
 
     await continueThread(started.id, "Continue before pairing");
@@ -340,16 +353,16 @@ describe.skipIf(!dockerAvailable)("external bot tools use ordinary owner grants"
       await continueThread(started.id, "Continue locally after pairing");
       await continueThread(qualified, "Continue using the second computer's reference");
 
-      expect((await send(qualified, "Different conversation", `unrelated-${bot.id}`)).text).toContain(
+      expect(await rejected(qualified, "Different conversation", `unrelated-${bot.id}`)).toContain(
         "Choose a thread delegated from this conversation",
       );
-      expect((await send(qualifyId(target.id, homeNode), "Unrelated local thread")).text).toContain(
+      expect(await rejected(qualifyId(target.id, homeNode), "Unrelated local thread")).toContain(
         "Choose a thread delegated from this conversation",
       );
-      expect((await send(qualifyId(started.id, peer.node), "Wrong home")).text).toContain(
+      expect(await rejected(qualifyId(started.id, peer.node), "Wrong home")).toContain(
         "Choose a thread on this computer",
       );
-      expect((await send(qualified, "Forward a file", conversation, [crypto.randomUUID()])).text).toContain(
+      expect(await rejected(qualified, "Forward a file", conversation, [crypto.randomUUID()])).toContain(
         "Files cannot be forwarded to another computer",
       );
       expect(

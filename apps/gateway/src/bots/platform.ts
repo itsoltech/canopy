@@ -37,7 +37,7 @@ export async function describeBotTool(core: GatewayCore, tool: ToolSpec, args: J
   if (tool.source !== "platform") return statusPhrase(tool, args);
   const fields = tool.parameters["properties"];
   args = Object.fromEntries(
-    Object.entries(args).filter(
+    Object.entries(localBotMessageArgs(core, tool.name, args)).filter(
       ([key]) => !key.endsWith("_name") && Predicate.isObject(fields) && Object.hasOwn(fields, key),
     ),
   );
@@ -111,7 +111,10 @@ export async function prepareBotTool(
   call: StoredCall,
 ): Promise<{ prompt?: string } | undefined> {
   if (call.tool.source !== "platform") return undefined;
-  call = await availableBotCall(options, localBotMessageTarget(core, call));
+  call = await availableBotCall(options, {
+    ...call,
+    arguments: localBotMessageArgs(core, call.tool.name, call.arguments),
+  });
 
   if (["start_thread", "send_message", "send_bot_message"].includes(call.tool.name)) nextReplyHop(turn.hops);
 
@@ -139,22 +142,19 @@ export async function prepareBotTool(
 }
 
 /** A reference copied from a peer can still name a thread on the bot's own home. */
-function localBotMessageTarget(core: GatewayCore, call: StoredCall): StoredCall {
+function localBotMessageArgs(core: GatewayCore, name: string, args: JsonObject): JsonObject {
   const computers = core.computers;
-  const target = call.arguments["thread_id"];
-  const attachments = call.arguments["attachment_ids"];
+  const target = args["thread_id"];
 
-  if (!computers || call.tool.name !== "send_message" || !Predicate.isString(target) || !isEntityId(target))
-    return call;
+  if (!computers || name !== "send_message" || !Predicate.isString(target) || !isEntityId(target)) return args;
+  const attachments = args["attachment_ids"];
 
   // Keep the existing forwarding check for qualified targets, including moved threads.
-  if (Array.isArray(attachments) && attachments.length) return call;
+  if (Array.isArray(attachments) && attachments.length) return args;
 
   const { id, node } = splitId(target);
 
-  if (node !== nodeRef(computers.hello().nodeId)) return call;
-
-  return { ...call, arguments: { ...call.arguments, thread_id: id } };
+  return node === nodeRef(computers.hello().nodeId) ? { ...args, thread_id: id } : args;
 }
 
 async function availableBotCall(options: GatewayCoreOptions, call: StoredCall): Promise<StoredCall> {
@@ -185,8 +185,8 @@ export async function botPlatform(
   turn: BotTurn,
   call: StoredCall,
 ): Promise<ToolResult> {
-  call = localBotMessageTarget(core, call);
-  const args = call.arguments;
+  const args = localBotMessageArgs(core, call.tool.name, call.arguments);
+  call = { ...call, arguments: args };
   const { string, optional } = context(core, options, turn, call);
   const user = options.userId;
 
