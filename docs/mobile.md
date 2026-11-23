@@ -7,6 +7,7 @@ kanału zaczyna się poniżej górnego bezpiecznego marginesu i zanika przed lis
 wątków i botów. Dzienny ping użycia ma przełącznik
 prywatności i pomija wysyłkę offline. Settings → Appearance
 zapisuje schemat kolorów, oba motywy i szerokość wątku w instalacji aplikacji.
+Karty edytowalnych plików Markdown mają tryby **Edit**, **Source** i **Rendered**.
 Od 2026-11-23 opis obejmuje zamykanie banerów powiadomień przesunięciem w górę.
 Profile EAS przypinają Bun 1.4.5
 dla lockfile w wersji 3. Kompozytor pokazuje przypisany [profil Sandbox](sandbox-profiles.md).
@@ -499,8 +500,14 @@ ukończeniu indeksowania i pomiarze listy. Nowy link do linii ma pierwszeństwo;
 zdarzenia przewijania podczas przygotowania listy nie nadpisują starego offsetu.
 Bardzo długie linie dzieli na fragmenty do 4096 znaków bez utraty treści i par
 surogatów, pod tym samym numerem.
-Edycja pozostaje natywnym polem tekstowym bez kolorów podczas pisania. Tokenizacja
-viewera i Preview changes korzysta z ograniczonych okien tokenów z workera.
+Edycja pozostaje natywnym polem tekstowym bez kolorów podczas pisania. Edytowalny
+Markdown otwiera się w **Edit**. **Source** pokazuje szkic z numerami linii,
+a **Rendered** formatuje bieżący szkic, także przed zapisaniem. W widoku tylko do
+odczytu pozostają akcje **View source** i **Render Markdown**. Klient analizuje
+Markdown lokalnie po otwarciu renderowanego widoku. Zapamiętuje ostatni wynik dla
+otwartej karty i wirtualizuje listę bloków najwyższego poziomu. Pisanie w **Edit**
+nie uruchamia analizy Markdown. Podświetlanie źródła i **Preview changes** dla
+pozostałych plików korzystają z ograniczonych okien tokenów z workera.
 Nie dodajemy modułu natywnego. Link pliku z izolowanego transkryptu przechodzi do
 workspace'u właściwego wątku; załączniki i bloby zachowują swoje viewery.
 

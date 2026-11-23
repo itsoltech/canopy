@@ -1,22 +1,24 @@
 import { useState, type ReactNode } from "react";
-import { ScrollView, Text, View } from "react-native";
+import { Text, View } from "react-native";
 import type { WorkspaceTab } from "@canopy/domain/workspace";
 import { Button } from "../../ui/Button";
-import { Markdown } from "../../ui/markdown/Markdown";
 import { styles, useColors } from "../../ui/theme";
 import { useDevicePreferences } from "../settings/device-preferences";
 import { CopyAction } from "../viewers/copy-action";
 import { WorkspaceText } from "./WorkspaceText";
+import { isMarkdownFile, useWorkspaceMarkdown, WorkspaceMarkdown } from "./WorkspaceMarkdown";
 
 export function WorkspaceReader({
   tab,
   name,
+  active,
   actions,
   onKeep,
   onLocate,
 }: {
   tab: WorkspaceTab;
   name: string;
+  active: boolean;
   actions: ReactNode;
   onKeep: () => void;
   onLocate: () => void;
@@ -25,8 +27,9 @@ export function WorkspaceReader({
   const c = useColors();
   const preferences = useDevicePreferences();
   const [source, setSource] = useState(Boolean(document.position));
-  const markdown = /\.(md|markdown|mdx)$/i.test(name);
+  const markdown = isMarkdownFile(name);
   const rendered = markdown && !source && preferences.values.attachmentMarkdown === "rendered";
+  const tokens = useWorkspaceMarkdown(rendered ? document.text : undefined, active && !document.loading);
 
   return (
     <>
@@ -72,13 +75,7 @@ export function WorkspaceReader({
           </Text>
         ) : null}
       </View>
-      {rendered ? (
-        <ScrollView contentContainerStyle={{ padding: 16 }}>
-          <Markdown text={document.text} />
-        </ScrollView>
-      ) : (
-        <WorkspaceText document={document} />
-      )}
+      {rendered ? <WorkspaceMarkdown tokens={tokens} /> : <WorkspaceText document={document} />}
     </>
   );
 }

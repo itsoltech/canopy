@@ -1,8 +1,10 @@
 import { useEffect, useState, useSyncExternalStore } from "react";
-import { View } from "react-native";
+import { Keyboard, View } from "react-native";
 import { observeWorkspaceFile } from "@canopy/domain/workspace-changes";
 import { Button } from "../../ui/Button";
+import { Segmented } from "../../ui/Segmented";
 import type { Workspace, WorkspaceTab } from "@canopy/domain/workspace";
+import type { WorkspaceFile as FileDocument } from "@canopy/domain/workspace-file";
 import { fileName } from "@canopy/domain/file-references";
 import { useContentPadding } from "../../ui/ScreenFrame";
 import { FileActions } from "../files/FileActions";
@@ -13,6 +15,7 @@ import { workspaceFileState } from "./file-state";
 import { WorkspaceReader } from "./WorkspaceReader";
 import { GoToLine } from "./GoToLine";
 import { WorkspaceText } from "./WorkspaceText";
+import { isMarkdownFile, useWorkspaceMarkdown, WorkspaceMarkdown } from "./WorkspaceMarkdown";
 import { useAppActive } from "../../ui/active";
 import { WorkspaceConflict } from "./WorkspaceConflict";
 import { useOverview } from "../../state/overview";
@@ -23,9 +26,15 @@ interface WorkspaceFileProps {
   removed?: boolean;
 }
 
-export function WorkspaceFile({ view, tab, removed = false }: WorkspaceFileProps) {
-  useSyncExternalStore(view.store.subscribe, view.store.getVersion);
-  const document = tab.document;
+type FileMode = "edit" | "source" | "rendered";
+
+const FILE_MODES: readonly { value: FileMode; label: string }[] = [
+  { value: "edit", label: "Edit" },
+  { value: "source", label: "Source" },
+  { value: "rendered", label: "Rendered" },
+];
+
+function useFileAvailability(document: FileDocument, removed: boolean) {
   const overview = useOverview();
   const thread = overview.threads.find((item) => item.id === document.target.threadId);
   const worker = overview.workers.find((item) => item.id === thread?.workerId);
@@ -40,20 +49,22 @@ export function WorkspaceFile({ view, tab, removed = false }: WorkspaceFileProps
             : "",
     );
   }, [document, worker?.nodeId, worker?.online, thread?.worktree?.removedAt, removed]);
+}
+
+export function WorkspaceFile({ view, tab, removed = false }: WorkspaceFileProps) {
+  useSyncExternalStore(view.store.subscribe, view.store.getVersion);
+  const document = tab.document;
+  useFileAvailability(document, removed);
   const active = useAppActive();
   const padding = useContentPadding(0);
   const [confirmation, setConfirmation] = useState<FileConfirmationKind>();
   const [go, setGo] = useState(false);
-  const [previewChanges, setPreviewChanges] = useState(false);
+  const [mode, setMode] = useState<FileMode>("edit");
   const watchPath = document.file?.relativePath;
   useEffect(
     () => (active && watchPath ? observeWorkspaceFile(view.store, document) : undefined),
     [view.store, document, watchPath, active],
   );
-
-  useEffect(() => {
-    if (!document.editable) setPreviewChanges(false);
-  }, [document.editable]);
 
   useEffect(() => {
     if (!active) return;
@@ -64,8 +75,19 @@ export function WorkspaceFile({ view, tab, removed = false }: WorkspaceFileProps
   }, [document, active]);
 
   const viewer = workspaceFileState(view, tab, setConfirmation);
-
   const name = fileName(document.path);
+  const markdown = isMarkdownFile(name);
+  const rendered = viewer.editable && markdown && mode === "rendered";
+  const tokens = useWorkspaceMarkdown(rendered ? viewer.draft : undefined, active && !viewer.loading);
+
+  useEffect(() => {
+    if (!document.editable && !markdown) setMode("edit");
+  }, [document.editable, markdown]);
+
+  function changeMode(next: FileMode) {
+    if (next !== "edit") Keyboard.dismiss();
+    setMode(next);
+  }
 
   const actions = (
     <View style={{ gap: 8 }}>
@@ -75,18 +97,26 @@ export function WorkspaceFile({ view, tab, removed = false }: WorkspaceFileProps
         onDiscard={() => (document.dirty ? setConfirmation("discard") : document.discard())}
         onDelete={() => setConfirmation("delete")}
       />
-      {document.editable && (
+      {markdown && viewer.editable ? (
+        <Segmented options={FILE_MODES} value={mode} onChange={changeMode} />
+      ) : document.editable ? (
         <Button
           size="sm"
-          title={previewChanges ? "Keep editing" : "Preview changes"}
+          title={mode === "source" ? "Keep editing" : "Preview changes"}
           disabled={document.busy}
-          onPress={() => setPreviewChanges((value) => !value)}
+          onPress={() => changeMode(mode === "source" ? "edit" : "source")}
         />
-      )}
+      ) : null}
     </View>
   );
 
   const textView = document.file && !document.file.binary && !viewer.editable;
+
+  const preview = rendered ? (
+    <WorkspaceMarkdown tokens={tokens} />
+  ) : mode === "source" && (document.editable || (markdown && viewer.editable)) ? (
+    <WorkspaceText document={document} draft={viewer.draft} />
+  ) : undefined;
 
   return (
     <View style={{ flex: 1, ...padding }}>
@@ -100,15 +130,11 @@ export function WorkspaceFile({ view, tab, removed = false }: WorkspaceFileProps
           }
         }}
       >
-        {document.editable && previewChanges ? (
-          <>
-            <View style={{ padding: 12 }}>{actions}</View>
-            <WorkspaceText document={document} draft={document.draft} />
-          </>
-        ) : textView ? (
+        {textView ? (
           <WorkspaceReader
             tab={tab}
             name={name}
+            active={active}
             actions={actions}
             onKeep={() => view.keep(tab.id)}
             onLocate={() => setGo(true)}
@@ -121,6 +147,7 @@ export function WorkspaceFile({ view, tab, removed = false }: WorkspaceFileProps
             name={name}
             detail={document.lookup?.relativePath || document.path}
             actions={actions}
+            preview={preview}
             onDiscard={() => setConfirmation("discard")}
           />
         )}
