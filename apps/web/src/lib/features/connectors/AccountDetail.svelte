@@ -165,7 +165,9 @@
 
   function saveAccess(edit: AccessEdit) {
     if (busy) return;
+
     if (edit.group === "projects" && account.allProjects === undefined) return;
+
     if (edit.group === "noProject" && account.noProject === undefined) return;
     pending = edit;
     void run("access");
