@@ -5,10 +5,11 @@ gatewaya do telefonu. Funkcja wymaga nowego buildu natywnego i konfiguracji rela
 Lokalny Desktop domyślnie używa relaya Canopy. W webie serwerowym i w obu
 trybach Desktopu można wybrać relay Canopy albo skonfigurować własny w Network access.
 Relay Canopy obsługuje też automatyczną ponowną atestację i odwołanie poświadczeń.
-Alerty w aplikacji pomijają uśpione wątki w web/desktop i mobile.
+Alerty w aplikacji pomijają uśpione wątki w web/desktop i mobile. Na iOS i Androidzie
+baner powiadomienia można zamknąć przesunięciem w górę.
 Web/desktop wysyła powiadomienia tylko z włączonych modułów.
 Powiadomienia wątków obejmują
-tylko wątki główne i wątki boczne użytkownika. Toasty są kartami w prawym dolnym
+tylko wątki główne i wątki boczne użytkownika. Toasty web/desktop są kartami w prawym dolnym
 rogu, z osobnym nagłówkiem zdarzenia, nazwą i akcją pod treścią oraz większą ikoną
 statusu, bez wyłączania przeciągania okna desktopu. Opis dotyczy kodu; dostępność
 nightly/beta/stable określają [wydania](release.md).
@@ -82,7 +83,7 @@ z zapisanej rozmowy.
 
 ## Toasty w aplikacji
 
-Wspólny `shared/ui/Toaster.svelte` pokazuje krótkie potwierdzenia i powiadomienia
+W webie i na desktopie `shared/ui/Toaster.svelte` pokazuje krótkie potwierdzenia i powiadomienia
 w prawym dolnym rogu okna, 16 px od krawędzi lub poza systemowym safe area.
 Na telefonie karta mieści się między bocznymi wcięciami; na desktopie ma 24 rem
 szerokości. Nagłówek zdarzenia i zamknięcie zajmują pierwszy wiersz, a opcjonalny

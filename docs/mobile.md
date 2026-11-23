@@ -5,6 +5,7 @@ na ekranie głównym telefonu, podczas parowania i w nagłówku sidebara. Znak w
 kanału zanika przed listą wątków i botów. Dzienny ping użycia ma przełącznik
 prywatności i pomija wysyłkę offline. Settings → Appearance
 zapisuje schemat kolorów, oba motywy i szerokość wątku w instalacji aplikacji.
+Od 2026-11-23 opis obejmuje zamykanie banerów powiadomień przesunięciem w górę.
 Profile EAS przypinają Bun 1.4.5
 dla lockfile w wersji 3. Kompozytor pokazuje przypisany [profil Sandbox](sandbox-profiles.md).
 Rozszerzenie podglądu powiadomień na iOS deklaruje wymagane przez App Store Connect `CFBundleName`.
@@ -2720,8 +2721,11 @@ modułów natywnych, konfiguracji ani zależności aplikacji.
 korzystają ze wspólnych z web reguł świeżości wiadomości, pytań i zatwierdzeń. Pierwszy odczyt,
 wznowienie po uśpieniu i odczyt po błędzie tworzą cichą bazę. Boty zarchiwizowane, przeczytane
 wiadomości i aktualnie otwarty czat nie pokazują alertu. Ustawienie dotyczy alertów
-w otwartej aplikacji. Osobne ustawienie **System notifications** korzysta z natywnej
-obsługi systemowej w tle.
+w otwartej aplikacji. Baner u góry ekranu podąża za palcem przy przesuwaniu w górę.
+Krótki, powolny ruch lub anulowany gest przywraca baner na miejsce. Dłuższy ruch
+albo szybkie przesunięcie w górę zamyka baner.
+Dotknięcie otwiera wątek lub czat. Czytnik ekranu udostępnia akcję **Dismiss notification**.
+Osobne ustawienie **System notifications** korzysta z natywnej obsługi systemowej w tle.
 Wątki w **Snoozed** i ich wątki boczne nie pokazują powiadomień w aplikacji.
 Ręczne i automatyczne wybudzenie pomija alerty z okresu uśpienia. Datę i godzinę
 wybiera się w tym samym selektorze kalendarza co przy harmonogramach.
