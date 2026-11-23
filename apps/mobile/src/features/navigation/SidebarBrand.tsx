@@ -43,14 +43,14 @@ export function SidebarBrand() {
 
 export function SidebarWatermark() {
   const { dark } = useColors();
-  const { top, bottom } = useContentInsets();
+  const { bottom } = useContentInsets();
 
   return (
     <View
       pointerEvents="none"
       accessibilityElementsHidden
       importantForAccessibility="no-hide-descendants"
-      style={[brand.watermark, { top, bottom }]}
+      style={[brand.watermark, { bottom }]}
     >
       <SvgXml xml={identity.art} color={identity.ink[dark ? "dark" : "light"]} width="100%" height="100%" />
     </View>
@@ -59,5 +59,5 @@ export function SidebarWatermark() {
 
 const brand = StyleSheet.create({
   title: { flexShrink: 1 },
-  watermark: { position: "absolute", left: 0, right: 0, overflow: "hidden" },
+  watermark: { position: "absolute", top: 0, left: 0, right: 0, overflow: "hidden" },
 });

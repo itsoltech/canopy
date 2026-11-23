@@ -79,7 +79,7 @@ export function colorsFor(dark: boolean, theme: ThemeName = "birch") {
 
 export type Colors = ReturnType<typeof colorsFor>;
 
-export function useColors(surface?: "sidebar-list") {
+export function useColors(surface?: "sidebar-list" | "sidebar-header") {
   const { dark, appearance } = useAppearance();
   const { values } = useDevicePreferences();
   const theme = themeOf(appearance, dark ? "dark" : "light");
@@ -87,8 +87,10 @@ export function useColors(surface?: "sidebar-list") {
   const neutral = themes[theme][dark ? "dark" : "light"];
 
   if (values.contrast === "standard") {
-    // The channel drawing darkens the light sidebar behind list captions.
-    return surface === "sidebar-list" && !dark ? { ...colors, muted: colors.soft } : colors;
+    // The densest lines cross the header controls. Light list captions can also overlap a blueprint guide.
+    const overDrawing = surface === "sidebar-header" || (surface === "sidebar-list" && !dark);
+
+    return overDrawing ? { ...colors, muted: dark ? colors.strong : colors.soft } : colors;
   }
 
   return {

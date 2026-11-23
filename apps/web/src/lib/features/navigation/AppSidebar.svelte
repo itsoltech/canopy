@@ -94,7 +94,15 @@
 </script>
 
 <!-- Compact chrome (docs/ui-scale.md): text one step below the pages beside it. -->
-<div class="density-chrome sidebar-scale @container flex h-full flex-col">
+<div class="density-chrome sidebar-scale @container relative isolate flex h-full flex-col">
+  <div
+    class="sidebar-watermark pointer-events-none absolute inset-0 -z-10 overflow-hidden forced-colors:hidden"
+    style:--ink-light={identity.ink.light}
+    style:--ink-dark={identity.ink.dark}
+    aria-hidden="true"
+  >
+    {@html identity.art}
+  </div>
   <SidebarHeader {channel}>
     {#if settings.loaded && section === "bots"}
       <a href="/bots?create=1" class={iconLink} aria-label="Create bot">
@@ -109,10 +117,10 @@
         active={section}
         attention={{ threads: threadsAttention, bots: botsAttention }}
         counts={{ bots: botsUnread }}
-        class="sidebar-gutter pb-2"
+        class="sidebar-foreground sidebar-gutter pb-2"
       />{/if}
 
-    <div class="sidebar-inset flex items-center pb-2">
+    <div class="sidebar-foreground sidebar-inset flex items-center pb-2">
       <label
         class={[
           "flex min-w-0 flex-1 items-center rounded-lg py-2 text-zinc-500 has-focus-visible:outline-2 has-focus-visible:outline-brand-500 sm:py-1.5 dark:text-zinc-400",
@@ -159,26 +167,16 @@
       {/if}
     </div>
 
-    <div class="relative isolate min-h-0 flex-1">
-      <div
-        class="sidebar-watermark pointer-events-none absolute inset-0 -z-10 overflow-hidden forced-colors:hidden"
-        style:--ink-light={identity.ink.light}
-        style:--ink-dark={identity.ink.dark}
-        aria-hidden="true"
-      >
-        {@html identity.art}
-      </div>
-      <nav
-        class="sidebar-list sidebar-inset h-full scroll-stable overflow-y-auto pb-3"
-        aria-label={section === "threads" ? "Threads" : "Bots"}
-      >
-        {#if section === "threads"}
-          <SidebarThreads {currentThreadId} query={queries.threads} />
-        {:else}
-          <LiveBotsNav query={queries.bots} />
-        {/if}
-      </nav>
-    </div>
+    <nav
+      class="sidebar-foreground sidebar-inset min-h-0 flex-1 scroll-stable overflow-y-auto pb-3"
+      aria-label={section === "threads" ? "Threads" : "Bots"}
+    >
+      {#if section === "threads"}
+        <SidebarThreads {currentThreadId} query={queries.threads} />
+      {:else}
+        <LiveBotsNav query={queries.bots} />
+      {/if}
+    </nav>
 
     {#if settings.moduleEnabled("threads")}<SidebarCopyJobs />{/if}
   {:else}
@@ -226,12 +224,12 @@
   .sidebar-watermark {
     color: light-dark(var(--ink-light), var(--ink-dark));
   }
-  /* Muted captions and icons need more contrast where the channel drawing passes behind them. */
-  .sidebar-list {
+  /* Tabs, search and row captions share the channel drawing as their backdrop. */
+  .sidebar-scale :global(.sidebar-foreground) {
     --theme-zinc-500: color-mix(in srgb, var(--theme-muted) 80%, var(--theme-ink));
     --sidebar-working-light: var(--theme-sky-800);
   }
-  :global(.dark) .sidebar-list {
+  :global(.dark) .sidebar-scale :global(.sidebar-foreground) {
     --theme-zinc-400: var(--theme-zinc-500);
   }
 </style>

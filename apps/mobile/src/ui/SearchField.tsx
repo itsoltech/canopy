@@ -14,6 +14,7 @@ export function SearchField({
   value,
   onChange,
   bare = false,
+  mutedColor,
   style,
 }: {
   label: string;
@@ -22,6 +23,7 @@ export function SearchField({
   onChange: (value: string) => void;
   /** Without the ring and fill (the sidebar's search); focus still shows the brand ring. */
   bare?: boolean;
+  mutedColor?: string;
   style?: StyleProp<ViewStyle>;
 }) {
   const c = useColors();
@@ -43,11 +45,11 @@ export function SearchField({
         style,
       ]}
     >
-      <Icon name="magnifying-glass" color={c.faint} />
+      <Icon name="magnifying-glass" color={mutedColor ?? c.faint} />
       <TextInput
         accessibilityLabel={label}
         placeholder={placeholder}
-        placeholderTextColor={c.muted}
+        placeholderTextColor={mutedColor ?? c.muted}
         value={value}
         onChangeText={onChange}
         onFocus={() => setFocused(true)}
@@ -66,7 +68,7 @@ export function SearchField({
             hitSlop={6}
             style={{ width: 32, height: 32, alignItems: "center", justifyContent: "center" }}
           >
-            <Icon name="x-circle" color={c.faint} />
+            <Icon name="x-circle" color={mutedColor ?? c.faint} />
           </Pressable>
         ) : null}
       </View>

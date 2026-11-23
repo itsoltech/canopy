@@ -27,8 +27,8 @@ toaście lub komunikacie o zakończonej aktualizacji. Dyskowy cache HTTP Electro
 ma budżet 64 MiB, a kontroler ustala origin formularzy osobno dla każdego żądania.
 Aktualizacje Nightly mają własny feed. Updater sprawdza historię kodu każdego
 kandydata przed pobraniem.
-Za listą sidebara widać duże drzewo w kolorze kanału uruchomionego frontendu.
-Krycie rysunku stopniowo maleje od nawigacji w dół.
+Drzewo kanału uruchomionego frontendu sięga górnej krawędzi sidebara. Jego korona
+jest widoczna za nagłówkiem i zakładkami, a pień zanika pod pierwszymi wierszami listy.
 Tryb Local przypina certyfikat własnego gatewaya, używa osobnej roli PostgreSQL
 i sprawdza pochodzenie żądania otwarcia pliku w aplikacji systemowej. Kreator
 przenoszenia gatewaya koordynuje próbę odtworzenia, blokadę lokalnego startu,
@@ -1014,7 +1014,7 @@ przez `overflow-hidden`. Element nad obszarem `drag`, który sam nie jest `no-dr
 traci kliknięcia. Zasady:
 
 - **Jeden pasek tytułu na stan okna**, oznaczony `data-window-drag`; przeciąga tylko
-  jego własny prostokąt. Tło z drzewem leży w osobnej warstwie pod listą sidebara.
+  jego własny prostokąt. Tło z drzewem leży w osobnej warstwie pod nagłówkiem i listą sidebara.
   - Sidebar widoczny: nagłówek sidebara (`pl` 88 px pod światła) zawiera ikonę i nazwę Canopy.
   - Sidebar zwinięty lub okno węższe niż `lg`: górny pasek strony
     (`data-window-titlebar`: `TopBar`, `ConversationHeader`) staje się paskiem tytułu

@@ -12,7 +12,7 @@ export const sidebarIcon = `<svg xmlns="http://www.w3.org/2000/svg" width="100%"
 function scene(channel: string, drawing: string, surroundings = "") {
   const id = `canopy-sidebar-${channel}`;
 
-  return `<svg xmlns="http://www.w3.org/2000/svg" width="100%" height="100%" viewBox="0 0 200 200" preserveAspectRatio="xMaxYMin meet" fill="currentColor">
+  return `<svg xmlns="http://www.w3.org/2000/svg" width="100%" height="100%" viewBox="0 20 200 200" preserveAspectRatio="xMaxYMin meet" fill="currentColor">
     <defs>
       <linearGradient id="${id}-fade" gradientUnits="userSpaceOnUse" x1="0" y1="0" x2="0" y2="200">
         <stop offset="0" stop-color="white"/>
@@ -42,12 +42,12 @@ const guides = `<g fill="none" stroke="currentColor">
 
 const stars = `<g>
   <path opacity=".18" d="
-    M53 29q.8 4.8 5 5.5-4.2.7-5 5.5-.8-4.8-5-5.5 4.2-.7 5-5.5z
-    M177 5q.6 3 3.5 3.6-2.9.6-3.5 3.6-.6-3-3.5-3.6 2.9-.6 3.5-3.6z
+    M79 27q.8 4.8 5 5.5-4.2.7-5 5.5-.8-4.8-5-5.5 4.2-.7 5-5.5z
+    M179 25q.6 3 3.5 3.6-2.9.6-3.5 3.6-.6-3-3.5-3.6 2.9-.6 3.5-3.6z
     M33 118q.6 3 3.5 3.6-2.9.6-3.5 3.6-.6-3-3.5-3.6 2.9-.6 3.5-3.6z"/>
   <g opacity=".14">
-    <circle cx="27" cy="58" r=".9"/><circle cx="78" cy="18" r="1.1"/><circle cx="94" cy="28" r=".6"/>
-    <circle cx="150" cy="7" r=".7"/><circle cx="189" cy="21" r=".9"/><circle cx="61" cy="130" r=".8"/>
+    <circle cx="27" cy="58" r=".9"/><circle cx="65" cy="24" r="1.1"/><circle cx="94" cy="28" r=".6"/>
+    <circle cx="155" cy="22" r=".7"/><circle cx="193" cy="39" r=".9"/><circle cx="61" cy="130" r=".8"/>
     <circle cx="176" cy="149" r="1"/><circle cx="187" cy="139" r=".6"/>
   </g>
 </g>`;

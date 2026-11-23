@@ -1,7 +1,7 @@
 # Canopy na iOS i Android
 
 Status: opis zaimplementowanego kodu (2026-11-23), w tym nowego logo Canopy i zanikającego
-znaku wodnego kanału za listami w sidebarze oraz dziennego pingu użycia z przełącznikiem prywatności
+znaku wodnego kanału za nagłówkiem i listami sidebara oraz dziennego pingu użycia z przełącznikiem prywatności
 i pomijaniem wysyłki offline. Settings → Appearance
 zapisuje schemat kolorów, oba motywy i szerokość wątku w instalacji aplikacji.
 Profile EAS przypinają Bun 1.4.5
@@ -1075,13 +1075,13 @@ fioletowe drzewo z gwiazdami, a **Beta** bursztynową rycinę. W tych trzech
 wariantach etykieta kanału widnieje pod nazwą Canopy. Wydanie **Stable**
 i nierozpoznany kanał pokazują zwykły znak drzewa bez podpisu kanału.
 
-Duży znak wodny zaczyna się tuż pod nawigacją, przy prawej krawędzi panelu.
-Cały rysunek stopniowo zanika ku dołowi i pozostaje nieruchomy, gdy lista
-wątków lub botów przewija się nad nim. W jasnym motywie podpisy i czasy
-w wierszach są ciemniejsze, żeby były czytelne także na liniach rysunku.
-Obszar grafiki mieści się między zmierzonym nagłówkiem a stopką, które zachowują
-jednolite tło. Grafika działa offline zarówno na ekranie listy, jak i w układzie
-z dwiema kolumnami.
+Górna krawędź panelu lekko przycina koronę dużego drzewa. Znak wodny jest
+wyrównany do prawej i tworzy ciągłe tło nazwy Canopy, przełącznika Threads/Bots,
+pola wyszukiwania i pierwszych wierszy. Rysunek stopniowo zanika ku dołowi
+i pozostaje nieruchomy podczas przewijania. Etykieta nieaktywnej zakładki
+i podpowiedź w polu wyszukiwania mają zwiększony kontrast w obu schematach
+kolorów. W jasnym schemacie ciemniejsze są także podpisy wierszy. Grafika działa
+offline zarówno na ekranie listy, jak i w układzie z dwiema kolumnami.
 
 `updates.checkAutomatically: ON_LOAD` sprawdza aktualizacje na zimnym starcie.
 `fallbackToCacheTimeout: 0` uruchamia od razu ostatni lokalny bundle (także offline);
@@ -1595,11 +1595,11 @@ Składanie, obrót i zmiana rozmiaru okna przełączają układ od razu po przek
 progu. Ręczne zwinięcie i rozwinięcie przesuwają wspólną krawędź sidebara i rozmowy
 w tym samym tempie. Lista zachowuje swoją szerokość podczas animacji. Przy ograniczeniu
 ruchu obie kolumny przechodzą od razu do docelowego układu.
-`ui/ScreenFrame.tsx` stosuje insets do kontrolek, bez obcinania tła ani viewportu listy.
-Nagłówki i stopka sidebara są nieprzezroczystymi nakładkami; ich zmierzona wysokość
-powiększa padding końców list, więc pierwszy i ostatni wiersz są dostępne w całości.
-Podczas przewijania wiersze przechodzą pod nagłówkiem i paskiem stanu bez prześwitu. Ikony paska stanu
-zmieniają jasność wraz z motywem, a powierzchnia nagłówka utrzymuje ich kontrast.
+`ui/ScreenFrame.tsx` stosuje insets do kontrolek. Grafika sidebara sięga pod pasek
+stanu, a nawigacja i baner połączenia zajmują własne miejsce nad listą. Przewijane
+wiersze są przycinane na dolnej krawędzi nagłówka. Nieprzezroczysta stopka nakłada
+się na listę, a padding odpowiadający jej wysokości i dolnemu insetowi pozwala
+odsłonić ostatni wiersz w całości. Ikony paska stanu zmieniają jasność wraz z motywem.
 `ScreenScroll` stosuje padding treści w New thread, Pair, Settings i arkuszach szczegółów.
 Timeline wątku i bota ma odwrócone końce: górny inset jest na najstarszym końcu,
 a dolny rezerwuje rzeczywistą wysokość kompozytora wątku lub bota
