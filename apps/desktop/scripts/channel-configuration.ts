@@ -1,16 +1,24 @@
 import { createHash } from "node:crypto";
-import { readFileSync } from "node:fs";
+import { readdirSync, readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { desktopIdentity } from "../src/identity.ts";
 
 /** Only presentation changes. productName controls filenames and NSIS install paths. */
 export function channelConfiguration(identity: ReturnType<typeof desktopIdentity>) {
   const icons = `../web/static${identity.assets}`;
-  const macIcon = `${icons}/icon.icns`;
+  const development = identity.channel === "development";
+  const macIcon = development ? `${icons}/icon.icns` : `../../design/brand/apple/canopy-${identity.channel}.icon`;
+  const source = resolve(import.meta.dir, "..", macIcon);
+  const artwork = createHash("sha256");
 
-  const artworkHash = createHash("sha256")
-    .update(readFileSync(resolve(import.meta.dir, "..", macIcon)))
-    .digest("hex");
+  if (development) artwork.update(readFileSync(source));
+  else {
+    artwork.update(readFileSync(resolve(source, "icon.json")));
+
+    for (const asset of readdirSync(resolve(source, "Assets")).sort()) {
+      if (!asset.startsWith(".")) artwork.update(readFileSync(resolve(source, "Assets", asset)));
+    }
+  }
 
   return {
     linux: {
@@ -25,7 +33,7 @@ export function channelConfiguration(identity: ReturnType<typeof desktopIdentity
         // Electron locates helper executables using the unlocalized CFBundleName.
         CFBundleName: identity.productName,
         CFBundleDevelopmentRegion: "en",
-        CFBundleIconFile: `canopy-${artworkHash}.icns`,
+        CFBundleIconFile: `canopy-${artwork.digest("hex")}.icns`,
       },
     },
     win: { icon: `${icons}/icon.ico` },

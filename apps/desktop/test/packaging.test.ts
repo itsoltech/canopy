@@ -9,11 +9,12 @@ import {
   renameSync,
   unlinkSync,
 } from "node:fs";
-import { dirname, join, resolve } from "node:path";
+import { join, resolve } from "node:path";
 import { tempDirs } from "@canopy/testing";
 import { noAgentClis } from "../../../scripts/agent-clis.ts";
 import { desktopIdentity } from "../src/identity.ts";
 import { channelConfiguration } from "../scripts/channel-configuration.ts";
+import { generateAssetCatalogForIcon } from "app-builder-lib/out/util/macosIconComposer.js";
 import { savePlistFile } from "app-builder-lib/out/util/plist.js";
 
 const { createPackage } = require("@electron/asar") as { createPackage(source: string, output: string): Promise<void> };
@@ -141,14 +142,23 @@ test("macOS packaging preserves the install identity, localizes its name and sig
   const fixture = await packed();
   const identity = desktopIdentity("nightly");
   const { mac } = channelConfiguration(identity);
-  const artwork = dirname(resolve(import.meta.dir, "..", mac.icon));
+  const artwork = join(import.meta.dir, "../../web/static", identity.assets);
+
+  const catalog =
+    process.platform === "darwin" ? await generateAssetCatalogForIcon(resolve(import.meta.dir, "..", mac.icon)) : null;
+
+  const icon =
+    catalog?.icnsFile ?? readFileSync(resolve(import.meta.dir, "../../web/static/channels/development/icon.icns"));
+
   const application = join(fixture.app, "canopy.app");
   const resources = join(application, "Contents/Resources");
   mkdirSync(join(application, "Contents"), { recursive: true });
   renameSync(fixture.resources, resources);
 
   for (const locale of ["en", "pl"]) mkdirSync(join(resources, `${locale}.lproj`));
-  copyFileSync(join(artwork, "icon.icns"), join(resources, "icon.icns"));
+  writeFileSync(join(resources, "icon.icns"), icon);
+
+  if (catalog) writeFileSync(join(resources, "Assets.car"), catalog.assetCatalog);
   copyFileSync(join(artwork, "icon-512.png"), join(resources, "icon.png"));
   mkdirSync(join(application, "Contents/MacOS"));
   writeFileSync(join(application, "Contents/MacOS/canopy"), "#!/bin/sh\nexit 0\n", { mode: 0o755 });
@@ -156,6 +166,7 @@ test("macOS packaging preserves the install identity, localizes its name and sig
     CFBundleExecutable: identity.executableName,
     CFBundleIdentifier: identity.appId,
     CFBundlePackageType: "APPL",
+    CFBundleIconName: "Icon",
     ...mac.extendInfo,
   });
   const runtime = join(resources, "runtime");
@@ -198,9 +209,7 @@ test("macOS packaging preserves the install identity, localizes its name and sig
     expect(localization).toContain('"CFBundleName" = "Canopy (Nightly)";');
   }
 
-  expect(readFileSync(join(resources, mac.extendInfo.CFBundleIconFile))).toEqual(
-    readFileSync(join(artwork, "icon.icns")),
-  );
+  expect(readFileSync(join(resources, mac.extendInfo.CFBundleIconFile)).equals(icon)).toBe(true);
 
   if (process.platform === "darwin") {
     const check = Bun.spawnSync([

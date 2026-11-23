@@ -1,0 +1,26 @@
+{
+  "fill": {
+    "solid": "extended-srgb:0.92941,0.94118,0.89412,1.00000"
+  },
+  "groups": [
+    {
+      "layers": [
+        {
+          "image-name": "stable.svg",
+          "name": "stable"
+        }
+      ],
+      "shadow": {
+        "kind": "neutral",
+        "opacity": 0
+      },
+      "translucency": {
+        "enabled": false,
+        "value": 0.3
+      }
+    }
+  ],
+  "supported-platforms": {
+    "squares": "shared"
+  }
+}

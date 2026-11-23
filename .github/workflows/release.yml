@@ -154,7 +154,7 @@ jobs:
           CHANNEL: ${{ steps.plan.outputs.channel }}
           ALL_TARGETS: ${{ inputs.desktop_all_targets }}
         run: |
-          targets='{"target":"linux-x64","runner":"ubuntu-24.04","experimental":false},{"target":"darwin-arm64","runner":"macos-15","experimental":false},{"target":"windows-x64","runner":"windows-2025","experimental":false}'
+          targets='{"target":"linux-x64","runner":"ubuntu-24.04","experimental":false},{"target":"darwin-arm64","runner":"macos-15","packaging_runner":"macos-26","experimental":false},{"target":"windows-x64","runner":"windows-2025","experimental":false}'
           if [ "$CHANNEL" != nightly ] || [ "$ALL_TARGETS" = true ]; then
             targets="$targets"',{"target":"linux-arm64","runner":"ubuntu-24.04-arm","experimental":true}'
           fi
@@ -593,7 +593,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix: ${{ fromJSON(needs.plan.outputs.desktop_matrix) }}
-    runs-on: ${{ matrix.runner }}
+    runs-on: ${{ matrix.packaging_runner || matrix.runner }}
     environment: release-signing
     continue-on-error: ${{ matrix.experimental }}
     timeout-minutes: 60

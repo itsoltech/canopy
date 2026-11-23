@@ -3,8 +3,10 @@
 Status: opis zaimplementowanego workflow (2026-11-23). Buildy publikują wykazy licencji zależności. Automat sprawdza promocje co godzinę.
 Web, Desktop i mobile używają ikony danego wydania. Lokalny Dev ma własny niebieski wariant.
 Drzewo kanału w tle sidebara zanika przy wyszukiwarce.
-Natywne CI na macOS sprawdza odczyt małych reprezentacji ikon aplikacji i nazwę
-wyświetlaną przez Finder. Przed publikacją Release sprawdza nazwę i grafikę także w podpisanej paczce.
+Natywne CI na macOS sprawdza odczyt małych reprezentacji ikony Dev i nazwę
+wyświetlaną przez Finder. Wydania macOS i iOS kompilują ikony z projektów Icon Composer.
+Przed publikacją Release sprawdza nazwę i grafikę także w podpisanej paczce.
+Pakowanie macOS i test natywny CI kompilują ikony na `macos-26`.
 Release buduje i publikuje osobny obraz `canopy-push-relay` dla rewizji zawierających ten cel.
 Pakowanie Desktop i generowanie fingerprintu Expo używają poprawionego `minimatch`.
 Smoke Desktop czeka na zapis trasy Network access przed restartem workera podczas parowania.
@@ -224,8 +226,10 @@ nadal publikują trzy kanały. Gałąź `dev` publikuje Nightly.
 `apps/web/static/channels/{stable,beta,nightly,development}` i domyślne ikony Stable
 w katalogu `static`. Opcja `--previews <katalog>` zapisuje plansze, małe rozmiary
 na jasnym i ciemnym pasku oraz podglądy pod maskami iOS i Androida.
-Repozytorium zawiera gotowe SVG, PNG, ICO, ICNS, ekrany startowe i warstwy ikon
-adaptacyjnych. Natywne CI na macOS sprawdza odczyt ICNS w 16 i 32 pt w skali 1× i 2×.
+Repozytorium zawiera gotowe SVG, PNG, ICO, ekrany startowe i warstwy ikon
+adaptacyjnych. Wydania macOS i iOS kompilują [projekty Icon Composer](../design/brand/apple)
+za pomocą Xcode 26 lub nowszego. Build macOS Dev ma własny ICNS, którego reprezentacje
+16 i 32 pt w skali 1× i 2× sprawdza natywne CI.
 
 Web wybiera ikonę karty i PWA według wersji gatewaya z `GetClientCapabilities`
 (cache 5 s, timeout 750 ms). Przy starcie BFF korzysta z `CANOPY_CHANNEL` albo z wersji
@@ -672,6 +676,8 @@ harmonogramu sprawdzeń wymagałaby osobnej polityki.
 nightly, beta i stable. Tylko linux-arm64 pozostaje eksperymentalny (`continue-on-error`):
 buduje go beta i stable, a nightly tylko przy ręcznym dispatchu z `desktop_all_targets: true`
 (dispatch wymaga `expected_sha` z historii gałęzi i wydaje tylko, gdy są niewydane commity).
+Dla darwin-arm64 pakowanie działa na `macos-26`, gdzie `actool` ma systemowe frameworki
+potrzebne do kompilacji ikon. Build runtime i smoke nadal używają `macos-15`.
 
 **Cache.** Pakiety Bun (`~/.bun/install/cache`, klucz z `bun.lock`) we wszystkich jobach z instalacją;
 pobrania Electron/electron-builder w jobach desktop; warstwy obrazów w cache GHA per aplikacja.
@@ -1142,7 +1148,7 @@ do pushu, nie do usuwania). Bez tego job zgłasza `GHCR canopy-…: no access to
   i połącz je z repozytorium (etykieta `org.opencontainers.image.source` robi to automatycznie).
   W *Manage Actions access* nadaj repozytorium rolę **Admin** (retencja nightly usuwa wersje,
   [Retencja nightly](#retencja-nightly)).
-  Runnery `ubuntu-24.04-arm`, `macos-15`, `windows-2025` muszą być dostępne.
+  Runnery `ubuntu-24.04-arm`, `macos-15`, `macos-26` i `windows-2025` muszą być dostępne.
 - Pages: w *Settings → Pages* ustaw źródło **GitHub Actions** (workflow `pages.yml`).
 - GitHub „immutable releases” pozostaw wyłączone ze względu na retencję nightly, która usuwa
   stare wydania i zachowuje tagi. Upload kończy się przed publikacją; ponowienia nie zmieniają

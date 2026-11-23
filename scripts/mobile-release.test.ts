@@ -155,12 +155,15 @@ test("the first release on a channel without a delivered build builds iOS", () =
   expect(result.version()).toEqual({ version: "0.2.0-beta.1" });
 });
 
-test("a launcher-only change builds the new iOS runtime even after a failed build", () => {
-  const result = fixture({ changedFile: "apps/web/static/channels/beta/expo-icon.png" }).run();
-  expect(result.code).toBe(0);
-  expect(result.output).toContain("build=true");
-  expect(result.output).not.toContain("ota=true");
-});
+test.each(["apps/web/static/channels/beta/expo-icon.png", "design/brand/apple/canopy-beta.icon/Assets/beta.svg"])(
+  "a launcher-only change in %s builds the new iOS runtime after a failed build",
+  (changedFile) => {
+    const result = fixture({ changedFile }).run();
+    expect(result.code).toBe(0);
+    expect(result.output).toContain("build=true");
+    expect(result.output).not.toContain("ota=true");
+  },
+);
 
 test("an iOS native change still delivers OTA to a compatible Android APK", () => {
   const result = fixture({ android: true }).run();

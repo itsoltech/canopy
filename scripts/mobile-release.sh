@@ -37,6 +37,7 @@ if [ -n "$last" ] && git cat-file -e "$last^{commit}" 2>/dev/null; then
     . ../../packages/contracts ../../packages/domain ../../packages/syntax ../../packages/ui ../../package.json ../../bun.lock \
     '../web/static/channels/*/icon-256.png' "../web/static/channels/$CHANNEL/expo-icon.png" \
     "../web/static/channels/$CHANNEL/adaptive-*.png" "../web/static/channels/$CHANNEL/splash.png" \
+    "../../design/brand/apple/canopy-$CHANNEL.icon" \
     ../../licenses \
     ../../scripts/mobile-release.sh ../../scripts/mobile-publish-update.sh ../../scripts/mobile-version.sh \
     ../../scripts/open-source-licenses.ts ../../.github/workflows/mobile-testflight.yml; then

@@ -34,6 +34,10 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
   extra: { ...config.extra, canopyVersion: release.version, canopyChannel: identity.channel },
   ios: {
     ...config.ios,
+    icon:
+      identity.channel === "development"
+        ? config.ios?.icon
+        : `../../design/brand/apple/canopy-${identity.channel}.icon`,
     entitlements: {
       ...config.ios?.entitlements,
       "com.apple.developer.devicecheck.appattest-environment": appAttestEnvironment,
