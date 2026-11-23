@@ -6,7 +6,7 @@ import { authorizeOAuth, oauthProvider } from "./oauth.ts";
 import { OAuthStartFailure } from "./oauth-error.ts";
 import type { AccountRow, Credentials, RegisteredApp } from "./records.ts";
 
-import { oauthEgress } from "./oauth-egress.ts";
+import { OAuthEndpointRedirect, oauthEgress } from "./oauth-egress.ts";
 
 /** Only explicit sign-in discovers a new redirect or replaces a dynamic registration. */
 export async function beginOAuth(
@@ -19,18 +19,21 @@ export async function beginOAuth(
 ) {
   const egress = oauthEgress(account.url, app?.issuer);
   let discoveryStatus = 0;
+  let discovery: Awaited<ReturnType<typeof discoverOAuthServerInfo>>;
 
-  const discovery = await discoverOAuthServerInfo(account.url, {
-    fetchFn: async (input, init) => {
-      discoveryStatus = 0;
-      const response = await egress.fetch(input, init);
-      discoveryStatus = response.status;
+  try {
+    discovery = await discoverOAuthServerInfo(account.url, {
+      fetchFn: async (input, init) => {
+        discoveryStatus = 0;
+        const response = await egress.fetch(input, init);
+        discoveryStatus = response.status;
 
-      return response;
-    },
-  }).catch(() => {
-    throw new OAuthStartFailure("discovery", discoveryStatus);
-  });
+        return response;
+      },
+    });
+  } catch (error) {
+    throw new OAuthStartFailure("discovery", error instanceof OAuthEndpointRedirect ? error.status : discoveryStatus);
+  }
 
   const s256 = discovery.authorizationServerMetadata?.code_challenge_methods_supported?.includes("S256");
   // Manually registered apps keep the callback they were saved with, including older installation callbacks.
@@ -50,31 +53,43 @@ export async function beginOAuth(
   const nonce = randomBytes(32).toString("base64url");
   const state = redirectUri === callback ? nonce : returnState(nonce, desktop ? { desktop: true } : { callback });
 
-  // Apply the same issuer validation as token exchange before registration or authorization.
-  await oauthProvider(value, state, () => {}).saveDiscoveryState?.(discovery);
+  try {
+    // Apply the same issuer validation as token exchange before registration or authorization.
+    await oauthProvider(value, state, () => {}).saveDiscoveryState?.(discovery);
+  } catch {
+    throw new OAuthStartFailure("discovery", discoveryStatus);
+  }
+
+  const metadata = discovery.authorizationServerMetadata;
+  const missingRegistration = metadata && !metadata.registration_endpoint;
   let registrationStatus: number | undefined;
 
-  const authorizationUrl = await authorizeOAuth(
-    account,
-    {
-      ...egress,
-      fetch: async (input, init) => {
-        if (init?.method !== "POST") return egress.fetch(input, init);
-        registrationStatus = 0;
-        const response = await egress.fetch(input, init);
-        registrationStatus = response.status;
+  try {
+    const authorizationUrl = await authorizeOAuth(
+      account,
+      {
+        ...egress,
+        fetch: async (input, init) => {
+          if (init?.method !== "POST") return egress.fetch(input, init);
+          registrationStatus = 0;
+          const response = await egress.fetch(input, init);
+          registrationStatus = response.status;
 
-        return response;
+          return response;
+        },
       },
-    },
-    value,
-    state,
-    scope,
-  ).catch(() => {
-    if (registrationStatus !== undefined && !value.client)
-      throw new OAuthStartFailure("registration", registrationStatus);
-    throw new OAuthStartFailure("authorization");
-  });
+      value,
+      state,
+      scope,
+    );
 
-  return { authorizationUrl, value, state };
+    return { authorizationUrl, value, state };
+  } catch (error) {
+    if (!value.client && (registrationStatus !== undefined || missingRegistration))
+      throw new OAuthStartFailure(
+        "registration",
+        error instanceof OAuthEndpointRedirect ? error.status : registrationStatus,
+      );
+    throw new OAuthStartFailure("authorization");
+  }
 }

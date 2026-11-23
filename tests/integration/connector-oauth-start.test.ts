@@ -7,45 +7,55 @@ import { tempDir } from "@canopy/testing";
 import { startTestGateway } from "./support/gateway.ts";
 
 const root = tempDir("canopy-connector-oauth-start-");
+const privateMarker = "fixture-provider-rejected-private-registration";
+
+const failures = [
+  { name: "discovery", stage: "discovery", status: 503 },
+  { name: "issuer", stage: "discovery", status: 200 },
+  { name: "unavailable", stage: "registration", status: 0 },
+  { name: "registration", stage: "registration", status: 422 },
+  { name: "redirect", stage: "registration", status: 307 },
+] as const;
+
+function failedProvider(scenario: () => (typeof failures)[number]["name"]) {
+  return Bun.serve({
+    hostname: "127.0.0.1",
+    port: 0,
+    fetch: (request) => {
+      const { origin, pathname } = new URL(request.url);
+      const failure = scenario();
+
+      switch (pathname) {
+        case "/.well-known/oauth-protected-resource/mcp":
+          return Response.json({ resource: `${origin}/mcp`, authorization_servers: [origin] });
+        case "/.well-known/oauth-authorization-server":
+          if (failure === "discovery") return new Response(privateMarker, { status: 503 });
+
+          return Response.json({
+            issuer: failure === "issuer" ? `${origin}/unexpected-issuer` : origin,
+            authorization_endpoint: `${origin}/authorize`,
+            token_endpoint: `${origin}/token`,
+            ...(failure !== "unavailable" && { registration_endpoint: `${origin}/register` }),
+            response_types_supported: ["code"],
+            code_challenge_methods_supported: ["S256"],
+          });
+        case "/register":
+          if (failure === "redirect") return Response.redirect(`${origin}/register-next`, 307);
+
+          return Response.json({ error: "invalid_client_metadata", error_description: privateMarker }, { status: 422 });
+        default:
+          return new Response(null, { status: 404 });
+      }
+    },
+  });
+}
 
 test.skipIf(!dockerAvailable)(
   "failed OAuth starts export the stage and registration status without provider data",
   async () => {
     const logs = new Logs(join(root, "logs"));
-    const privateMarker = "fixture-provider-rejected-private-registration";
-    let failDiscovery = true;
-
-    const provider = Bun.serve({
-      hostname: "127.0.0.1",
-      port: 0,
-      fetch: (request) => {
-        const { origin, pathname } = new URL(request.url);
-
-        switch (pathname) {
-          case "/.well-known/oauth-protected-resource/mcp":
-            return Response.json({ resource: `${origin}/mcp`, authorization_servers: [origin] });
-          case "/.well-known/oauth-authorization-server":
-            return failDiscovery
-              ? new Response(privateMarker, { status: 503 })
-              : Response.json({
-                  issuer: origin,
-                  authorization_endpoint: `${origin}/authorize`,
-                  token_endpoint: `${origin}/token`,
-                  registration_endpoint: `${origin}/register`,
-                  response_types_supported: ["code"],
-                  code_challenge_methods_supported: ["S256"],
-                });
-          case "/register":
-            return Response.json(
-              { error: "invalid_client_metadata", error_description: privateMarker },
-              { status: 422 },
-            );
-          default:
-            return new Response(null, { status: 404 });
-        }
-      },
-    });
-
+    let scenario: (typeof failures)[number]["name"] = "discovery";
+    const provider = failedProvider(() => scenario);
     let gateway: Awaited<ReturnType<typeof startTestGateway>> | undefined;
 
     try {
@@ -65,8 +75,8 @@ test.skipIf(!dockerAvailable)(
         desktop: true,
       };
 
-      for (const fails of [true, false]) {
-        failDiscovery = fails;
+      for (const failure of failures) {
+        scenario = failure.name;
 
         const error = await gateway.api.beginConnectorOAuth(request, { timeoutMs: 5_000 }).then(
           () => undefined,
@@ -99,8 +109,8 @@ test.skipIf(!dockerAvailable)(
       for await (const chunk of verifiedLogChunks(chunks(), "gateway", () => omitted++)) verified.push(chunk);
       expect(omitted).toBe(0);
       expect(Buffer.concat(verified).toString()).toBe(contents);
-      expect(contents).toContain('"stage":"discovery","status":503');
-      expect(contents).toContain('"stage":"registration","status":422');
+
+      for (const { stage, status } of failures) expect(contents).toContain(`"stage":"${stage}","status":${status}`);
       expect(contents).not.toContain(privateMarker);
       expect(contents).not.toContain(provider.url.origin);
     } finally {
