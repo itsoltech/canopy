@@ -1,19 +1,14 @@
-import { useEffect, useMemo, useRef, useState } from "react";
-import { Pressable, Text } from "react-native";
-import Animated from "react-native-reanimated";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { ui } from "@canopy/contracts";
-import { palette } from "@canopy/ui";
 import { router, useGlobalSearchParams } from "expo-router";
 import { useOverview } from "../../state/overview";
 import { useDevicePreferences } from "../settings/device-preferences";
-import { font, styles, useColors } from "../../ui/theme";
-import { usePaneInsets } from "../../ui/ScreenFrame";
-import { useMotion } from "../../ui/motion";
 import { needsYou } from "@canopy/domain/thread-activity";
 import { sidebarChildren } from "@canopy/domain/sidebar-threads";
 import { isThreadSnoozed } from "@canopy/domain/thread-snooze";
 import { useAppearance } from "../../state/appearance";
 import { useSession } from "../../state/session";
+import { InAppAlertBanner } from "./InAppAlertBanner";
 import { useBotAlerts, type InAppAlert } from "./useBotAlerts";
 
 type NoticeRevision = { revision: string; snoozed: boolean };
@@ -33,11 +28,14 @@ export function InAppAlerts() {
   const { id } = useGlobalSearchParams<{ id?: string }>();
   const previous = useRef<Map<string, NoticeRevision> | null>(null);
   const byId = useMemo(() => new Map(threads.map((thread) => [thread.id, thread])), [threads]);
-  const [alert, setAlert] = useState<InAppAlert>();
-  useBotAlerts(id, (threadId) => threadSnoozed(byId, threadId), setAlert);
-  const c = useColors();
-  const insets = usePaneInsets();
-  const { banner } = useMotion();
+  const sequence = useRef(0);
+  const [alert, setAlert] = useState<(InAppAlert & { sequence: number }) | undefined>();
+
+  const showAlert = useCallback((notice: InAppAlert) => {
+    setAlert({ ...notice, sequence: ++sequence.current });
+  }, []);
+
+  useBotAlerts(id, (threadId) => threadSnoozed(byId, threadId), showAlert);
 
   useEffect(() => {
     if (!loaded || !active || !threadsEnabled) {
@@ -83,16 +81,16 @@ export function InAppAlerts() {
     previous.current = current;
 
     if (changed && values.inAppNotifications === "on")
-      setAlert({
+      showAlert({
         id: changed.thread.id,
         kind: "thread",
         title: changed.thread.title || "Untitled thread",
         status: changed.status,
       });
-  }, [threads, byId, loaded, id, active, values.inAppNotifications, threadsEnabled]);
+  }, [threads, byId, loaded, id, active, values.inAppNotifications, threadsEnabled, showAlert]);
   useEffect(() => {
     if (!alert) return;
-    const timer = setTimeout(() => setAlert(undefined), 6000);
+    const timer = setTimeout(() => setAlert((current) => (current === alert ? undefined : current)), 6000);
 
     return () => clearTimeout(timer);
   }, [alert]);
@@ -108,58 +106,19 @@ export function InAppAlerts() {
 
   if (!alert || values.inAppNotifications !== "on") return null;
 
-  // Web: Toaster. A dark pill under the top edge: what happened and one action. It comes down and leaves the same
-  // way; a newer alert replaces it (web `t-toast`, from the top edge).
+  function dismiss() {
+    setAlert((current) => (current === alert ? undefined : current));
+  }
+
   return (
-    <Animated.View
-      key={`${alert.id}:${alert.status}`}
-      entering={banner.entering}
-      exiting={banner.exiting}
-      pointerEvents="box-none"
-      style={{
-        position: "absolute",
-        top: insets.top + 12,
-        left: insets.left + 16,
-        right: insets.right + 16,
-        alignItems: "center",
+    <InAppAlertBanner
+      key={alert.sequence}
+      alert={alert}
+      onDismiss={dismiss}
+      onOpen={() => {
+        router.push({ pathname: alert.kind === "bot" ? "/bot/[id]" : "/thread/[id]", params: { id: alert.id } });
+        dismiss();
       }}
-    >
-      <Pressable
-        accessibilityRole="button"
-        accessibilityLiveRegion="polite"
-        accessibilityLabel={`${alert.title}, ${alert.status}. ${alert.kind === "bot" ? "Open chat" : "Open thread"}`}
-        onPress={() => {
-          router.push({ pathname: alert.kind === "bot" ? "/bot/[id]" : "/thread/[id]", params: { id: alert.id } });
-          setAlert(undefined);
-        }}
-        style={({ pressed }) => [
-          styles.row,
-          {
-            maxWidth: 480,
-            minHeight: 44,
-            paddingLeft: 14,
-            paddingRight: 8,
-            paddingVertical: 6,
-            borderRadius: 22,
-            backgroundColor: c.dark ? palette.zinc[800] : palette.zinc[950],
-            borderWidth: c.dark ? 1 : 0,
-            borderColor: "#ffffff1a",
-            shadowColor: "#000000",
-            shadowOpacity: c.dark ? 0 : 0.18,
-            shadowRadius: 12,
-            shadowOffset: { width: 0, height: 4 },
-            elevation: 8,
-            opacity: pressed ? 0.9 : 1,
-          },
-        ]}
-      >
-        <Text numberOfLines={1} style={[styles.meta, { flexShrink: 1, fontFamily: font.medium, color: "#ffffff" }]}>
-          {alert.title} · {alert.status}
-        </Text>
-        <Text style={[styles.meta, { fontFamily: font.semibold, color: c.brandOnInk, paddingHorizontal: 6 }]}>
-          Open
-        </Text>
-      </Pressable>
-    </Animated.View>
+    />
   );
 }
