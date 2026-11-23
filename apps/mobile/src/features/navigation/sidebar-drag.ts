@@ -5,7 +5,6 @@ import {
   measure,
   scrollTo,
   useAnimatedRef,
-  useAnimatedScrollHandler,
   useFrameCallback,
   useSharedValue,
   type FrameInfo,
@@ -49,6 +48,8 @@ export function useSidebarDrag(
   grouped: boolean,
   enabled: boolean,
   order: ReturnType<typeof useSidebarOrder>,
+  offset: SharedValue<number>,
+  listTop: SharedValue<number>,
 ) {
   const list = useAnimatedRef<FlatList<SidebarListEntry>>();
   const frame = useAnimatedRef<Animated.View>();
@@ -61,7 +62,6 @@ export function useSidebarDrag(
   const horizontal = useSharedValue({ left: 0, right: 0 });
   const insideX = useSharedValue(true);
   const grab = useSharedValue(0);
-  const offset = useSharedValue(0);
   const top = useSharedValue(0);
   const height = useSharedValue(0);
   const content = useSharedValue(0);
@@ -77,30 +77,25 @@ export function useSidebarDrag(
     if (!enabled || !appActive) active.set("");
   }, [enabled, appActive, active]);
 
-  const scroll = useAnimatedScrollHandler((event) => offset.set(event.contentOffset.y));
-
   const setLoopActive = useDragLoop(enabled && appActive, active, (time) => {
     "worklet";
 
     if (!active.get()) return;
     const y = pointer.get();
     const extent = height.get();
-    const inside = insideX.get() && y >= 0 && y <= extent;
-    pin.set(inside && y < 48);
+    const first = listTop.get();
+    const inside = insideX.get() && y >= first && y <= extent;
+    pin.set(inside && y < first + 48);
     target.set(
       inside
         ? dropAt(boxes.get(), rows.get(), active.get(), y + offset.get(), grouped)
         : { id: "", before: true, line: -1 },
     );
-    const edge = !inside ? 0 : y < 48 ? -1 : y > extent - 48 ? 1 : 0;
+    const edge = !inside ? 0 : y < first + 48 ? -1 : y > extent - 48 ? 1 : 0;
 
-    const next = Math.max(
-      0,
-      Math.min(
-        Math.max(0, content.get() - extent),
-        offset.get() + edge * Math.min(32, time.timeSincePreviousFrame ?? 16) * 0.48,
-      ),
-    );
+    const maxOffset = Math.max(0, content.get() - extent);
+    const delta = edge * Math.min(32, time.timeSincePreviousFrame ?? 16) * 0.48;
+    const next = Math.max(0, Math.min(maxOffset, offset.get() + delta));
 
     if (edge && next !== offset.get()) scrollTo(list, 0, next, false);
   });
@@ -129,7 +124,7 @@ export function useSidebarDrag(
       const box = boxes.get()[id];
       const pickupHeight = pickups.get()[id] ?? 0;
 
-      if (!rows.get()[id]?.local || !box || y + offset.get() - box.top >= pickupHeight) {
+      if (y < listTop.get() || !rows.get()[id]?.local || !box || y + offset.get() - box.top >= pickupHeight) {
         GestureStateManager.fail(event.handlerTag);
 
         return;
@@ -156,9 +151,10 @@ export function useSidebarDrag(
       "worklet";
       const id = active.get();
       const y = event.absoluteY - top.get();
-      const inside = withinWidth(horizontal.get(), event.absoluteX) && y >= 0 && y <= height.get();
+      const first = listTop.get();
+      const inside = withinWidth(horizontal.get(), event.absoluteX) && y >= first && y <= height.get();
       const end = dropAt(boxes.get(), rows.get(), id, y + offset.get(), grouped);
-      const willPin = inside && y < 48;
+      const willPin = inside && y < first + 48;
 
       if (!event.canceled && inside && id && (willPin || end.id)) scheduleOnRN(drop, id, end.id, end.before, willPin);
     },
@@ -172,11 +168,11 @@ export function useSidebarDrag(
   });
 
   const context = useMemo(
-    () => ({ boxes, pickups, rows, active, pointer, grab, offset, height, content, pin, target, move: order.move }),
-    [boxes, pickups, rows, active, pointer, grab, offset, height, content, pin, target, order.move],
+    () => ({ boxes, pickups, active, pointer, grab, offset, listTop, pin, target, move: order.move }),
+    [boxes, pickups, active, pointer, grab, offset, listTop, pin, target, order.move],
   );
 
-  return { list, frame, scroll, gesture, context };
+  return { list, frame, gesture, content, context };
 }
 
 export type SidebarDrag = ReturnType<typeof useSidebarDrag>["context"];

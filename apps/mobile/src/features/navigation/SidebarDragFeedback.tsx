@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { AccessibilityInfo, Text, View } from "react-native";
+import { AccessibilityInfo, Text } from "react-native";
 import type { CellRendererProps } from "@react-native/virtualized-lists";
 import Animated, { useAnimatedReaction, useAnimatedStyle } from "react-native-reanimated";
 import { scheduleOnRN } from "react-native-worklets";
@@ -82,9 +82,13 @@ export function SidebarDragFeedback({ entries }: { entries: readonly SidebarEntr
     },
   );
 
+  const clip = useAnimatedStyle(() => ({ top: drag?.listTop.get() ?? 0 }));
+
   const ghost = useAnimatedStyle(() => ({
     opacity: drag?.active.get() ? 1 : 0,
-    transform: [{ translateY: (drag?.pointer.get() ?? 0) - Math.min(40, drag?.grab.get() ?? 0) }],
+    transform: [
+      { translateY: (drag?.pointer.get() ?? 0) - (drag?.listTop.get() ?? 0) - Math.min(40, drag?.grab.get() ?? 0) },
+    ],
   }));
 
   const zone = useAnimatedStyle(() => ({
@@ -97,15 +101,17 @@ export function SidebarDragFeedback({ entries }: { entries: readonly SidebarEntr
 
   const line = useAnimatedStyle(() => ({
     opacity: drag?.active.get() && !drag.pin.get() && drag.target.get().line >= 0 ? 1 : 0,
-    transform: [{ translateY: (drag?.target.get().line ?? 0) - (drag?.offset.get() ?? 0) }],
+    transform: [
+      { translateY: (drag?.target.get().line ?? 0) - (drag?.offset.get() ?? 0) - (drag?.listTop.get() ?? 0) },
+    ],
   }));
 
   return (
-    <View
+    <Animated.View
       pointerEvents="none"
       accessibilityElementsHidden
       importantForAccessibility="no-hide-descendants"
-      style={{ position: "absolute", inset: 0, overflow: "hidden" }}
+      style={[{ position: "absolute", left: 0, right: 0, bottom: 0, overflow: "hidden" }, clip]}
     >
       <Animated.View
         style={[
@@ -159,6 +165,6 @@ export function SidebarDragFeedback({ entries }: { entries: readonly SidebarEntr
           line,
         ]}
       />
-    </View>
+    </Animated.View>
   );
 }
