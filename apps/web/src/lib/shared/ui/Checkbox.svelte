@@ -14,6 +14,7 @@
     label,
     description,
     checked = $bindable(false),
+    indeterminate = false,
     disabled = false,
     value = "on",
     class: className,
@@ -23,6 +24,7 @@
     label: string;
     description?: string | undefined;
     checked?: boolean;
+    indeterminate?: boolean;
     disabled?: boolean;
     value?: string;
     class?: ClassValue;
@@ -47,6 +49,7 @@
       {name}
       {value}
       {disabled}
+      {indeterminate}
       bind:checked
       aria-describedby={description ? `${id}-description` : undefined}
     />

@@ -21,6 +21,8 @@
 
   let query = $state("");
   const missing = $derived(value.filter((id) => !projects.some((project) => project.id === id)));
+  const allSelected = $derived(projects.length > 0 && value.length === projects.length && !missing.length);
+  const rowClass = "min-h-7 items-center py-1 pointer-coarse:min-h-11";
 
   const choices = $derived(
     [...projects, ...missing.map((id) => ({ id, name: "Unavailable project" }))].filter((project) =>
@@ -28,7 +30,9 @@
     ),
   );
 
-  const label = $derived(value.length ? `${formatCount(value.length)} selected` : "Choose projects");
+  const label = $derived(
+    allSelected ? "All projects" : value.length ? `${formatCount(value.length)} selected` : "Choose projects",
+  );
 
   function choose(id: string, checked: boolean) {
     onchange(checked ? [...value, id] : value.filter((selected) => selected !== id));
@@ -59,18 +63,30 @@
     bind:value={query}
     data-autofocus
   />
-  <div class="mt-1 max-h-64 overflow-y-auto px-1" role="group" aria-label="Projects">
-    {#each choices as project (project.id)}
+  <div class="mt-1 flex max-h-64 flex-col" role="group" aria-label="Projects">
+    {#if projects.length}
       <Checkbox
-        name="habit-project"
-        value={project.id}
-        label={project.name}
+        name="habit-project-all"
+        label="All projects"
         {disabled}
-        bind:checked={() => value.includes(project.id), (checked) => choose(project.id, checked)}
-        class="min-h-7 items-center py-1 pointer-coarse:min-h-11"
+        indeterminate={value.length > 0 && !allSelected}
+        bind:checked={() => allSelected, (checked) => onchange(checked ? projects.map(({ id }) => id) : [])}
+        class={[rowClass, "shrink-0 px-1"]}
       />
-    {:else}
-      <p class="py-2 text-sm/5 text-muted">No projects found</p>
-    {/each}
+    {/if}
+    <div class="overflow-y-auto px-1">
+      {#each choices as project (project.id)}
+        <Checkbox
+          name="habit-project"
+          value={project.id}
+          label={project.name}
+          {disabled}
+          bind:checked={() => value.includes(project.id), (checked) => choose(project.id, checked)}
+          class={rowClass}
+        />
+      {:else}
+        <p class="py-2 text-sm/5 text-muted">No projects found</p>
+      {/each}
+    </div>
   </div>
 </Popover>
