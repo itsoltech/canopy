@@ -22,9 +22,9 @@
   <img
     src={`${appIdentity(channel).assets}/icon.svg`}
     alt=""
-    width="24"
-    height="24"
-    class="sidebar-logo-tile size-6 shrink-0"
+    width="32"
+    height="32"
+    class="sidebar-logo-tile size-8 shrink-0"
   />
   <div class="min-w-0">
     <div class="truncate leading-5">Canopy</div>

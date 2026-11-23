@@ -1,8 +1,9 @@
 # Canopy na iOS i Android
 
 Status: opis zaimplementowanego kodu (2026-11-23), w tym czterech wariantów ikony Canopy
-na ekranie głównym telefonu, podczas parowania i w nagłówku sidebara. Wydania iOS
-korzystają z tych samych projektów Icon Composer co macOS. Znak wodny
+na ekranie głównym telefonu, podczas parowania i w nagłówku sidebara. Kafelek
+w nagłówku ma bok 32 dp w każdym kanale. Wydania iOS korzystają z tych samych
+projektów Icon Composer co macOS. Znak wodny
 kanału zaczyna się poniżej górnego bezpiecznego marginesu i zanika przed listą
 wątków i botów. Dzienny ping użycia ma przełącznik
 prywatności i pomija wysyłkę offline. Settings → Appearance
@@ -1150,13 +1151,14 @@ wstrzymane kanały i rollouty; nie przepina ich automatycznie. **Nie mapuj `beta
 `nightly`**, nawet przy tym samym fingerprint. Development client służy do pracy z Metro,
 nie jest instalacją przypisaną do kanału wydania.
 
-Obok nazwy Canopy w nagłówku sidebara widnieje kafelek kanału o boku 24 dp.
+Obok nazwy Canopy w nagłówku sidebara widnieje kafelek kanału o boku 32 dp,
+dopasowany do widocznej wysokości nazwy i podpisu w domyślnej skali tekstu.
 Ekran parowania używa tego samego kafelka w rozmiarze 72 dp. **Stable** ma
 ciemnozielone drzewo na szałwiowym tle, **Beta** kasztanowe drzewo i dwa liście
 na bursztynowym tle, **Nightly** lawendowe drzewo z księżycem i gwiazdami na
 ciemnym fiolecie, a **Dev** jasny obrys drzewa na niebieskiej siatce. W nagłówku
 pod nazwą Canopy widnieje odpowiednio etykieta Beta, Nightly lub Dev. Stable
-pokazuje samą nazwę.
+pokazuje samą nazwę wyśrodkowaną obok kafelka o tym samym rozmiarze.
 
 Znak wodny jest wyrównany do prawej krawędzi nagłówka, za nazwą Canopy,
 przełącznikiem Threads/Bots i polem wyszukiwania. Rysunek stopniowo zanika,

@@ -14,7 +14,7 @@ export function SidebarBrand() {
 
   return (
     <View style={[styles.row, brand.title]}>
-      <AppIcon size={24} />
+      <AppIcon size={32} />
       <View style={brand.title}>
         <Text numberOfLines={1} style={[styles.label, { color: c.text }]}>
           Canopy

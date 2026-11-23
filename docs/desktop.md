@@ -2,7 +2,8 @@
 
 Status: opis zaimplementowanego runtime i pakowania (2026-11-23). Ekran startu,
 okna, zasobnik i instalatory używają osobnych ikon dla Stable, Beta,
-Nightly i lokalnego Dev. Opis obejmuje też dzienny ping użycia z przełącznikiem
+Nightly i lokalnego Dev. Ikona w nagłówku sidebara ma bok 32 px przy domyślnej
+skali w każdym kanale. Opis obejmuje też dzienny ping użycia z przełącznikiem
 prywatności i pomijaniem wysyłki offline. Aktualizator używa
 `electron-updater` 6.8.11. Build i ustawienia
 udostępniają licencje dołączonych komponentów. Powłoka ładowania
@@ -879,7 +880,8 @@ Nazwa pliku ICNS zależy od zawartości projektu, aby po aktualizacji Finder mó
 Spakowany Dev korzysta z własnego ICNS w Finderze. Electron ustawia ikonę Docka z PNG
 w Dev i przy uruchomieniu ze źródeł.
 Ekran startu otrzymuje ścieżkę ikony powłoki przez preload. Sidebar oznacza
-wersję uruchomionego web buildu. Sekcja App updates pokazuje wersję i kanał
+wersję uruchomionego web buildu i używa tej samej skali nagłówka co [web](ui-api.md).
+Sekcja App updates pokazuje wersję i kanał
 aktualizacji samego Electrona także w trybie Remote, gdy gateway ma inną wersję.
 Nowa ikona pojawia się po instalacji wybranego wydania. Aktualizator obsługuje
 Stable, Beta i Nightly; dla lokalnego Dev domyślnym wyborem jest Stable.
