@@ -27,6 +27,7 @@
 
   const overview = useOverview();
   const noProject = $derived(overview.project(thread.projectId)?.kind === "scratch");
+
   const accounts = $derived(
     panel.data?.connectors.filter((account) => account.granted || account.sessionAttached) ?? [],
   );

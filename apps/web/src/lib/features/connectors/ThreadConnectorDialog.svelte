@@ -29,6 +29,7 @@
   const hasProject = $derived(!!thread.projectId && project?.kind !== "scratch" && !project?.archivedAt);
   const accounts = $derived(panel.data?.connectors.filter((account) => account.revision > 0n) ?? []);
   const hasLegacyGrants = $derived(accounts.some((account) => account.allProjects === undefined));
+
   const description = $derived(
     project?.kind === "scratch" && !hasLegacyGrants
       ? "Connectors are unavailable in No project."
@@ -36,6 +37,7 @@
         ? "Changes apply to every thread in this project."
         : "This thread has no active project.",
   );
+
   let pending = $state<{ accountId: string; granted: boolean }>();
   let error = $state("");
 
