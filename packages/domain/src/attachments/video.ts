@@ -5,12 +5,12 @@ function word(data: Uint8Array, offset: number, length: number) {
   return String.fromCharCode(...data.subarray(offset, offset + length));
 }
 
-export function videoType(data: Uint8Array): string | undefined {
+export function videoType(data: Uint8Array, fileSize = data.length): string | undefined {
   if (data.length >= 16 && word(data, 4, 4) === "ftyp") {
     const size = new DataView(data.buffer, data.byteOffset, data.byteLength).getUint32(0);
     const brand = word(data, 8, 4);
 
-    if (size >= 16 && size <= data.length && videoBrands.has(brand))
+    if (size >= 16 && size <= fileSize && videoBrands.has(brand))
       return brand === "qt  " ? "video/quicktime" : "video/mp4";
   }
 

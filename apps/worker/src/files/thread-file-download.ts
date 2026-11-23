@@ -8,7 +8,6 @@ import type { MessageInitShape } from "@bufbuild/protobuf";
 import { CommandError } from "../runtime/host-types.ts";
 
 const FLAGS = constants.O_RDONLY | (constants.O_NOFOLLOW ?? 0) | (constants.O_NONBLOCK ?? 0);
-const CHUNK_BYTES = BigInt(THREAD_FILE_DOWNLOAD_CHUNK_BYTES);
 const MAX_POSITION = BigInt(Number.MAX_SAFE_INTEGER);
 
 function revision(path: string, rootIdentity: string, stat: BigIntStats): string {
@@ -29,7 +28,7 @@ const changed = () => new CommandError("FILE_CHANGED", "The file changed on disk
 export async function readThreadFileChunk(
   path: string,
   rootIdentity: string,
-  { offset, expectedRevision }: FileDownloadRange,
+  { offset, expectedRevision, maxBytes }: FileDownloadRange,
 ): Promise<MessageInitShape<typeof FileContentSchema>> {
   if (!isAbsolute(path) || offset > MAX_POSITION)
     throw new CommandError("FILE_RANGE_INVALID", "Could not read this part of the file. Download it again.", true);
@@ -59,10 +58,11 @@ export async function readThreadFileChunk(
         );
 
       if (offset > 0n && offset >= stat.size) throw changed();
-      const remaining = stat.size - offset;
-      const length = Number(remaining < CHUNK_BYTES ? remaining : CHUNK_BYTES);
+      const remaining = Number(stat.size - offset);
+      const limit = Math.min(maxBytes || THREAD_FILE_DOWNLOAD_CHUNK_BYTES, THREAD_FILE_DOWNLOAD_CHUNK_BYTES);
+      const length = Math.min(remaining, limit);
       // Some regular files (for example in procfs) report a size that differs from their actual byte count.
-      const buffer = new Uint8Array(length + Number(remaining <= CHUNK_BYTES));
+      const buffer = new Uint8Array(length + Number(length === remaining));
       let read = 0;
 
       while (read < buffer.length) {

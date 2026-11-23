@@ -228,15 +228,39 @@ describe.skipIf(!dockerAvailable)("thread file previews through a real home work
 
     for (const [name, bytes, mimeType] of [
       ["remote.png", image, "image/png"],
-      ["remote.bin", binary, "application/octet-stream"],
+      ["remote.mp4", binary, "application/octet-stream"],
       ["remote.pdf", pdf, "application/pdf"],
     ] as const) {
       put(`assets/${name}`, bytes);
-      const file = await caller.api.readThreadFile({ threadId: q(), path: name });
+      const file = await caller.api.readThreadFile({ threadId: q(), path: name, omitVideoContent: true });
       expect(file).toMatchObject({ binary: true, truncated: false, mimeType });
       expect(file.content).toEqual(new Uint8Array(bytes));
       expect(file.sha256).toHaveLength(64);
     }
+  });
+
+  test("a linked video preview can omit its bytes while preserving metadata and the complete file hash", async () => {
+    const header = Buffer.from("000000106674797069736f6d00000000", "hex");
+    const path = put("public/recording.data", header);
+    const target = { threadId: q(), path };
+    const full = await caller.api.readThreadFile(target);
+    expect(full.content).toEqual(new Uint8Array(header));
+    expect(full).toMatchObject({
+      mimeType: "video/mp4",
+      truncated: false,
+      sha256: createHash("sha256").update(header).digest("hex"),
+    });
+    expect(await caller.api.readThreadFile({ ...target, omitVideoContent: true })).toEqual({
+      ...full,
+      content: new Uint8Array(),
+    });
+
+    const large = Buffer.alloc(LIMIT + 1);
+    large.set(header);
+    writeFileSync(path, large);
+    const preview = await caller.api.readThreadFile({ ...target, omitVideoContent: true });
+    expect(preview).toMatchObject({ mimeType: "video/mp4", size: BigInt(large.length), truncated: true, sha256: "" });
+    expect(preview.content).toHaveLength(0);
   });
 
   test("a linked download resolves a same-turn hint and carries the exact binary beyond the preview limit", async () => {
@@ -260,7 +284,11 @@ describe.skipIf(!dockerAvailable)("thread file previews through a real home work
       const chunk = await caller.api.readThreadFile({
         threadId: q(),
         path: first.path,
-        downloadRange: { offset: BigInt(offset), expectedRevision: revision },
+        downloadRange: {
+          offset: BigInt(offset),
+          expectedRevision: revision,
+          maxBytes: 2 * THREAD_FILE_DOWNLOAD_CHUNK_BYTES,
+        },
       });
 
       expect(chunk).toMatchObject({ path, size: first.size, downloadChunk: { offset: BigInt(offset), revision } });
@@ -268,6 +296,29 @@ describe.skipIf(!dockerAvailable)("thread file previews through a real home work
     }
 
     expect(Buffer.concat(parts).equals(bytes)).toBe(true);
+  });
+
+  test("a linked range can probe the header, seek, and read fewer bytes at EOF", async () => {
+    const bytes = Buffer.from("0123456789abcdefghijklmnopqrstuvwxyz");
+    const path = put("assets/probe.data", bytes);
+    const target = { threadId: q(), path };
+    const probe = await caller.api.readThreadFile({ ...target, downloadRange: { maxBytes: 2 } });
+    expect(probe).toMatchObject({ path, size: BigInt(bytes.length), downloadChunk: { offset: 0n } });
+    expect(Buffer.from(probe.content).toString()).toBe("01");
+    const revision = probe.downloadChunk!.revision;
+
+    for (const [offset, expected] of [
+      [10, "abc"],
+      [34, "yz"],
+    ] as const) {
+      const part = await caller.api.readThreadFile({
+        ...target,
+        downloadRange: { offset: BigInt(offset), expectedRevision: revision, maxBytes: 3 },
+      });
+
+      expect(part.downloadChunk).toMatchObject({ offset: BigInt(offset), revision });
+      expect(Buffer.from(part.content).toString()).toBe(expected);
+    }
   });
 
   test("a download refuses a changed file of the same size and validates a zero-byte file", async () => {

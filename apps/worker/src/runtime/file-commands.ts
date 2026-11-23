@@ -74,7 +74,7 @@ export async function runFileCommand(ctx: HostContext, kind: FileCommand): Promi
     case "readFile":
       return {
         file: await fileImageMetadata({
-          ...readThreadFile(path, target.maxBytes, target.includeBinary),
+          ...readThreadFile(path, target.maxBytes, target),
           ...resolution,
           rootIdentity,
         }),

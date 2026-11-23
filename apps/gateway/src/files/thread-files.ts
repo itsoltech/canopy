@@ -114,6 +114,7 @@ export class ThreadFiles {
         ...target.request,
         ...(target.preview && { path: request.path, workspace: target.cwd, preferredPaths, includeBinary: true }),
         ...(download && { downloadRange: download }),
+        omitVideoContent: request.omitVideoContent,
         expectedSha256: request.expectedSha256,
       },
     });

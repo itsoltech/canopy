@@ -1,4 +1,4 @@
-import type { Transport } from "@connectrpc/connect";
+import { Code, ConnectError, type Transport } from "@connectrpc/connect";
 import { gatewayFailure } from "./gateway-errors.ts";
 
 /** Descriptor names and elapsed time only: never log request metadata, payloads or transport causes. */
@@ -9,6 +9,8 @@ export function logGatewayFailures(transport: Transport): Transport {
     try {
       return await transport.unary(...args);
     } catch (cause) {
+      // Seeking or closing a video cancels the range the player no longer needs.
+      if (args[1]?.aborted && ConnectError.from(cause).code === Code.Canceled) throw cause;
       const failure = gatewayFailure(cause);
 
       if (failure.status >= 500 && args[0].name !== "MarkThreadSeen")

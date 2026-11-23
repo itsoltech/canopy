@@ -2232,12 +2232,16 @@ message FileRequest {
   string expected_root_identity = 9;
   // Capability thread_file_download_v1: surowe bajty zamiast podglądu.
   FileDownloadRange download_range = 10;
+  // Podgląd bez download_range: pomiń bajty rozpoznanego wideo także przy include_binary.
+  bool omit_video_content = 11;
 }
 
 message FileDownloadRange {
   uint64 offset = 1;
   // Pierwsza porcja ma offset 0 i pustą rewizję. Kolejne używają zwróconej ścieżki i rewizji.
   string expected_revision = 2;
+  // Górna granica liczby bajtów od offsetu. Domyślna (0) i maksymalna porcja to 1 MiB.
+  uint32 max_bytes = 3;
 }
 
 message FileDownloadChunk {

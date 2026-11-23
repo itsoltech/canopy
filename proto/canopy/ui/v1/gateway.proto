@@ -3285,6 +3285,8 @@ message ThreadFileRequest {
   string expected_root_identity = 5;
   // Tylko ReadThreadFile: surowy zakres oryginalnych bajtów do pobrania.
   canopy.worker.v1.FileDownloadRange download_range = 6;
+  // Podgląd bez download_range: zwróć metadane rozpoznanego wideo bez jego bajtów.
+  bool omit_video_content = 7;
 }
 
 message WriteThreadFileRequest {

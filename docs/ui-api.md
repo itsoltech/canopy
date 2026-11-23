@@ -1,5 +1,7 @@
 # API dla UI i architektura frontendu
 
+Status (2026-11-23): karta pliku w web i desktopie odtwarza wideo przez HTTP Range.
+
 Status (2026-11-23): `SetProjectColor` zapisuje kolor własnego projektu lub przywraca
 automatyczny wybór. Klienci odczytują zmiany koloru z overview.
 
@@ -3625,6 +3627,18 @@ i rewizji. Odpowiedź ma zadeklarowany pełny rozmiar, bezpieczną nazwę w
 `Cache-Control: private, no-store`. Wariant `check=1` sprawdza pierwszą porcję
 i zwraca JSON `{}`. Niejednoznaczne lub niepełne wyszukiwanie daje 409 z prośbą
 o pełną ścieżkę. Starszy dom lub worker bez obsługi pobierania wymaga aktualizacji.
+
+`GET /api/threads/:id/files/video?path=&itemId=` udostępnia wideo z tego samego
+odczytu właściciela. BFF rozpoznaje kontener MP4, MOV lub WebM w pierwszych 4 KiB
+i podaje go inline z `nosniff` oraz `private, no-store`. Karta pliku dodaje
+`omitVideoContent=1` do żądania podglądu JSON, aby odebrać same metadane filmu.
+Odtwarzacz dostaje bajty z endpointu wideo.
+Pojedynczy zakres bajtów (także otwarty lub końcowy) daje 206 i `Content-Range`,
+nieprawidłowy zakres daje 416, a `HEAD` zwraca nagłówki całego pliku.
+`ETag` identyfikuje rewizję. Jeśli `If-Range` wskazuje starszą rewizję, BFF
+zwraca pełny strumień z kodem 200. Przy przewijaniu BFF czyta bezpośrednio
+od żądanego offsetu i kończy na ostatnim bajcie zakresu.
+
 `Copy full path` oraz `Copy relative path` używają ścieżki z odczytu podglądu.
 Pełna ścieżka lub `~/…` może wskazywać plik spoza workspace; symlinki są rozwiązywane
 na workerze. Warunkiem jest prawo odczytu konta systemowego workera. Plik zewnętrzny
