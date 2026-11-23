@@ -89,8 +89,9 @@ function recordOwner(sql: SqlClient.SqlClient, owner: string, node: string) {
           kind: p.kind,
           archived: !!p.archived_at,
           origin,
-          // An explicit reset carries an empty string with its own clock.
-          ...(p.color !== null && { color: p.color }),
+          // A reset carries an empty string with its own clock, including when consolidation
+          // imports an automatic color over a previously synced override.
+          ...((p.color !== null || row.fields["color"]) && { color: p.color ?? "" }),
           [`originAmbiguous.${node}`]: ambiguous ? origin : null,
         },
         p.updated_at,
