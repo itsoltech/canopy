@@ -9,6 +9,7 @@ udostępniają licencje dołączonych komponentów. Powłoka ładowania
 korzysta z wyglądu tej instalacji także przy niedostępnym gatewayu.
 Ustawienia Desktopu i konfiguracja połączenia są dostępne także przed
 odebraniem pierwszego stanu z gatewaya.
+Na Windows i Linuksie otwarte Ustawienia pozwalają przeciągać okno za jego górny pasek.
 Na macOS Finder odczytuje nazwę aplikacji dla danego kanału z `InfoPlist.strings`.
 Finder i Dock renderują ikony Stable, Beta i Nightly z katalogu zasobów skompilowanego
 z projektów Icon Composer. Build Dev używa własnego ICNS z małymi reprezentacjami 1× i 2×.
@@ -1086,6 +1087,14 @@ schowanym sidebarze). Nowa warstwa nad paskami poza `dialog`/`[popover]`: `data-
 Toast i komunikat „Updated to …” w dolnym rogu nie zasłaniają pasków, więc nie
 dostają tego znacznika i nie wyłączają przeciągania okna
 ([notifications.md](notifications.md#toasty-w-aplikacji)).
+
+### Przeciąganie okna z otwartymi Ustawieniami na Windows i Linuksie
+
+Gdy Ustawienia są wierzchnim modalem, górny pasek po lewej od przycisków okna
+zachowuje obszar przeciągania. Działa też nagłówek samych Ustawień.
+Tło wraz z przyciskami okna pozostaje nieaktywne, a fokus zostaje w dialogu.
+Otwarcie kolejnego modalu, zwykłego popovera lub przejście na pełny ekran wyłącza
+dodatkowy obszar.
 
 ## Zamykanie i skrót Quit
 
