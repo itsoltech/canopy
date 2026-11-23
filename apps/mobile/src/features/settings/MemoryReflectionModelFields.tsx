@@ -1,137 +1,125 @@
-import type { ui } from "@canopy/contracts";
-import { useOverview } from "../../state/overview";
-import type { PickerOption } from "../../ui/Picker";
-import { effortLabel, profileValue, providerName } from "../models/catalog";
-import { SettingChoice, SettingsGroup } from "./SettingsGroup";
+import { useState } from "react";
+import type { Provider, ui } from "@canopy/contracts";
+import type { ReflectionModelChoice } from "@canopy/domain/reflection-models";
+import { SelectField } from "../../ui/Picker";
+import { ModelPickerSheet, EffortPickerSheet } from "../models/ModelPicker";
+import { providerName } from "../models/catalog";
+import { useEffortLabel } from "./display";
+import { SettingsGroup, SettingsRow } from "./SettingsGroup";
 
-type Model = ui.MemoryReflectionModel;
+type PickerChoice = ReflectionModelChoice & { key: string; name: string };
 
-type Settings = ui.MemoryReflectionSettings;
-
-type Profile = Pick<Model, "workerId" | "provider" | "profileId">;
-
-function profileKey(profile: Profile) {
-  return profile.workerId ? JSON.stringify([profile.workerId, profile.provider, profile.profileId]) : "";
+function modelKey({ provider, profileId, model }: ReflectionModelChoice) {
+  return JSON.stringify([provider, profileId, model]);
 }
 
-function profileLabel(profile: Profile, worker: ui.Worker | undefined, workerName: string) {
-  const instance = worker?.providerInstances.find(
-    (item) => item.harness === profile.provider && profileValue(item.id) === profileValue(profile.profileId),
-  );
+function profileLabel(provider: Provider, name: string) {
+  const label = providerName(provider);
 
-  const name = providerName(profile.provider);
-  const instanceName = instance?.label || profileValue(profile.profileId) || "Device login";
-
-  return [name === instanceName ? name : name + " · " + instanceName, worker?.name || workerName]
-    .filter(Boolean)
-    .join(" · ");
+  return label === name ? label : `${label} · ${name}`;
 }
 
-function availableOptions(options: PickerOption<string>[], value: string, fallback: string) {
-  return options.some((option) => option.value === value)
-    ? options
-    : [{ value, label: fallback, disabled: true, wrapLabel: true }, ...options];
+function pickerSections(choices: ReflectionModelChoice[]) {
+  const sections = new Map<string, { key: string; title: string; choices: PickerChoice[] }>();
+
+  for (const choice of choices) {
+    const key = JSON.stringify([choice.provider, choice.profileId]);
+    let section = sections.get(key);
+
+    if (!section) {
+      section = { key, title: profileLabel(choice.provider, choice.profileName), choices: [] };
+      sections.set(key, section);
+    }
+
+    section.choices.push({ ...choice, key: modelKey(choice), name: choice.label });
+  }
+
+  return [...sections.values()];
 }
 
 export function MemoryReflectionModelFields({
-  models,
+  choices,
+  selected,
   draft,
   busy,
-  hasProfiles,
   onChange,
 }: {
-  models: Model[];
-  draft: Settings;
+  choices: ReflectionModelChoice[];
+  selected: ReflectionModelChoice | undefined;
+  draft: ui.MemoryReflectionSettings;
   busy: boolean;
-  hasProfiles: boolean;
-  onChange: (patch: Partial<Settings>) => void;
+  onChange: (patch: Partial<ui.MemoryReflectionSettings>) => void;
 }) {
-  const { workers } = useOverview();
-  const selected = profileKey(draft);
-  const profiles = new Map(models.map((model) => [profileKey(model), model]));
-  const profile = profiles.get(selected);
+  const [picker, setPicker] = useState<"model" | "effort">();
+  const effortLabel = useEffortLabel();
 
-  const modelChoices = new Map(
-    models.filter((model) => profileKey(model) === selected && model.model).map((model) => [model.model, model]),
-  );
+  const profileName =
+    selected?.profileName || (draft.profileId && draft.profileId !== "native" ? draft.profileId : "Device login");
 
-  const model = modelChoices.get(draft.model);
-  const efforts = model?.efforts ?? [];
+  const profile = draft.provider ? profileLabel(draft.provider, profileName) : "";
 
-  const profileOptions = [...profiles].map(([value, profile]) => ({
-    value,
-    label: profileLabel(
-      profile,
-      workers.find(({ id }) => id === profile.workerId),
-      profile.workerName,
-    ),
-    wrapLabel: true,
-  }));
-
-  const modelOptions = [
-    { value: "", label: "Auto" },
-    ...[...modelChoices.values()].map((item) => ({
-      value: item.model,
-      label: item.label || item.model,
-      wrapLabel: true,
-    })),
-  ];
+  const hint = !choices.length
+    ? "Sign in to a provider on a connected worker."
+    : draft.provider && !selected
+      ? `${profile} · Model unavailable. Choose another model.`
+      : profile || undefined;
 
   return (
-    <SettingsGroup>
-      <SettingChoice
-        title="Provider profile"
-        description={
-          !profiles.size
-            ? hasProfiles
-              ? "Choose projects that share a worker with an available provider profile."
-              : "Sign in to a provider on a connected worker."
-            : draft.enabled && !profile
-              ? "Choose an available provider profile."
-              : undefined
-        }
-        disabled={busy || !profiles.size}
-        value={selected}
-        options={availableOptions(profileOptions, selected, selected ? "Unavailable profile" : "Choose a profile")}
-        onChange={(key) => {
-          const profile = profiles.get(key);
-
-          if (profile && key !== selected)
-            onChange({
-              workerId: profile.workerId,
-              provider: profile.provider,
-              profileId: profile.profileId,
-              model: "",
-              effort: "",
-            });
-        }}
-      />
-      <SettingChoice
-        title="Model"
-        description={profile && draft.model && !model ? "Choose an available model or use Auto." : undefined}
-        value={draft.model}
-        options={availableOptions(modelOptions, draft.model, draft.model)}
-        disabled={busy || !profile}
-        onChange={(model) => {
-          if (model !== draft.model) onChange({ model, effort: "" });
-        }}
-      />
-      {model && (efforts.length > 0 || draft.effort) ? (
-        <SettingChoice
-          title="Reasoning effort"
-          description={
-            draft.effort && !efforts.includes(draft.effort) ? "Choose an available effort or use Auto." : undefined
+    <>
+      <SettingsGroup>
+        <SettingsRow
+          title="Model"
+          description={hint}
+          control={
+            <SelectField
+              label="Model"
+              hideLabel
+              value={selected?.label || draft.model || (draft.provider ? "Auto" : "Choose a model")}
+              disabled={busy || !choices.length}
+              onPress={() => setPicker("model")}
+            />
           }
-          value={draft.effort}
-          options={availableOptions(
-            [{ value: "", label: "Auto" }, ...efforts.map((value) => ({ value, label: effortLabel(value) }))],
-            draft.effort,
-            effortLabel(draft.effort),
-          )}
-          disabled={busy}
-          onChange={(effort) => onChange({ effort })}
         />
-      ) : null}
-    </SettingsGroup>
+        {selected && (selected.efforts.length || draft.effort) ? (
+          <SettingsRow
+            title="Reasoning effort"
+            description={
+              draft.effort && !selected.efforts.includes(draft.effort)
+                ? "Choose an available effort or use Auto."
+                : undefined
+            }
+            control={
+              <SelectField
+                label="Reasoning effort"
+                hideLabel
+                value={draft.effort ? effortLabel(draft.effort) : "Auto"}
+                disabled={busy}
+                onPress={() => setPicker("effort")}
+              />
+            }
+          />
+        ) : null}
+      </SettingsGroup>
+      <ModelPickerSheet
+        visible={picker === "model" && !!choices.length}
+        onClose={() => setPicker(undefined)}
+        sections={pickerSections(choices)}
+        showProfile
+        value={selected && modelKey(selected)}
+        onSelect={(choice) => {
+          if (!selected || modelKey(choice) !== modelKey(selected)) {
+            onChange({ provider: choice.provider, profileId: choice.profileId, model: choice.model, effort: "" });
+          }
+        }}
+      />
+      <EffortPickerSheet
+        visible={picker === "effort" && !!selected}
+        onClose={() => setPicker(undefined)}
+        choice={selected}
+        automatic
+        value={draft.effort}
+        onSelect={(effort) => onChange({ effort })}
+      />
+    </>
   );
 }

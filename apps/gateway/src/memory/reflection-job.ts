@@ -3,7 +3,7 @@ import { SqlClient } from "effect/sql";
 import { coreState } from "../core/core-context.ts";
 import type { GatewayCore } from "../core/core.ts";
 import { ownerModule } from "../store/module-access.ts";
-import { reflectionGenerate, reflectionTarget, reflectionWorkspaces } from "./reflection-generation.ts";
+import { reflectionGenerate, reflectionTarget } from "./reflection-generation.ts";
 import { saveReflectionProposal } from "./reflection-job-evidence.ts";
 import { reflectionBatch, reflectionProposals } from "./reflection-prompt.ts";
 import { checkSources, recordSources, reflectionSources, type ReflectionSettings } from "./reflection-source.ts";
@@ -73,7 +73,7 @@ type Batch = ReturnType<typeof reflectionBatch>;
 
 type Attempt = { settings: ReflectionSettings; project: string; batch: Batch };
 
-function reserve(sql: SqlClient.SqlClient, run: Attempt, worker: string | undefined, now: Date) {
+function reserve(sql: SqlClient.SqlClient, run: Attempt, workerAvailable: boolean, now: Date) {
   const { settings, project, batch } = run;
   const owner = settings.owner_user_id;
 
@@ -83,7 +83,7 @@ function reserve(sql: SqlClient.SqlClient, run: Attempt, worker: string | undefi
 
       if (current?.revision !== settings.revision) return undefined;
 
-      if (!worker || !(yield* reflectionWorkspaces(sql, owner, project, worker)).length) {
+      if (!workerAvailable) {
         yield* scheduleNext(sql, settings, now, project, "unavailable");
 
         return undefined;
@@ -173,12 +173,12 @@ export async function tickReflection(core: GatewayCore, now = new Date()) {
 
   if (!run) return;
 
-  const target = await reflectionTarget(core, run.settings, run.project);
+  const target = await reflectionTarget(core, run.settings);
 
   if (relocation?.draining) return;
 
   const id = await runtime.runPromise(
-    SqlClient.SqlClient.use((sql) => reserve(sql, run, target?.connection.isOpen ? target.worker.id : undefined, now)),
+    SqlClient.SqlClient.use((sql) => reserve(sql, run, !!target?.connection.isOpen, now)),
   );
 
   if (!id || !target) return;

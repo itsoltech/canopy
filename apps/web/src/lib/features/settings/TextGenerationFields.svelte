@@ -3,13 +3,11 @@
   import type { ClassValue } from "svelte/elements";
   import { modelOption, modelOptions, type ModelOption } from "#lib/features/models/catalog.ts";
   import { useModelCatalog } from "#lib/features/models/model-catalog.svelte.ts";
-  import ModelControls from "#lib/features/models/ModelControls.svelte";
+  import SettingsModelControls from "#lib/features/models/SettingsModelControls.svelte";
   import { useOverview } from "#lib/features/overview/overview-state.svelte.ts";
   import { providerKeyOf } from "#lib/features/threads/providers.ts";
   import Button from "#lib/shared/ui/Button.svelte";
   import Field from "#lib/shared/ui/Field.svelte";
-  import IconButton from "#lib/shared/ui/IconButton.svelte";
-  import ResettableControl from "#lib/shared/ui/ResettableControl.svelte";
   import SettingAction from "#lib/shared/ui/SettingAction.svelte";
   import SettingsGroup from "#lib/shared/ui/SettingsGroup.svelte";
   import SettingsRow from "#lib/shared/ui/SettingsRow.svelte";
@@ -83,29 +81,15 @@
     {/snippet}
     <SettingsRow title="Text generation model" description="Generate thread titles and branch names with this model.">
       <div class="grid min-w-0 gap-2 pt-3">
-        <div class="flex min-w-0 flex-wrap items-center gap-2">
-          <ResettableControl changed={!!value.effort} align="start">
-            <ModelControls
-              {options}
-              bind:option={() => option, select}
-              bind:effort={
-                () => value.effort || undefined,
-                (effort) => void settings.updateTextGeneration({ effort: effort ?? "" })
-              }
-              workerId={worker?.id}
-              allowCustom={false}
-            />
-            {#snippet reset()}<IconButton
-                icon="arrow-path"
-                label="Reset text generation effort to default"
-                size="sm"
-                onclick={() => settings.updateTextGeneration({ effort: "" })}
-              />{/snippet}
-          </ResettableControl>
-          {#if option}<p class="min-w-0 truncate text-base/6 text-zinc-500 sm:text-sm/6 dark:text-zinc-400">
-              {option.provider === "CLAUDE" ? "Claude" : option.provider === "GROK" ? "Grok" : "Codex"} · {option.profileName}
-            </p>{/if}
-        </div>
+        <SettingsModelControls
+          {options}
+          bind:option={() => option, select}
+          bind:effort={
+            () => value.effort || undefined, (effort) => void settings.updateTextGeneration({ effort: effort ?? "" })
+          }
+          workerId={worker?.id}
+          resetLabel="Reset text generation effort to default"
+        />
         {#if !value.model}
           <p class="text-base/6 text-pretty text-zinc-500 sm:text-sm/6 dark:text-zinc-400">
             Automatic: a small, fast model from the thread’s provider instance at low effort when supported. Falls back

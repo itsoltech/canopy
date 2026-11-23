@@ -18,7 +18,7 @@ Rozszerzenie podglądu powiadomień na iOS deklaruje wymagane przez App Store Co
 Steer od bota pokazuje nazwę nadawcy także po wznowieniu zapisanego strumienia historii.
 Edytor zaplanowanych zadań pozwala wybrać profil dla nowego wątku.
 Dostęp wątków do konektorów konfiguruje się dla projektów.
-Opis obejmuje Habits w Settings → Memory, import skilli z publicznych
+Opis obejmuje wybór modelu Habits w Settings → Memory niezależnie od workera, import skilli z publicznych
 witryn HTTPS, usypianie wątków, dostępny offline wykaz licencji open source
 oraz osobne aktualizacje Canopy i CLI dostawców. Ukończone przygotowanie wątku
 domyślnie zwija kroki do wiersza „Thread prepared”. Pierwsza tura zastępuje
@@ -2416,8 +2416,8 @@ Usunięcie wymaga potwierdzenia. Zapis i usunięcie sprawdzają rewizję. Po kon
 użytkownik może wczytać aktualną wersję do porównania, zachowując zmienione pola szkicu.
 
 Habits używa osobnych arkuszy konfiguracji refleksji i przeglądu sugestii.
-Właściciel wybiera projekty, harmonogram i model oraz może otworzyć wątki
-źródłowe. Zatwierdzenie odświeża listę notatek.
+Właściciel wybiera projekty, harmonogram, model z profilu dostawcy oraz poziom
+rozumowania. Z sugestii może otworzyć wątki źródłowe. Zatwierdzenie odświeża listę notatek.
 [Refleksja](agent-memory.md#refleksja)
 
 Settings → Import pokazuje przebiegi importu CLI: postęp, datę, liczniki, bieżący wątek i akcje

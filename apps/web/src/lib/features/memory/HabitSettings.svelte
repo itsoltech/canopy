@@ -2,6 +2,8 @@
   import { onMount, tick } from "svelte";
   import { create, equals } from "@bufbuild/protobuf";
   import { ui } from "@canopy/contracts";
+  import { reflectionGatewayUpdate, reflectionWorkerForSave } from "@canopy/domain/reflection-models";
+  import { useOverview } from "#lib/features/overview/overview-state.svelte.ts";
   import { HttpError } from "#lib/shared/http.ts";
   import Alert from "#lib/shared/ui/Alert.svelte";
   import Badge from "#lib/shared/ui/Badge.svelte";
@@ -22,6 +24,7 @@
 
   let { onapproved }: { onapproved: () => void } = $props();
 
+  const overview = useOverview();
   const settingsSchema = ui.MemoryReflectionSettingsSchema;
   const defaults = create(settingsSchema, { intervalMinutes: 1440 });
   const lifetime = new AbortController();
@@ -41,20 +44,22 @@
   let suggestionHeading = $state<HTMLHeadingElement>();
   const changed = $derived(!equals(settingsSchema, draft, editable(snapshot?.settings)));
 
+  const workerId = $derived(snapshot && reflectionWorkerForSave(snapshot, draft, overview.ownProjects));
+  const needsUpdate = $derived(changed && valid && workerId === undefined);
+
   const conflict = $derived(
     !!saveFailure?.conflict || (snapshot !== undefined && draft.revision !== (snapshot.settings?.revision ?? 0)),
   );
 
   function editable(settings = defaults) {
-    const { enabled, intervalMinutes, projectIds, workerId, provider, profileId, model, effort, revision } = settings;
+    const { enabled, intervalMinutes, projectIds, provider, profileId, model, effort, revision } = settings;
 
     return create(settingsSchema, {
       enabled,
       intervalMinutes: intervalMinutes || defaults.intervalMinutes,
       projectIds,
-      workerId,
       provider,
-      profileId,
+      profileId: provider ? profileId || "native" : "",
       model,
       effort,
       revision,
@@ -93,12 +98,12 @@
   });
 
   async function save() {
-    if (!snapshot || !changed || !valid || loading || saving || conflict) return;
+    if (!snapshot || workerId === undefined || !changed || !valid || loading || saving || conflict) return;
     saving = true;
     saveFailure = undefined;
 
     try {
-      const settings = await updateMemoryReflection(draft, lifetime.signal);
+      const settings = await updateMemoryReflection({ ...draft, workerId }, lifetime.signal);
 
       if (lifetime.signal.aborted) return;
       snapshot = { ...snapshot, settings };
@@ -157,7 +162,7 @@
             variant="primary"
             class="min-w-32"
             loading={saving}
-            disabled={loading || !changed || !valid || conflict}
+            disabled={loading || !changed || !valid || needsUpdate || conflict}
             onclick={save}>Save changes</Button
           >
         {/if}
@@ -193,11 +198,13 @@
               >{/snippet}
           </Alert>
         </div>
+      {:else if needsUpdate}
+        <div class="p-3"><Alert tone="warning" title="Gateway update needed">{reflectionGatewayUpdate}</Alert></div>
       {:else if saveFailure}
         <div class="p-3">
           <Alert tone="error" title="Could not save habit settings">
             {saveFailure.invalid
-              ? "Check the selected projects, provider profile and model."
+              ? "Check the selected projects, model and reasoning effort."
               : "Check your connection and try again."}
             {#if saveFailure.detail}
               <Disclosure class="mt-2">

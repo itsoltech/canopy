@@ -2576,8 +2576,15 @@ trzech metod pamięci na podłączonym gatewayu.
 
 ### Refleksja
 
-Status (2026-11-22): Habits jest zaimplementowane we wspólnym rendererze web
-i desktop oraz w mobilnym kliencie Connect.
+Status (2026-11-23): Habits we wspólnym rendererze web i desktop oraz w mobilnym
+kliencie Connect łączy modele workerów według dostawcy, profilu i identyfikatora
+modelu. Zapis obejmuje wybrane projekty, harmonogram, profil, model i effort.
+Gateway dobiera dostępnego workera przy uruchomieniu. Potwierdza to przez
+`automatic_worker_selection` w odpowiedzi `GetMemoryHabits`. Dla starszego
+gatewaya klient wybiera workera z katalogiem roboczym w każdym wybranym
+projekcie. Jeśli taki worker nie istnieje, klient wskazuje potrzebę aktualizacji
+gatewaya.
+
 `GET /api/memory/habits` pobiera ustawienia, katalog i sugestie przez
 `GetMemoryHabits`. `PUT /api/memory/habits` przekazuje wersjonowane ustawienia
 do `UpdateMemoryReflection`. `POST /api/memory/habits/[habitId]` przekazuje

@@ -99,6 +99,7 @@ describe.skipIf(!dockerAvailable)("memory reflection from owner messages to a wo
     });
 
     const before = await gw.api.getMemoryHabits({});
+    expect(before.automaticWorkerSelection).toBe(true);
     expect(before.settings?.enabled).toBe(false);
     expect(before.settings?.intervalMinutes).toBe(1440);
     await tickReflection(gw.core);
@@ -119,6 +120,7 @@ describe.skipIf(!dockerAvailable)("memory reflection from owner messages to a wo
     const now = new Date(Date.now() + 1000);
     await tickReflection(gw.core, now);
     const reviewed = await gw.api.getMemoryHabits({});
+    expect(reviewed.settings?.workerId).toBe(gw.workerId);
     expect(reviewed.settings?.lastRunState).toBe("completed");
     expect(reviewed.settings?.intervalMinutes).toBe(720);
     expect(reviewed.usage).toMatchObject({

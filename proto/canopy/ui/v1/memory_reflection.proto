@@ -9,6 +9,7 @@ message MemoryReflectionSettings {
   bool enabled = 1;
   uint32 interval_minutes = 2;
   repeated string project_ids = 3;
+  // Selection hint for older clients. Gateways advertising automatic_worker_selection route by profile/model/effort.
   string worker_id = 4;
   canopy.worker.v1.Provider provider = 5;
   string profile_id = 6;
@@ -66,6 +67,8 @@ message MemoryHabitsSnapshot {
   repeated MemoryReflectionModel models = 3;
   repeated MemoryHabitSuggestion suggestions = 4;
   MemoryReflectionUsage usage = 5;
+  // The gateway chooses a worker for each run. Older gateways require a project workspace on the saved worker.
+  bool automatic_worker_selection = 6;
 }
 
 message UpdateMemoryReflectionRequest {

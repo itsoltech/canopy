@@ -22,6 +22,7 @@
     inheritedServiceTier,
     showSpeed = false,
     inherited,
+    automaticEffort = false,
     workerId,
     allowCustom = true,
     preferFavorites = false,
@@ -38,6 +39,8 @@
     showSpeed?: boolean;
     /** Effort that applies when none is chosen (a thread's default). */
     inherited?: string | undefined;
+    /** Unset effort picks a low supported level for habit checks. */
+    automaticEffort?: boolean;
     /** Worker whose catalog the options come from. */
     workerId?: string | undefined;
     allowCustom?: boolean;
@@ -93,6 +96,7 @@
         bind:value={effort}
         {option}
         {inherited}
+        automatic={automaticEffort}
         {adaptive}
         onmodel={() => (modelOpen = true)}
       />

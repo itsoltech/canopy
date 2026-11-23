@@ -1,14 +1,11 @@
 <script lang="ts">
   import type { ui } from "@canopy/contracts";
   import { count } from "@canopy/domain/usage-report";
-  import { useOverview } from "#lib/features/overview/overview-state.svelte.ts";
-  import { providerKeyOf } from "#lib/features/threads/providers.ts";
   import { formatDateTime, isoDateTime } from "#lib/shared/format.ts";
   import Select from "#lib/shared/ui/Select.svelte";
   import SettingsRow from "#lib/shared/ui/SettingsRow.svelte";
   import Switch from "#lib/shared/ui/Switch.svelte";
   import HabitModelControls from "./HabitModelControls.svelte";
-  import HabitProfilePicker from "./HabitProfilePicker.svelte";
   import HabitProjectPicker from "./HabitProjectPicker.svelte";
   import { habitReportedCost } from "./habits-format.ts";
 
@@ -30,7 +27,7 @@
     valid?: boolean;
   } = $props();
 
-  const overview = useOverview();
+  let modelValid = $state(false);
   const tokens = $derived(usage ? usage.inputTokens + usage.outputTokens : 0n);
 
   const intervals = [
@@ -55,36 +52,6 @@
   const lastCheck = $derived(checkStates.get(settings.lastRunState));
   const showNext = $derived(settings.enabled && !!settings.nextRunAt);
 
-  const profileKey = (option: Pick<ui.MemoryReflectionModel, "workerId" | "provider" | "profileId">) =>
-    JSON.stringify([option.workerId, option.provider, option.profileId || "native"]);
-
-  const projectWorkspaces = $derived(
-    draft.projectIds.flatMap((id) => {
-      const project = overview.ownProjects.find((project) => project.id === id);
-
-      return project ? [project.workspaces] : [];
-    }),
-  );
-
-  const eligibleModels = $derived(
-    models.filter((model) =>
-      projectWorkspaces.every((workspaces) => workspaces.some((ws) => ws.workerId === model.workerId)),
-    ),
-  );
-
-  const profiles = $derived(new Map(eligibleModels.map((model) => [profileKey(model), model])));
-  const profile = $derived(profiles.get(profileKey(draft)));
-
-  const modelOptions = $derived(
-    new Map(
-      eligibleModels
-        .filter((model) => profileKey(model) === profileKey(draft) && model.model)
-        .map((item) => [item.model, item]),
-    ),
-  );
-
-  const model = $derived(modelOptions.get(draft.model));
-  const efforts = $derived(model?.efforts ?? []);
   const missingProject = $derived(draft.projectIds.some((id) => !projects.some((project) => project.id === id)));
 
   const projectHint = $derived(
@@ -97,33 +64,9 @@
           : undefined,
   );
 
-  const profileHint = $derived(
-    !models.length
-      ? "Sign in to a provider on a connected worker."
-      : !profiles.size
-        ? "Choose projects that share a worker with an available provider profile."
-        : draft.enabled && !profile
-          ? "Choose a provider profile to turn on habit checks."
-          : undefined,
-  );
-
   $effect(() => {
-    valid =
-      !draft.enabled ||
-      (!!draft.projectIds.length &&
-        !missingProject &&
-        !!profile &&
-        (!draft.model || !!model) &&
-        (!draft.effort || efforts.includes(draft.effort)));
+    valid = !draft.enabled || (!!draft.projectIds.length && !missingProject && modelValid);
   });
-
-  function changeProfile(key: string) {
-    const next = profiles.get(key);
-
-    if (!next || key === profileKey(draft)) return;
-    const { workerId, provider, profileId } = next;
-    draft = { ...draft, workerId, provider, profileId, model: "", effort: "" };
-  }
 </script>
 
 <SettingsRow
@@ -161,29 +104,7 @@
     />
   {/snippet}
 </SettingsRow>
-<SettingsRow title="Provider profile" description={profileHint}>
-  {#snippet control()}
-    <HabitProfilePicker
-      {profiles}
-      value={profileKey(draft)}
-      placeholder={draft.workerId ? "Unavailable profile" : "Choose a provider profile"}
-      disabled={disabled || !profiles.size}
-      onchange={changeProfile}
-    />
-  {/snippet}
-</SettingsRow>
-<HabitModelControls
-  models={modelOptions}
-  model={draft.model}
-  effort={draft.effort}
-  provider={providerKeyOf(draft.provider)}
-  profileAvailable={!!profile}
-  {disabled}
-  onmodel={(model) => {
-    if (model !== draft.model) draft = { ...draft, model, effort: "" };
-  }}
-  oneffort={(effort) => (draft = { ...draft, effort })}
-/>
+<HabitModelControls {models} bind:draft bind:valid={modelValid} {disabled} />
 {#if showNext || settings.lastRunAt || lastCheck}
   <div class="settings-row flex flex-wrap gap-x-4 gap-y-1 px-4 py-3 text-sm/5 text-muted" role="status">
     {#if showNext}<span

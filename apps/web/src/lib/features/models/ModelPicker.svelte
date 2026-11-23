@@ -225,7 +225,7 @@
       }
     }
 
-    if (keybindings.matches(event, "model:favorite") && active && active.origin !== "custom") {
+    if (keybindings.matches(event, "model:favorite") && active?.model && active.origin !== "custom") {
       event.preventDefault();
       favorites.toggle(active);
     }
