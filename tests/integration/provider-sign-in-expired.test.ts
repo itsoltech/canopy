@@ -1,7 +1,7 @@
 import { afterAll, beforeAll, describe, expect, test } from "bun:test";
-import { mkdirSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, realpathSync, renameSync, unlinkSync, writeFileSync } from "node:fs";
 import { join, resolve } from "node:path";
-import { Provider } from "@canopy/contracts";
+import { Provider, ProviderProfileKind } from "@canopy/contracts";
 import { dockerAvailable } from "@canopy/db/testing";
 import { REJECTED_LOGIN_DETAIL } from "@canopy/domain/provider-accounts";
 import { GatewayStore } from "@canopy/gateway/store";
@@ -27,10 +27,13 @@ describe.skipIf(!dockerAvailable)("expired provider sign-in over the gateway↔w
   let link: GatewayLink;
   let workerId = "";
   let threadId = "";
+  let projectId = "";
+  let workspaceId = "";
+  const logs: string[] = [];
 
-  const providersAccount = async () =>
+  const providersAccount = async (id = "native") =>
     (await gw.api.listProviderInstances({})).instances
-      .find((i) => i.harness === Provider.CODEX && i.id === "native")
+      .find((i) => i.harness === Provider.CODEX && i.id === id)
       ?.workers.find((w) => w.workerId === workerId)?.account;
 
   const overviewAccount = async () =>
@@ -38,15 +41,27 @@ describe.skipIf(!dockerAvailable)("expired provider sign-in over the gateway↔w
       .find((w) => w.id === workerId)
       ?.providerInstances.find((i) => i.harness === Provider.CODEX && i.id === "native")?.account;
 
-  const lastTurn = async () => (await gw.api.getThread({ threadId })).thread?.status;
+  const lastTurn = async (id = threadId) => (await gw.api.getThread({ threadId: id })).thread?.status;
 
   const sql = <A extends object>(run: (sql: SqlClient.SqlClient) => Effect.Effect<readonly A[], unknown>) =>
     gw.runtime.runPromise(Effect.flatMap(SqlClient.SqlClient, run));
 
-  async function send(text: string) {
-    await eventually(lastTurn, (status) => status === "idle", 15_000);
-    await gw.api.sendMessage({ threadId, text, clientRequestId: crypto.randomUUID() });
+  async function send(text: string, id = threadId) {
+    await eventually(
+      () => lastTurn(id),
+      (status) => status === "idle",
+      15_000,
+    );
+
+    return (await gw.api.sendMessage({ threadId: id, text, clientRequestId: crypto.randomUUID() })).turn!.id;
   }
+
+  const finished = (id: string) =>
+    eventually(
+      async () => (await sql((s) => s<{ status: string }>`SELECT status FROM turns WHERE id = ${id}::uuid`))[0]?.status,
+      (status) => status === "completed" || status === "failed" || status === "interrupted",
+      15_000,
+    );
 
   beforeAll(async () => {
     mkdirSync(join(dir, "data"));
@@ -74,6 +89,7 @@ describe.skipIf(!dockerAvailable)("expired provider sign-in over the gateway↔w
       runtime,
       dataDir: join(dir, "data"),
       clientVersion: "test",
+      log: (line) => logs.push(line),
       deviceHomes: { claude: join(dir, "device-claude"), codex: deviceCodex, grok: join(dir, "device-grok") },
     });
     link = await openGatewayLink({
@@ -89,10 +105,10 @@ describe.skipIf(!dockerAvailable)("expired provider sign-in over the gateway↔w
     void serveLink(link, host, runtime);
     await eventually(providersAccount, (a) => a?.state === "signed_in", 20_000);
 
-    const projectId = (await gw.api.createProject({ name: "Sign-in" })).project!.id;
+    projectId = (await gw.api.createProject({ name: "Sign-in" })).project!.id;
     const repo = join(dir, "repo");
     mkdirSync(repo);
-    const workspaceId = (await gw.api.createWorkspace({ projectId, workerId, rootPath: repo })).workspace!.id;
+    workspaceId = (await gw.api.createWorkspace({ projectId, workerId, rootPath: repo })).workspace!.id;
     threadId = (await gw.api.createThread({ projectId, workspaceId, provider: Provider.CODEX, title: "Expired login" }))
       .thread!.id;
   }, 60_000);
@@ -132,10 +148,70 @@ describe.skipIf(!dockerAvailable)("expired provider sign-in over the gateway↔w
     ).toMatchObject({ state: "signed_in", detail: "", loginId: login.loginId, loginOutcome: "signed_in" });
     expect((await overviewAccount())?.state).toBe("signed_in");
 
-    await send("Continue");
-    await eventually(lastTurn, (status) => status === "idle", 15_000);
+    const continued = await send("Continue");
+    expect(await finished(continued)).toBe("completed");
     expect((await providersAccount())?.state).toBe("signed_in");
   }, 90_000);
+
+  for (const ownLogin of [false, true]) {
+    const id = ownLogin ? "private" : "linked";
+
+    test(`refresh drains and replaces the cached process after an external ${id} sign-in`, async () => {
+      const target = { workerId, id, harness: Provider.CODEX };
+      const shadow = join(dir, id + "-shadow");
+      const source = ownLogin ? shadow : join(dir, id + "-device");
+      mkdirSync(source);
+      const auth = join(source, "auth.json");
+      writeFileSync(auth, '{"tokens":{"access_token":"fixture-expired"}}');
+      await gw.api.saveProviderInstance({
+        ...target,
+        create: true,
+        label: id,
+        kind: ProviderProfileKind.NATIVE,
+        runtime: { ownLogin, shadowHomePath: shadow, ...(!ownLogin && { homePath: source }) },
+        workerIds: [workerId],
+      });
+      expect(
+        await eventually(
+          () => providersAccount(id),
+          (a) => a?.state === "signed_in",
+          20_000,
+        ),
+      ).toMatchObject({
+        state: "signed_in",
+      });
+
+      const thread = (
+        await gw.api.createThread({ projectId, workspaceId, provider: Provider.CODEX, providerProfileId: id })
+      ).thread!;
+
+      const starts = () => logs.filter((line) => line === `codex runtime started (profile:${id})`).length;
+      const original = starts();
+      expect(original).toBeGreaterThan(0);
+      await gw.api.refreshProviders({ ...target, accountOnly: true });
+      expect(starts()).toBe(original);
+      const held = await send("HOLD:login", thread.id);
+
+      try {
+        expect(await eventually(async () => existsSync(join(shadow, "turn-started")), Boolean, 15_000)).toBe(true);
+
+        if (!ownLogin) unlinkSync(join(shadow, "auth.json"));
+        writeFileSync(auth + ".new", '{"tokens":{"access_token":"fixture-fresh"}}');
+        renameSync(auth + ".new", auth);
+        expect((await gw.api.refreshProviders({ ...target, accountOnly: !ownLogin })).skipped).toEqual([]);
+        expect(starts()).toBe(original);
+      } finally {
+        writeFileSync(join(shadow, "release-turn"), "");
+      }
+
+      expect(await finished(held)).toBe("failed");
+      const recovered = await send("Continue after signing in from a terminal", thread.id);
+      expect(await finished(recovered)).toBe("completed");
+      expect(realpathSync(join(shadow, "auth.json"))).toBe(realpathSync(auth));
+      await gw.api.refreshProviders({ ...target, accountOnly: true });
+      expect(starts()).toBe(original + 1);
+    }, 75_000);
+  }
 
   test("a completed turn clears the mark when the login file did not change", async () => {
     await send("FAIL:auth");

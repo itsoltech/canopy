@@ -2,7 +2,8 @@
 
 Aktualizacja (2026-11-23): worker przywraca zapis historii Codexa potrzebny do
 forka po archiwizacji. Na Windowsie migruje twarde dowiązania logowania Codexa,
-również w katalogach zapisanych rozmów botów.
+również w katalogach zapisanych rozmów botów. Na Windowsie, macOS i Linuksie
+odtwarza powiązanie zarządzanego katalogu z bieżącym loginem i współdzieli blokadę zapisu CLI.
 
 Aktualizacja (2026-11-22): nazwany profil offline używa osobnego identyfikatora
 uprawnień w Codexie. Adapter porównuje politykę przy starcie i przy wznowieniu.
@@ -373,10 +374,17 @@ wartość z konfiguracji uruchomionego procesu, jeśli model ją obsługuje.
 1. **Worker zawsze uruchamia app-server z własnym `CODEX_HOME`** (`<data_dir>/codex-home`, `0700`, `prepareCodexHome`). Konfiguracja (dostawcy, MCP, instrukcje) przychodzi z platformy.
    Wątki zachowują `HOME`, `USERPROFILE` i XDG: komendy potomne nadal widzą git identity, SSH, gh i konfigurację narzędzi użytkownika. Globalne instrukcje Codexa pozostają poza izolowanym `CODEX_HOME`; skille urządzenia wyłączają selektory opisane wyżej. Wątki scratch przekazują `project_root_markers=[]`, aby nie odczytywać nadrzędnego `~/AGENTS.md`; projekty zachowują wykrywanie korzenia Git i repozytoryjne instrukcje. Dowód: przechwycenie żądań CLI 0.164.0 w `providers/instruction-isolation.test.ts` i odczyt fixture git identity przez proces potomny w `providers/thread-environment.test.ts`. Źródło i ścieżka loginu nie zmieniają się; samodzielny login istniejący wyłącznie w keyringu nie jest przenoszony przez plik `auth.json`. Prywatne HOME pozostaje tylko dla botów bez shella.
 2. **Logowanie właściciela urządzenia używa dowiązania symbolicznego**
-   (`codex-home/auth.json` wskazuje na `~/.codex/auth.json`). Codex może
+   (`codex-home/auth.json` wskazuje na `~/.codex/auth.json`). Oba katalogi
+   współdzielą też `auth.lock`. Codex 0.171 wyznacza położenie drugiej blokady
+   `auth.json.lock` z docelowej ścieżki pliku. Blokady chronią zapis.
+   Dwa procesy mogą równocześnie wysłać żądanie odświeżenia do dostawcy.
+   [Implementacja zapisu](https://github.com/openai/codex/blob/rust-v0.171.0/codex-rs/login/src/auth/storage.rs)
+   i [przebieg odświeżenia](https://github.com/openai/codex/blob/rust-v0.171.0/codex-rs/login/src/auth/manager.rs#L3744-L3791).
+   Codex może
    atomowo zastąpić plik źródłowy podczas zapisu logowania lub odświeżenia.
    Przy wczytaniu konfiguracji na Windowsie worker usuwa rozpoznane twarde
-   dowiązania także z nieaktywnych katalogów instancji i botów. Jeśli po
+   dowiązania także z nieaktywnych katalogów instancji i botów. Na każdym systemie,
+   jeśli wybrano login urządzenia, jego źródło jest dostępne, a po
    wymianie pliku źródłowego w zarządzanym katalogu pozostał odłączony
    `auth.json`, worker podczas przygotowania katalogu zachowuje go jako
    `auth.json.canopy-backup-…` i dowiązuje bieżący plik. W niestandardowym

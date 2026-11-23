@@ -1,7 +1,8 @@
 # Status kont dostawców
 
-Aktualizacja (2026-11-23): sprawdzenie konta Codexa na Windowsie podaje przyczynę,
-gdy worker nie może utworzyć dowiązania symbolicznego do logowania urządzenia.
+Aktualizacja (2026-11-23): Refresh konta lub workera uwzględnia zmianę pliku
+logowania Codexa w terminalu. Worker wznawia obsługę instancji z nowym loginem,
+gdy zakończą się jej aktywne tury i zadania w tle.
 
 Status: opis zaimplementowanego kodu (2026-11-17), w tym szerszego wskaźnika
 limitów w sidebarze web/desktop. Dostępność w wydaniach: [release.md](release.md).
@@ -46,11 +47,20 @@ wylogowania: rozstrzyga odpowiedź `claude auth status --json`.
 Ta zmienna wybiera również `.credentials.json` na Linuxie i Windowsie.
 Shadow home nie kopiuje ani nie dowiązuje tego pliku: CLI czyta i odświeża
 bezpośrednio źródłowy magazyn, także gdy odświeżenie atomowo zastępuje plik.
-Codex używa dowiązania symbolicznego `CODEX_HOME/auth.json`. Dowiązanie
-wskazuje na bieżący plik także po atomowej wymianie z terminala. Worker
+Codex używa dowiązań symbolicznych do pliku logowania i jego blokady zapisu.
+Dowiązanie do `auth.json` pozostaje na miejscu także wtedy, gdy przy sprawdzaniu
+konta pomiędzy wylogowaniem i ponownym logowaniem z terminala brakuje pliku źródłowego. Worker
 migruje wcześniejsze twarde dowiązania na Windowsie podczas wczytywania
 konfiguracji i przygotowania katalogu. Szczegóły migracji i uprawnień:
 [izolacja Codexa](codex-adapter.md#konfiguracja-izolacji).
+
+Jeśli tura zgłasza `refresh_token_reused` lub „refresh token was already used”,
+Canopy udostępnia akcję ponownego logowania. Jeśli terminal ma już świeży login,
+wybierz **Refresh** przy koncie Codexa i ponów turę. Jeśli współdzielony login
+wygasł, wybierz **Sign in again**. Przy równoczesnym używaniu terminala i Canopy
+opcja **Own login** pozwala zalogować instancję oddzielnie i uzyskać osobny token
+odświeżania. Domyślnie wybór tej opcji zmienia także katalog sesji instancji.
+
 Grok używa bezpośredniego
 `GROK_AUTH_PATH`, niezależnie od izolowanego `GROK_HOME`. Jeśli terminal ustawia własny
 `GROK_AUTH_PATH`, worker zachowuje tę ścieżkę dla wbudowanej instancji, odczytu statusu

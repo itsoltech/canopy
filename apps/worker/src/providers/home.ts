@@ -1,6 +1,16 @@
-import { existsSync, lstatSync, mkdirSync, realpathSync, renameSync, statSync, symlinkSync, unlinkSync } from "node:fs";
+import {
+  existsSync,
+  lstatSync,
+  mkdirSync,
+  readlinkSync,
+  realpathSync,
+  renameSync,
+  statSync,
+  symlinkSync,
+  unlinkSync,
+} from "node:fs";
 import { homedir } from "node:os";
-import { join, relative, resolve } from "node:path";
+import { dirname, join, relative, resolve } from "node:path";
 import type { Env } from "./profiles.ts";
 import { providerHomeProblem } from "./home-paths.ts";
 
@@ -116,7 +126,10 @@ export function prepareProviderHome(options: ProviderHomeOptions): ProviderHome 
   }
 
   if (!existsSync(source)) {
-    removeIfPresent(target);
+    // Keep a correctly targeted link across terminal logout/login. A running Codex process
+    // can then see the replacement even before Canopy next prepares this home.
+    if (!current?.isSymbolicLink() || relative(resolve(dirname(target), readlinkSync(target)), source) !== "")
+      removeIfPresent(target);
 
     return { path, login: "none", problem: `${options.missingLogin} (${source})` };
   }

@@ -85,6 +85,59 @@ describe("prepareCodexHome", () => {
     expect(readFileSync(join(home.path, "auth.json"), "utf8")).toBe("fixture-refreshed-by-terminal");
   });
 
+  test("a running shadow keeps its link through a terminal sign-out and new sign-in", () => {
+    const deviceHome = device(true);
+
+    const options = {
+      dataDir: mkdtempSync(join(base, "relogin-")),
+      deviceCodexHome: deviceHome,
+      linkDeviceLogin: true,
+    };
+
+    const home = prepareCodexHome(options);
+    const source = join(deviceHome, "auth.json");
+    const target = join(home.path, "auth.json");
+    renameSync(source, join(deviceHome, "previous"));
+    expect(prepareCodexHome(options).login).toBe("none");
+    expect(lstatSync(target).isSymbolicLink()).toBe(true);
+    writeFileSync(source, "new-login");
+    expect(readFileSync(target, "utf8")).toBe("new-login");
+  });
+
+  test("the instance and nested consumers share the CLI write lock until own login is selected", () => {
+    const deviceHome = device(true);
+    const dataDir = mkdtempSync(join(base, "lock-"));
+    const path = join(dataDir, "codex-home");
+    const lock = join(path, "auth.lock");
+    const source = join(deviceHome, "auth.lock");
+    mkdirSync(path);
+    writeFileSync(lock, "");
+    const options = { dataDir, deviceCodexHome: deviceHome, linkDeviceLogin: true };
+    prepareCodexHome(options);
+    writeFileSync(source, "");
+    const nested = prepareCodexHome({ ...options, deviceCodexHome: path, path: join(dataDir, "child") });
+    expect(realpathSync(join(nested.path, "auth.lock"))).toBe(realpathSync(source));
+    expect(realpathSync(lock)).toBe(realpathSync(source));
+    prepareCodexHome({ ...options, ownLogin: true });
+    expect(lstatSync(lock, { throwIfNoEntry: false })).toBeUndefined();
+    expect(statSync(source).isFile()).toBe(true);
+  });
+
+  test("a conflicting file at the lock path survives a failed link and the next attempt can recover", () => {
+    const dataDir = mkdtempSync(join(base, "conflicting-lock-"));
+    const deviceHome = device(true);
+    const path = join(dataDir, "codex-home");
+    mkdirSync(path);
+    const lock = join(path, "auth.lock");
+    writeFileSync(lock, "independent file");
+    const options = { dataDir, deviceCodexHome: deviceHome, linkDeviceLogin: true };
+    expect(prepareCodexHome(options).linkFailed).toBe(true);
+    expect(readFileSync(lock, "utf8")).toBe("independent file");
+    renameSync(lock, join(path, "saved"));
+    expect(prepareCodexHome(options).login).toBe("linked");
+    expect(lstatSync(lock).isSymbolicLink()).toBe(true);
+  });
+
   test("an own login detaches a Windows-style hard link without changing the device store", () => {
     const deviceHome = device(true);
     const shadow = mkdtempSync(join(base, "hardlink-"));
@@ -116,7 +169,7 @@ describe("prepareCodexHome", () => {
     );
     expect(statSync(source).nlink).toBe(1);
     expect(lstatSync(target).isSymbolicLink()).toBe(true);
-    expect(readdirSync(shadow)).toEqual(["auth.json"]);
+    expect(readdirSync(shadow).sort()).toEqual(["auth.json", "auth.lock"]);
     expect(readFileSync(source, "utf8")).toBe('{"tokens":{}}');
   });
 
@@ -133,8 +186,8 @@ describe("prepareCodexHome", () => {
     renameSync(join(deviceHome, "auth.new"), source);
     const options = { dataDir, deviceCodexHome: deviceHome, linkDeviceLogin: true };
 
-    expect(prepareCodexHome(options, "win32").login).toBe("linked");
-    expect(prepareCodexHome(options, "win32").login).toBe("linked");
+    expect(prepareCodexHome(options).login).toBe("linked");
+    expect(prepareCodexHome(options).login).toBe("linked");
     expect(readFileSync(target, "utf8")).toBe("current-login");
     const backups = readdirSync(shadow).filter((name) => name.startsWith("auth.json.canopy-backup-"));
     expect(backups).toHaveLength(1);

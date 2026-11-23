@@ -123,6 +123,8 @@ export interface ProfileStatus {
   readonly auth?: string;
   readonly authenticated?: boolean;
   readonly loginHomePath?: string;
+  /** Metadata of the native Codex login when the worker last applied or probed this configuration. */
+  readonly codexLoginRevision?: string;
   readonly configurationHomePath?: string;
   readonly sessionHomePath?: string;
   readonly privateHomePath?: string;

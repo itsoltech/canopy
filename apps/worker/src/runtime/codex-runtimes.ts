@@ -7,7 +7,6 @@ import { codexAppServerLaunch, codexThreadLaunchArgs } from "../providers/codex/
 import { CodexThreads } from "../providers/codex/threads.ts";
 import { prepareImportedCodexResume } from "../import/codex-provider.ts";
 import { readCodexConfiguredEffort } from "../providers/default-effort.ts";
-import { type ProfileRuntimeConfig, type ResolvedProfile } from "../providers/profiles.ts";
 import { join } from "node:path";
 import { realpathSync, statSync } from "node:fs";
 
@@ -101,33 +100,28 @@ export class CodexRuntimes {
     const groups = new Map<string, CodexGroup>();
 
     if (!config.codex.enabled || !config.codex.executable) return groups;
-    const usable = config.profiles.flatMap((p) => (p.resolved && usableBy(p.resolved, "codex") ? [p.resolved] : []));
-
-    const group = (
-      profiles: ResolvedProfile[],
-      env: Readonly<Record<string, string>>,
-      runtime: ProfileRuntimeConfig,
-      id?: string,
-    ): CodexGroup => ({
-      profiles,
-      env,
-      runtime,
-      ...(id !== undefined && { id }),
-      key: JSON.stringify({
-        executable: config.codex.executable,
-        // A new CLI version (an install from the app) restarts the process once it is idle.
-        version: config.codex.version,
-        linkDeviceLogin: config.codex.linkDeviceLogin,
-        nativeTools: config.nativeTools,
-        profiles,
-        // A sign-in from the app: the process starts again with the new login instead of a cached rejection.
-        login: id === undefined ? 0 : (this.ctx.state.loginGenerations.get(`codex/${id}`) ?? 0),
-      }),
-    });
 
     // Separate processes even when env/homes match: one instance must drain independently of the others.
-    for (const profile of usable)
-      groups.set(codexProfileGroup(profile.id), group([profile], profile.env, profile.runtime ?? {}, profile.id));
+    for (const { resolved: profile, codexLoginRevision } of config.profiles) {
+      if (!profile || !usableBy(profile, "codex")) continue;
+      const profiles = [profile];
+      groups.set(codexProfileGroup(profile.id), {
+        profiles,
+        env: profile.env,
+        runtime: profile.runtime,
+        id: profile.id,
+        key: JSON.stringify({
+          executable: config.codex.executable,
+          version: config.codex.version,
+          linkDeviceLogin: config.codex.linkDeviceLogin,
+          nativeTools: config.nativeTools,
+          profiles,
+          // A CLI login can change outside Canopy while a running app-server caches the previous credentials.
+          codexLoginRevision,
+          login: this.ctx.state.loginGenerations.get(`codex/${profile.id}`) ?? 0,
+        }),
+      });
+    }
 
     return groups;
   }

@@ -36,16 +36,22 @@ const decodeConfig = Schema.decodeUnknownSync(
   Schema.Struct({ mcp_servers: Schema.optionalKey(Schema.Record(Schema.String, HttpMcp)) }),
 );
 
-// Fixture tokens only: an expired login holds the word, a fresh one does not.
-const expired = () => existsSync(auth) && readFileSync(auth, "utf8").includes("expired");
+// A running Codex process can retain a permanent refresh failure after a terminal replaces the login.
+const expired = existsSync(auth) && readFileSync(auth, "utf8").includes("expired");
 
-function turn(id: number, threadId: string, text: string) {
+async function turn(id: number, threadId: string, text: string) {
   const turnId = crypto.randomUUID();
   send({ id, result: { turn: { id: turnId, status: "inProgress", items: [], error: null } } });
   notify("turn/started", { threadId, turn: { id: turnId, status: "inProgress", items: [], error: null } });
 
+  if (text === "HOLD:login") {
+    writeFileSync(join(home, "turn-started"), "");
+
+    while (!existsSync(join(home, "release-turn"))) await Bun.sleep(25);
+  }
+
   const error =
-    expired() || text.includes("FAIL:auth")
+    expired || text.includes("FAIL:auth")
       ? {
           message:
             "Error running remote compact task: Your access token could not be refreshed because your refresh token has expired. Please log out and sign in again.",
@@ -91,7 +97,7 @@ for await (const line of createInterface({ input: process.stdin })) {
     catalogs.set(threadId, await httpTools(config.mcp_servers?.["canopy_connectors"]));
     send({ id, result: { thread: { id: threadId, path: null } } });
   } else if (request.method === "turn/start")
-    turn(id, params.threadId, params.input.map((part: { text?: string }) => part.text ?? "").join("\n"));
+    void turn(id, params.threadId, params.input.map((part: { text?: string }) => part.text ?? "").join("\n"));
   else if (request.method === "account/read") send({ id, result: { account: null, requiresOpenaiAuth: true } });
   else if (request.method === "account/login/start") {
     const loginId = crypto.randomUUID();

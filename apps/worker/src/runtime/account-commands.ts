@@ -207,7 +207,26 @@ async function readEntry(
 }
 
 export async function providerAccounts(ctx: HostContext, request: GetProviderAccounts) {
-  const config = ctx.state.config;
+  let config = ctx.state.config;
+
+  // Account-only Refresh skips ProbeProviders. Recheck availability and drain any process that still holds
+  // the prior login, including other instances that use the same device home.
+  if (
+    request.refresh &&
+    (!request.provider || request.provider === Provider.CODEX) &&
+    config?.version === request.configVersion &&
+    config.profiles.some(
+      (p) =>
+        (!request.profileId || p.config.id === request.profileId) &&
+        p.codexLoginRevision !== undefined &&
+        p.loginHomePath &&
+        p.codexLoginRevision !== loginRevision("codex", p.loginHomePath),
+    )
+  ) {
+    ctx.state.accounts.invalidate();
+    await ctx.ops.probe();
+    config = ctx.state.config;
+  }
 
   if (!config || config.version !== request.configVersion)
     throw new CommandError("CONFIG_CHANGED", "Provider configuration changed; refresh again.", false);

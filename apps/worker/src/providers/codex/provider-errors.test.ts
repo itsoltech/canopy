@@ -111,6 +111,32 @@ test("provider diagnostics redact endpoints and credentials in the summary and e
   expect(h.state.turns[0]?.status).toBe("running");
 });
 
+test("Codex refresh rejections reach the thread with their native diagnostic and sign-in recovery class", () => {
+  const h = harness();
+
+  const reused =
+    "Your access token could not be refreshed because your refresh token was already used. Please log out and sign in again.";
+
+  for (const [code, message, errorClass] of [
+    ["other", reused, "auth_required"],
+    ["refresh_token_reused", "Refresh rejected", "auth_required"],
+    ["other", '{"error":{"code":"refresh_token_invalidated"}}', "auth_required"],
+    ["other", "Your access token could not be refreshed. Please log out and sign in again.", "auth_required"],
+    ["httpConnectionFailed", "Your access token could not be refreshed because the request timed out.", "network"],
+  ] as const) {
+    const id = Bun.randomUUIDv7();
+    h.record({ method: "turn/started", params: { threadId: "thread", turn: turn(id) } });
+    h.record({
+      method: "turn/completed",
+      params: {
+        threadId: "thread",
+        turn: { ...turn(id, "failed"), error: { ...turnError, message, codexErrorInfo: code } },
+      },
+    });
+    expect(h.state.turns.at(-1)).toMatchObject({ status: "failed", error: message, errorClass, errorCode: code });
+  }
+});
+
 test("a terminal failure belongs to its own turn across a wake-up and late old-turn output", () => {
   const h = harness();
 
