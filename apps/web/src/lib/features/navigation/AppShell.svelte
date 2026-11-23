@@ -34,6 +34,7 @@
   import { queries } from "#lib/shared/queries.svelte.ts";
   import { bffReadKey } from "#lib/shared/bff-reads.ts";
   import Alert from "#lib/shared/ui/Alert.svelte";
+  import Button from "#lib/shared/ui/Button.svelte";
   import Drawer from "#lib/shared/ui/Drawer.svelte";
   import Toaster from "#lib/shared/ui/Toaster.svelte";
   import BotSettingsHost from "#lib/features/bots/settings/BotSettingsHost.svelte";
@@ -109,7 +110,16 @@
   const firstRun = $derived(firstRunView(page.url, overview, capabilities));
   const showIntroduction = $derived(threadsEnabled && firstRun === "intro");
   const setupRoute = $derived(page.url.pathname === "/setup" || page.url.pathname.startsWith("/setup/"));
-  const focused = $derived(!page.error && (setupRoute || showIntroduction || firstRun === "loading"));
+
+  const initialGatewayUnavailable = $derived(
+    overview.resyncs === 0 &&
+      (overview.connection === "unavailable" ||
+        (overview.connection === "reconnecting" && capabilities.state === "unavailable")),
+  );
+
+  const focused = $derived(
+    !page.error && (setupRoute || showIntroduction || (firstRun === "loading" && !initialGatewayUnavailable)),
+  );
 
   $effect(() => {
     // A settings overlay may have just disabled its background page. Keep it open until the user leaves it.
@@ -159,11 +169,7 @@
   let ready = $state(false);
 
   const showGatewayUnavailable = $derived(
-    overview.connection === "unavailable" &&
-      overview.resyncs === 0 &&
-      !page.error &&
-      !capabilities.incompatible &&
-      capabilities.supports(page.url.pathname),
+    initialGatewayUnavailable && !page.error && !capabilities.incompatible && capabilities.supports(page.url.pathname),
   );
 
   onMount(() => devicePreferences.connect());
@@ -364,7 +370,12 @@
         <GatewayCompatibility message={capabilities.unavailableMessage(page.url.pathname)} desktopActions={false} />
       {:else if showGatewayUnavailable}
         <GatewayUnavailable retry={() => location.reload()}>
-          {#snippet actions()}<MigrationRecoveryLink />{/snippet}
+          {#snippet actions()}
+            {#if window.canopyDesktop}
+              <Button onclick={() => window.canopyDesktop?.openSettings()}>Open desktop settings</Button>
+            {/if}
+            <MigrationRecoveryLink />
+          {/snippet}
         </GatewayUnavailable>
       {:else if ((!ready || firstRun === "loading") && !page.error) || redirect}
         <div class="flex h-full flex-col gap-4 p-6" role="status" aria-label="Loading application">
@@ -379,7 +390,7 @@
     </main>
   </div>
 </div>
-{#if ready && !capabilities.incompatible}<SettingsOverlay route={children} {focused} />{/if}
+<SettingsOverlay route={children} focused={focused && (setupRoute || showIntroduction)} />
 {#if settings.loaded}{#key threadsEnabled}<CommandPalette registry={commands} {palette} />{/key}{/if}
 {#if ready && threadsEnabled && !capabilities.incompatible}<AddProjectDialog state={addProject} />{/if}
 <Toaster />

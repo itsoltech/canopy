@@ -1,7 +1,7 @@
 import { BrowserWindow, dialog, ipcMain, type IpcMainInvokeEvent } from "electron";
 import { sameDesktopConfiguration, type DesktopConfiguration, type DesktopStatus } from "@canopy/ui/desktop";
 import { configuration, type ConfigurationInput } from "./runtime/config.ts";
-import { remoteClient } from "./client-vault.ts";
+import { configureRemoteClient } from "./client-vault.ts";
 import type { DesktopClientCredential } from "./remote-client.ts";
 import type { RemoteAppUpdate } from "./remote-app-update.ts";
 import type { Logs } from "./runtime/log.ts";
@@ -79,7 +79,18 @@ async function configureDesktopMode(
   options: ModeOptions,
 ): Promise<boolean> {
   const { status, directory, remoteUpdate, logs } = options;
-  const config = configuration(raw);
+  const config = configuration(raw, status.configuration);
+
+  const savedAddress = status.configuration?.mode === "remote" ? status.configuration.gatewayUrl : status.gatewayUrl;
+
+  if (
+    config.mode === "remote" &&
+    config.gatewayUrl !== savedAddress &&
+    !config.enrollmentToken &&
+    new URL(config.gatewayUrl).protocol !== "https:"
+  )
+    throw new Error("Use an HTTPS address from Network access.");
+
   const unchanged = sameDesktopConfiguration(config, status.configuration);
   const choosingMode = new URL(event.sender.getURL()).searchParams.get("settings") === "1";
 
@@ -111,16 +122,17 @@ async function configureDesktopMode(
   }
 
   if (config.mode === "remote" && config.enrollmentToken) logs.protect(config.enrollmentToken);
-  const client = config.mode === "remote" ? await remoteClient(directory, config) : undefined;
+  const remote = config.mode === "remote" ? await configureRemoteClient(directory, config) : undefined;
+  const client = remote?.client;
 
   if (client) logs.protect(client.token);
 
   if (client) remoteUpdate?.selectDevice(client.deviceId);
   await remoteUpdate?.publish();
 
-  if (config.mode === "remote") delete config.pairingInvitation;
+  if (remote) delete remote.config.pairingInvitation;
 
-  await options.apply(config, client);
+  await options.apply(remote?.config ?? config, client);
 
   return true;
 }

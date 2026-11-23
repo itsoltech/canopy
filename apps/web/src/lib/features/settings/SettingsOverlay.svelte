@@ -130,6 +130,7 @@
   // The overlay is one history entry over the page: closing is going back to it.
   const close = () => {
     if (shallowKey) history.back();
+    else if (routeMode) void goto("/", { replace: true });
   };
 
   provideSettingsRoute({

@@ -42,10 +42,7 @@
       spellcheck="false"
     />
   </Field>
-  <Field
-    label="Gateway address"
-    description="The secure Network access address. Use your existing address when reconnecting."
-  >
+  <Field label="Gateway address" description="Use an HTTPS address from Network access on your gateway.">
     <Input
       name="gateway"
       type="url"

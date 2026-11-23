@@ -4,7 +4,7 @@ import { join } from "node:path";
 import { createClient, Code, ConnectError } from "@connectrpc/connect";
 import { fromJsonString, toJsonString, create } from "@bufbuild/protobuf";
 import { ui } from "@canopy/contracts";
-import { pinnedOrigins, routedPinnedTransport } from "@canopy/transport";
+import { pinnedOrigins, routedPinnedTransport, type PinnedRoutes } from "@canopy/transport";
 import type { DesktopConfiguration } from "@canopy/ui/desktop";
 
 export type RemoteConfiguration = Extract<DesktopConfiguration, { mode: "remote" }>;
@@ -25,6 +25,15 @@ export const remoteWorkerDirectory = (directory: string, config: RemoteConfigura
       .digest("hex")
       .slice(0, 24),
   );
+
+export function desktopGatewayRoutes<T extends PinnedRoutes>(routes: T, gatewayUrl?: string): T {
+  // A legacy configuration can still carry the worker's cleartext address.
+  if (!gatewayUrl || new URL(gatewayUrl).protocol !== "https:") return routes;
+
+  const addresses = [...new Set([...pinnedOrigins([gatewayUrl]), ...routes.addresses])].slice(0, 32);
+
+  return { ...routes, addresses };
+}
 
 /** Parse protobuf JSON at the vault boundary; never allow an unpinned credential. */
 export function readDesktopCredential(text: string): DesktopClientCredential {
@@ -60,7 +69,7 @@ export function credentialMessage(client: DesktopClientCredential) {
   });
 }
 
-export async function pairDesktop(invitation: string): Promise<DesktopClientCredential> {
+export function readDesktopInvitation(invitation: string) {
   // The copy action in Settings emits protobuf JSON: code + routes, no service token.
   let input: ui.CreateMobilePairingResponse;
 
@@ -72,21 +81,29 @@ export async function pairDesktop(invitation: string): Promise<DesktopClientCred
 
   if (input.pairing?.clientKind !== "desktop" || !input.routes)
     throw new Error("Create a desktop pairing code in gateway Settings → Devices");
-  const routed = routedPinnedTransport(input.routes);
+
+  return { code: input.code, routes: input.routes };
+}
+
+export async function pairDesktop(invitation: string, gatewayUrl?: string) {
+  const input = readDesktopInvitation(invitation);
+  const routed = routedPinnedTransport(desktopGatewayRoutes(input.routes, gatewayUrl));
   const api = createClient(ui.DesktopPairingService, routed.transport);
 
-  try {
-    const result = await api.exchangeDesktopPairing(
-      { code: input.code, name: hostname(), platform: process.platform },
-      { timeoutMs: 5000 },
-    );
+  const result = await api
+    .exchangeDesktopPairing({ code: input.code, name: hostname(), platform: process.platform }, { timeoutMs: 5000 })
+    .catch((cause: unknown) => {
+      if (cause instanceof ConnectError && cause.code === Code.Unimplemented)
+        throw new Error("Update Canopy on the gateway, then create a desktop invitation in Settings → Devices");
 
-    return readDesktopCredential(toJsonString(ui.ExchangeMobilePairingResponseSchema, result));
-  } catch (cause) {
-    if (cause instanceof ConnectError && cause.code === Code.Unimplemented)
-      throw new Error("Update Canopy on the gateway, then create a desktop invitation in Settings → Devices");
+      if (cause instanceof ConnectError) throw new Error(cause.rawMessage);
+      throw new Error("Could not pair securely. Check the gateway address and certificate fingerprint.");
+    });
 
-    if (cause instanceof ConnectError) throw new Error(cause.rawMessage);
-    throw new Error("Could not pair securely. Check the gateway address and certificate fingerprint.");
-  }
+  const credential = readDesktopCredential(toJsonString(ui.ExchangeMobilePairingResponseSchema, result));
+
+  if (credential.fingerprint !== input.routes.fingerprint.toLowerCase())
+    throw new Error("Could not verify the gateway. Copy a new desktop invitation from Settings → Devices.");
+
+  return { ...credential, address: routed.connection().lastAddress };
 }

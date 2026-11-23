@@ -7,6 +7,8 @@ prywatności i pomijaniem wysyłki offline. Aktualizator używa
 `electron-updater` 6.8.11. Build i ustawienia
 udostępniają licencje dołączonych komponentów. Powłoka ładowania
 korzysta z wyglądu tej instalacji także przy niedostępnym gatewayu.
+Ustawienia Desktopu i konfiguracja połączenia są dostępne także przed
+odebraniem pierwszego stanu z gatewaya.
 Ikona aplikacji macOS zawiera małe reprezentacje 1× i 2× zgodne z odczytem z bundla.
 Desktop w trybie lokalnym aktywuje relay Canopy po weryfikacji sparowanego
 telefonu. Od 2026-11-23 oba tryby Desktopu pozwalają wybrać relay Canopy lub
@@ -479,6 +481,9 @@ i `--window-safe-top` co konfiguracja; wskaźnik respektuje ograniczenie ruchu.
 Zdalny web ma 3-sekundowy limit sondy dokumentu. Jeśli działa, otwiera się od razu,
 a niedostępny gateway obsługuje istniejący ekran webu; jeśli sam web nie odpowiada,
 lokalny ekran startu pokazuje błąd i działania naprawcze.
+Komunikat o niedostępnym gatewayu i szczegóły połączenia w sidebarze otwierają
+lokalną konfigurację przez **Open desktop settings**. Tę samą konfigurację otwiera
+**Change desktop mode…** w menu aplikacji, niezależnie od stanu połączenia.
 
 Procesy uruchamiają się w kolejności: baza → migracje/start gatewaya → enrollment
 → worker. Lokalny BFF (w kontrolerze) służy także jako ekran konfiguracji przed uruchomieniem bazy.

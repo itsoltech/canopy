@@ -7,6 +7,8 @@ w pamięci BFF są zaimplementowane (2026-11-15).
 Parowanie z zaproszenia jest wymagane dla starej instalacji remote bez zapisanego
 poświadczenia UI (2026-11-19). Sparowany Desktop konfiguruje relay powiadomień
 na zdalnym gatewayu, jeśli gateway ogłasza tę możliwość (2026-11-23).
+Ręczny adres HTTPS w ustawieniach Desktopu jest trasą przypiętą do dotychczasowego
+certyfikatu gatewaya i może też posłużyć do wymiany zaproszenia (2026-11-23).
 Opis implementacji nie określa dostępności w nightly/beta/stable; tę podają
 [zasady wydań](release.md) i GitHub Releases.
 
@@ -28,8 +30,10 @@ infrastrukturę urządzeń, ale nie rozszerza uprawnień telefonów.
 1. Na gatewayu użytkownik otwiera Settings → Devices, włącza Network access
    i tworzy kod dla desktopu. Zaproszenie zawiera adresy oraz pełny SHA-256
    certyfikatu tożsamości; kod jest jednorazowy i ważny dziesięć minut.
-2. Lokalny ekran desktopu przyjmuje zaproszenie. Main/controller sprawdza pin
-   przed wysłaniem kodu przez TLS. Fałszywa trasa nie otrzymuje żadnego HTTP.
+2. Lokalny ekran desktopu przyjmuje zaproszenie. Jeśli ogłoszone adresy są
+   niedostępne z tego komputera, można wpisać inny adres HTTPS tego samego
+   listenera Network access. Main sprawdza pin z zaproszenia przed wysłaniem
+   kodu przez TLS. Fałszywa trasa nie otrzymuje żadnego HTTP.
 3. Transakcja zużywa kod i tworzy token 256-bitowy przypisany do właściciela
    gatewaya oraz rodzaju `desktop`. Baza trzyma wyłącznie hashe kodu i tokenu.
    Rodzaj zaproszenia ustala gateway podczas tworzenia; kod telefonu nie działa
@@ -88,6 +92,9 @@ Ponowny wybór następuje przed kolejnym RPC po `Unavailable` albo zamknięciu s
 pod wywołaniem, po zmianie listy tras oraz w tle najwyżej co 30 s. Nie ponawiamy
 mutacji po niejednoznacznej utracie odpowiedzi. Uwierzytelnione informacje o trasach
 odświeżają listę, zachowując adres bootstrap jako fallback i niezmienny pin.
+Zapisany adres HTTPS bierze udział w sondach razem z adresami ogłoszonymi przez
+gateway. Zmiana adresu tego samego gatewaya używa zapisanego tokenu i pinu,
+również po ponownym uruchomieniu aplikacji.
 
 ## Migracja i własny worker
 
@@ -104,7 +111,11 @@ w Settings → Devices.
 
 Nowy adres Network access i pin z zaproszenia dotyczą BFF. Startup zachowuje
 adres, tożsamość i dane już istniejącego workera oraz pomija zapisany adres
-starego zdalnego webu.
+starego zdalnego webu. Ręczna zmiana adresu dla BFF zachowuje też katalog profilu,
+z którego Desktop odczytuje `worker.json` i zaszyfrowane poświadczenie klienta.
+Zaproszenie z innym pinem wybiera profil odpowiadający nowemu gatewayowi. Jeśli
+wszystkie podane adresy są już przypisane do innych profili, trzeba podać dodatkowy
+adres HTTPS tego gatewaya. Zaproszenie z tym samym pinem zachowuje bieżący profil.
 
 Nowa konfiguracja może dodatkowo przyjąć dotychczasowy token enrollmentu
 workera; jego link, journal, status i aktualizacje pozostają osobnym mechanizmem.
