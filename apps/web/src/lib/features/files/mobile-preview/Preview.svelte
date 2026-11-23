@@ -13,6 +13,7 @@
     canDownload: false,
     download: () => undefined,
   });
+
   provideClipboard(async (text) => {
     await request("copy", text);
   });
