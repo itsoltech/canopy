@@ -1,6 +1,7 @@
 import { create } from "@bufbuild/protobuf";
 import { connectors } from "@canopy/contracts";
 import { type GatewayCore } from "../core/core.ts";
+import { mobileIdentity } from "../core/mobile-devices.ts";
 import { connectorGuard } from "./ui-errors.ts";
 import type { UiHandlers } from "./ui-service.ts";
 import { ConnectorTestFailure } from "../connectors/test-error.ts";
@@ -64,7 +65,8 @@ export function connectorsHandlers(
         return create(connectors.SaveConnectorOAuthAppResponseSchema);
       }),
 
-    beginConnectorOAuth: (r) => connectorGuard(() => core.connectors.begin(r)),
+    beginConnectorOAuth: (r, context) =>
+      connectorGuard(() => core.connectors.begin(r, context.values.get(mobileIdentity)?.clientKind === "mobile")),
 
     completeConnectorOAuth: async (r) => {
       try {

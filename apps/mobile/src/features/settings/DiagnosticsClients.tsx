@@ -22,7 +22,12 @@ export function DiagnosticsClients({ computer }: { computer: ui.ComputerDiagnost
         </Text>
         {computer.clientMeasures.length ? (
           clientGroups(computer.clientMeasures).map((group) => (
-            <SettingsDisclosure key={group.source} title={group.title} initiallyOpen={group.source === "bff"}>
+            <SettingsDisclosure
+              key={group.source}
+              viewKey={`client:${computer.computerId}:${group.source}`}
+              title={group.title}
+              initiallyOpen={group.source === "bff"}
+            >
               <DiagnosticsMeasures measures={group.measures} />
             </SettingsDisclosure>
           ))

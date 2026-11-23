@@ -25,7 +25,9 @@ function fallback() {
 
   if (!status || !manual || !output || !copy) return;
 
-  const valid = target || (!webReturn && state && isOAuthState(state));
+  // A plain nonce has no forwarding destination. The originating client accepts a manual return.
+  const manualReturn = state && isOAuthState(state) && !state.includes(".");
+  const valid = target || manualReturn || (!webReturn && state && isOAuthState(state));
 
   if (!valid || !state || !code) {
     status.textContent = valid
@@ -39,8 +41,8 @@ function fallback() {
   output.textContent = text;
   manual.hidden = false;
 
-  if (!webReturn && !target?.desktop)
-    status.textContent = "Copy this code. In Canopy’s Connect dialog, select Paste a sign-in code.";
+  if (manualReturn || (!webReturn && !target?.desktop))
+    status.textContent = "Copy this code and paste it into the sign-in form in Canopy.";
 
   copy.addEventListener("click", () => {
     void navigator.clipboard.writeText(text).then(

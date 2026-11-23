@@ -21,7 +21,8 @@ export function SkillSourceEditor({
   const [revision, setRevision] = useState(snapshot.revision);
   const [paths, setPaths] = useState<string[]>([]);
   const source = preview?.source;
-  const upToDate = source?.wellKnown && source.commit === skill?.source?.commit;
+  const upToDate = !!source && !!skill?.source && source.commit === skill.source.commit;
+  const stale = preview && snapshot.revision > revision;
 
   const [assignment, setAssignment] = useState(() =>
     create(
@@ -65,6 +66,7 @@ export function SkillSourceEditor({
             })
         }
       />
+      {stale && <Notice>The library changed. Preview the source again before saving.</Notice>}
       {upToDate && <Notice>Up to date</Notice>}
       {preview && !upToDate && (
         <>
@@ -76,24 +78,30 @@ export function SkillSourceEditor({
           ))}
           {preview.skills.map((item) => (
             <Fragment key={item.path}>
-              <SettingToggle
-                title={item.artifact?.name || item.path}
-                value={paths.includes(item.path)}
-                onChange={(on) => setPaths(on ? [...paths, item.path] : paths.filter((p) => p !== item.path))}
-              />
+              {!skill && (
+                <SettingToggle
+                  title={item.artifact?.name || item.path}
+                  value={paths.includes(item.path)}
+                  onChange={(on) => setPaths(on ? [...paths, item.path] : paths.filter((p) => p !== item.path))}
+                />
+              )}
               <EnvironmentFiles artifact={item.artifact} before={skill?.artifact} reviewUpdate={!!skill} />
             </Fragment>
           ))}
-          <Field
-            label="Library name"
-            value={assignment.name}
-            onChangeText={(name) => setAssignment(create(ui.LibrarySkillSchema, { ...assignment, name }))}
-          />
-          <EnvironmentDestinations value={assignment} workers={snapshot.workers} onChange={setAssignment} />
+          {!skill && (
+            <>
+              <Field
+                label="Library name"
+                value={assignment.name}
+                onChangeText={(name) => setAssignment(create(ui.LibrarySkillSchema, { ...assignment, name }))}
+              />
+              <EnvironmentDestinations value={assignment} workers={snapshot.workers} onChange={setAssignment} />
+            </>
+          )}
           <Button
             variant="primary"
             title={skill ? "Apply reviewed update" : "Add and sync"}
-            disabled={!paths.length}
+            disabled={!paths.length || stale}
             busy={resource.busy}
             onPress={() =>
               void resource

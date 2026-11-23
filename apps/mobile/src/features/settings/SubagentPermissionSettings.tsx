@@ -5,11 +5,19 @@ import type { useAppearance } from "../../state/appearance";
 import { PickerSheet, SelectField } from "../../ui/Picker";
 import { permissionLabel, permissionLook, permissionModes, pickPermission } from "../threads/permissions";
 import { SettingsGroup, SettingsRow } from "./SettingsGroup";
+import { ResetSetting } from "./ResetSetting";
 
 export function SubagentPermissionSettings({ settings }: { settings: ReturnType<typeof useAppearance> }) {
   const [open, setOpen] = useState(false);
   const defaults = create(ui.ThreadDefaultsSchema, settings.user?.threadDefaults);
   const value = defaults.subagentPermissionMode;
+
+  const save = (subagentPermissionMode: PermissionMode) =>
+    void settings.update({
+      threadDefaults: create(ui.ThreadDefaultsSchema, { ...defaults, subagentPermissionMode }),
+    });
+
+  const disabled = !settings.user || settings.saving;
 
   return (
     <>
@@ -20,13 +28,21 @@ export function SubagentPermissionSettings({ settings }: { settings: ReturnType<
         <SettingsRow
           title="Permissions"
           description="A fixed mode can limit access, up to the parent’s current permissions."
+          accessory={
+            <ResetSetting
+              label="Reset subagent permissions"
+              changed={value !== PermissionMode.UNSPECIFIED}
+              disabled={disabled}
+              onReset={() => save(PermissionMode.UNSPECIFIED)}
+            />
+          }
           control={
             <SelectField
               label="Subagent permissions"
               hideLabel
               value={value === PermissionMode.UNSPECIFIED ? "Same as parent" : permissionLabel(value)}
               onPress={() => setOpen(true)}
-              disabled={!settings.user || settings.saving}
+              disabled={disabled}
             />
           }
         />
@@ -36,13 +52,7 @@ export function SubagentPermissionSettings({ settings }: { settings: ReturnType<
         visible={open}
         onClose={() => setOpen(false)}
         value={value}
-        onSelect={(mode) =>
-          pickPermission(mode, value, (subagentPermissionMode) => {
-            void settings.update({
-              threadDefaults: create(ui.ThreadDefaultsSchema, { ...defaults, subagentPermissionMode }),
-            });
-          })
-        }
+        onSelect={(mode) => pickPermission(mode, value, save)}
         sections={[
           {
             options: [

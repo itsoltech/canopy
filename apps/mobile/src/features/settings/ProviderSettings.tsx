@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { useLocalSearchParams, useRoute } from "expo-router";
 import { Text } from "react-native";
 import { create } from "@bufbuild/protobuf";
 import { Provider, ui } from "@canopy/contracts";
@@ -8,21 +9,48 @@ import { Alert, Button, IconButton, Sheet } from "../../ui/components";
 import { styles, useColors } from "../../ui/theme";
 import { useTimeLabel } from "../../ui/time";
 import { useWorkerRecordOptions } from "../computers/worker-options";
-import { providerName } from "../models/catalog";
+import { AddProvider } from "./AddProvider";
 import { InstanceDetail } from "../providers/InstanceDetail";
 import { InstanceRow } from "../providers/InstanceRow";
 import { ConfigNoticesFor } from "./ConfigNoticesFor";
-import { ProviderForm } from "./ProviderForm";
 import { SettingChoice, SettingsGroup } from "./SettingsGroup";
 import { ResourceState, useSettingsResource } from "./resource";
+
+import { createSettingsViewState } from "./SettingsScroll";
+
+const useProviderScope = createSettingsViewState("");
+const useSelectedInstance = createSettingsViewState<string | undefined>(undefined);
 
 const keyOf = (instance: Pick<ui.ProviderInstance, "harness" | "id">) => `${instance.harness}:${instance.id}`;
 
 /** The overview's live account and plan usage over the listed instance (web: ProvidersState.updateUsage). */
-function live(instance: ui.ProviderInstance, workers: readonly ui.Worker[]): ui.ProviderInstance {
+function live(
+  instance: ui.ProviderInstance,
+  workers: readonly ui.Worker[],
+  records: readonly ui.WorkerRecord[],
+): ui.ProviderInstance {
+  const linked = records.flatMap((record) => {
+    if (instance.workers.some((on) => on.workerId === record.workerId)) return [];
+    const saved = record.instances.find((item) => item.id === instance.id && item.harness === instance.harness);
+
+    const reported = workers
+      .find((w) => w.id === record.workerId)
+      ?.providerInstances.find((item) => item.id === instance.id && item.harness === instance.harness);
+
+    if (reported?.status) return create(ui.InstanceOnWorkerSchema, { ...reported.status, workerId: record.workerId });
+
+    return create(ui.InstanceOnWorkerSchema, {
+      enabled: reported?.enabled ?? saved?.enabled ?? instance.allWorkers,
+      explicit: saved?.enabled !== undefined,
+      detail: `Status from ${record.computerName || record.name} unavailable`,
+      overrides: { apiKeySet: saved?.keySet ?? false },
+      workerId: record.workerId,
+    });
+  });
+
   return create(ui.ProviderInstanceSchema, {
     ...instance,
-    workers: instance.workers.map((on) => {
+    workers: [...instance.workers, ...linked].map((on) => {
       const current = workers
         .find((w) => w.id === on.workerId)
         ?.providerInstances.find((i) => i.harness === instance.harness && i.id === instance.id);
@@ -38,8 +66,7 @@ function live(instance: ui.ProviderInstance, workers: readonly ui.Worker[]): ui.
  * Settings → Providers (web: settings/providers): instances defined once in the gateway and turned on per worker.
  * The scope picks where changes apply; a row's switch turns the instance on or off there, the row opens its detail.
  */
-export function ProviderSettings() {
-  const c = useColors();
+function useProviderPanel() {
   const overview = useOverview();
 
   const resource = useSettingsResource("ListProviderInstances+ListWorkerRecords", async (api) => {
@@ -48,13 +75,11 @@ export function ProviderSettings() {
     return { ...instances, ...records };
   });
 
-  const [scope, setScope] = useState("");
-  const [selectedKey, setSelected] = useState<string>();
-  const [adding, setAdding] = useState(false);
-  const [toggling, setToggling] = useState<string>();
-  const [refresh, setRefresh] = useState<{ busy: boolean; checked: boolean; skipped: string[] }>();
-  const minute = useTimeLabel((time) => String(Math.floor(time / 60_000)), true);
-  const now = Number(minute) * 60_000;
+  const initial = useLocalSearchParams<{ worker?: string }>();
+  const route = useRoute();
+  const entry = initial.worker ? route.key : undefined;
+  const [scope, setScope] = useProviderScope(entry, initial.worker ?? "");
+  const [selectedKey, setSelected] = useSelectedInstance(entry);
   const workerOptions = useWorkerRecordOptions(resource.data?.records ?? []);
   const record = resource.data?.records.find((w) => w.workerId === scope);
 
@@ -63,6 +88,11 @@ export function ProviderSettings() {
       create(ui.WorkerSchema, { id: scope, name: record?.name ?? "Worker", nodeId: record?.nodeId, os: record?.os }))
     : undefined;
 
+  const readOnly =
+    (scope && !workerOptions.some((option) => option.value === scope) ? "This worker is unavailable." : "") ||
+    (record?.readOnlyReason ??
+      (worker?.nodeId ? "Manage this worker on its own computer. Configuration is not shared." : ""));
+
   const changed = () => void resource.reload();
 
   const instances = (
@@ -70,9 +100,12 @@ export function ProviderSettings() {
     (resource.initialLoading
       ? [create(ui.ProviderInstanceSchema, { id: "native", label: " ", harness: Provider.CODEX, builtIn: true })]
       : [])
-  ).map((instance) => live(instance, overview.workers));
+  ).map((instance) => live(instance, overview.workers, resource.data?.records ?? []));
 
   const selected = instances.find((i) => keyOf(i) === selectedKey);
+
+  const [toggling, setToggling] = useState<string>();
+  const [refresh, setRefresh] = useState<{ busy: boolean; checked: boolean; skipped: string[] }>();
 
   async function refreshAll() {
     setRefresh({ busy: true, checked: false, skipped: [] });
@@ -92,11 +125,55 @@ export function ProviderSettings() {
     setToggling(undefined);
   }
 
+  return {
+    refresh,
+    refreshAll,
+    toggling,
+    toggle,
+    resource,
+    scope,
+    setScope,
+    selected,
+    setSelected,
+    workerOptions,
+    worker,
+    readOnly,
+    changed,
+    instances,
+    workers: overview.workers,
+  };
+}
+
+export function ProviderSettings() {
+  const {
+    refresh,
+    refreshAll,
+    toggling,
+    toggle,
+    resource,
+    scope,
+    setScope,
+    selected,
+    setSelected,
+    workerOptions,
+    worker,
+    readOnly,
+    changed,
+    instances,
+    workers,
+  } = useProviderPanel();
+
+  const c = useColors();
+  const [adding, setAdding] = useState(false);
+  const minute = useTimeLabel((time) => String(Math.floor(time / 60_000)), true);
+  const now = Number(minute) * 60_000;
+
   return (
     <ResourceState resource={resource}>
       <SettingChoice
-        title="Scope"
+        title="Applying settings on"
         value={scope}
+        disabled={resource.busy}
         onChange={setScope}
         options={[{ value: "", label: "All workers" }, ...workerOptions]}
       />
@@ -105,7 +182,9 @@ export function ProviderSettings() {
         onChanged={changed}
       />
       {refresh?.skipped.length ? <Alert tone="info">Not checked: {refresh.skipped.join("; ")}</Alert> : null}
-      {worker && !worker.online ? (
+      {readOnly ? (
+        <Alert tone="info">{readOnly}</Alert>
+      ) : worker && !worker.online ? (
         <Alert tone="info">{worker.name} is offline. Changes are saved and reach it when it connects.</Alert>
       ) : null}
       <SettingsGroup
@@ -119,7 +198,13 @@ export function ProviderSettings() {
               busy={refresh?.busy}
               onPress={() => void refreshAll()}
             />
-            <Button icon="plus" title="Add" label="Add provider" onPress={() => setAdding(true)} />
+            <Button
+              icon="plus"
+              title="Add"
+              label="Add provider"
+              disabled={!!readOnly}
+              onPress={() => setAdding(true)}
+            />
           </>
         }
       >
@@ -129,7 +214,7 @@ export function ProviderSettings() {
             instance={instance}
             worker={worker}
             busy={toggling === keyOf(instance)}
-            disabled={resource.busy}
+            disabled={resource.busy || !!readOnly}
             onSelect={() => setSelected(keyOf(instance))}
             onToggle={(enabled) => void toggle(instance, enabled)}
           />
@@ -147,8 +232,9 @@ export function ProviderSettings() {
           <InstanceDetail
             key={`${keyOf(selected)}:${scope}`}
             instance={selected}
+            readOnly={readOnly}
             worker={worker}
-            workers={overview.workers}
+            workers={workers}
             workerOptions={workerOptions.map((o) => ({ id: o.value, name: o.label }))}
             now={now}
             busy={resource.busy}
@@ -157,38 +243,20 @@ export function ProviderSettings() {
           />
         )}
       </Sheet>
-      <AddProvider visible={adding} onClose={() => setAdding(false)} onAdded={changed} />
-    </ResourceState>
-  );
-}
+      <Sheet title="Add provider" visible={adding} onClose={() => setAdding(false)}>
+        {adding && (
+          <AddProvider
+            initialWorkerId={scope}
+            instances={instances}
+            onSaved={(instance) => {
+              setAdding(false);
+              changed();
 
-/** A new instance: its agent first, then the definition and where it runs (web: AddInstanceDialog). */
-function AddProvider({ visible, onClose, onAdded }: { visible: boolean; onClose: () => void; onAdded: () => void }) {
-  const [harness, setHarness] = useState(Provider.CODEX);
-
-  return (
-    <Sheet title="Add provider" visible={visible} onClose={onClose}>
-      {visible && (
-        <>
-          <SettingChoice
-            title="Agent"
-            value={harness}
-            onChange={setHarness}
-            options={[Provider.CLAUDE, Provider.CODEX, Provider.GROK].map((value) => ({
-              value,
-              label: providerName(value),
-            }))}
-          />
-          <ProviderForm
-            key={harness}
-            harness={harness}
-            onSaved={() => {
-              onClose();
-              onAdded();
+              if (instance) setSelected(keyOf(instance));
             }}
           />
-        </>
-      )}
-    </Sheet>
+        )}
+      </Sheet>
+    </ResourceState>
   );
 }

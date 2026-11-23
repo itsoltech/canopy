@@ -16,7 +16,7 @@ import { OAuthNetworkFailure } from "./oauth-network.ts";
 /** Only explicit sign-in discovers a new redirect or replaces a dynamic registration. */
 export async function beginOAuth(
   account: Pick<AccountRow, "url" | "connector_type">,
-  callback: string,
+  callback: string | undefined,
   desktop: boolean,
   previous: Credentials,
   app?: RegisteredApp,
@@ -46,7 +46,7 @@ export async function beginOAuth(
 
   const metadata = discovery.authorizationServerMetadata;
   const s256 = metadata?.code_challenge_methods_supported?.includes("S256");
-  const defaultRedirect = s256 ? oauthRedirectUrl() : callback;
+  const defaultRedirect = s256 || !callback ? oauthRedirectUrl() : callback;
 
   const previousClient =
     !previous.client?.issuer || new URL(previous.client.issuer).href === new URL(discovery.authorizationServerUrl).href
@@ -60,7 +60,7 @@ export async function beginOAuth(
 
   // Manually registered apps keep the callback they were saved with, including older installation callbacks.
   const redirectUri = app
-    ? app.redirect_uri || callback
+    ? app.redirect_uri || callback || defaultRedirect
     : useClientMetadata
       ? OAUTH_CLIENT_METADATA_REDIRECT_URL
       : defaultRedirect;
@@ -73,7 +73,7 @@ export async function beginOAuth(
   const nonce = randomBytes(32).toString("base64url");
 
   const state =
-    redirectUri === callback || (redirectUri === OAUTH_CLIENT_METADATA_REDIRECT_URL && !desktop)
+    !callback || redirectUri === callback || (redirectUri === OAUTH_CLIENT_METADATA_REDIRECT_URL && !desktop)
       ? nonce
       : returnState(nonce, desktop ? { desktop: true } : { callback });
 

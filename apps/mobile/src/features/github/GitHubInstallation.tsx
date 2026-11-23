@@ -8,6 +8,10 @@ import { useColors, useTypography } from "../../ui/theme";
 import { GitHubActions } from "./GitHubActions";
 import { GitHubRepositories } from "./GitHubRepositories";
 
+import { createSettingsViewState } from "../settings/SettingsScroll";
+
+const useExpandedInstallation = createSettingsViewState(false);
+
 export function GitHubInstallation({
   accountId,
   installation,
@@ -19,7 +23,7 @@ export function GitHubInstallation({
 }) {
   const c = useColors();
   const type = useTypography();
-  const [open, setOpen] = useState(false);
+  const [open, setOpen] = useExpandedInstallation(JSON.stringify([accountId, installation.installationId]));
   const [error, setError] = useState("");
 
   const openGitHub = (url: string) =>

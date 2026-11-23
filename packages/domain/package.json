@@ -4,6 +4,7 @@
   "private": true,
   "type": "module",
   "exports": {
+    "./agent-tool-settings": "./src/agent-tool-settings.ts",
     "./memory-tools": "./src/memory-tools.ts",
     "./reflection-models": "./src/reflection-models.ts",
     "./memory-scopes": "./src/memory-scopes.ts",
@@ -83,6 +84,7 @@
     "./proxy-capacity": "./src/proxy-capacity.ts",
     "./provider-instances": "./src/provider-instances.ts",
     "./provider-settings": "./src/provider-settings.ts",
+    "./sandbox-profile-validation": "./src/sandbox-profile-validation.ts",
     "./sandbox-profiles": "./src/sandbox-profiles.ts",
     "./provider-settings-json": "./src/provider-settings-json.ts",
     "./provider-settings-editor": "./src/provider-settings-editor.ts",

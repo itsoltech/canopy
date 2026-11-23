@@ -68,7 +68,7 @@ function Navigation() {
             name="settings"
             options={{
               animation: reduced ? "none" : Platform.OS === "android" ? "slide_from_bottom" : "default",
-              // The section stack owns horizontal back gestures until its list is reached.
+              // The section stack owns horizontal back gestures until the Settings index is reached.
               gestureEnabled: pathname === "/settings",
             }}
           />

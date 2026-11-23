@@ -6,6 +6,8 @@ import { Provider, ui } from "@canopy/contracts";
 import { dockerAvailable } from "@canopy/db/testing";
 import { Effect } from "effect";
 import { SqlClient, type SqlConnection } from "effect/sql";
+import { DEFAULT_OAUTH_REDIRECT_URL, pastedCode } from "@canopy/domain/oauth-return";
+import { fakeConnector } from "./support/connector.ts";
 import { readPairingQr } from "../../apps/mobile/src/api/client.ts";
 import { routedMobileClient, type MobileConnection } from "../../apps/mobile/src/api/routes.ts";
 import { attachmentResponse } from "../../apps/web/src/lib/server/attachment-response.ts";
@@ -187,6 +189,39 @@ describe.skipIf(!dockerAvailable)("mobile pairing + pinned native app Connect cl
       controller.abort();
     }
   }, 10000);
+
+  test("a paired phone can finish connector sign-in without a web callback", async () => {
+    const paired = await exchange((await invite()).code);
+    const phone = client(paired.deviceToken).api;
+    const provider = fakeConnector();
+
+    try {
+      const response = await phone.saveConnectorAccount({
+        connectorType: "custom",
+        name: "Phone sign-in",
+        url: provider.url,
+        authKind: "oauth",
+      });
+
+      const browserBinding = crypto.randomUUID();
+      const { authorizationUrl } = await phone.beginConnectorOAuth({ accountId: response.account!.id, browserBinding });
+      const back = await fetch(authorizationUrl, { redirect: "manual" });
+      const url = new URL(back.headers.get("location")!);
+      expect(url.origin + url.pathname).toBe(DEFAULT_OAUTH_REDIRECT_URL);
+      const state = url.searchParams.get("state")!;
+      expect(/^[\w-]{32,128}$/.test(state)).toBe(true);
+      const code = pastedCode(state, url.searchParams.get("code")!);
+      const denied = await phone.completeConnectorOAuth({ pastedCode: code, browserBinding: crypto.randomUUID() });
+      expect(denied.failure?.kind).toBe("oauth_binding");
+      const saved = await phone.completeConnectorOAuth({ pastedCode: code, browserBinding });
+      expect(saved.account?.id).toBe(response.account!.id);
+      expect(saved.account?.status).toBe("connected");
+      expect(provider.tokenRedirects).toEqual([DEFAULT_OAUTH_REDIRECT_URL]);
+    } finally {
+      provider.close();
+      await phone.unpairMobileDevice({});
+    }
+  });
 
   test("device has owner settings access; revocation closes existing streams and rejects new RPCs", async () => {
     const paired = await exchange((await invite()).code);

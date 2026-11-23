@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { pageAppearances, viewportSizes as presets } from "@canopy/domain/agent-tool-settings";
   import { untrack } from "svelte";
   import type { BrowserSessionDefaults } from "@canopy/contracts";
   import Field from "#lib/shared/ui/Field.svelte";
@@ -7,15 +8,6 @@
 
   let { value = $bindable() }: { value: BrowserSessionDefaults } = $props();
   let custom = $state(false);
-
-  const presets = [
-    { value: "", label: "Browser default" },
-    { value: "1280x720", label: "1280 × 720" },
-    { value: "1440x900", label: "1440 × 900" },
-    { value: "1920x1080", label: "1920 × 1080" },
-    { value: "390x844", label: "390 × 844" },
-    { value: "custom", label: "Custom size" },
-  ];
 
   const size = $derived(
     value.viewportWidth != null || value.viewportHeight != null ? `${value.viewportWidth}x${value.viewportHeight}` : "",
@@ -50,15 +42,7 @@
     <Select value={preset} options={presets} onchange={resize} />
   </Field>
   <Field label="Page appearance" description="The color scheme requested from websites.">
-    <Select
-      bind:value={value.colorScheme}
-      options={[
-        { value: "", label: "Browser default" },
-        { value: "light", label: "Light" },
-        { value: "dark", label: "Dark" },
-        { value: "no-preference", label: "No preference" },
-      ]}
-    />
+    <Select bind:value={value.colorScheme} options={pageAppearances} />
   </Field>
 </div>
 {#if preset === "custom"}

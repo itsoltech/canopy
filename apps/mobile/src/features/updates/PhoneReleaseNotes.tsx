@@ -19,7 +19,7 @@ export function phoneReleaseVersion(update?: UpdateInfo) {
 
 export function PhoneReleaseNotes({ version, channel }: { version?: string; channel: string }) {
   return (
-    <SettingsDisclosure title={`Read release notes · ${channel}`}>
+    <SettingsDisclosure viewKey={`phone-notes:${channel}:${version ?? ""}`} title={`Read release notes · ${channel}`}>
       <ReleaseBody key={version ?? "unknown"} version={version} />
     </SettingsDisclosure>
   );

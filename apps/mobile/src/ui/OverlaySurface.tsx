@@ -4,6 +4,7 @@ import Animated, { LayoutAnimationConfig, type SharedValue } from "react-native-
 import { SheetHandle, SheetDragContext } from "./SheetDragArea";
 import { useSheetGesture } from "./useSheetGesture";
 import { useSheetLayout } from "./useSheetLayout";
+import { useSettingsDensity, SettingsDensity } from "./density";
 import { useColors } from "./theme";
 
 /** The scrim fills the window independently of keyboard padding. Phone sheets never scale away from its edges. */
@@ -31,6 +32,8 @@ export function OverlaySurface({
   children: ReactNode;
 }) {
   const c = useColors();
+  const settings = useSettingsDensity();
+  const form = settings && fullHeight;
 
   const { width, height, insets, sheetHeight, offset, travel, scrim, viewport, surface, body } = useSheetLayout(
     progress,
@@ -83,7 +86,7 @@ export function OverlaySurface({
                 borderRadius: 16,
                 borderBottomLeftRadius: wide ? 16 : 0,
                 borderBottomRightRadius: wide ? 16 : 0,
-                backgroundColor: c.overlay,
+                backgroundColor: form ? c.surface : c.overlay,
                 borderWidth: c.dark ? 1 : 0,
                 borderBottomWidth: wide && c.dark ? 1 : 0,
                 borderColor: c.line,
@@ -99,13 +102,20 @@ export function OverlaySurface({
             {!wide && (
               <View
                 pointerEvents="none"
-                style={{ position: "absolute", top: "100%", left: 0, right: 0, height, backgroundColor: c.overlay }}
+                style={{
+                  position: "absolute",
+                  top: "100%",
+                  left: 0,
+                  right: 0,
+                  height,
+                  backgroundColor: form ? c.surface : c.overlay,
+                }}
               />
             )}
             <Animated.View style={[{ minHeight: 0, flexShrink: 1, overflow: "hidden" }, body]}>
               <SheetHandle />
               <LayoutAnimationConfig skipEntering skipExiting>
-                {children}
+                <SettingsDensity.Provider value={form}>{children}</SettingsDensity.Provider>
               </LayoutAnimationConfig>
             </Animated.View>
           </Animated.View>

@@ -8,13 +8,24 @@ import {
   diagnosticsFindings,
   diagnosticsStatus,
   cpuSummary,
+  diagnosticsLimits,
+  diagnosticsGap,
   duration,
 } from "@canopy/domain/diagnostics";
+import { SettingsDisclosure } from "./SettingsDisclosure";
 import { SettingsGroup, SettingsRow } from "./SettingsGroup";
 import { Button } from "../../ui/components";
 import { styles, useColors } from "../../ui/theme";
 
-export function DiagnosticsComputer({ computer, onSelect }: { computer: ui.ComputerDiagnostics; onSelect(): void }) {
+export function DiagnosticsComputer({
+  computer,
+  selected,
+  onSelect,
+}: {
+  computer: ui.ComputerDiagnostics;
+  selected: boolean;
+  onSelect(): void;
+}) {
   const c = useColors();
 
   return (
@@ -23,9 +34,11 @@ export function DiagnosticsComputer({ computer, onSelect }: { computer: ui.Compu
       description={`${diagnosticsStatus(computer.status)} · ${computer.appVersion || "Version unknown"}`}
     >
       <SettingsRow title={health(computer)} description={freshness(computer)} />
-      {computer.droppedSamples ? (
-        <SettingsRow title="Some measurements are missing" description="Limits were reached." />
-      ) : null}
+      {diagnosticsLimits(computer).map((message) => (
+        <Text key={message} style={[styles.workMeta, { color: c.muted }]}>
+          {message}
+        </Text>
+      ))}
       <SettingsRow
         title="Gateway coverage"
         description={`${Math.floor(computer.observedSeconds / 60)} min observed · CPU: ${cpuSummary(computer)}`}
@@ -38,9 +51,16 @@ export function DiagnosticsComputer({ computer, onSelect }: { computer: ui.Compu
         />
       ))}
       {computer.gaps.length ? (
-        <Text style={[styles.workMeta, { color: c.muted }]}>
-          No data during {computer.gaps.length} {computer.gaps.length === 1 ? "period" : "periods"}.
-        </Text>
+        <SettingsDisclosure
+          viewKey={`gaps:${computer.computerId}`}
+          title={`No data during ${computer.gaps.length} ${computer.gaps.length === 1 ? "period" : "periods"}`}
+        >
+          {computer.gaps.map((gap) => (
+            <Text key={`${gap.startMs}:${gap.endMs}`} style={[styles.workMeta, { color: c.muted }]}>
+              {diagnosticsGap(gap)}
+            </Text>
+          ))}
+        </SettingsDisclosure>
       ) : null}
       {!["saved", "restoring", "not_started", ""].includes(computer.persistenceStatus) ? (
         <Text style={[styles.workMeta, { color: c.muted }]}>
@@ -48,7 +68,12 @@ export function DiagnosticsComputer({ computer, onSelect }: { computer: ui.Compu
         </Text>
       ) : null}
       <View style={{ minHeight: 48, justifyContent: "center" }}>
-        <Button title="View details" onPress={onSelect} />
+        <Button
+          title="View details"
+          icon={selected ? "check" : undefined}
+          label={selected ? `View details for ${computer.name}, selected` : `View details for ${computer.name}`}
+          onPress={onSelect}
+        />
       </View>
     </SettingsGroup>
   );

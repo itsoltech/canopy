@@ -1,9 +1,12 @@
 import { StyleSheet, Text, View } from "react-native";
-import { ProviderProfileKind, type ui } from "@canopy/contracts";
+import { Provider, ProviderProfileKind, type ui } from "@canopy/contracts";
 import { formatRelative } from "@canopy/domain/format";
 import { hasAccountStatus, kindLabel, statusOn } from "@canopy/domain/provider-instances";
 import { styles, useColors } from "../../ui/theme";
 import { ProviderLoginActions } from "../settings/ProviderLoginActions";
+import { copyText } from "../viewers/useCopyText";
+import { IconButton } from "../../ui/components";
+import { SettingsSection, SettingsRow } from "../settings/SettingsGroup";
 import { SettingsValue } from "../settings/SettingsValue";
 import { ProviderAccountRow } from "./ProviderAccountRow";
 import { StatusLine } from "./InstanceRow";
@@ -52,6 +55,7 @@ function OnWorker({
         />
       ) : null}
       <UsageMeters usage={on?.usage} now={now} />
+      {instance.harness === Provider.CLAUDE && on?.reported && <ReportedPaths status={on} />}
       {appSignIn && on?.enabled ? (
         <ProviderLoginActions
           key={`${worker.id}/${instance.harness}/${instance.id}`}
@@ -64,6 +68,36 @@ function OnWorker({
         />
       ) : null}
     </View>
+  );
+}
+
+function ReportedPaths({ status }: { status: ui.InstanceOnWorker }) {
+  const paths = [
+    { label: "Login source", value: status.loginHomePath },
+    { label: "Configuration source", value: status.configurationHomePath },
+    { label: "Thread history", value: status.sessionHomePath },
+    { label: "Private state", value: status.privateHomePath },
+  ].filter((path) => path.value);
+
+  if (!paths.length) return null;
+
+  return (
+    <SettingsSection title="Reported paths" description="Existing threads may keep their previous history directory.">
+      {paths.map(({ label, value }) => (
+        <SettingsRow
+          key={label}
+          title={label}
+          description={value}
+          control={
+            <IconButton
+              icon="clipboard-document"
+              label={`Copy ${label.toLowerCase()}`}
+              onPress={() => void copyText(value)}
+            />
+          }
+        />
+      ))}
+    </SettingsSection>
   );
 }
 

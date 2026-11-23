@@ -162,6 +162,7 @@ function WhatsNewContent() {
         ? notes.releases.map((release, i) => (
             <SettingsDisclosure
               key={release.version}
+              viewKey={`release:${release.version}`}
               title={`${release.version} · ${new Date(release.date).toLocaleDateString(undefined, { dateStyle: "medium" })}`}
               initiallyOpen={i === 0}
             >

@@ -49,6 +49,7 @@ export function WorkerCliSettings({
           {current.cliTools.map((item) => (
             <WorkerCliRow
               key={item.tool?.provider}
+              workerId={current.id}
               item={item}
               disabled={resource.busy || !!readOnly || !current.online}
               onInstall={() =>

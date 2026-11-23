@@ -42,13 +42,7 @@ export function findCanopySettings(
       reason: "This catalogue cannot verify a Settings path for a different client build.",
     };
 
-  const sections =
-    client === "desktop"
-      ? [...settingsSections, ...desktopSettingsSections]
-      : settingsSections.filter(
-          // Native SettingsScreen has no Agent tools screen. The shared sidebar data alone is not proof.
-          (section) => client === "web" || section.href !== "/settings/agent-tools",
-        );
+  const sections = client === "desktop" ? [...settingsSections, ...desktopSettingsSections] : settingsSections;
 
   const exact = sections.find((section) => settingsSearchWords(section.label).join(" ") === sectionQuery);
 
@@ -56,7 +50,8 @@ export function findCanopySettings(
     const linked = exact.href === "/settings/computers";
 
     const requiresMethods =
-      (client === "web" || client === "desktop") && Object.hasOwn(settingsSectionMethods, exact.href);
+      Object.hasOwn(settingsSectionMethods, exact.href) &&
+      (exact.href !== "/settings/mobile" || client === "web" || client === "desktop");
 
     const conditions = [
       ...(!settingsSectionEnabled(exact.href, []) ? ["The Threads module must be enabled."] : []),

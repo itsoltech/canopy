@@ -1,15 +1,14 @@
 import { useState } from "react";
-import { Switch, Text, View } from "react-native";
+import { View } from "react-native";
 import type { github } from "@canopy/contracts";
 import { splitId } from "@canopy/domain/computers";
 import { useSession } from "../../state/session";
 import { useSharedQuery } from "../../state/queries";
-import { useColors, useTypography } from "../../ui/theme";
+import { Button, Notice } from "../../ui/components";
+import { SettingToggle } from "../settings/SettingsGroup";
 
 export function GitHubUpdateChoice({ account }: { account: github.GitHubAccount }) {
   const { client, queries } = useSession();
-  const c = useColors();
-  const type = useTypography();
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const key = `GitHubUpdateAccount:${splitId(account.id).node ?? "local"}`;
@@ -31,19 +30,20 @@ export function GitHubUpdateChoice({ account }: { account: github.GitHubAccount 
 
   return (
     <View style={{ gap: 8, paddingVertical: 8 }}>
-      <View style={{ flexDirection: "row", alignItems: "center", gap: 12 }}>
-        <Text style={[type.small, { flex: 1, color: c.text }]}>Use this account for update checks</Text>
-        <Switch
-          accessibilityLabel="Use this account for update checks"
-          value={!!read.data?.enabled && read.data.accountId === account.id}
-          disabled={busy || account.status !== "connected"}
-          onValueChange={(value) => void change(value)}
-        />
-      </View>
-      <Text style={[type.meta, { color: c.muted }]}>
-        Used when the public release index is unavailable. Updates work without an account.
-      </Text>
-      {!!error && <Text style={[type.small, { color: c.danger }]}>{error}</Text>}
+      <SettingToggle
+        title="Use this account for update checks"
+        description="Used when the public release index is unavailable. Updates work without an account."
+        value={!!read.data?.enabled && read.data.accountId === account.id}
+        disabled={busy || !read.data || account.status !== "connected"}
+        onChange={(value) => void change(value)}
+      />
+      {!!error && <Notice error>{error}</Notice>}
+      {!!read.error && (
+        <>
+          <Notice error>Could not load update preferences. Check the connection and try again.</Notice>
+          <Button title="Retry" size="sm" onPress={() => void read.reload().catch(() => {})} />
+        </>
+      )}
     </View>
   );
 }

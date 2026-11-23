@@ -13,6 +13,8 @@ import { ComputerMove } from "./ComputerMove";
 import { SharedConfiguration } from "./SharedConfiguration";
 import { SettingsSkeletonRows } from "./SettingsSkeleton";
 import { presenceLabel } from "@canopy/domain/computer-presence";
+import { openSettingsSection } from "./navigation";
+import { ComputerConfigSharing } from "./ComputerConfigSharing";
 import { presenceTime } from "../computers/presence";
 
 type Operation = MessageInitShape<typeof ui.ComputerOperationRequestSchema>;
@@ -22,6 +24,11 @@ export function ComputerSettings() {
   const [pairing, setPairing] = useState(false);
   const [moving, setMoving] = useState<ui.LinkedComputer>();
   const data = resource.data;
+
+  const names =
+    data?.configGroup.filter((computer) => computer.nodeId !== data.self?.nodeId).map((computer) => computer.name) ??
+    [];
+
   const bulkMove = useAppearance().modules.length > 1;
   const change = async (operation: Operation) => !!(await resource.run((api) => api.manageComputer(operation)));
 
@@ -47,10 +54,19 @@ export function ComputerSettings() {
           onChange={(enabled) => void change({ action: "lan_discovery", enabled })}
         />
         <SettingsValue title="Network discovery" value={data?.lanDiscoveryState} />
-        <SettingsValue
-          title="Network access"
-          value={data?.listenerEnabled ? "On" : "Off"}
-          description="Manage addresses and the listener in Network access."
+      </SettingsGroup>
+      {data && (
+        <SettingsRow
+          title={
+            names.length ? `Shares configuration with ${names.join(", ")}` : "Configuration stays on this computer."
+          }
+        />
+      )}
+      <SettingsGroup title="Network access">
+        <SettingsRow
+          title={data?.listenerEnabled ? "Remote access is on" : "Remote access is off"}
+          description={data?.self?.addresses.join(" · ")}
+          control={<Button title="Manage network access" onPress={() => openSettingsSection("network")} />}
         />
       </SettingsGroup>
       <SettingsGroup
@@ -120,7 +136,7 @@ function ComputerDetails({
     <SettingsRow
       title={name}
       description={[
-        presenceLabel(computer.status, computer.statusSinceMs, presenceTime),
+        self ? "This computer" : presenceLabel(computer.status, computer.statusSinceMs, presenceTime),
         computer.connectionDirection,
         computer.viaName && `Via ${computer.viaName}`,
         computer.unavailableReason,
@@ -129,19 +145,23 @@ function ComputerDetails({
         .join(" · ")}
     >
       <SettingsValue title="Canopy version" value={computer.appVersion} />
-      <SettingsValue title="Certificate fingerprint" value={computer.fingerprint} />
-      <SettingsValue title="Computer identity" value={computer.nodeId} />
-      <SettingsValue
-        title="Last seen"
-        value={computer.lastSeenMs ? new Date(Number(computer.lastSeenMs)).toLocaleString() : "Not yet connected"}
-      />
-      <SettingsInput
-        title="Computer name"
-        value={name}
-        busy={busy}
-        onSave={(value) => change({ action: "rename", nodeId: self ? "" : computer.nodeId, name: value })}
-      />
-      <ComputerRoutes computer={computer} direct={direct} busy={busy} change={change} />
+      {!computer.viaNodeId && <SettingsValue title="Certificate fingerprint" value={computer.fingerprint} />}
+
+      {!self && (
+        <SettingsValue
+          title="Last seen"
+          value={computer.lastSeenMs ? new Date(Number(computer.lastSeenMs)).toLocaleString() : "Not yet connected"}
+        />
+      )}
+      {!computer.viaNodeId && (
+        <SettingsInput
+          title="Computer name"
+          value={name}
+          busy={busy}
+          onSave={(value) => change({ action: "rename", nodeId: self ? "" : computer.nodeId, name: value })}
+        />
+      )}
+      {direct && <ComputerRoutes computer={computer} busy={busy} change={change} />}
       {direct && (
         <>
           <SettingsInput
@@ -151,24 +171,10 @@ function ComputerDetails({
             busy={busy}
             onSave={(address) => change({ action: "add_route", nodeId: computer.nodeId, address })}
           />
-          <SettingToggle
-            title="Share configuration"
-            description={
-              computer.configAlternativeName ||
-              "Settings and credentials are shared only between directly linked computers."
-            }
-            value={computer.shareConfig}
-            disabled={busy}
+          <ComputerConfigSharing
+            computer={computer}
+            busy={busy}
             onChange={(enabled) => void change({ action: "share_config", nodeId: computer.nodeId, enabled })}
-          />
-          <SettingsValue
-            title="Configuration sync"
-            value={computer.configSyncStatus}
-            description={
-              computer.configClockAheadMinutes
-                ? `Computer clock is ${computer.configClockAheadMinutes} minutes ahead.`
-                : undefined
-            }
           />
           {(computer.capabilities.includes("relay") || computer.shareOnwardNodeIds.length > 0) && (
             <Button title="Share onward" onPress={() => setSharing(true)} />
@@ -221,12 +227,10 @@ function ComputerDetails({
 
 function ComputerRoutes({
   computer,
-  direct,
   busy,
   change,
 }: {
   computer: ui.LinkedComputer;
-  direct: boolean;
   busy: boolean;
   change: (r: Operation) => Promise<boolean>;
 }) {
@@ -242,7 +246,7 @@ function ComputerRoutes({
             title="Last successful connection"
             value={route.lastSuccessMs ? new Date(Number(route.lastSuccessMs)).toLocaleString() : "Not yet connected"}
           />
-          {direct && route.source === "manual" && (
+          {route.source === "manual" && (
             <Button
               title="Remove address"
               disabled={busy}

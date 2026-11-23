@@ -1,5 +1,6 @@
 import type { ui, EnvironmentFileStatus, EnvironmentSkillStatus } from "@canopy/contracts";
-import { Link } from "expo-router";
+import { openSettingsSection } from "./navigation";
+import { EnvironmentPreview } from "./EnvironmentPreview";
 import { Button, Notice } from "../../ui/components";
 import { SettingsGroup, SettingsRow } from "./SettingsGroup";
 import { SettingsValue } from "./SettingsValue";
@@ -57,7 +58,7 @@ export function EnvironmentComputer({
       <SettingsValue title="Sync status" value={workerSyncState(worker)} />
       <SettingsValue title="Automatic tags" value={worker.automaticTags.join(", ")} />
       <SettingsValue title="Manual tags" value={worker.manualTags.join(", ")} />
-      <Link href="/settings?section=workers">Edit in Workers</Link>
+      <Button title="Edit in Workers" onPress={() => openSettingsSection("workers", { workerId: worker.workerId })} />
       {worker.compositionError ? (
         <Notice error>{worker.compositionError} The last synced files are preserved.</Notice>
       ) : !worker.supported ? (
@@ -69,17 +70,7 @@ export function EnvironmentComputer({
       ) : (
         <Notice>New agent sessions use the saved instructions after sync.</Notice>
       )}
-      {!worker.preview.some((item) => item.content) && (
-        <Notice>Add a document and assign it to see what agents receive.</Notice>
-      )}
-      {worker.preview.map((item, index) => (
-        <SettingsValue
-          key={index}
-          title={`${item.harness} · ${item.content.length} characters`}
-          value={item.content}
-          description={`${item.platformHome ? "Canopy sessions" : ""}${item.deviceHome ? " · Device CLI" : ""}`}
-        />
-      ))}
+      <EnvironmentPreview worker={worker} />
       <SettingsGroup title="Files on this computer">
         {!worker.report?.files.length && <Notice>Assigned files appear here after the worker’s first sync.</Notice>}
         {worker.report?.files.map((file) => (

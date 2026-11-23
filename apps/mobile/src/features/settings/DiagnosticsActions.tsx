@@ -10,7 +10,6 @@ import { diagnosticsEpochs } from "./diagnostics-resource";
 import { mobileMeasurements } from "./client-diagnostics";
 import { styles, useColors } from "../../ui/theme";
 import { DiagnosticsLogs } from "./DiagnosticsLogs";
-import { DiagnosticsTracing } from "./DiagnosticsTracing";
 
 export function DiagnosticsActions({
   computers,
@@ -26,7 +25,7 @@ export function DiagnosticsActions({
   const c = useColors();
   const { client, queries } = useSession();
   const [report, setReport] = useState(false);
-  const [resetting, setResetting] = useState(false);
+  const [resetting, setResetting] = useState<ui.ComputerDiagnostics>();
   const [process, setProcess] = useState("gateway");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
@@ -41,9 +40,17 @@ export function DiagnosticsActions({
       .map((link) => ({ value: `worker:${link.targetId}`, label: link.name })),
   ];
 
+  const canReset =
+    !!resetting &&
+    computer?.computerId === resetting.computerId &&
+    computer.epoch === resetting.epoch &&
+    computer.status === "online" &&
+    !computer.restoring &&
+    processes.some((item) => item.value === process);
+
   async function reset() {
-    if (!client || !computer || running.current) return;
-    const target = computer;
+    if (!client || !canReset || running.current) return;
+    const target = resetting;
     running.current = true;
     setBusy(true);
     setError("");
@@ -60,7 +67,7 @@ export function DiagnosticsActions({
       queries.forget((key) => key.startsWith("GetDiagnostics:") || key.startsWith("GetComputerDiagnostics:"));
 
       if (target.computerId === computers[0]?.computerId) mobileMeasurements.clear(receipt.epoch);
-      setResetting(false);
+      setResetting(undefined);
       setMessage("Counters reset.");
       await onReset();
     } catch {
@@ -89,7 +96,7 @@ export function DiagnosticsActions({
               setProcess("gateway");
               setError("");
               setMessage("");
-              setResetting(true);
+              setResetting(computer);
             }}
           />
         </SettingsActions>
@@ -100,20 +107,19 @@ export function DiagnosticsActions({
         ) : null}
       </SettingsGroup>
       <DiagnosticsLogs computers={computers} onReady={setLogsJobId} />
-      {computer ? <DiagnosticsTracing key={computer.computerId} computer={computer} onRefresh={onReset} /> : null}
       {report ? (
         <DiagnosticsReport computers={computers} range={range} logsJobId={logsJobId} onClose={() => setReport(false)} />
       ) : null}
       <Sheet
         title="Reset counters?"
-        visible={resetting}
+        visible={!!resetting}
         onClose={() => {
-          if (!busy) setResetting(false);
+          if (!busy) setResetting(undefined);
         }}
       >
         <View style={{ gap: 12 }}>
           <Text style={[styles.workMeta, { color: c.muted }]}>
-            Start a new diagnostics baseline for {computer?.name || "this computer"}.
+            Start a new diagnostics baseline for {resetting?.name || "this computer"}.
           </Text>
           <SettingChoice title="Process" value={process} options={processes} onChange={setProcess} />
           <Text style={[styles.workMeta, { color: c.muted }]}>
@@ -122,8 +128,8 @@ export function DiagnosticsActions({
           </Text>
           {error ? <Notice error>{error}</Notice> : null}
           <SettingsActions>
-            <Button title="Cancel" disabled={busy} onPress={() => setResetting(false)} />
-            <Button title="Reset counters" busy={busy} onPress={() => void reset()} />
+            <Button title="Cancel" disabled={busy} onPress={() => setResetting(undefined)} />
+            <Button title="Reset counters" disabled={!canReset} busy={busy} onPress={() => void reset()} />
           </SettingsActions>
         </View>
       </Sheet>

@@ -4,7 +4,8 @@
   import Switch from "#lib/shared/ui/Switch.svelte";
   import SettingsCard from "#lib/shared/ui/SettingsCard.svelte";
   import { expand } from "#lib/shared/ui/motion.ts";
-  import { workerTool, toolKey, type ToolWorker, type AgentToolActions } from "./agent-tools.svelte.ts";
+  import { toolKey, workerTool, type ToolWorker } from "@canopy/domain/agent-tool-settings";
+  import type { AgentToolActions } from "./agent-tools.svelte.ts";
   import ToolSessionDefaults from "./ToolSessionDefaults.svelte";
   import ToolWorkerRow from "./ToolWorkerRow.svelte";
 

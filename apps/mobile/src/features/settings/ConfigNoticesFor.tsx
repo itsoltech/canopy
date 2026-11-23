@@ -8,7 +8,7 @@ export function ConfigNoticesFor({
   onChanged,
 }: {
   match: (notice: ui.ConfigNotice) => boolean;
-  onChanged: () => void;
+  onChanged?: () => void;
 }) {
   const resource = useSettingsResource("GetComputers", (api) => api.getComputers({}));
   const notices = resource.data?.configNotices.filter(match) ?? [];
@@ -20,7 +20,7 @@ export function ConfigNoticesFor({
       notices={notices}
       onChanged={() => {
         void resource.reload();
-        onChanged();
+        onChanged?.();
       }}
     />
   );

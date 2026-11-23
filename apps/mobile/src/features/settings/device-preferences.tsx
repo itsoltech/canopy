@@ -14,6 +14,7 @@ export const deviceChoices = {
   timeFormat: ["system", "12h", "24h"],
   contrast: ["standard", "strong", "maximum"],
   effortDisplay: ["name", "bars"],
+  contextDisplay: ["off", "circle", "text", "bar"],
   interfaceFont: ["canopy", "system", "serif"],
   interfaceSize: ["12", "14", "16", "18"],
   monoFont: ["system", "menlo", "consolas"],
@@ -37,6 +38,7 @@ export const deviceDefaults: Record<DeviceKey, string> = {
   timeFormat: "system",
   contrast: "standard",
   effortDisplay: "name",
+  contextDisplay: "off",
   interfaceFont: "canopy",
   interfaceSize: "14",
   monoFont: "system",
@@ -55,6 +57,7 @@ export const deviceDefaults: Record<DeviceKey, string> = {
 export const appearanceDeviceKeys: DeviceKey[] = [
   "contrast",
   "effortDisplay",
+  "contextDisplay",
   "interfaceFont",
   "interfaceSize",
   "monoFont",

@@ -12,6 +12,10 @@ import { SettingsActions, SettingsGroup, settingsType } from "./SettingsGroup";
 import { confirmAction, type useSettingsResource } from "./resource";
 import { ImportRunDetails } from "./ImportRunDetails";
 
+import { createSettingsViewState } from "./SettingsScroll";
+
+const useRunDetails = createSettingsViewState(false);
+
 function counted(value: number, one: string): string {
   return `${value.toLocaleString("en")} ${value === 1 ? one : `${one}s`}`;
 }
@@ -30,7 +34,7 @@ export function ImportRunGroup({
   const look = importRunLook(run.status);
   const actions = importRunActions(run);
   const [now] = useState(Date.now);
-  const [details, setDetails] = useState(false);
+  const [details, setDetails] = useRunDetails(run.id);
   const date = run.createdAt && timestampDate(run.createdAt);
 
   const dateLabel =

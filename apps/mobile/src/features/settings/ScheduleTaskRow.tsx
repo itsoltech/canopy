@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { createSettingsViewState } from "./SettingsScroll";
 import { Pressable, Text, View } from "react-native";
 import { router } from "expo-router";
 import { PermissionMode, type ui } from "@canopy/contracts";
@@ -11,7 +11,6 @@ import { Button, IconButton } from "../../ui/components";
 import { Icon } from "../../ui/Icon";
 import { useColors, useTypography } from "../../ui/theme";
 import { Accordion } from "../../ui/Accordion";
-import { SettingsGroup } from "./SettingsGroup";
 import { scheduledSandboxLabel } from "./schedule-sandbox";
 
 const statuses = new Map([
@@ -20,6 +19,8 @@ const statuses = new Map([
   ["paused", "Paused"],
   ["cancelled", "Cancelled"],
 ]);
+
+const useTaskExpanded = createSettingsViewState(false);
 
 export function ScheduleTaskRow({
   schedule: s,
@@ -32,7 +33,7 @@ export function ScheduleTaskRow({
   onActions: () => void;
   onDuplicate: () => void;
 }) {
-  const [open, setOpen] = useState(false);
+  const [open, setOpen] = useTaskExpanded(s.id);
   const { threads, workers } = useOverview();
   const c = useColors();
   const type = useTypography();
@@ -51,70 +52,68 @@ export function ScheduleTaskRow({
   const runs = `${s.runs} ${s.runs === 1 ? "run" : "runs"}`;
 
   return (
-    <SettingsGroup style={reason ? { opacity: 0.55 } : undefined}>
-      <View style={{ gap: 2, minWidth: 0 }}>
-        <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
-          <Text numberOfLines={1} style={[type.chrome, { flex: 1, color: c.text }]}>
-            {heading}
+    <View style={{ gap: 2, minWidth: 0, opacity: reason ? 0.55 : 1 }}>
+      <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
+        <Text numberOfLines={1} style={[type.chrome, { flex: 1, color: c.text }]}>
+          {heading}
+        </Text>
+        <Badge>{statuses.get(s.status) ?? s.status}</Badge>
+        <IconButton
+          icon="ellipsis-horizontal"
+          label="Scheduled task actions"
+          size="sm"
+          disabled={!!reason}
+          onPress={onActions}
+        />
+      </View>
+      {heading !== s.prompt && (
+        <Text numberOfLines={1} style={[type.meta, { color: c.muted }]}>
+          {s.prompt}
+        </Text>
+      )}
+      <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
+        <Text numberOfLines={1} style={[type.meta, { flex: 1, color: c.muted }]}>
+          {when}
+        </Text>
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel={s.createdBy === "agent" ? "Created by agent" : "Created by you"}
+          onPress={() => setOpen(!open)}
+          hitSlop={8}
+        >
+          <Icon name={s.createdBy === "agent" ? "sparkles" : "user"} size={14} />
+        </Pressable>
+      </View>
+      <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
+        <Button
+          title={runs}
+          variant="text"
+          size="sm"
+          icon={open ? "chevron-down" : "chevron-right"}
+          hint={open ? "Hide task details" : "Show task details and recent runs"}
+          onPress={() => setOpen(!open)}
+        />
+        <Pressable
+          accessibilityRole="link"
+          disabled={!s.threadId}
+          onPress={() => router.push(`/thread/${s.threadId}`)}
+          style={{ flex: 1, minWidth: 0 }}
+        >
+          <Text numberOfLines={1} style={[type.meta, { color: c.soft }]}>
+            {s.target === "new_thread" ? "New thread" : thread?.title || "Open thread"}
           </Text>
-          <Badge>{statuses.get(s.status) ?? s.status}</Badge>
-          <IconButton
-            icon="ellipsis-horizontal"
-            label="Scheduled task actions"
-            size="sm"
-            disabled={!!reason}
-            onPress={onActions}
-          />
-        </View>
-        {heading !== s.prompt && (
-          <Text numberOfLines={1} style={[type.meta, { color: c.muted }]}>
-            {s.prompt}
+        </Pressable>
+        {worker && (
+          <Text numberOfLines={1} style={[type.meta, { maxWidth: "25%", color: c.muted }]}>
+            {worker.name}
           </Text>
         )}
-        <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
-          <Text numberOfLines={1} style={[type.meta, { flex: 1, color: c.muted }]}>
-            {when}
-          </Text>
-          <Pressable
-            accessibilityRole="button"
-            accessibilityLabel={s.createdBy === "agent" ? "Created by agent" : "Created by you"}
-            onPress={() => setOpen(!open)}
-            hitSlop={8}
-          >
-            <Icon name={s.createdBy === "agent" ? "sparkles" : "user"} size={14} />
-          </Pressable>
-        </View>
-        <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
-          <Button
-            title={runs}
-            variant="text"
-            size="sm"
-            icon={open ? "chevron-down" : "chevron-right"}
-            hint={open ? "Hide task details" : "Show task details and recent runs"}
-            onPress={() => setOpen(!open)}
-          />
-          <Pressable
-            accessibilityRole="link"
-            disabled={!s.threadId}
-            onPress={() => router.push(`/thread/${s.threadId}`)}
-            style={{ flex: 1, minWidth: 0 }}
-          >
-            <Text numberOfLines={1} style={[type.meta, { color: c.soft }]}>
-              {s.target === "new_thread" ? "New thread" : thread?.title || "Open thread"}
-            </Text>
-          </Pressable>
-          {worker && (
-            <Text numberOfLines={1} style={[type.meta, { maxWidth: "25%", color: c.muted }]}>
-              {worker.name}
-            </Text>
-          )}
-        </View>
-        {reason && <Text style={[type.meta, { color: c.muted }]}>{reason} Read-only</Text>}
-        <Accordion open={open} style={{ marginTop: -2 }}>
-          <ScheduleTaskDetails schedule={s} thread={thread} when={when} reason={reason} onDuplicate={onDuplicate} />
-        </Accordion>
       </View>
-    </SettingsGroup>
+      {reason && <Text style={[type.meta, { color: c.muted }]}>{reason} Read-only</Text>}
+      <Accordion open={open} style={{ marginTop: -2 }}>
+        <ScheduleTaskDetails schedule={s} thread={thread} when={when} reason={reason} onDuplicate={onDuplicate} />
+      </Accordion>
+    </View>
   );
 }
 
@@ -134,6 +133,9 @@ function ScheduleTaskDetails({
 }) {
   const c = useColors();
   const type = useTypography();
+  const { threads, projects } = useOverview();
+  const creator = threads.find((entry) => entry.id === s.createdByThreadId);
+  const project = projects.find((entry) => entry.id === s.projectId);
   const target = s.target === "new_thread" ? s.newThread : thread;
 
   return (
@@ -148,13 +150,32 @@ function ScheduleTaskDetails({
         </Text>
       )}
       <Text style={[type.meta, { color: c.muted }]}>
-        {s.createdBy === "agent" ? "Created by agent" : "Created by you"}
+        {s.createdBy === "agent"
+          ? creator
+            ? `Created by agent in ${creator.title}`
+            : "Created by agent"
+          : "Created by you"}
       </Text>
+      {creator && creator.id !== s.threadId && (
+        <Button
+          title="Open creator thread"
+          size="sm"
+          variant="text"
+          onPress={() => router.push(`/thread/${creator.id}`)}
+        />
+      )}
+      {s.newThread && s.target === "new_thread" && (
+        <Text style={[type.meta, { color: c.muted }]}>
+          {[`New thread in ${project?.name || "project"}`, s.newThread.model].filter(Boolean).join(" · ")}
+        </Text>
+      )}
       <Text selectable style={[type.chrome, { color: c.text }]}>
         {s.prompt}
       </Text>
-      {s.nextRunAt && (
-        <Text style={[type.meta, { color: c.muted }]}>Next run · {timestampDate(s.nextRunAt).toLocaleString()}</Text>
+      {s.nextRunAt && !["completed", "cancelled"].includes(s.status) && (
+        <Text style={[type.meta, { color: c.muted }]}>
+          {s.status === "paused" ? "Was due" : "Next run"} · {timestampDate(s.nextRunAt).toLocaleString()}
+        </Text>
       )}
       {s.lastEditedAt && (
         <Text style={[type.meta, { color: c.muted }]}>

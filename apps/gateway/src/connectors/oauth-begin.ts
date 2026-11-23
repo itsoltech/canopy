@@ -13,12 +13,14 @@ export async function beginConnectorOAuth(
   user: string,
   request: connectors.BeginConnectorOAuthRequest,
   options: { messengerTransport?: SlackTransport; log?: (message: string) => void },
+  manualReturn: boolean,
 ) {
   if (!/^[\w-]{32,128}$/.test(request.browserBinding) || request.scope.length > 4000)
     throw new ConnectorFailure("Invalid OAuth session");
-  const redirect = connectorUrl(request.redirectUri);
+  // A paired phone has no BFF callback. The gateway chooses its registered redirect.
+  const redirect = manualReturn ? undefined : connectorUrl(request.redirectUri);
 
-  if (new URL(redirect).pathname !== "/api/connectors/oauth/callback")
+  if (redirect && new URL(redirect).pathname !== "/api/connectors/oauth/callback")
     throw new ConnectorFailure("Invalid OAuth callback");
   const row = await runtime.run((s) => s.owned(user, request.accountId));
 

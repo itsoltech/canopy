@@ -25,6 +25,7 @@ import { SettingsThreadList } from "./SettingsThreadList";
 import { useSidebarThreads } from "./useSidebarThreads";
 import { SidebarProjectFilter, SidebarSort } from "./SidebarThreadPickers";
 import { CreateBot } from "../bots/CreateBot";
+import { openSettingsSection } from "../settings/navigation";
 import { useDevicePreferences } from "../settings/device-preferences";
 import { SidebarBrand, SidebarGradient, SidebarWatermark } from "./SidebarBrand";
 
@@ -197,13 +198,9 @@ function SidebarLists({ state }: { state: ReturnType<typeof useSidebarState> }) 
                       size="sm"
                       title="Import CLI threads"
                       onPress={() =>
-                        router.push({
-                          pathname: "/settings/[section]",
-                          params: {
-                            section: "import",
-                            worker:
-                              workers.find((worker) => !worker.nodeId && worker.online && worker.cliImport)?.id ?? "",
-                          },
+                        openSettingsSection("import", {
+                          worker:
+                            workers.find((worker) => !worker.nodeId && worker.online && worker.cliImport)?.id ?? "",
                         })
                       }
                     />

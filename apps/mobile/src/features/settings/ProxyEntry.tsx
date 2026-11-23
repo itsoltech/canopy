@@ -25,6 +25,7 @@ export function ProxyEntry({ proxy, onEdit }: { proxy: ui.Proxy; onEdit: () => v
 
   async function test() {
     setTesting(true);
+    setResult(undefined);
     const response = await resource.run((api) => api.testProxy({ id: proxy.id }));
     setTesting(false);
 
@@ -48,9 +49,10 @@ export function ProxyEntry({ proxy, onEdit }: { proxy: ui.Proxy; onEdit: () => v
       {proxy.kind === "cliproxyapi" && proxy.id ? (
         <ProxyAccounts proxy={proxy} onRead={() => void resource.reload()} />
       ) : null}
-      <SettingsDisclosure title="How agents use this proxy">
+      <SettingsDisclosure title="How agents use this proxy" viewKey={`proxy-mappings:${proxy.id}`}>
         <ProxyMappings kind={proxy.kind} baseUrl={proxy.baseUrl} />
       </SettingsDisclosure>
+      {resource.error && <Alert tone="error">{resource.error}</Alert>}
       {result ? (
         <Alert tone={result.ok ? "info" : "error"}>
           {result.detail}
@@ -58,7 +60,13 @@ export function ProxyEntry({ proxy, onEdit }: { proxy: ui.Proxy; onEdit: () => v
         </Alert>
       ) : null}
       <SettingsActions>
-        <Button size="sm" title="Test connection" busy={testing} onPress={() => void test()} />
+        <Button
+          size="sm"
+          title="Test connection"
+          disabled={resource.busy && !testing}
+          busy={testing}
+          onPress={() => void test()}
+        />
         <Button size="sm" title="Edit" label={`Edit ${proxy.name}`} onPress={onEdit} />
         <Button
           size="sm"

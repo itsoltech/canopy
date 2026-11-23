@@ -6,6 +6,10 @@ import { Button, Field, Notice } from "../../ui/components";
 import { SettingsGroup, SettingChoice, SettingToggle } from "./SettingsGroup";
 import { SettingsValue } from "./SettingsValue";
 import { ResourceState, useSettingsResource } from "./resource";
+import { SettingsDisclosure } from "./SettingsDisclosure";
+import { DEFAULT_OAUTH_REDIRECT_URL } from "@canopy/domain/oauth-return";
+import { copyText } from "../viewers/useCopyText";
+import { ConnectorSignInReturn } from "./ConnectorSignInReturn";
 import { ConnectorSecretHeaders } from "./ConnectorSecretHeaders";
 
 function useConnectorForm({
@@ -15,7 +19,7 @@ function useConnectorForm({
 }: {
   type: connectors.ConnectorType;
   account?: connectors.ConnectorAccount;
-  onSaved: () => void;
+  onSaved: (alreadyConnected?: boolean) => void;
 }) {
   const resource = useSettingsResource("ListConnectors", (api) => api.listConnectors({}));
   const [saved, setSaved] = useState(account);
@@ -28,7 +32,6 @@ function useConnectorForm({
   const [replace, setReplace] = useState(!account);
   const [scope, setScope] = useState(type.authMethods.find((m) => m.authKind === authKind)?.defaultScope ?? "");
   const [binding] = useState(() => Crypto.randomUUID());
-  const [pasted, setPasted] = useState("");
   const [waiting, setWaiting] = useState(false);
   const [error, setError] = useState("");
   const method = type.authMethods.find((m) => m.authKind === authKind);
@@ -57,8 +60,8 @@ function useConnectorForm({
         url,
         transport,
         authKind,
-        token,
-        headers: parsed,
+        token: authKind === "headers" && replace ? token : "",
+        headers: authKind === "headers" && replace ? parsed : {},
         replaceCredentials: replace,
         expectedRevision: saved?.revision ?? 0n,
       });
@@ -70,12 +73,11 @@ function useConnectorForm({
           accountId: response.account.id,
           browserBinding: binding,
           scope,
-          redirectUri: method?.redirectUrl || "https://itsoltech.github.io/canopy/oauth/callback",
         });
 
-        const target = URL.parse(oauth.authorizationUrl);
+        const target = new URL(oauth.authorizationUrl);
 
-        if (!target || target.protocol !== "https:") throw new Error("Invalid sign-in address");
+        if (target.protocol !== "https:") throw new Error("Invalid sign-in address");
         await Linking.openURL(target.href);
         setWaiting(true);
       }
@@ -110,11 +112,9 @@ function useConnectorForm({
     scope,
     setScope,
     binding,
-    pasted,
-    setPasted,
+    saved,
     waiting,
     error,
-    setError,
     method,
     save,
   };
@@ -127,7 +127,7 @@ export function ConnectorForm({
 }: {
   type: connectors.ConnectorType;
   account?: connectors.ConnectorAccount;
-  onSaved: () => void;
+  onSaved: (alreadyConnected?: boolean) => void;
 }) {
   const {
     resource,
@@ -148,11 +148,9 @@ export function ConnectorForm({
     scope,
     setScope,
     binding,
-    pasted,
-    setPasted,
+    saved,
     waiting,
     error,
-    setError,
     method,
     save,
   } = useConnectorForm({ type, account, onSaved });
@@ -160,35 +158,53 @@ export function ConnectorForm({
   return (
     <ResourceState resource={resource}>
       <Field label="Account name" value={name} onChangeText={setName} />
-      <Field label="Endpoint URL" value={url} onChangeText={setUrl} autoCapitalize="none" autoCorrect={false} />
-      <SettingChoice
-        title="Transport"
-        value={transport}
-        options={[
-          { value: "http", label: "Streamable HTTP" },
-          { value: "sse", label: "SSE" },
-        ]}
-        onChange={setTransport}
-      />
-      <SettingChoice
-        title="Authentication"
-        value={authKind}
-        options={type.authKinds.map((value) => ({
-          value,
-          label: type.authMethods.find((m) => m.authKind === value)?.label || value,
-        }))}
-        onChange={(value) => {
-          setAuth(value);
-          setScope(type.authMethods.find((m) => m.authKind === value)?.defaultScope || "");
-        }}
-      />
+      {(!type.url || type.id === "custom") && (
+        <Field
+          label="Remote MCP endpoint"
+          value={url}
+          onChangeText={setUrl}
+          autoCapitalize="none"
+          autoCorrect={false}
+        />
+      )}
+      {type.id === "custom" && (
+        <SettingChoice
+          title="Transport"
+          value={transport}
+          options={[
+            { value: "http", label: "Streamable HTTP" },
+            { value: "sse", label: "SSE" },
+          ]}
+          onChange={setTransport}
+        />
+      )}
+      {type.authKinds.length > 1 && (
+        <SettingChoice
+          title="Authentication"
+          value={authKind}
+          options={type.authKinds.map((value) => ({
+            value,
+            label: type.authMethods.find((m) => m.authKind === value)?.label || value,
+          }))}
+          onChange={(value) => {
+            setAuth(value);
+            setToken("");
+            setHeaders("");
+            setScope(type.authMethods.find((m) => m.authKind === value)?.defaultScope || "");
+          }}
+        />
+      )}
       <ConnectorSetup method={method} />
       {authKind === "oauth" ? (
-        <>
+        <SettingsDisclosure
+          key={method?.authKind}
+          title={method?.oauthAppRequired ? "OAuth app and scopes" : "Advanced options"}
+          initiallyOpen={!!method?.oauthAppRequired && !type.oauthAppSet}
+        >
           <Field label="OAuth scopes" value={scope} onChangeText={setScope} placeholder={method?.scopePlaceholder} />
           {method?.scopeDescription ? <Notice>{method.scopeDescription}</Notice> : null}
           <ConnectorOAuthApp type={type} method={method} />
-        </>
+        </SettingsDisclosure>
       ) : (
         <ConnectorCredentials
           existing={!!account}
@@ -206,36 +222,21 @@ export function ConnectorForm({
         variant="primary"
         title={authKind === "oauth" ? "Sign in" : "Save account"}
         busy={resource.busy}
-        disabled={!name.trim() || !url.trim()}
+        disabled={
+          !name.trim() ||
+          !url.trim() ||
+          (authKind === "oauth"
+            ? !!method?.oauthAppRequired && !type.oauthAppSet
+            : !!method?.tokenRequired && replace && !token.trim())
+        }
         onPress={() => void save()}
       />
-      {waiting && (
-        <>
-          <Notice>Finish sign-in in your browser, then paste the return code here.</Notice>
-          <Field
-            label="Return code"
-            value={pasted}
-            onChangeText={setPasted}
-            autoCapitalize="none"
-            autoCorrect={false}
-            secureTextEntry
-          />
-          <Button
-            title="Complete sign-in"
-            disabled={!pasted.trim()}
-            busy={resource.busy}
-            onPress={() =>
-              void resource
-                .run((api) => api.completeConnectorOAuth({ pastedCode: pasted, browserBinding: binding }))
-                .then((r) => {
-                  if (r?.account) {
-                    setPasted("");
-                    onSaved();
-                  } else if (r) setError(r.error || "Sign-in could not finish. Start sign-in again.");
-                })
-            }
-          />
-        </>
+      {waiting && saved && (
+        <ConnectorSignInReturn
+          accountId={saved.id}
+          binding={binding}
+          onComplete={(result) => onSaved(result.alreadyConnected)}
+        />
       )}
     </ResourceState>
   );
@@ -290,7 +291,9 @@ function ConnectorCredentials({
             autoCapitalize="none"
             autoCorrect={false}
           />
-          <ConnectorSecretHeaders value={headers} onChange={setHeaders} />
+          <SettingsDisclosure title="Custom secret headers">
+            <ConnectorSecretHeaders value={headers} onChange={setHeaders} />
+          </SettingsDisclosure>
         </>
       )}
       <Notice>
@@ -310,30 +313,42 @@ function ConnectorOAuthApp({
   const resource = useSettingsResource("ListConnectors", (api) => api.listConnectors({}));
   const [clientId, setId] = useState("");
   const [secret, setSecret] = useState("");
-  const [issuer, setIssuer] = useState("");
+
+  const [issuer, setIssuer] = useState(
+    type.id === "slack" ? "https://mcp.slack.com" : type.id === "github" ? "https://github.com/login/oauth" : "",
+  );
 
   return (
     <SettingsGroup
-      title={type.oauthAppSet ? "OAuth app saved · Replace" : "Registered OAuth app"}
+      title={type.oauthAppSet ? "Replace OAuth app" : "Registered OAuth app"}
       description={
-        method?.oauthAppRequired
-          ? "Register an OAuth app to sign in."
-          : "Only needed when the server does not accept automatic registration."
+        type.oauthAppSet
+          ? "Saving replaces the OAuth app for every account of this connector type."
+          : method?.oauthAppRequired
+            ? "Register an OAuth app to sign in."
+            : "Only needed when the server does not accept automatic registration."
       }
     >
       <ResourceState resource={resource}>
-        {method?.appManifest ? <SettingsValue title="App manifest" value={method.appManifest} /> : null}
+        {method?.appManifest ? (
+          <Button title="Copy Slack app manifest" onPress={() => void copyText(method.appManifest)} />
+        ) : null}
         {method?.appCreateUrl && (
           <Button title="Create OAuth app" onPress={() => void Linking.openURL(method.appCreateUrl)} />
         )}
-        <SettingsValue
-          title="Redirect URL"
-          value={method?.redirectUrl || "https://itsoltech.github.io/canopy/oauth/callback"}
-        />
-        <Field label="Issuer" value={issuer} onChangeText={setIssuer} autoCapitalize="none" autoCorrect={false} />
+        <SettingsValue title="Redirect URL" value={method?.redirectUrl || DEFAULT_OAUTH_REDIRECT_URL} />
+        {type.id !== "slack" && (
+          <Field
+            label="Authorization server issuer"
+            value={issuer}
+            onChangeText={setIssuer}
+            autoCapitalize="none"
+            autoCorrect={false}
+          />
+        )}
         <Field label="Client ID" value={clientId} onChangeText={setId} autoCapitalize="none" autoCorrect={false} />
         <Field
-          label="Client secret"
+          label="Client secret (optional)"
           value={secret}
           onChangeText={setSecret}
           secureTextEntry
@@ -343,7 +358,7 @@ function ConnectorOAuthApp({
         <Button
           title="Save OAuth app"
           busy={resource.busy}
-          disabled={!clientId.trim()}
+          disabled={!clientId.trim() || !issuer.trim()}
           onPress={() =>
             void resource
               .run(

@@ -1,5 +1,7 @@
 # Narzędzia automatyzacji agentów
 
+Status (2026-11-23): **Settings → Agent tools na iOS i Androidzie obsługuje dostęp, instalacje i ustawienia nowych sesji**.
+
 Status (2026-11-22): **narzędzia, interaktywny Preview z podglądem zmiany viewportu,
 automatyczny mini Preview wątku, pełna karta i osobne okno Preview w web/desktop, ikony obu stanów skali
 oraz rezerwacje urządzeń z oczekiwaniem, uruchamianiem skonfigurowanych emulatorów
@@ -362,8 +364,9 @@ Nie jest to gwarancja sprzątania przy niedostępnych SDK lub uszkodzonej binarc
 Zakładka **Agent tools** grupuje narzędzia, a wewnątrz ich kart pokazuje workery.
 Udostępnia wersję, gotowość, ścieżkę, redagowany log instalacji i przełączniki
 dostępu per worker oraz zbiorczo. **Check tools** ponawia badanie na wszystkich
-dostępnych workerach, także na połączonych komputerach; BFF wysyła identyfikator
-każdego workera, aby gateway trasował żądanie do właściwego domu.
+dostępnych workerach, także na połączonych komputerach. Web i desktop przez BFF,
+a telefon przez sparowane połączenie Connect wysyłają identyfikator każdego
+workera, aby gateway kierował żądanie do jego komputera.
 
 Sterowanie należy do wątku, którego worker i sesja wyznaczają zakres podglądu.
 

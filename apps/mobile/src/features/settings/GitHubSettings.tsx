@@ -1,20 +1,22 @@
-import { useEffect, useState } from "react";
+import { useEffect } from "react";
 import { AppState, View } from "react-native";
 import { GITHUB_ACCOUNTS, GITHUB_HOME, qualifyId } from "@canopy/domain/computers";
 import { useOverview } from "../../state/overview";
 import { useSession } from "../../state/session";
-import { PickerSheet, SelectField } from "../../ui/Picker";
 import { Button } from "../../ui/components";
 import { ResourceState, useSettingsResource } from "./resource";
-import { SettingsGroup, SettingsRow } from "./SettingsGroup";
+import { SettingChoice, SettingsActions, SettingsGroup, SettingsRow } from "./SettingsGroup";
 import { ConnectGitHub } from "../github/ConnectGitHub";
 import { GitHubAccount } from "../github/GitHubAccount";
+
+import { createSettingsViewState } from "./SettingsScroll";
+
+const useGitHubHome = createSettingsViewState("");
 
 export function GitHubSettings() {
   const { computers } = useOverview();
   const { session } = useSession();
-  const [homeId, setHomeId] = useState("");
-  const [choosing, setChoosing] = useState(false);
+  const [homeId, setHomeId] = useGitHubHome();
   const resource = useSettingsResource(`ListGitHubAccounts:${homeId}`, (api) => api.listGitHubAccounts({ homeId }));
 
   const homes = [
@@ -41,21 +43,17 @@ export function GitHubSettings() {
   return (
     <ResourceState resource={resource}>
       <SettingsGroup title="GitHub" description="Connect accounts and choose which repositories Canopy can access.">
-        {homes.length > 1 && (
-          <View style={{ padding: 16, gap: 8 }}>
-            <SelectField
-              label="Store accounts on"
-              value={homes.find((h) => h.value === homeId)?.label ?? "This computer"}
-              onPress={() => setChoosing(true)}
-            />
-            <SettingsRow
-              title="Accounts and tokens stay on the selected computer"
-              description="It must be online to connect or refresh access."
-            />
-          </View>
+        {(homes.length > 1 || !!homeId) && (
+          <SettingChoice
+            title="Store accounts on"
+            description="Accounts and tokens stay on the selected computer. It must be online to connect or refresh access."
+            value={homeId}
+            onChange={setHomeId}
+            options={homes}
+          />
         )}
         {data && (
-          <View style={{ padding: 16 }}>
+          <View>
             <ConnectGitHub
               key={`${session?.deviceId}:${homeId}`}
               homeId={homeId}
@@ -71,7 +69,7 @@ export function GitHubSettings() {
           title="Use an existing personal access token"
           description="Choose a GitHub account from Connectors explicitly. Canopy checks its GitHub identity before using it."
         >
-          <View style={{ padding: 16, gap: 8 }}>
+          <SettingsActions>
             {data.patCandidates.map((pat) => (
               <Button
                 key={pat.connectorAccountId}
@@ -82,7 +80,7 @@ export function GitHubSettings() {
                 }
               />
             ))}
-          </View>
+          </SettingsActions>
         </SettingsGroup>
       )}
       {!!data?.accounts.length && (
@@ -98,17 +96,6 @@ export function GitHubSettings() {
         </SettingsGroup>
       )}
       {data && !data.accounts.length && <SettingsRow title="No GitHub accounts connected on this computer" />}
-      <PickerSheet
-        title="Store accounts on"
-        visible={choosing}
-        value={homeId}
-        sections={[{ title: "Computers", options: homes }]}
-        onClose={() => setChoosing(false)}
-        onSelect={(value) => {
-          setHomeId(value);
-          setChoosing(false);
-        }}
-      />
     </ResourceState>
   );
 }

@@ -1,12 +1,15 @@
-import { View } from "react-native";
+import { useState } from "react";
+import { Alert, Linking, View } from "react-native";
+import { QrCode } from "../../ui/QrCode";
 import { ui } from "@canopy/contracts";
 import { create } from "@bufbuild/protobuf";
 import type { MessageInitShape } from "@bufbuild/protobuf";
 import { useSession } from "../../state/session";
-import { Button, Notice } from "../../ui/components";
+import { NetworkAddresses } from "./NetworkAddresses";
+import { copyText } from "../viewers/useCopyText";
+import { Button, Field, IconButton, Notice, Sheet } from "../../ui/components";
 import { SettingsGroup, SettingsRow, SettingToggle } from "./SettingsGroup";
 import { SettingsInput } from "./SettingsInput";
-import { SettingsValue } from "./SettingsValue";
 import { ResourceState, confirmAction, useSettingsResource } from "./resource";
 import { AttachmentSettings } from "./AttachmentSettings";
 import { AllowedNetworksSetting } from "./AllowedNetworksSetting";
@@ -71,57 +74,12 @@ export function NetworkSettings() {
         <>
           {status.error ? <Notice error>{status.error}</Notice> : null}
           {status.note && status.addresses.length > 0 ? <Notice>{status.note}</Notice> : null}
-          <SettingsGroup
-            title="Reachable at"
-            description={
-              capabilities?.linkedComputers
-                ? "Phones and linked computers try these addresses in turn. They follow this computer from network to network."
-                : "Paired devices and workers try these addresses in turn to reach this gateway."
-            }
-          >
-            {status.addresses.map((address) => (
-              <SettingsRow
-                key={address.origin}
-                title={address.origin}
-                description={`${address.kind}${address.interfaceName ? ` · ${address.interfaceName}` : ""}`}
-                control={
-                  address.kind === "hostname" ? (
-                    <Button
-                      title={`Remove ${address.host}`}
-                      disabled={resource.busy}
-                      onPress={() =>
-                        void change("set_hostnames", { hostnames: status.hostnames.filter((h) => h !== address.host) })
-                      }
-                    />
-                  ) : undefined
-                }
-              />
-            ))}
-            {!status.addresses.length &&
-              (status.note ? (
-                <Notice>{status.note}</Notice>
-              ) : (
-                <SettingsRow
-                  title={status.state === "on" ? "No reachable addresses" : "Not reachable"}
-                  description={status.state === "on" ? "Check this computer’s network connection." : undefined}
-                />
-              ))}
-            <SettingsInput
-              title="Hostnames"
-              description="Add one hostname per line, including a forwarded port when needed."
-              value={status.hostnames.join("\n")}
-              multiline
-              busy={resource.busy}
-              onSave={(value) =>
-                change("set_hostnames", {
-                  hostnames: value
-                    .split("\n")
-                    .map((h) => h.trim())
-                    .filter(Boolean),
-                })
-              }
-            />
-          </SettingsGroup>
+          <NetworkAddresses
+            status={status}
+            linked={!!capabilities?.linkedComputers}
+            busy={resource.busy}
+            save={(hostnames) => change("set_hostnames", { hostnames })}
+          />
           <TailscaleSettings status={status} busy={resource.busy} change={change} />
           <NetworkAdvanced status={status} busy={resource.busy} change={change} />
         </>
@@ -132,43 +90,85 @@ export function NetworkSettings() {
 }
 
 function NetworkAdvanced({ status, busy, change }: { status: ui.NetworkAccess; busy: boolean; change: Change }) {
+  const [port, setPort] = useState<string>();
+  const [failed, setFailed] = useState(false);
+  const valid = !!port && /^\d+$/.test(port) && Number(port) > 0 && Number(port) <= 65535;
+
+  const submit = async (automatic: boolean) => {
+    if (await (automatic ? change("choose_port") : change("set_port", { port: Number(port) }))) setPort(undefined);
+    else setFailed(true);
+  };
+
   return (
-    <SettingsGroup title="Advanced">
-      <SettingsValue
-        title={status.port ? `Port ${status.port}` : "Port"}
-        description={
-          status.portFixed
-            ? "Set by this server's configuration."
-            : "Chosen automatically and kept. Change it only if a firewall allows certain ports."
-        }
-        value={status.port ? String(status.port) : "Automatic"}
-      />
-      {!status.portFixed && (
-        <>
-          <SettingsInput
-            title="Port"
-            value={String(status.port)}
-            keyboardType="number-pad"
-            busy={busy}
-            onSave={(value) =>
-              /^\d+$/.test(value) && Number(value) > 0 && Number(value) <= 65535
-                ? change("set_port", { port: Number(value) })
-                : Promise.resolve(false)
+    <>
+      <SettingsGroup title="Advanced">
+        <SettingsRow
+          title={status.port ? `Port ${status.port}` : "Port"}
+          description={
+            status.portFixed
+              ? "Set by this server's configuration."
+              : "Chosen automatically and kept. Change it only if a firewall allows certain ports."
+          }
+          inlineControl
+          control={
+            !status.portFixed && (
+              <Button
+                title="Change"
+                label="Change port"
+                size="sm"
+                disabled={busy}
+                onPress={() => {
+                  setPort(status.port ? String(status.port) : "");
+                  setFailed(false);
+                }}
+              />
+            )
+          }
+        />
+        {!!status.fingerprint && (
+          <SettingsRow
+            title="Certificate fingerprint"
+            description={status.fingerprint}
+            inlineControl
+            control={
+              <IconButton
+                icon="clipboard-document"
+                size="sm"
+                label="Copy fingerprint"
+                onPress={() => void copyText(status.fingerprint)}
+              />
             }
           />
-          <SettingsRow
-            title="Choose automatically"
-            control={<Button title="Pick a free port" disabled={busy} onPress={() => void change("choose_port")} />}
-          />
-        </>
-      )}
-      <SettingsValue title="Certificate fingerprint" value={status.fingerprint} />
-    </SettingsGroup>
+        )}
+      </SettingsGroup>
+      <Sheet title="Change port" visible={port !== undefined} onClose={() => !busy && setPort(undefined)}>
+        <Notice>
+          Paired devices learn the new port when they connect. If this phone loses its connection, enter the new address
+          to reconnect.
+        </Notice>
+        <Field label="Port" value={port ?? ""} keyboardType="number-pad" onChangeText={setPort} placeholder="1–65535" />
+        {failed && <Notice error>Could not change the port. Check the connection and try a free port.</Notice>}
+        <Button title="Pick a free port" busy={busy} onPress={() => void submit(true)} />
+        <Button
+          title="Use this port"
+          variant="primary"
+          disabled={!valid}
+          busy={busy}
+          onPress={() => void submit(false)}
+        />
+      </Sheet>
+    </>
   );
 }
 
 function TailscaleSettings({ status, busy, change }: { status: ui.NetworkAccess; busy: boolean; change: Change }) {
   const ts = status.tailscale;
+
+  const connected = ts?.state === "connected";
+  const [qr, setQr] = useState(false);
+
+  const admin = (url: string) =>
+    void Linking.openURL(url).catch(() => Alert.alert("Could not open Tailscale", "Check your browser and try again."));
 
   return (
     <View style={{ gap: 24 }}>
@@ -176,27 +176,79 @@ function TailscaleSettings({ status, busy, change }: { status: ui.NetworkAccess;
         title="Tailscale"
         actions={<Button title="Check again" disabled={busy} onPress={() => void change("refresh_tailscale")} />}
       >
-        <SettingsValue title="Status" value={ts?.state.replaceAll("_", " ") || "Unavailable"} />
-        {ts?.dnsName ? <SettingsValue title="MagicDNS name" value={ts.dnsName} /> : null}
-        {[...(ts?.ipv4 ?? []), ...(ts?.ipv6 ?? [])].map((address) => (
-          <SettingsValue
-            key={address}
-            title={address.includes(":") ? "Tailnet IPv6" : "Tailnet IPv4"}
-            value={address}
+        <SettingsRow
+          title="Status"
+          description={
+            connected
+              ? ["Connected", ts.tailnet].filter(Boolean).join(" · ")
+              : tailscaleStates.get(ts?.state ?? "") || "Unavailable"
+          }
+        />
+        {connected && !ts.magicDns && (
+          <SettingsRow
+            title="MagicDNS is off"
+            description="Turn it on to reach this computer by name."
+            control={
+              <Button
+                size="sm"
+                title="Open admin console"
+                onPress={() => admin("https://login.tailscale.com/admin/dns")}
+              />
+            }
           />
-        ))}
+        )}
+        {connected && ts.magicDns && ts.dnsName ? <NetworkCopyValue title="MagicDNS name" value={ts.dnsName} /> : null}
+        {connected &&
+          [...ts.ipv4, ...ts.ipv6].map((address) => (
+            <NetworkCopyValue
+              key={address}
+              title={address.includes(":") ? "Tailnet IPv6" : "Tailnet IPv4"}
+              value={address}
+            />
+          ))}
       </SettingsGroup>
       {ts?.https && ts.state !== "not_installed" && (
         <SettingsGroup title="HTTPS over Tailscale">
           <SettingToggle
             title="Open Canopy over HTTPS"
-            description={ts.https.unavailable || "Open the web interface using this computer's Tailscale address."}
+            description={
+              ts.https.allowedLogin
+                ? `Open Canopy on devices signed in to Tailscale as ${ts.https.allowedLogin}.`
+                : "Open Canopy on every device in this computer’s tailnet."
+            }
             value={ts.https.enabled}
             disabled={busy || (!ts.https.enabled && !!ts.https.unavailable)}
             onChange={(enabled) => void change("set_tailscale_https", { enabled })}
           />
+          {ts.https.unavailable && (
+            <SettingsRow
+              title="HTTPS unavailable"
+              description={ts.https.unavailable}
+              control={
+                ts.https.adminUrl ? (
+                  <Button size="sm" title="Open admin console" onPress={() => admin(ts.https?.adminUrl ?? "")} />
+                ) : undefined
+              }
+            />
+          )}
           {ts.https.error ? <Notice error>{ts.https.error}</Notice> : null}
-          {ts.https.url ? <SettingsValue title="Address" value={ts.https.url} /> : null}
+          {ts.https.url ? (
+            <SettingsRow
+              title="Address"
+              description={ts.https.url}
+              control={
+                <View style={{ flexDirection: "row", flexWrap: "wrap", alignItems: "center", gap: 4 }}>
+                  <IconButton
+                    icon="clipboard-document"
+                    size="sm"
+                    label="Copy HTTPS address"
+                    onPress={() => void copyText(ts.https?.url ?? "")}
+                  />
+                  <Button title="Show QR code" size="sm" onPress={() => setQr(true)} />
+                </View>
+              }
+            />
+          ) : null}
           {ts.https.enabled && (
             <SettingsInput
               title="HTTPS port"
@@ -213,6 +265,42 @@ function TailscaleSettings({ status, busy, change }: { status: ui.NetworkAccess;
           )}
         </SettingsGroup>
       )}
+      {qr && !!ts?.https?.url && (
+        <Sheet visible title="HTTPS address" onClose={() => setQr(false)}>
+          <View accessible accessibilityLabel="QR code for this HTTPS address" style={{ alignItems: "center" }}>
+            <QrCode value={ts.https.url} />
+          </View>
+          <NetworkCopyValue title="Address" value={ts.https.url} />
+        </Sheet>
+      )}
     </View>
+  );
+}
+
+const tailscaleStates = new Map(
+  Object.entries({
+    not_installed: "Not found. Install Tailscale to reach this computer by name.",
+    not_running: "Not running. Start Tailscale on this computer.",
+    stopped: "Turned off. Turn on Tailscale on this computer.",
+    logged_out: "Signed out. Sign in to Tailscale on this computer.",
+    starting: "Starting…",
+  }),
+);
+
+function NetworkCopyValue({ title, value }: { title: string; value: string }) {
+  return (
+    <SettingsRow
+      title={title}
+      description={value}
+      inlineControl
+      control={
+        <IconButton
+          icon="clipboard-document"
+          size="sm"
+          label={`Copy ${title.toLowerCase()}`}
+          onPress={() => void copyText(value)}
+        />
+      }
+    />
   );
 }

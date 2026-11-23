@@ -16,16 +16,22 @@ export function Diff({
   bare = false,
   selectable = true,
   toolbar = true,
+  open: controlled,
+  onOpenChange,
 }: {
   diff: string;
   label?: string;
   bare?: boolean;
   selectable?: boolean;
   toolbar?: boolean;
+  open?: boolean;
+  onOpenChange?: (open: boolean) => void;
 }) {
   const c = useColors();
   const { values, set } = useDevicePreferences();
-  const [open, setOpen] = useState(values.diffFileState !== "collapsed");
+  const [expanded, setExpanded] = useState(values.diffFileState !== "collapsed");
+
+  const open = controlled ?? expanded;
 
   return (
     <View accessibilityLabel={label} style={{ gap: 8 }}>
@@ -33,7 +39,7 @@ export function Diff({
         <Pressable
           accessibilityRole="button"
           accessibilityState={{ expanded: open }}
-          onPress={() => setOpen(!open)}
+          onPress={() => (onOpenChange ?? setExpanded)(!open)}
           style={{ minHeight: 44, justifyContent: "center" }}
         >
           <Text style={[styles.chrome, { color: c.text }]}>

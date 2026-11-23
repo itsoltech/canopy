@@ -50,6 +50,7 @@ export function UpdateRun({ run }: { run: ui.UpdateRun | undefined }) {
 
   return (
     <SettingsDisclosure
+      viewKey={`update-run:${run.id}`}
       title={`Update all · ${run.state === "succeeded" ? "Complete" : updateLabel(run.state)}`}
       initiallyOpen={run.state === "running"}
     >

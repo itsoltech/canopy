@@ -6,6 +6,9 @@ import { SettingsActions, SettingsGroup, SettingsRow } from "./SettingsGroup";
 import { ResourceState, confirmAction, useSettingsResource } from "./resource";
 import { EnvironmentSkillInstall } from "./EnvironmentSkillInstall";
 import { EnvironmentSkillRow } from "./EnvironmentSkillRow";
+import { createSettingsViewState } from "./SettingsScroll";
+
+const useSelectedSkills = createSettingsViewState<string[]>([]);
 
 export function EnvironmentSkills({
   snapshot,
@@ -21,7 +24,7 @@ export function EnvironmentSkills({
   onChanged: () => void;
 }) {
   const resource = useSettingsResource("GetAgentEnvironment", (api) => api.getAgentEnvironment({}));
-  const [selected, setSelected] = useState<string[]>([]);
+  const [selected, setSelected] = useSelectedSkills();
   const [installing, setInstalling] = useState<string[]>([]);
   const chosen = snapshot.skills.filter((s) => selected.includes(s.id));
 

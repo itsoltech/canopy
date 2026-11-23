@@ -3,13 +3,14 @@ import { ui } from "@canopy/contracts";
 import { Text, View } from "react-native";
 import { useAppearance } from "../../state/appearance";
 import { Button } from "../../ui/components";
+import { Badge } from "../../ui/Badge";
 import { styles, useColors } from "../../ui/theme";
 import { SettingsGroup, SettingsRow, SettingChoice, SettingToggle } from "./SettingsGroup";
 import { DeviceChoiceRow } from "./DeviceChoiceRow";
 import { useDevicePreferences } from "./device-preferences";
 import { ResetSetting } from "./ResetSetting";
 import { ModuleSettings } from "./ModuleSettings";
-import { AppUpdateStatus } from "./AppUpdateStatus";
+import { AccountConfigNotices } from "./AccountConfigNotices";
 import { UsagePingSettings } from "./UsagePingSettings";
 import { MobilePushSettings } from "./MobilePushSettings";
 import { useMobilePush } from "../notifications/PushProvider";
@@ -31,21 +32,31 @@ export function GeneralSettings() {
 
   return (
     <View style={{ gap: 24 }}>
-      <Text style={[styles.workMeta, { color: c.muted }]}>
-        Account preferences follow your configuration group. “This device” stays here.
-      </Text>
-      <Button
-        title="Restore device defaults"
-        icon="arrow-path"
-        style={{ alignSelf: "flex-start" }}
-        onPress={() => {
-          device.reset(["inAppNotifications", "timeFormat"]);
-
-          if (push.state?.requested) void push.registration?.setEnabled(false);
+      <View
+        style={{
+          flexDirection: "row",
+          flexWrap: "wrap",
+          justifyContent: "space-between",
+          alignItems: "center",
+          gap: 8,
         }}
-      />
+      >
+        <Text style={[styles.workMeta, { color: c.muted, flexShrink: 1 }]}>
+          Account preferences follow your configuration group. “This device” stays here.
+        </Text>
+        <Button
+          title="Restore device defaults"
+          icon="arrow-path"
+          size="sm"
+          disabled={!device.loaded || push.state?.saving}
+          onPress={() => {
+            device.reset(["inAppNotifications", "timeFormat"]);
+
+            if (push.state?.requested) void push.registration?.setEnabled(false);
+          }}
+        />
+      </View>
       <ModuleSettings />
-      <UsagePingSettings />
       <SettingsGroup title="Notifications" description="This device">
         <MobilePushSettings />
         <DeviceChoiceRow
@@ -62,7 +73,6 @@ export function GeneralSettings() {
         <SettingsGroup title="Sidebar" description="This device">
           <SettingChoice
             title="Group by"
-            description="Choose how threads are grouped in the sidebar."
             value={groupBy}
             options={[
               { value: "none", label: "None" },
@@ -119,7 +129,8 @@ export function GeneralSettings() {
       )}
       <ConfirmationSettings />
       <DisplaySettings />
-      <AppUpdateStatus />
+      <UsagePingSettings />
+      <AccountConfigNotices sections={["modules", "timezone", "general", "sidebar"]} />
     </View>
   );
 }
@@ -133,16 +144,24 @@ function DisplaySettings() {
       <DeviceChoiceRow
         preference="timeFormat"
         title="Time format"
-        description="Set how timestamps show hours."
         options={[
           { value: "system", label: "System" },
           { value: "12h", label: "12-hour" },
           { value: "24h", label: "24-hour" },
         ]}
       />
-      <SettingsRow title="Time zone" description="Use this device’s time zone for scheduled work.">
-        <Text style={[styles.chrome, { color: c.text }]}>Account · {settings.user?.timezone || "UTC"}</Text>
-      </SettingsRow>
+      <SettingsRow
+        title="Time zone"
+        description="Canopy uses this device’s time zone when scheduling work."
+        control={
+          <View style={[styles.row, { flexWrap: "wrap", gap: 8 }]}>
+            <Badge>Account</Badge>
+            <Text selectable style={[styles.chrome, { color: c.text, flexShrink: 1 }]}>
+              {settings.user?.timezone || "UTC"}
+            </Text>
+          </View>
+        }
+      />
     </SettingsGroup>
   );
 }

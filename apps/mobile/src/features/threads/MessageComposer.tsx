@@ -17,6 +17,7 @@ import { composerPending } from "@canopy/domain/composer-pending";
 import { DraftActions } from "../drafts/DraftActions";
 import { DraftMoveNotice } from "../drafts/DraftMoveNotice";
 import { PendingDraft } from "../drafts/PendingDraft";
+import { ThreadContextUsage } from "./ThreadContextUsage";
 import { UsageWarning } from "./UsageWarning";
 import { ComposerControls, ComposerPickers } from "./ComposerModelControls";
 import { Icon } from "../../ui/Icon";
@@ -100,11 +101,14 @@ export function MessageComposer({
           files={message.files.ids.length + quotes.quotes.length}
           top={<ComposerAttachments message={message} />}
           attachment={
-            <AttachButton
-              draft={message.files}
-              onFindReference={message.findReference}
-              disabled={disabled || busy || Boolean(message.persistent?.pendingSend)}
-            />
+            <View style={[styles.row, { gap: 4 }]}>
+              <AttachButton
+                draft={message.files}
+                onFindReference={message.findReference}
+                disabled={disabled || busy || Boolean(message.persistent?.pendingSend)}
+              />
+              <ThreadContextUsage usage={thread?.contextUsage} />
+            </View>
           }
           controls={<ComposerControls state={state} thread={thread} />}
         />

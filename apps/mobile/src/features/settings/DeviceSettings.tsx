@@ -1,21 +1,26 @@
 import { useEffect, useState } from "react";
 import { Text, View } from "react-native";
 import { router } from "expo-router";
+import { toJsonString } from "@bufbuild/protobuf";
 import { ui } from "@canopy/contracts";
 import { useSession } from "../../state/session";
 import { Button, Notice, Sheet } from "../../ui/components";
 import { QrCode } from "../../ui/QrCode";
 import { styles, useColors } from "../../ui/theme";
-import { SettingsGroup, SettingsRow } from "./SettingsGroup";
+import { SettingsActions, SettingsGroup, SettingsRow } from "./SettingsGroup";
 import { SettingsValue } from "./SettingsValue";
 import { useDateTime } from "./display";
 import { ResourceState, confirmAction, useSettingsResource } from "./resource";
 import { SettingsSkeletonRows } from "./SettingsSkeleton";
 import { useLiveTime } from "../../ui/time";
+import { SettingsDisclosure } from "./SettingsDisclosure";
+import { useCopyText } from "../viewers/useCopyText";
+import { openSettingsSection } from "./navigation";
 
 function useDeviceSettings() {
   const resource = useSettingsResource("GetMobileDevices", (api) => api.getMobileDevices({}));
   const { client, session, forget, unpair } = useSession();
+  const network = useSettingsResource("GetNetworkAccess", (api) => api.getNetworkAccess({}));
   const [invitation, setInvitation] = useState<ui.CreateMobilePairingResponse>();
 
   const now = useLiveTime(
@@ -37,9 +42,14 @@ function useDeviceSettings() {
 
   async function pair(desktop: boolean) {
     const result = await resource.run(async (api) => {
-      const network = await api.getNetworkAccess({});
+      const status = await api.getNetworkAccess({});
 
-      if (!network.enabled) await api.updateNetworkAccess({ action: "set_enabled", enabled: true });
+      if (status.state !== "on") {
+        const updated = await api.updateNetworkAccess({ action: "set_enabled", enabled: true });
+        void network.reload();
+
+        if (updated.state !== "on") throw new Error("Network access is unavailable.");
+      }
 
       return desktop ? api.createDesktopPairing({}) : api.createMobilePairing({});
     });
@@ -65,6 +75,7 @@ function useDeviceSettings() {
 
   return {
     resource,
+    network,
     session,
     forget,
     invitation,
@@ -82,54 +93,75 @@ function useDeviceSettings() {
 
 export function DeviceSettings() {
   const state = useDeviceSettings();
-  const { resource, data, session, pair, revoke, format, now } = state;
+  const { resource, data, network, pair, now, format } = state;
+
+  const pending = data?.pairings.filter(
+    (p) => !p.usedAt && !p.revokedAt && Number(p.expiresAt?.seconds ?? 0n) * 1000 > now,
+  );
+
+  const disabled = !data || resource.busy || network.busy || !network.data;
+  const c = useColors();
 
   return (
     <ResourceState resource={resource}>
-      <Notice>Your Canopy, with you. Pair once and connect on any Wi-Fi or VPN you share with this computer.</Notice>
-      <Button variant="primary" title="Pair a phone" busy={resource.busy} onPress={() => void pair(false)} />
-      <Button title="Pair a desktop app" disabled={resource.busy} onPress={() => void pair(true)} />
-      <SettingsGroup title="Paired devices">
-        <SettingsSkeletonRows controls />
-        {data?.devices.map((device) => (
+      <Text style={[styles.meta, { color: c.muted }]}>
+        Pair once and connect on any Wi-Fi or VPN you share with this computer.
+      </Text>
+      <SettingsActions>
+        <Button title="Pair a desktop app" disabled={disabled} onPress={() => void pair(true)} />
+        <Button
+          variant="primary"
+          multiline
+          title={network.data?.state === "off" ? "Turn on network access and pair a phone" : "Pair a phone"}
+          disabled={disabled}
+          onPress={() => void pair(false)}
+        />
+      </SettingsActions>
+      <ResourceState resource={network}>
+        <SettingsGroup>
           <SettingsRow
-            key={device.id}
-            title={device.name}
-            description={`${device.clientKind === "desktop" ? "Desktop app · " : ""}${device.platform} · ${device.pairingVersion < 2 ? "Pair again to use this computer's secure network connection." : device.revokedAt ? "Revoked" : device.lastSeenAt ? `Last seen ${format(device.lastSeenAt.seconds)}` : "Not connected yet"}`}
+            title={
+              network.data?.state === "on"
+                ? "Network access is on"
+                : network.data?.state === "error"
+                  ? "Network access can’t start"
+                  : network.data?.state === "off"
+                    ? "Network access is off"
+                    : "Network access"
+            }
+            description={
+              network.data?.error ||
+              network.data?.note ||
+              network.data?.addresses.map((address) => address.origin).join("\n")
+            }
             control={
-              device.pairingVersion < 2 ? (
+              <SettingsActions>
+                {network.data?.state === "off" && (
+                  <Button
+                    title="Turn on"
+                    size="sm"
+                    disabled={network.busy || resource.busy}
+                    onPress={() =>
+                      void network.run((api) => api.updateNetworkAccess({ action: "set_enabled", enabled: true }))
+                    }
+                  />
+                )}
                 <Button
-                  title="Pair again"
-                  disabled={resource.busy}
-                  onPress={() => void pair(device.clientKind === "desktop")}
+                  title="Manage"
+                  size="sm"
+                  variant="ghost"
+                  label="Manage network access"
+                  onPress={() => openSettingsSection("network")}
                 />
-              ) : !device.revokedAt ? (
-                <Button
-                  title="Revoke access"
-                  disabled={resource.busy}
-                  onPress={() =>
-                    confirmAction(
-                      "Revoke access",
-                      `This disconnects ${device.name}${device.id === session?.deviceId ? " (this phone)" : ""}. Pair it again to reconnect.`,
-                      () => void revoke(device.id),
-                    )
-                  }
-                />
-              ) : undefined
+              </SettingsActions>
             }
           />
-        ))}
-        {data && !data.devices.length && (
-          <SettingsRow
-            title="No devices paired yet"
-            description="Pair a phone or desktop app. Revoke its access here at any time."
-          />
-        )}
-      </SettingsGroup>
-      <SettingsGroup title="Pending pairing codes">
-        {data?.pairings
-          .filter((p) => !p.usedAt && !p.revokedAt && Number(p.expiresAt?.seconds ?? 0n) * 1000 > now)
-          .map((p) => (
+        </SettingsGroup>
+      </ResourceState>
+      <PairedDevices state={state} />
+      {!!pending?.length && (
+        <SettingsGroup title="Pending pairing codes">
+          {pending.map((p) => (
             <SettingsRow
               key={p.id}
               title={p.clientKind === "desktop" ? "Waiting for a desktop app" : "Waiting for a phone"}
@@ -137,16 +169,78 @@ export function DeviceSettings() {
               control={
                 <Button
                   title="Revoke code"
+                  size="sm"
+                  variant="ghost"
                   disabled={resource.busy}
                   onPress={() => void resource.run((api) => api.revokeMobilePairing({ id: p.id }))}
                 />
               }
             />
           ))}
-      </SettingsGroup>
+        </SettingsGroup>
+      )}
       <ThisPhone state={state} />
       <PairingInvitation state={state} />
     </ResourceState>
+  );
+}
+
+function PairedDevices({ state }: { state: ReturnType<typeof useDeviceSettings> }) {
+  const { data, resource, pair, revoke, session, format } = state;
+  const active = data?.devices.filter((device) => !device.revokedAt) ?? [];
+  const revoked = data?.devices.filter((device) => device.revokedAt) ?? [];
+
+  return (
+    <SettingsGroup title="Paired devices">
+      <SettingsSkeletonRows controls />
+      {active.map((device) => (
+        <SettingsRow
+          key={device.id}
+          title={device.name}
+          description={`${device.clientKind === "desktop" ? "Desktop app · " : ""}${device.platform} · ${device.pairingVersion < 2 ? "Pair again to use this computer's secure network connection." : device.lastSeenAt ? `Last seen ${format(device.lastSeenAt.seconds)}` : "Not connected yet"}`}
+          control={
+            device.pairingVersion < 2 ? (
+              <Button
+                title="Pair again"
+                disabled={resource.busy}
+                onPress={() => void pair(device.clientKind === "desktop")}
+              />
+            ) : (
+              <Button
+                size="sm"
+                variant="ghost"
+                title="Revoke access"
+                disabled={resource.busy}
+                onPress={() =>
+                  confirmAction(
+                    "Revoke access",
+                    `This disconnects ${device.name}${device.id === session?.deviceId ? " (this phone)" : ""}. Pair it again to reconnect.`,
+                    () => void revoke(device.id),
+                  )
+                }
+              />
+            )
+          }
+        />
+      ))}
+      {data && !active.length && (
+        <SettingsRow
+          title={revoked.length ? "No active devices" : "No devices paired yet"}
+          description="Pair a phone or desktop app to connect it to Canopy."
+        />
+      )}
+      {!!revoked.length && (
+        <SettingsDisclosure title={`Revoked devices (${revoked.length})`} viewKey="revoked-devices">
+          {revoked.map((device) => (
+            <SettingsRow
+              key={device.id}
+              title={device.name}
+              description={`${device.clientKind === "desktop" ? "Desktop app · " : ""}${device.platform}`}
+            />
+          ))}
+        </SettingsDisclosure>
+      )}
+    </SettingsGroup>
   );
 }
 
@@ -203,46 +297,64 @@ function ThisPhone({ state }: { state: ReturnType<typeof useDeviceSettings> }) {
 function PairingInvitation({ state }: { state: ReturnType<typeof useDeviceSettings> }) {
   const { invitation, setInvitation, current, usable, seconds } = state;
   const c = useColors();
+  const desktop = invitation?.pairing?.clientKind === "desktop";
+
+  const text =
+    invitation && usable
+      ? desktop
+        ? toJsonString(ui.CreateMobilePairingResponseSchema, invitation)
+        : invitation.code
+      : "";
+
+  const { copied, copy } = useCopyText(text);
 
   return (
     <Sheet
       visible={!!invitation}
-      title={invitation?.pairing?.clientKind === "desktop" ? "Pair a desktop app" : "Pair a phone"}
+      title={desktop ? "Pair a desktop app" : "Pair a phone"}
       onClose={() => setInvitation(undefined)}
     >
-      <Notice>
-        {current?.usedAt
-          ? "Device paired"
-          : usable
-            ? `Expires in ${Math.floor(seconds / 60)}:${String(seconds % 60).padStart(2, "0")}`
-            : "This code has expired or was revoked. Close and create a new code."}
-      </Notice>
-      {invitation && usable && (
+      {current?.usedAt ? (
+        <Notice>Device paired.</Notice>
+      ) : !invitation || !usable ? (
+        <Notice>This code expired or was revoked. Close and create a new code.</Notice>
+      ) : (
         <>
-          <View style={{ alignItems: "center" }}>
-            <QrCode
-              value={JSON.stringify({
-                type: "canopy-pair",
-                version: 2,
-                addresses: invitation.routes?.addresses,
-                fingerprint: invitation.routes?.fingerprint,
-                code: invitation.code,
-              })}
-            />
-          </View>
-          <Text selectable style={[styles.heading, { color: c.text, textAlign: "center" }]}>
-            {invitation.code}
+          <Text style={[styles.meta, { color: c.muted }]}>
+            {desktop
+              ? "Copy this invitation into Desktop settings → Connect to a Canopy gateway. It grants full access to your gateway’s UI."
+              : "Open Canopy on your phone and scan this QR code. Use a network both devices can reach."}
           </Text>
+          {!desktop && (
+            <View style={{ alignItems: "center" }}>
+              <QrCode
+                value={JSON.stringify({
+                  type: "canopy-pair",
+                  version: 2,
+                  addresses: invitation.routes?.addresses,
+                  fingerprint: invitation.routes?.fingerprint,
+                  code: invitation.code,
+                })}
+              />
+            </View>
+          )}
+          <Text
+            selectable
+            style={[desktop ? styles.meta : styles.heading, { color: c.text, textAlign: desktop ? "left" : "center" }]}
+          >
+            {text}
+          </Text>
+          <Button
+            size="sm"
+            style={{ alignSelf: "center" }}
+            title={copied ? "Copied" : desktop ? "Copy invitation" : "Copy code"}
+            onPress={() => void copy()}
+          />
           <SettingsValue title="Addresses" value={invitation.routes?.addresses.join("\n")} />
           <SettingsValue title="Certificate fingerprint" value={invitation.routes?.fingerprint} />
-          {invitation.pairing?.clientKind === "desktop" && (
-            <Text selectable style={[styles.meta, { color: c.muted }]}>
-              {JSON.stringify({
-                code: invitation.code,
-                routes: { addresses: invitation.routes?.addresses, fingerprint: invitation.routes?.fingerprint },
-              })}
-            </Text>
-          )}
+          <Text style={[styles.meta, { color: c.muted, textAlign: "center" }]}>
+            One use · expires in {Math.floor(seconds / 60)}:{String(seconds % 60).padStart(2, "0")}
+          </Text>
         </>
       )}
     </Sheet>

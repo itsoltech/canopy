@@ -1,11 +1,24 @@
 import { useEffect, useRef, useState } from "react";
+import type { ui } from "@canopy/contracts";
 import { View } from "react-native";
 import { useSession } from "../../state/session";
 import { Button, Field, Notice } from "../../ui/components";
 import { SettingsValue } from "./SettingsValue";
 import { confirmAction } from "./resource";
 
-export function WorkerSsh({ name = "", tags = [] }: { name?: string; tags?: string[] }) {
+export function WorkerSsh({
+  name = "",
+  tags = [],
+  onEnrollment,
+  onInstalled,
+  onBusy,
+}: {
+  name?: string;
+  tags?: string[];
+  onEnrollment?: (enrollment: ui.WorkerEnrollment) => void;
+  onInstalled?: () => void;
+  onBusy?: (busy: boolean) => void;
+}) {
   const { client } = useSession();
   const [target, setTarget] = useState("");
   const [checked, setChecked] = useState("");
@@ -24,6 +37,7 @@ export function WorkerSsh({ name = "", tags = [] }: { name?: string; tags?: stri
     const request = new AbortController();
     controller.current = request;
     setBusy(true);
+    onBusy?.(true);
     setError("");
     setOutput("");
 
@@ -32,6 +46,8 @@ export function WorkerSsh({ name = "", tags = [] }: { name?: string; tags?: stri
         { action, target, fingerprint, name, tags },
         { signal: request.signal },
       )) {
+        if (event.enrollment) onEnrollment?.(event.enrollment);
+
         if (event.publicKey) setPublicKey(event.publicKey);
 
         if (event.fingerprint) {
@@ -42,6 +58,8 @@ export function WorkerSsh({ name = "", tags = [] }: { name?: string; tags?: stri
 
         if (event.output) setOutput((text) => (text + event.output).slice(-128_000));
       }
+
+      if (action === "install" && !request.signal.aborted) onInstalled?.();
     } catch {
       setError(
         request.signal.aborted
@@ -50,6 +68,7 @@ export function WorkerSsh({ name = "", tags = [] }: { name?: string; tags?: stri
       );
     } finally {
       setBusy(false);
+      onBusy?.(false);
     }
   }
 
@@ -60,25 +79,7 @@ export function WorkerSsh({ name = "", tags = [] }: { name?: string; tags?: stri
         the gateway.
       </Notice>
       {error ? <Notice error>{error}</Notice> : null}
-      {publicKey ? <SettingsValue title="Canopy SSH public key" value={publicKey} /> : null}
-      <Button
-        title={publicKey ? "Refresh public key" : "Show public key"}
-        busy={busy}
-        onPress={() => void run("key")}
-      />
-      {publicKey ? (
-        <Button
-          title="Rotate SSH key"
-          disabled={busy}
-          onPress={() =>
-            confirmAction(
-              "Rotate SSH key",
-              "Replace the old public key on your hosts with the new one. Running workers stay connected.",
-              () => void run("rotate"),
-            )
-          }
-        />
-      ) : null}
+      <SshKey publicKey={publicKey} run={run} busy={busy} />
       {name && (
         <>
           <Field
@@ -119,5 +120,39 @@ export function WorkerSsh({ name = "", tags = [] }: { name?: string; tags?: stri
       )}
       {output ? <SettingsValue title="Installation output" value={output} /> : null}
     </View>
+  );
+}
+
+function SshKey({
+  publicKey,
+  run,
+  busy,
+}: {
+  publicKey: string;
+  run: (action: string) => Promise<void>;
+  busy: boolean;
+}) {
+  return (
+    <>
+      {publicKey ? <SettingsValue title="Canopy SSH public key" value={publicKey} /> : null}
+      <Button
+        title={publicKey ? "Refresh public key" : "Show public key"}
+        busy={busy}
+        onPress={() => void run("key")}
+      />
+      {publicKey ? (
+        <Button
+          title="Rotate SSH key"
+          disabled={busy}
+          onPress={() =>
+            confirmAction(
+              "Rotate SSH key",
+              "Replace the old public key on your hosts with the new one. Running workers stay connected.",
+              () => void run("rotate"),
+            )
+          }
+        />
+      ) : null}
+    </>
   );
 }

@@ -1,21 +1,28 @@
 import { View } from "react-native";
 import { Skeleton, useSkeleton } from "../../ui/Skeleton";
-import { SettingsGroup, SettingsRow } from "./SettingsGroup";
+import { SettingsGroup } from "./SettingsGroup";
+import { SettingsRowContent } from "./SettingsRow";
+import { useTypography } from "../../ui/theme";
 
 /** Unknown list lengths use row geometry; known forms keep their real rows mounted instead. */
 export function SettingsSkeletonRows({ rows = 2, controls = false }: { rows?: number; controls?: boolean }) {
   const loading = useSkeleton();
+  const type = useTypography();
 
   if (!loading) return null;
 
   return (
-    <View style={{ gap: 12 }}>
+    <View accessible accessibilityLabel="Loading settings" accessibilityState={{ busy: true }} style={{ gap: 20 }}>
       {Array.from({ length: rows }, (_, index) => (
-        <SettingsRow
+        <SettingsRowContent
           key={index}
-          title=" "
-          description=" "
-          control={controls ? <Skeleton style={{ height: 44 }} /> : undefined}
+          copy={
+            <View style={{ gap: 2 }}>
+              <Skeleton style={{ width: "45%", height: type.chrome.lineHeight }} />
+              <Skeleton style={{ width: "80%", height: type.meta.lineHeight }} />
+            </View>
+          }
+          control={controls ? <View style={{ height: 44 }} /> : undefined}
         />
       ))}
     </View>

@@ -1,5 +1,9 @@
 # Canopy na iOS i Android
 
+Status (2026-11-23): Settings otwiera General. Menu sekcji na telefonie i panel boczny
+na tablecie zachowują wyszukiwanie i pozycję listy. Każda odwiedzona sekcja
+ma własną pozycję przewinięcia na czas otwarcia ustawień.
+
 Status (2026-11-23): w kompozytorze wspólna lista `#` wyszukuje wątki, zgłoszenia Linear, Jira i GitHub oraz pull requesty GitHub.
 Szczegóły projektu pozwalają zapisać kolor i przywrócić dobór automatyczny.
 
@@ -157,6 +161,12 @@ Linki pokazują etykiety, obrazy tekst alternatywny, a komórki tabel i elementy
 są rozdzielone spacjami. Dotknięcie podglądu otwiera rozmowę. Czas i widoczny licznik
 są wyrównane do prawej krawędzi treści, przed przyciskiem menu. Gdy licznik znika, podgląd odzyskuje jego miejsce,
 a awatar, czas i menu zachowują położenie.
+
+W **Threads** można zmienić i przywrócić domyślne ustawienia nowych wątków, edytować
+profile sandboxa i ustawić **Auto-archive after merge**. Projekt może odziedziczyć
+lub nadpisać tę regułę. W **Appearance** wybór **Context display** decyduje,
+czy przy kompozytorze pokazać pierścień, wartości tokenów albo pasek. Dotknięcie
+wskaźnika pokazuje dokładny pomiar zgłoszony przez dostawcę.
 
 Settings → Threads → Archived threads zawiera przełącznik automatycznego
 usuwania i dowolną liczbę dni (1–36500); domyślnie jest wyłączony. Edycja tworzy
@@ -1191,7 +1201,7 @@ oraz po powrocie do niej, gdy od ostatniego sprawdzenia lub pobrania minęło 15
 Po błędzie obowiązuje ta sama przerwa. Aplikacja pobiera wykryte zgodne OTA oraz obsługuje
 dyrektywę powrotu do wbudowanego bundle'a. Pobrany pakiet czeka na następny zimny start.
 Sprawdzanie działa także bez parowania. Nowe próby są wstrzymane w tle i po pobraniu aktualizacji.
-Settings → General → About oraz centrum aktualizacji współdzielą stan telefonu:
+Settings → App updates oraz centrum aktualizacji współdzielą stan telefonu:
 sprawdzenie (`checkForUpdateAsync`), pobranie (`fetchUpdateAsync`) i jawne zastosowanie
 (`reloadAsync`). „Apply next launch” odkłada restart; aplikacja nigdy nie restartuje się
 automatycznie w trakcie pracy. Próba zastosowania przy niewysłanym tekście, plikach
@@ -1710,8 +1720,8 @@ dostaje prawy. Lewy inset powiększa szerokość otwartego sidebara i pozostaje
 marginesem po jego zwinięciu, więc rozmowa od razu zatrzymuje się na bezpiecznej krawędzi.
 Settings stosuje tę samą regułę do własnych kolumn:
 nawigacja ma 256 dp użytecznej szerokości, a długie etykiety przy większym rozmiarze tekstu
-kończą się wielokropkiem. W szerokim układzie brak wyboru otwiera General; wąski nadal
-zaczyna od listy sekcji. Nagłówek wyrównuje tytuły do kolumn i chroni zamknięcie prawym insetem.
+kończą się wielokropkiem. W obu układach brak wyboru otwiera General. Nagłówek
+wąskiego okna otwiera wyszukiwalny wybór sekcji, a prawy inset chroni przycisk zamknięcia.
 Pełne arkusze mierzą safe area we własnym `SafeAreaProvider`; dolne pickery chronią
 akcje insetem dolnym i bocznymi, także w poziomie. Zawias: Expo nie udostępnia
 `FoldingFeature`; zawias Galaxy Z Fold po rozłożeniu nie zasłania ekranu, więc nie omijamy go.
@@ -2400,14 +2410,15 @@ krawędzi. To animacje platformy, bez własnych czasów. Ograniczenie ruchu wył
 Stos workspace'u na szerokim oknie zamienia wątki i boty od razu, w przyciętym panelu
 obok sidebara; nie przesuwa ani nie rozjaśnia starego widoku nad listą.
 
-Sekcje Settings mają własny natywny stos (`/settings` → `/settings/[section]`). Gest iOS
-oraz Back Androida cofają sekcję do głównego widoku Settings, a dopiero z niego zamykają
-Settings. Gest zewnętrznego stosu jest wyłączony, gdy cofanie należy do stosu sekcji.
-Skróty do konkretnej sekcji również zachowują główny widok pod nią. Na szerokim oknie
-główny widok pokazuje listę i General; pierwszy Back przywraca ten widok, drugi wraca
-do workspace'u. Wybór kolejnej sekcji obok listy zastępuje bieżącą sekcję, bez tworzenia
-historii każdego wyboru. Złożenie lub obrót nie kasuje stosu. Krzyżyk zamyka całe Settings
-z dowolnego poziomu. Wejście do wątku bocznego ze szczegółów lub panelu subagentów
+Sekcje Settings mają wspólną powłokę nad natywnym stosem tras. Na telefonie
+nazwa bieżącej sekcji w nagłówku otwiera arkusz z wyszukiwaniem i zaznaczonym wyborem.
+Na szerokim oknie ta sama lista zostaje obok treści. Przełączenie sekcji zachowuje
+zapytanie, przewinięcie listy i osobną pozycję treści odwiedzonych sekcji.
+Powrót do Providers lub Worktrees odtwarza wybrany zakres zmian. Rozwinięte
+karty workerów i narzędzi pozostają otwarte do zamknięcia Settings.
+Pierwsza wizyta zaczyna się u góry. Back Androida zamyka otwarty arkusz; cofnięcie
+z sekcji prowadzi do General, a z General do poprzedniego ekranu aplikacji.
+Krzyżyk zamyka całe Settings z dowolnej sekcji. Wejście do wątku bocznego ze szczegółów lub panelu subagentów
 oraz wejście do rozmowy botów dodaje trasę do stosu workspace'u; Back wraca do
 bezpośredniego poprzednika. Wybór z sidebara na szerokim oknie nadal zamienia trasę
 bez historii pomiędzy wyborami. Arkusze botów mają własne
@@ -2416,8 +2427,8 @@ dostępne wyłącznie bez sesji; zakończenie lub usunięcie parowania usuwa nie
 trasy z historii. Back Androida w skanerze wraca najpierw do wypełnionego formularza.
 
 Settings używa rejestru sekcji web, z General, Keybindings, Diffs, Agent environment,
-Proxies, Network access i capability-gated Linked computers. Na telefonie otwiera
-listę sekcji i osobny ekran; od 600 dp pokazuje listę obok treści. Zmiany konta zapisuje
+Proxies, Network access i Linked computers na obsługującym je gatewayu.
+Od 600 dp pokazuje listę obok treści. Zmiany konta zapisuje
 bezpośrednio przez owner-scoped GatewayService. Formularze obejmują projekty/workspace'y,
 harmonogramy, polityki worktree, instrukcje/skille/pluginy, instancje dostawców, proxy,
 konektory, workery, urządzenia i połączone komputery. Zapis używa wersji/revizji gatewaya;
@@ -2429,12 +2440,18 @@ dodania, usunięcia i jawnego wklejenia całego zestawu. Wklejenie zachowuje pod
 wierszy; błąd zapisu nie czyści tokenu, nagłówków, client secret ani kodu OAuth.
 W modalnych formularzach pierwszy Android Back chowa klawiaturę i usuwa fokus pola,
 zachowując edycję; kolejne cofnięcie zamyka arkusz.
-Keybindings jest wyszukiwalną referencją dla klawiatur sprzętowych, bez edycji skrótów
-przeglądarki. Kontrolki lokalnego procesu Electron i jego updatera są ukryte jak w web
-remote; aktualizacje gatewaya/workera pozostają w Workers. Powiadomienia systemowe są
-oznaczone jako niedostępne w tym buildzie, bez pozornego przełącznika push.
+Keybindings jest wyszukiwalną listą domyślnych skrótów webu i desktopu.
+Skróty konfiguruje się w kliencie, który je wykonuje. Kontrolki lokalnego procesu Electron i jego updatera są ukryte jak w web
+remote. W App updates można sprawdzić wersję telefonu oraz stan i dostępne
+akcje aktualizacji połączonych komputerów. Workers pokazuje też gateway i workery. Powiadomienia systemowe są
+konfigurowane dla tego telefonu w General z uwzględnieniem uprawnień systemowych
+i obsługi relaya przez gateway.
+Settings → Agent tools pokazuje gotowość narzędzi Browser, Desktop i Device,
+logi instalacji i dostęp poszczególnych workerów. Rozwinięta karta pozwala zapisać
+wartości początkowe nowych sesji. Zakres i zasady opisuje [Agent tools](automation-tools.md).
 Settings → Memory pojawia się, gdy gateway obsługuje listę, zapis i usuwanie notatek.
-Lista pokazuje kolejne strony i pozwala filtrować zakres projektu, workera, bota lub rozmowy.
+Lista ma podział na strony i filtr zakresu. Gdy gateway zwraca opcje filtrów, można
+również wyszukać tekst notatki albo wybrać konkretny projekt i workera.
 Arkusz pokazuje całą notatkę i pozwala zmienić tytuł, treść, aliasy i przypięcie.
 Usunięcie wymaga potwierdzenia. Zapis i usunięcie sprawdzają rewizję. Po konflikcie
 użytkownik może wczytać aktualną wersję do porównania, zachowując zmienione pola szkicu.

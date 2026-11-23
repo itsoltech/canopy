@@ -24,6 +24,7 @@ export function DiagnosticsLinks({ computer }: { computer: ui.ComputerDiagnostic
       {computer.links.map((link) => (
         <SettingsDisclosure
           key={`${link.kind}:${link.targetId}`}
+          viewKey={`link:${computer.computerId}:${link.kind}:${link.targetId}`}
           title={`${link.name} · ${link.kind === "worker" ? "Worker" : "Linked computer"} · ${link.online ? "Online" : "Offline · Last known data"}`}
         >
           {!link.measuresSupported ? (
@@ -45,6 +46,7 @@ export function DiagnosticsLinks({ computer }: { computer: ui.ComputerDiagnostic
                 return measures.length ? (
                   <SettingsDisclosure
                     key={group.id}
+                    viewKey={`link-group:${computer.computerId}:${link.kind}:${link.targetId}:${group.id}`}
                     title={`${group.title}${measuresObserved(link.measures, group.id) ? ` · ${measuresObserved(link.measures, group.id)}` : ""}`}
                   >
                     <DiagnosticsMeasures measures={measures} />
