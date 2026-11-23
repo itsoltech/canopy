@@ -1,5 +1,5 @@
-import { useState } from "react";
-import { Pressable, View, type StyleProp, type ViewStyle } from "react-native";
+import { useState, type Ref } from "react";
+import { Pressable, View, type TextInputInstance, type StyleProp, type ViewStyle } from "react-native";
 import { TextInput } from "./TextInput";
 import { Icon } from "./Icon";
 import { styles, useColors } from "./theme";
@@ -14,6 +14,8 @@ export function SearchField({
   value,
   onChange,
   bare = false,
+  ref,
+  autoFocus = false,
   mutedColor,
   style,
 }: {
@@ -23,6 +25,8 @@ export function SearchField({
   onChange: (value: string) => void;
   /** Without the ring and fill (the sidebar's search); focus still shows the brand ring. */
   bare?: boolean;
+  ref?: Ref<TextInputInstance>;
+  autoFocus?: boolean;
   mutedColor?: string;
   style?: StyleProp<ViewStyle>;
 }) {
@@ -49,6 +53,8 @@ export function SearchField({
     >
       <Icon name="magnifying-glass" color={mutedColor ?? c.faint} />
       <TextInput
+        ref={ref}
+        autoFocus={autoFocus}
         accessibilityLabel={label}
         placeholder={placeholder}
         placeholderTextColor={mutedColor ?? c.muted}

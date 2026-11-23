@@ -1,5 +1,8 @@
 # Canopy na iOS i Android
 
+Status (2026-11-23): na listach Threads i Bots wiersz z nazwą Canopy przewija się razem
+z listą. Przełącznik modułu, wyszukiwarka i akcje listy zatrzymują się pod paskiem stanu.
+
 Status (2026-11-23): Settings otwiera General. Menu sekcji na telefonie i panel boczny
 na tablecie zachowują wyszukiwanie i pozycję listy. Każda odwiedzona sekcja
 ma własną pozycję przewinięcia na czas otwarcia ustawień.
@@ -1706,9 +1709,10 @@ progu. Ręczne zwinięcie i rozwinięcie przesuwają wspólną krawędź sidebar
 w tym samym tempie. Lista zachowuje swoją szerokość podczas animacji. Przy ograniczeniu
 ruchu obie kolumny przechodzą od razu do docelowego układu.
 `ui/ScreenFrame.tsx` stosuje insets do kontrolek. Pasek stanu ma jednolite tło
-sidebara, a nawigacja i baner połączenia zajmują własne miejsce nad listą. Przewijane
-wiersze są przycinane na dolnej krawędzi nagłówka. Nieprzezroczysta stopka nakłada
-się na listę, a padding odpowiadający jej wysokości i dolnemu insetowi pozwala
+sidebara. Na telefonie i w bocznej kolumnie tabletu przewinięcie listy chowa nazwę Canopy.
+Przełącznik Threads/Bots, wyszukiwarka z przyciskami (w tym Create bot w Bots) i widoczny
+baner połączenia pozostają nad przewijanymi wierszami. Zmiana modułu zachowuje położenie
+przełącznika, a powrót na początek listy odsłania nazwę. Nieprzezroczysta stopka nakłada się na listę, a padding odpowiadający jej wysokości i dolnemu insetowi pozwala
 odsłonić ostatni wiersz w całości. Ikony paska stanu zmieniają jasność wraz z motywem.
 `ScreenScroll` stosuje padding treści w New thread, Pair, Settings i arkuszach szczegółów.
 Timeline wątku i bota ma odwrócone końce: górny inset jest na najstarszym końcu,

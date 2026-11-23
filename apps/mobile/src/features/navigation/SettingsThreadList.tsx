@@ -6,7 +6,7 @@ import { useDevicePreferences } from "../settings/device-preferences";
 import { SidebarGroupHeading, SidebarNesting } from "./SidebarGroupHeading";
 import { sidebarEntries } from "@canopy/domain/sidebar-entries";
 import { styles, useColors } from "../../ui/theme";
-import { useContentPadding } from "../../ui/ScreenFrame";
+import type { SidebarListHeader } from "./SidebarListHeader";
 import Animated, { LayoutAnimationConfig } from "react-native-reanimated";
 import { Chevron, useArrivals } from "../../ui/MotionViews";
 import { useMotion } from "../../ui/motion";
@@ -23,19 +23,20 @@ import { SidebarDragFeedback, SidebarOrderCell } from "./SidebarDragFeedback";
 const ThreadFlatList = Animated.createAnimatedComponent(FlatList<SidebarListEntry>);
 
 export function SettingsThreadList({
+  header,
   navigation,
   projects,
   workers,
   loaded,
   empty,
 }: {
+  header: SidebarListHeader;
   navigation: ReturnType<typeof useSidebarThreads>;
   loaded: boolean;
   projects: ui.Project[];
   workers: ui.Worker[];
   empty: ReactNode;
 }) {
-  const padding = useContentPadding(8);
   const { rise, layout } = useMotion();
   const [workingOpen, setWorkingOpen] = useState(false);
   const { filtered, settings, choices } = navigation;
@@ -52,6 +53,8 @@ export function SettingsThreadList({
     settings.groupByProject,
     custom,
     order,
+    header.offset,
+    header.listTop,
   );
 
   const archive = useArchivedThreads(navigation);
@@ -102,15 +105,11 @@ export function SettingsThreadList({
                 data={data}
                 CellRendererComponent={SidebarOrderCell}
                 keyExtractor={(entry) => entry.key}
-                contentInsetAdjustmentBehavior="never"
-                automaticallyAdjustContentInsets={false}
-                contentContainerStyle={[padding, { flexGrow: 1 }]}
+                {...header.listProps}
                 initialNumToRender={12}
                 maxToRenderPerBatch={8}
                 windowSize={7}
-                onScroll={drag.scroll}
-                scrollEventThrottle={16}
-                onContentSizeChange={(_, height) => drag.context.content.set(height)}
+                onContentSizeChange={(_, height) => drag.content.set(height)}
                 onEndReached={archive.more}
                 onEndReachedThreshold={0.4}
                 renderItem={({ item }) => (

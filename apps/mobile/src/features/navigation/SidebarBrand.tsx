@@ -32,7 +32,7 @@ export function SidebarBrand() {
   );
 }
 
-export function SidebarGradient({ topInset }: { topInset: number }) {
+export function SidebarGradient({ topInset, offset = 0 }: { topInset: number; offset?: number }) {
   if (!identity.gradient) return null;
 
   return (
@@ -42,7 +42,7 @@ export function SidebarGradient({ topInset }: { topInset: number }) {
       importantForAccessibility="no-hide-descendants"
       style={{
         position: "absolute",
-        top: 0,
+        top: offset,
         left: 0,
         right: 0,
         height: topInset + 88,

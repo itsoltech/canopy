@@ -1,11 +1,11 @@
-import { useState } from "react";
-import { Text, View } from "react-native";
+import { useRef, useState } from "react";
+import { Keyboard, Platform, Text, View, type TextInputInstance } from "react-native";
 import Animated from "react-native-reanimated";
 import { useMotion } from "../../ui/motion";
 import { useArrivals } from "../../ui/MotionViews";
 import { ListSkeleton } from "../../ui/Skeleton";
 import { Redirect, router } from "expo-router";
-import { ContentInsets, ScreenFrame, useContentInsets, useContentPadding } from "../../ui/ScreenFrame";
+import { ScreenFrame, useContentInsets } from "../../ui/ScreenFrame";
 import { SidebarFooter } from "./SidebarFooter";
 import { SidebarCopyJobs } from "../copy-jobs/SidebarCopyJobs";
 import { bots as botContract } from "@canopy/contracts";
@@ -17,7 +17,7 @@ import { useBotList } from "../../state/bot-list";
 import { useAppearance } from "../../state/appearance";
 import { useOverview } from "../../state/overview";
 import { Button, EmptyState, IconButton, Notice, Segmented } from "../../ui/components";
-import { ConnectionBanner } from "./ConnectionStatus";
+import { useSidebarListHeader, type SidebarListHeader } from "./SidebarListHeader";
 import { styles, useColors } from "../../ui/theme";
 import { SearchField } from "../../ui/SearchField";
 import { BotListItem } from "../bots/BotListItem";
@@ -27,7 +27,7 @@ import { SidebarProjectFilter, SidebarSort } from "./SidebarThreadPickers";
 import { CreateBot } from "../bots/CreateBot";
 import { openSettingsSection } from "../settings/navigation";
 import { useDevicePreferences } from "../settings/device-preferences";
-import { SidebarBrand, SidebarGradient, SidebarWatermark } from "./SidebarBrand";
+import { SidebarGradient } from "./SidebarBrand";
 
 function useSidebarState() {
   const { session, ready, bots } = useSession();
@@ -73,8 +73,17 @@ function useSidebarState() {
   };
 }
 
-function SidebarHeader({ state }: { state: ReturnType<typeof useSidebarState> }) {
+function SidebarControls({
+  state,
+  beforeSwitch,
+  focusSearch,
+}: {
+  state: ReturnType<typeof useSidebarState>;
+  beforeSwitch: (searchFocused: boolean) => void;
+  focusSearch: boolean;
+}) {
   const c = useColors("sidebar-header");
+  const search = useRef<TextInputInstance>(null);
   const [creating, setCreating] = useState(false);
   const { section, setSection, queries, setQueries, setThreadPicker, projectId, navigation, bots } = state;
   const unread = bots.reduce((sum, bot) => sum + (bot.archived ? 0 : bot.unreadCount), 0);
@@ -87,20 +96,6 @@ function SidebarHeader({ state }: { state: ReturnType<typeof useSidebarState> })
 
   return (
     <>
-      <View
-        style={[
-          styles.row,
-          {
-            minHeight: 48,
-            paddingLeft: 16,
-            paddingRight: 8,
-            justifyContent: "space-between",
-          },
-        ]}
-      >
-        <SidebarBrand />
-        {section === "bots" && <IconButton icon="pencil-square" label="Create bot" onPress={() => setCreating(true)} />}
-      </View>
       {state.modules.length > 1 && (
         <Segmented
           options={state.modules.map((value) => ({
@@ -109,7 +104,12 @@ function SidebarHeader({ state }: { state: ReturnType<typeof useSidebarState> })
             badge: value === "bots" ? unread : 0,
           }))}
           value={section}
-          onChange={setSection}
+          onChange={(next) => {
+            if (next === section) return;
+            // Android keeps input focus after Back dismisses the keyboard.
+            beforeSwitch(!!search.current?.isFocused() && (Platform.OS !== "android" || Keyboard.isVisible()));
+            setSection(next);
+          }}
           inactiveColor={c.muted}
           style={{ marginHorizontal: 12, marginBottom: 8 }}
         />
@@ -118,6 +118,8 @@ function SidebarHeader({ state }: { state: ReturnType<typeof useSidebarState> })
       <View style={[styles.row, { gap: 4, paddingHorizontal: 8, paddingBottom: 8 }]}>
         <SearchField
           bare
+          ref={search}
+          autoFocus={focusSearch}
           label={searchLabel}
           mutedColor={c.muted}
           placeholder={section === "threads" ? "Search" : undefined}
@@ -125,7 +127,9 @@ function SidebarHeader({ state }: { state: ReturnType<typeof useSidebarState> })
           onChange={(value) => setQueries({ ...queries, [section]: value })}
           style={{ flex: 1 }}
         />
-        {section === "threads" && (
+        {section === "bots" ? (
+          <IconButton icon="pencil-square" label="Create bot" onPress={() => setCreating(true)} />
+        ) : (
           <>
             <IconButton icon="sort-descending" label="Sort threads" onPress={() => setThreadPicker("sort")} />
             <IconButton
@@ -158,18 +162,18 @@ function orderBots(list: readonly botContract.Bot[], pinned: readonly string[]):
   return [...list].sort((a, b) => compareConversations(key(a), key(b)));
 }
 
-function SidebarLists({ state }: { state: ReturnType<typeof useSidebarState> }) {
+function SidebarLists({ state, header }: { state: ReturnType<typeof useSidebarState>; header: SidebarListHeader }) {
   const c = useColors("sidebar-list");
 
   const { section, navigation, projects, workers, loaded, query, projectId, setProjectId, stream } = state;
 
   const { rise } = useMotion();
 
-  // Threads and Bots cross-fade as the segmented pill slides.
   return (
     <Animated.View key={section} entering={rise.entering} style={styles.fill}>
       {section === "threads" ? (
         <SettingsThreadList
+          header={header}
           navigation={navigation}
           loaded={loaded}
           projects={projects}
@@ -210,15 +214,14 @@ function SidebarLists({ state }: { state: ReturnType<typeof useSidebarState> }) 
           }
         />
       ) : (
-        <BotList state={state} />
+        <BotList state={state} header={header} />
       )}
     </Animated.View>
   );
 }
 
 /** Bot chats, pinned first then the latest conversation; one that gets a message moves up and the rest glide. */
-function BotList({ state }: { state: ReturnType<typeof useSidebarState> }) {
-  const padding = useContentPadding(8);
+function BotList({ state, header }: { state: ReturnType<typeof useSidebarState>; header: SidebarListHeader }) {
   const pinned = useAppearance().user?.sidebar?.pinnedBotIds ?? [];
   const { layout } = useMotion();
   const { query, bots, botError, botsLoaded } = state;
@@ -248,9 +251,7 @@ function BotList({ state }: { state: ReturnType<typeof useSidebarState> }) {
       keyExtractor={(b) => b.id}
       // A chat that gets a message moves up and the rest glide; a new bot rises in.
       itemLayoutAnimation={layout}
-      contentInsetAdjustmentBehavior="never"
-      automaticallyAdjustContentInsets={false}
-      contentContainerStyle={padding}
+      {...header.listProps}
       renderItem={({ item }) => (
         <Animated.View entering={botArrival(item.id)}>
           <BotListItem bot={item} />
@@ -291,24 +292,29 @@ function BotList({ state }: { state: ReturnType<typeof useSidebarState> }) {
 
 function SidebarContent({ state }: { state: ReturnType<typeof useSidebarState> }) {
   const insets = useContentInsets();
-  const sides = { paddingLeft: insets.left, paddingRight: insets.right };
+  const c = useColors();
+  const [viewportHeight, setViewportHeight] = useState(0);
+
+  const header = useSidebarListHeader(viewportHeight, (beforeSwitch, focusSearch) => (
+    <SidebarControls state={state} beforeSwitch={beforeSwitch} focusSearch={focusSearch} />
+  ));
 
   return (
     <>
       <SidebarGradient topInset={insets.top} />
-      <View style={[sides, { marginTop: insets.top, overflow: "hidden" }]}>
-        <SidebarWatermark />
-        <SidebarHeader state={state} />
+      <View
+        onLayout={(event) => setViewportHeight(event.nativeEvent.layout.height)}
+        style={{
+          flex: 1,
+          marginTop: insets.top,
+          paddingLeft: insets.left,
+          paddingRight: insets.right,
+          backgroundColor: c.sidebar,
+          overflow: "hidden",
+        }}
+      >
+        <SidebarLists state={state} header={header} />
       </View>
-      <View style={sides}>
-        <ConnectionBanner />
-      </View>
-      {/* The header uses the top inset in layout. The footer still overlays the scroll content. */}
-      <ContentInsets.Provider value={{ ...insets, top: 0 }}>
-        <View style={{ flex: 1, overflow: "hidden" }}>
-          <SidebarLists state={state} />
-        </View>
-      </ContentInsets.Provider>
     </>
   );
 }
