@@ -16,7 +16,6 @@ import {
 } from "node:fs";
 import { join } from "node:path";
 import { tempDir } from "@canopy/testing";
-import { ProviderConfigurationMode } from "@canopy/contracts";
 import { deviceCodexHome, prepareCodexHome, prepareCodexInstanceHome } from "./home.ts";
 import { removeLegacyCodexHardLinks } from "./legacy-login.ts";
 
@@ -75,18 +74,7 @@ describe("prepareCodexHome", () => {
       expect(denied.problem).toContain("Use CLI home");
 
       const direct = prepareCodexInstanceHome(
-        {
-          kind: "native",
-          runtime: {
-            userConfiguration: {
-              mode: ProviderConfigurationMode.SHARED,
-              sourcePath: "",
-              instructions: false,
-              skills: false,
-              hooks: false,
-            },
-          },
-        },
+        { id: "native", kind: "native" },
         { dataDir, path, deviceHome, linkDeviceLogin: true },
       );
 
