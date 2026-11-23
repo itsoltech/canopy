@@ -1,9 +1,9 @@
 /**
- * Builds the OAuth client metadata and redirect page for GitHub Pages.
+ * Publishes the product demo and builds the OAuth client metadata and redirect pages for GitHub Pages.
  * The redirect page has a CSP that allows only its inline script and style, by hash.
  */
 import { createHash } from "node:crypto";
-import { mkdir, readFile, writeFile } from "node:fs/promises";
+import { copyFile, mkdir, readFile, writeFile } from "node:fs/promises";
 import { basename, join } from "node:path";
 import {
   DEFAULT_OAUTH_REDIRECT_URL,
@@ -69,6 +69,10 @@ const metadata = {
 const metadataFile = basename(new URL(OAUTH_CLIENT_METADATA_URL).pathname);
 
 await writeFile(join(out, "oauth", metadataFile), `${JSON.stringify(metadata, null, 2)}\n`);
+
+await mkdir(join(out, "demo"), { recursive: true });
+
+await copyFile(join(root, "site/demo/canopy-demo.mp4"), join(out, "demo/canopy-demo.mp4"));
 
 // GitHub Pages serves a Jekyll build unless told otherwise.
 await writeFile(join(out, ".nojekyll"), "");

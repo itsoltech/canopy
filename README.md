@@ -8,8 +8,7 @@
   <strong>A self-hosted workspace for Claude Code, Codex, and Grok.</strong>
 </p>
 <p align="center">
-  Run agents where your code lives. Follow their work in the desktop app or your browser.
-  Respond to approval requests from your phone.
+  Run agents where your code lives. Connect Slack and Linear so bots can hand work to a coding agent and report back.
 </p>
 <p align="center">
   <a href="https://canopy.itsol.tech/#download"><strong>Download Canopy ↓</strong></a>
@@ -18,6 +17,9 @@
 </p>
 <p align="center">
   <img src="docs/screenshots/readme-canopy-workspace.png" alt="The same Canopy thread on desktop and Android, with a completed task and its linked pull request">
+</p>
+<p align="center">
+  <a href="https://itsoltech.github.io/canopy/demo/canopy-demo.mp4"><strong>Watch a Slack report turn into a tested fix (0:32)</strong></a>
 </p>
 <p align="center">
   <sub>Canopy nightly with demo data · <a href="docs/screenshots/threads-overview.png">Desktop screenshot</a> · <a href="docs/screenshots/mobile-thread.png">Android screenshot</a></sub>
