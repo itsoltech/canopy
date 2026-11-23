@@ -1,9 +1,9 @@
 import { app, Notification } from "electron";
 import { join } from "node:path";
-import type { DesktopNotificationPermission } from "@canopy/ui/desktop";
+import type { DesktopNotificationPermission, DesktopNotificationPermissionStatus } from "@canopy/ui/desktop";
 
 let native: DesktopNotificationPermission | undefined;
-let pendingRequest: Promise<NotificationPermission> | undefined;
+let pendingRequest: Promise<DesktopNotificationPermissionStatus> | undefined;
 
 function macPermission(): DesktopNotificationPermission {
   const directory = app.isPackaged ? process.resourcesPath : join(app.getAppPath(), "build");
@@ -12,11 +12,11 @@ function macPermission(): DesktopNotificationPermission {
   return (native ??= require(join(directory, "native/notification-permission.node")) as DesktopNotificationPermission);
 }
 
-export function notificationPermission(): Promise<NotificationPermission> {
+export function notificationPermission(): Promise<DesktopNotificationPermissionStatus> {
   return macPermission().status();
 }
 
-export function requestNotificationPermission(): Promise<NotificationPermission> {
+export function requestNotificationPermission(): Promise<DesktopNotificationPermissionStatus> {
   return (pendingRequest ??= macPermission()
     .request()
     .finally(() => {

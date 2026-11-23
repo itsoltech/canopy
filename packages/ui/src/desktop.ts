@@ -172,9 +172,11 @@ export interface DesktopFileDownload {
   bytesPerSecond: number;
 }
 
+export type DesktopNotificationPermissionStatus = "default" | "denied" | "granted";
+
 export interface DesktopNotificationPermission {
-  status(): Promise<NotificationPermission>;
-  request(): Promise<NotificationPermission>;
+  status(): Promise<DesktopNotificationPermissionStatus>;
+  request(): Promise<DesktopNotificationPermissionStatus>;
 }
 
 export interface DesktopBridge {
