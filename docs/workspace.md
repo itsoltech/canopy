@@ -2,7 +2,8 @@
 
 Aktualizacja (2026-11-22): ustawienie dostępu do konektora w wątku obejmuje cały projekt.
 
-Status (2026-11-22): **zaimplementowane; układ v3**; osobne okno Preview zachowuje
+Status (2026-11-23): **zaimplementowane; układ v3**; Canopy Desktop pokazuje postęp
+pobierania plików z rozmowy. Osobne okno Preview zachowuje
 ramkę przy powiększaniu podglądu i nie przerywa transmisji po pojedynczym błędzie
 odczytu stanu wątku. Poprawka regresji Svelte blokującej interfejs
 przy przejściu z Preview na Files; stała górna krawędź osi i gradientu przy zwijaniu
@@ -284,9 +285,11 @@ Dla pliku spoza tego katalogu interfejs wskazuje akcję `Copy full path`.
 Kopiowanie i pobieranie pomijają numer linii i korzystają z kontekstu wiadomości
 przy rozstrzyganiu nazwy pliku. Podgląd otwiera się na wskazanej linii.
 
-`Download file` zapisuje pełną treść przez mechanizm pobierania przeglądarki
-lub okno zapisu desktopu. Opcja jest dostępna w web oraz dla plików innych workerów
-w desktopie. Pobieranie wymaga obsługi `thread_file_download_v1` przez workera
+`Download file` od razu pokazuje stan przygotowania. W desktopie plik zapisuje
+się przez systemowe okno zapisu, a Canopy pokazuje odebrany i całkowity rozmiar,
+szacowany czas do końca po zmierzeniu tempa oraz wynik pobierania. W web
+postęp i wynik pokazuje lista pobrań przeglądarki. Opcja jest dostępna w web
+oraz dla plików innych workerów w desktopie. Pobieranie wymaga obsługi `thread_file_download_v1` przez workera
 i jego gateway. Dla wbudowanego workera własnego desktopu menu oferuje
 `Reveal in Finder` na macOS, `Reveal in Explorer` na Windows albo `Reveal in file manager`
 na Linux, jeśli worker obsługuje tę akcję. Ta sama akcja jest w `File actions`

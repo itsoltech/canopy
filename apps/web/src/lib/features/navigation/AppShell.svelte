@@ -37,6 +37,7 @@
   import Button from "#lib/shared/ui/Button.svelte";
   import Drawer from "#lib/shared/ui/Drawer.svelte";
   import Toaster from "#lib/shared/ui/Toaster.svelte";
+  import FileDownloads from "#lib/features/files/FileDownloads.svelte";
   import BotSettingsHost from "#lib/features/bots/settings/BotSettingsHost.svelte";
   import BotMoveHost from "#lib/features/bots/components/BotMoveHost.svelte";
   import UpdateBanner from "#lib/shared/ui/UpdateBanner.svelte";
@@ -393,7 +394,7 @@
 <SettingsOverlay route={children} focused={focused && (setupRoute || showIntroduction)} />
 {#if settings.loaded}{#key threadsEnabled}<CommandPalette registry={commands} {palette} />{/key}{/if}
 {#if ready && threadsEnabled && !capabilities.incompatible}<AddProjectDialog state={addProject} />{/if}
-<Toaster />
+<Toaster><FileDownloads /></Toaster>
 {#if botsEnabled}<BotSettingsHost />
   {#if capabilities.linkedComputers}<BotMoveHost />{/if}
 {/if}

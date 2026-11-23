@@ -25,7 +25,7 @@ ręcznego kopiowania pełnego zaproszenia do parowania przy odmowie dostępu do 
 startu lokalnego gatewaya po serii nieoczekiwanych wyjść, poprawki kodowania
 obrazów w gatewayu na Windows, osobnego okna stanu zamykania i restartu do aktualizacji oraz ponawiania
 pakowania macOS i Windows w CI, menu ścieżek plików z rozmowy
-z pobieraniem z innych workerów i lokalnym wskazywaniem plików w Finder/Explorer,
+z postępem pobierania z innych workerów i lokalnym wskazywaniem plików w Finder/Explorer,
 pomijania cache przy ręcznym sprawdzaniu aktualizacji, wykrywania pojedynczego procesu przez instalator Windows
 i wykluczenia własnego PID instalatora/deinstalatora z wyszukiwania i zamykania procesów,
 ręcznego odzyskiwania aktualizacji Windows
@@ -81,6 +81,10 @@ aktualizacji. Ping działa w pakowanej aplikacji desktopowej.
 
 Menu ścieżki w rozmowie pozwala otworzyć plik i skopiować pełną lub względną ścieżkę.
 Dla pliku z innego workera `Download file` uruchamia mechanizm zapisu Electrona.
+Interfejs od razu pokazuje przygotowanie pobierania. Po wybraniu miejsca zapisu
+pokazuje pasek, odebrane bajty i przewidywany czas do końca, gdy zmierzy tempo.
+Proces główny przekazuje do okna inicjującego pobranie tylko liczniki i stan
+powiązane z identyfikatorem żądania. Dane pliku zapisuje Electron.
 Ścieżki plików w rozmowie i menu `File actions` udostępniają `Reveal in Finder`
 na macOS, `Reveal in Explorer` na Windows oraz `Reveal in file manager` na Linux.
 Akcja działa wyłącznie w lokalnym trybie desktopu dla jego wbudowanego workera;
