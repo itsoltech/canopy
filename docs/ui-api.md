@@ -1,6 +1,7 @@
 # API dla UI i architektura frontendu
 
 Status (2026-11-23): web i desktop pozwalają zarządzać profilami Sandbox w ustawieniach i wybierać je w wątkach.
+Ikona w nagłówku sidebara ma bok 32 px przy domyślnej skali w każdym kanale.
 Nakładka Settings jest dostępna przed pierwszą odpowiedzią z gatewaya.
 Nagłówek sidebara pokazuje ikonę i tło uruchomionego frontendu. Faviconę, manifest PWA
 i ikony ekranów początkowych opisują [zasady wyboru grafiki](release.md#ikony-kanałów).
@@ -125,7 +126,9 @@ Web/desktop i mobile pokazują ikony projektów oraz wcięcia i linie hierarchii
 Ustawienie „Group by” wybiera brak grup, projekty albo projekty z podgrupami worktree.
 Zwija grupy projektów i opcjonalne podgrupy worktree; karty pod projektem
 nie powtarzają jego nazwy ani logo, a jedyny wbudowany lokalny worker nie zajmuje miejsca w metadanych.
-Nazwa Canopy w nagłówku sidebara ma wysokość linii 20 px, co zbliża podpis kanału do nazwy.
+Przy domyślnym rozmiarze interfejsu nazwa Canopy i podpis kanału mają odpowiednio
+20 i 16 px wysokości linii. Kafelek o boku 32 px odpowiada widocznej wysokości
+napisów. W Stable nazwa jest wyśrodkowana obok kafelka tej samej wielkości.
 Komunikaty w osi czasu używają skali wierszy pracy; szczegóły techniczne są o stopień mniejsze.
 Sekcja Working uwzględnia ponownie pracujące wątki i ignoruje wyniki zakończonych subagentów.
 BFF materializuje overview, indeks wątków i ustawienia ze wspólnego strumienia gRPC,
