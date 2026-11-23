@@ -63,7 +63,6 @@ test("channel presentation preserves Electron installation, crypto, data and upd
     const png = readFileSync(join(iconDirectory, "icon-512.png"));
     const metadata = await sharp(png).metadata();
     expect([metadata.width, metadata.height]).toEqual([512, 512]);
-    expect(readFileSync(join(iconDirectory, "icon.icns")).subarray(0, 4).toString()).toBe("icns");
     expect(readFileSync(join(iconDirectory, "icon.ico")).readUInt16LE(2)).toBe(1);
 
     if (channel === "stable") expect(png).toEqual(readFileSync(join(root, "apps/web/static/icon-512.png")));
@@ -73,6 +72,81 @@ test("channel presentation preserves Electron installation, crypto, data and upd
   const bootstrap = readFileSync(join(desktopDirectory, "src/desktop-main.ts"), "utf8");
   expect(bootstrap).toContain("app.setName(identity.productName)");
   expect(bootstrap).toContain('app.setPath("userData", desktopUserData(app.getPath("appData")))');
+});
+
+function icnsEntries(file: Buffer) {
+  expect(file.toString("ascii", 0, 4)).toBe("icns");
+  expect(file.readUInt32BE(4)).toBe(file.length);
+  const entries = new Map<string, Buffer>();
+
+  for (let offset = 8; offset < file.length;) {
+    const type = file.toString("ascii", offset, offset + 4);
+    const length = file.readUInt32BE(offset + 4);
+    expect(length).toBeGreaterThan(8);
+    expect(offset + length).toBeLessThanOrEqual(file.length);
+    expect(entries.has(type)).toBe(false);
+    entries.set(type, file.subarray(offset + 8, offset + length));
+    offset += length;
+  }
+
+  return entries;
+}
+
+function unpackIcnsRgb(data: Buffer, pixelCount: number) {
+  const planes = Buffer.alloc(pixelCount * 3);
+  let written = 0;
+
+  for (let offset = 0; offset < data.length;) {
+    const control = data.readUInt8(offset++);
+    const count = control < 128 ? control + 1 : control - 125;
+    expect(count).toBeLessThanOrEqual(pixelCount - (written % pixelCount));
+
+    if (control < 128) {
+      expect(data.copy(planes, written, offset, offset + count)).toBe(count);
+      offset += count;
+    } else {
+      planes.fill(data.readUInt8(offset++), written, written + count);
+    }
+
+    written += count;
+  }
+
+  expect(written).toBe(planes.length);
+
+  return planes;
+}
+
+test("macOS channel assets preserve the artwork in bundle-safe small icon representations", async () => {
+  for (const channel of ["stable", "beta", "nightly"] as const) {
+    const directory = join(root, "apps/web/static/channels", channel);
+    const { mac } = channelConfiguration(desktopIdentity(channel));
+    const entries = icnsEntries(readFileSync(resolve(desktopDirectory, mac.icon)));
+
+    for (const type of ["icp4", "icp5", "icp6"]) expect(entries.has(type)).toBe(false);
+
+    for (const [rgbType, maskType, size] of [
+      ["is32", "s8mk", 16],
+      ["il32", "l8mk", 32],
+    ] as const) {
+      const rgba = await sharp(join(directory, `icon-${size}.png`))
+        .ensureAlpha()
+        .raw()
+        .toBuffer();
+
+      const pixelCount = size * size;
+      const planes = unpackIcnsRgb(entries.get(rgbType)!, pixelCount);
+      const channels = [0, 1, 2, 3].map((index) => rgba.filter((_, offset) => offset % 4 === index));
+      expect(planes.equals(Buffer.concat(channels.slice(0, 3)))).toBe(true);
+      expect(entries.get(maskType)?.equals(channels[3]!)).toBe(true);
+    }
+
+    for (const [type, size] of [
+      ["ic11", 32],
+      ["ic12", 64],
+    ] as const) {
+      expect(entries.get(type)?.equals(readFileSync(join(directory, `icon-${size}.png`)))).toBe(true);
+    }
+  }
 });
 
 test("EAS profiles resolve actual Expo config with channel assets and unchanged native identifiers", () => {

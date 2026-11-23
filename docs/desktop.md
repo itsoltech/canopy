@@ -1,10 +1,11 @@
 # Canopy Desktop
 
-Status: opis zaimplementowanego runtime i pakowania (2026-11-22), w tym dziennego
+Status: opis zaimplementowanego runtime i pakowania (2026-11-23), w tym dziennego
 pingu użycia z przełącznikiem prywatności i pomijaniem wysyłki offline. Aktualizator używa
 `electron-updater` 6.8.11. Build i ustawienia
 udostępniają licencje dołączonych komponentów. Powłoka ładowania
 korzysta z wyglądu tej instalacji także przy niedostępnym gatewayu.
+Ikona aplikacji macOS zawiera małe reprezentacje 1× i 2× zgodne z odczytem z bundla.
 Desktop w trybie lokalnym aktywuje relay Canopy po weryfikacji sparowanego
 telefonu. Od 2026-11-23 oba tryby Desktopu pozwalają wybrać relay Canopy lub
 skonfigurować własny na bieżącym gatewayu przez **Settings → Network access**.
@@ -848,6 +849,11 @@ także gdy lokalny frontend łączy się ze zdalnym gatewayem o innej wersji.
 | macOS | `CFBundleDisplayName` (Dock), ikona ICNS, menu aplikacji, About i tytuł okna | Nazwa pliku bundle, `CFBundleName`, executable, bundle ID i identyfikatory helperów |
 | Windows | Nazwy skrótów NSIS, `uninstallDisplayName`, ikona ICO i tytuł okna | `productName`, katalog instalacji, appId/GUID, executable, klucze rejestru instalatora i cache aktualizacji |
 | Linux | `Name` wpisu desktop, PNG i tytuł okna | `canopy.desktop`, `StartupWMClass`, nazwa pakietu deb, katalog instalacji i wzorzec `artifactName` |
+
+Dla 16 i 32 pt w skali 1× ICNS używa osobnych danych RGB i maski alfa, a w skali 2×
+używa PNG. Zapobiega to zniekształceniu małych ikon, które macOS może pokazać przy
+odczycie PNG zapisanych w blokach `icp4` i `icp5` z bundla aplikacji. Weryfikacja
+konkretnego launchera wymaga sprawdzenia zainstalowanej aplikacji na macOS.
 
 `desktopUserData()` jawnie przypina katalog do `Canopy`, niezależnie od nazwy
 widocznej. Także `app.setName()` pozostaje `Canopy`: Electron 45 używa tej wartości

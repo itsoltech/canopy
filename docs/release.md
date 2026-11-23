@@ -1,6 +1,7 @@
 # Wydania: wersje, CI, artefakty
 
-Status: opis zaimplementowanego workflow (2026-11-22). Buildy publikują wykazy licencji zależności. Automat sprawdza promocje co godzinę.
+Status: opis zaimplementowanego workflow (2026-11-23). Buildy publikują wykazy licencji zależności. Automat sprawdza promocje co godzinę.
+Natywne CI na macOS sprawdza odczyt małych reprezentacji ikon aplikacji.
 Release buduje i publikuje osobny obraz `canopy-push-relay` dla rewizji zawierających ten cel.
 Pakowanie Desktop i generowanie fingerprintu Expo używają poprawionego `minimatch`.
 Smoke Desktop czeka na zapis trasy Network access przed restartem workera podczas parowania.
@@ -213,6 +214,8 @@ Podglądy mobilne obejmują maskę iOS w 1024/180/120/87/60 px, maski Androida
 (koło, squircle i zaokrąglony kwadrat), rząd ikon iPhone’a oraz duże ikony TestFlight.
 PNG, wielorozdzielcze ICO i ICNS, ikony Expo i osobne warstwy adaptive Androida
 są commitowane; release tylko wybiera właściwe pliki i nie wymaga generatora.
+Natywne CI uruchamia `iconutil` dla ICNS wszystkich kanałów i sprawdza, czy
+narzędzie eksportuje reprezentacje 16 i 32 pt w skali 1× i 2×.
 Generator wycina drzewo kluczem nasycenia/jasności, czyści i wygładza maskę oraz
 usuwa kolor tła z krawędzi. Cienie, półtony i światła otrzymują osobne stopnie
 koloru; światło z prawej pozostaje wewnątrz maski. Warianty zachowują oryginalny
