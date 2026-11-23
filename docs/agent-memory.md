@@ -97,7 +97,8 @@ Status (2026-11-22): Habits w Settings → Memory, okresowa analiza wiadomości,
 przegląd sugestii i dostarczanie zatwierdzonych nawyków do Claude, Codexa i Groka
 są zaimplementowane. Dostępność zależy od [promocji wydania](release.md).
 Aktualizacja (2026-11-23): wyszukiwanie profili i modeli oraz wspólny wiersz
-wyboru modelu i poziomu rozumowania w webie i desktopie.
+wyboru modelu i poziomu rozumowania w webie i desktopie. Selektor Habits
+pozwala zaznaczyć wszystkie dostępne projekty jedną opcją.
 Konsolidacja przenosi zatwierdzone reguły jako notatki. Ustawienia analizy,
 sugestie, dowody i stan dostarczania pozostają w źródłowym gatewayu.
 
@@ -117,6 +118,10 @@ prostego języka inspirowanego ASD-STE100. Przykład:
   właściciela, któremu przypisano wybrane projekty. W webie i desktopie lista
   grupuje profile według dostawcy i pozwala wyszukiwać według dostawcy,
   nazwy workera lub profilu.
+- W webie i desktopie opcja All projects zaznacza wszystkie dostępne projekty
+  niezależnie od wyszukiwania. Ponowne kliknięcie przy pełnym wyborze czyści
+  zaznaczenie. Zapis obejmuje bieżący wybór. Aby uwzględnić nowo dodane
+  projekty, zaktualizuj wybór i zapisz go ponownie.
 - Po wybraniu profilu można wyszukiwać jego modele według nazwy lub
   identyfikatora albo zostawić Auto. W wierszu Model and reasoning obok
   modelu jest kontrolka poziomu rozumowania taka jak w Text generation.
