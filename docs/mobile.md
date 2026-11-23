@@ -1,8 +1,10 @@
 # Canopy na iOS i Android
 
-Status (2026-11-23): na listach Threads i Bots wiersz z nazwą Canopy przewija się razem
+Status (2026-11-24): na listach Threads i Bots wiersz z nazwą Canopy przewija się razem
 z listą. Czytnik ekranu może odczytać widoczną nazwę aplikacji i etykietę kanału.
 Przełącznik modułu, wyszukiwarka i akcje listy zatrzymują się pod paskiem stanu.
+Gradient i drzewo pozostają na miejscu przy pociągnięciu listy w dół i zanikają
+w miarę chowania nazwy. Lista zaczyna się bezpośrednio pod kontrolkami lub widocznym banerem połączenia.
 
 Status (2026-11-23): Settings otwiera General. Menu sekcji na telefonie i panel boczny
 na tablecie zachowują wyszukiwanie i pozycję listy. Każda odwiedzona sekcja
@@ -1709,7 +1711,7 @@ Składanie, obrót i zmiana rozmiaru okna przełączają układ od razu po przek
 progu. Ręczne zwinięcie i rozwinięcie przesuwają wspólną krawędź sidebara i rozmowy
 w tym samym tempie. Lista zachowuje swoją szerokość podczas animacji. Przy ograniczeniu
 ruchu obie kolumny przechodzą od razu do docelowego układu.
-`ui/ScreenFrame.tsx` stosuje insets do kontrolek. Pasek stanu ma jednolite tło
+`ui/ScreenFrame.tsx` stosuje insets do kontrolek. Po schowaniu nazwy Canopy pasek stanu i przypięte kontrolki mają jednolite tło
 sidebara. Na telefonie i w bocznej kolumnie tabletu przewinięcie listy chowa nazwę Canopy.
 Przełącznik Threads/Bots, wyszukiwarka z przyciskami (w tym Create bot w Bots) i widoczny
 baner połączenia pozostają nad przewijanymi wierszami. Zmiana modułu zachowuje położenie

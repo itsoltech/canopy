@@ -27,7 +27,6 @@ import { SidebarProjectFilter, SidebarSort } from "./SidebarThreadPickers";
 import { CreateBot } from "../bots/CreateBot";
 import { openSettingsSection } from "../settings/navigation";
 import { useDevicePreferences } from "../settings/device-preferences";
-import { SidebarGradient } from "./SidebarBrand";
 
 function useSidebarState() {
   const { session, ready, bots } = useSession();
@@ -115,7 +114,7 @@ function SidebarControls({
         />
       )}
       {creating && section === "bots" && <CreateBot onClose={() => setCreating(false)} />}
-      <View style={[styles.row, { gap: 4, paddingHorizontal: 8, paddingBottom: 8 }]}>
+      <View style={[styles.row, { gap: 4, paddingHorizontal: 8 }]}>
         <SearchField
           bare
           ref={search}
@@ -292,7 +291,6 @@ function BotList({ state, header }: { state: ReturnType<typeof useSidebarState>;
 
 function SidebarContent({ state }: { state: ReturnType<typeof useSidebarState> }) {
   const insets = useContentInsets();
-  const c = useColors();
   const [viewportHeight, setViewportHeight] = useState(0);
 
   const header = useSidebarListHeader(viewportHeight, (beforeSwitch, focusSearch) => (
@@ -301,14 +299,13 @@ function SidebarContent({ state }: { state: ReturnType<typeof useSidebarState> }
 
   return (
     <>
-      <SidebarGradient topInset={insets.top} />
+      {header.backdrop}
       <View
         style={{
           flex: 1,
           marginTop: insets.top,
           paddingLeft: insets.left,
           paddingRight: insets.right,
-          backgroundColor: c.sidebar,
           overflow: "hidden",
         }}
       >
