@@ -3,7 +3,8 @@
 Status: opis zaimplementowanego workflow (2026-11-23). Buildy publikują wykazy licencji zależności. Automat sprawdza promocje co godzinę.
 Web, Desktop i mobile używają ikony danego wydania. Lokalny Dev ma własny niebieski wariant.
 Drzewo kanału w tle sidebara zanika przy wyszukiwarce.
-Natywne CI na macOS sprawdza odczyt małych reprezentacji ikon aplikacji.
+Natywne CI na macOS sprawdza odczyt małych reprezentacji ikon aplikacji i nazwę
+wyświetlaną przez Finder. Przed publikacją Release sprawdza nazwę i grafikę także w podpisanej paczce.
 Release buduje i publikuje osobny obraz `canopy-push-relay` dla rewizji zawierających ten cel.
 Pakowanie Desktop i generowanie fingerprintu Expo używają poprawionego `minimatch`.
 Smoke Desktop czeka na zapis trasy Network access przed restartem workera podczas parowania.

@@ -163,6 +163,16 @@ test.skipIf(!existsSync(paths.web))(
       const overview = await webFetch(`${desktop.origin}/api/overview`);
       expect(overview.ok).toBe(true);
       await overview.arrayBuffer();
+      const icon = "/channels/nightly/icon.svg";
+      const expectedIcon = readFileSync(join(import.meta.dir, "../../web/static", icon), "utf8");
+
+      for (const encoding of ["br", "gzip"]) {
+        const response = await webFetch(desktop.origin + icon, { headers: { "accept-encoding": encoding } });
+        expect(response.status).toBe(200);
+        expect(response.headers.get("content-encoding")).toBe(encoding);
+        expect(await response.text()).toBe(expectedIcon);
+      }
+
       expect((await formAction(desktop.origin)).body).toContain("Choose a project");
       expect(existsSync(join(directory, "postgres"))).toBe(false);
 

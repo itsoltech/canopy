@@ -224,6 +224,9 @@ jobs:
             done
           done
       - uses: ./.github/actions/setup-bun
+      - name: Resolve the installed Canopy bundle name and artwork with macOS
+        if: matrix.target == 'darwin-arm64'
+        run: bun test ./apps/desktop/test/packaging.test.ts -t 'macOS packaging'
       - name: OAuth address fallback on macOS
         if: matrix.target == 'darwin-arm64'
         run: bun test ./tests/integration/connector-oauth-egress.test.ts

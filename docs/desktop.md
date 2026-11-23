@@ -9,6 +9,8 @@ udostępniają licencje dołączonych komponentów. Powłoka ładowania
 korzysta z wyglądu tej instalacji także przy niedostępnym gatewayu.
 Ustawienia Desktopu i konfiguracja połączenia są dostępne także przed
 odebraniem pierwszego stanu z gatewaya.
+Na macOS Finder odczytuje nazwę aplikacji dla danego kanału z `InfoPlist.strings`, a przy starcie
+aplikacja ustawia w Docku ikonę zainstalowanego wydania.
 Ikona aplikacji macOS zawiera małe reprezentacje 1× i 2× zgodne z odczytem z bundla.
 Desktop w trybie lokalnym aktywuje relay Canopy po weryfikacji sparowanego
 telefonu. Od 2026-11-23 oba tryby Desktopu pozwalają wybrać relay Canopy lub
@@ -38,6 +40,7 @@ toaście lub komunikacie o zakończonej aktualizacji. Dyskowy cache HTTP Electro
 ma budżet 64 MiB, a kontroler ustala origin formularzy osobno dla każdego żądania.
 Aktualizacje Nightly mają własny feed. Updater sprawdza historię kodu każdego
 kandydata przed pobraniem.
+Desktop pakuje ikonę sidebara wraz z wariantami Brotli i gzip z tego samego buildu web.
 Drzewo kanału uruchomionego frontendu tworzy tło górnej części sidebara.
 Koronę widać za nagłówkiem i zakładkami. Przy dolnej krawędzi wyszukiwarki krycie rysunku spada do zera.
 Tryb Local przypina certyfikat własnego gatewaya, używa osobnej roli PostgreSQL
@@ -709,8 +712,9 @@ ze źródeł bez wersji mają ikonę Dev. Wydania ustawiają obie zmienne.
 Przykład: `CANOPY_CHANNEL=beta CANOPY_VERSION=0.2.0-beta.1 bun run --cwd apps/desktop package:mac`.
 Wynik jest w `apps/desktop/release/<kanał>/`; katalog jest ignorowany przez git.
 Skrypt pakowania w razie zmiany kanału przebudowuje powłokę i zachowuje
-zbudowany runtime. Przy każdym pakowaniu kopiuje bieżące zasoby kanałów
-do klienta web w paczce oraz PNG wybranego kanału do zasobów Electrona.
+zbudowany runtime. Ikony klienta web trafiają do paczki razem z plikami
+skompresowanymi przez adapter SvelteKit, zgodnie z manifestem tego buildu.
+Do zasobów Electrona skrypt kopiuje PNG wybranego kanału.
 
 | Cel | Host / przykład runnera GitHub Actions | Pakiet PG | Instalator | Weryfikacja tutaj |
 | --- | --- | --- | --- | --- |
@@ -859,8 +863,9 @@ drzewa na niebieskiej siatce. [Ikony aplikacji](../design/brand/README.md#ikony-
 
 Lokalne uruchomienie Electron czyta PNG z `apps/web/static/channels/<kanał>/`
 (dla Dev: `development`). Instalator umieszcza wybrany PNG w zasobach aplikacji
-jako `icon.png` na potrzeby okien i zasobnika. macOS odczytuje ikonę Docka
-z ICNS w zainstalowanym bundlu; uruchomienie ze źródeł ustawia ją z PNG.
+jako `icon.png` na potrzeby okien i zasobnika. Finder pobiera ikonę z ICNS
+w bundlu aplikacji. Przy każdym starcie na macOS Electron ustawia w Docku
+ikonę z PNG kanału, także po instalacji aktualizacji.
 Ekran startu otrzymuje ścieżkę ikony powłoki przez preload. Sidebar oznacza
 wersję uruchomionego web buildu. Sekcja App updates pokazuje wersję i kanał
 aktualizacji samego Electrona także w trybie Remote, gdy gateway ma inną wersję.
@@ -869,7 +874,7 @@ Stable, Beta i Nightly; dla lokalnego Dev domyślnym wyborem jest Stable.
 
 | Platforma | Zależne od kanału | Stałe przy zmianie kanału |
 |---|---|---|
-| macOS | `CFBundleDisplayName` (Dock), ikona ICNS, menu aplikacji, About i tytuł okna | Nazwa pliku bundle, `CFBundleName`, executable, bundle ID i identyfikatory helperów |
+| macOS | Nazwa w Finderze i Docku z `InfoPlist.strings`, ikona aplikacji, menu, About i tytuł okna | Nazwa katalogu `canopy.app`, executable, bundle ID i identyfikatory helperów |
 | Windows | Nazwy skrótów NSIS, `uninstallDisplayName`, ikona ICO i tytuł okna | `productName`, katalog instalacji, appId/GUID, executable, klucze rejestru instalatora i cache aktualizacji |
 | Linux | `Name` wpisu desktop, PNG i tytuł okna | `canopy.desktop`, `StartupWMClass`, nazwa pakietu deb, katalog instalacji i wzorzec `artifactName` |
 
@@ -881,8 +886,8 @@ konkretnego launchera wymaga sprawdzenia zainstalowanej aplikacji na macOS.
 `desktopUserData()` jawnie przypina katalog do `Canopy`, niezależnie od nazwy
 widocznej. Także `app.setName()` pozostaje `Canopy`: Electron 45 używa tej wartości
 do wyboru klucza Keychain na macOS i Secret Service/KWallet na Linuxie. Zmiana
-wewnętrznej nazwy odcięłaby istniejące zaszyfrowane dane. `CFBundleName` pozostaje
-stałe również dlatego, że Electron szuka na tej podstawie swoich helperów.
+wewnętrznej nazwy odcięłaby istniejące zaszyfrowane dane. W głównym `Info.plist`
+`CFBundleName` wskazuje nazwę, której Electron używa do odnajdywania helperów.
 Menu i panel About otrzymują osobno nazwę widoczną. NSIS odczytuje poprzednią nazwę
 skrótu z rejestru i aktualizuje ją podczas instalacji; kanały nie tworzą osobnych instalacji.
 

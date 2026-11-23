@@ -54,7 +54,10 @@ test("channel presentation preserves Electron installation, crypto, data and upd
     expect(configuration.protocols[0]?.schemes).toEqual([identity.scheme]);
     expect(identity.scheme).toBe("canopy");
     expect(identity.artifactPrefix).toBe("Canopy");
-    expect(presentation.mac.extendInfo).toEqual({ CFBundleName: "Canopy", CFBundleDisplayName: names[channel] });
+    expect(presentation.mac.extendInfo.CFBundleName).toBe("Canopy");
+    expect(presentation.mac.extendInfo.CFBundleDisplayName).toBe(info.productFilename);
+    const artwork = readFileSync(resolve(desktopDirectory, presentation.mac.icon));
+    expect(presentation.mac.extendInfo.CFBundleIconFile).toBe(`canopy-${Bun.SHA256.hash(artwork, "hex")}.icns`);
     expect(presentation.linux.desktop.entry).toEqual({ Name: names[channel], StartupWMClass: "Canopy" });
     expect(presentation.nsis.shortcutName).toBe(names[channel]);
     expect(presentation.nsis.uninstallDisplayName).toBe(`${names[channel]} \${version}`);
