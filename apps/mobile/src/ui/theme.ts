@@ -87,10 +87,10 @@ export function useColors(surface?: "sidebar-list" | "sidebar-header") {
   const neutral = themes[theme][dark ? "dark" : "light"];
 
   if (values.contrast === "standard") {
-    // The densest lines cross the header controls. Light list captions can also overlap a blueprint guide.
-    const overDrawing = surface === "sidebar-header" || (surface === "sidebar-list" && !dark);
+    // The header controls sit over the drawing. Light list captions use the same stronger ink.
+    const strongerMuted = surface === "sidebar-header" || (surface === "sidebar-list" && !dark);
 
-    return overDrawing ? { ...colors, muted: dark ? colors.strong : colors.soft } : colors;
+    return strongerMuted ? { ...colors, muted: dark ? colors.strong : colors.soft } : colors;
   }
 
   return {

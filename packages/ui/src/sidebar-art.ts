@@ -12,17 +12,18 @@ export const sidebarIcon = `<svg xmlns="http://www.w3.org/2000/svg" width="100%"
 function scene(channel: string, drawing: string, surroundings = "") {
   const id = `canopy-sidebar-${channel}`;
 
-  return `<svg xmlns="http://www.w3.org/2000/svg" width="100%" height="100%" viewBox="0 20 200 200" preserveAspectRatio="xMaxYMin meet" fill="currentColor">
+  return `<svg xmlns="http://www.w3.org/2000/svg" width="100%" height="100%" viewBox="0 20 200 125" preserveAspectRatio="xMaxYMin meet" fill="currentColor">
     <defs>
-      <linearGradient id="${id}-fade" gradientUnits="userSpaceOnUse" x1="0" y1="0" x2="0" y2="200">
+      <linearGradient id="${id}-fade" gradientUnits="userSpaceOnUse" x1="0" y1="20" x2="0" y2="139">
         <stop offset="0" stop-color="white"/>
-        <stop offset=".32" stop-color="white" stop-opacity=".92"/>
-        <stop offset=".63" stop-color="white" stop-opacity=".63"/>
-        <stop offset=".85" stop-color="white" stop-opacity=".28"/>
+        <stop offset=".28" stop-color="white" stop-opacity=".96"/>
+        <stop offset=".55" stop-color="white" stop-opacity=".76"/>
+        <stop offset=".76" stop-color="white" stop-opacity=".4"/>
+        <stop offset=".91" stop-color="white" stop-opacity=".1"/>
         <stop offset="1" stop-color="white" stop-opacity="0"/>
       </linearGradient>
-      <mask id="${id}-mask" maskUnits="userSpaceOnUse" x="0" y="0" width="200" height="200">
-        <rect width="200" height="200" fill="url(#${id}-fade)"/>
+      <mask id="${id}-mask" maskUnits="userSpaceOnUse" x="0" y="20" width="200" height="125">
+        <rect y="20" width="200" height="125" fill="url(#${id}-fade)"/>
       </mask>
     </defs>
     <g mask="url(#${id}-mask)">

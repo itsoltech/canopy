@@ -94,79 +94,83 @@
 </script>
 
 <!-- Compact chrome (docs/ui-scale.md): text one step below the pages beside it. -->
-<div class="density-chrome sidebar-scale @container relative isolate flex h-full flex-col">
-  <div
-    class="sidebar-watermark pointer-events-none absolute inset-0 -z-10 overflow-hidden forced-colors:hidden"
-    style:--ink-light={identity.ink.light}
-    style:--ink-dark={identity.ink.dark}
-    aria-hidden="true"
-  >
-    {@html identity.art}
-  </div>
-  <SidebarHeader {channel}>
-    {#if settings.loaded && section === "bots"}
-      <a href="/bots?create=1" class={iconLink} aria-label="Create bot">
-        <Icon name="pencil-square" />
-      </a>
+<div class="density-chrome sidebar-scale @container flex h-full flex-col">
+  <div class="relative isolate shrink-0">
+    <div
+      class="sidebar-watermark pointer-events-none absolute inset-0 -z-10 overflow-hidden forced-colors:hidden"
+      style:--ink-light={identity.ink.light}
+      style:--ink-dark={identity.ink.dark}
+      aria-hidden="true"
+    >
+      {@html identity.art}
+    </div>
+    <SidebarHeader {channel}>
+      {#if settings.loaded && section === "bots"}
+        <a href="/bots?create=1" class={iconLink} aria-label="Create bot">
+          <Icon name="pencil-square" />
+        </a>
+      {/if}
+    </SidebarHeader>
+
+    {#if settings.loaded}
+      {#if settings.enabledModules.length > 1 && (capabilities?.supports("/bots") ?? true)}<SectionSwitch
+          sections={settings.enabledModules}
+          active={section}
+          attention={{ threads: threadsAttention, bots: botsAttention }}
+          counts={{ bots: botsUnread }}
+          class="sidebar-foreground sidebar-gutter pb-2"
+        />{/if}
+
+      <div class="sidebar-foreground sidebar-inset flex items-center pb-2">
+        <label
+          class={[
+            "flex min-w-0 flex-1 items-center rounded-lg py-2 text-zinc-500 has-focus-visible:outline-2 has-focus-visible:outline-brand-500 sm:py-1.5 dark:text-zinc-400",
+            section === "threads" ? "gap-1 pl-(--sidebar-row-padding)" : "sidebar-row-padding gap-1.5",
+          ]}
+        >
+          <Icon name="magnifying-glass" class="fill-zinc-400 dark:fill-zinc-500" />
+          <span class="sr-only">Search {section === "threads" ? "threads" : "bots"}</span>
+          <input
+            type="search"
+            name="q"
+            bind:value={queries[section]}
+            placeholder={section === "threads" ? "Search threads" : "Search bots"}
+            autocomplete="off"
+            class="min-w-0 flex-1 bg-transparent text-base/6 text-ellipsis text-zinc-950 placeholder:text-zinc-500 focus:outline-none sm:text-sm/6 dark:text-white dark:placeholder:text-zinc-400 [&::-webkit-search-cancel-button]:hidden"
+          />
+          {#if queries[section]}
+            <span class="flex size-6 shrink-0 items-center justify-center">
+              <button
+                type="button"
+                aria-label="Clear search"
+                onclick={() => (queries[section] = "")}
+                class="-my-1 -mr-1 grid size-6 shrink-0 place-items-center rounded-md text-zinc-400 focus-ring hover:bg-zinc-950/5 hover:text-zinc-700 dark:text-zinc-500 dark:hover:bg-white/5 dark:hover:text-zinc-200"
+              >
+                <Icon name="x-mark" class="size-3.5" />
+              </button>
+            </span>
+          {/if}
+        </label>
+        {#if section === "threads"}
+          <div class="flex shrink-0 items-center">
+            <SidebarSort />
+            <SidebarProjectFilter />
+            {#if addProject}<IconButton
+                icon="folder-plus"
+                label="Add project"
+                tooltipOptions={{ hotkey: keybindings.get("new-project")[0] }}
+                onclick={() => addProject.show()}
+              />{/if}
+            <a href="/threads/new" class={iconLink} aria-label="New thread" {@attach tooltip("New thread")}>
+              <Icon name="pencil-square" />
+            </a>
+          </div>
+        {/if}
+      </div>
     {/if}
-  </SidebarHeader>
+  </div>
 
   {#if settings.loaded}
-    {#if settings.enabledModules.length > 1 && (capabilities?.supports("/bots") ?? true)}<SectionSwitch
-        sections={settings.enabledModules}
-        active={section}
-        attention={{ threads: threadsAttention, bots: botsAttention }}
-        counts={{ bots: botsUnread }}
-        class="sidebar-foreground sidebar-gutter pb-2"
-      />{/if}
-
-    <div class="sidebar-foreground sidebar-inset flex items-center pb-2">
-      <label
-        class={[
-          "flex min-w-0 flex-1 items-center rounded-lg py-2 text-zinc-500 has-focus-visible:outline-2 has-focus-visible:outline-brand-500 sm:py-1.5 dark:text-zinc-400",
-          section === "threads" ? "gap-1 pl-(--sidebar-row-padding)" : "sidebar-row-padding gap-1.5",
-        ]}
-      >
-        <Icon name="magnifying-glass" class="fill-zinc-400 dark:fill-zinc-500" />
-        <span class="sr-only">Search {section === "threads" ? "threads" : "bots"}</span>
-        <input
-          type="search"
-          name="q"
-          bind:value={queries[section]}
-          placeholder={section === "threads" ? "Search threads" : "Search bots"}
-          autocomplete="off"
-          class="min-w-0 flex-1 bg-transparent text-base/6 text-ellipsis text-zinc-950 placeholder:text-zinc-500 focus:outline-none sm:text-sm/6 dark:text-white dark:placeholder:text-zinc-400 [&::-webkit-search-cancel-button]:hidden"
-        />
-        {#if queries[section]}
-          <span class="flex size-6 shrink-0 items-center justify-center">
-            <button
-              type="button"
-              aria-label="Clear search"
-              onclick={() => (queries[section] = "")}
-              class="-my-1 -mr-1 grid size-6 shrink-0 place-items-center rounded-md text-zinc-400 focus-ring hover:bg-zinc-950/5 hover:text-zinc-700 dark:text-zinc-500 dark:hover:bg-white/5 dark:hover:text-zinc-200"
-            >
-              <Icon name="x-mark" class="size-3.5" />
-            </button>
-          </span>
-        {/if}
-      </label>
-      {#if section === "threads"}
-        <div class="flex shrink-0 items-center">
-          <SidebarSort />
-          <SidebarProjectFilter />
-          {#if addProject}<IconButton
-              icon="folder-plus"
-              label="Add project"
-              tooltipOptions={{ hotkey: keybindings.get("new-project")[0] }}
-              onclick={() => addProject.show()}
-            />{/if}
-          <a href="/threads/new" class={iconLink} aria-label="New thread" {@attach tooltip("New thread")}>
-            <Icon name="pencil-square" />
-          </a>
-        </div>
-      {/if}
-    </div>
-
     <nav
       class="sidebar-foreground sidebar-inset min-h-0 flex-1 scroll-stable overflow-y-auto pb-3"
       aria-label={section === "threads" ? "Threads" : "Bots"}
@@ -224,7 +228,7 @@
   .sidebar-watermark {
     color: light-dark(var(--ink-light), var(--ink-dark));
   }
-  /* Tabs, search and row captions share the channel drawing as their backdrop. */
+  /* Keep muted navigation controls and list captions legible in both themes. */
   .sidebar-scale :global(.sidebar-foreground) {
     --theme-zinc-500: color-mix(in srgb, var(--theme-muted) 80%, var(--theme-ink));
     --sidebar-working-light: var(--theme-sky-800);

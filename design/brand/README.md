@@ -33,6 +33,7 @@ Te krzywe są dostępne w [geometrii znaku](../../packages/ui/src/canopy-tree.ts
 | **14** | [SVG Dev](sidebar-14/canopy-dev.svg) | [SVG Nightly](sidebar-14/canopy-nightly.svg) | [SVG Beta](sidebar-14/canopy-beta.svg) | [SVG Stable](sidebar-14/canopy-stable.svg) |
 | **15** | [SVG Dev](sidebar-15/canopy-dev.svg) | [SVG Nightly](sidebar-15/canopy-nightly.svg) | [SVG Beta](sidebar-15/canopy-beta.svg) | [SVG Stable](sidebar-15/canopy-stable.svg) |
 | **16** | [SVG Dev](sidebar-16/canopy-dev.svg) | [SVG Nightly](sidebar-16/canopy-nightly.svg) | [SVG Beta](sidebar-16/canopy-beta.svg) | [SVG Stable](sidebar-16/canopy-stable.svg) |
+| **17** | [SVG Dev](sidebar-17/canopy-dev.svg) | [SVG Nightly](sidebar-17/canopy-nightly.svg) | [SVG Beta](sidebar-17/canopy-beta.svg) | [SVG Stable](sidebar-17/canopy-stable.svg) |
 
 W propozycji 14 drzewo z wersji 13 zajmuje większą część szerokości panelu, a prawa krawędź kadru przycina koronę.
 Środek kompozycji przypada na 62% wysokości sidebara (obszar rysunku od 28% do 96%).
@@ -40,6 +41,8 @@ W propozycji 15 drzewo zaczyna się tuż pod nawigacją. Pionowy gradient stopni
 cały rysunek w stronę dołu listy, łącznie z siatką, gwiazdami i liśćmi danego kanału.
 W propozycji 16 górna i prawa krawędź sidebara przycinają koronę. Drzewo widać już za nazwą
 aplikacji i zakładkami Threads/Bots, a pień zanika za pierwszymi wierszami listy.
+W propozycji 17 korona zajmuje prawą część nagłówka. Pionowy gradient wygasza drzewo
+i detale kanału przy wyszukiwarce. Od pierwszego wątku lub bota lista ma jednolite tło.
 
 Każdy SVG ma przezroczyste tło i kolory dla jasnego oraz ciemnego motywu.
 Web, desktop i mobile korzystają ze [wspólnej grafiki](../../packages/ui/src/sidebar-art.ts).

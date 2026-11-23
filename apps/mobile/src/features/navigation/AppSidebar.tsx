@@ -297,12 +297,15 @@ function BotList({ state }: { state: ReturnType<typeof useSidebarState> }) {
 
 function SidebarContent({ state }: { state: ReturnType<typeof useSidebarState> }) {
   const insets = useContentInsets();
+  const sides = { paddingLeft: insets.left, paddingRight: insets.right };
 
   return (
     <>
-      <SidebarWatermark />
-      <View style={{ paddingTop: insets.top, paddingLeft: insets.left, paddingRight: insets.right }}>
+      <View style={[sides, { paddingTop: insets.top, overflow: "hidden" }]}>
+        <SidebarWatermark />
         <SidebarHeader state={state} />
+      </View>
+      <View style={sides}>
         <ConnectionBanner />
       </View>
       {/* The header uses the top inset in layout. The footer still overlays the scroll content. */}

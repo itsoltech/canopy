@@ -1,0 +1,52 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="320" height="200" viewBox="0 20 200 125" preserveAspectRatio="xMaxYMin meet" fill="currentColor" color="#7008e7" role="img" aria-labelledby="title">
+  <title id="title">Canopy Nightly</title>
+  <style>@media (prefers-color-scheme: dark) { svg { color: #c4b4ff; } }</style>
+    <defs>
+      <linearGradient id="canopy-sidebar-nightly-fade" gradientUnits="userSpaceOnUse" x1="0" y1="20" x2="0" y2="139">
+        <stop offset="0" stop-color="white"/>
+        <stop offset=".28" stop-color="white" stop-opacity=".96"/>
+        <stop offset=".55" stop-color="white" stop-opacity=".76"/>
+        <stop offset=".76" stop-color="white" stop-opacity=".4"/>
+        <stop offset=".91" stop-color="white" stop-opacity=".1"/>
+        <stop offset="1" stop-color="white" stop-opacity="0"/>
+      </linearGradient>
+      <mask id="canopy-sidebar-nightly-mask" maskUnits="userSpaceOnUse" x="0" y="20" width="200" height="125">
+        <rect y="20" width="200" height="125" fill="url(#canopy-sidebar-nightly-fade)"/>
+      </mask>
+    </defs>
+    <g mask="url(#canopy-sidebar-nightly-mask)">
+      <g>
+  <path opacity=".18" d="
+    M79 27q.8 4.8 5 5.5-4.2.7-5 5.5-.8-4.8-5-5.5 4.2-.7 5-5.5z
+    M179 25q.6 3 3.5 3.6-2.9.6-3.5 3.6-.6-3-3.5-3.6 2.9-.6 3.5-3.6z
+    M33 118q.6 3 3.5 3.6-2.9.6-3.5 3.6-.6-3-3.5-3.6 2.9-.6 3.5-3.6z"/>
+  <g opacity=".14">
+    <circle cx="27" cy="58" r=".9"/><circle cx="65" cy="24" r="1.1"/><circle cx="94" cy="28" r=".6"/>
+    <circle cx="155" cy="22" r=".7"/><circle cx="193" cy="39" r=".9"/><circle cx="61" cy="130" r=".8"/>
+    <circle cx="176" cy="149" r="1"/><circle cx="187" cy="139" r=".6"/>
+  </g>
+</g>
+      <g transform="translate(32 18) scale(1.18)"><g opacity=".085"><path fill-rule="evenodd" d="M68 114 C70 104 67 98 56 92
+    C48.756117381 88.072593761 47.072678925 78.660913827 44.474697754 73.032035875
+    C40.030239436 73.922453355 34.248969369 74.5 26 74.5 A18 18 0 1 1 27.16 38.54
+    A27 27 0 0 1 60.67 15.34 A29 29 0 0 1 113.33 15.34 A27 27 0 0 1 146.84 38.54
+    A18 18 0 1 1 148 74.5
+    C139.53323538 74.5 133.666198266 73.891553137 129.17603972 72.960858099
+    C122.402828974 81.511187872 112.930803245 85.730580294 102 83.6
+    C101.3 83.5 100.6 84.2 100 85 C96 94 88 100 84 106 C91 104 96 99 100 95
+    C108 87 119 84 129 85 C124 98 115 104 102 106 C92 107 84 111 80 117
+    C80 121 85 123 85 129 C85 136 79 142 72 142 C64 142 59 136 59 129
+    C59 122 66 118 68 114 Z
+    M51.341228613 71.124712602 C53.792156036 74.856107661 56.5491394 78.456265053 62 81
+    C69 84 75 88 78 92 C83.9 83.4 88.5 77.5 86.3 71.2
+    C85.218849793 68.419899467 84.256973644 65.87834705 83.874918598 63.529288045
+    C63.86363378 63.915693329 59.845791323 68.045244697 51.341228613 71.124712602 Z
+    M90.871518966 63.545608337
+    C92.556585401 66.727611455 97.505255096 69.969088272 99.4 74.5
+    C99.8 75.4 100 75.9 100.8 76.1
+    C107.918293463 78.169271356 115.927218787 76.401974698 121.946089292 70.860487102
+    C114.017465076 67.853572375 109.682192318 64.005660499 90.871518966 63.545608337 Z
+    M72 123 C68.7 123 66 125.7 66 129 C66 132.3 68.7 135 72 135 C75.3 135 78 132.3 78 129
+    C78 125.7 75.3 123 72 123 Z"/></g></g>
+    </g>
+  </svg>

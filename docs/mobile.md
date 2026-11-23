@@ -1,7 +1,7 @@
 # Canopy na iOS i Android
 
 Status: opis zaimplementowanego kodu (2026-11-23), w tym nowego logo Canopy i zanikającego
-znaku wodnego kanału za nagłówkiem i listami sidebara oraz dziennego pingu użycia z przełącznikiem prywatności
+znaku wodnego kanału w nagłówku sidebara oraz dziennego pingu użycia z przełącznikiem prywatności
 i pomijaniem wysyłki offline. Settings → Appearance
 zapisuje schemat kolorów, oba motywy i szerokość wątku w instalacji aplikacji.
 Profile EAS przypinają Bun 1.4.5
@@ -1075,11 +1075,12 @@ fioletowe drzewo z gwiazdami, a **Beta** bursztynową rycinę. W tych trzech
 wariantach etykieta kanału widnieje pod nazwą Canopy. Wydanie **Stable**
 i nierozpoznany kanał pokazują zwykły znak drzewa bez podpisu kanału.
 
-Górna krawędź panelu lekko przycina koronę dużego drzewa. Znak wodny jest
-wyrównany do prawej i tworzy ciągłe tło nazwy Canopy, przełącznika Threads/Bots,
-pola wyszukiwania i pierwszych wierszy. Rysunek stopniowo zanika ku dołowi
-i pozostaje nieruchomy podczas przewijania. Etykieta nieaktywnej zakładki
-i podpowiedź w polu wyszukiwania mają zwiększony kontrast w obu schematach
+Znak wodny jest wyrównany do prawej krawędzi nagłówka, za nazwą Canopy,
+przełącznikiem Threads/Bots i polem wyszukiwania. Rysunek stopniowo zanika,
+aż przy dolnej krawędzi nagłówka staje się całkowicie przezroczysty. Jego obszar
+dopasowuje się do wysokości kontrolek i górnego bezpiecznego marginesu.
+Listy wątków i botów mają jednolite tło już od pierwszego wiersza. Etykieta
+nieaktywnej zakładki i podpowiedź w polu wyszukiwania mają zwiększony kontrast w obu schematach
 kolorów. W jasnym schemacie ciemniejsze są także podpisy wierszy. Grafika działa
 offline zarówno na ekranie listy, jak i w układzie z dwiema kolumnami.
 
