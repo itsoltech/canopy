@@ -2,7 +2,8 @@
 
 Status: opis zaimplementowanego runtime i pakowania (2026-11-23). Ekran startu,
 okna, zasobnik i instalatory używają osobnych ikon dla Stable, Beta,
-Nightly i lokalnego Dev. Ikona w nagłówku sidebara ma bok 32 px przy domyślnej
+Nightly i lokalnego Dev. Ekran startu pokazuje pełną wersję uruchomionego pakietu
+Desktop przed połączeniem z gatewayem. Ikona w nagłówku sidebara ma bok 32 px przy domyślnej
 skali w każdym kanale. Opis obejmuje też dzienny ping użycia z przełącznikiem
 prywatności i pomijaniem wysyłki offline. Aktualizator używa
 `electron-updater` 6.8.11. Build i ustawienia
@@ -349,6 +350,14 @@ Migracja 0057 dodaje rodzaj klienta i jednorazowe migracje desktopów; proto roz
 parowanie i handshake addytywnie. `packages/ui/desktop` jest opcjonalnym
 kontraktem typów. Mobile i przeglądarka nie muszą go implementować. Root workspaces
 już obejmuje `apps/*`, więc nowa aplikacja nie wymaga zmiany konfiguracji workspaces.
+
+### Ekran startu
+
+Ekran startu i odzyskiwania wyświetla wersję z metadanych uruchomionego pakietu
+Electron, razem z sufiksem wydania Beta lub Nightly. Proces główny przekazuje
+wartość do preloadu przy tworzeniu okna, więc jest dostępna przy pierwszym
+renderze także offline. Przy braku wersji, w tym w uruchomieniu z kodu źródłowego,
+ekran pomija cały wiersz z numerem.
 
 ### Kolory okna i paski tytułu
 

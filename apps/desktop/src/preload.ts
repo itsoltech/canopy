@@ -12,11 +12,17 @@ import type {
 } from "@canopy/ui/desktop";
 import { QuitFeedback } from "./quit-feedback.ts";
 import { quitFallback } from "./quit-fallback.ts";
+import { desktopVersionArgument } from "./startup-version.ts";
 import { isDesktopRoute } from "@canopy/ui/desktop";
 
 declare const CANOPY_DESKTOP_CHANNEL: AppChannel | undefined;
 
 const { assets } = appIdentity(typeof CANOPY_DESKTOP_CHANNEL === "undefined" ? "development" : CANOPY_DESKTOP_CHANNEL);
+
+const startupVersion = process.argv
+  .findLast((argument) => argument.startsWith(desktopVersionArgument))
+  ?.slice(desktopVersionArgument.length)
+  .trim();
 
 const feedback = new QuitFeedback(
   quitFallback((phase) => ipcRenderer.send("canopy:quit-guard-delivered", phase, "shell")),
@@ -72,6 +78,7 @@ const bridge: DesktopBridge = {
     }),
   readyForRoutes: () => ipcRenderer.invoke("canopy:routes-ready"),
   startupIcon: `${assets}/icon-192.png`,
+  ...(startupVersion && { startupVersion }),
   startupAppearance: ipcRenderer.sendSync("canopy:appearance-startup"),
   setAppearance: (appearance) => ipcRenderer.invoke("canopy:appearance", appearance),
   windowState: () => ipcRenderer.invoke("canopy:window-state"),

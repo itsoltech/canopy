@@ -217,6 +217,8 @@ export interface DesktopBridge {
   readonly platform: string;
   /** Bundled icon for the installed desktop channel. */
   readonly startupIcon?: string;
+  /** Package version of the running desktop app, including its prerelease suffix. */
+  readonly startupVersion?: string;
   /** Local startup palette, also used by the setup page before its first paint. */
   readonly startupAppearance?: {
     scheme: DesktopAppearance["scheme"];
