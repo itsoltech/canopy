@@ -19,7 +19,7 @@ export function useSnoozedThreads({ filtered, query }: ReturnType<typeof useSide
 }
 
 export function SidebarSnoozedHeader({ snoozed }: { snoozed: ReturnType<typeof useSnoozedThreads> }) {
-  const c = useColors();
+  const c = useColors("sidebar-list");
   const { count, expanded, searching, toggle } = snoozed;
   const formatted = new Intl.NumberFormat().format(count);
 

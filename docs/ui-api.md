@@ -1,6 +1,8 @@
 # API dla UI i architektura frontendu
 
 Status (2026-11-23): web i desktop pozwalają zarządzać profilami Sandbox w ustawieniach i wybierać je w wątkach.
+Nagłówek sidebara pokazuje ikonę i tło uruchomionego frontendu. Faviconę, manifest PWA
+i ikony ekranów początkowych opisują [zasady wyboru grafiki](release.md#ikony-kanałów).
 Appearance zapisuje schemat, palety i szerokość wątku w profilu klienta.
 Gateway sprawdza wybrany profil przed wysłaniem synchronizowanego szkicu nowego wątku.
 Web, desktop i mobile oznaczają bota jako nadawcę wiadomości dołączanej do trwającej tury.

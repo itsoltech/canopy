@@ -1,6 +1,6 @@
 import type { ConfigContext, ExpoConfig } from "expo/config";
 import release from "./canopy-version.json";
-import { releaseIdentity } from "@canopy/domain/release/identity";
+import { appIdentity } from "@canopy/domain/release/identity";
 import { releaseChannel } from "@canopy/domain/release/version";
 
 const profile = process.env.EAS_BUILD_PROFILE;
@@ -20,9 +20,7 @@ const versionChannel = releaseChannel(release.version);
 const appAttestEnvironment =
   process.env.CANOPY_APP_ATTEST_ENV ?? (versionChannel === "development" ? "development" : "production");
 
-const identity = releaseIdentity(
-  process.env.CANOPY_CHANNEL || profileChannel || (versionChannel === "development" ? "stable" : versionChannel),
-);
+const identity = appIdentity(process.env.CANOPY_CHANNEL || profileChannel || versionChannel);
 
 const assets = `../web/static${identity.assets}`;
 
@@ -33,7 +31,7 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
   icon: `${assets}/expo-icon.png`,
   slug: "canopy-mobile",
   platforms: ["ios", "android"],
-  extra: { ...config.extra, canopyVersion: release.version },
+  extra: { ...config.extra, canopyVersion: release.version, canopyChannel: identity.channel },
   ios: {
     ...config.ios,
     entitlements: {
@@ -62,11 +60,11 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
   plugins: [
     "./plugins/media-network.cjs",
     "./plugins/push-opt-in.cjs",
-    ["expo-notifications", { defaultChannel: "canopy-updates" }],
+    ["expo-notifications", { defaultChannel: "canopy-updates", icon: "./assets/notification-icon.png" }],
     "./plugins/android-push-preview.cjs",
     "./plugins/push-preview-ios.cjs",
     ["expo-video", { supportsBackgroundPlayback: false, supportsPictureInPicture: false }],
-    ...(config.plugins ?? []).filter((plugin) => !(Array.isArray(plugin) && plugin[0] === "expo-splash-screen")),
+    ...(config.plugins ?? []),
     [
       "expo-splash-screen",
       {

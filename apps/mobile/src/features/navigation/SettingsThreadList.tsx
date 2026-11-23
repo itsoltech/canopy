@@ -162,7 +162,7 @@ function SidebarListEntryView({
   workingOpen: boolean;
   onWorking: () => void;
 }) {
-  const c = useColors();
+  const c = useColors("sidebar-list");
   const { current, filtered } = navigation;
 
   if (item.section === "empty") return empty;

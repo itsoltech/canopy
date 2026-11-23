@@ -5,7 +5,7 @@ import { useMotion } from "../../ui/motion";
 import { useArrivals } from "../../ui/MotionViews";
 import { ListSkeleton } from "../../ui/Skeleton";
 import { Redirect, router } from "expo-router";
-import { ScreenFrame, useContentPadding } from "../../ui/ScreenFrame";
+import { ContentInsets, ScreenFrame, useContentInsets, useContentPadding } from "../../ui/ScreenFrame";
 import { SidebarFooter } from "./SidebarFooter";
 import { SidebarCopyJobs } from "../copy-jobs/SidebarCopyJobs";
 import { bots as botContract } from "@canopy/contracts";
@@ -26,7 +26,7 @@ import { useSidebarThreads } from "./useSidebarThreads";
 import { SidebarProjectFilter, SidebarSort } from "./SidebarThreadPickers";
 import { CreateBot } from "../bots/CreateBot";
 import { useDevicePreferences } from "../settings/device-preferences";
-import { SidebarBrand, SidebarReleaseArt } from "./SidebarBrand";
+import { SidebarBrand, SidebarWatermark } from "./SidebarBrand";
 
 function useSidebarState() {
   const { session, ready, bots } = useSession();
@@ -73,7 +73,7 @@ function useSidebarState() {
 }
 
 function SidebarHeader({ state }: { state: ReturnType<typeof useSidebarState> }) {
-  const c = useColors();
+  const c = useColors("sidebar-header");
   const [creating, setCreating] = useState(false);
   const { section, setSection, queries, setQueries, setThreadPicker, projectId, navigation, bots } = state;
   const unread = bots.reduce((sum, bot) => sum + (bot.archived ? 0 : bot.unreadCount), 0);
@@ -109,6 +109,7 @@ function SidebarHeader({ state }: { state: ReturnType<typeof useSidebarState> })
           }))}
           value={section}
           onChange={setSection}
+          inactiveColor={c.muted}
           style={{ marginHorizontal: 12, marginBottom: 8 }}
         />
       )}
@@ -117,6 +118,7 @@ function SidebarHeader({ state }: { state: ReturnType<typeof useSidebarState> })
         <SearchField
           bare
           label={searchLabel}
+          mutedColor={c.muted}
           placeholder={section === "threads" ? "Search" : undefined}
           value={queries[section]}
           onChange={(value) => setQueries({ ...queries, [section]: value })}
@@ -156,7 +158,7 @@ function orderBots(list: readonly botContract.Bot[], pinned: readonly string[]):
 }
 
 function SidebarLists({ state }: { state: ReturnType<typeof useSidebarState> }) {
-  const c = useColors();
+  const c = useColors("sidebar-list");
 
   const { section, navigation, projects, workers, loaded, query, projectId, setProjectId, stream } = state;
 
@@ -290,6 +292,29 @@ function BotList({ state }: { state: ReturnType<typeof useSidebarState> }) {
   );
 }
 
+function SidebarContent({ state }: { state: ReturnType<typeof useSidebarState> }) {
+  const insets = useContentInsets();
+  const sides = { paddingLeft: insets.left, paddingRight: insets.right };
+
+  return (
+    <>
+      <View style={[sides, { paddingTop: insets.top, overflow: "hidden" }]}>
+        <SidebarWatermark />
+        <SidebarHeader state={state} />
+      </View>
+      <View style={sides}>
+        <ConnectionBanner />
+      </View>
+      {/* The header uses the top inset in layout. The footer still overlays the scroll content. */}
+      <ContentInsets.Provider value={{ ...insets, top: 0 }}>
+        <View style={{ flex: 1, overflow: "hidden" }}>
+          <SidebarLists state={state} />
+        </View>
+      </ContentInsets.Provider>
+    </>
+  );
+}
+
 /** The thread and bot list: a full screen on phones, the persistent sidebar on wide windows. */
 export function AppSidebar() {
   const c = useColors();
@@ -303,13 +328,6 @@ export function AppSidebar() {
   return (
     <ScreenFrame
       backgroundColor={c.sidebar}
-      headerBackground={<SidebarReleaseArt />}
-      header={
-        <>
-          <SidebarHeader state={state} />
-          <ConnectionBanner />
-        </>
-      }
       footer={
         <>
           {state.modules.includes("threads") && <SidebarCopyJobs />}
@@ -317,7 +335,7 @@ export function AppSidebar() {
         </>
       }
     >
-      <SidebarLists state={state} />
+      <SidebarContent state={state} />
       {state.section === "threads" && (
         <>
           <SidebarSort visible={threadPicker === "sort"} onClose={() => setThreadPicker(null)} />

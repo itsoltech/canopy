@@ -2,7 +2,7 @@ import { desktopIdentity } from "../src/identity.ts";
 
 /** Only presentation changes. productName controls filenames and NSIS install paths. */
 export function channelConfiguration(identity: ReturnType<typeof desktopIdentity>) {
-  const icons = `../web/static/channels/${identity.channel}`;
+  const icons = `../web/static${identity.assets}`;
 
   return {
     linux: {

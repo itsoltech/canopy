@@ -1,7 +1,9 @@
 # Canopy na iOS i Android
 
-Status: opis zaimplementowanego kodu (2026-11-22), w tym dziennego pingu użycia
-z przełącznikiem prywatności i pomijaniem wysyłki offline. Settings → Appearance
+Status: opis zaimplementowanego kodu (2026-11-23), w tym czterech wariantów ikony Canopy
+na ekranie głównym telefonu, podczas parowania i w nagłówku sidebara. Znak wodny
+kanału zanika przed listą wątków i botów. Dzienny ping użycia ma przełącznik
+prywatności i pomija wysyłkę offline. Settings → Appearance
 zapisuje schemat kolorów, oba motywy i szerokość wątku w instalacji aplikacji.
 Profile EAS przypinają Bun 1.4.5
 dla lockfile w wersji 3. Kompozytor pokazuje przypisany [profil Sandbox](sandbox-profiles.md).
@@ -20,8 +22,6 @@ Uchwyt na tej krawędzi zmienia szerokość sidebara i zapisuje ją lokalnie.
 Pasek wątków ma osobne przyciski sortowania i filtrowania po projekcie.
 „New thread” jest ostatnią akcją w wierszu wyszukiwania, tak jak w web i desktop.
 Usunięcie otwartego bota z paska bocznego lub jego ustawień zamyka jego rozmowę.
-Nagłówek sidebara pokazuje kanał aplikacji. Nightly, Beta i Dev mają delikatny
-gradient i słoje drzewa w barwie kanału, tak jak w web i desktop.
 Licznik i akcja Update all na telefonie wynikają z planu instalacji Canopy.
 Komunikat o restarcie znika po potwierdzeniu powrotu gatewaya lub wersji docelowej.
 Stan gotowości binarnego gatewaya kończy także zapowiedź restartu bez zmiany wersji.
@@ -361,22 +361,23 @@ Agregacja zakresu i lista ostatnich wydań sortują nowe tablice przez `sort`,
 zachowując kolejność źródłowego indeksu. Nie wymagają `Array.prototype.toSorted`,
 którego nie obsługuje Hermes dołączony do bieżącego runtime'u mobilnego.
 
-Natywna nazwa oraz ikony zależą od kanału: `Canopy (Nightly)`, `Canopy (Beta)` albo
-`Canopy` (stable). `app.config.ts` wybiera kanał z `CANOPY_CHANNEL`, następnie profilu
-`EAS_BUILD_PROFILE`, a na końcu wersji w `canopy-version.json` (lokalny development
-domyślnie stable). Każdy profil wydania EAS przekazuje własny `CANOPY_CHANNEL`;
-rozszerzające profile beta/stable jawnie nadpisują nightly. Publikacja OTA bez profilu
-rozpoznaje kanał z przygotowanej wersji, więc fingerprint zgadza się z natywnym buildem.
-Nie zmieniamy bundle ID, nazwy pakietu Androida ani `canopy://`.
+Natywna nazwa to `Canopy (Nightly)`, `Canopy (Beta)` lub `Canopy` (Stable i Dev).
+`app.config.ts` dobiera grafikę kolejno z `CANOPY_CHANNEL`, profilu wydania
+`EAS_BUILD_PROFILE` i wersji w `canopy-version.json`. Lokalne `0.0.0-dev` korzysta
+z grafik w `/channels/development`. Każdy profil wydania EAS przekazuje własny
+`CANOPY_CHANNEL`. Publikacja OTA bez profilu rozpoznaje kanał z przygotowanej
+wersji i otrzymuje ten sam fingerprint co odpowiadający jej build natywny.
+Expo przekazuje rozpoznany kanał do interfejsu w `extra.canopyChannel`.
+Jeśli pole jest puste lub nieznane, interfejs sprawdza kanał zapisany w binarce
+przez Expo Updates. Gdy także on nie wskazuje znanego wariantu, aplikacja dobiera
+grafikę według wersji działającego bundla.
 
-Ikona iOS jest pełnym kwadratem RGB PNG 1024 px, bez kanału alfa, ramki, fazowania
-i połysku. Samo drzewo zajmuje 70% szerokości, lekko powyżej środka; maskę nakłada iOS.
-Android ma osobny foreground mieszczący się w kole 66 dp na płótnie 108 dp,
-pomniejszony o dodatkowe 14%, aby pozostawić co najmniej 8% średnicy widocznej maski
-między drzewem a jej krawędzią. Ma pełne tło sceny oraz monochromatyczną sylwetkę
-dla ikon tematycznych Androida 13+.
-Księżyc/słońce i gwiazdy mają osobne pozycje dla masek launcherów.
-Splash pokazuje samo drzewo na kolorze kanału, również w trybie ciemnym.
+Ikona iOS jest pełnym kwadratem RGB PNG 1024 px. Zaokrąglenie nakłada system.
+Android dostaje osobno tło, grafikę pierwszego planu i sylwetkę drzewa dla ikon
+tematycznych Androida 13+. Drzewo mieści się w bezpiecznym obszarze masek
+launchera. Splash pokazuje je na kolorze kafelka kanału w obu schematach.
+Powiadomienia Androida, w tym prywatny podgląd i jego wariant na ekranie blokady,
+używają jednobarwnej sylwetki z przezroczystym tłem.
 **Nazwa, ikony launchera i splash wymagają nowego buildu natywnego. OTA ich nie zmienia.**
 Konfiguracja natywna oraz assety wpływają na fingerprint; stare IPA/APK pozostają ze
 starą tożsamością do instalacji nowej binarki. Publiczną konfigurację można sprawdzić
@@ -1076,14 +1077,20 @@ wydanego HEAD na gałęzi wydania lub tagu; `force` omija tylko sprawdzenie zmie
 nie zgodność runtime, kanał ani deduplikację. Nie wysyła nieotagowanych commitów.
 
 Planner `scripts/mobile-release.sh` porównuje commit z ostatnim ukończonym buildem iOS lub
-nowszym kompletnym OTA dla jego runtime. Brak zmian w `apps/mobile`, pakietach
-`contracts`, `domain`, `ui`, root `package.json`, `bun.lock`, workflow i skryptach wydania
-pomija wydanie mobilne. Brak znanego punktu odniesienia wymusza ocenę runtime.
+nowszym kompletnym OTA dla jego runtime. Ocenia zmiany w `apps/mobile`, pakietach
+`contracts`, `domain`, `ui`, głównym `package.json`, `bun.lock`, workflow i skryptach
+wydania. W `apps/web/static/channels` uwzględnia kafelki `icon-256.png` dołączane
+do bundla oraz ikonę Expo, warstwy adaptacyjne i splash publikowanego kanału.
+Brak zmian w tych plikach pomija wydanie mobilne. Brak znanego punktu odniesienia
+wymusza ocenę runtime.
 
 `expo-updates` ma `runtimeVersion: { policy: "fingerprint" }`. SDK 58 używa presetu `balanced`
 (`fingerprint.config.js`): wersja marketingowa i numer buildu nie zmieniają runtime, ale SDK,
 zależności natywne, konfiguracja natywna i źródła lokalnych modułów Swift/Kotlin już tak.
-JS, teksty i zgodne assety mogą trafić przez OTA.
+Na Androidzie do hasha warstwy pierwszego planu wchodzą także bajty ikony
+monochromatycznej danego kanału oraz wspólnej ikony powiadomień. Zmiana
+którejkolwiek z tych masek zmienia tylko runtime Androida. JS, teksty i zgodne
+assety mogą trafić przez OTA.
 
 1. Planner wywołuje `scripts/mobile-version.sh <tag>`, który wpisuje wersję marketingową
    do roboczego `app.json`, a pełną wersję wydania do `canopy-version.json`. Następnie oblicza osobny
@@ -1127,10 +1134,22 @@ wstrzymane kanały i rollouty; nie przepina ich automatycznie. **Nie mapuj `beta
 `nightly`**, nawet przy tym samym fingerprint. Development client służy do pracy z Metro,
 nie jest instalacją przypisaną do kanału wydania.
 
-Pod nazwą Canopy w nagłówku sidebara klient pokazuje **Nightly**, **Beta** lub
-**Dev** (build deweloperski bez kanału). Wydanie stable pokazuje samą nazwę Canopy,
-tak jak web i desktop. Oznaczenie korzysta z lokalnego kanału Expo Updates
-i działa offline zarówno na ekranie listy, jak i w układzie z dwiema kolumnami.
+Obok nazwy Canopy w nagłówku sidebara widnieje kafelek kanału o boku 24 dp.
+Ekran parowania używa tego samego kafelka w rozmiarze 72 dp. **Stable** ma
+ciemnozielone drzewo na szałwiowym tle, **Beta** kasztanowe drzewo i dwa liście
+na bursztynowym tle, **Nightly** lawendowe drzewo z księżycem i gwiazdami na
+ciemnym fiolecie, a **Dev** jasny obrys drzewa na niebieskiej siatce. W nagłówku
+pod nazwą Canopy widnieje odpowiednio etykieta Beta, Nightly lub Dev. Stable
+pokazuje samą nazwę.
+
+Znak wodny jest wyrównany do prawej krawędzi nagłówka, za nazwą Canopy,
+przełącznikiem Threads/Bots i polem wyszukiwania. Rysunek stopniowo zanika,
+aż przy dolnej krawędzi nagłówka staje się całkowicie przezroczysty. Jego obszar
+dopasowuje się do wysokości kontrolek i górnego bezpiecznego marginesu.
+Listy wątków i botów mają jednolite tło już od pierwszego wiersza. Etykieta
+nieaktywnej zakładki i podpowiedź w polu wyszukiwania mają zwiększony kontrast w obu schematach
+kolorów. W jasnym schemacie ciemniejsze są także podpisy wierszy. Grafika działa
+offline zarówno na ekranie listy, jak i w układzie z dwiema kolumnami.
 
 `updates.checkAutomatically: ON_LOAD` sprawdza aktualizacje na zimnym starcie.
 `fallbackToCacheTimeout: 0` uruchamia od razu ostatni lokalny bundle (także offline);
@@ -1644,11 +1663,11 @@ Składanie, obrót i zmiana rozmiaru okna przełączają układ od razu po przek
 progu. Ręczne zwinięcie i rozwinięcie przesuwają wspólną krawędź sidebara i rozmowy
 w tym samym tempie. Lista zachowuje swoją szerokość podczas animacji. Przy ograniczeniu
 ruchu obie kolumny przechodzą od razu do docelowego układu.
-`ui/ScreenFrame.tsx` stosuje insets do kontrolek, bez obcinania tła ani viewportu listy.
-Nagłówki i stopka sidebara są nieprzezroczystymi nakładkami; ich zmierzona wysokość
-powiększa padding końców list, więc pierwszy i ostatni wiersz są dostępne w całości.
-Podczas przewijania wiersze przechodzą pod nagłówkiem i paskiem stanu bez prześwitu. Ikony paska stanu
-zmieniają jasność wraz z motywem, a powierzchnia nagłówka utrzymuje ich kontrast.
+`ui/ScreenFrame.tsx` stosuje insets do kontrolek. Grafika sidebara sięga pod pasek
+stanu, a nawigacja i baner połączenia zajmują własne miejsce nad listą. Przewijane
+wiersze są przycinane na dolnej krawędzi nagłówka. Nieprzezroczysta stopka nakłada
+się na listę, a padding odpowiadający jej wysokości i dolnemu insetowi pozwala
+odsłonić ostatni wiersz w całości. Ikony paska stanu zmieniają jasność wraz z motywem.
 `ScreenScroll` stosuje padding treści w New thread, Pair, Settings i arkuszach szczegółów.
 Timeline wątku i bota ma odwrócone końce: górny inset jest na najstarszym końcu,
 a dolny rezerwuje rzeczywistą wysokość kompozytora wątku lub bota

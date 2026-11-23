@@ -79,14 +79,19 @@ export function colorsFor(dark: boolean, theme: ThemeName = "birch") {
 
 export type Colors = ReturnType<typeof colorsFor>;
 
-export function useColors() {
+export function useColors(surface?: "sidebar-list" | "sidebar-header") {
   const { dark, appearance } = useAppearance();
   const { values } = useDevicePreferences();
   const theme = themeOf(appearance, dark ? "dark" : "light");
   const colors = colorsFor(dark, theme);
   const neutral = themes[theme][dark ? "dark" : "light"];
 
-  if (values.contrast === "standard") return colors;
+  if (values.contrast === "standard") {
+    // The header controls sit over the drawing. Light list captions use the same stronger ink.
+    const strongerMuted = surface === "sidebar-header" || (surface === "sidebar-list" && !dark);
+
+    return strongerMuted ? { ...colors, muted: dark ? colors.strong : colors.soft } : colors;
+  }
 
   return {
     ...colors,

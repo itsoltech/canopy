@@ -1,8 +1,9 @@
 # Canopy Desktop
 
-Status: opis zaimplementowanego runtime i pakowania (2026-11-23). Ekran startu
-używa ikony kanału zainstalowanej aplikacji. Opis obejmuje też działanie dziennego
-pingu użycia z przełącznikiem prywatności i pomijaniem wysyłki offline. Aktualizator używa
+Status: opis zaimplementowanego runtime i pakowania (2026-11-23). Ekran startu,
+okna, zasobnik i instalatory używają osobnych ikon dla Stable, Beta,
+Nightly i lokalnego Dev. Opis obejmuje też dzienny ping użycia z przełącznikiem
+prywatności i pomijaniem wysyłki offline. Aktualizator używa
 `electron-updater` 6.8.11. Build i ustawienia
 udostępniają licencje dołączonych komponentów. Powłoka ładowania
 korzysta z wyglądu tej instalacji także przy niedostępnym gatewayu.
@@ -35,6 +36,8 @@ toaście lub komunikacie o zakończonej aktualizacji. Dyskowy cache HTTP Electro
 ma budżet 64 MiB, a kontroler ustala origin formularzy osobno dla każdego żądania.
 Aktualizacje Nightly mają własny feed. Updater sprawdza historię kodu każdego
 kandydata przed pobraniem.
+Drzewo kanału uruchomionego frontendu tworzy tło górnej części sidebara.
+Koronę widać za nagłówkiem i zakładkami. Przy dolnej krawędzi wyszukiwarki krycie rysunku spada do zera.
 Tryb Local przypina certyfikat własnego gatewaya, używa osobnej roli PostgreSQL
 i sprawdza pochodzenie żądania otwarcia pliku w aplikacji systemowej. Kreator
 przenoszenia gatewaya koordynuje próbę odtworzenia, blokadę lokalnego startu,
@@ -695,10 +698,14 @@ bun run --cwd apps/desktop package:windows
 `CANOPY_TARGET` opcjonalnie deklaruje cel i musi zgadzać się z hostem. Build odrzuca
 cross-host, zamiast dołączyć niezgodne biblioteki sharp lub pin PostgreSQL. Do ponownego
 pakowania już zbudowanego runtime: `bun run --cwd apps/desktop scripts/package.ts`.
-`CANOPY_CHANNEL=stable|beta|nightly` określa kanał buildu i domyślny wybór aktualizacji (domyślnie stable).
+`CANOPY_CHANNEL` jawnie wybiera wygląd buildu. Bez tej zmiennej powłoka rozpoznaje
+Stable, Beta i Nightly po `CANOPY_VERSION`; wersja deweloperska i uruchomienie
+ze źródeł bez wersji mają ikonę Dev. Wydania ustawiają obie zmienne.
 Przykład: `CANOPY_CHANNEL=beta CANOPY_VERSION=0.2.0-beta.1 bun run --cwd apps/desktop package:mac`.
 Wynik jest w `apps/desktop/release/<kanał>/`; katalog jest ignorowany przez git.
-Skrypt pakowania w razie zmiany kanału odświeża shell i ikonę, zachowując zbudowany runtime.
+Skrypt pakowania w razie zmiany kanału przebudowuje powłokę i zachowuje
+zbudowany runtime. Przy każdym pakowaniu kopiuje bieżące zasoby kanałów
+do klienta web w paczce oraz PNG wybranego kanału do zasobów Electrona.
 
 | Cel | Host / przykład runnera GitHub Actions | Pakiet PG | Instalator | Weryfikacja tutaj |
 | --- | --- | --- | --- | --- |
@@ -839,13 +846,21 @@ Zmiana kanału zastępuje tę samą aplikację. userData jest wspólne: macOS
 `~/Library/Application Support/Canopy`, Windows `%APPDATA%/Canopy`, Linux
 `${XDG_CONFIG_HOME:-~/.config}/Canopy`. `CANOPY_USER_DATA` pozostaje nadpisaniem diagnostycznym.
 
-Nazwa widoczna i ikona zależą od **zainstalowanego buildu**: stable to `Canopy`
-z niezmienionym źródłowym PNG; beta to `Canopy (Beta)` z drzewem w oliwkowo-złotych
-barwach na tle zachodu; nightly to `Canopy (Nightly)` z drzewem w chłodnych,
-przygaszonych barwach, gwiazdami i księżycem. Zmiana preferencji aktualizacji nie
-zmienia nazwy ani ikony przed instalacją. Sidebar oznacza wersję
-uruchomionego web buildu; sekcja App updates pokazuje wersję i kanał samego Electrona,
-także gdy lokalny frontend łączy się ze zdalnym gatewayem o innej wersji.
+Nazwa widoczna i ikona pochodzą z metadanych zbudowanej powłoki. Stable ma nazwę
+`Canopy` i zielone drzewo na jasnym tle. Beta (`Canopy (Beta)`) ma bursztynowe
+tło i dwa opadające liście. Nightly (`Canopy (Nightly)`) ma fioletowe tło,
+półksiężyc i gwiazdy. Lokalny Dev zachowuje nazwę `Canopy` i ma jasny obrys
+drzewa na niebieskiej siatce. [Ikony aplikacji](../design/brand/README.md#ikony-aplikacji)
+
+Lokalne uruchomienie Electron czyta PNG z `apps/web/static/channels/<kanał>/`
+(dla Dev: `development`). Instalator umieszcza wybrany PNG w zasobach aplikacji
+jako `icon.png` na potrzeby okien i zasobnika. macOS odczytuje ikonę Docka
+z ICNS w zainstalowanym bundlu; uruchomienie ze źródeł ustawia ją z PNG.
+Ekran startu otrzymuje ścieżkę ikony powłoki przez preload. Sidebar oznacza
+wersję uruchomionego web buildu. Sekcja App updates pokazuje wersję i kanał
+aktualizacji samego Electrona także w trybie Remote, gdy gateway ma inną wersję.
+Nowa ikona pojawia się po instalacji wybranego wydania. Aktualizator obsługuje
+Stable, Beta i Nightly; dla lokalnego Dev domyślnym wyborem jest Stable.
 
 | Platforma | Zależne od kanału | Stałe przy zmianie kanału |
 |---|---|---|
@@ -1027,9 +1042,8 @@ przez `overflow-hidden`. Element nad obszarem `drag`, który sam nie jest `no-dr
 traci kliknięcia. Zasady:
 
 - **Jeden pasek tytułu na stan okna**, oznaczony `data-window-drag`; przeciąga tylko
-  jego własny prostokąt. Dekoracje wychodzące poza wiersz (tint i słoje buildu w
-  `SidebarHeader`) leżą obok wiersza, nie w nim.
-  - Sidebar widoczny: nagłówek sidebara (`pl` 88 px pod światła).
+  jego własny prostokąt. Drzewo zajmuje osobną warstwę tła od góry sidebara do końca wyszukiwarki.
+  - Sidebar widoczny: nagłówek sidebara (`pl` 88 px pod światła) zawiera ikonę i nazwę Canopy.
   - Sidebar zwinięty lub okno węższe niż `lg`: górny pasek strony
     (`data-window-titlebar`: `TopBar`, `ConversationHeader`) staje się paskiem tytułu
     i dostaje 80 px z lewej (ikona wyrównana z logo). Stan niesie `data-sidebar` na

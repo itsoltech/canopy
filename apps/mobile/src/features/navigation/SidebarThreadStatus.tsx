@@ -19,7 +19,7 @@ export function SidebarThreadStatus({
   previous?: boolean;
   hasWorkingSpinner?: boolean;
 }) {
-  const c = useColors();
+  const c = useColors("sidebar-list");
   const type = useSidebarTypography();
   const state = workState(thread);
 

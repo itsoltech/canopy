@@ -55,8 +55,6 @@ async function run(args: string[], cwd = root, env: NodeJS.ProcessEnv = process.
   if ((await child.exited) !== 0) throw new Error(`Build command failed: ${args[1] ?? args[0]}`);
 }
 
-await run([process.execPath, "scripts/prepare-identity.ts"], desktop);
-
 const desktopLicenses = join(runtime, ".desktop-licenses.json");
 
 await run([process.execPath, "scripts/build-shell.ts"], desktop, {

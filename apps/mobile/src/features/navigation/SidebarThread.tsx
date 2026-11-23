@@ -132,7 +132,7 @@ export function SidebarThread(props: SidebarThreadProps) {
 }
 
 function SidebarTitle({ thread, compact = false }: { thread: ui.Thread; compact?: boolean }) {
-  const c = useColors();
+  const c = useColors("sidebar-list");
   const type = useSidebarTypography();
 
   return (
@@ -157,7 +157,7 @@ function SidebarThreadContent({
   statusLabel,
   onActions,
 }: SidebarThreadProps & { away: boolean; statusLabel: string | undefined; onActions: () => void }) {
-  const c = useColors();
+  const c = useColors("sidebar-list");
   const type = useSidebarTypography();
   const overview = useOverview();
   const place = threadRowPlace(thread, project);

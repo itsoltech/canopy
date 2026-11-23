@@ -37,7 +37,14 @@ export function ThreadArchiveSwipe({ thread, children }: { thread: ui.Thread; ch
   const offset = useSharedValue(0);
   const shown = useSharedValue(1);
   const width = useSharedValue(0);
-  const foreground = useAnimatedStyle(() => ({ opacity: shown.get(), transform: [{ translateX: offset.get() }] }));
+
+  const foreground = useAnimatedStyle(() => ({
+    // Cover the archive action only while the row slides over it.
+    backgroundColor: offset.get() < 0 ? c.sidebar : "transparent",
+    opacity: shown.get(),
+    transform: [{ translateX: offset.get() }],
+  }));
+
   const reveal = useAnimatedStyle(() => ({ opacity: shown.get() * Math.min(1, -offset.get() / 48) }));
 
   // The thread stayed in this list after its archive state changed (a filter keeps it): show it again.
@@ -116,7 +123,7 @@ export function ThreadArchiveSwipe({ thread, children }: { thread: ui.Thread; ch
           <Text style={[styles.meta, { color: c.body }]}>{actions.archived ? "Unarchive" : "Archive"}</Text>
         </View>
       </Animated.View>
-      <Animated.View style={[{ backgroundColor: c.sidebar }, foreground]}>{children}</Animated.View>
+      <Animated.View style={foreground}>{children}</Animated.View>
     </View>
   );
 }

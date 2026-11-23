@@ -1,7 +1,9 @@
-<p align="center">
-  <img src="apps/web/static/icon-192.png" alt="" width="80" height="80">
-</p>
-<h1 align="center">Canopy</h1>
+<h1 align="center">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="design/brand/canopy-wordmark-inverse.svg">
+    <img src="design/brand/canopy-wordmark.svg" alt="Canopy" width="254" height="86">
+  </picture>
+</h1>
 <p align="center">
   <strong>A self-hosted workspace for Claude Code, Codex, and Grok.</strong>
 </p>

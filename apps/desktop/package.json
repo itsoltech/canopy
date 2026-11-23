@@ -64,15 +64,19 @@
     "extraResources": [
       {
         "from": "build/runtime",
-        "to": "runtime"
+        "to": "runtime",
+        "filter": [
+          "**/*",
+          "!web/client/channels/**"
+        ]
       },
       {
         "from": "build/runtime/node_modules",
         "to": "runtime/node_modules"
       },
       {
-        "from": "../web/static/icon-512.png",
-        "to": "icon.png"
+        "from": "../web/static/channels",
+        "to": "runtime/web/client/channels"
       }
     ],
     "protocols": [
@@ -100,7 +104,6 @@
           ]
         }
       ],
-      "icon": "../web/static/icon-512.png",
       "category": "Development",
       "syncDesktopName": true,
       "maintainer": "Canopy contributors",
@@ -131,7 +134,6 @@
           ]
         }
       ],
-      "icon": "../web/static/icon-512.png",
       "category": "public.app-category.developer-tools",
       "hardenedRuntime": true,
       "entitlements": "resources/entitlements.mac.plist",
@@ -151,7 +153,6 @@
           ]
         }
       ],
-      "icon": "../web/static/icon-512.png",
       "azureSignOptions": {
         "publisherName": "IT SOL SPÓŁKA Z OGRANICZONĄ ODPOWIEDZIALNOŚCIĄ",
         "endpoint": "https://plc.codesigning.azure.net/",

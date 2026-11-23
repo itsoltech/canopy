@@ -59,8 +59,8 @@ export class DesktopUpdates {
       this.updater.logger = null;
       this.controller = new UpdateController(this.updater, {
         version: app.getVersion(),
-        buildChannel: this.identity.channel,
-        channel: settings.read(this.identity.channel),
+        buildChannel: this.identity.updateChannel,
+        channel: settings.read(this.identity.updateChannel),
         recover: () => {
           this.updater = createAppUpdater(true);
           this.updater.logger = null;

@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { applicationName } from "#lib/application-name.ts";
+  import { applicationIcon, applicationName } from "#lib/application-name.ts";
   import ImportSuggestion from "#lib/features/imports/ImportSuggestion.svelte";
   import { useGatewayCapabilities } from "#lib/features/desktop/gateway-capabilities.svelte.ts";
   import { useModelCatalog } from "#lib/features/models/model-catalog.svelte.ts";
@@ -31,7 +31,7 @@
 
 <SetupFrame centered>
   <div class="grid justify-items-start gap-6">
-    <img src="/icon-192.png" alt="" width="48" height="48" class="size-12" />
+    <img src={applicationIcon} alt="" width="48" height="48" class="size-12" />
     <div class="grid gap-3">
       <h1 class="text-3xl font-semibold tracking-tight text-balance">Start your first task</h1>
       <p class="text-base/7 text-pretty text-muted">

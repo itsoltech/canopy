@@ -8,14 +8,7 @@ const identity = desktopIdentity();
 const channel = channelConfiguration(identity);
 const stamp = resolve(desktop, "dist/identity.json");
 
-// Artwork can change without a channel change or a shell rebuild.
-await import("./prepare-identity.ts");
-
-if (
-  !existsSync(stamp) ||
-  JSON.parse(readFileSync(stamp, "utf8")).channel !== identity.channel ||
-  !existsSync(resolve(desktop, `build/${identity.channel}/icon.png`))
-) {
+if (!existsSync(stamp) || JSON.parse(readFileSync(stamp, "utf8")).channel !== identity.channel) {
   await import("./build-shell.ts");
 }
 
@@ -35,7 +28,6 @@ const args = extra.includes("--dir")
 
 const os = process.platform === "win32" ? "windows" : process.platform;
 const base = JSON.parse(readFileSync(resolve(desktop, "package.json"), "utf8")).build;
-const icon = `build/${identity.channel}/icon.png`;
 const signed = Boolean(process.env["CSC_LINK"]);
 
 const windowsSigned = ["AZURE_TENANT_ID", "AZURE_CLIENT_ID", "AZURE_CLIENT_SECRET"].every((name) =>
@@ -63,10 +55,8 @@ const configuration = {
     desktopName: `${identity.executableName}.desktop`,
     canopyChannel: identity.channel,
   },
-  extraResources: [
-    ...base.extraResources.filter((resource: { to: string }) => resource.to !== "icon.png"),
-    { from: icon, to: "icon.png" },
-  ],
+  // Tray and window icons use the PNG on every platform.
+  extraResources: [...base.extraResources, { from: channel.linux.icon, to: "icon.png" }],
   protocols: [{ name: `${identity.productName} enrollment`, schemes: [identity.scheme] }],
   linux: { ...base.linux, ...channel.linux },
   mac: {
@@ -89,7 +79,7 @@ const configuration = {
             owner: "itsoltech",
             repo: "canopy",
             channel: identity.feed,
-            releaseType: identity.channel === "stable" ? "release" : "prerelease",
+            releaseType: identity.updateChannel === "stable" ? "release" : "prerelease",
           },
         ],
   detectUpdateChannel: false,

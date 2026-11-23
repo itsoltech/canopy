@@ -136,7 +136,7 @@ export function useArchivedThreads(navigation: ReturnType<typeof useSidebarThrea
 export type ArchivedThreads = ReturnType<typeof useArchivedThreads>;
 
 export function SidebarArchivedHeader({ archive }: { archive: ArchivedThreads }) {
-  const c = useColors();
+  const c = useColors("sidebar-list");
 
   return (
     <Pressable
@@ -155,7 +155,7 @@ export function SidebarArchivedHeader({ archive }: { archive: ArchivedThreads })
 }
 
 export function SidebarArchivedStatus({ archive }: { archive: ArchivedThreads }) {
-  const c = useColors();
+  const c = useColors("sidebar-list");
   const { page, roots, stale, query } = archive;
 
   return (

@@ -1,14 +1,10 @@
 import { CANOPY_VERSION, releaseChannel } from "@canopy/domain/release/version";
-import { releaseIdentity } from "@canopy/domain/release/identity";
+import { appIdentity } from "@canopy/domain/release/identity";
 import { gateway } from "./gateway.ts";
 
-function fallbackIdentity() {
-  const channel = process.env["CANOPY_CHANNEL"] ?? releaseChannel(CANOPY_VERSION);
-
-  return releaseIdentity(channel === "development" ? "stable" : channel);
-}
-
-let cached = fallbackIdentity();
+const channelOverride = process.env["CANOPY_CHANNEL"];
+export const buildIdentity = appIdentity(channelOverride || releaseChannel(CANOPY_VERSION));
+let cached = buildIdentity;
 let expires = 0;
 let pending: Promise<typeof cached> | undefined;
 
@@ -21,7 +17,9 @@ export function shellIdentity() {
     .then(
       (info) => {
         const channel = releaseChannel(info.gatewayVersion);
-        cached = channel === "development" ? fallbackIdentity() : releaseIdentity(channel);
+        cached = info.gatewayVersion
+          ? appIdentity(channel === "development" && channelOverride ? channelOverride : channel)
+          : buildIdentity;
         expires = Date.now() + 5000;
 
         return cached;

@@ -1,4 +1,5 @@
-import { releaseIdentity, type ReleaseChannel } from "@canopy/domain/release/identity";
+import { appIdentity, type ReleaseChannel } from "@canopy/domain/release/identity";
+import { CANOPY_VERSION, releaseChannel } from "@canopy/domain/release/version";
 import { join } from "node:path";
 
 export type DesktopChannel = ReleaseChannel;
@@ -10,27 +11,22 @@ export function desktopUserData(appData: string) {
 
 declare const CANOPY_DESKTOP_CHANNEL: string | undefined;
 
-function isDefinedChannel(value: string | undefined): value is string {
-  return typeof value === "string";
-}
-
 export function desktopIdentity(
-  value = (typeof CANOPY_DESKTOP_CHANNEL !== "undefined" && isDefinedChannel(CANOPY_DESKTOP_CHANNEL)
-    ? CANOPY_DESKTOP_CHANNEL
-    : process.env["CANOPY_CHANNEL"]) ?? "stable",
+  value = typeof CANOPY_DESKTOP_CHANNEL === "undefined"
+    ? process.env["CANOPY_CHANNEL"] || releaseChannel(CANOPY_VERSION)
+    : CANOPY_DESKTOP_CHANNEL,
 ) {
-  if (value !== "stable" && value !== "beta" && value !== "nightly")
-    throw new Error(`Invalid desktop channel: ${value}`);
-  const channel: DesktopChannel = value;
+  const identity = appIdentity(value);
+  const updateChannel = identity.channel === "development" ? "stable" : identity.channel;
 
   return {
-    ...releaseIdentity(channel),
-    channel,
+    ...identity,
+    updateChannel,
     productName: "Canopy",
     artifactPrefix: "Canopy",
     executableName: "canopy",
     appId: "app.canopy.desktop",
     scheme: "canopy",
-    feed: channel === "stable" ? "latest" : channel,
+    feed: updateChannel === "stable" ? "latest" : updateChannel,
   };
 }

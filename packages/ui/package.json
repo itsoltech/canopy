@@ -9,6 +9,8 @@
     "./provider-icons": "./src/provider-icons.ts",
     "./streaming": "./src/streaming.ts",
     "./thread-row": "./src/thread-row.ts",
+    "./canopy-tree": "./src/canopy-tree.ts",
+    "./sidebar-art": "./src/sidebar-art.ts",
     "./mascot": "./src/mascot.ts",
     "./settings": "./src/settings.ts",
     "./desktop": "./src/desktop.ts",

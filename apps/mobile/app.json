@@ -10,7 +10,6 @@
       "fallbackToCacheTimeout": 0
     },
     "orientation": "default",
-    "icon": "../web/static/icon-512.png",
     "scheme": "canopy",
     "userInterfaceStyle": "automatic",
     "ios": {
@@ -45,16 +44,7 @@
           "microphonePermission": false
         }
       ],
-      ["expo-secure-store", { "faceIDPermission": false }],
-      [
-        "expo-splash-screen",
-        {
-          "backgroundColor": "#FFFFFF",
-          "image": "../web/static/icon-512.png",
-          "imageWidth": 96,
-          "dark": { "backgroundColor": "#000000", "image": "../web/static/icon-512.png" }
-        }
-      ]
+      ["expo-secure-store", { "faceIDPermission": false }]
     ],
     "experiments": {
       "typedRoutes": true

@@ -17,6 +17,7 @@ export function Segmented<T extends string>({
   onChange,
   style,
   compact = false,
+  inactiveColor,
 }: {
   /** `badge`: a count beside the label of a segment that is not selected (unread items there). */
   options: readonly { value: T; label: string; badge?: number; disabled?: boolean }[];
@@ -24,6 +25,7 @@ export function Segmented<T extends string>({
   onChange: (value: T) => void;
   style?: StyleProp<ViewStyle>;
   compact?: boolean;
+  inactiveColor?: string;
 }) {
   const c = useColors();
   const type = useTypography();
@@ -100,7 +102,7 @@ export function Segmented<T extends string>({
               <Text
                 style={[
                   compact ? type.meta : type.small,
-                  { fontFamily: font.medium, color: value === option.value ? c.text : c.muted },
+                  { fontFamily: font.medium, color: value === option.value ? c.text : (inactiveColor ?? c.muted) },
                 ]}
               >
                 {option.label}

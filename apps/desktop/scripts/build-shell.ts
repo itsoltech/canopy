@@ -8,6 +8,7 @@ const root = resolve(import.meta.dir, "..");
 const licenseOutput = process.env["CANOPY_SHELL_LICENSES"];
 const notices: PackageNotice[][] = [];
 const revision = process.env["CANOPY_REVISION"] ?? "";
+const identity = desktopIdentity();
 
 mkdirSync(resolve(root, "dist"), { recursive: true });
 
@@ -46,7 +47,7 @@ for (const name of ["main", "desktop-main", "html-viewer-process", "preload", "h
     format: "cjs",
     external: ["electron"],
     define: {
-      CANOPY_DESKTOP_CHANNEL: JSON.stringify(desktopIdentity().channel),
+      CANOPY_DESKTOP_CHANNEL: JSON.stringify(identity.channel),
       CANOPY_DESKTOP_REVISION: JSON.stringify(revision),
     },
     naming: `${name}.cjs`,
@@ -58,6 +59,6 @@ for (const name of ["main", "desktop-main", "html-viewer-process", "preload", "h
   if (licenseOutput) notices.push(bunNotices(result));
 }
 
-writeFileSync(resolve(root, "dist/identity.json"), JSON.stringify(desktopIdentity()));
+writeFileSync(resolve(root, "dist/identity.json"), JSON.stringify(identity));
 
 if (licenseOutput) writeFileSync(licenseOutput, JSON.stringify(mergeNotices(...notices)));

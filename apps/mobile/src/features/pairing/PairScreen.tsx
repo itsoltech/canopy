@@ -1,5 +1,5 @@
 import { useRef, useState } from "react";
-import { Image, Platform, Text, View } from "react-native";
+import { Platform, Text, View } from "react-native";
 import { SkeletonScope } from "../../ui/Skeleton";
 import { Redirect, router } from "expo-router";
 import { CameraView, useCameraPermissions } from "expo-camera";
@@ -13,6 +13,7 @@ import { pinnedTransport } from "../../api/pinned";
 import { useSession } from "../../state/session";
 import { useUsagePing } from "../../state/usage-ping";
 import { Button, Field, Notice } from "../../ui/components";
+import { AppIcon, mobileApp } from "../../ui/AppIcon";
 import { styles, useColors } from "../../ui/theme";
 import { useScannerBack } from "./useScannerBack";
 import { UsagePingSettings } from "../settings/UsagePingSettings";
@@ -184,13 +185,9 @@ export default function PairScreen() {
             keyboardShouldPersistTaps="handled"
             keyboardDismissMode={Platform.OS === "ios" ? "interactive" : "on-drag"}
           >
-            <Image
-              source={require("../../../../web/static/icon-512.png")}
-              accessibilityLabel="Canopy"
-              style={{ width: 72, height: 72, borderRadius: 18, marginTop: 16 }}
-            />
+            <AppIcon size={72} style={{ marginTop: 16 }} />
             <View style={{ gap: 10 }}>
-              <Text style={[styles.title, { color: c.text }]}>Canopy</Text>
+              <Text style={[styles.title, { color: c.text }]}>{mobileApp.displayName}</Text>
               <Text style={[styles.body, { color: c.muted }]}>Connect to your gateway</Text>
             </View>
             <View style={{ gap: 12 }}>

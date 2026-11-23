@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { applicationName } from "#lib/application-name.ts";
+  import { applicationIcon, applicationName } from "#lib/application-name.ts";
   import { goto } from "$app/navigation";
   import { useGatewayCapabilities } from "#lib/features/desktop/gateway-capabilities.svelte.ts";
   import { useModelCatalog } from "#lib/features/models/model-catalog.svelte.ts";
@@ -53,7 +53,7 @@
 <SetupFrame>
   <div><Button variant="ghost" icon="arrow-left" onclick={exitSetup}>Exit setup</Button></div>
   <header class="grid gap-3">
-    <img src="/icon-192.png" alt="" width="48" height="48" class="size-12" />
+    <img src={applicationIcon} alt="" width="48" height="48" class="size-12" />
     <h1 class="text-3xl font-semibold tracking-tight text-balance">Set up Canopy</h1>
     <p class="text-base/7 text-pretty text-muted">Set up one agent, then choose what to bring into Canopy.</p>
   </header>

@@ -64,7 +64,7 @@ export function SidebarOrderCell({
 /** React updates this isolated overlay once at pickup; pointer frames stay on the UI thread. */
 export function SidebarDragFeedback({ entries }: { entries: readonly SidebarEntry[] }) {
   const drag = useSidebarDragContext();
-  const c = useColors();
+  const c = useColors("sidebar-list");
   const latest = useRef(entries);
   latest.current = entries;
   const [title, setTitle] = useState("");

@@ -14,11 +14,14 @@ export const GET: RequestHandler = async () => {
       display: "standalone",
       background_color: identity.background,
       theme_color: identity.background,
-      icons: [192, 512].map((size) => ({
-        src: `${identity.assets}/icon-${size}.png`,
-        sizes: `${size}x${size}`,
-        type: "image/png",
-      })),
+      icons: [
+        ...[192, 512].map((size) => ({
+          src: `${identity.assets}/icon-${size}.png`,
+          sizes: `${size}x${size}`,
+          type: "image/png",
+        })),
+        { src: `${identity.assets}/icon.svg`, sizes: "any", type: "image/svg+xml" },
+      ],
     },
     { headers: { "content-type": "application/manifest+json", "cache-control": "no-store" } },
   );

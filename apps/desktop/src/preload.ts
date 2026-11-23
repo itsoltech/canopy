@@ -1,5 +1,5 @@
 import { contextBridge, ipcRenderer } from "electron";
-import { releaseIdentity, type ReleaseChannel } from "@canopy/domain/release/identity";
+import { appIdentity, type AppChannel } from "@canopy/domain/release/identity";
 import type {
   DesktopBridge,
   DesktopHtmlEvent,
@@ -13,9 +13,9 @@ import { QuitFeedback } from "./quit-feedback.ts";
 import { quitFallback } from "./quit-fallback.ts";
 import { isDesktopRoute } from "@canopy/ui/desktop";
 
-declare const CANOPY_DESKTOP_CHANNEL: ReleaseChannel | undefined;
+declare const CANOPY_DESKTOP_CHANNEL: AppChannel | undefined;
 
-const { assets } = releaseIdentity(typeof CANOPY_DESKTOP_CHANNEL === "undefined" ? "stable" : CANOPY_DESKTOP_CHANNEL);
+const { assets } = appIdentity(typeof CANOPY_DESKTOP_CHANNEL === "undefined" ? "development" : CANOPY_DESKTOP_CHANNEL);
 
 const feedback = new QuitFeedback(
   quitFallback((phase) => ipcRenderer.send("canopy:quit-guard-delivered", phase, "shell")),

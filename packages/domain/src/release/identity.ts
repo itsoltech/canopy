@@ -1,11 +1,15 @@
 export type ReleaseChannel = "stable" | "beta" | "nightly";
 
-export interface ReleaseIdentity {
-  readonly channel: ReleaseChannel;
+export type AppChannel = ReleaseChannel | "development";
+
+export interface AppIdentity<Channel extends AppChannel = AppChannel> {
+  readonly channel: Channel;
   readonly displayName: string;
   readonly assets: string;
   readonly background: string;
 }
+
+export type ReleaseIdentity = AppIdentity<ReleaseChannel>;
 
 export function releaseIdentity(channel: string): ReleaseIdentity {
   if (channel !== "stable" && channel !== "beta" && channel !== "nightly")
@@ -15,6 +19,14 @@ export function releaseIdentity(channel: string): ReleaseIdentity {
     channel,
     displayName: channel === "stable" ? "Canopy" : `Canopy (${channel === "beta" ? "Beta" : "Nightly"})`,
     assets: `/channels/${channel}`,
-    background: { nightly: "#101b38", beta: "#f6bc86", stable: "#ffffff" }[channel],
+    background: { nightly: "#35294F", beta: "#F5C56E", stable: "#EDF0E4" }[channel],
   };
+}
+
+/** Source builds have their own artwork and use the regular application name. */
+export function appIdentity(channel: string): AppIdentity {
+  if (channel === "development")
+    return { channel, displayName: "Canopy", assets: "/channels/development", background: "#205394" };
+
+  return releaseIdentity(channel);
 }

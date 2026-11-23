@@ -3,6 +3,7 @@ import { basename, join, resolve } from "node:path";
 import { createHash } from "node:crypto";
 import { dump, load } from "js-yaml";
 import { desktopIdentity } from "../src/identity.ts";
+import { isDesktopChannel } from "../src/update-releases.ts";
 
 interface Feed {
   version: string;
@@ -45,6 +46,7 @@ function isFeed(value: unknown): value is Feed {
 // Every macOS runner emits <channel>-mac.yml (only arm64 today). Merge their files arrays
 // instead of allowing download-artifact's last writer to remove an architecture.
 export async function mergeDesktopUpdates(source: string, destination: string, channel: string, version: string) {
+  if (!isDesktopChannel(channel)) throw new Error(`Invalid desktop update channel: ${channel}`);
   const identity = desktopIdentity(channel);
   const feeds = new Map<string, Feed>();
   mkdirSync(destination, { recursive: true });

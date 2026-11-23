@@ -215,7 +215,7 @@ jobs:
         if: matrix.target == 'darwin-arm64'
         shell: bash
         run: |
-          for channel in stable beta nightly; do
+          for channel in stable beta nightly development; do
             iconset="$RUNNER_TEMP/canopy-$channel.iconset"
             iconutil -c iconset -o "$iconset" "apps/web/static/channels/$channel/icon.icns"
             for size in 16 32; do
