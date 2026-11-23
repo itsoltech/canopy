@@ -2,7 +2,7 @@ import type { LogSource } from "./limits.ts";
 
 const stages = "discovery|registration|authorization|state";
 const status = "0|[1-5][0-9]{2}";
-const network = "ECONNREFUSED|EHOSTUNREACH|ENETUNREACH|ETIMEDOUT|dns|timeout|transport";
+const network = "ECONNREFUSED|EHOSTUNREACH|ENETUNREACH|EADDRNOTAVAIL|ETIMEDOUT|dns|timeout|transport";
 
 const startFailed = new RegExp(
   `^connectors: oauth start failed stage (${stages}) status (${status})(?: network (${network}))?$`,

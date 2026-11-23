@@ -115,9 +115,10 @@ zachowując nazwę hosta dla TLS. Dla celu wskazanego w metadanych wszystkie odp
 muszą być publiczne. Prywatny adres jest dopuszczony dla dokładnego origin wpisanego przez
 właściciela serwera MCP lub zarejestrowanego wystawcy. Inny port jest osobnym origin.
 W obrębie operacji OAuth gateway zachowuje listę zweryfikowanych adresów dla originu
-i preferuje adres, który odpowiedział. Po odmowie TCP, braku trasy lub upływie
-2 sekund na zestawienie TCP próbuje kolejnego adresu z tej samej listy, bez
-ponownego DNS. Próby odbywają się sekwencyjnie w ramach 20-sekundowego limitu żądania.
+i preferuje adres, który odpowiedział. Gateway próbuje kolejnego adresu z tej
+samej listy po odmowie TCP, braku trasy lub lokalnego adresu źródłowego albo
+upływie 2 sekund na zestawienie TCP. Próby odbywają się sekwencyjnie, bez ponownego DNS, w ramach
+20-sekundowego limitu żądania.
 Żądanie HTTP trafia do transportu po zestawieniu TCP. Błąd TLS, przerwanie
 odpowiedzi i status HTTP kończą bieżące żądanie bez przejścia na inny adres.
 Origin rozpoznany jako publiczny pozostaje publiczny przy wymianie kodu,

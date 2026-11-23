@@ -1,5 +1,7 @@
 import { describe, expect, test } from "bun:test";
 import { discoverOAuthServerInfo } from "@modelcontextprotocol/sdk/client/auth.js";
+import { BasicConstraintsExtension, SubjectAlternativeNameExtension, X509CertificateGenerator } from "@peculiar/x509";
+import { getCACertificates, setDefaultCACertificates } from "node:tls";
 import { oauthEgress } from "../../apps/gateway/src/connectors/oauth-egress.ts";
 import { OAuthConnectFailure } from "../../apps/gateway/src/connectors/oauth-network.ts";
 
@@ -11,7 +13,7 @@ describe("OAuth address fallback", () => {
   const resource = "https://public.example.test/mcp";
   const token = new URL("/token", resource);
 
-  test.each(["ECONNREFUSED", "EHOSTUNREACH", "ENETUNREACH", "ETIMEDOUT"] as const)(
+  test.each(["ECONNREFUSED", "EHOSTUNREACH", "ENETUNREACH", "EADDRNOTAVAIL", "ETIMEDOUT"] as const)(
     "falls back after TCP %s without another lookup, then prefers the working address",
     async (code) => {
       let resolutions = 0;
@@ -86,12 +88,29 @@ describe("OAuth address fallback", () => {
     expect(attempts).toEqual([6]);
   });
 
-  test("dials the validated IP directly and sends one POST after a real refused connection", async () => {
+  test("dials the validated IP directly with TLS hostname verification and sends only one POST", async () => {
+    const hostname = "oauth.example.invalid";
+    const keys = await crypto.subtle.generateKey({ name: "ECDSA", namedCurve: "P-256" }, true, ["sign", "verify"]);
+
+    const certificate = await X509CertificateGenerator.createSelfSigned({
+      name: `CN=${hostname}`,
+      keys,
+      signingAlgorithm: { name: "ECDSA", hash: "SHA-256" },
+      extensions: [
+        new BasicConstraintsExtension(true),
+        new SubjectAlternativeNameExtension([{ type: "dns", value: hostname }]),
+      ],
+    });
+
+    const cert = certificate.toString("pem");
+    const privateKey = Buffer.from(await crypto.subtle.exportKey("pkcs8", keys.privateKey)).toString("base64");
+    const trusted = getCACertificates();
     const received: string[] = [];
 
     const provider = Bun.serve({
       hostname: "127.0.0.1",
       port: 0,
+      tls: { cert, key: `-----BEGIN PRIVATE KEY-----\n${privateKey}\n-----END PRIVATE KEY-----\n` },
       async fetch(request) {
         received.push(request.headers.get("host") ?? "", await request.text());
 
@@ -100,20 +119,27 @@ describe("OAuth address fallback", () => {
     });
 
     try {
-      const host = `localhost:${provider.port}`;
-      const url = `http://${host}/token`;
+      setDefaultCACertificates([...trusted, cert]);
+      const host = `${hostname}:${provider.port}`;
+      const url = `https://${host}/token`;
 
-      const transport = oauthEgress(url, undefined, {
-        resolve: async () => [
-          { address: "::1", family: 6 },
-          { address: "127.0.0.1", family: 4 },
-        ],
-      });
+      const resolve = async () => [
+        { address: "::1", family: 6 },
+        { address: "127.0.0.1", family: 4 },
+      ];
 
-      expect((await transport.fetch(url, { method: "POST", body: "code=fixture" })).status).toBe(204);
+      expect(
+        (await oauthEgress(url, undefined, { resolve }).fetch(url, { method: "POST", body: "code=fixture" })).status,
+      ).toBe(204);
+      const mismatched = `https://wrong.example.invalid:${provider.port}/token`;
+
+      await expect(
+        oauthEgress(mismatched, undefined, { resolve }).fetch(mismatched, { method: "POST" }),
+      ).rejects.toMatchObject({ code: "transport" });
       expect(received).toEqual([host, "code=fixture"]);
     } finally {
-      provider.stop(true);
+      setDefaultCACertificates(trusted);
+      await provider.stop(true);
     }
   });
 });

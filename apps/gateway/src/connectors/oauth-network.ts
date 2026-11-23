@@ -1,10 +1,13 @@
-import { Predicate } from "effect";
+import { Predicate, Schema } from "effect";
 import { createConnection, type Socket } from "node:net";
 import { ConnectorFailure } from "./records.ts";
 
 export type Address = { address: string; family: number };
 
-type ConnectCode = "ECONNREFUSED" | "EHOSTUNREACH" | "ENETUNREACH" | "ETIMEDOUT";
+const connectCode = Schema.Literals(["ECONNREFUSED", "EHOSTUNREACH", "ENETUNREACH", "EADDRNOTAVAIL", "ETIMEDOUT"]);
+const isConnectCode = Schema.is(connectCode);
+
+type ConnectCode = typeof connectCode.Type;
 
 export class OAuthNetworkFailure extends ConnectorFailure {
   constructor(readonly code: ConnectCode | "dns" | "timeout" | "transport") {
@@ -33,8 +36,7 @@ export function connectPinned(address: Address, port: number, signal: AbortSigna
       socket.off("connect", onConnect);
       const code = Predicate.hasProperty(error, "code") ? error.code : undefined;
 
-      if (code === "ECONNREFUSED" || code === "EHOSTUNREACH" || code === "ENETUNREACH" || code === "ETIMEDOUT")
-        reject(new OAuthConnectFailure(code));
+      if (isConnectCode(code)) reject(new OAuthConnectFailure(code));
       else reject(error);
     };
 
