@@ -46,52 +46,55 @@ export class WorkspaceDraft {
   error = $state<string | undefined>(undefined);
   #picks = $state.raw<Picks>();
   #target: () => WorkspaceTarget | undefined;
+  #readyWorkspace = $derived.by(() => {
+    const target = this.#target();
+
+    return target?.ready ? target.workspaceId : "";
+  });
   #loaded = "";
+  #readAbort?: AbortController;
 
   constructor(target: () => WorkspaceTarget | undefined) {
     this.#target = target;
     $effect(() => {
-      const current = this.#target();
-      const key = current?.ready ? current.workspaceId : "";
+      const workspaceId = this.#readyWorkspace;
+      this.#loaded = workspaceId;
+      this.refs = undefined;
+      this.error = undefined;
+      this.loading = Boolean(workspaceId);
 
-      if (key !== this.#loaded) void this.#load(key);
+      if (!workspaceId) return;
+      void this.#read(workspaceId, true);
+
+      return () => this.#readAbort?.abort();
     });
-  }
-
-  async #load(workspaceId: string): Promise<void> {
-    this.#loaded = workspaceId;
-    this.refs = undefined;
-    this.error = undefined;
-    this.loading = Boolean(workspaceId);
-
-    if (!workspaceId) return;
-
-    try {
-      const refs = await listGitRefs(workspaceId);
-
-      if (this.#loaded === workspaceId) this.refs = refs;
-    } catch (cause) {
-      if (this.#loaded === workspaceId) this.error = cause instanceof Error ? cause.message : "Refs are unavailable";
-    } finally {
-      if (this.#loaded === workspaceId) this.loading = false;
-    }
   }
 
   /** Opening the picker re-reads Git; keep the current choices visible while refreshing. */
   async refresh(): Promise<void> {
-    const workspaceId = this.#loaded;
+    if (this.#loaded && !this.loading) await this.#read(this.#loaded, false);
+  }
 
-    if (!workspaceId) return;
+  async #read(workspaceId: string, initial: boolean): Promise<void> {
+    this.#readAbort?.abort();
+    const { signal } = (this.#readAbort = new AbortController());
 
     try {
-      const refs = await listGitRefs(workspaceId);
+      const refs = await listGitRefs(workspaceId, signal);
 
-      if (workspaceId === this.#loaded) {
+      if (!signal.aborted) {
         this.refs = refs;
         this.error = undefined;
       }
-    } catch {
-      if (workspaceId === this.#loaded) this.error = "Could not refresh worktrees. Reopen the picker to retry.";
+    } catch (cause) {
+      if (!signal.aborted)
+        this.error = initial
+          ? cause instanceof Error
+            ? cause.message
+            : "Refs are unavailable"
+          : "Could not refresh worktrees. Reopen the picker to retry.";
+    } finally {
+      if (initial && !signal.aborted) this.loading = false;
     }
   }
 
