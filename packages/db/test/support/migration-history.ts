@@ -200,4 +200,5 @@ export const expectedSchemaMigrations = [
   "203_managed_mobile_push",
   "204_mobile_push_relay_choice",
   "205_mobile_push_revocations",
+  "206_mobile_push_managed_selection",
 ];

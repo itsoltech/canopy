@@ -4,7 +4,7 @@ import { createDecipheriv, createHash, randomBytes } from "node:crypto";
 import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { create } from "@bufbuild/protobuf";
+import { create, toJsonString } from "@bufbuild/protobuf";
 import { Provider, ui } from "@canopy/contracts";
 import { dockerAvailable } from "@canopy/db/testing";
 import { Code, ConnectError } from "@connectrpc/connect";
@@ -12,6 +12,7 @@ import { BasicConstraintsExtension, SubjectAlternativeNameExtension, X509Certifi
 import { Effect, Schema } from "effect";
 import { SqlClient } from "effect/sql";
 import { routedMobileClient } from "../../apps/mobile/src/api/routes.ts";
+import { pairDesktop } from "../../apps/desktop/src/remote-client.ts";
 import { ComputerStore } from "../../apps/gateway/src/computers/store.ts";
 import { mountMobileNetwork } from "../../apps/gateway/src/network/devices.ts";
 import { NetworkAccess } from "../../apps/gateway/src/network/network.ts";
@@ -27,6 +28,7 @@ const readPush = Schema.decodeUnknownPromise(
 );
 
 const transport = nodePinnedTransport();
+const canopyRelay = "https://notifications-relay.canopy.itsol.tech";
 
 async function relayCertificate() {
   const keys = await crypto.subtle.generateKey({ name: "ECDSA", namedCurve: "P-256" }, true, ["sign", "verify"]);
@@ -185,21 +187,45 @@ describe.skipIf(!dockerAvailable)("mobile push from durable gateway events", () 
     await input?.relay.stop(true);
   });
 
-  test("a server limits relay settings to the private BFF service", async () => {
+  test("a server grants relay settings to its BFF and paired desktops", async () => {
     const caps = await gw.api.getClientCapabilities({});
     expect(caps.pushRelaySettings).toBe(true);
     expect(caps.localPushRelaySettings).toBe(false);
-    expect(await gw.api.getPushRelaySettings({})).toEqual(
-      create(ui.PushRelaySettingsSchema, {
-        origin: input.options.origin,
-        hasPrivateCa: true,
-      }),
+    const { origin, bearer, ca } = input.options;
+    const settings = create(ui.PushRelaySettingsSchema, { origin, hasPrivateCa: true, managedOrigin: canopyRelay });
+    expect(await gw.api.getPushRelaySettings({})).toEqual(settings);
+
+    const desktop = await pairDesktop(
+      toJsonString(ui.CreateMobilePairingResponseSchema, await gw.api.createDesktopPairing({})),
     );
+
+    const remote = phone(desktop.token).api;
+    expect((await remote.getClientCapabilities({})).pushRelaySettings).toBe(true);
+    expect(await remote.getPushRelaySettings({})).toEqual(settings);
+
+    try {
+      expect((await remote.updatePushRelaySettings({ origin, caPem: "" })).hasPrivateCa).toBe(false);
+      expect((await gw.api.getPushRelaySettings({})).hasPrivateCa).toBe(false);
+      expect(await remote.updatePushRelaySettings({ useManaged: true })).toEqual(
+        create(ui.PushRelaySettingsSchema, {
+          managedOrigin: canopyRelay,
+          managedAvailable: true,
+          managedEnabled: true,
+        }),
+      );
+      expect(await remote.updatePushRelaySettings({ origin, bearer, caPem: ca })).toEqual(settings);
+    } finally {
+      await gw.api.updatePushRelaySettings({ origin, bearer, caPem: ca });
+    }
+
+    await gw.api.revokeMobileDevice({ id: desktop.deviceId });
+    expect(await connectCode(remote.updatePushRelaySettings({ remove: true }))).toBe(Code.Unauthenticated);
 
     const paired = await pair();
     const subscriber = phone(paired.deviceToken).api;
     expect((await subscriber.getClientCapabilities({})).pushRelaySettings).toBe(false);
     expect(await connectCode(subscriber.getPushRelaySettings({}))).toBe(Code.PermissionDenied);
+    expect(await connectCode(subscriber.updatePushRelaySettings({ remove: true }))).toBe(Code.PermissionDenied);
     expect(await connectCode(phone(SERVICE_TOKEN).api.updatePushRelaySettings({ remove: true }))).toBe(
       Code.PermissionDenied,
     );
@@ -353,7 +379,9 @@ describe.skipIf(!dockerAvailable)("local Desktop relay configuration", () => {
       ).toBe(Code.InvalidArgument);
 
       const saved = await gateway.api.updatePushRelaySettings({ origin, bearer, ...(ca && { caPem: ca }) });
-      expect(saved).toEqual(create(ui.PushRelaySettingsSchema, { origin, hasPrivateCa: true }));
+      expect(saved).toEqual(
+        create(ui.PushRelaySettingsSchema, { origin, hasPrivateCa: true, managedOrigin: canopyRelay }),
+      );
       expect((await subscriber.getClientCapabilities({})).mobilePush).toBe(true);
       expect(await connectCode(gateway.api.updatePushRelaySettings({ origin: "https://other.example" }))).toBe(
         Code.InvalidArgument,
@@ -388,7 +416,9 @@ describe.skipIf(!dockerAvailable)("local Desktop relay configuration", () => {
       await gateway.core.mobilePush.dispatch();
       expect(input.received).toHaveLength(1);
       expect(openPreview(input.received[0]!, previewKey)).toContain("Finished · Echo: Private reply");
-      expect(await gateway.api.updatePushRelaySettings({ remove: true })).toEqual(create(ui.PushRelaySettingsSchema));
+      expect(await gateway.api.updatePushRelaySettings({ remove: true })).toEqual(
+        create(ui.PushRelaySettingsSchema, { managedOrigin: canopyRelay }),
+      );
       expect((await phone(deviceToken).api.getClientCapabilities({})).mobilePush).toBe(false);
     } finally {
       await closeNetwork?.();
@@ -422,19 +452,69 @@ describe.skipIf(!dockerAvailable)("server relay configuration", () => {
         bearer: randomBytes(32).toString("base64url"),
       });
 
-      const expected = create(ui.PushRelaySettingsSchema, { origin: storedOrigin, managedAvailable: true });
+      const expected = create(ui.PushRelaySettingsSchema, {
+        origin: storedOrigin,
+        managedAvailable: true,
+        managedByDefault: true,
+        managedOrigin: managed.origin,
+      });
+
       expect(stored).toEqual(expected);
 
       gateway = await restart();
       expect(await gateway.api.getPushRelaySettings({})).toEqual(expected);
       expect(await gateway.api.updatePushRelaySettings({ remove: true })).toEqual(
-        create(ui.PushRelaySettingsSchema, { managedAvailable: true }),
+        create(ui.PushRelaySettingsSchema, {
+          managedAvailable: true,
+          managedByDefault: true,
+          managedEnabled: true,
+          managedOrigin: managed.origin,
+        }),
       );
 
       gateway = await restart();
       expect((await gateway.api.getPushRelaySettings({})).origin).toBe("");
       expect(gateway.core.mobilePush.managedAvailable).toBe(true);
       expect(gateway.core.mobilePush.manualAvailable).toBe(false);
+    } finally {
+      await gateway.close();
+    }
+  }, 60_000);
+
+  test("a server can opt in to the Canopy relay and turn it off across restarts", async () => {
+    let gateway = await startTestGateway();
+
+    async function restart() {
+      await gateway.close(true);
+
+      return startTestGateway({ storage: gateway });
+    }
+
+    try {
+      const disabled = create(ui.PushRelaySettingsSchema, { managedOrigin: canopyRelay });
+
+      const enabled = create(ui.PushRelaySettingsSchema, {
+        managedOrigin: canopyRelay,
+        managedEnabled: true,
+        managedAvailable: true,
+      });
+
+      expect(await gateway.api.getPushRelaySettings({})).toEqual(disabled);
+      expect(await connectCode(gateway.api.updatePushRelaySettings({ useManaged: true, remove: true }))).toBe(
+        Code.InvalidArgument,
+      );
+      expect(await gateway.api.updatePushRelaySettings({ useManaged: true })).toEqual(enabled);
+
+      gateway = await restart();
+
+      expect(await gateway.api.getPushRelaySettings({})).toEqual(enabled);
+      expect(gateway.core.mobilePush.managedAvailable).toBe(true);
+      expect(await gateway.api.updatePushRelaySettings({ remove: true })).toEqual(disabled);
+
+      gateway = await restart();
+
+      expect(await gateway.api.getPushRelaySettings({})).toEqual(disabled);
+      expect(gateway.core.mobilePush.managedAvailable).toBe(false);
     } finally {
       await gateway.close();
     }

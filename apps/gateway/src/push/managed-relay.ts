@@ -4,7 +4,7 @@ import type { GatewayRole } from "../role.ts";
 import { normalizedRelayOrigin, postPushRelay, PUSH_ID, PUSH_KEY, type RelayTransport } from "./relay.ts";
 import type { PushPlatform } from "./subscriptions.ts";
 
-const DESKTOP_MANAGED_ORIGIN = "https://notifications-relay.canopy.itsol.tech";
+export const DEFAULT_MANAGED_RELAY_ORIGIN = "https://notifications-relay.canopy.itsol.tech";
 const DAY_MS = 86_400_000;
 const MAX_REQUEST_BYTES = 32 * 1024;
 
@@ -19,7 +19,8 @@ export function managedRelayOrigin(value: string) {
 }
 
 export function configuredManagedRelayOrigin(role: GatewayRole, env: Readonly<Record<string, string | undefined>>) {
-  const value = env["CANOPY_MANAGED_PUSH_RELAY_ORIGIN"] ?? (role === "desktop" ? DESKTOP_MANAGED_ORIGIN : undefined);
+  const value =
+    env["CANOPY_MANAGED_PUSH_RELAY_ORIGIN"] ?? (role === "desktop" ? DEFAULT_MANAGED_RELAY_ORIGIN : undefined);
 
   return value ? managedRelayOrigin(value) : undefined;
 }

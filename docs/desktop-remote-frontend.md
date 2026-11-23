@@ -5,7 +5,9 @@ którego aktualne zachowanie dokumentuje [desktop.md](desktop.md#prywatna-kopia-
 Zabezpieczenie lokalnego BFF sesją uruchomienia i współdzielony model odczytu
 w pamięci BFF są zaimplementowane (2026-11-15).
 Parowanie z zaproszenia jest wymagane dla starej instalacji remote bez zapisanego
-poświadczenia UI (2026-11-19). Opis implementacji nie określa dostępności w nightly/beta/stable; tę podają
+poświadczenia UI (2026-11-19). Sparowany Desktop konfiguruje relay powiadomień
+na zdalnym gatewayu, jeśli gateway ogłasza tę możliwość (2026-11-23).
+Opis implementacji nie określa dostępności w nightly/beta/stable; tę podają
 [zasady wydań](release.md) i GitHub Releases.
 
 ## Decyzja
@@ -42,8 +44,8 @@ infrastrukturę urządzeń, ale nie rozszerza uprawnień telefonów.
    i odwołanie, bez kodów i tokenów.
 
 Desktop otrzymuje pełny zakres UI tego samego właściciela, włącznie z administracją
-urządzeń, workerów i Network access. To świadomy odpowiednik zalogowanego web UI,
-a nie uprawnienie między właścicielami. Telefony zachowują ograniczony zakres UI;
+urządzeń, workerów i Network access, w tym relaya powiadomień push. Zakres
+odpowiada zalogowanemu web UI tego właściciela. Telefony zachowują ograniczony zakres UI;
 dodatkowo nie mogą tworzyć enrollmentu ani rotować poświadczeń workera.
 Nie ma parametru pozwalającego klientowi wybrać właściciela. Zapytania core/store
 pozostają ograniczone do właściciela gatewaya. Nie zmieniamy sekretów dostawców

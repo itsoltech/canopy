@@ -6,7 +6,8 @@ pingu użycia z przełącznikiem prywatności i pomijaniem wysyłki offline. Akt
 udostępniają licencje dołączonych komponentów. Powłoka ładowania
 korzysta z wyglądu tej instalacji także przy niedostępnym gatewayu.
 Desktop w trybie lokalnym aktywuje relay Canopy po weryfikacji sparowanego
-telefonu. Własny relay można skonfigurować przez **Settings → Network access**.
+telefonu. Od 2026-11-23 oba tryby Desktopu pozwalają wybrać relay Canopy lub
+skonfigurować własny na bieżącym gatewayu przez **Settings → Network access**.
 Gateway szyfruje poświadczenie i stosuje zapis bez restartu.
 [Konfiguracja relaya](deploy.md#relay-powiadomień-push).
 Build przypina Electron 45.4.1,

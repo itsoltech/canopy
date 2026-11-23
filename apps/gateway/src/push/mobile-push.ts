@@ -5,7 +5,7 @@ import type { CoreRuntime, GatewayCoreOptions } from "../core/core-context.ts";
 import { decryptSecret } from "../store/secrets.ts";
 import { encryptPushPreview, readPushPreview } from "./previews.ts";
 import { EXPO_TOKEN, PUSH_ID, PUSH_KEY, relayPush, type PushRelayOptions } from "./relay.ts";
-import { loadPushRelaySettings, savePushRelaySettings, updatedRelayOptions } from "./relay-settings.ts";
+import { loadPushRelaySettings, savePushRelaySettings, updatedRelayChoice } from "./relay-settings.ts";
 import { claimPushJobs, livePushDelivery, resolveMobilePush, settlePushJob, type PushJob } from "./store.ts";
 import {
   beginManagedMobilePush,
@@ -13,7 +13,7 @@ import {
   pushGrantKey,
   type ManagedPushOptions,
 } from "./managed-enrollment.ts";
-import { managedRelayOrigin, revokePushGrant } from "./managed-relay.ts";
+import { DEFAULT_MANAGED_RELAY_ORIGIN, managedRelayOrigin, revokePushGrant } from "./managed-relay.ts";
 import { invalidatePushGrant } from "./managed-store.ts";
 import { claimPushRevocations, settlePushRevocation } from "./revocation-store.ts";
 import { expoTokenHash, pushRegistration, setMobilePushSubscription } from "./subscriptions.ts";
@@ -35,6 +35,7 @@ export class MobilePush {
   #queue: Promise<unknown> = Promise.resolve();
   readonly #relaySettingsKey: Buffer | undefined;
   readonly #managed: ManagedPushOptions | undefined;
+  readonly #managedByDefault: boolean;
 
   static forGateway({ runtime, userId, managedMobilePush, relaySettingsKey, log }: GatewayCoreOptions) {
     return new MobilePush(runtime, userId, undefined, log, relaySettingsKey, managedMobilePush);
@@ -49,7 +50,10 @@ export class MobilePush {
     managed?: ManagedPushOptions,
   ) {
     this.#relaySettingsKey = relaySettingsKey;
-    this.#managed = managed && { ...managed, origin: managedRelayOrigin(managed.origin) };
+    this.#managedByDefault = !!managed;
+    this.#managed = managed
+      ? { ...managed, origin: managedRelayOrigin(managed.origin) }
+      : relaySettingsKey && { origin: DEFAULT_MANAGED_RELAY_ORIGIN, secretsKey: relaySettingsKey };
     this.#replaceRelay(options);
   }
 
@@ -76,8 +80,8 @@ export class MobilePush {
     });
 
     if (saved !== undefined || deploymentDefaults) {
-      const selected = saved === undefined ? deploymentDefaults?.() : saved;
-      this.#replaceRelay(selected ? { ...selected, secretsKey: key } : undefined);
+      const custom = saved === undefined ? deploymentDefaults?.() : saved.custom;
+      this.#replaceRelay(custom && { ...custom, secretsKey: key }, saved?.useManaged || this.#managedByDefault);
     }
   }
 
@@ -87,7 +91,10 @@ export class MobilePush {
     return create(ui.PushRelaySettingsSchema, {
       origin: options?.origin ?? "",
       hasPrivateCa: !!options?.ca,
-      managedAvailable: this.#managed !== undefined,
+      managedAvailable: this.#managedByDefault || this.managedAvailable,
+      managedOrigin: this.#managed?.origin ?? "",
+      managedEnabled: this.managedAvailable,
+      managedByDefault: this.#managedByDefault,
     });
   }
 
@@ -97,12 +104,15 @@ export class MobilePush {
 
       if (!key || this.#closed) throw new ConnectError("Push relay settings are unavailable", Code.Unavailable);
       const current = this.#relay?.kind === "manual" ? this.#relay.options : undefined;
-      const next = updatedRelayOptions(input, current);
-      const changed = next?.origin !== current?.origin || next?.bearer !== current?.bearer || next?.ca !== current?.ca;
-      await this.runtime.runPromise(savePushRelaySettings(this.userId, key, next, current?.origin !== next?.origin));
+      const choice = updatedRelayChoice(input, current);
+      const next = choice.custom;
+      const useManaged = !next && (choice.useManaged || this.#managedByDefault);
+      const changedRoute = this.managedAvailable !== useManaged || next?.origin !== current?.origin;
+      const changed = changedRoute || next?.bearer !== current?.bearer || next?.ca !== current?.ca;
+      await this.runtime.runPromise(savePushRelaySettings(this.userId, key, choice, changedRoute));
 
       if (changed) {
-        this.#replaceRelay(next && { ...next, secretsKey: key });
+        this.#replaceRelay(next && { ...next, secretsKey: key }, useManaged);
         this.#schedule();
       }
 
@@ -260,14 +270,16 @@ export class MobilePush {
       this.log?.("Mobile push revocation deferred");
   }
 
-  #replaceRelay(options: MobilePushOptions | undefined) {
+  #replaceRelay(options: MobilePushOptions | undefined, useManaged = this.#managedByDefault) {
     this.#relay?.abort.abort();
     const abort = new AbortController();
     this.#relay = this.#closed
       ? undefined
       : options
         ? { kind: "manual", options, abort }
-        : this.#managed && { kind: "managed", options: this.#managed, abort };
+        : useManaged && this.#managed
+          ? { kind: "managed", options: this.#managed, abort }
+          : undefined;
 
     if (!this.#relay) {
       clearInterval(this.#timer);

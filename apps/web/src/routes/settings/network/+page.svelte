@@ -196,7 +196,10 @@
     <SettingsRow title={network.error ? "Addresses unavailable" : "Loading addresses…"} />
   </SettingsGroup>
 {/if}
-{#if capabilities?.pushRelaySettings}<PushRelaySettings />{/if}
+{#if capabilities?.pushRelaySettings}
+  {#key capabilities.clientPreferencesScope}<PushRelaySettings gatewayScope={capabilities.clientPreferencesScope} />
+  {/key}
+{/if}
 <HostnameDialog
   bind:open={hostnameOpen}
   busy={network.busy}

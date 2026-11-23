@@ -42,7 +42,7 @@ message ClientCapabilities {
   bool local_push_relay_settings = 10;
   // This paired phone can enroll for the managed relay using app attestation.
   bool managed_mobile_push = 11;
-  // This gateway's BFF service identity can configure its push relay.
+  // The authenticated BFF service or paired desktop can configure this gateway's push relay.
   bool push_relay_settings = 12;
   // A manually configured push relay is available to this paired mobile client.
   bool mobile_push = 13;
@@ -90,8 +90,13 @@ message PushRelaySettings {
   // Empty when no custom relay is configured. The bearer and CA are write-only.
   string origin = 1;
   bool has_private_ca = 2;
-  // The local gateway can enroll opted-in phones with the managed Canopy relay.
+  // The gateway uses or automatically falls back to a managed relay.
   bool managed_available = 3;
+  // The managed relay the owner can select. Absent from older gateways.
+  string managed_origin = 4;
+  bool managed_enabled = 5;
+  // Removing a custom relay automatically restores the managed relay.
+  bool managed_by_default = 6;
 }
 message UpdatePushRelaySettingsRequest {
   bool remove = 1;
@@ -100,6 +105,8 @@ message UpdatePushRelaySettingsRequest {
   string bearer = 3;
   // Omit to keep the CA at the same origin. Send an empty string to use system trust.
   optional string ca_pem = 4;
+  // Select the managed relay without supplying a custom relay credential.
+  bool use_managed = 5;
 }
 message SetMobilePushSubscriptionRequest {
   bool enabled = 1;

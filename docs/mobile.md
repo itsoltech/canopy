@@ -864,9 +864,9 @@ Włącz **System notifications** i udziel zgody systemowej. Gdy gateway korzysta
 z relaya Canopy, relay weryfikuje aplikację i wydaje poświadczenie dla tego telefonu.
 To domyślna konfiguracja lokalnego Desktopu. Ponowna atestacja odbywa się przy
 otwarciu aplikacji, bez ponownego pytania o zgodę systemową. W trakcie weryfikacji
-obowiązuje dotychczasowe poświadczenie, dopóki jest ważne. Własny relay można
-ustawić w webie serwerowym lub lokalnym Desktopie w **Settings → Network access →
-Mobile push relay**.
+obowiązuje dotychczasowe poświadczenie, dopóki jest ważne. Relay Canopy lub
+własny relay można wybrać w webie serwerowym i w obu trybach Desktopu w
+**Settings → Network access → Mobile push relay**.
 
 Wyłączenie **System notifications** zapisuje wybór na telefonie i usuwa lokalny
 klucz podglądu także offline. Aplikacja ponawia wyrejestrowanie przy następnym

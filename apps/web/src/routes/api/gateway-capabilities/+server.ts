@@ -1,20 +1,19 @@
 import { json } from "@sveltejs/kit";
-import { gatewayCompatibility, clientPreferencesScope, hasGatewayServiceAccess } from "#lib/server/gateway.ts";
+import { gatewayCompatibility, clientPreferencesScope } from "#lib/server/gateway.ts";
 import { isLocalDesktop } from "#lib/server/desktop-origin.ts";
 import type { RequestHandler } from "./$types";
 
 export const GET: RequestHandler = async () => {
-  const compatibility = await gatewayCompatibility();
+  const scope = clientPreferencesScope();
   const localDesktop = isLocalDesktop();
-  const pushRelaySettings = hasGatewayServiceAccess() ? compatibility.pushRelaySettings : false;
+  const compatibility = await gatewayCompatibility();
 
   return json(
     {
       ...compatibility,
-      clientPreferencesScope: clientPreferencesScope(),
+      clientPreferencesScope: scope,
       localDesktop,
-      pushRelaySettings,
-      localPushRelaySettings: localDesktop && pushRelaySettings === true,
+      localPushRelaySettings: localDesktop && compatibility.pushRelaySettings === true,
     },
     { headers: { "cache-control": "no-store" } },
   );
