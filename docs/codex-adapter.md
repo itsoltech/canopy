@@ -1,7 +1,8 @@
 # Adapter Codex (app-server)
 
-Aktualizacja (2026-11-23): worker migruje twarde dowiązania logowania Codexa na
-Windowsie, również w katalogach zapisanych rozmów botów.
+Aktualizacja (2026-11-23): worker przywraca zapis historii Codexa potrzebny do
+forka po archiwizacji. Na Windowsie migruje twarde dowiązania logowania Codexa,
+również w katalogach zapisanych rozmów botów.
 
 Aktualizacja (2026-11-22): nazwany profil offline używa osobnego identyfikatora
 uprawnień w Codexie. Adapter porównuje politykę przy starcie i przy wznowieniu.
@@ -95,6 +96,11 @@ Gotowe:
 - **Żądania serwera:** zgody na komendy i zmiany plików, uprawnienia, pytania i elicitation idą do brokera interakcji, a `item/tool/call` (narzędzia szyny) do gateway. Inne żądania kończą się błędem JSON-RPC.
 
 **Fork od tury** ([threads.md](threads.md#fork-od-tury-fork-from-here)): `thread/fork { threadId: źródło, lastTurnId: provider_turn_ref tury }` (codex-cli 0.164, schemat v2 `ThreadForkParams.lastTurnId`: tury po niej są pominięte; nie z tury w toku, a tury nieudane i przerwane są dozwolone). `thread/rollback` nie jest potrzebny. Bez `after_provider_turn_ref` przy podanej turze worker odmawia (`FORK_POINT_UNKNOWN`) zamiast forkować całą historię. Na żywo: `fork-from-turn.live.test.ts` (trzy tury, fork od drugiej pamięta drugą jako ostatnią).
+
+Gdy Codex odrzuci `thread/fork` z powodu zarchiwizowanej sesji źródłowej,
+worker przywraca jej rollout przez `thread/unarchive` i raz ponawia żądanie
+z tym samym `lastTurnId`. Dotyczy też cofania historii opartego na `thread/fork`.
+Przywrócenie rolloutu nie ładuje wątku źródłowego ani nie uruchamia jego tur.
 
 ## Kompresja historii na dysku
 
