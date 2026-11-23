@@ -111,6 +111,28 @@ function resumeThread(
     );
 }
 
+function forkThread(
+  ctx: CodexThreadContext,
+  threadId: string,
+  params: v2.ThreadForkParams,
+  operation: "fork" | "rewind",
+) {
+  const fork = ctx.codex.request("thread/fork", params);
+
+  return fork.pipe(
+    Effect.catch((error) => {
+      if (error.code !== -32600 || !error.message.includes(`session ${params.threadId} is archived.`))
+        return Effect.fail(error);
+
+      // Another fork or a cold resume may restore the rollout before unarchive runs.
+      return ctx.codex
+        .request("thread/unarchive", { threadId: params.threadId })
+        .pipe(Effect.ignore, Effect.andThen(fork));
+    }),
+    Effect.mapError(fail(threadId, operation)),
+  );
+}
+
 export function threadSessions(ctx: CodexThreadContext) {
   const { options, codex, byPlatform } = ctx;
   const loading = Semaphore.makeUnsafe(1);
@@ -217,13 +239,12 @@ export function threadSessions(ctx: CodexThreadContext) {
 
       const response = request.empty
         ? yield* startThread(ctx, spec, params, "rewind")
-        : yield* codex
-            .request("thread/fork", {
-              ...params,
-              threadId: request.sourceProviderThreadId,
-              lastTurnId: request.afterProviderTurnRef,
-            })
-            .pipe(Effect.mapError(fail(spec.threadId, "rewind")));
+        : yield* forkThread(
+            ctx,
+            spec.threadId,
+            { ...params, threadId: request.sourceProviderThreadId, lastTurnId: request.afterProviderTurnRef },
+            "rewind",
+          );
 
       yield* verifySandboxResponse(ctx, spec, profile, response);
 
@@ -245,13 +266,16 @@ export function threadSessions(ctx: CodexThreadContext) {
       const { params, profile } = yield* prepareThread(ctx, spec, "create");
 
       const response = fork
-        ? yield* codex
-            .request("thread/fork", {
+        ? yield* forkThread(
+            ctx,
+            spec.threadId,
+            {
               threadId: fork.sourceProviderThreadId,
               ...(fork.afterProviderTurnRef && { lastTurnId: fork.afterProviderTurnRef }),
               ...params,
-            })
-            .pipe(Effect.mapError(fail(spec.threadId, "fork")))
+            },
+            "fork",
+          )
         : yield* startThread(ctx, spec, params, "create");
 
       yield* verifySandboxResponse(ctx, spec, profile, response);

@@ -1,4 +1,4 @@
-import { appendFileSync, mkdirSync, existsSync, renameSync } from "node:fs";
+import { appendFileSync, copyFileSync, mkdirSync, existsSync, renameSync } from "node:fs";
 import { join } from "node:path";
 import { createInterface } from "node:readline";
 import type { JsonObject } from "@canopy/domain";
@@ -20,11 +20,12 @@ for await (const line of createInterface({ input: process.stdin })) {
   const method = jsonString(request["method"])!;
   const params = jsonObject(request["params"]) ?? {};
   let threadId = jsonString(params["threadId"]) ?? "";
+  const lastTurnId = jsonString(params["lastTurnId"]) ?? "";
   const mcp = jsonObject(jsonObject(params["config"])?.["mcp_servers"]);
   const url = jsonString(jsonObject(mcp?.["canopy_connectors"])?.["url"]) ?? "";
   appendFileSync(
     join(root, "trace.jsonl"),
-    `${JSON.stringify({ method, threadId, url, goalStatus: goals.get(threadId) ?? "", pid: process.pid })}\n`,
+    `${JSON.stringify({ method, threadId, lastTurnId, url, goalStatus: goals.get(threadId) ?? "", pid: process.pid })}\n`,
   );
   let result: JsonObject = {};
 
@@ -44,6 +45,23 @@ for await (const line of createInterface({ input: process.stdin })) {
 
     sessions.set(threadId, path);
     result = { thread: { id: threadId, path: null } };
+  } else if (method === "thread/fork") {
+    if (existsSync(join(root, "archived", `${threadId}.jsonl`))) {
+      send({
+        id,
+        error: {
+          code: -32600,
+          message: `session ${threadId} is archived. Run \`codex unarchive ${threadId}\` to unarchive it first.`,
+        },
+      });
+      continue;
+    }
+
+    const forkId = crypto.randomUUID();
+    const path = join(root, "sessions", `${forkId}.jsonl`);
+    copyFileSync(join(root, "sessions", `${threadId}.jsonl`), path);
+    sessions.set(forkId, path);
+    result = { thread: { id: forkId, path: null } };
   } else if (method === "thread/goal/get") result = { goal: { status: goals.get(threadId) ?? "paused" } };
   else if (method === "thread/goal/set") goals.set(threadId, jsonString(params["status"]) ?? "active");
   else if (method === "thread/archive") {
