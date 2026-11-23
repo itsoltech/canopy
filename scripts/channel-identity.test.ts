@@ -67,7 +67,7 @@ test("channel presentation preserves Electron installation, crypto, data and upd
     const iconDirectory = join(root, "apps/web/static/channels", channel);
     const master = channel === "development" ? "dev" : channel;
     expect(readFileSync(join(iconDirectory, "icon.svg"), "utf8")).toBe(
-      readFileSync(join(root, `design/brand/app-icons-19/canopy-${master}.svg`), "utf8"),
+      readFileSync(join(root, `design/brand/app-icons/canopy-${master}.svg`), "utf8"),
     );
     const png = readFileSync(join(iconDirectory, "icon-512.png"));
     const metadata = await sharp(png).metadata();

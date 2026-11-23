@@ -1,7 +1,7 @@
 # Canopy Desktop
 
 Status: opis zaimplementowanego runtime i pakowania (2026-11-23). Ekran startu,
-okna, zasobnik i instalatory używają ikon z propozycji 19 dla Stable, Beta,
+okna, zasobnik i instalatory używają osobnych ikon dla Stable, Beta,
 Nightly i lokalnego Dev. Opis obejmuje też dzienny ping użycia z przełącznikiem
 prywatności i pomijaniem wysyłki offline. Aktualizator używa
 `electron-updater` 6.8.11. Build i ustawienia
@@ -850,7 +850,7 @@ Nazwa widoczna i ikona pochodzą z metadanych zbudowanej powłoki. Stable ma naz
 `Canopy` i zielone drzewo na jasnym tle. Beta (`Canopy (Beta)`) ma bursztynowe
 tło i dwa opadające liście. Nightly (`Canopy (Nightly)`) ma fioletowe tło,
 półksiężyc i gwiazdy. Lokalny Dev zachowuje nazwę `Canopy` i ma jasny obrys
-drzewa na niebieskiej siatce. Warianty pokazuje [propozycja 19](../design/brand/app-icons-19).
+drzewa na niebieskiej siatce. [Ikony aplikacji](../design/brand/README.md#ikony-aplikacji)
 
 Lokalne uruchomienie Electron czyta PNG z `apps/web/static/channels/<kanał>/`
 (dla Dev: `development`). Instalator umieszcza wybrany PNG w zasobach aplikacji

@@ -1,7 +1,7 @@
 <h1 align="center">
   <picture>
-    <source media="(prefers-color-scheme: dark)" srcset="design/brand/canopy-arbor-joined-wordmark-inverse.svg">
-    <img src="design/brand/canopy-arbor-joined-wordmark.svg" alt="Canopy" width="254" height="86">
+    <source media="(prefers-color-scheme: dark)" srcset="design/brand/canopy-wordmark-inverse.svg">
+    <img src="design/brand/canopy-wordmark.svg" alt="Canopy" width="254" height="86">
   </picture>
 </h1>
 <p align="center">

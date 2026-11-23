@@ -1,7 +1,7 @@
 # Wydania: wersje, CI, artefakty
 
 Status: opis zaimplementowanego workflow (2026-11-23). Buildy publikują wykazy licencji zależności. Automat sprawdza promocje co godzinę.
-Web, Desktop i mobile używają ikon z propozycji 19. Lokalny Dev ma własny niebieski wariant.
+Web, Desktop i mobile używają ikony danego wydania. Lokalny Dev ma własny niebieski wariant.
 Drzewo kanału w tle sidebara zanika przy wyszukiwarce.
 Natywne CI na macOS sprawdza odczyt małych reprezentacji ikon aplikacji.
 Release buduje i publikuje osobny obraz `canopy-push-relay` dla rewizji zawierających ten cel.
@@ -28,7 +28,7 @@ Zasady commitów i wybór gałęzi: [contributing.md](contributing.md).
 
 Drzewo sięga górnej krawędzi sidebara. Koronę widać za nagłówkiem i przełącznikiem Threads/Bots.
 Pionowy gradient wygasza cały rysunek przy wyszukiwarce, przed pierwszym wątkiem lub botem.
-Cztery warianty SVG zawiera [propozycja 18](../design/brand/README.md#tła-sidebara).
+Wszystkie aplikacje korzystają ze [wspólnych grafik tła](../packages/ui/src/sidebar-art.ts).
 W Dev drzewo ma postać
 niebieskiego rysunku technicznego z siatką i linią wymiarową. W Nightly drzewu
 towarzyszą fioletowe gwiazdy. W Becie obok gładkiej bursztynowej korony opadają
@@ -214,7 +214,7 @@ wersji Intel (darwin-x64) nie budujemy — ani desktopu, ani binarek gatewaya/wo
 
 ### Ikony kanałów
 
-Źródłem ikon są [cztery pliki SVG](../design/brand/app-icons-19). Stable ma ciemnozielone
+Źródłem ikon są [cztery pliki SVG](../design/brand/app-icons). Stable ma ciemnozielone
 drzewo na szałwiowym tle, Beta dwa liście na bursztynowym tle, Nightly półksiężyc
 i gwiazdy na fiolecie, a lokalny Dev niebieski rysunek techniczny. Automaty wydawnicze
 nadal publikują trzy kanały. Gałąź `dev` publikuje Nightly.

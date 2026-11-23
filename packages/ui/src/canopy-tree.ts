@@ -1,5 +1,5 @@
 /**
- * Proposal 13. The 166 × 166 mark places these paths at translate(-4 12.5).
+ * The 166 × 166 mark places these paths at translate(-4 12.5).
  * Use the compound outline for a solid or stroked mark. For separate inks the branches
  * and crown share an edge at each of the three junctions.
  */

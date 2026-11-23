@@ -19,7 +19,7 @@ const mobile = new Map<AppChannel, MobileArtwork>();
 
 for (const channel of ["stable", "beta", "nightly", "development"] as const) {
   const name = channel === "development" ? "dev" : channel;
-  const master = await readFile(join(root, "design/brand/app-icons-19", `canopy-${name}.svg`));
+  const master = await readFile(join(root, "design/brand/app-icons", `canopy-${name}.svg`));
   const directory = join(web, appIdentity(channel).assets);
   await mkdir(directory, { recursive: true });
   await writeFile(join(directory, "icon.svg"), master);
