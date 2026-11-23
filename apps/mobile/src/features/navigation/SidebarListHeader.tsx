@@ -1,10 +1,15 @@
 import { useState, type ReactNode } from "react";
 import { View } from "react-native";
-import { useAnimatedScrollHandler, useDerivedValue, useSharedValue } from "react-native-reanimated";
+import Animated, {
+  useAnimatedScrollHandler,
+  useAnimatedStyle,
+  useDerivedValue,
+  useSharedValue,
+} from "react-native-reanimated";
 import { useContentInsets } from "../../ui/ScreenFrame";
 import { styles, useColors } from "../../ui/theme";
 import { ConnectionBanner } from "./ConnectionStatus";
-import { SidebarBrand, SidebarGradient, SidebarWatermark } from "./SidebarBrand";
+import { SidebarBrand, SidebarBackdrop } from "./SidebarBrand";
 
 /** The scroll view docks one brand row above the visible pane so the toolbar pins at its safe edge. */
 export function useSidebarListHeader(
@@ -14,6 +19,7 @@ export function useSidebarListHeader(
   const insets = useContentInsets();
   const c = useColors();
   const [brandHeight, setBrandHeight] = useState(48);
+  const [controlsHeight, setControlsHeight] = useState(0);
   const [headerHeight, setHeaderHeight] = useState(0);
 
   const [start, setStart] = useState({ y: 0, focusSearch: false });
@@ -21,22 +27,24 @@ export function useSidebarListHeader(
   const scroll = useAnimatedScrollHandler((event) => offset.set(event.contentOffset.y));
   const listTop = useDerivedValue(() => headerHeight + Math.max(0, brandHeight - offset.get()));
 
+  const collapsed = useDerivedValue(() => Math.max(0, Math.min(brandHeight, offset.get())));
+
+  // Rows only pass behind the header once the brand has fully scrolled away.
+  const headerStyle = useAnimatedStyle(() => ({
+    backgroundColor: collapsed.get() >= brandHeight ? c.sidebar : "transparent",
+  }));
+
   // A fresh list opens at its first rows with the same amount of brand visible.
   function beforeSwitch(searchFocused: boolean) {
     setStart({
-      y: Math.max(0, Math.min(brandHeight, offset.get())),
+      y: collapsed.get(),
       focusSearch: searchFocused,
     });
   }
 
   const header = (
-    <View
-      onLayout={(event) => setHeaderHeight(event.nativeEvent.layout.height)}
-      style={{ paddingBottom: 8, backgroundColor: c.sidebar }}
-    >
-      <View style={{ overflow: "hidden" }}>
-        <SidebarGradient topInset={insets.top} offset={-insets.top} />
-        <SidebarWatermark />
+    <Animated.View onLayout={(event) => setHeaderHeight(event.nativeEvent.layout.height)} style={headerStyle}>
+      <View onLayout={(event) => setControlsHeight(event.nativeEvent.layout.height)}>
         <View
           onLayout={(event) => setBrandHeight(event.nativeEvent.layout.height)}
           style={[styles.row, { minHeight: 48, paddingLeft: 16, paddingRight: 8 }]}
@@ -46,10 +54,11 @@ export function useSidebarListHeader(
         {renderControls(beforeSwitch, start.focusSearch)}
       </View>
       <ConnectionBanner />
-    </View>
+    </Animated.View>
   );
 
   return {
+    backdrop: <SidebarBackdrop controlsHeight={controlsHeight} brandHeight={brandHeight} collapsed={collapsed} />,
     brandHeight,
     offset,
     listTop,
