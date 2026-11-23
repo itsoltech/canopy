@@ -26,7 +26,7 @@ import { useSidebarThreads } from "./useSidebarThreads";
 import { SidebarProjectFilter, SidebarSort } from "./SidebarThreadPickers";
 import { CreateBot } from "../bots/CreateBot";
 import { useDevicePreferences } from "../settings/device-preferences";
-import { SidebarBrand, SidebarWatermark } from "./SidebarBrand";
+import { SidebarBrand, SidebarGradient, SidebarWatermark } from "./SidebarBrand";
 
 function useSidebarState() {
   const { session, ready, bots } = useSession();
@@ -298,6 +298,7 @@ function SidebarContent({ state }: { state: ReturnType<typeof useSidebarState> }
 
   return (
     <>
+      <SidebarGradient topInset={insets.top} />
       <View style={[sides, { marginTop: insets.top, overflow: "hidden" }]}>
         <SidebarWatermark />
         <SidebarHeader state={state} />

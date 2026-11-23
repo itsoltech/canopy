@@ -7,7 +7,8 @@ na ekranie głównym telefonu, podczas parowania i w nagłówku sidebara. Kafele
 w nagłówku ma bok 32 dp w każdym kanale. Wydania iOS korzystają z tych samych
 projektów Icon Composer co macOS. Znak wodny
 kanału zaczyna się poniżej górnego bezpiecznego marginesu i zanika przed listą
-wątków i botów. Dzienny ping użycia ma przełącznik
+wątków i botów. W Nightly, Becie i Dev gradient pod drzewem obejmuje także tło paska stanu.
+Dzienny ping użycia ma przełącznik
 prywatności i pomija wysyłkę offline. Settings → Appearance
 zapisuje schemat kolorów, oba motywy i szerokość wątku w instalacji aplikacji.
 Karty edytowalnych plików Markdown mają tryby **Edit**, **Source** i **Rendered**.
@@ -1174,6 +1175,8 @@ Znak wodny jest wyrównany do prawej krawędzi nagłówka, za nazwą Canopy,
 przełącznikiem Threads/Bots i polem wyszukiwania. Rysunek stopniowo zanika,
 aż przy dolnej krawędzi nagłówka staje się całkowicie przezroczysty. Jego obszar
 dopasowuje się do wysokości kontrolek poniżej górnego bezpiecznego marginesu.
+Gradient tła zaczyna się przy górnej krawędzi ekranu i zanika 88 dp poniżej
+bezpiecznego marginesu. Kolory i krycie są [wspólne z webem i desktopem](release.md#ikony-kanałów).
 Listy wątków i botów mają jednolite tło już od pierwszego wiersza. Etykieta
 nieaktywnej zakładki i podpowiedź w polu wyszukiwania mają zwiększony kontrast w obu schematach
 kolorów. W jasnym schemacie ciemniejsze są także podpisy wierszy. Grafika działa
