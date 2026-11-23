@@ -298,7 +298,7 @@ function SidebarContent({ state }: { state: ReturnType<typeof useSidebarState> }
 
   return (
     <>
-      <View style={[sides, { paddingTop: insets.top, overflow: "hidden" }]}>
+      <View style={[sides, { marginTop: insets.top, overflow: "hidden" }]}>
         <SidebarWatermark />
         <SidebarHeader state={state} />
       </View>
