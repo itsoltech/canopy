@@ -6,6 +6,7 @@ Drzewo kanału w tle sidebara zanika przy wyszukiwarce.
 Natywne CI na macOS sprawdza odczyt małych reprezentacji ikony Dev i nazwę
 wyświetlaną przez Finder. Wydania macOS i iOS kompilują ikony z projektów Icon Composer.
 Przed publikacją Release sprawdza nazwę i grafikę także w podpisanej paczce.
+Pakowanie macOS i test natywny CI kompilują ikony na `macos-26`.
 Release buduje i publikuje osobny obraz `canopy-push-relay` dla rewizji zawierających ten cel.
 Pakowanie Desktop i generowanie fingerprintu Expo używają poprawionego `minimatch`.
 Smoke Desktop czeka na zapis trasy Network access przed restartem workera podczas parowania.
@@ -675,6 +676,8 @@ harmonogramu sprawdzeń wymagałaby osobnej polityki.
 nightly, beta i stable. Tylko linux-arm64 pozostaje eksperymentalny (`continue-on-error`):
 buduje go beta i stable, a nightly tylko przy ręcznym dispatchu z `desktop_all_targets: true`
 (dispatch wymaga `expected_sha` z historii gałęzi i wydaje tylko, gdy są niewydane commity).
+Dla darwin-arm64 pakowanie działa na `macos-26`, gdzie `actool` ma systemowe frameworki
+potrzebne do kompilacji ikon. Build runtime i smoke nadal używają `macos-15`.
 
 **Cache.** Pakiety Bun (`~/.bun/install/cache`, klucz z `bun.lock`) we wszystkich jobach z instalacją;
 pobrania Electron/electron-builder w jobach desktop; warstwy obrazów w cache GHA per aplikacja.
@@ -1145,7 +1148,7 @@ do pushu, nie do usuwania). Bez tego job zgłasza `GHCR canopy-…: no access to
   i połącz je z repozytorium (etykieta `org.opencontainers.image.source` robi to automatycznie).
   W *Manage Actions access* nadaj repozytorium rolę **Admin** (retencja nightly usuwa wersje,
   [Retencja nightly](#retencja-nightly)).
-  Runnery `ubuntu-24.04-arm`, `macos-15`, `windows-2025` muszą być dostępne.
+  Runnery `ubuntu-24.04-arm`, `macos-15`, `macos-26` i `windows-2025` muszą być dostępne.
 - Pages: w *Settings → Pages* ustaw źródło **GitHub Actions** (workflow `pages.yml`).
 - GitHub „immutable releases” pozostaw wyłączone ze względu na retencję nightly, która usuwa
   stare wydania i zachowuje tagi. Upload kończy się przed publikacją; ponowienia nie zmieniają

@@ -12,6 +12,7 @@ odebraniem pierwszego stanu z gatewaya.
 Na macOS Finder odczytuje nazwę aplikacji dla danego kanału z `InfoPlist.strings`.
 Finder i Dock renderują ikony Stable, Beta i Nightly z katalogu zasobów skompilowanego
 z projektów Icon Composer. Build Dev używa własnego ICNS z małymi reprezentacjami 1× i 2×.
+Runner `macos-26` kompiluje ikony dla paczek wydania i testu natywnego CI.
 Desktop w trybie lokalnym aktywuje relay Canopy po weryfikacji sparowanego
 telefonu. Od 2026-11-23 oba tryby Desktopu pozwalają wybrać relay Canopy lub
 skonfigurować własny na bieżącym gatewayu przez **Settings → Network access**.
@@ -721,7 +722,7 @@ Pakowanie wydań na macOS wymaga aktywnego Xcode 26 lub nowszego, aby skompilowa
 | --- | --- | --- | --- | --- |
 | Linux x64 | `ubuntu-24.04` | `linux-x64` | AppImage, deb | build + run AppImage |
 | Linux arm64 | `ubuntu-24.04-arm` lub natywny self-hosted ARM64 | `linux-arm64` | AppImage, deb | niewykonana |
-| macOS arm64 | `macos-15` lub self-hosted Apple Silicon | `darwin-arm64` | dmg, zip | niewykonana |
+| macOS arm64 | `macos-26` (pakowanie), `macos-15` (build runtime i smoke) | `darwin-arm64` | dmg, zip | niewykonana |
 | Windows x64 | `windows-2025` | `windows-x64` | NSIS `.exe` + `.blockmap`, feed kanału; Azure Trusted Signing | build, instalacja i smoke sidecarów w workflow wydania |
 
 Linux x64, macOS arm64 i Windows x64 są pełnymi celami każdego kanału: nightly,
