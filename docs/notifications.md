@@ -7,7 +7,8 @@ trybach Desktopu można wybrać relay Canopy albo skonfigurować własny w Netwo
 Relay Canopy obsługuje też automatyczną ponowną atestację i odwołanie poświadczeń.
 Alerty w aplikacji pomijają uśpione wątki w web/desktop i mobile. Na iOS i Androidzie
 baner powiadomienia można zamknąć przesunięciem w górę.
-Web/desktop wysyła powiadomienia tylko z włączonych modułów.
+Web/desktop wysyła powiadomienia tylko z włączonych modułów. Na macOS wybór alertów
+systemowych w ustawieniach Canopy wywołuje natywne pytanie o zgodę.
 Powiadomienia wątków obejmują
 tylko wątki główne i wątki boczne użytkownika. Toasty web/desktop są kartami w prawym dolnym
 rogu, z osobnym nagłówkiem zdarzenia, nazwą i akcją pod treścią oraz większą ikoną
@@ -149,14 +150,22 @@ przywraca i fokusuje okno nadawcy, potem wysyła ścieżkę (`canopy:notificatio
 a renderer nawiguje. Uprawnienie `notifications` w `window-permissions.ts` zostaje
 rezerwą dla Notification API strony.
 
+Na macOS proces main odczytuje zgodę i prosi o nią przez `UNUserNotificationCenter`
+z paczki bieżącego kanału. Alerty o wątkach, botach i aktualizacjach wymagają zgody,
+więc zdarzenie w tle nie wywołuje okna systemowego.
+
 ## Ustawienia
 
 Settings → General → Notifications ([settings-map.md](settings-map.md)), osobno na
 urządzeniu (`localStorage`): **Thread notifications** i **Bot notifications** (Off,
-Notifications, Notifications with sound) oraz **In-app notifications**. Oba wybory
-proszą o zgodę przeglądarki. Ostrzeżenie o zgodzie i przycisk `Enable notifications`
-są pod pierwszym włączonym wierszem. Wątki nie mają wyboru rodzajów zdarzeń, więc
-boty też go nie mają. Preferencje „powiedz mi tylko gdy…” bot trzyma w instrukcjach
+Notifications, Notifications with sound) oraz **In-app notifications**. Włączenie
+alertów o wątkach lub botach prosi o zgodę przeglądarki w webie albo systemu na macOS.
+Canopy zapisuje nowy wybór po uzyskaniu zgody. Gdy wybór został zapisany wcześniej,
+a macOS nadal czeka na decyzję, przycisk `Enable notifications` pod pierwszym
+włączonym wierszem wywołuje pytanie. Po odmowie Canopy wskazuje panel Notifications
+w ustawieniach systemu i sprawdza zgodę ponownie po powrocie do okna.
+Każdy wybór obejmuje wszystkie zdarzenia danego modułu. Preferencje „powiedz mi
+tylko gdy…” bot trzyma w instrukcjach
 ([bots.md](bots.md)).
 
 ## Push na iOS i Androidzie

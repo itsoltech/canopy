@@ -1,4 +1,5 @@
 import { app, dialog, Notification, powerMonitor, shell, type MenuItemConstructorOptions } from "electron";
+import { canShowNotifications } from "./notification-permission.ts";
 import { appUpdateInstaller, checkAppUpdateInstall, createAppUpdater } from "./app-updater.ts";
 import { installAppUpdate, WindowsUpdateAdminError } from "./update-install.ts";
 import { spawnSync } from "node:child_process";
@@ -74,21 +75,24 @@ export class DesktopUpdates {
         beforeInstall: () => checkAppUpdateInstall(this.stagedUpdater),
         downloaded: () => {
           this.stagedUpdater = this.updater;
-
-          if (!Notification.isSupported()) return;
-
-          const notice = new Notification({
-            title: "Canopy",
-            body: "An update is ready. Choose Restart to update in App updates or the application menu.",
-          });
-
-          notice.on("click", () => this.restartIfReady());
-          notice.show();
+          void this.notifyUpdateReady();
         },
       });
     }
 
     return this.controller;
+  }
+
+  private async notifyUpdateReady() {
+    if (!(await canShowNotifications())) return;
+
+    const notice = new Notification({
+      title: "Canopy",
+      body: "An update is ready. Choose Restart to update in App updates or the application menu.",
+    });
+
+    notice.on("click", () => this.restartIfReady());
+    notice.show();
   }
   status() {
     const state = this.control.status();

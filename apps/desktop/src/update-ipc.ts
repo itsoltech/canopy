@@ -8,6 +8,7 @@ import type { DesktopUpdates } from "./updates.ts";
 import type { Logs } from "./runtime/log.ts";
 import { fetchReleaseNotes } from "@canopy/domain/release/notes";
 import { desktopAppHistory } from "./app-update-history.ts";
+import { canShowNotifications } from "./notification-permission.ts";
 
 export function acceptRemoteUpdate(
   remote: RemoteAppUpdate | undefined,
@@ -40,8 +41,8 @@ export function remoteAppUpdate(
     report: async (state) => {
       await rpc("remote-update-state", { updateState: toJsonString(ui.DesktopUpdateStateSchema, state) });
     },
-    notify: (requestedBy) => {
-      if (Notification.isSupported())
+    notify: async (requestedBy) => {
+      if (await canShowNotifications())
         new Notification({
           title: `${requestedBy || "Your gateway owner"} requested an app update`,
           body: "Canopy restarts after the current turns end.",

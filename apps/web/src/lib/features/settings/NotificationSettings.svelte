@@ -12,14 +12,13 @@
 
   type Key = "threadNotifications" | "botNotifications";
 
-  let permission = $state("");
-  let granted = $state(false);
-  let supported = $state(false);
+  let permission = $state<NotificationPermission | "unavailable" | "unsupported">();
   let desktop = $state(false);
+  let macOS = $state(false);
+  let pending = $state<{ key: Key; value: string }>();
+  let attempted = $state<Key>();
   let error = $state<{ key: Key; text: string }>();
-  let notice = $state<{ key: Key; text: string }>();
-
-  const blocked = "Blocked by your browser. Allow notifications in site settings, then retry.";
+  let permissionRead = 0;
 
   const options = [
     { value: "off", label: "Off" },
@@ -46,32 +45,56 @@
 
   const rows = $derived(choices.filter((choice) => settings.moduleEnabled(choice.module)));
 
-  /** The browser permission is shared: its warning and button stay under the first row that is on. */
   const permissionRow = $derived(rows.find((row) => device.values[row.key] !== "off")?.key);
+  const warningRow = $derived(permissionRow ?? attempted);
 
-  function refresh() {
-    desktop = Boolean(window.canopyDesktop?.showNotification);
-    supported = desktop || (window.isSecureContext && "Notification" in window);
-    granted = desktop || (supported && Notification.permission === "granted");
-    permission = desktop
-      ? ""
-      : !supported
-        ? "Notifications need a supported browser. Open Canopy over HTTPS or localhost."
-        : Notification.permission === "denied"
-          ? blocked
-          : "";
+  const canRetry = $derived(
+    permission === "default" || permission === "unavailable" || (permission === "denied" && !desktop),
+  );
+
+  const warning = $derived.by(() => {
+    if (permission === "unsupported") return "Open Canopy over HTTPS or localhost to use browser notifications.";
+
+    if (permission === "denied")
+      return macOS
+        ? "macOS blocks these alerts. Open Notifications in System Settings and allow Canopy."
+        : "Your browser blocks these alerts. Allow notifications for Canopy in site settings.";
+
+    if (permission === "default" && attempted && !permissionRow)
+      return "Choose a notification option again, then select Allow.";
+
+    return "";
+  });
+
+  async function refresh() {
+    if (pending) return;
+    const read = ++permissionRead;
+    const native = window.canopyDesktop?.notificationPermission;
+
+    const status = native
+      ? await native.status().catch(() => "unavailable" as const)
+      : desktop
+        ? "granted"
+        : window.isSecureContext && "Notification" in window
+          ? Notification.permission
+          : "unsupported";
+
+    if (read === permissionRead) permission = status;
   }
 
   onMount(() => {
-    refresh();
+    desktop = Boolean(window.canopyDesktop?.showNotification);
+    macOS = Boolean(window.canopyDesktop?.notificationPermission);
+    void refresh();
     window.addEventListener("focus", refresh);
 
     return () => window.removeEventListener("focus", refresh);
   });
 
   async function change(key: Key, value: string) {
+    if (pending) return;
     error = undefined;
-    notice = undefined;
+    attempted = undefined;
 
     if (value === "off") {
       device.set(key, value);
@@ -79,28 +102,23 @@
       return;
     }
 
+    pending = { key, value };
+    permissionRead++;
+
     try {
-      if (value === "sound") await enableNotificationSound();
-      const result = desktop ? "granted" : supported ? await Notification.requestPermission() : "denied";
-      refresh();
+      if (value === "sound") void enableNotificationSound().catch(() => undefined);
+      const native = window.canopyDesktop?.notificationPermission;
+      permission = await (native ? native.request() : desktop ? "granted" : Notification.requestPermission());
 
-      if (result !== "granted") {
-        // Keep the choice off, and say why: a dismissed prompt leaves no browser state to show.
-        if (!permission)
-          notice = {
-            key,
-            text:
-              result === "denied"
-                ? blocked
-                : "Notifications stay off until you allow them. Choose again, then select Allow.",
-          };
-
-        return;
-      }
-
-      device.set(key, value);
+      if (permission === "granted") device.set(key, value);
+      else attempted = key;
     } catch {
-      error = { key, text: "Notifications could not be enabled. Check your browser or system notification settings." };
+      error = {
+        key,
+        text: "Canopy could not enable these alerts. Check your notification settings and try again.",
+      };
+    } finally {
+      pending = undefined;
     }
   }
 </script>
@@ -108,22 +126,26 @@
 <SettingsGroup title="Notifications" description="This device · Only while a Canopy window is open.">
   {#each rows as row (row.key)}
     {@const value = device.values[row.key]}
-    {@const warning = (permissionRow === row.key && permission) || (notice?.key === row.key && notice.text)}
     <PreferenceRow
       title={row.title}
       description={row.description}
       changed={value !== "off"}
-      onreset={() => device.set(row.key, "off")}
+      onreset={() => change(row.key, "off")}
     >
       <div class="mt-2 grid gap-2 empty:hidden">
-        {#if warning}<Alert tone="warning">{warning}</Alert>{/if}
-        {#if error?.key === row.key}<Alert tone="error">{error.text}</Alert>{/if}
+        {#if error?.key === row.key}
+          <Alert tone="error">{error.text}</Alert>
+        {:else if warningRow === row.key && warning}
+          <Alert tone="warning">{warning}</Alert>
+        {/if}
         {#if !desktop && value === "sound"}
           <p class="text-sm/5 text-zinc-500">After reloading, click or press a key to enable sound.</p>
         {/if}
-        {#if !desktop && supported && !granted && permissionRow === row.key}
+        {#if permissionRow === row.key && canRetry}
           <div>
-            <Button size="sm" onclick={() => change(row.key, value)}>Enable notifications</Button>
+            <Button size="sm" disabled={Boolean(pending)} onclick={() => change(row.key, value)}
+              >Enable notifications</Button
+            >
           </div>
         {/if}
       </div>
@@ -131,9 +153,9 @@
           <Select
             aria-label={row.title}
             {options}
-            {value}
+            value={pending?.key === row.key ? pending.value : value}
             onchange={(next) => change(row.key, next)}
-            disabled={!supported}
+            disabled={permission === "unsupported" || Boolean(pending)}
           />
         </div>{/snippet}
     </PreferenceRow>
