@@ -1,5 +1,6 @@
 import type { Token } from "marked";
 import { isToken, lexMarkdown } from "./lex.ts";
+import { isAbsoluteFilePath, joinThreadPath } from "../thread-files.ts";
 
 export interface LocalMarkdownImage {
   readonly href: string;
@@ -39,6 +40,16 @@ export function localImagePath(href: string): string | undefined {
   if (/^[a-z][\w+.-]*:/i.test(path) && !/^[a-z]:[/\\]/i.test(path)) return;
 
   return path;
+}
+
+/** Resolve an explicit image source against the Markdown file, on either worker OS. */
+export function workspaceImagePath(documentPath: string, href: string): string | undefined {
+  const image = localImagePath(href);
+
+  if (!image || isAbsoluteFilePath(image)) return image;
+  const directory = /^(.*[/\\])[^/\\]+$/.exec(documentPath)?.[1];
+
+  return directory ? joinThreadPath(directory, image) : `./${image.replace(/^\.[/\\]/, "")}`;
 }
 
 /** Locate actual parsed image tokens, advancing over code before searching a following sibling. */

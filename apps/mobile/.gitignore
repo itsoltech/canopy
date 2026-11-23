@@ -21,6 +21,7 @@ expo-env.d.ts
 # Metro
 .metro-health-check*
 /src/features/licenses/notices.generated.json
+/src/features/workspace/markdown-preview.generated.json
 
 # debug
 npm-debug.*

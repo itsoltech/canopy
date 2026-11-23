@@ -2,16 +2,18 @@
   import type { ClassValue } from "svelte/elements";
   import IconButton from "./IconButton.svelte";
   import { toast } from "./toast.svelte.ts";
+  import { useClipboard } from "./clipboard-context.ts";
 
   /** Copies `text` to the clipboard; for a moment the icon turns into a check and the label says so. */
   let { text, label = "Copy", class: className }: { text: string; label?: string; class?: ClassValue } = $props();
 
   let copied = $state(false);
   let timer: ReturnType<typeof setTimeout> | undefined;
+  const writeText = useClipboard();
 
   async function copy() {
     try {
-      await navigator.clipboard.writeText(text);
+      await writeText(text);
     } catch {
       toast("Could not copy. Check clipboard access, then try again.", { tone: "error" });
 

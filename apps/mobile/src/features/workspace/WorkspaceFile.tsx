@@ -15,7 +15,7 @@ import { workspaceFileState } from "./file-state";
 import { WorkspaceReader } from "./WorkspaceReader";
 import { GoToLine } from "./GoToLine";
 import { WorkspaceText } from "./WorkspaceText";
-import { isMarkdownFile, useWorkspaceMarkdown, WorkspaceMarkdown } from "./WorkspaceMarkdown";
+import { isMarkdownFile, WorkspaceMarkdown } from "./WorkspaceMarkdown";
 import { useAppActive } from "../../ui/active";
 import { WorkspaceConflict } from "./WorkspaceConflict";
 import { useOverview } from "../../state/overview";
@@ -78,7 +78,6 @@ export function WorkspaceFile({ view, tab, removed = false }: WorkspaceFileProps
   const name = fileName(document.path);
   const markdown = isMarkdownFile(name);
   const rendered = viewer.editable && markdown && mode === "rendered";
-  const tokens = useWorkspaceMarkdown(rendered ? viewer.draft : undefined, active && !viewer.loading);
 
   useEffect(() => {
     if (!document.editable && !markdown) setMode("edit");
@@ -113,7 +112,7 @@ export function WorkspaceFile({ view, tab, removed = false }: WorkspaceFileProps
   const textView = document.file && !document.file.binary && !viewer.editable;
 
   const preview = rendered ? (
-    <WorkspaceMarkdown tokens={tokens} />
+    <WorkspaceMarkdown text={viewer.draft} document={document} />
   ) : mode === "source" && (document.editable || (markdown && viewer.editable)) ? (
     <WorkspaceText document={document} draft={viewer.draft} />
   ) : undefined;
@@ -134,7 +133,6 @@ export function WorkspaceFile({ view, tab, removed = false }: WorkspaceFileProps
           <WorkspaceReader
             tab={tab}
             name={name}
-            active={active}
             actions={actions}
             onKeep={() => view.keep(tab.id)}
             onLocate={() => setGo(true)}

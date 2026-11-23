@@ -20,6 +20,7 @@
     "./workspace-directory": "./src/workspace-directory.ts",
     "./workspace-changes": "./src/workspace-changes.ts",
     "./markdown-images": "./src/markdown/images.ts",
+    "./markdown-workspace-image": "./src/markdown/workspace-image.ts",
     "./image-replies": "./src/agent-bus/images.ts",
     "./visuals": "./src/visuals/index.ts",
     "./visual-html-source": "./src/visuals/html-source.ts",

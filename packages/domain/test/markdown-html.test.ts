@@ -234,6 +234,26 @@ describe("safe HTML AST boundary", () => {
     );
   });
 
+  test("retains only single-source color scheme variants as inert picture data", () => {
+    expect(
+      nodesOf(
+        '<picture><source media="(prefers-color-scheme: dark)" srcset="dark.svg"><source media="(prefers-color-scheme: light)" srcset="light.svg 2x"><source media="(max-width: 400px)" srcset="small.svg"><img src="logo.svg" alt="Canopy"></picture>',
+      ),
+    ).toEqual([
+      {
+        kind: "image",
+        image: {
+          src: "logo.svg",
+          alt: "Canopy",
+          darkSrc: "dark.svg",
+          lightSrc: undefined,
+          width: undefined,
+          height: undefined,
+        },
+      },
+    ]);
+  });
+
   test("unwraps harmless unknown tags without accepting tag-like escaped text", () => {
     expect(
       nodesOf(

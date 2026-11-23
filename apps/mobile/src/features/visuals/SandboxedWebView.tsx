@@ -1,4 +1,4 @@
-import type { Ref } from "react";
+import { useMemo, type Ref } from "react";
 import { WebView, type WebViewMessageEvent } from "react-native-webview";
 import type { ShouldStartLoadRequest } from "react-native-webview/lib/WebViewTypes";
 
@@ -9,7 +9,7 @@ function allowInitialLoad(loaded: boolean) {
 }
 
 /**
- * The WebView every visual runs in, locked down (docs/agent-visuals.md §4): an inline HTML source with no base URL
+ * The locked-down WebView for local documents (docs/agent-visuals.md §4): an inline HTML source with no base URL
  * (an opaque about:blank document), no file, content or universal access, incognito with no shared or third-party
  * cookies and no DOM storage, no windows, dialogs, media, zoom or link previews, no injected JavaScript and no
  * navigation after the first load. The only channel is `onMessage`, which the caller parses.
@@ -25,16 +25,18 @@ export function SandboxedWebView({
 }: {
   ref: Ref<WebView<object>>;
   html: string;
-  height: number;
+  height?: number;
   loaded: boolean;
   onLoaded: () => void;
   onMessage: (event: WebViewMessageEvent) => void;
   onFailure: () => void;
 }) {
+  const source = useMemo(() => ({ html }), [html]);
+
   return (
     <WebView
       ref={ref}
-      source={{ html }}
+      source={source}
       // Every URL reaches onShouldStartLoadWithRequest; the default list would hand other schemes to the system.
       originWhitelist={["*"]}
       onShouldStartLoadWithRequest={allowInitialLoad(loaded)}
@@ -64,18 +66,18 @@ export function SandboxedWebView({
       allowsFullscreenVideo={false}
       allowsLinkPreview={false}
       allowsBackForwardNavigationGestures={false}
-      dataDetectorTypes="none"
+      dataDetectorTypes={["none"]}
       saveFormDataDisabled
       paymentRequestEnabled={false}
       webviewDebuggingEnabled={false}
       setBuiltInZoomControls={false}
       textZoom={100}
-      scrollEnabled={false}
-      bounces={false}
-      overScrollMode="never"
+      scrollEnabled={height === undefined}
+      bounces={height === undefined}
+      overScrollMode={height === undefined ? undefined : "never"}
       nestedScrollEnabled
-      style={{ flex: 0, height, backgroundColor: "transparent" }}
-      containerStyle={{ flex: 0, height }}
+      style={{ flex: height === undefined ? 1 : 0, height, backgroundColor: "transparent" }}
+      containerStyle={height === undefined ? undefined : { flex: 0, height }}
     />
   );
 }

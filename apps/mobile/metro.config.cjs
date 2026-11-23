@@ -8,11 +8,11 @@ const root = resolve(__dirname, "../..");
 execFileSync(
   "bun",
   [
-    resolve(root, "scripts/open-source-licenses.ts"),
-    "mobile",
+    resolve(root, "apps/web/scripts/mobile-markdown.ts"),
+    resolve(__dirname, "src/features/workspace/markdown-preview.generated.json"),
     resolve(__dirname, "src/features/licenses/notices.generated.json"),
   ],
-  { cwd: root, stdio: "inherit" },
+  { cwd: root, stdio: "inherit", env: { ...process.env, NODE_ENV: "production" } },
 );
 
 // Expo configures Bun workspaces and TS package exports, including contracts, automatically.

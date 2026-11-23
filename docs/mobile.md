@@ -11,6 +11,8 @@ wątków i botów. Dzienny ping użycia ma przełącznik
 prywatności i pomija wysyłkę offline. Settings → Appearance
 zapisuje schemat kolorów, oba motywy i szerokość wątku w instalacji aplikacji.
 Karty edytowalnych plików Markdown mają tryby **Edit**, **Source** i **Rendered**.
+**Rendered** współdzieli renderer plików z web/desktop, w tym bezpieczny HTML,
+lokalne obrazy, Mermaid i wzory KaTeX.
 Od 2026-11-23 opis obejmuje zamykanie banerów powiadomień przesunięciem w górę.
 Profile EAS przypinają Bun 1.4.5
 dla lockfile w wersji 3. Kompozytor pokazuje przypisany [profil Sandbox](sandbox-profiles.md).
@@ -507,11 +509,15 @@ Bardzo długie linie dzieli na fragmenty do 4096 znaków bez utraty treści i pa
 surogatów, pod tym samym numerem.
 Edycja pozostaje natywnym polem tekstowym bez kolorów podczas pisania. Edytowalny
 Markdown otwiera się w **Edit**. **Source** pokazuje szkic z numerami linii,
-a **Rendered** formatuje bieżący szkic, także przed zapisaniem. W widoku tylko do
-odczytu pozostają akcje **View source** i **Render Markdown**. Klient analizuje
-Markdown lokalnie po otwarciu renderowanego widoku. Zapamiętuje ostatni wynik dla
-otwartej karty i wirtualizuje listę bloków najwyższego poziomu. Pisanie w **Edit**
-nie uruchamia analizy Markdown. Podświetlanie źródła i **Preview changes** dla
+a **Rendered** formatuje bieżący szkic, także przed zapisaniem. **Unsaved changes**
+wyświetla się obok ścieżki pliku. W widoku tylko do
+odczytu pozostają akcje **View source** i **Render Markdown**. **Rendered** montuje
+komponent web/desktop w lokalnym WebView. HTML przechodzi przez wspólną listę
+dozwolonych elementów, a Mermaid ładuje się z pakietu aplikacji przy pierwszym
+diagramie. Podgląd obsługuje linki, rozwijane sekcje, tabele i wzory KaTeX. Obrazy
+z repozytorium klient pobiera przez istniejący odczyt pliku wątku. CSP dopuszcza
+skrypty pakietu oraz dane obrazów i czcionek; akcje otwierania plików, linków
+i kopiowania wykonuje aplikacja. Podświetlanie źródła i **Preview changes** dla
 pozostałych plików korzystają z ograniczonych okien tokenów z workera.
 Nie dodajemy modułu natywnego. Link pliku z izolowanego transkryptu przechodzi do
 workspace'u właściwego wątku; załączniki i bloby zachowują swoje viewery.
@@ -2859,7 +2865,7 @@ uprawnień, ale zmienia fingerprint, więc wychodzi tylko w nowym buildzie natyw
   `VisualFrameInbox` (limity 10/s i 4 wysokości/s, parser, walidacja stanu względem
   spec). Wiadomości hosta (motyw, widoczność, reduced motion) idą przez
   `postMessage` z tym samym tokenem; shell przyjmuje je tylko bez `event.source`.
-- **Budżet.** Najwyżej 1 aktywny WebView w aplikacji (`visual-slots.ts`). Visual
+- **Budżet.** Najwyżej 1 aktywny WebView z visualem (`visual-slots.ts`). Visual
   montuje się, gdy jest widoczny i slot jest wolny; „Open visual” zabiera slot innemu
   visualowi, chyba że ten jest na pełnym ekranie. Poza ekranem pauza od razu,
   zwolnienie po 5 s; aplikacja w tle zwalnia od razu. Placeholder trzyma ostatnią
