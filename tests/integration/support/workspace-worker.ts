@@ -1,4 +1,4 @@
-import { chmodSync, copyFileSync, mkdirSync, writeFileSync } from "node:fs";
+import { chmodSync, copyFileSync } from "node:fs";
 import { join } from "node:path";
 import { ManagedRuntime } from "effect";
 import { GatewayStore } from "@canopy/gateway/store";
@@ -6,6 +6,7 @@ import { Journal } from "@canopy/worker/journal";
 import { journalHello, openGatewayLink } from "@canopy/worker/gateway-link";
 import { WorkerHost, serveLink } from "@canopy/worker/runtime";
 import { eventually, type startTestGateway } from "./gateway.ts";
+import { codexFixtureHomes } from "./codex-device.ts";
 
 /** A second real worker of an existing gateway; all filesystem and harness data stay in the fixture. */
 export async function workspaceWorker(
@@ -15,8 +16,7 @@ export async function workspaceWorker(
   copy = true,
   clone: { progress?: boolean; stallTimeoutMs?: number; overallTimeoutMs?: number } = {},
 ) {
-  mkdirSync(dir, { recursive: true });
-  writeFileSync(join(dir, "auth.json"), JSON.stringify({ tokens: { access_token: "fixture" } }));
+  const deviceHomes = codexFixtureHomes(dir);
   const executable = join(dir, "codex");
   copyFileSync(new URL("../fixtures/directory-codex.ts", import.meta.url), executable);
   chmodSync(executable, 0o755);
@@ -43,7 +43,7 @@ export async function workspaceWorker(
     runtime,
     dataDir: dir,
     clientVersion: "test",
-    deviceHomes: { codex: dir, claude: dir },
+    deviceHomes,
   });
 
   const link = await openGatewayLink({
