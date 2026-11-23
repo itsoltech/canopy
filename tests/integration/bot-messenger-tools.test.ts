@@ -284,10 +284,10 @@ describe.skipIf(!dockerAvailable)("external bot tools use ordinary owner grants"
     expect(followups[0]?.conversation_id).toBeTruthy();
     expect((await f.read(bot.id)).messages.filter((m) => m.senderId !== "activity")).toEqual([]);
 
-    const send = async (threadId: string, text: string, sourceThread = conversation) => {
+    const send = async (threadId: string, text: string, sourceThread = conversation, attachmentIds: string[] = []) => {
       const turnId = await begin(
         route,
-        `TOOL:send_message\nARGS:${JSON.stringify({ thread_id: threadId, text, delivery: "queue" })}`,
+        `TOOL:send_message\nARGS:${JSON.stringify({ thread_id: threadId, text, delivery: "queue", attachment_ids: attachmentIds })}`,
         sourceThread,
       );
 
@@ -348,6 +348,9 @@ describe.skipIf(!dockerAvailable)("external bot tools use ordinary owner grants"
       );
       expect((await send(qualifyId(started.id, peer.node), "Wrong home")).text).toContain(
         "Choose a thread on this computer",
+      );
+      expect((await send(qualified, "Forward a file", conversation, [crypto.randomUUID()])).text).toContain(
+        "Files cannot be forwarded to another computer",
       );
       expect(
         await f.query<{ count: number }>(

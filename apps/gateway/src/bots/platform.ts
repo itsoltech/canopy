@@ -142,9 +142,14 @@ export async function prepareBotTool(
 function localBotMessageTarget(core: GatewayCore, call: StoredCall): StoredCall {
   const computers = core.computers;
   const target = call.arguments["thread_id"];
+  const attachments = call.arguments["attachment_ids"];
 
   if (!computers || call.tool.name !== "send_message" || !Predicate.isString(target) || !isEntityId(target))
     return call;
+
+  // Keep the existing forwarding check for qualified targets, including moved threads.
+  if (Array.isArray(attachments) && attachments.length) return call;
+
   const { id, node } = splitId(target);
 
   if (node !== nodeRef(computers.hello().nodeId)) return call;

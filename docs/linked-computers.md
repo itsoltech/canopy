@@ -1,6 +1,6 @@
 # Połączone komputery
 
-Status (2026-11-23): `send_message` bota akceptuje identyfikator z przyrostkiem
+Status (2026-11-23): `send_message` bota bez załączników akceptuje identyfikator z przyrostkiem
 własnego gatewaya. Dostęp do wątku sprawdza jego dom zgodnie z zakresem rozmowy.
 Dostępność w kanałach określa [promocja wydań](release.md).
 

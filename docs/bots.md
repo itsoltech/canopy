@@ -1,6 +1,6 @@
 # Boty
 
-Status (2026-11-23): `send_message` rozpoznaje kwalifikowany identyfikator
+Status (2026-11-23): `send_message` bez załączników rozpoznaje kwalifikowany identyfikator
 wątku na domowym gatewayu bota i sprawdza dostęp dla bieżącej rozmowy.
 Dostępność w kanałach określa [promocja wydań](release.md).
 
@@ -1324,8 +1324,8 @@ mieszka na komputerze workera i ma odwołanie do bota-rodzica w jego domu. Pytan
 wracają łączem, zachowując `hops`; odpowiedź narzędzia na pytanie nadal wymaga zgody bota.
 Wynik pochodzący z rutyny wraca jako jej ukryte wykonanie na domu, bez przenoszenia crona.
 Identyfikator wątku skopiowany z widoku drugiego komputera może wskazywać dom bota.
-`send_message` kieruje wtedy wiadomość lokalnie i stosuje te same reguły właściciela
-i zakresu rozmowy co dla identyfikatora bez przyrostka.
+`send_message` bez załączników kieruje wtedy wiadomość lokalnie i stosuje te same reguły
+właściciela i zakresu rozmowy co dla identyfikatora bez przyrostka.
 
 Rozmowy (włącznie z kartami, rutynami i przypomnieniami) są pełnymi, atomowo podmienianymi
 lustrami do odczytu offline. Zatwierdzona lista z lustra jest też fallbackiem online, gdy
