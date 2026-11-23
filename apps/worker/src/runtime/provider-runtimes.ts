@@ -5,10 +5,17 @@ import { Cause, Effect, Exit, Predicate } from "effect";
 import { classifyFailure } from "@canopy/domain";
 import { Journal } from "../journal/index.ts";
 import { GrokThreads } from "../providers/grok/threads.ts";
-import type { ResolvedProfile } from "../providers/profiles.ts";
+import { providersOf, type ResolvedProfile } from "../providers/profiles.ts";
 import type { AppliedConfig } from "../config/remote.ts";
 import { CommandError } from "./host-types.ts";
-import { matchingProfile, runtimeBusy, runtimeKeys, stopRuntime, wantedRuntimes } from "./instance-runtimes.ts";
+import {
+  instanceKey,
+  matchingProfile,
+  runtimeBusy,
+  runtimeKeys,
+  stopRuntime,
+  wantedRuntimes,
+} from "./instance-runtimes.ts";
 import type { HostContext } from "./host-context.ts";
 
 export class ProviderRuntimes {
@@ -114,11 +121,15 @@ export class ProviderRuntimes {
         if (!active || (!current && !wanted)) {
           const harness = key.split("/")[0];
           const config = this.ctx.state.config;
-          let problem = config?.grok.problem;
 
-          if (harness === "codex") problem = config?.codex.problem;
+          const instance = config?.profiles.find(({ config: profile }) =>
+            providersOf(profile).some((provider) => instanceKey(provider, profile.id) === key),
+          );
 
-          if (harness === "claude") problem = config?.claude.problem;
+          const problem =
+            instance?.problem ??
+            (harness === "codex" || harness === "claude" || harness === "grok" ? config?.[harness].problem : undefined);
+
           throw new CommandError("PROVIDER_UNAVAILABLE", problem ?? "provider instance unavailable", true);
         }
 

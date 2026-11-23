@@ -210,6 +210,13 @@ describe.skipIf(!dockerAvailable)("expired provider sign-in over the gateway↔w
       expect(realpathSync(join(shadow, "auth.json"))).toBe(realpathSync(auth));
       await gw.api.refreshProviders({ ...target, accountOnly: true });
       expect(starts()).toBe(original + 1);
+
+      unlinkSync(auth);
+      await gw.api.refreshProviders({ ...target, accountOnly: true });
+      const signedOut = await send("Try after signing out", thread.id);
+      expect(await finished(signedOut)).toBe("failed");
+      const failure = await sql((s) => s<{ error: string }>`SELECT error FROM turns WHERE id = ${signedOut}::uuid`);
+      expect(failure[0]?.error).toBe(ownLogin ? "not signed in" : "no Codex login on this device");
     }, 75_000);
   }
 

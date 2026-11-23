@@ -3,6 +3,7 @@
 Aktualizacja (2026-11-23): Refresh konta lub workera uwzględnia zmianę pliku
 logowania Codexa w terminalu. Worker wznawia obsługę instancji z nowym loginem,
 gdy zakończą się jej aktywne tury i zadania w tle.
+Jeśli loginu brakuje, próba uruchomienia tury podaje przyczynę niedostępności wybranej instancji.
 
 Status: opis zaimplementowanego kodu (2026-11-17), w tym szerszego wskaźnika
 limitów w sidebarze web/desktop. Dostępność w wydaniach: [release.md](release.md).
