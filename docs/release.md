@@ -1,7 +1,7 @@
 # Wydania: wersje, CI, artefakty
 
 Status: opis zaimplementowanego workflow (2026-11-23). Buildy publikują wykazy licencji zależności. Automat sprawdza promocje co godzinę.
-Sidebar oznacza kanał uruchomionej aplikacji drzewem, które zanika w tle nagłówka i wyszukiwarki.
+Drzewo kanału zanika przy wyszukiwarce sidebara. Betę oznacza bursztynowa korona z opadającymi liśćmi.
 Pakowanie Desktop i generowanie fingerprintu Expo używają poprawionego `minimatch`.
 Smoke Desktop czeka na zapis trasy Network access przed restartem workera podczas parowania.
 Pakowanie Desktop archiwizuje runtime do smoke z katalogu właściwego dla architektury Linuxa.
@@ -25,11 +25,11 @@ Zasady commitów i wybór gałęzi: [contributing.md](contributing.md).
 
 Drzewo sięga górnej krawędzi sidebara. Koronę widać za nagłówkiem i przełącznikiem Threads/Bots.
 Pionowy gradient wygasza cały rysunek przy wyszukiwarce, przed pierwszym wątkiem lub botem.
-Cztery warianty SVG zawiera [propozycja 17](../design/brand/README.md#tła-sidebara).
+Cztery warianty SVG zawiera [propozycja 18](../design/brand/README.md#tła-sidebara).
 W Dev drzewo ma postać
 niebieskiego rysunku technicznego z siatką i linią wymiarową. W Nightly drzewu
-towarzyszą fioletowe gwiazdy, a w Becie korona ma bursztynowe kreskowanie i dwa
-opadające liście. Stable pokazuje jednobarwną sylwetkę znaku. Dev, Nightly
+towarzyszą fioletowe gwiazdy. W Becie obok gładkiej bursztynowej korony opadają
+dwa liście. Stable pokazuje jednobarwną sylwetkę znaku. Dev, Nightly
 i Beta mają też nazwę kanału pod nazwą aplikacji.
 
 W web i desktop o wyglądzie decyduje `CANOPY_VERSION` **uruchomionego buildu**.

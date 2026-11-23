@@ -53,15 +53,9 @@ const stars = `<g>
   </g>
 </g>`;
 
-const hatching = `<path transform="translate(4 -14.5)" fill="none" stroke="currentColor" stroke-width=".9"
-  stroke-linecap="round" opacity=".12" d="
-    M6 67.3Q9.1 62.5 12.3 57.8 M9.9 79.3Q23.9 56 42.2 32.8 M17.9 85Q33 58.9 53.6 32.8
-    M28.8 85.8Q48.9 51 78.6 16.3 M40.8 84.8Q60.3 51.1 88.9 17.5 M55 80Q72.6 50.8 96.9 21.5
-    M68.8 76Q83.8 51.8 103.4 27.5 M80.9 75Q94.1 53.6 111 32.3 M92.3 75Q105.2 54.1 121.6 33.3
-    M102.9 76.3Q114.8 56.9 129.7 37.5 M112.5 79.3Q123.1 61.6 136.2 44 M121.6 83Q130.1 68.5 140.4 54
-    M131.7 85.3Q139.7 71.5 149.1 57.8 M142.8 85.8Q149.2 74.8 156.5 63.8 M156 82.8Q158 79.4 160 76"/>`;
-
-const leaves = `<path opacity=".15" d="M59 121q3-7 11-7-3 7-11 7z M47 138q-1-6 4-10 2 6-4 10z"/>`;
+const leaves = `<path opacity=".18" d="
+  M93 29C95 24 101 22 107 23C104 28 99 31 93 29Z
+  M42 66C44 61 50 59 56 60C53 65 48 68 42 66Z"/>`;
 
 export const sidebarIdentity = {
   development: {
@@ -84,13 +78,7 @@ export const sidebarIdentity = {
     label: "Beta",
     tone: "amber",
     ink: { light: palette.amber[700], dark: palette.amber[300] },
-    art: scene(
-      "beta",
-      `<path fill-rule="evenodd" opacity=".085" d="${canopyTree.branches}"/>
-       <path fill-opacity=".035" stroke="currentColor" stroke-width=".85" stroke-opacity=".13" d="${canopyTree.crown}"/>
-       ${hatching}`,
-      leaves,
-    ),
+    art: scene("beta", `<g opacity=".09">${tree}</g>`, leaves),
   },
   stable: {
     label: "Stable",

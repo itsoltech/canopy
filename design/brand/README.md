@@ -26,7 +26,7 @@ Te krzywe są dostępne w [geometrii znaku](../../packages/ui/src/canopy-tree.ts
 
 ## Tła sidebara
 
-| Propozycja | Dev · rysunek techniczny | Nightly · gwiazdy | Beta · rycina | Stable · sylwetka |
+| Propozycja | Dev · rysunek techniczny | Nightly · gwiazdy | Beta · bursztyn | Stable · sylwetka |
 | --- | --- | --- | --- | --- |
 | **12** | [SVG Dev](sidebar-12/canopy-dev.svg) | [SVG Nightly](sidebar-12/canopy-nightly.svg) | [SVG Beta](sidebar-12/canopy-beta.svg) | [SVG Stable](sidebar-12/canopy-stable.svg) |
 | **13** | [SVG Dev](sidebar-13/canopy-dev.svg) | [SVG Nightly](sidebar-13/canopy-nightly.svg) | [SVG Beta](sidebar-13/canopy-beta.svg) | [SVG Stable](sidebar-13/canopy-stable.svg) |
@@ -34,6 +34,7 @@ Te krzywe są dostępne w [geometrii znaku](../../packages/ui/src/canopy-tree.ts
 | **15** | [SVG Dev](sidebar-15/canopy-dev.svg) | [SVG Nightly](sidebar-15/canopy-nightly.svg) | [SVG Beta](sidebar-15/canopy-beta.svg) | [SVG Stable](sidebar-15/canopy-stable.svg) |
 | **16** | [SVG Dev](sidebar-16/canopy-dev.svg) | [SVG Nightly](sidebar-16/canopy-nightly.svg) | [SVG Beta](sidebar-16/canopy-beta.svg) | [SVG Stable](sidebar-16/canopy-stable.svg) |
 | **17** | [SVG Dev](sidebar-17/canopy-dev.svg) | [SVG Nightly](sidebar-17/canopy-nightly.svg) | [SVG Beta](sidebar-17/canopy-beta.svg) | [SVG Stable](sidebar-17/canopy-stable.svg) |
+| **18** | [SVG Dev](sidebar-17/canopy-dev.svg) | [SVG Nightly](sidebar-17/canopy-nightly.svg) | [SVG Beta](sidebar-18/canopy-beta.svg) | [SVG Stable](sidebar-17/canopy-stable.svg) |
 
 W propozycji 14 drzewo z wersji 13 zajmuje większą część szerokości panelu, a prawa krawędź kadru przycina koronę.
 Środek kompozycji przypada na 62% wysokości sidebara (obszar rysunku od 28% do 96%).
@@ -43,6 +44,8 @@ W propozycji 16 górna i prawa krawędź sidebara przycinają koronę. Drzewo wi
 aplikacji i zakładkami Threads/Bots, a pień zanika za pierwszymi wierszami listy.
 W propozycji 17 korona zajmuje prawą część nagłówka. Pionowy gradient wygasza drzewo
 i detale kanału przy wyszukiwarce. Od pierwszego wątku lub bota lista ma jednolite tło.
+W Becie z propozycji 17 koronę pokrywa ukośne kreskowanie. W propozycji 18 Beta ma
+gładką bursztynową koronę, a po jej lewej stronie opadają dwa liście.
 
 Każdy SVG ma przezroczyste tło i kolory dla jasnego oraz ciemnego motywu.
 Web, desktop i mobile korzystają ze [wspólnej grafiki](../../packages/ui/src/sidebar-art.ts).

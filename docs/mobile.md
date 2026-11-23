@@ -1,8 +1,8 @@
 # Canopy na iOS i Android
 
 Status: opis zaimplementowanego kodu (2026-11-23), w tym nowego logo Canopy i zanikającego
-znaku wodnego kanału w nagłówku sidebara oraz dziennego pingu użycia z przełącznikiem prywatności
-i pomijaniem wysyłki offline. Settings → Appearance
+znaku wodnego kanału w nagłówku sidebara (w Becie bursztynowe drzewo z liśćmi) oraz dziennego pingu
+użycia z przełącznikiem prywatności i pomijaniem wysyłki offline. Settings → Appearance
 zapisuje schemat kolorów, oba motywy i szerokość wątku w instalacji aplikacji.
 Profile EAS przypinają Bun 1.4.5
 dla lockfile w wersji 3. Kompozytor pokazuje przypisany [profil Sandbox](sandbox-profiles.md).
@@ -1071,8 +1071,8 @@ nie jest instalacją przypisaną do kanału wydania.
 Obok nazwy Canopy w nagłówku sidebara widnieje płaska ikona drzewa o boku 24 dp,
 wspólna z web i desktop. Wariant grafiki zależy od lokalnego kanału Expo Updates.
 **Dev** (build bez kanału) ma błękitny rysunek techniczny drzewa, **Nightly**
-fioletowe drzewo z gwiazdami, a **Beta** bursztynową rycinę. W tych trzech
-wariantach etykieta kanału widnieje pod nazwą Canopy. Wydanie **Stable**
+fioletowe drzewo z gwiazdami, a **Beta** gładką bursztynową koronę z dwoma opadającymi liśćmi.
+W tych trzech wariantach etykieta kanału widnieje pod nazwą Canopy. Wydanie **Stable**
 i nierozpoznany kanał pokazują zwykły znak drzewa bez podpisu kanału.
 
 Znak wodny jest wyrównany do prawej krawędzi nagłówka, za nazwą Canopy,
