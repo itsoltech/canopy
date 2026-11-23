@@ -15,6 +15,7 @@ Gateway rezerwuje miejsce na metadane aktywnych klientów przed zapełnieniem bu
 Dostępność według [wydań](release.md).
 Na `dev` widok obejmuje też bieżącą zajętość plików Canopy, oddzielnie dla
 gatewaya/desktopu i workerów, z wyłączeniem plików projektów, worktree i scratch (§3.3.1).
+Na `dev` (2026-11-23) eksport logów gatewaya obejmuje nieudane starty OAuth konektorów.
 Worker okresowo sprząta lokalny cache podglądów transkryptu (§3.3.1).
 
 Powiązane: [architektura](architecture.md), [protokół](protocol.md), [UI API](ui-api.md),
@@ -1010,6 +1011,9 @@ mogące zawierać treść użytkownika są pomijane. `Logs.redact` jest punktem 
 nie dowodem kompletnej redakcji prywatnych hostów/ścieżek. Nazwy wybrane przez
 użytkownika także mogą być sekretem: eksport zamienia je na `Computer A`,
 `Worker 1`, `Project 1` ze stabilnością tylko w jednym raporcie.
+Nieudany start OAuth konektora trafia do eksportu jako `connector_oauth_start_failed`.
+Rekord zawiera etap i status HTTP discovery lub rejestracji (0, gdy nie odnotowano
+odpowiedzi), bez treści błędu dostawcy.
 
 Ścieżki workspace, prywatne hosty i nazwy użytkownika są usuwane przez projekcję
 bezpiecznych szablonów. Nie ma trybu surowego eksportu ani przełącznika

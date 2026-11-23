@@ -50,6 +50,7 @@ export class ConnectorsRuntime {
       userId: string;
       messengerTransport?: SlackTransport;
       attachmentLimits?: () => Promise<AttachmentLimits>;
+      log?: (message: string) => void;
       interaction(interaction: ui.Interaction): Promise<void>;
     },
   ) {}
@@ -117,7 +118,7 @@ export class ConnectorsRuntime {
     return this.run((s) => s.saveApp(this.options.userId, request));
   }
   begin(request: connectors.BeginConnectorOAuthRequest) {
-    return beginConnectorOAuth(this, this.options.userId, request, this.options.messengerTransport);
+    return beginConnectorOAuth(this, this.options.userId, request, this.options);
   }
   async complete(input: connectors.CompleteConnectorOAuthRequest) {
     return completeOAuth(this, this.options.userId, input, this.options.messengerTransport);

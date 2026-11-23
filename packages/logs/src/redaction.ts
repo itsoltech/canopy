@@ -1,5 +1,6 @@
 import type { LogSource } from "./limits.ts";
 import { botEvent } from "./bot-events.ts";
+import { connectorEvent } from "./connector-events.ts";
 
 /** Local logs retain readable context. Export uses closed templates, never this blacklist alone. */
 export class LogRedactor {
@@ -83,10 +84,10 @@ export function exportedRecord(line: string, source: LogSource, at: number, lega
   const message = line.replace(/\x1b\[[0-?]*[ -/]*[@-~]/g, "").trim();
 
   if (/\b(?:STATEMENT|DETAIL|CONTEXT|parameters|stack|cause)\s*[:=]/i.test(message)) return undefined;
-  const bot = botEvent(message, source);
+  const projected = botEvent(message, source) ?? connectorEvent(message, source);
 
-  if (bot) {
-    const { event, ...dimensions } = bot;
+  if (projected) {
+    const { event, ...dimensions } = projected;
 
     return JSON.stringify({ at, source, event, legacy, ...dimensions }) + "\n";
   }
