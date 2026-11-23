@@ -2,7 +2,8 @@
 
 Status: opis zaimplementowanego workflow (2026-11-23). Buildy publikują wykazy licencji zależności. Automat sprawdza promocje co godzinę.
 Web, Desktop i mobile używają ikony danego wydania. Lokalny Dev ma własny niebieski wariant.
-Drzewo kanału w tle sidebara zanika przy wyszukiwarce.
+Drzewo kanału w tle sidebara zanika przy wyszukiwarce. W Nightly, Becie i Dev
+pod drzewem widać także gradient na całą szerokość nagłówka.
 Natywne CI na macOS sprawdza odczyt małych reprezentacji ikony Dev i nazwę
 wyświetlaną przez Finder. Wydania macOS i iOS kompilują ikony z projektów Icon Composer.
 Przed publikacją Release sprawdza nazwę i grafikę także w podpisanej paczce.
@@ -223,6 +224,10 @@ wersji Intel (darwin-x64) nie budujemy — ani desktopu, ani binarek gatewaya/wo
 drzewo na szałwiowym tle, Beta dwa liście na bursztynowym tle, Nightly półksiężyc
 i gwiazdy na fiolecie, a lokalny Dev niebieski rysunek techniczny. Automaty wydawnicze
 nadal publikują trzy kanały. Gałąź `dev` publikuje Nightly.
+
+Na całej szerokości sidebara fioletowe tło Nightly i bursztynowe tło Bety
+przechodzą od 10% krycia u góry przez 4% w połowie gradientu do przezroczystości.
+Dev używa neutralnej szarości z kryciem 8%, 3% i 0%. W Stable tło pod drzewem jest jednolite.
 
 `bun scripts/icons/channel-icons.ts` odtwarza zasoby w
 `apps/web/static/channels/{stable,beta,nightly,development}` i domyślne ikony Stable

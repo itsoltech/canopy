@@ -32,6 +32,26 @@ export function SidebarBrand() {
   );
 }
 
+export function SidebarGradient({ topInset }: { topInset: number }) {
+  if (!identity.gradient) return null;
+
+  return (
+    <View
+      pointerEvents="none"
+      accessibilityElementsHidden
+      importantForAccessibility="no-hide-descendants"
+      style={{
+        position: "absolute",
+        top: 0,
+        left: 0,
+        right: 0,
+        height: topInset + 88,
+        backgroundImage: identity.gradient,
+      }}
+    />
+  );
+}
+
 export function SidebarWatermark() {
   const { dark } = useColors();
 

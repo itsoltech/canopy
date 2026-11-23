@@ -8,7 +8,9 @@ automatyczny wybór. Klienci odczytują zmiany koloru z overview.
 Status (2026-11-23): web i desktop pozwalają zarządzać profilami Sandbox w ustawieniach i wybierać je w wątkach.
 Ikona w nagłówku sidebara ma bok 32 px przy domyślnej skali w każdym kanale.
 Nakładka Settings jest dostępna przed pierwszą odpowiedzią z gatewaya.
-Nagłówek sidebara pokazuje ikonę i tło uruchomionego frontendu. Faviconę, manifest PWA
+Nagłówek sidebara pokazuje ikonę i tło uruchomionego frontendu. W Nightly, Becie
+i Dev gradient pod drzewem zanika w pierwszych 5,5 rem sidebara, także w wąskim drawerze.
+Faviconę, manifest PWA
 i ikony ekranów początkowych opisują [zasady wyboru grafiki](release.md#ikony-kanałów).
 Appearance zapisuje schemat, palety i szerokość wątku w profilu klienta.
 Gateway sprawdza wybrany profil przed wysłaniem synchronizowanego szkicu nowego wątku.

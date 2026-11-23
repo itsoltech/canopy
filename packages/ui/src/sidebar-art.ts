@@ -52,10 +52,16 @@ const leaves = `<path opacity=".18" d="
   M93 29C95 24 101 22 107 23C104 28 99 31 93 29Z
   M42 66C44 61 50 59 56 60C53 65 48 68 42 66Z"/>`;
 
+// Both renderers accept eight-digit hex stops. The default tint fades from 10% through 4% to clear.
+function headerGradient(color: string, top = "1a", middle = "0a") {
+  return `linear-gradient(to bottom, ${color}${top}, ${color}${middle} 50%, ${color}00)`;
+}
+
 export const sidebarIdentity = {
   development: {
     label: "Dev",
     tone: "sky",
+    gradient: headerGradient(palette.zinc[500], "14", "08"),
     ink: { light: palette.blue[700], dark: palette.blue[300] },
     art: scene(
       "dev",
@@ -66,18 +72,21 @@ export const sidebarIdentity = {
   nightly: {
     label: "Nightly",
     tone: "violet",
+    gradient: headerGradient(palette.violet[500]),
     ink: { light: palette.violet[700], dark: palette.violet[300] },
     art: scene("nightly", `<g opacity=".085">${tree}</g>`, stars),
   },
   beta: {
     label: "Beta",
     tone: "amber",
+    gradient: headerGradient(palette.amber[500]),
     ink: { light: palette.amber[700], dark: palette.amber[300] },
     art: scene("beta", `<g opacity=".09">${tree}</g>`, leaves),
   },
   stable: {
     label: "Stable",
     tone: "emerald",
+    gradient: undefined,
     ink: { light: "#194a34", dark: "#dfecd0" },
     art: scene("stable", `<g opacity=".07">${tree}</g>`),
   },

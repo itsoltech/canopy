@@ -101,6 +101,7 @@
   <div class="relative isolate shrink-0">
     <div
       class="sidebar-watermark pointer-events-none absolute inset-0 -z-10 overflow-hidden forced-colors:hidden"
+      style:background-image={identity.gradient}
       style:--ink-light={identity.ink.light}
       style:--ink-dark={identity.ink.dark}
       aria-hidden="true"
@@ -230,6 +231,8 @@
 <style>
   .sidebar-watermark {
     color: light-dark(var(--ink-light), var(--ink-dark));
+    background-size: 100% min(5.5rem, 100%);
+    background-repeat: no-repeat;
   }
   /* Keep muted navigation controls and list captions legible in both themes. */
   .sidebar-scale :global(.sidebar-foreground) {
