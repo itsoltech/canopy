@@ -70,6 +70,7 @@ export function mobileHandlers(
         gatewayRole: core.role,
         linkedComputers: core.role === "desktop",
         offerOnboarding: core.offerOnboarding,
+        archiveWorkerFilter: true,
         mobilePush: core.mobilePush.manualAvailable && !!phoneIdentity(core, context),
         managedMobilePush: core.mobilePush.managedAvailable && !!phoneIdentity(core, context),
         localPushRelaySettings:

@@ -1,5 +1,8 @@
 # Projekty, wątki i wątki boczne
 
+Status (2026-11-23): widok Threads w web i desktop filtruje listę także po workerach.
+Wybór działa razem z projektami i wyszukiwaniem oraz obejmuje Snoozed i archiwum.
+
 Status (2026-11-22): wątki projektowe Claude, Codex i Grok mogą korzystać
 z [pamięci projektu i workera](agent-memory.md). Web i desktop pozwalają przypisać
 własną politykę sieci poleceń w trybie [Sandbox](sandbox-profiles.md).

@@ -11,6 +11,7 @@ export const GET: RequestHandler = async ({ url }) =>
       await call((api) =>
         api.listArchivedThreads({
           projectIds: url.searchParams.getAll("projectId"),
+          workerIds: url.searchParams.getAll("workerId"),
           query: url.searchParams.get("q") ?? "",
           pageToken: url.searchParams.get("pageToken") ?? "",
           pageSize: 20,

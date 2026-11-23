@@ -287,27 +287,42 @@ describe.skipIf(!dockerAvailable)("remote thread panel at its authoritative home
     ).toContain("not found");
   });
 
-  test("archive counts and keyset pages include both homes, children, search and owner scoping", async () => {
+  test("archive counts and keyset pages include both homes, worker filters, children and owner scoping", async () => {
     const localProject = (await a.gateway.api.createProject({ name: "Archive laptop" })).project!.id;
 
     for (const [computer, projectId, count] of [
       [a, localProject, 7],
       [b, project, 31],
     ] as const) {
+      const workerId = computer.gateway.workerId;
+
+      const workspace = (await computer.gateway.api.createWorkspace({ projectId, workerId, rootPath: "/repo/archive" }))
+        .workspace!;
+
       for (let index = 0; index < count; index++) {
         const id = crypto.randomUUID();
         await computer.store.query(
-          `INSERT INTO threads(id,root_thread_id,project_id,owner_user_id,kind,runtime,provider,status,title)
-          VALUES($1::uuid,$1::uuid,$2::uuid,$3::uuid,'main','gateway','openai','idle',$4)`,
-          [id, projectId, computer.gateway.userId, `Archive panel ${index}`],
+          `INSERT INTO threads(id,root_thread_id,project_id,owner_user_id,kind,runtime,provider,status,title,
+            worker_id,workspace_id,cwd)
+          VALUES($1::uuid,$1::uuid,$2::uuid,$3::uuid,'main','worker','codex','idle',$4,$5::uuid,$6::uuid,$7)`,
+          [
+            id,
+            projectId,
+            computer.gateway.userId,
+            `Archive panel ${index}`,
+            workerId,
+            workspace.id,
+            workspace.rootPath,
+          ],
         );
 
         if (index === 0)
           await computer.store.query(
-            `INSERT INTO threads(id,root_thread_id,parent_thread_id,depth,project_id,owner_user_id,kind,runtime,provider,status,title,archived_at)
-            VALUES($1::uuid,$2::uuid,$2::uuid,1,$3::uuid,$4::uuid,'side','gateway','openai','archived','Archive child match',
-              '2026-01-01T00:00:00Z'::timestamptz)`,
-            [crypto.randomUUID(), id, projectId, computer.gateway.userId],
+            `INSERT INTO threads(id,root_thread_id,parent_thread_id,depth,project_id,owner_user_id,kind,runtime,
+              provider,status,title,archived_at,worker_id,workspace_id,cwd)
+            VALUES($1::uuid,$2::uuid,$2::uuid,1,$3::uuid,$4::uuid,'side','worker','codex','archived','Archive child match',
+              '2026-01-01T00:00:00Z'::timestamptz,$5::uuid,$6::uuid,$7)`,
+            [crypto.randomUUID(), id, projectId, computer.gateway.userId, workerId, workspace.id, workspace.rootPath],
           );
         await computer.store.query(
           `UPDATE threads SET status='archived',archived_at=
@@ -317,7 +332,10 @@ describe.skipIf(!dockerAvailable)("remote thread panel at its authoritative home
       }
     }
 
-    for (const computer of [a, b]) {
+    for (const [computer, other] of [
+      [a, b],
+      [b, a],
+    ] as const) {
       const count = await eventually(
         () => computer.gateway.api.listArchivedThreads({ countOnly: true }),
         (page) => page.totalCount === 38,
@@ -325,9 +343,17 @@ describe.skipIf(!dockerAvailable)("remote thread panel at its authoritative home
       );
 
       expect(count.totalCount).toBe(38);
-      const first = await computer.gateway.api.listArchivedThreads({ pageSize: 20 });
-      const second = await computer.gateway.api.listArchivedThreads({ pageSize: 20, pageToken: first.nextPageToken });
+      const workerIds = [computer.gateway.workerId, qualifyId(other.gateway.workerId, other.node)];
+      const first = await computer.gateway.api.listArchivedThreads({ pageSize: 20, workerIds });
+
+      const second = await computer.gateway.api.listArchivedThreads({
+        pageSize: 20,
+        workerIds: workerIds.toReversed(),
+        pageToken: first.nextPageToken,
+      });
+
       expect([first.threads.length, second.threads.length]).toEqual([20, 18]);
+      expect([first.totalCount, second.totalCount]).toEqual([38, 38]);
       expect(new Set([...first.threads, ...second.threads].map((t) => t.id.split("~")[0])).size).toBe(38);
       expect(second.nextPageToken).toBe("");
 
@@ -342,13 +368,28 @@ describe.skipIf(!dockerAvailable)("remote thread panel at its authoritative home
       expect(children.sideThreads).toHaveLength(2);
       expect((await computer.gateway.api.listArchivedThreads({ query: "Private" })).totalCount).toBe(0);
       expect(
-        await failure(computer.gateway.api.listArchivedThreads({ query: "changed", pageToken: first.nextPageToken })),
+        await failure(
+          computer.gateway.api.listArchivedThreads({ workerIds: workerIds.slice(1), pageToken: first.nextPageToken }),
+        ),
       ).toContain("page token");
     }
 
-    expect((await a.gateway.api.listArchivedThreads({ projectIds: [q(project)], countOnly: true })).totalCount).toBe(
-      31,
-    );
+    const localWorker = a.gateway.workerId;
+    const remoteWorker = q(b.gateway.workerId);
+    const local = await a.gateway.api.listArchivedThreads({ workerIds: [localWorker], pageSize: 100 });
+    expect(local.totalCount).toBe(7);
+    expect(new Set(local.threads.map((entry) => entry.workerId))).toEqual(new Set([localWorker]));
+    const remote = await a.gateway.api.listArchivedThreads({ workerIds: [remoteWorker], pageSize: 100 });
+    expect(remote.totalCount).toBe(31);
+    expect(new Set(remote.threads.map((entry) => entry.workerId))).toEqual(new Set([remoteWorker]));
+    expect((await a.gateway.api.listArchivedThreads({ workerIds: [b.gateway.workerId] })).totalCount).toBe(0);
+    const filters = { projectIds: [q(project)], workerIds: [remoteWorker], query: "child match" };
+    const matched = await a.gateway.api.listArchivedThreads(filters);
+    expect(matched.threads.map((entry) => entry.title)).toEqual(["Archive panel 0"]);
+    expect(matched.sideThreads.map((entry) => entry.workerId)).toEqual([remoteWorker]);
+    const count = await a.gateway.api.listArchivedThreads({ ...filters, countOnly: true });
+    expect([count.totalCount, count.threads.length, count.nextPageToken]).toEqual([1, 0, ""]);
+    expect((await a.gateway.api.listArchivedThreads({ ...filters, workerIds: [localWorker] })).totalCount).toBe(0);
     expect(
       (await b.gateway.api.listArchivedThreads({ projectIds: [qualifyId(localProject, a.node)], countOnly: true }))
         .totalCount,

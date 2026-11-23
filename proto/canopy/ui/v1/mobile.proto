@@ -46,6 +46,8 @@ message ClientCapabilities {
   bool push_relay_settings = 12;
   // A manually configured push relay is available to this paired mobile client.
   bool mobile_push = 13;
+  // ListArchivedThreads honors worker_ids in its rows, count and cursors.
+  bool archive_worker_filter = 14;
 }
 
 message MobileDevice {

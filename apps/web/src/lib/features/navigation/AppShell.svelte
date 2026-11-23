@@ -124,7 +124,11 @@
       settings.sidebar.pinnedThreadIds,
       sidebarThreads(
         [...overview.threads.values()],
-        { ...settings.sidebar, projectIds: expandProjectIds(settings.sidebar.projectIds, overview.projectChoices) },
+        {
+          ...settings.sidebar,
+          projectIds: expandProjectIds(settings.sidebar.projectIds, overview.projectChoices),
+          workerIds: capabilities.archiveWorkerFilter ? devicePreferences.view.workerIds : [],
+        },
         overview.warmQuery,
         (id) => overview.project(id)?.name ?? "",
       ).roots.map((thread) => thread.id),
