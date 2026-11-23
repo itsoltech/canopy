@@ -78,6 +78,7 @@ const archivedThreads = (sql: SqlClient.SqlClient, ownerUserId: string, request:
 
     const where = `WHERE t.owner_user_id = $1::uuid AND t.deleted_at IS NULL AND t.archived_at IS NOT NULL
           AND (cardinality($2::uuid[]) = 0 OR t.project_id = ANY($2::uuid[]))
+          AND (cardinality($4::uuid[]) = 0 OR t.worker_id = ANY($4::uuid[]))
           AND EXISTS (SELECT 1 FROM projects p WHERE p.id = t.project_id AND p.archived_at IS NULL
             AND ($3 = '' OR strpos(lower(t.title), $3) > 0 OR strpos(lower(p.name), $3) > 0
               OR EXISTS (SELECT 1 FROM threads child WHERE child.parent_thread_id = t.id AND child.deleted_at IS NULL
@@ -85,7 +86,7 @@ const archivedThreads = (sql: SqlClient.SqlClient, ownerUserId: string, request:
           AND NOT (t.kind = 'side' AND EXISTS (SELECT 1 FROM threads parent WHERE parent.id = t.parent_thread_id
             AND parent.owner_user_id = t.owner_user_id AND parent.deleted_at IS NULL))`;
 
-    const params = [ownerUserId, page.projects, page.query];
+    const params = [ownerUserId, page.projects, page.query, page.workers];
 
     const totalCount = (yield* sql.unsafe<{ count: number }>(
       `SELECT count(*)::int AS count FROM threads t ${where}`,
@@ -97,8 +98,8 @@ const archivedThreads = (sql: SqlClient.SqlClient, ownerUserId: string, request:
     const rows = yield* sql.unsafe<ThreadRow & { archive_cursor: string }>(
       listThreadSelect(
         `${where}
-          AND ($4::timestamptz IS NULL OR (t.archived_at, t.id) < ($4::timestamptz, $5::uuid))
-          ORDER BY t.archived_at DESC, t.id DESC LIMIT $6`,
+          AND ($5::timestamptz IS NULL OR (t.archived_at, t.id) < ($5::timestamptz, $6::uuid))
+          ORDER BY t.archived_at DESC, t.id DESC LIMIT $7`,
         `to_char(t.archived_at AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.US"Z"') AS archive_cursor,`,
       ),
       [...params, page.cursor?.at ?? null, page.cursor?.id ?? null, page.size + 1],

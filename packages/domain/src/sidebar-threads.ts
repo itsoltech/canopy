@@ -19,13 +19,18 @@ export function sidebarChildren(children: readonly ui.Thread[], rootIds: Readonl
  * snoozed trees have their own section, including any pinned sides. */
 export function sidebarThreads(
   threads: readonly ui.Thread[],
-  settings: ui.SidebarSettings,
+  settings: Pick<ui.SidebarSettings, "projectIds" | "pinnedThreadIds"> & { workerIds?: readonly string[] },
   query: string,
   projectName: (id: string) => string,
   sortMode: ThreadSortMode = "activity",
 ) {
-  const selected = new Set(settings.projectIds);
-  const eligible = threads.filter((t) => !t.deletedAt && (!selected.size || selected.has(t.projectId)));
+  const projects = new Set(settings.projectIds);
+  const workers = new Set(settings.workerIds);
+
+  const eligible = threads.filter(
+    (t) => !t.deletedAt && (!projects.size || projects.has(t.projectId)) && (!workers.size || workers.has(t.workerId)),
+  );
+
   const ids = new Set(eligible.map((t) => t.id));
   const archivedParents = new Set(threads.flatMap((t) => (t.status === "archived" ? [t.id] : [])));
   const byId = new Map(threads.map((t) => [t.id, t]));
@@ -97,10 +102,13 @@ export function collapsedArchivedThread(
   projectIds: readonly string[],
   query: string,
   projectName: (id: string) => string,
+  workerIds: readonly string[] = [],
 ): ui.Thread | undefined {
   if (expanded || !current || current.spawnedByAgent || current.deletedAt || current.status !== "archived") return;
 
   if (projectIds.length && !projectIds.includes(current.projectId)) return;
+
+  if (workerIds.length && !workerIds.includes(current.workerId)) return;
   const q = query.trim().toLowerCase();
 
   if (q && !current.title.toLowerCase().includes(q) && !projectName(current.projectId).toLowerCase().includes(q))

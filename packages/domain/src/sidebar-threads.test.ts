@@ -59,6 +59,32 @@ describe("shared sidebar trees", () => {
     expect(sidebarThreads(rows, settings({ projectIds: ["other"] }), "needle", projectName).roots).toEqual([]);
   });
 
+  test("worker selection intersects with project and search across the inbox and snoozed threads", () => {
+    const workerId = "019a0000-0000-7000-8000-000000000001";
+    const linkedWorker = `${workerId}~abcdef123456`;
+
+    const rows = [
+      thread("local needle", { workerId }),
+      thread("linked needle", { workerId: linkedWorker }),
+      thread("other project needle", { workerId, projectId: "other" }),
+      thread("local unrelated", { workerId }),
+      thread("gateway needle"),
+      thread("local snoozed needle", { workerId, snoozed: true }),
+      thread("linked snoozed needle", { workerId: linkedWorker, snoozed: true }),
+    ];
+
+    const prefs = settings({ projectIds: ["project"], pinnedThreadIds: ["linked needle"] });
+    const local = sidebarThreads(rows, { ...prefs, workerIds: [workerId] }, " NEEDLE ", projectName);
+    const both = sidebarThreads(rows, { ...prefs, workerIds: [workerId, linkedWorker] }, "needle", projectName);
+    const cleared = sidebarThreads(rows, { ...prefs, workerIds: [] }, "needle", projectName);
+
+    expect(ids(local.roots)).toEqual(["local needle"]);
+    expect(ids(local.snoozed)).toEqual(["local snoozed needle"]);
+    expect(ids(both.roots)).toEqual(["linked needle", "local needle"]);
+    expect(ids(cleared.roots)).toEqual(["linked needle", "local needle", "gateway needle"]);
+    expect(new Set(ids(cleared.snoozed))).toEqual(new Set(["local snoozed needle", "linked snoozed needle"]));
+  });
+
   test("pins are flat roots once, and an archived parent suppresses its side roots during cascade", () => {
     const rows = [
       thread("parent"),

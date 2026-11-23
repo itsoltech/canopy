@@ -1,6 +1,6 @@
 # API dla UI i architektura frontendu
 
-Status (2026-11-22): web i desktop pozwalają zarządzać profilami Sandbox w ustawieniach i wybierać je w wątkach.
+Status (2026-11-23): web i desktop pozwalają zarządzać profilami Sandbox w ustawieniach i wybierać je w wątkach.
 Appearance zapisuje schemat, palety i szerokość wątku w profilu klienta.
 Gateway sprawdza wybrany profil przed wysłaniem synchronizowanego szkicu nowego wątku.
 Web, desktop i mobile oznaczają bota jako nadawcę wiadomości dołączanej do trwającej tury.
@@ -9,7 +9,7 @@ i edycji notatek agentów i botów, z wyszukiwaniem, filtrami i datą utworzenia
 Web, desktop i mobile obsługują usypianie wątków oraz załączniki
 do 40 MiB na plik po zmianie ustawienia. Dostęp wątków do konektorów wynika
 z grantów projektów.
-Pasek wątków w web i desktop ma osobne przyciski sortowania i filtrowania po projektach.
+Pasek wątków w web i desktop ma osobne przyciski sortowania i filtrowania po projektach i workerach.
 Web i desktop pokazują automatyczne powitanie tylko po potwierdzeniu przez gateway,
 że działa w wersji pierwszego uruchomienia nowej instalacji. [Onboarding](onboarding.md)
 Stany źródeł Usage są widoczne w sekcji **Recording gateways**. Przy częściowym
@@ -3238,9 +3238,18 @@ i nie przekracza nagłówków, z wyjątkiem przypinania/odpinania. Archiwum zach
 dotychczasową kolejność archiwizacji. Zagnieżdżone wątki boczne zachowują drzewo;
 przypięte boczne można porządkować jak pozostałe korzenie.
 
-Przyciski „Sort threads” i „Filter by project” obok wyszukiwania otwierają osobne
-popovery. Ikona filtra pokazuje liczbę wybranych projektów. Opcja „All projects”
-czyści filtr. Na wąskim ekranie filtr otwiera się w dolnym arkuszu.
+Przyciski „Sort threads” i „Filter threads” obok wyszukiwania otwierają osobne
+popovery. W filtrze można wybrać kilka projektów lub workerów. Wątek musi pasować
+do zaznaczeń w obu kategoriach i do wyszukiwania. Ikona pokazuje łączną liczbę
+wybranych projektów i workerów. „All projects” i „All workers” czyszczą wybór
+w danej kategorii, a „Clear filters” w pustej liście czyści obie kategorie.
+Na wąskim ekranie filtr otwiera się w dolnym arkuszu. Wybór workera używa
+`Thread.worker_id` (z kwalifikatorem domu dla połączonego komputera) i obejmuje
+listę aktywną, Snoozed i archiwum, wraz z jego licznikiem. Archiwum przyjmuje
+powtarzalny parametr `workerId` w BFF (`worker_ids` w gRPC), a kursor strony
+jest związany z tym wyborem. Pusty wybór obejmuje także wątki bez workera.
+Klient udostępnia wybór workerów, gdy gateway zgłasza `archive_worker_filter`
+w `GetClientCapabilities`. Starszy gateway obsługuje dotychczasowy filtr projektów.
 W Custom przeciąganie myszą zaczyna się po ruchu o 6 px; sam klik otwiera wątek.
 Wskaźnik pokazuje miejsce upuszczenia, krawędzie listy przewijają ją automatycznie,
 a górna strefa „Drop here to pin” podświetla przekroczenie progu przypinania.
@@ -3255,7 +3264,7 @@ komputera). Zdalna kolejność jest widoczna, ale edytowalna tylko w domu wątku
 nie ma przenoszenia kluczy pomiędzy niezależnymi bazami. Przypięcia zdalnych wątków
 pozostają dostępne w istniejącym menu. Zmiana klucza jest zwykłą deltą metadanych.
 
-Filtr, grupowanie i kolejność projektów, sekcja Working, rozwinięcie archiwum
+Filtry projektów i workerów, grupowanie i kolejność projektów, sekcja Working, rozwinięcie archiwum
 wątków/botów, szerokość i zwinięcie sidebara oraz geometria paneli wątku i PR
 należą do urządzenia i gatewaya (`DevicePreferences`,
 `canopy.client-view.v2.<scope>` w profilu web/desktop; stary `canopy:preferences:view`

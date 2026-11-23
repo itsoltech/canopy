@@ -1388,6 +1388,7 @@ message ListArchivedThreadsRequest {
   uint32 page_size = 3; // 0 = 20, najwyżej 100
   string page_token = 4; // nieprzezroczysty kursor; obowiązuje tylko dla tych samych filtrów
   bool count_only = 5; // zwinięta sekcja: bez przesyłania wierszy
+  repeated string worker_ids = 6; // puste = wszystkie; lokalne UUID lub identyfikatory połączonych komputerów
 }
 
 message ListArchivedThreadsResponse {

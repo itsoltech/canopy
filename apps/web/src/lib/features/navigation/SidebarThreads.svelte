@@ -29,8 +29,14 @@
   let {
     currentThreadId,
     query = "",
+    workerIds,
     class: className,
-  }: { currentThreadId?: string | undefined; query?: string; class?: ClassValue } = $props();
+  }: {
+    currentThreadId?: string | undefined;
+    query?: string;
+    workerIds: readonly string[];
+    class?: ClassValue;
+  } = $props();
 
   const overview = useOverview();
   const settings = useSettings();
@@ -69,7 +75,12 @@
   const filterSettings = $derived({
     ...settings.sidebar,
     projectIds: expandProjectIds(settings.sidebar.projectIds, overview.projectChoices),
+    workerIds,
   });
+
+  const hasFilters = $derived(settings.sidebar.projectIds.length > 0 || filterSettings.workerIds.length > 0);
+
+  const clearFilters = () => devicePreferences.setView({ projectIds: [], ...(workerIds.length && { workerIds: [] }) });
 
   const filtered = $derived(
     sidebarThreads(
@@ -213,14 +224,11 @@
   {#if filtered.roots.length === 0 && filtered.snoozed.length === 0}
     <div class="sidebar-row-padding grid justify-items-start gap-2 py-2">
       <p class="text-sm/6 text-pretty text-zinc-500 dark:text-zinc-400">
-        {#if settings.sidebar.projectIds.length}No threads in the selected projects.{:else if query}No thread matches “{query}”.{:else if overview.connection === "unavailable"}Threads
+        {#if filterSettings.workerIds.length}No active or snoozed threads match these filters.{:else if settings.sidebar.projectIds.length}No
+          threads in the selected projects.{:else if query}No thread matches “{query}”.{:else if overview.connection === "unavailable"}Threads
           appear when the gateway connects.{:else}No threads yet.{/if}
       </p>
-      {#if settings.sidebar.projectIds.length}<Button
-          size="sm"
-          variant="ghost"
-          onclick={() => void settings.updateSidebar({ projectIds: [] })}>Clear filters</Button
-        >{/if}
+      {#if hasFilters}<Button size="sm" variant="ghost" onclick={clearFilters}>Clear filters</Button>{/if}
     </div>
   {:else if filtered.roots.length}
     <ul role="list" class="grid min-w-0 grid-cols-1 gap-0.5" aria-label="Thread inbox" {@attach drag}>
@@ -247,5 +255,5 @@
     {openTree}
     searching={Boolean(query.trim())}
   />
-  <SidebarArchivedThreads {current} {query} class="mt-auto" />
+  <SidebarArchivedThreads {current} {query} {workerIds} class="mt-auto" />
 </div>

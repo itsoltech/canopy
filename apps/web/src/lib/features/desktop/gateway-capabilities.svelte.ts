@@ -23,6 +23,7 @@ export class GatewayCapabilities {
   methods = $state<string[]>();
   linkedComputers = $state(false);
   offerOnboarding = $state<boolean>();
+  archiveWorkerFilter = $state(false);
   /** Set by the BFF only in this desktop's local mode, independent of the gateway's role. */
   localDesktop = $state(false);
   pushRelaySettings = $state(false);
@@ -85,6 +86,7 @@ export class GatewayCapabilities {
         this.methods = value["methods"].filter(isString);
         this.linkedComputers = value["linkedComputers"] === true;
         this.offerOnboarding = value["offerOnboarding"] === true;
+        this.archiveWorkerFilter = value["archiveWorkerFilter"] === true;
       }
     } catch {
       this.state = "unavailable";
