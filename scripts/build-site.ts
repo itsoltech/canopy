@@ -71,6 +71,7 @@ const metadataFile = basename(new URL(OAUTH_CLIENT_METADATA_URL).pathname);
 await writeFile(join(out, "oauth", metadataFile), `${JSON.stringify(metadata, null, 2)}\n`);
 
 await mkdir(join(out, "demo"), { recursive: true });
+
 await copyFile(join(root, "site/demo/canopy-demo.mp4"), join(out, "demo/canopy-demo.mp4"));
 
 // GitHub Pages serves a Jekyll build unless told otherwise.
