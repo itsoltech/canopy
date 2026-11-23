@@ -62,7 +62,7 @@ function DisplayMath({ raw }: { raw: string }) {
   );
 }
 
-function Block({ token }: { token: Token }) {
+export function MarkdownBlock({ token }: { token: Token }) {
   const c = useColors();
   const { restore, selectable, image } = useMarkdownScope();
 
@@ -112,7 +112,7 @@ function Block({ token }: { token: Token }) {
 export function Blocks({ tokens, quiet = false }: { tokens: readonly Token[]; quiet?: boolean }) {
   const c = useColors();
   const scope = useMarkdownScope();
-  const blocks = tokens.map((token, index) => <Block key={index} token={token} />);
+  const blocks = tokens.map((token, index) => <MarkdownBlock key={index} token={token} />);
 
   return quiet ? <MarkdownScopeProvider value={{ ...scope, ink: c.muted }}>{blocks}</MarkdownScopeProvider> : blocks;
 }

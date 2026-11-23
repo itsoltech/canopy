@@ -30,6 +30,7 @@ odstępem nad aktywną kartą i strzałką powrotu, zamykanie kart plików i mod
 bezpośrednio z mobilnej listy Switch tab oraz ręczny pełnoekranowy Preview Browser/Desktop/Device
 ze stałą belką zamknięcia i możliwością ukrycia kontrolek
 (2026-11-17; stos #640–#648, potem #710, #711, #737, #740, #787 i #823).
+Karta pliku na mobile renderuje też bieżący szkic Markdown.
 Opis dotyczy kodu; dostępność nightly/beta/stable określają [wydania](release.md).
 Przy otwieraniu wątku bez kopii w kliencie BFF czyta bieżący wpis z overview.
 Jeśli wpisu jeszcze nie ma lub trwa odbudowa strumienia, BFF wywołuje
@@ -218,6 +219,11 @@ jedno menu `⋯`: `Keep tab` (dla podglądu), `Reload`, `Go to line`, `Copy path
 `Move right`, `Close tab`, `Close other tabs`, `Close saved tabs`) i na końcu,
 po separatorze, `Delete file`. Pasek nie powtarza nazwy pliku w osobnym miejscu
 i nie ma dwóch identycznych przycisków kopiowania.
+
+W aplikacji mobilnej pasek edytowalnego pliku Markdown ma przełącznik **Edit**,
+**Source** i **Rendered**. Oba widoki podglądu korzystają z bieżącego szkicu.
+Renderowanie uruchamia się po wybraniu **Rendered** i montuje tylko okno bloków
+dokumentu. [Aplikacja mobilna](mobile.md)
 
 W podglądzie `Source` tylko do odczytu można zaznaczyć tekst i skopiować go
 skrótem `Ctrl+C` (`⌘C` na macOS) lub akcją `Copy text` w menu kontekstowym

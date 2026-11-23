@@ -12,12 +12,14 @@ export function FilePreview({
   name,
   detail,
   actions,
+  preview,
   onDiscard,
 }: {
   viewer: ThreadFileState;
   name: string;
   detail: string;
   actions: ReactNode;
+  preview?: ReactNode;
   onDiscard: () => void;
 }) {
   const c = useColors();
@@ -45,6 +47,8 @@ export function FilePreview({
       </View>
       {viewer.loading ? (
         <ActivityIndicator accessibilityLabel="Opening the file" color={c.muted} />
+      ) : preview ? (
+        preview
       ) : viewer.editable ? (
         <TextInput
           multiline
