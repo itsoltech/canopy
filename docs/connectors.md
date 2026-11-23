@@ -26,6 +26,7 @@ Available, Available next turn, Access removed, Unavailable oraz Error.
 Zachowuje podłączone konto po odebraniu grantu do czasu aktualizacji katalogu;
 szczegóły błędu sesji rozwija się przez Show details.
 Aktualizacja (2026-11-23): wątki Claude przyjmują warunkowe schematy narzędzi MCP.
+Web i desktop objaśniają wykluczenie No project w ustawieniach konektorów i panelu wątku.
 Dostępność kanałów według [release.md](release.md).
 
 ## Decyzje
@@ -370,6 +371,9 @@ użycia i dostęp. Bieżący komputer nie jest powtarzany w każdym wierszu tele
 Web i aplikacja natywna współdzielą zaokrąglanie czasu: 59,5 minuty przechodzi
 w godzinę, a 23,5 godziny — w dzień, także w skróconym zapisie.
 Kontrolki korzystają z istniejącego kitu; wybór wielokrotny jest listą custom.
+Edytor Projects w web/desktop wyjaśnia, że All projects wyklucza No project.
+Pusty panel Connectors w wątku No project i jego okno zarządzania podają powód
+niedostępności.
 Sekcja Connections bota pokazuje konta z grantów; `@` ma grupę Connectors i chip
 „GitHub · work”. Gateway waliduje wzmiankę względem grantu i dodaje wskazanie
 konta wyłącznie do wejścia modelu. Panel wątku pokazuje dostępne konta, a oś

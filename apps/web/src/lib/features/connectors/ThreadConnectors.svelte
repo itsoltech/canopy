@@ -3,6 +3,7 @@
   import type { ui } from "@canopy/contracts";
   import { accountStatus } from "./api.ts";
   import ThreadConnectorDialog from "./ThreadConnectorDialog.svelte";
+  import { useOverview } from "#lib/features/overview/overview-state.svelte.ts";
   import type { useThreadPanel } from "#lib/features/threads/thread-panel.svelte.ts";
   import Badge from "#lib/shared/ui/Badge.svelte";
   import { tooltip } from "#lib/shared/ui/tooltip.ts";
@@ -23,6 +24,9 @@
   } = $props();
 
   let managing = $state(false);
+
+  const overview = useOverview();
+  const noProject = $derived(overview.project(thread.projectId)?.kind === "scratch");
 
   const accounts = $derived(
     panel.data?.connectors.filter((account) => account.granted || account.sessionAttached) ?? [],
@@ -58,7 +62,7 @@
   <div class="flex items-center justify-between gap-2">
     <div class="flex min-w-0 items-center gap-2">
       <h2 class="text-sm/5 text-zinc-500 sm:text-xs/5 dark:text-zinc-400">Connectors</h2>
-      {#if !status && !accounts.length}<span
+      {#if !status && !accounts.length && !noProject}<span
           class="text-zinc-500 dark:text-zinc-400"
           role="status"
           aria-label="No connector accounts available to this thread">None</span
@@ -72,7 +76,11 @@
       >Manage</button
     >
   </div>
-  {#if status}<p role="status" class="text-zinc-500 dark:text-zinc-400">{status}</p>{/if}
+  {#if status}
+    <p role="status" class="text-zinc-500 dark:text-zinc-400">{status}</p>
+  {:else if noProject && !accounts.length}
+    <p class="text-zinc-500 dark:text-zinc-400">Connectors are unavailable in No project.</p>
+  {/if}
   {#if accounts.length > 0}<ul role="list" class="grid">
       {#each accounts as account (account.accountId)}
         {@const state = sessionLook(account)}

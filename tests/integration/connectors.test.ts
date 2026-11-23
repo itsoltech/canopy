@@ -249,6 +249,53 @@ describe.skipIf(!dockerAvailable)("connectors: OAuth, gateway grants and worker 
     expect((await call(t, account.id, read.name)).isError).toBe(true);
   }, 30_000);
 
+  test("project grants keep the catalog and calls consistent for No project", async () => {
+    const scratch = (await gw.api.getOverview({})).projects.find((project) => project.kind === "scratch")!;
+    const workspace = scratch.workspaces.find((entry) => entry.workerId === gw.workerId)!;
+    let account = await save("Project access fixture");
+    const tool = (await gw.api.testConnector({ accountId: account.id })).tools.find((entry) => entry.readOnly)!;
+
+    account = (
+      await gw.api.setConnectorAccess({ accountId: account.id, expectedRevision: account.revision, allProjects: true })
+    ).account!;
+
+    const check = async (allowed: boolean, project: string, placement: string) => {
+      const t = await thread(PermissionMode.FULL_AUTO, placement, project);
+
+      try {
+        const command = gw.worker.commands.find((c) => c.case === "createThread" && c.value.thread?.threadId === t.id);
+        expect(command?.case).toBe("createThread");
+        const tools = command?.case === "createThread" ? command.value.thread?.connectorTools : undefined;
+        expect(tools?.some((entry) => entry.accountId === account.id)).toBe(allowed);
+        const before = fake.calls.length;
+        expect((await call(t, account.id, tool.name)).isError).toBe(!allowed);
+        expect(fake.calls).toHaveLength(before + Number(allowed));
+      } finally {
+        gw.worker.finish(t.id, t.turnId);
+        await eventually(
+          () => gw.api.getThread({ threadId: t.id }),
+          (r) => r.thread?.status === "idle",
+        );
+      }
+    };
+
+    await check(false, scratch.id, workspace.id);
+    await check(true, deniedProject, deniedWorkspace);
+
+    const otherUser = await gw.runtime.runPromise(
+      GatewayStore.use((s) => s.ensureUser("connector-project-other@test.local", "Other")),
+    );
+
+    expect(await gw.core.connectors.tools(otherUser, { projectId, workerId: gw.workerId })).toEqual([]);
+    await expect(gw.core.connectors.run((s) => s.owned(otherUser, account.id))).rejects.toThrow();
+    account = await grant(account);
+    await check(false, scratch.id, workspace.id);
+    await check(false, deniedProject, deniedWorkspace);
+    await check(true, projectId, workspaceId);
+    await gw.api.disconnectConnector({ accountId: account.id });
+    await check(false, projectId, workspaceId);
+  }, 30_000);
+
   test("only the approved connector call can start after a restart, including pre-upgrade cards", async () => {
     const account = await grant(await save("Bound approval"));
     const other = await grant(await save("Other approval account"));
