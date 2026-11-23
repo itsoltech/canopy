@@ -109,6 +109,19 @@ html:is([data-canopy-platform="linux"], [data-canopy-platform="win32"]):not([dat
   }
 }
 html[data-canopy-platform]:not(:has(:popover-open:not([data-window-keep-drag]), [data-window-no-drag])) {
+  /* Keep the top of the window draggable while Settings is the active modal. The native
+   * drag strip ends before the custom window controls, and the page stays inert. */
+  &:is([data-canopy-platform="linux"], [data-canopy-platform="win32"]):not([data-window-fullscreen]):has(
+      dialog[data-window-drag-top][data-window-modal-top]:modal
+    )::before {
+    content: "";
+    position: fixed;
+    inset: 0 var(--window-controls-width) auto 0;
+    height: var(--window-safe-top);
+    pointer-events: none;
+    -webkit-app-region: drag;
+  }
+
   &:not(:has(dialog:modal)) :is([data-window-drag], [data-window-titlebar]):not(dialog *, [inert] *),
   & [data-window-modal-top]:modal :is([data-window-drag], [data-window-titlebar]):not([inert] *) {
     -webkit-app-region: drag;

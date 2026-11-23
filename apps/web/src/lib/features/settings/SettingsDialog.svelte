@@ -17,7 +17,7 @@
    * right; a full-screen sheet on phones, where a section menu in the top row takes the nav's place. A native modal `<dialog>`: the page underneath is inert, focus
    * stays inside and goes back to the opener on close. Escape, the close button or a click on the
    * backdrop ask to close (`onclose`); `open` going false plays the exit (motion.css `t-modal`), then
-   * `onexited`. On macOS its top row is a title strip (routes/layout.css).
+   * `onexited`. On desktop its top row is a title strip (routes/layout.css).
    */
   let {
     open,
@@ -60,6 +60,7 @@
 
 <dialog
   use:windowModal
+  data-window-drag-top
   class:settings-density={true}
   bind:this={dialog}
   open
