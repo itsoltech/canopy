@@ -91,7 +91,11 @@ export function NewThreadScreen() {
                 <View style={[styles.row, { gap: 0, flexShrink: 1 }]}>
                   <ComposerPill
                     icon="folder-open"
-                    leading={project ? <ProjectMark name={project.name} kind={project.kind} /> : undefined}
+                    leading={
+                      project ? (
+                        <ProjectMark name={project.name} color={project.color} kind={project.kind} />
+                      ) : undefined
+                    }
                     title={project?.name ?? "No project"}
                     onPress={() => setPicker("project")}
                   />
@@ -146,7 +150,7 @@ function NewThreadPickers({ state, picker, close }: { state: State; picker: Pick
             options: projects.map((p) => ({
               value: p.id,
               label: p.name,
-              leading: <ProjectMark name={p.name} kind={p.kind} />,
+              leading: <ProjectMark name={p.name} color={p.color} kind={p.kind} />,
               badge: state.projectAway(p) ? "Offline" : p.workspaces.length ? undefined : "Not on a worker",
               description: [state.projectAway(p), details.detail(p)].filter(Boolean).join(" · "),
               keywords: p.aliases.join(" "),

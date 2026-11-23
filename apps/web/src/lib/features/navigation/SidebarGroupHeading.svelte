@@ -46,7 +46,12 @@
       onclick={toggle}
     >
       {#if isProject}
-        <ProjectMark name={entry.heading ?? "?"} kind={entry.project?.kind} class="size-5" />
+        <ProjectMark
+          name={entry.heading ?? "?"}
+          kind={entry.project?.kind}
+          color={entry.project?.color}
+          class="size-5"
+        />
       {:else}<Icon name="git-branch" size="xs" />{/if}
       <span class="min-w-0 flex-1 truncate">{entry.heading}</span>
       <span class="sidebar-group-meta flex shrink-0 items-center gap-1.5">

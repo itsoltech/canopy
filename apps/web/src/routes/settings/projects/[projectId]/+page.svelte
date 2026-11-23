@@ -12,6 +12,7 @@
   import ButtonLink from "#lib/shared/ui/ButtonLink.svelte";
   import ProjectAvatar from "#lib/shared/ui/ProjectAvatar.svelte";
   import SettingsGroup from "#lib/shared/ui/SettingsGroup.svelte";
+  import ProjectColor from "#lib/features/projects/ProjectColor.svelte";
   import ProjectArchive from "#lib/features/projects/ProjectArchive.svelte";
   import type { PageProps } from "./$types";
 
@@ -33,7 +34,11 @@
 <svelte:head><title>{project?.name ?? "Project"} · Settings · {applicationName}</title></svelte:head>
 
 <SettingsHeading title={project?.name ?? "Project"}>
-  {#snippet leading()}<ProjectAvatar name={project?.name ?? "?"} class="size-8 rounded-md text-xs/none" />{/snippet}
+  {#snippet leading()}<ProjectAvatar
+      name={project?.name ?? "?"}
+      color={project?.color}
+      class="size-8 rounded-md text-xs/none"
+    />{/snippet}
   {#snippet actions()}
     {#if project && project.workspaces.length > 0}
       <ButtonLink href="/threads/new?project={project.id}" variant="primary" icon="pencil-square">New thread</ButtonLink
@@ -48,6 +53,12 @@
     named={false}
     onchange={() => void settings.reload()}
   />
+
+  {#if !project.nodeId && project.kind === "project"}
+    <SettingsGroup>
+      {#key project.id}<ProjectColor {project} />{/key}
+    </SettingsGroup>
+  {/if}
 
   <SettingsGroup
     title="Workspaces"

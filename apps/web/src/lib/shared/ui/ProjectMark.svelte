@@ -3,7 +3,12 @@
   import ProjectAvatar from "./ProjectAvatar.svelte";
 
   /** Project identity shared by pickers, sidebar rows and thread summaries. */
-  let { name, kind, class: className }: { name: string; kind?: string | undefined; class?: ClassValue } = $props();
+  let {
+    name,
+    kind,
+    color,
+    class: className,
+  }: { name: string; kind?: string | undefined; color?: string | undefined; class?: ClassValue } = $props();
 </script>
 
 {#if kind === "scratch"}
@@ -16,5 +21,5 @@
     aria-hidden="true"
   ></span>
 {:else}
-  <ProjectAvatar {name} class={className} />
+  <ProjectAvatar {name} {color} class={className} />
 {/if}

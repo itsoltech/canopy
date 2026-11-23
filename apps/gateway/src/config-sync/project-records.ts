@@ -10,6 +10,7 @@ type ProjectRow = {
   id: string;
   name: string;
   kind: string;
+  color: string | null;
   archived_at: Date | null;
   updated_at: Date;
   origin: string;
@@ -49,7 +50,8 @@ function recordOwner(sql: SqlClient.SqlClient, owner: string, node: string) {
       AND kind IN ('project','project_settings','worktree_policy')`),
     ];
 
-    const projects = yield* sql<ProjectRow>`SELECT p.id::text,p.name,p.kind,p.archived_at,p.updated_at,p.config_deleted,
+    const projects =
+      yield* sql<ProjectRow>`SELECT p.id::text,p.name,p.kind,p.color,p.archived_at,p.updated_at,p.config_deleted,
       count(w.id)>0 AS has_workspace,
       CASE WHEN count(w.id)>0 AND bool_and(w.git_origin<>'') AND count(DISTINCT w.git_origin)=1
         THEN min(w.git_origin) ELSE '' END AS origin FROM projects p
@@ -87,6 +89,8 @@ function recordOwner(sql: SqlClient.SqlClient, owner: string, node: string) {
           kind: p.kind,
           archived: !!p.archived_at,
           origin,
+          // An explicit reset carries an empty string with its own clock.
+          ...(p.color !== null && { color: p.color }),
           [`originAmbiguous.${node}`]: ambiguous ? origin : null,
         },
         p.updated_at,

@@ -8,7 +8,7 @@
   import { mascotShapes, mascotColors, type MascotShapeId } from "../mascot.ts";
   import { nameError } from "./draft.ts";
   import ChoiceGrid from "./ChoiceGrid.svelte";
-  import CustomColorPicker from "./CustomColorPicker.svelte";
+  import CustomColorPicker from "#lib/shared/ui/CustomColorPicker.svelte";
   import MascotPreview from "./MascotPreview.svelte";
 
   /** Shared by create and edit; no provider/backend dependency. */

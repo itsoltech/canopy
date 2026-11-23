@@ -28,6 +28,7 @@
     <ProjectMark
       name={overview.project(thread.projectId)?.name ?? "?"}
       kind={overview.project(thread.projectId)?.kind}
+      color={overview.project(thread.projectId)?.color}
       class="opacity-50"
     />
     <span

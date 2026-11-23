@@ -45,6 +45,7 @@ export interface CoreProjectsMethods {
   listDirectory(workerId: string, path: string): Promise<ui.ListDirectoryResponse>;
   createProject(name: string, id?: string): Promise<ui.Project>;
   renameProject(projectId: string, name: string): Promise<ui.Project>;
+  setProjectColor(projectId: string, color: string): Promise<ui.Project>;
   archiveProject(projectId: string): Promise<void>;
   createWorkspace(request: ui.CreateWorkspaceRequest): Promise<ui.Workspace>;
   updateWorkspace(request: ui.UpdateWorkspaceRequest): Promise<ui.Workspace>;
@@ -96,6 +97,23 @@ export const coreProjectsMethods: CoreProjectsMethods = {
     this.hub.publishOverview(create(ui.OverviewUpdateSchema, { change: { case: "project", value: project } }));
 
     return project;
+  },
+
+  async setProjectColor(this: GatewayCore, projectId: string, color: string): Promise<ui.Project> {
+    const { actions, options } = this[coreState];
+
+    return actions.transaction(async () => {
+      const id = await coreRun(this, (s) => s.setProjectColor(options.userId, projectId, color));
+      // decorateOrigins persists the workspace origins this reads. Keep the projection
+      // under the mutation's lock and let Hub publish it after commit.
+      const projects = await coreRun(this, (s) => s.listProjects(options.userId));
+      const project = projects.find((p) => p.id === id);
+
+      if (!project) throw new NotFound("project not found or is system-managed");
+      this.hub.publishOverview(create(ui.OverviewUpdateSchema, { change: { case: "project", value: project } }));
+
+      return project;
+    });
   },
 
   /** Soft archive through the same thread lifecycle, retaining history and worker files. */

@@ -1,18 +1,21 @@
 import { create } from "@bufbuild/protobuf";
 import { timestampFromDate } from "@bufbuild/protobuf/wkt";
 import { ui } from "@canopy/contracts";
+import { normalizeColor } from "@canopy/ui/color";
 import { Effect } from "effect";
 import type { SqlClient } from "effect/sql";
 import { Invalid, NotFound, one, type Fx } from "./errors.ts";
 import { isAbsolutePath, normalizePath, pathKey, pathStyle, scratchBase } from "./paths.ts";
 import { projectTransaction } from "../config-sync/project-records.ts";
 import { configLock } from "../config-sync/persistence.ts";
+import { UUID } from "../config-sync/project-values.ts";
 
 export interface ProjectStore {
   /** Optional local id; config_items keeps the shared identity separately. */
   createProject(ownerUserId: string, name: string, id?: string): Fx<ui.Project>;
   lockProject(ownerUserId: string, projectId: string): Fx<void>;
   renameProject(ownerUserId: string, projectId: string, name: string): Fx<void>;
+  setProjectColor(ownerUserId: string, projectId: string, color: string): Fx<string>;
   archiveProject(ownerUserId: string, projectId: string): Fx<void>;
   createWorkspace(input: { projectId: string; workerId: string; rootPath: string; label: string }): Fx<ui.Workspace>;
   /** Another directory (same worker) or label; unset = unchanged. Threads keep their own directory. */
@@ -123,10 +126,11 @@ const listProjects = (sql: SqlClient.SqlClient, ownerUserId: string) =>
         name: string;
         slug: string;
         kind: string;
+        color: string;
         created_at: Date;
         global_id: string;
       }>`
-            SELECT p.id, p.name, p.slug, p.kind, p.created_at,COALESCE(c.global_id,'') AS global_id
+            SELECT p.id,p.name,p.slug,p.kind,COALESCE(p.color,'') AS color,p.created_at,COALESCE(c.global_id,'') AS global_id
             FROM projects p LEFT JOIN config_items c ON c.owner_user_id=p.owner_user_id AND c.kind='project' AND c.local_id=p.id::text
             WHERE p.owner_user_id = ${ownerUserId}::uuid AND p.archived_at IS NULL ORDER BY (p.kind = 'scratch') DESC, p.created_at`;
 
@@ -174,6 +178,27 @@ const listProjects = (sql: SqlClient.SqlClient, ownerUserId: string) =>
     }),
   );
 
+const setProjectColor = (sql: SqlClient.SqlClient, ownerUserId: string, projectId: string, color: string) =>
+  projectTransaction(
+    sql,
+    Effect.gen(function* () {
+      if (!UUID.test(projectId)) return yield* Effect.fail(new Invalid("Choose a valid project."));
+      const trimmed = color.trim();
+      const normalized = trimmed ? normalizeColor(trimmed) : "";
+
+      if (normalized === undefined) return yield* Effect.fail(new Invalid("Enter a color as #RGB or #RRGGBB."));
+
+      const project = (yield* sql<{ id: string }>`
+        UPDATE projects SET color = ${normalized}, updated_at = now()
+        WHERE id = ${projectId}::uuid AND owner_user_id = ${ownerUserId}::uuid
+          AND kind = 'project' AND archived_at IS NULL RETURNING id::text`)[0];
+
+      if (!project) return yield* Effect.fail(new NotFound("project not found or is system-managed"));
+
+      return project.id;
+    }),
+  );
+
 export function projectStore(sql: SqlClient.SqlClient): ProjectStore {
   return {
     createProject: (ownerUserId, name, shared) =>
@@ -213,6 +238,8 @@ export function projectStore(sql: SqlClient.SqlClient): ProjectStore {
 
         if (!rows.length) return yield* Effect.fail(new NotFound("project not found or is system-managed"));
       }).pipe((fx) => projectTransaction(sql, fx)),
+
+    setProjectColor: (ownerUserId, projectId, color) => setProjectColor(sql, ownerUserId, projectId, color),
 
     archiveProject: (ownerUserId, projectId) =>
       Effect.gen(function* () {

@@ -150,6 +150,23 @@ describe.skipIf(!dockerAvailable)("projects and worktree policy across separate 
     expect(records).not.toContain(pa.workspace.id);
   }, 30_000);
 
+  test("setting a project color and resetting it propagate between projects with the same origin", async () => {
+    const color = "#3e6ca5";
+
+    const localColor = async (computer: ConfigComputer, id: string) =>
+      (await projects(computer)).find((row) => row.id === id)?.color;
+
+    expect(await localColor(a, pa.project.id)).toBe("");
+    expect(await localColor(b, pb.project.id)).toBe("");
+    expect((await a.gateway.api.setProjectColor({ projectId: pa.project.id, color: "#3E6CA5" })).project?.color).toBe(
+      color,
+    );
+    await wait(async () => (await localColor(b, pb.project.id)) === color);
+
+    expect((await b.gateway.api.setProjectColor({ projectId: pb.project.id, color: "" })).project?.color).toBe("");
+    await wait(async () => (await localColor(a, pa.project.id)) === "");
+  }, 45_000);
+
   test("an aliased project_id routes a new thread to B's own project", async () => {
     const response = await a.gateway.api.createThread({
       projectId: pa.project.id,

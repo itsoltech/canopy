@@ -335,8 +335,8 @@ export function sharedHost(core: GatewayCore, _local: UiHandlers): SharedHost {
       ),
     projectsChanged: async () => {
       const archived =
-        (await core.computers?.store.query<{ id: string; name: string }>(
-          "SELECT id::text,name FROM projects WHERE owner_user_id=$1::uuid AND archived_at IS NOT NULL AND kind='project'",
+        (await core.computers?.store.query<{ id: string; name: string; color: string }>(
+          "SELECT id::text,name,COALESCE(color,'') AS color FROM projects WHERE owner_user_id=$1::uuid AND archived_at IS NOT NULL AND kind='project'",
           [core.computers.store.owner],
         )) ?? [];
 

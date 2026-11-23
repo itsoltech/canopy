@@ -1,3 +1,4 @@
+import { hexLuminance, normalizeColor } from "./color.ts";
 import { hashString } from "./hash.ts";
 import palette from "./palette.json";
 
@@ -26,6 +27,18 @@ export function projectMark(name: string) {
     fill: 500,
     opacity: 0.15,
   } as const;
+}
+
+/** Keep the exact custom fill and choose the initials color with the higher contrast. */
+export function projectMarkColors(color: string) {
+  const fill = normalizeColor(color);
+
+  if (!fill) return undefined;
+
+  // At this luminance black and white have equal contrast against the fill.
+  const text = hexLuminance(fill) < 0.1791287847 ? "#ffffff" : "#000000";
+
+  return { fill, text } as const;
 }
 
 /** Same track and quarter ring as the web spinner. Rotation is the default CSS spin cycle. */

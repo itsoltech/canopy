@@ -1,4 +1,4 @@
-import { normalizeColor } from "../mascot.ts";
+import { normalizeColor } from "@canopy/ui/color";
 
 export function hsvToHex(hue: number, saturation: number, value: number): string {
   const h = (((hue % 360) + 360) % 360) / 60;

@@ -1,5 +1,7 @@
 # Canopy na iOS i Android
 
+Status (2026-11-23): szczegóły projektu pozwalają zapisać kolor i przywrócić dobór automatyczny.
+
 Status: opis zaimplementowanego kodu (2026-11-23), w tym czterech wariantów ikony Canopy
 na ekranie głównym telefonu, podczas parowania i w nagłówku sidebara. Wydania iOS
 korzystają z tych samych projektów Icon Composer co macOS. Znak wodny
@@ -123,6 +125,8 @@ subtelnych separatorów i akcji przy nagłówkach sekcji. Pokazują stan connect
 w bieżącej turze oraz mały przełącznik Auto-archive after merge z opisem pod ikoną informacji.
 Settings → Projects pokazuje zwartą listę projektów i osobne szczegóły; dodawanie
 prowadzi przez workera, źródło i katalog z wirtualizowaną listą oraz stałą stopką.
+W szczegółach projektu pole **Project color** przyjmuje kolor szesnastkowy i pokazuje
+podgląd inicjałów. Przycisk zapisu zatwierdza kolor, a reset przywraca **Automatic**.
 W bibliotece skilli i marketplace’ów wybór konta zależy od adresu źródła.
 Dostępność w wydaniach zależy od kanału.
 

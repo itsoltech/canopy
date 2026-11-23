@@ -250,6 +250,7 @@ service GatewayService {
 
   rpc CreateProject(CreateProjectRequest) returns (CreateProjectResponse);
   rpc RenameProject(RenameProjectRequest) returns (CreateProjectResponse);
+  rpc SetProjectColor(SetProjectColorRequest) returns (CreateProjectResponse);
   rpc ArchiveProject(ArchiveProjectRequest) returns (ArchiveProjectResponse);
   rpc CreateWorkspace(CreateWorkspaceRequest) returns (CreateWorkspaceResponse);
   // Katalog na workerze (istniejący, nowy z git init albo klon) jako workspace: dołącza do projektu
@@ -708,6 +709,8 @@ message Project {
   string node_id = 800;
   // Canonical shared configuration identity; local domain id stays in id.
   string global_id = 801;
+  // Normalized #rrggbb; empty uses the automatic color.
+  string color = 5;
 }
 
 message Workspace {
@@ -1305,6 +1308,11 @@ message CreateProjectResponse {
 message RenameProjectRequest {
   string project_id = 1;
   string name = 2;
+}
+
+message SetProjectColorRequest {
+  string project_id = 1;
+  string color = 2; // Empty or whitespace resets to automatic.
 }
 
 message ArchiveProjectRequest {

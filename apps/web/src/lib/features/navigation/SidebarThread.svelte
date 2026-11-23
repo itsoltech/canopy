@@ -158,12 +158,16 @@
         </span>
       {:else if snoozed}
         <span class="grid size-5 shrink-0 place-items-center">
-          <ProjectMark name={project?.name ?? "?"} kind={project?.kind} />
+          <ProjectMark name={project?.name ?? "?"} kind={project?.kind} color={project?.color} />
         </span>
       {:else if showActivity}
         <ThreadActivityMark thread={activity} class="sidebar-row-activity">
           {#snippet idle()}
-            {#if !groupedProject}<ProjectMark name={project?.name ?? "?"} kind={project?.kind} />{/if}
+            {#if !groupedProject}<ProjectMark
+                name={project?.name ?? "?"}
+                kind={project?.kind}
+                color={project?.color}
+              />{/if}
           {/snippet}
         </ThreadActivityMark>
       {/if}

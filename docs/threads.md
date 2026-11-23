@@ -1,5 +1,9 @@
 # Projekty, wątki i wątki boczne
 
+Status (2026-11-23): w Settings → Projects można zmienić kolor istniejącego projektu
+w web, desktop, iOS i Androidzie. **Use automatic color** przywraca dobór z nazwy.
+Zapisany kolor jest wspólny dla widoków projektu i urządzeń właściciela.
+
 Status (2026-11-23): widok Threads w web i desktop filtruje listę także po workerach.
 Wybór działa razem z projektami i wyszukiwaniem oraz obejmuje Snoozed i archiwum.
 Fork wątku Codexa jest dostępny zaraz po przywróceniu z archiwum.

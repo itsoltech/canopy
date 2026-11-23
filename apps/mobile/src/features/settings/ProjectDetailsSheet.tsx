@@ -7,6 +7,7 @@ import { SettingsGroup, SettingsRow } from "./SettingsGroup";
 import { SettingsTextInput } from "./SettingsTextInput";
 import { ResourceState } from "./resource";
 import { ProjectDefaults, type ProjectResource } from "./ProjectDefaults";
+import { ProjectColorSetting } from "./ProjectColorSetting";
 import { useProjectDetails } from "../computers/project-details";
 import { AddWorkspace } from "./AddWorkspace";
 import { WorkspaceRow } from "./WorkspaceRow";
@@ -44,6 +45,7 @@ export function ProjectDetailsSheet({
             onSave={async (name) => !!(await resource.run((api) => api.renameProject({ projectId: project.id, name })))}
           />
         )}
+        {!project.nodeId && project.kind !== "scratch" && <ProjectColorSetting project={project} resource={resource} />}
       </SettingsGroup>
       <SettingsGroup
         title="Workspaces"

@@ -109,8 +109,11 @@
           ? "/settings/threads"
           : `/settings/projects/${project.id}`
         : undefined}
-      >{#snippet mark()}<ProjectMark name={project?.name ?? "?"} kind={project?.kind} />{/snippet}{project?.name ??
-        "Project"}</Crumb
+      >{#snippet mark()}<ProjectMark
+          name={project?.name ?? "?"}
+          kind={project?.kind}
+          color={project?.color}
+        />{/snippet}{project?.name ?? "Project"}</Crumb
     >
     <Crumb {href}>{main.title || "Untitled thread"}</Crumb>
     <Crumb>New side thread</Crumb>
