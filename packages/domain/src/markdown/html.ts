@@ -52,9 +52,14 @@ const htmlTags = [
 
 export type HtmlTag = (typeof htmlTags)[number];
 
+export interface MarkdownImage extends GitHubImage {
+  readonly lightSrc?: string | undefined;
+  readonly darkSrc?: string | undefined;
+}
+
 export type HtmlNode =
   | { kind: "text"; text: string }
-  | { kind: "image"; image: GitHubImage }
+  | { kind: "image"; image: MarkdownImage }
   | { kind: "markdown"; token: Token }
   | {
       kind: "element";
@@ -167,6 +172,37 @@ function elementOf(node: Element, tag: HtmlTag): Extract<HtmlNode, { kind: "elem
   return element;
 }
 
+type PictureSources = Pick<MarkdownImage, "darkSrc" | "lightSrc">;
+
+const pictures = new WeakMap<Element, PictureSources>();
+
+function pictureSources(node: Element): PictureSources {
+  const parent = node.parentNode;
+
+  if (!parent || !("tagName" in parent) || parent.tagName !== "picture") return {};
+  const cached = pictures.get(parent);
+
+  if (cached) return cached;
+  const sources = new Map<string, string>();
+
+  for (const child of parent.childNodes) {
+    if (!("tagName" in child)) continue;
+
+    if (child.tagName === "img") break;
+
+    if (child.tagName !== "source") continue;
+    const scheme = /^\(prefers-color-scheme:\s*(light|dark)\)$/.exec(attr(child, "media")?.trim() ?? "")?.[1];
+    const src = attr(child, "srcset")?.trim();
+
+    if (scheme && src && /^[^\s,]+$/.test(src) && !sources.has(scheme)) sources.set(scheme, src);
+  }
+
+  const variants = sources.size ? { darkSrc: sources.get("dark"), lightSrc: sources.get("light") } : {};
+  pictures.set(parent, variants);
+
+  return variants;
+}
+
 /** Iterative traversal also handles adversarially deep HTML without consuming the JS call stack. */
 function htmlNodes(children: Child[], marker: string, tokens: Token[]): HtmlNode[] {
   const nodes: HtmlNode[] = [];
@@ -196,6 +232,7 @@ function htmlNodes(children: Child[], marker: string, tokens: Token[]): HtmlNode
       entry.into.push({
         kind: "image",
         image: {
+          ...pictureSources(node),
           src: attr(node, "src") ?? "",
           alt: attr(node, "alt") ?? "",
           width: dimension(attr(node, "width")),

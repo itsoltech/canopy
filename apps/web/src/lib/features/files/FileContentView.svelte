@@ -3,6 +3,7 @@
   import CodeView from "#lib/shared/ui/code/CodeView.svelte";
   import { languageOfPath } from "#lib/shared/ui/code/languages.ts";
   import WorkspaceMarkdown from "./WorkspaceMarkdown.svelte";
+  import { workspaceImageUrl } from "./api.ts";
   import FileImage from "./FileImage.svelte";
   import type { FilePosition } from "@canopy/domain/file-references";
   import type { WorkspaceFileTarget } from "@canopy/domain/workspace-file";
@@ -46,7 +47,11 @@
 {:else if rendered}
   <!-- svelte-ignore a11y_no_noninteractive_tabindex -->
   <div class="min-h-full p-4 focus-ring" tabindex="0" role="region" aria-label={name} data-select-content>
-    <WorkspaceMarkdown {text} {target} path={file.path || file.relativePath || target.path} />
+    <WorkspaceMarkdown
+      {text}
+      path={file.path || file.relativePath || target.path}
+      loadImage={async (path) => workspaceImageUrl(target.threadId, path, target.itemId ?? "")}
+    />
   </div>
 {:else if text}
   <CodeView

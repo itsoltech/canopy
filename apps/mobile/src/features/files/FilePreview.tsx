@@ -28,11 +28,28 @@ export function FilePreview({
 
   return (
     <>
-      <View style={{ padding: 12, gap: 8 }}>
-        {detail ? (
-          <Text selectable style={[styles.caption, { color: c.muted }]}>
-            {detail}
-          </Text>
+      <View style={{ paddingHorizontal: 12, paddingTop: 12, paddingBottom: 8, gap: 8 }}>
+        {detail || viewer.editable ? (
+          <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
+            <Text
+              selectable
+              numberOfLines={1}
+              ellipsizeMode="middle"
+              style={[styles.caption, { color: c.muted, flex: 1 }]}
+            >
+              {detail}
+            </Text>
+            {viewer.editable && (
+              <Text
+                accessibilityElementsHidden={!viewer.dirty}
+                importantForAccessibility={viewer.dirty ? "yes" : "no"}
+                accessibilityLiveRegion="polite"
+                style={[styles.caption, { color: c.muted, opacity: viewer.dirty ? 1 : 0, maxWidth: "50%" }]}
+              >
+                Unsaved changes
+              </Text>
+            )}
+          </View>
         ) : null}
         {actions}
         {viewer.error ? (
@@ -41,9 +58,6 @@ export function FilePreview({
           </Text>
         ) : null}
         {viewer.editable && viewer.error && <Button title="Discard and reload" onPress={onDiscard} />}
-        {viewer.editable && (
-          <Text style={[styles.caption, { color: c.muted }]}>{viewer.dirty ? "Unsaved changes" : " "}</Text>
-        )}
       </View>
       {viewer.loading ? (
         <ActivityIndicator accessibilityLabel="Opening the file" color={c.muted} />

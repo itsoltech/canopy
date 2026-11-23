@@ -1,58 +1,64 @@
 <script lang="ts">
   import type { ClassValue } from "svelte/elements";
-  import type { GitHubImage } from "@canopy/domain/github-images";
-  import type { WorkspaceFileTarget } from "@canopy/domain/workspace-file";
-  import { localImagePath } from "@canopy/domain/markdown-images";
-  import { safeHref } from "@canopy/domain/markdown";
-  import { isAbsoluteFilePath, joinThreadPath } from "@canopy/domain/thread-files";
+  import { workspaceImagePath } from "@canopy/domain/markdown-images";
+  import { safeHref, type MarkdownImage } from "@canopy/domain/markdown";
+  import { onVisualThemeChange } from "#lib/features/visuals/visual-theme.ts";
   import { useFileLinks } from "#lib/shared/ui/markdown/file-links.ts";
   import InlineLink from "#lib/shared/ui/InlineLink.svelte";
-  import { workspaceImageUrl } from "./api.ts";
 
   let {
     value,
-    target,
     path,
+    loadImage,
     class: className,
   }: {
-    value: GitHubImage;
-    target: WorkspaceFileTarget;
+    value: MarkdownImage;
     path: string;
+    loadImage: (path: string, href: string) => Promise<string>;
     class?: ClassValue;
   } = $props();
 
   const files = useFileLinks();
   let box = $state<HTMLSpanElement>();
-  let visible = $state(false);
-  let failedSource = $state("");
+  let source = $state("");
+  let failed = $state(false);
+  let dark = $state(false);
 
-  const local = $derived.by(() => {
-    const image = localImagePath(value.src);
+  $effect(() => {
+    if (!value.darkSrc && !value.lightSrc) return;
+    const read = () => (dark = document.documentElement.classList.contains("dark"));
+    read();
 
-    if (!image) return;
-
-    if (isAbsoluteFilePath(image)) return image;
-    const directory = /^(.*)[\\/][^\\/]+$/.exec(path)?.[1];
-
-    return directory ? joinThreadPath(directory, image) : `./${image.replace(/^\.[\\/]/, "")}`;
+    return onVisualThemeChange(read);
   });
 
-  const href = $derived(safeHref(value.src));
-  const source = $derived(visible && local ? workspaceImageUrl(target.threadId, local, target.itemId ?? "") : "");
+  const src = $derived((dark ? value.darkSrc : value.lightSrc) ?? value.src);
+  const local = $derived(workspaceImagePath(path, src));
+  const href = $derived(safeHref(src));
 
   $effect(() => {
     const element = box;
-    void local;
-    visible = false;
-    failedSource = "";
+    const resolved = local;
+    const requested = src;
+    const load = loadImage;
+    source = "";
+    failed = false;
 
-    if (!element || !local) return;
+    if (!element || !resolved) return;
+    let active = true;
 
     const observer = new IntersectionObserver(
       (entries) => {
         if (entries.some((entry) => entry.isIntersecting)) {
-          visible = true;
           observer.disconnect();
+          void load(resolved, requested).then(
+            (url) => {
+              if (active) source = url;
+            },
+            () => {
+              if (active) failed = true;
+            },
+          );
         }
       },
       { rootMargin: "200px" },
@@ -60,18 +66,21 @@
 
     observer.observe(element);
 
-    return () => observer.disconnect();
+    return () => {
+      active = false;
+      observer.disconnect();
+    };
   });
 
   function imageError(event: Event): void {
     const image = event.currentTarget;
 
-    if (image instanceof HTMLImageElement && image.getAttribute("src") === source) failedSource = source;
+    if (image instanceof HTMLImageElement && image.getAttribute("src") === source) failed = true;
   }
 </script>
 
 <span bind:this={box} class={["inline-block max-w-full align-middle", className]}>
-  {#if source && failedSource !== source}
+  {#if source && !failed}
     <img
       src={source}
       alt={value.alt}
@@ -81,13 +90,13 @@
       class="inline-block h-auto max-w-full object-contain align-middle"
       onerror={imageError}
     />
-  {:else if local && files && source && failedSource === source}
+  {:else if local && files && failed}
     <InlineLink
       onactivate={() => {
         if (local) files.open(local);
       }}
       title="Could not show this image. Open the file."
-      class="text-sky-700 underline focus-ring dark:text-sky-400">{value.alt || value.src}</InlineLink
+      class="text-sky-700 underline focus-ring dark:text-sky-400">{value.alt || src}</InlineLink
     >
   {:else if href && !local}
     <InlineLink

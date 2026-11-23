@@ -30,7 +30,9 @@ odstępem nad aktywną kartą i strzałką powrotu, zamykanie kart plików i mod
 bezpośrednio z mobilnej listy Switch tab oraz ręczny pełnoekranowy Preview Browser/Desktop/Device
 ze stałą belką zamknięcia i możliwością ukrycia kontrolek
 (2026-11-17; stos #640–#648, potem #710, #711, #737, #740, #787 i #823).
-Karta pliku na mobile renderuje też bieżący szkic Markdown.
+Karta pliku na mobile renderuje bieżący szkic Markdown tym samym komponentem co
+web/desktop. Podgląd obejmuje bezpieczny HTML, lokalne obrazy, Mermaid i KaTeX
+(2026-11-23).
 Opis dotyczy kodu; dostępność nightly/beta/stable określają [wydania](release.md).
 Przy otwieraniu wątku bez kopii w kliencie BFF czyta bieżący wpis z overview.
 Jeśli wpisu jeszcze nie ma lub trwa odbudowa strumienia, BFF wywołuje
@@ -256,11 +258,12 @@ zmiana motywu lub trybu jasny/ciemny rysuje diagram ponownie. Nagłówek bloku m
 `Show source`/`Show diagram` i `Copy code`; diagram z błędem składni pokazuje źródło z
 krótką notką. Szeroki diagram zmniejsza się najwyżej do 90% i dalej przewija w poziomie.
 
-W web/desktop `Rendered` obsługuje również bezpieczny HTML w Markdown: nagłówki,
+Tryb `Rendered` obsługuje również bezpieczny HTML w Markdown: nagłówki,
 akapity, formatowanie inline, listy, tabele, `details`/`summary`, linki i `align`
 (`left`, `center`, `right`). Wspólny renderer parsuje HTML jako dane (`parse5`),
 buduje drzewo dozwolonych elementów i renderuje je komponentami Svelte, bez
-wstrzykiwania źródłowego HTML. Zachowuje zagnieżdżenie także przy mieszaniu HTML
+wstrzykiwania źródłowego HTML. Mobile uruchamia ten sam komponent w lokalnym
+WebView. Zachowuje zagnieżdżenie także przy mieszaniu HTML
 z blokami Markdown. Zagnieżdżenie HTML jest ograniczone do 64 poziomów; głębsze
 opakowania są spłaszczane z zachowaniem tekstu. Skrypty, style, handlery zdarzeń, formularze, ramki i obce
 przestrzenie nazw są usuwane; kod w backtickach pozostaje literalny.
@@ -268,8 +271,9 @@ przestrzenie nazw są usuwane; kod w backtickach pozostaje literalny.
 Obrazy Markdown i HTML `img` w podglądzie pliku są pobierane leniwie przez istniejący,
 autoryzowany odczyt plików wątku. Ścieżki względne liczymy od katalogu oglądanego
 pliku, a nie od katalogu wątku. Obowiązują limity podglądu plików (2 MiB), rastrów
-(16 Mpx) i wymiarów z HTML (4096 px). SVG trafia wyłącznie do `<img>` przez URL
-bloba, nigdy jako aktywny dokument ani inline SVG. Ścieżki zawierające `..` nie są
+(16 Mpx) i wymiarów z HTML (4096 px). SVG trafia wyłącznie do `<img>`.
+Warianty `picture` z pojedynczym źródłem dla jasnego lub ciemnego schematu
+podążają za motywem aplikacji. Ścieżki zawierające `..` nie są
 ładowane automatycznie. Zewnętrzne obrazy pozostają linkami; błąd lokalnego obrazu
 pokazuje alt i pozwala otworzyć plik. To zachowanie dotyczy podglądu plików,
 nie importera trwałych obrazów odpowiedzi agentów ([agent-visuals.md](agent-visuals.md)).

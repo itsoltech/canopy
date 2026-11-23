@@ -6,19 +6,17 @@ import { styles, useColors } from "../../ui/theme";
 import { useDevicePreferences } from "../settings/device-preferences";
 import { CopyAction } from "../viewers/copy-action";
 import { WorkspaceText } from "./WorkspaceText";
-import { isMarkdownFile, useWorkspaceMarkdown, WorkspaceMarkdown } from "./WorkspaceMarkdown";
+import { isMarkdownFile, WorkspaceMarkdown } from "./WorkspaceMarkdown";
 
 export function WorkspaceReader({
   tab,
   name,
-  active,
   actions,
   onKeep,
   onLocate,
 }: {
   tab: WorkspaceTab;
   name: string;
-  active: boolean;
   actions: ReactNode;
   onKeep: () => void;
   onLocate: () => void;
@@ -29,7 +27,6 @@ export function WorkspaceReader({
   const [source, setSource] = useState(Boolean(document.position));
   const markdown = isMarkdownFile(name);
   const rendered = markdown && !source && preferences.values.attachmentMarkdown === "rendered";
-  const tokens = useWorkspaceMarkdown(rendered ? document.text : undefined, active && !document.loading);
 
   return (
     <>
@@ -75,7 +72,11 @@ export function WorkspaceReader({
           </Text>
         ) : null}
       </View>
-      {rendered ? <WorkspaceMarkdown tokens={tokens} /> : <WorkspaceText document={document} />}
+      {rendered ? (
+        <WorkspaceMarkdown text={document.text} document={document} />
+      ) : (
+        <WorkspaceText document={document} />
+      )}
     </>
   );
 }
