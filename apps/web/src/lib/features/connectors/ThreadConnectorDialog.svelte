@@ -29,6 +29,13 @@
   const hasProject = $derived(!!thread.projectId && project?.kind !== "scratch" && !project?.archivedAt);
   const accounts = $derived(panel.data?.connectors.filter((account) => account.revision > 0n) ?? []);
   const hasLegacyGrants = $derived(accounts.some((account) => account.allProjects === undefined));
+  const description = $derived(
+    project?.kind === "scratch" && !hasLegacyGrants
+      ? "Connectors are unavailable in No project."
+      : hasProject
+        ? "Changes apply to every thread in this project."
+        : "This thread has no active project.",
+  );
   let pending = $state<{ accountId: string; granted: boolean }>();
   let error = $state("");
 
@@ -47,11 +54,7 @@
   }
 </script>
 
-<Dialog
-  bind:open
-  title="Manage connector access"
-  description={hasProject ? "Changes apply to every thread in this project." : "This thread has no active project."}
->
+<Dialog bind:open title="Manage connector access" {description}>
   <div class={["grid min-w-0 gap-3", className]}>
     {#if error}<Alert tone="error">{error}</Alert>{/if}
     {#if hasProject && hasLegacyGrants}

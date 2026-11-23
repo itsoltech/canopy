@@ -204,7 +204,7 @@
           {:else}
             <AccessPicker
               label="Projects"
-              description="Each thread in a selected project can use this account within its permission mode."
+              description="The All projects option excludes No project."
               icon="folder"
               options={projects}
               all={pending?.group === "projects" ? pending.choice.all : account.allProjects}
