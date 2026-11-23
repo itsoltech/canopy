@@ -3,7 +3,8 @@
 Projekt i wdrożenie: 2026-11-02. Zakres: konta zdalnych serwerów MCP,
 OAuth w gateway, dostęp wybranych projektów i botów oraz jeden kanał wykonania.
 Status (2026-11-22): dostęp wątków do kont wynika z grantów projektów.
-Na `dev` (2026-11-23) eksport diagnostyczny gatewaya pokazuje etap nieudanego startu OAuth.
+Aktualizacja (2026-11-23): transport OAuth przechodzi na kolejny zweryfikowany
+adres po błędzie zestawiania TCP. Log i eksport diagnostyczny opisują błędy sieci OAuth.
 Settings → Connectors rozróżnia **Slack User** (narzędzia MCP działające jako
 użytkownik) i **Slack Bot** (wiadomości przez Socket Mode). Bot settings → Messengers
 wybiera konto Slack Bot i jego trasy. Dotychczasowe połączenia i trasy zachowują
@@ -114,12 +115,22 @@ Gateway rozwiązuje nazwy docelowe przed połączeniem i łączy się z wybranym
 zachowując nazwę hosta dla TLS. Dla celu wskazanego w metadanych wszystkie odpowiedzi DNS
 muszą być publiczne. Prywatny adres jest dopuszczony dla dokładnego origin wpisanego przez
 właściciela serwera MCP lub zarejestrowanego wystawcy. Inny port jest osobnym origin.
-Discovery i rejestracja współdzielą wybór adresu. Origin rozpoznany jako publiczny pozostaje
-publiczny przy wymianie kodu, odświeżaniu i odwołaniu tokenu. Gateway odrzuca przekierowania.
+W obrębie operacji OAuth gateway zachowuje listę zweryfikowanych adresów dla originu
+i preferuje adres, który odpowiedział. Gateway próbuje kolejnego adresu z tej
+samej listy po odmowie TCP, braku trasy lub lokalnego adresu źródłowego albo
+upływie 2 sekund na zestawienie TCP. Próby odbywają się sekwencyjnie, bez ponownego DNS, w ramach
+20-sekundowego limitu żądania.
+Żądanie HTTP trafia do transportu po zestawieniu TCP. Błąd TLS, przerwanie
+odpowiedzi i status HTTP kończą bieżące żądanie bez przejścia na inny adres.
+Origin rozpoznany jako publiczny pozostaje publiczny przy wymianie kodu,
+odświeżaniu i odwołaniu tokenu. Gateway odrzuca przekierowania.
 Przy błędzie startu przed wyświetleniem zgody gateway zapisuje etap: discovery,
 rejestracja klienta, przygotowanie autoryzacji albo zapis stanu. Przy discovery
-i rejestracji zapisuje też status HTTP, jeśli otrzymał odpowiedź. Eksport nie zawiera URL-i,
-odpowiedzi dostawcy ani danych sesji.
+i rejestracji zapisuje też status HTTP, jeśli otrzymał odpowiedź. Komunikat
+rozróżnia problem z siecią, metadanymi i rejestracją klienta. Gdy błąd sieci
+podczas odświeżania blokuje wywołanie narzędzia, gateway zapisuje kod z
+zamkniętej listy i zwraca wskazówkę ponownego połączenia konta. Log i eksport
+pomijają URL-e, nagłówki, odpowiedzi dostawcy i dane sesji.
 Losowy, jednorazowy state ma TTL 10 minut, wiąże konto i właściciela oraz osobny
 sekret sesji przeglądarki w cookie HttpOnly/SameSite=Lax. Desktop otwiera
 autoryzację w przeglądarce systemowej, oddzielnej od sesji Electrona; zamiast

@@ -7,6 +7,7 @@ import { OAuthStartFailure } from "./oauth-error.ts";
 import type { AccountRow, Credentials, RegisteredApp } from "./records.ts";
 
 import { OAuthEndpointRedirect, oauthEgress } from "./oauth-egress.ts";
+import { OAuthNetworkFailure } from "./oauth-network.ts";
 
 /** Only explicit sign-in discovers a new redirect or replaces a dynamic registration. */
 export async function beginOAuth(
@@ -32,14 +33,18 @@ export async function beginOAuth(
       },
     });
   } catch (error) {
-    throw new OAuthStartFailure("discovery", error instanceof OAuthEndpointRedirect ? error.status : discoveryStatus);
+    throw new OAuthStartFailure(
+      "discovery",
+      error instanceof OAuthEndpointRedirect ? error.status : discoveryStatus,
+      error instanceof OAuthNetworkFailure ? error : undefined,
+    );
   }
 
   const s256 = discovery.authorizationServerMetadata?.code_challenge_methods_supported?.includes("S256");
   // Manually registered apps keep the callback they were saved with, including older installation callbacks.
   const redirectUri = app ? app.redirect_uri || callback : s256 ? oauthRedirectUrl() : callback;
 
-  if (redirectUri !== callback && !s256) throw new Error("Fixed OAuth redirect requires advertised S256");
+  if (redirectUri !== callback && !s256) throw new OAuthStartFailure("discovery", discoveryStatus);
 
   const client =
     app ??
@@ -89,7 +94,8 @@ export async function beginOAuth(
       throw new OAuthStartFailure(
         "registration",
         error instanceof OAuthEndpointRedirect ? error.status : registrationStatus,
+        error instanceof OAuthNetworkFailure ? error : undefined,
       );
-    throw new OAuthStartFailure("authorization");
+    throw new OAuthStartFailure("authorization", 0, error instanceof OAuthNetworkFailure ? error : undefined);
   }
 }

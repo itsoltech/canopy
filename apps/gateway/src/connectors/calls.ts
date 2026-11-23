@@ -21,6 +21,7 @@ import { SLACK_POST_ACTION } from "./slack-post-tool.ts";
 import { slackDownloadAttachments } from "./slack-download-tool.ts";
 import { digest } from "./records.ts";
 import { canonicalJson } from "../store/instance-config.ts";
+import { OAuthNetworkFailure } from "./oauth-network.ts";
 
 /** MCP tool results report failure in-band. */
 export const failed = (result: JsonValue) => isJsonObject(result) && Boolean(result["isError"]);
@@ -119,6 +120,7 @@ export async function connectorPermission(
 /** A connector call from an agent thread (agent bus): checked against the thread's worker, answered in-band. */
 export async function handleConnectorCall(
   context: Pick<PermissionContext, "runtime" | "run"> & {
+    log: ((message: string) => void) | undefined;
     call(
       source: ExecutionSource,
       callId: string,
@@ -159,11 +161,16 @@ export async function handleConnectorCall(
       resultJson: JSON.stringify(result),
       attachments: slackDownloadAttachments(result, request.toolName),
     });
-  } catch {
+  } catch (error) {
     if (source) await context.run((s) => s.audit(source!, request.toolName, "denied_or_failed")).catch(() => undefined);
 
-    const message =
-      "Connector call refused or failed. Check account access, connection status, permission mode and approval. No automatic write retry.";
+    const network = error instanceof OAuthNetworkFailure;
+
+    if (network) context.log?.(`connectors: oauth refresh failed network ${error.code}`);
+
+    const message = network
+      ? "Could not reach the OAuth server to refresh this connection. Check your network connection and reconnect the account."
+      : "Connector call refused or failed. Check account access, connection status, permission mode and approval. No automatic write retry.";
 
     return create(AgentToolResultSchema, {
       callId: request.callId,

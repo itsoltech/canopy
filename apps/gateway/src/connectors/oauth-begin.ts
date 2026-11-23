@@ -3,7 +3,7 @@ import { connectors } from "@canopy/contracts";
 import { ConnectorFailure } from "./records.ts";
 import { connectorUrl } from "./catalog.ts";
 import { beginOAuth } from "./sign-in.ts";
-import { OAuthStartFailure, type OAuthStartStage } from "./oauth-error.ts";
+import { OAuthStartFailure, oauthStartMessage, type OAuthStartStage } from "./oauth-error.ts";
 import { beginSlackMessaging } from "./slack-messaging-oauth.ts";
 import { slackRequest, type SlackTransport } from "../messengers/slack-http.ts";
 import type { ConnectorsRuntime } from "./runtime.ts";
@@ -80,7 +80,9 @@ export async function beginConnectorOAuth(
   } catch (error) {
     const failure = error instanceof OAuthStartFailure ? error : new OAuthStartFailure(stage);
 
-    options.log?.(`connectors: oauth start failed stage ${failure.stage} status ${failure.status}`);
-    throw new ConnectorFailure("Could not start OAuth. Check the server metadata and registered OAuth app.");
+    const network = failure.network ? ` network ${failure.network.code}` : "";
+
+    options.log?.(`connectors: oauth start failed stage ${failure.stage} status ${failure.status}${network}`);
+    throw new ConnectorFailure(failure.network?.message ?? oauthStartMessage[failure.stage]);
   }
 }
