@@ -1,6 +1,7 @@
 # Canopy Desktop
 
-Status: opis zaimplementowanego runtime i pakowania (2026-11-23), w tym dziennego
+Status: opis zaimplementowanego runtime i pakowania (2026-11-23). Ekran startu
+używa ikony kanału zainstalowanej aplikacji. Opis obejmuje też działanie dziennego
 pingu użycia z przełącznikiem prywatności i pomijaniem wysyłki offline. Aktualizator używa
 `electron-updater` 6.8.11. Build i ustawienia
 udostępniają licencje dołączonych komponentów. Powłoka ładowania
@@ -448,9 +449,11 @@ Niepełne `initdb` również zgłasza błąd zamiast usuwać istniejące dane.
 ### Ekran uruchamiania
 
 Kontroler odczytuje zapisany tryb z `desktop.json` przed otwarciem pierwszego okna.
-Skonfigurowana aplikacja ładuje `/desktop` jako ekran startu: logo Canopy, krótki
-status połączenia ze zdalnym hostem lub startu usług lokalnych, a przy pobieraniu
-PostgreSQL pasek postępu. Błędy udostępniają „Try again” i „Open desktop settings”.
+Skonfigurowana aplikacja ładuje `/desktop` jako ekran startu. Ikona pochodzi
+z kanału zainstalowanej aplikacji i jest dostępna przed połączeniem z gatewayem.
+Ekran pokazuje krótki status połączenia ze zdalnym hostem lub startu usług lokalnych,
+a przy pobieraniu PostgreSQL także pasek postępu. Błędy udostępniają „Try again”
+i „Open desktop settings”.
 Jeśli PostgreSQL zgłosi odmowę pracy z uprawnieniami administratora, ekran od razu
 wyjaśnia przyczynę i poleca zamknąć Canopy oraz otworzyć je bez „Run as administrator”.
 Komunikat wynika z odpowiedzi procesu bazy, nie z samego braku gotowości SQL;
