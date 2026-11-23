@@ -24,6 +24,7 @@ Panel natywnego mobile rozróżnia dostęp projektu i katalog bieżącej tury:
 Available, Available next turn, Access removed, Unavailable oraz Error.
 Zachowuje podłączone konto po odebraniu grantu do czasu aktualizacji katalogu;
 szczegóły błędu sesji rozwija się przez Show details.
+Aktualizacja (2026-11-23): wątki Claude przyjmują warunkowe schematy narzędzi MCP.
 Dostępność kanałów według [release.md](release.md).
 
 ## Decyzje
@@ -228,7 +229,10 @@ i paste-code działają jak wcześniej. Disconnect revokuje tokeny na zewnątrz,
 
 Worker otrzymuje wyłącznie deskryptory: ID konta, nazwę, schemat i opis narzędzia.
 Claude Agent SDK **0.3.316** / Claude Code **2.1.316**: narzędzia w serwerze MCP
-w procesie workera (`mcp__canopy__…`). Codex **0.164.0**: prywatny lokalny HTTP MCP
+w procesie workera (`mcp__canopy__…`). Katalog zachowuje oryginalny JSON Schema
+konektora, łącznie z regułami `if`/`then`/`else`. Adapter przekazuje pełne argumenty
+do gatewaya. Za walidację schematu odpowiada serwer narzędzia.
+Codex **0.164.0**: prywatny lokalny HTTP MCP
 `canopy_connectors`. Grok: lokalny HTTP MCP przekazany przez ACP.
 Nazwy są stabilne i rozdzielone per konto (`github_work_<id>__create_issue`),
 także gdy nazwy dwóch kont są identyczne po normalizacji. Opisy podają typ i konto.
