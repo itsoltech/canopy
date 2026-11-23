@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { browser } from "$app/env";
   import { applicationIcon } from "#lib/application-name.ts";
   import type { DesktopStatus } from "@canopy/ui/desktop";
   import Alert from "#lib/shared/ui/Alert.svelte";
@@ -6,6 +7,8 @@
   import ProgressBar from "#lib/shared/ui/ProgressBar.svelte";
   import Spinner from "#lib/shared/ui/Spinner.svelte";
   import MigrationRecoveryLink from "./migration/MigrationRecoveryLink.svelte";
+
+  const version = browser ? window.canopyDesktop?.startupVersion : undefined;
 
   let {
     status,
@@ -27,7 +30,10 @@
 <div class="mx-auto grid w-full max-w-md gap-6 px-6 sm:px-10">
   <img src={applicationIcon} alt="" width="64" height="64" class="size-16" />
   <div class="grid gap-3">
-    <h1 class="text-3xl font-semibold tracking-tight">Canopy</h1>
+    <div class="grid gap-1">
+      <h1 class="text-3xl font-semibold tracking-tight">Canopy</h1>
+      {#if version}<p class="text-sm/5 wrap-anywhere text-muted">Version {version}</p>{/if}
+    </div>
     {#if failed}
       <Alert
         tone="error"

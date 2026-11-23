@@ -12,6 +12,7 @@ import { browserLink } from "./context-menu-template.ts";
 import { attachWorkspaceClose } from "./workspace-close.ts";
 import { windowContents } from "./window-message.ts";
 import { trackFileDownloads } from "./file-downloads.ts";
+import { desktopVersionArgument } from "./startup-version.ts";
 
 interface WindowOptions {
   appRoutes: AppRoutes;
@@ -84,6 +85,8 @@ export function createDesktopWindow(options: WindowOptions) {
     }),
     webPreferences: {
       preload: join(app.getAppPath(), "dist/preload.cjs"),
+      // Unpackaged runs use the source manifest's placeholder version.
+      additionalArguments: [desktopVersionArgument + (app.isPackaged ? app.getVersion() : "")],
       nodeIntegration: false,
       contextIsolation: true,
       sandbox: true,

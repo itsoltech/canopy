@@ -7,7 +7,7 @@ import { DesktopRuntime } from "../src/runtime/runtime.ts";
 const tempDirectory = tempDirs();
 
 test.skipIf(process.env["CANOPY_LIVE"] !== "1")(
-  "desktop keeps the startup palette across a reload while the gateway is offline",
+  "desktop renders the startup palette and package version before the gateway connects",
   async () => {
     const directory = tempDirectory("canopy-startup-appearance-");
     const token = randomBytes(32).toString("hex");
@@ -49,11 +49,11 @@ test.skipIf(process.env["CANOPY_LIVE"] !== "1")(
       // SAFETY: Outside the Electron runtime, its npm entry exports the executable path.
       const electron = require("electron") as string;
 
-      for (const [scheme, system] of [
-        ["dark", "light"],
-        ["light", "dark"],
-        ["system", "dark"],
-        ["system", "light"],
+      for (const [scheme, system, version] of [
+        ["dark", "light", "0.8.0"],
+        ["light", "dark", "0.8.0-beta.2"],
+        ["system", "dark", "0.8.0-nightly.4"],
+        ["system", "light", ""],
       ]) {
         const child = Bun.spawn(
           [
@@ -68,6 +68,7 @@ test.skipIf(process.env["CANOPY_LIVE"] !== "1")(
               CANOPY_TEST_ORIGIN: origin,
               CANOPY_TEST_APPEARANCE: scheme,
               CANOPY_TEST_SYSTEM_SCHEME: system,
+              CANOPY_TEST_DESKTOP_VERSION: version,
             },
             stdin: "pipe",
             stdout: "inherit",
@@ -80,7 +81,7 @@ test.skipIf(process.env["CANOPY_LIVE"] !== "1")(
         const timeout = setTimeout(() => child.kill("SIGKILL"), 8_000);
 
         try {
-          expect(await child.exited, `${scheme} scheme on a ${system} system`).toBe(0);
+          expect(await child.exited, `${scheme} scheme on a ${system} system, version ${version || "absent"}`).toBe(0);
         } finally {
           clearTimeout(timeout);
         }
