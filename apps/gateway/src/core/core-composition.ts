@@ -39,6 +39,7 @@ export function createCoreConnectors(core: GatewayCore, options: GatewayCoreOpti
     runtime: options.runtime,
     userId: options.userId,
     attachmentLimits: () => core.attachmentLimits,
+    ...(options.log && { log: options.log }),
     ...(options.messengerTransport && { messengerTransport: options.messengerTransport }),
     interaction: (interaction) =>
       corePublishInteraction(core, interaction).then(() => allowFullAccessPermission(core, interaction)),

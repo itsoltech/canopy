@@ -25,3 +25,15 @@ export function connectorOAuthError(cause: unknown): connectors.ConnectorError {
 }
 
 export const oauthFailure = (kind: string, message: string) => new ConnectorOAuthFailure(kind, message);
+
+export type OAuthStartStage = "discovery" | "registration" | "authorization" | "state";
+
+/** Startup diagnostics must never carry a provider response, URL, or SQL error. */
+export class OAuthStartFailure extends Error {
+  constructor(
+    readonly stage: OAuthStartStage,
+    readonly status = 0,
+  ) {
+    super("OAuth start failed");
+  }
+}

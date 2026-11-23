@@ -3,6 +3,7 @@
 Projekt i wdrożenie: 2026-11-02. Zakres: konta zdalnych serwerów MCP,
 OAuth w gateway, dostęp wybranych projektów i botów oraz jeden kanał wykonania.
 Status (2026-11-22): dostęp wątków do kont wynika z grantów projektów.
+Na `dev` (2026-11-23) eksport diagnostyczny gatewaya pokazuje etap nieudanego startu OAuth.
 Settings → Connectors rozróżnia **Slack User** (narzędzia MCP działające jako
 użytkownik) i **Slack Bot** (wiadomości przez Socket Mode). Bot settings → Messengers
 wybiera konto Slack Bot i jego trasy. Dotychczasowe połączenia i trasy zachowują
@@ -114,6 +115,10 @@ muszą być publiczne. Prywatny adres jest dopuszczony dla dokładnego origin wp
 właściciela serwera MCP lub zarejestrowanego wystawcy. Inny port jest osobnym origin.
 Discovery i rejestracja współdzielą wybór adresu. Origin rozpoznany jako publiczny pozostaje
 publiczny przy wymianie kodu, odświeżaniu i odwołaniu tokenu. Gateway odrzuca przekierowania.
+Przy błędzie startu przed wyświetleniem zgody gateway zapisuje etap: discovery,
+rejestracja klienta, przygotowanie autoryzacji albo zapis stanu. Przy discovery
+i rejestracji zapisuje też status HTTP, jeśli otrzymał odpowiedź. Eksport nie zawiera URL-i,
+odpowiedzi dostawcy ani danych sesji.
 Losowy, jednorazowy state ma TTL 10 minut, wiąże konto i właściciela oraz osobny
 sekret sesji przeglądarki w cookie HttpOnly/SameSite=Lax. Desktop otwiera
 autoryzację w przeglądarce systemowej, oddzielnej od sesji Electrona; zamiast
