@@ -25,6 +25,7 @@ describe.skipIf(!dockerAvailable)("connectors: OAuth, gateway grants and worker 
 
   let otherWorker: ScriptedWorker;
   const seen: ModelInput[] = [];
+  const logs: string[] = [];
   let automaticTool = "";
 
   const query = <A extends object>(text: string, ...params: unknown[]) =>
@@ -97,6 +98,9 @@ describe.skipIf(!dockerAvailable)("connectors: OAuth, gateway grants and worker 
   beforeAll(async () => {
     fake = fakeConnector();
     gw = await startTestGateway({
+      log: (message) => {
+        if (message.startsWith("connectors: oauth")) logs.push(message);
+      },
       botModel: async (input) => {
         seen.push(input);
 
@@ -460,6 +464,64 @@ describe.skipIf(!dockerAvailable)("connectors: OAuth, gateway grants and worker 
     expect(denial.account).toBeUndefined();
     expect((await gw.api.completeConnectorOAuth(declined)).error).not.toBe("");
     expect((await gw.api.listConnectors({})).accounts.find((a) => a.id === account.id)?.status).not.toBe("connected");
+  });
+
+  test("OAuth refresh connection failure reaches the worker and leaves the account needing reconnect", async () => {
+    const provider = fakeConnector();
+    const bind = crypto.randomUUID().replaceAll("-", "");
+    const redirectUri = "http://127.0.0.1:19111/api/connectors/oauth/callback";
+
+    try {
+      const { account } = await gw.api.saveConnectorAccount({
+        connectorType: "custom",
+        name: "Unavailable OAuth provider",
+        url: provider.url,
+        authKind: "oauth",
+      });
+
+      const { authorizationUrl } = await gw.api.beginConnectorOAuth({
+        accountId: account!.id,
+        browserBinding: bind,
+        redirectUri,
+      });
+
+      const response = await fetch(authorizationUrl, { redirect: "manual" });
+      const callback = new URL(response.headers.get("location")!);
+
+      const completed = await gw.api.completeConnectorOAuth({
+        state: callback.searchParams.get("state")!,
+        code: callback.searchParams.get("code")!,
+        browserBinding: bind,
+      });
+
+      const { id } = await grant(completed.account!);
+      const tool = (await gw.api.testConnector({ accountId: id })).tools.find((entry) => entry.readOnly)!;
+      const t = await thread();
+
+      await gw.core.connectors.run((store) =>
+        Effect.gen(function* () {
+          const row = yield* store.owned(gw.userId, id);
+          const value = yield* store.credentials(row);
+
+          yield* store.updateCredentials(row, { ...value, expiresAt: 0 });
+        }),
+      );
+      await provider.close();
+
+      const result = await call(t, id, tool.name);
+
+      expect(result.isError).toBe(true);
+      expect(result.content).toBe(
+        "Could not reach the OAuth server to refresh this connection. Check your network connection and reconnect the account.",
+      );
+      expect(logs).toContain("connectors: oauth refresh failed network ECONNREFUSED");
+      expect((await gw.api.listConnectors({})).accounts.find((entry) => entry.id === id)?.status).toBe(
+        "needs_reconnect",
+      );
+      expect(provider.calls).toBeEmpty();
+    } finally {
+      await provider.close();
+    }
   });
 
   test("OAuth DCR + state/browser binding + S256, refresh rotation, reconnect and revoke", async () => {

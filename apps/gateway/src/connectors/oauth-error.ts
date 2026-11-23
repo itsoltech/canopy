@@ -2,6 +2,7 @@ import { create } from "@bufbuild/protobuf";
 import { connectors } from "@canopy/contracts";
 import { isErrorObject } from "../core/error-cause.ts";
 import { ConnectorFailure } from "./records.ts";
+import type { OAuthNetworkFailure } from "./oauth-network.ts";
 
 /** Only gateway-authored copy and redacted details cross the OAuth completion boundary. */
 export class ConnectorOAuthFailure extends ConnectorFailure {
@@ -33,7 +34,15 @@ export class OAuthStartFailure extends Error {
   constructor(
     readonly stage: OAuthStartStage,
     readonly status = 0,
+    readonly network?: OAuthNetworkFailure,
   ) {
     super("OAuth start failed");
   }
 }
+
+export const oauthStartMessage: Record<OAuthStartStage, string> = {
+  discovery: "Could not start OAuth. Check the server metadata.",
+  registration: "Could not start OAuth. Check the OAuth client registration.",
+  authorization: "Could not start OAuth. Check the OAuth configuration.",
+  state: "Could not save the OAuth session. Try signing in again.",
+};

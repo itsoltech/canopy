@@ -56,6 +56,7 @@ test.skipIf(!dockerAvailable)(
     const logs = new Logs(join(root, "logs"));
     let scenario: (typeof failures)[number]["name"] = "discovery";
     const provider = failedProvider(() => scenario);
+    const origin = provider.url.origin;
     let gateway: Awaited<ReturnType<typeof startTestGateway>> | undefined;
 
     try {
@@ -64,7 +65,7 @@ test.skipIf(!dockerAvailable)(
       const { account } = await gateway.api.saveConnectorAccount({
         connectorType: "custom",
         name: "OAuth diagnostics",
-        url: `${provider.url.origin}/mcp`,
+        url: `${origin}/mcp`,
         authKind: "oauth",
       });
 
@@ -84,10 +85,27 @@ test.skipIf(!dockerAvailable)(
         );
 
         expect(error?.code).toBe(Code.InvalidArgument);
-        expect(error?.rawMessage).toStartWith("Could not start OAuth");
+        expect(error?.rawMessage).toBe(
+          failure.stage === "discovery"
+            ? "Could not start OAuth. Check the server metadata."
+            : "Could not start OAuth. Check the OAuth client registration.",
+        );
       }
 
-      expect(await Bun.file(join(logs.directory, "gateway.log")).text()).not.toContain(privateMarker);
+      await provider.stop(true);
+
+      const network = await gateway.api.beginConnectorOAuth(request, { timeoutMs: 5_000 }).then(
+        () => undefined,
+        (cause) => ConnectError.from(cause),
+      );
+
+      expect(network?.code).toBe(Code.InvalidArgument);
+      expect(network?.rawMessage).toBe("Could not reach the OAuth server. Check your network connection.");
+      const raw = await Bun.file(join(logs.directory, "gateway.log")).text();
+
+      expect(raw).toContain("oauth start failed stage discovery status 0 network ECONNREFUSED");
+      expect(raw).not.toContain(privateMarker);
+      expect(raw).not.toContain(origin);
 
       const exporter = new LogExporter(registeredLogs(logs.directory, ["gateway"]));
 
@@ -111,8 +129,9 @@ test.skipIf(!dockerAvailable)(
       expect(Buffer.concat(verified).toString()).toBe(contents);
 
       for (const { stage, status } of failures) expect(contents).toContain(`"stage":"${stage}","status":${status}`);
+      expect(contents).toContain('"stage":"discovery","status":0,"network":"ECONNREFUSED"');
       expect(contents).not.toContain(privateMarker);
-      expect(contents).not.toContain(provider.url.origin);
+      expect(contents).not.toContain(origin);
     } finally {
       provider.stop(true);
       await gateway?.close();

@@ -13,6 +13,7 @@ pomiarów klientów obsługuje równoległe okna i przeładowania, a web/desktop
 wstrzymują ją po limicie gatewaya. Web/desktop i BFF pomijają puste partie.
 Gateway rezerwuje miejsce na metadane aktywnych klientów przed zapełnieniem budżetu przez RPC.
 Dostępność według [wydań](release.md).
+Aktualizacja (2026-11-23): eksport logów obejmuje kody błędów sieciowych OAuth.
 Na `dev` widok obejmuje też bieżącą zajętość plików Canopy, oddzielnie dla
 gatewaya/desktopu i workerów, z wyłączeniem plików projektów, worktree i scratch (§3.3.1).
 Na `dev` (2026-11-23) eksport logów gatewaya obejmuje nieudane starty OAuth konektorów.
@@ -1012,8 +1013,11 @@ nie dowodem kompletnej redakcji prywatnych hostów/ścieżek. Nazwy wybrane prze
 użytkownika także mogą być sekretem: eksport zamienia je na `Computer A`,
 `Worker 1`, `Project 1` ze stabilnością tylko w jednym raporcie.
 Nieudany start OAuth konektora trafia do eksportu jako `connector_oauth_start_failed`.
-Rekord zawiera etap i status HTTP discovery lub rejestracji (0, gdy nie odnotowano
-odpowiedzi), bez treści błędu dostawcy.
+Rekord zawiera etap, status HTTP discovery lub rejestracji (0, gdy nie odnotowano
+odpowiedzi) oraz opcjonalny kod sieciowy z zamkniętej listy. Błąd sieciowy
+odświeżania OAuth, który blokuje wywołanie narzędzia wątku, trafia do eksportu
+jako `connector_oauth_refresh_failed` z kodem sieciowym. Eksport pomija treść
+błędu dostawcy i adres endpointu.
 
 Ścieżki workspace, prywatne hosty i nazwy użytkownika są usuwane przez projekcję
 bezpiecznych szablonów. Nie ma trybu surowego eksportu ani przełącznika
