@@ -3,16 +3,19 @@ import {
   lstatSync,
   mkdirSync,
   mkdtempSync,
-  readlinkSync,
+  realpathSync,
   statSync,
   writeFileSync,
   readFileSync,
   renameSync,
   linkSync,
+  readdirSync,
+  symlinkSync,
 } from "node:fs";
 import { join } from "node:path";
 import { tempDir } from "@canopy/testing";
 import { deviceCodexHome, prepareCodexHome } from "./home.ts";
+import { removeLegacyCodexHardLinks } from "./legacy-login.ts";
 
 const base = tempDir("canopy-codex-home-test-");
 
@@ -31,8 +34,11 @@ describe("prepareCodexHome", () => {
     const deviceHome = device(true);
     const home = prepareCodexHome({ dataDir, linkDeviceLogin: true, deviceCodexHome: deviceHome });
     expect(home).toEqual({ path: join(dataDir, "codex-home"), login: "linked" });
-    expect(statSync(home.path).mode & 0o777).toBe(0o700);
-    expect(readlinkSync(join(home.path, "auth.json"))).toBe(join(deviceHome, "auth.json"));
+
+    if (process.platform !== "win32") expect(statSync(home.path).mode & 0o777).toBe(0o700);
+
+    expect(lstatSync(join(home.path, "auth.json")).isSymbolicLink()).toBe(true);
+    expect(realpathSync(join(home.path, "auth.json"))).toBe(realpathSync(join(deviceHome, "auth.json")));
     expect(() => lstatSync(join(home.path, "plugins"))).toThrow();
     // Idempotent on restart.
     expect(prepareCodexHome({ dataDir, linkDeviceLogin: true, deviceCodexHome: deviceHome }).login).toBe("linked");
@@ -60,7 +66,7 @@ describe("prepareCodexHome", () => {
 
   test("device Codex home: $CODEX_HOME or ~/.codex", () => {
     expect(deviceCodexHome({ CODEX_HOME: "/opt/codex" }, "/home/u")).toBe("/opt/codex");
-    expect(deviceCodexHome({}, "/home/u")).toBe("/home/u/.codex");
+    expect(deviceCodexHome({}, "/home/u")).toBe(join("/home/u", ".codex"));
   });
 
   test("linked login stays fresh after CLI writes and atomic terminal replacement", () => {
@@ -94,6 +100,77 @@ describe("prepareCodexHome", () => {
     });
     expect(() => lstatSync(join(shadow, "auth.json"))).toThrow();
     expect(readFileSync(join(deviceHome, "auth.json"), "utf8")).toBe("fixture-refreshed");
+  });
+
+  test("migrates a live hard link before either CLI replaces its credentials", () => {
+    const dataDir = mkdtempSync(join(base, "live-link-"));
+    const deviceHome = device(true);
+    const source = join(deviceHome, "auth.json");
+    const shadow = join(dataDir, "codex-home");
+    const target = join(shadow, "auth.json");
+    mkdirSync(shadow);
+    linkSync(source, target);
+
+    expect(prepareCodexHome({ dataDir, deviceCodexHome: deviceHome, linkDeviceLogin: true }, "win32").login).toBe(
+      "linked",
+    );
+    expect(statSync(source).nlink).toBe(1);
+    expect(lstatSync(target).isSymbolicLink()).toBe(true);
+    expect(readdirSync(shadow)).toEqual(["auth.json"]);
+    expect(readFileSync(source, "utf8")).toBe('{"tokens":{}}');
+  });
+
+  test("a replaced device login recovers the managed thread home and preserves the old file", () => {
+    const dataDir = mkdtempSync(join(base, "orphan-link-"));
+    const deviceHome = device(true);
+    const source = join(deviceHome, "auth.json");
+    const shadow = join(dataDir, "codex-home");
+    const target = join(shadow, "auth.json");
+    mkdirSync(shadow);
+    linkSync(source, target);
+    linkSync(source, join(dataDir, "previous-login"));
+    writeFileSync(join(deviceHome, "auth.new"), "current-login");
+    renameSync(join(deviceHome, "auth.new"), source);
+    const options = { dataDir, deviceCodexHome: deviceHome, linkDeviceLogin: true };
+
+    expect(prepareCodexHome(options, "win32").login).toBe("linked");
+    expect(prepareCodexHome(options, "win32").login).toBe("linked");
+    expect(readFileSync(target, "utf8")).toBe("current-login");
+    const backups = readdirSync(shadow).filter((name) => name.startsWith("auth.json.canopy-backup-"));
+    expect(backups).toHaveLength(1);
+    expect(readFileSync(join(shadow, backups[0]!), "utf8")).toBe('{"tokens":{}}');
+    expect(readFileSync(join(dataDir, "previous-login"), "utf8")).toBe('{"tokens":{}}');
+  });
+
+  test("migrates inactive homes and keeps device and independent logins intact", () => {
+    const dataDir = mkdtempSync(join(base, "inactive-"));
+    const sourceHome = device(true);
+    const source = join(sourceHome, "auth.json");
+    const ownHome = join(dataDir, "homes", "codex-own");
+    const botHome = join(dataDir, "bots", "bot", "conversations", "conversation", "instance", "home");
+    const privateBot = join(dataDir, "bots", "bot", "own-instance", "home");
+    const custom = mkdtempSync(join(base, "custom-shadow-"));
+    const worktree = join(dataDir, "worktrees", "project");
+
+    for (const home of [ownHome, botHome, privateBot, worktree]) mkdirSync(home, { recursive: true });
+    const ownAuth = join(ownHome, "auth.json");
+    writeFileSync(ownAuth, "own-login");
+    writeFileSync(join(worktree, "auth.json"), "project-file");
+    linkSync(source, join(botHome, "auth.json"));
+    linkSync(source, join(custom, "auth.json"));
+    linkSync(ownAuth, join(privateBot, "auth.json"));
+    const aliasedSource = join(dataDir, "homes", "codex-source-alias");
+    symlinkSync(sourceHome, aliasedSource, "junction");
+
+    removeLegacyCodexHardLinks(dataDir, [sourceHome, ownHome], [custom, aliasedSource], "win32");
+
+    for (const home of [botHome, privateBot, custom])
+      expect(lstatSync(join(home, "auth.json"), { throwIfNoEntry: false })).toBeUndefined();
+    expect(statSync(source).nlink).toBe(1);
+    expect(readFileSync(source, "utf8")).toBe('{"tokens":{}}');
+    expect(statSync(ownAuth).nlink).toBe(1);
+    expect(readFileSync(ownAuth, "utf8")).toBe("own-login");
+    expect(readFileSync(join(worktree, "auth.json"), "utf8")).toBe("project-file");
   });
 
   test("refuses to use the device home as the shadow home", () => {

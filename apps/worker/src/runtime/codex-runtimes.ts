@@ -157,6 +157,8 @@ export class CodexRuntimes {
     });
 
     if (home.problem) this.ctx.ops.log(`codex home: ${home.problem}`);
+
+    if (home.linkFailed && profiles.some((profile) => profile.kind === "native")) throw new Error(home.problem);
     // Protect the real private Codex policy and credentials from shell reads in a profiled session.
     const policyDirectory = home.login === "none" ? privatePolicyDirectory(home.path) : undefined;
 

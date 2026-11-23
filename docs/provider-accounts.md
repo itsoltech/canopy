@@ -1,5 +1,8 @@
 # Status kont dostawców
 
+Aktualizacja (2026-11-23): sprawdzenie konta Codexa na Windowsie podaje przyczynę,
+gdy worker nie może utworzyć dowiązania symbolicznego do logowania urządzenia.
+
 Status: opis zaimplementowanego kodu (2026-11-17), w tym szerszego wskaźnika
 limitów w sidebarze web/desktop. Dostępność w wydaniach: [release.md](release.md).
 
@@ -43,12 +46,12 @@ wylogowania: rozstrzyga odpowiedź `claude auth status --json`.
 Ta zmienna wybiera również `.credentials.json` na Linuxie i Windowsie.
 Shadow home nie kopiuje ani nie dowiązuje tego pliku: CLI czyta i odświeża
 bezpośrednio źródłowy magazyn, także gdy odświeżenie atomowo zastępuje plik.
-Codex nadal dowiązuje `CODEX_HOME/auth.json`. Na Windowsie, gdy system odmawia
-symlinków, używa twardego dowiązania na tym samym wolumenie; przypięty Codex
-zapisuje odświeżenia w miejscu. Przy kolejnym odczycie konta dowiązanie jest
-uzgadniane ponownie również po zastąpieniu pliku z terminala. Gdy żadne dowiązanie
-nie jest możliwe, worker odmawia kopiowania nieaktualizowanej kopii: trzeba
-włączyć symlinki lub wybrać własny login instancji. Grok używa bezpośredniego
+Codex używa dowiązania symbolicznego `CODEX_HOME/auth.json`. Dowiązanie
+wskazuje na bieżący plik także po atomowej wymianie z terminala. Worker
+migruje wcześniejsze twarde dowiązania na Windowsie podczas wczytywania
+konfiguracji i przygotowania katalogu. Szczegóły migracji i uprawnień:
+[izolacja Codexa](codex-adapter.md#konfiguracja-izolacji).
+Grok używa bezpośredniego
 `GROK_AUTH_PATH`, niezależnie od izolowanego `GROK_HOME`. Jeśli terminal ustawia własny
 `GROK_AUTH_PATH`, worker zachowuje tę ścieżkę dla wbudowanej instancji, odczytu statusu
 oraz logowania i wylogowania. Instancja z własnym loginem zawsze wybiera swój magazyn.

@@ -40,6 +40,7 @@ import { HostPreviews } from "./host-previews.ts";
 import { WorkerPreviewCleanup } from "./preview-cleanup.ts";
 import { NOT_REMEMBERED, rememberSuccess } from "./command-policy.ts";
 import { normalizeSandboxCommand, requireSandboxSupport } from "./sandbox-command.ts";
+import { migrateCodexLogins } from "./codex-login-migration.ts";
 
 export type { WorkerHostOptions } from "./host-types.ts";
 /**
@@ -283,6 +284,7 @@ export class WorkerHost {
         await this.cli.report().catch(() => undefined);
       });
       state.config = result.config;
+      migrateCodexLogins(result.config, state.options.dataDir, state.deviceHomes.codex);
       this.environment.refresh();
       await this.#ctx.ops.reconcileRuntimes();
 

@@ -30,6 +30,7 @@ function directory(parent: string, name: string): string {
 export function botSession(
   input: RunBotTurn,
   options: { dataDir: string; sourceHome: string; linkLogin: boolean; secureStorageDir?: string },
+  platform = process.platform,
 ) {
   if (!ID.test(input.botId) || !ID.test(input.turnId) || (input.conversationId && !ID.test(input.conversationId)))
     throw new Error("Invalid bot, turn or conversation id");
@@ -85,13 +86,14 @@ export function botSession(
         })
       : undefined;
 
-  if (input.provider === Provider.CODEX)
-    prepareCodexHome({
-      dataDir: path,
-      path: home,
-      linkDeviceLogin: options.linkLogin,
-      deviceCodexHome: options.sourceHome,
-    });
+  if (input.provider === Provider.CODEX) {
+    const codex = prepareCodexHome(
+      { dataDir: options.dataDir, path: home, linkDeviceLogin: options.linkLogin, deviceCodexHome: options.sourceHome },
+      platform,
+    );
+
+    if (codex.linkFailed) throw new Error(codex.problem);
+  }
 
   const pending = new Set<string>();
   // An interrupted native write may have consumed input without a durable notice. Rebuild from gateway history.
