@@ -9,7 +9,8 @@ pobierania domyślnie wybierają stable. Wersje i kanały: [release.md](release.
 Status (2026-11-22): relay mobilnych powiadomień może wydawać poświadczenia
 po App Attest lub Play Integrity. Obsługuje ich odwołanie i ogranicza odnawianie
 do 90 dni od ostatniej atestacji. Gateway zachowuje obsługę własnych relayów.
-Własny relay można zapisać w panelu webowym serwera.
+Od 2026-11-23 relay Canopy lub własny relay można wybrać w panelu webowym serwera
+lub ze sparowanego Desktopu.
 Workflow Release publikuje osobny obraz relaya w GHCR.
 Operacyjne CLI `migration` obsługuje przeniesienie bazy gatewaya oraz podgląd
 Linked Computers.
@@ -993,10 +994,11 @@ konfiguruje właściciel aplikacji w EAS.
 
 ### Relay Canopy z automatyczną aktywacją
 
-Lokalny Desktop używa `https://notifications-relay.canopy.itsol.tech` jako
-domyślnego adresu. Gateway serwerowy może użyć relaya z atestacją, ustawiając
-`CANOPY_MANAGED_PUSH_RELAY_ORIGIN` na jego adres HTTPS. Własna konfiguracja
-z ręcznie wydanym tokenem ma pierwszeństwo.
+Lokalny Desktop domyślnie używa `https://notifications-relay.canopy.itsol.tech`.
+Na gatewayu serwerowym włącz tę usługę przez **Settings → Network access →
+Mobile push relay → Use Canopy relay**. Można też wskazać zarządzany relay
+z atestacją przez `CANOPY_MANAGED_PUSH_RELAY_ORIGIN`. Zapisany wybór ma
+pierwszeństwo przed ustawieniami wdrożenia.
 
 Włącz przynajmniej jedną platformę, skonfiguruj podpisaną aplikację i zachowaj
 trwały stan relaya. Na publicznym relayu limity rejestracji używają adresu
@@ -1034,7 +1036,7 @@ Dla każdej instalacji użyj osobnego tokenu z 32 losowych bajtów zakodowanych
 jako base64url bez dopełnienia. Oblicz SHA-256 z 43 znaków tokenu bez końca linii.
 Po zmianie tokenu usuń jego stary hash z konfiguracji i uruchom relay ponownie.
 
-W **webie serwerowym** lub **Desktopie w trybie lokalnym** otwórz **Settings →
+W **webie serwerowym** lub **Desktopie** otwórz **Settings →
 Network access → Mobile push relay → Use custom relay**. Podaj adres HTTPS
 i token tej instalacji. Jeśli relay korzysta z prywatnego CA, wklej jego
 certyfikat w formacie PEM. Zapis działa bez restartu. Zmiana adresu wymaga
@@ -1045,8 +1047,9 @@ i `CANOPY_PUSH_RELAY_BEARER`. Compose odczytuje obie zmienne z `.env`. Dla
 prywatnego CA ustaw `CANOPY_PUSH_RELAY_CA_FILE` na plik PEM z tym CA. W Compose
 dodaj zmienną i zamontuj plik tylko do odczytu w override. Gateway korzysta
 z tych wartości, dopóki właściciel nie zapisze wyboru w panelu. Po usunięciu
-własnego relaya w panelu gateway pozostaje przy relayu Canopy, jeśli jest
-dostępny, albo wstrzymuje wysyłkę. Ten wybór obowiązuje także po restarcie.
+relaya w panelu gateway wstrzymuje wysyłkę. Jeśli wdrożenie domyślnie używa
+relaya zarządzanego, panel pozwala wrócić do niego przez **Use Canopy relay**.
+Wybór obowiązuje także po restarcie.
 
 Gateway weryfikuje nazwę hosta i łańcuch certyfikatu, wymaga TLS 1.3 i odrzuca
 przekierowania. Konfiguracja relaya jest opcjonalna.

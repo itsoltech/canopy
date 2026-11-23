@@ -1,9 +1,9 @@
 # Powiadomienia wątków i botów
 
-Status (2026-11-22): kod iOS/Android obsługuje push z podglądem szyfrowanym od
+Status (2026-11-23): kod iOS/Android obsługuje push z podglądem szyfrowanym od
 gatewaya do telefonu. Funkcja wymaga nowego buildu natywnego i konfiguracji relaya.
-Lokalny Desktop obsługuje automatyczną aktywację relaya Canopy. Własny relay
-można skonfigurować w ustawieniach Network access w webie serwerowym i lokalnym Desktopie.
+Lokalny Desktop domyślnie używa relaya Canopy. W webie serwerowym i w obu
+trybach Desktopu można wybrać relay Canopy albo skonfigurować własny w Network access.
 Relay Canopy obsługuje też automatyczną ponowną atestację i odwołanie poświadczeń.
 Alerty w aplikacji pomijają uśpione wątki w web/desktop i mobile.
 Web/desktop wysyła powiadomienia tylko z włączonych modułów.

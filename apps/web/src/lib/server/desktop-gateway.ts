@@ -77,6 +77,7 @@ export function desktopGateway(routesJson: string, token: string) {
         methods: info.methods,
         linkedComputers: info.linkedComputers,
         offerOnboarding: info.offerOnboarding,
+        pushRelaySettings: state === "ready" && info.pushRelaySettings,
         gatewayRole: info.gatewayRole,
         message: Match.value(state).pipe(
           Match.when("app-update", () => "Update this app to connect to this gateway"),

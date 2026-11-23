@@ -9,10 +9,16 @@ import { serviceIdentity } from "./auth.ts";
 import { CANOPY_VERSION } from "@canopy/domain/release/version";
 import { DESKTOP_CLIENT_PROTOCOL, MIN_DESKTOP_CLIENT_PROTOCOL } from "@canopy/domain/release/protocol";
 
-function phoneIdentity(core: GatewayCore, context: HandlerContext) {
+function ownerDevice(core: GatewayCore, context: HandlerContext) {
   const identity = context.values.get(mobileIdentity);
 
-  return identity?.clientKind === "mobile" && identity.userId === core[coreState].options.userId ? identity : undefined;
+  return identity?.userId === core[coreState].options.userId ? identity : undefined;
+}
+
+function phoneIdentity(core: GatewayCore, context: HandlerContext) {
+  const identity = ownerDevice(core, context);
+
+  return identity?.clientKind === "mobile" ? identity : undefined;
 }
 
 function pairedPhone(core: GatewayCore, context: HandlerContext) {
@@ -24,7 +30,8 @@ function pairedPhone(core: GatewayCore, context: HandlerContext) {
 }
 
 const mayConfigurePushRelay = (core: GatewayCore, context: HandlerContext) =>
-  core.mobilePush.settingsEditable && context.values.get(serviceIdentity);
+  core.mobilePush.settingsEditable &&
+  (context.values.get(serviceIdentity) || ownerDevice(core, context)?.clientKind === "desktop");
 
 async function pushRelayGuard<A>(core: GatewayCore, context: HandlerContext, run: () => A | Promise<A>) {
   if (!mayConfigurePushRelay(core, context))
@@ -65,7 +72,8 @@ export function mobileHandlers(
         offerOnboarding: core.offerOnboarding,
         mobilePush: core.mobilePush.manualAvailable && !!phoneIdentity(core, context),
         managedMobilePush: core.mobilePush.managedAvailable && !!phoneIdentity(core, context),
-        localPushRelaySettings: core.role === "desktop" && mayConfigurePushRelay(core, context),
+        localPushRelaySettings:
+          core.role === "desktop" && core.mobilePush.settingsEditable && context.values.get(serviceIdentity),
         pushRelaySettings: mayConfigurePushRelay(core, context),
         // The identity's name only: a full computers snapshot (routes, peers, notices) is not needed here.
         gatewayName: core.computers?.hello().name || "your gateway",

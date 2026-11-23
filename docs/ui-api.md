@@ -18,8 +18,10 @@ Settings → Providers udostępnia edytor wspólnych ustawień CLI Claude, Codex
 oraz nadpisań pojedynczego workera, z lokalnym kolorowaniem i walidacją JSON.
 Zamknięcie osiągniętego celu zapisuje się w ustawieniach widoku urządzenia.
 Sparowane telefony mogą rejestrować powiadomienia push z szyfrowanym podglądem.
+Sparowany Desktop może wybrać relay Canopy lub skonfigurować własny na zdalnym
+gatewayu (2026-11-23).
 Relay Canopy wydaje poświadczenie sparowanemu gatewayowi po atestacji telefonu.
-BFF serwera i lokalnego Desktopu zarządza konfiguracją relaya przez GatewayService.
+BFF serwera i Desktopu zarządza konfiguracją relaya przez GatewayService.
 Klienci utrzymują strumień wątku przy dołączaniu
 starszej strony z aktualnego checkpointu sekwencyjnego. Gateway obsługuje osobną
 subskrypcję oczekujących żądań subagenta.
@@ -992,10 +994,14 @@ i zwraca wątek lub bota bieżącego właściciela i parowania. Te dwa RPC wymag
 tokenu telefonu na listenerze Network access. Podglądy są szyfrowane od gatewaya
 do telefonu. [Powiadomienia](notifications.md#push-na-ios-i-androidzie).
 
-BFF serwera i lokalnego Desktopu odczytuje `GetClientCapabilities.push_relay_settings`
+BFF serwera i Desktopu odczytuje `GetClientCapabilities.push_relay_settings`
 i zarządza relayem przez `GetPushRelaySettings` oraz `UpdatePushRelaySettings`
 (`GET /api/push-relay` i `PUT /api/push-relay`, bez cache).
-Gateway wymaga tokena usługi na prywatnym listenerze procesu.
+Gateway wymaga tokenu usługi na prywatnym listenerze procesu albo ważnego
+poświadczenia Desktopu sparowanego z tym właścicielem na listenerze Network access.
+`PushRelaySettings.managed_origin` wskazuje dostępny relay zarządzany, a
+`managed_enabled` jego aktywność. `UpdatePushRelaySettings.use_managed` zapisuje
+wybór relaya zarządzanego bez poświadczenia od użytkownika.
 Odpowiedzi zawierają adres własnego relaya, informację o skonfigurowanym prywatnym
 CA i dostępności relaya Canopy.
 Token relaya zapisuje się zaszyfrowany w lokalnej bazie. Zmiana adresu wymaga

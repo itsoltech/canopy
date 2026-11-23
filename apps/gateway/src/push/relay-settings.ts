@@ -40,11 +40,20 @@ function privateCa(value: string) {
   return certificates.join("\n") + "\n";
 }
 
-export function updatedRelayOptions(
+type RelayChoice = { useManaged: boolean; custom?: PushRelayOptions };
+
+export function updatedRelayChoice(
   input: ui.UpdatePushRelaySettingsRequest,
   current: PushRelayOptions | undefined,
-): PushRelayOptions | undefined {
-  if (input.remove) return;
+): RelayChoice {
+  if (input.useManaged) {
+    if (input.remove || input.origin || input.bearer || input.caPem !== undefined)
+      throw new ConnectError("Choose one push relay.", Code.InvalidArgument);
+
+    return { useManaged: true };
+  }
+
+  if (input.remove) return { useManaged: false };
   const value = input.origin.trim();
   const origin = /^https:\/\/[^/?#@\\\s]+\/?$/i.test(value) && normalizedRelayOrigin(value);
 
@@ -57,35 +66,43 @@ export function updatedRelayOptions(
     throw new ConnectError("Enter the 43-character token from your relay operator.", Code.InvalidArgument);
   const ca = input.caPem === undefined ? (sameOrigin ? current.ca : undefined) : input.caPem && privateCa(input.caPem);
 
-  return { origin, bearer, ...(ca && { ca }) };
+  return { useManaged: false, custom: { origin, bearer, ...(ca && { ca }) } };
 }
 
-type SettingsRow = { origin: string | null; encrypted_bearer: Uint8Array | null; ca_pem: string | null };
+type SettingsRow = {
+  origin: string | null;
+  encrypted_bearer: Uint8Array | null;
+  ca_pem: string | null;
+  use_managed: boolean;
+};
 
 export const loadPushRelaySettings = (owner: string, key: Buffer) =>
   Effect.gen(function* () {
     const sql = yield* SqlClient.SqlClient;
 
-    const rows = yield* sql<SettingsRow>`SELECT origin, encrypted_bearer, ca_pem
+    const rows = yield* sql<SettingsRow>`SELECT origin, encrypted_bearer, ca_pem, use_managed
       FROM mobile_push_relay_settings WHERE owner_user_id = ${owner}::uuid`;
 
     const row = rows[0];
 
     if (!row) return;
 
-    if (!row.origin || !row.encrypted_bearer) return null;
+    if (!row.origin || !row.encrypted_bearer) return { useManaged: row.use_managed };
 
     return {
-      origin: row.origin,
-      bearer: decryptSecret(key, row.encrypted_bearer),
-      ...(row.ca_pem && { ca: row.ca_pem }),
+      useManaged: false,
+      custom: {
+        origin: row.origin,
+        bearer: decryptSecret(key, row.encrypted_bearer),
+        ...(row.ca_pem && { ca: row.ca_pem }),
+      },
     };
   });
 
 export const savePushRelaySettings = (
   owner: string,
   key: Buffer,
-  options: PushRelayOptions | undefined,
+  { useManaged, custom }: RelayChoice,
   retireReceipts: boolean,
 ) =>
   Effect.gen(function* () {
@@ -94,11 +111,12 @@ export const savePushRelaySettings = (
     yield* sql.withTransaction(
       Effect.gen(function* () {
         // An explicit removal must survive restarts with deployment defaults still set.
-        const bearer = options ? encryptSecret(key, options.bearer) : null;
-        yield* sql`INSERT INTO mobile_push_relay_settings (owner_user_id, origin, encrypted_bearer, key_id, ca_pem)
-          VALUES (${owner}::uuid, ${options?.origin ?? null}, ${bearer}, ${options ? SECRETS_KEY_ID : null}, ${options?.ca ?? null})
+        const bearer = custom ? encryptSecret(key, custom.bearer) : null;
+        yield* sql`INSERT INTO mobile_push_relay_settings (owner_user_id, origin, encrypted_bearer, key_id, ca_pem, use_managed)
+          VALUES (${owner}::uuid, ${custom?.origin ?? null}, ${bearer}, ${custom ? SECRETS_KEY_ID : null}, ${custom?.ca ?? null}, ${useManaged})
           ON CONFLICT (owner_user_id) DO UPDATE SET origin = EXCLUDED.origin,
-            encrypted_bearer = EXCLUDED.encrypted_bearer, key_id = EXCLUDED.key_id, ca_pem = EXCLUDED.ca_pem`;
+            encrypted_bearer = EXCLUDED.encrypted_bearer, key_id = EXCLUDED.key_id, ca_pem = EXCLUDED.ca_pem,
+            use_managed = EXCLUDED.use_managed`;
 
         // A ticket belongs to the previous relay. Keep its local receipt resolvable by the phone.
         if (retireReceipts) {

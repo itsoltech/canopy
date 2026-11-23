@@ -79,13 +79,6 @@ export function clientPreferencesScope(): string {
   );
 }
 
-/** Authorization for settings that require the gateway's private BFF identity. */
-export function hasGatewayServiceAccess() {
-  const { desktop, target, token } = current();
-
-  return !desktop && target?.mode !== "offline" && !!token;
-}
-
 export async function gatewayCompatibility(): Promise<GatewayCompatibility> {
   const { desktop } = current();
 
