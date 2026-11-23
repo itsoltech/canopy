@@ -173,9 +173,9 @@
         />
         {#if instance.harness === Provider.CODEX && instance.kind === ProviderProfileKind.NATIVE && !inheritedRuntime?.ownLogin}
           <UserConfigurationFields
-            codex
+            codexId={instance.id}
             bind:value={draft.userConfiguration}
-            inherited={configurationDraftOf(inheritedRuntime?.userConfiguration)}
+            inherited={configurationDraftOf(inheritedRuntime?.userConfiguration, instance.harness)}
             prefix="ovr"
           />
         {/if}
@@ -185,7 +185,7 @@
         <SettingsSection title="Claude configuration on {worker.name}">
           <UserConfigurationFields
             bind:value={draft.userConfiguration}
-            inherited={configurationDraftOf(inheritedRuntime?.userConfiguration)}
+            inherited={configurationDraftOf(inheritedRuntime?.userConfiguration, instance.harness)}
             prefix="ovr"
           />
         </SettingsSection>

@@ -107,7 +107,7 @@
       prefix="def"
     />
     {#if instance.harness === Provider.CODEX && draft.kind === ProviderProfileKind.NATIVE && !draft.ownLogin}
-      <UserConfigurationFields codex bind:value={draft.userConfiguration} prefix="def" />
+      <UserConfigurationFields codexId={instance.id} bind:value={draft.userConfiguration} prefix="def" />
     {/if}
   </SettingsSection>
 

@@ -1,9 +1,5 @@
 import { ProviderProfileKind } from "@canopy/contracts";
-import {
-  normalizeUserConfiguration,
-  storedUserConfiguration,
-  userConfigurationProblem,
-} from "./instance-user-configuration.ts";
+import { storedUserConfiguration } from "./instance-user-configuration.ts";
 import { settingsFrom } from "./instance-settings.ts";
 import { configTransaction } from "../config-sync/provider-records.ts";
 import { Effect } from "effect";
@@ -22,9 +18,8 @@ import {
   ACCENT,
   InstanceConflict,
   MAX_INSTANCES,
-  checkArgs,
   checkBaseUrl,
-  checkPath,
+  checkRuntime,
   harnessOrFail,
   type InstanceApi,
 } from "./instance-checks.ts";
@@ -122,8 +117,11 @@ export function instanceSave(
             : { ...existing?.runtime };
 
           // Clients predating Codex home selection omit this field even when editing other runtime settings.
-          if (harness === "codex" && !request.runtime?.userConfiguration && existing?.runtime.userConfiguration)
-            runtime.userConfiguration = storedUserConfiguration(harness, existing.runtime.userConfiguration);
+          if (harness === "codex" && request.runtime && !request.runtime.userConfiguration) {
+            const previousPolicy = storedUserConfiguration(harness, existing?.runtime.userConfiguration);
+
+            if (previousPolicy) runtime.userConfiguration = previousPolicy;
+          }
 
           // Own login also selects the session home. Keep it dormant while using a proxy.
           if (kind === "endpoint" && existing?.runtime.ownLogin) runtime.ownLogin = true;
@@ -276,11 +274,7 @@ export function instanceMutations(
             }
 
             const problem =
-              checkPath("binary path", input.binaryPath) ??
-              checkPath("home path", input.homePath) ??
-              checkPath("shadow home path", input.shadowHomePath) ??
-              checkArgs(input.launchArgs) ??
-              (input.userConfiguration && userConfigurationProblem(harness, input.userConfiguration)) ??
+              checkRuntime(harness, input) ??
               (input.baseUrl !== undefined && row.kind === "endpoint" ? checkBaseUrl(input.baseUrl) : undefined);
 
             if (problem) return yield* Effect.fail(new Invalid(problem));
@@ -295,7 +289,9 @@ export function instanceMutations(
 
             if (input.launchArgsSet) next.launchArgs = [...input.launchArgs];
 
-            if (input.userConfiguration) next.userConfiguration = normalizeUserConfiguration(input.userConfiguration);
+            const policy = storedUserConfiguration(harness, input.userConfiguration);
+
+            if (policy) next.userConfiguration = policy;
 
             if (env.length > 0) next.env = env;
 

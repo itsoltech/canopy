@@ -192,7 +192,7 @@ export function newDraft(harness: Provider, workerIds: string[]): InstanceDraft 
     launchArgs: "",
     ownLogin: false,
     settingsText: "",
-    userConfiguration: configurationDraftOf(),
+    userConfiguration: configurationDraftOf(undefined, harness),
     allWorkers: workerIds.length === 0,
     workerIds,
   };
@@ -214,7 +214,7 @@ export function draftOf(instance: ui.ProviderInstance): InstanceDraft {
     launchArgs: joinArgs(instance.runtime?.launchArgs ?? []),
     ownLogin: instance.runtime?.ownLogin ?? false,
     settingsText: instance.runtime?.settingsText ?? "",
-    userConfiguration: configurationDraftOf(instance.runtime?.userConfiguration),
+    userConfiguration: configurationDraftOf(instance.runtime?.userConfiguration, instance.harness),
     allWorkers: instance.allWorkers,
     workerIds: instance.workers.filter((w) => w.enabled).map((w) => w.workerId),
   };

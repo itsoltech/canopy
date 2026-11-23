@@ -1,7 +1,7 @@
 import { create, fromJson, type JsonValue } from "@bufbuild/protobuf";
 import { timestampFromDate } from "@bufbuild/protobuf/wkt";
 import { ConfigAppliedSchema, Provider, ProviderProfileKind, ui, type ConfigApplied } from "@canopy/contracts";
-import { userConfigurationMessage } from "./instance-user-configuration.ts";
+import { userConfigurationMessage, userConfigurationProblem } from "./instance-user-configuration.ts";
 import { Effect } from "effect";
 import { type SqlError } from "effect/sql";
 import {
@@ -91,6 +91,19 @@ export function checkArgs(args: readonly string[]): string | undefined {
   if (args.some((a) => a.length > MAX_PATH || a.includes("\0"))) return "a launch argument is invalid";
 
   return undefined;
+}
+
+export function checkRuntime(
+  harness: Harness,
+  runtime: ui.InstanceRuntime | ui.InstanceOverridesInput,
+): string | undefined {
+  return (
+    checkPath("binary path", runtime.binaryPath) ??
+    checkPath("home path", runtime.homePath) ??
+    checkPath("shadow home path", runtime.shadowHomePath) ??
+    checkArgs(runtime.launchArgs) ??
+    (runtime.userConfiguration && userConfigurationProblem(harness, runtime.userConfiguration))
+  );
 }
 
 export function checkBaseUrl(value: string): string | undefined {

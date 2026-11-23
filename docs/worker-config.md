@@ -1,6 +1,6 @@
 # Konfiguracja workerów
 
-Aktualizacja (2026-11-23) obejmuje **Use CLI home** dla natywnych wątków Codexa na Windowsie, macOS i Linuksie.
+Aktualizacja (2026-11-23) włącza **Use CLI home** domyślnie dla wbudowanej instancji `codex/native` z logowaniem urządzenia na Windowsie, macOS i Linuksie.
 
 Aktualizacja (2026-11-22): katalog konektorów wątku wynika z dostępu jego projektu.
 
@@ -343,7 +343,7 @@ Wypisuje **sekretny** `worker.json`; przekieruj go do pliku z umask 077, nie do 
 | `data_dir` (dziennik, bloby w drodze, scratch) | profile dostawców (wbudowany `native` i własne) z kluczami i zmiennymi środowiskowymi |
 | `ping_interval_seconds` (utrzymanie mapowania NAT) | natywne narzędzia (subagenci, harmonogram) |
 | | limity (tury, zadania w tle, drain, zwalnianie) |
-| | Codex: dowiązanie logowania urządzenia do izolowanego `CODEX_HOME` (`device_login`) |
+| | Codex: wybór logowania urządzenia (`device_login`), przez katalog CLI lub dowiązanie w trybie izolowanym |
 | | instancje dostawców: efektywny wynik globalnych definicji i nadpisań workera (sekcja 9) |
 
 ## 2. Plik lokalny
@@ -630,15 +630,19 @@ Szczegóły negocjacji opisuje [protokół](protocol.md#ustawienia-cli-instancji
 
 ### Katalog CLI dla wątków Codexa
 
-Domyślny **Isolated** pozwala używać plikowego loginu terminala w prywatnym
-katalogu workera. Opcja **Use CLI home** (`user_configuration.mode = SHARED`)
-wymaga połączenia **Device login** i stosuje się do wątków. Otwiera zarówno
-login, jak i ustawienia w `home_path` lub domyślnym katalogu CLI workera.
-Działa także przy braku uprawnienia do dowiązań. Nadpisanie na workerze
-pozwala zastosować wybór do jednego komputera. Przy połączeniu proxy lub
-własnym loginie instancji worker nadal używa prywatnego katalogu.
-Obsługę ogłasza capability `codex_cli_home_v1`. Starszy worker wymaga
-aktualizacji, aby przyjąć instancję z aktywnym **Use CLI home**.
+Wbudowana instancja `codex/native` z połączeniem **Device login** domyślnie
+używa trybu **Use CLI home**. Po aktualizacji workera wcześniejsza konfiguracja
+bez zapisanego wyboru również używa loginu i ustawień terminala. Katalog określa
+`home_path`, następnie zmienna `CODEX_HOME` procesu workera lub `~/.codex`.
+Ten tryb działa bez uprawnienia do tworzenia dowiązań.
+
+Pozostałe instancje Codexa domyślnie używają **Isolated**. W tym trybie prywatny
+katalog workera może korzystać z dowiązania do plikowego loginu terminala.
+Wybór na workerze ma pierwszeństwo przed wyborem w definicji instancji,
+a oba przed wartością domyślną. Proxy, własny login instancji i wyłączenie
+logowania urządzenia zachowują prywatny katalog. Worker bez capability
+`codex_cli_home_v1` stosuje swój dotychczasowy domyślny tryb. Jawny wybór
+**Use CLI home** dla aktywnego logowania urządzenia wymaga aktualizacji takiego workera.
 Szczegóły historii, importu i botów opisuje [adapter Codexa](codex-adapter.md#korzystanie-z-katalogu-cli).
 
 ### Konfiguracja użytkownika Claude
@@ -742,7 +746,7 @@ Izolowane `CODEX_HOME`/`GROK_HOME` odcinają globalne instrukcje tych CLI.
 Codex scratch wyłącza szukanie korzenia projektu (`project_root_markers=[]`).
 Grok scratch wymusza folder trust w prywatnym GROK_HOME bez zaufanych projektów,
 żeby nie ładować reguł nadrzędnego repozytorium obejmującego data dir.
-Źródła loginu nie zmieniają się: izolowany `CODEX_HOME` i jawne `GROK_AUTH_PATH`.
+Codex korzysta z magazynu logowania wybranego przez tryb instancji, a Grok z jawnego `GROK_AUTH_PATH`.
 Prywatne HOME pozostaje dla botów bez shella.
 Skille negocjują osobną capability `agent_skills_v1`. Claude ładuje zarządzane
 `<actual home>/canopy-environment/skills` jako jawny lokalny plugin bez włączania

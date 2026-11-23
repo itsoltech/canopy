@@ -180,7 +180,7 @@
                   onchange={() => {
                     if (draft.harness !== h.value) {
                       draft.harness = h.value;
-                      draft.userConfiguration = configurationDraftOf();
+                      draft.userConfiguration = configurationDraftOf(undefined, h.value);
                       draft.ownLogin = false;
                     }
                   }}
@@ -229,7 +229,7 @@
               prefix="new"
             />
             {#if draft.harness === Provider.CODEX && draft.kind === ProviderProfileKind.NATIVE && !draft.ownLogin}
-              <UserConfigurationFields codex bind:value={draft.userConfiguration} prefix="new" />
+              <UserConfigurationFields codexId={draft.id} bind:value={draft.userConfiguration} prefix="new" />
             {/if}
             {#if setupProxy && draft.kind === ProviderProfileKind.CLIPROXYAPI}
               <p class="text-sm/6 text-zinc-600 dark:text-zinc-400">

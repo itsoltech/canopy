@@ -325,7 +325,7 @@ message ProviderConfig {
 }
 
 enum DeviceLogin {
-  // Domyślnie: dowiąż logowanie CLI właściciela urządzenia (np. ~/.codex/auth.json), jeśli istnieje.
+  // Domyślnie korzystaj z logowania CLI właściciela urządzenia.
   DEVICE_LOGIN_UNSPECIFIED = 0;
   DEVICE_LOGIN_LINK = 1;
   // Bez logowania urządzenia, np. gdy worker korzysta tylko z CLIProxyAPI.
@@ -334,7 +334,7 @@ enum DeviceLogin {
 
 // Claude user configuration or the home used by native Codex threads.
 enum ProviderConfigurationMode {
-  PROVIDER_CONFIGURATION_MODE_UNSPECIFIED = 0; // Existing isolated behavior.
+  PROVIDER_CONFIGURATION_MODE_UNSPECIFIED = 0; // Use the instance default.
   PROVIDER_CONFIGURATION_MODE_ISOLATED = 1;
   PROVIDER_CONFIGURATION_MODE_LOCAL = 2; // Read selected local configuration into a private home.
   PROVIDER_CONFIGURATION_MODE_SHARED = 3; // Use the source directory directly; never prepare or clean it.
@@ -369,8 +369,7 @@ message ProviderProfileConfig {
   // (dostawca + id); to samo id może mieć osobny profil dla drugiego dostawcy.
   // Plik wykonywalny harnessu tej instancji; pusty = ProviderConfig.executable_path albo PATH.
   string executable_path = 9;
-  // Katalog domowy właściciela urządzenia, z którego worker dowiązuje logowanie CLI (CODEX_HOME / CLAUDE_CONFIG_DIR);
-  // pusty = środowisko procesu workera, inaczej ~/.codex / ~/.claude.
+  // Źródło logowania CLI urządzenia. Puste = CODEX_HOME / CLAUDE_CONFIG_DIR workera albo ~/.codex / ~/.claude.
   string home_path = 10;
   // Izolowany katalog domowy, z którym działa harness (stan, sesje, logowanie); pusty = <data_dir>/codex-home
   // albo claude-home (wspólny dla instancji bez własnych ustawień uruchomienia).
@@ -382,7 +381,8 @@ message ProviderProfileConfig {
   bool own_login = 13;
   // Public transport options; keys remain in api_key, never in headers or argv.
   ProxyCodexOptions proxy_codex = 14;
-  // Claude configuration or explicit SHARED CLI home for native Codex. Absent or UNSPECIFIED keeps isolation.
+  // Claude configuration or native Codex home selection. Without a mode, codex/native uses the CLI home
+  // for device login. Other instances default to isolation.
   ProviderUserConfiguration user_configuration = 15;
   // Native-format preferences in the instance definition and this worker's overrides.
   string settings_text = 16;

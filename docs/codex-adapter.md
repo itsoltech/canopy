@@ -4,8 +4,9 @@ Aktualizacja (2026-11-23): worker przywraca zapis historii Codexa potrzebny do
 forka po archiwizacji. Na Windowsie migruje twarde dowiązania logowania Codexa,
 również w katalogach zapisanych rozmów botów. Na Windowsie, macOS i Linuksie
 odtwarza powiązanie zarządzanego katalogu z bieżącym loginem i współdzieli blokadę zapisu CLI.
-Wątki z włączonym **Use CLI home** korzystają z loginu i konfiguracji CLI
-bez dowiązań na wszystkich trzech systemach. Błąd dowiązania w trybie izolacji
+Wątki wbudowanej instancji `codex/native` z logowaniem urządzenia domyślnie
+korzystają z loginu i konfiguracji CLI bez dowiązań na wszystkich trzech systemach.
+Błąd dowiązania w trybie izolacji
 trafia do statusu konta i do wątku.
 
 Aktualizacja (2026-11-22): nazwany profil offline używa osobnego identyfikatora
@@ -367,7 +368,10 @@ Izolowany katalog zapobiega dziedziczeniu prywatnej konfiguracji i dodatkowego k
 
 ### Korzystanie z katalogu CLI
 
-Opcja **Use CLI home** na instancji natywnej uruchamia proces wątków z
+Tryb **Use CLI home** jest domyślny dla wbudowanej instancji `codex/native`
+z logowaniem urządzenia, także po aktualizacji workera. Zapisany wybór
+**Isolated** dla instancji lub workera zachowuje pierwszeństwo względem
+tej wartości domyślnej. **Use CLI home** uruchamia proces wątków z
 `CODEX_HOME` ustawionym na katalog logowania instancji. Domyślnie jest to
 `CODEX_HOME` w środowisku workera lub `~/.codex` konta systemowego workera.
 Codex otwiera skonfigurowany w CLI magazyn poświadczeń i sam obsługuje

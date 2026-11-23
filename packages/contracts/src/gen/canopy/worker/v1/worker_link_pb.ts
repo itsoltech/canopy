@@ -1320,8 +1320,7 @@ export type ProviderProfileConfig = Message<"canopy.worker.v1.ProviderProfileCon
   executablePath: string;
 
   /**
-   * Katalog domowy właściciela urządzenia, z którego worker dowiązuje logowanie CLI (CODEX_HOME / CLAUDE_CONFIG_DIR);
-   * pusty = środowisko procesu workera, inaczej ~/.codex / ~/.claude.
+   * Źródło logowania CLI urządzenia. Puste = CODEX_HOME / CLAUDE_CONFIG_DIR workera albo ~/.codex / ~/.claude.
    *
    * @generated from field: string home_path = 10;
    */
@@ -1358,7 +1357,8 @@ export type ProviderProfileConfig = Message<"canopy.worker.v1.ProviderProfileCon
   proxyCodex?: ProxyCodexOptions | undefined;
 
   /**
-   * Claude configuration or explicit SHARED CLI home for native Codex. Absent or UNSPECIFIED keeps isolation.
+   * Claude configuration or native Codex home selection. Without a mode, codex/native uses the CLI home
+   * for device login. Other instances default to isolation.
    *
    * @generated from field: canopy.worker.v1.ProviderUserConfiguration user_configuration = 15;
    */
@@ -9149,7 +9149,7 @@ export const ProviderProfileKindSchema: GenEnum<ProviderProfileKind> = /*@__PURE
  */
 export enum DeviceLogin {
   /**
-   * Domyślnie: dowiąż logowanie CLI właściciela urządzenia (np. ~/.codex/auth.json), jeśli istnieje.
+   * Domyślnie korzystaj z logowania CLI właściciela urządzenia.
    *
    * @generated from enum value: DEVICE_LOGIN_UNSPECIFIED = 0;
    */
@@ -9181,7 +9181,7 @@ export const DeviceLoginSchema: GenEnum<DeviceLogin> = /*@__PURE__*/
  */
 export enum ProviderConfigurationMode {
   /**
-   * Existing isolated behavior.
+   * Use the instance default.
    *
    * @generated from enum value: PROVIDER_CONFIGURATION_MODE_UNSPECIFIED = 0;
    */

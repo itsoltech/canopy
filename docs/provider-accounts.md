@@ -8,7 +8,7 @@ Jeśli worker nie może dowiązać pliku loginu lub jego blokady, przy koncie
 i w błędzie tury pokazuje się przyczyna. Instancja ze zgłoszonym błędem
 udostępniania loginu ma status **Login unavailable**.
 
-Status (2026-11-23) obejmuje bezpośrednie korzystanie z loginu CLI przez wątki Codexa oraz raportowanie błędów dowiązań. Dostępność w wydaniach: [release.md](release.md).
+Status (2026-11-23) obejmuje domyślne korzystanie z loginu CLI przez wątki wbudowanej instancji `codex/native` oraz raportowanie błędów dowiązań w trybie izolowanym. Dostępność w wydaniach: [release.md](release.md).
 
 Konta proxy mają osobny ręczny wybór planu w Settings → Proxies → Accounts (web i mobile).
 Wybór wygrywa z wykrywaniem i zasila ważoną pojemność; **Automatic** go usuwa.
@@ -56,17 +56,18 @@ w systemowym magazynie poświadczeń, sama dostępność instancji oznacza, że
 worker może uruchomić CLI. Stan zalogowania podaje `codex login status`
 w raporcie konta. Ręczny **Refresh** po zmianie takiego loginu odtwarza
 procesy korzystające z tego magazynu po zakończeniu aktywnej pracy.
-Przy domyślnej izolacji
-Canopy używa dowiązań symbolicznych do pliku logowania i jego blokady zapisu.
+W trybie **Isolated** Canopy używa dowiązań symbolicznych do pliku logowania i jego blokady zapisu.
 Dowiązanie do `auth.json` pozostaje na miejscu także wtedy, gdy przy sprawdzaniu
 konta pomiędzy wylogowaniem i ponownym logowaniem z terminala brakuje pliku źródłowego. Worker
 migruje wcześniejsze twarde dowiązania na Windowsie podczas wczytywania
 konfiguracji i przygotowania katalogu. Szczegóły migracji i uprawnień:
 [izolacja Codexa](codex-adapter.md#konfiguracja-izolacji).
 
-Jeśli terminal jest zalogowany, a worker zgłasza błąd dowiązania, wybierz
-**Use CLI home** na instancji Codexa lub w nadpisaniu dla tego workera.
-Zapisz ustawienie i ponów turę w tym samym wątku. Na Windowsie, macOS i Linuksie
+Po aktualizacji workera wbudowana instancja `codex/native` z logowaniem urządzenia
+i bez zapisanego wyboru używa **Use CLI home**. Jeśli terminal jest już zalogowany,
+możesz od razu ponowić turę w tym samym zwykłym wątku. Przy błędzie dowiązania
+na instancji z izolacją możesz wybrać **Use CLI home** w definicji instancji lub
+w nadpisaniu dla workera. Na Windowsie, macOS i Linuksie
 app-server korzysta wtedy z katalogu wybranego dla logowania CLI i czyta
 jego konfigurację, w tym instrukcje, serwery MCP oraz hooki. Ten tryb nie wymaga
 nowego logowania ani uprawnienia do tworzenia dowiązań. Własny login instancji

@@ -1,6 +1,7 @@
 # Import z CLI agentów
 
-Aktualizacja (2026-11-23): import przy włączonym **Use CLI home** zachowuje
+Aktualizacja (2026-11-23): **Use CLI home** jest trybem domyślnym dla wątków
+wbudowanej instancji `codex/native` z logowaniem urządzenia. Import w tym trybie zachowuje
 historię i pozwala kontynuować w nowym wątku. Do wznowienia natywnej kopii
 wybierz **Isolated**. Oddzielny katalog chroni źródłową sesję CLI, która ma
 ten sam identyfikator co jej oczyszczona kopia.
@@ -30,14 +31,14 @@ Stos C (etap 9): wejścia do importu i aplikacja mobilna, opisane w „Wejścia 
 
 ## Domy CLI i izolacja
 
-Wątki Canopy zachowują prawdziwe `HOME`, `USERPROFILE` i XDG. Domyślnie każde CLI działa z prywatnym katalogiem
+Wątki Canopy zachowują prawdziwe `HOME`, `USERPROFILE` i XDG. W trybie izolacji każde CLI działa z prywatnym katalogiem
 konfiguracji: `CLAUDE_CONFIG_DIR=<data_dir>/claude-home`, `CODEX_HOME=<data_dir>/codex-home`, `GROK_HOME`
 procesu z `sessions/` w `<data_dir>/grok/<instancja>/sessions` ([claude-adapter.md](claude-adapter.md#izolacja),
 [codex-adapter.md](codex-adapter.md#izolacja-od-konfiguracji-właściciela-urządzenia), [grok-adapter.md](grok-adapter.md#endpointy-i-izolacja)).
 Boty podmieniają także `HOME`. W trybie izolowanym CLI uruchomione przez Canopy nie widzi sesji z `~/.claude`, `~/.codex`
 i `~/.grok`.
 
-Domyślnie Canopy używa prywatnych domów. Opcjonalny tryb lokalny dziedziczy wybrane, oczyszczone ustawienia,
+W przypadku Claude opcjonalny tryb lokalny dziedziczy wybrane, oczyszczone ustawienia,
 ale kopiuje sesje do prywatnego katalogu. Tryb współdzielony wskazuje katalog użytkownika jako magazyn nowych sesji;
 istniejące wątki zachowują swój trwale przypięty katalog. Import nadal czyta źródło wyłącznie do odczytu i zapisuje
 kopie do wybranego magazynu. Import do katalogu zawierającego oryginalną sesję odmawia nadpisania plików CLI.

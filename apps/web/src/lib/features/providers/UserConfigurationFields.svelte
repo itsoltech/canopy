@@ -1,6 +1,6 @@
 <script lang="ts">
   import { ProviderConfigurationMode } from "@canopy/contracts";
-  import { codexHomeDescription, codexHomeModes } from "@canopy/domain/provider-instances";
+  import { codexHomeDescription, codexHomeModes, defaultCodexHomeMode } from "@canopy/domain/provider-instances";
   import Checkbox from "#lib/shared/ui/Checkbox.svelte";
   import Field from "#lib/shared/ui/Field.svelte";
   import Input from "#lib/shared/ui/Input.svelte";
@@ -10,22 +10,28 @@
   let {
     value = $bindable(),
     inherited,
-    codex = false,
+    codexId,
     prefix,
   }: {
     value: UserConfigurationDraft | undefined;
     inherited?: UserConfigurationDraft;
-    codex?: boolean;
+    codexId?: string;
     prefix: string;
   } = $props();
+
+  const codex = $derived(codexId !== undefined);
+
+  const defaultMode = $derived(
+    codexId !== undefined ? defaultCodexHomeMode(codexId) : ProviderConfigurationMode.ISOLATED,
+  );
 
   const modes = $derived(codex ? codexHomeModes : configurationModes);
 
   const selection = $derived(
-    value ? (modes.find((option) => option.mode === value?.mode)?.value ?? "isolated") : "inherit",
+    value ? (modes.find((option) => option.mode === (value?.mode || defaultMode))?.value ?? "isolated") : "inherit",
   );
 
-  const inheritedLabel = $derived(modes.find((option) => option.mode === inherited?.mode)?.label);
+  const inheritedLabel = $derived(modes.find((option) => option.mode === (inherited?.mode || defaultMode))?.label);
 
   const options = $derived([
     ...(inherited ? [{ value: "inherit", label: `Inherit definition (${inheritedLabel})` }] : []),

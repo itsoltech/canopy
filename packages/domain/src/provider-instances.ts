@@ -16,6 +16,10 @@ import { codexLoginProblem } from "./codex-login-problems.ts";
 export const harnessName = (harness: Provider): string =>
   harness === Provider.CLAUDE ? "Claude" : harness === Provider.GROK ? "Grok" : "Codex";
 
+/** Default for a native Codex instance using the device login. */
+export const defaultCodexHomeMode = (id: string): ProviderConfigurationMode =>
+  id === "native" ? ProviderConfigurationMode.SHARED : ProviderConfigurationMode.ISOLATED;
+
 export const codexHomeModes = [
   {
     value: "isolated",

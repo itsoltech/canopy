@@ -133,8 +133,9 @@ function OverrideFields({ instance, worker, overrides, inherited, busy, error, s
           instance.kind === ProviderProfileKind.NATIVE &&
           !inherited?.ownLogin && (
             <CodexHomeField
+              instanceId={instance.id}
               value={userConfiguration}
-              inherited={inherited?.userConfiguration?.mode || ProviderConfigurationMode.ISOLATED}
+              inherited={inherited?.userConfiguration?.mode ?? ProviderConfigurationMode.UNSPECIFIED}
               onChange={setUserConfiguration}
             />
           )}

@@ -9,8 +9,13 @@ export interface UserConfigurationDraft {
   hooks: boolean;
 }
 
-export const configurationDraftOf = (value?: ProviderUserConfiguration): UserConfigurationDraft => ({
-  mode: value?.mode || ProviderConfigurationMode.ISOLATED,
+export const configurationDraftOf = (
+  value?: ProviderUserConfiguration,
+  harness?: Provider,
+): UserConfigurationDraft => ({
+  mode:
+    value?.mode ||
+    (harness === Provider.CODEX ? ProviderConfigurationMode.UNSPECIFIED : ProviderConfigurationMode.ISOLATED),
   sourcePath: value?.sourcePath ?? "",
   instructions: value?.instructions ?? false,
   skills: value?.skills ?? false,
@@ -20,8 +25,7 @@ export const configurationDraftOf = (value?: ProviderUserConfiguration): UserCon
 export function configurationInput(harness: Provider, value: UserConfigurationDraft | undefined) {
   if (!value) return undefined;
 
-  if (harness === Provider.CODEX)
-    return { mode: value.mode === ProviderConfigurationMode.SHARED ? value.mode : ProviderConfigurationMode.ISOLATED };
+  if (harness === Provider.CODEX) return value.mode ? { mode: value.mode } : undefined;
 
   return harness === Provider.CLAUDE ? { ...value, sourcePath: value.sourcePath.trim() } : undefined;
 }

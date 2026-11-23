@@ -4,19 +4,26 @@ import {
   type ProviderUserConfiguration,
   ProviderUserConfigurationSchema,
 } from "@canopy/contracts";
-import { codexHomeDescription, codexHomeModes } from "@canopy/domain/provider-instances";
+import { codexHomeDescription, codexHomeModes, defaultCodexHomeMode } from "@canopy/domain/provider-instances";
 import { SettingChoice } from "./SettingsGroup";
 
 export function CodexHomeField({
+  instanceId,
   value,
   inherited,
   onChange,
 }: {
+  instanceId: string;
   value: ProviderUserConfiguration | undefined;
   inherited?: ProviderConfigurationMode;
   onChange: (value: ProviderUserConfiguration | undefined) => void;
 }) {
-  const inheritedLabel = codexHomeModes.find((option) => option.mode === inherited)?.label;
+  const defaultMode = defaultCodexHomeMode(instanceId);
+
+  const inheritedLabel =
+    inherited === undefined
+      ? undefined
+      : codexHomeModes.find((option) => option.mode === (inherited || defaultMode))?.label;
 
   return (
     <SettingChoice
@@ -28,9 +35,7 @@ export function CodexHomeField({
           : []),
         ...codexHomeModes.map(({ label, mode, description }) => ({ label, value: mode, description })),
       ]}
-      value={
-        value?.mode || (inheritedLabel ? ProviderConfigurationMode.UNSPECIFIED : ProviderConfigurationMode.ISOLATED)
-      }
+      value={value?.mode || (inheritedLabel ? ProviderConfigurationMode.UNSPECIFIED : defaultMode)}
       onChange={(mode) => onChange(mode ? create(ProviderUserConfigurationSchema, { mode }) : undefined)}
     />
   );

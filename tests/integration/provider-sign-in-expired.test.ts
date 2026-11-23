@@ -1,7 +1,13 @@
 import { afterAll, beforeAll, describe, expect, test } from "bun:test";
 import { existsSync, mkdirSync, readFileSync, realpathSync, renameSync, unlinkSync, writeFileSync } from "node:fs";
 import { join, resolve } from "node:path";
-import { Provider, ProviderConfigurationMode, ProviderProfileKind } from "@canopy/contracts";
+import { create } from "@bufbuild/protobuf";
+import {
+  Provider,
+  ProviderConfigurationMode,
+  ProviderProfileKind,
+  ProviderUserConfigurationSchema,
+} from "@canopy/contracts";
 import { dockerAvailable } from "@canopy/db/testing";
 import { REJECTED_LOGIN_DETAIL } from "@canopy/domain/provider-accounts";
 import { CODEX_CLI_HOME_CAPABILITY } from "@canopy/domain/release/protocol";
@@ -27,6 +33,8 @@ describe.skipIf(!dockerAvailable)("expired provider sign-in over the gateway↔w
   let runtime: ManagedRuntime.ManagedRuntime<Journal, unknown>;
   let host: WorkerHost;
   let link: GatewayLink;
+  let serving: ReturnType<typeof serveLink>;
+  let credential = "";
   let workerId = "";
   let threadId = "";
   let projectId = "";
@@ -65,27 +73,7 @@ describe.skipIf(!dockerAvailable)("expired provider sign-in over the gateway↔w
       15_000,
     );
 
-  beforeAll(async () => {
-    mkdirSync(join(dir, "data"));
-    mkdirSync(deviceCodex);
-    // The device's Codex login: a fixture token whose refresh token has expired.
-    writeFileSync(join(deviceCodex, "auth.json"), JSON.stringify({ tokens: { access_token: "fixture-expired" } }));
-    gw = await startTestGateway();
-    const worker = await gw.addWorker("sign-in-worker");
-    workerId = worker.workerId;
-    await gw.runtime.runPromise(
-      GatewayStore.use((s) =>
-        s.setWorkerConfig(
-          workerId,
-          {
-            codex: { enabled: true, executablePath: executable },
-            claude: { enabled: false },
-            grok: { enabled: false },
-          },
-          gw.userId,
-        ),
-      ),
-    );
+  async function startWorker() {
     runtime = ManagedRuntime.make(Journal.layer(join(dir, "data/journal.db")));
     host = new WorkerHost({
       runtime,
@@ -96,7 +84,7 @@ describe.skipIf(!dockerAvailable)("expired provider sign-in over the gateway↔w
     });
     link = await openGatewayLink({
       baseUrl: gw.grpcUrl,
-      credential: worker.credential,
+      credential,
       hello: {
         workerId,
         host: { os: process.platform },
@@ -110,9 +98,43 @@ describe.skipIf(!dockerAvailable)("expired provider sign-in over the gateway↔w
         ...(await runtime.runPromise(journalHello())),
       },
     });
-    void serveLink(link, host, runtime);
-    await eventually(providersAccount, (a) => a?.state === "signed_in", 20_000);
+    serving = serveLink(link, host, runtime);
+    expect(await eventually(providersAccount, (a) => a?.state === "signed_in", 20_000)).toMatchObject({
+      state: "signed_in",
+    });
+  }
 
+  async function stopWorker() {
+    link?.close();
+    await serving;
+    await host?.close();
+    await runtime?.dispose();
+  }
+
+  beforeAll(async () => {
+    mkdirSync(join(dir, "data"));
+    mkdirSync(deviceCodex);
+    // The device's Codex login: a fixture token whose refresh token has expired.
+    writeFileSync(join(deviceCodex, "auth.json"), JSON.stringify({ tokens: { access_token: "fixture-expired" } }));
+    gw = await startTestGateway();
+    const worker = await gw.addWorker("sign-in-worker");
+    workerId = worker.workerId;
+    credential = worker.credential;
+    await gw.runtime.runPromise(
+      GatewayStore.use((s) =>
+        s.setWorkerConfig(
+          workerId,
+          {
+            profiles: [{ id: "native", providers: [Provider.CODEX], kind: ProviderProfileKind.NATIVE }],
+            codex: { enabled: true, executablePath: executable },
+            claude: { enabled: false },
+            grok: { enabled: false },
+          },
+          gw.userId,
+        ),
+      ),
+    );
+    await startWorker();
     projectId = (await gw.api.createProject({ name: "Sign-in" })).project!.id;
     const repo = join(dir, "repo");
     mkdirSync(repo);
@@ -122,9 +144,7 @@ describe.skipIf(!dockerAvailable)("expired provider sign-in over the gateway↔w
   }, 60_000);
 
   afterAll(async () => {
-    link?.close();
-    await host?.close();
-    await runtime?.dispose();
+    await stopWorker();
     await gw?.close();
   });
 
@@ -300,8 +320,19 @@ describe.skipIf(!dockerAvailable)("expired provider sign-in over the gateway↔w
     ).toContain("worker not found");
   });
 
-  test("the same thread can use the terminal login directly while its private login link is blocked", async () => {
-    expect(await eventually(lastTurn, (status) => status === "idle", 15_000)).toBe("idle");
+  test("a worker upgrade resumes an unconfigured native Codex thread despite a blocked private login link", async () => {
+    // Reproduce the old worker's local default without saving a policy or changing the gateway configuration.
+    const stored = await gw.runtime.runPromise(GatewayStore.use((s) => s.workerConfig(workerId)));
+    const native = stored?.profiles.find((p) => p.id === "native" && p.providers.includes(Provider.CODEX));
+
+    if (!stored || !native) throw new Error("Missing built-in Codex profile");
+    expect(native.userConfiguration).toBeUndefined();
+    native.userConfiguration = create(ProviderUserConfigurationSchema, { mode: ProviderConfigurationMode.ISOLATED });
+    const auth = join(deviceCodex, "auth.json");
+    writeFileSync(auth, '{"tokens":{"access_token":"fixture-before-upgrade"}}');
+    await host.applyConfig(stored);
+    const existing = (await gw.api.createThread({ projectId, workspaceId, provider: Provider.CODEX })).thread!.id;
+    expect(await finished(await send("Before upgrade", existing))).toBe("completed");
     const lock = join(dir, "data", "codex-home", "auth.lock");
     const config = join(deviceCodex, "config.toml");
     const target = { harness: Provider.CODEX, id: "native", workerId };
@@ -311,7 +342,6 @@ describe.skipIf(!dockerAvailable)("expired provider sign-in over the gateway↔w
 
     try {
       // The terminal renewed the login. Reopening the isolated runtime exposes the conflicting lock.
-      const auth = join(deviceCodex, "auth.json");
       writeFileSync(auth + ".new", '{"tokens":{"access_token":"fixture-renewed"}}');
       renameSync(auth + ".new", auth);
       await gw.api.refreshProviders(target);
@@ -319,21 +349,19 @@ describe.skipIf(!dockerAvailable)("expired provider sign-in over the gateway↔w
       expect(await eventually(providersAccount, (a) => a?.state === "error", 20_000)).toMatchObject({
         detail: lockProblem,
       });
-      const rejected = await send("Continue");
+      const rejected = await send("Continue", existing);
       expect(await finished(rejected)).toBe("failed");
-      expect((await snapshot(gw, threadId)).turns.find((turn) => turn.id === rejected)).toMatchObject({
+      expect((await snapshot(gw, existing)).turns.find((turn) => turn.id === rejected)).toMatchObject({
         errorCode: "PROVIDER_UNAVAILABLE",
         errorClass: "configuration",
         error: lockProblem,
       });
 
-      await gw.api.setInstanceWorker({
-        ...target,
-        overrides: { userConfiguration: { mode: ProviderConfigurationMode.SHARED } },
-      });
-      await eventually(providersAccount, (a) => a?.state === "signed_in", 20_000);
-
-      const held = await send("HOLD:login");
+      // The replacement worker receives the same stored version, with no home policy on the wire.
+      await stopWorker();
+      await startWorker();
+      expect(host.config?.version).toBe(stored.version);
+      const held = await send("HOLD:login", existing);
 
       try {
         expect(await eventually(async () => existsSync(join(deviceCodex, "turn-started")), Boolean, 15_000)).toBe(true);
@@ -345,6 +373,16 @@ describe.skipIf(!dockerAvailable)("expired provider sign-in over the gateway↔w
       expect(readFileSync(config, "utf8")).toBe('model_reasoning_effort = "low"\n');
       expect(readFileSync(lock, "utf8")).toBe("occupied");
       expect(readFileSync(auth, "utf8")).toBe('{"tokens":{"access_token":"fixture-renewed"}}');
+
+      // An owner can still choose the private home, which encounters the original lock conflict.
+      await gw.api.setInstanceWorker({
+        ...target,
+        overrides: { userConfiguration: { mode: ProviderConfigurationMode.ISOLATED } },
+      });
+      expect(await eventually(providersAccount, (a) => a?.state === "error", 20_000)).toMatchObject({
+        state: "error",
+        detail: lockProblem,
+      });
     } finally {
       unlinkSync(lock);
     }

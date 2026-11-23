@@ -2,6 +2,7 @@ import { homedir } from "node:os";
 import { existsSync, lstatSync, readlinkSync, renameSync, symlinkSync, unlinkSync } from "node:fs";
 import { join, relative, resolve } from "node:path";
 import { codexLoginProblems } from "@canopy/domain/provider-accounts";
+import { defaultCodexHomeMode } from "@canopy/domain/provider-instances";
 import { Predicate } from "effect";
 import { ProviderConfigurationMode } from "@canopy/contracts";
 import type { ProviderProfileConfig } from "../profiles.ts";
@@ -36,28 +37,24 @@ export function deviceCodexHome(env: Readonly<Record<string, string | undefined>
   return env["CODEX_HOME"] || join(home, ".codex");
 }
 
-/** Only an explicit native instance with device login may run directly in the CLI's home. */
+/** The built-in native instance defaults to its device CLI home. Other instances opt in explicitly. */
 export function directCodexHome(
-  profile: Pick<ProviderProfileConfig, "kind" | "runtime">,
+  profile: Pick<ProviderProfileConfig, "id" | "kind" | "runtime">,
   linkDeviceLogin: boolean,
   deviceHome: string,
 ): string | undefined {
-  const runtime = profile.runtime;
+  const { runtime } = profile;
 
-  if (
-    profile.kind === "native" &&
-    linkDeviceLogin &&
-    !runtime?.ownLogin &&
-    runtime?.userConfiguration?.mode === ProviderConfigurationMode.SHARED
-  )
-    return resolve(runtime.homePath || deviceHome);
+  if (profile.kind !== "native" || runtime?.ownLogin || !linkDeviceLogin) return undefined;
+  const configured = runtime?.userConfiguration?.mode ?? ProviderConfigurationMode.UNSPECIFIED;
+  const mode = configured === ProviderConfigurationMode.UNSPECIFIED ? defaultCodexHomeMode(profile.id) : configured;
 
-  return undefined;
+  return mode === ProviderConfigurationMode.SHARED ? resolve(runtime?.homePath || deviceHome) : undefined;
 }
 
-/** Legacy instances still prepare the linked login. Direct instances only validate the two roots. */
+/** Isolated instances prepare their login. Direct instances only validate the two roots. */
 export function prepareCodexInstanceHome(
-  profile: Pick<ProviderProfileConfig, "kind" | "runtime">,
+  profile: Pick<ProviderProfileConfig, "id" | "kind" | "runtime">,
   options: { dataDir: string; path: string; deviceHome: string; linkDeviceLogin: boolean },
 ): Omit<CodexHome, "login"> & { login: CodexHome["login"] | "cli" } {
   const { path, deviceHome, linkDeviceLogin } = options;

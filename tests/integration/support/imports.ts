@@ -52,7 +52,7 @@ export async function importFixture(
 
   if (options.grok) writeFileSync(join(home, ".grok", "auth.json"), JSON.stringify({ token: "fixture" }));
 
-  // The device login the Codex instance links (a fixture token, like the worktree fixture's).
+  // The terminal login for both the default CLI home and explicitly isolated Codex imports.
   if (options.codex)
     writeFileSync(join(home, ".codex", "auth.json"), JSON.stringify({ tokens: { access_token: "fixture" } }));
 

@@ -18,7 +18,7 @@ import { HostContext } from "./host-context.ts";
 import { HostState } from "./host-state.ts";
 import { ProviderLogins } from "./provider-logins.ts";
 
-function fixture() {
+function fixture(profileId: string) {
   const root = realpathSync(tempDir("canopy-codex-direct-"));
   const dataDir = join(root, "data");
   const cliHome = join(root, "existing");
@@ -72,13 +72,13 @@ for await (const line of createInterface({ input: process.stdin })) {
     codex: { enabled: true },
     profiles: [
       {
-        id: "direct",
+        id: profileId,
         providers: [Provider.CODEX],
         kind: ProviderProfileKind.NATIVE,
         executablePath: executable,
         homePath: cliHome,
         shadowHomePath: privateHome,
-        userConfiguration: { mode: ProviderConfigurationMode.SHARED },
+        ...(profileId !== "native" && { userConfiguration: { mode: ProviderConfigurationMode.SHARED } }),
         launchArgs: [
           "-c",
           'sqlite_home="previous-override"',
@@ -93,8 +93,8 @@ for await (const line of createInterface({ input: process.stdin })) {
   return { root, cliHome, privateHome, deviceHome, executable, runtime, state, ctx, config };
 }
 
-test("the custom Codex executable uses one CLI home for threads, keyring status and login", async () => {
-  const { root, cliHome, privateHome, deviceHome, executable, runtime, state, ctx, config } = fixture();
+async function verifyCliHome(profileId: string) {
+  const { root, cliHome, privateHome, deviceHome, executable, runtime, state, ctx, config } = fixture(profileId);
 
   try {
     const result = applyWorkerConfig(
@@ -116,7 +116,7 @@ test("the custom Codex executable uses one CLI home for threads, keyring status 
       spawn.args.filter((arg: string) => arg.startsWith("features.background_paginated_rollout_migration=")).at(-1),
     ).toBe("features.background_paginated_rollout_migration=false");
 
-    const group = ctx.ops.codexGroupOf("direct");
+    const group = ctx.ops.codexGroupOf(profileId);
     const key = `codex/${group}`;
     const prior = state.codex.get(group);
     expect(prior).toBeDefined();
@@ -127,7 +127,7 @@ test("the custom Codex executable uses one CLI home for threads, keyring status 
         create(GetProviderAccountsSchema, {
           configVersion: 3n,
           provider: Provider.CODEX,
-          profileId: "direct",
+          profileId,
           refresh: true,
         }),
       );
@@ -153,11 +153,11 @@ test("the custom Codex executable uses one CLI home for threads, keyring status 
       home: cliHome,
       hasProfileEnv: false,
     });
-    const login = new ProviderLogins(ctx).target(Provider.CODEX, "direct");
+    const login = new ProviderLogins(ctx).target(Provider.CODEX, profileId);
     expect(login.env["CODEX_HOME"]).toBe(cliHome);
     expect(login.env["FIXTURE_PROFILE_SECRET"]).toBeUndefined();
     expect(login.executable).toBe(executable);
-    expect(state.codexHome("direct")).toBe(privateHome);
+    expect(state.codexHome(profileId)).toBe(privateHome);
     expect(readFileSync(join(privateHome, "auth.lock"), "utf8")).toBe("previous private lock");
     expect(readFileSync(join(privateHome, "auth.json"), "utf8")).toBe("previous private login");
     expect(readdirSync(cliHome)).toEqual(["config.toml"]);
@@ -167,4 +167,10 @@ test("the custom Codex executable uses one CLI home for threads, keyring status 
     await state.accounts.close();
     await runtime.dispose();
   }
-}, 15_000);
+}
+
+test.each(["native", "direct"])(
+  "the %s Codex instance uses its CLI home for threads, keyring status and login",
+  verifyCliHome,
+  15_000,
+);

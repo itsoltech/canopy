@@ -6,11 +6,7 @@ import { providerSettingsText } from "../store/instance-settings.ts";
 import { ACCENT, MAX_MODELS, checkArgs, checkBaseUrl } from "../store/instance-checks.ts";
 import { proxyOptions, proxyRoot, type ProxyOptions, type ProxyRow } from "../store/proxy-records.ts";
 import type { Fields } from "./persistence.ts";
-import {
-  normalizeUserConfiguration,
-  storedUserConfiguration,
-  userConfigurationProblem,
-} from "../store/instance-user-configuration.ts";
+import { storedUserConfiguration, userConfigurationProblem } from "../store/instance-user-configuration.ts";
 
 /**
  * Shared fields of provider instances and proxies (docs/linked-computers.md, "Inwentarz"). CLI paths and homes
@@ -59,8 +55,7 @@ export function secretField(kind: string, name: string, value: JsonValue | undef
 export function instanceValues(row: InstanceRow, proxy: string) {
   const runtime = row.runtime ?? {};
 
-  const userConfiguration =
-    runtime.userConfiguration && storedUserConfiguration(row.harness, runtime.userConfiguration);
+  const userConfiguration = storedUserConfiguration(row.harness, runtime.userConfiguration);
 
   const secrets: SecretRefs = new Map();
 
@@ -170,21 +165,17 @@ export function instanceColumns(values: Values, current: InstanceRow | undefined
 
     const policy = values["userConfiguration"];
 
-    const currentPolicy =
-      current?.runtime.userConfiguration && storedUserConfiguration(harness, current.runtime.userConfiguration);
+    const currentPolicy = storedUserConfiguration(harness, current?.runtime.userConfiguration);
 
     const userConfiguration =
       policy === undefined
         ? currentPolicy
         : policy === null
           ? undefined
-          : storedUserConfiguration(
-              harness,
-              normalizeUserConfiguration({
-                ...userConfigurationPolicy(policy),
-                sourcePath: currentPolicy?.sourcePath ?? "",
-              }),
-            );
+          : storedUserConfiguration(harness, {
+              ...userConfigurationPolicy(policy),
+              sourcePath: currentPolicy?.sourcePath ?? "",
+            });
 
     const models = ["favorites", "hidden", "shown", "custom"].map((name) =>
       values[name] === undefined ? undefined : [...strings(values[name])],

@@ -12,13 +12,13 @@ export type StoredUserConfiguration = Pick<
   "mode" | "sourcePath" | "instructions" | "skills" | "hooks"
 >;
 
-export function normalizeUserConfiguration(value: StoredUserConfiguration): StoredUserConfiguration {
+function normalizeUserConfiguration(value: StoredUserConfiguration): StoredUserConfiguration {
   return {
-    mode: value.mode === ProviderConfigurationMode.UNSPECIFIED ? ProviderConfigurationMode.ISOLATED : value.mode,
-    sourcePath: value.sourcePath.trim(),
-    instructions: value.instructions,
-    skills: value.skills,
-    hooks: value.hooks,
+    mode: value.mode || ProviderConfigurationMode.ISOLATED,
+    sourcePath: value.sourcePath?.trim() ?? "",
+    instructions: value.instructions ?? false,
+    skills: value.skills ?? false,
+    hooks: value.hooks ?? false,
   };
 }
 
@@ -57,29 +57,25 @@ export function userConfigurationProblem(harness: string, value: StoredUserConfi
   return undefined;
 }
 
-/** Older gateways accepted unused Claude fields on isolated Codex instances. */
-export function storedUserConfiguration(harness: string, value: StoredUserConfiguration): StoredUserConfiguration {
-  if (
-    harness === "codex" &&
-    (value.mode === ProviderConfigurationMode.ISOLATED || value.mode === ProviderConfigurationMode.UNSPECIFIED)
-  ) {
-    return {
-      mode: ProviderConfigurationMode.ISOLATED,
-      sourcePath: "",
-      instructions: false,
-      skills: false,
-      hooks: false,
-    };
+/** Missing Codex policy inherits. Older gateways also stored unused Claude fields on isolated Codex instances. */
+export function storedUserConfiguration(
+  harness: string,
+  value: StoredUserConfiguration | undefined,
+): StoredUserConfiguration | undefined {
+  if (!value || (harness === "codex" && !value.mode)) return undefined;
+
+  if (harness === "codex" && value.mode === ProviderConfigurationMode.ISOLATED) {
+    return { mode: value.mode, sourcePath: "", instructions: false, skills: false, hooks: false };
   }
 
-  return value;
+  return normalizeUserConfiguration(value);
 }
 
-export const userConfigurationMessage = (harness: string, value: StoredUserConfiguration | undefined) =>
-  value ? create(ProviderUserConfigurationSchema, storedUserConfiguration(harness, value)) : undefined;
+export function userConfigurationMessage(harness: string, value: StoredUserConfiguration | undefined) {
+  const stored = storedUserConfiguration(harness, value);
 
-export const userConfigurationJson = (harness: string, value: StoredUserConfiguration) =>
-  toJson(
-    ProviderUserConfigurationSchema,
-    create(ProviderUserConfigurationSchema, storedUserConfiguration(harness, value)),
-  );
+  return stored && create(ProviderUserConfigurationSchema, stored);
+}
+
+export const userConfigurationJson = (value: StoredUserConfiguration) =>
+  toJson(ProviderUserConfigurationSchema, create(ProviderUserConfigurationSchema, value));

@@ -250,6 +250,9 @@ Szczegóły blokad, odzyskiwania i prywatnego refa: [worktrees.md](worktrees.md#
 Aktualizacja (2026-11-23) obejmuje także natywne instancje Codexa.
 `codex_cli_home_v1` potwierdza obsługę `SHARED` przez wątki Codexa.
 W tym trybie źródłem loginu i konfiguracji jest katalog CLI na workerze.
+Przy braku wyboru w konfiguracji nowy worker stosuje ten tryb dla wbudowanej
+instancji `codex/native` z logowaniem urządzenia, również podczas aktualizacji.
+Starszy worker interpretuje brak wyboru według własnej wersji.
 Proxy i własny login instancji korzystają z prywatnego katalogu. Szczegóły
 wyboru i zgodności opisuje [konfiguracja workera](worker-config.md#katalog-cli-dla-wątków-codexa).
 
@@ -260,7 +263,8 @@ Addytywne `ProviderProfileConfig.user_configuration` (15) przenosi
 `ProviderUserConfiguration`: `mode` (1), `source_path` (2), `instructions` (3),
 `skills` (4) oraz `hooks` (5). `ProviderConfigurationMode` ma wartości
 `UNSPECIFIED=0`, `ISOLATED=1`, `LOCAL=2`, `SHARED=3`. Brak wiadomości i tryb 0
-zachowują izolację starszych zapisów. Nadpisanie instancji na workerze jest
+w konfiguracji przesłanej do workera wybierają tryb domyślny instancji.
+Nadpisanie instancji na workerze jest
 opcjonalną całą wiadomością: brak dziedziczy politykę definicji, obecność
 zastępuje ją wraz z wartościami `false`.
 

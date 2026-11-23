@@ -273,6 +273,17 @@ describe.skipIf(!dockerAvailable)("provider instances, models and proxies across
     expect((await instanceOf(b, Provider.CODEX, id))?.runtime?.homePath).toBe("");
   });
 
+  test("the built-in Codex definition syncs explicit isolation and a return to the implicit CLI home", async () => {
+    const instance = () => instanceOf(b, Provider.CODEX, "native");
+    await editInstance(a, Provider.CODEX, "native", {
+      runtime: { userConfiguration: { mode: ProviderConfigurationMode.ISOLATED } },
+    });
+    await wait(async () => (await instance())?.runtime?.userConfiguration?.mode === ProviderConfigurationMode.ISOLATED);
+    await editInstance(a, Provider.CODEX, "native", { runtime: { userConfiguration: {} } });
+    await wait(async () => !(await instance())?.runtime?.userConfiguration);
+    expect((await instance())?.builtIn).toBe(true);
+  });
+
   test("Claude configuration choices sync while source paths and worker overrides remain local", async () => {
     const local = {
       mode: ProviderConfigurationMode.LOCAL,

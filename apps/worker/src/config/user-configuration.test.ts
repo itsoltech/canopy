@@ -38,6 +38,61 @@ function fixture(profiles: NonNullable<MessageInitShape<typeof WorkerConfigSchem
 }
 
 describe("WorkerConfig user configuration policy and effective paths", () => {
+  test("missing and unspecified policies default only the built-in Codex device login to the CLI home", () => {
+    const { homes } = fixture([]);
+    const provider = { id: "native", kind: ProviderProfileKind.NATIVE, providers: [Provider.CODEX] };
+    const custom = { ...provider, id: "custom" };
+    const isolated = join(homes.dataDir, "codex-home");
+    const noFile = { ...probe, login: () => null };
+
+    for (const [name, profiles] of [
+      ["implicit", []],
+      ["explicit entry", [provider]],
+      ["unspecified mode", [{ ...provider, userConfiguration: { mode: ProviderConfigurationMode.UNSPECIFIED } }]],
+      ["legacy multi-provider", [{ ...provider, providers: [] }]],
+    ] satisfies [string, NonNullable<MessageInitShape<typeof WorkerConfigSchema>["profiles"]>][]) {
+      const wire = create(WorkerConfigSchema, {
+        claude: { enabled: true },
+        codex: { enabled: true },
+        profiles: [...profiles, custom],
+      });
+
+      const report = applyWorkerConfig(wire, noFile, homes).report.profiles ?? [];
+      const native = report.find((p) => p.id === "native" && p.providers?.includes(Provider.CODEX));
+      expect(native, name).toMatchObject({
+        available: true,
+        sessionHomePath: homes.codex,
+        loginHomePath: homes.codex,
+        privateHomePath: isolated,
+      });
+      expect(report.find((p) => p.id === "native" && p.providers?.includes(Provider.CLAUDE))?.sessionHomePath).toBe(
+        join(homes.dataDir, "claude-home"),
+      );
+      expect(report.find((p) => p.id === "custom")).toMatchObject({ available: false, sessionHomePath: isolated });
+    }
+
+    for (const [entry, deviceLogin, sessionHomePath, available] of [
+      [
+        { ...provider, userConfiguration: { mode: ProviderConfigurationMode.ISOLATED } },
+        DeviceLogin.LINK,
+        isolated,
+        false,
+      ],
+      [provider, DeviceLogin.NONE, isolated, false],
+      [{ ...provider, ownLogin: true }, DeviceLogin.LINK, join(homes.dataDir, "homes", "codex-native"), false],
+      [
+        { ...provider, kind: ProviderProfileKind.CLIPROXYAPI, baseUrl: "https://proxy.invalid", apiKey: "fixture" },
+        DeviceLogin.LINK,
+        isolated,
+        true,
+      ],
+    ] as const) {
+      const wire = create(WorkerConfigSchema, { codex: { enabled: true, deviceLogin }, profiles: [entry] });
+      const report = applyWorkerConfig(wire, noFile, homes).report.profiles;
+      expect(report?.find((p) => p.providers?.includes(Provider.CODEX))).toMatchObject({ sessionHomePath, available });
+    }
+  });
+
   test("Codex uses the selected login home for direct CLI sessions, only for native device login", () => {
     const shared = { mode: ProviderConfigurationMode.SHARED };
     const provider = { providers: [Provider.CODEX], kind: ProviderProfileKind.NATIVE, userConfiguration: shared };

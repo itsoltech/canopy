@@ -1,12 +1,5 @@
 import { useState } from "react";
-import { create } from "@bufbuild/protobuf";
-import {
-  Provider,
-  ProviderConfigurationMode,
-  ProviderUserConfigurationSchema,
-  ProviderProfileKind,
-  type ui,
-} from "@canopy/contracts";
+import { Provider, ProviderProfileKind, type ui } from "@canopy/contracts";
 import { Button, Field, Notice } from "../../ui/components";
 import { useWorkerRecordOptions } from "../computers/worker-options";
 import { SettingsActions, SettingsGroup, SettingChoice, SettingToggle } from "./SettingsGroup";
@@ -56,11 +49,7 @@ function useProviderForm({
     shadowHomePath: instance?.runtime?.shadowHomePath ?? "",
     launchArgs: instance?.runtime?.launchArgs.join("\n") ?? "",
     ownLogin: instance?.runtime?.ownLogin ?? false,
-    userConfiguration:
-      instance?.runtime?.userConfiguration ??
-      (harness === Provider.CODEX
-        ? create(ProviderUserConfigurationSchema, { mode: ProviderConfigurationMode.ISOLATED })
-        : undefined),
+    userConfiguration: instance?.runtime?.userConfiguration,
   });
 
   const [env, setEnv] = useState(environmentDrafts(instance?.env ?? []));
@@ -192,6 +181,7 @@ export function ProviderForm({
         )}
         {harness === Provider.CODEX && kind === ProviderProfileKind.NATIVE && !runtime.ownLogin && (
           <CodexHomeField
+            instanceId={id}
             value={runtime.userConfiguration}
             onChange={(userConfiguration) => setRuntime({ ...runtime, userConfiguration })}
           />

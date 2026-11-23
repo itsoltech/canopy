@@ -49,7 +49,7 @@ export function codexAppServerLaunch(
   baseEnv: Env,
   codexBin = "codex",
   nativeTools: NativeToolPolicy = DEFAULT_NATIVE_TOOL_POLICY,
-  /** A private CODEX_HOME, or the explicit CLI home with its separate Canopy deployment. */
+  /** A private CODEX_HOME, or the device CLI home with its separate Canopy deployment. */
   codexHome?: string | CodexCliHomes,
   /** The profile's own variables (a process that serves one profile with variables). */
   profileEnv: Readonly<Record<string, string>> = {},

@@ -228,6 +228,63 @@ describe.skipIf(!dockerAvailable)("Provider configuration policy persistence and
     expect((await listed()).runtime?.userConfiguration).toMatchObject(local);
   });
 
+  test("built-in Codex keeps its implicit home until a definition or worker selects a home", async () => {
+    const codex = { harness: Provider.CODEX, id: "native", kind: ProviderProfileKind.NATIVE };
+    const target = { ...codex, workerId: gateway.workerId };
+    const path = "/worker/codex-home";
+
+    const deliveredMode = async (expected: ProviderConfigurationMode | undefined) => {
+      const profile = await eventually(
+        async () =>
+          gateway.worker.configs
+            .at(-1)
+            ?.profiles.find((p) => p.id === "native" && p.providers.includes(Provider.CODEX)),
+        (p) => p?.homePath === path && p.userConfiguration?.mode === expected,
+      );
+
+      expect(profile?.homePath).toBe(path);
+      expect(profile?.userConfiguration?.mode).toBe(expected);
+    };
+
+    const saved = await gateway.api.saveProviderInstance({ ...codex, runtime: { homePath: path } });
+    expect(saved.instance?.runtime?.userConfiguration).toBeUndefined();
+    await deliveredMode(undefined);
+
+    await gateway.api.setInstanceWorker({ ...target, overrides: { userConfiguration: isolated } });
+    await deliveredMode(ProviderConfigurationMode.ISOLATED);
+    const detail = await gateway.api.getInstanceWorker(target);
+    expect(detail.inheritedRuntime?.userConfiguration).toBeUndefined();
+    expect(detail.worker?.overrides?.userConfiguration).toMatchObject(isolated);
+
+    await gateway.api.setInstanceWorker({ ...target, overrides: {} });
+    await deliveredMode(undefined);
+    await gateway.api.saveProviderInstance({ ...codex, runtime: { homePath: path, userConfiguration: isolated } });
+    const inherited = await gateway.api.setInstanceWorker({ ...target, overrides: { userConfiguration: {} } });
+    expect(
+      inherited.instance?.workers.find((w) => w.workerId === target.workerId)?.overrides?.userConfiguration,
+    ).toBeUndefined();
+    await deliveredMode(ProviderConfigurationMode.ISOLATED);
+
+    const reset = await gateway.api.saveProviderInstance({
+      ...codex,
+      runtime: { homePath: path, userConfiguration: {} },
+    });
+
+    expect(reset.instance?.runtime?.userConfiguration).toBeUndefined();
+    await deliveredMode(undefined);
+
+    const stored = await gateway.runtime.runPromise(
+      SqlClient.SqlClient.use(
+        (sql) => sql<{ definition: boolean; override: boolean }>`
+        SELECT i.runtime ? 'userConfiguration' AS definition, w.overrides ? 'userConfiguration' AS override
+        FROM provider_instances i JOIN provider_instance_workers w ON w.harness = i.harness AND w.instance_id = i.id
+        WHERE i.harness = 'codex' AND i.id = 'native' AND w.worker_id = ${target.workerId}::uuid`,
+      ),
+    );
+
+    expect(stored).toEqual([{ definition: false, override: false }]);
+  });
+
   test("old isolated Codex records discard unused Claude fields when read and sent to a worker", async () => {
     const codex = {
       harness: Provider.CODEX,

@@ -4,7 +4,11 @@ import type { JsonValue } from "@canopy/domain";
 import { Match, Predicate } from "effect";
 import { isJsonObject } from "../bots/json.ts";
 import type { ProxyOptions } from "./proxy-records.ts";
-import { userConfigurationJson, type StoredUserConfiguration } from "./instance-user-configuration.ts";
+import {
+  storedUserConfiguration,
+  userConfigurationJson,
+  type StoredUserConfiguration,
+} from "./instance-user-configuration.ts";
 
 /**
  * Global provider instances, the pure part (docs/worker-config.md, section 9): what a worker gets is the
@@ -199,10 +203,12 @@ export function effectiveProfile(instance: InstanceRow, assignment: AssignmentRo
 
   if (runtime.ownLogin) profile.ownLogin = true;
 
-  const userConfiguration = o.userConfiguration ?? runtime.userConfiguration;
+  const userConfiguration =
+    storedUserConfiguration(instance.harness, o.userConfiguration) ??
+    storedUserConfiguration(instance.harness, runtime.userConfiguration);
 
   if (userConfiguration && (instance.harness !== "codex" || (!endpoint && !runtime.ownLogin)))
-    profile.userConfiguration = userConfigurationJson(instance.harness, userConfiguration);
+    profile.userConfiguration = userConfigurationJson(userConfiguration);
 
   if (runtime.settingsText) profile.settingsText = runtime.settingsText;
 
