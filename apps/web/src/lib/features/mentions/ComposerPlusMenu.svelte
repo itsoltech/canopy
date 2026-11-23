@@ -36,7 +36,7 @@
       kind: MentionKind.SKILL,
     },
     { char: "@", label: "File", description: "A file or directory in this thread’s workspace", kind: MentionKind.FILE },
-    { char: "#", label: "Thread", description: "Another thread the agent can read", kind: MentionKind.THREAD },
+    { char: "#", label: "Mention", description: "Issues, pull requests and threads", kind: MentionKind.THREAD },
   ];
 
   const offered = $derived(ontrigger ? entries.filter((e) => triggers.has(e.char)) : []);

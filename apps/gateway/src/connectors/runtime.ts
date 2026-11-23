@@ -36,6 +36,7 @@ import { executeConnector } from "./execute.ts";
 import { connectorToolCatalog, SLACK_POST_ACTION, slackPostName } from "./slack-post-tool.ts";
 import { supportsSlackDownload } from "./slack-download-tool.ts";
 import { canDownloadSlackOnWorker } from "./slack-download.ts";
+import { searchIssues } from "./issue-search.ts";
 import { worktreeMerged } from "./merged-pr.ts";
 import { connectorTestError, ConnectorTestFailure } from "./test-error.ts";
 
@@ -83,6 +84,10 @@ export class ConnectorsRuntime {
       head,
     );
   }
+  searchIssues(request: ui.SearchIssuesRequest, signal: AbortSignal) {
+    return searchIssues(this, (id) => this.#connection(this.options.userId, id), this.options.userId, request, signal);
+  }
+
   async list(request: connectors.ListConnectorsRequest) {
     if (request.threadId && request.botId) throw new ConnectorFailure("Choose a thread or bot");
     const user = this.options.userId;

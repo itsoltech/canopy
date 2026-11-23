@@ -161,7 +161,7 @@
     class?: ClassValue;
   } = $props();
 
-  const TRIGGER_HINT = ["/ commands", "$ skills", "@ files", "# threads"];
+  const TRIGGER_HINT = ["/ commands", "$ skills", "@ files", "# issues, PRs and threads"];
   const shellMode = $derived(shell && value.startsWith("!"));
   const triggers: ReadonlySet<TriggerChar> = $derived(new Set(shellMode ? [] : ["/", "$", "@", "#"]));
   const trimmed = $derived(trimValue({ text: value, mentions }));
@@ -390,7 +390,7 @@
     <ComposerFold open={!compact}>
       {@render elements?.()}
     </ComposerFold>
-    <div class={secret ? undefined : "t-composer-editor flex min-w-0 items-start gap-2"}>
+    <div class={secret ? undefined : "t-composer-editor flex min-w-0 flex-wrap items-start gap-2"}>
       {#if compact && pending.length > 0 && !secret}
         <ComposerPending items={pending} onexpand={expand} />
       {/if}
@@ -427,6 +427,7 @@
           {acceptChip}
           singleLine={compact}
           containerClass="min-w-0 flex-1"
+          suggestionsClass="order-first min-w-0 basis-full"
           class={["text-base/6 sm:text-sm/6", shellMode && "font-mono", disabled && "cursor-not-allowed"]}
         />
       {/if}

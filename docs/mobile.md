@@ -1,6 +1,7 @@
 # Canopy na iOS i Android
 
-Status (2026-11-23): szczegóły projektu pozwalają zapisać kolor i przywrócić dobór automatyczny.
+Status (2026-11-23): w kompozytorze wspólna lista `#` wyszukuje wątki, zgłoszenia Linear, Jira i GitHub oraz pull requesty GitHub.
+Szczegóły projektu pozwalają zapisać kolor i przywrócić dobór automatyczny.
 
 Status: opis zaimplementowanego kodu (2026-11-23), w tym czterech wariantów ikony Canopy
 na ekranie głównym telefonu, podczas parowania i w nagłówku sidebara. Kafelek
@@ -1854,7 +1855,7 @@ w każdym `Overlay`), więc potwierdzenie z arkusza pojawia się nad nim, a arku
 otwarty. Gdy arkusz zamyka się przed pokazaniem dialogu, dialog przechodzi niżej; gdy
 zamyka się pod dialogiem, dialog jest anulowany.
 
-Pusty kompozytor obsługujący triggery pokazuje tylko `/ commands · $ skills · @ files · # threads · ! shell`.
+Pusty kompozytor obsługujący triggery pokazuje tylko `/ commands · $ skills · @ files · # references · ! shell`.
 Podpowiedź jest zawsze jednym wierszem z wielokropkiem na końcu, poza pomiarem tekstu pola;
 nie zmienia treści ani wysokości podczas zwijania i rozwijania. Kompozytory bez triggerów
 zachowują własny placeholder. Wszystkie pola korzystają z `ui/TextInput`: na iOS usuwa
@@ -2189,6 +2190,20 @@ repozytorium (`ListGitRefs`), pod pickerami są „Current checkout” / „New 
 worktree oraz gałąź; dla nowego worktree to wybór ref bazowego (Branches, Remote branches).
 Domyślny tryb pochodzi z ustawień worktree, a `CreateThread` dostaje `workspace_mode`,
 `base_ref` i `worktree_id` jak z web.
+
+W nowym i istniejącym wątku oraz w formularzu wątku bocznego można wpisać `#`
+lub otworzyć wspólną listę z menu **+ → Mention**.
+**Threads** przeszukuje tytuły przez `SearchThreads`. **Issues** i **Pull requests**
+wyszukują po kluczu, numerze, tytule lub adresie przez `SearchIssues`
+z zakresem wątku lub wybranego workspace’u. Każdy wynik można wybrać od chwili,
+w której się pojawi. Dla zapytania `#123` grupa z dokładnym numerem GitHub
+pojawia się przed innymi trafieniami z trackerów. Awaria jednego źródła
+pozostawia dostęp do pozostałych wyników i pozwala ponowić wyszukiwanie.
+Dla źródeł zewnętrznych lista pokazuje tytuł, klucz, system, konto i status.
+Szkic i wysłana wiadomość zachowują opis, adres oraz rodzaj wybranej pozycji.
+Zgłoszenia Jira i Linear mają zapis `#ABC-123`, a zgłoszenia i pull requesty GitHub
+– `owner/repo#123`. Dotknięcie ich plakietki w wysłanej wiadomości otwiera źródło.
+
 Pliki (zdjęcia z `expo-image-picker`, dokumenty z `expo-document-picker`, odczyt przez
 `expo-file-system`) trafiają do `UploadAttachment` od razu po wyborze, z limitami gatewaya
 z GetSettings; wiadomość z plikami zachowuje wybór steer/queue. Gdy dom nie obsługuje

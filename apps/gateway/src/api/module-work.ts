@@ -59,6 +59,7 @@ const threadWork = new Set<string>([
   "watchThreadFiles",
   "revealThreadFile",
   "searchFiles",
+  "searchIssues",
   "listMentionCatalog",
   "writeThreadFile",
   "deleteThreadFile",

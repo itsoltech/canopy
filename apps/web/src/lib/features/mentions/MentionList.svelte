@@ -4,6 +4,7 @@
   import type { Snippet } from "svelte";
   import { listboxHeadingClasses, listboxListClasses, listboxOptionClasses } from "#lib/shared/ui/listbox.ts";
   import Spinner from "#lib/shared/ui/Spinner.svelte";
+  import ConnectorIcon from "#lib/features/connectors/ConnectorIcon.svelte";
   import { kindLook, safeIcon } from "./kinds.ts";
   import type { MentionOption } from "./sources.svelte.ts";
 
@@ -39,11 +40,12 @@
     class?: ClassValue;
   } = $props();
 
-  let press: { pointerId: number; x: number; y: number; moved: boolean } | undefined;
+  let press: { pointerId: number; option: Element | null; x: number; y: number; moved: boolean } | undefined;
 
   function preserveFocus(event: PointerEvent) {
     event.preventDefault();
-    press = { pointerId: event.pointerId, x: event.clientX, y: event.clientY, moved: false };
+    const option = event.target instanceof Element ? event.target.closest('[role="option"]') : null;
+    press = { pointerId: event.pointerId, option, x: event.clientX, y: event.clientY, moved: false };
   }
 
   function trackPress(event: PointerEvent) {
@@ -53,7 +55,7 @@
 
   function pick(event: PointerEvent, option: MentionOption) {
     trackPress(event);
-    const tap = press?.pointerId === event.pointerId && !press.moved;
+    const tap = press?.pointerId === event.pointerId && press.option === event.currentTarget && !press.moved;
     press = undefined;
 
     // WebKit may suppress click after a cancelled pointerdown. Movement disqualifies a
@@ -104,6 +106,12 @@
 </script>
 
 <div class={className}>
+  {#if error}
+    <p class="flex items-start gap-2 px-4 py-3 text-sm/5 text-zinc-600 dark:text-zinc-300" role="status">
+      <span class="flex h-lh shrink-0 items-center"><Icon name="signal-slash" /></span>
+      <span class="min-w-0 wrap-anywhere whitespace-pre-line">{error}</span>
+    </p>
+  {/if}
   <ul
     id="{id}-list"
     role="listbox"
@@ -115,8 +123,8 @@
       press = undefined;
     }}
   >
-    {#each groups as group (group.label)}
-      <li role="presentation" class={[listboxHeadingClasses, "-mx-1 px-3.5"]}>
+    {#each groups as group, groupIndex (group.label)}
+      <li id="{id}-group-{groupIndex}" role="presentation" class={[listboxHeadingClasses, "-mx-1 px-3.5"]}>
         <div class="truncate">{group.label}</div>
       </li>
       {#each group.entries as { option, index } (option.key)}
@@ -126,6 +134,7 @@
         <li
           id="{id}-option-{index}"
           role="option"
+          aria-describedby="{id}-group-{groupIndex}"
           aria-selected={index === active}
           data-active={index === active || undefined}
           class={["flex items-start gap-2.5", listboxOptionClasses]}
@@ -140,6 +149,8 @@
           <div class="flex h-lh shrink-0 items-center">
             {#if optionIcon}
               {@render optionIcon(option)}
+            {:else if option.data.issue && !option.data.issue.pullRequest}
+              <ConnectorIcon type={option.data.issue.provider} class="text-zinc-600 dark:text-zinc-300" />
             {:else if icon}
               <!-- Harness icons are often dark glyphs on transparency: in dark mode they sit on a light tile to stay visible. -->
               <img src={icon} alt="" class="size-4 rounded-sm object-contain dark:bg-zinc-200 dark:p-px" />
@@ -147,36 +158,43 @@
               <Icon name={kindLook(option.data).icon} class="text-brand-600 dark:text-brand-400" />
             {/if}
           </div>
-          <div class="grid min-w-0 flex-1 sm:flex sm:items-baseline sm:gap-2">
-            <p class="truncate font-medium sm:max-w-1/2 sm:shrink-0 sm:basis-auto">
-              {#each runs(option.title, option.indices) as run, r (r)}{#if run.hit}<mark
-                    class="bg-transparent text-brand-700 dark:text-brand-300">{run.text}</mark
-                  >{:else}{run.text}{/if}{/each}
-            </p>
-            {#if option.detail}
-              <p
-                class="min-w-0 truncate text-sm/5 text-zinc-500 sm:flex-1 sm:text-xs/4 dark:text-zinc-400"
-                title={option.detail}
-              >
-                {option.detail}
+          {#if option.data.issue}
+            <div class="min-w-0 flex-1">
+              <p class="line-clamp-2 font-medium wrap-anywhere sm:line-clamp-1" title={option.title}>{option.title}</p>
+              <div class="flex items-baseline gap-1.5 text-sm/5 text-zinc-500 sm:text-xs/4 dark:text-zinc-400">
+                <span class="max-w-3/5 truncate font-mono" dir="rtl" title={option.data.name}
+                  ><bdi dir="ltr">{option.data.name}</bdi></span
+                >
+                <span aria-hidden="true">·</span>
+                <span class="min-w-0 truncate" title={option.detail}>{option.detail}</span>
+              </div>
+            </div>
+          {:else}
+            <div class="grid min-w-0 flex-1 sm:flex sm:items-baseline sm:gap-2">
+              <p class="truncate font-medium sm:max-w-1/2 sm:shrink-0 sm:basis-auto">
+                {#each runs(option.title, option.indices) as run, r (r)}{#if run.hit}<mark
+                      class="bg-transparent text-brand-700 dark:text-brand-300">{run.text}</mark
+                    >{:else}{run.text}{/if}{/each}
               </p>
-            {/if}
-          </div>
+              {#if option.detail}
+                <p
+                  class="min-w-0 truncate text-sm/5 text-zinc-500 sm:flex-1 sm:text-xs/4 dark:text-zinc-400"
+                  title={option.detail}
+                >
+                  {option.detail}
+                </p>
+              {/if}
+            </div>
+          {/if}
         </li>
       {/each}
     {/each}
   </ul>
-  {#if loading && options.length === 0}
+  {#if loading}
     <p class="flex items-center gap-2 px-4 py-3 text-sm/5 text-zinc-500 dark:text-zinc-400" role="status">
-      <Spinner class="size-3.5" />Loading…
+      <Spinner class="size-3.5" />{options.length > 0 ? "Searching for more matches…" : "Loading…"}
     </p>
-  {:else if error}
-    <p class="flex items-start gap-2 px-4 py-3 text-sm/5 text-zinc-600 dark:text-zinc-300" role="status">
-      <span class="flex h-lh shrink-0 items-center"
-        ><Icon name="signal-slash" class="fill-zinc-400 dark:fill-zinc-500" /></span
-      >{error}
-    </p>
-  {:else if options.length === 0}
+  {:else if !error && options.length === 0}
     <p class="px-4 py-3 text-sm/5 text-zinc-500 dark:text-zinc-400" role="status">{empty}</p>
   {/if}
 </div>

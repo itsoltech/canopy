@@ -14,6 +14,7 @@ export function attachmentsHandlers(
   | "getThreadBlob"
   | "getVisual"
   | "listMentionCatalog"
+  | "searchIssues"
   | "searchFiles"
   | "searchThreads"
 > {
@@ -37,6 +38,8 @@ export function attachmentsHandlers(
     listMentionCatalog: (request) => guard(() => core.listMentionCatalog(request)),
 
     searchFiles: (request) => guard(() => core.searchFiles(request)),
+
+    searchIssues: (request, context) => guard(() => core.connectors.searchIssues(request, context.signal)),
 
     searchThreads: (request) => guard(() => core.searchThreads(request)),
   };

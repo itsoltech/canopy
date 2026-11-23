@@ -1,15 +1,17 @@
 import { useRef, useState } from "react";
 import { create } from "@bufbuild/protobuf";
-import { MentionKind, MentionSchema, type Mention, type ui } from "@canopy/contracts";
+import { MentionKind, MentionSchema, type ui } from "@canopy/contracts";
 import { useAttachmentDraft } from "../attachments/useAttachmentDraft";
 import type { ComposerBadges } from "../threads/ComposerBox";
 import type { BadgeTone } from "./MessageText";
-import { activeTrigger } from "./useMentionSuggestions";
+import { activeTrigger } from "./mention-trigger";
 import { useUpdateBlocker } from "../updates/useUpdateBlocker";
 import {
   editText,
   emptyValue,
   insertMention,
+  insertReferenceTrigger,
+  rangesOf,
   isAttachment,
   trimValue,
   withoutMention,
@@ -38,6 +40,7 @@ export function useMessageDraft(
   } = {},
 ) {
   const [localValue, setValue] = useState<MessageValue>(emptyValue);
+  const [referenceInvocation, setReferenceInvocation] = useState(0);
   const composerSelection = useComposerSelection();
   const { caret, setCaret, selection, hasSelection, focusAt } = composerSelection;
   // Read at once by picks that land in one tick (several photos at a time).
@@ -105,15 +108,28 @@ export function useMessageDraft(
       focusAt.current?.(placed.caret);
     },
     /** The mention trigger the caret is in ("/rev", "@src/ap"). */
-    trigger,
+    trigger: trigger?.char === "#" ? { ...trigger, invocation: referenceInvocation } : trigger,
+    findReference() {
+      setReferenceInvocation((id) => id + 1);
+
+      if (trigger?.char === "#" && caret !== undefined) return focusAt.current?.(caret);
+      const at = hasSelection.current ? selection.current.end : current.current.text.length;
+      const placed = insertReferenceTrigger(current.current, at);
+      selection.current = { start: placed.caret, end: placed.caret };
+      apply(placed.value);
+      setCaret(placed.caret);
+      focusAt.current?.(placed.caret);
+    },
     /** Replaces the trigger and its query with the picked mention's badge. */
-    pickMention(mention: Pick<Mention, "kind" | "name" | "label" | "path" | "source" | "isDir">) {
+    pickMention(mention: Parameters<typeof insertMention>[2]) {
       if (!trigger || caret === undefined) return;
       const placed = insertMention(current.current, { start: caret - trigger.length, end: caret }, mention);
 
       selection.current = { start: placed.caret, end: placed.caret };
       setCaret(placed.caret);
       apply(placed.value);
+
+      if (trigger.char === "#") focusAt.current?.(placed.caret);
     },
     setText(next: string) {
       history.current.remember(current.current);
@@ -211,9 +227,12 @@ function attachmentTones(files: readonly DraftFile[]) {
 }
 
 function mentionTrigger(value: MessageValue, caret: number | undefined) {
-  const inBadge = caret !== undefined && value.mentions.some((m) => m.start < caret && caret <= m.end);
+  if (caret === undefined) return undefined;
+  const trigger = activeTrigger(value.text.slice(0, caret));
 
-  return caret === undefined || inBadge ? undefined : activeTrigger(value.text.slice(0, caret));
+  if (!trigger || rangesOf(value).some((m) => m.start < caret && m.end > caret - trigger.length)) return undefined;
+
+  return trigger;
 }
 
 function outgoingMessage(value: MessageValue, files: readonly DraftFile[]) {

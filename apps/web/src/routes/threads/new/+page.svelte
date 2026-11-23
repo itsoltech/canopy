@@ -243,19 +243,23 @@
     saved.selectSandboxPermissions(PermissionMode.FULL_AUTO, profile);
   }
 
-  // Mentions of the first message: commands, skills and files of the chosen worker, folder and agent.
-  const sources = new MentionSources(() => {
-    const choice = place.choice;
+  // Issue access follows the chosen workspace even before a model is available.
+  const sources = new MentionSources(
+    () => {
+      const choice = place.choice;
 
-    return workspace && selected
-      ? {
-          workspaceId: workspace.id,
-          provider: Provider[selected.provider],
-          providerProfileId: selected.profileId,
-          cwd: choice.kind === "existing" ? choice.worktree.path : "",
-        }
-      : undefined;
-  });
+      return workspace && selected
+        ? {
+            workspaceId: workspace.id,
+            provider: Provider[selected.provider],
+            providerProfileId: selected.profileId,
+            cwd: choice.kind === "existing" ? choice.worktree.path : "",
+          }
+        : undefined;
+    },
+    undefined,
+    () => (workspace ? { workspaceId: workspace.id } : undefined),
+  );
 
   // Files of the first message (uploaded as added; their ids go with the form).
   const draft = $derived(saved.files);

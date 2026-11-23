@@ -3,15 +3,15 @@ import { QueryCache } from "@canopy/domain/shared-query";
 import { queries } from "#lib/shared/queries.svelte.ts";
 import { fuzzyRank } from "@canopy/domain";
 import { HttpError } from "#lib/shared/http.ts";
-import { listMentionCatalog, searchFiles, searchThreads, type MentionScope } from "./api.ts";
+import { listMentionCatalog, searchFiles, searchIssues, searchThreads, type MentionScope } from "./api.ts";
+import { issueResults } from "./issues.ts";
 import type { TriggerChar } from "./editor.ts";
 import type { MentionData } from "./kinds.ts";
 
 /**
  * What the mention popup offers for a trigger (docs/ui-api.md, "Wzmianki"):
  * "/" commands and "$" skills and plugins from the provider's catalog (listed once per scope, filtered here),
- * "@" files and "#" threads searched as you type (debounced; a late answer for an older query is dropped).
- * Without a worker scope (no workspace yet) only threads are offered; an offline worker says so.
+ * "@" searches files. "#" searches threads and the issues and pull requests available to the project.
  */
 
 export interface MentionOption {
@@ -29,14 +29,27 @@ export interface MentionResults {
   readonly options: readonly MentionOption[];
   readonly loading: boolean;
   readonly error: string | undefined;
+  readonly empty?: string | undefined;
 }
+
+interface TriggerPresentation {
+  readonly label: string;
+  readonly empty: string;
+}
+
+export const triggerPresentation: Record<TriggerChar, TriggerPresentation> = {
+  "/": { label: "Commands", empty: "No commands match" },
+  $: { label: "Skills and plugins", empty: "No skills or plugins match" },
+  "@": { label: "Files", empty: "No files match" },
+  "#": { label: "Issues, pull requests and threads", empty: "No matches. Try another title, key or number." },
+};
 
 /** Editor contract, independent of worker catalogs. Each composer supplies only its own sources. */
 export interface MentionSourceSet {
   readonly results: MentionResults;
   readonly catalog?: { readonly entries: readonly MentionCatalogEntry[] };
   readonly catalogState?: { readonly loading: boolean; readonly error: string | undefined };
-  readonly presentation?: Partial<Record<TriggerChar, { readonly label: string; readonly empty: string }>>;
+  readonly presentation?: Partial<Record<TriggerChar, TriggerPresentation>>;
   readonly renderMention?: (mention: MentionData) => string;
   query(char: TriggerChar, query: string): void;
   close(): void;
@@ -73,6 +86,7 @@ export interface CatalogState {
 
 export class MentionSources implements MentionSourceSet {
   readonly #scope: () => MentionScope | undefined;
+  readonly #issueScope: () => MentionScope | undefined;
   readonly #threadId: () => string;
   #catalogKey = "";
   catalog = $state<{ entries: readonly MentionCatalogEntry[]; error?: string; loading: boolean }>({
@@ -82,10 +96,12 @@ export class MentionSources implements MentionSourceSet {
   results = $state<MentionResults>({ options: [], loading: false, error: undefined });
   #run = 0;
   #timer: ReturnType<typeof setTimeout> | undefined;
+  #issueSearch: AbortController | undefined;
 
   /** `scope`: the worker side (thread or new thread); `threadId`: the current thread (not offered under "#"). */
-  constructor(scope: () => MentionScope | undefined, threadId: () => string = () => "") {
+  constructor(scope: () => MentionScope | undefined, threadId: () => string = () => "", issueScope = scope) {
     this.#scope = scope;
+    this.#issueScope = issueScope;
     this.#threadId = threadId;
   }
 
@@ -116,8 +132,8 @@ export class MentionSources implements MentionSourceSet {
 
   /** Options for a trigger and its query; `results` follows (at once for the catalog, debounced for searches). */
   query(char: TriggerChar, query: string): void {
-    const run = ++this.#run;
-    clearTimeout(this.#timer);
+    this.close();
+    const run = this.#run;
 
     if (char === "/" || char === "$") {
       void this.loadCatalog();
@@ -126,11 +142,18 @@ export class MentionSources implements MentionSourceSet {
       return;
     }
 
-    this.results = { ...this.results, loading: true, error: undefined };
+    const scope = char === "#" ? this.#issueScope() : undefined;
+    this.results = { options: [], loading: true, error: undefined };
     this.#timer = setTimeout(
       async () => {
+        if (char === "#") {
+          this.#references(scope, query, run);
+
+          return;
+        }
+
         try {
-          const options = char === "@" ? await this.#files(query) : await this.#threads(query);
+          const options = await this.#files(query);
 
           if (run === this.#run) this.results = { options, loading: false, error: undefined };
         } catch (error) {
@@ -138,6 +161,43 @@ export class MentionSources implements MentionSourceSet {
         }
       },
       query ? DEBOUNCE_MS : 0,
+    );
+  }
+
+  #references(scope: MentionScope | undefined, query: string, run: number): void {
+    const scoped = scope?.threadId || scope?.workspaceId;
+    const pages: MentionResults[] = [];
+
+    // Append completed groups. Even the default highlight stays on the same option when a slower source arrives.
+    const publish = (page: MentionResults) => {
+      if (run !== this.#run) return;
+      pages.push(page);
+      this.results = {
+        options: pages.flatMap((p) => p.options),
+        loading: Boolean(scoped && pages.length < 2),
+        error: pages.flatMap((p) => (p.error ? [p.error] : [])).join("\n") || undefined,
+        empty: scoped ? pages.find((p) => p.empty)?.empty : "No threads match",
+      };
+    };
+
+    void this.#threads(query).then(
+      (options) => publish({ options, loading: false, error: undefined }),
+      () => publish({ options: [], loading: false, error: "Could not search threads. Edit the search to try again." }),
+    );
+
+    if (!scoped || !scope) return;
+    this.#issueSearch = new AbortController();
+    void searchIssues(scope, query, LIMIT, this.#issueSearch.signal).then(
+      (response) => publish(issueResults(response, query)),
+      (cause) =>
+        publish({
+          options: [],
+          loading: false,
+          error:
+            cause instanceof HttpError && cause.status === 426
+              ? problemOf(cause)
+              : "Could not search connected accounts. Edit the search to try again.",
+        }),
     );
   }
 
@@ -153,6 +213,8 @@ export class MentionSources implements MentionSourceSet {
   close(): void {
     this.#run++;
     clearTimeout(this.#timer);
+    this.#issueSearch?.abort();
+    this.#issueSearch = undefined;
   }
 
   #fromCatalog(char: "/" | "$", query: string): MentionOption[] {

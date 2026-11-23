@@ -1,5 +1,7 @@
 # API dla UI i architektura frontendu
 
+Status (2026-11-23): `#` umożliwia wybór wątku, zgłoszenia lub pull requestu GitHub w kompozytorze nowego i istniejącego wątku.
+
 Status (2026-11-23): karta pliku w web i desktopie odtwarza wideo przez HTTP Range.
 
 Status (2026-11-23): `SetProjectColor` zapisuje kolor własnego projektu lub przywraca
@@ -2378,14 +2380,19 @@ Podsumowanie mieści się w dotychczasowej wysokości pola, a pierwsza linia szk
 placeholder skraca się w pozostałym miejscu. Kliknięcie rozwija pole i ustawia fokus
 w edytorze. Rozwinięcie pozostaje nakładką nad osią czasu, ze stałą rezerwą zwiniętego pola.
 
-Komendy, skille, pluginy, pliki i inne wątki są wstawiane w tekst wiadomości jako chipy. Wyzwalacze w kompozytorze: `/` komendy, `$` skille i pluginy (`$Skill`, aplikacje `$app`), `@` pliki folderu wątku, `#` wątki; te same pozycje są w menu „+” obok „Attach files”.
+Komendy, skille, pluginy, pliki, inne wątki, zgłoszenia i pull requesty są wstawiane w tekst wiadomości jako chipy. Wyzwalacze w kompozytorze to `/` dla komend, `$` dla skilli i pluginów, `@` dla plików folderu wątku i `#` dla wątków, zgłoszeń i pull requestów. Te same pozycje są w menu „+” obok „Attach files”.
+
+Kompozytor łączy wyniki `SearchThreads` z `SearchIssues` dla wybranego wątku
+lub workspace. Pole `include_pull_requests` włącza dodatkowe wyniki GitHub oznaczone
+`pull_request`. Odpowiedź zawiera konto i system źródłowy, liczbę połączonych źródeł oraz
+ostrzeżenia z kont, których nie udało się przeszukać. Szczegóły dostępu opisują
+[konektory](connectors.md#zgłoszenia-w-kompozytorze-wątku).
 
 Katalog zakresu (wątek albo workspace, dostawca, profil i folder) jest współdzielony przez kompozytory
 karty lub parowania przez minutę, a `agentEnvironmentChanged` unieważnia go wcześniej; pusty katalog też
 jest wczytany, a nieudany nie zastępuje wartości i czyta się ponownie przy następnym kompozytorze.
 Gateway łączy równoczesne zapytania o ten sam niezbuforowany zakres w jedno zapytanie workera.
-Wyszukiwania `@` i `#` z tym samym tekstem są ponownie używane przez 8 s (otwarcie listy jeszcze raz);
-pliki i wątki zmieniają się poza Canopy, więc dłuższego cache nie ma.
+Wyszukiwania plików i wątków z tym samym tekstem są ponownie używane przez 8 s. Po ponownym otwarciu listy kompozytor na nowo sprawdza źródła zewnętrzne.
 
 Podczas kompozycji IME edytor odczytuje model i wykrywa wyzwalacze przy każdym
 `input`, lecz nie przeformatowuje DOM aż do końca kompozycji. `compositionend`
@@ -2404,15 +2411,16 @@ przyjmuje też obrazy jako `ATTACHMENT`; nie udostępnia skillsów ani katalogu 
 
 Na ekranach poniżej `40rem` lub ze wskaźnikiem `coarse` sugestie są częścią powierzchni kompozytora, nad edytorem, z własnym przewijaniem i limitem wysokości 40% `visualViewport` (aktualizowanym przy zmianie klawiatury/viewportu). Desktop zachowuje popover nad kompozytorem. Każdy `input`, także `insertCompositionText` i `insertReplacementText`, aktualizuje model i sugestie; formatowanie DOM czeka na zatwierdzenie kompozycji. `compositionend` sam ponawia odczyt, a zwykły input i utrata fokusu zerują stan kompozycji. Lista zapobiega utracie fokusu przy `pointerdown`; wybór przez `pointerup` działa także w WebKit, który może pominąć późniejszy `click`. `pointercancel` lub ruch palca większy niż 8 px wyklucza wybór podczas przewijania.
 
-**Kontrakt.** Wiadomość niesie tekst i listę `Mention` (`worker/v1`): `kind` (`COMMAND | SKILL | PLUGIN | FILE | THREAD`), `name` (nazwa w harnessie; plik: ścieżka względem folderu wątku z `/`; wątek: id), `label` (to, co pokazuje chip), `[start, end)` w jednostkach UTF-16 tekstu (znacznik wzmianki: `/review`, `$transitions-dev`, `@docs/notatka.md`, `#Tytuł wątku`), `path` (skill: SKILL.md; plugin: `app://…` / `plugin://…`; plik: ścieżka absolutna na workerze, ustawia gateway), `source` (`built-in | user | project | plugin | system | admin | app | mcp | platform`), `is_dir`. Tekst bez wzmianek nadal czyta się jak zwykła wiadomość (np. dla starszych klientów).
+**Kontrakt.** Wiadomość niesie tekst i listę `Mention` (`worker/v1`): `kind` (`COMMAND | SKILL | PLUGIN | FILE | THREAD | BOT | CONNECTOR | ATTACHMENT | ISSUE`), `name` (nazwa w harnessie; plik: ścieżka względem folderu wątku z `/`; wątek: id), `label` (to, co pokazuje chip), `[start, end)` w jednostkach UTF-16 tekstu (znacznik wzmianki: `/review`, `$transitions-dev`, `@docs/notatka.md`, `#Tytuł wątku`), `path` (skill: SKILL.md; plugin: `app://…` / `plugin://…`; plik: ścieżka absolutna na workerze, ustawia gateway), `source` (`built-in | user | project | plugin | system | admin | app | mcp | platform`), `is_dir`. Tekst bez wzmianek nadal czyta się jak zwykła wiadomość (np. dla starszych klientów).
 
 | Pole / metoda (od 140) | Co robi |
 |---|---|
 | `SendMessage.mentions`, `CreateThread.initial_mentions` | wzmianki w tekście. Gateway sprawdza je (`checkMentions`, `packages/domain`: zakres w tekście, bez nakładania, znacznik zaczyna się wyzwalaczem, najwyżej jedna komenda i 50 wzmianek, plik bez `..` i ścieżek absolutnych, wątek: uuid **własnego** wątku, nie bieżącego), uzupełnia (`path` pliku, tytuł wątku jako `label`) i składa wejście tury dla dostawcy (niżej) |
 | `Turn.mentions`, `Steer.mentions` | wzmianki w `message_text` / `text`: UI rysuje chipy w dymku. Item `user_message` w transkrypcie ma `UserMessage.mentions` (zakresy w jego tekście, razem z notatką platformy) |
-| `SendMessageResponse.goal` | wiadomość z komendą platformy `/goal`: reszta tekstu to cel (`SetGoal set`); Codex bez tury, Claude z turą celu |
+| `SendMessageResponse.goal` | wiadomość z komendą platformy `/goal`: reszta tekstu to cel (`SetGoal set`), a wskazane zgłoszenie lub pull request wnosi do celu klucz, tytuł i URL; Codex bez tury, Claude z turą celu |
 | `ListMentionCatalog` | `{scope, refresh}` → `MentionCatalog` (`entries`: kind, name, label, description, argument_hint, source, path, icon, aliases, plugin, color; `notes`: czego brakuje i dlaczego). Najpierw komendy platformy (`/goal`), potem katalog harnessu z workera. Pamięć: gateway 30 s, worker (Claude) 5 min albo do zmiany katalogów skilli/komend; `refresh` omija obie |
 | `SearchFiles` | `{scope, query, limit}` → `FileSearchResult` (`matches`: path, is_dir, indices; `truncated`; `source`: git / walk). Wyszukiwanie na workerze, tylko w folderze wątku |
+| `SearchIssues` | `{scope, query, limit, include_pull_requests}` → zgłoszenia i opcjonalnie pull requesty z kont konektorów dostępnych w projekcie, z kluczem, tytułem, URL i opisem |
 | `SearchThreads` | `{query, exclude_thread_id, limit}` → wątki użytkownika po tytule (fuzzy), przy równym dopasowaniu najnowsza aktywność; bez workera |
 
 `MentionScope`: istniejący wątek (`thread_id`) albo nowy (`workspace_id`, dostawca, profil, opcjonalnie `cwd`). Worker offline: `Unavailable` z nazwą workera, popup to pokazuje.

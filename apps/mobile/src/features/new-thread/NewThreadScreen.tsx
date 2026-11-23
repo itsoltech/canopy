@@ -79,6 +79,7 @@ export function NewThreadScreen() {
                       attachment={
                         <AttachButton
                           draft={message.files}
+                          onFindReference={message.findReference}
                           disabled={state.busy || Boolean(message.persistent?.pendingCreate)}
                         />
                       }

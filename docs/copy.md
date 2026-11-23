@@ -84,6 +84,8 @@ appear only as the literal name used by an external tool).
 | API equivalent | estimated value of token consumption at the model's API prices | actual charge, billed cost (for estimates) |
 | usage ping | daily signal that helps estimate active Canopy installations and app versions | activity log, usage tracking |
 | context | the model's context window; variant labels use `1M context` | context length |
+| issue | a task selected from Jira, Linear or GitHub Issues in a thread's composer | ticket, work item |
+| pull request | a proposed GitHub change. Use `Pull requests` for the result group and `PR` on compact chips. | merge request |
 | legacy model | an older model version kept in the collapsible `Legacy models` group | deprecated model (unless the provider declares it deprecated) |
 | agent CLI | the provider's tool installed on a worker | provider CLI, binary, tool |
 | CLI settings | native-format preferences for a provider instance, shared or overridden on one worker | CLI file, user configuration |

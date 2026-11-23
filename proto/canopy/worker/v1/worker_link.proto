@@ -1898,6 +1898,8 @@ enum MentionKind {
   // (plik z UserInput.attachments), label = nazwa pliku, source = image | file; znacznik "[nazwa]" w wiadomości, "[Attachment N: nazwa]" dla
   // dostawcy.
   MENTION_KIND_ATTACHMENT = 8;
+  // Zgłoszenie wybrane przez użytkownika: name = klucz, source = konto konektora, path = URL zgłoszenia.
+  MENTION_KIND_ISSUE = 9;
 }
 
 // Jedna wzmianka: fragment tekstu [start, end) (jednostki UTF-16, jak string w JS i w protobuf-es) zajmuje jej
@@ -1917,6 +1919,17 @@ message Mention {
   string source = 7;
   // file: katalog, nie plik.
   bool is_dir = 8;
+  // Treść zgłoszenia z chwili wyboru, wspólna dla szkicu, kolejki i rozpoczętej tury.
+  IssueMention issue = 9;
+}
+
+message IssueMention {
+  string provider = 1;
+  string title = 2;
+  string status = 3;
+  string description = 4;
+  // GitHub pull request. Domyślnie wzmianka dotyczy zgłoszenia.
+  bool pull_request = 5;
 }
 
 // Pozycja katalogu wzmianek (to, co popup kompozytora pokazuje do wyboru).

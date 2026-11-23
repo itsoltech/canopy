@@ -8,9 +8,11 @@ export interface ComposerPendingItem {
   readonly label: string;
 }
 
-const mentionGroups: readonly { kind: MentionKind; icon: IconName; noun: string }[] = [
+const mentionGroups: readonly { kind: MentionKind; icon: IconName; noun: string; pullRequest?: boolean }[] = [
   { kind: MentionKind.FILE, icon: "document-text", noun: "file" },
   { kind: MentionKind.THREAD, icon: "chat-bubble-left", noun: "thread" },
+  { kind: MentionKind.ISSUE, icon: "exclamation-circle", noun: "issue", pullRequest: false },
+  { kind: MentionKind.ISSUE, icon: "git-pull-request", noun: "pull request", pullRequest: true },
   { kind: MentionKind.COMMAND, icon: "command-line", noun: "command" },
   { kind: MentionKind.SKILL, icon: "sparkles", noun: "skill" },
   { kind: MentionKind.PLUGIN, icon: "square-2-stack", noun: "plugin" },
@@ -27,11 +29,13 @@ export function composerPending(
   const groups = [
     { key: "citations", icon: "chat-bubble-bottom-center-text" as const, noun: "citation", count: citations },
     { key: "attachments", icon: "paper-clip" as const, noun: "attachment", count: attachments },
-    ...mentionGroups.map(({ kind, icon, noun }) => ({
+    ...mentionGroups.map(({ kind, icon, noun, pullRequest }) => ({
       key: noun,
       icon,
       noun,
-      count: mentions.filter((mention) => mention.kind === kind).length,
+      count: mentions.filter(
+        (m) => m.kind === kind && (pullRequest === undefined || Boolean(m.issue?.pullRequest) === pullRequest),
+      ).length,
     })),
   ];
 

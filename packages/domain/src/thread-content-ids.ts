@@ -18,6 +18,11 @@ function qualifyMessage(desc: DescMessage, message: Message, node: string) {
   const idField = (name: string) =>
     name !== "global_id" && (name === "id" || name.endsWith("_id") || name.endsWith("_ids"));
 
+  if (desc.typeName === "canopy.worker.v1.Mention" && record.get(desc.field["kind"]!) === MentionKind.ISSUE) {
+    const account = desc.field["source"]!;
+    record.set(account, qualifyId(String(record.get(account)), node));
+  }
+
   if (
     desc.typeName === "canopy.worker.v1.Mention" &&
     [MentionKind.BOT, MentionKind.THREAD, MentionKind.CONNECTOR, MentionKind.ATTACHMENT].some(

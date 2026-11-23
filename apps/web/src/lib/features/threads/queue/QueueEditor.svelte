@@ -4,6 +4,7 @@
   import type { ClassValue } from "svelte/elements";
   import { restoreCaret } from "#lib/features/mentions/caret.ts";
   import { trimValue, type EditorControls } from "#lib/features/mentions/editor.ts";
+  import { mentionsKey } from "#lib/features/mentions/wire.ts";
   import MentionEditor from "#lib/features/mentions/MentionEditor.svelte";
   import Button from "#lib/shared/ui/Button.svelte";
   import { shake } from "#lib/shared/ui/motion.ts";
@@ -57,9 +58,9 @@
   const id = $props.id();
   const shellBlocker = $derived(value.trimStart().startsWith("!") ? shellUnavailable : undefined);
 
-  const key = (list: readonly Mention[]) => list.map((m) => `${m.kind}:${m.name}:${m.start}-${m.end}`).join("|");
+  const mentionsChanged = $derived(mentionsKey(mentions) !== mentionsKey(initial));
 
-  $effect(() => registerUnsentWork(() => saving || value !== text || key(mentions) !== key(initial)));
+  $effect(() => registerUnsentWork(() => saving || value !== text || mentionsChanged));
 
   /** Files the message had in its text whose badge is gone: they leave it on Save. */
   const leaving = $derived(
@@ -86,7 +87,7 @@
 
     if (
       value === text &&
-      key(mentions) === key(initial) &&
+      !mentionsChanged &&
       JSON.stringify(quotes.map(toWire)) === JSON.stringify(initialQuotes.map((q) => toWire(draftOf(q))))
     )
       return oncancel();

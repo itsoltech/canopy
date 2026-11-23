@@ -1051,6 +1051,14 @@ Zgodność: wiadomość bez pozycji działa jak dotąd (notatka bez numerów, Gr
 
 ## Wzmianki
 
+Status (2026-11-23): `MentionKind.ISSUE=9` zachowuje klucz zgłoszenia w `name`,
+ID konta w `source`, URL w `path` i dane wybrane w kompozytorze w `Mention.issue`.
+Gateway dołącza do tekstu dostawcy tytuł, status, link i opis zgłoszenia (do 4000
+jednostek UTF-16). Flaga `IssueMention.pull_request` wyróżnia pull request GitHub
+i jest domyślnie wyłączona. Zakres wskazuje `#OPS-42` dla Jira i Linear albo
+`owner/repo#123` dla GitHub. Gateway przyjmuje też zapisane wcześniej wzmianki
+o zgłoszeniach z prefiksem `%`.
+
 `MentionKind.BOT=6` współdzieli zakresy i edytor z wątkami, ale jest obsługiwany wyłącznie
 przez rozmowy botów w gateway (`SendBotMessage` / `BotMessage`, pole 450).
 `name` to ID bota, `label` to nazwa w znaczniku `@Nazwa`. Nie trafia do workera.

@@ -7,6 +7,9 @@ import { decode } from "#lib/shared/wire.ts";
 export const mentionsToWire = (mentions: readonly Mention[]): ProtoJson[] =>
   mentions.map((m) => toJson(MentionSchema, m));
 
+/** Includes the source, destination and snapshot even when a replacement chip occupies the same text. */
+export const mentionsKey = (mentions: readonly Mention[]): string => JSON.stringify(mentionsToWire(mentions));
+
 /** Throws on anything that is not a mention (the route answers 400). At most 150, like the gateway (50 + 100 files). */
 export function mentionsFromWire(value: FormDataEntryValue | readonly JsonValue[] | null | undefined): Mention[] {
   if (value === undefined || value === null || value === "") return [];

@@ -25,7 +25,14 @@ import { isPlatformCommand, mentionsToJson, PLATFORM_COMMANDS, workerPath } from
 import type { StoredQuote } from "../store/quotes.ts";
 import { withQuotes } from "./quotes.ts";
 import { providerOf } from "../store/instance-config.ts";
-import { CATALOG_TTL_MS, coreState, InvalidError, UnavailableError, type TurnInputJson } from "./core-context.ts";
+import {
+  CATALOG_TTL_MS,
+  MAX_OBJECTIVE,
+  coreState,
+  InvalidError,
+  UnavailableError,
+  type TurnInputJson,
+} from "./core-context.ts";
 import type { GatewayCore } from "./core.ts";
 import { coreWorkers } from "./core-providers.ts";
 import { coreUiThread } from "./core-titles.ts";
@@ -143,7 +150,7 @@ export async function coreWorkerQuery(
  */
 export async function coreMessageMentions(
   hostContext: GatewayCore,
-  thread: { id?: string; cwd: string },
+  thread: { id?: string; workspaceId?: string; cwd: string },
   text: string,
   mentions: readonly Mention[],
   attachments: ReadonlyMap<string, PlacedFile> = new Map(),
@@ -158,15 +165,45 @@ export async function coreMessageMentions(
     throw error;
   }
 
+  const issues = checked.filter((m) => m.kind === MentionKind.ISSUE);
+
+  if (issues.length) {
+    const sources = await coreRun(hostContext, (s) =>
+      s.connectors.issueSources(hostContext[coreState].options.userId, {
+        ...(thread.id && { threadId: thread.id }),
+        ...(thread.workspaceId && { workspaceId: thread.workspaceId }),
+      }),
+    );
+
+    if (issues.some((m) => !sources.accounts.some((a) => a.id === m.source && a.provider === m.issue?.provider)))
+      throw new InvalidError("This connector account is unavailable here. Check project access or remove the mention.");
+  }
+
   const command = checked.find(isPlatformCommand);
 
   if (command) {
     if (command.name !== "goal") throw new InvalidError(`unknown platform command /${command.name}`);
 
-    return {
-      mentions: [],
-      goal: `${text.slice(0, command.start)}${text.slice(command.end)}`.replace(/\s+/g, " ").trim(),
-    };
+    let objective = "";
+    let offset = 0;
+
+    for (const m of checked) {
+      if (m !== command && m.kind !== MentionKind.ISSUE) continue;
+      objective += text.slice(offset, m.start);
+
+      if (m.kind === MentionKind.ISSUE && m.issue) {
+        const reference = m.issue.pullRequest ? `Pull request ${m.name}` : m.name;
+        objective += `${reference} (${m.issue.title}, ${m.path})`;
+      }
+
+      offset = m.end;
+    }
+
+    const goal = (objective + text.slice(offset)).replace(/\s+/g, " ").trim();
+
+    if (goal.length > MAX_OBJECTIVE) throw new InvalidError(`objective is limited to ${MAX_OBJECTIVE} characters`);
+
+    return { mentions: [], goal };
   }
 
   const resolved: Mention[] = [];

@@ -88,6 +88,11 @@ export function mapIds(
       record.set(field, `${key.slice(0, separator + 1)}${map(key.slice(separator + 1), `${kind}_id`)}`);
   }
 
+  if (desc.typeName === "canopy.worker.v1.Mention" && record.get(desc.field["kind"]!) === MentionKind.ISSUE) {
+    const account = desc.field["source"]!;
+    record.set(account, map(String(record.get(account)), "account_id"));
+  }
+
   if (
     desc.typeName === "canopy.worker.v1.Mention" &&
     [MentionKind.BOT, MentionKind.THREAD, MentionKind.CONNECTOR, MentionKind.ATTACHMENT].some(

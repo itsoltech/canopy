@@ -1,5 +1,5 @@
 import { MentionKind, type Mention } from "@canopy/contracts";
-import { mentionLabel } from "@canopy/domain";
+import { issueTrackerName, mentionLabel } from "@canopy/domain";
 import { connectorMarks } from "#lib/features/connectors/marks.ts";
 import { icons, iconStyle, type IconName } from "#lib/shared/ui/icons.ts";
 import { attachmentChipHtml } from "#lib/features/attachments/inline-chip.ts";
@@ -16,7 +16,7 @@ import { attachmentChipHtml } from "#lib/features/attachments/inline-chip.ts";
 export type InlineElement = { readonly type: "mention"; readonly mention: MentionData };
 
 /** What a mention chip carries (Mention without its range: the range comes from where the chip sits). */
-export type MentionData = Pick<Mention, "kind" | "name" | "label" | "path" | "source" | "isDir"> & {
+export type MentionData = Pick<Mention, "kind" | "name" | "label" | "path" | "source" | "isDir" | "issue"> & {
   readonly icon?: string;
 };
 
@@ -26,7 +26,7 @@ export interface KindLook {
   readonly label: string;
 }
 
-export function kindLook(m: Pick<Mention, "kind" | "isDir" | "source">): KindLook {
+export function kindLook(m: Pick<Mention, "kind" | "isDir" | "source" | "issue">): KindLook {
   switch (m.kind) {
     case MentionKind.COMMAND:
       return { icon: "command-line", label: "Commands" };
@@ -38,6 +38,10 @@ export function kindLook(m: Pick<Mention, "kind" | "isDir" | "source">): KindLoo
       return m.isDir ? { icon: "folder", label: "Files" } : { icon: "document-text", label: "Files" };
     case MentionKind.THREAD:
       return { icon: "chat-bubble-left", label: "Threads" };
+    case MentionKind.ISSUE:
+      return m.issue?.pullRequest
+        ? { icon: "git-pull-request", label: "Pull requests" }
+        : { icon: "exclamation-circle", label: "Issues" };
     case MentionKind.CONNECTOR:
       return { icon: "link", label: "Connectors" };
     case MentionKind.ATTACHMENT:
@@ -86,7 +90,13 @@ export const INLINE_RENDERERS = {
     html: ({ mention }) => {
       if (mention.kind === MentionKind.ATTACHMENT) return attachmentChipHtml(mention);
       const icon = safeIcon(mention.icon);
-      const mark = mention.kind === MentionKind.CONNECTOR ? connectorMarks.get(mention.source) : undefined;
+
+      const mark =
+        mention.kind === MentionKind.ISSUE && mention.issue && !mention.issue.pullRequest
+          ? connectorMarks.get(mention.issue.provider)
+          : mention.kind === MentionKind.CONNECTOR
+            ? connectorMarks.get(mention.source)
+            : undefined;
 
       const glyph = mark
         ? `<svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true" class="${CHIP_ICON_CLASS}"><path d="${mark}"/></svg>`
@@ -96,12 +106,15 @@ export const INLINE_RENDERERS = {
 
       const data = escape(JSON.stringify({ ...mention, kind: mention.kind }));
 
-      return `<span contenteditable="false" data-element="mention" data-mention="${data}" class="${CHIP_CLASS}" title="${escape(chipTitle(mention))}">${glyph}<span class="truncate">${escape(mentionLabel(mention))}</span></span>`;
+      return `<span contenteditable="false" data-element="mention" data-mention="${data}" class="${CHIP_CLASS}" title="${escape(chipTitle(mention))}">${glyph}<span class="truncate">${escape(chipLabel(mention))}</span></span>`;
     },
   },
 } satisfies {
   readonly [T in InlineElement["type"]]: { html(element: Extract<InlineElement, { type: T }>): string };
 };
+
+export const chipLabel = (m: MentionData) =>
+  m.kind === MentionKind.ISSUE && m.issue?.pullRequest ? `PR ${mentionLabel(m)}` : mentionLabel(m);
 
 /** Hover text: what the chip stands for (a file's whole path, a command with its slash). */
 export function chipTitle(m: MentionData): string {
@@ -112,6 +125,15 @@ export function chipTitle(m: MentionData): string {
       return m.name;
     case MentionKind.THREAD:
       return `Thread: ${m.label || m.name}`;
+    case MentionKind.ISSUE:
+      return [
+        `${m.issue?.pullRequest ? "Pull request" : "Issue"} ${m.name}`,
+        m.issue?.title,
+        m.issue && issueTrackerName(m.issue.provider),
+        m.issue?.status,
+      ]
+        .filter(Boolean)
+        .join(" · ");
     case MentionKind.CONNECTOR:
       return `Connector: ${m.label || m.name}`;
     case MentionKind.ATTACHMENT:
