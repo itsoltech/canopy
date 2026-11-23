@@ -1,255 +1,200 @@
 import { useState, type ReactNode } from "react";
-import type { ui } from "@canopy/contracts";
-import { Pressable, Text, View } from "react-native";
-import { useEffect } from "react";
-import { router, useNavigation } from "expo-router";
-import { ScreenFrame, usePaneInsets } from "../../ui/ScreenFrame";
-import { ScreenScroll } from "../../ui/ScreenScroll";
-import { KeyboardViewport } from "../../ui/KeyboardViewport";
-import { CANOPY_VERSION } from "../../version";
-import {
-  settingsSectionEnabled,
-  matchesSettingsSection,
-  settingsGroups,
-  settingsSectionMethods,
-  settingsSections,
-  type SettingsSection,
-} from "@canopy/ui/settings";
-import { useAppearance } from "../../state/appearance";
+import { Keyboard, Pressable, Text, View } from "react-native";
+import { router } from "expo-router";
 import { useLayout } from "../../state/layout";
-import { useSession } from "../../state/session";
-import { IconButton, Notice } from "../../ui/components";
-import { SearchField } from "../../ui/SearchField";
-import { SettingsDensity } from "../../ui/density";
-import { ConnectionBanner } from "../navigation/ConnectionStatus";
+import { IconButton, Sheet } from "../../ui/components";
+import { StatusDot } from "../../ui/Badge";
 import { Icon } from "../../ui/Icon";
-import { styles, useColors } from "../../ui/theme";
+import { KeyboardViewport } from "../../ui/KeyboardViewport";
+import { ContentInsets, PaneInsets, ScreenFrame, usePaneInsets } from "../../ui/ScreenFrame";
+import { styles, useColors, useTypography } from "../../ui/theme";
+import { ConnectionBanner } from "../navigation/ConnectionStatus";
+import { SettingsCatalog, useSettingsCatalog } from "./section-catalog";
+import { SettingsNavigation, useWorkerUpdateHint } from "./SettingsNavigation";
+import { SettingsSearch } from "./SettingsSearch";
+import { SettingsOffsets } from "./SettingsScroll";
 
 const SIDEBAR_WIDTH = 256;
 
-const mobileSettingsSections = settingsSections.map((section) =>
-  section.href === "/settings/general"
-    ? { ...section, keywords: `${section.keywords} privacy analytics telemetry usage ping` }
-    : section,
-);
-
+/** The native stack changes only the panel; both navigation surfaces belong to the Settings window. */
 export function SettingsLayout({
-  section,
-  onSelect,
+  selected,
+  scoped,
+  close,
   children,
-  scrollContent = true,
 }: {
-  section: string;
-  onSelect: (section: string) => void;
+  selected: string | undefined;
+  scoped: boolean;
+  close: () => void;
   children: ReactNode;
-  scrollContent?: boolean;
 }) {
   const c = useColors();
   const { wide } = useLayout();
   const insets = usePaneInsets();
-  const { client } = useSession();
-  const { modules } = useAppearance();
-  const [capabilities, setCapabilities] = useState<ui.ClientCapabilities>();
-  const [error, setError] = useState("");
+  const catalog = useSettingsCatalog();
+  const [offsets] = useState(() => new Map<string, number>());
   const [query, setQuery] = useState("");
-  const current = mobileSettingsSections.find((s) => s.href.endsWith(`/${section}`));
+  const [menu, setMenu] = useState(false);
+  const section = selected || "general";
+  const current = catalog.sections.find((entry) => entry.href === `/settings/${section}`);
+  const updates = useWorkerUpdateHint() && catalog.available.some((entry) => entry.href === "/settings/workers");
 
-  useEffect(() => {
-    let active = true;
-    void client?.api
-      .getClientCapabilities({})
-      .then((r) => {
-        if (active) setCapabilities(r);
-      })
-      .catch(() => {
-        if (active) setError("Could not check available settings. Reopen Settings to retry.");
-      });
+  if (wide && menu) setMenu(false);
 
-    return () => {
-      active = false;
-    };
-  }, [client]);
+  function select(next: string) {
+    Keyboard.dismiss();
+    setMenu(false);
 
-  const sections = mobileSettingsSections.filter(
-    (s) =>
-      settingsSectionEnabled(s.href, modules) &&
-      (capabilities?.linkedComputers || s.href !== "/settings/computers") &&
-      (s.href !== "/settings/memory" ||
-        settingsSectionMethods["/settings/memory"].every((method) => capabilities?.methods.includes(method))) &&
-      matchesSettingsSection(s, query),
+    if (next === section && !scoped) return;
+
+    if (next === "general") {
+      router.dismissTo("/settings");
+
+      return;
+    }
+
+    const href = { pathname: "/settings/[section]" as const, params: { section: next } };
+
+    if (selected) router.replace(href);
+    else router.push(href);
+  }
+
+  const nav = (
+    <SettingsNavigation
+      section={section}
+      onSelect={select}
+      query={query}
+      onQuery={setQuery}
+      compact={!wide}
+      updates={updates}
+    />
   );
 
   return (
-    <ScreenFrame header={<SettingsHeader section={section} current={current} onSelect={onSelect} />}>
-      <KeyboardViewport style={{ flexDirection: "row", minWidth: 0 }}>
-        {(wide || !section) && (
-          <ScreenScroll
-            space={12}
-            innerRight={wide}
-            keyboardShouldPersistTaps="handled"
-            style={{
-              // The safe-area gutter extends the column; it must not consume the navigation width.
-              width: wide ? SIDEBAR_WIDTH + insets.left : undefined,
-              flex: wide ? undefined : 1,
-              flexGrow: wide ? 0 : 1,
-              borderRightWidth: wide ? 1 : 0,
-              borderColor: c.line,
-              backgroundColor: c.sidebar,
-            }}
-            contentContainerStyle={{ maxWidth: undefined, gap: 16 }}
-          >
-            <SearchField label="Search settings" placeholder="Search" value={query} onChange={setQuery} />
-            {settingsGroups.map((group) => (
-              <SettingsNavGroup
-                key={group}
-                group={group}
-                sections={sections.filter((s) => s.group === group)}
-                section={section}
-                onSelect={onSelect}
-              />
-            ))}
-            {!sections.length && <Text style={[styles.chrome, { color: c.muted }]}>No setting matches “{query}”.</Text>}
-            {error && <Notice error>{error}</Notice>}
-            <Text style={[styles.chromeMeta, { color: c.muted, paddingHorizontal: 10 }]}>Canopy {CANOPY_VERSION}</Text>
-          </ScreenScroll>
+    <SettingsOffsets.Provider value={offsets}>
+      <SettingsCatalog.Provider value={catalog}>
+        <View style={{ flex: 1, flexDirection: "row" }}>
+          {wide && (
+            <PaneInsets.Provider value={{ left: insets.left, right: 0 }}>
+              <View
+                style={{
+                  width: SIDEBAR_WIDTH + insets.left,
+                  paddingTop: insets.top,
+                  backgroundColor: c.sidebar,
+                  borderRightWidth: 1,
+                  borderColor: c.line,
+                }}
+              >
+                <ContentInsets.Provider value={{ ...insets, top: 0, right: 0 }}>
+                  <KeyboardViewport>{nav}</KeyboardViewport>
+                </ContentInsets.Provider>
+              </View>
+            </PaneInsets.Provider>
+          )}
+          <PaneInsets.Provider value={{ left: wide ? 0 : insets.left, right: insets.right }}>
+            <View style={{ flex: 1, minWidth: 0 }}>
+              <ScreenFrame
+                header={
+                  <SettingsHeader
+                    wide={wide}
+                    label={current?.label ?? "Settings"}
+                    updates={updates}
+                    menu={menu}
+                    openMenu={() => setMenu(true)}
+                    general={section === "general"}
+                    openGeneral={() => select("general")}
+                    close={close}
+                  />
+                }
+              >
+                <KeyboardViewport>
+                  <SettingsSearch query={wide ? query : ""}>{children}</SettingsSearch>
+                </KeyboardViewport>
+              </ScreenFrame>
+            </View>
+          </PaneInsets.Provider>
+        </View>
+        {!wide && (
+          <Sheet title="Settings sections" compact visible={menu} scroll={false} onClose={() => setMenu(false)}>
+            {nav}
+          </Sheet>
         )}
-        {scrollContent && (wide || section) && (
-          <ScreenScroll
-            space={20}
-            innerLeft={wide}
-            key={section}
-            keyboardShouldPersistTaps="handled"
-            style={{ flex: 1, minWidth: 0 }}
-            contentContainerStyle={{ maxWidth: 1024, gap: 24 }}
-          >
-            <SettingsDensity.Provider value={true}>
-              {current ? children : <Text style={[styles.chrome, { color: c.muted }]}>Choose a section.</Text>}
-            </SettingsDensity.Provider>
-          </ScreenScroll>
-        )}
-        {!scrollContent && <View style={{ flex: 1, minWidth: 0 }}>{children}</View>}
-      </KeyboardViewport>
-    </ScreenFrame>
+      </SettingsCatalog.Provider>
+    </SettingsOffsets.Provider>
   );
 }
 
 function SettingsHeader({
-  section,
-  current,
-  onSelect,
+  wide,
+  label,
+  updates,
+  menu,
+  openMenu,
+  general,
+  openGeneral,
+  close,
 }: {
-  section: string;
-  current: SettingsSection | undefined;
-  onSelect: (section: string) => void;
+  wide: boolean;
+  label: string;
+  updates: boolean;
+  menu: boolean;
+  openMenu: () => void;
+  general: boolean;
+  openGeneral: () => void;
+  close: () => void;
 }) {
   const c = useColors();
-  const { wide } = useLayout();
-  const settingsNavigation = useNavigation("/settings");
+  const type = useTypography();
 
   return (
     <>
-      <View
-        style={[
-          styles.row,
-          {
-            minHeight: 48,
-            paddingHorizontal: wide ? 0 : 4,
-            gap: wide ? 0 : 8,
-            borderBottomWidth: 1,
-            borderColor: c.line,
-          },
-        ]}
-      >
-        {!wide && section && <IconButton icon="chevron-left" label="All settings" onPress={() => onSelect("")} />}
-        <Text
-          numberOfLines={1}
-          style={[
-            styles.chrome,
-            {
-              color: c.muted,
-              width: wide ? SIDEBAR_WIDTH : undefined,
-              paddingLeft: wide ? 22 : !section ? 16 : 0,
-            },
-          ]}
-        >
-          Settings
-        </Text>
-        {current && (
-          <Text numberOfLines={1} style={[styles.chrome, { flex: 1, color: c.text, paddingLeft: wide ? 20 : 0 }]}>
-            / {current.label}
-          </Text>
+      <View style={[styles.row, { minHeight: 48, paddingHorizontal: 8, borderBottomWidth: 1, borderColor: c.line }]}>
+        {wide ? (
+          <View style={[styles.row, { flex: 1, paddingHorizontal: 8 }]}>
+            <Pressable
+              accessibilityRole="link"
+              disabled={general}
+              accessibilityState={{ disabled: general }}
+              onPress={openGeneral}
+              style={{ justifyContent: "center", minHeight: 44 }}
+            >
+              <Text style={[type.chrome, { color: c.muted }]}>Settings</Text>
+            </Pressable>
+            <Icon name="chevron-right" size={14} color={c.faint} />
+            <Text accessibilityRole="header" numberOfLines={1} style={[type.chrome, { color: c.text, flexShrink: 1 }]}>
+              {label}
+            </Text>
+          </View>
+        ) : (
+          <View style={{ flex: 1, minWidth: 0, alignItems: "flex-start" }}>
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel={`Settings section: ${label}`}
+              accessibilityState={{ expanded: menu }}
+              accessibilityHint={updates ? "Choose a section. Worker updates available." : "Choose a section."}
+              onPress={openMenu}
+              style={({ pressed }) => [
+                styles.row,
+                {
+                  maxWidth: "100%",
+                  minHeight: 44,
+                  paddingHorizontal: 8,
+                  borderRadius: 8,
+                  backgroundColor: pressed ? c.inset : "transparent",
+                },
+              ]}
+            >
+              <Text numberOfLines={1} style={[type.chrome, { color: c.text, flexShrink: 1 }]}>
+                {label}
+              </Text>
+              {updates && <StatusDot tone="amber" />}
+              <Icon name="chevron-up-down" color={c.icon} />
+            </Pressable>
+          </View>
         )}
-        {!current && <View style={{ flex: 1 }} />}
-        <IconButton
-          icon="x-mark"
-          label="Close Settings"
-          onPress={() => {
-            const parent = settingsNavigation.getParent();
-
-            if (parent?.canGoBack()) parent.goBack();
-            else router.replace("/");
-          }}
-        />
+        <IconButton icon="x-mark" label="Close Settings" onPress={close} />
       </View>
       <ConnectionBanner />
     </>
-  );
-}
-
-function SettingsNavGroup({
-  group,
-  sections,
-  section,
-  onSelect,
-}: {
-  group: string;
-  sections: SettingsSection[];
-  section: string;
-  onSelect: (section: string) => void;
-}) {
-  const c = useColors();
-
-  if (!sections.length) return null;
-
-  return (
-    <View style={{ gap: 2 }}>
-      <Text
-        accessibilityRole="header"
-        style={[styles.chromeMeta, { paddingHorizontal: 10, paddingVertical: 4, color: c.muted }]}
-      >
-        {group}
-      </Text>
-      {sections.map((s) => {
-        const key = s.href.split("/").pop()!;
-        const active = section === key;
-
-        return (
-          <Pressable
-            key={key}
-            accessibilityRole="button"
-            accessibilityState={{ selected: active }}
-            onPress={() => onSelect(key)}
-            style={({ pressed }) => [
-              styles.row,
-              {
-                minHeight: 44,
-                paddingHorizontal: 10,
-                borderRadius: 8,
-                backgroundColor: active || pressed ? c.inset : "transparent",
-              },
-            ]}
-          >
-            <Icon name={s.icon} color={active ? c.text : c.muted} />
-            <Text
-              numberOfLines={1}
-              ellipsizeMode="tail"
-              style={[styles.chrome, { color: active ? c.text : c.muted, flex: 1 }]}
-            >
-              {s.label}
-            </Text>
-          </Pressable>
-        );
-      })}
-    </View>
   );
 }

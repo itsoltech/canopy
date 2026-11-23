@@ -1,5 +1,6 @@
 import { createHash, randomBytes } from "node:crypto";
 import { Schema } from "effect";
+import { oauthRedirectUrl } from "./catalog.ts";
 import { returnState } from "@canopy/domain/oauth-return";
 import { SLACK_BOT_SCOPES } from "./slack-app.ts";
 import type { Credentials, RegisteredApp } from "./records.ts";
@@ -7,15 +8,18 @@ import type { SlackBotAuthorization } from "../messengers/types.ts";
 import type { SlackTransport } from "../messengers/slack-http.ts";
 
 export function beginSlackMessaging(
-  callback: string,
+  callback: string | undefined,
   desktop: boolean,
   app: RegisteredApp,
   setup: NonNullable<Credentials["slackMessaging"]>,
 ) {
   if (!app.client_secret) throw new Error("Slack app secret required");
-  const redirectUri = app.redirect_uri || callback;
+  const redirectUri = app.redirect_uri || callback || oauthRedirectUrl();
   const nonce = randomBytes(32).toString("base64url");
-  const state = redirectUri === callback ? nonce : returnState(nonce, desktop ? { desktop: true } : { callback });
+
+  const state =
+    !callback || redirectUri === callback ? nonce : returnState(nonce, desktop ? { desktop: true } : { callback });
+
   const verifier = randomBytes(32).toString("base64url");
   const authorization = new URL("https://slack.com/oauth/v2/authorize");
   authorization.search = new URLSearchParams({

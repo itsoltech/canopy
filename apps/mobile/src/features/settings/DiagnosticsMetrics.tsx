@@ -18,9 +18,11 @@ import { styles, useColors } from "../../ui/theme";
 export function DiagnosticsDatabase({
   families,
   linked = false,
+  computerId,
 }: {
   families: ui.DiagnosticsDatabaseFamily[];
   linked?: boolean;
+  computerId?: string;
 }) {
   const c = useColors();
 
@@ -42,6 +44,7 @@ export function DiagnosticsDatabase({
       {families.map((family) => (
         <SettingsDisclosure
           key={family.family}
+          viewKey={computerId !== undefined ? `database:${computerId}:${family.family}` : undefined}
           title={`${family.family} · execute p95 ${measured(family.executeMs)} · ${family.executeMs?.samples ?? 0n} samples`}
         >
           {family.incomplete ? (
@@ -69,6 +72,7 @@ export function DiagnosticsMetrics({ computer }: { computer: ui.ComputerDiagnost
           {metricGroups.map((group) => (
             <SettingsDisclosure
               key={group.id}
+              viewKey={`metric:${computer.computerId}:${group.id}`}
               title={`${group.title} · ${groupObserved(computer, group.id)}`}
               initiallyOpen={group.id === "process"}
             >
@@ -80,7 +84,7 @@ export function DiagnosticsMetrics({ computer }: { computer: ui.ComputerDiagnost
             </SettingsDisclosure>
           ))}
           <Text style={[styles.workMeta, { color: c.muted }]}>{databaseCoverage(computer)}</Text>
-          <DiagnosticsDatabase families={computer.database} />
+          <DiagnosticsDatabase computerId={computer.computerId} families={computer.database} />
         </>
       )}
     </SettingsGroup>

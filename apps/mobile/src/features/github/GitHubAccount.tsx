@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { createSettingsViewState } from "../settings/SettingsScroll";
 import { Text, View } from "react-native";
 import * as Linking from "expo-linking";
 import type { github } from "@canopy/contracts";
@@ -11,6 +11,9 @@ import { GitHubAccountRow } from "./GitHubAccountRow";
 import { GitHubUpdateChoice } from "./GitHubUpdateChoice";
 import { useGitHubCatalogue } from "./useGitHubCatalogue";
 
+const useExpandedAccount = createSettingsViewState(false);
+const useAllInstallations = createSettingsViewState(false);
+
 export function GitHubAccount({
   account,
   installUrl,
@@ -22,8 +25,8 @@ export function GitHubAccount({
 }) {
   const c = useColors();
   const type = useTypography();
-  const [open, setOpen] = useState(false);
-  const [all, setAll] = useState(false);
+  const [open, setOpen] = useExpandedAccount(account.id);
+  const [all, setAll] = useAllInstallations(account.id);
   const catalogue = useGitHubCatalogue(account, onchanged);
   const { installations, next, busy, loaded, error, generation, load, disconnect, setError } = catalogue;
 

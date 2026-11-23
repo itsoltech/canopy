@@ -4,9 +4,10 @@
   import { useOverview } from "#lib/features/overview/overview-state.svelte.ts";
   import { workerRecords } from "#lib/features/workers/worker-records.svelte.ts";
   import { useSettings } from "#lib/features/settings/settings-state.svelte.ts";
+  import { agentTools, type ToolWorker } from "@canopy/domain/agent-tool-settings";
   import AgentToolCard from "#lib/features/agent-tools/AgentToolCard.svelte";
   import ToolActionNote from "#lib/features/agent-tools/ToolActionNote.svelte";
-  import { AgentToolActions, agentTools, type ToolWorker } from "#lib/features/agent-tools/agent-tools.svelte.ts";
+  import { AgentToolActions } from "#lib/features/agent-tools/agent-tools.svelte.ts";
   import Button from "#lib/shared/ui/Button.svelte";
   import ButtonLink from "#lib/shared/ui/ButtonLink.svelte";
   import SettingsCard from "#lib/shared/ui/SettingsCard.svelte";

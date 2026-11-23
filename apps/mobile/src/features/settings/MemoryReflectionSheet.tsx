@@ -8,8 +8,10 @@ import {
 import { Code, ConnectError } from "@connectrpc/connect";
 import { useOverview } from "../../state/overview";
 import { Button, Notice, Sheet } from "../../ui/components";
-import { SettingAccess, type AccessOption } from "./SettingAccess";
-import { SettingChoice, SettingsGroup, SettingToggle } from "./SettingsGroup";
+import { View } from "react-native";
+import { PickerSheet, SelectField } from "../../ui/Picker";
+import { Checkbox } from "../../ui/Checkbox";
+import { SettingChoice, SettingsGroup, SettingsRow, SettingToggle } from "./SettingsGroup";
 import { MemoryReflectionModelFields } from "./MemoryReflectionModelFields";
 
 const intervals = [
@@ -27,7 +29,6 @@ function useReflectionChoices(draft: Settings, snapshot: ui.MemoryHabitsSnapshot
   const { projects, models } = snapshot;
   const workerId = reflectionWorkerForSave(snapshot, draft, overview.projects);
   const modelChoices = reflectionModelChoices(models, overview.workers);
-  const projectOptions: AccessOption[] = [...projects];
 
   const chosenModel = modelChoices.find(
     (item) =>
@@ -37,8 +38,6 @@ function useReflectionChoices(draft: Settings, snapshot: ui.MemoryHabitsSnapshot
   );
 
   const missingProjects = draft.projectIds.filter((id) => !projects.some((project) => project.id === id));
-
-  for (const id of missingProjects) projectOptions.push({ id, name: "Unavailable project" });
 
   const valid =
     !draft.enabled ||
@@ -55,7 +54,7 @@ function useReflectionChoices(draft: Settings, snapshot: ui.MemoryHabitsSnapshot
         ? "Remove unavailable projects to turn on habit checks."
         : undefined;
 
-  return { modelChoices, chosenModel, projectOptions, projectHint, valid, workerId };
+  return { modelChoices, chosenModel, missingProjects, projectHint, valid, workerId };
 }
 
 function hasChanges(saved: Settings, draft: Settings) {
@@ -146,14 +145,13 @@ export function MemoryReflectionSheet({
           disabled={busy}
           onChange={(enabled) => change({ enabled })}
         />
-        <SettingAccess
-          title="Projects"
+        <HabitProjects
+          projects={snapshot.projects}
+          missing={choices.missingProjects}
           description={choices.projectHint}
-          options={choices.projectOptions}
-          ids={draft.projectIds}
-          allowAll={false}
-          disabled={busy || !choices.projectOptions.length}
-          onChange={({ ids }) => change({ projectIds: [...ids] })}
+          selected={draft.projectIds}
+          busy={busy}
+          onChange={(projectIds) => change({ projectIds })}
         />
         <SettingChoice
           title="Check for habits"
@@ -188,5 +186,72 @@ export function MemoryReflectionSheet({
         <Notice error>{error}</Notice>
       ) : null}
     </Sheet>
+  );
+}
+
+function HabitProjects({
+  projects,
+  missing,
+  description,
+  selected,
+  busy,
+  onChange,
+}: {
+  projects: ui.MemoryReflectionProject[];
+  missing: string[];
+  description?: string;
+  selected: string[];
+  busy: boolean;
+  onChange: (ids: string[]) => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const all = !!projects.length && !missing.length && selected.length === projects.length;
+
+  const options = [
+    ...projects.map(({ id, name }) => ({ value: id, label: name })),
+    ...missing.map((id) => ({ value: id, label: "Unavailable project" })),
+  ];
+
+  const summary = all ? "All projects" : selected.length ? `${selected.length} selected` : "Choose projects";
+
+  return (
+    <SettingsRow
+      title="Projects"
+      description={description}
+      control={
+        <>
+          <SelectField
+            hideLabel
+            label="Projects"
+            value={summary}
+            expanded={open}
+            disabled={busy || !options.length}
+            onPress={() => setOpen(true)}
+          />
+          <PickerSheet
+            title="Projects"
+            search="Find a project"
+            visible={open}
+            selected={selected}
+            sections={[{ options }]}
+            header={
+              !!projects.length && (
+                <View style={{ paddingHorizontal: 16 }}>
+                  <Checkbox
+                    label="All projects"
+                    checked={all}
+                    onChange={(checked) => onChange(checked ? projects.map((project) => project.id) : [])}
+                  />
+                </View>
+              )
+            }
+            onSelect={(id) =>
+              onChange(selected.includes(id) ? selected.filter((value) => value !== id) : [...selected, id])
+            }
+            onClose={() => setOpen(false)}
+          />
+        </>
+      }
+    />
   );
 }

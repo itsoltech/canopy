@@ -1,9 +1,12 @@
 import { useState } from "react";
 import type { connectors } from "@canopy/contracts";
 import { View } from "react-native";
-import { Button, Sheet } from "../../ui/components";
+import { Button, Notice, Sheet } from "../../ui/components";
 import { SettingsGroup, SettingsRow } from "./SettingsGroup";
 import { ResourceState, useSettingsResource } from "./resource";
+import { ConfigNoticesFor } from "./ConfigNoticesFor";
+import { SlackBotSettings } from "./SlackBotSettings";
+import { useAppearance } from "../../state/appearance";
 import { ConnectorForm } from "./ConnectorForm";
 import { ConnectorAccountRow } from "./ConnectorAccountRow";
 import { ConnectorAccountDetails } from "./ConnectorAccountDetails";
@@ -11,7 +14,16 @@ import { SettingsSkeletonRows } from "./SettingsSkeleton";
 import { useForegroundInterval } from "../../ui/interval";
 
 export function ConnectorSettings() {
+  const { botsEnabled } = useAppearance();
+
+  const capabilities = useSettingsResource(
+    "GetClientCapabilities",
+    (api) => api.getClientCapabilities({}),
+    botsEnabled,
+  );
+
   const resource = useSettingsResource("ListConnectors", (api) => api.listConnectors({}));
+  const [notice, setNotice] = useState("");
   const [editing, setEditing] = useState<{ type: connectors.ConnectorType; account?: connectors.ConnectorAccount }>();
   const [selected, setSelected] = useState<{ id: string; view: "actions" | "access" }>();
   const [now, setNow] = useState(Date.now);
@@ -23,6 +35,11 @@ export function ConnectorSettings() {
 
   return (
     <ResourceState resource={resource}>
+      <ConfigNoticesFor
+        match={(notice) => notice.kind === "connector" || notice.kind === "oauth_app"}
+        onChanged={resource.reload}
+      />
+      {!!notice && <Notice>{notice}</Notice>}
       <SettingsGroup title="Add an account">
         <SettingsSkeletonRows controls />
         <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 8 }}>
@@ -31,7 +48,7 @@ export function ConnectorSettings() {
           ))}
         </View>
       </SettingsGroup>
-      <SettingsGroup title="Your accounts">
+      <SettingsGroup title="Tool accounts">
         <SettingsSkeletonRows controls />
         {resource.data?.accounts.map((entry) => (
           <ConnectorAccountRow
@@ -49,6 +66,9 @@ export function ConnectorSettings() {
           <SettingsRow title="No accounts yet" description="Pick an app above to connect one." />
         )}
       </SettingsGroup>
+      {botsEnabled && capabilities.data?.methods.includes("ListMessengerAccounts") && resource.data && (
+        <SlackBotSettings users={resource.data.accounts.filter((entry) => entry.connectorType === "slack")} />
+      )}
       {account && type && selected && (
         <ConnectorAccountDetails
           key={account.id}
@@ -70,9 +90,10 @@ export function ConnectorSettings() {
       >
         {editing && (
           <ConnectorForm
-            type={editing.type}
+            type={resource.data?.types.find((entry) => entry.id === editing.type.id) ?? editing.type}
             account={editing.account}
-            onSaved={() => {
+            onSaved={(alreadyConnected) => {
+              setNotice(alreadyConnected ? "Already connected." : "Account connected.");
               setEditing(undefined);
               void resource.reload();
             }}

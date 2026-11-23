@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { devicePlatforms } from "@canopy/domain/agent-tool-settings";
   import type { DeviceSessionDefaults } from "@canopy/contracts";
   import Field from "#lib/shared/ui/Field.svelte";
   import Input from "#lib/shared/ui/Input.svelte";
@@ -11,15 +12,7 @@
 
 <div class="grid gap-4 sm:grid-cols-2">
   <Field label="Preferred platform" description="Used when the agent has not selected a device.">
-    <Select
-      bind:value={value.platform}
-      options={[
-        { value: "", label: "Any platform" },
-        { value: "ios", label: "iOS" },
-        { value: "android", label: "Android" },
-        { value: "apple", label: "Apple" },
-      ]}
-    />
+    <Select bind:value={value.platform} options={devicePlatforms} />
   </Field>
   <Field label="Device wait (seconds)" description="Enter 1 to 240 seconds.">
     <Input

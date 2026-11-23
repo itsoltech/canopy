@@ -8,6 +8,10 @@ import { Button, Notice } from "../../ui/components";
 import { SettingChoice, SettingsActions, SettingsGroup } from "./SettingsGroup";
 import { styles, useColors } from "../../ui/theme";
 import { saveDiagnosticTrace } from "./diagnostics-trace-file";
+import { createSettingsViewState } from "./SettingsScroll";
+
+const useTraceMinutes = createSettingsViewState("5");
+const useTraceProcess = createSettingsViewState("gateway");
 
 export function DiagnosticsTracing({
   computer,
@@ -18,8 +22,8 @@ export function DiagnosticsTracing({
 }) {
   const c = useColors();
   const { client } = useSession();
-  const [minutes, setMinutes] = useState("5");
-  const [process, setProcess] = useState("gateway");
+  const [minutes, setMinutes] = useTraceMinutes(computer.computerId);
+  const [process, setProcess] = useTraceProcess(computer.computerId);
   const [busy, setBusy] = useState(false);
   const running = useRef(false);
   const [error, setError] = useState("");
@@ -34,6 +38,8 @@ export function DiagnosticsTracing({
       .filter((link) => link.kind === "worker" && link.online)
       .map((link) => ({ value: `worker:${link.targetId}`, label: link.name })),
   ];
+
+  const available = processes.some((item) => item.value === process);
 
   async function action(kind: "start" | "stop" | "export") {
     if (!client || running.current) return;
@@ -84,7 +90,14 @@ export function DiagnosticsTracing({
       </Text>
       {!state?.active && !busy ? (
         <>
-          <SettingChoice title="Process" value={process} options={processes} onChange={setProcess} />
+          <SettingChoice
+            title="Process"
+            value={process}
+            options={
+              available ? processes : [...processes, { value: process, label: "Worker unavailable", disabled: true }]
+            }
+            onChange={setProcess}
+          />
           <SettingChoice
             title="Duration"
             value={minutes}
@@ -100,7 +113,7 @@ export function DiagnosticsTracing({
       <SettingsActions>
         <Button
           title="Start deeper tracing"
-          disabled={!connected || state?.active || busy}
+          disabled={!connected || !available || state?.active || busy}
           onPress={() => void action("start")}
         />
         <Button

@@ -1,7 +1,7 @@
 # Pamięć agentów i botów
 
 Status (2026-11-23): zaimplementowana pamięć gatewaya dla wątków i botów oraz
-Settings → Memory w webie, desktopie i aplikacji mobilnej. Web i desktop mają
+Settings → Memory w webie, desktopie i aplikacji mobilnej. Wszystkie trzy aplikacje obsługują
 wyszukiwanie, filtry projektu i workera oraz daty utworzenia notatek. Dostępność
 zależy od [promocji wydania](release.md).
 
@@ -61,7 +61,7 @@ zmienić tytuł, treść, aliasy i przypięcie oraz trwale usunąć notatkę po
 potwierdzeniu. Operacje sprawdzają rewizję otwartej wersji. Konflikt wymaga
 odczytania aktualnego wpisu przed ponownym zapisem.
 
-Web i desktop wyszukują fragmenty tytułów, treści i aliasów bez rozróżniania
+Wyszukiwarka znajduje fragmenty tytułów, treści i aliasów bez rozróżniania
 wielkości liter. Wyszukiwanie i filtry działają razem na wszystkich notatkach
 właściciela. Filtr projektu obejmuje jego notatki wspólne oraz przypisane do
 workerów. Filtr workera wybiera notatki z jego zakresu. Lista pokazuje podgląd
@@ -115,7 +115,7 @@ prostego języka inspirowanego ASD-STE100. Przykład:
 - Refleksja jest domyślnie wyłączona. Właściciel wybiera projekty, których
   wiadomości chce analizować, oraz częstotliwość. Dostępne interwały to
   6, 12 i 24 godziny oraz 3 i 7 dni. Domyślne są 24 godziny.
-- W webie i desktopie opcja All projects zaznacza wszystkie dostępne projekty
+- Opcja All projects zaznacza wszystkie dostępne projekty
   niezależnie od wyszukiwania. Ponowne kliknięcie przy pełnym wyborze czyści
   zaznaczenie. Zapis obejmuje bieżący wybór. Aby uwzględnić nowo dodane
   projekty, zaktualizuj wybór i zapisz go ponownie.

@@ -60,7 +60,7 @@ export function CliUpdates({ snapshot, disabled }: { snapshot: ui.UpdatesSnapsho
 
   return (
     <View style={{ borderTopWidth: 1, borderColor: c.line, paddingTop: 8 }}>
-      <SettingsDisclosure title={`Agent CLIs · ${items.length}${word ? ` · ${word}` : ""}`}>
+      <SettingsDisclosure viewKey="cli-updates" title={`Agent CLIs · ${items.length}${word ? ` · ${word}` : ""}`}>
         <Button
           title="Check for updates"
           size="sm"
@@ -84,6 +84,7 @@ export function CliUpdates({ snapshot, disabled }: { snapshot: ui.UpdatesSnapsho
             {worker.cliTools.map((item) => (
               <WorkerCliRow
                 key={item.tool?.provider}
+                workerId={worker.id}
                 item={item}
                 disabled={disabled || !!pending || !worker.online}
                 onInstall={() => item.tool && void manage({ workerId: worker.id, provider: item.tool.provider })}

@@ -1,5 +1,5 @@
-import { useCallback } from "react";
-import { useFocusEffect, useLocalSearchParams } from "expo-router";
+import { useEffect, useEffectEvent } from "react";
+import { useIsFocused, useLocalSearchParams } from "expo-router";
 import { EmptyState } from "../../ui/components";
 import { ImportStart } from "../imports/ImportStart";
 import { ImportRunGroup } from "./ImportRunGroup";
@@ -16,11 +16,11 @@ export function ImportSettings() {
   const running = runs.some((run) => run.status === "running");
   const { reload } = resource;
 
-  useFocusEffect(
-    useCallback(() => {
-      void reload();
-    }, [reload]),
-  );
+  const focused = useIsFocused();
+  const refresh = useEffectEvent(() => void reload());
+  useEffect(() => {
+    if (focused) refresh();
+  }, [focused]);
 
   useForegroundInterval(() => void reload(), running ? 3000 : 15_000, active);
 

@@ -1,13 +1,20 @@
 import { useState } from "react";
 import { Text } from "react-native";
-import type { MessageInitShape } from "@bufbuild/protobuf";
-import { Provider, ProviderConfigurationMode, ProviderProfileKind, type ui } from "@canopy/contracts";
+import { create, type MessageInitShape } from "@bufbuild/protobuf";
+import {
+  Provider,
+  ProviderConfigurationMode,
+  ProviderProfileKind,
+  ProviderUserConfigurationSchema,
+  type ui,
+} from "@canopy/contracts";
 import { Button, Field, Notice } from "../../ui/components";
 import { styles, useColors } from "../../ui/theme";
 import { ProxyPicker } from "../providers/ProxyPicker";
 import { SettingsActions, SettingsSection, SettingToggle } from "./SettingsGroup";
 import { ResourceState, useSettingsResource } from "./resource";
-import { EnvironmentFields, environmentDrafts, environmentInput } from "./EnvironmentFields";
+import { EnvironmentFields, environmentDrafts, environmentInput, environmentProblems } from "./EnvironmentFields";
+import { ClaudeConfigurationFields } from "./ClaudeConfigurationFields";
 import { CodexHomeField } from "./CodexHomeField";
 import { ProviderSettingsEditor } from "./ProviderSettingsEditor";
 import { providerSettingsError } from "./provider-settings-error";
@@ -33,25 +40,31 @@ export function WorkerOverrides({
     providerSettingsError,
   );
 
+  const [resetCount, reset] = useState(0);
+  const discard = () => reset((count) => count + 1);
   const stored = resource.data?.worker;
 
   return (
     <ResourceState resource={resource}>
       {stored || resource.initialLoading ? (
         <OverrideFields
-          key={`${worker.id}/${resource.data ? "loaded" : "loading"}/${stored?.overrides?.proxyId ?? ""}`}
+          key={`${worker.id}/${resource.data ? "loaded" : "loading"}/${stored?.overrides?.proxyId ?? ""}/${resetCount}`}
           instance={instance}
           worker={worker}
           overrides={stored?.overrides}
           inherited={resource.data?.inheritedRuntime ?? instance.runtime}
           busy={resource.busy}
           error={resource.inlineError}
+          discard={discard}
           save={async (overrides) => {
             const result = await resource.run((api) =>
               api.setInstanceWorker({ workerId: worker.id, harness: instance.harness, id: instance.id, overrides }),
             );
 
-            if (result) onSaved();
+            if (result) {
+              discard();
+              onSaved();
+            }
 
             return !!result;
           }}
@@ -70,10 +83,11 @@ interface OverrideFieldsProps {
   inherited: ui.InstanceRuntime | undefined;
   busy: boolean;
   error: string;
+  discard: () => void;
   save: (overrides: Overrides) => Promise<boolean>;
 }
 
-function OverrideFields({ instance, worker, overrides, inherited, busy, error, save }: OverrideFieldsProps) {
+function OverrideFields({ instance, worker, overrides, inherited, busy, error, save, discard }: OverrideFieldsProps) {
   const c = useColors();
   const [userConfiguration, setUserConfiguration] = useState(overrides?.userConfiguration);
   const [binaryPath, setBinary] = useState(overrides?.binaryPath ?? "");
@@ -83,24 +97,13 @@ function OverrideFields({ instance, worker, overrides, inherited, busy, error, s
   const [argsSet, setArgsSet] = useState(overrides?.launchArgsSet ?? false);
   const [proxyId, setProxy] = useState(overrides?.proxyId ?? "");
   const [env, setEnv] = useState(environmentDrafts(overrides?.env ?? []));
+  const problems = environmentProblems(instance.kind, env);
   const settings = useProviderSettingsDraft(instance.harness, overrides?.settingsText);
-
-  const discard = () => {
-    setUserConfiguration(overrides?.userConfiguration);
-    setBinary(overrides?.binaryPath ?? "");
-    setHome(overrides?.homePath ?? "");
-    setShadow(overrides?.shadowHomePath ?? "");
-    setArgs(overrides?.launchArgs.join("\n") ?? "");
-    setArgsSet(overrides?.launchArgsSet ?? false);
-    setProxy(overrides?.proxyId ?? "");
-    setEnv(environmentDrafts(overrides?.env ?? []));
-    settings.change(undefined);
-  };
 
   async function saveOverrides() {
     if (!settings.canSave()) return;
 
-    const saved = await save({
+    await save({
       ...(binaryPath.trim() && { binaryPath: binaryPath.trim() }),
       ...(homePath.trim() && { homePath: homePath.trim() }),
       ...(shadowHomePath.trim() && { shadowHomePath: shadowHomePath.trim() }),
@@ -111,8 +114,6 @@ function OverrideFields({ instance, worker, overrides, inherited, busy, error, s
       settingsText: settings.settingsText,
       userConfiguration,
     });
-
-    if (saved) settings.change(undefined);
   }
 
   return (
@@ -160,6 +161,15 @@ function OverrideFields({ instance, worker, overrides, inherited, busy, error, s
           />
         )}
       </SettingsSection>
+      {instance.harness === Provider.CLAUDE && (
+        <SettingsSection title={`Claude configuration on ${worker.name}`}>
+          <ClaudeConfigurationFields
+            value={userConfiguration}
+            inherited={create(ProviderUserConfigurationSchema, inherited?.userConfiguration)}
+            onChange={setUserConfiguration}
+          />
+        </SettingsSection>
+      )}
       <ProviderSettingsEditor
         harness={instance.harness}
         value={settings.value}
@@ -177,16 +187,16 @@ function OverrideFields({ instance, worker, overrides, inherited, busy, error, s
             Definition: {instance.env.map((v) => (v.secret ? `${v.name}=••••` : `${v.name}=${v.value}`)).join("  ")}
           </Text>
         )}
-        <EnvironmentFields value={env} onChange={setEnv} />
+        <EnvironmentFields problems={problems} value={env} onChange={setEnv} />
       </SettingsSection>
       {!!error && <Notice error>{error}</Notice>}
       <SettingsActions>
-        <Button variant="ghost" title="Discard changes" onPress={discard} />
+        <Button variant="ghost" title="Discard changes" disabled={busy} onPress={discard} />
         <Button
           variant="primary"
           title={`Save for ${worker.name}`}
           busy={busy}
-          disabled={settings.saveBlocked}
+          disabled={settings.saveBlocked || !!problems.size}
           onPress={() => void saveOverrides()}
         />
       </SettingsActions>

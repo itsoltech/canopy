@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useRef } from "react";
 import { router } from "expo-router";
 import { FlatList, Keyboard, Pressable, StyleSheet, Text, View } from "react-native";
 import { Icon } from "../../ui/Icon";
@@ -7,7 +7,10 @@ import { ScreenFrame, useContentInsets, useContentPadding } from "../../ui/Scree
 import { SearchField } from "../../ui/SearchField";
 import { EmptyState, ScreenHeader } from "../../ui/components";
 import { font, styles, useColors, useTypography } from "../../ui/theme";
+import { createSettingsViewState, useSettingsScrollPosition } from "../settings/SettingsScroll";
 import notices from "./notices.generated.json";
+
+const usePackageQuery = createSettingsViewState("");
 
 type PackageNotice = (typeof notices)[number];
 
@@ -21,8 +24,14 @@ export function LicenseListScreen() {
   );
 }
 
-export function LicenseList({ innerLeft = false }: { innerLeft?: boolean }) {
-  const [query, setQuery] = useState("");
+export function LicenseList() {
+  const [query, setQuery] = usePackageQuery();
+  const list = useRef<FlatList<PackageNotice>>(null);
+
+  const position = useSettingsScrollPosition("licenses", (offset) =>
+    list.current?.scrollToOffset({ offset, animated: false }),
+  );
+
   const padding = useContentPadding(20);
   const insets = useContentInsets();
   const terms = query.toLowerCase().match(/\S+/g) ?? [];
@@ -37,6 +46,8 @@ export function LicenseList({ innerLeft = false }: { innerLeft?: boolean }) {
 
   return (
     <FlatList
+      ref={list}
+      {...position}
       data={shown}
       keyExtractor={({ name, version }) => JSON.stringify([name, version])}
       renderItem={({ item }) => <LicenseRow notice={item} />}
@@ -45,7 +56,7 @@ export function LicenseList({ innerLeft = false }: { innerLeft?: boolean }) {
       scrollIndicatorInsets={insets}
       keyboardShouldPersistTaps="handled"
       keyboardDismissMode="on-drag"
-      contentContainerStyle={[styles.page, padding, { gap: 0 }, innerLeft && { paddingLeft: 20 }]}
+      contentContainerStyle={[styles.page, padding, { gap: 0 }]}
       ListHeaderComponentStyle={{ marginBottom: 12 }}
       ListHeaderComponent={<SearchField label="Search packages" value={query} onChange={setQuery} />}
       ListEmptyComponent={

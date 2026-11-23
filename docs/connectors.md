@@ -1,5 +1,7 @@
 # Konektory Canopy
 
+Status (2026-11-23): sparowany telefon kończy OAuth kodem wklejonym ze strony powrotu.
+
 Projekt i wdrożenie: 2026-11-02. Zakres: konta zdalnych serwerów MCP,
 OAuth w gateway, dostęp wybranych projektów i botów oraz jeden kanał wykonania.
 Status (2026-11-23): każde konto ma niezależny, domyślnie wyłączony zakres No project.
@@ -175,6 +177,12 @@ odświeża stan kont. W Electronie wynik wraca bezpośrednio do ustawień.
 Zakończony OAuth, zmiana kont i grantów oraz błąd odświeżenia tokenu docierają do każdego
 otwartego klienta jako `OverviewUpdate.connectors_changed` (bez stałego odpytywania strony;
 [ui-api.md](ui-api.md#współdzielone-odczyty)). Granty sprawdza zawsze gateway przy wykonaniu.
+Na iOS i Androidzie uwierzytelnione parowanie wskazuje klienta mobilnego. Telefon
+nie ma callbacku BFF. Gateway wybiera adres z rejestracji klienta albo stały adres
+wdrożenia i wysyła losowy state bez celu przekierowania. Po zgodzie użytkownik
+kopiuje kod ze strony powrotu do formularza, który rozpoczął logowanie. Wymiana
+sprawdza ten sam state, powiązanie formularza i PKCE. Dotyczy to także zgody Slack Bot.
+
 ### Stały redirect OAuth
 
 Nowe rejestracje DCR oraz aplikacje konfigurowane ręcznie (`oauth_app_required`: Slack, GitHub OAuth app)

@@ -182,7 +182,10 @@ function NotePreview({ note, latest }: { note: ui.MemoryNote; latest: boolean })
       {note.pinned && <Text style={[type.meta, { color: c.muted }]}>Pinned</Text>}
       <SettingsValue title="Body" value={note.body} />
       {note.aliases.length > 0 && <SettingsValue title="Aliases" value={note.aliases.join("\n")} />}
-      {note.updatedAt && <SettingsValue title="Updated" value={dateTime(note.updatedAt.seconds)} />}
+      {note.createdAt && <SettingsValue title="Created" value={dateTime(note.createdAt.seconds)} />}
+      {note.updatedAt && (!note.createdAt || note.revision > 1) && (
+        <SettingsValue title="Updated" value={dateTime(note.updatedAt.seconds)} />
+      )}
     </>
   );
 }

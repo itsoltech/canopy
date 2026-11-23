@@ -79,7 +79,7 @@ export function colorsFor(dark: boolean, theme: ThemeName = "birch") {
 
 export type Colors = ReturnType<typeof colorsFor>;
 
-export function useColors(surface?: "sidebar-list" | "sidebar-header") {
+export function useColors(surface?: "sidebar-list" | "sidebar-header" | "settings") {
   const { dark, appearance } = useAppearance();
   const { values } = useDevicePreferences();
   const theme = themeOf(appearance, dark ? "dark" : "light");
@@ -87,6 +87,9 @@ export function useColors(surface?: "sidebar-list" | "sidebar-header") {
   const neutral = themes[theme][dark ? "dark" : "light"];
 
   if (values.contrast === "standard") {
+    // Settings descriptions use zinc-600 / zinc-400 in the web settings density.
+    if (surface === "settings") return { ...colors, muted: neutral[dark ? 5 : 7] };
+
     // The header controls sit over the drawing. Light list captions use the same stronger ink.
     const strongerMuted = surface === "sidebar-header" || (surface === "sidebar-list" && !dark);
 
@@ -145,6 +148,13 @@ export const font = {
   mediumItalic: "Inter_500Medium_Italic",
   semiboldItalic: "Inter_600SemiBold_Italic",
 };
+
+/** The bundled Inter weights are separate font families. Other device fonts use their native weights. */
+export function weightedFont(family: string, weight: "medium" | "semibold") {
+  if (family === font.regular) return { fontFamily: font[weight] };
+
+  return { fontFamily: family, fontWeight: weight === "medium" ? ("500" as const) : ("600" as const) };
+}
 
 export const styles = StyleSheet.create({
   fill: { flex: 1 },

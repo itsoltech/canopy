@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { View } from "react-native";
 import { create } from "@bufbuild/protobuf";
-import { PermissionMode, Provider, ui } from "@canopy/contracts";
+import { Provider, ui } from "@canopy/contracts";
 import type { useAppearance } from "../../state/appearance";
 import { PickerSheet, SelectField } from "../../ui/Picker";
 import { ProviderIcon } from "../../ui/ProviderIcon";
@@ -15,44 +15,83 @@ import { useWorkerLabel } from "../computers/presence";
 import { useWorkerOptions } from "../computers/worker-options";
 import { FollowUpSettings } from "./FollowUpSettings";
 import { SubagentPermissionSettings } from "./SubagentPermissionSettings";
+import { AccountConfigNotices } from "./AccountConfigNotices";
+import { SandboxProfilesSettings } from "./SandboxProfilesSettings";
+import { AutoArchiveSettings } from "./AutoArchiveSettings";
+import { Button } from "../../ui/components";
 import { ThreadRetentionSettings } from "./ThreadRetentionSettings";
 
 type Settings = ReturnType<typeof useAppearance>;
 
-/** Resetting new-thread defaults leaves the separate subagent setting intact. */
-function threadDefaultsPatch(defaults: ui.ThreadDefaults | undefined, patch: Partial<ui.ThreadDefaults>) {
-  return Object.assign(create(ui.ThreadDefaultsSchema, defaults), patch, {
-    subagentPermissionMode: defaults?.subagentPermissionMode ?? PermissionMode.UNSPECIFIED,
-  });
+export function ThreadDefaultsSettings({ settings }: { settings: Settings }) {
+  const defaults = settings.user?.threadDefaults ?? create(ui.ThreadDefaultsSchema);
+
+  return (
+    <View style={{ gap: 24 }}>
+      <FollowUpSettings settings={settings} />
+      <SubagentPermissionSettings settings={settings} />
+      <SandboxProfilesSettings />
+      <AutoArchiveSettings
+        value={defaults.autoArchiveOnMerge}
+        disabled={!settings.user || settings.saving}
+        onChange={(autoArchiveOnMerge) =>
+          void settings.update({
+            threadDefaults: create(ui.ThreadDefaultsSchema, { ...defaults, autoArchiveOnMerge }),
+          })
+        }
+      />
+      <ThreadRetentionSettings settings={settings} />
+      <NewThreadSettings settings={settings} />
+      <AccountConfigNotices sections={["threadDefaults", "composer", "threadRetention"]} />
+    </View>
+  );
 }
 
-export function ThreadDefaultsSettings({ settings }: { settings: Settings }) {
-  const { projectChoices: projects, workers } = useOverview();
+function NewThreadSettings({ settings }: { settings: Settings }) {
+  const { projects } = useOverview();
   const workerName = useWorkerLabel();
-  const workerOptions = useWorkerOptions();
   const [picker, setPicker] = useState<"workspace" | "agent" | "permission" | null>(null);
-  const defaults = settings.user?.threadDefaults;
-  const useLastAgent = defaults?.useLastAgent ?? !defaults?.provider;
+  const defaults = settings.user?.threadDefaults ?? create(ui.ThreadDefaultsSchema);
+  const useLastAgent = defaults.useLastAgent ?? !defaults.provider;
   const close = () => setPicker(null);
 
   const save = (patch: Partial<ui.ThreadDefaults>) =>
-    void settings.update({ threadDefaults: threadDefaultsPatch(defaults, patch) });
+    settings.update({ threadDefaults: create(ui.ThreadDefaultsSchema, { ...defaults, ...patch }) });
 
-  const workspace = projects.flatMap((p) => p.workspaces).find((w) => w.id === defaults?.workspaceId);
-  const project = projects.find((p) => p.projectIds.includes(workspace?.projectId ?? ""));
-  const look = permissionLook(defaults?.permissionMode);
+  const available = projects
+    .filter((project) => !project.archivedAt && !project.nodeId)
+    .map((project) => ({
+      ...project,
+      workspaces: project.workspaces.filter((workspace) => !workspace.id.includes("~")),
+    }));
+
+  const project = available.find((project) => project.workspaces.some((w) => w.id === defaults.workspaceId));
+  const workspace = project?.workspaces.find((w) => w.id === defaults.workspaceId);
+  const look = permissionLook(defaults.permissionMode);
+  const disabled = !settings.user || settings.saving;
 
   return (
-    <View style={{ gap: 20 }}>
-      <FollowUpSettings settings={settings} />
-      <SubagentPermissionSettings settings={settings} />
-      <ThreadRetentionSettings settings={settings} />
-      <DefaultResets
-        value={create(ui.ThreadDefaultsSchema, defaults)}
-        onChange={save}
-        disabled={!settings.user || settings.saving}
-      >
-        <SettingsGroup title="New threads" description="Account">
+    <>
+      <DefaultResets value={defaults} onChange={save} disabled={!settings.user || settings.saving}>
+        <SettingsGroup
+          title="New threads"
+          description="Defaults for new threads on all your computers and devices. Project defaults override them."
+          actions={
+            <Button
+              title="Restore defaults"
+              icon="arrow-path"
+              disabled={disabled}
+              onPress={() =>
+                void settings.update({
+                  threadDefaults: create(ui.ThreadDefaultsSchema, {
+                    subagentPermissionMode: defaults.subagentPermissionMode,
+                    autoArchiveOnMerge: defaults.autoArchiveOnMerge,
+                  }),
+                })
+              }
+            />
+          }
+        >
           <SettingsRow
             title="Project and worker"
             description="Where new threads start, unless you start them from a project."
@@ -62,32 +101,32 @@ export function ThreadDefaultsSettings({ settings }: { settings: Settings }) {
                 hideLabel
                 value={workspace ? `${project?.name ?? "Project"} · ${workerName(workspace.workerId)}` : "Last used"}
                 onPress={() => setPicker("workspace")}
-                disabled={!settings.user}
+                disabled={disabled}
               />
             }
           />
           <SettingsRow
             title="Agent"
-            description="New threads use an agent available on the workspace's worker."
+            description="Use the last agent and model settings, or set a default."
             control={
               <SelectField
                 label="Agent"
                 hideLabel
                 value={
-                  useLastAgent ? "Last used" : defaults?.provider ? providerName(defaults.provider) : "Any available"
+                  useLastAgent ? "Last used" : defaults.provider ? providerName(defaults.provider) : "Any available"
                 }
                 leading={
-                  !useLastAgent && defaults?.provider ? (
+                  !useLastAgent && defaults.provider ? (
                     <ProviderIcon provider={defaults.provider} size={16} />
                   ) : undefined
                 }
                 onPress={() => setPicker("agent")}
-                disabled={!settings.user}
+                disabled={disabled}
               />
             }
           />
-          {!useLastAgent && !!defaults?.provider && (
-            <DefaultModels value={create(ui.ThreadDefaultsSchema, defaults)} onChange={save} />
+          {!useLastAgent && !!defaults.provider && (
+            <DefaultModels disabled={disabled} value={defaults} onChange={save} />
           )}
           <SettingsRow
             title="Permissions"
@@ -96,46 +135,73 @@ export function ThreadDefaultsSettings({ settings }: { settings: Settings }) {
               <SelectField
                 label="Permissions"
                 hideLabel
-                value={permissionLabel(defaults?.permissionMode)}
+                value={permissionLabel(defaults.permissionMode)}
                 tone={look.tone}
                 onPress={() => setPicker("permission")}
-                disabled={!settings.user}
+                disabled={disabled}
               />
             }
           />
         </SettingsGroup>
       </DefaultResets>
-      <PickerSheet
-        title="Workspace"
+      <DefaultWorkspacePicker
+        projects={available}
         visible={picker === "workspace"}
         onClose={close}
-        search={projects.length > 6 ? "Search projects" : undefined}
-        value={defaults?.workspaceId ?? ""}
+        value={defaults.workspaceId ?? ""}
         onSelect={(workspaceId) => save({ workspaceId })}
-        sections={[
-          { options: [{ value: "", label: "Last used", description: "Use the workspace you used last." }] },
-          ...projects
-            .filter((p) => !p.archivedAt && p.workspaces.length)
-            .map((p) => ({
-              id: p.id,
-              title: p.name,
-              options: workerOptions(
-                workers.filter((worker) => p.workspaces.some((w) => w.workerId === worker.id)),
-                false,
-              ).flatMap((option) =>
-                p.workspaces.filter((w) => w.workerId === option.value).map((w) => ({ ...option, value: w.id })),
-              ),
-            })),
-        ]}
       />
       <DefaultAgentPicker visible={picker === "agent"} onClose={close} defaults={defaults} onChange={save} />
       <PermissionPickerSheet
         visible={picker === "permission"}
         onClose={close}
-        value={defaults?.permissionMode}
+        value={defaults.permissionMode}
         onSelect={(permissionMode) => save({ permissionMode })}
       />
-    </View>
+    </>
+  );
+}
+
+function DefaultWorkspacePicker({
+  projects,
+  visible,
+  onClose,
+  value,
+  onSelect,
+}: {
+  projects: ui.Project[];
+  visible: boolean;
+  onClose: () => void;
+  value: string;
+  onSelect: (value: string) => void;
+}) {
+  const { workers } = useOverview();
+  const workerOptions = useWorkerOptions();
+
+  return (
+    <PickerSheet
+      title="Workspace"
+      visible={visible}
+      onClose={onClose}
+      search={projects.length > 6 ? "Search projects" : undefined}
+      value={value}
+      onSelect={onSelect}
+      sections={[
+        { options: [{ value: "", label: "Last used", description: "Use the workspace you used last." }] },
+        ...projects
+          .filter((p) => p.workspaces.length)
+          .map((p) => ({
+            id: p.id,
+            title: p.name,
+            options: workerOptions(
+              workers.filter((worker) => p.workspaces.some((w) => w.workerId === worker.id)),
+              false,
+            ).flatMap((option) =>
+              p.workspaces.filter((w) => w.workerId === option.value).map((w) => ({ ...option, value: w.id })),
+            ),
+          })),
+      ]}
+    />
   );
 }
 
@@ -147,17 +213,17 @@ function DefaultAgentPicker({
 }: {
   visible: boolean;
   onClose: () => void;
-  defaults: ui.ThreadDefaults | undefined;
+  defaults: ui.ThreadDefaults;
   onChange: (patch: Partial<ui.ThreadDefaults>) => void;
 }) {
-  const useLastAgent = defaults?.useLastAgent ?? !defaults?.provider;
+  const useLastAgent = defaults.useLastAgent ?? !defaults.provider;
 
   return (
     <PickerSheet<Provider | "last">
       title="Agent"
       visible={visible}
       onClose={onClose}
-      value={useLastAgent ? "last" : (defaults?.provider ?? Provider.UNSPECIFIED)}
+      value={useLastAgent ? "last" : (defaults.provider ?? Provider.UNSPECIFIED)}
       onSelect={(provider) =>
         onChange(
           provider === "last"

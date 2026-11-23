@@ -5,10 +5,10 @@ import type { IconName } from "@canopy/ui/icons";
 import { Icon } from "./Icon";
 import { Overlay } from "./Overlay";
 import { SheetDragArea } from "./SheetDragArea";
-import { font, styles, useColors, useTypography, type Colors } from "./theme";
+import { font, styles, useColors, useTypography, weightedFont, type Colors } from "./theme";
 import { Skeleton } from "./Skeleton";
 import { StatusDot } from "./Badge";
-import { useMinimumTouchTarget } from "./density";
+import { useMinimumTouchTarget, useSettingsDensity } from "./density";
 
 export interface PickerOption<T> {
   value: T;
@@ -310,6 +310,7 @@ export function SelectField({
   disabled,
   tone,
   hideLabel = false,
+  expanded,
 }: {
   label: string;
   value: string;
@@ -318,19 +319,31 @@ export function SelectField({
   disabled?: boolean;
   tone?: PickerOption<unknown>["tone"];
   hideLabel?: boolean;
+  expanded?: boolean;
 }) {
   const c = useColors();
+  const settings = useSettingsDensity();
   const touchTarget = useMinimumTouchTarget();
   const type = useTypography();
 
   return (
     <View style={{ gap: 6 }}>
-      {!hideLabel && <Text style={[type.body, { fontFamily: font.medium, color: c.text }]}>{label}</Text>}
+      {!hideLabel && (
+        <Text
+          style={[
+            settings ? type.chrome : type.body,
+            settings ? weightedFont(type.chrome.fontFamily, "medium") : { fontFamily: font.medium },
+            { color: c.text },
+          ]}
+        >
+          {label}
+        </Text>
+      )}
       <Skeleton>
         <Pressable
           accessibilityRole="button"
           accessibilityLabel={`${label}: ${value}`}
-          accessibilityState={{ disabled }}
+          accessibilityState={{ disabled, expanded }}
           disabled={disabled}
           onPress={onPress}
           style={({ pressed }) => [

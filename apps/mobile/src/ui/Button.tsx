@@ -1,9 +1,10 @@
-import { ActivityIndicator, Pressable, Text, type StyleProp, type ViewStyle } from "react-native";
+import { useContext } from "react";
+import { ActivityIndicator, Pressable, StyleSheet, Text, type StyleProp, type ViewStyle } from "react-native";
 import type { IconName } from "@canopy/ui/icons";
 import { Icon } from "./Icon";
 import { Skeleton, useSkeleton } from "./Skeleton";
-import { useCompactControls, useSettingsDensity } from "./density";
-import { font, useColors, useTypography, type Colors } from "./theme";
+import { SettingsButtonAlignment, useCompactControls, useSettingsDensity } from "./density";
+import { font, useColors, useTypography, weightedFont, type Colors } from "./theme";
 
 /** Web: button.ts. One primary per view; everything else secondary or ghost. */
 export type ButtonVariant = "primary" | "secondary" | "ghost" | "text" | "danger";
@@ -76,13 +77,16 @@ export function Button({
   const type = useTypography();
   const settings = useSettingsDensity();
   const compact = useCompactControls();
+  const alignment = useContext(SettingsButtonAlignment);
   const size = explicitSize ?? (compact ? "sm" : "md");
   const s = sizes[size];
   const l = look(variant, c);
   const lead = Boolean(icon || busy);
 
   return (
-    <Skeleton>
+    <Skeleton
+      style={settings ? { maxWidth: "100%", alignSelf: StyleSheet.flatten(style)?.alignSelf ?? alignment } : undefined}
+    >
       <Pressable
         accessibilityRole="button"
         accessibilityLabel={label ?? title}
@@ -90,10 +94,11 @@ export function Button({
         accessibilityState={{ disabled: disabled || busy, busy }}
         disabled={disabled || busy}
         onPress={onPress}
-        hitSlop={s.slop}
+        hitSlop={settings ? 2 : s.slop}
         style={({ pressed }) => [
           {
-            minHeight: settings && size === "md" ? 44 : s.height,
+            minHeight: settings ? 44 : s.height,
+            minWidth: settings ? 44 : undefined,
             paddingLeft: variant === "text" ? 0 : lead ? s.iconPadding : s.padding,
             paddingRight: variant === "text" ? 0 : s.padding,
             alignSelf: variant === "text" ? "flex-start" : undefined,
@@ -115,10 +120,11 @@ export function Button({
           <Icon name={icon} color={l.icon} />
         ) : null}
         <Text
-          numberOfLines={multiline ? undefined : 1}
+          numberOfLines={multiline || settings ? undefined : 1}
           style={[
-            size === "md" ? type.body : type.small,
-            { fontFamily: font.medium, color: l.text, flexShrink: 1, textAlign: "center" },
+            settings || size === "md" ? type.body : type.small,
+            settings ? weightedFont(type.body.fontFamily, "medium") : { fontFamily: font.medium },
+            { color: l.text, flexShrink: 1, textAlign: "center" },
           ]}
         >
           {title}
@@ -152,6 +158,7 @@ export function IconButton({
 }) {
   const c = useColors();
   const loading = useSkeleton();
+  const settings = useSettingsDensity();
   const s = sizes[size];
   const l = look(variant, c);
 
@@ -159,14 +166,14 @@ export function IconButton({
     <Pressable
       accessibilityRole="button"
       accessibilityLabel={label}
-      accessibilityState={{ disabled: disabled || busy, busy }}
+      accessibilityState={{ disabled: disabled || busy || loading, busy }}
       disabled={disabled || busy || loading}
       onPress={onPress}
-      hitSlop={s.slop}
+      hitSlop={settings ? 2 : s.slop}
       style={({ pressed }) => [
         {
-          width: s.height,
-          height: s.height,
+          width: settings ? 44 : s.height,
+          height: settings ? 44 : s.height,
           alignItems: "center",
           justifyContent: "center",
           borderRadius: s.radius,

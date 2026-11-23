@@ -1,8 +1,11 @@
-import { useState } from "react";
+import { useRef, useState, type ComponentRef } from "react";
 import { Pressable, Text, View } from "react-native";
 import { openSettingsSection } from "./navigation";
 import { create } from "@bufbuild/protobuf";
 import { ui } from "@canopy/contracts";
+import { useTimeLabel } from "../../ui/time";
+import { AccountConfigNotices } from "./AccountConfigNotices";
+import { useLocalSearchParams, useRoute } from "expo-router";
 import { useAppearance } from "../../state/appearance";
 import { Button } from "../../ui/components";
 import { Icon } from "../../ui/Icon";
@@ -19,6 +22,21 @@ import { useDateTime } from "./display";
 import { useOverview } from "../../state/overview";
 import { SettingsSkeletonGroups } from "./SettingsSkeleton";
 import { useWorkerPresence } from "../computers/presence";
+
+import { createSettingsViewState, useRevealSettingsView } from "./SettingsScroll";
+
+const useRememberedWorkers = createSettingsViewState<string[]>([]);
+const useRevealedShortcut = createSettingsViewState(false);
+
+function useWorkerExpansion() {
+  const { workerId } = useLocalSearchParams<{ workerId?: string }>();
+  const route = useRoute();
+  const entry = workerId ? route.key : undefined;
+  const [expanded, setExpanded] = useRememberedWorkers(entry, workerId ? [workerId] : []);
+  const [revealed, setRevealed] = useRevealedShortcut(entry);
+
+  return { expanded, setExpanded, revealId: revealed ? undefined : workerId, markRevealed: () => setRevealed(true) };
+}
 
 export function WorkerSettings() {
   const overview = useOverview();
@@ -44,12 +62,18 @@ export function WorkerSettings() {
       : undefined;
 
   const [adding, setAdding] = useState(false);
-  const [expanded, setExpanded] = useState<string[]>([]);
+  const { expanded, setExpanded, revealId, markRevealed } = useWorkerExpansion();
   const format = useDateTime();
 
   const groups = workerGroups(overview.workers, data?.records.records ?? [], overview.computers);
 
-  const pending = data?.setup.enrollments.filter((e) => !e.usedAt && !e.revokedAt) ?? [];
+  const enrollments = data?.setup.enrollments;
+  const minute = useTimeLabel((time) => String(Math.floor(time / 60_000)), !!enrollments?.length);
+
+  const pending =
+    enrollments?.filter(
+      (e) => !e.usedAt && !e.revokedAt && e.expiresAt && Number(e.expiresAt.seconds) > Number(minute) * 60,
+    ) ?? [];
 
   return (
     <ResourceState resource={resource}>
@@ -75,9 +99,10 @@ export function WorkerSettings() {
               worker={worker}
               record={data?.records.records.find((r) => r.workerId === worker.id)}
               expanded={expanded.includes(worker.id)}
+              onReveal={revealId === worker.id ? markRevealed : undefined}
               onToggle={() =>
-                setExpanded((ids) =>
-                  ids.includes(worker.id) ? ids.filter((id) => id !== worker.id) : [...ids, worker.id],
+                setExpanded(
+                  expanded.includes(worker.id) ? expanded.filter((id) => id !== worker.id) : [...expanded, worker.id],
                 )
               }
             >
@@ -88,7 +113,7 @@ export function WorkerSettings() {
                   environment={data.environment}
                   record={data.records.records.find((r) => r.workerId === worker.id)}
                   onChanged={() => void resource.reload()}
-                  onClose={() => setExpanded((ids) => ids.filter((id) => id !== worker.id))}
+                  onClose={() => setExpanded(expanded.filter((id) => id !== worker.id))}
                 />
               )}
             </WorkerCard>
@@ -124,11 +149,10 @@ export function WorkerSettings() {
       <SettingsGroup title="Agent CLI updates" description="Account · Workers can override this schedule.">
         <WorkerCliSettings />
       </SettingsGroup>
+      <AccountConfigNotices sections={["cliUpdates"]} />
       <UpdateSettings />
       <SettingsGroup title="Install over SSH">
-        <View>
-          <WorkerSsh />
-        </View>
+        <WorkerSsh />
       </SettingsGroup>
       <WorkerConnection url={data?.setup.gatewayUrl || ""} onSaved={resource.reload} />
       {adding && data && (
@@ -155,10 +179,11 @@ function WorkerConnection({ url, onSaved }: { url: string; onSaved: () => Promis
         value={settings.user?.workerGatewayUrl || url}
         busy={settings.saving}
         onSave={async (workerGatewayUrl) => {
-          await settings.update({ workerGatewayUrl });
-          await onSaved();
+          const saved = await settings.update({ workerGatewayUrl });
 
-          return true;
+          if (saved) await onSaved();
+
+          return saved;
         }}
       />
     </SettingsGroup>
@@ -182,24 +207,28 @@ function WorkerCard({
   worker,
   record,
   expanded,
+  onReveal,
   onToggle,
   children,
 }: {
   worker: ui.Worker;
   record?: ui.WorkerRecord;
   expanded: boolean;
+  onReveal?: () => void;
   onToggle: () => void;
   children: React.ReactNode;
 }) {
   const c = useColors();
   const format = useDateTime();
 
+  const target = useRef<ComponentRef<typeof View>>(null);
+  const revealView = useRevealSettingsView();
   const presence = useWorkerPresence()(worker);
 
   const status =
     worker.revokedAt || record?.revoked
       ? "Revoked"
-      : worker.online && !record?.readOnlyReason
+      : worker.online && !presence.away
         ? "Connected"
         : presence.away
           ? presence.status
@@ -219,6 +248,14 @@ function WorkerCard({
 
   return (
     <View
+      ref={target}
+      collapsable={false}
+      onLayout={() => {
+        if (onReveal) {
+          onReveal();
+          revealView(target.current);
+        }
+      }}
       style={{ borderWidth: 1, borderColor: c.line, borderRadius: 12, overflow: "hidden", backgroundColor: c.surface }}
     >
       <Pressable
@@ -267,7 +304,7 @@ function workerGroups(workers: ui.Worker[], records: ui.WorkerRecord[], computer
   const groups = new Map<string, { id: string; name: string; workers: ui.Worker[] }>();
 
   const entries = [
-    ...workers.filter((w) => !w.nodeId || !records.some((record) => record.workerId === w.id)),
+    ...workers.filter((w) => !records.some((record) => record.workerId === w.id)),
     ...records.map(
       (r) =>
         workers.find((w) => w.id === r.workerId) ??

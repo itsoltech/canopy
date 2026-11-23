@@ -19,12 +19,14 @@ wyszukiwanie, odczyt i zatwierdzany zapis dawnych domyślnych wartości wyglądu
 Appearance w bieżących klientach jest zapisywane na urządzeniu.
 Dostępność wydań według [release.md](release.md).
 
+Status (2026-11-23): natywne Settings zawiera sekcję Agent tools i sprawdza obsługę sekcji przez sparowany gateway.
+
 ## Nawigacja
 
 General obejmuje **App updates**, **General**, **Appearance**, **Keybindings**,
-**Threads**, **Text generation**, **Scheduled tasks** i **Diagnostics**.
+**Threads**, **Memory**, **Text generation**, **Scheduled tasks**, **Diagnostics** i **Open-source licenses**.
 Code obejmuje **Projects**, **Worktrees**, **Diffs**, **Agent environment**,
-**Agent tools** i **Import**. Agent tools ma ekran w web/desktop.
+**Agent tools** i **Import**.
 Connections obejmuje **Providers**, **GitHub**, **Connectors**, **Proxies**,
 **Workers**, **Network access**, **Devices** i **Linked computers**.
 Ekran **Desktop** dodaje powłoka Electron. Widoczność zależy od aktywnych
@@ -160,6 +162,7 @@ projektów, poświadczeń, zaproszeń ani zasobów. Domyślne „brak” oznacza
 | Worktrees / Branches | Branch naming; Branch prefix; default workspace mode | konto/zakres: semantic, canopy, current checkout | Nowe gałęzie i początkowy tryb kompozytora. Opcja Thread title jest „Soon”: nowe wątki nie wysyłają tytułu, a gałąź nie zmienia nazwy po wygenerowaniu tytułu |
 | Worktrees / Cleanup | Deleted threads; Merged branches; Archived threads; Unchanged worktrees | konto/zakres: wszystkie Off | Reguły usuwania worktree bez aktywnych wątków; pojedynczy reset przywraca dziedziczenie |
 | Worktrees / Cleanup | Inactive for days; Keep worktrees with local changes; Delete safe local branches | konto/zakres: 0 (Off); On; Off | Reguły Archived/Deleted threads zezwalają odrzucić lokalne pliki po zamknięciu wszystkich współdzielących wątków; opcjonalne sprzątanie lokalnej gałęzi wymaga potwierdzonego merge oraz archiwizacji wątków zgodnie z [regułami worktree](worktrees.md#sprzątanie-etap-2). Pozostałe reguły chronią zwykłe lokalne zmiany; pliki ignorowane przez Git nie blokują sprzątania. Keep worktrees with local changes pozostaje „Soon” i zmienia tylko etykietę dla pozostałych reguł |
+| Agent tools | Agent Browser, Agent Desktop, Agent Device; Session defaults | dostęp per worker; wartości początkowe na koncie | Włączanie dostępu, instalacja, gotowość i ustawienia nowych sesji na web, desktop i mobile |
 | Agent environment | Instruction fragments; files; skills; sources; plugins; tags; machine targeting; synchronization | konto/zasoby: brak | Konfiguracja środowiska agentów na wybranych workerach |
 | Providers | Instances; display name; proxy/native; models; favorites; environment; worker enablement; CLI login/install/updates | konto/zasoby: native, wykryty katalog | Dostępność modeli i konfiguracja harnessów; poświadczenia w gateway |
 | Connectors | Accounts; OAuth apps; grants; access targets; test/disconnect | konto/zasoby: brak | Uprawnienia zewnętrznych MCP |

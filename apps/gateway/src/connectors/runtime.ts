@@ -123,8 +123,8 @@ export class ConnectorsRuntime {
   saveApp(request: connectors.SaveConnectorOAuthAppRequest) {
     return this.run((s) => s.saveApp(this.options.userId, request));
   }
-  begin(request: connectors.BeginConnectorOAuthRequest) {
-    return beginConnectorOAuth(this, this.options.userId, request, this.options);
+  begin(request: connectors.BeginConnectorOAuthRequest, manualReturn = false) {
+    return beginConnectorOAuth(this, this.options.userId, request, this.options, manualReturn);
   }
   async complete(input: connectors.CompleteConnectorOAuthRequest) {
     return completeOAuth(this, this.options.userId, input, this.options.messengerTransport);

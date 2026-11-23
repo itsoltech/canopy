@@ -1,4 +1,3 @@
-import { useState } from "react";
 import { Pressable, Text, View } from "react-native";
 import type { ui } from "@canopy/contracts";
 import {
@@ -12,10 +11,14 @@ import { Chevron, Expand } from "../../ui/MotionViews";
 import { styles, useColors } from "../../ui/theme";
 import { ThreadSyncComputerDetails } from "./ThreadSyncComputerDetails";
 
+import { createSettingsViewState } from "./SettingsScroll";
+
+const useExpandedComputer = createSettingsViewState(false);
+
 export function ThreadSyncComputer({ computer }: { computer: ui.ThreadSyncComputer }) {
   const status = threadSyncComputerStatus(computer);
   const c = useColors();
-  const [open, setOpen] = useState(false);
+  const [open, setOpen] = useExpandedComputer(computer.nodeId);
 
   return (
     <View style={{ minWidth: 0, gap: 8 }}>

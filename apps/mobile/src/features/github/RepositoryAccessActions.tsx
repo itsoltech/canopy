@@ -1,5 +1,5 @@
 import * as Linking from "expo-linking";
-import { router } from "expo-router";
+import { openSettingsSection } from "../settings/navigation";
 import { useSession } from "../../state/session";
 import { useSharedQuery } from "../../state/queries";
 import { Button } from "../../ui/components";
@@ -23,7 +23,7 @@ export function RepositoryAccessActions({ homeId, onconnected }: { homeId: strin
       size="sm"
       onPress={() => {
         if (read.data?.installUrl) void Linking.openURL(read.data.installUrl);
-        else router.push({ pathname: "/settings/[section]", params: { section: "github" } });
+        else openSettingsSection("github");
       }}
     />
   );

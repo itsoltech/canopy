@@ -1,6 +1,6 @@
 import { create } from "@bufbuild/protobuf";
 import { ui } from "@canopy/contracts";
-import { Field } from "../../ui/components";
+import { EnvironmentTags } from "./EnvironmentTags";
 import { SettingsGroup, SettingChoice, SettingToggle } from "./SettingsGroup";
 import { SettingAccess } from "./SettingAccess";
 
@@ -18,12 +18,6 @@ export function EnvironmentAssignment({
   const change = (patch: Partial<ui.EnvironmentSelector>) =>
     onChange(create(ui.EnvironmentSelectorSchema, { ...selector, ...patch }));
 
-  const tags = (text: string) =>
-    text
-      .split(/[\n,]/)
-      .map((v) => v.trim())
-      .filter(Boolean);
-
   return (
     <SettingsGroup title="Assign computers">
       <SettingToggle
@@ -34,22 +28,23 @@ export function EnvironmentAssignment({
       />
       {!selector.everyone && (
         <>
-          <Field
-            label="Include tags"
-            value={selector.tags.join(", ")}
-            onChangeText={(text) => change({ tags: tags(text) })}
-            autoCapitalize="none"
-            autoCorrect={false}
+          <EnvironmentTags
+            title="Include tags"
+            tags={selector.tags}
+            workers={workers}
+            onChange={(tags) => change({ tags })}
           />
-          <SettingChoice
-            title="Tag matching"
-            value={selector.matchAllTags ? "all" : "any"}
-            options={[
-              { value: "any", label: "Match any tag" },
-              { value: "all", label: "Match every tag" },
-            ]}
-            onChange={(value) => change({ matchAllTags: value === "all" })}
-          />
+          {selector.tags.length > 1 && (
+            <SettingChoice
+              title="Tag matching"
+              value={selector.matchAllTags ? "all" : "any"}
+              options={[
+                { value: "any", label: "Match any tag" },
+                { value: "all", label: "Match every tag" },
+              ]}
+              onChange={(value) => change({ matchAllTags: value === "all" })}
+            />
+          )}
           <SettingAccess
             title="Specific computers"
             description="Chosen computers get it even without matching tags."
@@ -61,12 +56,12 @@ export function EnvironmentAssignment({
           />
         </>
       )}
-      <Field
-        label="Exclude tags"
-        value={selector.excludeTags.join(", ")}
-        onChangeText={(text) => change({ excludeTags: tags(text) })}
-        autoCapitalize="none"
-        autoCorrect={false}
+      <EnvironmentTags
+        title="Exclude tags"
+        description="Exclusions always win, including for specific computers."
+        tags={selector.excludeTags}
+        workers={workers}
+        onChange={(excludeTags) => change({ excludeTags })}
       />
     </SettingsGroup>
   );

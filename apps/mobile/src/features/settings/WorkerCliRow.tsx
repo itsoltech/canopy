@@ -7,10 +7,12 @@ import { SettingsRow, SettingsActions } from "./SettingsGroup";
 import { SettingsDisclosure } from "./SettingsDisclosure";
 
 export function WorkerCliRow({
+  workerId,
   item,
   disabled,
   onInstall,
 }: {
+  workerId: string;
   item: ui.WorkerCliTool;
   disabled: boolean;
   onInstall: () => void;
@@ -57,7 +59,10 @@ export function WorkerCliRow({
         </Text>
       ) : null}
       {!!item.tool?.alternatives.length && (
-        <SettingsDisclosure title={`Other copies (${item.tool.alternatives.length})`}>
+        <SettingsDisclosure
+          viewKey={`cli-copies:${workerId}:${item.tool.provider}`}
+          title={`Other copies (${item.tool.alternatives.length})`}
+        >
           {item.tool.alternatives.map((alternative) => (
             <Text key={alternative.path} selectable style={[styles.workMeta, { color: c.muted }]}>
               {alternative.path}
@@ -68,6 +73,7 @@ export function WorkerCliRow({
       )}
       {!!item.log.length && (
         <SettingsDisclosure
+          viewKey={`cli-log:${workerId}:${item.tool?.provider}`}
           title={installing ? "Installer output" : "Last installer output"}
           initiallyOpen={installing}
         >

@@ -8,7 +8,7 @@ import { usePhoneUpdates } from "../updates/phone";
 import { PhoneReleaseNotes, phoneReleaseVersion } from "../updates/PhoneReleaseNotes";
 import { CANOPY_VERSION } from "../../version";
 
-export function AppUpdateStatus({ compact = false }: { compact?: boolean }) {
+export function AppUpdateStatus({ compact = false, title = "About" }: { compact?: boolean; title?: string }) {
   const phone = usePhoneUpdates();
   const c = useColors();
   const { status } = phone;
@@ -84,5 +84,5 @@ export function AppUpdateStatus({ compact = false }: { compact?: boolean }) {
     </>
   );
 
-  return compact ? row : <SettingsGroup title="About">{row}</SettingsGroup>;
+  return compact ? row : <SettingsGroup title={title}>{row}</SettingsGroup>;
 }

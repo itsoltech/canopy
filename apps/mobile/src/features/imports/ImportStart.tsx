@@ -1,19 +1,25 @@
 import { useEffect, useRef, useState } from "react";
+import { useRoute } from "expo-router";
 import type { ui } from "@canopy/contracts";
 import { agentCliName } from "@canopy/domain/import-look";
 import { useOverview } from "../../state/overview";
 import { useSession } from "../../state/session";
 import { Button, Notice, Sheet } from "../../ui/components";
-import { SettingChoice } from "../settings/SettingsGroup";
+import { SettingChoice, SettingsGroup } from "../settings/SettingsGroup";
 import { SettingsValue } from "../settings/SettingsValue";
 import { ImportReview } from "./ImportReview";
+
+import { createSettingsViewState } from "../settings/SettingsScroll";
+
+const useImportWorker = createSettingsViewState("");
 
 /** The computer's worker reads CLI files; the paired phone only chooses what to import. */
 export function ImportStart({ onStarted, initialWorkerId = "" }: { onStarted: () => void; initialWorkerId?: string }) {
   const { client, online } = useSession();
   const { workers } = useOverview();
   const eligible = workers.filter((w) => !w.nodeId && w.cliImport && !w.revokedAt);
-  const [picked, setPicked] = useState(initialWorkerId);
+  const route = useRoute();
+  const [picked, setPicked] = useImportWorker(initialWorkerId ? route.key : undefined, initialWorkerId);
   const workerId = picked || eligible.find((w) => w.online)?.id || eligible[0]?.id || "";
   const worker = eligible.find((w) => w.id === workerId);
   const [scan, setScan] = useState<ui.ScanImportResponse>();
@@ -47,23 +53,32 @@ export function ImportStart({ onStarted, initialWorkerId = "" }: { onStarted: ()
 
   return (
     <>
-      <Notice>
-        The worker reads Claude Code, Codex and Grok files on its computer. Choose what to copy into Canopy.
-      </Notice>
-      <SettingChoice
-        title="Computer"
-        value={workerId}
-        disabled={busy}
-        onChange={setPicked}
-        options={eligible.map((w) => ({
-          value: w.id,
-          label: w.name,
-          disabled: !w.online,
-          description: w.online ? undefined : "Start this worker to scan its files.",
-        }))}
-      />
-      {!eligible.length && <Notice>Connect a worker with CLI import support to scan this computer.</Notice>}
-      <Button title="Scan computer" busy={busy} disabled={!online || !worker?.online} onPress={() => void inspect()} />
+      <SettingsGroup
+        title="Import"
+        description="Bring threads from Claude Code, Codex and Grok into Canopy. Canopy only reads the CLI files."
+      >
+        <SettingChoice
+          title="Worker"
+          value={workerId}
+          disabled={busy}
+          onChange={setPicked}
+          options={eligible.map((w) => ({
+            value: w.id,
+            label: w.name,
+            disabled: !w.online,
+            description: w.online ? undefined : "Start this worker to scan its files.",
+          }))}
+        />
+        {!eligible.length && <Notice>Connect a worker with CLI import support to scan this computer.</Notice>}
+        <Button
+          variant="primary"
+          icon="magnifying-glass"
+          title="Scan"
+          busy={busy}
+          disabled={!online || !worker?.online}
+          onPress={() => void inspect()}
+        />
+      </SettingsGroup>
       {error ? <Notice error>{error}</Notice> : null}
       <Sheet title="Choose what to import" visible={!!scan} onClose={() => setScan(undefined)}>
         {scan && (

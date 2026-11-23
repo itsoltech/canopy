@@ -8,7 +8,7 @@
   import Input from "#lib/shared/ui/Input.svelte";
   import BrowserDefaultsFields from "./BrowserDefaultsFields.svelte";
   import DeviceDefaultsFields from "./DeviceDefaultsFields.svelte";
-  import { sessionDefaults } from "./session-defaults.ts";
+  import { sessionDefaults } from "@canopy/domain/agent-tool-settings";
 
   let { tool, name }: { tool: AgentTool; name: string } = $props();
   const settings = useSettings();

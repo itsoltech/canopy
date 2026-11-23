@@ -2,9 +2,9 @@ import { useState } from "react";
 import { create } from "@bufbuild/protobuf";
 import * as Crypto from "expo-crypto";
 import { ui } from "@canopy/contracts";
-import { Button, Field, IconButton } from "../../ui/components";
+import { Button, Field, IconButton, Notice } from "../../ui/components";
 import { SettingsActions, SettingsGroup, SettingChoice, SettingToggle } from "./SettingsGroup";
-import { SettingsValue } from "./SettingsValue";
+import { EnvironmentPreview } from "./EnvironmentPreview";
 import { ResourceState, useSettingsResource } from "./resource";
 import { EnvironmentAssignment } from "./EnvironmentAssignment";
 import { EnvironmentWizard } from "./EnvironmentWizard";
@@ -12,10 +12,12 @@ import { EnvironmentWizard } from "./EnvironmentWizard";
 export function InstructionEditor({
   document,
   snapshot,
+  conflict,
   onSaved,
 }: {
   document?: ui.InstructionDocument;
   snapshot: ui.AgentEnvironmentSnapshot;
+  conflict: boolean;
   onSaved: () => void;
 }) {
   const resource = useSettingsResource("GetAgentEnvironment", (api) => api.getAgentEnvironment({}));
@@ -23,16 +25,21 @@ export function InstructionEditor({
   const [draft, setDraft] = useState(() =>
     create(
       ui.InstructionDocumentSchema,
-      document ?? { harness: "claude", platformHome: true, selector: { everyone: true } },
+      document ?? {
+        harness: "claude",
+        platformHome: true,
+        deviceHome: true,
+        selector: { everyone: true },
+        fragments: [{ id: Crypto.randomUUID(), name: "Base instructions", content: "" }],
+      },
     ),
   );
 
   const [workerId, setWorker] = useState(snapshot.workers[0]?.workerId ?? "");
-  const [preview, setPreview] = useState<ui.PreviewAgentEnvironmentResponse>();
+  const worker = snapshot.workers.find((item) => item.workerId === workerId);
 
   const change = (patch: Partial<ui.InstructionDocument>) => {
     setDraft(create(ui.InstructionDocumentSchema, { ...draft, ...patch }));
-    setPreview(undefined);
   };
 
   return (
@@ -40,7 +47,8 @@ export function InstructionEditor({
       <EnvironmentWizard
         steps={["Write instructions", "Assign computers", "Preview & confirm"]}
         busy={resource.busy}
-        disabled={!draft.name.trim() || !draft.fragments.length}
+        title={document ? "Save and sync" : "Add and sync"}
+        disabled={conflict || !draft.name.trim() || (!draft.platformHome && !draft.deviceHome)}
         onSave={() =>
           void resource
             .run((api) => api.saveInstructionDocument({ document: draft, expectedRevision: snapshot.revision }))
@@ -80,29 +88,19 @@ export function InstructionEditor({
             </>
           ) : (
             <>
-              <SettingChoice
-                title="Preview computer"
-                value={workerId}
-                options={snapshot.workers.map((w) => ({ value: w.workerId, label: w.name }))}
-                onChange={(v) => {
-                  setWorker(v);
-                  setPreview(undefined);
-                }}
-              />
-              <Button
-                title="Preview instructions"
-                disabled={!workerId}
-                onPress={() =>
-                  void resource
-                    .run((api) => api.previewAgentEnvironment({ workerId, draft }))
-                    .then((r) => {
-                      if (r) setPreview(r);
-                    })
-                }
-              />
-              {preview?.instructions.map((i, index) => (
-                <SettingsValue key={index} title={`${i.harness} · ${i.content.length} characters`} value={i.content} />
-              ))}
+              {worker && (
+                <SettingChoice
+                  title="Preview computer"
+                  value={workerId}
+                  options={snapshot.workers.map((w) => ({ value: w.workerId, label: w.name }))}
+                  onChange={setWorker}
+                />
+              )}
+              {worker ? (
+                <EnvironmentPreview key={worker.workerId} worker={worker} draft={draft} />
+              ) : (
+                <Notice>Add a worker to preview these instructions.</Notice>
+              )}
             </>
           )
         }
@@ -137,7 +135,7 @@ function InstructionFragments({
 
   return (
     <>
-      <Field label="Document name" value={draft.name} onChangeText={(name) => change({ name })} />
+      <Field label="Document name" maxLength={120} value={draft.name} onChangeText={(name) => change({ name })} />
       <SettingChoice
         title="Agent file"
         value={draft.harness}
@@ -149,7 +147,12 @@ function InstructionFragments({
       />
       {draft.fragments.map((f, index) => (
         <SettingsGroup key={f.id} title={`Fragment ${index + 1}`}>
-          <Field label="Fragment name" value={f.name} onChangeText={(name) => fragment(index, { name })} />
+          <Field
+            label="Fragment name"
+            maxLength={120}
+            value={f.name}
+            onChangeText={(name) => fragment(index, { name })}
+          />
           <Field
             label="Instructions"
             multiline
@@ -194,6 +197,7 @@ function InstructionFragments({
       ))}
       <Button
         title="Add fragment"
+        disabled={draft.fragments.length >= 64}
         onPress={() =>
           change({ fragments: [...draft.fragments, create(ui.InstructionFragmentSchema, { id: Crypto.randomUUID() })] })
         }

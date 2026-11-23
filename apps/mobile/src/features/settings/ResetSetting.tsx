@@ -14,7 +14,8 @@ export function ResetSetting({
 }) {
   return (
     <View
-      style={{ opacity: changed ? 1 : 0 }}
+      pointerEvents={changed ? "auto" : "none"}
+      style={{ flexShrink: 0, opacity: changed ? 1 : 0 }}
       accessibilityElementsHidden={!changed}
       importantForAccessibility={changed ? "auto" : "no-hide-descendants"}
     >

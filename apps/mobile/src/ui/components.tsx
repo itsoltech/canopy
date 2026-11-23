@@ -2,7 +2,7 @@ import { createContext, useState, type ReactNode, type ComponentProps } from "re
 import { Pressable, Text, View } from "react-native";
 import { KeyboardController } from "react-native-keyboard-controller";
 import { TextInput } from "./TextInput";
-import { font, styles, useColors, useTypography } from "./theme";
+import { font, styles, useColors, useTypography, weightedFont } from "./theme";
 import { Icon } from "./Icon";
 import { IconButton } from "./Button";
 import { SheetSurface } from "./SheetSurface";
@@ -10,7 +10,7 @@ import { SheetCloseButton } from "./SheetDragArea";
 import { router } from "expo-router";
 import { LayoutAnimationConfig } from "react-native-reanimated";
 import { Skeleton } from "./Skeleton";
-import { CompactControls, useSettingsDensity } from "./density";
+import { CompactControls, SettingsButtonAlignment, useSettingsDensity } from "./density";
 
 export const SheetContent = createContext(false);
 
@@ -100,6 +100,7 @@ export function Sheet({
 }) {
   const c = useColors();
   const type = useTypography();
+  const settings = useSettingsDensity();
 
   return (
     <CompactControls.Provider value={compact}>
@@ -112,8 +113,17 @@ export function Sheet({
         onClose={onClose}
         footer={
           footer && (
-            <View style={{ padding: 16, gap: 12, borderTopWidth: 1, borderColor: c.line, backgroundColor: c.surface }}>
-              {footer}
+            <View
+              style={{
+                padding: settings ? 12 : 16,
+                paddingHorizontal: settings ? 20 : 16,
+                gap: 12,
+                borderTopWidth: 1,
+                borderColor: c.line,
+                backgroundColor: c.surface,
+              }}
+            >
+              <SettingsButtonAlignment.Provider value="stretch">{footer}</SettingsButtonAlignment.Provider>
             </View>
           )
         }
@@ -121,13 +131,22 @@ export function Sheet({
           <View
             style={[
               styles.row,
-              { paddingLeft: compact ? 16 : 20, paddingRight: 12, paddingTop: compact ? 4 : 16, paddingBottom: 4 },
+              {
+                paddingLeft: compact ? 16 : 20,
+                paddingRight: settings ? 16 : 12,
+                paddingTop: compact || settings ? 4 : 16,
+                paddingBottom: 4,
+              },
             ]}
           >
             <Text
               accessibilityRole="header"
-              numberOfLines={2}
-              style={[compact ? type.chrome : styles.heading, { fontFamily: font.semibold, flex: 1, color: c.text }]}
+              numberOfLines={settings ? undefined : 2}
+              style={[
+                compact ? type.chrome : settings ? type.body : styles.heading,
+                settings ? weightedFont(type.body.fontFamily, "semibold") : { fontFamily: font.semibold },
+                { minWidth: 0, flex: 1, color: c.text },
+              ]}
             >
               {title}
             </Text>
@@ -136,7 +155,9 @@ export function Sheet({
         }
       >
         <LayoutAnimationConfig skipEntering skipExiting>
-          <SheetContent.Provider value={true}>{children}</SheetContent.Provider>
+          <SettingsButtonAlignment.Provider value="flex-start">
+            <SheetContent.Provider value={true}>{children}</SheetContent.Provider>
+          </SettingsButtonAlignment.Provider>
         </LayoutAnimationConfig>
       </SheetSurface>
     </CompactControls.Provider>
@@ -144,7 +165,11 @@ export function Sheet({
 }
 
 /** A labelled text field (web: Field + Input): 40 dp, a 1 dp divider outline that turns accent and 2 dp on focus. */
-export function Field({ label, ...props }: ComponentProps<typeof TextInput> & { label: string }) {
+export function Field({
+  label,
+  hideLabel,
+  ...props
+}: ComponentProps<typeof TextInput> & { label: string; hideLabel?: boolean }) {
   const c = useColors();
   const type = useTypography();
   const [focused, setFocused] = useState(false);
@@ -153,10 +178,21 @@ export function Field({ label, ...props }: ComponentProps<typeof TextInput> & { 
 
   return (
     <View style={{ gap: 6 }}>
-      <Text style={[type.body, { fontFamily: font.medium, color: c.text }]}>{label}</Text>
+      {!hideLabel && (
+        <Text
+          style={[
+            settings ? type.chrome : type.body,
+            settings ? weightedFont(type.chrome.fontFamily, "medium") : { fontFamily: font.medium },
+            { color: c.text },
+          ]}
+        >
+          {label}
+        </Text>
+      )}
       <Skeleton>
         <TextInput
           accessibilityLabel={label}
+          accessibilityState={{ disabled }}
           placeholderTextColor={c.muted}
           returnKeyType="done"
           onSubmitEditing={() => void KeyboardController.dismiss()}
@@ -177,7 +213,7 @@ export function Field({ label, ...props }: ComponentProps<typeof TextInput> & { 
               backgroundColor: disabled ? c.sidebar : c.surface,
               borderColor: focused ? c.accent : c.line,
             },
-            settings && { minHeight: 44 },
+            settings && { minHeight: props.multiline ? 80 : 44, textAlignVertical: props.multiline ? "top" : "center" },
             // The 2 dp focus outline takes its extra width from the padding, so the text does not move.
             focused && { borderWidth: 2, paddingHorizontal: 11, paddingVertical: 7 },
             props.style,

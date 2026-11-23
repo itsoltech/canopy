@@ -3,30 +3,7 @@ import { AgentTool, ui } from "@canopy/contracts";
 import { requestJson } from "#lib/shared/http.ts";
 import { decode, encode } from "#lib/shared/wire.ts";
 
-export const agentTools: { tool: AgentTool; name: string; description: string }[] = [
-  {
-    tool: AgentTool.BROWSER,
-    name: "Agent Browser",
-    description: "Browse websites and interact with pages.",
-  },
-  {
-    tool: AgentTool.DESKTOP,
-    name: "Agent Desktop",
-    description: "Use desktop apps and control windows.",
-  },
-  {
-    tool: AgentTool.DEVICE,
-    name: "Agent Device",
-    description: "Use apps on devices, emulators and simulators.",
-  },
-];
-
-export type ToolWorker = { worker: ui.Worker; computer: string; readOnly: string };
-
-export const toolKey = (workerId: string, tool: AgentTool) => `${workerId}/${tool}`;
-
-export const workerTool = (worker: ui.Worker, tool: AgentTool) =>
-  worker.agentTools.find((item) => item.tool?.tool === tool);
+import { toolKey, type ToolWorker } from "@canopy/domain/agent-tool-settings";
 
 const requestErrors = {
   enable: "Could not save access. Check the worker, then retry.",

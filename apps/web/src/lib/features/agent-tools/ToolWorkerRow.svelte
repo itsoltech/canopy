@@ -6,7 +6,8 @@
   import Disclosure from "#lib/shared/ui/Disclosure.svelte";
   import CodeBlock from "#lib/shared/ui/CodeBlock.svelte";
   import TruncatedText from "#lib/shared/ui/TruncatedText.svelte";
-  import { toolKey, workerTool, type ToolWorker, type AgentToolActions } from "./agent-tools.svelte.ts";
+  import { toolKey, workerTool, type ToolWorker } from "@canopy/domain/agent-tool-settings";
+  import type { AgentToolActions } from "./agent-tools.svelte.ts";
   import ToolActionNote from "./ToolActionNote.svelte";
 
   let {

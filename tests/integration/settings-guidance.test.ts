@@ -20,7 +20,11 @@ test("section evidence is scoped to a published client build and carries visibil
     reference: { version, channel: "nightly" },
   });
   expect(lookup("web", "Desktop")).not.toHaveProperty("path");
-  expect(lookup("ios", "Agent tools")).not.toHaveProperty("path");
+  expect(lookup("ios", "Agent tools")).toMatchObject({
+    status: "conditional_section",
+    path: ["Settings", "Agent tools"],
+    conditions: ["The connected gateway must support Agent tools."],
+  });
   expect(lookup("android", "App updates")).toMatchObject({
     status: "confirmed_section",
     path: ["Settings", "App updates"],

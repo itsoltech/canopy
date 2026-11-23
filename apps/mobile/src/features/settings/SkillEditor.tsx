@@ -13,10 +13,12 @@ import { EnvironmentWizard } from "./EnvironmentWizard";
 export function SkillEditor({
   skill,
   snapshot,
+  conflict,
   onSaved,
 }: {
   skill?: ui.LibrarySkill;
   snapshot: ui.AgentEnvironmentSnapshot;
+  conflict: boolean;
   onSaved: () => void;
 }) {
   const resource = useSettingsResource("GetAgentEnvironment", (api) => api.getAgentEnvironment({}));
@@ -72,6 +74,7 @@ export function SkillEditor({
         steps={["Files & version", "Review files", "Assign & confirm"]}
         busy={resource.busy}
         disabled={
+          conflict ||
           !draft.name.trim() ||
           (!skill && !files.length && !zip?.length) ||
           Boolean(skill && !files.length && !zip && !versionPreview.data?.previewSkillArtifact)

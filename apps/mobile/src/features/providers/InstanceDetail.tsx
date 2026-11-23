@@ -22,6 +22,7 @@ import { InstanceStatus } from "./InstanceStatus";
  */
 export function InstanceDetail({
   instance,
+  readOnly,
   worker,
   workers,
   workerOptions,
@@ -31,6 +32,7 @@ export function InstanceDetail({
   onChanged,
 }: {
   instance: ui.ProviderInstance;
+  readOnly: string;
   worker: ui.Worker | undefined;
   workers: readonly ui.Worker[];
   workerOptions: { id: string; name: string }[];
@@ -77,7 +79,9 @@ export function InstanceDetail({
         )}
       </SettingsSection>
       {worker ? (
-        on?.enabled ? (
+        readOnly ? (
+          <Text style={[styles.chrome, { color: c.muted }]}>{readOnly}</Text>
+        ) : on?.enabled ? (
           <WorkerOverrides instance={instance} worker={worker} onSaved={onChanged} />
         ) : (
           <Text style={[styles.chrome, { color: c.muted }]}>

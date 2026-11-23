@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { Animated, Pressable } from "react-native";
+import { Animated, Pressable, View } from "react-native";
 import { motion } from "@canopy/ui";
 import { smoothOut, useReducedMotion } from "./motion";
 import { useColors } from "./theme";
@@ -14,12 +14,14 @@ export function Switch({
   value,
   onChange,
   disabled,
+  mixed = false,
   size = "md",
 }: {
   label: string;
   value: boolean;
   onChange: (value: boolean) => void;
   disabled?: boolean;
+  mixed?: boolean;
   size?: "md" | "sm";
 }) {
   const c = useColors();
@@ -29,17 +31,18 @@ export function Switch({
   const height = size === "sm" ? 18 : 24;
   const thumb = height - 4;
   const travel = width - height;
-  const [x] = useState(() => new Animated.Value(value ? 1 : 0));
+  const position = mixed ? 0.5 : value ? 1 : 0;
+  const [x] = useState(() => new Animated.Value(position));
 
   useEffect(() => {
     if (reduced) {
-      x.setValue(value ? 1 : 0);
+      x.setValue(position);
 
       return;
     }
 
     const animation = Animated.timing(x, {
-      toValue: value ? 1 : 0,
+      toValue: position,
       duration: motion.fast,
       easing: smoothOut,
       useNativeDriver: true,
@@ -48,15 +51,15 @@ export function Switch({
     animation.start();
 
     return () => animation.stop();
-  }, [value, reduced, x]);
+  }, [position, reduced, x]);
 
   return (
     <Pressable
       accessibilityRole="switch"
       accessibilityLabel={label}
-      accessibilityState={{ checked: value, disabled }}
+      accessibilityState={{ checked: mixed ? "mixed" : value, disabled }}
       disabled={disabled}
-      onPress={() => onChange(!value)}
+      onPress={() => onChange(mixed || !value)}
       hitSlop={
         size === "sm"
           ? {
@@ -73,7 +76,7 @@ export function Switch({
         // The ring and padding each take 1 dp on either side (web: p-0.5 inset-ring).
         padding: 1,
         borderRadius: height / 2,
-        backgroundColor: value ? c.brand : c.track,
+        backgroundColor: mixed ? `${c.brand}59` : value ? c.brand : c.track,
         borderWidth: 1,
         borderColor: c.dark ? "#ffffff1a" : "#18181b0d",
         justifyContent: "center",
@@ -85,7 +88,9 @@ export function Switch({
           width: thumb,
           height: thumb,
           borderRadius: thumb / 2,
-          backgroundColor: value ? c.onControl : "#ffffff",
+          backgroundColor: value && !mixed ? c.onControl : "#ffffff",
+          justifyContent: "center",
+          alignItems: "center",
           borderWidth: 1,
           borderColor: "#18181b0d",
           shadowColor: "#000000",
@@ -95,7 +100,9 @@ export function Switch({
           elevation: 1,
           transform: [{ translateX: x.interpolate({ inputRange: [0, 1], outputRange: [0, travel] }) }],
         }}
-      />
+      >
+        {mixed && <View style={{ width: 6, height: 1, backgroundColor: c.faint }} />}
+      </Animated.View>
     </Pressable>
   );
 }

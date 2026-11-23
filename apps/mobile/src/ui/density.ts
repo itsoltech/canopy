@@ -8,6 +8,9 @@ export const SettingsDensity = createContext(false);
 
 export const useSettingsDensity = () => useContext(SettingsDensity);
 
+/** Row actions meet their control edge; a sheet footer can fill a phone's width. */
+export const SettingsButtonAlignment = createContext<"flex-start" | "flex-end" | "stretch">("flex-start");
+
 /** Header actions of settings groups and banners use the `sm` buttons (web: `size="sm"` there). */
 export const CompactControls = createContext(false);
 
