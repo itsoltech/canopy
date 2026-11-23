@@ -1,6 +1,6 @@
 import { app } from "electron";
-import { join, resolve } from "node:path";
-import type { DesktopChannel, desktopIdentity } from "./identity.ts";
+import { resolve } from "node:path";
+import type { desktopIdentity } from "./identity.ts";
 import { registerSecondInstance } from "./relaunch.ts";
 
 /** Configure the shell before taking the instance lock, which depends on userData. */
@@ -27,13 +27,6 @@ export function configureDesktopApplication(identity: ReturnType<typeof desktopI
   if (!ownsInstance) app.quit();
 
   return ownsInstance;
-}
-
-export function desktopResourcePaths(channel: DesktopChannel) {
-  const resources = app.isPackaged ? process.resourcesPath : join(app.getAppPath(), "build");
-  const iconPath = app.isPackaged ? join(resources, "icon.png") : join(resources, channel, "icon.png");
-
-  return { runtime: join(resources, "runtime"), iconPath };
 }
 
 /** Closing the last window quits on Windows/Linux; macOS keeps services running until Quit. */

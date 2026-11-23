@@ -12,6 +12,7 @@ import expo.modules.notifications.notifications.model.NotificationAction
 import expo.modules.notifications.notifications.model.NotificationContent
 import expo.modules.notifications.notifications.model.NotificationRequest
 import expo.modules.notifications.notifications.model.NotificationResponse
+import expo.modules.notifications.notifications.presentation.builders.ExpoNotificationBuilder
 import expo.modules.notifications.service.NotificationsService
 import org.json.JSONObject
 
@@ -41,13 +42,15 @@ internal object PushPreviewNotifications {
     val response = Notification(NotificationRequest(identifier, content, null))
     val action = NotificationAction(NotificationResponse.DEFAULT_ACTION_IDENTIFIER, null, true)
     val tap = NotificationsService.createNotificationResponseIntent(context, response, action)
-    val notification = builder(context, preview ?: generic)
+    val app = context.packageManager.getApplicationInfo(context.packageName, PackageManager.GET_META_DATA)
+    val icon = app.metaData?.getInt(ExpoNotificationBuilder.META_DATA_DEFAULT_ICON_KEY, app.icon) ?: app.icon
+    val notification = builder(context, preview ?: generic, icon)
       .setOnlyAlertOnce(true)
       .setAutoCancel(true)
       .setDefaults(NotificationCompat.DEFAULT_SOUND)
       .setContentIntent(tap)
       .setVisibility(NotificationCompat.VISIBILITY_PRIVATE)
-      .setPublicVersion(builder(context, generic).build())
+      .setPublicVersion(builder(context, generic, icon).build())
       .build()
     manager.notify(identifier, 0, notification)
   }
@@ -61,9 +64,9 @@ internal object PushPreviewNotifications {
     }
   }
 
-  private fun builder(context: Context, preview: PushPreview) =
+  private fun builder(context: Context, preview: PushPreview, icon: Int) =
     NotificationCompat.Builder(context, CHANNEL)
-      .setSmallIcon(context.applicationInfo.icon)
+      .setSmallIcon(icon)
       .setContentTitle(preview.title)
       .setContentText(preview.body)
       .setStyle(NotificationCompat.BigTextStyle().bigText(preview.body))

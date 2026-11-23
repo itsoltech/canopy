@@ -1,13 +1,14 @@
 <script lang="ts">
   import type { Snippet } from "svelte";
   import type { ClassValue } from "svelte/elements";
-  import { sidebarIcon } from "@canopy/ui/sidebar-art";
+  import { appIdentity, type AppChannel } from "@canopy/domain/release/identity";
 
   let {
+    channel,
     subtitle,
     label = "Homepage",
     class: className,
-  }: { subtitle?: Snippet; label?: string; class?: ClassValue } = $props();
+  }: { channel: AppChannel; subtitle?: Snippet; label?: string; class?: ClassValue } = $props();
 </script>
 
 <a
@@ -18,7 +19,13 @@
     className,
   ]}
 >
-  <span aria-hidden="true" class="sidebar-logo-tile size-6 shrink-0">{@html sidebarIcon}</span>
+  <img
+    src={`${appIdentity(channel).assets}/icon.svg`}
+    alt=""
+    width="24"
+    height="24"
+    class="sidebar-logo-tile size-6 shrink-0"
+  />
   <div class="min-w-0">
     <div class="truncate leading-5">Canopy</div>
     {@render subtitle?.()}

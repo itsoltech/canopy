@@ -5,7 +5,7 @@ import { appearanceCookie, documentAttributes } from "#lib/features/settings/app
 import { requireServiceToken } from "#lib/server/gateway.ts";
 import { desktopWebOrigin, trustedDesktopRequest } from "#lib/server/desktop-origin.ts";
 import { trustedDevRequest } from "#lib/server/dev-origin.ts";
-import { shellIdentity } from "#lib/server/channel-identity.ts";
+import { buildIdentity, shellIdentity } from "#lib/server/channel-identity.ts";
 
 export const init: ServerInit = () => {
   if (!building) requireServiceToken();
@@ -26,9 +26,9 @@ export const handle: Handle = async ({ event, resolve }) => {
   const response = await resolve(event, {
     transformPageChunk: async ({ html }) => {
       const attributes = documentAttributes(appearance);
-      const channel = await identity;
-      attributes.set("%canopy.applicationName%", channel?.displayName ?? "Canopy");
-      attributes.set("%canopy.channelAssets%", channel?.assets ?? "/channels/stable");
+      const channel = (await identity) ?? buildIdentity;
+      attributes.set("%canopy.applicationName%", channel.displayName);
+      attributes.set("%canopy.channelAssets%", channel.assets);
 
       return html.replace(/%canopy\.\w+%/g, (placeholder) => attributes.get(placeholder) ?? "");
     },

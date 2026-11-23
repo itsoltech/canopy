@@ -1,7 +1,8 @@
 # Wydania: wersje, CI, artefakty
 
 Status: opis zaimplementowanego workflow (2026-11-23). Buildy publikują wykazy licencji zależności. Automat sprawdza promocje co godzinę.
-Drzewo kanału zanika przy wyszukiwarce sidebara. Betę oznacza bursztynowa korona z opadającymi liśćmi.
+Web, Desktop i mobile używają ikon z propozycji 19. Lokalny Dev ma własny niebieski wariant.
+Drzewo kanału w tle sidebara zanika przy wyszukiwarce.
 Natywne CI na macOS sprawdza odczyt małych reprezentacji ikon aplikacji.
 Release buduje i publikuje osobny obraz `canopy-push-relay` dla rewizji zawierających ten cel.
 Pakowanie Desktop i generowanie fingerprintu Expo używają poprawionego `minimatch`.
@@ -34,10 +35,9 @@ towarzyszą fioletowe gwiazdy. W Becie obok gładkiej bursztynowej korony opadaj
 dwa liście. Stable pokazuje jednobarwną sylwetkę znaku. Dev, Nightly
 i Beta mają też nazwę kanału pod nazwą aplikacji.
 
-W web i desktop o wyglądzie decyduje `CANOPY_VERSION` **uruchomionego buildu**.
+W web i desktop o ikonie i tle nagłówka decyduje `CANOPY_VERSION` **uruchomionego frontendu**.
 Wersję można odczytać w podpowiedzi nagłówka i w Settings. Wąski drawer webowy
-korzysta z tego samego tła. Aplikacja natywna dobiera rysunek według kanału
-Expo Updates.
+korzysta z tego samego tła. Na telefonie ikona i tło odpowiadają wariantowi aplikacji mobilnej.
 
 ## Schemat wersji
 
@@ -214,33 +214,27 @@ wersji Intel (darwin-x64) nie budujemy — ani desktopu, ani binarek gatewaya/wo
 
 ### Ikony kanałów
 
-Źródłem stable pozostaje `apps/web/static/icon-512.png`. Polecenie
-`bun scripts/icons/channel-icons.ts --previews <katalog>` odtwarza zasoby w
-`apps/web/static/channels/{stable,beta,nightly}` oraz podglądy poza repozytorium:
-512/128/64/32/16 px, planszę porównawczą i jasny/ciemny Dock (także w 16/32 px).
-Podglądy mobilne obejmują maskę iOS w 1024/180/120/87/60 px, maski Androida
-(koło, squircle i zaokrąglony kwadrat), rząd ikon iPhone’a oraz duże ikony TestFlight.
-PNG, wielorozdzielcze ICO i ICNS, ikony Expo i osobne warstwy adaptive Androida
-są commitowane; release tylko wybiera właściwe pliki i nie wymaga generatora.
-Natywne CI uruchamia `iconutil` dla ICNS wszystkich kanałów i sprawdza, czy
-narzędzie eksportuje reprezentacje 16 i 32 pt w skali 1× i 2×.
-Generator wycina drzewo kluczem nasycenia/jasności, czyści i wygładza maskę oraz
-usuwa kolor tła z krawędzi. Cienie, półtony i światła otrzymują osobne stopnie
-koloru; światło z prawej pozostaje wewnątrz maski. Warianty zachowują oryginalny
-kształt, fazowanie, połysk i cieniowanie tła wyłącznie dla desktopu i web.
-Mobilne zasoby składają samo drzewo na pełnym tle, bez wewnętrznej ramki;
-szczegóły stref bezpieczeństwa i warstwy monochromatycznej opisuje [mobile.md](mobile.md).
+Źródłem ikon są [cztery pliki SVG](../design/brand/app-icons-19). Stable ma ciemnozielone
+drzewo na szałwiowym tle, Beta dwa liście na bursztynowym tle, Nightly półksiężyc
+i gwiazdy na fiolecie, a lokalny Dev niebieski rysunek techniczny. Automaty wydawnicze
+nadal publikują trzy kanały. Gałąź `dev` publikuje Nightly.
 
-Web rozpoznaje kanał wersji działającego gatewaya przez `GetClientCapabilities`
-(cache 5 s, timeout 750 ms); przy niedostępności zachowuje ostatnią tożsamość.
-Początkowa rezerwa to `CANOPY_CHANNEL` procesu BFF albo kanał wersji jego buildu
-(development → stable). Powłoka podaje nazwę i ścieżki favicon/apple-touch-icon
-przed uruchomieniem SPA. Tytuły stron korzystają z tej samej nazwy; dynamiczny
-`manifest.webmanifest` ma ten sam kanał, stałe `id` i `start_url` oraz `no-store`.
-Zasoby kanałów mają oddzielne URL, więc zmiana kanału nie zostawia favicony stable
-w cache. Preferencja kanału aktualizacji gatewaya nie zmienia jego bieżącej tożsamości.
-Natywne nazwy i ikony mobile wymagają nowego IPA/APK, a nie OTA
-([mobile.md](mobile.md)).
+`bun scripts/icons/channel-icons.ts` odtwarza zasoby w
+`apps/web/static/channels/{stable,beta,nightly,development}` i domyślne ikony Stable
+w katalogu `static`. Opcja `--previews <katalog>` zapisuje plansze, małe rozmiary
+na jasnym i ciemnym pasku oraz podglądy pod maskami iOS i Androida.
+Repozytorium zawiera gotowe SVG, PNG, ICO, ICNS, ekrany startowe i warstwy ikon
+adaptacyjnych. Natywne CI na macOS sprawdza odczyt ICNS w 16 i 32 pt w skali 1× i 2×.
+
+Web wybiera ikonę karty i PWA według wersji gatewaya z `GetClientCapabilities`
+(cache 5 s, timeout 750 ms). Przy starcie BFF korzysta z `CANOPY_CHANNEL` albo z wersji
+własnego buildu. Jawne ustawienie kanału działa również z deweloperskim gatewayem.
+Przy utracie połączenia BFF zachowuje ostatni rozpoznany wariant.
+HTML podaje adresy ikon i nazwę aplikacji przed uruchomieniem SPA.
+Manifest PWA używa tego samego wariantu oraz stałych `id` i `start_url`.
+Ekrany konfiguracji i pierwszego uruchomienia w Electronie korzystają z ikony
+zainstalowanej aplikacji. Na telefonie nowe ikony launchera i splash trafiają do
+użytkownika wraz z instalacją kolejnego IPA lub APK. [Ikony mobilne](mobile.md)
 
 ### checksums.txt i manifest.json
 

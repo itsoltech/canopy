@@ -1,7 +1,7 @@
 import { afterEach, expect, test } from "bun:test";
 import { copyFileSync, mkdirSync, mkdtempSync, readFileSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
-import { join, resolve } from "node:path";
+import { dirname, join, resolve } from "node:path";
 
 const iosRuntime = "a".repeat(40);
 const androidRuntime = "b".repeat(40);
@@ -15,7 +15,7 @@ type Scenario = {
   ios?: boolean;
   android?: boolean;
   pending?: boolean;
-  docsOnly?: boolean;
+  changedFile?: string;
   recent?: boolean;
   published?: boolean;
   signed?: boolean;
@@ -55,7 +55,9 @@ function fixture(options: Scenario = {}) {
   git("add", ".");
   git("commit", "--quiet", "-m", "initial native runtime");
   const previous = git("rev-parse", "HEAD");
-  writeFileSync(join(options.docsOnly ? root : cwd, "change.md"), "release change");
+  const changedFile = join(root, options.changedFile ?? "apps/mobile/change.md");
+  mkdirSync(dirname(changedFile), { recursive: true });
+  writeFileSync(changedFile, "release change");
   git("add", ".");
   git("commit", "--quiet", "-m", "release change");
   const head = git("rev-parse", "HEAD");
@@ -153,8 +155,8 @@ test("the first release on a channel without a delivered build builds iOS", () =
   expect(result.version()).toEqual({ version: "0.2.0-beta.1" });
 });
 
-test("a new native runtime builds iOS; failed builds do not prevent a retry", () => {
-  const result = fixture().run();
+test("a launcher-only change builds the new iOS runtime even after a failed build", () => {
+  const result = fixture({ changedFile: "apps/web/static/channels/beta/expo-icon.png" }).run();
   expect(result.code).toBe(0);
   expect(result.output).toContain("build=true");
   expect(result.output).not.toContain("ota=true");
@@ -181,7 +183,7 @@ test("a beta channel pointing at nightly is rejected", () => {
 });
 
 test("docs-only changes skip the mobile release", () => {
-  const result = fixture({ ios: true, docsOnly: true }).run();
+  const result = fixture({ ios: true, changedFile: "README.md" }).run();
   expect(result.code).toBe(0);
   expect(result.output).not.toMatch(/(?:build|ota)=true/);
 });

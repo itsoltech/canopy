@@ -704,7 +704,8 @@ ze źródeł bez wersji mają ikonę Dev. Wydania ustawiają obie zmienne.
 Przykład: `CANOPY_CHANNEL=beta CANOPY_VERSION=0.2.0-beta.1 bun run --cwd apps/desktop package:mac`.
 Wynik jest w `apps/desktop/release/<kanał>/`; katalog jest ignorowany przez git.
 Skrypt pakowania w razie zmiany kanału przebudowuje powłokę i zachowuje
-zbudowany runtime. Zasoby ikony pobiera z katalogu wybranego kanału przy każdym pakowaniu.
+zbudowany runtime. Przy każdym pakowaniu kopiuje bieżące zasoby kanałów
+do klienta web w paczce oraz PNG wybranego kanału do zasobów Electrona.
 
 | Cel | Host / przykład runnera GitHub Actions | Pakiet PG | Instalator | Weryfikacja tutaj |
 | --- | --- | --- | --- | --- |
@@ -856,9 +857,10 @@ Lokalne uruchomienie Electron czyta PNG z `apps/web/static/channels/<kanał>/`
 jako `icon.png` na potrzeby okien i zasobnika. macOS odczytuje ikonę Docka
 z ICNS w zainstalowanym bundlu; uruchomienie ze źródeł ustawia ją z PNG.
 Ekran startu otrzymuje ścieżkę ikony powłoki przez preload. Sidebar oznacza
-wersję uruchomionego web buildu. Wybór kanału aktualizacji działa niezależnie
-od ikony także w trybie Remote. Ustawienia aktualizacji obsługują Stable, Beta
-i Nightly; dla lokalnego Dev domyślnym wyborem jest Stable.
+wersję uruchomionego web buildu. Sekcja App updates pokazuje wersję i kanał
+aktualizacji samego Electrona także w trybie Remote, gdy gateway ma inną wersję.
+Nowa ikona pojawia się po instalacji wybranego wydania. Aktualizator obsługuje
+Stable, Beta i Nightly; dla lokalnego Dev domyślnym wyborem jest Stable.
 
 | Platforma | Zależne od kanału | Stałe przy zmianie kanału |
 |---|---|---|

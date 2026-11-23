@@ -57,6 +57,9 @@ Dobór wariantu opisuje [dokumentacja wydań](../../docs/release.md).
 | --- | --- | --- | --- | --- |
 | **19** | [<img src="app-icons-19/canopy-stable.svg" width="64" height="64" alt="Zielone drzewo na szałwiowym tle">](app-icons-19/canopy-stable.svg) | [<img src="app-icons-19/canopy-beta.svg" width="64" height="64" alt="Brązowe drzewo i dwa opadające liście na bursztynowym tle">](app-icons-19/canopy-beta.svg) | [<img src="app-icons-19/canopy-nightly.svg" width="64" height="64" alt="Lawendowe drzewo, półksiężyc i gwiazdy na fioletowym tle">](app-icons-19/canopy-nightly.svg) | [<img src="app-icons-19/canopy-dev.svg" width="64" height="64" alt="Niebieski rysunek techniczny drzewa z siatką i linią wymiarową">](app-icons-19/canopy-dev.svg) |
 
-W propozycji 19 wszystkie cztery ikony mają obrys i kadrowanie drzewa z propozycji 13.
+Te cztery SVG są źródłem ikon aplikacji. [Generator](../../scripts/icons/channel-icons.ts)
+tworzy z nich zasoby web, desktopu i aplikacji mobilnej. W nagłówku sidebara ikona
+danego kanału ma 24 px (24 dp na telefonie) i towarzyszy jej tło z propozycji 18.
+Wszystkie ikony mają obrys i kadrowanie drzewa z propozycji 13.
 Kolor całego kafelka pozwala odróżnić wydania także przy 16 px. Siatka w wariancie
 Dev przebiega za drzewem, a oba liście Bety są oddzielone od korony i konarów.

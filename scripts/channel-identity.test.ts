@@ -10,15 +10,15 @@ import { desktopIdentity, desktopUserData } from "../apps/desktop/src/identity.t
 import { channelConfiguration } from "../apps/desktop/scripts/channel-configuration.ts";
 import desktop from "../apps/desktop/package.json";
 import eas from "../apps/mobile/eas.json";
-import { releaseIdentity } from "@canopy/domain/release/identity";
-import { mobileScene, treeGeometry } from "./icons/mobile.ts";
+import { appIdentity, releaseIdentity } from "@canopy/domain/release/identity";
 
 const root = resolve(import.meta.dir, "..");
 const desktopDirectory = join(root, "apps/desktop");
-const names = { stable: "Canopy", beta: "Canopy (Beta)", nightly: "Canopy (Nightly)" };
+const channels = ["stable", "beta", "nightly", "development"] as const;
+const names = { stable: "Canopy", beta: "Canopy (Beta)", nightly: "Canopy (Nightly)", development: "Canopy" };
 
 test("channel presentation preserves Electron installation, crypto, data and updater identities", async () => {
-  for (const channel of ["stable", "beta", "nightly"] as const) {
+  for (const channel of channels) {
     const identity = desktopIdentity(channel);
     const presentation = channelConfiguration(identity);
     const configuration = { ...desktop.build, ...presentation };
@@ -41,6 +41,9 @@ test("channel presentation preserves Electron installation, crypto, data and upd
     const info = new AppInfo(packager, undefined);
 
     expect(identity.displayName).toBe(names[channel]);
+    expect(identity.channel).toBe(channel);
+    expect(identity.updateChannel).toBe(channel === "development" ? "stable" : channel);
+    expect(identity.feed).toBe(identity.updateChannel === "stable" ? "latest" : identity.updateChannel);
     expect(info.productName).toBe("Canopy");
     expect(info.productFilename).toBe("canopy");
     expect(info.macBundleIdentifier).toBe("app.canopy.desktop");
@@ -56,10 +59,16 @@ test("channel presentation preserves Electron installation, crypto, data and upd
     expect(presentation.nsis.shortcutName).toBe(names[channel]);
     expect(presentation.nsis.uninstallDisplayName).toBe(`${names[channel]} \${version}`);
 
-    for (const icon of [presentation.linux.icon, presentation.mac.icon, presentation.win.icon])
+    for (const icon of [presentation.linux.icon, presentation.mac.icon, presentation.win.icon]) {
+      expect(icon).toStartWith(`../web/static/channels/${channel}/`);
       expect(existsSync(resolve(desktopDirectory, icon))).toBe(true);
+    }
 
     const iconDirectory = join(root, "apps/web/static/channels", channel);
+    const master = channel === "development" ? "dev" : channel;
+    expect(readFileSync(join(iconDirectory, "icon.svg"), "utf8")).toBe(
+      readFileSync(join(root, `design/brand/app-icons-19/canopy-${master}.svg`), "utf8"),
+    );
     const png = readFileSync(join(iconDirectory, "icon-512.png"));
     const metadata = await sharp(png).metadata();
     expect([metadata.width, metadata.height]).toEqual([512, 512]);
@@ -67,6 +76,8 @@ test("channel presentation preserves Electron installation, crypto, data and upd
 
     if (channel === "stable") expect(png).toEqual(readFileSync(join(root, "apps/web/static/icon-512.png")));
   }
+
+  expect(() => releaseIdentity("development")).toThrow("Invalid release channel");
 
   // Protect the actual bootstrap, including the crypto name, against accidental use of displayName.
   const bootstrap = readFileSync(join(desktopDirectory, "src/desktop-main.ts"), "utf8");
@@ -117,7 +128,7 @@ function unpackIcnsRgb(data: Buffer, pixelCount: number) {
 }
 
 test("macOS channel assets preserve the artwork in bundle-safe small icon representations", async () => {
-  for (const channel of ["stable", "beta", "nightly"] as const) {
+  for (const channel of channels) {
     const directory = join(root, "apps/web/static/channels", channel);
     const { mac } = channelConfiguration(desktopIdentity(channel));
     const entries = icnsEntries(readFileSync(resolve(desktopDirectory, mac.icon)));
@@ -151,6 +162,8 @@ test("macOS channel assets preserve the artwork in bundle-safe small icon repres
 
 test("EAS profiles resolve actual Expo config with channel assets and unchanged native identifiers", () => {
   for (const profile of [
+    "development",
+    "development-simulator",
     "production",
     "production-beta",
     "production-stable",
@@ -158,7 +171,10 @@ test("EAS profiles resolve actual Expo config with channel assets and unchanged 
     "preview-beta",
     "preview-stable",
   ] as const) {
-    const { channel } = releaseIdentity(eas.build[profile].env.CANOPY_CHANNEL);
+    const channel =
+      profile === "development" || profile === "development-simulator"
+        ? "development"
+        : releaseIdentity(eas.build[profile].env.CANOPY_CHANNEL).channel;
 
     const result = Bun.spawnSync(
       [process.execPath, join(root, "node_modules/expo/bin/cli"), "config", "--type", "public", "--json"],
@@ -173,6 +189,7 @@ test("EAS profiles resolve actual Expo config with channel assets and unchanged 
     expect(result.exitCode, result.stderr.toString()).toBe(0);
     const config: ExpoConfig = JSON.parse(result.stdout.toString());
     expect(config.name).toBe(names[channel]);
+    expect(config.extra?.["canopyChannel"]).toBe(channel);
     expect(config.icon).toBe(`../web/static/channels/${channel}/expo-icon.png`);
     expect(config.ios?.bundleIdentifier).toBe("tech.itsol.canopy-remote");
     expect(config.android?.package).toBe("tech.itsol.canopy_remote");
@@ -191,89 +208,73 @@ test("EAS profiles resolve actual Expo config with channel assets and unchanged 
       "expo-splash-screen",
       expect.objectContaining({
         image: `../web/static/channels/${channel}/splash.png`,
-        backgroundColor: releaseIdentity(channel).background,
+        backgroundColor: appIdentity(channel).background,
         dark: expect.objectContaining({
           image: `../web/static/channels/${channel}/splash.png`,
-          backgroundColor: releaseIdentity(channel).background,
+          backgroundColor: appIdentity(channel).background,
         }),
       }),
     ]);
   }
 }, 30_000);
 
-test("native channel artwork is full-bleed on iOS and gives Android launcher masks breathing room", async () => {
-  for (const channel of ["stable", "beta", "nightly"] as const) {
+test("iOS and Apple touch icons carry the approved artwork to the edge of the system mask", async () => {
+  for (const channel of channels) {
     const directory = join(root, "apps/web/static/channels", channel);
+    const background = Buffer.from(appIdentity(channel).background.slice(1), "hex");
     const icon = sharp(join(directory, "expo-icon.png"));
     const metadata = await icon.metadata();
     expect([metadata.width, metadata.height, metadata.channels, metadata.hasAlpha]).toEqual([1024, 1024, 3, false]);
-    expect((await icon.stats()).isOpaque).toBe(true);
 
     const actual = await icon.raw().toBuffer();
-    const scene = await sharp(mobileScene(channel)).removeAlpha().raw().toBuffer();
-    const matte = Buffer.alloc(1024 * 1024 * 4);
+    const reference = await sharp(join(directory, "icon.svg"), { density: 576 }).ensureAlpha().raw().toBuffer();
+    let mismatches = 0;
 
-    for (let i = 0; i < 1024 * 1024; i++) {
-      const difference = Math.max(...[0, 1, 2].map((c) => Math.abs(actual[i * 3 + c]! - scene[i * 3 + c]!)));
-      matte[i * 4 + 3] = difference > 3 ? 255 : 0;
+    for (let pixel = 0; pixel < 1024 * 1024; pixel++) {
+      // Compare the painted desktop tile. Its outside corners are supplied by the native launcher.
+      if (reference[pixel * 4 + 3] !== 255) continue;
+      const rgb = pixel * 3;
+      const rgba = pixel * 4;
+
+      if (
+        Math.abs(actual[rgb]! - reference[rgba]!) > 3 ||
+        Math.abs(actual[rgb + 1]! - reference[rgba + 1]!) > 3 ||
+        Math.abs(actual[rgb + 2]! - reference[rgba + 2]!) > 3
+      )
+        mismatches++;
     }
 
-    const bounds = await treeGeometry(
-      await sharp(matte, { raw: { width: 1024, height: 1024, channels: 4 } })
-        .png()
-        .toBuffer(),
-    );
+    expect(mismatches).toBeLessThan(1024); // Allow subpixel rasterization differences along curves.
 
-    // A desktop tile at half size cannot meet this silhouette size/placement.
-    expect(bounds.width / 1024).toBeGreaterThanOrEqual(0.68);
-    expect(bounds.width / 1024).toBeLessThanOrEqual(0.75);
-    expect((bounds.left + bounds.width / 2) / 1024).toBeCloseTo(0.5, 2);
-    expect((bounds.top + bounds.height / 2) / 1024).toBeCloseTo(0.48, 2);
+    for (const pixel of [0, 1023, 1023 * 1024, 1024 * 1024 - 1])
+      expect(actual.subarray(pixel * 3, pixel * 3 + 3)).toEqual(background);
 
-    // The scene reaches every edge: there is no pre-drawn rounded mask or tile.
-    for (const [x, y] of [
-      [0, 0],
-      [1023, 0],
-      [0, 1023],
-      [1023, 1023],
-      [512, 0],
-      [0, 512],
-    ]) {
-      const offset = (y! * 1024 + x!) * 3;
-      expect(actual.subarray(offset, offset + 3)).toEqual(scene.subarray(offset, offset + 3));
-    }
+    const touch = await sharp(join(directory, "icon-180.png")).metadata();
+    expect([touch.width, touch.height, touch.channels, touch.hasAlpha]).toEqual([180, 180, 3, false]);
+  }
+});
 
-    const foreground = join(directory, "adaptive-foreground.png");
-    const alpha = await sharp(foreground).extractChannel("alpha").raw().toBuffer();
+test("Android keeps the branded foreground inside its safe zone in both full color and themed launchers", async () => {
+  for (const channel of channels) {
+    const directory = join(root, "apps/web/static/channels", channel);
+    const foreground = sharp(join(directory, "adaptive-foreground.png"));
+    const { data: alpha, info } = await foreground.extractChannel("alpha").raw().toBuffer({ resolveWithObject: true });
+    expect([info.width, info.height]).toEqual([1024, 1024]);
     let radius = 0;
 
     for (let y = 0; y < 1024; y++)
       for (let x = 0; x < 1024; x++)
         if (alpha[y * 1024 + x]) radius = Math.max(radius, Math.hypot(x - 511.5, y - 511.5));
-    // The visible mask spans 72 dp of the 108 dp canvas. The circle is the
-    // tightest mask; squircle and rounded-square both enclose that circle.
-    const visibleDiameter = (1024 * 72) / 108;
-    const clearance = (visibleDiameter / 2 - radius) / visibleDiameter;
-    expect(clearance).toBeGreaterThanOrEqual(0.08);
-    expect(clearance).toBeLessThan(0.12);
-    // Moon/sun stays entirely clear of the tree and inside the circle launcher.
-    let moonCoverage = 0;
-    let moonRadius = 0;
 
-    for (let y = 244; y <= 288; y++)
-      for (let x = 682; x <= 726; x++) {
-        if (Math.hypot(x - 704, y - 266) > 22) continue;
-        moonCoverage += alpha[y * 1024 + x]!;
-        moonRadius = Math.max(moonRadius, Math.hypot(x - 512, y - 512));
-      }
-
-    expect(moonCoverage).toBe(0);
-    expect(moonRadius).toBeLessThan(1024 / 3);
-    expect(await sharp(join(directory, "adaptive-monochrome.png")).extractChannel("alpha").raw().toBuffer()).toEqual(
-      alpha,
-    );
+    // All foreground ink, including the Dev ruler and Nightly moon, fits the 66 dp safe circle on a 108 dp canvas.
+    expect(radius).toBeLessThanOrEqual((1024 * 33) / 108);
+    expect(alpha[432 * 1024 + 512]).toBe(255); // Solid center of the crown.
+    const mono = await sharp(join(directory, "adaptive-monochrome.png")).extractChannel("alpha").raw().toBuffer();
+    expect(mono.equals(alpha)).toBe(true);
     expect((await sharp(join(directory, "adaptive-background.png")).metadata()).hasAlpha).toBe(false);
-    const splash = await treeGeometry(readFileSync(join(directory, "splash.png")));
-    expect(Math.max(splash.width, splash.height)).toBeGreaterThan(500);
+    const splash = sharp(join(directory, "splash.png"));
+    expect((await splash.metadata()).hasAlpha).toBe(true);
+    const { info: bounds } = await splash.trim().png().toBuffer({ resolveWithObject: true });
+    expect(Math.max(bounds.width, bounds.height)).toBeGreaterThan(400);
   }
 });

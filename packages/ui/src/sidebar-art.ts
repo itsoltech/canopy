@@ -3,11 +3,6 @@ import { palette } from "./tokens.ts";
 
 const tree = `<path fill-rule="evenodd" d="${canopyTree.outline}"/>`;
 
-export const sidebarIcon = `<svg xmlns="http://www.w3.org/2000/svg" width="100%" height="100%" viewBox="0 0 128 128">
-  <rect width="128" height="128" rx="28" fill="#edf0e4"/>
-  <g transform="translate(6.58 17.65) scale(.66)" fill="#194a34">${tree}</g>
-</svg>`;
-
 // White stops in a luminance mask fade the entire scene together on web and react-native-svg.
 function scene(channel: string, drawing: string, surroundings = "") {
   const id = `canopy-sidebar-${channel}`;

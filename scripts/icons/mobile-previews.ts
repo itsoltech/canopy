@@ -1,7 +1,7 @@
 import { mkdir, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import sharp, { type OverlayOptions } from "sharp";
-import { releaseIdentity, type ReleaseChannel } from "@canopy/domain/release/identity";
+import { appIdentity, type AppChannel } from "@canopy/domain/release/identity";
 import type { MobileArtwork } from "./mobile.ts";
 
 type Mask = "circle" | "squircle" | "rounded-square";
@@ -31,39 +31,42 @@ async function masked(input: Buffer, mask: Mask) {
     .toBuffer();
 }
 
-async function mockups(icons: Map<ReleaseChannel, Buffer>, directory: string) {
+async function mockups(icons: Map<AppChannel, Buffer>, directory: string) {
   const home: OverlayOptions[] = [];
   const testflight: OverlayOptions[] = [];
   let column = 0;
 
   for (const icon of icons.values()) {
-    home.push({ input: await sharp(icon).resize(180).png().toBuffer(), left: 100 + column * 330, top: 130 });
+    home.push({ input: await sharp(icon).resize(180).png().toBuffer(), left: 75 + column * 330, top: 130 });
     testflight.push({ input: await sharp(icon).resize(384).png().toBuffer(), left: 64 + column * 512, top: 40 });
     column++;
   }
 
   const labels = (width: number, height: number, y: number, step: number, start: number, fill: string) =>
     Buffer.from(
-      `<svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${height}"><g font-family="sans-serif" font-size="28" text-anchor="middle" fill="${fill}">${[...icons.keys()].map((channel, i) => `<text x="${start + i * step}" y="${y}">${releaseIdentity(channel).displayName}</text>`).join("")}</g></svg>`,
+      `<svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${height}"><g font-family="sans-serif" font-size="28" text-anchor="middle" fill="${fill}">${[...icons.keys()].map((channel, i) => `<text x="${start + i * step}" y="${y}">${appIdentity(channel).displayName}</text>`).join("")}</g></svg>`,
     );
 
+  const homeWidth = icons.size * 330;
+  const testflightWidth = icons.size * 512;
+
   const wallpaper = Buffer.from(
-    `<svg xmlns="http://www.w3.org/2000/svg" width="1170" height="430"><defs><linearGradient id="wall" x2="1" y2="1"><stop stop-color="#284550"/><stop offset="1" stop-color="#776076"/></linearGradient></defs><path fill="url(#wall)" d="M0 0h1170v430H0z"/><text x="60" y="65" font-family="sans-serif" font-size="32" fill="white">9:41</text></svg>`,
+    `<svg xmlns="http://www.w3.org/2000/svg" width="${homeWidth}" height="430"><defs><linearGradient id="wall" x2="1" y2="1"><stop stop-color="#284550"/><stop offset="1" stop-color="#776076"/></linearGradient></defs><rect width="${homeWidth}" height="430" fill="url(#wall)"/><text x="60" y="65" font-family="sans-serif" font-size="32" fill="white">9:41</text></svg>`,
   );
 
   await sharp(wallpaper)
-    .composite([...home, { input: labels(1170, 430, 360, 330, 190, "white") }])
+    .composite([...home, { input: labels(homeWidth, 430, 360, 330, 165, "white") }])
     .png()
     .toFile(join(directory, "iphone-home-row.png"));
-  await sharp({ create: { width: 1536, height: 530, channels: 3, background: "#f2f2f7" } })
-    .composite([...testflight, { input: labels(1536, 530, 485, 512, 256, "#18181b") }])
+  await sharp({ create: { width: testflightWidth, height: 530, channels: 3, background: "#f2f2f7" } })
+    .composite([...testflight, { input: labels(testflightWidth, 530, 485, 512, 256, "#18181b") }])
     .png()
     .toFile(join(directory, "testflight-large.png"));
 }
 
-export async function writeMobilePreviews(artwork: Map<ReleaseChannel, MobileArtwork>, directory: string) {
+export async function writeMobilePreviews(artwork: Map<AppChannel, MobileArtwork>, directory: string) {
   await mkdir(directory, { recursive: true });
-  const icons = new Map<ReleaseChannel, Buffer>();
+  const icons = new Map<AppChannel, Buffer>();
 
   for (const [channel, native] of artwork) {
     const ios = await masked(native.icon, "squircle");
@@ -98,12 +101,12 @@ export async function writeMobilePreviews(artwork: Map<ReleaseChannel, MobileArt
   const rows = [...artwork.keys()]
     .map(
       (channel) =>
-        `<section><p>${releaseIdentity(channel).displayName}</p><div class="icons"><img width="120" height="120" src="${join(directory, `${channel}-ios-120.png`)}" alt="iOS"/>${["circle", "squircle", "rounded-square"].map((mask) => `<img width="120" height="120" src="${join(directory, `${channel}-android-${mask}.png`)}" alt="Android ${mask}"/>`).join("")}</div><div class="sizes">${[180, 120, 87, 60].map((size) => `<img width="${size}" height="${size}" src="${join(directory, `${channel}-ios-${size}.png`)}" alt="iOS ${size}px"/>`).join("")}</div></section>`,
+        `<section><p>Canopy · ${channel}</p><div class="icons"><img width="120" height="120" src="${channel}-ios-120.png" alt="iOS"/>${["circle", "squircle", "rounded-square"].map((mask) => `<img width="120" height="120" src="${channel}-android-${mask}.png" alt="Android ${mask}"/>`).join("")}</div><div class="sizes">${[180, 120, 87, 60].map((size) => `<img width="${size}" height="${size}" src="${channel}-ios-${size}.png" alt="iOS ${size}px"/>`).join("")}</div></section>`,
     )
     .join("");
 
   await writeFile(
     join(directory, "mobile-previews.html"),
-    `<!doctype html><html><head><meta charset="utf-8"><style>body{margin:0;font-family:var(--font-sans,sans-serif);color:var(--foreground)}p{margin:16px 0 8px}.icons,.sizes{display:flex;align-items:center;gap:16px;flex-wrap:wrap}.sizes{margin:16px 0 24px}.mock{width:100%;height:auto;margin-top:16px}</style></head><body>${rows}<img class="mock" src="${join(directory, "iphone-home-row.png")}" alt="iPhone home-screen row"/><img class="mock" src="${join(directory, "testflight-large.png")}" alt="TestFlight large icons"/></body></html>`,
+    `<!doctype html><html><head><meta charset="utf-8"><style>body{margin:0;font-family:var(--font-sans,sans-serif);color:var(--foreground)}p{margin:16px 0 8px}.icons,.sizes{display:flex;align-items:center;gap:16px;flex-wrap:wrap}.sizes{margin:16px 0 24px}.mock{width:100%;height:auto;margin-top:16px}</style></head><body>${rows}<img class="mock" src="iphone-home-row.png" alt="iPhone home-screen row"/><img class="mock" src="testflight-large.png" alt="TestFlight large icons"/></body></html>`,
   );
 }

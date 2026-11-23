@@ -24,7 +24,7 @@
   data-window-drag
   title={`Canopy ${CANOPY_VERSION}${channel === "stable" ? "" : ` · ${identity.label}`}`}
 >
-  <Logo label={`Canopy homepage, ${channel === "stable" ? "" : `${identity.label} build `}${CANOPY_VERSION}`}>
+  <Logo {channel} label={`Canopy homepage, ${channel === "stable" ? "" : `${identity.label} build `}${CANOPY_VERSION}`}>
     {#snippet subtitle()}
       {#if channel !== "stable"}<div
           class={["truncate font-mono text-xs/4 font-medium tracking-wide", textTones[identity.tone]]}

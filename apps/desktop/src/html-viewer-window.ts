@@ -1,5 +1,6 @@
 import { app, BrowserWindow, type Session } from "electron";
 import { join } from "node:path";
+import { desktopResourcePaths } from "./desktop-resources.ts";
 
 export function createViewerWindow(isolated: Session, inline?: { width: number; height: number }): BrowserWindow {
   const target = new BrowserWindow({
@@ -8,6 +9,7 @@ export function createViewerWindow(isolated: Session, inline?: { width: number; 
     useContentSize: true,
     show: !inline,
     title: "Custom HTML from the agent — Canopy",
+    icon: desktopResourcePaths().iconPath,
     webPreferences: {
       session: isolated,
       preload: join(app.getAppPath(), "dist/html-preload.cjs"),

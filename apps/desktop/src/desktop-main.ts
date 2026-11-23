@@ -35,7 +35,8 @@ import { registerFontsIpc } from "./fonts-ipc.ts";
 import { startupFailure } from "./startup-error.ts";
 import { sendWindowMessage, sendWindowsMessage, windowContents } from "./window-message.ts";
 import { relaunchAfterQuit } from "./relaunch.ts";
-import { configureDesktopApplication, desktopResourcePaths, registerDesktopLifecycle } from "./desktop-lifecycle.ts";
+import { configureDesktopApplication, registerDesktopLifecycle } from "./desktop-lifecycle.ts";
+import { desktopResourcePaths } from "./desktop-resources.ts";
 import { showShutdownWindow } from "./shutdown-window.ts";
 import { shutdownDesktop } from "./shutdown.ts";
 import { PreviewWindows } from "./preview-windows.ts";
@@ -77,7 +78,7 @@ let connection: ControllerConnection | undefined;
 let pendingLink: string | undefined;
 const enrollmentReady = new Set<number>();
 
-const { iconPath, runtime } = desktopResourcePaths(identity.channel);
+const { iconPath, runtime } = desktopResourcePaths();
 
 const logs = new Logs(join(app.getPath("userData"), "logs"));
 const startupFailed = startupFailure(logs, () => quitting);

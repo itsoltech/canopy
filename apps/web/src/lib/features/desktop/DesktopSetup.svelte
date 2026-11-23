@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { applicationName } from "#lib/application-name.ts";
+  import { applicationIcon, applicationName } from "#lib/application-name.ts";
   import { onMount } from "svelte";
   import { goto } from "$app/navigation";
   import {
@@ -151,7 +151,7 @@
         </div>
       {/if}
       <div class="grid gap-3">
-        <img src="/icon-192.png" alt="" width="48" height="48" class="size-12 shrink-0" />
+        <img src={applicationIcon} alt="" width="48" height="48" class="size-12 shrink-0" />
         <h1 class="text-3xl font-semibold tracking-tight text-balance">
           {settings ? "Choose where Canopy runs" : "Your agents, on your terms"}
         </h1>

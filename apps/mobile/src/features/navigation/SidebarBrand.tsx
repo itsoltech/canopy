@@ -1,12 +1,11 @@
 import { contextType, palette } from "@canopy/ui";
-import { sidebarIcon, sidebarIdentity } from "@canopy/ui/sidebar-art";
-import { channel } from "expo-updates";
+import { sidebarIdentity } from "@canopy/ui/sidebar-art";
 import { StyleSheet, Text, View } from "react-native";
 import { SvgXml } from "react-native-svg";
+import { AppIcon, mobileApp } from "../../ui/AppIcon";
 import { styles, useColors, useTypography } from "../../ui/theme";
 
-const release = channel === "nightly" || channel === "beta" ? channel : channel ? "stable" : "development";
-const identity = sidebarIdentity[release];
+const identity = sidebarIdentity[mobileApp.channel];
 const tone = palette[identity.tone];
 
 export function SidebarBrand() {
@@ -15,19 +14,12 @@ export function SidebarBrand() {
 
   return (
     <View style={[styles.row, brand.title]}>
-      <SvgXml
-        xml={sidebarIcon}
-        width={24}
-        height={24}
-        accessible={false}
-        accessibilityElementsHidden
-        importantForAccessibility="no-hide-descendants"
-      />
+      <AppIcon size={24} />
       <View style={brand.title}>
         <Text numberOfLines={1} style={[styles.label, { color: c.text }]}>
           Canopy
         </Text>
-        {release !== "stable" && (
+        {mobileApp.channel !== "stable" && (
           <Text
             numberOfLines={1}
             style={[contextType.context, { color: tone[c.dark ? 400 : 800], fontFamily: type.mono.fontFamily }]}
