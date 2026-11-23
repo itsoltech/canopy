@@ -4,6 +4,7 @@ import { setTimeout as delay } from "node:timers/promises";
 import type { CoreRuntime } from "../core/core.ts";
 import { GatewayStore } from "../store/store.ts";
 import { oauthEgress } from "./oauth-egress.ts";
+import { OAuthNetworkFailure } from "./oauth-network.ts";
 import { authorizeOAuth } from "./oauth.ts";
 import { ConnectorFailure, oauthIdentityChanged, type AccountRow, type Credentials } from "./records.ts";
 import type { ConnectorStore } from "./store.ts";
@@ -15,7 +16,8 @@ const usable = (row: AccountRow, testing: boolean) => row.status === "connected"
 export async function slackUserCredentials(runtime: CoreRuntime, owner: string, id: string, testing: boolean) {
   try {
     return await refreshCredentials(runtime, owner, id, testing);
-  } catch {
+  } catch (error) {
+    if (error instanceof OAuthNetworkFailure) throw error;
     // SQL failures can contain sealed values/parameters. Expose only the reconnect action.
     throw failure();
   }
@@ -103,9 +105,15 @@ async function refreshCredentials(runtime: CoreRuntime, owner: string, id: strin
     // No database transaction is open during HTTP. A crash leaves the committed claim unresolved.
     const egress = oauthEgress(claim.row.url, claim.issuer, { publicOrigins: claim.value.oauthPublicOrigins });
 
-    const refreshed = await authorizeOAuth(claim.row, egress, claim.value, "")
-      .then((redirect) => !redirect && !!claim.value.tokens?.refresh_token)
-      .catch(() => false);
+    let refreshed: boolean | OAuthNetworkFailure;
+
+    try {
+      const redirect = await authorizeOAuth(claim.row, egress, claim.value, "");
+
+      refreshed = !redirect && !!claim.value.tokens?.refresh_token;
+    } catch (error) {
+      refreshed = error instanceof OAuthNetworkFailure ? error : false;
+    }
 
     const settled = await run((store) =>
       store.transaction(
@@ -120,10 +128,10 @@ async function refreshCredentials(runtime: CoreRuntime, owner: string, id: strin
           )
             return undefined;
 
-          if (!refreshed || !sameIdentity(current, claim.value)) {
+          if (refreshed !== true || !sameIdentity(current, claim.value)) {
             yield* store.status(row, "needs_reconnect");
 
-            return undefined;
+            return refreshed instanceof OAuthNetworkFailure ? refreshed : undefined;
           }
 
           // Metadata and grants may have changed while HTTP ran. Keep their current revision/status.
@@ -133,6 +141,8 @@ async function refreshCredentials(runtime: CoreRuntime, owner: string, id: strin
         }),
       ),
     );
+
+    if (settled instanceof OAuthNetworkFailure) throw settled;
 
     if (!settled) throw failure();
 

@@ -2,7 +2,9 @@ import { lookup } from "node:dns/promises";
 import { BlockList, isIP } from "node:net";
 import { request as httpRequest } from "node:http";
 import { request as httpsRequest } from "node:https";
+import { connect as tlsConnect, checkServerIdentity } from "node:tls";
 import { CONNECTOR_TYPES, connectorUrl } from "./catalog.ts";
+import { connectPinned, OAuthConnectFailure, OAuthNetworkFailure, type Address } from "./oauth-network.ts";
 
 const blocked = new BlockList();
 
@@ -47,8 +49,6 @@ function publicAddress(address: string): boolean {
     : family === 6 && globalV6.check(address, "ipv6") && !blocked.check(address, "ipv6");
 }
 
-type Address = { address: string; family: number };
-
 const resolveHost = (host: string) => lookup(host, { all: true });
 const vendorOrigins = new Set(CONNECTOR_TYPES.flatMap((type) => (type.url ? [new URL(type.url).origin] : [])));
 
@@ -58,72 +58,93 @@ export class OAuthEndpointRedirect extends Error {
   }
 }
 
-async function sendPinned(url: URL, address: Address, input: Request, signal: AbortSignal): Promise<Response> {
-  const request = url.protocol === "https:" ? httpsRequest : httpRequest;
-  const body = input.body ? Buffer.from(await input.arrayBuffer()) : undefined;
+async function sendPinned(
+  url: URL,
+  address: Address,
+  input: Request,
+  signal: AbortSignal,
+  body: Buffer | undefined,
+): Promise<Response> {
+  const secure = url.protocol === "https:";
+  const port = Number(url.port || (secure ? 443 : 80));
   const hostname = url.hostname.replace(/^\[|\]$/g, "");
+  const tcp = await connectPinned(address, port, signal);
+  const request = secure ? httpsRequest : httpRequest;
 
-  return new Promise((resolve, reject) => {
-    const req = request(
-      {
-        protocol: url.protocol,
-        hostname: address.address,
-        family: address.family,
-        port: url.port || (url.protocol === "https:" ? 443 : 80),
-        path: url.pathname + url.search,
-        method: input.method,
-        headers: { ...Object.fromEntries(input.headers), host: url.host, "accept-encoding": "identity" },
-        ...(!isIP(hostname) && { servername: hostname }),
-        agent: false,
-        signal,
-      },
-      (res) => {
-        const status = res.statusCode ?? 502;
+  try {
+    return await new Promise<Response>((resolve, reject) => {
+      const req = request(
+        {
+          protocol: url.protocol,
+          hostname,
+          port,
+          path: url.pathname + url.search,
+          method: input.method,
+          headers: { ...Object.fromEntries(input.headers), host: url.host, "accept-encoding": "identity" },
+          createConnection: () =>
+            secure
+              ? tlsConnect({
+                  socket: tcp,
+                  host: hostname,
+                  ...(!isIP(hostname) && { servername: hostname }),
+                  checkServerIdentity: (_, cert) => checkServerIdentity(hostname, cert),
+                })
+              : tcp,
+          signal,
+        },
+        (res) => {
+          const status = res.statusCode ?? 502;
 
-        if (status >= 300 && status < 400) {
-          res.destroy();
-          reject(new OAuthEndpointRedirect(status));
-
-          return;
-        }
-
-        const headers = new Headers();
-
-        for (const [name, value] of Object.entries(res.headers))
-          if (value !== undefined) headers.set(name, Array.isArray(value) ? value.join(", ") : value);
-
-        if (status === 204 || status === 205 || input.method === "HEAD") {
-          res.resume();
-          resolve(new Response(null, { status, headers }));
-
-          return;
-        }
-
-        const stream = new ReadableStream<Uint8Array>({
-          start(controller) {
-            res.on("data", (chunk: Buffer) => {
-              controller.enqueue(new Uint8Array(chunk));
-              res.pause();
-            });
-            res.on("end", () => controller.close());
-            res.on("error", (error) => controller.error(error));
-          },
-          pull() {
-            res.resume();
-          },
-          cancel() {
+          if (status >= 300 && status < 400) {
             res.destroy();
-          },
-        });
+            reject(new OAuthEndpointRedirect(status));
 
-        resolve(new Response(stream, { status, headers }));
-      },
-    );
+            return;
+          }
 
-    req.once("error", reject);
-    req.end(body);
-  });
+          const headers = new Headers();
+
+          for (const [name, value] of Object.entries(res.headers))
+            if (value !== undefined) headers.set(name, Array.isArray(value) ? value.join(", ") : value);
+
+          if (status === 204 || status === 205 || input.method === "HEAD") {
+            res.resume();
+            resolve(new Response(null, { status, headers }));
+
+            return;
+          }
+
+          const stream = new ReadableStream<Uint8Array>({
+            start(controller) {
+              res.on("data", (chunk: Buffer) => {
+                controller.enqueue(new Uint8Array(chunk));
+                res.pause();
+              });
+              res.on("end", () => controller.close());
+              res.on("error", (error) => controller.error(error));
+            },
+            pull() {
+              res.resume();
+            },
+            cancel() {
+              res.destroy();
+            },
+          });
+
+          resolve(new Response(stream, { status, headers }));
+        },
+      );
+
+      req.once("error", reject);
+      req.end(body);
+    });
+  } catch (error) {
+    tcp.destroy();
+    throw error;
+  }
 }
+
+type OriginAddresses = { all: Address[]; preferred?: Address };
 
 /** Only authority entered by the owner can designate a private origin. Discovery cannot extend it. */
 export function oauthEgress(
@@ -137,25 +158,31 @@ export function oauthEgress(
 ) {
   const configured = new Set([resource, ...(registeredIssuer ? [registeredIssuer] : [])].map((s) => new URL(s).origin));
   const publicOrigins = new Set(options.publicOrigins?.filter((origin) => configured.has(origin)));
-  const pinned = new Map<string, Promise<Address>>();
+  const origins = new Map<string, Promise<OriginAddresses>>();
   const resolve = options.resolve ?? resolveHost;
   const send = options.send ?? sendPinned;
 
-  async function address(url: URL) {
+  async function addresses(url: URL) {
     connectorUrl(`${url.origin}${url.pathname}`);
 
     if (url.username || url.password || url.hash) throw new Error("Invalid OAuth endpoint");
-    const existing = pinned.get(url.origin);
+    const existing = origins.get(url.origin);
 
     if (existing) return existing;
     const host = url.hostname.replace(/^\[|\]$/g, "");
     const family = isIP(host);
-    const answers = family ? Promise.resolve([{ address: host, family }]) : resolve(host);
 
-    const selected = answers.then((all) => {
-      const first = all[0];
+    const answers = family
+      ? Promise.resolve([{ address: host, family }])
+      : resolve(host).catch(() => {
+          throw new OAuthNetworkFailure("dns");
+        });
 
-      if (!first || all.some((a) => !isIP(a.address))) throw new Error("OAuth endpoint unavailable");
+    const validated = answers.then((all): OriginAddresses => {
+      if (!all.length) throw new OAuthNetworkFailure("dns");
+
+      if (all.some((a) => !isIP(a.address) || isIP(a.address) !== a.family))
+        throw new Error("OAuth endpoint unavailable");
 
       if (all.every((a) => publicAddress(a.address))) {
         if (configured.has(url.origin)) publicOrigins.add(url.origin);
@@ -167,12 +194,36 @@ export function oauthEgress(
       )
         throw new Error("OAuth endpoint requires a public address");
 
-      return first;
+      return { all };
     });
 
-    pinned.set(url.origin, selected);
+    origins.set(url.origin, validated);
 
-    return selected;
+    return validated;
+  }
+
+  async function sendToOrigin(url: URL, origin: OriginAddresses, req: Request, signal: AbortSignal) {
+    const body = req.body ? Buffer.from(await req.arrayBuffer()) : undefined;
+    const { all, preferred } = origin;
+    const candidates = preferred ? [preferred, ...all.filter((address) => address !== preferred)] : all;
+
+    for (const [index, address] of candidates.entries()) {
+      try {
+        signal.throwIfAborted();
+        const response = await send(url, address, req, signal, body);
+        origin.preferred ??= address;
+
+        return response;
+      } catch (error) {
+        if (!(error instanceof OAuthConnectFailure)) throw error;
+
+        if (origin.preferred === address) delete origin.preferred;
+
+        if (signal.aborted || index === candidates.length - 1) throw error;
+      }
+    }
+
+    throw new OAuthNetworkFailure("dns");
   }
 
   return {
@@ -182,14 +233,21 @@ export function oauthEgress(
       const url = new URL(req.url);
       const signal = AbortSignal.any([req.signal, AbortSignal.timeout(20_000)]);
       const aborted = Promise.withResolvers<never>();
-      const cancel = () => aborted.reject(new Error("OAuth request interrupted"));
+      const cancel = () => aborted.reject(new OAuthNetworkFailure("timeout"));
       signal.addEventListener("abort", cancel, { once: true });
 
       try {
         signal.throwIfAborted();
-        const selected = await Promise.race([address(url), aborted.promise]);
+        const origin = await Promise.race([addresses(url), aborted.promise]);
 
-        return await send(url, selected, req, signal);
+        try {
+          return await sendToOrigin(url, origin, req, signal);
+        } catch (error) {
+          if (signal.aborted) throw new OAuthNetworkFailure("timeout");
+
+          if (error instanceof OAuthEndpointRedirect || error instanceof OAuthNetworkFailure) throw error;
+          throw new OAuthNetworkFailure("transport");
+        }
       } finally {
         signal.removeEventListener("abort", cancel);
       }

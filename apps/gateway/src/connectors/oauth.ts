@@ -2,6 +2,7 @@ import { auth, type OAuthClientProvider } from "@modelcontextprotocol/sdk/client
 import { Predicate, Schema } from "effect";
 import type { Credentials } from "./store.ts";
 import type { oauthEgress } from "./oauth-egress.ts";
+import { OAuthNetworkFailure } from "./oauth-network.ts";
 import { recordOAuthIdentity } from "./oauth-identity.ts";
 import type { AccountRow } from "./records.ts";
 import { httpMcpFailure, networkMcpFailure } from "../bots/mcp-errors.ts";
@@ -65,6 +66,7 @@ export async function authorizeOAuth(
   code?: string,
 ): Promise<string | undefined> {
   let authorizationUrl: string | undefined;
+  let refreshFailure: OAuthNetworkFailure | undefined;
 
   const result = await auth(
     oauthProvider(value, state, (redirect) => {
@@ -78,6 +80,9 @@ export async function authorizeOAuth(
 
         const response = await egress.fetch(input, { ...init, signal }).catch((cause: unknown) => {
           if (exchanging) throw networkMcpFailure(cause, "oauth/token", signal);
+
+          if (value.tokens?.refresh_token && init?.method === "POST" && cause instanceof OAuthNetworkFailure)
+            refreshFailure = cause;
           throw cause;
         });
 
@@ -114,6 +119,9 @@ export async function authorizeOAuth(
       ...(code !== undefined && { authorizationCode: code }),
     },
   );
+
+  // The SDK can fall through to a new authorization URL after a failed refresh.
+  if (result !== "AUTHORIZED" && refreshFailure) throw refreshFailure;
 
   if (code !== undefined && result !== "AUTHORIZED") throw new Error("OAuth authorization incomplete");
   value.oauthPublicOrigins = egress.publicOrigins();

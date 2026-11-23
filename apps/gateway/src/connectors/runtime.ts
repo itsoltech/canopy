@@ -26,6 +26,7 @@ import {
   type ExecutionSource,
 } from "./store.ts";
 import { oauthEgress } from "./oauth-egress.ts";
+import { OAuthNetworkFailure } from "./oauth-network.ts";
 import { authorizeOAuth, redactConnector, revokeOAuth } from "./oauth.ts";
 import { beginConnectorOAuth } from "./oauth-begin.ts";
 import { slackUserCredentials } from "./slack-user-refresh.ts";
@@ -161,13 +162,13 @@ export class ConnectorsRuntime {
 
                       return !redirect && !!value.tokens;
                     },
-                    catch: () => new ConnectorFailure("Connector needs reconnect"),
-                  }).pipe(Effect.catch(() => Effect.succeed(false)));
+                    catch: (cause) => (cause instanceof OAuthNetworkFailure ? cause : false),
+                  }).pipe(Effect.catch(Effect.succeed));
 
-                  if (!refreshed) {
+                  if (refreshed !== true) {
                     yield* s.status(row, "needs_reconnect");
 
-                    return undefined;
+                    return refreshed || undefined;
                   }
 
                   yield* s.updateCredentials(row, value);
@@ -177,6 +178,8 @@ export class ConnectorsRuntime {
               }),
             ),
           );
+
+    if (result instanceof OAuthNetworkFailure) throw result;
 
     if (!result) throw new ConnectorFailure("Connector needs reconnect");
     const { row, value } = result;
@@ -409,7 +412,12 @@ export class ConnectorsRuntime {
   }
   handle(request: AgentToolCall, workerId: string) {
     return handleConnectorCall(
-      { runtime: this.options.runtime, run: (use) => this.run(use), call: (...input) => this.call(...input) },
+      {
+        runtime: this.options.runtime,
+        run: (use) => this.run(use),
+        call: (...input) => this.call(...input),
+        log: this.options.log,
+      },
       request,
       workerId,
     );
