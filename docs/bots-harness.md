@@ -2,6 +2,7 @@
 
 Aktualizacja (2026-11-23): na Windowsie istniejące rozmowy botów Codex przechodzą
 z twardych dowiązań na dowiązania symboliczne przy użyciu bieżącego loginu instancji.
+Na wszystkich systemach plikowa blokada zapisu loginu jest współdzielona z instancją.
 
 Status (2026-11-22): Claude, Codex i Grok otrzymują aktualną pamięć bota lub rozmowy również po wznowieniu
 sesji. Tury przekazujące wiadomości między botami mają oddzielne katalogi sesji i ograniczoną historię.
@@ -203,7 +204,7 @@ przechwycenie żądania CLI z zasianym katalogiem użytkownika. Nie zmieniamy HO
 sprawdzenia rzeczywistego logowania na macOS.
 
 Codex także na macOS odczytuje plik `auth.json` spod `CODEX_HOME`. Bot jawnie
-ustawia `cli_auth_credentials_store="file"` i dowiązuje symbolicznie ten plik z
+ustawia `cli_auth_credentials_store="file"` i dowiązuje symbolicznie ten plik oraz `auth.lock` z
 katalogu logowania wybranej instancji. Istniejąca rozmowa zachowuje sesję przy
 migracji dowiązania. Na Windowsie udostępnienie loginu botowi wymaga uprawnienia
 do tworzenia dowiązań symbolicznych, które zapewnia m.in. tryb dewelopera.

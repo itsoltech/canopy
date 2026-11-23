@@ -83,8 +83,10 @@ test("bot isolation keeps only the selected login and rebuilds pre-isolation ses
       const isolated = botSession(input, { ...options, linkLogin: false });
       expect(isolated.secureStorageDir).toBe(isolated.home);
     } else {
-      expect(readdirSync(session.home)).toEqual([login]);
-      expect(readlinkSync(join(session.home, login))).toBe(join(sourceHome, login));
+      expect(readdirSync(session.home).sort()).toEqual([login, "auth.lock"]);
+
+      for (const file of [login, "auth.lock"])
+        expect(readlinkSync(join(session.home, file))).toBe(join(sourceHome, file));
     }
 
     for (const configuration of [

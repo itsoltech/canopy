@@ -234,8 +234,7 @@ jobs:
       - name: Windows CLI launcher argument round-trip
         if: matrix.target == 'windows-x64'
         run: bun test ./packages/process-governor/src/windows-command.test.ts
-      - name: Windows Codex login migration
-        if: matrix.target == 'windows-x64'
+      - name: Codex device login recovery
         run: bun test ./apps/worker/src/providers/codex/home.test.ts ./apps/worker/src/bots/codex-login.test.ts
       - name: Windows worktree checkout and cleanup
         if: matrix.target == 'windows-x64'

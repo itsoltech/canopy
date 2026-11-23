@@ -6,6 +6,7 @@ import {
   userConfigurationProblem,
 } from "../providers/claude/configuration-homes.ts";
 import { providerHomeProblem } from "../providers/home-paths.ts";
+import { loginRevision } from "../providers/account-parser.ts";
 import type { ProfileStatus } from "../providers/profiles.ts";
 import { instanceShadowHome } from "./homes.ts";
 import type { DeviceHomes } from "./remote.ts";
@@ -63,6 +64,8 @@ export function inspectProfilePaths(
     return {
       ...status,
       loginHomePath,
+      ...(status.config.kind === "native" &&
+        (runtime?.ownLogin || linkDeviceLogin) && { codexLoginRevision: loginRevision("codex", loginHomePath) }),
       configurationHomePath: privateHome,
       sessionHomePath: privateHome,
       privateHomePath: privateHome,
