@@ -86,8 +86,11 @@
   <span class="pointer-events-none invisible absolute w-[1rem]" bind:clientWidth={rem}></span>
   <TopBar>
     <Crumb markOnly href={home}
-      >{#snippet mark()}<ProjectMark name={project?.name ?? "?"} kind={project?.kind} />{/snippet}{project?.name ??
-        "Project"}</Crumb
+      >{#snippet mark()}<ProjectMark
+          name={project?.name ?? "?"}
+          kind={project?.kind}
+          color={project?.color}
+        />{/snippet}{project?.name ?? "Project"}</Crumb
     >
     {#snippet workspace()}<WorkspaceTabs title="Starting thread" />{/snippet}
     {#snippet actions()}

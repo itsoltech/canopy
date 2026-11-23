@@ -102,7 +102,7 @@ export function consolidationCatalog(sql: Database) {
       id: number;
     }>`SELECT max(migration_id) AS id FROM public.schema_migrations`;
 
-    if (id < 207) return yield* Effect.fail(consolidationError("Both databases must have migration 0207 or newer."));
+    if (id < 208) return yield* Effect.fail(consolidationError("Both databases must have migration 0208 or newer."));
 
     const tables = yield* columns(sql);
 
@@ -149,7 +149,7 @@ export function consolidationCatalog(sql: Database) {
     );
 
     // Keep the table allowlist closed to columns and FKs introduced without a reviewed import policy.
-    if (signature !== "47740063dd98ad5d339fcb3ea386c111d0a4c45d5616fedb3564c652b53507b0")
+    if (signature !== "658d6efb184824d349031a6fca1daf2eeb9fdc2c87878b3de80b1192cee509f8")
       return yield* Effect.fail(
         consolidationError("The consolidation schema has unsupported columns or foreign keys."),
       );

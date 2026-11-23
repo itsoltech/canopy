@@ -1,5 +1,8 @@
 # API dla UI i architektura frontendu
 
+Status (2026-11-23): `SetProjectColor` zapisuje kolor własnego projektu lub przywraca
+automatyczny wybór. Klienci odczytują zmiany koloru z overview.
+
 Status (2026-11-23): web i desktop pozwalają zarządzać profilami Sandbox w ustawieniach i wybierać je w wątkach.
 Ikona w nagłówku sidebara ma bok 32 px przy domyślnej skali w każdym kanale.
 Nakładka Settings jest dostępna przed pierwszą odpowiedzią z gatewaya.
@@ -1507,6 +1510,12 @@ Obie operacje są dostępne również botom z tą samą walidacją; archiwizacja
 Właściciel archiwizuje projekt w Settings → Projects → projekt, sekcja **Archive** („Archive project…”,
 potwierdzenie „Archive project?” z liczbą głównych wątków; BFF `POST /api/projects/:projectId/archive`).
 Akcja jest tylko przy zwykłym projekcie tego komputera: nie przy scratch ani projekcie połączonego komputera.
+
+`SetProjectColor` (BFF: `PUT /api/projects/:projectId/color`) przyjmuje kolor
+szesnastkowy w formacie `#RGB` lub `#RRGGBB`. Pusty ciąg przywraca dobór z nazwy.
+Operacja obejmuje aktywne zwykłe projekty właściciela. `Project.color` przenosi zapisane
+`#rrggbb` w odpowiedzi, snapshotach i zmianach overview. Pusta wartość wskazuje kolor
+automatyczny, również w projektach zapisanych przed migracją.
 
 Sekcja Bots korzysta z tego samego `GatewayService` i uwierzytelnienia BFF. Osobny
 kontrakt `bots.proto` opisuje CRUD botów, rozmowy i ich stream, zgody oraz zdalne MCP.

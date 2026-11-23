@@ -21,6 +21,7 @@ export const groupLabels: Record<CommandGroup, string> = {
 /** What a thread row shows under its title: where it lives and runs, and when it last moved. */
 export interface ThreadMeta {
   readonly projectKind?: string | undefined;
+  readonly projectColor?: string | undefined;
   readonly projectName: string;
   readonly workerName: string;
   readonly provider?: ProviderKey | undefined;
@@ -68,6 +69,7 @@ export interface Command {
   /** Leading mark instead of the icon: a project's avatar (its name). */
   readonly projectName?: string | undefined;
   readonly projectKind?: string | undefined;
+  readonly projectColor?: string | undefined;
   readonly thread?: ThreadMeta | undefined;
 }
 

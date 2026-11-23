@@ -202,4 +202,5 @@ export const expectedSchemaMigrations = [
   "205_mobile_push_revocations",
   "206_mobile_push_managed_selection",
   "207_connector_no_project",
+  "208_project_color",
 ];

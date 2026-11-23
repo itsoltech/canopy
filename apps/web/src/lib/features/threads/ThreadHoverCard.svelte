@@ -86,7 +86,12 @@
     {/if}
     <ul role="list" class="grid gap-1.5">
       <SummaryRow>
-        {#snippet mark()}<ProjectMark name={project?.name ?? "?"} kind={project?.kind} class="size-4" />{/snippet}
+        {#snippet mark()}<ProjectMark
+            name={project?.name ?? "?"}
+            kind={project?.kind}
+            color={project?.color}
+            class="size-4"
+          />{/snippet}
         <span class="truncate">{project?.name ?? "Unknown project"}</span>
       </SummaryRow>
       {#if thread.nodeId && !away}

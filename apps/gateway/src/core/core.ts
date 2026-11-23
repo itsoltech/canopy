@@ -117,6 +117,7 @@ export class GatewayCore {
   declare listDirectory: CoreProjectsMethods["listDirectory"];
   declare createProject: CoreProjectsMethods["createProject"];
   declare renameProject: CoreProjectsMethods["renameProject"];
+  declare setProjectColor: CoreProjectsMethods["setProjectColor"];
   declare archiveProject: CoreProjectsMethods["archiveProject"];
   declare createWorkspace: CoreProjectsMethods["createWorkspace"];
   declare updateWorkspace: CoreProjectsMethods["updateWorkspace"];

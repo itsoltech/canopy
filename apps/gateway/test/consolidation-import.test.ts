@@ -99,9 +99,10 @@ async function seedRows(source: Fixture, target: Fixture, operationId: string) {
   await s`INSERT INTO gateway_relocation_fence(operation_id,state) VALUES(${operationId},'drained')`;
   await d`INSERT INTO gateway_relocation_fence(operation_id,state) VALUES(${operationId},'drained')`;
   await s`INSERT INTO users(id,email,display_name,role) VALUES(${foreignOwner},'other@example.test','Other','user')`;
-  await s`INSERT INTO projects(id,owner_user_id,name,slug) VALUES
-    (${sourceProject},${localOwner},'Source project','common'),(${foreignProject},${foreignOwner},'Foreign','foreign')`;
-  await d`INSERT INTO projects(id,owner_user_id,name,slug) VALUES (${targetProject},${centralOwner},'Target project','common')`;
+  await s`INSERT INTO projects(id,owner_user_id,name,slug,color) VALUES
+    (${sourceProject},${localOwner},'Source project','common','#3366ff'),(${foreignProject},${foreignOwner},'Foreign','foreign',NULL)`;
+  await d`INSERT INTO projects(id,owner_user_id,name,slug,color)
+    VALUES (${targetProject},${centralOwner},'Target project','common','#ff6633')`;
   await s`INSERT INTO config_items(owner_user_id,kind,global_id,local_id,revision)
     VALUES(${localOwner},'project',${sourceProjectGlobal},${sourceProject},1)`;
   await d`INSERT INTO config_items(owner_user_id,kind,global_id,local_id,revision)
@@ -523,6 +524,7 @@ test.skipIf(!dockerAvailable)(
       await checkResult(target, source, fixture, operationId);
 
       await using sql = new SQL({ url: target.url, max: 1 });
+      expect(await sql`SELECT color FROM projects WHERE id=${fixture.targetProject}`).toEqual([{ color: "#3366ff" }]);
       expect(await sql`SELECT settings->'sandboxProfile' AS profile FROM threads WHERE id=${fixture.archived}`).toEqual(
         [{ profile: sandboxJson }],
       );

@@ -2235,8 +2235,9 @@ zwykłe operacje.
 
 ## Konsolidacja dodatkowego komputera
 
-Status (2026-11-23): konsolidacja wymaga migracji 0207 po obu stronach.
-Import zachowuje zakres No project z zatwierdzonego konta konektora oraz
+Status (2026-11-23): konsolidacja wymaga migracji 0208 po obu stronach.
+Import zachowuje kolor projektu ze źródła lub celu zgodnie z decyzją przy konflikcie.
+Zachowuje też zakres No project z zatwierdzonego konta konektora oraz
 wiązania profili Sandbox, listę profili właściciela
 i skróty polityk zapisane w historii poleceń.
 
@@ -2536,7 +2537,7 @@ Stos PR-ów: `feat/linked-shared-config-N` ([etapy](#etapy-wspólnej-konfiguracj
 | instancja: ścieżka CLI, katalog domowy i izolowany | `provider_instances.runtime` | komputer | inny system plików |
 | instancja na workerze: włączenie, nadpisania (także klucz) | `provider_instance_workers` | worker | ustawienie maszyny; klucz workera nie opuszcza domu |
 | proxy: nazwa, rodzaj, adres, opcje Codexa, sekret | `proxies` → `secrets` | wspólne, sekret | wskazywane przez instancje |
-| projekt: nazwa, rodzaj, archiwizacja, tożsamość origin | `projects`, `project_workspaces.git_origin` | wspólne | jeden projekt na wszystkich komputerach |
+| projekt: nazwa, kolor, rodzaj, archiwizacja, tożsamość origin | `projects`, `project_workspaces.git_origin` | wspólne | jeden projekt na wszystkich komputerach |
 | ustawienia projektu | `project_settings` | wspólne bez `workspace_id` | jak domyślne ustawienia wątku |
 | workspace, worktree, katalogi | `project_workspaces`, `worktrees` | worker | katalog na jednej maszynie |
 | polityka worktree konta i projektu | `worktree_settings` bez workera | wspólne bez `location` | lokalizacja jest ścieżką komputera |
@@ -2867,7 +2868,10 @@ usunięty, przywrócenie `ownLogin` nie odzyska jego zawartości: wymagane jest 
 
 ### Projekty jako tożsamość
 
-Projekt jest rekordem wspólnym: nazwa, rodzaj, archiwizacja, ustawienia projektu (bez workspace'u) i pole
+Status (2026-11-23): własny kolor i przywrócenie automatycznego koloru synchronizują
+się jako niezależne pole wspólnego rekordu projektu.
+
+Projekt jest rekordem wspólnym: nazwa, kolor, rodzaj, archiwizacja, ustawienia projektu (bez workspace'u) i pole
 `origin`. Workspace'y są rekordami workera i należą do jego domu. Partner bez workspace'u projektu
 widzi go z workspace'ami innych komputerów. Picker workera wybiera wtedy komputer.
 

@@ -40,7 +40,7 @@
 
 {#snippet body()}
   {#if command.projectName}
-    <ProjectMark name={command.projectName} kind={command.projectKind} />
+    <ProjectMark name={command.projectName} kind={command.projectKind} color={command.projectColor} />
   {:else if command.icon}
     <Icon name={command.icon} class={paletteRowIconClass} />
   {:else if !thread}
@@ -55,7 +55,12 @@
     {#if command.detail}<span class="truncate text-xs/5 text-zinc-500 dark:text-zinc-400">{command.detail}</span>{/if}
     {#if thread}
       <span class="flex min-w-0 items-center gap-1.5 text-sm/5 text-zinc-500 sm:text-xs/4 dark:text-zinc-400">
-        <ProjectMark name={thread.projectName} kind={thread.projectKind} class="size-3.5 text-[0.5rem]/none" />
+        <ProjectMark
+          name={thread.projectName}
+          kind={thread.projectKind}
+          color={thread.projectColor}
+          class="size-3.5 text-[0.5rem]/none"
+        />
         <span class="min-w-0 truncate"
           >{thread.projectName}<span class="text-zinc-400 dark:text-zinc-500">{" · "}</span>{thread.workerName}</span
         >

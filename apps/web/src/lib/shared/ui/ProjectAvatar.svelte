@@ -1,11 +1,16 @@
 <script lang="ts">
   import type { ClassValue } from "svelte/elements";
-  import { projectMark } from "@canopy/ui/thread-row";
+  import { projectMark, projectMarkColors } from "@canopy/ui/thread-row";
 
-  /** Two-letter project mark with a colour derived from the name (stable across sessions). Decorative. */
-  let { name, class: className }: { name: string; class?: ClassValue } = $props();
+  /** Two-letter project mark with an optional custom color. Decorative. */
+  let {
+    name,
+    color = "",
+    class: className,
+  }: { name: string; color?: string | undefined; class?: ClassValue } = $props();
 
   const mark = $derived(projectMark(name));
+  const custom = $derived(projectMarkColors(color));
 
   // Literal utilities keep Tailwind's colour variables available after unused theme values are removed.
   const tones = {
@@ -24,8 +29,10 @@
   data-project-mark
   class={[
     "inline-grid size-4.5 shrink-0 place-items-center rounded-sm font-mono text-[0.5625rem]/none font-bold tracking-tight",
-    tones[mark.tone],
+    !custom && tones[mark.tone],
     className,
   ]}
+  style:background-color={custom?.fill}
+  style:color={custom?.text}
   aria-hidden="true">{mark.initials}</span
 >

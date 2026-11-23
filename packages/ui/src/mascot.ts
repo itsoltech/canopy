@@ -1,3 +1,4 @@
+import { hexLuminance, normalizeColor } from "./color.ts";
 /**
  * Generated bot mascots: a body shape, a colour and a pair of eyes, all derived from the bot id, so
  * a bot looks the same everywhere and on every device without storing anything. Drawn in a 40×40
@@ -134,30 +135,13 @@ export const defaultAppearance: BotAppearance = {
   color: "#f97316",
 };
 
-/** Accept CSS hex shorthand, but never arbitrary CSS or transparent colours. */
-export function normalizeColor(value: string): string | undefined {
-  const hex = value.trim().replace(/^#/, "");
-
-  if (/^[\da-f]{3}$/i.test(hex))
-    return `#${[...hex]
-      .map((c) => c + c)
-      .join("")
-      .toLowerCase()}`;
-
-  return /^[\da-f]{6}$/i.test(hex) ? `#${hex.toLowerCase()}` : undefined;
-}
+export { normalizeColor } from "./color.ts";
 
 /** WCAG sRGB relative luminance. Choose whichever eye colour has the higher contrast. */
 export function eyeColor(color: string): "#ffffff" | "#18181b" {
   const hex = normalizeColor(color) ?? defaultAppearance.color;
 
-  const channels = [1, 3, 5].map((i) => {
-    const c = Number.parseInt(hex.slice(i, i + 2), 16) / 255;
-
-    return c <= 0.04045 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4;
-  });
-
-  const luminance = channels[0]! * 0.2126 + channels[1]! * 0.7152 + channels[2]! * 0.0722;
+  const luminance = hexLuminance(hex);
 
   return 1.05 / (luminance + 0.05) >= (luminance + 0.05) / (0.00925 + 0.05) ? "#ffffff" : "#18181b";
 }

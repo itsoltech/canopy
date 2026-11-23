@@ -1,5 +1,6 @@
 import { fromJson, toJson } from "@bufbuild/protobuf";
 import { ui } from "@canopy/contracts";
+import { normalizeColor } from "@canopy/ui/color";
 import { Effect, Predicate, Result, Schema } from "effect";
 import type { SqlClient } from "effect/sql";
 import { equalValue, type ConfigRow } from "./persistence.ts";
@@ -45,6 +46,7 @@ export function applyProject(sql: SqlClient.SqlClient, owner: string, row: Confi
 
     const v = valuesOf(row.fields);
     const name = v["name"];
+    const color = v["color"];
 
     if (
       !Predicate.isString(name) ||
@@ -54,13 +56,15 @@ export function applyProject(sql: SqlClient.SqlClient, owner: string, row: Confi
       v["kind"] !== "project" ||
       !Predicate.isBoolean(v["archived"]) ||
       !Predicate.isString(v["origin"]) ||
-      (!!v["origin"] && !knownProjectOrigin(v["origin"]))
+      (!!v["origin"] && !knownProjectOrigin(v["origin"])) ||
+      (color !== undefined && (!Predicate.isString(color) || (color !== "" && normalizeColor(color) !== color)))
     )
       return void (row.unsupported = NOT_SUPPORTED);
-    yield* sql`INSERT INTO projects(id,owner_user_id,name,slug,kind,archived_at)
+    yield* sql`INSERT INTO projects(id,owner_user_id,name,slug,kind,archived_at,color)
       VALUES(${row.local_id}::uuid,${owner}::uuid,${name},${`project-${row.local_id}`},'project',
-        CASE WHEN ${v["archived"]} THEN now() ELSE NULL END)
+        CASE WHEN ${v["archived"]} THEN now() ELSE NULL END,${color ?? null})
       ON CONFLICT(id) DO UPDATE SET name=excluded.name,archived_at=excluded.archived_at,
+        color=COALESCE(excluded.color,projects.color),
         config_deleted=false,updated_at=now() WHERE projects.owner_user_id=${owner}::uuid AND projects.kind='project'`;
 
     if (v["archived"]) yield* cancelSchedules(sql, owner, row.local_id);

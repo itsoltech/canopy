@@ -57,7 +57,7 @@
   >
     {#snippet trigger(props)}
       <PillButton {...props} class="min-w-0 flex-1 pl-1.5" aria-label="Project: {selected?.name ?? 'none'}">
-        <ProjectMark name={selected?.name ?? "?"} kind={selected?.kind} />
+        <ProjectMark name={selected?.name ?? "?"} kind={selected?.kind} color={selected?.color} />
         <span class="truncate text-zinc-800 dark:text-zinc-200">{selected?.name ?? "Choose a project"}</span>
       </PillButton>
     {/snippet}
@@ -68,7 +68,7 @@
         status={overview.projectAway(project) ? "Offline" : undefined}
         selected={state.selected}
       >
-        {#snippet leading()}<ProjectMark name={project.name} kind={project.kind} />{/snippet}
+        {#snippet leading()}<ProjectMark name={project.name} kind={project.kind} color={project.color} />{/snippet}
       </PickerRow>
     {/snippet}
     {#snippet empty(query)}{query ? `No projects match “${query}”.` : "No projects yet."}{/snippet}

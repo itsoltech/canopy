@@ -1,14 +1,26 @@
 import { Text, View } from "react-native";
 import { palette } from "@canopy/ui";
-import { projectMark } from "@canopy/ui/thread-row";
+import { projectMark, projectMarkColors } from "@canopy/ui/thread-row";
 import { useColors } from "./theme";
 
-export function ProjectMark({ name, kind, size = 18 }: { name: string; kind?: string; size?: number }) {
+export function ProjectMark({
+  name,
+  color,
+  kind,
+  size = 18,
+}: {
+  name: string;
+  color: string;
+  kind?: string;
+  size?: number;
+}) {
   const c = useColors();
   const mark = projectMark(name);
-  const color = palette[mark.tone];
-  const fill = mark.tone === "zinc" ? c.projectNeutral.fill : color[mark.fill];
-  const text = mark.tone === "zinc" ? c.projectNeutral.text : color[c.dark ? mark.dark : mark.light];
+  const tone = palette[mark.tone];
+  const fill = mark.tone === "zinc" ? c.projectNeutral.fill : tone[mark.fill];
+  const text = mark.tone === "zinc" ? c.projectNeutral.text : tone[c.dark ? mark.dark : mark.light];
+  const custom = projectMarkColors(color);
+  const backgroundColor = custom?.fill ?? `${fill}${Math.round(mark.opacity * 255).toString(16)}`;
 
   return (
     <View
@@ -18,7 +30,7 @@ export function ProjectMark({ name, kind, size = 18 }: { name: string; kind?: st
         borderRadius: 2,
         alignItems: "center",
         justifyContent: "center",
-        backgroundColor: kind === "scratch" ? "transparent" : `${fill}${Math.round(mark.opacity * 255).toString(16)}`,
+        backgroundColor: kind === "scratch" ? "transparent" : backgroundColor,
         borderStyle: kind === "scratch" ? "dashed" : "solid",
         borderWidth: kind === "scratch" ? 1 : 0,
         borderColor: c.muted,
@@ -31,7 +43,7 @@ export function ProjectMark({ name, kind, size = 18 }: { name: string; kind?: st
             lineHeight: size / 2 + 2,
             fontWeight: "700",
             fontFamily: "monospace",
-            color: text,
+            color: custom?.text ?? text,
           }}
         >
           {mark.initials}

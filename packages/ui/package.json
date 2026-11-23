@@ -8,6 +8,7 @@
     "./icons": "./src/icons.ts",
     "./provider-icons": "./src/provider-icons.ts",
     "./streaming": "./src/streaming.ts",
+    "./color": "./src/color.ts",
     "./thread-row": "./src/thread-row.ts",
     "./canopy-tree": "./src/canopy-tree.ts",
     "./sidebar-art": "./src/sidebar-art.ts",

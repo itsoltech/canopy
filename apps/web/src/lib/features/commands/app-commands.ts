@@ -56,6 +56,7 @@ const threadCommand = (overview: OverviewState, thread: ui.Thread, suggested: bo
     thread: {
       projectName: project?.name ?? "Unknown project",
       projectKind: project?.kind,
+      projectColor: project?.color,
       workerName: worker?.name ?? "Unknown worker",
       provider: providerKeyOf(thread.provider),
       activityAt: activityOf(thread),
@@ -96,6 +97,7 @@ function threadCreationCommands(context: AppCommandContext, current: ui.Project 
           group: "actions",
           projectName: project.name,
           projectKind: project.kind,
+          projectColor: project.color,
           keywords: project.aliases.join(" "),
           href: newThreadHref(project),
           checked: project.id === current?.id,
@@ -158,6 +160,7 @@ const projectCommands = (overview: OverviewState, threads: readonly ui.Thread[])
     group: "projects",
     projectName: project.name,
     projectKind: project.kind,
+    projectColor: project.color,
     keywords: `project ${project.aliases.join(" ")}`,
     suggested: false,
     placeholder: `Search ${project.name}…`,

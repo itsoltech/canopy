@@ -16,6 +16,7 @@ export function projectsHandlers(
   | "listDirectory"
   | "createProject"
   | "renameProject"
+  | "setProjectColor"
   | "archiveProject"
   | "createWorkspace"
   | "addProject"
@@ -38,6 +39,13 @@ export function projectsHandlers(
     renameProject: (request) =>
       guard(async () =>
         create(ui.CreateProjectResponseSchema, { project: await core.renameProject(request.projectId, request.name) }),
+      ),
+
+    setProjectColor: (request) =>
+      guard(async () =>
+        create(ui.CreateProjectResponseSchema, {
+          project: await core.setProjectColor(request.projectId, request.color),
+        }),
       ),
 
     archiveProject: (request) =>

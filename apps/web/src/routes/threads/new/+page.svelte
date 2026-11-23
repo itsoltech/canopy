@@ -323,6 +323,7 @@
       >{#snippet mark()}<ProjectMark
           name={project?.name ?? "No project"}
           kind={project?.kind}
+          color={project?.color}
         />{/snippet}{project?.name ?? "No project"}</Crumb
     >
     <Crumb>New thread</Crumb>

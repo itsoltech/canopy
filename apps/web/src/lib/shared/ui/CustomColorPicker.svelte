@@ -1,10 +1,10 @@
 <script lang="ts">
   import { untrack } from "svelte";
   import type { ClassValue } from "svelte/elements";
-  import Field from "#lib/shared/ui/Field.svelte";
-  import Input from "#lib/shared/ui/Input.svelte";
-  import { normalizeColor } from "../mascot.ts";
-  import { hexToHsv, hsvToHex } from "./color.ts";
+  import Field from "./Field.svelte";
+  import Input from "./Input.svelte";
+  import { normalizeColor } from "@canopy/ui/color";
+  import { hexToHsv, hsvToHex } from "./color-channels.ts";
   import ColorChannel from "./ColorChannel.svelte";
 
   let {
