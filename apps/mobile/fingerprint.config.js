@@ -19,10 +19,14 @@ module.exports = {
         ]);
     }
 
-    // This field describes JS, never native code. Keep every other extra/config field in the hash.
     if (source.type === "contents" && source.id === "expoConfig" && chunk) {
       const config = JSON.parse(chunk.toString());
+      // This version describes the JS bundle.
       delete config.extra?.canopyVersion;
+
+      // Expo hashes the project directory and layer bytes as an iOS-only external source.
+      // Drop the duplicated path from the config hash shared with Android.
+      if (config.ios?.icon?.endsWith?.(".icon")) delete config.ios.icon;
 
       return JSON.stringify(config);
     }

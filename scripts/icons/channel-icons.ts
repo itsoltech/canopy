@@ -31,7 +31,8 @@ for (const channel of ["stable", "beta", "nightly", "development"] as const) {
       .toFile(join(directory, `icon-${size}.png`));
 
   await writeFile(join(directory, "icon.ico"), await ico(master));
-  await writeFile(join(directory, "icon.icns"), await icns(master));
+
+  if (channel === "development") await writeFile(join(directory, "icon.icns"), await icns(master));
 
   const native = await mobileArtwork(master);
 

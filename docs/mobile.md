@@ -1,7 +1,8 @@
 # Canopy na iOS i Android
 
 Status: opis zaimplementowanego kodu (2026-11-23), w tym czterech wariantów ikony Canopy
-na ekranie głównym telefonu, podczas parowania i w nagłówku sidebara. Znak wodny
+na ekranie głównym telefonu, podczas parowania i w nagłówku sidebara. Wydania iOS
+korzystają z tych samych projektów Icon Composer co macOS. Znak wodny
 kanału zaczyna się poniżej górnego bezpiecznego marginesu i zanika przed listą
 wątków i botów. Dzienny ping użycia ma przełącznik
 prywatności i pomija wysyłkę offline. Settings → Appearance
@@ -374,7 +375,10 @@ Jeśli pole jest puste lub nieznane, interfejs sprawdza kanał zapisany w binarc
 przez Expo Updates. Gdy także on nie wskazuje znanego wariantu, aplikacja dobiera
 grafikę według wersji działającego bundla.
 
-Ikona iOS jest pełnym kwadratem RGB PNG 1024 px. Zaokrąglenie nakłada system.
+Na iOS Stable, Beta i Nightly używają [projektów Icon Composer](../design/brand/apple),
+tych samych co macOS. Expo przekazuje projekt przez `ios.icon`. Xcode 26 lub nowszy
+kompiluje ikonę z wariantami systemowymi oraz reprezentacjami dla starszego iOS.
+Dev używa pełnego kafelka PNG 1024 px, który iOS maskuje przy wyświetlaniu.
 Android dostaje osobno tło, grafikę pierwszego planu i sylwetkę drzewa dla ikon
 tematycznych Androida 13+. Drzewo mieści się w bezpiecznym obszarze masek
 launchera. Splash pokazuje je na kolorze kafelka kanału w obu schematach.
@@ -1083,12 +1087,15 @@ nowszym kompletnym OTA dla jego runtime. Ocenia zmiany w `apps/mobile`, pakietac
 `contracts`, `domain`, `ui`, głównym `package.json`, `bun.lock`, workflow i skryptach
 wydania. W `apps/web/static/channels` uwzględnia kafelki `icon-256.png` dołączane
 do bundla oraz ikonę Expo, warstwy adaptacyjne i splash publikowanego kanału.
+Uwzględnia także projekt `.icon` publikowanego kanału wraz z warstwą SVG.
 Brak zmian w tych plikach pomija wydanie mobilne. Brak znanego punktu odniesienia
 wymusza ocenę runtime.
 
 `expo-updates` ma `runtimeVersion: { policy: "fingerprint" }`. SDK 58 używa presetu `balanced`
 (`fingerprint.config.js`): wersja marketingowa i numer buildu nie zmieniają runtime, ale SDK,
 zależności natywne, konfiguracja natywna i źródła lokalnych modułów Swift/Kotlin już tak.
+Expo hashuje zawartość projektu `.icon` wyłącznie dla iOS. Hook usuwa powtórzoną
+ścieżkę do niego z hasha wspólnej konfiguracji.
 Na Androidzie do hasha warstwy pierwszego planu wchodzą także bajty ikony
 monochromatycznej danego kanału oraz wspólnej ikony powiadomień. Zmiana
 którejkolwiek z tych masek zmienia tylko runtime Androida. JS, teksty i zgodne

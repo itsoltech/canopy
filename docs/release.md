@@ -3,8 +3,9 @@
 Status: opis zaimplementowanego workflow (2026-11-23). Buildy publikują wykazy licencji zależności. Automat sprawdza promocje co godzinę.
 Web, Desktop i mobile używają ikony danego wydania. Lokalny Dev ma własny niebieski wariant.
 Drzewo kanału w tle sidebara zanika przy wyszukiwarce.
-Natywne CI na macOS sprawdza odczyt małych reprezentacji ikon aplikacji i nazwę
-wyświetlaną przez Finder. Przed publikacją Release sprawdza nazwę i grafikę także w podpisanej paczce.
+Natywne CI na macOS sprawdza odczyt małych reprezentacji ikony Dev i nazwę
+wyświetlaną przez Finder. Wydania macOS i iOS kompilują ikony z projektów Icon Composer.
+Przed publikacją Release sprawdza nazwę i grafikę także w podpisanej paczce.
 Release buduje i publikuje osobny obraz `canopy-push-relay` dla rewizji zawierających ten cel.
 Pakowanie Desktop i generowanie fingerprintu Expo używają poprawionego `minimatch`.
 Smoke Desktop czeka na zapis trasy Network access przed restartem workera podczas parowania.
@@ -224,8 +225,10 @@ nadal publikują trzy kanały. Gałąź `dev` publikuje Nightly.
 `apps/web/static/channels/{stable,beta,nightly,development}` i domyślne ikony Stable
 w katalogu `static`. Opcja `--previews <katalog>` zapisuje plansze, małe rozmiary
 na jasnym i ciemnym pasku oraz podglądy pod maskami iOS i Androida.
-Repozytorium zawiera gotowe SVG, PNG, ICO, ICNS, ekrany startowe i warstwy ikon
-adaptacyjnych. Natywne CI na macOS sprawdza odczyt ICNS w 16 i 32 pt w skali 1× i 2×.
+Repozytorium zawiera gotowe SVG, PNG, ICO, ekrany startowe i warstwy ikon
+adaptacyjnych. Wydania macOS i iOS kompilują [projekty Icon Composer](../design/brand/apple)
+za pomocą Xcode 26 lub nowszego. Build macOS Dev ma własny ICNS, którego reprezentacje
+16 i 32 pt w skali 1× i 2× sprawdza natywne CI.
 
 Web wybiera ikonę karty i PWA według wersji gatewaya z `GetClientCapabilities`
 (cache 5 s, timeout 750 ms). Przy starcie BFF korzysta z `CANOPY_CHANNEL` albo z wersji

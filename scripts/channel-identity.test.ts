@@ -56,19 +56,33 @@ test("channel presentation preserves Electron installation, crypto, data and upd
     expect(identity.artifactPrefix).toBe("Canopy");
     expect(presentation.mac.extendInfo.CFBundleName).toBe("Canopy");
     expect(presentation.mac.extendInfo.CFBundleDisplayName).toBe(info.productFilename);
-    const artwork = readFileSync(resolve(desktopDirectory, presentation.mac.icon));
-    expect(presentation.mac.extendInfo.CFBundleIconFile).toBe(`canopy-${Bun.SHA256.hash(artwork, "hex")}.icns`);
+    expect(presentation.mac.extendInfo.CFBundleIconFile).toMatch(/^canopy-[a-f0-9]{64}\.icns$/);
     expect(presentation.linux.desktop.entry).toEqual({ Name: names[channel], StartupWMClass: "Canopy" });
     expect(presentation.nsis.shortcutName).toBe(names[channel]);
     expect(presentation.nsis.uninstallDisplayName).toBe(`${names[channel]} \${version}`);
 
-    for (const icon of [presentation.linux.icon, presentation.mac.icon, presentation.win.icon]) {
+    for (const icon of [presentation.linux.icon, presentation.win.icon]) {
       expect(icon).toStartWith(`../web/static/channels/${channel}/`);
       expect(existsSync(resolve(desktopDirectory, icon))).toBe(true);
     }
 
     const iconDirectory = join(root, "apps/web/static/channels", channel);
     const master = channel === "development" ? "dev" : channel;
+    const macIcon = resolve(desktopDirectory, presentation.mac.icon);
+
+    if (channel === "development") {
+      expect(macIcon).toBe(join(iconDirectory, "icon.icns"));
+    } else {
+      expect(macIcon).toBe(join(root, `design/brand/apple/canopy-${channel}.icon`));
+      const artwork = readFileSync(join(macIcon, `Assets/${channel}.svg`), "utf8");
+      expect(artwork).toBe(
+        readFileSync(join(iconDirectory, "icon.svg"), "utf8").replace(
+          'width="128" height="128" viewBox',
+          'width="1024" height="1024" viewBox',
+        ),
+      );
+    }
+
     expect(readFileSync(join(iconDirectory, "icon.svg"), "utf8")).toBe(
       readFileSync(join(root, `design/brand/app-icons/canopy-${master}.svg`), "utf8"),
     );
@@ -130,36 +144,33 @@ function unpackIcnsRgb(data: Buffer, pixelCount: number) {
   return planes;
 }
 
-test("macOS channel assets preserve the artwork in bundle-safe small icon representations", async () => {
-  for (const channel of channels) {
-    const directory = join(root, "apps/web/static/channels", channel);
-    const { mac } = channelConfiguration(desktopIdentity(channel));
-    const entries = icnsEntries(readFileSync(resolve(desktopDirectory, mac.icon)));
+test("the Dev ICNS preserves the artwork in bundle-safe small icon representations", async () => {
+  const directory = join(root, "apps/web/static/channels/development");
+  const entries = icnsEntries(readFileSync(join(directory, "icon.icns")));
 
-    for (const type of ["icp4", "icp5", "icp6"]) expect(entries.has(type)).toBe(false);
+  for (const type of ["icp4", "icp5", "icp6"]) expect(entries.has(type)).toBe(false);
 
-    for (const [rgbType, maskType, size] of [
-      ["is32", "s8mk", 16],
-      ["il32", "l8mk", 32],
-    ] as const) {
-      const rgba = await sharp(join(directory, `icon-${size}.png`))
-        .ensureAlpha()
-        .raw()
-        .toBuffer();
+  for (const [rgbType, maskType, size] of [
+    ["is32", "s8mk", 16],
+    ["il32", "l8mk", 32],
+  ] as const) {
+    const rgba = await sharp(join(directory, `icon-${size}.png`))
+      .ensureAlpha()
+      .raw()
+      .toBuffer();
 
-      const pixelCount = size * size;
-      const planes = unpackIcnsRgb(entries.get(rgbType)!, pixelCount);
-      const channels = [0, 1, 2, 3].map((index) => rgba.filter((_, offset) => offset % 4 === index));
-      expect(planes.equals(Buffer.concat(channels.slice(0, 3)))).toBe(true);
-      expect(entries.get(maskType)?.equals(channels[3]!)).toBe(true);
-    }
+    const pixelCount = size * size;
+    const planes = unpackIcnsRgb(entries.get(rgbType)!, pixelCount);
+    const channels = [0, 1, 2, 3].map((index) => rgba.filter((_, offset) => offset % 4 === index));
+    expect(planes.equals(Buffer.concat(channels.slice(0, 3)))).toBe(true);
+    expect(entries.get(maskType)?.equals(channels[3]!)).toBe(true);
+  }
 
-    for (const [type, size] of [
-      ["ic11", 32],
-      ["ic12", 64],
-    ] as const) {
-      expect(entries.get(type)?.equals(readFileSync(join(directory, `icon-${size}.png`)))).toBe(true);
-    }
+  for (const [type, size] of [
+    ["ic11", 32],
+    ["ic12", 64],
+  ] as const) {
+    expect(entries.get(type)?.equals(readFileSync(join(directory, `icon-${size}.png`)))).toBe(true);
   }
 });
 
@@ -194,6 +205,9 @@ test("EAS profiles resolve actual Expo config with channel assets and unchanged 
     expect(config.name).toBe(names[channel]);
     expect(config.extra?.["canopyChannel"]).toBe(channel);
     expect(config.icon).toBe(`../web/static/channels/${channel}/expo-icon.png`);
+    expect(config.ios?.icon).toBe(
+      channel === "development" ? undefined : `../../design/brand/apple/canopy-${channel}.icon`,
+    );
     expect(config.ios?.bundleIdentifier).toBe("tech.itsol.canopy-remote");
     expect(config.android?.package).toBe("tech.itsol.canopy_remote");
     expect(config.scheme).toBe("canopy");

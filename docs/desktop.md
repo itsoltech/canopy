@@ -9,9 +9,9 @@ udostępniają licencje dołączonych komponentów. Powłoka ładowania
 korzysta z wyglądu tej instalacji także przy niedostępnym gatewayu.
 Ustawienia Desktopu i konfiguracja połączenia są dostępne także przed
 odebraniem pierwszego stanu z gatewaya.
-Na macOS Finder odczytuje nazwę aplikacji dla danego kanału z `InfoPlist.strings`, a przy starcie
-aplikacja ustawia w Docku ikonę zainstalowanego wydania.
-Ikona aplikacji macOS zawiera małe reprezentacje 1× i 2× zgodne z odczytem z bundla.
+Na macOS Finder odczytuje nazwę aplikacji dla danego kanału z `InfoPlist.strings`.
+Finder i Dock renderują ikony Stable, Beta i Nightly z katalogu zasobów skompilowanego
+z projektów Icon Composer. Build Dev używa własnego ICNS z małymi reprezentacjami 1× i 2×.
 Desktop w trybie lokalnym aktywuje relay Canopy po weryfikacji sparowanego
 telefonu. Od 2026-11-23 oba tryby Desktopu pozwalają wybrać relay Canopy lub
 skonfigurować własny na bieżącym gatewayu przez **Settings → Network access**.
@@ -715,6 +715,7 @@ Skrypt pakowania w razie zmiany kanału przebudowuje powłokę i zachowuje
 zbudowany runtime. Ikony klienta web trafiają do paczki razem z plikami
 skompresowanymi przez adapter SvelteKit, zgodnie z manifestem tego buildu.
 Do zasobów Electrona skrypt kopiuje PNG wybranego kanału.
+Pakowanie wydań na macOS wymaga aktywnego Xcode 26 lub nowszego, aby skompilować ikony.
 
 | Cel | Host / przykład runnera GitHub Actions | Pakiet PG | Instalator | Weryfikacja tutaj |
 | --- | --- | --- | --- | --- |
@@ -863,9 +864,12 @@ drzewa na niebieskiej siatce. [Ikony aplikacji](../design/brand/README.md#ikony-
 
 Lokalne uruchomienie Electron czyta PNG z `apps/web/static/channels/<kanał>/`
 (dla Dev: `development`). Instalator umieszcza wybrany PNG w zasobach aplikacji
-jako `icon.png` na potrzeby okien i zasobnika. Finder pobiera ikonę z ICNS
-w bundlu aplikacji. Przy każdym starcie na macOS Electron ustawia w Docku
-ikonę z PNG kanału, także po instalacji aktualizacji.
+jako `icon.png` na potrzeby okien i zasobnika. Dla Stable, Beta i Nightly
+Electron Builder kompiluje odpowiedni projekt `.icon` do `Assets.car` oraz ICNS.
+macOS używa katalogu zasobów w Finderze i Docku, a na starszych systemach odczytuje ICNS.
+Nazwa pliku ICNS zależy od zawartości projektu, aby po aktualizacji Finder mógł odczytać nową ikonę.
+Spakowany Dev korzysta z własnego ICNS w Finderze. Electron ustawia ikonę Docka z PNG
+w Dev i przy uruchomieniu ze źródeł.
 Ekran startu otrzymuje ścieżkę ikony powłoki przez preload. Sidebar oznacza
 wersję uruchomionego web buildu. Sekcja App updates pokazuje wersję i kanał
 aktualizacji samego Electrona także w trybie Remote, gdy gateway ma inną wersję.
@@ -878,7 +882,7 @@ Stable, Beta i Nightly; dla lokalnego Dev domyślnym wyborem jest Stable.
 | Windows | Nazwy skrótów NSIS, `uninstallDisplayName`, ikona ICO i tytuł okna | `productName`, katalog instalacji, appId/GUID, executable, klucze rejestru instalatora i cache aktualizacji |
 | Linux | `Name` wpisu desktop, PNG i tytuł okna | `canopy.desktop`, `StartupWMClass`, nazwa pakietu deb, katalog instalacji i wzorzec `artifactName` |
 
-Dla 16 i 32 pt w skali 1× ICNS używa osobnych danych RGB i maski alfa, a w skali 2×
+Dla 16 i 32 pt w skali 1× ICNS kanału Dev używa osobnych danych RGB i maski alfa, a w skali 2×
 używa PNG. Zapobiega to zniekształceniu małych ikon, które macOS może pokazać przy
 odczycie PNG zapisanych w blokach `icp4` i `icp5` z bundla aplikacji. Weryfikacja
 konkretnego launchera wymaga sprawdzenia zainstalowanej aplikacji na macOS.

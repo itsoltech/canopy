@@ -709,6 +709,7 @@ jobs:
         with:
           build-runtime: "false"
         env:
+          DEVELOPER_DIR: ${{ matrix.target == 'darwin-arm64' && '/Applications/Xcode_26.3.app/Contents/Developer' || '' }}
           CANOPY_VERSION: ${{ needs.plan.outputs.version }}
           CANOPY_CHANNEL: ${{ needs.plan.outputs.channel }}
           AZURE_TENANT_ID: ${{ matrix.target == 'windows-x64' && secrets.AZURE_TENANT_ID || '' }}

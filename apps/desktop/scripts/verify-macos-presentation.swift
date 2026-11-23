@@ -18,11 +18,26 @@ guard finderName == expectedName || finderName == "\(expectedName).app" else {
     fatalError("Finder resolved '\(finderName)' for \(application.path), expected '\(expectedName)'")
 }
 
-for (file, source) in [(iconFile, "icon.icns"), ("icon.png", "icon-512.png")] {
-    let icon = resources.appendingPathComponent(file)
-    let expected = try Data(contentsOf: artwork.appendingPathComponent(source))
+let icon = resources.appendingPathComponent(iconFile)
+guard NSImage(contentsOf: icon)?.isValid == true else {
+    fatalError("Unreadable ICNS at \(icon.path)")
+}
+
+if artwork.lastPathComponent == "development" {
+    let expected = try Data(contentsOf: artwork.appendingPathComponent("icon.icns"))
     let installed = try Data(contentsOf: icon)
-    guard installed == expected, NSImage(contentsOf: icon)?.isValid == true else {
-        fatalError("Incorrect or unreadable channel artwork at \(icon.path)")
+    guard installed == expected else { fatalError("Incorrect Dev artwork at \(icon.path)") }
+} else {
+    let catalog = resources.appendingPathComponent("Assets.car")
+    let data = try Data(contentsOf: catalog, options: .mappedIfSafe)
+    guard bundle.infoDictionary?["CFBundleIconName"] as? String == "Icon", !data.isEmpty else {
+        fatalError("Missing Icon Composer catalog at \(catalog.path)")
     }
+}
+
+let png = resources.appendingPathComponent("icon.png")
+let installed = try Data(contentsOf: png)
+let expected = try Data(contentsOf: artwork.appendingPathComponent("icon-512.png"))
+guard installed == expected, NSImage(contentsOf: png)?.isValid == true else {
+    fatalError("Incorrect or unreadable channel artwork at \(png.path)")
 }
