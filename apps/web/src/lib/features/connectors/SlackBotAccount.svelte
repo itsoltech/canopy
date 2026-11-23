@@ -117,23 +117,30 @@
   }
 </script>
 
-<Disclosure bind:open class="px-3" summaryClass="min-h-14 items-center py-2 text-base/5 sm:text-sm/5">
+<Disclosure
+  bind:open
+  align="center"
+  summaryClass="min-h-12 px-3 py-2 text-base/5 hover:bg-zinc-950/3 focus-visible:-outline-offset-4 sm:text-sm/5 dark:hover:bg-white/4"
+>
   {#snippet summary()}
     <span
-      class="grid min-w-0 grid-cols-[auto_minmax(0,1fr)] items-center gap-x-3 gap-y-1 @min-[36rem]:grid-cols-[auto_minmax(0,1fr)_minmax(0,12rem)]"
+      class="grid min-w-0 grid-cols-[auto_minmax(0,1fr)] items-center gap-x-3 gap-y-0.5 @min-[24rem]:grid-cols-[auto_minmax(0,1fr)_auto]"
     >
-      <span class="row-span-2 @min-[36rem]:row-span-1"><ConnectorIcon type="slack" /></span>
+      <ConnectorIcon type="slack" class="row-span-2 @min-[24rem]:row-span-1" />
       <span class="truncate font-medium" title={account.name}>{account.name}</span>
-      <span role="status" class="col-start-2 flex min-w-0 items-center gap-1.5 text-sm/5 @min-[36rem]:col-start-auto">
+      <span
+        role="status"
+        class="col-start-2 flex min-w-0 items-center gap-1.5 text-sm/5 text-zinc-600 @min-[24rem]:col-start-auto dark:text-zinc-300"
+      >
         <StatusDot
           tone={status === "Connected" ? "emerald" : account.status === "error" ? "rose" : "amber"}
           active={account.enabled && (account.status === "connecting" || account.status === "retrying")}
         />
-        <span>{status}</span>
+        <span class="wrap-anywhere">{status}</span>
       </span>
     </span>
   {/snippet}
-  <div class="grid min-w-0 gap-3 border-t border-zinc-950/5 py-3 text-base/6 sm:text-sm/6 dark:border-white/8">
+  <div class="grid min-w-0 gap-3 border-t border-zinc-950/5 p-3 text-base/6 sm:text-sm/6 dark:border-white/8">
     {#if orphaned}
       <Alert>Link a Slack User account from the same app and workspace to restore these routes.</Alert>
     {:else if userUnavailable}

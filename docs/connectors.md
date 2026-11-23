@@ -3,6 +3,8 @@
 Projekt i wdrożenie: 2026-11-02. Zakres: konta zdalnych serwerów MCP,
 OAuth w gateway, dostęp wybranych projektów i botów oraz jeden kanał wykonania.
 Status (2026-11-23): każde konto ma niezależny, domyślnie wyłączony zakres No project.
+Aktualizacja (2026-11-23): lista kont Slack Bot w web/desktop wyrównuje status do
+prawej krawędzi w szerokim widoku i pokazuje go pod nazwą konta w wąskim.
 Aktualizacja (2026-11-23): transport OAuth przechodzi na kolejny zweryfikowany
 adres po błędzie zestawiania TCP. Log i eksport diagnostyczny opisują błędy sieci OAuth.
 Aktualizacja (2026-11-23): logowanie MCP obsługuje publiczny dokument metadanych
