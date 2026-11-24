@@ -97,6 +97,7 @@ export function antigravityLaunch(options: LaunchOptions) {
     }
 
     const launch: AcpOptions = {
+      agentName: "Antigravity",
       executable: profile.runtime.executablePath || options.executable || "agy",
       args: [
         "acp",

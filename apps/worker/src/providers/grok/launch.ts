@@ -254,6 +254,7 @@ export function grokLaunch(options: {
   return {
     home,
     options: {
+      agentName: "Grok",
       executable: runtime.executablePath || options.executable || "grok",
       args,
       env,

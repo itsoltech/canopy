@@ -33,6 +33,8 @@ interface Pending {
 export interface AcpOptions {
   executable: string;
   args: readonly string[];
+  /** Provider display name for errors from the CLI process. */
+  agentName?: string;
   cwd?: string;
   env?: NodeJS.ProcessEnv;
   callbacks?: ClientCallbacks;
@@ -51,6 +53,7 @@ export interface AcpOptions {
 export class AcpClient {
   readonly #process: ChildProcessWithoutNullStreams;
   readonly #options: AcpOptions;
+  readonly #agentName: string;
   readonly #pending = new Map<number, Pending>();
   readonly #callbacks = new AbortController();
   readonly #streams = new Map<string, EventStream>();
@@ -68,18 +71,19 @@ export class AcpClient {
 
   constructor(options: AcpOptions) {
     this.#options = options;
+    this.#agentName = options.agentName ?? "ACP agent";
     this.#process = spawnAgent(options);
     this.#exited = new Promise((resolve) => {
       this.#process.once("close", (code, signal) => {
-        this.#fail(new AcpError(`ACP agent exited (${signal ?? code})`));
+        this.#fail(new AcpError(`${this.#agentName} exited (${signal ?? code})`));
         this.#kill("SIGKILL");
         this.#reaped = true;
         clearTimeout(this.#killTimer);
         resolve();
       });
     });
-    this.#process.on("error", () => this.#fail(new AcpError("Cannot start ACP agent CLI")));
-    this.#process.stdin.on("error", () => this.#fail(new AcpError("ACP agent stdin closed")));
+    this.#process.on("error", () => this.#fail(new AcpError(`Cannot start ${this.#agentName} CLI`)));
+    this.#process.stdin.on("error", () => this.#fail(new AcpError(`${this.#agentName} stdin closed`)));
     this.#process.stderr.setEncoding("utf8");
     // Keep a bounded raw tail, redact only when read: a secret can span data chunks.
     this.#process.stderr.on("data", (chunk: string) => {
@@ -312,7 +316,7 @@ export class AcpClient {
 
           // The write callback waits for flushing; serializing keeps stdin buffering bounded.
           this.#process.stdin.write(JSON.stringify({ jsonrpc: "2.0", ...message }) + "\n", (error) =>
-            error ? reject(new AcpError("ACP write failed")) : resolve(),
+            error ? reject(new AcpError(`${this.#agentName} write failed`)) : resolve(),
           );
         }),
     );
@@ -343,7 +347,7 @@ export class AcpClient {
           throw new AcpError("ACP frame limit exceeded");
       }
 
-      this.#fail(new AcpError(buffer.trim() ? "Truncated ACP frame" : "ACP agent stdout closed"));
+      this.#fail(new AcpError(buffer.trim() ? "Truncated ACP frame" : `${this.#agentName} stdout closed`));
     } catch {
       this.#fail(new AcpError("Invalid or closed ACP transport"));
     }

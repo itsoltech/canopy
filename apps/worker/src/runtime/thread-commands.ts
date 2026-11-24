@@ -224,13 +224,19 @@ export class ThreadCommands {
     );
   }
 
+  #checkSteerProvider(threadId: string): void {
+    for (const { runtime } of this.ctx.state.acp.values()) {
+      if (runtime.running(threadId))
+        throw new CommandError("STEER_REJECTED", `${runtime.provider.name} accepts new input on the next turn`, true);
+    }
+  }
+
   async steerTurn(kind: Extract<Command["kind"], { case: "steerTurn" }>, commandId: string): Promise<CommandOutput> {
     const { threadId, turnId, inputId, input: rawInput, serviceTier } = kind.value;
 
     if (!rawInput || !inputId) throw new CommandError("INVALID_COMMAND", "input or input_id missing", true);
 
-    if ([...this.ctx.state.acp.values()].some((handle) => handle.runtime.running(threadId)))
-      throw new CommandError("STEER_REJECTED", "This agent accepts new input on the next turn", true);
+    this.#checkSteerProvider(threadId);
 
     if (!this.ctx.state.running.has(`${threadId}/${turnId}`))
       throw new CommandError("STEER_NOT_RUNNING", "the turn is not running on this worker", true);
@@ -242,6 +248,7 @@ export class ThreadCommands {
     // File delivery can outlive this turn. Never steer a newer turn with this message.
     if (!this.ctx.state.running.has(`${threadId}/${turnId}`))
       throw new CommandError("STEER_NOT_RUNNING", "the turn ended while its files were arriving", true);
+    this.#checkSteerProvider(threadId);
 
     // Like InterruptTurn: the runtime with the running turn takes it.
     const claude = [...this.ctx.state.claude].find(([, handle]) =>
@@ -253,9 +260,7 @@ export class ThreadCommands {
         Effect.catchTag("SteerError", (error) => Effect.die(new CommandError(error.code, error.message, true))),
       );
 
-    if ([...this.ctx.state.acp.values()].some((handle) => handle.runtime.running(threadId))) {
-      throw new CommandError("STEER_REJECTED", "This agent accepts new input on the next turn", true);
-    } else if (claude) {
+    if (claude) {
       await this.ctx.ops.runClaude(
         (threads) => steer(threads.steer(threadId, turnId, inputId, input, { serviceTier })),
         claude[0],
