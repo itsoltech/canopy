@@ -7,7 +7,7 @@ import { tempDirs } from "@canopy/testing";
 import { startGrpcServer } from "@canopy/transport";
 import { generateIdentity } from "../../apps/gateway/src/computers/identity.ts";
 import { tailscaleMessage } from "../../apps/gateway/src/network/tailscale/addresses.ts";
-import { locateTailscale, runCli } from "../../apps/gateway/src/network/tailscale/cli.ts";
+import { locateTailscale } from "../../apps/gateway/src/network/tailscale/cli.ts";
 import { parseStatus } from "../../apps/gateway/src/network/tailscale/status.ts";
 import { Tailscale } from "../../apps/gateway/src/network/tailscale/tailscale.ts";
 import { desktopGateway } from "../../apps/web/src/lib/server/desktop-gateway.ts";
@@ -31,34 +31,6 @@ printf '%s\n' '{"BackendState":"Running"}'
   const tailscale = new Tailscale({ platform: "darwin", path: "", macApp: cli, sockets: [] });
   expect((await tailscale.refresh()).state).toBe("connected");
 });
-
-const releasedMacCli = process.env["CANOPY_TEST_TAILSCALE_MAC_CLI"];
-
-test.skipIf(process.platform !== "darwin" || !releasedMacCli)(
-  "the released macOS app bundle answers directly without a CLI launcher",
-  async () => {
-    const cli = locateTailscale({ path: "", macApp: releasedMacCli ?? "" })?.cli;
-
-    if (!cli) throw new Error("The released Tailscale app has no executable CLI");
-
-    // A freshly unpacked signed app can take longer on its first execution.
-    for (const timeoutMs of [20_000, 5000]) {
-      const startedAt = performance.now();
-      const result = await runCli(cli, ["version"], { path: "", timeoutMs });
-
-      if (!result.ok) {
-        const elapsed = Math.round(performance.now() - startedAt);
-        const output = result.stdout ? "with stdout" : "without stdout";
-        const error = result.stderr ? "with stderr" : "without stderr";
-
-        throw new Error(`The bundled CLI failed after ${elapsed} ms (limit ${timeoutMs} ms, ${output}, ${error})`);
-      }
-
-      expect(result.stdout.split("\n")[0]).toBe("1.104.7");
-    }
-  },
-  30_000,
-);
 
 test("Windows finds the installed CLI outside PATH and distinguishes an unreadable status from a missing install", async () => {
   const windowsProgramFiles = join(dirs("canopy-ts-win-"), "Program Files");

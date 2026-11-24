@@ -191,9 +191,12 @@ Tailscale, tagi, brak `CertDomains`, ścieżka aplikacji macOS, LocalAPI przez g
 `tailscale-desktop-detection.test.ts`: aplikacja macOS wymaga trybu CLI, a na Windows gateway
 znajduje plik w katalogu instalacji także bez `PATH`. Test klienta Remote odczytuje stan Tailscale
 z testowego gatewaya przez przypięty TLS. Native checks uruchamia te testy z atrapami na macOS
-i Windows, a na macOS sprawdza także polecenie `version` z wydanego pakietu aplikacji bez
-osobnej instalacji launchera CLI.
+i Windows.
 `tailscale-network.test.ts`: kolejność adresów, wybór adresu dla workerów i SSH, RPC z zakresem
 właściciela, ogłoszenie i walidacja nazwy MagicDNS między dwoma gatewayami. `tailscale-https.test.ts`:
 dokładne argumenty włączania i wyłączania, odmowa zajętego portu, usuwanie tylko własnego wpisu, brak
 `funnel`, brak certyfikatów, odmowa uprawnień oraz front (tożsamość, Funnel, origin, SSE).
+
+Na Macu z uruchomioną aplikacją Tailscale w `/Applications` i aktywnym połączeniem z tailnetem
+można sprawdzić rzeczywisty odczyt stanu bez launchera na `PATH`. W katalogu głównym repozytorium
+uruchom `CANOPY_LIVE=1 bun test ./tests/integration/tailscale-macos.live.test.ts`.
