@@ -142,6 +142,7 @@
             })}
             href="/threads/{thread.id}"
             aria-current={current ? "page" : undefined}
+            data-snoozed={snoozed || undefined}
             data-result={snoozed ? undefined : unseenResult(thread)}
             data-unread={(!snoozed && thread.markedUnread) || undefined}
             data-draft={(!snoozed && !current && !away && !needsAttention && draft.current) || undefined}
