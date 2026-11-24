@@ -18,6 +18,7 @@ async function workerListener(
   identity: Awaited<ReturnType<typeof generateIdentity>>,
   workerId: string,
   credential: string,
+  options: { beforeProbe?: () => Promise<void>; onCanceledConnect?: () => void } = {},
 ) {
   let authentications = 0;
   let updateWatches = 0;
@@ -36,8 +37,12 @@ async function workerListener(
     tls: { cert: identity.certificate, key: identity.privateKey },
     interceptors: [
       (next) => async (request) => {
-        if (canceled && request.method.name === "Connect")
+        if (canceled && request.method.name === "Connect") {
+          options.onCanceledConnect?.();
           throw new ConnectError("WorkerLink stream closed", Code.Canceled);
+        }
+
+        if (request.method.name === "ProbeNetworkRoute") await options.beforeProbe?.();
 
         return next(request);
       },
@@ -75,7 +80,21 @@ test("a paired desktop worker keeps its healthy route and reconnects over a veri
   const workerId = crypto.randomUUID();
   const credential = crypto.randomUUID();
   const primary = await workerListener(identity, workerId, credential);
-  const alternate = await workerListener(identity, workerId, credential);
+  // The first alternate passes the probe but then cancels WorkerLink. Let the healthy alternate answer after that.
+  const canceledAlternate = Promise.withResolvers<void>();
+  let canceledAttempts = 0;
+
+  const unstable = await workerListener(identity, workerId, credential, {
+    onCanceledConnect() {
+      canceledAttempts++;
+      canceledAlternate.resolve();
+    },
+  });
+
+  const alternate = await workerListener(identity, workerId, credential, {
+    beforeProbe: () => canceledAlternate.promise,
+  });
+
   const untrusted = await workerListener(await generateIdentity(), workerId, credential);
   const config = { mode: "remote" as const, gatewayUrl: alternate.url };
 
@@ -83,7 +102,7 @@ test("a paired desktop worker keeps its healthy route and reconnects over a veri
     token: `canopy_desktop_${"a".repeat(43)}`,
     deviceId: "route-fixture",
     fingerprint: identity.fingerprint,
-    addresses: [untrusted.url, alternate.url, primary.url],
+    addresses: [untrusted.url, alternate.url, primary.url, unstable.url],
   };
 
   const profile = remoteWorkerDirectory(directory, config);
@@ -125,6 +144,7 @@ test("a paired desktop worker keeps its healthy route and reconnects over a veri
   const workerLog = join(directory, "logs", "worker.log");
 
   try {
+    unstable.cancelWorkerLink();
     await desktop.initialize(false);
     await desktop.configure(config, client);
     await until(async () => primary.online() && primary.updateWatches() > 0);
@@ -133,6 +153,7 @@ test("a paired desktop worker keeps its healthy route and reconnects over a veri
 
     primary.cancelWorkerLink();
     await until(async () => alternate.online() && alternate.updateWatches() > 0);
+    expect(canceledAttempts).toBe(1);
     expect(alternate.authenticated()).toBeGreaterThanOrEqual(2); // ProbeNetworkRoute and WorkerLink.
     expect(untrusted.authenticated()).toBe(0);
     expect(untrusted.updateWatches()).toBe(0);
@@ -161,7 +182,8 @@ test("a paired desktop worker keeps its healthy route and reconnects over a veri
     expect(untrusted.authenticated()).toBe(0);
     expect(readFileSync(configPath, "utf8") === workerConfig).toBe(true);
   } finally {
+    canceledAlternate.resolve();
     await desktop.stop();
-    await Promise.all([primary.close(0), alternate.close(0), untrusted.close(0)]);
+    await Promise.all([primary.close(0), unstable.close(0), alternate.close(0), untrusted.close(0)]);
   }
 }, 90_000);

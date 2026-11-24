@@ -410,6 +410,7 @@ while (!stopping.signal.aborted) {
     }
 
     currentLink = link;
+    networkRoute.connected();
 
     if (link.heldThreads?.size)
       console.warn(

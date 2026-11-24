@@ -43,6 +43,7 @@ export class WorkerNetworkRoute {
   #lastOffer = "";
   #desktopRetryAt = 0;
   readonly #desktopRoutes: PinnedRoutes | undefined;
+  readonly #failedDesktopOrigins = new Set<string>();
 
   constructor(
     readonly options: {
@@ -81,6 +82,11 @@ export class WorkerNetworkRoute {
     return this.#desktopRoutes?.fingerprint === this.#local.gateway_fingerprint ? this.#desktopRoutes : undefined;
   }
 
+  connected() {
+    this.#failedDesktopOrigins.clear();
+    this.#desktopRetryAt = 0;
+  }
+
   status() {
     return create(NetworkRouteStatusSchema, {
       route: this.options.localWorker ? "local" : this.#endpoint.gateway_fingerprint ? "pinned" : "server",
@@ -96,11 +102,13 @@ export class WorkerNetworkRoute {
     if (!desktopRoutes || !routeUnavailable(error) || signal.aborted || this.#busy || Date.now() < this.#desktopRetryAt)
       return false;
 
+    this.#failedDesktopOrigins.add(this.#endpoint.gateway_url);
+
     const origins = [...new Set([this.#local.gateway_url, ...desktopRoutes.addresses])]
-      .filter((origin) => origin !== this.#endpoint.gateway_url)
+      .filter((origin) => !this.#failedDesktopOrigins.has(origin))
       .slice(0, 32);
 
-    if (!origins.length) return false;
+    if (!origins.length) return this.#deferDesktopRecovery();
     this.#busy = true;
     const probes = new AbortController();
     const deadline = AbortSignal.any([signal, probes.signal, AbortSignal.timeout(5000)]);
@@ -117,12 +125,18 @@ export class WorkerNetworkRoute {
 
       return true;
     } catch {
-      return false;
+      return this.#deferDesktopRecovery();
     } finally {
       probes.abort();
-      this.#desktopRetryAt = Date.now() + 30_000;
       this.#busy = false;
     }
+  }
+
+  #deferDesktopRecovery() {
+    this.#failedDesktopOrigins.clear();
+    this.#desktopRetryAt = Date.now() + 30_000;
+
+    return false;
   }
 
   /** A persisted fallback must still meet the worker operator's transport policy at the time of the switch. */
