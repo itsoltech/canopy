@@ -2,12 +2,19 @@ import { describe, expect, test } from "bun:test";
 import { mkdirSync, symlinkSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { create, type MessageInitShape } from "@bufbuild/protobuf";
-import { DeviceLogin, Provider, ProviderProfileKind, WorkerConfigSchema } from "@canopy/contracts";
-import { tempDir } from "@canopy/testing";
+import {
+  DeviceLogin,
+  Provider,
+  ProviderConfigurationMode,
+  ProviderProfileKind,
+  WorkerConfigSchema,
+} from "@canopy/contracts";
+import { tempDir, tempDirs } from "@canopy/testing";
 import { applyWorkerConfig, systemProbe, type DeviceProbe } from "./remote.ts";
 import { Predicate } from "effect";
 
 const base = tempDir("canopy-remote-config-");
+const profileDir = tempDirs();
 const repo = join(base, "repo");
 
 mkdirSync(join(repo, "sub"), { recursive: true });
@@ -186,6 +193,176 @@ describe("applyWorkerConfig", () => {
 });
 
 describe("applyWorkerConfig: custom profiles", () => {
+  test("Antigravity uses agy or an instance executable and requires an explicit key with device login off", () => {
+    const root = profileDir("canopy-agy-availability-");
+
+    const homes = {
+      dataDir: join(root, "data"),
+      claude: join(root, "claude"),
+      codex: join(root, "codex"),
+      antigravity: join(root, "device"),
+      env: {},
+    };
+
+    const custom = join(root, "selected-agy");
+    const native = { providers: [Provider.ANTIGRAVITY], kind: ProviderProfileKind.NATIVE };
+
+    const cli = {
+      ...probe,
+      which: () => null,
+      version: (path: string) => (path === custom ? "agy version 1.5.16" : undefined),
+      login: () => null,
+    };
+
+    const wire = config({
+      antigravity: { enabled: true, requiredVersion: "1.5.16" },
+      profiles: [
+        { ...native, id: "own-executable", executablePath: custom, shadowHomePath: join(root, "private") },
+        {
+          ...native,
+          id: "api",
+          executablePath: custom,
+          env: [{ name: "GEMINI_API_KEY", value: "fixture-key", secret: true }],
+        },
+      ],
+    });
+
+    const result = applyWorkerConfig(wire, cli, homes);
+
+    if (!result.applied) throw new Error("expected applied");
+    expect(result.config.antigravity.enabled).toBe(true);
+    expect(result.report.profiles?.find((p) => p.id === "own-executable")).toMatchObject({
+      providers: [Provider.ANTIGRAVITY],
+      available: true,
+      version: "1.5.16",
+      loginHomePath: homes.antigravity,
+      privateHomePath: join(root, "private"),
+      authenticated: false,
+      sandboxSupport: { offline: false, domains: false },
+    });
+    expect(
+      result.report.profiles?.find((p) => p.id === "native" && p.providers?.includes(Provider.ANTIGRAVITY)),
+    ).toMatchObject({
+      available: false,
+      detail: "agy CLI not found",
+    });
+
+    wire.antigravity!.deviceLogin = DeviceLogin.NONE;
+    const off = applyWorkerConfig(wire, cli, homes).report;
+    expect(off.profiles?.find((p) => p.id === "own-executable")).toMatchObject({ available: false });
+    expect(off.profiles?.find((p) => p.id === "api")).toMatchObject({
+      available: true,
+      loginHomePath: "",
+      auth: "Gemini API key configured",
+      authenticated: false,
+    });
+    expect(JSON.stringify(off, (_, v) => (Predicate.isBigInt(v) ? String(v) : v))).not.toContain("fixture-key");
+  });
+
+  test("Antigravity blocks incompatible CLI versions and cannot send a device key to an instance endpoint", () => {
+    const wire = config({
+      antigravity: { enabled: true },
+      profiles: [
+        {
+          id: "redirect",
+          providers: [Provider.ANTIGRAVITY],
+          kind: ProviderProfileKind.NATIVE,
+          env: [{ name: "GOOGLE_GEMINI_BASE_URL", value: "http://127.0.0.1:8317" }],
+        },
+      ],
+    });
+
+    const root = profileDir("canopy-agy-version-");
+
+    const homes = {
+      dataDir: root,
+      claude: join(root, "device-claude"),
+      codex: join(root, "device-codex"),
+      antigravity: join(root, "device-agy"),
+      env: { GEMINI_API_KEY: "fixture-device-key" },
+    };
+
+    for (const version of ["1.5.15", "2.0.0", "1.5.16"]) {
+      const result = applyWorkerConfig(
+        wire,
+        { ...probe, which: (name) => (name === "agy" ? "/bin/agy" : null), version: () => version },
+        homes,
+      );
+
+      const native = result.report.profiles?.find(
+        (p) => p.id === "native" && p.providers?.includes(Provider.ANTIGRAVITY),
+      );
+
+      expect(native?.available, version).toBe(version === "1.5.16");
+      const redirect = result.report.profiles?.find((p) => p.id === "redirect");
+      expect(redirect?.available).toBe(false);
+
+      if (version === "1.5.16") expect(redirect?.detail).toContain("same Antigravity instance");
+    }
+  });
+
+  test("Antigravity fails closed on unsupported settings and device home aliases, preserving legacy wildcard profiles", () => {
+    const root = profileDir("canopy-agy-profile-");
+    const device = join(root, "device");
+    const alias = join(root, "alias");
+    const shadow = join(root, "shadow");
+    mkdirSync(device);
+    mkdirSync(shadow);
+    symlinkSync(device, alias, "dir");
+    symlinkSync(device, join(shadow, "skills"), "dir");
+    const native = { providers: [Provider.ANTIGRAVITY], kind: ProviderProfileKind.NATIVE };
+    const proxy = { kind: ProviderProfileKind.CLIPROXYAPI, baseUrl: "http://127.0.0.1:8317", apiKey: "fixture" };
+
+    const wire = config({
+      antigravity: { enabled: true },
+      profiles: [
+        { ...proxy, id: "legacy" },
+        { ...proxy, id: "mixed", providers: [Provider.CLAUDE, Provider.ANTIGRAVITY] },
+        {
+          ...native,
+          id: "mixed-shared",
+          providers: [Provider.CODEX, Provider.ANTIGRAVITY],
+          userConfiguration: { mode: ProviderConfigurationMode.SHARED },
+        },
+        { ...native, id: "login", ownLogin: true },
+        { ...native, id: "source", homePath: device },
+        { ...native, id: "args", launchArgs: ["--login"] },
+        { ...native, id: "settings", settingsText: "{}" },
+        { ...native, id: "shared", userConfiguration: { mode: ProviderConfigurationMode.SHARED } },
+        { ...native, id: "user-skills", userConfiguration: { skills: true } },
+        { ...native, id: "nested", shadowHomePath: join(alias, "private") },
+        { ...native, id: "ancestor", shadowHomePath: root },
+        { ...native, id: "skill-alias", shadowHomePath: shadow },
+      ],
+    });
+
+    const result = applyWorkerConfig(
+      wire,
+      { ...probe, which: (command) => `/bin/${command}`, version: () => "1.5.16" },
+      {
+        dataDir: join(root, "data"),
+        claude: join(root, "claude"),
+        codex: join(root, "codex"),
+        antigravity: device,
+        env: {},
+      },
+    );
+
+    const profiles = result.report.profiles ?? [];
+    expect(result.applied).toBe(true);
+    expect(profiles.filter((p) => p.id === "legacy").map((p) => p.providers)).toEqual([
+      [Provider.CLAUDE],
+      [Provider.CODEX],
+    ]);
+    expect(profiles.find((p) => p.id === "mixed" && p.providers?.includes(Provider.CLAUDE))?.available).toBe(true);
+    expect(profiles.find((p) => p.id === "mixed-shared" && p.providers?.includes(Provider.CODEX))?.available).toBe(
+      false,
+    );
+    expect(profiles.filter((p) => p.providers?.includes(Provider.ANTIGRAVITY) && p.available).map((p) => p.id)).toEqual(
+      ["native"],
+    );
+  });
+
   test("Grok availability uses the same custom auth path as login and respects isolated homes", () => {
     const device = tempDir("canopy-grok-availability-");
     const custom = join(device, "custom-login.json");

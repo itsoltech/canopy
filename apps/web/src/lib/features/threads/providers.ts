@@ -1,24 +1,13 @@
 import { Provider, type ui } from "@canopy/contracts";
+import { harnessName } from "@canopy/domain/harnesses";
+import { providerKeys, type ProviderKey } from "@canopy/ui/providers";
 
-/** Providers a thread can run on, as sent by forms (enum key). */
-export const providerKeys = ["CLAUDE", "CODEX", "GROK"] as const;
+export { providerKeys, isProviderKey, type ProviderKey } from "@canopy/ui/providers";
 
-export type ProviderKey = (typeof providerKeys)[number];
-
-const PROVIDER_NAMES = { CLAUDE: "Claude", CODEX: "Codex", GROK: "Grok" } satisfies Record<ProviderKey, string>;
-
-export const providerName = (provider: ProviderKey): string => PROVIDER_NAMES[provider];
-
-export const isProviderKey = (value: string): value is ProviderKey => providerKeys.some((key) => key === value);
+export const providerName = (provider: ProviderKey): string => harnessName(Provider[provider]);
 
 export const providerKeyOf = (provider: Provider): ProviderKey | undefined =>
-  provider === Provider.CLAUDE
-    ? "CLAUDE"
-    : provider === Provider.CODEX
-      ? "CODEX"
-      : provider === Provider.GROK
-        ? "GROK"
-        : undefined;
+  providerKeys.find((key) => Provider[key] === provider);
 
 /** Providers whose CLI the worker reports as available (installed, logged in). */
 function availableProviders(worker: ui.Worker | undefined): ProviderKey[] {

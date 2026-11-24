@@ -3,6 +3,7 @@ import { join } from "node:path";
 import { crc32, deflateRawSync } from "node:zlib";
 import { create } from "@bufbuild/protobuf";
 import { Provider, ProviderProfileKind, SkillFileSchema, ui } from "@canopy/contracts";
+import { ANTIGRAVITY_ACP_CAPABILITY } from "@canopy/domain/release/protocol";
 import { GatewayStore } from "@canopy/gateway/store";
 import { openGatewayLink } from "@canopy/worker/gateway-link";
 import { Journal } from "@canopy/worker/journal";
@@ -39,7 +40,7 @@ export async function skillMachine(
   root: string,
   name: string,
   os = "linux",
-  capable = true,
+  capable: boolean | "before-antigravity" = true,
   enrolled?: { workerId: string; credential: string },
 ) {
   const registration = enrolled ?? (await gateway.addWorker(name));
@@ -50,6 +51,7 @@ export async function skillMachine(
     claude: join(home, ".claude"),
     codex: join(home, ".codex"),
     grok: join(home, ".grok"),
+    antigravity: join(home, ".gemini", "antigravity-cli"),
     agents: join(home, ".agents/skills"),
   };
 
@@ -70,6 +72,16 @@ export async function skillMachine(
               providers: [Provider.CLAUDE, Provider.CODEX, Provider.GROK],
               shadowHomePath: shadow,
             },
+            ...(capable === true
+              ? [
+                  {
+                    id: "isolated",
+                    kind: ProviderProfileKind.NATIVE,
+                    providers: [Provider.ANTIGRAVITY],
+                    shadowHomePath: join(shadow, "antigravity"),
+                  },
+                ]
+              : []),
           ],
         },
         gateway.userId,
@@ -103,7 +115,11 @@ export async function skillMachine(
         workerId: registration.workerId,
         host: { os, arch: "x64", hostname: name },
         environmentKind: "desktop",
-        capabilities: ["agent_environment_v1", ...(capable ? ["agent_skills_v1", "agent_plugins_v1"] : [])],
+        capabilities: [
+          "agent_environment_v1",
+          ...(capable ? ["agent_skills_v1", "agent_plugins_v1"] : []),
+          ...(capable === true ? [ANTIGRAVITY_ACP_CAPABILITY] : []),
+        ],
       },
     });
 

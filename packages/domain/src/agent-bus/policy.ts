@@ -1,3 +1,4 @@
+import { sessionForkProblem } from "../harnesses.ts";
 import { Result } from "effect";
 
 import {
@@ -285,6 +286,10 @@ function authorizeSpawn(call: CallOf<"spawn_thread">, facts: BusFacts, limits: B
   if (facts.activeInTree >= limits.maxActiveThreadsPerTree) {
     return deny(`too many active threads in this tree (${limits.maxActiveThreadsPerTree})`);
   }
+
+  const forkProblem = call.args.fork && sessionForkProblem(caller.provider);
+
+  if (forkProblem) return deny(forkProblem);
 
   if (call.args.fork && facts.spawnProvider !== undefined && facts.spawnProvider !== caller.provider) {
     return deny(`fork keeps the provider: ${caller.provider} cannot fork into ${facts.spawnProvider}`);

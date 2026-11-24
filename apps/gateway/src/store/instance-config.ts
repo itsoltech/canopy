@@ -1,7 +1,8 @@
 import { create } from "@bufbuild/protobuf";
-import { ModelInfoSchema, ProfileModelsSchema, Provider, ui, type ProfileModels } from "@canopy/contracts";
+import { ModelInfoSchema, ProfileModelsSchema, ui, type ProfileModels } from "@canopy/contracts";
 import type { JsonValue } from "@canopy/domain";
-import { Match, Predicate } from "effect";
+import { Predicate } from "effect";
+import { harnessOf, type Harness } from "@canopy/domain/harnesses";
 import { isJsonObject } from "../bots/json.ts";
 import type { ProxyOptions } from "./proxy-records.ts";
 import {
@@ -17,7 +18,7 @@ import {
  * model choices applied. No database here, so the rules are tested directly.
  */
 
-export type Harness = "claude" | "codex" | "grok";
+export { harnessOf, providerOf, type Harness } from "@canopy/domain/harnesses";
 
 export type SecretRef = { secretRef: string };
 
@@ -93,7 +94,7 @@ export type StoredProfile = {
   proxyCodex?: ProxyOptions;
   id: string;
   kind: "PROVIDER_PROFILE_KIND_NATIVE" | "PROVIDER_PROFILE_KIND_CLIPROXYAPI";
-  providers: ["PROVIDER_CLAUDE" | "PROVIDER_CODEX" | "PROVIDER_GROK"];
+  providers: [StoredProvider];
   baseUrl?: string;
   apiKey?: SecretRef;
   displayName?: string;
@@ -109,30 +110,16 @@ export type StoredProfile = {
 export const NATIVE_ID = "native";
 export const INSTANCE_ID = /^[a-z0-9][a-z0-9_-]{0,62}$/;
 
-export const harnessOf = (provider: Provider): Harness | undefined =>
-  provider === Provider.CLAUDE
-    ? "claude"
-    : provider === Provider.CODEX
-      ? "codex"
-      : provider === Provider.GROK
-        ? "grok"
-        : undefined;
+type StoredProvider = `PROVIDER_${Uppercase<Harness>}`;
 
-export const providerOf = (harness: string | null | undefined): Provider =>
-  Match.value(harness).pipe(
-    Match.when("claude", () => Provider.CLAUDE),
-    Match.when("grok", () => Provider.GROK),
-    Match.when("codex", () => Provider.CODEX),
-    Match.orElse(() => Provider.UNSPECIFIED),
-  );
+const storedProviders = {
+  claude: "PROVIDER_CLAUDE",
+  codex: "PROVIDER_CODEX",
+  grok: "PROVIDER_GROK",
+  antigravity: "PROVIDER_ANTIGRAVITY",
+} as const satisfies Record<Harness, StoredProvider>;
 
-/** The Provider enum name a profile stores (protobuf JSON); an unknown harness is Codex, as before. */
-export const storedProvider = (harness: string) =>
-  Match.value(harness).pipe(
-    Match.when("claude", () => "PROVIDER_CLAUDE" as const),
-    Match.when("grok", () => "PROVIDER_GROK" as const),
-    Match.orElse(() => "PROVIDER_CODEX" as const),
-  );
+export const storedProvider = (harness: Harness): StoredProvider => storedProviders[harness];
 
 export const instanceKey = (harness: Harness, id: string): string => `${harness}/${id}`;
 

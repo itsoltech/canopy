@@ -1,3 +1,4 @@
+import { supportsIsolatedRuns } from "@canopy/domain/harnesses";
 import { sendGeneration, withGenerationVersion } from "./generation-cancellation.ts";
 import { accountGeneration } from "../usage/generation.ts";
 import { ui } from "@canopy/contracts";
@@ -79,6 +80,8 @@ export async function coreGenerateText(
   const settings = (await coreSettings(hostContext, (s) => s.user(thread.owner_user_id))).textGeneration;
   const explicit = !!settings?.model;
   const provider = explicit ? settings!.provider : providerOf(thread.provider);
+
+  if (!supportsIsolatedRuns(provider)) throw new UnavailableError("This provider cannot generate text in isolation.");
   const profileId = (explicit ? settings!.profileId : thread.provider_profile_id) || "native";
 
   const workers = (await coreWorkers(hostContext)).filter(

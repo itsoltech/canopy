@@ -1,4 +1,6 @@
 <script lang="ts">
+  import { supportsIsolatedRuns } from "@canopy/domain/harnesses";
+  import { automaticTextGenerationDescription } from "@canopy/ui/providers";
   import { Provider } from "@canopy/contracts";
   import SettingsTopics from "#lib/features/settings/SettingsTopics.svelte";
   import { modelOption, modelOptions, type ModelOption } from "#lib/features/models/catalog.ts";
@@ -24,7 +26,7 @@
       overview.ownWorkers
         .flatMap((worker) =>
           modelOptions({ worker, catalog: catalog.of(worker.id), threads: overview.threads.values() }).filter(
-            (o) => o.model,
+            (o) => o.model && supportsIsolatedRuns(Provider[o.provider]),
           ),
         )
         .map((o) => [o.key, o]),
@@ -99,8 +101,7 @@
         />
         {#if !value.model}
           <p class="text-base/6 text-pretty text-zinc-500 sm:text-sm/6 dark:text-zinc-400">
-            Automatic: a small, fast model from the thread’s provider instance at low effort when supported. Falls back
-            to the thread’s model.
+            {automaticTextGenerationDescription}
           </p>
         {/if}
       </div>

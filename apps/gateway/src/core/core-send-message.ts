@@ -1,3 +1,4 @@
+import { ANTIGRAVITY_PERMISSION_GUIDANCE, supportsThreadPermission } from "@canopy/domain/harnesses";
 import { messageServiceTier } from "./message-service-tier.ts";
 import { create } from "@bufbuild/protobuf";
 import { ui } from "@canopy/contracts";
@@ -129,6 +130,10 @@ export async function prepareMessage(
     request.effort,
     await messageServiceTier(core, thread, request),
   );
+
+  if (!supportsThreadPermission(providerOf(thread.provider), request.permissionMode))
+    throw new InvalidError(ANTIGRAVITY_PERMISSION_GUIDANCE);
+
   const permissionMode = checkedPermissionMode(request.permissionMode);
   coreCheckFullAccess(core, thread.worker_id, request.permissionMode);
 

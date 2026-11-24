@@ -1,6 +1,7 @@
+import { harnessName } from "@canopy/domain/harnesses";
 import { create, fromJson, toJson, type JsonValue } from "@bufbuild/protobuf";
 import { timestampFromDate } from "@bufbuild/protobuf/wkt";
-import { ProfileModelsSchema, Provider, ui, type ModelInfo, type ProfileModels } from "@canopy/contracts";
+import { ProfileModelsSchema, type Provider, ui, type ModelInfo, type ProfileModels } from "@canopy/contracts";
 import { Context, Effect, Layer } from "effect";
 import { SqlClient, type SqlError } from "effect/sql";
 import { queryMethods } from "../diagnostics/query-context.ts";
@@ -106,7 +107,7 @@ export function modelProblem(
   if (effort && !/^[a-z][a-z0-9_-]*$/.test(effort)) return `invalid reasoning effort "${effort}"`;
 
   if (!catalog || catalog.detail || catalog.models.length === 0) return undefined;
-  const name = provider === Provider.CLAUDE ? "Claude" : provider === Provider.GROK ? "Grok" : "Codex";
+  const name = harnessName(provider);
   const info = findModel(catalog, model);
 
   if (model && !info) return `${name} on profile "${profileId || "native"}" does not offer the model "${model}"`;

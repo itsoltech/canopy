@@ -5,7 +5,10 @@ import { define, json, message, object, settingsVersion, str } from "./shared.ts
 
 const defaults = object({
   workspaceId: str,
-  provider: { type: "string", enum: ["PROVIDER_UNSPECIFIED", "PROVIDER_CLAUDE", "PROVIDER_CODEX", "PROVIDER_GROK"] },
+  provider: {
+    type: "string",
+    enum: ["PROVIDER_UNSPECIFIED", "PROVIDER_CLAUDE", "PROVIDER_CODEX", "PROVIDER_GROK", "PROVIDER_ANTIGRAVITY"],
+  },
   providerProfileId: str,
   // No PERMISSION_MODE_FULL_ACCESS: bots never choose it, the user picks it in the app.
   permissionMode: {
@@ -20,9 +23,15 @@ const defaults = object({
   },
   models: {
     type: "array",
-    maxItems: 3,
+    maxItems: 4,
     items: object(
-      { provider: { type: "string", enum: ["PROVIDER_CLAUDE", "PROVIDER_CODEX", "PROVIDER_GROK"] }, model: str },
+      {
+        provider: {
+          type: "string",
+          enum: ["PROVIDER_CLAUDE", "PROVIDER_CODEX", "PROVIDER_GROK", "PROVIDER_ANTIGRAVITY"],
+        },
+        model: str,
+      },
       ["provider", "model"],
     ),
   },

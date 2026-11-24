@@ -1,6 +1,15 @@
 import { expect, test } from "bun:test";
 import { create } from "@bufbuild/protobuf";
-import { HelloSchema, ItemDeltaField, WorkerMessageSchema, type GatewayMessage } from "@canopy/contracts";
+import { ANTIGRAVITY_ACP_CAPABILITY } from "@canopy/domain/release/protocol";
+import {
+  HelloSchema,
+  ItemDeltaField,
+  PermissionMode,
+  Provider,
+  WorkerConfigSchema,
+  WorkerMessageSchema,
+  type GatewayMessage,
+} from "@canopy/contracts";
 import { AsyncChannel } from "@canopy/transport";
 import { WorkerConnection } from "./connection.ts";
 
@@ -116,5 +125,61 @@ test("text batches respect inline control frames, raw payload size and journal g
     expect(await next()).toEqual([8n]);
   } finally {
     connection.close();
+  }
+});
+
+test("Antigravity settings and outbox commands stay off legacy workers across a reconnect", async () => {
+  const provider = Provider.ANTIGRAVITY;
+  const spec = { threadId: "thread", provider };
+
+  const config = create(WorkerConfigSchema, {
+    version: 4n,
+    antigravity: { enabled: true },
+    profiles: [
+      { id: "named", providers: [provider], env: [{ name: "GEMINI_API_KEY", value: "test-only", secret: true }] },
+      { id: "mixed", providers: [Provider.CODEX, provider] },
+    ],
+  });
+
+  for (const capable of [false, true]) {
+    const outbound = new AsyncChannel<GatewayMessage>();
+    const hello = create(HelloSchema, { capabilities: capable ? [ANTIGRAVITY_ACP_CAPABILITY] : [] });
+    const connection = new WorkerConnection("worker", hello, outbound);
+
+    try {
+      connection.sendConfig(config);
+      const sent = (await outbound[Symbol.asyncIterator]().next()).value?.payload;
+
+      if (sent?.case !== "config") throw new Error("Expected a configuration frame");
+      expect(sent.value.antigravity?.enabled).toBe(capable ? true : undefined);
+      expect(sent.value.profiles.map((p) => [p.id, p.providers])).toEqual(
+        capable
+          ? [
+              ["named", [provider]],
+              ["mixed", [Provider.CODEX, provider]],
+            ]
+          : [["mixed", [Provider.CODEX]]],
+      );
+
+      const rejected = await connection.sendCommand({
+        case: "startTurn",
+        value: { thread: spec, permissionMode: PermissionMode.FULL_AUTO },
+      });
+
+      expect(rejected).toMatchObject({ ok: false, errorCode: "PROVIDER_UNSUPPORTED" });
+      expect(rejected.errorMessage).toContain(capable ? "Choose Ask" : "Update this worker");
+      const text = await connection.sendCommand({ case: "generateText", value: { provider } });
+      const bot = await connection.sendCommand({ case: "runBotTurn", value: { provider } });
+
+      const fork = await connection.sendCommand({
+        case: "createThread",
+        value: { thread: spec, fork: { sourceThreadId: "source" } },
+      });
+
+      expect([text.ok, bot.ok, fork.ok]).toEqual([false, false, false]);
+      expect(outbound.queuedItems).toBe(0);
+    } finally {
+      connection.close();
+    }
   }
 });

@@ -9,8 +9,9 @@ import { SettingChoice } from "./SettingsGroup";
 import { ResourceState, useSettingsResource } from "./resource";
 import { SettingsModel } from "./SettingsModels";
 import { ScheduleDate } from "./ScheduleDate";
+import { SchedulePermissions } from "./SchedulePermissions";
 import { ScheduleRecurrence } from "./ScheduleRecurrence";
-import { PermissionPickerSheet, permissionLabel } from "../threads/permissions";
+import { availablePermission, permissionLabel } from "../threads/permissions";
 import { useComputerHome } from "../computers/presence";
 import { useWorkerOptions } from "../computers/worker-options";
 import { projectAwayReason } from "@canopy/domain/linked-snapshot";
@@ -25,7 +26,6 @@ import {
 import {
   duplicateSchedulePermission,
   duplicateScheduleTimes,
-  scheduledFullAccessDescription,
   scheduledFullAccessUnavailable,
 } from "@canopy/domain/schedule-display";
 
@@ -374,7 +374,13 @@ function ScheduleThread({
           effort: draft.effort,
         }}
         onChange={(c, effort) =>
-          change({ provider: c.provider, providerProfileId: c.profileId, model: c.model, effort })
+          change({
+            provider: c.provider,
+            providerProfileId: c.profileId,
+            model: c.model,
+            effort,
+            ...(!sandbox?.value && { permissionMode: availablePermission(c.provider, draft.permissionMode) }),
+          })
         }
       />
       <SchedulePermissions draft={draft} change={change} sandbox={sandbox} />
@@ -393,47 +399,6 @@ function ScheduleThread({
         ]}
       />
       <Field label="Base ref" value={draft.baseRef} onChangeText={(baseRef) => change({ baseRef })} />
-    </>
-  );
-}
-
-function SchedulePermissions({
-  draft,
-  change,
-  sandbox,
-}: {
-  draft: ui.NewThreadSchedule;
-  change: (patch: Partial<ui.NewThreadSchedule>) => void;
-  sandbox?: ScheduleSandboxChoices;
-}) {
-  const [permission, setPermission] = useState(false);
-
-  function pickPermission(permissionMode: PermissionMode) {
-    const sandboxProfileId =
-      sandbox && permissionMode !== PermissionMode.FULL_AUTO ? sandbox.selectionId("") : draft.sandboxProfileId;
-
-    change({ permissionMode, sandboxProfileId });
-  }
-
-  return (
-    <>
-      <Button title={`Permissions: ${permissionLabel(draft.permissionMode)}`} onPress={() => setPermission(true)} />
-      <PermissionPickerSheet
-        visible={permission}
-        onClose={() => setPermission(false)}
-        value={draft.permissionMode}
-        onSelect={pickPermission}
-        fullAccessDescription={scheduledFullAccessDescription}
-      />
-      {sandbox && (
-        <SettingChoice
-          title="Sandbox profile"
-          value={sandbox.value}
-          onChange={(id) => change({ sandboxProfileId: sandbox.selectionId(id) })}
-          options={sandbox.options}
-          description={sandbox.problem}
-        />
-      )}
     </>
   );
 }

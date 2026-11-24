@@ -2,6 +2,7 @@ import { Provider } from "@canopy/contracts";
 import { Effect } from "effect";
 import { isAbsolute, resolve } from "node:path";
 import { Journal, type StorageCleanupGrant } from "../journal/index.ts";
+import { antigravitySessionRoot } from "../providers/antigravity/home.ts";
 import { providersOf } from "../providers/profiles.ts";
 import type { HostContext } from "./host-context.ts";
 
@@ -10,6 +11,9 @@ type CleanupScope = Omit<StorageCleanupGrant, "homePath">;
 /** A thread's pinned store is authoritative even after its profile changed or disappeared. */
 export async function cleanupHome(ctx: HostContext, scope: CleanupScope): Promise<string> {
   const state = ctx.state;
+
+  if (scope.provider === Provider.ANTIGRAVITY)
+    return antigravitySessionRoot(state.options.dataDir, scope.providerProfileId);
 
   if (scope.provider === Provider.CLAUDE)
     return state.options.runtime.runPromise(

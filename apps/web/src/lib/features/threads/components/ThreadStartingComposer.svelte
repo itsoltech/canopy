@@ -36,6 +36,7 @@
               </div>{/snippet}
             {#snippet permissionControl()}<PermissionPicker
                 disabled
+                provider={job.content?.provider}
                 value={permissionKey(job.content?.permissionMode ?? 0)}
                 fullAuto={fullAutoAvailable(job.content?.provider, worker?.os)}
                 onselect={() => {}}

@@ -1,16 +1,16 @@
 import { readFile } from "node:fs/promises";
 import type { UserInput } from "@canopy/contracts";
-import type { Content } from "@canopy/grok-acp";
+import type { Content } from "@canopy/acp";
 import { interleave, isInlineImage, placedIds } from "../../attachments/inline.ts";
 import { threadInstructions } from "../thread-instructions.ts";
 
 /**
- * Grok's ACP prompt (docs/grok-adapter.md): the thread's instructions before the text; images as ACP image blocks
+ * ACP prompt with thread instructions before the text; images as ACP image blocks
  * when the CLI declared the capability. Files placed in the text (docs/protocol.md, "Załączniki w tekście"): each
  * placed image right after its marker; a placed file stays its marker (the note names its path). Files the user did
  * not place follow the text as before: images as blocks, others as "Attachment: <path>".
  */
-export async function grokPrompt(
+export async function acpPrompt(
   instructions: string,
   input: Pick<UserInput, "text" | "mentions" | "attachments">,
   images: boolean,

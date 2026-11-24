@@ -1,15 +1,18 @@
 import { create } from "@bufbuild/protobuf";
 import { existsSync } from "node:fs";
 import { ProviderAccountStatusSchema, type ProviderAccountStatus } from "@canopy/contracts";
+import type { Harness } from "@canopy/domain/harnesses";
 import { processKey, runProcess, ProcessTimeoutError } from "@canopy/process-governor";
-import { accountResult, parseClaudeAccount, parseCodexAccount } from "./account-parser.ts";
+import { accountResult, antigravityAccount, parseClaudeAccount, parseCodexAccount } from "./account-parser.ts";
 import { accountText, sanitizeAccountStatus } from "@canopy/domain/provider-accounts";
 
 export interface AccountQuery {
-  harness: "claude" | "codex" | "grok";
+  harness: Harness;
   id: string;
   executable: string;
   configDir: string;
+  /** Empty for Antigravity profiles which use a Gemini API key instead of device credentials. */
+  loginDir?: string;
   env: NodeJS.ProcessEnv;
   args: readonly string[];
   configVersion: bigint;
@@ -50,6 +53,7 @@ export class AccountStatuses {
         query.harness,
         query.id,
         String(query.configVersion),
+        ...(query.loginDir ? [query.loginDir] : []),
         String(this.#epoch),
       ],
       env: query.env,
@@ -104,6 +108,9 @@ export class AccountStatuses {
 
     // CLI availability is reported separately; a missing CLI has no account to read.
     if (!query.executable) return accountResult("unknown", query.configDir);
+
+    if (query.harness === "antigravity")
+      return antigravityAccount(query.configDir, query.loginDir ?? "", Boolean(query.env["GEMINI_API_KEY"]));
 
     // Grok Build 1.0.70 has login/logout but no read-only auth status command, so nothing is launched.
     if (query.harness === "grok") {

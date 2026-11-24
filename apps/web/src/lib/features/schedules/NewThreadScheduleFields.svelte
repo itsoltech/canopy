@@ -1,5 +1,6 @@
 <script lang="ts">
   import { Provider, PermissionMode, type SandboxProfile, ui } from "@canopy/contracts";
+  import { providerKeyOf, providerName } from "#lib/features/threads/providers.ts";
   import { scheduleWorkerEligible } from "@canopy/domain";
   import { scheduledFullAccessDescription, scheduledFullAccessUnavailable } from "@canopy/domain/schedule-display";
   import { create } from "@bufbuild/protobuf";
@@ -75,10 +76,12 @@
 
   const initialProfile = initial?.providerProfileId === "native" ? "" : initial?.providerProfileId || "";
 
+  const initialProvider = initial && providerKeyOf(initial.provider);
+
   let option = $state<ModelOption | undefined>(
-    initial
+    initial && initialProvider
       ? modelOption(
-          initial.provider === Provider.CLAUDE ? "CLAUDE" : initial.provider === Provider.GROK ? "GROK" : "CODEX",
+          initialProvider,
           initialProfile,
           initialWorker?.providerInstances.find(
             (i) => i.harness === initial.provider && i.id === (initialProfile || "native"),
@@ -135,12 +138,14 @@
     ),
   );
 
-  const fullAuto = $derived(
-    fullAutoAvailable(option && Provider[option.provider], placement === "specific" ? workers[0]?.os : undefined),
-  );
+  const provider = $derived(option && Provider[option.provider]);
+  const fullAuto = $derived(fullAutoAvailable(provider, placement === "specific" ? workers[0]?.os : undefined));
 
   // Keep a named profile visible when a placement change makes it unavailable.
-  const effectivePermission = $derived(pickedSandboxId ? permission : availablePermissionMode(permission, fullAuto));
+  const effectivePermission = $derived(
+    pickedSandboxId ? permission : availablePermissionMode(permission, fullAuto, provider),
+  );
+
   const activeSandboxId = $derived(effectivePermission === "FULL_AUTO" ? pickedSandboxId : "");
 
   const spec = $derived(
@@ -300,6 +305,7 @@
     <div class="flex min-w-0 flex-wrap items-center gap-2">
       <ModelControls {options} bind:option bind:effort bind:serviceTier showSpeed workerId={modelWorker?.id} />
       <PermissionPicker
+        {provider}
         value={effectivePermission}
         {fullAuto}
         fullAccessDescription={scheduledFullAccessDescription}
@@ -312,7 +318,7 @@
       </PermissionPicker>
     </div>
     {#if option}<p class="text-base/6 text-zinc-500 sm:text-sm/5 dark:text-zinc-400">
-        {option.provider === "CLAUDE" ? "Claude" : option.provider === "GROK" ? "Grok" : "Codex"} · {option.profileName}
+        {providerName(option.provider)} · {option.profileName}
       </p>{/if}
     <p aria-live="polite" class="text-base/6 text-pretty text-zinc-500 sm:text-sm/5 dark:text-zinc-400">
       {#if sandboxProblem}
@@ -325,7 +331,7 @@
       {:else}No eligible workers online. The task waits for availability, then follows your missed-run choice.{/if}
     </p>
   </fieldset>
-  <Field label="Thread title (optional)" description="Leave blank to generate a title from the first message.">
+  <Field label="Thread title (optional)" description="Leave blank for a title based on the first message.">
     <Input name="threadTitle" bind:value={title} maxlength={200} />
   </Field>
 </div>

@@ -1,3 +1,4 @@
+import { HARNESSES } from "@canopy/domain/harnesses";
 import { clone, create } from "@bufbuild/protobuf";
 import { ui, type SkillFile } from "@canopy/contracts";
 import { encode } from "#lib/shared/wire.ts";
@@ -17,7 +18,7 @@ export class SkillsState {
     this.draft = skill
       ? clone(ui.LibrarySkillSchema, skill)
       : create(ui.LibrarySkillSchema, {
-          harnesses: ["claude", "codex", "grok"],
+          harnesses: [...HARNESSES],
           selector: { everyone: true },
           platformHome: true,
         });

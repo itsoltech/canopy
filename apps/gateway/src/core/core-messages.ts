@@ -1,3 +1,4 @@
+import { ANTIGRAVITY_PERMISSION_GUIDANCE, providerOf, supportsThreadPermission } from "@canopy/domain/harnesses";
 import { create, type JsonValue } from "@bufbuild/protobuf";
 import { ui, type CommandResult } from "@canopy/contracts";
 import { Effect, Match } from "effect";
@@ -290,7 +291,11 @@ async function updateThreadDefaults(thisCore: GatewayCore, request: ui.UpdateThr
   // FULL_ACCESS only deliberately).
   const permissionMode = request.permissionMode === undefined ? "" : checkedPermissionMode(request.permissionMode);
 
-  if (request.permissionMode !== undefined) coreCheckFullAccess(thisCore, thread.worker_id, request.permissionMode);
+  if (request.permissionMode !== undefined) {
+    if (!supportsThreadPermission(providerOf(thread.provider), request.permissionMode))
+      throw new InvalidError(ANTIGRAVITY_PERMISSION_GUIDANCE);
+    coreCheckFullAccess(thisCore, thread.worker_id, request.permissionMode);
+  }
 
   if (title !== undefined) await coreRun(thisCore, (s) => s.renameThread(thread.id, title));
 

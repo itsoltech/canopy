@@ -25,6 +25,19 @@ function normalizeUserConfiguration(value: StoredUserConfiguration): StoredUserC
 export function userConfigurationProblem(harness: string, value: StoredUserConfiguration): string | undefined {
   const normalized = normalizeUserConfiguration(value);
 
+  if (harness === "antigravity") {
+    if (
+      normalized.mode !== ProviderConfigurationMode.ISOLATED ||
+      normalized.sourcePath ||
+      normalized.instructions ||
+      normalized.skills ||
+      normalized.hooks
+    )
+      return "Antigravity does not support importing CLI configuration.";
+
+    return undefined;
+  }
+
   if (harness === "codex") {
     if (normalized.mode !== ProviderConfigurationMode.ISOLATED && normalized.mode !== ProviderConfigurationMode.SHARED)
       return "Choose Isolated or Use CLI home for Codex.";

@@ -45,7 +45,7 @@ message EnvironmentSkill {
   string id = 1;
   uint64 version = 2;
   SkillArtifact artifact = 3;
-  repeated string harnesses = 4; // claude | codex | grok
+  repeated string harnesses = 4; // claude | codex | grok | antigravity
   bool device_home = 5;
   bool platform_home = 6;
 }

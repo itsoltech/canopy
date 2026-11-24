@@ -1,3 +1,4 @@
+import { ANTIGRAVITY_PERMISSION_GUIDANCE, supportsThreadPermission } from "@canopy/domain/harnesses";
 import { SANDBOX_DERIVATION_UNAVAILABLE, threadSandbox } from "../store/thread-sandbox.ts";
 import { create, fromJson } from "@bufbuild/protobuf";
 import { PermissionMode, ui } from "@canopy/contracts";
@@ -84,6 +85,11 @@ async function coreScheduleConfiguration(
     if (!harnessOf(spec.provider)) throw new InvalidError("choose a provider");
 
     if (!Object.values(PermissionMode).includes(spec.permissionMode)) throw new InvalidError("unknown permission mode");
+    const limited = author === "bot" && spec.permissionMode === PermissionMode.FULL_ACCESS;
+    const permissionMode = limited ? PermissionMode.FULL_AUTO : spec.permissionMode || PermissionMode.ASK;
+
+    if (!supportsThreadPermission(spec.provider, permissionMode))
+      throw new InvalidError(ANTIGRAVITY_PERMISSION_GUIDANCE);
     const sandboxProfile = await scheduleSandboxSelection(hostContext, spec, previous, author === "owner");
 
     const project = (await coreRun(hostContext, (s) => s.listProjects(hostContext[coreState].options.userId))).find(
@@ -123,15 +129,13 @@ async function coreScheduleConfiguration(
         spec.effort,
         spec.serviceTier,
       );
-    const limited = author === "bot" && spec.permissionMode === PermissionMode.FULL_ACCESS;
-
     newThread = create(ui.NewThreadScheduleSchema, {
       ...spec,
       sandboxProfileId: sandboxProfile?.profile?.id,
       sandboxProfile,
       placement,
       title: spec.title.trim(),
-      permissionMode: limited ? PermissionMode.FULL_AUTO : spec.permissionMode || PermissionMode.ASK,
+      permissionMode,
       permissionModeNote: limited
         ? "Bot schedules use Sandbox when Full access is selected. Edit this schedule to choose a different mode."
         : "",

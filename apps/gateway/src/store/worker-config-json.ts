@@ -3,7 +3,11 @@ import { Schema } from "effect";
 const Rest = [Schema.Record(Schema.String, Schema.Json)] as const;
 
 const StoredEnv = Schema.StructWithRest(
-  Schema.Struct({ secret: Schema.optional(Schema.Boolean), value: Schema.optional(Schema.Json) }),
+  Schema.Struct({
+    name: Schema.optional(Schema.String),
+    secret: Schema.optional(Schema.Boolean),
+    value: Schema.optional(Schema.Json),
+  }),
   Rest,
 );
 

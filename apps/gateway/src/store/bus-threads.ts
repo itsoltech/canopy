@@ -1,3 +1,5 @@
+import { ANTIGRAVITY_PERMISSION_GUIDANCE, providerOf, supportsThreadPermission } from "@canopy/domain/harnesses";
+import { permissionModeOf } from "./ui-mappers.ts";
 import { lockedOwnerModule, moduleDisabledMessage } from "./module-access.ts";
 import { type JsonValue } from "@bufbuild/protobuf";
 import { ui, type Command } from "@canopy/contracts";
@@ -106,6 +108,9 @@ const spawn = (
 
       // Resolve access inside this transaction, after locking and re-reading the parent.
       const access = yield* subagentPermission(sql, source, caller, args.permission_mode);
+
+      if (!supportsThreadPermission(providerOf(target.harness), permissionModeOf(access.permissionMode)))
+        return yield* Effect.fail(new Invalid(ANTIGRAVITY_PERMISSION_GUIDANCE));
 
       const settings: ThreadRow["settings"] = {
         ...caller.settings,

@@ -140,6 +140,9 @@ export class ComposerPermissionsState {
       ? "Applies to the next turn. This turn and its pending approvals stay unchanged."
       : undefined;
   }
+  get provider() {
+    return this.#thread.provider;
+  }
   get fullAuto() {
     const { thread, worker } = this.context();
 

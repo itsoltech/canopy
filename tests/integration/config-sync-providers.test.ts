@@ -1,6 +1,7 @@
 import { afterAll, beforeAll, describe, expect, spyOn, test } from "bun:test";
+import { create } from "@bufbuild/protobuf";
 import { isBigInt } from "@canopy/testing";
-import { Provider, ProviderConfigurationMode, ProviderProfileKind, type ui } from "@canopy/contracts";
+import { computerLink, Provider, ProviderConfigurationMode, ProviderProfileKind, type ui } from "@canopy/contracts";
 import { dockerAvailable } from "@canopy/db/testing";
 import { qualifyId } from "@canopy/domain/computers";
 import { configAllowed } from "../../apps/gateway/src/computers/runtime-config.ts";
@@ -413,4 +414,56 @@ describe.skipIf(!dockerAvailable)("provider instances, models and proxies across
     expect(json(await a.store.query("SELECT * FROM config_items WHERE owner_user_id=$1::uuid", [owner]))).toBe("[]");
     expect(printed.join("\n")).not.toMatch(new RegExp(SECRETS.join("|")));
   }, 30_000);
+
+  test("a linked Antigravity profile encrypts a legacy Gemini variable and survives a gateway upgrade", async () => {
+    const id = "studio";
+    const globalId = `antigravity:${id}`;
+    const key = "fixture-gemini-credential";
+    const hlc = `${Date.now()}.0.${a.node}`;
+    const get = () => instanceOf(b, Provider.ANTIGRAVITY, id);
+
+    const update = create(computerLink.ConfigUpdateSchema, {
+      items: [
+        {
+          kind: "instance",
+          globalId,
+          schemaVersion: 1,
+          fields: {
+            label: { hlc, valueJson: JSON.stringify("Studio") },
+            kind: { hlc, valueJson: JSON.stringify("native") },
+            "env.GEMINI_API_KEY": { hlc, valueJson: JSON.stringify({ value: key }) },
+          },
+        },
+      ],
+    });
+
+    await b.links.config!.receive(a.node, update, () => true);
+    await b.links.config!.receive(a.node, update, () => true);
+    expect((await get())?.env).toMatchObject([{ name: "GEMINI_API_KEY", secret: true, value: "" }]);
+    await wait(async () => (await instanceOf(a, Provider.ANTIGRAVITY, id))?.label === "Studio");
+
+    // The previous gateway retained the shared record and its encrypted field without a local instance.
+    await b.store.query(
+      `WITH removed AS (DELETE FROM provider_instances WHERE harness='antigravity' AND id=$1 RETURNING id)
+       UPDATE config_items SET unsupported='Not supported on this computer' WHERE kind='instance'
+       AND global_id=$2 AND local_id IN (SELECT id FROM removed) AND owner_user_id=$3::uuid`,
+      [id, globalId, b.gateway.userId],
+    );
+    expect(await get()).toBeUndefined();
+    await b.restart();
+    expect(await get()).toMatchObject({ label: "Studio", env: [{ name: "GEMINI_API_KEY", secret: true, value: "" }] });
+    expect((await secretsOf(b)).some((row) => decryptSecret(b.gateway.secretsKey, row.ciphertext) === key)).toBe(true);
+    expect(
+      await b.store.query("SELECT unsupported FROM config_items WHERE kind='instance' AND global_id=$1", [globalId]),
+    ).toEqual([{ unsupported: "" }]);
+    expect(
+      json([
+        await b.store.query("SELECT env FROM provider_instances"),
+        await b.store.query("SELECT fields FROM config_items"),
+        await b.store.query("SELECT value FROM config_history"),
+        await b.store.query("SELECT config FROM worker_config_history"),
+        printed,
+      ]),
+    ).not.toContain(key);
+  }, 40_000);
 });

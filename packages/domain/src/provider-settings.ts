@@ -1,3 +1,4 @@
+import type { Harness } from "./harnesses.ts";
 import { Schema } from "effect";
 import { checkProviderSettingsText } from "./provider-settings-editor.ts";
 import { parseClaudeProviderSettings, type ClaudeProviderSettings } from "./provider-settings-json.ts";
@@ -36,8 +37,6 @@ export type CodexProviderSettings = typeof CodexSettings.Type;
 
 export type GrokProviderSettings = typeof GrokSettings.Type;
 
-type Harness = "claude" | "codex" | "grok";
-
 export function parseProviderSettings(harness: "claude", source: string): ClaudeProviderSettings;
 export function parseProviderSettings(harness: "codex", source: string): CodexProviderSettings;
 export function parseProviderSettings(harness: "grok", source: string): GrokProviderSettings;
@@ -53,6 +52,8 @@ export function parseProviderSettings(
   checkProviderSettingsText(source);
 
   if (!source.trim()) return {};
+
+  if (harness === "antigravity") throw new Error("Antigravity does not support custom CLI settings.");
 
   let value: unknown;
 

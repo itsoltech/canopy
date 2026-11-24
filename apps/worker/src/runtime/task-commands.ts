@@ -18,6 +18,9 @@ export class TaskCommands {
     if (spec.provider === Provider.CLAUDE)
       throw new CommandError("UNSUPPORTED", "Claude goals are set with /goal turns", true);
 
+    if (spec.provider !== Provider.CODEX)
+      throw new CommandError("UNSUPPORTED", "Goals are unavailable for this agent.", true);
+
     return this.ctx.state.turnAdmissions.start(spec.threadId, async (current) => {
       if (!current()) return {};
       this.ctx.ops.assignThreadWorkspace(spec);

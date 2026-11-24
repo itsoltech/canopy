@@ -96,19 +96,19 @@ test("Grok settings reconcile at the turn boundary and resume the durable sessio
       '[models]\ndefault_reasoning_effort = "high"\nmax_completion_tokens = 4000\n[session]\nauto_compact_threshold_percent = 65',
       "[models]\nmax_completion_tokens = 5000\n[session]",
     );
-    const original = state.grok.get("native");
-    const catalog = await ctx.ops.runGrok((threads) => threads.listModels("native"));
+    const original = state.acp.get("grok/native");
+    const catalog = await ctx.ops.runAcp("grok/native", (threads) => threads.listModels("native"));
     expect(catalog.models[0]?.defaultEffort).toBe("high");
-    spec.providerThreadId = await ctx.ops.runGrok((threads) => threads.create(spec));
+    spec.providerThreadId = await ctx.ops.runAcp("grok/native", (threads) => threads.create(spec));
     const oldHome = processHome();
     expect(configAt(oldHome)).toMatchObject({
       models: { default_reasoning_effort: "high", max_completion_tokens: 5000 },
       session: { auto_compact_threshold_percent: 65 },
     });
     await applyThreshold(2n, 65);
-    expect(state.grok.get("native")).toBe(original);
+    expect(state.acp.get("grok/native")).toBe(original);
 
-    first = ctx.ops.runGrok((threads) =>
+    first = ctx.ops.runAcp("grok/native", (threads) =>
       threads.startTurn(spec, "first", create(UserInputSchema, { text: "PERMISSION" })),
     );
     await Promise.race([
@@ -119,20 +119,20 @@ test("Grok settings reconcile at the turn boundary and resume the durable sessio
     ]);
     await applyThreshold(3n, 0);
     expect(state.staleRuntimes.has("grok/native")).toBe(true);
-    expect(state.grok.get("native")).toBe(original);
+    expect(state.acp.get("grok/native")).toBe(original);
     expect(original?.runtime.running(spec.threadId)).toBe(true);
     expect(configAt(oldHome)).toMatchObject({ session: { auto_compact_threshold_percent: 65 } });
     answer.resolve(create(InteractionResponseSchema, { allow: true }));
     await first;
 
-    await ctx.ops.runGrok((threads) =>
+    await ctx.ops.runAcp("grok/native", (threads) =>
       threads.startTurn(spec, "second", create(UserInputSchema, { text: "Continue the conversation" }), {
         model: "",
         effort: "",
         habitContext: "SANDBOX",
       }),
     );
-    expect(state.grok.get("native")).not.toBe(original);
+    expect(state.acp.get("grok/native")).not.toBe(original);
     expect(existsSync(oldHome)).toBe(false);
     expect(configAt(processHome())).toMatchObject({ session: { auto_compact_threshold_percent: 0 } });
     const events = await runtime.runPromise(Journal.use((journal) => journal.pending(new Map())));
@@ -156,7 +156,7 @@ test("Grok settings reconcile at the turn boundary and resume the durable sessio
     await first?.catch(() => undefined);
     state.closing = true;
     await state.runtimeReconcile;
-    await state.grok.get("native")?.runtime.close();
+    await state.acp.get("grok/native")?.runtime.close();
     state.heads.close();
     await runtime.dispose();
   }

@@ -18,6 +18,7 @@
 <div class="grid max-w-full min-w-0 justify-items-end gap-1">
   <PermissionPicker
     value={state.value}
+    provider={state.provider}
     fullAuto={state.fullAuto}
     onselect={(mode) => {
       if (!disabled) void state.select(mode);

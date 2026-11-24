@@ -198,10 +198,10 @@
       "dependencies": {
         "@anthropic-ai/claude-agent-sdk": "0.3.316",
         "@bufbuild/protobuf": "2.17.0",
+        "@canopy/acp": "workspace:*",
         "@canopy/codex-protocol": "workspace:*",
         "@canopy/contracts": "workspace:*",
         "@canopy/domain": "workspace:*",
-        "@canopy/grok-acp": "workspace:*",
         "@canopy/logs": "workspace:*",
         "@canopy/process-governor": "workspace:*",
         "@canopy/syntax": "workspace:*",
@@ -218,6 +218,16 @@
       "devDependencies": {
         "@canopy/testing": "workspace:*",
         "@types/heic-decode": "2.0.1",
+      },
+    },
+    "packages/acp": {
+      "name": "@canopy/acp",
+      "version": "0.0.0",
+      "dependencies": {
+        "@canopy/process-governor": "workspace:*",
+      },
+      "devDependencies": {
+        "@canopy/testing": "workspace:*",
       },
     },
     "packages/codex-protocol": {
@@ -259,16 +269,6 @@
       },
       "devDependencies": {
         "@types/semver": "7.8.0",
-      },
-    },
-    "packages/grok-acp": {
-      "name": "@canopy/grok-acp",
-      "version": "0.0.0",
-      "dependencies": {
-        "@canopy/process-governor": "workspace:*",
-      },
-      "devDependencies": {
-        "@canopy/testing": "workspace:*",
       },
     },
     "packages/logs": {
@@ -571,6 +571,8 @@
 
     "@bufbuild/protoplugin": ["@bufbuild/protoplugin@2.17.0", "", { "dependencies": { "@bufbuild/protobuf": "2.17.0", "@typescript/vfs": "^1.6.2", "typescript": "5.4.5" } }, "sha512-4ExU8AGygKkwIx3U8D5kyBOn9rcCM1qnj4wCP95RbP1CRe73QvVGHQ/lOp6IQiyvQMh9BGrYGht+ZDa8gwC2fg=="],
 
+    "@canopy/acp": ["@canopy/acp@workspace:packages/acp"],
+
     "@canopy/codex-protocol": ["@canopy/codex-protocol@workspace:packages/codex-protocol"],
 
     "@canopy/contracts": ["@canopy/contracts@workspace:packages/contracts"],
@@ -582,8 +584,6 @@
     "@canopy/domain": ["@canopy/domain@workspace:packages/domain"],
 
     "@canopy/gateway": ["@canopy/gateway@workspace:apps/gateway"],
-
-    "@canopy/grok-acp": ["@canopy/grok-acp@workspace:packages/grok-acp"],
 
     "@canopy/integration-tests": ["@canopy/integration-tests@workspace:tests/integration"],
 

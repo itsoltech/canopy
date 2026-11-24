@@ -1,3 +1,4 @@
+import { isHarness } from "@canopy/domain/harnesses";
 import { reportFailureReason } from "./turn-report.ts";
 import { hasDelegatingBot } from "./rows.ts";
 import { STARTED_BY_BOT } from "./thread-select.ts";
@@ -155,11 +156,7 @@ export const summary = (sql: SqlClient.SqlClient, threadId: string): Fx<ThreadSu
       ...(row.remote_parent_ref && { parent_detached: row.remote_parent_detached }),
       status: row.status,
       provider: agentKey({
-        harness: Match.value(row.provider).pipe(
-          Match.when("claude", () => "claude" as const),
-          Match.when("grok", () => "grok" as const),
-          Match.orElse(() => "codex" as const),
-        ),
+        harness: isHarness(row.provider) ? row.provider : "codex",
         instance: row.provider_profile_id ?? "",
       }),
       project: row.project ?? "",

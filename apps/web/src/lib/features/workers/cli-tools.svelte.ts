@@ -1,18 +1,16 @@
 import { create } from "@bufbuild/protobuf";
 import { CliInstallMethod, Provider, ui, type CliTool } from "@canopy/contracts";
+import { providerKeyOf, providerName } from "#lib/features/threads/providers.ts";
 import { requestJson } from "#lib/shared/http.ts";
 import { decode, encode } from "#lib/shared/wire.ts";
 
 /** Provider CLIs on workers (docs/provider-cli.md). The live state arrives with the workers (Worker.cli_tools). */
 
-export const cliLabel = (provider: Provider): string =>
-  provider === Provider.CLAUDE
-    ? "Claude Code"
-    : provider === Provider.CODEX
-      ? "Codex"
-      : provider === Provider.GROK
-        ? "Grok"
-        : "Agent CLI";
+export const cliLabel = (provider: Provider): string => {
+  const key = providerKeyOf(provider);
+
+  return provider === Provider.CLAUDE ? "Claude Code" : key ? providerName(key) : "Agent CLI";
+};
 
 const METHOD_LABELS = new Map([
   [CliInstallMethod.NATIVE, "Native installer"],

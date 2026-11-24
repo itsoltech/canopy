@@ -211,7 +211,7 @@ Szczegóły i ograniczenia pozostałych harnessów: [protocol.md](protocol.md#mo
 
 ## Wspólny bridge MCP na workerze
 
-Claude, Codex i Grok korzystają z tego samego mechanizmu workera:
+Worker udostępnia narzędzia automatyzacji wątkom Claude, Codexa, Groka i Antigravity.
 
 1. Gateway przekazuje do `ThreadSpec` wyłącznie nazwy gotowych narzędzi.
 2. Worker rozwiązuje przypiętą binarkę i uruchamia jej serwer MCP przez stdio.
@@ -315,8 +315,7 @@ anulowania są usuwane po zakończeniu żądania.
 
 ## Rezerwacje urządzeń i emulatory
 
-Worker ma jedną pulę rezerwacji współdzieloną przez Claude, Codexa, Groka,
-`RunAgentTool` i Preview. Urządzenie należy wyłącznie do jednego wątku;
+Wszystkie harnessy wątków, `RunAgentTool` i Preview korzystają ze wspólnej puli rezerwacji workera. Urządzenie należy wyłącznie do jednego wątku;
 różne wątki nie mogą wysyłać na nie równoległych gestów ani przejmować jego celu.
 Pula korzysta z lokalnego daemona przez socket i natywnych identyfikatorów AVD
 lub symulatora. Odrzuca zdalne adresy daemona oraz identyfikatory dostawców

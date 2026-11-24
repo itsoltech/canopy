@@ -19,6 +19,7 @@ export interface EnvironmentHomes {
     readonly claude: string;
     readonly codex: string;
     readonly grok?: string;
+    readonly antigravity?: string;
     readonly agents?: string;
   };
   readonly config: AppliedConfig | undefined;

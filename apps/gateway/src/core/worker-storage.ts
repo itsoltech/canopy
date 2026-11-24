@@ -1,6 +1,8 @@
-import { Effect, Match } from "effect";
+import { ANTIGRAVITY_ACP_CAPABILITY } from "@canopy/domain/release/protocol";
+import { providerOf } from "@canopy/domain/harnesses";
+import { Effect } from "effect";
 import { SqlClient } from "effect/sql";
-import { Provider, type ThreadStorageCleanupReply } from "@canopy/contracts";
+import type { ThreadStorageCleanupReply } from "@canopy/contracts";
 import type { GatewayCore } from "./core.ts";
 import { coreState } from "./core-context.ts";
 import type { WorkerConnection } from "../worker-link/index.ts";
@@ -11,6 +13,7 @@ export const purgedWorkerStorage = (
   worker: string,
   completed: readonly string[],
   deferred: readonly string[] = [],
+  supportsAntigravity = true,
 ) =>
   Effect.gen(function* () {
     const sql = yield* SqlClient.SqlClient;
@@ -29,17 +32,14 @@ export const purgedWorkerStorage = (
               AND session IN (r.source_provider_thread_id,r.replacement_provider_thread_id)))
       )) AS sessions FROM threads t
       WHERE t.owner_user_id=${owner}::uuid AND t.worker_id=${worker}::uuid
+        AND (${supportsAntigravity} OR t.provider <> 'antigravity')
         AND t.purge_completed_at IS NOT NULL AND t.moved_to IS NULL
         AND NOT(t.id=ANY(${[...completed]}::uuid[])) AND NOT(t.id=ANY(${[...deferred]}::uuid[]))
       ORDER BY t.purge_completed_at,t.id LIMIT 32`;
 
     return rows.map((row) => ({
       threadId: row.id,
-      provider: Match.value(row.provider).pipe(
-        Match.when("codex", () => Provider.CODEX),
-        Match.when("claude", () => Provider.CLAUDE),
-        Match.orElse(() => Provider.GROK),
-      ),
+      provider: providerOf(row.provider),
       providerProfileId: row.provider_profile_id ?? "native",
       providerThreadIds: row.sessions,
     }));
@@ -64,6 +64,7 @@ export async function offerWorkerStorage(core: GatewayCore, connection: WorkerCo
       connection.workerId,
       [...connection.storageCleaned],
       [...connection.storageCleanupDeferred],
+      connection.hello.capabilities.includes(ANTIGRAVITY_ACP_CAPABILITY),
     ),
   );
 

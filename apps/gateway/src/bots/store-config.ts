@@ -1,3 +1,4 @@
+import { supportsIsolatedRuns } from "@canopy/domain/harnesses";
 import { create, fromJson, toJson, type JsonValue } from "@bufbuild/protobuf";
 import { bots, ProfileModelsSchema, Provider, type ProfileModels } from "@canopy/contracts";
 import { Effect } from "effect";
@@ -45,7 +46,7 @@ function botValidate(
         return yield* Effect.fail(new Invalid("a name, known mascot shape and #rrggbb color are required"));
 
       if (
-        !harnessOf(config.provider) ||
+        !supportsIsolatedRuns(config.provider) ||
         !config.model ||
         config.model.length > 200 ||
         config.effort.length > 40 ||

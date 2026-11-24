@@ -22,6 +22,7 @@ export function SettingsModel({
   disabled = false,
   resetEffort,
   localWorkersOnly = false,
+  allowProvider,
 }: {
   value: { provider: Provider; profileId: string; model: string; effort?: string };
   onChange: (v: ModelChoice, effort: string) => void;
@@ -32,6 +33,7 @@ export function SettingsModel({
   disabled?: boolean;
   resetEffort?: () => void;
   localWorkersOnly?: boolean;
+  allowProvider?: (provider: Provider) => boolean;
 }) {
   const { workers } = useOverview();
   const c = useColors();
@@ -55,7 +57,7 @@ export function SettingsModel({
       worker,
       resource.data?.workers.find((w) => w.workerId === worker.id)?.profiles ?? [],
     )) {
-      if (provider && section.provider !== provider) continue;
+      if ((provider && section.provider !== provider) || (allowProvider && !allowProvider(section.provider))) continue;
       const other = sections.get(section.key);
       sections.set(
         section.key,

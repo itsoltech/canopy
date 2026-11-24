@@ -103,5 +103,15 @@ function setupAgentRow(
 export function setupAgentRows(worker: ui.Worker, catalog: ui.WorkerModels | undefined): SetupAgentRow[] {
   const models = setupAgentModels(worker, catalog);
 
-  return providerKeys.map((provider) => setupAgentRow(worker, models, catalog, provider));
+  return providerKeys
+    .filter(
+      (key) =>
+        key !== "ANTIGRAVITY" ||
+        worker.cliTools.some((item) => item.tool?.provider === Provider[key]) ||
+        worker.providers.some((report) => report.provider === Provider[key]) ||
+        worker.providerInstances.some(
+          (instance) => instance.harness === Provider[key] && (instance.available || instance.status?.version),
+        ),
+    )
+    .map((provider) => setupAgentRow(worker, models, catalog, provider));
 }

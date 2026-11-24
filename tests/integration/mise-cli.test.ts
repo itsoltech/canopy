@@ -167,12 +167,15 @@ const claude = CLIS.find((spec) => spec.name === "claude")!;
 const grok = CLIS.find((spec) => spec.name === "grok")!;
 const grokNpmSetup = "--force --tool-option allow_builds=@xai-official/grok";
 
-const owners = CLIS.flatMap((spec) => [
-  { spec, owner: spec.name, tool: spec.name },
-  { spec, owner: `npm-${spec.npm.slice(1).replaceAll("/", "-")}`, tool: `npm:${spec.npm}` },
-]);
-
-owners.push({ spec: claude, owner: "claude-code", tool: "claude-code" });
+const owners = CLIS.flatMap((spec) =>
+  spec.npm
+    ? [
+        { spec, owner: spec.name, tool: spec.name },
+        { spec, owner: `npm-${spec.npm.slice(1).replaceAll("/", "-")}`, tool: `npm:${spec.npm}` },
+        ...(spec.name === "claude" ? [{ spec, owner: "claude-code", tool: "claude-code" }] : []),
+      ]
+    : [],
+);
 
 describe("mise global agent CLIs", () => {
   test.each(owners)(

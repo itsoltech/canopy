@@ -1,3 +1,4 @@
+import { HARNESSES, isHarness } from "@canopy/domain/harnesses";
 import { create } from "@bufbuild/protobuf";
 import { EnvironmentSkillSchema, ui } from "@canopy/contracts";
 import { SKILL_TOTAL_BYTES } from "@canopy/domain/skill-artifact";
@@ -18,10 +19,10 @@ export function checkSkillAssignment(
 
   if (
     !skill.harnesses.length ||
-    skill.harnesses.length > 3 ||
-    skill.harnesses.some((h) => !["claude", "codex", "grok"].includes(h))
+    skill.harnesses.length > HARNESSES.length ||
+    skill.harnesses.some((h) => !isHarness(h))
   )
-    invalid("Choose Claude, Codex or Grok.");
+    invalid("Choose one or more supported agents.");
 
   if (!skill.deviceHome && !skill.platformHome) invalid("Choose a platform or device destination.");
 

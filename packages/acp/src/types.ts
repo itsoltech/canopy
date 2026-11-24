@@ -19,13 +19,42 @@ export interface InitializeResult {
   agentInfo?: { name: string; version: string };
   agentCapabilities?: {
     loadSession?: boolean;
+    sessionCapabilities?: { resume?: WireObject };
     promptCapabilities?: { image?: boolean; embeddedContext?: boolean };
     mcpCapabilities?: { http?: boolean; sse?: boolean };
   };
   authMethods?: { id: string; name: string }[];
 }
 
-export interface SessionResult {
+export interface SelectValue {
+  value: string;
+  name: string;
+  description?: string;
+}
+
+interface SelectGroup {
+  group: string;
+  name: string;
+  options: SelectValue[];
+}
+
+interface ConfigOptionInfo {
+  id: string;
+  name: string;
+  category?: string;
+}
+
+export type ConfigOption = ConfigOptionInfo &
+  (
+    | { type: "select"; currentValue: string; options: (SelectValue | SelectGroup)[] }
+    | { type: "boolean"; currentValue: boolean }
+  );
+
+export interface SessionConfig {
+  configOptions?: ConfigOption[];
+}
+
+export interface SessionResult extends SessionConfig {
   sessionId: string;
   modes?: { currentModeId: string; availableModes: { id: string; name: string; description?: string }[] };
   models?: { currentModelId: string; availableModels: { modelId: string; name: string; description?: string }[] };
@@ -51,6 +80,7 @@ export type SessionUpdate =
   | ({ sessionUpdate: "tool_call" | "tool_call_update" } & ToolCall)
   | { sessionUpdate: "plan"; entries: { content: string; status: string; priority?: string }[] }
   | { sessionUpdate: "current_mode_update"; currentModeId: string }
+  | { sessionUpdate: "config_option_update"; configOptions: ConfigOption[] }
   | { sessionUpdate: "available_commands_update"; availableCommands: unknown[] }
   | { sessionUpdate: "usage_update"; used: number; size: number; cost?: { amount: number; currency: string } };
 

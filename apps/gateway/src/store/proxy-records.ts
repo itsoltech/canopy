@@ -1,3 +1,5 @@
+import { supportsHarness } from "@canopy/domain/proxy-accounts";
+import { providerOf } from "@canopy/domain/harnesses";
 import { createHmac } from "node:crypto";
 import { create, type JsonValue } from "@bufbuild/protobuf";
 import { ui } from "@canopy/contracts";
@@ -42,8 +44,7 @@ export function proxyRoot(value: string): string {
   return url.href.replace(/\/$/, "");
 }
 
-export const proxySupports = (kind: string, harness: string): boolean =>
-  kind === "cliproxyapi" || (kind === "anthropic" ? harness === "claude" : harness === "codex" || harness === "grok");
+export const proxySupports = (kind: string, harness: string): boolean => supportsHarness({ kind }, providerOf(harness));
 
 export function proxyOptions(input?: ProxyOptions): ProxyOptions {
   const options = {

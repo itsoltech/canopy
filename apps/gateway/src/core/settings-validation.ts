@@ -3,7 +3,7 @@ import { MAX_ATTACHMENT_FILE_BYTES, MAX_ATTACHMENT_FILE_MIB, validModuleOrder } 
 import { isEntityId } from "@canopy/domain/computers";
 import { normalizeSandboxProfile } from "@canopy/domain/sandbox-profiles";
 import { isCheckInterval } from "@canopy/domain/update-checks";
-import { harnessOf } from "../store/index.ts";
+import { supportsIsolatedRuns } from "@canopy/domain/harnesses";
 import { checkFavorites, InvalidError } from "./core-context.ts";
 import { validateAgentToolDefaults } from "./agent-tool-defaults-validation.ts";
 import { checkWorkerGatewayUrl } from "./worker-administration.ts";
@@ -92,7 +92,8 @@ export function validateUserSettings(request: ui.UpdateUserSettingsRequest) {
     )
       throw new InvalidError("text generation setting is too long");
 
-    if (t.model && !harnessOf(t.provider)) throw new InvalidError("text generation needs a provider instance");
+    if ((t.provider || t.model) && !supportsIsolatedRuns(t.provider))
+      throw new InvalidError("Choose a provider that supports text generation.");
 
     if (t.effort && !/^[a-z][a-z0-9_-]*$/.test(t.effort)) throw new InvalidError("invalid text generation effort");
   }

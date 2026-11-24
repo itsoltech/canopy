@@ -1,3 +1,4 @@
+import { harnessOf } from "@canopy/domain/harnesses";
 import { create } from "@bufbuild/protobuf";
 import { EnvironmentInstructionSchema, ui, type Hello } from "@canopy/contracts";
 import { Code, ConnectError } from "@connectrpc/connect";
@@ -36,7 +37,7 @@ export function automaticTags(hello: Hello): string[] {
   ];
 
   for (const provider of hello.providers) {
-    const name = ["", "claude", "codex", "grok"][provider.provider];
+    const name = harnessOf(provider.provider);
 
     if (provider.available && name) tags.push(`cli:${name}`);
   }

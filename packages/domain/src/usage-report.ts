@@ -1,5 +1,6 @@
 import { timestampDate, type Timestamp } from "@bufbuild/protobuf/wkt";
 import type { ui } from "@canopy/contracts";
+import { HARNESS_NAMES, isHarness } from "./harnesses.ts";
 
 export type UsageView = "cost" | "tokens";
 
@@ -123,13 +124,7 @@ export function metricValue(amounts: UsageAmounts, view: UsageView): string {
 export const metricNumber = (amounts: UsageAmounts, view: UsageView) =>
   view === "cost" ? amounts.effectiveCost : Number(totalTokens(amounts));
 
-const providerNames = new Map([
-  ["claude", "Claude"],
-  ["codex", "Codex"],
-  ["grok", "Grok"],
-]);
-
-export const providerName = (value: string) => providerNames.get(value) ?? value;
+export const providerName = (value: string) => (isHarness(value) ? HARNESS_NAMES[value] : value);
 
 const speedNames = new Map([
   ["", "Unknown"],

@@ -35,7 +35,7 @@ export class ProviderUsage {
         JOIN workers w ON w.id=u.worker_id
         JOIN worker_configs c ON c.worker_id=w.id AND c.version=u.config_version
         JOIN provider_instances i ON i.id=u.profile_id
-          AND i.harness=CASE u.provider WHEN 1 THEN 'claude' WHEN 2 THEN 'codex' ELSE 'grok' END
+          AND i.harness=CASE u.provider WHEN 1 THEN 'claude' WHEN 2 THEN 'codex' WHEN 3 THEN 'grok' END
         LEFT JOIN provider_instance_workers a ON a.worker_id=w.id AND a.harness=i.harness AND a.instance_id=i.id
         WHERE i.kind='native' AND i.proxy_id IS NULL AND a.proxy_id IS NULL
           AND (w.owner_user_id=${owner}::uuid OR w.owner_user_id IS NULL)

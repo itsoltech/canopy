@@ -1,5 +1,5 @@
 {
-  "name": "@canopy/grok-acp",
+  "name": "@canopy/acp",
   "version": "0.0.0",
   "private": true,
   "type": "module",

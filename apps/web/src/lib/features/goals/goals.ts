@@ -1,3 +1,4 @@
+import { supportsNativeGoals } from "@canopy/domain/harnesses";
 import { Provider, type ui } from "@canopy/contracts";
 
 /**
@@ -19,7 +20,7 @@ export const goalNeedsYou = (status: string): boolean =>
 
 /** Goals are the harness's: a gateway thread (a chat agent in the gateway) has none. */
 export const takesGoals = (thread: ui.Thread): boolean =>
-  thread.runtime !== "gateway" && thread.provider !== Provider.GROK;
+  thread.runtime !== "gateway" && supportsNativeGoals(thread.provider);
 
 /** Only Codex takes a token budget (Claude Code's `/goal` has none; the gateway rejects it). */
 export const takesTokenBudget = (provider: Provider): boolean => provider === Provider.CODEX;

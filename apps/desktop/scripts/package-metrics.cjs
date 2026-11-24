@@ -34,7 +34,7 @@ function digest(path) {
 function assertNoAgentClis(entries) {
   for (const { path } of entries) {
     if (
-      /^(?:claude|codex|grok)(?:\.exe)?$/i.test(basename(path)) ||
+      /^(?:claude|codex|grok|agy)(?:\.exe)?$/i.test(basename(path)) ||
       /[/\\](?:claude-agent-sdk-(?:linux|darwin|win32)[^/\\]*|claude-code|codex-(?:linux|darwin|win32)[^/\\]*)[/\\]/.test(
         path,
       )

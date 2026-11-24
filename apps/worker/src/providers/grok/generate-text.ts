@@ -1,6 +1,6 @@
 import { mkdirSync, rmSync } from "node:fs";
 import { join } from "node:path";
-import { GrokClient } from "@canopy/grok-acp";
+import { AcpClient } from "@canopy/acp";
 import type { TextInput } from "../generate-text.ts";
 import type { ResolvedProfile } from "../profiles.ts";
 import type { XaiPricingCatalog } from "../pricing/model-catalog.ts";
@@ -30,7 +30,7 @@ export async function generateGrokText(
   const scratch = join(options.dataDir, "text-generation", Bun.randomUUIDv7());
   const cwd = join(scratch, "empty");
   mkdirSync(cwd, { recursive: true, mode: 0o700 });
-  let client: GrokClient | undefined;
+  let client: AcpClient | undefined;
   const deadline = AbortSignal.any([signal, AbortSignal.timeout(options.timeoutMs ?? 30_000)]);
   const cancel = () => void client?.dispose();
 
@@ -44,7 +44,7 @@ export async function generateGrokText(
       readOnly: true,
     });
 
-    client = new GrokClient({
+    client = new AcpClient({
       ...launch.options,
       cwd,
       promptTimeoutMs: options.timeoutMs ?? 30_000,

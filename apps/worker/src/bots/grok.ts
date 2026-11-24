@@ -1,4 +1,4 @@
-import { GrokClient, type SessionUpdate } from "@canopy/grok-acp";
+import { AcpClient, type SessionUpdate } from "@canopy/acp";
 import type { JsonValue } from "@canopy/domain";
 import { statSync } from "node:fs";
 import { join } from "node:path";
@@ -55,7 +55,7 @@ export async function runGrokBot(ctx: BotHarnessContext): Promise<void> {
     },
   });
 
-  const client = new GrokClient({
+  const client = new AcpClient({
     ...launch.options,
     // Every CLI permission is denied. Canopy MCP approvals are enforced independently in the gateway.
     callbacks: { requestPermission: async () => ({ outcome: { outcome: "cancelled" } }) },

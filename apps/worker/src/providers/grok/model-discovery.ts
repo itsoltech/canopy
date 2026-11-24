@@ -1,5 +1,5 @@
 import { Schema } from "effect";
-import type { InitializeResult } from "@canopy/grok-acp";
+import type { InitializeResult } from "@canopy/acp";
 import type { ModelInit } from "../models.ts";
 
 const ModelMetadata = Schema.Struct({

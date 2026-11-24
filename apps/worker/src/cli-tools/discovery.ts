@@ -1,6 +1,7 @@
 import { existsSync, realpathSync } from "node:fs";
 import { homedir } from "node:os";
 import { CliInstallMethod, Provider } from "@canopy/contracts";
+import type { Harness } from "@canopy/domain/harnesses";
 import { ProcessTimeoutError, processKey, runProcess } from "@canopy/process-governor";
 import { locate, type Location } from "./locations.ts";
 import { classify, readHead, type ClassifyContext } from "./managers.ts";
@@ -15,17 +16,23 @@ import { MISE_GROK_NPM_TOOL, miseSupportsToolOption, miseTool, singleGlobalMiseV
  * runs a package manager except mise's read-only queries.
  */
 
-export type CliName = "claude" | "codex" | "grok";
+export type CliName = Harness;
 
-export interface CliSpec {
-  readonly name: CliName;
+export const cliCommand = (name: CliName): string => (name === "antigravity" ? "agy" : name);
+
+interface CliMetadata {
   readonly provider: Provider;
   readonly label: string;
-  /** The npm package (also what Bun and mise's npm backend install). */
-  readonly npm: string;
   /** The official user-level installer script (POSIX), when the CLI has one. */
   readonly script?: string;
 }
+
+/** agy is distributed as a native binary. Only the other CLIs have verified npm packages. */
+export type CliSpec = CliMetadata &
+  (
+    | { readonly name: "antigravity"; readonly npm?: never }
+    | { readonly name: Exclude<CliName, "antigravity">; readonly npm: string }
+  );
 
 export const CLIS: readonly CliSpec[] = [
   {
@@ -43,6 +50,7 @@ export const CLIS: readonly CliSpec[] = [
     npm: "@xai-official/grok",
     script: "https://x.ai/cli/install.sh",
   },
+  { name: "antigravity", provider: Provider.ANTIGRAVITY, label: "Antigravity" },
 ];
 
 export const cliOf = (provider: Provider): CliSpec | undefined => CLIS.find((c) => c.provider === provider);
@@ -189,7 +197,8 @@ export async function discoverCli(
   probe: CliProbe,
 ): Promise<DiscoveredCli> {
   const base = { spec, configuredPath: Boolean(configured) };
-  const locations = configured ? [{ path: configured, broken: false }] : probe.locate(spec.name);
+  const command = cliCommand(spec.name);
+  const locations = configured ? [{ path: configured, broken: false }] : probe.locate(command);
   const { chosen, probed } = await choose(locations, probe);
 
   if (!chosen) {
@@ -209,7 +218,7 @@ export async function discoverCli(
 
   const { path } = chosen;
 
-  if (!configured) probe.chose?.(spec.name, path);
+  if (!configured) probe.chose?.(command, path);
   const resolvedPath = probe.realpath(path) ?? "";
   const result = probed.get(path);
   const version = result && "line" in result ? parseVersion(result.line) : "";
@@ -232,7 +241,7 @@ export async function discoverCli(
 
   // A shim hides the tool: ask mise which install it runs (a fixed argv, no shell).
   if (method === CliInstallMethod.MISE && !owner && probe.miseWhich) {
-    const target = await probe.miseWhich(spec.name);
+    const target = await probe.miseWhich(command);
 
     if (target) owner = classify(spec, target, target, classifyContext(probe)).owner;
   }
@@ -243,7 +252,7 @@ export async function discoverCli(
 
   const active =
     miseToolOption && !configured && path.replaceAll("\\", "/").includes(`/installs/${owner}/latest/`)
-      ? await probe.miseWhich?.(spec.name)
+      ? await probe.miseWhich?.(command)
       : undefined;
 
   return {
@@ -327,7 +336,9 @@ export function deviceCliProbe(options: DeviceCliOptions): CliProbe {
     which,
     realpath,
     head: readHead,
-    version: (executable) => probeLine([executable, "--version"], options.env(), options.home),
+    // An instance may rename its executable. Keep agy's background updater off for all read-only version probes.
+    version: (executable) =>
+      probeLine([executable, "--version"], { ...options.env(), AGY_CLI_DISABLE_AUTO_UPDATE: "true" }, options.home),
     miseWhich: async (command) => {
       const mise = which("mise");
       const result = mise ? await probeLine([mise, "which", command], options.env(), options.home) : undefined;

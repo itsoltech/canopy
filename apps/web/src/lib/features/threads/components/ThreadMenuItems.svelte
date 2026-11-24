@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { canGenerateTitle } from "../title-actions.ts";
   import { browser } from "$app/env";
   import type { ui } from "@canopy/contracts";
   import { snoozeDeadline, snoozePresets } from "@canopy/domain/thread-snooze";
@@ -31,7 +32,12 @@
       capabilities?.linkedComputers ?? false,
       onThisComputer(thread, actions.overview.worker(thread.workerId), capabilities?.ownGateway ?? false),
       actions.overview.worker(thread.workerId)?.os,
-    ).filter((item) => !omit.includes(item.id) && !(item.id === "open" && browser && window.canopyDesktop)),
+    ).filter(
+      (item) =>
+        !omit.includes(item.id) &&
+        (item.id !== "regenerate" || canGenerateTitle(thread, actions.settings.textGeneration)) &&
+        !(item.id === "open" && browser && window.canopyDesktop),
+    ),
   );
 </script>
 

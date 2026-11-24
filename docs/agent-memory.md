@@ -26,7 +26,7 @@ po git origin dotyczy widoku ([linked-computers.md](linked-computers.md#tożsamo
 
 ## Użycie przez agenta
 
-Claude, Codex i Grok mogą wywołać `memory_search` z maksymalnie trzema krótkimi
+Wątki z włączoną pamięcią mogą wywołać `memory_search` z maksymalnie trzema krótkimi
 zapytaniami. Wynik zawiera pełną notatkę, zakres, ID i rewizję. Wagi tytułu
 i aliasów są większe od wagi treści. Warto użyć dokładnego symbolu, nazwy
 narzędzia lub błędu i dodać osobny wariant w drugim języku, gdy jest potrzebny.

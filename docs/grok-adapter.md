@@ -1,5 +1,7 @@
 # Adapter Grok
 
+Aktualizacja (2026-11-24): Grok i [Antigravity](antigravity-adapter.md) używają wspólnego klienta ACP stdio.
+
 Aktualizacja (2026-11-24): adapter maskuje znane wartości sekretów w wynikach
 narzędzi dla modelu przez synchroniczny hook w izolowanej sesji ACP.
 
@@ -125,7 +127,7 @@ istniejącą sesję z tego samego katalogu.
 
 ## SDK
 
-`packages/grok-acp` posiada proces CLI i jego grupę procesów, inicjalizację, typowane sesje, wybór modelu/trybu i asynchroniczny strumień promptu. Żądania mają unikalne ID i timeouty; obsługa callbacków nie blokuje odbioru odpowiedzi. Zapis czeka na flush stdin, kolejka zdarzeń i ramki są ograniczone. Crash/EOF/nieprawidłowa ramka kończą oczekujące żądania. Dispose wysyła TERM, następnie KILL i czeka na zebranie procesu; przerwany konsument nie pozostawia działającej tury. Stderr jest ograniczony i redagowany. Możliwości fs i terminal są ogłaszane wyłącznie, gdy klient dostarcza ich implementację.
+`packages/acp` posiada proces CLI i jego grupę procesów, inicjalizację, typowane sesje, wybór modelu/trybu i asynchroniczny strumień promptu. Żądania mają unikalne ID i timeouty; obsługa callbacków nie blokuje odbioru odpowiedzi. Zapis czeka na flush stdin, kolejka zdarzeń i ramki są ograniczone. Crash/EOF/nieprawidłowa ramka kończą oczekujące żądania. Dispose wysyła TERM, następnie KILL i czeka na zebranie procesu; przerwany konsument nie pozostawia działającej tury. Stderr jest ograniczony i redagowany. Możliwości fs i terminal są ogłaszane wyłącznie, gdy klient dostarcza ich implementację.
 
 Testy fake agenta sprawdzają podzielone ramki UTF-8, kolejne tury, wznowienie, permission round-trip, anulowanie, crash, redakcję i timeout. Testy prawdziwego CLI wymagają `CANOPY_LIVE=1`.
 
@@ -209,13 +211,13 @@ trafiają do procesu automatyzacji. Szczegóły: [automation-tools.md](automatio
 
 Ten sam serwer wystawia platformowe connectory z `ThreadSpec.connectorTools`. Wywołanie zawiera identyfikator konta, a item zachowuje nazwę konta i typ connectora. Gateway sprawdza grant projektu wątku. Zmiana katalogu narzędzi powoduje restart/load sesji z aktualnym MCP dopiero na granicy tur, z zachowaniem ID i historii. Worker raportuje zastosowany katalog, a notatka `[canopy]` opisuje zmianę przy następnej wiadomości. Test `bus.test.ts` pokrywa bearer, zakres dostępnych narzędzi, konto i metadane transkryptu. Wyłączenie zewnętrznych MCP poniżej dotyczy konfiguracji urządzenia, nie connectorów Canopy.
 
-Załączniki obrazowe są wysyłane jako ACP image tylko po zadeklarowaniu capability; pozostałe jako ścieżki. Obraz umieszczony w tekście idzie zaraz za swoim znacznikiem, a umieszczony plik zostaje znacznikiem z numerem z notatki (`grok/input.ts`, [protocol.md](protocol.md#załączniki-w-tekście)). Zewnętrzne MCP z konfiguracji Claude/Cursor i managed MCP są wyłączone w tym procesie. Klucze modelu są wykluczone ze środowiska shella. Natywne subagenty, workflows i goals Groka są wyłączone; delegowanie odbywa się przez platformowe `spawn_thread`.
+Załączniki obrazowe są wysyłane jako ACP image tylko po zadeklarowaniu capability; pozostałe jako ścieżki. Obraz umieszczony w tekście idzie zaraz za swoim znacznikiem, a umieszczony plik zostaje znacznikiem z numerem z notatki (`acp/input.ts`, [protocol.md](protocol.md#załączniki-w-tekście)). Zewnętrzne MCP z konfiguracji Claude/Cursor i managed MCP są wyłączone w tym procesie. Klucze modelu są wykluczone ze środowiska shella. Natywne subagenty, workflows i goals Groka są wyłączone; delegowanie odbywa się przez platformowe `spawn_thread`.
 
 ## Katalog, UI, boty i tytuły
 
 Native pobiera modele/efforts z `_meta.modelState` odpowiedzi initialize, bez płatnej tury. Proxy pobiera `/v1/models`, filtruje modele nieagentowe i uzupełnia efforts tylko dla modeli znanych z metadanych CLI. Dla innych modeli lista efforts jest pusta (nie oznacza to dowodu braku rozumowania). Nie utrzymujemy ręcznej listy poziomów wysiłku per model. UI, harmonogramy i domyślne ustawienia używają wspólnego katalogu. Hello/config-applied pokazuje wersję Groka na liście Agents.
 
-Instancje mają ten sam mechanizm native/CLIProxyAPI, szyfrowane sekrety i synchronizację na workery co pozostałe harnessy. Enum `PROVIDER_GROK=3`, `WorkerConfig.grok=640`, migracja `0043_grok_provider.sql` (przy merge przenumerowana z 0042). Picker, sidebar, ustawienia providerów i karty subagentów mają markę Groka ([LobeHub icons, MIT i notice](third-party-notices.md#lobehub-icons--znak-xaigrok)).
+Instancje mają ten sam mechanizm native/CLIProxyAPI, szyfrowane sekrety i synchronizację na workery co pozostałe harnessy. Enum `PROVIDER_GROK=3`, `WorkerConfig.grok=640`, migracja `0043_grok_provider.sql` (przy merge przenumerowana z 0042). Picker, sidebar, ustawienia providerów i karty subagentów mają markę Groka ([LobeHub icons, MIT i notice](third-party-notices.md#lobehub-icons)).
 
 `spawn_thread` obsługuje `grok/<instance>` w obu kierunkach z Claude/Codex. Botowe
 `start_thread` przyjmuje `provider: grok`. Boty native i proxy działają wyłącznie przez
@@ -261,6 +263,6 @@ Native: pomiń `deviceLogin` albo użyj `DEVICE_LOGIN_LINK`. Proces workera musi
 - Boty: `tests/integration/bots-harness.test.ts`, fake ACP przez rzeczywisty WorkerHost;
   izolację schematów i format transkryptu prawdziwego CLI bez płatnej inferencji
   pokrywają `apps/worker/src/bots/{isolation,grok-transcript}.test.ts`.
-- Opt-in `CANOPY_LIVE=1`: `packages/grok-acp/src/client.live.test.ts`, `apps/worker/src/providers/grok/launch.live.test.ts`. Env testowe: `CANOPY_LIVE_CLIPROXYAPI_URL`, `CANOPY_LIVE_CLIPROXYAPI_KEY`; opcjonalnie `CANOPY_LIVE_GROK_MODEL`, `CANOPY_GROK_EXECUTABLE`. Prywatny plik dev-live.env nie jest częścią repo. Nie ma publicznego hosta ani przykładowego prawdziwego klucza w dokumentacji.
+- Opt-in `CANOPY_LIVE=1`: `packages/acp/src/client.live.test.ts`, `apps/worker/src/providers/grok/launch.live.test.ts`. Env testowe: `CANOPY_LIVE_CLIPROXYAPI_URL`, `CANOPY_LIVE_CLIPROXYAPI_KEY`; opcjonalnie `CANOPY_LIVE_GROK_MODEL`, `CANOPY_GROK_EXECUTABLE`. Prywatny plik dev-live.env nie jest częścią repo. Nie ma publicznego hosta ani przykładowego prawdziwego klucza w dokumentacji.
 
 Ograniczenia: brak ACP fork i goals (odrzucane w gatewayu, kontrolki ukryte), brak native background-task lifecycle/stopTask. Ukryte sesje botów odzyskują zapisany koniec tury z transkryptu; wątki projektowe nadal korzystają ze wspólnego fallbacku workera po awarii, a sesja pozostaje wznawialna. Nie odtwarzamy niezgłoszonych tokenów input/output ani nie zgadujemy usage z context occupancy. Natywny płatny smoke pominięto z powodu braku loginu. Live nie obejmował obrazów, rzeczywistych diffów CLI ani mieszanego spawn Claude/Codex↔Grok; obrazy/diffy mają fake integrację, a wybór spawn test resolvera. ASK ma fake round-trip zgody/odmowy/anulowania; live proxy pracował w FULL_AUTO, bez pełnej macierzy READ_ONLY/ACCEPT_EDITS/FULL_AUTO. Nie należy deklarować pełnego live parytetu.

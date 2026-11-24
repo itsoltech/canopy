@@ -1,6 +1,7 @@
+import { harnessOf } from "@canopy/domain/harnesses";
 import { fromBinary, fromJson, toJson, type JsonValue } from "@bufbuild/protobuf";
 import { timestampDate } from "@bufbuild/protobuf/wkt";
-import { CommandSchema, Provider, ui, UsageScope, type Usage, type ThreadEvent } from "@canopy/contracts";
+import { CommandSchema, ui, UsageScope, type Usage, type ThreadEvent } from "@canopy/contracts";
 import { Effect } from "effect";
 import type { SqlClient } from "effect/sql";
 import { counterDelta, usageTotals, COUNT_FIELDS, COST_FIELDS, TOKEN_FIELDS } from "./totals.ts";
@@ -144,8 +145,9 @@ export function accountBotUsage(sql: SqlClient.SqlClient, botId: string, event: 
     if (command.kind.case !== "runBotTurn") return;
     const input = command.kind.value;
 
-    const provider =
-      input.provider === Provider.CLAUDE ? "claude" : input.provider === Provider.CODEX ? "codex" : "grok";
+    const provider = harnessOf(input.provider);
+
+    if (!provider) return;
 
     yield* recordUsage(
       sql,

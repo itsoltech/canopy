@@ -1,3 +1,4 @@
+import { ANTIGRAVITY_ACP_CAPABILITY } from "@canopy/domain/release/protocol";
 import { create } from "@bufbuild/protobuf";
 import { Provider, ui } from "@canopy/contracts";
 import { SANDBOX_PROFILES_CAPABILITY } from "@canopy/domain/sandbox-profiles";
@@ -17,7 +18,7 @@ export async function coreInstance(
 ): Promise<ui.ProviderInstance> {
   const name = harnessOf(harness);
 
-  if (!name) throw new InvalidError("choose Claude or Codex");
+  if (!name) throw new InvalidError("Choose a provider.");
 
   return coreInstances(hostContext, (s) => s.get(name, id, hostContext[coreState].options.userId));
 }
@@ -61,6 +62,15 @@ export async function coreWorkers(hostContext: GatewayCore): Promise<ui.Worker[]
   for (const worker of workers) {
     worker.providerInstances = instances.get(worker.id) ?? [];
     const connection = hostContext.link.connections.get(worker.id);
+
+    // A reconnect can expose an older worker while its new ConfigApplied is still in flight.
+    if (connection?.isOpen && !connection.hello.capabilities.includes(ANTIGRAVITY_ACP_CAPABILITY)) {
+      worker.providers = worker.providers.filter((p) => p.provider !== Provider.ANTIGRAVITY);
+
+      for (const instance of worker.providerInstances)
+        if (instance.harness === Provider.ANTIGRAVITY) instance.available = false;
+    }
+
     const live = connection?.sandboxConfigReport;
 
     const sandboxAvailable =

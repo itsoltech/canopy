@@ -1,6 +1,6 @@
 # Generowanie tytułów wątków
 
-Status (2026-11-18) — zaimplementowane w kodzie. Dostępność w kanałach zależy od [promocji wydania](release.md).
+Status (2026-11-24). W wątkach Antigravity można generować tytuły przez inną instancję wybraną w Text generation. Przy ustawieniu automatycznym wątek zachowuje tytuł z pierwszej wiadomości. Dostępność w kanałach zależy od [promocji wydania](release.md).
 
 Wszystkie wywołania modeli do generowania tekstu przechodzą przez oficjalne harnessy na workerze: Claude Agent SDK, Codex app-server albo Grok CLI przez ACP. Canopy nie wysyła bezpośrednich żądań inferencji HTTP. Grok obsługuje zarówno natywny login, jak i instancję proxy; CLIProxyAPI jest wyłącznie konfiguracją procesu CLI. [Adapter Grok](grok-adapter.md).
 

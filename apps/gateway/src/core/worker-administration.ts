@@ -233,7 +233,12 @@ export class WorkerAdministration {
             yield* GatewayStore.use((s) =>
               s.setWorkerConfig(
                 workerId,
-                { claude: { enabled: true }, codex: { enabled: true }, grok: { enabled: true } },
+                {
+                  claude: { enabled: true },
+                  codex: { enabled: true },
+                  grok: { enabled: true },
+                  antigravity: { enabled: true },
+                },
                 row.owner_user_id,
               ),
             );

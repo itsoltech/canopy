@@ -1,3 +1,4 @@
+import { providerOf } from "@canopy/domain/harnesses";
 import { SANDBOX_DERIVATION_UNAVAILABLE, threadSandbox } from "../store/thread-sandbox.ts";
 import { create, toJson, type JsonValue } from "@bufbuild/protobuf";
 
@@ -9,7 +10,7 @@ import { agentBusToolsFor, authorizeBusCall, DEFAULT_BUS_LIMITS, type AgentBusCa
 
 import { AGENT_BUS, qualifyId, splitId } from "@canopy/domain/computers";
 
-import { Match, Predicate, Schema } from "effect";
+import { Predicate, Schema } from "effect";
 
 import { AgentBusStore, type ThreadRow } from "../store/index.ts";
 
@@ -202,11 +203,7 @@ export const agentsBusToolsMethods: AgentsBusToolsMethods = {
               projectId,
               title: call.args.title,
               initialMessage: call.args.prompt,
-              provider: Match.value(provider).pipe(
-                Match.when("claude", () => Provider.CLAUDE),
-                Match.when("grok", () => Provider.GROK),
-                Match.orElse(() => Provider.CODEX),
-              ),
+              provider: providerOf(provider) || Provider.CODEX,
               providerProfileId: instance,
               model: call.args.model ?? "",
               effort: call.args.effort ?? "",

@@ -1,3 +1,4 @@
+import { isHarness } from "@canopy/domain/harnesses";
 import { Effect, Predicate } from "effect";
 import { type SqlClient } from "effect/sql";
 import { INSTANCE_ID, type InstanceRow, type StoredEnvVar } from "../store/instance-config.ts";
@@ -119,8 +120,7 @@ export function applyInstance(sql: SqlClient.SqlClient, owner: string, row: Conf
   return Effect.gen(function* () {
     const harness = row.global_id.split(":")[0] ?? "";
 
-    if (harness !== "claude" && harness !== "codex" && harness !== "grok")
-      return void (row.unsupported = NOT_SUPPORTED);
+    if (!isHarness(harness)) return void (row.unsupported = NOT_SUPPORTED);
 
     let current =
       (yield* sql<InstanceRow>`SELECT * FROM provider_instances WHERE harness=${harness} AND id=${row.local_id}`)[0];
@@ -236,17 +236,31 @@ export function applyWaiting(sql: SqlClient.SqlClient, owner: string) {
   });
 }
 
-/** An older gateway could retain settingsText in the record before it knew how to materialize it. */
-export function recoverProviderSettings(sql: SqlClient.SqlClient, owner: string) {
+/** Project records retained by an older gateway before publishing this computer's provider defaults. */
+export function recoverProviderInstances(sql: SqlClient.SqlClient, owner: string) {
   return Effect.gen(function* () {
     const rows = yield* sql<ConfigRow>`SELECT c.* FROM config_items c
-      JOIN provider_instances i ON i.harness=split_part(c.global_id,':',1) AND i.id=c.local_id
-      WHERE c.owner_user_id=${owner}::uuid AND c.kind='instance' AND c.schema_version=1 AND c.unsupported=''
-      AND (i.created_by IS NULL OR i.created_by=c.owner_user_id) AND c.fields ? 'settingsText'
-      AND COALESCE(i.runtime->'settingsText','null'::jsonb) IS DISTINCT FROM c.fields->'settingsText'->'value'`;
+      LEFT JOIN provider_instances i ON i.harness=split_part(c.global_id,':',1) AND i.id=c.local_id
+      WHERE c.owner_user_id=${owner}::uuid AND c.kind='instance' AND c.schema_version=1 AND (
+        (c.unsupported=${NOT_SUPPORTED} AND c.global_id LIKE 'antigravity:%')
+        OR (c.unsupported='' AND i.id IS NOT NULL AND (i.created_by IS NULL OR i.created_by=c.owner_user_id)
+          AND c.fields ? 'settingsText'
+          AND COALESCE(i.runtime->'settingsText','null'::jsonb) IS DISTINCT FROM c.fields->'settingsText'->'value')
+      ) ORDER BY c.global_id`;
 
-    for (const row of rows) yield* applyInstance(sql, owner, row);
+    let recovered = false;
 
-    return rows.length > 0;
+    for (const row of rows) {
+      if (!alive(row)) continue;
+      const { local_id, unsupported } = row;
+      yield* applyInstance(sql, owner, row);
+
+      if (row.local_id !== local_id || row.unsupported !== unsupported)
+        yield* sql`UPDATE config_items SET local_id=${row.local_id}, unsupported=${row.unsupported}
+          WHERE owner_user_id=${owner}::uuid AND kind='instance' AND global_id=${row.global_id}`;
+      recovered ||= !row.unsupported;
+    }
+
+    return recovered;
   });
 }

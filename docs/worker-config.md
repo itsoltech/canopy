@@ -1,5 +1,7 @@
 # Konfiguracja workerów
 
+Aktualizacja (2026-11-24): worker obsługuje natywne instancje Antigravity i wykrywa CLI jako `agy`. Logowanie, katalogi i obsługiwane ustawienia opisuje [adapter Antigravity](antigravity-adapter.md).
+
 Aktualizacja (2026-11-24): bot Codexa odczytuje login wybranej instancji przez
 lokalne RPC i używa nietrwałego magazynu we własnym procesie.
 
@@ -136,7 +138,7 @@ wybranego workera do tej sekcji.
 4. Po **Connected** wybierz instancje providerów i **Finish**. Przełączniki korzystają
    z istniejącego `SetInstanceWorker`; zmiany zapisują się od razu. Domyślne przypisania
    globalnych instancji są synchronizowane przy enrollment. CLI dostawców i ich logowania
-   instalujesz osobno (`claude`, `codex`, `grok`); brak loginu nie blokuje samego połączenia.
+   instalujesz osobno (`claude`, `codex`, `grok`, `agy`); brak loginu nie blokuje samego połączenia.
 
 Przykład Maca przez Tailscale: ACL muszą pozwalać na TCP do portu Network access.
 Wybierz osiągalny adres tego komputera, **macOS** i wykonaj komendę na Macu. Wszystkie metody
@@ -202,7 +204,7 @@ Pliki tymczasowe są usuwane także po błędzie i przerwaniu.
 Usługa systemd `--user` ma `Restart=always`; LaunchAgent ma `KeepAlive=true`.
 PATH obejmuje m.in. `~/.local/bin`, Bun, Volta, Homebrew, mise i zainstalowane wersje
 Node z mise/nvm oraz npm global prefix, jeśli npm jest dostępny. Skrypt nie instaluje
-CLI agentów: wypisuje wykryte `claude`/`codex`/`grok` i komendy logowania.
+CLI agentów: wypisuje wykryte `claude`/`codex`/`grok`/`agy` i komendy logowania.
 Na Linuxie potrzebna jest sesja systemd użytkownika; po SSH skrypt używa istniejącego
 `/run/user/<uid>`. Administrator może wykonać `loginctl enable-linger USER`, aby worker
 działał po wylogowaniu. macOS wymaga aktywnej sesji GUI użytkownika dla LaunchAgent.
@@ -531,7 +533,7 @@ Status: **zaimplementowane** (migracja `0018_global_providers`; gateway `store/i
 
 ### 9.1. Model
 
-**Instancja** = harness (Claude Code, Codex albo Grok) + `id`, zdefiniowana **raz w gateway** i włączana na wybranych workerach. Klucz to para (harness, id), bo wątki zapisują dostawcę i profil osobno (`threads.provider`, `threads.provider_profile_id`): ten sam `id` może mieć instancja Claude i instancja Codexa (np. `native`, `cliproxyapi`).
+**Instancja** = harness (Claude Code, Codex, Grok lub Antigravity) + `id`, zdefiniowana **raz w gateway** i włączana na wybranych workerach. Klucz to para (harness, id), bo wątki zapisują dostawcę i profil osobno (`threads.provider`, `threads.provider_profile_id`): ten sam `id` może mieć instancja Claude i instancja Codexa (np. `native`, `cliproxyapi`).
 
 | Globalnie (`provider_instances`) | Per worker (`provider_instance_workers`) |
 |---|---|
@@ -543,7 +545,7 @@ Status: **zaimplementowane** (migracja `0018_global_providers`; gateway `store/i
 | `favorites` (kolejność), `hidden_models`, `shown_models`, `custom_models` | |
 | `all_workers` (także workery zarejestrowane później), `built_in`, `revision` | |
 
-Wbudowane instancje `claude/native`, `codex/native` i `grok/native` istnieją zawsze; można im nadać nazwę, zmienne i ścieżki, wyłączyć na wybranym workerze oraz przełączać Device login ↔ Proxy. Id `native` pozostaje stałe, także dla instancji z istniejącymi wątkami. Nie można ich usunąć.
+Wbudowana instancja `antigravity/native` używa połączenia natywnego. Pozostałe wbudowane instancje `claude/native`, `codex/native` i `grok/native` istnieją zawsze; można im nadać nazwę, zmienne i ścieżki, wyłączyć na wybranym workerze oraz przełączać Device login ↔ Proxy. Id `native` pozostaje stałe, także dla instancji z istniejącymi wątkami. Nie można ich usunąć.
 
 Przy izolowanej konfiguracji przełączenie połączenia zachowuje katalog sesji: Claude używa tego samego `CLAUDE_CONFIG_DIR`, Codex tego samego `CODEX_HOME` z wpisem `model_providers` przekazanym przez `-c`, a Grok tego samego trwałego katalogu `sessions`. `own_login` zostaje zachowane jako wybór katalogu także podczas używania proxy. Codex wybiera provider również na poziomie procesu (`-c model_provider=…`), zgodnie z `modelProvider` przy tworzeniu i wznowieniu; Device login to `openai`, a proxy instancji `native` to `canopy_native`. Jawne nadpisanie przy wznowieniu zachowuje pełną historię bez tworzenia nowej sesji ([adapter](codex-adapter.md#runtime-wątków)). Claude wznawia sesję przez SDK, a Grok przez `session/load`; oba używają bieżącego połączenia i tego samego magazynu historii, bez wiązania z identyfikatorem providera Codexa. Test gateway↔worker przełącza wszystkie trzy harnessy Device login → proxy → Device login. Jawna zmiana ścieżki katalogu lub `own_login` jest osobną operacją i może wskazać magazyn bez poprzednich sesji; ta operacja nie przenosi historii automatycznie.
 
@@ -665,7 +667,7 @@ dowiązań. Proxy korzysta z klucza endpointu. [Logowanie harnessów](bots-harne
 `ProviderProfileConfig.user_configuration` określa tryb i niezależne wybory
 instrukcji, skilli oraz hooków. Brak wiadomości i `UNSPECIFIED` zachowują izolację.
 Gateway zapisuje pełną politykę w `runtime.userConfiguration`; obecne nadpisanie
-workera zastępuje ją w całości, również wartościami `false`. Grok obsługuje wyłącznie izolację.
+workera zastępuje ją w całości, również wartościami `false`. Grok i Antigravity obsługują wyłącznie izolację.
 
 Worker ogłasza `claude_user_configuration_v1`. Bez tej capability gateway
 wyłącza w przesyłanej konfiguracji tylko aktywne profile `LOCAL`/`SHARED`,

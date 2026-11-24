@@ -1,4 +1,5 @@
-import { Provider, type CommandResult } from "@canopy/contracts";
+import { harnessOf } from "@canopy/domain/harnesses";
+import type { Provider, CommandResult } from "@canopy/contracts";
 import { Effect } from "effect";
 import { SqlClient } from "effect/sql";
 import type { CoreRuntime } from "../core/core.ts";
@@ -20,7 +21,9 @@ export function accountGeneration(
       ? [result.consumedUsage]
       : [];
 
-  if (!usages.length) return Promise.resolve();
+  const harness = harnessOf(provider);
+
+  if (!harness || !usages.length) return Promise.resolve();
 
   return runtime.runPromise(
     Effect.gen(function* () {
@@ -34,7 +37,7 @@ export function accountGeneration(
                 owner,
                 subject: `generation:${result.commandId}`,
                 counter: result.commandId,
-                provider: provider === Provider.CLAUDE ? "claude" : provider === Provider.CODEX ? "codex" : "grok",
+                provider: harness,
                 model,
                 activity: { key: "generation" },
                 worker,

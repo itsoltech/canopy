@@ -1,5 +1,6 @@
+import { supportsThreadPermission } from "@canopy/domain/harnesses";
 import { Alert } from "react-native";
-import { PermissionMode } from "@canopy/contracts";
+import { PermissionMode, type Provider } from "@canopy/contracts";
 import type { IconName } from "@canopy/ui/icons";
 import { PickerSheet } from "../../ui/Picker";
 
@@ -19,6 +20,9 @@ export const permissionModes = [
   },
   { mode: PermissionMode.FULL_ACCESS, label: "Full access", description: "Runs without asking and without a sandbox." },
 ] as const;
+
+export const availablePermission = (provider: Provider | undefined, mode: PermissionMode): PermissionMode =>
+  provider && !supportsThreadPermission(provider, mode) ? PermissionMode.ASK : mode;
 
 export const permissionLabel = (mode: PermissionMode | undefined) =>
   permissionModes.find((m) => m.mode === mode)?.label ?? "Ask first";
@@ -58,12 +62,14 @@ export function PermissionPickerSheet({
   visible,
   onClose,
   value,
+  provider,
   onSelect,
   fullAccessDescription,
 }: {
   visible: boolean;
   onClose: () => void;
   value: PermissionMode | undefined;
+  provider?: Provider | undefined;
   onSelect: (mode: PermissionMode) => void;
   fullAccessDescription?: string;
 }) {
@@ -82,12 +88,18 @@ export function PermissionPickerSheet({
       onSelect={pick}
       sections={[
         {
-          options: permissionModes.map((m) => ({
-            value: m.mode,
-            label: m.label,
-            description: m.description,
-            ...permissionLook(m.mode),
-          })),
+          options: permissionModes.flatMap((m) =>
+            provider && !supportsThreadPermission(provider, m.mode)
+              ? []
+              : [
+                  {
+                    value: m.mode,
+                    label: m.label,
+                    description: m.description,
+                    ...permissionLook(m.mode),
+                  },
+                ],
+          ),
         },
       ]}
     />

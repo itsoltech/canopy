@@ -1,5 +1,7 @@
 import type { ChildProcessWithoutNullStreams } from "node:child_process";
-import { spawnGrok } from "./process.ts";
+import { killProcessTree } from "@canopy/process-governor";
+import { EventStream, AcpError } from "./event-stream.ts";
+import { spawnAgent } from "./process.ts";
 import type {
   ClientCallbacks,
   Content,
@@ -8,23 +10,19 @@ import type {
   PermissionRequest,
   PermissionResult,
   PromptEvent,
+  ConfigOption,
   SessionResult,
   SessionUpdate,
+  ToolCall,
   WireObject,
   WireValue,
 } from "./types.ts";
 
 export * from "./types.ts";
 
-export class AcpError extends Error {
-  constructor(
-    message: string,
-    readonly code?: number,
-  ) {
-    super(message);
-    this.name = "AcpError";
-  }
-}
+export { sessionSelect } from "./session-config.ts";
+
+export { AcpError } from "./event-stream.ts";
 
 interface Pending {
   resolve(value: WireValue | undefined): void;
@@ -32,12 +30,16 @@ interface Pending {
   timer: ReturnType<typeof setTimeout>;
 }
 
-export interface GrokOptions {
-  executable?: string;
-  args?: readonly string[];
+export interface AcpOptions {
+  executable: string;
+  args: readonly string[];
+  /** Provider display name for errors from the CLI process. */
+  agentName?: string;
   cwd?: string;
   env?: NodeJS.ProcessEnv;
   callbacks?: ClientCallbacks;
+  /** Observe a live tool call in wire order, before an independent MCP request can reach the client. */
+  onToolCall?(sessionId: string, call: ToolCall): void;
   requestTimeoutMs?: number;
   promptTimeoutMs?: number;
   cancelTimeoutMs?: number;
@@ -48,9 +50,10 @@ export interface GrokOptions {
 }
 
 /** One owned CLI process. NDJSON duplex requests stay independent of slow client callbacks. */
-export class GrokClient {
+export class AcpClient {
   readonly #process: ChildProcessWithoutNullStreams;
-  readonly #options: GrokOptions;
+  readonly #options: AcpOptions;
+  readonly #agentName: string;
   readonly #pending = new Map<number, Pending>();
   readonly #callbacks = new AbortController();
   readonly #streams = new Map<string, EventStream>();
@@ -63,19 +66,24 @@ export class GrokClient {
   #stderr = "";
   #initialized: InitializeResult | undefined;
   #killTimer: ReturnType<typeof setTimeout> | undefined;
+  #reaped = false;
+  #windowsKill: Promise<void> | undefined;
 
-  constructor(options: GrokOptions = {}) {
+  constructor(options: AcpOptions) {
     this.#options = options;
-    this.#process = spawnGrok(options);
+    this.#agentName = options.agentName ?? "ACP agent";
+    this.#process = spawnAgent(options);
     this.#exited = new Promise((resolve) => {
       this.#process.once("close", (code, signal) => {
-        this.#fail(new AcpError(`Grok exited (${signal ?? code})`));
+        this.#fail(new AcpError(`${this.#agentName} exited (${signal ?? code})`));
+        this.#kill("SIGKILL");
+        this.#reaped = true;
         clearTimeout(this.#killTimer);
         resolve();
       });
     });
-    this.#process.on("error", () => this.#fail(new AcpError("Cannot start Grok CLI")));
-    this.#process.stdin.on("error", () => this.#fail(new AcpError("Grok stdin closed")));
+    this.#process.on("error", () => this.#fail(new AcpError(`Cannot start ${this.#agentName} CLI`)));
+    this.#process.stdin.on("error", () => this.#fail(new AcpError(`${this.#agentName} stdin closed`)));
     this.#process.stderr.setEncoding("utf8");
     // Keep a bounded raw tail, redact only when read: a secret can span data chunks.
     this.#process.stderr.on("data", (chunk: string) => {
@@ -93,6 +101,11 @@ export class GrokClient {
   get capabilities(): InitializeResult | undefined {
     return this.#initialized;
   }
+  get canRestore(): boolean {
+    const capabilities = this.#initialized?.agentCapabilities;
+
+    return capabilities?.loadSession === true || isWireObject(capabilities?.sessionCapabilities?.resume);
+  }
   get closed(): boolean {
     return !!this.#closed;
   }
@@ -102,7 +115,8 @@ export class GrokClient {
 
   async initialize(): Promise<InitializeResult> {
     const cb = this.#options.callbacks;
-    this.#initialized = await this.request<InitializeResult>("initialize", {
+
+    const initialized = await this.request<InitializeResult>("initialize", {
       protocolVersion: 1,
       clientInfo: { name: "canopy", version: "1" },
       clientCapabilities: {
@@ -111,30 +125,54 @@ export class GrokClient {
       },
     });
 
-    if (this.#initialized.protocolVersion !== 1) throw new AcpError("Unsupported ACP version");
+    if (initialized?.protocolVersion !== 1) throw new AcpError("Unsupported ACP version");
+    this.#initialized = initialized;
 
     return this.#initialized;
   }
 
-  authenticate(methodId: string): Promise<WireValue | undefined> {
-    return this.request("authenticate", { methodId, _meta: { headless: true } });
+  authenticate(methodId: string, meta?: WireObject): Promise<WireValue | undefined> {
+    return this.request("authenticate", { methodId, ...(meta && { _meta: meta }) });
   }
-  newSession(cwd: string, mcpServers: McpServer[] = [], meta?: WireObject): Promise<SessionResult> {
-    return this.request("session/new", { cwd, mcpServers, ...(meta && { _meta: meta }) });
+  async newSession(cwd: string, mcpServers: McpServer[] = [], meta?: WireObject): Promise<SessionResult> {
+    const result = await this.request<SessionResult>("session/new", { cwd, mcpServers, ...(meta && { _meta: meta }) });
+
+    if (!result?.sessionId || !isText(result.sessionId)) throw new AcpError("ACP agent returned no session ID");
+
+    return result;
   }
   loadSession(sessionId: string, cwd: string, mcpServers: McpServer[] = []): Promise<SessionResult> {
-    if (!this.#initialized?.agentCapabilities?.loadSession)
-      return Promise.reject(new AcpError("Grok does not support session/load"));
+    if (this.#initialized?.agentCapabilities?.loadSession !== true)
+      return Promise.reject(new AcpError("The ACP agent does not support session/load"));
 
-    return this.request<Omit<SessionResult, "sessionId">>("session/load", { sessionId, cwd, mcpServers }).then(
-      (result) => ({ ...result, sessionId }),
-    );
+    return this.#restore("session/load", sessionId, cwd, mcpServers);
+  }
+  /** Resume without replay is optional. An existing thread must never fall back to session/new. */
+  restoreSession(sessionId: string, cwd: string, mcpServers: McpServer[] = []): Promise<SessionResult> {
+    if (this.#initialized?.agentCapabilities?.loadSession === true) return this.loadSession(sessionId, cwd, mcpServers);
+
+    if (this.canRestore) return this.#restore("session/resume", sessionId, cwd, mcpServers);
+
+    return Promise.reject(new AcpError("The installed ACP agent cannot reopen an existing session"));
+  }
+  async #restore(method: string, sessionId: string, cwd: string, mcpServers: McpServer[]): Promise<SessionResult> {
+    const result = await this.request<Partial<SessionResult>>(method, { sessionId, cwd, mcpServers });
+
+    if (!result) throw new AcpError("ACP agent returned no session details");
+
+    if (result.sessionId !== undefined && result.sessionId !== sessionId)
+      throw new AcpError("ACP agent returned a different session ID");
+
+    return { ...result, sessionId };
   }
   setMode(sessionId: string, modeId: string): Promise<WireValue | undefined> {
     return this.request("session/set_mode", { sessionId, modeId });
   }
   setModel(sessionId: string, modelId: string): Promise<WireValue | undefined> {
     return this.request("session/set_model", { sessionId, modelId });
+  }
+  setConfigOption(sessionId: string, configId: string, value: string): Promise<{ configOptions: ConfigOption[] }> {
+    return this.request("session/set_config_option", { sessionId, configId, value });
   }
   cancel(sessionId: string): Promise<void> {
     for (const controller of this.#permissions.get(sessionId) ?? []) controller.abort();
@@ -143,7 +181,7 @@ export class GrokClient {
       this.#cancellations.set(
         sessionId,
         setTimeout(
-          () => this.#fail(new AcpError("Grok did not acknowledge cancellation")),
+          () => this.#fail(new AcpError("The ACP agent did not acknowledge cancellation")),
           this.#options.cancelTimeoutMs ?? 5000,
         ),
       );
@@ -187,6 +225,8 @@ export class GrokClient {
     } finally {
       signal?.removeEventListener("abort", abort);
       this.#streams.delete(sessionId);
+
+      for (const controller of this.#permissions.get(sessionId) ?? []) controller.abort();
       clearTimeout(this.#cancellations.get(sessionId));
       this.#cancellations.delete(sessionId);
 
@@ -212,15 +252,9 @@ export class GrokClient {
   }
 
   async dispose(): Promise<void> {
-    this.#fail(new AcpError("Grok client disposed"));
-    const timer = setTimeout(() => this.#kill("SIGKILL"), 1500);
-
-    try {
-      await this.#exited;
-    } finally {
-      clearTimeout(timer);
-      this.#kill("SIGKILL");
-    }
+    this.#fail(new AcpError("ACP client disposed"));
+    await this.#exited;
+    await this.#windowsKill;
   }
   async [Symbol.asyncDispose](): Promise<void> {
     await this.dispose();
@@ -229,11 +263,11 @@ export class GrokClient {
   #kill(signal: NodeJS.Signals): void {
     const pid = this.#process.pid;
 
-    if (!pid) return;
+    if (!pid || this.#reaped) return;
 
     try {
       if (process.platform !== "win32") process.kill(-pid, signal);
-      else this.#process.kill(signal);
+      else this.#windowsKill ??= killProcessTree(pid);
     } catch {
       /* already reaped */
     }
@@ -282,7 +316,7 @@ export class GrokClient {
 
           // The write callback waits for flushing; serializing keeps stdin buffering bounded.
           this.#process.stdin.write(JSON.stringify({ jsonrpc: "2.0", ...message }) + "\n", (error) =>
-            error ? reject(new AcpError("Grok write failed")) : resolve(),
+            error ? reject(new AcpError(`${this.#agentName} write failed`)) : resolve(),
           );
         }),
     );
@@ -313,7 +347,7 @@ export class GrokClient {
           throw new AcpError("ACP frame limit exceeded");
       }
 
-      this.#fail(new AcpError(buffer.trim() ? "Truncated ACP frame" : "Grok stdout closed"));
+      this.#fail(new AcpError(buffer.trim() ? "Truncated ACP frame" : `${this.#agentName} stdout closed`));
     } catch {
       this.#fail(new AcpError("Invalid or closed ACP transport"));
     }
@@ -339,7 +373,12 @@ export class GrokClient {
         // SAFETY: ACP v1 session/update params carry a SessionUpdate; consumers switch on `sessionUpdate` and skip
         // kinds they do not know.
         const update = params["update"] as SessionUpdate;
-        this.#streams.get(sessionId)?.push({ type: "update", update });
+        const stream = this.#streams.get(sessionId);
+
+        if (stream) {
+          if (update.sessionUpdate === "tool_call") this.#options.onToolCall?.(sessionId, update);
+          stream.push({ type: "update", update });
+        }
       }
 
       return;
@@ -371,6 +410,9 @@ export class GrokClient {
     if (method === "session/request_permission") {
       // SAFETY: ACP v1 names session/request_permission params a PermissionRequest; the callback reads them as such.
       const request = params as PermissionRequest;
+
+      if (!this.#streams.has(request.sessionId) || this.#cancellations.has(request.sessionId))
+        return { outcome: { outcome: "cancelled" } };
       const controller = new AbortController();
       const abort = () => controller.abort();
       signal.addEventListener("abort", abort, { once: true });
@@ -431,51 +473,4 @@ function isText(value: WireValue | undefined): value is string {
 
 function isCount(value: WireValue | undefined): value is number {
   return typeof value === "number";
-}
-
-class EventStream implements AsyncIterable<PromptEvent> {
-  readonly #queue: PromptEvent[] = [];
-  #wake: (() => void) | undefined;
-  #done = false;
-  #error: Error | undefined;
-  constructor(
-    readonly limit: number,
-    readonly overflow: (error: Error) => void,
-  ) {}
-  push(event: PromptEvent): void {
-    if (this.#done) return;
-
-    if (this.#queue.length >= this.limit) {
-      const error = new AcpError("ACP event consumer fell behind");
-      this.end(error);
-      this.overflow(error);
-
-      return;
-    }
-
-    this.#queue.push(event);
-    this.#wake?.();
-  }
-  end(error?: Error): void {
-    this.#done = true;
-    this.#error = error;
-    this.#wake?.();
-  }
-  async *[Symbol.asyncIterator](): AsyncGenerator<PromptEvent> {
-    for (;;) {
-      const next = this.#queue.shift();
-
-      if (next) {
-        yield next;
-        continue;
-      }
-
-      if (this.#error) throw this.#error;
-
-      if (this.#done) return;
-      await new Promise<void>((resolve) => {
-        this.#wake = resolve;
-      });
-    }
-  }
 }

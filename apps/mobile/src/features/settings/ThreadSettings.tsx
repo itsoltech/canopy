@@ -6,7 +6,7 @@ import type { useAppearance } from "../../state/appearance";
 import { PickerSheet, SelectField } from "../../ui/Picker";
 import { ProviderIcon } from "../../ui/ProviderIcon";
 import { providerName } from "../models/catalog";
-import { permissionLabel, permissionLook, PermissionPickerSheet } from "../threads/permissions";
+import { availablePermission, permissionLabel, permissionLook, PermissionPickerSheet } from "../threads/permissions";
 import { DefaultModels } from "./SettingsModels";
 import { DefaultResets } from "./DefaultResets";
 import { SettingsGroup, SettingsRow } from "./SettingsGroup";
@@ -153,6 +153,7 @@ function NewThreadSettings({ settings }: { settings: Settings }) {
       />
       <DefaultAgentPicker visible={picker === "agent"} onClose={close} defaults={defaults} onChange={save} />
       <PermissionPickerSheet
+        provider={defaults.useLastAgent ? undefined : defaults.provider}
         visible={picker === "permission"}
         onClose={close}
         value={defaults.permissionMode}
@@ -228,7 +229,12 @@ function DefaultAgentPicker({
         onChange(
           provider === "last"
             ? { provider: Provider.UNSPECIFIED, providerProfileId: "", useLastAgent: true }
-            : { provider, providerProfileId: "", useLastAgent: false },
+            : {
+                provider,
+                providerProfileId: "",
+                permissionMode: availablePermission(provider, defaults.permissionMode),
+                useLastAgent: false,
+              },
         )
       }
       sections={[
@@ -240,7 +246,7 @@ function DefaultAgentPicker({
               description: "Reuse the agent and model from your last message.",
             },
             { value: Provider.UNSPECIFIED, label: "Any available" },
-            ...[Provider.CODEX, Provider.CLAUDE, Provider.GROK].map((provider) => ({
+            ...[Provider.CODEX, Provider.CLAUDE, Provider.GROK, Provider.ANTIGRAVITY].map((provider) => ({
               value: provider,
               label: providerName(provider),
               leading: <ProviderIcon provider={provider} size={18} />,

@@ -1,3 +1,4 @@
+import { isHarness } from "@canopy/domain/harnesses";
 import { create, fromJson, type JsonValue } from "@bufbuild/protobuf";
 import { timestampDate, timestampFromDate } from "@bufbuild/protobuf/wkt";
 import { ui } from "@canopy/contracts";
@@ -24,7 +25,7 @@ export function usageWindow(request: ui.GetUsageStatsRequest, now = new Date()) 
 
   if (![1, 7, 30, 90].includes(days)) throw new ConnectError("Choose 1, 7, 30 or 90 days", Code.InvalidArgument);
 
-  if (request.provider && !["claude", "codex", "grok"].includes(request.provider))
+  if (request.provider && !isHarness(request.provider))
     throw new ConnectError("Choose an available provider", Code.InvalidArgument);
 
   if (request.activityKind && !["thread", "bot", "generation", "unattributed"].includes(request.activityKind))

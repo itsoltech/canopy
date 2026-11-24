@@ -130,6 +130,8 @@ export const proxyKinds = [
   },
 ] as const;
 
-export const supportsHarness = (proxy: ui.Proxy, harness: Provider) =>
-  proxy.kind === "cliproxyapi" ||
-  (proxy.kind === "anthropic" ? harness === Provider.CLAUDE : harness === Provider.CODEX || harness === Provider.GROK);
+export const supportsHarness = (proxy: Pick<ui.Proxy, "kind">, harness: Provider) =>
+  harnessProviders.has(harness) &&
+  (proxy.kind === "cliproxyapi" ||
+    (proxy.kind === "anthropic" && harness === Provider.CLAUDE) ||
+    (proxy.kind === "openai" && (harness === Provider.CODEX || harness === Provider.GROK)));

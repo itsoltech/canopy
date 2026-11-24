@@ -1,3 +1,4 @@
+import { supportsNativeGoals } from "@canopy/domain/harnesses";
 import { create } from "@bufbuild/protobuf";
 import { PermissionMode, ui, type SandboxProfileBinding } from "@canopy/contracts";
 import { Effect } from "effect";
@@ -288,6 +289,12 @@ async function createOnce(
   }
 
   const asked = await checkPlacement(core, input, options.automated);
+
+  if (
+    !supportsNativeGoals(asked.provider) &&
+    asked.initialMentions.some((m) => isPlatformCommand(m) && m.name === "goal")
+  )
+    throw new InvalidError("This provider does not support native goals.");
 
   const sandbox = await creationSandbox(core, asked);
 

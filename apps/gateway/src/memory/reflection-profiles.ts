@@ -1,3 +1,4 @@
+import { supportsIsolatedRuns } from "@canopy/domain/harnesses";
 import { Effect } from "effect";
 import type { SqlClient } from "effect/sql";
 import { applyInstanceModels, InstanceStore, ModelStore } from "../store/index.ts";
@@ -42,14 +43,16 @@ export function reflectionProfiles(sql: SqlClient.SqlClient, owner: string, ids?
       const assigned = instances.get(worker.id);
 
       return applyInstanceModels(catalog, rules)
-        .profiles.filter((profile) =>
-          assigned?.some(
-            (instance) =>
-              instance.harness === profile.provider &&
-              instance.id === (profile.profileId || NATIVE_ID) &&
-              instance.enabled &&
-              instance.available,
-          ),
+        .profiles.filter(
+          (profile) =>
+            supportsIsolatedRuns(profile.provider) &&
+            assigned?.some(
+              (instance) =>
+                instance.harness === profile.provider &&
+                instance.id === (profile.profileId || NATIVE_ID) &&
+                instance.enabled &&
+                instance.available,
+            ),
         )
         .map((profile) => ({ worker, profile }));
     });

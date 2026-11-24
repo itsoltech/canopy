@@ -1,14 +1,13 @@
 import { PermissionMode, Provider } from "@canopy/contracts";
+import { supportsThreadPermission } from "@canopy/domain/harnesses";
 import type { IconName } from "#lib/shared/ui/icons.ts";
+import { providerKeyOf, providerName } from "./providers.ts";
 
-export const providerLabel = (provider: Provider): string =>
-  provider === Provider.CLAUDE
-    ? "Claude"
-    : provider === Provider.CODEX
-      ? "Codex"
-      : provider === Provider.GROK
-        ? "Grok"
-        : "Agent";
+export const providerLabel = (provider: Provider): string => {
+  const key = providerKeyOf(provider);
+
+  return key ? providerName(key) : "Agent";
+};
 
 /** Permission modes offered when creating a thread (value = enum key, sent to the form action). */
 export const permissionModes = [
@@ -33,16 +32,26 @@ export type PermissionModeKey = (typeof permissionModes)[number]["value"];
 export function fullAutoAvailable(provider: Provider | undefined, os: string | undefined): boolean | undefined {
   if (!provider) return undefined;
 
+  if (!supportsThreadPermission(provider, PermissionMode.FULL_AUTO)) return false;
+
   if (provider !== Provider.CLAUDE) return true;
 
   return os ? os !== "win32" : undefined;
 }
 
-export const isPermissionModeAvailable = (mode: PermissionModeKey, fullAuto: boolean | undefined): boolean =>
-  mode !== "FULL_AUTO" || fullAuto !== false;
+export const isPermissionModeAvailable = (
+  mode: PermissionModeKey,
+  fullAuto: boolean | undefined,
+  provider?: Provider,
+): boolean =>
+  (!provider || supportsThreadPermission(provider, PermissionMode[mode])) &&
+  (mode !== "FULL_AUTO" || fullAuto !== false);
 
-export const availablePermissionMode = (mode: PermissionModeKey, fullAuto: boolean | undefined): PermissionModeKey =>
-  isPermissionModeAvailable(mode, fullAuto) ? mode : "ASK";
+export const availablePermissionMode = (
+  mode: PermissionModeKey,
+  fullAuto: boolean | undefined,
+  provider?: Provider,
+): PermissionModeKey => (isPermissionModeAvailable(mode, fullAuto, provider) ? mode : "ASK");
 
 export const savedFullAutoDescription =
   "Claude cannot sandbox shell commands on this native Windows worker and asks before running them.";

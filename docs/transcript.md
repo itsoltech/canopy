@@ -1,5 +1,10 @@
 # Transkrypt: zapis wszystkiego, co dzieje się w wątku
 
+Aktualizacja (2026-11-24). Grok i Antigravity używają wspólnego mapowania
+zdarzeń ACP. Fragmenty odpowiedzi i rozumowania, wywołania narzędzi oraz
+aktualizacje planu trafiają do transkryptu wątku. Antigravity dołącza do końca
+tury liczniki zużycia otrzymane z `session/prompt`. [Adapter Antigravity](antigravity-adapter.md)
+
 Status (2026-11-20): log zdarzeń, projekcja itemów i bloby obrazów są zaimplementowane,
 w tym zachowanie dostępu do starszych podglądów wszystkich użytkowników podczas aktualizacji,
 bezstratne wyniesienie obrazów wyników trybu kodu Codexa z `raw_json`
@@ -129,8 +134,8 @@ ani katalogu modeli.
   i pojemność `size`, niezależnie od kosztu `cost`. Oba pola trafiają do
   `ContextUsage`; zerowy albo niepoprawny limit pozostaje nieznany.
   Źródła: [schemat ACP](https://agentclientprotocol.com/protocol/schema),
-  [typ SessionUpdate](../packages/grok-acp/src/types.ts)
-  i [adapter](../apps/worker/src/providers/grok/mapping.ts).
+  [typ SessionUpdate](../packages/acp/src/types.ts)
+  i [mapowanie ACP](../apps/worker/src/providers/acp/mapping.ts).
 
 Każdy raport zastępuje poprzedni w całości; mniejszy pomiar po kompaktowaniu
 jest poprawny. Puste `context_usage` unieważnia poprzedni pomiar po granicy

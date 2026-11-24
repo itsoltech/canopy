@@ -9,7 +9,7 @@ import type { SharedHost } from "./host.ts";
 import { clockParts, compareClock, nextClock } from "./clock.ts";
 import { configLock, emptyRecord, maxClock, saveRecord, type ConfigRow } from "./persistence.ts";
 import { recordProviders } from "./provider-records.ts";
-import { recoverProviderSettings } from "./provider-apply.ts";
+import { recoverProviderInstances } from "./provider-apply.ts";
 import { recordProjects } from "./project-records.ts";
 import { recordEnvironment } from "./environment-records.ts";
 import { recordConnectors } from "./connector-records.ts";
@@ -81,7 +81,7 @@ export class ConfigSync {
 
         if (changed) yield* saveRecord(sql, store.owner, row, observed);
         else yield* sql`UPDATE config_clock SET hlc=${observed} WHERE owner_user_id=${store.owner}::uuid`;
-        const recover = yield* recoverProviderSettings(sql, store.owner);
+        const recover = yield* recoverProviderInstances(sql, store.owner);
         const changedWorkers = recover ? yield* syncWorkers(sql, store.owner, store.key) : [];
 
         if (!recover) yield* recordProviders(sql);

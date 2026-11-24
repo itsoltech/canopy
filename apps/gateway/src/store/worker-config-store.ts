@@ -1,3 +1,4 @@
+import { isCredentialEnv } from "./credential-env.ts";
 import { create, fromJsonString, toJson, type JsonValue, type MessageInitShape } from "@bufbuild/protobuf";
 import { ConfigAppliedSchema, WorkerConfigSchema, type ConfigApplied, type WorkerConfig } from "@canopy/contracts";
 import { Effect, Option, Predicate, Schema } from "effect";
@@ -42,7 +43,7 @@ export function workerConfigStore(sql: SqlClient.SqlClient, secretsKey: Buffer):
               return yield* Effect.fail(new Invalid(`profile ${profile.id}: pass API keys as secret references`));
 
             // Secret variables only through the provider instances (InstanceStore), which store them encrypted.
-            if (profile.env?.some((v) => v.secret && v.value))
+            if (profile.env?.some((v) => v.value && (v.secret || isCredentialEnv(v.name ?? ""))))
               return yield* Effect.fail(
                 new Invalid(`profile ${profile.id}: secret variables go through the profile settings`),
               );

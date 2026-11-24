@@ -28,7 +28,7 @@ beforeAll(async () => {
   gateway = await startTestGateway();
   linux = await skillMachine(gateway, root, "linux");
   machines.push(linux);
-  windows = await skillMachine(gateway, root, "windows", "win32");
+  windows = await skillMachine(gateway, root, "windows", "win32", "before-antigravity");
   machines.push(windows);
   old = await skillMachine(gateway, root, "older", "linux", false);
   machines.push(old);
@@ -243,11 +243,14 @@ describe("versioned skills across the gateway and actual worker homes", () => {
     expect(existsSync(join(root, "outside"))).toBe(false);
   });
 
-  test("installs validated ZIP into Claude, Codex .agents, Grok, shared platform and instance homes", async () => {
+  test("installs a ZIP in device and instance skill homes across worker versions", async () => {
     writeUserSkill(join(linux.deviceHomes.agents, "personal"));
 
+    const assignment = librarySkill();
+    assignment.harnesses.push("antigravity");
+
     const state = await save(
-      librarySkill(),
+      assignment,
       [],
       zipSkill(
         skillFiles().map((file) => ({
@@ -270,14 +273,20 @@ describe("versioned skills across the gateway and actual worker homes", () => {
       join(linux.deviceHomes.claude, "skills/code-review"),
       join(linux.deviceHomes.agents, "code-review"),
       join(linux.deviceHomes.grok, "skills/code-review"),
+      join(linux.deviceHomes.antigravity, "skills/code-review"),
       join(linux.dataDir, "claude-home/canopy-environment/skills/code-review"),
       join(linux.dataDir, "codex-home/skills/code-review"),
       join(linux.dataDir, "grok-home/skills/code-review"),
+      join(linux.dataDir, "antigravity-home/skills/code-review"),
+      join(linux.shadow, "antigravity/skills/code-review"),
       join(linux.shadow, "canopy-environment/skills/code-review"),
       join(linux.shadow, "skills/code-review"),
     ])
       expect(readFileSync(join(path, "SKILL.md"), "utf8")).toContain("Review the patch carefully.");
     expect(existsSync(join(linux.deviceHomes.codex, "skills/code-review"))).toBe(false);
+    await settled(windows);
+    expect(existsSync(join(windows.deviceHomes.grok, "skills/code-review/SKILL.md"))).toBe(true);
+    expect(existsSync(join(windows.deviceHomes.antigravity, "skills/code-review"))).toBe(false);
     expect(existsSync(join(old.deviceHomes.agents, "code-review"))).toBe(false);
     expect((await snapshot()).workers.find((w) => w.workerId === old.workerId)?.skillsSupported).toBe(false);
     expect(

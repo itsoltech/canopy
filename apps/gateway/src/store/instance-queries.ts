@@ -53,7 +53,7 @@ export function instanceReads(sql: SqlClient.SqlClient) {
   const threadUse = (userId?: string) =>
     sql<{ worker_id: string; harness: Harness; id: string; count: bigint | number }>`
             SELECT worker_id, provider AS harness, coalesce(nullif(provider_profile_id, ''), 'native') AS id, count(*) AS count
-              FROM threads WHERE archived_at IS NULL AND worker_id IS NOT NULL AND provider IN ('claude', 'codex', 'grok')
+              FROM threads WHERE archived_at IS NULL AND worker_id IS NOT NULL AND provider IN ('claude', 'codex', 'grok', 'antigravity')
                 AND (${userId ?? null}::uuid IS NULL OR owner_user_id=${userId ?? null}::uuid) GROUP BY 1, 2, 3`;
 
   const lockInstance = (harness: Harness, id: string) =>

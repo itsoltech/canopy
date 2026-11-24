@@ -6,8 +6,9 @@
  */
 
 import { Result } from "effect";
+import { HARNESS_NAMES, isHarness, type Harness } from "../harnesses.ts";
 
-export type Harness = "claude" | "codex" | "grok";
+export type { Harness } from "../harnesses.ts";
 
 export interface SpawnModel {
   readonly id: string;
@@ -55,9 +56,6 @@ export type SpawnResolution =
 /** The id a model passes as spawn_thread.provider: "<harness>/<instance id>", e.g. "codex/native". */
 export const agentKey = (target: Pick<SpawnTarget, "harness" | "instance">): string =>
   `${target.harness}/${target.instance || "native"}`;
-
-const HARNESS_NAMES = { claude: "Claude", codex: "Codex", grok: "Grok" } as const satisfies Record<Harness, string>;
-const isHarness = (value: string): value is Harness => Object.hasOwn(HARNESS_NAMES, value);
 
 /**
  * The target of spawn_thread. Without `provider` (or naming the caller's own instance) the subagent runs where the

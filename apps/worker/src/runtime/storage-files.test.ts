@@ -1,5 +1,5 @@
 import { expect, test } from "bun:test";
-import { existsSync, mkdirSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, symlinkSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { Provider } from "@canopy/contracts";
 import { tempDir } from "@canopy/testing";
@@ -69,4 +69,31 @@ test("an import manifest pins the session while cleanup still removes thread att
 
   expect(existsSync(session)).toBe(true);
   expect(existsSync(join(dataDir, "attachments", threadId))).toBe(false);
+});
+
+test("Antigravity cleanup removes only the granted thread's private store in its instance", () => {
+  const sessions = join(dataDir, "antigravity", "native", "sessions");
+  const otherProfile = join(dataDir, "antigravity", "other", "sessions");
+  const skills = join(dataDir, "antigravity-home", "skills");
+  const abandoned = join(sessions, threadId, "process-old", "antigravity-cli");
+
+  const files = [
+    join(sessions, threadId, "conversations", "store"),
+    join(sessions, sessionId, "conversations", "store"),
+    join(otherProfile, threadId, "conversations", "store"),
+    join(skills, "shared", "SKILL.md"),
+  ];
+
+  for (const file of files) {
+    mkdirSync(join(file, ".."), { recursive: true });
+    writeFileSync(file, "saved");
+  }
+
+  mkdirSync(abandoned, { recursive: true });
+  symlinkSync(skills, join(abandoned, "skills"), process.platform === "win32" ? "junction" : "dir");
+  const scope = { ...grant, provider: Provider.ANTIGRAVITY, homePath: sessions };
+  removeThreadStorage(dataDir, scope, otherProfile);
+  removeThreadStorage(dataDir, scope, sessions);
+  expect(existsSync(abandoned)).toBe(false);
+  expect(files.map((file) => existsSync(file))).toEqual([false, true, true, true]);
 });

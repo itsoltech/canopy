@@ -46,8 +46,8 @@ export type HostOperations = HostHooks &
   Pick<ClaudeRuntimes, "runClaude" | "startClaude" | "stopClaude"> &
   Pick<
     ProviderRuntimes,
-    | "runGrok"
-    | "startGrok"
+    | "runAcp"
+    | "startAcp"
     | "useRuntime"
     | "wakeRuntimes"
     | "runIn"
@@ -133,8 +133,8 @@ export class HostContext {
       runClaude: claude.runClaude.bind(claude),
       startClaude: claude.startClaude.bind(claude),
       stopClaude: claude.stopClaude.bind(claude),
-      runGrok: runtimes.runGrok.bind(runtimes),
-      startGrok: runtimes.startGrok.bind(runtimes),
+      runAcp: runtimes.runAcp.bind(runtimes),
+      startAcp: runtimes.startAcp.bind(runtimes),
       useRuntime: runtimes.useRuntime.bind(runtimes),
       wakeRuntimes: runtimes.wakeRuntimes.bind(runtimes),
       runIn: runtimes.runIn.bind(runtimes),

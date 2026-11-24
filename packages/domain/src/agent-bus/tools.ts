@@ -81,7 +81,7 @@ export const SpawnThread = Schema.Struct({
   provider: Schema.optionalKey(
     Schema.String.check(Schema.isMinLength(1), Schema.isMaxLength(120)).annotate({
       description:
-        'Where the subagent runs: a provider from list_agents, e.g. "claude/native", "codex/cliproxyapi" or "grok/native" (or just "claude" / "codex" / "grok"). ' +
+        'Where the subagent runs: a provider from list_agents, e.g. "antigravity/native" or "codex/cliproxyapi" (or just the provider name). ' +
         "Any of them, also another harness than yours. Defaults to yours.",
     }),
   ),
@@ -264,7 +264,7 @@ export const AGENT_BUS_TOOLS = {
   list_agents: define({
     name: "list_agents",
     description:
-      "List what you can start as a subagent with spawn_thread: the providers on this worker (Claude, Codex and Grok instances) with their " +
+      "List what you can start as a subagent with spawn_thread: the provider instances on this worker with their " +
       "models and reasoning efforts. Includes linked computers by machine name, their projects/workspaces, workers and bots. Remote operations fail immediately if their computer is unreachable or needs an update.",
     args: ListAgents,
     mutates: false,
@@ -273,7 +273,7 @@ export const AGENT_BUS_TOOLS = {
     name: "spawn_thread",
     description:
       "Start a subagent: delegate a task to a new side thread, inheriting your working directory/worktree unless workspace_mode chooses another placement. By default a copy of you; it can run on " +
-      "another provider, model and effort (any Claude, Codex or Grok instance from list_agents), with its own instructions " +
+      "another provider, model and effort (any provider instance from list_agents), with its own instructions " +
       "and the permissions selected by the owner (same as yours by default). Use this whenever you want to delegate, parallelize or get a second opinion; it is the subagent tool here " +
       "(there is no spawn_agent or Task tool). The user sees the thread and can steer it. Returns at once with thread_id and turn_id; " +
       "its final message is reported to you automatically when it finishes, or call wait_threads to wait for it.",

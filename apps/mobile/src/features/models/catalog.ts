@@ -1,5 +1,7 @@
 import { useEffect, useSyncExternalStore } from "react";
 import { Provider, type ModelInfo, type ProfileModels, type ui } from "@canopy/contracts";
+import { providerKeys } from "@canopy/ui/providers";
+import { harnessName } from "@canopy/domain/provider-instances";
 import { useSession } from "../../state/session";
 import { useOverview } from "../../state/overview";
 
@@ -34,16 +36,9 @@ export interface ModelSection {
   choices: ModelChoice[];
 }
 
-const providers = [Provider.CLAUDE, Provider.CODEX, Provider.GROK];
+const providers: Provider[] = providerKeys.map((key) => Provider[key]);
 
-export const providerName = (provider: Provider) =>
-  provider === Provider.CLAUDE
-    ? "Claude"
-    : provider === Provider.CODEX
-      ? "Codex"
-      : provider === Provider.GROK
-        ? "Grok"
-        : "Agent";
+export const providerName = (provider: Provider) => (providers.includes(provider) ? harnessName(provider) : "Agent");
 
 const effortLabels = new Map([
   ["none", "None"],

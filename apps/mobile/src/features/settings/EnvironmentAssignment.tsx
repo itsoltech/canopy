@@ -1,3 +1,4 @@
+import { HARNESSES, HARNESS_NAMES, isHarness } from "@canopy/domain/harnesses";
 import { create } from "@bufbuild/protobuf";
 import { ui } from "@canopy/contracts";
 import { EnvironmentTags } from "./EnvironmentTags";
@@ -68,10 +69,12 @@ export function EnvironmentAssignment({
 }
 
 export function EnvironmentDestinations({
+  harnesses = HARNESSES,
   value,
   workers,
   onChange,
 }: {
+  harnesses?: readonly string[];
   value: ui.LibrarySkill;
   workers: ui.EnvironmentWorker[];
   onChange: (v: ui.LibrarySkill) => void;
@@ -81,10 +84,10 @@ export function EnvironmentDestinations({
   return (
     <>
       <SettingsGroup title="Destinations">
-        {["claude", "codex", "grok"].map((harness) => (
+        {harnesses.map((harness) => (
           <SettingToggle
             key={harness}
-            title={harness === "claude" ? "Claude Code" : harness === "codex" ? "Codex" : "Grok"}
+            title={harness === "claude" ? "Claude Code" : isHarness(harness) ? HARNESS_NAMES[harness] : harness}
             value={value.harnesses.includes(harness)}
             onChange={(on) =>
               change({ harnesses: on ? [...value.harnesses, harness] : value.harnesses.filter((h) => h !== harness) })

@@ -1,7 +1,12 @@
+import { ANTIGRAVITY_PERMISSION_GUIDANCE, supportsThreadPermission } from "@canopy/domain/harnesses";
+import { ANTIGRAVITY_ACP_CAPABILITY } from "@canopy/domain/release/protocol";
 import { create, type MessageInitShape } from "@bufbuild/protobuf";
 import { Code, ConnectError } from "@connectrpc/connect";
 import {
   CommandSchema,
+  CommandResultSchema,
+  Provider,
+  PermissionMode,
   ItemDeltaField,
   type ThreadEvent,
   WorkerConfigSchema,
@@ -39,6 +44,38 @@ interface PendingCommand {
   progress?: (progress: CloneProgress) => void;
   queryProgress?: (progress: QueryProgress) => void;
   observation: RpcObservation | undefined;
+}
+
+function commandProvider(kind: CommandInit): Provider | undefined {
+  if (kind.case === "createThread" || kind.case === "startTurn")
+    return (kind.value.profiledThread?.thread ?? kind.value.thread)?.provider;
+
+  if (kind.case === "setGoal" || kind.case === "rewindThread") return kind.value.thread?.provider;
+
+  return "provider" in kind.value ? kind.value.provider : undefined;
+}
+
+/** A retry may reach a downgraded worker or run with a lower permission ceiling than at admission. */
+function antigravityCommandProblem(kind: CommandInit, capabilities: readonly string[]): string | undefined {
+  if (commandProvider(kind) !== Provider.ANTIGRAVITY) return undefined;
+
+  if (!capabilities.includes(ANTIGRAVITY_ACP_CAPABILITY)) return "Update this worker to run Antigravity threads.";
+
+  if (kind.case === "listModels" || kind.case === "listMentionCatalog" || kind.case === "getProviderAccounts")
+    return undefined;
+
+  if (kind.case !== "createThread" && kind.case !== "startTurn") return "Antigravity does not support this operation.";
+
+  if (kind.case === "createThread" && kind.value.fork) return "Antigravity does not support session forks.";
+
+  if (kind.value.profiledThread) return "Antigravity does not support sandbox profiles.";
+
+  const mode =
+    (kind.case === "startTurn" && kind.value.permissionMode) ||
+    kind.value.thread?.permissionMode ||
+    PermissionMode.UNSPECIFIED;
+
+  return supportsThreadPermission(Provider.ANTIGRAVITY, mode) ? undefined : ANTIGRAVITY_PERMISSION_GUIDANCE;
 }
 
 /** One live WorkerLinkService.Connect stream, seen from the gateway. */
@@ -134,6 +171,17 @@ export class WorkerConnection {
     progress?: (progress: CloneProgress) => void,
     queryProgress?: (progress: QueryProgress) => void,
   ): Promise<CommandResult> {
+    const problem = antigravityCommandProblem(command, this.hello.capabilities);
+
+    if (problem)
+      return Promise.resolve(
+        create(CommandResultSchema, {
+          commandId,
+          errorCode: "PROVIDER_UNSUPPORTED",
+          errorMessage: problem,
+        }),
+      );
+
     const existing = this.#pending.get(commandId);
 
     if (existing) return existing.promise;

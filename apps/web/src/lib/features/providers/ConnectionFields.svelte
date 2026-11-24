@@ -1,6 +1,7 @@
 <script lang="ts">
   import type { ClassValue } from "svelte/elements";
   import { Provider, ProviderProfileKind } from "@canopy/contracts";
+  import { antigravityDeviceLogin } from "@canopy/ui/providers";
   import SettingsRow from "#lib/shared/ui/SettingsRow.svelte";
   import Switch from "#lib/shared/ui/Switch.svelte";
   import Fieldset from "#lib/shared/ui/Fieldset.svelte";
@@ -51,20 +52,24 @@
 </script>
 
 <div class={["grid gap-3", className]}>
-  <Fieldset legend="Connection">
-    <div class="grid gap-2 sm:grid-cols-2">
-      {#each options as option (option.value)}
-        <ChoiceCard
-          name="{prefix}-kind"
-          checked={kind === option.value}
-          title={option.label}
-          description={option.description}
-          onchange={() => (kind = option.value)}
-        />
-      {/each}
-    </div>
-  </Fieldset>
-  {#if endpoint}
+  {#if harness === Provider.ANTIGRAVITY}
+    <p class="text-base/6 text-muted sm:text-sm/6">{antigravityDeviceLogin}</p>
+  {:else}
+    <Fieldset legend="Connection">
+      <div class="grid gap-2 sm:grid-cols-2">
+        {#each options as option (option.value)}
+          <ChoiceCard
+            name="{prefix}-kind"
+            checked={kind === option.value}
+            title={option.label}
+            description={option.description}
+            onchange={() => (kind = option.value)}
+          />
+        {/each}
+      </div>
+    </Fieldset>
+  {/if}
+  {#if endpoint && harness !== Provider.ANTIGRAVITY}
     <div class="grid gap-4">
       <ProxyPicker {harness} bind:value={proxyId} error={errors.proxyId} />
     </div>

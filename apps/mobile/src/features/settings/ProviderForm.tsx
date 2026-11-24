@@ -1,5 +1,7 @@
 import { ClaudeConfigurationFields } from "./ClaudeConfigurationFields";
 import { Provider, ProviderProfileKind, type ui } from "@canopy/contracts";
+import { antigravityDeviceLogin } from "@canopy/ui/providers";
+import { SettingsValue } from "./SettingsValue";
 import { Button, Field, Notice } from "../../ui/components";
 import { useWorkerRecordOptions } from "../computers/worker-options";
 import { SettingsActions, SettingsGroup, SettingChoice, SettingToggle } from "./SettingsGroup";
@@ -70,17 +72,24 @@ export function ProviderConfiguration({
 
   return (
     <>
-      <SettingsGroup title="Connection" description="Connection changes apply from the next turn.">
-        <SettingChoice
-          title="Connection"
-          value={kind}
-          disabled={instance?.builtIn}
-          onChange={draft.setKind}
-          options={[
-            { value: ProviderProfileKind.CLIPROXYAPI, label: "Proxy", description: "A saved compatible connection." },
-            { value: ProviderProfileKind.NATIVE, label: "Device login", description: deviceLoginText(harness) },
-          ]}
-        />
+      <SettingsGroup
+        title="Connection"
+        description={harness === Provider.ANTIGRAVITY ? undefined : "Connection changes apply from the next turn."}
+      >
+        {harness === Provider.ANTIGRAVITY ? (
+          <SettingsValue title="Device login" value={antigravityDeviceLogin} />
+        ) : (
+          <SettingChoice
+            title="Connection"
+            value={kind}
+            disabled={instance?.builtIn}
+            onChange={draft.setKind}
+            options={[
+              { value: ProviderProfileKind.CLIPROXYAPI, label: "Proxy", description: "A saved compatible connection." },
+              { value: ProviderProfileKind.NATIVE, label: "Device login", description: deviceLoginText(harness) },
+            ]}
+          />
+        )}
         {harness === Provider.CODEX && kind === ProviderProfileKind.NATIVE && (
           <SettingToggle
             title="Own login"
@@ -97,7 +106,7 @@ export function ProviderConfiguration({
           />
         )}
       </SettingsGroup>
-      {kind === ProviderProfileKind.CLIPROXYAPI && (
+      {harness !== Provider.ANTIGRAVITY && kind === ProviderProfileKind.CLIPROXYAPI && (
         <ProxyPicker harness={harness} value={proxyId} onChange={draft.setProxy} />
       )}
       {harness === Provider.CLAUDE && (
@@ -111,7 +120,9 @@ export function ProviderConfiguration({
       {instance ? (
         runtimeFields
       ) : (
-        <SettingsDisclosure title="Runtime and launch arguments">{runtimeFields}</SettingsDisclosure>
+        <SettingsDisclosure title={harness === Provider.ANTIGRAVITY ? "Runtime" : "Runtime and launch arguments"}>
+          {runtimeFields}
+        </SettingsDisclosure>
       )}
       <ProviderSettingsEditor
         harness={harness}
@@ -200,34 +211,44 @@ function ProviderRuntime({
         autoCapitalize="none"
         autoCorrect={false}
       />
+      {harness !== Provider.ANTIGRAVITY && (
+        <Field
+          label={
+            harness === Provider.CODEX
+              ? "CODEX_HOME path"
+              : harness === Provider.GROK
+                ? "GROK_HOME path"
+                : "Claude config dir"
+          }
+          value={runtime.homePath}
+          onChangeText={(homePath) => onChange({ ...runtime, homePath })}
+          autoCapitalize="none"
+          autoCorrect={false}
+        />
+      )}
       <Field
         label={
-          harness === Provider.CODEX
-            ? "CODEX_HOME path"
-            : harness === Provider.GROK
-              ? "GROK_HOME path"
-              : "Claude config dir"
+          harness === Provider.ANTIGRAVITY
+            ? "Managed skills home"
+            : harness === Provider.CODEX
+              ? "Private state directory"
+              : "Shadow home path"
         }
-        value={runtime.homePath}
-        onChangeText={(homePath) => onChange({ ...runtime, homePath })}
-        autoCapitalize="none"
-        autoCorrect={false}
-      />
-      <Field
-        label={harness === Provider.CODEX ? "Private state directory" : "Shadow home path"}
         value={runtime.shadowHomePath}
         onChangeText={(shadowHomePath) => onChange({ ...runtime, shadowHomePath })}
         autoCapitalize="none"
         autoCorrect={false}
       />
-      <Field
-        label="Launch arguments · one per line"
-        value={runtime.launchArgs}
-        onChangeText={(launchArgs) => onChange({ ...runtime, launchArgs })}
-        multiline
-        autoCapitalize="none"
-        autoCorrect={false}
-      />
+      {harness !== Provider.ANTIGRAVITY && (
+        <Field
+          label="Launch arguments · one per line"
+          value={runtime.launchArgs}
+          onChangeText={(launchArgs) => onChange({ ...runtime, launchArgs })}
+          multiline
+          autoCapitalize="none"
+          autoCorrect={false}
+        />
+      )}
     </SettingsGroup>
   );
 }

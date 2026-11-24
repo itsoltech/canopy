@@ -1,6 +1,7 @@
 import { closeSync, existsSync, lstatSync, openSync, readSync, readdirSync, realpathSync, rmSync } from "node:fs";
 import { basename, join, relative, resolve, sep } from "node:path";
 import { Provider } from "@canopy/contracts";
+import { antigravitySessionRoot } from "../providers/antigravity/home.ts";
 import { Schema } from "effect";
 import type { StorageCleanupGrant } from "../journal/index.ts";
 
@@ -24,6 +25,17 @@ export function removeThreadStorage(
   removeConfined(dataDir, attachments);
 
   if (!isManagedStorageHome(dataDir, home, grant.provider)) return;
+
+  if (grant.provider === Provider.ANTIGRAVITY) {
+    // Antigravity conversations and artifacts live in a store dedicated to one Canopy thread.
+    if (
+      ID.test(grant.providerProfileId) &&
+      resolve(home) === resolve(antigravitySessionRoot(dataDir, grant.providerProfileId))
+    )
+      removeConfined(dataDir, join(home, grant.threadId));
+
+    return;
+  }
 
   for (const id of grant.providerThreadIds) {
     if (!ID.test(id)) continue;
@@ -50,16 +62,28 @@ export function removeThreadStorage(
 
 export function isManagedStorageHome(dataDir: string, home: string, provider: number): boolean {
   const parts = relative(resolve(dataDir), resolve(home)).split(sep);
-  const harness = provider === Provider.CODEX ? "codex" : provider === Provider.CLAUDE ? "claude" : "grok";
+
+  if (provider === Provider.GROK || provider === Provider.ANTIGRAVITY) {
+    const harness = provider === Provider.GROK ? "grok" : "antigravity";
+
+    return (
+      parts.length === 3 &&
+      parts[0] === harness &&
+      ID.test(parts[1] ?? "") &&
+      parts[2] === "sessions" &&
+      confined(dataDir, home)
+    );
+  }
+
+  if (provider !== Provider.CLAUDE && provider !== Provider.CODEX) return false;
+  const harness = provider === Provider.CODEX ? "codex" : "claude";
 
   const owned =
-    provider === Provider.GROK
-      ? parts.length === 3 && parts[0] === "grok" && ID.test(parts[1] ?? "") && parts[2] === "sessions"
-      : (parts.length === 1 && parts[0] === `${harness}-home`) ||
-        (parts.length === 2 &&
-          parts[0] === "homes" &&
-          (parts[1] ?? "").startsWith(`${harness}-`) &&
-          ID.test(parts[1] ?? ""));
+    (parts.length === 1 && parts[0] === `${harness}-home`) ||
+    (parts.length === 2 &&
+      parts[0] === "homes" &&
+      (parts[1] ?? "").startsWith(`${harness}-`) &&
+      ID.test(parts[1] ?? ""));
 
   return owned && confined(dataDir, home);
 }

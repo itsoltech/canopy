@@ -10,6 +10,7 @@ const CREDENTIAL_ENV = [
   "CLIPROXY_API_KEY",
   "XAI_API_KEY",
   "GROK_CODE_XAI_API_KEY",
+  "GEMINI_API_KEY",
 ];
 
 export const isCredentialEnv = (name: string): boolean => CREDENTIAL_ENV.includes(name.toUpperCase());

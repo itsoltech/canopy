@@ -31,6 +31,9 @@ export function proxyEnvMove(
 
         if (request.expectedRevision !== 0n && request.expectedRevision !== BigInt(row.revision))
           return yield* Effect.fail(new InstanceConflict("The instance changed meanwhile; reload and try again"));
+
+        if (harness === "antigravity")
+          return yield* Effect.fail(new Invalid("Antigravity requires a native connection."));
         const source = row.env;
         const urlNames = harness === "claude" ? ["ANTHROPIC_BASE_URL"] : ["OPENAI_BASE_URL", "CODEX_BASE_URL"];
 

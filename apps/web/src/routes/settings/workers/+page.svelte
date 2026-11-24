@@ -130,7 +130,7 @@
     {:else}<SettingsCard
         ><SettingsRow
           title="No workers yet"
-          description="Add a worker to run Claude, Codex or Grok on a computer you control."
+          description="Add a worker to run agents on a computer you control."
         /></SettingsCard
       >{/each}
   </SettingsGroup>

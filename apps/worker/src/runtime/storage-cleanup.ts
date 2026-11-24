@@ -1,4 +1,5 @@
 import { Provider, type Command, type ThreadStorageCleanupRequest } from "@canopy/contracts";
+import { harnessOf } from "@canopy/domain/harnesses";
 import { Effect } from "effect";
 import { Journal, type StorageCleanupGrant } from "../journal/index.ts";
 import { runtimeBusy, runtimeKeys } from "./instance-runtimes.ts";
@@ -81,7 +82,7 @@ export class WorkerStorageCleanup {
         )
           continue;
 
-        if (![Provider.CODEX, Provider.CLAUDE, Provider.GROK].includes(scope.provider)) continue;
+        if (!harnessOf(scope.provider)) continue;
 
         const home = await cleanupHome(this.ctx, {
           ...scope,
@@ -225,19 +226,21 @@ export class WorkerStorageCleanup {
 
     for (const id of state.claude.keys()) await this.ctx.ops.stopClaude(id);
 
-    for (const handle of state.grok.values()) await handle.runtime.close();
-    state.grok.clear();
+    for (const handle of state.acp.values()) await handle.runtime.close();
+    state.acp.clear();
 
     // Closing an idle runtime can flush its final journal entries; those must be ACKed first too.
     if ((await state.options.runtime.runPromise(Journal.use((j) => j.cursors()))).length) return;
 
     for (const grant of ready) {
-      const provider =
-        grant.provider === Provider.CODEX ? "codex" : grant.provider === Provider.CLAUDE ? "claude" : "grok";
+      const provider = harnessOf(grant.provider);
+
+      if (!provider) continue;
 
       const home = await validatedCleanupHome(this.ctx, grant);
 
       const source =
+        provider !== "antigravity" &&
         isManagedStorageHome(state.options.dataDir, home, grant.provider) &&
         state.imports.hasImportRootIntersection(provider, home);
 

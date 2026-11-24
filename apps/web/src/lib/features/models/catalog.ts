@@ -103,6 +103,7 @@ const fallbackEfforts: Record<ProviderKey, { readonly efforts: readonly string[]
   CLAUDE: { efforts: ["low", "medium", "high", "xhigh", "max"], default: "high" },
   CODEX: { efforts: ["low", "medium", "high", "xhigh"], default: "medium" },
   GROK: { efforts: [], default: "" },
+  ANTIGRAVITY: { efforts: [], default: "" },
 };
 
 /** Model aliases the provider's CLI resolves itself (always valid, whatever the current versions are). */
@@ -110,6 +111,7 @@ const aliases: Record<ProviderKey, readonly string[]> = {
   CLAUDE: ["opus", "sonnet", "haiku"],
   CODEX: [],
   GROK: [],
+  ANTIGRAVITY: [],
 };
 
 export const modelKey = (provider: ProviderKey, profileId: string, model: string): string =>

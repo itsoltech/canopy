@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { providerLoginCommand } from "@canopy/domain/provider-accounts";
   import { Provider, ProviderProfileKind, type ui } from "@canopy/contracts";
   import { useModelCatalog } from "#lib/features/models/model-catalog.svelte.ts";
   import { instanceKeyOf } from "#lib/features/providers/instances.ts";
@@ -49,6 +50,7 @@
         : instance
           ? `${providersHref}&instance=${encodeURIComponent(instanceKeyOf(instance))}${status === "turned_off" ? "&view=list" : ""}`
           : `${providersHref}&add=device&provider=${provider}`}
+      {@const manualSignIn = harness === Provider.ANTIGRAVITY && (status === "signed_out" || status === "expired")}
       {@const action = needsCli
         ? "Open Agent CLIs"
         : status === "signed_out" || status === "expired"
@@ -63,11 +65,13 @@
           <p class="flex items-baseline gap-1.5 text-sm/5 text-zinc-600 dark:text-zinc-400" role="status">
             {#if status === "ready"}<StatusDot tone="emerald" />{/if}
             <span class="min-w-0 break-words">
-              {statuses[status]}{status === "ready" && instanceName ? ` · ${instanceName}` : ""}
+              {statuses[status]}{manualSignIn
+                ? `. Run ${providerLoginCommand("antigravity", instance?.account, worker.os)} on the worker.`
+                : ""}{status === "ready" && instanceName ? ` · ${instanceName}` : ""}
             </span>
           </p>
         </div>
-        {#if status !== "ready"}
+        {#if status !== "ready" && !manualSignIn}
           <ButtonLink
             {href}
             aria-label={`${action} for ${name}`}

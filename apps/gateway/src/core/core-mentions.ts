@@ -1,3 +1,4 @@
+import { supportsNativeGoals } from "@canopy/domain/harnesses";
 import { create } from "@bufbuild/protobuf";
 import { Code, ConnectError } from "@connectrpc/connect";
 import {
@@ -345,9 +346,9 @@ export const coreMentionsMethods: CoreMentionsMethods = {
       catalog = await read;
     }
 
-    // Goals need a worker thread of either provider; the platform runs /goal itself (SetGoal).
+    // The gateway handles /goal only for providers with a native goal engine.
     const entries = [
-      ...PLATFORM_COMMANDS,
+      ...(supportsNativeGoals(scope.provider) ? PLATFORM_COMMANDS : []),
       ...catalog.entries.filter((e) => !PLATFORM_COMMANDS.some((p) => p.kind === e.kind && p.name === e.name)),
     ];
 

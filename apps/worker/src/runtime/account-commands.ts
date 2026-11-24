@@ -20,12 +20,8 @@ import { codexProfileGroup, CommandError } from "./host-types.ts";
 import type { HostContext } from "./host-context.ts";
 import type { AccountQuery } from "../providers/account-status.ts";
 import { accountText } from "@canopy/domain/provider-accounts";
+import { providerOf, type Harness } from "@canopy/domain/harnesses";
 import { grokAuthPath } from "../providers/grok/home.ts";
-
-type Harness = AccountQuery["harness"];
-
-const providers = { claude: Provider.CLAUDE, codex: Provider.CODEX, grok: Provider.GROK };
-const providerOf = (harness: Harness) => providers[harness];
 
 /** Use the same shadow home and login-link policies as the instance's harness runtime. */
 function environment(ctx: HostContext, config: AppliedConfig, resolved: ResolvedProfile, harness: Harness) {
@@ -38,6 +34,9 @@ function environment(ctx: HostContext, config: AppliedConfig, resolved: Resolved
   let env: NodeJS.ProcessEnv = { ...process.env, ...resolved.env };
   let loginLinkProblem: string | undefined;
   let cliHome = false;
+
+  // agy has a fresh configuration directory per ACP process. Account reads only inspect device login metadata.
+  if (harness === "antigravity") return { configDir: "", env, loginLinkProblem, cliHome };
 
   if (harness === "claude") {
     const home = prepareClaudeHome({
@@ -103,14 +102,15 @@ async function readEntry(
     // A missing login disables the runtime, but its validated configuration can still be queried.
     const resolved =
       status.resolved ??
-      resolveProfiles([status.config]).find(
-        (p) => p.config.id === status.config.id && providersOf(p.config).includes(harness),
-      )?.resolved;
+      (harness !== "antigravity" &&
+        resolveProfiles([status.config]).find(
+          (p) => p.config.id === status.config.id && providersOf(p.config).includes(harness),
+        )?.resolved);
 
     if (!resolved) {
       const account = accountResult("unknown", "", "The instance configuration is unavailable.");
 
-      if (status.config.kind === "cliproxyapi") {
+      if (status.config.kind === "cliproxyapi" && harness !== "antigravity") {
         account.state = "signed_out";
         account.authMethod = "Proxy";
         account.proxyName = accountText(status.config.displayName || status.config.id, [status.config.apiKey]);
@@ -131,6 +131,7 @@ async function readEntry(
       configDir,
       env,
       executable: resolved.runtime.executablePath || config[harness].executable || "",
+      ...(harness === "antigravity" && { loginDir: status.loginHomePath ?? "" }),
       args: cliHome ? [] : (resolved.runtime.launchArgs ?? []),
       configVersion: config.version,
       secrets: [
@@ -172,14 +173,16 @@ async function readEntry(
       );
 
     const loginDir =
-      resolved.kind === "native"
-        ? cliHome || resolved.runtime.ownLogin || !config[harness].linkDeviceLogin
-          ? configDir
-          : (harness === "claude" && env["CLAUDE_SECURESTORAGE_CONFIG_DIR"]) ||
-            resolved.runtime.homePath ||
-            ctx.state.deviceHomes[harness] ||
-            ""
-        : "";
+      harness === "antigravity"
+        ? (status.loginHomePath ?? "")
+        : resolved.kind === "native"
+          ? cliHome || resolved.runtime.ownLogin || !config[harness].linkDeviceLogin
+            ? configDir
+            : (harness === "claude" && env["CLAUDE_SECURESTORAGE_CONFIG_DIR"]) ||
+              resolved.runtime.homePath ||
+              ctx.state.deviceHomes[harness] ||
+              ""
+          : "";
 
     // Only a custom shadow home is worth showing; the default lives in the worker's data directory.
     return create(ProviderAccountEntrySchema, {

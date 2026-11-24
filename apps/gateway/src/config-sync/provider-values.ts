@@ -1,3 +1,4 @@
+import { isCredentialEnv } from "../store/credential-env.ts";
 import { type JsonValue } from "@bufbuild/protobuf";
 import { envListProblems } from "@canopy/domain";
 import { Predicate, Schema } from "effect";
@@ -48,7 +49,24 @@ export function secretField(kind: string, name: string, value: JsonValue | undef
 
   if (kind !== "instance") return false;
 
-  return name === "apiKey" || (ENV_FIELD.test(name) && envSecret(value));
+  const key = ENV_FIELD.exec(name)?.[1];
+
+  return name === "apiKey" || Boolean(key && (isCredentialEnv(key) || envSecret(value)));
+}
+
+/** Older peers could save a Gemini key as an ordinary env variable. Keep those values out of
+ * record JSON and conflict history, including when the same field version is redelivered. */
+export function protectIncomingEnv(fields: Fields, plain: Map<string, string>): void {
+  for (const [name, field] of Object.entries(fields)) {
+    const key = ENV_FIELD.exec(name)?.[1];
+
+    if (!key || !isCredentialEnv(key) || !envPlain(field.value)) continue;
+    const value = field.value.value;
+
+    if (value) plain.set(name, value);
+    else plain.delete(name);
+    field.value = value ? { secret: field.hlc } : null;
+  }
 }
 
 /** An instance as a record. `proxy` is the proxy's global id; secret fields get a placeholder token. */
@@ -74,6 +92,8 @@ export function instanceValues(row: InstanceRow, proxy: string) {
 
       return [[name, { secret: "" }]];
     }
+
+    if (isCredentialEnv(variable.name)) return [];
 
     return [[name, { value: Predicate.isString(variable.value) ? variable.value : "" }]];
   });
@@ -183,6 +203,13 @@ export function instanceColumns(values: Values, current: InstanceRow | undefined
 
     if (
       (kind !== "native" && kind !== "endpoint") ||
+      (harness === "antigravity" &&
+        (kind !== "native" ||
+          values["proxy"] ||
+          values["baseUrl"] ||
+          values["apiKey"] ||
+          values["ownLogin"] ||
+          launchArgs.length > 0)) ||
       label.length > 80 ||
       (!label.trim() && !current?.built_in) ||
       (accent && !ACCENT.test(accent)) ||
@@ -204,7 +231,8 @@ export function instanceColumns(values: Values, current: InstanceRow | undefined
 
       if (envSecret(value)) return [{ name: match[1]!, secret: true as const, token: value.secret }];
 
-      if (envPlain(value)) return [{ name: match[1]!, secret: false as const, value: value.value }];
+      if (envPlain(value) && !isCredentialEnv(match[1]!))
+        return [{ name: match[1]!, secret: false as const, value: value.value }];
 
       throw new Error("unsupported variable");
     });

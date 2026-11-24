@@ -1,4 +1,4 @@
-import type { PromptEvent } from "@canopy/grok-acp";
+import type { PromptEvent } from "@canopy/acp";
 import { Option, Schema } from "effect";
 import { emptyUsage, reportedUsd, tokenCount, type ConsumedUsage } from "../token-usage.ts";
 import type { XaiPricingCatalog } from "../pricing/model-catalog.ts";

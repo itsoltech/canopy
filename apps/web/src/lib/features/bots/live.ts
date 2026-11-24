@@ -1,4 +1,6 @@
-import { Provider, type bots, type ui } from "@canopy/contracts";
+import { supportsIsolatedRuns } from "@canopy/domain/harnesses";
+import { providerKeyOf } from "#lib/features/threads/providers.ts";
+import type { bots, ui } from "@canopy/contracts";
 import { modelOption, type ModelOption } from "#lib/features/models/catalog.ts";
 import { instanceKeyOf, instanceName } from "#lib/features/providers/instances.ts";
 import type { BotProviderInstance } from "./wizard/draft.ts";
@@ -45,10 +47,9 @@ export function botWizardInstances(
   catalogs: readonly ui.WorkerModels[],
 ): BotProviderInstance[] {
   return instances.flatMap((instance) => {
-    if (![Provider.CLAUDE, Provider.CODEX, Provider.GROK].includes(instance.harness)) return [];
+    const provider = providerKeyOf(instance.harness);
 
-    const provider =
-      instance.harness === Provider.CLAUDE ? "CLAUDE" : instance.harness === Provider.GROK ? "GROK" : "CODEX";
+    if (!provider || !supportsIsolatedRuns(instance.harness)) return [];
 
     const name = instanceName(instance);
     const models = new Map<string, ModelOption>();

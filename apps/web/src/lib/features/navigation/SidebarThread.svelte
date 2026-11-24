@@ -7,6 +7,7 @@
   import Icon from "#lib/shared/ui/Icon.svelte";
   import ProjectMark from "#lib/shared/ui/ProjectMark.svelte";
   import ProviderIcon from "#lib/features/models/ProviderIcon.svelte";
+  import { providerLabel } from "#lib/features/threads/labels.ts";
   import { providerKeyOf } from "#lib/features/threads/providers.ts";
   import ThreadActivityMark from "#lib/features/threads/ThreadActivityMark.svelte";
   import ThreadGoalMark from "#lib/features/threads/ThreadGoalMark.svelte";
@@ -98,7 +99,7 @@
       ),
   );
 
-  const providerName = $derived(provider === "CLAUDE" ? "Claude" : provider === "GROK" ? "Grok" : "Codex");
+  const providerName = $derived(providerLabel(thread.provider));
 </script>
 
 {#snippet providerMark()}

@@ -1,3 +1,4 @@
+import { HARNESS_NAMES } from "@canopy/domain/harnesses";
 import { ProviderProfileKind } from "@canopy/contracts";
 import { storedUserConfiguration } from "./instance-user-configuration.ts";
 import { settingsFrom } from "./instance-settings.ts";
@@ -59,7 +60,7 @@ export function instanceSave(
 
             if (taken.length > 0)
               return yield* Effect.fail(
-                new InstanceConflict(`${harness === "claude" ? "Claude" : "Codex"} already has an instance "${id}"`),
+                new InstanceConflict(`${HARNESS_NAMES[harness]} already has an instance "${id}"`),
               );
             const count = yield* sql<{ n: bigint | number }>`SELECT count(*) AS n FROM provider_instances`;
 
@@ -89,6 +90,9 @@ export function instanceSave(
           if (kindValue !== ProviderProfileKind.NATIVE && kindValue !== ProviderProfileKind.CLIPROXYAPI)
             return yield* Effect.fail(new Invalid("choose how the instance connects"));
           const kind = kindValue === ProviderProfileKind.NATIVE ? "native" : "endpoint";
+
+          if (harness === "antigravity" && (kind !== "native" || request.proxyId || request.baseUrl || request.apiKey))
+            return yield* Effect.fail(new Invalid("Antigravity requires a native connection."));
 
           let baseUrl = "";
 
@@ -253,6 +257,9 @@ export function instanceMutations(
           const input = request.overrides;
 
           if (input) {
+            if (harness === "antigravity" && (input.proxyId || input.baseUrl || input.apiKey))
+              return yield* Effect.fail(new Invalid("Antigravity requires a native connection."));
+
             if (input.proxyId === undefined && (input.baseUrl !== undefined || input.apiKey !== undefined) && proxyId) {
               const previous = yield* proxyRecords(sql, secretsKey).get(userId, proxyId);
               overrides = {

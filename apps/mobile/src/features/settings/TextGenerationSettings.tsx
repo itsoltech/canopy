@@ -1,3 +1,5 @@
+import { supportsIsolatedRuns } from "@canopy/domain/harnesses";
+import { automaticTextGenerationDescription } from "@canopy/ui/providers";
 import { useRef, useState } from "react";
 import { View, Text } from "react-native";
 import { create } from "@bufbuild/protobuf";
@@ -39,6 +41,7 @@ export function TextGenerationSettings() {
         >
           <SettingsModel
             localWorkersOnly
+            allowProvider={supportsIsolatedRuns}
             hideLabel
             value={value}
             disabled={disabled}
@@ -47,12 +50,7 @@ export function TextGenerationSettings() {
               void save({ provider: c.provider, profileId: c.profileId, model: c.model, effort })
             }
           />
-          {!value.model && (
-            <Text style={[type.meta, { color: c.muted }]}>
-              Canopy uses a small, fast model from the thread’s provider instance at low effort when available.
-              Otherwise it uses the thread’s model.
-            </Text>
-          )}
+          {!value.model && <Text style={[type.meta, { color: c.muted }]}>{automaticTextGenerationDescription}</Text>}
         </SettingsRow>
       </SettingsGroup>
       <TitleInstructions

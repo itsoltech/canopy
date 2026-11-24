@@ -1,13 +1,12 @@
 import { existsSync, readFileSync, realpathSync, statSync } from "node:fs";
 import { join } from "node:path";
-import { Match } from "effect";
+import { HARNESSES, HARNESS_NAMES, providerOf, type Harness } from "@canopy/domain/harnesses";
 import { decodeJsonObject, isString } from "../providers/json.ts";
 import { create, type MessageInitShape } from "@bufbuild/protobuf";
 import {
   ConfigAppliedSchema,
   DeviceLogin,
   Provider,
-  ProviderConfigurationMode,
   type ConfigIssue,
   type ProviderConfig,
   type WorkerConfig,
@@ -16,17 +15,20 @@ import {
   ProfileError,
   resolveProfiles,
   toProfileReport,
-  type NativeToolPolicy,
+  profilesByHarness,
   providersOf,
   type ProfileStatus,
-} from "../providers/index.ts";
-import { CLIS, discoverCli, findCli, systemCliProbe, type CliProbe } from "../cli-tools/discovery.ts";
+} from "../providers/profiles.ts";
+import type { NativeToolPolicy } from "../providers/native-tools.ts";
+import { CLIS, cliCommand, discoverCli, findCli, systemCliProbe, type CliProbe } from "../cli-tools/discovery.ts";
 import { shellEnvReady } from "../cli-tools/shell-env.ts";
 import { grokAuthPath } from "../providers/grok/home.ts";
 import { instanceShadowHome } from "./homes.ts";
 import { profileConfig } from "./profile-config.ts";
 import { inspectProfilePaths } from "./profile-paths.ts";
 import { directCodexHome } from "../providers/codex/home.ts";
+import { antigravityAuth } from "../providers/antigravity/auth.ts";
+import { supportsAntigravityVersion } from "../providers/antigravity/launch.ts";
 
 export { instanceHome, instanceShadowHome } from "./homes.ts";
 
@@ -47,7 +49,7 @@ export async function prepareSystemProbe(
       const found = await discoverCli(spec, config[spec.name]?.executablePath || undefined, cliProbe);
 
       if (!found.path) return;
-      chosen.set(spec.name, found.path);
+      chosen.set(cliCommand(spec.name), found.path);
       versions.set(found.path, found.version || undefined);
     }),
   );
@@ -83,11 +85,8 @@ export interface ProviderRuntime {
   readonly problem?: string;
 }
 
-export interface AppliedConfig {
+export interface AppliedConfig extends Readonly<Record<Harness, ProviderRuntime>> {
   readonly version: bigint;
-  readonly claude: ProviderRuntime;
-  readonly codex: ProviderRuntime;
-  readonly grok: ProviderRuntime;
   readonly profiles: readonly ProfileStatus[];
   readonly nativeTools: NativeToolPolicy;
   readonly limits: {
@@ -127,6 +126,7 @@ export interface DeviceHomes {
   readonly codex: string;
   readonly grok?: string;
   readonly grokAuthPath?: string;
+  readonly antigravity?: string;
   /** The worker process's environment (keys a native Claude may take from it). */
   readonly env?: Readonly<Record<string, string | undefined>>;
 }
@@ -197,12 +197,16 @@ export function applyWorkerConfig(
   const claude = providerRuntime("claude", config.claude, probe, issue);
   const codex = providerRuntime("codex", config.codex, probe, issue);
   const grok = providerRuntime("grok", config.grok, probe, issue);
+  const antigravity = providerRuntime("antigravity", config.antigravity, probe, issue);
+  // Gateways predating agy never sent its config and cannot interpret its provider enum in availability reports.
+  const harnesses = HARNESSES.filter((name) => name !== "antigravity" || config.antigravity);
 
   let profiles: ProfileStatus[] = [];
 
   try {
     profiles = resolveProfiles(
       config.profiles.map((p, i) => profileConfig(p, i, issue)).filter((p) => p !== undefined),
+      harnesses,
     );
   } catch (error) {
     issue("profiles", error instanceof ProfileError ? error.message : String(error), true);
@@ -216,18 +220,19 @@ export function applyWorkerConfig(
   // What the device says (CLI, version, login) is reported with each instance, not as a configuration issue.
   // An instance is one harness (provider, id): a profile serving both (a local or older configuration) is checked,
   // and may be unavailable, per harness, so Claude turned off does not take its Codex side down with it.
-  const runtimes = { claude, codex, grok };
-  profiles = profiles.flatMap(perHarness).map((status) => inspectProfile(status, runtimes, probe, homes, config));
+  const runtimes = { claude, codex, grok, antigravity };
+  profiles = profiles
+    .flatMap(profilesByHarness)
+    .map((status) => inspectProfile(status, runtimes, probe, homes, config));
 
   // A configured instance executable also works on a machine with no default CLI
   // on PATH. Instances without their own executable keep the missing-CLI status.
-  for (const name of ["claude", "codex", "grok"] as const) {
+  for (const name of harnesses) {
     if (
       !runtimes[name].enabled &&
       profiles.some((status) => status.resolved && providersOf(status.config).includes(name))
     ) {
-      const { problem: _, ...available } = runtimes[name];
-      runtimes[name] = { ...available, enabled: true };
+      runtimes[name] = { enabled: true, linkDeviceLogin: runtimes[name].linkDeviceLogin };
     }
   }
 
@@ -237,11 +242,7 @@ export function applyWorkerConfig(
     version: config.version,
     issues,
     profiles: profiles.map(toProfileReport),
-    providers: [
-      providerInfo(Provider.CLAUDE, runtimes.claude),
-      providerInfo(Provider.CODEX, runtimes.codex),
-      providerInfo(Provider.GROK, runtimes.grok),
-    ],
+    providers: harnesses.map((name) => providerInfo(providerOf(name), runtimes[name])),
   };
 
   if (issues.some((i) => i.fatal))
@@ -269,8 +270,12 @@ export function applyWorkerConfig(
   };
 }
 
+function missingCliProblem(name: Harness) {
+  return name === "claude" ? "Claude Code is not installed on this computer" : `${cliCommand(name)} CLI not found`;
+}
+
 function providerRuntime(
-  name: "claude" | "codex" | "grok",
+  name: Harness,
   config: ProviderConfig | undefined,
   probe: DeviceProbe,
   issue: (path: string, message: string) => void,
@@ -278,17 +283,30 @@ function providerRuntime(
   const linkDeviceLogin = config?.deviceLogin !== DeviceLogin.NONE;
 
   if (!config?.enabled) return { enabled: false, linkDeviceLogin, problem: "disabled in configuration" };
-  const executable = config.executablePath || probe.which(name);
+  const command = cliCommand(name);
+  const executable = config.executablePath || probe.which(command);
 
   if (!executable) {
-    const problem = name === "claude" ? "Claude Code is not installed on this computer" : `${name} CLI not found`;
-    issue(`${name}.executable_path`, name === "claude" ? problem : `${name} CLI not found on PATH`);
+    const problem = missingCliProblem(name);
+    issue(`${name}.executable_path`, name === "claude" ? problem : `${command} CLI not found on PATH`);
 
     return { enabled: false, linkDeviceLogin, problem };
   }
 
   const versionLine = probe.version(executable);
   const version = versionLine?.match(/\d+\.\d+\.\d+(?:[-+][\w.]+)?/)?.[0];
+
+  if (name === "antigravity" && !versionLine)
+    return { enabled: false, linkDeviceLogin, problem: `${executable} not found or not runnable` };
+
+  if (name === "antigravity" && !supportsAntigravityVersion(version))
+    return {
+      enabled: false,
+      linkDeviceLogin,
+      executable,
+      ...(version && { version }),
+      problem: "Antigravity threads require agy 1.5.16 or a later 1.x version.",
+    };
 
   if (config.requiredVersion && version !== config.requiredVersion) {
     const problem = `${name} ${version ?? "(unknown version)"} found, ${config.requiredVersion} required`;
@@ -314,28 +332,9 @@ function providerInfo(provider: Provider, runtime: ProviderRuntime) {
  * authenticates. A provider that is off or missing, an executable that does not run and a native instance without
  * any login make it unavailable (pickers leave it out); an endpoint authenticates with its key.
  */
-function perHarness(status: ProfileStatus): ProfileStatus[] {
-  const harnesses = providersOf(status.config);
-
-  if (harnesses.length < 2) return [status];
-
-  return harnesses.map((harness) => {
-    const config = { ...status.config, providers: [harness] };
-
-    // SHARED on older multi-provider entries selected the Claude user directory only.
-    if (harness === "codex" && config.runtime?.userConfiguration?.mode === ProviderConfigurationMode.SHARED) {
-      const problem = "Select Use CLI home on an instance configured specifically for Codex.";
-
-      return { config: { ...config, settingsProblem: problem }, problem };
-    }
-
-    return { ...status, config, ...(status.resolved && { resolved: { ...status.resolved, providers: [harness] } }) };
-  });
-}
-
 function inspectProfile(
   status: ProfileStatus,
-  runtimes: Record<"claude" | "codex" | "grok", ProviderRuntime>,
+  runtimes: Record<Harness, ProviderRuntime>,
   probe: DeviceProbe,
   homes: DeviceHomes | undefined,
   providers: WorkerConfig,
@@ -347,18 +346,19 @@ function inspectProfile(
   let runtime = runtimes[harness];
   const own = config.runtime?.executablePath;
 
-  if (
-    !runtime.enabled &&
-    own &&
-    runtime.problem ===
-      (harness === "claude" ? "Claude Code is not installed on this computer" : `${harness} CLI not found`)
-  ) {
-    runtime = providerRuntime(harness, { ...providers[harness]!, executablePath: own }, probe, () => {});
-  }
+  if (harness === "antigravity" && !status.resolved) return status;
+  const configured = providers[harness];
 
+  if (own && configured?.enabled && (harness === "antigravity" || runtime.problem === missingCliProblem(harness)))
+    runtime = providerRuntime(harness, { ...configured, executablePath: own }, probe, () => {});
+
+  if (!runtime.enabled)
+    return {
+      config,
+      ...(runtime.version && { version: runtime.version }),
+      problem: runtime.problem ?? `${harness} is disabled`,
+    };
   let version = runtime.version;
-
-  if (!runtime.enabled) return { config, problem: runtime.problem ?? `${harness} is disabled` };
 
   if (own) {
     const line = probe.version(own);
@@ -375,6 +375,19 @@ function inspectProfile(
   );
 
   if (!versioned.resolved) return versioned;
+
+  if (harness === "antigravity") {
+    // The device keyring can't be inspected here. Presence of a key selects the Gemini API route without checking it.
+    const auth = antigravityAuth(versioned.resolved.env, homes?.env ?? process.env, runtime.linkDeviceLogin);
+
+    if (auth.kind === "unavailable") {
+      const { resolved: _, ...rest } = versioned;
+
+      return { ...rest, problem: auth.problem };
+    }
+
+    return auth.kind === "key" ? { ...versioned, auth: "Gemini API key configured", loginHomePath: "" } : versioned;
+  }
 
   if (config.kind === "cliproxyapi")
     return status.resolved
@@ -421,11 +434,7 @@ function inspectProfile(
     const problem = ownLogin
       ? "not signed in"
       : runtime.linkDeviceLogin
-        ? `no ${Match.value(harness).pipe(
-            Match.when("claude", () => "Claude"),
-            Match.when("grok", () => "Grok"),
-            Match.orElse(() => "Codex"),
-          )} login on this device`
+        ? `no ${HARNESS_NAMES[harness]} login on this device`
         : "device login is turned off for this worker";
 
     const { resolved: _, ...rest } = versioned;

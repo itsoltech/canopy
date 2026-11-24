@@ -35,8 +35,8 @@
   <Disclosure class="border-t border-divider pt-4" align="center">
     {#snippet summary()}<span class="text-base/6 font-medium text-ink">How the agents connect</span>{/snippet}
     <p class="pt-2 pl-6 text-base/6 text-muted sm:text-sm/6">
-      Canopy uses the Claude Agent SDK to run Claude Code. It connects to Codex app-server and Grok CLI over standard
-      input and output (stdio). Grok uses the Agent Client Protocol (ACP).
+      Canopy runs Claude Code through the Claude Agent SDK and connects to Codex app-server over standard input and
+      output. Grok and Antigravity use the Agent Client Protocol (ACP) over the same connection.
     </p>
   </Disclosure>
 </div>

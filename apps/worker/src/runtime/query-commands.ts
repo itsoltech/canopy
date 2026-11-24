@@ -8,7 +8,7 @@ import { claudeConfigurationHomes } from "../providers/claude/configuration-home
 import { providersOf } from "../providers/profiles.ts";
 import { searchFiles } from "../files/search.ts";
 
-import type { CommandOutput } from "./host-types.ts";
+import { acpHarness, type CommandOutput } from "./host-types.ts";
 import { refreshShellEnv } from "../cli-tools/shell-env.ts";
 import type { HostContext } from "./host-context.ts";
 
@@ -35,27 +35,26 @@ export class QueryCommands {
     this.ctx.ops.checkCwd(cwd);
     const folder = realpathSync(cwd);
 
-    const listed =
-      provider === Provider.GROK
-        ? { entries: [], notes: ["Grok ACP does not expose a mention catalog"] }
-        : provider === Provider.CLAUDE
-          ? await this.ctx.ops.runClaude(
-              (threads) =>
-                Effect.promise(() =>
-                  this.ctx.state.catalogs.get(
-                    `claude|${profileId}|${folder}`,
-                    this.#claudeStamp(folder, profileId),
-                    () => this.ctx.ops.runIn(threads.listMentionCatalog(profileId, folder)),
-                    refresh,
-                  ),
+    const listed = acpHarness(provider)
+      ? { entries: [], notes: ["The mention catalog is unavailable for this agent."] }
+      : provider === Provider.CLAUDE
+        ? await this.ctx.ops.runClaude(
+            (threads) =>
+              Effect.promise(() =>
+                this.ctx.state.catalogs.get(
+                  `claude|${profileId}|${folder}`,
+                  this.#claudeStamp(folder, profileId),
+                  () => this.ctx.ops.runIn(threads.listMentionCatalog(profileId, folder)),
+                  refresh,
                 ),
-              profileId,
-            )
-          : await this.ctx.ops.runCodex(
-              provider,
-              (threads) => threads.listMentionCatalog(folder, refresh),
-              this.ctx.ops.codexGroupOf(profileId),
-            );
+              ),
+            profileId,
+          )
+        : await this.ctx.ops.runCodex(
+            provider,
+            (threads) => threads.listMentionCatalog(folder, refresh),
+            this.ctx.ops.codexGroupOf(profileId),
+          );
 
     return {
       mentionCatalog: {

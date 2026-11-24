@@ -97,7 +97,10 @@
     <AccentPicker name="accent" bind:value={draft.accentColor} />
   </SettingsSection>
 
-  <SettingsSection title="Connection" description="Connection changes apply from the next turn.">
+  <SettingsSection
+    title={instance.harness === Provider.ANTIGRAVITY ? "Device login" : "Connection"}
+    description={instance.harness === Provider.ANTIGRAVITY ? undefined : "Connection changes apply from the next turn."}
+  >
     <ConnectionFields
       harness={instance.harness}
       bind:kind={draft.kind}

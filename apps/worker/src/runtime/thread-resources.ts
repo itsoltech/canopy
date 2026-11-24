@@ -156,8 +156,8 @@ export class ThreadResources {
             );
         }),
       ),
-      ...[...this.ctx.state.grok.keys()].map((id) =>
-        this.ctx.ops.runGrok((threads) => threads.unload(threadId), id, true),
+      ...[...this.ctx.state.acp.keys()].map((instance) =>
+        this.ctx.ops.runAcp(instance, (threads) => threads.unload(threadId), true),
       ),
     ];
   }

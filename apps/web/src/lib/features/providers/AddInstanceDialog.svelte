@@ -138,6 +138,7 @@
     { value: Provider.CODEX, description: "OpenAI's coding agent (codex app-server)." },
     { value: Provider.CLAUDE, description: "Anthropic's Claude Code (Agent SDK)." },
     { value: Provider.GROK, description: "xAI's Grok CLI (Agent Client Protocol)." },
+    { value: Provider.ANTIGRAVITY, description: "Google’s Antigravity CLI (agy)." },
   ];
 </script>
 
@@ -171,7 +172,7 @@
           {#if step === 0}
             <fieldset class="grid gap-2">
               <legend class="sr-only">Provider</legend>
-              {#each harnesses as h (h.value)}
+              {#each harnesses.filter((h) => !setupProxy || h.value !== Provider.ANTIGRAVITY) as h (h.value)}
                 <ChoiceCard
                   name="harness"
                   checked={draft.harness === h.value}
@@ -179,6 +180,12 @@
                   description={h.description}
                   onchange={() => {
                     if (draft.harness !== h.value) {
+                      if (h.value === Provider.ANTIGRAVITY) {
+                        draft.kind = ProviderProfileKind.NATIVE;
+                        draft.proxyId = "";
+                        draft.homePath = "";
+                        draft.launchArgs = "";
+                      }
                       draft.harness = h.value;
                       draft.userConfiguration = configurationDraftOf(undefined, h.value);
                       draft.ownLogin = false;
@@ -198,7 +205,7 @@
                 <Input
                   name="label"
                   bind:value={() => draft.label, setLabel}
-                  placeholder="Team proxy"
+                  placeholder={draft.harness === Provider.ANTIGRAVITY ? "Team agent" : "Team proxy"}
                   autocomplete="off"
                   data-autofocus
                 />
@@ -211,7 +218,7 @@
                 <Input
                   name="id"
                   bind:value={() => draft.id, (id: string) => ((draft.id = id.toLowerCase()), (draft.idEdited = true))}
-                  placeholder="team-proxy"
+                  placeholder={draft.harness === Provider.ANTIGRAVITY ? "team-agent" : "team-proxy"}
                   autocomplete="off"
                   spellcheck="false"
                   class="font-mono"
@@ -247,7 +254,9 @@
               <UserConfigurationFields bind:value={draft.userConfiguration} prefix="new" />
             {/if}
             <Disclosure summaryClass="text-base/6 font-medium sm:text-sm/6">
-              {#snippet summary()}Runtime and launch arguments{/snippet}
+              {#snippet summary()}{draft.harness === Provider.ANTIGRAVITY
+                  ? "Runtime"
+                  : "Runtime and launch arguments"}{/snippet}
               <div class="pt-3">
                 <RuntimeFields
                   harness={draft.harness}

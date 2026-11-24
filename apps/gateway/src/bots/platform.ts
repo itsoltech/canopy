@@ -1,3 +1,4 @@
+import { isHarness, providerOf } from "@canopy/domain/harnesses";
 import { interactionView } from "./tools/threads.ts";
 import { wantsThreadPage } from "./tools/read-thread-page.ts";
 import { authorizeBotThreadCall } from "../core/bot-thread-audience.ts";
@@ -7,7 +8,7 @@ import { create } from "@bufbuild/protobuf";
 import { bots, Provider, ui } from "@canopy/contracts";
 import type { JsonObject } from "@canopy/domain";
 import { isEntityId, nodeRef, splitId } from "@canopy/domain/computers";
-import { Effect, Match, Predicate } from "effect";
+import { Effect, Predicate } from "effect";
 import type { GatewayCore, GatewayCoreOptions } from "../core/core.ts";
 import { GatewayStore, Invalid, NotFound } from "../store/store.ts";
 import { platformError } from "./errors.ts";
@@ -26,12 +27,7 @@ import { threadToolNames, usesThreadConnection } from "./thread-tools.ts";
 import { SettingsStore } from "../store/settings.ts";
 
 /** Legacy tools: an unknown provider name keeps meaning Codex, as before. */
-const legacyProvider = (name: string) =>
-  Match.value(name).pipe(
-    Match.when("claude", () => Provider.CLAUDE),
-    Match.when("grok", () => Provider.GROK),
-    Match.orElse(() => Provider.CODEX),
-  );
+const legacyProvider = (name: string) => providerOf(name) || Provider.CODEX;
 
 /** Resolve display labels through the same owner-scoped paths as the action. */
 export async function describeBotTool(core: GatewayCore, tool: ToolSpec, args: JsonObject): Promise<string> {
@@ -324,7 +320,7 @@ type Args = Pick<ReturnType<typeof context>, "string" | "optional">;
 async function listBotModels(core: GatewayCore, turn: BotTurn, { string, optional }: Args) {
   const requested = optional("provider");
 
-  if (requested && !["claude", "codex", "grok"].includes(requested)) throw new Invalid("unknown provider");
+  if (requested && !isHarness(requested)) throw new Invalid("unknown provider");
 
   if (!optional("worker_id")) {
     const config = (await core.bots.get(turn.bot_id)).configuration!;
@@ -361,8 +357,7 @@ async function startThread(core: GatewayCore, turn: BotTurn, call: StoredCall, {
 
   const permission = botThreadPermission(config, defaults.threadDefaults?.permissionMode);
 
-  if (!permission || !["claude", "codex", "grok"].includes(string("provider")))
-    throw new Invalid("unknown provider or permission");
+  if (!permission || !isHarness(string("provider"))) throw new Invalid("unknown provider or permission");
 
   const provider = legacyProvider(string("provider"));
 
@@ -378,7 +373,7 @@ async function startThread(core: GatewayCore, turn: BotTurn, call: StoredCall, {
     const models = await botModels(core, workerId, provider, string("provider_instance"));
     model = (models.find((m) => m.isDefault) ?? models[0])?.id ?? "";
 
-    if (!model)
+    if (!model && provider !== Provider.ANTIGRAVITY)
       throw new Invalid("this provider instance reports no models on that worker; use list_models or another instance");
   }
 

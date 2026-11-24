@@ -21,6 +21,7 @@ import { ReplyMessageContext, ReplySuggestions, useTurnReplySuggestions } from "
 
 /** What a turn looks up beyond its own items: the thread's notices and steers, its tasks and provider. */
 export interface TurnContext {
+  readonly loginCommand: string;
   readonly notices: readonly (ui.ThreadNotice & NoticeState)[];
   readonly steers: readonly ui.Steer[];
   /** Background tasks by the command item that started them (they own its lifecycle after the turn). */
@@ -224,7 +225,13 @@ function TurnFooter({
 }) {
   return (
     <View style={{ gap: 4, marginTop: answerText.trim() && turn.status === "completed" ? -12 : 0 }}>
-      <TurnEnd turn={turn} provider={context.provider} proxy={context.proxy} historical={historical} />
+      <TurnEnd
+        loginCommand={context.loginCommand}
+        turn={turn}
+        provider={context.provider}
+        proxy={context.proxy}
+        historical={historical}
+      />
       <QuoteItem.Provider value={itemId}>
         <TurnDetails turn={turn} answer={answerText} />
       </QuoteItem.Provider>

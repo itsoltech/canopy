@@ -1,10 +1,11 @@
+import { providerOf } from "@canopy/domain/harnesses";
 import { create, toJson, type JsonValue } from "@bufbuild/protobuf";
 
 import { bots, Provider, ui } from "@canopy/contracts";
 
 import { AGENT_BUS, REMOTE_BOTS, splitId } from "@canopy/domain/computers";
 
-import { Match, Predicate, Schema } from "effect";
+import { Predicate, Schema } from "effect";
 
 import type { BotTurn, StoredCall, ToolResult } from "../bots/types.ts";
 
@@ -192,11 +193,7 @@ function botThreadRequest(args: Arguments, callId: string): ui.CreateThreadReque
     workspaceMode: ui.WorkspaceMode.CHECKOUT,
     projectId: text(args, "project_id"),
     workspaceId: splitId(text(args, "workspace_id")).id,
-    provider: Match.value(args["provider"]).pipe(
-      Match.when("claude", () => Provider.CLAUDE),
-      Match.when("grok", () => Provider.GROK),
-      Match.orElse(() => Provider.CODEX),
-    ),
+    provider: providerOf(text(args, "provider")) || Provider.CODEX,
     providerProfileId: text(args, "provider_instance"),
     model: text(args, "model", true),
     effort: text(args, "effort", true),

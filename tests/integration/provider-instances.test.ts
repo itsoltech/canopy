@@ -8,7 +8,8 @@ import { afterAll, beforeAll, describe, expect, test } from "bun:test";
 import { toJson } from "@bufbuild/protobuf";
 import { PermissionMode, Provider, ProviderProfileKind, type WorkerConfig, ui } from "@canopy/contracts";
 import { dockerAvailable } from "@canopy/db/testing";
-import { PROVIDER_SETTINGS_CAPABILITY } from "@canopy/domain/release/protocol";
+import { GatewayStore, InstanceStore } from "@canopy/gateway/store";
+import { ANTIGRAVITY_ACP_CAPABILITY, PROVIDER_SETTINGS_CAPABILITY } from "@canopy/domain/release/protocol";
 import { Effect } from "effect";
 import { SqlClient } from "effect/sql";
 import { eventually, failure, startTestGateway, type ScriptedWorker, type TestGateway } from "./support/gateway.ts";
@@ -75,10 +76,13 @@ describe.skipIf(!dockerAvailable)("global provider instances (gateway + two scri
   test("the built-in device logins exist for every harness on every worker", async () => {
     const listed = await instances();
     expect(listed.map((i) => [Provider[i.harness], i.id, i.builtIn, i.allWorkers])).toEqual([
+      ["ANTIGRAVITY", "native", true, true],
       ["CLAUDE", "native", true, true],
       ["CODEX", "native", true, true],
       ["GROK", "native", true, true],
     ]);
+    expect(gw.worker.configs.at(-1)?.antigravity).toBeUndefined();
+    expect(gw.worker.configs.at(-1)?.profiles.some((p) => p.providers.includes(Provider.ANTIGRAVITY))).toBe(false);
     // Claude is not installed on the scripted workers: only Codex is pickable.
     expect(await pickable(gw.workerId)).toEqual(["CODEX/native"]);
   });
@@ -369,6 +373,7 @@ describe.skipIf(!dockerAvailable)("global provider instances (gateway + two scri
       (c) => !c.profiles.some((p) => p.id === "spare"),
     );
     expect((await instances()).map((i) => `${Provider[i.harness]}/${i.id}`)).toEqual([
+      "ANTIGRAVITY/native",
       "CLAUDE/native",
       "CODEX/native",
       "CODEX/team",
@@ -524,4 +529,117 @@ describe.skipIf(!dockerAvailable)("global provider instances (gateway + two scri
       settingsOverrideText: settingsText,
     });
   });
+
+  test("a native Antigravity instance reaches only a capable worker and can spawn another Antigravity thread", async () => {
+    const provider = Provider.ANTIGRAVITY;
+    const added = await gw.addWorker("agy studio", ["/studio"]);
+    await gw.runtime.runPromise(
+      GatewayStore.use((s) =>
+        s.setWorkerConfig(
+          added.workerId,
+          {
+            allowedRoots: ["/studio"],
+            antigravity: { enabled: true },
+          },
+          gw.userId,
+        ),
+      ),
+    );
+    await gw.runtime.runPromise(InstanceStore.use((s) => s.sync(gw.userId, [added.workerId])));
+
+    const studio = await gw.connect(added.workerId, added.credential, undefined, {
+      antigravity: true,
+      hello: { capabilities: [ANTIGRAVITY_ACP_CAPABILITY] },
+    });
+
+    const named = {
+      harness: provider,
+      id: "studio-agy",
+      label: "Studio",
+      create: true,
+      kind: ProviderProfileKind.NATIVE,
+    };
+
+    expect(await failure(gw.api.saveProviderInstance({ ...named, kind: ProviderProfileKind.CLIPROXYAPI }))).toContain(
+      "native connection",
+    );
+    expect(await failure(gw.api.saveProviderInstance({ ...named, runtime: { ownLogin: true } }))).toContain(
+      "device login",
+    );
+
+    const saved = await gw.api.saveProviderInstance({
+      ...named,
+      workerIds: [gw.workerId, added.workerId],
+      env: [{ name: "GEMINI_API_KEY", value: TOKEN }],
+      runtime: { binaryPath: "/tools/agy", shadowHomePath: "/studio/skills" },
+    });
+
+    expect(saved.instance?.env).toMatchObject([{ name: "GEMINI_API_KEY", secret: true, value: "" }]);
+    expect(JSON.stringify(await query("SELECT env FROM provider_instances WHERE harness='antigravity'"))).not.toContain(
+      TOKEN,
+    );
+    expect(
+      await eventually(
+        () => pickable(added.workerId),
+        (p) => p.includes("ANTIGRAVITY/studio-agy"),
+      ),
+    ).toContain("ANTIGRAVITY/studio-agy");
+    const config = studio.configs.at(-1)!;
+    expect(config.antigravity?.enabled).toBe(true);
+    expect(config.profiles.find((p) => p.id === named.id)).toMatchObject({
+      providers: [provider],
+      env: [{ name: "GEMINI_API_KEY", secret: true, value: TOKEN }],
+      executablePath: "/tools/agy",
+      shadowHomePath: "/studio/skills",
+    });
+    expect(gw.worker.configs.flatMap((c) => c.profiles).some((p) => p.id === named.id)).toBe(false);
+
+    const studioWorkspace = (
+      await gw.api.createWorkspace({ projectId, workerId: added.workerId, rootPath: "/studio/project" })
+    ).workspace!;
+
+    const request = {
+      projectId,
+      workspaceId: studioWorkspace.id,
+      provider,
+      providerProfileId: named.id,
+      title: "ACP thread",
+    };
+
+    expect(await failure(gw.api.createThread({ ...request, workspaceId }))).toContain("Update this worker");
+    expect(await failure(gw.api.createThread({ ...request, permissionMode: PermissionMode.FULL_AUTO }))).toContain(
+      "Choose Ask",
+    );
+    const thread = (await gw.api.createThread(request)).thread!;
+    expect(await studio.createdThread(thread.id)).toMatchObject({
+      provider,
+      providerProfileId: named.id,
+      permissionMode: PermissionMode.ASK,
+    });
+    expect(await failure(gw.api.setGoal({ threadId: thread.id, action: "set", objective: "finish" }))).toContain(
+      "native goals",
+    );
+    const listed = await studio.callTool({ threadId: thread.id, tool: "list_agents", args: {} });
+    expect(listed.isError).toBe(false);
+    expect(listed.content).toContain("antigravity/studio-agy");
+
+    const spawned = await studio.callTool({
+      threadId: thread.id,
+      tool: "spawn_thread",
+      args: {
+        title: "Child",
+        prompt: "read the file",
+        provider: "antigravity/native",
+        permission_mode: "read_only",
+      },
+    });
+
+    expect(spawned.isError).toBe(false);
+    const [child] = await query<{ id: string }>("SELECT id FROM threads WHERE parent_thread_id=$1::uuid", thread.id);
+    expect(await studio.createdThread(child!.id)).toMatchObject({
+      provider,
+      providerProfileId: "",
+      permissionMode: PermissionMode.READ_ONLY,
+    });
+  }, 30_000);
 });

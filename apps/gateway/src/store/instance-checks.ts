@@ -61,7 +61,7 @@ export interface SaveInstanceInput {
 export const harnessOrFail = (provider: Provider) => {
   const harness = harnessOf(provider);
 
-  return harness ? Effect.succeed(harness) : Effect.fail(new Invalid("choose Claude or Codex"));
+  return harness ? Effect.succeed(harness) : Effect.fail(new Invalid("Choose a provider."));
 };
 
 export const envSettings = (env: readonly StoredEnvVar[]) =>
@@ -97,6 +97,12 @@ export function checkRuntime(
   harness: Harness,
   runtime: ui.InstanceRuntime | ui.InstanceOverridesInput,
 ): string | undefined {
+  if (
+    harness === "antigravity" &&
+    (runtime.homePath || runtime.launchArgs.length || ("ownLogin" in runtime && runtime.ownLogin))
+  )
+    return "Antigravity uses its device login and Canopy’s ACP launch arguments.";
+
   return (
     checkPath("binary path", runtime.binaryPath) ??
     checkPath("home path", runtime.homePath) ??

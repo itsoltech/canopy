@@ -6,7 +6,7 @@
   import MenuItem from "#lib/shared/ui/MenuItem.svelte";
   import SwapText from "#lib/shared/ui/SwapText.svelte";
   import { useThreadActions } from "../thread-actions.svelte.ts";
-  import { requestTitleRegeneration } from "../title-actions.ts";
+  import { canGenerateTitle, requestTitleRegeneration } from "../title-actions.ts";
   import { awayReason } from "#lib/features/computers/computers.ts";
   import { tooltip } from "#lib/shared/ui/tooltip.ts";
 
@@ -66,8 +66,10 @@
         disabled={closed}
       />{/snippet}
     <MenuItem icon="pencil-square" onselect={() => void actions.run("rename", thread)}>Rename…</MenuItem>
-    <MenuItem icon="arrow-path" disabled={generating} onselect={regenerate}
-      >{generating ? "Generating title…" : "Regenerate title"}</MenuItem
-    >
+    {#if canGenerateTitle(thread, actions.settings.textGeneration)}
+      <MenuItem icon="arrow-path" disabled={generating} onselect={regenerate}
+        >{generating ? "Generating title…" : "Regenerate title"}</MenuItem
+      >
+    {/if}
   </DropdownMenu>
 </section>

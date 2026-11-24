@@ -1,3 +1,4 @@
+import { ANTIGRAVITY_ACP_CAPABILITY } from "@canopy/domain/release/protocol";
 import { afterAll, beforeAll, describe, expect, test } from "bun:test";
 import { Code, ConnectError } from "@connectrpc/connect";
 import { InteractionKind, ItemDeltaField, ItemStatus, Provider, ProviderProfileKind } from "@canopy/contracts";
@@ -430,6 +431,45 @@ describe("remote worker configuration", () => {
     await connection.closed;
     await gateway.link.shutdown();
     await gateway.server.close();
+  });
+
+  test("Antigravity config is negotiated again only when a reconnect changes support", async () => {
+    const version = 4n;
+    const gateway = await startGateway({ link: { config: async () => ({ version, antigravity: { enabled: true } }) } });
+
+    try {
+      for (const [capable, expectConfig] of [
+        [false, true],
+        [true, true],
+        [true, false],
+        [false, true],
+      ] as const) {
+        const link = await connectWorker(gateway.server.url, {
+          hello: {
+            workerId: "worker-1",
+            configVersion: version,
+            capabilities: capable ? [ANTIGRAVITY_ACP_CAPABILITY] : [],
+          },
+        });
+
+        const connection = await gateway.nextConnection();
+
+        try {
+          connection.send({ case: "eventAck", value: { threadId: "marker", ackSeq: 1n } });
+          const [first] = await take(link.messages, 1);
+          expect(first?.payload.case).toBe(expectConfig ? "config" : "eventAck");
+
+          if (first?.payload.case === "config")
+            expect(first.payload.value.antigravity?.enabled).toBe(capable ? true : undefined);
+        } finally {
+          link.close();
+          await connection.closed;
+        }
+      }
+    } finally {
+      await gateway.link.shutdown();
+      await gateway.server.close();
+    }
   });
 
   test("pushConfig delivers changes live; offline workers get them on connect", async () => {

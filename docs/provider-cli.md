@@ -1,5 +1,8 @@
 # CLI dostawców: wykrywanie, instalacja i aktualizacja
 
+Aktualizacja (2026-11-24): worker wykrywa Google Antigravity CLI jako `agy`.
+Instalację i pierwsze logowanie opisuje [adapter Antigravity](antigravity-adapter.md).
+
 Status: opis zaimplementowanego kodu (2026-11-21), w tym ponawiania aktualizacji pakietu Groka
 w mise, gdy launcher nadal używa poprzedniej binarki, osobnego zarządzania CLI w ustawieniach,
 aktualizacji globalnych instalacji mise oraz uruchamiania skryptów CLI
@@ -12,11 +15,12 @@ Dostępność w nightly, beta i stable wynika z promocji opisanych w [release.md
 Odczyt statusu konta przez oficjalne CLI, jego ograniczenia oraz zasady
 prywatności opisuje [provider-accounts.md](provider-accounts.md).
 
-Canopy **nigdy nie dołącza** CLI dostawców — Claude Code (`claude`), Codexa (`codex`) ani Groka (`grok`) — do
-aplikacji desktop, binarek workera ani obrazów Docker. CLI muszą być zainstalowane na maszynie workera. Canopy
-potrafi je jednak **zainstalować i aktualizować na żądanie**: dla każdego workera i dostawcy pokazuje zainstalowaną
-wersję, sposób instalacji i dostępną aktualizację, a instalacja albo aktualizacja rusza wyłącznie po kliknięciu
-właściciela (jeden worker albo „Update all” dla dostawcy). Nic nie instaluje się samo.
+CLI dostawców instaluje się osobno na maszynie workera. Dotyczy to również
+Canopy Desktop i obrazów Docker. Dla Claude Code (`claude`), Codexa (`codex`)
+i Groka (`grok`) Canopy pokazuje zainstalowaną wersję, sposób instalacji i dostępną
+aktualizację. Właściciel może uruchomić instalację lub aktualizację dla jednego
+workera albo wybrać „Update all” dla dostawcy. Antigravity (`agy`) instaluje się
+ręcznie z dystrybucji Google i aktualizuje poleceniem `agy update`.
 
 Licznik, „Update all” i ponowienie w panelu aktualizacji Canopy obejmują wyłącznie aplikacje,
 gateway i workery Canopy. Instalacje i aktualizacje CLI uruchamia się w ustawieniach workera
@@ -114,8 +118,9 @@ CLI (do 8, także zepsute symlinki; bez bitu wykonywania są pomijane) w tej kol
     `/home/linuxbrew/.linuxbrew/bin`, `~/.linuxbrew/bin`.
 
 Windows (`<cli>.exe`, npm-owe `<cli>.cmd` i `<cli>.bat`): `PATH`, `%APPDATA%\npm`, `%VOLTA_HOME%\bin`,
-`%LOCALAPPDATA%\Volta\bin`, `~/scoop/shims`, Bun, `%PNPM_HOME%`, dla Codexa
-`%LOCALAPPDATA%\Programs\OpenAI\Codex\bin`, potem `~/.local/bin`.
+`%LOCALAPPDATA%\Volta\bin`, `~/scoop/shims`, Bun i `%PNPM_HOME%`. Worker sprawdza
+także `%LOCALAPPDATA%\Programs\OpenAI\Codex\bin` dla Codexa, `%LOCALAPPDATA%\agy\bin`
+dla Antigravity i `~/.local/bin`.
 Worker przekazuje skrypty `.cmd` i `.bat` do `cmd.exe` bez ponownego cytowania przez Bun.
 Skrypt npm przekazuje argumenty dalej przez `%*`, więc worker uwzględnia oba przebiegi
 interpretacji powłoki, zachowując m.in. cudzysłowy w argumentach Codexa.

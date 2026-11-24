@@ -13,6 +13,7 @@ import {
   type GitRefsSchema,
   type WorktreeInfoSchema,
 } from "@canopy/contracts";
+import type { Harness } from "@canopy/domain/harnesses";
 import { Context, Scope, type ManagedRuntime } from "effect";
 import type { DeviceProbe } from "../config/remote.ts";
 import { Journal } from "../journal/index.ts";
@@ -143,6 +144,7 @@ export interface WorkerHostOptions {
     readonly claudeSecureStorage?: string;
     readonly codex: string;
     readonly grok?: string;
+    readonly antigravity?: string;
     readonly grokAuthPath?: string;
     readonly agents?: string;
     /** The directory of Claude's `.claude.json` when it is not the Claude home (the default home: `~`). */
@@ -183,8 +185,19 @@ export function taskOf(item: Item): string | undefined {
   return item.content.case === "backgroundTask" ? item.content.value.taskId : undefined;
 }
 
+export type AcpHarness = "grok" | "antigravity";
+
+/** ACP runtimes use one registry keyed by harness and instance. */
+export function acpHarness(provider: Provider): AcpHarness | undefined {
+  if (provider === Provider.GROK) return "grok";
+
+  if (provider === Provider.ANTIGRAVITY) return "antigravity";
+
+  return undefined;
+}
+
 /** A profile serves the providers it lists (both by default). */
-export function usableBy(profile: ResolvedProfile, provider: "claude" | "codex" | "grok"): boolean {
+export function usableBy(profile: ResolvedProfile, provider: Harness): boolean {
   return profile.providers.includes(provider);
 }
 

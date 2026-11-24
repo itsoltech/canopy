@@ -2,7 +2,7 @@ import { realpathSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { homedir } from "node:os";
 import type { GrokProviderSettings } from "@canopy/domain/provider-settings";
-import type { GrokOptions } from "@canopy/grok-acp";
+import type { AcpOptions } from "@canopy/acp";
 import type { ResolvedProfile } from "../profiles.ts";
 import { instanceShadowHome } from "../../config/remote.ts";
 import { instructionDirectory } from "../../agent-environment/files.ts";
@@ -12,7 +12,7 @@ import { grokAuthPath, grokProcessHome } from "./home.ts";
 
 interface GrokLaunch {
   home: string;
-  options: GrokOptions;
+  options: AcpOptions;
   cleanup(): void;
 }
 
@@ -254,6 +254,7 @@ export function grokLaunch(options: {
   return {
     home,
     options: {
+      agentName: "Grok",
       executable: runtime.executablePath || options.executable || "grok",
       args,
       env,

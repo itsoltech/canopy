@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { providerLoginCommand } from "@canopy/domain/provider-accounts";
   import { humanizeEnum, isEnumToken } from "@canopy/domain/humanize";
   import { rejectedSignInLabel } from "@canopy/domain/provider-accounts";
   import type { ui } from "@canopy/contracts";
@@ -46,7 +47,7 @@
   const proxy = $derived(instance?.kind === ProviderProfileKind.CLIPROXYAPI);
 
   // The gateway marks a login a turn's harness rejected; a retry would only fail the same way.
-  const needsSignIn = $derived(instance?.account?.state === "expired");
+  const needsSignIn = $derived(instance?.account?.state === "expired" && thread?.provider !== Provider.ANTIGRAVITY);
   const appSignIn = $derived(!!instance && signsInFromApp(instance.harness, instance.kind));
   const signInLabel = $derived(rejectedSignInLabel(instance?.account));
 
@@ -169,7 +170,9 @@
       classification={turn.errorClass}
       authHint={appSignIn
         ? `${signInLabel}, then retry.`
-        : "Open provider settings for this worker. Use its sign-in command, then retry."}
+        : thread?.provider === Provider.ANTIGRAVITY
+          ? `Run ${providerLoginCommand("antigravity", instance?.account, worker?.os ?? "")} on the worker, then retry.`
+          : "Open provider settings for this worker. Use its sign-in command, then retry."}
       source={turn.errorSource}
       {historical}
       {proxy}

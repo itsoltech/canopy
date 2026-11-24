@@ -14,6 +14,7 @@ export function MoveEnvironment({ instance, onSaved }: { instance: ui.ProviderIn
 
   const detected =
     instance.kind === ProviderProfileKind.NATIVE &&
+    instance.harness !== Provider.ANTIGRAVITY &&
     (instance.harness === Provider.CLAUDE
       ? names.has("ANTHROPIC_BASE_URL") && (names.has("ANTHROPIC_AUTH_TOKEN") || names.has("ANTHROPIC_API_KEY"))
       : (names.has("OPENAI_BASE_URL") || names.has("CODEX_BASE_URL")) &&

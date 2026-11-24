@@ -86,7 +86,7 @@ export interface DesktopStatus {
   worker: "offline" | "connecting" | "online";
   /** Enrolled worker running on this desktop, independent of its connection status. */
   workerId?: string | undefined;
-  clis: { claude: boolean; codex: boolean; grok: boolean };
+  clis: { claude: boolean; codex: boolean; grok: boolean; agy: boolean };
   error?: string | undefined;
   needsPairing?: boolean | undefined;
   database?:

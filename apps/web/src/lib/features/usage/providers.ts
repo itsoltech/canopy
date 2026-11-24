@@ -6,6 +6,7 @@ const providers = new Map<string, { icon: ProviderKey; color: string }>([
   ["claude", { icon: "CLAUDE", color: providerColors.CLAUDE }],
   ["codex", { icon: "CODEX", color: "#09090b" }],
   ["grok", { icon: "GROK", color: "#ffffff" }],
+  ["antigravity", { icon: "ANTIGRAVITY", color: "#ffffff" }],
 ]);
 
 export const usageProvider = (provider: string) => providers.get(provider);

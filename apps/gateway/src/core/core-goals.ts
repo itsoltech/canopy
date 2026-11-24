@@ -1,3 +1,4 @@
+import { providerOf, supportsNativeGoals } from "@canopy/domain/harnesses";
 import { requireThreadModule } from "./thread-module-runtime.ts";
 import { create } from "@bufbuild/protobuf";
 import { GoalDirective, ItemStatus, ui, type CommandResult } from "@canopy/contracts";
@@ -23,6 +24,9 @@ export async function coreGoalToHarness(
   tokenBudget = 0n,
 ): Promise<void> {
   if (threadSandbox(thread)) throw new InvalidError(SANDBOX_GOAL_UNAVAILABLE);
+
+  if (!supportsNativeGoals(providerOf(thread.provider)))
+    throw new InvalidError("This provider does not support native goals.");
 
   if (thread.provider === "claude") {
     // The evaluator keeps a goal turn running: stopping the goal stops the turn.
@@ -159,7 +163,8 @@ async function setThreadGoal(this: GatewayCore, request: ui.SetGoalRequest): Pro
 
   if (threadSandbox(thread)) throw new InvalidError(SANDBOX_GOAL_UNAVAILABLE);
 
-  if (thread.provider === "grok") throw new InvalidError("Grok ACP goals are not supported yet");
+  if (!supportsNativeGoals(providerOf(thread.provider)))
+    throw new InvalidError("This provider does not support native goals.");
   const claude = thread.provider === "claude";
   const current = await coreGoals(this, (s) => s.latest(thread.id));
   const open = current && !isFinished(current.status) ? current : undefined;

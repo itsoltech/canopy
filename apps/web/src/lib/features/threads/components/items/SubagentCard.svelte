@@ -1,5 +1,6 @@
 <script lang="ts">
-  import { PermissionMode, Provider } from "@canopy/contracts";
+  import { PermissionMode } from "@canopy/contracts";
+  import { providerOf } from "@canopy/domain/harnesses";
   import type { ClassValue } from "svelte/elements";
   import Icon from "#lib/shared/ui/Icon.svelte";
   import MarkdownSnippet from "#lib/shared/ui/markdown/MarkdownSnippet.svelte";
@@ -48,16 +49,7 @@
         : "",
   );
 
-  const provider = $derived(
-    thread?.provider ??
-      (spawned.provider.startsWith("claude")
-        ? Provider.CLAUDE
-        : spawned.provider.startsWith("codex")
-          ? Provider.CODEX
-          : spawned.provider.startsWith("grok")
-            ? Provider.GROK
-            : undefined),
-  );
+  const provider = $derived(thread?.provider ?? providerOf(spawned.provider.split("/", 1)[0]));
 
   const settings = $derived([effort, permission].filter(Boolean));
   const result = $derived(thread?.lastMessage.trim() ?? "");

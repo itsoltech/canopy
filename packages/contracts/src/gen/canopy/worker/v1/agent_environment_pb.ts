@@ -222,7 +222,7 @@ export type EnvironmentSkill = Message<"canopy.worker.v1.EnvironmentSkill"> & {
   artifact?: SkillArtifact | undefined;
 
   /**
-   * claude | codex | grok
+   * claude | codex | grok | antigravity
    *
    * @generated from field: repeated string harnesses = 4;
    */

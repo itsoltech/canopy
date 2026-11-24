@@ -1,3 +1,4 @@
+import { isHarness } from "@canopy/domain/harnesses";
 import { createHash } from "node:crypto";
 import { clone, create, fromJson, fromJsonString, toJson, type JsonValue } from "@bufbuild/protobuf";
 import { ui } from "@canopy/contracts";
@@ -17,7 +18,6 @@ import { libraryReceipt, type LibraryRow } from "./library-store.ts";
  */
 
 const READ_TIMEOUT_MS = 60_000;
-const HARNESSES: ReadonlySet<string> = new Set(["claude", "codex", "grok"]);
 
 const SkillTarget = Schema.Struct({
   skillId: Schema.String,
@@ -108,7 +108,7 @@ export async function applySkill(core: GatewayCore, row: LibraryRow): Promise<vo
   }
 
   if (existing) throw new Error(`A skill named ${row.name} is in Agent environment. Scan again.`);
-  const harnesses = row.value.split(",").filter((h) => HARNESSES.has(h));
+  const harnesses = row.value.split(",").filter(isHarness);
 
   const skill = create(ui.LibrarySkillSchema, {
     name: row.name,
