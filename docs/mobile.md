@@ -80,6 +80,7 @@ Stan gotowości binarnego gatewaya kończy także zapowiedź restartu bez zmiany
 Zmiana wątku nie przedłuża wyświetlania wyniku.
 Puste pole wiadomości w wątku zajmuje jeden wiersz do ustawienia fokusu i wraca do tej wysokości po wysłaniu szkicu.
 Arkusz Updates pokazuje start i zamykanie gatewaya oraz etapy aktualizacji workerów.
+Do serii 0.7 przeniesiono wygaszanie zapowiedzi restartu po potwierdzeniu gotowości binarnego gatewaya bez zmiany wersji.
 Wiadomości agenta w rozwiniętej aktywności tury mają dodatkowy odstęp pionowy.
 Stany źródeł Usage są widoczne w sekcji **Recording gateways**. Podsumowanie
 podaje liczbę raportów bez kompletnego kosztu.
