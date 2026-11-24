@@ -1,5 +1,9 @@
 # API dla UI i architektura frontendu
 
+Status (2026-11-24): web i desktop łączą subagenta z wątkiem nadrzędnym po
+`Thread.parent_thread_id` w indeksie wszystkich projektów. Obejmuje to delegację
+do **No project** na połączonym komputerze.
+
 Status (2026-11-24): `ListDismissibleMobilePush` dopasowuje dostarczone powiadomienia
 do stanu odczytu wyników wątków, wiadomości botów oraz rozstrzygnięcia ich interakcji.
 
@@ -1749,6 +1753,8 @@ Wyszukiwanie i przypięcia respektują filtr. Przypięte wątki boczne użytkown
 Subagenci (`Thread.spawned_by_agent`, mapowane z `threads.origin = agent`) nie mają wierszy w sidebarze,
 także w „Working”, „Pinned” i archiwum. Nadal należą do indeksu: pytanie lub zgoda skierowana do
 człowieka wyróżnia rodzica, pokazuje „Subagent needs input” i wyłącza drzewo z „Working”.
+Jeśli filtr projektu lub workera obejmuje rodzica, wiersz uwzględnia aktywność
+i pytania jego subagenta również wtedy, gdy subagent pracuje poza tym filtrem.
 Pytania pozostają w istniejącym panelu nad kompozytorem; wyszukiwanie wątków i bezpośrednie linki
 nadal prowadzą do subagentów. Wątki boczne utworzone przez użytkownika zachowują dotychczasowe zachowanie.
 Wspólny selektor sekcji `@canopy/domain/sidebar-entries` ignoruje nieprzeczytane wyniki
@@ -1781,8 +1787,11 @@ On pokazuje aktywnych oraz zakończonych w ciągu ostatnich 10 minut według `la
 zwijanego wiersza „Previous subagents · N” z liczbą nieudanych; rozwinięta lista przewija się w miejscu.
 Pracujący i oczekujący nie wygasają po 10 minutach. Usunięte wątki nie wchodzą do list ani liczników.
 
-`ListThreads.sidebar_only` (310) zwraca aktywne wątki oraz archiwalnych bocznych pod aktywnym rodzicem
-do „Previous agents”. Wyklucza boczne pod zarchiwizowanym rodzicem, także w danych sprzed kaskady.
+`ListThreads.sidebar_only` (310) zwraca aktywne wątki oraz archiwalne wątki boczne
+aktywnego lokalnego rodzica. Pomija wątki boczne zarchiwizowanego lokalnego rodzica,
+także w danych sprzed kaskady. Dla subagenta z rodzicem na innym komputerze indeks
+zachowuje metadane po archiwizacji. Dzięki temu po ponownym otwarciu szczegółów
+rodzica można przejść do zakończonego subagenta.
 BFF `GET /api/threads` używa tego indeksu. `include_archived` (270) zachowuje znaczenie dla starszych
 klientów; nie jest używane do pobierania całego archiwum przez sidebar.
 

@@ -53,7 +53,7 @@ export const agentsBotToolsMethods: AgentsBotToolsMethods = {
 
     if (!Predicate.isString(ref)) return undefined;
     const node = await this.peer(ref);
-    await this.sameHome(node, args);
+    const projectId = await this.sameHome(node, args);
     const ownBot = await this.core.bots.get(turn.bot_id);
 
     const actor: Actor = {
@@ -84,7 +84,7 @@ export const agentsBotToolsMethods: AgentsBotToolsMethods = {
 
         return action(async () =>
           this.send(node, "spawn", actor, call.id, {
-            request: await botDefaultThreadRequest(this, args, call.id, ownBot, turn),
+            request: await botDefaultThreadRequest(this, { ...args, project_id: projectId }, call.id, ownBot, turn),
             instructions: "",
             interactions: "parent",
             notify: true,
@@ -190,7 +190,7 @@ async function sendLinkedBotMessage(
 function botThreadRequest(args: Arguments, callId: string): ui.CreateThreadRequest {
   return create(ui.CreateThreadRequestSchema, {
     workspaceMode: ui.WorkspaceMode.CHECKOUT,
-    projectId: splitId(text(args, "project_id")).id,
+    projectId: text(args, "project_id"),
     workspaceId: splitId(text(args, "workspace_id")).id,
     provider: Match.value(args["provider"]).pipe(
       Match.when("claude", () => Provider.CLAUDE),

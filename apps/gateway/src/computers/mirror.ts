@@ -1,5 +1,6 @@
 import { create, fromBinary, toBinary, type Message } from "@bufbuild/protobuf";
 import { computerLink as link, ui } from "@canopy/contracts";
+import { splitId } from "@canopy/domain/computers";
 import { Code, ConnectError } from "@connectrpc/connect";
 import { setTimeout as delay } from "node:timers/promises";
 import { commitMirrorUpdate, registerMirrorGeneration, type State } from "./mirror-persistence.ts";
@@ -104,7 +105,9 @@ export class ThreadMirror {
           !t.deletedAt &&
           (!request.projectId || t.projectId === request.projectId) &&
           ((!request.sidebarOnly && request.includeArchived) ||
-            (request.sidebarOnly && t.kind === ui.ThreadKind.SIDE && activeParents.has(t.parentThreadId)) ||
+            (request.sidebarOnly &&
+              t.kind === ui.ThreadKind.SIDE &&
+              (activeParents.has(t.parentThreadId) || splitId(t.parentThreadId).node)) ||
             t.status !== "archived"),
       )
       .map((t) => {

@@ -274,6 +274,21 @@ export function remoteUpdates(update: ui.OverviewUpdate, nodeId: string): ui.Ove
 
 const BURST_MS = 50;
 
+async function addLinkedSnapshot(core: GatewayCore, snapshot: ui.MobileOverviewSnapshot, signal: AbortSignal) {
+  if (!snapshot.overview || !core.computers) return;
+  const sidebar = create(ui.ListThreadsRequestSchema, { sidebarOnly: true });
+
+  const [overviews, lists] = await Promise.all([
+    gather<ui.GetOverviewResponse>(core, "GetOverview", create(ui.GetOverviewRequestSchema), signal),
+    gather<ui.ListThreadsResponse>(core, "ListThreads", sidebar, signal),
+  ]);
+
+  absorb(snapshot.overview, overviews, await localProjectIds(core));
+  snapshot.overview.computers = (await core.computers.snapshot()).peers;
+
+  for (const other of lists) snapshot.threads.push(...other.threads);
+}
+
 /**
  * Sends shared projects with every computer's workspaces. A burst (a worker change republishes every project)
  * reads the overview once; if that fails, this computer's own row still goes out.
@@ -434,18 +449,7 @@ export async function* watchOverview(
           continue;
         }
 
-        if (change.case === "mobileSnapshot" && change.value.overview) {
-          // A phone's reconnect snapshot covers every connected computer too.
-          const [overviews, lists] = await Promise.all([
-            gather<ui.GetOverviewResponse>(core, "GetOverview", create(ui.GetOverviewRequestSchema), signal),
-            gather<ui.ListThreadsResponse>(core, "ListThreads", create(ui.ListThreadsRequestSchema), signal),
-          ]);
-
-          absorb(change.value.overview, overviews, await localProjectIds(core));
-          change.value.overview.computers = (await computers.snapshot()).peers;
-
-          for (const other of lists) change.value.threads.push(...other.threads);
-        }
+        if (change.case === "mobileSnapshot") await addLinkedSnapshot(core, change.value, signal);
 
         out.push(update);
       }

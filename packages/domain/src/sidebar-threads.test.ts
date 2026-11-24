@@ -85,6 +85,25 @@ describe("shared sidebar trees", () => {
     expect(new Set(ids(cleared.snoozed))).toEqual(new Set(["local snoozed needle", "linked snoozed needle"]));
   });
 
+  test("a project filter keeps questions from a parent's linked scratch subagent on its row", () => {
+    const parent = thread("parent", { workerId: "studio" });
+
+    const child = thread("child~0123456789abcdef", {
+      projectId: "scratch",
+      workerId: "laptop",
+      parentThreadId: parent.id,
+      spawnedByAgent: true,
+      status: "waiting_input",
+    });
+
+    const removed = { ...child, id: "removed", deletedAt: timestampFromMs(2000) };
+    const prefs = { ...settings({ projectIds: [parent.projectId] }), workerIds: [parent.workerId] };
+    const filtered = sidebarThreads([parent, child, removed], prefs, "", projectName);
+
+    expect(ids(filtered.roots)).toEqual([parent.id]);
+    expect(sidebarChildren(filtered.sides.get(parent.id) ?? []).subagentsNeedingInput).toEqual([child]);
+  });
+
   test("pins are flat roots once, and an archived parent suppresses its side roots during cascade", () => {
     const rows = [
       thread("parent"),
