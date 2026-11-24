@@ -1,8 +1,7 @@
 import { useSectionAvailability } from "./section-catalog";
 import { settingsScope } from "./navigation";
-import { useCallback } from "react";
 import { View } from "react-native";
-import { Redirect, router, useFocusEffect, useLocalSearchParams } from "expo-router";
+import { Redirect, useLocalSearchParams } from "expo-router";
 import { useSession } from "../../state/session";
 import { useAppearance } from "../../state/appearance";
 import { Button, Notice } from "../../ui/components";
@@ -51,7 +50,8 @@ export default function SettingsScreen() {
 
   if (!session) return <Redirect href="/pair" />;
 
-  if (params.section === "general" || !catalog.sections.some((entry) => entry.href === href)) return <SettingsHome />;
+  if (params.section === "general" || !catalog.sections.some((entry) => entry.href === href))
+    return <Redirect href="/settings" />;
 
   if (catalog.waitingFor(href) || !catalog.available.some((entry) => entry.href === href))
     return (
@@ -129,15 +129,4 @@ export default function SettingsScreen() {
       </SettingsScroll>
     </SettingsDensity.Provider>
   );
-}
-
-/** Canonicalize direct General links and unavailable module routes without duplicating the index on Back. */
-function SettingsHome() {
-  useFocusEffect(
-    useCallback(() => {
-      router.dismissTo("/settings");
-    }, []),
-  );
-
-  return null;
 }

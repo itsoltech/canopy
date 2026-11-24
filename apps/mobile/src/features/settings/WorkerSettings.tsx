@@ -1,6 +1,6 @@
 import { useRef, useState, type ComponentRef } from "react";
 import { Pressable, Text, View } from "react-native";
-import { openSettingsSection } from "./navigation";
+import { useOpenSettingsSection } from "./navigation";
 import { create } from "@bufbuild/protobuf";
 import { ui } from "@canopy/contracts";
 import { useTimeLabel } from "../../ui/time";
@@ -80,15 +80,7 @@ export function WorkerSettings() {
       <SettingsActions>
         <Button variant="primary" title="Add worker" disabled={!data} onPress={() => setAdding(true)} />
       </SettingsActions>
-      {(data || resource.initialLoading) && (
-        <SettingsGroup title="Network access">
-          <SettingsRow
-            title={data?.network.enabled ? "Remote access is on" : "Remote access is off"}
-            description={data?.network.note || "Connect paired devices and remote workers to this gateway."}
-            control={<Button title="Manage network access" onPress={() => openSettingsSection("network")} />}
-          />
-        </SettingsGroup>
-      )}
+      {(data || resource.initialLoading) && <WorkerNetworkAccess network={data?.network} />}
       {resource.initialLoading && !groups.length && <SettingsSkeletonGroups titles={["This computer"]} />}
       {groups.map((group) => (
         <View key={group.id} style={{ gap: 12 }}>
@@ -165,6 +157,20 @@ export function WorkerSettings() {
         />
       )}
     </ResourceState>
+  );
+}
+
+function WorkerNetworkAccess({ network }: { network?: ui.NetworkAccess }) {
+  const openSettingsSection = useOpenSettingsSection();
+
+  return (
+    <SettingsGroup title="Network access">
+      <SettingsRow
+        title={network?.enabled ? "Remote access is on" : "Remote access is off"}
+        description={network?.note || "Connect paired devices and remote workers to this gateway."}
+        control={<Button title="Manage network access" onPress={() => openSettingsSection("network")} />}
+      />
+    </SettingsGroup>
   );
 }
 

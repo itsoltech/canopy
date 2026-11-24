@@ -1,6 +1,5 @@
 import { useState, type ReactNode } from "react";
 import { Keyboard, Pressable, Text, View } from "react-native";
-import { router } from "expo-router";
 import { useLayout } from "../../state/layout";
 import { IconButton, Sheet } from "../../ui/components";
 import { StatusDot } from "../../ui/Badge";
@@ -14,6 +13,7 @@ import { SettingsNavigation, useWorkerUpdateHint } from "./SettingsNavigation";
 import { SettingsSearch } from "./SettingsSearch";
 import { SettingsOffsets } from "./SettingsScroll";
 import { habitSuggestionLabel, usePendingHabitReviews } from "./memory-habits";
+import { useOpenSettingsSection } from "./navigation";
 
 const SIDEBAR_WIDTH = 256;
 
@@ -33,6 +33,7 @@ export function SettingsLayout({
   const { wide } = useLayout();
   const insets = usePaneInsets();
   const catalog = useSettingsCatalog();
+  const openSettingsSection = useOpenSettingsSection();
   const [offsets] = useState(() => new Map<string, number>());
   const [query, setQuery] = useState("");
   const [menu, setMenu] = useState(false);
@@ -48,18 +49,7 @@ export function SettingsLayout({
     Keyboard.dismiss();
     setMenu(false);
 
-    if (next === section && !scoped) return;
-
-    if (next === "general") {
-      router.dismissTo("/settings");
-
-      return;
-    }
-
-    const href = { pathname: "/settings/[section]" as const, params: { section: next } };
-
-    if (selected) router.replace(href);
-    else router.push(href);
+    if (next !== section || scoped) openSettingsSection(next);
   }
 
   const nav = (

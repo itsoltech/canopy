@@ -6,7 +6,7 @@ import { agentCliName } from "@canopy/domain/import-look";
 import { useSession } from "../../state/session";
 import { Button, Notice } from "../../ui/components";
 import { styles, useColors } from "../../ui/theme";
-import { openSettingsSection } from "../settings/navigation";
+import { useOpenSettingsSection } from "../settings/navigation";
 
 /** History takes no turns; continue in a new thread with the gateway's summary. */
 export function ImportedThreadComposer({
@@ -22,6 +22,7 @@ export function ImportedThreadComposer({
 }
 
 function ImportHistory({ thread, disabled }: { thread: ui.Thread; disabled: boolean }) {
+  const openSettingsSection = useOpenSettingsSection();
   const { client, online } = useSession();
   const c = useColors();
   const starting = useRef(false);

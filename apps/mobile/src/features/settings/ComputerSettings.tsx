@@ -13,13 +13,14 @@ import { ComputerMove } from "./ComputerMove";
 import { SharedConfiguration } from "./SharedConfiguration";
 import { SettingsSkeletonRows } from "./SettingsSkeleton";
 import { presenceLabel } from "@canopy/domain/computer-presence";
-import { openSettingsSection } from "./navigation";
+import { useOpenSettingsSection } from "./navigation";
 import { ComputerConfigSharing } from "./ComputerConfigSharing";
 import { presenceTime } from "../computers/presence";
 
 type Operation = MessageInitShape<typeof ui.ComputerOperationRequestSchema>;
 
 export function ComputerSettings() {
+  const openSettingsSection = useOpenSettingsSection();
   const resource = useSettingsResource("GetComputers", (api) => api.getComputers({}));
   const [pairing, setPairing] = useState(false);
   const [moving, setMoving] = useState<ui.LinkedComputer>();

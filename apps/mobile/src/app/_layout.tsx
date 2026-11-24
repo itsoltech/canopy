@@ -1,4 +1,4 @@
-import { Stack, usePathname } from "expo-router";
+import { Stack } from "expo-router";
 import { StatusBar } from "expo-status-bar";
 import { SafeAreaProvider } from "react-native-safe-area-context";
 import { Platform, View } from "react-native";
@@ -45,7 +45,6 @@ export const unstable_settings = { anchor: "(main)" };
 function Navigation() {
   const c = useColors();
   const reduced = useReducedMotion();
-  const pathname = usePathname();
   const { session, ready } = useSession();
   const { modulesReady } = useAppearance();
 
@@ -69,8 +68,6 @@ function Navigation() {
             name="settings"
             options={{
               animation: reduced ? "none" : Platform.OS === "android" ? "slide_from_bottom" : "default",
-              // The section stack owns horizontal back gestures until the Settings index is reached.
-              gestureEnabled: pathname === "/settings",
             }}
           />
         </Stack.Protected>

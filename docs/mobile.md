@@ -17,9 +17,11 @@ Gradient i drzewo pozostają na miejscu przy pociągnięciu listy w dół i zani
 w miarę chowania nazwy. Lista zaczyna się bezpośrednio pod kontrolkami lub widocznym banerem połączenia.
 Nowe sugestie Habits mają powiadomienie w aplikacji i licznik w nawigacji ustawień.
 
-Status (2026-11-23): Settings otwiera General. Menu sekcji na telefonie i panel boczny
-na tablecie zachowują wyszukiwanie i pozycję listy. Każda odwiedzona sekcja
-ma własną pozycję przewinięcia na czas otwarcia ustawień.
+Status (2026-11-24): ikona Settings otwiera General, a skróty otwierają wskazaną sekcję.
+Zmiana sekcji zastępuje bieżący panel. Jedno cofnięcie zamyka Settings i wraca do ekranu,
+z którego je otwarto. Menu sekcji na telefonie i panel boczny na tablecie zachowują
+wyszukiwanie i pozycję listy. Każda odwiedzona sekcja ma własną pozycję przewinięcia
+na czas otwarcia ustawień.
 
 Status (2026-11-23): w kompozytorze wspólna lista `#` wyszukuje wątki, zgłoszenia Linear, Jira i GitHub oraz pull requesty GitHub.
 Szczegóły projektu pozwalają zapisać kolor i przywrócić dobór automatyczny.
@@ -2428,15 +2430,16 @@ krawędzi. To animacje platformy, bez własnych czasów. Ograniczenie ruchu wył
 Stos workspace'u na szerokim oknie zamienia wątki i boty od razu, w przyciętym panelu
 obok sidebara; nie przesuwa ani nie rozjaśnia starego widoku nad listą.
 
-Sekcje Settings mają wspólną powłokę nad natywnym stosem tras. Na telefonie
+Sekcje Settings mają wspólną powłokę i jeden wpis na stosie nawigacji. Na telefonie
 nazwa bieżącej sekcji w nagłówku otwiera arkusz z wyszukiwaniem i zaznaczonym wyborem.
 Na szerokim oknie ta sama lista zostaje obok treści. Przełączenie sekcji zachowuje
 zapytanie, przewinięcie listy i osobną pozycję treści odwiedzonych sekcji.
 Powrót do Providers lub Worktrees odtwarza wybrany zakres zmian. Rozwinięte
 karty workerów i narzędzi pozostają otwarte do zamknięcia Settings.
-Pierwsza wizyta zaczyna się u góry. Back Androida zamyka otwarty arkusz; cofnięcie
-z sekcji prowadzi do General, a z General do poprzedniego ekranu aplikacji.
-Krzyżyk zamyka całe Settings z dowolnej sekcji. Wejście do wątku bocznego ze szczegółów lub panelu subagentów
+Pierwsza wizyta zaczyna się u góry. Back Androida zamyka otwarty arkusz wyboru sekcji.
+Po zamknięciu arkusza Back wraca do ekranu, z którego otwarto Settings.
+Gest od lewej krawędzi w iOS i krzyżyk w nagłówku również zamykają całe Settings.
+Wejście do wątku bocznego ze szczegółów lub panelu subagentów
 oraz wejście do rozmowy botów dodaje trasę do stosu workspace'u; Back wraca do
 bezpośredniego poprzednika. Wybór z sidebara na szerokim oknie nadal zamienia trasę
 bez historii pomiędzy wyborami. Arkusze botów mają własne

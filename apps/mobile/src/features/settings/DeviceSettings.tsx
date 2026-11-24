@@ -15,7 +15,7 @@ import { SettingsSkeletonRows } from "./SettingsSkeleton";
 import { useLiveTime } from "../../ui/time";
 import { SettingsDisclosure } from "./SettingsDisclosure";
 import { useCopyText } from "../viewers/useCopyText";
-import { openSettingsSection } from "./navigation";
+import { useOpenSettingsSection } from "./navigation";
 
 function useDeviceSettings() {
   const resource = useSettingsResource("GetMobileDevices", (api) => api.getMobileDevices({}));
@@ -92,6 +92,7 @@ function useDeviceSettings() {
 }
 
 export function DeviceSettings() {
+  const openSettingsSection = useOpenSettingsSection();
   const state = useDeviceSettings();
   const { resource, data, network, pair, now, format } = state;
 

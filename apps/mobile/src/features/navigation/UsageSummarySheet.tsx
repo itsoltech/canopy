@@ -4,7 +4,7 @@ import { Button } from "../../ui/Button";
 import { Overlay } from "../../ui/Overlay";
 import { SheetCloseButton, SheetDragArea } from "../../ui/SheetDragArea";
 import { styles, useColors } from "../../ui/theme";
-import { openSettingsSection } from "../settings/navigation";
+import { useOpenSettingsSection } from "../settings/navigation";
 import { useUsageTypography } from "../providers/usage-typography";
 import { UsageSummaryRow } from "./UsageSummaryRow";
 
@@ -24,6 +24,7 @@ export function UsageSummarySheet({
 }) {
   const c = useColors();
   const type = useUsageTypography();
+  const openSettingsSection = useOpenSettingsSection();
   const { height } = useWindowDimensions();
 
   function settings(section: "providers" | "proxies") {

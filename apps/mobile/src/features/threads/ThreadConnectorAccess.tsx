@@ -4,7 +4,7 @@ import type { ui } from "@canopy/contracts";
 import { Button, Sheet } from "../../ui/components";
 import { Switch } from "../../ui/Switch";
 import { styles, useColors } from "../../ui/theme";
-import { openSettingsSection } from "../settings/navigation";
+import { useOpenSettingsSection } from "../settings/navigation";
 import type { useThreadPanel } from "./use-thread-panel";
 
 /** The gateway returns the current session status after each project grant edit. */
@@ -27,6 +27,7 @@ export function ThreadConnectorAccess({
 }) {
   const c = useColors();
   const noProject = project?.kind === "scratch";
+  const openSettingsSection = useOpenSettingsSection();
   const hasProject = project?.kind === "project" && !project.archivedAt;
   const accounts = panel.data?.connectors.filter((account) => account.revision > 0n) ?? [];
   const hasLegacyGrants = accounts.some((account) => account.allProjects === undefined);

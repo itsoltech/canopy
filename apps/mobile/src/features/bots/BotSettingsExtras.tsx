@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { Text, View } from "react-native";
 import { confirm } from "../../ui/Confirm";
-import { openSettingsSection } from "../settings/navigation";
+import { useOpenSettingsSection } from "../settings/navigation";
 import type { bots } from "@canopy/contracts";
 import { useSession } from "../../state/session";
 import { Button, Notice } from "../../ui/components";
@@ -21,6 +21,7 @@ export function BotSettingsExtras({
 }) {
   const { client } = useSession();
   const deleteBot = useDeleteBot();
+  const openSettingsSection = useOpenSettingsSection();
   const { list, error: connectionsError } = useConnectors(undefined, bot.id);
   const c = useColors();
   const [busy, setBusy] = useState(false);

@@ -12,7 +12,7 @@ import { useColors, useTypography, weightedFont } from "../../ui/theme";
 import { useWorkerPresence } from "../computers/presence";
 import { AgentToolDefaults } from "./AgentToolDefaults";
 import { AgentToolWorkerRow } from "./AgentToolWorkerRow";
-import { openSettingsSection } from "./navigation";
+import { useOpenSettingsSection } from "./navigation";
 import { ResourceState, useSettingsResource } from "./resource";
 import { SettingsGroup, SettingsGroupHeader, SettingsRow } from "./SettingsGroup";
 import { createSettingsViewState } from "./SettingsScroll";
@@ -60,6 +60,7 @@ function useToolWorkers() {
 }
 
 export function AgentToolsSettings() {
+  const openSettingsSection = useOpenSettingsSection();
   const { workers, records, loaded } = useToolWorkers();
   const [expanded, setExpanded] = useExpandedTools();
   const check = useAgentToolAction();

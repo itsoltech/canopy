@@ -1,11 +1,12 @@
 import * as Linking from "expo-linking";
-import { openSettingsSection } from "../settings/navigation";
+import { useOpenSettingsSection } from "../settings/navigation";
 import { useSession } from "../../state/session";
 import { useSharedQuery } from "../../state/queries";
 import { Button } from "../../ui/components";
 import { ConnectGitHub } from "./ConnectGitHub";
 
 export function RepositoryAccessActions({ homeId, onconnected }: { homeId: string; onconnected: () => void }) {
+  const openSettingsSection = useOpenSettingsSection();
   const { client } = useSession();
 
   const read = useSharedQuery(

@@ -25,7 +25,7 @@ import { SettingsThreadList } from "./SettingsThreadList";
 import { useSidebarThreads } from "./useSidebarThreads";
 import { SidebarProjectFilter, SidebarSort } from "./SidebarThreadPickers";
 import { CreateBot } from "../bots/CreateBot";
-import { openSettingsSection } from "../settings/navigation";
+import { useOpenSettingsSection } from "../settings/navigation";
 import { useDevicePreferences } from "../settings/device-preferences";
 
 function useSidebarState() {
@@ -162,6 +162,7 @@ function orderBots(list: readonly botContract.Bot[], pinned: readonly string[]):
 }
 
 function SidebarLists({ state, header }: { state: ReturnType<typeof useSidebarState>; header: SidebarListHeader }) {
+  const openSettingsSection = useOpenSettingsSection();
   const c = useColors("sidebar-list");
 
   const { section, navigation, projects, workers, loaded, query, projectId, setProjectId, stream } = state;
