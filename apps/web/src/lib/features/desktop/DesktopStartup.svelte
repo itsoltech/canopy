@@ -49,7 +49,7 @@
       </Alert>
       {#if savedGateway}
         <dl class="grid gap-1 text-base/6 sm:text-sm/6">
-          <dt class="font-medium">Gateway address</dt>
+          <dt class="font-medium">Desktop gateway address</dt>
           <dd class="wrap-anywhere text-muted">{savedGateway}</dd>
         </dl>
       {/if}

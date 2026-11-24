@@ -27,15 +27,23 @@
 </script>
 
 {#snippet address()}
-  <Field label="Gateway address" description="Use an HTTPS address from Network access on your gateway.">
-    <Input
-      name="gateway"
-      type="url"
-      placeholder="https://gateway.example.com:24000"
-      bind:value={gatewayUrl}
-      {disabled}
-    />
-  </Field>
+  <div class="grid gap-1.5">
+    <Field
+      label={editingAddress ? "Desktop gateway address" : "Gateway address"}
+      description="Use an HTTPS address from Network access on your gateway."
+    >
+      <Input
+        name="gateway"
+        type="url"
+        placeholder="https://gateway.example.com:24000"
+        bind:value={gatewayUrl}
+        {disabled}
+      />
+    </Field>
+    {#if editingAddress}
+      <p class="text-sm/5 text-muted">An enrolled worker keeps its own connection settings.</p>
+    {/if}
+  </div>
 {/snippet}
 
 <div class={["grid min-w-0 gap-5", className]}>

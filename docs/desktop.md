@@ -540,7 +540,9 @@ a niedostępny gateway obsługuje istniejący ekran webu; jeśli sam web nie odp
 lokalny ekran startu pokazuje błąd i działania naprawcze.
 W trybie zdalnym **Settings → Workers** i **Settings → Desktop → Gateway**
 pokazują stan połączenia lokalnego workera i zapisany adres gatewaya z lokalnego
-kontrolera. Lista zarejestrowanych workerów pochodzi z gatewaya. Podczas awarii
+kontrolera. Pole **Desktop gateway address** dotyczy aplikacji. Zarejestrowany
+worker korzysta z własnej konfiguracji połączenia. Lista zarejestrowanych workerów
+pochodzi z gatewaya. Podczas awarii
 pokazuje ostatni znany stan lub informację o oczekiwaniu na pierwszą listę.
 **Edit gateway address** w ustawieniach i w komunikacie o awarii połączenia
 otwiera istniejący lokalny formularz z zapisanym adresem. Tę samą konfigurację
