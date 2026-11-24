@@ -798,8 +798,8 @@ message Thread {
   // Wątki boczne: początek ostatniej wiadomości agenta (wynik subagenta) do karty w wątku rodzica. Główne: pusty.
   string last_message = 95;
 
-  // Tura queued ma już komendę w outboxie, ale worker jeszcze nie potwierdził running.
-  // Ten sam stan startu co Turn.dispatched, także w overview.
+  // Tura queued ma już komendę w outboxie albo jest pierwszą wiadomością wysłaną
+  // przy tworzeniu wątku i czeka na tę komendę po przygotowaniu sesji.
   bool turn_starting = 162;
 
   // Numery od 180: stan przeczytania. Wynik ostatniej zakończonej tury, której użytkownik jeszcze nie widział
