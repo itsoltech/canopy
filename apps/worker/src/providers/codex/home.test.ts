@@ -348,7 +348,9 @@ describe("prepareCodexHome", () => {
   });
 
   test("cleans inactive bot symlinks without a current device credential file", () => {
-    const dataDir = mkdtempSync(join(base, "inactive-symlinks-"));
+    const canonical = mkdtempSync(join(base, "inactive-symlinks-"));
+    const dataDir = canonical + "-alias";
+    symlinkSync(canonical, dataDir, "junction");
     const sourceHome = device(false);
     const ownHome = join(dataDir, "homes", "codex-removed");
     const ownLogin = join(ownHome, "auth.json");

@@ -84,7 +84,9 @@ export function migrateLegacyCodexBotLogins(dataDir: string, sourceHomes: readon
     const cwd = realpathSync(dataDir);
     const scan = { cwd, absolute: true, followSymlinks: false, onlyFiles: false };
     // The instance may have been removed before the worker next applied configuration.
-    const sources = botLoginSources([...sourceHomes, ...instanceHomes.scanSync(scan)]);
+    // A stored link can use the configured spelling of dataDir (e.g. an OS temp-directory alias).
+    const knownInstances = Array.from(instanceHomes.scanSync(scan), (home) => join(dataDir, relative(cwd, home)));
+    const sources = botLoginSources([...sourceHomes, ...knownInstances]);
 
     for (const glob of botHomes) {
       for (const home of glob.scanSync(scan)) {
