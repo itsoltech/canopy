@@ -3,6 +3,7 @@
 Status: opis zaimplementowanego workflow (2026-11-24). Push CI weryfikuje dokładny commit źródłowy.
 Nightly, beta i stable wymagają jego sukcesu przed buildem, tagowaniem, podpisywaniem i publikacją.
 Buildy publikują wykazy licencji zależności. Automat sprawdza promocje co godzinę.
+Po okresie obserwacji publicznej bety raport promocji do stable wskazuje nieudany Release dla jej SHA i zadania, które zawiodły.
 Web, Desktop i mobile używają ikony danego wydania. Lokalny Dev ma własny niebieski wariant.
 Drzewo kanału w tle sidebara zanika przy wyszukiwarce. W Nightly, Becie i Dev
 pod drzewem widać także gradient na całą szerokość nagłówka.
@@ -979,6 +980,11 @@ Angular co Release; nie uruchamiają `semantic-release --dry-run`, który sprawd
    które zdążyły ukazać się przed zamknięciem poprzedniej serii, mogą zostać wydane przez Nightly
    w nowej serii. Promocja do stable
    wymaga najnowszej publicznej bety stabilizowanej serii z udanym Release dokładnie dla jej SHA.
+   Jeśli okres obserwacji już minął, a ten przebieg zakończył się błędem, decyzja podaje
+   wersje stable i bety, SHA oraz odsyłacz do konkretnej próby Release. Raport linkuje
+   nieudane wymagane zadania, także po publikacji (np. `backmerge / backmerge`).
+   Błędy eksperymentalnych zadań desktopu dla Linux ARM64 wymienia osobno.
+   Gdy API nie udostępnia szczegółów zadań, pozostaje odsyłacz do próby.
    Automat czeka na niewydane poprawki i aktywną publikację stable. Publiczne nightly z kolejnej
    serii nie wpływają na wybór kandydata. Otwarte issue `release-blocker`
    blokuje obie ścieżki. Zmienna repo

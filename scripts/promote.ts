@@ -1,6 +1,12 @@
 import { appendFileSync } from "node:fs";
 import { api, git, pages, releaseRevision, repository } from "./release-github.ts";
-import { loadPromotion, promotionBranches, promotionIssues, type PromotionAdapters } from "./promotion-data.ts";
+import {
+  describeFailedRelease,
+  loadPromotion,
+  promotionBranches,
+  promotionIssues,
+  type PromotionAdapters,
+} from "./promotion-data.ts";
 import {
   DAY,
   DEV_NEXT_SOAK_MS,
@@ -95,6 +101,14 @@ export interface PromotionOptions {
   holdCapDays?: number;
 }
 
+function evaluatePromotion(repo: string, input: PromotionInput, adapters: PromotionAdapters): PromotionPlan {
+  const plan = selectPromotion(input);
+
+  if (plan.failedRelease) plan.reason += ` ${describeFailedRelease(repo, plan.failedRelease, adapters)}`;
+
+  return plan;
+}
+
 export async function runPromotion(
   repo: string,
   path: PromotionInput["path"],
@@ -122,7 +136,7 @@ export async function runPromotion(
     for (const commit of input.commits) commit.prs = commit.prs.map((pr) => ({ ...pr, hold: false }));
   }
 
-  const plan = selectPromotion(input);
+  const plan = evaluatePromotion(repo, input, adapters);
   const version = await forecastPromotion(input, plan, adapters.git);
 
   if (!version && plan.sha !== input.target) {
@@ -193,7 +207,7 @@ export async function runPromotion(
   if (options.override)
     for (const commit of rechecked.commits) commit.prs = commit.prs.map((pr) => ({ ...pr, hold: false }));
 
-  const confirmed = selectPromotion(rechecked);
+  const confirmed = evaluatePromotion(repo, rechecked, adapters);
 
   if (
     confirmed.sha !== plan.sha ||

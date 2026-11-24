@@ -117,6 +117,61 @@ test("stable measures burn-in from the exact beta manifest even as newer nightly
   expect(f.writes.some((write) => write.path.includes("/dispatches"))).toBe(false);
 });
 
+test("stable reports the failed Release attempt and its required job once the public beta has soaked", async () => {
+  const f = fixture();
+  const beta = f.commit("feat: beta feature", 50);
+  const tag = "v0.2.0-beta.1";
+  f.release(beta, tag, 48, 24);
+  f.git("push", "origin", `${beta}:refs/heads/next`);
+  const push = { id: 42, head_sha: beta, head_branch: "next", status: "completed", run_number: 42 };
+  f.runs.set(beta, [
+    { ...push, run_attempt: 2, conclusion: "failure" },
+    { ...push, run_attempt: 1, conclusion: "success" },
+  ]);
+  const runUrl = "https://github.com/fixture/canopy/actions/runs/42";
+  const jobReads: string[] = [];
+
+  const adapters: PromotionAdapters = {
+    ...f.adapters,
+    api(path, method, body) {
+      if (!path.includes("/jobs?")) return f.adapters.api(path, method, body);
+      jobReads.push(path);
+
+      return {
+        jobs: [
+          { name: "desktop (linux-arm64, ubuntu-24.04-arm, true)", conclusion: "failure", html_url: `${runUrl}/job/1` },
+          {
+            name: "desktop-smoke (linux-arm64, ubuntu-24.04-arm, true)",
+            conclusion: "failure",
+            html_url: `${runUrl}/job/2`,
+          },
+          { name: "publish-desktop", conclusion: "success" },
+          { name: "backmerge / backmerge", conclusion: "failure", html_url: `${runUrl}/job/4` },
+        ],
+      };
+    },
+  };
+
+  const automatic = { ...options, automatic: true };
+  const young = await runPromotion("fixture/canopy", "next-main", automatic, adapters, now - 1);
+  expect(young.plan.reason).toBe(`Waiting for eligible beta ${tag}`);
+  expect(jobReads).toEqual([]);
+  const result = await runPromotion("fixture/canopy", "next-main", automatic, adapters, now);
+  expect(jobReads).toEqual(["repos/fixture/canopy/actions/runs/42/attempts/2/jobs?per_page=100&page=1"]);
+  expect(result.plan.reason).toContain(`Stable v0.2.0 is blocked because Release failed for ${tag} at ${beta}`);
+  expect(result.plan.reason).toContain(`[Release attempt 2](${runUrl}/attempts/2)`);
+  expect(result.plan.reason).toContain(`Required job [backmerge / backmerge](${runUrl}/job/4) failed.`);
+  expect(result.plan.reason).toContain(
+    `Optional job [desktop (linux-arm64, ubuntu-24.04-arm, true)](${runUrl}/job/1) failed.`,
+  );
+  expect(result.plan.reason).toContain(
+    `Optional job [desktop-smoke (linux-arm64, ubuntu-24.04-arm, true)](${runUrl}/job/2) failed.`,
+  );
+  expect(result.plan.sha).toBe(f.baseline);
+  expect(f.git("ls-remote", "origin", "refs/heads/main")).toStartWith(f.baseline);
+  expect(f.writes).toEqual([]);
+});
+
 test("a new beta during promotion recheck invalidates the plan even if its SHA is unchanged", async () => {
   for (const override of [false, true]) {
     const f = fixture();

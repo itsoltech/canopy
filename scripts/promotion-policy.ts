@@ -23,6 +23,11 @@ export interface PromotionAttribution {
   kind: "changed" | "adjacent";
 }
 
+export interface ReleaseAttempt {
+  id: number;
+  attempt: number;
+}
+
 export interface PromotionInput {
   path: "dev-next" | "next-main";
   target: string;
@@ -32,7 +37,7 @@ export interface PromotionInput {
   paused: boolean;
   blockers: number[];
   pendingFixes?: PromotionCommit[];
-  activeBeta?: { tag: string; sha: string };
+  activeBeta?: { tag: string; sha: string; failedRelease?: ReleaseAttempt };
   nightlyFloor?: string;
   pendingRelease?: { branch: "next" | "main"; sha: string };
   releaseBlock?: string;
@@ -55,6 +60,7 @@ export interface PromotionPlan {
   holds: PromotionHold[];
   expiredHolds: PromotionHold[];
   reason: string;
+  failedRelease?: ReleaseAttempt;
   starved: boolean;
 }
 
@@ -177,7 +183,8 @@ export function selectPromotion(input: PromotionInput): PromotionPlan {
   }
 
   if (cutoff < (input.minimumIndex ?? 0)) cutoff = -1;
-  const initial = input.commits[cutoff]?.sha ?? input.target;
+  const candidate = input.commits[cutoff];
+  const initial = candidate?.sha ?? input.target;
   // A qualifying revert must accompany its original even if readiness or another hold shrinks the prefix.
   const qualifyingReverts = new Set(input.commits.slice(0, cutoff + 1).filter(isRevert));
   const held = input.commits.findIndex((commit) => commit.prs.some((pr) => pr.hold));
@@ -218,17 +225,23 @@ export function selectPromotion(input: PromotionInput): PromotionPlan {
   } while (cutoff !== previous);
 
   let reason = cutoff < 0 ? "Nothing ready to promote" : "Ready";
-
-  if (cutoff < 0 && input.path === "next-main" && input.commits.length) {
-    reason = input.activeBeta
-      ? `Waiting for eligible beta ${input.activeBeta.tag}`
-      : "Stable requires an active public beta";
-  }
+  let failedRelease: ReleaseAttempt | undefined;
 
   if (input.releaseBlock) reason = input.releaseBlock;
   else if (input.paused) reason = "AUTO_PROMOTION=off";
   else if (input.blockers.length)
     reason = `Open release-blocker issues: ${input.blockers.map((n) => `#${n}`).join(", ")}`;
+  else if (cutoff < 0 && input.path === "next-main" && input.commits.length) {
+    const beta = input.activeBeta;
+
+    if (candidate && !holds.length) failedRelease = beta?.failedRelease;
+
+    if (!beta) reason = "Stable requires an active public beta";
+    else if (failedRelease)
+      reason = `Stable ${beta.tag.split("-")[0]} is blocked because Release failed for ${beta.tag} at ${initial}.`;
+    else reason = `Waiting for eligible beta ${beta.tag}`;
+  }
+
   const blocked = !!input.releaseBlock || input.paused || input.blockers.length > 0;
 
   return {
@@ -238,6 +251,7 @@ export function selectPromotion(input: PromotionInput): PromotionPlan {
     holds,
     expiredHolds: [...expiredHolds.values()],
     reason,
+    ...(failedRelease && { failedRelease }),
     starved:
       holds.some((hold) => input.now - hold.since >= 7 * DAY) ||
       (input.blockers.length > 0 && initial !== input.target && input.now - eligibleSince(input, 0) >= 7 * DAY),
