@@ -4,10 +4,7 @@ import { Effect } from "effect";
 import { Migrator } from "effect/sql";
 import sharedSlack from "./0166_shared_slack.sql" with { type: "text" };
 import botThreadQuestions from "./0168_bot_thread_questions.sql" with { type: "text" };
-import threadWorktreePreparation from "./0167_thread_worktree_preparation.sql" with { type: "text" };
 import botChatSteer from "./0169_bot_chat_steer.sql" with { type: "text" };
-import removedBranchCleanup from "./0179_removed_branch_cleanup.sql" with { type: "text" };
-import scheduleWorktreePreparations from "./0174_schedule_worktree_preparations.sql" with { type: "text" };
 import usageWorkers from "./0178_usage_workers.sql" with { type: "text" };
 import threadBlobProvenance from "./0180_thread_blob_provenance.sql" with { type: "text" };
 import connectorApprovalBinding from "./0181_connector_approval_binding.sql" with { type: "text" };
@@ -27,7 +24,6 @@ import sandboxProfileOutbox from "./0199_sandbox_profile_outbox.sql" with { type
 import botSteerSenders from "./0200_bot_steer_senders.sql" with { type: "text" };
 import connectorNoProject from "./0207_connector_no_project.sql" with { type: "text" };
 import projectColor from "./0208_project_color.sql" with { type: "text" };
-import threadWorktreeSwitch from "./0213_thread_worktree_switch.sql" with { type: "text" };
 import botApprovalRestrictedThread from "./0210_bot_approval_restricted_thread.sql" with { type: "text" };
 import projectImage from "./0212_project_image.sql" with { type: "text" };
 import transcriptStructuredRawRefs from "./0185_transcript_structured_raw_refs.sql" with { type: "text" };
@@ -159,9 +155,6 @@ import desktopClients from "./0062_desktop_clients.sql" with { type: "text" };
 import desktopUpdates from "./0063_desktop_updates.sql" with { type: "text" };
 import workerEnrollmentTags from "./0064_worker_enrollment_tags.sql" with { type: "text" };
 import instanceConnections from "./0065_instance_connections.sql" with { type: "text" };
-import worktrees from "./0066_worktrees.sql" with { type: "text" };
-import worktreeLifecycle from "./0067_worktree_lifecycle.sql" with { type: "text" };
-import worktreeAutomation from "./0068_worktree_automation.sql" with { type: "text" };
 import botErrors from "./0069_bot_errors.sql" with { type: "text" };
 import botHarness from "./0070_bot_harness.sql" with { type: "text" };
 import botHarnessErrors from "./0071_bot_harness_errors.sql" with { type: "text" };
@@ -180,11 +173,9 @@ import tailscaleHttps from "./0083_tailscale_https.sql" with { type: "text" };
 import botApprovalExpiry from "./0084_bot_approval_expiry.sql" with { type: "text" };
 import interactionDeadlines from "./0085_interaction_deadlines.sql" with { type: "text" };
 import gitHeads from "./0086_git_heads.sql" with { type: "text" };
-import worktreeBranchNames from "./0087_worktree_branch_names.sql" with { type: "text" };
 import threadMirrorDelta from "./0088_thread_mirror_delta.sql" with { type: "text" };
 import botApprovalRules from "./0089_bot_approval_rules.sql" with { type: "text" };
 import botApprovalDefaults from "./0090_bot_approval_defaults.sql" with { type: "text" };
-import externalWorktrees from "./0092_external_worktrees.sql" with { type: "text" };
 import cliImports from "./0093_cli_imports.sql" with { type: "text" };
 import cliImportLibrary from "./0094_cli_import_library.sql" with { type: "text" };
 import busMessageConsumption from "./0095_bus_message_consumption.sql" with { type: "text" };
@@ -196,6 +187,7 @@ import databaseRetention from "./0104_database_retention.sql" with { type: "text
 import secretDeliveryBatches from "./0108_secret_delivery_batches.sql" with { type: "text" };
 import projectSecrets from "./0211_project_secrets.sql" with { type: "text" };
 import { memoryMigrations } from "./memory.ts";
+import { worktreeMigrations } from "./worktrees.ts";
 import { mobilePushMigrations } from "./mobile-push.ts";
 import { createMigrator, sqlFile } from "./run.ts";
 
@@ -262,9 +254,7 @@ export const migrations = Migrator.fromRecord({
   "0063_desktop_updates": sqlFile(desktopUpdates),
   "0064_worker_enrollment_tags": sqlFile(workerEnrollmentTags),
   "0065_instance_connections": sqlFile(instanceConnections),
-  "0066_worktrees": sqlFile(worktrees),
-  "0067_worktree_lifecycle": sqlFile(worktreeLifecycle),
-  "0068_worktree_automation": sqlFile(worktreeAutomation),
+  ...worktreeMigrations,
   "0069_bot_errors": sqlFile(botErrors),
   "0070_bot_harness": sqlFile(botHarness),
   "0071_bot_harness_errors": sqlFile(botHarnessErrors),
@@ -283,12 +273,10 @@ export const migrations = Migrator.fromRecord({
   "0084_bot_approval_expiry": sqlFile(botApprovalExpiry),
   "0085_interaction_deadlines": sqlFile(interactionDeadlines),
   "0086_git_heads": sqlFile(gitHeads),
-  "0087_worktree_branch_names": sqlFile(worktreeBranchNames),
   "0088_thread_mirror_delta": sqlFile(threadMirrorDelta),
   "0089_bot_approval_rules": sqlFile(botApprovalRules),
   "0090_bot_approval_defaults": sqlFile(botApprovalDefaults),
   "0091_bot_view_delta": sqlFile(botViewDelta),
-  "0092_external_worktrees": sqlFile(externalWorktrees),
   "0093_cli_imports": sqlFile(cliImports),
   "0094_cli_import_library": sqlFile(cliImportLibrary),
   "0095_bus_message_consumption": sqlFile(busMessageConsumption),
@@ -364,19 +352,16 @@ export const migrations = Migrator.fromRecord({
   "0164_usage_accounting": sqlFile(usageAccounting),
   "0165_usage_estimated_cost": sqlFile(usageEstimatedCost),
   "0166_shared_slack": sqlFile(sharedSlack),
-  "0167_thread_worktree_preparation": sqlFile(threadWorktreePreparation),
   "0168_bot_thread_questions": sqlFile(botThreadQuestions),
   "0169_bot_chat_steer": sqlFile(botChatSteer),
   "0170_slack_attachments": sqlFile(slackAttachments),
   "0171_thread_permission_selection": sqlFile(threadPermissionSelection),
   "0172_usage_activity": sqlFile(usageActivity),
   "0173_module_goal_resume": sqlFile(moduleGoalResume),
-  "0174_schedule_worktree_preparations": sqlFile(scheduleWorktreePreparations),
   "0175_bot_execution_start": sqlFile(botExecutionStart),
   "0176_message_delegating_bot": sqlFile(messageDelegatingBot),
   "0177_github_pr_projection": sqlFile(githubPrProjection),
   "0178_usage_workers": sqlFile(usageWorkers),
-  "0179_removed_branch_cleanup": sqlFile(removedBranchCleanup),
   "0180_thread_blob_provenance": sqlFile(threadBlobProvenance),
   "0181_connector_approval_binding": sqlFile(connectorApprovalBinding),
   "0182_verified_computer_redirects": sqlFile(verifiedComputerRedirects),
@@ -401,7 +386,6 @@ export const migrations = Migrator.fromRecord({
   "0210_bot_approval_restricted_thread": sqlFile(botApprovalRestrictedThread),
   "0211_project_secrets": sqlFile(projectSecrets),
   "0212_project_image": sqlFile(projectImage),
-  "0213_thread_worktree_switch": sqlFile(threadWorktreeSwitch),
 });
 
 export const { migrate, migrateOnline } = createMigrator(migrations);
