@@ -30,10 +30,13 @@ export function LinkedEnvironmentComputer({ workerId, reason }: { workerId: stri
   if (reason) return <Notice>{reason}</Notice>;
 
   return (
-    <ResourceState resource={resource}>
+    <ResourceState resource={resource} gap={12}>
       <SettingsActions>
         <Button
           title="Refresh status"
+          variant="text"
+          size="sm"
+          icon="arrow-path"
           busy={resource.busy || resource.loading}
           onPress={() => void resource.reload().catch(() => {})}
         />

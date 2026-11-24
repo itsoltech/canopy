@@ -1,9 +1,10 @@
 import { useState } from "react";
+import { View } from "react-native";
 import { create } from "@bufbuild/protobuf";
 import { ui } from "@canopy/contracts";
 import { pluginComponents } from "@canopy/domain/plugin-components";
-import { Button, EmptyState, Field, Notice, Sheet } from "../../ui/components";
-import { SettingToggle, SettingsGroup, SettingsRow } from "./SettingsGroup";
+import { Button, Field, Notice, Sheet } from "../../ui/components";
+import { SettingToggle, SettingsGroupHeader } from "./SettingsGroup";
 import { SettingsValue } from "./SettingsValue";
 import { useSourcePreview } from "./source-preview";
 import { ResourceState, confirmAction, useSettingsResource } from "./resource";
@@ -11,6 +12,8 @@ import { EnvironmentFiles } from "./EnvironmentFiles";
 import { EnvironmentDestinations } from "./EnvironmentAssignment";
 import { EnvironmentWizard } from "./EnvironmentWizard";
 import { EnvironmentPluginRow } from "./EnvironmentPluginRow";
+import { EnvironmentActionMenu } from "./EnvironmentActionMenu";
+import { EnvironmentRow, EnvironmentRows } from "./EnvironmentRows";
 
 export function MarketplaceSettings({
   snapshot,
@@ -25,78 +28,47 @@ export function MarketplaceSettings({
   const [adding, setAdding] = useState<ui.EnvironmentMarketplace | "new">();
   const [plugin, setPlugin] = useState<{ market: ui.EnvironmentMarketplace; candidate: ui.MarketplacePlugin }>();
 
+  function remove(market: ui.EnvironmentMarketplace) {
+    confirmAction(
+      "Delete marketplace",
+      "Approved plugins keep their saved versions.",
+      () =>
+        void resource
+          .run((api) => api.deleteMarketplace({ id: market.id, expectedRevision: snapshot.revision }))
+          .then((r) => {
+            if (r) onChanged();
+          }),
+    );
+  }
+
   return (
-    <ResourceState resource={resource}>
-      <Button variant="primary" title="Add marketplace" onPress={() => setAdding("new")} />
-      {!snapshot.marketplaces.length && (
-        <EmptyState title="No marketplaces yet" description="Add a repository to review its plugins." />
-      )}
-      {snapshot.marketplaces.map((market) => (
-        <SettingsGroup
-          key={market.id}
-          title={market.name}
-          description={[market.source?.url, market.source?.ref].filter(Boolean).join(" · ")}
-        >
-          <SettingsValue title="Catalog commit" value={market.source?.commit} />
-          <Button title="Check upstream" onPress={() => setAdding(market)} />
-          {market.plugins.map((candidate) => (
-            <EnvironmentPluginRow
-              key={candidate.artifact?.name}
-              candidate={candidate}
-              workers={workers}
-              assignment={
-                snapshot.plugins.find(
-                  (p) => p.marketplaceId === market.id && p.assignment?.artifact?.name === candidate.artifact?.name,
-                )?.assignment
-              }
-              onReview={() => setPlugin({ market, candidate })}
+    <ResourceState resource={resource} gap={12}>
+      <View style={{ gap: 4 }}>
+        <View style={{ alignItems: "flex-end" }}>
+          <Button title="Add marketplace" variant="text" size="sm" icon="plus" onPress={() => setAdding("new")} />
+        </View>
+        {!snapshot.marketplaces.length && (
+          <EnvironmentRows>
+            <EnvironmentRow
+              title="No marketplaces yet"
+              description="Add a repository to review its plugins."
+              wrapDescription
             />
-          ))}
-          {snapshot.plugins
-            .filter(
-              (p) =>
-                p.marketplaceId === market.id &&
-                !market.plugins.some((c) => c.artifact?.name === p.assignment?.artifact?.name),
-            )
-            .map((p) => (
-              <SettingsRow
-                key={p.assignment?.id}
-                title={p.assignment?.name || "Saved plugin"}
-                description="No longer in the catalog. The approved version remains available."
-              >
-                <Button
-                  title="Edit plugin"
-                  onPress={() =>
-                    setPlugin({
-                      market,
-                      candidate: create(ui.MarketplacePluginSchema, {
-                        artifact: p.assignment?.artifact,
-                        harnesses: p.assignment?.harnesses,
-                      }),
-                    })
-                  }
-                />
-              </SettingsRow>
-            ))}
-          <Button
-            variant="danger"
-            title="Delete marketplace"
+          </EnvironmentRows>
+        )}
+        {snapshot.marketplaces.map((market) => (
+          <MarketplaceCatalog
+            key={market.id}
+            market={market}
+            plugins={snapshot.plugins.filter((p) => p.marketplaceId === market.id)}
+            workers={workers}
             busy={resource.busy}
-            onPress={() =>
-              confirmAction(
-                "Delete marketplace",
-                "Approved plugins keep their saved versions.",
-                () =>
-                  void resource
-                    .run((api) => api.deleteMarketplace({ id: market.id, expectedRevision: snapshot.revision }))
-                    .then((r) => {
-                      if (r) onChanged();
-                    }),
-              )
-            }
+            onRefresh={() => setAdding(market)}
+            onDelete={() => remove(market)}
+            onReview={(candidate) => setPlugin({ market, candidate })}
           />
-        </SettingsGroup>
-      ))}
+        ))}
+      </View>
       <Sheet
         title={adding === "new" ? "Add marketplace" : "Check upstream"}
         visible={!!adding}
@@ -126,6 +98,87 @@ export function MarketplaceSettings({
         )}
       </Sheet>
     </ResourceState>
+  );
+}
+
+function MarketplaceCatalog({
+  market,
+  plugins,
+  workers,
+  busy,
+  onRefresh,
+  onDelete,
+  onReview,
+}: {
+  market: ui.EnvironmentMarketplace;
+  plugins: ui.AgentEnvironmentSnapshot["plugins"];
+  workers: ui.EnvironmentWorker[];
+  busy: boolean;
+  onRefresh: () => void;
+  onDelete: () => void;
+  onReview: (candidate: ui.MarketplacePlugin) => void;
+}) {
+  const candidates = market.plugins;
+
+  const missing = plugins.filter(
+    (plugin) => !candidates.some((c) => c.artifact?.name === plugin.assignment?.artifact?.name),
+  );
+
+  const reviewCount = candidates.filter(
+    (candidate) =>
+      !candidate.unavailableReason &&
+      !plugins.some((plugin) => plugin.assignment?.artifact?.name === candidate.artifact?.name),
+  ).length;
+
+  return (
+    <View style={{ gap: 4 }}>
+      <SettingsGroupHeader
+        title={market.name}
+        description={reviewCount ? `${reviewCount} to review` : undefined}
+        actions={
+          <EnvironmentActionMenu
+            title={market.name}
+            label={`Actions for ${market.name}`}
+            note={[market.source?.url, market.source?.ref, market.source?.commit].filter(Boolean).join("\n")}
+            disabled={busy}
+            actions={[
+              { label: "Check upstream", icon: "arrow-path", onPress: onRefresh },
+              { label: "Delete marketplace", icon: "trash", tone: "danger", onPress: onDelete },
+            ]}
+          />
+        }
+      />
+      {!!(candidates.length || missing.length) && (
+        <EnvironmentRows>
+          {candidates.map((candidate) => (
+            <EnvironmentPluginRow
+              key={candidate.artifact?.name}
+              candidate={candidate}
+              workers={workers}
+              assignment={plugins.find((p) => p.assignment?.artifact?.name === candidate.artifact?.name)?.assignment}
+              onReview={() => onReview(candidate)}
+            />
+          ))}
+          {missing.map(({ assignment }) => {
+            const candidate = create(ui.MarketplacePluginSchema, {
+              artifact: assignment?.artifact,
+              harnesses: assignment?.harnesses,
+            });
+
+            return (
+              <EnvironmentPluginRow
+                key={assignment?.id}
+                candidate={candidate}
+                assignment={assignment}
+                workers={workers}
+                missing
+                onReview={() => onReview(candidate)}
+              />
+            );
+          })}
+        </EnvironmentRows>
+      )}
+    </View>
   );
 }
 

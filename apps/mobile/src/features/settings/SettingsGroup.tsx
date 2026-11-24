@@ -164,6 +164,7 @@ export function SettingChoice<T extends string | number>({
   disabled,
   accessory,
   search,
+  compact,
 }: {
   title: string;
   description?: string;
@@ -173,9 +174,37 @@ export function SettingChoice<T extends string | number>({
   disabled?: boolean;
   accessory?: ReactNode;
   search?: string;
+  compact?: boolean;
 }) {
   // Mount the native picker on demand and retain it through its dismissal animation.
   const [open, setOpen] = useState<boolean>();
+  const label = options.find((option) => option.value === value)?.label ?? String(value);
+
+  const picker = open !== undefined && (
+    <PickerSheet
+      title={title}
+      search={search}
+      visible={open}
+      onClose={() => setOpen(false)}
+      onDismiss={() => setOpen((visible) => visible || undefined)}
+      value={value}
+      sections={[{ options }]}
+      onSelect={onChange}
+    />
+  );
+
+  if (compact)
+    return (
+      <>
+        <SettingsRow
+          title={title}
+          description={[label, description].filter(Boolean).join(" · ")}
+          onPress={disabled ? undefined : () => setOpen(true)}
+          accessory={accessory}
+        />
+        {picker}
+      </>
+    );
 
   return (
     <SettingsRow
@@ -189,22 +218,11 @@ export function SettingChoice<T extends string | number>({
             hideLabel
             expanded={!!open}
             label={title}
-            value={options.find((o) => o.value === value)?.label ?? String(value)}
+            value={label}
             onPress={() => setOpen(true)}
             disabled={disabled}
           />
-          {open !== undefined && (
-            <PickerSheet
-              title={title}
-              search={search}
-              visible={open}
-              onClose={() => setOpen(false)}
-              onDismiss={() => setOpen((visible) => visible || undefined)}
-              value={value}
-              sections={[{ options }]}
-              onSelect={onChange}
-            />
-          )}
+          {picker}
         </>
       }
     />

@@ -3,7 +3,6 @@ import { useOpenSettingsSection } from "./navigation";
 import { EnvironmentPreview } from "./EnvironmentPreview";
 import { Button, Notice } from "../../ui/components";
 import { SettingsGroup, SettingsRow } from "./SettingsGroup";
-import { SettingsValue } from "./SettingsValue";
 import { ResourceState, confirmAction, useSettingsResource } from "./resource";
 import { EnvironmentFiles } from "./EnvironmentFiles";
 import { VersionComparison } from "./VersionComparison";
@@ -19,7 +18,6 @@ export function EnvironmentComputer({
   onChanged: () => void;
 }) {
   const resource = useSettingsResource("GetAgentEnvironment", (api) => api.getAgentEnvironment({}));
-  const openSettingsSection = useOpenSettingsSection();
   const pending = worker.report?.revision !== worker.desiredRevision;
   const disabled = resource.busy || !worker.online || pending;
 
@@ -55,11 +53,8 @@ export function EnvironmentComputer({
   };
 
   return (
-    <ResourceState resource={resource}>
-      <SettingsValue title="Sync status" value={workerSyncState(worker)} />
-      <SettingsValue title="Automatic tags" value={worker.automaticTags.join(", ")} />
-      <SettingsValue title="Manual tags" value={worker.manualTags.join(", ")} />
-      <Button title="Edit in Workers" onPress={() => openSettingsSection("workers", { workerId: worker.workerId })} />
+    <ResourceState resource={resource} gap={12}>
+      <EnvironmentSyncStatus worker={worker} pending={pending} />
       {worker.compositionError ? (
         <Notice error>{worker.compositionError} The last synced files are preserved.</Notice>
       ) : !worker.supported ? (
@@ -68,9 +63,7 @@ export function EnvironmentComputer({
         <Notice>Offline. This computer receives the latest instructions when it reconnects.</Notice>
       ) : pending ? (
         <Notice>Waiting for this computer to report the saved instructions.</Notice>
-      ) : (
-        <Notice>New agent sessions use the saved instructions after sync.</Notice>
-      )}
+      ) : null}
       <EnvironmentPreview worker={worker} />
       <SettingsGroup title="Files on this computer">
         {!worker.report?.files.length && <Notice>Assigned files appear here after the worker’s first sync.</Notice>}
@@ -116,6 +109,35 @@ export function EnvironmentComputer({
         onResolve={(file, action) => resolve(file, "plugin", action)}
       />
     </ResourceState>
+  );
+}
+
+function EnvironmentSyncStatus({ worker, pending }: { worker: ui.EnvironmentWorker; pending: boolean }) {
+  const openSettingsSection = useOpenSettingsSection();
+
+  return (
+    <SettingsGroup
+      title="Sync and tags"
+      actions={
+        <Button
+          title="Edit tags"
+          variant="text"
+          size="sm"
+          onPress={() => openSettingsSection("workers", { workerId: worker.workerId })}
+        />
+      }
+    >
+      <SettingsRow
+        title={workerSyncState(worker)}
+        description={
+          !worker.compositionError && worker.supported && worker.online && !pending
+            ? "New agent sessions use saved instructions after sync."
+            : undefined
+        }
+      />
+      <SettingsRow title="Automatic tags" description={worker.automaticTags.join(", ") || "None"} />
+      <SettingsRow title="Manual tags" description={worker.manualTags.join(", ") || "None"} />
+    </SettingsGroup>
   );
 }
 

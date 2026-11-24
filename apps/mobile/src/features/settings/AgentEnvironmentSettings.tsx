@@ -1,30 +1,63 @@
-import { useState } from "react";
-import { createSettingsViewState } from "./SettingsScroll";
+import { useState, type ReactNode } from "react";
+import { View } from "react-native";
 import type { ui } from "@canopy/contracts";
+import { libraryWorkers } from "@canopy/domain/environment-library";
 import { Button, Notice, Sheet } from "../../ui/components";
-import { SettingsActions, SettingsGroup, SettingsRow, SettingChoice } from "./SettingsGroup";
+import { ContentInsets, useContentInsets } from "../../ui/ScreenFrame";
+import { Segmented } from "../../ui/Segmented";
+import { SettingsScroll, createSettingsViewState } from "./SettingsScroll";
 import { ResourceState, confirmAction, useSettingsResource } from "./resource";
 import { InstructionEditor } from "./InstructionEditor";
 import { SkillEditor } from "./SkillEditor";
 import { SkillSourceEditor } from "./SkillSourceEditor";
 import { MarketplaceSettings } from "./MarketplaceSettings";
-import { EnvironmentComputer } from "./EnvironmentComputer";
-import { LinkedEnvironmentComputer } from "./LinkedEnvironmentComputer";
-import { useComputerHome } from "../computers/presence";
-import { useWorkerRecordOptions } from "../computers/worker-options";
-import { splitId } from "@canopy/domain/computers";
-import { SettingsSkeletonGroups } from "./SettingsSkeleton";
-import { libraryWorkers } from "@canopy/domain/environment-library";
-import { EnvironmentLibrarySummary } from "./EnvironmentLibrarySummary";
+import { EnvironmentComputers } from "./EnvironmentComputers";
+import { SettingsSkeletonRows } from "./SettingsSkeleton";
 import { EnvironmentSkills } from "./EnvironmentSkills";
-import { EnvironmentItemStatus } from "./EnvironmentItemStatus";
+import { EnvironmentInstructions } from "./EnvironmentInstructions";
 import { SharedConfiguration } from "./SharedConfiguration";
 
 type Editor = { kind: "instruction" | "source" | "skill"; snapshot: ui.AgentEnvironmentSnapshot; id?: string };
 
+const panels = [
+  { value: "instructions", label: "Instructions" },
+  { value: "skills", label: "Skills" },
+  { value: "plugins", label: "Plugins" },
+  { value: "computers", label: "Computers" },
+] as const;
+
+type Panel = (typeof panels)[number]["value"];
+
+const usePanel = createSettingsViewState<Panel>("instructions");
 const useSelectedWorker = createSettingsViewState("");
 
-export function AgentEnvironmentSettings() {
+export function AgentEnvironmentSettings({ position, notices }: { position: string; notices: ReactNode }) {
+  const insets = useContentInsets();
+  const [panel, setPanel] = usePanel(position);
+
+  return (
+    <View style={{ flex: 1, minWidth: 0, paddingTop: insets.top }}>
+      <View style={{ paddingLeft: insets.left + 12, paddingRight: insets.right + 12, paddingTop: 8 }}>
+        <Segmented compact options={panels} value={panel} onChange={setPanel} style={{ maxWidth: 520 }} />
+      </View>
+      <ContentInsets.Provider value={{ ...insets, top: 0 }}>
+        <SettingsScroll
+          key={panel}
+          position={`${position}:${panel}`}
+          space={12}
+          keyboardShouldPersistTaps="handled"
+          style={{ flex: 1, minWidth: 0 }}
+          contentContainerStyle={{ maxWidth: 1024, gap: 12 }}
+        >
+          {notices}
+          <EnvironmentPanel panel={panel} />
+        </SettingsScroll>
+      </ContentInsets.Provider>
+    </View>
+  );
+}
+
+function EnvironmentPanel({ panel }: { panel: Panel }) {
   const resource = useSettingsResource("GetAgentEnvironment", (api) => api.getAgentEnvironment({}));
   const [editor, setEditor] = useState<Editor>();
   const [workerId, setWorker] = useSelectedWorker();
@@ -53,13 +86,10 @@ export function AgentEnvironmentSettings() {
   };
 
   return (
-    <ResourceState resource={resource}>
-      {resource.initialLoading && (
-        <SettingsSkeletonGroups titles={["Instruction library", "Skills", "Marketplaces", "Computers & preview"]} />
-      )}
+    <ResourceState resource={resource} gap={12}>
+      {resource.initialLoading && <SettingsSkeletonRows rows={4} />}
       {snapshot && (
         <>
-          <EnvironmentLibrarySummary snapshot={snapshot} workers={workers} onChanged={reload} />
           <SharedConfiguration
             library
             notices={(computers.data?.configNotices ?? []).filter((n) =>
@@ -70,43 +100,36 @@ export function AgentEnvironmentSettings() {
               reload();
             }}
           />
-          <SettingsGroup
-            title="Instruction library"
-            actions={<Button title="Add document" onPress={() => edit("instruction")} />}
-          >
-            {!snapshot.documents.length && (
-              <SettingsRow
-                title="No instructions yet"
-                description="Add a document and assign it to see what agents receive."
-              />
-            )}
-            {snapshot.documents.map((doc) => (
-              <InstructionRow
-                key={doc.id}
-                document={doc}
-                workers={workers}
-                busy={resource.busy}
-                onEdit={() => edit("instruction", doc.id)}
-                onDelete={() => removeDocument(doc.id)}
-              />
-            ))}
-          </SettingsGroup>
-          <EnvironmentSkills
-            snapshot={snapshot}
-            workers={workers}
-            onAdd={edit}
-            onEdit={(item, kind) => edit(kind, item.id)}
-            onChanged={reload}
-          />
-          <MarketplaceSettings snapshot={snapshot} workers={workers} onChanged={reload} />
-          <EnvironmentComputers
-            snapshot={snapshot}
-            records={records.data?.records ?? []}
-            busy={resource.loading || resource.busy}
-            workerId={workerId}
-            setWorker={setWorker}
-            onChanged={reload}
-          />
+          {panel === "instructions" && (
+            <EnvironmentInstructions
+              documents={snapshot.documents}
+              workers={workers}
+              busy={resource.busy}
+              onAdd={() => edit("instruction")}
+              onEdit={(id) => edit("instruction", id)}
+              onDelete={removeDocument}
+            />
+          )}
+          {panel === "skills" && (
+            <EnvironmentSkills
+              snapshot={snapshot}
+              workers={workers}
+              onAdd={edit}
+              onEdit={(item, kind) => edit(kind, item.id)}
+              onChanged={reload}
+            />
+          )}
+          {panel === "plugins" && <MarketplaceSettings snapshot={snapshot} workers={workers} onChanged={reload} />}
+          {panel === "computers" && (
+            <EnvironmentComputers
+              snapshot={snapshot}
+              records={records.data?.records ?? []}
+              busy={resource.loading || resource.busy}
+              workerId={workerId}
+              setWorker={setWorker}
+              onChanged={reload}
+            />
+          )}
           <Sheet
             title={
               editor?.kind === "instruction"
@@ -170,116 +193,6 @@ function LibraryEditor({
       )}
       {kind === "skill" && <SkillEditor skill={skill} snapshot={snapshot} conflict={conflict} onSaved={onSaved} />}
       {kind === "source" && <SkillSourceEditor skill={skill} snapshot={latest} onSaved={onSaved} />}
-    </>
-  );
-}
-
-function InstructionRow({
-  document,
-  workers,
-  busy,
-  onEdit,
-  onDelete,
-}: {
-  document: ui.InstructionDocument;
-  workers: ui.EnvironmentWorker[];
-  busy: boolean;
-  onEdit: () => void;
-  onDelete: () => void;
-}) {
-  return (
-    <SettingsRow
-      title={document.name}
-      description={[
-        document.harness === "claude" ? "CLAUDE.md" : "AGENTS.md",
-        `v${document.revision}`,
-        `${document.fragments.length} ${document.fragments.length === 1 ? "fragment" : "fragments"}`,
-        document.selector?.everyone ? "All computers" : "Selected computers and tags",
-      ]
-        .filter(Boolean)
-        .join(" · ")}
-    >
-      <EnvironmentItemStatus item={document} workers={workers} kind="instructions" harness={document.harness} />
-      <SettingsActions>
-        <Button title="Edit document" onPress={onEdit} />
-        <Button variant="danger" title="Delete document" disabled={busy} onPress={onDelete} />
-      </SettingsActions>
-    </SettingsRow>
-  );
-}
-
-function EnvironmentComputers({
-  snapshot,
-  records,
-  busy,
-  workerId,
-  setWorker,
-  onChanged,
-}: {
-  snapshot: ui.AgentEnvironmentSnapshot;
-  records: ui.WorkerRecord[];
-  busy: boolean;
-  workerId: string;
-  setWorker: (id: string) => void;
-  onChanged: () => void;
-}) {
-  const liveOptions = useWorkerRecordOptions(records.filter((record) => !record.revoked));
-
-  const options = [
-    ...liveOptions.filter(
-      (option) => !!splitId(option.value).node || snapshot.workers.some((worker) => worker.workerId === option.value),
-    ),
-    ...snapshot.workers
-      .filter((worker) => !liveOptions.some((option) => option.value === worker.workerId))
-      .map((worker) => ({
-        value: worker.workerId,
-        label: worker.name,
-        description: worker.online ? "Online" : "Offline",
-      })),
-  ];
-
-  const selected = workerId || snapshot.workers[0]?.workerId || options[0]?.value || "";
-  const unavailable = !!selected && !options.some((option) => option.value === selected);
-
-  const local = snapshot.workers.find((worker) => worker.workerId === selected);
-  const node = splitId(selected).node;
-  const record = records.find((item) => item.workerId === selected);
-  const home = useComputerHome(node);
-
-  const reason =
-    record?.readOnlyReason ??
-    (node ? home.reason || "Manage this worker on its own computer. Configuration is not shared." : "");
-
-  return (
-    <>
-      <SettingsGroup
-        title="Computers & preview"
-        actions={!node && <Button title="Refresh status" busy={busy} onPress={onChanged} />}
-      >
-        {options.length ? (
-          <SettingChoice
-            title="Computer"
-            value={selected}
-            onChange={setWorker}
-            options={
-              unavailable ? [{ value: selected, label: "Unavailable computer", disabled: true }, ...options] : options
-            }
-          />
-        ) : (
-          <SettingsRow title="No computers yet" description="Add a worker to sync its agent environment." />
-        )}
-      </SettingsGroup>
-      {unavailable ? (
-        options.length > 0 && (
-          <Notice>This computer is unavailable. Choose another computer to manage its environment.</Notice>
-        )
-      ) : node ? (
-        <LinkedEnvironmentComputer key={selected} workerId={selected} reason={reason} />
-      ) : (
-        local && (
-          <EnvironmentComputer key={local.workerId} worker={local} revision={snapshot.revision} onChanged={onChanged} />
-        )
-      )}
     </>
   );
 }

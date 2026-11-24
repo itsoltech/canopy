@@ -1,36 +1,50 @@
 import type { ui } from "@canopy/contracts";
-import { Button } from "../../ui/components";
-import { SettingsRow } from "./SettingsGroup";
-import { SettingsValue } from "./SettingsValue";
-import { EnvironmentItemStatus } from "./EnvironmentItemStatus";
+import { EnvironmentActionMenu } from "./EnvironmentActionMenu";
+import { EnvironmentRow } from "./EnvironmentRows";
+import { environmentItemStatus } from "./environment-item-status";
 
 export function EnvironmentPluginRow({
   candidate,
   assignment,
   workers,
+  missing,
   onReview,
 }: {
   candidate: ui.MarketplacePlugin;
   assignment?: ui.LibrarySkill;
   workers: ui.EnvironmentWorker[];
+  missing?: boolean;
   onReview: () => void;
 }) {
+  const title = assignment?.name || candidate.artifact?.name || "Plugin";
+  const assigned = assignment && environmentItemStatus(assignment, workers, "plugins");
+  const unavailable = candidate.unavailableReason;
+
+  const description =
+    unavailable ||
+    (missing
+      ? "No longer in the catalog. The approved version is still available."
+      : [assigned?.computers, ...candidate.harnesses].filter(Boolean).join(" · "));
+
   return (
-    <SettingsRow
-      title={assignment?.name || candidate.artifact?.name || "Plugin"}
-      description={candidate.unavailableReason || candidate.harnesses.filter(Boolean).join(" · ")}
-    >
-      {assignment ? (
-        <EnvironmentItemStatus item={assignment} workers={workers} kind="plugins" />
-      ) : (
-        !candidate.unavailableReason && <SettingsValue title="Status" value="Review required" />
-      )}
-      <Button
-        title={assignment ? "Edit plugin" : "Review"}
-        variant={assignment ? "secondary" : "primary"}
-        disabled={!!candidate.unavailableReason}
-        onPress={onReview}
-      />
-    </SettingsRow>
+    <EnvironmentRow
+      title={title}
+      description={description}
+      wrapDescription={!!unavailable || missing}
+      status={unavailable ? "Unavailable" : (assigned?.status ?? "Review required")}
+      warning={!!unavailable || assigned?.status === "Error"}
+      onPress={unavailable ? undefined : onReview}
+      actions={
+        assigned &&
+        !unavailable && (
+          <EnvironmentActionMenu
+            title={title}
+            label={`Actions for ${title}`}
+            note={assigned.note}
+            actions={[{ label: "Edit plugin", icon: "pencil-square", onPress: onReview }]}
+          />
+        )
+      }
+    />
   );
 }
