@@ -27,6 +27,7 @@ export const handle: Handle = async ({ event, resolve }) => {
     transformPageChunk: async ({ html }) => {
       const attributes = documentAttributes(appearance);
       const channel = (await identity) ?? buildIdentity;
+      attributes.set("%canopy.client%", desktopOrigin ? "desktop" : "web");
       attributes.set("%canopy.applicationName%", channel.displayName);
       attributes.set("%canopy.channelAssets%", channel.assets);
 

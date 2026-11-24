@@ -12,7 +12,7 @@ interface MenuOptions {
   productName: string;
   showMain: () => void;
   openSettings: () => void;
-  openAppSettings: () => void;
+  openAppSettings: (keyboard: boolean) => void;
   updates: DesktopUpdates;
   quitGuard: QuitGuard;
   quitKey: ReturnType<typeof quitKeyEvent>;

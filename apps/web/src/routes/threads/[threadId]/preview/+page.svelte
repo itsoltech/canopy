@@ -8,8 +8,6 @@
   import AgentPreviewPanel from "#lib/features/preview/AgentPreviewPanel.svelte";
   import { initialPreviewChoice } from "#lib/features/preview/preview-window.ts";
   import { connectPreviewWindow, type PreviewWindowContext } from "#lib/features/preview/preview-window-context.ts";
-  import { devicePreferences } from "#lib/features/settings/device-preferences.svelte.ts";
-  import { applyDeviceAppearance } from "#lib/features/settings/device-appearance.ts";
 
   const threadId = $derived(page.params.threadId ?? "");
   let context = $state.raw<PreviewWindowContext>({ state: "connecting" });
@@ -24,10 +22,6 @@
   let workerId = initial.workerId;
 
   $effect(() => connectPreviewWindow(threadId, (value) => (context = value)));
-
-  onMount(() => devicePreferences.connect());
-
-  $effect(() => applyDeviceAppearance(devicePreferences));
 
   // The initial target was selected on a specific worker. Discard it if the thread changes workers.
   $effect.pre(() => {

@@ -33,7 +33,7 @@
   role="toolbar"
   aria-label={label}
   class={[
-    "flex shrink-0 items-center opacity-0 transition-opacity duration-(--duration-quick) ease-out group-hover/message:opacity-100 group-hover/message:delay-(--duration-micro) group-has-focus-visible/message:opacity-100 has-aria-expanded:opacity-100 pointer-coarse:hidden",
+    "flex shrink-0 items-center opacity-0 transition-opacity duration-(--duration-quick) ease-out group-hover/message:opacity-100 group-hover/message:delay-(--duration-micro) group-has-[:focus-visible]/message:opacity-100 has-aria-expanded:opacity-100 pointer-coarse:hidden",
     className,
   ]}
 >

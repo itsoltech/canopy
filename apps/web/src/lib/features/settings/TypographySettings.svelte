@@ -1,4 +1,5 @@
 <script lang="ts">
+  import InterfaceSizeSetting from "#lib/features/settings/InterfaceSizeSetting.svelte";
   import { useSettings } from "./settings-state.svelte.ts";
   import DeviceChoiceRow from "./DeviceChoiceRow.svelte";
   import FontPicker from "./FontPicker.svelte";
@@ -50,12 +51,7 @@
 
 <SettingsGroup title="Typography" description="This device · Unavailable fonts use local fallbacks.">
   <FontPicker kind="interface" {discovery} {discoverFonts} />
-  <DeviceChoiceRow
-    preference="interfaceSize"
-    title="Interface size"
-    description="Scale interface text from the desktop base size."
-    options={[12, 14, 16, 18].map((v) => ({ value: String(v), label: `${v} px` }))}
-  />
+  <InterfaceSizeSetting />
   <FontPicker kind="mono" {discovery} {discoverFonts} />
   <DeviceChoiceRow
     preference="monoSize"

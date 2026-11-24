@@ -1,7 +1,6 @@
 import type { ui } from "@canopy/contracts";
 import type { OverviewState } from "#lib/features/overview/overview-state.svelte.ts";
-import { settingsSectionEnabled } from "@canopy/ui/settings";
-import { settingsSections } from "#lib/features/settings/sections.ts";
+import { webSettingsSections } from "#lib/features/settings/sections.ts";
 import type { SettingsState } from "#lib/features/settings/settings-state.svelte.ts";
 import { SIDEBAR_HOTKEY, type SidebarLayout } from "#lib/features/navigation/sidebar-layout.svelte.ts";
 import { defaultProject } from "#lib/features/projects/placement.ts";
@@ -253,19 +252,14 @@ export function appCommands(context: AppCommandContext): CommandSource {
   return () => {
     const { settings, capabilities } = context;
 
-    const sections: Command[] = settingsSections
-      .filter(
-        (section) =>
-          capabilities.supports(section.href) && settingsSectionEnabled(section.href, settings.enabledModules),
-      )
-      .map((section) => ({
-        id: `settings:${section.href}`,
-        title: sectionTitles.get(section.href) ?? section.label,
-        group: "settings",
-        icon: section.icon,
-        keywords: `settings ${section.keywords}`,
-        href: section.href,
-      }));
+    const sections: Command[] = webSettingsSections(settings.enabledModules, capabilities).map((section) => ({
+      id: `settings:${section.href}`,
+      title: sectionTitles.get(section.href) ?? section.label,
+      group: "settings",
+      icon: section.icon,
+      keywords: `settings ${section.keywords}`,
+      href: section.href,
+    }));
 
     return [
       ...appActions(context),

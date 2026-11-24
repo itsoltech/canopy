@@ -220,8 +220,8 @@ export interface DesktopBridge {
   notificationPermission?: DesktopNotificationPermission;
   /** The path of a clicked notification, after main has focused this window. */
   onNotificationClick?(listener: (path: string) => void): () => void;
-  /** Main requests Settings navigation after the application has mounted. */
-  onOpenRoute?(listener: (path: string) => void): () => void;
+  /** The native Settings menu also reports whether its keyboard shortcut opened the route. */
+  onOpenRoute?(listener: (path: string, keyboard?: boolean) => void): () => void;
   readyForRoutes?(): Promise<void>;
   readonly platform: string;
   /** Bundled icon for the installed desktop channel. */

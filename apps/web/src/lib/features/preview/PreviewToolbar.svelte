@@ -116,7 +116,7 @@
         onfocus={() => (editing = true)}
         oninput={() => (addressError = "")}
         onblur={() => (editing = false)}
-        class="h-8 w-full min-w-0 rounded-md border border-divider bg-panel px-2.5 text-(length:--type-compact) text-ink outline-none focus:border-brand-500 focus:ring-2 focus:ring-brand-500/15 disabled:opacity-50"
+        class="h-8 w-full min-w-0 rounded-md border border-divider bg-panel px-2.5 text-(length:--type-compact) text-ink outline-none disabled:opacity-50 field-focus:border-brand-500 field-focus:ring-2 field-focus:ring-brand-500/15"
       />
       <span class="sr-only" role="status">{addressError}</span>
     </form>

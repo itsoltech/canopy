@@ -30,43 +30,48 @@ test("desktop route IPC accepts Settings paths and rejects external or unrelated
 
 test("route requests wait for the renderer and survive document loading", () => {
   const routes = new AppRoutes();
-  const delivered: string[] = [];
-  const target = { send: (_channel: string, path: string) => delivered.push(path) };
+  const delivered: [string, boolean | undefined][] = [];
+  const target = { send: (_channel: string, path: string, keyboard?: boolean) => delivered.push([path, keyboard]) };
   routes.open(target, "/settings");
   routes.open(target, "/settings/connectors");
   expect(delivered).toEqual([]);
   routes.ready(target);
 
-  expect(delivered).toEqual(["/settings/connectors"]);
+  expect(delivered).toEqual([["/settings/connectors", undefined]]);
   routes.loading(target);
-  routes.open(target, "/settings/general");
+  routes.open(target, "/settings/general", true);
   routes.open(target, "/desktop");
   routes.ready(target);
   routes.ready(target);
 
-  expect(delivered).toEqual(["/settings/connectors", "/settings/general"]);
-  routes.open(target, "/settings");
-  expect(delivered.at(-1)).toBe("/settings");
+  expect(delivered).toEqual([
+    ["/settings/connectors", undefined],
+    ["/settings/general", true],
+  ]);
+  routes.open(target, "/settings", false);
+  expect(delivered.at(-1)).toEqual(["/settings", false]);
 });
 
 test("the Settings accelerator opens app settings and changing desktop mode has no accelerator", () => {
   let opened = "";
 
   const items = settingsMenu(
-    () => {
-      opened = "settings";
+    (keyboard) => {
+      opened = keyboard ? "shortcut" : "menu";
     },
     () => {
       opened = "mode";
     },
   );
 
-  expect(items[0]?.label).toBe("Settings…");
-  expect(items[0]?.accelerator).toBe("CmdOrCtrl+,");
-  expect(items[1]?.label).toBe("Change desktop mode…");
-  expect(items[1]?.accelerator).toBeUndefined();
-  items[0]?.click();
-  expect(opened).toBe("settings");
-  items[1]?.click();
+  expect(items[0].label).toBe("Settings…");
+  expect(items[0].accelerator).toBe("CmdOrCtrl+,");
+  expect(items[1].label).toBe("Change desktop mode…");
+  expect(items[1]).not.toHaveProperty("accelerator");
+  items[0].click(undefined, undefined, { triggeredByAccelerator: true });
+  expect(opened).toBe("shortcut");
+  items[0].click(undefined, undefined, {});
+  expect(opened).toBe("menu");
+  items[1].click();
   expect(opened).toBe("mode");
 });

@@ -1,11 +1,9 @@
-import { onMount } from "svelte";
-import type { SettingsSection } from "@canopy/ui/settings";
 import { useGatewayCapabilities } from "#lib/features/desktop/gateway-capabilities.svelte.ts";
 import { memorySettingsPath, pendingHabitCount } from "#lib/features/memory/habit-suggestions.svelte.ts";
 import { useOverview } from "#lib/features/overview/overview-state.svelte.ts";
 import { hasCliUpdates } from "#lib/features/workers/cli-tools.svelte.ts";
 import { useSettings } from "./settings-state.svelte.ts";
-import { desktopSettingsSections, settingsSectionEnabled, settingsSections } from "./sections.ts";
+import { webSettingsSections } from "./sections.ts";
 import { useSettingsRoute } from "./settings-route.ts";
 
 /**
@@ -17,19 +15,7 @@ export function useSettingsSections() {
   const capabilities = useGatewayCapabilities();
   const overview = useOverview();
   const route = useSettingsRoute();
-  let desktop = $state(false);
-
-  onMount(() => {
-    desktop = Boolean(window.canopyDesktop);
-  });
-
-  const sections = $derived<readonly SettingsSection[]>([
-    ...settingsSections.filter(
-      (section) =>
-        settingsSectionEnabled(section.href, settings.enabledModules) && (capabilities?.supports(section.href) ?? true),
-    ),
-    ...(desktop ? desktopSettingsSections : []),
-  ]);
+  const sections = $derived(webSettingsSections(settings.enabledModules, capabilities));
 
   const hinted = $derived(new Set(overview && hasCliUpdates(overview.workers) ? ["/settings/workers"] : []));
 

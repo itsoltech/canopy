@@ -237,13 +237,42 @@ export const settingsSectionMethods = {
   "/settings/import": ["ScanImport", "ListImportCandidates"],
 };
 
-/** Settings sections supplied by the desktop client itself. */
+const desktopSection: SettingsSection = {
+  href: "/settings/desktop",
+  label: "Desktop",
+  icon: "server",
+  group: "Connections",
+  keywords: "desktop local remote worker computer privacy analytics telemetry usage ping gateway",
+};
+
+function accessibilitySection(modules: readonly string[]): SettingsSection {
+  return {
+    href: "/settings/accessibility",
+    label: "Accessibility",
+    icon: "accessible",
+    group: "General",
+    keywords: [
+      "focus indicators keyboard navigation pointer outline ring contrast interface font size text scale",
+      modules.includes("threads") && "diff colors colorblind color blind red green blue orange",
+      modules.includes("bots") && "animated mascots bot animation motion",
+    ]
+      .filter(Boolean)
+      .join(" "),
+  };
+}
+
+/** The guide includes all possible desktop sections and search terms. */
 export const desktopSettingsSections: readonly SettingsSection[] = [
-  {
-    href: "/settings/desktop",
-    label: "Desktop",
-    icon: "server",
-    group: "Connections",
-    keywords: "desktop local remote worker computer privacy analytics telemetry usage ping gateway",
-  },
+  desktopSection,
+  accessibilitySection(["threads", "bots"]),
 ];
+
+/** Put Accessibility beside Appearance and index the controls visible for the enabled modules. */
+export function desktopSettingsNavigation(modules: readonly string[]): SettingsSection[] {
+  return [
+    ...settingsSections.flatMap((section) =>
+      section.href === "/settings/appearance" ? [section, accessibilitySection(modules)] : [section],
+    ),
+    desktopSection,
+  ];
+}

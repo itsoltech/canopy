@@ -23,6 +23,8 @@ Status (2026-11-23): natywne Settings zawiera sekcję Agent tools i sprawdza obs
 
 Status (2026-11-24): ścieżki w tabelach uwzględniają zakładki wewnątrz sekcji web/desktop. Natywne Settings zachowuje własny układ.
 Domyślny font interfejsu web i desktop jest widoczny jako Inter.
+W trybach lokalnym i zdalnym Desktop ma sekcję **Accessibility** z ustawieniami
+fokusu, kontrastu, rozmiaru interfejsu, kolorów diffów i animacji maskotek.
 
 ## Nawigacja
 
@@ -32,8 +34,9 @@ Code obejmuje **Projects**, **Worktrees**, **Diffs**, **Agent environment**,
 **Agent tools** i **Import**.
 Connections obejmuje **Providers**, **GitHub**, **Connectors**, **Proxies**,
 **Workers**, **Network access**, **Devices** i **Linked computers**.
-Ekran **Desktop** dodaje powłoka Electron. Widoczność zależy od aktywnych
-modułów, klienta i możliwości gatewaya.
+Powłoka Electron dodaje **Accessibility** w grupie General, zaraz po Appearance,
+oraz **Desktop** w Connections. Widoczność sekcji zależy od aktywnych modułów,
+klienta i możliwości gatewaya.
 
 Wyszukiwarka sekcji w web/desktop i mobile dopasowuje każde słowo zapytania
 do nazwy lub słów kluczowych, niezależnie od kolejności, wielkości liter,
@@ -43,6 +46,9 @@ oraz synonimy sprzątania: `cleanup` i `clean up` wskazują obie strony,
 a `merged branches` sprzątanie w Worktrees.
 Te same słowa kluczowe są dostępne w palecie poleceń web/desktop;
 paleta zachowuje własny algorytm dopasowania rozmytego.
+W Desktop słowa `focus indicators`, `contrast` i `interface size` wskazują
+Accessibility. `animated mascots` wskazuje tę sekcję przy włączonych botach,
+a `diff colors` i `blue orange` przy włączonych wątkach.
 
 **General → Diagnostics**: karty wszystkich komputerów, metryki RPC i RTT, findings
 oraz osobne granty odczytu przez relay; [diagnostics.md](diagnostics.md).
@@ -137,6 +143,8 @@ są poza katalogiem. [Zgody i zakres](bots.md#harmonogramy-ustawienia-i-boty).
 | Appearance / Typography | Interface font; Interface size | urządzenie | Inter; 14 px | Rodzina i skala typografii interfejsu web/desktop |
 | Appearance / Typography | Monospace font; Monospace size | urządzenie | System mono; 13 px | Kod, diffy, wyjście terminala; podgląd wiadomości, diffu i terminala |
 | Appearance / Typography | Wrap code blocks; Wrap diffs | urządzenie | Off; Off | Zawijanie długich linii na odpowiednich powierzchniach |
+| Accessibility (Desktop) | Focus indicators | urządzenie | Keyboard only | Obrys aktywnej kontrolki podczas nawigacji klawiaturą. Always pokazuje go także po kliknięciu. W trybie Off obrys pozostaje widoczny wyłącznie przy systemowych wymuszonych kolorach. |
+| Accessibility (Desktop) | Contrast, Interface size, Diff colors, Animated mascots | urządzenie | Standard, 14 px, Red & green, On | Te same preferencje co w Appearance i Diffs. Diff colors wymaga włączonego modułu Threads, a Animated mascots modułu Bots. |
 | Diffs / Viewer | Layout | urządzenie | Stacked | Stacked albo side by side; zmiana również na pasku diffu |
 | Diffs / Viewer | Hide whitespace changes | urządzenie | Off | Ukrycie wyłącznie zmian różniących się białymi znakami |
 | Diffs / Viewer | Default file state | urządzenie | Expanded | Początkowy stan pliku; ręczny wybór obowiązuje w zamontowanym widoku |

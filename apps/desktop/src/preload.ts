@@ -78,10 +78,15 @@ const bridge: DesktopBridge = {
     },
   }),
   onNotificationClick: (listener) => subscribe<string>("canopy:notification-click", listener),
-  onOpenRoute: (listener) =>
-    subscribe<string>("canopy:open-route", (path) => {
-      if (isDesktopRoute(path)) listener(path);
-    }),
+  onOpenRoute: (listener) => {
+    const receive = (_event: Electron.IpcRendererEvent, path: string, keyboard?: boolean) => {
+      if (isDesktopRoute(path)) listener(path, keyboard);
+    };
+
+    ipcRenderer.on("canopy:open-route", receive);
+
+    return () => ipcRenderer.removeListener("canopy:open-route", receive);
+  },
   readyForRoutes: () => ipcRenderer.invoke("canopy:routes-ready"),
   startupIcon: `${assets}/icon-192.png`,
   ...(startupVersion && { startupVersion }),

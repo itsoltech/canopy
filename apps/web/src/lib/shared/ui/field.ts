@@ -13,7 +13,7 @@ export const useField = (): FieldContext | undefined => getContext<FieldContext 
 
 /** Text controls (input, select, textarea) share one look; `focus` uses an inset outline. */
 export const controlClasses =
-  "w-full rounded-lg bg-surface px-3 py-2 text-base/6 text-ink outline-1 -outline-offset-1 outline-divider placeholder:text-muted focus:outline-2 focus:-outline-offset-1 focus:outline-accent disabled:cursor-not-allowed disabled:bg-panel disabled:text-muted aria-invalid:outline-rose-500 sm:py-1.5 sm:text-sm/6";
+  "w-full rounded-lg bg-surface px-3 py-2 text-base/6 text-ink outline-1 -outline-offset-1 outline-divider placeholder:text-muted field-focus:outline-2 field-focus:-outline-offset-1 not-aria-invalid:field-focus:outline-accent disabled:cursor-not-allowed disabled:bg-panel disabled:text-muted aria-invalid:outline-rose-500 sm:py-1.5 sm:text-sm/6";
 
 /** Overlay size of `controlClasses` (docs/ui-scale.md): 28px from `sm`, 13px text. */
 export const overlayControlClasses = controlClasses

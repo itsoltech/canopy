@@ -1,5 +1,9 @@
 # Canopy Desktop
 
+Status (2026-11-24): **Settings → Accessibility** udostępnia preferencje fokusu
+i czytelności dla tego profilu Desktop w trybie lokalnym i zdalnym.
+[Ustawienia dostępności](appearance.md#dostępność-w-desktopie)
+
 Status (2026-11-24): **Settings → Projects → Project details** obsługuje zdjęcie
 projektu i kwadratowe kadrowanie we wspólnym interfejsie [web i desktopu](ui-api.md).
 
@@ -335,7 +339,8 @@ jak pozostały bridge, nie przyjmują URL-a, ścieżki ani danych innego kompute
 Renderer zachowuje `connect-src 'self'`. Przepływ UI opisuje [updates.md](updates.md#whats-new-po-aktualizacji).
 Menu „Settings…” (`CmdOrCtrl+,`) pokazuje główne okno i otwiera ostatnią stronę
 ustawień używaną w tym oknie (domyślnie `/settings`). Main wysyła `canopy:open-route`
-wyłącznie dla ścieżek `/settings` i ich podstron; preload oraz web ponawiają walidację.
+wyłącznie dla ścieżek `/settings` i ich podstron. Preload oraz web ponawiają walidację.
+Menu przekazuje też sposób otwarcia, aby tryb **Keyboard only** pokazywał obrys po skrócie klawiaturowym.
 Root layout używa `goto`, więc nakładka Settings zachowuje stronę pod spodem bez
 przeładowania dokumentu. Żądanie czeka na `canopy:routes-ready` po zamontowaniu
 aplikacji; ekran startowy bez działającej aplikacji ignoruje skrót.
