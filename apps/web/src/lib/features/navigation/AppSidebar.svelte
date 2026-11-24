@@ -33,6 +33,9 @@
   import { keybindings } from "#lib/features/commands/keybindings.svelte.ts";
   import { useAddProject } from "#lib/features/projects/add/add-project.svelte.ts";
   import { useGatewayCapabilities } from "#lib/features/desktop/gateway-capabilities.svelte.ts";
+  import UsageReportSummary from "#lib/features/usage/UsageReportSummary.svelte";
+  import WorkersSummary from "#lib/features/workers/WorkersSummary.svelte";
+  import SidebarFooterPopover from "./SidebarFooterPopover.svelte";
   import { footerPopovers } from "./footer-popovers.svelte.ts";
 
   const channel = releaseChannel(CANOPY_VERSION);
@@ -222,18 +225,33 @@
       </span>
     </a>
     {#if capabilities?.supports("/usage") ?? true}
-      <IconButton icon="table-cells" label="Open usage" onclick={onOpenUsage} />
+      <SidebarFooterPopover panel={footer.usage} label="Usage">
+        {#snippet trigger(props)}
+          <IconButton {...props} icon="table-cells" label="Show usage" />
+        {/snippet}
+        <UsageReportSummary
+          onOpenUsage={() => {
+            footer.usage.close();
+            onOpenUsage();
+          }}
+        />
+      </SidebarFooterPopover>
     {/if}
     {#if overview.resyncs > 0 && workerCount !== 1}
-      <a
-        href="/settings/workers"
-        class="flex shrink-0 items-center gap-1.5 rounded-lg px-2 py-1.5 text-sm/5 text-zinc-500 focus-ring hover:bg-zinc-950/5 hover:text-zinc-950 sm:text-xs/5 @max-[16rem]:gap-0 dark:text-zinc-400 dark:hover:bg-white/5 dark:hover:text-white"
-        title="Workers online"
-      >
-        <Icon name="server" class="size-3.5" />
-        <span class="tabular-nums @max-[16rem]:sr-only">{online}/{workerCount}</span>
-        <span class="sr-only">workers online</span>
-      </a>
+      <SidebarFooterPopover panel={footer.workers} label="Workers" class="shrink-0">
+        {#snippet trigger(props)}
+          <button
+            {...props}
+            type="button"
+            aria-label={`Show workers, ${online} of ${workerCount} online`}
+            class="flex items-center gap-1.5 rounded-lg px-2 py-1.5 text-sm/5 text-zinc-500 focus-ring hover:bg-zinc-950/5 hover:text-zinc-950 sm:text-xs/5 @max-[16rem]:gap-0 dark:text-zinc-400 dark:hover:bg-white/5 dark:hover:text-white"
+          >
+            <Icon name="server" class="size-3.5" />
+            <span class="tabular-nums @max-[16rem]:sr-only">{online}/{workerCount}</span>
+          </button>
+        {/snippet}
+        <WorkersSummary onclose={footer.workers.close} />
+      </SidebarFooterPopover>
     {/if}
     <UpdatesIndicator panel={footer.updates} />
     <SidebarUsage panel={footer.providerUsage} />

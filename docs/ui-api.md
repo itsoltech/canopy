@@ -1,5 +1,7 @@
 # API dla UI i architektura frontendu
 
+Status (2026-11-24): stopka sidebara w web i desktopie pokazuje podsumowania Usage i Workers.
+
 Status (2026-11-24): web i desktop łączą subagenta z wątkiem nadrzędnym po
 `Thread.parent_thread_id` w indeksie wszystkich projektów. Obejmuje to delegację
 do **No project** na połączonym komputerze.
@@ -104,7 +106,7 @@ Kompozytor web/desktop utrzymuje dostępne potwierdzenie Full access podczas nad
 Prywatny czat bota pokazuje aktywność tur ze Slacka i rutyn.
 Właściciel ustawia kolejność zakładek i może zatrzymać pracę wybranego modułu.
 Po zamknięciu panelu PR zaplanowane odświeżenie awatarów wykonuje się
-tylko wtedy, gdy inny otwarty widok nadal ich potrzebuje. Stopka sidebara pokazuje tylko jeden z paneli Updates i Provider usage,
+tylko wtedy, gdy inny otwarty widok nadal ich potrzebuje. Stopka sidebara pokazuje tylko jeden z paneli Usage, Workers, Updates i Provider usage,
 ma osobne ikony Settings i Usage oraz samą kropkę statusu połączenia;
 web/desktop wysyła „Continue” jednym kliknięciem z pustego kompozytora istniejącego wątku między turami;
 `InstallCli` przyjmuje opcjonalne UUID próby do korelacji raportów;
@@ -384,13 +386,19 @@ Skrót do Workers pojawia się po wczytaniu pierwszego snapshotu dla zera lub wi
 workerów. Przy dokładnie jednym workerze skrót jest ukryty niezależnie od jego stanu.
 Sekcja Workers jest dostępna z nawigacji Settings.
 W sidebarze węższym niż 16 rem stopka zmniejsza odstępy i zostawia samą ikonę
-workerów, gdy skrót jest widoczny. Licznik pozostaje w dostępnej nazwie linku.
+workerów, gdy skrót jest widoczny. Licznik pozostaje w dostępnej nazwie przycisku.
+Panel Workers pokazuje nazwy i stany workerów ze strumienia overview, najpierw online.
+Przy powtarzających się nazwach dopisuje komputer. Wiersz prowadzi do ustawień workera,
+a „Add worker” otwiera kreator dodawania. Te akcje wymagają obsługi ustawień workerów przez gateway.
 
 Zębatka w stopce sidebara otwiera Settings bezpośrednio.
 Pierwsza synchronizacja z gatewayem nie warunkuje otwarcia Settings.
 Jeśli strona Settings została otwarta bezpośrednio podczas przerwy w połączeniu,
 zamknięcie prowadzi do strony głównej.
-Osobna ikona Usage obok niej otwiera modal, pozostawiając bazową stronę zamontowaną.
+Ikona Usage otwiera podsumowanie tokenów i kosztu w USD za ostatnie 30 dni kalendarzowych UTC.
+Panel pobiera dane przy otwarciu. „Open usage report” otwiera pełny raport nad bieżącą stroną.
+Najechanie na Usage, Workers, Updates lub Provider usage pokazuje jeden panel naraz.
+Aktywacja przycisku przypina panel, a na telefonie otwiera dolny arkusz.
 Host modalu pozostaje w AppShell niezależnie od szerokości sidebara;
 otwarcie na telefonie zamyka nawigację. Starszy gateway bez `GetUsageStats`
 nie pokazuje ikony Usage.
