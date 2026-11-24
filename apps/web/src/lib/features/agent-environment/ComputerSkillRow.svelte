@@ -33,6 +33,8 @@
     onadd?: (() => void) | undefined;
   } = $props();
 
+  const addToLibrary = $derived(group.missingFromLibrary ? onadd : undefined);
+  const addFromSingleCopy = $derived(group.files.length === 1 && addToLibrary);
   const locations = $derived(locationSummary(group.files));
   const first = $derived(group.files[0]!);
   const synced = $derived(needsAttention(first) ? group.files.filter((file) => file.status === "applied") : []);
@@ -68,7 +70,7 @@
     </span>
     {#if locations}<span class="mt-0.5 block text-sm text-muted">{locations}</span>{/if}
   {/snippet}
-  <div class="grid min-w-0 gap-3 pb-4 pl-5">
+  <div class="grid min-w-0 gap-2 pb-3 pl-5">
     {#if group.overlappingAgents.length}
       <p class="text-sm">
         {group.overlappingAgents.join(", ")} can find this name in more than one personal CLI directory.
@@ -78,20 +80,24 @@
       <p class="text-sm text-muted">{group.membership}</p>
     {/if}
     {#each main as file}{@render location(file)}{/each}
-    {#if synced.length}
-      <Disclosure>
-        {#snippet summary()}<span class="text-sm"
-            >Show {synced.length === 1 ? "1 synced location" : `${synced.length} synced locations`}</span
-          >{/snippet}
-        <div class="grid min-w-0 gap-3 pt-3">
-          {#each synced as file}{@render location(file)}{/each}
-        </div>
-      </Disclosure>
-    {/if}
-    {#if ondisable}
-      <div><Button size="sm" disabled={busy} onclick={ondisable}>Disable on this computer</Button></div>
-    {:else if onadd && group.missingFromLibrary}
-      <div><Button size="sm" onclick={onadd}>Add to library</Button></div>
+    {#if synced.length || ondisable || (addToLibrary && !addFromSingleCopy)}
+      <div class="flex flex-wrap items-start gap-x-3 gap-y-1">
+        {#if synced.length}
+          <Disclosure align="center" class="min-w-0 flex-1 basis-40" summaryClass="min-h-8">
+            {#snippet summary()}<span class="text-sm"
+                >Show {synced.length === 1 ? "1 synced location" : `${synced.length} synced locations`}</span
+              >{/snippet}
+            <div class="grid min-w-0 gap-2 pt-1">
+              {#each synced as file}{@render location(file)}{/each}
+            </div>
+          </Disclosure>
+        {/if}
+        {#if ondisable}
+          <Button size="sm" variant="ghost" disabled={busy} onclick={ondisable}>Disable on this computer</Button>
+        {:else if addToLibrary && !addFromSingleCopy}
+          <Button size="sm" onclick={addToLibrary}>Add to library</Button>
+        {/if}
+      </div>
     {/if}
   </div>
 </Disclosure>
@@ -127,16 +133,25 @@
         </div>
       </Disclosure>
     {/if}
-    {#if !waiting && (file.status === "drift" || file.status === "kept")}
+    {#if !waiting && file.owned && (file.status === "drift" || file.status === "kept")}
       <SkillDiff
         {file}
         expected={file.desiredFiles}
         {busy}
         onresolve={onresolve ? (action) => onresolve?.(file, action) : undefined}
       />
-    {/if}
-    {#if canArchive(file) && onarchive}
-      <div><Button size="sm" disabled={busy} onclick={() => onarchive?.(file)}>Archive local copy</Button></div>
+    {:else if !waiting && !file.owned && (addFromSingleCopy || (file.status === "drift" && onresolve) || (canArchive(file) && onarchive))}
+      <div class="flex flex-wrap items-center gap-x-2 gap-y-1">
+        {#if addFromSingleCopy}
+          <Button size="sm" onclick={addFromSingleCopy}>Add to library</Button>
+        {/if}
+        {#if file.status === "drift" && onresolve}
+          <Button size="sm" disabled={busy} onclick={() => onresolve?.(file, "keep")}>Keep local copy</Button>
+        {/if}
+        {#if canArchive(file) && onarchive}
+          <Button size="sm" disabled={busy} onclick={() => onarchive?.(file)}>Archive local copy</Button>
+        {/if}
+      </div>
     {/if}
   </div>
 {/snippet}
