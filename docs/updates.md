@@ -1,7 +1,8 @@
 # Aktualizacje Canopy
 
-Status: opis zaimplementowanego kodu (2026-11-22), w tym raportowania startu i zamykania
-gatewaya oraz etapów przygotowania, pobierania i ponownego łączenia workera,
+Status: opis zaimplementowanego kodu (2026-11-24), w tym kompaktowego powiadomienia po
+aktualizacji, raportowania startu i zamykania gatewaya oraz etapów przygotowania,
+pobierania i ponownego łączenia workera,
 przekazania nadzoru workera
 przed obsługą wątków po aktualizacji, zbiorczego sprawdzania sesji zamkniętych wątków
 po powrocie workera, ograniczenia kanału Nightly
@@ -670,9 +671,12 @@ Nie ma możliwości zdalnego dodania kanału do procesu, który go jeszcze nie z
 ### What's new po aktualizacji
 
 Przy starcie klient zapamiętuje wersję uruchomionej aplikacji i ostatni zakres
-aktualizacji. Zmiana na wyższe SemVer pokazuje zamykaną kartę
-„Updated to …” z akcją „See what's new”; dialog nie otwiera się sam.
-Zamknięcie karty ani restart nie kasują zakresu From … to ….
+aktualizacji. Po przejściu na wyższą wersję SemVer w dolnym rogu pojawia się
+„Updated to …” z numerem wersji, akcją „View changes” i przyciskiem zamknięcia.
+Na wąskim ekranie aplikacja rezerwuje pod treścią miejsce na powiadomienie,
+żeby przyciski kompozytora pozostały dostępne.
+„View changes” otwiera notatki. Ostatni zakres From … to … pozostaje dostępny
+po zamknięciu powiadomienia i po restarcie.
 Pierwsza instalacja, nieznana poprzednia wersja i downgrade tylko ustawiają
 nową bazę, bez pokazywania historii. Buildy development nie zmieniają bazy.
 

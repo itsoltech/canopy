@@ -392,6 +392,7 @@
         <FirstRunIntro />
       {:else if !isSettingsRoute(page.route.id) || page.error}{@render children()}{/if}
     </main>
+    {#if !focused}<WhatsNewHost />{/if}
   </div>
 </div>
 <SettingsOverlay route={children} focused={focused && (setupRoute || showIntroduction)} />
@@ -403,6 +404,5 @@
 {/if}
 <UpdateBanner />
 <WebVersionBanner />
-{#if !focused}<WhatsNewHost />{/if}
 <WorkspaceExit />
 <UsageDialog bind:open={usageOpen} />

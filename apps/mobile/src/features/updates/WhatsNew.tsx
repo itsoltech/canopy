@@ -1,11 +1,11 @@
 import { useState } from "react";
-import { Linking, Text, View } from "react-native";
+import { Linking, Pressable, Text, View } from "react-native";
 import Animated from "react-native-reanimated";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { uniqueEntries } from "@canopy/domain/release/note-range";
 import { Button, IconButton, Sheet } from "../../ui/components";
 import { useMotion } from "../../ui/motion";
-import { styles, useColors } from "../../ui/theme";
+import { styles, useColors, useTypography } from "../../ui/theme";
 import { CANOPY_VERSION } from "../../version";
 import { SettingsDisclosure } from "../settings/SettingsDisclosure";
 import { SettingsGroup, SettingsRow } from "../settings/SettingsGroup";
@@ -32,48 +32,75 @@ export function WhatsNewSettings() {
 export function WhatsNewNotice() {
   const notes = useWhatsNew();
   const c = useColors();
+  const type = useTypography();
   const insets = useSafeAreaInsets();
   const { toast: motion } = useMotion();
 
+  if (!notes.notice) return null;
+
   return (
-    <View
+    <Animated.View
+      entering={motion.entering}
+      exiting={motion.exiting}
       pointerEvents="box-none"
       style={{
-        position: "absolute",
-        left: insets.left + 16,
-        right: insets.right + 16,
-        bottom: insets.bottom + 12,
+        alignSelf: "flex-end",
         alignItems: "flex-end",
+        maxWidth: "100%",
+        paddingLeft: insets.left + 16,
+        paddingRight: insets.right + 16,
+        marginBottom: insets.bottom + 12,
+        marginTop: 4,
       }}
     >
-      {notes.notice && (
-        <Animated.View
-          entering={motion.entering}
-          exiting={motion.exiting}
-          style={[
-            styles.row,
-            {
-              width: "100%",
-              maxWidth: 380,
-              alignItems: "flex-start",
-              borderRadius: 12,
-              borderWidth: 1,
-              borderColor: c.line,
-              backgroundColor: c.surface,
-              padding: 12,
-            },
-          ]}
-        >
-          <View style={{ flex: 1, gap: 8 }}>
-            <Text accessibilityLiveRegion="polite" style={[styles.label, { color: c.text }]}>
-              Updated to {CANOPY_VERSION}
+      <View
+        style={[
+          styles.row,
+          {
+            maxWidth: "100%",
+            borderRadius: 12,
+            borderWidth: 1,
+            borderColor: c.line,
+            backgroundColor: c.surface,
+            paddingLeft: 12,
+            paddingRight: 8,
+          },
+        ]}
+      >
+        <View style={{ flexDirection: "row", alignItems: "center", flexShrink: 1, flexWrap: "wrap", columnGap: 6 }}>
+          <Text
+            accessibilityLiveRegion="polite"
+            style={[type.small, { color: c.text, flexShrink: 1, paddingVertical: 4 }]}
+          >
+            Updated to {CANOPY_VERSION}
+          </Text>
+          <Pressable
+            accessibilityRole="button"
+            onPress={notes.show}
+            style={({ pressed }) => ({
+              minHeight: 48,
+              minWidth: 48,
+              maxWidth: "100%",
+              justifyContent: "center",
+              paddingVertical: 4,
+              borderRadius: 6,
+              backgroundColor: pressed ? c.pressed : "transparent",
+            })}
+          >
+            <Text style={[type.small, { color: c.soft, textAlign: "center", textDecorationLine: "underline" }]}>
+              View changes
             </Text>
-            <Button title="See what's new" size="sm" onPress={notes.show} />
-          </View>
-          <IconButton icon="x-mark" label="Dismiss update notice" size="sm" onPress={notes.dismiss} />
-        </Animated.View>
-      )}
-    </View>
+          </Pressable>
+        </View>
+        <IconButton
+          icon="x-mark"
+          label="Dismiss update notice"
+          size="sm"
+          style={{ alignSelf: "flex-start", marginTop: 8 }}
+          onPress={notes.dismiss}
+        />
+      </View>
+    </Animated.View>
   );
 }
 
