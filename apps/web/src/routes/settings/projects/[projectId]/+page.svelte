@@ -27,6 +27,7 @@
   $effect(() => {
     if (route.url.hash !== "#workspaces" || !workspaces) return;
     const target = workspaces;
+
     const frame = requestAnimationFrame(() => {
       target.scrollIntoView({ block: "start" });
       target.focus({ preventScroll: true });
