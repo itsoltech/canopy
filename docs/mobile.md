@@ -1,5 +1,10 @@
 # Canopy na iOS i Android
 
+Status (2026-11-24): pasek boczny Threads używa skali typografii i znaków projektów z web/desktop.
+Nagłówki Working i Snoozed mają liczniki, linie oraz wspólne rozwijanie i zwijanie.
+Uśpione wątki mają przygaszone tytuły i znaki projektów. Przełącznik Threads/Bots pokazuje
+liczby pracujących wątków i botów, a pasek wyszukiwania udostępnia Add project.
+
 Status (2026-11-24): w prywatnym czacie długie przytrzymanie zapisanej odpowiedzi bota
 otwiera arkusz z reakcjami emoji. Dotknięcie reakcji w arkuszu dodaje ją lub usuwa.
 Własną reakcję można też usunąć pod wiadomością. Pod wiadomościami użytkownika
@@ -84,7 +89,7 @@ Na szerokim oknie iOS i Androida sidebar i rozmowa przesuwają wspólną krawęd
 podczas zwijania i rozwijania.
 Uchwyt na tej krawędzi zmienia szerokość sidebara i zapisuje ją lokalnie.
 Pasek wątków ma osobne przyciski sortowania i filtrowania po projekcie.
-„New thread” jest ostatnią akcją w wierszu wyszukiwania, tak jak w web i desktop.
+Po nich są „Add project” i „New thread”, w tej samej kolejności co w web i desktop.
 Usunięcie otwartego bota z paska bocznego lub jego ustawień zamyka jego rozmowę.
 Licznik i akcja Update all na telefonie wynikają z planu instalacji Canopy.
 Komunikat o restarcie znika po potwierdzeniu powrotu gatewaya lub wersji docelowej.
@@ -114,8 +119,7 @@ Powiadomienia push mogą pokazywać podglądy odszyfrowywane na telefonie.
 Relay Canopy może aktywować się automatycznie po atestacji aplikacji.
 Aplikacja automatycznie ponawia atestację przed wygaśnięciem poświadczenia.
 W ustawieniach Network access można zwiększyć limit załącznika do 40 MiB na plik.
-Na liście wątków wiersze z pierścieniem pracy pokazują sam czas jej trwania.
-Wiersze bez pierścienia zachowują etykietę „Working”.
+Na liście wątków stan pracy pokazuje etykietę „Working” z czasem, tak jak w web i desktop.
 W wiadomościach agenta i rozwiniętym rozumowaniu można zaznaczyć fragment do skopiowania lub zacytowania.
 Właściciel może potwierdzić Full access dla zadania uruchamiającego nowy wątek przy każdym wykonaniu.
 Gest przewijania wątku doczytuje najwyżej jedną stronę historii. Przy zgodnych
@@ -2438,8 +2442,7 @@ Callback klatek rejestruje się dopiero po aktywacji przeciągania i wyłącza p
 zakończeniu lub anulowaniu. Sam wybrany tryb Custom nie utrzymuje zegara UI;
 spóźniony start po zakończeniu gestu ponownie sprawdza aktywny wiersz.
 
-Wiersz z pierścieniem pracy pokazuje po prawej sam czas, np. „10m”. Wiersze grupowane
-bez pierścienia i etykiety dostępności zachowują pełne „Working 10m”. Czas z `formatAge`
+Wiersz podczas pracy pokazuje po prawej etykietę i czas, np. „Working 10m”. Czas z `formatAge`
 pochodzi z `lastActivityAt`, a w razie jego braku z `createdAt`. Tytuł i metadane
 zachowują zwykły kontrast; sam stan pracy nie dodaje tła. W szerokim układzie tło
 zaznaczenia wskazuje tylko otwarty wątek, także podczas pracy. Pierścień pracy

@@ -2,12 +2,13 @@ import type { ReactNode } from "react";
 import { Pressable, StyleSheet, Text, View } from "react-native";
 import type { ui } from "@canopy/contracts";
 import type { SidebarEntry } from "@canopy/domain/sidebar-entries";
+import { threadRowMarks } from "@canopy/ui/thread-row";
 import { useDevicePreferences } from "../settings/device-preferences";
 import { ProjectMark } from "../../ui/ProjectMark";
 import { Icon } from "../../ui/Icon";
 import { Chevron } from "../../ui/MotionViews";
 import { useColors } from "../../ui/theme";
-import { useSidebarTypography } from "./sidebar-scale";
+import { sidebarRowPadding, useSidebarTypography } from "./sidebar-scale";
 
 /** Flat list cells share continuous guides without giving up virtualization or drag geometry. */
 export function SidebarNesting({ depth, children }: { depth?: 1 | 2; children: ReactNode }) {
@@ -54,7 +55,9 @@ export function SidebarGroupHeading({
         style={({ pressed }) => [s.heading, { backgroundColor: pressed ? c.inset : "transparent" }]}
       >
         {entry.groupKind === "project" ? (
-          <ProjectMark project={project} name={entry.heading ?? "?"} size={20} />
+          <View style={s.projectMark}>
+            <ProjectMark project={project} name={entry.heading ?? "?"} size={threadRowMarks.icon} />
+          </View>
         ) : (
           <Icon name="git-fork" size={14} color={c.muted} />
         )}
@@ -73,9 +76,10 @@ const s = StyleSheet.create({
   heading: {
     flexDirection: "row",
     alignItems: "center",
-    paddingHorizontal: 12,
+    paddingHorizontal: sidebarRowPadding,
     minHeight: 48,
-    gap: 8,
+    gap: 6,
     borderRadius: 8,
   },
+  projectMark: { width: threadRowMarks.slot, alignItems: "center" },
 });

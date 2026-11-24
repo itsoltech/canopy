@@ -28,6 +28,7 @@ interface TreeProps {
   projects: ui.Project[];
   workers: ui.Worker[];
   archived?: boolean;
+  snoozed?: boolean;
   showSides?: boolean;
   reorder?: boolean;
   groupedProject?: boolean;
@@ -43,6 +44,7 @@ const openTree = (current: ui.Thread | undefined) => current && (isSide(current)
 const sameTree = (a: TreeProps, b: TreeProps) =>
   a.thread === b.thread &&
   a.archived === b.archived &&
+  a.snoozed === b.snoozed &&
   a.showSides === b.showSides &&
   a.reorder === b.reorder &&
   a.groupedProject === b.groupedProject &&
@@ -64,6 +66,7 @@ function SidebarThreadTree({
   projects,
   workers,
   archived = false,
+  snoozed = false,
   showSides = false,
   reorder = false,
   groupedProject = false,
@@ -82,6 +85,7 @@ function SidebarThreadTree({
       <ThreadArchiveSwipe thread={thread}>
         <SidebarThread
           thread={thread}
+          snoozed={snoozed}
           project={projects.find((p) => p.id === thread.projectId)}
           worker={workers.find((w) => w.id === thread.workerId)}
           subagentsNeedingInput={archived ? [] : subagentsNeedingInput}
@@ -111,7 +115,7 @@ function SidebarThreadTree({
             <View style={{ borderLeftWidth: 1, borderColor: c.rule, paddingLeft: 6 }}>
               {sides.active.map((side) => (
                 <ThreadArchiveSwipe key={side.id} thread={side}>
-                  <SidebarSideThread thread={side} />
+                  <SidebarSideThread thread={side} snoozed={snoozed} />
                 </ThreadArchiveSwipe>
               ))}
               {sides.previous.length > 0 && (
@@ -130,7 +134,7 @@ function SidebarThreadTree({
                   <Expand open={previousOpen}>
                     {sides.previous.map((side) => (
                       <ThreadArchiveSwipe key={side.id} thread={side}>
-                        <SidebarSideThread thread={side} previous />
+                        <SidebarSideThread thread={side} snoozed={snoozed} previous />
                       </ThreadArchiveSwipe>
                     ))}
                   </Expand>
@@ -144,7 +148,15 @@ function SidebarThreadTree({
   );
 }
 
-function SidebarSideThread({ thread, previous = false }: { thread: ui.Thread; previous?: boolean }) {
+function SidebarSideThread({
+  thread,
+  previous = false,
+  snoozed = false,
+}: {
+  thread: ui.Thread;
+  previous?: boolean;
+  snoozed?: boolean;
+}) {
   const c = useColors("sidebar-list");
   const type = useSidebarTypography();
   const home = useComputerHome(thread.nodeId);
@@ -153,17 +165,32 @@ function SidebarSideThread({ thread, previous = false }: { thread: ui.Thread; pr
   const { id } = useGlobalSearchParams<{ id?: string }>();
   const active = layout.wide && pathname.startsWith("/thread/") && id === thread.id;
   const [actions, setActions] = useState<boolean>();
+  const [focused, setFocused] = useState(false);
+  const [hovered, setHovered] = useState(false);
 
-  const label = home.away ? "Read-only" : previous ? formatAge(thread.archivedAt) : threadRowLabel(thread);
+  const label =
+    snoozed && !previous
+      ? "Snoozed"
+      : home.away
+        ? "Read-only"
+        : previous
+          ? formatAge(thread.archivedAt)
+          : threadRowLabel(thread);
+
+  const unread = !snoozed && thread.markedUnread;
 
   return (
     <>
       <Pressable
         accessibilityRole="button"
-        accessibilityLabel={`${thread.title || "Untitled thread"}${label ? `, ${label}` : ""}${home.away ? `, ${home.reason}` : ""}${thread.markedUnread ? ", Unread" : ""}`}
+        accessibilityLabel={`${thread.title || "Untitled thread"}${label ? `, ${label}` : ""}${home.away ? `, ${home.reason}` : ""}${unread ? ", Unread" : ""}`}
         accessibilityState={{ selected: active }}
         onPress={() => void layout.openThread(thread.id)}
         onLongPress={previous ? undefined : () => setActions(true)}
+        onFocus={snoozed ? () => setFocused(true) : undefined}
+        onBlur={snoozed ? () => setFocused(false) : undefined}
+        onHoverIn={snoozed ? () => setHovered(true) : undefined}
+        onHoverOut={snoozed ? () => setHovered(false) : undefined}
         accessibilityHint={previous ? undefined : "Hold for thread actions."}
         accessibilityActions={previous ? undefined : [{ name: "longpress", label: "Thread actions" }]}
         onAccessibilityAction={(event) => {
@@ -176,34 +203,50 @@ function SidebarSideThread({ thread, previous = false }: { thread: ui.Thread; pr
             borderRadius: 8,
             paddingHorizontal: 8,
             opacity: home.away ? 0.55 : 1,
-            backgroundColor: pressed || active ? c.inset : !home.away && isCalm(thread) ? c.well : "transparent",
+            backgroundColor:
+              pressed || active ? c.inset : !snoozed && !home.away && isCalm(thread) ? c.well : "transparent",
           },
         ]}
       >
-        <SidebarActivity
-          thread={thread}
-          away={home.away}
-          size={16}
-          idle={
-            <Icon
-              name={thread.forkSourceThreadId ? "square-2-stack" : "arrow-turn-down-right"}
+        {({ pressed }) => (
+          <>
+            <SidebarActivity
+              thread={thread}
+              away={home.away}
+              snoozed={snoozed}
               size={16}
-              color={c.muted}
+              idle={
+                <Icon
+                  name={thread.forkSourceThreadId ? "square-2-stack" : "arrow-turn-down-right"}
+                  size={16}
+                  color={c.muted}
+                />
+              }
             />
-          }
-        />
-        <Text numberOfLines={1} style={[type.title, { flex: 1, minWidth: 0, color: c.body }]}>
-          {thread.title || "Untitled thread"}
-        </Text>
-        <View style={{ width: 96 }}>
-          <SidebarThreadStatus
-            thread={thread}
-            label={home.away ? "Read-only" : undefined}
-            previous={previous}
-            hasWorkingSpinner
-          />
-        </View>
-        <SidebarUnread unread={thread.markedUnread} />
+            <Text
+              numberOfLines={1}
+              style={[
+                type.title,
+                {
+                  flex: 1,
+                  minWidth: 0,
+                  color: snoozed && !(active || actions || focused || hovered || pressed) ? c.muted : c.body,
+                },
+              ]}
+            >
+              {thread.title || "Untitled thread"}
+            </Text>
+            <View style={{ width: 96 }}>
+              <SidebarThreadStatus
+                thread={thread}
+                label={home.away && !snoozed ? "Read-only" : undefined}
+                previous={previous}
+                snoozed={snoozed}
+              />
+            </View>
+            <SidebarUnread unread={unread} />
+          </>
+        )}
       </Pressable>
       {actions !== undefined && (
         <ThreadActionsSheet thread={thread} visible={actions} onClose={() => setActions(false)} />

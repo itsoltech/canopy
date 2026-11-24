@@ -1,7 +1,7 @@
 # Projekty, wątki i wątki boczne
 
-Status (2026-11-24): web i desktop rozdzielają sekcje Working i Snoozed liniami w nagłówkach
-i przygaszają uśpione wątki.
+Status (2026-11-24): web, desktop, iOS i Android rozdzielają sekcje Working i Snoozed liniami
+w nagłówkach i przygaszają uśpione wątki.
 
 Status (2026-11-24): w menu wątku w web i desktop można uśpić wątek na godzinę
 jednym kliknięciem lub wybrać inny termin z podmenu. Przycisk i strzałka mają
@@ -12,9 +12,8 @@ mają ten sam rozmiar co na przycisku pickera projektów w kompozytorze.
 Wskaźnik aktywności głównego wątku również ma 16 px. Znak projektu i wskaźnik
 dzieli od nazwy projektu 6 px.
 
-Status (2026-11-24): w web i desktop zakładki Threads i Bots pokazują liczbę elementów, które
-właśnie pracują. Threads pokazuje niezobaczone wyniki przy wątkach na liście. Natywny mobile
-jeszcze nie pokazuje liczby pracujących elementów w przełączniku.
+Status (2026-11-24): w web, desktop, iOS i Androidzie zakładki Threads i Bots pokazują liczbę
+elementów, które właśnie pracują. Threads pokazuje niezobaczone wyniki przy wątkach na liście.
 
 Status (2026-11-24): w web i desktop oznaczenie wyniku w sidebarze znika po
 potwierdzeniu odczytu widocznego końca rozmowy.
@@ -248,7 +247,7 @@ Szczegóły: [mobile.md](mobile.md).
 
 ## Praca w zakładkach Threads i Bots
 
-W web i desktop przełącznik **Threads | Bots** nad listą pokazuje przy etykiecie spinner
+Przełącznik **Threads | Bots** nad listą pokazuje przy etykiecie spinner
 i liczbę elementów, które w tej chwili pracują. Oznaczenie jest widoczne na obu zakładkach,
 także na otwartej, i znika, gdy nic nie pracuje. Threads liczy drzewa wątków, w których
 trwa lub startuje tura wątku głównego albo bocznego (także subagenta); drzewo liczy się raz,
@@ -260,8 +259,9 @@ wykonaniem (`Bot.executing`); oczekująca zgoda wstrzymuje je tak samo jak w wie
 Spinner i liczba stoją przed etykietą, w kolorze pracy z wierszy wątków. Za etykietą
 nieaktywnej zakładki pojawia się liczba nieprzeczytanych wiadomości botów lub bursztynowa
 kropka „wymaga Ciebie”. Niezobaczone wyniki są oznaczone przy wątkach na liście. Żadne
-oznaczenie nie przesuwa etykiety. W sidebarze węższym niż 17rem zostaje sam spinner;
-liczba pozostaje w podpowiedzi i w tekście dla czytnika ekranu („Threads, 2 working”).
+oznaczenie nie przesuwa etykiety. W sidebarze węższym niż 17 rem w web/desktop lub
+272 dp w aplikacji mobilnej zostaje sam spinner. Liczba pozostaje w tekście dla
+czytnika ekranu („Threads, 2 working”) oraz w podpowiedzi web/desktop.
 Oznaczenie pojawia się i znika animacją pop, z samą zmianą krycia przy ograniczonym ruchu.
 
 ## Usypianie
@@ -276,13 +276,16 @@ w strefie urządzenia, konkretną datę i czas albo **Until I wake it**. Termin 
 zmienić, a **Wake thread** przywraca wątek od razu. Wątek z terminem sam wraca na
 listę po jego upływie, również po restarcie gatewaya.
 
-W web/desktop nagłówki **Snoozed** i **Working** mają strzałkę rozwijania po lewej
+Nagłówki **Snoozed** i **Working** mają strzałkę rozwijania po lewej
 i licznik w nawiasie po nazwie. Za licznikiem biegnie cienka linia, a nagłówek
 Working ma kolor nawiązujący do wskaźnika pracy. Uśpione wątki mają przygaszone
-tytuły i znaki projektów. Otwarty wątek oraz wiersz pod kursorem, z fokusem
-lub otwartym menu mają zwykłe wyróżnienie tytułu i znaku projektu.
+tytuły i znaki projektów oraz status „Snoozed”. Otwarty wątek oraz wiersz pod kursorem,
+z fokusem lub otwartym menu mają zwykłe wyróżnienie tytułu i znaku projektu.
+Na ekranie dotykowym przyciśnięcie wiersza również przywraca zwykły kontrast.
 Każda sekcja rozwija i zwija listę jako całość.
 Przy ograniczonym ruchu przełączenie jest natychmiastowe.
+Wyszukiwanie domyślnie rozwija **Snoozed**. Wyczyszczenie zapytania przywraca
+poprzednie ustawienie tej sekcji.
 
 Uśpiony wątek pozostaje dostępny z sekcji, wyszukiwania i bezpośredniego linku.
 Można go czytać, wysyłać wiadomości, odpowiadać na pytania i zatwierdzać prośby.

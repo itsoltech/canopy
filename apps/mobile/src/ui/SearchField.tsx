@@ -14,6 +14,7 @@ export function SearchField({
   value,
   onChange,
   bare = false,
+  compact = false,
   ref,
   autoFocus = false,
   mutedColor,
@@ -25,6 +26,7 @@ export function SearchField({
   onChange: (value: string) => void;
   /** Without the ring and fill (the sidebar's search); focus still shows the brand ring. */
   bare?: boolean;
+  compact?: boolean;
   ref?: Ref<TextInputInstance>;
   autoFocus?: boolean;
   mutedColor?: string;
@@ -65,7 +67,7 @@ export function SearchField({
         autoCorrect={false}
         autoCapitalize="none"
         returnKeyType="search"
-        style={[styles.body, { flex: 1, minWidth: 0, color: c.text, paddingVertical: 8 }]}
+        style={[compact ? styles.meta : styles.body, { flex: 1, minWidth: 0, color: c.text, paddingVertical: 8 }]}
       />
       {(!bare || value.length > 0) && (
         <View style={{ width: bare ? 32 : 36, alignItems: "center" }}>

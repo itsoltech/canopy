@@ -6,7 +6,7 @@ import { Button, Sheet } from "../../ui/components";
 import { SettingsGroup, SettingsRow } from "./SettingsGroup";
 import { ResourceState, useSettingsResource } from "./resource";
 import { Skeleton, SkeletonScope } from "../../ui/Skeleton";
-import { AddProject } from "./AddProject";
+import { AddProjectSheet } from "./AddProject";
 import { ProjectSettingsRow } from "./ProjectSettingsRow";
 import { ProjectDetailsSheet } from "./ProjectDetailsSheet";
 
@@ -16,7 +16,6 @@ export function ProjectSettings() {
   const { projects: records, projectChoices, loaded } = useOverview();
   const resource = useSettingsResource("GetSettings", (api) => api.getSettings({}));
   const [adding, setAdding] = useState(false);
-  const [addingProject, setAddingProject] = useState(false);
   const [selectedId, setSelectedId] = useSelectedProject();
   const focused = useIsFocused();
   const projects = projectChoices.filter((project) => project.kind !== "scratch" && !project.archivedAt);
@@ -47,9 +46,7 @@ export function ProjectSettings() {
           />
         )}
       </SettingsGroup>
-      <Sheet title="Add project" scroll={false} visible={adding} onClose={() => !addingProject && setAdding(false)}>
-        {adding && <AddProject onBusy={setAddingProject} onSaved={() => setAdding(false)} />}
-      </Sheet>
+      <AddProjectSheet visible={adding} onClose={() => setAdding(false)} />
       <Sheet
         title={selected?.name ?? "Project"}
         visible={!!selected && focused}

@@ -3,7 +3,7 @@ import { ScrollView, Text, View } from "react-native";
 import { create } from "@bufbuild/protobuf";
 import { ui } from "@canopy/contracts";
 import { useOverview } from "../../state/overview";
-import { IconButton, Notice } from "../../ui/components";
+import { IconButton, Notice, Sheet } from "../../ui/components";
 import { useColors, useTypography } from "../../ui/theme";
 import { useWorkerPresence } from "../computers/presence";
 import { useWorkerOptions } from "../computers/worker-options";
@@ -11,6 +11,16 @@ import { useAddProject } from "./use-add-project";
 import { DirectoryPicker } from "./DirectoryPicker";
 import { NewProjectFields } from "./NewProjectFields";
 import { ProjectChoiceRow, ProjectSourceChoices, projectSources, type ProjectSource } from "./ProjectSourceChoices";
+
+export function AddProjectSheet({ visible, onClose }: { visible: boolean; onClose: () => void }) {
+  const [busy, setBusy] = useState(false);
+
+  return (
+    <Sheet title="Add project" scroll={false} visible={visible} onClose={() => !busy && onClose()}>
+      {visible && <AddProject onBusy={setBusy} onSaved={onClose} />}
+    </Sheet>
+  );
+}
 
 /** The same worker → source → destination flow as the desktop project picker. */
 export function AddProject({ onSaved, onBusy }: { onSaved: () => void; onBusy: (busy: boolean) => void }) {
