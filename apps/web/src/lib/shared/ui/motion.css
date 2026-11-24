@@ -479,6 +479,7 @@
   transition: min-height var(--duration-slow) var(--ease-smooth-out);
 }
 .t-composer-slot[data-compact],
+.t-composer-slot:has([data-feed-edge][data-compact]),
 .t-composer-slot:has([data-pending-decision]) {
   min-height: 0;
   transition-duration: var(--duration-medium);
@@ -525,12 +526,15 @@
 }
 .t-composer-editor {
   padding: --spacing(3.5) --spacing(4) 0;
-  transition: padding-bottom var(--duration-slow) var(--ease-smooth-out);
+  transition: padding-block var(--duration-slow) var(--ease-smooth-out);
 }
 [data-compact] > .t-composer-editor {
   padding-right: calc(var(--composer-send-width) + --spacing(6));
-  padding-bottom: --spacing(3.5);
+  padding-block: --spacing(4);
   transition-duration: var(--duration-medium);
+  @variant sm {
+    padding-block: --spacing(3.5);
+  }
 }
 /* Summary strips stay visible; only their disclosure bodies fold. Keep the ring outside
    ComposerFold's clipping box and retain the existing top snippet/stack API. */

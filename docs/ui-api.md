@@ -1,5 +1,8 @@
 # API dla UI i architektura frontendu
 
+Status (2026-11-24): pusty kompozytor istniejącego wątku w web i desktopie
+pokazuje tekst i główną akcję w jednym wierszu.
+
 Status (2026-11-24): stopka sidebara w web i desktopie pokazuje podsumowania Usage i Workers.
 
 Status (2026-11-24): web i desktop łączą subagenta z wątkiem nadrzędnym po
@@ -2068,7 +2071,12 @@ Status: **zaimplementowane na `dev`** (2026-11-15), w tym adaptacyjny układ zad
 i przycisku powrotu przy widocznej krawędzi composera oraz izolacja zapętlonych animacji
 od zwijania. Dostępność w kanałach określają wydania.
 
-Kompozytor wątku zwija się po celowym przewinięciu w górę o co najmniej 96 px, gdy od końca dzieli co najmniej 192 px. Histereza utrzymuje wąski widok aż do powrotu na dół (wspólny próg feedu: 8 px) albo interakcji z kompozytorem. Nowy fokus, kliknięcie edytora, pisanie, upuszczenie/wklejenie pliku, otwarcie kontrolek i „Jump to latest” rozwijają pole. Celowe przewijanie ma pierwszeństwo przed istniejącym fokusem; edytor pozostaje zamontowany i zachowuje fokus również na telefonie.
+Na końcu rozmowy pusty edytor bez fokusu mieści się w jednym wierszu z przyciskiem
+Continue lub Stop. Fokus, przeciąganie pliku albo szkic rozwija pole i pasek narzędzi.
+Po opuszczeniu pustego pola wraca wiersz. W trybie kompaktowym miejsce pod edytorem
+na komunikat powłoki zwija się razem z paskiem narzędzi.
+
+Kompozytor wątku zwija się po celowym przewinięciu w górę o co najmniej 96 px, gdy od końca dzieli co najmniej 192 px. Histereza utrzymuje wąski widok aż do powrotu na dół (wspólny próg feedu: 8 px) albo interakcji z kompozytorem. Nowy fokus, kliknięcie edytora, pisanie, upuszczenie lub wklejenie pliku i otwarcie kontrolek rozwijają pole. Przycisk „Jump to latest” przywraca układ właściwy dla końca rozmowy. Celowe przewijanie ma pierwszeństwo przed istniejącym fokusem. Edytor pozostaje zamontowany i zachowuje fokus również na telefonie.
 
 Sterowanie postępem, kończenie i cofanie zwijania obejmuje tylko oczekujące przejścia
 `CSSTransition` o skończonym czasie końca. Zapętlone animacje potomków, np. spinner
