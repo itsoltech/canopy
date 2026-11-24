@@ -18,9 +18,75 @@ import { Journal } from "../../journal/index.ts";
 import { projectSecretGuard, bindProjectSecretFilter } from "../../runtime/project-secret-guard.ts";
 import { projectSecretModel } from "../fixtures/project-secret-model.ts";
 import { DEFAULT_NATIVE_TOOL_POLICY } from "../native-tools.ts";
+import { redactToolOutput } from "../secret-tool-output.ts";
+import { claudeSecretHooks } from "./secret-hooks.ts";
 import { ClaudeThreads } from "./threads.ts";
 
 const executable = Bun.which("claude");
+
+test("Claude redacts nested tool output keys and keeps both values when redacted keys collide", async () => {
+  const threadId = crypto.randomUUID();
+  const value = `fixture-${crypto.randomUUID()}`;
+
+  const unbind = bindProjectSecretFilter(threadId, {
+    values: () => [value],
+    retains: () => false,
+    fence: () => {},
+  });
+
+  const session = claudeSecretHooks(threadId, threadId, () => false);
+
+  try {
+    const safe = { content: [{ metadata: { status: "ok" } }] };
+    expect(redactToolOutput(safe, projectSecretGuard(threadId).redact)).toBe(safe);
+    const postToolUse = session.hooks.PostToolUse[0]!.hooks[0]!;
+
+    const result = await postToolUse(
+      {
+        hook_event_name: "PostToolUse",
+        session_id: threadId,
+        transcript_path: "",
+        cwd: "",
+        tool_name: "mcp__fixture__nested",
+        tool_use_id: "fixture-use",
+        tool_input: {},
+        tool_response: {
+          content: [
+            {
+              metadata: {
+                "key-[REDACTED]": { label: "existing" },
+                [`key-${value}`]: { label: `value-${value}` },
+                [`flag-${value}`]: true,
+              },
+            },
+          ],
+        },
+      },
+      "fixture-use",
+      { signal: AbortSignal.timeout(1_000) },
+    );
+
+    expect(JSON.stringify(result).includes(value)).toBe(false);
+    expect(result).toEqual({
+      hookSpecificOutput: {
+        hookEventName: "PostToolUse",
+        updatedToolOutput: {
+          content: [
+            {
+              metadata: {
+                "key-[REDACTED]": [{ label: "existing" }, { label: "value-[REDACTED]" }],
+                "flag-[REDACTED]": true,
+              },
+            },
+          ],
+        },
+      },
+    });
+  } finally {
+    session.close();
+    unbind();
+  }
+});
 
 test.skipIf(!executable || process.platform === "win32")(
   "Claude makes a project grant available to the first tool and redacts normal Bash output and errors through resume",
