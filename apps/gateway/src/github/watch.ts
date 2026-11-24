@@ -179,8 +179,7 @@ export async function pollMergeArchivePullRequests(prs: GitHubPullRequests, ids:
     try {
       if (refresh) {
         if (!(await prs.accounts.threadsEnabled())) return;
-        const pr = await prs.accounts.run((s) => s.prOwned(prs.accounts.owner, id));
-        await prs.load(pr.repository_name, pr.number, true, true);
+        await prs.get(id, true, true);
       }
 
       await poll(prs, id, p);

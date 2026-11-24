@@ -92,6 +92,11 @@ export function githubPullRequests(sql: SqlClient.SqlClient) {
   return {
     prThread: thread,
     prLinkedThreads: linked,
+    prNewestSummaryChanged: (owner: string, id: string) => sql<{ id: string }>`
+      SELECT t.id FROM threads t JOIN github_pr_projection_summaries s
+        ON s.owner_user_id=t.owner_user_id AND s.id=(t.newest_pull_request->'ref'->>'id')::uuid
+      WHERE t.owner_user_id=${owner}::uuid AND t.id=${id}::uuid AND t.deleted_at IS NULL
+        AND t.newest_pull_request IS DISTINCT FROM s.summary`,
     prProject: (owner: string, id: string, pr?: string) =>
       sql.withTransaction(
         Effect.gen(function* () {
