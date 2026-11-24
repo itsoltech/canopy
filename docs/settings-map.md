@@ -22,6 +22,7 @@ Dostępność wydań według [release.md](release.md).
 Status (2026-11-23): natywne Settings zawiera sekcję Agent tools i sprawdza obsługę sekcji przez sparowany gateway.
 
 Status (2026-11-24): ścieżki w tabelach uwzględniają zakładki wewnątrz sekcji web/desktop. Natywne Settings zachowuje własny układ.
+Domyślny font interfejsu web i desktop jest widoczny jako Inter.
 
 ## Nawigacja
 
@@ -133,7 +134,7 @@ są poza katalogiem. [Zgody i zakres](bots.md#harmonogramy-ustawienia-i-boty).
 | Appearance / Interface | Context display | urządzenie | Off | Off / Circle / Text / Bar we wszystkich wątkach web/desktop; ostatni raport zajętości i limitu kontekstu, szczegóły po hoverze, fokusie klawiatury lub dotknięciu. Nie uwzględnia szkicu; brak pomiaru ukrywa wskaźnik, zachowując miejsce. Reset pola i całej strony przywraca Off |
 | Appearance / Interface | Render math | urządzenie | On | LaTeX w wiadomościach; wyłączenie pokazuje źródło |
 | Appearance / Interface | Animated mascots | urządzenie | On | Istniejąca animacja botów, respektuje reduced motion |
-| Appearance / Typography | Interface font; Interface size | urządzenie | Canopy (Inter); 14 px | Rodzina i skala typografii interfejsu web/desktop |
+| Appearance / Typography | Interface font; Interface size | urządzenie | Inter; 14 px | Rodzina i skala typografii interfejsu web/desktop |
 | Appearance / Typography | Monospace font; Monospace size | urządzenie | System mono; 13 px | Kod, diffy, wyjście terminala; podgląd wiadomości, diffu i terminala |
 | Appearance / Typography | Wrap code blocks; Wrap diffs | urządzenie | Off; Off | Zawijanie długich linii na odpowiednich powierzchniach |
 | Diffs / Viewer | Layout | urządzenie | Stacked | Stacked albo side by side; zmiana również na pasku diffu |

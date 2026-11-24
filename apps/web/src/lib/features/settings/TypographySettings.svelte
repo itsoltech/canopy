@@ -6,8 +6,40 @@
   import Markdown from "#lib/shared/ui/markdown/Markdown.svelte";
   import Diff from "#lib/features/threads/components/Diff.svelte";
   import Terminal from "#lib/shared/ui/Terminal.svelte";
+  import { installedFontAccess, installedFonts, type FontDiscovery } from "./local-fonts.ts";
 
   const settings = useSettings();
+  let discovery = $state<FontDiscovery>({ state: "idle" });
+
+  async function discoverFonts(requestAccess = false) {
+    if (discovery.state === "loading" || discovery.state === "ready") return;
+    discovery = { state: "loading" };
+
+    if (!requestAccess) {
+      const access = await installedFontAccess();
+
+      if (access !== "granted") {
+        discovery = { state: access };
+
+        return;
+      }
+    }
+
+    try {
+      const families = await installedFonts();
+
+      if (families.length) {
+        discovery = { state: "ready", families };
+
+        return;
+      }
+    } catch {
+      // The browser can reject enumeration when permission is dismissed or denied.
+    }
+
+    const canRequestAgain = requestAccess && (await installedFontAccess()) === "prompt";
+    discovery = { state: canRequestAgain ? "prompt" : "failed" };
+  }
 
   const sample =
     'The agent can explain **changes** and inline math $E = mc^2$.\n\n```ts\nconst message = "A long code line follows your code wrapping preference without changing the saved source.";\n```';
@@ -17,14 +49,14 @@
 </script>
 
 <SettingsGroup title="Typography" description="This device · Unavailable fonts use local fallbacks.">
-  <FontPicker kind="interface" />
+  <FontPicker kind="interface" {discovery} {discoverFonts} />
   <DeviceChoiceRow
     preference="interfaceSize"
     title="Interface size"
     description="Scale interface text from the desktop base size."
     options={[12, 14, 16, 18].map((v) => ({ value: String(v), label: `${v} px` }))}
   />
-  <FontPicker kind="mono" />
+  <FontPicker kind="mono" {discovery} {discoverFonts} />
   <DeviceChoiceRow
     preference="monoSize"
     title="Monospace size"
