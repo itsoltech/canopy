@@ -74,7 +74,10 @@
     disabled={(choice) => !choice.workspace || !choice.online}
     value={selected?.worker.id}
     onselect={(choice) => choice.workspace && onselect(choice.workspace)}
-    link={{ href: "/settings/workers", label: "Manage workers" }}
+    link={{
+      href: project.kind === "scratch" ? "/settings/workers" : `/settings/projects/${project.id}#workspaces`,
+      label: "Manage workers",
+    }}
   >
     {#snippet trigger(props)}
       <PillButton

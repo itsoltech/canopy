@@ -22,6 +22,18 @@
 
   const projectId = $derived(route.params.projectId ?? "");
   const project = $derived(overview.project(projectId));
+  let workspaces = $state<HTMLElement>();
+
+  $effect(() => {
+    if (route.url.hash !== "#workspaces" || !workspaces) return;
+    const target = workspaces;
+    const frame = requestAnimationFrame(() => {
+      target.scrollIntoView({ block: "start" });
+      target.focus({ preventScroll: true });
+    });
+
+    return () => cancelAnimationFrame(frame);
+  });
 
   // Main threads that archive with the project (side threads go with their parent).
   const threads = $derived(
@@ -60,12 +72,14 @@
     </SettingsGroup>
   {/if}
 
-  <SettingsGroup
-    title="Workspaces"
-    description="A new thread runs in one of these directories on the project's workers."
-  >
-    <ProjectWorkers {project} error={route.form?.action === "workspace" ? route.form.error : undefined} />
-  </SettingsGroup>
+  <div id="workspaces" bind:this={workspaces} tabindex="-1" class="scroll-mt-4 outline-none">
+    <SettingsGroup
+      title="Workspaces"
+      description="A new thread runs in one of these directories on the project's workers."
+    >
+      <ProjectWorkers {project} error={route.form?.action === "workspace" ? route.form.error : undefined} />
+    </SettingsGroup>
+  </div>
 
   <SettingsGroup title="Thread defaults" description="These override your defaults from Settings → Threads.">
     <ThreadDefaultsFields
