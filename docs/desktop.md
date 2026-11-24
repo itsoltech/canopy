@@ -1,6 +1,7 @@
 # Canopy Desktop
 
 Aktualizacja (2026-11-24): skrót zamykania aplikacji znajduje się w zakładce **Device** ustawień General.
+Pickery Typography wczytują listę zainstalowanych fontów przy otwarciu.
 
 Status: opis zaimplementowanego runtime i pakowania (2026-11-23). CI po pushu sprawdza
 runtime i instalator Windows. Release buduje paczki dystrybucyjne i sprawdza ich podpisy.
@@ -156,7 +157,8 @@ Szczegóły kontraktu i kontroli dostępu opisuje [ui-api.md](ui-api.md#pliki-w�
    Własne menu renderera i chronione wartości nadal blokują menu systemowe przez
    lokalne `contextmenu.preventDefault()`.
    Nie ma dodatkowego IPC ani zmiany izolacji renderera.
-   Typography korzysta najpierw z `window.queryLocalFonts()`. Uprawnienie `local-fonts`
+   Przy otwarciu pickera Typography wczytuje listę rodzin bez dodatkowej akcji.
+   Korzysta najpierw z `window.queryLocalFonts()`. Uprawnienie `local-fonts`
    jest dostępne wyłącznie głównej ramce web UI; setup, iframe i obce originy nie mają
    dostępu. Jeśli API nie działa, typowany `listFonts()` wywołuje `canopy:fonts`.
    Main sprawdza nadawcę tym samym mechanizmem co inne IPC, następnie główną ramkę

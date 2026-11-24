@@ -7,6 +7,7 @@ oraz kompaktowego wariantu przełącznika i adaptacyjnych pickerów modelu, wysi
 z jednoliniowym menu prędkości i oznaczeniami poziomu przyspieszenia.
 Karta zużycia kontekstu composera używa skali nakładek (15 / 13).
 Przycisk Continue używa skali Steer/Queue i zachowuje etykietę na telefonie.
+Aktualizacja (2026-11-24): pickery fontów wczytują zainstalowane rodziny przy otwarciu, jeśli klient ma do nich dostęp.
 Dostępność kanałów: [release.md](release.md).
 
 Jedna skala dla całego web UI. Każdy fragment interfejsu należy do jednego **kontekstu**; kontekst
@@ -165,7 +166,8 @@ natywne działanie przeglądarki na zaznaczalnych obszarach.
   Czas jest w tym samym wierszu; etykiety celu i początku dnia zostają nad wiadomością.
 
 - Typography zapisuje na urządzeniu osobno font interfejsu i monospace. Presety są na początku
-  wyszukiwanego pickera; „Show installed fonts” odczytuje rodziny dopiero po kliknięciu.
+  wyszukiwanego pickera. Zainstalowane rodziny pojawiają się po otwarciu pickera, gdy klient ma
+  dostęp do listy. „Show installed fonts” pozwala poprosić o dostęp w przeglądarce.
   Lista jest wirtualizowana: DOM zawiera widoczne wiersze i mały bufor, a podgląd własnym
   fontem pojawia się dopiero w widocznym obszarze. W pickerze monospace rodziny mają oznaczenie
   „Monospace” lub „Proportional”, ustalane porównaniem szerokości znaków.

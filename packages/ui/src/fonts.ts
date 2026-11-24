@@ -3,7 +3,7 @@ export type FontKind = "interface" | "mono";
 export const interfaceFonts = [
   {
     value: "canopy",
-    label: "Canopy (Inter)",
+    label: "Inter",
     stack: 'InterVariable, Inter, "Inter Fallback", ui-sans-serif, system-ui, sans-serif',
   },
   { value: "system", label: "System sans", stack: "ui-sans-serif, system-ui, sans-serif" },

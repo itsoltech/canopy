@@ -6,7 +6,26 @@ declare global {
   }
 }
 
-/** Called only by Show installed fonts: never probe permission during mount. */
+export type FontDiscovery =
+  | { state: "idle" | "loading" | "prompt" | "unavailable" | "failed" }
+  | { state: "ready"; families: string[] };
+
+/** Check if enumeration can run without prompting for browser permission. */
+export async function installedFontAccess(): Promise<"granted" | "prompt" | "unavailable"> {
+  if (window.canopyDesktop?.listFonts) return "granted";
+
+  if (!window.queryLocalFonts) return "unavailable";
+
+  try {
+    // SAFETY: Chromium supports local-fonts, which is missing from TypeScript's DOM types.
+    const { state } = await navigator.permissions.query({ name: "local-fonts" as PermissionName });
+
+    return state === "denied" ? "unavailable" : state;
+  } catch {
+    return "prompt";
+  }
+}
+
 export async function installedFonts(): Promise<string[]> {
   try {
     if (window.queryLocalFonts) {
@@ -20,7 +39,7 @@ export async function installedFonts(): Promise<string[]> {
 
   if (window.canopyDesktop?.listFonts) return fontFamilies(await window.canopyDesktop.listFonts());
 
-  throw new Error("Font access is unavailable. Type a font family name to preview it.");
+  throw new Error("Could not enumerate local font families");
 }
 
 let context: CanvasRenderingContext2D | null | undefined;

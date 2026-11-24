@@ -3,6 +3,8 @@
 Status (2026-11-23): web, desktop i mobile używają zróżnicowanej palety
 oznaczeń nowych i zapisanych projektów. Appearance jest lokalne dla profilu
 przeglądarki, instalacji desktopowej i instalacji mobilnej, również po ponownym uruchomieniu.
+Aktualizacja (2026-11-24): domyślny font interfejsu web i desktop ma etykietę Inter.
+Oba pickery typografii współdzielą automatycznie wczytywaną listę rodzin, gdy klient ma do niej dostęp.
 
 Settings → Appearance pozwala wybrać osobno motyw Light i Dark. Color scheme
 (System / Light / Dark) określa, który wariant jest aktywny. Przykład: Fern dla
@@ -132,6 +134,13 @@ Preload przekazuje je przez walidowane IPC do powłoki startowej, gdy nie ma
 cookie. Main stosuje te kolory podczas tworzenia okna i aktualizuje jego tło
 i nativeTheme po zmianie preferencji. W System chrom reaguje na systemowy
 schemat. Błąd zapisu opcjonalnego cache nie blokuje zmiany aktywnego wyglądu.
+
+## Typografia w web i desktopie
+
+Inter jest domyślnym fontem interfejsu. Po otwarciu pickera Desktop oraz
+przeglądarki z udzieloną zgodą wczytują rodziny zainstalowane na urządzeniu.
+Przeglądarka, która potrzebuje zgody, wyświetla akcję **Show installed fonts**.
+Gdy odczyt listy jest niedostępny, nadal można wpisać nazwę rodziny i obejrzeć próbkę.
 
 ## Kontrola wyglądu
 
