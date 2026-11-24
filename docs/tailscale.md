@@ -1,7 +1,7 @@
 # Tailscale
 
-Status: opis zaimplementowanego zachowania (2026-11-22), w tym wyboru Tailscale
-w Allowed networks i niedostępności HTTPS over Tailscale dla roli `desktop`.
+Status: opis zaimplementowanego zachowania (2026-11-24), w tym wykrywania CLI
+poza `PATH` na Windows i wymuszania trybu CLI na macOS.
 Dostępność w nightly/beta/stable określają
 [zasady wydań](release.md) i GitHub Releases.
 
@@ -23,14 +23,18 @@ lokalne proxy web, `https.ts` — przełącznik), pole `NetworkAccess.tailscale`
 
 ## Wykrywanie (tylko odczyt)
 
-Każdy gateway, który widzi Tailscale, sprawdza go sam:
+Każdy gateway sprawdza Tailscale na swoim komputerze. Desktop w trybie Remote
+pokazuje stan sparowanego gatewaya. Gateway szuka w tej kolejności:
 
-1. `tailscale` na `PATH` gatewaya;
+1. `tailscale` (`tailscale.exe` na Windows) na `PATH` gatewaya;
 2. na macOS CLI z aplikacji: `/Applications/Tailscale.app/Contents/MacOS/Tailscale`;
-3. bez CLI — gniazdo LocalAPI (`/var/run/tailscale/tailscaled.sock`, `/run/tailscale/tailscaled.sock`),
+3. na Windows standardowa instalacja: `%ProgramFiles%\Tailscale\tailscale.exe`;
+4. na Linuksie bez CLI — gniazdo LocalAPI (`/var/run/tailscale/tailscaled.sock`, `/run/tailscale/tailscaled.sock`),
    wyłącznie `GET /localapi/v0/status`.
 
 Odczyt: `tailscale status --json` (lub LocalAPI) ze stałą tablicą argumentów, bez powłoki, z limitem 5 s.
+Na macOS wywołania Canopy ustawiają `TAILSCALE_BE_CLI=1` w procesie potomnym, aby aplikacja
+zwróciła wynik polecenia w trybie CLI.
 Canopy bierze tylko: `BackendState`, `Self.DNSName` (bez końcowej kropki), adresy tailnetu IPv4/IPv6,
 nazwę tailnetu, `MagicDNSEnabled`, `CertDomains` oraz login właściciela węzła (`Self.UserID` → `User`)
 albo informację, że węzeł ma tagi. Reszta JSON (peery, klucze, ruch) nie jest zapisywana ani logowana.
@@ -184,6 +188,9 @@ Testy używają atrapy CLI (`tests/integration/fixtures/tailscale/tailscale`, sk
 i dziennikiem wywołań) i nigdy nie uruchamiają prawdziwego `tailscale`; testy przekazują pusty zestaw
 gniazd LocalAPI. `tailscale-detection.test.ts`: parsowanie każdego stanu, brak tailscaled i brak
 Tailscale, tagi, brak `CertDomains`, ścieżka aplikacji macOS, LocalAPI przez gniazdo, cache i zmiany.
+`tailscale-desktop-detection.test.ts`: aplikacja macOS wymaga trybu CLI, a na Windows gateway
+znajduje plik w katalogu instalacji także bez `PATH`. Native checks uruchamia te testy z atrapami
+na macOS i Windows.
 `tailscale-network.test.ts`: kolejność adresów, wybór adresu dla workerów i SSH, RPC z zakresem
 właściciela, ogłoszenie i walidacja nazwy MagicDNS między dwoma gatewayami. `tailscale-https.test.ts`:
 dokładne argumenty włączania i wyłączania, odmowa zajętego portu, usuwanie tylko własnego wpisu, brak

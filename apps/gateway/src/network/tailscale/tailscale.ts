@@ -49,7 +49,7 @@ export class Tailscale {
     if (!cli)
       return Promise.resolve({ ok: false, stdout: "", stderr: "The Tailscale command-line tool isn't installed." });
 
-    return runCli(cli, args, { timeoutMs, ...this.#path() });
+    return runCli(cli, args, { ...this.options, timeoutMs });
   }
 
   onChange(listener: () => void) {
@@ -77,7 +77,7 @@ export class Tailscale {
     const access = this.#access;
 
     const result = access?.cli
-      ? await runCli(access.cli, ["status", "--json"], { timeoutMs: 5000, ...this.#path() })
+      ? await runCli(access.cli, ["status", "--json"], { ...this.options, timeoutMs: 5000 })
       : access?.socket
         ? await localApi(access.socket, "/localapi/v0/status")
         : undefined;
@@ -98,9 +98,5 @@ export class Tailscale {
     }
 
     return snapshot;
-  }
-
-  #path() {
-    return this.options.path === undefined ? {} : { path: this.options.path };
   }
 }
