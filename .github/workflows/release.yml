@@ -559,6 +559,17 @@ jobs:
         if: matrix.target == 'windows-x64' && env.CANOPY_WINDOWS_SIGNED == 'true'
         shell: pwsh
         run: ./apps/desktop/scripts/verify-windows.ps1 -ReleaseDirectory apps/desktop/release/${{ needs.plan.outputs.channel }}
+      - name: Install and test the Windows release package
+        if: matrix.target == 'windows-x64'
+        shell: pwsh
+        env:
+          CANOPY_VERSION: ${{ needs.plan.outputs.version }}
+          CANOPY_CHANNEL: ${{ needs.plan.outputs.channel }}
+          WORKFLOW_SHA: ${{ github.workflow_sha }}
+        run: |
+          # During recovery the packaging checkout can differ from the packaged source.
+          ./apps/desktop/scripts/smoke-windows.ps1 -ReleaseDirectory "apps/desktop/release/$env:CANOPY_CHANNEL" `
+            -SkipSourceTests:($env:EXPECTED_SHA -ne $env:WORKFLOW_SHA)
       - name: Verify macOS signatures and notarization
         if: startsWith(matrix.target, 'darwin-')
         env:
