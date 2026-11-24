@@ -478,6 +478,9 @@ while (!stopping.signal.aborted) {
       1,
     );
 
+    if (error instanceof ConnectError && error.code === Code.Unavailable && (await networkRoute.recoverDesktopRoute()))
+      continue;
+
     if (networkRoute.failed()) continue;
     console.warn(`gateway link failed: ${error instanceof Error ? error.message : String(error)}`);
   }

@@ -317,6 +317,7 @@ export class DesktopRuntime {
         gatewayUrl: remote?.workerAddress ?? gatewayUrl,
         token,
         fingerprint: config.mode === "remote" ? config.gatewayFingerprint || client?.fingerprint : undefined,
+        fallbackRoutes: remote?.client,
         local,
         logs: this.logs,
         services: this.services,
