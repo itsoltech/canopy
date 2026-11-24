@@ -12,6 +12,8 @@ i desktop, dobieranych po nazwie lub rozszerzeniu.
 
 Status (2026-11-24): na listach Threads i Bots wiersz z nazwą Canopy przewija się razem
 z listą. Czytnik ekranu może odczytać widoczną nazwę aplikacji i etykietę kanału.
+Przełączenie między Threads i Bots od razu pokazuje wybraną listę, a widoczna część wiersza
+z logo i nazwą Canopy zachowuje krycie.
 Przełącznik modułu, wyszukiwarka i akcje listy zatrzymują się pod paskiem stanu.
 Gradient i drzewo pozostają na miejscu przy pociągnięciu listy w dół i zanikają
 w miarę chowania nazwy. Lista zaczyna się bezpośrednio pod kontrolkami lub widocznym banerem połączenia.

@@ -166,56 +166,48 @@ function SidebarLists({ state, header }: { state: ReturnType<typeof useSidebarSt
 
   const { section, navigation, projects, workers, loaded, query, projectId, setProjectId, stream } = state;
 
-  const { rise } = useMotion();
+  // Both lists include the sticky header, so transition only individual rows as they arrive.
+  if (section === "bots") return <BotList state={state} header={header} />;
 
   return (
-    <Animated.View key={section} entering={rise.entering} style={styles.fill}>
-      {section === "threads" ? (
-        <SettingsThreadList
-          header={header}
-          navigation={navigation}
-          loaded={loaded}
-          projects={projects}
-          workers={workers}
-          empty={
-            !loaded ? (
-              <ListSkeleton lines={3} />
-            ) : (
-              <View style={{ alignItems: "flex-start", gap: 8, paddingHorizontal: 12, paddingVertical: 8 }}>
-                <Text style={[styles.meta, { color: c.muted }]}>
-                  {projectId
-                    ? "No threads in the selected projects."
-                    : query
-                      ? `No thread matches “${query}”.`
-                      : stream.connection === "unavailable"
-                        ? "Threads appear when the gateway connects."
-                        : "No threads yet. Select New thread above to start one."}
-                </Text>
-                {projectId ? (
-                  <Button size="sm" variant="ghost" title="Clear filters" onPress={() => setProjectId("")} />
-                ) : null}
-                {!projectId &&
-                  !query &&
-                  workers.some((worker) => !worker.nodeId && worker.online && worker.cliImport) && (
-                    <Button
-                      size="sm"
-                      title="Import CLI threads"
-                      onPress={() =>
-                        openSettingsSection("import", {
-                          worker:
-                            workers.find((worker) => !worker.nodeId && worker.online && worker.cliImport)?.id ?? "",
-                        })
-                      }
-                    />
-                  )}
-              </View>
-            )
-          }
-        />
-      ) : (
-        <BotList state={state} header={header} />
-      )}
-    </Animated.View>
+    <SettingsThreadList
+      header={header}
+      navigation={navigation}
+      loaded={loaded}
+      projects={projects}
+      workers={workers}
+      empty={
+        !loaded ? (
+          <ListSkeleton lines={3} />
+        ) : (
+          <View style={{ alignItems: "flex-start", gap: 8, paddingHorizontal: 12, paddingVertical: 8 }}>
+            <Text style={[styles.meta, { color: c.muted }]}>
+              {projectId
+                ? "No threads in the selected projects."
+                : query
+                  ? `No thread matches “${query}”.`
+                  : stream.connection === "unavailable"
+                    ? "Threads appear when the gateway connects."
+                    : "No threads yet. Select New thread above to start one."}
+            </Text>
+            {projectId ? (
+              <Button size="sm" variant="ghost" title="Clear filters" onPress={() => setProjectId("")} />
+            ) : null}
+            {!projectId && !query && workers.some((worker) => !worker.nodeId && worker.online && worker.cliImport) && (
+              <Button
+                size="sm"
+                title="Import CLI threads"
+                onPress={() =>
+                  openSettingsSection("import", {
+                    worker: workers.find((worker) => !worker.nodeId && worker.online && worker.cliImport)?.id ?? "",
+                  })
+                }
+              />
+            )}
+          </View>
+        )
+      }
+    />
   );
 }
 
