@@ -48,7 +48,7 @@
         >{/if}
     </span>
     {#if row.word}<span class={["shrink-0 text-sm sm:text-xs", text(row.tone)]}>{row.word}</span>{/if}
-    {#if row.window}<span class={["shrink-0 text-base font-medium sm:text-sm", text(toneOf(row.window.percentLeft))]}
+    {#if row.window}<span class={["shrink-0 text-sm font-medium sm:text-xs", text(toneOf(row.window.percentLeft))]}
         >{percentLeftText(row.window)}</span
       >{/if}
   </div>

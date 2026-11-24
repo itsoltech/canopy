@@ -10,6 +10,8 @@ udostępniania loginu ma status **Login unavailable**.
 
 Status (2026-11-24) obejmuje widok limitów kont proxy w Providers, domyślne korzystanie z loginu CLI przez wątki wbudowanej instancji `codex/native` oraz raportowanie błędów dowiązań w trybie izolowanym. Dostępność w wydaniach: [release.md](release.md).
 
+Aktualizacja (2026-11-24): w panelu **Provider usage** w web/desktop procenty mają spójny rozmiar tekstu.
+
 Aktualizacja (2026-11-24): w web/desktop ręczny wybór planu konta proxy znajduje się
 w **Settings → Proxies → Upstream accounts**. Na mobile służy do tego **Accounts** w karcie proxy.
 Wybór wygrywa z wykrywaniem i zasila ważoną pojemność; **Automatic** go usuwa.
@@ -293,6 +295,7 @@ od największego planu. Szerokość odcinka to udział jego jednostek planu w su
 pozostała część danego konta. Bezpośrednia instancja i nieznany plan liczą się jako 1.
 Przy więcej niż jednym koncie obok nazwy jest ich liczba („2 accounts”).
 Krótsze okno pojawia się tylko, gdy ogranicza bardziej niż główne.
+W web/desktop oba odczyty procentowe używają rozmiaru metadanych wiersza.
 Po wybraniu **Open provider settings** sekcja **Proxy limits** pokazuje odczyty
 poszczególnych kont używanych proxy. Limity bezpośrednie są w statusie instancji
 ([proxies.md](proxies.md#konta-upstream-management-api-cliproxyapi)). Dostawca bez odczytu
