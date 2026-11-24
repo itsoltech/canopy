@@ -1,5 +1,8 @@
 # API dla UI i architektura frontendu
 
+Status (2026-11-24): w web i desktopie „Manage workers” w kompozytorze nowego wątku
+otwiera sekcję Workspaces wybranego projektu. Dla „No project” otwiera Settings → Workers.
+
 Status (2026-11-23): `#` umożliwia wybór wątku, zgłoszenia lub pull requestu GitHub w kompozytorze nowego i istniejącego wątku.
 
 Status (2026-11-23): karta pliku w web i desktopie odtwarza wideo przez HTTP Range.
