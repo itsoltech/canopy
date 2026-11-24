@@ -527,7 +527,7 @@ describe.skipIf(!dockerAvailable)("gateway ↔ desktop app updates over pinned T
     await until(async () => (await state(app.workerId))?.phase === "waiting_idle");
     await app.reconnect("1.0.0");
     await until(async () => (await state(app.workerId))?.phase === "failed");
-    expect((await state(app.workerId))?.reason).toContain("restarted before");
+    expect((await state(app.workerId))?.reason).toContain("waiting for work to finish");
     const requestId = (await state(app.workerId))!.requestId;
     await app.reconnect("1.2.0", "1.2.0");
     await until(async () => (await state(app.workerId))?.phase === "succeeded");
