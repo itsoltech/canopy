@@ -7,7 +7,7 @@
   import { botList } from "#lib/features/bots/bot-list.svelte.ts";
   import { useOverview } from "#lib/features/overview/overview-state.svelte.ts";
   import { isSettingsRoute } from "#lib/features/settings/settings-route.ts";
-  import { needsYou, unseenResult, workingTreeCount } from "#lib/features/threads/activity.ts";
+  import { needsYou, workingTreeCount } from "#lib/features/threads/activity.ts";
   import { isThreadSnoozed } from "@canopy/domain/thread-snooze";
   import { CANOPY_VERSION, releaseChannel } from "@canopy/domain/release/version";
   import { sidebarIdentity } from "@canopy/ui/sidebar-art";
@@ -33,6 +33,9 @@
   import { keybindings } from "#lib/features/commands/keybindings.svelte.ts";
   import { useAddProject } from "#lib/features/projects/add/add-project.svelte.ts";
   import { useGatewayCapabilities } from "#lib/features/desktop/gateway-capabilities.svelte.ts";
+  import UsageReportSummary from "#lib/features/usage/UsageReportSummary.svelte";
+  import WorkersSummary from "#lib/features/workers/WorkersSummary.svelte";
+  import SidebarFooterPopover from "./SidebarFooterPopover.svelte";
   import { footerPopovers } from "./footer-popovers.svelte.ts";
 
   const channel = releaseChannel(CANOPY_VERSION);
@@ -67,13 +70,11 @@
     return () => clearTimeout(timer);
   });
 
-  const threadsAttention = $derived.by(() => {
-    const threads = [...overview.threads.values()].filter(
-      (thread) => !isThreadSnoozed(thread, (id) => overview.threads.get(id)),
-    );
-
-    return threads.some(needsYou) ? "needs" : threads.some((t) => unseenResult(t) !== undefined) ? "unseen" : undefined;
-  });
+  const threadsAttention = $derived(
+    [...overview.threads.values()].some(
+      (thread) => needsYou(thread) && !isThreadSnoozed(thread, (id) => overview.threads.get(id)),
+    ),
+  );
 
   // Turns running right now, one per thread tree; snoozed trees stay quiet here as in the list.
   const threadsWorking = $derived(
@@ -92,9 +93,7 @@
   const botsWorking = $derived(liveBots.filter((bot) => botList.executing(bot.id)).length);
 
   const botsAttention = $derived(
-    liveBots.some((bot) => bot.pendingApproval && !overview.threadSnoozed(bot.pendingApproval.threadId))
-      ? "needs"
-      : undefined,
+    liveBots.some((bot) => bot.pendingApproval && !overview.threadSnoozed(bot.pendingApproval.threadId)),
   );
 
   const workerCount = $derived(overview.workers.length);
@@ -135,7 +134,7 @@
       {#if settings.enabledModules.length > 1 && (capabilities?.supports("/bots") ?? true)}<SectionSwitch
           sections={settings.enabledModules}
           active={section}
-          attention={{ threads: threadsAttention, bots: botsAttention }}
+          needsAttention={{ threads: threadsAttention, bots: botsAttention }}
           counts={{ bots: botsUnread }}
           working={{ threads: threadsWorking, bots: botsWorking }}
           class="sidebar-foreground sidebar-gutter pb-2"
@@ -222,18 +221,33 @@
       </span>
     </a>
     {#if capabilities?.supports("/usage") ?? true}
-      <IconButton icon="table-cells" label="Open usage" onclick={onOpenUsage} />
+      <SidebarFooterPopover panel={footer.usage} label="Usage">
+        {#snippet trigger(props)}
+          <IconButton {...props} icon="table-cells" label="Show usage" />
+        {/snippet}
+        <UsageReportSummary
+          onOpenUsage={() => {
+            footer.usage.close();
+            onOpenUsage();
+          }}
+        />
+      </SidebarFooterPopover>
     {/if}
     {#if overview.resyncs > 0 && workerCount !== 1}
-      <a
-        href="/settings/workers"
-        class="flex shrink-0 items-center gap-1.5 rounded-lg px-2 py-1.5 text-sm/5 text-zinc-500 focus-ring hover:bg-zinc-950/5 hover:text-zinc-950 sm:text-xs/5 @max-[16rem]:gap-0 dark:text-zinc-400 dark:hover:bg-white/5 dark:hover:text-white"
-        title="Workers online"
-      >
-        <Icon name="server" class="size-3.5" />
-        <span class="tabular-nums @max-[16rem]:sr-only">{online}/{workerCount}</span>
-        <span class="sr-only">workers online</span>
-      </a>
+      <SidebarFooterPopover panel={footer.workers} label="Workers" class="shrink-0">
+        {#snippet trigger(props)}
+          <button
+            {...props}
+            type="button"
+            aria-label={`Show workers, ${online} of ${workerCount} online`}
+            class="flex items-center gap-1.5 rounded-lg px-2 py-1.5 text-sm/5 text-zinc-500 focus-ring hover:bg-zinc-950/5 hover:text-zinc-950 sm:text-xs/5 @max-[16rem]:gap-0 dark:text-zinc-400 dark:hover:bg-white/5 dark:hover:text-white"
+          >
+            <Icon name="server" class="size-3.5" />
+            <span class="tabular-nums @max-[16rem]:sr-only">{online}/{workerCount}</span>
+          </button>
+        {/snippet}
+        <WorkersSummary onclose={footer.workers.close} />
+      </SidebarFooterPopover>
     {/if}
     <UpdatesIndicator panel={footer.updates} />
     <SidebarUsage panel={footer.providerUsage} />

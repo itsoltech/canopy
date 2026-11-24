@@ -14,7 +14,7 @@ Update all na telefonie, wygaszania mobilnego komunikatu o restarcie po potwierd
 wersji docelowej lub gotowości binarnego gatewaya po zapowiedzi bez wersji docelowej,
 statusu aplikacji desktopowej w mobilnym wierszu jej workera,
 pomijania komputerów offline w Update all,
-wspólnego otwierania paneli Updates i Provider usage w stopce, równoległej aktualizacji
+wspólnej obsługi paneli Usage, Workers, Updates i Provider usage w stopce, równoległej aktualizacji
 zdalnych desktopów i workerów binarnych, ponawiania raportu o błędzie workera,
 aktualizacji CLI przez mise, restartu workera mimo błędu sprzątania urządzeń,
 pomijania cache metadanych przy ręcznym sprawdzaniu aktualizacji, wykrywania
@@ -129,10 +129,10 @@ Klienci ignorują odczyt rozpoczęty przed nowszą akcją, aby stary cache nie
 przywracał odrzuconego błędu.
 Zmiana telefonu dotyczy wyłącznie JS/TS i nie wymaga nowego runtime ani builda EAS.
 
-Trzecia ikona stopki (za Settings i licznikiem workerów) pokazuje aktualizacje
+Ikona Updates w stopce pokazuje aktualizacje
 własnej aplikacji desktopowej: stan spokojny, sprawdzanie, pobieranie z procentem
 oraz gotowość do restartu. Hover i klik otwierają ten sam przewijany popover;
-na telefonie jest to dolny panel. Updates i Provider usage dzielą miejsce w stopce.
+na telefonie jest to dolny panel. Updates dzieli miejsce w stopce z panelami Usage, Workers i Provider usage.
 Przejście kursorem na sąsiedni wyzwalacz od razu zastępuje panel otwarty najechaniem.
 Po wyjściu kursora poza wyzwalacz i panel zamknięcie ma 250 ms zwłoki, aby dało się
 przejść do treści przez odstęp. Aktywacja przycisku przypina jego panel i ma

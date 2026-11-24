@@ -1,12 +1,16 @@
 # Projekty, wątki i wątki boczne
 
+Status (2026-11-24): web i desktop rozdzielają sekcje Working i Snoozed liniami w nagłówkach
+i przygaszają uśpione wątki.
+
 Status (2026-11-24): w sidebarze web i desktop inicjały oraz logotypy projektów
 mają ten sam rozmiar co na przycisku pickera projektów w kompozytorze.
 Wskaźnik aktywności głównego wątku również ma 16 px. Znak projektu i wskaźnik
 dzieli od nazwy projektu 6 px.
 
 Status (2026-11-24): w web i desktop zakładki Threads i Bots pokazują liczbę elementów, które
-właśnie pracują. Natywny mobile jeszcze jej nie pokazuje.
+właśnie pracują. Threads pokazuje niezobaczone wyniki przy wątkach na liście. Natywny mobile
+jeszcze nie pokazuje liczby pracujących elementów w przełączniku.
 
 Status (2026-11-24): w web i desktop oznaczenie wyniku w sidebarze znika po
 potwierdzeniu odczytu widocznego końca rozmowy.
@@ -249,9 +253,9 @@ nadrzędnego, same zadania w tle, nieprzeczytane wyniki oraz wątki uśpione, za
 i usunięte. Filtry listy nie zmieniają liczby. Bots liczy niezarchiwizowane boty z trwającym
 wykonaniem (`Bot.executing`); oczekująca zgoda wstrzymuje je tak samo jak w wierszu bota.
 
-Spinner i liczba stoją przed etykietą, w kolorze pracy z wierszy wątków. Dotychczasowe
-oznaczenia nieaktywnej zakładki zostają za etykietą: liczba nieprzeczytanych wiadomości
-botów, bursztynowa kropka „wymaga Ciebie” i zielona kropka niezobaczonego wyniku. Żadne
+Spinner i liczba stoją przed etykietą, w kolorze pracy z wierszy wątków. Za etykietą
+nieaktywnej zakładki pojawia się liczba nieprzeczytanych wiadomości botów lub bursztynowa
+kropka „wymaga Ciebie”. Niezobaczone wyniki są oznaczone przy wątkach na liście. Żadne
 oznaczenie nie przesuwa etykiety. W sidebarze węższym niż 17rem zostaje sam spinner;
 liczba pozostaje w podpowiedzi i w tekście dla czytnika ekranu („Threads, 2 working”).
 Oznaczenie pojawia się i znika animacją pop, z samą zmianą krycia przy ograniczonym ruchu.
@@ -265,7 +269,11 @@ zmienić, a **Wake thread** przywraca wątek od razu. Wątek z terminem sam wrac
 listę po jego upływie, również po restarcie gatewaya.
 
 W web/desktop nagłówki **Snoozed** i **Working** mają strzałkę rozwijania po lewej
-i licznik w nawiasie po nazwie. Każda sekcja rozwija i zwija listę jako całość.
+i licznik w nawiasie po nazwie. Za licznikiem biegnie cienka linia, a nagłówek
+Working ma kolor nawiązujący do wskaźnika pracy. Uśpione wątki mają przygaszone
+tytuły i znaki projektów. Otwarty wątek oraz wiersz pod kursorem, z fokusem
+lub otwartym menu mają zwykłe wyróżnienie tytułu i znaku projektu.
+Każda sekcja rozwija i zwija listę jako całość.
 Przy ograniczonym ruchu przełączenie jest natychmiastowe.
 
 Uśpiony wątek pozostaje dostępny z sekcji, wyszukiwania i bezpośredniego linku.

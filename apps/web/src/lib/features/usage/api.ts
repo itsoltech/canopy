@@ -5,15 +5,15 @@ import { requestJson } from "#lib/shared/http.ts";
 
 interface UsageFilters {
   days: string;
-  provider: string;
-  computerId: string;
-  requestedServiceTier: string | undefined;
-  activityKind: string;
-  botId: string;
+  provider?: string;
+  computerId?: string;
+  requestedServiceTier?: string | undefined;
+  activityKind?: string;
+  botId?: string;
 }
 
 export async function loadUsage(filters: UsageFilters, signal: AbortSignal): Promise<UsageData> {
-  const { days, provider, computerId, requestedServiceTier, activityKind, botId } = filters;
+  const { days, provider = "", computerId = "", requestedServiceTier, activityKind, botId } = filters;
   const query = new URLSearchParams({ days, provider, computerId });
 
   if (requestedServiceTier !== undefined) query.set("requestedServiceTier", requestedServiceTier);

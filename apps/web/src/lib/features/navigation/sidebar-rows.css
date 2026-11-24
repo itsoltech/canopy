@@ -30,6 +30,17 @@
   --text-xs: var(--type-sidebar-meta);
 }
 
+.sidebar-action-row:not(:hover, :focus-within, [data-actions-open]) .sidebar-row[data-snoozed]:not([aria-current]) {
+  & .sidebar-row-title {
+    color: var(--theme-muted);
+  }
+
+  & [data-project-mark] {
+    opacity: 0.65;
+    filter: saturate(0.3);
+  }
+}
+
 /* Inbox rows off screen skip style, layout and paint (docs/client-performance.md). Until a row was laid out once,
    it counts as one row of the inbox. Focus rings outside the row stay visible. */
 .sidebar-entry {

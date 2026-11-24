@@ -131,7 +131,7 @@
     text={thread.title}
     live={thread.titleGenerating}
     class={[
-      "h-5.5 min-w-0 flex-1 overflow-hidden text-base/5.5 sm:h-5 sm:text-sm/5",
+      "sidebar-row-title h-5.5 min-w-0 flex-1 overflow-hidden text-base/5.5 sm:h-5 sm:text-sm/5",
       thread.titleGenerating
         ? "text-zinc-500 dark:text-zinc-400"
         : "text-zinc-800 group-aria-[current=page]:text-zinc-950 group-data-result:text-zinc-950 dark:text-zinc-200 dark:group-aria-[current=page]:text-white dark:group-data-result:text-white",
