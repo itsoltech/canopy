@@ -1,5 +1,5 @@
 import { create } from "@bufbuild/protobuf";
-import { ui } from "@canopy/contracts";
+import { PermissionMode, ui } from "@canopy/contracts";
 import { Effect } from "effect";
 import { SqlClient } from "effect/sql";
 import { coreRun } from "../core/core-broadcast.ts";
@@ -8,7 +8,6 @@ import { coreCheckModel } from "../core/core-models.ts";
 import { requireThreadModule } from "../core/thread-module-runtime.ts";
 import { coreCheckProvider, coreStartThread } from "../core/core-threads.ts";
 import { coreUiThread } from "../core/core-titles.ts";
-import { inheritedPermissionMode } from "../core/full-access.ts";
 import type { GatewayCore } from "../core/core.ts";
 import { SANDBOX_DERIVATION_UNAVAILABLE, threadSandbox } from "../store/thread-sandbox.ts";
 import type { ThreadRow } from "../store/rows.ts";
@@ -56,7 +55,8 @@ export async function continueThreadInWorktree(
       effort: source.settings.effort ?? "",
       serviceTier: source.settings.serviceTier ?? "",
       instructions: source.settings.instructions ?? "",
-      permissionMode: inheritedPermissionMode(original.permissionMode),
+      permissionMode:
+        original.permissionMode === PermissionMode.FULL_ACCESS ? PermissionMode.FULL_AUTO : original.permissionMode,
       title: `${source.title} (continued)`.slice(0, 200),
       workspaceMode: ui.WorkspaceMode.NEW_WORKTREE,
       baseRef: input.baseRef,

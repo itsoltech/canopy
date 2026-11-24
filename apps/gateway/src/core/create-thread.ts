@@ -91,12 +91,10 @@ async function checkPlacement(core: GatewayCore, input: ui.CreateThreadRequest, 
       throw new InvalidError(SANDBOX_DERIVATION_UNAVAILABLE);
   }
 
-  const source = input.forkAtTurnId && !input.parentThreadId ? await coreForkRequest(core, input) : input;
+  const source =
+    input.forkAtTurnId && !input.parentThreadId ? await coreForkRequest(core, input, automated !== undefined) : input;
 
-  const asked = await inheritThreadServiceTier(
-    core,
-    automated ? { ...source, permissionMode: input.permissionMode } : source,
-  );
+  const asked = await inheritThreadServiceTier(core, source);
 
   await coreCheckProvider(core, asked, automated !== undefined);
 
