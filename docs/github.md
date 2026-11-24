@@ -1,6 +1,7 @@
 # Konto GitHub i pull requesty
 
 Status (2026-11-24): zmiana worktree odświeża kontekst Git wątku i zachowuje wcześniejsze powiązania z PR.
+Status (2026-11-24): odświeżenie listy PR synchronizuje stan w szczegółach wątku i sidebarze (§3).
 
 Status (2026-11-22): potwierdzanie merge do sprzątania worktree sprawdza dostęp konektora do projektu (§5).
 Odświeżenie jednego PR aktualizuje projekcje wątków z aktywnym powiązaniem do tego PR (§3).
@@ -506,8 +507,10 @@ lub ręcznym odświeżeniu. Bez zmiany nie pobieramy tych stron w tle.
 Przy odczycie podsumowania jednego PR gateway wybiera wątki po właścicielu i aktywnych
 powiązaniach z tym PR. Uzgadnia ich liczniki i najnowsze podsumowania z bazą. Przy
 trafieniu w cache zgodne powiązania nie wymagają blokady wątku ani publikacji.
-Odczyt panelu naprawia także rozbieżność pozostawioną przez odświeżenie cache w tle.
-Samo pobranie danych przez `load` lub `refreshLinked` zachowuje rewizję powiązań.
+Lista PR uzgadnia najnowsze podsumowanie wątku z cache, również gdy zapisany w nim
+PR jest już zamknięty lub scalony. Odświeżenie listy w tle, pojedyncze i grupowe,
+publikuje zmienione projekcje wątków przez overview. Sam odczyt przez `load`
+zachowuje rewizję powiązań.
 Gdy zmieni się podsumowanie starszego
 PR, rewizja listy rośnie również we wątku, którego pasek boczny pokazuje nowszy PR.
 Sama zmiana czasu weryfikacji starszego PR nie zwiększa tej rewizji. Gateway ponownie

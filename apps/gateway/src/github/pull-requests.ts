@@ -63,10 +63,16 @@ export class GitHubPullRequests {
 
     return ids;
   }
-  async list(threadId: string, pageSize = 20, offset = 0) {
+  async list(threadId: string, pageSize = 20, offset = 0, reconcile = false) {
     if (!uuid(threadId)) throw new ConnectError("Thread not found", Code.NotFound);
+    const { run, owner } = this.accounts;
 
-    return this.accounts.run((s) => s.prList(this.accounts.owner, threadId, pageSize, offset));
+    // A terminal PR can already be cached while the overview still has its previous state.
+    if (reconcile && (await run((s) => s.prNewestSummaryChanged(owner, threadId))).length) {
+      if ((await run((s) => s.prProject(owner, threadId))).length) await this.publish([threadId]);
+    }
+
+    return run((s) => s.prList(owner, threadId, pageSize, offset));
   }
   /** Linked pull requests shown from their last known summary refresh in the background, never in the read path. */
   refreshStale(response: github.ThreadPullRequestsResponse) {

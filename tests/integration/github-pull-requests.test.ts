@@ -6,7 +6,7 @@ import { Effect } from "effect";
 import { SqlClient } from "effect/sql";
 import { GitHubAccounts } from "../../apps/gateway/src/github/service.ts";
 import { GatewayStore } from "@canopy/gateway/store";
-import { connectGitHub, githubPrFixture, githubThread } from "./support/github-pr.ts";
+import { connectGitHub, githubPrData, githubPrFixture, githubThread } from "./support/github-pr.ts";
 import { eventually, failure, startTestGateway, type TestGateway } from "./support/gateway.ts";
 
 describe.skipIf(!dockerAvailable)("manual GitHub PRs over gRPC and controlled HTTP", () => {
@@ -134,6 +134,74 @@ describe.skipIf(!dockerAvailable)("manual GitHub PRs over gRPC and controlled HT
       await reader.stop();
     }
   });
+
+  test.each([
+    ["expired single", 63],
+    ["expired batch", 65],
+    ["already cached", 67],
+  ] as const)(
+    "an %s merge reaches the live thread overview from the PR list",
+    async (mode, number) => {
+      const name = "itsoltech/canopy";
+      const threadId = await githubThread(gw);
+
+      const attach = (n: number, expectedRevision = 0n) =>
+        gw.api.linkThreadPullRequest({ threadId, url: `https://github.com/${name}/pull/${n}`, expectedRevision });
+
+      const first = await attach(number);
+      const linked = mode === "expired batch" ? await attach(number - 1, first.revision) : first;
+      const abort = new AbortController();
+      const updates = gw.api.watchOverview({}, { signal: abort.signal, timeoutMs: 8000 })[Symbol.asyncIterator]();
+
+      try {
+        expect((await updates.next()).value?.change.case).toBe("feeds");
+        expect((await gw.api.getThread({ threadId })).thread?.newestPullRequest?.state).toBe("open");
+        fixture.pullRequest((n, state, draft) => githubPrData(n, n === number ? "MERGED" : state, draft));
+
+        if (mode === "already cached") {
+          await gw.core.github.prs.load(name, number, true);
+          expect((await gw.api.getThread({ threadId })).thread?.newestPullRequest?.state).toBe("open");
+        } else {
+          await gw.runtime.runPromise(
+            SqlClient.SqlClient.use(
+              (sql) => sql`UPDATE github_pr_cache SET expires_at=now()-interval '1 minute'
+              WHERE owner_user_id=${gw.userId}::uuid AND cache_key IN (${`summary:777:${number}`},${`summary:777:${number - 1}`})`,
+            ),
+          );
+        }
+
+        const before = fixture.calls;
+        await gw.api.listThreadPullRequests({ threadId });
+
+        let updated;
+
+        for (let next = await updates.next(); !next.done; next = await updates.next()) {
+          const change = next.value.change;
+
+          if (
+            change.case === "thread" &&
+            change.value.id === threadId &&
+            change.value.newestPullRequest?.state === "merged"
+          ) {
+            updated = change.value;
+            break;
+          }
+        }
+
+        expect(updated?.newestPullRequest?.ref?.number).toBe(number);
+        expect(updated?.pullRequestRevision).toBe(linked.revision + 1n);
+        const list = await gw.api.listThreadPullRequests({ threadId });
+        expect(list.links.find((link) => link.summary?.ref?.number === number)?.summary?.state).toBe("merged");
+        expect(list.revision).toBe(updated?.pullRequestRevision);
+        expect(fixture.calls - before).toBe(mode === "already cached" ? 0 : 1);
+      } finally {
+        abort.abort();
+        await updates.return?.();
+        fixture.pullRequest(githubPrData);
+      }
+    },
+    20_000,
+  );
 
   test.each(["complete", "partial"])(
     "concurrent readers publish one revision for a %s edit to an older PR",
