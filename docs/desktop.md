@@ -2,6 +2,7 @@
 
 Aktualizacja (2026-11-24): skrót zamykania aplikacji znajduje się w zakładce **Device** ustawień General.
 Pickery Typography wczytują listę zainstalowanych fontów przy otwarciu.
+Desktop sprawdza, czy macOS pozwala na powiadomienia, zanim poprosi o zgodę.
 
 Status: opis zaimplementowanego runtime i pakowania (2026-11-23). CI po pushu sprawdza
 runtime i instalator Windows. Release buduje paczki dystrybucyjne i sprawdza ich podpisy.
@@ -13,7 +14,7 @@ prywatności i pomijaniem wysyłki offline. Aktualizator używa
 `electron-updater` 6.8.11. Build i ustawienia
 udostępniają licencje dołączonych komponentów. Powłoka ładowania
 korzysta z wyglądu tej instalacji także przy niedostępnym gatewayu.
-Na macOS włączenie alertów o wątkach lub botach prosi o zgodę systemu.
+Na macOS włączenie alertów o wątkach lub botach prosi o zgodę, gdy system czeka na decyzję.
 Ustawienia Desktopu i konfiguracja połączenia są dostępne także przed
 odebraniem pierwszego stanu z gatewaya.
 Na Windows i Linuksie otwarte Ustawienia pozwalają przeciągać okno za jego górny pasek.
@@ -148,6 +149,8 @@ Szczegóły kontraktu i kontroli dostępu opisuje [ui-api.md](ui-api.md#pliki-w�
    uprawnienie `notifications` jest rezerwą dla Notification API strony. Na macOS
    osobne, autoryzowane wywołania IPC odczytują zgodę systemu i wywołują pytanie przez
    moduł natywny `notification-permission.node` dołączony do paczki aplikacji.
+   Moduł prosi o zgodę tylko przy stanie `notDetermined`. Odmowę zwraca osobno
+   od błędu wywołania, także gdy system zgłosi `UNErrorCodeNotificationsNotAllowed`.
    Natywne menu kontekstowe (`context-menu.ts`) daje Copy dla zaznaczenia oraz role
    Undo, Redo, Cut, Copy, Paste i Select All w polach edycji. Przy włączonym sprawdzaniu
    pisowni pokazuje propozycje poprawek. Linki mają Copy link, a zewnętrzne linki
