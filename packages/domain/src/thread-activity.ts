@@ -84,3 +84,39 @@ export function isCalm(thread: ui.Thread): boolean {
     state === "starting" || state === "running" || state === "asks" || (state === "background" && !unseenResult(thread))
   );
 }
+
+/** A turn is running or starting right now; waiting for someone and background tasks alone are not work. */
+export function isWorking(thread: ui.Thread): boolean {
+  const state = workState(thread);
+
+  return state === "starting" || state === "running";
+}
+
+/**
+ * How many thread trees are working: a main thread counts once while it or any of its side threads (subagents
+ * included) is working, as the sidebar shows one row per tree. Deleted, archived and `skip`ped threads do not count.
+ */
+export function workingTreeCount(
+  threads: Iterable<ui.Thread>,
+  lookup: (id: string) => ui.Thread | undefined,
+  skip: (thread: ui.Thread) => boolean = () => false,
+): number {
+  const roots = new Set<string>();
+
+  for (const thread of threads) {
+    if (thread.deletedAt || thread.status === "archived" || !isWorking(thread) || skip(thread)) continue;
+    let root = thread;
+    const visited = new Set([root.id]);
+    let parent = lookup(root.parentThreadId);
+
+    while (parent && !visited.has(parent.id)) {
+      visited.add(parent.id);
+      root = parent;
+      parent = lookup(root.parentThreadId);
+    }
+
+    roots.add(root.id);
+  }
+
+  return roots.size;
+}
