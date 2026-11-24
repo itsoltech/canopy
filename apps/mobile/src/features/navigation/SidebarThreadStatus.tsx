@@ -2,7 +2,7 @@ import { useCallback } from "react";
 import { Text } from "react-native";
 import type { ui } from "@canopy/contracts";
 import { formatAge } from "@canopy/domain/format";
-import { activityOf, threadRowLabel, workState } from "@canopy/domain/thread-activity";
+import { threadRowLabel, workState } from "@canopy/domain/thread-activity";
 import { useTimeLabel } from "../../ui/time";
 import { useColors } from "../../ui/theme";
 import { useSidebarTypography } from "./sidebar-scale";
@@ -12,12 +12,12 @@ export function SidebarThreadStatus({
   thread,
   label,
   previous = false,
-  hasWorkingSpinner = false,
+  snoozed = false,
 }: {
   thread: ui.Thread;
   label?: string;
   previous?: boolean;
-  hasWorkingSpinner?: boolean;
+  snoozed?: boolean;
 }) {
   const c = useColors("sidebar-list");
   const type = useSidebarTypography();
@@ -28,11 +28,12 @@ export function SidebarThreadStatus({
       if (label !== undefined) return label;
 
       if (previous) return formatAge(thread.archivedAt, now);
-      const age = hasWorkingSpinner && state === "running" ? formatAge(activityOf(thread), now) : "";
 
-      return age || threadRowLabel(thread, now);
+      if (snoozed) return "Snoozed";
+
+      return threadRowLabel(thread, now);
     },
-    [thread, label, previous, hasWorkingSpinner, state],
+    [thread, label, previous, snoozed],
   );
 
   const timed =
@@ -40,14 +41,14 @@ export function SidebarThreadStatus({
     state === "running" ||
     ((state === "idle" || state === "background") && !thread.unseenResult && thread.status !== "failed");
 
-  const text = useTimeLabel(format, label === undefined && timed);
+  const text = useTimeLabel(format, label === undefined && (!snoozed || previous) && timed);
 
   const tone =
     label !== undefined
       ? label === "Read-only"
         ? c.muted
         : c.warning
-      : previous
+      : previous || snoozed
         ? c.muted
         : state === "needs"
           ? c.warning

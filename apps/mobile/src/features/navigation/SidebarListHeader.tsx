@@ -10,6 +10,7 @@ import { useContentInsets } from "../../ui/ScreenFrame";
 import { styles, useColors } from "../../ui/theme";
 import { ConnectionBanner } from "./ConnectionStatus";
 import { SidebarBrand, SidebarBackdrop } from "./SidebarBrand";
+import { sidebarListInset } from "./sidebar-scale";
 
 /** The scroll view docks one brand row above the visible pane so the toolbar pins at its safe edge. */
 export function useSidebarListHeader(
@@ -64,7 +65,7 @@ export function useSidebarListHeader(
     listTop,
     listProps: {
       ListHeaderComponent: header,
-      ListHeaderComponentStyle: { marginHorizontal: -8 },
+      ListHeaderComponentStyle: { marginHorizontal: -sidebarListInset },
       stickyHeaderIndices: [0],
       contentOffset: { x: 0, y: start.y },
       onScroll: scroll,
@@ -78,7 +79,7 @@ export function useSidebarListHeader(
       // Keep the translated sticky cell attached after its original position leaves the Android viewport.
       removeClippedSubviews: false,
       contentContainerStyle: {
-        paddingHorizontal: 8,
+        paddingHorizontal: sidebarListInset,
         paddingTop: brandHeight,
         // Short lists can scroll the full brand away. Keep Archived above the footer at rest.
         paddingBottom: insets.bottom + 8 + brandHeight,

@@ -16,6 +16,8 @@ export function SidebarActivity({
   size = threadRowMarks.slot,
   idle,
   groupedProject = false,
+  snoozed = false,
+  dimmed,
 }: {
   thread: ui.Thread;
   project?: ui.Project;
@@ -23,15 +25,20 @@ export function SidebarActivity({
   size?: number;
   idle?: ReactNode;
   groupedProject?: boolean;
+  snoozed?: boolean;
+  dimmed?: boolean;
 }) {
   const c = useColors();
   const state = workState(thread);
   const visible = away || !groupedProject || state === "needs" || state === "asks" || state === "background";
+  const mark = idle ?? <ProjectMark project={project} size={threadRowMarks.icon} muted={dimmed} />;
 
   return (
     <View style={{ width: size, height: size, alignItems: "center", justifyContent: "center" }}>
       {!visible ? null : away ? (
         <Icon name="link" size={threadRowMarks.icon} color={c.faint} />
+      ) : snoozed ? (
+        mark
       ) : state === "starting" || state === "running" ? (
         <WorkingSpinner color={c.working.indicator} />
       ) : state === "needs" || state === "asks" ? (
@@ -39,7 +46,7 @@ export function SidebarActivity({
       ) : state === "background" ? (
         <Icon name="bolt" size={threadRowMarks.icon} color={c.working.indicator} />
       ) : (
-        (idle ?? <ProjectMark project={project} size={threadRowMarks.slot} />)
+        mark
       )}
     </View>
   );

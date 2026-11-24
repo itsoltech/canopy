@@ -77,8 +77,18 @@ export function Swap({ value, children, style }: { value: string; children: Reac
 }
 
 /** A disclosure chevron that turns with its panel (web `t-acc-chevron`): right when closed, down when open. */
-export function Chevron({ open, size, color }: { open: boolean; size?: number; color?: string }) {
-  const turn = useTween(open ? 90 : 0);
+export function Chevron({
+  open,
+  size,
+  color,
+  easing,
+}: {
+  open: boolean;
+  size?: number;
+  color?: string;
+  easing?: typeof smoothOut;
+}) {
+  const turn = useTween(open ? 90 : 0, { easing });
   const style = useAnimatedStyle(() => ({ transform: [{ rotate: `${turn.get()}deg` }] }));
 
   return (

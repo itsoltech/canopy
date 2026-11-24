@@ -1,19 +1,21 @@
 import { useState, type ReactNode } from "react";
-import { FlatList, Pressable, Text } from "react-native";
+import { FlatList, Text } from "react-native";
 import { ui } from "@canopy/contracts";
 import { visibleSidebarEntries } from "@canopy/domain/sidebar-groups";
 import { useDevicePreferences } from "../settings/device-preferences";
 import { SidebarGroupHeading, SidebarNesting } from "./SidebarGroupHeading";
 import { sidebarEntries } from "@canopy/domain/sidebar-entries";
-import { styles, useColors } from "../../ui/theme";
+import { styles, useColors, weightedFont } from "../../ui/theme";
 import type { SidebarListHeader } from "./SidebarListHeader";
 import Animated, { LayoutAnimationConfig } from "react-native-reanimated";
-import { Chevron, useArrivals } from "../../ui/MotionViews";
+import { useArrivals } from "../../ui/MotionViews";
 import { useMotion } from "../../ui/motion";
 import { SidebarThreadTreeRow } from "./SidebarThreadTree";
 import type { useSidebarThreads } from "./useSidebarThreads";
 import { SidebarArchivedHeader, SidebarArchivedStatus, useArchivedThreads } from "./SidebarArchivedThreads";
-import { SidebarSnoozedHeader, useSnoozedThreads } from "./SidebarSnoozedThreads";
+import { useSnoozedThreads } from "./SidebarSnoozedThreads";
+import { SidebarDisclosureRow, SidebarThreadDisclosure, useSidebarDisclosureMotion } from "./SidebarThreadDisclosure";
+import { sidebarRowPadding, useSidebarTypography } from "./sidebar-scale";
 import { GestureDetector, GestureHandlerRootView } from "react-native-gesture-handler";
 import { useSidebarOrder } from "./sidebar-order";
 import { SidebarDragContext, useSidebarDrag, type SidebarListEntry } from "./sidebar-drag";
@@ -39,11 +41,22 @@ export function SettingsThreadList({
 }) {
   const { rise, layout } = useMotion();
   const [workingOpen, setWorkingOpen] = useState(false);
+  const working = useSidebarDisclosureMotion(workingOpen);
+  const snoozed = useSnoozedThreads(navigation);
+  const disclosing = working.animating || snoozed.animating;
   const { filtered, settings, choices } = navigation;
   const { view } = useDevicePreferences();
   const grouping = { groupByWorktree: view.groupByWorktree };
-  const entries = sidebarEntries(filtered, settings, choices, workingOpen, grouping);
-  const natural = sidebarEntries({ ...filtered, pins: new Set<string>() }, settings, choices, workingOpen, grouping);
+  const entries = sidebarEntries(filtered, settings, choices, working.rendered, grouping);
+
+  const natural = sidebarEntries(
+    { ...filtered, pins: new Set<string>() },
+    settings,
+    choices,
+    working.rendered,
+    grouping,
+  );
+
   const visible = visibleSidebarEntries(entries, view.collapsedSidebarGroups, Boolean(navigation.query.trim()));
   const order = useSidebarOrder(entries, natural, settings);
   const custom = navigation.sortMode === "custom";
@@ -51,40 +64,28 @@ export function SettingsThreadList({
   const drag = useSidebarDrag(
     dragItems(visible, natural, settings.pinnedThreadIds),
     settings.groupByProject,
-    custom,
+    custom && !disclosing,
     order,
     header.offset,
     header.listTop,
   );
 
   const archive = useArchivedThreads(navigation);
-  const snoozed = useSnoozedThreads(navigation);
-  const active = visible.map((entry) => ({ ...entry, section: "active" as const }));
+  const workingIndex = visible.findIndex((entry) => entry.working);
 
-  const archived = archive.visible
-    ? [
-        { key: "archived-heading", section: "archived-heading" as const },
-        ...(archive.expanded
-          ? [
-              ...archive.roots.map((thread) => ({
-                key: `archived-${thread.id}`,
-                thread,
-                section: "archived" as const,
-              })),
-              { key: "archived-status", section: "status" as const },
-            ]
-          : archive.sticky
-            ? [{ key: `archived-${archive.sticky.id}`, thread: archive.sticky, section: "archived" as const }]
-            : []),
-      ]
-    : [];
+  const active: SidebarListEntry[] = visible.map((entry, index) => ({
+    ...entry,
+    section: workingIndex >= 0 && index > workingIndex ? "working" : "active",
+  }));
 
-  const data: SidebarListEntry[] = [
+  const rows: SidebarListEntry[] = [
     ...active,
     ...(!active.length && !snoozed.count ? [{ key: "empty", section: "empty" as const }] : []),
     ...snoozed.entries,
-    ...archived,
+    ...archivedEntries(archive),
   ];
+
+  const data = disclosing ? rows.map((row) => ({ ...row, disclosing: true })) : rows;
 
   const rootIds = new Set(filtered.roots.map((t) => t.id));
 
@@ -112,22 +113,26 @@ export function SettingsThreadList({
                 onContentSizeChange={(_, height) => drag.content.set(height)}
                 onEndReached={archive.more}
                 onEndReachedThreshold={0.4}
-                renderItem={({ item }) => (
-                  // Every entry that leaves (an archived row, the archived section at 0, the empty state) fades out while
-                  // the cells below glide up (`SidebarOrderCell`), so archiving never jumps the list.
-                  <Animated.View
-                    entering={arrival(item.key)}
-                    exiting={rise.exiting}
-                    layout={item.section === "archived-heading" ? layout : undefined}
-                  >
-                    <SidebarNesting depth={item.depth}>
-                      <SidebarListEntryView
-                        {...{ item, navigation, archive, snoozed, rootIds, projects, workers, empty, workingOpen }}
-                        onWorking={() => setWorkingOpen(!workingOpen)}
-                      />
-                    </SidebarNesting>
-                  </Animated.View>
-                )}
+                renderItem={({ item }) => {
+                  const disclosure =
+                    item.section === "working" ? working : item.section === "snoozed" ? snoozed : undefined;
+
+                  return (
+                    <SidebarDisclosureRow
+                      disclosure={disclosure}
+                      entering={disclosure?.animating ? undefined : arrival(item.key)}
+                      exiting={disclosure?.animating ? undefined : rise.exiting}
+                      layout={!disclosing && item.section === "archived-heading" ? layout : undefined}
+                    >
+                      <SidebarNesting depth={item.depth}>
+                        <SidebarListEntryView
+                          {...{ item, navigation, archive, snoozed, rootIds, projects, workers, empty, workingOpen }}
+                          onWorking={() => setWorkingOpen((value) => !value)}
+                        />
+                      </SidebarNesting>
+                    </SidebarDisclosureRow>
+                  );
+                }}
               />
               <SidebarDragFeedback entries={entries} />
             </Animated.View>
@@ -136,6 +141,19 @@ export function SettingsThreadList({
       </LayoutAnimationConfig>
     </SidebarDragContext.Provider>
   );
+}
+
+function archivedEntries(archive: ReturnType<typeof useArchivedThreads>): SidebarListEntry[] {
+  if (!archive.visible) return [];
+
+  const entries: SidebarListEntry[] = [{ key: "archived-heading", section: "archived-heading" }];
+  const threads = archive.expanded ? archive.roots : archive.sticky ? [archive.sticky] : [];
+
+  for (const thread of threads) entries.push({ key: `archived-${thread.id}`, thread, section: "archived" });
+
+  if (archive.expanded) entries.push({ key: "archived-status", section: "status" });
+
+  return entries;
 }
 
 function SidebarListEntryView({
@@ -162,6 +180,7 @@ function SidebarListEntryView({
   onWorking: () => void;
 }) {
   const c = useColors("sidebar-list");
+  const type = useSidebarTypography();
   const { current, filtered } = navigation;
 
   if (item.section === "empty") return empty;
@@ -170,7 +189,17 @@ function SidebarListEntryView({
 
   if (item.section === "status") return <SidebarArchivedStatus archive={archive} />;
 
-  if (item.section === "snoozed" && !item.thread) return <SidebarSnoozedHeader snoozed={snoozed} />;
+  if (item.section === "snoozed-heading")
+    return (
+      <SidebarThreadDisclosure
+        label={`Snoozed (${snoozed.count})`}
+        expanded={snoozed.expanded}
+        onToggle={snoozed.toggle}
+      />
+    );
+
+  if (item.working && item.heading)
+    return <SidebarThreadDisclosure working label={item.heading} expanded={workingOpen} onToggle={onWorking} />;
 
   if (item.section === "archived" && item.thread)
     return (
@@ -191,6 +220,7 @@ function SidebarListEntryView({
     return (
       <SidebarThreadTreeRow
         thread={item.thread}
+        snoozed={sleeping}
         groupedProject={item.groupedProject}
         groupedWorktree={item.depth === 2}
         sideThreads={children.get(item.thread.id) ?? []}
@@ -214,16 +244,16 @@ function SidebarListEntryView({
     );
 
   return (
-    <Pressable
-      accessibilityRole={item.working ? "button" : "header"}
-      accessibilityState={item.working ? { expanded: workingOpen } : {}}
-      onPress={item.working ? onWorking : undefined}
-      style={[styles.row, { padding: 12, minHeight: 44, gap: 4 }]}
+    <Text
+      accessibilityRole="header"
+      numberOfLines={1}
+      style={[
+        type.heading,
+        weightedFont(type.heading.fontFamily, "medium"),
+        { color: c.muted, paddingHorizontal: sidebarRowPadding, paddingTop: 12, paddingBottom: 4 },
+      ]}
     >
-      {item.working && <Chevron open={workingOpen} size={14} color={c.muted} />}
-      <Text numberOfLines={1} style={[styles.meta, { color: c.muted }]}>
-        {item.heading}
-      </Text>
-    </Pressable>
+      {item.heading}
+    </Text>
   );
 }

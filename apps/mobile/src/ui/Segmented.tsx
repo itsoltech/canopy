@@ -4,8 +4,12 @@ import Animated, { LayoutAnimationConfig, useAnimatedStyle, useSharedValue, with
 import { motion, smoothOut, useMotion, useReducedMotion } from "./motion";
 import { Swap } from "./MotionViews";
 import { font, styles, useColors, useTypography } from "./theme";
+import { WorkingSpinner } from "./WorkingSpinner";
 
 const GAP = 2;
+
+// The sidebar's 272 dp breakpoint minus its 12 dp gutters and the track padding.
+const NARROW_TRACK = 244;
 
 /**
  * Segments with a raised pill that slides to the selected one (web sliding tabs, `t-tabs-pill`: `fast`,
@@ -20,7 +24,14 @@ export function Segmented<T extends string>({
   inactiveColor,
 }: {
   /** `badge`: a count beside the label of a segment that is not selected (unread items there). */
-  options: readonly { value: T; label: string; badge?: number; disabled?: boolean }[];
+  options: readonly {
+    value: T;
+    label: string;
+    badge?: number;
+    working?: number;
+    attention?: boolean;
+    disabled?: boolean;
+  }[];
   value: T;
   onChange: (value: T) => void;
   style?: StyleProp<ViewStyle>;
@@ -76,41 +87,55 @@ export function Segmented<T extends string>({
         />
       )}
       <LayoutAnimationConfig skipEntering>
-        {options.map((option) => (
-          <Pressable
-            key={option.value}
-            accessibilityRole="tab"
-            accessibilityState={{ selected: value === option.value, disabled: option.disabled }}
-            disabled={option.disabled}
-            onPress={() => onChange(option.value)}
-            hitSlop={{ top: 6, bottom: 6 }}
-            style={[
-              {
-                flex: 1,
-                minHeight: compact ? 28 : 32,
-                paddingHorizontal: compact ? 8 : 12,
-                paddingVertical: compact ? 4 : 6,
-                alignItems: "center",
-                justifyContent: "center",
-                opacity: option.disabled ? 0.4 : 1,
-              },
-              value === option.value && !segment && raised,
-            ]}
-          >
-            {/* The badge sits beside the label, outside its flow: the label stays put when it appears. */}
-            <View>
-              <Text
-                style={[
-                  compact ? type.meta : type.small,
-                  { fontFamily: font.medium, color: value === option.value ? c.text : (inactiveColor ?? c.muted) },
-                ]}
-              >
-                {option.label}
-              </Text>
-              {value !== option.value && !!option.badge && <SegmentBadge count={option.badge} />}
-            </View>
-          </Pressable>
-        ))}
+        {options.map((option) => {
+          const selected = value === option.value;
+          const unread = selected ? 0 : (option.badge ?? 0);
+          const working = option.working ?? 0;
+          const attention = !selected && !unread && option.attention;
+
+          return (
+            <Pressable
+              key={option.value}
+              accessibilityRole="tab"
+              accessibilityLabel={`${option.label}${working ? `, ${working} working` : ""}${unread ? `, ${unread} unread` : attention ? ", needs you" : ""}`}
+              accessibilityState={{ selected, disabled: option.disabled }}
+              disabled={option.disabled}
+              onPress={() => onChange(option.value)}
+              hitSlop={{ top: 6, bottom: 6 }}
+              style={[
+                {
+                  flex: 1,
+                  minHeight: compact ? 28 : 32,
+                  paddingHorizontal: compact ? 8 : 12,
+                  paddingVertical: compact ? 4 : 6,
+                  alignItems: "center",
+                  justifyContent: "center",
+                  opacity: option.disabled ? 0.4 : 1,
+                },
+                selected && !segment && raised,
+              ]}
+            >
+              {/* The badge sits beside the label, outside its flow: the label stays put when it appears. */}
+              <View>
+                {working > 0 && <SegmentWorking count={working} narrow={track <= NARROW_TRACK} />}
+                <Text
+                  style={[
+                    compact ? type.meta : type.small,
+                    { fontFamily: font.medium, color: selected ? c.text : (inactiveColor ?? c.muted) },
+                  ]}
+                >
+                  {option.label}
+                </Text>
+                {!!unread && <SegmentBadge count={unread} />}
+                {attention && (
+                  <View style={[marker.trailing, { justifyContent: "center" }]}>
+                    <View style={{ width: 6, height: 6, borderRadius: 3, backgroundColor: c.warning }} />
+                  </View>
+                )}
+              </View>
+            </Pressable>
+          );
+        })}
       </LayoutAnimationConfig>
     </View>
   );
@@ -126,8 +151,7 @@ function SegmentBadge({ count }: { count: number }) {
     <Animated.View
       entering={pop.entering}
       exiting={pop.exiting}
-      accessibilityLabel={`${count} unread`}
-      style={{ position: "absolute", left: "100%", top: 0, bottom: 0, marginLeft: 6, justifyContent: "center" }}
+      style={[marker.trailing, { justifyContent: "center" }]}
     >
       <View style={{ borderRadius: 999, overflow: "hidden", backgroundColor: c.accent, paddingHorizontal: 6 }}>
         <Swap value={label}>
@@ -137,3 +161,32 @@ function SegmentBadge({ count }: { count: number }) {
     </Animated.View>
   );
 }
+
+function SegmentWorking({ count, narrow }: { count: number; narrow: boolean }) {
+  const c = useColors();
+  const { pop } = useMotion();
+  const label = count > 99 ? "99+" : String(count);
+  const width = narrow ? 12 : 48;
+
+  return (
+    <Animated.View entering={pop.entering} exiting={pop.exiting} style={[marker.leading, { width, left: -width - 4 }]}>
+      <WorkingSpinner size={narrow ? 12 : 14} color={c.working.indicator} />
+      {!narrow && (
+        <Text style={[styles.caption, { color: c.working.text, fontVariant: ["tabular-nums"] }]}>{label}</Text>
+      )}
+    </Animated.View>
+  );
+}
+
+const marker = StyleSheet.create({
+  leading: {
+    position: "absolute",
+    top: 0,
+    bottom: 0,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "flex-end",
+    gap: 2,
+  },
+  trailing: { position: "absolute", left: "100%", top: 0, bottom: 0, marginLeft: 6 },
+});

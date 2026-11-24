@@ -41,7 +41,7 @@ export function SidebarOrderCell({
 
   return (
     <Animated.View
-      layout={layout}
+      layout={item.disclosing ? undefined : layout}
       // Fill spare viewport space before Archived without taking its rows out of the FlatList.
       style={[style, item.section === "archived-heading" && { flexGrow: 1, justifyContent: "flex-end" }, animated]}
       onFocusCapture={onFocusCapture}

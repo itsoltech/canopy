@@ -8,6 +8,7 @@ import { useDevicePreferences } from "../settings/device-preferences";
 import { useOverview } from "../../state/overview";
 import { styles, useColors } from "../../ui/theme";
 import { Chevron } from "../../ui/MotionViews";
+import { sidebarRowPadding, useSidebarTypography } from "./sidebar-scale";
 import { Button, Notice } from "../../ui/components";
 import { ListSkeleton } from "../../ui/Skeleton";
 import type { useSidebarThreads } from "./useSidebarThreads";
@@ -137,6 +138,7 @@ export type ArchivedThreads = ReturnType<typeof useArchivedThreads>;
 
 export function SidebarArchivedHeader({ archive }: { archive: ArchivedThreads }) {
   const c = useColors("sidebar-list");
+  const type = useSidebarTypography();
 
   return (
     <Pressable
@@ -144,12 +146,21 @@ export function SidebarArchivedHeader({ archive }: { archive: ArchivedThreads })
       accessibilityLabel={`Archived, ${archive.total ?? "loading"}`}
       accessibilityState={{ expanded: archive.expanded }}
       onPress={archive.toggle}
-      style={[styles.row, { padding: 12, minHeight: 48, marginTop: 8 }]}
+      style={({ pressed }) => [
+        styles.row,
+        {
+          paddingHorizontal: sidebarRowPadding,
+          minHeight: 44,
+          marginTop: 8,
+          borderRadius: 8,
+          backgroundColor: pressed ? c.pressed : "transparent",
+        },
+      ]}
     >
-      <Chevron open={archive.expanded} size={14} />
-      <Text style={[styles.meta, { color: c.muted, fontVariant: ["tabular-nums"] }]}>
+      <Text style={[type.meta, { color: c.muted, flex: 1, fontWeight: "500", fontVariant: ["tabular-nums"] }]}>
         Archived · {archive.total ?? "–"}
       </Text>
+      <Chevron open={archive.expanded} size={16} color={c.faint} />
     </Pressable>
   );
 }
