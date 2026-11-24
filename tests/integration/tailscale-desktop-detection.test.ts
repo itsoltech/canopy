@@ -40,12 +40,24 @@ test.skipIf(process.platform !== "darwin" || !releasedMacCli)(
     const cli = locateTailscale({ path: "", macApp: releasedMacCli ?? "" })?.cli;
 
     if (!cli) throw new Error("The released Tailscale app has no executable CLI");
-    const result = await runCli(cli, ["version"], { path: "", timeoutMs: 5000 });
 
-    expect(result.ok).toBe(true);
-    expect(result.stdout.split("\n")[0]).toBe("1.104.7");
+    // A freshly unpacked signed app can take longer on its first execution.
+    for (const timeoutMs of [20_000, 5000]) {
+      const startedAt = performance.now();
+      const result = await runCli(cli, ["version"], { path: "", timeoutMs });
+
+      if (!result.ok) {
+        const elapsed = Math.round(performance.now() - startedAt);
+        const output = result.stdout ? "with stdout" : "without stdout";
+        const error = result.stderr ? "with stderr" : "without stderr";
+
+        throw new Error(`The bundled CLI failed after ${elapsed} ms (limit ${timeoutMs} ms, ${output}, ${error})`);
+      }
+
+      expect(result.stdout.split("\n")[0]).toBe("1.104.7");
+    }
   },
-  10_000,
+  30_000,
 );
 
 test("Windows finds the installed CLI outside PATH and distinguishes an unreadable status from a missing install", async () => {
