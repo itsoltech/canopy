@@ -1,7 +1,8 @@
 import { expect, spyOn, test } from "bun:test";
+import { Database, SQLiteError } from "bun:sqlite";
 import * as fs from "node:fs";
 import { lstatSync, mkdirSync, readFileSync, readdirSync, renameSync, unlinkSync, writeFileSync } from "node:fs";
-import { dirname, isAbsolute, join, relative } from "node:path";
+import { dirname, isAbsolute, join, relative, sep, toNamespacedPath } from "node:path";
 import { create } from "@bufbuild/protobuf";
 import { Provider, RunBotTurnSchema } from "@canopy/contracts";
 import type { JsonObject } from "@canopy/domain";
@@ -11,6 +12,7 @@ import { fakeModelHandler } from "../import/fixtures/fake-model.ts";
 import { CodexAppServerError, CodexAppServerStartupError } from "../providers/codex/app-server.ts";
 import { codexAppServerLaunch } from "../providers/codex/launch.ts";
 import { profileBotLogin } from "../providers/codex/profile-auth.ts";
+import { decodeJsonObject, jsonObject } from "../providers/json.ts";
 import type { ResolvedProfile } from "../providers/profiles.ts";
 import { runCodexBot } from "./codex.ts";
 import { botSession } from "./session.ts";
@@ -25,6 +27,26 @@ const profileInstructions = "FIXTURE_SOURCE_PROFILE_INSTRUCTIONS";
 const botInstructions = "FIXTURE_BOT_INSTRUCTIONS";
 const readRefresh = Schema.decodeUnknownSync(Schema.Struct({ refresh_token: Schema.String }));
 
+function sqliteCause(message: string) {
+  const lower = message.toLowerCase();
+
+  return [
+    "unable to open database file",
+    "database is locked",
+    "database table is locked",
+    "database schema is locked",
+    "database is busy",
+    "no such table",
+    "no such column",
+    "database disk image is malformed",
+    "file is not a database",
+    "attempt to write a readonly database",
+    "disk i/o error",
+    "database or disk is full",
+    "permission denied",
+  ].find((cause) => lower.includes(cause));
+}
+
 function safeFailure(error: Error): string {
   const kind =
     error instanceof CodexAppServerError
@@ -36,7 +58,21 @@ function safeFailure(error: Error): string {
           ? "harness"
           : "other";
 
-  const reason = [
+  const stages = [
+    [/failed to open thread history database/i, "open thread history database"],
+    [/failed to (?:open|migrate|validate) thread history DB/i, "initialize thread history database"],
+    [/did not include persisted history/i, "missing persisted history"],
+    [/thread writer lock|already has an active writer/i, "thread writer lock"],
+    [/failed to resume local thread recorder/i, "reopen rollout recorder"],
+    [/failed to initialize thread persistence/i, "initialize thread persistence"],
+    [/failed to resolve rollout path/i, "resolve rollout path"],
+    [/failed to load thread history/i, "load thread history"],
+    [/failed to read thread:/i, "read stored thread"],
+    [/failed to build resume response/i, "build resume response"],
+    [/session configured event was not the first event|internal channel closed/i, "session startup event"],
+  ] as const;
+
+  const reasons = [
     [/os error 206|filename.*too long|path.*too long/i, "path length"],
     [/os error 32|os error 33|sharing violation|locked|busy/i, "file busy"],
     [/os error 5|permission|access.*denied/i, "file permission"],
@@ -50,10 +86,125 @@ function safeFailure(error: Error): string {
   ] as const;
 
   const code = error instanceof CodexAppServerError ? error.code : undefined;
-  const osCode = /os error (\d{1,4})\b/i.exec(error.message)?.[1];
-  const matched = reason.find(([pattern]) => pattern.test(error.message))?.[1] ?? "unclassified";
+  const stage = stages.find(([pattern]) => pattern.test(error.message))?.[1];
+  const reason = sqliteCause(error.message) ?? reasons.find(([pattern]) => pattern.test(error.message))?.[1];
 
-  return `${kind}, ${matched}${code === undefined ? "" : `, RPC ${code}`}${osCode ? `, OS ${osCode}` : ""}`;
+  const sqliteCode =
+    /(?:error returned from database:\s*\(code:|sqlite(?: error)?(?: code)?\s*[:=]?)\s*(\d{1,5})\b/i.exec(
+      error.message,
+    )?.[1];
+
+  const osCode = /os error (\d{1,4})\b/i.exec(error.message)?.[1];
+
+  return [
+    kind,
+    stage,
+    reason ?? (stage ? undefined : "unclassified"),
+    code === undefined ? undefined : `RPC ${code}`,
+    sqliteCode && `SQLite ${sqliteCode}`,
+    osCode && `OS ${osCode}`,
+  ]
+    .filter(Boolean)
+    .join(", ");
+}
+
+function fixtureFile(home: string, path: string) {
+  const stat = lstatSync(path, { throwIfNoEntry: false });
+
+  if (!stat) return undefined;
+  const inside = relative(fs.realpathSync(home), fs.realpathSync(path));
+
+  if (
+    !stat.isFile() ||
+    stat.nlink !== 1 ||
+    !inside ||
+    inside === ".." ||
+    inside.startsWith(`..${sep}`) ||
+    isAbsolute(inside)
+  )
+    throw new Error("Unexpected fixture file");
+
+  return stat;
+}
+
+function rolloutDiagnostic(home: string, path: string, id: string): string {
+  if (!isAbsolute(path)) return "path unavailable";
+
+  try {
+    const stat = fixtureFile(home, path);
+
+    if (!stat) return "missing";
+    const contents = readFileSync(path, "utf8");
+    const lines = contents.trimEnd().split("\n");
+
+    if (!contents) return "empty";
+
+    try {
+      const records = lines.map((line) => decodeJsonObject(JSON.parse(line)));
+      const first = records[0];
+      const metadataMatches = first?.["type"] === "session_meta" && jsonObject(first["payload"])?.["id"] === id;
+
+      const completedTurns = records.filter((record) => {
+        const type = jsonObject(record["payload"])?.["type"];
+
+        return record["type"] === "event_msg" && (type === "task_complete" || type === "turn_complete");
+      }).length;
+
+      return `${stat.size} bytes, ${lines.length} records, final newline ${contents.endsWith("\n")}, matching metadata ${metadataMatches}, completed turns ${completedTurns}`;
+    } catch {
+      return `${stat.size} bytes, malformed JSONL`;
+    }
+  } catch {
+    return "unreadable";
+  }
+}
+
+function sqliteDiagnostic(home: string, filename: string, summarize: (db: Database) => string): string {
+  const database = join(home, filename);
+  let state = "unreadable";
+
+  try {
+    if (!fixtureFile(home, database)) return "missing";
+
+    for (const suffix of ["-wal", "-shm", "-journal"]) fixtureFile(home, database + suffix);
+    using db = new Database(database, { readonly: true });
+    const healthy = db.query<{ quick_check: string }, []>("PRAGMA quick_check(1)").get()?.quick_check === "ok";
+    state = `quick check ${healthy}`;
+
+    return `${state}, ${summarize(db)}`;
+  } catch (error) {
+    if (!(error instanceof SQLiteError)) return state;
+    const cause = sqliteCause(error.message);
+
+    return `${state} (SQLite ${error.errno}${cause ? `, ${cause}` : ""})`;
+  }
+}
+
+function indexDiagnostic(home: string, path: string, id: string): string {
+  return sqliteDiagnostic(home, "state_5.sqlite", (db) => {
+    const row = db
+      .query<{ rollout_path: string; model_provider: string; archived: number }, [string]>(
+        "SELECT rollout_path, model_provider, archived FROM threads WHERE id = ?",
+      )
+      .get(id);
+
+    if (!row) return "session row missing";
+
+    const matchingPath =
+      isAbsolute(path) &&
+      isAbsolute(row.rollout_path) &&
+      relative(toNamespacedPath(path), toNamespacedPath(row.rollout_path)) === "";
+
+    return `matching path ${matchingPath}, native provider ${row.model_provider === "openai"}, archived ${row.archived === 1}`;
+  });
+}
+
+function historyDiagnostic(home: string): string {
+  return sqliteDiagnostic(home, "thread_history_1.sqlite", (db) => {
+    const turns = db.query<{ count: number }, []>("SELECT COUNT(*) AS count FROM thread_turns").get()?.count;
+
+    return `projected turns ${turns}`;
+  });
 }
 
 function fictionalLogin() {
@@ -381,6 +532,7 @@ test.skipIf(!enabled)(
             const botConfig = join(fresh.home, "config.toml");
             writeFileSync(botConfig, config);
             let lastSessionId = "";
+            let lastTranscript = "";
 
             const turn = async (text: string, expected: "completed" | "auth_required" = "completed") => {
               const next = { ...input, turnId: crypto.randomUUID() };
@@ -419,6 +571,7 @@ test.skipIf(!enabled)(
                   },
                   noteHarness: async (harness) => {
                     lastSessionId = harness.sessionId;
+                    lastTranscript = harness.transcript;
                     phase = harness.providerTurn ? "after turn admission" : "after conversation admission";
                   },
                   content: async () => ({ text, images: [], documents: [] }),
@@ -431,6 +584,13 @@ test.skipIf(!enabled)(
                 ).toBe(false);
                 outcome = error instanceof BotHarnessFailure && error.code === "auth_required" ? error.code : "failed";
                 failure = Error.isError(error) ? safeFailure(error) : "non-error";
+
+                if (error instanceof CodexAppServerError && error.method === "thread/resume" && error.code === -32603) {
+                  const { home, id } = session;
+                  failure += `, rollout [${rolloutDiagnostic(home, lastTranscript, id)}]`;
+                  failure += `, SQLite index [${indexDiagnostic(home, lastTranscript, id)}], history [${historyDiagnostic(home)}]`;
+                  failure += `, path lengths [home ${home.length}, rollout ${lastTranscript.length}, history ${join(home, "thread_history_1.sqlite").length}]`;
+                }
               }
 
               const diagnostics = `${phase}, failure ${failure}, model generations ${backend.authAttempts}, fixture failures ${[...backend.failures]}`;
